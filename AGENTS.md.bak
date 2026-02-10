@@ -22,6 +22,25 @@ This repository uses a reusable AI Operating System.
    - Planning / Implementation / Validation / Remediation
    - Follow the referenced prompt file exactly.
 
+
+### Entry points (low-token)
+
+```
+Follow ai/INTAKE_PRD.prompt.md
+Follow ai/INTAKE_CHANGE.prompt.md
+Follow ai/INTAKE_ISSUE.prompt.md
+Follow ai/INTAKE_RESEARCH.prompt.md
+Follow ai/INTAKE_HOTFIX.prompt.md
+Follow ai/INTAKE_TECHDEBT.prompt.md
+Follow ai/INTAKE_RFC.prompt.md
+Follow ai/INTAKE_RELEASE.prompt.md
+Follow ai/ORCHESTRATION.prompt.md
+Follow ai/ORCHESTRATION_PARALLEL.prompt.md
+Follow ai/ORCHESTRATION_HITL.prompt.md
+Follow ai/BOOTSTRAP_DIFF.prompt.md
+Follow ai/GENERATE_README.prompt.md
+```
+
 ## Rules
 - Do not claim PASS without executable evidence.
 - Do not invent technologies: read docs/TECHNOLOGY.md first.
