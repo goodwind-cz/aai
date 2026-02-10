@@ -2,32 +2,6 @@
 
 This repository contains a reusable, low-friction AI Operating System: a single workflow definition, semantic roles, canonical prompts, and templates that help humans and AI agents coordinate with traceability and evidence.
 
-
-## Updating AI-OS from template (worktree/vendor sync)
-
-Sync AI-OS vendor files from an external template worktree into this repository.
-
-### Bash / Git-Bash
-```bash
-./scripts/ai-os-sync.sh ../ai-os-template-wt
-git status
-git diff
-git add ai docs AGENTS.md PLAYBOOK.md CLAUDE.md .github/copilot-instructions.md
-git commit -m "Update AI-OS layer"
-```
-
-### PowerShell
-```powershell
-.\scripts\ai-os-sync.ps1 -SourceRoot ..\ai-os-template-wt
-git status
-git diff
-git add ai docs AGENTS.md PLAYBOOK.md CLAUDE.md .github/copilot-instructions.md
-git commit -m "Update AI-OS layer"
-```
-
-- Sync scope includes `ai/**`, `docs/workflow`, `docs/roles`, `docs/templates`, `docs/knowledge`, `docs/ai`, and root shims.
-- It intentionally does **not** overwrite project docs under `docs/requirements`, `docs/specs`, `docs/decisions`, `docs/releases`, or `docs/issues`.
-
 ## What this repository is for
 - Standardizing agent workflows (Planning → Implementation → Validation → Remediation).
 - Capturing requirements, specs, decisions, and knowledge with clear separation.

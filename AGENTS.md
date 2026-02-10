@@ -12,6 +12,8 @@ This repository uses a reusable AI Operating System.
 - Human playbook: PLAYBOOK.md
 - Coordination locks (optional): docs/ai/LOCKS.md
 
+To update the AI-OS layer from a template worktree, see scripts/ai-os-sync.(sh|ps1) and docs/ai/AI_OS_PIN.md.
+
 ## How to run (recommended)
 1) Decide next action:
    - Run ai/ORCHESTRATION.prompt.md (single)
