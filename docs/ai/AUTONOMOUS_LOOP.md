@@ -15,9 +15,10 @@
   - Chooses the next step and allowed role(s).
 - **Specialized agents**
   - **Planner**: converts intake/requirements into SPEC/TASK artifacts.
-  - **Researcher**: enriches facts, risks, and technical constraints.
+  - **Tech extractor/updater**: maintains `docs/TECHNOLOGY.md` when missing/outdated.
   - **Implementer**: executes changes only when implementation gate is open.
   - **Validator**: verifies traceability and evidence, returns PASS/FAIL.
+  - **Remediator**: applies minimal corrective changes after FAIL.
 - **HITL (Human-in-the-loop)**
   - Resolves disputed decisions, scope changes, and high-impact risk decisions.
 
@@ -66,7 +67,7 @@
 
 ## 7) Parallelism policy
 - Allowed parallelism:
-  - multiple planning/research threads on different scope IDs,
+  - multiple planning threads on different scope IDs,
   - validation on independent scopes in parallel.
 - Collision avoidance:
   - ownership by `work_item.id` / document,

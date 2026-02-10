@@ -16,6 +16,7 @@ RESPONSIBILITY
 - Enforce single sources of truth.
 - Enable long-running autonomous agent work.
 - Make the system model-agnostic.
+- Read and respect docs/ai/STATE.yaml before and after bootstrap.
 
 SEMANTIC DISCOVERY (DO NOT HARD-CODE)
 Discover and normalize these concepts, even if named differently:
@@ -103,6 +104,11 @@ ACTIONS YOU MUST PERFORM
 6) Move old analyses to docs/archive/analysis/ and mark them archived.
 7) Ensure knowledge hygiene: FACTS.md and UI_MAP.md exist and are the only “living memory” for reverse analyses.
 8) Remove legacy duplicates (do not leave parallel conflicting docs).
+9) Update docs/ai/STATE.yaml:
+   - current_focus
+   - active_work_items status for bootstrap scope
+   - updated_at_utc
+   - human_input if blocked decision is discovered
 
 FINAL OUTPUT REQUIRED
 - Role mapping (before → after) with rationale.

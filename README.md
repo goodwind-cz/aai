@@ -95,6 +95,14 @@ cat ai/REMEDIATION.prompt.md
 cat ai/REVERSE_ANALYSIS_DASH_FASTAPI_CELERY.prompt.md
 ```
 
+## When to run each action
+- Use `ai/ORCHESTRATION.prompt.md` first to choose the next role from repository state.
+- Use `ai/TECH_EXTRACT.prompt.md` when `docs/TECHNOLOGY.md` is missing or needs first-time creation.
+- Use `ai/TECH_UPDATE_DIFF.prompt.md` when `docs/TECHNOLOGY.md` already exists and repo changes may have altered the technology contract.
+- Use `ai/VALIDATION.prompt.md` after implementation changes to produce executable evidence and PASS/FAIL.
+- Use `ai/REMEDIATION.prompt.md` only after a validation FAIL.
+- Use `ai/BOOTSTRAP.prompt.md` only when normalizing a non-canonical repository structure.
+
 ## Low-token intake (forms)
 Use these entrypoints for all new work (see AGENTS.md for the authoritative list):
 ```bash
@@ -117,6 +125,12 @@ cat ai/INTAKE_RELEASE.prompt.md
 - **Tech debt:** INTAKE_TECHDEBT → ORCHESTRATION.
 - **RFC:** INTAKE_RFC → HITL if a decision is required.
 - **Release:** INTAKE_RELEASE → Validation → Human Go/No-go.
+
+## Runtime state tracking
+- `docs/ai/STATE.yaml` is the runtime state file used by orchestration/autonomous execution.
+- The vendored baseline is intentionally empty (`current_focus: none`, `active_work_items: []`).
+- Populate/update it only when a loop run or role action actually starts.
+- Loop semantics and update rules are defined in `docs/ai/AUTONOMOUS_LOOP.md`.
 
 ## How to write/maintain specs, docs, and prompts
 - Use templates in `docs/templates/`.

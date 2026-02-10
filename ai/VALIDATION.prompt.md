@@ -9,14 +9,23 @@ INVARIANT RULES
   Requirement → Spec → Implementation → Evidence
 - PASS is allowed only if the full chain exists.
 - Any gap results in FAIL.
+- Read and respect docs/ai/STATE.yaml before validation.
 
 PROCESS
-1) Inventory all requirements and acceptance criteria.
-2) Verify mapping to implementation specs.
-3) Locate implementation paths.
-4) Execute verification commands.
-5) Build coverage table.
-6) Produce PASS / FAIL verdict.
+1) Read docs/ai/STATE.yaml and verify validation is allowed (not paused, not blocked by human_input).
+2) Inventory all requirements and acceptance criteria.
+3) Verify mapping to implementation specs.
+4) Locate implementation paths.
+5) Execute verification commands.
+6) Build coverage table.
+7) Produce PASS / FAIL verdict.
+8) Update docs/ai/STATE.yaml:
+   - last_validation.status
+   - last_validation.run_at_utc
+   - last_validation.evidence_paths
+   - last_validation.notes
+   - active_work_items status/phase for validated scope
+   - updated_at_utc
 
 STRICT RULES
 - Do not infer intent.

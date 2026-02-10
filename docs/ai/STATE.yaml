@@ -5,9 +5,9 @@
 #
 # Allowed enums:
 # - project_status: [active, paused]
-# - current_focus.type: [intake_change, intake_issue, intake_prd, intake_hotfix, intake_research, intake_rfc, intake_release, maintenance, none]
+# - current_focus.type: [intake_change, intake_issue, intake_prd, intake_hotfix, intake_research, intake_rfc, intake_release, technology_extraction, maintenance, none]
 # - active_work_items[].status: [planned, in_progress, blocked, done]
-# - active_work_items[].phase: [planning, research, implementation, validation, remediation]
+# - active_work_items[].phase: [planning, implementation, validation, remediation]
 # - last_validation.status: [pass, fail, not_run]
 #
 # Invariants:
@@ -24,9 +24,9 @@
 project_status: active
 
 current_focus:
-  type: maintenance
-  ref_id: AI-OS-FOUNDATION
-  primary_path: docs/ai/AUTONOMOUS_LOOP.md
+  type: none
+  ref_id: null
+  primary_path: null
 
 locks:
   implementation: true
@@ -39,27 +39,14 @@ locks:
   protected_paths_reason: "Edits are allowed only with explicit scope/HITL approval."
 
 active_work_items:
-  - id: AI-OS-FOUNDATION-AUTONOMOUS-LOOP
-    title: "Define autonomous runtime loop"
-    status: done
-    phase: planning
-    owner_role: Planner
-    artifact_paths:
-      - docs/ai/AUTONOMOUS_LOOP.md
-  - id: AI-OS-FOUNDATION-STATE-MODEL
-    title: "Create single-source-of-truth state model"
-    status: done
-    phase: planning
-    owner_role: Planner
-    artifact_paths:
-      - docs/ai/STATE.yaml
+  []
 
 last_validation:
   status: not_run
   run_at_utc: null
   validator_ref: ai/VALIDATION.prompt.md
   evidence_paths: []
-  notes: "Docs-only change; validation run has not been executed."
+  notes: "No validation run yet."
 
 human_input:
   required: false
@@ -71,4 +58,4 @@ ai_os:
   pin_version: null
   pin_commit: null
 
-updated_at_utc: "2026-02-10T00:00:00Z"
+updated_at_utc: "2026-02-10T21:26:35Z"
