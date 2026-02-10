@@ -1,0 +1,74 @@
+# AI-OS STATE — schema & rules (single source of truth)
+#
+# Required keys:
+# - project_status, current_focus, locks, active_work_items, last_validation, human_input, ai_os
+#
+# Allowed enums:
+# - project_status: [active, paused]
+# - current_focus.type: [intake_change, intake_issue, intake_prd, intake_hotfix, intake_research, intake_rfc, intake_release, maintenance, none]
+# - active_work_items[].status: [planned, in_progress, blocked, done]
+# - active_work_items[].phase: [planning, research, implementation, validation, remediation]
+# - last_validation.status: [pass, fail, not_run]
+#
+# Invariants:
+# - If locks.implementation == true, code changes must not be introduced.
+# - If human_input.required == true, no new implementation steps may start.
+# - PASS is valid only when last_validation.evidence_paths is non-empty.
+# - If current_focus.type == none, active_work_items should be empty.
+#
+# Update policy:
+# - Updated by Orchestrator after each loop run and after each validation verdict.
+# - Specialized roles may update only their own sections (for example validator -> last_validation).
+# - Every update must set updated_at_utc (ISO 8601).
+
+project_status: active
+
+current_focus:
+  type: maintenance
+  ref_id: AI-OS-FOUNDATION
+  primary_path: docs/ai/AUTONOMOUS_LOOP.md
+
+locks:
+  implementation: true
+  implementation_reason: "Implementation is forbidden until scope is explicitly unlocked in state."
+  protected_paths:
+    - docs/workflow/
+    - docs/roles/
+    - ai/
+  protected_paths_edit_allowed: false
+  protected_paths_reason: "Edits are allowed only with explicit scope/HITL approval."
+
+active_work_items:
+  - id: AI-OS-FOUNDATION-AUTONOMOUS-LOOP
+    title: "Define autonomous runtime loop"
+    status: done
+    phase: planning
+    owner_role: Planner
+    artifact_paths:
+      - docs/ai/AUTONOMOUS_LOOP.md
+  - id: AI-OS-FOUNDATION-STATE-MODEL
+    title: "Create single-source-of-truth state model"
+    status: done
+    phase: planning
+    owner_role: Planner
+    artifact_paths:
+      - docs/ai/STATE.yaml
+
+last_validation:
+  status: not_run
+  run_at_utc: null
+  validator_ref: ai/VALIDATION.prompt.md
+  evidence_paths: []
+  notes: "Docs-only change; validation run has not been executed."
+
+human_input:
+  required: false
+  question_ref: null
+  blocking_reason: null
+
+ai_os:
+  pin_path: docs/ai/AI_OS_PIN.md
+  pin_version: null
+  pin_commit: null
+
+updated_at_utc: "2026-02-10T00:00:00Z"
