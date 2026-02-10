@@ -6,7 +6,6 @@ This file is intentionally minimal to prevent duplicated or conflicting guidance
 - Primary agent guide: AGENTS.md
 - Human playbook: PLAYBOOK.md
 - Canonical prompts: ai/*.prompt.md
-- Intake entrypoints: listed in AGENTS.md
 - Canonical workflow: docs/workflow/WORKFLOW.md
 - Technology contract (authoritative): docs/TECHNOLOGY.md
 

@@ -6,7 +6,6 @@ This repository uses a single canonical workflow and a prompt suite for consiste
 - Agent guide: /AGENTS.md
 - Playbook: /PLAYBOOK.md
 - Prompts: /ai/*.prompt.md
-- Intake entrypoints: /AGENTS.md
 - Workflow: /docs/workflow/WORKFLOW.md
 - Technology contract: /docs/TECHNOLOGY.md
 
