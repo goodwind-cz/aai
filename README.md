@@ -133,6 +133,14 @@ cat ai/INTAKE_RELEASE.prompt.md
 - `INTAKE_RFC`: Proposal where options/tradeoffs and approvers are needed.
 - `INTAKE_RELEASE`: Release/hotfix planning with executable gates and sign-offs.
 
+Template mapping:
+- `INTAKE_ISSUE` and `INTAKE_HOTFIX` -> `docs/templates/ISSUE_TEMPLATE.md`
+- `INTAKE_CHANGE` -> `docs/templates/CHANGE_TEMPLATE.md`
+- `INTAKE_TECHDEBT` -> `docs/templates/TECHDEBT_TEMPLATE.md`
+- `INTAKE_PRD` -> `docs/templates/REQUIREMENT_TEMPLATE.md`
+- `INTAKE_RFC` -> `docs/templates/RFC_TEMPLATE.md`
+- `INTAKE_RELEASE` -> `docs/templates/RELEASE_TEMPLATE.md`
+
 ## Minimal input examples (user input can be Czech; saved doc stays English)
 - `INTAKE_CHANGE` example:
   - "V detailu objednavky chci zobrazit i interni kod skladu, kvuli podpore."

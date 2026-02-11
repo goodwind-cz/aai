@@ -1,10 +1,10 @@
-# Issue / Change Template
+# Issue Template
 
 ## Summary
-- Short description of the issue/change.
+- Short description of the issue.
 
 ## Type
-- bug | change | hotfix | tech-debt
+- bug | hotfix
 
 ## Impact
 - Who/what is affected?
