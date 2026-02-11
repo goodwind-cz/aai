@@ -48,3 +48,9 @@ Follow ai/GENERATE_README.prompt.md
 - Do not invent technologies: read docs/TECHNOLOGY.md first.
 - Archived analyses are read-only; new knowledge goes into FACTS.md and UI_MAP.md.
 - If CLAUDE.md or Copilot instructions conflict with this file, follow this file.
+- Bootstrap must preserve scaffolding assets: never delete docs/templates/*,
+  docs/rfc/, or docs/**/.gitkeep placeholders only because they are unreferenced.
+- Intake language policy: accept user input in the user's language, but write
+  saved repository documents in English.
+- Intake efficiency policy: ask only for missing high-impact fields, prefer
+  explicit assumptions over long clarification loops, and keep intake token-light.

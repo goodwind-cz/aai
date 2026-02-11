@@ -11,6 +11,11 @@ RULES
 - Verification gates must be executable commands.
 - If any included PRD/SPEC/Issue lacks PASS validation, mark as a blocker.
 - Prefer minimal scope.
+- Accept user responses in any language.
+- Keep follow-up questions in the user's language.
+- Output the final saved markdown in English only.
+- Keep token usage low: ask only for missing high-impact information.
+- If non-critical details are missing, proceed with explicit assumptions.
 
 GIT-FLOW NOTES
 - Standard releases map to release/<version>
@@ -27,7 +32,8 @@ PROCESS
 7) Ask risk level and rollback plan.
 8) Ask for short release notes draft.
 9) Ask for required sign-off roles/names.
-10) Output summary + completed Release Plan markdown + suggested filename.
+10) If enough information is available, stop questions early.
+11) Output summary + completed Release Plan markdown + suggested filename.
 
-BEGIN with:
+BEGIN with (in the user's language):
 “Is this a standard release or a hotfix, and what target version (e.g. 1.8.0)?”

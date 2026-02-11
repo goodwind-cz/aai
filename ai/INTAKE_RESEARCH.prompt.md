@@ -9,6 +9,11 @@ RULES
 - Do NOT implement code.
 - Define clear questions and expected outputs.
 - Identify constraints and timebox.
+- Accept user responses in any language.
+- Keep follow-up questions in the user's language.
+- Output the final saved markdown in English only.
+- Keep token usage low: ask only for missing high-impact information.
+- If non-critical details are missing, proceed with explicit assumptions.
 
 PROCESS
 1) Ask for research goal/question.
@@ -16,7 +21,8 @@ PROCESS
 3) Ask for success criteria (deliverables).
 4) Ask for constraints (timebox, tools, data access).
 5) Ask for stakeholders/consumers.
-6) Output summary + completed Research markdown + suggested filename.
+6) If enough information is available, stop questions early.
+7) Output summary + completed Research markdown + suggested filename.
 
-BEGIN with:
+BEGIN with (in the user's language):
 “What is the research question or spike goal?”

@@ -26,6 +26,11 @@ Before asking:
   - current locks/focus
   - human_input.required
 
+STATE OWNERSHIP POLICY
+- `docs/ai/STATE.yaml` is orchestration-managed runtime state.
+- If missing/invalid, auto-create or repair it with safe defaults before continuing.
+- Do not require manual human editing of state for normal flow.
+
 STATE WRITEBACK (MANDATORY)
 - On DISPATCH: update docs/ai/STATE.yaml `current_focus`, `active_work_items`, `updated_at_utc`.
 - On HUMAN DECISION REQUIRED: set `human_input.required=true`, set `question_ref`, set `blocking_reason`, set `updated_at_utc`.

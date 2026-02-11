@@ -9,6 +9,11 @@ AUTHORITATIVE
 - Requirements/specs/reports
 - docs/ai/LOCKS.md
 
+STATE OWNERSHIP POLICY
+- `docs/ai/STATE.yaml` is orchestration-managed runtime state.
+- If missing/invalid, auto-create or repair it with safe defaults before scheduling.
+- Do not require manual human editing of state for normal flow.
+
 PARALLELISM RULES
 - Parallelize only across independent scopes.
 - Never run two roles on the same scope concurrently.

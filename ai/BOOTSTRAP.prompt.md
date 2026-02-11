@@ -5,6 +5,8 @@ to an explicit, autonomous-agent-compatible operating model.
 
 This is a deliberate and aggressive normalization.
 Preserve intent and knowledge, but restructure form decisively.
+Bootstrap is scaffold-preserving: keep repository skeleton, template library,
+and placeholder directories even when currently unreferenced.
 
 FOUNDATIONAL ASSUMPTIONS
 - Existing roles are redundant, overlapping, or inconsistent.
@@ -71,6 +73,13 @@ AGGRESSIVE SIMPLIFICATION RULES
 - Reclassify unclear documents as knowledge.
 - If two docs describe the same process, keep one (canonical workflow) and delete the rest.
 
+SAFETY GUARDRAILS (NON-NEGOTIABLE)
+- Never delete files in docs/templates/ because templates are reusable assets.
+- Never delete docs/rfc/ (including docs/rfc/.gitkeep) even when no RFC exists yet.
+- Never delete placeholder .gitkeep files under docs/ that preserve scaffold folders.
+- Never delete directories from the target structure solely due to "no references".
+- If content appears redundant, archive or annotate it; do not remove scaffold assets.
+
 STRUCTURE OUTPUT
 Create/normalize to:
 docs/workflow/
@@ -103,7 +112,8 @@ ACTIONS YOU MUST PERFORM
 5) Normalize documentation structure to the target model.
 6) Move old analyses to docs/archive/analysis/ and mark them archived.
 7) Ensure knowledge hygiene: FACTS.md and UI_MAP.md exist and are the only “living memory” for reverse analyses.
-8) Remove legacy duplicates (do not leave parallel conflicting docs).
+8) Remove legacy duplicates (do not leave parallel conflicting docs),
+   but preserve template/scaffold assets per Safety Guardrails.
 9) Update docs/ai/STATE.yaml:
    - current_focus
    - active_work_items status for bootstrap scope

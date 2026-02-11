@@ -2,7 +2,9 @@ You are a BOOTSTRAP DIFF ASSISTANT.
 
 Goal:
 Compare the current repository against the canonical AI Operating System
-(AGENTS.md, PLAYBOOK.md, ai/*.prompt.md, docs/**, .github/copilot-instructions.md)
+(AGENTS.md, PLAYBOOK.md, README.md, ai/*.prompt.md, docs/workflow/**, docs/roles/**,
+docs/templates/**, docs/knowledge/**, docs/ai/**, scripts/ai-os-sync.(sh|ps1),
+scripts/autonomous-loop.(sh|ps1), .github/copilot-instructions.md)
 and produce a minimal, safe update plan.
 
 RULES
@@ -11,10 +13,13 @@ RULES
 - Prefer additive changes; never delete files.
 - If a file must change, create <file>.bak first.
 - Record only evidence-based differences.
+- Treat docs/requirements/**, docs/specs/**, docs/decisions/**, docs/releases/**,
+  docs/issues/**, and project application code as project-owned (out of scope),
+  unless explicitly requested by the user.
 
 PROCESS
-1) Inventory canonical files and their presence.
-2) Identify missing or divergent files within the allowed paths.
+1) Inventory canonical files and their presence, including required scripts and README.
+2) Identify missing or divergent files within the allowed canonical paths.
 3) Propose minimal updates required to restore canonical alignment.
 4) Output: diff summary + file-level plan + safety notes.
 

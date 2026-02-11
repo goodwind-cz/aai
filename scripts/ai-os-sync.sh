@@ -51,7 +51,19 @@ if [[ -d "$SRC_ROOT/docs/knowledge" ]]; then copy_with_bak "$SRC_ROOT/docs/knowl
 if [[ -d "$SRC_ROOT/docs/ai" ]]; then copy_with_bak "$SRC_ROOT/docs/ai" "docs/ai"; fi
 
 # Root canonical shims/files (only if present in template)
-for f in AGENTS.md PLAYBOOK.md CLAUDE.md; do
+for f in AGENTS.md PLAYBOOK.md CLAUDE.md README.md; do
+  if [[ -f "$SRC_ROOT/$f" ]]; then
+    copy_with_bak "$SRC_ROOT/$f" "$f"
+  fi
+done
+
+# Canonical helper scripts
+for f in \
+  scripts/ai-os-sync.ps1 \
+  scripts/ai-os-sync.sh \
+  scripts/autonomous-loop.ps1 \
+  scripts/autonomous-loop.sh
+do
   if [[ -f "$SRC_ROOT/$f" ]]; then
     copy_with_bak "$SRC_ROOT/$f" "$f"
   fi

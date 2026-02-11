@@ -49,7 +49,20 @@ $aiDocs = Join-Path $SourceRoot "docs/ai"
 if (Test-Path $aiDocs) { Copy-WithBak $aiDocs "docs/ai" }
 
 # Root canonical shims/files (only if present in template)
-foreach ($f in @("AGENTS.md","PLAYBOOK.md","CLAUDE.md")) {
+foreach ($f in @("AGENTS.md","PLAYBOOK.md","CLAUDE.md","README.md")) {
+  $srcFile = Join-Path $SourceRoot $f
+  if (Test-Path $srcFile) {
+    Copy-WithBak $srcFile $f
+  }
+}
+
+# Canonical helper scripts
+foreach ($f in @(
+  "scripts/ai-os-sync.ps1",
+  "scripts/ai-os-sync.sh",
+  "scripts/autonomous-loop.ps1",
+  "scripts/autonomous-loop.sh"
+)) {
   $srcFile = Join-Path $SourceRoot $f
   if (Test-Path $srcFile) {
     Copy-WithBak $srcFile $f

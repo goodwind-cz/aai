@@ -116,6 +116,42 @@ cat ai/INTAKE_RFC.prompt.md
 cat ai/INTAKE_RELEASE.prompt.md
 ```
 
+## Intake language and efficiency policy
+- You can provide intake answers in your preferred language.
+- The assistant should ask follow-up questions in your language.
+- Saved repository documents must always be written in English.
+- Intake should stay token-light: ask only high-impact missing fields.
+- If minor details are missing, continue with explicit assumptions.
+
+## Intake router (when to use what)
+- `INTAKE_PRD`: New feature/product requirement with measurable acceptance criteria.
+- `INTAKE_CHANGE`: Small enhancement or behavior change with limited scope.
+- `INTAKE_ISSUE`: Bug report with reproducible steps.
+- `INTAKE_HOTFIX`: Urgent production issue requiring severity + rollback plan.
+- `INTAKE_TECHDEBT`: Refactor/maintainability/performance debt item.
+- `INTAKE_RESEARCH`: Spike/research question with timebox and deliverables.
+- `INTAKE_RFC`: Proposal where options/tradeoffs and approvers are needed.
+- `INTAKE_RELEASE`: Release/hotfix planning with executable gates and sign-offs.
+
+## Minimal input examples (user input can be Czech; saved doc stays English)
+- `INTAKE_CHANGE` example:
+  - "V detailu objednavky chci zobrazit i interni kod skladu, kvuli podpore."
+- `INTAKE_ISSUE` example:
+  - "Pri prihlaseni pres SSO obcas spadne callback s 500; reprodukce na stagingu."
+- `INTAKE_PRD` example:
+  - "Chci export faktur do CSV kvuli auditu. AC: export do 5s pro 10k radku."
+- `INTAKE_RFC` example:
+  - "Potrebujeme rozhodnout mezi RabbitMQ a SQS pro asynchronni processing."
+- `INTAKE_RELEASE` example:
+  - "Release 1.12.0 pristi stredu, scope PRD-014 + SPEC-022, gate: pytest -q."
+
+## Fast operating pattern (more autonomy, fewer tokens)
+1) Start with one intake prompt and provide a compact first answer (2-6 lines).
+2) Let the assistant ask only missing high-impact questions.
+3) Accept assumptions for low-risk details to avoid long Q&A loops.
+4) Run `ai/ORCHESTRATION.prompt.md` immediately after intake output is saved.
+5) Use `ai/ORCHESTRATION_HITL.prompt.md` only for explicit human decisions.
+
 ## Common flows
 - **New feature:** INTAKE_PRD → ORCHESTRATION → role cycles → PASS.
 - **Small change:** INTAKE_CHANGE → ORCHESTRATION.
@@ -129,8 +165,42 @@ cat ai/INTAKE_RELEASE.prompt.md
 ## Runtime state tracking
 - `docs/ai/STATE.yaml` is the runtime state file used by orchestration/autonomous execution.
 - The vendored baseline is intentionally empty (`current_focus: none`, `active_work_items: []`).
+- In normal operation, orchestration populates/updates it automatically (no manual editing required).
 - Populate/update it only when a loop run or role action actually starts.
 - Loop semantics and update rules are defined in `docs/ai/AUTONOMOUS_LOOP.md`.
+
+## Autonomous loop runners (no manual STATE editing)
+Use the helper scripts to run repeated autonomous ticks until a stop condition:
+- `project_status=paused`
+- `human_input.required=true`
+- `last_validation.status=pass`
+
+`TickCommand` must perform one autonomous cycle:
+1) follow `ai/ORCHESTRATION.prompt.md`,
+2) execute the dispatched role for the current scope,
+3) write back `docs/ai/STATE.yaml`,
+4) stop.
+
+### PowerShell
+```powershell
+.\scripts\autonomous-loop.ps1 `
+  -TickCommand '<your-agent-one-tick-command>' `
+  -MaxIterations 20 `
+  -SleepSeconds 1 `
+  -AutoInitState
+```
+
+### Bash
+```bash
+./scripts/autonomous-loop.sh \
+  --tick-command "<your-agent-one-tick-command>" \
+  --max-iterations 20 \
+  --sleep-seconds 1 \
+  --auto-init-state
+```
+
+Tip:
+- Use `-DryRun` (PowerShell) or `--dry-run` (Bash) to verify loop behavior without executing the agent command.
 
 ## How to write/maintain specs, docs, and prompts
 - Use templates in `docs/templates/`.

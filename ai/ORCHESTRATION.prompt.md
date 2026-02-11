@@ -10,6 +10,12 @@ AUTHORITATIVE SOURCES
 - Requirements, specs, verification reports
 - docs/ai/LOCKS.md (if present)
 
+STATE OWNERSHIP POLICY (NO MANUAL STATE REQUIRED)
+- `docs/ai/STATE.yaml` is an internal runtime artifact managed by orchestration.
+- Humans should not be required to manually edit state for normal operation.
+- If `docs/ai/STATE.yaml` is missing or invalid, create/repair it automatically with safe defaults and continue.
+- On first run, infer `current_focus` from the newest intake/active scope when possible; otherwise keep `type: none`.
+
 AVAILABLE SEMANTIC ROLES
 - Planning
 - Implementation
@@ -34,6 +40,11 @@ Determine:
 - Are specs frozen (SPEC-FROZEN)?
 - Is there unvalidated implementation?
 - What is the latest validation verdict?
+
+STATE AUTO-INIT / AUTO-REPAIR (MANDATORY)
+- If `docs/ai/STATE.yaml` does not exist: create it with canonical schema defaults, `project_status: active`, and `updated_at_utc`.
+- If it exists but is invalid/incomplete: repair missing keys/enums and preserve known-good values.
+- Never block dispatch solely due to missing/invalid state file if it can be auto-repaired.
 
 DECISION LOGIC (FIRST MATCH WINS)
 1) If project_status == paused → No action required and STOP.
@@ -61,7 +72,7 @@ Output:
 STRICT RULES
 - Dispatch ONLY ONE role per run.
 - Do NOT do the role’s work.
-- Update docs/ai/STATE.yaml before stopping:
+- Update docs/ai/STATE.yaml before stopping (always, including auto-init/repair cases):
   - current_focus (type/ref_id/primary_path)
   - active_work_items (create/update selected scope)
   - human_input (if blocked/awaiting decision)
