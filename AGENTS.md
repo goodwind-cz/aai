@@ -54,3 +54,6 @@ Follow ai/GENERATE_README.prompt.md
   saved repository documents in English.
 - Intake efficiency policy: ask only for missing high-impact fields, prefer
   explicit assumptions over long clarification loops, and keep intake token-light.
+- Commit gating policy: create a commit only after the full intake-scoped task
+  is completed, verified with executable evidence, fully documented, and only
+  after explicit user confirmation.
