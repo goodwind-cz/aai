@@ -22,6 +22,10 @@ To update the AI-OS layer from a template worktree, see scripts/ai-os-sync.(sh|p
 
 2) Execute the dispatched role:
    - Planning / Implementation / Validation / Remediation
+   - Planning: ai/PLANNING.prompt.md
+   - Implementation: ai/IMPLEMENTATION.prompt.md
+   - Validation: ai/VALIDATION.prompt.md
+   - Remediation: ai/REMEDIATION.prompt.md
    - Follow the referenced prompt file exactly.
 
 

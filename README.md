@@ -80,6 +80,16 @@ cat ai/ORCHESTRATION_PARALLEL.prompt.md
 cat ai/ORCHESTRATION_HITL.prompt.md
 ```
 
+### Planning
+```bash
+cat ai/PLANNING.prompt.md
+```
+
+### Implementation
+```bash
+cat ai/IMPLEMENTATION.prompt.md
+```
+
 ### Validation
 ```bash
 cat ai/VALIDATION.prompt.md
@@ -97,6 +107,8 @@ cat ai/REVERSE_ANALYSIS_DASH_FASTAPI_CELERY.prompt.md
 
 ## When to run each action
 - Use `ai/ORCHESTRATION.prompt.md` first to choose the next role from repository state.
+- Use `ai/PLANNING.prompt.md` when orchestration dispatches Planning, or when requirement-to-spec mapping/measurability is missing.
+- Use `ai/IMPLEMENTATION.prompt.md` when orchestration dispatches Implementation and the target spec is frozen.
 - Use `ai/TECH_EXTRACT.prompt.md` when `docs/TECHNOLOGY.md` is missing or needs first-time creation.
 - Use `ai/TECH_UPDATE_DIFF.prompt.md` when `docs/TECHNOLOGY.md` already exists and repo changes may have altered the technology contract.
 - Use `ai/VALIDATION.prompt.md` after implementation changes to produce executable evidence and PASS/FAIL.
