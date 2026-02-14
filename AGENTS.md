@@ -61,3 +61,13 @@ Follow ai/GENERATE_README.prompt.md
 - Commit gating policy: create a commit only after the full intake-scoped task
   is completed, verified with executable evidence, fully documented, and only
   after explicit user confirmation.
+
+## Engineering Best Practices
+- Prefer DRY: avoid duplicated logic; extract shared behavior behind clear interfaces.
+- Apply SOLID where it improves maintainability, especially Single Responsibility and Dependency Inversion.
+- Keep solutions simple (KISS); avoid accidental complexity.
+- Use YAGNI: do not implement speculative features before a requirement exists.
+- Maintain clear separation of concerns (domain, orchestration, infrastructure, UI).
+- Preserve backward compatibility at public boundaries (APIs/events/contracts), or document explicit breaking changes.
+- Design for testability: deterministic behavior, small units, and executable verification paths.
+- Make errors explicit and actionable: fail fast, surface context, avoid silent failures.

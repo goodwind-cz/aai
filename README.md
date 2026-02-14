@@ -256,6 +256,7 @@ Tip:
 - Keep workflow canonical in `docs/workflow/WORKFLOW.md`.
 - Store verified facts in `docs/knowledge/FACTS.md` and UI mappings in `docs/knowledge/UI_MAP.md`.
 - Keep prompts in `ai/*.prompt.md` and avoid duplicates elsewhere.
+- Follow engineering principles from `AGENTS.md`: DRY, SOLID, KISS, YAGNI, separation of concerns, testability, explicit error handling, and contract compatibility.
 
 ## How to extend this for a new project
 1) Copy `ai/` and `docs/` into your repo.

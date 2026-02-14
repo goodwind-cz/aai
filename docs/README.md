@@ -130,6 +130,7 @@ cat ai/ORCHESTRATION_HITL.prompt.md
 - **Requirements and specs:** Use templates in `docs/templates/`.
 - **Knowledge:** Put verified facts in `docs/knowledge/FACTS.md` and UI trace in `docs/knowledge/UI_MAP.md`.
 - **Prompts:** Keep canonical prompts in `ai/*.prompt.md` and avoid duplications elsewhere.
+- **Engineering practices:** Follow `AGENTS.md` for DRY, SOLID, KISS, YAGNI, separation of concerns, testability, explicit error handling, and contract compatibility.
 
 ## 8) How to extend this for a new project
 1. Copy the `ai/` and `docs/` trees into your repo.
