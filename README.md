@@ -103,6 +103,7 @@ cat ai/REMEDIATION.prompt.md
 ### Reverse analysis
 ```bash
 cat ai/REVERSE_ANALYSIS_DASH_FASTAPI_CELERY.prompt.md
+cat ai/REVERSE_ANALYSIS_GENERIC.prompt.md
 ```
 
 ## When to run each action
@@ -209,6 +210,34 @@ Use the helper scripts to run repeated autonomous ticks until a stop condition:
   -SleepSeconds 1 `
   -AutoInitState
 ```
+
+Examples (PowerShell):
+```powershell
+# Codex CLI
+.\scripts\autonomous-loop.ps1 `
+  -TickCommand 'codex --prompt-file ai/ORCHESTRATION.prompt.md' `
+  -MaxIterations 20 `
+  -SleepSeconds 1 `
+  -AutoInitState
+
+# Claude CLI
+.\scripts\autonomous-loop.ps1 `
+  -TickCommand 'claude --prompt-file ai/ORCHESTRATION.prompt.md' `
+  -MaxIterations 20 `
+  -SleepSeconds 1 `
+  -AutoInitState
+
+# Gemini CLI
+.\scripts\autonomous-loop.ps1 `
+  -TickCommand 'gemini --prompt-file ai/ORCHESTRATION.prompt.md' `
+  -MaxIterations 20 `
+  -SleepSeconds 1 `
+  -AutoInitState
+```
+
+`-TickCommand` expects an executable command string.  
+`ORCHESTRATION,prompt` is not valid by itself.
+CLI flags differ by version; if needed, replace `--prompt-file ...` with your agent's equivalent option.
 
 ### Bash
 ```bash

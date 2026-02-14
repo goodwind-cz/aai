@@ -103,7 +103,7 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
   $stateBefore = Read-State
   $preStop = Stop-Reason -state $stateBefore
   if ($preStop) {
-    Write-Host "Stop before iteration $i: $preStop"
+    Write-Host "Stop before iteration $($i): $preStop"
     break
   }
 
@@ -121,7 +121,7 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
   $stateAfter = Read-State
   $postStop = Stop-Reason -state $stateAfter
   if ($postStop) {
-    Write-Host "Stop after iteration $i: $postStop"
+    Write-Host "Stop after iteration $($i): $postStop"
     break
   }
 

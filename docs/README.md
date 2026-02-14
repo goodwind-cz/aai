@@ -33,6 +33,7 @@ Use this repo to bootstrap or normalize an AI-ready documentation and prompt sys
 │   ├── TECH_EXTRACT.prompt.md
 │   ├── TECH_UPDATE_DIFF.prompt.md
 │   ├── REVERSE_ANALYSIS_DASH_FASTAPI_CELERY.prompt.md
+│   ├── REVERSE_ANALYSIS_GENERIC.prompt.md
 │   └── DOCS_COMPRESS_TO_FACTS.prompt.md
 ├── docs/
 │   ├── workflow/WORKFLOW.md
@@ -91,6 +92,10 @@ cat ai/REMEDIATION.prompt.md
 Use the reverse analysis prompt when mapping UI-to-code in Dash/FastAPI/Celery stacks.
 ```bash
 cat ai/REVERSE_ANALYSIS_DASH_FASTAPI_CELERY.prompt.md
+```
+Use the generic reverse analysis prompt for any stack, including external repository references.
+```bash
+cat ai/REVERSE_ANALYSIS_GENERIC.prompt.md
 ```
 
 ## 6) Example workflows
