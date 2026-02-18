@@ -1,58 +1,90 @@
 param(
   [Parameter(Mandatory=$true)]
-  [string]$SourceRoot
+  [string]$TargetRoot
 )
 
 $ErrorActionPreference = "Stop"
 
-function Copy-WithBak {
+# Push AI-OS layer FROM this repository INTO a target project.
+#
+# Usage (run from anywhere, script finds its own repo root):
+#   .\scripts\ai-os-sync.ps1 -TargetRoot ..\maty-ai
+#
+# Example:
+#   .\scripts\ai-os-sync.ps1 -TargetRoot z:\AI\maty-ai
+
+function Copy-Replace {
   param(
     [Parameter(Mandatory=$true)][string]$Src,
     [Parameter(Mandatory=$true)][string]$Dst
   )
-
-  if (Test-Path $Dst) {
-    try {
-      if (Test-Path "$Dst.bak") { Remove-Item "$Dst.bak" -Recurse -Force -ErrorAction SilentlyContinue }
-      Copy-Item $Dst "$Dst.bak" -Recurse -Force -ErrorAction SilentlyContinue
-    } catch {}
-    Remove-Item $Dst -Recurse -Force
-  }
+  # Git is the backup — no .bak files needed.
+  if (Test-Path $Dst) { Remove-Item $Dst -Recurse -Force }
   Copy-Item $Src $Dst -Recurse -Force
 }
 
-if (!(Test-Path (Join-Path $SourceRoot "ai"))) {
-  throw "Source missing ai/ directory: $SourceRoot"
+# Resolve source = this repository's root (parent of the scripts/ folder)
+$SrcRoot = Split-Path -Parent $PSScriptRoot
+
+if (!(Test-Path (Join-Path $SrcRoot "ai"))) {
+  throw "Source missing ai/ directory: $SrcRoot"
 }
 
-Write-Host "Syncing AI-OS from: $SourceRoot"
-Write-Host "Target project: $(Get-Location)"
+if (!(Test-Path $TargetRoot)) {
+  throw "Target directory does not exist: $TargetRoot"
+}
 
-New-Item -ItemType Directory -Force -Path "scripts","ai",".github","docs/workflow","docs/roles","docs/templates","docs/knowledge","docs/ai" | Out-Null
+$TargetRoot = (Resolve-Path $TargetRoot).Path
+
+Write-Host "Syncing AI-OS from: $SrcRoot"
+Write-Host "Target project:     $TargetRoot"
+
+# Target directories (AI-OS layer only)
+foreach ($d in @("ai",".github","docs/workflow","docs/roles","docs/templates","docs/knowledge","docs/ai","scripts")) {
+  New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot $d) | Out-Null
+}
 
 # Copy AI-OS canonical layer
-Copy-WithBak (Join-Path $SourceRoot "ai") "ai"
+Copy-Replace (Join-Path $SrcRoot "ai") (Join-Path $TargetRoot "ai")
 
-$wf = Join-Path $SourceRoot "docs/workflow"
-if (Test-Path $wf) { Copy-WithBak $wf "docs/workflow" }
+$wf = Join-Path $SrcRoot "docs/workflow"
+if (Test-Path $wf) { Copy-Replace $wf (Join-Path $TargetRoot "docs/workflow") }
 
-$roles = Join-Path $SourceRoot "docs/roles"
-if (Test-Path $roles) { Copy-WithBak $roles "docs/roles" }
+$roles = Join-Path $SrcRoot "docs/roles"
+if (Test-Path $roles) { Copy-Replace $roles (Join-Path $TargetRoot "docs/roles") }
 
-$tpl = Join-Path $SourceRoot "docs/templates"
-if (Test-Path $tpl) { Copy-WithBak $tpl "docs/templates" }
+$tpl = Join-Path $SrcRoot "docs/templates"
+if (Test-Path $tpl) { Copy-Replace $tpl (Join-Path $TargetRoot "docs/templates") }
 
-$know = Join-Path $SourceRoot "docs/knowledge"
-if (Test-Path $know) { Copy-WithBak $know "docs/knowledge" }
+# docs/knowledge: file-by-file copy; skip files that no longer contain the
+# AI-OS-TEMPLATE sentinel (meaning the target project has filled them with real content).
+$know = Join-Path $SrcRoot "docs/knowledge"
+if (Test-Path $know) {
+  New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot "docs/knowledge") | Out-Null
+  Get-ChildItem -Path $know -File | ForEach-Object {
+    $srcFile = $_.FullName
+    $dstFile = Join-Path $TargetRoot "docs/knowledge" $_.Name
+    $isTemplate = $true
+    if (Test-Path $dstFile) {
+      $content = Get-Content $dstFile -Raw -ErrorAction SilentlyContinue
+      $isTemplate = $content -match "AI-OS-TEMPLATE"
+    }
+    if ($isTemplate) {
+      Copy-Item $srcFile $dstFile -Force
+    } else {
+      Write-Host "  SKIP (project-owned, sentinel removed): $dstFile"
+    }
+  }
+}
 
-$aiDocs = Join-Path $SourceRoot "docs/ai"
-if (Test-Path $aiDocs) { Copy-WithBak $aiDocs "docs/ai" }
+$aiDocs = Join-Path $SrcRoot "docs/ai"
+if (Test-Path $aiDocs) { Copy-Replace $aiDocs (Join-Path $TargetRoot "docs/ai") }
 
-# Root canonical shims/files (only if present in template)
+# Root canonical shims/files
 foreach ($f in @("AGENTS.md","PLAYBOOK.md","CLAUDE.md","README.md")) {
-  $srcFile = Join-Path $SourceRoot $f
+  $srcFile = Join-Path $SrcRoot $f
   if (Test-Path $srcFile) {
-    Copy-WithBak $srcFile $f
+    Copy-Replace $srcFile (Join-Path $TargetRoot $f)
   }
 }
 
@@ -63,27 +95,28 @@ foreach ($f in @(
   "scripts/autonomous-loop.ps1",
   "scripts/autonomous-loop.sh"
 )) {
-  $srcFile = Join-Path $SourceRoot $f
+  $srcFile = Join-Path $SrcRoot $f
   if (Test-Path $srcFile) {
-    Copy-WithBak $srcFile $f
+    Copy-Replace $srcFile (Join-Path $TargetRoot $f)
   }
 }
 
 # Copilot shim
-$copilot = Join-Path $SourceRoot ".github/copilot-instructions.md"
+$copilot = Join-Path $SrcRoot ".github/copilot-instructions.md"
 if (Test-Path $copilot) {
-  Copy-WithBak $copilot ".github/copilot-instructions.md"
+  Copy-Replace $copilot (Join-Path $TargetRoot ".github/copilot-instructions.md")
 }
 
-# IMPORTANT: Do NOT sync project-specific docs by default:
+# IMPORTANT: Do NOT sync project-specific docs:
 # - docs/requirements/**, docs/specs/**, docs/decisions/**, docs/releases/**, docs/issues/**
+# These are owned by the target project.
 
 # Pin info
 $templateSha = "UNKNOWN"
-try { $templateSha = (git -C $SourceRoot rev-parse HEAD) 2>$null } catch {}
+try { $templateSha = (git -C $SrcRoot rev-parse HEAD) 2>$null } catch {}
 
 $templateVersion = "UNKNOWN"
-$versionFile = Join-Path $SourceRoot "docs/ai/AI_OS_VERSION.md"
+$versionFile = Join-Path $SrcRoot "docs/ai/AI_OS_VERSION.md"
 if (Test-Path $versionFile) {
   try {
     $line = Select-String -Path $versionFile -Pattern '^\s*-?\s*Version:' | Select-Object -First 1
@@ -94,10 +127,11 @@ if (Test-Path $versionFile) {
   } catch {}
 }
 
+$pinPath = Join-Path $TargetRoot "docs/ai/AI_OS_PIN.md"
 @"
 # AI-OS Pin
 
-- Source path: $SourceRoot
+- Source path: $SrcRoot
 - Template version: $templateVersion
 - Template commit: $templateSha
 - Synced at (UTC): $((Get-Date).ToUniversalTime().ToString("o"))
@@ -105,9 +139,7 @@ if (Test-Path $versionFile) {
 Notes:
 - This project intentionally vendors the AI-OS files (self-contained).
 - Project-specific docs (requirements/specs/decisions/releases/issues) are not synced by this script.
-"@ | Set-Content -Path "docs/ai/AI_OS_PIN.md" -Encoding utf8
+"@ | Set-Content -Path $pinPath -Encoding utf8
 
-Write-Host "Sync complete."
-Write-Host "Review changes:"
-Write-Host "  git status"
-Write-Host "  git diff"
+Write-Host "Sync complete. Review changes in $TargetRoot :"
+Write-Host "  cd $TargetRoot; git status; git diff"

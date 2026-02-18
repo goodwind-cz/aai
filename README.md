@@ -3,25 +3,34 @@
 This repository contains a reusable, low-friction AI Operating System: a single workflow definition, semantic roles, canonical prompts, and templates that help humans and AI agents coordinate with traceability and evidence.
 
 
-## Updating AI-OS from template (worktree/vendor sync)
+## Pushing AI-OS layer into a target project
 
-Sync AI-OS vendor files from an external template worktree into this repository.
+Run the sync script **from this repository** and pass the path to the target project.
+The script resolves its own source root automatically — no need to copy it to the target first.
 
 ### Bash / Git-Bash
 ```bash
-./scripts/ai-os-sync.sh ../ai-os-template-wt
+# From this ai-os repo:
+./scripts/ai-os-sync.sh ../maty-ai
+
+# Then in the target project:
+cd ../maty-ai
 git status
 git diff
-git add ai docs AGENTS.md PLAYBOOK.md CLAUDE.md .github/copilot-instructions.md
+git add ai docs AGENTS.md PLAYBOOK.md CLAUDE.md scripts .github/copilot-instructions.md
 git commit -m "Update AI-OS layer"
 ```
 
 ### PowerShell
 ```powershell
-.\scripts\ai-os-sync.ps1 -SourceRoot ..\ai-os-template-wt
+# From this ai-os repo:
+.\scripts\ai-os-sync.ps1 -TargetRoot ..\maty-ai
+
+# Then in the target project:
+cd ..\maty-ai
 git status
 git diff
-git add ai docs AGENTS.md PLAYBOOK.md CLAUDE.md .github/copilot-instructions.md
+git add ai docs AGENTS.md PLAYBOOK.md CLAUDE.md scripts .github/copilot-instructions.md
 git commit -m "Update AI-OS layer"
 ```
 

@@ -1,19 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Sync AI-OS layer from a template checkout/worktree into this project.
+# Push AI-OS layer FROM this repository INTO a target project.
 #
-# Usage:
-#   ./scripts/ai-os-sync.sh <path-to-ai-os-template-worktree>
+# Usage (run from anywhere, script finds its own repo root):
+#   ./scripts/ai-os-sync.sh <path-to-target-project>
 #
 # Example:
-#   ./scripts/ai-os-sync.sh ../ai-os-v1.3.0
+#   ./scripts/ai-os-sync.sh ../maty-ai
 
-SRC_ROOT="${1:-}"
-if [[ -z "$SRC_ROOT" ]]; then
-  echo "Usage: $0 <path-to-ai-os-template-worktree>"
+DST_ROOT="${1:-}"
+if [[ -z "$DST_ROOT" ]]; then
+  echo "Usage: $0 <path-to-target-project>"
   exit 1
 fi
+
+if [[ ! -d "$DST_ROOT" ]]; then
+  echo "ERROR: Target directory does not exist: $DST_ROOT"
+  exit 1
+fi
+
+# Resolve source = this repository's root (two levels up from this script)
+SRC_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 if [[ ! -d "$SRC_ROOT/ai" ]]; then
   echo "ERROR: Source missing ai/ directory: $SRC_ROOT"
@@ -21,39 +29,56 @@ if [[ ! -d "$SRC_ROOT/ai" ]]; then
 fi
 
 echo "Syncing AI-OS from: $SRC_ROOT"
-echo "Target project: $(pwd)"
+echo "Target project:     $DST_ROOT"
 
 # Target directories (AI-OS layer only)
-mkdir -p ai .github docs/workflow docs/roles docs/templates docs/knowledge docs/ai
+mkdir -p \
+  "$DST_ROOT/ai" \
+  "$DST_ROOT/.github" \
+  "$DST_ROOT/docs/workflow" \
+  "$DST_ROOT/docs/roles" \
+  "$DST_ROOT/docs/templates" \
+  "$DST_ROOT/docs/knowledge" \
+  "$DST_ROOT/docs/ai" \
+  "$DST_ROOT/scripts"
 
-copy_with_bak() {
+copy_replace() {
   local src="$1"
   local dst="$2"
-
-  if [[ -e "$dst" ]]; then
-    # backup (best-effort)
-    rm -rf "${dst}.bak" 2>/dev/null || true
-    cp -a "$dst" "${dst}.bak" 2>/dev/null || true
-    rm -rf "$dst"
-  fi
-
-  # copy
+  # Git is the backup — no .bak files needed.
+  rm -rf "$dst" 2>/dev/null || true
   cp -a "$src" "$dst"
 }
 
-# Copy trees (AI-OS canonical layer)
-copy_with_bak "$SRC_ROOT/ai" "ai"
+# Copy AI-OS canonical layer
+copy_replace "$SRC_ROOT/ai" "$DST_ROOT/ai"
 
-if [[ -d "$SRC_ROOT/docs/workflow" ]]; then copy_with_bak "$SRC_ROOT/docs/workflow" "docs/workflow"; fi
-if [[ -d "$SRC_ROOT/docs/roles" ]]; then copy_with_bak "$SRC_ROOT/docs/roles" "docs/roles"; fi
-if [[ -d "$SRC_ROOT/docs/templates" ]]; then copy_with_bak "$SRC_ROOT/docs/templates" "docs/templates"; fi
-if [[ -d "$SRC_ROOT/docs/knowledge" ]]; then copy_with_bak "$SRC_ROOT/docs/knowledge" "docs/knowledge"; fi
-if [[ -d "$SRC_ROOT/docs/ai" ]]; then copy_with_bak "$SRC_ROOT/docs/ai" "docs/ai"; fi
+if [[ -d "$SRC_ROOT/docs/workflow" ]]; then copy_replace "$SRC_ROOT/docs/workflow" "$DST_ROOT/docs/workflow"; fi
+if [[ -d "$SRC_ROOT/docs/roles" ]]; then copy_replace "$SRC_ROOT/docs/roles" "$DST_ROOT/docs/roles"; fi
+if [[ -d "$SRC_ROOT/docs/templates" ]]; then copy_replace "$SRC_ROOT/docs/templates" "$DST_ROOT/docs/templates"; fi
 
-# Root canonical shims/files (only if present in template)
+# docs/knowledge: file-by-file copy; skip files that no longer contain the
+# AI-OS-TEMPLATE sentinel (meaning the target project has filled them with real content).
+if [[ -d "$SRC_ROOT/docs/knowledge" ]]; then
+  mkdir -p "$DST_ROOT/docs/knowledge"
+  for src_file in "$SRC_ROOT/docs/knowledge/"*; do
+    [[ -f "$src_file" ]] || continue
+    filename="$(basename "$src_file")"
+    dst_file="$DST_ROOT/docs/knowledge/$filename"
+    if [[ ! -f "$dst_file" ]] || grep -q "AI-OS-TEMPLATE" "$dst_file" 2>/dev/null; then
+      cp -a "$src_file" "$dst_file"
+    else
+      echo "  SKIP (project-owned, sentinel removed): $dst_file"
+    fi
+  done
+fi
+
+if [[ -d "$SRC_ROOT/docs/ai" ]]; then copy_replace "$SRC_ROOT/docs/ai" "$DST_ROOT/docs/ai"; fi
+
+# Root canonical shims/files
 for f in AGENTS.md PLAYBOOK.md CLAUDE.md README.md; do
   if [[ -f "$SRC_ROOT/$f" ]]; then
-    copy_with_bak "$SRC_ROOT/$f" "$f"
+    copy_replace "$SRC_ROOT/$f" "$DST_ROOT/$f"
   fi
 done
 
@@ -65,17 +90,17 @@ for f in \
   scripts/autonomous-loop.sh
 do
   if [[ -f "$SRC_ROOT/$f" ]]; then
-    copy_with_bak "$SRC_ROOT/$f" "$f"
+    copy_replace "$SRC_ROOT/$f" "$DST_ROOT/$f"
   fi
 done
 
 # Copilot shim
-mkdir -p .github
+mkdir -p "$DST_ROOT/.github"
 if [[ -f "$SRC_ROOT/.github/copilot-instructions.md" ]]; then
-  copy_with_bak "$SRC_ROOT/.github/copilot-instructions.md" ".github/copilot-instructions.md"
+  copy_replace "$SRC_ROOT/.github/copilot-instructions.md" "$DST_ROOT/.github/copilot-instructions.md"
 fi
 
-# IMPORTANT: Do NOT sync project-specific docs by default:
+# IMPORTANT: Do NOT sync project-specific docs:
 # - docs/requirements/**, docs/specs/**, docs/decisions/**, docs/releases/**, docs/issues/**
 # These are owned by the target project.
 
@@ -86,12 +111,11 @@ if command -v git >/dev/null 2>&1; then
   TEMPLATE_SHA="$(git -C "$SRC_ROOT" rev-parse HEAD 2>/dev/null || echo UNKNOWN)"
 fi
 if [[ -f "$SRC_ROOT/docs/ai/AI_OS_VERSION.md" ]]; then
-  # best-effort: extract first "Version:" line
   TEMPLATE_VERSION="$(grep -E '^-? *Version:' "$SRC_ROOT/docs/ai/AI_OS_VERSION.md" 2>/dev/null | head -n1 | sed -E 's/.*Version:\s*//')"
   [[ -z "$TEMPLATE_VERSION" ]] && TEMPLATE_VERSION="UNKNOWN"
 fi
 
-cat > docs/ai/AI_OS_PIN.md <<EOPIN
+cat > "$DST_ROOT/docs/ai/AI_OS_PIN.md" <<EOPIN
 # AI-OS Pin
 
 - Source path: $SRC_ROOT
@@ -104,7 +128,5 @@ Notes:
 - Project-specific docs (requirements/specs/decisions/releases/issues) are not synced by this script.
 EOPIN
 
-echo "Sync complete."
-echo "Review changes:"
-echo "  git status"
-echo "  git diff"
+echo "Sync complete. Review changes in $DST_ROOT:"
+echo "  cd $DST_ROOT && git status && git diff"
