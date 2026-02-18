@@ -9,6 +9,7 @@ This repository uses a reusable AI Operating System.
 - Fact memory: docs/knowledge/FACTS.md
 - UI map: docs/knowledge/UI_MAP.md
 - Prompts: ai/*.prompt.md
+- Subagent protocol: ai/SUBAGENT_PROTOCOL.md
 - Human playbook: PLAYBOOK.md
 - Coordination locks (optional): docs/ai/LOCKS.md
 
