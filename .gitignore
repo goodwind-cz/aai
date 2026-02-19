@@ -1,0 +1,9 @@
+# Local tool settings
+.claude/settings.local.json
+
+# Backup files (should not exist with current sync scripts, but just in case)
+*.bak
+
+# OS
+.DS_Store
+Thumbs.db
