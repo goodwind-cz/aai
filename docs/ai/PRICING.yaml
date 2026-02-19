@@ -1,0 +1,46 @@
+# AI Model Pricing Reference
+# Update this file when pricing changes.
+# Costs are in USD per 1,000,000 tokens.
+# Source: vendor pricing pages (verify before use).
+
+models:
+  # Anthropic Claude
+  claude-sonnet-4-5:
+    input_usd_per_m: 3.00
+    output_usd_per_m: 15.00
+  claude-opus-4-6:
+    input_usd_per_m: 15.00
+    output_usd_per_m: 75.00
+  claude-haiku-4-5:
+    input_usd_per_m: 0.80
+    output_usd_per_m: 4.00
+
+  # Google Gemini
+  gemini-2.0-flash:
+    input_usd_per_m: 0.10
+    output_usd_per_m: 0.40
+  gemini-2.0-flash-lite:
+    input_usd_per_m: 0.075
+    output_usd_per_m: 0.30
+  gemini-1.5-pro:
+    input_usd_per_m: 1.25
+    output_usd_per_m: 5.00
+
+  # OpenAI / Codex
+  gpt-4o:
+    input_usd_per_m: 2.50
+    output_usd_per_m: 10.00
+  gpt-4o-mini:
+    input_usd_per_m: 0.15
+    output_usd_per_m: 0.60
+  o3:
+    input_usd_per_m: 10.00
+    output_usd_per_m: 40.00
+  o4-mini:
+    input_usd_per_m: 1.10
+    output_usd_per_m: 4.40
+
+  # Unknown / fallback
+  unknown:
+    input_usd_per_m: null
+    output_usd_per_m: null

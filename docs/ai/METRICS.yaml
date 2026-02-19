@@ -1,0 +1,32 @@
+# AI-OS Metrics Ledger (append-only)
+#
+# Schema per entry:
+#   date_utc:               ISO date of completion
+#   ref_id:                 work item ID (e.g. PRD-001, ISSUE-003)
+#   title:                  short description
+#   human_time_minutes:
+#     intake:               minutes spent on intake form (human estimate)
+#     reviews:              minutes spent reviewing outputs and HITL decisions
+#   agent_runs:             list of role executions
+#     - role:               Planning | Implementation | Validation | Remediation
+#       model_id:           model identifier (e.g. claude-sonnet-4-5)
+#       started_utc:        ISO 8601 UTC (recorded by loop runner or agent)
+#       ended_utc:          ISO 8601 UTC
+#       duration_seconds:   wall-clock seconds (derived or measured externally)
+#       tokens_in:          integer or null (if platform does not expose)
+#       tokens_out:         integer or null
+#       cost_usd:           float or null (calculated from PRICING.yaml)
+#   totals:                 calculated at flush time
+#     human_time_minutes:   sum of intake + reviews
+#     agent_duration_seconds: sum of all agent_runs.duration_seconds
+#     cost_usd:             sum of all agent_runs.cost_usd (null if any run is null)
+#   verdict:                PASS | FAIL | CANCELLED
+#
+# Rules:
+# - Append only. Never edit existing entries.
+# - null is valid for any token/cost field (platform did not expose the value).
+# - Human time is always an estimate; record best-effort.
+# - Use ai/METRICS_FLUSH.prompt.md to flush STATE.yaml metrics into this file.
+# - Use ai/METRICS_REPORT.prompt.md to generate a summary table.
+
+entries: []

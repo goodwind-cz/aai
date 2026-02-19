@@ -35,4 +35,17 @@ FINAL OUTPUT REQUIRED
 - Final PASS/FAIL verdict
 - Clear callouts for human decisions (if any)
 
+METRICS (record in docs/ai/STATE.yaml)
+Note the UTC time before starting. After completing, append under
+metrics.work_items[ref_id].agent_runs in docs/ai/STATE.yaml:
+  role:             Remediation
+  model_id:         <your model identifier, e.g. claude-sonnet-4-5, gemini-2.0-flash>
+  started_utc:      <ISO 8601 UTC noted at start>
+  ended_utc:        <ISO 8601 UTC at completion>
+  duration_seconds: <integer>
+  tokens_in:        <integer if your platform exposes it, otherwise null>
+  tokens_out:       <integer if your platform exposes it, otherwise null>
+  cost_usd:         null
+Do NOT estimate token counts. Only record actual values from the platform.
+
 BEGIN NOW AND CONTINUE AUTONOMOUSLY.

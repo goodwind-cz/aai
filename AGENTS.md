@@ -12,6 +12,9 @@ This repository uses a reusable AI Operating System.
 - Subagent protocol: ai/SUBAGENT_PROTOCOL.md
 - Human playbook: PLAYBOOK.md
 - Coordination locks (optional): docs/ai/LOCKS.md
+- Metrics ledger: docs/ai/METRICS.yaml
+- Model pricing: docs/ai/PRICING.yaml
+- Loop tick log: docs/ai/LOOP_TICKS.yaml
 
 To update the AI-OS layer from a template worktree, see scripts/ai-os-sync.(sh|ps1) and docs/ai/AI_OS_PIN.md.
 
@@ -46,6 +49,8 @@ Follow ai/ORCHESTRATION_PARALLEL.prompt.md
 Follow ai/ORCHESTRATION_HITL.prompt.md
 Follow ai/BOOTSTRAP_DIFF.prompt.md
 Follow ai/GENERATE_README.prompt.md
+Follow ai/METRICS_FLUSH.prompt.md
+Follow ai/METRICS_REPORT.prompt.md
 ```
 
 ## Rules

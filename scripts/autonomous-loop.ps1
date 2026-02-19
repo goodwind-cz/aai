@@ -10,6 +10,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $StatePath = "docs/ai/STATE.yaml"
+$TickLogPath = "docs/ai/LOOP_TICKS.yaml"
 
 function New-StateFile {
   $utc = (Get-Date).ToUniversalTime().ToString("o")
@@ -99,6 +100,12 @@ Write-Host "Autonomous loop start"
 Write-Host "Tick command: $TickCommand"
 Write-Host "Max iterations: $MaxIterations"
 
+# Initialize tick log if missing
+if (!(Test-Path $TickLogPath)) {
+  New-Item -ItemType Directory -Force -Path (Split-Path $TickLogPath) | Out-Null
+  Set-Content -Path $TickLogPath -Value "# Loop Tick Log (append-only, external timing)`n# Used by ai/METRICS_FLUSH.prompt.md`nticks:" -Encoding utf8
+}
+
 for ($i = 1; $i -le $MaxIterations; $i++) {
   $stateBefore = Read-State
   $preStop = Stop-Reason -state $stateBefore
@@ -108,14 +115,29 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
   }
 
   Write-Host "Iteration $i/$MaxIterations"
+  $tickStart = (Get-Date).ToUniversalTime()
+  $tickStartUtc = $tickStart.ToString("o")
+  $tickExit = 0
+
   if ($DryRun) {
     Write-Host "[dry-run] Would execute tick command."
   } else {
-    Invoke-Expression $TickCommand
-    if ($LASTEXITCODE -ne 0) {
-      throw "Tick command failed with exit code $LASTEXITCODE"
+    try {
+      Invoke-Expression $TickCommand
+      $tickExit = if ($LASTEXITCODE -ne $null) { $LASTEXITCODE } else { 0 }
+    } catch {
+      $tickExit = 1
+      Write-Host "Tick command error: $_"
     }
   }
+
+  $tickEnd = (Get-Date).ToUniversalTime()
+  $tickEndUtc = $tickEnd.ToString("o")
+  $tickDuration = [int]($tickEnd - $tickStart).TotalSeconds
+
+  # Append external tick timing (model-agnostic)
+  $tickEntry = "  - tick: $i`n    started_utc: `"$tickStartUtc`"`n    ended_utc: `"$tickEndUtc`"`n    duration_seconds: $tickDuration`n    exit_code: $tickExit"
+  Add-Content -Path $TickLogPath -Value $tickEntry -Encoding utf8
 
   Start-Sleep -Seconds $SleepSeconds
   $stateAfter = Read-State

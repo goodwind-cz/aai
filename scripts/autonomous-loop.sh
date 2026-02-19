@@ -2,6 +2,7 @@
 set -euo pipefail
 
 STATE_PATH="docs/ai/STATE.yaml"
+TICK_LOG="docs/ai/LOOP_TICKS.yaml"
 TICK_COMMAND=""
 MAX_ITERATIONS=20
 SLEEP_SECONDS=1
@@ -169,6 +170,12 @@ echo "Autonomous loop start"
 echo "Tick command: $TICK_COMMAND"
 echo "Max iterations: $MAX_ITERATIONS"
 
+# Initialize tick log if missing
+if [[ ! -f "$TICK_LOG" ]]; then
+  mkdir -p "$(dirname "$TICK_LOG")"
+  printf '# Loop Tick Log (append-only, external timing)\n# Used by ai/METRICS_FLUSH.prompt.md\nticks:\n' > "$TICK_LOG"
+fi
+
 for ((i=1; i<=MAX_ITERATIONS; i++)); do
   if reason="$(stop_reason)"; then
     echo "Stop before iteration $i: $reason"
@@ -176,10 +183,26 @@ for ((i=1; i<=MAX_ITERATIONS; i++)); do
   fi
 
   echo "Iteration $i/$MAX_ITERATIONS"
+  tick_start_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  tick_start_epoch="$(date -u +%s)"
+  tick_exit=0
+
   if [[ "$DRY_RUN" == "1" ]]; then
     echo "[dry-run] Would execute tick command."
   else
-    bash -lc "$TICK_COMMAND"
+    bash -lc "$TICK_COMMAND" || tick_exit=$?
+  fi
+
+  tick_end_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  tick_end_epoch="$(date -u +%s)"
+  tick_duration=$(( tick_end_epoch - tick_start_epoch ))
+
+  # Append external tick timing (model-agnostic)
+  printf '  - tick: %s\n    started_utc: "%s"\n    ended_utc: "%s"\n    duration_seconds: %s\n    exit_code: %s\n' \
+    "$i" "$tick_start_utc" "$tick_end_utc" "$tick_duration" "$tick_exit" >> "$TICK_LOG"
+
+  if [[ "$tick_exit" -ne 0 ]]; then
+    echo "Tick command exited with code $tick_exit" >&2
   fi
 
   sleep "$SLEEP_SECONDS"
