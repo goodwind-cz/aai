@@ -35,5 +35,16 @@ PROCESS
 10) If enough information is available, stop questions early.
 11) Output summary + completed Release Plan markdown + suggested filename.
 
+METRICS (after saving the document)
+Ask the user (in their language):
+"How many minutes did you spend on this intake? (Enter a number or press Enter to skip)"
+If the user provides a number N, append or update in docs/ai/STATE.yaml:
+  metrics:
+    work_items:
+      <ref_id>:
+        human_time_minutes:
+          intake: N
+If the user skips or ref_id is not yet known, leave intake: null.
+
 BEGIN with (in the user's language):
-“Is this a standard release or a hotfix, and what target version (e.g. 1.8.0)?”
+"Is this a standard release or a hotfix, and what target version (e.g. 1.8.0)?"

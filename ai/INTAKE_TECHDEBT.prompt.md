@@ -24,5 +24,16 @@ PROCESS
 6) If enough information is available, stop questions early.
 7) Output summary + completed Tech Debt markdown + suggested filename.
 
+METRICS (after saving the document)
+Ask the user (in their language):
+"How many minutes did you spend on this intake? (Enter a number or press Enter to skip)"
+If the user provides a number N, append or update in docs/ai/STATE.yaml:
+  metrics:
+    work_items:
+      <ref_id>:
+        human_time_minutes:
+          intake: N
+If the user skips or ref_id is not yet known, leave intake: null.
+
 BEGIN with (in the user's language):
-“What tech debt should be addressed and why?”
+"What tech debt should be addressed and why?"
