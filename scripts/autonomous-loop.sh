@@ -173,7 +173,22 @@ echo "Max iterations: $MAX_ITERATIONS"
 # Initialize tick log if missing
 if [[ ! -f "$TICK_LOG" ]]; then
   mkdir -p "$(dirname "$TICK_LOG")"
-  printf '# Loop Tick Log (append-only, external timing)\n# Used by ai/METRICS_FLUSH.prompt.md\nticks:\n' > "$TICK_LOG"
+  printf '# Loop Tick Log (append-only, external timing)\n# Used by ai/METRICS_FLUSH.prompt.md\nticks:\nhuman_pauses:\n' > "$TICK_LOG"
+fi
+
+# Detect if previous loop run ended with human_input pause — record resume
+loop_start_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+loop_start_epoch="$(date -u +%s)"
+if grep -q 'type: human_pause' "$TICK_LOG" 2>/dev/null; then
+  # Find last pause that has no matching resume
+  last_pause_epoch="$(grep -A1 'type: human_pause' "$TICK_LOG" | grep 'paused_epoch:' | tail -n1 | sed -E 's/.*paused_epoch:[[:space:]]*//')"
+  last_resume_epoch="$(grep -A1 'type: human_resume' "$TICK_LOG" | grep 'resumed_epoch:' | tail -n1 | sed -E 's/.*resumed_epoch:[[:space:]]*//')"
+  if [[ -n "$last_pause_epoch" && ( -z "$last_resume_epoch" || "$last_pause_epoch" -gt "$last_resume_epoch" ) ]]; then
+    review_duration=$(( loop_start_epoch - last_pause_epoch ))
+    printf '  - type: human_resume\n    resumed_utc: "%s"\n    resumed_epoch: %s\n    review_duration_seconds: %s\n' \
+      "$loop_start_utc" "$loop_start_epoch" "$review_duration" >> "$TICK_LOG"
+    echo "Detected human resume after ${review_duration}s review pause."
+  fi
 fi
 
 for ((i=1; i<=MAX_ITERATIONS; i++)); do
@@ -209,6 +224,13 @@ for ((i=1; i<=MAX_ITERATIONS; i++)); do
 
   if reason="$(stop_reason)"; then
     echo "Stop after iteration $i: $reason"
+    # Record human_input pause so next loop run can calculate review duration
+    if [[ "$reason" == "human_input.required=true" ]]; then
+      pause_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+      pause_epoch="$(date -u +%s)"
+      printf '  - type: human_pause\n    paused_utc: "%s"\n    paused_epoch: %s\n    stop_reason: "%s"\n' \
+        "$pause_utc" "$pause_epoch" "$reason" >> "$TICK_LOG"
+    fi
     break
   fi
 

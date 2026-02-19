@@ -5,9 +5,10 @@ Move completed work item metrics from docs/ai/STATE.yaml into the append-only
 docs/ai/METRICS.yaml ledger.
 
 INPUTS
-- docs/ai/STATE.yaml      — runtime state (source)
-- docs/ai/METRICS.yaml    — append-only ledger (destination)
-- docs/ai/PRICING.yaml    — model cost table
+- docs/ai/STATE.yaml        — runtime state (source)
+- docs/ai/METRICS.yaml      — append-only ledger (destination)
+- docs/ai/PRICING.yaml      — model cost table
+- docs/ai/LOOP_TICKS.yaml   — external timing log (optional, for human review time)
 
 FLUSH CRITERIA
 Only flush a work item if ALL of the following are true:
@@ -16,19 +17,24 @@ Only flush a work item if ALL of the following are true:
 - It is NOT already present in METRICS.yaml (match by ref_id).
 
 PROCESS
-1. Read all three files.
-2. For each flushable work item in STATE.yaml metrics:
+1. Read all four files (LOOP_TICKS.yaml is optional; skip if missing).
+2. Derive human review time from LOOP_TICKS.yaml (if present):
+   - Sum all `review_duration_seconds` from `type: human_resume` entries.
+   - Convert to minutes (round up). This is the auto-measured review time.
+   - If STATE.yaml already has a non-null `reviews` value, use STATE.yaml (human override wins).
+   - Otherwise, set `reviews` from LOOP_TICKS sum.
+3. For each flushable work item in STATE.yaml metrics:
    a. Calculate cost_usd for each agent_run where tokens_in/tokens_out are known
       and cost_usd is currently null, using PRICING.yaml:
       cost_usd = (tokens_in * input_usd_per_m + tokens_out * output_usd_per_m) / 1_000_000
    b. Calculate totals:
-      - human_time_minutes = intake + reviews (null fields count as 0)
-      - agent_duration_seconds = sum of duration_seconds
-      - cost_usd = sum of cost_usd across runs (null if any run cost is null)
+      - human_time_minutes = (intake ?? 0) + (reviews ?? 0)
+      - agent_duration_seconds = sum of duration_seconds across agent_runs
+      - total_cost_usd = sum of cost_usd across runs (null if any run cost is null)
    c. Append a new entry to docs/ai/METRICS.yaml entries list.
-3. Write updated docs/ai/METRICS.yaml.
-4. Do NOT remove flushed items from STATE.yaml (orchestration manages STATE.yaml).
-5. Report: list of ref_ids flushed, or "Nothing to flush."
+4. Write updated docs/ai/METRICS.yaml.
+5. Do NOT remove flushed items from STATE.yaml (orchestration manages STATE.yaml).
+6. Report: list of ref_ids flushed, or "Nothing to flush."
 
 STRICT RULES
 - Append only to METRICS.yaml — never modify existing entries.

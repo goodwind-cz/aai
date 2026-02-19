@@ -61,7 +61,8 @@ DECISION LOGIC (FIRST MATCH WINS)
 7) If frozen specs but implementation/tests missing → Dispatch: Implementation and STOP.
 8) If implementation exists but validation not run recently → Dispatch: Validation and STOP.
 9) If latest validation FAIL → Dispatch: Remediation and STOP.
-10) If latest validation PASS → No action required and STOP.
+10) If latest validation PASS → Dispatch: Metrics flush (ai/METRICS_FLUSH.prompt.md) if not already
+    flushed for this scope, then no action required and STOP.
 
 DISPATCH FORMAT (MANDATORY)
 Output:
@@ -74,13 +75,27 @@ Output:
   Expected outputs:
   Stop condition:
 
+METRICS AUTO-MANAGEMENT (NO MANUAL SETUP REQUIRED)
+When dispatching any role for a ref_id:
+1. Check if metrics.work_items contains an entry for that ref_id in STATE.yaml.
+2. If missing, auto-create it:
+     - ref_id: <ref_id>
+       human_time_minutes:
+         intake: null      # loop runner derives from LOOP_TICKS; human may override
+         reviews: null     # loop runner derives from pause/resume gaps; human may override
+       agent_runs: []
+3. When decision is rule 10 (PASS) and metrics not yet flushed for this ref_id:
+   Dispatch ai/METRICS_FLUSH.prompt.md before stopping. Mark flushed by setting
+   metrics.work_items[ref_id].flushed: true in STATE.yaml after flush completes.
+
 STRICT RULES
 - Dispatch ONLY ONE role per run.
-- Do NOT do the role’s work.
+- Do NOT do the role's work.
 - Update docs/ai/STATE.yaml before stopping (always, including auto-init/repair cases):
   - current_focus (type/ref_id/primary_path)
   - active_work_items (create/update selected scope)
   - human_input (if blocked/awaiting decision)
+  - metrics.work_items (auto-init entry if missing for current ref_id)
   - updated_at_utc (ISO 8601 UTC)
 - Stop after dispatch.
 

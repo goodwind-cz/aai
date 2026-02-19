@@ -103,7 +103,22 @@ Write-Host "Max iterations: $MaxIterations"
 # Initialize tick log if missing
 if (!(Test-Path $TickLogPath)) {
   New-Item -ItemType Directory -Force -Path (Split-Path $TickLogPath) | Out-Null
-  Set-Content -Path $TickLogPath -Value "# Loop Tick Log (append-only, external timing)`n# Used by ai/METRICS_FLUSH.prompt.md`nticks:" -Encoding utf8
+  Set-Content -Path $TickLogPath -Value "# Loop Tick Log (append-only, external timing)`n# Used by ai/METRICS_FLUSH.prompt.md`nticks:`nhuman_pauses:" -Encoding utf8
+}
+
+# Detect if previous loop run ended with human_input pause — record resume
+$loopStartUtc = (Get-Date).ToUniversalTime()
+$loopStartEpoch = [int][double]::Parse((Get-Date -UFormat %s -Date $loopStartUtc))
+$tickLogContent = Get-Content $TickLogPath -Raw -ErrorAction SilentlyContinue
+$pauseMatches = [regex]::Matches($tickLogContent, 'type: human_pause[\s\S]*?paused_epoch:\s*(\d+)')
+$resumeMatches = [regex]::Matches($tickLogContent, 'type: human_resume[\s\S]*?resumed_epoch:\s*(\d+)')
+$lastPauseEpoch = if ($pauseMatches.Count -gt 0) { [int]$pauseMatches[$pauseMatches.Count-1].Groups[1].Value } else { 0 }
+$lastResumeEpoch = if ($resumeMatches.Count -gt 0) { [int]$resumeMatches[$resumeMatches.Count-1].Groups[1].Value } else { 0 }
+if ($lastPauseEpoch -gt 0 -and $lastPauseEpoch -gt $lastResumeEpoch) {
+  $reviewDuration = $loopStartEpoch - $lastPauseEpoch
+  $resumeEntry = "  - type: human_resume`n    resumed_utc: `"$($loopStartUtc.ToString('o'))`"`n    resumed_epoch: $loopStartEpoch`n    review_duration_seconds: $reviewDuration"
+  Add-Content -Path $TickLogPath -Value $resumeEntry -Encoding utf8
+  Write-Host "Detected human resume after ${reviewDuration}s review pause."
 }
 
 for ($i = 1; $i -le $MaxIterations; $i++) {
@@ -144,6 +159,13 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
   $postStop = Stop-Reason -state $stateAfter
   if ($postStop) {
     Write-Host "Stop after iteration $($i): $postStop"
+    # Record human_input pause so next loop run can calculate review duration
+    if ($postStop -eq "human_input.required=true") {
+      $pauseNow = (Get-Date).ToUniversalTime()
+      $pauseEpoch = [int][double]::Parse((Get-Date -UFormat %s -Date $pauseNow))
+      $pauseEntry = "  - type: human_pause`n    paused_utc: `"$($pauseNow.ToString('o'))`"`n    paused_epoch: $pauseEpoch`n    stop_reason: `"$postStop`""
+      Add-Content -Path $TickLogPath -Value $pauseEntry -Encoding utf8
+    }
     break
   }
 
