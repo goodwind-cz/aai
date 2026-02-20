@@ -41,16 +41,19 @@ FINAL OUTPUT REQUIRED
 - Blocking questions (if any)
 
 METRICS (record in docs/ai/STATE.yaml)
-Note the UTC time before starting. After completing, append under
+Capture real wall-clock timestamps:
+- started_utc: immediately before step 1 begins
+- ended_utc: immediately after STATE.yaml writeback completes
+After completing, append under
 metrics.work_items[ref_id].agent_runs in docs/ai/STATE.yaml:
   role:             Planning
   model_id:         <your model identifier, e.g. claude-sonnet-4-5, gemini-2.0-flash>
-  started_utc:      <ISO 8601 UTC noted at start>
-  ended_utc:        <ISO 8601 UTC at completion>
-  duration_seconds: <integer>
+  started_utc:      <ISO 8601 UTC, real measured start>
+  ended_utc:        <ISO 8601 UTC, real measured end>
+  duration_seconds: <integer, ended_utc - started_utc>
   tokens_in:        <integer if your platform exposes it, otherwise null>
   tokens_out:       <integer if your platform exposes it, otherwise null>
   cost_usd:         null
-Do NOT estimate token counts. Only record actual values from the platform.
+Do NOT estimate any timing or token values. Only record measured/platform values.
 
 BEGIN NOW.

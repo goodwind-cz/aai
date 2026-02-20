@@ -95,6 +95,30 @@ read_validation_status() {
   ' "$STATE_PATH"
 }
 
+read_focus_type() {
+  awk '
+    /^[[:space:]]*current_focus:/ {in_focus=1; next}
+    in_focus && /^[[:space:]]*[A-Za-z0-9_]+:/ && $1 !~ /^type:/ {in_focus=0}
+    in_focus && /^[[:space:]]*type:[[:space:]]*/ {
+      sub(/^[[:space:]]*type:[[:space:]]*/, "", $0)
+      print $0
+      exit
+    }
+  ' "$STATE_PATH"
+}
+
+read_focus_ref_id() {
+  awk '
+    /^[[:space:]]*current_focus:/ {in_focus=1; next}
+    in_focus && /^[[:space:]]*[A-Za-z0-9_]+:/ && $1 !~ /^ref_id:/ {in_focus=0}
+    in_focus && /^[[:space:]]*ref_id:[[:space:]]*/ {
+      sub(/^[[:space:]]*ref_id:[[:space:]]*/, "", $0)
+      print $0
+      exit
+    }
+  ' "$STATE_PATH"
+}
+
 stop_reason() {
   local project_status human_required validation_status
   project_status="$(read_project_status || true)"
@@ -173,7 +197,7 @@ echo "Max iterations: $MAX_ITERATIONS"
 # Initialize tick log if missing
 if [[ ! -f "$TICK_LOG" ]]; then
   mkdir -p "$(dirname "$TICK_LOG")"
-  printf '# Loop Tick Log (append-only, external timing)\n# Used by ai/METRICS_FLUSH.prompt.md\nticks:\nhuman_pauses:\n' > "$TICK_LOG"
+  printf '# Loop Tick Log (append-only, external timing)\n# Used by ai/METRICS_FLUSH.prompt.md\nevents:\n' > "$TICK_LOG"
 fi
 
 # Detect if previous loop run ended with human_input pause — record resume
@@ -181,8 +205,8 @@ loop_start_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 loop_start_epoch="$(date -u +%s)"
 if grep -q 'type: human_pause' "$TICK_LOG" 2>/dev/null; then
   # Find last pause that has no matching resume
-  last_pause_epoch="$(grep -A1 'type: human_pause' "$TICK_LOG" | grep 'paused_epoch:' | tail -n1 | sed -E 's/.*paused_epoch:[[:space:]]*//')"
-  last_resume_epoch="$(grep -A1 'type: human_resume' "$TICK_LOG" | grep 'resumed_epoch:' | tail -n1 | sed -E 's/.*resumed_epoch:[[:space:]]*//')"
+  last_pause_epoch="$(awk '/type: human_pause/{f=1;next} f&&/paused_epoch:/{print $2;f=0}' "$TICK_LOG" | tail -n1)"
+  last_resume_epoch="$(awk '/type: human_resume/{f=1;next} f&&/resumed_epoch:/{print $2;f=0}' "$TICK_LOG" | tail -n1)"
   if [[ -n "$last_pause_epoch" && ( -z "$last_resume_epoch" || "$last_pause_epoch" -gt "$last_resume_epoch" ) ]]; then
     review_duration=$(( loop_start_epoch - last_pause_epoch ))
     printf '  - type: human_resume\n    resumed_utc: "%s"\n    resumed_epoch: %s\n    review_duration_seconds: %s\n' \
@@ -198,6 +222,9 @@ for ((i=1; i<=MAX_ITERATIONS; i++)); do
   fi
 
   echo "Iteration $i/$MAX_ITERATIONS"
+  focus_type_before="$(read_focus_type || true)"
+  focus_ref_before="$(read_focus_ref_id || true)"
+  validation_status_before="$(read_validation_status || true)"
   tick_start_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   tick_start_epoch="$(date -u +%s)"
   tick_exit=0
@@ -211,10 +238,13 @@ for ((i=1; i<=MAX_ITERATIONS; i++)); do
   tick_end_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   tick_end_epoch="$(date -u +%s)"
   tick_duration=$(( tick_end_epoch - tick_start_epoch ))
+  focus_type_after="$(read_focus_type || true)"
+  focus_ref_after="$(read_focus_ref_id || true)"
+  validation_status_after="$(read_validation_status || true)"
 
   # Append external tick timing (model-agnostic)
-  printf '  - tick: %s\n    started_utc: "%s"\n    ended_utc: "%s"\n    duration_seconds: %s\n    exit_code: %s\n' \
-    "$i" "$tick_start_utc" "$tick_end_utc" "$tick_duration" "$tick_exit" >> "$TICK_LOG"
+  printf '  - type: tick\n    tick: %s\n    started_utc: "%s"\n    ended_utc: "%s"\n    duration_seconds: %s\n    exit_code: %s\n    focus_type_before: "%s"\n    focus_ref_id_before: "%s"\n    focus_type_after: "%s"\n    focus_ref_id_after: "%s"\n    validation_status_before: "%s"\n    validation_status_after: "%s"\n' \
+    "$i" "$tick_start_utc" "$tick_end_utc" "$tick_duration" "$tick_exit" "$focus_type_before" "$focus_ref_before" "$focus_type_after" "$focus_ref_after" "$validation_status_before" "$validation_status_after" >> "$TICK_LOG"
 
   if [[ "$tick_exit" -ne 0 ]]; then
     echo "Tick command exited with code $tick_exit" >&2

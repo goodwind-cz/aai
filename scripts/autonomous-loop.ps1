@@ -62,6 +62,8 @@ function Read-State {
       project_status = $null
       human_required = $null
       validation_status = $null
+      focus_type = $null
+      focus_ref_id = $null
     }
   }
 
@@ -69,11 +71,15 @@ function Read-State {
   $projectStatus = [regex]::Match($raw, '(?m)^\s*project_status:\s*([A-Za-z_]+)\s*$').Groups[1].Value
   $humanRequired = [regex]::Match($raw, '(?m)^\s*required:\s*(true|false)\s*$').Groups[1].Value
   $validationStatus = [regex]::Match($raw, '(?m)^\s*status:\s*(pass|fail|not_run)\s*$').Groups[1].Value
+  $focusType = [regex]::Match($raw, '(?ms)^\s*current_focus:\s*\r?\n\s*type:\s*([A-Za-z0-9_]+)\s*$').Groups[1].Value
+  $focusRefId = [regex]::Match($raw, '(?ms)^\s*current_focus:\s*\r?\n\s*type:\s*[A-Za-z0-9_]+\s*\r?\n\s*ref_id:\s*([^\r\n]+)\s*$').Groups[1].Value
 
   return @{
     project_status = $projectStatus
     human_required = $humanRequired
     validation_status = $validationStatus
+    focus_type = $focusType
+    focus_ref_id = $focusRefId
   }
 }
 
@@ -103,7 +109,7 @@ Write-Host "Max iterations: $MaxIterations"
 # Initialize tick log if missing
 if (!(Test-Path $TickLogPath)) {
   New-Item -ItemType Directory -Force -Path (Split-Path $TickLogPath) | Out-Null
-  Set-Content -Path $TickLogPath -Value "# Loop Tick Log (append-only, external timing)`n# Used by ai/METRICS_FLUSH.prompt.md`nticks:`nhuman_pauses:" -Encoding utf8
+  Set-Content -Path $TickLogPath -Value "# Loop Tick Log (append-only, external timing)`n# Used by ai/METRICS_FLUSH.prompt.md`nevents:" -Encoding utf8
 }
 
 # Detect if previous loop run ended with human_input pause — record resume
@@ -130,6 +136,7 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
   }
 
   Write-Host "Iteration $i/$MaxIterations"
+  $stateSnapshotBefore = Read-State
   $tickStart = (Get-Date).ToUniversalTime()
   $tickStartUtc = $tickStart.ToString("o")
   $tickExit = 0
@@ -151,7 +158,8 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
   $tickDuration = [int]($tickEnd - $tickStart).TotalSeconds
 
   # Append external tick timing (model-agnostic)
-  $tickEntry = "  - tick: $i`n    started_utc: `"$tickStartUtc`"`n    ended_utc: `"$tickEndUtc`"`n    duration_seconds: $tickDuration`n    exit_code: $tickExit"
+  $stateSnapshotAfter = Read-State
+  $tickEntry = "  - type: tick`n    tick: $i`n    started_utc: `"$tickStartUtc`"`n    ended_utc: `"$tickEndUtc`"`n    duration_seconds: $tickDuration`n    exit_code: $tickExit`n    focus_type_before: `"$($stateSnapshotBefore.focus_type)`"`n    focus_ref_id_before: `"$($stateSnapshotBefore.focus_ref_id)`"`n    focus_type_after: `"$($stateSnapshotAfter.focus_type)`"`n    focus_ref_id_after: `"$($stateSnapshotAfter.focus_ref_id)`"`n    validation_status_before: `"$($stateSnapshotBefore.validation_status)`"`n    validation_status_after: `"$($stateSnapshotAfter.validation_status)`""
   Add-Content -Path $TickLogPath -Value $tickEntry -Encoding utf8
 
   Start-Sleep -Seconds $SleepSeconds

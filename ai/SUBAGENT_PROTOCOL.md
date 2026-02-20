@@ -36,6 +36,9 @@ subagent_result:
   scope: <scope id or path>
   role: <Implementation | Validation | Planning | Research>
   status: PASS | FAIL | BLOCKED
+  started_utc: <ISO 8601 UTC captured from system clock>
+  ended_utc: <ISO 8601 UTC captured from system clock>
+  duration_seconds: <integer = ended_utc - started_utc>
   evidence:
     - command: <shell command or verification step>
       exit_code: <int>
@@ -46,6 +49,11 @@ subagent_result:
     - <description of any blocker; empty list if none>
 ```
 
+Timing capture rules:
+- Capture `started_utc` and `ended_utc` from the runtime system clock (`date -u` / `Get-Date ...ToUniversalTime()`), never from model estimation.
+- Use UTC ISO-8601 with explicit `Z` or `+00:00`.
+- `duration_seconds` MUST match `ended_utc - started_utc` (tolerance +/-1s).
+
 ## Merge protocol (orchestrator responsibility)
 
 After all subagents complete, the orchestrator MUST:
@@ -55,10 +63,13 @@ After all subagents complete, the orchestrator MUST:
    - `PASS` only if every subagent returned `PASS`
    - `FAIL` if any subagent returned `FAIL` — trigger Remediation for that scope only
    - `BLOCKED` if any subagent returned `BLOCKED` — set `human_input.required: true` in STATE.yaml
+   - `BLOCKED` if any subagent timing is invalid:
+     missing/unparseable timestamps, duration mismatch, or timestamp > 300 seconds in the future vs orchestrator system UTC.
 3. Write merged summary to `docs/ai/STATE.yaml`:
    - `last_validation.status` (or equivalent phase field)
    - `last_validation.evidence_paths`
    - `active_work_items` updated for each affected scope
+   - `metrics.work_items[ref_id].agent_runs` with measured timing fields from accepted subagent results
    - `updated_at_utc`
 4. Only after STATE.yaml is updated: proceed to deliver result to user.
 

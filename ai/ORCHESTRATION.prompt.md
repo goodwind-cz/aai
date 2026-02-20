@@ -81,8 +81,8 @@ When dispatching any role for a ref_id:
 2. If missing, auto-create it:
      - ref_id: <ref_id>
        human_time_minutes:
-         intake: null      # loop runner derives from LOOP_TICKS; human may override
-         reviews: null     # loop runner derives from pause/resume gaps; human may override
+        intake: null      # user-provided intake minutes; human may override
+        reviews: null     # loop runner derives from LOOP_TICKS pause/resume gaps; human may override
        agent_runs: []
 3. When decision is rule 10 (PASS) and metrics not yet flushed for this ref_id:
    Dispatch ai/METRICS_FLUSH.prompt.md before stopping. Mark flushed by setting

@@ -1,0 +1,13 @@
+# Loop Tick Log (append-only, external timing)
+# Source of truth for real runtime boundaries captured by loop runners.
+# Event types:
+# - tick: measured start/end/duration for one loop iteration
+# - human_pause: loop stopped waiting for human input
+# - human_resume: human resumed loop after pause
+#
+# Rules:
+# - Append only.
+# - Timestamps must be real wall-clock capture times (UTC), never estimates.
+# - Used by ai/METRICS_FLUSH.prompt.md for review-time derivation.
+
+events:

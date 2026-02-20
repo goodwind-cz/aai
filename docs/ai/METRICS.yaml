@@ -12,7 +12,7 @@
 #       model_id:           model identifier (e.g. claude-sonnet-4-5)
 #       started_utc:        ISO 8601 UTC (recorded by loop runner or agent)
 #       ended_utc:          ISO 8601 UTC
-#       duration_seconds:   wall-clock seconds (derived or measured externally)
+#       duration_seconds:   wall-clock seconds (measured, not estimated)
 #       tokens_in:          integer or null (if platform does not expose)
 #       tokens_out:         integer or null
 #       cost_usd:           float or null (calculated from PRICING.yaml)
@@ -25,7 +25,8 @@
 # Rules:
 # - Append only. Never edit existing entries.
 # - null is valid for any token/cost field (platform did not expose the value).
-# - Human time is always an estimate; record best-effort.
+# - Human time is best-effort (estimate/override allowed).
+# - Agent timing fields (started_utc/ended_utc/duration_seconds) must be measured, never estimated.
 # - Use ai/METRICS_FLUSH.prompt.md to flush STATE.yaml metrics into this file.
 # - Use ai/METRICS_REPORT.prompt.md to generate a summary table.
 
