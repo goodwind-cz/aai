@@ -1,46 +1,225 @@
 # AI Model Pricing Reference
-# Update this file when pricing changes.
 # Costs are in USD per 1,000,000 tokens.
-# Source: vendor pricing pages (verify before use).
+# Keep backwards compatibility for calculators reading:
+#   models.<model_id>.input_usd_per_m
+#   models.<model_id>.output_usd_per_m
+
+schema_version: 2
+
+pricing_meta:
+  currency: USD
+  token_unit: per_1m_tokens
+  default_effective_region: global
+  last_updated_utc: "2026-02-19T08:27:12Z"
+
+update_policy:
+  cadence_days: 30
+  require_source_ref: true
+  require_last_verified_utc: true
+  on_unknown_model: "add model with null pricing and source_ref, then verify"
+  update_steps:
+    - "Read official vendor pricing page."
+    - "Update model entry prices and last_verified_utc."
+    - "If pricing is tiered, store standard list price in notes."
+    - "Run metrics/report flow and verify null/known costs."
+
+sources:
+  openai-pricing:
+    provider: openai
+    url: "https://platform.openai.com/pricing"
+    last_verified_utc: "2026-02-19T08:27:12Z"
+  openai-codex-release:
+    provider: openai
+    url: "https://openai.com/index/introducing-upgrades-to-codex/"
+    last_verified_utc: "2026-02-19T08:27:12Z"
+  anthropic-pricing:
+    provider: anthropic
+    url: "https://www.anthropic.com/pricing"
+    last_verified_utc: null
+  google-ai-pricing:
+    provider: google
+    url: "https://ai.google.dev/gemini-api/docs/pricing"
+    last_verified_utc: "2026-02-19T08:27:12Z"
+
+# Normalize runtime model IDs to canonical pricing keys.
+model_aliases:
+  gpt-4o-2024-xx: gpt-4o
+  gpt-4o-mini-2024-xx: gpt-4o-mini
+  gpt-5.3: gpt-5.3-codex
+  gpt-5.3-codex-2026-02: gpt-5.3-codex
+  o3-mini: o3-mini
+  gemini-2.5-pro-latest: gemini-2.5-pro
+  gemini-2.5-flash-latest: gemini-2.5-flash
+  gemini-3-pro-latest: gemini-3-pro-preview
+  gemini-3-flash-latest: gemini-3-flash-preview
+  gemini-1.5-flash-latest: gemini-1.5-flash
+  claude-3-5-sonnet-latest: claude-3-5-sonnet
 
 models:
   # Anthropic Claude
-  claude-sonnet-4-5:
-    input_usd_per_m: 3.00
-    output_usd_per_m: 15.00
   claude-opus-4-6:
     input_usd_per_m: 15.00
     output_usd_per_m: 75.00
+    source_ref: anthropic-pricing
+    last_verified_utc: null
+  claude-sonnet-4-5:
+    input_usd_per_m: 3.00
+    output_usd_per_m: 15.00
+    source_ref: anthropic-pricing
+    last_verified_utc: null
   claude-haiku-4-5:
     input_usd_per_m: 0.80
     output_usd_per_m: 4.00
+    source_ref: anthropic-pricing
+    last_verified_utc: null
+  claude-3-7-sonnet:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: anthropic-pricing
+    last_verified_utc: null
+  claude-3-5-sonnet:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: anthropic-pricing
+    last_verified_utc: null
+  claude-3-5-haiku:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: anthropic-pricing
+    last_verified_utc: null
 
   # Google Gemini
   gemini-2.0-flash:
     input_usd_per_m: 0.10
     output_usd_per_m: 0.40
+    source_ref: google-ai-pricing
+    last_verified_utc: null
   gemini-2.0-flash-lite:
     input_usd_per_m: 0.075
     output_usd_per_m: 0.30
+    source_ref: google-ai-pricing
+    last_verified_utc: null
   gemini-1.5-pro:
     input_usd_per_m: 1.25
     output_usd_per_m: 5.00
+    source_ref: google-ai-pricing
+    last_verified_utc: null
+  gemini-1.5-flash:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: google-ai-pricing
+    last_verified_utc: null
+  gemini-1.5-flash-8b:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: google-ai-pricing
+    last_verified_utc: null
+  gemini-2.0-pro:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: google-ai-pricing
+    last_verified_utc: null
+  gemini-2.5-pro:
+    input_usd_per_m: 1.25
+    output_usd_per_m: 10.00
+    source_ref: google-ai-pricing
+    last_verified_utc: "2026-02-19T08:27:12Z"
+    notes: "Standard pricing for <=200k token context. >200k tier exists on source page."
+  gemini-2.5-flash:
+    input_usd_per_m: 0.30
+    output_usd_per_m: 2.50
+    source_ref: google-ai-pricing
+    last_verified_utc: "2026-02-19T08:27:12Z"
+    notes: "Standard mode list price."
+  gemini-3-pro-preview:
+    input_usd_per_m: 2.00
+    output_usd_per_m: 12.00
+    source_ref: google-ai-pricing
+    last_verified_utc: "2026-02-19T08:27:12Z"
+    notes: "Preview pricing for <=200k token context. >200k tier exists on source page."
+  gemini-3-flash-preview:
+    input_usd_per_m: 0.50
+    output_usd_per_m: 3.00
+    source_ref: google-ai-pricing
+    last_verified_utc: "2026-02-19T08:27:12Z"
+    notes: "Preview pricing; verify before production cost accounting."
 
   # OpenAI / Codex
   gpt-4o:
     input_usd_per_m: 2.50
     output_usd_per_m: 10.00
+    source_ref: openai-pricing
+    last_verified_utc: null
   gpt-4o-mini:
     input_usd_per_m: 0.15
     output_usd_per_m: 0.60
+    source_ref: openai-pricing
+    last_verified_utc: null
+  gpt-4.1:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: openai-pricing
+    last_verified_utc: null
+  gpt-4.1-mini:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: openai-pricing
+    last_verified_utc: null
+  gpt-4.1-nano:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: openai-pricing
+    last_verified_utc: null
+  gpt-5:
+    input_usd_per_m: 1.25
+    output_usd_per_m: 10.00
+    source_ref: openai-pricing
+    last_verified_utc: "2026-02-19T08:27:12Z"
+  gpt-5-mini:
+    input_usd_per_m: 0.25
+    output_usd_per_m: 2.00
+    source_ref: openai-pricing
+    last_verified_utc: "2026-02-19T08:27:12Z"
+  gpt-5.3-codex:
+    input_usd_per_m: 1.25
+    output_usd_per_m: 10.00
+    source_ref: openai-codex-release
+    last_verified_utc: "2026-02-19T08:27:12Z"
+    notes: "Inferred from OpenAI launch note: priced the same as GPT-5."
+  o1:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: openai-pricing
+    last_verified_utc: null
+  o1-mini:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: openai-pricing
+    last_verified_utc: null
   o3:
     input_usd_per_m: 10.00
     output_usd_per_m: 40.00
+    source_ref: openai-pricing
+    last_verified_utc: null
+  o3-mini:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: openai-pricing
+    last_verified_utc: null
   o4-mini:
     input_usd_per_m: 1.10
     output_usd_per_m: 4.40
+    source_ref: openai-pricing
+    last_verified_utc: null
+  o4:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: openai-pricing
+    last_verified_utc: null
 
   # Unknown / fallback
   unknown:
     input_usd_per_m: null
     output_usd_per_m: null
+    source_ref: null
+    last_verified_utc: null
