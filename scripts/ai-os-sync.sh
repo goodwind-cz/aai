@@ -34,6 +34,7 @@ echo "Target project:     $DST_ROOT"
 # Target directories (AI-OS layer only)
 mkdir -p \
   "$DST_ROOT/ai" \
+  "$DST_ROOT/.claude/skills" \
   "$DST_ROOT/.github" \
   "$DST_ROOT/docs/workflow" \
   "$DST_ROOT/docs/roles" \
@@ -52,6 +53,11 @@ copy_replace() {
 
 # Copy AI-OS canonical layer
 copy_replace "$SRC_ROOT/ai" "$DST_ROOT/ai"
+
+# Claude Code skills (session helpers)
+if [[ -d "$SRC_ROOT/.claude/skills" ]]; then
+  copy_replace "$SRC_ROOT/.claude/skills" "$DST_ROOT/.claude/skills"
+fi
 
 if [[ -d "$SRC_ROOT/docs/workflow" ]]; then copy_replace "$SRC_ROOT/docs/workflow" "$DST_ROOT/docs/workflow"; fi
 if [[ -d "$SRC_ROOT/docs/roles" ]]; then copy_replace "$SRC_ROOT/docs/roles" "$DST_ROOT/docs/roles"; fi

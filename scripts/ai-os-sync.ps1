@@ -40,12 +40,18 @@ Write-Host "Syncing AI-OS from: $SrcRoot"
 Write-Host "Target project:     $TargetRoot"
 
 # Target directories (AI-OS layer only)
-foreach ($d in @("ai",".github","docs/workflow","docs/roles","docs/templates","docs/knowledge","docs/ai","scripts")) {
+foreach ($d in @("ai",".claude/skills",".github","docs/workflow","docs/roles","docs/templates","docs/knowledge","docs/ai","scripts")) {
   New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot $d) | Out-Null
 }
 
 # Copy AI-OS canonical layer
 Copy-Replace (Join-Path $SrcRoot "ai") (Join-Path $TargetRoot "ai")
+
+# Claude Code skills (session helpers)
+$claudeSkills = Join-Path $SrcRoot ".claude/skills"
+if (Test-Path $claudeSkills) {
+  Copy-Replace $claudeSkills (Join-Path $TargetRoot ".claude/skills")
+}
 
 $wf = Join-Path $SrcRoot "docs/workflow"
 if (Test-Path $wf) { Copy-Replace $wf (Join-Path $TargetRoot "docs/workflow") }

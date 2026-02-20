@@ -17,7 +17,7 @@ The script resolves its own source root automatically — no need to copy it to 
 cd ../maty-ai
 git status
 git diff
-git add ai docs AGENTS.md PLAYBOOK.md CLAUDE.md scripts .github/copilot-instructions.md
+git add ai docs AGENTS.md PLAYBOOK.md CLAUDE.md scripts .claude/skills .github/copilot-instructions.md
 git commit -m "Update AI-OS layer"
 ```
 
@@ -30,11 +30,11 @@ git commit -m "Update AI-OS layer"
 cd ..\maty-ai
 git status
 git diff
-git add ai docs AGENTS.md PLAYBOOK.md CLAUDE.md scripts .github/copilot-instructions.md
+git add ai docs AGENTS.md PLAYBOOK.md CLAUDE.md scripts .claude/skills .github/copilot-instructions.md
 git commit -m "Update AI-OS layer"
 ```
 
-- Sync scope includes `ai/**`, `docs/workflow`, `docs/roles`, `docs/templates`, `docs/knowledge`, `docs/ai`, and root shims.
+- Sync scope includes `ai/**`, `.claude/skills/**`, `.github/copilot-instructions.md`, `docs/workflow`, `docs/roles`, `docs/templates`, `docs/knowledge`, `docs/ai`, and root shims.
 - It intentionally does **not** overwrite project docs under `docs/requirements`, `docs/specs`, `docs/decisions`, `docs/releases`, or `docs/issues`.
 
 ## What this repository is for
