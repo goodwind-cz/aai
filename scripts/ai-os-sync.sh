@@ -54,9 +54,17 @@ copy_replace() {
 # Copy AI-OS canonical layer
 copy_replace "$SRC_ROOT/ai" "$DST_ROOT/ai"
 
-# Claude Code skills (session helpers)
+# Claude Code skills (session helpers):
+# copy template skills file-by-file and preserve target-only local skills.
 if [[ -d "$SRC_ROOT/.claude/skills" ]]; then
-  copy_replace "$SRC_ROOT/.claude/skills" "$DST_ROOT/.claude/skills"
+  mkdir -p "$DST_ROOT/.claude/skills"
+  for src_entry in "$SRC_ROOT/.claude/skills/"*; do
+    [[ -e "$src_entry" ]] || continue
+    entry_name="$(basename "$src_entry")"
+    dst_entry="$DST_ROOT/.claude/skills/$entry_name"
+    copy_replace "$src_entry" "$dst_entry"
+  done
+  echo "  PRESERVE target-only skills under: $DST_ROOT/.claude/skills"
 fi
 
 if [[ -d "$SRC_ROOT/docs/workflow" ]]; then copy_replace "$SRC_ROOT/docs/workflow" "$DST_ROOT/docs/workflow"; fi
@@ -79,7 +87,25 @@ if [[ -d "$SRC_ROOT/docs/knowledge" ]]; then
   done
 fi
 
-if [[ -d "$SRC_ROOT/docs/ai" ]]; then copy_replace "$SRC_ROOT/docs/ai" "$DST_ROOT/docs/ai"; fi
+# docs/ai: preserve runtime files if they already exist in target
+if [[ -d "$SRC_ROOT/docs/ai" ]]; then
+  tmp_runtime_backup="$(mktemp -d)"
+  for runtime_file in STATE.yaml METRICS.yaml LOOP_TICKS.yaml; do
+    if [[ -f "$DST_ROOT/docs/ai/$runtime_file" ]]; then
+      cp -a "$DST_ROOT/docs/ai/$runtime_file" "$tmp_runtime_backup/$runtime_file"
+    fi
+  done
+
+  copy_replace "$SRC_ROOT/docs/ai" "$DST_ROOT/docs/ai"
+
+  for runtime_file in STATE.yaml METRICS.yaml LOOP_TICKS.yaml; do
+    if [[ -f "$tmp_runtime_backup/$runtime_file" ]]; then
+      cp -a "$tmp_runtime_backup/$runtime_file" "$DST_ROOT/docs/ai/$runtime_file"
+      echo "  PRESERVE runtime file: $DST_ROOT/docs/ai/$runtime_file"
+    fi
+  done
+  rm -rf "$tmp_runtime_backup"
+fi
 
 # Root canonical shims/files
 for f in AGENTS.md PLAYBOOK.md CLAUDE.md README.md; do

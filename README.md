@@ -35,6 +35,8 @@ git commit -m "Update AI-OS layer"
 ```
 
 - Sync scope includes `ai/**`, `.claude/skills/**`, `.github/copilot-instructions.md`, `docs/workflow`, `docs/roles`, `docs/templates`, `docs/knowledge`, `docs/ai`, and root shims.
+- For `.claude/skills/**`, template entries are updated, while target-only local skills are preserved.
+- Runtime files in target `docs/ai` are preserved (not overwritten) if they already exist: `STATE.yaml`, `METRICS.yaml`, `LOOP_TICKS.yaml`.
 - It intentionally does **not** overwrite project docs under `docs/requirements`, `docs/specs`, `docs/decisions`, `docs/releases`, or `docs/issues`.
 
 ## What this repository is for

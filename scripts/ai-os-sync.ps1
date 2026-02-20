@@ -47,10 +47,17 @@ foreach ($d in @("ai",".claude/skills",".github","docs/workflow","docs/roles","d
 # Copy AI-OS canonical layer
 Copy-Replace (Join-Path $SrcRoot "ai") (Join-Path $TargetRoot "ai")
 
-# Claude Code skills (session helpers)
+# Claude Code skills (session helpers):
+# copy template skills entry-by-entry and preserve target-only local skills.
 $claudeSkills = Join-Path $SrcRoot ".claude/skills"
 if (Test-Path $claudeSkills) {
-  Copy-Replace $claudeSkills (Join-Path $TargetRoot ".claude/skills")
+  $targetClaudeSkills = Join-Path $TargetRoot ".claude/skills"
+  New-Item -ItemType Directory -Force -Path $targetClaudeSkills | Out-Null
+  Get-ChildItem -Path $claudeSkills -Force | ForEach-Object {
+    $dstEntry = Join-Path $targetClaudeSkills $_.Name
+    Copy-Replace $_.FullName $dstEntry
+  }
+  Write-Host "  PRESERVE target-only skills under: $targetClaudeSkills"
 }
 
 $wf = Join-Path $SrcRoot "docs/workflow"
@@ -84,7 +91,29 @@ if (Test-Path $know) {
 }
 
 $aiDocs = Join-Path $SrcRoot "docs/ai"
-if (Test-Path $aiDocs) { Copy-Replace $aiDocs (Join-Path $TargetRoot "docs/ai") }
+if (Test-Path $aiDocs) {
+  # Preserve runtime files if they already exist in target docs/ai
+  $runtimeFiles = @("STATE.yaml", "METRICS.yaml", "LOOP_TICKS.yaml")
+  $tmpRuntimeBackup = Join-Path ([System.IO.Path]::GetTempPath()) ("ai-os-sync-runtime-" + [guid]::NewGuid().ToString("N"))
+  New-Item -ItemType Directory -Force -Path $tmpRuntimeBackup | Out-Null
+  foreach ($runtimeFile in $runtimeFiles) {
+    $runtimeDst = Join-Path $TargetRoot ("docs/ai/" + $runtimeFile)
+    if (Test-Path $runtimeDst) {
+      Copy-Item $runtimeDst (Join-Path $tmpRuntimeBackup $runtimeFile) -Force
+    }
+  }
+
+  Copy-Replace $aiDocs (Join-Path $TargetRoot "docs/ai")
+
+  foreach ($runtimeFile in $runtimeFiles) {
+    $runtimeBackup = Join-Path $tmpRuntimeBackup $runtimeFile
+    if (Test-Path $runtimeBackup) {
+      Copy-Item $runtimeBackup (Join-Path $TargetRoot ("docs/ai/" + $runtimeFile)) -Force
+      Write-Host "  PRESERVE runtime file: $(Join-Path $TargetRoot ("docs/ai/" + $runtimeFile))"
+    }
+  }
+  Remove-Item $tmpRuntimeBackup -Recurse -Force
+}
 
 # Root canonical shims/files
 foreach ($f in @("AGENTS.md","PLAYBOOK.md","CLAUDE.md","README.md")) {
