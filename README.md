@@ -115,6 +115,34 @@ cat ai/REVERSE_ANALYSIS_DASH_FASTAPI_CELERY.prompt.md
 cat ai/REVERSE_ANALYSIS_GENERIC.prompt.md
 ```
 
+### Skills (session-scoped, multi-step)
+
+Skills are higher-level prompts that compose multiple steps within one agent session.
+Use them instead of manually chaining individual role prompts.
+
+| Skill | Command | Replaces |
+| --- | --- | --- |
+| Autonomous loop | `cat ai/SKILL_LOOP.prompt.md` | `autonomous-loop.sh` / `.ps1` |
+| Intake router | `cat ai/SKILL_INTAKE.prompt.md` | manually picking `INTAKE_*.prompt.md` |
+| Human-in-the-loop resolver | `cat ai/SKILL_HITL.prompt.md` | manual STATE.yaml editing after human pause |
+| State health check | `cat ai/SKILL_CHECK_STATE.prompt.md` | manual STATE.yaml inspection |
+
+Typical skill flow:
+
+```bash
+# Start new work without knowing the intake type:
+cat ai/SKILL_INTAKE.prompt.md
+
+# Run full autonomous loop inside one agent session:
+cat ai/SKILL_LOOP.prompt.md
+
+# Loop paused for human decision? Resolve and resume:
+cat ai/SKILL_HITL.prompt.md
+
+# Suspect state corruption before a role runs:
+cat ai/SKILL_CHECK_STATE.prompt.md
+```
+
 ## When to run each action
 - Use `ai/ORCHESTRATION.prompt.md` first to choose the next role from repository state.
 - Use `ai/PLANNING.prompt.md` when orchestration dispatches Planning, or when requirement-to-spec mapping/measurability is missing.

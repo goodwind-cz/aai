@@ -53,6 +53,25 @@ Follow ai/METRICS_FLUSH.prompt.md
 Follow ai/METRICS_REPORT.prompt.md
 ```
 
+### Skills (agent-invocable, session-scoped)
+
+Skills are higher-level entry points that compose multiple steps within a single agent session.
+Use them when the agent supports subagent spawning or sequential tool use.
+
+```text
+Follow ai/SKILL_LOOP.prompt.md         # Full autonomous multi-tick loop (replaces shell loop runner)
+Follow ai/SKILL_INTAKE.prompt.md       # Universal intake router — auto-detects type from description
+Follow ai/SKILL_HITL.prompt.md         # Human-in-the-loop resolver — surfaces blocked question, unblocks state
+Follow ai/SKILL_CHECK_STATE.prompt.md  # STATE.yaml health check — validates all invariants
+```
+
+Skill selection guide:
+
+- Use SKILL_LOOP instead of autonomous-loop.sh when running inside a capable agent session.
+- Use SKILL_INTAKE instead of picking a specific INTAKE_*.prompt.md manually.
+- Use SKILL_HITL after SKILL_LOOP pauses with "LOOP PAUSED — Human decision required".
+- Use SKILL_CHECK_STATE before any role dispatch to catch state drift or corruption.
+
 ## Rules
 - Do not claim PASS without executable evidence.
 - Do not invent technologies: read docs/TECHNOLOGY.md first.
