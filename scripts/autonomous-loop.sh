@@ -2,7 +2,7 @@
 set -euo pipefail
 
 STATE_PATH="docs/ai/STATE.yaml"
-TICK_LOG="docs/ai/LOOP_TICKS.yaml"
+TICK_LOG="docs/ai/LOOP_TICKS.jsonl"
 TICK_COMMAND=""
 MAX_ITERATIONS=20
 SLEEP_SECONDS=1
@@ -197,19 +197,19 @@ echo "Max iterations: $MAX_ITERATIONS"
 # Initialize tick log if missing
 if [[ ! -f "$TICK_LOG" ]]; then
   mkdir -p "$(dirname "$TICK_LOG")"
-  printf '# Loop Tick Log (append-only, external timing)\n# Used by ai/METRICS_FLUSH.prompt.md\nevents:\n' > "$TICK_LOG"
+  touch "$TICK_LOG"
 fi
 
 # Detect if previous loop run ended with human_input pause — record resume
 loop_start_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 loop_start_epoch="$(date -u +%s)"
-if grep -q 'type: human_pause' "$TICK_LOG" 2>/dev/null; then
+if grep -q '"type":"human_pause"' "$TICK_LOG" 2>/dev/null; then
   # Find last pause that has no matching resume
-  last_pause_epoch="$(awk '/type: human_pause/{f=1;next} f&&/paused_epoch:/{print $2;f=0}' "$TICK_LOG" | tail -n1)"
-  last_resume_epoch="$(awk '/type: human_resume/{f=1;next} f&&/resumed_epoch:/{print $2;f=0}' "$TICK_LOG" | tail -n1)"
+  last_pause_epoch="$(grep '"type":"human_pause"' "$TICK_LOG" | sed 's/.*"paused_epoch":\([0-9]*\).*/\1/' | tail -n1)"
+  last_resume_epoch="$(grep '"type":"human_resume"' "$TICK_LOG" | sed 's/.*"resumed_epoch":\([0-9]*\).*/\1/' | tail -n1)"
   if [[ -n "$last_pause_epoch" && ( -z "$last_resume_epoch" || "$last_pause_epoch" -gt "$last_resume_epoch" ) ]]; then
     review_duration=$(( loop_start_epoch - last_pause_epoch ))
-    printf '  - type: human_resume\n    resumed_utc: "%s"\n    resumed_epoch: %s\n    review_duration_seconds: %s\n' \
+    printf '{"type":"human_resume","resumed_utc":"%s","resumed_epoch":%s,"review_duration_seconds":%s}\n' \
       "$loop_start_utc" "$loop_start_epoch" "$review_duration" >> "$TICK_LOG"
     echo "Detected human resume after ${review_duration}s review pause."
   fi
@@ -243,7 +243,7 @@ for ((i=1; i<=MAX_ITERATIONS; i++)); do
   validation_status_after="$(read_validation_status || true)"
 
   # Append external tick timing (model-agnostic)
-  printf '  - type: tick\n    tick: %s\n    started_utc: "%s"\n    ended_utc: "%s"\n    duration_seconds: %s\n    exit_code: %s\n    focus_type_before: "%s"\n    focus_ref_id_before: "%s"\n    focus_type_after: "%s"\n    focus_ref_id_after: "%s"\n    validation_status_before: "%s"\n    validation_status_after: "%s"\n' \
+  printf '{"type":"tick","tick":%s,"started_utc":"%s","ended_utc":"%s","duration_seconds":%s,"exit_code":%s,"focus_type_before":"%s","focus_ref_id_before":"%s","focus_type_after":"%s","focus_ref_id_after":"%s","validation_status_before":"%s","validation_status_after":"%s"}\n' \
     "$i" "$tick_start_utc" "$tick_end_utc" "$tick_duration" "$tick_exit" "$focus_type_before" "$focus_ref_before" "$focus_type_after" "$focus_ref_after" "$validation_status_before" "$validation_status_after" >> "$TICK_LOG"
 
   if [[ "$tick_exit" -ne 0 ]]; then
@@ -258,7 +258,7 @@ for ((i=1; i<=MAX_ITERATIONS; i++)); do
     if [[ "$reason" == "human_input.required=true" ]]; then
       pause_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
       pause_epoch="$(date -u +%s)"
-      printf '  - type: human_pause\n    paused_utc: "%s"\n    paused_epoch: %s\n    stop_reason: "%s"\n' \
+      printf '{"type":"human_pause","paused_utc":"%s","paused_epoch":%s,"stop_reason":"%s"}\n' \
         "$pause_utc" "$pause_epoch" "$reason" >> "$TICK_LOG"
     fi
     break

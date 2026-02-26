@@ -10,7 +10,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $StatePath = "docs/ai/STATE.yaml"
-$TickLogPath = "docs/ai/LOOP_TICKS.yaml"
+$TickLogPath = "docs/ai/LOOP_TICKS.jsonl"
 
 function New-StateFile {
   $utc = (Get-Date).ToUniversalTime().ToString("o")
@@ -109,20 +109,26 @@ Write-Host "Max iterations: $MaxIterations"
 # Initialize tick log if missing
 if (!(Test-Path $TickLogPath)) {
   New-Item -ItemType Directory -Force -Path (Split-Path $TickLogPath) | Out-Null
-  Set-Content -Path $TickLogPath -Value "# Loop Tick Log (append-only, external timing)`n# Used by ai/METRICS_FLUSH.prompt.md`nevents:" -Encoding utf8
+  New-Item -ItemType File -Path $TickLogPath | Out-Null
 }
 
 # Detect if previous loop run ended with human_input pause — record resume
 $loopStartUtc = (Get-Date).ToUniversalTime()
 $loopStartEpoch = [int][double]::Parse((Get-Date -UFormat %s -Date $loopStartUtc))
-$tickLogContent = Get-Content $TickLogPath -Raw -ErrorAction SilentlyContinue
-$pauseMatches = [regex]::Matches($tickLogContent, 'type: human_pause[\s\S]*?paused_epoch:\s*(\d+)')
-$resumeMatches = [regex]::Matches($tickLogContent, 'type: human_resume[\s\S]*?resumed_epoch:\s*(\d+)')
-$lastPauseEpoch = if ($pauseMatches.Count -gt 0) { [int]$pauseMatches[$pauseMatches.Count-1].Groups[1].Value } else { 0 }
-$lastResumeEpoch = if ($resumeMatches.Count -gt 0) { [int]$resumeMatches[$resumeMatches.Count-1].Groups[1].Value } else { 0 }
+$tickLogLines = Get-Content $TickLogPath -ErrorAction SilentlyContinue
+$lastPauseEpoch = 0
+$lastResumeEpoch = 0
+foreach ($line in $tickLogLines) {
+  if ($line -match '"type":"human_pause"' -and $line -match '"paused_epoch":(\d+)') {
+    $lastPauseEpoch = [int]$Matches[1]
+  }
+  if ($line -match '"type":"human_resume"' -and $line -match '"resumed_epoch":(\d+)') {
+    $lastResumeEpoch = [int]$Matches[1]
+  }
+}
 if ($lastPauseEpoch -gt 0 -and $lastPauseEpoch -gt $lastResumeEpoch) {
   $reviewDuration = $loopStartEpoch - $lastPauseEpoch
-  $resumeEntry = "  - type: human_resume`n    resumed_utc: `"$($loopStartUtc.ToString('o'))`"`n    resumed_epoch: $loopStartEpoch`n    review_duration_seconds: $reviewDuration"
+  $resumeEntry = "{`"type`":`"human_resume`",`"resumed_utc`":`"$($loopStartUtc.ToString('o'))`",`"resumed_epoch`":$loopStartEpoch,`"review_duration_seconds`":$reviewDuration}"
   Add-Content -Path $TickLogPath -Value $resumeEntry -Encoding utf8
   Write-Host "Detected human resume after ${reviewDuration}s review pause."
 }
@@ -159,7 +165,7 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
 
   # Append external tick timing (model-agnostic)
   $stateSnapshotAfter = Read-State
-  $tickEntry = "  - type: tick`n    tick: $i`n    started_utc: `"$tickStartUtc`"`n    ended_utc: `"$tickEndUtc`"`n    duration_seconds: $tickDuration`n    exit_code: $tickExit`n    focus_type_before: `"$($stateSnapshotBefore.focus_type)`"`n    focus_ref_id_before: `"$($stateSnapshotBefore.focus_ref_id)`"`n    focus_type_after: `"$($stateSnapshotAfter.focus_type)`"`n    focus_ref_id_after: `"$($stateSnapshotAfter.focus_ref_id)`"`n    validation_status_before: `"$($stateSnapshotBefore.validation_status)`"`n    validation_status_after: `"$($stateSnapshotAfter.validation_status)`""
+  $tickEntry = "{`"type`":`"tick`",`"tick`":$i,`"started_utc`":`"$tickStartUtc`",`"ended_utc`":`"$tickEndUtc`",`"duration_seconds`":$tickDuration,`"exit_code`":$tickExit,`"focus_type_before`":`"$($stateSnapshotBefore.focus_type)`",`"focus_ref_id_before`":`"$($stateSnapshotBefore.focus_ref_id)`",`"focus_type_after`":`"$($stateSnapshotAfter.focus_type)`",`"focus_ref_id_after`":`"$($stateSnapshotAfter.focus_ref_id)`",`"validation_status_before`":`"$($stateSnapshotBefore.validation_status)`",`"validation_status_after`":`"$($stateSnapshotAfter.validation_status)`"}"
   Add-Content -Path $TickLogPath -Value $tickEntry -Encoding utf8
 
   Start-Sleep -Seconds $SleepSeconds
@@ -171,7 +177,7 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
     if ($postStop -eq "human_input.required=true") {
       $pauseNow = (Get-Date).ToUniversalTime()
       $pauseEpoch = [int][double]::Parse((Get-Date -UFormat %s -Date $pauseNow))
-      $pauseEntry = "  - type: human_pause`n    paused_utc: `"$($pauseNow.ToString('o'))`"`n    paused_epoch: $pauseEpoch`n    stop_reason: `"$postStop`""
+      $pauseEntry = "{`"type`":`"human_pause`",`"paused_utc`":`"$($pauseNow.ToString('o'))`",`"paused_epoch`":$pauseEpoch,`"stop_reason`":`"$postStop`"}"
       Add-Content -Path $TickLogPath -Value $pauseEntry -Encoding utf8
     }
     break

@@ -43,7 +43,9 @@ If the answer is unclear or incomplete, ask ONE targeted follow-up question, the
 Do not loop more than once — accept a partial answer with explicit assumptions if needed.
 
 STEP 4 — RECORD DECISION
-Save the human's decision as a decision artifact:
+Save the human's decision in two places:
+
+4a. Decision artifact (Markdown, human-readable):
 - Path: docs/decisions/DECISION-<ref_id or timestamp>.md
 - Format:
   ```
@@ -62,6 +64,13 @@ Save the human's decision as a decision artifact:
   ## Assumptions
   <any explicit assumptions made where the answer was partial>
   ```
+
+4b. Decision log entry (JSONL, machine-readable):
+- Append one JSON line to docs/ai/decisions.jsonl:
+  ```
+  {"ts":"<now ISO 8601 UTC>","type":"hitl","ref":"<ref_id or timestamp>","by":"human","question":"<blocking_reason summary>","answer":"<human answer, one line>","question_ref":"<question_ref or null>","artifact":"<path to .md artifact>"}
+  ```
+- Keep "answer" to one line — truncate with "..." if needed; full answer is in the artifact.
 
 STEP 5 — UNBLOCK STATE
 Update docs/ai/STATE.yaml:

@@ -8,11 +8,11 @@ REQUIRED CAPABILITIES
 - Read and write files (filesystem or file tool)
 - Spawn subagents OR execute canonical role prompts sequentially in-session if subagents are unavailable
 - Read and update docs/ai/STATE.yaml after each tick
-- Append runtime timing events into docs/ai/LOOP_TICKS.yaml
+- Append runtime timing events into docs/ai/LOOP_TICKS.jsonl
 
 AUTHORITATIVE SOURCES
 - docs/ai/STATE.yaml  (runtime state, updated after every tick)
-- docs/ai/LOOP_TICKS.yaml (append-only runtime timing events)
+- docs/ai/LOOP_TICKS.jsonl (append-only runtime timing events, one JSON object per line)
 - ai/ORCHESTRATION.prompt.md  (tick orchestrator logic — do NOT duplicate it here)
 - ai/SUBAGENT_PROTOCOL.md  (if present: result block format and merge protocol)
 
@@ -62,7 +62,7 @@ For each tick (1..max_ticks):
 
   5. LOG the tick:
      Tick <N>: [role dispatched] → scope=<ref_id> → state=<project_status>/<last_validation.status>
-     - Append one `type: tick` event to docs/ai/LOOP_TICKS.yaml with:
+     - Append one `type: tick` JSON line to docs/ai/LOOP_TICKS.jsonl with:
        tick, started_utc, ended_utc, duration_seconds, exit_code,
        focus_ref_id_before, focus_ref_id_after, validation_status_before, validation_status_after.
      - Do not estimate timing. Use real timestamps measured during execution.
@@ -108,7 +108,7 @@ Final state:
 STRICT RULES
 - Do NOT improvise role logic. Execute canonical role prompts exactly
   (either via subagent delegation or direct in-session execution).
-- Do NOT estimate any runtime timing in LOOP_TICKS.yaml.
+- Do NOT estimate any runtime timing in LOOP_TICKS.jsonl.
 - Use only system clock timestamps (`date -u` / `Get-Date ...ToUniversalTime()`), never LLM-generated time.
 - Do NOT skip STATE.yaml read between ticks. State evolves every tick.
 - Do NOT exceed max_ticks without stopping and reporting.

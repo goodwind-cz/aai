@@ -7,14 +7,17 @@ This repository uses a reusable AI Operating System.
 - Semantic roles: docs/roles/ROLES.md
 - Technology contract: docs/TECHNOLOGY.md (created by ai/TECH_EXTRACT.prompt.md)
 - Fact memory: docs/knowledge/FACTS.md
+- Pattern library (project): docs/knowledge/PATTERNS.md
+- Pattern library (universal, sync-managed): docs/knowledge/PATTERNS_UNIVERSAL.md
 - UI map: docs/knowledge/UI_MAP.md
 - Prompts: ai/*.prompt.md
 - Subagent protocol: ai/SUBAGENT_PROTOCOL.md
 - Human playbook: PLAYBOOK.md
 - Coordination locks (optional): docs/ai/LOCKS.md
-- Metrics ledger: docs/ai/METRICS.yaml
+- Metrics ledger: docs/ai/METRICS.jsonl
 - Model pricing: docs/ai/PRICING.yaml
-- Loop tick log: docs/ai/LOOP_TICKS.yaml
+- Loop tick log: docs/ai/LOOP_TICKS.jsonl
+- Decision log: docs/ai/decisions.jsonl
 
 To update the AI-OS layer from a template worktree, see scripts/ai-os-sync.(sh|ps1) and docs/ai/AI_OS_PIN.md.
 
@@ -51,6 +54,7 @@ Follow ai/BOOTSTRAP_DIFF.prompt.md
 Follow ai/GENERATE_README.prompt.md
 Follow ai/METRICS_FLUSH.prompt.md
 Follow ai/METRICS_REPORT.prompt.md
+Follow ai/MEMORY_REVIEW.prompt.md
 ```
 
 ### Skills (agent-invocable, session-scoped)
@@ -75,7 +79,8 @@ Skill selection guide:
 ## Rules
 - Do not claim PASS without executable evidence.
 - Do not invent technologies: read docs/TECHNOLOGY.md first.
-- Archived analyses are read-only; new knowledge goes into FACTS.md and UI_MAP.md.
+- Archived analyses are read-only; new knowledge goes into FACTS.md, PATTERNS.md, and UI_MAP.md.
+- PATTERNS_UNIVERSAL.md is sync-managed — never write to it directly; suggest promotions via report.
 - If CLAUDE.md or Copilot instructions conflict with this file, follow this file.
 - Bootstrap must preserve scaffolding assets: never delete docs/templates/*,
   docs/rfc/, or docs/**/.gitkeep placeholders only because they are unreferenced.

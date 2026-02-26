@@ -4,11 +4,11 @@ GOAL
 Produce a human-readable summary of AI-OS work economics from the metrics ledger.
 
 INPUTS
-- docs/ai/METRICS.yaml   — completed work item ledger
+- docs/ai/METRICS.jsonl  — completed work item ledger (one JSON object per line; skip comment lines starting with #)
 - docs/ai/PRICING.yaml   — model cost table (for filling null cost_usd where tokens are known)
 
 PROCESS
-1. Read docs/ai/METRICS.yaml. If entries is empty, output "No metrics recorded yet." and STOP.
+1. Read docs/ai/METRICS.jsonl. Skip lines starting with #. Parse each remaining line as a JSON object. If no entries exist, output "No metrics recorded yet." and STOP.
 2. Read docs/ai/PRICING.yaml to resolve any agent_run where cost_usd is null but
    tokens_in/tokens_out are known:
    cost_usd = (tokens_in * input_usd_per_m + tokens_out * output_usd_per_m) / 1_000_000

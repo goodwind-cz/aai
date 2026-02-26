@@ -15,6 +15,12 @@ INVARIANT RULES
 - Read docs/TECHNOLOGY.md before making any tooling/framework assumptions.
 - Read and respect docs/ai/STATE.yaml before planning.
 
+PATTERN CONTEXT (load before planning)
+For each of docs/knowledge/PATTERNS_UNIVERSAL.md and docs/knowledge/PATTERNS.md (if they exist):
+  1. Read the INDEX table only.
+  2. Load full text of patterns whose Tags overlap with the current task domain.
+  3. Skip patterns with non-overlapping tags. Skip entirely if INDEX is empty.
+
 PROCESS
 1) Read docs/ai/STATE.yaml and verify planning is allowed (project not paused, no blocking human input).
 2) Determine target scope from current_focus and active_work_items.

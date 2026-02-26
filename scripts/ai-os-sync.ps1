@@ -93,7 +93,7 @@ if (Test-Path $know) {
 $aiDocs = Join-Path $SrcRoot "docs/ai"
 if (Test-Path $aiDocs) {
   # Preserve runtime files if they already exist in target docs/ai
-  $runtimeFiles = @("STATE.yaml", "METRICS.yaml", "LOOP_TICKS.yaml")
+  $runtimeFiles = @("STATE.yaml", "METRICS.jsonl", "LOOP_TICKS.jsonl", "decisions.jsonl")
   $tmpRuntimeBackup = Join-Path ([System.IO.Path]::GetTempPath()) ("ai-os-sync-runtime-" + [guid]::NewGuid().ToString("N"))
   New-Item -ItemType Directory -Force -Path $tmpRuntimeBackup | Out-Null
   foreach ($runtimeFile in $runtimeFiles) {

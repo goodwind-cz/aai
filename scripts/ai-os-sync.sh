@@ -90,7 +90,7 @@ fi
 # docs/ai: preserve runtime files if they already exist in target
 if [[ -d "$SRC_ROOT/docs/ai" ]]; then
   tmp_runtime_backup="$(mktemp -d)"
-  for runtime_file in STATE.yaml METRICS.yaml LOOP_TICKS.yaml; do
+  for runtime_file in STATE.yaml METRICS.jsonl LOOP_TICKS.jsonl decisions.jsonl; do
     if [[ -f "$DST_ROOT/docs/ai/$runtime_file" ]]; then
       cp -a "$DST_ROOT/docs/ai/$runtime_file" "$tmp_runtime_backup/$runtime_file"
     fi
@@ -98,7 +98,7 @@ if [[ -d "$SRC_ROOT/docs/ai" ]]; then
 
   copy_replace "$SRC_ROOT/docs/ai" "$DST_ROOT/docs/ai"
 
-  for runtime_file in STATE.yaml METRICS.yaml LOOP_TICKS.yaml; do
+  for runtime_file in STATE.yaml METRICS.jsonl LOOP_TICKS.jsonl decisions.jsonl; do
     if [[ -f "$tmp_runtime_backup/$runtime_file" ]]; then
       cp -a "$tmp_runtime_backup/$runtime_file" "$DST_ROOT/docs/ai/$runtime_file"
       echo "  PRESERVE runtime file: $DST_ROOT/docs/ai/$runtime_file"

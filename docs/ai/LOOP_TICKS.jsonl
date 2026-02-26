@@ -1,0 +1,26 @@
+# Loop Tick Log — append-only, one JSON object per line (JSONL format)
+# Source of truth for real runtime boundaries captured by loop runners.
+#
+# Event types:
+#   tick         — one measured loop iteration
+#   human_pause  — loop stopped waiting for human input
+#   human_resume — human resumed loop after pause
+#
+# Rules:
+#   - Append only. Never edit existing lines.
+#   - Timestamps must be real wall-clock capture times (UTC), never estimates.
+#   - Used by ai/METRICS_FLUSH.prompt.md for human review time derivation.
+#   - To append: echo '<json>' >> docs/ai/LOOP_TICKS.jsonl
+#
+# tick schema:
+#   {"type":"tick","tick":N,"started_utc":"ISO8601Z","ended_utc":"ISO8601Z",
+#    "duration_seconds":N,"exit_code":N,
+#    "focus_type_before":"...","focus_ref_id_before":"...",
+#    "focus_type_after":"...","focus_ref_id_after":"...",
+#    "validation_status_before":"...","validation_status_after":"..."}
+#
+# human_pause schema:
+#   {"type":"human_pause","paused_utc":"ISO8601Z","paused_epoch":N,"stop_reason":"..."}
+#
+# human_resume schema:
+#   {"type":"human_resume","resumed_utc":"ISO8601Z","resumed_epoch":N,"review_duration_seconds":N}

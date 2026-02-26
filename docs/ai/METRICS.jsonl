@@ -1,0 +1,34 @@
+# AI-OS Metrics Ledger — append-only, one JSON object per line (JSONL format)
+#
+# Each line represents one completed work item flushed from STATE.yaml.
+#
+# Schema per entry (compact JSON, single line):
+#   {
+#     "date_utc": "YYYY-MM-DD",
+#     "ref_id": "PRD-001",
+#     "title": "short description",
+#     "human_time_minutes": {"intake": N_or_null, "reviews": N_or_null},
+#     "agent_runs": [
+#       {"role": "Planning|Implementation|Validation|Remediation",
+#        "model_id": "claude-sonnet-4-6",
+#        "started_utc": "ISO8601Z", "ended_utc": "ISO8601Z",
+#        "duration_seconds": N_or_null,
+#        "tokens_in": N_or_null, "tokens_out": N_or_null,
+#        "cost_usd": N_or_null}
+#     ],
+#     "totals": {
+#       "human_time_minutes": N,
+#       "agent_duration_seconds": N,
+#       "cost_usd": N_or_null
+#     },
+#     "verdict": "PASS|FAIL|CANCELLED"
+#   }
+#
+# Rules:
+#   - Append only. Never edit existing lines.
+#   - null is valid for any token/cost field (platform did not expose the value).
+#   - Human time is best-effort (estimate/override allowed).
+#   - Agent timing must be measured, never estimated.
+#   - Use ai/METRICS_FLUSH.prompt.md to flush STATE.yaml metrics into this file.
+#   - Use ai/METRICS_REPORT.prompt.md to generate a summary table.
+#   - To append: echo '<json>' >> docs/ai/METRICS.jsonl

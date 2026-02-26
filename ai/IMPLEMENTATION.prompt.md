@@ -16,6 +16,12 @@ INVARIANT RULES
 - Read docs/TECHNOLOGY.md before making any tooling/framework assumptions.
 - Read and respect docs/ai/STATE.yaml before implementation.
 
+PATTERN CONTEXT (load before implementing)
+For each of docs/knowledge/PATTERNS_UNIVERSAL.md and docs/knowledge/PATTERNS.md (if they exist):
+  1. Read the INDEX table only.
+  2. Load full text of patterns whose Tags overlap with the current task domain.
+  3. Skip patterns with non-overlapping tags. Skip entirely if INDEX is empty.
+
 PROCESS
 1) Read docs/ai/STATE.yaml and verify implementation is allowed:
    - project_status is active

@@ -2,24 +2,24 @@ You are an autonomous METRICS FLUSH agent.
 
 GOAL
 Move completed work item metrics from docs/ai/STATE.yaml into the append-only
-docs/ai/METRICS.yaml ledger.
+docs/ai/METRICS.jsonl ledger.
 
 INPUTS
 - docs/ai/STATE.yaml        — runtime state (source)
-- docs/ai/METRICS.yaml      — append-only ledger (destination)
+- docs/ai/METRICS.jsonl     — append-only ledger (destination, one JSON object per line)
 - docs/ai/PRICING.yaml      — model cost table
-- docs/ai/LOOP_TICKS.yaml   — external timing log (optional, for human review time)
+- docs/ai/LOOP_TICKS.jsonl  — external timing log (optional, for human review time)
 
 FLUSH CRITERIA
 Only flush a work item if ALL of the following are true:
 - Its validation verdict is PASS or CANCELLED (not still in progress).
 - It has at least one agent_run recorded in STATE.yaml metrics.
-- It is NOT already present in METRICS.yaml (match by ref_id).
+- It is NOT already present in METRICS.jsonl (match by ref_id).
 
 PROCESS
-1. Read all four files (LOOP_TICKS.yaml is optional; skip if missing).
-2. Derive human review time from LOOP_TICKS.yaml (if present):
-   - Sum all `review_duration_seconds` from `type: human_resume` entries.
+1. Read all four files (LOOP_TICKS.jsonl is optional; skip if missing).
+2. Derive human review time from LOOP_TICKS.jsonl (if present):
+   - Filter lines where "type" == "human_resume"; sum all "review_duration_seconds" values.
    - Convert to minutes (round up). This is the auto-measured review time.
    - If STATE.yaml already has a non-null `reviews` value, use STATE.yaml (human override wins).
    - Otherwise, set `reviews` from LOOP_TICKS sum.
@@ -36,13 +36,13 @@ PROCESS
       - human_time_minutes = (intake ?? 0) + (reviews ?? 0)
       - agent_duration_seconds = sum of non-null duration_seconds across agent_runs
       - total_cost_usd = sum of cost_usd across runs (null if any run cost is null)
-   c. Append a new entry to docs/ai/METRICS.yaml entries list.
-4. Write updated docs/ai/METRICS.yaml.
+   c. Serialize the entry as a single-line JSON object and append it to docs/ai/METRICS.jsonl.
+4. Append the new line to docs/ai/METRICS.jsonl (do NOT rewrite existing lines).
 5. Do NOT remove flushed items from STATE.yaml (orchestration manages STATE.yaml).
 6. Report: list of ref_ids flushed, or "Nothing to flush."
 
 STRICT RULES
-- Append only to METRICS.yaml — never modify existing entries.
+- Append only to METRICS.jsonl — never modify existing lines. Each entry is one JSON line.
 - If tokens_in or tokens_out is null, leave cost_usd as null for that run.
   Do NOT estimate or guess token counts.
 - Do NOT estimate agent timing. Use only measured timestamps/durations.

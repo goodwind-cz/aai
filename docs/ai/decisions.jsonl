@@ -1,0 +1,17 @@
+# Decision Log — append-only, one JSON object per line (JSONL format)
+#
+# Records key decisions made during autonomous loop runs:
+#   - HITL answers (human decisions that unblocked the loop)
+#   - Implementation lock overrides
+#   - Rejected alternatives during planning
+#
+# Schema per entry:
+#   {"ts":"ISO8601Z","type":"hitl|lock_override|planning_rejection",
+#    "ref":"PRD-001","by":"human|agent",
+#    "question":"...(for hitl)","answer":"...(for hitl)",
+#    "blocking_reason":"...(for hitl)","notes":"..."}
+#
+# Rules:
+#   - Append only. Never edit existing lines.
+#   - Written by ai/SKILL_HITL.prompt.md after human decision is recorded.
+#   - To append: echo '<json>' >> docs/ai/decisions.jsonl
