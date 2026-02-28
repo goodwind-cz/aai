@@ -4,6 +4,7 @@ param(
   [int]$MaxIterations = 20,
   [int]$SleepSeconds = 1,
   [switch]$AutoInitState,
+  [switch]$NoAutoInstallPyYaml,
   [switch]$DryRun
 )
 
@@ -11,6 +12,70 @@ $ErrorActionPreference = "Stop"
 
 $StatePath = "docs/ai/STATE.yaml"
 $TickLogPath = "docs/ai/LOOP_TICKS.jsonl"
+$Py = $null
+$StateReaderPy = $null
+
+function Ensure-PyYaml {
+  param([switch]$NoAutoInstall)
+
+  foreach ($cmd in @("python3", "python", "py")) {
+    try {
+      $out = & $cmd -c "import yaml; print('ok')" 2>$null
+      if ($out -eq "ok") { return $cmd }
+    } catch {}
+  }
+
+  if ($NoAutoInstall) {
+    throw "python + PyYAML required. Install with: pip install pyyaml"
+  }
+
+  foreach ($cmd in @("python3", "python", "py")) {
+    try {
+      $out = & $cmd -c "print('ok')" 2>$null
+      if ($out -eq "ok") {
+        Write-Host "PyYAML not found. Installing via $cmd -m pip install pyyaml..."
+        & $cmd -m pip install pyyaml | Out-Host
+        $verify = & $cmd -c "import yaml; print('ok')" 2>$null
+        if ($verify -eq "ok") { return $cmd }
+      }
+    } catch {}
+  }
+
+  throw "python + PyYAML required. Install with: pip install pyyaml"
+}
+
+function Initialize-StateReader {
+  param([string]$PyCmd)
+
+  $pyScript = @"
+import yaml, json, sys
+
+path = sys.argv[1]
+with open(path, encoding='utf-8') as f:
+    data = yaml.safe_load(f) or {}
+
+def get(d, *keys):
+    for k in keys:
+        if not isinstance(d, dict) or k not in d:
+            return None
+        d = d[k]
+    return d
+
+out = {
+    "project_status": data.get("project_status"),
+    "human_required": get(data, "human_input", "required"),
+    "validation_status": get(data, "last_validation", "status"),
+    "focus_type": get(data, "current_focus", "type"),
+    "focus_ref_id": get(data, "current_focus", "ref_id"),
+}
+
+print(json.dumps(out, separators=(",", ":"), ensure_ascii=False))
+"@
+
+  $tmp = [System.IO.Path]::GetTempFileName() + ".py"
+  Set-Content -Path $tmp -Value $pyScript -Encoding utf8
+  return $tmp
+}
 
 function New-StateFile {
   $utc = (Get-Date).ToUniversalTime().ToString("o")
@@ -67,12 +132,23 @@ function Read-State {
     }
   }
 
-  $raw = Get-Content -Path $StatePath -Raw
-  $projectStatus = [regex]::Match($raw, '(?m)^\s*project_status:\s*([A-Za-z_]+)\s*$').Groups[1].Value
-  $humanRequired = [regex]::Match($raw, '(?m)^\s*required:\s*(true|false)\s*$').Groups[1].Value
-  $validationStatus = [regex]::Match($raw, '(?m)^\s*status:\s*(pass|fail|not_run)\s*$').Groups[1].Value
-  $focusType = [regex]::Match($raw, '(?ms)^\s*current_focus:\s*\r?\n\s*type:\s*([A-Za-z0-9_]+)\s*$').Groups[1].Value
-  $focusRefId = [regex]::Match($raw, '(?ms)^\s*current_focus:\s*\r?\n\s*type:\s*[A-Za-z0-9_]+\s*\r?\n\s*ref_id:\s*([^\r\n]+)\s*$').Groups[1].Value
+  $json = & $Py $StateReaderPy $StatePath
+  if ([string]::IsNullOrWhiteSpace($json)) {
+    return @{
+      project_status = $null
+      human_required = $null
+      validation_status = $null
+      focus_type = $null
+      focus_ref_id = $null
+    }
+  }
+
+  $parsed = $json | ConvertFrom-Json
+  $projectStatus = [string]$parsed.project_status
+  $humanRequired = [string]$parsed.human_required
+  $validationStatus = [string]$parsed.validation_status
+  $focusType = [string]$parsed.focus_type
+  $focusRefId = [string]$parsed.focus_ref_id
 
   return @{
     project_status = $projectStatus
@@ -101,6 +177,10 @@ if (!(Test-Path $StatePath)) {
     throw "Missing $StatePath. Re-run with -AutoInitState to create it."
   }
 }
+
+try {
+  $Py = Ensure-PyYaml -NoAutoInstall:$NoAutoInstallPyYaml
+  $StateReaderPy = Initialize-StateReader -PyCmd $Py
 
 Write-Host "Autonomous loop start"
 Write-Host "Tick command: $TickCommand"
@@ -188,4 +268,9 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
   }
 }
 
+} finally {
+  if ($StateReaderPy -and (Test-Path $StateReaderPy)) {
+    Remove-Item $StateReaderPy -Force -ErrorAction SilentlyContinue
+  }
+}
 Write-Host "Autonomous loop finished."

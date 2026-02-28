@@ -254,6 +254,7 @@ Use the helper scripts to run repeated autonomous ticks until a stop condition:
   -SleepSeconds 1 `
   -AutoInitState
 ```
+PyYAML is auto-installed if missing. Use `-NoAutoInstallPyYaml` to disable auto-install.
 
 Examples (PowerShell):
 ```powershell
