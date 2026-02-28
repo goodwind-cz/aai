@@ -26,7 +26,7 @@ Options:
   --max-iterations N          Maximum loop iterations (default: 20)
   --sleep-seconds N           Sleep between iterations (default: 1)
   --auto-init-state           Create docs/ai/STATE.yaml if missing
-  --skip-bootstrap-check      Skip check for .claude/skills.local/README.md
+  --skip-bootstrap-check      Skip check for .claude/skills/AAI_DYNAMIC_SKILLS.md
   --dry-run                   Do not execute tick command
 EOF
 }
@@ -226,9 +226,9 @@ if [[ "$MODE" == "skill" ]]; then
   done
 
   if [[ "$SKIP_BOOTSTRAP_CHECK" == "0" ]]; then
-    if [[ ! -f ".claude/skills.local/README.md" ]]; then
+    if [[ ! -f ".claude/skills/AAI_DYNAMIC_SKILLS.md" ]]; then
       BOOTSTRAP_READY="false"
-      echo "ERROR: Missing .claude/skills.local/README.md. Run bootstrap first: follow ai/SKILL_BOOTSTRAP.prompt.md" >&2
+      echo "ERROR: Missing .claude/skills/AAI_DYNAMIC_SKILLS.md. Run bootstrap first: follow ai/SKILL_BOOTSTRAP.prompt.md" >&2
       exit 1
     fi
     BOOTSTRAP_READY="true"

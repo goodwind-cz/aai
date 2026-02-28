@@ -220,9 +220,9 @@ if ($Mode -eq "skill") {
   }
 
   if (!$SkipBootstrapCheck) {
-    if (!(Test-Path ".claude/skills.local/README.md")) {
+    if (!(Test-Path ".claude/skills/AAI_DYNAMIC_SKILLS.md")) {
       $BootstrapReady = "false"
-      throw "Missing .claude/skills.local/README.md. Run bootstrap first: follow ai/SKILL_BOOTSTRAP.prompt.md"
+      throw "Missing .claude/skills/AAI_DYNAMIC_SKILLS.md. Run bootstrap first: follow ai/SKILL_BOOTSTRAP.prompt.md"
     }
     $BootstrapReady = "true"
   } else {

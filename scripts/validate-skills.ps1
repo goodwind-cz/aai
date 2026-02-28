@@ -27,11 +27,11 @@ foreach ($p in $requiredPrompts) {
   Require-File -Path (Join-Path $root $p)
 }
 
-$skillsLocalReadme = Join-Path $root ".claude/skills.local/README.md"
-if (Test-Path $skillsLocalReadme) {
-  Write-Host "OK: dynamic skills bootstrap marker exists (.claude/skills.local/README.md)"
+$skillsMarker = Join-Path $root ".claude/skills/AAI_DYNAMIC_SKILLS.md"
+if (Test-Path $skillsMarker) {
+  Write-Host "OK: dynamic skills bootstrap marker exists (.claude/skills/AAI_DYNAMIC_SKILLS.md)"
 } else {
-  Write-Warning "Missing .claude/skills.local/README.md (bootstrap may not have run yet)."
+  Write-Warning "Missing .claude/skills/AAI_DYNAMIC_SKILLS.md (bootstrap may not have run yet)."
 }
 
 $tickLog = Join-Path $root "docs/ai/LOOP_TICKS.jsonl"

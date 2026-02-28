@@ -74,7 +74,7 @@ Follow ai/SKILL_VALIDATE_REPORT.prompt.md # Validation report with screenshot ev
 
 #### Project-Specific Skills (Auto-Generated)
 
-After running `/aai-bootstrap`, the following skills are auto-generated in `.claude/skills.local/`:
+After running `/aai-bootstrap`, the following skills are auto-generated in `.claude/skills/`:
 
 ```text
 /aai-test-e2e    # Run E2E tests (Playwright/Cypress) - auto-detects MCP server
@@ -108,6 +108,9 @@ Skill selection guide:
   - `codex --prompt-file ai/SKILL_CHECK_STATE.prompt.md`
   - `codex --prompt-file ai/SKILL_INTAKE.prompt.md`
   - `codex --prompt-file ai/SKILL_LOOP.prompt.md`
+- Bootstrap also writes dynamic indexes:
+  - `.codex/skills.local/README.md`
+  - `.gemini/skills.local/README.md`
 - Loop runners are skill-first by default and enforce this sequence unless explicitly switched to legacy mode.
 
 ## Rules

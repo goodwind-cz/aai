@@ -24,3 +24,5 @@
 #
 # human_resume schema:
 #   {"type":"human_resume","resumed_utc":"ISO8601Z","resumed_epoch":N,"review_duration_seconds":N}
+{"type":"tick","tick":1,"started_utc":"2026-02-28T18:05:10Z","ended_utc":"2026-02-28T18:05:10Z","duration_seconds":0,"exit_code":0,"mode":"skill","skill_flow":"check_state>intake>loop","bootstrap_ready":"skipped","focus_type_before":"none","focus_ref_id_before":"","focus_type_after":"none","focus_ref_id_after":"","validation_status_before":"not_run","validation_status_after":"not_run"}
+{"type":"tick","tick":1,"started_utc":"2026-02-28T18:05:15.0583941Z","ended_utc":"2026-02-28T18:05:15.4277071Z","duration_seconds":0,"exit_code":0,"mode":"skill","skill_flow":"check_state>intake>loop","bootstrap_ready":"skipped","focus_type_before":"none","focus_ref_id_before":"","focus_type_after":"none","focus_ref_id_after":"","validation_status_before":"not_run","validation_status_after":"not_run"}

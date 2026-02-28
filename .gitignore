@@ -2,7 +2,9 @@
 .claude/settings.local.json
 
 # Cache for dynamic skills (NOT the skills themselves - those should be committed)
-.claude/skills.local/.cache
+.claude/skills/.cache
+.codex/skills.local/.cache
+.gemini/skills.local/.cache
 
 # Backup files (should not exist with current sync scripts, but just in case)
 *.bak

@@ -17,7 +17,8 @@ This file is intentionally minimal to avoid duplicated guidance.
   - `/aai-hitl` -> `ai/SKILL_HITL.prompt.md`
   - `/aai-bootstrap` -> `ai/SKILL_BOOTSTRAP.prompt.md`
   - `/aai-validate-report` -> `ai/SKILL_VALIDATE_REPORT.prompt.md`
-- Project-local generated skills live in `.claude/skills.local/` and must use `aai-` prefix.
+- Project-local generated skills live in `.claude/skills/` and must use `aai-` prefix.
+- Dynamic Codex index is written to `.codex/skills.local/README.md` by `/aai-bootstrap`.
 
 ## How to proceed
 1) Read `AGENTS.md`.

@@ -22,10 +22,10 @@ for p in \
   require_file "$p"
 done
 
-if [[ -f "$TARGET/.claude/skills.local/README.md" ]]; then
-  echo "OK: dynamic skills bootstrap marker exists (.claude/skills.local/README.md)"
+if [[ -f "$TARGET/.claude/skills/AAI_DYNAMIC_SKILLS.md" ]]; then
+  echo "OK: dynamic skills bootstrap marker exists (.claude/skills/AAI_DYNAMIC_SKILLS.md)"
 else
-  echo "WARN: Missing .claude/skills.local/README.md (bootstrap may not have run yet)."
+  echo "WARN: Missing .claude/skills/AAI_DYNAMIC_SKILLS.md (bootstrap may not have run yet)."
 fi
 
 if [[ -f "$TARGET/docs/ai/LOOP_TICKS.jsonl" ]]; then
