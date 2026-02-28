@@ -69,6 +69,7 @@ Follow ai/SKILL_INTAKE.prompt.md       # Universal intake router — auto-detect
 Follow ai/SKILL_HITL.prompt.md         # Human-in-the-loop resolver — surfaces blocked question, unblocks state
 Follow ai/SKILL_CHECK_STATE.prompt.md  # STATE.yaml health check — validates all invariants
 Follow ai/SKILL_BOOTSTRAP.prompt.md    # Generate project-specific optimized skills (NEW)
+Follow ai/SKILL_VALIDATE_REPORT.prompt.md # Validation report with screenshot evidence for chat review
 ```
 
 #### Project-Specific Skills (Auto-Generated)
@@ -97,6 +98,7 @@ Skill selection guide:
 - Use SKILL_HITL after SKILL_LOOP pauses with "LOOP PAUSED — Human decision required".
 - Use SKILL_CHECK_STATE before any role dispatch to catch state drift or corruption.
 - **NEW:** Use SKILL_BOOTSTRAP on first use or after architecture changes to generate project-specific skills.
+- Use SKILL_VALIDATE_REPORT when validation must include screenshot evidence and a chat-readable report.
 
 ### Skill Invocation (Claude vs Codex)
 

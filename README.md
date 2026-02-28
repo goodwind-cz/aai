@@ -145,6 +145,7 @@ Use them instead of manually chaining individual role prompts.
 | Intake router | `cat ai/SKILL_INTAKE.prompt.md` | manually picking `INTAKE_*.prompt.md` |
 | Human-in-the-loop resolver | `cat ai/SKILL_HITL.prompt.md` | manual STATE.yaml editing after human pause |
 | State health check | `cat ai/SKILL_CHECK_STATE.prompt.md` | manual STATE.yaml inspection |
+| Validation report + screenshots | `cat ai/SKILL_VALIDATE_REPORT.prompt.md` | ad-hoc validation notes without visual evidence |
 
 Typical skill flow:
 
@@ -160,6 +161,9 @@ cat ai/SKILL_HITL.prompt.md
 
 # Suspect state corruption before a role runs:
 cat ai/SKILL_CHECK_STATE.prompt.md
+
+# Need a chat-ready validation report with screenshots:
+cat ai/SKILL_VALIDATE_REPORT.prompt.md
 ```
 
 Claude vs Codex invocation:

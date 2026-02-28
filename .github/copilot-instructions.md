@@ -27,4 +27,5 @@ This repository uses a single canonical workflow and a prompt suite for consiste
   - `/aai-loop` -> `ai/SKILL_LOOP.prompt.md`
   - `/aai-hitl` -> `ai/SKILL_HITL.prompt.md`
   - `/aai-bootstrap` -> `ai/SKILL_BOOTSTRAP.prompt.md`
+  - `/aai-validate-report` -> `ai/SKILL_VALIDATE_REPORT.prompt.md`
 - Project-specific generated skills are in `.claude/skills.local/` and use `aai-` prefix.

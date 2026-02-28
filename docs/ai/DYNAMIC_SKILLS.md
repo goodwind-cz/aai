@@ -22,6 +22,7 @@ Run `/aai-bootstrap` in any AI-OS enabled project to:
 - `/aai-hitl` - Human-in-the-loop resolver
 - `/aai-check-state` - View STATE.yaml
 - `/aai-bootstrap` - Generate project-specific skills
+- `/aai-validate-report` - Run validation and publish screenshot-backed report
 
 Location: `.claude/skills/` (synced from ai-os template)
 
