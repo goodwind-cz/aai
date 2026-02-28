@@ -4,23 +4,37 @@ set -euo pipefail
 STATE_PATH="docs/ai/STATE.yaml"
 TICK_LOG="docs/ai/LOOP_TICKS.jsonl"
 TICK_COMMAND=""
+MODE="skill"
+AGENT_COMMAND=""
 MAX_ITERATIONS=20
 SLEEP_SECONDS=1
 AUTO_INIT_STATE=0
+SKIP_BOOTSTRAP_CHECK=0
 DRY_RUN=0
+SKILL_FLOW="none"
+BOOTSTRAP_READY="unknown"
 
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/autonomous-loop.sh --tick-command "<command>" [options]
+  ./scripts/autonomous-loop.sh [options]
 
 Options:
-  --tick-command "<command>"  Command that performs one autonomous tick (required)
+  --mode skill|legacy         skill (default) runs SKILL_CHECK_STATE -> SKILL_INTAKE -> SKILL_LOOP
+  --agent-command "<command>" Agent binary used in skill mode (example: codex)
+  --tick-command "<command>"  Explicit command that performs one autonomous tick
   --max-iterations N          Maximum loop iterations (default: 20)
   --sleep-seconds N           Sleep between iterations (default: 1)
   --auto-init-state           Create docs/ai/STATE.yaml if missing
+  --skip-bootstrap-check      Skip check for .claude/skills.local/README.md
   --dry-run                   Do not execute tick command
 EOF
+}
+
+build_skill_tick_command() {
+  local cmd="$1"
+  printf "%s --prompt-file ai/SKILL_CHECK_STATE.prompt.md; %s --prompt-file ai/SKILL_INTAKE.prompt.md; %s --prompt-file ai/SKILL_LOOP.prompt.md" \
+    "$cmd" "$cmd" "$cmd"
 }
 
 create_state_file() {
@@ -146,6 +160,14 @@ while [[ $# -gt 0 ]]; do
       TICK_COMMAND="${2:-}"
       shift 2
       ;;
+    --mode)
+      MODE="${2:-skill}"
+      shift 2
+      ;;
+    --agent-command)
+      AGENT_COMMAND="${2:-}"
+      shift 2
+      ;;
     --max-iterations)
       MAX_ITERATIONS="${2:-20}"
       shift 2
@@ -156,6 +178,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --auto-init-state)
       AUTO_INIT_STATE=1
+      shift
+      ;;
+    --skip-bootstrap-check)
+      SKIP_BOOTSTRAP_CHECK=1
       shift
       ;;
     --dry-run)
@@ -174,8 +200,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$TICK_COMMAND" ]]; then
-  echo "ERROR: --tick-command is required." >&2
+if [[ "$MODE" != "skill" && "$MODE" != "legacy" ]]; then
+  echo "ERROR: --mode must be 'skill' or 'legacy'." >&2
   usage
   exit 1
 fi
@@ -190,7 +216,44 @@ if [[ ! -f "$STATE_PATH" ]]; then
   fi
 fi
 
+if [[ "$MODE" == "skill" ]]; then
+  SKILL_FLOW="check_state>intake>loop"
+  for p in ai/SKILL_CHECK_STATE.prompt.md ai/SKILL_INTAKE.prompt.md ai/SKILL_LOOP.prompt.md ai/SKILL_BOOTSTRAP.prompt.md; do
+    if [[ ! -f "$p" ]]; then
+      echo "ERROR: missing required skill prompt: $p" >&2
+      exit 1
+    fi
+  done
+
+  if [[ "$SKIP_BOOTSTRAP_CHECK" == "0" ]]; then
+    if [[ ! -f ".claude/skills.local/README.md" ]]; then
+      BOOTSTRAP_READY="false"
+      echo "ERROR: Missing .claude/skills.local/README.md. Run bootstrap first: follow ai/SKILL_BOOTSTRAP.prompt.md" >&2
+      exit 1
+    fi
+    BOOTSTRAP_READY="true"
+  else
+    BOOTSTRAP_READY="skipped"
+  fi
+
+  if [[ -z "$TICK_COMMAND" ]]; then
+    if [[ -z "$AGENT_COMMAND" ]]; then
+      echo "ERROR: in --mode skill provide either --tick-command or --agent-command." >&2
+      usage
+      exit 1
+    fi
+    TICK_COMMAND="$(build_skill_tick_command "$AGENT_COMMAND")"
+  fi
+else
+  if [[ -z "$TICK_COMMAND" ]]; then
+    echo "ERROR: --tick-command is required in --mode legacy." >&2
+    usage
+    exit 1
+  fi
+fi
+
 echo "Autonomous loop start"
+echo "Mode: $MODE"
 echo "Tick command: $TICK_COMMAND"
 echo "Max iterations: $MAX_ITERATIONS"
 
@@ -243,8 +306,8 @@ for ((i=1; i<=MAX_ITERATIONS; i++)); do
   validation_status_after="$(read_validation_status || true)"
 
   # Append external tick timing (model-agnostic)
-  printf '{"type":"tick","tick":%s,"started_utc":"%s","ended_utc":"%s","duration_seconds":%s,"exit_code":%s,"focus_type_before":"%s","focus_ref_id_before":"%s","focus_type_after":"%s","focus_ref_id_after":"%s","validation_status_before":"%s","validation_status_after":"%s"}\n' \
-    "$i" "$tick_start_utc" "$tick_end_utc" "$tick_duration" "$tick_exit" "$focus_type_before" "$focus_ref_before" "$focus_type_after" "$focus_ref_after" "$validation_status_before" "$validation_status_after" >> "$TICK_LOG"
+  printf '{"type":"tick","tick":%s,"started_utc":"%s","ended_utc":"%s","duration_seconds":%s,"exit_code":%s,"mode":"%s","skill_flow":"%s","bootstrap_ready":"%s","focus_type_before":"%s","focus_ref_id_before":"%s","focus_type_after":"%s","focus_ref_id_after":"%s","validation_status_before":"%s","validation_status_after":"%s"}\n' \
+    "$i" "$tick_start_utc" "$tick_end_utc" "$tick_duration" "$tick_exit" "$MODE" "$SKILL_FLOW" "$BOOTSTRAP_READY" "$focus_type_before" "$focus_ref_before" "$focus_type_after" "$focus_ref_after" "$validation_status_before" "$validation_status_after" >> "$TICK_LOG"
 
   if [[ "$tick_exit" -ne 0 ]]; then
     echo "Tick command exited with code $tick_exit" >&2

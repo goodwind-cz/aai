@@ -1,10 +1,13 @@
 param(
-  [Parameter(Mandatory=$true)]
   [string]$TickCommand,
+  [ValidateSet("skill","legacy")]
+  [string]$Mode = "skill",
+  [string]$AgentCommand,
   [int]$MaxIterations = 20,
   [int]$SleepSeconds = 1,
   [switch]$AutoInitState,
   [switch]$NoAutoInstallPyYaml,
+  [switch]$SkipBootstrapCheck,
   [switch]$DryRun
 )
 
@@ -14,6 +17,31 @@ $StatePath = "docs/ai/STATE.yaml"
 $TickLogPath = "docs/ai/LOOP_TICKS.jsonl"
 $Py = $null
 $StateReaderPy = $null
+$SkillFlow = "none"
+$BootstrapReady = "unknown"
+
+function Test-RequiredFiles {
+  param([string[]]$Paths)
+  $missing = @()
+  foreach ($p in $Paths) {
+    if (!(Test-Path $p)) { $missing += $p }
+  }
+  return $missing
+}
+
+function Build-SkillTickCommand {
+  param([string]$Cmd)
+  $steps = @(
+    "ai/SKILL_CHECK_STATE.prompt.md",
+    "ai/SKILL_INTAKE.prompt.md",
+    "ai/SKILL_LOOP.prompt.md"
+  )
+  $parts = @()
+  foreach ($s in $steps) {
+    $parts += "$Cmd --prompt-file $s"
+  }
+  return ($parts -join "; ")
+}
 
 function Ensure-PyYaml {
   param([switch]$NoAutoInstall)
@@ -178,11 +206,47 @@ if (!(Test-Path $StatePath)) {
   }
 }
 
+if ($Mode -eq "skill") {
+  $SkillFlow = "check_state>intake>loop"
+  $requiredSkillPrompts = @(
+    "ai/SKILL_CHECK_STATE.prompt.md",
+    "ai/SKILL_INTAKE.prompt.md",
+    "ai/SKILL_LOOP.prompt.md",
+    "ai/SKILL_BOOTSTRAP.prompt.md"
+  )
+  $missingPrompts = Test-RequiredFiles -Paths $requiredSkillPrompts
+  if ($missingPrompts.Count -gt 0) {
+    throw "Missing required skill prompts: $($missingPrompts -join ', ')"
+  }
+
+  if (!$SkipBootstrapCheck) {
+    if (!(Test-Path ".claude/skills.local/README.md")) {
+      $BootstrapReady = "false"
+      throw "Missing .claude/skills.local/README.md. Run bootstrap first: follow ai/SKILL_BOOTSTRAP.prompt.md"
+    }
+    $BootstrapReady = "true"
+  } else {
+    $BootstrapReady = "skipped"
+  }
+
+  if ([string]::IsNullOrWhiteSpace($TickCommand)) {
+    if ([string]::IsNullOrWhiteSpace($AgentCommand)) {
+      throw "In Mode=skill provide either -TickCommand or -AgentCommand (example: -AgentCommand 'codex')."
+    }
+    $TickCommand = Build-SkillTickCommand -Cmd $AgentCommand
+  }
+} else {
+  if ([string]::IsNullOrWhiteSpace($TickCommand)) {
+    throw "In Mode=legacy, -TickCommand is required."
+  }
+}
+
 try {
   $Py = Ensure-PyYaml -NoAutoInstall:$NoAutoInstallPyYaml
   $StateReaderPy = Initialize-StateReader -PyCmd $Py
 
 Write-Host "Autonomous loop start"
+Write-Host "Mode: $Mode"
 Write-Host "Tick command: $TickCommand"
 Write-Host "Max iterations: $MaxIterations"
 
@@ -245,7 +309,7 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
 
   # Append external tick timing (model-agnostic)
   $stateSnapshotAfter = Read-State
-  $tickEntry = "{`"type`":`"tick`",`"tick`":$i,`"started_utc`":`"$tickStartUtc`",`"ended_utc`":`"$tickEndUtc`",`"duration_seconds`":$tickDuration,`"exit_code`":$tickExit,`"focus_type_before`":`"$($stateSnapshotBefore.focus_type)`",`"focus_ref_id_before`":`"$($stateSnapshotBefore.focus_ref_id)`",`"focus_type_after`":`"$($stateSnapshotAfter.focus_type)`",`"focus_ref_id_after`":`"$($stateSnapshotAfter.focus_ref_id)`",`"validation_status_before`":`"$($stateSnapshotBefore.validation_status)`",`"validation_status_after`":`"$($stateSnapshotAfter.validation_status)`"}"
+  $tickEntry = "{`"type`":`"tick`",`"tick`":$i,`"started_utc`":`"$tickStartUtc`",`"ended_utc`":`"$tickEndUtc`",`"duration_seconds`":$tickDuration,`"exit_code`":$tickExit,`"mode`":`"$Mode`",`"skill_flow`":`"$SkillFlow`",`"bootstrap_ready`":`"$BootstrapReady`",`"focus_type_before`":`"$($stateSnapshotBefore.focus_type)`",`"focus_ref_id_before`":`"$($stateSnapshotBefore.focus_ref_id)`",`"focus_type_after`":`"$($stateSnapshotAfter.focus_type)`",`"focus_ref_id_after`":`"$($stateSnapshotAfter.focus_ref_id)`",`"validation_status_before`":`"$($stateSnapshotBefore.validation_status)`",`"validation_status_after`":`"$($stateSnapshotAfter.validation_status)`"}"
   Add-Content -Path $TickLogPath -Value $tickEntry -Encoding utf8
 
   Start-Sleep -Seconds $SleepSeconds

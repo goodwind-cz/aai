@@ -1,0 +1,8 @@
+# Enforce LF for executable scripts across platforms.
+*.sh text eol=lf
+*.bash text eol=lf
+*.ps1 text eol=lf
+
+# Keep Windows command scripts in CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf

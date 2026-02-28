@@ -62,12 +62,33 @@ Follow ai/MEMORY_REVIEW.prompt.md
 Skills are higher-level entry points that compose multiple steps within a single agent session.
 Use them when the agent supports subagent spawning or sequential tool use.
 
+#### Universal Skills (AI-OS Template)
 ```text
 Follow ai/SKILL_LOOP.prompt.md         # Full autonomous multi-tick loop (replaces shell loop runner)
 Follow ai/SKILL_INTAKE.prompt.md       # Universal intake router — auto-detects type from description
 Follow ai/SKILL_HITL.prompt.md         # Human-in-the-loop resolver — surfaces blocked question, unblocks state
 Follow ai/SKILL_CHECK_STATE.prompt.md  # STATE.yaml health check — validates all invariants
+Follow ai/SKILL_BOOTSTRAP.prompt.md    # Generate project-specific optimized skills (NEW)
 ```
+
+#### Project-Specific Skills (Auto-Generated)
+
+After running `/aai-bootstrap`, the following skills are auto-generated in `.claude/skills.local/`:
+
+```text
+/aai-test-e2e    # Run E2E tests (Playwright/Cypress) - auto-detects MCP server
+/aai-test-unit   # Run unit tests (Jest/Vitest/Pytest) - incremental mode
+/aai-build       # Build commands (Vite/Webpack/tsc) - optimized for quick validation
+/aai-lint        # Lint and format (ESLint/Prettier/Ruff) - targeted file mode
+/aai-deploy      # Deployment shortcuts (if CI/CD detected)
+```
+
+**Benefits:**
+- 90% token reduction for common tasks
+- MCP server integration when available
+- Preserved during `ai-os-sync` updates
+
+See [docs/ai/DYNAMIC_SKILLS.md](docs/ai/DYNAMIC_SKILLS.md) for details.
 
 Skill selection guide:
 
@@ -75,13 +96,24 @@ Skill selection guide:
 - Use SKILL_INTAKE instead of picking a specific INTAKE_*.prompt.md manually.
 - Use SKILL_HITL after SKILL_LOOP pauses with "LOOP PAUSED — Human decision required".
 - Use SKILL_CHECK_STATE before any role dispatch to catch state drift or corruption.
+- **NEW:** Use SKILL_BOOTSTRAP on first use or after architecture changes to generate project-specific skills.
+
+### Skill Invocation (Claude vs Codex)
+
+- Claude-style slash command:
+  - `/aai-test-e2e`, `/aai-test-unit`, `/aai-build`, `/aai-lint`, `/aai-deploy`
+- Codex-style prompt-file execution:
+  - `codex --prompt-file ai/SKILL_CHECK_STATE.prompt.md`
+  - `codex --prompt-file ai/SKILL_INTAKE.prompt.md`
+  - `codex --prompt-file ai/SKILL_LOOP.prompt.md`
+- Loop runners are skill-first by default and enforce this sequence unless explicitly switched to legacy mode.
 
 ## Rules
 - Do not claim PASS without executable evidence.
 - Do not invent technologies: read docs/TECHNOLOGY.md first.
 - Archived analyses are read-only; new knowledge goes into FACTS.md, PATTERNS.md, and UI_MAP.md.
 - PATTERNS_UNIVERSAL.md is sync-managed — never write to it directly; suggest promotions via report.
-- If CLAUDE.md or Copilot instructions conflict with this file, follow this file.
+- If CLAUDE.md, CODEX.md, GEMINI.md, or Copilot instructions conflict with this file, follow this file.
 - Bootstrap must preserve scaffolding assets: never delete docs/templates/*,
   docs/rfc/, or docs/**/.gitkeep placeholders only because they are unreferenced.
 - Intake language policy: accept user input in the user's language, but write

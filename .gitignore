@@ -1,6 +1,9 @@
 # Local tool settings
 .claude/settings.local.json
 
+# Cache for dynamic skills (NOT the skills themselves - those should be committed)
+.claude/skills.local/.cache
+
 # Backup files (should not exist with current sync scripts, but just in case)
 *.bak
 

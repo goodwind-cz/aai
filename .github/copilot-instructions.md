@@ -19,3 +19,12 @@ This repository uses a single canonical workflow and a prompt suite for consiste
 ## Suggested developer flow
 - Use ai/ORCHESTRATION.prompt.md to select the next role step.
 - Validate with ai/VALIDATION.prompt.md before claiming completion.
+
+## AAI Skills (post-sync)
+- Universal AAI skill commands:
+  - `/aai-check-state` -> `ai/SKILL_CHECK_STATE.prompt.md`
+  - `/aai-intake` -> `ai/SKILL_INTAKE.prompt.md`
+  - `/aai-loop` -> `ai/SKILL_LOOP.prompt.md`
+  - `/aai-hitl` -> `ai/SKILL_HITL.prompt.md`
+  - `/aai-bootstrap` -> `ai/SKILL_BOOTSTRAP.prompt.md`
+- Project-specific generated skills are in `.claude/skills.local/` and use `aai-` prefix.
