@@ -70,6 +70,9 @@ Follow ai/SKILL_HITL.prompt.md         # Human-in-the-loop resolver — surfaces
 Follow ai/SKILL_CHECK_STATE.prompt.md  # STATE.yaml health check — validates all invariants
 Follow ai/SKILL_BOOTSTRAP.prompt.md    # Generate project-specific optimized skills
 Follow ai/SKILL_VALIDATE_REPORT.prompt.md # Validation report with screenshot evidence for chat review
+Follow ai/SKILL_CANONICALIZE.prompt.md # Canonicalize repository structure (migration, cleanup)
+Follow ai/SKILL_TDD.prompt.md          # Enforced RED-GREEN-REFACTOR test-driven development (Superpowers pattern)
+Follow ai/SKILL_WORKTREE.prompt.md     # Git worktree management for parallel development (Superpowers pattern)
 Follow ai/SKILL_SHARE.prompt.md        # Publish reports to Cloudflare Pages with shareable URL
 ```
 
@@ -98,8 +101,11 @@ Skill selection guide:
 - Use SKILL_INTAKE instead of picking a specific INTAKE_*.prompt.md manually.
 - Use SKILL_HITL after SKILL_LOOP pauses with "LOOP PAUSED — Human decision required".
 - Use SKILL_CHECK_STATE before any role dispatch to catch state drift or corruption.
-- **NEW:** Use SKILL_BOOTSTRAP on first use or after architecture changes to generate project-specific skills.
+- Use SKILL_BOOTSTRAP on first use or after architecture changes to generate project-specific skills.
 - Use SKILL_VALIDATE_REPORT when validation must include screenshot evidence and a chat-readable report.
+- Use SKILL_CANONICALIZE when migrating legacy AI-OS structure or cleaning up scattered artifacts.
+- **NEW:** Use SKILL_TDD for test-driven development with mandatory RED-GREEN-REFACTOR cycles.
+- **NEW:** Use SKILL_WORKTREE for parallel development using git worktrees (isolates features/tasks).
 
 ### Skill Invocation (Claude vs Codex)
 
@@ -109,6 +115,7 @@ Skill selection guide:
   - `codex --prompt-file ai/SKILL_CHECK_STATE.prompt.md`
   - `codex --prompt-file ai/SKILL_INTAKE.prompt.md`
   - `codex --prompt-file ai/SKILL_LOOP.prompt.md`
+  - `codex --prompt-file ai/SKILL_CANONICALIZE.prompt.md`
 - Bootstrap also writes dynamic indexes:
   - `.codex/skills.local/README.md`
   - `.gemini/skills.local/README.md`

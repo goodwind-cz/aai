@@ -101,6 +101,29 @@ Also refreshes cross-agent discovery indexes:
 
 See [docs/ai/DYNAMIC_SKILLS.md](docs/ai/DYNAMIC_SKILLS.md) for details.
 
+#### Test-Driven Development (NEW - Superpowers Integration)
+```bash
+# Enforced RED-GREEN-REFACTOR cycle
+/aai-tdd
+```
+Mandatory TDD workflow with evidence at each phase:
+- RED: Write failing test (verified)
+- GREEN: Minimal implementation (verified)
+- REFACTOR: Improve code quality (verified)
+
+Inspired by [Superpowers framework](https://github.com/obra/superpowers).
+
+#### Parallel Development with Worktrees (NEW - Superpowers Integration)
+```bash
+# Manage git worktrees for parallel isolated development
+/aai-worktree setup <task-name>
+/aai-worktree switch <task-name>
+/aai-worktree cleanup <task-name>
+```
+Enables parallel feature development without branch switching overhead.
+
+See [docs/ai/SUPERPOWERS_INTEGRATION.md](docs/ai/SUPERPOWERS_INTEGRATION.md) for full integration details.
+
 ### Orchestration
 ```bash
 cat ai/ORCHESTRATION.prompt.md
@@ -166,6 +189,7 @@ Use them instead of manually chaining individual role prompts.
 | Human-in-the-loop resolver | `cat ai/SKILL_HITL.prompt.md` | manual STATE.yaml editing after human pause |
 | State health check | `cat ai/SKILL_CHECK_STATE.prompt.md` | manual STATE.yaml inspection |
 | Validation report + screenshots | `cat ai/SKILL_VALIDATE_REPORT.prompt.md` | ad-hoc validation notes without visual evidence |
+| Canonicalize + migrate AI-OS state | `cat ai/SKILL_CANONICALIZE.prompt.md` | ad-hoc cleanup/migration of legacy paths |
 
 Typical skill flow:
 
@@ -184,6 +208,9 @@ cat ai/SKILL_CHECK_STATE.prompt.md
 
 # Need a chat-ready validation report with screenshots:
 cat ai/SKILL_VALIDATE_REPORT.prompt.md
+
+# Need to migrate legacy AI-OS files and canonicalize layout:
+cat ai/SKILL_CANONICALIZE.prompt.md
 ```
 
 Claude vs Codex invocation:
