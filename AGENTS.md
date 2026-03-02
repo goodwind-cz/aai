@@ -73,6 +73,7 @@ Follow ai/SKILL_VALIDATE_REPORT.prompt.md # Validation report with screenshot ev
 Follow ai/SKILL_CANONICALIZE.prompt.md # Canonicalize repository structure (migration, cleanup)
 Follow ai/SKILL_TDD.prompt.md          # Enforced RED-GREEN-REFACTOR test-driven development (Superpowers pattern)
 Follow ai/SKILL_WORKTREE.prompt.md     # Git worktree management for parallel development (Superpowers pattern)
+Follow ai/SKILL_SHARE.prompt.md        # Publish reports to Cloudflare Pages with shareable URL
 ```
 
 #### Project-Specific Skills (Auto-Generated)

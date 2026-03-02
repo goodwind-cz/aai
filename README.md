@@ -149,6 +149,23 @@ cat ai/IMPLEMENTATION.prompt.md
 cat ai/VALIDATION.prompt.md
 ```
 
+### Share Reports (NEW - Cloudflare Pages Integration)
+```bash
+# Publish reports with embedded images to Cloudflare Pages
+/aai-share docs/ai/reports/VALIDATION_REPORT_20260302.md
+# Returns: https://ai-os-reports-xyz.pages.dev
+```
+Instantly publish reports, documentation, or any Markdown files to Cloudflare Pages for quick sharing. Supports embedded images, returns public URL.
+
+Benefits:
+- Free hosting on Cloudflare Pages
+- Automatic MD → HTML conversion
+- Embedded images supported
+- Public shareable URL
+- Perfect for validation reports, decisions, documentation
+
+See [ai/SKILL_SHARE.prompt.md](ai/SKILL_SHARE.prompt.md) for details.
+
 ### Remediation
 ```bash
 cat ai/REMEDIATION.prompt.md
