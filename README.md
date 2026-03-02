@@ -101,6 +101,29 @@ Also refreshes cross-agent discovery indexes:
 
 See [docs/ai/DYNAMIC_SKILLS.md](docs/ai/DYNAMIC_SKILLS.md) for details.
 
+#### Test-Driven Development (NEW - Superpowers Integration)
+```bash
+# Enforced RED-GREEN-REFACTOR cycle
+/aai-tdd
+```
+Mandatory TDD workflow with evidence at each phase:
+- RED: Write failing test (verified)
+- GREEN: Minimal implementation (verified)
+- REFACTOR: Improve code quality (verified)
+
+Inspired by [Superpowers framework](https://github.com/obra/superpowers).
+
+#### Parallel Development with Worktrees (NEW - Superpowers Integration)
+```bash
+# Manage git worktrees for parallel isolated development
+/aai-worktree setup <task-name>
+/aai-worktree switch <task-name>
+/aai-worktree cleanup <task-name>
+```
+Enables parallel feature development without branch switching overhead.
+
+See [docs/ai/SUPERPOWERS_INTEGRATION.md](docs/ai/SUPERPOWERS_INTEGRATION.md) for full integration details.
+
 ### Orchestration
 ```bash
 cat ai/ORCHESTRATION.prompt.md
