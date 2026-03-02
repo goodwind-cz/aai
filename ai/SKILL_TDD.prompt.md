@@ -10,9 +10,9 @@ Inspired by Superpowers framework's mandatory TDD cycles.
 ### Prerequisites Check
 
 Before starting TDD cycle:
-1. Check if `docs/ai/STATE.yaml` has active task
-2. Verify task type allows TDD (implementation, feature, bugfix)
-3. If no active task, suggest running `/aai-intake` first
+1. Check `docs/ai/STATE.yaml` for a `current_focus` entry and at least one `active_work_items` entry
+2. Verify the current work item's type allows TDD (implementation, feature, bugfix)
+3. If there is no `current_focus` or no `active_work_items`, suggest running `/aai-intake` first
 
 ### Phase 1: RED (Write Failing Test)
 
