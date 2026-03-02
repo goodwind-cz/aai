@@ -17,6 +17,7 @@ This file is intentionally minimal to avoid duplicated guidance.
   - `/aai-hitl` -> `ai/SKILL_HITL.prompt.md`
   - `/aai-bootstrap` -> `ai/SKILL_BOOTSTRAP.prompt.md`
   - `/aai-validate-report` -> `ai/SKILL_VALIDATE_REPORT.prompt.md`
+  - `/aai-canonicalize` -> `ai/SKILL_CANONICALIZE.prompt.md`
 - Project-local generated skills live in `.claude/skills/` and must use `aai-` prefix.
 - Dynamic Gemini index is written to `.gemini/skills.local/README.md` by `/aai-bootstrap`.
 

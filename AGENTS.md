@@ -70,6 +70,7 @@ Follow ai/SKILL_HITL.prompt.md         # Human-in-the-loop resolver — surfaces
 Follow ai/SKILL_CHECK_STATE.prompt.md  # STATE.yaml health check — validates all invariants
 Follow ai/SKILL_BOOTSTRAP.prompt.md    # Generate project-specific optimized skills (NEW)
 Follow ai/SKILL_VALIDATE_REPORT.prompt.md # Validation report with screenshot evidence for chat review
+Follow ai/SKILL_CANONICALIZE.prompt.md # Intake + migration + canonical cleanup for legacy paths/evidence
 ```
 
 #### Project-Specific Skills (Auto-Generated)
@@ -99,6 +100,7 @@ Skill selection guide:
 - Use SKILL_CHECK_STATE before any role dispatch to catch state drift or corruption.
 - **NEW:** Use SKILL_BOOTSTRAP on first use or after architecture changes to generate project-specific skills.
 - Use SKILL_VALIDATE_REPORT when validation must include screenshot evidence and a chat-readable report.
+- Use SKILL_CANONICALIZE when consolidating legacy evidence/validation files into canonical AI-OS paths.
 
 ### Skill Invocation (Claude vs Codex)
 
@@ -108,6 +110,7 @@ Skill selection guide:
   - `codex --prompt-file ai/SKILL_CHECK_STATE.prompt.md`
   - `codex --prompt-file ai/SKILL_INTAKE.prompt.md`
   - `codex --prompt-file ai/SKILL_LOOP.prompt.md`
+  - `codex --prompt-file ai/SKILL_CANONICALIZE.prompt.md`
 - Bootstrap also writes dynamic indexes:
   - `.codex/skills.local/README.md`
   - `.gemini/skills.local/README.md`
