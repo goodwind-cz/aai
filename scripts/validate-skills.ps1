@@ -21,6 +21,7 @@ $requiredPrompts = @(
   "ai/SKILL_HITL.prompt.md",
   "ai/SKILL_BOOTSTRAP.prompt.md",
   "ai/SKILL_VALIDATE_REPORT.prompt.md",
+  "ai/SKILL_CANONICALIZE.prompt.md",
   "ai/SKILL_TDD.prompt.md",
   "ai/SKILL_WORKTREE.prompt.md"
 )

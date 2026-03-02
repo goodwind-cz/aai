@@ -172,6 +172,7 @@ Use them instead of manually chaining individual role prompts.
 | Human-in-the-loop resolver | `cat ai/SKILL_HITL.prompt.md` | manual STATE.yaml editing after human pause |
 | State health check | `cat ai/SKILL_CHECK_STATE.prompt.md` | manual STATE.yaml inspection |
 | Validation report + screenshots | `cat ai/SKILL_VALIDATE_REPORT.prompt.md` | ad-hoc validation notes without visual evidence |
+| Canonicalize + migrate AI-OS state | `cat ai/SKILL_CANONICALIZE.prompt.md` | ad-hoc cleanup/migration of legacy paths |
 
 Typical skill flow:
 
@@ -190,6 +191,9 @@ cat ai/SKILL_CHECK_STATE.prompt.md
 
 # Need a chat-ready validation report with screenshots:
 cat ai/SKILL_VALIDATE_REPORT.prompt.md
+
+# Need to migrate legacy AI-OS files and canonicalize layout:
+cat ai/SKILL_CANONICALIZE.prompt.md
 ```
 
 Claude vs Codex invocation:

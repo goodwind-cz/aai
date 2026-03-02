@@ -81,5 +81,5 @@
 - `ai/INTAKE_CHANGE.prompt.md` creates CHANGE-123 intake.
 - Planner creates `docs/specs/SPEC-123.md` plus tasks and locks the scope.
 - Implementer performs only allowed-scope changes.
-- Validator runs checks and stores evidence (for example `docs/validation/VAL-123.md`).
+- Validator runs checks and stores evidence (for example `docs/ai/reports/validation-20260301-120000Z.md`).
 - On PASS, `docs/ai/STATE.yaml` closes the scope; on FAIL, remediation is dispatched.

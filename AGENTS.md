@@ -114,6 +114,7 @@ Skill selection guide:
   - `codex --prompt-file ai/SKILL_CHECK_STATE.prompt.md`
   - `codex --prompt-file ai/SKILL_INTAKE.prompt.md`
   - `codex --prompt-file ai/SKILL_LOOP.prompt.md`
+  - `codex --prompt-file ai/SKILL_CANONICALIZE.prompt.md`
 - Bootstrap also writes dynamic indexes:
   - `.codex/skills.local/README.md`
   - `.gemini/skills.local/README.md`
