@@ -20,7 +20,8 @@ $requiredPrompts = @(
   "ai/SKILL_LOOP.prompt.md",
   "ai/SKILL_HITL.prompt.md",
   "ai/SKILL_BOOTSTRAP.prompt.md",
-  "ai/SKILL_VALIDATE_REPORT.prompt.md"
+  "ai/SKILL_VALIDATE_REPORT.prompt.md",
+  "ai/SKILL_SHARE.prompt.md"
 )
 
 foreach ($p in $requiredPrompts) {

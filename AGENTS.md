@@ -68,8 +68,9 @@ Follow ai/SKILL_LOOP.prompt.md         # Full autonomous multi-tick loop (replac
 Follow ai/SKILL_INTAKE.prompt.md       # Universal intake router — auto-detects type from description
 Follow ai/SKILL_HITL.prompt.md         # Human-in-the-loop resolver — surfaces blocked question, unblocks state
 Follow ai/SKILL_CHECK_STATE.prompt.md  # STATE.yaml health check — validates all invariants
-Follow ai/SKILL_BOOTSTRAP.prompt.md    # Generate project-specific optimized skills (NEW)
+Follow ai/SKILL_BOOTSTRAP.prompt.md    # Generate project-specific optimized skills
 Follow ai/SKILL_VALIDATE_REPORT.prompt.md # Validation report with screenshot evidence for chat review
+Follow ai/SKILL_SHARE.prompt.md        # Publish reports to Cloudflare Pages with shareable URL
 ```
 
 #### Project-Specific Skills (Auto-Generated)
