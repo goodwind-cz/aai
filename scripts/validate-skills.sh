@@ -18,7 +18,9 @@ for p in \
   "$TARGET/ai/SKILL_LOOP.prompt.md" \
   "$TARGET/ai/SKILL_HITL.prompt.md" \
   "$TARGET/ai/SKILL_BOOTSTRAP.prompt.md" \
-  "$TARGET/ai/SKILL_VALIDATE_REPORT.prompt.md"; do
+  "$TARGET/ai/SKILL_VALIDATE_REPORT.prompt.md" \
+  "$TARGET/ai/SKILL_TDD.prompt.md" \
+  "$TARGET/ai/SKILL_WORKTREE.prompt.md"; do
   require_file "$p"
 done
 
