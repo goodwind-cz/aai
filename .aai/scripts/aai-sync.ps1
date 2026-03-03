@@ -55,12 +55,29 @@ if (Test-Path $oldAi) {
   $legacyCleaned = $true
 }
 
-# Old scripts directory (was scripts/)
+# Old scripts directory (was scripts/) — only remove AAI-owned scripts, keep project scripts
 $oldScripts = Join-Path $TargetRoot "scripts"
 if (Test-Path $oldScripts) {
-  Remove-Item $oldScripts -Recurse -Force
-  Write-Host "  MIGRATE removed legacy: scripts/"
-  $legacyCleaned = $true
+  # Remove scripts that now live in .aai/scripts/ (current names)
+  Get-ChildItem -Path (Join-Path $SrcRoot ".aai/scripts") -File -Force -ErrorAction SilentlyContinue | ForEach-Object {
+    $oldFile = Join-Path $oldScripts $_.Name
+    if (Test-Path $oldFile) {
+      Remove-Item $oldFile -Force
+      Write-Host "  MIGRATE removed legacy: scripts/$($_.Name) -> now in .aai/scripts/"
+      $legacyCleaned = $true
+    }
+  }
+  # Remove old ai-os-* named scripts (renamed to aai-*)
+  Get-ChildItem -Path $oldScripts -File -Filter "ai-os-*" -Force -ErrorAction SilentlyContinue | ForEach-Object {
+    Remove-Item $_.FullName -Force
+    Write-Host "  MIGRATE removed legacy: scripts/$($_.Name) (old ai-os-* name)"
+    $legacyCleaned = $true
+  }
+  # Remove the directory only if it's now empty
+  if ((Get-ChildItem -Path $oldScripts -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+    Remove-Item $oldScripts -Force
+    Write-Host "  MIGRATE removed empty: scripts/"
+  }
 }
 
 # Root files that moved into .aai/
@@ -111,7 +128,34 @@ if ($legacyCleaned) {
 }
 
 # -- Copy AAI canonical layer (.aai/ is the single source of truth) -------
-Copy-Replace (Join-Path $SrcRoot ".aai") (Join-Path $TargetRoot ".aai")
+# Entry-by-entry so we can merge scripts/ and preserve target-only scripts.
+New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot ".aai") | Out-Null
+
+# Top-level files and non-scripts directories: overwrite from source
+Get-ChildItem -Path (Join-Path $SrcRoot ".aai") -Force | Where-Object { $_.Name -ne "scripts" } | ForEach-Object {
+  Copy-Replace $_.FullName (Join-Path $TargetRoot ".aai" $_.Name)
+}
+
+# Clean stale top-level items in target .aai/ that no longer exist in source (except scripts/)
+Get-ChildItem -Path (Join-Path $TargetRoot ".aai") -Force | Where-Object { $_.Name -ne "scripts" } | ForEach-Object {
+  if (!(Test-Path (Join-Path $SrcRoot ".aai" $_.Name))) {
+    Remove-Item $_.FullName -Recurse -Force
+    Write-Host "  CLEAN removed stale: .aai/$($_.Name)"
+  }
+}
+
+# scripts/: file-by-file merge — overwrite source scripts, preserve target-only
+$srcScripts = Join-Path $SrcRoot ".aai/scripts"
+$dstScripts = Join-Path $TargetRoot ".aai/scripts"
+New-Item -ItemType Directory -Force -Path $dstScripts | Out-Null
+Get-ChildItem -Path $srcScripts -Force | ForEach-Object {
+  Copy-Replace $_.FullName (Join-Path $dstScripts $_.Name)
+}
+Get-ChildItem -Path $dstScripts -Force | ForEach-Object {
+  if (!(Test-Path (Join-Path $srcScripts $_.Name))) {
+    Write-Host "  PRESERVE target-only script: .aai/scripts/$($_.Name)"
+  }
+}
 
 # Claude Code skills (session helpers):
 # copy template skills entry-by-entry and preserve target-only local skills.

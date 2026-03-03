@@ -66,11 +66,31 @@ if [[ -d "$DST_ROOT/ai" ]]; then
   LEGACY_CLEANED=1
 fi
 
-# Old scripts directory (was scripts/)
+# Old scripts directory (was scripts/) — only remove AAI-owned scripts, keep project scripts
 if [[ -d "$DST_ROOT/scripts" ]]; then
-  rm -rf "$DST_ROOT/scripts"
-  echo "  MIGRATE removed legacy: scripts/"
-  LEGACY_CLEANED=1
+  # Remove scripts that now live in .aai/scripts/ (current names)
+  for src_script in "$SRC_ROOT/.aai/scripts/"*; do
+    [[ -e "$src_script" ]] || continue
+    fname="$(basename "$src_script")"
+    if [[ -f "$DST_ROOT/scripts/$fname" ]]; then
+      rm -f "$DST_ROOT/scripts/$fname"
+      echo "  MIGRATE removed legacy: scripts/$fname -> now in .aai/scripts/"
+      LEGACY_CLEANED=1
+    fi
+  done
+  # Remove old ai-os-* named scripts (renamed to aai-*)
+  for f in "$DST_ROOT/scripts/"ai-os-*; do
+    [[ -e "$f" ]] || continue
+    fname="$(basename "$f")"
+    rm -f "$f"
+    echo "  MIGRATE removed legacy: scripts/$fname (old ai-os-* name)"
+    LEGACY_CLEANED=1
+  done
+  # Remove the directory only if it's now empty
+  if [[ -z "$(ls -A "$DST_ROOT/scripts" 2>/dev/null)" ]]; then
+    rmdir "$DST_ROOT/scripts"
+    echo "  MIGRATE removed empty: scripts/"
+  fi
 fi
 
 # Root files that moved into .aai/
@@ -114,7 +134,42 @@ if [[ "$LEGACY_CLEANED" -eq 1 ]]; then
 fi
 
 # ── Copy AAI canonical layer (.aai/ is the single source of truth) ──────
-copy_replace "$SRC_ROOT/.aai" "$DST_ROOT/.aai"
+# Entry-by-entry so we can merge scripts/ and preserve target-only scripts.
+mkdir -p "$DST_ROOT/.aai"
+
+# Top-level files and non-scripts directories: overwrite from source
+for item in "$SRC_ROOT/.aai/"*; do
+  [[ -e "$item" ]] || continue
+  name="$(basename "$item")"
+  [[ "$name" == "scripts" ]] && continue
+  copy_replace "$item" "$DST_ROOT/.aai/$name"
+done
+
+# Clean stale top-level items in target .aai/ that no longer exist in source (except scripts/)
+for item in "$DST_ROOT/.aai/"*; do
+  [[ -e "$item" ]] || continue
+  name="$(basename "$item")"
+  [[ "$name" == "scripts" ]] && continue
+  if [[ ! -e "$SRC_ROOT/.aai/$name" ]]; then
+    rm -rf "$item"
+    echo "  CLEAN removed stale: .aai/$name"
+  fi
+done
+
+# scripts/: file-by-file merge — overwrite source scripts, preserve target-only
+mkdir -p "$DST_ROOT/.aai/scripts"
+for src_script in "$SRC_ROOT/.aai/scripts/"*; do
+  [[ -e "$src_script" ]] || continue
+  fname="$(basename "$src_script")"
+  copy_replace "$src_script" "$DST_ROOT/.aai/scripts/$fname"
+done
+for dst_script in "$DST_ROOT/.aai/scripts/"*; do
+  [[ -e "$dst_script" ]] || continue
+  fname="$(basename "$dst_script")"
+  if [[ ! -e "$SRC_ROOT/.aai/scripts/$fname" ]]; then
+    echo "  PRESERVE target-only script: .aai/scripts/$fname"
+  fi
+done
 
 # Claude Code skills (session helpers):
 # copy template skills file-by-file and preserve target-only local skills.
