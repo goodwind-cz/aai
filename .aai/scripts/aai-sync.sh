@@ -253,6 +253,22 @@ for pattern in '.cloudflare-publish*' '.wrangler/'; do
   fi
 done
 
+# Ensure ephemeral validation reports/screenshots are gitignored
+REPORT_PATTERNS=(
+  'docs/ai/reports/validation-*.md'
+  'docs/ai/reports/LATEST.md'
+  'docs/ai/reports/screenshots/'
+  'docs/ai/reports/MIGRATION_REPORT_*.md'
+)
+REPORT_HEADER='# Ephemeral validation reports (reproducible via /aai-validate-report)'
+if ! grep -qF 'docs/ai/reports/validation-' "$DST_ROOT/.gitignore" 2>/dev/null; then
+  echo -e "\n$REPORT_HEADER" >> "$DST_ROOT/.gitignore"
+  for pattern in "${REPORT_PATTERNS[@]}"; do
+    echo "$pattern" >> "$DST_ROOT/.gitignore"
+  done
+  echo "  Added validation report patterns to $DST_ROOT/.gitignore"
+fi
+
 # Pin info
 TEMPLATE_SHA="UNKNOWN"
 TEMPLATE_VERSION="UNKNOWN"

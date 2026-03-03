@@ -15,6 +15,12 @@
 # Wrangler
 .wrangler/
 
+# Ephemeral validation reports and screenshots (reproducible via /aai-validate-report)
+docs/ai/reports/validation-*.md
+docs/ai/reports/LATEST.md
+docs/ai/reports/screenshots/
+docs/ai/reports/MIGRATION_REPORT_*.md
+
 # OS
 .DS_Store
 Thumbs.db

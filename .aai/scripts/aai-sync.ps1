@@ -253,6 +253,21 @@ foreach ($pattern in @('.cloudflare-publish*', '.wrangler/')) {
   }
 }
 
+# Ensure ephemeral validation reports/screenshots are gitignored
+$giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
+if ($giContent -notmatch [regex]::Escape('docs/ai/reports/validation-')) {
+  $reportBlock = @(
+    ""
+    "# Ephemeral validation reports (reproducible via /aai-validate-report)"
+    "docs/ai/reports/validation-*.md"
+    "docs/ai/reports/LATEST.md"
+    "docs/ai/reports/screenshots/"
+    "docs/ai/reports/MIGRATION_REPORT_*.md"
+  ) -join "`n"
+  Add-Content -Path $gitignorePath -Value $reportBlock
+  Write-Host "  Added validation report patterns to $gitignorePath"
+}
+
 # Pin info
 $templateSha = "UNKNOWN"
 try { $templateSha = (git -C $SrcRoot rev-parse HEAD) 2>$null } catch {}
