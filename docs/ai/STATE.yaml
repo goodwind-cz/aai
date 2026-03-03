@@ -32,9 +32,9 @@ locks:
   implementation: true
   implementation_reason: "Implementation is forbidden until scope is explicitly unlocked in state."
   protected_paths:
-    - docs/workflow/
-    - docs/roles/
-    - ai/
+    - .aai/workflow/
+    - .aai/roles/
+    - .aai/
   protected_paths_edit_allowed: false
   protected_paths_reason: "Edits are allowed only with explicit scope/HITL approval."
 
@@ -44,7 +44,7 @@ active_work_items:
 last_validation:
   status: not_run
   run_at_utc: null
-  validator_ref: ai/VALIDATION.prompt.md
+  validator_ref: .aai/VALIDATION.prompt.md
   evidence_paths: []
   notes: "No validation run yet."
 
@@ -54,7 +54,7 @@ human_input:
   blocking_reason: null
 
 ai_os:
-  pin_path: docs/ai/AI_OS_PIN.md
+  pin_path: .aai/system/AI_OS_PIN.md
   pin_version: null
   pin_commit: null
 

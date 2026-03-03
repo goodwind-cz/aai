@@ -3,6 +3,6 @@ name: aai-loop
 description: Run the full autonomous multi-tick AI-OS loop inside this session. Reads STATE.yaml, dispatches roles via subagents tick by tick, stops on PASS / human-input-required / paused / max-ticks.
 ---
 
-Read the file `ai/SKILL_LOOP.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-loop`.
+Read the file `.aai/SKILL_LOOP.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-loop`.
 
-If `ai/SKILL_LOOP.prompt.md` does not exist, say: "SKILL_LOOP not found — are you in an AI-OS project? Expected: ai/SKILL_LOOP.prompt.md"
+If `.aai/SKILL_LOOP.prompt.md` does not exist, say: "SKILL_LOOP not found — are you in an AI-OS project? Expected: .aai/SKILL_LOOP.prompt.md"

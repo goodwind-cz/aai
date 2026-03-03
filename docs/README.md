@@ -21,33 +21,21 @@ Use this repo to bootstrap or normalize an AI-ready documentation and prompt sys
 ## 4) Directory and file structure overview
 ```
 .
-├── AGENTS.md
-├── PLAYBOOK.md
-├── CLAUDE.md
-├── ai/
-│   ├── ORCHESTRATION.prompt.md
-│   ├── ORCHESTRATION_PARALLEL.prompt.md
-│   ├── ORCHESTRATION_HITL.prompt.md
-│   ├── VALIDATION.prompt.md
-│   ├── REMEDIATION.prompt.md
-│   ├── TECH_EXTRACT.prompt.md
-│   ├── TECH_UPDATE_DIFF.prompt.md
-│   ├── REVERSE_ANALYSIS_DASH_FASTAPI_CELERY.prompt.md
-│   ├── REVERSE_ANALYSIS_GENERIC.prompt.md
-│   └── DOCS_COMPRESS_TO_FACTS.prompt.md
-├── docs/
+├── .aai/                          # AI-OS system
+│   ├── *.prompt.md                # Canonical prompts
+│   ├── AGENTS.md
+│   ├── PLAYBOOK.md
 │   ├── workflow/WORKFLOW.md
 │   ├── roles/ROLES.md
+│   ├── templates/                 # Document templates
+│   ├── scripts/                   # Helper scripts
+│   ├── system/                    # System docs
+│   └── knowledge/                 # Universal patterns
+├── CLAUDE.md
+├── docs/
+│   ├── ai/                        # Persistent runtime state
 │   ├── knowledge/FACTS.md
 │   ├── knowledge/UI_MAP.md
-│   ├── ai/LOCKS.md
-│   ├── templates/
-│   │   ├── WORKFLOW_TEMPLATE.md
-│   │   ├── ROLE_TEMPLATE.md
-│   │   ├── REQUIREMENT_TEMPLATE.md
-│   │   ├── SPEC_TEMPLATE.md
-│   │   ├── DECISION_TEMPLATE.md
-│   │   └── KNOWLEDGE_TEMPLATE.md
 │   └── archive/analysis/
 └── .github/
     └── copilot-instructions.md
@@ -61,48 +49,48 @@ Use this repo to bootstrap or normalize an AI-ready documentation and prompt sys
 ### Bootstrap
 Bootstrap only when normalizing an existing repo into this structure.
 ```bash
-cat ai/BOOTSTRAP.prompt.md
+cat .aai/BOOTSTRAP.prompt.md
 ```
 Use an AI agent to follow the prompt’s instructions.
 
 ### Orchestration
 Orchestration decides the next role based on repository state.
 ```bash
-cat ai/ORCHESTRATION.prompt.md
+cat .aai/ORCHESTRATION.prompt.md
 ```
 Parallel and human-in-the-loop options:
 ```bash
-cat ai/ORCHESTRATION_PARALLEL.prompt.md
-cat ai/ORCHESTRATION_HITL.prompt.md
+cat .aai/ORCHESTRATION_PARALLEL.prompt.md
+cat .aai/ORCHESTRATION_HITL.prompt.md
 ```
 
 ### Validation
 Run validation after implementation to collect executable evidence.
 ```bash
-cat ai/VALIDATION.prompt.md
+cat .aai/VALIDATION.prompt.md
 ```
 
 ### Remediation
 Use remediation when validation fails to apply minimal fixes.
 ```bash
-cat ai/REMEDIATION.prompt.md
+cat .aai/REMEDIATION.prompt.md
 ```
 
 ### Reverse analysis
 Use the reverse analysis prompt when mapping UI-to-code in Dash/FastAPI/Celery stacks.
 ```bash
-cat ai/REVERSE_ANALYSIS_DASH_FASTAPI_CELERY.prompt.md
+cat .aai/REVERSE_ANALYSIS_DASH_FASTAPI_CELERY.prompt.md
 ```
 Use the generic reverse analysis prompt for any stack, including external repository references.
 ```bash
-cat ai/REVERSE_ANALYSIS_GENERIC.prompt.md
+cat .aai/REVERSE_ANALYSIS_GENERIC.prompt.md
 ```
 
 ## 6) Example workflows
 ### Basic single-threaded flow
 ```bash
 # Decide next role
-cat ai/ORCHESTRATION.prompt.md
+cat .aai/ORCHESTRATION.prompt.md
 
 # If Planning dispatched
 # (Use your agent to execute Planning per prompt)
@@ -111,36 +99,36 @@ cat ai/ORCHESTRATION.prompt.md
 # (Implement per frozen spec)
 
 # If Validation dispatched
-cat ai/VALIDATION.prompt.md
+cat .aai/VALIDATION.prompt.md
 ```
 
 ### Parallel flow for independent scopes
 ```bash
-cat ai/ORCHESTRATION_PARALLEL.prompt.md
+cat .aai/ORCHESTRATION_PARALLEL.prompt.md
 ```
 
 ### Human-in-the-loop decision gating
 ```bash
-cat ai/ORCHESTRATION_HITL.prompt.md
+cat .aai/ORCHESTRATION_HITL.prompt.md
 ```
 
 ## 7) How to write/maintain specs, docs, and prompts
-- **Workflow:** Only `docs/workflow/WORKFLOW.md` is authoritative.
-- **Roles:** Use `docs/roles/ROLES.md` for semantic roles.
-- **Requirements and specs:** Use templates in `docs/templates/`.
+- **Workflow:** Only `.aai/workflow/WORKFLOW.md` is authoritative.
+- **Roles:** Use `.aai/roles/ROLES.md` for semantic roles.
+- **Requirements and specs:** Use templates in `.aai/templates/`.
 - **Knowledge:** Put verified facts in `docs/knowledge/FACTS.md` and UI trace in `docs/knowledge/UI_MAP.md`.
-- **Prompts:** Keep canonical prompts in `ai/*.prompt.md` and avoid duplications elsewhere.
-- **Engineering practices:** Follow `AGENTS.md` for DRY, SOLID, KISS, YAGNI, separation of concerns, testability, explicit error handling, and contract compatibility.
+- **Prompts:** Keep canonical prompts in `.aai/*.prompt.md` and avoid duplications elsewhere.
+- **Engineering practices:** Follow `.aai/AGENTS.md` for DRY, SOLID, KISS, YAGNI, separation of concerns, testability, explicit error handling, and contract compatibility.
 
 ## 8) How to extend this for a new project
-1. Copy the `ai/` and `docs/` trees into your repo.
-2. Generate `docs/TECHNOLOGY.md` using `ai/TECH_EXTRACT.prompt.md`.
+1. Copy the `.aai/` and `docs/` trees into your repo.
+2. Generate `docs/TECHNOLOGY.md` using `.aai/TECH_EXTRACT.prompt.md`.
 3. Write requirements and specs using templates.
 4. Run orchestration and follow the dispatched role.
 
 ## 9) Troubleshooting / FAQ
 **Q: I want to add another workflow doc.**
-A: Don’t. Only `docs/workflow/WORKFLOW.md` is canonical.
+A: Don’t. Only `.aai/workflow/WORKFLOW.md` is canonical.
 
 **Q: Can I assume technologies?**
 A: No. Always consult `docs/TECHNOLOGY.md` first.
@@ -149,7 +137,7 @@ A: No. Always consult `docs/TECHNOLOGY.md` first.
 A: Move them to `docs/archive/analysis/` and treat them as immutable.
 
 ## 10) Links to AGENTS, CLAUDE, and Copilot instructions
-- Agent Guide: `AGENTS.md`
+- Agent Guide: `.aai/AGENTS.md`
 - Claude shim: `CLAUDE.md`
 - Copilot instructions: `.github/copilot-instructions.md`
 

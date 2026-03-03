@@ -13,7 +13,7 @@
 #   - Add a row to INDEX. Add the entry below. Keep under 10 lines.
 #   - To share across projects: promote to template repo → PATTERNS_UNIVERSAL.md.
 #
-# Maintained by: ai/MEMORY_REVIEW.prompt.md (removes stale, flags unverified).
+# Maintained by: .aai/MEMORY_REVIEW.prompt.md (removes stale, flags unverified).
 
 ## INDEX
 

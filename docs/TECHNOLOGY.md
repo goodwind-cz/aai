@@ -1,7 +1,7 @@
 ﻿# Technology Contract
 
 Generated at (UTC): 2026-03-01T21:55:55.9091619Z
-Generator: scripts/ai-os-canonicalize.ps1
+Generator: .aai/scripts/ai-os-canonicalize.ps1
 
 ## Languages
 - Unknown (no common manifest detected)
@@ -20,4 +20,4 @@ Generator: scripts/ai-os-canonicalize.ps1
 
 ## Notes
 - This is an inferred summary based on repository files.
-- Refine this contract with ai/TECH_EXTRACT.prompt.md when deeper accuracy is required.
+- Refine this contract with .aai/TECH_EXTRACT.prompt.md when deeper accuracy is required.
