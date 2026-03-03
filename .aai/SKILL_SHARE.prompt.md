@@ -36,7 +36,7 @@ If Cloudflare Pages isn't set up yet, the skill will guide through setup:
 4. **Project Initialization**
    ```bash
    # Creates pages project (automatic on first publish)
-   wrangler pages project create ai-os-reports
+   wrangler pages project create aai-reports
    ```
 
 ## Instructions
@@ -253,12 +253,12 @@ cp "$PUBLISH_DIR/$DOCUMENT_NAME.html" "$PUBLISH_DIR/index.html"
 ```bash
 # Publish using Wrangler
 wrangler pages publish "$PUBLISH_DIR" \
-  --project-name=ai-os-reports \
+  --project-name=aai-reports \
   --branch=main
 
 # Capture output
 PUBLISH_OUTPUT=$(wrangler pages publish "$PUBLISH_DIR" \
-  --project-name=ai-os-reports \
+  --project-name=aai-reports \
   --branch=main 2>&1)
 
 # Extract URL from output
@@ -271,7 +271,7 @@ PUBLISHED_URL=$(echo "$PUBLISH_OUTPUT" | grep -oP 'https://[^\s]+\.pages\.dev')
 ✨  Success! Uploaded 3 files (2.34 sec)
 ✅  Deployment complete!
 
-🔗  https://ai-os-reports-abc123.pages.dev
+🔗  https://aai-reports-abc123.pages.dev
 ```
 
 ### Step 7: Save Publishing Record
@@ -361,11 +361,11 @@ Add password protection:
 ```bash
 # Use Cloudflare Access (requires setup)
 wrangler pages publish "$PUBLISH_DIR" \
-  --project-name=ai-os-reports \
+  --project-name=aai-reports \
   --branch=private-$RANDOM
 ```
 
-## Integration with AI-OS Workflow
+## Integration with AAI Workflow
 
 ### After Validation Report
 
@@ -376,7 +376,7 @@ wrangler pages publish "$PUBLISH_DIR" \
 # Immediately share for review
 /aai-share docs/ai/reports/VALIDATION_REPORT_20260302T100000Z.md
 
-# Returns: https://ai-os-reports-xyz.pages.dev
+# Returns: https://aai-reports-xyz.pages.dev
 ```
 
 ### Share Decision Artifacts
@@ -426,10 +426,10 @@ wrangler login
 ### Publish failed
 ```bash
 # Check Cloudflare status
-wrangler pages deployment list --project-name=ai-os-reports
+wrangler pages deployment list --project-name=aai-reports
 
 # Retry publish
-wrangler pages publish "$PUBLISH_DIR" --project-name=ai-os-reports
+wrangler pages publish "$PUBLISH_DIR" --project-name=aai-reports
 ```
 
 ### URL not returned
@@ -441,7 +441,7 @@ wrangler pages publish "$PUBLISH_DIR" --project-name=ai-os-reports
 Track publishing activity in `docs/ai/METRICS.jsonl`:
 
 ```jsonl
-{"timestamp":"2026-03-02T19:30:00Z","type":"publish","document":"docs/ai/reports/VALIDATION_REPORT.md","url":"https://ai-os-reports-abc.pages.dev","size_kb":245,"duration_seconds":3.2}
+{"timestamp":"2026-03-02T19:30:00Z","type":"publish","document":"docs/ai/reports/VALIDATION_REPORT.md","url":"https://aai-reports-abc.pages.dev","size_kb":245,"duration_seconds":3.2}
 ```
 
 ## Security & Privacy
@@ -459,7 +459,7 @@ Track publishing activity in `docs/ai/METRICS.jsonl`:
 **Cleanup:**
 ```bash
 # Delete old deployments
-wrangler pages deployment list --project-name=ai-os-reports
+wrangler pages deployment list --project-name=aai-reports
 wrangler pages deployment delete <deployment-id>
 ```
 
@@ -470,7 +470,7 @@ wrangler pages deployment delete <deployment-id>
 - Unlimited requests
 - 500 builds/month
 - 20,000 files per deployment
-- Perfect for AI-OS reports
+- Perfect for AAI reports
 
 **Paid Plan ($20/mo):**
 - Only if you need more builds
@@ -496,8 +496,8 @@ wrangler pages deployment delete <deployment-id>
 
 # Output:
 # ✅ Document published successfully!
-# 🔗 URL: https://ai-os-reports-a1b2c3.pages.dev
-# Click to open: https://ai-os-reports-a1b2c3.pages.dev
+# 🔗 URL: https://aai-reports-a1b2c3.pages.dev
+# Click to open: https://aai-reports-a1b2c3.pages.dev
 
 # 3. Open in browser (from chat)
 # User clicks URL → Report opens with all images

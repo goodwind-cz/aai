@@ -185,7 +185,7 @@ tech_content="$(cat <<EOF
 # Technology Contract
 
 Generated at (UTC): $NOW_UTC
-Generator: .aai/scripts/ai-os-canonicalize.sh
+Generator: .aai/scripts/aai-canonicalize.sh
 
 ## Languages
 $(list_or_default "Unknown (no common manifest detected)" "${languages[@]}")
@@ -239,7 +239,7 @@ if [[ "${#actions[@]}" -gt 0 ]]; then
 fi
 
 report_content="$(cat <<EOF
-# AI-OS Canonicalization Report
+# AAI Canonicalization Report
 
 - Generated at (UTC): $NOW_UTC
 - Target root: $ROOT

@@ -1,6 +1,6 @@
 # Agent Guide (Canonical)
 
-This repository uses a reusable AI Operating System.
+This repository uses a reusable AAI.
 
 ## Canonical sources
 - Workflow (single source): .aai/workflow/WORKFLOW.md
@@ -19,7 +19,7 @@ This repository uses a reusable AI Operating System.
 - Loop tick log: docs/ai/LOOP_TICKS.jsonl
 - Decision log: docs/ai/decisions.jsonl
 
-To update the AI-OS layer from a template worktree, see .aai/scripts/ai-os-sync.(sh|ps1) and .aai/system/AI_OS_PIN.md.
+To update the AAI layer from a template worktree, see .aai/scripts/aai-sync.(sh|ps1) and .aai/system/AAI_PIN.md.
 
 ## How to run (recommended)
 1) Decide next action:
@@ -62,7 +62,7 @@ Follow .aai/MEMORY_REVIEW.prompt.md
 Skills are higher-level entry points that compose multiple steps within a single agent session.
 Use them when the agent supports subagent spawning or sequential tool use.
 
-#### Universal Skills (AI-OS Template)
+#### Universal Skills (AAI Template)
 ```text
 Follow .aai/SKILL_LOOP.prompt.md         # Full autonomous multi-tick loop (replaces shell loop runner)
 Follow .aai/SKILL_INTAKE.prompt.md       # Universal intake router — auto-detects type from description
@@ -91,7 +91,7 @@ After running `/aai-bootstrap`, the following skills are auto-generated in `.cla
 **Benefits:**
 - 90% token reduction for common tasks
 - MCP server integration when available
-- Preserved during `ai-os-sync` updates
+- Preserved during `aai-sync` updates
 
 See [.aai/system/DYNAMIC_SKILLS.md](.aai/system/DYNAMIC_SKILLS.md) for details.
 
@@ -103,7 +103,7 @@ Skill selection guide:
 - Use SKILL_CHECK_STATE before any role dispatch to catch state drift or corruption.
 - Use SKILL_BOOTSTRAP on first use or after architecture changes to generate project-specific skills.
 - Use SKILL_VALIDATE_REPORT when validation must include screenshot evidence and a chat-readable report.
-- Use SKILL_CANONICALIZE when migrating legacy AI-OS structure or cleaning up scattered artifacts.
+- Use SKILL_CANONICALIZE when migrating legacy AAI structure or cleaning up scattered artifacts.
 - **NEW:** Use SKILL_TDD for test-driven development with mandatory RED-GREEN-REFACTOR cycles.
 - **NEW:** Use SKILL_WORKTREE for parallel development using git worktrees (isolates features/tasks).
 

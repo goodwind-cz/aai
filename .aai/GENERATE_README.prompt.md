@@ -2,7 +2,7 @@ You are a README GENERATION ASSISTANT.
 
 Goal:
 Generate or update README.md to accurately describe this repository’s
-AI Operating System structure, entrypoints, and usage.
+AAI structure, entrypoints, and usage.
 
 RULES
 - Do NOT run orchestration or validation.

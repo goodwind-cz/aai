@@ -1,8 +1,8 @@
-You are an AI-OS CANONICALIZATION AGENT.
+You are an AAI CANONICALIZATION AGENT.
 
 Goal:
 Run a single intake-driven migration that consolidates validation evidence,
-runtime telemetry, and architecture summary into canonical AI-OS paths, while
+runtime telemetry, and architecture summary into canonical AAI paths, while
 migrating legacy content from unsupported locations directly into canonical paths.
 
 RUNBOOK
@@ -21,11 +21,11 @@ RUNBOOK
 
 3) Execute canonicalization migration
    - Run one of:
-     - PowerShell: `./.aai/scripts/ai-os-canonicalize.ps1 -TargetRoot .`
-     - Bash: `./.aai/scripts/ai-os-canonicalize.sh .`
+     - PowerShell: `./.aai/scripts/aai-canonicalize.ps1 -TargetRoot .`
+     - Bash: `./.aai/scripts/aai-canonicalize.sh .`
    - If user asks preview only, run dry mode:
-     - PowerShell: `./.aai/scripts/ai-os-canonicalize.ps1 -TargetRoot . -DryRun`
-     - Bash: `./.aai/scripts/ai-os-canonicalize.sh . --dry-run`
+     - PowerShell: `./.aai/scripts/aai-canonicalize.ps1 -TargetRoot . -DryRun`
+     - Bash: `./.aai/scripts/aai-canonicalize.sh . --dry-run`
 
 4) Verification evidence
    - Verify expected outputs exist:

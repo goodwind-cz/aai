@@ -5,4 +5,4 @@ description: Universal intake router. Detects work type from a description (feat
 
 Read the file `.aai/SKILL_INTAKE.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-intake`.
 
-If `.aai/SKILL_INTAKE.prompt.md` does not exist, say: "SKILL_INTAKE not found — are you in an AI-OS project? Expected: .aai/SKILL_INTAKE.prompt.md"
+If `.aai/SKILL_INTAKE.prompt.md` does not exist, say: "SKILL_INTAKE not found — are you in an AAI project? Expected: .aai/SKILL_INTAKE.prompt.md"

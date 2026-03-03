@@ -1,6 +1,6 @@
 # Codex Skill Index
 
-These are the canonical AAI-prefixed skills available after AI-OS sync.
+These are the canonical AAI-prefixed skills available after AAI sync.
 
 ## Universal skills
 - `/aai-check-state` -> `.aai/SKILL_CHECK_STATE.prompt.md`

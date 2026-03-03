@@ -221,7 +221,7 @@ Before starting TDD cycle:
    - Multiple features can have independent TDD cycles
    - Use git worktrees for parallel development
 
-## Integration with AI-OS Workflow
+## Integration with AAI Workflow
 
 ### When to Use /aai-tdd
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-AI-OS has integrated proven patterns from the [Superpowers framework](https://github.com/obra/superpowers), a systematic approach to agent-driven development that emphasizes test-driven development, task decomposition, and evidence-based completion.
+AAI has integrated proven patterns from the [Superpowers framework](https://github.com/obra/superpowers), a systematic approach to agent-driven development that emphasizes test-driven development, task decomposition, and evidence-based completion.
 
 ## What We Adopted from Superpowers
 
@@ -13,7 +13,7 @@ AI-OS has integrated proven patterns from the [Superpowers framework](https://gi
 - Code deletion before test writing
 - Evidence at each phase
 
-**AI-OS Implementation:**
+**AAI Implementation:**
 - `/aai-tdd` skill enforces 3-phase cycle
 - Evidence stored in `docs/ai/tdd/`
 - STATE.yaml tracks current TDD phase
@@ -31,7 +31,7 @@ AI-OS has integrated proven patterns from the [Superpowers framework](https://gi
 - No branch switching overhead
 - Parallel subagent execution
 
-**AI-OS Implementation:**
+**AAI Implementation:**
 - `/aai-worktree` skill manages worktree lifecycle
 - Each worktree has isolated STATE.yaml
 - Parallel development without conflicts
@@ -49,7 +49,7 @@ AI-OS has integrated proven patterns from the [Superpowers framework](https://gi
 - Prevents context explosion
 - Enables better progress tracking
 
-**AI-OS Implementation:**
+**AAI Implementation:**
 - Enhanced `PLANNING.prompt.md` with chunking rules
 - Tasks must have clear completion criteria
 - If task > 5 minutes, auto-decompose further
@@ -65,7 +65,7 @@ AI-OS has integrated proven patterns from the [Superpowers framework](https://gi
 - Stage 1: Spec compliance (blocking)
 - Stage 2: Code quality (non-blocking warnings)
 
-**AI-OS Implementation:**
+**AAI Implementation:**
 - Enhanced `/aai-validate-report` with two stages
 - Spec violations block completion
 - Quality issues logged as techdebt
@@ -75,9 +75,9 @@ AI-OS has integrated proven patterns from the [Superpowers framework](https://gi
 - Allows pragmatic quality trade-offs
 - Tracks technical debt
 
-## Comparison: Superpowers vs AI-OS
+## Comparison: Superpowers vs AAI
 
-| Aspect | Superpowers | AI-OS | Integration |
+| Aspect | Superpowers | AAI | Integration |
 |--------|-------------|-------|-------------|
 | **Workflow** | 7-phase (Brainstorm→Plan→Execute→Test→Review→Finalize) | 4-phase (Intake→Planning→Implementation→Validation) | Unified 5-phase |
 | **TDD** | Mandatory RED-GREEN-REFACTOR | Optional VALIDATION phase | Now mandatory via `/aai-tdd` |
@@ -205,7 +205,7 @@ tdd_cycle:
 
 **Superpowers:** Skills auto-activate based on trigger patterns
 
-**AI-OS Status:** Currently requires explicit invocation
+**AAI Status:** Currently requires explicit invocation
 
 **Future:** Could add trigger system:
 ```yaml
@@ -220,7 +220,7 @@ triggers:
 
 **Superpowers:** Interactive refinement phase before planning
 
-**AI-OS Status:** INTAKE asks clarifying questions, but not Socratic
+**AAI Status:** INTAKE asks clarifying questions, but not Socratic
 
 **Future:** Could enhance INTAKE with structured questioning
 
@@ -228,15 +228,15 @@ triggers:
 
 **Superpowers:** Different severity levels (error, warning, info)
 
-**AI-OS Status:** Binary (pass/fail)
+**AAI Status:** Binary (pass/fail)
 
 **Future:** Could add severity levels to VALIDATION
 
 ## Migration Guide
 
-### For Existing AI-OS Projects
+### For Existing AAI Projects
 
-If you're already using AI-OS, here's how to adopt Superpowers patterns:
+If you're already using AAI, here's how to adopt Superpowers patterns:
 
 1. **Enable TDD Workflow**
    ```bash
@@ -269,21 +269,21 @@ If you're already using AI-OS, here's how to adopt Superpowers patterns:
 
 ### For Superpowers Users
 
-If you're coming from Superpowers, here's how AI-OS complements it:
+If you're coming from Superpowers, here's how AAI complements it:
 
 1. **Structured Documentation**
    - Superpowers: Design docs
-   - AI-OS: Templates for requirements, specs, decisions
+   - AAI: Templates for requirements, specs, decisions
    - Benefit: Standardized, searchable artifacts
 
 2. **State Tracking**
    - Superpowers: Task checkpoints
-   - AI-OS: STATE.yaml + METRICS.jsonl
+   - AAI: STATE.yaml + METRICS.jsonl
    - Benefit: Queryable state, time-series analytics
 
 3. **Knowledge Accumulation**
    - Superpowers: Implicit learning
-   - AI-OS: FACTS.md, PATTERNS.md
+   - AAI: FACTS.md, PATTERNS.md
    - Benefit: Explicit knowledge base for future reference
 
 ## Best Practices
@@ -370,7 +370,7 @@ Tracked in `docs/ai/METRICS.jsonl`:
 
 - [Superpowers GitHub](https://github.com/obra/superpowers)
 - [Superpowers Documentation](https://github.com/obra/superpowers/tree/main/docs)
-- [AI-OS Workflow](../workflow/WORKFLOW.md)
+- [AAI Workflow](../workflow/WORKFLOW.md)
 - [TDD Skill](../../.aai/SKILL_TDD.prompt.md)
 - [Worktree Skill](../../.aai/SKILL_WORKTREE.prompt.md)
 
@@ -379,11 +379,11 @@ Tracked in `docs/ai/METRICS.jsonl`:
 If you have ideas for better Superpowers integration:
 1. Open an issue describing the pattern
 2. Reference Superpowers implementation
-3. Propose AI-OS adaptation
+3. Propose AAI adaptation
 4. Submit PR with skill implementation
 
 ## Credits
 
 Superpowers framework by [@obra](https://github.com/obra) and contributors.
 
-AI-OS integration designed to complement, not replace, Superpowers patterns.
+AAI integration designed to complement, not replace, Superpowers patterns.

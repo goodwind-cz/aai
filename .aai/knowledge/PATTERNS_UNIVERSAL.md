@@ -1,7 +1,7 @@
-# AI-OS-TEMPLATE
-# Universal Pattern Library (AI-OS managed)
+# AAI-TEMPLATE
+# Universal Pattern Library (AAI managed)
 #
-# THIS FILE IS MANAGED BY ai-os-sync — do not add project-specific patterns here.
+# THIS FILE IS MANAGED BY aai-sync — do not add project-specific patterns here.
 # Project-specific patterns belong in docs/knowledge/PATTERNS.md.
 #
 # HOW TO USE (for agents):

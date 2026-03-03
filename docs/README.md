@@ -1,9 +1,9 @@
-# AI Operating System Repository
+# AAI Repository
 
-A canonical, reusable AI Operating System that standardizes workflows, roles, prompts, and documentation for agent-driven development. It provides a minimal, consistent structure so humans and AI agents (Codex/ChatGPT, Claude, Copilot) can collaborate using the same sources of truth.
+A canonical, reusable AAI that standardizes workflows, roles, prompts, and documentation for agent-driven development. It provides a minimal, consistent structure so humans and AI agents (Codex/ChatGPT, Claude, Copilot) can collaborate using the same sources of truth.
 
 ## 1) Project Title & Description
-**AI Operating System (Canonical)** — a lightweight governance and prompt suite that enforces a single workflow, clear role semantics, and evidence-based validation.
+**AAI (Canonical)** — a lightweight governance and prompt suite that enforces a single workflow, clear role semantics, and evidence-based validation.
 
 ## 2) What this repository is for
 Use this repo to bootstrap or normalize an AI-ready documentation and prompt system. It provides:
@@ -21,7 +21,7 @@ Use this repo to bootstrap or normalize an AI-ready documentation and prompt sys
 ## 4) Directory and file structure overview
 ```
 .
-├── .aai/                          # AI-OS system
+├── .aai/                          # AAI system
 │   ├── *.prompt.md                # Canonical prompts
 │   ├── AGENTS.md
 │   ├── PLAYBOOK.md
@@ -41,7 +41,7 @@ Use this repo to bootstrap or normalize an AI-ready documentation and prompt sys
     └── copilot-instructions.md
 ```
 
-## 5) How to use this AI Operating System (step-by-step)
+## 5) How to use this AAI (step-by-step)
 ### Installation
 1. Clone or copy this repository into your project.
 2. Ensure the canonical files are present (see Section 4).

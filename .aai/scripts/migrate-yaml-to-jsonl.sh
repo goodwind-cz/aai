@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Migrate legacy AI-OS YAML runtime files to JSONL format.
+# Migrate legacy AAI YAML runtime files to JSONL format.
 #
-# Run this in the target project root BEFORE ai-os-sync so the JSONL files
+# Run this in the target project root BEFORE aai-sync so the JSONL files
 # are populated and the sync script will preserve them.
 #
 # Usage:
@@ -27,7 +27,7 @@ TARGET="$(cd "${1:-$(pwd)}" && pwd)"
 echo "Target project: $TARGET"
 
 if [[ ! -d "$TARGET/docs/ai" ]]; then
-  echo "ERROR: $TARGET/docs/ai not found. Is this an AI-OS project?"
+  echo "ERROR: $TARGET/docs/ai not found. Is this an AAI project?"
   exit 1
 fi
 

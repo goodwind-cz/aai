@@ -98,7 +98,7 @@ function Detect-Architecture {
 }
 
 $repoRoot = Resolve-RepoRoot -Path $TargetRoot
-Write-Host "Canonicalizing AI-OS repository: $repoRoot"
+Write-Host "Canonicalizing AAI repository: $repoRoot"
 
 $timestampUtc = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
 $reportDateUtc = (Get-Date).ToUniversalTime().ToString("o")
@@ -195,7 +195,7 @@ $techContent = @"
 # Technology Contract
 
 Generated at (UTC): $reportDateUtc
-Generator: .aai/scripts/ai-os-canonicalize.ps1
+Generator: .aai/scripts/aai-canonicalize.ps1
 
 ## Languages
 $(
@@ -241,7 +241,7 @@ $migrations += "Updated docs/TECHNOLOGY.md from repository structure."
 
 # 6) Write migration report with evidence pointers.
 $report = @"
-# AI-OS Canonicalization Report
+# AAI Canonicalization Report
 
 - Generated at (UTC): $reportDateUtc
 - Target root: $repoRoot

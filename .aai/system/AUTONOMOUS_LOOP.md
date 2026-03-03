@@ -1,7 +1,7 @@
-# AI-OS Autonomous Loop
+# AAI Autonomous Loop
 
 ## 1) Purpose & Scope
-- This document defines how AI-OS operates autonomously in a documentation-driven repository.
+- This document defines how AAI operates autonomously in a documentation-driven repository.
 - "Autonomy" means: evaluate state, select the next role, produce/update artifacts, and persist the new state.
 - "Autonomy" explicitly does **not** mean:
   - uncontrolled commits,

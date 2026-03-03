@@ -176,7 +176,7 @@ fi
 
 # Publish to Cloudflare Pages
 echo "🚀 Publishing to Cloudflare Pages..."
-PROJECT_NAME="ai-os-reports"
+PROJECT_NAME="aai-reports"
 
 PUBLISH_OUTPUT=$(wrangler pages publish "$PUBLISH_DIR" \
   --project-name="$PROJECT_NAME" \

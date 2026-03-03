@@ -52,7 +52,7 @@ Create a new worktree for a feature/task.
    git worktree add "$worktree_path" -b "$task_name" "$base_branch"
    ```
 
-4. **Initialize AI-OS State in Worktree**
+4. **Initialize AAI State in Worktree**
    ```bash
    cd "$worktree_path"
 
@@ -250,7 +250,7 @@ Sync worktree with base branch.
    Conflicts: none
    ```
 
-## Integration with AI-OS Workflow
+## Integration with AAI Workflow
 
 ### Parallel Feature Development
 

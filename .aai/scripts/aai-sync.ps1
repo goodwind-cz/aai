@@ -5,13 +5,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Push AI-OS layer FROM this repository INTO a target project.
+# Push AAI layer FROM this repository INTO a target project.
 #
 # Usage (run from anywhere, script finds its own repo root):
-#   .\.aai\scripts\ai-os-sync.ps1 -TargetRoot ..\maty-ai
+#   .\.aai\scripts\aai-sync.ps1 -TargetRoot ..\maty-ai
 #
 # Example:
-#   .\.aai\scripts\ai-os-sync.ps1 -TargetRoot z:\AI\maty-ai
+#   .\.aai\scripts\aai-sync.ps1 -TargetRoot z:\AI\maty-ai
 
 function Copy-Replace {
   param(
@@ -36,15 +36,81 @@ if (!(Test-Path $TargetRoot)) {
 
 $TargetRoot = (Resolve-Path $TargetRoot).Path
 
-Write-Host "Syncing AI-OS from: $SrcRoot"
+Write-Host "Syncing AAI from: $SrcRoot"
 Write-Host "Target project:     $TargetRoot"
 
-# Target directories (AI-OS layer only)
+# Target directories (AAI layer only)
 foreach ($d in @(".aai/workflow",".aai/roles",".aai/templates",".aai/scripts",".aai/system",".aai/knowledge",".claude/skills",".codex/skills",".codex/skills.local",".gemini/skills",".gemini/skills.local",".github","docs/knowledge","docs/ai")) {
   New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot $d) | Out-Null
 }
 
-# Copy AI-OS canonical layer (.aai/ is the single source of truth)
+# -- Legacy cleanup: remove old-layout paths that moved into .aai/ -----------
+$legacyCleaned = $false
+
+# Old prompt / subagent directory (was ai/)
+$oldAi = Join-Path $TargetRoot "ai"
+if (Test-Path $oldAi) {
+  Remove-Item $oldAi -Recurse -Force
+  Write-Host "  MIGRATE removed legacy: ai/"
+  $legacyCleaned = $true
+}
+
+# Old scripts directory (was scripts/)
+$oldScripts = Join-Path $TargetRoot "scripts"
+if (Test-Path $oldScripts) {
+  Remove-Item $oldScripts -Recurse -Force
+  Write-Host "  MIGRATE removed legacy: scripts/"
+  $legacyCleaned = $true
+}
+
+# Root files that moved into .aai/
+foreach ($f in @("AGENTS.md","PLAYBOOK.md")) {
+  $oldFile = Join-Path $TargetRoot $f
+  if (Test-Path $oldFile) {
+    Remove-Item $oldFile -Force
+    Write-Host "  MIGRATE removed legacy root: $f"
+    $legacyCleaned = $true
+  }
+}
+
+# docs/ subdirs whose content moved into .aai/
+foreach ($d in @("docs/workflow","docs/roles","docs/templates")) {
+  $dirPath = Join-Path $TargetRoot $d
+  if (Test-Path $dirPath) {
+    $entries = Get-ChildItem -Path $dirPath -Force | Where-Object { $_.Name -ne ".gitkeep" }
+    if ($entries.Count -gt 0) {
+      Remove-Item $dirPath -Recurse -Force
+      New-Item -ItemType Directory -Force -Path $dirPath | Out-Null
+      New-Item -ItemType File -Force -Path (Join-Path $dirPath ".gitkeep") | Out-Null
+      Write-Host "  MIGRATE cleaned legacy dir: $d/ (kept .gitkeep)"
+      $legacyCleaned = $true
+    }
+  }
+}
+
+# System docs that moved from docs/ai/ to .aai/system/
+foreach ($f in @("AUTONOMOUS_LOOP.md","SUPERPOWERS_INTEGRATION.md","DYNAMIC_SKILLS.md","PRICING.yaml","AAI_PIN.md","LOCKS.md")) {
+  $oldFile = Join-Path $TargetRoot "docs/ai/$f"
+  if (Test-Path $oldFile) {
+    Remove-Item $oldFile -Force
+    Write-Host "  MIGRATE removed legacy: docs/ai/$f -> now in .aai/system/"
+    $legacyCleaned = $true
+  }
+}
+
+# PATTERNS_UNIVERSAL moved from docs/knowledge/ to .aai/knowledge/
+$oldPU = Join-Path $TargetRoot "docs/knowledge/PATTERNS_UNIVERSAL.md"
+if (Test-Path $oldPU) {
+  Remove-Item $oldPU -Force
+  Write-Host "  MIGRATE removed legacy: docs/knowledge/PATTERNS_UNIVERSAL.md -> now in .aai/knowledge/"
+  $legacyCleaned = $true
+}
+
+if ($legacyCleaned) {
+  Write-Host "  Legacy paths migrated to .aai/ structure."
+}
+
+# -- Copy AAI canonical layer (.aai/ is the single source of truth) -------
 Copy-Replace (Join-Path $SrcRoot ".aai") (Join-Path $TargetRoot ".aai")
 
 # Claude Code skills (session helpers):
@@ -61,7 +127,7 @@ if (Test-Path $claudeSkills) {
 }
 
 # docs/knowledge: file-by-file copy; skip files that no longer contain the
-# AI-OS-TEMPLATE sentinel (meaning the target project has filled them with real content).
+# AAI-TEMPLATE sentinel (meaning the target project has filled them with real content).
 $know = Join-Path $SrcRoot "docs/knowledge"
 if (Test-Path $know) {
   New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot "docs/knowledge") | Out-Null
@@ -71,7 +137,7 @@ if (Test-Path $know) {
     $isTemplate = $true
     if (Test-Path $dstFile) {
       $content = Get-Content $dstFile -Raw -ErrorAction SilentlyContinue
-      $isTemplate = $content -match "AI-OS-TEMPLATE"
+      $isTemplate = $content -match "AAI-TEMPLATE"
     }
     if ($isTemplate) {
       Copy-Item $srcFile $dstFile -Force
@@ -130,7 +196,7 @@ if (Test-Path $gitignorePath) {
   if ($content -match '(?m)^\.aai/') { $needsGitignore = $false }
 }
 if ($needsGitignore) {
-  Add-Content -Path $gitignorePath -Value "`n# AI-OS infrastructure (vendored, not committed)`n.aai/"
+  Add-Content -Path $gitignorePath -Value "`n# AAI infrastructure (vendored, not committed)`n.aai/"
   Write-Host "  Added .aai/ to $gitignorePath"
 }
 
@@ -139,7 +205,7 @@ $templateSha = "UNKNOWN"
 try { $templateSha = (git -C $SrcRoot rev-parse HEAD) 2>$null } catch {}
 
 $templateVersion = "UNKNOWN"
-$versionFile = Join-Path $SrcRoot "docs/ai/AI_OS_VERSION.md"
+$versionFile = Join-Path $SrcRoot "docs/ai/AAI_VERSION.md"
 if (Test-Path $versionFile) {
   try {
     $line = Select-String -Path $versionFile -Pattern '^\s*-?\s*Version:' | Select-Object -First 1
@@ -150,9 +216,9 @@ if (Test-Path $versionFile) {
   } catch {}
 }
 
-$pinPath = Join-Path $TargetRoot ".aai/system/AI_OS_PIN.md"
+$pinPath = Join-Path $TargetRoot ".aai/system/AAI_PIN.md"
 @"
-# AI-OS Pin
+# AAI Pin
 
 - Source path: $SrcRoot
 - Template version: $templateVersion
@@ -160,7 +226,7 @@ $pinPath = Join-Path $TargetRoot ".aai/system/AI_OS_PIN.md"
 - Synced at (UTC): $((Get-Date).ToUniversalTime().ToString("o"))
 
 Notes:
-- This project intentionally vendors the AI-OS files (self-contained).
+- This project intentionally vendors the AAI files (self-contained).
 - Project-specific docs (requirements/specs/decisions/releases/issues) are not synced by this script.
 "@ | Set-Content -Path $pinPath -Encoding utf8
 

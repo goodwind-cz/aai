@@ -1,7 +1,7 @@
 ﻿# Technology Contract
 
 Generated at (UTC): 2026-03-01T21:55:55.9091619Z
-Generator: .aai/scripts/ai-os-canonicalize.ps1
+Generator: .aai/scripts/aai-canonicalize.ps1
 
 ## Languages
 - Unknown (no common manifest detected)

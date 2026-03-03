@@ -1,37 +1,37 @@
-# AI Operating System (Canonical)
+# AAI (Canonical)
 
-This repository contains a reusable, low-friction AI Operating System: a single workflow definition, semantic roles, canonical prompts, and templates that help humans and AI agents coordinate with traceability and evidence.
+This repository contains a reusable, low-friction AAI: a single workflow definition, semantic roles, canonical prompts, and templates that help humans and AI agents coordinate with traceability and evidence.
 
 
-## Pushing AI-OS layer into a target project
+## Pushing AAI layer into a target project
 
 Run the sync script **from this repository** and pass the path to the target project.
 The script resolves its own source root automatically — no need to copy it to the target first.
 
 ### Bash / Git-Bash
 ```bash
-# From this ai-os repo:
-./.aai/scripts/ai-os-sync.sh ../maty-ai
+# From this aai repo:
+./.aai/scripts/aai-sync.sh ../maty-ai
 
 # Then in the target project:
 cd ../maty-ai
 git status
 git diff
 git add .aai docs CLAUDE.md CODEX.md GEMINI.md README.md .claude/skills .codex/skills .gemini/skills .github/copilot-instructions.md
-git commit -m "Update AI-OS layer"
+git commit -m "Update AAI layer"
 ```
 
 ### PowerShell
 ```powershell
-# From this ai-os repo:
-.\.aai\scripts\ai-os-sync.ps1 -TargetRoot ..\maty-ai
+# From this aai repo:
+.\.aai\scripts\aai-sync.ps1 -TargetRoot ..\maty-ai
 
 # Then in the target project:
 cd ..\maty-ai
 git status
 git diff
 git add .aai docs CLAUDE.md CODEX.md GEMINI.md README.md .claude/skills .codex/skills .gemini/skills .github/copilot-instructions.md
-git commit -m "Update AI-OS layer"
+git commit -m "Update AAI layer"
 ```
 
 - Sync scope includes `.aai/**`, `.claude/skills/**`, `.codex/skills/**`, `.gemini/skills/**`, `.github/copilot-instructions.md`, `docs/knowledge`, and root shims (`CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `README.md`).
@@ -53,7 +53,7 @@ git commit -m "Update AI-OS layer"
 ## Directory overview
 ```
 .
-├── .aai/                          # AI-OS system (gitignored in target projects)
+├── .aai/                          # AAI system (gitignored in target projects)
 │   ├── *.prompt.md                # Canonical prompts
 │   ├── AGENTS.md                  # Agent guide
 │   ├── PLAYBOOK.md                # Operating model
@@ -76,7 +76,7 @@ git commit -m "Update AI-OS layer"
     └── copilot-instructions.md
 ```
 
-## How to use this AI Operating System (step-by-step)
+## How to use this AAI (step-by-step)
 ### Installation
 1) Clone or copy this repository into your project.
 2) Ensure canonical files are present (see .aai/AGENTS.md).
@@ -102,7 +102,7 @@ Also refreshes cross-agent discovery indexes:
 **Benefits:**
 - 90% token reduction for common tasks (testing, building, linting)
 - MCP server integration when available
-- Preserved during `ai-os-sync` updates
+- Preserved during `aai-sync` updates
 
 See [.aai/system/DYNAMIC_SKILLS.md](.aai/system/DYNAMIC_SKILLS.md) for details.
 
@@ -158,7 +158,7 @@ cat .aai/VALIDATION.prompt.md
 ```bash
 # Publish reports with embedded images to Cloudflare Pages
 /aai-share docs/ai/reports/VALIDATION_REPORT_20260302.md
-# Returns: https://ai-os-reports-xyz.pages.dev
+# Returns: https://aai-reports-xyz.pages.dev
 ```
 Instantly publish reports, documentation, or any Markdown files to Cloudflare Pages for quick sharing. Supports embedded images, returns public URL.
 
@@ -194,7 +194,7 @@ Use them instead of manually chaining individual role prompts.
 | Human-in-the-loop resolver | `cat .aai/SKILL_HITL.prompt.md` | manual STATE.yaml editing after human pause |
 | State health check | `cat .aai/SKILL_CHECK_STATE.prompt.md` | manual STATE.yaml inspection |
 | Validation report + screenshots | `cat .aai/SKILL_VALIDATE_REPORT.prompt.md` | ad-hoc validation notes without visual evidence |
-| Canonicalize + migrate AI-OS state | `cat .aai/SKILL_CANONICALIZE.prompt.md` | ad-hoc cleanup/migration of legacy paths |
+| Canonicalize + migrate AAI state | `cat .aai/SKILL_CANONICALIZE.prompt.md` | ad-hoc cleanup/migration of legacy paths |
 
 Typical skill flow:
 
@@ -214,7 +214,7 @@ cat .aai/SKILL_CHECK_STATE.prompt.md
 # Need a chat-ready validation report with screenshots:
 cat .aai/SKILL_VALIDATE_REPORT.prompt.md
 
-# Need to migrate legacy AI-OS files and canonicalize layout:
+# Need to migrate legacy AAI files and canonicalize layout:
 cat .aai/SKILL_CANONICALIZE.prompt.md
 ```
 

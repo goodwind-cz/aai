@@ -1,7 +1,7 @@
 You are an autonomous METRICS REPORT agent.
 
 GOAL
-Produce a human-readable summary of AI-OS work economics from the metrics ledger.
+Produce a human-readable summary of AAI work economics from the metrics ledger.
 
 INPUTS
 - docs/ai/METRICS.jsonl  — completed work item ledger (one JSON object per line; skip comment lines starting with #)
@@ -21,7 +21,7 @@ PROCESS
 4. Compute grand totals across all entries.
 
 OUTPUT FORMAT (markdown)
-## AI-OS Metrics Summary
+## AAI Metrics Summary
 
 ### Per Work Item
 | ref_id | title | human (min) | agent (sec) | cost USD | leverage | verdict |

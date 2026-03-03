@@ -3,7 +3,7 @@
 ## Goal
 Detect project architecture and generate project-specific `aai-*` skills that are:
 - directly visible to Claude (`.claude/skills/`)
-- preserved by `ai-os-sync` (target-only skill folders are not removed)
+- preserved by `aai-sync` (target-only skill folders are not removed)
 - discoverable for Codex and Gemini via local index files
 
 ## Instructions

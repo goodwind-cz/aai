@@ -4,9 +4,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Migrate legacy AI-OS YAML runtime files to JSONL format.
+# Migrate legacy AAI YAML runtime files to JSONL format.
 #
-# Run this in the target project root BEFORE ai-os-sync so the JSONL files
+# Run this in the target project root BEFORE aai-sync so the JSONL files
 # are populated and the sync script will preserve them.
 #
 # Usage:
@@ -31,7 +31,7 @@ Write-Host "Target project: $TargetRoot"
 
 $aiDir = Join-Path $TargetRoot "docs/ai"
 if (!(Test-Path $aiDir)) {
-  throw "docs/ai not found in $TargetRoot. Is this an AI-OS project?"
+  throw "docs/ai not found in $TargetRoot. Is this an AAI project?"
 }
 
 # Check python3 + PyYAML

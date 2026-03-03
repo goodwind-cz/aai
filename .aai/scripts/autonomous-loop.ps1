@@ -141,7 +141,7 @@ human_input:
   blocking_reason: null
 
 ai_os:
-  pin_path: .aai/system/AI_OS_PIN.md
+  pin_path: .aai/system/AAI_PIN.md
   pin_version: null
   pin_commit: null
 

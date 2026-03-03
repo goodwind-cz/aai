@@ -5,4 +5,4 @@ description: STATE.yaml health check. Validates all invariants (enums, locks, ev
 
 Read the file `.aai/SKILL_CHECK_STATE.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-check-state`.
 
-If `.aai/SKILL_CHECK_STATE.prompt.md` does not exist, say: "SKILL_CHECK_STATE not found — are you in an AI-OS project? Expected: .aai/SKILL_CHECK_STATE.prompt.md"
+If `.aai/SKILL_CHECK_STATE.prompt.md` does not exist, say: "SKILL_CHECK_STATE not found — are you in an AAI project? Expected: .aai/SKILL_CHECK_STATE.prompt.md"

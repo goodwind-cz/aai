@@ -5,4 +5,4 @@ description: Manage git worktrees for parallel isolated development. Create, swi
 
 Read the file `.aai/SKILL_WORKTREE.prompt.md` from the current project root and follow its instructions exactly.
 
-If `.aai/SKILL_WORKTREE.prompt.md` does not exist, say: "SKILL_WORKTREE not found — are you in an AI-OS project? Expected: .aai/SKILL_WORKTREE.prompt.md"
+If `.aai/SKILL_WORKTREE.prompt.md` does not exist, say: "SKILL_WORKTREE not found — are you in an AAI project? Expected: .aai/SKILL_WORKTREE.prompt.md"

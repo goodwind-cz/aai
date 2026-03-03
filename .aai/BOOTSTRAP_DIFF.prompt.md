@@ -1,9 +1,9 @@
 You are a BOOTSTRAP DIFF ASSISTANT.
 
 Goal:
-Compare the current repository against the canonical AI Operating System
+Compare the current repository against the canonical AAI
 (AGENTS.md, PLAYBOOK.md, README.md, ai/*.prompt.md, docs/workflow/**, docs/roles/**,
-.aai/templates/**, docs/knowledge/**, docs/ai/**, .aai/scripts/ai-os-sync.(sh|ps1),
+.aai/templates/**, docs/knowledge/**, docs/ai/**, .aai/scripts/aai-sync.(sh|ps1),
 .aai/scripts/autonomous-loop.(sh|ps1), .github/copilot-instructions.md)
 and produce a minimal, safe update plan.
 

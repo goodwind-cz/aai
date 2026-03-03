@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Push AI-OS layer FROM this repository INTO a target project.
+# Push AAI layer FROM this repository INTO a target project.
 #
 # Usage (run from anywhere, script finds its own repo root):
-#   ./.aai/scripts/ai-os-sync.sh <path-to-target-project>
+#   ./.aai/scripts/aai-sync.sh <path-to-target-project>
 #
 # Example:
-#   ./.aai/scripts/ai-os-sync.sh ../maty-ai
+#   ./.aai/scripts/aai-sync.sh ../maty-ai
 
 DST_ROOT="${1:-}"
 if [[ -z "$DST_ROOT" ]]; then
@@ -28,10 +28,10 @@ if [[ ! -d "$SRC_ROOT/.aai" ]]; then
   exit 1
 fi
 
-echo "Syncing AI-OS from: $SRC_ROOT"
+echo "Syncing AAI from: $SRC_ROOT"
 echo "Target project:     $DST_ROOT"
 
-# Target directories (AI-OS layer only)
+# Target directories (AAI layer only)
 mkdir -p \
   "$DST_ROOT/.aai/workflow" \
   "$DST_ROOT/.aai/roles" \
@@ -56,7 +56,64 @@ copy_replace() {
   cp -a "$src" "$dst"
 }
 
-# Copy AI-OS canonical layer (.aai/ is the single source of truth)
+# ── Legacy cleanup: remove old-layout paths that moved into .aai/ ──────────
+LEGACY_CLEANED=0
+
+# Old prompt / subagent directory (was ai/)
+if [[ -d "$DST_ROOT/ai" ]]; then
+  rm -rf "$DST_ROOT/ai"
+  echo "  MIGRATE removed legacy: ai/"
+  LEGACY_CLEANED=1
+fi
+
+# Old scripts directory (was scripts/)
+if [[ -d "$DST_ROOT/scripts" ]]; then
+  rm -rf "$DST_ROOT/scripts"
+  echo "  MIGRATE removed legacy: scripts/"
+  LEGACY_CLEANED=1
+fi
+
+# Root files that moved into .aai/
+for f in AGENTS.md PLAYBOOK.md; do
+  if [[ -f "$DST_ROOT/$f" ]]; then
+    rm -f "$DST_ROOT/$f"
+    echo "  MIGRATE removed legacy root: $f"
+    LEGACY_CLEANED=1
+  fi
+done
+
+# docs/ subdirs whose content moved into .aai/
+for d in docs/workflow docs/roles docs/templates; do
+  if [[ -d "$DST_ROOT/$d" ]] && [[ "$(ls -A "$DST_ROOT/$d" 2>/dev/null | grep -v '\.gitkeep')" ]]; then
+    rm -rf "$DST_ROOT/$d"
+    mkdir -p "$DST_ROOT/$d"
+    touch "$DST_ROOT/$d/.gitkeep"
+    echo "  MIGRATE cleaned legacy dir: $d/ (kept .gitkeep)"
+    LEGACY_CLEANED=1
+  fi
+done
+
+# System docs that moved from docs/ai/ to .aai/system/
+for f in AUTONOMOUS_LOOP.md SUPERPOWERS_INTEGRATION.md DYNAMIC_SKILLS.md PRICING.yaml AAI_PIN.md LOCKS.md; do
+  if [[ -f "$DST_ROOT/docs/ai/$f" ]]; then
+    rm -f "$DST_ROOT/docs/ai/$f"
+    echo "  MIGRATE removed legacy: docs/ai/$f -> now in .aai/system/"
+    LEGACY_CLEANED=1
+  fi
+done
+
+# PATTERNS_UNIVERSAL moved from docs/knowledge/ to .aai/knowledge/
+if [[ -f "$DST_ROOT/docs/knowledge/PATTERNS_UNIVERSAL.md" ]]; then
+  rm -f "$DST_ROOT/docs/knowledge/PATTERNS_UNIVERSAL.md"
+  echo "  MIGRATE removed legacy: docs/knowledge/PATTERNS_UNIVERSAL.md -> now in .aai/knowledge/"
+  LEGACY_CLEANED=1
+fi
+
+if [[ "$LEGACY_CLEANED" -eq 1 ]]; then
+  echo "  Legacy paths migrated to .aai/ structure."
+fi
+
+# ── Copy AAI canonical layer (.aai/ is the single source of truth) ──────
 copy_replace "$SRC_ROOT/.aai" "$DST_ROOT/.aai"
 
 # Claude Code skills (session helpers):
@@ -73,14 +130,14 @@ if [[ -d "$SRC_ROOT/.claude/skills" ]]; then
 fi
 
 # docs/knowledge: file-by-file copy; skip files that no longer contain the
-# AI-OS-TEMPLATE sentinel (meaning the target project has filled them with real content).
+# AAI-TEMPLATE sentinel (meaning the target project has filled them with real content).
 if [[ -d "$SRC_ROOT/docs/knowledge" ]]; then
   mkdir -p "$DST_ROOT/docs/knowledge"
   for src_file in "$SRC_ROOT/docs/knowledge/"*; do
     [[ -f "$src_file" ]] || continue
     filename="$(basename "$src_file")"
     dst_file="$DST_ROOT/docs/knowledge/$filename"
-    if [[ ! -f "$dst_file" ]] || grep -q "AI-OS-TEMPLATE" "$dst_file" 2>/dev/null; then
+    if [[ ! -f "$dst_file" ]] || grep -q "AAI-TEMPLATE" "$dst_file" 2>/dev/null; then
       cp -a "$src_file" "$dst_file"
     else
       echo "  SKIP (project-owned, sentinel removed): $dst_file"
@@ -129,7 +186,7 @@ fi
 
 # Ensure .aai/ is gitignored in target (it's vendored, not committed)
 if ! grep -q '^\.aai/' "$DST_ROOT/.gitignore" 2>/dev/null; then
-  echo -e "\n# AI-OS infrastructure (vendored, not committed)\n.aai/" >> "$DST_ROOT/.gitignore"
+  echo -e "\n# AAI infrastructure (vendored, not committed)\n.aai/" >> "$DST_ROOT/.gitignore"
   echo "  Added .aai/ to $DST_ROOT/.gitignore"
 fi
 
@@ -139,13 +196,13 @@ TEMPLATE_VERSION="UNKNOWN"
 if command -v git >/dev/null 2>&1; then
   TEMPLATE_SHA="$(git -C "$SRC_ROOT" rev-parse HEAD 2>/dev/null || echo UNKNOWN)"
 fi
-if [[ -f "$SRC_ROOT/docs/ai/AI_OS_VERSION.md" ]]; then
-  TEMPLATE_VERSION="$(grep -E '^-? *Version:' "$SRC_ROOT/docs/ai/AI_OS_VERSION.md" 2>/dev/null | head -n1 | sed -E 's/.*Version:\s*//')"
+if [[ -f "$SRC_ROOT/docs/ai/AAI_VERSION.md" ]]; then
+  TEMPLATE_VERSION="$(grep -E '^-? *Version:' "$SRC_ROOT/docs/ai/AAI_VERSION.md" 2>/dev/null | head -n1 | sed -E 's/.*Version:\s*//')"
   [[ -z "$TEMPLATE_VERSION" ]] && TEMPLATE_VERSION="UNKNOWN"
 fi
 
-cat > "$DST_ROOT/.aai/system/AI_OS_PIN.md" <<EOPIN
-# AI-OS Pin
+cat > "$DST_ROOT/.aai/system/AAI_PIN.md" <<EOPIN
+# AAI Pin
 
 - Source path: $SRC_ROOT
 - Template version: $TEMPLATE_VERSION
@@ -153,7 +210,7 @@ cat > "$DST_ROOT/.aai/system/AI_OS_PIN.md" <<EOPIN
 - Synced at (UTC): $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 Notes:
-- This project intentionally vendors the AI-OS files (self-contained).
+- This project intentionally vendors the AAI files (self-contained).
 - Project-specific docs (requirements/specs/decisions/releases/issues) are not synced by this script.
 EOPIN
 

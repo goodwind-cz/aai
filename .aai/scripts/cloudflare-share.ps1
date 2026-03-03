@@ -157,7 +157,7 @@ if (!(Get-Command wrangler -ErrorAction SilentlyContinue)) {
 
 # Publish
 Write-Host "🚀 Publishing to Cloudflare Pages..."
-$projectName = "ai-os-reports"
+$projectName = "aai-reports"
 
 $publishOutput = & wrangler pages publish $publishDir --project-name=$projectName --branch=main 2>&1 | Out-String
 
