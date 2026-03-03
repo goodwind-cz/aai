@@ -125,10 +125,28 @@ codex --prompt-file .aai/SKILL_SHARE.prompt.md
 - Cloudflare account with Pages enabled
 - Wrangler CLI installed and authenticated (`npx wrangler whoami`)
 
+**First-time setup:**
+
+```bash
+# 1. Create free Cloudflare account at https://dash.cloudflare.com/sign-up
+
+# 2. Install Wrangler CLI
+npm install -g wrangler
+
+# 3. Authenticate (opens browser)
+wrangler login
+
+# 4. Verify
+npx wrangler whoami
+
+# 5. Create Pages project
+wrangler pages project create aai-reports
+```
+
 **Features:**
 - Automatic Markdown to HTML conversion with GitHub-style CSS
 - Embedded image support (base64 or copied assets)
-- Free hosting on Cloudflare Pages
+- Free hosting on Cloudflare Pages (unlimited sites, 500 builds/month)
 - Publishing records saved to `docs/ai/METRICS.jsonl`
 
 ### aai-tdd
