@@ -26,11 +26,15 @@ if (!(Get-Command wrangler -ErrorAction SilentlyContinue)) {
   throw "wrangler not found. Install: npm install -g wrangler"
 }
 
+# Derive branch name from git repo name (isolates projects in CF Pages)
+$repoRoot = try { git rev-parse --show-toplevel 2>$null } catch { $PWD.Path }
+$branchName = (Split-Path $repoRoot -Leaf).ToLower() -replace '[^a-z0-9-]', '-'
+
 # Deploy to Cloudflare Pages
-Write-Host "Deploying to Cloudflare Pages..."
+Write-Host "Deploying to Cloudflare Pages (branch: $branchName)..."
 $projectName = "aai-reports"
 
-$deployOutput = & wrangler pages deploy $publishDir --project-name=$projectName --branch=main 2>&1 | Out-String
+$deployOutput = & wrangler pages deploy $publishDir --project-name=$projectName --branch=$branchName 2>&1 | Out-String
 
 # Extract URL
 $publishedUrl = [regex]::Match($deployOutput, 'https://[^\s]+\.pages\.dev').Value

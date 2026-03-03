@@ -35,13 +35,17 @@ if ! command -v wrangler >/dev/null 2>&1; then
   exit 1
 fi
 
+# Derive branch name from git repo name (isolates projects in CF Pages)
+BRANCH_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || basename "$PWD")
+BRANCH_NAME=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g')
+
 # Deploy to Cloudflare Pages
-echo "Deploying to Cloudflare Pages..."
+echo "Deploying to Cloudflare Pages (branch: $BRANCH_NAME)..."
 PROJECT_NAME="aai-reports"
 
 DEPLOY_OUTPUT=$(wrangler pages deploy "$PUBLISH_DIR" \
   --project-name="$PROJECT_NAME" \
-  --branch=main 2>&1 || true)
+  --branch="$BRANCH_NAME" 2>&1 || true)
 
 # Extract URL
 PUBLISHED_URL=$(echo "$DEPLOY_OUTPUT" | grep -oP 'https://[^\s]+\.pages\.dev' | head -1)

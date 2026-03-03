@@ -144,10 +144,11 @@ wrangler pages project create aai-reports
 ```
 
 **Features:**
-- Automatic Markdown to HTML conversion with GitHub-style CSS
-- Embedded image support (base64 or copied assets)
+- Automatic Markdown to HTML conversion via `share-convert.mjs` (zero dependencies)
+- Image support (copies referenced assets to publish dir)
+- Per-project branch isolation (repo name → `<repo>.aai-reports.pages.dev`)
 - Free hosting on Cloudflare Pages (unlimited sites, 500 builds/month)
-- Publishing records saved to `docs/ai/METRICS.jsonl`
+- Publishing records saved to `docs/ai/published/history.jsonl`
 
 ### aai-tdd
 

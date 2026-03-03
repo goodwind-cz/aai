@@ -27,9 +27,12 @@ node .aai/scripts/share-convert.mjs <document-path> .cloudflare-publish
 This converts Markdown → `index.html` with GitHub-style CSS and copies referenced images.
 
 ### 3. Deploy
+Derive a branch name from the git repo name (lowercase, non-alphanumeric → `-`):
 ```bash
-wrangler pages deploy .cloudflare-publish --project-name=aai-reports --branch=main
+BRANCH=$(basename "$(git rev-parse --show-toplevel)" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g')
+wrangler pages deploy .cloudflare-publish --project-name=aai-reports --branch="$BRANCH"
 ```
+This gives each project its own URL namespace: `<branch>.aai-reports.pages.dev`.
 Extract the `https://....pages.dev` URL from the output.
 
 ### 4. Record
