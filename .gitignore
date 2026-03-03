@@ -9,6 +9,12 @@
 # Backup files (should not exist with current sync scripts, but just in case)
 *.bak
 
+# Cloudflare publish temp dirs
+.cloudflare-publish*
+
+# Wrangler
+.wrangler/
+
 # OS
 .DS_Store
 Thumbs.db
