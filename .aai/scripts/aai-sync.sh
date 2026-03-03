@@ -152,7 +152,7 @@ if [[ -d "$DST_ROOT/docs/ai" ]]; then
 fi
 
 # Root canonical shims (AGENTS.md and PLAYBOOK.md are now inside .aai/)
-for f in CLAUDE.md CODEX.md GEMINI.md README.md; do
+for f in CLAUDE.md CODEX.md GEMINI.md README.md SKILLS.md; do
   if [[ -f "$SRC_ROOT/$f" ]]; then
     copy_replace "$SRC_ROOT/$f" "$DST_ROOT/$f"
   fi

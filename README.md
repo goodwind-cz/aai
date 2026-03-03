@@ -17,7 +17,7 @@ The script resolves its own source root automatically — no need to copy it to 
 cd ../maty-ai
 git status
 git diff
-git add .aai docs CLAUDE.md CODEX.md GEMINI.md README.md .claude/skills .codex/skills .gemini/skills .github/copilot-instructions.md
+git add .aai docs CLAUDE.md CODEX.md GEMINI.md README.md SKILLS.md .claude/skills .codex/skills .gemini/skills .github/copilot-instructions.md
 git commit -m "Update AAI layer"
 ```
 
@@ -30,11 +30,11 @@ git commit -m "Update AAI layer"
 cd ..\maty-ai
 git status
 git diff
-git add .aai docs CLAUDE.md CODEX.md GEMINI.md README.md .claude/skills .codex/skills .gemini/skills .github/copilot-instructions.md
+git add .aai docs CLAUDE.md CODEX.md GEMINI.md README.md SKILLS.md .claude/skills .codex/skills .gemini/skills .github/copilot-instructions.md
 git commit -m "Update AAI layer"
 ```
 
-- Sync scope includes `.aai/**`, `.claude/skills/**`, `.codex/skills/**`, `.gemini/skills/**`, `.github/copilot-instructions.md`, `docs/knowledge`, and root shims (`CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `README.md`).
+- Sync scope includes `.aai/**`, `.claude/skills/**`, `.codex/skills/**`, `.gemini/skills/**`, `.github/copilot-instructions.md`, `docs/knowledge`, and root shims (`CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `README.md`, `SKILLS.md`).
 - For `.claude/skills/**`, template entries are updated, while target-only local skills are preserved.
 - Dynamic project skills should use unique `aai-*` names under `.claude/skills/` so they stay target-only and preserved on sync.
 - Runtime files in target `docs/ai` are preserved (not overwritten) if they already exist: `STATE.yaml`, `METRICS.jsonl`, `LOOP_TICKS.jsonl`, `decisions.jsonl`.
@@ -81,53 +81,11 @@ git commit -m "Update AAI layer"
 1) Clone or copy this repository into your project.
 2) Ensure canonical files are present (see .aai/AGENTS.md).
 
-### Bootstrap
-
-#### Project Normalization
+### Bootstrap (project normalization)
 ```bash
 cat .aai/BOOTSTRAP.prompt.md
 ```
 Use an AI agent to follow the instructions when normalizing an existing repo.
-
-#### Dynamic Skills (NEW)
-```bash
-# Generate project-specific optimized skills
-/aai-bootstrap
-```
-Automatically detects your project architecture (Playwright, Jest, Vite, etc.) and creates optimized, token-efficient skills in `.claude/skills/`.
-Also refreshes cross-agent discovery indexes:
-- `.codex/skills.local/README.md`
-- `.gemini/skills.local/README.md`
-
-**Benefits:**
-- 90% token reduction for common tasks (testing, building, linting)
-- MCP server integration when available
-- Preserved during `aai-sync` updates
-
-See [.aai/system/DYNAMIC_SKILLS.md](.aai/system/DYNAMIC_SKILLS.md) for details.
-
-#### Test-Driven Development (NEW - Superpowers Integration)
-```bash
-# Enforced RED-GREEN-REFACTOR cycle
-/aai-tdd
-```
-Mandatory TDD workflow with evidence at each phase:
-- RED: Write failing test (verified)
-- GREEN: Minimal implementation (verified)
-- REFACTOR: Improve code quality (verified)
-
-Inspired by [Superpowers framework](https://github.com/obra/superpowers).
-
-#### Parallel Development with Worktrees (NEW - Superpowers Integration)
-```bash
-# Manage git worktrees for parallel isolated development
-/aai-worktree setup <task-name>
-/aai-worktree switch <task-name>
-/aai-worktree cleanup <task-name>
-```
-Enables parallel feature development without branch switching overhead.
-
-See [.aai/system/SUPERPOWERS_INTEGRATION.md](.aai/system/SUPERPOWERS_INTEGRATION.md) for full integration details.
 
 ### Orchestration
 ```bash
@@ -154,23 +112,6 @@ cat .aai/IMPLEMENTATION.prompt.md
 cat .aai/VALIDATION.prompt.md
 ```
 
-### Share Reports (NEW - Cloudflare Pages Integration)
-```bash
-# Publish reports with embedded images to Cloudflare Pages
-/aai-share docs/ai/reports/VALIDATION_REPORT_20260302.md
-# Returns: https://aai-reports-xyz.pages.dev
-```
-Instantly publish reports, documentation, or any Markdown files to Cloudflare Pages for quick sharing. Supports embedded images, returns public URL.
-
-Benefits:
-- Free hosting on Cloudflare Pages
-- Automatic MD → HTML conversion
-- Embedded images supported
-- Public shareable URL
-- Perfect for validation reports, decisions, documentation
-
-See [.aai/SKILL_SHARE.prompt.md](.aai/SKILL_SHARE.prompt.md) for details.
-
 ### Remediation
 ```bash
 cat .aai/REMEDIATION.prompt.md
@@ -187,41 +128,36 @@ cat .aai/REVERSE_ANALYSIS_GENERIC.prompt.md
 Skills are higher-level prompts that compose multiple steps within one agent session.
 Use them instead of manually chaining individual role prompts.
 
-| Skill | Command | Replaces |
+| Skill | Command | Description |
 | --- | --- | --- |
-| Autonomous loop | `cat .aai/SKILL_LOOP.prompt.md` | `autonomous-loop.sh` / `.ps1` |
-| Intake router | `cat .aai/SKILL_INTAKE.prompt.md` | manually picking `INTAKE_*.prompt.md` |
-| Human-in-the-loop resolver | `cat .aai/SKILL_HITL.prompt.md` | manual STATE.yaml editing after human pause |
-| State health check | `cat .aai/SKILL_CHECK_STATE.prompt.md` | manual STATE.yaml inspection |
-| Validation report + screenshots | `cat .aai/SKILL_VALIDATE_REPORT.prompt.md` | ad-hoc validation notes without visual evidence |
-| Canonicalize + migrate AAI state | `cat .aai/SKILL_CANONICALIZE.prompt.md` | ad-hoc cleanup/migration of legacy paths |
+| State health check | `/aai-check-state` | Validate STATE.yaml before running roles |
+| Intake router | `/aai-intake` | Route new work to the correct intake form |
+| Autonomous loop | `/aai-loop` | Run Planning-Implementation-Validation cycles |
+| Human-in-the-loop | `/aai-hitl` | Resolve human pauses and record decisions |
+| Bootstrap | `/aai-bootstrap` | Detect architecture, generate dynamic skills |
+| Validation report | `/aai-validate-report` | Generate report with screenshots and evidence |
+| Canonicalize | `/aai-canonicalize` | Migrate legacy paths into canonical layout |
+| Share | `/aai-share <file>` | Publish Markdown to Cloudflare Pages |
+| TDD | `/aai-tdd` | Enforced RED-GREEN-REFACTOR cycle with evidence |
+| Worktree | `/aai-worktree <cmd>` | Manage git worktrees for parallel development |
+
+See [SKILLS.md](SKILLS.md) for full documentation, prerequisites, and examples.
 
 Typical skill flow:
 
 ```bash
-# Start new work without knowing the intake type:
-cat .aai/SKILL_INTAKE.prompt.md
-
-# Run full autonomous loop inside one agent session:
-cat .aai/SKILL_LOOP.prompt.md
-
-# Loop paused for human decision? Resolve and resume:
-cat .aai/SKILL_HITL.prompt.md
-
-# Suspect state corruption before a role runs:
-cat .aai/SKILL_CHECK_STATE.prompt.md
-
-# Need a chat-ready validation report with screenshots:
-cat .aai/SKILL_VALIDATE_REPORT.prompt.md
-
-# Need to migrate legacy AAI files and canonicalize layout:
-cat .aai/SKILL_CANONICALIZE.prompt.md
+/aai-intake              # Start new work
+/aai-loop                # Run autonomous cycles
+/aai-hitl                # Resolve human decision (if loop pauses)
+/aai-validate-report     # Generate evidence report
+/aai-share report.md     # Share report publicly
 ```
 
-Claude vs Codex invocation:
+Agent-specific invocation:
 
-- Claude: use slash skills directly (example: `/aai-test-e2e`).
-- Codex: execute skill prompts (example: `codex --prompt-file .aai/SKILL_LOOP.prompt.md`).
+- **Claude**: use slash commands directly (`/aai-tdd`, `/aai-share`, etc.).
+- **Codex**: execute skill prompts (`codex --prompt-file .aai/SKILL_LOOP.prompt.md`).
+- **Gemini**: execute skill prompts (`gemini --prompt-file .aai/SKILL_LOOP.prompt.md`).
 
 ## When to run each action
 - Use `.aai/ORCHESTRATION.prompt.md` first to choose the next role from repository state.

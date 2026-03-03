@@ -18,6 +18,9 @@ This file is intentionally minimal to avoid duplicated guidance.
   - `/aai-bootstrap` -> `.aai/SKILL_BOOTSTRAP.prompt.md`
   - `/aai-validate-report` -> `.aai/SKILL_VALIDATE_REPORT.prompt.md`
   - `/aai-canonicalize` -> `.aai/SKILL_CANONICALIZE.prompt.md`
+  - `/aai-share` -> `.aai/SKILL_SHARE.prompt.md`
+  - `/aai-tdd` -> `.aai/SKILL_TDD.prompt.md`
+  - `/aai-worktree` -> `.aai/SKILL_WORKTREE.prompt.md`
 - Project-local generated skills live in `.claude/skills/` and must use `aai-` prefix.
 - Dynamic Codex index is written to `.codex/skills.local/README.md` by `/aai-bootstrap`.
 

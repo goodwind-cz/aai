@@ -153,7 +153,7 @@ if (Test-Path (Join-Path $TargetRoot "docs/ai")) {
 }
 
 # Root canonical shims (AGENTS.md and PLAYBOOK.md are now inside .aai/)
-foreach ($f in @("CLAUDE.md","CODEX.md","GEMINI.md","README.md")) {
+foreach ($f in @("CLAUDE.md","CODEX.md","GEMINI.md","README.md","SKILLS.md")) {
   $srcFile = Join-Path $SrcRoot $f
   if (Test-Path $srcFile) {
     Copy-Replace $srcFile (Join-Path $TargetRoot $f)

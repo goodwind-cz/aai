@@ -28,4 +28,8 @@ This repository uses a single canonical workflow and a prompt suite for consiste
   - `/aai-hitl` -> `.aai/SKILL_HITL.prompt.md`
   - `/aai-bootstrap` -> `.aai/SKILL_BOOTSTRAP.prompt.md`
   - `/aai-validate-report` -> `.aai/SKILL_VALIDATE_REPORT.prompt.md`
-- Project-specific generated skills are in `.claude/skills.local/` and use `aai-` prefix.
+  - `/aai-canonicalize` -> `.aai/SKILL_CANONICALIZE.prompt.md`
+  - `/aai-share` -> `.aai/SKILL_SHARE.prompt.md`
+  - `/aai-tdd` -> `.aai/SKILL_TDD.prompt.md`
+  - `/aai-worktree` -> `.aai/SKILL_WORKTREE.prompt.md`
+- Project-specific generated skills are in `.claude/skills/` and use `aai-` prefix.
