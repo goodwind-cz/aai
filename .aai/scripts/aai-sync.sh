@@ -245,6 +245,14 @@ if ! grep -q '^\.aai/' "$DST_ROOT/.gitignore" 2>/dev/null; then
   echo "  Added .aai/ to $DST_ROOT/.gitignore"
 fi
 
+# Ensure .cloudflare-publish* and .wrangler/ are gitignored (aai-share temp dirs)
+for pattern in '.cloudflare-publish*' '.wrangler/'; do
+  if ! grep -qF "$pattern" "$DST_ROOT/.gitignore" 2>/dev/null; then
+    echo -e "\n$pattern" >> "$DST_ROOT/.gitignore"
+    echo "  Added $pattern to $DST_ROOT/.gitignore"
+  fi
+done
+
 # Pin info
 TEMPLATE_SHA="UNKNOWN"
 TEMPLATE_VERSION="UNKNOWN"

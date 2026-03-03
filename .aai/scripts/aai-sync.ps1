@@ -244,6 +244,15 @@ if ($needsGitignore) {
   Write-Host "  Added .aai/ to $gitignorePath"
 }
 
+# Ensure .cloudflare-publish* and .wrangler/ are gitignored (aai-share temp dirs)
+$giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
+foreach ($pattern in @('.cloudflare-publish*', '.wrangler/')) {
+  if ($giContent -notmatch [regex]::Escape($pattern)) {
+    Add-Content -Path $gitignorePath -Value "`n$pattern"
+    Write-Host "  Added $pattern to $gitignorePath"
+  }
+}
+
 # Pin info
 $templateSha = "UNKNOWN"
 try { $templateSha = (git -C $SrcRoot rev-parse HEAD) 2>$null } catch {}
