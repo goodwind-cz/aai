@@ -38,8 +38,23 @@ PROCESS
       - total_cost_usd = sum of cost_usd across runs (null if any run cost is null)
    c. Serialize the entry as a single-line JSON object and append it to docs/ai/METRICS.jsonl.
 4. Append the new line to docs/ai/METRICS.jsonl (do NOT rewrite existing lines).
-5. Do NOT remove flushed items from STATE.yaml (orchestration manages STATE.yaml).
-6. Report: list of ref_ids flushed, or "Nothing to flush."
+5. After successful append to METRICS.jsonl, clean up STATE.yaml for each flushed ref_id:
+   a. Remove the entire entry from metrics.work_items (data is now safe in METRICS.jsonl).
+   b. Remove matching entries from active_work_items where status == "done".
+   c. If metrics.work_items becomes empty after cleanup, remove the metrics key entirely.
+   d. Only if NO active_work_items remain (all statuses are "done" or list is empty) after step b:
+      - Reset last_validation to defaults (status: not_run, run_at_utc: null, evidence_paths: [], notes: null).
+      - Reset current_focus to defaults (type: none, ref_id: null, primary_path: null).
+      - Reset locks.implementation to true (safe default — next scope must explicitly unlock).
+   e. Update updated_at_utc after cleanup.
+6. Ephemeral file cleanup (only when step 5d triggered — full reset, no remaining work):
+   a. Delete docs/ai/LOOP_TICKS.jsonl (runtime data, consumed in step 2).
+   b. Delete files in docs/ai/tdd/ older than 7 days whose scope has been flushed.
+   c. Delete docs/ai/reports/validation-*.md and docs/ai/reports/screenshots/*/
+      older than 30 days. Keep docs/ai/reports/LATEST.md always.
+   d. Never delete: docs/ai/METRICS.jsonl, docs/ai/decisions.jsonl,
+      docs/ai/STATE.yaml, docs/ai/published/.
+7. Report: list of ref_ids flushed, files cleaned (with ages), or "Nothing to flush."
 
 STRICT RULES
 - Append only to METRICS.jsonl — never modify existing lines. Each entry is one JSON line.

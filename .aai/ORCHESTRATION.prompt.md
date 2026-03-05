@@ -85,8 +85,9 @@ When dispatching any role for a ref_id:
         reviews: null     # loop runner derives from LOOP_TICKS pause/resume gaps; human may override
        agent_runs: []
 3. When decision is rule 10 (PASS) and metrics not yet flushed for this ref_id:
-   Dispatch .aai/METRICS_FLUSH.prompt.md before stopping. Mark flushed by setting
-   metrics.work_items[ref_id].flushed: true in STATE.yaml after flush completes.
+   Dispatch .aai/METRICS_FLUSH.prompt.md before stopping.
+   The flush agent handles STATE.yaml cleanup (removes flushed metrics.work_items
+   entries and done active_work_items). No additional orchestrator action needed.
 
 STRICT RULES
 - Dispatch ONLY ONE role per run.

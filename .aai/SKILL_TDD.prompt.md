@@ -13,20 +13,24 @@ Before starting TDD cycle:
 1. Check `docs/ai/STATE.yaml` for a `current_focus` entry and at least one `active_work_items` entry
 2. Verify the current work item's type allows TDD (implementation, feature, bugfix)
 3. If there is no `current_focus` or no `active_work_items`, suggest running `/aai-intake` first
+4. **Locate the frozen spec** (`docs/specs/SPEC-<id>.md`) for the current scope
+5. **Read the `## Test Plan` table** from the spec — this is the source of truth for which tests to write
+6. If the spec has no `## Test Plan` section, STOP and suggest re-running Planning to generate it
 
 ### Phase 1: RED (Write Failing Test)
 
-**Objective:** Create a test that describes expected behavior and FAILS.
+**Objective:** Pick the next `pending` TEST-xxx from the spec's Test Plan and write it so it FAILS.
 
-1. **Identify Test Scope**
-   - Read requirements from `docs/requirements/` or `docs/specs/`
-   - Determine what behavior to test
-   - Choose appropriate test type (unit/integration/e2e)
+1. **Select Next Test**
+   - Read `## Test Plan` from the frozen spec
+   - Pick the first TEST-xxx with status `pending`
+   - If all TEST-xxx are `green`, the TDD cycle is complete — skip to Phase 4
+   - Note the test type, expected file path, and description
 
 2. **Write Failing Test**
    ```bash
-   # Create test file (if doesn't exist)
-   # Write test that describes expected behavior
+   # Create test file at the path suggested in Test Plan (adjust if needed)
+   # Write test that matches the TEST-xxx description
    # DO NOT implement the feature yet
    ```
 
@@ -43,10 +47,15 @@ Before starting TDD cycle:
    - Verify test FAILS with expected error message
    - If test passes, it's not testing new behavior - STOP and revise
 
-5. **Update STATE.yaml**
+5. **Update Spec Test Plan**
+   - Set the TEST-xxx status to `red` in the spec's `## Test Plan` table
+
+6. **Update STATE.yaml**
    ```yaml
    tdd_cycle:
      status: RED
+     test_id: TEST-xxx
+     spec_path: docs/specs/SPEC-<id>.md
      test_path: [path-to-test-file]
      evidence:
        red: docs/ai/tdd/red-[timestamp].log
@@ -55,11 +64,13 @@ Before starting TDD cycle:
    ```
 
 **RED Phase Checklist:**
-- [ ] Test file created/updated
-- [ ] Test describes expected behavior clearly
+- [ ] TEST-xxx selected from spec Test Plan
+- [ ] Test file created/updated at expected path
+- [ ] Test matches TEST-xxx description from spec
 - [ ] Test FAILS when run (verified)
 - [ ] Failure is for the right reason (not syntax error)
 - [ ] Evidence saved to docs/ai/tdd/
+- [ ] Spec Test Plan status updated to `red`
 - [ ] STATE.yaml updated
 
 **BLOCK:** Cannot proceed to GREEN until RED evidence exists.
@@ -85,10 +96,15 @@ Before starting TDD cycle:
    - Verify test PASSES
    - Verify ALL previously passing tests still pass
 
-4. **Update STATE.yaml**
+4. **Update Spec Test Plan**
+   - Set the TEST-xxx status to `green` in the spec's `## Test Plan` table
+
+5. **Update STATE.yaml**
    ```yaml
    tdd_cycle:
      status: GREEN
+     test_id: TEST-xxx
+     spec_path: docs/specs/SPEC-<id>.md
      test_path: [path-to-test-file]
      evidence:
        red: docs/ai/tdd/red-[timestamp].log
@@ -102,6 +118,7 @@ Before starting TDD cycle:
 - [ ] All existing tests still PASS
 - [ ] No over-engineering (minimal code)
 - [ ] Evidence saved to docs/ai/tdd/
+- [ ] Spec Test Plan status updated to `green`
 - [ ] STATE.yaml updated
 
 **BLOCK:** Cannot proceed to REFACTOR until GREEN evidence exists.
@@ -164,6 +181,13 @@ Before starting TDD cycle:
 - [ ] Decision documented
 - [ ] STATE.yaml updated
 
+### Cycle Continuation
+
+After completing REFACTOR for one TEST-xxx:
+- Check the spec's `## Test Plan` for remaining `pending` tests
+- If more `pending` TEST-xxx exist → return to Phase 1 (RED) with the next one
+- If all TEST-xxx are `green` → proceed to Phase 4
+
 ### Phase 4: Documentation & Commit
 
 1. **Update Documentation**
@@ -173,16 +197,13 @@ Before starting TDD cycle:
 
 2. **Prepare Commit**
    ```bash
-   git add [test-file] [implementation-files] docs/ai/tdd/
+   git add [test-files] [implementation-files] docs/ai/tdd/ docs/specs/SPEC-*.md
    git commit -m "$(cat <<'EOF'
    feat: [feature description]
 
-   TDD cycle completed:
-   - RED: [timestamp] - Test failed as expected
-   - GREEN: [timestamp] - Minimal implementation passed
-   - REFACTOR: [timestamp] - Code quality improved
-
-   Evidence: docs/ai/tdd/
+   TDD cycles completed (TEST-001..TEST-NNN):
+   - All tests from spec Test Plan implemented via RED→GREEN→REFACTOR
+   - Evidence: docs/ai/tdd/
 
    Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
    EOF
@@ -193,6 +214,8 @@ Before starting TDD cycle:
    ```yaml
    tdd_cycle:
      status: IDLE
+     test_id: null
+     spec_path: null
      test_path: null
      evidence:
        red: null
@@ -223,35 +246,29 @@ Before starting TDD cycle:
 
 ## Integration with AAI Workflow
 
-### When to Use /aai-tdd
+### Unified Flow (same spec, two strategies)
 
-**During IMPLEMENTATION phase:**
 ```
-/aai-intake (creates requirement)
+/aai-intake → requirement with AC
   ↓
-/aai-planning (breaks down into tasks)
+Planning (via /aai-loop or manual) → spec + Test Plan (TEST-001..N)
   ↓
-/aai-tdd (for each implementation task)
+┌─────────────────────────────────────────────────────┐
+│  Choose implementation strategy:                     │
+│                                                      │
+│  /aai-loop  → Implementation agent covers all        │
+│               TEST-xxx from Test Plan (free-form)    │
+│                                                      │
+│  /aai-tdd   → RED-GREEN-REFACTOR per TEST-xxx        │
+│               (disciplined TDD cycle)                │
+└─────────────────────────────────────────────────────┘
   ↓
-/aai-validate-report (verify completion)
+Validation (via /aai-loop or manual) → all TEST-xxx green = PASS
 ```
 
-**TDD-First Development:**
-```
-User: "Add user login feature"
-  ↓
-/aai-intake → creates docs/requirements/REQ-001-user-login.md
-  ↓
-/aai-planning → breaks into 2-5 min tasks
-  ↓
-/aai-tdd → RED: write failing login test
-  ↓
-/aai-tdd → GREEN: implement minimal login
-  ↓
-/aai-tdd → REFACTOR: improve code quality
-  ↓
-/aai-validate-report → generate evidence report
-```
+Both strategies consume the same `## Test Plan` from the frozen spec.
+Both produce the same evidence artifacts.
+The difference is discipline: TDD enforces RED→GREEN→REFACTOR per test.
 
 ## Safety & Enforcement
 

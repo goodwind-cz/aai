@@ -28,11 +28,15 @@ PROCESS
    - human_input.required is false
    - locks.implementation is false
 2) Identify the scope and confirm the linked spec has SPEC-FROZEN: true.
-3) Implement only mapped Spec-AC items in code/tests/scripts.
-4) Update or add executable verification commands and expected evidence paths.
-5) Execute verification commands (tests/lint/build) via shell tool, OR delegate to a Verification
+3) Read the `## Test Plan` from the frozen spec. All TEST-xxx entries are the implementation target.
+4) Implement code and tests to cover all TEST-xxx entries from the Test Plan:
+   - Create test files at paths specified in the Test Plan (adjust if justified).
+   - Each TEST-xxx must have a corresponding test that verifies the described behavior.
+   - Implement production code to make all tests pass.
+5) Update Test Plan status in the spec: set each TEST-xxx to `green` after its test passes.
+6) Execute verification commands (tests/lint/build) via shell tool, OR delegate to a Verification
    subagent if direct shell access is unavailable. Capture command outputs and exit codes.
-6) Update docs/ai/STATE.yaml:
+7) Update docs/ai/STATE.yaml:
    - current_focus for the implemented scope
    - active_work_items phase/status for the scope
    - updated_at_utc
@@ -57,6 +61,7 @@ STRICT RULES
 FINAL OUTPUT REQUIRED
 - Scope and spec reference
 - Files changed
+- Test Plan coverage: list each TEST-xxx with final status (green / blocked)
 - Spec-AC coverage summary
 - Commands executed with exit codes
 - Open risks/blockers

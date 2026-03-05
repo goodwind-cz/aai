@@ -28,8 +28,16 @@ PROCESS
 4) Create or update docs/specs/SPEC-<id>.md using .aai/templates/SPEC_TEMPLATE.md.
 5) Build explicit mapping for each requirement AC:
    Requirement AC -> Spec-AC -> verification command(s) -> expected evidence.
-6) Set SPEC-FROZEN: true only when all Spec-AC items are measurable and verifiable.
-7) Update docs/ai/STATE.yaml:
+6) Build Test Plan: for each Spec-AC, enumerate concrete tests in the ## Test Plan table:
+   - Assign stable TEST-xxx IDs (TEST-001, TEST-002, ...).
+   - Choose test type (unit / integration / e2e) based on what the AC verifies.
+   - Suggest target test file path based on project conventions (read docs/TECHNOLOGY.md).
+   - Write a one-line description of what the test verifies.
+   - Set initial status to "pending".
+   - Every Spec-AC must have at least one TEST-xxx entry.
+7) Set SPEC-FROZEN: true only when all Spec-AC items are measurable, verifiable,
+   AND every Spec-AC has at least one TEST-xxx entry in the Test Plan.
+8) Update docs/ai/STATE.yaml:
    - current_focus for the planned scope
    - active_work_items phase/status for the scope
    - updated_at_utc
@@ -42,6 +50,7 @@ STRICT RULES
 FINAL OUTPUT REQUIRED
 - Planned scope summary
 - Requirement -> Spec -> Verification mapping table
+- Test Plan summary (count of TEST-xxx entries per type)
 - Spec path(s) updated
 - Freeze status (SPEC-FROZEN true/false) with rationale
 - Blocking questions (if any)
