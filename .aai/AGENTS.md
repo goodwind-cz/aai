@@ -74,6 +74,7 @@ Follow .aai/SKILL_CANONICALIZE.prompt.md # Canonicalize repository structure (mi
 Follow .aai/SKILL_TDD.prompt.md          # Enforced RED-GREEN-REFACTOR test-driven development (Superpowers pattern)
 Follow .aai/SKILL_WORKTREE.prompt.md     # Git worktree management for parallel development (Superpowers pattern)
 Follow .aai/SKILL_SHARE.prompt.md        # Publish reports to Cloudflare Pages with shareable URL
+Follow .aai/SKILL_FLUSH.prompt.md        # Manual metrics flush & state cleanup (when loop doesn't complete it)
 ```
 
 #### Project-Specific Skills (Auto-Generated)

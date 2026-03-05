@@ -10,12 +10,13 @@ Inspired by Superpowers framework's mandatory TDD cycles.
 ### Prerequisites Check
 
 Before starting TDD cycle:
-1. Check `docs/ai/STATE.yaml` for a `current_focus` entry and at least one `active_work_items` entry
-2. Verify the current work item's type allows TDD (implementation, feature, bugfix)
-3. If there is no `current_focus` or no `active_work_items`, suggest running `/aai-intake` first
-4. **Locate the frozen spec** (`docs/specs/SPEC-<id>.md`) for the current scope
-5. **Read the `## Test Plan` table** from the spec — this is the source of truth for which tests to write
-6. If the spec has no `## Test Plan` section, STOP and suggest re-running Planning to generate it
+1. **Capture `started_utc`** from system clock (`date -u +%Y-%m-%dT%H:%M:%SZ` or platform equivalent). Store it for metrics.
+2. Check `docs/ai/STATE.yaml` for a `current_focus` entry and at least one `active_work_items` entry
+3. Verify the current work item's type allows TDD (implementation, feature, bugfix)
+4. If there is no `current_focus` or no `active_work_items`, suggest running `/aai-intake` first
+5. **Locate the frozen spec** (`docs/specs/SPEC-<id>.md`) for the current scope
+6. **Read the `## Test Plan` table** from the spec — this is the source of truth for which tests to write
+7. If the spec has no `## Test Plan` section, STOP and suggest re-running Planning to generate it
 
 ### Phase 1: RED (Write Failing Test)
 
@@ -210,7 +211,9 @@ After completing REFACTOR for one TEST-xxx:
    )"
    ```
 
-3. **Clean TDD Cycle State**
+3. **Capture `ended_utc`** from system clock. Record agent_runs entry in STATE.yaml (see Metrics section below).
+
+4. **Clean TDD Cycle State**
    ```yaml
    tdd_cycle:
      status: IDLE
@@ -351,7 +354,20 @@ User: "Add password strength validation"
 
 ## Metrics
 
-Track TDD effectiveness in `docs/ai/METRICS.jsonl`:
-```jsonl
-{"timestamp":"2026-03-02T08:55:00Z","type":"tdd_cycle","task":"password-validation","duration_seconds":360,"phases":{"red":60,"green":180,"refactor":120},"tests_added":3,"coverage_delta":"+5%"}
-```
+### agent_runs (record in docs/ai/STATE.yaml)
+
+Capture real wall-clock timestamps:
+- started_utc: immediately before Phase 1 (RED) begins
+- ended_utc: immediately after the last phase completes (REFACTOR or Phase 4 commit)
+After completing, append under
+metrics.work_items[ref_id].agent_runs in docs/ai/STATE.yaml:
+  role:             TDD
+  model_id:         <your model identifier, e.g. claude-opus-4-6, claude-sonnet-4-5>
+  started_utc:      <ISO 8601 UTC, real measured start>
+  ended_utc:        <ISO 8601 UTC, real measured end>
+  duration_seconds: <integer, ended_utc - started_utc>
+  tokens_in:        <integer if your platform exposes it, otherwise null>
+  tokens_out:       <integer if your platform exposes it, otherwise null>
+  cost_usd:         null
+  tdd_tests:        <count of TEST-xxx completed in this run>
+Do NOT estimate any timing or token values. Only record measured/platform values.

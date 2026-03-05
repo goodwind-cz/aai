@@ -17,6 +17,7 @@ Skills are session-scoped, multi-step prompts that compose workflow actions into
 | 8 | aai-share | Publish Markdown reports to Cloudflare Pages | `/aai-share` | `--prompt-file .aai/SKILL_SHARE.prompt.md` |
 | 9 | aai-tdd | Enforced RED-GREEN-REFACTOR test-driven development | `/aai-tdd` | `--prompt-file .aai/SKILL_TDD.prompt.md` |
 | 10 | aai-worktree | Manage git worktrees for parallel development | `/aai-worktree` | `--prompt-file .aai/SKILL_WORKTREE.prompt.md` |
+| 11 | aai-flush | Flush metrics from STATE.yaml to METRICS.jsonl and clean up | `/aai-flush` | `--prompt-file .aai/SKILL_FLUSH.prompt.md` |
 
 ## Skills in Detail
 
@@ -171,6 +172,21 @@ codex --prompt-file .aai/SKILL_TDD.prompt.md
 
 Inspired by the [Superpowers framework](https://github.com/obra/superpowers).
 
+### aai-flush
+
+Flushes completed work item metrics from `docs/ai/STATE.yaml` into the append-only `docs/ai/METRICS.jsonl` ledger and cleans up stale state. Normally triggered automatically by the loop after a PASS validation, but use this skill manually when:
+- The loop exited before completing the flush
+- You validated manually outside the loop
+- STATE.yaml has stale metrics or done work items that need cleanup
+
+```bash
+# Claude
+/aai-flush
+
+# Codex
+codex --prompt-file .aai/SKILL_FLUSH.prompt.md
+```
+
 ### aai-worktree
 
 Manages git worktrees for parallel isolated development. Avoids branch-switching overhead when working on multiple tasks simultaneously.
@@ -219,5 +235,6 @@ Dynamic skill indexes are written to:
 /aai-loop            # Run autonomous cycles
 /aai-hitl            # Resolve human decision (if loop pauses)
 /aai-validate-report # Generate evidence report
+/aai-flush           # Flush metrics & clean state (if loop didn't)
 /aai-share report.md # Share report publicly
 ```

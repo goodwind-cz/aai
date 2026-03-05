@@ -21,6 +21,7 @@ This file is intentionally minimal to avoid duplicated guidance.
   - `/aai-share` -> `.aai/SKILL_SHARE.prompt.md`
   - `/aai-tdd` -> `.aai/SKILL_TDD.prompt.md`
   - `/aai-worktree` -> `.aai/SKILL_WORKTREE.prompt.md`
+  - `/aai-flush` -> `.aai/SKILL_FLUSH.prompt.md`
 - Project-local generated skills live in `.claude/skills/` and must use `aai-` prefix.
 - Dynamic Gemini index is written to `.gemini/skills.local/README.md` by `/aai-bootstrap`.
 

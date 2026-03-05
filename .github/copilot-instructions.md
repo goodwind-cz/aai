@@ -32,4 +32,5 @@ This repository uses a single canonical workflow and a prompt suite for consiste
   - `/aai-share` -> `.aai/SKILL_SHARE.prompt.md`
   - `/aai-tdd` -> `.aai/SKILL_TDD.prompt.md`
   - `/aai-worktree` -> `.aai/SKILL_WORKTREE.prompt.md`
+  - `/aai-flush` -> `.aai/SKILL_FLUSH.prompt.md`
 - Project-specific generated skills are in `.claude/skills/` and use `aai-` prefix.
