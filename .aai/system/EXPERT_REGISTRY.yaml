@@ -76,6 +76,9 @@ experts:
   dotnet:
     path: 02-language-specialists/dotnet-core-expert.md
     use_in: [implementation, tdd-green, tdd-refactor]
+  dotnet-framework:
+    path: 02-language-specialists/dotnet-framework-4.8-expert.md
+    use_in: [implementation, tdd-green, tdd-refactor]
   php:
     path: 02-language-specialists/php-pro.md
     use_in: [implementation, tdd-green, tdd-refactor]
@@ -109,68 +112,272 @@ experts:
   powershell:
     path: 02-language-specialists/powershell-7-expert.md
     use_in: [implementation, tdd-green, tdd-refactor]
+  powershell-5:
+    path: 02-language-specialists/powershell-5.1-expert.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+
+  # Core Development (01)
+  api:
+    path: 01-core-development/api-designer.md
+    use_in: [implementation, tdd-green]
+  backend:
+    path: 01-core-development/backend-developer.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  frontend:
+    path: 01-core-development/frontend-developer.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  fullstack:
+    path: 01-core-development/fullstack-developer.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  electron:
+    path: 01-core-development/electron-pro.md
+    use_in: [implementation, tdd-green, tdd-refactor]
   graphql:
     path: 01-core-development/graphql-architect.md
     use_in: [implementation, tdd-green, tdd-refactor]
+  microservices:
+    path: 01-core-development/microservices-architect.md
+    use_in: [implementation]
+  mobile:
+    path: 01-core-development/mobile-developer.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  ui-design:
+    path: 01-core-development/ui-designer.md
+    use_in: [implementation, tdd-refactor]
+  websocket:
+    path: 01-core-development/websocket-engineer.md
+    use_in: [implementation, tdd-green]
 
-  # Infrastructure
-  docker:
-    path: 03-infrastructure/docker-expert.md
-    use_in: [implementation]
-  kubernetes:
-    path: 03-infrastructure/kubernetes-specialist.md
-    use_in: [implementation]
-  terraform:
-    path: 03-infrastructure/terraform-engineer.md
-    use_in: [implementation]
+  # Infrastructure (03)
   azure:
     path: 03-infrastructure/azure-infra-engineer.md
+    use_in: [implementation]
+  cloud:
+    path: 03-infrastructure/cloud-architect.md
+    use_in: [implementation]
+  dba:
+    path: 03-infrastructure/database-administrator.md
+    use_in: [implementation]
+  deployment:
+    path: 03-infrastructure/deployment-engineer.md
     use_in: [implementation]
   devops:
     path: 03-infrastructure/devops-engineer.md
     use_in: [implementation]
+  devops-incident:
+    path: 03-infrastructure/devops-incident-responder.md
+    use_in: [implementation]
+  docker:
+    path: 03-infrastructure/docker-expert.md
+    use_in: [implementation]
+  incident-response:
+    path: 03-infrastructure/incident-responder.md
+    use_in: [implementation]
+  kubernetes:
+    path: 03-infrastructure/kubernetes-specialist.md
+    use_in: [implementation]
+  network:
+    path: 03-infrastructure/network-engineer.md
+    use_in: [implementation]
+  platform:
+    path: 03-infrastructure/platform-engineer.md
+    use_in: [implementation]
+  security-infra:
+    path: 03-infrastructure/security-engineer.md
+    use_in: [implementation]
   sre:
     path: 03-infrastructure/sre-engineer.md
     use_in: [implementation]
-
-  # Data & AI
-  postgres:
-    path: 05-data-ai/postgres-pro.md
-    use_in: [implementation, tdd-green, tdd-refactor]
-  database:
-    path: 05-data-ai/database-optimizer.md
-    use_in: [implementation, tdd-green, tdd-refactor]
-  ml:
-    path: 05-data-ai/machine-learning-engineer.md
+  terraform:
+    path: 03-infrastructure/terraform-engineer.md
     use_in: [implementation]
-  llm:
-    path: 05-data-ai/llm-architect.md
+  terragrunt:
+    path: 03-infrastructure/terragrunt-expert.md
+    use_in: [implementation]
+  windows-infra:
+    path: 03-infrastructure/windows-infra-admin.md
     use_in: [implementation]
 
-  # Quality & Security
-  security:
-    path: 04-quality-security/security-auditor.md
+  # Quality & Security (04)
+  accessibility:
+    path: 04-quality-security/accessibility-tester.md
+    use_in: [implementation]
+  ad-security:
+    path: 04-quality-security/ad-security-reviewer.md
+    use_in: [implementation, tdd-refactor]
+  architect-review:
+    path: 04-quality-security/architect-reviewer.md
+    use_in: [tdd-refactor]
+  chaos:
+    path: 04-quality-security/chaos-engineer.md
+    use_in: [implementation]
+  code-review:
+    path: 04-quality-security/code-reviewer.md
+    use_in: [tdd-refactor]
+  compliance:
+    path: 04-quality-security/compliance-auditor.md
+    use_in: [implementation, tdd-refactor]
+  debugger:
+    path: 04-quality-security/debugger.md
+    use_in: [implementation]
+  error-detective:
+    path: 04-quality-security/error-detective.md
+    use_in: [implementation]
+  pentest:
+    path: 04-quality-security/penetration-tester.md
     use_in: [implementation, tdd-refactor]
   performance:
     path: 04-quality-security/performance-engineer.md
     use_in: [tdd-refactor]
-  accessibility:
-    path: 04-quality-security/accessibility-tester.md
+  powershell-security:
+    path: 04-quality-security/powershell-security-hardening.md
+    use_in: [implementation, tdd-refactor]
+  qa:
+    path: 04-quality-security/qa-expert.md
+    use_in: [implementation, tdd-green]
+  security:
+    path: 04-quality-security/security-auditor.md
+    use_in: [implementation, tdd-refactor]
+  test-automation:
+    path: 04-quality-security/test-automator.md
+    use_in: [implementation, tdd-green]
+
+  # Data & AI (05)
+  ai:
+    path: 05-data-ai/ai-engineer.md
+    use_in: [implementation, tdd-green]
+  data-analyst:
+    path: 05-data-ai/data-analyst.md
+    use_in: [implementation]
+  data-engineer:
+    path: 05-data-ai/data-engineer.md
+    use_in: [implementation, tdd-green]
+  data-scientist:
+    path: 05-data-ai/data-scientist.md
+    use_in: [implementation]
+  database:
+    path: 05-data-ai/database-optimizer.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  llm:
+    path: 05-data-ai/llm-architect.md
+    use_in: [implementation]
+  ml:
+    path: 05-data-ai/machine-learning-engineer.md
+    use_in: [implementation]
+  ml-engineer:
+    path: 05-data-ai/ml-engineer.md
+    use_in: [implementation]
+  ml-ops:
+    path: 05-data-ai/mlops-engineer.md
+    use_in: [implementation]
+  nlp:
+    path: 05-data-ai/nlp-engineer.md
+    use_in: [implementation, tdd-green]
+  postgres:
+    path: 05-data-ai/postgres-pro.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  prompt-engineering:
+    path: 05-data-ai/prompt-engineer.md
     use_in: [implementation]
 
-  # Core Development
-  api:
-    path: 01-core-development/api-designer.md
-    use_in: [implementation, tdd-green]
-  microservices:
-    path: 01-core-development/microservices-architect.md
+  # Developer Experience (06)
+  build:
+    path: 06-developer-experience/build-engineer.md
     use_in: [implementation]
-  websocket:
-    path: 01-core-development/websocket-engineer.md
+  cli:
+    path: 06-developer-experience/cli-developer.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  dependency:
+    path: 06-developer-experience/dependency-manager.md
+    use_in: [implementation]
+  documentation:
+    path: 06-developer-experience/documentation-engineer.md
+    use_in: [implementation]
+  dx:
+    path: 06-developer-experience/dx-optimizer.md
+    use_in: [tdd-refactor]
+  git-workflow:
+    path: 06-developer-experience/git-workflow-manager.md
+    use_in: [implementation]
+  legacy-modernizer:
+    path: 06-developer-experience/legacy-modernizer.md
+    use_in: [implementation, tdd-refactor]
+  mcp:
+    path: 06-developer-experience/mcp-developer.md
     use_in: [implementation, tdd-green]
-  electron:
-    path: 01-core-development/electron-pro.md
+  powershell-module:
+    path: 06-developer-experience/powershell-module-architect.md
     use_in: [implementation, tdd-green, tdd-refactor]
-  mobile:
-    path: 01-core-development/mobile-developer.md
+  powershell-ui:
+    path: 06-developer-experience/powershell-ui-architect.md
+    use_in: [implementation, tdd-green]
+  refactoring:
+    path: 06-developer-experience/refactoring-specialist.md
+    use_in: [tdd-refactor]
+  slack:
+    path: 06-developer-experience/slack-expert.md
+    use_in: [implementation, tdd-green]
+  tooling:
+    path: 06-developer-experience/tooling-engineer.md
+    use_in: [implementation]
+
+  # Specialized Domains (07)
+  api-docs:
+    path: 07-specialized-domains/api-documenter.md
+    use_in: [implementation]
+  blockchain:
+    path: 07-specialized-domains/blockchain-developer.md
+    use_in: [implementation, tdd-green]
+  embedded:
+    path: 07-specialized-domains/embedded-systems.md
+    use_in: [implementation, tdd-green]
+  fintech:
+    path: 07-specialized-domains/fintech-engineer.md
+    use_in: [implementation, tdd-green]
+  gamedev:
+    path: 07-specialized-domains/game-developer.md
+    use_in: [implementation, tdd-green]
+  iot:
+    path: 07-specialized-domains/iot-engineer.md
+    use_in: [implementation, tdd-green]
+  m365:
+    path: 07-specialized-domains/m365-admin.md
+    use_in: [implementation]
+  mobile-app:
+    path: 07-specialized-domains/mobile-app-developer.md
     use_in: [implementation, tdd-green, tdd-refactor]
+  payment:
+    path: 07-specialized-domains/payment-integration.md
+    use_in: [implementation, tdd-green]
+  quant:
+    path: 07-specialized-domains/quant-analyst.md
+    use_in: [implementation]
+  risk:
+    path: 07-specialized-domains/risk-manager.md
+    use_in: [implementation]
+  seo:
+    path: 07-specialized-domains/seo-specialist.md
+    use_in: [implementation]
+
+  # Research & Analysis (10)
+  competitive-analysis:
+    path: 10-research-analysis/competitive-analyst.md
+    use_in: [implementation]
+  data-research:
+    path: 10-research-analysis/data-researcher.md
+    use_in: [implementation]
+  market-research:
+    path: 10-research-analysis/market-researcher.md
+    use_in: [implementation]
+  research:
+    path: 10-research-analysis/research-analyst.md
+    use_in: [implementation]
+  scientific-research:
+    path: 10-research-analysis/scientific-literature-researcher.md
+    use_in: [implementation]
+  search:
+    path: 10-research-analysis/search-specialist.md
+    use_in: [implementation]
+  trend-analysis:
+    path: 10-research-analysis/trend-analyst.md
+    use_in: [implementation]
