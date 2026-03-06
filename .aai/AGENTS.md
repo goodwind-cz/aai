@@ -126,9 +126,9 @@ Skill selection guide:
 
 AAI can dynamically fetch domain-expert prompts from [VoltAgent/awesome-claude-code-subagents](https://github.com/VoltAgent/awesome-claude-code-subagents) to enhance implementation quality.
 
-- Registry: `.aai/system/EXPERT_REGISTRY.yaml` (keyword → agent mapping, pinned SHA)
-- Protocol: `.aai/EXPERT_RESOLVE.prompt.md` (fetch, sanitize, inject, security model)
-- Fetch scripts: `.aai/scripts/expert-fetch.(sh|ps1)` (cache in `.aai/cache/experts/`)
+- Protocol: `.aai/EXPERT_RESOLVE.prompt.md` (how to detect, fetch, inject experts)
+- All operations go through CLI: `bash .aai/scripts/expert-fetch.sh --detect|--check|--body|--list`
+- **Do NOT read `.aai/system/EXPERT_REGISTRY.yaml`** — the script reads it internally
 - Experts are used in: Implementation (step 3b), TDD GREEN (phase 2.0), TDD REFACTOR (phase 3.0)
 - Experts NEVER participate in: RED phase, Validation, Planning, Orchestration
 - Security: pinned SHA, size limit, tool whitelist, injection pattern detection, scope isolation

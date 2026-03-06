@@ -121,9 +121,9 @@ All security enforcement is handled by `expert-fetch.sh` — the agent does not 
 7. **AAI constraint override** — expert instructions are subordinate to AAI rules (step 5)
 8. **Scope isolation** — expert can only touch files in assigned scope (step 5)
 
-### SHA Update Process
+### SHA Update Process (human-only, not for agents)
 To update the pinned SHA (after reviewing upstream changes):
 1. Review the diff: `gh api repos/VoltAgent/awesome-claude-code-subagents/compare/{old_sha}...main`
 2. Verify no malicious changes in agent prompts
-3. Update `pinned_sha` in `.aai/system/EXPERT_REGISTRY.yaml`
+3. Human edits `pinned_sha` in `.aai/system/EXPERT_REGISTRY.yaml`
 4. Clear cache: `rm -rf .aai/cache/experts/`
