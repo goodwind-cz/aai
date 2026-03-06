@@ -30,16 +30,21 @@ PROCESS
 2) Identify the scope and confirm the linked spec has SPEC-FROZEN: true.
 3) Read the `## Test Plan` from the frozen spec. All TEST-xxx entries are the implementation target.
 3b) EXPERT RESOLUTION (optional, improves domain-specific quality):
-   Read `.aai/system/EXPERT_REGISTRY.yaml`. Match the work item's technology domain
-   (from `docs/TECHNOLOGY.md`, file extensions, or task keywords) against registry `experts` keys.
-   If a match is found and phase `implementation` is in the expert's `use_in` list:
-   - Fetch the expert prompt: `bash .aai/scripts/expert-fetch.sh <expert-key>`
-   - Parse the cached file: extract body (after YAML frontmatter `---` delimiters)
-   - Delegate to a subagent with the expert's system prompt PLUS AAI constraints
+   Auto-detect relevant experts from file extensions or technology keywords — do NOT read the registry file.
+   ```bash
+   # Detect matching experts (returns 0-2 keys, one per line)
+   bash .aai/scripts/expert-fetch.sh --detect ts react security  # pass extensions/keywords from scope
+   # Check phase eligibility
+   bash .aai/scripts/expert-fetch.sh --check typescript implementation
+   # Fetch (uses cache, pinned SHA, sanitization)
+   bash .aai/scripts/expert-fetch.sh typescript
+   # Extract prompt body (no frontmatter)
+   bash .aai/scripts/expert-fetch.sh --body typescript
+   ```
+   - Delegate to a subagent with the expert body PLUS AAI constraints
      (see `.aai/EXPERT_RESOLVE.prompt.md` Step 5 for the injection template)
    - The expert subagent MUST return a result block per `.aai/SUBAGENT_PROTOCOL.md`
-   - If fetch fails or is rejected, proceed without expert (graceful degradation)
-   - Select at most 2 experts per work item
+   - If fetch fails or no match, proceed without expert (graceful degradation)
 4) Implement code and tests to cover all TEST-xxx entries from the Test Plan:
    - Create test files at paths specified in the Test Plan (adjust if justified).
    - Each TEST-xxx must have a corresponding test that verifies the described behavior.
