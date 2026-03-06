@@ -29,6 +29,17 @@ PROCESS
    - locks.implementation is false
 2) Identify the scope and confirm the linked spec has SPEC-FROZEN: true.
 3) Read the `## Test Plan` from the frozen spec. All TEST-xxx entries are the implementation target.
+3b) EXPERT RESOLUTION (optional, improves domain-specific quality):
+   Read `.aai/system/EXPERT_REGISTRY.yaml`. Match the work item's technology domain
+   (from `docs/TECHNOLOGY.md`, file extensions, or task keywords) against registry `experts` keys.
+   If a match is found and phase `implementation` is in the expert's `use_in` list:
+   - Fetch the expert prompt: `bash .aai/scripts/expert-fetch.sh <expert-key>`
+   - Parse the cached file: extract body (after YAML frontmatter `---` delimiters)
+   - Delegate to a subagent with the expert's system prompt PLUS AAI constraints
+     (see `.aai/EXPERT_RESOLVE.prompt.md` Step 5 for the injection template)
+   - The expert subagent MUST return a result block per `.aai/SUBAGENT_PROTOCOL.md`
+   - If fetch fails or is rejected, proceed without expert (graceful degradation)
+   - Select at most 2 experts per work item
 4) Implement code and tests to cover all TEST-xxx entries from the Test Plan:
    - Create test files at paths specified in the Test Plan (adjust if justified).
    - Each TEST-xxx must have a corresponding test that verifies the described behavior.

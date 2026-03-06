@@ -21,6 +21,9 @@ docs/ai/reports/LATEST.md
 docs/ai/reports/screenshots/
 docs/ai/reports/MIGRATION_REPORT_*.md
 
+# Expert subagent cache (fetched on-demand from VoltAgent registry)
+.aai/cache/
+
 # OS
 .DS_Store
 Thumbs.db

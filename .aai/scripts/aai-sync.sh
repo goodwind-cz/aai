@@ -138,18 +138,19 @@ fi
 mkdir -p "$DST_ROOT/.aai"
 
 # Top-level files and non-scripts directories: overwrite from source
+# Skip scripts/ (merged separately) and cache/ (runtime artifact, not synced)
 for item in "$SRC_ROOT/.aai/"*; do
   [[ -e "$item" ]] || continue
   name="$(basename "$item")"
-  [[ "$name" == "scripts" ]] && continue
+  [[ "$name" == "scripts" || "$name" == "cache" ]] && continue
   copy_replace "$item" "$DST_ROOT/.aai/$name"
 done
 
-# Clean stale top-level items in target .aai/ that no longer exist in source (except scripts/)
+# Clean stale top-level items in target .aai/ that no longer exist in source (except scripts/, cache/)
 for item in "$DST_ROOT/.aai/"*; do
   [[ -e "$item" ]] || continue
   name="$(basename "$item")"
-  [[ "$name" == "scripts" ]] && continue
+  [[ "$name" == "scripts" || "$name" == "cache" ]] && continue
   if [[ ! -e "$SRC_ROOT/.aai/$name" ]]; then
     rm -rf "$item"
     echo "  CLEAN removed stale: .aai/$name"
@@ -252,6 +253,12 @@ for pattern in '.cloudflare-publish*' '.wrangler/'; do
     echo "  Added $pattern to $DST_ROOT/.gitignore"
   fi
 done
+
+# Ensure expert subagent cache is gitignored (runtime artifact, not committed)
+if ! grep -qF '.aai/cache/' "$DST_ROOT/.gitignore" 2>/dev/null; then
+  echo -e "\n# Expert subagent cache (fetched on-demand from VoltAgent registry)\n.aai/cache/" >> "$DST_ROOT/.gitignore"
+  echo "  Added .aai/cache/ to $DST_ROOT/.gitignore"
+fi
 
 # Ensure ephemeral validation reports/screenshots are gitignored
 REPORT_PATTERNS=(

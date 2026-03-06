@@ -1,0 +1,176 @@
+# Expert Subagent Registry
+# Maps technology keywords to external agent definitions from
+# github.com/VoltAgent/awesome-claude-code-subagents
+#
+# SECURITY: All fetches are pinned to a verified commit SHA.
+# Update pinned_sha after reviewing upstream changes.
+# Cache is local-only (.aai/cache/experts/) and gitignored.
+
+source:
+  repo: VoltAgent/awesome-claude-code-subagents
+  pinned_sha: "87321636a1c666283d8f17398b45c2644395044b"
+  base_path: categories
+
+# Maximum allowed prompt size (bytes) — reject fetched files larger than this
+max_prompt_bytes: 8192
+
+# Cache TTL in minutes (0 = always re-validate against pinned_sha)
+cache_ttl_minutes: 1440
+
+# Tool whitelist — only these tools may be granted to external experts.
+# Any tools requested in the agent frontmatter outside this list are stripped.
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Glob
+  - Grep
+
+# Blocked categories — never fetch agents from these categories
+blocked_categories:
+  - 09-meta-orchestration  # AAI owns orchestration
+  - 08-business-product    # not relevant for implementation
+
+# Expert index: keyword → agent file path (relative to base_path)
+# Multiple keywords can map to the same agent.
+# Used by EXPERT_RESOLVE.prompt.md for matching.
+experts:
+  # Language specialists
+  typescript:
+    path: 02-language-specialists/typescript-pro.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  javascript:
+    path: 02-language-specialists/javascript-pro.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  python:
+    path: 02-language-specialists/python-pro.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  react:
+    path: 02-language-specialists/react-specialist.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  vue:
+    path: 02-language-specialists/vue-expert.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  angular:
+    path: 02-language-specialists/angular-architect.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  nextjs:
+    path: 02-language-specialists/nextjs-developer.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  golang:
+    path: 02-language-specialists/golang-pro.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  rust:
+    path: 02-language-specialists/rust-engineer.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  java:
+    path: 02-language-specialists/java-architect.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  spring:
+    path: 02-language-specialists/spring-boot-engineer.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  csharp:
+    path: 02-language-specialists/csharp-developer.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  dotnet:
+    path: 02-language-specialists/dotnet-core-expert.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  php:
+    path: 02-language-specialists/php-pro.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  laravel:
+    path: 02-language-specialists/laravel-specialist.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  rails:
+    path: 02-language-specialists/rails-expert.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  django:
+    path: 02-language-specialists/django-developer.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  swift:
+    path: 02-language-specialists/swift-expert.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  kotlin:
+    path: 02-language-specialists/kotlin-specialist.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  flutter:
+    path: 02-language-specialists/flutter-expert.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  cpp:
+    path: 02-language-specialists/cpp-pro.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  elixir:
+    path: 02-language-specialists/elixir-expert.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  sql:
+    path: 02-language-specialists/sql-pro.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  powershell:
+    path: 02-language-specialists/powershell-7-expert.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  graphql:
+    path: 01-core-development/graphql-architect.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+
+  # Infrastructure
+  docker:
+    path: 03-infrastructure/docker-expert.md
+    use_in: [implementation]
+  kubernetes:
+    path: 03-infrastructure/kubernetes-specialist.md
+    use_in: [implementation]
+  terraform:
+    path: 03-infrastructure/terraform-engineer.md
+    use_in: [implementation]
+  azure:
+    path: 03-infrastructure/azure-infra-engineer.md
+    use_in: [implementation]
+  devops:
+    path: 03-infrastructure/devops-engineer.md
+    use_in: [implementation]
+  sre:
+    path: 03-infrastructure/sre-engineer.md
+    use_in: [implementation]
+
+  # Data & AI
+  postgres:
+    path: 05-data-ai/postgres-pro.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  database:
+    path: 05-data-ai/database-optimizer.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  ml:
+    path: 05-data-ai/machine-learning-engineer.md
+    use_in: [implementation]
+  llm:
+    path: 05-data-ai/llm-architect.md
+    use_in: [implementation]
+
+  # Quality & Security
+  security:
+    path: 04-quality-security/security-auditor.md
+    use_in: [implementation, tdd-refactor]
+  performance:
+    path: 04-quality-security/performance-engineer.md
+    use_in: [tdd-refactor]
+  accessibility:
+    path: 04-quality-security/accessibility-tester.md
+    use_in: [implementation]
+
+  # Core Development
+  api:
+    path: 01-core-development/api-designer.md
+    use_in: [implementation, tdd-green]
+  microservices:
+    path: 01-core-development/microservices-architect.md
+    use_in: [implementation]
+  websocket:
+    path: 01-core-development/websocket-engineer.md
+    use_in: [implementation, tdd-green]
+  electron:
+    path: 01-core-development/electron-pro.md
+    use_in: [implementation, tdd-green, tdd-refactor]
+  mobile:
+    path: 01-core-development/mobile-developer.md
+    use_in: [implementation, tdd-green, tdd-refactor]

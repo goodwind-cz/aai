@@ -80,6 +80,17 @@ Before starting TDD cycle:
 
 **Objective:** Write ONLY enough code to make the test pass.
 
+0. **Expert Resolution (optional)**
+   Before implementing, check `.aai/system/EXPERT_REGISTRY.yaml` for a domain expert
+   matching the work item's technology (from `docs/TECHNOLOGY.md`, file extensions, or task keywords).
+   If a match exists with `tdd-green` in `use_in`:
+   - Fetch: `bash .aai/scripts/expert-fetch.sh <expert-key>`
+   - Delegate the GREEN implementation to a subagent using the expert prompt
+     wrapped in AAI constraints (see `.aai/EXPERT_RESOLVE.prompt.md` Step 5)
+   - The expert receives: failing test names, expected behavior, TECHNOLOGY.md constraints
+   - The expert MUST return a result block per `.aai/SUBAGENT_PROTOCOL.md`
+   - If fetch fails or no expert matches, implement without expert (graceful degradation)
+
 1. **Implement Minimal Solution**
    - Write the simplest code that makes the test pass
    - Avoid over-engineering
@@ -127,6 +138,13 @@ Before starting TDD cycle:
 ### Phase 3: REFACTOR (Improve Code Quality)
 
 **Objective:** Improve code quality without changing behavior.
+
+0. **Expert Resolution (optional)**
+   Check `.aai/system/EXPERT_REGISTRY.yaml` for a domain expert with `tdd-refactor` in `use_in`.
+   If the same expert was used in GREEN, reuse the cached prompt (no re-fetch needed).
+   If a different expert is more suitable for refactoring (e.g., `performance`, `security`), fetch it.
+   Delegate refactoring to the expert subagent with: current implementation, passing tests, refactoring goals.
+   Graceful degradation: if no expert matches or fetch fails, refactor without expert.
 
 1. **Identify Refactoring Opportunities**
    - Code duplication

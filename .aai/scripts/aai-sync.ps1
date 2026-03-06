@@ -132,12 +132,13 @@ if ($legacyCleaned) {
 New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot ".aai") | Out-Null
 
 # Top-level files and non-scripts directories: overwrite from source
-Get-ChildItem -Path (Join-Path $SrcRoot ".aai") -Force | Where-Object { $_.Name -ne "scripts" } | ForEach-Object {
+# Skip scripts/ (merged separately) and cache/ (runtime artifact, not synced)
+Get-ChildItem -Path (Join-Path $SrcRoot ".aai") -Force | Where-Object { $_.Name -notin @("scripts","cache") } | ForEach-Object {
   Copy-Replace $_.FullName (Join-Path $TargetRoot ".aai" $_.Name)
 }
 
-# Clean stale top-level items in target .aai/ that no longer exist in source (except scripts/)
-Get-ChildItem -Path (Join-Path $TargetRoot ".aai") -Force | Where-Object { $_.Name -ne "scripts" } | ForEach-Object {
+# Clean stale top-level items in target .aai/ that no longer exist in source (except scripts/, cache/)
+Get-ChildItem -Path (Join-Path $TargetRoot ".aai") -Force | Where-Object { $_.Name -notin @("scripts","cache") } | ForEach-Object {
   if (!(Test-Path (Join-Path $SrcRoot ".aai" $_.Name))) {
     Remove-Item $_.FullName -Recurse -Force
     Write-Host "  CLEAN removed stale: .aai/$($_.Name)"
@@ -251,6 +252,13 @@ foreach ($pattern in @('.cloudflare-publish*', '.wrangler/')) {
     Add-Content -Path $gitignorePath -Value "`n$pattern"
     Write-Host "  Added $pattern to $gitignorePath"
   }
+}
+
+# Ensure expert subagent cache is gitignored (runtime artifact, not committed)
+$giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
+if ($giContent -notmatch [regex]::Escape('.aai/cache/')) {
+  Add-Content -Path $gitignorePath -Value "`n# Expert subagent cache (fetched on-demand from VoltAgent registry)`n.aai/cache/"
+  Write-Host "  Added .aai/cache/ to $gitignorePath"
 }
 
 # Ensure ephemeral validation reports/screenshots are gitignored

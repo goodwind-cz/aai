@@ -122,6 +122,17 @@ Skill selection guide:
   - `.gemini/skills.local/README.md`
 - Loop runners are skill-first by default and enforce this sequence unless explicitly switched to legacy mode.
 
+## External Expert Subagents
+
+AAI can dynamically fetch domain-expert prompts from [VoltAgent/awesome-claude-code-subagents](https://github.com/VoltAgent/awesome-claude-code-subagents) to enhance implementation quality.
+
+- Registry: `.aai/system/EXPERT_REGISTRY.yaml` (keyword → agent mapping, pinned SHA)
+- Protocol: `.aai/EXPERT_RESOLVE.prompt.md` (fetch, sanitize, inject, security model)
+- Fetch scripts: `.aai/scripts/expert-fetch.(sh|ps1)` (cache in `.aai/cache/experts/`)
+- Experts are used in: Implementation (step 3b), TDD GREEN (phase 2.0), TDD REFACTOR (phase 3.0)
+- Experts NEVER participate in: RED phase, Validation, Planning, Orchestration
+- Security: pinned SHA, size limit, tool whitelist, injection pattern detection, scope isolation
+
 ## Rules
 - Do not claim PASS without executable evidence.
 - Do not invent technologies: read docs/TECHNOLOGY.md first.
