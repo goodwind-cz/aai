@@ -208,11 +208,15 @@ if [[ -d "$DST_ROOT/docs/ai" ]]; then
 fi
 
 # Root canonical shims (AGENTS.md and PLAYBOOK.md are now inside .aai/)
-for f in CLAUDE.md CODEX.md GEMINI.md README.md SKILLS.md; do
+# README.md is synced as README_AAI.md to avoid overwriting the target project's own README.
+for f in CLAUDE.md CODEX.md GEMINI.md SKILLS.md; do
   if [[ -f "$SRC_ROOT/$f" ]]; then
     copy_replace "$SRC_ROOT/$f" "$DST_ROOT/$f"
   fi
 done
+if [[ -f "$SRC_ROOT/README.md" ]]; then
+  copy_replace "$SRC_ROOT/README.md" "$DST_ROOT/README_AAI.md"
+fi
 
 # Copilot shim
 mkdir -p "$DST_ROOT/.github"

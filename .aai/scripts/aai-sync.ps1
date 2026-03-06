@@ -198,11 +198,16 @@ if (Test-Path (Join-Path $TargetRoot "docs/ai")) {
 }
 
 # Root canonical shims (AGENTS.md and PLAYBOOK.md are now inside .aai/)
-foreach ($f in @("CLAUDE.md","CODEX.md","GEMINI.md","README.md","SKILLS.md")) {
+# README.md is synced as README_AAI.md to avoid overwriting the target project's own README.
+foreach ($f in @("CLAUDE.md","CODEX.md","GEMINI.md","SKILLS.md")) {
   $srcFile = Join-Path $SrcRoot $f
   if (Test-Path $srcFile) {
     Copy-Replace $srcFile (Join-Path $TargetRoot $f)
   }
+}
+$srcReadme = Join-Path $SrcRoot "README.md"
+if (Test-Path $srcReadme) {
+  Copy-Replace $srcReadme (Join-Path $TargetRoot "README_AAI.md")
 }
 
 # Copilot shim
