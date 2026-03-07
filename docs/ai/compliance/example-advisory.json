@@ -1,0 +1,72 @@
+{
+  "decapod_version": "2.1.0",
+  "ref_id": "PRD-001",
+  "input_file": "docs/ai/intake/PRD-001.md",
+  "timestamp": "2026-03-07T10:00:00Z",
+  "verdict": "WARN",
+  "findings": [
+    {
+      "id": "SEC-AUTH-001",
+      "severity": "high",
+      "category": "security",
+      "message": "Authentication system requires penetration testing plan",
+      "location": {
+        "line": 12,
+        "text": "User authentication with SSO support"
+      },
+      "recommendation": "Add security testing requirements to acceptance criteria. Consider OWASP Authentication Cheat Sheet.",
+      "compliance_frameworks": {
+        "SOC2": "CC6.1 - Logical and Physical Access Controls",
+        "ISO27001": "A.9.4 - System and application access control"
+      }
+    },
+    {
+      "id": "PRIV-PII-002",
+      "severity": "medium",
+      "category": "privacy",
+      "message": "PII detected - user email and profile data requires data classification",
+      "location": {
+        "line": 18,
+        "text": "Store user email, name, and profile preferences"
+      },
+      "recommendation": "Document data retention policy and user data deletion procedures",
+      "compliance_frameworks": {
+        "GDPR": "Article 5 - Principles relating to processing of personal data",
+        "ISO27001": "A.18.1.4 - Privacy and protection of personally identifiable information"
+      }
+    },
+    {
+      "id": "COMP-AUDIT-003",
+      "severity": "low",
+      "category": "compliance",
+      "message": "Audit logging not mentioned for authentication events",
+      "location": {
+        "line": 15,
+        "text": "Login and logout functionality"
+      },
+      "recommendation": "Add requirement for audit logging of all authentication events",
+      "compliance_frameworks": {
+        "SOC2": "CC7.2 - System monitoring",
+        "ISO27001": "A.12.4.1 - Event logging"
+      }
+    }
+  ],
+  "summary": {
+    "total_findings": 3,
+    "by_severity": {
+      "high": 1,
+      "medium": 1,
+      "low": 1
+    },
+    "by_category": {
+      "security": 1,
+      "privacy": 1,
+      "compliance": 1
+    }
+  },
+  "metadata": {
+    "frameworks_checked": ["SOC2", "ISO27001", "GDPR"],
+    "policies_applied": ["default"],
+    "scan_duration_ms": 245
+  }
+}

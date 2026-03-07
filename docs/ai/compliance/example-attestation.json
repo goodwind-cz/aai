@@ -1,0 +1,93 @@
+{
+  "decapod_version": "2.1.0",
+  "attestation_id": "ATT-20260307-123456Z",
+  "validation_run_id": "20260307-123456Z",
+  "timestamp": "2026-03-07T12:34:56Z",
+  "verdict": "PASS",
+  "scope": {
+    "ref_id": "PRD-001",
+    "work_type": "feature",
+    "description": "User authentication with SSO support"
+  },
+  "evidence": {
+    "validation_report": {
+      "path": "docs/ai/reports/validation-20260307-123456Z.md",
+      "sha256": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+    },
+    "test_results": {
+      "total": 12,
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 8.5
+    },
+    "coverage": {
+      "line_percent": 87.3,
+      "branch_percent": 82.1,
+      "function_percent": 91.5
+    },
+    "screenshots": [
+      {
+        "path": "docs/ai/reports/screenshots/20260307-123456Z/login-page.png",
+        "sha256": "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3",
+        "description": "Login page with SSO button"
+      },
+      {
+        "path": "docs/ai/reports/screenshots/20260307-123456Z/sso-redirect.png",
+        "sha256": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4",
+        "description": "SSO provider redirect flow"
+      },
+      {
+        "path": "docs/ai/reports/screenshots/20260307-123456Z/authenticated-dashboard.png",
+        "sha256": "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5",
+        "description": "Authenticated user dashboard"
+      },
+      {
+        "path": "docs/ai/reports/screenshots/20260307-123456Z/logout-confirmation.png",
+        "sha256": "e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6",
+        "description": "Logout confirmation"
+      },
+      {
+        "path": "docs/ai/reports/screenshots/20260307-123456Z/error-invalid-credentials.png",
+        "sha256": "f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7",
+        "description": "Error handling for invalid credentials"
+      }
+    ],
+    "related_artifacts": [
+      "docs/ai/intake/PRD-001.md",
+      "docs/ai/specs/AUTH-001-spec.md",
+      "docs/ai/STATE.yaml"
+    ]
+  },
+  "compliance_frameworks": [
+    {
+      "name": "SOC2",
+      "controls_validated": [
+        "CC6.1 - Logical and Physical Access Controls",
+        "CC7.2 - System monitoring"
+      ],
+      "attestation_notes": "Authentication implementation includes audit logging and session management per CC6.1 and CC7.2 requirements"
+    },
+    {
+      "name": "ISO27001",
+      "controls_validated": [
+        "A.9.4 - System and application access control",
+        "A.12.4.1 - Event logging"
+      ],
+      "attestation_notes": "Access controls tested with 100% coverage. Authentication events logged per A.12.4.1"
+    }
+  ],
+  "signature": {
+    "algorithm": "RSA-SHA256",
+    "value": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+    "signed_at": "2026-03-07T12:34:56Z",
+    "key_id": "decapod-signing-key-v1"
+  },
+  "metadata": {
+    "generated_by": "decapod-cli v2.1.0",
+    "platform": "linux x64",
+    "project_name": "ai-os",
+    "environment": "development",
+    "immutable": true
+  }
+}
