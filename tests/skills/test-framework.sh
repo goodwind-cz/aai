@@ -81,7 +81,7 @@ log_success() {
 }
 
 log_fail() {
-  echo -e "${RED}[FAIL]${NC} $*"
+  echo -e "${RED}[FAIL]${NC} $*" >&2
 }
 
 log_skip() {

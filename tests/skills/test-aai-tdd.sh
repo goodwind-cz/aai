@@ -28,6 +28,17 @@ log_fail() { echo "✗ $*" >&2; return 1; }
 log_skip() { echo "⊘ $*"; exit 42; }
 log_info() { echo "  $*"; }
 
+# Portable in-place replacement helper (GNU/BSD sed compatible)
+replace_in_file() {
+  local search="$1"
+  local replace="$2"
+  local file="$3"
+  local tmp
+  tmp="$(mktemp "$(dirname "$file")/.tmp.XXXXXX")"
+  sed "s|$search|$replace|" "$file" > "$tmp"
+  mv "$tmp" "$file"
+}
+
 # Check dependencies
 check_deps() {
   log_info "Checking dependencies..."
@@ -199,8 +210,8 @@ EOF
   fi
 
   # Update STATE.yaml
-  sed -i 's/status: IDLE/status: RED/' docs/ai/STATE.yaml
-  sed -i 's/test_id: null/test_id: TEST-001/' docs/ai/STATE.yaml
+  replace_in_file "status: IDLE" "status: RED" docs/ai/STATE.yaml
+  replace_in_file "test_id: null" "test_id: TEST-001" docs/ai/STATE.yaml
 
   log_pass "RED phase completed - test fails as expected"
 }
@@ -231,7 +242,7 @@ EOF
   fi
 
   # Update STATE.yaml
-  sed -i 's/status: RED/status: GREEN/' docs/ai/STATE.yaml
+  replace_in_file "status: RED" "status: GREEN" docs/ai/STATE.yaml
 
   log_pass "GREEN phase completed - test passes with minimal implementation"
 }
@@ -276,7 +287,7 @@ EOF
   fi
 
   # Update STATE.yaml
-  sed -i 's/status: GREEN/status: REFACTOR_COMPLETE/' docs/ai/STATE.yaml
+  replace_in_file "status: GREEN" "status: REFACTOR_COMPLETE" docs/ai/STATE.yaml
 
   log_pass "REFACTOR phase completed - tests still pass with improved code"
 }

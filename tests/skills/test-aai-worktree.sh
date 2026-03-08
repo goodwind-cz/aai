@@ -56,7 +56,7 @@ check_deps() {
 
   # Check git version supports worktrees (2.5+)
   local git_version
-  git_version=$(git --version | grep -oP '\d+\.\d+' | head -n1)
+  git_version=$(git --version | grep -oE '[0-9]+\.[0-9]+' | head -n1)
   local major minor
   major=$(echo "$git_version" | cut -d. -f1)
   minor=$(echo "$git_version" | cut -d. -f2)
