@@ -24,8 +24,8 @@ YELLOW='\033[0;33m'
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
-error() { echo -e "${RED}✗ $1${NC}"; ((ERRORS++)); }
-warn()  { echo -e "${YELLOW}⚠ $1${NC}"; ((WARNINGS++)); }
+error() { echo -e "${RED}✗ $1${NC}"; ERRORS=$((ERRORS+1)); }
+warn()  { echo -e "${YELLOW}⚠ $1${NC}"; WARNINGS=$((WARNINGS+1)); }
 pass()  { echo -e "${GREEN}✓ $1${NC}"; }
 
 echo "─────────────────────────────────────"
@@ -61,7 +61,7 @@ if [ -n "$STAGED_FILES" ]; then
     [ -f "$filepath" ] || continue
 
     # Check for common secret patterns
-    if grep -qEi '(api[_-]?key|api[_-]?secret|password|passwd|secret[_-]?key|access[_-]?token|private[_-]?key)\s*[:=]\s*["\x27][^"\x27]{8,}' "$filepath" 2>/dev/null; then
+    if grep -qEi "(api[_-]?key|api[_-]?secret|password|passwd|secret[_-]?key|access[_-]?token|private[_-]?key)\s*[:=]\s*[\"'][^\"']{8,}" "$filepath" 2>/dev/null; then
       error "Potential secret detected in $file"
       SECRETS_FOUND=1
     fi
@@ -93,7 +93,7 @@ if [ -n "$STAGED_FILES" ]; then
     esac
 
     # Check for debug statements
-    matches=$(grep -n 'console\.log\|debugger\b\|print(.*#.*debug\|pdb\.set_trace\|binding\.pry\|var_dump' "$filepath" 2>/dev/null || true)
+    matches=$(grep -n 'console\.log\|debugger\|pdb\.set_trace\|binding\.pry\|var_dump' "$filepath" 2>/dev/null || true)
     if [ -n "$matches" ]; then
       warn "Debug statements in $file:"
       echo "$matches" | head -3 | sed 's/^/    /'

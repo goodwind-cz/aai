@@ -18,6 +18,9 @@ BACKUP_FILE="$PROJECT_ROOT/docs/ai/.pre-compact-state-backup.yaml"
 
 TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
+# Ensure output directory exists
+mkdir -p "$(dirname "$OUTPUT_FILE")"
+
 # Backup STATE.yaml
 if [ -f "$STATE_FILE" ]; then
   cp "$STATE_FILE" "$BACKUP_FILE"

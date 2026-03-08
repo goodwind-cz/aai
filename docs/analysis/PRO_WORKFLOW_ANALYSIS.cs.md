@@ -532,7 +532,7 @@ Z rozhodnutí:
 
 1. **Fázové checkpointy**: opt-in parametrem
    ```bash
-   /aai-loop --checkpoints staged
+   /aai-loop checkpoint_mode=staged
    ```
 
 2. **Pravidla učení**: automatické, ale každé pravidlo vyžaduje schválení uživatelem

@@ -286,7 +286,7 @@ Dynamic skill indexes are written to:
 ```
 /aai-replay          # Surface relevant past learnings
 /aai-intake          # Start new work
-/aai-loop            # Run autonomous cycles (supports --checkpoints staged)
+/aai-loop            # Run autonomous cycles (supports checkpoint_mode=staged)
 /aai-hitl            # Resolve human decision (if loop pauses)
 /aai-validate-report # Generate evidence report
 /aai-flush           # Flush metrics & clean state (if loop didn't)

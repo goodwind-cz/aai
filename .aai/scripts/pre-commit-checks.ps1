@@ -59,7 +59,7 @@ if ($StagedFiles) {
             $SecretsFound = $true
         }
 
-        if ($file -match '\.(env|credentials|secret)') {
+        if ($file -match '(?i)(secret|credentials|\.env)') {
             Write-Error-Check "Sensitive file staged: $file"
             $SecretsFound = $true
         }

@@ -532,7 +532,7 @@ No matches in FACTS.md.
 
 1. **Staged checkpoints**: opt-in via parameter
    ```bash
-   /aai-loop --checkpoints staged
+   /aai-loop checkpoint_mode=staged
    ```
 
 2. **Learning rules**: automatic, but requires user approval per rule

@@ -93,8 +93,8 @@ For each tick (1..max_ticks):
          Continue? [y] Yes, proceed  [n] No, revise  [p] Pause loop
          ─────────────────────────────────────
 
-         - If user answers [n]: set human_input.required = true with blocking_reason = "User requested plan revision at checkpoint" and EXIT.
-         - If user answers [p]: set project_status = paused and EXIT.
+         - If user answers [n]: LOG the tick (step 6), then set human_input.required = true with blocking_reason = "User requested plan revision at checkpoint" and EXIT.
+         - If user answers [p]: LOG the tick (step 6), then set project_status = paused and EXIT.
          - If user answers [y] or confirms: continue to step 6.
 
      If checkpoint_mode == "paranoid":
@@ -109,7 +109,7 @@ For each tick (1..max_ticks):
          Continue? [y/n/p]
          ─────────────────────────────────────
 
-         - Same [y/n/p] handling as staged mode.
+         - Same [y/n/p] handling as staged mode (always log the tick before EXIT).
 
   6. LOG the tick:
      Tick <N>: [role dispatched] → scope=<ref_id> → state=<project_status>/<last_validation.status>

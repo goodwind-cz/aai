@@ -19,6 +19,10 @@ $BackupFile = Join-Path $ProjectRoot "docs/ai/.pre-compact-state-backup.yaml"
 
 $Timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
+# Ensure output directory exists
+$outputDir = Split-Path $OutputFile -Parent
+if (-not (Test-Path $outputDir)) { New-Item -ItemType Directory -Force -Path $outputDir | Out-Null }
+
 # Backup STATE.yaml
 if (Test-Path $StateFile) {
     Copy-Item $StateFile $BackupFile -Force
