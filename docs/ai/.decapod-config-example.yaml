@@ -1,0 +1,48 @@
+# Decapod Configuration Example
+# Copy this to .decapod/config.yaml in your project root
+
+version: 1
+
+project:
+  name: ai-os
+  compliance_frameworks:
+    - SOC2
+    - ISO27001
+
+advisory:
+  enabled: true
+  severity_threshold: medium  # Minimum severity to warn: low|medium|high
+  categories:
+    - security
+    - privacy
+    - compliance
+  block_on_high: false  # Set to true to block workflow on high-severity findings
+
+attestation:
+  enabled: true
+  sign_artifacts: false  # Set to true to cryptographically sign attestations
+  signing_key_path: ~/.decapod/signing-key.pem  # Required if sign_artifacts: true
+  retention_days: 365
+  output_dir: .decapod/attestations
+
+integrations:
+  aai:
+    intake_hook: true      # Run advisory check after /aai-intake
+    validation_hook: true  # Generate attestation after /aai-validate-report
+
+# Optional: Custom compliance policies
+policies:
+  enabled: false
+  policy_dir: .decapod/policies  # Directory containing *.yaml policy files
+
+# Optional: Framework-specific settings
+frameworks:
+  SOC2:
+    controls:
+      - CC6.1  # Logical access controls
+      - CC7.2  # System monitoring
+
+  ISO27001:
+    controls:
+      - A.12.6.1  # Technical vulnerability management
+      - A.14.2.8  # System security testing

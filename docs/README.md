@@ -2,6 +2,15 @@
 
 A canonical, reusable AAI that standardizes workflows, roles, prompts, and documentation for agent-driven development. It provides a minimal, consistent structure so humans and AI agents (Codex/ChatGPT, Claude, Copilot) can collaborate using the same sources of truth.
 
+## 📚 Quick Links
+
+- **[USER_GUIDE.md](USER_GUIDE.md)** - 🆕 Complete user guide with all 18 skills, workflows, and best practices
+- **[SKILL_CATALOG.html](SKILL_CATALOG.html)** - 🆕 Interactive skill explorer (generate with `/aai-docs-hub`)
+- **[TODO.md](TODO.md)** - 🆕 Future enhancements roadmap
+- **[ai/DECAPOD_INTEGRATION.md](ai/DECAPOD_INTEGRATION.md)** - 🆕 Compliance framework integration
+
+**New to AAI?** Start with the [USER_GUIDE.md](USER_GUIDE.md) for a complete walkthrough.
+
 ## 1) Project Title & Description
 **AAI (Canonical)** — a lightweight governance and prompt suite that enforces a single workflow, clear role semantics, and evidence-based validation.
 

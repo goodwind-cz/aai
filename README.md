@@ -76,6 +76,27 @@ git commit -m "Update AAI layer"
     └── copilot-instructions.md
 ```
 
+## Quick Start
+
+**New to AAI?** Start here:
+
+1. **📖 Read the User Guide:** [docs/USER_GUIDE.md](docs/USER_GUIDE.md)
+   - Complete walkthrough of all 18 AAI skills
+   - Step-by-step workflows
+   - Best practices
+   - Troubleshooting
+
+2. **🎯 View Skills Catalog:** Generate interactive HTML
+   ```bash
+   /aai-docs-hub
+   open docs/SKILL_CATALOG.html
+   ```
+
+3. **✅ Test Your Setup:**
+   ```bash
+   /aai-test-skills
+   ```
+
 ## How to use this AAI (step-by-step)
 ### Installation
 1) Clone or copy this repository into your project.
@@ -116,6 +137,44 @@ cat .aai/VALIDATION.prompt.md
 ```bash
 cat .aai/REMEDIATION.prompt.md
 ```
+
+---
+
+## AAI Skills Overview (18 Skills)
+
+### Core Workflow Skills
+- **`/aai-intake`** - Universal intake router (auto-detects work type)
+- **`/aai-loop`** - Autonomous multi-tick orchestration
+- **`/aai-tdd`** - Test-driven development (RED-GREEN-REFACTOR)
+- **`/aai-validate-report`** - Validation with screenshot evidence
+- **`/aai-share`** - Publish to Cloudflare Pages
+
+### Development Tools
+- **`/aai-worktree`** - Git worktree management (parallel development)
+- **`/aai-code-review`** - AI code review (security, performance, style)
+- **`/aai-bootstrap`** - Architecture detection & skill generation
+
+### Analytics & Metrics
+- **`/aai-dashboard`** - Interactive metrics visualization
+- **`/aai-profile`** - Performance profiling & optimization
+
+### Automation
+- **`/aai-auto-trigger`** - Pattern-based skill triggering
+
+### Compliance & Quality
+- **`/aai-decapod`** - Decapod compliance integration
+- **`/aai-test-skills`** - Skill validation framework
+
+### Discovery & Docs
+- **`/aai-docs-hub`** - Interactive skill catalog
+- **`/aai-check-state`** - View STATE.yaml
+- **`/aai-hitl`** - Human-in-the-loop resolver
+
+### Maintenance
+- **`/aai-flush`** - Metrics cleanup
+- **`/aai-canonicalize`** - Structure normalization
+
+**📖 Full details:** [docs/USER_GUIDE.md](docs/USER_GUIDE.md)
 
 ### Reverse analysis
 ```bash

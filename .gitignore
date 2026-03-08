@@ -24,6 +24,10 @@ docs/ai/reports/MIGRATION_REPORT_*.md
 # Expert subagent cache (fetched on-demand from VoltAgent registry)
 .aai/cache/
 
+# Test outputs
+tests/skills/results/
+docs/ai/tests/test-runs.jsonl
+
 # OS
 .DS_Store
 Thumbs.db
