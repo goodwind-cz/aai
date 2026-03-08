@@ -406,7 +406,7 @@
 
   <script>
     // Data placeholder - will be replaced during generation
-    const metricsData = {{METRICS_DATA}};
+    const rawMetricsData = `{{METRICS_DATA}}`;
 
     function formatNumber(num) {
       return num.toLocaleString();
@@ -609,13 +609,33 @@
 
       skillStats.forEach(skill => {
         const row = document.createElement('tr');
-        row.innerHTML = `
-          <td>${skill.name}</td>
-          <td>${formatNumber(skill.count)}</td>
-          <td>${formatNumber(skill.avgTokens)}</td>
-          <td>${skill.avgDuration}s</td>
-          <td class="${skill.successRate >= 95 ? 'status-success' : skill.successRate >= 80 ? 'status-warning' : 'status-error'}">${skill.successRate}%</td>
-        `;
+        const statusClass = skill.successRate >= 95
+          ? 'status-success'
+          : skill.successRate >= 80
+            ? 'status-warning'
+            : 'status-error';
+
+        const nameCell = document.createElement('td');
+        nameCell.textContent = String(skill.name);
+        row.appendChild(nameCell);
+
+        const countCell = document.createElement('td');
+        countCell.textContent = formatNumber(skill.count);
+        row.appendChild(countCell);
+
+        const tokenCell = document.createElement('td');
+        tokenCell.textContent = formatNumber(skill.avgTokens);
+        row.appendChild(tokenCell);
+
+        const durationCell = document.createElement('td');
+        durationCell.textContent = `${skill.avgDuration}s`;
+        row.appendChild(durationCell);
+
+        const successCell = document.createElement('td');
+        successCell.className = statusClass;
+        successCell.textContent = `${skill.successRate}%`;
+        row.appendChild(successCell);
+
         tbody.appendChild(row);
       });
     }
@@ -659,8 +679,17 @@
     }
 
     // Initialize dashboard
-    if (typeof metricsData !== 'undefined' && metricsData !== '{{METRICS_DATA}}') {
-      renderDashboard(metricsData);
+    let parsedMetricsData = null;
+    if (rawMetricsData !== '{{METRICS_DATA}}') {
+      try {
+        parsedMetricsData = JSON.parse(rawMetricsData);
+      } catch (error) {
+        console.error('Invalid metrics data JSON', error);
+      }
+    }
+
+    if (parsedMetricsData) {
+      renderDashboard(parsedMetricsData);
     } else {
       console.error('Dashboard data not available');
       document.querySelector('.container').innerHTML = '<div class="loading"><div class="spinner"></div><p>Failed to load metrics data</p></div>';
