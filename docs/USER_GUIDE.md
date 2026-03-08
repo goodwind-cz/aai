@@ -68,6 +68,14 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 | `/aai-share` | Share results | Publish to Cloudflare Pages |
 | `/aai-loop` | Autonomous work | Multi-tick autonomous loop |
 
+### Session Management
+
+| Skill | Usage | What it does |
+|-------|-------|--------------|
+| `/aai-wrap-up` | End session | Capture learnings, propose rules |
+| `/aai-replay` | Start session | Surface relevant past learnings |
+| `/aai-doctor` | Diagnostics | Full environment health check |
+
 ### Discovery & Exploration
 
 | Skill | Usage | What it does |
@@ -411,7 +419,88 @@ User: "add login feature"
 
 ---
 
-### 8. Maintenance & Testing
+### 8. Session Management (pro-workflow)
+
+#### `/aai-doctor`
+**What:** Comprehensive environment health check — broader than `/aai-check-state`.
+
+**When to use:**
+- After AAI sync or setup
+- When something seems broken
+- Onboarding new team members
+
+**Example:**
+```bash
+/aai-doctor
+
+# Output:
+[CAT-01] Core Files:        ✓ 7/7 present
+[CAT-02] Role Prompts:      ✓ 4/4 present
+[CAT-03] Universal Skills:  ✓ 21/21 healthy
+[CAT-04] Dynamic Skills:    ⚠ none (run /aai-bootstrap)
+[CAT-05] Knowledge:         ✓ 3 files
+[CAT-06] STATE.yaml:        ✓ HEALTHY
+[CAT-07] Telemetry:         ✓ 3 files
+[CAT-08] Git:               ✓ clean on main
+[CAT-09] Pre-Compact Hook:  ⚠ not set up
+
+Overall: HEALTHY (2 warnings)
+```
+
+#### `/aai-replay`
+**What:** Surfaces relevant past learnings before starting work.
+
+**When to use:**
+- Starting a new feature (especially similar to past work)
+- Before implementation phase
+- When you want to avoid past mistakes
+
+**Example:**
+```bash
+/aai-replay authentication
+
+# Output:
+RELEVANT LEARNINGS FOR: authentication
+From LEARNED.md:
+  • [2026-03-06] Always test token expiry edge cases
+From PATTERNS.md:
+  • Auth endpoints: rate-limit to 5 req/min per IP
+From Decisions:
+  • DEC-005: Chose JWT for session tokens
+```
+
+#### `/aai-wrap-up`
+**What:** End-of-session ritual that captures learnings.
+
+**When to use:**
+- End of work session
+- Before context gets lost
+- After completing a feature
+
+**Example:**
+```bash
+/aai-wrap-up
+
+# Output:
+SESSION SUMMARY
+───────────────
+Completed:
+• [Feature] Password reset (REQ-010)
+• [TDD] 12 tests → all green
+
+Proposed rule: "Always test token expiry for auth features"
+Add to docs/knowledge/LEARNED.md? [y/n]: y
+✓ Rule added
+
+NEXT SESSION
+────────────
+Suggested focus:
+• Profile editing (REQ-008)
+```
+
+---
+
+### 9. Maintenance & Testing
 
 #### `/aai-test-skills`
 **What:** Tests all AAI skills to ensure they work.
@@ -531,6 +620,9 @@ Skipped: 0 (0%)
 ### Complete Feature Development
 
 ```bash
+# 0. Replay relevant past learnings
+/aai-replay "user profile"
+
 # 1. Intake
 /aai-intake "Add user profile page with avatar upload"
 # Creates: docs/requirements/REQ-006-user-profile.md
@@ -559,6 +651,10 @@ Skipped: 0 (0%)
 
 # 8. View metrics
 /aai-dashboard --publish
+
+# 9. Wrap up session
+/aai-wrap-up
+# Captures learnings, proposes rules, prepares next session
 ```
 
 ### Bug Fix Workflow

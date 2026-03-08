@@ -19,6 +19,12 @@ AUTHORITATIVE SOURCES
 LOOP PARAMETERS (use defaults unless overridden by caller)
 - max_ticks: 20
 - sleep_between_ticks: none (subagent spawning is the natural boundary)
+- checkpoint_mode: none (default)
+    Options:
+    - none:     current behavior — autonomous for all ticks, no user approval between phases
+    - staged:   pause for user approval when role category changes (Planning→Implementation, Implementation→Validation)
+    - paranoid: pause for user approval after every tick
+    Enable via caller argument: e.g. "Run loop with checkpoint_mode=staged"
 - stop_conditions:
     - docs/ai/STATE.yaml: project_status == paused
     - docs/ai/STATE.yaml: human_input.required == true
@@ -60,7 +66,52 @@ For each tick (1..max_ticks):
      - Capture role_ended_utc immediately after completion from system clock.
      - Expected result: role work completed and STATE.yaml updated with results.
 
-  5. LOG the tick:
+  5. CHECKPOINT GATE (if checkpoint_mode != none):
+     After the dispatched role completes, determine the PREVIOUS role category and CURRENT role category.
+     Role categories:
+       - Planning:       PLANNING.prompt.md, INTAKE_*.prompt.md, ORCHESTRATION*.prompt.md
+       - Implementation: IMPLEMENTATION.prompt.md, TDD cycles
+       - Validation:     VALIDATION.prompt.md, VALIDATE_REPORT
+       - Remediation:    REMEDIATION.prompt.md
+
+     If checkpoint_mode == "staged":
+       - If the role category CHANGED from previous tick (e.g., Planning→Implementation):
+         → Output a checkpoint block and WAIT for user approval:
+
+         ─────────────────────────────────────
+         CHECKPOINT: <Previous Category> → <New Category>
+         ─────────────────────────────────────
+
+         Completed (<Previous Category>):
+         • <key artifact or outcome from previous phase>
+         • <second outcome if applicable>
+
+         Next (<New Category>):
+         • <what will happen in the next phase>
+         • <estimated scope if known>
+
+         Continue? [y] Yes, proceed  [n] No, revise  [p] Pause loop
+         ─────────────────────────────────────
+
+         - If user answers [n]: set human_input.required = true with blocking_reason = "User requested plan revision at checkpoint" and EXIT.
+         - If user answers [p]: set project_status = paused and EXIT.
+         - If user answers [y] or confirms: continue to step 6.
+
+     If checkpoint_mode == "paranoid":
+       - After EVERY tick, output:
+
+         ─────────────────────────────────────
+         TICK <N> COMPLETE: <role dispatched>
+         ─────────────────────────────────────
+         Result: <one-line summary of what the tick accomplished>
+         State:  <project_status> / <last_validation.status>
+
+         Continue? [y/n/p]
+         ─────────────────────────────────────
+
+         - Same [y/n/p] handling as staged mode.
+
+  6. LOG the tick:
      Tick <N>: [role dispatched] → scope=<ref_id> → state=<project_status>/<last_validation.status>
      - Append one `type: tick` JSON line to docs/ai/LOOP_TICKS.jsonl with:
        tick, started_utc, ended_utc, duration_seconds, exit_code,
@@ -68,7 +119,7 @@ For each tick (1..max_ticks):
      - Do not estimate timing. Use real timestamps measured during execution.
      - Reject and BLOCK if timestamp cannot be verified from system clock or is >300s in the future vs current system UTC.
 
-  6. REPEAT from step 1.
+  7. REPEAT from step 1.
 
 FALLBACK (no subagent support)
 If this agent cannot spawn subagents:

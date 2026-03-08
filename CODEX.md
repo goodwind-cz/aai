@@ -22,6 +22,16 @@ This file is intentionally minimal to avoid duplicated guidance.
   - `/aai-tdd` -> `.aai/SKILL_TDD.prompt.md`
   - `/aai-worktree` -> `.aai/SKILL_WORKTREE.prompt.md`
   - `/aai-flush` -> `.aai/SKILL_FLUSH.prompt.md`
+  - `/aai-test-skills` -> `.aai/SKILL_TEST_SKILLS.prompt.md`
+  - `/aai-docs-hub` -> `.aai/SKILL_DOCS_HUB.prompt.md`
+  - `/aai-decapod` -> `.aai/SKILL_DECAPOD.prompt.md`
+  - `/aai-auto-trigger` -> `.aai/SKILL_AUTO_TRIGGER.prompt.md`
+  - `/aai-dashboard` -> `.aai/SKILL_DASHBOARD.prompt.md`
+  - `/aai-code-review` -> `.aai/SKILL_CODE_REVIEW.prompt.md`
+  - `/aai-profile` -> `.aai/SKILL_PROFILE.prompt.md`
+  - `/aai-doctor` -> `.aai/SKILL_DOCTOR.prompt.md`
+  - `/aai-replay` -> `.aai/SKILL_REPLAY.prompt.md`
+  - `/aai-wrap-up` -> `.aai/SKILL_WRAP_UP.prompt.md`
 - Project-local generated skills live in `.claude/skills/` and must use `aai-` prefix.
 - Dynamic Codex index is written to `.codex/skills.local/README.md` by `/aai-bootstrap`.
 

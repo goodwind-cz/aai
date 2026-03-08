@@ -197,6 +197,7 @@ if (Test-Path (Join-Path $TargetRoot "docs/ai")) {
   Write-Host "  PRESERVE docs/ai/ runtime data (STATE.yaml, *.jsonl, decisions.jsonl, reports/)"
 }
 
+
 # Root canonical shims (AGENTS.md and PLAYBOOK.md are now inside .aai/)
 # README.md is synced as README_AAI.md to avoid overwriting the target project's own README.
 foreach ($f in @("CLAUDE.md","CODEX.md","GEMINI.md","SKILLS.md")) {

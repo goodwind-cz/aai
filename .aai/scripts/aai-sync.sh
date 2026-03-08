@@ -201,11 +201,12 @@ if [[ -d "$SRC_ROOT/docs/knowledge" ]]; then
   done
 fi
 
-# docs/ai: only sync runtime TEMPLATE files — preserve existing runtime data.
+# docs/ai: preserve existing runtime data, but sync template files.
 # System docs (AUTONOMOUS_LOOP.md, LOCKS.md, etc.) are now in .aai/system/.
 if [[ -d "$DST_ROOT/docs/ai" ]]; then
   echo "  PRESERVE docs/ai/ runtime data (STATE.yaml, *.jsonl, decisions.jsonl, reports/)"
 fi
+
 
 # Root canonical shims (AGENTS.md and PLAYBOOK.md are now inside .aai/)
 # README.md is synced as README_AAI.md to avoid overwriting the target project's own README.

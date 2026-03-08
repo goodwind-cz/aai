@@ -21,6 +21,10 @@ docs/ai/reports/LATEST.md
 docs/ai/reports/screenshots/
 docs/ai/reports/MIGRATION_REPORT_*.md
 
+# Pre-compact context snapshots (auto-generated, ephemeral)
+docs/ai/.session-context.md
+docs/ai/.pre-compact-state-backup.yaml
+
 # Expert subagent cache (fetched on-demand from VoltAgent registry)
 .aai/cache/
 
