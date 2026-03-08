@@ -1,6 +1,1 @@
-{"timestamp":"2026-03-07T08:20:02Z","type":"skill_test","run_id":"test-20260307-082000","total":13,"passed":4,"failed":9,"skipped":0}
-{"timestamp":"2026-03-07T08:20:34Z","type":"skill_test","run_id":"test-20260307-082034","total":5,"passed":4,"failed":1,"skipped":0}
-{"timestamp":"2026-03-07T08:21:15Z","type":"skill_test","run_id":"test-20260307-082115","total":5,"passed":4,"failed":1,"skipped":0}
-{"timestamp":"2026-03-07T08:21:42Z","type":"skill_test","run_id":"test-20260307-082141","total":5,"passed":4,"failed":1,"skipped":0}
 {"timestamp":"2026-03-07T08:22:04Z","type":"skill_test","run_id":"test-20260307-082203","total":5,"passed":5,"failed":0,"skipped":0}
-{"timestamp":"2026-03-07T08:23:13Z","type":"skill_test","run_id":"test-20260307-082313","total":1,"passed":1,"failed":0,"skipped":0}

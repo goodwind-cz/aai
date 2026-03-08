@@ -26,6 +26,7 @@ docs/ai/reports/MIGRATION_REPORT_*.md
 
 # Test outputs
 tests/skills/results/
+docs/ai/tests/test-runs.jsonl
 
 # OS
 .DS_Store

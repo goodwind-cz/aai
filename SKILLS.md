@@ -18,6 +18,13 @@ Skills are session-scoped, multi-step prompts that compose workflow actions into
 | 9 | aai-tdd | Enforced RED-GREEN-REFACTOR test-driven development | `/aai-tdd` | `--prompt-file .aai/SKILL_TDD.prompt.md` |
 | 10 | aai-worktree | Manage git worktrees for parallel development | `/aai-worktree` | `--prompt-file .aai/SKILL_WORKTREE.prompt.md` |
 | 11 | aai-flush | Flush metrics from STATE.yaml to METRICS.jsonl and clean up | `/aai-flush` | `--prompt-file .aai/SKILL_FLUSH.prompt.md` |
+| 12 | aai-test-skills | Run the AAI skill test framework and suites | `/aai-test-skills` | `--prompt-file .aai/SKILL_TEST_SKILLS.prompt.md` |
+| 13 | aai-docs-hub | Generate documentation hub and skill catalog pages | `/aai-docs-hub` | `--prompt-file .aai/SKILL_DOCS_HUB.prompt.md` |
+| 14 | aai-decapod | Run compliance advisory workflow with Decapod | `/aai-decapod` | `--prompt-file .aai/SKILL_DECAPOD.prompt.md` |
+| 15 | aai-auto-trigger | Suggest and auto-trigger relevant skills for context | `/aai-auto-trigger` | `--prompt-file .aai/SKILL_AUTO_TRIGGER.prompt.md` |
+| 16 | aai-dashboard | Build metrics dashboard artifacts from telemetry | `/aai-dashboard` | `--prompt-file .aai/SKILL_DASHBOARD.prompt.md` |
+| 17 | aai-code-review | Run AI-assisted code review on PRs/changes | `/aai-code-review` | `--prompt-file .aai/SKILL_CODE_REVIEW.prompt.md` |
+| 18 | aai-profile | Profile workflows for token/time optimization | `/aai-profile` | `--prompt-file .aai/SKILL_PROFILE.prompt.md` |
 
 ## Skills in Detail
 
