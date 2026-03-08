@@ -9,6 +9,7 @@ This file is intentionally minimal to prevent duplicated or conflicting guidance
 - Intake entrypoints: listed in .aai/AGENTS.md
 - Canonical workflow: .aai/workflow/WORKFLOW.md
 - Technology contract (authoritative): docs/TECHNOLOGY.md
+- Learned rules (project-specific): docs/knowledge/LEARNED.md
 
 ## Rules
 - Do not define workflow here.

@@ -25,6 +25,9 @@ Skills are session-scoped, multi-step prompts that compose workflow actions into
 | 16 | aai-dashboard | Build metrics dashboard artifacts from telemetry | `/aai-dashboard` | `--prompt-file .aai/SKILL_DASHBOARD.prompt.md` |
 | 17 | aai-code-review | Run AI-assisted code review on PRs/changes | `/aai-code-review` | `--prompt-file .aai/SKILL_CODE_REVIEW.prompt.md` |
 | 18 | aai-profile | Profile workflows for token/time optimization | `/aai-profile` | `--prompt-file .aai/SKILL_PROFILE.prompt.md` |
+| 19 | aai-doctor | Environment health check (files, skills, git, knowledge) | `/aai-doctor` | `--prompt-file .aai/SKILL_DOCTOR.prompt.md` |
+| 20 | aai-replay | Surface relevant past learnings for current context | `/aai-replay` | `--prompt-file .aai/SKILL_REPLAY.prompt.md` |
+| 21 | aai-wrap-up | Session wrap-up with learnings capture and next steps | `/aai-wrap-up` | `--prompt-file .aai/SKILL_WRAP_UP.prompt.md` |
 
 ## Skills in Detail
 
@@ -217,6 +220,49 @@ codex --prompt-file .aai/SKILL_WORKTREE.prompt.md
 - `cleanup` — Remove completed worktree, archive STATE.yaml
 - `sync` — Rebase worktree on base branch
 
+### aai-doctor
+
+Performs a comprehensive environment health check of the entire AAI project: core files, role prompts, skills, knowledge files, STATE.yaml, telemetry, git status, and pre-compact hook configuration. Broader than `/aai-check-state` which only validates STATE.yaml invariants.
+
+```bash
+# Claude
+/aai-doctor
+
+# Codex
+codex --prompt-file .aai/SKILL_DOCTOR.prompt.md
+```
+
+Inspired by [pro-workflow](https://github.com/rohitg00/pro-workflow) `/doctor` command.
+
+### aai-replay
+
+Surfaces relevant past learnings for the current work context. Reads STATE.yaml to determine focus, then searches `docs/knowledge/LEARNED.md`, `docs/knowledge/PATTERNS.md`, `docs/knowledge/FACTS.md`, and `docs/ai/decisions.jsonl` for keyword matches. Shows only relevant results.
+
+```bash
+# Claude
+/aai-replay                    # Auto-detect context from STATE.yaml
+/aai-replay authentication     # Search for specific topic
+
+# Codex
+codex --prompt-file .aai/SKILL_REPLAY.prompt.md
+```
+
+Inspired by [pro-workflow](https://github.com/rohitg00/pro-workflow) `/replay` command.
+
+### aai-wrap-up
+
+Session wrap-up ritual that captures learnings, summarizes accomplishments, proposes new rules for `docs/knowledge/LEARNED.md`, checks for uncommitted work, and prepares context for the next session. Can be auto-triggered when the user says "bye", "done", "hotovo", etc.
+
+```bash
+# Claude
+/aai-wrap-up
+
+# Codex
+codex --prompt-file .aai/SKILL_WRAP_UP.prompt.md
+```
+
+Inspired by [pro-workflow](https://github.com/rohitg00/pro-workflow) `/wrap-up` command.
+
 ## Agent-Specific Invocation
 
 | Agent | How to invoke skills |
@@ -238,10 +284,12 @@ Dynamic skill indexes are written to:
 ## Typical Workflow
 
 ```
+/aai-replay          # Surface relevant past learnings
 /aai-intake          # Start new work
-/aai-loop            # Run autonomous cycles
+/aai-loop            # Run autonomous cycles (supports checkpoint_mode=staged)
 /aai-hitl            # Resolve human decision (if loop pauses)
 /aai-validate-report # Generate evidence report
 /aai-flush           # Flush metrics & clean state (if loop didn't)
 /aai-share report.md # Share report publicly
+/aai-wrap-up         # Capture session learnings
 ```

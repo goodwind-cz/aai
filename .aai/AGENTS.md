@@ -17,6 +17,7 @@ This repository uses a reusable AAI.
 - Metrics ledger: docs/ai/METRICS.jsonl
 - Model pricing: .aai/system/PRICING.yaml
 - Loop tick log: docs/ai/LOOP_TICKS.jsonl
+- Learned rules: docs/knowledge/LEARNED.md
 - Decision log: docs/ai/decisions.jsonl
 
 To update the AAI layer from a template worktree, see .aai/scripts/aai-sync.(sh|ps1) and .aai/system/AAI_PIN.md.
@@ -75,6 +76,9 @@ Follow .aai/SKILL_TDD.prompt.md          # Enforced RED-GREEN-REFACTOR test-driv
 Follow .aai/SKILL_WORKTREE.prompt.md     # Git worktree management for parallel development (Superpowers pattern)
 Follow .aai/SKILL_SHARE.prompt.md        # Publish reports to Cloudflare Pages with shareable URL
 Follow .aai/SKILL_FLUSH.prompt.md        # Manual metrics flush & state cleanup (when loop doesn't complete it)
+Follow .aai/SKILL_DOCTOR.prompt.md       # Environment health check — validates files, skills, knowledge, git (pro-workflow)
+Follow .aai/SKILL_REPLAY.prompt.md       # Contextual learning replay — surfaces relevant past learnings (pro-workflow)
+Follow .aai/SKILL_WRAP_UP.prompt.md      # Session wrap-up — capture learnings, propose rules, prepare next session (pro-workflow)
 ```
 
 #### Project-Specific Skills (Auto-Generated)
@@ -107,6 +111,10 @@ Skill selection guide:
 - Use SKILL_CANONICALIZE when migrating legacy AAI structure or cleaning up scattered artifacts.
 - **NEW:** Use SKILL_TDD for test-driven development with mandatory RED-GREEN-REFACTOR cycles.
 - **NEW:** Use SKILL_WORKTREE for parallel development using git worktrees (isolates features/tasks).
+- **NEW:** Use SKILL_DOCTOR to diagnose the full AAI environment (broader than CHECK_STATE).
+- **NEW:** Use SKILL_REPLAY to surface relevant past learnings before starting work.
+- **NEW:** Use SKILL_WRAP_UP at the end of a session to capture learnings and prepare next session.
+- **NEW:** SKILL_LOOP now supports checkpoint_mode (none/staged/paranoid) for phase-gated approval.
 
 ### Skill Invocation (Claude vs Codex)
 
@@ -132,6 +140,54 @@ AAI can dynamically fetch domain-expert prompts from [VoltAgent/awesome-claude-c
 - Experts are used in: Implementation (step 3b), TDD GREEN (phase 2.0), TDD REFACTOR (phase 3.0)
 - Experts NEVER participate in: RED phase, Validation, Planning, Orchestration
 - Security: pinned SHA, size limit, tool whitelist, injection pattern detection, scope isolation
+
+## Communication Style (pro-workflow)
+
+When running skills or loop ticks, use minimal, action-focused updates:
+
+1. **Use symbols** instead of prose:
+   - ✓ completed action
+   - ⚙ in progress
+   - ⚠ warning
+   - ✗ error / blocked
+   - ⏸ paused / waiting for input
+
+2. **One-line status** per major action:
+   ```
+   ⚙ RED phase: writing failing test for password validation
+   ✓ Test fails as expected → evidence captured
+   ⚙ GREEN phase: minimal implementation
+   ✓ All tests pass
+   ```
+
+3. **No preambles** like "I will now...", "Let me check...", "I can see that..."
+   Just state what is happening or what completed.
+
+4. **Exception: checkpoints and decisions** — these should be detailed and clear.
+
+5. **Exception: errors and blockers** — explain enough for the user to act.
+
+Source: Inspired by pro-workflow communication style (https://github.com/rohitg00/pro-workflow)
+
+## Quality Gates (pre-commit)
+
+Before committing, run quality gate checks (`.aai/scripts/pre-commit-checks.sh` or `.ps1`):
+- Secrets detection in staged files (BLOCKS commit)
+- Debug statement scan (warning)
+- TODO/FIXME markers (warning)
+- TDD evidence completeness (warning)
+- Validation report existence (warning)
+
+Skills that commit (/aai-tdd, /aai-loop, /aai-validate-report) should run these checks automatically.
+Use `--strict` flag to treat warnings as errors.
+
+## Learned Rules
+
+Project-specific learned rules are stored in `docs/knowledge/LEARNED.md`.
+This file is loaded into context for every session.
+When a user corrects a mistake, propose adding a rule:
+- "Should I remember: '<rule text>'?"
+- If approved, append to the appropriate section with date and source.
 
 ## Rules
 - Do not claim PASS without executable evidence.
