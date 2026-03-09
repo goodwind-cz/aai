@@ -23,6 +23,67 @@ function Copy-Replace {
   Copy-Item $Src $Dst -Recurse -Force
 }
 
+function Test-FileContentDifferent {
+  param(
+    [Parameter(Mandatory=$true)][string]$Src,
+    [Parameter(Mandatory=$true)][string]$Dst
+  )
+  if (!(Test-Path $Src) -or !(Test-Path $Dst)) { return $true }
+  $srcItem = Get-Item $Src -Force
+  $dstItem = Get-Item $Dst -Force
+  if ($srcItem.PSIsContainer -or $dstItem.PSIsContainer) { return $true }
+  try {
+    $srcHash = (Get-FileHash -Algorithm SHA256 -Path $Src).Hash
+    $dstHash = (Get-FileHash -Algorithm SHA256 -Path $Dst).Hash
+    return $srcHash -ne $dstHash
+  } catch {
+    return $true
+  }
+}
+
+function Test-DirectoryContentDifferent {
+  param(
+    [Parameter(Mandatory=$true)][string]$Src,
+    [Parameter(Mandatory=$true)][string]$Dst
+  )
+  if (!(Test-Path $Src) -or !(Test-Path $Dst)) { return $true }
+  $srcFiles = Get-ChildItem -Path $Src -Recurse -File -Force -ErrorAction SilentlyContinue
+  $dstFiles = Get-ChildItem -Path $Dst -Recurse -File -Force -ErrorAction SilentlyContinue
+
+  $srcRel = @{}
+  foreach ($f in $srcFiles) {
+    $rel = $f.FullName.Substring($Src.Length).TrimStart('\','/')
+    $srcRel[$rel] = $f.FullName
+  }
+  $dstRel = @{}
+  foreach ($f in $dstFiles) {
+    $rel = $f.FullName.Substring($Dst.Length).TrimStart('\','/')
+    $dstRel[$rel] = $f.FullName
+  }
+
+  if ($srcRel.Count -ne $dstRel.Count) { return $true }
+  foreach ($rel in $srcRel.Keys) {
+    if (!$dstRel.ContainsKey($rel)) { return $true }
+    if (Test-FileContentDifferent -Src $srcRel[$rel] -Dst $dstRel[$rel]) { return $true }
+  }
+  return $false
+}
+
+function Get-CopilotProjectOverridesContent {
+  param(
+    [Parameter(Mandatory=$true)][string]$Content
+  )
+  $startMarker = "<!-- AAI-PROJECT-OVERRIDES:START -->"
+  $endMarker = "<!-- AAI-PROJECT-OVERRIDES:END -->"
+  $startIndex = $Content.IndexOf($startMarker)
+  $endIndex = $Content.IndexOf($endMarker)
+  if (($startIndex -ge 0) -and ($endIndex -gt $startIndex)) {
+    $startPos = $startIndex + $startMarker.Length
+    return $Content.Substring($startPos, $endIndex - $startPos).Trim()
+  }
+  return $Content.Trim()
+}
+
 # Resolve source = this repository's root (grandparent of the .aai/scripts/ folder)
 $SrcRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
@@ -43,6 +104,8 @@ Write-Host "Target project:     $TargetRoot"
 foreach ($d in @(".aai/workflow",".aai/roles",".aai/templates",".aai/scripts",".aai/system",".aai/knowledge",".claude/skills",".codex/skills",".codex/skills.local",".gemini/skills",".gemini/skills.local",".github","docs/knowledge","docs/ai")) {
   New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot $d) | Out-Null
 }
+
+$overwriteConflicts = @()
 
 # -- Legacy cleanup: remove old-layout paths that moved into .aai/ -----------
 $legacyCleaned = $false
@@ -168,6 +231,23 @@ if (Test-Path $claudeSkills) {
   New-Item -ItemType Directory -Force -Path $targetClaudeSkills | Out-Null
   Get-ChildItem -Path $claudeSkills -Force | ForEach-Object {
     $dstEntry = Join-Path $targetClaudeSkills $_.Name
+    $srcSkillMd = Join-Path $_.FullName "SKILL.md"
+    $dstSkillMd = Join-Path $dstEntry "SKILL.md"
+    if (Test-Path $dstEntry) {
+      if ((Test-Path $srcSkillMd) -and (Test-Path $dstSkillMd)) {
+        if (Test-FileContentDifferent -Src $srcSkillMd -Dst $dstSkillMd) {
+          $overwriteConflicts += [pscustomobject]@{
+            Path = ".claude/skills/$($_.Name)/SKILL.md"
+            Recommendation = "Template skill differs in target. Use AI agent to merge intentional project guidance into a project-owned skill (for example .claude/skills/aai-project-<topic>/SKILL.md) and keep synced template skills unchanged."
+          }
+        }
+      } elseif (Test-DirectoryContentDifferent -Src $_.FullName -Dst $dstEntry) {
+        $overwriteConflicts += [pscustomobject]@{
+          Path = ".claude/skills/$($_.Name)"
+          Recommendation = "Directory differs in target. Use AI agent to extract project-specific content into project-owned skills and keep sync-managed entries as template-only."
+        }
+      }
+    }
     Copy-Replace $_.FullName $dstEntry
   }
   Write-Host "  PRESERVE target-only skills under: $targetClaudeSkills"
@@ -205,25 +285,76 @@ if (Test-Path (Join-Path $TargetRoot "docs/ai")) {
 # README.md is synced as README_AAI.md to avoid overwriting the target project's own README.
 foreach ($f in @("CLAUDE.md","CODEX.md","GEMINI.md","SKILLS.md")) {
   $srcFile = Join-Path $SrcRoot $f
+  $dstFile = Join-Path $TargetRoot $f
+  if ((Test-Path $srcFile) -and (Test-Path $dstFile) -and (Test-FileContentDifferent -Src $srcFile -Dst $dstFile)) {
+    $overwriteConflicts += [pscustomobject]@{
+      Path = $f
+      Recommendation = "Target file contains local changes. Use AI agent to merge project-specific instructions into docs/ai/project-overrides/$f and keep synced shim concise."
+    }
+  }
   if (Test-Path $srcFile) {
-    Copy-Replace $srcFile (Join-Path $TargetRoot $f)
+    Copy-Replace $srcFile $dstFile
   }
 }
 $srcReadme = Join-Path $SrcRoot "README.md"
+$dstReadmeAai = Join-Path $TargetRoot "README_AAI.md"
+if ((Test-Path $srcReadme) -and (Test-Path $dstReadmeAai) -and (Test-FileContentDifferent -Src $srcReadme -Dst $dstReadmeAai)) {
+  $overwriteConflicts += [pscustomobject]@{
+    Path = "README_AAI.md"
+    Recommendation = "Target README_AAI.md differs from source README.md. Use AI agent to move project notes into README.md or docs/, and keep README_AAI.md sync-managed."
+  }
+}
 if (Test-Path $srcReadme) {
-  Copy-Replace $srcReadme (Join-Path $TargetRoot "README_AAI.md")
+  Copy-Replace $srcReadme $dstReadmeAai
 }
 
 # Copilot shim
 $copilot = Join-Path $SrcRoot ".github/copilot-instructions.md"
+$dstCopilot = Join-Path $TargetRoot ".github/copilot-instructions.md"
 if (Test-Path $copilot) {
-  Copy-Replace $copilot (Join-Path $TargetRoot ".github/copilot-instructions.md")
+  $overrideDir = Join-Path $TargetRoot "docs/ai/project-overrides"
+  $overrideFile = Join-Path $overrideDir "copilot-instructions.project.md"
+  if ((Test-Path $dstCopilot) -and (Test-FileContentDifferent -Src $copilot -Dst $dstCopilot)) {
+    New-Item -ItemType Directory -Force -Path $overrideDir | Out-Null
+    $dstContent = Get-Content $dstCopilot -Raw -ErrorAction SilentlyContinue
+    $projectOverrides = Get-CopilotProjectOverridesContent -Content $dstContent
+    if ([string]::IsNullOrWhiteSpace($projectOverrides) -and (Test-Path $overrideFile)) {
+      $projectOverrides = (Get-Content $overrideFile -Raw -ErrorAction SilentlyContinue).Trim()
+    }
+    if (![string]::IsNullOrWhiteSpace($projectOverrides)) {
+      Set-Content -Path $overrideFile -Value $projectOverrides -Encoding utf8
+    }
+
+    $baseContent = Get-Content $copilot -Raw -ErrorAction SilentlyContinue
+    $merged = @(
+      $baseContent.TrimEnd()
+      ""
+      "---"
+      "## Project Overrides (auto-merged)"
+      ""
+      "<!-- AAI-PROJECT-OVERRIDES:START -->"
+      $projectOverrides
+      "<!-- AAI-PROJECT-OVERRIDES:END -->"
+      ""
+    ) -join "`n"
+    Set-Content -Path $dstCopilot -Value $merged -Encoding utf8
+    Write-Host "  MERGE preserved project overrides in: $overrideFile"
+  } else {
+    Copy-Replace $copilot $dstCopilot
+  }
 }
 
 # Codex skill index
 $codexSkills = Join-Path $SrcRoot ".codex/skills"
+$dstCodexSkills = Join-Path $TargetRoot ".codex/skills"
+if ((Test-Path $codexSkills) -and (Test-Path $dstCodexSkills) -and (Test-DirectoryContentDifferent -Src $codexSkills -Dst $dstCodexSkills)) {
+  $overwriteConflicts += [pscustomobject]@{
+    Path = ".codex/skills/"
+    Recommendation = "Target Codex skills differ from sync source. Use AI agent to migrate project-specific content into project-owned docs and keep sync-managed indexes untouched."
+  }
+}
 if (Test-Path $codexSkills) {
-  Copy-Replace $codexSkills (Join-Path $TargetRoot ".codex/skills")
+  Copy-Replace $codexSkills $dstCodexSkills
 }
 if (Test-Path (Join-Path $TargetRoot ".codex/skills.local")) {
   Write-Host "  PRESERVE local Codex dynamic index: $(Join-Path $TargetRoot ".codex/skills.local")"
@@ -231,8 +362,15 @@ if (Test-Path (Join-Path $TargetRoot ".codex/skills.local")) {
 
 # Gemini skill index
 $geminiSkills = Join-Path $SrcRoot ".gemini/skills"
+$dstGeminiSkills = Join-Path $TargetRoot ".gemini/skills"
+if ((Test-Path $geminiSkills) -and (Test-Path $dstGeminiSkills) -and (Test-DirectoryContentDifferent -Src $geminiSkills -Dst $dstGeminiSkills)) {
+  $overwriteConflicts += [pscustomobject]@{
+    Path = ".gemini/skills/"
+    Recommendation = "Target Gemini skills differ from sync source. Use AI agent to migrate project-specific content into project-owned docs and keep sync-managed indexes untouched."
+  }
+}
 if (Test-Path $geminiSkills) {
-  Copy-Replace $geminiSkills (Join-Path $TargetRoot ".gemini/skills")
+  Copy-Replace $geminiSkills $dstGeminiSkills
 }
 if (Test-Path (Join-Path $TargetRoot ".gemini/skills.local")) {
   Write-Host "  PRESERVE local Gemini dynamic index: $(Join-Path $TargetRoot ".gemini/skills.local")"
@@ -280,9 +418,65 @@ if ($giContent -notmatch [regex]::Escape('docs/ai/reports/validation-')) {
     "docs/ai/reports/LATEST.md"
     "docs/ai/reports/screenshots/"
     "docs/ai/reports/MIGRATION_REPORT_*.md"
+    "docs/ai/reports/sync-conflicts-*.md"
   ) -join "`n"
   Add-Content -Path $gitignorePath -Value $reportBlock
   Write-Host "  Added validation report patterns to $gitignorePath"
+}
+
+# Ensure synced agent skill indexes are gitignored (sync-managed artifacts)
+$giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
+$agentSkillEntries = @(
+  ".claude/skills/"
+  ".codex/skills/"
+  ".codex/skills.local/"
+  ".gemini/skills/"
+  ".gemini/skills.local/"
+)
+$missingAgentSkillEntries = @()
+foreach ($entry in $agentSkillEntries) {
+  if ($giContent -notmatch ("(?m)^" + [regex]::Escape($entry) + "$")) {
+    $missingAgentSkillEntries += $entry
+  }
+}
+if ($missingAgentSkillEntries.Count -gt 0) {
+  $agentSkillBlock = @(
+    ""
+    "# AAI agent skill sync artifacts (managed by sync)"
+  ) + $missingAgentSkillEntries
+  Add-Content -Path $gitignorePath -Value ($agentSkillBlock -join "`n")
+  Write-Host "  Added agent skill sync patterns to $gitignorePath"
+}
+
+# Create conflict advisory report for files that were overwritten with differences.
+if ($overwriteConflicts.Count -gt 0) {
+  $reportDir = Join-Path $TargetRoot "docs/ai/reports"
+  New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
+  $reportName = "sync-conflicts-$((Get-Date).ToString('yyyyMMdd-HHmmss')).md"
+  $reportPath = Join-Path $reportDir $reportName
+  $reportLines = @(
+    "# Sync Conflict Advisory"
+    ""
+    "- Generated at (UTC): $((Get-Date).ToUniversalTime().ToString('o'))"
+    "- Source: $SrcRoot"
+    ""
+    "The following target files/directories had local content that differed from sync source and were overwritten."
+    "Use an AI agent to decide merge strategy per item."
+    ""
+    "## Recommended AI workflow"
+    "1. Inspect each item with `git diff -- <path>` in the target project."
+    "2. Ask AI to extract project-specific guidance and place it into project-owned docs (for example `docs/ai/project-overrides/`)."
+    "3. Keep sync-managed files as baseline templates to reduce future conflicts."
+    ""
+    "## Overwritten items"
+  )
+  foreach ($conflict in $overwriteConflicts) {
+    $reportLines += ""
+    $reportLines += "- Path: $($conflict.Path)"
+    $reportLines += "- Recommendation: $($conflict.Recommendation)"
+  }
+  Set-Content -Path $reportPath -Value ($reportLines -join "`n") -Encoding utf8
+  Write-Host "  Advisory report: $reportPath"
 }
 
 # Pin info

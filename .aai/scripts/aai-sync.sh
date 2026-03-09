@@ -48,12 +48,62 @@ mkdir -p \
   "$DST_ROOT/docs/knowledge" \
   "$DST_ROOT/docs/ai"
 
+OVERWRITE_CONFLICTS=()
+
 copy_replace() {
   local src="$1"
   local dst="$2"
   # Git is the backup — no .bak files needed.
   rm -rf "$dst" 2>/dev/null || true
   cp -a "$src" "$dst"
+}
+
+file_content_different() {
+  local src="$1"
+  local dst="$2"
+  [[ -f "$src" && -f "$dst" ]] || return 0
+  local src_hash dst_hash
+  src_hash="$(sha256sum "$src" 2>/dev/null | awk '{print $1}')" || return 0
+  dst_hash="$(sha256sum "$dst" 2>/dev/null | awk '{print $1}')" || return 0
+  [[ "$src_hash" != "$dst_hash" ]]
+}
+
+directory_content_different() {
+  local src="$1"
+  local dst="$2"
+  [[ -d "$src" && -d "$dst" ]] || return 0
+  local src_manifest dst_manifest
+  src_manifest="$(mktemp)"
+  dst_manifest="$(mktemp)"
+  (
+    cd "$src"
+    find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum 2>/dev/null
+  ) > "$src_manifest" || true
+  (
+    cd "$dst"
+    find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum 2>/dev/null
+  ) > "$dst_manifest" || true
+  if ! cmp -s "$src_manifest" "$dst_manifest"; then
+    rm -f "$src_manifest" "$dst_manifest"
+    return 0
+  fi
+  rm -f "$src_manifest" "$dst_manifest"
+  return 1
+}
+
+extract_copilot_project_overrides() {
+  local file="$1"
+  local start='<!-- AAI-PROJECT-OVERRIDES:START -->'
+  local end='<!-- AAI-PROJECT-OVERRIDES:END -->'
+  if grep -qF "$start" "$file" 2>/dev/null && grep -qF "$end" "$file" 2>/dev/null; then
+    awk -v start="$start" -v end="$end" '
+      $0==start {in_block=1; next}
+      $0==end {in_block=0; exit}
+      in_block {print}
+    ' "$file"
+  else
+    cat "$file"
+  fi
 }
 
 # ── Legacy cleanup: remove old-layout paths that moved into .aai/ ──────────
@@ -180,6 +230,15 @@ if [[ -d "$SRC_ROOT/.claude/skills" ]]; then
     [[ -e "$src_entry" ]] || continue
     entry_name="$(basename "$src_entry")"
     dst_entry="$DST_ROOT/.claude/skills/$entry_name"
+    src_skill_md="$src_entry/SKILL.md"
+    dst_skill_md="$dst_entry/SKILL.md"
+    if [[ -e "$dst_entry" ]]; then
+      if [[ -f "$src_skill_md" && -f "$dst_skill_md" ]] && file_content_different "$src_skill_md" "$dst_skill_md"; then
+        OVERWRITE_CONFLICTS+=(".claude/skills/$entry_name/SKILL.md|Template skill differs in target. Use AI agent to merge intentional project guidance into a project-owned skill (for example .claude/skills/aai-project-<topic>/SKILL.md) and keep synced template skills unchanged.")
+      elif directory_content_different "$src_entry" "$dst_entry"; then
+        OVERWRITE_CONFLICTS+=(".claude/skills/$entry_name|Directory differs in target. Use AI agent to extract project-specific content into project-owned skills and keep sync-managed entries as template-only.")
+      fi
+    fi
     copy_replace "$src_entry" "$dst_entry"
   done
   echo "  PRESERVE target-only skills under: $DST_ROOT/.claude/skills"
@@ -211,10 +270,16 @@ fi
 # Root canonical shims (AGENTS.md and PLAYBOOK.md are now inside .aai/)
 # README.md is synced as README_AAI.md to avoid overwriting the target project's own README.
 for f in CLAUDE.md CODEX.md GEMINI.md SKILLS.md; do
+  if [[ -f "$SRC_ROOT/$f" && -f "$DST_ROOT/$f" ]] && file_content_different "$SRC_ROOT/$f" "$DST_ROOT/$f"; then
+    OVERWRITE_CONFLICTS+=("$f|Target file contains local changes. Use AI agent to merge project-specific instructions into docs/ai/project-overrides/$f and keep synced shim concise.")
+  fi
   if [[ -f "$SRC_ROOT/$f" ]]; then
     copy_replace "$SRC_ROOT/$f" "$DST_ROOT/$f"
   fi
 done
+if [[ -f "$SRC_ROOT/README.md" && -f "$DST_ROOT/README_AAI.md" ]] && file_content_different "$SRC_ROOT/README.md" "$DST_ROOT/README_AAI.md"; then
+  OVERWRITE_CONFLICTS+=("README_AAI.md|Target README_AAI.md differs from source README.md. Use AI agent to move project notes into README.md or docs/, and keep README_AAI.md sync-managed.")
+fi
 if [[ -f "$SRC_ROOT/README.md" ]]; then
   copy_replace "$SRC_ROOT/README.md" "$DST_ROOT/README_AAI.md"
 fi
@@ -222,10 +287,36 @@ fi
 # Copilot shim
 mkdir -p "$DST_ROOT/.github"
 if [[ -f "$SRC_ROOT/.github/copilot-instructions.md" ]]; then
-  copy_replace "$SRC_ROOT/.github/copilot-instructions.md" "$DST_ROOT/.github/copilot-instructions.md"
+  dst_copilot="$DST_ROOT/.github/copilot-instructions.md"
+  override_dir="$DST_ROOT/docs/ai/project-overrides"
+  override_file="$override_dir/copilot-instructions.project.md"
+  if [[ -f "$dst_copilot" ]] && file_content_different "$SRC_ROOT/.github/copilot-instructions.md" "$dst_copilot"; then
+    mkdir -p "$override_dir"
+    project_overrides="$(extract_copilot_project_overrides "$dst_copilot" 2>/dev/null || true)"
+    if [[ -z "$project_overrides" && -f "$override_file" ]]; then
+      project_overrides="$(cat "$override_file")"
+    fi
+    printf "%s\n" "$project_overrides" > "$override_file"
+    {
+      cat "$SRC_ROOT/.github/copilot-instructions.md"
+      echo
+      echo "---"
+      echo "## Project Overrides (auto-merged)"
+      echo
+      echo "<!-- AAI-PROJECT-OVERRIDES:START -->"
+      printf "%s\n" "$project_overrides"
+      echo "<!-- AAI-PROJECT-OVERRIDES:END -->"
+    } > "$dst_copilot"
+    echo "  MERGE preserved project overrides in: $override_file"
+  else
+    copy_replace "$SRC_ROOT/.github/copilot-instructions.md" "$dst_copilot"
+  fi
 fi
 
 # Codex skill index
+if [[ -d "$SRC_ROOT/.codex/skills" && -d "$DST_ROOT/.codex/skills" ]] && directory_content_different "$SRC_ROOT/.codex/skills" "$DST_ROOT/.codex/skills"; then
+  OVERWRITE_CONFLICTS+=(".codex/skills/|Target Codex skills differ from sync source. Use AI agent to migrate project-specific content into project-owned docs and keep sync-managed indexes untouched.")
+fi
 if [[ -d "$SRC_ROOT/.codex/skills" ]]; then
   copy_replace "$SRC_ROOT/.codex/skills" "$DST_ROOT/.codex/skills"
 fi
@@ -234,6 +325,9 @@ if [[ -d "$DST_ROOT/.codex/skills.local" ]]; then
 fi
 
 # Gemini skill index
+if [[ -d "$SRC_ROOT/.gemini/skills" && -d "$DST_ROOT/.gemini/skills" ]] && directory_content_different "$SRC_ROOT/.gemini/skills" "$DST_ROOT/.gemini/skills"; then
+  OVERWRITE_CONFLICTS+=(".gemini/skills/|Target Gemini skills differ from sync source. Use AI agent to migrate project-specific content into project-owned docs and keep sync-managed indexes untouched.")
+fi
 if [[ -d "$SRC_ROOT/.gemini/skills" ]]; then
   copy_replace "$SRC_ROOT/.gemini/skills" "$DST_ROOT/.gemini/skills"
 fi
@@ -271,6 +365,7 @@ REPORT_PATTERNS=(
   'docs/ai/reports/LATEST.md'
   'docs/ai/reports/screenshots/'
   'docs/ai/reports/MIGRATION_REPORT_*.md'
+  'docs/ai/reports/sync-conflicts-*.md'
 )
 REPORT_HEADER='# Ephemeral validation reports (reproducible via /aai-validate-report)'
 if ! grep -qF 'docs/ai/reports/validation-' "$DST_ROOT/.gitignore" 2>/dev/null; then
@@ -279,6 +374,58 @@ if ! grep -qF 'docs/ai/reports/validation-' "$DST_ROOT/.gitignore" 2>/dev/null; 
     echo "$pattern" >> "$DST_ROOT/.gitignore"
   done
   echo "  Added validation report patterns to $DST_ROOT/.gitignore"
+fi
+
+# Ensure synced agent skill indexes are gitignored (sync-managed artifacts)
+AGENT_SKILL_PATTERNS=(
+  '.claude/skills/'
+  '.codex/skills/'
+  '.codex/skills.local/'
+  '.gemini/skills/'
+  '.gemini/skills.local/'
+)
+missing_agent_skill_patterns=()
+for pattern in "${AGENT_SKILL_PATTERNS[@]}"; do
+  if ! grep -qxF "$pattern" "$DST_ROOT/.gitignore" 2>/dev/null; then
+    missing_agent_skill_patterns+=("$pattern")
+  fi
+done
+if [[ ${#missing_agent_skill_patterns[@]} -gt 0 ]]; then
+  echo -e "\n# AAI agent skill sync artifacts (managed by sync)" >> "$DST_ROOT/.gitignore"
+  for pattern in "${missing_agent_skill_patterns[@]}"; do
+    echo "$pattern" >> "$DST_ROOT/.gitignore"
+  done
+  echo "  Added agent skill sync patterns to $DST_ROOT/.gitignore"
+fi
+
+# Create conflict advisory report for files that were overwritten with differences.
+if [[ ${#OVERWRITE_CONFLICTS[@]} -gt 0 ]]; then
+  mkdir -p "$DST_ROOT/docs/ai/reports"
+  report_path="$DST_ROOT/docs/ai/reports/sync-conflicts-$(date -u +%Y%m%d-%H%M%S).md"
+  {
+    echo "# Sync Conflict Advisory"
+    echo
+    echo "- Generated at (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "- Source: $SRC_ROOT"
+    echo
+    echo "The following target files/directories had local content that differed from sync source and were overwritten."
+    echo "Use an AI agent to decide merge strategy per item."
+    echo
+    echo "## Recommended AI workflow"
+    echo "1. Inspect each item with \`git diff -- <path>\` in the target project."
+    echo "2. Ask AI to extract project-specific guidance and place it into project-owned docs (for example \`docs/ai/project-overrides/\`)."
+    echo "3. Keep sync-managed files as baseline templates to reduce future conflicts."
+    echo
+    echo "## Overwritten items"
+    for conflict in "${OVERWRITE_CONFLICTS[@]}"; do
+      path_part="${conflict%%|*}"
+      rec_part="${conflict#*|}"
+      echo
+      echo "- Path: $path_part"
+      echo "- Recommendation: $rec_part"
+    done
+  } > "$report_path"
+  echo "  Advisory report: $report_path"
 fi
 
 # Pin info

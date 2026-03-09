@@ -11,31 +11,34 @@ The script resolves its own source root automatically — no need to copy it to 
 ### Bash / Git-Bash
 ```bash
 # From this aai repo:
-./.aai/scripts/aai-sync.sh ../maty-ai
+./.aai/scripts/aai-sync.sh ../your-project
 
 # Then in the target project:
-cd ../maty-ai
+cd ../your-project
 git status
 git diff
-git add .aai docs CLAUDE.md CODEX.md GEMINI.md README.md SKILLS.md .claude/skills .codex/skills .gemini/skills .github/copilot-instructions.md
+git add .aai docs CLAUDE.md CODEX.md GEMINI.md README_AAI.md SKILLS.md .github/copilot-instructions.md .gitignore
 git commit -m "Update AAI layer"
 ```
 
 ### PowerShell
 ```powershell
 # From this aai repo:
-.\.aai\scripts\aai-sync.ps1 -TargetRoot ..\maty-ai
+.\.aai\scripts\aai-sync.ps1 -TargetRoot ..\your-project
 
 # Then in the target project:
-cd ..\maty-ai
+cd ..\your-project
 git status
 git diff
-git add .aai docs CLAUDE.md CODEX.md GEMINI.md README.md SKILLS.md .claude/skills .codex/skills .gemini/skills .github/copilot-instructions.md
+git add .aai docs CLAUDE.md CODEX.md GEMINI.md README_AAI.md SKILLS.md .github/copilot-instructions.md .gitignore
 git commit -m "Update AAI layer"
 ```
 
-- Sync scope includes `.aai/**`, `.claude/skills/**`, `.codex/skills/**`, `.gemini/skills/**`, `.github/copilot-instructions.md`, `docs/knowledge`, and root shims (`CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `README.md`, `SKILLS.md`).
+- Sync scope includes `.aai/**`, `.claude/skills/**`, `.codex/skills/**`, `.gemini/skills/**`, `.github/copilot-instructions.md`, `docs/knowledge`, and root shims (`CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `README_AAI.md`, `SKILLS.md`).
 - For `.claude/skills/**`, template entries are updated, while target-only local skills are preserved.
+- Target `.gitignore` is auto-updated to ignore `.claude/skills/`, `.codex/skills/`, `.codex/skills.local/`, `.gemini/skills/`, and `.gemini/skills.local/` (sync-managed artifacts).
+- `.github/copilot-instructions.md` is auto-merged: project-specific content is preserved in `docs/ai/project-overrides/copilot-instructions.project.md` and appended under a dedicated Project Overrides section.
+- If other local target content is overwritten, sync creates `docs/ai/reports/sync-conflicts-*.md` with AI-assisted merge recommendations.
 - Dynamic project skills should use unique `aai-*` names under `.claude/skills/` so they stay target-only and preserved on sync.
 - Runtime files in target `docs/ai` are preserved (not overwritten) if they already exist: `STATE.yaml`, `METRICS.jsonl`, `LOOP_TICKS.jsonl`, `decisions.jsonl`.
 - It intentionally does **not** overwrite project docs under `docs/requirements`, `docs/specs`, `docs/decisions`, `docs/releases`, or `docs/issues`.
