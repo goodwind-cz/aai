@@ -22,7 +22,12 @@ PROCESS
 2) Inventory all requirements and acceptance criteria.
 3) Verify mapping to implementation specs.
 4) Locate implementation paths.
-5) Execute verification commands.
+5) Discover and execute ALL available test suites:
+   a) Read docs/TECHNOLOGY.md to identify test tooling and commands.
+   b) Scan the repository for test configuration files (e.g. playwright.config.*, cypress.config.*, jest.config.*, pytest.ini, vitest.config.*, etc.).
+   c) For EACH discovered test type (unit, integration, e2e, contract, smoke), execute its test command.
+   d) If e2e tests exist (config file or test directory found) but were NOT executed → automatic FAIL.
+   e) Record exit code and output for every test command as evidence.
 6) Build coverage table.
 7) Produce PASS / FAIL verdict.
 8) Update docs/ai/STATE.yaml:
@@ -47,6 +52,8 @@ STRICT RULES
 - Do not infer intent.
 - Do not soften verdicts.
 - Do not claim PASS without reproducible evidence.
+- PASS requires that ALL discovered test suites (unit, integration, e2e) were executed and passed.
+- Skipping a test type because it "wasn't in requirements" is NOT allowed — if tests exist, they must run.
 - Read docs/TECHNOLOGY.md before making any tooling/framework assumptions.
 - Do NOT report the verdict to the user until all subagent result blocks are collected,
   merged per .aai/SUBAGENT_PROTOCOL.md, and STATE.yaml is updated.
