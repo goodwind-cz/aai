@@ -1,0 +1,28 @@
+{
+  "summary": {
+    "total": 0,
+    "totalTokens": 0,
+    "avgDuration": 0,
+    "successRate": "0.0",
+    "activeWorktrees": 0,
+    "publishes": 0,
+    "workItems": 0,
+    "period": "No data"
+  },
+  "tokensByTime": {},
+  "skillStats": [],
+  "tddStats": null,
+  "worktreeStats": null,
+  "publishStats": null,
+  "generatedAt": "2026-03-09T13:58:44.704Z",
+  "source": {
+    "entries": 0,
+    "operations": 0,
+    "schema": "work-item-ledger"
+  },
+  "filters": {
+    "from": null,
+    "to": null,
+    "skill": null
+  }
+}

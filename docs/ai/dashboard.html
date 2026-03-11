@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AAI Metrics Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f5;
+      --bg-card: #ffffff;
+      --text-primary: #333333;
+      --text-secondary: #666666;
+      --text-muted: #999999;
+      --border-color: #dddddd;
+      --accent-primary: #4CAF50;
+      --accent-secondary: #2196F3;
+      --accent-warning: #FF9800;
+      --accent-error: #f44336;
+      --shadow: rgba(0, 0, 0, 0.1);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #1a1a1a;
+        --bg-secondary: #2a2a2a;
+        --bg-card: #2a2a2a;
+        --text-primary: #e0e0e0;
+        --text-secondary: #b0b0b0;
+        --text-muted: #808080;
+        --border-color: #404040;
+        --accent-primary: #66BB6A;
+        --accent-secondary: #42A5F5;
+        --accent-warning: #FFA726;
+        --accent-error: #EF5350;
+        --shadow: rgba(0, 0, 0, 0.3);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: var(--bg-card);
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px var(--shadow);
+    }
+
+    header {
+      margin-bottom: 40px;
+      padding-bottom: 20px;
+      border-bottom: 3px solid var(--accent-primary);
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: var(--text-primary);
+    }
+
+    .subtitle {
+      font-size: 16px;
+      color: var(--text-secondary);
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      margin: 40px 0;
+    }
+
+    .summary-card {
+      background: var(--bg-secondary);
+      padding: 24px;
+      border-radius: 8px;
+      border-left: 4px solid var(--accent-primary);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .summary-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px var(--shadow);
+    }
+
+    .summary-card h3 {
+      margin: 0 0 12px 0;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .summary-card .value {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+
+    .summary-card .subvalue {
+      margin-top: 8px;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .chart-section {
+      margin: 60px 0;
+    }
+
+    .chart-section h2 {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 24px;
+      padding-left: 12px;
+      border-left: 4px solid var(--accent-secondary);
+    }
+
+    .chart-container {
+      position: relative;
+      height: 350px;
+      margin-bottom: 40px;
+      background: var(--bg-primary);
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px var(--shadow);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      background: var(--bg-primary);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px var(--shadow);
+    }
+
+    thead {
+      background: var(--bg-secondary);
+    }
+
+    th, td {
+      padding: 16px;
+      text-align: left;
+    }
+
+    th {
+      font-weight: 600;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    td {
+      font-size: 14px;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    tbody tr:hover {
+      background: var(--bg-secondary);
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .status-success {
+      color: var(--accent-primary);
+      font-weight: 600;
+    }
+
+    .status-warning {
+      color: var(--accent-warning);
+      font-weight: 600;
+    }
+
+    .status-error {
+      color: var(--accent-error);
+      font-weight: 600;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-success {
+      background: var(--accent-primary);
+      color: white;
+    }
+
+    .badge-warning {
+      background: var(--accent-warning);
+      color: white;
+    }
+
+    .badge-error {
+      background: var(--accent-error);
+      color: white;
+    }
+
+    .badge-info {
+      background: var(--accent-secondary);
+      color: white;
+    }
+
+    .footer {
+      margin-top: 60px;
+      padding-top: 30px;
+      border-top: 2px solid var(--border-color);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .footer a {
+      color: var(--accent-secondary);
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+      gap: 40px;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+
+      .chart-container {
+        height: 250px;
+      }
+
+      table {
+        font-size: 12px;
+      }
+
+      th, td {
+        padding: 10px;
+      }
+    }
+
+    .loading {
+      text-align: center;
+      padding: 60px;
+      color: var(--text-muted);
+    }
+
+    .spinner {
+      border: 4px solid var(--border-color);
+      border-top: 4px solid var(--accent-primary);
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>AAI Workflow Metrics Dashboard</h1>
+      <p class="subtitle">Period: <span id="period">Loading...</span></p>
+    </header>
+
+    <div class="summary" id="summary">
+      <div class="summary-card">
+        <h3>Total Operations</h3>
+        <div class="value" id="total-ops">-</div>
+        <div class="subvalue">All skills combined</div>
+      </div>
+      <div class="summary-card">
+        <h3>Total Tokens</h3>
+        <div class="value" id="total-tokens">-</div>
+        <div class="subvalue">Input + Output</div>
+      </div>
+      <div class="summary-card">
+        <h3>Avg Duration</h3>
+        <div class="value" id="avg-duration">-</div>
+        <div class="subvalue">Per operation</div>
+      </div>
+      <div class="summary-card">
+        <h3>Success Rate</h3>
+        <div class="value" id="success-rate">-</div>
+        <div class="subvalue">Successful operations</div>
+      </div>
+      <div class="summary-card">
+        <h3>Active Worktrees</h3>
+        <div class="value" id="worktrees">-</div>
+        <div class="subvalue">Unique worktrees</div>
+      </div>
+      <div class="summary-card">
+        <h3>Published Reports</h3>
+        <div class="value" id="publishes">-</div>
+        <div class="subvalue">Via /aai-share</div>
+      </div>
+    </div>
+
+    <div class="chart-section">
+      <h2>Token Usage Over Time</h2>
+      <div class="chart-container">
+        <canvas id="tokenChart"></canvas>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="chart-section">
+        <h2>TDD Cycle Duration</h2>
+        <div class="chart-container">
+          <canvas id="tddChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-section">
+        <h2>Worktree Distribution</h2>
+        <div class="chart-container">
+          <canvas id="worktreeChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-section">
+      <h2>Skill Usage Frequency</h2>
+      <div class="chart-container" style="height: 400px;">
+        <canvas id="skillChart"></canvas>
+      </div>
+      <table id="skillTable">
+        <thead>
+          <tr>
+            <th>Skill</th>
+            <th>Uses</th>
+            <th>Avg Tokens</th>
+            <th>Avg Duration</th>
+            <th>Success Rate</th>
+          </tr>
+        </thead>
+        <tbody id="skillTableBody">
+          <tr><td colspan="5" class="loading">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="chart-section">
+      <h2>Publishing Timeline</h2>
+      <div class="chart-container">
+        <canvas id="publishChart"></canvas>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>Generated by <strong>AAI Dashboard Skill</strong></p>
+      <p id="generated-at">-</p>
+    </div>
+  </div>
+
+  <script>
+    // Data placeholder - will be replaced during generation
+    const rawMetricsData = `{"summary":{"total":0,"totalTokens":0,"avgDuration":0,"successRate":"0.0","activeWorktrees":0,"publishes":0,"workItems":0,"period":"No data"},"tokensByTime":{},"skillStats":[],"tddStats":null,"worktreeStats":null,"publishStats":null,"generatedAt":"2026-03-09T13:58:44.704Z","source":{"entries":0,"operations":0,"schema":"work-item-ledger"},"filters":{"from":null,"to":null,"skill":null}}`;
+
+    function formatNumber(num) {
+      return num.toLocaleString();
+    }
+
+    function formatDuration(seconds) {
+      if (seconds < 1) return `${Math.round(seconds * 1000)}ms`;
+      if (seconds < 60) return `${seconds.toFixed(1)}s`;
+      const minutes = Math.floor(seconds / 60);
+      const secs = Math.round(seconds % 60);
+      return `${minutes}m ${secs}s`;
+    }
+
+    function renderDashboard(data) {
+      // Render summary
+      document.getElementById('total-ops').textContent = formatNumber(data.summary.total);
+      document.getElementById('total-tokens').textContent = formatNumber(data.summary.totalTokens);
+      document.getElementById('avg-duration').textContent = formatDuration(data.summary.avgDuration / 1000);
+      document.getElementById('success-rate').textContent = `${data.summary.successRate}%`;
+      document.getElementById('worktrees').textContent = formatNumber(data.summary.activeWorktrees);
+      document.getElementById('publishes').textContent = formatNumber(data.summary.publishes);
+      document.getElementById('period').textContent = data.summary.period || 'All time';
+      document.getElementById('generated-at').textContent = `Generated: ${new Date(data.generatedAt).toLocaleString()}`;
+
+      // Token usage over time chart
+      renderTokenChart(data.tokensByTime);
+
+      // TDD cycle chart
+      if (data.tddStats) {
+        renderTDDChart(data.tddStats);
+      }
+
+      // Worktree distribution
+      if (data.worktreeStats) {
+        renderWorktreeChart(data.worktreeStats);
+      }
+
+      // Skill usage chart and table
+      renderSkillChart(data.skillStats);
+      renderSkillTable(data.skillStats);
+
+      // Publishing timeline
+      if (data.publishStats) {
+        renderPublishChart(data.publishStats);
+      }
+    }
+
+    function renderTokenChart(tokensByTime) {
+      const ctx = document.getElementById('tokenChart').getContext('2d');
+      const labels = Object.keys(tokensByTime).sort();
+      const inputData = labels.map(date => tokensByTime[date].input);
+      const outputData = labels.map(date => tokensByTime[date].output);
+
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Input Tokens',
+              data: inputData,
+              borderColor: '#2196F3',
+              backgroundColor: 'rgba(33, 150, 243, 0.1)',
+              tension: 0.4,
+              fill: true
+            },
+            {
+              label: 'Output Tokens',
+              data: outputData,
+              borderColor: '#4CAF50',
+              backgroundColor: 'rgba(76, 175, 80, 0.1)',
+              tension: 0.4,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top'
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) {
+                  return formatNumber(value);
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderTDDChart(tddStats) {
+      const ctx = document.getElementById('tddChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Red Phase', 'Green Phase', 'Refactor Phase'],
+          datasets: [{
+            label: 'Average Duration (seconds)',
+            data: [tddStats.red, tddStats.green, tddStats.refactor],
+            backgroundColor: ['#EF5350', '#66BB6A', '#42A5F5']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) {
+                  return value + 's';
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderWorktreeChart(worktreeStats) {
+      const ctx = document.getElementById('worktreeChart').getContext('2d');
+      const labels = Object.keys(worktreeStats);
+      const data = Object.values(worktreeStats);
+
+      new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: [
+              '#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336',
+              '#00BCD4', '#CDDC39', '#FF5722', '#3F51B5', '#8BC34A'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'right'
+            }
+          }
+        }
+      });
+    }
+
+    function renderSkillChart(skillStats) {
+      const ctx = document.getElementById('skillChart').getContext('2d');
+      const labels = skillStats.map(s => s.name);
+      const data = skillStats.map(s => s.count);
+
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Number of Uses',
+            data: data,
+            backgroundColor: '#4CAF50'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: 'y',
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+
+    function renderSkillTable(skillStats) {
+      const tbody = document.getElementById('skillTableBody');
+      tbody.innerHTML = '';
+
+      skillStats.forEach(skill => {
+        const row = document.createElement('tr');
+        const statusClass = skill.successRate >= 95
+          ? 'status-success'
+          : skill.successRate >= 80
+            ? 'status-warning'
+            : 'status-error';
+
+        const nameCell = document.createElement('td');
+        nameCell.textContent = String(skill.name);
+        row.appendChild(nameCell);
+
+        const countCell = document.createElement('td');
+        countCell.textContent = formatNumber(skill.count);
+        row.appendChild(countCell);
+
+        const tokenCell = document.createElement('td');
+        tokenCell.textContent = formatNumber(skill.avgTokens);
+        row.appendChild(tokenCell);
+
+        const durationCell = document.createElement('td');
+        durationCell.textContent = `${skill.avgDuration}s`;
+        row.appendChild(durationCell);
+
+        const successCell = document.createElement('td');
+        successCell.className = statusClass;
+        successCell.textContent = `${skill.successRate}%`;
+        row.appendChild(successCell);
+
+        tbody.appendChild(row);
+      });
+    }
+
+    function renderPublishChart(publishStats) {
+      const ctx = document.getElementById('publishChart').getContext('2d');
+      const labels = Object.keys(publishStats).sort();
+      const data = labels.map(date => publishStats[date]);
+
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Publications',
+            data: data,
+            borderColor: '#9C27B0',
+            backgroundColor: 'rgba(156, 39, 176, 0.1)',
+            tension: 0.4,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                stepSize: 1
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Initialize dashboard
+    let parsedMetricsData = null;
+    if (rawMetricsData !== '{{METRICS_DATA}}') {
+      try {
+        parsedMetricsData = JSON.parse(rawMetricsData);
+      } catch (error) {
+        console.error('Invalid metrics data JSON', error);
+      }
+    }
+
+    if (parsedMetricsData) {
+      renderDashboard(parsedMetricsData);
+    } else {
+      console.error('Dashboard data not available');
+      document.querySelector('.container').innerHTML = '<div class="loading"><div class="spinner"></div><p>Failed to load metrics data</p></div>';
+    }
+  </script>
+</body>
+</html>
