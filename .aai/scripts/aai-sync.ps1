@@ -134,12 +134,14 @@ New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot ".aai") | Out-N
 # Top-level files and non-scripts directories: overwrite from source
 # Skip scripts/ (merged separately) and cache/ (runtime artifact, not synced)
 Get-ChildItem -Path (Join-Path $SrcRoot ".aai") -Force | Where-Object { $_.Name -notin @("scripts","cache") } | ForEach-Object {
-  Copy-Replace $_.FullName (Join-Path $TargetRoot ".aai" $_.Name)
+  $targetAaiPath = Join-Path $TargetRoot ".aai"
+  Copy-Replace $_.FullName (Join-Path $targetAaiPath $_.Name)
 }
 
 # Clean stale top-level items in target .aai/ that no longer exist in source (except scripts/, cache/)
 Get-ChildItem -Path (Join-Path $TargetRoot ".aai") -Force | Where-Object { $_.Name -notin @("scripts","cache") } | ForEach-Object {
-  if (!(Test-Path (Join-Path $SrcRoot ".aai" $_.Name))) {
+  $srcAaiPath = Join-Path $SrcRoot ".aai"
+  if (!(Test-Path (Join-Path $srcAaiPath $_.Name))) {
     Remove-Item $_.FullName -Recurse -Force
     Write-Host "  CLEAN removed stale: .aai/$($_.Name)"
   }
@@ -178,7 +180,8 @@ if (Test-Path $know) {
   New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot "docs/knowledge") | Out-Null
   Get-ChildItem -Path $know -File | ForEach-Object {
     $srcFile = $_.FullName
-    $dstFile = Join-Path $TargetRoot "docs/knowledge" $_.Name
+    $dstKnowledge = Join-Path $TargetRoot "docs/knowledge"
+    $dstFile = Join-Path $dstKnowledge $_.Name
     $isTemplate = $true
     if (Test-Path $dstFile) {
       $content = Get-Content $dstFile -Raw -ErrorAction SilentlyContinue
