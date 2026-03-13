@@ -67,6 +67,7 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 | `/aai-validate-report` | End of work | Validation with screenshots |
 | `/aai-share` | Share results | Publish to Cloudflare Pages |
 | `/aai-loop` | Autonomous work | Multi-tick autonomous loop |
+| `/aai-update` | Refresh AAI | Re-sync vendored AAI layer from canonical git `main` |
 
 ### Session Management
 
@@ -122,6 +123,27 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 - 90% token reduction for testing/building
 - MCP server integration
 - Project-specific shortcuts
+
+#### `/aai-update`
+**What:** Re-syncs the current project's vendored AAI layer from the `main` branch of its canonical git repository.
+
+**When to use:**
+- After upstream AAI changes
+- When a project needs the latest prompts/scripts/shims
+- Before re-running bootstrap or skill health checks
+
+**Example:**
+```bash
+/aai-update
+
+# Or preview only:
+/aai-update --dry-run
+```
+
+**Follow-up:**
+- `/aai-bootstrap` if you want refreshed project-local dynamic skills
+- `/aai-doctor` to verify the environment
+- `/aai-test-skills` to verify skill health
 
 ---
 

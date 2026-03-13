@@ -156,6 +156,7 @@ cat .aai/REMEDIATION.prompt.md
 - **`/aai-worktree`** - Git worktree management (parallel development)
 - **`/aai-code-review`** - AI code review (security, performance, style)
 - **`/aai-bootstrap`** - Architecture detection & skill generation
+- **`/aai-update`** - Re-sync vendored AAI layer from canonical git `main`
 
 ### Analytics & Metrics
 - **`/aai-dashboard`** - Interactive metrics visualization
@@ -197,6 +198,7 @@ Use them instead of manually chaining individual role prompts.
 | Autonomous loop | `/aai-loop` | Run Planning-Implementation-Validation cycles |
 | Human-in-the-loop | `/aai-hitl` | Resolve human pauses and record decisions |
 | Bootstrap | `/aai-bootstrap` | Detect architecture, generate dynamic skills |
+| Update | `/aai-update` | Re-sync AAI layer from canonical git `main` |
 | Validation report | `/aai-validate-report` | Generate report with screenshots and evidence |
 | Canonicalize | `/aai-canonicalize` | Migrate legacy paths into canonical layout |
 | Share | `/aai-share <file>` | Publish Markdown to Cloudflare Pages |
