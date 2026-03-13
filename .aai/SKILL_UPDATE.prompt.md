@@ -8,7 +8,7 @@ Refresh the current project's vendored AAI layer from the `main` branch of the c
 ```bash
 /aai-update
 /aai-update --dry-run
-/aai-update --repo https://github.com/goodwind-cz/aai
+/aai-update --repo goodwind-cz/aai
 ```
 
 ## Instructions
@@ -16,8 +16,9 @@ Refresh the current project's vendored AAI layer from the `main` branch of the c
 ### 1. Resolve target and upstream source
 
 - Treat the current working directory as the target project to update.
-- Default upstream repository to `https://github.com/goodwind-cz/aai` and default ref to `main`.
-- If the user supplied `--repo`, use that git repository URL instead.
+- Default upstream repository to `goodwind-cz/aai` and default ref to `main`.
+- If the user supplied `--repo`, use that repository slug, SSH remote, or HTTPS remote instead.
+- Treat the upstream as potentially private. Prefer authenticated access.
 - Do not use `.aai/system/AAI_PIN.md` as the sync source. It is only post-sync evidence.
 - If the current project is itself the canonical AAI repository checkout, stop and explain that `/aai-update` is for syncing AAI into a target project; updating the canonical AAI repository itself should be done with normal git workflow.
 
@@ -30,7 +31,13 @@ Refresh the current project's vendored AAI layer from the `main` branch of the c
 ### 3. Materialize the latest `main`
 
 - Create a temporary working directory for the update source.
-- Fetch the canonical repository at the selected ref:
+- If GitHub CLI is available and authenticated, prefer it for private repositories:
+
+```bash
+gh repo clone <REPO_SLUG> <TEMP_AAI_DIR> -- --branch main --depth 1
+```
+
+- Otherwise fetch the canonical repository with an authenticated git remote:
 
 ```bash
 git clone --branch main --depth 1 <REPO_URL> <TEMP_AAI_DIR>
@@ -82,7 +89,7 @@ git -C <LOCAL_AAI_CHECKOUT> pull --ff-only origin main
 
 - Report:
   - target project path
-  - upstream git repository URL
+  - upstream git repository slug or remote
   - upstream ref
   - whether this was a real sync or dry-run
   - key changed files/directories from `git status --short`
@@ -95,3 +102,4 @@ git -C <LOCAL_AAI_CHECKOUT> pull --ff-only origin main
 - Do not claim success without showing the sync command result and post-sync evidence.
 - Do not auto-commit; stop after reporting the diff and next steps.
 - Clean up temporary clone directories after the update unless the user asks to keep them.
+- If upstream access fails, report it as an authentication/authorization issue instead of implying the repository is missing.

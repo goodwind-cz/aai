@@ -125,7 +125,7 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 - Project-specific shortcuts
 
 #### `/aai-update`
-**What:** Re-syncs the current project's vendored AAI layer from the `main` branch of its canonical git repository.
+**What:** Re-syncs the current project's vendored AAI layer from the `main` branch of its canonical git repository, including private repositories with authenticated access.
 
 **When to use:**
 - After upstream AAI changes
@@ -144,6 +144,9 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 - `/aai-bootstrap` if you want refreshed project-local dynamic skills
 - `/aai-doctor` to verify the environment
 - `/aai-test-skills` to verify skill health
+
+**Note:**
+- For private upstream repos, prefer authenticated `gh repo clone` or an authenticated git remote/SSH URL
 
 ---
 

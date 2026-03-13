@@ -99,7 +99,7 @@ codex --prompt-file .aai/SKILL_BOOTSTRAP.prompt.md
 
 ### aai-update
 
-Re-syncs the current project's vendored AAI layer from the `main` branch of the canonical git repository. Uses a fresh upstream checkout for the sync, reports any sync conflict advisory, and recommends post-update checks such as `/aai-bootstrap`, `/aai-doctor`, and `/aai-test-skills`.
+Re-syncs the current project's vendored AAI layer from the `main` branch of the canonical git repository. Supports private upstream repositories by preferring authenticated checkout, reports any sync conflict advisory, and recommends post-update checks such as `/aai-bootstrap`, `/aai-doctor`, and `/aai-test-skills`.
 
 ```bash
 # Claude
