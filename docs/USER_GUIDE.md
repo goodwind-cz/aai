@@ -19,8 +19,8 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 
 1. **Sync AAI into your project:**
    ```bash
-   cd /path/to/aai-os
-   ./scripts/ai-os-sync.sh /path/to/your-project
+   cd /path/to/aai
+   ./.aai/scripts/aai-sync.sh /path/to/your-project
    ```
 
 2. **Bootstrap your project (one-time):**
@@ -34,6 +34,55 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
    ```bash
    /aai-test-skills
    ```
+
+4. **Optional: register the session-start hook**
+   This injects the AAI meta-skill automatically when a new agent session starts.
+
+   Bash / Git-Bash:
+   ```json
+   {
+     "hooks": {
+       "SessionStart": [
+         {
+           "matcher": "startup|resume|clear|compact",
+           "hooks": [
+             {
+               "type": "command",
+               "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"",
+               "async": false
+             }
+           ]
+         }
+       ]
+     }
+   }
+   ```
+
+   PowerShell:
+   ```json
+   {
+     "hooks": {
+       "SessionStart": [
+         {
+           "matcher": "startup|resume|clear|compact",
+           "hooks": [
+             {
+               "type": "command",
+               "command": "powershell -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.ps1\"",
+               "async": false
+             }
+           ]
+         }
+       ]
+     }
+   }
+   ```
+
+   Synced files:
+   - `hooks/session-start.sh`
+   - `hooks/session-start.ps1`
+   - `hooks/hooks.json`
+   - `hooks/hooks.windows.json`
 
 ### Your First Workflow
 
@@ -320,7 +369,7 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 
 # Output:
 ✅ Published!
-🔗 URL: https://ai-os-reports-abc123.pages.dev
+🔗 URL: https://aai-reports-abc123.pages.dev
 ```
 
 **Supports:**
@@ -352,7 +401,7 @@ wrangler login
 /aai-dashboard --publish
 
 # Generates: docs/dashboard.html
-# Publishes: https://ai-os-reports-dashboard.pages.dev
+# Publishes: https://aai-reports-dashboard.pages.dev
 ```
 
 **Visualizes:**
@@ -453,6 +502,10 @@ User: "add login feature"
 - After AAI sync or setup
 - When something seems broken
 - Onboarding new team members
+
+**Hook note:**
+- `[CAT-09] Pre-Compact Hook` checks whether the pre-compact helper exists and appears configured.
+- Session-start hook registration is separate and user-managed; use `hooks/hooks.json` for Bash/Git-Bash or `hooks/hooks.windows.json` for native PowerShell as the template.
 
 **Example:**
 ```bash
@@ -669,7 +722,7 @@ Skipped: 0 (0%)
 
 # 6. Share
 /aai-share docs/ai/reports/VALIDATION_REPORT_*.md
-# Returns: https://ai-os-reports-xyz.pages.dev
+# Returns: https://aai-reports-xyz.pages.dev
 
 # 7. Cleanup worktree
 /aai-worktree cleanup user-profile
@@ -821,8 +874,8 @@ Skipped: 0 (0%)
 **Solution:**
 ```bash
 # Re-sync AAI
-cd /path/to/aai-os
-./scripts/ai-os-sync.sh /path/to/your-project
+cd /path/to/aai
+./.aai/scripts/aai-sync.sh /path/to/your-project
 
 # Re-bootstrap
 cd /path/to/your-project
@@ -910,6 +963,6 @@ ls docs/ai/METRICS.jsonl
 
 ---
 
-**Last Updated:** 2026-03-08
-**Version:** 1.0
-**Branch:** feature/comprehensive-improvements
+**Last Updated:** 2026-03-16
+**Version:** 1.1
+**Status:** Current

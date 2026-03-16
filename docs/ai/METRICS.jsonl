@@ -1,4 +1,4 @@
-# AI-OS Metrics Ledger — append-only, one JSON object per line (JSONL format)
+# AAI Metrics Ledger — append-only, one JSON object per line (JSONL format)
 #
 # Each line represents one completed work item flushed from STATE.yaml.
 #

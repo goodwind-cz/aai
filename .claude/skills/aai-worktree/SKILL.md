@@ -1,6 +1,6 @@
 ---
 name: aai-worktree
-description: Manage git worktrees for parallel isolated development. Create, switch, and cleanup worktrees for features/tasks. Inspired by Superpowers parallel development pattern.
+description: Use when creating or managing isolated git worktrees for parallel feature development or isolated experiments.
 ---
 
 Read the file `.aai/SKILL_WORKTREE.prompt.md` from the current project root and follow its instructions exactly.

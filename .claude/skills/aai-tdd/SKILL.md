@@ -1,6 +1,6 @@
 ---
 name: aai-tdd
-description: Enforces RED-GREEN-REFACTOR test-driven development cycle with evidence at each phase. Inspired by Superpowers framework.
+description: Use when implementing any feature or fix that should follow test-driven development. Enforces RED-GREEN-REFACTOR cycle with evidence at each phase.
 ---
 
 Read the file `.aai/SKILL_TDD.prompt.md` from the current project root and follow its instructions exactly.

@@ -1,5 +1,21 @@
 # Code Review Skill
 
+## TWO-STAGE REVIEW (MANDATORY ORDER)
+
+**Stage 1 — Spec Compliance** (ALWAYS first)
+Does the code match the requirements and spec?
+- Read `docs/specs/SPEC-<id>.md` for the current scope (if it exists)
+- Check every Spec-AC: is it implemented?
+- Check TEST-xxx entries: do tests exist and pass?
+- Report: COMPLIANT / NON-COMPLIANT per AC
+
+**Stage 2 — Code Quality** (ONLY after Stage 1 is complete)
+Is the code well-written?
+- Security, performance, style, best practices (see categories below)
+
+RED FLAG: Starting Stage 2 before Stage 1 = reviewing code that may not match requirements.
+A well-written implementation of the wrong thing is still wrong.
+
 ## Goal
 Automatically review code changes for common issues in security, performance, style, and best practices.
 

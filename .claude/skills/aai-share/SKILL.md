@@ -1,6 +1,6 @@
 ---
 name: aai-share
-description: Publish reports and documentation to Cloudflare Pages for quick sharing. Supports Markdown with embedded images, generates HTML, and returns shareable URL.
+description: Use when publishing a report, dashboard, or documentation to a shareable Cloudflare Pages URL.
 ---
 
 Read the file `.aai/SKILL_SHARE.prompt.md` from the current project root and follow its instructions exactly.

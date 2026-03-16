@@ -86,7 +86,7 @@
   "metadata": {
     "generated_by": "decapod-cli v2.1.0",
     "platform": "linux x64",
-    "project_name": "ai-os",
+    "project_name": "aai",
     "environment": "development",
     "immutable": true
   }

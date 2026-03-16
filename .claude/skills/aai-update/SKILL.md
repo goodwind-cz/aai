@@ -1,6 +1,6 @@
 ---
 name: aai-update
-description: Update or resync the AAI layer in a project from the canonical git repository main branch. Use when Claude needs to refresh vendored AAI files after upstream changes, re-sync a target project, or preview what an AAI update would do.
+description: Use when AAI vendored files need refreshing after upstream changes, or to preview what an update would change in a target project.
 ---
 
 Read the file `.aai/SKILL_UPDATE.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-update`.

@@ -101,7 +101,7 @@ Write-Host "Syncing AAI from: $SrcRoot"
 Write-Host "Target project:     $TargetRoot"
 
 # Target directories (AAI layer only)
-foreach ($d in @(".aai/workflow",".aai/roles",".aai/templates",".aai/scripts",".aai/system",".aai/knowledge",".claude/skills",".codex/skills",".codex/skills.local",".gemini/skills",".gemini/skills.local",".github","docs/knowledge","docs/ai")) {
+foreach ($d in @(".aai/workflow",".aai/roles",".aai/templates",".aai/scripts",".aai/system",".aai/knowledge",".claude/skills",".claude-plugin",".codex/skills",".codex/skills.local",".cursor/rules",".gemini/skills",".gemini/skills.local",".github","docs/knowledge","docs/ai","hooks")) {
   New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot $d) | Out-Null
 }
 
@@ -374,6 +374,27 @@ if (Test-Path $geminiSkills) {
 }
 if (Test-Path (Join-Path $TargetRoot ".gemini/skills.local")) {
   Write-Host "  PRESERVE local Gemini dynamic index: $(Join-Path $TargetRoot ".gemini/skills.local")"
+}
+
+# Claude Code plugin manifest
+$pluginJson = Join-Path $SrcRoot ".claude-plugin/plugin.json"
+if (Test-Path $pluginJson) {
+  Copy-Replace $pluginJson (Join-Path $TargetRoot ".claude-plugin/plugin.json")
+  Write-Host "  SYNC .claude-plugin/plugin.json"
+}
+
+# Session hooks (cross-platform: Claude Code, Cursor, Gemini, Codex)
+$hooksDir = Join-Path $SrcRoot "hooks"
+if (Test-Path $hooksDir) {
+  Copy-Replace $hooksDir (Join-Path $TargetRoot "hooks")
+  Write-Host "  SYNC hooks/"
+}
+
+# Cursor rules
+$cursorRule = Join-Path $SrcRoot ".cursor/rules/aai.mdc"
+if (Test-Path $cursorRule) {
+  Copy-Replace $cursorRule (Join-Path $TargetRoot ".cursor/rules/aai.mdc")
+  Write-Host "  SYNC .cursor/rules/aai.mdc"
 }
 
 # IMPORTANT: Do NOT sync project-specific docs:

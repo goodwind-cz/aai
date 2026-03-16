@@ -1,0 +1,33 @@
+---
+description: AAI workflow rules — always active when working in this project
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# AAI (Autonomous Agent Interface)
+
+This project uses AAI for structured Planning → Implementation → Validation workflows.
+
+## Always do this first
+Read `.aai/AGENTS.md` before starting any development work.
+
+## Skill invocation in Cursor
+Skills are prompt files. Invoke by reading and following the file:
+- New work: read `.aai/SKILL_INTAKE.prompt.md`
+- Full autonomous loop: read `.aai/SKILL_LOOP.prompt.md`
+- Check state: read `.aai/SKILL_CHECK_STATE.prompt.md`
+- TDD cycle: read `.aai/SKILL_TDD.prompt.md`
+- Code review: read `.aai/SKILL_CODE_REVIEW.prompt.md`
+- All skills: see `.aai/AGENTS.md` → Skills section
+
+## Core rules
+- Requirements → Spec → Implementation → Evidence (traceability required)
+- Never claim completion without running tests and checking exit codes
+- Do not invent frameworks — read `docs/TECHNOLOGY.md` first
+- If STATE.yaml exists, read it before any role dispatch
+
+## Workflow
+1. `/aai-intake` (or read SKILL_INTAKE.prompt.md) — register new work
+2. Orchestration dispatches Planning → Implementation → Validation automatically
+3. `/aai-loop` runs the full cycle autonomously
+4. `/aai-hitl` unblocks when human input is required

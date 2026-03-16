@@ -1,6 +1,6 @@
 ---
 name: aai-dashboard
-description: Generate interactive HTML dashboard from METRICS.jsonl with charts for token usage, TDD cycles, worktree efficiency, publishing stats, and skill usage frequency. Publishable via /aai-share.
+description: Use when you want to visualize AAI workflow metrics — token usage, TDD cycles, worktree efficiency — as an interactive HTML dashboard. Publishable via /aai-share.
 ---
 
 Read the file `.aai/SKILL_DASHBOARD.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-dashboard`.

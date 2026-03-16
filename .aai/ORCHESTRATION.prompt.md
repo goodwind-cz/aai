@@ -64,6 +64,12 @@ DECISION LOGIC (FIRST MATCH WINS)
 10) If latest validation PASS → Dispatch: Metrics flush (.aai/METRICS_FLUSH.prompt.md) if not already
     flushed for this scope, then no action required and STOP.
 
+MODEL SELECTION (include in dispatch when subagent spawning is supported)
+Right-size the model to task complexity — do not default to the most capable model for everything:
+- Mechanical / isolated tasks (single-file edits, boilerplate, formatting): smaller/faster model
+- Integration work (cross-module changes, wiring, migrations): standard model
+- Architecture, planning, reviews, complex debugging: most capable model available
+
 DISPATCH FORMAT (MANDATORY)
 Output:
 - Current state summary
@@ -74,6 +80,7 @@ Output:
   Inputs:
   Expected outputs:
   Stop condition:
+  Suggested model tier: mechanical | standard | premium  (omit if platform does not support model selection)
 
 METRICS AUTO-MANAGEMENT (NO MANUAL SETUP REQUIRED)
 When dispatching any role for a ref_id:

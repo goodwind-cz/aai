@@ -35,6 +35,7 @@ git commit -m "Update AAI layer"
 ```
 
 - Sync scope includes `.aai/**`, `.claude/skills/**`, `.codex/skills/**`, `.gemini/skills/**`, `.github/copilot-instructions.md`, `docs/knowledge`, and root shims (`CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `README_AAI.md`, `SKILLS.md`).
+- Session-start hooks are synced under `hooks/`, including `hooks/session-start.sh` for POSIX shells and `hooks/session-start.ps1` plus `hooks/hooks.windows.json` for native Windows PowerShell registration.
 - For `.claude/skills/**`, template entries are updated, while target-only local skills are preserved.
 - Target `.gitignore` is auto-updated to ignore `.claude/skills/`, `.codex/skills/`, `.codex/skills.local/`, `.gemini/skills/`, and `.gemini/skills.local/` (sync-managed artifacts).
 - `.github/copilot-instructions.md` is auto-merged: project-specific content is preserved in `docs/ai/project-overrides/copilot-instructions.project.md` and appended under a dedicated Project Overrides section.
@@ -49,7 +50,8 @@ git commit -m "Update AAI layer"
 - Running low-token intake prompts to start work consistently.
 
 ## Assumptions about the environment
-- POSIX shell (bash/zsh) and Git available.
+- Git available.
+- Either a POSIX shell (bash/zsh) or Windows PowerShell 5.1+ / PowerShell 7+ available, depending on which helper scripts and hooks you want to use.
 - You can run CLI commands and edit Markdown.
 - AI agents have read access to .aai/AGENTS.md and prompt files.
 

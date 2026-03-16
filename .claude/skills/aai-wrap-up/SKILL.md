@@ -1,6 +1,6 @@
 ---
 name: aai-wrap-up
-description: Session wrap-up ritual. Captures learnings, summarizes accomplishments, proposes LEARNED.md rules, checks uncommitted work, and prepares next session context.
+description: Use when ending a development session to capture learnings, summarize accomplishments, propose LEARNED.md rules, and prepare next session context.
 ---
 
 Read the file `.aai/SKILL_WRAP_UP.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-wrap-up`.

@@ -1,7 +1,12 @@
 ---
 name: aai-doctor
-description: AAI environment health check. Validates core files, skills, knowledge, STATE.yaml, git status, and dependencies. Reports HEALTHY / DEGRADED / BROKEN with actionable diagnostics.
+description: Use when the AAI environment may be broken, after a fresh install, or to diagnose unexpected failures. Reports HEALTHY / DEGRADED / BROKEN with actionable diagnostics.
 ---
+
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific role (Planning, Implementation, Validation, Remediation), skip this skill. This skill is only for top-level use initiated by the user or orchestrator.
+</SUBAGENT-STOP>
+
 
 Read the file `.aai/SKILL_DOCTOR.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-doctor`.
 

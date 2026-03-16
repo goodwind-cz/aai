@@ -1,7 +1,11 @@
 ---
 name: aai-loop
-description: Run the full autonomous multi-tick AAI loop inside this session. Reads STATE.yaml, dispatches roles via subagents tick by tick, stops on PASS / human-input-required / paused / max-ticks.
+description: Use when starting or resuming the full autonomous AAI development loop. Runs Planning → Implementation → Validation → Remediation cycles automatically until PASS or human input is required.
 ---
+
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific role (Planning, Implementation, Validation, Remediation), skip this skill. This skill is only for top-level orchestration initiated by the user.
+</SUBAGENT-STOP>
 
 Read the file `.aai/SKILL_LOOP.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-loop`.
 

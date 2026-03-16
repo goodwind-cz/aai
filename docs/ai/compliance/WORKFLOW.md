@@ -166,7 +166,7 @@ Generating Decapod attestation...
 ✓ STATE.yaml updated
 
 Validation: PASS
-Report: /workspace/extra/ai-os/docs/ai/reports/LATEST.md
+Report: /workspace/extra/aai/docs/ai/reports/LATEST.md
 ```
 
 ### 4. Generate Compliance Report
@@ -183,7 +183,7 @@ Generating compliance dashboard...
 ✓ Framework coverage: SOC2 (100%), ISO27001 (100%)
 ✓ Report saved: docs/ai/compliance/report.html
 
-Open: file:///workspace/extra/ai-os/docs/ai/compliance/report.html
+Open: file:///workspace/extra/aai/docs/ai/compliance/report.html
 ```
 
 ## Decision Flow
