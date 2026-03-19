@@ -72,6 +72,7 @@ git commit -m "Update AAI layer"
 ├── README.md
 ├── docs/
 │   ├── ai/                        # Persistent runtime state
+│   ├── archive/analysis/          # Immutable archived analyses
 │   ├── knowledge/                 # Project knowledge
 │   ├── issues/
 │   ├── specs/

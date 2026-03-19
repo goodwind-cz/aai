@@ -163,7 +163,7 @@ if (Test-Path $yamlMetrics) {
 }
 
 # 3) Move unsupported docs/* folders into canonical migrated location.
-$supportedDocsDirs = @("ai", "workflow", "roles", "templates", "knowledge", "issues", "specs", "requirements", "releases", "rfc")
+$supportedDocsDirs = @("ai", "archive", "workflow", "roles", "templates", "knowledge", "issues", "specs", "requirements", "releases", "rfc")
 $docsRoot = Join-Path $repoRoot "docs"
 if (Test-Path $docsRoot) {
   Get-ChildItem -Path $docsRoot -Directory | ForEach-Object {

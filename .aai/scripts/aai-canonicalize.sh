@@ -109,7 +109,7 @@ if [[ -f "$yaml_metrics" ]]; then
   actions+=("Removed legacy docs/ai/METRICS.yaml after JSONL migration.")
 fi
 
-supported_docs=(ai workflow roles templates knowledge issues specs requirements releases rfc)
+supported_docs=(ai archive workflow roles templates knowledge issues specs requirements releases rfc)
 if [[ -d "$ROOT/docs" ]]; then
   while IFS= read -r -d '' path; do
     name="$(basename "$path")"
