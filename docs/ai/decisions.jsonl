@@ -15,3 +15,4 @@
 #   - Append only. Never edit existing lines.
 #   - Written by ai/SKILL_HITL.prompt.md after human decision is recorded.
 #   - To append: echo '<json>' >> docs/ai/decisions.jsonl
+{"ts":"2026-03-19T18:50:48Z","type":"hitl","ref":"PRD-AAI-REMOTE-ORCHESTRATION-01","by":"human","question":"Unlock implementation for PRD-AAI-REMOTE-ORCHESTRATION-01?","answer":"unlock-now","question_ref":"docs/ai/questions/HITL-PRD-AAI-REMOTE-ORCHESTRATION-01-UNLOCK-IMPLEMENTATION.md","artifact":"docs/decisions/DECISION-PRD-AAI-REMOTE-ORCHESTRATION-01-20260319T185048Z.md"}

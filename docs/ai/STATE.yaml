@@ -26,11 +26,11 @@ project_status: active
 current_focus:
   type: intake_prd
   ref_id: PRD-AAI-REMOTE-ORCHESTRATION-01
-  primary_path: docs/requirements/PRD-AAI-REMOTE-ORCHESTRATION-01.md
+  primary_path: docs/specs/SPEC-PRD-AAI-REMOTE-ORCHESTRATION-01.md
 
 locks:
-  implementation: true
-  implementation_reason: "Implementation is forbidden until scope is explicitly unlocked in state."
+  implementation: false
+  implementation_reason: "Unlocked by HITL decision DECISION-PRD-AAI-REMOTE-ORCHESTRATION-01-20260319T185048Z."
   protected_paths:
     - .aai/workflow/
     - .aai/roles/
@@ -41,15 +41,17 @@ locks:
 active_work_items:
   - id: PRD-AAI-REMOTE-ORCHESTRATION-01
     title: "AAI remote orchestration for Telegram-controlled Docker worktrees"
-    status: in_progress
-    phase: planning
+    status: done
+    phase: validation
 
 last_validation:
-  status: not_run
-  run_at_utc: null
+  status: pass
+  run_at_utc: "2026-03-19T19:08:57Z"
   validator_ref: .aai/VALIDATION.prompt.md
-  evidence_paths: []
-  notes: "No validation run yet."
+  evidence_paths:
+    - docs/ai/reports/validation-20260319T190838Z.log
+    - docs/ai/reports/validation-20260319T190838Z.md
+  notes: "All remote-orchestration tests passed (18/18)."
 
 human_input:
   required: false
@@ -61,4 +63,44 @@ ai_os:
   pin_version: null
   pin_commit: null
 
-updated_at_utc: "2026-03-19T17:45:00Z"
+metrics:
+  work_items:
+    PRD-AAI-REMOTE-ORCHESTRATION-01:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Planning
+          model_id: gpt-5
+          started_utc: "2026-03-19T18:42:48Z"
+          ended_utc: "2026-03-19T18:43:45Z"
+          duration_seconds: 57
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+        - role: Implementation
+          model_id: gpt-5
+          started_utc: "2026-03-19T18:44:50Z"
+          ended_utc: "2026-03-19T18:45:06Z"
+          duration_seconds: 16
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+        - role: Implementation
+          model_id: gpt-5
+          started_utc: "2026-03-19T19:01:19Z"
+          ended_utc: "2026-03-19T19:07:36Z"
+          duration_seconds: 377
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+        - role: Validation
+          model_id: gpt-5
+          started_utc: "2026-03-19T19:08:37Z"
+          ended_utc: "2026-03-19T19:08:57Z"
+          duration_seconds: 20
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+
+updated_at_utc: "2026-03-19T19:08:57Z"

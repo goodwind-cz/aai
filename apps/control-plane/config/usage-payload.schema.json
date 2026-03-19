@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "required": ["providers"],
+  "properties": {
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["provider", "window_label", "used_percentage", "reset_at_utc", "collected_at_utc"]
+      }
+    }
+  }
+}

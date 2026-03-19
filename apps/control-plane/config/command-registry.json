@@ -1,0 +1,28 @@
+{
+  "commands": {
+    "/intake": "aai-intake",
+    "/status": "orchestration-state",
+    "/usage": "provider-router",
+    "/provider": "provider-policy",
+    "/projects": "project-registry",
+    "/register": "aai-remote-register",
+    "/approve": "hitl-approvals",
+    "/resume": "orchestration-control",
+    "/stop": "orchestration-control",
+    "/logs": "diagnostics",
+    "/agents": "worker-visibility",
+    "/schedule": "scheduler",
+    "/context": "repo-truth-summary",
+    "/debug": "support-mode",
+    "/restart": "ops"
+  },
+  "aliases": {
+    "/new": "/intake",
+    "/switch": "/provider",
+    "/model": "/provider",
+    "/sub": "/agents",
+    "/cron": "/schedule",
+    "/looplogs": "/logs",
+    "/pinologs": "/logs"
+  }
+}

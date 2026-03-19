@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "required": ["ref_id", "project_id", "phase", "input_refs", "output_targets"],
+  "properties": {
+    "ref_id": {"type": "string"},
+    "project_id": {"type": "string"},
+    "phase": {"type": "string"},
+    "input_refs": {"type": "array"},
+    "output_targets": {"type": "array"}
+  }
+}

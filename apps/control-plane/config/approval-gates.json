@@ -1,0 +1,17 @@
+{
+  "approve_implementation_requires": [
+    "prd_ref",
+    "frozen_spec_ref",
+    "test_plan_ref",
+    "project_selection",
+    "provider_selection_or_policy",
+    "worktree_manifest"
+  ],
+  "approve_validation_requires": [
+    "implementation_summary",
+    "changed_file_summary",
+    "validation_command_set",
+    "report_target_path",
+    "evidence_target_path"
+  ]
+}

@@ -1,0 +1,8 @@
+project_id: aai-canonical
+default_branch: main
+allowed_docker_profile: worker-default
+default_provider_policy: auto
+phase_provider_preferences:
+  planning: claude
+  implementation: codex
+  validation: codex

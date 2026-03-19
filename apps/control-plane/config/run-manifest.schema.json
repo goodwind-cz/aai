@@ -1,0 +1,4 @@
+{
+  "type": "object",
+  "required": ["run_id", "project_id", "ref_id", "provider", "branch", "worktree_path", "container_image", "mounts", "commit_sha", "input_refs", "output_artifacts"]
+}
