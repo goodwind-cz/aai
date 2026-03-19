@@ -17,6 +17,9 @@ Before starting TDD cycle:
 5. **Locate the frozen spec** (`docs/specs/SPEC-<id>.md`) for the current scope
 6. **Read the `## Test Plan` table** from the spec — this is the source of truth for which tests to write
 7. If the spec has no `## Test Plan` section, STOP and suggest re-running Planning to generate it
+8. If the scope is runtime-critical (controller, daemon, CLI, bot, worker, queue, orchestration loop,
+   container runner, or similar), verify the Test Plan includes at least one runnable entrypoint test.
+   If it does not, STOP and return the scope to Planning.
 
 ### Phase 1: RED (Write Failing Test)
 
@@ -312,6 +315,10 @@ The difference is discipline: TDD enforces RED→GREEN→REFACTOR per test.
 3. **Cannot commit without evidence**
    - All three phases must have evidence files
    - STATE.yaml must show complete cycle
+
+4. **Cannot use static-only tests for runtime-critical work**
+   - File-existence, snapshot-only, or string-match tests are insufficient on their own
+   - At least one test must execute the runnable entrypoint or runtime control flow
 
 ### Warnings
 

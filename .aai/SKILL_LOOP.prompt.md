@@ -28,7 +28,8 @@ LOOP PARAMETERS (use defaults unless overridden by caller)
 - stop_conditions:
     - docs/ai/STATE.yaml: project_status == paused
     - docs/ai/STATE.yaml: human_input.required == true
-    - docs/ai/STATE.yaml: last_validation.status == pass  AND  no open active_work_items
+    - docs/ai/STATE.yaml: last_validation.status == pass  AND  last_validation.evidence_paths is non-empty
+      AND no open active_work_items AND the current scope has at least one recorded agent_runs entry
     - tick_count >= max_ticks
 
 LOOP ALGORITHM
@@ -44,6 +45,8 @@ For each tick (1..max_ticks):
         → Print HITL block (see HITL OUTPUT FORMAT below) and EXIT.
         → Do NOT continue the loop. A human must answer before the loop resumes.
      c. last_validation.status == pass AND active_work_items are all done/empty
+        AND last_validation.evidence_paths is non-empty
+        AND metrics.work_items[current_focus.ref_id].agent_runs is non-empty (when ref_id exists)
         → Print: "LOOP COMPLETE: validation PASS, no open items." and EXIT.
      d. tick_count >= max_ticks
         → Print: "LOOP STOPPED: max_ticks reached. Run again to continue." and EXIT.
@@ -65,6 +68,11 @@ For each tick (1..max_ticks):
      - Fallback: execute the dispatched prompt directly in this session.
      - Capture role_ended_utc immediately after completion from system clock.
      - Expected result: role work completed and STATE.yaml updated with results.
+     - For Planning, Implementation, Validation, and Remediation roles:
+       verify that STATE.yaml now contains a newly appended `metrics.work_items[ref_id].agent_runs[]`
+       entry for the dispatched scope with parseable timestamps and non-negative `duration_seconds`.
+       If missing, mark the tick as blocked, set `human_input.required = true`, set
+       `blocking_reason = "Role completed without required agent_runs metrics entry"`, and EXIT.
 
   5. CHECKPOINT GATE (if checkpoint_mode != none):
      After the dispatched role completes, determine the PREVIOUS role category and CURRENT role category.
@@ -164,6 +172,7 @@ STRICT RULES
 - Do NOT skip STATE.yaml read between ticks. State evolves every tick.
 - Do NOT exceed max_ticks without stopping and reporting.
 - Do NOT continue when human_input.required == true.
+- Do NOT accept validation PASS as terminal if evidence_paths or agent_runs proof is missing.
 - Always write the tick log even if the loop exits on tick 1.
 
 BEGIN NOW.

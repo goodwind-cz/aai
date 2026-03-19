@@ -15,6 +15,7 @@ INVARIANT RULES
   Requirement → Spec → Implementation → Evidence
 - PASS is allowed only if the full chain exists.
 - Any gap results in FAIL.
+- Runtime-critical scopes require executable runtime evidence, not only static contract checks.
 - Read and respect docs/ai/STATE.yaml before validation.
 
 PROCESS
@@ -22,12 +23,19 @@ PROCESS
 2) Inventory all requirements and acceptance criteria.
 3) Verify mapping to implementation specs.
 4) Locate implementation paths.
+4b) Classify the scope:
+   - Treat it as `runtime-critical` if it changes a controller, daemon, CLI, bot, queue, worker,
+     orchestration loop, container runner, or other system entrypoint.
+   - For `runtime-critical` scopes, verify there is at least one runnable invocation path in the spec or docs.
 5) Discover and execute ALL available test suites:
    a) Read docs/TECHNOLOGY.md to identify test tooling and commands.
    b) Scan the repository for test configuration files (e.g. playwright.config.*, cypress.config.*, jest.config.*, pytest.ini, vitest.config.*, etc.).
    c) For EACH discovered test type (unit, integration, e2e, contract, smoke), execute its test command.
    d) If e2e tests exist (config file or test directory found) but were NOT executed → automatic FAIL.
    e) Record exit code and output for every test command as evidence.
+   f) If the scope is `runtime-critical`, execute at least one command that invokes the primary runtime path.
+   g) If only file-existence, snapshot-only, or string-match tests were executed for a `runtime-critical` scope
+      → automatic FAIL.
 6) Build coverage table.
 7) Produce PASS / FAIL verdict.
 8) Update docs/ai/STATE.yaml:
@@ -57,6 +65,7 @@ RATIONALIZATION TABLE (stop and correct any of these)
 | "I'll skip integration tests to save time"   | Skipping = automatic FAIL. No exceptions.            |
 | "The unit tests already cover this"          | Unit tests and e2e tests cover different failure modes. Both required. |
 | "Tests were passing before my change"        | State before your change is irrelevant. Run them now. |
+| "String/existence tests prove the controller works" | No. Runtime-critical behavior must be executed. |
 
 STRICT RULES
 - Do not infer intent.
@@ -64,6 +73,8 @@ STRICT RULES
 - Do not claim PASS without reproducible evidence.
 - PASS requires that ALL discovered test suites (unit, integration, e2e) were executed and passed.
 - Skipping a test type because it "wasn't in requirements" is NOT allowed — if tests exist, they must run.
+- FAIL a runtime-critical scope if no runnable entrypoint can be invoked during validation.
+- FAIL if validation evidence is older than the latest implementation change for the validated scope.
 - Forbidden language: "should pass", "probably works", "seems fine", "likely OK" — these are not evidence.
 - Read docs/TECHNOLOGY.md before making any tooling/framework assumptions.
 - Do NOT report the verdict to the user until all subagent result blocks are collected,

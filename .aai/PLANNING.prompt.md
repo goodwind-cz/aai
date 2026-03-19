@@ -12,6 +12,7 @@ INVARIANT RULES
 - No code implementation in planning.
 - Do not claim PASS.
 - Every acceptance criterion must be measurable and verifiable.
+- Runtime/controller/orchestration/CLI/daemon/infrastructure scopes require runnable proof, not document skeletons.
 - Read docs/TECHNOLOGY.md before making any tooling/framework assumptions.
 - Read and respect docs/ai/STATE.yaml before planning.
 
@@ -35,6 +36,14 @@ PROCESS
    - Write a one-line description of what the test verifies.
    - Set initial status to "pending".
    - Every Spec-AC must have at least one TEST-xxx entry.
+6b) Classify the scope:
+   - Mark it as `runtime-critical` if it introduces or changes a controller, daemon, CLI, bot, queue, worker,
+     container runner, orchestration loop, remote control plane, or other long-lived/system entrypoint.
+   - For `runtime-critical` scopes, the spec MUST include all of the following before freeze:
+     - at least one runnable entrypoint or invocation path (command, script, service, or CLI)
+     - at least one integration or e2e TEST-xxx that executes that entrypoint
+     - at least one evidence artifact target (log, report, manifest, transcript, screenshot, or similar)
+     - an explicit note that file-existence and string-match tests are insufficient on their own
 7) Set SPEC-FROZEN: true only when all Spec-AC items are measurable, verifiable,
    AND every Spec-AC has at least one TEST-xxx entry in the Test Plan.
 8) Update docs/ai/STATE.yaml:
@@ -50,16 +59,20 @@ RATIONALIZATION TABLE (stop and correct any of these)
 | "This AC is obvious, no test needed"                   | Every AC requires at least one TEST-xxx entry. No exceptions. |
 | "The e2e test can be added during implementation"      | Test Plan is part of the spec. Define it now or don't freeze. |
 | "I'll infer the AC from the code"                      | Requirements drive specs, not the reverse. Read intake first. |
+| "File existence/string checks are enough for runtime work" | No. Runtime-critical scopes need runnable invocation proof. |
 
 STRICT RULES
 - Stop and request human decision if requirements conflict or AC is ambiguous/unmeasurable.
 - Do not implement product changes.
 - Do not use unverifiable language without numeric thresholds.
+- Do not freeze a runtime-critical spec if every planned test is file-existence, snapshot-only, or string-match only.
+- Do not freeze a spec that lacks an executable verification command for the primary behavior.
 
 FINAL OUTPUT REQUIRED
 - Planned scope summary
 - Requirement -> Spec -> Verification mapping table
 - Test Plan summary (count of TEST-xxx entries per type)
+- Runtime-proof summary (whether `runtime-critical` obligations apply and how they are satisfied)
 - Spec path(s) updated
 - Freeze status (SPEC-FROZEN true/false) with rationale
 - Blocking questions (if any)

@@ -56,6 +56,23 @@ INVARIANT CHECKS (run all, report each)
     PASS if value is one of: pass, fail, not_run
     FAIL otherwise
 
+  [INV-11] metrics entry for current scope
+    PASS if current_focus.ref_id is null/absent
+    PASS if metrics.work_items[current_focus.ref_id] exists
+    WARN otherwise
+
+  [INV-12] agent_runs timing integrity
+    PASS if every agent_runs entry has parseable started_utc/ended_utc and non-negative duration_seconds
+         matching ended_utc - started_utc within +/-1s tolerance
+    FAIL otherwise
+
+  [INV-13] PASS has validation run metrics
+    PASS if last_validation.status != pass
+    PASS if current_focus.ref_id is absent
+    WARN if last_validation.status == pass and metrics.work_items[current_focus.ref_id].agent_runs
+         has no Validation entry
+    PASS otherwise
+
 OUTPUT FORMAT
 
 ---
@@ -74,6 +91,9 @@ Invariant results:
   [INV-08] human gate vs impl   : PASS | FAIL | WARN — <detail if not PASS>
   [INV-09] updated_at_utc       : PASS | FAIL | WARN — <detail if not PASS>
   [INV-10] validation status    : PASS | FAIL | WARN — <detail if not PASS>
+  [INV-11] metrics entry        : PASS | FAIL | WARN — <detail if not PASS>
+  [INV-12] agent timing         : PASS | FAIL | WARN — <detail if not PASS>
+  [INV-13] pass validation run  : PASS | FAIL | WARN — <detail if not PASS>
 
 Overall: HEALTHY | DEGRADED | BROKEN
   HEALTHY  = all PASS (warnings allowed)
