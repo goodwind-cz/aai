@@ -9,6 +9,7 @@ Refresh the current project's vendored AAI layer from the `main` branch of the c
 /aai-update
 /aai-update --dry-run
 /aai-update --repo goodwind-cz/aai
+/aai-update --repo ../aai
 ```
 
 ## Instructions
@@ -17,7 +18,11 @@ Refresh the current project's vendored AAI layer from the `main` branch of the c
 
 - Treat the current working directory as the target project to update.
 - Default upstream repository to `goodwind-cz/aai` and default ref to `main`.
-- If the user supplied `--repo`, use that repository slug, SSH remote, or HTTPS remote instead.
+- If the user supplied `--repo`, accept one of:
+  - a repository slug such as `goodwind-cz/aai`
+  - an SSH remote
+  - an HTTPS remote
+  - an existing local checkout path
 - Treat the upstream as potentially private. Prefer authenticated access.
 - Do not use `.aai/system/AAI_PIN.md` as the sync source. It is only post-sync evidence.
 - If the current project is itself the canonical AAI repository checkout, stop and explain that `/aai-update` is for syncing AAI into a target project; updating the canonical AAI repository itself should be done with normal git workflow.
@@ -44,6 +49,8 @@ git clone --branch main --depth 1 <REPO_URL> <TEMP_AAI_DIR>
 ```
 
 - If the user explicitly provided an existing local checkout instead of a URL, update it first:
+- Detect a local checkout path by checking whether `--repo` resolves to an existing directory on disk before treating it as a repository slug or remote.
+- If `--repo` points to an existing local checkout, update it first:
 
 ```bash
 git -C <LOCAL_AAI_CHECKOUT> fetch origin main --depth 1
