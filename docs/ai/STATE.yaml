@@ -24,9 +24,9 @@
 project_status: active
 
 current_focus:
-  type: none
-  ref_id: null
-  primary_path: null
+  type: intake_prd
+  ref_id: PRD-AAI-REMOTE-ORCHESTRATION-01
+  primary_path: docs/requirements/PRD-AAI-REMOTE-ORCHESTRATION-01.md
 
 locks:
   implementation: true
@@ -39,7 +39,10 @@ locks:
   protected_paths_reason: "Edits are allowed only with explicit scope/HITL approval."
 
 active_work_items:
-  []
+  - id: PRD-AAI-REMOTE-ORCHESTRATION-01
+    title: "AAI remote orchestration for Telegram-controlled Docker worktrees"
+    status: in_progress
+    phase: planning
 
 last_validation:
   status: not_run
@@ -58,4 +61,4 @@ ai_os:
   pin_version: null
   pin_commit: null
 
-updated_at_utc: "2026-02-10T21:26:35Z"
+updated_at_utc: "2026-03-19T17:45:00Z"
