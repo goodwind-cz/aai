@@ -39,7 +39,8 @@ git commit -m "Update AAI layer"
 - For `.claude/skills/**`, template entries are updated, while target-only local skills are preserved.
 - Target `.gitignore` is auto-updated to ignore `.claude/skills/`, `.codex/skills/`, `.codex/skills.local/`, `.gemini/skills/`, and `.gemini/skills.local/` (sync-managed artifacts).
 - `.github/copilot-instructions.md` is auto-merged: project-specific content is preserved in `docs/ai/project-overrides/copilot-instructions.project.md` and appended under a dedicated Project Overrides section.
-- If other local target content is overwritten, sync creates `docs/ai/reports/sync-conflicts-*.md` with AI-assisted merge recommendations.
+- If other local target content is overwritten, sync creates a local-only advisory in `docs/ai/reports/sync-conflicts-*.md`.
+- Reports under `docs/ai/reports/` are runtime artifacts and should not be committed; durable conclusions must be promoted into project-owned docs.
 - Dynamic project skills should use unique `aai-*` names under `.claude/skills/` so they stay target-only and preserved on sync.
 - Runtime files in target `docs/ai` are preserved (not overwritten) if they already exist: `STATE.yaml`, `METRICS.jsonl`, `LOOP_TICKS.jsonl`, `decisions.jsonl`.
 - It intentionally does **not** overwrite project docs under `docs/requirements`, `docs/specs`, `docs/decisions`, `docs/releases`, or `docs/issues`.

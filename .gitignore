@@ -15,11 +15,12 @@
 # Wrangler
 .wrangler/
 
-# Ephemeral validation reports and screenshots (reproducible via /aai-validate-report)
-docs/ai/reports/validation-*.md
-docs/ai/reports/LATEST.md
-docs/ai/reports/screenshots/
-docs/ai/reports/MIGRATION_REPORT_*.md
+# Ephemeral AAI runtime reports and screenshots.
+# Keep only the directory placeholder in git. Promote any durable finding
+# into project-owned docs outside docs/ai/reports/.
+docs/ai/reports/**
+!docs/ai/reports/
+!docs/ai/reports/.gitkeep
 
 # Pre-compact context snapshots (auto-generated, ephemeral)
 docs/ai/.session-context.md

@@ -381,21 +381,19 @@ if ! grep -qF '.aai/cache/' "$DST_ROOT/.gitignore" 2>/dev/null; then
   echo "  Added .aai/cache/ to $DST_ROOT/.gitignore"
 fi
 
-# Ensure ephemeral validation reports/screenshots are gitignored
+# Ensure docs/ai/reports is fully treated as ephemeral runtime evidence
 REPORT_PATTERNS=(
-  'docs/ai/reports/validation-*.md'
-  'docs/ai/reports/LATEST.md'
-  'docs/ai/reports/screenshots/'
-  'docs/ai/reports/MIGRATION_REPORT_*.md'
-  'docs/ai/reports/sync-conflicts-*.md'
+  'docs/ai/reports/**'
+  '!docs/ai/reports/'
+  '!docs/ai/reports/.gitkeep'
 )
-REPORT_HEADER='# Ephemeral validation reports (reproducible via /aai-validate-report)'
-if ! grep -qF 'docs/ai/reports/validation-' "$DST_ROOT/.gitignore" 2>/dev/null; then
+REPORT_HEADER='# AAI runtime reports (ephemeral; not project-owned docs)'
+if ! grep -qF 'docs/ai/reports/**' "$DST_ROOT/.gitignore" 2>/dev/null; then
   echo -e "\n$REPORT_HEADER" >> "$DST_ROOT/.gitignore"
   for pattern in "${REPORT_PATTERNS[@]}"; do
     echo "$pattern" >> "$DST_ROOT/.gitignore"
   done
-  echo "  Added validation report patterns to $DST_ROOT/.gitignore"
+  echo "  Added docs/ai/reports runtime ignore rules to $DST_ROOT/.gitignore"
 fi
 
 # Ensure synced agent skill indexes are gitignored (sync-managed artifacts)

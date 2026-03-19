@@ -429,20 +429,18 @@ if ($giContent -notmatch [regex]::Escape('.aai/cache/')) {
   Write-Host "  Added .aai/cache/ to $gitignorePath"
 }
 
-# Ensure ephemeral validation reports/screenshots are gitignored
+# Ensure docs/ai/reports is fully treated as ephemeral runtime evidence
 $giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
-if ($giContent -notmatch [regex]::Escape('docs/ai/reports/validation-')) {
+if ($giContent -notmatch [regex]::Escape('docs/ai/reports/**')) {
   $reportBlock = @(
     ""
-    "# Ephemeral validation reports (reproducible via /aai-validate-report)"
-    "docs/ai/reports/validation-*.md"
-    "docs/ai/reports/LATEST.md"
-    "docs/ai/reports/screenshots/"
-    "docs/ai/reports/MIGRATION_REPORT_*.md"
-    "docs/ai/reports/sync-conflicts-*.md"
+    "# AAI runtime reports (ephemeral; not project-owned docs)"
+    "docs/ai/reports/**"
+    "!docs/ai/reports/"
+    "!docs/ai/reports/.gitkeep"
   ) -join "`n"
   Add-Content -Path $gitignorePath -Value $reportBlock
-  Write-Host "  Added validation report patterns to $gitignorePath"
+  Write-Host "  Added docs/ai/reports runtime ignore rules to $gitignorePath"
 }
 
 # Ensure synced agent skill indexes are gitignored (sync-managed artifacts)
