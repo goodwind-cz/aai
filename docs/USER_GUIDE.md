@@ -99,13 +99,32 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 # 4. Validate your work
 /aai-validate-report
 
-# 5. Share the report
-/aai-share docs/ai/reports/VALIDATION_REPORT_*.md
+# 5. Share the local runtime report
+/aai-share docs/ai/reports/LATEST.md
+
+# 6. If the result is important long-term, promote it into project docs
+# examples: docs/decisions/, docs/specs/, docs/knowledge/, docs/archive/analysis/
 ```
 
 ---
 
 ## Quick Reference
+
+### Runtime Reports vs Project Docs
+
+AAI uses two different classes of documentation:
+
+- `docs/ai/reports/` = local runtime evidence only
+  - validation reports
+  - screenshots
+  - migration advisories
+  - sync conflict advisories
+- `docs/requirements/`, `docs/specs/`, `docs/decisions/`, `docs/knowledge/`, `docs/archive/analysis/` = project-owned documents
+
+**Important:**
+- Files in `docs/ai/reports/` should **not** be committed.
+- Share them temporarily with `/aai-share` when you need quick review.
+- If a report contains durable conclusions, copy the conclusion into a project-owned document and commit that instead.
 
 ### Essential Skills (Use Daily)
 
@@ -315,7 +334,8 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 /aai-validate-report
 
 # Output:
-✅ Report: docs/ai/reports/VALIDATION_REPORT_20260308T100000Z.md
+✅ Report: docs/ai/reports/validation-20260308T100000Z.md
+✅ Latest alias: docs/ai/reports/LATEST.md
 📸 Screenshots: 3 files
 ```
 
@@ -324,6 +344,15 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 - Screenshots
 - Metrics
 - Pass/fail status
+
+**Storage policy:**
+- Output goes into `docs/ai/reports/` as local runtime evidence.
+- Treat that folder as ephemeral and uncommitted.
+- If the validation result changes project knowledge or delivery state, promote the durable summary into:
+  - `docs/specs/`
+  - `docs/decisions/`
+  - `docs/knowledge/`
+  - `docs/archive/analysis/`
 
 #### `/aai-code-review`
 **What:** AI-powered code review for security, performance, style.
@@ -365,7 +394,7 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 
 **Example:**
 ```bash
-/aai-share docs/ai/reports/VALIDATION_REPORT.md
+/aai-share docs/ai/reports/LATEST.md
 
 # Output:
 ✅ Published!
@@ -377,6 +406,17 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 - GitHub-style CSS
 - Dark mode
 - Mobile-friendly
+
+**Recommended usage:**
+- Share `docs/ai/reports/LATEST.md` for temporary validation review.
+- Share project-owned docs for durable collaboration:
+  - `docs/requirements/*.md`
+  - `docs/specs/*.md`
+  - `docs/decisions/*.md`
+  - `docs/research/*.md`
+
+**Do not treat shared runtime reports as canonical docs:**
+- `docs/ai/reports/` is evidence storage, not your long-term documentation source.
 
 **Requirements (one-time):**
 ```bash
@@ -721,7 +761,7 @@ Skipped: 0 (0%)
 # Generates report with screenshots
 
 # 6. Share
-/aai-share docs/ai/reports/VALIDATION_REPORT_*.md
+/aai-share docs/ai/reports/LATEST.md
 # Returns: https://aai-reports-xyz.pages.dev
 
 # 7. Cleanup worktree
@@ -755,7 +795,7 @@ Skipped: 0 (0%)
 /aai-code-review
 
 # 5. Share
-/aai-share docs/ai/reports/VALIDATION_REPORT_*.md
+/aai-share docs/ai/reports/LATEST.md
 ```
 
 ### Research & Documentation
@@ -837,9 +877,8 @@ Skipped: 0 (0%)
 ### Team Collaboration
 
 1. **Share via `/aai-share`**
-   - Validation reports
-   - Decision documents
-   - Research findings
+   - Temporary review: `docs/ai/reports/LATEST.md`
+   - Durable collaboration: decision documents, specs, research findings
 
 2. **Use `/aai-dashboard` for reviews**
    - Weekly team metrics
@@ -862,7 +901,8 @@ Skipped: 0 (0%)
 
 3. **Generate `/aai-validate-report`**
    - Proof of completion
-   - Shareable evidence
+   - Shareable temporary evidence
+   - Promote durable conclusions into project-owned docs before commit
 
 ---
 
@@ -960,6 +1000,15 @@ ls docs/ai/METRICS.jsonl
 3. **Set up auto-triggers for your team**
 4. **Generate your first dashboard**
 5. **Share your first validation report**
+   ```bash
+   /aai-share docs/ai/reports/LATEST.md
+   ```
+
+6. **Promote anything durable before commit**
+   - decisions -> `docs/decisions/`
+   - implementation constraints -> `docs/specs/`
+   - reusable facts -> `docs/knowledge/`
+   - broader write-up -> `docs/archive/analysis/`
 
 ---
 
