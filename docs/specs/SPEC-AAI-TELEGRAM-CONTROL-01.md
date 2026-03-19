@@ -42,6 +42,9 @@ Define the Telegram-facing control surface, project registration model, and budg
 - Spec-AC-009: interactive buttons must exist for common state transitions so the operator does not need to type commands for approve, stop, resume, provider switch, or project switch.
 - Spec-AC-010: command names and aliases should remain compatible with `SuperTurtle` expectations where that does not conflict with AAI semantics.
 - Spec-AC-011: project registration and operator setup must never ask for provider API keys; provider availability is derived only from host-installed authenticated CLIs.
+- Spec-AC-012: `Approve implementation` must stay disabled until PRD, frozen SPEC, test plan, project selection, provider selection/policy, and worktree manifest are all present.
+- Spec-AC-013: `Approve validation` must stay disabled until implementation summary, changed-file summary, validation command set, and report/evidence targets are all present.
+- Spec-AC-014: non-portable bindings such as absolute repo path and allowed Telegram chats/users must be stored only in host runtime storage, not in project-local config.
 
 ## Interactive UX
 
@@ -93,12 +96,14 @@ Define the Telegram-facing control surface, project registration model, and budg
 - The host installation maintains a registry database of projects.
 - Each project stores its local remote-control settings in `docs/ai/project-overrides/remote-control.yaml`.
 - Project-local generated skills may exist under `.claude/skills/`, `.codex/skills/`, or `.gemini/skills/` using unique `aai-*` names so sync preserves them.
-- Registration must capture:
+- Project-local config must capture:
   - project ID
-  - local repo path
   - default branch
   - allowed Docker image profile
   - default provider policy
+  - optional phase-specific provider preferences
+- Host registry must capture:
+  - local repo path
   - allowed Telegram users or chat IDs
 - Registration must not capture provider API credentials.
 
@@ -107,6 +112,21 @@ Define the Telegram-facing control surface, project registration model, and budg
 - Host runtime data must not be written into sync-managed canonical assets unless it is a repo-first artifact by design.
 - Controller-only runtime files belong in host storage, not inside project repos.
 - Downstream deploy validation must use fixture projects to ensure the remote-control feature does not pollute ordinary AAI sync/update flows.
+
+## Approval gate contract
+- `Approve implementation` requires:
+  - PRD ref
+  - frozen SPEC ref
+  - test plan ref
+  - project selection
+  - provider selection or project-default provider policy
+  - generated branch/worktree manifest
+- `Approve validation` requires:
+  - implementation summary
+  - changed-file summary
+  - validation command set
+  - report target path
+  - evidence target path
 
 ## Initial test plan
 - TEST-001: registering one project creates project-local config and host registry entry.
@@ -119,3 +139,6 @@ Define the Telegram-facing control surface, project registration model, and budg
 - TEST-008: one work item results in one branch, one worktree, and one worker manifest.
 - TEST-009: project fixture sync/update still preserves project-local dynamic skills and remote-control config.
 - TEST-010: operator can complete a common path of `project select -> intake -> approve -> status -> logs` with buttons only.
+- TEST-011: `Approve implementation` stays disabled until the full pre-implementation artifact set exists.
+- TEST-012: `Approve validation` stays disabled until the full validation artifact set exists.
+- TEST-013: absolute repo path and Telegram allowlists never appear in `docs/ai/project-overrides/remote-control.yaml`.

@@ -71,6 +71,25 @@ Adopt a single long-lived `aai-control-plane` Node/TypeScript process running on
 - Store project-local runtime configuration outside sync-managed canonical assets, for example under `docs/ai/project-overrides/remote-control.yaml`.
 - Generate lightweight project-local skills for convenience, while keeping canonical universal skills in the AAI layer.
 
+### Config ownership split
+- Canonical AAI repo owns:
+  - universal prompts, skills, schemas, and templates
+  - product/architecture docs such as PRD, RFC, and SPEC
+- Project repo owns portable project settings:
+  - `project_id`
+  - `default_branch`
+  - `default_provider_policy`
+  - `phase_provider_preferences`
+  - `allowed_docker_profile`
+  - optional project-specific command restrictions
+- Host runtime owns non-portable operational bindings:
+  - absolute local repository path
+  - allowed Telegram users and chat IDs
+  - provider CLI session health and usage snapshots
+  - queue state, schedules, run manifests, and leases
+
+This split keeps downstream deployment portable while still allowing one host to manage many local checkouts.
+
 ### Why this deployment model
 - It matches the user's requirement for one host managing multiple projects.
 - It avoids copying host secrets and daemon config into downstream repositories.
@@ -161,6 +180,27 @@ Adopt a single long-lived `aai-control-plane` Node/TypeScript process running on
 - Telegram Web App form for rich task submission when scope, project, provider, and approval policy must be selected together.
 - Tables should be rendered as aligned code blocks or compact sections when native tables are unavailable.
 
+## Approval gates
+
+### `Approve implementation`
+This gate becomes available only when all of the following exist:
+- PRD reference
+- frozen SPEC reference
+- test plan reference
+- selected project
+- selected provider policy
+- generated branch/worktree manifest
+
+### `Approve validation`
+This gate becomes available only when all of the following exist:
+- implementation summary
+- changed-file summary
+- validation command set
+- report target path
+- evidence target path
+
+This is intentionally stricter than `SuperTurtle`, because AAI is preserving repo-first requirements, specs, test plans, and reports as auditable artifacts.
+
 ## Resource policy
 - Default concurrency is `1`.
 - Workers are launched only when work exists.
@@ -186,6 +226,7 @@ Adopt a single long-lived `aai-control-plane` Node/TypeScript process running on
 - Phase 5:
   - multi-project fixtures, resource tuning, and operator hardening
 
-## Open questions
-- What minimum evidence set is required before `/approve implementation` becomes available?
-- Which config fields belong in canonical repo docs vs project-local overrides?
+## Remaining work
+- Define concrete SQLite tables and file layout for the host runtime.
+- Define the exact schema for `docs/ai/project-overrides/remote-control.yaml`.
+- Implement provider telemetry adapters for CLI-only subscription mode.
