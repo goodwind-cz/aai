@@ -41,6 +41,7 @@ Define the Telegram-facing control surface, project registration model, and budg
 - Spec-AC-008: `/context` must summarize repo-first truth from `STATE.yaml`, frozen requirements/specs, and latest reports.
 - Spec-AC-009: interactive buttons must exist for common state transitions so the operator does not need to type commands for approve, stop, resume, provider switch, or project switch.
 - Spec-AC-010: command names and aliases should remain compatible with `SuperTurtle` expectations where that does not conflict with AAI semantics.
+- Spec-AC-011: project registration and operator setup must never ask for provider API keys; provider availability is derived only from host-installed authenticated CLIs.
 
 ## Interactive UX
 
@@ -80,13 +81,13 @@ Define the Telegram-facing control surface, project registration model, and budg
   - used percentage
   - reset timestamp
   - collection timestamp
-  - optional per-run token statistics
+  - optional per-run CLI-reported usage statistics
 - Router policy:
   - `0-70%`: normal routing
   - `70-85%`: prefer project default but reduce background work
   - `85-95%`: prefer alternate provider when allowed
   - `95%+`: require explicit operator override or wait until reset
-- If no provider telemetry is available, the system reports uncertainty explicitly and falls back to configured preference instead of inventing precision.
+- If no provider telemetry is available from the authenticated CLI, the system reports uncertainty explicitly and falls back to configured preference instead of inventing precision.
 
 ## Project registration model
 - The host installation maintains a registry database of projects.
@@ -99,6 +100,7 @@ Define the Telegram-facing control surface, project registration model, and budg
   - allowed Docker image profile
   - default provider policy
   - allowed Telegram users or chat IDs
+- Registration must not capture provider API credentials.
 
 ## Worktree and deployability rules
 - Worktree-local runtime progress lives in that worktree's `docs/ai/STATE.yaml`.

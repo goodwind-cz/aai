@@ -79,8 +79,9 @@ Adopt a single long-lived `aai-control-plane` Node/TypeScript process running on
 ## Provider model
 
 ### Authentication
-- Provider credentials are managed on the host, not in project repos.
+- Provider access is managed on the host through installed CLIs authenticated against the user's subscription in headless mode, not through direct API keys.
 - The controller detects and validates availability of Claude Code and Codex separately.
+- Direct API mode is out of scope for `v1`.
 - Project config and operator commands can select:
   - preferred provider,
   - fallback provider,
@@ -90,7 +91,7 @@ Adopt a single long-lived `aai-control-plane` Node/TypeScript process running on
 ### Routing policy
 - Planning and research may prefer one provider while implementation or review prefers another.
 - Operator override from Telegram always wins for the current work item unless forbidden by project policy.
-- Budget-aware routing uses quota window, usage percentage, cooldown, and reset time rather than pretending a stable provider-agnostic "tokens remaining" number always exists.
+- Budget-aware routing uses subscription quota window, usage percentage, cooldown, and reset time rather than pretending a stable provider-agnostic "tokens remaining" number always exists.
 
 ### `SuperTurtle` influence
 - `SuperTurtle` demonstrates the value of a chat-first agent controller and provider/session awareness.
@@ -186,6 +187,5 @@ Adopt a single long-lived `aai-control-plane` Node/TypeScript process running on
   - multi-project fixtures, resource tuning, and operator hardening
 
 ## Open questions
-- Should provider credentials rely only on installed CLIs or also allow direct API mode?
 - What minimum evidence set is required before `/approve implementation` becomes available?
 - Which config fields belong in canonical repo docs vs project-local overrides?

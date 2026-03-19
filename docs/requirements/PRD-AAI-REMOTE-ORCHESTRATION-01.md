@@ -2,14 +2,14 @@
 
 ## Intent
 - Build a remote orchestration layer for AAI that lets an operator control feature development from Telegram while preserving AAI's repo-first workflow, frozen specifications, test evidence, and validation reports.
-- The system must run primarily on Linux under WSL-hosted environments, isolate execution in Docker workers with mounted project worktrees, and support both Claude Code and Codex as configurable providers.
+- The system must run primarily on Linux under WSL-hosted environments, isolate execution in Docker workers with mounted project worktrees, and support both Claude Code and Codex as configurable providers authenticated through host-level CLI subscription sessions.
 
 ## Scope
 - In scope:
   - A central host-level `aai-control-plane` process for queueing, orchestration, provider routing, approvals, and reporting.
   - Per-task git worktrees and Docker-isolated workers for planning, implementation, validation, and reporting.
   - Telegram bot flows aligned with AAI skills and enriched with interactive controls such as inline buttons, menus, and Telegram Web App forms when useful.
-  - Dual-provider operation with Claude Code and Codex, including host-level authentication, provider preference rules, and usage-aware routing.
+  - Dual-provider operation with Claude Code and Codex, including host-level headless CLI subscription authentication, provider preference rules, and usage-aware routing.
   - Multi-project onboarding where one host installation manages multiple project repositories through project-local registration and configuration.
   - Repo-first persistence of requirements, specs, decisions, reports, and AAI state.
 - Out of scope:
@@ -25,6 +25,7 @@
 - AC-003: A registered project can declare remote-control preferences and routing policy through project-local configuration and project-local AAI skills without polluting canonical sync-managed assets.
 - AC-004: Telegram can create, inspect, approve, pause, resume, and stop work items without the chat becoming the source of truth for requirements, specs, test plans, or reports.
 - AC-005: The system supports both Claude Code and Codex, including explicit provider selection, task-class preference, and fallback policy when one provider is unavailable or over budget.
+- AC-005a: `v1` uses only host-authenticated CLI subscription sessions for Claude Code and Codex; direct API-key or token-based provider mode is not supported.
 - AC-006: The system exposes a `/usage`-style budget view that reports provider quota windows, current usage percentage, and next reset time, and the router can use that signal to reduce concurrency or switch providers.
 - AC-007: Telegram command flows are aligned with existing AAI skills where they overlap, including intake, status, logs, validation, approvals, and worktree-oriented execution.
 - AC-008: Telegram interactions use structured controls where possible, including inline approve/reject buttons, project pickers, provider pickers, and form-style task submission for high-friction inputs.
@@ -38,7 +39,8 @@
 ## Non-functional constraints
 - Prioritize Linux filesystem paths inside WSL over `/mnt/c` mounts for active repositories.
 - Worker containers must not receive the Docker socket.
-- Host-level secrets for Telegram and providers must stay outside project repositories.
+- Host-level Telegram secrets and provider CLI session material must stay outside project repositories.
+- No provider API keys or long-lived API tokens are required or stored by `v1`.
 - The control plane should remain usable on modest hardware and tolerate host restarts by recovering runtime state from durable local storage.
 - The operator experience should minimize manual typing in Telegram for common actions.
 
