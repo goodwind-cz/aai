@@ -1,6 +1,6 @@
 # AAI Compliance Directory
 
-This directory stores Decapod compliance artifacts for the AI-OS project.
+This directory stores Decapod compliance artifacts for the AAI project.
 
 ## Contents
 
@@ -33,7 +33,7 @@ compliance/
 
 2. **Initialize in project:**
    ```bash
-   cd /workspace/extra/ai-os
+   cd /workspace/extra/aai
    decapod init
    ```
 

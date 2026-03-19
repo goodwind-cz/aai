@@ -1,6 +1,6 @@
 ---
 name: aai-test-skills
-description: Test all AAI skills to ensure they work correctly. Validates dependencies, runs integration tests, and generates test report.
+description: Use when verifying all AAI skills work correctly after upstream changes, a fresh install, or to diagnose skill failures.
 ---
 
 Read the file `.aai/SKILL_TEST_SKILLS.prompt.md` from the current project root and follow its instructions exactly.

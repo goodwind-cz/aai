@@ -67,6 +67,22 @@ If the scope contains ≥3 independent files/modules with no shared mutable stat
 5. Do NOT mark implementation complete until the integration check passes.
 6. If platform does not support subagents: implement units sequentially, same verification rules apply.
 
+RATIONALIZATION TABLE (stop and correct any of these)
+| Rationalization                              | Reality                                              |
+|----------------------------------------------|------------------------------------------------------|
+| "The spec gap is minor, I'll improvise"      | Stop. Return scope to Planning. No exceptions.       |
+| "Tests will pass, I don't need to run them"  | Run the commands. Only exit codes are evidence.      |
+| "I'll clean it up / test it after"           | Tests-after prove what the code does, not what it should do. |
+| "This is obvious, no test needed"            | Obvious code breaks. Tests take 30 seconds.          |
+| "The change is too small to matter"          | Small changes cause regressions. Run the suite.      |
+
+VERIFICATION-BEFORE-COMPLETION RULE
+Before reporting any task as complete:
+- Execute the relevant test/build/lint command via shell tool.
+- Read the full output. Check the exit code.
+- Forbidden language in completion reports: "should work", "probably passes", "seems fine", "likely OK", "Great!", "Done!" without evidence.
+- If you cannot run commands: state explicitly "NOT VERIFIED — shell access unavailable" and let Validation own the verdict.
+
 STRICT RULES
 - If spec gaps are found, stop and return scope to Planning instead of improvising.
 - Keep changes minimal and scoped.

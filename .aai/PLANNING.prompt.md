@@ -42,6 +42,15 @@ PROCESS
    - active_work_items phase/status for the scope
    - updated_at_utc
 
+RATIONALIZATION TABLE (stop and correct any of these)
+| Rationalization                                        | Reality                                                      |
+|--------------------------------------------------------|--------------------------------------------------------------|
+| "Requirements are clear enough, no formal spec needed" | No spec = no frozen AC = Implementation has no target. Stop. |
+| "I'll make this AC measurable later"                   | Unmeasurable AC cannot be verified. Freeze is blocked.       |
+| "This AC is obvious, no test needed"                   | Every AC requires at least one TEST-xxx entry. No exceptions. |
+| "The e2e test can be added during implementation"      | Test Plan is part of the spec. Define it now or don't freeze. |
+| "I'll infer the AC from the code"                      | Requirements drive specs, not the reverse. Read intake first. |
+
 STRICT RULES
 - Stop and request human decision if requirements conflict or AC is ambiguous/unmeasurable.
 - Do not implement product changes.

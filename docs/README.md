@@ -22,7 +22,8 @@ Use this repo to bootstrap or normalize an AI-ready documentation and prompt sys
 - Templates for requirements, specs, decisions, and knowledge.
 
 ## 3) Assumptions about the environment
-- You have a POSIX shell (bash/zsh) and Git installed.
+- You have Git installed.
+- You have either a POSIX shell (bash/zsh) or Windows PowerShell 5.1+ / PowerShell 7+ installed.
 - You can edit Markdown files and run CLI commands.
 - If using GitHub Codespaces, you can run commands from the terminal.
 - AI agents can read the canonical files in this repository.

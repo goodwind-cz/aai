@@ -8,6 +8,7 @@ These are the canonical AAI-prefixed skills available after AAI sync.
 - `/aai-loop` -> `.aai/SKILL_LOOP.prompt.md`
 - `/aai-hitl` -> `.aai/SKILL_HITL.prompt.md`
 - `/aai-bootstrap` -> `.aai/SKILL_BOOTSTRAP.prompt.md`
+- `/aai-update` -> `.aai/SKILL_UPDATE.prompt.md`
 - `/aai-validate-report` -> `.aai/SKILL_VALIDATE_REPORT.prompt.md`
 - `/aai-canonicalize` -> `.aai/SKILL_CANONICALIZE.prompt.md`
 - `/aai-share` -> `.aai/SKILL_SHARE.prompt.md`

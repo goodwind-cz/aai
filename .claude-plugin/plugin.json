@@ -1,0 +1,10 @@
+{
+  "name": "aai",
+  "description": "AAI (Autonomous Agent Interface) — structured Planning → Implementation → Validation workflow with 22 skills for TDD, code review, worktree management, and autonomous loop execution.",
+  "version": "1.0.0",
+  "author": {
+    "name": "AAI"
+  },
+  "license": "MIT",
+  "keywords": ["aai", "workflow", "tdd", "validation", "planning", "skills", "autonomous", "loop"]
+}

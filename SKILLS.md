@@ -12,22 +12,23 @@ Skills are session-scoped, multi-step prompts that compose workflow actions into
 | 3 | aai-loop | Run autonomous Planning-Implementation-Validation cycles | `/aai-loop` | `--prompt-file .aai/SKILL_LOOP.prompt.md` |
 | 4 | aai-hitl | Resolve human-in-the-loop pauses and record decisions | `/aai-hitl` | `--prompt-file .aai/SKILL_HITL.prompt.md` |
 | 5 | aai-bootstrap | Detect project architecture and generate dynamic skills | `/aai-bootstrap` | `--prompt-file .aai/SKILL_BOOTSTRAP.prompt.md` |
-| 6 | aai-validate-report | Generate validation report with screenshots | `/aai-validate-report` | `--prompt-file .aai/SKILL_VALIDATE_REPORT.prompt.md` |
-| 7 | aai-canonicalize | Migrate legacy paths and consolidate AAI layout | `/aai-canonicalize` | `--prompt-file .aai/SKILL_CANONICALIZE.prompt.md` |
-| 8 | aai-share | Publish Markdown reports to Cloudflare Pages | `/aai-share` | `--prompt-file .aai/SKILL_SHARE.prompt.md` |
-| 9 | aai-tdd | Enforced RED-GREEN-REFACTOR test-driven development | `/aai-tdd` | `--prompt-file .aai/SKILL_TDD.prompt.md` |
-| 10 | aai-worktree | Manage git worktrees for parallel development | `/aai-worktree` | `--prompt-file .aai/SKILL_WORKTREE.prompt.md` |
-| 11 | aai-flush | Flush metrics from STATE.yaml to METRICS.jsonl and clean up | `/aai-flush` | `--prompt-file .aai/SKILL_FLUSH.prompt.md` |
-| 12 | aai-test-skills | Run the AAI skill test framework and suites | `/aai-test-skills` | `--prompt-file .aai/SKILL_TEST_SKILLS.prompt.md` |
-| 13 | aai-docs-hub | Generate documentation hub and skill catalog pages | `/aai-docs-hub` | `--prompt-file .aai/SKILL_DOCS_HUB.prompt.md` |
-| 14 | aai-decapod | Run compliance advisory workflow with Decapod | `/aai-decapod` | `--prompt-file .aai/SKILL_DECAPOD.prompt.md` |
-| 15 | aai-auto-trigger | Suggest and auto-trigger relevant skills for context | `/aai-auto-trigger` | `--prompt-file .aai/SKILL_AUTO_TRIGGER.prompt.md` |
-| 16 | aai-dashboard | Build metrics dashboard artifacts from telemetry | `/aai-dashboard` | `--prompt-file .aai/SKILL_DASHBOARD.prompt.md` |
-| 17 | aai-code-review | Run AI-assisted code review on PRs/changes | `/aai-code-review` | `--prompt-file .aai/SKILL_CODE_REVIEW.prompt.md` |
-| 18 | aai-profile | Profile workflows for token/time optimization | `/aai-profile` | `--prompt-file .aai/SKILL_PROFILE.prompt.md` |
-| 19 | aai-doctor | Environment health check (files, skills, git, knowledge) | `/aai-doctor` | `--prompt-file .aai/SKILL_DOCTOR.prompt.md` |
-| 20 | aai-replay | Surface relevant past learnings for current context | `/aai-replay` | `--prompt-file .aai/SKILL_REPLAY.prompt.md` |
-| 21 | aai-wrap-up | Session wrap-up with learnings capture and next steps | `/aai-wrap-up` | `--prompt-file .aai/SKILL_WRAP_UP.prompt.md` |
+| 6 | aai-update | Re-sync vendored AAI layer from canonical git `main` | `/aai-update` | `--prompt-file .aai/SKILL_UPDATE.prompt.md` |
+| 7 | aai-validate-report | Generate validation report with screenshots | `/aai-validate-report` | `--prompt-file .aai/SKILL_VALIDATE_REPORT.prompt.md` |
+| 8 | aai-canonicalize | Migrate legacy paths and consolidate AAI layout | `/aai-canonicalize` | `--prompt-file .aai/SKILL_CANONICALIZE.prompt.md` |
+| 9 | aai-share | Publish Markdown reports to Cloudflare Pages | `/aai-share` | `--prompt-file .aai/SKILL_SHARE.prompt.md` |
+| 10 | aai-tdd | Enforced RED-GREEN-REFACTOR test-driven development | `/aai-tdd` | `--prompt-file .aai/SKILL_TDD.prompt.md` |
+| 11 | aai-worktree | Manage git worktrees for parallel development | `/aai-worktree` | `--prompt-file .aai/SKILL_WORKTREE.prompt.md` |
+| 12 | aai-flush | Flush metrics from STATE.yaml to METRICS.jsonl and clean up | `/aai-flush` | `--prompt-file .aai/SKILL_FLUSH.prompt.md` |
+| 13 | aai-test-skills | Run the AAI skill test framework and suites | `/aai-test-skills` | `--prompt-file .aai/SKILL_TEST_SKILLS.prompt.md` |
+| 14 | aai-docs-hub | Generate documentation hub and skill catalog pages | `/aai-docs-hub` | `--prompt-file .aai/SKILL_DOCS_HUB.prompt.md` |
+| 15 | aai-decapod | Run compliance advisory workflow with Decapod | `/aai-decapod` | `--prompt-file .aai/SKILL_DECAPOD.prompt.md` |
+| 16 | aai-auto-trigger | Suggest and auto-trigger relevant skills for context | `/aai-auto-trigger` | `--prompt-file .aai/SKILL_AUTO_TRIGGER.prompt.md` |
+| 17 | aai-dashboard | Build metrics dashboard artifacts from telemetry | `/aai-dashboard` | `--prompt-file .aai/SKILL_DASHBOARD.prompt.md` |
+| 18 | aai-code-review | Run AI-assisted code review on PRs/changes | `/aai-code-review` | `--prompt-file .aai/SKILL_CODE_REVIEW.prompt.md` |
+| 19 | aai-profile | Profile workflows for token/time optimization | `/aai-profile` | `--prompt-file .aai/SKILL_PROFILE.prompt.md` |
+| 20 | aai-doctor | Environment health check (files, skills, git, knowledge) | `/aai-doctor` | `--prompt-file .aai/SKILL_DOCTOR.prompt.md` |
+| 21 | aai-replay | Surface relevant past learnings for current context | `/aai-replay` | `--prompt-file .aai/SKILL_REPLAY.prompt.md` |
+| 22 | aai-wrap-up | Session wrap-up with learnings capture and next steps | `/aai-wrap-up` | `--prompt-file .aai/SKILL_WRAP_UP.prompt.md` |
 
 ## Skills in Detail
 
@@ -95,6 +96,19 @@ codex --prompt-file .aai/SKILL_BOOTSTRAP.prompt.md
 ```
 
 **Generated skills** (examples): `aai-test-e2e`, `aai-test-unit`, `aai-build`, `aai-lint`, `aai-deploy`.
+
+### aai-update
+
+Re-syncs the current project's vendored AAI layer from the `main` branch of the canonical git repository. Supports private upstream repositories by preferring authenticated checkout, reports any sync conflict advisory, and recommends post-update checks such as `/aai-bootstrap`, `/aai-doctor`, and `/aai-test-skills`.
+
+```bash
+# Claude
+/aai-update
+/aai-update --dry-run
+
+# Codex
+codex --prompt-file .aai/SKILL_UPDATE.prompt.md
+```
 
 ### aai-validate-report
 

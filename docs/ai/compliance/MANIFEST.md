@@ -154,7 +154,7 @@ docs/ai/compliance/example-*.json (Concrete examples)
 ### Installation
 ```bash
 npm install -g @decapod/cli
-cd /workspace/extra/ai-os
+cd /workspace/extra/aai
 decapod init
 cp docs/ai/.decapod-config-example.yaml .decapod/config.yaml
 ```

@@ -1,6 +1,6 @@
 ---
 name: aai-auto-trigger
-description: Automatic skill triggering system. Manages pattern matching config in .claude/triggers.json to auto-invoke appropriate skills based on user input.
+description: Use when configuring or updating automatic skill triggers. Manages pattern-matching in .claude/triggers.json to auto-invoke skills based on user input without manual invocation.
 ---
 
 Read the file `.aai/SKILL_AUTO_TRIGGER.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-auto-trigger`.

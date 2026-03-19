@@ -48,12 +48,23 @@ If requirements can be grouped into ≥3 independent groups (no cross-dependency
 5. Evidence from all subagents MUST be recorded in STATE.yaml before issuing the final verdict.
 6. If platform does not support subagents: validate groups sequentially, same verdict rules apply.
 
+RATIONALIZATION TABLE (stop and correct any of these)
+| Rationalization                              | Reality                                              |
+|----------------------------------------------|------------------------------------------------------|
+| "E2E tests weren't in the requirements"      | If tests exist, they MUST run. Requirements don't override evidence. |
+| "The tests probably pass"                    | Forbidden. Run them. Only exit codes are evidence.   |
+| "This is a simple change, no need for e2e"   | Simplicity is not an exemption. Run every discovered suite. |
+| "I'll skip integration tests to save time"   | Skipping = automatic FAIL. No exceptions.            |
+| "The unit tests already cover this"          | Unit tests and e2e tests cover different failure modes. Both required. |
+| "Tests were passing before my change"        | State before your change is irrelevant. Run them now. |
+
 STRICT RULES
 - Do not infer intent.
 - Do not soften verdicts.
 - Do not claim PASS without reproducible evidence.
 - PASS requires that ALL discovered test suites (unit, integration, e2e) were executed and passed.
 - Skipping a test type because it "wasn't in requirements" is NOT allowed — if tests exist, they must run.
+- Forbidden language: "should pass", "probably works", "seems fine", "likely OK" — these are not evidence.
 - Read docs/TECHNOLOGY.md before making any tooling/framework assumptions.
 - Do NOT report the verdict to the user until all subagent result blocks are collected,
   merged per .aai/SUBAGENT_PROTOCOL.md, and STATE.yaml is updated.

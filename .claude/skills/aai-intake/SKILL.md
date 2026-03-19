@@ -1,7 +1,12 @@
 ---
 name: aai-intake
-description: Universal intake router. Detects work type from a description (feature, bug, change, research, RFC, hotfix, techdebt, release) and runs the correct INTAKE_*.prompt.md. Accepts input in any language.
+description: Use when starting any new work — feature, bug, change, RFC, hotfix, techdebt, or release. Routes automatically to the correct intake template.
 ---
+
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific role (Planning, Implementation, Validation, Remediation), skip this skill. This skill is only for top-level use initiated by the user or orchestrator.
+</SUBAGENT-STOP>
+
 
 Read the file `.aai/SKILL_INTAKE.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-intake`.
 

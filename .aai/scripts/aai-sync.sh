@@ -40,13 +40,16 @@ mkdir -p \
   "$DST_ROOT/.aai/system" \
   "$DST_ROOT/.aai/knowledge" \
   "$DST_ROOT/.claude/skills" \
+  "$DST_ROOT/.claude-plugin" \
   "$DST_ROOT/.codex/skills" \
   "$DST_ROOT/.codex/skills.local" \
+  "$DST_ROOT/.cursor/rules" \
   "$DST_ROOT/.gemini/skills" \
   "$DST_ROOT/.gemini/skills.local" \
   "$DST_ROOT/.github" \
   "$DST_ROOT/docs/knowledge" \
-  "$DST_ROOT/docs/ai"
+  "$DST_ROOT/docs/ai" \
+  "$DST_ROOT/hooks"
 
 OVERWRITE_CONFLICTS=()
 
@@ -333,6 +336,25 @@ if [[ -d "$SRC_ROOT/.gemini/skills" ]]; then
 fi
 if [[ -d "$DST_ROOT/.gemini/skills.local" ]]; then
   echo "  PRESERVE local Gemini dynamic index: $DST_ROOT/.gemini/skills.local"
+fi
+
+# Claude Code plugin manifest
+if [[ -f "$SRC_ROOT/.claude-plugin/plugin.json" ]]; then
+  copy_replace "$SRC_ROOT/.claude-plugin/plugin.json" "$DST_ROOT/.claude-plugin/plugin.json"
+  echo "  SYNC .claude-plugin/plugin.json"
+fi
+
+# Session hooks (cross-platform: Claude Code, Cursor, Gemini, Codex)
+if [[ -d "$SRC_ROOT/hooks" ]]; then
+  copy_replace "$SRC_ROOT/hooks" "$DST_ROOT/hooks"
+  chmod +x "$DST_ROOT/hooks/session-start.sh" 2>/dev/null || true
+  echo "  SYNC hooks/"
+fi
+
+# Cursor rules
+if [[ -f "$SRC_ROOT/.cursor/rules/aai.mdc" ]]; then
+  copy_replace "$SRC_ROOT/.cursor/rules/aai.mdc" "$DST_ROOT/.cursor/rules/aai.mdc"
+  echo "  SYNC .cursor/rules/aai.mdc"
 fi
 
 # IMPORTANT: Do NOT sync project-specific docs:
