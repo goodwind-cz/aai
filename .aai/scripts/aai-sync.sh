@@ -186,6 +186,9 @@ if [[ "$LEGACY_CLEANED" -eq 1 ]]; then
   echo "  Legacy paths migrated to .aai/ structure."
 fi
 
+TECHNOLOGY_TEMPLATE_PATH="$SRC_ROOT/.aai/templates/TECHNOLOGY_TEMPLATE.md"
+TARGET_TECHNOLOGY_PATH="$DST_ROOT/docs/TECHNOLOGY.md"
+
 # ── Copy AAI canonical layer (.aai/ is the single source of truth) ──────
 # Entry-by-entry so we can merge scripts/ and preserve target-only scripts.
 mkdir -p "$DST_ROOT/.aai"
@@ -261,6 +264,12 @@ if [[ -d "$SRC_ROOT/docs/knowledge" ]]; then
       echo "  SKIP (project-owned, sentinel removed): $dst_file"
     fi
   done
+fi
+
+# docs/TECHNOLOGY.md: seed from template only when missing.
+if [[ -f "$TECHNOLOGY_TEMPLATE_PATH" && ! -f "$TARGET_TECHNOLOGY_PATH" ]]; then
+  cp -a "$TECHNOLOGY_TEMPLATE_PATH" "$TARGET_TECHNOLOGY_PATH"
+  echo "  SEED docs/TECHNOLOGY.md from .aai/templates/TECHNOLOGY_TEMPLATE.md"
 fi
 
 # docs/ai: preserve existing runtime data, but sync template files.
@@ -470,6 +479,7 @@ cat > "$DST_ROOT/.aai/system/AAI_PIN.md" <<EOPIN
 Notes:
 - This project intentionally vendors the AAI files (self-contained).
 - Project-specific docs (requirements/specs/decisions/releases/issues) are not synced by this script.
+- docs/TECHNOLOGY.md is seeded from template only when missing and becomes project-owned after generation.
 EOPIN
 
 echo "Sync complete. Review changes in $DST_ROOT:"

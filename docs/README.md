@@ -8,6 +8,7 @@ A canonical, reusable AAI that standardizes workflows, roles, prompts, and docum
 - **[SKILL_CATALOG.html](SKILL_CATALOG.html)** - 🆕 Interactive skill explorer (generate with `/aai-docs-hub`)
 - **[TODO.md](TODO.md)** - 🆕 Future enhancements roadmap
 - **[ai/DECAPOD_INTEGRATION.md](ai/DECAPOD_INTEGRATION.md)** - 🆕 Compliance framework integration
+- **[../.aai/system/SELF_HOSTING.md](../.aai/system/SELF_HOSTING.md)** - Self-hosting contract for evolving AAI with AAI
 
 **New to AAI?** Start with the [USER_GUIDE.md](USER_GUIDE.md) for a complete walkthrough.
 
@@ -132,11 +133,20 @@ cat .aai/ORCHESTRATION_HITL.prompt.md
 
 ## 8) How to extend this for a new project
 1. Copy the `.aai/` and `docs/` trees into your repo.
-2. Generate `docs/TECHNOLOGY.md` using `.aai/TECH_EXTRACT.prompt.md`.
+2. Seed `docs/TECHNOLOGY.md` from `.aai/templates/TECHNOLOGY_TEMPLATE.md` and fill it using `.aai/TECH_EXTRACT.prompt.md`.
 3. Write requirements and specs using templates.
 4. Run orchestration and follow the dispatched role.
 
-## 9) Troubleshooting / FAQ
+## 9) Self-hosting AAI
+- Read `.aai/system/SELF_HOSTING.md` for the ownership model.
+- Treat `.aai/` and `.aai/templates/` as canonical authoring layer.
+- Treat `docs/TECHNOLOGY.md` and other filled docs as project-generated layer.
+- Treat `docs/ai/` as runtime layer.
+- Verify packaging with:
+  - `tests/self-hosting/test-self-hosting-smoke.sh`
+  - `tests/self-hosting/test-self-hosting-smoke.ps1`
+
+## 10) Troubleshooting / FAQ
 **Q: I want to add another workflow doc.**
 A: Don’t. Only `.aai/workflow/WORKFLOW.md` is canonical.
 
@@ -146,13 +156,14 @@ A: No. Always consult `docs/TECHNOLOGY.md` first.
 **Q: Where should older analyses go?**
 A: Move them to `docs/archive/analysis/` and treat them as immutable.
 
-## 10) Links to AGENTS, CLAUDE, and Copilot instructions
+## 11) Links to AGENTS, CLAUDE, and Copilot instructions
 - Agent Guide: `.aai/AGENTS.md`
 - Claude shim: `CLAUDE.md`
 - Copilot instructions: `.github/copilot-instructions.md`
 
-## 11) Notes about docs/TECHNOLOGY.md, docs/knowledge, and archive usage
+## 12) Notes about docs/TECHNOLOGY.md, docs/knowledge, and archive usage
 - `docs/TECHNOLOGY.md` is the authoritative technology contract (created/updated by the tech prompts).
+- `.aai/templates/TECHNOLOGY_TEMPLATE.md` is the canonical structure source.
 - `docs/knowledge/FACTS.md` stores verified facts only.
 - `docs/knowledge/UI_MAP.md` maps UI to code with evidence.
 - `docs/archive/analysis/` is immutable history; do not extend archived analyses.

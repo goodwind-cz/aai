@@ -43,6 +43,7 @@ git commit -m "Update AAI layer"
 - Reports under `docs/ai/reports/` are runtime artifacts and should not be committed; durable conclusions must be promoted into project-owned docs.
 - Dynamic project skills should use unique `aai-*` names under `.claude/skills/` so they stay target-only and preserved on sync.
 - Runtime files in target `docs/ai` are preserved (not overwritten) if they already exist: `STATE.yaml`, `METRICS.jsonl`, `LOOP_TICKS.jsonl`, `decisions.jsonl`.
+- Missing `docs/TECHNOLOGY.md` is seeded from `.aai/templates/TECHNOLOGY_TEMPLATE.md` and then becomes project-owned.
 - It intentionally does **not** overwrite project docs under `docs/requirements`, `docs/specs`, `docs/decisions`, `docs/releases`, or `docs/issues`.
 
 ## What this repository is for
@@ -104,6 +105,13 @@ git commit -m "Update AAI layer"
    /aai-test-skills
    ```
 
+4. **🧪 Verify self-hosting packaging (canonical repo only):**
+   ```bash
+   bash tests/self-hosting/test-self-hosting-smoke.sh
+   # or:
+   powershell -ExecutionPolicy Bypass -File tests/self-hosting/test-self-hosting-smoke.ps1
+   ```
+
 ## How to use this AAI (step-by-step)
 ### Installation
 1) Clone or copy this repository into your project.
@@ -143,6 +151,11 @@ cat .aai/VALIDATION.prompt.md
 ### Remediation
 ```bash
 cat .aai/REMEDIATION.prompt.md
+```
+
+### Self-hosting
+```bash
+cat .aai/system/SELF_HOSTING.md
 ```
 
 ---
@@ -396,6 +409,7 @@ Tip:
 
 ## How to write/maintain specs, docs, and prompts
 - Use templates in `.aai/templates/`.
+- Use `.aai/templates/TECHNOLOGY_TEMPLATE.md` as the structure source for `docs/TECHNOLOGY.md`.
 - Keep workflow canonical in `.aai/workflow/WORKFLOW.md`.
 - Store verified facts in `docs/knowledge/FACTS.md` and UI mappings in `docs/knowledge/UI_MAP.md`.
 - Store confirmed reusable patterns in `docs/knowledge/PATTERNS.md` (project-specific).
@@ -405,9 +419,28 @@ Tip:
 
 ## How to extend this for a new project
 1) Copy `.aai/` and `docs/` into your repo.
-2) Generate `docs/TECHNOLOGY.md` via `.aai/TECH_EXTRACT.prompt.md`.
+2) Seed `docs/TECHNOLOGY.md` from `.aai/templates/TECHNOLOGY_TEMPLATE.md` and fill it via `.aai/TECH_EXTRACT.prompt.md`.
 3) Use intake prompts to create PRDs, issues, specs, or RFCs.
 4) Run orchestration to dispatch the next role.
+
+## Self-hosting contract
+- Canonical authoring layer:
+  - `.aai/*.prompt.md`
+  - `.aai/templates/*`
+  - `.aai/system/*`
+  - `.aai/scripts/*`
+- Project-generated layer:
+  - `docs/TECHNOLOGY.md`
+  - `docs/requirements/*`
+  - `docs/specs/*`
+  - `docs/decisions/*`
+  - `docs/knowledge/*`
+- Runtime layer:
+  - `docs/ai/STATE.yaml`
+  - `docs/ai/*.jsonl`
+  - `docs/ai/reports/**`
+
+See `.aai/system/SELF_HOSTING.md` for the full contract and `tests/fixtures/target-project/` for the disposable sync fixture.
 
 ## Troubleshooting / FAQ
 **Q: Can I add another workflow doc?**
@@ -445,5 +478,6 @@ Removes stale facts, splits oversized patterns, flags UNVERIFIED entries (unused
 
 ## Notes on docs/TECHNOLOGY.md, knowledge, and archives
 - `docs/TECHNOLOGY.md` is the authoritative technology contract.
+- `.aai/templates/TECHNOLOGY_TEMPLATE.md` is its canonical structure source.
 - Living knowledge stores: `docs/knowledge/FACTS.md`, `docs/knowledge/PATTERNS.md`, `.aai/knowledge/PATTERNS_UNIVERSAL.md`, `docs/knowledge/UI_MAP.md`.
 - `docs/archive/analysis/` is immutable history.

@@ -190,6 +190,9 @@ if ($legacyCleaned) {
   Write-Host "  Legacy paths migrated to .aai/ structure."
 }
 
+$technologyTemplatePath = Join-Path $SrcRoot ".aai/templates/TECHNOLOGY_TEMPLATE.md"
+$targetTechnologyPath = Join-Path $TargetRoot "docs/TECHNOLOGY.md"
+
 # -- Copy AAI canonical layer (.aai/ is the single source of truth) -------
 # Entry-by-entry so we can merge scripts/ and preserve target-only scripts.
 New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot ".aai") | Out-Null
@@ -273,6 +276,12 @@ if (Test-Path $know) {
       Write-Host "  SKIP (project-owned, sentinel removed): $dstFile"
     }
   }
+}
+
+# docs/TECHNOLOGY.md: seed from template only when missing.
+if ((Test-Path $technologyTemplatePath) -and !(Test-Path $targetTechnologyPath)) {
+  Copy-Item $technologyTemplatePath $targetTechnologyPath -Force
+  Write-Host "  SEED docs/TECHNOLOGY.md from .aai/templates/TECHNOLOGY_TEMPLATE.md"
 }
 
 # docs/ai: preserve existing runtime data — system docs are now in .aai/system/
@@ -526,6 +535,7 @@ $pinPath = Join-Path $TargetRoot ".aai/system/AAI_PIN.md"
 Notes:
 - This project intentionally vendors the AAI files (self-contained).
 - Project-specific docs (requirements/specs/decisions/releases/issues) are not synced by this script.
+- docs/TECHNOLOGY.md is seeded from template only when missing and becomes project-owned after generation.
 "@ | Set-Content -Path $pinPath -Encoding utf8
 
 Write-Host "Sync complete. Review changes in $TargetRoot :"
