@@ -11,7 +11,7 @@ This guide explains how to install, configure, and user-test the remote-orchestr
 - git worktree preparation plus real `process` or `docker` run launch
 - live Telegram long polling with inline buttons and callback actions
 - durable approval records and gate checks
-- executable verification suite with `24` passing tests
+- executable verification suite with `25` passing tests
 
 ## Runtime boundaries
 
@@ -55,8 +55,7 @@ git clone <your-aai-repo-url> aai
 cd aai
 git checkout feature/remote-orchestration
 bash apps/control-plane/scripts/install-host.sh \
-  --project-id aai-canonical \
-  --repo-path "$PWD"
+  --wizard
 ```
 
 This is the preferred path. The installer:
@@ -69,6 +68,7 @@ This is the preferred path. The installer:
 - auto-detects `claude` and `codex` from the current Linux/WSL shell
 - records an install summary under `.runtime/install-summary.<project>.json`
 - if a provider CLI is missing, records that state, prints a manual install instruction, and auto-routing will not use that provider
+- asks only a few onboarding questions and prints the exact run command at the end
 
 On a WSL host, the detected Claude path should normally match:
 
@@ -91,6 +91,24 @@ If `claude` or `codex` is not installed, the installer will not try to invent a 
 - keep the rest of the control-plane usable
 - exclude the missing provider from automatic routing
 
+## Wizard questions
+
+The wizard asks only for:
+
+1. managed project repository path
+2. project id
+3. default branch
+4. allowed Telegram chat ids
+5. allowed Telegram user ids
+6. Telegram bot token
+
+When it finishes, it generates:
+
+- portable project config
+- install summary
+- runtime env file
+- ready-to-run `run-control-plane.sh` launcher
+
 ## First-time setup
 
 ### 1. Review what the installer created
@@ -102,7 +120,7 @@ cat .runtime/install-summary.aai-canonical.json
 
 ### 2. Optional: manual overrides
 
-If you want a different project id, default branch, or provider preference, rerun the installer with flags instead of editing files by hand:
+If you want a non-interactive install, rerun the installer with flags instead of editing files by hand:
 
 ```bash
 bash apps/control-plane/scripts/install-host.sh \
@@ -266,10 +284,11 @@ Inline buttons currently cover:
 
 Run these in order on a fresh host:
 
-1. Run the installer.
-   Expected: `.runtime/control-plane.db`, `docs/ai/project-overrides/remote-control.yaml`, and `.runtime/install-summary.<project>.json` exist.
+1. Run the installer wizard.
+   Expected: `.runtime/control-plane.db`, `docs/ai/project-overrides/remote-control.yaml`, `.runtime/install-summary.<project>.json`, `.runtime/control-plane.env`, and `.runtime/run-control-plane.sh` exist.
 2. Check detected provider paths.
    Expected: the install summary shows Linux/WSL paths such as `/home/user/.local/bin/claude`, not guessed placeholder paths.
+   Also expected: the installer prints the exact `bash .runtime/run-control-plane.sh` command.
 3. Probe both provider sessions if you want an explicit refresh.
    Expected: `auth status` shows `status=ok` for installed CLIs.
    If one CLI is not installed, expected: `auth status` shows `status=missing` and auto-routing avoids it.
@@ -282,7 +301,7 @@ Run these in order on a fresh host:
 7. Press `Stop` or `Resume`.
    Expected: work item status changes in DB and bot confirms callback.
 8. Run the full validation suite.
-   Expected: all `24` tests print `PASS`.
+   Expected: all `25` tests print `PASS`.
 
 ## Automated verification
 
@@ -292,7 +311,7 @@ Run the complete suite:
 bash tests/remote-orchestration/run-all.sh
 ```
 
-Target result: `24/24 PASS`.
+Target result: `25/25 PASS`.
 
 Focused checks:
 
@@ -303,6 +322,7 @@ bash tests/remote-orchestration/test-021-telegram-live-polling.sh
 bash tests/remote-orchestration/test-022-standard-runtime-build.sh
 bash tests/remote-orchestration/test-023-install-script.sh
 bash tests/remote-orchestration/test-024-missing-provider-fallback.sh
+bash tests/remote-orchestration/test-025-install-wizard.sh
 ```
 
 ## Where login state is stored

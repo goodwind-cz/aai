@@ -36,9 +36,7 @@ This is the runnable TypeScript control-plane for the remote-orchestration stack
 ## Install
 
 ```bash
-bash apps/control-plane/scripts/install-host.sh \
-  --project-id aai-canonical \
-  --repo-path "$PWD"
+bash apps/control-plane/scripts/install-host.sh --wizard
 ```
 
 The installer:
@@ -50,6 +48,7 @@ The installer:
 - auto-detects `claude` and `codex` CLIs from the current Linux/WSL shell
 - probes provider binaries and stores host-side metadata in SQLite
 - records missing CLIs as unavailable and tells the operator to install them manually instead of trying to use them
+- asks only a few setup questions and generates a ready-to-run launcher script
 
 In WSL the detected CLI path is typically the real Linux path, for example `$(command -v claude)` such as `/home/ales/.local/bin/claude`.
 
@@ -117,12 +116,13 @@ node apps/control-plane/dist/cli.js telegram serve \
 bash tests/remote-orchestration/run-all.sh
 ```
 
-The current suite contains `24` CLI-backed tests, including:
+The current suite contains `25` CLI-backed tests, including:
 - provider session probe and usage sync
 - live Telegram long-poll fixture flow
 - real run launch with worktree/log artifacts
 - standard `tsc -> dist` runtime verification
 - one-command host installer flow
 - missing-provider fallback and operator install prompt behavior
+- interactive install wizard with generated run command
 
 `green` in the remote-orchestration spec is backed by executable control-plane flows, not by file-content smoke checks.

@@ -17,6 +17,8 @@ IMPLEMENTATION_PROVIDER="codex"
 VALIDATION_PROVIDER="codex"
 CHAT_IDS=""
 USER_IDS=""
+TELEGRAM_BOT_TOKEN=""
+WIZARD_MODE=0
 SKIP_DEPS=0
 SKIP_BUILD=0
 SKIP_PROVIDER_PROBES=0
@@ -25,6 +27,9 @@ CODEX_CLI_PATH=""
 CLAUDE_SESSION_HOME="${HOME}/.claude"
 CODEX_SESSION_HOME="${HOME}/.codex"
 SUMMARY_PATH=""
+RUNTIME_ENV_PATH=""
+RUN_SCRIPT_PATH=""
+ORIGINAL_ARGC=$#
 
 usage() {
   cat <<'EOF'
@@ -44,14 +49,18 @@ Options:
   --validation-provider <name>       Default validation provider. Default: codex
   --chat-ids <csv>                   Allowed Telegram chat ids.
   --user-ids <csv>                   Allowed Telegram user ids.
+  --telegram-bot-token <token>       Telegram bot token stored into local runtime env file.
   --claude-cli-path <path>           Override Claude CLI path.
   --codex-cli-path <path>            Override Codex CLI path.
   --claude-session-home <path>       Override Claude session home. Default: ~/.claude
   --codex-session-home <path>        Override Codex session home. Default: ~/.codex
   --summary-path <path>              Install summary JSON path. Default: .runtime/install-summary.<project>.json
+  --runtime-env-path <path>          Runtime env file path. Default: .runtime/control-plane.env under host repo.
+  --run-script-path <path>           Generated launch script path. Default: .runtime/run-control-plane.sh under host repo.
   --skip-deps                        Skip npm install.
   --skip-build                       Skip npm build.
   --skip-provider-probes             Skip provider binary/session probes.
+  --wizard                           Prompt for missing values interactively.
   --help                             Show this help.
 EOF
 }
@@ -59,6 +68,35 @@ EOF
 fail() {
   printf '%s\n' "$*" >&2
   exit 1
+}
+
+is_tty() {
+  [[ -t 0 && -t 1 ]]
+}
+
+prompt_with_default() {
+  local prompt_text="$1"
+  local default_value="$2"
+  local answer=""
+  if [[ -n "$default_value" ]]; then
+    printf '%s [%s]: ' "$prompt_text" "$default_value" >&2
+  else
+    printf '%s: ' "$prompt_text" >&2
+  fi
+  IFS= read -r answer || true
+  if [[ -z "$answer" ]]; then
+    printf '%s\n' "$default_value"
+    return
+  fi
+  printf '%s\n' "$answer"
+}
+
+prompt_secret() {
+  local prompt_text="$1"
+  local answer=""
+  printf '%s: ' "$prompt_text" >&2
+  IFS= read -r answer || true
+  printf '%s\n' "$answer"
 }
 
 detect_project_id() {
@@ -198,6 +236,41 @@ phase_provider_preferences:
 EOF
 }
 
+write_runtime_env() {
+  local env_path="$1"
+  mkdir -p "$(dirname "$env_path")"
+  {
+    printf 'AAI_TELEGRAM_BOT_TOKEN=%s\n' "$TELEGRAM_BOT_TOKEN"
+    printf 'AAI_CONTROL_PLANE_DB=%s\n' "$DB_PATH"
+    printf 'AAI_APPROVAL_CONFIG=%s\n' "$HOST_ROOT/apps/control-plane/config/approval-gates.json"
+  } > "$env_path"
+}
+
+write_run_script() {
+  local script_path="$1"
+  local env_path="$2"
+  mkdir -p "$(dirname "$script_path")"
+  cat > "$script_path" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "\$0")/$(basename "$env_path")"
+if command -v node >/dev/null 2>&1; then
+  NODE_CMD="node"
+elif command -v node.exe >/dev/null 2>&1; then
+  NODE_CMD="node.exe"
+else
+  echo "Node.js not found" >&2
+  exit 1
+fi
+cd "$HOST_ROOT"
+"\$NODE_CMD" apps/control-plane/dist/cli.js telegram serve \\
+  --db "\$AAI_CONTROL_PLANE_DB" \\
+  --token "\$AAI_TELEGRAM_BOT_TOKEN" \\
+  --approval-config "\$AAI_APPROVAL_CONFIG"
+EOF
+  chmod +x "$script_path"
+}
+
 probe_provider() {
   local provider="$1"
   local cli_path="$2"
@@ -324,6 +397,10 @@ while [[ $# -gt 0 ]]; do
       USER_IDS="$2"
       shift 2
       ;;
+    --telegram-bot-token)
+      TELEGRAM_BOT_TOKEN="$2"
+      shift 2
+      ;;
     --claude-cli-path)
       CLAUDE_CLI_PATH="$2"
       shift 2
@@ -344,6 +421,14 @@ while [[ $# -gt 0 ]]; do
       SUMMARY_PATH="$2"
       shift 2
       ;;
+    --runtime-env-path)
+      RUNTIME_ENV_PATH="$2"
+      shift 2
+      ;;
+    --run-script-path)
+      RUN_SCRIPT_PATH="$2"
+      shift 2
+      ;;
     --skip-deps)
       SKIP_DEPS=1
       shift
@@ -356,6 +441,10 @@ while [[ $# -gt 0 ]]; do
       SKIP_PROVIDER_PROBES=1
       shift
       ;;
+    --wizard)
+      WIZARD_MODE=1
+      shift
+      ;;
     --help)
       usage
       exit 0
@@ -366,11 +455,34 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ "$ORIGINAL_ARGC" -eq 0 ]] && is_tty; then
+  WIZARD_MODE=1
+fi
+
 MANAGED_REPO_PATH="$(cd "$MANAGED_REPO_PATH" && pwd)"
 PROJECT_ID="${PROJECT_ID:-$(detect_project_id)}"
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-$(detect_default_branch "$MANAGED_REPO_PATH")}"
 PROJECT_CONFIG_PATH="${PROJECT_CONFIG_PATH:-$MANAGED_REPO_PATH/docs/ai/project-overrides/remote-control.yaml}"
 SUMMARY_PATH="${SUMMARY_PATH:-$HOST_ROOT/.runtime/install-summary.${PROJECT_ID}.json}"
+RUNTIME_ENV_PATH="${RUNTIME_ENV_PATH:-$HOST_ROOT/.runtime/control-plane.env}"
+RUN_SCRIPT_PATH="${RUN_SCRIPT_PATH:-$HOST_ROOT/.runtime/run-control-plane.sh}"
+
+if [[ "$WIZARD_MODE" -eq 1 ]]; then
+  printf '\nAAI Remote Orchestration Setup\n' >&2
+  printf 'This wizard will prepare the host runtime, register one project, and generate the run command.\n\n' >&2
+  MANAGED_REPO_PATH="$(prompt_with_default "Managed project repository path" "$MANAGED_REPO_PATH")"
+  if [[ ! -d "$MANAGED_REPO_PATH" ]]; then
+    fail "Repository path does not exist: $MANAGED_REPO_PATH"
+  fi
+  MANAGED_REPO_PATH="$(cd "$MANAGED_REPO_PATH" && pwd)"
+  PROJECT_ID="$(prompt_with_default "Project id" "$PROJECT_ID")"
+  DEFAULT_BRANCH="$(prompt_with_default "Default branch" "$DEFAULT_BRANCH")"
+  CHAT_IDS="$(prompt_with_default "Allowed Telegram chat ids (csv, optional)" "$CHAT_IDS")"
+  USER_IDS="$(prompt_with_default "Allowed Telegram user ids (csv, optional)" "$USER_IDS")"
+  TELEGRAM_BOT_TOKEN="$(prompt_secret "Telegram bot token (leave blank to add later)")"
+  PROJECT_CONFIG_PATH="${PROJECT_CONFIG_PATH:-$MANAGED_REPO_PATH/docs/ai/project-overrides/remote-control.yaml}"
+  SUMMARY_PATH="${SUMMARY_PATH:-$HOST_ROOT/.runtime/install-summary.${PROJECT_ID}.json}"
+fi
 
 resolve_node_bin
 
@@ -432,6 +544,11 @@ fi
 
 write_summary "$created_config" "$claude_detected" "$codex_detected" "$claude_recommended" "$codex_recommended"
 
+if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
+  write_runtime_env "$RUNTIME_ENV_PATH"
+  write_run_script "$RUN_SCRIPT_PATH" "$RUNTIME_ENV_PATH"
+fi
+
 printf 'Install complete.\n'
 printf 'Host DB: %s\n' "$DB_PATH"
 printf 'Project config: %s\n' "$PROJECT_CONFIG_PATH"
@@ -447,4 +564,10 @@ if [[ -z "$claude_detected" ]]; then
 fi
 if [[ -z "$codex_detected" ]]; then
   printf 'Codex CLI not found. Install it manually, or the router will not use Codex.\n'
+fi
+if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
+  printf 'Run command: bash %s\n' "$RUN_SCRIPT_PATH"
+else
+  printf 'Telegram token not provided. Add it later with AAI_TELEGRAM_BOT_TOKEN in %s and run:\n' "$RUNTIME_ENV_PATH"
+  printf '  node apps/control-plane/dist/cli.js telegram serve --db %s --token "$AAI_TELEGRAM_BOT_TOKEN" --approval-config apps/control-plane/config/approval-gates.json\n' "$DB_PATH"
 fi
