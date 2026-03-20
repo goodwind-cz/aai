@@ -38,6 +38,8 @@
     "telegram:registry": "bash ./scripts/run-cli.sh telegram registry",
     "telegram:interactive": "bash ./scripts/run-cli.sh telegram interactive",
     "telegram:callback": "bash ./scripts/run-cli.sh telegram callback",
+    "telegram:get-me": "bash ./scripts/run-cli.sh telegram get-me",
+    "telegram:setup-info": "bash ./scripts/run-cli.sh telegram setup-info",
     "telegram:poll": "bash ./scripts/run-cli.sh telegram poll",
     "telegram:serve": "bash ./scripts/run-cli.sh telegram serve",
     "telegram:simulate": "bash ./scripts/run-cli.sh telegram simulate",
@@ -50,6 +52,7 @@
     "test:remote:provider-session": "bash -lc \"cd ../.. && bash tests/remote-orchestration/test-019-provider-session-probe.sh\"",
     "test:remote:run-launch": "bash -lc \"cd ../.. && bash tests/remote-orchestration/test-020-run-launch.sh\"",
     "test:remote:telegram": "bash -lc \"cd ../.. && bash tests/remote-orchestration/test-021-telegram-live-polling.sh\"",
+    "test:remote:telegram-setup": "bash -lc \"cd ../.. && bash tests/remote-orchestration/test-027-telegram-setup-info.sh\"",
     "test:remote:runtime-build": "bash -lc \"cd ../.. && bash tests/remote-orchestration/test-022-standard-runtime-build.sh\"",
     "test:remote:npm": "bash -lc \"cd ../.. && bash tests/remote-orchestration/test-026-npm-scripts.sh\"",
     "validate:remote": "npm run build && npm run test:remote"

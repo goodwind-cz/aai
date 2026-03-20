@@ -1,41 +1,34 @@
 # Remote Orchestration User Guide
 
-This guide explains how to install, configure, and user-test the remote-orchestration control-plane on `feature/remote-orchestration`.
+English version. Czech version: [REMOTE_ORCHESTRATION_USER_GUIDE.cs.md](./REMOTE_ORCHESTRATION_USER_GUIDE.cs.md)
 
-## What is implemented
+This guide is written for the operator who wants to install the remote-orchestration control-plane on a Linux or WSL host, authenticate Claude/Codex with CLI subscriptions, connect the host to Telegram, and start using it without hand-editing project files.
 
-- one host control-plane process with SQLite runtime state
-- multi-project registration from one install
-- provider routing for `Claude Code` and `Codex`
-- host-only CLI-subscription session probe and usage sync
-- git worktree preparation plus real `process` or `docker` run launch
-- live Telegram long polling with inline buttons and callback actions
-- durable approval records and gate checks
-- executable verification suite with `26` passing tests
+## 1. What this gives you
 
-## Runtime boundaries
+After setup you will have:
 
-- Repo-canonical:
-  - `docs/requirements/*`
-  - `docs/rfc/*`
-  - `docs/specs/*`
-  - `docs/TECHNOLOGY.md`
-- Host runtime only:
-  - control-plane SQLite database
-  - provider session homes and CLI auth state
-  - Telegram cursor/session state
-  - run logs and transient reports
+- one host-side control-plane process
+- one SQLite runtime database under `.runtime/`
+- one generated launcher script for Telegram polling
+- project registration for one or more managed repos
+- Claude Code and Codex routing through CLI subscription mode only
+- Telegram commands and inline buttons for queueing and controlling work
 
-Do not commit provider sessions, runtime DBs, or local run logs.
+This feature does not use provider API keys. It expects the provider CLIs to already be installed and logged in on the host.
 
-## Prerequisites
+## 2. Before you start
 
-- WSL2 or Linux host
+Prepare a Linux or WSL host with:
+
 - Node.js `>=24`
 - `git`
 - `bash`
-- provider CLIs already logged in with subscription mode on the host
-- optional for container runs: Docker
+- optional: Docker, if you want container runs
+- a Telegram bot token from BotFather
+- at least one provider CLI installed and logged in:
+  - `claude`
+  - `codex`
 
 Quick checks:
 
@@ -43,145 +36,177 @@ Quick checks:
 node -v
 git --version
 bash --version
-claude --version || true
-codex --help || true
+which claude || true
+which codex || true
 docker --version || true
 ```
 
-## Installation
+If WSL has an older Linux `node`, that is still acceptable as long as `node.exe` on Windows is `>=24`. The npm wrapper scripts automatically prefer native Node 24+ and fall back to `node.exe` when needed.
 
-```bash
-git clone <your-aai-repo-url> aai
-cd aai
-git checkout feature/remote-orchestration
-npm --prefix apps/control-plane run install:wizard
-```
+## 3. Install and authenticate the agent CLIs
 
-This is the preferred path. The installer:
+### Claude Code
 
-- installs control-plane dependencies
-- builds `dist/cli.js`
-- initializes `.runtime/control-plane.db`
-- creates `docs/ai/project-overrides/remote-control.yaml` only if it does not already exist
-- registers the project against the host DB
-- auto-detects `claude` and `codex` from the current Linux/WSL shell
-- records an install summary under `.runtime/install-summary.<project>.json`
-- if a provider CLI is missing, records that state, prints a manual install instruction, and auto-routing will not use that provider
-- asks only a few onboarding questions and prints the exact run command at the end
-
-On a WSL host, the detected Claude path should normally match:
+Install the Claude Code CLI on the host using the provider's normal subscription login flow. After login, verify:
 
 ```bash
 which claude
+claude --version
 ```
 
-Example shape:
+Expected WSL path shape:
 
 ```bash
-/home/user/.local/bin/claude
+/home/<user>/.local/bin/claude
 ```
 
-No manual YAML editing is required for first install unless you want to override defaults.
+### Codex
 
-If `claude` or `codex` is not installed, the installer will not try to invent a broken fallback. It will:
+Install the Codex CLI on the host using its normal subscription login flow. After login, verify:
 
-- mark the provider as `missing` in the host DB
-- print a message telling the operator to install that CLI manually
-- keep the rest of the control-plane usable
-- exclude the missing provider from automatic routing
+```bash
+which codex
+codex --help
+```
 
-## Wizard questions
+### Important rule
+
+The control-plane stores only metadata about provider health and usage. Your real provider login state stays in the native CLI homes, typically:
+
+- `~/.claude`
+- `~/.codex`
+
+If a CLI is missing, the installer will mark it as unavailable and will not route work to it automatically.
+
+## 4. Create and verify the Telegram bot
+
+### 4.1 Create the bot token
+
+In Telegram:
+
+1. Open `@BotFather`
+2. Run `/newbot`
+3. Choose the bot name and username
+4. Copy the token
+
+### 4.2 Verify the token from the host
+
+From the repo root:
+
+```bash
+npm --silent --prefix apps/control-plane run telegram:get-me -- --token "<BOT_TOKEN>"
+```
+
+Expected result:
+
+- `ok` JSON payload with the bot username
+- if this fails, the token is wrong or the bot is not reachable
+
+### 4.3 Collect the Telegram IDs you need
+
+Before the installer asks for allowed chat IDs and user IDs, send at least one message to the bot from:
+
+- every Telegram chat that should control the project
+- the operator account that should be allowed to approve or stop work
+
+Then run:
+
+```bash
+npm --silent --prefix apps/control-plane run telegram:setup-info -- --token "<BOT_TOKEN>"
+```
+
+This prints:
+
+- `chat_ids`: discovered chat IDs from recent messages/callbacks
+- `user_ids`: discovered Telegram user IDs
+- `recent_updates`: recent messages or callback queries
+
+Use those values in the installer wizard.
+
+If you want to see the bot identity and recent update sources together:
+
+```bash
+npm --silent --prefix apps/control-plane run telegram:get-me -- --token "<BOT_TOKEN>"
+npm --silent --prefix apps/control-plane run telegram:setup-info -- --token "<BOT_TOKEN>" --limit 20
+```
+
+## 5. Install the control-plane for the current project
+
+If the current repo is the project you want to manage:
+
+```bash
+git checkout feature/remote-orchestration
+npm --prefix apps/control-plane run install:wizard
+```
 
 The wizard asks only for:
 
 1. managed project repository path
 2. project id
 3. default branch
-4. allowed Telegram chat ids
-5. allowed Telegram user ids
+4. allowed Telegram chat IDs
+5. allowed Telegram user IDs
 6. Telegram bot token
 
-When it finishes, it generates:
+The installer then:
 
-- portable project config
-- install summary
-- runtime env file
-- ready-to-run `run-control-plane.sh` launcher
+- runs `npm install` and `npm run build`
+- creates `.runtime/control-plane.db`
+- creates `docs/ai/project-overrides/remote-control.yaml` only if it does not exist
+- registers the project in the host SQLite DB
+- auto-detects `claude` and `codex`
+- probes provider session status
+- writes `.runtime/install-summary.<project>.json`
+- writes `.runtime/control-plane.env` if you entered the token
+- writes `.runtime/run-control-plane.sh`
+- prints the exact run command
 
-## Recommended npm commands
+## 6. Install the control-plane for another project
 
-Run these from the repo root:
-
-```bash
-npm --prefix apps/control-plane run install:wizard
-npm --prefix apps/control-plane run build
-npm --prefix apps/control-plane run serve:generated
-npm --prefix apps/control-plane run test:remote:install
-npm --prefix apps/control-plane run validate:remote
-```
-
-For any direct control-plane operation, use:
-
-```bash
-npm --prefix apps/control-plane run <script-name> -- <args>
-```
-
-These npm scripts go through `apps/control-plane/scripts/run-cli.sh`, so on WSL they can fall back to `node.exe` 24+ when the Linux-side `node` is older.
-If you need raw JSON without npm banners, add `--silent` before `--prefix`.
-If you need the raw JSON output without npm banners, add `--silent` before `--prefix`.
-
-The `package.json` script names mirror the CLI shape, for example:
-
-- `project:register`, `project:list`, `project:show`
-- `auth:probe`, `auth:status`
-- `router:choose`, `usage:show`
-- `queue:create`, `queue:status`, `queue:action`
-- `approve:check`, `approve:grant`, `approval:exists`
-- `run:prepare`, `run:launch`, `run:inspect`, `run:validate`
-- `handoff:build`
-- `telegram:registry`, `telegram:interactive`, `telegram:callback`, `telegram:poll`, `telegram:serve`, `telegram:simulate`
-- `mounts:template`, `mounts:validate`
-- `defaults:show`, `policy:show`
-
-## First-time setup
-
-### 1. Review what the installer created
-
-```bash
-cat docs/ai/project-overrides/remote-control.yaml
-cat .runtime/install-summary.aai-canonical.json
-```
-
-### 2. Optional: manual overrides
-
-If you want a non-interactive install, rerun the installer with flags instead of editing files by hand:
+If you keep this AAI repo as the host controller and want to manage a different repo, run:
 
 ```bash
 npm --prefix apps/control-plane run install:host -- \
-  --project-id another-project \
-  --repo-path /mnt/z/AI/another-project \
+  --repo-path /mnt/z/AI/my-other-project \
+  --project-id my-other-project \
   --default-branch main \
-  --planning-provider claude \
-  --implementation-provider codex \
-  --validation-provider codex
+  --chat-ids 123456789 \
+  --user-ids 987654321 \
+  --telegram-bot-token "<BOT_TOKEN>"
 ```
 
-This still creates or reuses the portable config in the managed repo and keeps host-only values out of it.
+This keeps:
 
-### 3. Optional: register a project manually
+- host runtime data in this AAI repo under `.runtime/`
+- portable project policy in the managed project under `docs/ai/project-overrides/remote-control.yaml`
+
+## 7. Check what the installer created
+
+After the wizard or non-interactive install, inspect:
 
 ```bash
-npm --prefix apps/control-plane run project:register -- \
-  --db .runtime/control-plane.db \
-  --project-config docs/ai/project-overrides/remote-control.yaml \
-  --repo-path "$PWD" \
-  --chat-ids 1001 \
-  --user-ids 2001
+cat .runtime/install-summary.<project>.json
+cat docs/ai/project-overrides/remote-control.yaml
+cat .runtime/control-plane.env
 ```
 
-### 4. Optional: probe provider sessions explicitly
+Important files:
 
-Secrets remain in the native provider homes. The control-plane stores only health and usage metadata in SQLite.
+- host DB: `.runtime/control-plane.db`
+- install summary: `.runtime/install-summary.<project>.json`
+- runtime env: `.runtime/control-plane.env`
+- generated launcher: `.runtime/run-control-plane.sh`
+- portable project policy: `docs/ai/project-overrides/remote-control.yaml`
+
+## 8. Verify agent authentication after install
+
+Check what the control-plane thinks about provider availability:
+
+```bash
+npm --prefix apps/control-plane run auth:status -- --db .runtime/control-plane.db
+```
+
+If you want to re-probe a provider explicitly:
 
 ```bash
 npm --prefix apps/control-plane run auth:probe -- \
@@ -196,52 +221,121 @@ npm --prefix apps/control-plane run auth:probe -- \
   --provider codex \
   --cli-path "$(command -v codex)" \
   --session-home ~/.codex \
-  --probe-args --version
+  --probe-args --help
 ```
 
-Inspect synced metadata:
+Expected state:
+
+- `status: "ok"` if the CLI exists and the probe succeeded
+- `status: "missing"` if the CLI is not installed
+- `status: "error"` if the CLI exists but the probe failed
+
+## 9. Start the Telegram control-plane
+
+If you entered the token during install:
 
 ```bash
-npm --prefix apps/control-plane run auth:status -- --db .runtime/control-plane.db
-npm --prefix apps/control-plane run usage:show -- --db .runtime/control-plane.db
+bash .runtime/run-control-plane.sh
 ```
 
-If a provider exposes a machine-readable usage command on your host, rerun `auth probe` with `--usage-args ...` for that provider.
+That is the preferred launch command because it uses the generated env file and approval config automatically.
 
-## Main operator flows
-
-### Route a provider
+If you did not enter the token during install, set it first:
 
 ```bash
-npm --prefix apps/control-plane run router:choose -- \
+export AAI_TELEGRAM_BOT_TOKEN="<BOT_TOKEN>"
+npm --prefix apps/control-plane run telegram:serve -- \
   --db .runtime/control-plane.db \
-  --project-config docs/ai/project-overrides/remote-control.yaml \
-  --phase implementation \
-  --provider auto
+  --token "$AAI_TELEGRAM_BOT_TOKEN" \
+  --approval-config apps/control-plane/config/approval-gates.json
 ```
 
-### Prepare and launch one run
+## 10. Use the bot in Telegram
+
+### 10.1 First contact
+
+Open your bot chat and send:
+
+```text
+/projects
+```
+
+This should list registered projects.
+
+If multiple projects are registered and no session default exists yet, use:
+
+```text
+/new
+```
+
+The bot will ask you to select a project first.
+
+### 10.2 Create new work
+
+```text
+/intake <project_id> <ref_id> <summary>
+```
+
+Example:
+
+```text
+/intake my-other-project PRD-123 Add dockerized worker launcher
+```
+
+Alias:
+
+```text
+/new my-other-project PRD-123 Add dockerized worker launcher
+```
+
+### 10.3 Check status
+
+```text
+/status
+/status <project_id> <ref_id>
+```
+
+### 10.4 See provider usage
+
+```text
+/usage
+```
+
+### 10.5 Override provider
+
+```text
+/provider <project_id> <auto|claude|codex> [ref_id]
+```
+
+### 10.6 Resume or stop work
+
+```text
+/resume <project_id> <ref_id>
+/stop <project_id> <ref_id>
+```
+
+Inline buttons also support:
+
+- `Resume`
+- `Stop`
+- `Use Claude`
+- `Use Codex`
+- project picker selection
+
+## 11. Run and inspect work from the host
+
+Prepare a run:
 
 ```bash
 npm --prefix apps/control-plane run run:prepare -- \
   --db .runtime/control-plane.db \
-  --project-id aai-canonical \
-  --ref-id PRD-AAI-REMOTE-ORCHESTRATION-01 \
-  --repo-path "$PWD" \
-  --project-config docs/ai/project-overrides/remote-control.yaml \
+  --project-id my-other-project \
+  --ref-id PRD-123 \
+  --repo-path /mnt/z/AI/my-other-project \
+  --project-config /mnt/z/AI/my-other-project/docs/ai/project-overrides/remote-control.yaml \
   --worktrees-root .runtime/worktrees \
   --container-image ghcr.io/example/aai-worker:preview \
   --provider auto
-```
-
-Launch in local process mode:
-
-```bash
-npm --prefix apps/control-plane run run:launch -- \
-  --db .runtime/control-plane.db \
-  --manifest .runtime/worktrees/aai-canonical-PRD-AAI-REMOTE-ORCHESTRATION-01/run-manifest.json \
-  --mode process \
-  --worker-command ./path/to/worker.js
 ```
 
 Launch in Docker mode:
@@ -249,7 +343,7 @@ Launch in Docker mode:
 ```bash
 npm --prefix apps/control-plane run run:launch -- \
   --db .runtime/control-plane.db \
-  --manifest .runtime/worktrees/aai-canonical-PRD-AAI-REMOTE-ORCHESTRATION-01/run-manifest.json \
+  --manifest .runtime/worktrees/my-other-project-PRD-123/run-manifest.json \
   --mode docker
 ```
 
@@ -258,119 +352,78 @@ Inspect the run:
 ```bash
 npm --prefix apps/control-plane run run:inspect -- \
   --db .runtime/control-plane.db \
-  --run-id <run_id>
+  --run-id <RUN_ID>
 ```
 
-### Validate extra mounts
-
-Print the allowlist template:
+## 12. Recommended commands you will actually use
 
 ```bash
-npm --prefix apps/control-plane run mounts:template
+npm --prefix apps/control-plane run install:wizard
+npm --silent --prefix apps/control-plane run telegram:get-me -- --token "<BOT_TOKEN>"
+npm --silent --prefix apps/control-plane run telegram:setup-info -- --token "<BOT_TOKEN>"
+npm --prefix apps/control-plane run auth:status -- --db .runtime/control-plane.db
+bash .runtime/run-control-plane.sh
+npm --prefix apps/control-plane run validate:remote
 ```
 
-Validate requested mounts:
+## 13. Troubleshooting
+
+### The installer says Claude or Codex is missing
+
+That means the CLI binary was not found or could not be probed. Install the CLI on the host, log in with your subscription, then rerun:
 
 ```bash
-npm --prefix apps/control-plane run mounts:validate -- \
-  --mounts "/home/me/shared-docs|/workspace/shared-docs|ro"
+npm --prefix apps/control-plane run install:wizard
 ```
 
-### Telegram control surface
-
-Registry and interaction model:
+or:
 
 ```bash
-npm --prefix apps/control-plane run telegram:registry -- \
-  --config apps/control-plane/config/command-registry.json
-
-npm --prefix apps/control-plane run telegram:interactive
+npm --prefix apps/control-plane run auth:probe -- --db .runtime/control-plane.db ...
 ```
 
-Run the long-poll daemon:
+### Telegram bot token works, but no IDs appear in `telegram:setup-info`
+
+Send a fresh message to the bot from the target chat and then rerun:
 
 ```bash
-npm --prefix apps/control-plane run telegram:serve -- \
-  --db .runtime/control-plane.db \
-  --token "$TELEGRAM_BOT_TOKEN" \
-  --approval-config apps/control-plane/config/approval-gates.json
+npm --silent --prefix apps/control-plane run telegram:setup-info -- --token "<BOT_TOKEN>"
 ```
 
-Useful chat commands:
+### The bot starts but does not react in the correct project
 
-- `/projects`
-- `/intake` and `/new`
-- `/status`
-- `/usage`
-- `/provider`
-- `/resume`
-- `/stop`
+Check:
 
-Inline buttons currently cover:
+- registered projects: `npm --prefix apps/control-plane run project:list -- --db .runtime/control-plane.db`
+- Telegram ACLs in the project row
+- current session default by sending `/projects` and `/new`
 
-- `Resume`
-- `Stop`
-- `Use Claude`
-- `Use Codex`
-- project picker callbacks
+## 14. Validation
 
-## User acceptance checklist
-
-Run these in order on a fresh host:
-
-1. Run the installer wizard.
-   Expected: `.runtime/control-plane.db`, `docs/ai/project-overrides/remote-control.yaml`, `.runtime/install-summary.<project>.json`, `.runtime/control-plane.env`, and `.runtime/run-control-plane.sh` exist.
-2. Check detected provider paths.
-   Expected: the install summary shows Linux/WSL paths such as `/home/user/.local/bin/claude`, not guessed placeholder paths.
-   Also expected: the installer prints the exact `bash .runtime/run-control-plane.sh` command.
-3. Probe both provider sessions if you want an explicit refresh.
-   Expected: `auth status` shows `status=ok` for installed CLIs.
-   If one CLI is not installed, expected: `auth status` shows `status=missing` and auto-routing avoids it.
-4. Prepare one run.
-   Expected: a git worktree and `run-manifest.json` appear under `.runtime/worktrees`.
-5. Launch one run in process mode.
-   Expected: `run inspect` shows `status=done` and a log path.
-6. Start Telegram daemon and send `/intake <project> <ref> <summary>`.
-   Expected: work item becomes `queued` and bot responds with inline actions.
-7. Press `Stop` or `Resume`.
-   Expected: work item status changes in DB and bot confirms callback.
-8. Run the full validation suite.
-   Expected: all `26` tests print `PASS`.
-
-## Automated verification
-
-Run the complete suite:
+Run the full suite:
 
 ```bash
 npm --prefix apps/control-plane run validate:remote
 ```
 
-Target result: `26/26 PASS`.
+Target result:
+
+- `27/27 PASS`
 
 Focused checks:
 
 ```bash
 npm --prefix apps/control-plane run test:remote:install
 npm --prefix apps/control-plane run test:remote:provider-session
-npm --prefix apps/control-plane run test:remote:run-launch
 npm --prefix apps/control-plane run test:remote:telegram
-npm --prefix apps/control-plane run test:remote:runtime-build
+npm --prefix apps/control-plane run test:remote:telegram-setup
 npm --prefix apps/control-plane run test:remote:npm
 ```
 
-## Where login state is stored
+## 15. Documentation sync rule
 
-- Provider secrets/session state:
-  - native CLI homes such as `~/.claude` or `~/.codex`
-  - never in repo docs
-- Control-plane metadata:
-  - SQLite tables `provider_sessions`, `provider_usage_snapshots`, `telegram_sessions`
-- Repo evidence:
-  - requirements, specs, and reports only
+This guide must be kept in sync with:
 
-## Spec references
+- [REMOTE_ORCHESTRATION_USER_GUIDE.cs.md](./REMOTE_ORCHESTRATION_USER_GUIDE.cs.md)
 
-- `docs/requirements/PRD-AAI-REMOTE-ORCHESTRATION-01.md`
-- `docs/rfc/RFC-AAI-REMOTE-RUNTIME-01.md`
-- `docs/specs/SPEC-AAI-TELEGRAM-CONTROL-01.md`
-- `docs/specs/SPEC-PRD-AAI-REMOTE-ORCHESTRATION-01.md`
+Any future onboarding or command-surface change must update both language versions in the same change.

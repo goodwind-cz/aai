@@ -42,12 +42,12 @@ active_work_items: []
 
 last_validation:
   status: pass
-  run_at_utc: "2026-03-20T21:11:20Z"
-  validator_ref: "manual-validation-20260320T211120Z"
+  run_at_utc: "2026-03-20T21:29:58Z"
+  validator_ref: "manual-validation-20260320T212958Z"
   evidence_paths:
-    - docs/ai/reports/validation-20260320T211120Z.log
-    - docs/ai/reports/validation-20260320T211120Z.md
-  notes: "npm-first operator flow completed: package scripts now cover the control-plane command surface via run-cli.sh, WSL Node 24 fallback is enforced, and validate:remote passed with 26/26 tests."
+    - docs/ai/reports/validation-20260320T212958Z.log
+    - docs/ai/reports/validation-20260320T212958Z.md
+  notes: "Step-by-step remote-orchestration onboarding is now documented in synchronized English and Czech guides, Telegram setup helpers can verify the bot token and surface chat/user IDs, and validate:remote passed with 27/27 tests."
 
 human_input:
   required: false
@@ -154,5 +154,21 @@ metrics:
           tokens_in: null
           tokens_out: null
           cost_usd: null
+        - role: Implementation
+          model_id: gpt-5
+          started_utc: "2026-03-20T21:10:17Z"
+          ended_utc: "2026-03-20T21:22:09Z"
+          duration_seconds: 712
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+        - role: Validation
+          model_id: gpt-5
+          started_utc: "2026-03-20T21:22:10Z"
+          ended_utc: "2026-03-20T21:29:58Z"
+          duration_seconds: 468
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
 
-updated_at_utc: "2026-03-20T21:11:20Z"
+updated_at_utc: "2026-03-20T21:29:58Z"

@@ -24,3 +24,4 @@
 
 ## Conventions
 <!-- Example: - [2026-03-08] Write repository documents in English, chat in user's language (source: project rule) -->
+- [2026-03-20] Remote orchestration user documentation must be maintained in synchronized English and Czech versions; onboarding or command-surface changes must update both guides in the same change. (source: user requirement during remote-orchestration documentation pass)

@@ -85,6 +85,7 @@
 | TEST-024 | Spec-AC-005 | integration | tests/remote-orchestration/test-024-missing-provider-fallback.sh | Validates missing provider CLIs are recorded, operators are told to install them manually, and auto-routing avoids unavailable providers. | green |
 | TEST-025 | Spec-AC-018 | e2e | tests/remote-orchestration/test-025-install-wizard.sh | Validates the SuperTurtle-style interactive install wizard, generated runtime env, and printed run command. | green |
 | TEST-026 | Spec-AC-018 | integration | tests/remote-orchestration/test-026-npm-scripts.sh | Validates the documented npm wrapper scripts can drive the main operator command surface via `npm --prefix apps/control-plane run <script> -- ...`. | green |
+| TEST-027 | Spec-AC-005 | integration | tests/remote-orchestration/test-027-telegram-setup-info.sh | Validates Telegram onboarding helpers can verify the bot token and surface chat/user IDs needed for installer ACL setup. | green |
 
 Status values: pending -> red -> green.
 
@@ -116,6 +117,7 @@ Status values: pending -> red -> green.
   - `bash tests/remote-orchestration/test-024-missing-provider-fallback.sh`
   - `bash tests/remote-orchestration/test-025-install-wizard.sh`
   - `bash tests/remote-orchestration/test-026-npm-scripts.sh`
+  - `bash tests/remote-orchestration/test-027-telegram-setup-info.sh`
   - `bash tests/remote-orchestration/run-all.sh`
   - `cd apps/control-plane && npm install --no-fund --no-audit && npm run build`
   - `npm --prefix apps/control-plane run test:remote:install`

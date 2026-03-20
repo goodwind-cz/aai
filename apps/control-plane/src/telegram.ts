@@ -68,6 +68,82 @@ export function interactiveModel(): Record<string, unknown> {
   };
 }
 
+export async function getTelegramBotProfile(
+  options: {
+    token: string;
+    api_base?: string;
+  }
+): Promise<Record<string, unknown>> {
+  const apiBase = (options.api_base || "https://api.telegram.org").replace(/\/$/, "");
+  return callTelegram<Record<string, unknown>>(apiBase, options.token, "getMe", {});
+}
+
+export async function inspectTelegramSetup(
+  options: {
+    token: string;
+    api_base?: string;
+    limit?: number;
+  }
+): Promise<Record<string, unknown>> {
+  const apiBase = (options.api_base || "https://api.telegram.org").replace(/\/$/, "");
+  const limit = Math.max(1, Math.min(100, options.limit ?? 20));
+  const [bot, updates] = await Promise.all([
+    getTelegramBotProfile(options),
+    callTelegram<TelegramUpdate[]>(apiBase, options.token, "getUpdates", { timeout: 0, limit })
+  ]);
+
+  const chats = new Map<string, Record<string, unknown>>();
+  const users = new Map<string, Record<string, unknown>>();
+  const recentUpdates: Array<Record<string, unknown>> = [];
+
+  for (const update of updates) {
+    if (update.message) {
+      const chatId = String(update.message.chat.id);
+      const userId = String(update.message.from?.id || "");
+      if (!chats.has(chatId)) {
+        chats.set(chatId, { chat_id: chatId, source: "message" });
+      }
+      if (userId && !users.has(userId)) {
+        users.set(userId, { user_id: userId, source: "message" });
+      }
+      recentUpdates.push({
+        update_id: update.update_id,
+        type: "message",
+        chat_id: chatId,
+        user_id: userId || null,
+        text: update.message.text || null
+      });
+      continue;
+    }
+
+    if (update.callback_query?.message) {
+      const chatId = String(update.callback_query.message.chat.id);
+      const userId = String(update.callback_query.from?.id || "");
+      if (!chats.has(chatId)) {
+        chats.set(chatId, { chat_id: chatId, source: "callback_query" });
+      }
+      if (userId && !users.has(userId)) {
+        users.set(userId, { user_id: userId, source: "callback_query" });
+      }
+      recentUpdates.push({
+        update_id: update.update_id,
+        type: "callback_query",
+        chat_id: chatId,
+        user_id: userId || null,
+        callback_data: update.callback_query.data || null
+      });
+    }
+  }
+
+  return {
+    bot,
+    updates_count: updates.length,
+    chat_ids: Array.from(chats.values()),
+    user_ids: Array.from(users.values()),
+    recent_updates: recentUpdates
+  };
+}
+
 export function isSafeCallbackId(value: string): boolean {
   if (!SAFE_CALLBACK_ID.test(value)) {
     return false;

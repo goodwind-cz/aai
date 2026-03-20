@@ -31,6 +31,23 @@ const server = http.createServer((req, res) => {
       return;
     }
 
+    if (req.url.includes("/getMe")) {
+      writeLog({ method: "getMe", payload });
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          ok: true,
+          result: {
+            id: 777000,
+            is_bot: true,
+            first_name: "AAI Test Bot",
+            username: "aai_test_bot"
+          }
+        })
+      );
+      return;
+    }
+
     if (req.url.includes("/sendMessage")) {
       writeLog({ method: "sendMessage", payload });
       res.writeHead(200, { "content-type": "application/json" });

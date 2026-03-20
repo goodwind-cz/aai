@@ -27,6 +27,8 @@ import {
 } from "./queue.ts";
 import { buildHandoffPacket, getRun, launchRun, prepareRun, validateManifest, type RunManifest } from "./runner.ts";
 import {
+  getTelegramBotProfile,
+  inspectTelegramSetup,
   interactiveModel,
   loadCommandRegistry,
   parseCallbackData,
@@ -106,6 +108,8 @@ Commands:
   telegram registry --config <json>
   telegram interactive
   telegram callback --data <action:target:ref>
+  telegram get-me --token <bot-token> [--api-base <url>]
+  telegram setup-info --token <bot-token> [--api-base <url>] [--limit 20]
   telegram poll --db <path> --token <bot-token> --approval-config <json> [--api-base <url>] [--once]
   telegram serve --db <path> --token <bot-token> --approval-config <json> [--api-base <url>] [--once] [--max-idle-cycles 10]
   telegram simulate --db <path> --command </intake|/approve|/resume|/stop|/status> --project-id <id> --ref-id <id>
@@ -436,6 +440,25 @@ async function main(): Promise<void> {
 
     if (domain === "telegram" && action === "callback") {
       printJson(parseCallbackData(requireArg(args, "data")));
+      return;
+    }
+
+    if (domain === "telegram" && action === "get-me") {
+      const result = await getTelegramBotProfile({
+        token: requireArg(args, "token"),
+        api_base: typeof args["api-base"] === "string" ? args["api-base"] : undefined
+      });
+      printJson(result);
+      return;
+    }
+
+    if (domain === "telegram" && action === "setup-info") {
+      const result = await inspectTelegramSetup({
+        token: requireArg(args, "token"),
+        api_base: typeof args["api-base"] === "string" ? args["api-base"] : undefined,
+        limit: typeof args.limit === "string" ? Number(args.limit) : undefined
+      });
+      printJson(result);
       return;
     }
 

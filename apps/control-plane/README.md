@@ -2,6 +2,11 @@
 
 This is the runnable TypeScript control-plane for the remote-orchestration stack.
 
+Operator onboarding:
+
+- English: [docs/REMOTE_ORCHESTRATION_USER_GUIDE.md](../../docs/REMOTE_ORCHESTRATION_USER_GUIDE.md)
+- Czech: [docs/REMOTE_ORCHESTRATION_USER_GUIDE.cs.md](../../docs/REMOTE_ORCHESTRATION_USER_GUIDE.cs.md)
+
 ## Runtime model
 
 - Production host process: `node apps/control-plane/dist/cli.js`
@@ -128,10 +133,10 @@ npm --prefix apps/control-plane run serve:generated
 - `approve:check`, `approve:grant`, `approval:exists`
 - `run:prepare`, `run:launch`, `run:inspect`, `run:validate`
 - `handoff:build`
-- `telegram:registry`, `telegram:interactive`, `telegram:callback`, `telegram:poll`, `telegram:serve`, `telegram:simulate`
+- `telegram:registry`, `telegram:interactive`, `telegram:callback`, `telegram:get-me`, `telegram:setup-info`, `telegram:poll`, `telegram:serve`, `telegram:simulate`
 - `mounts:template`, `mounts:validate`
 - `defaults:show`, `policy:show`
-- `test:remote`, `test:remote:install`, `test:remote:provider-session`, `test:remote:run-launch`, `test:remote:telegram`, `test:remote:runtime-build`, `test:remote:npm`, `validate:remote`
+- `test:remote`, `test:remote:install`, `test:remote:provider-session`, `test:remote:run-launch`, `test:remote:telegram`, `test:remote:telegram-setup`, `test:remote:runtime-build`, `test:remote:npm`, `validate:remote`
 
 ## Verification
 
@@ -139,9 +144,10 @@ npm --prefix apps/control-plane run serve:generated
 npm --prefix apps/control-plane run validate:remote
 ```
 
-The current suite contains `26` CLI-backed tests, including:
+The current suite contains `27` CLI-backed tests, including:
 - provider session probe and usage sync
 - live Telegram long-poll fixture flow
+- Telegram token and ID discovery helpers for onboarding
 - real run launch with worktree/log artifacts
 - standard `tsc -> dist` runtime verification
 - one-command host installer flow
