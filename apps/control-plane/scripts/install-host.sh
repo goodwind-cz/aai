@@ -253,17 +253,14 @@ write_run_script() {
   cat > "$script_path" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-source "$(dirname "\$0")/$(basename "$env_path")"
-if command -v node >/dev/null 2>&1; then
-  NODE_CMD="node"
-elif command -v node.exe >/dev/null 2>&1; then
-  NODE_CMD="node.exe"
-else
-  echo "Node.js not found" >&2
-  exit 1
+SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="$env_path"
+if [[ ! -f "\$ENV_FILE" ]]; then
+  ENV_FILE="\$SCRIPT_DIR/$(basename "$env_path")"
 fi
+source "\$ENV_FILE"
 cd "$HOST_ROOT"
-"\$NODE_CMD" apps/control-plane/dist/cli.js telegram serve \\
+bash apps/control-plane/scripts/run-cli.sh telegram serve \\
   --db "\$AAI_CONTROL_PLANE_DB" \\
   --token "\$AAI_TELEGRAM_BOT_TOKEN" \\
   --approval-config "\$AAI_APPROVAL_CONFIG"
