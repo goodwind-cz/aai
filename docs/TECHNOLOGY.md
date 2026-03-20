@@ -4,20 +4,22 @@ Generated at (UTC): 2026-03-06T15:35:23.6130438Z
 Generator: .aai/scripts/aai-canonicalize.ps1
 
 ## Languages
-- Unknown (no common manifest detected)
+- TypeScript (Node.js, ESM)
 
 ## Package/Dependency Managers
-- Not detected
+- npm-compatible package metadata in `apps/control-plane/package.json`
 
 ## Test Tooling (Detected by Files)
-- Not detected
+- Bash integration test suite under `tests/remote-orchestration/`
+- Node.js built-in `node:sqlite` runtime
 
 ## Build/Runtime Tooling (Detected by Files)
-- Not detected
+- Node.js 24 with `--experimental-strip-types`
+- SQLite WAL mode
 
 ## CI/CD Signals
 - Not detected
 
 ## Notes
-- This is an inferred summary based on repository files.
-- Refine this contract with .aai/TECH_EXTRACT.prompt.md when deeper accuracy is required.
+- The remote-orchestration MVP intentionally avoids external npm runtime dependencies.
+- Current execution model is a host CLI plus manifest-first worker preparation.

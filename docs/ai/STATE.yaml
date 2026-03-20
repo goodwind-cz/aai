@@ -46,12 +46,12 @@ active_work_items:
 
 last_validation:
   status: pass
-  run_at_utc: "2026-03-19T19:08:57Z"
+  run_at_utc: "2026-03-19T21:54:06Z"
   validator_ref: .aai/VALIDATION.prompt.md
   evidence_paths:
-    - docs/ai/reports/validation-20260319T190838Z.log
-    - docs/ai/reports/validation-20260319T190838Z.md
-  notes: "All remote-orchestration tests passed (18/18)."
+    - docs/ai/reports/validation-20260319T215409Z.log
+    - docs/ai/reports/validation-20260319T215409Z.md
+  notes: "All remote-orchestration CLI tests passed (18/18), including SuperTurtle/NanoClaw-derived guardrails."
 
 human_input:
   required: false
@@ -103,4 +103,4 @@ metrics:
           tokens_out: null
           cost_usd: null
 
-updated_at_utc: "2026-03-19T19:08:57Z"
+updated_at_utc: "2026-03-19T21:54:06Z"

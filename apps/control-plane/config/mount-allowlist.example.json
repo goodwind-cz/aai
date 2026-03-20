@@ -1,0 +1,19 @@
+{
+  "allowedRoots": [
+    {
+      "path": "~/projects",
+      "allowReadWrite": true,
+      "description": "Project worktrees and repositories"
+    },
+    {
+      "path": "~/Documents/specs",
+      "allowReadWrite": false,
+      "description": "Read-only supporting documents"
+    }
+  ],
+  "blockedPatterns": [
+    "password",
+    "credential"
+  ],
+  "nonMainReadOnly": true
+}

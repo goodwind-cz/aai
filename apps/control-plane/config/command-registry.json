@@ -20,9 +20,9 @@
     "/new": "/intake",
     "/switch": "/provider",
     "/model": "/provider",
-    "/sub": "/agents",
-    "/cron": "/schedule",
     "/looplogs": "/logs",
-    "/pinologs": "/logs"
+    "/pinologs": "/logs",
+    "/sub": "/agents",
+    "/cron": "/schedule"
   }
 }

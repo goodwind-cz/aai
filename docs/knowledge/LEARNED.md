@@ -17,6 +17,7 @@
 
 ## Workflow
 <!-- Example: - [2026-03-08] Always run /aai-bootstrap after adding new npm packages (source: debugging session) -->
+- [2026-03-19] For runtime/orchestration features, never mark TEST-xxx green from file-content checks alone; green requires a runnable entrypoint, CLI-backed verification, and a hard validation gate before PASS. (source: remote-orchestration false-green correction)
 
 ## Architecture
 <!-- Example: - [2026-03-08] Use queue for email sending, never synchronous in request handler (source: code review) -->

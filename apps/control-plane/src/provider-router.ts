@@ -1,4 +1,6 @@
-export type Provider = 'claude' | 'codex';
+import { readJson } from "./common.ts";
+
+export type Provider = "claude" | "codex";
 
 export type UsageWindow = {
   provider: Provider;
@@ -8,17 +10,83 @@ export type UsageWindow = {
   collected_at_utc: string;
 };
 
-export type RoutingPolicy = {
-  preferred: Provider | 'auto';
-  fallback: Provider;
-  strict_single_provider: boolean;
+export type ProviderDecision = {
+  provider: Provider;
+  reason: string;
 };
 
-export function chooseProvider(policy: RoutingPolicy, usage: UsageWindow[]): Provider {
-  if (policy.preferred !== 'auto') return policy.preferred;
-  const claude = usage.find((u) => u.provider === 'claude');
-  const codex = usage.find((u) => u.provider === 'codex');
-  if (!claude) return 'codex';
-  if (!codex) return 'claude';
-  return claude.used_percentage <= codex.used_percentage ? 'claude' : 'codex';
+export function loadUsageWindows(filePath: string): UsageWindow[] {
+  const payload = readJson<{ windows: UsageWindow[] }>(filePath);
+  if (!Array.isArray(payload.windows)) {
+    throw new Error("Usage payload must contain a windows array");
+  }
+  return payload.windows;
+}
+
+export function validateAuthMode(mode: string): { ok: true; mode: string; reason: string } {
+  if (mode !== "cli-subscription") {
+    throw new Error(`Unsupported auth mode: ${mode}. Only cli-subscription is allowed.`);
+  }
+
+  return {
+    ok: true,
+    mode,
+    reason: "Host-authenticated CLI subscriptions are the only supported provider mode."
+  };
+}
+
+export function chooseProvider(options: {
+  policy?: string;
+  fallback?: Provider;
+  strictSingleProvider?: boolean;
+  operatorOverride?: string | null;
+  usage?: UsageWindow[];
+  phasePreference?: string;
+}): ProviderDecision {
+  const {
+    policy,
+    fallback,
+    strictSingleProvider = false,
+    operatorOverride = null,
+    usage = [],
+    phasePreference = "auto"
+  } = options;
+
+  if (operatorOverride && operatorOverride !== "auto") {
+    return { provider: operatorOverride as Provider, reason: "operator-override" };
+  }
+
+  if (policy && policy !== "auto") {
+    return { provider: policy as Provider, reason: "project-policy-explicit" };
+  }
+
+  if (phasePreference && phasePreference !== "auto") {
+    return { provider: phasePreference as Provider, reason: "phase-preference" };
+  }
+
+  const claude = usage.find((entry) => entry.provider === "claude");
+  const codex = usage.find((entry) => entry.provider === "codex");
+
+  if (!claude && codex) {
+    return { provider: "codex", reason: "claude-usage-missing" };
+  }
+
+  if (!codex && claude) {
+    return { provider: "claude", reason: "codex-usage-missing" };
+  }
+
+  if (!claude && !codex) {
+    if (strictSingleProvider && fallback === undefined) {
+      throw new Error("Strict single provider mode requires a concrete fallback provider.");
+    }
+    return { provider: fallback || "codex", reason: "usage-unavailable-fallback" };
+  }
+
+  if (claude.used_percentage === codex.used_percentage) {
+    return { provider: fallback || "claude", reason: "usage-tie-fallback" };
+  }
+
+  return claude.used_percentage < codex.used_percentage
+    ? { provider: "claude", reason: "lowest-usage" }
+    : { provider: "codex", reason: "lowest-usage" };
 }

@@ -91,6 +91,7 @@ git commit -m "Update AAI layer"
    - Step-by-step workflows
    - Best practices
    - Troubleshooting
+   - Remote orchestration guide: [docs/REMOTE_ORCHESTRATION_USER_GUIDE.md](docs/REMOTE_ORCHESTRATION_USER_GUIDE.md)
 
 2. **🎯 View Skills Catalog:** Generate interactive HTML
    ```bash

@@ -5,6 +5,7 @@ A canonical, reusable AAI that standardizes workflows, roles, prompts, and docum
 ## 📚 Quick Links
 
 - **[USER_GUIDE.md](USER_GUIDE.md)** - 🆕 Complete user guide with all 21 skills, workflows, and best practices
+- **[REMOTE_ORCHESTRATION_USER_GUIDE.md](REMOTE_ORCHESTRATION_USER_GUIDE.md)** - Install and run the TypeScript control-plane MVP for Telegram/Docker remote orchestration
 - **[SKILL_CATALOG.html](SKILL_CATALOG.html)** - 🆕 Interactive skill explorer (generate with `/aai-docs-hub`)
 - **[TODO.md](TODO.md)** - 🆕 Future enhancements roadmap
 - **[ai/DECAPOD_INTEGRATION.md](ai/DECAPOD_INTEGRATION.md)** - 🆕 Compliance framework integration

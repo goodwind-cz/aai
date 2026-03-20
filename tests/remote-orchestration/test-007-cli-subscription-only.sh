@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname "$0")/test-lib.sh"
-assert_file "docs/requirements/PRD-AAI-REMOTE-ORCHESTRATION-01.md"
-assert_contains "docs/requirements/PRD-AAI-REMOTE-ORCHESTRATION-01.md" "direct API-key or token-based provider mode is not supported"
-assert_file "docs/specs/SPEC-AAI-TELEGRAM-CONTROL-01.md"
-assert_contains "docs/specs/SPEC-AAI-TELEGRAM-CONTROL-01.md" "must never ask for provider API keys"
+
+tmp="$(make_tmpdir)"
+trap 'rm -rf "$tmp"' EXIT
+
+run_cli auth validate --mode cli-subscription > "$tmp/ok.json"
+json_assert_file "$tmp/ok.json" "data.ok === true && data.mode === 'cli-subscription'"
+
+if run_cli auth validate --mode api-key > "$tmp/fail.log" 2>&1; then
+  echo "api-key mode should fail"
+  exit 1
+fi
+
+assert_contains "$tmp/fail.log" "Only cli-subscription is allowed"
 echo "PASS"

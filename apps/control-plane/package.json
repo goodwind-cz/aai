@@ -1,0 +1,15 @@
+{
+  "name": "@aai/control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "aai-control-plane": "./src/cli.ts"
+  },
+  "scripts": {
+    "help": "node --experimental-strip-types ./src/cli.ts help"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

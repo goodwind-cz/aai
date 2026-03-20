@@ -8,6 +8,12 @@
 ## Spec status
 - SPEC-FROZEN: true
 
+## Implementation restart note
+- This implementation was restarted from the already-created intake artifacts (`PRD`, `RFC`, `SPEC`) after detecting that the earlier branch state only proved contract files, not a runnable control-plane.
+- Corrected guardrail sentence: the failure was not only that a documented contract was mistaken for finished implementation, but that the branch lacked a hard DoD and release gate requiring a runnable control-plane, CLI-backed end-to-end verification, and validation evidence before any TEST-xxx or `last_validation` could be marked green/pass.
+- From this point forward, remote-orchestration `green` means the TypeScript CLI in `apps/control-plane/src/cli.ts` executed successfully through the corresponding test flow.
+- Implementation direction is intentionally derived from `SuperTurtle` and `NanoClaw`: headless CLI providers and Telegram command ergonomics from `SuperTurtle`, host-side mount isolation and single-process runtime shape from `NanoClaw`.
+
 ## Acceptance Criteria Mapping
 
 | Requirement AC | Spec-AC | Verifiable implementation statement | Verification (command + expected evidence) |
@@ -100,5 +106,6 @@ Status values: pending -> red -> green.
 - PASS criteria:
   - all TEST-xxx entries are `green`
   - validation verdict is `pass` with non-empty evidence paths
+  - no TEST-xxx may be marked `green` from file-existence or string-match checks alone
 
 
