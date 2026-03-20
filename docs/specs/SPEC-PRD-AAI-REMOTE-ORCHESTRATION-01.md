@@ -84,6 +84,7 @@
 | TEST-023 | Spec-AC-018 | integration | tests/remote-orchestration/test-023-install-script.sh | Validates one-command host installer flow, generated project config, project registration, and provider autodetection without manual file edits. | green |
 | TEST-024 | Spec-AC-005 | integration | tests/remote-orchestration/test-024-missing-provider-fallback.sh | Validates missing provider CLIs are recorded, operators are told to install them manually, and auto-routing avoids unavailable providers. | green |
 | TEST-025 | Spec-AC-018 | e2e | tests/remote-orchestration/test-025-install-wizard.sh | Validates the SuperTurtle-style interactive install wizard, generated runtime env, and printed run command. | green |
+| TEST-026 | Spec-AC-018 | integration | tests/remote-orchestration/test-026-npm-scripts.sh | Validates the documented npm wrapper scripts can drive the main operator command surface via `npm --prefix apps/control-plane run <script> -- ...`. | green |
 
 Status values: pending -> red -> green.
 
@@ -114,8 +115,11 @@ Status values: pending -> red -> green.
   - `bash tests/remote-orchestration/test-023-install-script.sh`
   - `bash tests/remote-orchestration/test-024-missing-provider-fallback.sh`
   - `bash tests/remote-orchestration/test-025-install-wizard.sh`
+  - `bash tests/remote-orchestration/test-026-npm-scripts.sh`
   - `bash tests/remote-orchestration/run-all.sh`
   - `cd apps/control-plane && npm install --no-fund --no-audit && npm run build`
+  - `npm --prefix apps/control-plane run test:remote:install`
+  - `npm --prefix apps/control-plane run validate:remote`
 - Evidence artifacts:
   - command logs under `docs/ai/reports/`
   - run manifests under host runtime storage with references in repo reports

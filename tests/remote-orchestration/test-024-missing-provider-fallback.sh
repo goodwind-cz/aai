@@ -24,6 +24,7 @@ bash apps/control-plane/scripts/install-host.sh \
   --db-path "$tmp/runtime/control-plane.db" \
   --summary-path "$tmp/runtime/install-summary.json" \
   --default-branch main \
+  --claude-cli-path "$tmp/bin/claude-missing.js" \
   --codex-cli-path "$tmp/bin/codex.js" \
   --codex-session-home "$tmp/home/codex" \
   --skip-deps \

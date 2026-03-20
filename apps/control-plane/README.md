@@ -36,7 +36,7 @@ This is the runnable TypeScript control-plane for the remote-orchestration stack
 ## Install
 
 ```bash
-bash apps/control-plane/scripts/install-host.sh --wizard
+npm --prefix apps/control-plane run install:wizard
 ```
 
 The installer:
@@ -54,16 +54,27 @@ In WSL the detected CLI path is typically the real Linux path, for example `$(co
 
 ## Runtime commands
 
+All operator-facing commands are available as npm scripts. The pattern is:
+
+```bash
+npm --prefix apps/control-plane run <script-name> -- <cli args>
+```
+
+Use `--` only when you need to pass flags through to the underlying CLI command.
+The npm scripts run through `apps/control-plane/scripts/run-cli.sh`, which prefers native Node 24+ and falls back to `node.exe` on WSL hosts that still have an older Linux `node`.
+If you want machine-readable JSON without npm banners, use `npm --silent --prefix apps/control-plane run ...`.
+
 ### Initialize runtime DB
 
 ```bash
-node apps/control-plane/dist/cli.js init --db .runtime/control-plane.db
+npm --prefix apps/control-plane run build
+npm --prefix apps/control-plane run init -- --db .runtime/control-plane.db
 ```
 
 ### Register a project manually
 
 ```bash
-node apps/control-plane/dist/cli.js project register \
+npm --prefix apps/control-plane run project:register -- \
   --db .runtime/control-plane.db \
   --project-config docs/ai/project-overrides/remote-control.yaml \
   --repo-path "$PWD" \
@@ -74,7 +85,7 @@ node apps/control-plane/dist/cli.js project register \
 ### Probe host-authenticated provider sessions
 
 ```bash
-node apps/control-plane/dist/cli.js auth probe \
+npm --prefix apps/control-plane run auth:probe -- \
   --db .runtime/control-plane.db \
   --provider claude \
   --cli-path "$(command -v claude)" \
@@ -85,7 +96,7 @@ node apps/control-plane/dist/cli.js auth probe \
 ### Prepare and launch a run
 
 ```bash
-node apps/control-plane/dist/cli.js run prepare \
+npm --prefix apps/control-plane run run:prepare -- \
   --db .runtime/control-plane.db \
   --project-id aai-canonical \
   --ref-id PRD-AAI-REMOTE-ORCHESTRATION-01 \
@@ -95,7 +106,7 @@ node apps/control-plane/dist/cli.js run prepare \
   --container-image ghcr.io/example/aai-worker:preview \
   --provider auto
 
-node apps/control-plane/dist/cli.js run launch \
+npm --prefix apps/control-plane run run:launch -- \
   --db .runtime/control-plane.db \
   --manifest .runtime/worktrees/aai-canonical-PRD-AAI-REMOTE-ORCHESTRATION-01/run-manifest.json \
   --mode docker
@@ -104,19 +115,31 @@ node apps/control-plane/dist/cli.js run launch \
 ### Run the Telegram daemon
 
 ```bash
-node apps/control-plane/dist/cli.js telegram serve \
-  --db .runtime/control-plane.db \
-  --token "$TELEGRAM_BOT_TOKEN" \
-  --approval-config apps/control-plane/config/approval-gates.json
+npm --prefix apps/control-plane run serve:generated
 ```
+
+### Script map
+
+- `init`
+- `project:register`, `project:list`, `project:show`
+- `auth:validate`, `auth:probe`, `auth:mark-missing`, `auth:status`
+- `router:choose`, `usage:show`
+- `queue:create`, `queue:status`, `queue:action`
+- `approve:check`, `approve:grant`, `approval:exists`
+- `run:prepare`, `run:launch`, `run:inspect`, `run:validate`
+- `handoff:build`
+- `telegram:registry`, `telegram:interactive`, `telegram:callback`, `telegram:poll`, `telegram:serve`, `telegram:simulate`
+- `mounts:template`, `mounts:validate`
+- `defaults:show`, `policy:show`
+- `test:remote`, `test:remote:install`, `test:remote:provider-session`, `test:remote:run-launch`, `test:remote:telegram`, `test:remote:runtime-build`, `test:remote:npm`, `validate:remote`
 
 ## Verification
 
 ```bash
-bash tests/remote-orchestration/run-all.sh
+npm --prefix apps/control-plane run validate:remote
 ```
 
-The current suite contains `25` CLI-backed tests, including:
+The current suite contains `26` CLI-backed tests, including:
 - provider session probe and usage sync
 - live Telegram long-poll fixture flow
 - real run launch with worktree/log artifacts
@@ -124,5 +147,6 @@ The current suite contains `25` CLI-backed tests, including:
 - one-command host installer flow
 - missing-provider fallback and operator install prompt behavior
 - interactive install wizard with generated run command
+- npm wrapper coverage for the documented operator command surface
 
 `green` in the remote-orchestration spec is backed by executable control-plane flows, not by file-content smoke checks.

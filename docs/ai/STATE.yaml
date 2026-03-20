@@ -42,12 +42,12 @@ active_work_items: []
 
 last_validation:
   status: pass
-  run_at_utc: "2026-03-20T16:30:10Z"
-  validator_ref: "manual-validation-20260320T163010Z"
+  run_at_utc: "2026-03-20T21:11:20Z"
+  validator_ref: "manual-validation-20260320T211120Z"
   evidence_paths:
-    - docs/ai/reports/validation-20260320T163010Z.log
-    - docs/ai/reports/validation-20260320T163010Z.md
-  notes: "Wizard onboarding pass completed: installer now asks only a few questions, generates launcher files, prints the run command, and 25/25 remote-orchestration tests passed."
+    - docs/ai/reports/validation-20260320T211120Z.log
+    - docs/ai/reports/validation-20260320T211120Z.md
+  notes: "npm-first operator flow completed: package scripts now cover the control-plane command surface via run-cli.sh, WSL Node 24 fallback is enforced, and validate:remote passed with 26/26 tests."
 
 human_input:
   required: false
@@ -146,5 +146,13 @@ metrics:
           tokens_in: null
           tokens_out: null
           cost_usd: null
+        - role: Validation
+          model_id: gpt-5
+          started_utc: "2026-03-20T21:05:47Z"
+          ended_utc: "2026-03-20T21:11:20Z"
+          duration_seconds: 333
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
 
-updated_at_utc: "2026-03-20T16:30:10Z"
+updated_at_utc: "2026-03-20T21:11:20Z"

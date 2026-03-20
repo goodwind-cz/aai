@@ -11,7 +11,7 @@ This guide explains how to install, configure, and user-test the remote-orchestr
 - git worktree preparation plus real `process` or `docker` run launch
 - live Telegram long polling with inline buttons and callback actions
 - durable approval records and gate checks
-- executable verification suite with `25` passing tests
+- executable verification suite with `26` passing tests
 
 ## Runtime boundaries
 
@@ -54,8 +54,7 @@ docker --version || true
 git clone <your-aai-repo-url> aai
 cd aai
 git checkout feature/remote-orchestration
-bash apps/control-plane/scripts/install-host.sh \
-  --wizard
+npm --prefix apps/control-plane run install:wizard
 ```
 
 This is the preferred path. The installer:
@@ -109,6 +108,41 @@ When it finishes, it generates:
 - runtime env file
 - ready-to-run `run-control-plane.sh` launcher
 
+## Recommended npm commands
+
+Run these from the repo root:
+
+```bash
+npm --prefix apps/control-plane run install:wizard
+npm --prefix apps/control-plane run build
+npm --prefix apps/control-plane run serve:generated
+npm --prefix apps/control-plane run test:remote:install
+npm --prefix apps/control-plane run validate:remote
+```
+
+For any direct control-plane operation, use:
+
+```bash
+npm --prefix apps/control-plane run <script-name> -- <args>
+```
+
+These npm scripts go through `apps/control-plane/scripts/run-cli.sh`, so on WSL they can fall back to `node.exe` 24+ when the Linux-side `node` is older.
+If you need raw JSON without npm banners, add `--silent` before `--prefix`.
+If you need the raw JSON output without npm banners, add `--silent` before `--prefix`.
+
+The `package.json` script names mirror the CLI shape, for example:
+
+- `project:register`, `project:list`, `project:show`
+- `auth:probe`, `auth:status`
+- `router:choose`, `usage:show`
+- `queue:create`, `queue:status`, `queue:action`
+- `approve:check`, `approve:grant`, `approval:exists`
+- `run:prepare`, `run:launch`, `run:inspect`, `run:validate`
+- `handoff:build`
+- `telegram:registry`, `telegram:interactive`, `telegram:callback`, `telegram:poll`, `telegram:serve`, `telegram:simulate`
+- `mounts:template`, `mounts:validate`
+- `defaults:show`, `policy:show`
+
 ## First-time setup
 
 ### 1. Review what the installer created
@@ -123,7 +157,7 @@ cat .runtime/install-summary.aai-canonical.json
 If you want a non-interactive install, rerun the installer with flags instead of editing files by hand:
 
 ```bash
-bash apps/control-plane/scripts/install-host.sh \
+npm --prefix apps/control-plane run install:host -- \
   --project-id another-project \
   --repo-path /mnt/z/AI/another-project \
   --default-branch main \
@@ -137,7 +171,7 @@ This still creates or reuses the portable config in the managed repo and keeps h
 ### 3. Optional: register a project manually
 
 ```bash
-node apps/control-plane/dist/cli.js project register \
+npm --prefix apps/control-plane run project:register -- \
   --db .runtime/control-plane.db \
   --project-config docs/ai/project-overrides/remote-control.yaml \
   --repo-path "$PWD" \
@@ -150,14 +184,14 @@ node apps/control-plane/dist/cli.js project register \
 Secrets remain in the native provider homes. The control-plane stores only health and usage metadata in SQLite.
 
 ```bash
-node apps/control-plane/dist/cli.js auth probe \
+npm --prefix apps/control-plane run auth:probe -- \
   --db .runtime/control-plane.db \
   --provider claude \
   --cli-path "$(command -v claude)" \
   --session-home ~/.claude \
   --probe-args --version
 
-node apps/control-plane/dist/cli.js auth probe \
+npm --prefix apps/control-plane run auth:probe -- \
   --db .runtime/control-plane.db \
   --provider codex \
   --cli-path "$(command -v codex)" \
@@ -168,8 +202,8 @@ node apps/control-plane/dist/cli.js auth probe \
 Inspect synced metadata:
 
 ```bash
-node apps/control-plane/dist/cli.js auth status --db .runtime/control-plane.db
-node apps/control-plane/dist/cli.js usage show --db .runtime/control-plane.db
+npm --prefix apps/control-plane run auth:status -- --db .runtime/control-plane.db
+npm --prefix apps/control-plane run usage:show -- --db .runtime/control-plane.db
 ```
 
 If a provider exposes a machine-readable usage command on your host, rerun `auth probe` with `--usage-args ...` for that provider.
@@ -179,7 +213,7 @@ If a provider exposes a machine-readable usage command on your host, rerun `auth
 ### Route a provider
 
 ```bash
-node apps/control-plane/dist/cli.js router choose \
+npm --prefix apps/control-plane run router:choose -- \
   --db .runtime/control-plane.db \
   --project-config docs/ai/project-overrides/remote-control.yaml \
   --phase implementation \
@@ -189,7 +223,7 @@ node apps/control-plane/dist/cli.js router choose \
 ### Prepare and launch one run
 
 ```bash
-node apps/control-plane/dist/cli.js run prepare \
+npm --prefix apps/control-plane run run:prepare -- \
   --db .runtime/control-plane.db \
   --project-id aai-canonical \
   --ref-id PRD-AAI-REMOTE-ORCHESTRATION-01 \
@@ -203,7 +237,7 @@ node apps/control-plane/dist/cli.js run prepare \
 Launch in local process mode:
 
 ```bash
-node apps/control-plane/dist/cli.js run launch \
+npm --prefix apps/control-plane run run:launch -- \
   --db .runtime/control-plane.db \
   --manifest .runtime/worktrees/aai-canonical-PRD-AAI-REMOTE-ORCHESTRATION-01/run-manifest.json \
   --mode process \
@@ -213,7 +247,7 @@ node apps/control-plane/dist/cli.js run launch \
 Launch in Docker mode:
 
 ```bash
-node apps/control-plane/dist/cli.js run launch \
+npm --prefix apps/control-plane run run:launch -- \
   --db .runtime/control-plane.db \
   --manifest .runtime/worktrees/aai-canonical-PRD-AAI-REMOTE-ORCHESTRATION-01/run-manifest.json \
   --mode docker
@@ -222,7 +256,7 @@ node apps/control-plane/dist/cli.js run launch \
 Inspect the run:
 
 ```bash
-node apps/control-plane/dist/cli.js run inspect \
+npm --prefix apps/control-plane run run:inspect -- \
   --db .runtime/control-plane.db \
   --run-id <run_id>
 ```
@@ -232,13 +266,13 @@ node apps/control-plane/dist/cli.js run inspect \
 Print the allowlist template:
 
 ```bash
-node apps/control-plane/dist/cli.js mounts template
+npm --prefix apps/control-plane run mounts:template
 ```
 
 Validate requested mounts:
 
 ```bash
-node apps/control-plane/dist/cli.js mounts validate \
+npm --prefix apps/control-plane run mounts:validate -- \
   --mounts "/home/me/shared-docs|/workspace/shared-docs|ro"
 ```
 
@@ -247,16 +281,16 @@ node apps/control-plane/dist/cli.js mounts validate \
 Registry and interaction model:
 
 ```bash
-node apps/control-plane/dist/cli.js telegram registry \
+npm --prefix apps/control-plane run telegram:registry -- \
   --config apps/control-plane/config/command-registry.json
 
-node apps/control-plane/dist/cli.js telegram interactive
+npm --prefix apps/control-plane run telegram:interactive
 ```
 
 Run the long-poll daemon:
 
 ```bash
-node apps/control-plane/dist/cli.js telegram serve \
+npm --prefix apps/control-plane run telegram:serve -- \
   --db .runtime/control-plane.db \
   --token "$TELEGRAM_BOT_TOKEN" \
   --approval-config apps/control-plane/config/approval-gates.json
@@ -301,28 +335,27 @@ Run these in order on a fresh host:
 7. Press `Stop` or `Resume`.
    Expected: work item status changes in DB and bot confirms callback.
 8. Run the full validation suite.
-   Expected: all `25` tests print `PASS`.
+   Expected: all `26` tests print `PASS`.
 
 ## Automated verification
 
 Run the complete suite:
 
 ```bash
-bash tests/remote-orchestration/run-all.sh
+npm --prefix apps/control-plane run validate:remote
 ```
 
-Target result: `25/25 PASS`.
+Target result: `26/26 PASS`.
 
 Focused checks:
 
 ```bash
-bash tests/remote-orchestration/test-019-provider-session-probe.sh
-bash tests/remote-orchestration/test-020-run-launch.sh
-bash tests/remote-orchestration/test-021-telegram-live-polling.sh
-bash tests/remote-orchestration/test-022-standard-runtime-build.sh
-bash tests/remote-orchestration/test-023-install-script.sh
-bash tests/remote-orchestration/test-024-missing-provider-fallback.sh
-bash tests/remote-orchestration/test-025-install-wizard.sh
+npm --prefix apps/control-plane run test:remote:install
+npm --prefix apps/control-plane run test:remote:provider-session
+npm --prefix apps/control-plane run test:remote:run-launch
+npm --prefix apps/control-plane run test:remote:telegram
+npm --prefix apps/control-plane run test:remote:runtime-build
+npm --prefix apps/control-plane run test:remote:npm
 ```
 
 ## Where login state is stored

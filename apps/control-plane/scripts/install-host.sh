@@ -281,14 +281,26 @@ probe_provider() {
       --provider "$provider" \
       --session-home "$(to_native_path "$session_home")" \
       --message "$provider CLI is not installed on this host. Install it manually, then rerun install-host.sh or auth probe." >/dev/null
+    printf 'missing\n'
     return
   fi
 
-  "$NODE_BIN" "$(to_native_path "$APP_DIR/dist/cli.js")" auth probe \
+  local result
+  result="$("$NODE_BIN" "$(to_native_path "$APP_DIR/dist/cli.js")" auth probe \
     --db "$(to_native_path "$DB_PATH")" \
     --provider "$provider" \
     --cli-path "$(to_native_path "$cli_path")" \
-    --session-home "$(to_native_path "$session_home")" >/dev/null
+    --session-home "$(to_native_path "$session_home")")"
+
+  if printf '%s' "$result" | grep -q '"status": "ok"'; then
+    printf 'ok\n'
+    return
+  fi
+  if printf '%s' "$result" | grep -q '"status": "missing"'; then
+    printf 'missing\n'
+    return
+  fi
+  printf 'error\n'
 }
 
 write_summary() {
@@ -297,9 +309,11 @@ write_summary() {
   local codex_detected="$3"
   local claude_recommended="$4"
   local codex_recommended="$5"
+  local claude_status="$6"
+  local codex_status="$7"
 
   mkdir -p "$(dirname "$SUMMARY_PATH")"
-  "$NODE_BIN" - "$(to_native_path "$SUMMARY_PATH")" "$(to_native_path "$HOST_ROOT")" "$(to_native_path "$MANAGED_REPO_PATH")" "$(to_native_path "$DB_PATH")" "$(to_native_path "$PROJECT_CONFIG_PATH")" "$PROJECT_ID" "$DEFAULT_BRANCH" "$created_config" "$(to_native_path "$claude_detected")" "$(to_native_path "$CLAUDE_SESSION_HOME")" "$claude_recommended" "$(to_native_path "$codex_detected")" "$(to_native_path "$CODEX_SESSION_HOME")" "$codex_recommended" <<'EOF'
+  "$NODE_BIN" - "$(to_native_path "$SUMMARY_PATH")" "$(to_native_path "$HOST_ROOT")" "$(to_native_path "$MANAGED_REPO_PATH")" "$(to_native_path "$DB_PATH")" "$(to_native_path "$PROJECT_CONFIG_PATH")" "$PROJECT_ID" "$DEFAULT_BRANCH" "$created_config" "$(to_native_path "$claude_detected")" "$(to_native_path "$CLAUDE_SESSION_HOME")" "$claude_recommended" "$claude_status" "$(to_native_path "$codex_detected")" "$(to_native_path "$CODEX_SESSION_HOME")" "$codex_recommended" "$codex_status" <<'EOF'
 const fs = require("node:fs");
 const [
   summaryPath,
@@ -313,9 +327,11 @@ const [
   claudeCliPath,
   claudeSessionHome,
   claudeRecommended,
+  claudeStatus,
   codexCliPath,
   codexSessionHome,
-  codexRecommended
+  codexRecommended,
+  codexStatus
 ] = process.argv.slice(2);
 
 const payload = {
@@ -331,13 +347,15 @@ const payload = {
     claude: {
       cli_path: claudeCliPath || null,
       session_home: claudeSessionHome,
-      installed: Boolean(claudeCliPath),
+      installed: claudeStatus === "ok",
+      status: claudeStatus || "unknown",
       recommended_action: claudeRecommended || null
     },
     codex: {
       cli_path: codexCliPath || null,
       session_home: codexSessionHome,
-      installed: Boolean(codexCliPath),
+      installed: codexStatus === "ok",
+      status: codexStatus || "unknown",
       recommended_action: codexRecommended || null
     }
   }
@@ -528,21 +546,23 @@ claude_detected="$(resolve_cli_path claude "$CLAUDE_CLI_PATH")"
 codex_detected="$(resolve_cli_path codex "$CODEX_CLI_PATH")"
 claude_recommended=""
 codex_recommended=""
+claude_status="unknown"
+codex_status="unknown"
 
 if [[ "$SKIP_PROVIDER_PROBES" -eq 0 ]]; then
-  probe_provider claude "$claude_detected" "$CLAUDE_SESSION_HOME"
-  probe_provider codex "$codex_detected" "$CODEX_SESSION_HOME"
+  claude_status="$(probe_provider claude "$claude_detected" "$CLAUDE_SESSION_HOME")"
+  codex_status="$(probe_provider codex "$codex_detected" "$CODEX_SESSION_HOME")"
 fi
 
-if [[ -z "$claude_detected" ]]; then
+if [[ "$claude_status" != "ok" ]]; then
   claude_recommended="Install Claude Code CLI manually and rerun bash apps/control-plane/scripts/install-host.sh or node apps/control-plane/dist/cli.js auth probe ..."
 fi
 
-if [[ -z "$codex_detected" ]]; then
+if [[ "$codex_status" != "ok" ]]; then
   codex_recommended="Install Codex CLI manually and rerun bash apps/control-plane/scripts/install-host.sh or node apps/control-plane/dist/cli.js auth probe ..."
 fi
 
-write_summary "$created_config" "$claude_detected" "$codex_detected" "$claude_recommended" "$codex_recommended"
+write_summary "$created_config" "$claude_detected" "$codex_detected" "$claude_recommended" "$codex_recommended" "$claude_status" "$codex_status"
 
 if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
   write_runtime_env "$RUNTIME_ENV_PATH"
@@ -559,10 +579,10 @@ fi
 if [[ -n "$codex_detected" ]]; then
   printf 'Codex CLI: %s\n' "$codex_detected"
 fi
-if [[ -z "$claude_detected" ]]; then
+if [[ "$claude_status" != "ok" ]]; then
   printf 'Claude CLI not found. Install it manually, or the router will not use Claude.\n'
 fi
-if [[ -z "$codex_detected" ]]; then
+if [[ "$codex_status" != "ok" ]]; then
   printf 'Codex CLI not found. Install it manually, or the router will not use Codex.\n'
 fi
 if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
