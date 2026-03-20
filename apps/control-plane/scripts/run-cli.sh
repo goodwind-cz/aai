@@ -140,7 +140,7 @@ for arg in "$@"; do
   fi
 
   case "$arg" in
-    --db|--project-config|--repo-path|--cli-path|--session-home|--usage-file|--artifact-path|--manifest|--worker-command|--docker-bin|--config|--allowlist|--worktrees-root|--manifest-path|--mount-allowlist)
+    --db|--project-config|--repo-path|--cli-path|--session-home|--usage-file|--artifact-path|--manifest|--worker-command|--docker-bin|--config|--allowlist|--approval-config|--worktrees-root|--manifest-path|--mount-allowlist)
       translated_args+=("$arg")
       expect_path_flag="$arg"
       ;;
