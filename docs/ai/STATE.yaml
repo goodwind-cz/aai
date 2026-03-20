@@ -42,12 +42,12 @@ active_work_items: []
 
 last_validation:
   status: pass
-  run_at_utc: "2026-03-20T02:52:42Z"
-  validator_ref: "manual-validation-20260320T025242Z"
+  run_at_utc: "2026-03-20T14:56:20Z"
+  validator_ref: "manual-validation-20260320T145620Z"
   evidence_paths:
-    - docs/ai/reports/validation-20260320T025242Z.log
-    - docs/ai/reports/validation-20260320T025242Z.md
-  notes: "Reopened runtime-critical scope was completed: provider probes, live Telegram polling, worker launch, standard build/runtime verification, and 22/22 remote-orchestration tests passed."
+    - docs/ai/reports/validation-20260320T145620Z.log
+    - docs/ai/reports/validation-20260320T145620Z.md
+  notes: "Installer/onboarding pass completed: one-command host install, WSL-correct provider path docs, and 23/23 remote-orchestration tests passed."
 
 human_input:
   required: false
@@ -114,5 +114,21 @@ metrics:
           tokens_in: null
           tokens_out: null
           cost_usd: null
+        - role: Implementation
+          model_id: gpt-5
+          started_utc: "2026-03-20T14:36:30Z"
+          ended_utc: "2026-03-20T14:54:19Z"
+          duration_seconds: 1069
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+        - role: Validation
+          model_id: gpt-5
+          started_utc: "2026-03-20T14:54:20Z"
+          ended_utc: "2026-03-20T14:56:20Z"
+          duration_seconds: 120
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
 
-updated_at_utc: "2026-03-20T02:52:42Z"
+updated_at_utc: "2026-03-20T14:56:20Z"

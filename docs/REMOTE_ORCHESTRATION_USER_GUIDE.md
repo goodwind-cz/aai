@@ -11,7 +11,7 @@ This guide explains how to install, configure, and user-test the remote-orchestr
 - git worktree preparation plus real `process` or `docker` run launch
 - live Telegram long polling with inline buttons and callback actions
 - durable approval records and gate checks
-- executable verification suite with `22` passing tests
+- executable verification suite with `23` passing tests
 
 ## Runtime boundaries
 
@@ -54,39 +54,61 @@ docker --version || true
 git clone <your-aai-repo-url> aai
 cd aai
 git checkout feature/remote-orchestration
-cd apps/control-plane
-npm install
-npm run build
-node dist/cli.js help
-cd ../..
+bash apps/control-plane/scripts/install-host.sh \
+  --project-id aai-canonical \
+  --repo-path "$PWD"
 ```
+
+This is the preferred path. The installer:
+
+- installs control-plane dependencies
+- builds `dist/cli.js`
+- initializes `.runtime/control-plane.db`
+- creates `docs/ai/project-overrides/remote-control.yaml` only if it does not already exist
+- registers the project against the host DB
+- auto-detects `claude` and `codex` from the current Linux/WSL shell
+- records an install summary under `.runtime/install-summary.<project>.json`
+
+On a WSL host, the detected Claude path should normally match:
+
+```bash
+which claude
+```
+
+Example shape:
+
+```bash
+/home/ales/.local/bin/claude
+```
+
+No manual YAML editing is required for first install unless you want to override defaults.
 
 ## First-time setup
 
-### 1. Initialize the runtime database
+### 1. Review what the installer created
 
 ```bash
-node apps/control-plane/dist/cli.js init --db .runtime/control-plane.db
+cat docs/ai/project-overrides/remote-control.yaml
+cat .runtime/install-summary.aai-canonical.json
 ```
 
-### 2. Prepare one project policy file
+### 2. Optional: manual overrides
 
-Example `docs/ai/project-overrides/remote-control.yaml`:
+If you want a different project id, default branch, or provider preference, rerun the installer with flags instead of editing files by hand:
 
-```yaml
-project_id: aai-canonical
-default_branch: main
-allowed_docker_profile: worker-default
-default_provider_policy: auto
-phase_provider_preferences:
-  planning: claude
-  implementation: codex
-  validation: codex
+```bash
+bash apps/control-plane/scripts/install-host.sh \
+  --project-id another-project \
+  --repo-path /mnt/z/AI/another-project \
+  --default-branch main \
+  --planning-provider claude \
+  --implementation-provider codex \
+  --validation-provider codex
 ```
 
-This file is portable and belongs in the project repo. Do not put host-only values into it.
+This still creates or reuses the portable config in the managed repo and keeps host-only values out of it.
 
-### 3. Register the project on the host
+### 3. Optional: register a project manually
 
 ```bash
 node apps/control-plane/dist/cli.js project register \
@@ -97,7 +119,7 @@ node apps/control-plane/dist/cli.js project register \
   --user-ids 2001
 ```
 
-### 4. Probe provider sessions
+### 4. Optional: probe provider sessions explicitly
 
 Secrets remain in the native provider homes. The control-plane stores only health and usage metadata in SQLite.
 
@@ -105,18 +127,16 @@ Secrets remain in the native provider homes. The control-plane stores only healt
 node apps/control-plane/dist/cli.js auth probe \
   --db .runtime/control-plane.db \
   --provider claude \
-  --cli-path /usr/local/bin/claude \
+  --cli-path "$(command -v claude)" \
   --session-home ~/.claude \
-  --probe-args probe \
-  --usage-args usage
+  --probe-args --version
 
 node apps/control-plane/dist/cli.js auth probe \
   --db .runtime/control-plane.db \
   --provider codex \
-  --cli-path /usr/local/bin/codex \
+  --cli-path "$(command -v codex)" \
   --session-home ~/.codex \
-  --probe-args probe \
-  --usage-args usage
+  --probe-args --version
 ```
 
 Inspect synced metadata:
@@ -125,6 +145,8 @@ Inspect synced metadata:
 node apps/control-plane/dist/cli.js auth status --db .runtime/control-plane.db
 node apps/control-plane/dist/cli.js usage show --db .runtime/control-plane.db
 ```
+
+If a provider exposes a machine-readable usage command on your host, rerun `auth probe` with `--usage-args ...` for that provider.
 
 ## Main operator flows
 
@@ -236,12 +258,12 @@ Inline buttons currently cover:
 
 Run these in order on a fresh host:
 
-1. Build the control-plane.
-   Expected: `node apps/control-plane/dist/cli.js help` prints command list.
-2. Initialize the runtime DB and register one project.
-   Expected: `project show` returns repo path, policy, and chat/user ACLs.
-3. Probe both provider sessions.
-   Expected: `auth status` shows `status=ok` and `usage show --db` returns windows.
+1. Run the installer.
+   Expected: `.runtime/control-plane.db`, `docs/ai/project-overrides/remote-control.yaml`, and `.runtime/install-summary.<project>.json` exist.
+2. Check detected provider paths.
+   Expected: the install summary shows Linux/WSL paths such as `/home/ales/.local/bin/claude`, not guessed placeholder paths.
+3. Probe both provider sessions if you want an explicit refresh.
+   Expected: `auth status` shows `status=ok` for installed CLIs.
 4. Prepare one run.
    Expected: a git worktree and `run-manifest.json` appear under `.runtime/worktrees`.
 5. Launch one run in process mode.
@@ -251,7 +273,7 @@ Run these in order on a fresh host:
 7. Press `Stop` or `Resume`.
    Expected: work item status changes in DB and bot confirms callback.
 8. Run the full validation suite.
-   Expected: all `22` tests print `PASS`.
+   Expected: all `23` tests print `PASS`.
 
 ## Automated verification
 
@@ -261,7 +283,7 @@ Run the complete suite:
 bash tests/remote-orchestration/run-all.sh
 ```
 
-Target result: `22/22 PASS`.
+Target result: `23/23 PASS`.
 
 Focused checks:
 
@@ -270,6 +292,7 @@ bash tests/remote-orchestration/test-019-provider-session-probe.sh
 bash tests/remote-orchestration/test-020-run-launch.sh
 bash tests/remote-orchestration/test-021-telegram-live-polling.sh
 bash tests/remote-orchestration/test-022-standard-runtime-build.sh
+bash tests/remote-orchestration/test-023-install-script.sh
 ```
 
 ## Where login state is stored

@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsc -p ./tsconfig.json",
     "dev": "node --experimental-strip-types ./src/cli.ts",
+    "install:host": "bash ./scripts/install-host.sh",
     "start": "node ./dist/cli.js",
     "help": "node ./dist/cli.js help"
   },

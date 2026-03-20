@@ -36,11 +36,21 @@ This is the runnable TypeScript control-plane for the remote-orchestration stack
 ## Install
 
 ```bash
-cd apps/control-plane
-npm install
-npm run build
-node dist/cli.js help
+bash apps/control-plane/scripts/install-host.sh \
+  --project-id aai-canonical \
+  --repo-path "$PWD"
 ```
+
+The installer:
+
+- runs `npm install` and `npm run build`
+- initializes the host SQLite DB
+- creates `docs/ai/project-overrides/remote-control.yaml` only if missing
+- registers the project on the host
+- auto-detects `claude` and `codex` CLIs from the current Linux/WSL shell
+- probes provider binaries and stores host-side metadata in SQLite
+
+In WSL the detected CLI path is typically the real Linux path, for example `$(command -v claude)` such as `/home/ales/.local/bin/claude`.
 
 ## Runtime commands
 
@@ -50,7 +60,7 @@ node dist/cli.js help
 node apps/control-plane/dist/cli.js init --db .runtime/control-plane.db
 ```
 
-### Register a project
+### Register a project manually
 
 ```bash
 node apps/control-plane/dist/cli.js project register \
@@ -67,10 +77,9 @@ node apps/control-plane/dist/cli.js project register \
 node apps/control-plane/dist/cli.js auth probe \
   --db .runtime/control-plane.db \
   --provider claude \
-  --cli-path /usr/local/bin/claude \
+  --cli-path "$(command -v claude)" \
   --session-home ~/.claude \
-  --probe-args probe \
-  --usage-args usage
+  --probe-args --version
 ```
 
 ### Prepare and launch a run
@@ -107,10 +116,11 @@ node apps/control-plane/dist/cli.js telegram serve \
 bash tests/remote-orchestration/run-all.sh
 ```
 
-The current suite contains `22` CLI-backed tests, including:
+The current suite contains `23` CLI-backed tests, including:
 - provider session probe and usage sync
 - live Telegram long-poll fixture flow
 - real run launch with worktree/log artifacts
 - standard `tsc -> dist` runtime verification
+- one-command host installer flow
 
 `green` in the remote-orchestration spec is backed by executable control-plane flows, not by file-content smoke checks.
