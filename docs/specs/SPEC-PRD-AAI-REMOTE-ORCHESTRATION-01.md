@@ -82,6 +82,7 @@
 | TEST-021 | Spec-AC-005 | e2e | tests/remote-orchestration/test-021-telegram-live-polling.sh | Drives a work item through a live Telegram long-poll adapter using a local Telegram API fixture. | green |
 | TEST-022 | Spec-AC-018 | integration | tests/remote-orchestration/test-022-standard-runtime-build.sh | Builds the control-plane to `dist/` and validates documented install/run commands without `--experimental-strip-types`. | green |
 | TEST-023 | Spec-AC-018 | integration | tests/remote-orchestration/test-023-install-script.sh | Validates one-command host installer flow, generated project config, project registration, and provider autodetection without manual file edits. | green |
+| TEST-024 | Spec-AC-005 | integration | tests/remote-orchestration/test-024-missing-provider-fallback.sh | Validates missing provider CLIs are recorded, operators are told to install them manually, and auto-routing avoids unavailable providers. | green |
 
 Status values: pending -> red -> green.
 
@@ -110,6 +111,7 @@ Status values: pending -> red -> green.
   - `bash tests/remote-orchestration/test-021-telegram-live-polling.sh`
   - `bash tests/remote-orchestration/test-022-standard-runtime-build.sh`
   - `bash tests/remote-orchestration/test-023-install-script.sh`
+  - `bash tests/remote-orchestration/test-024-missing-provider-fallback.sh`
   - `bash tests/remote-orchestration/run-all.sh`
   - `cd apps/control-plane && npm install --no-fund --no-audit && npm run build`
 - Evidence artifacts:

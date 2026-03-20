@@ -126,6 +126,11 @@ run_npm() {
 
 to_native_path() {
   local raw_path="$1"
+  if [[ -z "$raw_path" ]]; then
+    printf '\n'
+    return
+  fi
+
   if [[ "$NODE_BIN" == "node.exe" ]]; then
     if [[ "$raw_path" =~ ^/mnt/([a-zA-Z])/(.*)$ ]]; then
       local drive="${BASH_REMATCH[1]}"
@@ -198,6 +203,11 @@ probe_provider() {
   local cli_path="$2"
   local session_home="$3"
   if [[ -z "$cli_path" ]]; then
+    "$NODE_BIN" "$(to_native_path "$APP_DIR/dist/cli.js")" auth mark-missing \
+      --db "$(to_native_path "$DB_PATH")" \
+      --provider "$provider" \
+      --session-home "$(to_native_path "$session_home")" \
+      --message "$provider CLI is not installed on this host. Install it manually, then rerun install-host.sh or auth probe." >/dev/null
     return
   fi
 
@@ -212,9 +222,11 @@ write_summary() {
   local created_config="$1"
   local claude_detected="$2"
   local codex_detected="$3"
+  local claude_recommended="$4"
+  local codex_recommended="$5"
 
   mkdir -p "$(dirname "$SUMMARY_PATH")"
-  "$NODE_BIN" - "$(to_native_path "$SUMMARY_PATH")" "$(to_native_path "$HOST_ROOT")" "$(to_native_path "$MANAGED_REPO_PATH")" "$(to_native_path "$DB_PATH")" "$(to_native_path "$PROJECT_CONFIG_PATH")" "$PROJECT_ID" "$DEFAULT_BRANCH" "$created_config" "$(to_native_path "$claude_detected")" "$(to_native_path "$CLAUDE_SESSION_HOME")" "$(to_native_path "$codex_detected")" "$(to_native_path "$CODEX_SESSION_HOME")" <<'EOF'
+  "$NODE_BIN" - "$(to_native_path "$SUMMARY_PATH")" "$(to_native_path "$HOST_ROOT")" "$(to_native_path "$MANAGED_REPO_PATH")" "$(to_native_path "$DB_PATH")" "$(to_native_path "$PROJECT_CONFIG_PATH")" "$PROJECT_ID" "$DEFAULT_BRANCH" "$created_config" "$(to_native_path "$claude_detected")" "$(to_native_path "$CLAUDE_SESSION_HOME")" "$claude_recommended" "$(to_native_path "$codex_detected")" "$(to_native_path "$CODEX_SESSION_HOME")" "$codex_recommended" <<'EOF'
 const fs = require("node:fs");
 const [
   summaryPath,
@@ -227,8 +239,10 @@ const [
   createdConfig,
   claudeCliPath,
   claudeSessionHome,
+  claudeRecommended,
   codexCliPath,
-  codexSessionHome
+  codexSessionHome,
+  codexRecommended
 ] = process.argv.slice(2);
 
 const payload = {
@@ -243,11 +257,15 @@ const payload = {
   providers: {
     claude: {
       cli_path: claudeCliPath || null,
-      session_home: claudeSessionHome
+      session_home: claudeSessionHome,
+      installed: Boolean(claudeCliPath),
+      recommended_action: claudeRecommended || null
     },
     codex: {
       cli_path: codexCliPath || null,
-      session_home: codexSessionHome
+      session_home: codexSessionHome,
+      installed: Boolean(codexCliPath),
+      recommended_action: codexRecommended || null
     }
   }
 };
@@ -396,13 +414,23 @@ fi
 
 claude_detected="$(resolve_cli_path claude "$CLAUDE_CLI_PATH")"
 codex_detected="$(resolve_cli_path codex "$CODEX_CLI_PATH")"
+claude_recommended=""
+codex_recommended=""
 
 if [[ "$SKIP_PROVIDER_PROBES" -eq 0 ]]; then
   probe_provider claude "$claude_detected" "$CLAUDE_SESSION_HOME"
   probe_provider codex "$codex_detected" "$CODEX_SESSION_HOME"
 fi
 
-write_summary "$created_config" "$claude_detected" "$codex_detected"
+if [[ -z "$claude_detected" ]]; then
+  claude_recommended="Install Claude Code CLI manually and rerun bash apps/control-plane/scripts/install-host.sh or node apps/control-plane/dist/cli.js auth probe ..."
+fi
+
+if [[ -z "$codex_detected" ]]; then
+  codex_recommended="Install Codex CLI manually and rerun bash apps/control-plane/scripts/install-host.sh or node apps/control-plane/dist/cli.js auth probe ..."
+fi
+
+write_summary "$created_config" "$claude_detected" "$codex_detected" "$claude_recommended" "$codex_recommended"
 
 printf 'Install complete.\n'
 printf 'Host DB: %s\n' "$DB_PATH"
@@ -413,4 +441,10 @@ if [[ -n "$claude_detected" ]]; then
 fi
 if [[ -n "$codex_detected" ]]; then
   printf 'Codex CLI: %s\n' "$codex_detected"
+fi
+if [[ -z "$claude_detected" ]]; then
+  printf 'Claude CLI not found. Install it manually, or the router will not use Claude.\n'
+fi
+if [[ -z "$codex_detected" ]]; then
+  printf 'Codex CLI not found. Install it manually, or the router will not use Codex.\n'
 fi

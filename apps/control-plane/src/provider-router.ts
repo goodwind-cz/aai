@@ -82,6 +82,7 @@ export function chooseProvider(options: {
   operatorOverride?: string | null;
   usage?: UsageWindow[];
   phasePreference?: string;
+  sessions?: ProviderSessionRecord[];
 }): ProviderDecision {
   const {
     policy,
@@ -89,23 +90,51 @@ export function chooseProvider(options: {
     strictSingleProvider = false,
     operatorOverride = null,
     usage = [],
-    phasePreference = "auto"
+    phasePreference = "auto",
+    sessions = []
   } = options;
 
+  const availableProviders = getAvailableProviders(sessions);
+  const hasAvailabilitySignal = sessions.length > 0;
+  const filteredUsage =
+    availableProviders.length > 0 ? usage.filter((entry) => availableProviders.includes(entry.provider)) : usage;
+
   if (operatorOverride && operatorOverride !== "auto") {
-    return { provider: operatorOverride as Provider, reason: "operator-override" };
+    return finalizeProviderDecision(
+      operatorOverride as Provider,
+      "operator-override",
+      availableProviders,
+      hasAvailabilitySignal,
+      fallback
+    );
   }
 
   if (policy && policy !== "auto") {
-    return { provider: policy as Provider, reason: "project-policy-explicit" };
+    return finalizeProviderDecision(
+      policy as Provider,
+      "project-policy-explicit",
+      availableProviders,
+      hasAvailabilitySignal,
+      fallback
+    );
   }
 
   if (phasePreference && phasePreference !== "auto") {
-    return { provider: phasePreference as Provider, reason: "phase-preference" };
+    return finalizeProviderDecision(
+      phasePreference as Provider,
+      "phase-preference",
+      availableProviders,
+      hasAvailabilitySignal,
+      fallback
+    );
   }
 
-  const claude = usage.find((entry) => entry.provider === "claude");
-  const codex = usage.find((entry) => entry.provider === "codex");
+  if (hasAvailabilitySignal && availableProviders.length === 0) {
+    throw new Error("No available provider CLIs are installed and authenticated on the host.");
+  }
+
+  const claude = filteredUsage.find((entry) => entry.provider === "claude");
+  const codex = filteredUsage.find((entry) => entry.provider === "codex");
 
   if (!claude && codex) {
     return { provider: "codex", reason: "claude-usage-missing" };
@@ -141,6 +170,29 @@ export function chooseProvider(options: {
   return claude.used_percentage < codex.used_percentage
     ? { provider: "claude", reason: "lowest-usage" }
     : { provider: "codex", reason: "lowest-usage" };
+}
+
+export function markProviderSessionMissing(
+  handle: DatabaseHandle,
+  options: {
+    provider: Provider;
+    session_home: string;
+    cli_path?: string;
+    account_label?: string | null;
+    message?: string;
+  }
+): ProviderSessionRecord {
+  return upsertProviderSession(handle, {
+    provider: options.provider,
+    auth_mode: "cli-subscription",
+    cli_path: path.resolve(options.cli_path || path.join(options.session_home, `${options.provider}-not-installed`)),
+    session_home: path.resolve(options.session_home),
+    account_label: options.account_label || null,
+    status: "missing",
+    last_verified_at_utc: nowUtc(),
+    last_usage_sync_at_utc: null,
+    last_error: options.message || `${options.provider} CLI is not installed on this host.`
+  });
 }
 
 export function probeProviderSession(
@@ -333,6 +385,36 @@ function upsertProviderSession(handle: DatabaseHandle, session: ProviderSessionR
     session.last_error
   );
   return getProviderSession(handle, session.provider);
+}
+
+function getAvailableProviders(sessions: ProviderSessionRecord[]): Provider[] {
+  return sessions.filter((session) => session.status === "ok").map((session) => session.provider);
+}
+
+function finalizeProviderDecision(
+  provider: Provider,
+  reason: string,
+  availableProviders: Provider[],
+  hasAvailabilitySignal: boolean,
+  fallback?: Provider
+): ProviderDecision {
+  if (!hasAvailabilitySignal) {
+    return { provider, reason };
+  }
+
+  if (availableProviders.includes(provider)) {
+    return { provider, reason };
+  }
+
+  const preferredFallback = fallback && availableProviders.includes(fallback) ? fallback : availableProviders[0];
+  if (preferredFallback) {
+    return {
+      provider: preferredFallback,
+      reason: `${reason}-provider-unavailable-fallback`
+    };
+  }
+
+  throw new Error(`Provider ${provider} is not available on this host.`);
 }
 
 function saveUsageWindows(handle: DatabaseHandle, windows: UsageWindow[]): void {

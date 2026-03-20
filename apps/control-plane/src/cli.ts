@@ -8,6 +8,7 @@ import {
   listProviderSessions,
   loadUsageWindows,
   loadUsageWindowsFromDb,
+  markProviderSessionMissing,
   probeProviderSession,
   validateAuthMode,
   type Provider
@@ -88,6 +89,7 @@ Commands:
   project show --db <path> --project-id <id>
   auth validate --mode cli-subscription
   auth probe --db <path> --provider <claude|codex> --cli-path <path> --session-home <path> [--probe-args a,b] [--usage-args a,b]
+  auth mark-missing --db <path> --provider <claude|codex> --session-home <path> [--cli-path <path>] [--message <text>]
   auth status --db <path> [--provider <claude|codex>]
   router choose --db <path> [--project-config <yaml>] [--usage-file <json>] [--phase implementation] [--provider auto] [--fallback codex]
   usage show [--db <path> | --usage-file <json>]
@@ -194,6 +196,20 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (domain === "auth" && action === "mark-missing") {
+      const handle = openHandle(args);
+      const session = markProviderSessionMissing(handle, {
+        provider: requireArg(args, "provider") as Provider,
+        session_home: requireArg(args, "session-home"),
+        cli_path: typeof args["cli-path"] === "string" ? args["cli-path"] : undefined,
+        account_label: typeof args["account-label"] === "string" ? args["account-label"] : null,
+        message: typeof args.message === "string" ? args.message : undefined
+      });
+      closeDatabase(handle);
+      printJson({ session });
+      return;
+    }
+
     if (domain === "auth" && action === "status") {
       const handle = openHandle(args);
       const provider = typeof args.provider === "string" ? (args.provider as Provider) : null;
@@ -207,6 +223,7 @@ async function main(): Promise<void> {
       const handle = args.db ? openHandle(args) : undefined;
       const projectConfig = maybeProjectConfig(args);
       const usage = maybeUsage(args, handle);
+      const sessions = handle ? listProviderSessions(handle) : [];
       const phase = typeof args.phase === "string" ? args.phase : "implementation";
       const decision = chooseProvider({
         policy: typeof args.provider === "string" ? args.provider : projectConfig?.default_provider_policy,
@@ -214,12 +231,13 @@ async function main(): Promise<void> {
         strictSingleProvider: args.strict === "true",
         operatorOverride: typeof args.override === "string" ? args.override : null,
         usage,
-        phasePreference: projectConfig?.phase_provider_preferences?.[phase] || "auto"
+        phasePreference: projectConfig?.phase_provider_preferences?.[phase] || "auto",
+        sessions
       });
       if (handle) {
         closeDatabase(handle);
       }
-      printJson({ phase, decision, usage });
+      printJson({ phase, decision, usage, sessions });
       return;
     }
 
@@ -314,6 +332,7 @@ async function main(): Promise<void> {
       const handle = openHandle(args);
       const projectConfig = maybeProjectConfig(args);
       const usage = maybeUsage(args, handle);
+      const sessions = listProviderSessions(handle);
       const phase = typeof args.phase === "string" ? args.phase : "implementation";
       const decision = chooseProvider({
         policy: typeof args.provider === "string" ? args.provider : projectConfig?.default_provider_policy,
@@ -321,7 +340,8 @@ async function main(): Promise<void> {
         strictSingleProvider: args.strict === "true",
         operatorOverride: typeof args.override === "string" ? args.override : null,
         usage,
-        phasePreference: projectConfig?.phase_provider_preferences?.[phase] || "auto"
+        phasePreference: projectConfig?.phase_provider_preferences?.[phase] || "auto",
+        sessions
       });
       const result = prepareRun(handle, {
         project_id: requireArg(args, "project-id"),

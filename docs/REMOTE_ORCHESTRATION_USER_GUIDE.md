@@ -11,7 +11,7 @@ This guide explains how to install, configure, and user-test the remote-orchestr
 - git worktree preparation plus real `process` or `docker` run launch
 - live Telegram long polling with inline buttons and callback actions
 - durable approval records and gate checks
-- executable verification suite with `23` passing tests
+- executable verification suite with `24` passing tests
 
 ## Runtime boundaries
 
@@ -68,6 +68,7 @@ This is the preferred path. The installer:
 - registers the project against the host DB
 - auto-detects `claude` and `codex` from the current Linux/WSL shell
 - records an install summary under `.runtime/install-summary.<project>.json`
+- if a provider CLI is missing, records that state, prints a manual install instruction, and auto-routing will not use that provider
 
 On a WSL host, the detected Claude path should normally match:
 
@@ -78,10 +79,17 @@ which claude
 Example shape:
 
 ```bash
-/home/ales/.local/bin/claude
+/home/user/.local/bin/claude
 ```
 
 No manual YAML editing is required for first install unless you want to override defaults.
+
+If `claude` or `codex` is not installed, the installer will not try to invent a broken fallback. It will:
+
+- mark the provider as `missing` in the host DB
+- print a message telling the operator to install that CLI manually
+- keep the rest of the control-plane usable
+- exclude the missing provider from automatic routing
 
 ## First-time setup
 
@@ -261,9 +269,10 @@ Run these in order on a fresh host:
 1. Run the installer.
    Expected: `.runtime/control-plane.db`, `docs/ai/project-overrides/remote-control.yaml`, and `.runtime/install-summary.<project>.json` exist.
 2. Check detected provider paths.
-   Expected: the install summary shows Linux/WSL paths such as `/home/ales/.local/bin/claude`, not guessed placeholder paths.
+   Expected: the install summary shows Linux/WSL paths such as `/home/user/.local/bin/claude`, not guessed placeholder paths.
 3. Probe both provider sessions if you want an explicit refresh.
    Expected: `auth status` shows `status=ok` for installed CLIs.
+   If one CLI is not installed, expected: `auth status` shows `status=missing` and auto-routing avoids it.
 4. Prepare one run.
    Expected: a git worktree and `run-manifest.json` appear under `.runtime/worktrees`.
 5. Launch one run in process mode.
@@ -273,7 +282,7 @@ Run these in order on a fresh host:
 7. Press `Stop` or `Resume`.
    Expected: work item status changes in DB and bot confirms callback.
 8. Run the full validation suite.
-   Expected: all `23` tests print `PASS`.
+   Expected: all `24` tests print `PASS`.
 
 ## Automated verification
 
@@ -283,7 +292,7 @@ Run the complete suite:
 bash tests/remote-orchestration/run-all.sh
 ```
 
-Target result: `23/23 PASS`.
+Target result: `24/24 PASS`.
 
 Focused checks:
 
@@ -293,6 +302,7 @@ bash tests/remote-orchestration/test-020-run-launch.sh
 bash tests/remote-orchestration/test-021-telegram-live-polling.sh
 bash tests/remote-orchestration/test-022-standard-runtime-build.sh
 bash tests/remote-orchestration/test-023-install-script.sh
+bash tests/remote-orchestration/test-024-missing-provider-fallback.sh
 ```
 
 ## Where login state is stored

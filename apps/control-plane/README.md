@@ -49,6 +49,7 @@ The installer:
 - registers the project on the host
 - auto-detects `claude` and `codex` CLIs from the current Linux/WSL shell
 - probes provider binaries and stores host-side metadata in SQLite
+- records missing CLIs as unavailable and tells the operator to install them manually instead of trying to use them
 
 In WSL the detected CLI path is typically the real Linux path, for example `$(command -v claude)` such as `/home/ales/.local/bin/claude`.
 
@@ -116,11 +117,12 @@ node apps/control-plane/dist/cli.js telegram serve \
 bash tests/remote-orchestration/run-all.sh
 ```
 
-The current suite contains `23` CLI-backed tests, including:
+The current suite contains `24` CLI-backed tests, including:
 - provider session probe and usage sync
 - live Telegram long-poll fixture flow
 - real run launch with worktree/log artifacts
 - standard `tsc -> dist` runtime verification
 - one-command host installer flow
+- missing-provider fallback and operator install prompt behavior
 
 `green` in the remote-orchestration spec is backed by executable control-plane flows, not by file-content smoke checks.

@@ -42,12 +42,12 @@ active_work_items: []
 
 last_validation:
   status: pass
-  run_at_utc: "2026-03-20T14:56:20Z"
-  validator_ref: "manual-validation-20260320T145620Z"
+  run_at_utc: "2026-03-20T15:17:34Z"
+  validator_ref: "manual-validation-20260320T151734Z"
   evidence_paths:
-    - docs/ai/reports/validation-20260320T145620Z.log
-    - docs/ai/reports/validation-20260320T145620Z.md
-  notes: "Installer/onboarding pass completed: one-command host install, WSL-correct provider path docs, and 23/23 remote-orchestration tests passed."
+    - docs/ai/reports/validation-20260320T151734Z.log
+    - docs/ai/reports/validation-20260320T151734Z.md
+  notes: "Provider availability pass completed: missing Claude/Codex CLIs are recorded, operators are told to install them manually, auto-routing avoids unavailable providers, and 24/24 remote-orchestration tests passed."
 
 human_input:
   required: false
@@ -130,5 +130,13 @@ metrics:
           tokens_in: null
           tokens_out: null
           cost_usd: null
+        - role: Validation
+          model_id: gpt-5
+          started_utc: "2026-03-20T15:13:51Z"
+          ended_utc: "2026-03-20T15:17:34Z"
+          duration_seconds: 223
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
 
-updated_at_utc: "2026-03-20T14:56:20Z"
+updated_at_utc: "2026-03-20T15:17:34Z"
