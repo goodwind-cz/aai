@@ -2,12 +2,37 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { closeDatabase, openDatabase, type DatabaseHandle } from "./db.ts";
-import { chooseProvider, loadUsageWindows, validateAuthMode, type Provider } from "./provider-router.ts";
+import {
+  chooseProvider,
+  getProviderSession,
+  listProviderSessions,
+  loadUsageWindows,
+  loadUsageWindowsFromDb,
+  probeProviderSession,
+  validateAuthMode,
+  type Provider
+} from "./provider-router.ts";
 import { parseArgs, printJson, readJson, requireArg, resolveMaybe, splitCsv, type CliArgs } from "./common.ts";
 import { getProject, listProjects, loadProjectConfig, registerProject } from "./registry.ts";
-import { approvalExists, createWorkItem, evaluateGate, getWorkItem, recordApproval, updateWorkItemStatus, type GateContext } from "./queue.ts";
-import { buildHandoffPacket, prepareRun, validateManifest, type RunManifest } from "./runner.ts";
-import { interactiveModel, loadCommandRegistry, parseCallbackData, simulateTelegramCommand } from "./telegram.ts";
+import {
+  approvalExists,
+  createWorkItem,
+  evaluateGate,
+  getWorkItem,
+  listWorkItems,
+  recordApproval,
+  updateWorkItemStatus,
+  type GateContext
+} from "./queue.ts";
+import { buildHandoffPacket, getRun, launchRun, prepareRun, validateManifest, type RunManifest } from "./runner.ts";
+import {
+  interactiveModel,
+  loadCommandRegistry,
+  parseCallbackData,
+  pollTelegramOnce,
+  runTelegramDaemon,
+  simulateTelegramCommand
+} from "./telegram.ts";
 import {
   DEFAULT_MOUNT_ALLOWLIST_PATH,
   generateAllowlistTemplate,
@@ -20,8 +45,14 @@ function openHandle(args: CliArgs): DatabaseHandle {
   return openDatabase(requireArg(args, "db"));
 }
 
-function maybeUsage(args: CliArgs) {
-  return args["usage-file"] ? loadUsageWindows(requireArg(args, "usage-file")) : [];
+function maybeUsage(args: CliArgs, handle?: DatabaseHandle) {
+  if (args["usage-file"]) {
+    return loadUsageWindows(requireArg(args, "usage-file"));
+  }
+  if (handle) {
+    return loadUsageWindowsFromDb(handle);
+  }
+  return [];
 }
 
 function maybeProjectConfig(args: CliArgs) {
@@ -48,7 +79,7 @@ function normalizeGateContext(args: CliArgs): GateContext {
 }
 
 function help(): void {
-  process.stdout.write(`AAI control-plane MVP
+  process.stdout.write(`AAI control-plane
 
 Commands:
   init --db <path>
@@ -56,19 +87,25 @@ Commands:
   project list --db <path>
   project show --db <path> --project-id <id>
   auth validate --mode cli-subscription
-  router choose --project-config <yaml> [--usage-file <json>] [--phase implementation] [--provider auto] [--fallback codex]
-  usage show --usage-file <json>
+  auth probe --db <path> --provider <claude|codex> --cli-path <path> --session-home <path> [--probe-args a,b] [--usage-args a,b]
+  auth status --db <path> [--provider <claude|codex>]
+  router choose --db <path> [--project-config <yaml>] [--usage-file <json>] [--phase implementation] [--provider auto] [--fallback codex]
+  usage show [--db <path> | --usage-file <json>]
   queue create --db <path> --project-id <id> --ref-id <id> --phase <phase> --branch <branch> --provider <provider>
-  queue status --db <path> --project-id <id> --ref-id <id>
+  queue status --db <path> --project-id <id> [--ref-id <id>]
   queue action --db <path> --project-id <id> --ref-id <id> --status <queued|running|blocked|stopped|done>
   approve check --gate <implementation|validation> [gate fields...]
   approve grant --db <path> --project-id <id> --ref-id <id> --gate <gate> --approved-by <user> --artifact-path <path>
   run prepare --db <path> --project-id <id> --ref-id <id> --repo-path <path> --worktrees-root <path> --container-image <image> --provider <provider>
+  run launch --db <path> --manifest <path> [--mode docker|process] [--worker-command <path>] [--docker-bin <path>] [--docker-args a,b]
+  run inspect --db <path> --run-id <id>
   run validate --manifest <path>
   handoff build --db <path> --project-id <id> --ref-id <id> [--requirement-refs a,b] [--spec-refs a,b] [--report-refs a,b]
   telegram registry --config <json>
   telegram interactive
   telegram callback --data <action:target:ref>
+  telegram poll --db <path> --token <bot-token> --approval-config <json> [--api-base <url>] [--once]
+  telegram serve --db <path> --token <bot-token> --approval-config <json> [--api-base <url>] [--once] [--max-idle-cycles 10]
   telegram simulate --db <path> --command </intake|/approve|/resume|/stop|/status> --project-id <id> --ref-id <id>
   mounts template
   mounts validate [--allowlist <path>] --mounts <src|target|ro,...> [--project-role main|worker]
@@ -142,9 +179,34 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (domain === "auth" && action === "probe") {
+      const handle = openHandle(args);
+      const result = probeProviderSession(handle, {
+        provider: requireArg(args, "provider") as Provider,
+        cli_path: requireArg(args, "cli-path"),
+        session_home: requireArg(args, "session-home"),
+        account_label: typeof args["account-label"] === "string" ? args["account-label"] : null,
+        probe_args: splitCsv(args["probe-args"]),
+        usage_args: splitCsv(args["usage-args"])
+      });
+      closeDatabase(handle);
+      printJson(result);
+      return;
+    }
+
+    if (domain === "auth" && action === "status") {
+      const handle = openHandle(args);
+      const provider = typeof args.provider === "string" ? (args.provider as Provider) : null;
+      const payload = provider ? getProviderSession(handle, provider) : listProviderSessions(handle);
+      closeDatabase(handle);
+      printJson(provider ? { session: payload } : { sessions: payload });
+      return;
+    }
+
     if (domain === "router" && action === "choose") {
+      const handle = args.db ? openHandle(args) : undefined;
       const projectConfig = maybeProjectConfig(args);
-      const usage = maybeUsage(args);
+      const usage = maybeUsage(args, handle);
       const phase = typeof args.phase === "string" ? args.phase : "implementation";
       const decision = chooseProvider({
         policy: typeof args.provider === "string" ? args.provider : projectConfig?.default_provider_policy,
@@ -154,21 +216,31 @@ async function main(): Promise<void> {
         usage,
         phasePreference: projectConfig?.phase_provider_preferences?.[phase] || "auto"
       });
+      if (handle) {
+        closeDatabase(handle);
+      }
       printJson({ phase, decision, usage });
       return;
     }
 
     if (domain === "usage" && action === "show") {
-      const windows = loadUsageWindows(requireArg(args, "usage-file"));
-      printJson({
-        windows,
-        providers: windows.map((entry) => ({
-          provider: entry.provider,
-          window_label: entry.window_label,
-          used_percentage: entry.used_percentage,
-          reset_at_utc: entry.reset_at_utc
-        }))
-      });
+      if (args.db) {
+        const handle = openHandle(args);
+        const windows = loadUsageWindowsFromDb(handle);
+        closeDatabase(handle);
+        printJson({ windows });
+      } else {
+        const windows = loadUsageWindows(requireArg(args, "usage-file"));
+        printJson({
+          windows,
+          providers: windows.map((entry) => ({
+            provider: entry.provider,
+            window_label: entry.window_label,
+            used_percentage: entry.used_percentage,
+            reset_at_utc: entry.reset_at_utc
+          }))
+        });
+      }
       return;
     }
 
@@ -194,9 +266,13 @@ async function main(): Promise<void> {
 
     if (domain === "queue" && action === "status") {
       const handle = openHandle(args);
-      const workItem = getWorkItem(handle, requireArg(args, "project-id"), requireArg(args, "ref-id"));
+      const projectId = requireArg(args, "project-id");
+      const payload =
+        typeof args["ref-id"] === "string"
+          ? { work_item: getWorkItem(handle, projectId, requireArg(args, "ref-id")) }
+          : { work_items: listWorkItems(handle, projectId) };
       closeDatabase(handle);
-      printJson({ work_item: workItem });
+      printJson(payload);
       return;
     }
 
@@ -237,7 +313,7 @@ async function main(): Promise<void> {
     if (domain === "run" && action === "prepare") {
       const handle = openHandle(args);
       const projectConfig = maybeProjectConfig(args);
-      const usage = maybeUsage(args);
+      const usage = maybeUsage(args, handle);
       const phase = typeof args.phase === "string" ? args.phase : "implementation";
       const decision = chooseProvider({
         policy: typeof args.provider === "string" ? args.provider : projectConfig?.default_provider_policy,
@@ -286,6 +362,28 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (domain === "run" && action === "launch") {
+      const handle = openHandle(args);
+      const result = launchRun(handle, {
+        manifest_path: requireArg(args, "manifest"),
+        mode: (typeof args.mode === "string" ? args.mode : "docker") as "docker" | "process",
+        worker_command: typeof args["worker-command"] === "string" ? args["worker-command"] : null,
+        docker_bin: typeof args["docker-bin"] === "string" ? args["docker-bin"] : null,
+        docker_args: splitCsv(args["docker-args"])
+      });
+      closeDatabase(handle);
+      printJson(result);
+      return;
+    }
+
+    if (domain === "run" && action === "inspect") {
+      const handle = openHandle(args);
+      const run = getRun(handle, requireArg(args, "run-id"));
+      closeDatabase(handle);
+      printJson({ run });
+      return;
+    }
+
     if (domain === "run" && action === "validate") {
       const manifest = readJson<Partial<RunManifest>>(requireArg(args, "manifest"));
       printJson(validateManifest(manifest));
@@ -318,6 +416,34 @@ async function main(): Promise<void> {
 
     if (domain === "telegram" && action === "callback") {
       printJson(parseCallbackData(requireArg(args, "data")));
+      return;
+    }
+
+    if (domain === "telegram" && action === "poll") {
+      const handle = openHandle(args);
+      const result = await pollTelegramOnce(handle, {
+        token: requireArg(args, "token"),
+        api_base: typeof args["api-base"] === "string" ? args["api-base"] : undefined,
+        approval_config: readJson<Record<string, string[]>>(requireArg(args, "approval-config")),
+        once: args.once === true
+      });
+      closeDatabase(handle);
+      printJson(result);
+      return;
+    }
+
+    if (domain === "telegram" && action === "serve") {
+      const handle = openHandle(args);
+      const result = await runTelegramDaemon(handle, {
+        token: requireArg(args, "token"),
+        api_base: typeof args["api-base"] === "string" ? args["api-base"] : undefined,
+        approval_config: readJson<Record<string, string[]>>(requireArg(args, "approval-config")),
+        once: args.once === true,
+        max_idle_cycles: typeof args["max-idle-cycles"] === "string" ? Number(args["max-idle-cycles"]) : undefined,
+        poll_interval_ms: typeof args["poll-interval-ms"] === "string" ? Number(args["poll-interval-ms"]) : undefined
+      });
+      closeDatabase(handle);
+      printJson(result);
       return;
     }
 

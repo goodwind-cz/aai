@@ -49,6 +49,13 @@ export function splitCsv(value: string | boolean | string[] | undefined): string
     .filter(Boolean);
 }
 
+export function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9_./:-]+$/.test(value)) {
+    return value;
+  }
+  return JSON.stringify(value);
+}
+
 export function nowUtc(): string {
   return new Date().toISOString();
 }

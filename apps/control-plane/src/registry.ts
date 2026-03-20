@@ -5,6 +5,17 @@ import { loadYamlFile } from "./yaml-lite.ts";
 
 type YamlConfig = Record<string, string | number | boolean | Record<string, string>>;
 
+type ProjectRow = {
+  project_id: string;
+  default_branch: string;
+  default_provider_policy: string;
+  allowed_docker_profile: string;
+  portable_config_path: string;
+  local_repo_path: string | null;
+  allowed_telegram_chat_ids: string | null;
+  allowed_telegram_user_ids: string | null;
+};
+
 export type ProjectPortableConfig = {
   config_path: string;
   project_id: string;
@@ -97,7 +108,7 @@ export function listProjects(handle: DatabaseHandle): Array<Record<string, unkno
     ORDER BY p.project_id
   `);
 
-  return statement.all().map((row) => ({
+  return (statement.all() as ProjectRow[]).map((row) => ({
     project_id: row.project_id,
     default_branch: row.default_branch,
     default_provider_policy: row.default_provider_policy,

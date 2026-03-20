@@ -4,12 +4,19 @@
   "private": true,
   "type": "module",
   "bin": {
-    "aai-control-plane": "./src/cli.ts"
+    "aai-control-plane": "./dist/cli.js"
   },
   "scripts": {
-    "help": "node --experimental-strip-types ./src/cli.ts help"
+    "build": "tsc -p ./tsconfig.json",
+    "dev": "node --experimental-strip-types ./src/cli.ts",
+    "start": "node ./dist/cli.js",
+    "help": "node ./dist/cli.js help"
   },
   "engines": {
     "node": ">=24"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.2"
   }
 }

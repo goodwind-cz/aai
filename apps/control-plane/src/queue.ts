@@ -90,6 +90,27 @@ export function getWorkItem(handle: DatabaseHandle, projectId: string, refId: st
   return row;
 }
 
+export function listWorkItems(handle: DatabaseHandle, projectId?: string): Array<Record<string, unknown>> {
+  const baseSql = `
+    SELECT
+      project_id,
+      ref_id,
+      branch,
+      phase,
+      status,
+      provider,
+      manifest_path,
+      summary,
+      created_at_utc,
+      updated_at_utc
+    FROM work_items
+  `;
+  const statement = handle.database.prepare(
+    projectId ? `${baseSql} WHERE project_id = ? ORDER BY updated_at_utc DESC` : `${baseSql} ORDER BY updated_at_utc DESC`
+  );
+  return (projectId ? statement.all(projectId) : statement.all()) as Array<Record<string, unknown>>;
+}
+
 export function updateWorkItemStatus(
   handle: DatabaseHandle,
   projectId: string,

@@ -7,6 +7,12 @@ else
   NODE_BIN="node"
 fi
 
+if command -v cmd.exe >/dev/null 2>&1; then
+  CMD_BIN="cmd.exe"
+else
+  CMD_BIN="cmd"
+fi
+
 CLI=("$NODE_BIN" --experimental-strip-types apps/control-plane/src/cli.ts)
 
 assert_file() {
@@ -31,6 +37,10 @@ assert_not_contains() {
 
 run_cli() {
   NODE_NO_WARNINGS=1 "${CLI[@]}" "$@"
+}
+
+run_npm_cmd() {
+  "$CMD_BIN" /c npm.cmd "$@"
 }
 
 make_tmpdir() {

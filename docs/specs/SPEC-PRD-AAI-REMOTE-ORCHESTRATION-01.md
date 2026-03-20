@@ -13,6 +13,7 @@
 - Corrected guardrail sentence: the failure was not only that a documented contract was mistaken for finished implementation, but that the branch lacked a hard DoD and release gate requiring a runnable control-plane, CLI-backed end-to-end verification, and validation evidence before any TEST-xxx or `last_validation` could be marked green/pass.
 - From this point forward, remote-orchestration `green` means the TypeScript CLI in `apps/control-plane/src/cli.ts` executed successfully through the corresponding test flow.
 - Implementation direction is intentionally derived from `SuperTurtle` and `NanoClaw`: headless CLI providers and Telegram command ergonomics from `SuperTurtle`, host-side mount isolation and single-process runtime shape from `NanoClaw`.
+- Reopened on `2026-03-20` because the branch still lacked the remaining runtime-critical parts required by the PRD/RFC: real provider session probing/usage sync, actual worker launch, a long-lived host process, and a live Telegram polling adapter.
 
 ## Acceptance Criteria Mapping
 
@@ -76,11 +77,15 @@
 | TEST-016 | Spec-AC-016 | unit | tests/remote-orchestration/test-016-approve-implementation-prereqs.sh | Verifies prereq gating for `Approve implementation`. | green |
 | TEST-017 | Spec-AC-017 | unit | tests/remote-orchestration/test-017-approve-validation-prereqs.sh | Verifies prereq gating for `Approve validation`. | green |
 | TEST-018 | Spec-AC-018 | integration | tests/remote-orchestration/test-018-migration-path.sh | Validates migration checklist and runnable onboarding path. | green |
+| TEST-019 | Spec-AC-007 | integration | tests/remote-orchestration/test-019-provider-session-probe.sh | Probes real CLI-subscription style provider sessions and persists session health/usage snapshots. | green |
+| TEST-020 | Spec-AC-002 | e2e | tests/remote-orchestration/test-020-run-launch.sh | Launches one real worker process from a manifest and records run/log artifacts. | green |
+| TEST-021 | Spec-AC-005 | e2e | tests/remote-orchestration/test-021-telegram-live-polling.sh | Drives a work item through a live Telegram long-poll adapter using a local Telegram API fixture. | green |
+| TEST-022 | Spec-AC-018 | integration | tests/remote-orchestration/test-022-standard-runtime-build.sh | Builds the control-plane to `dist/` and validates documented install/run commands without `--experimental-strip-types`. | green |
 
 Status values: pending -> red -> green.
 
 ## Verification
-- Commands (planned):
+- Commands (executed on 2026-03-20):
   - `bash tests/remote-orchestration/test-001-multi-project-registration.sh`
   - `bash tests/remote-orchestration/test-002-worktree-container-isolation.sh`
   - `bash tests/remote-orchestration/test-003-project-policy-load.sh`
@@ -99,6 +104,12 @@ Status values: pending -> red -> green.
   - `bash tests/remote-orchestration/test-016-approve-implementation-prereqs.sh`
   - `bash tests/remote-orchestration/test-017-approve-validation-prereqs.sh`
   - `bash tests/remote-orchestration/test-018-migration-path.sh`
+  - `bash tests/remote-orchestration/test-019-provider-session-probe.sh`
+  - `bash tests/remote-orchestration/test-020-run-launch.sh`
+  - `bash tests/remote-orchestration/test-021-telegram-live-polling.sh`
+  - `bash tests/remote-orchestration/test-022-standard-runtime-build.sh`
+  - `bash tests/remote-orchestration/run-all.sh`
+  - `cd apps/control-plane && npm install --no-fund --no-audit && npm run build`
 - Evidence artifacts:
   - command logs under `docs/ai/reports/`
   - run manifests under host runtime storage with references in repo reports

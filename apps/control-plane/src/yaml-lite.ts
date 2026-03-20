@@ -1,7 +1,10 @@
 import fs from "node:fs";
 
 type Scalar = string | number | boolean;
-type YamlValue = Scalar | Record<string, YamlValue>;
+type YamlMap = {
+  [key: string]: YamlValue;
+};
+type YamlValue = Scalar | YamlMap;
 
 function parseScalar(rawValue: string): Scalar {
   const value = rawValue.trim();
@@ -22,7 +25,7 @@ function parseScalar(rawValue: string): Scalar {
 
 export function parseYamlDocument(source: string): Record<string, YamlValue> {
   const result: Record<string, YamlValue> = {};
-  const stack: Array<{ indent: number; value: Record<string, YamlValue> }> = [{ indent: -1, value: result }];
+  const stack: Array<{ indent: number; value: YamlMap }> = [{ indent: -1, value: result }];
 
   for (const originalLine of source.split(/\r?\n/)) {
     const line = originalLine.replace(/\t/g, "  ");
@@ -47,7 +50,7 @@ export function parseYamlDocument(source: string): Record<string, YamlValue> {
 
     if (!valuePart) {
       currentObject[key] = {};
-      stack.push({ indent, value: currentObject[key] as Record<string, YamlValue> });
+      stack.push({ indent, value: currentObject[key] as YamlMap });
       continue;
     }
 

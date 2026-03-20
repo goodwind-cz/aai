@@ -24,9 +24,9 @@
 project_status: active
 
 current_focus:
-  type: intake_prd
-  ref_id: PRD-AAI-REMOTE-ORCHESTRATION-01
-  primary_path: docs/specs/SPEC-PRD-AAI-REMOTE-ORCHESTRATION-01.md
+  type: none
+  ref_id: null
+  primary_path: null
 
 locks:
   implementation: false
@@ -38,20 +38,16 @@ locks:
   protected_paths_edit_allowed: false
   protected_paths_reason: "Edits are allowed only with explicit scope/HITL approval."
 
-active_work_items:
-  - id: PRD-AAI-REMOTE-ORCHESTRATION-01
-    title: "AAI remote orchestration for Telegram-controlled Docker worktrees"
-    status: done
-    phase: validation
+active_work_items: []
 
 last_validation:
   status: pass
-  run_at_utc: "2026-03-19T21:54:06Z"
-  validator_ref: .aai/VALIDATION.prompt.md
+  run_at_utc: "2026-03-20T02:52:42Z"
+  validator_ref: "manual-validation-20260320T025242Z"
   evidence_paths:
-    - docs/ai/reports/validation-20260319T215409Z.log
-    - docs/ai/reports/validation-20260319T215409Z.md
-  notes: "All remote-orchestration CLI tests passed (18/18), including SuperTurtle/NanoClaw-derived guardrails."
+    - docs/ai/reports/validation-20260320T025242Z.log
+    - docs/ai/reports/validation-20260320T025242Z.md
+  notes: "Reopened runtime-critical scope was completed: provider probes, live Telegram polling, worker launch, standard build/runtime verification, and 22/22 remote-orchestration tests passed."
 
 human_input:
   required: false
@@ -102,5 +98,21 @@ metrics:
           tokens_in: null
           tokens_out: null
           cost_usd: null
+        - role: Implementation
+          model_id: gpt-5
+          started_utc: "2026-03-20T01:55:08Z"
+          ended_utc: "2026-03-20T02:35:50Z"
+          duration_seconds: 2442
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+        - role: Validation
+          model_id: gpt-5
+          started_utc: "2026-03-20T02:35:51Z"
+          ended_utc: "2026-03-20T02:52:42Z"
+          duration_seconds: 1011
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
 
-updated_at_utc: "2026-03-19T21:54:06Z"
+updated_at_utc: "2026-03-20T02:52:42Z"

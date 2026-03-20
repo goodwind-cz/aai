@@ -1,85 +1,77 @@
 # Remote Orchestration User Guide
 
-This guide explains how to install and use the current remote-orchestration MVP on `feature/remote-orchestration`.
+This guide explains how to install, configure, and user-test the remote-orchestration control-plane on `feature/remote-orchestration`.
 
-## What works now
+## What is implemented
 
-- TypeScript host CLI for the control-plane
-- SQLite-backed runtime state
-- multi-project registration
+- one host control-plane process with SQLite runtime state
+- multi-project registration from one install
 - provider routing for `Claude Code` and `Codex`
-- run manifest preparation for Docker workers
-- approval gate evaluation and durable approval records
-- Telegram command model and interactive action model
-- executable validation suite (`18` CLI-backed tests)
+- host-only CLI-subscription session probe and usage sync
+- git worktree preparation plus real `process` or `docker` run launch
+- live Telegram long polling with inline buttons and callback actions
+- durable approval records and gate checks
+- executable verification suite with `22` passing tests
 
-## Design lineage
+## Runtime boundaries
 
-- From `SuperTurtle`, this MVP keeps the headless CLI pattern and Telegram-first operator model instead of inventing a custom provider protocol.
-- From `NanoClaw`, this MVP keeps one host process, SQLite runtime state, and host-side mount validation outside the project repository.
+- Repo-canonical:
+  - `docs/requirements/*`
+  - `docs/rfc/*`
+  - `docs/specs/*`
+  - `docs/TECHNOLOGY.md`
+- Host runtime only:
+  - control-plane SQLite database
+  - provider session homes and CLI auth state
+  - Telegram cursor/session state
+  - run logs and transient reports
 
-## What is still next
-
-- long-running daemon wrapper (`systemd --user` or equivalent)
-- live Telegram transport
-- actual Docker worker launch instead of manifest-only preparation
+Do not commit provider sessions, runtime DBs, or local run logs.
 
 ## Prerequisites
 
-- Linux or WSL2 environment
+- WSL2 or Linux host
+- Node.js `>=24`
 - `git`
 - `bash`
-- provider CLI subscriptions already authenticated on host (`Claude Code`, `Codex`)
-- optional for later runtime phases: Docker engine
+- provider CLIs already logged in with subscription mode on the host
+- optional for container runs: Docker
 
 Quick checks:
 
 ```bash
+node -v
 git --version
 bash --version
 claude --version || true
 codex --help || true
+docker --version || true
 ```
 
 ## Installation
-
-1. Get the repository and checkout the feature branch:
 
 ```bash
 git clone <your-aai-repo-url> aai
 cd aai
 git checkout feature/remote-orchestration
+cd apps/control-plane
+npm install
+npm run build
+node dist/cli.js help
+cd ../..
 ```
 
-2. Confirm the main remote-orchestration files are present:
+## First-time setup
+
+### 1. Initialize the runtime database
 
 ```bash
-ls apps/control-plane/src
-ls apps/control-plane/config
-ls tests/remote-orchestration
+node apps/control-plane/dist/cli.js init --db .runtime/control-plane.db
 ```
 
-3. Initialize a local runtime database:
+### 2. Prepare one project policy file
 
-```bash
-node --experimental-strip-types apps/control-plane/src/cli.ts init --db .runtime/control-plane.db
-```
-
-4. Validate the installation:
-
-```bash
-bash tests/remote-orchestration/run-all.sh
-```
-
-Expected result: `18` lines with `PASS`.
-
-## Project configuration
-
-Project-local portable config lives in:
-
-`docs/ai/project-overrides/remote-control.yaml`
-
-Current example:
+Example `docs/ai/project-overrides/remote-control.yaml`:
 
 ```yaml
 project_id: aai-canonical
@@ -92,18 +84,12 @@ phase_provider_preferences:
   validation: codex
 ```
 
-Do not store host-only values in this file:
-- absolute local repo paths
-- Telegram user/chat allowlists
-- provider session runtime health
-- queue or lease runtime state
+This file is portable and belongs in the project repo. Do not put host-only values into it.
 
-## Usage
-
-### A) Register a project on one host install
+### 3. Register the project on the host
 
 ```bash
-node --experimental-strip-types apps/control-plane/src/cli.ts project register \
+node apps/control-plane/dist/cli.js project register \
   --db .runtime/control-plane.db \
   --project-config docs/ai/project-overrides/remote-control.yaml \
   --repo-path "$PWD" \
@@ -111,23 +97,51 @@ node --experimental-strip-types apps/control-plane/src/cli.ts project register \
   --user-ids 2001
 ```
 
-### B) Inspect provider policy and usage routing
+### 4. Probe provider sessions
+
+Secrets remain in the native provider homes. The control-plane stores only health and usage metadata in SQLite.
 
 ```bash
-node --experimental-strip-types apps/control-plane/src/cli.ts policy show \
-  --project-config docs/ai/project-overrides/remote-control.yaml
+node apps/control-plane/dist/cli.js auth probe \
+  --db .runtime/control-plane.db \
+  --provider claude \
+  --cli-path /usr/local/bin/claude \
+  --session-home ~/.claude \
+  --probe-args probe \
+  --usage-args usage
 
-node --experimental-strip-types apps/control-plane/src/cli.ts router choose \
+node apps/control-plane/dist/cli.js auth probe \
+  --db .runtime/control-plane.db \
+  --provider codex \
+  --cli-path /usr/local/bin/codex \
+  --session-home ~/.codex \
+  --probe-args probe \
+  --usage-args usage
+```
+
+Inspect synced metadata:
+
+```bash
+node apps/control-plane/dist/cli.js auth status --db .runtime/control-plane.db
+node apps/control-plane/dist/cli.js usage show --db .runtime/control-plane.db
+```
+
+## Main operator flows
+
+### Route a provider
+
+```bash
+node apps/control-plane/dist/cli.js router choose \
+  --db .runtime/control-plane.db \
   --project-config docs/ai/project-overrides/remote-control.yaml \
-  --usage-file ./usage.json \
   --phase implementation \
   --provider auto
 ```
 
-### C) Prepare one run for a Docker worker
+### Prepare and launch one run
 
 ```bash
-node --experimental-strip-types apps/control-plane/src/cli.ts run prepare \
+node apps/control-plane/dist/cli.js run prepare \
   --db .runtime/control-plane.db \
   --project-id aai-canonical \
   --ref-id PRD-AAI-REMOTE-ORCHESTRATION-01 \
@@ -135,108 +149,142 @@ node --experimental-strip-types apps/control-plane/src/cli.ts run prepare \
   --project-config docs/ai/project-overrides/remote-control.yaml \
   --worktrees-root .runtime/worktrees \
   --container-image ghcr.io/example/aai-worker:preview \
-  --provider auto \
-  --input-refs docs/requirements/PRD-AAI-REMOTE-ORCHESTRATION-01.md \
-  --output-artifacts docs/ai/reports/validation-current.log
+  --provider auto
 ```
 
-This writes a run manifest and allocates a worktree directory. In the current MVP it does not launch Docker yet.
-
-### C1) Validate extra mounts against a host allowlist
-
-Create the host allowlist outside the repo, for example:
-
-`~/.config/aai-control-plane/mount-allowlist.json`
-
-You can print a template with:
+Launch in local process mode:
 
 ```bash
-node --experimental-strip-types apps/control-plane/src/cli.ts mounts template
-```
-
-And validate mounts with:
-
-```bash
-node --experimental-strip-types apps/control-plane/src/cli.ts mounts validate \
-  --mounts "/home/me/projects/docs|/workspace/extra/docs|ro"
-```
-
-### D) Simulate Telegram control flow
-
-```bash
-node --experimental-strip-types apps/control-plane/src/cli.ts telegram simulate \
+node apps/control-plane/dist/cli.js run launch \
   --db .runtime/control-plane.db \
-  --command /intake \
-  --project-id aai-canonical \
-  --ref-id PRD-AAI-REMOTE-ORCHESTRATION-01 \
-  --summary "Start remote orchestration work item"
+  --manifest .runtime/worktrees/aai-canonical-PRD-AAI-REMOTE-ORCHESTRATION-01/run-manifest.json \
+  --mode process \
+  --worker-command ./path/to/worker.js
 ```
+
+Launch in Docker mode:
 
 ```bash
-node --experimental-strip-types apps/control-plane/src/cli.ts telegram interactive
+node apps/control-plane/dist/cli.js run launch \
+  --db .runtime/control-plane.db \
+  --manifest .runtime/worktrees/aai-canonical-PRD-AAI-REMOTE-ORCHESTRATION-01/run-manifest.json \
+  --mode docker
 ```
+
+Inspect the run:
 
 ```bash
-node --experimental-strip-types apps/control-plane/src/cli.ts telegram callback \
-  --data "approve:implementation:PRD-AAI-REMOTE-ORCHESTRATION-01"
+node apps/control-plane/dist/cli.js run inspect \
+  --db .runtime/control-plane.db \
+  --run-id <run_id>
 ```
 
-### E) Validate the MVP
+### Validate extra mounts
+
+Print the allowlist template:
+
+```bash
+node apps/control-plane/dist/cli.js mounts template
+```
+
+Validate requested mounts:
+
+```bash
+node apps/control-plane/dist/cli.js mounts validate \
+  --mounts "/home/me/shared-docs|/workspace/shared-docs|ro"
+```
+
+### Telegram control surface
+
+Registry and interaction model:
+
+```bash
+node apps/control-plane/dist/cli.js telegram registry \
+  --config apps/control-plane/config/command-registry.json
+
+node apps/control-plane/dist/cli.js telegram interactive
+```
+
+Run the long-poll daemon:
+
+```bash
+node apps/control-plane/dist/cli.js telegram serve \
+  --db .runtime/control-plane.db \
+  --token "$TELEGRAM_BOT_TOKEN" \
+  --approval-config apps/control-plane/config/approval-gates.json
+```
+
+Useful chat commands:
+
+- `/projects`
+- `/intake` and `/new`
+- `/status`
+- `/usage`
+- `/provider`
+- `/resume`
+- `/stop`
+
+Inline buttons currently cover:
+
+- `Resume`
+- `Stop`
+- `Use Claude`
+- `Use Codex`
+- project picker callbacks
+
+## User acceptance checklist
+
+Run these in order on a fresh host:
+
+1. Build the control-plane.
+   Expected: `node apps/control-plane/dist/cli.js help` prints command list.
+2. Initialize the runtime DB and register one project.
+   Expected: `project show` returns repo path, policy, and chat/user ACLs.
+3. Probe both provider sessions.
+   Expected: `auth status` shows `status=ok` and `usage show --db` returns windows.
+4. Prepare one run.
+   Expected: a git worktree and `run-manifest.json` appear under `.runtime/worktrees`.
+5. Launch one run in process mode.
+   Expected: `run inspect` shows `status=done` and a log path.
+6. Start Telegram daemon and send `/intake <project> <ref> <summary>`.
+   Expected: work item becomes `queued` and bot responds with inline actions.
+7. Press `Stop` or `Resume`.
+   Expected: work item status changes in DB and bot confirms callback.
+8. Run the full validation suite.
+   Expected: all `22` tests print `PASS`.
+
+## Automated verification
+
+Run the complete suite:
 
 ```bash
 bash tests/remote-orchestration/run-all.sh
 ```
 
-Current evidence artifact:
-- `docs/ai/reports/validation-20260319T215409Z.log`
-- `docs/ai/reports/validation-20260319T215409Z.md`
+Target result: `22/22 PASS`.
 
-## Telegram command model (target behavior)
+Focused checks:
 
-- `/intake` (`/new`)
-- `/status`
-- `/usage`
-- `/provider` (`/switch`, `/model`)
-- `/projects`
-- `/register` (`/aai-remote-register`)
-- `/approve`
-- `/resume`
-- `/stop`
-- `/logs` (`/looplogs`, `/pinologs`)
+```bash
+bash tests/remote-orchestration/test-019-provider-session-probe.sh
+bash tests/remote-orchestration/test-020-run-launch.sh
+bash tests/remote-orchestration/test-021-telegram-live-polling.sh
+bash tests/remote-orchestration/test-022-standard-runtime-build.sh
+```
 
-Command mapping source:
-- `apps/control-plane/config/command-registry.json`
+## Where login state is stored
 
-## Approval gates (target behavior)
+- Provider secrets/session state:
+  - native CLI homes such as `~/.claude` or `~/.codex`
+  - never in repo docs
+- Control-plane metadata:
+  - SQLite tables `provider_sessions`, `provider_usage_snapshots`, `telegram_sessions`
+- Repo evidence:
+  - requirements, specs, and reports only
 
-`Approve implementation` requires:
-- PRD reference
-- frozen SPEC reference
-- test plan reference
-- selected project
-- selected provider policy
-- generated worktree manifest
-
-`Approve validation` requires:
-- implementation summary
-- changed-file summary
-- validation command set
-- report target path
-- evidence target path
-
-Gate source:
-- `apps/control-plane/config/approval-gates.json`
-
-## Where to read full specs
+## Spec references
 
 - `docs/requirements/PRD-AAI-REMOTE-ORCHESTRATION-01.md`
 - `docs/rfc/RFC-AAI-REMOTE-RUNTIME-01.md`
 - `docs/specs/SPEC-AAI-TELEGRAM-CONTROL-01.md`
 - `docs/specs/SPEC-PRD-AAI-REMOTE-ORCHESTRATION-01.md`
-
-## Next implementation step
-
-Wrap the CLI in a long-lived host daemon, then connect:
-- live Telegram transport
-- real provider CLI session probes
-- real Docker worker launch and cleanup
