@@ -14,6 +14,8 @@ Operator onboarding:
 - Host runtime state: SQLite in WAL mode
 - Worker shape: manifest-first, git-worktree-backed launch with `process` and `docker` execution modes
 - Operator surface: Telegram command registry, inline actions, callback handling, and long-poll daemon mode
+- Docker subagent auth model: the selected provider session home is mounted read-only into the worker, but the worker image must already contain the matching `claude` or `codex` CLI
+- Docker subagent memory model: the worker reads repo docs from `/workspace`, run metadata from `/workspace/.aai-control-plane-run.json`, and the explicit handoff packet from `/workspace/.aai-handoff.json`
 
 ## Direct inspirations
 
@@ -194,7 +196,7 @@ npm --prefix apps/control-plane run daemon:logs
 npm --prefix apps/control-plane run validate:remote
 ```
 
-The current suite contains `32` CLI-backed tests, including:
+The current suite contains `33` CLI-backed tests, including:
 - provider session probe and usage sync
 - live Telegram long-poll fixture flow
 - Telegram token and ID discovery helpers for onboarding
@@ -207,6 +209,7 @@ The current suite contains `32` CLI-backed tests, including:
 - wizard reuse of existing values with preserve-vs-overwrite state handling
 - wizard fallback to the existing managed repo path when one install state is already known
 - wizard provider-login UX for keeping the current subscription session or reopening a browser/device-code style login flow
+- docker subagent contract coverage for read-only session mount and explicit handoff packet transfer
 - npm wrapper coverage for the documented operator command surface
 
 `green` in the remote-orchestration spec is backed by executable control-plane flows, not by file-content smoke checks.

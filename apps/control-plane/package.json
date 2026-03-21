@@ -58,7 +58,7 @@
     "defaults:show": "bash ./scripts/run-cli.sh defaults show",
     "policy:show": "bash ./scripts/run-cli.sh policy show",
     "test:remote": "bash -lc \"cd ../.. && bash tests/remote-orchestration/run-all.sh\"",
-    "test:remote:install": "bash -lc \"cd ../.. && bash tests/remote-orchestration/test-023-install-script.sh && bash tests/remote-orchestration/test-024-missing-provider-fallback.sh && bash tests/remote-orchestration/test-025-install-wizard.sh && bash tests/remote-orchestration/test-030-wizard-reuses-existing-values.sh\"",
+    "test:remote:install": "bash -lc \"cd ../.. && bash tests/remote-orchestration/test-023-install-script.sh && bash tests/remote-orchestration/test-024-missing-provider-fallback.sh && bash tests/remote-orchestration/test-025-install-wizard.sh && bash tests/remote-orchestration/test-030-wizard-reuses-existing-values.sh && bash tests/remote-orchestration/test-031-summary-default-repo-path.sh && bash tests/remote-orchestration/test-032-wizard-provider-login-flow.sh\"",
     "test:remote:provider-session": "bash -lc \"cd ../.. && bash tests/remote-orchestration/test-019-provider-session-probe.sh\"",
     "test:remote:run-launch": "bash -lc \"cd ../.. && bash tests/remote-orchestration/test-020-run-launch.sh\"",
     "test:remote:telegram": "bash -lc \"cd ../.. && bash tests/remote-orchestration/test-021-telegram-live-polling.sh\"",

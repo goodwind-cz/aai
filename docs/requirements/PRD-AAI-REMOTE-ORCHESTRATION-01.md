@@ -34,6 +34,7 @@
 - AC-010: Each run produces an auditable manifest containing project, branch, worktree, container image, provider, input document references, commit SHA, and output artifact references.
 - AC-011: `v1` defaults to resource-saving behavior: a single long-lived controller process, SQLite for runtime state, default concurrency of `1`, and no mandatory Redis, Postgres, or always-on worker pool.
 - AC-012: The memory model for `v1` relies on repo docs plus explicit handoff payloads and controller runtime state; no hidden shared memory is required for correctness.
+- AC-012a: When a work item runs in Docker, the worker receives provider login context only through a read-only mount of the selected provider session home plus explicit env hints; the worker image itself must already contain the corresponding CLI binary.
 - AC-013: Operator approvals must gate implementation and validation transitions, and the approval trail must be preserved as durable artifacts.
 - AC-013a: `Approve implementation` requires at minimum a PRD, a frozen spec, a test plan, a selected project, a selected provider policy, and a generated worktree manifest.
 - AC-013b: `Approve validation` requires at minimum an implementation summary, changed-file summary, validation command set, and report/evidence target paths.

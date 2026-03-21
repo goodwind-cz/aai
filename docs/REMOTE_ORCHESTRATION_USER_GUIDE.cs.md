@@ -343,15 +343,45 @@ Strukturovaný log se zapisuje také do:
 
 - `.runtime/control-plane.log`
 
-## 10. Použití bota v Telegramu
+## 10. Jak fungují Docker subagenti
 
-### 10.1 Výpis projektů
+Když úloha běží v Dockeru, control-plane do containeru nekopíruje žádnou skrytou agent memory.
+
+Co worker dostane:
+
+- git worktree mountnutý do `/workspace`
+- run manifest v `/workspace/.aai-control-plane-run.json`
+- explicitní handoff packet v `/workspace/.aai-handoff.json`
+- session home vybraného providera mountnutý read-only do `/var/run/aai/provider-session/<provider>`
+
+Co worker nedostane:
+
+- provider API klíče
+- celý host home adresář
+- skrytou sdílenou memory z jiných agent runů
+- Docker socket
+
+Důležité pravidlo:
+
+- Docker image už musí obsahovat správné CLI binárky, například `claude` nebo `codex`
+- host předává jen login/session home a runtime hinty
+- session mount je read-only
+
+Předávání úkolů mezi agenty je explicitní:
+
+- repo docs zůstávají kanonický source of truth
+- handoff packet nese current work item, approvals, provider runtime contract a document refs
+- další worker nebo subagent musí číst handoff packet, ne spoléhat na implicitní memory
+
+## 11. Použití bota v Telegramu
+
+### 11.1 Výpis projektů
 
 ```text
 /projects
 ```
 
-### 10.2 Vytvoření práce
+### 11.2 Vytvoření práce
 
 ```text
 /intake <project_id> <ref_id> <summary>
@@ -363,14 +393,14 @@ Alias:
 /new <project_id> <ref_id> <summary>
 ```
 
-### 10.3 Zjištění stavu
+### 11.3 Zjištění stavu
 
 ```text
 /status
 /status <project_id> <ref_id>
 ```
 
-### 10.4 Zjištění provider usage
+### 11.4 Zjištění provider usage
 
 ```text
 /usage
@@ -378,13 +408,13 @@ Alias:
 
 Pokud ještě není dostupná quota telemetry, bot teď spadne do čitelného fallbacku se stavem provider session místo toho, aby jen napsal, že usage není k dispozici.
 
-### 10.5 Změna providera
+### 11.5 Změna providera
 
 ```text
 /provider <project_id> <auto|claude|codex> [ref_id]
 ```
 
-### 10.6 Resume a stop
+### 11.6 Resume a stop
 
 ```text
 /resume <project_id> <ref_id>
@@ -399,7 +429,7 @@ Inline akce podporují:
 - `Use Codex`
 - výběr projektu
 
-## 11. Krátká sada příkazů, kterou většina operátorů fakt potřebuje
+## 12. Krátká sada příkazů, kterou většina operátorů fakt potřebuje
 
 ```bash
 npm --prefix apps/control-plane run install:wizard
@@ -411,7 +441,7 @@ bash .runtime/run-control-plane.sh status
 bash .runtime/run-control-plane.sh logs
 ```
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 ### Claude nebo Codex chybí
 

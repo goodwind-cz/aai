@@ -8,6 +8,9 @@ declare -a failed_tests=()
 
 for t in tests/remote-orchestration/test-*.sh; do
   test_name="$(basename "$t")"
+  if [[ "$test_name" == "test-lib.sh" ]]; then
+    continue
+  fi
   printf '[RUN ] %s\n' "$test_name"
   if bash "$t"; then
     printf '[ OK ] %s\n' "$test_name"

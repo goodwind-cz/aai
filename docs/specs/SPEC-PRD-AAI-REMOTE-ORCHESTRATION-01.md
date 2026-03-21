@@ -33,6 +33,7 @@
 | AC-010 | Spec-AC-012 | Every run writes an auditable manifest with required identity and artifact fields. | `bash tests/remote-orchestration/test-012-run-manifest.sh` -> manifest schema validation passes. |
 | AC-011 | Spec-AC-013 | Default runtime is single controller + SQLite + concurrency=1 with no mandatory Redis/Postgres/worker pool. | `bash tests/remote-orchestration/test-013-resource-defaults.sh` -> runtime config defaults match constraints. |
 | AC-012 | Spec-AC-014 | Memory model uses repo docs + explicit handoff + runtime DB, without hidden shared memory dependency. | `bash tests/remote-orchestration/test-014-memory-contract.sh` -> handoff packet and runtime records are explicit. |
+| AC-012a | Spec-AC-014a | Docker worker receives provider login context only via read-only provider session mount plus explicit env/handoff metadata; the image must already contain the CLI binary. | `bash tests/remote-orchestration/test-033-docker-subagent-contract.sh` -> fake docker runner shows session mount, handoff path, and provider env contract. |
 | AC-013 | Spec-AC-015 | Approval events gate phase transitions and are persisted as durable records. | `bash tests/remote-orchestration/test-015-approval-gates.sh` -> transitions blocked without approval and logged on approval. |
 | AC-013a | Spec-AC-016 | `Approve implementation` is enabled only when required planning artifacts and manifest exist. | `bash tests/remote-orchestration/test-016-approve-implementation-prereqs.sh` -> gate stays disabled until prerequisites are present. |
 | AC-013b | Spec-AC-017 | `Approve validation` is enabled only when implementation summary and validation targets exist. | `bash tests/remote-orchestration/test-017-approve-validation-prereqs.sh` -> gate stays disabled until prerequisites are present. |
@@ -77,6 +78,7 @@
 | TEST-012 | Spec-AC-012 | integration | tests/remote-orchestration/test-012-run-manifest.sh | Validates required fields in emitted run manifest. | green |
 | TEST-013 | Spec-AC-013 | unit | tests/remote-orchestration/test-013-resource-defaults.sh | Checks default runtime resource policy values. | green |
 | TEST-014 | Spec-AC-014 | integration | tests/remote-orchestration/test-014-memory-contract.sh | Verifies explicit handoff packet and runtime memory contract. | green |
+| TEST-033 | Spec-AC-014a | e2e | tests/remote-orchestration/test-033-docker-subagent-contract.sh | Verifies Docker subagent launch receives read-only provider session mount and explicit handoff/task-transfer metadata. | green |
 | TEST-015 | Spec-AC-015 | integration | tests/remote-orchestration/test-015-approval-gates.sh | Validates approval gate blocking and durable approval audit records. | green |
 | TEST-016 | Spec-AC-016 | unit | tests/remote-orchestration/test-016-approve-implementation-prereqs.sh | Verifies prereq gating for `Approve implementation`. | green |
 | TEST-017 | Spec-AC-017 | unit | tests/remote-orchestration/test-017-approve-validation-prereqs.sh | Verifies prereq gating for `Approve validation`. | green |
@@ -114,6 +116,7 @@ Status values: pending -> red -> green.
   - `bash tests/remote-orchestration/test-012-run-manifest.sh`
   - `bash tests/remote-orchestration/test-013-resource-defaults.sh`
   - `bash tests/remote-orchestration/test-014-memory-contract.sh`
+  - `bash tests/remote-orchestration/test-033-docker-subagent-contract.sh`
   - `bash tests/remote-orchestration/test-015-approval-gates.sh`
   - `bash tests/remote-orchestration/test-016-approve-implementation-prereqs.sh`
   - `bash tests/remote-orchestration/test-017-approve-validation-prereqs.sh`

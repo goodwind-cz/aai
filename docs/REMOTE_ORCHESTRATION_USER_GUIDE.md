@@ -343,15 +343,45 @@ The structured log is also written to:
 
 - `.runtime/control-plane.log`
 
-## 10. Use the bot in Telegram
+## 10. How Docker subagents work
 
-### 10.1 List projects
+When a task runs in Docker, the control-plane does not copy hidden agent memory into the container.
+
+What the worker gets:
+
+- the git worktree mounted at `/workspace`
+- the run manifest at `/workspace/.aai-control-plane-run.json`
+- the explicit handoff packet at `/workspace/.aai-handoff.json`
+- the selected provider session home mounted read-only at `/var/run/aai/provider-session/<provider>`
+
+What the worker does not get:
+
+- provider API keys
+- the whole host home directory
+- hidden shared memory from other agent runs
+- the Docker socket
+
+Important rule:
+
+- the Docker image must already contain the right CLI binary, for example `claude` or `codex`
+- the host only passes the login/session home and runtime hints
+- the session mount is read-only
+
+Task transfer between agents is handled explicitly:
+
+- repo docs remain the canonical source of truth
+- the handoff packet carries the current work item, approvals, provider runtime contract, and document refs
+- the next worker or subagent must read the handoff packet instead of relying on implicit memory
+
+## 11. Use the bot in Telegram
+
+### 11.1 List projects
 
 ```text
 /projects
 ```
 
-### 10.2 Create work
+### 11.2 Create work
 
 ```text
 /intake <project_id> <ref_id> <summary>
@@ -363,14 +393,14 @@ Alias:
 /new <project_id> <ref_id> <summary>
 ```
 
-### 10.3 Check status
+### 11.3 Check status
 
 ```text
 /status
 /status <project_id> <ref_id>
 ```
 
-### 10.4 Check provider usage
+### 11.4 Check provider usage
 
 ```text
 /usage
@@ -378,13 +408,13 @@ Alias:
 
 If quota telemetry is not available yet, the bot falls back to readable provider session state instead of only saying that usage is unavailable.
 
-### 10.5 Override provider
+### 11.5 Override provider
 
 ```text
 /provider <project_id> <auto|claude|codex> [ref_id]
 ```
 
-### 10.6 Resume or stop work
+### 11.6 Resume or stop work
 
 ```text
 /resume <project_id> <ref_id>
@@ -399,7 +429,7 @@ Inline actions support:
 - `Use Codex`
 - project picker selection
 
-## 11. Short command set most operators need
+## 12. Short command set most operators need
 
 ```bash
 npm --prefix apps/control-plane run install:wizard
@@ -411,7 +441,7 @@ bash .runtime/run-control-plane.sh status
 bash .runtime/run-control-plane.sh logs
 ```
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 ### Claude or Codex is missing
 

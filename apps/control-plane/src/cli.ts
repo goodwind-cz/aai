@@ -100,7 +100,7 @@ Commands:
   queue action --db <path> --project-id <id> --ref-id <id> --status <queued|running|blocked|stopped|done>
   approve check --gate <implementation|validation> [gate fields...]
   approve grant --db <path> --project-id <id> --ref-id <id> --gate <gate> --approved-by <user> --artifact-path <path>
-  run prepare --db <path> --project-id <id> --ref-id <id> --repo-path <path> --worktrees-root <path> --container-image <image> --provider <provider>
+  run prepare --db <path> --project-id <id> --ref-id <id> --repo-path <path> --worktrees-root <path> --container-image <image> --provider <provider> [--requirement-refs a,b] [--spec-refs a,b] [--report-refs a,b]
   run launch --db <path> --manifest <path> [--mode docker|process] [--worker-command <path>] [--docker-bin <path>] [--docker-args a,b]
   run inspect --db <path> --run-id <id>
   run validate --manifest <path>
@@ -358,6 +358,9 @@ async function main(): Promise<void> {
         container_image: requireArg(args, "container-image"),
         input_refs: splitCsv(args["input-refs"]),
         output_artifacts: splitCsv(args["output-artifacts"]),
+        requirement_refs: splitCsv(args["requirement-refs"]),
+        spec_refs: splitCsv(args["spec-refs"]),
+        report_refs: splitCsv(args["report-refs"]),
         read_only_mounts: splitCsv(args["read-only-mounts"]).map((entry) => {
           const [source, target] = entry.split("|");
           return { source, target };

@@ -14,4 +14,6 @@ run_cli handoff build --db "$db" --project-id aai-canonical --ref-id PRD-AAI-REM
 json_assert_file "$tmp/out.json" "data.repo_truth.requirement_refs.length === 1"
 json_assert_file "$tmp/out.json" "data.runtime_state.approvals.length === 1"
 json_assert_file "$tmp/out.json" "data.handoff_contract.hidden_shared_memory_required === false"
+json_assert_file "$tmp/out.json" "data.handoff_contract.task_transfer === 'explicit-handoff-packet'"
+json_assert_file "$tmp/out.json" "Array.isArray(data.handoff_contract.worker_must_read) && data.handoff_contract.worker_must_read.includes('/workspace/.aai-handoff.json')"
 echo "PASS"

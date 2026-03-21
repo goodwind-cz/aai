@@ -3,6 +3,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import type { DatabaseHandle } from "./db.ts";
 import { ensureDir, nowUtc, shellQuote, writeJson } from "./common.ts";
+import { getProject } from "./registry.ts";
+import { getProviderSession, type Provider } from "./provider-router.ts";
 
 export type RunManifest = {
   run_id: string;
@@ -16,6 +18,27 @@ export type RunManifest = {
   commit_sha: string;
   input_refs: string[];
   output_artifacts: string[];
+  portable_project_config_path: string | null;
+  handoff_packet_path: string;
+  handoff_target_path: string;
+  provider_session:
+    | {
+        provider: string;
+        auth_mode: "cli-subscription";
+        status: "ok" | "missing" | "error";
+        account_label: string | null;
+        host_cli_path: string;
+        host_session_home: string;
+        mounted_session_home: string;
+        cli_command_hint: string;
+      }
+    | null;
+  memory_contract: {
+    canonical_repo_sources: string[];
+    handoff_packet_path: string;
+    hidden_shared_memory_required: false;
+    task_transfer: "repo-docs-plus-explicit-handoff";
+  };
   created_at_utc: string;
 };
 
@@ -76,6 +99,9 @@ export function prepareRun(
     container_image: string;
     input_refs?: string[];
     output_artifacts?: string[];
+    requirement_refs?: string[];
+    spec_refs?: string[];
+    report_refs?: string[];
     read_only_mounts?: Array<{ source: string; target: string }>;
     validated_extra_mounts?: Array<{ source: string; target: string; read_only: boolean }>;
   }
@@ -86,6 +112,21 @@ export function prepareRun(
   ensureGitWorktree(options.repo_path, branch, worktreePath);
 
   const manifestPath = path.resolve(options.manifest_path || path.join(worktreePath, "run-manifest.json"));
+  const handoffPacketPath = path.join(worktreePath, ".aai-handoff.json");
+  const providerSession = resolveProviderSession(handle, options.provider);
+  const project = safeGetProject(handle, options.project_id);
+  const memoryContract = buildRunHandoffPacket(handle, {
+    project_id: options.project_id,
+    ref_id: options.ref_id,
+    requirement_refs: options.requirement_refs || [],
+    spec_refs: options.spec_refs || [],
+    report_refs: options.report_refs || [],
+    worktree_path: worktreePath,
+    portable_project_config_path:
+      project && typeof project.portable_config_path === "string" ? project.portable_config_path : null,
+    provider_session: providerSession
+  });
+  writeJson(handoffPacketPath, memoryContract);
   const manifest: RunManifest = {
     run_id: runId,
     project_id: options.project_id,
@@ -100,6 +141,15 @@ export function prepareRun(
         target: "/workspace",
         read_only: false
       },
+      ...(providerSession
+        ? [
+            {
+              source: providerSession.host_session_home,
+              target: providerSession.mounted_session_home,
+              read_only: true
+            }
+          ]
+        : []),
       ...(options.read_only_mounts || []).map((mount) => ({
         source: path.resolve(mount.source),
         target: mount.target,
@@ -114,6 +164,23 @@ export function prepareRun(
     commit_sha: gitCommitSha(worktreePath),
     input_refs: options.input_refs || [],
     output_artifacts: options.output_artifacts || [],
+    portable_project_config_path:
+      project && typeof project.portable_config_path === "string" ? String(project.portable_config_path) : null,
+    handoff_packet_path: handoffPacketPath,
+    handoff_target_path: "/workspace/.aai-handoff.json",
+    provider_session: providerSession,
+    memory_contract: {
+      canonical_repo_sources: [
+        "/workspace/docs",
+        "/workspace/docs/requirements",
+        "/workspace/docs/specs",
+        "/workspace/docs/decisions",
+        "/workspace/docs/knowledge"
+      ],
+      handoff_packet_path: "/workspace/.aai-handoff.json",
+      hidden_shared_memory_required: false,
+      task_transfer: "repo-docs-plus-explicit-handoff"
+    },
     created_at_utc: nowUtc()
   };
 
@@ -179,8 +246,17 @@ export function launchRun(
       env: {
         ...process.env,
         AAI_RUN_MANIFEST: options.manifest_path,
+        AAI_HANDOFF_PACKET: manifest.handoff_packet_path,
         AAI_RUN_WORKTREE: manifest.worktree_path,
-        AAI_RUN_ID: manifest.run_id
+        AAI_RUN_ID: manifest.run_id,
+        ...(manifest.provider_session
+          ? {
+              AAI_PROVIDER: manifest.provider_session.provider,
+              AAI_PROVIDER_SESSION_HOME: manifest.provider_session.host_session_home,
+              AAI_PROVIDER_CLI_HINT: manifest.provider_session.cli_command_hint,
+              AAI_PROVIDER_ACCOUNT_LABEL: manifest.provider_session.account_label || ""
+            }
+          : {})
       }
     });
   } else {
@@ -191,6 +267,24 @@ export function launchRun(
       "--name",
       manifest.run_id.replace(/[^A-Za-z0-9_.-]/g, "-"),
       ...manifest.mounts.flatMap((mount) => ["-v", `${mount.source}:${mount.target}${mount.read_only ? ":ro" : ""}`]),
+      "-e",
+      "AAI_RUN_MANIFEST=/workspace/.aai-control-plane-run.json",
+      "-e",
+      `AAI_HANDOFF_PACKET=${manifest.handoff_target_path}`,
+      "-e",
+      `AAI_RUN_ID=${manifest.run_id}`,
+      ...(manifest.provider_session
+        ? [
+            "-e",
+            `AAI_PROVIDER=${manifest.provider_session.provider}`,
+            "-e",
+            `AAI_PROVIDER_SESSION_HOME=${manifest.provider_session.mounted_session_home}`,
+            "-e",
+            `AAI_PROVIDER_CLI_HINT=${manifest.provider_session.cli_command_hint}`,
+            "-e",
+            `AAI_PROVIDER_ACCOUNT_LABEL=${manifest.provider_session.account_label || ""}`
+          ]
+        : []),
       ...(options.docker_args || []),
       manifest.container_image
     ];
@@ -199,7 +293,6 @@ export function launchRun(
       encoding: "utf8",
       env: {
         ...process.env,
-        AAI_RUN_MANIFEST: "/workspace/.aai-control-plane-run.json",
         AAI_RUN_ID: manifest.run_id
       }
     });
@@ -279,7 +372,10 @@ export function validateManifest(manifest: Partial<RunManifest>): { valid: boole
     "mounts",
     "commit_sha",
     "input_refs",
-    "output_artifacts"
+    "output_artifacts",
+    "handoff_packet_path",
+    "handoff_target_path",
+    "memory_contract"
   ] satisfies Array<keyof RunManifest>;
 
   const missing = required.filter((key) => manifest[key] === undefined || manifest[key] === null);
@@ -299,18 +395,49 @@ export function buildHandoffPacket(
     report_refs?: string[];
   }
 ): Record<string, unknown> {
-  const workItem = handle.database.prepare(`
+  return buildRunHandoffPacket(handle, {
+    project_id: options.project_id,
+    ref_id: options.ref_id,
+    requirement_refs: options.requirement_refs,
+    spec_refs: options.spec_refs,
+    report_refs: options.report_refs
+  });
+}
+
+function buildRunHandoffPacket(
+  handle: DatabaseHandle | null,
+  options: {
+    project_id: string;
+    ref_id: string;
+    requirement_refs?: string[];
+    spec_refs?: string[];
+    report_refs?: string[];
+    worktree_path?: string | null;
+    portable_project_config_path?: string | null;
+    provider_session?: RunManifest["provider_session"];
+  }
+): Record<string, unknown> {
+  const project = safeGetProject(handle, options.project_id);
+  const workItem = handle
+    ? handle.database
+        .prepare(`
     SELECT project_id, ref_id, phase, status, provider, branch, manifest_path
     FROM work_items
     WHERE project_id = ? AND ref_id = ?
-  `).get(options.project_id, options.ref_id);
+  `)
+        .get(options.project_id, options.ref_id)
+    : null;
 
-  const approvals = handle.database.prepare(`
+  const approvals = handle
+    ? handle.database
+        .prepare(`
     SELECT gate, approved_by, approved_at_utc, artifact_path
     FROM approval_records
     WHERE project_id = ? AND ref_id = ?
     ORDER BY gate
-  `).all(options.project_id, options.ref_id);
+  `)
+        .all(options.project_id, options.ref_id)
+    : [];
 
   return {
     project_id: options.project_id,
@@ -320,13 +447,90 @@ export function buildHandoffPacket(
       spec_refs: options.spec_refs || [],
       report_refs: options.report_refs || []
     },
+    project_context: {
+      local_repo_path: project?.local_repo_path || null,
+      portable_config_path: options.portable_project_config_path || project?.portable_config_path || null,
+      default_branch: project?.default_branch || null,
+      default_provider_policy: project?.default_provider_policy || null,
+      worktree_path: options.worktree_path || null
+    },
+    subagent_runtime: {
+      provider_session: options.provider_session
+        ? {
+            provider: options.provider_session.provider,
+            auth_mode: options.provider_session.auth_mode,
+            status: options.provider_session.status,
+            account_label: options.provider_session.account_label,
+            mounted_session_home: options.provider_session.mounted_session_home,
+            cli_command_hint: options.provider_session.cli_command_hint
+          }
+        : null
+    },
     runtime_state: {
       work_item: workItem || null,
       approvals
     },
     handoff_contract: {
       hidden_shared_memory_required: false,
-      authority: "repo-docs-plus-runtime-db"
+      authority: "repo-docs-plus-runtime-db",
+      task_transfer: "explicit-handoff-packet",
+      worker_must_read: [
+        "/workspace/.aai-control-plane-run.json",
+        "/workspace/.aai-handoff.json",
+        "/workspace/docs"
+      ]
     }
   };
+}
+
+function resolveProviderSession(handle: DatabaseHandle | null, provider: string): RunManifest["provider_session"] {
+  if (!handle) {
+    return null;
+  }
+  try {
+    const session = getProviderSession(handle, provider as Provider);
+    if (session.status !== "ok") {
+      return null;
+    }
+    return {
+      provider: session.provider,
+      auth_mode: session.auth_mode,
+      status: session.status,
+      account_label: session.account_label,
+      host_cli_path: session.cli_path,
+      host_session_home: session.session_home,
+      mounted_session_home: `/var/run/aai/provider-session/${session.provider}`,
+      cli_command_hint: path.basename(session.cli_path) || session.provider
+    };
+  } catch {
+    return null;
+  }
+}
+
+function safeGetProject(
+  handle: DatabaseHandle | null,
+  projectId: string
+):
+  | {
+      project_id?: string;
+      local_repo_path?: string | null;
+      portable_config_path?: string | null;
+      default_branch?: string;
+      default_provider_policy?: string;
+    }
+  | null {
+  if (!handle) {
+    return null;
+  }
+  try {
+    return getProject(handle, projectId) as {
+      project_id?: string;
+      local_repo_path?: string | null;
+      portable_config_path?: string | null;
+      default_branch?: string;
+      default_provider_policy?: string;
+    };
+  } catch {
+    return null;
+  }
 }
