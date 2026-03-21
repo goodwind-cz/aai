@@ -32,6 +32,18 @@ RUNTIME_ENV_PATH=""
 RUN_SCRIPT_PATH=""
 EXISTING_STATE_POLICY=""
 ORIGINAL_ARGC=$#
+MANAGED_REPO_PATH_SET=0
+PROJECT_ID_SET=0
+PROJECT_CONFIG_PATH_SET=0
+DEFAULT_BRANCH_SET=0
+CHAT_IDS_SET=0
+USER_IDS_SET=0
+TELEGRAM_BOT_TOKEN_SET=0
+CLAUDE_CLI_PATH_SET=0
+CODEX_CLI_PATH_SET=0
+CLAUDE_SESSION_HOME_SET=0
+CODEX_SESSION_HOME_SET=0
+SUMMARY_PATH_SET=0
 
 usage() {
   cat <<'EOF'
@@ -103,6 +115,33 @@ prompt_secret() {
   printf '%s\n' "$answer"
 }
 
+mask_value() {
+  local value="$1"
+  local length="${#value}"
+  if [[ "$length" -le 8 ]]; then
+    printf '********\n'
+    return
+  fi
+  printf '%s...%s\n' "${value:0:4}" "${value: -4}"
+}
+
+prompt_secret_with_default() {
+  local prompt_text="$1"
+  local default_value="$2"
+  local answer=""
+  if [[ -n "$default_value" ]]; then
+    printf '%s [Enter to keep %s]: ' "$prompt_text" "$(mask_value "$default_value")" >&2
+  else
+    printf '%s: ' "$prompt_text" >&2
+  fi
+  IFS= read -r answer || true
+  if [[ -z "$answer" ]]; then
+    printf '%s\n' "$default_value"
+    return
+  fi
+  printf '%s\n' "$answer"
+}
+
 prompt_existing_state_policy() {
   local answer=""
   printf '%s\n' "Existing control-plane state detected." >&2
@@ -111,6 +150,18 @@ prompt_existing_state_policy() {
   IFS= read -r answer || true
   if [[ -z "$answer" ]]; then
     answer="preserve"
+  fi
+  printf '%s\n' "$answer"
+}
+
+prompt_yes_no_default() {
+  local prompt_text="$1"
+  local default_answer="$2"
+  local answer=""
+  printf '%s [%s]: ' "$prompt_text" "$default_answer" >&2
+  IFS= read -r answer || true
+  if [[ -z "$answer" ]]; then
+    answer="$default_answer"
   fi
   printf '%s\n' "$answer"
 }
@@ -264,6 +315,132 @@ resolve_cli_path() {
   printf '\n'
 }
 
+read_env_value() {
+  local env_path="$1"
+  local key="$2"
+  if [[ ! -f "$env_path" ]]; then
+    return
+  fi
+  awk -F= -v key="$key" '$1 == key { sub(/^[^=]+=/, "", $0); print; exit }' "$env_path"
+}
+
+read_yaml_scalar() {
+  local yaml_path="$1"
+  local key="$2"
+  if [[ ! -f "$yaml_path" ]]; then
+    return
+  fi
+  awk -v key="$key" '
+    $0 ~ ("^" key ":[[:space:]]*") {
+      sub("^[^:]+:[[:space:]]*", "", $0)
+      print
+      exit
+    }
+  ' "$yaml_path"
+}
+
+read_summary_value() {
+  local summary_path="$1"
+  local expression="$2"
+  if [[ ! -f "$summary_path" ]]; then
+    return
+  fi
+  "$NODE_BIN" --no-warnings - "$summary_path" "$expression" <<'EOF'
+const fs = require("node:fs");
+const [summaryPath, expression] = process.argv.slice(2);
+const payload = JSON.parse(fs.readFileSync(summaryPath, "utf8"));
+const value = Function("data", `return (${expression});`)(payload);
+if (value === undefined || value === null) {
+  process.exit(0);
+}
+if (Array.isArray(value)) {
+  process.stdout.write(value.join(","));
+  process.exit(0);
+}
+process.stdout.write(String(value));
+EOF
+}
+
+load_defaults_from_existing_state() {
+  local existing_token=""
+  local existing_project_id=""
+  local existing_default_branch=""
+  local existing_chat_ids=""
+  local existing_user_ids=""
+  local existing_claude_cli=""
+  local existing_codex_cli=""
+  local existing_claude_home=""
+  local existing_codex_home=""
+
+  existing_project_id="$(read_yaml_scalar "$PROJECT_CONFIG_PATH" "project_id" || true)"
+  existing_default_branch="$(read_yaml_scalar "$PROJECT_CONFIG_PATH" "default_branch" || true)"
+  existing_token="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_TELEGRAM_BOT_TOKEN" || true)"
+  existing_claude_cli="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_CLAUDE_CLI_PATH" || true)"
+  existing_codex_cli="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_CODEX_CLI_PATH" || true)"
+  existing_claude_home="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_CLAUDE_SESSION_HOME" || true)"
+  existing_codex_home="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_CODEX_SESSION_HOME" || true)"
+
+  if [[ -f "$SUMMARY_PATH" ]]; then
+    existing_chat_ids="$(read_summary_value "$SUMMARY_PATH" "data.host_binding?.allowed_telegram_chat_ids || []" || true)"
+    existing_user_ids="$(read_summary_value "$SUMMARY_PATH" "data.host_binding?.allowed_telegram_user_ids || []" || true)"
+    existing_claude_cli="$(read_summary_value "$SUMMARY_PATH" "data.providers?.claude?.cli_path || ''" || true)"
+    existing_codex_cli="$(read_summary_value "$SUMMARY_PATH" "data.providers?.codex?.cli_path || ''" || true)"
+    existing_claude_home="$(read_summary_value "$SUMMARY_PATH" "data.providers?.claude?.session_home || ''" || true)"
+    existing_codex_home="$(read_summary_value "$SUMMARY_PATH" "data.providers?.codex?.session_home || ''" || true)"
+  fi
+
+  if [[ -f "$DB_PATH" && -f "$APP_DIR/dist/cli.js" && -n "$existing_project_id" ]]; then
+    local project_json=""
+    project_json="$("$NODE_BIN" --no-warnings "$(to_native_path "$APP_DIR/dist/cli.js")" project show \
+      --db "$(to_native_path "$DB_PATH")" \
+      --project-id "$existing_project_id" 2>/dev/null || true)"
+    if [[ -n "$project_json" ]]; then
+      existing_chat_ids="$("$NODE_BIN" --no-warnings - "$project_json" <<'EOF'
+const [raw] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+const values = payload.project?.allowed_telegram_chat_ids || [];
+process.stdout.write(values.join(","));
+EOF
+)"
+      existing_user_ids="$("$NODE_BIN" --no-warnings - "$project_json" <<'EOF'
+const [raw] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+const values = payload.project?.allowed_telegram_user_ids || [];
+process.stdout.write(values.join(","));
+EOF
+)"
+    fi
+  fi
+
+  if [[ "$PROJECT_ID_SET" -eq 0 && -n "$existing_project_id" ]]; then
+    PROJECT_ID="$existing_project_id"
+  fi
+  if [[ "$DEFAULT_BRANCH_SET" -eq 0 && -n "$existing_default_branch" ]]; then
+    DEFAULT_BRANCH="$existing_default_branch"
+  fi
+  if [[ "$CHAT_IDS_SET" -eq 0 && -n "$existing_chat_ids" ]]; then
+    CHAT_IDS="$existing_chat_ids"
+  fi
+  if [[ "$USER_IDS_SET" -eq 0 && -n "$existing_user_ids" ]]; then
+    USER_IDS="$existing_user_ids"
+  fi
+  if [[ "$TELEGRAM_BOT_TOKEN_SET" -eq 0 && -n "$existing_token" ]]; then
+    TELEGRAM_BOT_TOKEN="$existing_token"
+  fi
+  if [[ "$CLAUDE_CLI_PATH_SET" -eq 0 && -n "$existing_claude_cli" ]]; then
+    CLAUDE_CLI_PATH="$existing_claude_cli"
+  fi
+  if [[ "$CODEX_CLI_PATH_SET" -eq 0 && -n "$existing_codex_cli" ]]; then
+    CODEX_CLI_PATH="$existing_codex_cli"
+  fi
+  if [[ "$CLAUDE_SESSION_HOME_SET" -eq 0 && -n "$existing_claude_home" ]]; then
+    CLAUDE_SESSION_HOME="$existing_claude_home"
+  fi
+  if [[ "$CODEX_SESSION_HOME_SET" -eq 0 && -n "$existing_codex_home" ]]; then
+    CODEX_SESSION_HOME="$existing_codex_home"
+  fi
+}
+
 write_project_config() {
   local config_path="$1"
   mkdir -p "$(dirname "$config_path")"
@@ -285,7 +462,11 @@ EOF
 
 write_runtime_env() {
   local env_path="$1"
-  mkdir -p "$(dirname "$env_path")"
+  local claude_cli="$2"
+  local codex_cli="$3"
+  local runtime_dir
+  runtime_dir="$(dirname "$env_path")"
+  mkdir -p "$runtime_dir"
   if [[ -f "$env_path" && "$EXISTING_STATE_POLICY" != "overwrite" ]]; then
     return
   fi
@@ -293,7 +474,16 @@ write_runtime_env() {
     printf 'AAI_TELEGRAM_BOT_TOKEN=%s\n' "$TELEGRAM_BOT_TOKEN"
     printf 'AAI_CONTROL_PLANE_DB=%s\n' "$DB_PATH"
     printf 'AAI_APPROVAL_CONFIG=%s\n' "$HOST_ROOT/apps/control-plane/config/approval-gates.json"
-    printf 'AAI_CONTROL_PLANE_LOG=%s\n' "$HOST_ROOT/.runtime/control-plane.log"
+    printf 'AAI_CONTROL_PLANE_LOG=%s\n' "$runtime_dir/control-plane.log"
+    printf 'AAI_CONTROL_PLANE_CONSOLE_LOG=%s\n' "$runtime_dir/control-plane.console.log"
+    printf 'AAI_CONTROL_PLANE_PID_FILE=%s\n' "$runtime_dir/control-plane.pid"
+    printf 'AAI_PROJECT_ID=%s\n' "$PROJECT_ID"
+    printf 'AAI_PROJECT_CONFIG_PATH=%s\n' "$PROJECT_CONFIG_PATH"
+    printf 'AAI_MANAGED_REPO_PATH=%s\n' "$MANAGED_REPO_PATH"
+    printf 'AAI_CLAUDE_CLI_PATH=%s\n' "$claude_cli"
+    printf 'AAI_CODEX_CLI_PATH=%s\n' "$codex_cli"
+    printf 'AAI_CLAUDE_SESSION_HOME=%s\n' "$CLAUDE_SESSION_HOME"
+    printf 'AAI_CODEX_SESSION_HOME=%s\n' "$CODEX_SESSION_HOME"
     printf 'NODE_NO_WARNINGS=1\n'
   } > "$env_path"
 }
@@ -315,10 +505,7 @@ if [[ ! -f "\$ENV_FILE" ]]; then
 fi
 source "\$ENV_FILE"
 cd "$HOST_ROOT"
-bash apps/control-plane/scripts/run-cli.sh telegram serve \\
-  --db "\$AAI_CONTROL_PLANE_DB" \\
-  --token "\$AAI_TELEGRAM_BOT_TOKEN" \\
-  --approval-config "\$AAI_APPROVAL_CONFIG"
+bash apps/control-plane/scripts/control-plane-daemon.sh --env "\$ENV_FILE" "\${1:-start}" "\${@:2}"
 EOF
   chmod +x "$script_path"
 }
@@ -366,6 +553,54 @@ probe_provider() {
   printf 'error\n'
 }
 
+run_interactive_provider_login() {
+  local provider="$1"
+  local cli_path="$2"
+  if [[ -z "$cli_path" || ! -x "$cli_path" && ! -f "$cli_path" ]]; then
+    case "$provider" in
+      claude)
+        printf '%s\n' "Claude CLI is not installed. Install it first, then run 'claude auth login'." >&2
+        ;;
+      codex)
+        printf '%s\n' "Codex CLI is not installed or broken. Reinstall with 'npm install -g @openai/codex@latest', then run 'codex' and choose 'Sign in with ChatGPT'." >&2
+        ;;
+    esac
+    return
+  fi
+
+  case "$provider" in
+    claude)
+      printf '%s\n' "Opening Claude interactive login..." >&2
+      "$cli_path" auth login || true
+      ;;
+    codex)
+      printf '%s\n' "Opening Codex interactive login. Choose 'Sign in with ChatGPT', finish login, then exit Codex." >&2
+      "$cli_path" || true
+      ;;
+  esac
+}
+
+maybe_offer_provider_login() {
+  local provider="$1"
+  local current_status="$2"
+  local cli_path="$3"
+  local session_home="$4"
+  if [[ "$WIZARD_MODE" -ne 1 || ! -t 0 || ! -t 1 || "$current_status" == "ok" ]]; then
+    return
+  fi
+
+  local answer=""
+  answer="$(prompt_yes_no_default "Provider '$provider' is $current_status. Open interactive login now?" "y")"
+  case "${answer,,}" in
+    y|yes)
+      run_interactive_provider_login "$provider" "$cli_path"
+      ;;
+    *)
+      return
+      ;;
+  esac
+}
+
 write_summary() {
   local config_action="$1"
   local claude_detected="$2"
@@ -379,7 +614,7 @@ write_summary() {
   if [[ -f "$SUMMARY_PATH" && "$EXISTING_STATE_POLICY" != "overwrite" ]]; then
     return
   fi
-  "$NODE_BIN" --no-warnings - "$(to_native_path "$SUMMARY_PATH")" "$(to_native_path "$HOST_ROOT")" "$(to_native_path "$MANAGED_REPO_PATH")" "$(to_native_path "$DB_PATH")" "$(to_native_path "$PROJECT_CONFIG_PATH")" "$PROJECT_ID" "$DEFAULT_BRANCH" "$config_action" "$EXISTING_STATE_POLICY" "$(to_native_path "$claude_detected")" "$(to_native_path "$CLAUDE_SESSION_HOME")" "$claude_recommended" "$claude_status" "$(to_native_path "$codex_detected")" "$(to_native_path "$CODEX_SESSION_HOME")" "$codex_recommended" "$codex_status" <<'EOF'
+  "$NODE_BIN" --no-warnings - "$(to_native_path "$SUMMARY_PATH")" "$(to_native_path "$HOST_ROOT")" "$(to_native_path "$MANAGED_REPO_PATH")" "$(to_native_path "$DB_PATH")" "$(to_native_path "$PROJECT_CONFIG_PATH")" "$PROJECT_ID" "$DEFAULT_BRANCH" "$config_action" "$EXISTING_STATE_POLICY" "$CHAT_IDS" "$USER_IDS" "$(to_native_path "$claude_detected")" "$(to_native_path "$CLAUDE_SESSION_HOME")" "$claude_recommended" "$claude_status" "$(to_native_path "$codex_detected")" "$(to_native_path "$CODEX_SESSION_HOME")" "$codex_recommended" "$codex_status" <<'EOF'
 const fs = require("node:fs");
 const [
   summaryPath,
@@ -391,6 +626,8 @@ const [
   defaultBranch,
   configAction,
   existingStatePolicy,
+  allowedChatIdsRaw,
+  allowedUserIdsRaw,
   claudeCliPath,
   claudeSessionHome,
   claudeRecommended,
@@ -411,6 +648,10 @@ const payload = {
   default_branch: defaultBranch,
   existing_state_policy: existingStatePolicy,
   project_config_action: configAction,
+  host_binding: {
+    allowed_telegram_chat_ids: allowedChatIdsRaw ? allowedChatIdsRaw.split(",").filter(Boolean) : [],
+    allowed_telegram_user_ids: allowedUserIdsRaw ? allowedUserIdsRaw.split(",").filter(Boolean) : []
+  },
   providers: {
     claude: {
       cli_path: claudeCliPath || null,
@@ -458,7 +699,7 @@ resolve_existing_state_policy() {
     return
   fi
 
-  if is_tty; then
+  if [[ "$WIZARD_MODE" -eq 1 || -t 0 ]]; then
     printf '%s\n' "Existing files:" >&2
     local path
     for path in "${existing_paths[@]}"; do
@@ -486,14 +727,17 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo-path)
       MANAGED_REPO_PATH="$2"
+      MANAGED_REPO_PATH_SET=1
       shift 2
       ;;
     --project-id)
       PROJECT_ID="$2"
+      PROJECT_ID_SET=1
       shift 2
       ;;
     --project-config-path)
       PROJECT_CONFIG_PATH="$2"
+      PROJECT_CONFIG_PATH_SET=1
       shift 2
       ;;
     --db-path)
@@ -502,6 +746,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --default-branch)
       DEFAULT_BRANCH="$2"
+      DEFAULT_BRANCH_SET=1
       shift 2
       ;;
     --docker-profile)
@@ -526,34 +771,42 @@ while [[ $# -gt 0 ]]; do
       ;;
     --chat-ids)
       CHAT_IDS="$2"
+      CHAT_IDS_SET=1
       shift 2
       ;;
     --user-ids)
       USER_IDS="$2"
+      USER_IDS_SET=1
       shift 2
       ;;
     --telegram-bot-token)
       TELEGRAM_BOT_TOKEN="$2"
+      TELEGRAM_BOT_TOKEN_SET=1
       shift 2
       ;;
     --claude-cli-path)
       CLAUDE_CLI_PATH="$2"
+      CLAUDE_CLI_PATH_SET=1
       shift 2
       ;;
     --codex-cli-path)
       CODEX_CLI_PATH="$2"
+      CODEX_CLI_PATH_SET=1
       shift 2
       ;;
     --claude-session-home)
       CLAUDE_SESSION_HOME="$2"
+      CLAUDE_SESSION_HOME_SET=1
       shift 2
       ;;
     --codex-session-home)
       CODEX_SESSION_HOME="$2"
+      CODEX_SESSION_HOME_SET=1
       shift 2
       ;;
     --summary-path)
       SUMMARY_PATH="$2"
+      SUMMARY_PATH_SET=1
       shift 2
       ;;
     --runtime-env-path)
@@ -610,24 +863,38 @@ SUMMARY_PATH="${SUMMARY_PATH:-$HOST_ROOT/.runtime/install-summary.${PROJECT_ID}.
 RUNTIME_ENV_PATH="${RUNTIME_ENV_PATH:-$HOST_ROOT/.runtime/control-plane.env}"
 RUN_SCRIPT_PATH="${RUN_SCRIPT_PATH:-$HOST_ROOT/.runtime/run-control-plane.sh}"
 
+resolve_node_bin
+load_defaults_from_existing_state
+
 if [[ "$WIZARD_MODE" -eq 1 ]]; then
   printf '\nAAI Remote Orchestration Setup\n' >&2
-  printf 'This wizard will prepare the host runtime, register one project, and generate the run command.\n\n' >&2
+  printf 'This wizard will prepare the host runtime, help with Claude/Codex login, register one project, and generate simple start/status/stop commands.\n\n' >&2
   MANAGED_REPO_PATH="$(prompt_with_default "Managed project repository path" "$MANAGED_REPO_PATH")"
   if [[ ! -d "$MANAGED_REPO_PATH" ]]; then
     fail "Repository path does not exist: $MANAGED_REPO_PATH"
   fi
   MANAGED_REPO_PATH="$(cd "$MANAGED_REPO_PATH" && pwd)"
+  if [[ "$PROJECT_CONFIG_PATH_SET" -eq 0 ]]; then
+    PROJECT_CONFIG_PATH="$MANAGED_REPO_PATH/docs/ai/project-overrides/remote-control.yaml"
+  fi
+  if [[ "$PROJECT_ID_SET" -eq 0 ]]; then
+    PROJECT_ID="$(detect_project_id)"
+  fi
+  if [[ "$DEFAULT_BRANCH_SET" -eq 0 ]]; then
+    DEFAULT_BRANCH="$(detect_default_branch "$MANAGED_REPO_PATH")"
+  fi
+  load_defaults_from_existing_state
   PROJECT_ID="$(prompt_with_default "Project id" "$PROJECT_ID")"
+  if [[ "$SUMMARY_PATH_SET" -eq 0 ]]; then
+    SUMMARY_PATH="$HOST_ROOT/.runtime/install-summary.${PROJECT_ID}.json"
+  fi
+  load_defaults_from_existing_state
   DEFAULT_BRANCH="$(prompt_with_default "Default branch" "$DEFAULT_BRANCH")"
   CHAT_IDS="$(prompt_with_default "Allowed Telegram chat ids (csv, optional)" "$CHAT_IDS")"
   USER_IDS="$(prompt_with_default "Allowed Telegram user ids (csv, optional)" "$USER_IDS")"
-  TELEGRAM_BOT_TOKEN="$(prompt_secret "Telegram bot token (leave blank to add later)")"
-  PROJECT_CONFIG_PATH="${PROJECT_CONFIG_PATH:-$MANAGED_REPO_PATH/docs/ai/project-overrides/remote-control.yaml}"
-  SUMMARY_PATH="${SUMMARY_PATH:-$HOST_ROOT/.runtime/install-summary.${PROJECT_ID}.json}"
+  TELEGRAM_BOT_TOKEN="$(prompt_secret_with_default "Telegram bot token (leave blank to add later)" "$TELEGRAM_BOT_TOKEN")"
 fi
 
-resolve_node_bin
 resolve_existing_state_policy
 
 command -v git >/dev/null 2>&1 || fail "git is required."
@@ -685,6 +952,10 @@ codex_status="unknown"
 if [[ "$SKIP_PROVIDER_PROBES" -eq 0 ]]; then
   claude_status="$(probe_provider claude "$claude_detected" "$CLAUDE_SESSION_HOME")"
   codex_status="$(probe_provider codex "$codex_detected" "$CODEX_SESSION_HOME")"
+  maybe_offer_provider_login claude "$claude_status" "$claude_detected" "$CLAUDE_SESSION_HOME"
+  maybe_offer_provider_login codex "$codex_status" "$codex_detected" "$CODEX_SESSION_HOME"
+  claude_status="$(probe_provider claude "$claude_detected" "$CLAUDE_SESSION_HOME")"
+  codex_status="$(probe_provider codex "$codex_detected" "$CODEX_SESSION_HOME")"
 fi
 
 if [[ "$claude_status" != "ok" ]]; then
@@ -698,7 +969,7 @@ fi
 write_summary "$config_action" "$claude_detected" "$codex_detected" "$claude_recommended" "$codex_recommended" "$claude_status" "$codex_status"
 
 if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
-  write_runtime_env "$RUNTIME_ENV_PATH"
+  write_runtime_env "$RUNTIME_ENV_PATH" "$claude_detected" "$codex_detected"
   write_run_script "$RUN_SCRIPT_PATH" "$RUNTIME_ENV_PATH"
 fi
 
@@ -707,6 +978,9 @@ printf 'Existing state policy: %s\n' "$EXISTING_STATE_POLICY"
 printf 'Host DB: %s\n' "$DB_PATH"
 printf 'Project config: %s\n' "$PROJECT_CONFIG_PATH"
 printf 'Install summary: %s\n' "$SUMMARY_PATH"
+printf 'Provider status:\n'
+printf '  Claude: %s\n' "$claude_status"
+printf '  Codex: %s\n' "$codex_status"
 if [[ -n "$claude_detected" ]]; then
   printf 'Claude CLI: %s\n' "$claude_detected"
 fi
@@ -720,8 +994,16 @@ if [[ "$codex_status" != "ok" ]]; then
   printf 'Codex CLI not found. Install it manually, or the router will not use Codex.\n'
 fi
 if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
-  printf 'Run command: bash %s\n' "$RUN_SCRIPT_PATH"
+  printf 'Quick start:\n'
+  printf '  Start in background: bash %s start\n' "$RUN_SCRIPT_PATH"
+  printf '  Check status:       bash %s status\n' "$RUN_SCRIPT_PATH"
+  printf '  Stop:               bash %s stop\n' "$RUN_SCRIPT_PATH"
+  printf '  Restart:            bash %s restart\n' "$RUN_SCRIPT_PATH"
+  printf '  Show logs:          bash %s logs\n' "$RUN_SCRIPT_PATH"
+  printf '  Re-probe auth:      bash %s probe\n' "$RUN_SCRIPT_PATH"
+  printf '  Claude login:       bash %s login claude\n' "$RUN_SCRIPT_PATH"
+  printf '  Codex login:        bash %s login codex\n' "$RUN_SCRIPT_PATH"
 else
   printf 'Telegram token not provided. Add it later with AAI_TELEGRAM_BOT_TOKEN in %s and run:\n' "$RUNTIME_ENV_PATH"
-  printf '  npm --prefix apps/control-plane run telegram:serve -- --db %s --token "$AAI_TELEGRAM_BOT_TOKEN" --approval-config apps/control-plane/config/approval-gates.json\n' "$DB_PATH"
+  printf '  npm --prefix apps/control-plane run install:wizard\n'
 fi

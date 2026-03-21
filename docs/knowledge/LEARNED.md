@@ -14,6 +14,7 @@
 
 ## Testing
 <!-- Example: - [2026-03-08] E2E tests must use playwright-mcp server, not local Playwright (source: user preference) -->
+- [2026-03-21] Remote-orchestration tests must clean up temporary runtime directories and files after execution; only final validation/report artifacts may remain under ignored runtime paths. (source: user correction during operator-UX hardening)
 
 ## Workflow
 <!-- Example: - [2026-03-08] Always run /aai-bootstrap after adding new npm packages (source: debugging session) -->

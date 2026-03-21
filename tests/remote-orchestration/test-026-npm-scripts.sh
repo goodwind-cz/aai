@@ -2,7 +2,7 @@
 set -euo pipefail
 source "$(dirname "$0")/test-lib.sh"
 
-tmp="$(mktemp -d "$PWD/.tmp-control-plane-XXXXXX")"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aai-control-plane-npm-XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/repo"
 

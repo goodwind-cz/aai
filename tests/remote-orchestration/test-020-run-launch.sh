@@ -46,9 +46,9 @@ run_cli run prepare \
   --container-image ghcr.io/example/aai-worker:test \
   --provider auto > "$tmp/prepare.json"
 
-manifest_path="$(node.exe -e "const fs=require('node:fs'); const data=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); process.stdout.write(data.manifest_path)" "$tmp/prepare.json")"
-run_id="$(node.exe -e "const fs=require('node:fs'); const data=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); process.stdout.write(data.manifest.run_id)" "$tmp/prepare.json")"
-worktree_path="$(node.exe -e "const fs=require('node:fs'); const data=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); process.stdout.write(data.manifest.worktree_path)" "$tmp/prepare.json")"
+manifest_path="$("$NODE_BIN" -e "const fs=require('node:fs'); const data=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); process.stdout.write(data.manifest_path)" "$tmp/prepare.json")"
+run_id="$("$NODE_BIN" -e "const fs=require('node:fs'); const data=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); process.stdout.write(data.manifest.run_id)" "$tmp/prepare.json")"
+worktree_path="$("$NODE_BIN" -e "const fs=require('node:fs'); const data=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); process.stdout.write(data.manifest.worktree_path)" "$tmp/prepare.json")"
 
 run_cli run launch \
   --db "$tmp/control-plane.db" \

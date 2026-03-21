@@ -231,7 +231,8 @@ export async function runTelegramDaemon(
   }
 ): Promise<Record<string, unknown>> {
   const pollIntervalMs = options.poll_interval_ms ?? 250;
-  const maxIdleCycles = options.max_idle_cycles ?? 20;
+  const rawMaxIdleCycles = options.max_idle_cycles ?? 20;
+  const maxIdleCycles = rawMaxIdleCycles <= 0 ? Number.POSITIVE_INFINITY : rawMaxIdleCycles;
   let idleCycles = 0;
   let totalProcessed = 0;
   let lastUpdateId = getTelegramCursor(handle);
@@ -240,7 +241,7 @@ export async function runTelegramDaemon(
     api_base: options.api_base || "https://api.telegram.org",
     once: options.once === true,
     poll_interval_ms: pollIntervalMs,
-    max_idle_cycles: maxIdleCycles,
+    max_idle_cycles: rawMaxIdleCycles,
     project_count: listProjects(handle).length,
     provider_session_count: listProviderSessions(handle).length,
     usage_window_count: loadUsageWindowsFromDb(handle).length

@@ -60,13 +60,13 @@ assert_file() {
 assert_contains() {
   local path="$1"
   local pattern="$2"
-  grep -q "$pattern" "$path" || { echo "Missing pattern '$pattern' in $path"; exit 1; }
+  grep -F -q -- "$pattern" "$path" || { echo "Missing pattern '$pattern' in $path"; exit 1; }
 }
 
 assert_not_contains() {
   local path="$1"
   local pattern="$2"
-  if grep -q "$pattern" "$path"; then
+  if grep -F -q -- "$pattern" "$path"; then
     echo "Forbidden pattern '$pattern' in $path"
     exit 1
   fi
@@ -85,7 +85,7 @@ run_npm() {
 }
 
 make_tmpdir() {
-  mktemp -d .tmp-control-plane-XXXXXX
+  mktemp -d "${TMPDIR:-/tmp}/aai-control-plane-XXXXXX"
 }
 
 write_usage_fixture() {

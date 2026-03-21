@@ -2,7 +2,7 @@
 set -euo pipefail
 source "$(dirname "$0")/test-lib.sh"
 
-tmp="$(mktemp -d "$PWD/.tmp-control-plane-setup-XXXXXX")"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aai-control-plane-setup-XXXXXX")"
 server_pid=""
 cleanup() {
   if [[ -n "$server_pid" ]]; then

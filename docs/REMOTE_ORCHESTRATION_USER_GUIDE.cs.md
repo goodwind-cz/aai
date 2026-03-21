@@ -2,20 +2,20 @@
 
 Česká verze. English version: [REMOTE_ORCHESTRATION_USER_GUIDE.md](./REMOTE_ORCHESTRATION_USER_GUIDE.md)
 
-Tento návod je určený pro operátora, který chce na Linuxu nebo ve WSL nainstalovat remote-orchestration control-plane, přihlásit Claude/Codex přes CLI subscription, napojit host na Telegram a celé to spustit bez ručního editování projektových souborů.
+Tento návod je pro operátora, který chce co nejkratší cestu od „mám repo a Telegram bota“ k „control-plane běží na pozadí a ovládám ho pár jednoduchými příkazy“.
 
 ## 1. Co po instalaci získáš
 
 Po dokončení setupu budeš mít:
 
-- jeden host-side control-plane proces
+- jeden host-side control-plane daemon
 - jednu SQLite runtime databázi v `.runtime/`
-- jeden vygenerovaný launcher skript pro Telegram polling
+- jeden vygenerovaný launcher skript pro start, status, stop, restart, logy, probe a login
 - registraci jednoho nebo více projektů
 - routing mezi Claude Code a Codex přes CLI subscription mode
-- Telegram commandy a inline tlačítka pro queueing a řízení práce
+- Telegram commandy a inline akce pro queueing a řízení práce
 
-Tato feature nepoužívá provider API klíče. Počítá s tím, že provider CLI už jsou na hostu nainstalované a přihlášené.
+Tato feature nepoužívá provider API klíče. Používá jen nativní Claude Code a Codex CLI subscription session na hostu.
 
 ## 2. Co připravit předem
 
@@ -26,7 +26,7 @@ Na Linux/WSL hostu připrav:
 - `bash`
 - volitelně Docker, pokud chceš kontejnery
 - Telegram bot token z BotFathera
-- aspoň jedno provider CLI nainstalované a přihlášené:
+- aspoň jedno provider CLI nainstalované nebo připravené k instalaci:
   - `claude`
   - `codex`
 
@@ -42,35 +42,30 @@ docker --version || true
 ```
 
 Preferovaná varianta ve WSL je nativní Linux Node z `~/.nvm`, ideálně `v20+` nebo `v22+`.
-Runtime teď preferuje Linux Node z `~/.nvm` dřív než fallback na `node.exe`.
 
-## 3. Instalace a přihlášení agent CLI
+## 3. Přihlášení Claude nebo Codex přes subscription
 
 ### Claude Code
 
-Nainstaluj Claude Code CLI standardním způsobem od providera a přihlas ho přes subscription účet:
+Pokud je `claude` nainstalovaný:
 
 ```bash
 claude auth login
 claude auth status --json
-```
-
-Pak ověř:
-
-```bash
 which claude
-claude --version
 ```
 
-Typický tvar cesty ve WSL:
+Očekávaný tvar cesty ve WSL:
 
 ```bash
 /home/<user>/.local/bin/claude
 ```
 
+Jestli `claude auth status --json` říká, že jsi přihlášený, Claude je připravený pro control-plane.
+
 ### Codex
 
-Na tomto hostu je aktuální globální instalace Codex CLI rozbitá a nejdřív potřebuje reinstall:
+Pokud `codex` chybí nebo je rozbitý, udělej nejdřív reinstall:
 
 ```bash
 npm install -g @openai/codex@latest
@@ -80,27 +75,22 @@ Pak spusť Codex a zvol `Sign in with ChatGPT`:
 
 ```bash
 codex
-```
-
-Pak ověř:
-
-```bash
 which codex
 codex --help
 ```
 
-Pokud `codex --help` spadne na chybě s missing optional dependency, udělej reinstall a spusť `codex` znovu.
+Pokud `codex --help` spadne na chybě s optional dependency, udělej reinstall a spusť `codex` znovu.
 
 ### Důležité pravidlo
 
-Control-plane ukládá jen metadata o zdraví a usage providera. Skutečný login state zůstává v nativních CLI home adresářích, typicky:
+Skutečný login state zůstává v nativních CLI home adresářích, typicky:
 
 - `~/.claude`
 - `~/.codex`
 
-Pokud CLI chybí nebo je rozbité, installer ho označí jako nedostupné a autorouter na něj nebude posílat práci.
+Control-plane ukládá jen host-side metadata o tom, jestli CLI existuje, jestli probe prošel a jestli se podařilo načíst usage telemetry.
 
-## 4. Vytvoření a ověření Telegram bota
+## 4. Vytvoření Telegram bota a zjištění ID
 
 ### 4.1 Vytvoření bot tokenu
 
@@ -113,55 +103,44 @@ V Telegramu:
 
 ### 4.2 Ověření tokenu z hostu
 
-Z rootu repa spusť:
-
 ```bash
 npm --silent --prefix apps/control-plane run telegram:get-me -- --token "<BOT_TOKEN>"
 ```
 
 Očekávaný výsledek:
 
-- JSON payload s username bota
-- pokud to spadne, token je špatně nebo bot není dostupný
+- JSON s username a id bota
 
-### 4.3 Jak zjistit potřebná Telegram ID
+### 4.3 Zjištění chat ID a user ID
 
-Než installer bude chtít `allowed chat ids` a `allowed user ids`, pošli botovi aspoň jednu zprávu z:
+Před spuštěním installeru:
 
-- každého chatu, který má projekt ovládat
-- každého uživatele, který smí approve/resume/stop
+1. Pošli botovi aspoň jednu zprávu z každého chatu, který má projekt ovládat.
+2. Pošli aspoň jednu zprávu z každého uživatele, který smí approve, resume nebo stop.
 
 Pak spusť:
 
 ```bash
-npm --silent --prefix apps/control-plane run telegram:setup-info -- --token "<BOT_TOKEN>"
+npm --silent --prefix apps/control-plane run telegram:setup-info -- --token "<BOT_TOKEN>" --limit 20
 ```
 
 Výstup obsahuje:
 
-- `chat_ids`: nalezená `chat_id` z posledních zpráv a callbacků
-- `user_ids`: nalezená `user_id`
-- `recent_updates`: poslední zprávy nebo callback query
+- `chat_ids`
+- `user_ids`
+- zdroje posledních zpráv a callbacků
 
-Tyto hodnoty použij v installer wizardu.
+Tyto hodnoty použij ve wizardu.
 
-Pokud chceš ověřit zároveň identitu bota i zdrojové Telegram ID:
+## 5. Spuštění installeru
 
-```bash
-npm --silent --prefix apps/control-plane run telegram:get-me -- --token "<BOT_TOKEN>"
-npm --silent --prefix apps/control-plane run telegram:setup-info -- --token "<BOT_TOKEN>" --limit 20
-```
-
-## 5. Instalace control-plane pro aktuální projekt
-
-Pokud je aktuální repo zároveň projekt, který chceš řídit:
+Pokud je tohle repo zároveň host controller a projekt, který chceš řídit:
 
 ```bash
-git checkout feature/remote-orchestration
 npm --prefix apps/control-plane run install:wizard
 ```
 
-Wizard se ptá jen na:
+Wizard drží operátorský vstup co nejkratší. Ptá se na:
 
 1. cestu ke spravovanému projektu
 2. `project id`
@@ -170,20 +149,30 @@ Wizard se ptá jen na:
 5. povolené Telegram user ID
 6. Telegram bot token
 
-Installer potom:
+Wizard potom:
 
 - spustí `npm install` a `npm run build`
-- vytvoří `.runtime/control-plane.db`
-- vytvoří `docs/ai/project-overrides/remote-control.yaml`, jen pokud ještě neexistuje
+- vytvoří nebo znovu použije `.runtime/control-plane.db`
+- vytvoří `docs/ai/project-overrides/remote-control.yaml`, jen pokud je potřeba
 - zaregistruje projekt do host SQLite DB
 - autodetekuje `claude` a `codex`
-- ověří provider session status
+- ověří provider login state
+- nabídne interaktivní `claude` nebo `codex` login, pokud CLI existuje, ale probe není `ok`
 - zapíše `.runtime/install-summary.<project>.json`
-- zapíše `.runtime/control-plane.env`, pokud zadáš token
+- zapíše `.runtime/control-plane.env`
 - zapíše `.runtime/run-control-plane.sh`
-- zapíše runtime log do `.runtime/control-plane.log`
-- vypíše přesný run command
-- pokud najde existující config nebo runtime state, zeptá se, jestli chceš současný setup zachovat, nebo všechno přepsat včetně reinicializace DB
+- zapisuje runtime log do `.runtime/control-plane.log`
+
+Když wizard pustíš znovu později, převezme poslední známé hodnoty. Prakticky to znamená:
+
+- Enter ponechá aktuální cestu k repu, project id, branch, chat ID, user ID i token
+- token se ukazuje maskovaně
+- pokud najde existující config nebo runtime soubory, vybíráš jedinou akci: `preserve` nebo `overwrite`
+
+Význam volby stavu:
+
+- `preserve` ponechá aktuální config, DB, env, launcher i summary soubory
+- `overwrite` přepíše config/runtime soubory a vytvoří SQLite DB znovu od nuly
 
 Neinteraktivní ekvivalent:
 
@@ -192,60 +181,27 @@ npm --prefix apps/control-plane run install:host -- --preserve-existing ...
 npm --prefix apps/control-plane run install:host -- --overwrite-existing ...
 ```
 
-## 6. Instalace control-plane pro jiný projekt
+## 6. Ověření login state providerů po instalaci
 
-Pokud si chceš nechat AAI repo jako host controller a řídit jiný projekt, spusť:
-
-```bash
-npm --prefix apps/control-plane run install:host -- \
-  --repo-path /mnt/z/AI/my-other-project \
-  --project-id my-other-project \
-  --default-branch main \
-  --chat-ids 123456789 \
-  --user-ids 987654321 \
-  --telegram-bot-token "<BOT_TOKEN>"
-```
-
-Výsledek:
-
-- host runtime data zůstávají v tomto AAI repu v `.runtime/`
-- přenositelná projektová policy zůstává v řízeném projektu v `docs/ai/project-overrides/remote-control.yaml`
-
-## 7. Co po instalaci zkontrolovat
-
-Po wizardu nebo neinteraktivní instalaci si zkontroluj:
+Nejjednodušší operátorský příkaz je:
 
 ```bash
-cat .runtime/install-summary.<project>.json
-cat docs/ai/project-overrides/remote-control.yaml
-cat .runtime/control-plane.env
+bash .runtime/run-control-plane.sh probe
 ```
 
-Důležité soubory:
+Ten znovu ověří oba providery a vypíše čitelný souhrn.
 
-- host DB: `.runtime/control-plane.db`
-- install summary: `.runtime/install-summary.<project>.json`
-- runtime env: `.runtime/control-plane.env`
-- runtime log: `.runtime/control-plane.log`
-- vygenerovaný launcher: `.runtime/run-control-plane.sh`
-- portable project policy: `docs/ai/project-overrides/remote-control.yaml`
+Význam stavů:
 
-Když installer pustíš znovu nad existujícím setupem:
+- `ok` znamená, že CLI existuje a login probe prošel
+- `missing` znamená, že CLI na hostu není nainstalované
+- `error` znamená, že CLI existuje, ale login nebo probe selhal
 
-- `preserve` zachová aktuální config, DB, env, launcher i summary soubory
-- `overwrite` přepíše config/runtime soubory a vytvoří SQLite DB znovu od nuly
-
-## 8. Ověření autentizace agentů po instalaci
-
-Zjisti, co si control-plane myslí o dostupnosti providerů:
+Přímé low-level příkazy:
 
 ```bash
 npm --prefix apps/control-plane run auth:status -- --db .runtime/control-plane.db
-```
 
-Pokud chceš providera znovu explicitně probe-nout:
-
-```bash
 npm --prefix apps/control-plane run auth:probe -- \
   --db .runtime/control-plane.db \
   --provider claude \
@@ -261,83 +217,102 @@ npm --prefix apps/control-plane run auth:probe -- \
   --probe-args --help
 ```
 
-Aktuální Claude login na hostu si můžeš ověřit i přímo:
+Pokud chceš ověřit jen Claude přímo:
 
 ```bash
 claude auth status --json
 ```
 
-Očekávané stavy:
+## 7. Spuštění control-plane na pozadí
 
-- `status: "ok"` pokud CLI existuje a probe prošel
-- `status: "missing"` pokud CLI není nainstalované
-- `status: "error"` pokud CLI existuje, ale probe selhal
-
-## 9. Spuštění Telegram control-plane
-
-Pokud jsi token zadal při instalaci:
+Jakmile installer vytvoří `.runtime/control-plane.env`, používej:
 
 ```bash
-bash .runtime/run-control-plane.sh
+bash .runtime/run-control-plane.sh start
 ```
 
-To je doporučený způsob spuštění, protože používá vygenerovaný env file i approval config.
-Zároveň zapisuje strukturovaný daemon log do `.runtime/control-plane.log`.
-Launcher i npm wrapper předávají `--no-warnings`, takže při běžném použití by se SQLite experimental warning už neměl zobrazovat.
+To je doporučený startovací příkaz. Udělá toto:
 
-Pokud jsi token při instalaci nezadal, nejdřív ho nastav:
+- automaticky použije vygenerovaný env file
+- spustí Telegram daemon na pozadí
+- hned vrátí shell
+
+Launcher i CLI wrapper předávají `--no-warnings`, takže při běžném použití by se už neměl zobrazovat `node:sqlite` experimental warning.
+
+## 8. Denní operátorské příkazy
+
+Řízení běhu na pozadí:
 
 ```bash
-export AAI_TELEGRAM_BOT_TOKEN="<BOT_TOKEN>"
-npm --prefix apps/control-plane run telegram:serve -- \
-  --db .runtime/control-plane.db \
-  --token "$AAI_TELEGRAM_BOT_TOKEN" \
-  --approval-config apps/control-plane/config/approval-gates.json
+bash .runtime/run-control-plane.sh status
+bash .runtime/run-control-plane.sh stop
+bash .runtime/run-control-plane.sh restart
+bash .runtime/run-control-plane.sh logs
 ```
 
-Průběh daemonu sleduj takto:
+Login a opětovné ověření providerů:
 
 ```bash
-tail -f .runtime/control-plane.log
-npm --prefix apps/control-plane run logs:tail
+bash .runtime/run-control-plane.sh login claude
+bash .runtime/run-control-plane.sh login codex
+bash .runtime/run-control-plane.sh probe
 ```
 
-## 10. Jak bota používat v Telegramu
+Ekvivalentní npm shortcuty:
 
-### 10.1 První kontakt
+```bash
+npm --prefix apps/control-plane run daemon:start
+npm --prefix apps/control-plane run daemon:status
+npm --prefix apps/control-plane run daemon:stop
+npm --prefix apps/control-plane run daemon:restart
+npm --prefix apps/control-plane run daemon:logs
+npm --prefix apps/control-plane run daemon:probe
+npm --prefix apps/control-plane run daemon:login:claude
+npm --prefix apps/control-plane run daemon:login:codex
+```
 
-V chatu s botem pošli:
+`status` ukazuje:
+
+- jestli daemon běží
+- PID, DB path a log path
+- jestli je nakonfigurovaný Telegram token
+- čitelný stav provider session
+- čitelný souhrn registrace projektu
+
+## 9. Jak sledovat logy
+
+```bash
+bash .runtime/run-control-plane.sh logs
+```
+
+nebo:
+
+```bash
+npm --prefix apps/control-plane run daemon:logs
+```
+
+Strukturovaný log se zapisuje také do:
+
+- `.runtime/control-plane.log`
+
+## 10. Použití bota v Telegramu
+
+### 10.1 Výpis projektů
 
 ```text
 /projects
 ```
 
-Bot vypíše registrované projekty.
-
-Pokud je registrovaných více projektů a session ještě nemá default projekt, použij:
-
-```text
-/new
-```
-
-Bot tě nejdřív nechá vybrat projekt.
-
-### 10.2 Vytvoření nové práce
+### 10.2 Vytvoření práce
 
 ```text
 /intake <project_id> <ref_id> <summary>
 ```
 
-Příklad:
-
-```text
-/intake my-other-project PRD-123 Add dockerized worker launcher
-```
-
 Alias:
 
 ```text
-/new my-other-project PRD-123 Add dockerized worker launcher
+/new <project_id> <ref_id> <summary>
 ```
 
 ### 10.3 Zjištění stavu
@@ -347,14 +322,13 @@ Alias:
 /status <project_id> <ref_id>
 ```
 
-### 10.4 Zobrazení provider usage
+### 10.4 Zjištění provider usage
 
 ```text
 /usage
 ```
 
-Pokud ještě žádný provider neposlal machine-readable quota data, bot teď vypíše stav provider session a informaci, že quota telemetry ještě není synchronizovaná.
-U Claude fallback navíc ukáže i detekovaný account e-mail a subscription typ, pokud je dostupný `claude auth status --json`.
+Pokud ještě není dostupná quota telemetry, bot teď spadne do čitelného fallbacku se stavem provider session místo toho, aby jen napsal, že usage není k dispozici.
 
 ### 10.5 Změna providera
 
@@ -369,7 +343,7 @@ U Claude fallback navíc ukáže i detekovaný account e-mail a subscription typ
 /stop <project_id> <ref_id>
 ```
 
-Inline tlačítka dnes podporují:
+Inline akce podporují:
 
 - `Resume`
 - `Stop`
@@ -377,99 +351,59 @@ Inline tlačítka dnes podporují:
 - `Use Codex`
 - výběr projektu
 
-## 11. Spuštění a inspekce práce z hostu
-
-Příprava runu:
-
-```bash
-npm --prefix apps/control-plane run run:prepare -- \
-  --db .runtime/control-plane.db \
-  --project-id my-other-project \
-  --ref-id PRD-123 \
-  --repo-path /mnt/z/AI/my-other-project \
-  --project-config /mnt/z/AI/my-other-project/docs/ai/project-overrides/remote-control.yaml \
-  --worktrees-root .runtime/worktrees \
-  --container-image ghcr.io/example/aai-worker:preview \
-  --provider auto
-```
-
-Spuštění v Docker módu:
-
-```bash
-npm --prefix apps/control-plane run run:launch -- \
-  --db .runtime/control-plane.db \
-  --manifest .runtime/worktrees/my-other-project-PRD-123/run-manifest.json \
-  --mode docker
-```
-
-Inspekce runu:
-
-```bash
-npm --prefix apps/control-plane run run:inspect -- \
-  --db .runtime/control-plane.db \
-  --run-id <RUN_ID>
-```
-
-## 12. Doporučené příkazy, které fakt budeš používat
+## 11. Krátká sada příkazů, kterou většina operátorů fakt potřebuje
 
 ```bash
 npm --prefix apps/control-plane run install:wizard
 npm --silent --prefix apps/control-plane run telegram:get-me -- --token "<BOT_TOKEN>"
 npm --silent --prefix apps/control-plane run telegram:setup-info -- --token "<BOT_TOKEN>"
-npm --prefix apps/control-plane run auth:status -- --db .runtime/control-plane.db
-bash .runtime/run-control-plane.sh
-npm --prefix apps/control-plane run validate:remote
+bash .runtime/run-control-plane.sh probe
+bash .runtime/run-control-plane.sh start
+bash .runtime/run-control-plane.sh status
+bash .runtime/run-control-plane.sh logs
 ```
 
-## 13. Troubleshooting
+## 12. Troubleshooting
 
-### Installer hlásí, že Claude nebo Codex chybí
+### Claude nebo Codex chybí
 
-To znamená, že CLI binárka nebyla nalezena nebo neprošla probe. Nainstaluj CLI na host, přihlas ho přes subscription a pak spusť znovu:
+Nainstaluj nebo reinstaluj CLI, přihlas ho a pak spusť:
+
+```bash
+bash .runtime/run-control-plane.sh probe
+```
+
+nebo znovu wizard:
 
 ```bash
 npm --prefix apps/control-plane run install:wizard
 ```
 
-nebo:
+### Nejjednodušší host-side login flow
 
 ```bash
-npm --prefix apps/control-plane run auth:probe -- --db .runtime/control-plane.db ...
+bash .runtime/run-control-plane.sh login claude
+bash .runtime/run-control-plane.sh login codex
+bash .runtime/run-control-plane.sh probe
 ```
-
-Pro Claude subscription login na tomto hostu jsou přímé příkazy:
-
-```bash
-claude auth login
-claude auth status --json
-```
-
-Pro Codex na tomto hostu nejdřív reinstall:
-
-```bash
-npm install -g @openai/codex@latest
-codex
-```
-
-Pak zvol `Sign in with ChatGPT`.
 
 ### Telegram token funguje, ale `telegram:setup-info` neukazuje žádná ID
 
-Pošli botovi novou zprávu z cílového chatu a pak spusť znovu:
+Pošli botovi novou zprávu z cílového chatu a pak spusť:
 
 ```bash
-npm --silent --prefix apps/control-plane run telegram:setup-info -- --token "<BOT_TOKEN>"
+npm --silent --prefix apps/control-plane run telegram:setup-info -- --token "<BOT_TOKEN>" --limit 20
 ```
 
-### Bot běží, ale nereaguje v očekávaném projektu
+### Daemon běží, ale Telegram nic nedělá
 
 Zkontroluj:
 
-- registrované projekty: `npm --prefix apps/control-plane run project:list -- --db .runtime/control-plane.db`
-- Telegram ACL v project row
-- aktuální session default přes `/projects` a `/new`
+- `bash .runtime/run-control-plane.sh status`
+- `bash .runtime/run-control-plane.sh logs`
+- jestli jsou správně zaregistrovaná chat ID a user ID
 
-## 14. Validace
+## 13. Validace
 
 Spusť celou sadu:
 
@@ -477,21 +411,24 @@ Spusť celou sadu:
 npm --prefix apps/control-plane run validate:remote
 ```
 
-Cílový výsledek:
+Aktuálně očekávaný výsledek:
 
-- `28/28 PASS`
+- čitelné `[ OK ]` nebo `[FAIL]` pro každý test
+- finální souhrn se seznamem passed a failed testů
+- `30` passing testů v aktuální sadě
 
-Focused checks:
+Focused checky:
 
 ```bash
 npm --prefix apps/control-plane run test:remote:install
 npm --prefix apps/control-plane run test:remote:provider-session
 npm --prefix apps/control-plane run test:remote:telegram
 npm --prefix apps/control-plane run test:remote:telegram-setup
+npm --prefix apps/control-plane run test:remote:daemon
 npm --prefix apps/control-plane run test:remote:npm
 ```
 
-## 15. Pravidlo synchronizace dokumentace
+## 14. Pravidlo synchronizace dokumentace
 
 Tento návod musí zůstat synchronizovaný s:
 
