@@ -44,6 +44,11 @@ CODEX_CLI_PATH_SET=0
 CLAUDE_SESSION_HOME_SET=0
 CODEX_SESSION_HOME_SET=0
 SUMMARY_PATH_SET=0
+DOCKER_PROFILE_SET=0
+DEFAULT_PROVIDER_POLICY_SET=0
+PLANNING_PROVIDER_SET=0
+IMPLEMENTATION_PROVIDER_SET=0
+VALIDATION_PROVIDER_SET=0
 
 usage() {
   cat <<'EOF'
@@ -339,6 +344,23 @@ read_yaml_scalar() {
   ' "$yaml_path"
 }
 
+read_yaml_phase_preference() {
+  local yaml_path="$1"
+  local phase="$2"
+  if [[ ! -f "$yaml_path" ]]; then
+    return
+  fi
+  awk -v phase="$phase" '
+    /^phase_provider_preferences:[[:space:]]*$/ { in_block=1; next }
+    in_block && /^[^[:space:]]/ { in_block=0 }
+    in_block && $0 ~ ("^[[:space:]]+" phase ":[[:space:]]*") {
+      sub("^[[:space:]]*" phase ":[[:space:]]*", "", $0)
+      print
+      exit
+    }
+  ' "$yaml_path"
+}
+
 read_summary_value() {
   local summary_path="$1"
   local expression="$2"
@@ -371,9 +393,19 @@ load_defaults_from_existing_state() {
   local existing_codex_cli=""
   local existing_claude_home=""
   local existing_codex_home=""
+  local existing_docker_profile=""
+  local existing_provider_policy=""
+  local existing_planning_provider=""
+  local existing_implementation_provider=""
+  local existing_validation_provider=""
 
   existing_project_id="$(read_yaml_scalar "$PROJECT_CONFIG_PATH" "project_id" || true)"
   existing_default_branch="$(read_yaml_scalar "$PROJECT_CONFIG_PATH" "default_branch" || true)"
+  existing_docker_profile="$(read_yaml_scalar "$PROJECT_CONFIG_PATH" "allowed_docker_profile" || true)"
+  existing_provider_policy="$(read_yaml_scalar "$PROJECT_CONFIG_PATH" "default_provider_policy" || true)"
+  existing_planning_provider="$(read_yaml_phase_preference "$PROJECT_CONFIG_PATH" "planning" || true)"
+  existing_implementation_provider="$(read_yaml_phase_preference "$PROJECT_CONFIG_PATH" "implementation" || true)"
+  existing_validation_provider="$(read_yaml_phase_preference "$PROJECT_CONFIG_PATH" "validation" || true)"
   existing_token="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_TELEGRAM_BOT_TOKEN" || true)"
   existing_claude_cli="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_CLAUDE_CLI_PATH" || true)"
   existing_codex_cli="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_CODEX_CLI_PATH" || true)"
@@ -426,6 +458,21 @@ EOF
   fi
   if [[ "$TELEGRAM_BOT_TOKEN_SET" -eq 0 && -n "$existing_token" ]]; then
     TELEGRAM_BOT_TOKEN="$existing_token"
+  fi
+  if [[ "$DOCKER_PROFILE_SET" -eq 0 && -n "$existing_docker_profile" ]]; then
+    DOCKER_PROFILE="$existing_docker_profile"
+  fi
+  if [[ "$DEFAULT_PROVIDER_POLICY_SET" -eq 0 && -n "$existing_provider_policy" ]]; then
+    DEFAULT_PROVIDER_POLICY="$existing_provider_policy"
+  fi
+  if [[ "$PLANNING_PROVIDER_SET" -eq 0 && -n "$existing_planning_provider" ]]; then
+    PLANNING_PROVIDER="$existing_planning_provider"
+  fi
+  if [[ "$IMPLEMENTATION_PROVIDER_SET" -eq 0 && -n "$existing_implementation_provider" ]]; then
+    IMPLEMENTATION_PROVIDER="$existing_implementation_provider"
+  fi
+  if [[ "$VALIDATION_PROVIDER_SET" -eq 0 && -n "$existing_validation_provider" ]]; then
+    VALIDATION_PROVIDER="$existing_validation_provider"
   fi
   if [[ "$CLAUDE_CLI_PATH_SET" -eq 0 && -n "$existing_claude_cli" ]]; then
     CLAUDE_CLI_PATH="$existing_claude_cli"
@@ -751,22 +798,27 @@ while [[ $# -gt 0 ]]; do
       ;;
     --docker-profile)
       DOCKER_PROFILE="$2"
+      DOCKER_PROFILE_SET=1
       shift 2
       ;;
     --default-provider-policy)
       DEFAULT_PROVIDER_POLICY="$2"
+      DEFAULT_PROVIDER_POLICY_SET=1
       shift 2
       ;;
     --planning-provider)
       PLANNING_PROVIDER="$2"
+      PLANNING_PROVIDER_SET=1
       shift 2
       ;;
     --implementation-provider)
       IMPLEMENTATION_PROVIDER="$2"
+      IMPLEMENTATION_PROVIDER_SET=1
       shift 2
       ;;
     --validation-provider)
       VALIDATION_PROVIDER="$2"
+      VALIDATION_PROVIDER_SET=1
       shift 2
       ;;
     --chat-ids)

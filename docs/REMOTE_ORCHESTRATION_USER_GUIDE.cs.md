@@ -166,6 +166,7 @@ Wizard potom:
 Když wizard pustíš znovu později, převezme poslední známé hodnoty. Prakticky to znamená:
 
 - Enter ponechá aktuální cestu k repu, project id, branch, chat ID, user ID i token
+- existující hodnoty z `docs/ai/project-overrides/remote-control.yaml` se použijí jako výchozí i tehdy, když installer potřebuje projektový config znovu přepsat
 - token se ukazuje maskovaně
 - pokud najde existující config nebo runtime soubory, vybíráš jedinou akci: `preserve` nebo `overwrite`
 
@@ -257,6 +258,27 @@ bash .runtime/run-control-plane.sh login claude
 bash .runtime/run-control-plane.sh login codex
 bash .runtime/run-control-plane.sh probe
 ```
+
+Co přesně dělají příkazy `run-control-plane.sh`:
+
+- `start`
+  Spustí Telegram control-plane na pozadí a hned vrátí shell. To je normální způsob každodenního spuštění.
+- `run`
+  Spustí stejný daemon v popředí. Hodí se jen tehdy, když ho chceš sledovat přímo v aktuálním terminálu při debugování.
+- `status`
+  Ukáže, jestli daemon běží, jeho PID, cestu k DB a logům, jestli je nastavený Telegram token, aktuální stav provider session a aktivní vazbu na projekt.
+- `stop`
+  Zastaví daemon na pozadí a odstraní i zastaralý PID file, pokud už proces ve skutečnosti neběží.
+- `restart`
+  Daemon zastaví a znovu spustí se stejným vygenerovaným env file.
+- `logs`
+  Připojí se na strukturovaný runtime log. Použij ho tehdy, když daemon běží a chceš vidět, co právě dělá.
+- `probe`
+  Znovu ověří dostupnost a login state Claude i Codex a vypíše čitelný souhrn včetně informace o dostupnosti usage telemetry.
+- `login claude`
+  Otevře nativní interaktivní Claude login na hostu a potom znovu ověří Claude.
+- `login codex`
+  Otevře nativní interaktivní Codex login na hostu a potom znovu ověří Codex.
 
 Ekvivalentní npm shortcuty:
 

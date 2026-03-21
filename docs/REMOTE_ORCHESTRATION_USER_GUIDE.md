@@ -166,6 +166,7 @@ The wizard then:
 When you rerun the wizard later, it reuses the last known values. In practice that means:
 
 - pressing Enter keeps the current repository path, project id, branch, chat IDs, user IDs, and token
+- existing values from `docs/ai/project-overrides/remote-control.yaml` are reused as defaults when the installer needs to rewrite the project config
 - the token is shown masked
 - if existing config or runtime files are found, you choose one action: `preserve` or `overwrite`
 
@@ -257,6 +258,27 @@ bash .runtime/run-control-plane.sh login claude
 bash .runtime/run-control-plane.sh login codex
 bash .runtime/run-control-plane.sh probe
 ```
+
+What each `run-control-plane.sh` command does:
+
+- `start`
+  Starts the Telegram control-plane in the background and returns immediately to the shell. Use this for normal daily startup.
+- `run`
+  Starts the same daemon in the foreground. Use this only when you want to watch it directly in the current terminal for debugging.
+- `status`
+  Shows whether the daemon is running, its PID, DB path, log paths, whether the Telegram token is configured, current provider session health, and the active project binding.
+- `stop`
+  Stops the background daemon and removes the stale PID file if the process is already gone.
+- `restart`
+  Stops the daemon and starts it again with the same generated env file.
+- `logs`
+  Tails the structured runtime log. Use this when the daemon is already running and you want to see what it is doing.
+- `probe`
+  Re-checks Claude and Codex availability and login state, then prints a readable summary including usage telemetry availability.
+- `login claude`
+  Opens the native Claude interactive login flow on the host and then re-probes Claude.
+- `login codex`
+  Opens the native Codex interactive login flow on the host and then re-probes Codex.
 
 Equivalent npm shortcuts:
 

@@ -40,6 +40,11 @@ bash apps/control-plane/scripts/install-host.sh \
   --runtime-env-path "$tmp/runtime/control-plane.env" \
   --run-script-path "$tmp/runtime/run-control-plane.sh" \
   --default-branch main \
+  --docker-profile worker-special \
+  --default-provider-policy claude \
+  --planning-provider codex \
+  --implementation-provider claude \
+  --validation-provider claude \
   --chat-ids 3001,3002 \
   --user-ids 4001 \
   --telegram-bot-token "telegram-token-030" \
@@ -57,7 +62,7 @@ printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
   "" \
   "" \
   "" \
-  "preserve" | \
+  "overwrite" | \
   bash apps/control-plane/scripts/install-host.sh \
     --wizard \
     --db-path "$tmp/runtime/control-plane.db" \
@@ -76,8 +81,13 @@ assert_contains "$tmp/install.out" "Project id [fixture-install-030]"
 assert_contains "$tmp/install.out" "Allowed Telegram chat ids (csv, optional) [3001,3002]"
 assert_contains "$tmp/install.out" "Allowed Telegram user ids (csv, optional) [4001]"
 assert_contains "$tmp/install.out" "Telegram bot token (leave blank to add later) [Enter to keep tele...-030]"
-assert_contains "$tmp/install.out" "Existing state policy: preserve"
+assert_contains "$tmp/install.out" "Existing state policy: overwrite"
 assert_contains "$tmp/runtime/control-plane.env" "AAI_TELEGRAM_BOT_TOKEN=telegram-token-030"
+assert_contains "$tmp/repo/docs/ai/project-overrides/remote-control.yaml" "allowed_docker_profile: worker-special"
+assert_contains "$tmp/repo/docs/ai/project-overrides/remote-control.yaml" "default_provider_policy: claude"
+assert_contains "$tmp/repo/docs/ai/project-overrides/remote-control.yaml" "planning: codex"
+assert_contains "$tmp/repo/docs/ai/project-overrides/remote-control.yaml" "implementation: claude"
+assert_contains "$tmp/repo/docs/ai/project-overrides/remote-control.yaml" "validation: claude"
 
 run_cli project show --db "$tmp/runtime/control-plane.db" --project-id fixture-install-030 > "$tmp/project.json"
 json_assert_file "$tmp/project.json" "data.project.allowed_telegram_chat_ids.length === 2 && data.project.allowed_telegram_user_ids.length === 1"
