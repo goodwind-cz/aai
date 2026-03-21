@@ -95,6 +95,16 @@ is_tty() {
   [[ -t 0 && -t 1 ]]
 }
 
+wizard_login_interactive_enabled() {
+  if [[ "$WIZARD_MODE" -ne 1 ]]; then
+    return 1
+  fi
+  if is_tty; then
+    return 0
+  fi
+  [[ "${AAI_INSTALL_HOST_TEST_MODE:-0}" == "1" ]]
+}
+
 prompt_with_default() {
   local prompt_text="$1"
   local default_value="$2"
@@ -750,6 +760,8 @@ probe_provider() {
 run_interactive_provider_login() {
   local provider="$1"
   local cli_path="$2"
+  local session_home="$3"
+  local login_command=()
   if [[ -z "$cli_path" || ! -x "$cli_path" && ! -f "$cli_path" ]]; then
     case "$provider" in
       claude)
@@ -762,16 +774,55 @@ run_interactive_provider_login() {
     return
   fi
 
+  printf '%s\n' "Complete the provider's native subscription login flow on this host." >&2
+  printf '%s\n' "If the CLI opens a browser, finish the login there." >&2
+  printf '%s\n' "If the CLI shows a verification link and one-time code, open the link, paste or confirm the code, and wait until the CLI returns." >&2
+
+  if [[ "$cli_path" =~ \.(cjs|mjs|js|ts)$ ]]; then
+    login_command=("$NODE_BIN" --no-warnings "$cli_path")
+  else
+    login_command=("$cli_path")
+  fi
+
   case "$provider" in
     claude)
       printf '%s\n' "Opening Claude interactive login..." >&2
-      "$cli_path" auth login || true
+      HOME="$session_home" AAI_PROVIDER_SESSION_HOME="$session_home" "${login_command[@]}" auth login || true
       ;;
     codex)
       printf '%s\n' "Opening Codex interactive login. Choose 'Sign in with ChatGPT', finish login, then exit Codex." >&2
-      "$cli_path" || true
+      HOME="$session_home" AAI_PROVIDER_SESSION_HOME="$session_home" "${login_command[@]}" || true
       ;;
   esac
+}
+
+read_provider_session_json() {
+  local provider="$1"
+  if [[ ! -f "$DB_PATH" || ! -f "$APP_DIR/dist/cli.js" ]]; then
+    return
+  fi
+  "$NODE_BIN" --no-warnings "$(to_native_path "$APP_DIR/dist/cli.js")" auth status \
+    --db "$(to_native_path "$DB_PATH")" \
+    --provider "$provider" 2>/dev/null || true
+}
+
+read_provider_session_field() {
+  local provider="$1"
+  local expression="$2"
+  local raw=""
+  raw="$(read_provider_session_json "$provider")"
+  if [[ -z "$raw" ]]; then
+    return
+  fi
+  "$NODE_BIN" --no-warnings - "$raw" "$expression" <<'EOF'
+const [raw, expression] = process.argv.slice(2);
+const data = JSON.parse(raw);
+const value = Function("data", `return (${expression});`)(data);
+if (value === undefined || value === null) {
+  process.exit(0);
+}
+process.stdout.write(String(value));
+EOF
 }
 
 maybe_offer_provider_login() {
@@ -779,17 +830,54 @@ maybe_offer_provider_login() {
   local current_status="$2"
   local cli_path="$3"
   local session_home="$4"
-  if [[ "$WIZARD_MODE" -ne 1 || ! -t 0 || ! -t 1 || "$current_status" == "ok" ]]; then
+  local account_label=""
+  local last_error=""
+  local answer=""
+
+  if ! wizard_login_interactive_enabled; then
     return
   fi
 
-  local answer=""
-  answer="$(prompt_yes_no_default "Provider '$provider' is $current_status. Open interactive login now?" "y")"
+  if [[ "$current_status" == "missing" ]]; then
+    return
+  fi
+
+  account_label="$(read_provider_session_field "$provider" "data.session.account_label || ''" || true)"
+  last_error="$(read_provider_session_field "$provider" "data.session.last_error || ''" || true)"
+
+  if [[ "$current_status" == "ok" ]]; then
+    if [[ -n "$account_label" ]]; then
+      printf "Provider '%s' is already logged in as %s.\n" "$provider" "$account_label" >&2
+    else
+      printf "Provider '%s' already looks usable on this host.\n" "$provider" >&2
+    fi
+    printf "Press Enter to keep this login, or type 's' to switch account [Enter/s]: " >&2
+    IFS= read -r answer || true
+    case "${answer,,}" in
+      s|switch)
+        run_interactive_provider_login "$provider" "$cli_path" "$session_home"
+        ;;
+      *)
+        printf "Keeping current %s login.\n" "$provider" >&2
+        return
+        ;;
+    esac
+    return
+  fi
+
+  printf "Provider '%s' is not ready yet (status: %s).\n" "$provider" "$current_status" >&2
+  if [[ -n "$last_error" ]]; then
+    printf "Last probe detail: %s\n" "$last_error" >&2
+  fi
+  printf "Press Enter to open interactive login now, or type 's' to skip for now [Enter/s]: " >&2
+  IFS= read -r answer || true
   case "${answer,,}" in
-    y|yes)
-      run_interactive_provider_login "$provider" "$cli_path"
+    s|skip|n|no)
+      printf "Skipping %s login for now.\n" "$provider" >&2
+      return
       ;;
     *)
+      run_interactive_provider_login "$provider" "$cli_path" "$session_home"
       return
       ;;
   esac

@@ -62,6 +62,7 @@ Očekávaný tvar cesty ve WSL:
 ```
 
 Jestli `claude auth status --json` říká, že jsi přihlášený, Claude je připravený pro control-plane.
+Když tento login wizard najde později, stačí Enter pro ponechání nebo `s` pro přepnutí na jiný Claude subscription účet.
 
 ### Codex
 
@@ -80,6 +81,7 @@ codex --help
 ```
 
 Pokud `codex --help` spadne na chybě s optional dependency, udělej reinstall a spusť `codex` znovu.
+Když wizard najde použitelný Codex login, Enter ho ponechá a `s` znovu otevře nativní Codex sign-in flow pro jiný ChatGPT účet.
 
 ### Důležité pravidlo
 
@@ -157,7 +159,9 @@ Wizard potom:
 - zaregistruje projekt do host SQLite DB
 - autodetekuje `claude` a `codex`
 - ověří provider login state
-- nabídne interaktivní `claude` nebo `codex` login, pokud CLI existuje, ale probe není `ok`
+- pokud je provider už přihlášený, ukáže aktuální účet a dovolí ho ponechat Enterem nebo přepnout přes `s`
+- pokud provider ještě přihlášený není, nabídne okamžité otevření nativního interaktivního login flow
+- vysvětlí, co dělat, když provider ukáže browser link nebo jednorázový device code
 - zapíše `.runtime/install-summary.<project>.json`
 - zapíše `.runtime/control-plane.env`
 - zapíše `.runtime/run-control-plane.sh`
@@ -176,6 +180,20 @@ Příklad:
 Existing control-plane state detected.
 Press Enter to preserve the current setup, or 'y' to overwrite it and reinitialize the DB.
 Overwrite existing config/runtime state? [y/N]:
+```
+
+```text
+Provider 'claude' is already logged in as ales@example.test (max).
+Press Enter to keep this login, or type 's' to switch account [Enter/s]:
+```
+
+```text
+Provider 'claude' is not ready yet (status: error).
+Last probe detail: Claude CLI is installed but not logged in. Run 'claude auth login' on the host.
+Press Enter to open interactive login now, or type 's' to skip for now [Enter/s]:
+Complete the provider's native subscription login flow on this host.
+If the CLI opens a browser, finish the login there.
+If the CLI shows a verification link and one-time code, open the link, paste or confirm the code, and wait until the CLI returns.
 ```
 
 Význam volby stavu:

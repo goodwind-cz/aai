@@ -53,7 +53,9 @@ The installer:
 - auto-detects `claude` and `codex` CLIs from the current Linux/WSL shell
 - probes provider binaries and stores host-side metadata in SQLite
 - uses `claude auth status --json` as the default Claude subscription probe
-- offers interactive `claude` or `codex` login during the wizard when the CLI exists but the probe is not `ok`
+- if a provider is already logged in, shows the current account and lets the operator keep it with Enter or switch with `s`
+- if a provider is not logged in yet, offers to open the native interactive login flow immediately
+- explains the browser or device-code style flow when the provider requires a link click and one-time code confirmation
 - records missing CLIs as unavailable and tells the operator to install them manually instead of trying to use them
 - reuses existing values from the last install summary, runtime env, project config, and SQLite registration so the operator can keep them by pressing Enter
 - asks only a few setup questions and generates a ready-to-run launcher script
@@ -192,7 +194,7 @@ npm --prefix apps/control-plane run daemon:logs
 npm --prefix apps/control-plane run validate:remote
 ```
 
-The current suite contains `30` CLI-backed tests, including:
+The current suite contains `32` CLI-backed tests, including:
 - provider session probe and usage sync
 - live Telegram long-poll fixture flow
 - Telegram token and ID discovery helpers for onboarding
@@ -203,6 +205,8 @@ The current suite contains `30` CLI-backed tests, including:
 - interactive install wizard with generated run command
 - background daemon start/status/stop/probe/login flow
 - wizard reuse of existing values with preserve-vs-overwrite state handling
+- wizard fallback to the existing managed repo path when one install state is already known
+- wizard provider-login UX for keeping the current subscription session or reopening a browser/device-code style login flow
 - npm wrapper coverage for the documented operator command surface
 
 `green` in the remote-orchestration spec is backed by executable control-plane flows, not by file-content smoke checks.

@@ -62,6 +62,7 @@ Expected WSL path shape:
 ```
 
 If `claude auth status --json` says you are logged in, Claude is ready for the control-plane.
+If the wizard finds this login later, press Enter to keep it or type `s` to switch to a different Claude subscription account.
 
 ### Codex
 
@@ -80,6 +81,7 @@ codex --help
 ```
 
 If `codex --help` fails with an optional dependency error, reinstall and run `codex` again.
+If the wizard finds that Codex is already usable, press Enter to keep that login or type `s` to reopen the native Codex sign-in flow with a different ChatGPT account.
 
 ### Important rule
 
@@ -157,7 +159,9 @@ The wizard then:
 - registers the project in the host SQLite DB
 - auto-detects `claude` and `codex`
 - probes provider login state
-- offers interactive `claude` or `codex` login if the CLI exists but the probe is not `ok`
+- if a provider is already logged in, shows the current account and lets you keep it with Enter or switch with `s`
+- if a provider is not logged in yet, offers to open the native interactive login flow immediately
+- explains what to do when the provider shows a browser link or a one-time device code
 - writes `.runtime/install-summary.<project>.json`
 - writes `.runtime/control-plane.env`
 - writes `.runtime/run-control-plane.sh`
@@ -176,6 +180,20 @@ Example:
 Existing control-plane state detected.
 Press Enter to preserve the current setup, or 'y' to overwrite it and reinitialize the DB.
 Overwrite existing config/runtime state? [y/N]:
+```
+
+```text
+Provider 'claude' is already logged in as ales@example.test (max).
+Press Enter to keep this login, or type 's' to switch account [Enter/s]:
+```
+
+```text
+Provider 'claude' is not ready yet (status: error).
+Last probe detail: Claude CLI is installed but not logged in. Run 'claude auth login' on the host.
+Press Enter to open interactive login now, or type 's' to skip for now [Enter/s]:
+Complete the provider's native subscription login flow on this host.
+If the CLI opens a browser, finish the login there.
+If the CLI shows a verification link and one-time code, open the link, paste or confirm the code, and wait until the CLI returns.
 ```
 
 Meaning of the state choice:

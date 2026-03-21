@@ -39,6 +39,8 @@
 | AC-014 | Spec-AC-018 | Migration path from local AAI usage to remote-controlled operation is documented and executable. | `bash tests/remote-orchestration/test-018-migration-path.sh` -> onboarding/migration doc and command path validate. |
 | AC-014 | Spec-AC-019 | Generated launcher supports simple background start, status, stop, restart, logs, probe, and interactive provider login commands for daily operator use. | `bash tests/remote-orchestration/test-029-daemon-manager.sh` -> daemon manager flow shows readable status/probe output and supports stop/start lifecycle. |
 | AC-014 | Spec-AC-020 | Installer reuses existing values by default and forces an explicit preserve-vs-overwrite decision before replacing setup state. | `bash tests/remote-orchestration/test-030-wizard-reuses-existing-values.sh` -> wizard offers existing values, masked token reuse, and preserve semantics without manual file edits. |
+| AC-014 | Spec-AC-021 | Installer wizard defaults the managed repo path from the existing install state when one managed project is already known. | `bash tests/remote-orchestration/test-031-summary-default-repo-path.sh` -> wizard offers the existing managed repo path instead of the current worktree path. |
+| AC-014 | Spec-AC-022 | Installer wizard can keep the current provider subscription session or guide the operator through a native browser/device-code login flow. | `bash tests/remote-orchestration/test-032-wizard-provider-login-flow.sh` -> wizard shows current account reuse and guided re-login flow with device-code style instructions. |
 
 ## Implementation plan
 - Control-plane modules:
@@ -88,8 +90,11 @@
 | TEST-025 | Spec-AC-018 | e2e | tests/remote-orchestration/test-025-install-wizard.sh | Validates the SuperTurtle-style interactive install wizard, generated runtime env, and printed run command. | green |
 | TEST-026 | Spec-AC-018 | integration | tests/remote-orchestration/test-026-npm-scripts.sh | Validates the documented npm wrapper scripts can drive the main operator command surface via `npm --prefix apps/control-plane run <script> -- ...`. | green |
 | TEST-027 | Spec-AC-005 | integration | tests/remote-orchestration/test-027-telegram-setup-info.sh | Validates Telegram onboarding helpers can verify the bot token and surface chat/user IDs needed for installer ACL setup. | green |
+| TEST-028 | Spec-AC-020 | e2e | tests/remote-orchestration/test-028-existing-state-policy.sh | Validates preserve and overwrite modes keep or reset config/runtime state exactly as documented. | green |
 | TEST-029 | Spec-AC-019 | e2e | tests/remote-orchestration/test-029-daemon-manager.sh | Validates the generated daemon manager can start in background, show readable status, re-probe providers, and stop cleanly. | green |
 | TEST-030 | Spec-AC-020 | e2e | tests/remote-orchestration/test-030-wizard-reuses-existing-values.sh | Validates the wizard reuses existing values, preserves masked secrets, and requires an explicit preserve-vs-overwrite choice when setup state already exists. | green |
+| TEST-031 | Spec-AC-021 | e2e | tests/remote-orchestration/test-031-summary-default-repo-path.sh | Validates the wizard reuses the existing managed repo path from install summary/runtime state. | green |
+| TEST-032 | Spec-AC-022 | e2e | tests/remote-orchestration/test-032-wizard-provider-login-flow.sh | Validates wizard provider-login UX for keeping the current subscription session and for guided browser/device-code style re-login. | green |
 
 Status values: pending -> red -> green.
 
@@ -122,8 +127,11 @@ Status values: pending -> red -> green.
   - `bash tests/remote-orchestration/test-025-install-wizard.sh`
   - `bash tests/remote-orchestration/test-026-npm-scripts.sh`
   - `bash tests/remote-orchestration/test-027-telegram-setup-info.sh`
+  - `bash tests/remote-orchestration/test-028-existing-state-policy.sh`
   - `bash tests/remote-orchestration/test-029-daemon-manager.sh`
   - `bash tests/remote-orchestration/test-030-wizard-reuses-existing-values.sh`
+  - `bash tests/remote-orchestration/test-031-summary-default-repo-path.sh`
+  - `bash tests/remote-orchestration/test-032-wizard-provider-login-flow.sh`
   - `bash tests/remote-orchestration/run-all.sh`
   - `cd apps/control-plane && npm install --no-fund --no-audit && npm run build`
   - `npm --prefix apps/control-plane run test:remote:install`
