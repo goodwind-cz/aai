@@ -12,11 +12,39 @@ version_major() {
   "$executable" -p "process.versions.node.split('.')[0]" 2>/dev/null || return 1
 }
 
+select_best_nvm_node() {
+  local candidate=""
+  local candidate_major=0
+  local path
+
+  shopt -s nullglob
+  for path in "$HOME"/.nvm/versions/node/*/bin/node; do
+    local major
+    major="$(version_major "$path" || true)"
+    if [[ -n "$major" && "$major" -ge 20 && "$major" -gt "$candidate_major" ]]; then
+      candidate="$path"
+      candidate_major="$major"
+    fi
+  done
+  shopt -u nullglob
+
+  if [[ -n "$candidate" ]]; then
+    NODE_BIN="$candidate"
+    return 0
+  fi
+
+  return 1
+}
+
 resolve_node_bin() {
+  if select_best_nvm_node; then
+    return
+  fi
+
   if command -v node >/dev/null 2>&1; then
     local major
     major="$(version_major node || true)"
-    if [[ -n "$major" && "$major" -ge 24 ]]; then
+    if [[ -n "$major" && "$major" -ge 20 ]]; then
       NODE_BIN="node"
       return
     fi
@@ -31,7 +59,7 @@ resolve_node_bin() {
     fi
   fi
 
-  printf '%s\n' "Node.js >=24 is required." >&2
+  printf '%s\n' "Node.js >=20 is required. Preferred in WSL: a native Linux Node from ~/.nvm, otherwise node.exe >=24." >&2
   exit 1
 }
 
@@ -42,12 +70,16 @@ to_native_path() {
     return
   fi
 
-  if [[ "$NODE_BIN" != "node.exe" ]]; then
+  if [[ "$raw_path" =~ ^[a-zA-Z]:[\\/].*$ ]]; then
     printf '%s\n' "$raw_path"
     return
   fi
 
-  if [[ "$raw_path" =~ ^[a-zA-Z]:[\\/].*$ ]]; then
+  if [[ "$raw_path" != /* ]]; then
+    raw_path="$REPO_ROOT/$raw_path"
+  fi
+
+  if [[ "$NODE_BIN" != "node.exe" ]]; then
     printf '%s\n' "$raw_path"
     return
   fi
@@ -64,17 +96,7 @@ to_native_path() {
     printf '%s\n' "$raw_path"
     return
   fi
-
-  local absolute="$REPO_ROOT/$raw_path"
-  if [[ "$absolute" =~ ^/mnt/([a-zA-Z])/(.*)$ ]]; then
-    local drive="${BASH_REMATCH[1]}"
-    local tail="${BASH_REMATCH[2]}"
-    tail="${tail//\//\\}"
-    printf '%s\n' "${drive^}:\\${tail}"
-    return
-  fi
-
-  printf '%s\n' "$absolute"
+  printf '%s\n' "$raw_path"
 }
 
 convert_mount_csv() {
@@ -112,14 +134,11 @@ convert_mount_csv() {
 }
 
 resolve_node_bin
+export NODE_NO_WARNINGS=1
 
 if [[ ! -f "$CLI_PATH" ]]; then
   printf '%s\n' "Missing built CLI at $CLI_PATH. Run npm --prefix apps/control-plane run build first." >&2
   exit 1
-fi
-
-if [[ "$NODE_BIN" == "node" ]]; then
-  exec "$NODE_BIN" "$CLI_PATH" "$@"
 fi
 
 translated_args=()
@@ -154,4 +173,4 @@ for arg in "$@"; do
   esac
 done
 
-exec "$NODE_BIN" "$(to_native_path "$CLI_PATH")" "${translated_args[@]}"
+exec "$NODE_BIN" --no-warnings "$(to_native_path "$CLI_PATH")" "${translated_args[@]}"

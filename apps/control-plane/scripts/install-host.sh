@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOST_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 APP_DIR="$HOST_ROOT/apps/control-plane"
+NPM_BIN="npm"
 
 MANAGED_REPO_PATH="$HOST_ROOT"
 PROJECT_CONFIG_PATH=""
@@ -125,12 +126,43 @@ version_major() {
   "$executable" -p "process.versions.node.split('.')[0]" 2>/dev/null || return 1
 }
 
+select_best_nvm_node() {
+  local candidate=""
+  local candidate_major=0
+  local path
+
+  shopt -s nullglob
+  for path in "$HOME"/.nvm/versions/node/*/bin/node; do
+    local major
+    major="$(version_major "$path" || true)"
+    if [[ -n "$major" && "$major" -ge 20 && "$major" -gt "$candidate_major" ]]; then
+      candidate="$path"
+      candidate_major="$major"
+    fi
+  done
+  shopt -u nullglob
+
+  if [[ -n "$candidate" ]]; then
+    NODE_BIN="$candidate"
+    NPM_BIN="$(dirname "$candidate")/npm"
+    NPM_MODE="native"
+    return 0
+  fi
+
+  return 1
+}
+
 resolve_node_bin() {
+  if select_best_nvm_node; then
+    return
+  fi
+
   if command -v node >/dev/null 2>&1; then
     local major
     major="$(version_major node || true)"
-    if [[ -n "$major" && "$major" -ge 24 ]]; then
+    if [[ -n "$major" && "$major" -ge 20 ]]; then
       NODE_BIN="node"
+      NPM_BIN="npm"
       NPM_MODE="native"
       return
     fi
@@ -146,12 +178,12 @@ resolve_node_bin() {
     fi
   fi
 
-  fail "Node.js >=24 is required."
+  fail "Node.js >=20 is required. Preferred in WSL: a native Linux Node from ~/.nvm, otherwise node.exe >=24."
 }
 
 run_npm() {
   if [[ "$NPM_MODE" == "native" ]]; then
-    npm "$@"
+    PATH="$(dirname "$NPM_BIN"):$PATH" "$NPM_BIN" "$@"
     return
   fi
 
@@ -243,6 +275,8 @@ write_runtime_env() {
     printf 'AAI_TELEGRAM_BOT_TOKEN=%s\n' "$TELEGRAM_BOT_TOKEN"
     printf 'AAI_CONTROL_PLANE_DB=%s\n' "$DB_PATH"
     printf 'AAI_APPROVAL_CONFIG=%s\n' "$HOST_ROOT/apps/control-plane/config/approval-gates.json"
+    printf 'AAI_CONTROL_PLANE_LOG=%s\n' "$HOST_ROOT/.runtime/control-plane.log"
+    printf 'NODE_NO_WARNINGS=1\n'
   } > "$env_path"
 }
 
@@ -273,7 +307,7 @@ probe_provider() {
   local cli_path="$2"
   local session_home="$3"
   if [[ -z "$cli_path" ]]; then
-    "$NODE_BIN" "$(to_native_path "$APP_DIR/dist/cli.js")" auth mark-missing \
+    "$NODE_BIN" --no-warnings "$(to_native_path "$APP_DIR/dist/cli.js")" auth mark-missing \
       --db "$(to_native_path "$DB_PATH")" \
       --provider "$provider" \
       --session-home "$(to_native_path "$session_home")" \
@@ -282,12 +316,23 @@ probe_provider() {
     return
   fi
 
+  local probe_args=()
+  case "$provider" in
+    claude)
+      probe_args=(--probe-args "auth,status,--json")
+      ;;
+    codex)
+      probe_args=(--probe-args "--help")
+      ;;
+  esac
+
   local result
-  result="$("$NODE_BIN" "$(to_native_path "$APP_DIR/dist/cli.js")" auth probe \
+  result="$("$NODE_BIN" --no-warnings "$(to_native_path "$APP_DIR/dist/cli.js")" auth probe \
     --db "$(to_native_path "$DB_PATH")" \
     --provider "$provider" \
     --cli-path "$(to_native_path "$cli_path")" \
-    --session-home "$(to_native_path "$session_home")")"
+    --session-home "$(to_native_path "$session_home")" \
+    "${probe_args[@]}")"
 
   if printf '%s' "$result" | grep -q '"status": "ok"'; then
     printf 'ok\n'
@@ -310,7 +355,7 @@ write_summary() {
   local codex_status="$7"
 
   mkdir -p "$(dirname "$SUMMARY_PATH")"
-  "$NODE_BIN" - "$(to_native_path "$SUMMARY_PATH")" "$(to_native_path "$HOST_ROOT")" "$(to_native_path "$MANAGED_REPO_PATH")" "$(to_native_path "$DB_PATH")" "$(to_native_path "$PROJECT_CONFIG_PATH")" "$PROJECT_ID" "$DEFAULT_BRANCH" "$created_config" "$(to_native_path "$claude_detected")" "$(to_native_path "$CLAUDE_SESSION_HOME")" "$claude_recommended" "$claude_status" "$(to_native_path "$codex_detected")" "$(to_native_path "$CODEX_SESSION_HOME")" "$codex_recommended" "$codex_status" <<'EOF'
+  "$NODE_BIN" --no-warnings - "$(to_native_path "$SUMMARY_PATH")" "$(to_native_path "$HOST_ROOT")" "$(to_native_path "$MANAGED_REPO_PATH")" "$(to_native_path "$DB_PATH")" "$(to_native_path "$PROJECT_CONFIG_PATH")" "$PROJECT_ID" "$DEFAULT_BRANCH" "$created_config" "$(to_native_path "$claude_detected")" "$(to_native_path "$CLAUDE_SESSION_HOME")" "$claude_recommended" "$claude_status" "$(to_native_path "$codex_detected")" "$(to_native_path "$CODEX_SESSION_HOME")" "$codex_recommended" "$codex_status" <<'EOF'
 const fs = require("node:fs");
 const [
   summaryPath,
@@ -514,7 +559,7 @@ fi
 
 [[ -f "$APP_DIR/dist/cli.js" ]] || fail "Built CLI missing at $APP_DIR/dist/cli.js"
 
-"$NODE_BIN" "$(to_native_path "$APP_DIR/dist/cli.js")" init --db "$(to_native_path "$DB_PATH")" >/dev/null
+"$NODE_BIN" --no-warnings "$(to_native_path "$APP_DIR/dist/cli.js")" init --db "$(to_native_path "$DB_PATH")" >/dev/null
 
 created_config="false"
 if [[ ! -f "$PROJECT_CONFIG_PATH" ]]; then
@@ -523,7 +568,7 @@ if [[ ! -f "$PROJECT_CONFIG_PATH" ]]; then
 fi
 
 register_args=(
-  "$NODE_BIN" "$(to_native_path "$APP_DIR/dist/cli.js")" project register
+  "$NODE_BIN" --no-warnings "$(to_native_path "$APP_DIR/dist/cli.js")" project register
   --db "$(to_native_path "$DB_PATH")"
   --project-config "$(to_native_path "$PROJECT_CONFIG_PATH")"
   --repo-path "$(to_native_path "$MANAGED_REPO_PATH")"
@@ -552,11 +597,11 @@ if [[ "$SKIP_PROVIDER_PROBES" -eq 0 ]]; then
 fi
 
 if [[ "$claude_status" != "ok" ]]; then
-  claude_recommended="Install Claude Code CLI manually and rerun bash apps/control-plane/scripts/install-host.sh or node apps/control-plane/dist/cli.js auth probe ..."
+  claude_recommended="Install Claude Code CLI manually, run 'claude auth login', verify with 'claude auth status --json', and rerun bash apps/control-plane/scripts/install-host.sh or npm --prefix apps/control-plane run auth:probe -- ..."
 fi
 
 if [[ "$codex_status" != "ok" ]]; then
-  codex_recommended="Install Codex CLI manually and rerun bash apps/control-plane/scripts/install-host.sh or node apps/control-plane/dist/cli.js auth probe ..."
+  codex_recommended="Install or reinstall Codex CLI with 'npm install -g @openai/codex@latest', run 'codex' and choose 'Sign in with ChatGPT', then rerun bash apps/control-plane/scripts/install-host.sh or npm --prefix apps/control-plane run auth:probe -- ..."
 fi
 
 write_summary "$created_config" "$claude_detected" "$codex_detected" "$claude_recommended" "$codex_recommended" "$claude_status" "$codex_status"
@@ -586,5 +631,5 @@ if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
   printf 'Run command: bash %s\n' "$RUN_SCRIPT_PATH"
 else
   printf 'Telegram token not provided. Add it later with AAI_TELEGRAM_BOT_TOKEN in %s and run:\n' "$RUNTIME_ENV_PATH"
-  printf '  node apps/control-plane/dist/cli.js telegram serve --db %s --token "$AAI_TELEGRAM_BOT_TOKEN" --approval-config apps/control-plane/config/approval-gates.json\n' "$DB_PATH"
+  printf '  npm --prefix apps/control-plane run telegram:serve -- --db %s --token "$AAI_TELEGRAM_BOT_TOKEN" --approval-config apps/control-plane/config/approval-gates.json\n' "$DB_PATH"
 fi

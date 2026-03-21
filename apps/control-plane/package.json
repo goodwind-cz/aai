@@ -12,6 +12,7 @@
     "install:host": "bash ./scripts/install-host.sh",
     "install:wizard": "bash ./scripts/install-host.sh --wizard",
     "serve:generated": "bash ../../.runtime/run-control-plane.sh",
+    "logs:tail": "bash -lc \"cd ../.. && mkdir -p .runtime && touch .runtime/control-plane.log && tail -f .runtime/control-plane.log\"",
     "start": "bash ./scripts/run-cli.sh",
     "help": "bash ./scripts/run-cli.sh help",
     "init": "bash ./scripts/run-cli.sh init",
@@ -55,10 +56,10 @@
     "test:remote:telegram-setup": "bash -lc \"cd ../.. && bash tests/remote-orchestration/test-027-telegram-setup-info.sh\"",
     "test:remote:runtime-build": "bash -lc \"cd ../.. && bash tests/remote-orchestration/test-022-standard-runtime-build.sh\"",
     "test:remote:npm": "bash -lc \"cd ../.. && bash tests/remote-orchestration/test-026-npm-scripts.sh\"",
-    "validate:remote": "npm run build && npm run test:remote"
+    "validate:remote": "bash ./scripts/run-npm.sh run build && bash ./scripts/run-npm.sh run test:remote"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=20"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

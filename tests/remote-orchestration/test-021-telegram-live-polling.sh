@@ -29,6 +29,21 @@ cat > "$tmp/approval-gates.json" <<'EOF'
 }
 EOF
 
+mkdir -p "$tmp/bin" "$tmp/home"
+cat > "$tmp/bin/claude.js" <<'EOF'
+const [command, subcommand, format] = process.argv.slice(2);
+if (command === "auth" && subcommand === "status" && format === "--json") {
+  console.log(JSON.stringify({
+    loggedIn: true,
+    email: "fixture@example.test",
+    subscriptionType: "max"
+  }));
+  process.exit(0);
+}
+console.error("unsupported");
+process.exit(1);
+EOF
+
 cat > "$tmp/updates.json" <<'EOF'
 [
   {
@@ -44,18 +59,27 @@ cat > "$tmp/updates.json" <<'EOF'
     "update_id": 102,
     "message": {
       "message_id": 2,
-      "text": "/status fixture-project PRD-LIVE-021",
+      "text": "/usage",
       "chat": { "id": 9001 },
       "from": { "id": 42 }
     }
   },
   {
     "update_id": 103,
+    "message": {
+      "message_id": 3,
+      "text": "/status fixture-project PRD-LIVE-021",
+      "chat": { "id": 9001 },
+      "from": { "id": 42 }
+    }
+  },
+  {
+    "update_id": 104,
     "callback_query": {
       "id": "cb-1",
       "data": "stop:run:PRD-LIVE-021",
       "message": {
-        "message_id": 3,
+        "message_id": 4,
         "chat": { "id": 9001 }
       },
       "from": { "id": 42 }
@@ -77,6 +101,12 @@ run_cli project register \
   --project-config "$tmp/project.yaml" \
   --repo-path "$PWD" >/dev/null
 
+run_cli auth probe \
+  --db "$tmp/control-plane.db" \
+  --provider claude \
+  --cli-path "$tmp/bin/claude.js" \
+  --session-home "$tmp/home" >/dev/null
+
 run_cli telegram serve \
   --db "$tmp/control-plane.db" \
   --token test-token \
@@ -84,13 +114,15 @@ run_cli telegram serve \
   --api-base "http://127.0.0.1:$port" \
   --once > "$tmp/serve.json"
 
-json_assert_file "$tmp/serve.json" "data.processed_updates === 3"
+json_assert_file "$tmp/serve.json" "data.processed_updates === 4"
 
 run_cli queue status --db "$tmp/control-plane.db" --project-id fixture-project --ref-id PRD-LIVE-021 > "$tmp/status.json"
 json_assert_file "$tmp/status.json" "data.work_item.status === 'stopped' && data.work_item.phase === 'planning'"
 
 assert_contains "$tmp/telegram.log" "\"method\":\"sendMessage\""
 assert_contains "$tmp/telegram.log" "Queued PRD-LIVE-021 for fixture-project"
+assert_contains "$tmp/telegram.log" "Usage telemetry unavailable."
+assert_contains "$tmp/telegram.log" "claude: status=ok, account=fixture@example.test (max)"
 assert_contains "$tmp/telegram.log" "\"method\":\"answerCallbackQuery\""
 
 echo "PASS"

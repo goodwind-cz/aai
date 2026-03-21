@@ -2,7 +2,7 @@
 set -euo pipefail
 source "$(dirname "$0")/test-lib.sh"
 
-tmp="$(make_tmpdir)"
+tmp="$(mktemp -d "$PWD/.tmp-control-plane-setup-XXXXXX")"
 server_pid=""
 cleanup() {
   if [[ -n "$server_pid" ]]; then
@@ -62,22 +62,22 @@ port=18778
 server_pid="$!"
 sleep 1
 
-npm --silent --prefix apps/control-plane run init -- --db "$tmp/control-plane.db" > "$tmp/init.json"
-npm --silent --prefix apps/control-plane run project:register -- \
+AAI_CONTROL_PLANE_LOG="$tmp/control-plane.log" run_npm --silent --prefix apps/control-plane run init -- --db "$tmp/control-plane.db" > "$tmp/init.json"
+AAI_CONTROL_PLANE_LOG="$tmp/control-plane.log" run_npm --silent --prefix apps/control-plane run project:register -- \
   --db "$tmp/control-plane.db" \
   --project-config "$tmp/project.yaml" \
   --repo-path "$PWD" > "$tmp/project.json"
 
-npm --silent --prefix apps/control-plane run telegram:get-me -- \
+AAI_CONTROL_PLANE_LOG="$tmp/control-plane.log" run_npm --silent --prefix apps/control-plane run telegram:get-me -- \
   --token test-token \
   --api-base "http://127.0.0.1:$port" > "$tmp/get-me.json"
 
-npm --silent --prefix apps/control-plane run telegram:setup-info -- \
+AAI_CONTROL_PLANE_LOG="$tmp/control-plane.log" run_npm --silent --prefix apps/control-plane run telegram:setup-info -- \
   --token test-token \
   --api-base "http://127.0.0.1:$port" \
   --limit 10 > "$tmp/setup-info.json"
 
-npm --silent --prefix apps/control-plane run telegram:serve -- \
+AAI_CONTROL_PLANE_LOG="$tmp/control-plane.log" run_npm --silent --prefix apps/control-plane run telegram:serve -- \
   --db "$tmp/control-plane.db" \
   --token test-token \
   --approval-config "$tmp/approval-gates.json" \
@@ -95,5 +95,8 @@ json_assert_file "$tmp/serve.json" "data.processed_updates === 0 || data.process
 
 assert_contains "$tmp/telegram.log" "\"method\":\"getMe\""
 assert_contains "$tmp/telegram.log" "\"method\":\"getUpdates\""
+assert_file "$tmp/control-plane.log"
+assert_contains "$tmp/control-plane.log" "\"event\":\"telegram.daemon.start\""
+assert_contains "$tmp/control-plane.log" "\"event\":\"telegram.daemon.stop\""
 
 echo "PASS"

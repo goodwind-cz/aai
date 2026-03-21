@@ -60,6 +60,23 @@ export function nowUtc(): string {
   return new Date().toISOString();
 }
 
+export function runtimeLog(event: string, payload: Record<string, unknown> = {}): void {
+  const record = {
+    ts: nowUtc(),
+    event,
+    ...payload
+  };
+  const line = `${JSON.stringify(record)}\n`;
+
+  process.stderr.write(line);
+
+  const logPath = process.env.AAI_CONTROL_PLANE_LOG;
+  if (logPath) {
+    ensureDir(path.dirname(logPath));
+    fs.appendFileSync(logPath, line, "utf8");
+  }
+}
+
 export function requireArg(args: CliArgs, key: string): string {
   const value = args[key];
   if (value === undefined || value === null || value === "" || typeof value !== "string") {

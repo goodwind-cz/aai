@@ -42,12 +42,12 @@ active_work_items: []
 
 last_validation:
   status: pass
-  run_at_utc: "2026-03-20T21:29:58Z"
-  validator_ref: "manual-validation-20260320T212958Z"
+  run_at_utc: "2026-03-21T01:02:51Z"
+  validator_ref: "manual-validation-20260321T010251Z"
   evidence_paths:
-    - docs/ai/reports/validation-20260320T212958Z.log
-    - docs/ai/reports/validation-20260320T212958Z.md
-  notes: "Step-by-step remote-orchestration onboarding is now documented in synchronized English and Czech guides, Telegram setup helpers can verify the bot token and surface chat/user IDs, and validate:remote passed with 27/27 tests."
+    - docs/ai/reports/validation-20260321T010251Z.log
+    - docs/ai/reports/validation-20260321T010251Z.md
+  notes: "Remote-orchestration now suppresses the user-facing SQLite experimental warning on wrapped runtime paths, writes structured daemon logs, explains the real Claude/Codex subscription login flow in synchronized English/Czech guides, and validate:remote passed again with 27/27 tests."
 
 human_input:
   required: false
@@ -170,5 +170,13 @@ metrics:
           tokens_in: null
           tokens_out: null
           cost_usd: null
+        - role: Validation
+          model_id: gpt-5
+          started_utc: "2026-03-21T00:51:42Z"
+          ended_utc: "2026-03-21T01:02:51Z"
+          duration_seconds: 669
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
 
-updated_at_utc: "2026-03-20T21:29:58Z"
+updated_at_utc: "2026-03-21T01:02:51Z"

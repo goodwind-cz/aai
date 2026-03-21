@@ -21,7 +21,7 @@ This feature does not use provider API keys. It expects the provider CLIs to alr
 
 Prepare a Linux or WSL host with:
 
-- Node.js `>=24`
+- Node.js `>=20`
 - `git`
 - `bash`
 - optional: Docker, if you want container runs
@@ -41,13 +41,21 @@ which codex || true
 docker --version || true
 ```
 
-If WSL has an older Linux `node`, that is still acceptable as long as `node.exe` on Windows is `>=24`. The npm wrapper scripts automatically prefer native Node 24+ and fall back to `node.exe` when needed.
+Preferred on WSL: a native Linux Node from `~/.nvm`, ideally `v20+` or `v22+`.
+The runtime now prefers a native Linux Node from `~/.nvm` before it falls back to `node.exe`.
 
 ## 3. Install and authenticate the agent CLIs
 
 ### Claude Code
 
-Install the Claude Code CLI on the host using the provider's normal subscription login flow. After login, verify:
+Install the Claude Code CLI on the host using the provider's normal subscription login flow. Then log in with your Claude subscription account:
+
+```bash
+claude auth login
+claude auth status --json
+```
+
+After login, verify:
 
 ```bash
 which claude
@@ -62,12 +70,26 @@ Expected WSL path shape:
 
 ### Codex
 
-Install the Codex CLI on the host using its normal subscription login flow. After login, verify:
+On this host the current global Codex install is broken and needs reinstall first:
+
+```bash
+npm install -g @openai/codex@latest
+```
+
+Then start Codex and choose `Sign in with ChatGPT`:
+
+```bash
+codex
+```
+
+After login, verify:
 
 ```bash
 which codex
 codex --help
 ```
+
+If `codex --help` fails with a missing optional dependency error, reinstall it and run `codex` again.
 
 ### Important rule
 
@@ -76,7 +98,7 @@ The control-plane stores only metadata about provider health and usage. Your rea
 - `~/.claude`
 - `~/.codex`
 
-If a CLI is missing, the installer will mark it as unavailable and will not route work to it automatically.
+If a CLI is missing or broken, the installer will mark it as unavailable and will not route work to it automatically.
 
 ## 4. Create and verify the Telegram bot
 
@@ -159,6 +181,7 @@ The installer then:
 - writes `.runtime/install-summary.<project>.json`
 - writes `.runtime/control-plane.env` if you entered the token
 - writes `.runtime/run-control-plane.sh`
+- writes runtime logs to `.runtime/control-plane.log`
 - prints the exact run command
 
 ## 6. Install the control-plane for another project
@@ -195,6 +218,7 @@ Important files:
 - host DB: `.runtime/control-plane.db`
 - install summary: `.runtime/install-summary.<project>.json`
 - runtime env: `.runtime/control-plane.env`
+- runtime log: `.runtime/control-plane.log`
 - generated launcher: `.runtime/run-control-plane.sh`
 - portable project policy: `docs/ai/project-overrides/remote-control.yaml`
 
@@ -214,7 +238,7 @@ npm --prefix apps/control-plane run auth:probe -- \
   --provider claude \
   --cli-path "$(command -v claude)" \
   --session-home ~/.claude \
-  --probe-args --version
+  --probe-args auth,status,--json
 
 npm --prefix apps/control-plane run auth:probe -- \
   --db .runtime/control-plane.db \
@@ -222,6 +246,12 @@ npm --prefix apps/control-plane run auth:probe -- \
   --cli-path "$(command -v codex)" \
   --session-home ~/.codex \
   --probe-args --help
+```
+
+Current local Claude status can also be checked directly with:
+
+```bash
+claude auth status --json
 ```
 
 Expected state:
@@ -239,6 +269,8 @@ bash .runtime/run-control-plane.sh
 ```
 
 That is the preferred launch command because it uses the generated env file and approval config automatically.
+It also appends structured daemon logs to `.runtime/control-plane.log`.
+The launcher and npm wrapper pass `--no-warnings`, so the SQLite experimental warning should not appear during normal operator use.
 
 If you did not enter the token during install, set it first:
 
@@ -248,6 +280,13 @@ npm --prefix apps/control-plane run telegram:serve -- \
   --db .runtime/control-plane.db \
   --token "$AAI_TELEGRAM_BOT_TOKEN" \
   --approval-config apps/control-plane/config/approval-gates.json
+```
+
+Watch what the daemon is doing:
+
+```bash
+tail -f .runtime/control-plane.log
+npm --prefix apps/control-plane run logs:tail
 ```
 
 ## 10. Use the bot in Telegram
@@ -300,6 +339,9 @@ Alias:
 ```text
 /usage
 ```
+
+If no provider has synced machine-readable quota data yet, the bot now shows provider session status and tells you that quota telemetry has not been synced.
+For Claude, the fallback status also includes the detected account email and subscription type when `claude auth status --json` is available.
 
 ### 10.5 Override provider
 
@@ -381,6 +423,22 @@ or:
 ```bash
 npm --prefix apps/control-plane run auth:probe -- --db .runtime/control-plane.db ...
 ```
+
+For Claude subscription login on this host, the direct commands are:
+
+```bash
+claude auth login
+claude auth status --json
+```
+
+For Codex on this host, reinstall first:
+
+```bash
+npm install -g @openai/codex@latest
+codex
+```
+
+Then choose `Sign in with ChatGPT`.
 
 ### Telegram bot token works, but no IDs appear in `telegram:setup-info`
 

@@ -1,8 +1,8 @@
 import type { DatabaseHandle } from "./db.ts";
-import { readJson, nowUtc } from "./common.ts";
+import { readJson, nowUtc, runtimeLog } from "./common.ts";
 import { createWorkItem, evaluateGate, getWorkItem, listWorkItems, recordApproval, updateWorkItemStatus } from "./queue.ts";
 import { listProjects } from "./registry.ts";
-import { loadUsageWindowsFromDb } from "./provider-router.ts";
+import { listProviderSessions, loadUsageWindowsFromDb } from "./provider-router.ts";
 
 const SAFE_CALLBACK_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
@@ -236,6 +236,16 @@ export async function runTelegramDaemon(
   let totalProcessed = 0;
   let lastUpdateId = getTelegramCursor(handle);
 
+  runtimeLog("telegram.daemon.start", {
+    api_base: options.api_base || "https://api.telegram.org",
+    once: options.once === true,
+    poll_interval_ms: pollIntervalMs,
+    max_idle_cycles: maxIdleCycles,
+    project_count: listProjects(handle).length,
+    provider_session_count: listProviderSessions(handle).length,
+    usage_window_count: loadUsageWindowsFromDb(handle).length
+  });
+
   do {
     const result = await pollTelegramOnce(handle, {
       token: options.token,
@@ -248,17 +258,26 @@ export async function runTelegramDaemon(
     lastUpdateId = Number(result.last_update_id);
     idleCycles = Number(result.processed_updates) === 0 ? idleCycles + 1 : 0;
 
+    runtimeLog("telegram.daemon.poll", {
+      processed_updates: Number(result.processed_updates),
+      last_update_id: lastUpdateId,
+      idle_cycles: idleCycles
+    });
+
     if (options.once || idleCycles >= maxIdleCycles) {
       break;
     }
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
   } while (true);
 
-  return {
+  const summary = {
     processed_updates: totalProcessed,
     last_update_id: lastUpdateId,
     idle_cycles: idleCycles
   };
+
+  runtimeLog("telegram.daemon.stop", summary);
+  return summary;
 }
 
 export function simulateTelegramCommand(
@@ -407,10 +426,7 @@ async function processCommand(
     }
     case "/usage": {
       const usage = loadUsageWindowsFromDb(handle);
-      const lines =
-        usage.length > 0
-          ? usage.map((entry) => `${entry.provider}: ${entry.used_percentage}% used, resets ${entry.reset_at_utc}`)
-          : ["Usage telemetry unavailable."];
+      const lines = usage.length > 0 ? usage.map((entry) => `${entry.provider}: ${entry.used_percentage}% used, resets ${entry.reset_at_utc}`) : formatUsageUnavailable(handle);
       await sendMessage(options.apiBase, options.token, chatId, lines.join("\n"));
       break;
     }
@@ -447,6 +463,13 @@ async function processCommand(
     default:
       await sendMessage(options.apiBase, options.token, chatId, `Unsupported command: ${command}`);
   }
+
+  runtimeLog("telegram.command", {
+    chat_id: chatId,
+    user_id: userId || null,
+    command,
+    args
+  });
 }
 
 async function processCallback(
@@ -469,6 +492,13 @@ async function processCallback(
       setSessionProject(handle, chatId, userId, parsed.target);
       await answerCallbackQuery(options.apiBase, options.token, callbackId, `Selected project ${parsed.target}`);
       await sendMessage(options.apiBase, options.token, chatId, `Default project set to ${parsed.target}.`);
+      runtimeLog("telegram.callback", {
+        chat_id: chatId,
+        user_id: userId || null,
+        action: parsed.action,
+        target: parsed.target,
+        ref_id: parsed.ref_id
+      });
       return;
     case "resume":
     case "stop":
@@ -483,6 +513,13 @@ async function processCallback(
         chatId,
         formatWorkItem(updateWorkItemStatus(handle, projectId, parsed.ref_id, parsed.action === "resume" ? "running" : "stopped"))
       );
+      runtimeLog("telegram.callback", {
+        chat_id: chatId,
+        user_id: userId || null,
+        action: parsed.action,
+        target: parsed.target,
+        ref_id: parsed.ref_id
+      });
       return;
     case "approve": {
       if (!projectId) {
@@ -499,6 +536,13 @@ async function processCallback(
       });
       await answerCallbackQuery(options.apiBase, options.token, callbackId, gateResult.enabled ? "Approved" : "Approval recorded");
       await sendMessage(options.apiBase, options.token, chatId, `Approval recorded for ${parsed.ref_id} (${parsed.target}).`);
+      runtimeLog("telegram.callback", {
+        chat_id: chatId,
+        user_id: userId || null,
+        action: parsed.action,
+        target: parsed.target,
+        ref_id: parsed.ref_id
+      });
       return;
     }
     case "provider":
@@ -513,10 +557,44 @@ async function processCallback(
       `).run(parsed.target, nowUtc(), projectId, parsed.ref_id);
       await answerCallbackQuery(options.apiBase, options.token, callbackId, `Provider set to ${parsed.target}`);
       await sendMessage(options.apiBase, options.token, chatId, `Provider for ${parsed.ref_id} set to ${parsed.target}.`);
+      runtimeLog("telegram.callback", {
+        chat_id: chatId,
+        user_id: userId || null,
+        action: parsed.action,
+        target: parsed.target,
+        ref_id: parsed.ref_id
+      });
       return;
     default:
       await answerCallbackQuery(options.apiBase, options.token, callbackId, `Unsupported action ${parsed.action}`);
+      runtimeLog("telegram.callback.unsupported", {
+        chat_id: chatId,
+        user_id: userId || null,
+        action: parsed.action,
+        target: parsed.target,
+        ref_id: parsed.ref_id
+      });
   }
+}
+
+function formatUsageUnavailable(handle: DatabaseHandle): string[] {
+  const sessions = listProviderSessions(handle);
+  const lines = ["Usage telemetry unavailable."];
+
+  if (sessions.length === 0) {
+    lines.push("No provider sessions are registered yet.");
+    lines.push("Run auth probe for installed provider CLIs first.");
+    return lines;
+  }
+
+  for (const session of sessions) {
+    lines.push(
+      `${session.provider}: status=${session.status}, account=${session.account_label || "unknown"}, last_usage_sync=${session.last_usage_sync_at_utc || "never"}, error=${session.last_error || "none"}`
+    );
+  }
+
+  lines.push("If the CLI supports quota output, rerun auth probe with --usage-args ...");
+  return lines;
 }
 
 function resolveProjectSelection(handle: DatabaseHandle, chatId: string, maybeProjectArg?: string): string | null {

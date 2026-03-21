@@ -21,7 +21,7 @@ Tato feature nepoužívá provider API klíče. Počítá s tím, že provider C
 
 Na Linux/WSL hostu připrav:
 
-- Node.js `>=24`
+- Node.js `>=20`
 - `git`
 - `bash`
 - volitelně Docker, pokud chceš kontejnery
@@ -41,13 +41,21 @@ which codex || true
 docker --version || true
 ```
 
-Pokud má WSL starší Linux `node`, nevadí to, pokud Windows `node.exe` má verzi `>=24`. Npm wrapper skripty automaticky preferují Node 24+ a ve WSL umí spadnout na `node.exe`.
+Preferovaná varianta ve WSL je nativní Linux Node z `~/.nvm`, ideálně `v20+` nebo `v22+`.
+Runtime teď preferuje Linux Node z `~/.nvm` dřív než fallback na `node.exe`.
 
 ## 3. Instalace a přihlášení agent CLI
 
 ### Claude Code
 
-Nainstaluj Claude Code CLI standardním způsobem od providera a přihlas ho přes subscription flow. Pak ověř:
+Nainstaluj Claude Code CLI standardním způsobem od providera a přihlas ho přes subscription účet:
+
+```bash
+claude auth login
+claude auth status --json
+```
+
+Pak ověř:
 
 ```bash
 which claude
@@ -62,12 +70,26 @@ Typický tvar cesty ve WSL:
 
 ### Codex
 
-Nainstaluj Codex CLI standardním způsobem od providera a přihlas ho přes subscription flow. Pak ověř:
+Na tomto hostu je aktuální globální instalace Codex CLI rozbitá a nejdřív potřebuje reinstall:
+
+```bash
+npm install -g @openai/codex@latest
+```
+
+Pak spusť Codex a zvol `Sign in with ChatGPT`:
+
+```bash
+codex
+```
+
+Pak ověř:
 
 ```bash
 which codex
 codex --help
 ```
+
+Pokud `codex --help` spadne na chybě s missing optional dependency, udělej reinstall a spusť `codex` znovu.
 
 ### Důležité pravidlo
 
@@ -76,7 +98,7 @@ Control-plane ukládá jen metadata o zdraví a usage providera. Skutečný logi
 - `~/.claude`
 - `~/.codex`
 
-Pokud CLI chybí, installer ho označí jako nedostupné a autorouter na něj nebude posílat práci.
+Pokud CLI chybí nebo je rozbité, installer ho označí jako nedostupné a autorouter na něj nebude posílat práci.
 
 ## 4. Vytvoření a ověření Telegram bota
 
@@ -159,6 +181,7 @@ Installer potom:
 - zapíše `.runtime/install-summary.<project>.json`
 - zapíše `.runtime/control-plane.env`, pokud zadáš token
 - zapíše `.runtime/run-control-plane.sh`
+- zapíše runtime log do `.runtime/control-plane.log`
 - vypíše přesný run command
 
 ## 6. Instalace control-plane pro jiný projekt
@@ -195,6 +218,7 @@ Důležité soubory:
 - host DB: `.runtime/control-plane.db`
 - install summary: `.runtime/install-summary.<project>.json`
 - runtime env: `.runtime/control-plane.env`
+- runtime log: `.runtime/control-plane.log`
 - vygenerovaný launcher: `.runtime/run-control-plane.sh`
 - portable project policy: `docs/ai/project-overrides/remote-control.yaml`
 
@@ -214,7 +238,7 @@ npm --prefix apps/control-plane run auth:probe -- \
   --provider claude \
   --cli-path "$(command -v claude)" \
   --session-home ~/.claude \
-  --probe-args --version
+  --probe-args auth,status,--json
 
 npm --prefix apps/control-plane run auth:probe -- \
   --db .runtime/control-plane.db \
@@ -222,6 +246,12 @@ npm --prefix apps/control-plane run auth:probe -- \
   --cli-path "$(command -v codex)" \
   --session-home ~/.codex \
   --probe-args --help
+```
+
+Aktuální Claude login na hostu si můžeš ověřit i přímo:
+
+```bash
+claude auth status --json
 ```
 
 Očekávané stavy:
@@ -239,6 +269,8 @@ bash .runtime/run-control-plane.sh
 ```
 
 To je doporučený způsob spuštění, protože používá vygenerovaný env file i approval config.
+Zároveň zapisuje strukturovaný daemon log do `.runtime/control-plane.log`.
+Launcher i npm wrapper předávají `--no-warnings`, takže při běžném použití by se SQLite experimental warning už neměl zobrazovat.
 
 Pokud jsi token při instalaci nezadal, nejdřív ho nastav:
 
@@ -248,6 +280,13 @@ npm --prefix apps/control-plane run telegram:serve -- \
   --db .runtime/control-plane.db \
   --token "$AAI_TELEGRAM_BOT_TOKEN" \
   --approval-config apps/control-plane/config/approval-gates.json
+```
+
+Průběh daemonu sleduj takto:
+
+```bash
+tail -f .runtime/control-plane.log
+npm --prefix apps/control-plane run logs:tail
 ```
 
 ## 10. Jak bota používat v Telegramu
@@ -300,6 +339,9 @@ Alias:
 ```text
 /usage
 ```
+
+Pokud ještě žádný provider neposlal machine-readable quota data, bot teď vypíše stav provider session a informaci, že quota telemetry ještě není synchronizovaná.
+U Claude fallback navíc ukáže i detekovaný account e-mail a subscription typ, pokud je dostupný `claude auth status --json`.
 
 ### 10.5 Změna providera
 
@@ -381,6 +423,22 @@ nebo:
 ```bash
 npm --prefix apps/control-plane run auth:probe -- --db .runtime/control-plane.db ...
 ```
+
+Pro Claude subscription login na tomto hostu jsou přímé příkazy:
+
+```bash
+claude auth login
+claude auth status --json
+```
+
+Pro Codex na tomto hostu nejdřív reinstall:
+
+```bash
+npm install -g @openai/codex@latest
+codex
+```
+
+Pak zvol `Sign in with ChatGPT`.
 
 ### Telegram token funguje, ale `telegram:setup-info` neukazuje žádná ID
 

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname "$0")/test-lib.sh"
-NODE_BIN="node"
 
 tmp="$(mktemp -d "$PWD/.tmp-control-plane-XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
@@ -25,34 +24,34 @@ phase_provider_preferences:
   validation: codex
 EOF
 
-npm --silent --prefix apps/control-plane run build >/dev/null
-npm --silent --prefix apps/control-plane run help > "$tmp/help.txt"
-npm --silent --prefix apps/control-plane run init -- --db "$tmp/control-plane.db" > "$tmp/init.json"
-npm --silent --prefix apps/control-plane run project:register -- \
+run_npm --silent --prefix apps/control-plane run build >/dev/null
+run_npm --silent --prefix apps/control-plane run help > "$tmp/help.txt"
+run_npm --silent --prefix apps/control-plane run init -- --db "$tmp/control-plane.db" > "$tmp/init.json"
+run_npm --silent --prefix apps/control-plane run project:register -- \
   --db "$tmp/control-plane.db" \
   --project-config "$tmp/remote-control.yaml" \
   --repo-path "$tmp/repo" \
   --chat-ids 1001 \
   --user-ids 2001 > "$tmp/register.json"
-npm --silent --prefix apps/control-plane run project:show -- \
+run_npm --silent --prefix apps/control-plane run project:show -- \
   --db "$tmp/control-plane.db" \
   --project-id fixture-npm-026 > "$tmp/show.json"
-npm --silent --prefix apps/control-plane run auth:validate -- --mode cli-subscription > "$tmp/auth.json"
-npm --silent --prefix apps/control-plane run router:choose -- \
+run_npm --silent --prefix apps/control-plane run auth:validate -- --mode cli-subscription > "$tmp/auth.json"
+run_npm --silent --prefix apps/control-plane run router:choose -- \
   --db "$tmp/control-plane.db" \
   --project-config "$tmp/remote-control.yaml" \
   --phase planning \
   --provider auto > "$tmp/router.json"
-npm --silent --prefix apps/control-plane run usage:show -- --db "$tmp/control-plane.db" > "$tmp/usage.json"
-npm --silent --prefix apps/control-plane run telegram:registry -- \
+run_npm --silent --prefix apps/control-plane run usage:show -- --db "$tmp/control-plane.db" > "$tmp/usage.json"
+run_npm --silent --prefix apps/control-plane run telegram:registry -- \
   --config apps/control-plane/config/command-registry.json > "$tmp/registry.json"
-npm --silent --prefix apps/control-plane run telegram:interactive > "$tmp/interactive.json"
-npm --silent --prefix apps/control-plane run telegram:callback -- \
+run_npm --silent --prefix apps/control-plane run telegram:interactive > "$tmp/interactive.json"
+run_npm --silent --prefix apps/control-plane run telegram:callback -- \
   --data "resume:fixture-npm-026:REF-026" > "$tmp/callback.json"
-npm --silent --prefix apps/control-plane run mounts:template > "$tmp/mounts.json"
-npm --silent --prefix apps/control-plane run defaults:show -- \
+run_npm --silent --prefix apps/control-plane run mounts:template > "$tmp/mounts.json"
+run_npm --silent --prefix apps/control-plane run defaults:show -- \
   --config apps/control-plane/config/command-registry.json > "$tmp/defaults.json"
-npm --silent --prefix apps/control-plane run policy:show -- \
+run_npm --silent --prefix apps/control-plane run policy:show -- \
   --project-config "$tmp/remote-control.yaml" > "$tmp/policy.json"
 
 assert_contains "$tmp/help.txt" "telegram serve"

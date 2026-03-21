@@ -32,7 +32,7 @@ Operator onboarding:
 
 ## Prerequisites
 
-- Node.js `>=24`
+- Node.js `>=20`
 - `git`
 - `bash`
 - provider CLIs already authenticated in subscription mode on the host
@@ -52,6 +52,7 @@ The installer:
 - registers the project on the host
 - auto-detects `claude` and `codex` CLIs from the current Linux/WSL shell
 - probes provider binaries and stores host-side metadata in SQLite
+- uses `claude auth status --json` as the default Claude subscription probe
 - records missing CLIs as unavailable and tells the operator to install them manually instead of trying to use them
 - asks only a few setup questions and generates a ready-to-run launcher script
 
@@ -66,7 +67,7 @@ npm --prefix apps/control-plane run <script-name> -- <cli args>
 ```
 
 Use `--` only when you need to pass flags through to the underlying CLI command.
-The npm scripts run through `apps/control-plane/scripts/run-cli.sh`, which prefers native Node 24+ and falls back to `node.exe` on WSL hosts that still have an older Linux `node`.
+The npm scripts run through `apps/control-plane/scripts/run-cli.sh`, which prefers a native Linux Node from `~/.nvm` on WSL hosts and only falls back to `node.exe` if needed.
 If you want machine-readable JSON without npm banners, use `npm --silent --prefix apps/control-plane run ...`.
 
 ### Initialize runtime DB
@@ -121,6 +122,14 @@ npm --prefix apps/control-plane run run:launch -- \
 
 ```bash
 npm --prefix apps/control-plane run serve:generated
+```
+
+The launcher and CLI wrapper pass `--no-warnings`, so the `node:sqlite` experimental warning is suppressed in normal operator use.
+
+Watch the structured daemon log:
+
+```bash
+npm --prefix apps/control-plane run logs:tail
 ```
 
 ### Script map

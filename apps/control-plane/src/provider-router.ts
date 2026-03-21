@@ -224,17 +224,28 @@ export function probeProviderSession(
     return { session, usage_windows: [] };
   }
 
-  const probeArgs = options.probe_args && options.probe_args.length > 0 ? options.probe_args : ["--version"];
+  const probeArgs =
+    options.probe_args && options.probe_args.length > 0 ? options.probe_args : defaultProbeArgs(options.provider);
   const probeResult = runCommand(cliPath, probeArgs, sessionHome);
 
   let status: ProviderSessionRecord["status"] = "ok";
   let lastError: string | null = null;
+  let accountLabel = options.account_label || inferAccountLabel(options.provider, probeResult.stdout);
   if (probeResult.error) {
     status = "missing";
     lastError = probeResult.error;
   } else if (probeResult.status !== 0) {
     status = "error";
     lastError = probeResult.stderr.trim() || probeResult.stdout.trim() || `Probe exited with ${probeResult.status}`;
+  } else {
+    const authCheck = inspectProbeResult(options.provider, probeResult.stdout);
+    if (authCheck.status !== "ok") {
+      status = authCheck.status;
+      lastError = authCheck.last_error;
+    }
+    if (authCheck.account_label) {
+      accountLabel = authCheck.account_label;
+    }
   }
 
   let usageWindows: UsageWindow[] = [];
@@ -260,7 +271,7 @@ export function probeProviderSession(
     auth_mode: "cli-subscription",
     cli_path: cliPath,
     session_home: sessionHome,
-    account_label: options.account_label || null,
+    account_label: accountLabel,
     status,
     last_verified_at_utc: verifiedAt,
     last_usage_sync_at_utc: usageSyncedAt,
@@ -389,6 +400,89 @@ function upsertProviderSession(handle: DatabaseHandle, session: ProviderSessionR
 
 function getAvailableProviders(sessions: ProviderSessionRecord[]): Provider[] {
   return sessions.filter((session) => session.status === "ok").map((session) => session.provider);
+}
+
+function defaultProbeArgs(provider: Provider): string[] {
+  switch (provider) {
+    case "claude":
+      return ["auth", "status", "--json"];
+    case "codex":
+      return ["--help"];
+    default:
+      return ["--version"];
+  }
+}
+
+function inspectProbeResult(
+  provider: Provider,
+  stdout: string
+): { status: ProviderSessionRecord["status"]; last_error: string | null; account_label: string | null } {
+  if (provider !== "claude") {
+    return {
+      status: "ok",
+      last_error: null,
+      account_label: inferAccountLabel(provider, stdout)
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(stdout) as {
+      loggedIn?: boolean;
+      email?: string;
+      subscriptionType?: string;
+    };
+
+    if (parsed.loggedIn === false) {
+      return {
+        status: "error",
+        last_error: "Claude CLI is installed but not logged in. Run 'claude auth login' on the host.",
+        account_label: null
+      };
+    }
+
+    return {
+      status: "ok",
+      last_error: null,
+      account_label: formatAccountLabel(parsed.email, parsed.subscriptionType)
+    };
+  } catch {
+    return {
+      status: "ok",
+      last_error: null,
+      account_label: inferAccountLabel(provider, stdout)
+    };
+  }
+}
+
+function inferAccountLabel(provider: Provider, stdout: string): string | null {
+  if (provider !== "claude") {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(stdout) as {
+      email?: string;
+      subscriptionType?: string;
+    };
+    return formatAccountLabel(parsed.email, parsed.subscriptionType);
+  } catch {
+    return null;
+  }
+}
+
+function formatAccountLabel(email?: string, subscriptionType?: string): string | null {
+  const normalizedEmail = email?.trim();
+  const normalizedPlan = subscriptionType?.trim();
+  if (normalizedEmail && normalizedPlan) {
+    return `${normalizedEmail} (${normalizedPlan})`;
+  }
+  if (normalizedEmail) {
+    return normalizedEmail;
+  }
+  if (normalizedPlan) {
+    return normalizedPlan;
+  }
+  return null;
 }
 
 function finalizeProviderDecision(
