@@ -94,7 +94,8 @@ bash apps/control-plane/scripts/install-host.sh \
 assert_contains "$tmp/install-preserve.out" "Existing state policy: preserve"
 assert_contains "$tmp/repo/docs/ai/project-overrides/remote-control.yaml" "preserve-marker"
 assert_contains "$tmp/runtime/control-plane.env" "PRESERVE_ME=1"
-assert_contains "$tmp/runtime/run-control-plane.sh" "preserve-marker"
+assert_contains "$tmp/runtime/run-control-plane.sh" "control-plane-daemon.sh"
+assert_contains "$tmp/runtime/run-control-plane.sh" "control-plane.env"
 assert_contains "$tmp/runtime/install-summary.json" "\"marker\":\"preserve\""
 
 run_cli queue status --db "$tmp/runtime/control-plane.db" --project-id fixture-install-028 > "$tmp/preserve-status.json"

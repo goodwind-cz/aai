@@ -540,7 +540,9 @@ write_run_script() {
   local env_path="$2"
   mkdir -p "$(dirname "$script_path")"
   if [[ -f "$script_path" && "$EXISTING_STATE_POLICY" != "overwrite" ]]; then
-    return
+    if grep -q "control-plane-daemon.sh" "$script_path"; then
+      return
+    fi
   fi
   cat > "$script_path" <<EOF
 #!/usr/bin/env bash
