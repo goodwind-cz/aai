@@ -383,8 +383,77 @@ process.stdout.write(String(value));
 EOF
 }
 
+discover_summary_path() {
+  if [[ -n "$SUMMARY_PATH" && -f "$SUMMARY_PATH" ]]; then
+    printf '%s\n' "$SUMMARY_PATH"
+    return
+  fi
+
+  local runtime_dir candidate explicit_project_id env_project_id count=0
+  runtime_dir="$(dirname "${RUNTIME_ENV_PATH:-$HOST_ROOT/.runtime/control-plane.env}")"
+  explicit_project_id="${PROJECT_ID:-}"
+  env_project_id="$(read_env_value "${RUNTIME_ENV_PATH:-$runtime_dir/control-plane.env}" "AAI_PROJECT_ID" || true)"
+
+  if [[ -n "$explicit_project_id" && -f "$runtime_dir/install-summary.${explicit_project_id}.json" ]]; then
+    printf '%s\n' "$runtime_dir/install-summary.${explicit_project_id}.json"
+    return
+  fi
+
+  if [[ -n "$env_project_id" && -f "$runtime_dir/install-summary.${env_project_id}.json" ]]; then
+    printf '%s\n' "$runtime_dir/install-summary.${env_project_id}.json"
+    return
+  fi
+
+  shopt -s nullglob
+  for candidate in "$runtime_dir"/install-summary.*.json; do
+    SUMMARY_DISCOVERY_LAST="$candidate"
+    count=$((count + 1))
+  done
+  shopt -u nullglob
+
+  if [[ "$count" -eq 1 ]]; then
+    printf '%s\n' "$SUMMARY_DISCOVERY_LAST"
+  fi
+}
+
+read_single_project_from_db() {
+  if [[ ! -f "$DB_PATH" || ! -f "$APP_DIR/dist/cli.js" ]]; then
+    return
+  fi
+
+  local list_json project_json project_count
+  list_json="$("$NODE_BIN" --no-warnings "$(to_native_path "$APP_DIR/dist/cli.js")" project list \
+    --db "$(to_native_path "$DB_PATH")" 2>/dev/null || true)"
+  if [[ -z "$list_json" ]]; then
+    return
+  fi
+
+  project_count="$("$NODE_BIN" --no-warnings - "$list_json" <<'EOF'
+const [raw] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+const projects = Array.isArray(payload.projects) ? payload.projects : [];
+process.stdout.write(String(projects.length));
+EOF
+)"
+
+  if [[ "$project_count" -ne 1 ]]; then
+    return
+  fi
+
+  project_json="$("$NODE_BIN" --no-warnings - "$list_json" <<'EOF'
+const [raw] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+const projects = Array.isArray(payload.projects) ? payload.projects : [];
+process.stdout.write(JSON.stringify({ project: projects[0] }));
+EOF
+)"
+  printf '%s\n' "$project_json"
+}
+
 load_defaults_from_existing_state() {
   local existing_token=""
+  local existing_managed_repo_path=""
+  local existing_project_config_path=""
   local existing_project_id=""
   local existing_default_branch=""
   local existing_chat_ids=""
@@ -398,21 +467,30 @@ load_defaults_from_existing_state() {
   local existing_planning_provider=""
   local existing_implementation_provider=""
   local existing_validation_provider=""
+  local project_json=""
 
-  existing_project_id="$(read_yaml_scalar "$PROJECT_CONFIG_PATH" "project_id" || true)"
-  existing_default_branch="$(read_yaml_scalar "$PROJECT_CONFIG_PATH" "default_branch" || true)"
-  existing_docker_profile="$(read_yaml_scalar "$PROJECT_CONFIG_PATH" "allowed_docker_profile" || true)"
-  existing_provider_policy="$(read_yaml_scalar "$PROJECT_CONFIG_PATH" "default_provider_policy" || true)"
-  existing_planning_provider="$(read_yaml_phase_preference "$PROJECT_CONFIG_PATH" "planning" || true)"
-  existing_implementation_provider="$(read_yaml_phase_preference "$PROJECT_CONFIG_PATH" "implementation" || true)"
-  existing_validation_provider="$(read_yaml_phase_preference "$PROJECT_CONFIG_PATH" "validation" || true)"
+  if [[ "$SUMMARY_PATH_SET" -eq 0 ]]; then
+    local discovered_summary_path=""
+    discovered_summary_path="$(discover_summary_path || true)"
+    if [[ -n "$discovered_summary_path" ]]; then
+      SUMMARY_PATH="$discovered_summary_path"
+    fi
+  fi
+
   existing_token="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_TELEGRAM_BOT_TOKEN" || true)"
+  existing_managed_repo_path="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_MANAGED_REPO_PATH" || true)"
+  existing_project_config_path="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_PROJECT_CONFIG_PATH" || true)"
+  existing_project_id="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_PROJECT_ID" || true)"
   existing_claude_cli="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_CLAUDE_CLI_PATH" || true)"
   existing_codex_cli="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_CODEX_CLI_PATH" || true)"
   existing_claude_home="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_CLAUDE_SESSION_HOME" || true)"
   existing_codex_home="$(read_env_value "$RUNTIME_ENV_PATH" "AAI_CODEX_SESSION_HOME" || true)"
 
   if [[ -f "$SUMMARY_PATH" ]]; then
+    existing_managed_repo_path="$(read_summary_value "$SUMMARY_PATH" "data.managed_repo_path || ''" || true)"
+    existing_project_config_path="$(read_summary_value "$SUMMARY_PATH" "data.project_config_path || ''" || true)"
+    existing_project_id="$(read_summary_value "$SUMMARY_PATH" "data.project_id || ''" || true)"
+    existing_default_branch="$(read_summary_value "$SUMMARY_PATH" "data.default_branch || ''" || true)"
     existing_chat_ids="$(read_summary_value "$SUMMARY_PATH" "data.host_binding?.allowed_telegram_chat_ids || []" || true)"
     existing_user_ids="$(read_summary_value "$SUMMARY_PATH" "data.host_binding?.allowed_telegram_user_ids || []" || true)"
     existing_claude_cli="$(read_summary_value "$SUMMARY_PATH" "data.providers?.claude?.cli_path || ''" || true)"
@@ -421,12 +499,66 @@ load_defaults_from_existing_state() {
     existing_codex_home="$(read_summary_value "$SUMMARY_PATH" "data.providers?.codex?.session_home || ''" || true)"
   fi
 
-  if [[ -f "$DB_PATH" && -f "$APP_DIR/dist/cli.js" && -n "$existing_project_id" ]]; then
-    local project_json=""
-    project_json="$("$NODE_BIN" --no-warnings "$(to_native_path "$APP_DIR/dist/cli.js")" project show \
-      --db "$(to_native_path "$DB_PATH")" \
-      --project-id "$existing_project_id" 2>/dev/null || true)"
+  if [[ "$MANAGED_REPO_PATH_SET" -eq 0 && -n "$existing_managed_repo_path" ]]; then
+    MANAGED_REPO_PATH="$existing_managed_repo_path"
+  fi
+  if [[ "$PROJECT_CONFIG_PATH_SET" -eq 0 && -n "$existing_project_config_path" ]]; then
+    PROJECT_CONFIG_PATH="$existing_project_config_path"
+  fi
+  if [[ "$PROJECT_ID_SET" -eq 0 && -n "$existing_project_id" ]]; then
+    PROJECT_ID="$existing_project_id"
+  fi
+
+  if [[ -f "$PROJECT_CONFIG_PATH" ]]; then
+    existing_project_id="${existing_project_id:-$(read_yaml_scalar "$PROJECT_CONFIG_PATH" "project_id" || true)}"
+    existing_default_branch="${existing_default_branch:-$(read_yaml_scalar "$PROJECT_CONFIG_PATH" "default_branch" || true)}"
+    existing_docker_profile="$(read_yaml_scalar "$PROJECT_CONFIG_PATH" "allowed_docker_profile" || true)"
+    existing_provider_policy="$(read_yaml_scalar "$PROJECT_CONFIG_PATH" "default_provider_policy" || true)"
+    existing_planning_provider="$(read_yaml_phase_preference "$PROJECT_CONFIG_PATH" "planning" || true)"
+    existing_implementation_provider="$(read_yaml_phase_preference "$PROJECT_CONFIG_PATH" "implementation" || true)"
+    existing_validation_provider="$(read_yaml_phase_preference "$PROJECT_CONFIG_PATH" "validation" || true)"
+  fi
+
+  if [[ -f "$DB_PATH" && -f "$APP_DIR/dist/cli.js" ]]; then
+    if [[ -n "$PROJECT_ID" ]]; then
+      project_json="$("$NODE_BIN" --no-warnings "$(to_native_path "$APP_DIR/dist/cli.js")" project show \
+        --db "$(to_native_path "$DB_PATH")" \
+        --project-id "$PROJECT_ID" 2>/dev/null || true)"
+    fi
+    if [[ -z "$project_json" ]]; then
+      project_json="$(read_single_project_from_db || true)"
+    fi
     if [[ -n "$project_json" ]]; then
+      existing_managed_repo_path="$("$NODE_BIN" --no-warnings - "$project_json" <<'EOF'
+const [raw] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+process.stdout.write(payload.project?.local_repo_path || "");
+EOF
+)"
+      existing_project_config_path="$("$NODE_BIN" --no-warnings - "$project_json" <<'EOF'
+const [raw] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+process.stdout.write(payload.project?.project_config_path || "");
+EOF
+)"
+      existing_project_id="$("$NODE_BIN" --no-warnings - "$project_json" <<'EOF'
+const [raw] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+process.stdout.write(payload.project?.project_id || "");
+EOF
+)"
+      existing_default_branch="$("$NODE_BIN" --no-warnings - "$project_json" <<'EOF'
+const [raw] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+process.stdout.write(payload.project?.default_branch || "");
+EOF
+)"
+      existing_provider_policy="$("$NODE_BIN" --no-warnings - "$project_json" <<'EOF'
+const [raw] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+process.stdout.write(payload.project?.default_provider_policy || "");
+EOF
+)"
       existing_chat_ids="$("$NODE_BIN" --no-warnings - "$project_json" <<'EOF'
 const [raw] = process.argv.slice(2);
 const payload = JSON.parse(raw);
@@ -444,6 +576,12 @@ EOF
     fi
   fi
 
+  if [[ "$MANAGED_REPO_PATH_SET" -eq 0 && -n "$existing_managed_repo_path" ]]; then
+    MANAGED_REPO_PATH="$existing_managed_repo_path"
+  fi
+  if [[ "$PROJECT_CONFIG_PATH_SET" -eq 0 && -n "$existing_project_config_path" ]]; then
+    PROJECT_CONFIG_PATH="$existing_project_config_path"
+  fi
   if [[ "$PROJECT_ID_SET" -eq 0 && -n "$existing_project_id" ]]; then
     PROJECT_ID="$existing_project_id"
   fi
