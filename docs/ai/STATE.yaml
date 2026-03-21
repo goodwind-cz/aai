@@ -42,12 +42,11 @@ active_work_items: []
 
 last_validation:
   status: pass
-  run_at_utc: "2026-03-21T01:02:51Z"
-  validator_ref: "manual-validation-20260321T010251Z"
+  run_at_utc: "2026-03-21T12:01:38Z"
+  validator_ref: "manual-validation-20260321T120138Z"
   evidence_paths:
-    - docs/ai/reports/validation-20260321T010251Z.log
-    - docs/ai/reports/validation-20260321T010251Z.md
-  notes: "Remote-orchestration now suppresses the user-facing SQLite experimental warning on wrapped runtime paths, writes structured daemon logs, explains the real Claude/Codex subscription login flow in synchronized English/Czech guides, and validate:remote passed again with 27/27 tests."
+    - docs/ai/reports/validation-20260321T120138Z.log
+  notes: "Remote-orchestration now asks before replacing existing setup state, supports preserve vs overwrite semantics including DB reinitialization, keeps structured daemon logs and clarified Claude/Codex subscription onboarding, and validate:remote passed with 28/28 tests."
 
 human_input:
   required: false
@@ -178,5 +177,13 @@ metrics:
           tokens_in: null
           tokens_out: null
           cost_usd: null
+        - role: Validation
+          model_id: gpt-5
+          started_utc: "2026-03-21T11:57:20Z"
+          ended_utc: "2026-03-21T12:01:38Z"
+          duration_seconds: 259
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
 
-updated_at_utc: "2026-03-21T01:02:51Z"
+updated_at_utc: "2026-03-21T12:01:38Z"

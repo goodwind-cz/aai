@@ -23,6 +23,8 @@ bash apps/control-plane/scripts/install-host.sh \
   --project-config-path "$tmp/repo/docs/ai/project-overrides/remote-control.yaml" \
   --db-path "$tmp/runtime/control-plane.db" \
   --summary-path "$tmp/runtime/install-summary.json" \
+  --runtime-env-path "$tmp/runtime/control-plane.env" \
+  --run-script-path "$tmp/runtime/run-control-plane.sh" \
   --default-branch main \
   --claude-cli-path "$tmp/bin/claude-missing.js" \
   --codex-cli-path "$tmp/bin/codex.js" \

@@ -30,6 +30,7 @@ CODEX_SESSION_HOME="${HOME}/.codex"
 SUMMARY_PATH=""
 RUNTIME_ENV_PATH=""
 RUN_SCRIPT_PATH=""
+EXISTING_STATE_POLICY=""
 ORIGINAL_ARGC=$#
 
 usage() {
@@ -58,6 +59,8 @@ Options:
   --summary-path <path>              Install summary JSON path. Default: .runtime/install-summary.<project>.json
   --runtime-env-path <path>          Runtime env file path. Default: .runtime/control-plane.env under host repo.
   --run-script-path <path>           Generated launch script path. Default: .runtime/run-control-plane.sh under host repo.
+  --preserve-existing                Keep existing config/runtime files and do not reinitialize the DB.
+  --overwrite-existing               Replace existing config/runtime files and reinitialize the DB.
   --skip-deps                        Skip npm install.
   --skip-build                       Skip npm build.
   --skip-provider-probes             Skip provider binary/session probes.
@@ -97,6 +100,18 @@ prompt_secret() {
   local answer=""
   printf '%s: ' "$prompt_text" >&2
   IFS= read -r answer || true
+  printf '%s\n' "$answer"
+}
+
+prompt_existing_state_policy() {
+  local answer=""
+  printf '%s\n' "Existing control-plane state detected." >&2
+  printf '%s\n' "Choose what to do with the existing config/runtime files: preserve or overwrite." >&2
+  printf '%s' "Action [preserve]: " >&2
+  IFS= read -r answer || true
+  if [[ -z "$answer" ]]; then
+    answer="preserve"
+  fi
   printf '%s\n' "$answer"
 }
 
@@ -252,7 +267,7 @@ resolve_cli_path() {
 write_project_config() {
   local config_path="$1"
   mkdir -p "$(dirname "$config_path")"
-  if [[ -f "$config_path" ]]; then
+  if [[ -f "$config_path" && "$EXISTING_STATE_POLICY" != "overwrite" ]]; then
     return
   fi
 
@@ -271,6 +286,9 @@ EOF
 write_runtime_env() {
   local env_path="$1"
   mkdir -p "$(dirname "$env_path")"
+  if [[ -f "$env_path" && "$EXISTING_STATE_POLICY" != "overwrite" ]]; then
+    return
+  fi
   {
     printf 'AAI_TELEGRAM_BOT_TOKEN=%s\n' "$TELEGRAM_BOT_TOKEN"
     printf 'AAI_CONTROL_PLANE_DB=%s\n' "$DB_PATH"
@@ -284,6 +302,9 @@ write_run_script() {
   local script_path="$1"
   local env_path="$2"
   mkdir -p "$(dirname "$script_path")"
+  if [[ -f "$script_path" && "$EXISTING_STATE_POLICY" != "overwrite" ]]; then
+    return
+  fi
   cat > "$script_path" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
@@ -346,7 +367,7 @@ probe_provider() {
 }
 
 write_summary() {
-  local created_config="$1"
+  local config_action="$1"
   local claude_detected="$2"
   local codex_detected="$3"
   local claude_recommended="$4"
@@ -355,7 +376,10 @@ write_summary() {
   local codex_status="$7"
 
   mkdir -p "$(dirname "$SUMMARY_PATH")"
-  "$NODE_BIN" --no-warnings - "$(to_native_path "$SUMMARY_PATH")" "$(to_native_path "$HOST_ROOT")" "$(to_native_path "$MANAGED_REPO_PATH")" "$(to_native_path "$DB_PATH")" "$(to_native_path "$PROJECT_CONFIG_PATH")" "$PROJECT_ID" "$DEFAULT_BRANCH" "$created_config" "$(to_native_path "$claude_detected")" "$(to_native_path "$CLAUDE_SESSION_HOME")" "$claude_recommended" "$claude_status" "$(to_native_path "$codex_detected")" "$(to_native_path "$CODEX_SESSION_HOME")" "$codex_recommended" "$codex_status" <<'EOF'
+  if [[ -f "$SUMMARY_PATH" && "$EXISTING_STATE_POLICY" != "overwrite" ]]; then
+    return
+  fi
+  "$NODE_BIN" --no-warnings - "$(to_native_path "$SUMMARY_PATH")" "$(to_native_path "$HOST_ROOT")" "$(to_native_path "$MANAGED_REPO_PATH")" "$(to_native_path "$DB_PATH")" "$(to_native_path "$PROJECT_CONFIG_PATH")" "$PROJECT_ID" "$DEFAULT_BRANCH" "$config_action" "$EXISTING_STATE_POLICY" "$(to_native_path "$claude_detected")" "$(to_native_path "$CLAUDE_SESSION_HOME")" "$claude_recommended" "$claude_status" "$(to_native_path "$codex_detected")" "$(to_native_path "$CODEX_SESSION_HOME")" "$codex_recommended" "$codex_status" <<'EOF'
 const fs = require("node:fs");
 const [
   summaryPath,
@@ -365,7 +389,8 @@ const [
   projectConfigPath,
   projectId,
   defaultBranch,
-  createdConfig,
+  configAction,
+  existingStatePolicy,
   claudeCliPath,
   claudeSessionHome,
   claudeRecommended,
@@ -384,7 +409,8 @@ const payload = {
   project_config_path: projectConfigPath,
   project_id: projectId,
   default_branch: defaultBranch,
-  config_created: createdConfig === "true",
+  existing_state_policy: existingStatePolicy,
+  project_config_action: configAction,
   providers: {
     claude: {
       cli_path: claudeCliPath || null,
@@ -405,6 +431,55 @@ const payload = {
 
 fs.writeFileSync(summaryPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 EOF
+}
+
+collect_existing_state_paths() {
+  local path
+  local paths=()
+  for path in "$PROJECT_CONFIG_PATH" "$DB_PATH" "$SUMMARY_PATH" "$RUNTIME_ENV_PATH" "$RUN_SCRIPT_PATH"; do
+    if [[ -e "$path" ]]; then
+      paths+=("$path")
+    fi
+  done
+  if [[ "${#paths[@]}" -eq 0 ]]; then
+    return
+  fi
+  printf '%s\n' "${paths[@]}"
+}
+
+resolve_existing_state_policy() {
+  mapfile -t existing_paths < <(collect_existing_state_paths)
+  if [[ "${#existing_paths[@]}" -eq 0 ]]; then
+    EXISTING_STATE_POLICY="preserve"
+    return
+  fi
+
+  if [[ -n "$EXISTING_STATE_POLICY" ]]; then
+    return
+  fi
+
+  if is_tty; then
+    printf '%s\n' "Existing files:" >&2
+    local path
+    for path in "${existing_paths[@]}"; do
+      printf '  - %s\n' "$path" >&2
+    done
+    EXISTING_STATE_POLICY="$(prompt_existing_state_policy)"
+  else
+    fail "Existing control-plane state detected. Re-run with --preserve-existing or --overwrite-existing."
+  fi
+
+  case "$EXISTING_STATE_POLICY" in
+    preserve|overwrite)
+      ;;
+    *)
+      fail "Invalid existing state policy: $EXISTING_STATE_POLICY. Use preserve or overwrite."
+      ;;
+  esac
+}
+
+wipe_database_files() {
+  rm -f "$DB_PATH" "$DB_PATH-wal" "$DB_PATH-shm"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -489,6 +564,14 @@ while [[ $# -gt 0 ]]; do
       RUN_SCRIPT_PATH="$2"
       shift 2
       ;;
+    --preserve-existing)
+      EXISTING_STATE_POLICY="preserve"
+      shift
+      ;;
+    --overwrite-existing)
+      EXISTING_STATE_POLICY="overwrite"
+      shift
+      ;;
     --skip-deps)
       SKIP_DEPS=1
       shift
@@ -545,6 +628,7 @@ if [[ "$WIZARD_MODE" -eq 1 ]]; then
 fi
 
 resolve_node_bin
+resolve_existing_state_policy
 
 command -v git >/dev/null 2>&1 || fail "git is required."
 command -v bash >/dev/null 2>&1 || fail "bash is required."
@@ -559,12 +643,19 @@ fi
 
 [[ -f "$APP_DIR/dist/cli.js" ]] || fail "Built CLI missing at $APP_DIR/dist/cli.js"
 
+if [[ "$EXISTING_STATE_POLICY" == "overwrite" ]]; then
+  wipe_database_files
+fi
+
 "$NODE_BIN" --no-warnings "$(to_native_path "$APP_DIR/dist/cli.js")" init --db "$(to_native_path "$DB_PATH")" >/dev/null
 
-created_config="false"
+config_action="preserved"
 if [[ ! -f "$PROJECT_CONFIG_PATH" ]]; then
   write_project_config "$PROJECT_CONFIG_PATH"
-  created_config="true"
+  config_action="created"
+elif [[ "$EXISTING_STATE_POLICY" == "overwrite" ]]; then
+  write_project_config "$PROJECT_CONFIG_PATH"
+  config_action="overwritten"
 fi
 
 register_args=(
@@ -604,7 +695,7 @@ if [[ "$codex_status" != "ok" ]]; then
   codex_recommended="Install or reinstall Codex CLI with 'npm install -g @openai/codex@latest', run 'codex' and choose 'Sign in with ChatGPT', then rerun bash apps/control-plane/scripts/install-host.sh or npm --prefix apps/control-plane run auth:probe -- ..."
 fi
 
-write_summary "$created_config" "$claude_detected" "$codex_detected" "$claude_recommended" "$codex_recommended" "$claude_status" "$codex_status"
+write_summary "$config_action" "$claude_detected" "$codex_detected" "$claude_recommended" "$codex_recommended" "$claude_status" "$codex_status"
 
 if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
   write_runtime_env "$RUNTIME_ENV_PATH"
@@ -612,6 +703,7 @@ if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
 fi
 
 printf 'Install complete.\n'
+printf 'Existing state policy: %s\n' "$EXISTING_STATE_POLICY"
 printf 'Host DB: %s\n' "$DB_PATH"
 printf 'Project config: %s\n' "$PROJECT_CONFIG_PATH"
 printf 'Install summary: %s\n' "$SUMMARY_PATH"

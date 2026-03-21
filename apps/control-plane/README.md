@@ -55,6 +55,7 @@ The installer:
 - uses `claude auth status --json` as the default Claude subscription probe
 - records missing CLIs as unavailable and tells the operator to install them manually instead of trying to use them
 - asks only a few setup questions and generates a ready-to-run launcher script
+- if existing config/runtime files are detected, it now asks whether to preserve them or overwrite everything, including DB reinitialization
 
 In WSL the detected CLI path is typically the real Linux path, for example `$(command -v claude)` such as `/home/ales/.local/bin/claude`.
 

@@ -183,6 +183,14 @@ The installer then:
 - writes `.runtime/run-control-plane.sh`
 - writes runtime logs to `.runtime/control-plane.log`
 - prints the exact run command
+- if it finds an existing config or runtime state, it asks whether to preserve the current setup or overwrite everything, including reinitializing the DB
+
+Non-interactive equivalent:
+
+```bash
+npm --prefix apps/control-plane run install:host -- --preserve-existing ...
+npm --prefix apps/control-plane run install:host -- --overwrite-existing ...
+```
 
 ## 6. Install the control-plane for another project
 
@@ -221,6 +229,11 @@ Important files:
 - runtime log: `.runtime/control-plane.log`
 - generated launcher: `.runtime/run-control-plane.sh`
 - portable project policy: `docs/ai/project-overrides/remote-control.yaml`
+
+If you rerun the installer against an existing setup:
+
+- `preserve` keeps the current config, DB, env, launcher, and summary files
+- `overwrite` rewrites config/runtime files and recreates the SQLite DB from scratch
 
 ## 8. Verify agent authentication after install
 
@@ -466,7 +479,7 @@ npm --prefix apps/control-plane run validate:remote
 
 Target result:
 
-- `27/27 PASS`
+- `28/28 PASS`
 
 Focused checks:
 

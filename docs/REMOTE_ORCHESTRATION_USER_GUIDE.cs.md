@@ -183,6 +183,14 @@ Installer potom:
 - zapíše `.runtime/run-control-plane.sh`
 - zapíše runtime log do `.runtime/control-plane.log`
 - vypíše přesný run command
+- pokud najde existující config nebo runtime state, zeptá se, jestli chceš současný setup zachovat, nebo všechno přepsat včetně reinicializace DB
+
+Neinteraktivní ekvivalent:
+
+```bash
+npm --prefix apps/control-plane run install:host -- --preserve-existing ...
+npm --prefix apps/control-plane run install:host -- --overwrite-existing ...
+```
 
 ## 6. Instalace control-plane pro jiný projekt
 
@@ -221,6 +229,11 @@ Důležité soubory:
 - runtime log: `.runtime/control-plane.log`
 - vygenerovaný launcher: `.runtime/run-control-plane.sh`
 - portable project policy: `docs/ai/project-overrides/remote-control.yaml`
+
+Když installer pustíš znovu nad existujícím setupem:
+
+- `preserve` zachová aktuální config, DB, env, launcher i summary soubory
+- `overwrite` přepíše config/runtime soubory a vytvoří SQLite DB znovu od nuly
 
 ## 8. Ověření autentizace agentů po instalaci
 
@@ -466,7 +479,7 @@ npm --prefix apps/control-plane run validate:remote
 
 Cílový výsledek:
 
-- `27/27 PASS`
+- `28/28 PASS`
 
 Focused checks:
 
