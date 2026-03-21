@@ -168,12 +168,12 @@ Když wizard pustíš znovu později, převezme poslední známé hodnoty. Prakt
 - Enter ponechá aktuální cestu k repu, project id, branch, chat ID, user ID i token
 - existující hodnoty z `docs/ai/project-overrides/remote-control.yaml` se použijí jako výchozí i tehdy, když installer potřebuje projektový config znovu přepsat
 - token se ukazuje maskovaně
-- pokud najde existující config nebo runtime soubory, vybíráš jedinou akci: `preserve` nebo `overwrite`
+- pokud najde existující config nebo runtime soubory, wizard se zeptá `Overwrite existing config/runtime state? [y/N]`
 
 Význam volby stavu:
 
-- `preserve` ponechá aktuální config, DB, env, launcher i summary soubory
-- `overwrite` přepíše config/runtime soubory a vytvoří SQLite DB znovu od nuly
+- `N` nebo Enter ponechá aktuální config, DB, env, launcher i summary soubory
+- `y` přepíše config/runtime soubory a vytvoří SQLite DB znovu od nuly
 
 Neinteraktivní ekvivalent:
 

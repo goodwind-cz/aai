@@ -150,13 +150,20 @@ prompt_secret_with_default() {
 prompt_existing_state_policy() {
   local answer=""
   printf '%s\n' "Existing control-plane state detected." >&2
-  printf '%s\n' "Choose what to do with the existing config/runtime files: preserve or overwrite." >&2
-  printf '%s' "Action [preserve]: " >&2
+  printf '%s\n' "Press Enter to preserve the current setup, or 'y' to overwrite it and reinitialize the DB." >&2
+  printf '%s' "Overwrite existing config/runtime state? [y/N]: " >&2
   IFS= read -r answer || true
-  if [[ -z "$answer" ]]; then
-    answer="preserve"
-  fi
-  printf '%s\n' "$answer"
+  case "${answer,,}" in
+    ""|n|no|preserve)
+      printf 'preserve\n'
+      ;;
+    y|yes|overwrite)
+      printf 'overwrite\n'
+      ;;
+    *)
+      printf '%s\n' "$answer"
+      ;;
+  esac
 }
 
 prompt_yes_no_default() {
@@ -901,7 +908,7 @@ resolve_existing_state_policy() {
     preserve|overwrite)
       ;;
     *)
-      fail "Invalid existing state policy: $EXISTING_STATE_POLICY. Use preserve or overwrite."
+      fail "Invalid existing state policy: $EXISTING_STATE_POLICY. Use y/N, preserve, or overwrite."
       ;;
   esac
 }

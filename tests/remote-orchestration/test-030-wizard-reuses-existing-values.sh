@@ -62,7 +62,7 @@ printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
   "" \
   "" \
   "" \
-  "overwrite" | \
+  "y" | \
   bash apps/control-plane/scripts/install-host.sh \
     --wizard \
     --db-path "$tmp/runtime/control-plane.db" \
@@ -81,6 +81,7 @@ assert_contains "$tmp/install.out" "Project id [fixture-install-030]"
 assert_contains "$tmp/install.out" "Allowed Telegram chat ids (csv, optional) [3001,3002]"
 assert_contains "$tmp/install.out" "Allowed Telegram user ids (csv, optional) [4001]"
 assert_contains "$tmp/install.out" "Telegram bot token (leave blank to add later) [Enter to keep tele...-030]"
+assert_contains "$tmp/install.out" "Overwrite existing config/runtime state? [y/N]"
 assert_contains "$tmp/install.out" "Existing state policy: overwrite"
 assert_contains "$tmp/runtime/control-plane.env" "AAI_TELEGRAM_BOT_TOKEN=telegram-token-030"
 assert_contains "$tmp/repo/docs/ai/project-overrides/remote-control.yaml" "allowed_docker_profile: worker-special"

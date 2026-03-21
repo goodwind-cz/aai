@@ -168,12 +168,12 @@ When you rerun the wizard later, it reuses the last known values. In practice th
 - pressing Enter keeps the current repository path, project id, branch, chat IDs, user IDs, and token
 - existing values from `docs/ai/project-overrides/remote-control.yaml` are reused as defaults when the installer needs to rewrite the project config
 - the token is shown masked
-- if existing config or runtime files are found, you choose one action: `preserve` or `overwrite`
+- if existing config or runtime files are found, the wizard asks `Overwrite existing config/runtime state? [y/N]`
 
 Meaning of the state choice:
 
-- `preserve` keeps the current config, DB, env, launcher, and summary files
-- `overwrite` rewrites config/runtime files and recreates the SQLite DB from scratch
+- `N` or Enter keeps the current config, DB, env, launcher, and summary files
+- `y` rewrites config/runtime files and recreates the SQLite DB from scratch
 
 Non-interactive equivalent:
 

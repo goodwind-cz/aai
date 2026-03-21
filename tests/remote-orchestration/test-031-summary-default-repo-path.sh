@@ -67,7 +67,7 @@ printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
   "" \
   "" \
   "" \
-  "overwrite" | \
+  "y" | \
   bash apps/control-plane/scripts/install-host.sh \
     --wizard \
     --db-path "$tmp/runtime/control-plane.db" \
@@ -80,5 +80,6 @@ assert_contains "$tmp/install.out" "Managed project repository path [$tmp/repo]"
 assert_contains "$tmp/install.out" "Project id [fixture-summary-031]"
 assert_contains "$tmp/install.out" "Allowed Telegram chat ids (csv, optional) [3101]"
 assert_contains "$tmp/install.out" "Allowed Telegram user ids (csv, optional) [4101]"
+assert_contains "$tmp/install.out" "Overwrite existing config/runtime state? [y/N]"
 
 echo "PASS"
