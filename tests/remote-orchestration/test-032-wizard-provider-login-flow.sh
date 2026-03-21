@@ -113,7 +113,8 @@ printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
 
 assert_contains "$tmp/login/install.out" "Provider 'claude' is not ready yet (status: error)."
 assert_contains "$tmp/login/install.out" "Press Enter to open interactive login now, or type 's' to skip for now [Enter/s]:"
-assert_contains "$tmp/login/install.out" "If the CLI shows a verification link and one-time code, open the link, paste or confirm the code, and wait until the CLI returns."
+assert_contains "$tmp/login/install.out" "If the CLI shows a verification link and one-time code, open the link, then return to this same terminal, paste the authentication code here, and press Enter even if no prompt is visible yet."
+assert_contains "$tmp/login/install.out" "If the terminal seems stuck after opening the browser, it is usually waiting for that pasted authentication code."
 assert_contains "$tmp/login/install.out" "Open https://claude.example.test/device"
 assert_contains "$tmp/login/install.out" "Code: TEST-CODE-123"
 run_cli auth status --db "$tmp/login/runtime/control-plane.db" --provider claude > "$tmp/login/status.json"

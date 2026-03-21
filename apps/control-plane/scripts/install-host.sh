@@ -776,7 +776,8 @@ run_interactive_provider_login() {
 
   printf '%s\n' "Complete the provider's native subscription login flow on this host." >&2
   printf '%s\n' "If the CLI opens a browser, finish the login there." >&2
-  printf '%s\n' "If the CLI shows a verification link and one-time code, open the link, paste or confirm the code, and wait until the CLI returns." >&2
+  printf '%s\n' "If the CLI shows a verification link and one-time code, open the link, then return to this same terminal, paste the authentication code here, and press Enter even if no prompt is visible yet." >&2
+  printf '%s\n' "If the terminal seems stuck after opening the browser, it is usually waiting for that pasted authentication code." >&2
 
   if [[ "$cli_path" =~ \.(cjs|mjs|js|ts)$ ]]; then
     login_command=("$NODE_BIN" --no-warnings "$cli_path")

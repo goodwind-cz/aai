@@ -44,6 +44,16 @@ detect_render_node() {
   printf '\n'
 }
 
+run_provider_login_command() {
+  local cli_path="$1"
+  shift
+  if [[ "$cli_path" =~ \.(cjs|mjs|js|ts)$ ]]; then
+    "${RENDER_NODE:-node}" --no-warnings "$cli_path" "$@"
+    return
+  fi
+  "$cli_path" "$@"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env)
@@ -272,18 +282,22 @@ probe_provider() {
 login_provider() {
   local provider="$1"
   local cli_path=""
+  local session_home=""
   case "$provider" in
     claude)
       cli_path="${AAI_CLAUDE_CLI_PATH:-$(command -v claude 2>/dev/null || true)}"
+      session_home="${AAI_CLAUDE_SESSION_HOME:-$HOME/.claude}"
       [[ -n "$cli_path" ]] || fail "Claude CLI is not installed. Install it first, then run 'claude auth login'."
       printf '%s\n' "Opening Claude interactive login..."
-      "$cli_path" auth login
+      printf '%s\n' "If Claude opens a browser and shows an authentication code there, return to this same terminal, paste the code, and press Enter even if the terminal looks stuck."
+      HOME="$session_home" AAI_PROVIDER_SESSION_HOME="$session_home" run_provider_login_command "$cli_path" auth login
       ;;
     codex)
       cli_path="${AAI_CODEX_CLI_PATH:-$(command -v codex 2>/dev/null || true)}"
+      session_home="${AAI_CODEX_SESSION_HOME:-$HOME/.codex}"
       [[ -n "$cli_path" ]] || fail "Codex CLI is not installed or broken. Reinstall with 'npm install -g @openai/codex@latest' and run again."
       printf '%s\n' "Opening Codex interactive login. Choose 'Sign in with ChatGPT', finish login, then exit Codex."
-      "$cli_path"
+      HOME="$session_home" AAI_PROVIDER_SESSION_HOME="$session_home" run_provider_login_command "$cli_path"
       ;;
     *)
       fail "Unsupported provider: $provider"

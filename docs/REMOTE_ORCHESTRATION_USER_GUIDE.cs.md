@@ -193,7 +193,8 @@ Last probe detail: Claude CLI is installed but not logged in. Run 'claude auth l
 Press Enter to open interactive login now, or type 's' to skip for now [Enter/s]:
 Complete the provider's native subscription login flow on this host.
 If the CLI opens a browser, finish the login there.
-If the CLI shows a verification link and one-time code, open the link, paste or confirm the code, and wait until the CLI returns.
+If the CLI shows a verification link and one-time code, open the link, then return to the same terminal, paste the authentication code there, and press Enter even if no prompt is visible yet.
+If the terminal looks stuck after opening the browser, it is usually waiting for that pasted authentication code.
 ```
 
 Význam volby stavu:
@@ -302,7 +303,7 @@ Co přesně dělají příkazy `run-control-plane.sh`:
 - `probe`
   Znovu ověří dostupnost a login state Claude i Codex a vypíše čitelný souhrn včetně informace o dostupnosti usage telemetry.
 - `login claude`
-  Otevře nativní interaktivní Claude login na hostu a potom znovu ověří Claude.
+  Otevře nativní interaktivní Claude login na hostu, explicitně řekne, že když Claude čeká, máš vložit browser authentication code zpět do stejného terminálu, a potom znovu ověří Claude.
 - `login codex`
   Otevře nativní interaktivní Codex login na hostu a potom znovu ověří Codex.
 

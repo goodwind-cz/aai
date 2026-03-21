@@ -57,7 +57,7 @@ The installer:
 - uses `claude auth status --json` as the default Claude subscription probe
 - if a provider is already logged in, shows the current account and lets the operator keep it with Enter or switch with `s`
 - if a provider is not logged in yet, offers to open the native interactive login flow immediately
-- explains the browser or device-code style flow when the provider requires a link click and one-time code confirmation
+- explains the browser or device-code style flow, including that Claude may wait for the authentication code to be pasted back into the same terminal
 - records missing CLIs as unavailable and tells the operator to install them manually instead of trying to use them
 - reuses existing values from the last install summary, runtime env, project config, and SQLite registration so the operator can keep them by pressing Enter
 - asks only a few setup questions and generates a ready-to-run launcher script
