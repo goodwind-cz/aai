@@ -170,6 +170,14 @@ When you rerun the wizard later, it reuses the last known values. In practice th
 - the token is shown masked
 - if existing config or runtime files are found, the wizard asks `Overwrite existing config/runtime state? [y/N]`
 
+Example:
+
+```text
+Existing control-plane state detected.
+Press Enter to preserve the current setup, or 'y' to overwrite it and reinitialize the DB.
+Overwrite existing config/runtime state? [y/N]:
+```
+
 Meaning of the state choice:
 
 - `N` or Enter keeps the current config, DB, env, launcher, and summary files

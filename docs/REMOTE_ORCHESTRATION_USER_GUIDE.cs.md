@@ -170,6 +170,14 @@ Když wizard pustíš znovu později, převezme poslední známé hodnoty. Prakt
 - token se ukazuje maskovaně
 - pokud najde existující config nebo runtime soubory, wizard se zeptá `Overwrite existing config/runtime state? [y/N]`
 
+Příklad:
+
+```text
+Existing control-plane state detected.
+Press Enter to preserve the current setup, or 'y' to overwrite it and reinitialize the DB.
+Overwrite existing config/runtime state? [y/N]:
+```
+
 Význam volby stavu:
 
 - `N` nebo Enter ponechá aktuální config, DB, env, launcher i summary soubory
