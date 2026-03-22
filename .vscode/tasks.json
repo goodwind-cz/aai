@@ -1,0 +1,49 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "control-plane:build",
+      "type": "shell",
+      "command": "npm --prefix apps/control-plane run build"
+    },
+    {
+      "label": "control-plane:build-watch",
+      "type": "shell",
+      "command": "npm --prefix apps/control-plane run build:watch",
+      "isBackground": true,
+      "problemMatcher": [
+        "$tsc-watch"
+      ]
+    },
+    {
+      "label": "control-plane:debug-foreground-9230",
+      "type": "shell",
+      "command": "bash .runtime/run-control-plane.sh stop || true; bash .runtime/run-control-plane.sh debug 9230",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "custom",
+        "source": "control-plane-debug",
+        "base": "$tsc-watch",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^.*$",
+          "endsPattern": "^Debugger listening on ws://.*$"
+        }
+      }
+    },
+    {
+      "label": "control-plane:stop",
+      "type": "shell",
+      "command": "bash .runtime/run-control-plane.sh stop || true"
+    },
+    {
+      "label": "control-plane:dev-ready-9230",
+      "dependsOn": [
+        "control-plane:build",
+        "control-plane:debug-foreground-9230",
+        "control-plane:build-watch"
+      ],
+      "dependsOrder": "sequence"
+    }
+  ]
+}

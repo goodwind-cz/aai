@@ -150,6 +150,8 @@ bash .runtime/run-control-plane.sh status
 bash .runtime/run-control-plane.sh stop
 bash .runtime/run-control-plane.sh restart
 bash .runtime/run-control-plane.sh logs
+bash .runtime/run-control-plane.sh start-debug 9230
+bash .runtime/run-control-plane.sh debug 9230
 bash .runtime/run-control-plane.sh probe
 bash .runtime/run-control-plane.sh auth setup
 bash .runtime/run-control-plane.sh auth status
@@ -172,12 +174,78 @@ npm --prefix apps/control-plane run daemon:usage
 
 The launcher starts the Telegram daemon in the background and returns immediately. `auth setup` reuses existing native Claude/Codex CLI login and, when a provider is not ready, prints the exact native login command without trying to drive OAuth inside the wrapper. `auth status` shows provider readiness and routing capacity hints. `usage` shows provider usage telemetry when available plus the recommended number of parallel lanes. The launcher and CLI wrapper pass `--no-warnings`, so the `node:sqlite` experimental warning is suppressed in normal operator use.
 
+### Debug startup variants
+
+Use these launcher variants when you want to attach VS Code to the running Node process:
+
+```bash
+# Background daemon with Node inspector
+bash .runtime/run-control-plane.sh start-debug 9230
+
+# Foreground daemon with Node inspector
+bash .runtime/run-control-plane.sh debug 9230
+```
+
+Preferred VS Code profile in `.vscode/launch.json`:
+
+- `AAI Control Plane: TS Breakpoints (One Click)`
+
+This profile runs pre-launch tasks that:
+
+- build TypeScript once
+- start the control-plane in foreground debug mode on port 9230
+- start `tsc --watch` for incremental rebuilds
+
+You can use any free port in range 1-65535.
+
+If breakpoints do not stop:
+
+- confirm the selected profile is `AAI Control Plane: TS Breakpoints (One Click)`
+- check that the breakpoint is solid red (not hollow/unbound)
+- run `npm --prefix apps/control-plane run build` once to refresh `dist/*.map`
+- place the first breakpoint in a path that is definitely hit by your action
+
+For example, Telegram `/usage` hits capacity rendering paths (`describeProviderCapacity`), while provider selection (`chooseProvider`) is hit by routing commands such as `router choose` or run preparation/launch flows.
+
+### WSL auth troubleshooting
+
+If `auth status` reports `error` even though direct `claude`/`codex` commands work, check provider command resolution first.
+
+```bash
+type -a claude
+type -a codex
+```
+
+On WSL, the first resolved path should be a Linux path (for example `/home/<user>/.local/bin/claude` and `/home/<user>/.nvm/.../bin/codex`), not a Windows shim under `/mnt/c/Users/.../AppData/Roaming/npm`.
+
+Quick recovery for Codex optional dependency errors on WSL:
+
+```bash
+npm install -g @openai/codex@latest --include=optional
+hash -r
+codex --version
+```
+
+Then re-run:
+
+```bash
+bash .runtime/run-control-plane.sh auth status
+```
+
+Expected healthy state:
+
+- both providers show `status: ok`
+- `dispatch` is not `blocked`
+- `usage` may still be unavailable and keep routing conservative (`recommended_parallel_runs=1`) until telemetry is synced
+
 Watch the structured daemon log:
 
 ```bash
 bash .runtime/run-control-plane.sh logs
 npm --prefix apps/control-plane run daemon:logs
 ```
+
+If structured logging has no entries yet, `logs` automatically falls back to the console log and prints an explicit fallback message instead of staying silent.
 
 ### Script map
 

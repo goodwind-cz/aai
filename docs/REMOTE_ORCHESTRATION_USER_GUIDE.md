@@ -235,6 +235,46 @@ Status meaning:
 - `dispatch=blocked` means the router must not start work on that provider
 - `recommended parallel runs` is the safe upper bound for parallel Docker subtask fan-out on that provider
 
+### 6.1 WSL false-negative auth status troubleshooting
+
+If this command:
+
+```bash
+bash .runtime/run-control-plane.sh auth status
+```
+
+shows `error` for Claude or Codex, but direct CLI checks say you are logged in, verify command resolution first.
+
+```bash
+type -a claude
+type -a codex
+```
+
+In WSL, the first path should be Linux-native. If `codex` resolves first to a Windows shim such as `/mnt/c/Users/.../AppData/Roaming/npm/codex`, probes can fail with missing optional dependency or empty login status.
+
+Recover Codex on WSL:
+
+```bash
+npm install -g @openai/codex@latest --include=optional
+hash -r
+codex --version
+codex login status
+```
+
+Then re-run the control-plane probe:
+
+```bash
+bash .runtime/run-control-plane.sh auth status
+```
+
+Expected result:
+
+- `claude: ok`
+- `codex: ok`
+- `dispatch` is not `blocked`
+
+If `usage` is still unavailable, that is not an auth failure; routing remains conservative until provider usage telemetry is synced.
+
 Direct low-level status commands:
 
 ```bash
@@ -286,6 +326,8 @@ bash .runtime/run-control-plane.sh status
 bash .runtime/run-control-plane.sh stop
 bash .runtime/run-control-plane.sh restart
 bash .runtime/run-control-plane.sh logs
+bash .runtime/run-control-plane.sh start-debug 9230
+bash .runtime/run-control-plane.sh debug 9230
 ```
 
 Provider readiness and usage:
@@ -303,6 +345,10 @@ What each `run-control-plane.sh` command does:
   Starts the Telegram control-plane in the background and returns immediately to the shell. Use this for normal daily startup.
 - `run`
   Starts the same daemon in the foreground. Use this only when you want to watch it directly in the current terminal for debugging.
+- `start-debug [port]`
+  Starts the background daemon with Node inspector enabled (`NODE_OPTIONS=--inspect=0.0.0.0:<port>`). Use this when you want background runtime plus debugger attach.
+- `debug [port]`
+  Starts the foreground daemon with Node inspector enabled (`NODE_OPTIONS=--inspect=0.0.0.0:<port>`).
 - `status`
   Shows whether the daemon is running, its PID, DB path, log paths, whether the Telegram token is configured, current provider session health, and the active project binding.
 - `stop`
@@ -310,7 +356,7 @@ What each `run-control-plane.sh` command does:
 - `restart`
   Stops the daemon and starts it again with the same generated env file.
 - `logs`
-  Tails the structured runtime log. Use this when the daemon is already running and you want to see what it is doing.
+  Tails the structured runtime log. If the structured log is still empty, it automatically falls back to the console log and prints that fallback explicitly.
 - `probe`
   Re-checks Claude and Codex availability and prints a readable auth summary.
 - `auth setup`
@@ -333,6 +379,21 @@ npm --prefix apps/control-plane run daemon:auth:setup
 npm --prefix apps/control-plane run daemon:auth:status
 npm --prefix apps/control-plane run daemon:usage
 ```
+
+Preferred VS Code debug profile is in `.vscode/launch.json`:
+
+- `AAI Control Plane: TS Breakpoints (One Click)`
+
+This profile starts foreground debug on port `9230` and keeps TypeScript watch rebuild active.
+
+If breakpoints do not stop:
+
+- verify the selected profile is `AAI Control Plane: TS Breakpoints (One Click)`
+- make sure the breakpoint is solid red (not hollow/unbound)
+- run `npm --prefix apps/control-plane run build` once to refresh source maps
+- place your first breakpoint in code that is always hit by the command you are testing
+
+Example: Telegram `/usage` typically exercises `describeProviderCapacity`, while provider routing breakpoints such as `chooseProvider` are reached by routing/launch flows.
 
 `status` shows:
 

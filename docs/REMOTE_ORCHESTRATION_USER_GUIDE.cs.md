@@ -235,6 +235,46 @@ Význam stavů:
 - `dispatch=blocked` znamená, že router na tomto provideru nesmí spustit práci
 - `recommended parallel runs` je bezpečný horní limit paralelního fan-outu Docker subtasků pro tento provider
 
+### 6.1 Troubleshooting falešného auth erroru ve WSL
+
+Pokud příkaz:
+
+```bash
+bash .runtime/run-control-plane.sh auth status
+```
+
+ukazuje u Claude nebo Codex stav `error`, ale přímé CLI příkazy říkají, že jsi přihlášený, nejdřív ověř, odkud se příkaz bere:
+
+```bash
+type -a claude
+type -a codex
+```
+
+Ve WSL musí první nalezená cesta být Linuxová. Pokud `codex` míří jako první na Windows shim (například `/mnt/c/Users/.../AppData/Roaming/npm/codex`), probe může padat na missing optional dependency nebo prázdný login status.
+
+Rychlá obnova Codex ve WSL:
+
+```bash
+npm install -g @openai/codex@latest --include=optional
+hash -r
+codex --version
+codex login status
+```
+
+Pak znovu ověř control-plane stav:
+
+```bash
+bash .runtime/run-control-plane.sh auth status
+```
+
+Očekávaný výsledek:
+
+- `claude: ok`
+- `codex: ok`
+- `dispatch` není `blocked`
+
+Jestli je stále nedostupná `usage` telemetry, není to auth chyba. Router v tom případě běží konzervativně, dokud se usage data nenasynchronizují.
+
 Přímé low-level příkazy:
 
 ```bash
@@ -286,6 +326,8 @@ bash .runtime/run-control-plane.sh status
 bash .runtime/run-control-plane.sh stop
 bash .runtime/run-control-plane.sh restart
 bash .runtime/run-control-plane.sh logs
+bash .runtime/run-control-plane.sh start-debug 9230
+bash .runtime/run-control-plane.sh debug 9230
 ```
 
 Stav providerů a usage:
@@ -303,6 +345,10 @@ Co přesně dělají příkazy `run-control-plane.sh`:
   Spustí Telegram control-plane na pozadí a hned vrátí shell. To je normální způsob každodenního spuštění.
 - `run`
   Spustí stejný daemon v popředí. Hodí se jen tehdy, když ho chceš sledovat přímo v aktuálním terminálu při debugování.
+- `start-debug [port]`
+  Spustí daemon na pozadí se zapnutým Node inspectorem (`NODE_OPTIONS=--inspect=0.0.0.0:<port>`). Hodí se, když chceš background běh a zároveň debugger attach.
+- `debug [port]`
+  Spustí daemon v popředí se zapnutým Node inspectorem (`NODE_OPTIONS=--inspect=0.0.0.0:<port>`).
 - `status`
   Ukáže, jestli daemon běží, jeho PID, cestu k DB a logům, jestli je nastavený Telegram token, aktuální stav provider session a aktivní vazbu na projekt.
 - `stop`
@@ -310,7 +356,7 @@ Co přesně dělají příkazy `run-control-plane.sh`:
 - `restart`
   Daemon zastaví a znovu spustí se stejným vygenerovaným env file.
 - `logs`
-  Připojí se na strukturovaný runtime log. Použij ho tehdy, když daemon běží a chceš vidět, co právě dělá.
+  Připojí se na strukturovaný runtime log. Pokud je strukturovaný log zatím prázdný, automaticky přejde na console log a fallback jasně vypíše.
 - `probe`
   Znovu ověří dostupnost Claude i Codex a vypíše čitelný auth souhrn.
 - `auth setup`
@@ -333,6 +379,21 @@ npm --prefix apps/control-plane run daemon:auth:setup
 npm --prefix apps/control-plane run daemon:auth:status
 npm --prefix apps/control-plane run daemon:usage
 ```
+
+Doporučený VS Code debug profil je v `.vscode/launch.json`:
+
+- `AAI Control Plane: TS Breakpoints (One Click)`
+
+Tento profil spustí debug v popředí na portu `9230` a současně drží aktivní TypeScript watch rebuild.
+
+Když se breakpointy nezastavují:
+
+- ověř, že je vybraný profil `AAI Control Plane: TS Breakpoints (One Click)`
+- breakpoint musí být plný červený (ne dutý/unbound)
+- spusť jednou `npm --prefix apps/control-plane run build`, aby se obnovily source mapy
+- první breakpoint dej do cesty, která se při daném testovacím příkazu určitě vykoná
+
+Příklad: Telegram `/usage` typicky prochází přes `describeProviderCapacity`, zatímco routing breakpointy jako `chooseProvider` se zasáhnou při routing/launch flow.
 
 `status` ukazuje:
 

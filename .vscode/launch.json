@@ -1,0 +1,33 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "AAI Control Plane: TS Breakpoints (One Click)",
+      "type": "node",
+      "request": "attach",
+      "address": "localhost",
+      "port": 9230,
+      "restart": true,
+      "localRoot": "${workspaceFolder}",
+      "remoteRoot": "/mnt/z/AI/aai-feature-remote-orchestration",
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceFolder}/apps/control-plane/dist/**/*.js"
+      ],
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/apps/control-plane/dist/**/*.js",
+        "!**/node_modules/**"
+      ],
+      "sourceMapPathOverrides": {
+        "/mnt/z/AI/aai-feature-remote-orchestration/*": "${workspaceFolder}/*",
+        "/mnt/z/*": "z:/*",
+        "z:/*": "${workspaceFolder}/*",
+        "../src/*": "${workspaceFolder}/apps/control-plane/src/*"
+      },
+      "preLaunchTask": "control-plane:dev-ready-9230",
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    }
+  ]
+}
