@@ -16,6 +16,7 @@ Operator onboarding:
 - Operator surface: Telegram command registry, inline actions, callback handling, and long-poll daemon mode
 - Docker subagent auth model: the selected provider session home is mounted read-only into the worker, but the worker image must already contain the matching `claude` or `codex` CLI
 - Docker subagent memory model: the worker reads repo docs from `/workspace`, run metadata from `/workspace/.aai-control-plane-run.json`, and the explicit handoff packet from `/workspace/.aai-handoff.json`
+- Parallel fan-out model: each bounded child task gets its own `task_key`, isolated worktree, manifest, container name, and handoff packet; auto-routing stays conservative unless provider usage telemetry permits more lanes
 
 ## Direct inspirations
 
@@ -55,9 +56,9 @@ The installer:
 - auto-detects `claude` and `codex` CLIs from the current Linux/WSL shell
 - probes provider binaries and stores host-side metadata in SQLite
 - uses `claude auth status --json` as the default Claude subscription probe
-- if a provider is already logged in, shows the current account and lets the operator keep it with Enter or switch with `s`
-- if Codex is not logged in yet, offers to open the native interactive login flow immediately
-- for Claude, avoids nested login input traps by printing the exact external `claude auth login` command for a separate direct WSL/Linux terminal instead of trying to finish OAuth inside the wrapper
+- uses `codex login status` as the default Codex subscription probe
+- follows the SuperTurtle-style rule that install/start reuse your existing native CLI authentication instead of trapping OAuth inside the wrapper
+- generates explicit `auth setup`, `auth status`, and `usage` launcher commands after install
 - records missing CLIs as unavailable and tells the operator to install them manually instead of trying to use them
 - reuses existing values from the last install summary, runtime env, project config, and SQLite registration so the operator can keep them by pressing Enter
 - asks only a few setup questions and generates a ready-to-run launcher script
@@ -112,7 +113,7 @@ npm --prefix apps/control-plane run auth:probe -- \
   --provider codex \
   --cli-path "$(command -v codex)" \
   --session-home ~/.codex \
-  --probe-args --help
+  --probe-args login,status
 ```
 
 ### Prepare and launch a run
@@ -122,6 +123,8 @@ npm --prefix apps/control-plane run run:prepare -- \
   --db .runtime/control-plane.db \
   --project-id aai-canonical \
   --ref-id PRD-AAI-REMOTE-ORCHESTRATION-01 \
+  --task-key backend-diff \
+  --parallel-group impl-fanout \
   --repo-path "$PWD" \
   --project-config docs/ai/project-overrides/remote-control.yaml \
   --worktrees-root .runtime/worktrees \
@@ -148,8 +151,9 @@ bash .runtime/run-control-plane.sh stop
 bash .runtime/run-control-plane.sh restart
 bash .runtime/run-control-plane.sh logs
 bash .runtime/run-control-plane.sh probe
-bash .runtime/run-control-plane.sh login claude
-bash .runtime/run-control-plane.sh login codex
+bash .runtime/run-control-plane.sh auth setup
+bash .runtime/run-control-plane.sh auth status
+bash .runtime/run-control-plane.sh usage
 ```
 
 Equivalent npm shortcuts:
@@ -161,11 +165,12 @@ npm --prefix apps/control-plane run daemon:stop
 npm --prefix apps/control-plane run daemon:restart
 npm --prefix apps/control-plane run daemon:logs
 npm --prefix apps/control-plane run daemon:probe
-npm --prefix apps/control-plane run daemon:login:claude
-npm --prefix apps/control-plane run daemon:login:codex
+npm --prefix apps/control-plane run daemon:auth:setup
+npm --prefix apps/control-plane run daemon:auth:status
+npm --prefix apps/control-plane run daemon:usage
 ```
 
-The launcher starts the Telegram daemon in the background and returns immediately. `status` shows whether the daemon is running, where the DB/logs are, and a readable provider/project summary. `probe` re-checks provider login state and reports whether usage telemetry is available. The launcher and CLI wrapper pass `--no-warnings`, so the `node:sqlite` experimental warning is suppressed in normal operator use.
+The launcher starts the Telegram daemon in the background and returns immediately. `auth setup` reuses existing native Claude/Codex CLI login and prints the exact native login command when a provider is not ready. `auth status` shows provider readiness and routing capacity hints. `usage` shows provider usage telemetry when available plus the recommended number of parallel lanes. The launcher and CLI wrapper pass `--no-warnings`, so the `node:sqlite` experimental warning is suppressed in normal operator use.
 
 Watch the structured daemon log:
 
@@ -179,13 +184,14 @@ npm --prefix apps/control-plane run daemon:logs
 - `init`
 - `project:register`, `project:list`, `project:show`
 - `auth:validate`, `auth:probe`, `auth:mark-missing`, `auth:status`
+- `auth:validate`, `auth:probe`, `auth:mark-missing`, `auth:status`
 - `router:choose`, `usage:show`
 - `queue:create`, `queue:status`, `queue:action`
 - `approve:check`, `approve:grant`, `approval:exists`
 - `run:prepare`, `run:launch`, `run:inspect`, `run:validate`
 - `handoff:build`
 - `telegram:registry`, `telegram:interactive`, `telegram:callback`, `telegram:get-me`, `telegram:setup-info`, `telegram:poll`, `telegram:serve`, `telegram:simulate`
-- `serve:generated`, `daemon:start`, `daemon:status`, `daemon:stop`, `daemon:restart`, `daemon:logs`, `daemon:probe`, `daemon:login:claude`, `daemon:login:codex`
+- `serve:generated`, `daemon:start`, `daemon:status`, `daemon:stop`, `daemon:restart`, `daemon:logs`, `daemon:probe`, `daemon:auth:setup`, `daemon:auth:status`, `daemon:usage`, `daemon:login:claude`, `daemon:login:codex`
 - `mounts:template`, `mounts:validate`
 - `defaults:show`, `policy:show`
 - `test:remote`, `test:remote:install`, `test:remote:provider-session`, `test:remote:run-launch`, `test:remote:telegram`, `test:remote:telegram-setup`, `test:remote:runtime-build`, `test:remote:daemon`, `test:remote:npm`, `validate:remote`
@@ -196,7 +202,7 @@ npm --prefix apps/control-plane run daemon:logs
 npm --prefix apps/control-plane run validate:remote
 ```
 
-The current suite contains `33` CLI-backed tests, including:
+The current suite contains `34` CLI-backed tests, including:
 - provider session probe and usage sync
 - live Telegram long-poll fixture flow
 - Telegram token and ID discovery helpers for onboarding
@@ -208,8 +214,9 @@ The current suite contains `33` CLI-backed tests, including:
 - background daemon start/status/stop/probe/login flow
 - wizard reuse of existing values with preserve-vs-overwrite state handling
 - wizard fallback to the existing managed repo path when one install state is already known
-- wizard provider-login UX for keeping the current subscription session or reopening a browser/device-code style login flow
+- separate auth-setup flow that reuses native CLI sessions after install and guides the operator back through direct provider login when needed
 - docker subagent contract coverage for read-only session mount and explicit handoff packet transfer
+- parallel subtask shard coverage for unique worktree/container lanes under one parent work item
 - npm wrapper coverage for the documented operator command surface
 
 `green` in the remote-orchestration spec is backed by executable control-plane flows, not by file-content smoke checks.

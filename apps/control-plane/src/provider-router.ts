@@ -19,6 +19,16 @@ export type ProviderDecision = {
   reason: string;
 };
 
+export type ProviderCapacity = {
+  provider: Provider;
+  dispatch_state: "ready" | "constrained" | "blocked";
+  reason: string;
+  recommended_parallel_runs: number;
+  used_percentage: number | null;
+  reset_at_utc: string | null;
+  usage_source: "usage-window" | "session-only";
+};
+
 export type ProviderSessionRecord = {
   provider: Provider;
   auth_mode: "cli-subscription";
@@ -360,6 +370,88 @@ export function loadUsageWindowsFromDb(handle: DatabaseHandle): UsageWindow[] {
   }));
 }
 
+export function describeProviderCapacity(options: {
+  provider: Provider;
+  usage?: UsageWindow[];
+  sessions?: ProviderSessionRecord[];
+}): ProviderCapacity {
+  const usage = options.usage || [];
+  const sessions = options.sessions || [];
+  const hasSessionSignal = sessions.length > 0;
+  const session = sessions.find((entry) => entry.provider === options.provider) || null;
+  const window = usage.find((entry) => entry.provider === options.provider) || null;
+
+  if (hasSessionSignal && (!session || session.status !== "ok")) {
+    return {
+      provider: options.provider,
+      dispatch_state: "blocked",
+      reason: session ? `session-${session.status}` : "session-unavailable",
+      recommended_parallel_runs: 0,
+      used_percentage: window?.used_percentage ?? null,
+      reset_at_utc: window?.reset_at_utc ?? null,
+      usage_source: window ? "usage-window" : "session-only"
+    };
+  }
+
+  if (!window) {
+    return {
+      provider: options.provider,
+      dispatch_state: "constrained",
+      reason: "usage-telemetry-unavailable-single-lane",
+      recommended_parallel_runs: 1,
+      used_percentage: null,
+      reset_at_utc: null,
+      usage_source: "session-only"
+    };
+  }
+
+  if (window.used_percentage >= 98) {
+    return {
+      provider: options.provider,
+      dispatch_state: "blocked",
+      reason: "usage-critical-stop",
+      recommended_parallel_runs: 0,
+      used_percentage: window.used_percentage,
+      reset_at_utc: window.reset_at_utc,
+      usage_source: "usage-window"
+    };
+  }
+
+  if (window.used_percentage >= 90) {
+    return {
+      provider: options.provider,
+      dispatch_state: "constrained",
+      reason: "usage-high-single-lane",
+      recommended_parallel_runs: 1,
+      used_percentage: window.used_percentage,
+      reset_at_utc: window.reset_at_utc,
+      usage_source: "usage-window"
+    };
+  }
+
+  if (window.used_percentage >= 75) {
+    return {
+      provider: options.provider,
+      dispatch_state: "ready",
+      reason: "usage-warm-single-lane",
+      recommended_parallel_runs: 1,
+      used_percentage: window.used_percentage,
+      reset_at_utc: window.reset_at_utc,
+      usage_source: "usage-window"
+    };
+  }
+
+  return {
+    provider: options.provider,
+    dispatch_state: "ready",
+    reason: "usage-low-two-lanes",
+    recommended_parallel_runs: 2,
+    used_percentage: window.used_percentage,
+    reset_at_utc: window.reset_at_utc,
+    usage_source: "usage-window"
+  };
+}
+
 function upsertProviderSession(handle: DatabaseHandle, session: ProviderSessionRecord): ProviderSessionRecord {
   const statement = handle.database.prepare(`
     INSERT INTO provider_sessions (
@@ -407,7 +499,7 @@ function defaultProbeArgs(provider: Provider): string[] {
     case "claude":
       return ["auth", "status", "--json"];
     case "codex":
-      return ["--help"];
+      return ["login", "status"];
     default:
       return ["--version"];
   }
@@ -418,11 +510,7 @@ function inspectProbeResult(
   stdout: string
 ): { status: ProviderSessionRecord["status"]; last_error: string | null; account_label: string | null } {
   if (provider !== "claude") {
-    return {
-      status: "ok",
-      last_error: null,
-      account_label: inferAccountLabel(provider, stdout)
-    };
+    return inspectCodexProbeResult(stdout);
   }
 
   try {
@@ -455,6 +543,10 @@ function inspectProbeResult(
 }
 
 function inferAccountLabel(provider: Provider, stdout: string): string | null {
+  if (provider === "codex") {
+    return inferCodexAccountLabel(stdout);
+  }
+
   if (provider !== "claude") {
     return null;
   }
@@ -468,6 +560,50 @@ function inferAccountLabel(provider: Provider, stdout: string): string | null {
   } catch {
     return null;
   }
+}
+
+function inspectCodexProbeResult(
+  stdout: string
+): { status: ProviderSessionRecord["status"]; last_error: string | null; account_label: string | null } {
+  const normalized = stdout.trim();
+  if (!normalized) {
+    return {
+      status: "error",
+      last_error: "Codex CLI returned an empty login status response.",
+      account_label: null
+    };
+  }
+
+  const accountLabel = inferCodexAccountLabel(normalized);
+  if (/logged in/i.test(normalized)) {
+    return {
+      status: "ok",
+      last_error: null,
+      account_label: accountLabel
+    };
+  }
+
+  if (/not logged in|login required|log in/i.test(normalized)) {
+    return {
+      status: "error",
+      last_error: "Codex CLI is installed but not logged in. Run 'codex login' on the host.",
+      account_label: null
+    };
+  }
+
+  return {
+    status: "ok",
+    last_error: null,
+    account_label: accountLabel
+  };
+}
+
+function inferCodexAccountLabel(stdout: string): string | null {
+  const match = stdout.match(/Logged in using\s+(.+)$/im);
+  if (!match) {
+    return null;
+  }
+  return match[1].trim() || null;
 }
 
 function formatAccountLabel(email?: string, subscriptionType?: string): string | null {

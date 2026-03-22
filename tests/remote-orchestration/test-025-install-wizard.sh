@@ -43,6 +43,9 @@ printf '%s\n%s\n%s\n%s\n%s\n%s\n' \
     --skip-build > "$tmp/install.out" 2>&1
 
 assert_contains "$tmp/install.out" "AAI Remote Orchestration Setup"
+assert_contains "$tmp/install.out" "detect existing Claude/Codex CLI sessions"
+assert_contains "$tmp/install.out" "Auth setup/check:   bash $tmp/runtime/run-control-plane.sh auth setup"
+assert_contains "$tmp/install.out" "Auth status:        bash $tmp/runtime/run-control-plane.sh auth status"
 assert_contains "$tmp/install.out" "Start in background: bash $tmp/runtime/run-control-plane.sh start"
 assert_file "$tmp/runtime/control-plane.env"
 assert_file "$tmp/runtime/run-control-plane.sh"

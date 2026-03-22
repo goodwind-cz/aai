@@ -2,7 +2,7 @@ import type { DatabaseHandle } from "./db.ts";
 import { readJson, nowUtc, runtimeLog } from "./common.ts";
 import { createWorkItem, evaluateGate, getWorkItem, listWorkItems, recordApproval, updateWorkItemStatus } from "./queue.ts";
 import { listProjects } from "./registry.ts";
-import { listProviderSessions, loadUsageWindowsFromDb } from "./provider-router.ts";
+import { describeProviderCapacity, listProviderSessions, loadUsageWindowsFromDb } from "./provider-router.ts";
 
 const SAFE_CALLBACK_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
@@ -427,7 +427,20 @@ async function processCommand(
     }
     case "/usage": {
       const usage = loadUsageWindowsFromDb(handle);
-      const lines = usage.length > 0 ? usage.map((entry) => `${entry.provider}: ${entry.used_percentage}% used, resets ${entry.reset_at_utc}`) : formatUsageUnavailable(handle);
+      const lines =
+        usage.length > 0
+          ? [
+              ...usage.map((entry) => `${entry.provider}: ${entry.used_percentage}% used, resets ${entry.reset_at_utc}`),
+              ...["claude", "codex"].map((provider) => {
+                const capacity = describeProviderCapacity({
+                  provider: provider as "claude" | "codex",
+                  usage,
+                  sessions: listProviderSessions(handle)
+                });
+                return `${capacity.provider}: dispatch=${capacity.dispatch_state}, recommended_parallel_runs=${capacity.recommended_parallel_runs}, reason=${capacity.reason}`;
+              })
+            ]
+          : formatUsageUnavailable(handle);
       await sendMessage(options.apiBase, options.token, chatId, lines.join("\n"));
       break;
     }
@@ -580,6 +593,13 @@ async function processCallback(
 
 function formatUsageUnavailable(handle: DatabaseHandle): string[] {
   const sessions = listProviderSessions(handle);
+  const capacities = ["claude", "codex"].map((provider) =>
+    describeProviderCapacity({
+      provider: provider as "claude" | "codex",
+      usage: [],
+      sessions
+    })
+  );
   const lines = ["Usage telemetry unavailable."];
 
   if (sessions.length === 0) {
@@ -594,7 +614,13 @@ function formatUsageUnavailable(handle: DatabaseHandle): string[] {
     );
   }
 
-  lines.push("If the CLI supports quota output, rerun auth probe with --usage-args ...");
+  for (const capacity of capacities) {
+    lines.push(
+      `${capacity.provider}: dispatch=${capacity.dispatch_state}, recommended_parallel_runs=${capacity.recommended_parallel_runs}, reason=${capacity.reason}`
+    );
+  }
+
+  lines.push("Auto routing stays conservative until provider-native usage telemetry is available.");
   return lines;
 }
 

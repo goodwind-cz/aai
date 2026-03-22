@@ -10,7 +10,7 @@ After setup you will have:
 
 - one host-side control-plane daemon
 - one SQLite runtime database in `.runtime/`
-- one generated launcher script for background start, status, stop, restart, logs, probe, and login
+- one generated launcher script for `auth setup`, `auth status`, `usage`, background start, status, stop, restart, logs, and probe
 - project registration for one or more managed repos
 - Claude Code and Codex routing through CLI subscription mode only
 - Telegram commands and inline actions for queueing and controlling work
@@ -43,7 +43,7 @@ docker --version || true
 
 Preferred on WSL: a native Linux Node from `~/.nvm`, ideally `v20+` or `v22+`.
 
-## 3. Sign in to Claude or Codex with your subscription
+## 3. Prepare native Claude and Codex CLI login
 
 ### Claude Code
 
@@ -62,7 +62,7 @@ Expected WSL path shape:
 ```
 
 If `claude auth status --json` says you are logged in, Claude is ready for the control-plane.
-If the wizard finds this login later, press Enter to keep it or type `s` to switch to a different Claude subscription account.
+The control-plane reuses this native CLI login. It does not own the OAuth flow itself.
 
 ### Codex
 
@@ -72,16 +72,21 @@ If `codex` is missing or broken, reinstall it first:
 npm install -g @openai/codex@latest
 ```
 
-Then start Codex and choose `Sign in with ChatGPT`:
+Then run the native Codex login flow:
 
 ```bash
-codex
+codex login
+codex login status
 which codex
-codex --help
 ```
 
-If `codex --help` fails with an optional dependency error, reinstall and run `codex` again.
-If the wizard finds that Codex is already usable, press Enter to keep that login or type `s` to reopen the native Codex sign-in flow with a different ChatGPT account.
+Expected ready state:
+
+```text
+Logged in using ChatGPT
+```
+
+If `codex login status` fails with an optional dependency error, reinstall and run `codex login` again.
 
 ### Important rule
 
@@ -159,9 +164,8 @@ The wizard then:
 - registers the project in the host SQLite DB
 - auto-detects `claude` and `codex`
 - probes provider login state
-- if a provider is already logged in, shows the current account and lets you keep it with Enter or switch with `s`
-- if Codex is not logged in yet, offers to open the native interactive login flow immediately
-- if Claude is not logged in yet, prints the exact `claude auth login` command for a separate direct WSL/Linux terminal and waits for you to come back after finishing that login there
+- writes the generated launcher commands for separate `auth setup` and `auth status`
+- never traps Claude or Codex OAuth inside the installer wrapper
 - writes `.runtime/install-summary.<project>.json`
 - writes `.runtime/control-plane.env`
 - writes `.runtime/run-control-plane.sh`
@@ -182,23 +186,6 @@ Press Enter to preserve the current setup, or 'y' to overwrite it and reinitiali
 Overwrite existing config/runtime state? [y/N]:
 ```
 
-```text
-Provider 'claude' is already logged in as ales@example.test (max).
-Press Enter to keep this login, or type 's' to switch account [Enter/s]:
-```
-
-```text
-Provider 'claude' is not ready yet (status: error).
-Last probe detail: Claude CLI is installed but not logged in. Run 'claude auth login' on the host.
-Press Enter to open interactive login now, or type 's' to skip for now [Enter/s]:
-Complete the provider's native subscription login flow on this host.
-Claude login must be completed in a separate direct WSL/Linux terminal so the authentication code prompt does not get trapped inside this wrapper.
-Open another terminal window and run:
-  env HOME=/home/<user>/.claude AAI_PROVIDER_SESSION_HOME=/home/<user>/.claude /home/<user>/.local/bin/claude auth login
-When Claude opens the browser and shows an authentication code, paste that code back into the other terminal where 'claude auth login' is running.
-After Claude login finishes in that other terminal, return here and press Enter to continue, or type 's' to skip [Enter/s]:
-```
-
 Meaning of the state choice:
 
 - `N` or Enter keeps the current config, DB, env, launcher, and summary files
@@ -211,21 +198,42 @@ npm --prefix apps/control-plane run install:host -- --preserve-existing ...
 npm --prefix apps/control-plane run install:host -- --overwrite-existing ...
 ```
 
-## 6. Verify the provider login state after install
+## 6. Finish provider auth after install
 
-The simplest operator command is:
+SuperTurtle-inspired rule:
+
+- `install:wizard` prepares the host and project
+- `auth setup` reuses your existing native CLI login or tells you exactly which native command to run
+- `start` only runs after at least one provider is really ready
+
+Use:
 
 ```bash
-bash .runtime/run-control-plane.sh probe
+bash .runtime/run-control-plane.sh auth setup
 ```
 
-This re-checks both providers and prints a readable summary.
+What `auth setup` does:
+
+- re-probes Claude and Codex from their native CLI homes
+- if a provider is already ready, it says it will reuse that native login
+- if Claude is not ready, it prints the exact `claude auth login` command for a separate direct WSL/Linux terminal
+- if Codex is not ready, it prints the exact `codex login` command for a separate direct WSL/Linux terminal
+- after you finish native login, you return here and press Enter so the wrapper can re-probe
+
+Then check the final state:
+
+```bash
+bash .runtime/run-control-plane.sh auth status
+bash .runtime/run-control-plane.sh usage
+```
 
 Status meaning:
 
 - `ok` means the CLI exists and the login probe succeeded
 - `missing` means the CLI is not installed on the host
 - `error` means the CLI exists, but login or the probe failed
+- `dispatch=blocked` means the router must not start work on that provider
+- `recommended parallel runs` is the safe upper bound for parallel Docker subtask fan-out on that provider
 
 Direct low-level status commands:
 
@@ -244,7 +252,7 @@ npm --prefix apps/control-plane run auth:probe -- \
   --provider codex \
   --cli-path "$(command -v codex)" \
   --session-home ~/.codex \
-  --probe-args --help
+  --probe-args login,status
 ```
 
 If you only want to verify Claude directly:
@@ -280,11 +288,12 @@ bash .runtime/run-control-plane.sh restart
 bash .runtime/run-control-plane.sh logs
 ```
 
-Provider login and re-check:
+Provider readiness and usage:
 
 ```bash
-bash .runtime/run-control-plane.sh login claude
-bash .runtime/run-control-plane.sh login codex
+bash .runtime/run-control-plane.sh auth setup
+bash .runtime/run-control-plane.sh auth status
+bash .runtime/run-control-plane.sh usage
 bash .runtime/run-control-plane.sh probe
 ```
 
@@ -303,11 +312,13 @@ What each `run-control-plane.sh` command does:
 - `logs`
   Tails the structured runtime log. Use this when the daemon is already running and you want to see what it is doing.
 - `probe`
-  Re-checks Claude and Codex availability and login state, then prints a readable summary including usage telemetry availability.
-- `login claude`
-  Prints the exact `claude auth login` command you should run in a separate direct WSL/Linux terminal, tells you to paste the browser authentication code back there, then waits here for Enter and re-probes Claude.
-- `login codex`
-  Opens the native Codex interactive login flow on the host and then re-probes Codex.
+  Re-checks Claude and Codex availability and prints a readable auth summary.
+- `auth setup`
+  Reuses the existing native Claude/Codex login if it is already ready. Otherwise it prints the exact native `claude auth login` or `codex login` command you should run in a separate direct WSL/Linux terminal and then re-probes.
+- `auth status`
+  Prints the current provider auth state, account label, last probe time, and routing capacity hints without touching the daemon.
+- `usage`
+  Prints provider usage telemetry when available and always shows the router's dispatch capacity summary, including the recommended number of parallel subtask containers per provider.
 
 Equivalent npm shortcuts:
 
@@ -318,8 +329,9 @@ npm --prefix apps/control-plane run daemon:stop
 npm --prefix apps/control-plane run daemon:restart
 npm --prefix apps/control-plane run daemon:logs
 npm --prefix apps/control-plane run daemon:probe
-npm --prefix apps/control-plane run daemon:login:claude
-npm --prefix apps/control-plane run daemon:login:codex
+npm --prefix apps/control-plane run daemon:auth:setup
+npm --prefix apps/control-plane run daemon:auth:status
+npm --prefix apps/control-plane run daemon:usage
 ```
 
 `status` shows:
@@ -370,6 +382,29 @@ Important rule:
 - the host only passes the login/session home and runtime hints
 - the session mount is read-only
 
+Parallel small-task model:
+
+- every parallel child task gets its own `task_key`
+- tasks from the same fan-out wave share one `parallel_group`
+- the control-plane writes one isolated worktree per `task_key`
+- each container gets its own manifest, container name, log file, and handoff packet
+- the router only recommends parallel fan-out when provider usage telemetry is low enough; without usage telemetry it stays conservative at one lane
+
+Example:
+
+```bash
+npm --prefix apps/control-plane run run:prepare -- \
+  --db .runtime/control-plane.db \
+  --project-id aai-canonical \
+  --ref-id PRD-AAI-REMOTE-ORCHESTRATION-01 \
+  --task-key backend-diff \
+  --parallel-group impl-fanout \
+  --repo-path "$PWD" \
+  --worktrees-root .runtime/worktrees \
+  --container-image ghcr.io/example/aai-worker:preview \
+  --provider auto
+```
+
 Task transfer between agents is handled explicitly:
 
 - repo docs remain the canonical source of truth
@@ -410,6 +445,7 @@ Alias:
 ```
 
 If quota telemetry is not available yet, the bot falls back to readable provider session state instead of only saying that usage is unavailable.
+It also shows the router dispatch state and the recommended number of parallel runs per provider.
 
 ### 11.5 Override provider
 
@@ -438,7 +474,9 @@ Inline actions support:
 npm --prefix apps/control-plane run install:wizard
 npm --silent --prefix apps/control-plane run telegram:get-me -- --token "<BOT_TOKEN>"
 npm --silent --prefix apps/control-plane run telegram:setup-info -- --token "<BOT_TOKEN>"
-bash .runtime/run-control-plane.sh probe
+bash .runtime/run-control-plane.sh auth setup
+bash .runtime/run-control-plane.sh auth status
+bash .runtime/run-control-plane.sh usage
 bash .runtime/run-control-plane.sh start
 bash .runtime/run-control-plane.sh status
 bash .runtime/run-control-plane.sh logs
@@ -451,7 +489,7 @@ bash .runtime/run-control-plane.sh logs
 Install or reinstall the CLI, log in, then run:
 
 ```bash
-bash .runtime/run-control-plane.sh probe
+bash .runtime/run-control-plane.sh auth setup
 ```
 
 or rerun the wizard:
@@ -463,9 +501,9 @@ npm --prefix apps/control-plane run install:wizard
 ### The easiest host-side login flow
 
 ```bash
-bash .runtime/run-control-plane.sh login claude
-bash .runtime/run-control-plane.sh login codex
-bash .runtime/run-control-plane.sh probe
+bash .runtime/run-control-plane.sh auth setup
+bash .runtime/run-control-plane.sh auth status
+bash .runtime/run-control-plane.sh usage
 ```
 
 ### Telegram bot token works, but `telegram:setup-info` shows no IDs

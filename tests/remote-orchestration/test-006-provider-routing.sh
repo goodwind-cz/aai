@@ -13,4 +13,5 @@ run_cli router choose --project-config docs/ai/project-overrides/remote-control.
 json_assert_file "$tmp/auto.json" "data.decision.provider === 'claude'"
 json_assert_file "$tmp/explicit.json" "data.decision.provider === 'codex'"
 json_assert_file "$tmp/explicit.json" "data.decision.reason === 'project-policy-explicit'"
+json_assert_file "$tmp/auto.json" "data.selected_capacity && data.selected_capacity.provider === 'claude'"
 echo "PASS"

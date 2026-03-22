@@ -740,7 +740,7 @@ probe_provider() {
       probe_args=(--probe-args "auth,status,--json")
       ;;
     codex)
-      probe_args=(--probe-args "--help")
+      probe_args=(--probe-args "login,status")
       ;;
   esac
 
@@ -1171,7 +1171,7 @@ load_defaults_from_existing_state
 
 if [[ "$WIZARD_MODE" -eq 1 ]]; then
   printf '\nAAI Remote Orchestration Setup\n' >&2
-  printf 'This wizard will prepare the host runtime, help with Claude/Codex login, register one project, and generate simple start/status/stop commands.\n\n' >&2
+  printf 'This wizard will prepare the host runtime, register one project, detect existing Claude/Codex CLI sessions, and generate simple auth/start/status/stop commands.\n\n' >&2
   MANAGED_REPO_PATH="$(prompt_with_default "Managed project repository path" "$MANAGED_REPO_PATH")"
   if [[ ! -d "$MANAGED_REPO_PATH" ]]; then
     fail "Repository path does not exist: $MANAGED_REPO_PATH"
@@ -1255,18 +1255,22 @@ codex_status="unknown"
 if [[ "$SKIP_PROVIDER_PROBES" -eq 0 ]]; then
   claude_status="$(probe_provider claude "$claude_detected" "$CLAUDE_SESSION_HOME")"
   codex_status="$(probe_provider codex "$codex_detected" "$CODEX_SESSION_HOME")"
-  maybe_offer_provider_login claude "$claude_status" "$claude_detected" "$CLAUDE_SESSION_HOME"
-  maybe_offer_provider_login codex "$codex_status" "$codex_detected" "$CODEX_SESSION_HOME"
-  claude_status="$(probe_provider claude "$claude_detected" "$CLAUDE_SESSION_HOME")"
-  codex_status="$(probe_provider codex "$codex_detected" "$CODEX_SESSION_HOME")"
 fi
 
 if [[ "$claude_status" != "ok" ]]; then
-  claude_recommended="Install Claude Code CLI manually, run 'claude auth login', verify with 'claude auth status --json', and rerun bash apps/control-plane/scripts/install-host.sh or npm --prefix apps/control-plane run auth:probe -- ..."
+  if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
+    claude_recommended="Use the generated launcher to finish provider auth: bash $RUN_SCRIPT_PATH auth setup"
+  else
+    claude_recommended="Finish native Claude CLI auth first, then rerun the wizard after adding the Telegram bot token."
+  fi
 fi
 
 if [[ "$codex_status" != "ok" ]]; then
-  codex_recommended="Install or reinstall Codex CLI with 'npm install -g @openai/codex@latest', run 'codex' and choose 'Sign in with ChatGPT', then rerun bash apps/control-plane/scripts/install-host.sh or npm --prefix apps/control-plane run auth:probe -- ..."
+  if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
+    codex_recommended="Use the generated launcher to finish provider auth: bash $RUN_SCRIPT_PATH auth setup"
+  else
+    codex_recommended="Finish native Codex CLI auth first, then rerun the wizard after adding the Telegram bot token."
+  fi
 fi
 
 write_summary "$config_action" "$claude_detected" "$codex_detected" "$claude_recommended" "$codex_recommended" "$claude_status" "$codex_status"
@@ -1291,21 +1295,22 @@ if [[ -n "$codex_detected" ]]; then
   printf 'Codex CLI: %s\n' "$codex_detected"
 fi
 if [[ "$claude_status" != "ok" ]]; then
-  printf 'Claude CLI not found. Install it manually, or the router will not use Claude.\n'
+  printf 'Claude is not ready yet. Finish native CLI auth later with: bash %s auth setup\n' "$RUN_SCRIPT_PATH"
 fi
 if [[ "$codex_status" != "ok" ]]; then
-  printf 'Codex CLI not found. Install it manually, or the router will not use Codex.\n'
+  printf 'Codex is not ready yet. Finish native CLI auth later with: bash %s auth setup\n' "$RUN_SCRIPT_PATH"
 fi
 if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
   printf 'Quick start:\n'
+  printf '  Auth setup/check:   bash %s auth setup\n' "$RUN_SCRIPT_PATH"
+  printf '  Auth status:        bash %s auth status\n' "$RUN_SCRIPT_PATH"
+  printf '  Usage + routing:    bash %s usage\n' "$RUN_SCRIPT_PATH"
   printf '  Start in background: bash %s start\n' "$RUN_SCRIPT_PATH"
   printf '  Check status:       bash %s status\n' "$RUN_SCRIPT_PATH"
   printf '  Stop:               bash %s stop\n' "$RUN_SCRIPT_PATH"
   printf '  Restart:            bash %s restart\n' "$RUN_SCRIPT_PATH"
   printf '  Show logs:          bash %s logs\n' "$RUN_SCRIPT_PATH"
-  printf '  Re-probe auth:      bash %s probe\n' "$RUN_SCRIPT_PATH"
-  printf '  Claude login:       bash %s login claude\n' "$RUN_SCRIPT_PATH"
-  printf '  Codex login:        bash %s login codex\n' "$RUN_SCRIPT_PATH"
+  printf '  Refresh provider state: bash %s probe\n' "$RUN_SCRIPT_PATH"
 else
   printf 'Telegram token not provided. Add it later with AAI_TELEGRAM_BOT_TOKEN in %s and run:\n' "$RUNTIME_ENV_PATH"
   printf '  npm --prefix apps/control-plane run install:wizard\n'

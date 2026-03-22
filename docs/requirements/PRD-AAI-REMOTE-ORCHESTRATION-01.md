@@ -27,7 +27,7 @@
 - AC-004: Telegram can create, inspect, approve, pause, resume, and stop work items without the chat becoming the source of truth for requirements, specs, test plans, or reports.
 - AC-005: The system supports both Claude Code and Codex, including explicit provider selection, task-class preference, and fallback policy when one provider is unavailable or over budget.
 - AC-005a: `v1` uses only host-authenticated CLI subscription sessions for Claude Code and Codex; direct API-key or token-based provider mode is not supported.
-- AC-006: The system exposes a `/usage`-style budget view that reports provider quota windows, current usage percentage, and next reset time, and the router can use that signal to reduce concurrency or switch providers.
+- AC-006: The system exposes a `/usage`-style budget view that reports provider quota windows, current usage percentage, and next reset time when provider-native telemetry is available; when telemetry is unavailable, it still reports provider auth/readiness state and clamps auto-fan-out to a conservative single lane instead of guessing.
 - AC-007: Telegram command flows are aligned with existing AAI skills where they overlap, including intake, status, logs, validation, approvals, and worktree-oriented execution.
 - AC-008: Telegram interactions use structured controls where possible, including inline approve/reject buttons, project pickers, provider pickers, and form-style task submission for high-friction inputs.
 - AC-009: AAI state, frozen specs, test plans, decisions, and reports remain repo-first artifacts; runtime coordination state that does not belong in the repo is stored separately by the controller.
@@ -35,10 +35,12 @@
 - AC-011: `v1` defaults to resource-saving behavior: a single long-lived controller process, SQLite for runtime state, default concurrency of `1`, and no mandatory Redis, Postgres, or always-on worker pool.
 - AC-012: The memory model for `v1` relies on repo docs plus explicit handoff payloads and controller runtime state; no hidden shared memory is required for correctness.
 - AC-012a: When a work item runs in Docker, the worker receives provider login context only through a read-only mount of the selected provider session home plus explicit env hints; the worker image itself must already contain the corresponding CLI binary.
+- AC-012b: Parallel small-task fan-out is implemented as multiple isolated worktrees and Docker containers under one parent work item, each with its own `task_key`, manifest, log, and explicit handoff packet.
 - AC-013: Operator approvals must gate implementation and validation transitions, and the approval trail must be preserved as durable artifacts.
 - AC-013a: `Approve implementation` requires at minimum a PRD, a frozen spec, a test plan, a selected project, a selected provider policy, and a generated worktree manifest.
 - AC-013b: `Approve validation` requires at minimum an implementation summary, changed-file summary, validation command set, and report/evidence target paths.
 - AC-014: The feature includes a documented migration path from manual local AAI use toward remote-controlled multi-project operation without breaking existing canonical workflows.
+- AC-014a: Inspired by SuperTurtle, the normal operator flow is `install/init -> auth setup -> start`: the system reuses native Claude/Codex CLI login and does not trap provider OAuth inside the control-plane wrapper.
 
 ## Non-functional constraints
 - Prioritize Linux filesystem paths inside WSL over `/mnt/c` mounts for active repositories.

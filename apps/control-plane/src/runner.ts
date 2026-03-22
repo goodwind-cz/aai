@@ -10,6 +10,8 @@ export type RunManifest = {
   run_id: string;
   project_id: string;
   ref_id: string;
+  task_key: string | null;
+  parallel_group: string | null;
   provider: string;
   branch: string;
   worktree_path: string;
@@ -91,6 +93,8 @@ export function prepareRun(
   options: {
     project_id: string;
     ref_id: string;
+    task_key?: string | null;
+    parallel_group?: string | null;
     repo_path: string;
     worktrees_root: string;
     provider: string;
@@ -106,9 +110,12 @@ export function prepareRun(
     validated_extra_mounts?: Array<{ source: string; target: string; read_only: boolean }>;
   }
 ): { manifest: RunManifest; manifest_path: string } {
-  const runId = `${options.project_id}-${options.ref_id}-${Date.now()}`;
-  const branch = options.branch || `aai/${options.ref_id.toLowerCase()}`;
-  const worktreePath = path.resolve(options.worktrees_root, `${options.project_id}-${options.ref_id}`);
+  const taskKey = normalizeTaskKey(options.task_key);
+  const parallelGroup = normalizeTaskKey(options.parallel_group);
+  const taskSuffix = taskKey ? `-${taskKey}` : "";
+  const runId = `${options.project_id}-${options.ref_id}${taskSuffix}-${Date.now()}`;
+  const branch = options.branch || `aai/${options.ref_id.toLowerCase()}${taskKey ? `--${taskKey}` : ""}`;
+  const worktreePath = path.resolve(options.worktrees_root, `${options.project_id}-${options.ref_id}${taskSuffix}`);
   ensureGitWorktree(options.repo_path, branch, worktreePath);
 
   const manifestPath = path.resolve(options.manifest_path || path.join(worktreePath, "run-manifest.json"));
@@ -118,6 +125,8 @@ export function prepareRun(
   const memoryContract = buildRunHandoffPacket(handle, {
     project_id: options.project_id,
     ref_id: options.ref_id,
+    task_key: taskKey,
+    parallel_group: parallelGroup,
     requirement_refs: options.requirement_refs || [],
     spec_refs: options.spec_refs || [],
     report_refs: options.report_refs || [],
@@ -131,6 +140,8 @@ export function prepareRun(
     run_id: runId,
     project_id: options.project_id,
     ref_id: options.ref_id,
+    task_key: taskKey,
+    parallel_group: parallelGroup,
     provider: options.provider,
     branch,
     worktree_path: worktreePath,
@@ -390,6 +401,8 @@ export function buildHandoffPacket(
   options: {
     project_id: string;
     ref_id: string;
+    task_key?: string | null;
+    parallel_group?: string | null;
     requirement_refs?: string[];
     spec_refs?: string[];
     report_refs?: string[];
@@ -398,6 +411,8 @@ export function buildHandoffPacket(
   return buildRunHandoffPacket(handle, {
     project_id: options.project_id,
     ref_id: options.ref_id,
+    task_key: options.task_key,
+    parallel_group: options.parallel_group,
     requirement_refs: options.requirement_refs,
     spec_refs: options.spec_refs,
     report_refs: options.report_refs
@@ -409,6 +424,8 @@ function buildRunHandoffPacket(
   options: {
     project_id: string;
     ref_id: string;
+    task_key?: string | null;
+    parallel_group?: string | null;
     requirement_refs?: string[];
     spec_refs?: string[];
     report_refs?: string[];
@@ -442,6 +459,8 @@ function buildRunHandoffPacket(
   return {
     project_id: options.project_id,
     ref_id: options.ref_id,
+    task_key: options.task_key || null,
+    parallel_group: options.parallel_group || null,
     repo_truth: {
       requirement_refs: options.requirement_refs || [],
       spec_refs: options.spec_refs || [],
@@ -467,6 +486,10 @@ function buildRunHandoffPacket(
         : null
     },
     runtime_state: {
+      parallel_execution: {
+        task_key: options.task_key || null,
+        parallel_group: options.parallel_group || null
+      },
       work_item: workItem || null,
       approvals
     },
@@ -533,4 +556,16 @@ function safeGetProject(
   } catch {
     return null;
   }
+}
+
+function normalizeTaskKey(value?: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || null;
 }

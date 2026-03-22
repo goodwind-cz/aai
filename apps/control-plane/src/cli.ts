@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { closeDatabase, openDatabase, type DatabaseHandle } from "./db.ts";
 import {
   chooseProvider,
+  describeProviderCapacity,
   getProviderSession,
   listProviderSessions,
   loadUsageWindows,
@@ -93,6 +94,7 @@ Commands:
   auth probe --db <path> --provider <claude|codex> --cli-path <path> --session-home <path> [--probe-args a,b] [--usage-args a,b]
   auth mark-missing --db <path> --provider <claude|codex> --session-home <path> [--cli-path <path>] [--message <text>]
   auth status --db <path> [--provider <claude|codex>]
+  auth doctor --db <path> [--claude-cli-path <path>] [--claude-session-home <path>] [--codex-cli-path <path>] [--codex-session-home <path>]
   router choose --db <path> [--project-config <yaml>] [--usage-file <json>] [--phase implementation] [--provider auto] [--fallback codex]
   usage show [--db <path> | --usage-file <json>]
   queue create --db <path> --project-id <id> --ref-id <id> --phase <phase> --branch <branch> --provider <provider>
@@ -100,11 +102,11 @@ Commands:
   queue action --db <path> --project-id <id> --ref-id <id> --status <queued|running|blocked|stopped|done>
   approve check --gate <implementation|validation> [gate fields...]
   approve grant --db <path> --project-id <id> --ref-id <id> --gate <gate> --approved-by <user> --artifact-path <path>
-  run prepare --db <path> --project-id <id> --ref-id <id> --repo-path <path> --worktrees-root <path> --container-image <image> --provider <provider> [--requirement-refs a,b] [--spec-refs a,b] [--report-refs a,b]
+  run prepare --db <path> --project-id <id> --ref-id <id> [--task-key <id>] [--parallel-group <id>] --repo-path <path> --worktrees-root <path> --container-image <image> --provider <provider> [--requirement-refs a,b] [--spec-refs a,b] [--report-refs a,b]
   run launch --db <path> --manifest <path> [--mode docker|process] [--worker-command <path>] [--docker-bin <path>] [--docker-args a,b]
   run inspect --db <path> --run-id <id>
   run validate --manifest <path>
-  handoff build --db <path> --project-id <id> --ref-id <id> [--requirement-refs a,b] [--spec-refs a,b] [--report-refs a,b]
+  handoff build --db <path> --project-id <id> --ref-id <id> [--task-key <id>] [--parallel-group <id>] [--requirement-refs a,b] [--spec-refs a,b] [--report-refs a,b]
   telegram registry --config <json>
   telegram interactive
   telegram callback --data <action:target:ref>
@@ -223,6 +225,49 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (domain === "auth" && action === "doctor") {
+      const handle = openHandle(args);
+      const providers: Provider[] = ["claude", "codex"];
+      for (const provider of providers) {
+        const cliPathKey = `${provider}-cli-path`;
+        const sessionHomeKey = `${provider}-session-home`;
+        const cliPath = typeof args[cliPathKey] === "string" ? String(args[cliPathKey]) : "";
+        const sessionHome = typeof args[sessionHomeKey] === "string" ? String(args[sessionHomeKey]) : "";
+
+        if (!sessionHome) {
+          continue;
+        }
+
+        if (!cliPath) {
+          markProviderSessionMissing(handle, {
+            provider,
+            session_home: sessionHome,
+            message: `${provider} CLI is not installed on this host.`
+          });
+          continue;
+        }
+
+        probeProviderSession(handle, {
+          provider,
+          cli_path: cliPath,
+          session_home: sessionHome
+        });
+      }
+
+      const sessions = listProviderSessions(handle);
+      const usage = loadUsageWindowsFromDb(handle);
+      const capacities = sessions.map((session) =>
+        describeProviderCapacity({
+          provider: session.provider,
+          usage,
+          sessions
+        })
+      );
+      closeDatabase(handle);
+      printJson({ sessions, usage_windows: usage, capacities });
+      return;
+    }
+
     if (domain === "router" && action === "choose") {
       const handle = args.db ? openHandle(args) : undefined;
       const projectConfig = maybeProjectConfig(args);
@@ -238,10 +283,24 @@ async function main(): Promise<void> {
         phasePreference: projectConfig?.phase_provider_preferences?.[phase] || "auto",
         sessions
       });
+      const capacities = ["claude", "codex"].map((provider) =>
+        describeProviderCapacity({
+          provider: provider as Provider,
+          usage,
+          sessions
+        })
+      );
       if (handle) {
         closeDatabase(handle);
       }
-      printJson({ phase, decision, usage, sessions });
+      printJson({
+        phase,
+        decision,
+        usage,
+        sessions,
+        capacities,
+        selected_capacity: capacities.find((entry) => entry.provider === decision.provider) || null
+      });
       return;
     }
 
@@ -249,10 +308,25 @@ async function main(): Promise<void> {
       if (args.db) {
         const handle = openHandle(args);
         const windows = loadUsageWindowsFromDb(handle);
+        const sessions = listProviderSessions(handle);
+        const capacities = ["claude", "codex"].map((provider) =>
+          describeProviderCapacity({
+            provider: provider as Provider,
+            usage: windows,
+            sessions
+          })
+        );
         closeDatabase(handle);
-        printJson({ windows });
+        printJson({ windows, sessions, capacities });
       } else {
         const windows = loadUsageWindows(requireArg(args, "usage-file"));
+        const capacities = ["claude", "codex"].map((provider) =>
+          describeProviderCapacity({
+            provider: provider as Provider,
+            usage: windows,
+            sessions: []
+          })
+        );
         printJson({
           windows,
           providers: windows.map((entry) => ({
@@ -260,7 +334,8 @@ async function main(): Promise<void> {
             window_label: entry.window_label,
             used_percentage: entry.used_percentage,
             reset_at_utc: entry.reset_at_utc
-          }))
+          })),
+          capacities
         });
       }
       return;
@@ -350,6 +425,8 @@ async function main(): Promise<void> {
       const result = prepareRun(handle, {
         project_id: requireArg(args, "project-id"),
         ref_id: requireArg(args, "ref-id"),
+        task_key: typeof args["task-key"] === "string" ? args["task-key"] : null,
+        parallel_group: typeof args["parallel-group"] === "string" ? args["parallel-group"] : null,
         repo_path: requireArg(args, "repo-path"),
         worktrees_root: requireArg(args, "worktrees-root"),
         provider: decision.provider,
@@ -422,6 +499,8 @@ async function main(): Promise<void> {
       const packet = buildHandoffPacket(handle, {
         project_id: requireArg(args, "project-id"),
         ref_id: requireArg(args, "ref-id"),
+        task_key: typeof args["task-key"] === "string" ? args["task-key"] : null,
+        parallel_group: typeof args["parallel-group"] === "string" ? args["parallel-group"] : null,
         requirement_refs: splitCsv(args["requirement-refs"]),
         spec_refs: splitCsv(args["spec-refs"]),
         report_refs: splitCsv(args["report-refs"])

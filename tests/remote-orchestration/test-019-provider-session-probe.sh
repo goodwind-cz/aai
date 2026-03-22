@@ -30,6 +30,16 @@ console.error("unsupported");
 process.exit(1);
 EOF
 
+cat > "$tmp/bin/codex.js" <<'EOF'
+const [command, subcommand] = process.argv.slice(2);
+if (command === "login" && subcommand === "status") {
+  console.log("Logged in using ChatGPT");
+  process.exit(0);
+}
+console.error("unsupported");
+process.exit(1);
+EOF
+
 run_cli init --db "$tmp/control-plane.db" > /dev/null
 run_cli auth probe \
   --db "$tmp/control-plane.db" \
@@ -46,5 +56,12 @@ json_assert_file "$tmp/status.json" "data.session.cli_path.includes('claude.js')
 
 run_cli usage show --db "$tmp/control-plane.db" > "$tmp/usage.json"
 json_assert_file "$tmp/usage.json" "data.windows.length === 1 && data.windows[0].reset_at_utc === '2026-03-20T05:00:00Z'"
+
+run_cli auth probe \
+  --db "$tmp/control-plane.db" \
+  --provider codex \
+  --cli-path "$tmp/bin/codex.js" \
+  --session-home "$tmp/home" > "$tmp/codex-probe.json"
+json_assert_file "$tmp/codex-probe.json" "data.session.status === 'ok' && data.session.account_label === 'ChatGPT'"
 
 echo "PASS"

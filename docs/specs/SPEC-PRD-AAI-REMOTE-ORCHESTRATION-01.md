@@ -26,7 +26,7 @@
 | AC-004 | Spec-AC-005 | Telegram can create, inspect, approve, pause, resume, and stop work items without mutating requirement/spec sources in chat. | `bash tests/remote-orchestration/test-005-telegram-control-flow.sh` -> command flow succeeds and writes repo artifacts. |
 | AC-005 | Spec-AC-006 | Provider router supports explicit `claude`/`codex` selection plus auto/fallback policy. | `bash tests/remote-orchestration/test-006-provider-routing.sh` -> router decisions include explicit and fallback branches. |
 | AC-005a | Spec-AC-007 | Provider auth supports only host CLI subscription sessions; API keys are rejected in config validation. | `bash tests/remote-orchestration/test-007-cli-subscription-only.sh` -> API credential fields fail validation. |
-| AC-006 | Spec-AC-008 | `/usage` response includes quota window, used percentage, and reset timestamp per provider. | `bash tests/remote-orchestration/test-008-usage-view.sh` -> structured usage payload contains required fields for both providers. |
+| AC-006 | Spec-AC-008 | `/usage` reports provider quota windows when telemetry exists and otherwise returns readiness plus conservative routing capacity hints. | `bash tests/remote-orchestration/test-008-usage-view.sh` -> structured usage payload contains required fields and capacity guidance. |
 | AC-007 | Spec-AC-009 | Telegram command names and behavior align with AAI skills where they overlap. | `bash tests/remote-orchestration/test-009-command-skill-alignment.sh` -> mapping table validates required command coverage. |
 | AC-008 | Spec-AC-010 | Inline actions and form-based task intake reduce required free-text input for common operations. | `bash tests/remote-orchestration/test-010-interactive-ux-actions.sh` -> scripted UI flow completes with button/form payloads. |
 | AC-009 | Spec-AC-011 | Repo-first artifacts remain canonical; runtime-only coordination data is stored in host runtime storage. | `bash tests/remote-orchestration/test-011-repo-vs-runtime-boundary.sh` -> state/docs remain in repo, queue/lease remains host-only. |
@@ -34,6 +34,7 @@
 | AC-011 | Spec-AC-013 | Default runtime is single controller + SQLite + concurrency=1 with no mandatory Redis/Postgres/worker pool. | `bash tests/remote-orchestration/test-013-resource-defaults.sh` -> runtime config defaults match constraints. |
 | AC-012 | Spec-AC-014 | Memory model uses repo docs + explicit handoff + runtime DB, without hidden shared memory dependency. | `bash tests/remote-orchestration/test-014-memory-contract.sh` -> handoff packet and runtime records are explicit. |
 | AC-012a | Spec-AC-014a | Docker worker receives provider login context only via read-only provider session mount plus explicit env/handoff metadata; the image must already contain the CLI binary. | `bash tests/remote-orchestration/test-033-docker-subagent-contract.sh` -> fake docker runner shows session mount, handoff path, and provider env contract. |
+| AC-012b | Spec-AC-014b | Parallel child tasks under one parent work item use distinct `task_key` worktrees/manifests/logs while sharing only an explicit `parallel_group` label. | `bash tests/remote-orchestration/test-034-parallel-subtask-shards.sh` -> sibling shard manifests have different worktrees and explicit parallel metadata. |
 | AC-013 | Spec-AC-015 | Approval events gate phase transitions and are persisted as durable records. | `bash tests/remote-orchestration/test-015-approval-gates.sh` -> transitions blocked without approval and logged on approval. |
 | AC-013a | Spec-AC-016 | `Approve implementation` is enabled only when required planning artifacts and manifest exist. | `bash tests/remote-orchestration/test-016-approve-implementation-prereqs.sh` -> gate stays disabled until prerequisites are present. |
 | AC-013b | Spec-AC-017 | `Approve validation` is enabled only when implementation summary and validation targets exist. | `bash tests/remote-orchestration/test-017-approve-validation-prereqs.sh` -> gate stays disabled until prerequisites are present. |
@@ -41,7 +42,7 @@
 | AC-014 | Spec-AC-019 | Generated launcher supports simple background start, status, stop, restart, logs, probe, and interactive provider login commands for daily operator use. | `bash tests/remote-orchestration/test-029-daemon-manager.sh` -> daemon manager flow shows readable status/probe output and supports stop/start lifecycle. |
 | AC-014 | Spec-AC-020 | Installer reuses existing values by default and forces an explicit preserve-vs-overwrite decision before replacing setup state. | `bash tests/remote-orchestration/test-030-wizard-reuses-existing-values.sh` -> wizard offers existing values, masked token reuse, and preserve semantics without manual file edits. |
 | AC-014 | Spec-AC-021 | Installer wizard defaults the managed repo path from the existing install state when one managed project is already known. | `bash tests/remote-orchestration/test-031-summary-default-repo-path.sh` -> wizard offers the existing managed repo path instead of the current worktree path. |
-| AC-014 | Spec-AC-022 | Installer wizard can keep the current provider subscription session or guide the operator through a native browser/device-code login flow. | `bash tests/remote-orchestration/test-032-wizard-provider-login-flow.sh` -> wizard shows current account reuse and guided re-login flow with device-code style instructions. |
+| AC-014a | Spec-AC-022 | Installer stays short, while a separate `auth setup` flow reuses native Claude/Codex CLI login or guides the operator back through the provider's own login flow. | `bash tests/remote-orchestration/test-032-wizard-provider-login-flow.sh` -> install prints `auth setup`, then launcher-guided auth reaches ready provider sessions. |
 
 ## Implementation plan
 - Control-plane modules:
@@ -71,7 +72,7 @@
 | TEST-005 | Spec-AC-005 | integration | tests/remote-orchestration/test-005-telegram-control-flow.sh | Exercises core Telegram command lifecycle for one work item. | green |
 | TEST-006 | Spec-AC-006 | unit | tests/remote-orchestration/test-006-provider-routing.sh | Validates explicit provider selection and fallback branches. | green |
 | TEST-007 | Spec-AC-007 | unit | tests/remote-orchestration/test-007-cli-subscription-only.sh | Rejects API-key configuration and accepts CLI-subscription mode only. | green |
-| TEST-008 | Spec-AC-008 | unit | tests/remote-orchestration/test-008-usage-view.sh | Verifies `/usage` payload fields for both providers. | green |
+| TEST-008 | Spec-AC-008 | unit | tests/remote-orchestration/test-008-usage-view.sh | Verifies `/usage` payload fields plus routing capacity hints for both providers. | green |
 | TEST-009 | Spec-AC-009 | integration | tests/remote-orchestration/test-009-command-skill-alignment.sh | Validates command-to-skill alignment table constraints. | green |
 | TEST-010 | Spec-AC-010 | e2e | tests/remote-orchestration/test-010-interactive-ux-actions.sh | Confirms button/form flow can drive common operator actions. | green |
 | TEST-011 | Spec-AC-011 | integration | tests/remote-orchestration/test-011-repo-vs-runtime-boundary.sh | Ensures repo truth and host runtime data boundaries are enforced. | green |
@@ -79,6 +80,7 @@
 | TEST-013 | Spec-AC-013 | unit | tests/remote-orchestration/test-013-resource-defaults.sh | Checks default runtime resource policy values. | green |
 | TEST-014 | Spec-AC-014 | integration | tests/remote-orchestration/test-014-memory-contract.sh | Verifies explicit handoff packet and runtime memory contract. | green |
 | TEST-033 | Spec-AC-014a | e2e | tests/remote-orchestration/test-033-docker-subagent-contract.sh | Verifies Docker subagent launch receives read-only provider session mount and explicit handoff/task-transfer metadata. | green |
+| TEST-034 | Spec-AC-014b | integration | tests/remote-orchestration/test-034-parallel-subtask-shards.sh | Verifies sibling shard runs get unique task-key worktrees/manifests while sharing an explicit parallel-group label. | green |
 | TEST-015 | Spec-AC-015 | integration | tests/remote-orchestration/test-015-approval-gates.sh | Validates approval gate blocking and durable approval audit records. | green |
 | TEST-016 | Spec-AC-016 | unit | tests/remote-orchestration/test-016-approve-implementation-prereqs.sh | Verifies prereq gating for `Approve implementation`. | green |
 | TEST-017 | Spec-AC-017 | unit | tests/remote-orchestration/test-017-approve-validation-prereqs.sh | Verifies prereq gating for `Approve validation`. | green |
@@ -96,7 +98,7 @@
 | TEST-029 | Spec-AC-019 | e2e | tests/remote-orchestration/test-029-daemon-manager.sh | Validates the generated daemon manager can start in background, show readable status, re-probe providers, and stop cleanly. | green |
 | TEST-030 | Spec-AC-020 | e2e | tests/remote-orchestration/test-030-wizard-reuses-existing-values.sh | Validates the wizard reuses existing values, preserves masked secrets, and requires an explicit preserve-vs-overwrite choice when setup state already exists. | green |
 | TEST-031 | Spec-AC-021 | e2e | tests/remote-orchestration/test-031-summary-default-repo-path.sh | Validates the wizard reuses the existing managed repo path from install summary/runtime state. | green |
-| TEST-032 | Spec-AC-022 | e2e | tests/remote-orchestration/test-032-wizard-provider-login-flow.sh | Validates wizard provider-login UX for keeping the current subscription session and for guided browser/device-code style re-login. | green |
+| TEST-032 | Spec-AC-022 | e2e | tests/remote-orchestration/test-032-wizard-provider-login-flow.sh | Validates install -> auth setup flow that reuses native CLI sessions and re-probes after direct provider login. | green |
 
 Status values: pending -> red -> green.
 
@@ -135,6 +137,7 @@ Status values: pending -> red -> green.
   - `bash tests/remote-orchestration/test-030-wizard-reuses-existing-values.sh`
   - `bash tests/remote-orchestration/test-031-summary-default-repo-path.sh`
   - `bash tests/remote-orchestration/test-032-wizard-provider-login-flow.sh`
+  - `bash tests/remote-orchestration/test-034-parallel-subtask-shards.sh`
   - `bash tests/remote-orchestration/run-all.sh`
   - `cd apps/control-plane && npm install --no-fund --no-audit && npm run build`
   - `npm --prefix apps/control-plane run test:remote:install`

@@ -32,7 +32,7 @@ bash apps/control-plane/scripts/install-host.sh \
   --skip-deps \
   --skip-build > "$tmp/install.out"
 
-assert_contains "$tmp/install.out" "Claude CLI not found. Install it manually"
+assert_contains "$tmp/install.out" "Claude is not ready yet. Finish native CLI auth later"
 
 run_cli auth status --db "$tmp/runtime/control-plane.db" > "$tmp/status.json"
 json_assert_file "$tmp/status.json" "data.sessions.length === 2"

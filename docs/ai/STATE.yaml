@@ -42,12 +42,12 @@ active_work_items: []
 
 last_validation:
   status: pass
-  run_at_utc: "2026-03-21T14:15:54Z"
-  validator_ref: "manual-validation-20260321T141554Z"
+  run_at_utc: "2026-03-22T02:25:05Z"
+  validator_ref: "manual-validation-20260322T022505Z"
   evidence_paths:
-    - docs/ai/reports/validation-20260321T141554Z.log
-    - docs/ai/reports/validation-20260321T141554Z.md
-  notes: "Remote-orchestration now offers SuperTurtle-style install/login/startup UX: wizard reuse of existing values, explicit preserve-vs-overwrite setup policy, background daemon lifecycle commands, readable provider status/probe output, bilingual step-by-step onboarding, and all 30 current tests passed across the final validation blocks."
+    - docs/ai/reports/validation-20260322T022505Z.log
+    - docs/ai/reports/validation-20260322T022505Z.md
+  notes: "Remote-orchestration now follows a SuperTurtle-style `install -> auth setup -> start` operator flow: the installer stays short, auth setup reuses native Claude/Codex CLI sessions, `/usage` reports routing capacity hints, and parallel Docker shard runs use explicit `task_key`/`parallel_group` isolation. Final validation passed with 34/34 tests green."
 
 human_input:
   required: false
@@ -194,5 +194,13 @@ metrics:
           tokens_in: null
           tokens_out: null
           cost_usd: null
+        - role: Implementation
+          model_id: gpt-5
+          started_utc: "2026-03-22T01:33:57Z"
+          ended_utc: "2026-03-22T02:25:05Z"
+          duration_seconds: 3069
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
 
-updated_at_utc: "2026-03-21T14:15:54Z"
+updated_at_utc: "2026-03-22T02:25:05Z"

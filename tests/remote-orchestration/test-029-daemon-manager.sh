@@ -46,7 +46,13 @@ process.exit(1);
 EOF
 
 cat > "$tmp/bin/codex.js" <<'EOF'
-console.log("codex ok");
+const [command, subcommand] = process.argv.slice(2);
+if (command === "login" && subcommand === "status") {
+  console.log("Logged in using ChatGPT");
+  process.exit(0);
+}
+console.error("unsupported");
+process.exit(1);
 EOF
 
 cat > "$tmp/updates.json" <<'EOF'
@@ -73,8 +79,7 @@ run_cli auth probe \
   --db "$tmp/control-plane.db" \
   --provider codex \
   --cli-path "$tmp/bin/codex.js" \
-  --session-home "$tmp/home/codex" \
-  --probe-args --help > /dev/null
+  --session-home "$tmp/home/codex" > /dev/null
 
 cat > "$tmp/control-plane.env" <<EOF
 AAI_TELEGRAM_BOT_TOKEN=test-token
@@ -103,15 +108,17 @@ assert_contains "$tmp/status.out" "Daemon: running"
 assert_contains "$tmp/status.out" "fixture-daemon-029"
 assert_contains "$tmp/status.out" "- claude: ok"
 assert_contains "$tmp/status.out" "- codex: ok"
+assert_contains "$tmp/status.out" "Usage and routing"
+
+bash apps/control-plane/scripts/control-plane-daemon.sh --env "$tmp/control-plane.env" auth status > "$tmp/auth-status.out"
+assert_contains "$tmp/auth-status.out" "Provider auth status"
+assert_contains "$tmp/auth-status.out" "recommended parallel runs"
+
+bash apps/control-plane/scripts/control-plane-daemon.sh --env "$tmp/control-plane.env" usage > "$tmp/usage.out"
+assert_contains "$tmp/usage.out" "Provider usage and routing capacity"
 
 bash apps/control-plane/scripts/control-plane-daemon.sh --env "$tmp/control-plane.env" probe > "$tmp/probe.out"
-assert_contains "$tmp/probe.out" "Provider probe results"
-
-printf '\n' | bash apps/control-plane/scripts/control-plane-daemon.sh --env "$tmp/control-plane.env" login claude > "$tmp/login.out" 2>&1
-assert_contains "$tmp/login.out" "Claude login must be completed in a separate direct WSL/Linux terminal"
-assert_contains "$tmp/login.out" "Open another terminal window and run:"
-assert_contains "$tmp/login.out" "auth login"
-assert_contains "$tmp/login.out" "Re-probing claude session..."
+assert_contains "$tmp/probe.out" "Provider auth status"
 assert_contains "$tmp/probe.out" "- claude: ok"
 assert_contains "$tmp/probe.out" "- codex: ok"
 

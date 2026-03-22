@@ -9,7 +9,7 @@ RENDER_NODE=""
 usage() {
   cat <<'EOF'
 Usage:
-  bash apps/control-plane/scripts/control-plane-daemon.sh [--env <path>] [start|run|status|stop|restart|logs|probe|login <claude|codex>]
+  bash apps/control-plane/scripts/control-plane-daemon.sh [--env <path>] [start|run|status|stop|restart|logs|probe|usage|auth <setup|status>]
 
 Commands:
   start     Start the Telegram daemon in background and return immediately.
@@ -19,7 +19,8 @@ Commands:
   restart   Restart the background daemon.
   logs      Tail the structured runtime log.
   probe     Re-probe Claude and Codex session state and print the result.
-  login     Open interactive provider login for Claude or Codex, then re-probe.
+  usage     Show provider usage telemetry and routing capacity summary.
+  auth      Run 'auth setup' or 'auth status' for provider readiness.
 EOF
 }
 
@@ -82,7 +83,8 @@ source "$ENV_FILE"
 RENDER_NODE="$(detect_render_node)"
 
 ACTION="${1:-start}"
-PROVIDER_ARG="${2:-}"
+ARG2="${2:-}"
+ARG3="${3:-}"
 RUNTIME_DIR="$(cd "$(dirname "$ENV_FILE")" && pwd)"
 PID_FILE="${AAI_CONTROL_PLANE_PID_FILE:-$RUNTIME_DIR/control-plane.pid}"
 CONSOLE_LOG="${AAI_CONTROL_PLANE_CONSOLE_LOG:-$RUNTIME_DIR/control-plane.console.log}"
@@ -181,6 +183,91 @@ for (const project of projects) {
 EOF
 }
 
+auth_doctor() {
+  bash apps/control-plane/scripts/run-cli.sh auth doctor \
+    --db "$AAI_CONTROL_PLANE_DB" \
+    --claude-cli-path "${AAI_CLAUDE_CLI_PATH:-$(command -v claude 2>/dev/null || true)}" \
+    --claude-session-home "${AAI_CLAUDE_SESSION_HOME:-$HOME/.claude}" \
+    --codex-cli-path "${AAI_CODEX_CLI_PATH:-$(command -v codex 2>/dev/null || true)}" \
+    --codex-session-home "${AAI_CODEX_SESSION_HOME:-$HOME/.codex}"
+}
+
+render_auth_doctor() {
+  local payload="$1"
+  if [[ -z "$RENDER_NODE" ]]; then
+    printf '%s\n' "$payload"
+    return
+  fi
+  "$RENDER_NODE" --no-warnings - "$payload" <<'EOF'
+const [raw] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+const capacities = Array.isArray(payload.capacities) ? payload.capacities : [];
+if (sessions.length === 0) {
+  console.log("No provider sessions recorded yet.");
+  process.exit(0);
+}
+for (const session of sessions) {
+  const capacity = capacities.find((entry) => entry.provider === session.provider) || null;
+  console.log(`- ${session.provider}: ${session.status}`);
+  console.log(`  account: ${session.account_label || "unknown"}`);
+  console.log(`  cli: ${session.cli_path}`);
+  console.log(`  session home: ${session.session_home}`);
+  console.log(`  last verified: ${session.last_verified_at_utc || "never"}`);
+  console.log(`  last usage sync: ${session.last_usage_sync_at_utc || "never"}`);
+  console.log(`  error: ${session.last_error || "none"}`);
+  if (capacity) {
+    console.log(`  dispatch: ${capacity.dispatch_state}`);
+    console.log(`  recommended parallel runs: ${capacity.recommended_parallel_runs}`);
+    console.log(`  capacity reason: ${capacity.reason}`);
+  }
+}
+EOF
+}
+
+render_usage_summary() {
+  local payload="$1"
+  if [[ -z "$RENDER_NODE" ]]; then
+    printf '%s\n' "$payload"
+    return
+  fi
+  "$RENDER_NODE" --no-warnings - "$payload" <<'EOF'
+const [raw] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+const windows = Array.isArray(payload.windows) ? payload.windows : [];
+const capacities = Array.isArray(payload.capacities) ? payload.capacities : [];
+const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+if (windows.length === 0) {
+  console.log("Usage telemetry unavailable.");
+  for (const capacity of capacities) {
+    const session = sessions.find((entry) => entry.provider === capacity.provider) || null;
+    console.log(`- ${capacity.provider}: dispatch=${capacity.dispatch_state}, recommended_parallel_runs=${capacity.recommended_parallel_runs}, reason=${capacity.reason}, account=${session?.account_label || "unknown"}`);
+  }
+  process.exit(0);
+}
+for (const window of windows) {
+  console.log(`- ${window.provider}: ${window.used_percentage}% used, resets ${window.reset_at_utc}`);
+}
+for (const capacity of capacities) {
+  console.log(`  ${capacity.provider}: dispatch=${capacity.dispatch_state}, recommended_parallel_runs=${capacity.recommended_parallel_runs}, reason=${capacity.reason}`);
+}
+EOF
+}
+
+auth_status_flow() {
+  local payload=""
+  payload="$(auth_doctor)"
+  printf 'Provider auth status\n'
+  render_auth_doctor "$payload"
+}
+
+usage_status_flow() {
+  local payload=""
+  payload="$(bash apps/control-plane/scripts/run-cli.sh usage show --db "$AAI_CONTROL_PLANE_DB")"
+  printf 'Provider usage and routing capacity\n'
+  render_usage_summary "$payload"
+}
+
 probe_and_render_provider() {
   local provider="$1"
   local payload=""
@@ -232,10 +319,17 @@ print_status() {
   printf 'Telegram token: %s\n' "$(if [[ -n "${AAI_TELEGRAM_BOT_TOKEN:-}" ]]; then printf configured; else printf missing; fi)"
   printf '\nProvider sessions\n'
   local auth_payload=""
-  if auth_payload="$(bash apps/control-plane/scripts/run-cli.sh auth status --db "$AAI_CONTROL_PLANE_DB" 2>/dev/null)"; then
+  if auth_payload="$(auth_doctor 2>/dev/null)"; then
     render_provider_sessions "$auth_payload"
   else
     printf 'Unable to load provider session status.\n'
+  fi
+  printf '\nUsage and routing\n'
+  local usage_payload=""
+  if usage_payload="$(bash apps/control-plane/scripts/run-cli.sh usage show --db "$AAI_CONTROL_PLANE_DB" 2>/dev/null)"; then
+    render_usage_summary "$usage_payload"
+  else
+    printf 'Unable to load provider usage summary.\n'
   fi
   printf '\nProjects\n'
   local project_payload=""
@@ -285,47 +379,163 @@ probe_provider() {
     --session-home "$session_home"
 }
 
+doctor_has_ready_provider() {
+  local payload="$1"
+  if [[ -z "$RENDER_NODE" ]]; then
+    grep -q '"status": "ok"' <<<"$payload"
+    return
+  fi
+  "$RENDER_NODE" --no-warnings - "$payload" <<'EOF'
+const [raw] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+process.exit(sessions.some((entry) => entry.status === "ok") ? 0 : 1);
+EOF
+}
+
+print_native_login_command() {
+  local provider="$1"
+  local cli_path="$2"
+  local session_home="$3"
+  case "$provider" in
+    claude)
+      print_shell_command env "HOME=$session_home" "AAI_PROVIDER_SESSION_HOME=$session_home" "$cli_path" auth login
+      ;;
+    codex)
+      print_shell_command env "HOME=$session_home" "AAI_PROVIDER_SESSION_HOME=$session_home" "$cli_path" login
+      ;;
+  esac
+}
+
+auth_setup_for_provider() {
+  local provider="$1"
+  local payload="$2"
+  local cli_path="$3"
+  local session_home="$4"
+  local answer=""
+  local current_status=""
+  local account_label=""
+  local last_error=""
+
+  current_status="$("$RENDER_NODE" --no-warnings - "$payload" "$provider" <<'EOF'
+const [raw, provider] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+const session = sessions.find((entry) => entry.provider === provider);
+process.stdout.write(session?.status || "unknown");
+EOF
+)"
+  account_label="$("$RENDER_NODE" --no-warnings - "$payload" "$provider" <<'EOF'
+const [raw, provider] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+const session = sessions.find((entry) => entry.provider === provider);
+process.stdout.write(session?.account_label || "");
+EOF
+)"
+  last_error="$("$RENDER_NODE" --no-warnings - "$payload" "$provider" <<'EOF'
+const [raw, provider] = process.argv.slice(2);
+const payload = JSON.parse(raw);
+const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+const session = sessions.find((entry) => entry.provider === provider);
+process.stdout.write(session?.last_error || "");
+EOF
+)"
+
+  if [[ -z "$cli_path" ]]; then
+    case "$provider" in
+      claude)
+        printf "Claude CLI is not installed. Install Claude Code CLI first, then rerun 'bash %s auth setup'.\n" "$0"
+        ;;
+      codex)
+        printf "Codex CLI is not installed. Install it with 'npm install -g @openai/codex@latest', then rerun 'bash %s auth setup'.\n" "$0"
+        ;;
+    esac
+    return
+  fi
+
+  if [[ "$current_status" == "ok" ]]; then
+    printf "%s already looks ready" "$provider"
+    if [[ -n "$account_label" ]]; then
+      printf " as %s" "$account_label"
+    fi
+    printf ". Using the existing native CLI login.\n"
+    return
+  fi
+
+  printf "%s is not ready yet" "$provider"
+  if [[ -n "$last_error" ]]; then
+    printf " (%s)" "$last_error"
+  fi
+  printf ".\n"
+  printf "Run this native provider login in a separate direct WSL/Linux terminal:\n"
+  print_native_login_command "$provider" "$cli_path" "$session_home"
+  if [[ "$provider" == "claude" ]]; then
+    printf "When Claude opens the browser and shows an authentication code, paste that code back into that native terminal and press Enter there.\n"
+  else
+    printf "When Codex opens its login flow, complete it there and then exit that native terminal session.\n"
+  fi
+  printf "Press Enter here after the native login finishes, or type 's' to skip for now [Enter/s]: "
+  IFS= read -r answer || true
+  case "${answer,,}" in
+    s|skip|n|no)
+      printf "Skipping %s for now.\n" "$provider"
+      return
+      ;;
+  esac
+  printf "Refreshing %s session...\n" "$provider"
+  probe_and_render_provider "$provider"
+}
+
+auth_setup_flow() {
+  local payload=""
+  printf 'Auth setup\n'
+  printf 'SuperTurtle-style rule: the control-plane reuses your existing native Claude/Codex CLI login and does not trap OAuth inside the wrapper.\n\n'
+  payload="$(auth_doctor)"
+  render_auth_doctor "$payload"
+  printf '\n'
+  auth_setup_for_provider "claude" "$payload" "${AAI_CLAUDE_CLI_PATH:-$(command -v claude 2>/dev/null || true)}" "${AAI_CLAUDE_SESSION_HOME:-$HOME/.claude}"
+  printf '\n'
+  auth_setup_for_provider "codex" "$payload" "${AAI_CODEX_CLI_PATH:-$(command -v codex 2>/dev/null || true)}" "${AAI_CODEX_SESSION_HOME:-$HOME/.codex}"
+  printf '\nFinal provider status\n'
+  payload="$(auth_doctor)"
+  render_auth_doctor "$payload"
+}
+
 login_provider() {
   local provider="$1"
   local cli_path=""
   local session_home=""
-  local answer=""
   case "$provider" in
     claude)
       cli_path="${AAI_CLAUDE_CLI_PATH:-$(command -v claude 2>/dev/null || true)}"
       session_home="${AAI_CLAUDE_SESSION_HOME:-$HOME/.claude}"
-      [[ -n "$cli_path" ]] || fail "Claude CLI is not installed. Install it first, then run 'claude auth login'."
-      printf '%s\n' "Claude login must be completed in a separate direct WSL/Linux terminal so the authentication code prompt does not get trapped inside this wrapper."
-      printf '%s\n' "Open another terminal window and run:"
-      print_shell_command env "HOME=$session_home" "AAI_PROVIDER_SESSION_HOME=$session_home" "$cli_path" auth login
-      printf '%s\n' "When Claude opens the browser and shows an authentication code, paste that code back into the other terminal where 'claude auth login' is running."
-      printf '%s' "After Claude login finishes in that other terminal, return here and press Enter to continue, or type 's' to skip [Enter/s]: "
-      IFS= read -r answer || true
-      case "${answer,,}" in
-        s|skip|n|no)
-          printf '%s\n' "Skipping Claude re-probe for now."
-          return
-          ;;
-      esac
       ;;
     codex)
       cli_path="${AAI_CODEX_CLI_PATH:-$(command -v codex 2>/dev/null || true)}"
       session_home="${AAI_CODEX_SESSION_HOME:-$HOME/.codex}"
-      [[ -n "$cli_path" ]] || fail "Codex CLI is not installed or broken. Reinstall with 'npm install -g @openai/codex@latest' and run again."
-      printf '%s\n' "Opening Codex interactive login. Choose 'Sign in with ChatGPT', finish login, then exit Codex."
-      HOME="$session_home" AAI_PROVIDER_SESSION_HOME="$session_home" run_provider_login_command "$cli_path"
       ;;
     *)
       fail "Unsupported provider: $provider"
       ;;
   esac
-
-  printf '\nRe-probing %s session...\n' "$provider"
-  probe_provider "$provider"
+  local payload=""
+  payload="$(auth_doctor)"
+  auth_setup_for_provider "$provider" "$payload" "$cli_path" "$session_home"
 }
 
 start_daemon() {
   [[ -n "${AAI_TELEGRAM_BOT_TOKEN:-}" ]] || fail "AAI_TELEGRAM_BOT_TOKEN is missing in $ENV_FILE"
+  local doctor_payload=""
+  doctor_payload="$(auth_doctor)"
+  if ! doctor_has_ready_provider "$doctor_payload"; then
+    printf 'No ready Claude/Codex CLI session is available yet.\n' >&2
+    printf 'Run this first:\n' >&2
+    printf '  bash %s auth setup\n' "$0" >&2
+    printf '\nCurrent provider state:\n' >&2
+    render_auth_doctor "$doctor_payload" >&2
+    exit 1
+  fi
   if is_running; then
     printf 'Control-plane daemon is already running with PID %s.\n' "$(cat "$PID_FILE")"
     return
@@ -419,13 +629,27 @@ case "$ACTION" in
     exec tail -f "$STRUCTURED_LOG"
     ;;
   probe)
-    printf 'Provider probe results\n'
-    probe_and_render_provider claude
-    probe_and_render_provider codex
+    auth_status_flow
+    ;;
+  usage)
+    usage_status_flow
+    ;;
+  auth)
+    case "${ARG2:-setup}" in
+      setup)
+        auth_setup_flow
+        ;;
+      status)
+        auth_status_flow
+        ;;
+      *)
+        fail "Usage: ... auth <setup|status>"
+        ;;
+    esac
     ;;
   login)
-    [[ -n "$PROVIDER_ARG" ]] || fail "Usage: ... login <claude|codex>"
-    login_provider "$PROVIDER_ARG"
+    [[ -n "$ARG2" ]] || fail "Usage: ... login <claude|codex>"
+    login_provider "$ARG2"
     ;;
   *)
     usage

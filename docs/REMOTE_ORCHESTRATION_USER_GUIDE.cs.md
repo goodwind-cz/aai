@@ -10,7 +10,7 @@ Po dokončení setupu budeš mít:
 
 - jeden host-side control-plane daemon
 - jednu SQLite runtime databázi v `.runtime/`
-- jeden vygenerovaný launcher skript pro start, status, stop, restart, logy, probe a login
+- jeden vygenerovaný launcher skript pro `auth setup`, `auth status`, `usage`, start, status, stop, restart, logy a probe
 - registraci jednoho nebo více projektů
 - routing mezi Claude Code a Codex přes CLI subscription mode
 - Telegram commandy a inline akce pro queueing a řízení práce
@@ -43,7 +43,7 @@ docker --version || true
 
 Preferovaná varianta ve WSL je nativní Linux Node z `~/.nvm`, ideálně `v20+` nebo `v22+`.
 
-## 3. Přihlášení Claude nebo Codex přes subscription
+## 3. Příprava nativního přihlášení Claude a Codex CLI
 
 ### Claude Code
 
@@ -62,7 +62,7 @@ Očekávaný tvar cesty ve WSL:
 ```
 
 Jestli `claude auth status --json` říká, že jsi přihlášený, Claude je připravený pro control-plane.
-Když tento login wizard najde později, stačí Enter pro ponechání nebo `s` pro přepnutí na jiný Claude subscription účet.
+Control-plane tento nativní CLI login jen převezme. OAuth flow neřídí sám.
 
 ### Codex
 
@@ -72,16 +72,21 @@ Pokud `codex` chybí nebo je rozbitý, udělej nejdřív reinstall:
 npm install -g @openai/codex@latest
 ```
 
-Pak spusť Codex a zvol `Sign in with ChatGPT`:
+Pak spusť nativní Codex login flow:
 
 ```bash
-codex
+codex login
+codex login status
 which codex
-codex --help
 ```
 
-Pokud `codex --help` spadne na chybě s optional dependency, udělej reinstall a spusť `codex` znovu.
-Když wizard najde použitelný Codex login, Enter ho ponechá a `s` znovu otevře nativní Codex sign-in flow pro jiný ChatGPT účet.
+Očekávaný připravený stav:
+
+```text
+Logged in using ChatGPT
+```
+
+Pokud `codex login status` spadne na chybě s optional dependency, udělej reinstall a spusť `codex login` znovu.
 
 ### Důležité pravidlo
 
@@ -159,9 +164,8 @@ Wizard potom:
 - zaregistruje projekt do host SQLite DB
 - autodetekuje `claude` a `codex`
 - ověří provider login state
-- pokud je provider už přihlášený, ukáže aktuální účet a dovolí ho ponechat Enterem nebo přepnout přes `s`
-- pokud Codex ještě přihlášený není, nabídne okamžité otevření nativního interaktivního login flow
-- pokud Claude ještě přihlášený není, vypíše přesný `claude auth login` příkaz pro samostatný přímý WSL/Linux terminál a počká, až se po dokončení loginu vrátíš
+- vygeneruje samostatné launcher příkazy pro `auth setup` a `auth status`
+- nikdy nechytá Claude ani Codex OAuth přímo uvnitř installer wrapperu
 - zapíše `.runtime/install-summary.<project>.json`
 - zapíše `.runtime/control-plane.env`
 - zapíše `.runtime/run-control-plane.sh`
@@ -182,23 +186,6 @@ Press Enter to preserve the current setup, or 'y' to overwrite it and reinitiali
 Overwrite existing config/runtime state? [y/N]:
 ```
 
-```text
-Provider 'claude' is already logged in as ales@example.test (max).
-Press Enter to keep this login, or type 's' to switch account [Enter/s]:
-```
-
-```text
-Provider 'claude' is not ready yet (status: error).
-Last probe detail: Claude CLI is installed but not logged in. Run 'claude auth login' on the host.
-Press Enter to open interactive login now, or type 's' to skip for now [Enter/s]:
-Complete the provider's native subscription login flow on this host.
-Claude login must be completed in a separate direct WSL/Linux terminal so the authentication code prompt does not get trapped inside this wrapper.
-Open another terminal window and run:
-  env HOME=/home/<user>/.claude AAI_PROVIDER_SESSION_HOME=/home/<user>/.claude /home/<user>/.local/bin/claude auth login
-When Claude opens the browser and shows an authentication code, paste that code back into the other terminal where 'claude auth login' is running.
-After Claude login finishes in that other terminal, return here and press Enter to continue, or type 's' to skip [Enter/s]:
-```
-
 Význam volby stavu:
 
 - `N` nebo Enter ponechá aktuální config, DB, env, launcher i summary soubory
@@ -211,21 +198,42 @@ npm --prefix apps/control-plane run install:host -- --preserve-existing ...
 npm --prefix apps/control-plane run install:host -- --overwrite-existing ...
 ```
 
-## 6. Ověření login state providerů po instalaci
+## 6. Dokončení provider auth po instalaci
 
-Nejjednodušší operátorský příkaz je:
+Pravidlo inspirované SuperTurtle:
+
+- `install:wizard` připraví host a projekt
+- `auth setup` převezme existující nativní CLI login nebo ti řekne přesně, jaký nativní příkaz spustit
+- `start` běží až ve chvíli, kdy je aspoň jeden provider opravdu ready
+
+Použij:
 
 ```bash
-bash .runtime/run-control-plane.sh probe
+bash .runtime/run-control-plane.sh auth setup
 ```
 
-Ten znovu ověří oba providery a vypíše čitelný souhrn.
+Co `auth setup` dělá:
+
+- znovu probne Claude a Codex z jejich nativních CLI home adresářů
+- když je provider už ready, řekne, že tento nativní login znovu použije
+- když Claude ready není, vypíše přesný `claude auth login` příkaz pro separátní přímý WSL/Linux terminál
+- když Codex ready není, vypíše přesný `codex login` příkaz pro separátní přímý WSL/Linux terminál
+- po dokončení nativního loginu se vrátíš sem a Enterem spustíš re-probe
+
+Pak si ověř finální stav:
+
+```bash
+bash .runtime/run-control-plane.sh auth status
+bash .runtime/run-control-plane.sh usage
+```
 
 Význam stavů:
 
 - `ok` znamená, že CLI existuje a login probe prošel
 - `missing` znamená, že CLI na hostu není nainstalované
 - `error` znamená, že CLI existuje, ale login nebo probe selhal
+- `dispatch=blocked` znamená, že router na tomto provideru nesmí spustit práci
+- `recommended parallel runs` je bezpečný horní limit paralelního fan-outu Docker subtasků pro tento provider
 
 Přímé low-level příkazy:
 
@@ -244,7 +252,7 @@ npm --prefix apps/control-plane run auth:probe -- \
   --provider codex \
   --cli-path "$(command -v codex)" \
   --session-home ~/.codex \
-  --probe-args --help
+  --probe-args login,status
 ```
 
 Pokud chceš ověřit jen Claude přímo:
@@ -280,11 +288,12 @@ bash .runtime/run-control-plane.sh restart
 bash .runtime/run-control-plane.sh logs
 ```
 
-Login a opětovné ověření providerů:
+Stav providerů a usage:
 
 ```bash
-bash .runtime/run-control-plane.sh login claude
-bash .runtime/run-control-plane.sh login codex
+bash .runtime/run-control-plane.sh auth setup
+bash .runtime/run-control-plane.sh auth status
+bash .runtime/run-control-plane.sh usage
 bash .runtime/run-control-plane.sh probe
 ```
 
@@ -303,11 +312,13 @@ Co přesně dělají příkazy `run-control-plane.sh`:
 - `logs`
   Připojí se na strukturovaný runtime log. Použij ho tehdy, když daemon běží a chceš vidět, co právě dělá.
 - `probe`
-  Znovu ověří dostupnost a login state Claude i Codex a vypíše čitelný souhrn včetně informace o dostupnosti usage telemetry.
-- `login claude`
-  Vypíše přesný `claude auth login` příkaz, který máš spustit v samostatném přímém WSL/Linux terminálu, řekne ti, že browser authentication code patří zpět tam, a potom po Enteru znovu ověří Claude.
-- `login codex`
-  Otevře nativní interaktivní Codex login na hostu a potom znovu ověří Codex.
+  Znovu ověří dostupnost Claude i Codex a vypíše čitelný auth souhrn.
+- `auth setup`
+  Znovu použije existující nativní Claude/Codex login, pokud už je ready. Jinak vypíše přesný nativní `claude auth login` nebo `codex login` příkaz pro separátní přímý WSL/Linux terminál a potom znovu probne stav.
+- `auth status`
+  Vypíše aktuální provider auth stav, account label, čas posledního probe a routing capacity hint bez zásahu do daemonu.
+- `usage`
+  Vypíše provider usage telemetry, když je dostupná, a vždy ukáže routing dispatch capacity summary včetně doporučeného počtu paralelních subtask kontejnerů na provider.
 
 Ekvivalentní npm shortcuty:
 
@@ -318,8 +329,9 @@ npm --prefix apps/control-plane run daemon:stop
 npm --prefix apps/control-plane run daemon:restart
 npm --prefix apps/control-plane run daemon:logs
 npm --prefix apps/control-plane run daemon:probe
-npm --prefix apps/control-plane run daemon:login:claude
-npm --prefix apps/control-plane run daemon:login:codex
+npm --prefix apps/control-plane run daemon:auth:setup
+npm --prefix apps/control-plane run daemon:auth:status
+npm --prefix apps/control-plane run daemon:usage
 ```
 
 `status` ukazuje:
@@ -370,6 +382,29 @@ Důležité pravidlo:
 - host předává jen login/session home a runtime hinty
 - session mount je read-only
 
+Model paralelních malých tasků:
+
+- každý paralelní child task dostane vlastní `task_key`
+- tasky ze stejné fan-out vlny sdílí jeden `parallel_group`
+- control-plane zapisuje jeden izolovaný worktree pro každý `task_key`
+- každý container dostane vlastní manifest, container name, log file a handoff packet
+- router doporučí paralelní fan-out jen tehdy, když je provider usage telemetry dost nízká; bez usage telemetry zůstává konzervativně na jedné lince
+
+Příklad:
+
+```bash
+npm --prefix apps/control-plane run run:prepare -- \
+  --db .runtime/control-plane.db \
+  --project-id aai-canonical \
+  --ref-id PRD-AAI-REMOTE-ORCHESTRATION-01 \
+  --task-key backend-diff \
+  --parallel-group impl-fanout \
+  --repo-path "$PWD" \
+  --worktrees-root .runtime/worktrees \
+  --container-image ghcr.io/example/aai-worker:preview \
+  --provider auto
+```
+
 Předávání úkolů mezi agenty je explicitní:
 
 - repo docs zůstávají kanonický source of truth
@@ -410,6 +445,7 @@ Alias:
 ```
 
 Pokud ještě není dostupná quota telemetry, bot teď spadne do čitelného fallbacku se stavem provider session místo toho, aby jen napsal, že usage není k dispozici.
+Současně ukáže router dispatch state a doporučený počet paralelních runů pro každý provider.
 
 ### 11.5 Změna providera
 
@@ -438,7 +474,9 @@ Inline akce podporují:
 npm --prefix apps/control-plane run install:wizard
 npm --silent --prefix apps/control-plane run telegram:get-me -- --token "<BOT_TOKEN>"
 npm --silent --prefix apps/control-plane run telegram:setup-info -- --token "<BOT_TOKEN>"
-bash .runtime/run-control-plane.sh probe
+bash .runtime/run-control-plane.sh auth setup
+bash .runtime/run-control-plane.sh auth status
+bash .runtime/run-control-plane.sh usage
 bash .runtime/run-control-plane.sh start
 bash .runtime/run-control-plane.sh status
 bash .runtime/run-control-plane.sh logs
@@ -451,7 +489,7 @@ bash .runtime/run-control-plane.sh logs
 Nainstaluj nebo reinstaluj CLI, přihlas ho a pak spusť:
 
 ```bash
-bash .runtime/run-control-plane.sh probe
+bash .runtime/run-control-plane.sh auth setup
 ```
 
 nebo znovu wizard:
@@ -463,9 +501,9 @@ npm --prefix apps/control-plane run install:wizard
 ### Nejjednodušší host-side login flow
 
 ```bash
-bash .runtime/run-control-plane.sh login claude
-bash .runtime/run-control-plane.sh login codex
-bash .runtime/run-control-plane.sh probe
+bash .runtime/run-control-plane.sh auth setup
+bash .runtime/run-control-plane.sh auth status
+bash .runtime/run-control-plane.sh usage
 ```
 
 ### Telegram token funguje, ale `telegram:setup-info` neukazuje žádná ID
