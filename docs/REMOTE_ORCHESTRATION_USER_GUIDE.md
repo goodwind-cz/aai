@@ -160,8 +160,8 @@ The wizard then:
 - auto-detects `claude` and `codex`
 - probes provider login state
 - if a provider is already logged in, shows the current account and lets you keep it with Enter or switch with `s`
-- if a provider is not logged in yet, offers to open the native interactive login flow immediately
-- explains what to do when the provider shows a browser link or a one-time device code
+- if Codex is not logged in yet, offers to open the native interactive login flow immediately
+- if Claude is not logged in yet, prints the exact `claude auth login` command for a separate direct WSL/Linux terminal and waits for you to come back after finishing that login there
 - writes `.runtime/install-summary.<project>.json`
 - writes `.runtime/control-plane.env`
 - writes `.runtime/run-control-plane.sh`
@@ -192,9 +192,11 @@ Provider 'claude' is not ready yet (status: error).
 Last probe detail: Claude CLI is installed but not logged in. Run 'claude auth login' on the host.
 Press Enter to open interactive login now, or type 's' to skip for now [Enter/s]:
 Complete the provider's native subscription login flow on this host.
-If the CLI opens a browser, finish the login there.
-If the CLI shows a verification link and one-time code, open the link, then return to the same terminal, paste the authentication code there, and press Enter even if no prompt is visible yet.
-If the terminal looks stuck after opening the browser, it is usually waiting for that pasted authentication code.
+Claude login must be completed in a separate direct WSL/Linux terminal so the authentication code prompt does not get trapped inside this wrapper.
+Open another terminal window and run:
+  env HOME=/home/<user>/.claude AAI_PROVIDER_SESSION_HOME=/home/<user>/.claude /home/<user>/.local/bin/claude auth login
+When Claude opens the browser and shows an authentication code, paste that code back into the other terminal where 'claude auth login' is running.
+After Claude login finishes in that other terminal, return here and press Enter to continue, or type 's' to skip [Enter/s]:
 ```
 
 Meaning of the state choice:
@@ -303,7 +305,7 @@ What each `run-control-plane.sh` command does:
 - `probe`
   Re-checks Claude and Codex availability and login state, then prints a readable summary including usage telemetry availability.
 - `login claude`
-  Opens the native Claude interactive login flow on the host, explicitly tells you to paste the browser authentication code back into the same terminal if Claude waits, and then re-probes Claude.
+  Prints the exact `claude auth login` command you should run in a separate direct WSL/Linux terminal, tells you to paste the browser authentication code back there, then waits here for Enter and re-probes Claude.
 - `login codex`
   Opens the native Codex interactive login flow on the host and then re-probes Codex.
 

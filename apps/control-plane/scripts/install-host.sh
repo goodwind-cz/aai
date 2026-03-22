@@ -188,6 +188,12 @@ prompt_yes_no_default() {
   printf '%s\n' "$answer"
 }
 
+print_shell_command() {
+  printf '  ' >&2
+  printf '%q ' "$@" >&2
+  printf '\n' >&2
+}
+
 detect_project_id() {
   basename "$MANAGED_REPO_PATH" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9._-' '-'
 }
@@ -762,6 +768,7 @@ run_interactive_provider_login() {
   local cli_path="$2"
   local session_home="$3"
   local login_command=()
+  local answer=""
   if [[ -z "$cli_path" || ! -x "$cli_path" && ! -f "$cli_path" ]]; then
     case "$provider" in
       claude)
@@ -776,8 +783,6 @@ run_interactive_provider_login() {
 
   printf '%s\n' "Complete the provider's native subscription login flow on this host." >&2
   printf '%s\n' "If the CLI opens a browser, finish the login there." >&2
-  printf '%s\n' "If the CLI shows a verification link and one-time code, open the link, then return to this same terminal, paste the authentication code here, and press Enter even if no prompt is visible yet." >&2
-  printf '%s\n' "If the terminal seems stuck after opening the browser, it is usually waiting for that pasted authentication code." >&2
 
   if [[ "$cli_path" =~ \.(cjs|mjs|js|ts)$ ]]; then
     login_command=("$NODE_BIN" --no-warnings "$cli_path")
@@ -787,8 +792,18 @@ run_interactive_provider_login() {
 
   case "$provider" in
     claude)
-      printf '%s\n' "Opening Claude interactive login..." >&2
-      HOME="$session_home" AAI_PROVIDER_SESSION_HOME="$session_home" "${login_command[@]}" auth login || true
+      printf '%s\n' "Claude login must be completed in a separate direct WSL/Linux terminal so the authentication code prompt does not get trapped inside this wrapper." >&2
+      printf '%s\n' "Open another terminal window and run:" >&2
+      print_shell_command env "HOME=$session_home" "AAI_PROVIDER_SESSION_HOME=$session_home" "${login_command[@]}" auth login
+      printf '%s\n' "When Claude opens the browser and shows an authentication code, paste that code back into the other terminal where 'claude auth login' is running." >&2
+      printf '%s' "After Claude login finishes in that other terminal, return here and press Enter to continue, or type 's' to skip [Enter/s]: " >&2
+      IFS= read -r answer || true
+      case "${answer,,}" in
+        s|skip|n|no)
+          printf '%s\n' "Skipping Claude re-probe for now." >&2
+          return
+          ;;
+      esac
       ;;
     codex)
       printf '%s\n' "Opening Codex interactive login. Choose 'Sign in with ChatGPT', finish login, then exit Codex." >&2

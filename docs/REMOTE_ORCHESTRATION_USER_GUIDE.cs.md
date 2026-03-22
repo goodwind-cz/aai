@@ -160,8 +160,8 @@ Wizard potom:
 - autodetekuje `claude` a `codex`
 - ověří provider login state
 - pokud je provider už přihlášený, ukáže aktuální účet a dovolí ho ponechat Enterem nebo přepnout přes `s`
-- pokud provider ještě přihlášený není, nabídne okamžité otevření nativního interaktivního login flow
-- vysvětlí, co dělat, když provider ukáže browser link nebo jednorázový device code
+- pokud Codex ještě přihlášený není, nabídne okamžité otevření nativního interaktivního login flow
+- pokud Claude ještě přihlášený není, vypíše přesný `claude auth login` příkaz pro samostatný přímý WSL/Linux terminál a počká, až se po dokončení loginu vrátíš
 - zapíše `.runtime/install-summary.<project>.json`
 - zapíše `.runtime/control-plane.env`
 - zapíše `.runtime/run-control-plane.sh`
@@ -192,9 +192,11 @@ Provider 'claude' is not ready yet (status: error).
 Last probe detail: Claude CLI is installed but not logged in. Run 'claude auth login' on the host.
 Press Enter to open interactive login now, or type 's' to skip for now [Enter/s]:
 Complete the provider's native subscription login flow on this host.
-If the CLI opens a browser, finish the login there.
-If the CLI shows a verification link and one-time code, open the link, then return to the same terminal, paste the authentication code there, and press Enter even if no prompt is visible yet.
-If the terminal looks stuck after opening the browser, it is usually waiting for that pasted authentication code.
+Claude login must be completed in a separate direct WSL/Linux terminal so the authentication code prompt does not get trapped inside this wrapper.
+Open another terminal window and run:
+  env HOME=/home/<user>/.claude AAI_PROVIDER_SESSION_HOME=/home/<user>/.claude /home/<user>/.local/bin/claude auth login
+When Claude opens the browser and shows an authentication code, paste that code back into the other terminal where 'claude auth login' is running.
+After Claude login finishes in that other terminal, return here and press Enter to continue, or type 's' to skip [Enter/s]:
 ```
 
 Význam volby stavu:
@@ -303,7 +305,7 @@ Co přesně dělají příkazy `run-control-plane.sh`:
 - `probe`
   Znovu ověří dostupnost a login state Claude i Codex a vypíše čitelný souhrn včetně informace o dostupnosti usage telemetry.
 - `login claude`
-  Otevře nativní interaktivní Claude login na hostu, explicitně řekne, že když Claude čeká, máš vložit browser authentication code zpět do stejného terminálu, a potom znovu ověří Claude.
+  Vypíše přesný `claude auth login` příkaz, který máš spustit v samostatném přímém WSL/Linux terminálu, řekne ti, že browser authentication code patří zpět tam, a potom po Enteru znovu ověří Claude.
 - `login codex`
   Otevře nativní interaktivní Codex login na hostu a potom znovu ověří Codex.
 

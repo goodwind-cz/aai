@@ -54,6 +54,12 @@ run_provider_login_command() {
   "$cli_path" "$@"
 }
 
+print_shell_command() {
+  printf '  '
+  printf '%q ' "$@"
+  printf '\n'
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env)
@@ -283,14 +289,24 @@ login_provider() {
   local provider="$1"
   local cli_path=""
   local session_home=""
+  local answer=""
   case "$provider" in
     claude)
       cli_path="${AAI_CLAUDE_CLI_PATH:-$(command -v claude 2>/dev/null || true)}"
       session_home="${AAI_CLAUDE_SESSION_HOME:-$HOME/.claude}"
       [[ -n "$cli_path" ]] || fail "Claude CLI is not installed. Install it first, then run 'claude auth login'."
-      printf '%s\n' "Opening Claude interactive login..."
-      printf '%s\n' "If Claude opens a browser and shows an authentication code there, return to this same terminal, paste the code, and press Enter even if the terminal looks stuck."
-      HOME="$session_home" AAI_PROVIDER_SESSION_HOME="$session_home" run_provider_login_command "$cli_path" auth login
+      printf '%s\n' "Claude login must be completed in a separate direct WSL/Linux terminal so the authentication code prompt does not get trapped inside this wrapper."
+      printf '%s\n' "Open another terminal window and run:"
+      print_shell_command env "HOME=$session_home" "AAI_PROVIDER_SESSION_HOME=$session_home" "$cli_path" auth login
+      printf '%s\n' "When Claude opens the browser and shows an authentication code, paste that code back into the other terminal where 'claude auth login' is running."
+      printf '%s' "After Claude login finishes in that other terminal, return here and press Enter to continue, or type 's' to skip [Enter/s]: "
+      IFS= read -r answer || true
+      case "${answer,,}" in
+        s|skip|n|no)
+          printf '%s\n' "Skipping Claude re-probe for now."
+          return
+          ;;
+      esac
       ;;
     codex)
       cli_path="${AAI_CODEX_CLI_PATH:-$(command -v codex 2>/dev/null || true)}"

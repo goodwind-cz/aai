@@ -41,10 +41,6 @@ if (command === "auth" && subcommand === "status" && format === "--json") {
   }));
   process.exit(0);
 }
-if (command === "auth" && subcommand === "login") {
-  console.error("Code: DAEMON-029");
-  process.exit(0);
-}
 console.error("unsupported");
 process.exit(1);
 EOF
@@ -111,9 +107,10 @@ assert_contains "$tmp/status.out" "- codex: ok"
 bash apps/control-plane/scripts/control-plane-daemon.sh --env "$tmp/control-plane.env" probe > "$tmp/probe.out"
 assert_contains "$tmp/probe.out" "Provider probe results"
 
-bash apps/control-plane/scripts/control-plane-daemon.sh --env "$tmp/control-plane.env" login claude > "$tmp/login.out" 2>&1
-assert_contains "$tmp/login.out" "paste the code, and press Enter even if the terminal looks stuck"
-assert_contains "$tmp/login.out" "Code: DAEMON-029"
+printf '\n' | bash apps/control-plane/scripts/control-plane-daemon.sh --env "$tmp/control-plane.env" login claude > "$tmp/login.out" 2>&1
+assert_contains "$tmp/login.out" "Claude login must be completed in a separate direct WSL/Linux terminal"
+assert_contains "$tmp/login.out" "Open another terminal window and run:"
+assert_contains "$tmp/login.out" "auth login"
 assert_contains "$tmp/login.out" "Re-probing claude session..."
 assert_contains "$tmp/probe.out" "- claude: ok"
 assert_contains "$tmp/probe.out" "- codex: ok"
