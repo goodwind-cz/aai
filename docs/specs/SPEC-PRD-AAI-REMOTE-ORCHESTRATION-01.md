@@ -42,7 +42,7 @@
 | AC-014 | Spec-AC-019 | Generated launcher supports simple background start, status, stop, restart, logs, probe, and interactive provider login commands for daily operator use. | `bash tests/remote-orchestration/test-029-daemon-manager.sh` -> daemon manager flow shows readable status/probe output and supports stop/start lifecycle. |
 | AC-014 | Spec-AC-020 | Installer reuses existing values by default and forces an explicit preserve-vs-overwrite decision before replacing setup state. | `bash tests/remote-orchestration/test-030-wizard-reuses-existing-values.sh` -> wizard offers existing values, masked token reuse, and preserve semantics without manual file edits. |
 | AC-014 | Spec-AC-021 | Installer wizard defaults the managed repo path from the existing install state when one managed project is already known. | `bash tests/remote-orchestration/test-031-summary-default-repo-path.sh` -> wizard offers the existing managed repo path instead of the current worktree path. |
-| AC-014a | Spec-AC-022 | Installer stays short, while a separate `auth setup` flow reuses native Claude/Codex CLI login or guides the operator back through the provider's own login flow. | `bash tests/remote-orchestration/test-032-wizard-provider-login-flow.sh` -> install prints `auth setup`, then launcher-guided auth reaches ready provider sessions. |
+| AC-014a | Spec-AC-022 | Installer stays short, while a separate `auth setup` flow reuses native Claude/Codex CLI login and prints exact native login commands instead of trapping OAuth inside the wrapper. | `bash tests/remote-orchestration/test-032-wizard-provider-login-flow.sh` -> install prints `auth setup`, then native provider login plus `auth status` reaches ready provider sessions. |
 
 ## Implementation plan
 - Control-plane modules:
@@ -98,7 +98,7 @@
 | TEST-029 | Spec-AC-019 | e2e | tests/remote-orchestration/test-029-daemon-manager.sh | Validates the generated daemon manager can start in background, show readable status, re-probe providers, and stop cleanly. | green |
 | TEST-030 | Spec-AC-020 | e2e | tests/remote-orchestration/test-030-wizard-reuses-existing-values.sh | Validates the wizard reuses existing values, preserves masked secrets, and requires an explicit preserve-vs-overwrite choice when setup state already exists. | green |
 | TEST-031 | Spec-AC-021 | e2e | tests/remote-orchestration/test-031-summary-default-repo-path.sh | Validates the wizard reuses the existing managed repo path from install summary/runtime state. | green |
-| TEST-032 | Spec-AC-022 | e2e | tests/remote-orchestration/test-032-wizard-provider-login-flow.sh | Validates install -> auth setup flow that reuses native CLI sessions and re-probes after direct provider login. | green |
+| TEST-032 | Spec-AC-022 | e2e | tests/remote-orchestration/test-032-wizard-provider-login-flow.sh | Validates install -> auth setup flow that prints native login commands and reaches ready sessions after separate CLI login. | green |
 
 Status values: pending -> red -> green.
 

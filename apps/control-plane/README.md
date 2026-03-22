@@ -170,7 +170,7 @@ npm --prefix apps/control-plane run daemon:auth:status
 npm --prefix apps/control-plane run daemon:usage
 ```
 
-The launcher starts the Telegram daemon in the background and returns immediately. `auth setup` reuses existing native Claude/Codex CLI login and prints the exact native login command when a provider is not ready. `auth status` shows provider readiness and routing capacity hints. `usage` shows provider usage telemetry when available plus the recommended number of parallel lanes. The launcher and CLI wrapper pass `--no-warnings`, so the `node:sqlite` experimental warning is suppressed in normal operator use.
+The launcher starts the Telegram daemon in the background and returns immediately. `auth setup` reuses existing native Claude/Codex CLI login and, when a provider is not ready, prints the exact native login command without trying to drive OAuth inside the wrapper. `auth status` shows provider readiness and routing capacity hints. `usage` shows provider usage telemetry when available plus the recommended number of parallel lanes. The launcher and CLI wrapper pass `--no-warnings`, so the `node:sqlite` experimental warning is suppressed in normal operator use.
 
 Watch the structured daemon log:
 
@@ -214,7 +214,7 @@ The current suite contains `34` CLI-backed tests, including:
 - background daemon start/status/stop/probe/login flow
 - wizard reuse of existing values with preserve-vs-overwrite state handling
 - wizard fallback to the existing managed repo path when one install state is already known
-- separate auth-setup flow that reuses native CLI sessions after install and guides the operator back through direct provider login when needed
+- separate auth-setup flow that reuses native CLI sessions after install and prints direct provider login commands instead of trapping OAuth inside the wrapper
 - docker subagent contract coverage for read-only session mount and explicit handoff packet transfer
 - parallel subtask shard coverage for unique worktree/container lanes under one parent work item
 - npm wrapper coverage for the documented operator command surface

@@ -412,7 +412,6 @@ auth_setup_for_provider() {
   local payload="$2"
   local cli_path="$3"
   local session_home="$4"
-  local answer=""
   local current_status=""
   local account_label=""
   local last_error=""
@@ -475,31 +474,24 @@ EOF
   else
     printf "When Codex opens its login flow, complete it there and then exit that native terminal session.\n"
   fi
-  printf "Press Enter here after the native login finishes, or type 's' to skip for now [Enter/s]: "
-  IFS= read -r answer || true
-  case "${answer,,}" in
-    s|skip|n|no)
-      printf "Skipping %s for now.\n" "$provider"
-      return
-      ;;
-  esac
-  printf "Refreshing %s session...\n" "$provider"
-  probe_and_render_provider "$provider"
+  printf "After native login succeeds, rerun:\n"
+  printf "  bash %s auth status\n" "$0"
 }
 
 auth_setup_flow() {
   local payload=""
   printf 'Auth setup\n'
-  printf 'SuperTurtle-style rule: the control-plane reuses your existing native Claude/Codex CLI login and does not trap OAuth inside the wrapper.\n\n'
+  printf 'SuperTurtle-style rule: init/install only prepares config and runtime. Provider login stays in the native Claude/Codex CLI, and start only runs after auth is already ready.\n\n'
   payload="$(auth_doctor)"
   render_auth_doctor "$payload"
   printf '\n'
   auth_setup_for_provider "claude" "$payload" "${AAI_CLAUDE_CLI_PATH:-$(command -v claude 2>/dev/null || true)}" "${AAI_CLAUDE_SESSION_HOME:-$HOME/.claude}"
   printf '\n'
   auth_setup_for_provider "codex" "$payload" "${AAI_CODEX_CLI_PATH:-$(command -v codex 2>/dev/null || true)}" "${AAI_CODEX_SESSION_HOME:-$HOME/.codex}"
-  printf '\nFinal provider status\n'
-  payload="$(auth_doctor)"
-  render_auth_doctor "$payload"
+  printf '\nNext step\n'
+  printf '  1. Finish native provider login in a normal WSL/Linux terminal if needed.\n'
+  printf '  2. Run: bash %s auth status\n' "$0"
+  printf '  3. Then run: bash %s start\n' "$0"
 }
 
 login_provider() {

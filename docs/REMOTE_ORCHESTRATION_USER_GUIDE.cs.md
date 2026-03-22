@@ -218,7 +218,7 @@ Co `auth setup` dělá:
 - když je provider už ready, řekne, že tento nativní login znovu použije
 - když Claude ready není, vypíše přesný `claude auth login` příkaz pro separátní přímý WSL/Linux terminál
 - když Codex ready není, vypíše přesný `codex login` příkaz pro separátní přímý WSL/Linux terminál
-- po dokončení nativního loginu se vrátíš sem a Enterem spustíš re-probe
+- nečeká na OAuth input a nesnaží se provider login řídit uvnitř wrapperu
 
 Pak si ověř finální stav:
 
@@ -314,7 +314,7 @@ Co přesně dělají příkazy `run-control-plane.sh`:
 - `probe`
   Znovu ověří dostupnost Claude i Codex a vypíše čitelný auth souhrn.
 - `auth setup`
-  Znovu použije existující nativní Claude/Codex login, pokud už je ready. Jinak vypíše přesný nativní `claude auth login` nebo `codex login` příkaz pro separátní přímý WSL/Linux terminál a potom znovu probne stav.
+  Znovu použije existující nativní Claude/Codex login, pokud už je ready. Jinak vypíše přesný nativní `claude auth login` nebo `codex login` příkaz pro separátní přímý WSL/Linux terminál.
 - `auth status`
   Vypíše aktuální provider auth stav, account label, čas posledního probe a routing capacity hint bez zásahu do daemonu.
 - `usage`

@@ -75,21 +75,19 @@ printf '%s\n%s\n%s\n%s\n%s\n%s\n' \
 assert_contains "$tmp/install.out" "Auth setup/check:   bash $tmp/runtime/run-control-plane.sh auth setup"
 assert_contains "$tmp/install.out" "Claude is not ready yet. Finish native CLI auth later"
 
-mkfifo "$tmp/auth-input"
-(
-  sleep 5
-  printf '%s\n' '{"ok":true}' > "$tmp/home/claude/claude-login-state.json"
-  printf '%s\n' 'ok' > "$tmp/home/codex/codex-login-state.txt"
-  printf '\n'
-  printf '\n'
-) > "$tmp/auth-input" &
+bash "$tmp/runtime/run-control-plane.sh" auth setup > "$tmp/auth-setup.out" 2>&1
 
-bash "$tmp/runtime/run-control-plane.sh" auth setup < "$tmp/auth-input" > "$tmp/auth-setup.out" 2>&1
+assert_contains "$tmp/auth-setup.out" "SuperTurtle-style rule: init/install only prepares config and runtime."
+assert_contains "$tmp/auth-setup.out" "claude.js auth login"
+assert_contains "$tmp/auth-setup.out" "Run this native provider login in a separate direct WSL/Linux terminal:"
 
-assert_contains "$tmp/auth-setup.out" "SuperTurtle-style rule: the control-plane reuses your existing native Claude/Codex CLI login"
-assert_contains "$tmp/auth-setup.out" "Final provider status"
-assert_contains "$tmp/auth-setup.out" "- claude: ok"
-assert_contains "$tmp/auth-setup.out" "- codex: ok"
+printf '%s\n' '{"ok":true}' > "$tmp/home/claude/claude-login-state.json"
+printf '%s\n' 'ok' > "$tmp/home/codex/codex-login-state.txt"
+
+bash "$tmp/runtime/run-control-plane.sh" auth status > "$tmp/auth-status.out" 2>&1
+assert_contains "$tmp/auth-status.out" "Provider auth status"
+assert_contains "$tmp/auth-status.out" "- claude: ok"
+assert_contains "$tmp/auth-status.out" "- codex: ok"
 
 run_cli auth status --db "$tmp/runtime/control-plane.db" --provider claude > "$tmp/claude-status.json"
 json_assert_file "$tmp/claude-status.json" "data.session.status === 'ok' && data.session.account_label === 'switched@example.test (max)'"
