@@ -41,6 +41,15 @@ export type ProviderSessionRecord = {
   last_error: string | null;
 };
 
+export type UsageRefreshSummary = {
+  throttle_ms: number;
+  attempted: number;
+  refreshed: number;
+  throttled: number;
+  skipped: number;
+  errors: Array<{ provider: Provider; message: string }>;
+};
+
 type CommandResult = {
   status: number | null;
   stdout: string;
@@ -315,6 +324,60 @@ export function probeProviderSession(
   });
 
   return { session, usage_windows: usageWindows };
+}
+
+export function refreshProviderUsageTelemetry(
+  handle: DatabaseHandle,
+  options?: {
+    throttle_ms?: number;
+    providers?: Provider[];
+  }
+): UsageRefreshSummary {
+  const throttleMs = Number.isFinite(options?.throttle_ms) ? Math.max(0, Number(options?.throttle_ms)) : 60_000;
+  const filterProviders = options?.providers || null;
+  const nowMs = Date.now();
+  const summary: UsageRefreshSummary = {
+    throttle_ms: throttleMs,
+    attempted: 0,
+    refreshed: 0,
+    throttled: 0,
+    skipped: 0,
+    errors: []
+  };
+
+  const sessions = listProviderSessions(handle).filter((session) =>
+    filterProviders ? filterProviders.includes(session.provider) : true
+  );
+
+  for (const session of sessions) {
+    if (session.status !== "ok" || !session.cli_path || !session.session_home) {
+      summary.skipped += 1;
+      continue;
+    }
+
+    if (shouldThrottleRefresh(session.last_usage_sync_at_utc, nowMs, throttleMs)) {
+      summary.throttled += 1;
+      continue;
+    }
+
+    summary.attempted += 1;
+    try {
+      probeProviderSession(handle, {
+        provider: session.provider,
+        cli_path: session.cli_path,
+        session_home: session.session_home,
+        account_label: session.account_label
+      });
+      summary.refreshed += 1;
+    } catch (error) {
+      summary.errors.push({
+        provider: session.provider,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  return summary;
 }
 
 export function getProviderSession(handle: DatabaseHandle, provider: Provider): ProviderSessionRecord {
@@ -751,6 +814,27 @@ function parseUtcTimestamp(value: unknown): string | null {
   }
 
   return null;
+}
+
+function shouldThrottleRefresh(lastUsageSyncAtUtc: string | null, nowMs: number, throttleMs: number): boolean {
+  if (throttleMs <= 0) {
+    return false;
+  }
+
+  const lastSyncMs = parseUtcMillis(lastUsageSyncAtUtc);
+  if (lastSyncMs === null) {
+    return false;
+  }
+
+  return nowMs - lastSyncMs < throttleMs;
+}
+
+function parseUtcMillis(value: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function formatAccountLabel(email?: string, subscriptionType?: string): string | null {

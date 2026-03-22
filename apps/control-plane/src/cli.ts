@@ -11,6 +11,7 @@ import {
   loadUsageWindowsFromDb,
   markProviderSessionMissing,
   probeProviderSession,
+  refreshProviderUsageTelemetry,
   validateAuthMode,
   type Provider
 } from "./provider-router.ts";
@@ -96,7 +97,7 @@ Commands:
   auth status --db <path> [--provider <claude|codex>]
   auth doctor --db <path> [--claude-cli-path <path>] [--claude-session-home <path>] [--codex-cli-path <path>] [--codex-session-home <path>]
   router choose --db <path> [--project-config <yaml>] [--usage-file <json>] [--phase implementation] [--provider auto] [--fallback codex]
-  usage show [--db <path> | --usage-file <json>]
+  usage show [--db <path> | --usage-file <json>] [--refresh true|false] [--refresh-throttle-ms <ms>]
   queue create --db <path> --project-id <id> --ref-id <id> --phase <phase> --branch <branch> --provider <provider>
   queue status --db <path> --project-id <id> [--ref-id <id>]
   queue action --db <path> --project-id <id> --ref-id <id> --status <queued|running|blocked|stopped|done>
@@ -307,6 +308,12 @@ async function main(): Promise<void> {
     if (domain === "usage" && action === "show") {
       if (args.db) {
         const handle = openHandle(args);
+        const refreshEnabled = args.refresh !== "false";
+        const refresh = refreshEnabled
+          ? refreshProviderUsageTelemetry(handle, {
+            throttle_ms: parsePositiveNumberArg(args["refresh-throttle-ms"], 60_000)
+          })
+          : null;
         const windows = loadUsageWindowsFromDb(handle);
         const sessions = listProviderSessions(handle);
         const capacities = ["claude", "codex"].map((provider) =>
@@ -317,7 +324,7 @@ async function main(): Promise<void> {
           })
         );
         closeDatabase(handle);
-        printJson({ windows, sessions, capacities });
+        printJson({ windows, sessions, capacities, refresh });
       } else {
         const windows = loadUsageWindows(requireArg(args, "usage-file"));
         const capacities = ["claude", "codex"].map((provider) =>
@@ -632,6 +639,17 @@ async function main(): Promise<void> {
     process.stderr.write(`${message}\n`);
     process.exitCode = 1;
   }
+}
+
+function parsePositiveNumberArg(value: unknown, fallback: number): number {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.max(0, parsed);
 }
 
 await main();

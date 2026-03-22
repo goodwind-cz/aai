@@ -9,7 +9,7 @@ RENDER_NODE=""
 usage() {
   cat <<'EOF'
 Usage:
-  bash apps/control-plane/scripts/control-plane-daemon.sh [--env <path>] [start|start-debug [port]|run|debug [port]|status|stop|restart|logs|probe|usage|auth <setup|status>]
+  bash apps/control-plane/scripts/control-plane-daemon.sh [--env <path>] [start|start-debug [port]|run|debug [port]|status|stop|restart|logs|probe|usage|auth <setup|status|probe>]
 
 Commands:
   start     Start the Telegram daemon in background and return immediately.
@@ -20,9 +20,9 @@ Commands:
   stop      Stop the background daemon.
   restart   Restart the background daemon.
   logs      Tail the structured runtime log.
-  probe     Re-probe Claude and Codex session state and print the result.
+  probe     Alias for 'auth probe' (kept for backward compatibility).
   usage     Show provider usage telemetry and routing capacity summary.
-  auth      Run 'auth setup' or 'auth status' for provider readiness.
+  auth      Run 'auth setup', 'auth status', or 'auth probe' for provider readiness.
 EOF
 }
 
@@ -719,8 +719,11 @@ case "$ACTION" in
       status)
         auth_status_flow
         ;;
+      probe)
+        auth_status_flow
+        ;;
       *)
-        fail "Usage: ... auth <setup|status>"
+        fail "Usage: ... auth <setup|status|probe>"
         ;;
     esac
     ;;

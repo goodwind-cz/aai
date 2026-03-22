@@ -2,7 +2,14 @@ import type { DatabaseHandle } from "./db.ts";
 import { readJson, nowUtc, runtimeLog } from "./common.ts";
 import { createWorkItem, evaluateGate, getWorkItem, listWorkItems, recordApproval, updateWorkItemStatus } from "./queue.ts";
 import { listProjects } from "./registry.ts";
-import { describeProviderCapacity, listProviderSessions, loadUsageWindowsFromDb } from "./provider-router.ts";
+import {
+  describeProviderCapacity,
+  listProviderSessions,
+  loadUsageWindowsFromDb,
+  refreshProviderUsageTelemetry
+} from "./provider-router.ts";
+
+const DEFAULT_USAGE_REFRESH_THROTTLE_MS = 60_000;
 
 const SAFE_CALLBACK_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
@@ -426,6 +433,11 @@ async function processCommand(
       break;
     }
     case "/usage": {
+      const refresh = refreshProviderUsageTelemetry(handle, {
+        throttle_ms: usageRefreshThrottleMs()
+      });
+      runtimeLog("telegram.usage.refresh", refresh);
+
       const usage = loadUsageWindowsFromDb(handle);
       const sessions = listProviderSessions(handle);
       const providers: Array<"claude" | "codex"> = ["claude", "codex"];
@@ -631,6 +643,18 @@ function formatUsageUnavailable(handle: DatabaseHandle): string[] {
 
   lines.push("Auto routing stays conservative until provider-native usage telemetry is available.");
   return lines;
+}
+
+function usageRefreshThrottleMs(): number {
+  const raw = process.env.AAI_USAGE_REFRESH_THROTTLE_MS;
+  if (!raw) {
+    return DEFAULT_USAGE_REFRESH_THROTTLE_MS;
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_USAGE_REFRESH_THROTTLE_MS;
+  }
+  return Math.max(0, parsed);
 }
 
 function resolveProjectSelection(handle: DatabaseHandle, chatId: string, maybeProjectArg?: string): string | null {
