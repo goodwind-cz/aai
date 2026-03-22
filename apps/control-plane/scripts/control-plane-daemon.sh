@@ -9,11 +9,13 @@ RENDER_NODE=""
 usage() {
   cat <<'EOF'
 Usage:
-  bash apps/control-plane/scripts/control-plane-daemon.sh [--env <path>] [start|run|status|stop|restart|logs|probe|usage|auth <setup|status>]
+  bash apps/control-plane/scripts/control-plane-daemon.sh [--env <path>] [start|start-debug [port]|run|debug [port]|status|stop|restart|logs|probe|usage|auth <setup|status>]
 
 Commands:
   start     Start the Telegram daemon in background and return immediately.
+  start-debug Start the Telegram daemon in background with Node inspector enabled.
   run       Run the Telegram daemon in foreground.
+  debug     Run the Telegram daemon in foreground with Node inspector enabled.
   status    Show current daemon/process/auth status.
   stop      Stop the background daemon.
   restart   Restart the background daemon.
@@ -108,6 +110,23 @@ daemon_command() {
   fi
   printf '%q ' "${cmd[@]}"
   printf '\n'
+}
+
+resolve_debug_port() {
+  local raw_port="${1:-9229}"
+  if [[ -z "$raw_port" || ! "$raw_port" =~ ^[0-9]+$ ]]; then
+    fail "Invalid debug port: ${raw_port:-<empty>}"
+  fi
+  if (( raw_port < 1 || raw_port > 65535 )); then
+    fail "Debug port out of range (1-65535): $raw_port"
+  fi
+  printf '%s\n' "$raw_port"
+}
+
+debug_node_options() {
+  local port
+  port="$(resolve_debug_port "$1")"
+  printf '%s\n' "--inspect=0.0.0.0:$port"
 }
 
 is_running() {
@@ -237,6 +256,7 @@ const payload = JSON.parse(raw);
 const windows = Array.isArray(payload.windows) ? payload.windows : [];
 const capacities = Array.isArray(payload.capacities) ? payload.capacities : [];
 const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+const providers = ["claude", "codex"];
 if (windows.length === 0) {
   console.log("Usage telemetry unavailable.");
   for (const capacity of capacities) {
@@ -245,8 +265,14 @@ if (windows.length === 0) {
   }
   process.exit(0);
 }
-for (const window of windows) {
-  console.log(`- ${window.provider}: ${window.used_percentage}% used, resets ${window.reset_at_utc}`);
+for (const provider of providers) {
+  const window = windows.find((entry) => entry.provider === provider) || null;
+  const session = sessions.find((entry) => entry.provider === provider) || null;
+  if (!window) {
+    console.log(`- ${provider}: usage=unavailable, account=${session?.account_label || "unknown"}, last_usage_sync=${session?.last_usage_sync_at_utc || "never"}`);
+    continue;
+  }
+  console.log(`- ${provider}: ${window.used_percentage}% used, resets ${window.reset_at_utc}, account=${session?.account_label || "unknown"}`);
 }
 for (const capacity of capacities) {
   console.log(`  ${capacity.provider}: dispatch=${capacity.dispatch_state}, recommended_parallel_runs=${capacity.recommended_parallel_runs}, reason=${capacity.reason}`);
@@ -517,6 +543,11 @@ login_provider() {
 }
 
 start_daemon() {
+  start_daemon_with_node_options ""
+}
+
+start_daemon_with_node_options() {
+  local node_options="$1"
   [[ -n "${AAI_TELEGRAM_BOT_TOKEN:-}" ]] || fail "AAI_TELEGRAM_BOT_TOKEN is missing in $ENV_FILE"
   local doctor_payload=""
   doctor_payload="$(auth_doctor)"
@@ -534,12 +565,21 @@ start_daemon() {
   fi
 
   : > "$CONSOLE_LOG"
-  nohup bash -lc "cd \"$HOST_ROOT\" && $(daemon_command)" >>"$CONSOLE_LOG" 2>&1 &
+  local launcher="cd \"$HOST_ROOT\" && $(daemon_command)"
+  if [[ -n "$node_options" ]]; then
+    launcher="cd \"$HOST_ROOT\" && NODE_OPTIONS=\"$node_options\" $(daemon_command)"
+  fi
+  nohup bash -lc "$launcher" >>"$CONSOLE_LOG" 2>&1 &
   local pid=$!
   printf '%s\n' "$pid" > "$PID_FILE"
   sleep 1
   if is_running; then
-    printf 'Started control-plane daemon in background.\n'
+    if [[ -n "$node_options" ]]; then
+      printf 'Started control-plane daemon in background (debug enabled).\n'
+      printf 'NODE_OPTIONS: %s\n' "$node_options"
+    else
+      printf 'Started control-plane daemon in background.\n'
+    fi
     printf 'PID: %s\n' "$pid"
     printf 'Next: use the same launcher with status, stop, logs, or probe.\n'
     return
@@ -550,6 +590,11 @@ start_daemon() {
 }
 
 run_daemon_foreground() {
+  run_daemon_foreground_with_node_options ""
+}
+
+run_daemon_foreground_with_node_options() {
+  local node_options="$1"
   [[ -n "${AAI_TELEGRAM_BOT_TOKEN:-}" ]] || fail "AAI_TELEGRAM_BOT_TOKEN is missing in $ENV_FILE"
   cd "$HOST_ROOT"
   local cmd=(
@@ -564,6 +609,9 @@ run_daemon_foreground() {
   fi
   if [[ -n "${AAI_TELEGRAM_POLL_INTERVAL_MS:-}" ]]; then
     cmd+=(--poll-interval-ms "$AAI_TELEGRAM_POLL_INTERVAL_MS")
+  fi
+  if [[ -n "$node_options" ]]; then
+    NODE_OPTIONS="$node_options" exec "${cmd[@]}"
   fi
   exec "${cmd[@]}"
 }
@@ -600,12 +648,50 @@ restart_daemon() {
   start_daemon
 }
 
+stream_logs() {
+  touch "$STRUCTURED_LOG" "$CONSOLE_LOG"
+
+  local structured_bytes=0
+  local console_bytes=0
+  structured_bytes="$(wc -c <"$STRUCTURED_LOG" 2>/dev/null || echo 0)"
+  console_bytes="$(wc -c <"$CONSOLE_LOG" 2>/dev/null || echo 0)"
+
+  if [[ "$structured_bytes" -gt 0 ]]; then
+    printf 'Following structured log: %s\n' "$STRUCTURED_LOG"
+    if [[ "$console_bytes" -gt 0 ]]; then
+      printf 'Console log also available: %s\n' "$CONSOLE_LOG"
+    fi
+    exec tail -f "$STRUCTURED_LOG"
+  fi
+
+  if [[ "$console_bytes" -gt 0 ]]; then
+    printf 'Structured log is empty. Following console log instead: %s\n' "$CONSOLE_LOG"
+    exec tail -f "$CONSOLE_LOG"
+  fi
+
+  printf 'No log entries yet.\n'
+  printf 'Structured log: %s\n' "$STRUCTURED_LOG"
+  printf 'Console log: %s\n' "$CONSOLE_LOG"
+  if is_running; then
+    printf 'Daemon is running; waiting for the first log lines...\n'
+  else
+    printf 'Daemon is stopped. Start it with: bash apps/control-plane/scripts/control-plane-daemon.sh start\n'
+  fi
+  exec tail -f "$CONSOLE_LOG"
+}
+
 case "$ACTION" in
   start)
     start_daemon
     ;;
+  start-debug)
+    start_daemon_with_node_options "$(debug_node_options "${ARG2:-9229}")"
+    ;;
   run|foreground)
     run_daemon_foreground
+    ;;
+  debug)
+    run_daemon_foreground_with_node_options "$(debug_node_options "${ARG2:-9229}")"
     ;;
   status)
     print_status
@@ -617,8 +703,7 @@ case "$ACTION" in
     restart_daemon
     ;;
   logs)
-    touch "$STRUCTURED_LOG"
-    exec tail -f "$STRUCTURED_LOG"
+    stream_logs
     ;;
   probe)
     auth_status_flow

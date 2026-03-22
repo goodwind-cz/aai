@@ -248,7 +248,8 @@ export function probeProviderSession(
     status = "error";
     lastError = probeResult.stderr.trim() || probeResult.stdout.trim() || `Probe exited with ${probeResult.status}`;
   } else {
-    const authCheck = inspectProbeResult(options.provider, probeResult.stdout);
+    const probeOutput = probeResult.stdout.trim() ? probeResult.stdout : probeResult.stderr;
+    const authCheck = inspectProbeResult(options.provider, probeOutput);
     if (authCheck.status !== "ok") {
       status = authCheck.status;
       lastError = authCheck.last_error;
@@ -260,19 +261,44 @@ export function probeProviderSession(
 
   let usageWindows: UsageWindow[] = [];
   let usageSyncedAt: string | null = null;
-  if (status === "ok" && options.usage_args && options.usage_args.length > 0) {
-    const usageResult = runCommand(cliPath, options.usage_args, sessionHome);
+  const usageArgs =
+    options.usage_args && options.usage_args.length > 0 ? options.usage_args : defaultUsageArgs(options.provider);
+
+  if (status === "ok" && usageArgs.length > 0) {
+    const usageResult = runCommand(cliPath, usageArgs, sessionHome, defaultUsageTimeoutMs(options.provider));
     if (usageResult.status === 0) {
-      usageWindows = normalizeUsagePayload(usageResult.stdout, options.provider);
+      try {
+        usageWindows = normalizeUsagePayload(usageResult.stdout, options.provider);
+        saveUsageWindows(handle, usageWindows);
+        usageSyncedAt = nowUtc();
+      } catch {
+        if (options.provider === "claude") {
+          usageWindows = inferClaudeUsageWindowsFromInsights([usageResult.stdout, usageResult.stderr].join("\n"));
+          if (usageWindows.length > 0) {
+            saveUsageWindows(handle, usageWindows);
+            usageSyncedAt = nowUtc();
+          } else {
+            // Usage telemetry should not downgrade an otherwise valid auth session.
+            usageWindows = [];
+            usageSyncedAt = null;
+          }
+        } else {
+          // Usage telemetry should not downgrade an otherwise valid auth session.
+          usageWindows = [];
+          usageSyncedAt = null;
+        }
+      }
+    } else {
+      // Keep auth session healthy even if usage probe is unavailable.
+      usageWindows = [];
+      usageSyncedAt = null;
+    }
+  } else if (status === "ok" && options.provider === "codex") {
+    // SuperTurtle-style fallback: infer Codex usage from /status style output when available.
+    usageWindows = inferCodexUsageWindows(probeResult.stdout.trim() ? probeResult.stdout : probeResult.stderr);
+    if (usageWindows.length > 0) {
       saveUsageWindows(handle, usageWindows);
       usageSyncedAt = nowUtc();
-    } else {
-      status = "error";
-      lastError =
-        usageResult.error ||
-        usageResult.stderr.trim() ||
-        usageResult.stdout.trim() ||
-        `Usage probe exited with ${usageResult.status}`;
     }
   }
 
@@ -505,6 +531,29 @@ function defaultProbeArgs(provider: Provider): string[] {
   }
 }
 
+function defaultUsageArgs(provider: Provider): string[] {
+  switch (provider) {
+    case "claude":
+      // TOS-compliant Claude fallback: read rate_limit_event from /insights stream output.
+      return ["-p", "/insights", "--output-format", "stream-json", "--verbose"];
+    case "codex":
+      // Codex usage is inferred from status output when percentages are present.
+      return [];
+    default:
+      return [];
+  }
+}
+
+function defaultUsageTimeoutMs(provider: Provider): number {
+  switch (provider) {
+    case "claude":
+      // /insights can stay open waiting for additional events; keep auth doctor responsive.
+      return 8000;
+    default:
+      return 5000;
+  }
+}
+
 function inspectProbeResult(
   provider: Provider,
   stdout: string
@@ -604,6 +653,104 @@ function inferCodexAccountLabel(stdout: string): string | null {
     return null;
   }
   return match[1].trim() || null;
+}
+
+function inferCodexUsageWindows(stdout: string): UsageWindow[] {
+  const normalized = stdout.trim();
+  if (!normalized) {
+    return [];
+  }
+
+  // Some Codex builds include human-readable quota lines in login status output.
+  const usedMatch = normalized.match(/(\d+(?:\.\d+)?)\s*%\s*(?:used|remaining|left)?/i);
+  if (!usedMatch) {
+    return [];
+  }
+
+  const percentValue = Number(usedMatch[1]);
+  if (!Number.isFinite(percentValue)) {
+    return [];
+  }
+
+  const windowLabelMatch = normalized.match(/\b(5h|hourly|daily|weekly|monthly|rolling)\b/i);
+  const resetMatch = normalized.match(/reset(?:s|\s+at|:)\s*([^\n\r]+)/i);
+  const collectedAt = nowUtc();
+  const parsedReset = resetMatch ? Date.parse(resetMatch[1].trim()) : Number.NaN;
+
+  return [
+    {
+      provider: "codex",
+      window_label: windowLabelMatch ? windowLabelMatch[1].toLowerCase() : "unknown",
+      used_percentage: Math.max(0, Math.min(100, percentValue)),
+      reset_at_utc: Number.isFinite(parsedReset) ? new Date(parsedReset).toISOString() : collectedAt,
+      collected_at_utc: collectedAt
+    }
+  ];
+}
+
+function inferClaudeUsageWindowsFromInsights(stdout: string): UsageWindow[] {
+  const lines = stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("{") && line.endsWith("}"));
+
+  for (const line of lines) {
+    try {
+      const event = JSON.parse(line) as {
+        type?: string;
+        rate_limit_info?: {
+          rateLimitType?: string;
+          resetsAt?: number | string;
+          status?: string;
+        };
+      };
+
+      if (event.type !== "rate_limit_event" || !event.rate_limit_info) {
+        continue;
+      }
+
+      const resetAt = parseUtcTimestamp(event.rate_limit_info.resetsAt);
+      const status = String(event.rate_limit_info.status || "").toLowerCase();
+      const usedPercentage = status === "rejected" ? 100 : 0;
+      const collectedAt = nowUtc();
+
+      return [
+        {
+          provider: "claude",
+          window_label: String(event.rate_limit_info.rateLimitType || "five_hour"),
+          used_percentage: usedPercentage,
+          reset_at_utc: resetAt || collectedAt,
+          collected_at_utc: collectedAt
+        }
+      ];
+    } catch {
+      continue;
+    }
+  }
+
+  return [];
+}
+
+function parseUtcTimestamp(value: unknown): string | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const milliseconds = value < 10_000_000_000 ? value * 1000 : value;
+    return new Date(milliseconds).toISOString();
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const asNumber = Number(value);
+    if (Number.isFinite(asNumber)) {
+      const milliseconds = asNumber < 10_000_000_000 ? asNumber * 1000 : asNumber;
+      return new Date(milliseconds).toISOString();
+    }
+
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) {
+      return new Date(parsed).toISOString();
+    }
+  }
+
+  return null;
 }
 
 function formatAccountLabel(email?: string, subscriptionType?: string): string | null {
@@ -710,15 +857,15 @@ function normalizeUsageWindow(entry: Record<string, unknown>, forcedProvider?: P
   };
 }
 
-function runCommand(cliPath: string, args: string[], sessionHome: string): CommandResult {
+function runCommand(cliPath: string, args: string[], sessionHome: string, timeoutMs = 0): CommandResult {
   try {
     const executable = isNodeScript(cliPath) ? process.execPath : cliPath;
     const finalArgs = isNodeScript(cliPath) ? [cliPath, ...args] : args;
     const result = spawnSync(executable, finalArgs, {
       encoding: "utf8",
+      timeout: timeoutMs > 0 ? timeoutMs : undefined,
       env: {
         ...process.env,
-        HOME: sessionHome,
         AAI_PROVIDER_SESSION_HOME: sessionHome
       }
     });

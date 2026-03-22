@@ -427,19 +427,28 @@ async function processCommand(
     }
     case "/usage": {
       const usage = loadUsageWindowsFromDb(handle);
+      const sessions = listProviderSessions(handle);
+      const providers: Array<"claude" | "codex"> = ["claude", "codex"];
       const lines =
         usage.length > 0
           ? [
-              ...usage.map((entry) => `${entry.provider}: ${entry.used_percentage}% used, resets ${entry.reset_at_utc}`),
-              ...["claude", "codex"].map((provider) => {
-                const capacity = describeProviderCapacity({
-                  provider: provider as "claude" | "codex",
-                  usage,
-                  sessions: listProviderSessions(handle)
-                });
-                return `${capacity.provider}: dispatch=${capacity.dispatch_state}, recommended_parallel_runs=${capacity.recommended_parallel_runs}, reason=${capacity.reason}`;
-              })
-            ]
+            ...providers.map((provider) => {
+              const window = usage.find((entry) => entry.provider === provider) || null;
+              const session = sessions.find((entry) => entry.provider === provider) || null;
+              if (!window) {
+                return `${provider}: usage=unavailable, account=${session?.account_label || "unknown"}, last_usage_sync=${session?.last_usage_sync_at_utc || "never"}`;
+              }
+              return `${provider}: ${window.used_percentage}% used, resets ${window.reset_at_utc}, account=${session?.account_label || "unknown"}`;
+            }),
+            ...providers.map((provider) => {
+              const capacity = describeProviderCapacity({
+                provider,
+                usage,
+                sessions
+              });
+              return `${capacity.provider}: dispatch=${capacity.dispatch_state}, recommended_parallel_runs=${capacity.recommended_parallel_runs}, reason=${capacity.reason}`;
+            })
+          ]
           : formatUsageUnavailable(handle);
       await sendMessage(options.apiBase, options.token, chatId, lines.join("\n"));
       break;

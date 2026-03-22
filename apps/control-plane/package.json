@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsc -p ./tsconfig.json",
+    "build:watch": "tsc -p ./tsconfig.json -w",
     "dev": "node --experimental-strip-types ./src/cli.ts",
     "install:host": "bash ./scripts/install-host.sh",
     "install:wizard": "bash ./scripts/install-host.sh --wizard",
