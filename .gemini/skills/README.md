@@ -24,6 +24,7 @@ These are the canonical AAI-prefixed skills available after AAI sync.
 - `/aai-profile` -> `.aai/SKILL_PROFILE.prompt.md`
 - `/aai-doctor` -> `.aai/SKILL_DOCTOR.prompt.md`
 - `/aai-replay` -> `.aai/SKILL_REPLAY.prompt.md`
+- `/aai-session-journal` -> `.aai/SKILL_SESSION_JOURNAL.prompt.md`
 - `/aai-wrap-up` -> `.aai/SKILL_WRAP_UP.prompt.md`
 
 ## Project-specific skills

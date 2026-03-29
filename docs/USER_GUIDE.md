@@ -119,7 +119,7 @@ AAI uses two different classes of documentation:
   - screenshots
   - migration advisories
   - sync conflict advisories
-- `docs/requirements/`, `docs/specs/`, `docs/decisions/`, `docs/knowledge/`, `docs/archive/analysis/` = project-owned documents
+- `docs/requirements/`, `docs/specs/`, `docs/decisions/`, `docs/knowledge/`, `docs/project-sessions/`, `docs/archive/analysis/` = project-owned documents
 
 **Important:**
 - Files in `docs/ai/reports/` should **not** be committed.
@@ -141,6 +141,7 @@ AAI uses two different classes of documentation:
 
 | Skill | Usage | What it does |
 |-------|-------|--------------|
+| `/aai-session-journal` | Resume named thread | Durable human-language project discussion trail |
 | `/aai-wrap-up` | End session | Capture learnings, propose rules |
 | `/aai-replay` | Start session | Surface relevant past learnings |
 | `/aai-doctor` | Diagnostics | Full environment health check |
@@ -413,6 +414,7 @@ AAI uses two different classes of documentation:
   - `docs/requirements/*.md`
   - `docs/specs/*.md`
   - `docs/decisions/*.md`
+  - `docs/project-sessions/*.md`
   - `docs/research/*.md`
 
 **Do not treat shared runtime reports as canonical docs:**
@@ -587,6 +589,27 @@ From Decisions:
   • DEC-005: Chose JWT for session tokens
 ```
 
+#### `/aai-session-journal`
+**What:** Creates or updates a named project discussion thread in `docs/project-sessions/`.
+
+**When to use:**
+- You want a named session you can return to later
+- Multiple agents will work from subsets of information
+- You want a human-readable decision trail in your working language
+- You do not want continuity to depend on vendor chat history alone
+
+**Example:**
+```bash
+/aai-session-journal "Authentication redesign"
+
+# Output:
+SESSION JOURNAL UPDATED
+- Session: Authentication redesign
+- File: docs/project-sessions/SESSION-authentication-redesign.md
+- Index: docs/project-sessions/INDEX.md
+- Next resume point: Decide whether to split auth UX from token lifecycle work
+```
+
 #### `/aai-wrap-up`
 **What:** End-of-session ritual that captures learnings.
 
@@ -741,36 +764,40 @@ Skipped: 0 (0%)
 # 0. Replay relevant past learnings
 /aai-replay "user profile"
 
-# 1. Intake
+# 1. Resume or create project discussion thread
+/aai-session-journal "User profile and avatar flow"
+
+# 2. Intake
 /aai-intake "Add user profile page with avatar upload"
 # Creates: docs/requirements/REQ-006-user-profile.md
 
-# 2. Create worktree (optional, for parallel work)
+# 3. Create worktree (optional, for parallel work)
 /aai-worktree setup user-profile
 
-# 3. TDD cycle
+# 4. TDD cycle
 /aai-tdd
 # RED → GREEN → REFACTOR with evidence
 
-# 4. Code review
+# 5. Code review
 /aai-code-review
 # Checks security, performance, style
 
-# 5. Validate
+# 6. Validate
 /aai-validate-report
 # Generates report with screenshots
 
-# 6. Share
+# 7. Share
 /aai-share docs/ai/reports/LATEST.md
 # Returns: https://aai-reports-xyz.pages.dev
 
-# 7. Cleanup worktree
+# 8. Cleanup worktree
 /aai-worktree cleanup user-profile
 
-# 8. View metrics
+# 9. View metrics
 /aai-dashboard --publish
 
-# 9. Wrap up session
+# 10. Update project discussion thread and wrap up session
+/aai-session-journal "User profile and avatar flow"
 /aai-wrap-up
 # Captures learnings, proposes rules, prepares next session
 ```
@@ -878,7 +905,7 @@ Skipped: 0 (0%)
 
 1. **Share via `/aai-share`**
    - Temporary review: `docs/ai/reports/LATEST.md`
-   - Durable collaboration: decision documents, specs, research findings
+   - Durable collaboration: decision documents, specs, research findings, project session journals
 
 2. **Use `/aai-dashboard` for reviews**
    - Weekly team metrics
@@ -1008,10 +1035,11 @@ ls docs/ai/METRICS.jsonl
    - decisions -> `docs/decisions/`
    - implementation constraints -> `docs/specs/`
    - reusable facts -> `docs/knowledge/`
+   - human discussion trail -> `docs/project-sessions/`
    - broader write-up -> `docs/archive/analysis/`
 
 ---
 
-**Last Updated:** 2026-03-16
-**Version:** 1.1
+**Last Updated:** 2026-03-29
+**Version:** 1.2
 **Status:** Current

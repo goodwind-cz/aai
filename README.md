@@ -44,7 +44,7 @@ git commit -m "Update AAI layer"
 - Dynamic project skills should use unique `aai-*` names under `.claude/skills/` so they stay target-only and preserved on sync.
 - Runtime files in target `docs/ai` are preserved (not overwritten) if they already exist: `STATE.yaml`, `METRICS.jsonl`, `LOOP_TICKS.jsonl`, `decisions.jsonl`.
 - Missing `docs/TECHNOLOGY.md` is seeded from `.aai/templates/TECHNOLOGY_TEMPLATE.md` and then becomes project-owned.
-- It intentionally does **not** overwrite project docs under `docs/requirements`, `docs/specs`, `docs/decisions`, `docs/releases`, or `docs/issues`.
+- It intentionally does **not** overwrite project docs under `docs/requirements`, `docs/specs`, `docs/decisions`, `docs/releases`, `docs/issues`, or `docs/project-sessions`.
 
 ## What this repository is for
 - Standardizing agent workflows (Planning → Implementation → Validation → Remediation).
@@ -160,7 +160,7 @@ cat .aai/system/SELF_HOSTING.md
 
 ---
 
-## AAI Skills Overview (18 Skills)
+## AAI Skills Overview
 
 ### Core Workflow Skills
 - **`/aai-intake`** - Universal intake router (auto-detects work type)
@@ -190,6 +190,7 @@ cat .aai/system/SELF_HOSTING.md
 - **`/aai-docs-hub`** - Interactive skill catalog
 - **`/aai-check-state`** - View STATE.yaml
 - **`/aai-hitl`** - Human-in-the-loop resolver
+- **`/aai-session-journal`** - Named human-readable project discussion journal
 
 ### Maintenance
 - **`/aai-flush`** - Metrics cleanup
@@ -221,6 +222,7 @@ Use them instead of manually chaining individual role prompts.
 | Share | `/aai-share <file>` | Publish Markdown to Cloudflare Pages |
 | TDD | `/aai-tdd` | Enforced RED-GREEN-REFACTOR cycle with evidence |
 | Worktree | `/aai-worktree <cmd>` | Manage git worktrees for parallel development |
+| Session journal | `/aai-session-journal` | Create or resume a named project discussion thread |
 
 See [SKILLS.md](SKILLS.md) for full documentation, prerequisites, and examples.
 
@@ -228,6 +230,7 @@ Typical skill flow:
 
 ```bash
 /aai-intake              # Start new work
+/aai-session-journal     # Persist cross-agent discussion context
 /aai-loop                # Run autonomous cycles
 /aai-hitl                # Resolve human decision (if loop pauses)
 /aai-validate-report     # Generate evidence report
@@ -413,6 +416,7 @@ Tip:
 - Keep workflow canonical in `.aai/workflow/WORKFLOW.md`.
 - Store verified facts in `docs/knowledge/FACTS.md` and UI mappings in `docs/knowledge/UI_MAP.md`.
 - Store confirmed reusable patterns in `docs/knowledge/PATTERNS.md` (project-specific).
+- Store human-readable project discussion continuity in `docs/project-sessions/` when the narrative itself matters.
 - Universal cross-project patterns live in `.aai/knowledge/PATTERNS_UNIVERSAL.md` (sync-managed, read-only).
 - Keep prompts in `.aai/*.prompt.md` and avoid duplicates elsewhere.
 - Follow engineering principles from `.aai/AGENTS.md`: DRY, SOLID, KISS, YAGNI, separation of concerns, testability, explicit error handling, and contract compatibility.
@@ -435,6 +439,7 @@ Tip:
   - `docs/specs/*`
   - `docs/decisions/*`
   - `docs/knowledge/*`
+  - `docs/project-sessions/*`
 - Runtime layer:
   - `docs/ai/STATE.yaml`
   - `docs/ai/*.jsonl`
@@ -480,4 +485,5 @@ Removes stale facts, splits oversized patterns, flags UNVERIFIED entries (unused
 - `docs/TECHNOLOGY.md` is the authoritative technology contract.
 - `.aai/templates/TECHNOLOGY_TEMPLATE.md` is its canonical structure source.
 - Living knowledge stores: `docs/knowledge/FACTS.md`, `docs/knowledge/PATTERNS.md`, `.aai/knowledge/PATTERNS_UNIVERSAL.md`, `docs/knowledge/UI_MAP.md`.
+- Human-readable project discussion trail: `docs/project-sessions/`.
 - `docs/archive/analysis/` is immutable history.

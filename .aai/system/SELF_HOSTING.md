@@ -27,6 +27,7 @@ Includes:
 - `docs/specs/*`
 - `docs/decisions/*`
 - `docs/knowledge/*`
+- `docs/project-sessions/*`
 
 Rules:
 - These files describe the current repository instance.

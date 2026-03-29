@@ -28,7 +28,8 @@ Skills are session-scoped, multi-step prompts that compose workflow actions into
 | 19 | aai-profile | Profile workflows for token/time optimization | `/aai-profile` | `--prompt-file .aai/SKILL_PROFILE.prompt.md` |
 | 20 | aai-doctor | Environment health check (files, skills, git, knowledge) | `/aai-doctor` | `--prompt-file .aai/SKILL_DOCTOR.prompt.md` |
 | 21 | aai-replay | Surface relevant past learnings for current context | `/aai-replay` | `--prompt-file .aai/SKILL_REPLAY.prompt.md` |
-| 22 | aai-wrap-up | Session wrap-up with learnings capture and next steps | `/aai-wrap-up` | `--prompt-file .aai/SKILL_WRAP_UP.prompt.md` |
+| 22 | aai-session-journal | Create or resume a named human-readable project discussion session | `/aai-session-journal` | `--prompt-file .aai/SKILL_SESSION_JOURNAL.prompt.md` |
+| 23 | aai-wrap-up | Session wrap-up with learnings capture and next steps | `/aai-wrap-up` | `--prompt-file .aai/SKILL_WRAP_UP.prompt.md` |
 
 ## Skills in Detail
 
@@ -263,6 +264,28 @@ codex --prompt-file .aai/SKILL_REPLAY.prompt.md
 
 Inspired by [pro-workflow](https://github.com/rohitg00/pro-workflow) `/replay` command.
 
+### aai-session-journal
+
+Creates or updates a named project discussion journal in `docs/project-sessions/`. This is the durable, agent-neutral place for human-readable rationale, ongoing discussion context, and resume notes in the user's language. It is intentionally separate from runtime state and from formal delivery artifacts.
+
+```bash
+# Claude
+/aai-session-journal "Authentication redesign"
+
+# Codex
+codex --prompt-file .aai/SKILL_SESSION_JOURNAL.prompt.md
+```
+
+Use it when:
+- you want a named session you can return to later
+- multiple agents will work from subsets of information
+- you need a human-language trail of why direction changed
+- you want continuity that does not depend on vendor chat history
+
+Outputs:
+- `docs/project-sessions/INDEX.md`
+- `docs/project-sessions/SESSION-<slug>.md`
+
 ### aai-wrap-up
 
 Session wrap-up ritual that captures learnings, summarizes accomplishments, proposes new rules for `docs/knowledge/LEARNED.md`, checks for uncommitted work, and prepares context for the next session. Can be auto-triggered when the user says "bye", "done", "hotovo", etc.
@@ -299,6 +322,7 @@ Dynamic skill indexes are written to:
 
 ```
 /aai-replay          # Surface relevant past learnings
+/aai-session-journal # Create or resume named discussion thread
 /aai-intake          # Start new work
 /aai-loop            # Run autonomous cycles (supports checkpoint_mode=staged)
 /aai-hitl            # Resolve human decision (if loop pauses)

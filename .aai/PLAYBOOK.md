@@ -26,4 +26,6 @@ Role names may differ in a project, but semantics must not.
 ## Knowledge hygiene
 - docs/knowledge/FACTS.md is factual memory (no narrative).
 - docs/knowledge/UI_MAP.md is UI-to-code trace map.
+- docs/project-sessions/ is narrative project memory for human-readable session continuity.
+- docs/project-sessions/ does not replace specs, decisions, or evidence.
 - docs/archive/analysis/ is immutable history; do not extend archived analyses.

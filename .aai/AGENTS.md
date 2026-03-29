@@ -19,6 +19,7 @@ This repository uses a reusable AAI.
 - Loop tick log: docs/ai/LOOP_TICKS.jsonl
 - Learned rules: docs/knowledge/LEARNED.md
 - Decision log: docs/ai/decisions.jsonl
+- Project session journal index: docs/project-sessions/INDEX.md
 
 To update the AAI layer from a template worktree, see .aai/scripts/aai-sync.(sh|ps1) and .aai/system/AAI_PIN.md.
 
@@ -78,6 +79,7 @@ Follow .aai/SKILL_SHARE.prompt.md        # Publish reports to Cloudflare Pages w
 Follow .aai/SKILL_FLUSH.prompt.md        # Manual metrics flush & state cleanup (when loop doesn't complete it)
 Follow .aai/SKILL_DOCTOR.prompt.md       # Environment health check — validates files, skills, knowledge, git (pro-workflow)
 Follow .aai/SKILL_REPLAY.prompt.md       # Contextual learning replay — surfaces relevant past learnings (pro-workflow)
+Follow .aai/SKILL_SESSION_JOURNAL.prompt.md # Named project session journal — human-readable cross-agent discussion trail
 Follow .aai/SKILL_WRAP_UP.prompt.md      # Session wrap-up — capture learnings, propose rules, prepare next session (pro-workflow)
 ```
 
@@ -113,6 +115,7 @@ Skill selection guide:
 - **NEW:** Use SKILL_WORKTREE for parallel development using git worktrees (isolates features/tasks).
 - **NEW:** Use SKILL_DOCTOR to diagnose the full AAI environment (broader than CHECK_STATE).
 - **NEW:** Use SKILL_REPLAY to surface relevant past learnings before starting work.
+- **NEW:** Use SKILL_SESSION_JOURNAL to create or resume a named project discussion thread in the user's language.
 - **NEW:** Use SKILL_WRAP_UP at the end of a session to capture learnings and prepare next session.
 - **NEW:** SKILL_LOOP now supports checkpoint_mode (none/staged/paranoid) for phase-gated approval.
 
@@ -188,6 +191,10 @@ This file is loaded into context for every session.
 When a user corrects a mistake, propose adding a rule:
 - "Should I remember: '<rule text>'?"
 - If approved, append to the appropriate section with date and source.
+
+Project discussion continuity belongs in `docs/project-sessions/`.
+Use that folder for human-readable narrative rationale and session resume context.
+Do not use it as a substitute for specs, decisions, facts, or validation evidence.
 
 ## Rules
 - Do not claim PASS without executable evidence.

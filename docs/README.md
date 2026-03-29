@@ -4,7 +4,7 @@ A canonical, reusable AAI that standardizes workflows, roles, prompts, and docum
 
 ## 📚 Quick Links
 
-- **[USER_GUIDE.md](USER_GUIDE.md)** - 🆕 Complete user guide with all 21 skills, workflows, and best practices
+- **[USER_GUIDE.md](USER_GUIDE.md)** - 🆕 Complete user guide with all 23 skills, workflows, and best practices
 - **[SKILL_CATALOG.html](SKILL_CATALOG.html)** - 🆕 Interactive skill explorer (generate with `/aai-docs-hub`)
 - **[TODO.md](TODO.md)** - 🆕 Future enhancements roadmap
 - **[ai/DECAPOD_INTEGRATION.md](ai/DECAPOD_INTEGRATION.md)** - 🆕 Compliance framework integration
@@ -128,6 +128,7 @@ cat .aai/ORCHESTRATION_HITL.prompt.md
 - **Roles:** Use `.aai/roles/ROLES.md` for semantic roles.
 - **Requirements and specs:** Use templates in `.aai/templates/`.
 - **Knowledge:** Put verified facts in `docs/knowledge/FACTS.md` and UI trace in `docs/knowledge/UI_MAP.md`.
+- **Project sessions:** Put human-readable ongoing project discussion in `docs/project-sessions/` when you need durable cross-agent continuity.
 - **Prompts:** Keep canonical prompts in `.aai/*.prompt.md` and avoid duplications elsewhere.
 - **Engineering practices:** Follow `.aai/AGENTS.md` for DRY, SOLID, KISS, YAGNI, separation of concerns, testability, explicit error handling, and contract compatibility.
 
@@ -166,4 +167,5 @@ A: Move them to `docs/archive/analysis/` and treat them as immutable.
 - `.aai/templates/TECHNOLOGY_TEMPLATE.md` is the canonical structure source.
 - `docs/knowledge/FACTS.md` stores verified facts only.
 - `docs/knowledge/UI_MAP.md` maps UI to code with evidence.
+- `docs/project-sessions/` stores named human-readable project discussion threads and resume points.
 - `docs/archive/analysis/` is immutable history; do not extend archived analyses.

@@ -206,7 +206,7 @@
             <div class="flow-row">
                 <div class="flow-stage">
                     <div class="flow-stage-title">Session Start</div>
-                    <div class="flow-stage-skills">aai-replay<br>aai-doctor<br>aai-check-state</div>
+                    <div class="flow-stage-skills">aai-session-journal<br>aai-replay<br>aai-doctor<br>aai-check-state</div>
                 </div>
                 <div class="flow-arrow">&rarr;</div>
                 <div class="flow-stage">
@@ -231,7 +231,7 @@
                 <div class="flow-arrow">&rarr;</div>
                 <div class="flow-stage">
                     <div class="flow-stage-title">Session End</div>
-                    <div class="flow-stage-skills">aai-wrap-up<br>aai-flush</div>
+                    <div class="flow-stage-skills">aai-session-journal<br>aai-wrap-up<br>aai-flush</div>
                 </div>
             </div>
         </div>
@@ -443,6 +443,16 @@
             whenToUse: ["Starting a new feature", "Before implementation", "Avoiding past mistakes"],
             leadsTo: ["aai-intake"], prerequisites: [],
             tags: ["knowledge", "learnings", "context"]
+        },
+        {
+            name: "aai-session-journal",
+            description: "Create or update a named, durable project discussion session in human language. Stores cross-agent rationale, decision trail, and resume context in docs/project-sessions/.",
+            category: "session", badge: "Session", badgeClass: "badge-session",
+            prompt: ".aai/SKILL_SESSION_JOURNAL.prompt.md",
+            usage: '/aai-session-journal "Authentication redesign"',
+            whenToUse: ["Creating a named discussion thread", "Resuming project context across agents", "Keeping rationale in the user's language"],
+            leadsTo: ["aai-intake", "aai-wrap-up"], prerequisites: [],
+            tags: ["journal", "session", "continuity"]
         },
         {
             name: "aai-wrap-up",

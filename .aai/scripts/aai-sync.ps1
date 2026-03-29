@@ -407,7 +407,7 @@ if (Test-Path $cursorRule) {
 }
 
 # IMPORTANT: Do NOT sync project-specific docs:
-# - docs/requirements/**, docs/specs/**, docs/decisions/**, docs/releases/**, docs/issues/**
+# - docs/requirements/**, docs/specs/**, docs/decisions/**, docs/releases/**, docs/issues/**, docs/project-sessions/**
 # These are owned by the target project.
 
 # Ensure .aai/ is gitignored in target (it's vendored, not committed)
@@ -534,7 +534,7 @@ $pinPath = Join-Path $TargetRoot ".aai/system/AAI_PIN.md"
 
 Notes:
 - This project intentionally vendors the AAI files (self-contained).
-- Project-specific docs (requirements/specs/decisions/releases/issues) are not synced by this script.
+- Project-specific docs (requirements/specs/decisions/releases/issues/project-sessions) are not synced by this script.
 - docs/TECHNOLOGY.md is seeded from template only when missing and becomes project-owned after generation.
 "@ | Set-Content -Path $pinPath -Encoding utf8
 
