@@ -206,6 +206,13 @@ Do not use it as a substitute for specs, decisions, facts, or validation evidenc
   docs/rfc/, or docs/**/.gitkeep placeholders only because they are unreferenced.
 - Intake language policy: accept user input in the user's language, but write
   saved repository documents in English.
+- Markdown documentation style policy: for Markdown documents generated or
+  updated through AAI (for example specs, RFCs, requirements, change docs, and
+  reports), use plain Markdown headings and body text. Do not add emoji or
+  decorative icons by default.
+- Legacy Markdown docs may still contain emoji or icons. Leave them in place
+  unless the current task updates that document or there is a strong
+  domain-specific reason to keep or add them.
 - Intake efficiency policy: ask only for missing high-impact fields, prefer
   explicit assumptions over long clarification loops, and keep intake token-light.
 - Commit gating policy: create a commit only after the full intake-scoped task

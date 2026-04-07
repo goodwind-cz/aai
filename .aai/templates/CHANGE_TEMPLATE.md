@@ -29,3 +29,5 @@
 
 ## Notes
 - Additional context or references.
+- Use plain Markdown headings and body text. Do not add emoji or decorative
+  icons unless there is a strong domain-specific reason.

@@ -18,3 +18,5 @@ Use stable IDs:
 ## Notes
 This document defines WHAT/WHY, not HOW.
 This document does not define workflow.
+Use plain Markdown headings and body text. Do not add emoji or decorative icons
+unless there is a strong domain-specific reason.

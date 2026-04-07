@@ -55,5 +55,8 @@ STRICT RULES
 - Never fabricate screenshots.
 - Do not overwrite older report files.
 - Always refresh `LATEST.md` pointer to the newest run.
+- Write generated report Markdown in plain style. Do not use emoji or
+  decorative icons in headings or body text unless there is a strong
+  domain-specific reason.
 
 BEGIN NOW.
