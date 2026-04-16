@@ -1,6 +1,6 @@
 ---
 name: aai-check-state
-description: Use when STATE.yaml may be invalid, after unexpected loop failures, or before starting a new loop. Add prefix REPAIR: to auto-fix detected invariant violations.
+description: "Use when STATE.yaml may be invalid, after unexpected loop failures, or before starting a new loop. Add prefix REPAIR: to auto-fix detected invariant violations."
 ---
 
 <SUBAGENT-STOP>
