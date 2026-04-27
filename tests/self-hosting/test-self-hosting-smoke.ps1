@@ -6,29 +6,32 @@ $root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $fixture = Join-Path $root "tests\fixtures\target-project"
 $tmpRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("aai-self-hosting-" + [System.Guid]::NewGuid().ToString("N"))
 $target = Join-Path $tmpRoot "target-project"
+$installerTarget = Join-Path $tmpRoot "installer-target"
 
-try {
-  New-Item -ItemType Directory -Force -Path $tmpRoot | Out-Null
-  Copy-Item $fixture $target -Recurse -Force
-
-  & (Join-Path $root ".aai\scripts\aai-sync.ps1") -TargetRoot $target | Out-Null
+function Assert-AaiInstalled {
+  param(
+    [Parameter(Mandatory=$true)][string]$TargetRoot
+  )
 
   foreach ($path in @(
     ".aai\templates\TECHNOLOGY_TEMPLATE.md",
     ".aai\system\SELF_HOSTING.md",
-    "docs\TECHNOLOGY.md"
+    ".aai\scripts\aai-sync.ps1",
+    "docs\TECHNOLOGY.md",
+    "CODEX.md",
+    "SKILLS.md"
   )) {
-    if (!(Test-Path (Join-Path $target $path))) {
+    if (!(Test-Path (Join-Path $TargetRoot $path))) {
       throw "Missing expected path: $path"
     }
   }
 
-  $technology = Get-Content -Raw (Join-Path $target "docs\TECHNOLOGY.md")
+  $technology = Get-Content -Raw (Join-Path $TargetRoot "docs\TECHNOLOGY.md")
   if ($technology -notmatch "AAI-TEMPLATE: TECHNOLOGY_TEMPLATE v1") {
     throw "Seeded docs/TECHNOLOGY.md is missing template marker."
   }
 
-  $gitignore = Get-Content -Raw (Join-Path $target ".gitignore")
+  $gitignore = Get-Content -Raw (Join-Path $TargetRoot ".gitignore")
   if ($gitignore -notmatch [regex]::Escape("docs/ai/reports/**")) {
     throw "Target .gitignore is missing runtime reports ignore rule."
   }
@@ -36,7 +39,19 @@ try {
     throw "Target .gitignore is missing reports placeholder exception."
   }
 
-  & (Join-Path $root ".aai\scripts\validate-skills.ps1") -TargetRoot $target | Out-Null
+  & (Join-Path $root ".aai\scripts\validate-skills.ps1") -TargetRoot $TargetRoot | Out-Null
+}
+
+try {
+  New-Item -ItemType Directory -Force -Path $tmpRoot | Out-Null
+  Copy-Item $fixture $target -Recurse -Force
+
+  & (Join-Path $root ".aai\scripts\aai-sync.ps1") -TargetRoot $target | Out-Null
+  Assert-AaiInstalled -TargetRoot $target
+
+  Copy-Item $fixture $installerTarget -Recurse -Force
+  & (Join-Path $root "install.ps1") -SourceRoot $root -TargetRoot $installerTarget | Out-Null
+  Assert-AaiInstalled -TargetRoot $installerTarget
 
   Write-Output "PASS: self-hosting smoke"
 }

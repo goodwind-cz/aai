@@ -43,6 +43,8 @@ Use this repo to bootstrap or normalize an AI-ready documentation and prompt sys
 │   ├── system/                    # System docs
 │   └── knowledge/                 # Universal patterns
 ├── CLAUDE.md
+├── install.ps1                    # PowerShell one-line installer entrypoint
+├── install.sh                     # Bash/curl one-line installer entrypoint
 ├── docs/
 │   ├── ai/                        # Persistent runtime state
 │   ├── knowledge/FACTS.md
@@ -54,8 +56,66 @@ Use this repo to bootstrap or normalize an AI-ready documentation and prompt sys
 
 ## 5) How to use this AAI (step-by-step)
 ### Installation
-1. Clone or copy this repository into your project.
-2. Ensure the canonical files are present (see Section 4).
+From the target project directory:
+
+PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/goodwind-cz/aai/main/install.ps1 | iex
+```
+
+Bash:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/goodwind-cz/aai/main/install.sh | bash
+```
+
+This downloads the canonical repository and syncs the AAI layer into the current directory.
+
+Review-first variant:
+
+PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/goodwind-cz/aai/main/install.ps1 -OutFile install-aai.ps1
+Get-Content .\install-aai.ps1
+powershell -ExecutionPolicy Bypass -File .\install-aai.ps1
+```
+
+Bash:
+
+```bash
+curl -fsSLo install-aai.sh https://raw.githubusercontent.com/goodwind-cz/aai/main/install.sh
+less install-aai.sh
+bash install-aai.sh
+```
+
+After installation:
+
+```bash
+git status
+git diff
+/aai-bootstrap
+/aai-doctor
+```
+
+Manual alternative:
+
+PowerShell:
+
+```powershell
+git clone https://github.com/goodwind-cz/aai.git
+cd aai
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -TargetRoot C:\path\to\your-project
+```
+
+Bash:
+
+```bash
+git clone https://github.com/goodwind-cz/aai.git
+cd aai
+bash ./install.sh --target-root /path/to/your-project
+```
 
 ### Bootstrap
 Bootstrap only when normalizing an existing repo into this structure.

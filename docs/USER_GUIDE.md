@@ -17,7 +17,36 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 
 ### Installation
 
-1. **Sync AAI into your project:**
+1. **Install AAI into your project:**
+   From the target project directory:
+
+   PowerShell:
+   ```powershell
+   irm https://raw.githubusercontent.com/goodwind-cz/aai/main/install.ps1 | iex
+   ```
+
+   Bash:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/goodwind-cz/aai/main/install.sh | bash
+   ```
+
+   Review-first variant:
+
+   PowerShell:
+   ```powershell
+   irm https://raw.githubusercontent.com/goodwind-cz/aai/main/install.ps1 -OutFile install-aai.ps1
+   Get-Content .\install-aai.ps1
+   powershell -ExecutionPolicy Bypass -File .\install-aai.ps1
+   ```
+
+   Bash:
+   ```bash
+   curl -fsSLo install-aai.sh https://raw.githubusercontent.com/goodwind-cz/aai/main/install.sh
+   less install-aai.sh
+   bash install-aai.sh
+   ```
+
+   Manual sync alternative:
    ```bash
    cd /path/to/aai
    ./.aai/scripts/aai-sync.sh /path/to/your-project

@@ -3,6 +3,83 @@
 This repository contains a reusable, low-friction AAI: a single workflow definition, semantic roles, canonical prompts, and templates that help humans and AI agents coordinate with traceability and evidence.
 
 
+## Install AAI into the current project
+
+From the target project directory, run:
+
+PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/goodwind-cz/aai/main/install.ps1 | iex
+```
+
+Bash:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/goodwind-cz/aai/main/install.sh | bash
+```
+
+This downloads the canonical AAI repository and runs the matching `.aai/scripts/aai-sync.*` script into the current directory.
+
+Safer review-first variant:
+
+PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/goodwind-cz/aai/main/install.ps1 -OutFile install-aai.ps1
+Get-Content .\install-aai.ps1
+powershell -ExecutionPolicy Bypass -File .\install-aai.ps1
+```
+
+Bash:
+
+```bash
+curl -fsSLo install-aai.sh https://raw.githubusercontent.com/goodwind-cz/aai/main/install.sh
+less install-aai.sh
+bash install-aai.sh
+```
+
+Optional environment overrides for the one-liner:
+
+PowerShell:
+
+```powershell
+$env:AAI_REF = "main"
+$env:AAI_TARGET_ROOT = "C:\path\to\your-project"
+irm https://raw.githubusercontent.com/goodwind-cz/aai/main/install.ps1 | iex
+Remove-Item Env:\AAI_REF, Env:\AAI_TARGET_ROOT -ErrorAction SilentlyContinue
+```
+
+Bash:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/goodwind-cz/aai/main/install.sh |
+  AAI_REF=main AAI_TARGET_ROOT=/path/to/your-project bash
+```
+
+Or run the installer after cloning/downloading this repository:
+
+PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -TargetRoot C:\path\to\your-project
+```
+
+Bash:
+
+```bash
+bash ./install.sh --target-root /path/to/your-project
+```
+
+After install, review the changes and bootstrap the target project:
+
+```bash
+git status
+git diff
+/aai-bootstrap
+/aai-doctor
+```
+
 ## Pushing AAI layer into a target project
 
 Run the sync script **from this repository** and pass the path to the target project.
@@ -71,6 +148,8 @@ git commit -m "Update AAI layer"
 │   ├── system/                    # System docs (locks, pricing, etc.)
 │   └── knowledge/                 # Universal patterns
 ├── CLAUDE.md                      # Claude shim
+├── install.ps1                    # PowerShell one-line installer entrypoint
+├── install.sh                     # Bash/curl one-line installer entrypoint
 ├── README.md
 ├── docs/
 │   ├── ai/                        # Persistent runtime state
