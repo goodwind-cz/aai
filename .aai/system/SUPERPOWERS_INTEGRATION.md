@@ -33,9 +33,11 @@ AAI has integrated proven patterns from the [Superpowers framework](https://gith
 
 **AAI Implementation:**
 - `/aai-worktree` skill manages worktree lifecycle
+- `/aai-worktree gate` recommends isolation and asks the user before creating a worktree
 - Each worktree has isolated STATE.yaml
 - Parallel development without conflicts
-- Automatic cleanup after merge
+- Inline mode remains valid when the user chooses it and a clean review scope exists
+- Cleanup after merge
 
 **Benefits:**
 - Multiple features in parallel
@@ -66,9 +68,11 @@ AAI has integrated proven patterns from the [Superpowers framework](https://gith
 - Stage 2: Code quality (non-blocking warnings)
 
 **AAI Implementation:**
-- Enhanced `/aai-validate-report` with two stages
+- `/aai-code-review` with two mandatory stages
 - Spec violations block completion
-- Quality issues logged as techdebt
+- ERROR findings block merge/PR readiness
+- WARNING findings require a recorded decision, remediation, or follow-up item
+- Review works on a clean diff and does not require a worktree
 
 **Benefits:**
 - Ensures requirements met
@@ -80,8 +84,8 @@ AAI has integrated proven patterns from the [Superpowers framework](https://gith
 | Aspect | Superpowers | AAI | Integration |
 |--------|-------------|-------|-------------|
 | **Workflow** | 7-phase (Brainstorm→Plan→Execute→Test→Review→Finalize) | 4-phase (Intake→Planning→Implementation→Validation) | Unified 5-phase |
-| **TDD** | Mandatory RED-GREEN-REFACTOR | Optional VALIDATION phase | Now mandatory via `/aai-tdd` |
-| **Parallelism** | Git worktrees | Subagent orchestration | Combined: worktrees + subagents |
+| **TDD** | Mandatory RED-GREEN-REFACTOR | Strategy selected in Planning | `/aai-tdd` when strategy is `tdd` or `hybrid` |
+| **Parallelism** | Git worktrees | Subagent orchestration | Combined when the user chooses worktree isolation |
 | **Evidence** | Git artifacts, test results | JSONL logs, STATE.yaml | Both: TDD logs + metrics |
 | **Task Size** | 2-5 minute chunks | Role-based phases | Chunking added to PLANNING |
 | **Triggers** | Auto-activation by conditions | Explicit skill invocation | Future: auto-triggers |
@@ -103,8 +107,10 @@ User: "Add password reset feature"
      - Task 3: Implement reset endpoint (4 min)
      - Task 4: Add email notification (5 min)
 
-3. /aai-worktree setup password-reset
-   → Creates isolated worktree: ../app-feature-password-reset
+3. /aai-worktree gate
+   → Recommends worktree when useful and asks the user
+   → If accepted, creates isolated worktree: ../app-feature-password-reset
+   → If declined, records inline review scope
 
 4. For each task: /aai-tdd
    → RED: Write failing test
@@ -112,10 +118,13 @@ User: "Add password reset feature"
    → REFACTOR: Improve quality
 
 5. /aai-validate-report
-   → Stage 1: Verify all acceptance criteria met
-   → Stage 2: Code quality check
+   → Verify all acceptance criteria with executable evidence
 
-6. /aai-worktree cleanup password-reset
+6. /aai-code-review
+   → Stage 1: Spec compliance
+   → Stage 2: Code quality
+
+7. /aai-worktree cleanup password-reset
    → Merge and remove worktree
 ```
 
@@ -228,9 +237,10 @@ triggers:
 
 **Superpowers:** Different severity levels (error, warning, info)
 
-**AAI Status:** Binary (pass/fail)
+**AAI Status:** Implemented in `/aai-code-review`
 
-**Future:** Could add severity levels to VALIDATION
+**Current behavior:** ERROR blocks merge/PR readiness, WARNING requires a
+recorded decision/remediation/follow-up, INFO is advisory.
 
 ## Migration Guide
 
@@ -307,11 +317,18 @@ If you're coming from Superpowers, here's how AAI complements it:
 - Long-running branches (> 1 day)
 - Subagent isolation
 - Experimental work alongside stable features
+- Protected AAI workflow/state/schema changes
+- PR-bound work with broad diff scope
 
 ❌ **Skip for:**
 - Quick fixes (< 1 hour)
 - Hot patches
 - Documentation-only changes
+
+Important:
+- Worktree is recommended by Planning and confirmed by the user before creation.
+- Inline mode is valid when the user chooses it and the review scope is explicit.
+- Code review works with or without a worktree.
 
 ### Combining TDD + Worktrees
 
@@ -323,6 +340,7 @@ cd ../project-feature-name
 /aai-planning
 /aai-tdd  # Repeat for each task
 /aai-validate-report
+/aai-code-review
 /aai-worktree cleanup feature-name
 ```
 

@@ -16,6 +16,34 @@ Is the code well-written?
 RED FLAG: Starting Stage 2 before Stage 1 = reviewing code that may not match requirements.
 A well-written implementation of the wrong thing is still wrong.
 
+## DIFF SCOPE PREFLIGHT (MANDATORY BEFORE STAGE 1)
+
+Code review does not require a git worktree. It requires a clean, explicit diff scope.
+
+Accepted review scopes:
+- Worktree or feature branch: `git diff <base>...HEAD`
+- Pull request: `gh pr diff <number>`
+- Staged changes: `git diff --staged`
+- Local inline changes: `git diff` plus `git diff --staged`
+- Explicit paths: `git diff -- <path...>` and/or `git diff --staged -- <path...>`
+- Commit/range: `git show <sha>` or `git diff <from>..<to>`
+
+Before reviewing:
+1. Read `docs/ai/STATE.yaml`.
+2. Determine `worktree.user_decision` and `worktree.inline_review_scope`.
+3. Run `git status --porcelain`.
+4. Establish exactly one review scope.
+5. If inline mode is selected and unrelated changes exist outside the scope,
+   STOP and ask for exact paths or a diff range.
+6. If no clean scope can be established, set `human_input.required: true` with
+   a blocking reason and STOP.
+
+Worktree policy:
+- If `worktree.user_decision == worktree`, prefer `git diff <base>...HEAD`.
+- If `worktree.user_decision == inline`, use `worktree.inline_review_scope`.
+- If no worktree metadata exists, review can still proceed using an explicit
+  caller-provided diff, PR number, staged diff, or path list.
+
 ## Goal
 Automatically review code changes for common issues in security, performance, style, and best practices.
 
@@ -24,6 +52,8 @@ Automatically review code changes for common issues in security, performance, st
 - GitHub Pull Requests
 - Specific files or directories
 - Staged changes
+- Worktree branch ranges
+- Inline scopes recorded in `docs/ai/STATE.yaml`
 
 ## Review Categories
 
@@ -143,6 +173,8 @@ git diff main..feature-branch > /tmp/review.diff
 ## Review Process
 
 ### Step 1: Extract Changes
+
+First run the mandatory Diff Scope Preflight above.
 
 ```bash
 # For local changes
@@ -384,6 +416,35 @@ await Promise.all(users.map(user => validateUser(user)));
 
 ❌ **FAILED** - 2 errors must be fixed before merge
 ```
+
+### Step 6: Update STATE.yaml
+
+After writing the review report, update `docs/ai/STATE.yaml`:
+
+```yaml
+code_review:
+  required: <true|false>
+  status: <pass|fail|waived>
+  scope: <diff-range-or-paths-reviewed>
+  base_ref: <base-or-null>
+  head_ref: <head-or-null>
+  report_paths:
+    - docs/ai/reviews/review-<timestamp>.md
+    - docs/ai/reviews/review-<timestamp>.json
+  notes: <short summary>
+```
+
+Status rules:
+- `pass`: Stage 1 compliant and no ERROR findings in Stage 2.
+- `fail`: any Spec-AC non-compliance, missing required TEST-xxx evidence, or
+  any ERROR finding.
+- `waived`: only when the user explicitly waives review or accepts remaining
+  findings. Record the waiver in `docs/ai/decisions.jsonl`.
+
+Merge/PR readiness:
+- ERROR findings block merge/PR readiness.
+- WARNING findings require a recorded decision, remediation, or follow-up work item.
+- INFO findings do not block.
 
 ## GitHub Integration
 

@@ -16,6 +16,10 @@ HITL TRIGGERS (MUST STOP)
 4) Irreversible migration affecting production semantics
 5) Numeric threshold required but unspecified (performance/realtime)
 6) Validation cannot be executed due to missing creds/infra
+7) Worktree recommendation is `recommended` or `required` and the user has not
+   chosen worktree, inline, or waiver
+8) Inline review scope is dirty or ambiguous
+9) Code Review ERROR findings need a fix/waiver decision
 
 AUTONOMOUS-FIRST
 Before asking:

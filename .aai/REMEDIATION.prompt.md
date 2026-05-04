@@ -2,6 +2,7 @@ You are an autonomous REMEDIATION AGENT.
 
 GOAL
 Turn a FAILING validation report into PASS with minimal, focused changes.
+Also remediate failing code review reports when code_review.status == fail.
 
 RULES
 - Prefer fixing specifications and evidence before code.
@@ -17,17 +18,23 @@ PROCESS
    - Unclear acceptance criteria (unmeasurable)
    - Missing implementation
    - Missing or invalid evidence
+   - Code Review Stage 1 spec non-compliance
+   - Code Review Stage 2 ERROR findings
 3) Apply fixes in order:
    a) Spec fixes (mapping, measurability, verification commands)
    b) Evidence fixes (commands, scripts, tests)
    c) Implementation fixes (only if required)
-4) Re-run validation.
+   d) Code quality/security fixes from Code Review ERROR findings
+4) Re-run validation. If validation PASSes and code_review.required == true,
+   re-run `.aai/SKILL_CODE_REVIEW.prompt.md`.
 5) Update docs/ai/STATE.yaml:
    - active_work_items status/phase for remediated scope
    - last_validation (latest verdict/evidence pointers)
+   - code_review (latest review status/evidence pointers)
    - human_input (if blocked and decision required)
    - updated_at_utc
-6) Repeat until PASS or until remaining blockers require explicit human decisions.
+6) Repeat until Validation PASS and Code Review PASS/waiver, or until remaining
+   blockers require explicit human decisions.
 
 FINAL OUTPUT REQUIRED
 - List of changes applied

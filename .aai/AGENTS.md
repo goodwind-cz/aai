@@ -30,10 +30,13 @@ To update the AAI layer from a template worktree, see .aai/scripts/aai-sync.(sh|
    - Or .aai/ORCHESTRATION_HITL.prompt.md (human decision gating)
 
 2) Execute the dispatched role:
-   - Planning / Implementation / Validation / Remediation
+   - Planning / Implementation Preparation / Implementation or TDD / Validation / Code Review / Remediation
    - Planning: .aai/PLANNING.prompt.md
+   - Implementation Preparation: .aai/SKILL_WORKTREE.prompt.md (recommendation gate)
    - Implementation: .aai/IMPLEMENTATION.prompt.md
+   - TDD Implementation: .aai/SKILL_TDD.prompt.md
    - Validation: .aai/VALIDATION.prompt.md
+   - Code Review: .aai/SKILL_CODE_REVIEW.prompt.md
    - Remediation: .aai/REMEDIATION.prompt.md
    - Follow the referenced prompt file exactly.
 
@@ -75,6 +78,7 @@ Follow .aai/SKILL_VALIDATE_REPORT.prompt.md # Validation report with screenshot 
 Follow .aai/SKILL_CANONICALIZE.prompt.md # Canonicalize repository structure (migration, cleanup)
 Follow .aai/SKILL_TDD.prompt.md          # Enforced RED-GREEN-REFACTOR test-driven development (Superpowers pattern)
 Follow .aai/SKILL_WORKTREE.prompt.md     # Git worktree management for parallel development (Superpowers pattern)
+Follow .aai/SKILL_CODE_REVIEW.prompt.md  # Two-stage review: spec compliance first, code quality second
 Follow .aai/SKILL_SHARE.prompt.md        # Publish reports to Cloudflare Pages with shareable URL
 Follow .aai/SKILL_FLUSH.prompt.md        # Manual metrics flush & state cleanup (when loop doesn't complete it)
 Follow .aai/SKILL_DOCTOR.prompt.md       # Environment health check — validates files, skills, knowledge, git (pro-workflow)
@@ -113,11 +117,31 @@ Skill selection guide:
 - Use SKILL_CANONICALIZE when migrating legacy AAI structure or cleaning up scattered artifacts.
 - **NEW:** Use SKILL_TDD for test-driven development with mandatory RED-GREEN-REFACTOR cycles.
 - **NEW:** Use SKILL_WORKTREE for parallel development using git worktrees (isolates features/tasks).
+- **NEW:** Use SKILL_WORKTREE recommendation gate before implementation when Planning marks worktree as recommended or required.
+- **NEW:** Use SKILL_CODE_REVIEW after validation for merge/PR readiness. Review works on a clean diff and does not require a worktree.
 - **NEW:** Use SKILL_DOCTOR to diagnose the full AAI environment (broader than CHECK_STATE).
 - **NEW:** Use SKILL_REPLAY to surface relevant past learnings before starting work.
 - **NEW:** Use SKILL_SESSION_JOURNAL to create or resume a named project discussion thread in the user's language.
 - **NEW:** Use SKILL_WRAP_UP at the end of a session to capture learnings and prepare next session.
 - **NEW:** SKILL_LOOP now supports checkpoint_mode (none/staged/paranoid) for phase-gated approval.
+
+Implementation strategy guide:
+
+- Planning must set `implementation_strategy.selected` to `loop`, `tdd`, or `hybrid` before freezing a spec.
+- `loop` uses .aai/IMPLEMENTATION.prompt.md for a focused implementation pass over the Test Plan.
+- `tdd` uses .aai/SKILL_TDD.prompt.md and enforces RED-GREEN-REFACTOR per TEST-xxx.
+- `hybrid` splits the spec explicitly: risky behavior through TDD, simple glue through Implementation.
+- If a user invokes TDD before setup is complete, SKILL_TDD runs orchestration preflight until a frozen spec and Test Plan exist, or until human input is required.
+
+Worktree and review policy:
+
+- Planning recommends worktree isolation as `not_needed`, `optional`, `recommended`, or `required`.
+- `recommended` and `required` are human decision gates. The agent must ask before creating a worktree.
+- The user may choose inline mode even when worktree is required; record the override and rationale.
+- Code review does not require a worktree. It requires an explicit clean diff scope.
+- Inline mode must establish `worktree.inline_review_scope` before implementation and before review.
+- If inline diff scope contains unrelated changes, block and ask for exact paths or a diff range.
+- Merge/PR readiness requires Validation PASS and Code Review PASS, unless the user explicitly waives review.
 
 ### Skill Invocation (Claude vs Codex)
 
@@ -128,6 +152,8 @@ Skill selection guide:
   - `codex --prompt-file .aai/SKILL_INTAKE.prompt.md`
   - `codex --prompt-file .aai/SKILL_LOOP.prompt.md`
   - `codex --prompt-file .aai/SKILL_CANONICALIZE.prompt.md`
+  - `codex --prompt-file .aai/SKILL_TDD.prompt.md`
+  - `codex --prompt-file .aai/SKILL_CODE_REVIEW.prompt.md`
 - Bootstrap also writes dynamic indexes:
   - `.codex/skills.local/README.md`
   - `.gemini/skills.local/README.md`
@@ -180,6 +206,7 @@ Before committing, run quality gate checks (`.aai/scripts/pre-commit-checks.sh` 
 - TODO/FIXME markers (warning)
 - TDD evidence completeness (warning)
 - Validation report existence (warning)
+- Code review gate completeness (warning; strict mode blocks)
 
 Skills that commit (/aai-tdd, /aai-loop, /aai-validate-report) should run these checks automatically.
 Use `--strict` flag to treat warnings as errors.
@@ -199,6 +226,10 @@ Do not use it as a substitute for specs, decisions, facts, or validation evidenc
 ## Rules
 - Do not claim PASS without executable evidence.
 - Do not invent technologies: read docs/TECHNOLOGY.md first.
+- Do not start implementation with `implementation_strategy.selected: undecided`.
+- Do not create a worktree without explicit user confirmation.
+- Do not block code review solely because no worktree exists; review the clean diff scope instead.
+- Do not claim merge/PR readiness when required code review is missing or failed.
 - Archived analyses are read-only; new knowledge goes into FACTS.md, PATTERNS.md, and UI_MAP.md.
 - PATTERNS_UNIVERSAL.md is sync-managed — never write to it directly; suggest promotions via report.
 - If CLAUDE.md, CODEX.md, GEMINI.md, or Copilot instructions conflict with this file, follow this file.

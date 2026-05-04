@@ -13,6 +13,9 @@ AUTHORITATIVE SOURCES
 - .aai/workflow/WORKFLOW.md
 - docs/TECHNOLOGY.md (if present)
 - Requirements, specs, verification reports
+- .aai/SKILL_TDD.prompt.md
+- .aai/SKILL_WORKTREE.prompt.md
+- .aai/SKILL_CODE_REVIEW.prompt.md
 - .aai/system/LOCKS.md (if present)
 
 STATE OWNERSHIP POLICY (NO MANUAL STATE REQUIRED)
@@ -26,6 +29,9 @@ AVAILABLE SEMANTIC ROLES
 - Implementation
 - Validation
 - Remediation
+- TDD Implementation
+- Implementation Preparation / Worktree decision
+- Code Review
 - Technology extraction/update (if TECHNOLOGY.md missing/outdated)
 
 GLOBAL CONSTRAINTS
@@ -43,7 +49,12 @@ Determine:
 - Does docs/TECHNOLOGY.md exist and is it current?
 - Are requirements mapped to specs?
 - Are specs frozen (SPEC-FROZEN)?
+- Does the frozen spec declare implementation_strategy (`loop`, `tdd`, or `hybrid`)?
+- Is worktree.recommendation `recommended` or `required`, and has the user chosen
+  `worktree`, `inline`, or `waived`?
 - Is there unvalidated implementation?
+- Is code review required for this scope, missing, failed, waived, or outdated
+  relative to the implementation diff?
 - What is the latest validation verdict?
 
 STATE AUTO-INIT / AUTO-REPAIR (MANDATORY)
@@ -58,10 +69,28 @@ DECISION LOGIC (FIRST MATCH WINS)
 4) If workflow/roles not normalized → Dispatch: Bootstrap (.aai/BOOTSTRAP.prompt.md) and STOP.
 5) If requirements/spec mapping missing or AC unmeasurable → Dispatch: Planning and STOP.
 6) If specs not frozen → Dispatch: Planning and STOP.
-7) If frozen specs but implementation/tests missing → Dispatch: Implementation and STOP.
-8) If implementation exists but validation not run recently → Dispatch: Validation and STOP.
-9) If latest validation FAIL → Dispatch: Remediation and STOP.
-10) If latest validation PASS → Dispatch: Metrics flush (.aai/METRICS_FLUSH.prompt.md) if not already
+7) If specs are frozen but implementation_strategy is missing or `undecided`
+   → Dispatch: Planning and STOP.
+8) If specs are frozen but worktree.recommendation is `recommended` or `required`
+   AND worktree.user_decision is `undecided`
+   → Dispatch: Implementation Preparation / Worktree decision
+     (system prompt: .aai/SKILL_WORKTREE.prompt.md, operation: recommendation gate) and STOP.
+9) If frozen specs but implementation/tests missing:
+   a. If implementation_strategy == `tdd`
+      → Dispatch: TDD Implementation (.aai/SKILL_TDD.prompt.md) and STOP.
+   b. If implementation_strategy == `hybrid`
+      → Dispatch: TDD Implementation for TEST-xxx entries marked TDD first, or
+        Implementation for the remaining non-TDD scope, whichever is next and explicit in the spec.
+        STOP.
+   c. Otherwise → Dispatch: Implementation and STOP.
+10) If latest validation FAIL → Dispatch: Remediation and STOP.
+11) If implementation exists but validation not run recently → Dispatch: Validation and STOP.
+12) If code_review.status == fail → Dispatch: Remediation and STOP.
+13) If latest validation PASS AND code_review.required == true AND
+    (code_review.status is not `pass` or `waived`, OR the review is outdated
+    for the current diff)
+    → Dispatch: Code Review (.aai/SKILL_CODE_REVIEW.prompt.md) and STOP.
+14) If latest validation PASS → Dispatch: Metrics flush (.aai/METRICS_FLUSH.prompt.md) if not already
     flushed for this scope, then no action required and STOP.
 
 MODEL SELECTION (include in dispatch when subagent spawning is supported)
@@ -102,6 +131,9 @@ STRICT RULES
 - Update docs/ai/STATE.yaml before stopping (always, including auto-init/repair cases):
   - current_focus (type/ref_id/primary_path)
   - active_work_items (create/update selected scope)
+  - implementation_strategy (selected/source/rationale)
+  - worktree (recommendation/user_decision/base_ref/branch/path/inline_review_scope)
+  - code_review (required/status/scope/base_ref/head_ref/report_paths)
   - human_input (if blocked/awaiting decision)
   - metrics.work_items (auto-init entry if missing for current ref_id)
   - updated_at_utc (ISO 8601 UTC)

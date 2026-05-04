@@ -16,22 +16,25 @@ if (-not $ProjectRoot) { $ProjectRoot = Get-Location }
 $Errors = 0
 $Warnings = 0
 
-function Write-Error-Check($msg) { Write-Host "✗ $msg" -ForegroundColor Red; $script:Errors++ }
-function Write-Warn-Check($msg)  { Write-Host "⚠ $msg" -ForegroundColor Yellow; $script:Warnings++ }
-function Write-Pass-Check($msg)  { Write-Host "✓ $msg" -ForegroundColor Green }
+function Write-Error-Check($msg) { Write-Host "ERROR: $msg" -ForegroundColor Red; $script:Errors++ }
+function Write-Warn-Check($msg)  { Write-Host "WARN: $msg" -ForegroundColor Yellow; $script:Warnings++ }
+function Write-Pass-Check($msg)  { Write-Host "PASS: $msg" -ForegroundColor Green }
 
-Write-Host "─────────────────────────────────────"
+Write-Host "-------------------------------------"
 Write-Host "PRE-COMMIT QUALITY GATES"
-Write-Host "─────────────────────────────────────"
+Write-Host "-------------------------------------"
 Write-Host ""
 
 # --- CHECK 1: TDD Evidence ---
 $StateFile = Join-Path $ProjectRoot "docs/ai/STATE.yaml"
 if (Test-Path $StateFile) {
     $stateContent = Get-Content $StateFile -Raw
-    if ($stateContent -match "phase:.*implementation") {
-        if ($stateContent -notmatch "status:.*pass") {
-            Write-Warn-Check "TDD cycle may be incomplete — active implementation without validation pass"
+    $stateData = (($stateContent -split "\r?\n") | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
+    if ($stateData -match "phase:.*implementation") {
+        $validationMatch = [regex]::Match($stateData, "last_validation:\s*([\s\S]*?)(?=\r?\n\S|\z)")
+        $validationBlock = if ($validationMatch.Success) { $validationMatch.Groups[1].Value } else { "" }
+        if ($validationBlock -notmatch "status:\s*pass") {
+            Write-Warn-Check "TDD cycle may be incomplete - active implementation without validation pass"
         } else {
             Write-Pass-Check "TDD evidence appears complete"
         }
@@ -39,7 +42,7 @@ if (Test-Path $StateFile) {
         Write-Pass-Check "No active implementation phase"
     }
 } else {
-    Write-Warn-Check "STATE.yaml not found — skipping TDD check"
+    Write-Warn-Check "STATE.yaml not found - skipping TDD check"
 }
 
 # --- CHECK 2: Secrets Detection ---
@@ -54,7 +57,7 @@ if ($StagedFiles) {
         $content = Get-Content $filepath -Raw -ErrorAction SilentlyContinue
         if (-not $content) { continue }
 
-        if ($content -match '(api[_-]?key|api[_-]?secret|password|passwd|secret[_-]?key|access[_-]?token|private[_-]?key)\s*[:=]\s*["''][^"'']{8,}') {
+        if ($content -match '(api[_-]?key|api[_-]?secret|password|passwd|secret[_-]?key|access[_-]?token|private[_-]?key)\s*[:=]\s*[\x22\x27][^\x22\x27]{8,}') {
             Write-Error-Check "Potential secret detected in $file"
             $SecretsFound = $true
         }
@@ -117,19 +120,41 @@ if ($StagedFiles) {
 # --- CHECK 5: Validation Report ---
 if (Test-Path $StateFile) {
     $stateContent = Get-Content $StateFile -Raw
-    if ($stateContent -match "phase:.*validation|status:.*pass") {
+    $stateData = (($stateContent -split "\r?\n") | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
+    if ($stateData -match "phase:.*validation|last_validation:\s*[\s\S]*?status:\s*pass") {
         $reportsDir = Join-Path $ProjectRoot "docs/ai/reports"
-        if ((Test-Path $reportsDir) -and (Get-ChildItem "$reportsDir/VALIDATION_REPORT_*.md" -ErrorAction SilentlyContinue)) {
+        if ((Test-Path $reportsDir) -and (
+            (Get-ChildItem "$reportsDir/validation-*.md" -ErrorAction SilentlyContinue) -or
+            (Get-ChildItem "$reportsDir/VALIDATION_REPORT_*.md" -ErrorAction SilentlyContinue) -or
+            (Test-Path (Join-Path $reportsDir "LATEST.md"))
+        )) {
             Write-Pass-Check "Validation report exists"
         } else {
-            Write-Warn-Check "No validation report found — consider running /aai-validate-report"
+            Write-Warn-Check "No validation report found - consider running /aai-validate-report"
+        }
+    }
+}
+
+# --- CHECK 6: Code Review Gate ---
+if (Test-Path $StateFile) {
+    $stateContent = Get-Content $StateFile -Raw
+    $stateData = (($stateContent -split "\r?\n") | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
+    $reviewMatch = [regex]::Match($stateData, "code_review:\s*([\s\S]*?)(?=\r?\n\S|\z)")
+    if ($reviewMatch.Success) {
+        $reviewBlock = $reviewMatch.Groups[1].Value
+        if ($reviewBlock -match "required:\s*true") {
+            if ($reviewBlock -match "status:\s*(pass|waived)") {
+                Write-Pass-Check "Code review gate satisfied"
+            } else {
+                Write-Warn-Check "Code review required but not pass/waived"
+            }
         }
     }
 }
 
 # --- SUMMARY ---
 Write-Host ""
-Write-Host "─────────────────────────────────────"
+Write-Host "-------------------------------------"
 if ($Errors -gt 0) {
     Write-Host "BLOCKED: $Errors error(s), $Warnings warning(s)" -ForegroundColor Red
     Write-Host "Fix errors before committing."

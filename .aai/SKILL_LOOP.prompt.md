@@ -29,6 +29,7 @@ LOOP PARAMETERS (use defaults unless overridden by caller)
     - docs/ai/STATE.yaml: project_status == paused
     - docs/ai/STATE.yaml: human_input.required == true
     - docs/ai/STATE.yaml: last_validation.status == pass  AND  no open active_work_items
+      AND (code_review.required != true OR code_review.status in [pass, waived])
     - tick_count >= max_ticks
 
 LOOP ALGORITHM
@@ -44,7 +45,8 @@ For each tick (1..max_ticks):
         → Print HITL block (see HITL OUTPUT FORMAT below) and EXIT.
         → Do NOT continue the loop. A human must answer before the loop resumes.
      c. last_validation.status == pass AND active_work_items are all done/empty
-        → Print: "LOOP COMPLETE: validation PASS, no open items." and EXIT.
+        AND (code_review.required != true OR code_review.status in [pass, waived])
+        → Print: "LOOP COMPLETE: validation PASS, review gate satisfied, no open items." and EXIT.
      d. tick_count >= max_ticks
         → Print: "LOOP STOPPED: max_ticks reached. Run again to continue." and EXIT.
 
@@ -70,8 +72,10 @@ For each tick (1..max_ticks):
      After the dispatched role completes, determine the PREVIOUS role category and CURRENT role category.
      Role categories:
        - Planning:       PLANNING.prompt.md, INTAKE_*.prompt.md, ORCHESTRATION*.prompt.md
-       - Implementation: IMPLEMENTATION.prompt.md, TDD cycles
+       - Preparation:    SKILL_WORKTREE recommendation gate
+       - Implementation: IMPLEMENTATION.prompt.md, TDD cycles, SKILL_TDD.prompt.md
        - Validation:     VALIDATION.prompt.md, VALIDATE_REPORT
+       - Code Review:    SKILL_CODE_REVIEW.prompt.md
        - Remediation:    REMEDIATION.prompt.md
 
      If checkpoint_mode == "staged":

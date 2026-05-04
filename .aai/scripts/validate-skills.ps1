@@ -24,6 +24,7 @@ $requiredPrompts = @(
   ".aai/SKILL_CANONICALIZE.prompt.md",
   ".aai/SKILL_TDD.prompt.md",
   ".aai/SKILL_WORKTREE.prompt.md",
+  ".aai/SKILL_CODE_REVIEW.prompt.md",
   ".aai/SKILL_SHARE.prompt.md"
 )
 

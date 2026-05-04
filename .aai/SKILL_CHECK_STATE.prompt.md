@@ -29,7 +29,7 @@ INVARIANT CHECKS (run all, report each)
     FAIL otherwise
 
   [INV-05] active_work_items[*].phase
-    PASS if all values are one of: planning, implementation, validation, remediation
+    PASS if all values are one of: planning, preparation, implementation, validation, code_review, remediation
     FAIL otherwise
 
   [INV-06] implementation lock vs phase
@@ -56,6 +56,25 @@ INVARIANT CHECKS (run all, report each)
     PASS if value is one of: pass, fail, not_run
     FAIL otherwise
 
+  [INV-11] implementation_strategy.selected
+    PASS if value is one of: loop, tdd, hybrid, undecided
+    FAIL otherwise
+    WARN if an active_work_item is in phase == implementation AND value == undecided
+
+  [INV-12] worktree decision gate
+    PASS if worktree.recommendation is one of: not_needed, optional, recommended, required
+    FAIL otherwise
+    PASS if worktree.user_decision is one of: undecided, worktree, inline, waived
+    FAIL otherwise
+    WARN if worktree.recommendation is recommended or required AND worktree.user_decision == undecided
+         AND any active_work_item has phase == implementation
+
+  [INV-13] code_review status
+    PASS if code_review.status is one of: not_run, pass, fail, waived
+    FAIL otherwise
+    FAIL if code_review.status == pass AND code_review.report_paths is empty
+    PASS otherwise
+
 OUTPUT FORMAT
 
 ---
@@ -74,9 +93,12 @@ Invariant results:
   [INV-08] human gate vs impl   : PASS | FAIL | WARN — <detail if not PASS>
   [INV-09] updated_at_utc       : PASS | FAIL | WARN — <detail if not PASS>
   [INV-10] validation status    : PASS | FAIL | WARN — <detail if not PASS>
+  [INV-11] impl strategy        : PASS | FAIL | WARN — <detail if not PASS>
+  [INV-12] worktree gate        : PASS | FAIL | WARN — <detail if not PASS>
+  [INV-13] code review status   : PASS | FAIL | WARN — <detail if not PASS>
 
 Overall: HEALTHY | DEGRADED | BROKEN
-  HEALTHY  = all PASS (warnings allowed)
+  HEALTHY  = all PASS
   DEGRADED = at least one WARN, no FAIL
   BROKEN   = at least one FAIL
 
@@ -84,6 +106,9 @@ Current snapshot:
   project_status:         <value>
   current_focus:          <type> / <ref_id>
   active_work_items:      <count> item(s)
+  implementation_strategy:<selected>
+  worktree:               <recommendation> / <user_decision>
+  code_review.status:     <value>
   last_validation.status: <value>
   human_input.required:   <true|false>
   updated_at_utc:         <value>

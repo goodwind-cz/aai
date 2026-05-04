@@ -49,6 +49,8 @@ CHAT ACCESS CONTRACT
   - absolute path to generated `validation-<run_id>.md`
   - count of copied screenshots
 - If no screenshots were found, report that explicitly and still generate report markdown.
+- If `code_review.required == true`, state that merge/PR readiness still requires
+  `.aai/SKILL_CODE_REVIEW.prompt.md` PASS or explicit waiver.
 
 STRICT RULES
 - Do not claim PASS without executable evidence.

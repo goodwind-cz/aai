@@ -8,6 +8,7 @@ REQUIRED CAPABILITIES
 
 GOAL
 Verify that all requirements are satisfied by specifications, implementation, and executable evidence.
+Validation PASS is not the same as merge/PR readiness when code review is required.
 
 INVARIANT RULES
 - No requirement is satisfied without evidence.
@@ -16,6 +17,8 @@ INVARIANT RULES
 - PASS is allowed only if the full chain exists.
 - Any gap results in FAIL.
 - Read and respect docs/ai/STATE.yaml before validation.
+- If code_review.required is true, leave merge/PR readiness to
+  `.aai/SKILL_CODE_REVIEW.prompt.md` after validation evidence exists.
 
 PROCESS
 1) Read docs/ai/STATE.yaml and verify validation is allowed (not paused, not blocked by human_input).
@@ -36,6 +39,8 @@ PROCESS
    - last_validation.evidence_paths
    - last_validation.notes
    - active_work_items status/phase for validated scope
+   - code_review.status remains not_run/fail unless a separate code review report
+     has already recorded pass or waiver
    - updated_at_utc
 
 PARALLEL VALIDATION (when scope has ≥3 independent requirement groups)
@@ -74,6 +79,7 @@ FINAL OUTPUT REQUIRED
 - Failures grouped by category
 - Explicit PASS or FAIL verdict
 - Evidence log (commands executed, exit codes)
+- Code review gate status: not_required / required_not_run / pass / fail / waived
 
 METRICS (record in docs/ai/STATE.yaml)
 Capture real wall-clock timestamps:

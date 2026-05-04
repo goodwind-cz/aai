@@ -2,21 +2,90 @@
 
 ## Goal
 Enforce systematic RED-GREEN-REFACTOR test-driven development with verifiable evidence at each phase.
+When invoked before the repository is ready for implementation, run the same
+orchestration preflight used by the autonomous loop until a frozen spec with a
+Test Plan is available or a human decision is required.
 
 Inspired by Superpowers framework's mandatory TDD cycles.
 
 ## Instructions
 
+### Phase 0: Orchestration Preflight
+
+**Objective:** Reach a TDD-ready scope without manual STATE.yaml edits.
+
+This phase mirrors the setup discipline of `/aai-loop`, but it stops before any
+free-form implementation. It may run intake, technology extraction, bootstrap,
+planning, and the worktree recommendation gate. It must not run regular
+Implementation.
+
+1. **Capture `started_utc`**
+   - Capture from system clock (`date -u +%Y-%m-%dT%H:%M:%SZ` or platform equivalent).
+   - Store it for metrics.
+
+2. **Check state health**
+   - Validate `docs/ai/STATE.yaml` using `.aai/SKILL_CHECK_STATE.prompt.md`
+     semantics.
+   - If state is missing or incomplete, run `.aai/ORCHESTRATION.prompt.md` to
+     auto-create or repair it.
+   - If state is BROKEN and cannot be safely repaired, STOP with the health report.
+
+3. **Ensure a current scope exists**
+   - If `current_focus` or `active_work_items` is missing:
+     - If the caller supplied a work description, run `.aai/SKILL_INTAKE.prompt.md`
+       with that description.
+     - If no description was supplied, ask one concise question for the work
+       description and STOP until answered.
+   - After intake, run `.aai/ORCHESTRATION.prompt.md`.
+
+4. **Run setup orchestration ticks, max 5**
+   - Repeat:
+     - Read `docs/ai/STATE.yaml`.
+     - If `human_input.required == true`, STOP and output the same HITL block as
+       `.aai/SKILL_LOOP.prompt.md`.
+     - Run `.aai/ORCHESTRATION.prompt.md`.
+     - Execute only setup dispatches:
+       - Technology extraction/update
+       - Bootstrap
+       - Planning
+       - Implementation Preparation / Worktree decision
+     - Do not execute regular Implementation, TDD Implementation, Validation,
+       Code Review, Remediation, or Metrics Flush inside this setup loop.
+     - Stop when the current scope has a frozen spec, a `## Test Plan`, and an
+       implementation strategy that allows TDD.
+   - If the scope is not TDD-ready after 5 setup ticks, STOP and report the last
+     dispatch and blocker.
+
+5. **Verify implementation strategy**
+   - TDD may proceed when `implementation_strategy.selected` is `tdd`.
+   - TDD may proceed for the TDD-marked portion of a `hybrid` strategy.
+   - If strategy is `loop`, STOP and ask whether to return to Planning to switch
+     strategy to TDD or to continue with regular loop implementation.
+   - If strategy is `undecided`, return to Planning. Do not start RED.
+
+6. **Resolve worktree decision gate**
+   - If `worktree.recommendation` is `recommended` or `required` and
+     `worktree.user_decision` is `undecided`, run `.aai/SKILL_WORKTREE.prompt.md`
+     operation `recommendation gate` and STOP for the user's answer.
+   - If user selected `inline`, confirm `worktree.inline_review_scope` is explicit.
+     If it is missing or ambiguous, STOP and ask for exact paths or diff range.
+   - If user selected `worktree`, continue only inside the recorded worktree path.
+
+7. **Replay relevant learnings**
+   - Run `.aai/SKILL_REPLAY.prompt.md` semantics for the current scope.
+   - Apply only relevant facts, patterns, and learned rules.
+
 ### Prerequisites Check
 
 Before starting TDD cycle:
-1. **Capture `started_utc`** from system clock (`date -u +%Y-%m-%dT%H:%M:%SZ` or platform equivalent). Store it for metrics.
-2. Check `docs/ai/STATE.yaml` for a `current_focus` entry and at least one `active_work_items` entry
-3. Verify the current work item's type allows TDD (implementation, feature, bugfix)
-4. If there is no `current_focus` or no `active_work_items`, suggest running `/aai-intake` first
-5. **Locate the frozen spec** (`docs/specs/SPEC-<id>.md`) for the current scope
-6. **Read the `## Test Plan` table** from the spec — this is the source of truth for which tests to write
-7. If the spec has no `## Test Plan` section, STOP and suggest re-running Planning to generate it
+1. Check `docs/ai/STATE.yaml` for a `current_focus` entry and at least one `active_work_items` entry
+2. Verify the current work item's type allows TDD (implementation, feature, bugfix)
+3. **Locate the frozen spec** (`docs/specs/SPEC-<id>.md`) for the current scope
+4. Confirm the frozen spec has `SPEC-FROZEN: true`
+5. Confirm implementation strategy allows TDD (`tdd` or applicable `hybrid`)
+6. Confirm required/recommended worktree decision has been recorded
+7. **Read the `## Test Plan` table** from the spec — this is the source of truth for which tests to write
+8. If the spec has no `## Test Plan` section, STOP and run or dispatch Planning to generate it
 
 ### Phase 1: RED (Write Failing Test)
 
@@ -193,7 +262,7 @@ Before starting TDD cycle:
    ```
 
 6. **Record Decision**
-   - Create decision log in `docs/decisions/`
+   - Append decision entries to `docs/ai/decisions.jsonl`
    - Document what was refactored and why
    - Link to TDD evidence
 
@@ -213,31 +282,33 @@ After completing REFACTOR for one TEST-xxx:
 - If more `pending` TEST-xxx exist → return to Phase 1 (RED) with the next one
 - If all TEST-xxx are `green` → proceed to Phase 4
 
-### Phase 4: Documentation & Commit
+### Phase 4: Documentation, Validation & Review Gate
 
 1. **Update Documentation**
    - Add/update code comments
    - Update `docs/knowledge/FACTS.md` with learnings
    - Update `docs/knowledge/PATTERNS.md` if new pattern emerged
 
-2. **Prepare Commit**
-   ```bash
-   git add [test-files] [implementation-files] docs/ai/tdd/ docs/specs/SPEC-*.md
-   git commit -m "$(cat <<'EOF'
-   feat: [feature description]
+2. **Run Standard Validation**
+   - Execute `.aai/VALIDATION.prompt.md` or dispatch Validation through
+     `.aai/ORCHESTRATION.prompt.md`.
+   - Validation must record executable evidence in `docs/ai/STATE.yaml`.
+   - If validation FAILs, return to Remediation. Do not claim completion.
 
-   TDD cycles completed (TEST-001..TEST-NNN):
-   - All tests from spec Test Plan implemented via RED→GREEN→REFACTOR
-   - Evidence: docs/ai/tdd/
+3. **Run Code Review Gate**
+   - If `code_review.required == true`, execute `.aai/SKILL_CODE_REVIEW.prompt.md`
+     after validation evidence exists.
+   - Code review may use a worktree diff, branch diff, staged diff, or explicit
+     inline path scope. It does not require a worktree.
+   - ERROR findings block merge/PR readiness.
+   - WARNING findings require a recorded decision or follow-up task.
+   - PASS or explicit human waiver must be recorded before merge/PR-ready output.
 
-   Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
-   EOF
-   )"
-   ```
+4. **Capture `ended_utc`**
+   - Capture from system clock immediately after the last TDD-owned state write.
+   - Record agent_runs entry in STATE.yaml (see Metrics section below).
 
-3. **Capture `ended_utc`** from system clock. Record agent_runs entry in STATE.yaml (see Metrics section below).
-
-4. **Clean TDD Cycle State**
+5. **Clean TDD Cycle State**
    ```yaml
    tdd_cycle:
      status: IDLE
@@ -249,6 +320,16 @@ After completing REFACTOR for one TEST-xxx:
        green: null
        refactor: null
    ```
+
+6. **Prepare Commit Only With Explicit Approval**
+   - Do not commit automatically.
+   - Commit is allowed only after:
+     - all selected TEST-xxx entries are green
+     - Validation PASS exists with evidence
+     - Code Review PASS exists or the user explicitly waived review
+     - the user explicitly confirms committing
+   - If approval is missing, report candidate files and a suggested commit message
+     without running `git commit`.
 
 ## Token Optimization
 
@@ -273,28 +354,23 @@ After completing REFACTOR for one TEST-xxx:
 
 ## Integration with AAI Workflow
 
-### Unified Flow (same spec, two strategies)
+### Unified Flow (same spec, selectable strategy)
 
 ```
-/aai-intake → requirement with AC
-  ↓
-Planning (via /aai-loop or manual) → spec + Test Plan (TEST-001..N)
-  ↓
-┌─────────────────────────────────────────────────────┐
-│  Choose implementation strategy:                     │
-│                                                      │
-│  /aai-loop  → Implementation agent covers all        │
-│               TEST-xxx from Test Plan (free-form)    │
-│                                                      │
-│  /aai-tdd   → RED-GREEN-REFACTOR per TEST-xxx        │
-│               (disciplined TDD cycle)                │
-└─────────────────────────────────────────────────────┘
-  ↓
-Validation (via /aai-loop or manual) → all TEST-xxx green = PASS
+/aai-intake -> requirement with AC
+  -> Planning -> frozen spec + Test Plan + implementation_strategy
+  -> Worktree decision gate if recommended/required
+  -> Implementation strategy:
+       loop   = Implementation agent covers TEST-xxx entries in one pass
+       tdd    = RED-GREEN-REFACTOR per TEST-xxx
+       hybrid = TDD for risky behavior, loop implementation for simple glue
+  -> Validation -> executable evidence
+  -> Code Review -> spec compliance, then code quality
+  -> Metrics flush / PR / commit only after required gates pass
 ```
 
 Both strategies consume the same `## Test Plan` from the frozen spec.
-Both produce the same evidence artifacts.
+Both produce compatible evidence artifacts.
 The difference is discipline: TDD enforces RED→GREEN→REFACTOR per test.
 
 ## Safety & Enforcement
@@ -312,6 +388,14 @@ The difference is discipline: TDD enforces RED→GREEN→REFACTOR per test.
 3. **Cannot commit without evidence**
    - All three phases must have evidence files
    - STATE.yaml must show complete cycle
+
+4. **Cannot start implementation with an unresolved worktree decision**
+   - `recommended` and `required` recommendations require a user decision
+   - Inline override is allowed only with explicit review scope
+
+5. **Cannot claim merge/PR readiness without review**
+   - Code Review PASS or explicit human waiver is required when
+     `code_review.required == true`
 
 ### Warnings
 
@@ -349,7 +433,7 @@ User: "Add password strength validation"
    - Run: npm test
    - Result: ALL PASS
    - Evidence: docs/ai/tdd/refactor-20260302T085500Z.log
-   - Decision: docs/decisions/DEC-003-password-validation.md
+   - Decision: docs/ai/decisions.jsonl
 
 4. Commit:
    git commit -m "feat: add password strength validation

@@ -22,6 +22,7 @@ for p in \
   "$TARGET/.aai/SKILL_CANONICALIZE.prompt.md" \
   "$TARGET/.aai/SKILL_TDD.prompt.md" \
   "$TARGET/.aai/SKILL_WORKTREE.prompt.md" \
+  "$TARGET/.aai/SKILL_CODE_REVIEW.prompt.md" \
   "$TARGET/.aai/SKILL_SHARE.prompt.md"; do
   require_file "$p"
 done

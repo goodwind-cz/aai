@@ -30,8 +30,11 @@ PARALLELISM RULES
 STATE DISCOVERY
 For each scope (PRD/REQ/SPEC/Page), classify:
 - NEEDS_PLANNING
+- NEEDS_WORKTREE_DECISION
 - READY_FOR_IMPLEMENTATION (SPEC-FROZEN)
 - READY_FOR_VALIDATION
+- READY_FOR_CODE_REVIEW
+- FAILED_CODE_REVIEW
 - FAILED_VALIDATION
 - STABLE
 
@@ -42,9 +45,25 @@ Also determine global state:
 SCHEDULING LOGIC
 1) If project_status == paused: dispatch nothing; report paused and STOP.
 2) If human_input.required == true: dispatch nothing; report waiting-for-human and STOP.
-3) Prioritize: FAILED_VALIDATION > READY_FOR_VALIDATION > READY_FOR_IMPLEMENTATION > NEEDS_PLANNING
+3) Prioritize:
+   FAILED_VALIDATION > FAILED_CODE_REVIEW > READY_FOR_VALIDATION >
+   READY_FOR_CODE_REVIEW > NEEDS_WORKTREE_DECISION >
+   READY_FOR_IMPLEMENTATION > NEEDS_PLANNING
 4) Select up to K scopes that are independent and not locked.
 5) Dispatch ONE role per selected scope.
+
+IMPLEMENTATION STRATEGY AND ISOLATION
+- If a scope is READY_FOR_IMPLEMENTATION and `implementation_strategy.selected == tdd`,
+  dispatch `.aai/SKILL_TDD.prompt.md`, not free-form Implementation.
+- If `implementation_strategy.selected == hybrid`, dispatch only the next explicit
+  TDD or loop segment from the spec.
+- If worktree.recommendation is `recommended` or `required` and user_decision is
+  `undecided`, classify as NEEDS_WORKTREE_DECISION and dispatch
+  `.aai/SKILL_WORKTREE.prompt.md` operation `recommendation gate`.
+- Never create a worktree without user confirmation.
+- Inline scopes can be parallelized only when their file/path review scopes do
+  not overlap.
+- Code review can run without a worktree if each scope has a clean explicit diff.
 
 OUTPUT FORMAT
 # Parallel Orchestration Plan

@@ -49,7 +49,9 @@ Rules:
 
 ## Recommended self-hosting workflow
 
-1. Create a dedicated worktree/branch for the AAI change.
+1. Run the worktree recommendation gate for the AAI change.
+   - A dedicated worktree/branch is strongly recommended for reusable AAI behavior.
+   - The user may explicitly choose inline mode; record the override and review scope.
 2. Implement the reusable change in the canonical authoring layer.
 3. Sync the updated AAI into a disposable fixture target project.
 4. Verify that the target project receives:

@@ -2,6 +2,9 @@
 
 ## Goal
 Manage git worktrees for parallel isolated development without branch switching overhead.
+Also provide the implementation-preparation gate that recommends worktree usage,
+asks the user before creating one, and records an explicit inline override when
+the user chooses to continue in the current working tree.
 
 Inspired by Superpowers framework's worktree-based parallel development.
 
@@ -14,6 +17,111 @@ Git worktrees allow multiple working directories from a single repository:
 - Isolated context for subagents
 
 ## Instructions
+
+### Command: Recommendation Gate
+
+Evaluate whether the current scope should use a worktree, then ask before any
+worktree is created.
+
+**Usage:**
+```bash
+/aai-worktree gate
+```
+
+**When invoked by orchestration:**
+- Use this command when `worktree.recommendation` is `recommended` or `required`
+  and `worktree.user_decision` is `undecided`.
+- `required` means strongly recommended for safety. The user may still explicitly
+  override to inline mode, but the decision and risk must be recorded.
+- A worktree is not required for code review. Review operates on a clean diff
+  scope.
+
+**Steps:**
+
+1. **Read scope and recommendation**
+   - Read `docs/ai/STATE.yaml`.
+   - Read the linked frozen spec.
+   - Capture:
+     - `worktree.recommendation`
+     - `worktree.rationale`
+     - `implementation_strategy.selected`
+     - target `ref_id`
+     - base ref, defaulting to the current branch's upstream or `main`/`master`.
+
+2. **If no blocking decision is needed**
+   - If recommendation is `not_needed`: set `worktree.user_decision: inline`
+     and keep `inline_review_scope` explicit if known.
+   - If recommendation is `optional`: continue inline by default unless the user
+     explicitly requested a worktree.
+   - Update `docs/ai/STATE.yaml` and return.
+
+3. **Ask the user for recommended/required isolation**
+
+   Output exactly:
+
+   ```text
+   WORKTREE DECISION REQUIRED
+   Scope: <ref_id>
+   Recommendation: <recommended|required>
+   Reason: <worktree.rationale>
+
+   Options:
+   w - Create a git worktree and continue there
+   i - Continue inline in the current working tree
+   p - Pause before implementation
+
+   Question: Use a worktree for this scope?
+   ```
+
+   Stop and wait for the answer.
+
+4. **If the user chooses worktree**
+   - Run Setup Worktree using the current scope name and chosen base branch.
+   - Update `docs/ai/STATE.yaml`:
+     ```yaml
+     worktree:
+       user_decision: worktree
+       base_ref: <base>
+       branch: <branch>
+       path: <worktree_path>
+       inline_review_scope: null
+     ```
+   - Append a `worktree_create` line to `docs/ai/METRICS.jsonl`.
+
+5. **If the user chooses inline**
+   - Run `git status --porcelain`.
+   - Establish an explicit review scope:
+     - Prefer the active spec's changed paths when known.
+     - Otherwise use `git diff --name-only <base>...HEAD` for branch work.
+     - Otherwise use `git diff --name-only` plus `git diff --staged --name-only`
+       for local inline work.
+   - If unrelated or ambiguous changes are present, ask one concise follow-up
+     question for the exact paths/range to review. Do not implement until the
+     review scope is clean.
+   - Update `docs/ai/STATE.yaml`:
+     ```yaml
+     worktree:
+       user_decision: inline
+       base_ref: <base-or-null>
+       branch: null
+       path: null
+       inline_review_scope: <paths-or-diff-range>
+     ```
+   - Record a decision in `docs/ai/decisions.jsonl` with:
+     `ref_id`, recommendation, rationale, user decision, review scope, and UTC timestamp.
+
+6. **If the user chooses pause**
+   - Set `project_status: paused`.
+   - Keep `worktree.user_decision: undecided`.
+   - Update `updated_at_utc`.
+   - Stop.
+
+**Strict rules:**
+- Never create a worktree without explicit user confirmation.
+- Never block code review only because no worktree exists.
+- Inline mode is valid only with a clean explicit review scope.
+- If protected paths are touched inline after a `required` recommendation, record
+  the user's override before implementation starts.
 
 ### Command: Setup Worktree
 
@@ -56,19 +164,78 @@ Create a new worktree for a feature/task.
    ```bash
    cd "$worktree_path"
 
-   # Copy STATE.yaml if it doesn't exist
-   if [ ! -f docs/ai/STATE.yaml ]; then
-     cp ../docs/ai/STATE.yaml docs/ai/STATE.yaml.template
-     # Initialize fresh state for this worktree
-     cat > docs/ai/STATE.yaml <<EOF
-   task: $task_name
-   status: in_progress
-   branch: $task_name
-   worktree_path: $worktree_path
-   created_at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-   parent_worktree: $(git rev-parse --show-toplevel)
-   EOF
+   # Preserve checked-out runtime state as a template, then create isolated state.
+   mkdir -p docs/ai
+   if [ -f docs/ai/STATE.yaml ]; then
+     cp docs/ai/STATE.yaml docs/ai/STATE.yaml.template
    fi
+
+   now_utc=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+   recommendation="${worktree_recommendation:-recommended}"
+   cat > docs/ai/STATE.yaml <<EOF
+   project_status: active
+
+   current_focus:
+     type: maintenance
+     ref_id: "$task_name"
+     primary_path: null
+
+   locks:
+     implementation: false
+     implementation_reason: "Worktree-isolated implementation."
+     protected_paths: []
+     protected_paths_edit_allowed: true
+     protected_paths_reason: "Worktree selected by user for isolated changes."
+
+   active_work_items:
+     - ref_id: "$task_name"
+       status: in_progress
+       phase: planning
+       branch: "$task_name"
+       worktree_path: "$worktree_path"
+
+   implementation_strategy:
+     selected: undecided
+     source: null
+     rationale: null
+
+   worktree:
+     recommendation: "$recommendation"
+     user_decision: worktree
+     base_ref: "$base_branch"
+     branch: "$task_name"
+     path: "$worktree_path"
+     inline_review_scope: null
+     rationale: "Isolated worktree selected by user."
+
+   code_review:
+     required: true
+     status: not_run
+     scope: "$base_branch...HEAD"
+     base_ref: "$base_branch"
+     head_ref: HEAD
+     report_paths: []
+     notes: "No code review run yet."
+
+   last_validation:
+     status: not_run
+     run_at_utc: null
+     validator_ref: .aai/VALIDATION.prompt.md
+     evidence_paths: []
+     notes: "No validation run yet."
+
+   human_input:
+     required: false
+     question_ref: null
+     blocking_reason: null
+
+   ai_os:
+     pin_path: .aai/system/AAI_PIN.md
+     pin_version: null
+     pin_commit: null
+
+   updated_at_utc: "$now_utc"
+   EOF
    ```
 
 5. **Update Worktree Registry**
@@ -315,16 +482,26 @@ Main agent (orchestrator):
 
 ### When to Use Worktrees
 
-✅ **Good use cases:**
+Good use cases:
 - Parallel feature development
 - Long-running branches
 - Experimental changes alongside stable work
 - Subagent isolation
+- PR-bound features with substantial scope
+- Changes to protected AAI workflow, state schema, or orchestration prompts
 
-❌ **Avoid for:**
+Avoid for:
 - Quick fixes (use regular branches)
 - Short-lived changes (< 1 hour)
 - When disk space is limited
+- Documentation-only updates with a clean inline diff
+
+Recommendation levels:
+- `required`: strongly recommended for protected workflow/state/schema changes,
+  high-risk migrations, or broad refactors. The user may explicitly override inline.
+- `recommended`: useful for larger, experimental, PR-bound, or parallel work.
+- `optional`: useful but not important for safety.
+- `not_needed`: inline work is the normal path.
 
 ### Naming Conventions
 

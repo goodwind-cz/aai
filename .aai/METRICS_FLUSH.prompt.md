@@ -13,6 +13,7 @@ INPUTS
 FLUSH CRITERIA
 Only flush a work item if ALL of the following are true:
 - Its validation verdict is PASS or CANCELLED (not still in progress).
+- If code_review.required == true, code_review.status is pass or waived.
 - It has at least one agent_run recorded in STATE.yaml metrics.
 - It is NOT already present in METRICS.jsonl (match by ref_id).
 
@@ -44,6 +45,11 @@ PROCESS
    c. If metrics.work_items becomes empty after cleanup, remove the metrics key entirely.
    d. Only if NO active_work_items remain (all statuses are "done" or list is empty) after step b:
       - Reset last_validation to defaults (status: not_run, run_at_utc: null, evidence_paths: [], notes: null).
+      - Reset implementation_strategy to defaults (selected: undecided, source: null, rationale: null).
+      - Reset worktree to defaults (recommendation: not_needed, user_decision: undecided, base_ref: null,
+        branch: null, path: null, inline_review_scope: null, rationale: null).
+      - Reset code_review to defaults (required: false, status: not_run, scope: null, base_ref: null,
+        head_ref: null, report_paths: [], notes: null).
       - Reset current_focus to defaults (type: none, ref_id: null, primary_path: null).
       - Reset locks.implementation to true (safe default — next scope must explicitly unlock).
    e. Update updated_at_utc after cleanup.

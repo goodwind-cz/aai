@@ -1,13 +1,18 @@
 # AAI STATE — schema & rules (single source of truth)
 #
 # Required keys:
-# - project_status, current_focus, locks, active_work_items, last_validation, human_input, ai_os
+# - project_status, current_focus, locks, active_work_items, implementation_strategy,
+#   worktree, code_review, last_validation, human_input, ai_os
 #
 # Allowed enums:
 # - project_status: [active, paused]
 # - current_focus.type: [intake_change, intake_issue, intake_prd, intake_hotfix, intake_research, intake_rfc, intake_release, technology_extraction, maintenance, none]
 # - active_work_items[].status: [planned, in_progress, blocked, done]
-# - active_work_items[].phase: [planning, implementation, validation, remediation]
+# - active_work_items[].phase: [planning, preparation, implementation, validation, code_review, remediation]
+# - implementation_strategy.selected: [loop, tdd, hybrid, undecided]
+# - worktree.recommendation: [not_needed, optional, recommended, required]
+# - worktree.user_decision: [undecided, worktree, inline, waived]
+# - code_review.status: [not_run, pass, fail, waived]
 # - last_validation.status: [pass, fail, not_run]
 #
 # Invariants:
@@ -15,9 +20,13 @@
 # - If human_input.required == true, no new implementation steps may start.
 # - PASS is valid only when last_validation.evidence_paths is non-empty.
 # - If current_focus.type == none, active_work_items should be empty.
+# - If worktree.recommendation is recommended or required, implementation must not
+#   start until worktree.user_decision is worktree, inline, or waived.
+# - Code review does not require a worktree; it requires a clean explicit diff scope.
 #
 # Update policy:
-# - Updated by Orchestrator after each loop run and after each validation verdict.
+# - Updated by Orchestrator after each loop run and by role owners after
+#   planning, implementation preparation, validation, code review, and remediation.
 # - Specialized roles may update only their own sections (for example validator -> last_validation).
 # - Every update must set updated_at_utc (ISO 8601).
 
@@ -41,6 +50,29 @@ locks:
 active_work_items:
   []
 
+implementation_strategy:
+  selected: undecided
+  source: null
+  rationale: "No active scope."
+
+worktree:
+  recommendation: not_needed
+  user_decision: undecided
+  base_ref: null
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: "No active scope."
+
+code_review:
+  required: false
+  status: not_run
+  scope: null
+  base_ref: null
+  head_ref: null
+  report_paths: []
+  notes: "No code review run yet."
+
 last_validation:
   status: not_run
   run_at_utc: null
@@ -58,4 +90,4 @@ ai_os:
   pin_version: null
   pin_commit: null
 
-updated_at_utc: "2026-02-10T21:26:35Z"
+updated_at_utc: "2026-05-04T09:08:36Z"

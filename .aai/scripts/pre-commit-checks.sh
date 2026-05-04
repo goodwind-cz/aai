@@ -36,10 +36,16 @@ echo ""
 # --- CHECK 1: TDD Evidence Complete ---
 STATE_FILE="$PROJECT_ROOT/docs/ai/STATE.yaml"
 if [ -f "$STATE_FILE" ]; then
+  STATE_DATA=$(grep -v '^[[:space:]]*#' "$STATE_FILE" 2>/dev/null || true)
   # Check if there's an active work item in implementation phase
   # Simple heuristic: look for phase: implementation without corresponding validation pass
-  if grep -q "phase:.*implementation" "$STATE_FILE" 2>/dev/null; then
-    if ! grep -q "status:.*pass" "$STATE_FILE" 2>/dev/null; then
+  if echo "$STATE_DATA" | grep -q "phase:.*implementation"; then
+    LAST_VALIDATION_BLOCK=$(echo "$STATE_DATA" | awk '
+      /^last_validation:/ { flag=1; next }
+      /^[^[:space:]]/ { flag=0 }
+      flag { print }
+    ')
+    if ! echo "$LAST_VALIDATION_BLOCK" | grep -q "status: *pass"; then
       warn "TDD cycle may be incomplete — active implementation without validation pass"
     else
       pass "TDD evidence appears complete"
@@ -131,12 +137,39 @@ fi
 
 # --- CHECK 5: Validation Report ---
 if [ -f "$STATE_FILE" ]; then
-  if grep -q "phase:.*validation\|status:.*pass" "$STATE_FILE" 2>/dev/null; then
+  STATE_DATA=$(grep -v '^[[:space:]]*#' "$STATE_FILE" 2>/dev/null || true)
+  LAST_VALIDATION_BLOCK=$(echo "$STATE_DATA" | awk '
+    /^last_validation:/ { flag=1; next }
+    /^[^[:space:]]/ { flag=0 }
+    flag { print }
+  ')
+  if echo "$STATE_DATA" | grep -q "phase:.*validation" ||
+     echo "$LAST_VALIDATION_BLOCK" | grep -q "status: *pass"; then
     REPORTS_DIR="$PROJECT_ROOT/docs/ai/reports"
-    if [ -d "$REPORTS_DIR" ] && ls "$REPORTS_DIR"/VALIDATION_REPORT_*.md 1>/dev/null 2>&1; then
+    if [ -d "$REPORTS_DIR" ] && {
+      ls "$REPORTS_DIR"/validation-*.md 1>/dev/null 2>&1 ||
+      ls "$REPORTS_DIR"/VALIDATION_REPORT_*.md 1>/dev/null 2>&1 ||
+      [ -f "$REPORTS_DIR/LATEST.md" ]
+    }; then
       pass "Validation report exists"
     else
       warn "No validation report found — consider running /aai-validate-report"
+    fi
+  fi
+fi
+
+# --- CHECK 6: Code Review Gate ---
+if [ -f "$STATE_FILE" ]; then
+  CODE_REVIEW_BLOCK=$(awk '
+    /^code_review:/ { flag=1; next }
+    /^[^[:space:]]/ { flag=0 }
+    flag { print }
+  ' "$STATE_FILE")
+  if echo "$CODE_REVIEW_BLOCK" | grep -q "required: *true"; then
+    if echo "$CODE_REVIEW_BLOCK" | grep -qE "status: *(pass|waived)"; then
+      pass "Code review gate satisfied"
+    else
+      warn "Code review required but not pass/waived"
     fi
   fi
 fi
