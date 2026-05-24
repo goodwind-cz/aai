@@ -77,6 +77,35 @@ HEALTH CHECK CATEGORIES (run all, report each)
   - .aai/scripts/pre-compact-save.ps1 exists? ✓ | ⚠ missing
   Note: Hook registration in settings is user-managed; just check script existence.
 
+[CAT-10] RFC-0001 STATE Migration Consistency
+  Validate per-developer STATE migration introduced in RFC-0001. For each
+  of docs/ai/STATE.yaml and docs/ai/LOOP_TICKS.jsonl, determine:
+  - In .gitignore? (grep -qxF "<path>" .gitignore)
+  - Tracked in git? (git ls-files --error-unmatch <path>)
+  Possible combinations and verdicts:
+  - gitignored + not tracked       → ✓ migrated correctly
+  - gitignored + still tracked     → ⚠ INCONSISTENT — gitignore says ignore,
+                                       but git is tracking. Action:
+                                       "Run bash .aai/scripts/migrate-state-to-local.sh"
+  - not gitignored + tracked       → ⚠ LEGACY — not yet migrated to RFC-0001.
+                                       Action: "Run /aai-update then
+                                       bash .aai/scripts/migrate-state-to-local.sh"
+  - not gitignored + not tracked   → ⚠ LIKELY MISSING — neither gitignored
+                                       nor tracked; first loop run will create it.
+  - file not on disk + gitignored  → ✓ ok (per-dev local, not initialized yet)
+
+  Also check docs/ai/EVENTS.jsonl:
+  - exists                         → ✓ EVENTS audit log present (N entries)
+  - missing                        → ⚠ EVENTS log not initialized
+                                       ("Run any /aai-loop tick or
+                                        bash .aai/scripts/migrate-state-to-local.sh")
+
+  Overall verdict for this category:
+  - ✓ MIGRATED if all checks are ✓
+  - ⚠ NEEDS MIGRATION if any inconsistency above is detected
+  - Do NOT mark BROKEN — this category is informational, never blocks
+    other AAI work.
+
 OUTPUT FORMAT
 
 ---
@@ -93,6 +122,7 @@ Checked at: <now ISO 8601 UTC>
 [CAT-07] Telemetry:         ✓ N files | ⚠ <issues>
 [CAT-08] Git:               ✓ clean on <branch> | ⚠ <issues>
 [CAT-09] Pre-Compact Hook:  ✓ configured | ⚠ not set up
+[CAT-10] RFC-0001 Migration: ✓ migrated | ⚠ needs migration: <action>
 
 Overall: HEALTHY | DEGRADED | BROKEN
   HEALTHY  = all ✓ (warnings allowed for optional items)
