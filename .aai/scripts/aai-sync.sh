@@ -367,7 +367,7 @@ if [[ -f "$SRC_ROOT/.cursor/rules/aai.mdc" ]]; then
 fi
 
 # IMPORTANT: Do NOT sync project-specific docs:
-# - docs/requirements/**, docs/specs/**, docs/decisions/**, docs/releases/**, docs/issues/**, docs/project-sessions/**
+# - docs/requirements/**, docs/specs/**, docs/decisions/**, docs/releases/**, docs/issues/**, docs/rfc/**, docs/project-sessions/**
 # These are owned by the target project.
 
 # Ensure .aai/ is gitignored in target (it's vendored, not committed)
