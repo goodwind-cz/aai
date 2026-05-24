@@ -82,6 +82,9 @@ PROCESS
 6) Build coverage table.
 7) Run AC STATUS GATE (see section above) and record any blocking findings.
 8) Produce PASS / FAIL verdict. PASS requires both (a) all test suites green and (b) AC STATUS GATE clear.
+8a) For each Spec-AC that moved to `done` during this validation (Evidence column populated), append an `ac_evidence` event to docs/ai/EVENTS.jsonl via:
+    node .aai/scripts/append-event.mjs --event ac_evidence --ref SPEC-XXXX/Spec-AC-YY --commit <sha-or-RUN_ID>
+    For each spec whose frontmatter `status` changed (e.g., implementing → done) as a result of this validation, append a `doc_lifecycle` event with --from/--to. EVENTS append is best-effort; do not abort the verdict on append failure.
 9) Update docs/ai/STATE.yaml:
    - last_validation.status
    - last_validation.run_at_utc

@@ -11,10 +11,33 @@ REQUIRED CAPABILITIES
 - Append runtime timing events into docs/ai/LOOP_TICKS.jsonl
 
 AUTHORITATIVE SOURCES
-- docs/ai/STATE.yaml  (runtime state, updated after every tick)
-- docs/ai/LOOP_TICKS.jsonl (append-only runtime timing events, one JSON object per line)
+- docs/ai/STATE.yaml  (runtime state, updated after every tick) — per-developer local, gitignored (RFC-0001)
+- docs/ai/LOOP_TICKS.jsonl (append-only runtime timing events, one JSON object per line) — per-developer local, gitignored (RFC-0001)
+- docs/ai/EVENTS.jsonl (append-only audit log of AC status / doc lifecycle transitions) — shared, committed (RFC-0001)
 - .aai/ORCHESTRATION.prompt.md  (tick orchestrator logic — do NOT duplicate it here)
 - .aai/SUBAGENT_PROTOCOL.md  (if present: result block format and merge protocol)
+
+EVENTS LOG (RFC-0001)
+Append audit events to docs/ai/EVENTS.jsonl when AC status or doc lifecycle
+transitions occur during the loop. Use .aai/scripts/append-event.mjs as the
+canonical helper (it auto-fills v, ts, actor):
+
+  node .aai/scripts/append-event.mjs --event ac_status \
+    --ref SPEC-XXXX/Spec-AC-YY --from <prev> --to <next> \
+    [--review-by YYYY-MM-DD] [--notes "..."]
+
+Emit:
+- ac_status: whenever a Spec-AC row in a spec's Acceptance Criteria Status
+  table changes status during this tick.
+- doc_lifecycle: whenever a doc's frontmatter `status` field changes
+  (e.g., draft → implementing, implementing → done).
+
+Do NOT emit ac_evidence here — that is emitted by .aai/VALIDATION.prompt.md
+when a done AC's Evidence column is populated. Do NOT emit defer_extended
+here — that is for manual Review-By extensions outside the loop.
+
+EVENTS append is best-effort: if the helper fails, log the failure but do
+not abort the loop. The events log is an audit aid, not a correctness gate.
 
 LOOP PARAMETERS (use defaults unless overridden by caller)
 - max_ticks: 20

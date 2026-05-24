@@ -275,7 +275,7 @@ fi
 # docs/ai: preserve existing runtime data, but sync template files.
 # System docs (AUTONOMOUS_LOOP.md, LOCKS.md, etc.) are now in .aai/system/.
 if [[ -d "$DST_ROOT/docs/ai" ]]; then
-  echo "  PRESERVE docs/ai/ runtime data (STATE.yaml, *.jsonl, decisions.jsonl, reports/)"
+  echo "  PRESERVE docs/ai/ runtime data (STATE.yaml, LOOP_TICKS.jsonl, METRICS.jsonl, EVENTS.jsonl, decisions.jsonl, reports/)"
 fi
 
 

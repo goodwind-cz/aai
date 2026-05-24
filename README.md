@@ -119,7 +119,8 @@ git commit -m "Update AAI layer"
 - If other local target content is overwritten, sync creates a local-only advisory in `docs/ai/reports/sync-conflicts-*.md`.
 - Reports under `docs/ai/reports/` are runtime artifacts and should not be committed; durable conclusions must be promoted into project-owned docs.
 - Dynamic project skills should use unique `aai-*` names under `.claude/skills/` so they stay target-only and preserved on sync.
-- Runtime files in target `docs/ai` are preserved (not overwritten) if they already exist: `STATE.yaml`, `METRICS.jsonl`, `LOOP_TICKS.jsonl`, `decisions.jsonl`.
+- Runtime files in target `docs/ai` are preserved (not overwritten) if they already exist: `STATE.yaml`, `METRICS.jsonl`, `LOOP_TICKS.jsonl`, `EVENTS.jsonl`, `decisions.jsonl`.
+- `docs/ai/STATE.yaml` and `docs/ai/LOOP_TICKS.jsonl` are auto-added to the target `.gitignore` (RFC-0001: per-developer local). Run `bash .aai/scripts/migrate-state-to-local.sh` in the target project to untrack any previously committed copy.
 - Missing `docs/TECHNOLOGY.md` is seeded from `.aai/templates/TECHNOLOGY_TEMPLATE.md` and then becomes project-owned.
 - It intentionally does **not** overwrite project docs under `docs/requirements`, `docs/specs`, `docs/decisions`, `docs/releases`, `docs/issues`, `docs/rfc`, or `docs/project-sessions`.
 
@@ -401,15 +402,17 @@ Template mapping:
 
 ## Runtime state tracking
 - `docs/ai/STATE.yaml` is the runtime state file used by orchestration/autonomous execution.
+- **Per-developer local (RFC-0001):** not committed to git; sync auto-adds it to `.gitignore`. Cross-developer visibility lives in `docs/ai/EVENTS.jsonl`. Use `bash .aai/scripts/migrate-state-to-local.sh` to untrack any previously committed copy in your target project.
 - The vendored baseline is intentionally empty (`current_focus: none`, `active_work_items: []`).
 - In normal operation, orchestration populates/updates it automatically (no manual editing required).
 - Populate/update it only when a loop run or role action actually starts.
 - Loop semantics and update rules are defined in `.aai/system/AUTONOMOUS_LOOP.md`.
 
 Runtime append-only logs (JSONL — one JSON object per line, never rewrite):
-- `docs/ai/LOOP_TICKS.jsonl` — external timing for each loop tick (written by loop runner scripts).
-- `docs/ai/METRICS.jsonl` — completed work item economics (flushed by `.aai/METRICS_FLUSH.prompt.md`).
-- `docs/ai/decisions.jsonl` — HITL decisions log (written by `.aai/SKILL_HITL.prompt.md`).
+- `docs/ai/LOOP_TICKS.jsonl` — external timing for each loop tick (written by loop runner scripts). Per-developer local (gitignored).
+- `docs/ai/METRICS.jsonl` — completed work item economics (flushed by `.aai/METRICS_FLUSH.prompt.md`). Shared, committed.
+- `docs/ai/EVENTS.jsonl` — RFC-0001 audit log of AC status transitions and doc lifecycle changes. Shared, committed. Event types: `ac_status`, `ac_evidence`, `defer_extended`, `doc_lifecycle`. Append via `.aai/scripts/append-event.mjs`.
+- `docs/ai/decisions.jsonl` — HITL decisions log (written by `.aai/SKILL_HITL.prompt.md`). Shared, committed.
 
 ## Autonomous loop runners (no manual STATE editing)
 Use the helper scripts to run repeated autonomous ticks until a stop condition:

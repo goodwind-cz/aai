@@ -286,7 +286,7 @@ if ((Test-Path $technologyTemplatePath) -and !(Test-Path $targetTechnologyPath))
 
 # docs/ai: preserve existing runtime data — system docs are now in .aai/system/
 if (Test-Path (Join-Path $TargetRoot "docs/ai")) {
-  Write-Host "  PRESERVE docs/ai/ runtime data (STATE.yaml, *.jsonl, decisions.jsonl, reports/)"
+  Write-Host "  PRESERVE docs/ai/ runtime data (STATE.yaml, LOOP_TICKS.jsonl, METRICS.jsonl, EVENTS.jsonl, decisions.jsonl, reports/)"
 }
 
 
