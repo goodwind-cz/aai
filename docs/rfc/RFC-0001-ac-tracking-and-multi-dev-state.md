@@ -1,3 +1,14 @@
+---
+id: RFC-0001
+type: rfc
+status: implementing
+links:
+  spec: null
+  pr: []
+  commits:
+    - aaae190
+---
+
 # RFC-0001 — AC-level Tracking and Multi-Dev STATE
 
 ## Context
@@ -167,5 +178,5 @@ Rollback is straightforward at every layer: `git revert` PRs in canonical, resto
 ## Notes
 
 - Full implementation plan (sequencing, file paths, verification steps, migration scripts) is maintained in the author's plan file at `/Users/ales/.claude/plans/potrebuji-predelat-ukladani-glistening-giraffe.md`. That plan is the operational counterpart to this proposal; if this RFC is accepted, the relevant sections will be promoted into a frozen spec under `docs/specs/`.
-- This RFC itself is intentionally written in the legacy template format (no frontmatter, no Spec-AC table). Once the proposal is accepted and the new template ships, this RFC may be migrated opportunistically — providing the first dogfooding case for the proposed migration path.
+- This RFC was originally authored in the legacy template format (no frontmatter). After PR 1 of the proposal landed in commit `aaae190`, frontmatter was added in PR 2 — providing the first dogfooding case for the proposed migration path. Status is `implementing` while PR 2 (INDEX generator) and PR 3 (EVENTS audit log) land. It will move to `done` once all three PRs are merged and a validation PASS is recorded against the new template specs.
 - Use plain Markdown headings and body text. Do not add emoji or decorative icons unless there is a strong domain-specific reason.
