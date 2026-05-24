@@ -427,6 +427,29 @@ if [[ ${#missing_agent_skill_patterns[@]} -gt 0 ]]; then
   echo "  Added agent skill sync patterns to $DST_ROOT/.gitignore"
 fi
 
+# Ensure AAI per-dev runtime state is gitignored (RFC-0001).
+# STATE.yaml and LOOP_TICKS.jsonl are per-developer local; cross-dev
+# visibility lives in docs/ai/EVENTS.jsonl (append-only, committed).
+RUNTIME_STATE_PATTERNS=(
+  'docs/ai/STATE.yaml'
+  'docs/ai/LOOP_TICKS.jsonl'
+)
+missing_runtime_state_patterns=()
+for pattern in "${RUNTIME_STATE_PATTERNS[@]}"; do
+  if ! grep -qxF "$pattern" "$DST_ROOT/.gitignore" 2>/dev/null; then
+    missing_runtime_state_patterns+=("$pattern")
+  fi
+done
+if [[ ${#missing_runtime_state_patterns[@]} -gt 0 ]]; then
+  echo -e "\n# AAI per-dev runtime state (RFC-0001: never committed)" >> "$DST_ROOT/.gitignore"
+  for pattern in "${missing_runtime_state_patterns[@]}"; do
+    echo "$pattern" >> "$DST_ROOT/.gitignore"
+  done
+  echo "  Added AAI per-dev runtime state patterns to $DST_ROOT/.gitignore"
+  echo "  NOTE: If docs/ai/STATE.yaml or docs/ai/LOOP_TICKS.jsonl is still tracked,"
+  echo "        run bash .aai/scripts/migrate-state-to-local.sh in the target project."
+fi
+
 # Create conflict advisory report for files that were overwritten with differences.
 if [[ ${#OVERWRITE_CONFLICTS[@]} -gt 0 ]]; then
   mkdir -p "$DST_ROOT/docs/ai/reports"

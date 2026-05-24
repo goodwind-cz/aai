@@ -476,6 +476,31 @@ if ($missingAgentSkillEntries.Count -gt 0) {
   Write-Host "  Added agent skill sync patterns to $gitignorePath"
 }
 
+# Ensure AAI per-dev runtime state is gitignored (RFC-0001).
+# STATE.yaml and LOOP_TICKS.jsonl are per-developer local; cross-dev
+# visibility lives in docs/ai/EVENTS.jsonl (append-only, committed).
+$giContent = if (Test-Path $gitignorePath) { Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue } else { "" }
+$runtimeStateEntries = @(
+  "docs/ai/STATE.yaml"
+  "docs/ai/LOOP_TICKS.jsonl"
+)
+$missingRuntimeStateEntries = @()
+foreach ($entry in $runtimeStateEntries) {
+  if ($giContent -notmatch ("(?m)^" + [regex]::Escape($entry) + "$")) {
+    $missingRuntimeStateEntries += $entry
+  }
+}
+if ($missingRuntimeStateEntries.Count -gt 0) {
+  $runtimeStateBlock = @(
+    ""
+    "# AAI per-dev runtime state (RFC-0001: never committed)"
+  ) + $missingRuntimeStateEntries
+  Add-Content -Path $gitignorePath -Value ($runtimeStateBlock -join "`n")
+  Write-Host "  Added AAI per-dev runtime state patterns to $gitignorePath"
+  Write-Host "  NOTE: If docs/ai/STATE.yaml or docs/ai/LOOP_TICKS.jsonl is still tracked,"
+  Write-Host "        run pwsh .aai/scripts/migrate-state-to-local.ps1 in the target project."
+}
+
 # Create conflict advisory report for files that were overwritten with differences.
 if ($overwriteConflicts.Count -gt 0) {
   $reportDir = Join-Path $TargetRoot "docs/ai/reports"

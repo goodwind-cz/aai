@@ -19,6 +19,54 @@ INVARIANT RULES
 - Read and respect docs/ai/STATE.yaml before validation.
 - If code_review.required is true, leave merge/PR readiness to
   `.aai/SKILL_CODE_REVIEW.prompt.md` after validation evidence exists.
+- Run the AC STATUS GATE (below) before producing any PASS verdict.
+
+AC STATUS GATE
+Per-Spec-AC tracking gate that prevents silent partial implementations,
+unsubstantiated done claims, and forgotten deferrals. Applies to specs
+that opt in by including a `Review-By` column in their Acceptance Criteria
+Status table (see .aai/templates/SPEC_TEMPLATE.md). Legacy specs without
+the column are skipped — they continue to behave exactly as before.
+
+Detection:
+- A spec opts into the gate when its "Acceptance Criteria Status" section
+  contains a markdown table whose header row includes the literal column
+  `Review-By` (case-sensitive).
+- All other specs are treated as legacy and bypass the gate entirely.
+
+Rule 1 — No silent partials (per-spec, at PASS claim time):
+- For the spec under validation, every Spec-AC row in the AC Status table
+  must have a terminal status: done | deferred | blocked | rejected.
+- Any row with status planned or implementing blocks PASS with message:
+  "AC-status gate: <SPEC-ID>/<Spec-AC-ID> is <status>; mark it done|deferred|blocked|rejected before claiming PASS."
+
+Rule 2 — No unsubstantiated done (per-spec, at PASS claim time):
+- For every row with status done, the Evidence column must be non-empty
+  (commit SHA, RUN_ID, or other concrete artifact reference).
+- Empty Evidence on a done row blocks PASS with message:
+  "AC-status gate: <SPEC-ID>/<Spec-AC-ID> is done but Evidence is empty; add commit SHA or RUN_ID."
+
+Rule 3 — Overdue review is a global interrupt (repo-wide, every PASS attempt):
+- Before producing any PASS verdict, scan every spec under
+  docs/specs/**/*.md that opts into the gate.
+- For each row with status deferred or blocked whose Review-By date is
+  in the past (compare ISO YYYY-MM-DD at UTC midnight), block PASS with:
+  "AC-status gate: overdue review on <SPEC-ID>/<Spec-AC-ID> (was due <Review-By>). Re-decide (extend Review-By, mark done, or reject) before any PASS in this repo."
+- This rule fires even if the overdue row is in a different spec than
+  the one currently under validation. The interrupt is global on purpose:
+  deferred items must not silently rot.
+
+Rule 4 — Anti-cheat on Review-By (per-spec, at PASS claim time):
+- For every row with status deferred or blocked, Review-By must be at
+  least 14 days in the future from the current UTC date.
+- A Review-By less than 14 days out blocks PASS with:
+  "AC-status gate: Review-By for <SPEC-ID>/<Spec-AC-ID> is <date> (less than 14 days from today); pick a date at least 14 days out or implement the AC now."
+- A Review-By in an unparseable format blocks PASS with:
+  "AC-status gate: Review-By for <SPEC-ID>/<Spec-AC-ID> is not a valid ISO date (YYYY-MM-DD)."
+
+When the gate blocks PASS, the verdict is FAIL with the gate message as
+the primary failure reason. Test execution evidence is still collected
+and reported, but the verdict cannot be PASS until all gate rules pass.
 
 PROCESS
 1) Read docs/ai/STATE.yaml and verify validation is allowed (not paused, not blocked by human_input).
@@ -32,8 +80,9 @@ PROCESS
    d) If e2e tests exist (config file or test directory found) but were NOT executed → automatic FAIL.
    e) Record exit code and output for every test command as evidence.
 6) Build coverage table.
-7) Produce PASS / FAIL verdict.
-8) Update docs/ai/STATE.yaml:
+7) Run AC STATUS GATE (see section above) and record any blocking findings.
+8) Produce PASS / FAIL verdict. PASS requires both (a) all test suites green and (b) AC STATUS GATE clear.
+9) Update docs/ai/STATE.yaml:
    - last_validation.status
    - last_validation.run_at_utc
    - last_validation.evidence_paths
@@ -80,6 +129,8 @@ FINAL OUTPUT REQUIRED
 - Explicit PASS or FAIL verdict
 - Evidence log (commands executed, exit codes)
 - Code review gate status: not_required / required_not_run / pass / fail / waived
+- AC status gate result: pass / fail / not_applicable (legacy spec)
+  If fail, list each violating Spec-AC with the specific gate rule (1, 2, 3, or 4) and message.
 
 METRICS (record in docs/ai/STATE.yaml)
 Capture real wall-clock timestamps:

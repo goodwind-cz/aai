@@ -1,4 +1,15 @@
+---
+id: ISSUE-XXXX
+type: issue
+status: draft
+links:
+  pr: []
+  commits: []
+---
+
 # Issue Template
+
+Frontmatter status values: draft | implementing | done | deferred | rejected | superseded
 
 ## Summary
 - Short description of the issue.

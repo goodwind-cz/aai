@@ -1,4 +1,15 @@
+---
+id: REL-XXXX
+type: release
+status: draft
+links:
+  pr: []
+  commits: []
+---
+
 # Release Plan
+
+Frontmatter status values: draft | implementing | done | deferred | rejected | superseded
 
 ## Release Type
 release | hotfix

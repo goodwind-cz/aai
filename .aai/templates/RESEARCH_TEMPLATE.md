@@ -1,4 +1,16 @@
+---
+id: RES-XXXX
+type: research
+status: draft
+links:
+  pr: []
+  commits: []
+---
+
 # Research / Spike Template
+
+Frontmatter status values: draft | implementing | done | deferred | rejected | superseded
+- For research: implementing == spike in progress; done == findings captured
 
 ## Research Question
 - What do we need to learn?

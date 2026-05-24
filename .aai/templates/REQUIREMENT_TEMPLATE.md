@@ -1,4 +1,16 @@
+---
+id: PRD-XXXX
+type: requirement
+status: draft
+links:
+  spec: null
+  pr: []
+  commits: []
+---
+
 # Requirement (PRD) Template
+
+Frontmatter status values: draft | implementing | done | deferred | rejected | superseded
 
 ## Intent
 - What and why (product intent)

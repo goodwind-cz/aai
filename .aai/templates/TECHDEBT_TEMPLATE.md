@@ -1,4 +1,15 @@
+---
+id: DEBT-XXXX
+type: techdebt
+status: draft
+links:
+  pr: []
+  commits: []
+---
+
 # Tech Debt Template
+
+Frontmatter status values: draft | implementing | done | deferred | rejected | superseded
 
 ## Debt Summary
 - Short description of the technical debt item.

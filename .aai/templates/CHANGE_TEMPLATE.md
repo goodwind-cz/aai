@@ -1,4 +1,15 @@
+---
+id: CHG-XXXX
+type: change
+status: draft
+links:
+  pr: []
+  commits: []
+---
+
 # Change Request Template
+
+Frontmatter status values: draft | implementing | done | deferred | rejected | superseded
 
 ## Summary
 - Short description of the requested change.

@@ -1,4 +1,24 @@
+---
+id: RFC-XXXX
+type: rfc
+status: draft
+links:
+  spec: null
+  pr: []
+  commits: []
+---
+
 # RFC (Decision Proposal)
+
+Frontmatter status values: draft | proposed | accepted | implementing | done | deferred | rejected | superseded
+- draft: under authoring
+- proposed: ready for review
+- accepted: decision recorded; implementation may begin
+- implementing: linked spec is in flight
+- done: implementation complete and validated
+- deferred: postponed; explain in body
+- rejected: decision against the proposal
+- superseded: replaced by another RFC (set links.rfc to replacement)
 
 ## Context
 - Problem or opportunity:

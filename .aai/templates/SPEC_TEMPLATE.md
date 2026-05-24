@@ -1,3 +1,14 @@
+---
+id: SPEC-XXXX
+type: spec
+status: draft
+links:
+  requirement: PRD-XXXX
+  rfc: null
+  pr: []
+  commits: []
+---
+
 # Implementation Spec Template
 
 ## Links
@@ -5,8 +16,13 @@
 - Decision records: <ADR links if relevant>
 - Technology contract: docs/TECHNOLOGY.md
 
-## Spec status
-- SPEC-FROZEN: false
+## Frontmatter status values
+- draft: spec being written, not yet ready for implementation
+- implementing: spec frozen, work in flight
+- done: all Spec-AC reached terminal status; validation PASS recorded
+- deferred: entire spec postponed; explain reason in this section
+- rejected: spec was abandoned; explain rationale
+- superseded: replaced by a newer spec; set links to the replacement
 
 ## Implementation strategy
 - Strategy: undecided
@@ -44,6 +60,30 @@ For each requirement AC:
 - Spec-AC-xxx: <implementation-oriented, verifiable statement>
 - Verification: <command(s) + expected evidence>
 
+## Acceptance Criteria Status
+
+Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
+
+| Spec-AC    | Description                    | Status      | Evidence       | Review-By   | Notes                          |
+|------------|--------------------------------|-------------|----------------|-------------|--------------------------------|
+| Spec-AC-01 | <implementation-oriented stmt> | planned     | —              | —           | —                              |
+
+Status values: planned | implementing | done | deferred | blocked | rejected
+- planned: AC defined, no implementation started
+- implementing: work in flight; not allowed at PASS claim time
+- done: implementation complete; requires non-empty Evidence (commit SHA or RUN_ID)
+- deferred: explicitly postponed; requires Review-By in the future (minimum +14 days) + Notes naming target doc or reason
+- blocked: implementation cannot proceed; requires Review-By + Notes naming blocker
+- rejected: AC will not be implemented; requires Notes with rationale; no Review-By needed (terminal)
+
+Gate behavior (enforced by .aai/VALIDATION.prompt.md when this column is present):
+- Any planned/implementing AC blocks PASS
+- Any done AC with empty Evidence blocks PASS
+- Any deferred/blocked AC anywhere in the repo with Review-By in the past blocks any PASS until re-decided
+- Review-By must be at least 14 days in the future when set
+
+Legacy specs without the Review-By column are skipped by the gate.
+
 ## Implementation plan
 - Components/modules affected
 - Data flows
@@ -56,7 +96,7 @@ For each Spec-AC, enumerate concrete tests:
 |----------|------------|------------|----------------------------|------------------------------|---------|
 | TEST-001 | Spec-AC-xx | unit/int/e2e | <expected test file path> | <what the test verifies>     | pending |
 
-Status values: pending → red → green
+Test status values: pending → red → green
 - pending: test not yet written
 - red: test written and verified failing (TDD RED phase)
 - green: test passes with implementation
@@ -69,7 +109,7 @@ Notes:
 ## Verification
 - Commands to run (derived from Test Plan above)
 - Evidence artifacts (logs, screenshots, outputs)
-- PASS criteria: all TEST-xxx in status green
+- PASS criteria: all TEST-xxx in status green AND all Spec-AC in a terminal status
 
 ## Evidence contract
 For each implementation, validation, TDD, and code review artifact, record:

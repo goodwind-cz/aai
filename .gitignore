@@ -26,6 +26,11 @@ docs/ai/reports/**
 docs/ai/.session-context.md
 docs/ai/.pre-compact-state-backup.yaml
 
+# AAI per-dev runtime state (RFC-0001: STATE is per-developer local, never committed).
+# Cross-developer visibility lives in docs/ai/EVENTS.jsonl (append-only, committed).
+docs/ai/STATE.yaml
+docs/ai/LOOP_TICKS.jsonl
+
 # Expert subagent cache (fetched on-demand from VoltAgent registry)
 .aai/cache/
 
