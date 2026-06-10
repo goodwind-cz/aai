@@ -5,103 +5,75 @@ Detect project architecture and generate project-specific `aai-*` skills that ar
 - directly visible to Claude (`.claude/skills/`)
 - preserved by `aai-sync` (target-only skill folders are not removed)
 - discoverable for Codex and Gemini via local index files
+- concrete, idempotent, and safe for already configured projects
 
-## Instructions
+## Default Path
 
-### 1. Detect Project Architecture
+Use the deterministic generator first:
 
-Scan repository root for:
-- package manager (`package.json`, `pyproject.toml`, `poetry.lock`, `Cargo.toml`, `go.mod`)
-- test frameworks (`playwright.config.*`, `cypress.*`, `jest.config.*`, `vitest.config.*`, `pytest.ini`)
-- build/lint toolchain (`vite.config.*`, `webpack.config.*`, `tsconfig.json`, `Dockerfile`, lint configs)
+```bash
+./.aai/scripts/aai-bootstrap.sh . --dry-run
+```
+
+Review the dry-run summary. If it is acceptable and there are no conflicts:
+
+```bash
+./.aai/scripts/aai-bootstrap.sh .
+```
+
+If `.aai/scripts/aai-bootstrap.sh` is missing, stop and report:
+"aai-bootstrap generator not found - expected .aai/scripts/aai-bootstrap.sh. Run aai-sync/update first."
+
+## What the Generator Detects
+
+The generator scans repository evidence for:
+- package managers and manifests (`package.json`, lockfiles, `pyproject.toml`, `Cargo.toml`, `go.mod`, `pom.xml`, Gradle files)
+- task runners (`Makefile`, `justfile`)
+- test frameworks (`playwright.config.*`, `cypress.config.*`, `jest.config.*`, `vitest.config.*`, `pytest.ini`, language defaults)
+- build/lint toolchain (`vite.config.*`, `webpack.config.*`, `tsconfig.json`, `Dockerfile`, ESLint/Biome/Ruff configs)
+- deploy paths (`wrangler.toml`, `vercel.json`, `netlify.toml`, deploy/publish/release scripts)
 - CI/CD hints (`.github/workflows/`)
-- optional MCP availability (`mcp list`)
-- authentication & test credentials (see step 1b)
+- authentication signals for E2E tests
 
-### 1b. Detect Authentication & Test Credentials
+## Generated Outputs
 
-When an E2E test framework is detected, probe for authentication:
-
-**Detection signals** (scan for any of these):
-- Login page/component: `login`, `sign-in`, `auth` in routes, pages, or components
-- Auth middleware: `auth`, `session`, `jwt`, `passport`, `next-auth`, `clerk` in config/middleware
-- Protected routes: route guards, `requireAuth`, `withAuth` wrappers
-- Existing test fixtures: `globalSetup`, `beforeAll` with login, `storageState`, seed scripts
-
-**If auth is detected:**
-1. Check `docs/knowledge/FACTS.md` for existing test credentials section.
-2. Check `.env.test`, `.env.testing`, or `.env.e2e` for test user variables.
-3. Check Playwright `globalSetup` or Cypress `support/commands` for existing login helpers.
-4. If credentials are already documented → use them in generated E2E skill.
-5. If credentials are NOT found → ask the user ONE question (in their language):
-   "The app uses authentication. What test user should E2E tests use? (email + password, or 'skip' if no login needed)"
-6. Save the answer to `docs/knowledge/FACTS.md` under a `## Test Credentials` section.
-7. Never store credentials in SKILL.md files directly — reference `FACTS.md` instead.
-
-**If no auth detected** → skip this step silently.
-
-### 2. Generate Claude-Visible Dynamic Skills
-
-Create/update these folders in `.claude/skills/`:
-- `.claude/skills/aai-test-e2e/SKILL.md` (if E2E stack detected)
-- `.claude/skills/aai-test-unit/SKILL.md`
-- `.claude/skills/aai-build/SKILL.md`
-- `.claude/skills/aai-lint/SKILL.md`
-- `.claude/skills/aai-deploy/SKILL.md` (only if deploy path is detectable)
-
-Rules:
-- Use `aai-` prefix.
-- Never overwrite an existing dynamic skill file without explicit user confirmation.
-- Keep generated commands concrete and runnable in the current repository.
-
-#### E2E Skill Auth Integration
-
-When generating `aai-test-e2e/SKILL.md` and auth was detected in step 1b:
-- Include a "Prerequisites" section referencing `docs/knowledge/FACTS.md` for test credentials.
-- If Playwright `globalSetup` or `storageState` exists, reference it so tests reuse a single login session.
-- If no `globalSetup` exists, include a note to create one (login once per run, not per test).
-- Example snippet for generated SKILL.md:
-  ```
-  ## Prerequisites
-  - Test credentials: see docs/knowledge/FACTS.md → "Test Credentials"
-  - Auth session: managed via globalSetup (login once, reuse storageState)
-  ```
-
-### 3. Write Dynamic Skill Marker (required)
-
-Create/update:
+The generator may create/update:
+- `.claude/skills/aai-test-e2e/SKILL.md` (only if an E2E command is detected)
+- `.claude/skills/aai-test-unit/SKILL.md` (only if a unit test command is detected)
+- `.claude/skills/aai-build/SKILL.md` (only if a build/typecheck command is detected)
+- `.claude/skills/aai-lint/SKILL.md` (only if a lint/static-check command is detected)
+- `.claude/skills/aai-deploy/SKILL.md` (only if a deploy path is detected)
 - `.claude/skills/AAI_DYNAMIC_SKILLS.md`
-
-This file must include:
-- generation timestamp (UTC)
-- detected stack summary
-- list of generated `aai-*` skill names
-- note that these are project-owned dynamic skills
-
-### 4. Write Cross-Agent Discovery Indexes
-
-Create/update:
 - `.codex/skills.local/README.md`
 - `.gemini/skills.local/README.md`
+- `.gitignore` cache-path hygiene entries
 
-Both files should list the generated `aai-*` skills and where they live:
-- `.claude/skills/<skill-name>/SKILL.md`
+## Safety Rules
 
-### 5. .gitignore Hygiene
-
-Ensure cache paths are ignored, but dynamic skill definitions are committed:
-- `.claude/skills/.cache`
-- `.codex/skills.local/.cache`
-- `.gemini/skills.local/.cache`
-
-### 6. Report Results
-
-Output:
-- detected architecture summary
-- generated/updated file list
-- ready-to-use commands (for example `/aai-test-e2e`, `/aai-test-unit`, `/aai-build`, `/aai-lint`)
-
-## Safety
-- Do not fabricate tooling commands.
+- Never manually overwrite an existing dynamic skill file.
+- The generator refuses to replace unmarked files unless `--force` is passed.
+- Use `--force` only after explicit user confirmation and only for the listed conflict paths.
 - Do not delete existing skills.
 - Do not write dynamic skills into `.claude/skills.local/`.
+- Do not fabricate commands. If no concrete command is detected, leave that skill skipped and report why.
+- Do not store real passwords, API keys, session cookies, or tokens in `SKILL.md` or committed docs.
+
+## Authentication Handling
+
+When E2E tooling and auth signals are detected, generated E2E skills include a prerequisites section.
+
+Credential policy:
+- Prefer non-secret references such as env var names from `.env.e2e`, `.env.test`, or `.env.testing`.
+- If `docs/knowledge/FACTS.md` already has `## Test Credentials`, reference that section.
+- If no safe reference exists, ask the user one question in their language:
+  "The app uses authentication. Which non-secret credential reference should E2E tests use? Provide env var names or say 'skip'."
+- If the user provides actual secret values, do not write them to files. Ask for env var names or a secret-manager reference instead.
+
+## Report Results
+
+Final output must include:
+- detected architecture summary
+- auth note if auth was detected
+- generated/updated file list
+- skipped skill list with reasons
+- ready-to-use commands, for example `/aai-test-e2e`, `/aai-test-unit`, `/aai-build`, `/aai-lint`

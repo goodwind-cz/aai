@@ -84,6 +84,9 @@ Tests architecture detection:
 - Dynamic skill generation
 - Cross-agent discovery indexes
 - .gitignore hygiene
+- Dry-run behavior
+- Overwrite protection for unmarked skill files
+- Auth credential reference safety
 
 #### `test-aai-intake.sh`
 Tests intake routing:

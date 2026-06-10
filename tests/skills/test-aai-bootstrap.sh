@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-bootstrap skill
-# Tests architecture detection and dynamic skill generation
+# Verifies the real bootstrap generator against an isolated project fixture.
 #
 # Exit codes:
 #   0  - All tests passed
@@ -10,52 +10,64 @@
 
 set -euo pipefail
 
-# Test metadata
 TEST_NAME="aai-bootstrap"
 TEST_DIR=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+BOOTSTRAP_SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-bootstrap.sh"
 
-# Cleanup function
 cleanup() {
-  if [[ -n "${TEST_DIR:-}" ]] && [[ -d "$TEST_DIR" ]]; then
+  if [[ -n "${TEST_DIR:-}" && -d "$TEST_DIR" ]]; then
     rm -rf "$TEST_DIR"
   fi
 }
 trap cleanup EXIT
 
-# Logging
-log_pass() { echo "✓ $*"; }
-log_fail() { echo "✗ $*" >&2; return 1; }
-log_skip() { echo "⊘ $*"; exit 42; }
-log_info() { echo "  $*"; }
+log_pass() { echo "PASS: $*"; }
+log_fail() { echo "FAIL: $*" >&2; exit 1; }
+log_skip() { echo "SKIP: $*"; exit 42; }
+log_info() { echo "INFO: $*"; }
 
-# Check dependencies
+assert_file() {
+  local path="$1"
+  [[ -f "$path" ]] || log_fail "Missing file: $path"
+}
+
+assert_not_file() {
+  local path="$1"
+  [[ ! -f "$path" ]] || log_fail "Unexpected file exists: $path"
+}
+
+assert_contains() {
+  local path="$1"
+  local text="$2"
+  grep -qF "$text" "$path" || log_fail "Expected '$text' in $path"
+}
+
+assert_not_contains() {
+  local path="$1"
+  local text="$2"
+  if grep -qF "$text" "$path"; then
+    log_fail "Did not expect '$text' in $path"
+  fi
+}
+
 check_deps() {
   log_info "Checking dependencies..."
-
-  if ! command -v git &> /dev/null; then
-    log_skip "git not found"
-  fi
-
+  command -v bash >/dev/null 2>&1 || log_skip "bash not found"
+  [[ -f "$BOOTSTRAP_SCRIPT" ]] || log_fail "Bootstrap script not found: $BOOTSTRAP_SCRIPT"
+  bash -n "$BOOTSTRAP_SCRIPT" || log_fail "Bootstrap script has syntax errors"
   log_pass "Dependencies checked"
 }
 
-# Setup test environment
-setup_test_env() {
-  log_info "Setting up test environment..."
-
-  # Create temporary directory
-  TEST_DIR=$(mktemp -d /tmp/aai-test-bootstrap-XXXXXX)
+setup_fixture() {
+  log_info "Setting up isolated fixture..."
+  TEST_DIR="$(mktemp -d /tmp/aai-test-bootstrap-XXXXXX)"
   cd "$TEST_DIR"
 
-  # Initialize git repository
-  git init -q
-  git config user.email "test@example.com"
-  git config user.name "Test User"
-
-  # Create a sample Node.js project
-  cat > package.json <<'EOF'
+  cat > package.json <<'JSON'
 {
-  "name": "test-project",
+  "name": "bootstrap-fixture",
   "version": "1.0.0",
   "scripts": {
     "test": "jest",
@@ -64,359 +76,164 @@ setup_test_env() {
     "lint": "eslint ."
   },
   "devDependencies": {
-    "jest": "^29.0.0",
     "@playwright/test": "^1.40.0",
-    "vite": "^5.0.0",
-    "eslint": "^8.0.0"
+    "eslint": "^8.0.0",
+    "jest": "^29.0.0",
+    "vite": "^5.0.0"
   }
 }
-EOF
+JSON
 
-  # Create test framework configs
-  cat > jest.config.js <<'EOF'
+  cat > jest.config.js <<'JS'
 module.exports = {
-  testEnvironment: 'node',
-  coverageDirectory: 'coverage'
+  testEnvironment: "node"
 };
-EOF
+JS
 
-  cat > playwright.config.js <<'EOF'
+  cat > playwright.config.js <<'JS'
 module.exports = {
-  testDir: './e2e',
-  use: { baseURL: 'http://localhost:3000' }
+  testDir: "./e2e",
+  use: { baseURL: "http://localhost:3000" }
 };
-EOF
+JS
 
-  cat > vite.config.js <<'EOF'
-export default {
-  build: { outDir: 'dist' }
-};
-EOF
+  cat > vite.config.js <<'JS'
+export default {};
+JS
 
-  # Create TypeScript config
-  cat > tsconfig.json <<'EOF'
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "ESNext"
-  }
+  cat > eslint.config.js <<'JS'
+export default [];
+JS
+
+  mkdir -p app e2e docs/knowledge
+  cat > app/login.ts <<'TS'
+export function requireAuth() {
+  return true;
 }
-EOF
+TS
 
-  # Create directory structure
-  mkdir -p .claude/skills
-  mkdir -p .codex/skills.local
-  mkdir -p .gemini/skills.local
-  mkdir -p docs/knowledge
+  cat > .env.e2e <<'ENV'
+E2E_EMAIL=user@example.test
+E2E_PASSWORD=not-real
+ENV
 
-  # Create FACTS.md
-  cat > docs/knowledge/FACTS.md <<'EOF'
-# Project Facts
-
-## Architecture
-- Language: TypeScript/JavaScript
-- Framework: Node.js
-- Test Framework: Jest, Playwright
-EOF
-
-  # Commit initial setup
-  git add -A
-  git commit -q -m "Initial project setup"
-
-  log_pass "Test environment created: $TEST_DIR"
+  log_pass "Fixture created: $TEST_DIR"
 }
 
-# Test 1: Detect package manager
-test_detect_package_manager() {
-  log_info "Test 1: Detect package manager..."
+test_dry_run_has_no_writes() {
+  log_info "Test: dry-run previews without writing..."
+  bash "$BOOTSTRAP_SCRIPT" "$TEST_DIR" --dry-run > "$TEST_DIR/dry-run.log"
 
-  if [[ ! -f package.json ]]; then
-    log_fail "package.json not found"
-  fi
+  assert_contains "$TEST_DIR/dry-run.log" "Mode: dry-run"
+  assert_contains "$TEST_DIR/dry-run.log" "/aai-test-unit -> npm test"
+  assert_contains "$TEST_DIR/dry-run.log" "/aai-test-e2e -> npm run test:e2e"
+  assert_contains "$TEST_DIR/dry-run.log" "Authentication detected"
+  assert_not_file "$TEST_DIR/.claude/skills/aai-test-unit/SKILL.md"
 
-  # Verify detection logic would work
-  local pkg_mgr="npm"
-  if [[ -f package.json ]]; then
-    pkg_mgr="npm"
-  elif [[ -f pyproject.toml ]]; then
-    pkg_mgr="python"
-  elif [[ -f Cargo.toml ]]; then
-    pkg_mgr="cargo"
-  elif [[ -f go.mod ]]; then
-    pkg_mgr="go"
-  fi
-
-  if [[ "$pkg_mgr" != "npm" ]]; then
-    log_fail "Expected npm, detected $pkg_mgr"
-  fi
-
-  log_pass "Package manager detected: $pkg_mgr"
+  log_pass "Dry-run did not write files"
 }
 
-# Test 2: Detect test frameworks
-test_detect_test_frameworks() {
-  log_info "Test 2: Detect test frameworks..."
-
-  local frameworks=()
-
-  # Check for test framework configs
-  [[ -f jest.config.js ]] && frameworks+=("jest")
-  [[ -f playwright.config.js ]] && frameworks+=("playwright")
-  [[ -f cypress.config.js ]] && frameworks+=("cypress")
-  [[ -f vitest.config.js ]] && frameworks+=("vitest")
-
-  if [[ ${#frameworks[@]} -eq 0 ]]; then
-    log_fail "No test frameworks detected"
-  fi
-
-  # Verify we found the expected frameworks
-  if [[ ! " ${frameworks[*]} " =~ " jest " ]]; then
-    log_fail "Jest not detected"
-  fi
-
-  if [[ ! " ${frameworks[*]} " =~ " playwright " ]]; then
-    log_fail "Playwright not detected"
-  fi
-
-  log_pass "Test frameworks detected: ${frameworks[*]}"
-}
-
-# Test 3: Detect build tools
-test_detect_build_tools() {
-  log_info "Test 3: Detect build tools..."
-
-  local build_tools=()
-
-  # Check for build tool configs
-  [[ -f vite.config.js ]] && build_tools+=("vite")
-  [[ -f webpack.config.js ]] && build_tools+=("webpack")
-  [[ -f tsconfig.json ]] && build_tools+=("typescript")
-
-  if [[ ${#build_tools[@]} -eq 0 ]]; then
-    log_fail "No build tools detected"
-  fi
-
-  log_pass "Build tools detected: ${build_tools[*]}"
-}
-
-# Test 4: Generate dynamic skills
 test_generate_dynamic_skills() {
-  log_info "Test 4: Generate dynamic skills..."
+  log_info "Test: generates dynamic skills from real detection..."
+  bash "$BOOTSTRAP_SCRIPT" "$TEST_DIR" > "$TEST_DIR/apply.log"
 
-  # Simulate generating aai-test-unit skill
-  mkdir -p .claude/skills/aai-test-unit
-  cat > .claude/skills/aai-test-unit/SKILL.md <<'EOF'
-# aai-test-unit
+  local unit="$TEST_DIR/.claude/skills/aai-test-unit/SKILL.md"
+  local e2e="$TEST_DIR/.claude/skills/aai-test-e2e/SKILL.md"
+  local build="$TEST_DIR/.claude/skills/aai-build/SKILL.md"
+  local lint="$TEST_DIR/.claude/skills/aai-lint/SKILL.md"
+  local marker="$TEST_DIR/.claude/skills/AAI_DYNAMIC_SKILLS.md"
+  local codex="$TEST_DIR/.codex/skills.local/README.md"
+  local gemini="$TEST_DIR/.gemini/skills.local/README.md"
 
-Run unit tests with Jest.
-
-## Usage
-```bash
-npm test
-```
-
-## Auto-generated by aai-bootstrap
-EOF
-
-  # Simulate generating aai-test-e2e skill
-  mkdir -p .claude/skills/aai-test-e2e
-  cat > .claude/skills/aai-test-e2e/SKILL.md <<'EOF'
-# aai-test-e2e
-
-Run E2E tests with Playwright.
-
-## Usage
-```bash
-npm run test:e2e
-```
-
-## Auto-generated by aai-bootstrap
-EOF
-
-  # Simulate generating aai-build skill
-  mkdir -p .claude/skills/aai-build
-  cat > .claude/skills/aai-build/SKILL.md <<'EOF'
-# aai-build
-
-Build the project with Vite.
-
-## Usage
-```bash
-npm run build
-```
-
-## Auto-generated by aai-bootstrap
-EOF
-
-  # Simulate generating aai-lint skill
-  mkdir -p .claude/skills/aai-lint
-  cat > .claude/skills/aai-lint/SKILL.md <<'EOF'
-# aai-lint
-
-Lint the codebase with ESLint.
-
-## Usage
-```bash
-npm run lint
-```
-
-## Auto-generated by aai-bootstrap
-EOF
-
-  # Verify skills were created
-  local expected_skills=("aai-test-unit" "aai-test-e2e" "aai-build" "aai-lint")
-
-  for skill in "${expected_skills[@]}"; do
-    if [[ ! -f ".claude/skills/$skill/SKILL.md" ]]; then
-      log_fail "Skill not generated: $skill"
-    fi
+  for path in "$unit" "$e2e" "$build" "$lint" "$marker" "$codex" "$gemini"; do
+    assert_file "$path"
   done
 
-  log_pass "Dynamic skills generated: ${expected_skills[*]}"
+  assert_contains "$unit" "AAI-DYNAMIC-SKILL:START"
+  assert_contains "$unit" "npm test"
+  assert_contains "$e2e" "npm run test:e2e"
+  assert_contains "$e2e" "Authentication detected"
+  assert_contains "$e2e" "E2E_EMAIL"
+  assert_contains "$e2e" "E2E_PASSWORD"
+  assert_not_contains "$e2e" "user@example.test"
+  assert_not_contains "$e2e" "not-real"
+  assert_contains "$build" "npm run build"
+  assert_contains "$lint" "npm run lint"
+  assert_contains "$marker" "Playwright"
+  assert_contains "$marker" "Jest"
+  assert_contains "$marker" "Vite"
+  assert_contains "$codex" ".claude/skills/aai-test-unit/SKILL.md"
+  assert_contains "$gemini" ".claude/skills/aai-build/SKILL.md"
+  assert_contains "$TEST_DIR/.gitignore" ".claude/skills/.cache"
+  assert_contains "$TEST_DIR/.gitignore" ".codex/skills.local/.cache"
+  assert_contains "$TEST_DIR/.gitignore" ".gemini/skills.local/.cache"
+
+  log_pass "Dynamic skills generated from fixture"
 }
 
-# Test 5: Create dynamic skills marker
-test_create_marker() {
-  log_info "Test 5: Create dynamic skills marker..."
+test_managed_skill_is_stable() {
+  log_info "Test: managed skill can be regenerated without content churn..."
+  local unit="$TEST_DIR/.claude/skills/aai-test-unit/SKILL.md"
+  local before
+  before="$(cksum "$unit")"
 
-  # Create marker file
-  cat > .claude/skills/AAI_DYNAMIC_SKILLS.md <<EOF
-# AAI Dynamic Skills
+  bash "$BOOTSTRAP_SCRIPT" "$TEST_DIR" > "$TEST_DIR/reapply.log"
 
-Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+  local after
+  after="$(cksum "$unit")"
+  [[ "$before" == "$after" ]] || log_fail "Managed unit skill changed unexpectedly on re-run"
+  assert_contains "$TEST_DIR/reapply.log" "Unchanged files:"
 
-## Detected Stack
-- Package Manager: npm
-- Test Frameworks: jest, playwright
-- Build Tools: vite, typescript
-- Linters: eslint
-
-## Generated Skills
-- aai-test-unit (Jest unit tests)
-- aai-test-e2e (Playwright E2E tests)
-- aai-build (Vite build)
-- aai-lint (ESLint)
-
-These are project-owned dynamic skills generated by aai-bootstrap.
-EOF
-
-  if [[ ! -f .claude/skills/AAI_DYNAMIC_SKILLS.md ]]; then
-    log_fail "Marker file not created"
-  fi
-
-  if ! grep -q "Generated:" .claude/skills/AAI_DYNAMIC_SKILLS.md; then
-    log_fail "Marker file missing timestamp"
-  fi
-
-  log_pass "Dynamic skills marker created"
+  log_pass "Managed skill stayed stable"
 }
 
-# Test 6: Create cross-agent discovery indexes
-test_create_discovery_indexes() {
-  log_info "Test 6: Create cross-agent discovery indexes..."
-
-  # Create Codex index
-  cat > .codex/skills.local/README.md <<'EOF'
-# AAI Dynamic Skills (Codex)
-
-Generated skills available in `.claude/skills/`:
-- aai-test-unit - Run Jest unit tests
-- aai-test-e2e - Run Playwright E2E tests
-- aai-build - Build with Vite
-- aai-lint - Lint with ESLint
-EOF
-
-  # Create Gemini index
-  cat > .gemini/skills.local/README.md <<'EOF'
-# AAI Dynamic Skills (Gemini)
-
-Generated skills available in `.claude/skills/`:
-- aai-test-unit - Run Jest unit tests
-- aai-test-e2e - Run Playwright E2E tests
-- aai-build - Build with Vite
-- aai-lint - Lint with ESLint
-EOF
-
-  if [[ ! -f .codex/skills.local/README.md ]]; then
-    log_fail "Codex index not created"
-  fi
-
-  if [[ ! -f .gemini/skills.local/README.md ]]; then
-    log_fail "Gemini index not created"
-  fi
-
-  log_pass "Cross-agent discovery indexes created"
-}
-
-# Test 7: Verify no overwrite without confirmation
-test_no_overwrite() {
-  log_info "Test 7: Verify no overwrite without confirmation..."
-
-  # Create a skill with custom content
-  cat > .claude/skills/aai-test-unit/SKILL.md <<'EOF'
-# aai-test-unit
+test_no_overwrite_without_force() {
+  log_info "Test: unmarked skill is protected from overwrite..."
+  local unit="$TEST_DIR/.claude/skills/aai-test-unit/SKILL.md"
+  cat > "$unit" <<'MD'
+# custom unit skill
 
 CUSTOM CONTENT - DO NOT OVERWRITE
-EOF
+MD
 
-  local original_content
-  original_content=$(cat .claude/skills/aai-test-unit/SKILL.md)
-
-  # Simulate bootstrap attempting to regenerate
-  # (In real implementation, should check for existing content and ask)
-  if grep -q "CUSTOM CONTENT" .claude/skills/aai-test-unit/SKILL.md; then
-    log_info "Custom content preserved (would require confirmation to overwrite)"
-  else
-    log_fail "Custom content was overwritten without confirmation"
+  if bash "$BOOTSTRAP_SCRIPT" "$TEST_DIR" > "$TEST_DIR/conflict.out" 2> "$TEST_DIR/conflict.err"; then
+    log_fail "Bootstrap unexpectedly overwrote an unmarked skill"
   fi
 
-  log_pass "No overwrite protection verified"
+  assert_contains "$TEST_DIR/conflict.err" "would overwrite unmarked files"
+  assert_contains "$unit" "CUSTOM CONTENT - DO NOT OVERWRITE"
+
+  log_pass "Unmarked skill was preserved"
 }
 
-# Test 8: Verify .gitignore hygiene
-test_gitignore_hygiene() {
-  log_info "Test 8: Verify .gitignore hygiene..."
+test_force_is_explicit_overwrite() {
+  log_info "Test: --force explicitly replaces an unmarked dynamic path..."
+  local unit="$TEST_DIR/.claude/skills/aai-test-unit/SKILL.md"
 
-  # Create .gitignore with cache exclusions
-  cat > .gitignore <<'EOF'
-node_modules/
-.claude/skills/.cache
-.codex/skills.local/.cache
-.gemini/skills.local/.cache
-EOF
+  bash "$BOOTSTRAP_SCRIPT" "$TEST_DIR" --force > "$TEST_DIR/force.log"
 
-  if [[ ! -f .gitignore ]]; then
-    log_fail ".gitignore not created"
-  fi
+  assert_contains "$TEST_DIR/force.log" "Force: true"
+  assert_contains "$unit" "AAI-DYNAMIC-SKILL:START"
+  assert_contains "$unit" "npm test"
+  assert_not_contains "$unit" "CUSTOM CONTENT - DO NOT OVERWRITE"
 
-  if ! grep -q ".claude/skills/.cache" .gitignore; then
-    log_fail ".gitignore missing cache exclusions"
-  fi
-
-  log_pass ".gitignore hygiene verified"
+  log_pass "--force replaced the unmarked skill"
 }
 
-# Main test execution
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
 
   check_deps
-  setup_test_env
-
-  # Run tests
-  test_detect_package_manager
-  test_detect_test_frameworks
-  test_detect_build_tools
+  setup_fixture
+  test_dry_run_has_no_writes
   test_generate_dynamic_skills
-  test_create_marker
-  test_create_discovery_indexes
-  test_no_overwrite
-  test_gitignore_hygiene
+  test_managed_skill_is_stable
+  test_no_overwrite_without_force
+  test_force_is_explicit_overwrite
 
-  echo ""
+  echo
   echo "All tests passed!"
-  exit 0
 }
 
 main "$@"

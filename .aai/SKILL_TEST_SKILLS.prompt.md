@@ -125,9 +125,10 @@ After tests complete, generate a comprehensive report:
 - Dependencies: git ✓
 - Notes: All worktree operations verified
 
-### aai-bootstrap ⊘ SKIP
-- Reason: No test fixtures available
-- Dependencies: Missing test project templates
+### aai-bootstrap ✓ PASS
+- Duration: 2.0s
+- Tests: 5/5 passed
+- Notes: Real generator fixture verified (dry-run, generation, auth safety, overwrite protection)
 
 ### aai-intake ✓ PASS
 - Duration: 6.1s
@@ -147,9 +148,8 @@ After tests complete, generate a comprehensive report:
 ## Recommendations
 
 1. Fix failing tests in aai-tdd (RED phase validation)
-2. Add test fixtures for aai-bootstrap
-3. Install pytest for Python project testing
-4. Consider adding integration tests for aai-loop
+2. Install pytest for Python project testing
+3. Consider adding integration tests for aai-loop
 
 ## Test Evidence
 
@@ -231,6 +231,9 @@ Tests architecture detection:
 - Test framework discovery
 - Dynamic skill generation
 - Cross-agent index creation
+- Dry-run behavior
+- Auth credential reference safety
+- Overwrite protection for unmarked skill files
 
 ### test-aai-intake.sh
 Tests intake routing:
@@ -361,7 +364,7 @@ Running tests...
 [1/11] aai-share .......... PASS (12.3s)
 [2/11] aai-tdd ............ FAIL (8.7s)
 [3/11] aai-worktree ...... PASS (15.2s)
-[4/11] aai-bootstrap ..... SKIP (no fixtures)
+[4/11] aai-bootstrap ..... PASS (2.0s)
 [5/11] aai-intake ........ PASS (6.1s)
 [6/11] aai-loop .......... PASS (18.4s)
 [7/11] aai-hitl .......... PASS (4.2s)

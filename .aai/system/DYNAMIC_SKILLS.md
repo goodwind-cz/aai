@@ -14,14 +14,18 @@ Important:
 
 ## Bootstrap Outputs
 Running `/aai-bootstrap` generates:
-- `.claude/skills/aai-test-e2e/SKILL.md` (if E2E stack exists)
-- `.claude/skills/aai-test-unit/SKILL.md`
-- `.claude/skills/aai-build/SKILL.md`
-- `.claude/skills/aai-lint/SKILL.md`
-- `.claude/skills/aai-deploy/SKILL.md` (if deploy path exists)
+- `.claude/skills/aai-test-e2e/SKILL.md` (if an E2E command is detected)
+- `.claude/skills/aai-test-unit/SKILL.md` (if a unit test command is detected)
+- `.claude/skills/aai-build/SKILL.md` (if a build/typecheck command is detected)
+- `.claude/skills/aai-lint/SKILL.md` (if a lint/static-check command is detected)
+- `.claude/skills/aai-deploy/SKILL.md` (if a deploy path is detected)
 - `.claude/skills/AAI_DYNAMIC_SKILLS.md` (marker + inventory)
 - `.codex/skills.local/README.md` (Codex discovery)
 - `.gemini/skills.local/README.md` (Gemini discovery)
+- `.gitignore` cache-path hygiene entries
+
+The default implementation is `.aai/scripts/aai-bootstrap.sh`.
+Run it with `--dry-run` first to preview generated commands and file writes.
 
 ## Agent Visibility
 - Claude: reads slash skills directly from `.claude/skills/`
@@ -30,8 +34,16 @@ Running `/aai-bootstrap` generates:
 
 ## Recommended Flow
 1. Run `aai-sync` to apply template updates.
-2. Run `/aai-bootstrap` in target project.
-3. Commit dynamic outputs (`.claude/skills/aai-*`, marker, local indexes).
+2. Run `./.aai/scripts/aai-bootstrap.sh . --dry-run` in the target project.
+3. Run `/aai-bootstrap` or `./.aai/scripts/aai-bootstrap.sh .` to apply.
+4. Commit dynamic outputs (`.claude/skills/aai-*`, marker, local indexes).
+
+## Safety
+- Generated skill files include an `AAI-DYNAMIC-SKILL` marker.
+- The generator refuses to replace unmarked skill files unless `--force` is passed.
+- `--force` is explicit confirmation for the listed conflict paths; do not use it casually.
+- Existing skills are not deleted when a command is no longer detected.
+- Secrets must not be stored in generated skill files or committed docs.
 
 ## Troubleshooting
 - Dynamic skill missing in Claude:
