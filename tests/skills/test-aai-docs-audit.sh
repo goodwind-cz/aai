@@ -631,6 +631,17 @@ MD
   log_pass "Legacy violations demote to the Skipped section automatically"
 }
 
+test_skill_prompt_modes() {
+  log_info "Test: skill prompt documents all three modes (CHANGE-0003 guard)..."
+  local prompt="$PROJECT_ROOT/.aai/SKILL_DOCS_AUDIT.prompt.md"
+  assert_file "$prompt"
+  assert_contains "$prompt" "PROCESS"
+  assert_contains "$prompt" "REMEDIATION MODE"
+  assert_contains "$prompt" "VERIFY MODE"
+  assert_contains "$prompt" "never writes or"
+  log_pass "Audit / remediate / verify modes all documented"
+}
+
 test_index_continue_on_error() {
   log_info "Test: index generator --continue-on-error renders a partial index (D9)..."
   cat > "$TEST_DIR/docs/specs/SPEC-998-bad-status.md" <<'MD'
@@ -680,6 +691,7 @@ main() {
   test_suggested_multi_ids
   test_category_prefix_scope
   test_index_legacy_autoskip
+  test_skill_prompt_modes
   test_index_continue_on_error
   echo ""
   log_pass "All $TEST_NAME tests passed"

@@ -9,9 +9,12 @@ DECIDES.
 HARD RULES
 - In audit mode, never modify any doc, plan file, backlog file, or INDEX
   section. Verdicts are heuristic.
-- In remediation mode, modify a doc only after the operator approved that
-  specific item (or an explicitly named batch) in this conversation. Never
-  edit operator-authored plan/backlog files in any mode.
+- In remediation and verify modes, modify a doc only after the operator
+  approved that specific item (or an explicitly named batch) in this
+  conversation. Never edit operator-authored plan/backlog files in any mode.
+- Verify mode reads code and may run existing tests; it never writes or
+  modifies code or tests, and never proposes "implemented" without positive
+  evidence (a path:line or a passing test run).
 - Respect docs/ai/docs-audit.yaml. If absent, the engine runs report-only;
   tell the operator how to enable enforcement (create the config with a
   legacy_until_date, see RFC-0002 D4).
@@ -50,6 +53,33 @@ R5) For operator-authored plan/backlog files, show suggested row text only;
     the operator pastes it themselves.
 R6) When done: re-run docs-audit.mjs, regenerate the INDEX, and report the
     residual counts.
+
+VERIFY MODE (semantic docs-vs-code check, only on explicit operator request)
+Entered via "/aai-docs-audit verify <DOC-ID|path>". The audit engine
+compares claims against traces (commits, events); this mode checks the
+claims against the code itself. It is the expensive mode: verify ONE doc
+(or an explicitly named small batch) per invocation — never sweep the repo.
+V1) Load the doc. Collect its acceptance criteria: AC Status table rows,
+    or the acceptance-criteria-like sections for docs without a table.
+V2) For each AC, probe the codebase: identify the symbols, files, routes,
+    or behaviors the criterion names; search and read the relevant code;
+    when an existing test covers the criterion, run it and capture the
+    result. Do not write code or tests.
+V3) Classify each AC:
+    - implemented — cite evidence: path:line and/or a passing test command
+    - not-implemented — state what was searched and not found
+    - cannot-determine — state exactly what is missing to decide
+    Absence of counter-evidence is NOT "implemented".
+V4) Present a per-AC verdict table (AC | verdict | evidence | proposed
+    status). Propose AC Status row updates only where evidence is
+    conclusive.
+V5) Wait for per-item operator approval (named batches allowed). Approved
+    updates: write the AC Status table (add it per SPEC_TEMPLATE.md if the
+    doc lacks one), emit ac_status + ac_evidence per row, doc_lifecycle on
+    any frontmatter transition — same event discipline as remediation R4.
+V6) Finish like remediation R6: re-run docs-audit.mjs, regenerate the
+    INDEX, report residual counts. From now on the standard validation
+    gate and drift audit guard this doc like any loop-born one.
 
 OUTPUT FORMAT
 ## Docs Audit — <date>

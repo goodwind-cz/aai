@@ -430,6 +430,9 @@ remediation mode.
 ```bash
 /aai-docs-audit                    # full audit, digest in chat
 /aai-docs-audit remediate          # interactive cleanup, per-item approval
+/aai-docs-audit verify CHANGE-048  # semantic check of one doc's ACs
+                                   # against the actual code (expensive;
+                                   # one doc per invocation)
 
 # Direct engine calls:
 node .aai/scripts/docs-audit.mjs --list      # per-doc classification table
@@ -469,13 +472,24 @@ category_prefixes:              # filename segments treated as scopes,
   - EPIC
 ```
 
+**Three modes, three questions:**
+- audit (default) — "do recorded claims still match the traces?" (script:
+  frontmatter/AC table vs commits and EVENTS; cheap, repo-wide)
+- remediate — "fix the metadata I approve" (frontmatter, statuses, AC rows)
+- verify — "is this claim actually true in the code?" (agent reads each AC,
+  probes the codebase, runs existing tests; expensive, one doc at a time;
+  `implemented` requires positive evidence — path:line or a passing test)
+
 **Typical retro-cleanup workflow:**
 1. Create the config with `legacy_until_date` set to today.
 2. `/aai-docs-audit` — read Orphans + Drift report (each row carries
    evidence and a suggested next step).
 3. `/aai-docs-audit remediate` — approve fixes item by item; every applied
    change is logged to EVENTS.jsonl.
-4. Re-run until CLEAN; wire `--check` into CI to keep it that way
+4. For docs where you do not trust the claims at all (probable-false-done
+   with N acceptance criteria), `/aai-docs-audit verify <DOC-ID>` — the
+   agent reconciles each AC against the code and you approve the result.
+5. Re-run until CLEAN; wire `--check` into CI to keep it that way
    (template: `.aai/templates/DOCS_AUDIT_TEST_TEMPLATE.md`).
 
 **Where it runs automatically:**

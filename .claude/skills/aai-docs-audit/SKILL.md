@@ -1,6 +1,6 @@
 ---
 name: aai-docs-audit
-description: Use when docs/ may contain orphan, false-done, or stale documents, before a release closeout, or for a periodic docs hygiene review. Reports per-doc classification and drift verdicts; edits docs only in the operator-approved remediation mode.
+description: Use when docs/ may contain orphan, false-done, or stale documents, before a release closeout, for a periodic docs hygiene review, or to verify a doc's acceptance criteria against the actual code ("verify <DOC-ID>"). Reports per-doc classification and drift verdicts; edits docs only in the operator-approved remediation/verify modes.
 ---
 
 <SUBAGENT-STOP>

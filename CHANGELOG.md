@@ -9,6 +9,27 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — CHANGE-0003: docs-audit verify mode
+
+Adds the third skill mode
+([CHANGE-0003](docs/issues/CHANGE-0003-docs-audit-verify-mode.md)):
+semantic docs-vs-code reconciliation. The audit checks claims against
+traces (commits, events); `verify` checks them against the code itself.
+
+### Added
+- `/aai-docs-audit verify <DOC-ID>`: the agent reads each acceptance
+  criterion, probes the codebase (search, read, run existing tests —
+  never writes code), and proposes per-AC verdicts (`implemented` with
+  path:line or test evidence / `not-implemented` / `cannot-determine`).
+  Operator approves per item; approved updates write the AC Status table
+  and emit `ac_status`/`ac_evidence`/`doc_lifecycle` events, after which
+  the standard gate and drift audit guard the doc. Expensive by design:
+  one doc (or named small batch) per invocation.
+- Guard test pinning that the skill prompt documents all three modes
+  (audit / remediate / verify).
+- USER_GUIDE: "three modes, three questions" overview and verify step in
+  the retro-cleanup workflow.
+
 ## [unreleased] — CHANGE-0002: docs-audit engine improvements, round 2
 
 Triage and fixes for six further deficiencies from the downstream second
