@@ -18,6 +18,7 @@ Running `/aai-bootstrap` generates:
 - `.claude/skills/aai-test-unit/SKILL.md` (if a unit test command is detected)
 - `.claude/skills/aai-build/SKILL.md` (if a build/typecheck command is detected)
 - `.claude/skills/aai-lint/SKILL.md` (if a lint/static-check command is detected)
+- `.claude/skills/aai-python-monty/SKILL.md` (if a Python project is detected; optional pydantic-monty scratchpad)
 - `.claude/skills/aai-deploy/SKILL.md` (if a deploy path is detected)
 - `.claude/skills/AAI_DYNAMIC_SKILLS.md` (marker + inventory)
 - `.codex/skills.local/README.md` (Codex discovery)
@@ -44,6 +45,7 @@ Run it with `--dry-run` first to preview generated commands and file writes.
 - `--force` is explicit confirmation for the listed conflict paths; do not use it casually.
 - Existing skills are not deleted when a command is no longer detected.
 - Secrets must not be stored in generated skill files or committed docs.
+- `aai-python-monty` is a pre-implementation helper only. It may support isolated reasoning for Python logic, but it is not validation evidence and does not replace tests, lint, typecheck, or AAI validation.
 
 ## Troubleshooting
 - Dynamic skill missing in Claude:

@@ -162,6 +162,16 @@ Before starting TDD cycle:
    - The expert MUST return a result block per `.aai/SUBAGENT_PROTOCOL.md`
    - If fetch fails or no match, implement without expert (graceful degradation)
 
+0b. **Python Monty Scratchpad (optional)** — pre-implementation only.
+   - If `.claude/skills/aai-python-monty/SKILL.md` exists and the current TEST-xxx is Python,
+     you may read it and use pydantic-monty to prototype small isolated logic before editing production code.
+   - Use it only for pure functions, data transformations, parser checks, type-hint checks,
+     or agent-generated code that calls explicit narrow host functions.
+   - Do not use it for project imports, third-party libraries, filesystem/network access,
+     framework behavior, database access, secrets, or final validation evidence.
+   - A Monty pass never replaces RED/GREEN evidence. The selected failing test must still be
+     made GREEN through the repository's normal test command.
+
 1. **Implement Minimal Solution**
    - Write the simplest code that makes the test pass
    - Avoid over-engineering

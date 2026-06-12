@@ -105,6 +105,21 @@ JS
 export default [];
 JS
 
+  cat > pyproject.toml <<'TOML'
+[project]
+name = "bootstrap-fixture"
+version = "1.0.0"
+
+[project.optional-dependencies]
+dev = [
+  "pydantic-monty",
+  "ruff"
+]
+
+[tool.ruff]
+line-length = 100
+TOML
+
   mkdir -p app e2e docs/knowledge
   cat > app/login.ts <<'TS'
 export function requireAuth() {
@@ -127,6 +142,7 @@ test_dry_run_has_no_writes() {
   assert_contains "$TEST_DIR/dry-run.log" "Mode: dry-run"
   assert_contains "$TEST_DIR/dry-run.log" "/aai-test-unit -> npm test"
   assert_contains "$TEST_DIR/dry-run.log" "/aai-test-e2e -> npm run test:e2e"
+  assert_contains "$TEST_DIR/dry-run.log" "/aai-python-monty ->"
   assert_contains "$TEST_DIR/dry-run.log" "Authentication detected"
   assert_not_file "$TEST_DIR/.claude/skills/aai-test-unit/SKILL.md"
 
@@ -141,11 +157,12 @@ test_generate_dynamic_skills() {
   local e2e="$TEST_DIR/.claude/skills/aai-test-e2e/SKILL.md"
   local build="$TEST_DIR/.claude/skills/aai-build/SKILL.md"
   local lint="$TEST_DIR/.claude/skills/aai-lint/SKILL.md"
+  local monty="$TEST_DIR/.claude/skills/aai-python-monty/SKILL.md"
   local marker="$TEST_DIR/.claude/skills/AAI_DYNAMIC_SKILLS.md"
   local codex="$TEST_DIR/.codex/skills.local/README.md"
   local gemini="$TEST_DIR/.gemini/skills.local/README.md"
 
-  for path in "$unit" "$e2e" "$build" "$lint" "$marker" "$codex" "$gemini"; do
+  for path in "$unit" "$e2e" "$build" "$lint" "$monty" "$marker" "$codex" "$gemini"; do
     assert_file "$path"
   done
 
@@ -159,10 +176,17 @@ test_generate_dynamic_skills() {
   assert_not_contains "$e2e" "not-real"
   assert_contains "$build" "npm run build"
   assert_contains "$lint" "npm run lint"
+  assert_contains "$monty" "pydantic-monty available"
+  assert_contains "$monty" "Monty Scratchpad Workflow"
+  assert_contains "$monty" "final validation evidence"
+  assert_contains "$monty" "Never expose shell execution"
+  assert_contains "$marker" "Python"
+  assert_contains "$marker" "aai-python-monty"
   assert_contains "$marker" "Playwright"
   assert_contains "$marker" "Jest"
   assert_contains "$marker" "Vite"
   assert_contains "$codex" ".claude/skills/aai-test-unit/SKILL.md"
+  assert_contains "$codex" ".claude/skills/aai-python-monty/SKILL.md"
   assert_contains "$gemini" ".claude/skills/aai-build/SKILL.md"
   assert_contains "$TEST_DIR/.gitignore" ".claude/skills/.cache"
   assert_contains "$TEST_DIR/.gitignore" ".codex/skills.local/.cache"
@@ -174,14 +198,18 @@ test_generate_dynamic_skills() {
 test_managed_skill_is_stable() {
   log_info "Test: managed skill can be regenerated without content churn..."
   local unit="$TEST_DIR/.claude/skills/aai-test-unit/SKILL.md"
-  local before
-  before="$(cksum "$unit")"
+  local monty="$TEST_DIR/.claude/skills/aai-python-monty/SKILL.md"
+  local before_unit before_monty
+  before_unit="$(cksum "$unit")"
+  before_monty="$(cksum "$monty")"
 
   bash "$BOOTSTRAP_SCRIPT" "$TEST_DIR" > "$TEST_DIR/reapply.log"
 
-  local after
-  after="$(cksum "$unit")"
-  [[ "$before" == "$after" ]] || log_fail "Managed unit skill changed unexpectedly on re-run"
+  local after_unit after_monty
+  after_unit="$(cksum "$unit")"
+  after_monty="$(cksum "$monty")"
+  [[ "$before_unit" == "$after_unit" ]] || log_fail "Managed unit skill changed unexpectedly on re-run"
+  [[ "$before_monty" == "$after_monty" ]] || log_fail "Managed Monty skill changed unexpectedly on re-run"
   assert_contains "$TEST_DIR/reapply.log" "Unchanged files:"
 
   log_pass "Managed skill stayed stable"

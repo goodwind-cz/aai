@@ -77,6 +77,15 @@ PROCESS
      (see `.aai/EXPERT_RESOLVE.prompt.md` Step 5 for the injection template)
    - The expert subagent MUST return a result block per `.aai/SUBAGENT_PROTOCOL.md`
    - If fetch fails or no match, proceed without expert (graceful degradation)
+6c) PYTHON MONTY SCRATCHPAD (optional, pre-implementation only):
+   - If `.claude/skills/aai-python-monty/SKILL.md` exists and the current scope is Python,
+     you may read it and use pydantic-monty to prototype small isolated logic.
+   - Use it only for pure functions, data transformations, parser checks, type-hint checks,
+     or agent-generated code that calls explicit narrow host functions.
+   - Do not use it for project imports, third-party libraries, filesystem/network access,
+     framework behavior, database access, secrets, or final validation evidence.
+   - A Monty pass is not completion. After porting the logic into the repo, continue with
+     normal tests/lint/build in step 9.
 7) Implement code and tests to cover all assigned TEST-xxx entries from the Test Plan:
    - Create test files at paths specified in the Test Plan (adjust if justified).
    - Each TEST-xxx must have a corresponding test that verifies the described behavior.

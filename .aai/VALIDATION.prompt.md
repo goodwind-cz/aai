@@ -17,6 +17,9 @@ INVARIANT RULES
 - PASS is allowed only if the full chain exists.
 - Any gap results in FAIL.
 - Read and respect docs/ai/STATE.yaml before validation.
+- pydantic-monty or `aai-python-monty` scratchpad output is not validation
+  evidence. It may inform implementation, but PASS still requires repository
+  tests/lint/build/typecheck evidence as applicable.
 - If code_review.required is true, leave merge/PR readiness to
   `.aai/SKILL_CODE_REVIEW.prompt.md` after validation evidence exists.
 - Run the AC STATUS GATE (below) before producing any PASS verdict.

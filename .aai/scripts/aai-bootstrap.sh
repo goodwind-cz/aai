@@ -292,7 +292,7 @@ detect_architecture() {
     add_unique "JavaScript/TypeScript" DETECTED_LANGUAGES
     json_has_package_key "workspaces" && add_unique "package.json workspaces" DETECTED_BUILD_TOOLS
   fi
-  if [[ -f pyproject.toml || -f requirements.txt || -f poetry.lock || -f uv.lock ]]; then
+  if [[ -f pyproject.toml || -f requirements.txt || -f poetry.lock || -f uv.lock || -f setup.cfg || -f setup.py ]]; then
     add_unique "Python" DETECTED_LANGUAGES
     if [[ -f poetry.lock ]]; then
       add_unique "poetry (poetry.lock)" DETECTED_PACKAGE_MANAGERS
@@ -480,6 +480,16 @@ choose_lint_command() {
   return 1
 }
 
+is_python_project() {
+  [[ -f pyproject.toml || -f requirements.txt || -f poetry.lock || -f uv.lock || -f setup.cfg || -f setup.py ]] && return 0
+  return 1
+}
+
+choose_monty_command() {
+  is_python_project || return 1
+  printf 'python -c "import pydantic_monty; print('\''pydantic-monty available'\'')"\n'
+}
+
 choose_deploy_command() {
   find_task_runner_command deploy publish release && return 0
   find_package_script_command deploy publish release && return 0
@@ -598,6 +608,31 @@ plan_skills() {
     add_skill "aai-lint" "Run project lint or static checks with the detected project command." "$cmd"
   else
     SKIPPED+=("aai-lint: no lint command detected")
+  fi
+
+  if cmd="$(choose_monty_command 2>/dev/null)"; then
+    local extra=$'## Monty Scratchpad Workflow\n'
+    extra+='- Use Monty only before implementation for isolated Python reasoning: pure functions, small transformations, parser checks, type-hint checks, or agent-generated code that calls explicit host functions.'$'\n'
+    extra+='- Do not use Monty for project imports, third-party libraries, filesystem/network access, framework behavior, database access, or final validation evidence.'$'\n'
+    extra+='- If the availability check fails, add `pydantic-monty` as a dev-only dependency with the project package manager or skip this helper; do not vendor it into production code unless requested.'$'\n'
+    extra+='- Expose host functions narrowly. Never expose shell execution, unrestricted filesystem access, env variables, network access, tokens, or secrets.'$'\n'
+    extra+='- After a Monty check passes, port the logic into the repo and run the generated `/aai-test-unit`, `/aai-lint`, and `/aai-build` skills when available.'$'\n'
+    extra+=$'\n'
+    extra+='Example scratchpad:'$'\n'
+    extra+=$'\n'
+    extra+='```bash'$'\n'
+    extra+='python - <<'\''PY'\'''$'\n'
+    extra+='import pydantic_monty'$'\n'
+    extra+=$'\n'
+    extra+='code = "value.strip().lower()"'$'\n'
+    extra+='stubs = "value: str = '\'''\''"'$'\n'
+    extra+='m = pydantic_monty.Monty(code, inputs=["value"], type_check=True, type_check_stubs=stubs)'$'\n'
+    extra+='print(m.run(inputs={"value": "  Example  "}))'$'\n'
+    extra+='PY'$'\n'
+    extra+='```'$'\n'
+    add_skill "aai-python-monty" "Use pydantic-monty as a safe scratchpad for small isolated Python logic before normal project validation." "$cmd" "$extra"
+  else
+    SKIPPED+=("aai-python-monty: Python project not detected")
   fi
 
   if cmd="$(choose_deploy_command 2>/dev/null)"; then
