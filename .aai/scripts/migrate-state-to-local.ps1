@@ -83,11 +83,11 @@ try {
     }
   }
 
-  # 1b. Untrack TDD evidence logs (per-dev runtime evidence; .gitkeep stays).
-  $tddTracked = & git ls-files "docs/ai/tdd" 2>$null
+  # 1b. Untrack runtime evidence dirs (per-dev; .gitkeep placeholders stay).
+  $tddTracked = & git ls-files "docs/ai/tdd" "docs/ai/loop" 2>$null
   foreach ($f in @($tddTracked)) {
     if (-not $f -or $f -like "*/.gitkeep") { continue }
-    Write-Host "UNTRACK $f (TDD evidence log; file remains on disk)"
+    Write-Host "UNTRACK $f (runtime evidence; file remains on disk)"
     if (-not $DryRun) {
       & git rm --cached $f | Out-Null
     } else {
@@ -103,7 +103,7 @@ try {
   }
 
   $headerWritten = $false
-  foreach ($pattern in @($stateFile, $ticksFile, 'docs/ai/tdd/**', '!docs/ai/tdd/', '!docs/ai/tdd/.gitkeep')) {
+  foreach ($pattern in @($stateFile, $ticksFile, 'docs/ai/tdd/**', '!docs/ai/tdd/', '!docs/ai/tdd/.gitkeep', 'docs/ai/loop/')) {
     # \r? before $: CRLF gitignores leave \r on the line in multiline mode
     $exists = $giContent -match ("(?m)^" + [regex]::Escape($pattern) + "\r?$")
     if (-not $exists) {

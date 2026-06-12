@@ -29,6 +29,11 @@ docs/ai/tdd/**
 !docs/ai/tdd/
 !docs/ai/tdd/.gitkeep
 
+# Loop runtime artifacts (per-tick scratch some loop runs create ad hoc).
+# Canonical loop state lives in STATE.yaml/LOOP_TICKS.jsonl (local) and
+# EVENTS.jsonl/METRICS.jsonl (committed).
+docs/ai/loop/
+
 # Pre-compact context snapshots (auto-generated, ephemeral)
 docs/ai/.session-context.md
 docs/ai/.pre-compact-state-backup.yaml

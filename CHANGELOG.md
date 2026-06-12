@@ -17,6 +17,10 @@ per-dev runtime evidence, pruned by METRICS_FLUSH after 7 days; durable
 evidence lives in AC Status tables and EVENTS.jsonl.
 `migrate-state-to-local.{sh,ps1}` additionally untracks any already
 committed TDD logs and injects the ignore patterns in downstream projects.
+Same treatment for `docs/ai/loop/` — ad-hoc per-tick scratch some loop
+runs create; canonical loop state lives in STATE.yaml/LOOP_TICKS.jsonl
+(local) and EVENTS.jsonl/METRICS.jsonl (committed). The migrate scripts'
+gitignore checks are now CR-tolerant (CRLF downstream gitignores).
 
 ## [unreleased] — CHANGE-0003: docs-audit verify mode
 
