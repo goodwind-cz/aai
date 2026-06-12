@@ -18,6 +18,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 AUDIT_SCRIPT="$PROJECT_ROOT/.aai/scripts/docs-audit.mjs"
 
 cleanup() {
+  if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
+    echo "INFO: keeping fixture at $TEST_DIR"
+    return 0
+  fi
   if [[ -n "${TEST_DIR:-}" && -d "$TEST_DIR" ]]; then
     rm -rf "$TEST_DIR"
   fi
@@ -447,6 +451,186 @@ test_classification_listing() {
   log_pass "Per-doc classification table works"
 }
 
+# --- CHANGE-0002 regression fixtures (D10-D15) --------------------------------
+
+test_reviewby_actor_method() {
+  log_info "Test: Review-By accepts actor+method composition, rejects bare actor (D10)..."
+  cat > "$TEST_DIR/docs/specs/SPEC-302-actor-method.md" <<'MD'
+---
+id: SPEC-302
+type: spec
+status: done
+links:
+  pr: []
+---
+# Spec validated by model+method
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By                            | Notes |
+|------------|-------------|--------|----------|--------------------------------------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | claude-sonnet-4-6 PlaywrightSuites   | —     |
+| Spec-AC-02 | second      | done   | b2c3d4e  | claude-opus-4-7 TDD-snapshot-scripts | —     |
+| Spec-AC-03 | third       | done   | c3d4e5f  | claude-sonnet-4-6 Validation         | —     |
+| Spec-AC-04 | fourth      | done   | d4e5f6a  | human:ales code-review               | —     |
+| Spec-AC-05 | fifth       | done   | e5f6a7b  | claude-sonnet-4-6 TDD:2026-06-01     | —     |
+MD
+  (cd "$TEST_DIR" && git add docs/specs/SPEC-302-actor-method.md \
+    && git commit -qm "feat: ship SPEC-302")
+  run_audit --check --no-event --path docs/specs/SPEC-302-actor-method.md \
+    > "$TEST_DIR/actor-method.log" \
+    || log_fail "actor+method Review-By literals must validate"
+
+  cat > "$TEST_DIR/docs/specs/SPEC-303-bare-actor.md" <<'MD'
+---
+id: SPEC-303
+type: spec
+status: done
+links:
+  pr: []
+---
+# Bare actor without method
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By         | Notes |
+|------------|-------------|--------|----------|-------------------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | claude-sonnet-4-6 | —     |
+MD
+  if run_audit --check --no-event --path docs/specs/SPEC-303-bare-actor.md \
+      > "$TEST_DIR/bare-actor.log"; then
+    log_fail "Bare actor without method must stay a violation"
+  fi
+  assert_contains "$TEST_DIR/bare-actor.log" "invalid Review-By"
+  rm "$TEST_DIR/docs/specs/SPEC-303-bare-actor.md"
+  log_pass "Actor+method composition validated; bare actor rejected"
+}
+
+test_events_parent_subref_boundary() {
+  log_info "Test: PARENT-ID/sub-item refs work; sibling IDs don't cross-match (D11)..."
+  cat > "$TEST_DIR/docs/issues/CHANGE-004-parent.md" <<'MD'
+---
+id: CHANGE-004
+type: change
+status: done
+links:
+  pr: []
+---
+# Multi-file parent change
+MD
+  (cd "$TEST_DIR" && git add docs/issues/CHANGE-004-parent.md \
+    && git commit -qm "docs: add multi-file parent fixture")
+
+  # evidence for a SIBLING id (CHANGE-0045) must not count for CHANGE-004
+  (cd "$TEST_DIR" && node .aai/scripts/append-event.mjs --event ac_evidence \
+    --ref CHANGE-0045/other-doc --evidence "unrelated" > /dev/null)
+  run_audit --no-event --path docs/issues/CHANGE-004-parent.md \
+    > "$TEST_DIR/subref-neg.log"
+  grep -F "CHANGE-004" "$TEST_DIR/subref-neg.log" | grep -qF "probable-false-done" \
+    || log_fail "CHANGE-0045 evidence must not satisfy CHANGE-004"
+
+  # a true sub-item ref under the parent does count
+  (cd "$TEST_DIR" && node .aai/scripts/append-event.mjs --event ac_evidence \
+    --ref CHANGE-004/person-linking --evidence "a1b2c3d" > /dev/null)
+  run_audit --no-event --path docs/issues/CHANGE-004-parent.md \
+    > "$TEST_DIR/subref-pos.log"
+  assert_not_contains "$TEST_DIR/subref-pos.log" "probable-false-done"
+  log_pass "Sub-item refs roll up to the parent; sibling IDs are bounded"
+}
+
+test_plan_scan_mode() {
+  log_info "Test: docs/plans/* lenient by default, strict on demand (D12)..."
+  mkdir -p "$TEST_DIR/docs/plans/done"
+  cat > "$TEST_DIR/docs/plans/PLAN-2026-backlog-overview.md" <<'MD'
+# Operator backlog plan — no frontmatter by design
+MD
+  cat > "$TEST_DIR/docs/plans/done/PRD-050-shipped-plan.md" <<'MD'
+# Done plan note — no frontmatter by design
+MD
+  (cd "$TEST_DIR" && git add docs/plans && git commit -qm "docs: operator plans")
+
+  run_audit --check --no-event --path docs/plans > "$TEST_DIR/plans-lenient.log" \
+    || log_fail "Lenient mode must not hard-fail operator plan files"
+  assert_contains "$TEST_DIR/plans-lenient.log" "Orphans (need triage): 0"
+  grep -qF "operator plan file" "$TEST_DIR/plans-lenient.log" \
+    || log_fail "Lenient plans must be annotated in the digest"
+
+  printf 'plan_scan_mode: strict\n' >> "$TEST_DIR/docs/ai/docs-audit.yaml"
+  if run_audit --check --no-event --path docs/plans > "$TEST_DIR/plans-strict.log"; then
+    log_fail "Strict mode must flag frontmatter-less plan files as orphans"
+  fi
+  # restore lenient default for the remaining tests
+  grep -v 'plan_scan_mode' "$TEST_DIR/docs/ai/docs-audit.yaml" > "$TEST_DIR/docs/ai/docs-audit.yaml.tmp" \
+    && mv "$TEST_DIR/docs/ai/docs-audit.yaml.tmp" "$TEST_DIR/docs/ai/docs-audit.yaml"
+  log_pass "plan_scan_mode lenient/strict works"
+}
+
+test_suggested_multi_ids() {
+  log_info "Test: Suggested ID lists all ID shapes in the filename (D14)..."
+  cat > "$TEST_DIR/docs/issues/PRD-022-024-025-planned-test-files.md" <<'MD'
+# Multi-ID orphan
+MD
+  cat > "$TEST_DIR/docs/issues/PRD-022-TEST-021-club-scoped-user.md" <<'MD'
+# Cross-ID orphan
+MD
+  run_audit --no-event > "$TEST_DIR/multi-id.log"
+  assert_contains "$TEST_DIR/multi-id.log" "PRD-022 (primary) + PRD-024 + PRD-025"
+  assert_contains "$TEST_DIR/multi-id.log" "PRD-022 (primary) + TEST-021"
+  rm "$TEST_DIR/docs/issues/PRD-022-024-025-planned-test-files.md" \
+     "$TEST_DIR/docs/issues/PRD-022-TEST-021-club-scoped-user.md"
+  log_pass "Multi-ID filenames suggest primary + related"
+}
+
+test_category_prefix_scope() {
+  log_info "Test: category prefixes derive unique slug IDs with scope (D15)..."
+  mkdir -p "$TEST_DIR/docs/decisions"
+  cat > "$TEST_DIR/docs/decisions/DECISION-PHASE-0-scope.md" <<'MD'
+# Phase 0 scope decision — no frontmatter
+MD
+  cat > "$TEST_DIR/docs/decisions/DECISION-PHASE-0-continue-session.md" <<'MD'
+# Phase 0 continuation decision — no frontmatter
+MD
+  run_audit --list --no-event > "$TEST_DIR/phase.log"
+  assert_contains "$TEST_DIR/phase.log" "DECISION-PHASE-0-scope"
+  assert_contains "$TEST_DIR/phase.log" "DECISION-PHASE-0-continue-session"
+  grep -F "DECISION-PHASE-0-scope" "$TEST_DIR/phase.log" | grep -qF "PHASE-0" \
+    || log_fail "--list must surface the PHASE-0 scope"
+  rm "$TEST_DIR/docs/decisions/DECISION-PHASE-0-scope.md" \
+     "$TEST_DIR/docs/decisions/DECISION-PHASE-0-continue-session.md"
+  log_pass "Category-prefixed filenames get unique IDs plus scope"
+}
+
+test_index_legacy_autoskip() {
+  log_info "Test: index gen auto-skips violations in legacy docs (D13)..."
+  cat > "$TEST_DIR/docs/specs/SPEC-100-legacy-bad.md" <<'MD'
+---
+id: SPEC-100
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Legacy spec with a pre-canon AC status value
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | wip    | —        | —         | —     |
+MD
+  (cd "$TEST_DIR" && git add docs/specs/SPEC-100-legacy-bad.md \
+    && GIT_COMMITTER_DATE="2026-01-15T10:00:00Z" GIT_AUTHOR_DATE="2026-01-15T10:00:00Z" \
+       git commit -qm "docs: legacy spec fixture")
+  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > legacy-skip.log 2>&1) \
+    || log_fail "Legacy-doc violations must auto-skip, not hard-fail: $(cat "$TEST_DIR/legacy-skip.log")"
+  assert_contains "$TEST_DIR/docs/INDEX.md" "legacy — auto-skipped"
+  assert_contains "$TEST_DIR/docs/INDEX.md" "SPEC-100"
+  (cd "$TEST_DIR" && git rm -q docs/specs/SPEC-100-legacy-bad.md \
+    && git commit -qm "docs: drop legacy fixture")
+  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  log_pass "Legacy violations demote to the Skipped section automatically"
+}
+
 test_index_continue_on_error() {
   log_info "Test: index generator --continue-on-error renders a partial index (D9)..."
   cat > "$TEST_DIR/docs/specs/SPEC-998-bad-status.md" <<'MD'
@@ -490,6 +674,12 @@ main() {
   test_type_validation
   test_orphan_suggested_id
   test_classification_listing
+  test_reviewby_actor_method
+  test_events_parent_subref_boundary
+  test_plan_scan_mode
+  test_suggested_multi_ids
+  test_category_prefix_scope
+  test_index_legacy_autoskip
   test_index_continue_on_error
   echo ""
   log_pass "All $TEST_NAME tests passed"

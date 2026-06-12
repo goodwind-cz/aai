@@ -11,6 +11,10 @@
 //   append-event.mjs --event defer_extended --ref SPEC-0042/Spec-AC-07 \
 //     --old-review-by 2026-08-01 --new-review-by 2026-Q4 --notes "..."
 //   append-event.mjs --event doc_lifecycle --ref RFC-0042 --from draft --to implementing
+//
+// Multi-file parent IDs: use --ref PARENT-ID/<filename-suffix> for a
+// file-specific transition, bare --ref PARENT-ID for a parent-level one.
+// Sub-refs roll up to the parent in the docs audit (CHANGE-0002 D11).
 
 import fs from 'node:fs';
 import path from 'node:path';

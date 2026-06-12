@@ -9,6 +9,43 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — CHANGE-0002: docs-audit engine improvements, round 2
+
+Triage and fixes for six further deficiencies from the downstream second
+remediation pass
+([CHANGE-0002](docs/issues/CHANGE-0002-docs-audit-engine-improvements-2.md)).
+All six accepted (D11 partly already worked; verifying it exposed and
+fixed a real prefix-match bug).
+
+### Added
+- Review-By accepts `<actor> <method>` composition: Claude model ids
+  (`claude-sonnet-4-6`, ...) or `human`/`operator`(`:<name>`) plus a
+  method from the label set, extended methods (`PlaywrightSuites`,
+  `Validation`, `TDD-snapshot-scripts`; extensible via
+  `review_by_methods` config), or `method:date`. Bare actor without a
+  method stays invalid (D10).
+- `PARENT-ID/<sub-item>` EVENTS refs documented (SKILL_LOOP,
+  append-event header); engine evidence lookup now boundary-safe —
+  `CHANGE-0045` events no longer count for `CHANGE-004` (D11).
+- `plan_scan_mode` config (default `lenient`): `docs/plans/**` files
+  without frontmatter inventory as operator plan files instead of
+  orphans; `strict` restores the old behavior (D12).
+- Index generator auto-demotes schema violations in legacy-classified
+  docs (first commit before `legacy_until_date`) to the Skipped section,
+  tagged `[legacy — auto-skipped]`; non-legacy violations still fail (D13).
+- Suggested ID lists every ID shape in multi-ID filenames
+  (`PRD-022 (primary) + PRD-024 + PRD-025`; `PRD-022 (primary) +
+  TEST-021`) (D14).
+- `category_prefixes` config (default `PHASE`, `MILESTONE`, `EPIC`):
+  category-scoped filenames get unique slug IDs plus a Scope shown in
+  `--list` (`DECISION-PHASE-0-scope` / scope `PHASE-0`) (D15).
+
+### Fixed
+- `firstCommitDate` no longer uses `git log --follow`, whose rename
+  detection mis-attributed a file's add commit to an unrelated commit
+  adding similar content — legacy/new classification could be wrong for
+  similar-looking docs (found by the D13 fixture).
+
 ## [unreleased] — CHANGE-0001: docs-audit engine improvements
 
 Triage and fixes for nine deficiencies reported from the first real

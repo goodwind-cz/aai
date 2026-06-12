@@ -90,10 +90,10 @@ function main() {
       (CLASS_ORDER.indexOf(a.cls) - CLASS_ORDER.indexOf(b.cls)) || a.rel.localeCompare(b.rel));
     lines.push(`### Classification: ${result.docs.length} docs`);
     lines.push('');
-    lines.push(...table(['Doc', 'Class', 'Status', 'Verdict', 'Path'],
+    lines.push(...table(['Doc', 'Class', 'Status', 'Verdict', 'Scope', 'Path'],
       sorted.map(d => [
         d.id, d.cls, d.effectiveStatus ?? d.status ?? '—',
-        d.verdict ?? '—', d.rel,
+        d.verdict ?? '—', d.scope ?? '—', d.rel,
       ])));
     lines.push('');
   }
@@ -104,8 +104,16 @@ function main() {
     if (counts.orphans === 0) lines.push('_None._');
     else {
       lines.push(...table(['Path', 'Suggested ID', 'First commit', 'Age class', 'Problem'],
-        [...result.orphansNew, ...result.orphansLegacy].map(d =>
-          [d.rel, d.fileId ?? '—', d.firstCommit ?? 'untracked', d.legacy ? 'legacy (soft)' : 'new (hard)', d.reasons.join('; ')])));
+        [...result.orphansNew, ...result.orphansLegacy].map(d => {
+          const suggested = d.relatedIds?.length
+            ? `${d.fileId} (primary) + ${d.relatedIds.join(' + ')}`
+            : (d.fileId ?? '—');
+          return [d.rel, suggested, d.firstCommit ?? 'untracked', d.legacy ? 'legacy (soft)' : 'new (hard)', d.reasons.join('; ')];
+        })));
+    }
+    if (result.planLenient.length) {
+      lines.push('');
+      lines.push(`Note: ${result.planLenient.length} operator plan file(s) inventoried leniently (plan_scan_mode: lenient) — no frontmatter required.`);
     }
     lines.push('');
     lines.push(`### Drift report: ${result.drift.length}`);

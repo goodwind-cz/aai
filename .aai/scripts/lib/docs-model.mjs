@@ -23,23 +23,85 @@ export const DOC_TYPE_ENUM = new Set([
 // like SPEC-001abc (CHANGE-0001 D1).
 export const DOC_ID_RE = /^([A-Z]+(?:-[A-Z]+)*-\d{1,5}(?:-\d+)?)(?=[-.])/;
 
-// Review-By accepts ISO dates, skill literals, or <label>:<date> combos
-// (CHANGE-0001 D4). Labels carry no date and never trigger overdue checks.
+// Review-By accepts ISO dates, skill literals, <label>:<date> combos
+// (CHANGE-0001 D4), or "<actor> <method>" composition where the actor is a
+// Claude model id or human/operator identity (CHANGE-0002 D10). Only dated
+// forms feed overdue checks. A bare actor without a method is invalid —
+// the method is what asserts the AC was validated.
 export const REVIEW_BY_LABELS = new Set(['tdd', 'loop', 'code-review', 'manual', 'deferred']);
+export const REVIEW_BY_METHODS = new Set([
+  ...REVIEW_BY_LABELS, 'playwrightsuites', 'validation', 'tdd-snapshot-scripts',
+]);
+const REVIEW_BY_ACTOR_RE = /^(?:claude-(?:sonnet|opus|haiku|fable)-\d+(?:-\d+)?|(?:human|operator)(?::[\w.-]+)?)$/i;
 
-export function parseReviewBy(s) {
-  if (!s || s === '—' || s === '-') return { kind: 'none', date: null, label: null };
-  const raw = String(s).trim();
-  const combo = raw.match(/^([A-Za-z][A-Za-z-]*):(\d{4}-\d{2}-\d{2})$/);
-  if (combo && REVIEW_BY_LABELS.has(combo[1].toLowerCase())) {
+function parseMethodToken(token, methods) {
+  const combo = token.match(/^([A-Za-z][\w-]*):(\d{4}-\d{2}-\d{2})$/);
+  if (combo && methods.has(combo[1].toLowerCase())) {
     const d = parseISODate(combo[2]);
-    if (d instanceof Date) return { kind: 'combo', date: d, label: combo[1] };
-    return { kind: 'invalid', date: null, label: null, raw };
+    if (d instanceof Date) return { date: d, label: combo[1] };
+    return null;
   }
-  if (REVIEW_BY_LABELS.has(raw.toLowerCase())) return { kind: 'label', date: null, label: raw };
+  if (methods.has(token.toLowerCase())) return { date: null, label: token };
+  return null;
+}
+
+export function parseReviewBy(s, extraMethods = []) {
+  if (!s || s === '—' || s === '-') return { kind: 'none', date: null, label: null, actor: null };
+  const raw = String(s).trim();
+  const methods = extraMethods.length
+    ? new Set([...REVIEW_BY_METHODS, ...extraMethods.map(m => String(m).toLowerCase())])
+    : REVIEW_BY_METHODS;
+
+  const tokens = raw.split(/\s+/);
+  if (tokens.length === 2 && REVIEW_BY_ACTOR_RE.test(tokens[0])) {
+    const method = parseMethodToken(tokens[1], methods);
+    if (method) return { kind: 'actor-method', date: method.date, label: method.label, actor: tokens[0] };
+    return { kind: 'invalid', date: null, label: null, actor: null, raw };
+  }
+  if (tokens.length > 1) return { kind: 'invalid', date: null, label: null, actor: null, raw };
+
+  // single-token forms (CHANGE-0001 D4): bare labels stay on the narrow
+  // whitelist; combos accept extended methods
+  const combo = raw.match(/^([A-Za-z][\w-]*):(\d{4}-\d{2}-\d{2})$/);
+  if (combo && methods.has(combo[1].toLowerCase())) {
+    const d = parseISODate(combo[2]);
+    if (d instanceof Date) return { kind: 'combo', date: d, label: combo[1], actor: null };
+    return { kind: 'invalid', date: null, label: null, actor: null, raw };
+  }
+  if (REVIEW_BY_LABELS.has(raw.toLowerCase())) return { kind: 'label', date: null, label: raw, actor: null };
   const d = parseISODate(raw);
-  if (d instanceof Date) return { kind: 'date', date: d, label: null };
-  return { kind: 'invalid', date: null, label: null, raw };
+  if (d instanceof Date) return { kind: 'date', date: d, label: null, actor: null };
+  return { kind: 'invalid', date: null, label: null, actor: null, raw };
+}
+
+// Filename ID extraction (CHANGE-0002 D14/D15). Returns the primary ID,
+// related IDs encoded in the same filename (numeric siblings like
+// PRD-022-024-025, embedded shapes like PRD-022-TEST-021-...), and a scope
+// when the segment after the type prefix is a category (PHASE-0 etc.) —
+// category-scoped files get the full filename slug as their unique ID.
+export const DEFAULT_CATEGORY_PREFIXES = ['PHASE', 'MILESTONE', 'EPIC'];
+
+export function extractDocIds(fileName, categoryPrefixes = DEFAULT_CATEGORY_PREFIXES) {
+  const name = fileName.replace(/\.md$/i, '');
+  const m = name.match(/^([A-Z]+(?:-[A-Z]+)*)-(\d{1,5})(?=-|$)/);
+  if (!m) return null;
+  const prefixSegs = m[1].split('-');
+  const lastSeg = prefixSegs[prefixSegs.length - 1];
+  if (prefixSegs.length >= 2 && categoryPrefixes.includes(lastSeg)) {
+    return { primary: name, related: [], scope: `${lastSeg}-${m[2]}` };
+  }
+  const primary = `${m[1]}-${m[2]}`;
+  const related = [];
+  let rest = name.slice(primary.length);
+  let sib;
+  while ((sib = rest.match(/^-(\d{1,5})(?=-|$)/))) {
+    related.push(`${m[1]}-${sib[1]}`);
+    rest = rest.slice(sib[0].length);
+  }
+  for (const g of rest.matchAll(/(?:^|-)([A-Z]+(?:-[A-Z]+)*-\d{1,5})(?=-|$)/g)) {
+    related.push(g[1]);
+  }
+  return { primary, related, scope: null };
 }
 
 // Legacy body freeze marker tolerance (CHANGE-0001 D2). Matches the forms

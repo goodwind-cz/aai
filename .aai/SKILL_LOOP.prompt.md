@@ -32,6 +32,12 @@ Emit:
 - doc_lifecycle: whenever a doc's frontmatter `status` field changes
   (e.g., draft → implementing, implementing → done).
 
+Ref scheme for parent IDs spanning multiple files (e.g. CHANGE-004 with two
+doc files): emit `--ref PARENT-ID/<filename-suffix>` when the transition is
+file-specific, bare `--ref PARENT-ID` when it is parent-level. Sub-refs roll
+up to the parent in the docs audit; sibling IDs (CHANGE-0045) never
+cross-match.
+
 Do NOT emit ac_evidence here — that is emitted by .aai/VALIDATION.prompt.md
 when a done AC's Evidence column is populated. Do NOT emit defer_extended
 here — that is for manual Review-By extensions outside the loop.
