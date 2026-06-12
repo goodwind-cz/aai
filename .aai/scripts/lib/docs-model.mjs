@@ -12,6 +12,45 @@ export const AC_STATUS_ENUM = new Set([
   'planned', 'implementing', 'done', 'deferred', 'blocked', 'rejected',
 ]);
 export const TERMINAL_AC = new Set(['done', 'deferred', 'blocked', 'rejected']);
+export const DOC_TYPE_ENUM = new Set([
+  'issue', 'change', 'prd', 'decision', 'spec', 'rfc', 'techdebt',
+  'plan', 'release', 'research', 'requirement',
+]);
+
+// Doc IDs in filenames: PREFIX-DIGITS plus compound forms with letter
+// segments between prefix and number (SPEC-CHANGE-027, DECISION-RFC-002,
+// SPEC-PROC-10, DECISION-SPEC-FE-13). The lookahead stops half-matches
+// like SPEC-001abc (CHANGE-0001 D1).
+export const DOC_ID_RE = /^([A-Z]+(?:-[A-Z]+)*-\d{1,5}(?:-\d+)?)(?=[-.])/;
+
+// Review-By accepts ISO dates, skill literals, or <label>:<date> combos
+// (CHANGE-0001 D4). Labels carry no date and never trigger overdue checks.
+export const REVIEW_BY_LABELS = new Set(['tdd', 'loop', 'code-review', 'manual', 'deferred']);
+
+export function parseReviewBy(s) {
+  if (!s || s === '—' || s === '-') return { kind: 'none', date: null, label: null };
+  const raw = String(s).trim();
+  const combo = raw.match(/^([A-Za-z][A-Za-z-]*):(\d{4}-\d{2}-\d{2})$/);
+  if (combo && REVIEW_BY_LABELS.has(combo[1].toLowerCase())) {
+    const d = parseISODate(combo[2]);
+    if (d instanceof Date) return { kind: 'combo', date: d, label: combo[1] };
+    return { kind: 'invalid', date: null, label: null, raw };
+  }
+  if (REVIEW_BY_LABELS.has(raw.toLowerCase())) return { kind: 'label', date: null, label: raw };
+  const d = parseISODate(raw);
+  if (d instanceof Date) return { kind: 'date', date: d, label: null };
+  return { kind: 'invalid', date: null, label: null, raw };
+}
+
+// Legacy body freeze marker tolerance (CHANGE-0001 D2). Matches the forms
+// seen in real projects: "SPEC-FROZEN: true", "**SPEC-FROZEN:** true",
+// "**SPEC-FROZEN**: true", "📋 SPEC-FROZEN: true". Upstream templates
+// dropped the marker in RFC-0001; this exists only for legacy docs.
+const SPEC_FROZEN_TRUE_RE = /SPEC-FROZEN\s*(?::\s*(?:\*\*)?|\*\*\s*:)\s*true\b/i;
+
+export function specFrozenInBody(content) {
+  return SPEC_FROZEN_TRUE_RE.test(content);
+}
 
 export function walk(dir, out = []) {
   if (!fs.existsSync(dir)) return out;
@@ -97,6 +136,6 @@ export function parseISODate(s) {
 export function extractReferences(notes) {
   if (!notes) return [];
   const refs = [];
-  for (const m of String(notes).matchAll(/→\s*([A-Z]+-\d{3,5})\b/g)) refs.push(m[1]);
+  for (const m of String(notes).matchAll(/→\s*([A-Z]+(?:-[A-Z]+)*-\d{1,5})\b/g)) refs.push(m[1]);
   return refs;
 }

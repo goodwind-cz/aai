@@ -13,11 +13,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   DOC_STATUS_ENUM, AC_STATUS_ENUM, walk,
-  parseFrontmatter, parseAcTable, parseISODate, extractReferences,
+  parseFrontmatter, parseAcTable, parseReviewBy, extractReferences,
 } from './lib/docs-model.mjs';
 import { runAudit, suggestedStep } from './lib/docs-audit-core.mjs';
 
 const ROOT = process.cwd();
+const continueOnError = process.argv.includes('--continue-on-error');
 const SCAN_DIRS = ['docs/issues', 'docs/rfc', 'docs/specs', 'docs/requirements', 'docs/releases'];
 const OUT_PATH = path.join(ROOT, 'docs/INDEX.md');
 const MARKER = '# Docs Index — auto-generated, DO NOT EDIT';
@@ -69,21 +70,33 @@ function main() {
         if (s && !AC_STATUS_ENUM.has(s)) {
           failures.push(`${rel}: unknown AC status "${row['Status']}" for ${row['Spec-AC']}`);
         }
-        const rb = row['Review-By'];
-        const parsed = parseISODate(rb);
-        if (parsed && parsed.invalid) {
-          failures.push(`${rel}: invalid Review-By date "${rb}" for ${row['Spec-AC']}`);
+        // ISO date, skill label (TDD/Loop/code-review/manual/deferred), or
+        // label:date combo (CHANGE-0001 D4); only dated forms feed overdue checks
+        const rb = parseReviewBy(row['Review-By']);
+        if (rb.kind === 'invalid') {
+          failures.push(`${rel}: invalid Review-By "${rb.raw}" for ${row['Spec-AC']} (ISO date, skill label, or label:date)`);
         }
-        row._parsedReviewBy = parsed instanceof Date ? parsed : null;
+        row._parsedReviewBy = rb.date;
       }
       docs.push({ path: rel, id: fm.id ?? path.basename(rel, '.md'), type, status, fm, ac: acTable, legacy: false });
     }
   }
 
+  // CHANGE-0001 D9: default hard-abort stays (CI); --continue-on-error renders
+  // everything renderable and lists what was skipped at the end of the INDEX.
+  let skipped = [];
   if (failures.length > 0) {
-    console.error('FAIL: schema violations:');
-    for (const f of failures) console.error(`  - ${f}`);
-    process.exit(1);
+    if (!continueOnError) {
+      console.error('FAIL: schema violations:');
+      for (const f of failures) console.error(`  - ${f}`);
+      console.error('Hint: re-run with --continue-on-error for a partial index.');
+      process.exit(1);
+    }
+    skipped = failures;
+    const failedRels = new Set(failures.map(f => f.slice(0, f.indexOf(': '))));
+    for (let i = docs.length - 1; i >= 0; i -= 1) {
+      if (failedRels.has(docs[i].path)) docs.splice(i, 1);
+    }
   }
 
   const knownIds = new Set(docs.map(d => d.id));
@@ -207,6 +220,9 @@ function main() {
     for (const d of items) out.push(`| ${d.id} | ${d.verdict} | ${d.reasons.join('; ')} | ${suggestedStep(d)} |`);
     return out;
   });
+  if (skipped.length > 0) {
+    section('Skipped (schema violations)', skipped, items => items.map(f => `- ${f}`));
+  }
 
   const today = ymd(todayUTC);
   lines.push(`---`);

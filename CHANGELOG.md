@@ -9,6 +9,41 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — CHANGE-0001: docs-audit engine improvements
+
+Triage and fixes for nine deficiencies reported from the first real
+downstream remediation run
+([CHANGE-0001](docs/issues/CHANGE-0001-docs-audit-engine-improvements.md)).
+All changes are relaxations or additive, default-off validators —
+no breaking change for existing projects.
+
+### Added
+- Compound doc IDs (`SPEC-CHANGE-027`, `DECISION-RFC-002`,
+  `SPEC-PROC-10`, `DECISION-SPEC-FE-13`, `SPEC-PRD-022`, ...) are now
+  scanned: shared `DOC_ID_RE` allows letter segments between prefix and
+  a 1-5 digit tail; the `→ DOC-ID` broken-ref matcher loosened
+  identically (D1).
+- Legacy `SPEC-FROZEN: true` body markers (bare, `**bold-key:**`,
+  `**bold**: `, emoji-prefixed) make a `status: draft` doc effectively
+  frozen — no more false probable-stale-open on frozen-in-body specs (D2).
+- `amendment_note` / `amended_by` / `superseded_by` frontmatter fields
+  recognized and surfaced in the digest Annotations section; enum
+  unchanged (D3, option a).
+- Review-By accepts skill literals (`TDD`, `Loop`, `code-review`,
+  `manual`, `deferred`) and `label:YYYY-MM-DD` combos in both the audit
+  and the INDEX generator; only dated forms feed overdue checks (D4).
+- Drift digest gains a per-doc Triage commands block (`git log --grep`,
+  `head -50 <path>`) (D5).
+- Digest "Pending commit" notice lists scanned docs with uncommitted
+  changes; regression test pins that verdicts always reflect the working
+  tree, so adding frontmatter clears an orphan without committing (D6).
+- `DOC_TYPE_ENUM` validation: unknown `type:` warns by default,
+  `--strict-types` promotes it to a hard failure (D7).
+- Orphan table gains a Suggested ID column inferred from the filename (D8).
+- `generate-docs-index.mjs --continue-on-error`: renders a partial INDEX
+  plus a "Skipped (schema violations)" section instead of hard-aborting;
+  default CI behavior unchanged (D9).
+
 ## [unreleased] — RFC-0002: docs hygiene and drift audit
 
 Implements [RFC-0002](docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md)

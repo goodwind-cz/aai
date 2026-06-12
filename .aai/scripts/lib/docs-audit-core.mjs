@@ -6,15 +6,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import {
-  DOC_STATUS_ENUM, AC_STATUS_ENUM, TERMINAL_AC,
-  parseFrontmatter, parseAcTable, parseISODate,
+  DOC_STATUS_ENUM, AC_STATUS_ENUM, TERMINAL_AC, DOC_TYPE_ENUM, DOC_ID_RE,
+  parseFrontmatter, parseAcTable, parseISODate, parseReviewBy, specFrozenInBody,
 } from './docs-model.mjs';
 
 export const CONFIG_PATH = 'docs/ai/docs-audit.yaml';
 export const EVENTS_PATH = 'docs/ai/EVENTS.jsonl';
 const SCAN_ROOT = 'docs';
 const EXCLUDE_DIRS = new Set(['ai', 'knowledge', 'archive', 'project-sessions', 'templates']);
-const ID_FILE_RE = /^([A-Z]+-\d{3,5})(?:-|\.md$)/;
+const ID_FILE_RE = DOC_ID_RE;
 const OPEN_STATUSES = new Set(['draft', 'implementing']);
 const DEFAULT_STALE_DAYS = 90;
 
@@ -144,7 +144,7 @@ function rowHasEvidence(row) {
   return e !== '' && e !== '—' && e !== '-';
 }
 
-export function runAudit(root, { quick = false, scopePath = null, today = new Date(), strict = false } = {}) {
+export function runAudit(root, { quick = false, scopePath = null, today = new Date(), strict = false, strictTypes = false } = {}) {
   const config = loadConfig(root);
   const mode = quick ? 'quick' : ((config || strict) ? 'enforced' : 'report-only');
   const staleDays = config?.stale_after_days ?? DEFAULT_STALE_DAYS;
@@ -155,13 +155,15 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   const events = quick ? [] : readEvents(root);
   const docs = [];
   const violations = [];
+  const typeWarnings = [];
+  const annotations = [];
 
   for (const f of files) {
     const content = fs.readFileSync(path.join(root, f.rel), 'utf8');
     const fm = parseFrontmatter(content);
     const ac = parseAcTable(content);
     const id = fm?.id ?? f.fileId;
-    const doc = { rel: f.rel, id, fm, ac, cls: null, verdict: null, reasons: [], legacy: false };
+    const doc = { rel: f.rel, id, fileId: f.fileId, fm, ac, cls: null, verdict: null, reasons: [], legacy: false };
     docs.push(doc);
 
     // legacy/new split (D4): first-commit date vs legacy_until_date; untracked => new
@@ -191,10 +193,34 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     for (const row of ac.rows) {
       const s = (row['Status'] ?? '').toLowerCase();
       if (s && !AC_STATUS_ENUM.has(s)) violations.push({ rel: f.rel, msg: `unknown AC status "${row['Status']}" for ${row['Spec-AC']}` });
+      const rb = parseReviewBy(row['Review-By']);
+      if (rb.kind === 'invalid') violations.push({ rel: f.rel, msg: `invalid Review-By "${rb.raw}" for ${row['Spec-AC']} (ISO date, skill label, or label:date)` });
     }
     doc.status = status;
 
+    // type validation (CHANGE-0001 D7): soft warning, hard with --strict-types
+    if (fm.type && !DOC_TYPE_ENUM.has(String(fm.type).toLowerCase())) {
+      const msg = `unknown type "${fm.type}" (allowed: ${[...DOC_TYPE_ENUM].join(', ')})`;
+      typeWarnings.push({ rel: f.rel, id, msg });
+      if (strictTypes) violations.push({ rel: f.rel, msg });
+    }
+
+    // amendment annotations (CHANGE-0001 D3): recognized sibling fields
+    for (const key of ['amendment_note', 'amended_by', 'superseded_by']) {
+      if (fm[key]) annotations.push({ id, rel: f.rel, key, value: fm[key] });
+    }
+
     if (status === 'superseded' || status === 'rejected') { doc.cls = 'superseded'; continue; }
+
+    // legacy frozen-in-body marker (CHANGE-0001 D2): a draft doc carrying
+    // SPEC-FROZEN: true is effectively frozen, not a stale-open candidate
+    if (status === 'draft' && specFrozenInBody(content)) {
+      doc.effectiveStatus = 'frozen';
+      doc.reasons.push('SPEC-FROZEN marker in body');
+      doc.verdict = 'aligned';
+      doc.cls = 'tracked-open';
+      continue;
+    }
 
     // drift heuristics (deliverable 2)
     const type = (fm.type ?? '').toLowerCase();
@@ -233,7 +259,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
 
     // obsolete: deferred with every Review-By overdue, or inactive legacy doc
     if (status === 'deferred') {
-      const reviewDates = ac.rows.map(r => parseISODate(r['Review-By'])).filter(d => d instanceof Date);
+      const reviewDates = ac.rows.map(r => parseReviewBy(r['Review-By']).date).filter(d => d instanceof Date);
       if (reviewDates.length && reviewDates.every(d => d < todayUTC)) {
         doc.cls = 'obsolete';
         doc.reasons.push('deferred with all Review-By dates overdue');
@@ -255,6 +281,17 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     }
   }
 
+  // pending-commit notice (CHANGE-0001 D6): the verdict already reflects the
+  // working tree; this only tells the operator which scanned docs differ from git
+  let pendingCommit = [];
+  if (!quick) {
+    const porcelain = git(root, 'status --porcelain -- docs');
+    if (porcelain) {
+      const dirty = new Set(porcelain.split('\n').map(l => l.slice(3).trim()).filter(Boolean));
+      pendingCommit = docs.filter(d => dirty.has(d.rel)).map(d => d.rel);
+    }
+  }
+
   const orphans = docs.filter(d => d.cls === 'orphan');
   const orphansNew = orphans.filter(d => !d.legacy);
   const orphansLegacy = orphans.filter(d => d.legacy);
@@ -270,10 +307,14 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     trackedDone: docs.filter(d => d.cls === 'tracked-done').length,
     superseded: docs.filter(d => d.cls === 'superseded').length,
     violations: violations.length,
+    typeWarnings: typeWarnings.length,
   };
   const hardFail = mode === 'enforced' && (orphansNew.length > 0 || violations.length > 0);
 
-  return { mode, config, docs, orphansNew, orphansLegacy, drift, violations, counts, hardFail };
+  return {
+    mode, config, docs, orphansNew, orphansLegacy, drift, violations,
+    typeWarnings, annotations, pendingCommit, counts, hardFail,
+  };
 }
 
 export function suggestedStep(doc) {

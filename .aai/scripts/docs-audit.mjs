@@ -9,6 +9,8 @@
 //   node .aai/scripts/docs-audit.mjs --no-event     # skip docs_audit EVENTS append
 //   node .aai/scripts/docs-audit.mjs --strict       # enforce even without config
 //                                                   # (intake post-save check)
+//   node .aai/scripts/docs-audit.mjs --strict-types # unknown frontmatter type
+//                                                   # becomes a hard failure
 //
 // Modes: enforced (docs/ai/docs-audit.yaml present), report-only (absent), quick.
 // In report-only mode --check always exits 0 — first runs never drown the operator.
@@ -29,6 +31,7 @@ function parseArgs(argv) {
     else if (tok === '--quick') args.quick = true;
     else if (tok === '--no-event') args.event = false;
     else if (tok === '--strict') args.strict = true;
+    else if (tok === '--strict-types') args.strictTypes = true;
     else if (tok === '--path') args.path = argv[++i];
   }
   return args;
@@ -58,7 +61,10 @@ function emitEvent(result, scope) {
 
 function main() {
   const args = parseArgs(process.argv);
-  const result = runAudit(ROOT, { quick: args.quick, scopePath: args.path, strict: args.strict });
+  const result = runAudit(ROOT, {
+    quick: args.quick, scopePath: args.path, strict: args.strict,
+    strictTypes: Boolean(args.strictTypes),
+  });
   const { counts, mode } = result;
   const scope = args.path ?? 'full';
   const lines = [];
@@ -81,9 +87,9 @@ function main() {
     lines.push('');
     if (counts.orphans === 0) lines.push('_None._');
     else {
-      lines.push(...table(['Path', 'First commit', 'Age class', 'Problem'],
+      lines.push(...table(['Path', 'Suggested ID', 'First commit', 'Age class', 'Problem'],
         [...result.orphansNew, ...result.orphansLegacy].map(d =>
-          [d.rel, d.firstCommit ?? 'untracked', d.legacy ? 'legacy (soft)' : 'new (hard)', d.reasons.join('; ')])));
+          [d.rel, d.fileId ?? '—', d.firstCommit ?? 'untracked', d.legacy ? 'legacy (soft)' : 'new (hard)', d.reasons.join('; ')])));
     }
     lines.push('');
     lines.push(`### Drift report: ${result.drift.length}`);
@@ -92,12 +98,35 @@ function main() {
     else {
       lines.push(...table(['Doc', 'Verdict', 'Evidence', 'Suggested next step'],
         result.drift.map(d => [d.id, d.verdict, d.reasons.join('; '), suggestedStep(d)])));
+      lines.push('');
+      lines.push('Triage commands:');
+      for (const d of result.drift) {
+        lines.push(`- ${d.id}: \`git log --grep="${d.id}" --oneline\` | \`head -50 ${d.rel}\``);
+      }
     }
     lines.push('');
     if (result.violations.length) {
       lines.push(`### Schema violations: ${result.violations.length}`);
       lines.push('');
       for (const v of result.violations) lines.push(`- ${v.rel}: ${v.msg}`);
+      lines.push('');
+    }
+    if (result.typeWarnings.length) {
+      lines.push(`### Type warnings: ${result.typeWarnings.length}`);
+      lines.push('');
+      for (const w of result.typeWarnings) lines.push(`- ${w.id} (${w.rel}): ${w.msg}`);
+      lines.push('');
+    }
+    if (result.annotations.length) {
+      lines.push(`### Annotations`);
+      lines.push('');
+      for (const a of result.annotations) lines.push(`- ${a.id}: ${a.key} = ${a.value}`);
+      lines.push('');
+    }
+    if (result.pendingCommit.length) {
+      lines.push(`### Pending commit (verdicts reflect the working tree)`);
+      lines.push('');
+      for (const p of result.pendingCommit) lines.push(`- ${p}`);
       lines.push('');
     }
   }

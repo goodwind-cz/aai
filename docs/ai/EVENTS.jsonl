@@ -30,3 +30,7 @@
 {"v":1,"ts":"2026-06-12T16:43:30.467Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"RFC-0002","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-06-12T16:43:41.237Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":3,"orphans":0,"drifted":0,"stale":0,"mode":"report-only"}}
 {"v":1,"ts":"2026-06-12T16:44:01.441Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":3,"orphans":0,"drifted":0,"stale":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-06-12T17:34:16.931Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"CHANGE-0001","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-06-12T17:34:16.975Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"CHANGE-0001","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T17:34:17.015Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"CHANGE-0001","payload":{"evidence":"tests/skills/test-aai-docs-audit.sh PASS 2026-06-12 (14 test groups incl. D1-D9 fixtures)"}}
+{"v":1,"ts":"2026-06-12T17:34:34.976Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":4,"orphans":0,"drifted":0,"stale":0,"mode":"enforced"}}
