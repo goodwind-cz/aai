@@ -20,7 +20,9 @@ HARD RULES
 PROCESS
 1) Run: node .aai/scripts/docs-audit.mjs
    (add --path <subpath> if the user scoped the request; add --quick for a
-   counts-only pass)
+   counts-only pass; add --list when the user wants the full per-doc
+   classification table — which docs are tracked-done vs tracked-open vs
+   drifted/orphan/obsolete/superseded)
 2) If the script is missing, stop: "docs-audit.mjs not found — run /aai-update".
 3) Present the script's digest (it already follows the output format below).
    Do not re-derive verdicts yourself; the engine is canonical.

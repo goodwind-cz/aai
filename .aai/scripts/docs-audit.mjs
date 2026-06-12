@@ -5,6 +5,7 @@
 //   node .aai/scripts/docs-audit.mjs                # full audit, markdown digest
 //   node .aai/scripts/docs-audit.mjs --check        # CI gate: exit 1 on hard failures
 //   node .aai/scripts/docs-audit.mjs --quick        # counts only, no git/EVENTS probes
+//   node .aai/scripts/docs-audit.mjs --list         # per-doc classification table
 //   node .aai/scripts/docs-audit.mjs --path <p>     # scope to a file or subtree
 //   node .aai/scripts/docs-audit.mjs --no-event     # skip docs_audit EVENTS append
 //   node .aai/scripts/docs-audit.mjs --strict       # enforce even without config
@@ -32,6 +33,7 @@ function parseArgs(argv) {
     else if (tok === '--no-event') args.event = false;
     else if (tok === '--strict') args.strict = true;
     else if (tok === '--strict-types') args.strictTypes = true;
+    else if (tok === '--list') args.list = true;
     else if (tok === '--path') args.path = argv[++i];
   }
   return args;
@@ -79,6 +81,20 @@ function main() {
   if (mode === 'report-only') {
     lines.push(`Note: ${CONFIG_PATH} not found — running report-only (nothing hard-fails).`);
     lines.push(`Enable enforcement by creating it with a legacy_until_date (see RFC-0002).`);
+    lines.push('');
+  }
+
+  if (args.list) {
+    const CLASS_ORDER = ['orphan', 'drifted', 'obsolete', 'tracked-open', 'tracked-done', 'superseded'];
+    const sorted = [...result.docs].sort((a, b) =>
+      (CLASS_ORDER.indexOf(a.cls) - CLASS_ORDER.indexOf(b.cls)) || a.rel.localeCompare(b.rel));
+    lines.push(`### Classification: ${result.docs.length} docs`);
+    lines.push('');
+    lines.push(...table(['Doc', 'Class', 'Status', 'Verdict', 'Path'],
+      sorted.map(d => [
+        d.id, d.cls, d.effectiveStatus ?? d.status ?? '—',
+        d.verdict ?? '—', d.rel,
+      ])));
     lines.push('');
   }
 

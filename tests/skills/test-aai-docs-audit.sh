@@ -432,6 +432,21 @@ test_orphan_suggested_id() {
   log_pass "Suggested ID column present"
 }
 
+test_classification_listing() {
+  log_info "Test: --list prints the per-doc classification table..."
+  run_audit --list --no-event > "$TEST_DIR/list.log"
+  assert_contains "$TEST_DIR/list.log" "### Classification:"
+  grep -F "SPEC-204" "$TEST_DIR/list.log" | grep -qF "tracked-done" \
+    || log_fail "SPEC-204 must list as tracked-done"
+  grep -F "SPEC-201" "$TEST_DIR/list.log" | grep -qF "drifted" \
+    || log_fail "SPEC-201 must list as drifted"
+  grep -F "SPEC-CHANGE-027" "$TEST_DIR/list.log" | grep -qF "frozen" \
+    || log_fail "SPEC-CHANGE-027 must show effective status frozen"
+  grep -F "ISSUE-101" "$TEST_DIR/list.log" | grep -qF "orphan" \
+    || log_fail "ISSUE-101 must list as orphan"
+  log_pass "Per-doc classification table works"
+}
+
 test_index_continue_on_error() {
   log_info "Test: index generator --continue-on-error renders a partial index (D9)..."
   cat > "$TEST_DIR/docs/specs/SPEC-998-bad-status.md" <<'MD'
@@ -474,6 +489,7 @@ main() {
   test_uncommitted_doc_not_punished
   test_type_validation
   test_orphan_suggested_id
+  test_classification_listing
   test_index_continue_on_error
   echo ""
   log_pass "All $TEST_NAME tests passed"
