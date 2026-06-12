@@ -9,6 +9,49 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — RFC-0002: docs hygiene and drift audit
+
+Implements [RFC-0002](docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md)
+([SPEC-0001](docs/specs/SPEC-0001-docs-hygiene-and-drift-audit.md)) in
+response to a downstream triage brief documenting four drift classes:
+orphan docs, false-done, stale-open, bulk frontmatter drift. The audit
+REPORTS; the operator DECIDES — nothing is auto-fixed.
+
+### Added
+- `.aai/scripts/docs-audit.mjs`: classifies every prefixed doc under
+  `docs/` (orphan / superseded / drifted / tracked-done / obsolete /
+  tracked-open) and derives drift verdicts (`probable-false-done`,
+  `probable-partial`, `probable-stale-open`) from frontmatter, AC tables,
+  EVENTS.jsonl, and git evidence. Flags: `--check` (CI gate via exit
+  code), `--quick` (counts only, no git probes), `--path`, `--strict`
+  (enforce without config; intake post-save gate), `--no-event`.
+- `.aai/scripts/lib/docs-model.mjs` + `lib/docs-audit-core.mjs`: shared
+  doc-model parsers (extracted from the INDEX generator) and audit core.
+- Optional committed config `docs/ai/docs-audit.yaml`
+  (`legacy_until_date`, `stale_after_days`, `scan_exclude`,
+  `backlog_globs`). Absent config means report-only — first runs never
+  hard-fail legacy backlogs.
+- `/aai-docs-audit` skill (`.aai/SKILL_DOCS_AUDIT.prompt.md` +
+  `.claude/skills/aai-docs-audit/SKILL.md`) with an operator-approved
+  interactive remediation mode for retroactive backfill.
+- `docs/INDEX.md` sections: `Orphans (need triage)` and `Drift report`.
+- `docs_audit` event type in `append-event.mjs` (counts payload), emitted
+  best-effort by every non-quick engine run.
+- `.aai/templates/DOCS_AUDIT_TEST_TEMPLATE.md`: portable CI gate wrappers
+  (plain CI step, vitest, pytest).
+- `tests/skills/test-aai-docs-audit.sh`: fixture-per-drift-class suite.
+
+### Changed
+- `SKILL_INTAKE.prompt.md` + all eight `INTAKE_*.prompt.md`: post-save
+  template-compliance check (`--check --strict --path <artifact>`); an
+  artifact cannot be reported saved while non-compliant.
+- `SKILL_LOOP.prompt.md`: cheap `--quick` docs hygiene check once per
+  tick, surfaced in the tick summary (never blocks).
+- `VALIDATION.prompt.md`: step 8b done-transition assertion — a spec
+  cannot move to `done` without a fully terminal, evidenced AC table.
+- `SKILL_DOCTOR.prompt.md`: new CAT-11 Docs Hygiene category.
+- `generate-docs-index.mjs`: now consumes the shared parser lib.
+
 ## [unreleased] — RFC-0001: AC-level tracking and multi-dev STATE
 
 Implements [RFC-0001](docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md)

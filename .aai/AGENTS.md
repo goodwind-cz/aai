@@ -82,6 +82,7 @@ Follow .aai/SKILL_CODE_REVIEW.prompt.md  # Two-stage review: spec compliance fir
 Follow .aai/SKILL_SHARE.prompt.md        # Publish reports to Cloudflare Pages with shareable URL
 Follow .aai/SKILL_FLUSH.prompt.md        # Manual metrics flush & state cleanup (when loop doesn't complete it)
 Follow .aai/SKILL_DOCTOR.prompt.md       # Environment health check — validates files, skills, knowledge, git (pro-workflow)
+Follow .aai/SKILL_DOCS_AUDIT.prompt.md   # Docs hygiene & drift audit — orphan/false-done/stale detection (RFC-0002)
 Follow .aai/SKILL_REPLAY.prompt.md       # Contextual learning replay — surfaces relevant past learnings (pro-workflow)
 Follow .aai/SKILL_SESSION_JOURNAL.prompt.md # Named project session journal — human-readable cross-agent discussion trail
 Follow .aai/SKILL_WRAP_UP.prompt.md      # Session wrap-up — capture learnings, propose rules, prepare next session (pro-workflow)
@@ -120,6 +121,7 @@ Skill selection guide:
 - **NEW:** Use SKILL_WORKTREE recommendation gate before implementation when Planning marks worktree as recommended or required.
 - **NEW:** Use SKILL_CODE_REVIEW after validation for merge/PR readiness. Review works on a clean diff and does not require a worktree.
 - **NEW:** Use SKILL_DOCTOR to diagnose the full AAI environment (broader than CHECK_STATE).
+- **NEW:** Use SKILL_DOCS_AUDIT for docs hygiene: per-doc classification, drift verdicts, and operator-approved remediation (RFC-0002). The audit reports; the operator decides.
 - **NEW:** Use SKILL_REPLAY to surface relevant past learnings before starting work.
 - **NEW:** Use SKILL_SESSION_JOURNAL to create or resume a named project discussion thread in the user's language.
 - **NEW:** Use SKILL_WRAP_UP at the end of a session to capture learnings and prepare next session.

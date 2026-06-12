@@ -106,6 +106,19 @@ HEALTH CHECK CATEGORIES (run all, report each)
   - Do NOT mark BROKEN — this category is informational, never blocks
     other AAI work.
 
+[CAT-11] Docs Hygiene (RFC-0002)
+  Run: node .aai/scripts/docs-audit.mjs --quick
+  - script missing                 → ⚠ docs-audit not installed ("Run /aai-update")
+  - 0 orphans, 0 drifted, 0 obsolete → ✓ CLEAN (N docs scanned)
+  - any non-zero count             → ⚠ report counts + "Run /aai-docs-audit to triage"
+  Also check docs/ai/docs-audit.yaml:
+  - exists                         → ✓ enforcement enabled (legacy_until_date: <value>)
+  - missing                        → ⚠ report-only mode ("Create docs/ai/docs-audit.yaml
+                                       with legacy_until_date to enable enforcement —
+                                       see RFC-0002 D4")
+  This category is informational, never blocks other AAI work; do NOT mark
+  BROKEN from it.
+
 OUTPUT FORMAT
 
 ---
@@ -123,6 +136,7 @@ Checked at: <now ISO 8601 UTC>
 [CAT-08] Git:               ✓ clean on <branch> | ⚠ <issues>
 [CAT-09] Pre-Compact Hook:  ✓ configured | ⚠ not set up
 [CAT-10] RFC-0001 Migration: ✓ migrated | ⚠ needs migration: <action>
+[CAT-11] Docs Hygiene:      ✓ CLEAN | ⚠ N orphans / N drifted (run /aai-docs-audit)
 
 Overall: HEALTHY | DEGRADED | BROKEN
   HEALTHY  = all ✓ (warnings allowed for optional items)

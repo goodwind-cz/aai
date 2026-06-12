@@ -88,6 +88,12 @@ PROCESS
 8a) For each Spec-AC that moved to `done` during this validation (Evidence column populated), append an `ac_evidence` event to docs/ai/EVENTS.jsonl via:
     node .aai/scripts/append-event.mjs --event ac_evidence --ref SPEC-XXXX/Spec-AC-YY --commit <sha-or-RUN_ID>
     For each spec whose frontmatter `status` changed (e.g., implementing → done) as a result of this validation, append a `doc_lifecycle` event with --from/--to. EVENTS append is best-effort; do not abort the verdict on append failure.
+8b) DONE-TRANSITION ASSERTION (RFC-0002): before writing `status: done` into any
+    doc's frontmatter, assert the Acceptance Criteria Status table — when the
+    doc's template mandates one (type spec) — exists with every row terminal and
+    every done row carrying Evidence. A spec without the table must not
+    transition to done (that is the probable-partial drift shape). If the
+    assertion fails, the verdict is FAIL with the specific gap named.
 9) Update docs/ai/STATE.yaml:
    - last_validation.status
    - last_validation.run_at_utc

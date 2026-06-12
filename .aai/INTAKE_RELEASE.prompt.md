@@ -35,6 +35,13 @@ PROCESS
 10) If enough information is available, stop questions early.
 11) Output summary + completed Release Plan markdown + suggested filename.
 
+POST-SAVE CHECK (RFC-0002)
+After saving the document, verify template compliance:
+  node .aai/scripts/docs-audit.mjs --check --strict --no-event --path <saved-file>
+If the check fails, fix the frontmatter per the template and re-run until it
+passes. Do not report the artifact as saved while the check fails. If the
+script does not exist (older AAI layer), note that and continue.
+
 METRICS (after saving the document)
 Ask the user (in their language):
 "How many minutes did you spend on this intake? (Enter a number or press Enter to skip)"

@@ -1,0 +1,7 @@
+# Docs audit policy (RFC-0002 D4). Committed, project-owned.
+# Docs first committed before legacy_until_date soft-warn; newer docs and
+# untracked files hard-fail --check when non-compliant.
+legacy_until_date: 2026-06-12
+stale_after_days: 90
+scan_exclude: []
+backlog_globs: []

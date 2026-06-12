@@ -1,12 +1,13 @@
 ---
 id: RFC-0002
 type: rfc
-status: proposed
+status: done
 links:
   rfc: RFC-0001
-  spec: null
+  spec: SPEC-0001
   pr: []
-  commits: []
+  commits:
+    - 728ea95
 ---
 
 # RFC-0002 — Docs Hygiene and Drift Audit
@@ -195,7 +196,9 @@ change.
 
 `SKILL_INTAKE.prompt.md` (and the `INTAKE_*.prompt.md` entry points) gain a
 post-save verification step: after writing the artifact, run
-`node .aai/scripts/docs-audit.mjs --check --path <saved-file>`. If the saved
+`node .aai/scripts/docs-audit.mjs --check --strict --path <saved-file>`
+(`--strict` enforces even when `docs-audit.yaml` is absent — a just-saved
+artifact is new by definition, so report-only leniency does not apply). If the saved
 doc fails frontmatter validation, the intake must fix it before reporting the
 artifact path — the artifact cannot be reported as saved while non-compliant.
 This closes class 1's root cause at the only chokepoint AAI controls. Docs
@@ -382,9 +385,8 @@ PROCESS
 2) If the script is missing, stop: "docs-audit.mjs not found — run /aai-update".
 3) Present the digest exactly as structured below.
 4) Regenerate the index: node .aai/scripts/generate-docs-index.mjs
-5) Append the audit event (best-effort, do not fail the run on error):
-   node .aai/scripts/append-event.mjs --event docs_audit --ref docs-audit/full \
-     --notes "<total>/<orphans>/<drifted>/<stale>"
+5) The engine appends the docs_audit event itself (best-effort) on every
+   non-quick run — do not append a duplicate manually.
 6) For each orphan and each probable-* verdict, offer the operator the
    specific remediation (e.g., "add frontmatter per ISSUE_TEMPLATE.md",
    "reconcile AC table then flip backlog row") — as suggestions only.

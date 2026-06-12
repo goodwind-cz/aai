@@ -1,2 +1,32 @@
 {"v":1,"ts":"2026-05-24T21:42:23.588Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"RFC-0001","payload":{"from":"draft","to":"implementing"}}
 {"v":1,"ts":"2026-06-12T15:54:14.545Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"RFC-0002","payload":{"from":"draft","to":"proposed"}}
+{"v":1,"ts":"2026-06-12T16:32:20.147Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"RFC-0002","payload":{"from":"proposed","to":"accepted"}}
+{"v":1,"ts":"2026-06-12T16:32:20.186Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"RFC-0002","payload":{"from":"accepted","to":"implementing"}}
+{"v":1,"ts":"2026-06-12T16:43:29.698Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0001/Spec-AC-01","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T16:43:29.737Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0001/Spec-AC-01","payload":{"evidence":"tests/skills/test-aai-docs-audit.sh PASS 2026-06-12"}}
+{"v":1,"ts":"2026-06-12T16:43:29.773Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0001/Spec-AC-02","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T16:43:29.803Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0001/Spec-AC-02","payload":{"evidence":"tests/skills/test-aai-docs-audit.sh PASS 2026-06-12"}}
+{"v":1,"ts":"2026-06-12T16:43:29.833Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0001/Spec-AC-03","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T16:43:29.861Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0001/Spec-AC-03","payload":{"evidence":"tests/skills/test-aai-docs-audit.sh PASS 2026-06-12"}}
+{"v":1,"ts":"2026-06-12T16:43:29.891Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0001/Spec-AC-04","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T16:43:29.920Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0001/Spec-AC-04","payload":{"evidence":"tests/skills/test-aai-docs-audit.sh PASS 2026-06-12"}}
+{"v":1,"ts":"2026-06-12T16:43:29.949Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0001/Spec-AC-05","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T16:43:29.978Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0001/Spec-AC-05","payload":{"evidence":"tests/skills/test-aai-docs-audit.sh PASS 2026-06-12"}}
+{"v":1,"ts":"2026-06-12T16:43:30.007Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0001/Spec-AC-06","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T16:43:30.039Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0001/Spec-AC-06","payload":{"evidence":"tests/skills/test-aai-docs-audit.sh PASS 2026-06-12"}}
+{"v":1,"ts":"2026-06-12T16:43:30.069Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0001/Spec-AC-07","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T16:43:30.098Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0001/Spec-AC-07","payload":{"evidence":"tests/skills/test-aai-docs-audit.sh PASS 2026-06-12"}}
+{"v":1,"ts":"2026-06-12T16:43:30.131Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0001/Spec-AC-08","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T16:43:30.168Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0001/Spec-AC-08","payload":{"evidence":"tests/skills/test-aai-docs-audit.sh PASS 2026-06-12"}}
+{"v":1,"ts":"2026-06-12T16:43:30.199Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0001/Spec-AC-09","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T16:43:30.230Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0001/Spec-AC-09","payload":{"evidence":"tests/skills/test-aai-docs-audit.sh PASS 2026-06-12"}}
+{"v":1,"ts":"2026-06-12T16:43:30.260Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0001/Spec-AC-10","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T16:43:30.289Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0001/Spec-AC-10","payload":{"evidence":"tests/skills/test-aai-docs-audit.sh PASS 2026-06-12"}}
+{"v":1,"ts":"2026-06-12T16:43:30.317Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0001/Spec-AC-11","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T16:43:30.346Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0001/Spec-AC-11","payload":{"evidence":"tests/skills/test-aai-docs-audit.sh PASS 2026-06-12"}}
+{"v":1,"ts":"2026-06-12T16:43:30.376Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0001/Spec-AC-12","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T16:43:30.406Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0001/Spec-AC-12","payload":{"evidence":"tests/skills/test-aai-docs-audit.sh PASS 2026-06-12"}}
+{"v":1,"ts":"2026-06-12T16:43:30.437Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0001","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T16:43:30.467Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"RFC-0002","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-12T16:43:41.237Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":3,"orphans":0,"drifted":0,"stale":0,"mode":"report-only"}}
+{"v":1,"ts":"2026-06-12T16:44:01.441Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":3,"orphans":0,"drifted":0,"stale":0,"mode":"enforced"}}

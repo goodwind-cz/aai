@@ -31,6 +31,14 @@ STEP 2 — EXECUTE INTAKE
 Load and follow the instructions in the intake prompt file for the detected type.
 Follow that prompt exactly — do not merge or combine intake forms.
 
+STEP 2.5 — POST-SAVE CHECK (RFC-0002)
+After saving the artifact, verify template compliance:
+  node .aai/scripts/docs-audit.mjs --check --strict --no-event --path <saved-file>
+If the check fails, fix the artifact's frontmatter per the doc type's template
+in .aai/templates/ and re-run until it passes. Do not proceed to STEP 3 while
+the check fails. If the script does not exist (older AAI layer), note that and
+continue.
+
 STEP 3 — CONFIRM ARTIFACT
 After the intake artifact is saved, output:
 

@@ -1,22 +1,24 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-06-12T16:27:41.053Z
+Generated: 2026-06-12T16:44:01.483Z
 Source: docs/{issues,rfc,specs,requirements,releases}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0001 | rfc | implementing | — | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
-| RFC-0002 | rfc | proposed | — | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 
-## Done (0)
+## Done (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
+| SPEC-0001 | specs | docs/specs/SPEC-0001-docs-hygiene-and-drift-audit.md |
 
 ## Drafts (0)
 
@@ -39,6 +41,14 @@ _None._
 _None._
 
 ## Legacy (no frontmatter) (0)
+
+_None._
+
+## Orphans (need triage) (0)
+
+_None._
+
+## Drift report (0)
 
 _None._
 

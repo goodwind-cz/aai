@@ -39,6 +39,14 @@ here — that is for manual Review-By extensions outside the loop.
 EVENTS append is best-effort: if the helper fails, log the failure but do
 not abort the loop. The events log is an audit aid, not a correctness gate.
 
+DOCS HYGIENE TICK CHECK (RFC-0002)
+Once per tick, run the cheap docs audit and surface non-zero counts in the
+tick summary (one line, e.g. "docs: 2 orphans, 1 drifted — run /aai-docs-audit"):
+  node .aai/scripts/docs-audit.mjs --quick
+The loop never blocks on these counts — it makes them visible. Do not run the
+full (non-quick) audit inside the loop; that is the operator's /aai-docs-audit.
+If the script does not exist (older AAI layer), skip silently.
+
 LOOP PARAMETERS (use defaults unless overridden by caller)
 - max_ticks: 20
 - sleep_between_ticks: none (subagent spawning is the natural boundary)

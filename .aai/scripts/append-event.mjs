@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Append a single audit event to docs/ai/EVENTS.jsonl (RFC-0001 layer 5).
 //
-// Event types (closed set): ac_status, ac_evidence, defer_extended, doc_lifecycle.
+// Event types (closed set): ac_status, ac_evidence, defer_extended, doc_lifecycle, docs_audit.
 // Required: --event, --ref. Auto-filled: v=1, ts (ISO UTC), actor (git slug).
 //
 // Examples:
@@ -18,7 +18,7 @@ import { execSync } from 'node:child_process';
 
 const EVENTS_PATH = path.join(process.cwd(), 'docs/ai/EVENTS.jsonl');
 const SCHEMA_VERSION = 1;
-const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle']);
+const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit']);
 
 function parseArgs(argv) {
   const args = {};
@@ -81,6 +81,16 @@ function main() {
     case 'doc_lifecycle':
       if (!args.from || !args.to) fail('doc_lifecycle requires --from and --to');
       entry.payload = { from: args.from, to: args.to };
+      break;
+    case 'docs_audit':
+      entry.payload = {
+        total: Number(args.total ?? 0),
+        orphans: Number(args.orphans ?? 0),
+        drifted: Number(args.drifted ?? 0),
+        stale: Number(args.stale ?? 0),
+        mode: typeof args.mode === 'string' ? args.mode : 'full',
+      };
+      if (args.notes) entry.payload.notes = args.notes;
       break;
   }
 
