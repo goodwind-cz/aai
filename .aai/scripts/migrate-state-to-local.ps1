@@ -104,7 +104,8 @@ try {
 
   $headerWritten = $false
   foreach ($pattern in @($stateFile, $ticksFile, 'docs/ai/tdd/**', '!docs/ai/tdd/', '!docs/ai/tdd/.gitkeep')) {
-    $exists = $giContent -match ("(?m)^" + [regex]::Escape($pattern) + "$")
+    # \r? before $: CRLF gitignores leave \r on the line in multiline mode
+    $exists = $giContent -match ("(?m)^" + [regex]::Escape($pattern) + "\r?$")
     if (-not $exists) {
       if (-not $headerWritten) {
         Write-Host "GITIGNORE add header + entries to $gitignorePath"

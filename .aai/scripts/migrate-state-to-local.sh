@@ -99,7 +99,8 @@ done < <(git -C "$TARGET" ls-files "docs/ai/tdd" 2>/dev/null)
 
 # 2. Add gitignore entries if missing.
 for pattern in "$STATE_FILE" "$TICKS_FILE" "docs/ai/tdd/**" '!docs/ai/tdd/' '!docs/ai/tdd/.gitkeep'; do
-  if ! grep -qxF "$pattern" "$GITIGNORE" 2>/dev/null; then
+  # CR-tolerant exact-line check (downstream .gitignore may be CRLF)
+  if ! { [[ -f "$GITIGNORE" ]] && tr -d '\r' < "$GITIGNORE" | grep -qxF "$pattern"; }; then
     if [[ "$gitignore_added" -eq 0 ]]; then
       echo "GITIGNORE add header + entries to $GITIGNORE"
       if [[ "$DRY_RUN" == 0 ]]; then
