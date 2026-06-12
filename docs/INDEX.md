@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-05-24T21:41:25.510Z
+Generated: 2026-06-12T16:27:41.053Z
 Source: docs/{issues,rfc,specs,requirements,releases}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0001 | rfc | implementing | — | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
+| RFC-0002 | rfc | proposed | — | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 
 ## Done (0)
 
@@ -42,4 +43,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-05-24 — counts above use this date for overdue checks.
+Today (UTC): 2026-06-12 — counts above use this date for overdue checks.
