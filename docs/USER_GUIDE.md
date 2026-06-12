@@ -189,6 +189,7 @@ AAI uses two different classes of documentation:
 |-------|-------|--------------|
 | `/aai-dashboard` | View metrics | Interactive charts |
 | `/aai-code-review` | Review code | AI-powered review |
+| `/aai-docs-audit` | Docs hygiene | Drift detection: claimed vs implemented |
 | `/aai-profile` | Optimize | Performance analysis |
 | `/aai-auto-trigger` | Automate | Pattern-based triggering |
 
@@ -409,6 +410,78 @@ AAI uses two different classes of documentation:
 - ERROR: Must fix (blocks)
 - WARNING: Should fix
 - INFO: Nice to have
+
+#### `/aai-docs-audit`
+**What:** Docs hygiene and drift detection (RFC-0002). Classifies every
+prefixed doc under `docs/` and compares what each doc claims (frontmatter
+`status`, AC Status table) against reality (commits via
+`git log --grep="<DOC-ID>"`, `ac_evidence` events in EVENTS.jsonl).
+Reports only — never edits a doc unless you approve each change in
+remediation mode.
+
+**When to use:**
+- Periodic docs hygiene review (weekly, or before a release closeout)
+- After inheriting or merging a large docs backlog ("what is actually
+  implemented and what is not?")
+- First run after `/aai-update` in a project that never audited its docs
+- When a backlog row says Done but you do not trust it
+
+**Example:**
+```bash
+/aai-docs-audit                    # full audit, digest in chat
+/aai-docs-audit remediate          # interactive cleanup, per-item approval
+
+# Direct engine calls:
+node .aai/scripts/docs-audit.mjs --list      # per-doc classification table
+node .aai/scripts/docs-audit.mjs --check     # CI gate (exit 1 on hard fails)
+node .aai/scripts/docs-audit.mjs --quick     # cheap counts, no git probes
+node .aai/scripts/docs-audit.mjs --path docs/specs   # scope to a subtree
+```
+
+**Reading the verdicts:**
+- `tracked-done` — doc says done and evidence agrees (implemented)
+- `tracked-open` — legitimately in progress (draft/implementing/frozen)
+- `probable-false-done` — doc claims done, evidence disagrees
+- `probable-stale-open` — open doc untouched past `stale_after_days`;
+  possibly shipped elsewhere and never closed
+- `probable-partial` — spec marked done without the mandated AC table
+- `orphan` — doc without canonical frontmatter (new ones fail `--check`)
+
+**Configuration** (`docs/ai/docs-audit.yaml`, committed; without it the
+audit runs report-only and nothing hard-fails):
+```yaml
+legacy_until_date: 2026-06-12   # docs first committed before this soft-warn;
+                                # newer/untracked docs hard-fail --check
+stale_after_days: 90            # open doc with no activity for this long
+                                # becomes a stale candidate
+plan_scan_mode: lenient         # docs/plans/** without frontmatter are
+                                # operator plan files, not orphans
+                                # (strict: flag them as orphans)
+scan_exclude: []                # extra path globs to skip
+backlog_globs: []               # operator plan files to cross-check Done
+                                # claims against (read-only)
+review_by_methods: []           # extra Review-By method labels beyond
+                                # TDD/Loop/code-review/manual/deferred/
+                                # PlaywrightSuites/Validation/...
+category_prefixes:              # filename segments treated as scopes,
+  - PHASE                       # not IDs (DECISION-PHASE-0-scope ->
+  - MILESTONE                   # unique slug ID + scope PHASE-0)
+  - EPIC
+```
+
+**Typical retro-cleanup workflow:**
+1. Create the config with `legacy_until_date` set to today.
+2. `/aai-docs-audit` — read Orphans + Drift report (each row carries
+   evidence and a suggested next step).
+3. `/aai-docs-audit remediate` — approve fixes item by item; every applied
+   change is logged to EVENTS.jsonl.
+4. Re-run until CLEAN; wire `--check` into CI to keep it that way
+   (template: `.aai/templates/DOCS_AUDIT_TEST_TEMPLATE.md`).
+
+**Where it runs automatically:**
+- Intake saves are gated (`--check --strict --path <artifact>`)
+- Every `/aai-loop` tick surfaces counts (`--quick`, never blocks)
+- `/aai-doctor` CAT-11 reports docs hygiene state
 
 ---
 
