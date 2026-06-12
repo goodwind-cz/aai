@@ -9,6 +9,15 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — chore: gitignore TDD evidence logs
+
+`docs/ai/tdd/**` (red/green/refactor test-output logs) is now gitignored
+with a `.gitkeep` placeholder — same policy as `docs/ai/reports/**`:
+per-dev runtime evidence, pruned by METRICS_FLUSH after 7 days; durable
+evidence lives in AC Status tables and EVENTS.jsonl.
+`migrate-state-to-local.{sh,ps1}` additionally untracks any already
+committed TDD logs and injects the ignore patterns in downstream projects.
+
 ## [unreleased] — CHANGE-0003: docs-audit verify mode
 
 Adds the third skill mode

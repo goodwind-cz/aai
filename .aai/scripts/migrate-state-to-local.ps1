@@ -83,6 +83,19 @@ try {
     }
   }
 
+  # 1b. Untrack TDD evidence logs (per-dev runtime evidence; .gitkeep stays).
+  $tddTracked = & git ls-files "docs/ai/tdd" 2>$null
+  foreach ($f in @($tddTracked)) {
+    if (-not $f -or $f -like "*/.gitkeep") { continue }
+    Write-Host "UNTRACK $f (TDD evidence log; file remains on disk)"
+    if (-not $DryRun) {
+      & git rm --cached $f | Out-Null
+    } else {
+      Write-Host "  [dry-run] git rm --cached $f"
+    }
+    $untrackedCount++
+  }
+
   # 2. Add gitignore entries if missing.
   $giContent = ""
   if (Test-Path $gitignorePath) {
@@ -90,7 +103,7 @@ try {
   }
 
   $headerWritten = $false
-  foreach ($pattern in @($stateFile, $ticksFile)) {
+  foreach ($pattern in @($stateFile, $ticksFile, 'docs/ai/tdd/**', '!docs/ai/tdd/', '!docs/ai/tdd/.gitkeep')) {
     $exists = $giContent -match ("(?m)^" + [regex]::Escape($pattern) + "$")
     if (-not $exists) {
       if (-not $headerWritten) {

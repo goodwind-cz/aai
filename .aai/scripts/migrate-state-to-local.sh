@@ -89,8 +89,16 @@ for f in "$STATE_FILE" "$TICKS_FILE"; do
   fi
 done
 
+# 1b. Untrack TDD evidence logs (per-dev runtime evidence; .gitkeep stays).
+while IFS= read -r f; do
+  [[ -z "$f" || "$f" == *"/.gitkeep" ]] && continue
+  echo "UNTRACK $f (TDD evidence log; file remains on disk)"
+  run "git -C \"$TARGET\" rm --cached \"$f\""
+  untracked_count=$((untracked_count + 1))
+done < <(git -C "$TARGET" ls-files "docs/ai/tdd" 2>/dev/null)
+
 # 2. Add gitignore entries if missing.
-for pattern in "$STATE_FILE" "$TICKS_FILE"; do
+for pattern in "$STATE_FILE" "$TICKS_FILE" "docs/ai/tdd/**" '!docs/ai/tdd/' '!docs/ai/tdd/.gitkeep'; do
   if ! grep -qxF "$pattern" "$GITIGNORE" 2>/dev/null; then
     if [[ "$gitignore_added" -eq 0 ]]; then
       echo "GITIGNORE add header + entries to $GITIGNORE"
