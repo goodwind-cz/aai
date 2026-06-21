@@ -4,6 +4,7 @@ param(
   [string]$Mode = "skill",
   [string]$AgentCommand,
   [int]$MaxIterations = 20,
+  [int]$StagnationLimit = 3,
   [int]$SleepSeconds = 1,
   [switch]$AutoInitState,
   [switch]$NoAutoInstallPyYaml,
@@ -245,10 +246,21 @@ try {
   $Py = Ensure-PyYaml -NoAutoInstall:$NoAutoInstallPyYaml
   $StateReaderPy = Initialize-StateReader -PyCmd $Py
 
+# Capture harness/runtime version ONCE so a behavior regression can be correlated
+# with a runtime upgrade (version drift). Prefer the Claude CLI; fall back to the
+# configured agent command identifier, then "unknown". Sanitize for JSON.
+$HarnessVersion = $null
+try { $HarnessVersion = (& claude --version 2>$null | Select-Object -First 1) } catch {}
+if ([string]::IsNullOrWhiteSpace($HarnessVersion)) { $HarnessVersion = $AgentCommand }
+if ([string]::IsNullOrWhiteSpace($HarnessVersion)) { $HarnessVersion = "unknown" }
+$HarnessVersion = ($HarnessVersion -replace '"', '' -replace '\r?\n', ' ').Trim()
+
 Write-Host "Autonomous loop start"
 Write-Host "Mode: $Mode"
 Write-Host "Tick command: $TickCommand"
 Write-Host "Max iterations: $MaxIterations"
+Write-Host "Stagnation limit: $StagnationLimit"
+Write-Host "Harness version: $HarnessVersion"
 
 # Initialize tick log if missing
 if (!(Test-Path $TickLogPath)) {
@@ -277,6 +289,7 @@ if ($lastPauseEpoch -gt 0 -and $lastPauseEpoch -gt $lastResumeEpoch) {
   Write-Host "Detected human resume after ${reviewDuration}s review pause."
 }
 
+$stagnationCount = 0
 for ($i = 1; $i -le $MaxIterations; $i++) {
   $stateBefore = Read-State
   $preStop = Stop-Reason -state $stateBefore
@@ -309,8 +322,32 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
 
   # Append external tick timing (model-agnostic)
   $stateSnapshotAfter = Read-State
-  $tickEntry = "{`"type`":`"tick`",`"tick`":$i,`"started_utc`":`"$tickStartUtc`",`"ended_utc`":`"$tickEndUtc`",`"duration_seconds`":$tickDuration,`"exit_code`":$tickExit,`"mode`":`"$Mode`",`"skill_flow`":`"$SkillFlow`",`"bootstrap_ready`":`"$BootstrapReady`",`"focus_type_before`":`"$($stateSnapshotBefore.focus_type)`",`"focus_ref_id_before`":`"$($stateSnapshotBefore.focus_ref_id)`",`"focus_type_after`":`"$($stateSnapshotAfter.focus_type)`",`"focus_ref_id_after`":`"$($stateSnapshotAfter.focus_ref_id)`",`"validation_status_before`":`"$($stateSnapshotBefore.validation_status)`",`"validation_status_after`":`"$($stateSnapshotAfter.validation_status)`"}"
+
+  # No-progress guard: a tick made no forward progress if both focus and
+  # validation status are unchanged. Reset the counter as soon as either moves.
+  if ($stateSnapshotAfter.focus_ref_id -eq $stateSnapshotBefore.focus_ref_id -and
+      $stateSnapshotAfter.validation_status -eq $stateSnapshotBefore.validation_status) {
+    $stagnationCount++
+  } else {
+    $stagnationCount = 0
+  }
+
+  # harness_version enables version-drift correlation; stagnation_count makes
+  # the no-progress run visible.
+  $tickEntry = "{`"type`":`"tick`",`"tick`":$i,`"started_utc`":`"$tickStartUtc`",`"ended_utc`":`"$tickEndUtc`",`"duration_seconds`":$tickDuration,`"exit_code`":$tickExit,`"mode`":`"$Mode`",`"skill_flow`":`"$SkillFlow`",`"bootstrap_ready`":`"$BootstrapReady`",`"harness_version`":`"$HarnessVersion`",`"focus_type_before`":`"$($stateSnapshotBefore.focus_type)`",`"focus_ref_id_before`":`"$($stateSnapshotBefore.focus_ref_id)`",`"focus_type_after`":`"$($stateSnapshotAfter.focus_type)`",`"focus_ref_id_after`":`"$($stateSnapshotAfter.focus_ref_id)`",`"validation_status_before`":`"$($stateSnapshotBefore.validation_status)`",`"validation_status_after`":`"$($stateSnapshotAfter.validation_status)`",`"stagnation_count`":$stagnationCount}"
   Add-Content -Path $TickLogPath -Value $tickEntry -Encoding utf8
+
+  # Stagnation escalation: a stuck scope needs a changed prompt/scope, not more
+  # spins. Escalate to HITL instead of burning the remaining iteration budget.
+  if ($stagnationCount -ge $StagnationLimit) {
+    Write-Host "Stop after iteration $($i): stagnation ($stagnationCount consecutive no-progress ticks >= limit $StagnationLimit)"
+    Write-Host "  Human decision required: change the prompt or scope, then re-run. Loop will not spin further."
+    $stagNow = (Get-Date).ToUniversalTime()
+    $stagEpoch = [int][double]::Parse((Get-Date -UFormat %s -Date $stagNow))
+    $stagEntry = "{`"type`":`"human_pause`",`"paused_utc`":`"$($stagNow.ToString('o'))`",`"paused_epoch`":$stagEpoch,`"stop_reason`":`"stagnation: $stagnationCount consecutive no-progress ticks`"}"
+    Add-Content -Path $TickLogPath -Value $stagEntry -Encoding utf8
+    break
+  }
 
   Start-Sleep -Seconds $SleepSeconds
   $stateAfter = Read-State

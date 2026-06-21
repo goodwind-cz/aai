@@ -42,7 +42,10 @@
 7. **Stop conditions**:
    - `last_validation.status = pass` and no open items,
    - or `human_input.required = true` (waiting for decision),
-   - or `project_status = paused`.
+   - or `project_status = paused`,
+   - or **stagnation**: no change to focus or validation status across the
+     configured number of consecutive ticks → escalate to HITL rather than
+     spinning the remaining tick budget.
 
 ## 5) Gates and prohibitions (hard rules)
 - No implementation without locked scope and SPEC.

@@ -55,6 +55,7 @@ If the script does not exist (older AAI layer), skip silently.
 
 LOOP PARAMETERS (use defaults unless overridden by caller)
 - max_ticks: 20
+- stagnation_limit: 3   # consecutive no-progress ticks before escalating to HITL (see stop_conditions)
 - sleep_between_ticks: none (subagent spawning is the natural boundary)
 - checkpoint_mode: none (default)
     Options:
@@ -68,8 +69,15 @@ LOOP PARAMETERS (use defaults unless overridden by caller)
     - docs/ai/STATE.yaml: last_validation.status == pass  AND  no open active_work_items
       AND (code_review.required != true OR code_review.status in [pass, waived])
     - tick_count >= max_ticks
+    - stagnation: focus_ref_id AND validation_status both unchanged for `stagnation_limit`
+      consecutive ticks (no forward progress) → escalate to HITL, do not burn remaining ticks
 
 LOOP ALGORITHM
+At loop start (once): capture `harness_version` from the runtime
+(`claude --version` if available; otherwise the agent/runtime identifier).
+Record it in every tick line so a behavior regression can be correlated with a
+harness upgrade (version drift). If unavailable, record "unknown".
+
 For each tick (1..max_ticks):
 
   1. READ docs/ai/STATE.yaml.
@@ -86,6 +94,18 @@ For each tick (1..max_ticks):
         → Print: "LOOP COMPLETE: validation PASS, review gate satisfied, no open items." and EXIT.
      d. tick_count >= max_ticks
         → Print: "LOOP STOPPED: max_ticks reached. Run again to continue." and EXIT.
+     e. STAGNATION (no-progress guard):
+        Read the tail of docs/ai/LOOP_TICKS.jsonl. A tick made NO progress if
+        focus_ref_id_after == focus_ref_id_before AND
+        validation_status_after == validation_status_before.
+        Count trailing no-progress ticks. If that count >= stagnation_limit:
+        → Set human_input.required = true with
+          blocking_reason = "Loop stagnated: <stagnation_limit> ticks with no change to focus or validation status"
+          and a question_ref naming the stuck scope.
+        → Print the HITL block (HITL OUTPUT FORMAT) and EXIT.
+        → Rationale: a stuck scope needs a changed prompt or scope, not more spins
+          (Huntley). Escalate to a human instead of burning the remaining tick budget.
+          The counter resets naturally once focus_ref_id or validation_status changes.
 
   3. RUN ORCHESTRATION (one tick):
      - Capture orchestration_started_utc immediately before invocation from system clock.
@@ -156,7 +176,12 @@ For each tick (1..max_ticks):
      Tick <N>: [role dispatched] → scope=<ref_id> → state=<project_status>/<last_validation.status>
      - Append one `type: tick` JSON line to docs/ai/LOOP_TICKS.jsonl with:
        tick, started_utc, ended_utc, duration_seconds, exit_code,
-       focus_ref_id_before, focus_ref_id_after, validation_status_before, validation_status_after.
+       focus_ref_id_before, focus_ref_id_after, validation_status_before, validation_status_after,
+       harness_version.
+     - COST (optional, best-effort): also include input_tokens, output_tokens,
+       cache_read_tokens, est_cost_usd ONLY if the runtime exposes real usage figures.
+       Never fabricate or estimate token counts — omit the fields if unknown. Real
+       per-tick cost makes a cost regression visible instead of silent (see CACHING DISCIPLINE).
      - Do not estimate timing. Use real timestamps measured during execution.
      - Reject and BLOCK if timestamp cannot be verified from system clock or is >300s in the future vs current system UTC.
 
@@ -196,6 +221,18 @@ Final state:
   last_validation:      <status>
   human_input.required: <true|false>
 ---
+
+CACHING DISCIPLINE (cost)
+Prompt-cache reads cost ~1/10 of normal input, but the cache TTL is short (~5 min).
+To keep ticks cheap:
+- Run the loop SESSION-RESIDENT (this in-session SKILL_LOOP), NOT one cold
+  `claude -p` invocation or hourly `/schedule` routine per tick. A per-tick cold
+  start or an hourly schedule outlives the TTL and pays full input price every run.
+- Keep the stable prefix stable: canonical prompts (.aai/*.prompt.md) and STATE.yaml
+  lead the context so the cacheable prefix is reused tick-to-tick; put the volatile
+  per-tick dispatch context last.
+- Surface cost in the tick log (step 6) when the runtime exposes usage, so a per-tick
+  cost regression is caught rather than silent.
 
 STRICT RULES
 - Do NOT improvise role logic. Execute canonical role prompts exactly

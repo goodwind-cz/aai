@@ -9,6 +9,35 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — loop hardening: stagnation guard, version + cost telemetry, L1 triage
+
+Loop-engineering hardening informed by the Ralph Wiggum / loop-engineering
+prior art (Huntley, Osmani, Anthropic "Building Effective Agents"). The AAI
+loop already covered the core best practices (filesystem-as-memory, hard stop
+conditions, maker≠checker, evidence-gated PASS); these close the remaining gaps:
+
+- **Stagnation guard** (`SKILL_LOOP.prompt.md`, `system/AUTONOMOUS_LOOP.md`,
+  `scripts/autonomous-loop.{sh,ps1}`): new `stagnation_limit` (default 3, also a
+  `--stagnation-limit` / `-StagnationLimit` flag on the runners). When
+  `focus_ref_id` and `validation_status` stay unchanged for that many
+  consecutive ticks, the loop escalates to HITL (recording a `human_pause`)
+  instead of spinning the remaining tick budget. Computed from existing
+  `LOOP_TICKS.jsonl` fields — no new state.
+- **Version drift telemetry**: each tick line now records `harness_version`
+  (captured once at loop start, in both the in-session loop and the
+  `autonomous-loop.{sh,ps1}` runners) so a behavior regression can be correlated
+  with a harness upgrade. The runners also emit a per-tick `stagnation_count`.
+- **Cost observability + caching discipline**: tick lines may carry optional,
+  best-effort `input_tokens` / `output_tokens` / `cache_read_tokens` /
+  `est_cost_usd` (only when the runtime exposes real usage — never fabricated).
+  A new CACHING DISCIPLINE note codifies keeping the loop session-resident (not
+  cron-per-tick) and a stable cacheable prefix, to stay inside the ~5 min cache
+  TTL.
+- **L1 triage** (`.aai/scripts/triage.{sh,ps1}`): cheapest rung of autonomy —
+  a read-only health snapshot (docs drift via `docs-audit --quick`, state
+  presence, working-tree, last tick). Writes nothing, safe to `/schedule`;
+  `--check` exits 1 on real docs drift for use as a CI/daily alarm.
+
 ## [unreleased] — chore: gitignore TDD evidence logs
 
 `docs/ai/tdd/**` (red/green/refactor test-output logs) is now gitignored

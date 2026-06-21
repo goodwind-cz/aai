@@ -7,6 +7,7 @@ TICK_COMMAND=""
 MODE="skill"
 AGENT_COMMAND=""
 MAX_ITERATIONS=20
+STAGNATION_LIMIT=3
 SLEEP_SECONDS=1
 AUTO_INIT_STATE=0
 SKIP_BOOTSTRAP_CHECK=0
@@ -24,6 +25,7 @@ Options:
   --agent-command "<command>" Agent binary used in skill mode (example: codex)
   --tick-command "<command>"  Explicit command that performs one autonomous tick
   --max-iterations N          Maximum loop iterations (default: 20)
+  --stagnation-limit N        Consecutive no-progress ticks before HITL escalation (default: 3)
   --sleep-seconds N           Sleep between iterations (default: 1)
   --auto-init-state           Create docs/ai/STATE.yaml if missing
   --skip-bootstrap-check      Skip check for .claude/skills/AAI_DYNAMIC_SKILLS.md
@@ -172,6 +174,10 @@ while [[ $# -gt 0 ]]; do
       MAX_ITERATIONS="${2:-20}"
       shift 2
       ;;
+    --stagnation-limit)
+      STAGNATION_LIMIT="${2:-3}"
+      shift 2
+      ;;
     --sleep-seconds)
       SLEEP_SECONDS="${2:-1}"
       shift 2
@@ -252,10 +258,21 @@ else
   fi
 fi
 
+# Capture harness/runtime version ONCE so a behavior regression can be correlated
+# with a runtime upgrade (version drift). Prefer the Claude CLI; fall back to the
+# configured agent command identifier, then "unknown". Sanitize for JSON.
+harness_version="$(claude --version 2>/dev/null | head -n1 || true)"
+[[ -z "$harness_version" ]] && harness_version="${AGENT_COMMAND:-}"
+[[ -z "$harness_version" ]] && harness_version="unknown"
+harness_version="${harness_version//\"/}"
+harness_version="${harness_version//$'\n'/ }"
+
 echo "Autonomous loop start"
 echo "Mode: $MODE"
 echo "Tick command: $TICK_COMMAND"
 echo "Max iterations: $MAX_ITERATIONS"
+echo "Stagnation limit: $STAGNATION_LIMIT"
+echo "Harness version: $harness_version"
 
 # Initialize tick log if missing
 if [[ ! -f "$TICK_LOG" ]]; then
@@ -278,6 +295,7 @@ if grep -q '"type":"human_pause"' "$TICK_LOG" 2>/dev/null; then
   fi
 fi
 
+stagnation_count=0
 for ((i=1; i<=MAX_ITERATIONS; i++)); do
   if reason="$(stop_reason)"; then
     echo "Stop before iteration $i: $reason"
@@ -305,12 +323,33 @@ for ((i=1; i<=MAX_ITERATIONS; i++)); do
   focus_ref_after="$(read_focus_ref_id || true)"
   validation_status_after="$(read_validation_status || true)"
 
-  # Append external tick timing (model-agnostic)
-  printf '{"type":"tick","tick":%s,"started_utc":"%s","ended_utc":"%s","duration_seconds":%s,"exit_code":%s,"mode":"%s","skill_flow":"%s","bootstrap_ready":"%s","focus_type_before":"%s","focus_ref_id_before":"%s","focus_type_after":"%s","focus_ref_id_after":"%s","validation_status_before":"%s","validation_status_after":"%s"}\n' \
-    "$i" "$tick_start_utc" "$tick_end_utc" "$tick_duration" "$tick_exit" "$MODE" "$SKILL_FLOW" "$BOOTSTRAP_READY" "$focus_type_before" "$focus_ref_before" "$focus_type_after" "$focus_ref_after" "$validation_status_before" "$validation_status_after" >> "$TICK_LOG"
+  # No-progress guard: a tick made no forward progress if both focus and
+  # validation status are unchanged. Reset the counter as soon as either moves.
+  if [[ "$focus_ref_after" == "$focus_ref_before" && "$validation_status_after" == "$validation_status_before" ]]; then
+    stagnation_count=$(( stagnation_count + 1 ))
+  else
+    stagnation_count=0
+  fi
+
+  # Append external tick timing (model-agnostic). harness_version enables
+  # version-drift correlation; stagnation_count makes the no-progress run visible.
+  printf '{"type":"tick","tick":%s,"started_utc":"%s","ended_utc":"%s","duration_seconds":%s,"exit_code":%s,"mode":"%s","skill_flow":"%s","bootstrap_ready":"%s","harness_version":"%s","focus_type_before":"%s","focus_ref_id_before":"%s","focus_type_after":"%s","focus_ref_id_after":"%s","validation_status_before":"%s","validation_status_after":"%s","stagnation_count":%s}\n' \
+    "$i" "$tick_start_utc" "$tick_end_utc" "$tick_duration" "$tick_exit" "$MODE" "$SKILL_FLOW" "$BOOTSTRAP_READY" "$harness_version" "$focus_type_before" "$focus_ref_before" "$focus_type_after" "$focus_ref_after" "$validation_status_before" "$validation_status_after" "$stagnation_count" >> "$TICK_LOG"
 
   if [[ "$tick_exit" -ne 0 ]]; then
     echo "Tick command exited with code $tick_exit" >&2
+  fi
+
+  # Stagnation escalation: a stuck scope needs a changed prompt/scope, not more
+  # spins. Escalate to HITL instead of burning the remaining iteration budget.
+  if [[ "$stagnation_count" -ge "$STAGNATION_LIMIT" ]]; then
+    echo "Stop after iteration $i: stagnation ($stagnation_count consecutive no-progress ticks >= limit $STAGNATION_LIMIT)" >&2
+    echo "  Human decision required: change the prompt or scope, then re-run. Loop will not spin further." >&2
+    stag_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    stag_epoch="$(date -u +%s)"
+    printf '{"type":"human_pause","paused_utc":"%s","paused_epoch":%s,"stop_reason":"stagnation: %s consecutive no-progress ticks"}\n' \
+      "$stag_utc" "$stag_epoch" "$stagnation_count" >> "$TICK_LOG"
+    break
   fi
 
   sleep "$SLEEP_SECONDS"
