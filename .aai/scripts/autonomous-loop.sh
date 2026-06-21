@@ -8,6 +8,9 @@ MODE="skill"
 AGENT_COMMAND=""
 MAX_ITERATIONS=20
 STAGNATION_LIMIT=3
+RECOVERY_ENABLED=1
+PROPOSE_ONLY=0
+PROPOSE_BRANCH=""
 SLEEP_SECONDS=1
 AUTO_INIT_STATE=0
 SKIP_BOOTSTRAP_CHECK=0
@@ -26,6 +29,10 @@ Options:
   --tick-command "<command>"  Explicit command that performs one autonomous tick
   --max-iterations N          Maximum loop iterations (default: 20)
   --stagnation-limit N        Consecutive no-progress ticks before HITL escalation (default: 3)
+  --no-recovery               Skip the fresh-context recovery attempt; escalate to HITL immediately on stagnation
+  --propose-only              Unattended-safe: isolate work on a fresh branch, hard-block any push during the
+                              run, and print a review summary at the end. Recommended for scheduled/overnight runs.
+  --propose-branch NAME       Branch name to use for --propose-only (default: aai/loop-<UTC timestamp>); implies --propose-only
   --sleep-seconds N           Sleep between iterations (default: 1)
   --auto-init-state           Create docs/ai/STATE.yaml if missing
   --skip-bootstrap-check      Skip check for .claude/skills/AAI_DYNAMIC_SKILLS.md
@@ -178,6 +185,19 @@ while [[ $# -gt 0 ]]; do
       STAGNATION_LIMIT="${2:-3}"
       shift 2
       ;;
+    --no-recovery)
+      RECOVERY_ENABLED=0
+      shift
+      ;;
+    --propose-only)
+      PROPOSE_ONLY=1
+      shift
+      ;;
+    --propose-branch)
+      PROPOSE_BRANCH="${2:-}"
+      PROPOSE_ONLY=1
+      shift 2
+      ;;
     --sleep-seconds)
       SLEEP_SECONDS="${2:-1}"
       shift 2
@@ -267,12 +287,51 @@ harness_version="$(claude --version 2>/dev/null | head -n1 || true)"
 harness_version="${harness_version//\"/}"
 harness_version="${harness_version//$'\n'/ }"
 
+# Propose-only (unattended-safe): isolate all work on a dedicated branch and
+# HARD-block any push for the duration of the run, so an overnight loop can never
+# ship unreviewed changes. The runner itself never pushes/merges; the pre-push
+# hook additionally stops the agent from doing so. A review summary is printed at
+# the end. The hook is restored on exit (success, error, or Ctrl-C).
+ORIG_BRANCH=""
+HOOK_PATH=""
+HOOK_BAK=""
+cleanup_propose() {
+  [[ -z "$HOOK_PATH" ]] && return 0
+  rm -f "$HOOK_PATH"
+  [[ -n "$HOOK_BAK" && -f "$HOOK_BAK" ]] && mv "$HOOK_BAK" "$HOOK_PATH"
+}
+if [[ "$PROPOSE_ONLY" == "1" ]]; then
+  if ! command -v git >/dev/null 2>&1 || ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "ERROR: --propose-only requires a git work tree." >&2
+    exit 1
+  fi
+  ORIG_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo detached)"
+  [[ -z "$PROPOSE_BRANCH" ]] && PROPOSE_BRANCH="aai/loop-$(date -u +%Y%m%d-%H%M%SZ)"
+  if git checkout -b "$PROPOSE_BRANCH" >/dev/null 2>&1 || git checkout "$PROPOSE_BRANCH" >/dev/null 2>&1; then
+    echo "Propose-only: working on branch '$PROPOSE_BRANCH' (base: $ORIG_BRANCH). Runner will not push or merge."
+  else
+    echo "ERROR: --propose-only could not create/checkout branch '$PROPOSE_BRANCH'." >&2
+    exit 1
+  fi
+  HOOK_PATH="$(git rev-parse --git-path hooks/pre-push)"
+  if [[ -f "$HOOK_PATH" ]]; then HOOK_BAK="$HOOK_PATH.aai-bak"; mv "$HOOK_PATH" "$HOOK_BAK"; fi
+  mkdir -p "$(dirname "$HOOK_PATH")"
+  cat > "$HOOK_PATH" <<'HOOK'
+#!/bin/sh
+echo "AAI propose-only: push blocked during the autonomous loop. Review the branch, then push/merge manually." >&2
+exit 1
+HOOK
+  chmod +x "$HOOK_PATH"
+  trap cleanup_propose EXIT
+fi
+
 echo "Autonomous loop start"
 echo "Mode: $MODE"
 echo "Tick command: $TICK_COMMAND"
 echo "Max iterations: $MAX_ITERATIONS"
 echo "Stagnation limit: $STAGNATION_LIMIT"
 echo "Harness version: $harness_version"
+[[ "$PROPOSE_ONLY" == "1" ]] && echo "Propose-only: ON (branch=$PROPOSE_BRANCH)"
 
 # Initialize tick log if missing
 if [[ ! -f "$TICK_LOG" ]]; then
@@ -296,6 +355,7 @@ if grep -q '"type":"human_pause"' "$TICK_LOG" 2>/dev/null; then
 fi
 
 stagnation_count=0
+recovery_attempted=0
 for ((i=1; i<=MAX_ITERATIONS; i++)); do
   if reason="$(stop_reason)"; then
     echo "Stop before iteration $i: $reason"
@@ -340,15 +400,47 @@ for ((i=1; i<=MAX_ITERATIONS; i++)); do
     echo "Tick command exited with code $tick_exit" >&2
   fi
 
-  # Stagnation escalation: a stuck scope needs a changed prompt/scope, not more
-  # spins. Escalate to HITL instead of burning the remaining iteration budget.
+  # Stagnation handling. A stuck scope is most often context rot, not a genuinely
+  # impossible task — so before escalating to a human, try ONE fresh-context
+  # recovery tick: a brand-new agent process (cold context) re-derives state from
+  # the filesystem (STATE.yaml + canonical prompts) and is told via AAI_RECOVERY=1
+  # that the loop is stuck, so it should re-read and change approach. Only if that
+  # also makes no progress do we escalate to HITL — never burn the remaining budget.
   if [[ "$stagnation_count" -ge "$STAGNATION_LIMIT" ]]; then
+    if [[ "$RECOVERY_ENABLED" == "1" && "$recovery_attempted" -eq 0 ]]; then
+      recovery_attempted=1
+      echo "Stagnation at limit — attempting one fresh-context recovery tick (AAI_RECOVERY=1) before HITL." >&2
+      rec_focus_before="$focus_ref_after"
+      rec_val_before="$validation_status_after"
+      rec_start_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+      rec_exit=0
+      if [[ "$DRY_RUN" == "1" ]]; then
+        echo "[dry-run] Would execute recovery tick."
+      else
+        AAI_RECOVERY=1 bash -lc "$TICK_COMMAND" || rec_exit=$?
+      fi
+      rec_end_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+      rec_focus_after="$(read_focus_ref_id || true)"
+      rec_val_after="$(read_validation_status || true)"
+      printf '{"type":"recovery","tick":%s,"started_utc":"%s","ended_utc":"%s","exit_code":%s,"focus_ref_id_before":"%s","focus_ref_id_after":"%s","validation_status_before":"%s","validation_status_after":"%s"}\n' \
+        "$i" "$rec_start_utc" "$rec_end_utc" "$rec_exit" "$rec_focus_before" "$rec_focus_after" "$rec_val_before" "$rec_val_after" >> "$TICK_LOG"
+      if [[ "$rec_focus_after" != "$rec_focus_before" || "$rec_val_after" != "$rec_val_before" ]]; then
+        echo "Recovery made progress — resetting stagnation counter and continuing." >&2
+        stagnation_count=0
+        recovery_attempted=0
+        sleep "$SLEEP_SECONDS"
+        continue
+      fi
+      echo "Recovery made no progress — escalating to HITL." >&2
+    fi
+    # Escalate: a stuck scope needs a changed prompt/scope from a human, not more
+    # spins. Stop instead of burning the remaining iteration budget.
     echo "Stop after iteration $i: stagnation ($stagnation_count consecutive no-progress ticks >= limit $STAGNATION_LIMIT)" >&2
     echo "  Human decision required: change the prompt or scope, then re-run. Loop will not spin further." >&2
     stag_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     stag_epoch="$(date -u +%s)"
-    printf '{"type":"human_pause","paused_utc":"%s","paused_epoch":%s,"stop_reason":"stagnation: %s consecutive no-progress ticks"}\n' \
-      "$stag_utc" "$stag_epoch" "$stagnation_count" >> "$TICK_LOG"
+    printf '{"type":"human_pause","paused_utc":"%s","paused_epoch":%s,"stop_reason":"stagnation: %s consecutive no-progress ticks (recovery_attempted=%s)"}\n' \
+      "$stag_utc" "$stag_epoch" "$stagnation_count" "$recovery_attempted" >> "$TICK_LOG"
     break
   fi
 
@@ -370,5 +462,20 @@ for ((i=1; i<=MAX_ITERATIONS; i++)); do
     echo "Reached max iterations ($MAX_ITERATIONS) without stop condition."
   fi
 done
+
+if [[ "$PROPOSE_ONLY" == "1" ]]; then
+  commits="$(git rev-list --count "$ORIG_BRANCH..$PROPOSE_BRANCH" 2>/dev/null || echo '?')"
+  echo "--- Propose-only review summary ---"
+  echo "  Branch: $PROPOSE_BRANCH (base: $ORIG_BRANCH)"
+  echo "  Commits ahead of base: $commits"
+  git --no-pager diff --stat "$ORIG_BRANCH..$PROPOSE_BRANCH" 2>/dev/null | sed 's/^/  /' || true
+  echo "  Nothing was pushed or merged. Review the branch, then merge/push when ready."
+fi
+
+# Wake-up digest: one human-readable summary of this run (best-effort).
+if command -v node >/dev/null 2>&1 && [ -f .aai/scripts/loop-digest.mjs ]; then
+  echo
+  node .aai/scripts/loop-digest.mjs --write 2>/dev/null || true
+fi
 
 echo "Autonomous loop finished."

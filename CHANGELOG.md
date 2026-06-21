@@ -9,6 +9,34 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — unattended-safe loops: fresh-context recovery, propose-don't-ship, wake-up digest
+
+Builds on the loop-hardening below to make an overnight/scheduled run genuinely
+safe to leave alone — the gap between "a loop you babysit in chat" and "a loop
+that works while you sleep". All three land in
+`.aai/scripts/autonomous-loop.{sh,ps1}` (and the recovery semantics in
+`SKILL_LOOP.prompt.md` / `system/AUTONOMOUS_LOOP.md`):
+
+- **Fresh-context recovery before HITL**: on stagnation the loop now attempts ONE
+  recovery tick in a clean context (a fresh agent process for the runners; a
+  fresh subagent for the in-session loop) that re-derives state from the
+  filesystem and is told via `AAI_RECOVERY=1` that it is stuck. A stuck loop is
+  usually context rot, not an impossible task — re-introducing
+  fresh-context-per-iteration (the Ralph Wiggum robustness trick we traded away
+  for cache warmth) surgically unsticks it. Only if recovery also makes no
+  progress does it escalate to HITL. Disable with `--no-recovery` / `-NoRecovery`.
+  Logged as a `type: recovery` line in `LOOP_TICKS.jsonl`.
+- **Propose, don't ship** (`--propose-only` / `-ProposeOnly`, optional
+  `--propose-branch`): isolates all work on a dedicated `aai/loop-<timestamp>`
+  branch, installs a temporary `pre-push` hook that HARD-blocks any push for the
+  run (neither runner nor agent can ship), and prints a review summary at the
+  end. The hook is restored on exit (success, error, or interrupt).
+- **Wake-up digest** (`.aai/scripts/loop-digest.mjs`): turns `LOOP_TICKS.jsonl`
+  into one human-readable summary (ticks, scopes, recovery outcome, stop reason,
+  branch left for review, cost if recorded). Runners call it at the end and write
+  `docs/ai/reports/loop-digest-<stamp>.md`; also runnable standalone
+  (`--write`, `--json`). The chat/log becomes a status dashboard, not a babysit.
+
 ## [unreleased] — loop hardening: stagnation guard, version + cost telemetry, L1 triage
 
 Loop-engineering hardening informed by the Ralph Wiggum / loop-engineering

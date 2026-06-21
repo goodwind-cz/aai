@@ -5,6 +5,9 @@ param(
   [string]$AgentCommand,
   [int]$MaxIterations = 20,
   [int]$StagnationLimit = 3,
+  [switch]$NoRecovery,
+  [switch]$ProposeOnly,
+  [string]$ProposeBranch,
   [int]$SleepSeconds = 1,
   [switch]$AutoInitState,
   [switch]$NoAutoInstallPyYaml,
@@ -255,12 +258,41 @@ if ([string]::IsNullOrWhiteSpace($HarnessVersion)) { $HarnessVersion = $AgentCom
 if ([string]::IsNullOrWhiteSpace($HarnessVersion)) { $HarnessVersion = "unknown" }
 $HarnessVersion = ($HarnessVersion -replace '"', '' -replace '\r?\n', ' ').Trim()
 
+# Propose-only (unattended-safe): isolate all work on a dedicated branch and
+# HARD-block any push for the duration of the run, so an overnight loop can never
+# ship unreviewed changes. The runner itself never pushes/merges; the pre-push
+# hook additionally stops the agent from doing so. Restored in the finally block.
+$OrigBranch = $null
+$HookPath = $null
+$HookBak = $null
+if ($ProposeOnly -or $ProposeBranch) {
+  $ProposeOnly = $true
+  git rev-parse --is-inside-work-tree *> $null
+  if ($LASTEXITCODE -ne 0) { throw "-ProposeOnly requires a git work tree." }
+  $OrigBranch = (git rev-parse --abbrev-ref HEAD 2>$null)
+  if ([string]::IsNullOrWhiteSpace($OrigBranch)) { $OrigBranch = "detached" }
+  if ([string]::IsNullOrWhiteSpace($ProposeBranch)) {
+    $ProposeBranch = "aai/loop-$((Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmssZ'))"
+  }
+  git checkout -b $ProposeBranch *> $null
+  if ($LASTEXITCODE -ne 0) { git checkout $ProposeBranch *> $null }
+  if ($LASTEXITCODE -ne 0) { throw "-ProposeOnly could not create/checkout branch '$ProposeBranch'." }
+  Write-Host "Propose-only: working on branch '$ProposeBranch' (base: $OrigBranch). Runner will not push or merge."
+  $HookPath = (git rev-parse --git-path hooks/pre-push)
+  if (Test-Path $HookPath) { $HookBak = "$HookPath.aai-bak"; Move-Item -Force $HookPath $HookBak }
+  New-Item -ItemType Directory -Force -Path (Split-Path $HookPath) | Out-Null
+  "#!/bin/sh`necho `"AAI propose-only: push blocked during the autonomous loop. Review the branch, then push/merge manually.`" >&2`nexit 1" |
+    Set-Content -Path $HookPath -Encoding ascii -NoNewline
+  if ($IsLinux -or $IsMacOS) { & chmod +x $HookPath }
+}
+
 Write-Host "Autonomous loop start"
 Write-Host "Mode: $Mode"
 Write-Host "Tick command: $TickCommand"
 Write-Host "Max iterations: $MaxIterations"
 Write-Host "Stagnation limit: $StagnationLimit"
 Write-Host "Harness version: $HarnessVersion"
+if ($ProposeOnly) { Write-Host "Propose-only: ON (branch=$ProposeBranch)" }
 
 # Initialize tick log if missing
 if (!(Test-Path $TickLogPath)) {
@@ -290,6 +322,7 @@ if ($lastPauseEpoch -gt 0 -and $lastPauseEpoch -gt $lastResumeEpoch) {
 }
 
 $stagnationCount = 0
+$recoveryAttempted = $false
 for ($i = 1; $i -le $MaxIterations; $i++) {
   $stateBefore = Read-State
   $preStop = Stop-Reason -state $stateBefore
@@ -337,14 +370,54 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
   $tickEntry = "{`"type`":`"tick`",`"tick`":$i,`"started_utc`":`"$tickStartUtc`",`"ended_utc`":`"$tickEndUtc`",`"duration_seconds`":$tickDuration,`"exit_code`":$tickExit,`"mode`":`"$Mode`",`"skill_flow`":`"$SkillFlow`",`"bootstrap_ready`":`"$BootstrapReady`",`"harness_version`":`"$HarnessVersion`",`"focus_type_before`":`"$($stateSnapshotBefore.focus_type)`",`"focus_ref_id_before`":`"$($stateSnapshotBefore.focus_ref_id)`",`"focus_type_after`":`"$($stateSnapshotAfter.focus_type)`",`"focus_ref_id_after`":`"$($stateSnapshotAfter.focus_ref_id)`",`"validation_status_before`":`"$($stateSnapshotBefore.validation_status)`",`"validation_status_after`":`"$($stateSnapshotAfter.validation_status)`",`"stagnation_count`":$stagnationCount}"
   Add-Content -Path $TickLogPath -Value $tickEntry -Encoding utf8
 
-  # Stagnation escalation: a stuck scope needs a changed prompt/scope, not more
-  # spins. Escalate to HITL instead of burning the remaining iteration budget.
+  # Stagnation handling. A stuck scope is most often context rot, not a genuinely
+  # impossible task — so before escalating to a human, try ONE fresh-context
+  # recovery tick: a brand-new agent process (cold context) re-derives state from
+  # the filesystem (STATE.yaml + canonical prompts) and is told via AAI_RECOVERY=1
+  # that the loop is stuck, so it should re-read and change approach. Only if that
+  # also makes no progress do we escalate to HITL — never burn the remaining budget.
   if ($stagnationCount -ge $StagnationLimit) {
+    if (-not $NoRecovery -and -not $recoveryAttempted) {
+      $recoveryAttempted = $true
+      Write-Host "Stagnation at limit — attempting one fresh-context recovery tick (AAI_RECOVERY=1) before HITL."
+      $recFocusBefore = $stateSnapshotAfter.focus_ref_id
+      $recValBefore = $stateSnapshotAfter.validation_status
+      $recStartUtc = (Get-Date).ToUniversalTime().ToString("o")
+      $recExit = 0
+      if ($DryRun) {
+        Write-Host "[dry-run] Would execute recovery tick."
+      } else {
+        $env:AAI_RECOVERY = "1"
+        try {
+          Invoke-Expression $TickCommand
+          $recExit = if ($LASTEXITCODE -ne $null) { $LASTEXITCODE } else { 0 }
+        } catch {
+          $recExit = 1
+          Write-Host "Recovery tick error: $_"
+        } finally {
+          Remove-Item Env:\AAI_RECOVERY -ErrorAction SilentlyContinue
+        }
+      }
+      $recEndUtc = (Get-Date).ToUniversalTime().ToString("o")
+      $recState = Read-State
+      $recEntry = "{`"type`":`"recovery`",`"tick`":$i,`"started_utc`":`"$recStartUtc`",`"ended_utc`":`"$recEndUtc`",`"exit_code`":$recExit,`"focus_ref_id_before`":`"$recFocusBefore`",`"focus_ref_id_after`":`"$($recState.focus_ref_id)`",`"validation_status_before`":`"$recValBefore`",`"validation_status_after`":`"$($recState.validation_status)`"}"
+      Add-Content -Path $TickLogPath -Value $recEntry -Encoding utf8
+      if ($recState.focus_ref_id -ne $recFocusBefore -or $recState.validation_status -ne $recValBefore) {
+        Write-Host "Recovery made progress — resetting stagnation counter and continuing."
+        $stagnationCount = 0
+        $recoveryAttempted = $false
+        Start-Sleep -Seconds $SleepSeconds
+        continue
+      }
+      Write-Host "Recovery made no progress — escalating to HITL."
+    }
+    # Escalate: a stuck scope needs a changed prompt/scope from a human, not more
+    # spins. Stop instead of burning the remaining iteration budget.
     Write-Host "Stop after iteration $($i): stagnation ($stagnationCount consecutive no-progress ticks >= limit $StagnationLimit)"
     Write-Host "  Human decision required: change the prompt or scope, then re-run. Loop will not spin further."
     $stagNow = (Get-Date).ToUniversalTime()
     $stagEpoch = [int][double]::Parse((Get-Date -UFormat %s -Date $stagNow))
-    $stagEntry = "{`"type`":`"human_pause`",`"paused_utc`":`"$($stagNow.ToString('o'))`",`"paused_epoch`":$stagEpoch,`"stop_reason`":`"stagnation: $stagnationCount consecutive no-progress ticks`"}"
+    $stagEntry = "{`"type`":`"human_pause`",`"paused_utc`":`"$($stagNow.ToString('o'))`",`"paused_epoch`":$stagEpoch,`"stop_reason`":`"stagnation: $stagnationCount consecutive no-progress ticks (recovery_attempted=$recoveryAttempted)`"}"
     Add-Content -Path $TickLogPath -Value $stagEntry -Encoding utf8
     break
   }
@@ -369,9 +442,30 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
   }
 }
 
+  if ($ProposeOnly) {
+    $commits = (git rev-list --count "$OrigBranch..$ProposeBranch" 2>$null)
+    if ([string]::IsNullOrWhiteSpace($commits)) { $commits = "?" }
+    Write-Host "--- Propose-only review summary ---"
+    Write-Host "  Branch: $ProposeBranch (base: $OrigBranch)"
+    Write-Host "  Commits ahead of base: $commits"
+    (git --no-pager diff --stat "$OrigBranch..$ProposeBranch" 2>$null) | ForEach-Object { Write-Host "  $_" }
+    Write-Host "  Nothing was pushed or merged. Review the branch, then merge/push when ready."
+  }
 } finally {
   if ($StateReaderPy -and (Test-Path $StateReaderPy)) {
     Remove-Item $StateReaderPy -Force -ErrorAction SilentlyContinue
   }
+  # Restore the pre-push hook regardless of how the loop ended.
+  if ($HookPath) {
+    if (Test-Path $HookPath) { Remove-Item $HookPath -Force -ErrorAction SilentlyContinue }
+    if ($HookBak -and (Test-Path $HookBak)) { Move-Item -Force $HookBak $HookPath }
+  }
 }
+
+# Wake-up digest: one human-readable summary of this run (best-effort).
+if ((Get-Command node -ErrorAction SilentlyContinue) -and (Test-Path '.aai/scripts/loop-digest.mjs')) {
+  Write-Host ''
+  try { node .aai/scripts/loop-digest.mjs --write } catch {}
+}
+
 Write-Host "Autonomous loop finished."

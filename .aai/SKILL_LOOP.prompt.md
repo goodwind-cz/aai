@@ -99,13 +99,38 @@ For each tick (1..max_ticks):
         focus_ref_id_after == focus_ref_id_before AND
         validation_status_after == validation_status_before.
         Count trailing no-progress ticks. If that count >= stagnation_limit:
-        → Set human_input.required = true with
-          blocking_reason = "Loop stagnated: <stagnation_limit> ticks with no change to focus or validation status"
+        → FRESH-CONTEXT RECOVERY (try once before escalating, unless a recovery
+          for this stagnation streak was already attempted — see LOOP_TICKS.jsonl
+          for a trailing `type: recovery` entry with no progress after it):
+          A stuck session-resident loop is most often CONTEXT ROT — the
+          accumulated in-session context has degraded — not a genuinely
+          impossible task. Before bothering a human, run ONE recovery tick that
+          deliberately DISCARDS the accumulated loop context and re-derives
+          everything from the filesystem (STATE.yaml + canonical prompts), which
+          is the loop's only durable memory:
+            · Spawn a FRESH subagent (clean context) for this tick — do NOT
+              continue in the accumulated session context. The subagent reads
+              STATE.yaml and the dispatched role prompt from scratch.
+            · Tell it explicitly it is a recovery attempt for a stuck scope, so
+              it re-reads state and changes approach rather than repeating.
+            · Append a `type: recovery` line to LOOP_TICKS.jsonl with
+              focus_ref_id/validation_status before and after.
+            · If focus_ref_id OR validation_status changed → progress: reset the
+              stagnation count and CONTINUE the loop (the clean context unstuck it).
+            · If still no change → escalate to HITL (below).
+          Rationale: fresh-context-per-iteration (filesystem-as-memory) is the
+          core robustness trick of long-running loops (Huntley / Ralph Wiggum);
+          a session-resident loop trades it away for cache warmth, so re-introduce
+          it surgically exactly when the loop is stuck.
+        → ESCALATE TO HITL (recovery already tried and failed, or recovery disabled):
+          Set human_input.required = true with
+          blocking_reason = "Loop stagnated: <stagnation_limit> ticks with no change to focus or validation status (fresh-context recovery attempted)"
           and a question_ref naming the stuck scope.
         → Print the HITL block (HITL OUTPUT FORMAT) and EXIT.
-        → Rationale: a stuck scope needs a changed prompt or scope, not more spins
-          (Huntley). Escalate to a human instead of burning the remaining tick budget.
-          The counter resets naturally once focus_ref_id or validation_status changes.
+        → Rationale: a stuck scope that survives a clean-context retry needs a
+          changed prompt or scope from a human, not more spins (Huntley). Escalate
+          instead of burning the remaining tick budget. The counter resets
+          naturally once focus_ref_id or validation_status changes.
 
   3. RUN ORCHESTRATION (one tick):
      - Capture orchestration_started_utc immediately before invocation from system clock.

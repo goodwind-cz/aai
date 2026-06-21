@@ -44,8 +44,11 @@
    - or `human_input.required = true` (waiting for decision),
    - or `project_status = paused`,
    - or **stagnation**: no change to focus or validation status across the
-     configured number of consecutive ticks → escalate to HITL rather than
-     spinning the remaining tick budget.
+     configured number of consecutive ticks → first attempt ONE fresh-context
+     recovery tick (clean context re-derives state from the filesystem; a stuck
+     loop is usually context rot, not an impossible task), and only escalate to
+     HITL if that also makes no progress — rather than spinning the remaining
+     tick budget.
 
 ## 5) Gates and prohibitions (hard rules)
 - No implementation without locked scope and SPEC.
@@ -80,7 +83,26 @@
   - code second,
   - validation closeout last.
 
-## 8) Short flow example
+## 8) Unattended-safe execution (run while you sleep)
+An overnight/scheduled run must never (a) ship unreviewed changes, (b) spin
+forever on a stuck scope, or (c) leave you to reconstruct what happened from raw
+telemetry. The runners (`.aai/scripts/autonomous-loop.{sh,ps1}`) provide three
+guarantees for this:
+- **Propose, don't ship** (`--propose-only` / `-ProposeOnly`): all work is
+  isolated on a dedicated `aai/loop-<timestamp>` branch, a temporary `pre-push`
+  hook HARD-blocks any push for the duration of the run (so neither the runner
+  nor the agent can ship), and a review summary is printed at the end. You merge
+  when you wake up. Recommended for any scheduled/headless run.
+- **Self-recovery before HITL**: stagnation triggers one fresh-context recovery
+  tick before escalating (see §4.7) — a stuck loop usually just needs a clean
+  context, not a human at 3am.
+- **Wake-up digest** (`.aai/scripts/loop-digest.mjs`): at the end of a run the
+  runner writes one human-readable summary (ticks, scopes, recovery outcome,
+  stop reason, branch left for review, cost if recorded) to
+  `docs/ai/reports/loop-digest-<stamp>.md`. The chat/log becomes a status
+  dashboard you skim, not a session you babysit.
+
+## 9) Short flow example
 - `.aai/INTAKE_CHANGE.prompt.md` creates CHANGE-123 intake.
 - Planner creates `docs/specs/SPEC-123.md` plus tasks and locks the scope.
 - Implementer performs only allowed-scope changes.
