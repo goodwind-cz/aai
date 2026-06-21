@@ -82,6 +82,10 @@ PROCESS
    c) For EACH discovered test type (unit, integration, e2e, contract, smoke), execute its test command.
    d) If e2e tests exist (config file or test directory found) but were NOT executed → automatic FAIL.
    e) Record exit code and output for every test command as evidence.
+   f) For each seam identified during planning (PLANNING step 6a), confirm an INTEGRATION test actually crosses it and was
+      executed (real produce-then-assert across the boundary, not two mocked unit
+      tests). A seam with no crossing test that ran is a coverage gap → FAIL,
+      unless the spec records it as an explicitly accepted residual risk.
 6) Build coverage table.
 7) Run AC STATUS GATE (see section above) and record any blocking findings.
 8) Produce PASS / FAIL verdict. PASS requires both (a) all test suites green and (b) AC STATUS GATE clear.
@@ -122,6 +126,7 @@ RATIONALIZATION TABLE (stop and correct any of these)
 | "This is a simple change, no need for e2e"   | Simplicity is not an exemption. Run every discovered suite. |
 | "I'll skip integration tests to save time"   | Skipping = automatic FAIL. No exceptions.            |
 | "The unit tests already cover this"          | Unit tests and e2e tests cover different failure modes. Both required. |
+| "Both sides of the seam are unit-tested"     | Both sides green ≠ the seam works. Require the integration test that crosses the boundary. |
 | "Tests were passing before my change"        | State before your change is irrelevant. Run them now. |
 
 STRICT RULES

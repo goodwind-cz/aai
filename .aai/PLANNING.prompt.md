@@ -44,6 +44,18 @@ PROCESS
    - Write a one-line description of what the test verifies.
    - Set initial status to "pending".
    - Every Spec-AC must have at least one TEST-xxx entry.
+6a) Seam analysis (cross-feature integration check):
+    A SEAM is any place this change shares state with — or is consumed by — a
+    feature it does not itself own. Enumerate them explicitly:
+    - a DB table/column written by more than one code path (e.g. import AND a
+      request/approval AND an RPC all insert the same row);
+    - a field this change produces that another screen/feature reads to render;
+    - a record whose multiplicity or temporal validity another projection
+      depends on (e.g. multiple dated rows where a list shows "the current one").
+    For EACH seam, add at least one INTEGRATION TEST-xxx that crosses it
+    end-to-end — produce on one side, assert the real result on the other — NOT
+    two unit tests that each mock the boundary. If a seam cannot be covered by an
+    automated test, record it as an explicit residual risk in the spec.
 7) Recommend implementation strategy in the spec:
    - `tdd` when behavior is new or risky, a bug fix needs regression proof, core
      domain logic is touched, security/privacy/data integrity is involved, or the
@@ -85,6 +97,7 @@ RATIONALIZATION TABLE (stop and correct any of these)
 | "Requirements are clear enough, no formal spec needed" | No spec = no frozen AC = Implementation has no target. Stop. |
 | "I'll make this AC measurable later"                   | Unmeasurable AC cannot be verified. Freeze is blocked.       |
 | "This AC is obvious, no test needed"                   | Every AC requires at least one TEST-xxx entry. No exceptions. |
+| "Each side is unit-tested, so the seam is fine"         | Unit tests pass on islands; bugs live in the doorway between them. Add one integration test that crosses the seam. |
 | "The e2e test can be added during implementation"      | Test Plan is part of the spec. Define it now or don't freeze. |
 | "I'll infer the AC from the code"                      | Requirements drive specs, not the reverse. Read intake first. |
 | "Worktree is obviously needed, I'll create it now"     | Planning recommends. The user decides before implementation.  |
