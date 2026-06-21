@@ -9,6 +9,25 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — chore: make /aai-update deterministic (script, not narration)
+
+`/aai-update` was a 113-line procedure the agent executed by narrating each of
+seven steps (echoing clone/sync commands, reasoning per step) — slow and chatty.
+The flow is fully deterministic, so it is now a script and the prompt is a thin
+delegator:
+
+- **New `.aai/scripts/aai-update.{sh,ps1}`**: one command does the whole update —
+  auth-aware materialize of `main` (gh → git fallback, or a local checkout),
+  canonical-repo guard (refuses to sync the AAI repo into itself; `--force`/`-Force`
+  to override), runs `aai-sync`, prints concise post-sync evidence (changed files,
+  AAI_PIN, conflict advisory), and cleans up the temp clone. `--dry-run` prints the
+  plan without touching files; distinct exit codes (2 refused / 3 fetch failed /
+  4 malformed source). The bash twin self-relocates to a temp copy so the sync
+  overwriting `.aai/scripts/` mid-run can't pull the script out from under it.
+- **`SKILL_UPDATE.prompt.md` slimmed** from ~113 to ~45 lines: run the one script,
+  relay a short report, don't narrate steps or paste the full sync log. The agent
+  now makes a single tool call instead of orchestrating seven by hand.
+
 ## [unreleased] — unattended-safe loops: fresh-context recovery, propose-don't-ship, wake-up digest
 
 Builds on the loop-hardening below to make an overnight/scheduled run genuinely

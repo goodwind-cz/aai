@@ -1,112 +1,48 @@
 # Update AAI Layer
 
 ## Goal
-Refresh the current project's vendored AAI layer from the `main` branch of the canonical git repository, review what changed, and surface any follow-up actions.
+Refresh the current project's vendored AAI layer from the canonical repo's `main`,
+then report what changed and the recommended follow-up — in one deterministic run.
 
 ## Usage
-
 ```bash
-/aai-update
-/aai-update --dry-run
-/aai-update --repo goodwind-cz/aai
-/aai-update --repo ../aai
+/aai-update                      # sync from goodwind-cz/aai@main
+/aai-update --dry-run            # show the plan, change nothing
+/aai-update --repo OWNER/NAME    # alternate upstream (slug, URL, or local checkout path)
+/aai-update --ref BRANCH         # non-default ref
 ```
 
 ## Instructions
 
-### 1. Resolve target and upstream source
+The whole update flow is scripted. Do NOT re-implement clone/sync/cleanup by hand
+and do NOT narrate the steps — run the one script and relay its output.
 
-- Treat the current working directory as the target project to update.
-- Default upstream repository to `goodwind-cz/aai` and default ref to `main`.
-- If the user supplied `--repo`, accept one of:
-  - a repository slug such as `goodwind-cz/aai`
-  - an SSH remote
-  - an HTTPS remote
-  - an existing local checkout path
-- Treat the upstream as potentially private. Prefer authenticated access.
-- Do not use `.aai/system/AAI_PIN.md` as the sync source. It is only post-sync evidence.
-- If the current project is itself the canonical AAI repository checkout, stop and explain that `/aai-update` is for syncing AAI into a target project; updating the canonical AAI repository itself should be done with normal git workflow.
+1. From the target project root, run the script for the current OS, forwarding the
+   user's flags verbatim (`--dry-run`, `--repo <slug|url|path>`, `--ref <branch>`,
+   `--keep-temp`, `--force`):
 
-### 2. Decide execution mode
+   ```bash
+   .aai/scripts/aai-update.sh            # bash / macOS / Linux
+   ```
+   ```powershell
+   .aai/scripts/aai-update.ps1           # PowerShell / Windows
+   ```
 
-- If the user asked for preview only, or supplied `--dry-run`, do not modify files.
-- For preview mode, show the exact git clone/fetch + sync commands that should be run and describe the expected follow-up checks.
-- Otherwise continue with the sync.
+   The script handles everything: auth-aware clone of `main` (gh → git fallback),
+   the canonical-repo guard, running `aai-sync`, post-sync evidence (changed files,
+   AAI_PIN, conflict advisory), and temp cleanup.
 
-### 3. Materialize the latest `main`
+2. Relay the script's output as a SHORT report — do not paste the full sync log.
+   Surface only: target path, upstream + ref, sync vs dry-run, changed-file count
+   (and notable paths), any conflict-advisory path, and the recommended next command.
 
-- Create a temporary working directory for the update source.
-- If GitHub CLI is available and authenticated, prefer it for private repositories:
-
-```bash
-gh repo clone <REPO_SLUG> <TEMP_AAI_DIR> -- --branch main --depth 1
-```
-
-- Otherwise fetch the canonical repository with an authenticated git remote:
-
-```bash
-git clone --branch main --depth 1 <REPO_URL> <TEMP_AAI_DIR>
-```
-
-- If the user explicitly provided an existing local checkout instead of a URL, update it first:
-- Detect a local checkout path by checking whether `--repo` resolves to an existing directory on disk before treating it as a repository slug or remote.
-- If `--repo` points to an existing local checkout, update it first:
-
-```bash
-git -C <LOCAL_AAI_CHECKOUT> fetch origin main --depth 1
-git -C <LOCAL_AAI_CHECKOUT> checkout main
-git -C <LOCAL_AAI_CHECKOUT> pull --ff-only origin main
-```
-
-- Use the checked out files from the fetched `main` as `<SOURCE>`.
-
-### 4. Run the sync
-
-- Prefer the script that matches the current shell/OS:
-
-```powershell
-& "<SOURCE>/.aai/scripts/aai-sync.ps1" -TargetRoot .
-```
-
-```bash
-"<SOURCE>/.aai/scripts/aai-sync.sh" .
-```
-
-- Run the script from the target project root so relative paths in the output stay meaningful.
-- Do not hand-copy files that the sync script already manages.
-
-### 5. Review update evidence
-
-- Inspect `git status --short`.
-- Re-read `.aai/system/AAI_PIN.md` and report the updated source/version/commit if available.
-- Check for conflict advisory reports:
-  - `docs/ai/reports/sync-conflicts-*.md`
-- If a conflict advisory exists, summarize the affected paths and tell the user to review the generated recommendations before committing.
-
-### 6. Recommend post-update health checks
-
-- If the target project uses dynamic/project-local skills or if the sync changed skill indexes, recommend:
-  - `/aai-bootstrap`
-- Recommend:
-  - `/aai-doctor`
-  - `/aai-test-skills`
-- If the repo only needed a dry-run, present these as next steps rather than executed steps.
-
-### 7. Return concise completion output
-
-- Report:
-  - target project path
-  - upstream git repository slug or remote
-  - upstream ref
-  - whether this was a real sync or dry-run
-  - key changed files/directories from `git status --short`
-  - conflict advisory report path if created
-  - recommended next command
+3. If the script exits non-zero, report the cause plainly and stop:
+   - exit 2 = refused (this looks like the canonical AAI repo; use normal git, or `--force`)
+   - exit 3 = upstream fetch failed (auth/network — an access issue, not a missing repo)
+   - exit 4 = source is malformed (sync script missing in the fetched source)
 
 ## Safety
-
-- Do not overwrite project-specific docs manually; let the sync script enforce its preservation rules.
-- Do not claim success without showing the sync command result and post-sync evidence.
-- Do not auto-commit; stop after reporting the diff and next steps.
-- Clean up temporary clone directories after the update unless the user asks to keep them.
-- If upstream access fails, report it as an authentication/authorization issue instead of implying the repository is missing.
+- Never auto-commit. Stop after reporting the diff and next steps; the user commits.
+- If a conflict advisory was written, tell the user to review it before committing.
+- The script preserves project-specific files via aai-sync's rules — never hand-copy
+  or hand-overwrite vendored files to "fix" an update.
