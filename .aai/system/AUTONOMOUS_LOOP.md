@@ -58,6 +58,11 @@
 ## 5) Gates and prohibitions (hard rules)
 - No implementation without locked scope and SPEC.
 - No PASS without executable evidence.
+- Validator independence: the Validation role runs in a context that did NOT
+  produce the implementation (maker≠checker is contextual, not just a role label) —
+  a dedicated validator subagent fed only the artifacts, ideally on a different
+  model. If isolation is impossible, validate from a cleared context and record the
+  shared-context limitation as a residual risk. No silent self-validation.
 - No direct edits to protected paths unless state explicitly allows it.
 - No "discussion reread"; repository artifacts are the only source of truth.
 

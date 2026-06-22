@@ -10,6 +10,20 @@ GOAL
 Verify that all requirements are satisfied by specifications, implementation, and executable evidence.
 Validation PASS is not the same as merge/PR readiness when code review is required.
 
+INDEPENDENCE REQUIREMENT (run this BEFORE anything else)
+- The validator must be a DIFFERENT context from the one that produced the
+  implementation. maker≠checker is contextual, not just a label: a judge that
+  inherits the builder's working context inherits its assumptions and rationalizations.
+- Operate from the artifacts ONLY — requirement/spec, the implementation diff/paths,
+  recorded evidence, docs/ai/STATE.yaml — not from any implementation conversation.
+- Prefer a different model than the implementer when the platform offers one; a
+  different model is less likely to share the implementer's blind spots.
+- If you cannot be sure you are independent (e.g. you just wrote this code in this
+  same session and cannot spawn a separate validator), STOP: re-run validation from
+  a cleared/fresh context, or hand off to an independent validator. If neither is
+  possible, record "validator shared context with implementer" as a residual risk
+  that lowers confidence — never silently self-validate.
+
 INVARIANT RULES
 - Adversarial stance (anti self-evaluation): default to FAIL and actively try to
   REFUTE each "done" claim, not confirm it. Self-evaluation is a trap — an agent
@@ -140,6 +154,7 @@ RATIONALIZATION TABLE (stop and correct any of these)
 | "The unit tests already cover this"          | Unit tests and e2e tests cover different failure modes. Both required. |
 | "Both sides of the seam are unit-tested"     | Both sides green ≠ the seam works. Require the integration test that crosses the boundary. |
 | "The build agent says it works"              | Self-evaluation is a trap. Builder (or your own) claims are not evidence — require reproducible external proof. |
+| "I just built this, I'll validate it here"   | Same context = self-evaluation. Spawn an independent validator (different context, ideally different model) or re-run from a cleared context. |
 | "The test is green, that's good enough"      | A test never seen failing may be tautological. Require RED-proof (observed failing without the change) for AC-gating tests. |
 | "Tests were passing before my change"        | State before your change is irrelevant. Run them now. |
 

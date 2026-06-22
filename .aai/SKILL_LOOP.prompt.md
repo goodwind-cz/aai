@@ -170,6 +170,17 @@ For each tick (1..max_ticks):
      - Context: dispatch block (scope, inputs, stop condition), current STATE.yaml
      - Preferred: spawn a role subagent.
      - Fallback: execute the dispatched prompt directly in this session.
+     - VALIDATOR INDEPENDENCE (hard rule for the Validation role): the judge must
+       NOT run in the context that produced the implementation — self-evaluation
+       rubber-stamps. Spawn a DEDICATED validator subagent whose context contains
+       ONLY the artifacts (requirement/spec, implementation diff/paths, evidence,
+       .aai/SUBAGENT_PROTOCOL.md) — never the implementer's accumulated working
+       context. Prefer a different model_id than the implementer when the platform
+       offers one (a different model is less likely to share the implementer's
+       blind spots). If true context isolation is impossible (no subagent support),
+       run validation only after CLEARING/RESETTING context and re-deriving solely
+       from the filesystem + evidence, and record "validator shared context with
+       implementer" as a residual risk that lowers confidence in the PASS.
      - Capture role_ended_utc immediately after completion from system clock.
      - Expected result: role work completed and STATE.yaml updated with results.
 

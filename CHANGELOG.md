@@ -9,6 +9,24 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — loops: validator independence (separate context, not just a role)
+
+Strengthens the anti-self-evaluation work below with the structural fix the
+plan/build/judge demo actually relies on: the judge runs INDEPENDENTLY. An
+adversarial prompt stance is hollow if the validator executes in the implementer's
+own context — it inherits the builder's assumptions and rubber-stamps them.
+
+- **Hard rule, validator independence** (`SKILL_LOOP.prompt.md` step 4,
+  `VALIDATION.prompt.md`, `system/AUTONOMOUS_LOOP.md` §5): the Validation role must
+  run in a context that did NOT produce the implementation — a dedicated validator
+  subagent fed only the artifacts (spec, diff/paths, evidence, SUBAGENT_PROTOCOL),
+  never the implementer's accumulated working context. Prefer a different model than
+  the implementer (less likely to share blind spots). If true isolation is
+  impossible, validate from a cleared/fresh context and record "validator shared
+  context with implementer" as a residual risk — never silently self-validate.
+  Previously dispatch only "preferred" a subagent and allowed an in-session
+  fallback, which let the judge legally run inside the builder. New rationalization row.
+
 ## [unreleased] — loops: anti self-evaluation (RED-proof + adversarial validation) + run-budget stop
 
 Three guards drawn from loop-engineering practice (the Anthropic plan/build/judge
