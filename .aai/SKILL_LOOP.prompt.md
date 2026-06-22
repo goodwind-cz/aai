@@ -56,6 +56,8 @@ If the script does not exist (older AAI layer), skip silently.
 LOOP PARAMETERS (use defaults unless overridden by caller)
 - max_ticks: 20
 - stagnation_limit: 3   # consecutive no-progress ticks before escalating to HITL (see stop_conditions)
+- max_run_tokens: 0     # 0 = unlimited. Cumulative output+input tokens across the run.
+- max_run_cost_usd: 0   # 0 = unlimited. Cumulative est_cost_usd across the run.
 - sleep_between_ticks: none (subagent spawning is the natural boundary)
 - checkpoint_mode: none (default)
     Options:
@@ -71,6 +73,13 @@ LOOP PARAMETERS (use defaults unless overridden by caller)
     - tick_count >= max_ticks
     - stagnation: focus_ref_id AND validation_status both unchanged for `stagnation_limit`
       consecutive ticks (no forward progress) → escalate to HITL, do not burn remaining ticks
+    - run budget: when max_run_tokens or max_run_cost_usd is > 0 and the cumulative
+      cost recorded in LOOP_TICKS.jsonl (sum of token/est_cost_usd fields, which are
+      best-effort and only present when the runtime exposes real usage) meets or
+      exceeds the limit → escalate to HITL before starting another (bigger, costlier)
+      tick. Rationale: a loop that runs ten times costs ten prompts that each keep
+      getting bigger — bound the run so unattended cost cannot grow unchecked. If no
+      usage data is recorded, this condition never fires (no fabricated estimates).
 
 LOOP ALGORITHM
 At loop start (once): capture `harness_version` from the runtime
@@ -131,6 +140,20 @@ For each tick (1..max_ticks):
           changed prompt or scope from a human, not more spins (Huntley). Escalate
           instead of burning the remaining tick budget. The counter resets
           naturally once focus_ref_id or validation_status changes.
+     f. RUN BUDGET (cost guard; only when max_run_tokens or max_run_cost_usd > 0):
+        Sum the cost fields recorded across this run's tick lines in
+        docs/ai/LOOP_TICKS.jsonl (input_tokens + output_tokens for the token
+        budget; est_cost_usd for the cost budget). These are best-effort and only
+        present when the runtime exposes real usage — if absent, this check is a
+        no-op (never fabricate usage). If a configured limit is met or exceeded:
+        → Set human_input.required = true with
+          blocking_reason = "Run budget exhausted: <cumulative> >= <limit>"
+          and a question_ref naming the current scope.
+        → Print the HITL block (HITL OUTPUT FORMAT) and EXIT.
+        → Rationale: a loop that runs ten times costs ten prompts that each keep
+          getting bigger. Stop before starting another, costlier tick rather than
+          letting unattended spend grow unchecked. A human raises the budget or
+          narrows scope, then re-runs.
 
   3. RUN ORCHESTRATION (one tick):
      - Capture orchestration_started_utc immediately before invocation from system clock.

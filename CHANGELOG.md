@@ -9,6 +9,30 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — loops: anti self-evaluation (RED-proof + adversarial validation) + run-budget stop
+
+Three guards drawn from loop-engineering practice (the Anthropic plan/build/judge
+demo + "loops explained" guide): a loop must not grade itself, and its per-iteration
+cost must be bounded.
+
+- **RED-proof for AC-gating tests, any strategy** (`PLANNING.prompt.md`,
+  `VALIDATION.prompt.md`): every test that gates a Spec-AC must be observed FAILING
+  without the change before its passing counts — even under `loop`/`hybrid`, not
+  just `tdd`. A test never seen failing may be tautological; requiring a real RED
+  state stops the loop from rubber-stamping criteria it authored itself. Validation
+  records missing RED-proof as a residual risk, or FAIL for security/data-integrity/
+  bug-fix ACs. New rationalization rows on both sides.
+- **Adversarial validation stance** (`VALIDATION.prompt.md`): the validator now
+  defaults to FAIL and actively tries to REFUTE each done-claim. Self-evaluation is
+  a trap — only reproducible external evidence (real exit codes, real-DB integration)
+  counts; builder/self assertions are unmet claims. New invariant + rationalization rows.
+- **Run-budget stop condition**: bound a loop's compounding cost. Runners
+  (`autonomous-loop.{sh,ps1}`) gain `--max-run-seconds` / `-MaxRunSeconds`
+  (cumulative wall-clock); the in-session loop (`SKILL_LOOP.prompt.md`) gains
+  `max_run_tokens` / `max_run_cost_usd`, summed from best-effort usage telemetry
+  (no-op when usage is absent — never fabricated). On exceed → escalate to HITL
+  before starting another, costlier tick. Recorded as a `human_pause` stop reason.
+
 ## [unreleased] — chore: make /aai-update deterministic (script, not narration)
 
 `/aai-update` was a 113-line procedure the agent executed by narrating each of

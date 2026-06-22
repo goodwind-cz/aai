@@ -4,6 +4,7 @@ param(
   [string]$Mode = "skill",
   [string]$AgentCommand,
   [int]$MaxIterations = 20,
+  [int]$MaxRunSeconds = 0,
   [int]$StagnationLimit = 3,
   [switch]$NoRecovery,
   [switch]$ProposeOnly,
@@ -290,6 +291,7 @@ Write-Host "Autonomous loop start"
 Write-Host "Mode: $Mode"
 Write-Host "Tick command: $TickCommand"
 Write-Host "Max iterations: $MaxIterations"
+if ($MaxRunSeconds -gt 0) { Write-Host "Max run seconds: $MaxRunSeconds" }
 Write-Host "Stagnation limit: $StagnationLimit"
 Write-Host "Harness version: $HarnessVersion"
 if ($ProposeOnly) { Write-Host "Propose-only: ON (branch=$ProposeBranch)" }
@@ -329,6 +331,22 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
   if ($preStop) {
     Write-Host "Stop before iteration $($i): $preStop"
     break
+  }
+
+  # Run budget (wall-clock): a loop that runs N times costs N prompts that each
+  # keep getting bigger. Bound the run so an unattended loop can't burn unbounded
+  # cost — escalate to HITL instead of starting another (more expensive) tick.
+  if ($MaxRunSeconds -gt 0) {
+    $elapsed = [int]((Get-Date).ToUniversalTime() - $loopStartUtc).TotalSeconds
+    if ($elapsed -ge $MaxRunSeconds) {
+      Write-Host "Stop before iteration $($i): run budget exhausted ($elapsed s >= $MaxRunSeconds s wall-clock)"
+      Write-Host "  Human decision required: raise -MaxRunSeconds or narrow scope, then re-run."
+      $budNow = (Get-Date).ToUniversalTime()
+      $budEpoch = [int][double]::Parse((Get-Date -UFormat %s -Date $budNow))
+      $budEntry = "{`"type`":`"human_pause`",`"paused_utc`":`"$($budNow.ToString('o'))`",`"paused_epoch`":$budEpoch,`"stop_reason`":`"run budget exhausted: $elapsed s wall-clock >= $MaxRunSeconds s`"}"
+      Add-Content -Path $TickLogPath -Value $budEntry -Encoding utf8
+      break
+    }
   }
 
   Write-Host "Iteration $i/$MaxIterations"

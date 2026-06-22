@@ -49,6 +49,11 @@
      loop is usually context rot, not an impossible task), and only escalate to
      HITL if that also makes no progress — rather than spinning the remaining
      tick budget.
+   - or **run budget exhausted**: cumulative cost/time for the run reaches a
+     configured limit (wall-clock on the runners; tokens/USD in-session from
+     best-effort usage telemetry) → escalate to HITL before starting another,
+     costlier tick. A loop's per-iteration cost compounds; bound it so unattended
+     spend cannot grow unchecked.
 
 ## 5) Gates and prohibitions (hard rules)
 - No implementation without locked scope and SPEC.

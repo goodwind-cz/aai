@@ -7,6 +7,7 @@ TICK_COMMAND=""
 MODE="skill"
 AGENT_COMMAND=""
 MAX_ITERATIONS=20
+MAX_RUN_SECONDS=0
 STAGNATION_LIMIT=3
 RECOVERY_ENABLED=1
 PROPOSE_ONLY=0
@@ -28,6 +29,7 @@ Options:
   --agent-command "<command>" Agent binary used in skill mode (example: codex)
   --tick-command "<command>"  Explicit command that performs one autonomous tick
   --max-iterations N          Maximum loop iterations (default: 20)
+  --max-run-seconds N         Cumulative wall-clock budget across ticks; escalate to HITL when exceeded (default: 0 = unlimited)
   --stagnation-limit N        Consecutive no-progress ticks before HITL escalation (default: 3)
   --no-recovery               Skip the fresh-context recovery attempt; escalate to HITL immediately on stagnation
   --propose-only              Unattended-safe: isolate work on a fresh branch, hard-block any push during the
@@ -181,6 +183,10 @@ while [[ $# -gt 0 ]]; do
       MAX_ITERATIONS="${2:-20}"
       shift 2
       ;;
+    --max-run-seconds)
+      MAX_RUN_SECONDS="${2:-0}"
+      shift 2
+      ;;
     --stagnation-limit)
       STAGNATION_LIMIT="${2:-3}"
       shift 2
@@ -329,6 +335,7 @@ echo "Autonomous loop start"
 echo "Mode: $MODE"
 echo "Tick command: $TICK_COMMAND"
 echo "Max iterations: $MAX_ITERATIONS"
+[[ "$MAX_RUN_SECONDS" -gt 0 ]] && echo "Max run seconds: $MAX_RUN_SECONDS"
 echo "Stagnation limit: $STAGNATION_LIMIT"
 echo "Harness version: $harness_version"
 [[ "$PROPOSE_ONLY" == "1" ]] && echo "Propose-only: ON (branch=$PROPOSE_BRANCH)"
@@ -360,6 +367,22 @@ for ((i=1; i<=MAX_ITERATIONS; i++)); do
   if reason="$(stop_reason)"; then
     echo "Stop before iteration $i: $reason"
     break
+  fi
+
+  # Run budget (wall-clock): a loop that runs N times costs N prompts that each
+  # keep getting bigger. Bound the run so an unattended loop can't burn unbounded
+  # cost — escalate to HITL instead of starting another (more expensive) tick.
+  if [[ "$MAX_RUN_SECONDS" -gt 0 ]]; then
+    elapsed=$(( $(date -u +%s) - loop_start_epoch ))
+    if [[ "$elapsed" -ge "$MAX_RUN_SECONDS" ]]; then
+      echo "Stop before iteration $i: run budget exhausted (${elapsed}s >= ${MAX_RUN_SECONDS}s wall-clock)" >&2
+      echo "  Human decision required: raise --max-run-seconds or narrow scope, then re-run." >&2
+      bud_utc="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+      bud_epoch="$(date -u +%s)"
+      printf '{"type":"human_pause","paused_utc":"%s","paused_epoch":%s,"stop_reason":"run budget exhausted: %ss wall-clock >= %ss"}\n' \
+        "$bud_utc" "$bud_epoch" "$elapsed" "$MAX_RUN_SECONDS" >> "$TICK_LOG"
+      break
+    fi
   fi
 
   echo "Iteration $i/$MAX_ITERATIONS"

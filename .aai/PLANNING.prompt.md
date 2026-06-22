@@ -44,6 +44,11 @@ PROCESS
    - Write a one-line description of what the test verifies.
    - Set initial status to "pending".
    - Every Spec-AC must have at least one TEST-xxx entry.
+   - RED-proof obligation: every AC-gating test must be observed FAILING without
+     the change before its passing can count as evidence — regardless of whether
+     the strategy is `tdd`, `loop`, or `hybrid`. A test that has never failed
+     proves nothing (it may be tautological); requiring a real RED state stops the
+     loop from rubber-stamping criteria it authored itself (self-evaluation trap).
 6a) Seam analysis (cross-feature integration check):
     A SEAM is any place this change shares state with — or is consumed by — a
     feature it does not itself own. Enumerate them explicitly:
@@ -98,6 +103,7 @@ RATIONALIZATION TABLE (stop and correct any of these)
 | "I'll make this AC measurable later"                   | Unmeasurable AC cannot be verified. Freeze is blocked.       |
 | "This AC is obvious, no test needed"                   | Every AC requires at least one TEST-xxx entry. No exceptions. |
 | "Each side is unit-tested, so the seam is fine"         | Unit tests pass on islands; bugs live in the doorway between them. Add one integration test that crosses the seam. |
+| "It's loop strategy, no need to see the test fail first" | A test never seen failing proves nothing — it may be tautological. RED-proof (observed failing without the change) is required for AC-gating tests regardless of strategy. |
 | "The e2e test can be added during implementation"      | Test Plan is part of the spec. Define it now or don't freeze. |
 | "I'll infer the AC from the code"                      | Requirements drive specs, not the reverse. Read intake first. |
 | "Worktree is obviously needed, I'll create it now"     | Planning recommends. The user decides before implementation.  |

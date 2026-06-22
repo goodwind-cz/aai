@@ -11,6 +11,12 @@ Verify that all requirements are satisfied by specifications, implementation, an
 Validation PASS is not the same as merge/PR readiness when code review is required.
 
 INVARIANT RULES
+- Adversarial stance (anti self-evaluation): default to FAIL and actively try to
+  REFUTE each "done" claim, not confirm it. Self-evaluation is a trap — an agent
+  that grades its own work rubber-stamps it. Trust only reproducible EXTERNAL
+  evidence (real exit codes, real-DB/integration results), never the implementer's
+  or your own assertion that something works. Any self-assessment language is an
+  unmet claim, not evidence.
 - No requirement is satisfied without evidence.
 - Every acceptance criterion must be traceable:
   Requirement → Spec → Implementation → Evidence
@@ -86,6 +92,12 @@ PROCESS
       executed (real produce-then-assert across the boundary, not two mocked unit
       tests). A seam with no crossing test that ran is a coverage gap → FAIL,
       unless the spec records it as an explicitly accepted residual risk.
+   g) RED-proof check (anti-tautology): for each test that gates a Spec-AC, confirm
+      it has been observed FAILING without the change (TDD red log, or a documented
+      failing run on the pre-change tree). A green-only test that was never seen
+      failing may be tautological and self-validating → record as a residual risk;
+      for security, data-integrity, or bug-fix ACs, missing RED-proof is a FAIL
+      (these are exactly where a rubber-stamped criterion does the most damage).
 6) Build coverage table.
 7) Run AC STATUS GATE (see section above) and record any blocking findings.
 8) Produce PASS / FAIL verdict. PASS requires both (a) all test suites green and (b) AC STATUS GATE clear.
@@ -127,6 +139,8 @@ RATIONALIZATION TABLE (stop and correct any of these)
 | "I'll skip integration tests to save time"   | Skipping = automatic FAIL. No exceptions.            |
 | "The unit tests already cover this"          | Unit tests and e2e tests cover different failure modes. Both required. |
 | "Both sides of the seam are unit-tested"     | Both sides green ≠ the seam works. Require the integration test that crosses the boundary. |
+| "The build agent says it works"              | Self-evaluation is a trap. Builder (or your own) claims are not evidence — require reproducible external proof. |
+| "The test is green, that's good enough"      | A test never seen failing may be tautological. Require RED-proof (observed failing without the change) for AC-gating tests. |
 | "Tests were passing before my change"        | State before your change is irrelevant. Run them now. |
 
 STRICT RULES
