@@ -99,6 +99,16 @@ Right-size the model to task complexity — do not default to the most capable m
 - Integration work (cross-module changes, wiring, migrations): standard model
 - Architecture, planning, reviews, complex debugging: most capable model available
 
+VALIDATOR INDEPENDENCE (axis separate from complexity right-sizing)
+When the dispatched Role is Validation, the dispatch MUST require:
+- a freshly spawned validator subagent with an INDEPENDENT context — never the
+  context that implemented the scope (self-evaluation rubber-stamps);
+- a model DIFFERENT from the one that implemented the scope, when the platform
+  supports model selection (a different model is less likely to share the
+  implementer's blind spots). Record the chosen validator model in the dispatch.
+See .aai/SUBAGENT_PROTOCOL.md → "Spawning a validator in a separate agent" for the
+concrete per-host invocation.
+
 DISPATCH FORMAT (MANDATORY)
 Output:
 - Current state summary

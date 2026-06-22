@@ -26,6 +26,14 @@ own context — it inherits the builder's assumptions and rubber-stamps them.
   context with implementer" as a residual risk — never silently self-validate.
   Previously dispatch only "preferred" a subagent and allowed an in-session
   fallback, which let the judge legally run inside the builder. New rationalization row.
+- **Concrete "how to run the validator in another agent"**: `ORCHESTRATION.prompt.md`
+  now emits a validator dispatch that requires an independent context AND a model
+  different from the implementer (a separate axis from complexity right-sizing), and
+  `SUBAGENT_PROTOCOL.md` gains a "Spawning a validator in a separate agent" recipe
+  with the per-host mechanism (in-session agent/task tool with a model override;
+  separate `claude -p`/CLI process headless; cleared-context fallback) — all sharing
+  one INPUT contract (spec, diff/paths, evidence, STATE.yaml; never the builder's
+  conversation).
 
 ## [unreleased] — loops: anti self-evaluation (RED-proof + adversarial validation) + run-budget stop
 

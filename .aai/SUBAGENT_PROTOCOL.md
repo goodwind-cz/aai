@@ -27,6 +27,30 @@ Each subagent call MUST specify all of the following:
 | `EXPECTED_OUTPUT` | A result block (see below) |
 | `SYSTEM_PROMPT` | The canonical role prompt from `ai/<ROLE>.prompt.md` |
 
+## Spawning a validator in a separate agent
+
+The Validation role must run in an agent that did NOT produce the implementation
+(maker≠checker is contextual). The mechanism depends on the host, but the contract
+is identical everywhere: a NEW agent receives `SYSTEM_PROMPT = .aai/VALIDATION.prompt.md`
+and `INPUT = { requirement/spec path, implementation diff or changed paths, evidence
+paths, docs/ai/STATE.yaml }` — and NOT the implementer's conversation/working context.
+Prefer a model different from the implementer's.
+
+- **In-session agentic harness (e.g. Claude Code):** call the host's agent/task
+  tool to spawn a subagent. Pass the validation prompt + INPUT as the task, and set
+  the per-subagent model override to a model other than the implementer's. The
+  subagent runs in its own fresh context by construction and returns the result
+  block below. The parent loop only merges the verdict — it does not re-judge.
+- **Other in-session hosts (Codex, Gemini, …):** use that host's subagent/task
+  primitive with the same INPUT contract and a distinct model where available.
+- **Headless / CLI runner:** run validation as a SEPARATE process — ideally a
+  different binary or model than the build step — e.g.
+  `claude -p --prompt-file .aai/VALIDATION.prompt.md` (or `codex`/`gemini`
+  equivalent) executed against the same repo. A fresh process is a fresh context.
+- **No subagent/process isolation available (fallback):** clear/reset context, then
+  run validation re-reading ONLY the artifacts above. Record "validator shared
+  context with implementer" as a residual risk that lowers confidence in the PASS.
+
 ## Result block (mandatory subagent output)
 
 Every subagent MUST return a result block in this exact YAML format:
