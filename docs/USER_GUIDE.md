@@ -759,6 +759,41 @@ Suggested focus:
 
 ### 9. Maintenance & Testing
 
+#### Docs index (`docs/INDEX.md`)
+**What:** An auto-generated catalog of all `docs/{issues,rfc,specs,requirements,releases}/**`
+documents — status, progress, overdue reviews, broken refs, orphans. The file is
+marked `auto-generated, DO NOT EDIT`; never hand-edit it.
+
+**How it stays fresh — three independent mechanisms:**
+- **Intake** regenerates it automatically after saving a new artifact (so a fresh
+  `CHANGE`/`RFC`/`SPEC`/… immediately appears in the index).
+- **Manual** — run it any time after editing docs by hand:
+  ```bash
+  node .aai/scripts/generate-docs-index.mjs
+  ```
+- **Pre-commit hook (opt-in)** — see below. Catches `docs/` edits made *outside*
+  intake (manual status changes, validation lifecycle updates, etc.).
+
+#### Docs-index pre-commit hook (opt-in)
+**What:** A `.git/hooks/pre-commit` hook that regenerates and stages `docs/INDEX.md`
+on every commit that touches `docs/`. Catches `docs/` edits made outside intake
+(manual status changes, validation lifecycle updates, etc.).
+
+**Installed automatically by `/aai-update`** on a successful sync — no prompt. This
+is safe: the installer is idempotent and will **not** overwrite a pre-existing
+non-AAI `pre-commit` hook (it leaves a foreign hook untouched and reports it).
+`/aai-doctor` reports its state (category CAT-12). You only need the commands below
+to install it manually (e.g. before your first update) or to remove it.
+
+**Install / uninstall:**
+```bash
+bash .aai/scripts/install-pre-commit-hook.sh            # install (idempotent)
+bash .aai/scripts/install-pre-commit-hook.sh --force    # overwrite an existing hook
+bash .aai/scripts/install-pre-commit-hook.sh --uninstall # remove the AAI hook
+# Windows: .aai/scripts/install-pre-commit-hook.ps1
+```
+It refuses to overwrite a non-AAI `pre-commit` hook unless you pass `--force`.
+
 #### `/aai-test-skills`
 **What:** Tests all AAI skills to ensure they work.
 

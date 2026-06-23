@@ -41,6 +41,20 @@ and do NOT narrate the steps — run the one script and relay its output.
    - exit 3 = upstream fetch failed (auth/network — an access issue, not a missing repo)
    - exit 4 = source is malformed (sync script missing in the fetched source)
 
+4. (Non-blocking) On a successful, non-dry-run sync, install the docs-index
+   pre-commit hook automatically — do NOT ask first:
+   ```bash
+   bash .aai/scripts/install-pre-commit-hook.sh        # .ps1 on Windows
+   ```
+   This is safe by design: the installer is idempotent (no-op if the AAI hook is
+   already present) and WITHOUT `--force` it refuses to overwrite a foreign
+   pre-commit hook. Therefore:
+   - installed / already present → report one line: "Docs-index pre-commit hook installed."
+   - non-zero exit (a foreign hook exists) → treat as NON-FATAL; do not pass
+     `--force`, do not clobber. Report once: "Existing non-AAI pre-commit hook
+     left untouched — to add index auto-regen, merge manually or re-run with --force."
+   Skip this step entirely on --dry-run.
+
 ## Safety
 - Never auto-commit. Stop after reporting the diff and next steps; the user commits.
 - If a conflict advisory was written, tell the user to review it before committing.

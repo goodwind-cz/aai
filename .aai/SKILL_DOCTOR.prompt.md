@@ -119,6 +119,24 @@ HEALTH CHECK CATEGORIES (run all, report each)
   This category is informational, never blocks other AAI work; do NOT mark
   BROKEN from it.
 
+[CAT-12] Docs Index Auto-Regen Hook (RFC-0001)
+  The opt-in git pre-commit hook keeps docs/INDEX.md fresh on every commit
+  touching docs/. Detect its state (do NOT install or modify anything):
+  - .git/hooks/pre-commit contains "AAI:INDEX-AUTOGEN"
+                                   → ✓ installed
+  - .git/hooks/pre-commit exists but lacks that marker
+                                   → ⚠ present but NOT AAI-managed — do not
+                                     overwrite; to add, merge manually or run
+                                     "bash .aai/scripts/install-pre-commit-hook.sh --force"
+  - no .git/hooks/pre-commit       → ⚠ not installed (optional). Intake already
+                                     regenerates the index; install the hook to
+                                     also cover docs/ edits made outside intake:
+                                     "bash .aai/scripts/install-pre-commit-hook.sh"
+  - .aai/scripts/install-pre-commit-hook.sh missing
+                                   → ⚠ installer not present ("Run /aai-update")
+  This category is informational, never blocks other AAI work; do NOT mark
+  BROKEN from it.
+
 OUTPUT FORMAT
 
 ---
@@ -137,6 +155,7 @@ Checked at: <now ISO 8601 UTC>
 [CAT-09] Pre-Compact Hook:  ✓ configured | ⚠ not set up
 [CAT-10] RFC-0001 Migration: ✓ migrated | ⚠ needs migration: <action>
 [CAT-11] Docs Hygiene:      ✓ CLEAN | ⚠ N orphans / N drifted (run /aai-docs-audit)
+[CAT-12] Index Regen Hook:  ✓ installed | ⚠ not installed (optional)
 
 Overall: HEALTHY | DEGRADED | BROKEN
   HEALTHY  = all ✓ (warnings allowed for optional items)

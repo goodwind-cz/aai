@@ -39,6 +39,15 @@ in .aai/templates/ and re-run until it passes. Do not proceed to STEP 3 while
 the check fails. If the script does not exist (older AAI layer), note that and
 continue.
 
+STEP 2.6 — REGENERATE DOCS INDEX (RFC-0001)
+The intake artifact lives under docs/, so docs/INDEX.md is now stale.
+Regenerate it deterministically:
+  node .aai/scripts/generate-docs-index.mjs
+This rewrites docs/INDEX.md from docs/{issues,rfc,specs,requirements,releases}/**/*.md.
+Do not hand-edit docs/INDEX.md (it is marked auto-generated, DO NOT EDIT).
+If the generator does not exist (older AAI layer), or node is unavailable,
+note that and continue — the pre-commit hook will regenerate on the next commit.
+
 STEP 3 — CONFIRM ARTIFACT
 After the intake artifact is saved, output:
 
@@ -47,6 +56,7 @@ INTAKE COMPLETE
 Type:      <type>
 Artifact:  <path to saved file>
 Ref ID:    <assigned ID, e.g. PRD-001, CHANGE-042>
+Index:     docs/INDEX.md regenerated
 Next step: Run .aai/ORCHESTRATION.prompt.md to dispatch the next role.
 ---
 
