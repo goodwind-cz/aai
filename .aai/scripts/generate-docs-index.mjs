@@ -3,8 +3,16 @@
 // across docs/{issues,rfc,specs,requirements,releases}/**/*.md.
 //
 // RFC-0001 layer 4. Idempotent. Tolerant to legacy docs (no frontmatter,
-// no Spec-AC table) — they appear in the Legacy section. Fails loud on
-// schema violations (unknown status enum, malformed dates).
+// no Spec-AC table) — they appear in the Legacy section.
+//
+// Failure MODE: degrade-and-report by DEFAULT. Schema violations (unknown
+// status enum, malformed Review-By/dates) never abort the run — the offending
+// docs are skipped, listed in the "Skipped (schema violations)" section of the
+// index, mirrored to a companion docs/INDEX.violations.md, and printed as
+// warnings. A best-effort docs/INDEX.md is ALWAYS written. Pass --strict (or
+// the `lint-docs` subcommand) to flip back to fatal-abort (exit 1 on any
+// violation) for CI / pre-commit enforcement. The schema RULES are unchanged;
+// only the failure mode differs between default and strict.
 //
 // Marker discipline: refuses to overwrite an existing INDEX.md whose
 // first non-empty line is not the auto-generated marker.
@@ -18,10 +26,16 @@ import {
 import { runAudit, suggestedStep, loadConfig, firstCommitDate } from './lib/docs-audit-core.mjs';
 
 const ROOT = process.cwd();
-const continueOnError = process.argv.includes('--continue-on-error');
+const ARGV = process.argv.slice(2);
+// --strict / lint-docs: fatal-abort on any non-legacy schema violation (CI / pre-commit gate).
+// Default (no flag): degrade-and-report — always write a best-effort index.
+// --continue-on-error: retained as a no-op alias (degrade-and-report is now the default).
+const strict = ARGV.includes('--strict') || ARGV.includes('lint-docs');
 const SCAN_DIRS = ['docs/issues', 'docs/rfc', 'docs/specs', 'docs/requirements', 'docs/releases'];
 const OUT_PATH = path.join(ROOT, 'docs/INDEX.md');
+const VIOLATIONS_PATH = path.join(ROOT, 'docs/INDEX.violations.md');
 const MARKER = '# Docs Index — auto-generated, DO NOT EDIT';
+const VIOLATIONS_MARKER = '# Docs Index Violations — auto-generated, DO NOT EDIT';
 
 const today = new Date();
 const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
@@ -35,6 +49,38 @@ function checkMarker() {
 
 function ymd(d) {
   return d.toISOString().slice(0, 10);
+}
+
+// Manage docs/INDEX.violations.md: write it when there are skipped violations,
+// remove it when the repo is clean. Refuses to touch a pre-existing file whose
+// first non-empty line is not our marker (don't clobber a user's file).
+function writeViolationsReport(skipped) {
+  if (fs.existsSync(VIOLATIONS_PATH)) {
+    const firstLine = fs.readFileSync(VIOLATIONS_PATH, 'utf8').split('\n').find(l => l.trim().length > 0) ?? '';
+    if (firstLine.trim() !== VIOLATIONS_MARKER) {
+      console.warn(`WARNING: ${path.relative(ROOT, VIOLATIONS_PATH)} exists without the auto-generated marker — leaving it untouched.`);
+      return;
+    }
+  }
+  if (skipped.length === 0) {
+    if (fs.existsSync(VIOLATIONS_PATH)) fs.rmSync(VIOLATIONS_PATH);
+    return;
+  }
+  const out = [
+    VIOLATIONS_MARKER,
+    '',
+    `Generated: ${new Date().toISOString()}`,
+    '',
+    'These docs were SKIPPED from docs/INDEX.md because their frontmatter or',
+    'Acceptance-Criteria table violates the schema. The index is still produced',
+    '(degrade-and-report); fix the docs below and re-run the generator. Run',
+    '`node .aai/scripts/generate-docs-index.mjs --strict` to fail CI on these.',
+    '',
+    ...skipped.map(f => `- ${f}`),
+    '',
+  ].join('\n');
+  fs.mkdirSync(path.dirname(VIOLATIONS_PATH), { recursive: true });
+  fs.writeFileSync(VIOLATIONS_PATH, out);
 }
 
 function main() {
@@ -82,11 +128,14 @@ function main() {
     }
   }
 
-  // CHANGE-0001 D9: default hard-abort stays (CI); --continue-on-error renders
-  // everything renderable and lists what was skipped at the end of the INDEX.
+  // Failure mode. DEFAULT: degrade-and-report — skip the offending docs, keep
+  // generating, and surface the violations (index section + companion file +
+  // stderr warnings). STRICT (--strict / lint-docs): fatal-abort on any
+  // non-legacy violation, for CI / pre-commit enforcement.
   // CHANGE-0002 D13: during the legacy migration window (legacy_until_date
   // set), violations in legacy-classified docs auto-demote to the Skipped
-  // section — the window closes itself once legacy docs are migrated.
+  // section regardless of mode — the window closes itself once legacy docs
+  // are migrated.
   let skipped = [];
   if (failures.length > 0) {
     const legacyUntil = loadConfig(ROOT)?.legacy_until_date ?? null;
@@ -97,13 +146,18 @@ function main() {
       if (first && first < legacyUntil) skipped.push(`${f} [legacy — auto-skipped]`);
       else hard.push(f);
     }
-    if (hard.length > 0 && !continueOnError) {
-      console.error('FAIL: schema violations:');
+    if (hard.length > 0 && strict) {
+      console.error('FAIL (strict): schema violations:');
       for (const f of hard) console.error(`  - ${f}`);
-      console.error('Hint: re-run with --continue-on-error for a partial index.');
+      console.error('Fix the docs above, or run without --strict for a best-effort index.');
       process.exit(1);
     }
-    skipped.push(...(continueOnError ? hard : []));
+    // Non-strict default: never abort. Skip the offending docs and report them.
+    skipped.push(...hard);
+    if (hard.length > 0) {
+      console.warn(`WARNING: ${hard.length} schema violation(s) — skipped from index (run with --strict to fail):`);
+      for (const f of hard) console.warn(`  - ${f}`);
+    }
     const failedRels = new Set(failures.map(f => f.slice(0, f.indexOf(': '))));
     for (let i = docs.length - 1; i >= 0; i -= 1) {
       if (failedRels.has(docs[i].path)) docs.splice(i, 1);
@@ -244,7 +298,16 @@ function main() {
   fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
   fs.writeFileSync(OUT_PATH, output);
 
+  // Companion violations report — keeps skipped-doc problems visible and
+  // machine-readable even when the (degrade-and-report) index itself is clean.
+  // Written only when there are violations; removed when the repo is clean so
+  // its mere existence is a signal. Marker-guarded like the index.
+  writeViolationsReport(skipped);
+
   console.log(`Wrote ${path.relative(ROOT, OUT_PATH)} (${docs.length} docs, ${overdue.length} overdue, ${deferredItems.length} deferred, ${brokenRefs.length} broken refs)`);
+  if (skipped.length > 0) {
+    console.log(`Wrote ${path.relative(ROOT, VIOLATIONS_PATH)} (${skipped.length} violation(s) skipped from index)`);
+  }
   if (warnings.length > 0) {
     console.warn(`${warnings.length} warning(s):`);
     for (const w of warnings) console.warn(`  - ${w}`);

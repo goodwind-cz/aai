@@ -44,9 +44,19 @@ The intake artifact lives under docs/, so docs/INDEX.md is now stale.
 Regenerate it deterministically:
   node .aai/scripts/generate-docs-index.mjs
 This rewrites docs/INDEX.md from docs/{issues,rfc,specs,requirements,releases}/**/*.md.
-Do not hand-edit docs/INDEX.md (it is marked auto-generated, DO NOT EDIT).
+The generator is degrade-and-report by default: a malformed doc never blocks the
+index — it is skipped, reported in the index's "Skipped (schema violations)"
+section and in docs/INDEX.violations.md, and printed as a warning. So this step
+always produces an index; it cannot be silently blocked by one bad doc.
+Do not hand-edit docs/INDEX.md or docs/INDEX.violations.md (both auto-generated).
 If the generator does not exist (older AAI layer), or node is unavailable,
 note that and continue — the pre-commit hook will regenerate on the next commit.
+
+WIRING (authoritative): this STEP 2.6 inline call is the primary regeneration
+path for the intake flow. The opt-in pre-commit hook
+(.aai/scripts/install-pre-commit-hook.{sh,ps1}, marker AAI:INDEX-AUTOGEN) is the
+safety net for any docs/ commit made outside intake. CI should gate with
+`node .aai/scripts/generate-docs-index.mjs --strict` (non-zero on violations).
 
 STEP 3 — CONFIRM ARTIFACT
 After the intake artifact is saved, output:

@@ -81,11 +81,13 @@ if ! node "$GEN"; then
   exit 1
 fi
 
-if git diff --quiet docs/INDEX.md 2>/dev/null; then
-  exit 0
-fi
-
 git add docs/INDEX.md
+# Companion violations report is created when docs are malformed, removed when clean.
+if [[ -f docs/INDEX.violations.md ]]; then
+  git add docs/INDEX.violations.md
+else
+  git rm --cached --quiet --ignore-unmatch docs/INDEX.violations.md
+fi
 echo "AAI:INDEX-AUTOGEN: regenerated and staged docs/INDEX.md"
 HOOK
 chmod +x "$HOOK_PATH"

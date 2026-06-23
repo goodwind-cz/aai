@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-06-23T16:49:27.435Z
+Generated: 2026-06-23T17:34:58.672Z
 Source: docs/{issues,rfc,specs,requirements,releases}/**/*.md
 
 ## Overdue reviews (0)
