@@ -463,7 +463,7 @@ $agentSkillEntries = @(
 )
 $missingAgentSkillEntries = @()
 foreach ($entry in $agentSkillEntries) {
-  if ($giContent -notmatch ("(?m)^" + [regex]::Escape($entry) + "$")) {
+  if ($giContent -notmatch ("(?m)^" + [regex]::Escape($entry) + "\r?$")) {
     $missingAgentSkillEntries += $entry
   }
 }
@@ -486,7 +486,7 @@ $runtimeStateEntries = @(
 )
 $missingRuntimeStateEntries = @()
 foreach ($entry in $runtimeStateEntries) {
-  if ($giContent -notmatch ("(?m)^" + [regex]::Escape($entry) + "$")) {
+  if ($giContent -notmatch ("(?m)^" + [regex]::Escape($entry) + "\r?$")) {
     $missingRuntimeStateEntries += $entry
   }
 }
