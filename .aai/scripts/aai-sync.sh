@@ -415,7 +415,7 @@ AGENT_SKILL_PATTERNS=(
 )
 missing_agent_skill_patterns=()
 for pattern in "${AGENT_SKILL_PATTERNS[@]}"; do
-  if ! grep -qxF "$pattern" "$DST_ROOT/.gitignore" 2>/dev/null; then
+  if ! tr -d '\r' < "$DST_ROOT/.gitignore" 2>/dev/null | grep -qxF "$pattern"; then
     missing_agent_skill_patterns+=("$pattern")
   fi
 done
@@ -436,7 +436,7 @@ RUNTIME_STATE_PATTERNS=(
 )
 missing_runtime_state_patterns=()
 for pattern in "${RUNTIME_STATE_PATTERNS[@]}"; do
-  if ! grep -qxF "$pattern" "$DST_ROOT/.gitignore" 2>/dev/null; then
+  if ! tr -d '\r' < "$DST_ROOT/.gitignore" 2>/dev/null | grep -qxF "$pattern"; then
     missing_runtime_state_patterns+=("$pattern")
   fi
 done
@@ -448,6 +448,66 @@ if [[ ${#missing_runtime_state_patterns[@]} -gt 0 ]]; then
   echo "  Added AAI per-dev runtime state patterns to $DST_ROOT/.gitignore"
   echo "  NOTE: If docs/ai/STATE.yaml or docs/ai/LOOP_TICKS.jsonl is still tracked,"
   echo "        run bash .aai/scripts/migrate-state-to-local.sh in the target project."
+fi
+
+# Self-heal: collapse duplicate AAI-managed .gitignore lines left behind by
+# older syncs (pre-fix runs re-appended managed blocks). Conservative: only
+# de-duplicates AAI-owned lines, keeping the first of each; project-owned
+# entries are never touched. Rewrites only when a managed duplicate is found,
+# so it is a no-op (no spurious diff) on already-clean files. Preserves the
+# file's existing CRLF/LF convention.
+gitignore_file="$DST_ROOT/.gitignore"
+if [[ -f "$gitignore_file" ]]; then
+  if LC_ALL=C grep -q $'\r' "$gitignore_file" 2>/dev/null; then gi_crlf=1; else gi_crlf=0; fi
+  gi_tmp="$gitignore_file.aai-dedup.$$"
+  gi_removed="$(awk -v crlf="$gi_crlf" -v tmp="$gi_tmp" '
+    BEGIN {
+      eol = (crlf ? "\r\n" : "\n")
+      managed["# AAI infrastructure (vendored, not committed)"]=1
+      managed["# Expert subagent cache (fetched on-demand from VoltAgent registry)"]=1
+      managed["# AAI runtime reports (ephemeral; not project-owned docs)"]=1
+      managed["# AAI agent skill sync artifacts (managed by sync)"]=1
+      managed["# AAI per-dev runtime state (RFC-0001: never committed)"]=1
+      managed[".aai/"]=1
+      managed[".aai/cache/"]=1
+      managed["docs/ai/reports/**"]=1
+      managed["!docs/ai/reports/"]=1
+      managed["!docs/ai/reports/.gitkeep"]=1
+      managed[".claude/skills/"]=1
+      managed[".codex/skills/"]=1
+      managed[".codex/skills.local/"]=1
+      managed[".gemini/skills/"]=1
+      managed[".gemini/skills.local/"]=1
+      managed["docs/ai/STATE.yaml"]=1
+      managed["docs/ai/LOOP_TICKS.jsonl"]=1
+      managed[".cloudflare-publish*"]=1
+      managed[".wrangler/"]=1
+    }
+    { raw=$0; sub(/\r$/,"",raw); lines[NR]=raw; total=NR }
+    END {
+      mrem=0; k=0
+      for (i=1;i<=total;i++) {
+        l=lines[i]
+        if (l in managed) { if (seen[l]++) { mrem++; continue } }
+        keep[++k]=l
+      }
+      if (mrem==0) { print 0; exit }
+      pb=0
+      for (i=1;i<=k;i++) {
+        l=keep[i]; blank=(l ~ /^[ \t]*$/)
+        if (blank && pb) continue
+        pb=blank
+        printf "%s%s", l, eol > tmp
+      }
+      print mrem
+    }
+  ' "$gitignore_file")"
+  if [[ "${gi_removed:-0}" -gt 0 && -f "$gi_tmp" ]]; then
+    mv "$gi_tmp" "$gitignore_file"
+    echo "  De-duplicated $gi_removed stale AAI-managed line(s) in $gitignore_file"
+  else
+    rm -f "$gi_tmp"
+  fi
 fi
 
 # Create conflict advisory report for files that were overwritten with differences.
