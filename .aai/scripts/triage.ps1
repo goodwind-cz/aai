@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# AAI L1 Triage — read-only health snapshot. Writes nothing; safe to schedule.
+# AAI L1 Triage - read-only health snapshot. Writes nothing; safe to schedule.
 #
 # Surfaces docs drift, runtime-state presence, and working-tree cleanliness so an
 # operator (or an L1 scheduled run) sees problems BEFORE launching a full,
@@ -18,7 +18,7 @@ $state = 'docs/ai/STATE.yaml'
 $ticks = 'docs/ai/LOOP_TICKS.jsonl'
 $issues = 0
 
-Write-Output "## AAI L1 Triage — $((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))"
+Write-Output "## AAI L1 Triage - $((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))"
 Write-Output ''
 
 # 1) Runtime state presence
@@ -26,8 +26,8 @@ if ((Test-Path $state) -and (Select-String -Path $state -Pattern '^project_statu
   $ps = ((Select-String -Path $state -Pattern '^project_status:' | Select-Object -First 1).Line -split '\s+')[1]
   Write-Output "- State: present (project_status=$ps)"
 } else {
-  # Benign before the first run — the orchestrator auto-creates state. Informational only.
-  Write-Output "- State: not present yet ($state) — orchestrator will init, or run /aai-check-state"
+  # Benign before the first run - the orchestrator auto-creates state. Informational only.
+  Write-Output "- State: not present yet ($state) - orchestrator will init, or run /aai-check-state"
 }
 
 # 2) Working tree

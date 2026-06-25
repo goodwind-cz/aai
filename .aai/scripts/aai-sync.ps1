@@ -18,7 +18,7 @@ function Copy-Replace {
     [Parameter(Mandatory=$true)][string]$Src,
     [Parameter(Mandatory=$true)][string]$Dst
   )
-  # Git is the backup — no .bak files needed.
+  # Git is the backup - no .bak files needed.
   if (Test-Path $Dst) { Remove-Item $Dst -Recurse -Force }
   Copy-Item $Src $Dst -Recurse -Force
 }
@@ -118,7 +118,7 @@ if (Test-Path $oldAi) {
   $legacyCleaned = $true
 }
 
-# Old scripts directory (was scripts/) — only remove AAI-owned scripts, keep project scripts
+# Old scripts directory (was scripts/) - only remove AAI-owned scripts, keep project scripts
 $oldScripts = Join-Path $TargetRoot "scripts"
 if (Test-Path $oldScripts) {
   # Remove scripts that now live in .aai/scripts/ (current names)
@@ -213,7 +213,7 @@ Get-ChildItem -Path (Join-Path $TargetRoot ".aai") -Force | Where-Object { $_.Na
   }
 }
 
-# scripts/: file-by-file merge — overwrite source scripts, preserve target-only
+# scripts/: file-by-file merge - overwrite source scripts, preserve target-only
 $srcScripts = Join-Path $SrcRoot ".aai/scripts"
 $dstScripts = Join-Path $TargetRoot ".aai/scripts"
 New-Item -ItemType Directory -Force -Path $dstScripts | Out-Null
@@ -284,7 +284,7 @@ if ((Test-Path $technologyTemplatePath) -and !(Test-Path $targetTechnologyPath))
   Write-Host "  SEED docs/TECHNOLOGY.md from .aai/templates/TECHNOLOGY_TEMPLATE.md"
 }
 
-# docs/ai: preserve existing runtime data — system docs are now in .aai/system/
+# docs/ai: preserve existing runtime data - system docs are now in .aai/system/
 if (Test-Path (Join-Path $TargetRoot "docs/ai")) {
   Write-Host "  PRESERVE docs/ai/ runtime data (STATE.yaml, LOOP_TICKS.jsonl, METRICS.jsonl, EVENTS.jsonl, decisions.jsonl, reports/)"
 }

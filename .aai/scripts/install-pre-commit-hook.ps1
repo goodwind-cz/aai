@@ -60,7 +60,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $repoRoot ".git/hooks") | O
 
 $hookBody = @'
 #!/usr/bin/env bash
-# AAI:INDEX-AUTOGEN — auto-regenerate docs/INDEX.md on docs/ changes.
+# AAI:INDEX-AUTOGEN - auto-regenerate docs/INDEX.md on docs/ changes.
 # Installed by .aai/scripts/install-pre-commit-hook.ps1
 set -euo pipefail
 

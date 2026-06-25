@@ -1,4 +1,4 @@
-# expert-fetch.ps1 — Fetch and cache expert subagent prompts from VoltAgent registry
+# expert-fetch.ps1 - Fetch and cache expert subagent prompts from VoltAgent registry
 #
 # Usage:
 #   expert-fetch.ps1 -ExpertKey <key>                     Fetch expert by registry key
@@ -35,7 +35,7 @@ if (-not (Test-Path $Registry)) {
 $RegistryContent = Get-Content $Registry -Raw
 $Lines = $RegistryContent -split "`n"
 
-# ── -List: dump all expert keys ──
+# -- -List: dump all expert keys --
 if ($List) {
     foreach ($Line in $Lines) {
         if ($Line -match '^\s{2}([a-z][a-z0-9_-]*):\s*$') {
@@ -45,7 +45,7 @@ if ($List) {
     exit 0
 }
 
-# ── -Detect: map extensions/keywords → expert keys ──
+# -- -Detect: map extensions/keywords -> expert keys --
 if ($Detect.Count -gt 0) {
     $ExtMap = @{
         'ts'='typescript'; 'tsx'='typescript'; 'typescript'='typescript'
@@ -102,7 +102,7 @@ if ($Detect.Count -gt 0) {
     exit 0
 }
 
-# ── -Check: verify phase eligibility ──
+# -- -Check: verify phase eligibility --
 if ($Check) {
     if (-not $Phase) { Write-Error "Usage: -Check <key> -Phase <phase>"; exit 1 }
     $InExpert = $false
@@ -117,7 +117,7 @@ if ($Check) {
     else { Write-Output "not-eligible"; exit 1 }
 }
 
-# ── -Body: print prompt body without frontmatter ──
+# -- -Body: print prompt body without frontmatter --
 if ($Body) {
     $CacheFile = Join-Path $CacheDir "$Body.md"
     if (-not (Test-Path $CacheFile)) {
@@ -134,7 +134,7 @@ if ($Body) {
     exit 0
 }
 
-# ── Standard fetch mode ──
+# -- Standard fetch mode --
 if (-not $ExpertKey) {
     Write-Error "Specify -ExpertKey, -Detect, -Body, -Check, or -List"
     exit 1

@@ -160,7 +160,7 @@ try {
     Write-Host "vanish from the tree on next pull. Their local copies remain on disk."
   } else {
     Write-Host ""
-    Write-Host "Nothing to do — already migrated."
+    Write-Host "Nothing to do - already migrated."
   }
 }
 finally {

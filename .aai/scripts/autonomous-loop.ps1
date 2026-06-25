@@ -302,7 +302,7 @@ if (!(Test-Path $TickLogPath)) {
   New-Item -ItemType File -Path $TickLogPath | Out-Null
 }
 
-# Detect if previous loop run ended with human_input pause — record resume
+# Detect if previous loop run ended with human_input pause - record resume
 $loopStartUtc = (Get-Date).ToUniversalTime()
 $loopStartEpoch = [int][double]::Parse((Get-Date -UFormat %s -Date $loopStartUtc))
 $tickLogLines = Get-Content $TickLogPath -ErrorAction SilentlyContinue
@@ -335,7 +335,7 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
 
   # Run budget (wall-clock): a loop that runs N times costs N prompts that each
   # keep getting bigger. Bound the run so an unattended loop can't burn unbounded
-  # cost — escalate to HITL instead of starting another (more expensive) tick.
+  # cost - escalate to HITL instead of starting another (more expensive) tick.
   if ($MaxRunSeconds -gt 0) {
     $elapsed = [int]((Get-Date).ToUniversalTime() - $loopStartUtc).TotalSeconds
     if ($elapsed -ge $MaxRunSeconds) {
@@ -389,15 +389,15 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
   Add-Content -Path $TickLogPath -Value $tickEntry -Encoding utf8
 
   # Stagnation handling. A stuck scope is most often context rot, not a genuinely
-  # impossible task — so before escalating to a human, try ONE fresh-context
+  # impossible task - so before escalating to a human, try ONE fresh-context
   # recovery tick: a brand-new agent process (cold context) re-derives state from
   # the filesystem (STATE.yaml + canonical prompts) and is told via AAI_RECOVERY=1
   # that the loop is stuck, so it should re-read and change approach. Only if that
-  # also makes no progress do we escalate to HITL — never burn the remaining budget.
+  # also makes no progress do we escalate to HITL - never burn the remaining budget.
   if ($stagnationCount -ge $StagnationLimit) {
     if (-not $NoRecovery -and -not $recoveryAttempted) {
       $recoveryAttempted = $true
-      Write-Host "Stagnation at limit — attempting one fresh-context recovery tick (AAI_RECOVERY=1) before HITL."
+      Write-Host "Stagnation at limit - attempting one fresh-context recovery tick (AAI_RECOVERY=1) before HITL."
       $recFocusBefore = $stateSnapshotAfter.focus_ref_id
       $recValBefore = $stateSnapshotAfter.validation_status
       $recStartUtc = (Get-Date).ToUniversalTime().ToString("o")
@@ -421,13 +421,13 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
       $recEntry = "{`"type`":`"recovery`",`"tick`":$i,`"started_utc`":`"$recStartUtc`",`"ended_utc`":`"$recEndUtc`",`"exit_code`":$recExit,`"focus_ref_id_before`":`"$recFocusBefore`",`"focus_ref_id_after`":`"$($recState.focus_ref_id)`",`"validation_status_before`":`"$recValBefore`",`"validation_status_after`":`"$($recState.validation_status)`"}"
       Add-Content -Path $TickLogPath -Value $recEntry -Encoding utf8
       if ($recState.focus_ref_id -ne $recFocusBefore -or $recState.validation_status -ne $recValBefore) {
-        Write-Host "Recovery made progress — resetting stagnation counter and continuing."
+        Write-Host "Recovery made progress - resetting stagnation counter and continuing."
         $stagnationCount = 0
         $recoveryAttempted = $false
         Start-Sleep -Seconds $SleepSeconds
         continue
       }
-      Write-Host "Recovery made no progress — escalating to HITL."
+      Write-Host "Recovery made no progress - escalating to HITL."
     }
     # Escalate: a stuck scope needs a changed prompt/scope from a human, not more
     # spins. Stop instead of burning the remaining iteration budget.
