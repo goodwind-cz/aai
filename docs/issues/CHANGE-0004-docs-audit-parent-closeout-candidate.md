@@ -4,7 +4,7 @@ type: change
 status: draft
 links:
   rfc: RFC-0002
-  spec: null
+  spec: SPEC-0003
   change: CHANGE-0003
   pr: []
   commits: []

@@ -9,7 +9,7 @@ import {
   DOC_STATUS_ENUM, AC_STATUS_ENUM, TERMINAL_AC, DOC_TYPE_ENUM, DOC_ID_RE,
   DEFAULT_CATEGORY_PREFIXES, extractDocIds,
   parseFrontmatter, parseAcTable, parseISODate, parseReviewBy, specFrozenInBody,
-  validateCanonicalFrontmatter,
+  validateCanonicalFrontmatter, asList,
 } from './docs-model.mjs';
 
 export const CONFIG_PATH = 'docs/ai/docs-audit.yaml';
@@ -24,6 +24,11 @@ const EXCLUDE_DIRS = new Set(['ai', 'knowledge', 'archive', '_archive', 'project
 const ID_FILE_RE = DOC_ID_RE;
 const OPEN_STATUSES = new Set(['draft', 'implementing']);
 const DEFAULT_STALE_DAYS = 90;
+// closeout-candidate detection (SPEC-0003 / CHANGE-0004): parents are scoped to
+// rfc/prd only (change docs also carry links.spec and would false-positive), and
+// only non-terminal, ready statuses are eligible (draft excluded — not yet ready).
+const CLOSEOUT_PARENT_TYPES = new Set(['rfc', 'prd']);
+const CLOSEOUT_PARENT_STATUSES = new Set(['proposed', 'accepted', 'implementing']);
 
 // --- config -----------------------------------------------------------------
 
@@ -338,6 +343,12 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     }
   }
 
+  // closeout-candidate detection (SPEC-0003 / CHANGE-0004): READ-ONLY post-pass.
+  // Surface every non-terminal rfc/prd parent whose every resolved linked spec
+  // is `done`, so an operator can close the parent. Reuses the in-memory docs[]
+  // id index and asList() — no second scan. NOT part of hardFail/needsTriage.
+  const closeoutCandidates = closeoutCandidatesFor(docs);
+
   // pending-commit notice (CHANGE-0001 D6): the verdict already reflects the
   // working tree; this only tells the operator which scanned docs differ from git
   let pendingCommit = [];
@@ -366,13 +377,53 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     superseded: docs.filter(d => d.cls === 'superseded').length,
     violations: violations.length,
     typeWarnings: typeWarnings.length,
+    closeoutCandidates: closeoutCandidates.length,
   };
   const hardFail = mode === 'enforced' && (orphansNew.length > 0 || violations.length > 0);
 
   return {
     mode, config, docs, orphansNew, orphansLegacy, drift, violations,
-    typeWarnings, annotations, pendingCommit, planLenient, counts, hardFail,
+    typeWarnings, annotations, pendingCommit, planLenient, closeoutCandidates,
+    counts, hardFail,
   };
+}
+
+// Resolve non-terminal rfc/prd parents whose every linked spec is done.
+// Returns [{ id, rel, type, status, specs: [doneSpecId...], suggestedStep }].
+// Linked-spec resolution = forward asList(links.spec) UNION reverse links
+// (a scanned spec whose links.rfc / links.requirement names the parent). A
+// parent is flagged iff it resolves >= 1 spec AND every resolved spec id maps to
+// a scanned doc with status `done` (an unresolvable id => not flagged).
+export function closeoutCandidatesFor(docs) {
+  const byId = new Map();
+  for (const d of docs) { if (d.id) byId.set(d.id, d); }
+  const docType = (d) => String(d.fm?.type ?? '').toLowerCase();
+  const out = [];
+  for (const parent of docs) {
+    if (!CLOSEOUT_PARENT_TYPES.has(docType(parent))) continue;
+    if (!CLOSEOUT_PARENT_STATUSES.has(parent.status)) continue;
+    const specIds = new Set(asList(parent.fm?.links?.spec));
+    for (const d of docs) {
+      if (docType(d) !== 'spec' || !d.id) continue;
+      const reverse = [...asList(d.fm?.links?.rfc), ...asList(d.fm?.links?.requirement)];
+      if (reverse.includes(parent.id)) specIds.add(d.id);
+    }
+    if (specIds.size === 0) continue;
+    const resolved = [...specIds].map(sid => byId.get(sid));
+    // Every resolved id must be an actual spec that is done. A forward
+    // links.spec that names a non-spec (e.g. a done CHANGE) or an unresolvable
+    // id does not count as "all linked specs done" (guards a misfiled link).
+    if (resolved.some(r => !r || docType(r) !== 'spec' || r.status !== 'done')) continue;
+    out.push({
+      id: parent.id,
+      rel: parent.rel,
+      type: docType(parent),
+      status: parent.status,
+      specs: [...specIds].sort(),
+      suggestedStep: `advance ${parent.id} to done/accepted; record the implementing commit`,
+    });
+  }
+  return out.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export function suggestedStep(doc) {
