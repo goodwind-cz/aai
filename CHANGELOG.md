@@ -9,6 +9,38 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — docs: canonicalization skill (`aai-docs-canon`, RFC-0003)
+
+New re-runnable skill that consolidates **layered** documentation — an original
+intake plus its chain of specs, sub-specs, addendums, and corrections — into a
+single **canonical "current state" layer** categorized by functional domain,
+while preserving the originals as an auditable history. Addresses the failure
+mode where a doc set is exhaustive for audit but unusable as a working reference
+(no single final view of what a feature does today).
+
+- **Two-phase pipeline with a human gate** (`.aai/scripts/docs-canon.mjs`,
+  `.aai/scripts/lib/docs-canon-core.mjs`): Phase 1 builds a supersession/
+  dependency graph and proposes an AI domain map that the operator approves;
+  Phase 2 auto-synthesizes one canonical doc per domain in `docs/canonical/`
+  with five fixed layer sections (Overview/Intent · UI · Processes · Data model
+  · Superseded decisions), moves originals to `docs/_archive/` with
+  `status: archived` + a `canonical:` back-pointer, and harvests superseded docs
+  into an audit trail. Re-runs report **drift** and never silently overwrite;
+  `--phase2 --resync` re-synthesizes a drifted domain from current sources.
+- **Safety**: an unsafe approved map (one source in two domains, archive
+  destination collision, pre-existing destination) aborts before any file move
+  (`validatePhase2Plan` pre-flight + `archiveSource` overwrite guard) — no
+  partial mutation.
+- **Shared-infra integration** (`docs-model.mjs`, `docs-audit-core.mjs`,
+  `generate-docs-index.mjs`): new `canonical`/`archived` doc types and
+  provenance frontmatter; `docs/canonical/` surfaced in `docs/INDEX.md`;
+  `docs/_archive/` excluded from the active docs-audit scan so archived docs are
+  not mis-flagged as orphans (the `_archive` vs `archive` EXCLUDE_DIRS
+  reconciliation).
+- Documented in `.aai/AGENTS.md` (Universal Skills) and `docs/USER_GUIDE.md`;
+  contract in `docs/specs/SPEC-0002`, decision in `docs/rfc/RFC-0003`. Test
+  suite `tests/skills/test-aai-docs-canon.sh` (RED-proofed TDD).
+
 ## [unreleased] — loops: validator independence (separate context, not just a role)
 
 Strengthens the anti-self-evaluation work below with the structural fix the

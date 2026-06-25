@@ -190,6 +190,7 @@ AAI uses two different classes of documentation:
 | `/aai-dashboard` | View metrics | Interactive charts |
 | `/aai-code-review` | Review code | AI-powered review |
 | `/aai-docs-audit` | Docs hygiene | Drift detection: claimed vs implemented |
+| `/aai-docs-canon` | Docs consolidation | Layered intake/specs/RFCs → canonical per-domain layer + archive |
 | `/aai-profile` | Optimize | Performance analysis |
 | `/aai-auto-trigger` | Automate | Pattern-based triggering |
 
@@ -496,6 +497,56 @@ category_prefixes:              # filename segments treated as scopes,
 - Intake saves are gated (`--check --strict --path <artifact>`)
 - Every `/aai-loop` tick surfaces counts (`--quick`, never blocks)
 - `/aai-doctor` CAT-11 reports docs hygiene state
+
+---
+
+#### `/aai-docs-canon`
+
+Consolidates **layered** documentation — where an original intake spawned a
+chain of specs, sub-specs, addendums, and corrections — into a single
+**canonical "current state" layer**, categorized by functional domain. Use it
+when there is no single final view of what a feature does today and readers must
+trace breadcrumbs across folders and superseded files (RFC-0003 / SPEC-0002).
+
+`/aai-docs-audit` keeps the *existing* doc set honest; `/aai-docs-canon`
+*restructures* it into a working reference. They compose: audit first, then
+canonicalize.
+
+**Two phases (human gate between them):**
+```bash
+# Phase 1 — analyze + propose (writes nothing under docs/canonical|_archive)
+node .aai/scripts/docs-canon.mjs --phase1 [--targets docs/specs,docs/rfc]
+#   builds a supersession/dependency graph, proposes an AI domain map, and
+#   HALTS. Review docs/ai/docs-canon.proposal.json, then persist an approved
+#   map to docs/ai/docs-canon.map.json with "approved": true.
+
+# Phase 2 — synthesize + canonicalize (only on an approved map)
+node .aai/scripts/docs-canon.mjs --phase2
+#   writes one canonical doc per domain to docs/canonical/<domain>.md with the
+#   five fixed layer sections (Overview/Intent · UI · Processes · Data model ·
+#   Superseded decisions), moves originals to docs/_archive/ with status:
+#   archived + a canonical: back-pointer, and records hashes for drift.
+
+# Re-run drift check / resolution
+node .aai/scripts/docs-canon.mjs --drift            # report drifted domains (exit 1 if any)
+node .aai/scripts/docs-canon.mjs --phase2 --resync  # re-synthesize drifted domains from current sources
+```
+
+**What it guarantees:**
+- The risky judgment call (domain boundaries) is **human-approved**; the
+  mechanical merge is automated.
+- Originals are never destroyed — moved to `docs/_archive/` and linked
+  bidirectionally (`sources:` ↔ `canonical:`).
+- Superseded docs are **harvested** into a "Superseded decisions" audit trail,
+  not silently dropped.
+- An unsafe approved map (one source in two domains, destination collision)
+  **aborts before any file is moved** — no partial mutation.
+- Re-runnable: unchanged domains are skipped; changed sources are reported as
+  drift and never silently overwritten.
+
+**Integration:** canonical docs are surfaced in `docs/INDEX.md` under a
+"Canonical layer" section; `docs/_archive/` is excluded from the active
+docs-audit scan, so archived docs are not mis-flagged as orphans.
 
 ---
 

@@ -1,17 +1,23 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-06-25T10:23:19.833Z
-Source: docs/{issues,rfc,specs,requirements,releases}/**/*.md
+Generated: 2026-06-25T20:07:27.123Z
+Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (0)
+## Active (implementing) (1)
+
+| ID | Type | Status | Progress | Path |
+|---|---|---|---|---|
+| RFC-0003 | rfc | proposed | — | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
+
+## Canonical layer (0)
 
 _None._
 
-## Done (6)
+## Done (7)
 
 | ID | Type | Path |
 |---|---|---|
@@ -21,6 +27,7 @@ _None._
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | SPEC-0001 | specs | docs/specs/SPEC-0001-docs-hygiene-and-drift-audit.md |
+| SPEC-0002 | specs | docs/specs/SPEC-0002-docs-canonicalization-skill.md |
 
 ## Drafts (0)
 
