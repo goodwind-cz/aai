@@ -1,13 +1,15 @@
 ---
 id: CHANGE-0004
 type: change
-status: draft
+status: done
 links:
   rfc: RFC-0002
   spec: SPEC-0003
   change: CHANGE-0003
-  pr: []
-  commits: []
+  pr:
+    - 12
+  commits:
+    - 9379752
 ---
 
 # Change Request: docs-audit parent-closeout-candidate detection
