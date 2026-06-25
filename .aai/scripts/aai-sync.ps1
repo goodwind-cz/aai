@@ -501,6 +501,65 @@ if ($missingRuntimeStateEntries.Count -gt 0) {
   Write-Host "        run pwsh .aai/scripts/migrate-state-to-local.ps1 in the target project."
 }
 
+# Self-heal: collapse duplicate AAI-managed .gitignore lines left behind by
+# older syncs (pre-CRLF-fix runs re-appended managed blocks on every update).
+# Conservative: only de-duplicates AAI-owned lines, keeping the first of each;
+# project-owned entries are never touched. Writes back only if something
+# changed, so it is a no-op (no spurious diff) on already-clean files.
+if (Test-Path $gitignorePath) {
+  $rawGi = Get-Content $gitignorePath -Raw -ErrorAction SilentlyContinue
+  if ($rawGi) {
+    $aaiManaged = @(
+      '# AAI infrastructure (vendored, not committed)'
+      '# Expert subagent cache (fetched on-demand from VoltAgent registry)'
+      '# AAI runtime reports (ephemeral; not project-owned docs)'
+      '# AAI agent skill sync artifacts (managed by sync)'
+      '# AAI per-dev runtime state (RFC-0001: never committed)'
+      '.aai/'
+      '.aai/cache/'
+      'docs/ai/reports/**'
+      '!docs/ai/reports/'
+      '!docs/ai/reports/.gitkeep'
+      '.claude/skills/'
+      '.codex/skills/'
+      '.codex/skills.local/'
+      '.gemini/skills/'
+      '.gemini/skills.local/'
+      'docs/ai/STATE.yaml'
+      'docs/ai/LOOP_TICKS.jsonl'
+      '.cloudflare-publish*'
+      '.wrangler/'
+    )
+    $eol = if ($rawGi -match "`r`n") { "`r`n" } else { "`n" }
+    $lines = $rawGi -split "`r`n|`n"
+    $seen = @{}
+    $removed = 0
+    $kept = New-Object System.Collections.Generic.List[string]
+    foreach ($line in $lines) {
+      $trim = $line.TrimEnd()
+      if ($aaiManaged -contains $trim) {
+        if ($seen.ContainsKey($trim)) { $removed++; continue }
+        $seen[$trim] = $true
+      }
+      $kept.Add($line)
+    }
+    if ($removed -gt 0) {
+      # collapse runs of blank lines created by the removals
+      $compact = New-Object System.Collections.Generic.List[string]
+      $prevBlank = $false
+      foreach ($l in $kept) {
+        $isBlank = [string]::IsNullOrWhiteSpace($l)
+        if ($isBlank -and $prevBlank) { continue }
+        $compact.Add($l); $prevBlank = $isBlank
+      }
+      $newGi = ($compact -join $eol)
+      # UTF-8 without BOM, in both Windows PowerShell 5.1 and PowerShell 7.
+      [System.IO.File]::WriteAllText($gitignorePath, $newGi, (New-Object System.Text.UTF8Encoding($false)))
+      Write-Host "  De-duplicated $removed stale AAI-managed line(s) in $gitignorePath"
+    }
+  }
+}
+
 # Create conflict advisory report for files that were overwritten with differences.
 if ($overwriteConflicts.Count -gt 0) {
   $reportDir = Join-Path $TargetRoot "docs/ai/reports"
