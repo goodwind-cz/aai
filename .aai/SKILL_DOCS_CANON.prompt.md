@@ -79,8 +79,14 @@ RE-RUN / DRIFT MODE
   (idempotent) and flags domains whose sources changed since last synthesis as
   DRIFT without overwriting the canonical.
 - `node .aai/scripts/docs-canon.mjs --drift` reports drifted vs clean domains
-  (source-vs-canonical divergence) so the canonical layer stays live. Address
-  drift by re-synthesizing the affected domain deliberately, never silently.
+  (source-vs-canonical divergence) so the canonical layer stays live.
+- Resolve drift deliberately with
+  `node .aai/scripts/docs-canon.mjs --phase2 --resync`: this re-synthesizes the
+  DRIFTED domains from their current (archived) sources and re-baselines the
+  drift hashes, so the canonical reflects the latest sources without
+  hand-editing the map JSON. Re-fill the agent-authored prose sections of any
+  re-synced canonical (resync rewrites the scaffold from sources). Plain
+  `--phase2` (no `--resync`) never overwrites a drifted canonical.
 
 OUTPUT
 - Phase 1: present the proposed domain map + unclear bucket; explicitly state

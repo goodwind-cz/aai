@@ -1,12 +1,13 @@
 ---
 id: RFC-0003
 type: rfc
-status: proposed
+status: done
 links:
   rfc: RFC-0002
   spec: SPEC-0002
   pr: []
-  commits: []
+  commits:
+    - 8391ea2
 ---
 
 # RFC-0003 — Docs Canonicalization Skill (`aai-docs-canon`)
