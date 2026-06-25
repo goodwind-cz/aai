@@ -9,12 +9,18 @@ import {
   DOC_STATUS_ENUM, AC_STATUS_ENUM, TERMINAL_AC, DOC_TYPE_ENUM, DOC_ID_RE,
   DEFAULT_CATEGORY_PREFIXES, extractDocIds,
   parseFrontmatter, parseAcTable, parseISODate, parseReviewBy, specFrozenInBody,
+  validateCanonicalFrontmatter,
 } from './docs-model.mjs';
 
 export const CONFIG_PATH = 'docs/ai/docs-audit.yaml';
 export const EVENTS_PATH = 'docs/ai/EVENTS.jsonl';
 const SCAN_ROOT = 'docs';
-const EXCLUDE_DIRS = new Set(['ai', 'knowledge', 'archive', 'project-sessions', 'templates']);
+// RFC-0003 / SPEC-0002 SEAM-3: the canonicalization layer archives originals to
+// `docs/_archive/` (with underscore). The historical exclude list named
+// `archive` (no underscore), which would let archived docs be scanned and
+// mis-flagged as orphans. Both names are excluded so the chosen archive dir is
+// consistently treated as preserved-not-active.
+const EXCLUDE_DIRS = new Set(['ai', 'knowledge', 'archive', '_archive', 'project-sessions', 'templates']);
 const ID_FILE_RE = DOC_ID_RE;
 const OPEN_STATUSES = new Set(['draft', 'implementing']);
 const DEFAULT_STALE_DAYS = 90;
@@ -119,12 +125,17 @@ export function scanAuditDocs(root, { scopePath = null, scanExclude = [] } = {})
       if (entry.isDirectory()) { visit(full, depth + 1); continue; }
       if (!entry.name.endsWith('.md') || entry.name === 'INDEX.md') continue;
       const m = entry.name.match(ID_FILE_RE);
-      if (!m) continue;
+      // RFC-0003 / SPEC-0002: canonical docs are named <domain>.md (no ID
+      // prefix); they carry their id in frontmatter and must still be scanned
+      // so their canonical-provenance schema is validated. Their fileId is
+      // derived from the frontmatter id at parse time.
+      const inCanonical = rel.startsWith(path.join('docs', 'canonical') + path.sep);
+      if (!m && !inCanonical) continue;
       if (scopePath) {
         const scope = path.relative(root, path.resolve(root, scopePath));
         if (rel !== scope && !rel.startsWith(scope.replace(/\/+$/, '') + '/')) continue;
       }
-      found.push({ rel, fileId: m[1] });
+      found.push({ rel, fileId: m ? m[1] : null });
     }
   };
   visit(base, 0);
@@ -236,6 +247,16 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
       const msg = `unknown type "${fm.type}" (allowed: ${[...DOC_TYPE_ENUM].join(', ')})`;
       typeWarnings.push({ rel: f.rel, id, msg });
       if (strictTypes) violations.push({ rel: f.rel, msg });
+    }
+
+    // canonical provenance validation (RFC-0003 / SPEC-0002 Spec-AC-02):
+    // a canonical doc must carry a valid domain slug + non-empty sources list.
+    // These are hard schema violations (count toward hardFail under --strict).
+    if (String(fm.type ?? '').toLowerCase() === 'canonical') {
+      const v = validateCanonicalFrontmatter(fm);
+      for (const msg of v.violations) {
+        violations.push({ rel: f.rel, msg: `canonical frontmatter: ${msg}` });
+      }
     }
 
     // amendment annotations (CHANGE-0001 D3): recognized sibling fields

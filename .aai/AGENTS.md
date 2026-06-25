@@ -83,6 +83,7 @@ Follow .aai/SKILL_SHARE.prompt.md        # Publish reports to Cloudflare Pages w
 Follow .aai/SKILL_FLUSH.prompt.md        # Manual metrics flush & state cleanup (when loop doesn't complete it)
 Follow .aai/SKILL_DOCTOR.prompt.md       # Environment health check — validates files, skills, knowledge, git (pro-workflow)
 Follow .aai/SKILL_DOCS_AUDIT.prompt.md   # Docs hygiene & drift audit — orphan/false-done/stale detection (RFC-0002)
+Follow .aai/SKILL_DOCS_CANON.prompt.md   # Docs canonicalization — consolidate layered intake/specs/RFCs into a canonical per-domain layer in docs/canonical/, archive originals (RFC-0003)
 Follow .aai/SKILL_REPLAY.prompt.md       # Contextual learning replay — surfaces relevant past learnings (pro-workflow)
 Follow .aai/SKILL_SESSION_JOURNAL.prompt.md # Named project session journal — human-readable cross-agent discussion trail
 Follow .aai/SKILL_WRAP_UP.prompt.md      # Session wrap-up — capture learnings, propose rules, prepare next session (pro-workflow)
@@ -122,6 +123,7 @@ Skill selection guide:
 - **NEW:** Use SKILL_CODE_REVIEW after validation for merge/PR readiness. Review works on a clean diff and does not require a worktree.
 - **NEW:** Use SKILL_DOCTOR to diagnose the full AAI environment (broader than CHECK_STATE).
 - **NEW:** Use SKILL_DOCS_AUDIT for docs hygiene: per-doc classification, drift verdicts, and operator-approved remediation (RFC-0002). The audit reports; the operator decides.
+- **NEW:** Use SKILL_DOCS_CANON when layered docs have no single "current state" view per feature: Phase 1 proposes an AI domain map gated by human approval; Phase 2 auto-synthesizes one canonical doc per domain in docs/canonical/, archives originals to docs/_archive/ with back-links, and reports drift on re-run (RFC-0003).
 - **NEW:** Use SKILL_REPLAY to surface relevant past learnings before starting work.
 - **NEW:** Use SKILL_SESSION_JOURNAL to create or resume a named project discussion thread in the user's language.
 - **NEW:** Use SKILL_WRAP_UP at the end of a session to capture learnings and prepare next session.

@@ -31,7 +31,10 @@ const ARGV = process.argv.slice(2);
 // Default (no flag): degrade-and-report — always write a best-effort index.
 // --continue-on-error: retained as a no-op alias (degrade-and-report is now the default).
 const strict = ARGV.includes('--strict') || ARGV.includes('lint-docs');
-const SCAN_DIRS = ['docs/issues', 'docs/rfc', 'docs/specs', 'docs/requirements', 'docs/releases'];
+// RFC-0003 / SPEC-0002: index the canonical layer alongside the intake dirs.
+// docs/_archive is deliberately NOT scanned here — archived originals are
+// preserved-not-active and must not surface in the Active/Drafts sections.
+const SCAN_DIRS = ['docs/issues', 'docs/rfc', 'docs/specs', 'docs/requirements', 'docs/releases', 'docs/canonical'];
 const OUT_PATH = path.join(ROOT, 'docs/INDEX.md');
 const VIOLATIONS_PATH = path.join(ROOT, 'docs/INDEX.violations.md');
 const MARKER = '# Docs Index — auto-generated, DO NOT EDIT';
@@ -194,7 +197,11 @@ function main() {
   deferredItems.sort(sortByReviewBy);
   blockedItems.sort(sortByReviewBy);
 
-  const byStatus = (st) => docs.filter(d => d.status === st);
+  const isCanonical = (d) => String(d.fm?.type ?? d.type ?? '').toLowerCase() === 'canonical';
+  const canonicalDocs = docs.filter(isCanonical);
+  // canonical docs get a dedicated grouping; keep them out of the generic
+  // status sections so they are not double-listed.
+  const byStatus = (st) => docs.filter(d => d.status === st && !isCanonical(d));
   const progressFor = (d) => {
     if (!d.ac.hasGate || d.ac.rows.length === 0) return '—';
     const counts = {};
@@ -206,7 +213,7 @@ function main() {
   lines.push(MARKER);
   lines.push('');
   lines.push(`Generated: ${new Date().toISOString()}`);
-  lines.push(`Source: docs/{issues,rfc,specs,requirements,releases}/**/*.md`);
+  lines.push(`Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md`);
   lines.push('');
 
   const section = (title, items, renderRow) => {
@@ -226,6 +233,20 @@ function main() {
   section('Active (implementing)', byStatus('implementing').concat(byStatus('accepted'), byStatus('proposed'), byStatus('frozen')), items => {
     const out = ['| ID | Type | Status | Progress | Path |', '|---|---|---|---|---|'];
     for (const d of items) out.push(`| ${d.id} | ${d.type} | ${d.status} | ${progressFor(d)} | ${d.path} |`);
+    return out;
+  });
+
+  // RFC-0003 / SPEC-0002 — canonical layer. Surfaces each canonical doc with
+  // its domain and a count of contributing sources. Archived originals under
+  // docs/_archive/ are preserved-not-active and intentionally not listed.
+  section('Canonical layer', canonicalDocs, items => {
+    const out = ['| ID | Domain | Sources | Path |', '|---|---|---|---|'];
+    for (const d of items) {
+      const domain = d.fm?.domain ?? '—';
+      const srcCount = Array.isArray(d.fm?.sources) ? d.fm.sources.length
+        : (d.fm?.sources ? 1 : 0);
+      out.push(`| ${d.id} | ${domain} | ${srcCount} | ${d.path} |`);
+    }
     return out;
   });
 

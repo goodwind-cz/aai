@@ -15,7 +15,23 @@ export const TERMINAL_AC = new Set(['done', 'deferred', 'blocked', 'rejected']);
 export const DOC_TYPE_ENUM = new Set([
   'issue', 'change', 'prd', 'decision', 'spec', 'rfc', 'techdebt',
   'plan', 'release', 'research', 'requirement',
+  // RFC-0003 / SPEC-0002: canonicalization layer
+  'canonical', 'archived',
 ]);
+
+// RFC-0003 / SPEC-0002 — fixed hybrid layer sections, in order. The canonical
+// synthesizer must emit exactly these five level-2 headings in this order, and
+// any content classified `superseded` belongs only under the last one.
+export const CANONICAL_SECTIONS = [
+  'Overview / Intent',
+  'UI',
+  'Processes / Behavior',
+  'Data model',
+  'Superseded decisions',
+];
+
+// A domain slug is lowercased, starts alnum, then alnum/hyphen (RFC-0003 step 7).
+export const DOMAIN_SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 // Doc IDs in filenames: PREFIX-DIGITS plus compound forms with letter
 // segments between prefix and number (SPEC-CHANGE-027, DECISION-RFC-002,
@@ -134,10 +150,19 @@ export function parseFrontmatter(content) {
   const fm = {};
   let currentKey = null;
   let nested = null;
+  let list = null;
   for (const rawLine of block.split('\n')) {
     if (!rawLine.trim() || rawLine.trim().startsWith('#')) continue;
     if (rawLine.startsWith('  ')) {
       if (currentKey == null) continue;
+      // YAML block list item: "  - value" (RFC-0003 sources:, links lists).
+      const li = rawLine.trim().match(/^-\s*(.*)$/);
+      if (li) {
+        if (list == null) { list = []; fm[currentKey] = list; nested = null; }
+        const item = li[1].trim();
+        if (item !== '') list.push(item.replace(/^["']|["']$/g, ''));
+        continue;
+      }
       if (nested == null) { nested = {}; fm[currentKey] = nested; }
       const m = rawLine.trim().match(/^([a-zA-Z_][\w-]*):\s*(.*)$/);
       if (m) {
@@ -149,6 +174,7 @@ export function parseFrontmatter(content) {
       continue;
     }
     nested = null;
+    list = null;
     const m = rawLine.match(/^([a-zA-Z_][\w-]*):\s*(.*)$/);
     if (!m) continue;
     const v = m[2].trim();
@@ -156,7 +182,9 @@ export function parseFrontmatter(content) {
     if (v === '') fm[currentKey] = null;
     else if (v === '[]') fm[currentKey] = [];
     else if (v === 'null') fm[currentKey] = null;
-    else fm[currentKey] = v.replace(/^["']|["']$/g, '');
+    else if (v.startsWith('[') && v.endsWith(']')) {
+      fm[currentKey] = v.slice(1, -1).split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+    } else fm[currentKey] = v.replace(/^["']|["']$/g, '');
   }
   return fm;
 }
@@ -200,4 +228,66 @@ export function extractReferences(notes) {
   const refs = [];
   for (const m of String(notes).matchAll(/→\s*([A-Z]+(?:-[A-Z]+)*-\d{1,5})\b/g)) refs.push(m[1]);
   return refs;
+}
+
+// --- RFC-0003 / SPEC-0002 canonicalization schema ---------------------------
+
+// Normalize a frontmatter value that should be a list into a string array.
+// Tolerates a single scalar, an inline [a, b] form, or an already-parsed array.
+export function asList(value) {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
+  const s = String(value).trim();
+  if (s === '' || s === '[]') return [];
+  if (s.startsWith('[') && s.endsWith(']')) {
+    return s.slice(1, -1).split(',').map(x => x.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+  }
+  return [s];
+}
+
+// Validate the frontmatter of a `type: canonical` doc (Spec-AC-02).
+// Returns { ok, violations: [string] }. A canonical doc requires:
+//   - type === 'canonical'
+//   - domain: non-empty, matches DOMAIN_SLUG_RE (lowercased slug)
+//   - sources: a non-empty list of contributing original doc paths
+export function validateCanonicalFrontmatter(fm) {
+  const violations = [];
+  if (!fm) return { ok: false, violations: ['no frontmatter'] };
+  if (String(fm.type ?? '').toLowerCase() !== 'canonical') {
+    violations.push(`type must be "canonical" (got "${fm.type ?? ''}")`);
+  }
+  const domain = fm.domain == null ? '' : String(fm.domain).trim();
+  if (domain === '') {
+    violations.push('missing domain');
+  } else if (!DOMAIN_SLUG_RE.test(domain)) {
+    violations.push(`bad domain slug "${domain}" (must match ${DOMAIN_SLUG_RE})`);
+  }
+  const sources = asList(fm.sources);
+  if (sources.length === 0) violations.push('empty sources list');
+  return { ok: violations.length === 0, violations };
+}
+
+// Note: archived-doc frontmatter integrity (status: archived + a resolving
+// canonical: pointer) is enforced by checkLinkIntegrity in docs-canon-core.mjs,
+// which walks the docs/_archive/ tree directly. Archived docs are intentionally
+// excluded from the docs-audit scan (EXCLUDE_DIRS), so no separate
+// validate-on-scan helper is needed here.
+
+// Validate that the body contains exactly the five fixed layer sections as
+// level-2 headings, in order (Spec-AC-06). Returns { ok, violations }.
+export function validateSectionContract(content) {
+  const violations = [];
+  const headings = [];
+  for (const m of content.matchAll(/^##\s+(.+?)\s*$/gm)) headings.push(m[1].trim());
+  let idx = 0;
+  for (const want of CANONICAL_SECTIONS) {
+    const at = headings.indexOf(want, idx);
+    if (at < 0) {
+      violations.push(`missing or out-of-order section "## ${want}"`);
+      // continue checking remaining sections from current idx to report all gaps
+    } else {
+      idx = at + 1;
+    }
+  }
+  return { ok: violations.length === 0, violations };
 }
