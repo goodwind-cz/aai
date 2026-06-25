@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# AAI layer updater — one deterministic command for /aai-update.
+# AAI layer updater - one deterministic command for /aai-update.
 #
 # Materializes the canonical AAI repo's `main`, runs aai-sync into THIS project,
 # and prints concise post-sync evidence. Replaces the old 7-step agent-narrated
@@ -46,7 +46,7 @@ if ((Get-NormSlug $Repo) -and ((Get-NormSlug $targetOrigin) -eq (Get-NormSlug $R
 
 $Tmp = $null
 try {
-  # Resolve <SOURCE>: an existing local checkout, or a fresh shallow clone.
+  # Resolve SOURCE: an existing local checkout, or a fresh shallow clone.
   if (Test-Path -PathType Container $Repo) {
     $Src = (Resolve-Path $Repo).Path
     git -C $Src fetch --depth 1 origin $Ref *> $null
@@ -76,10 +76,10 @@ try {
   }
 
   if ($DryRun) {
-    Write-Host "## aai-update (dry-run) — no files changed"
+    Write-Host "## aai-update (dry-run) - no files changed"
     Write-Host "- Target:   $Target"
     Write-Host "- Upstream: $SrcDesc"
-    Write-Host "- Would run: <source>/.aai/scripts/aai-sync.ps1 -TargetRoot `"$Target`""
+    Write-Host "- Would run: SOURCE/.aai/scripts/aai-sync.ps1 -TargetRoot ""$Target"""
     Write-Host "- Then check: git status --short, .aai/system/AAI_PIN.md, docs/ai/reports/sync-conflicts-*.md"
     Write-Host "- Next: /aai-doctor (and /aai-bootstrap if skills changed)"
     exit 0
@@ -88,7 +88,7 @@ try {
   $Sync = Join-Path $Src ".aai/scripts/aai-sync.ps1"
   if (-not (Test-Path $Sync)) { [Console]::Error.WriteLine("ERROR: sync script missing in source: $Sync"); exit 4 }
 
-  Write-Host "## aai-update — syncing $SrcDesc into $Target"
+  Write-Host "## aai-update - syncing $SrcDesc into $Target"
   & $Sync -TargetRoot $Target
 
   Write-Host ""
@@ -111,7 +111,7 @@ try {
   if (Test-Path $reports) {
     $conf = Get-ChildItem $reports -Filter "sync-conflicts-*.md" -ErrorAction SilentlyContinue |
       Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if ($conf) { Write-Host "- ! Conflict advisory: $($conf.Name) — review before committing." }
+    if ($conf) { Write-Host "- ! Conflict advisory: $($conf.Name) - review before committing." }
   }
 
   Write-Host ""
