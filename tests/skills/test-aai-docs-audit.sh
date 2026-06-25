@@ -667,6 +667,353 @@ MD
   log_pass "Partial index with skipped-violations section works"
 }
 
+# --- SPEC-0003 closeout-candidate fixtures (CHANGE-0004) ----------------------
+
+# Builds an isolated subtree (docs/closeout/) holding every closeout case plus a
+# committed positive control. Scoped audits over this subtree keep the new
+# classification independent of the orphan/drift fixtures above.
+setup_closeout_fixture() {
+  log_info "Setting up closeout-candidate fixture (SPEC-0003)..."
+  mkdir -p "$TEST_DIR/docs/closeout"
+  cd "$TEST_DIR"
+
+  # Positive control: non-terminal rfc parent whose every linked spec is done
+  # (forward links.spec AND reverse links.rfc both exercised).
+  cat > docs/closeout/RFC-0010-shipped-parent.md <<'MD'
+---
+id: RFC-0010
+type: rfc
+status: proposed
+links:
+  spec: SPEC-0010
+---
+# Shipped parent RFC — all linked specs done
+MD
+  cat > docs/closeout/SPEC-0010-done-child.md <<'MD'
+---
+id: SPEC-0010
+type: spec
+status: done
+links:
+  rfc: RFC-0010
+---
+# Done child spec
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+
+  # TEST-002: implementing parent with one linked spec still implementing.
+  cat > docs/closeout/RFC-0020-mixed-parent.md <<'MD'
+---
+id: RFC-0020
+type: rfc
+status: implementing
+links:
+  spec: [SPEC-0021, SPEC-0022]
+---
+# Mixed parent — one spec still open
+MD
+  cat > docs/closeout/SPEC-0021-done.md <<'MD'
+---
+id: SPEC-0021
+type: spec
+status: done
+links:
+  rfc: RFC-0020
+---
+# Done sibling
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+  cat > docs/closeout/SPEC-0022-open.md <<'MD'
+---
+id: SPEC-0022
+type: spec
+status: implementing
+links:
+  rfc: RFC-0020
+---
+# Still-open sibling
+MD
+
+  # TEST-003: terminal (done/superseded) and draft parents are never flagged.
+  cat > docs/closeout/RFC-0030-done-parent.md <<'MD'
+---
+id: RFC-0030
+type: rfc
+status: done
+links:
+  spec: SPEC-0031
+---
+# Already-terminal parent
+MD
+  cat > docs/closeout/SPEC-0031-done.md <<'MD'
+---
+id: SPEC-0031
+type: spec
+status: done
+links:
+  rfc: RFC-0030
+---
+# Done spec under a done parent
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+  cat > docs/closeout/RFC-0032-superseded-parent.md <<'MD'
+---
+id: RFC-0032
+type: rfc
+status: superseded
+links:
+  spec: SPEC-0033
+---
+# Superseded parent
+MD
+  cat > docs/closeout/SPEC-0033-done.md <<'MD'
+---
+id: SPEC-0033
+type: spec
+status: done
+links:
+  rfc: RFC-0032
+---
+# Done spec under a superseded parent
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+  cat > docs/closeout/RFC-0034-draft-parent.md <<'MD'
+---
+id: RFC-0034
+type: rfc
+status: draft
+links:
+  spec: SPEC-0035
+---
+# Draft parent — not yet ready
+MD
+  cat > docs/closeout/SPEC-0035-done.md <<'MD'
+---
+id: SPEC-0035
+type: spec
+status: done
+links:
+  rfc: RFC-0034
+---
+# Done spec under a draft parent
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+
+  # TEST-005: false-positive guards — no-link parent, change-type doc, and a
+  # parent linking an unresolvable spec id.
+  cat > docs/closeout/RFC-0050-no-link.md <<'MD'
+---
+id: RFC-0050
+type: rfc
+status: proposed
+links:
+  pr: []
+---
+# Parent with no linked specs at all
+MD
+  cat > docs/closeout/CHANGE-0050-change-parent.md <<'MD'
+---
+id: CHANGE-0050
+type: change
+status: proposed
+links:
+  spec: SPEC-0051
+---
+# change-type doc linking an all-done spec — out of parent scope
+MD
+  cat > docs/closeout/SPEC-0051-done.md <<'MD'
+---
+id: SPEC-0051
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec linked only by a change-type doc
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+  cat > docs/closeout/RFC-0052-unresolvable.md <<'MD'
+---
+id: RFC-0052
+type: rfc
+status: proposed
+links:
+  spec: SPEC-9999
+---
+# Parent linking a spec id absent from the scan — cannot prove all-done
+MD
+
+  # TEST-007 (WARN-1): reverse-ONLY association — parent has NO links.spec; the
+  # done spec points back via links.rfc. Independently exercises the reverse
+  # resolution block (removing it would fail this test, unlike RFC-0010 which is
+  # also reachable forward).
+  cat > docs/closeout/RFC-0060-reverse-only.md <<'MD'
+---
+id: RFC-0060
+type: rfc
+status: proposed
+links:
+  pr: []
+---
+# Parent with no forward links.spec; only the child links back
+MD
+  cat > docs/closeout/SPEC-0060-done-reverse.md <<'MD'
+---
+id: SPEC-0060
+type: spec
+status: done
+links:
+  rfc: RFC-0060
+---
+# Done child that names its parent via links.rfc
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+
+  # TEST-008 (INFO-1): parent's forward links.spec names a NON-spec done doc.
+  # Must NOT be flagged — "all linked specs done" requires the resolved target to
+  # actually be a spec, not any done doc (guards against a misfiled link).
+  cat > docs/closeout/RFC-0070-forward-nonspec.md <<'MD'
+---
+id: RFC-0070
+type: rfc
+status: proposed
+links:
+  spec: CHANGE-0070
+---
+# Parent whose links.spec mistakenly names a non-spec (done) doc
+MD
+  cat > docs/closeout/CHANGE-0070-done-nonspec.md <<'MD'
+---
+id: CHANGE-0070
+type: change
+status: done
+links:
+  pr: []
+---
+# A done CHANGE doc — not a spec; must not satisfy all-specs-done
+MD
+
+  git add docs/closeout && git commit -qm "test: closeout-candidate fixtures (SPEC-0003)"
+  log_pass "Closeout fixture ready"
+}
+
+test_closeout_candidate_flagged() {
+  log_info "Test: non-terminal rfc parent with all-done specs flagged (TEST-001)..."
+  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
+  assert_contains "$TEST_DIR/closeout.log" "Closeout candidates"
+  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"
+  grep -F "RFC-0010" "$TEST_DIR/closeout.log" | grep -qF "SPEC-0010" \
+    || log_fail "Closeout row must name both parent RFC-0010 and done SPEC-0010"
+  log_pass "Closeout candidate flagged with parent + satisfying spec id"
+}
+
+test_closeout_spec_not_all_done() {
+  log_info "Test: parent with a non-done linked spec is NOT flagged; control IS (TEST-002)..."
+  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
+  # positive control (RED-proof): flagging must genuinely work before this passes
+  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"
+  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0020 to"
+  log_pass "Mixed-status parent withheld; positive control flagged"
+}
+
+test_closeout_terminal_parent() {
+  log_info "Test: terminal/draft parents never flagged; control IS (TEST-003)..."
+  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
+  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"
+  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0030 to"
+  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0032 to"
+  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0034 to"
+  log_pass "Terminal (done/superseded) and draft parents excluded"
+}
+
+test_closeout_read_only() {
+  log_info "Test: audit makes zero doc mutations over closeout fixture (TEST-004)..."
+  local before after
+  before="$(cd "$TEST_DIR" && find docs/closeout -type f -name '*.md' | sort | xargs shasum | shasum)"
+  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
+  # control proves the run actually produced a candidate (genuine RED pre-feature)
+  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"
+  after="$(cd "$TEST_DIR" && find docs/closeout -type f -name '*.md' | sort | xargs shasum | shasum)"
+  [[ "$before" == "$after" ]] || log_fail "Audit must not modify any closeout doc file"
+  [[ -z "$(cd "$TEST_DIR" && git status --porcelain -- docs/closeout)" ]] \
+    || log_fail "git working tree under docs/closeout must stay clean after audit"
+  log_pass "Audit is read-only over the closeout fixture"
+}
+
+test_closeout_no_false_positive() {
+  log_info "Test: no-link / change-type / unresolvable parents not flagged; control IS (TEST-005)..."
+  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
+  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"
+  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0050 to"
+  assert_not_contains "$TEST_DIR/closeout.log" "advance CHANGE-0050 to"
+  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0052 to"
+  log_pass "No new false positives from the closeout pass"
+}
+
+test_closeout_report_only_gate() {
+  log_info "Test: closeout pass is report-only; --check --strict still exits 0 (TEST-006)..."
+  run_audit --check --strict --no-event --path docs/closeout > "$TEST_DIR/closeout-gate.log" \
+    || log_fail "Closeout candidates must not change the --check --strict exit code"
+  assert_contains "$TEST_DIR/closeout-gate.log" "Closeout candidates"
+  assert_contains "$TEST_DIR/closeout-gate.log" "advance RFC-0010 to"
+  log_pass "Closeout classification is report-only (gate-neutral)"
+}
+
+test_closeout_reverse_only() {
+  log_info "Test: reverse-only association (child links.rfc, parent has no links.spec) flagged (TEST-007)..."
+  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
+  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"   # positive control
+  # the parent is reachable ONLY through the spec's reverse links.rfc
+  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0060 to"
+  grep -F "RFC-0060" "$TEST_DIR/closeout.log" | grep -qF "SPEC-0060" \
+    || log_fail "Reverse-only closeout row must name parent RFC-0060 and done SPEC-0060"
+  log_pass "Reverse-only (links.rfc) association independently flagged"
+}
+
+test_closeout_forward_nonspec_not_flagged() {
+  log_info "Test: forward links.spec to a NON-spec done doc is NOT flagged; control IS (TEST-008)..."
+  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
+  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"   # positive control
+  # RFC-0070's links.spec names CHANGE-0070 (type change, done) — not a spec
+  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0070 to"
+  log_pass "Forward link to a non-spec done doc does not satisfy all-specs-done"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -692,9 +1039,22 @@ main() {
   test_category_prefix_scope
   test_index_legacy_autoskip
   test_skill_prompt_modes
+  setup_closeout_fixture
+  test_closeout_candidate_flagged
+  test_closeout_spec_not_all_done
+  test_closeout_terminal_parent
+  test_closeout_read_only
+  test_closeout_no_false_positive
+  test_closeout_report_only_gate
+  test_closeout_reverse_only
+  test_closeout_forward_nonspec_not_flagged
   test_index_continue_on_error
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
 
-main "$@"
+# Allow sourcing for isolated per-test execution (TDD RED/GREEN evidence);
+# run the full suite only when invoked directly.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-06-25T20:25:00.582Z
+Generated: 2026-06-25T21:11:08.532Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (8)
+## Done (9)
 
 | ID | Type | Path |
 |---|---|---|
@@ -27,10 +27,13 @@ _None._
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
 | SPEC-0001 | specs | docs/specs/SPEC-0001-docs-hygiene-and-drift-audit.md |
 | SPEC-0002 | specs | docs/specs/SPEC-0002-docs-canonicalization-skill.md |
+| SPEC-0003 | specs | docs/specs/SPEC-0003-docs-audit-closeout-candidate.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0004 | issues | docs/issues/CHANGE-0004-docs-audit-parent-closeout-candidate.md |
 
 ## Deferred items (per-AC, across all specs) (0)
 

@@ -147,6 +147,18 @@ function main() {
       for (const a of result.annotations) lines.push(`- ${a.id}: ${a.key} = ${a.value}`);
       lines.push('');
     }
+    // Closeout candidates (SPEC-0003 / CHANGE-0004): report-only — never feeds
+    // the exit-code path; surfaces non-terminal parents whose specs are all done.
+    lines.push(`### Closeout candidates: ${result.closeoutCandidates.length}`);
+    lines.push('');
+    if (result.closeoutCandidates.length === 0) lines.push('_None._');
+    else {
+      lines.push(...table(['Parent', 'Type', 'Status', 'Satisfying spec(s)', 'Suggested next step'],
+        result.closeoutCandidates.map(c => [
+          c.id, c.type, c.status, c.specs.join(' + '), c.suggestedStep,
+        ])));
+    }
+    lines.push('');
     if (result.pendingCommit.length) {
       lines.push(`### Pending commit (verdicts reflect the working tree)`);
       lines.push('');
