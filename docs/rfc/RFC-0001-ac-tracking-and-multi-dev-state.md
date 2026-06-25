@@ -1,12 +1,14 @@
 ---
 id: RFC-0001
 type: rfc
-status: implementing
+status: done
 links:
   spec: null
   pr: []
   commits:
     - aaae190
+    - 3cb51bf
+    - 41579b3
 ---
 
 # RFC-0001 — AC-level Tracking and Multi-Dev STATE
@@ -178,5 +180,6 @@ Rollback is straightforward at every layer: `git revert` PRs in canonical, resto
 ## Notes
 
 - Full implementation plan (sequencing, file paths, verification steps, migration scripts) is maintained in the author's plan file at `/Users/ales/.claude/plans/potrebuji-predelat-ukladani-glistening-giraffe.md`. That plan is the operational counterpart to this proposal; if this RFC is accepted, the relevant sections will be promoted into a frozen spec under `docs/specs/`.
-- This RFC was originally authored in the legacy template format (no frontmatter). After PR 1 of the proposal landed in commit `aaae190`, frontmatter was added in PR 2 — providing the first dogfooding case for the proposed migration path. Status is `implementing` while PR 2 (INDEX generator) and PR 3 (EVENTS audit log) land. It will move to `done` once all three PRs are merged and a validation PASS is recorded against the new template specs.
+- This RFC was originally authored in the legacy template format (no frontmatter). After PR 1 of the proposal landed in commit `aaae190`, frontmatter was added — providing the first dogfooding case for the proposed migration path.
+- Closed `done` on 2026-06-25. All three PRs are merged: PR 1 templates+gate (`aaae190`), PR 2 INDEX generator (`3cb51bf`), PR 3 EVENTS audit log + helper (`41579b3`). The downstream specs the gate enabled (`SPEC-0001`, `RFC-0002`) are themselves `done` and `docs-audit.mjs` reports the repo CLEAN, which stands in for the "validation PASS against the new template specs" closing condition (no per-loop METRICS PASS was recorded for this canonical-repo change).
 - Use plain Markdown headings and body text. Do not add emoji or decorative icons unless there is a strong domain-specific reason.

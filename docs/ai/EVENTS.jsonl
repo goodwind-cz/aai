@@ -41,3 +41,5 @@
 {"v":1,"ts":"2026-06-12T18:50:18.382Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"CHANGE-0003","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-06-12T18:50:18.411Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"CHANGE-0003","payload":{"evidence":"test-aai-docs-audit.sh PASS 2026-06-12 (22 groups incl. prompt-modes guard)"}}
 {"v":1,"ts":"2026-06-12T18:50:18.821Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":6,"orphans":0,"drifted":0,"stale":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-06-25T10:20:05.166Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/docs/rfc","payload":{"total":2,"orphans":0,"drifted":0,"stale":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-06-25T10:22:55.977Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"RFC-0001","payload":{"from":"implementing","to":"done"}}
