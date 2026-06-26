@@ -16,6 +16,12 @@ AUTHORITATIVE
 - `.aai/scripts/docs-lock.mjs` — the atomic scope-lock registry (AUTHORITATIVE
   over `.aai/system/LOCKS.md`, which is now only a human-readable view)
 - .aai/system/LOCKS.md (human-readable view of locks; NOT the mechanism)
+- `.aai/scripts/orchestration-mode.mjs` — the deterministic, fail-closed
+  parallel-mode selector (RFC-0005 / SPEC-0005). It is the UPSTREAM mode decision:
+  SKILL_LOOP's "RUN ORCHESTRATION" step routes a tick HERE only when the selector
+  returns `mode=parallel`; the `parallel` group it returns (with K) is the set of
+  mutually independent scopes to fan out this tick. Overlapping/undeclared scopes
+  are never co-scheduled — this prompt schedules only what the selector cleared.
 
 STATE OWNERSHIP POLICY
 - `docs/ai/STATE.yaml` is orchestration-managed runtime state.

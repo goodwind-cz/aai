@@ -9,6 +9,59 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — loops: automatic parallel-mode detection (RFC-0005)
+
+Makes the existing parallel scheduler (`ORCHESTRATION_PARALLEL.prompt.md`, shipped
+with RFC-0004's locks) actually reachable. Previously `SKILL_LOOP`'s "RUN
+ORCHESTRATION" step hard-dispatched the single-agent orchestrator every tick, so
+the parallel capability was operationally dead. RFC-0005
+([SPEC-0005](docs/specs/SPEC-0005-automatic-parallel-mode-detection.md)) adds
+**automatic, fail-closed detection** of when a tick may safely fan out, and the
+wiring that routes the loop to the single or parallel orchestrator.
+
+### Added
+- **`.aai/scripts/orchestration-mode.mjs`** — a deterministic, unit-testable
+  selector CLI (ESM, `docs-lock.mjs` conventions). Pure decision function over a
+  normalized JSON input (stdin or `--input <file>`); prints `{mode,k,groups,reasons}`
+  (exit 0; bad input/flag exit 2). Independence is computed by **path-overlap +
+  fail-closed**: two scopes are independent only if their declared review-scope
+  paths do not overlap (boundary-prefix test) and neither is the other's
+  parent/child; a missing, empty, or bare-glob path is **uncertain -> sequential**
+  (never co-scheduled). `mode=auto` goes parallel iff >=2 mutually independent
+  scopes, `K = min(k_max, count, budget)`; `k_max` default 2. `effective_cap =
+  min(k_max, max_k_budget, locks_available ? inf : 1)` — **docs-lock.mjs absent
+  degrades to K=1**. Read roles parallelize across disjoint scopes; write roles
+  need provably-disjoint inline paths or `isolation=worktree`. Override
+  `orchestration_mode` in {auto,single,parallel}: `single` forces single,
+  `parallel` is a safety-gated opt-in (still respects the overlap test).
+- **`tests/skills/test-aai-orchestration-mode.sh`** — TEST-001..017. The SAFETY
+  pair (disjoint -> parallel; overlapping -> never co-scheduled) is RED-proofed
+  against a deliberately overlap-BLIND stub (the rejected Option C) via
+  `DOCS_SELECTOR_SCRIPT`, mirroring SPEC-0004's non-O_EXCL stub.
+
+### Changed
+- **`SKILL_LOOP.prompt.md`** "RUN ORCHESTRATION" is now MODE-AWARE: it discovers
+  actionable scopes, gathers their declared paths + `role_kind`/`isolation` +
+  docs-lock presence, invokes the selector, dispatches `ORCHESTRATION.prompt.md`
+  (single, the default) or `ORCHESTRATION_PARALLEL.prompt.md` (parallel), and
+  records `orchestration.mode`/`k`/`groups` in STATE + the tick log.
+- **`ORCHESTRATION.prompt.md`** and **`ORCHESTRATION_PARALLEL.prompt.md`** each
+  cross-reference the selector as the upstream mode decision.
+- **`docs/ai/STATE.yaml`** schema header documents the optional, non-breaking
+  `orchestration.mode|k|groups` block (absent == `auto`).
+- **`docs/USER_GUIDE.md`**: new "Parallel multi-agent orchestration" how-to
+  (auto/single/parallel, the independence rule, `k_max=2`, the docs-lock
+  degrade-to-single, and how to override).
+
+### Note (retroactive — RFC-0004)
+- The **`.aai/scripts/docs-lock.mjs`** atomic scope-lock primitive and the
+  single-writer protocol shipped with RFC-0004
+  ([SPEC-0004](docs/specs/SPEC-0004-enforced-multi-agent-state-locking.md)) but
+  never received a CHANGELOG entry. Recorded here: `docs-lock` provides O_EXCL
+  atomic per-scope leases (`acquire`/`release`/`list`/`reap`, TTL self-heal) under
+  `docs/ai/locks/` (gitignored), and is the enforcement floor RFC-0005's selector
+  degrades to single without.
+
 ## [unreleased] — docs: canonicalization skill (`aai-docs-canon`, RFC-0003)
 
 New re-runnable skill that consolidates **layered** documentation — an original
