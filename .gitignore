@@ -43,6 +43,12 @@ docs/ai/.pre-compact-state-backup.yaml
 docs/ai/STATE.yaml
 docs/ai/LOOP_TICKS.jsonl
 
+# Atomic scope locks (RFC-0004 / SPEC-0004): per-agent-local lease files created
+# on demand by .aai/scripts/docs-lock.mjs. They coordinate K parallel subagents
+# within ONE orchestrator process tree only, never across machines, so they are
+# never committed (the script recreates the directory as needed).
+docs/ai/locks/
+
 # Expert subagent cache (fetched on-demand from VoltAgent registry)
 .aai/cache/
 

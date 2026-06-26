@@ -13,7 +13,9 @@ AUTHORITATIVE
 - .aai/workflow/WORKFLOW.md
 - docs/TECHNOLOGY.md
 - Requirements/specs/reports
-- .aai/system/LOCKS.md
+- `.aai/scripts/docs-lock.mjs` — the atomic scope-lock registry (AUTHORITATIVE
+  over `.aai/system/LOCKS.md`, which is now only a human-readable view)
+- .aai/system/LOCKS.md (human-readable view of locks; NOT the mechanism)
 
 STATE OWNERSHIP POLICY
 - `docs/ai/STATE.yaml` is orchestration-managed runtime state.
@@ -23,9 +25,28 @@ STATE OWNERSHIP POLICY
 PARALLELISM RULES
 - Parallelize only across independent scopes.
 - Never run two roles on the same scope concurrently.
-- Respect .aai/system/LOCKS.md.
+- Enforce scope ownership with the atomic lock CLI (see SCOPE LOCKING below);
+  `.aai/scripts/docs-lock.mjs` is AUTHORITATIVE over `.aai/system/LOCKS.md`.
 - Respect gates and open items in docs/ai/STATE.yaml.
 - Default parallel fan-out K=2 (resource sensitive). Reduce to K=1 if contention risk is high.
+
+SCOPE LOCKING (atomic, mechanical — RFC-0004 / SPEC-0004)
+- The orchestrator is the SINGLE writer of `docs/ai/STATE.yaml`. Subagents NEVER
+  write STATE; they return a result block and you merge it (see
+  `.aai/SUBAGENT_PROTOCOL.md`, Single-writer rule).
+- BEFORE dispatching a role for a scope, ACQUIRE the scope lock:
+  `node .aai/scripts/docs-lock.mjs acquire <scope> <owner>`
+  - exit 0 => lock held by you; dispatch the workstream.
+  - exit 3 => scope is held by a live lock; DO NOT dispatch — defer the scope.
+- AFTER merging that scope's result into STATE.yaml, RELEASE the lock:
+  `node .aai/scripts/docs-lock.mjs release <scope> <owner>` (exit 0; exit 4 means
+  the lock is owned by someone else — investigate, do not force).
+- `docs-lock list` shows current locks; `docs-lock reap` reclaims expired (dead-
+  owner) locks. A crashed owner's scope self-heals after the TTL (default 1800s);
+  never hand-edit lock files.
+- DEGRADE-AND-REPORT FALLBACK (SPEC-0004 D8): if `.aai/scripts/docs-lock.mjs` is
+  ABSENT (older AAI layer), fall back to advisory `.aai/system/LOCKS.md` and
+  default to K=1 (single-agent safe), and report the degraded mode.
 
 STATE DISCOVERY
 For each scope (PRD/REQ/SPEC/Page), classify:
@@ -79,13 +100,18 @@ OUTPUT FORMAT
 
 SUBAGENT EXECUTION
 When the platform supports concurrent subagent spawning:
-1. For each selected workstream, spawn ONE subagent with:
+1. For each selected workstream, ACQUIRE its scope lock first
+   (`docs-lock acquire <scope> <owner>`); on exit 3 skip/defer that scope. Then
+   spawn ONE subagent with:
    - System prompt: the canonical role prompt from ai/<ROLE>.prompt.md
    - Context: scope, inputs, and a copy of .aai/SUBAGENT_PROTOCOL.md
+   Remind the subagent it MUST NOT write docs/ai/STATE.yaml (single-writer rule).
 2. Each subagent MUST return a result block as defined in .aai/SUBAGENT_PROTOCOL.md.
 3. DO NOT report to the user until ALL subagent result blocks are collected.
-4. Apply the merge protocol from .aai/SUBAGENT_PROTOCOL.md.
-5. Update docs/ai/STATE.yaml with merged results before any user-facing output.
+4. Apply the merge protocol from .aai/SUBAGENT_PROTOCOL.md — you are the sole
+   writer of docs/ai/STATE.yaml.
+5. Update docs/ai/STATE.yaml with merged results, then RELEASE each scope lock
+   (`docs-lock release <scope> <owner>`), before any user-facing output.
 
 If the platform does NOT support concurrent subagents:
 - Execute workstreams sequentially in priority order.

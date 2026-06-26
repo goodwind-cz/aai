@@ -62,3 +62,12 @@
 {"v":1,"ts":"2026-06-25T20:58:34.471Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0003/Spec-AC-05","payload":{"commit":"2026-06-25-validation-sonnet"}}
 {"v":1,"ts":"2026-06-25T20:58:34.527Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0003/Spec-AC-06","payload":{"commit":"2026-06-25-validation-sonnet"}}
 {"v":1,"ts":"2026-06-25T20:58:38.447Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0003","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-06-26T17:58:43.115Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0004/Spec-AC-01","payload":{"commit":"val-2026-06-26T175503Z"}}
+{"v":1,"ts":"2026-06-26T17:58:43.174Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0004/Spec-AC-02","payload":{"commit":"val-2026-06-26T175503Z"}}
+{"v":1,"ts":"2026-06-26T17:58:43.231Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0004/Spec-AC-03","payload":{"commit":"val-2026-06-26T175503Z"}}
+{"v":1,"ts":"2026-06-26T17:58:43.287Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0004/Spec-AC-04","payload":{"commit":"val-2026-06-26T175503Z"}}
+{"v":1,"ts":"2026-06-26T17:58:43.347Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0004/Spec-AC-05","payload":{"commit":"val-2026-06-26T175503Z"}}
+{"v":1,"ts":"2026-06-26T17:58:43.405Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0004/Spec-AC-06","payload":{"commit":"val-2026-06-26T175503Z"}}
+{"v":1,"ts":"2026-06-26T17:58:43.467Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0004/Spec-AC-07","payload":{"commit":"val-2026-06-26T175503Z"}}
+{"v":1,"ts":"2026-06-26T17:58:43.526Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0004/Spec-AC-08","payload":{"commit":"val-2026-06-26T175503Z"}}
+{"v":1,"ts":"2026-06-26T17:58:43.584Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0004","payload":{"from":"implementing","to":"done"}}

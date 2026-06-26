@@ -78,6 +78,36 @@ Timing capture rules:
 - Use UTC ISO-8601 with explicit `Z` or `+00:00`.
 - `duration_seconds` MUST match `ended_utc - started_utc` (tolerance +/-1s).
 
+## Single-writer rule (HARD — RFC-0004 / SPEC-0004 D7)
+
+A dispatched subagent **MUST NOT write `docs/ai/STATE.yaml`**. The orchestrator
+is the **SOLE STATE writer**. A subagent returns its result block (below) and
+nothing more; the orchestrator merges that block and performs every mutation of
+`docs/ai/STATE.yaml` through the merge protocol. This closes the lost-update race
+that occurs the moment K >= 2 subagents touch `STATE.yaml` directly.
+
+What a subagent MAY write: its own scoped source/test files, append-only evidence
+under `docs/ai/tdd/`, and `docs/ai/EVENTS.jsonl` via `append-event.mjs` (the
+append-only, commutative audit log). What it MUST NOT write: `docs/ai/STATE.yaml`
+(orchestrator-only). The orchestrator additionally serializes scope ownership with
+the atomic lock CLI `.aai/scripts/docs-lock.mjs` (acquire before dispatch, release
+after merge) so two orchestrators cannot drive the same scope concurrently.
+
+Honesty note: this is a protocol rule binding an LLM subagent, so it is partly
+process, not a hard runtime guard. The mechanically enforced core is (a) the
+`docs-lock.mjs` acquire/release exit-code contract the orchestrator branches on
+and (b) the merge protocol. A runtime `git diff`-based STATE-mutation guard is a
+recommended follow-up (residual risk R-GUARD), not yet built.
+
+### Single-writer rationalization table (stop and correct any of these)
+
+| Rationalization                                          | Reality                                                                 |
+|---------------------------------------------------------|-------------------------------------------------------------------------|
+| "My update to STATE.yaml is tiny, I'll just write it"   | Subagents MUST NOT write `docs/ai/STATE.yaml`. Return a result block; the orchestrator is the sole writer. |
+| "I'll write STATE so the orchestrator doesn't have to"  | Direct subagent STATE writes race and lose updates at K >= 2. That is exactly the bug this rule removes. |
+| "I acquired nothing, the scope was obviously free"      | Always `docs-lock acquire <scope> <owner>` before working a scope; a free-looking scope can be claimed concurrently. |
+| "I'm done, I'll leave the lock for cleanup/TTL"         | Release explicitly after merge (`docs-lock release <scope> <owner>`); TTL reclaim is a crash safety net, not the normal path. |
+
 ## Merge protocol (orchestrator responsibility)
 
 After all subagents complete, the orchestrator MUST:
