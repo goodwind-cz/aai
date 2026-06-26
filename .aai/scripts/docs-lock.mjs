@@ -27,6 +27,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 const DEFAULT_TTL = 1800; // seconds (30 min) — SPEC-0004 D3
 const LOCKS_DIR = process.env.AAI_LOCK_DIR
@@ -61,8 +62,22 @@ function usage() {
   );
 }
 
+const FS_SAFE_RE = /^[A-Za-z0-9._-]+$/;
+
+// Derive the lock filename STEM for a scope id. A raw scope that is already
+// filesystem-safe is used verbatim (back-compatible: "CONTESTED" -> "CONTESTED").
+// Otherwise sanitization is many-to-one (e.g. "a/b" and "a_b" both sanitize to
+// "a_b"), so we disambiguate with a short hash of the RAW scope appended to the
+// sanitized stem. The disambiguated form is prefixed with "~" — a character
+// outside FS_SAFE_RE, so it lives in a namespace disjoint from every verbatim
+// (naturally-safe) stem and can never cross-collide with one (review finding:
+// a scope literally named "a_b-<hex>" must not collide with "a/b").
 function safeScope(scope) {
-  return String(scope).replace(/[^A-Za-z0-9._-]/g, '_');
+  const raw = String(scope);
+  if (FS_SAFE_RE.test(raw)) return raw;
+  const sanitized = raw.replace(/[^A-Za-z0-9._-]/g, '_');
+  const hash = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 8);
+  return `~${sanitized}-${hash}`;
 }
 
 function lockPath(scope) {

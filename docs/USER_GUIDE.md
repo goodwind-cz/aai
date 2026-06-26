@@ -395,6 +395,16 @@ loop arg) to one of:
 An absent `orchestration` block means `auto` — existing single-scope projects
 behave exactly as before.
 
+**Inspecting the locks:** when a parallel tick is running you can see what each
+agent holds, and recover after a crash, with the scope-lock CLI:
+```bash
+node .aai/scripts/docs-lock.mjs list      # show held scope locks (owner, ttl, expired?)
+node .aai/scripts/docs-lock.mjs reap      # clear expired locks (a crashed owner self-heals after its TTL)
+```
+Lock files live under `docs/ai/locks/` (gitignored, per-agent-local). You should
+never need to edit them by hand; `reap` recovers a wedged scope if an
+orchestrator died mid-tick.
+
 ---
 
 ### 4. Quality & Validation

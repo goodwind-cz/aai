@@ -310,6 +310,30 @@ test_wiring_docs() {
   log_pass "USER_GUIDE parallel-orchestration section + CHANGELOG RFC-0005/docs-lock entry present"
 }
 
+# --- TEST-019 — parent/child link fail-closed even on DISJOINT paths (D4) ------
+# The selector's conflict() treats a declared parent/child link as a conflict
+# (isLinkedParentChild), so a declared dependency forces sequential even when the
+# two scopes touch DISJOINT files. Positive control: the SAME two scopes with the
+# link removed DO parallelize -> the link (not the paths) is what defers them, so
+# the assertion is non-tautological.
+test_parent_child_link_fail_closed() {
+  log_info "TEST-019: two DISJOINT-path scopes with a parent/child link -> NOT co-scheduled (mode=single + reason); unlinked control -> parallel..."
+  local json out
+  # (a) B declares parent=A; paths are disjoint (src/a/ vs src/b/) -> conflict via link
+  json='{"orchestration_mode":"auto","k_max":2,"locks_available":true,"scopes":[{"id":"A","role_kind":"write","review_scope_paths":["src/a/"],"isolation":"inline","children":["B"]},{"id":"B","role_kind":"write","review_scope_paths":["src/b/"],"isolation":"inline","parent":"A"}]}'
+  out="$(sel "$json")"
+  ok "$out" '!o.groups.some(g=>g.kind==="parallel"&&g.scopes.includes("A")&&g.scopes.includes("B"))' "a parent/child link must NEVER co-schedule the pair, even on disjoint paths"
+  ok "$out" 'o.mode==="single"' "a linked pair with no other independent scope must yield mode=single"
+  ok "$out" '!!o.reasons.B' "the deferred linked scope must carry a reason"
+  ok "$out" '/conflicts-with A/.test(o.reasons.B||"")' "the deferred linked scope must record a conflicts-with reason naming the parent"
+  # (b) POSITIVE CONTROL: identical scopes/paths but WITHOUT the link -> parallel
+  json='{"orchestration_mode":"auto","k_max":2,"locks_available":true,"scopes":[{"id":"A","role_kind":"write","review_scope_paths":["src/a/"],"isolation":"inline"},{"id":"B","role_kind":"write","review_scope_paths":["src/b/"],"isolation":"inline"}]}'
+  out="$(sel "$json")"
+  ok "$out" 'o.mode==="parallel"&&o.k===2' "control: the SAME disjoint scopes WITHOUT a link must parallelize (k=2)"
+  ok "$out" 'o.groups.some(g=>g.kind==="parallel"&&g.scopes.includes("A")&&g.scopes.includes("B"))' "control: unlinked disjoint scopes must share one parallel group"
+  log_pass "a declared parent/child link forces sequential even on disjoint paths (fail-closed); unlinked control parallelizes"
+}
+
 main() {
   echo "Testing $TEST_NAME (deterministic fail-closed parallel-mode selector + wiring)"
   check_deps
@@ -331,6 +355,7 @@ main() {
   test_wiring_skill_loop
   test_wiring_state_schema
   test_wiring_docs
+  test_parent_child_link_fail_closed
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
