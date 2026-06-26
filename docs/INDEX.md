@@ -1,15 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-06-26T18:28:09.150Z
+Generated: 2026-06-26T19:03:31.315Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (0)
+## Active (implementing) (1)
 
-_None._
+| ID | Type | Status | Progress | Path |
+|---|---|---|---|---|
+| RFC-0005 | rfc | proposed | — | docs/rfc/RFC-0005-automatic-parallel-mode-detection.md |
 
 ## Canonical layer (0)
 
