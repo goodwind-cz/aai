@@ -4,7 +4,7 @@ type: rfc
 status: proposed
 links:
   rfc: RFC-0004
-  spec: null
+  spec: SPEC-0005
   pr: []
   commits: []
 ---

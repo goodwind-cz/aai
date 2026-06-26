@@ -17,6 +17,12 @@ AUTHORITATIVE SOURCES
 - .aai/SKILL_WORKTREE.prompt.md
 - .aai/SKILL_CODE_REVIEW.prompt.md
 - .aai/system/LOCKS.md (if present)
+- `.aai/scripts/orchestration-mode.mjs` — the deterministic, fail-closed
+  parallel-mode selector (RFC-0005 / SPEC-0005). This single-agent orchestrator is
+  the DEFAULT path SKILL_LOOP routes to when the selector returns `mode=single`
+  (one scope, all-conflicting scopes, no enforceable locks, or an operator
+  override). When the selector instead returns `mode=parallel`, SKILL_LOOP routes
+  to `.aai/ORCHESTRATION_PARALLEL.prompt.md` rather than this prompt.
 
 STATE OWNERSHIP POLICY (NO MANUAL STATE REQUIRED)
 - `docs/ai/STATE.yaml` is an internal runtime artifact managed by orchestration.

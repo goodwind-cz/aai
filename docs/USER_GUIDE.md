@@ -349,6 +349,52 @@ AAI uses two different classes of documentation:
 # Stops on completion or human input needed
 ```
 
+#### Parallel multi-agent orchestration
+
+**What:** Each loop tick can run a single agent (default) or fan out to several
+agents working independent scopes at once. The loop decides automatically and
+**fail-closed** — it only parallelizes work it can prove is non-conflicting.
+
+**How the loop chooses (auto):** before dispatching, `SKILL_LOOP`'s "RUN
+ORCHESTRATION" step calls the deterministic selector
+`.aai/scripts/orchestration-mode.mjs`. It returns `mode` (single | parallel),
+`k` (the fan-out), and the scope `groups`. When `mode=parallel`, the loop routes
+the tick to `.aai/ORCHESTRATION_PARALLEL.prompt.md`; when `mode=single` it uses
+the normal single-agent `.aai/ORCHESTRATION.prompt.md`.
+
+**The independence rule (when auto goes parallel):** two scopes may run together
+only when ALL hold —
+- their declared review-scope paths do **not** overlap (a path overlaps another
+  if it equals it or is a directory-boundary prefix, e.g. `apps/api/` overlaps
+  `apps/api/export/`),
+- neither scope is the other's parent/child in the doc links, and
+- each scope's path is actually declared and parseable — a **missing, empty, or
+  bare-glob** path (`*`, `**`, `*.md`) is treated as *uncertain* and is **never**
+  co-scheduled (fail-closed: it can only reduce parallelism, never cause a clash).
+
+Read-only roles (validation, code review) parallelize freely across disjoint
+scopes. Write roles (implementation/TDD/remediation) parallelize only when they
+are provably disjoint inline, or run in a git worktree (`isolation: worktree`).
+
+**Controls and defaults:**
+- `k_max` default is **2** (conservative — parallel fan-out multiplies token/
+  compute spend). Raise it to allow wider fan-out; a per-run token/cost budget
+  (`max_k_budget`) caps it further.
+- **Locks are required:** parallel ticks coordinate writes through the atomic
+  scope locks (`.aai/scripts/docs-lock.mjs`). If `docs-lock.mjs` is absent (older
+  layer), the selector **degrades to single** (`K=1`) and reports why — it never
+  runs parallel without enforceable locks.
+
+**Override:** set `orchestration.mode` in `docs/ai/STATE.yaml` (or pass it as a
+loop arg) to one of:
+- `auto` (default) — let the selector decide per tick,
+- `single` — always one agent per tick (forces single, overrides everything),
+- `parallel` — opt in to fan-out, but still **safety-gated**: overlapping or
+  undeclared scopes stay sequential (it never bypasses the independence test).
+
+An absent `orchestration` block means `auto` — existing single-scope projects
+behave exactly as before.
+
 ---
 
 ### 4. Quality & Validation

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-06-26T19:03:31.315Z
+Generated: 2026-06-26T19:52:04.043Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (12)
+## Done (13)
 
 | ID | Type | Path |
 |---|---|---|
@@ -33,6 +33,7 @@ _None._
 | SPEC-0002 | specs | docs/specs/SPEC-0002-docs-canonicalization-skill.md |
 | SPEC-0003 | specs | docs/specs/SPEC-0003-docs-audit-closeout-candidate.md |
 | SPEC-0004 | specs | docs/specs/SPEC-0004-enforced-multi-agent-state-locking.md |
+| SPEC-0005 | specs | docs/specs/SPEC-0005-automatic-parallel-mode-detection.md |
 
 ## Drafts (0)
 

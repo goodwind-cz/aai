@@ -155,12 +155,39 @@ For each tick (1..max_ticks):
           letting unattended spend grow unchecked. A human raises the budget or
           narrows scope, then re-runs.
 
-  3. RUN ORCHESTRATION (one tick):
+  3. RUN ORCHESTRATION (one tick) — MODE-AWARE (RFC-0005 / SPEC-0005):
      - Capture orchestration_started_utc immediately before invocation from system clock.
-     - System prompt / instructions: contents of .aai/ORCHESTRATION.prompt.md
-     - Context: current docs/ai/STATE.yaml contents, current tick number
+     - SELECT ORCHESTRATION MODE FIRST (single vs parallel) via the deterministic,
+       fail-closed selector `.aai/scripts/orchestration-mode.mjs` (SPEC-0005). It is
+       the single source of truth for whether this tick may safely fan out:
+         a. DISCOVER the actionable scopes for this tick (each scope whose next
+            role is ready to dispatch), in ORCHESTRATION_PARALLEL priority order.
+         b. For EACH scope gather its declared review-scope paths (from the spec's
+            `code_review.scope` / `worktree.inline_review_scope` / STATE affected
+            paths), its `role_kind` (read = validation|code_review ; write =
+            implementation|tdd|remediation), and its `isolation` (inline|worktree).
+            Also read `orchestration.mode` (default auto) from STATE and detect
+            whether `.aai/scripts/docs-lock.mjs` is present (locks_available).
+         c. INVOKE the selector, e.g.:
+              printf '%s' "$SELECTOR_INPUT_JSON" | node .aai/scripts/orchestration-mode.mjs
+            It returns `{mode,k,groups,reasons}` (mode = single|parallel). Missing
+            docs-lock.mjs (locks_available=false) or any undeclared/overlapping
+            scope degrades to mode=single — it NEVER co-schedules unprovable scopes.
+     - DISPATCH on the selector's `mode`:
+         · mode == single   -> System prompt / instructions: contents of
+           `.aai/ORCHESTRATION.prompt.md` (existing single-agent path — the DEFAULT).
+         · mode == parallel -> System prompt / instructions: contents of
+           `.aai/ORCHESTRATION_PARALLEL.prompt.md`, fanning out the `parallel`
+           group's scopes with K = selector `k` (each scope lock-acquired first).
+     - Context: current docs/ai/STATE.yaml contents, current tick number, and the
+       selector decision (mode/k/groups/reasons).
      - Preferred: spawn a subagent.
-     - Fallback: execute .aai/ORCHESTRATION.prompt.md directly in this session.
+     - Fallback: execute the chosen orchestrator prompt directly in this session.
+       If `node` or the selector is unavailable, default to mode=single (safe).
+     - RECORD the decision: write `orchestration.mode`, `orchestration.k`, and
+       `orchestration.groups` into docs/ai/STATE.yaml (optional block; absent ==
+       auto, back-compat) and include `orchestration_mode`/`orchestration_k` in the
+       tick log line (step 6) so a human can see why a tick went single or parallel.
      - Capture orchestration_ended_utc immediately after completion from system clock.
      - Expected result: docs/ai/STATE.yaml updated and a DISPATCH block produced.
 
