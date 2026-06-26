@@ -306,6 +306,49 @@ test_concurrency_expired_reclaim_single_winner() {
   log_pass "expired-reclaim path yields exactly one winner under concurrency"
 }
 
+# --- TEST-012 — W2 collision guard: distinct scopes never share a lock --------
+# Code-review W2 (SPEC-0004): safeScope() sanitization is many-to-one — "x/y"
+# and "x_y" both sanitize to the stem "x_y" and, naively, to ONE lock file, so
+# acquiring "x/y" would silently lock out "x_y". The disambiguating hash must
+# give each distinct RAW scope its OWN lock file so both can be held at once.
+test_collision_guard() {
+  log_info "TEST-012: two scopes that sanitize to the same stem get DISTINCT locks, both holdable..."
+  fresh_lockdir
+  local rc nlocks
+  set +e
+  runlock acquire "x/y" owner-slash >/dev/null 2>&1; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "acquire of scope 'x/y' must exit 0 (got $rc)"
+  runlock acquire "x_y" owner-underscore >/dev/null 2>&1; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "acquire of colliding scope 'x_y' must ALSO exit 0, not contend (got $rc) — lock-file collision"
+  set -e
+  # Both locks must coexist as TWO distinct files.
+  nlocks="$(ls -1 "$LOCKDIR"/*.lock 2>/dev/null | wc -l | tr -d ' ')"
+  [[ "$nlocks" -eq 2 ]] || log_fail "two distinct scopes must produce two lock files (got $nlocks)"
+  # list must report both held scopes by their RAW ids.
+  local out
+  set +e
+  out="$(runlock list 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "list must exit 0 (got $rc)"
+  echo "$out" | grep -qF "x/y" || log_fail "list must show raw scope 'x/y'"
+  echo "$out" | grep -qF "x_y" || log_fail "list must show raw scope 'x_y'"
+  # Cross-branch (review finding): a scope literally named like the disambiguated
+  # output of an unsafe scope must NOT collide with it. The "~" namespace prefix
+  # makes the unsafe form unreachable by any naturally-safe scope id.
+  fresh_lockdir
+  set +e
+  local stem
+  stem="$(node -e 'const c=require("node:crypto");const h=c.createHash("sha256").update("a/b").digest("hex").slice(0,8);process.stdout.write("a_b-"+h)')"
+  runlock acquire "a/b" owner-unsafe >/dev/null 2>&1; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "acquire of 'a/b' must exit 0 (got $rc)"
+  runlock acquire "$stem" owner-craft >/dev/null 2>&1; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "a scope literally named '$stem' must NOT collide with 'a/b' (got exit $rc) — cross-branch lock collision"
+  nlocks="$(ls -1 "$LOCKDIR"/*.lock 2>/dev/null | wc -l | tr -d ' ')"
+  [[ "$nlocks" -eq 2 ]] || log_fail "crafted-name scope must get its own lock file (got $nlocks)"
+  log_pass "distinct scopes that sanitize alike (and crafted cross-branch names) get separate locks"
+}
+
 # --- TEST-008 — list view (Spec-AC-06) ---------------------------------------
 test_list_view() {
   log_info "TEST-008: list on empty dir prints no-locks marker; after acquires shows both..."
@@ -407,6 +450,7 @@ main() {
   test_reap_reclaims_expired
   test_selfheal_and_fresh_not_reaped
   test_concurrency_expired_reclaim_single_winner
+  test_collision_guard
   test_list_view
   test_gitignore
   test_wiring_and_protocol
