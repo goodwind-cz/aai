@@ -1,23 +1,21 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-06-26T18:27:10.779Z
+Generated: 2026-06-26T18:28:09.150Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (0)
 
-| ID | Type | Status | Progress | Path |
-|---|---|---|---|---|
-| RFC-0004 | rfc | proposed | — | docs/rfc/RFC-0004-enforced-multi-agent-state-locking.md |
+_None._
 
 ## Canonical layer (0)
 
 _None._
 
-## Done (11)
+## Done (12)
 
 | ID | Type | Path |
 |---|---|---|
@@ -28,6 +26,7 @@ _None._
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
+| RFC-0004 | rfc | docs/rfc/RFC-0004-enforced-multi-agent-state-locking.md |
 | SPEC-0001 | specs | docs/specs/SPEC-0001-docs-hygiene-and-drift-audit.md |
 | SPEC-0002 | specs | docs/specs/SPEC-0002-docs-canonicalization-skill.md |
 | SPEC-0003 | specs | docs/specs/SPEC-0003-docs-audit-closeout-candidate.md |

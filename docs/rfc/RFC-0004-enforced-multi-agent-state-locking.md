@@ -1,12 +1,14 @@
 ---
 id: RFC-0004
 type: rfc
-status: proposed
+status: done
 links:
   rfc: RFC-0001
   spec: SPEC-0004
-  pr: []
-  commits: []
+  pr:
+    - 13
+  commits:
+    - 07142dd
 ---
 
 # RFC-0004 — Enforced Multi-Agent STATE Locking (single-writer + atomic scope locks)
