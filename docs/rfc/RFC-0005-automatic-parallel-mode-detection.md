@@ -1,12 +1,14 @@
 ---
 id: RFC-0005
 type: rfc
-status: proposed
+status: done
 links:
   rfc: RFC-0004
   spec: SPEC-0005
-  pr: []
-  commits: []
+  pr:
+    - 14
+  commits:
+    - 648f0b0
 ---
 
 # RFC-0005 — Automatic Parallel-Mode Detection for the Loop
