@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-06-26T17:36:50.644Z
+Generated: 2026-06-26T18:27:10.779Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (10)
+## Done (11)
 
 | ID | Type | Path |
 |---|---|---|
@@ -31,6 +31,7 @@ _None._
 | SPEC-0001 | specs | docs/specs/SPEC-0001-docs-hygiene-and-drift-audit.md |
 | SPEC-0002 | specs | docs/specs/SPEC-0002-docs-canonicalization-skill.md |
 | SPEC-0003 | specs | docs/specs/SPEC-0003-docs-audit-closeout-candidate.md |
+| SPEC-0004 | specs | docs/specs/SPEC-0004-enforced-multi-agent-state-locking.md |
 
 ## Drafts (0)
 
