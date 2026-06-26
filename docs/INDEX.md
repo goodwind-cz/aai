@@ -1,15 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-06-25T21:12:41.977Z
+Generated: 2026-06-26T17:36:50.644Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (0)
+## Active (implementing) (1)
 
-_None._
+| ID | Type | Status | Progress | Path |
+|---|---|---|---|---|
+| RFC-0004 | rfc | proposed | — | docs/rfc/RFC-0004-enforced-multi-agent-state-locking.md |
 
 ## Canonical layer (0)
 
@@ -63,4 +65,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-06-25 — counts above use this date for overdue checks.
+Today (UTC): 2026-06-26 — counts above use this date for overdue checks.
