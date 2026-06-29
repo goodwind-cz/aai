@@ -1,0 +1,103 @@
+name: ps1-quality
+
+# Guards the vendored PowerShell scripts (.aai/scripts/*.ps1) against the class of
+# failure that broke /aai-update: a parse error that only surfaces when a user
+# runs the script. Two jobs:
+#   - gate:          the full bash quality gate on Linux (parse-check + PSScript-
+#                    Analyzer 5.1/7.0 syntax compat + Pester smoke tests) under pwsh 7.
+#   - windows-5_1:   parse-check every .ps1 under REAL Windows PowerShell 5.1 —
+#                    the actual environment that broke — plus pwsh 7.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.aai/scripts/**.ps1'
+      - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
+      - 'tests/skills/test-ps1-quality.sh'
+      - 'tests/skills/aai-update.Tests.ps1'
+      - '.github/workflows/ps1-quality.yml'
+  pull_request:
+    paths:
+      - '.aai/scripts/**.ps1'
+      - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
+      - 'tests/skills/test-ps1-quality.sh'
+      - 'tests/skills/aai-update.Tests.ps1'
+      - '.github/workflows/ps1-quality.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: ps1 gate (Linux, pwsh 7 + PSScriptAnalyzer + Pester)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache PowerShell modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/powershell/Modules
+          key: ps-modules-${{ runner.os }}-pssa1.25-pester5
+
+      - name: Install PSScriptAnalyzer + Pester
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          if (-not (Get-Module PSScriptAnalyzer -ListAvailable)) {
+            Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+          }
+          if (-not (Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 })) {
+            Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck
+          }
+          "PSScriptAnalyzer $((Get-Module PSScriptAnalyzer -ListAvailable | Select-Object -First 1).Version)"
+          "Pester $((Get-Module Pester -ListAvailable | Sort-Object Version -Descending | Select-Object -First 1).Version)"
+
+      - name: Run ps1-quality gate
+        shell: bash
+        run: |
+          set +e
+          bash tests/skills/test-ps1-quality.sh
+          rc=$?
+          # 0 = pass, 1 = fail, 42 = skipped (pwsh missing — should not happen here).
+          if [ "$rc" -eq 42 ]; then
+            echo "::warning::ps1-quality gate skipped (pwsh unexpectedly unavailable)"
+            exit 0
+          fi
+          exit "$rc"
+
+  windows-5_1:
+    name: parse-check under Windows PowerShell 5.1
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse-check every .ps1 under Windows PowerShell 5.1
+        shell: powershell   # Windows PowerShell 5.1 (the field environment)
+        run: |
+          $bad = 0
+          Get-ChildItem -Path .aai/scripts -Filter *.ps1 | Sort-Object Name | ForEach-Object {
+            $errs = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errs) | Out-Null
+            if ($errs -and $errs.Count) {
+              $bad++
+              Write-Host "PARSEFAIL $($_.Name)"
+              $errs | ForEach-Object { Write-Host "  $($_.Message)" }
+            } else {
+              Write-Host "OK $($_.Name)"
+            }
+          }
+          if ($bad -gt 0) { Write-Error "$bad .ps1 file(s) fail to parse under Windows PowerShell 5.1"; exit 1 }
+
+      - name: Parse-check every .ps1 under pwsh 7
+        shell: pwsh
+        run: |
+          $bad = 0
+          Get-ChildItem -Path .aai/scripts -Filter *.ps1 | Sort-Object Name | ForEach-Object {
+            $errs = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errs) | Out-Null
+            if ($errs -and $errs.Count) { $bad++; Write-Host "PARSEFAIL $($_.Name)"; $errs | ForEach-Object { Write-Host "  $($_.Message)" } }
+          }
+          if ($bad -gt 0) { Write-Error "$bad .ps1 file(s) fail to parse under pwsh 7"; exit 1 }

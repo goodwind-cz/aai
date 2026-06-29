@@ -9,6 +9,18 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — ci: ps1-quality GitHub Actions workflow
+
+First CI for the repo (`.github/workflows/ps1-quality.yml`), wiring the
+PowerShell quality gate so the parse-error class that broke /aai-update is caught
+on every PR/push that touches a `.ps1` (path-filtered, so unrelated changes do
+not trigger it). Two jobs:
+- **gate** (ubuntu, pwsh 7): runs `tests/skills/test-ps1-quality.sh` — parse-check
+  every `.ps1` + PSScriptAnalyzer `PSUseCompatibleSyntax` (5.1 + 7.0) + the Pester
+  smoke tests. Installs PSScriptAnalyzer + Pester (cached).
+- **windows-5_1** (windows): parse-checks every `.ps1` under **real Windows
+  PowerShell 5.1** (the environment that actually broke) and under pwsh 7.
+
 ## [unreleased] — chore: PowerShell test infrastructure (lint + Pester + pre-commit parse gate)
 
 Adds a real verification harness for the vendored `.ps1` scripts so the class of
