@@ -174,6 +174,29 @@ if [ -f "$STATE_FILE" ]; then
   fi
 fi
 
+# --- CHECK 7: PowerShell parse gate ---
+# A staged .ps1 with a parse error breaks /aai-update et al. for Windows users
+# silently (the failure only surfaces when they run it). If pwsh is available,
+# parse-check every staged .ps1 so a broken script can't land. No-op when pwsh is
+# absent (most macOS/Linux dev boxes) — the full gate runs in tests/skills/.
+STAGED_PS1=$(git -C "$PROJECT_ROOT" diff --cached --name-only --diff-filter=ACM 2>/dev/null | grep -E '\.ps1$' || true)
+if [ -n "$STAGED_PS1" ]; then
+  if command -v pwsh >/dev/null 2>&1; then
+    PS1_BAD=0
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      [ -f "$PROJECT_ROOT/$f" ] || continue
+      if ! pwsh -NoProfile -Command "\$e=\$null; [System.Management.Automation.Language.Parser]::ParseFile('$PROJECT_ROOT/$f', [ref]\$null, [ref]\$e) | Out-Null; if (\$e -and \$e.Count) { exit 1 } else { exit 0 }" >/dev/null 2>&1; then
+        error "PowerShell parse error in staged $f"
+        PS1_BAD=$((PS1_BAD+1))
+      fi
+    done <<< "$STAGED_PS1"
+    [ "$PS1_BAD" -eq 0 ] && pass "Staged .ps1 scripts parse cleanly"
+  else
+    warn "Staged .ps1 changes not parse-checked (pwsh not installed)"
+  fi
+fi
+
 # --- SUMMARY ---
 echo ""
 echo "─────────────────────────────────────"

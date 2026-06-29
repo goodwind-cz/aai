@@ -9,6 +9,31 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — chore: PowerShell test infrastructure (lint + Pester + pre-commit parse gate)
+
+Adds a real verification harness for the vendored `.ps1` scripts so the class of
+failure that broke /aai-update (a PowerShell PARSE error that only surfaces when
+a user runs the script) cannot reach `main`.
+
+- **`tests/skills/test-ps1-quality.sh`** — bash gate (skip-42 if `pwsh` absent):
+  (1) parse-checks every `.aai/scripts/*.ps1`; (2) PSScriptAnalyzer
+  `PSUseCompatibleSyntax` against **Windows PowerShell 5.1 + pwsh 7.0** (blocking)
+  plus parse-level Errors; (3) runs the Pester smoke tests. Quality warnings are
+  reported but non-blocking. Result on the current tree: all `.ps1` parse,
+  5.1+7.0 compatible, Pester 6/6.
+- **`tests/skills/aai-update.Tests.ps1`** — Pester v5 smoke tests for
+  `aai-update.ps1`: parses; the dry-run "Would run" line prints; native `-DryRun`
+  and bash `--dry-run`/`--repo=`/`--ref` both work (flag parity from PR #16); the
+  canonical-repo guard refuses (exit 2); unknown args warn without crashing.
+- **`.aai/scripts/PSScriptAnalyzerSettings.psd1`** — codifies signal-vs-noise
+  (CLI scripts intentionally use Write-Host etc.).
+- **Pre-commit parse gate** — `pre-commit-checks.{sh,ps1}` gain CHECK 7:
+  parse-check staged `.ps1` and block the commit on a parse error (no-op when
+  `pwsh` is unavailable). RED-proofed (a deliberately broken staged `.ps1`
+  blocks with exit 1).
+- Fixed a real latent bug surfaced by the scan: `pre-commit-checks.ps1` assigned
+  to the automatic variable `$matches` (renamed to `$hits`).
+
 ## [unreleased] — fix(aai-update.ps1): PowerShell parse + flag parity
 
 Fixes `/aai-update` failing under PowerShell. Two issues in
