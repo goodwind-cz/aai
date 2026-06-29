@@ -84,10 +84,10 @@ if ($StagedFiles) {
         $filepath = Join-Path $ProjectRoot $file
         if (-not (Test-Path $filepath)) { continue }
 
-        $matches = Select-String -Path $filepath -Pattern 'console\.log|debugger\b|pdb\.set_trace|binding\.pry|var_dump' -ErrorAction SilentlyContinue
-        if ($matches) {
+        $hits = Select-String -Path $filepath -Pattern 'console\.log|debugger\b|pdb\.set_trace|binding\.pry|var_dump' -ErrorAction SilentlyContinue
+        if ($hits) {
             Write-Warn-Check "Debug statements in ${file}:"
-            $matches | Select-Object -First 3 | ForEach-Object { Write-Host "    $_" }
+            $hits | Select-Object -First 3 | ForEach-Object { Write-Host "    $_" }
             $DebugFound = $true
         }
     }
@@ -106,8 +106,8 @@ if ($StagedFiles) {
         $filepath = Join-Path $ProjectRoot $file
         if (-not (Test-Path $filepath)) { continue }
 
-        $matches = Select-String -Path $filepath -Pattern 'TODO|FIXME|HACK|XXX' -ErrorAction SilentlyContinue
-        if ($matches) { $TodoCount += $matches.Count }
+        $hits = Select-String -Path $filepath -Pattern 'TODO|FIXME|HACK|XXX' -ErrorAction SilentlyContinue
+        if ($hits) { $TodoCount += $hits.Count }
     }
 
     if ($TodoCount -gt 0) {
@@ -150,6 +150,28 @@ if (Test-Path $StateFile) {
             }
         }
     }
+}
+
+# --- CHECK 7: PowerShell parse gate ---
+# A staged .ps1 with a parse error breaks /aai-update et al. silently for the
+# next user who runs it. Parse-check every staged .ps1 so a broken script can't
+# land. (This runs natively in PowerShell; the bash twin guards macOS/Linux.)
+$stagedPs1 = @(git -C $ProjectRoot diff --cached --name-only --diff-filter=ACM 2>$null |
+    Where-Object { $_ -match '\.ps1$' })
+if ($stagedPs1.Count -gt 0) {
+    $ps1Bad = 0
+    foreach ($f in $stagedPs1) {
+        $full = Join-Path $ProjectRoot $f
+        if (-not (Test-Path $full)) { continue }
+        $errs = $null
+        [System.Management.Automation.Language.Parser]::ParseFile($full, [ref]$null, [ref]$errs) | Out-Null
+        if ($errs -and $errs.Count) {
+            Write-Error-Check "PowerShell parse error in staged ${f}:"
+            $errs | Select-Object -First 3 | ForEach-Object { Write-Host "    $($_.Message)" }
+            $ps1Bad++
+        }
+    }
+    if ($ps1Bad -eq 0) { Write-Pass-Check "Staged .ps1 scripts parse cleanly" }
 }
 
 # --- SUMMARY ---
