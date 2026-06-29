@@ -9,6 +9,31 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix(aai-update.ps1): PowerShell parse + flag parity
+
+Fixes `/aai-update` failing under PowerShell. Two issues in
+`.aai/scripts/aai-update.ps1`:
+
+- **Parse error on the dry-run line.** The `-DryRun` "Would run:" message used a
+  fragile nested doubled-quote literal (`"... -TargetRoot ""$Target"""`). While
+  this parses in a pristine file, it is the kind of construct that gets mangled
+  in the field (a dropped quote yields `The '<' operator is reserved for future
+  use` / `The string is missing the terminator` and the script fails to parse
+  before doing anything). Rewritten with a single-quoted format string —
+  `('- Would run: SOURCE/...-TargetRoot "{0}"' -f $Target)` — which has no nested
+  quoting and cannot be corrupted by an encoding/CRLF/ASCII sweep.
+- **Flag-style mismatch.** The `/aai-update` skill forwards the user's flags
+  verbatim in bash long-flag form (`--dry-run`, `--repo`, `--ref`, `--keep-temp`,
+  `--force`), but the script only bound the native `-DryRun`/`-Repo`/... params,
+  so any forwarded `--flag` raised a binding error. The script now also accepts
+  the bash long-flag spellings (via a remaining-args normalizer), matching the
+  bash twin's contract.
+
+To unblock a project whose vendored copy already has the broken dry-run line:
+replace that one `Write-Host "- Would run: ... -TargetRoot ""$Target"""` line
+with `Write-Host ('- Would run: SOURCE/.aai/scripts/aai-sync.ps1 -TargetRoot "{0}"' -f $Target)`,
+then re-run `/aai-update` to pull the rest.
+
 ## [unreleased] — loops: automatic parallel-mode detection (RFC-0005)
 
 Makes the existing parallel scheduler (`ORCHESTRATION_PARALLEL.prompt.md`, shipped

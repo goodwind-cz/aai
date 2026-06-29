@@ -21,8 +21,27 @@ param(
   [string]$Ref = "main",
   [switch]$DryRun,
   [switch]$KeepTemp,
-  [switch]$Force
+  [switch]$Force,
+  [Parameter(ValueFromRemainingArguments = $true)]
+  [string[]]$ExtraArgs
 )
+
+# The /aai-update skill forwards the user's flags verbatim in bash long-flag form
+# (--dry-run, --repo, --ref, --keep-temp, --force). Accept those in addition to
+# the native -DryRun/-Repo/... so this entrypoint behaves like the bash twin.
+$extra = @(); if ($ExtraArgs) { $extra = @($ExtraArgs) }
+for ($i = 0; $i -lt $extra.Count; $i++) {
+  switch -Regex ($extra[$i]) {
+    '^--dry-run$'    { $DryRun = $true }
+    '^--keep-temp$'  { $KeepTemp = $true }
+    '^--force$'      { $Force = $true }
+    '^--repo=(.+)$'  { $Repo = $Matches[1] }
+    '^--ref=(.+)$'   { $Ref = $Matches[1] }
+    '^--repo$'       { $i++; if ($i -lt $extra.Count) { $Repo = $extra[$i] } }
+    '^--ref$'        { $i++; if ($i -lt $extra.Count) { $Ref = $extra[$i] } }
+    default { [Console]::Error.WriteLine("WARN: ignoring unrecognized argument '$($extra[$i])'") }
+  }
+}
 
 $ErrorActionPreference = "Stop"
 $Target = (Get-Location).Path
@@ -79,7 +98,7 @@ try {
     Write-Host "## aai-update (dry-run) - no files changed"
     Write-Host "- Target:   $Target"
     Write-Host "- Upstream: $SrcDesc"
-    Write-Host "- Would run: SOURCE/.aai/scripts/aai-sync.ps1 -TargetRoot ""$Target"""
+    Write-Host ('- Would run: SOURCE/.aai/scripts/aai-sync.ps1 -TargetRoot "{0}"' -f $Target)
     Write-Host "- Then check: git status --short, .aai/system/AAI_PIN.md, docs/ai/reports/sync-conflicts-*.md"
     Write-Host "- Next: /aai-doctor (and /aai-bootstrap if skills changed)"
     exit 0
