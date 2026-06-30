@@ -1087,6 +1087,28 @@ See `WARNING: mentions unresolved as an example in inline code` — not a real d
 WARNING: this example value must be confirmed by the operator before use.
 ```
 MD
+
+  # Flagged: a done spec whose only marker is the natural PLURAL phrasing
+  # "open decisions" with no other token on the line. Guards against a word-
+  # boundary false negative (open decision\b would miss the trailing "s").
+  cat > docs/opendecision/SPEC-9102-plural-open-decisions.md <<'MD'
+---
+id: SPEC-9102
+type: spec
+status: done
+links:
+  pr: []
+---
+# Closed spec with a plural open-decisions WARNING
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | only        | done   | c3d4e5f  | TDD       | —     |
+
+WARNING: open decisions RR-1/RR-2 remain.
+MD
   git add docs/opendecision && git commit -qm "test: open-decision-on-done fixtures (SPEC-0006)"
   log_pass "Open-decision fixture ready"
 }
@@ -1262,6 +1284,8 @@ test_spec0006_open_decision_guard() {  # TEST-006 / Spec-AC-06
   extract_section_h3 "$TEST_DIR/opendec.log" "### Open decisions on done docs" > "$TEST_DIR/opendec-sec.txt"
   grep -qF "SPEC-9100" "$TEST_DIR/opendec-sec.txt" \
     || log_fail "done doc with a buried WARNING decision (SPEC-9100) must be flagged"
+  grep -qF "SPEC-9102" "$TEST_DIR/opendec-sec.txt" \
+    || log_fail "done doc with a plural 'open decisions' WARNING (SPEC-9102) must be flagged"
   if grep -qF "SPEC-9101" "$TEST_DIR/opendec-sec.txt"; then
     log_fail "done doc with only an informational note (SPEC-9101) must NOT be flagged"
   fi
@@ -1279,12 +1303,19 @@ test_spec0006_no_regression_real_repo() {  # TEST-007 / Spec-AC-07
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/repo-audit.log" 2>&1) \
     || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/repo-audit.log")"
   assert_contains "$TEST_DIR/repo-audit.log" "Verdict: CLEAN"
+  # Regenerating writes the real docs/INDEX.md (a fresh Generated: timestamp), so
+  # back it up first and restore it after the idempotence check — the suite must
+  # leave the worktree clean for CI/pre-commit clean-tree gates.
+  local idx_backup="$TEST_DIR/INDEX.md.orig"
+  cp "$PROJECT_ROOT/docs/INDEX.md" "$idx_backup"
   (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/repo-idx1.log" 2>&1) \
-    || log_fail "real-repo index gen (run 1) failed: $(cat "$TEST_DIR/repo-idx1.log")"
+    || { cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"; log_fail "real-repo index gen (run 1) failed: $(cat "$TEST_DIR/repo-idx1.log")"; }
   grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/repo-idx1.snap"
   (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/repo-idx2.log" 2>&1) \
-    || log_fail "real-repo index gen (run 2) failed: $(cat "$TEST_DIR/repo-idx2.log")"
+    || { cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"; log_fail "real-repo index gen (run 2) failed: $(cat "$TEST_DIR/repo-idx2.log")"; }
   grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/repo-idx2.snap"
+  # Restore the real index before asserting (so a diff failure can't leave it dirty).
+  cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"
   diff -q "$TEST_DIR/repo-idx1.snap" "$TEST_DIR/repo-idx2.snap" >/dev/null \
     || log_fail "real-repo INDEX must be idempotent modulo the Generated line"
   log_pass "Real-repo audit CLEAN and INDEX idempotent (no regression)"

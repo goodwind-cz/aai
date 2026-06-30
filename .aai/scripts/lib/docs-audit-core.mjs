@@ -35,7 +35,7 @@ const CLOSEOUT_PARENT_STATUSES = new Set(['proposed', 'accepted', 'implementing'
 // WARNING word or a GitHub `> [!WARNING]` callout block), or an explicit
 // `<!-- OPEN-DECISION -->` marker. Narrow on purpose — an ordinary informational
 // note (no token, no WARNING) must NOT trip it (false-positive negative control).
-const OPEN_DECISION_TOKEN_RE = /\b(?:unresolved|open decision|must be (?:resolved|confirmed|decided)|pending (?:confirmation|decision)|to be (?:resolved|confirmed|decided))\b/i;
+const OPEN_DECISION_TOKEN_RE = /\b(?:unresolved|open decisions?|must be (?:resolved|confirmed|decided)|pending (?:confirmations?|decisions?)|to be (?:resolved|confirmed|decided))\b/i;
 const OPEN_DECISION_COMMENT_RE = /<!--\s*OPEN-DECISION\s*-->/i;
 
 // --- config -----------------------------------------------------------------
