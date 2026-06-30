@@ -124,6 +124,14 @@ PROCESS
     every done row carrying Evidence. A spec without the table must not
     transition to done (that is the probable-partial drift shape). If the
     assertion fails, the verdict is FAIL with the specific gap named.
+    CLOSE-POLICY (resolve-or-promote, SPEC-0006): additionally, a doc MUST NOT
+    transition to `status: done` while it carries unresolved/open decisions as
+    free-text WARNINGs in its body. Such decisions must be (a) resolved before
+    close, or (b) promoted to a first-class tracked item — a per-AC `blocked`/
+    `deferred` row with a future `Review-By`, or a follow-up tracked doc. Never
+    close `done` with buried WARNING decisions; if any remain, the verdict is
+    FAIL naming the doc. (`docs-audit` surfaces these in its "Open decisions on
+    done docs" report.)
 9) Update docs/ai/STATE.yaml:
    - last_validation.status
    - last_validation.run_at_utc

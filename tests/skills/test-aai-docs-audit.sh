@@ -47,6 +47,24 @@ assert_not_contains() {
   fi
 }
 
+# Print the block of a markdown file/log starting at the heading line that
+# begins with the literal prefix $2 (a "## " level-2 heading), up to the next
+# heading of the same level. Used to assert a row lands in its OWN section.
+extract_section() {
+  awk -v want="$2" '
+    /^## / { insec = (index($0, want) == 1) }
+    insec { print }
+  ' "$1"
+}
+
+# Same as extract_section but for "### " level-3 headings (docs-audit digest).
+extract_section_h3() {
+  awk -v want="$2" '
+    /^### / { insec = (index($0, want) == 1) }
+    insec { print }
+  ' "$1"
+}
+
 check_deps() {
   log_info "Checking dependencies..."
   command -v node >/dev/null 2>&1 || log_skip "node not found"
@@ -1014,6 +1032,295 @@ test_closeout_forward_nonspec_not_flagged() {
   log_pass "Forward link to a non-spec done doc does not satisfy all-specs-done"
 }
 
+# --- SPEC-0006 fixtures (DEBT-0001): whole-doc deferred coverage + done close-policy ----
+
+# Isolated subtree holding the open-decision-on-done cases (TEST-006). Committed
+# so the strict gate treats them as real tracked docs.
+setup_spec0006_opendecision_fixture() {
+  log_info "Setting up open-decision-on-done fixture (SPEC-0006)..."
+  mkdir -p "$TEST_DIR/docs/opendecision"
+  cd "$TEST_DIR"
+
+  # Flagged: a done spec carrying a buried open-decision WARNING in its body.
+  cat > docs/opendecision/SPEC-9100-open-decision.md <<'MD'
+---
+id: SPEC-9100
+type: spec
+status: done
+links:
+  pr: []
+---
+# Closed spec carrying a buried open decision
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | only        | done   | a1b2c3d  | TDD       | —     |
+
+WARNING: decisions RR-1 and RR-2 must be confirmed before the next release.
+MD
+
+  # Negative control: a done spec with only an ordinary informational note plus a
+  # fenced code example that merely *looks* like a warning (must NOT be flagged).
+  cat > docs/opendecision/SPEC-9101-informational.md <<'MD'
+---
+id: SPEC-9101
+type: spec
+status: done
+links:
+  pr: []
+---
+# Closed spec with only an informational note
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | only        | done   | b2c3d4e  | TDD       | —     |
+
+Note: this behavior is documented in the user guide; see the changelog.
+
+See `WARNING: mentions unresolved as an example in inline code` — not a real decision.
+
+```
+WARNING: this example value must be confirmed by the operator before use.
+```
+MD
+
+  # Flagged: a done spec whose only marker is the natural PLURAL phrasing
+  # "open decisions" with no other token on the line. Guards against a word-
+  # boundary false negative (open decision\b would miss the trailing "s").
+  cat > docs/opendecision/SPEC-9102-plural-open-decisions.md <<'MD'
+---
+id: SPEC-9102
+type: spec
+status: done
+links:
+  pr: []
+---
+# Closed spec with a plural open-decisions WARNING
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | only        | done   | c3d4e5f  | TDD       | —     |
+
+WARNING: open decisions RR-1/RR-2 remain.
+MD
+  git add docs/opendecision && git commit -qm "test: open-decision-on-done fixtures (SPEC-0006)"
+  log_pass "Open-decision fixture ready"
+}
+
+test_spec0006_deferred_whole_doc_section() {  # TEST-001 / Spec-AC-01
+  log_info "Test: whole-doc deferred renders its own INDEX section, distinct from per-AC (TEST-001)..."
+  cat > "$TEST_DIR/docs/specs/SPEC-9001-whole-deferred.md" <<'MD'
+---
+id: SPEC-9001
+type: spec
+status: deferred
+links:
+  pr: []
+---
+# Whole-doc deferred spec
+MD
+  cat > "$TEST_DIR/docs/specs/SPEC-9002-perac-deferred.md" <<'MD'
+---
+id: SPEC-9002
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Non-deferred spec carrying a deferred AC row
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status       | Evidence | Review-By  | Notes          |
+|------------|-------------|--------------|----------|------------|----------------|
+| Spec-AC-01 | first       | implementing | —        | —          | —              |
+| Spec-AC-02 | second      | deferred     | —        | 2099-01-01 | needs upstream |
+MD
+  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > index-defer.log 2>&1) \
+    || log_fail "generate-docs-index (default) must succeed: $(cat "$TEST_DIR/index-defer.log")"
+  local index="$TEST_DIR/docs/INDEX.md"
+  assert_contains "$index" "## Deferred (whole-doc)"
+  extract_section "$index" "## Deferred (whole-doc)" > "$TEST_DIR/whole.txt"
+  grep -qF "SPEC-9001" "$TEST_DIR/whole.txt" \
+    || log_fail "whole-doc deferred section must list SPEC-9001"
+  # the per-AC deferred section is a different, still-present section
+  assert_contains "$index" "## Deferred items (per-AC"
+  rm "$TEST_DIR/docs/specs/SPEC-9001-whole-deferred.md" "$TEST_DIR/docs/specs/SPEC-9002-perac-deferred.md"
+  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  log_pass "Whole-doc deferred section present and distinct from per-AC deferred items"
+}
+
+test_spec0006_zero_section_strict_fatal() {  # TEST-002 / Spec-AC-02
+  log_info "Test: a non-legacy zero-section doc makes --strict exit non-zero, named (TEST-002)..."
+  # Control: a doc declaring a valid DOC_STATUS_ENUM value ('legacy') that has NO
+  # doc-level placement section AND is not the no-frontmatter Legacy section, so
+  # it lands in zero placement sections. Data-driven over actual membership.
+  cat > "$TEST_DIR/docs/specs/SPEC-9003-zero-section.md" <<'MD'
+---
+id: SPEC-9003
+type: spec
+status: legacy
+links:
+  pr: []
+---
+# Frontmatter status with no doc-level placement section
+MD
+  if (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs --strict > zero-strict.log 2>&1); then
+    log_fail "generate-docs-index --strict must exit non-zero on a zero-section doc"
+  fi
+  assert_contains "$TEST_DIR/zero-strict.log" "SPEC-9003"
+  grep -qiE "zero|coverage" "$TEST_DIR/zero-strict.log" \
+    || log_fail "strict coverage failure must mention coverage / zero-section"
+  rm "$TEST_DIR/docs/specs/SPEC-9003-zero-section.md"
+  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  log_pass "Zero-section coverage invariant is fatal under --strict"
+}
+
+test_spec0006_zero_section_degrade_report() {  # TEST-003 / Spec-AC-03
+  log_info "Test: zero-section doc degrades — exit 0, best-effort INDEX, gap surfaced (TEST-003)..."
+  cat > "$TEST_DIR/docs/specs/SPEC-9003-zero-section.md" <<'MD'
+---
+id: SPEC-9003
+type: spec
+status: legacy
+links:
+  pr: []
+---
+# Frontmatter status with no doc-level placement section
+MD
+  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > zero-soft.log 2>&1) \
+    || log_fail "default (non-strict) run must exit 0 with a zero-section doc: $(cat "$TEST_DIR/zero-soft.log")"
+  assert_file "$TEST_DIR/docs/INDEX.md"
+  assert_contains "$TEST_DIR/docs/INDEX.md" "SPEC-9003"
+  assert_contains "$TEST_DIR/docs/INDEX.md" "Coverage gaps"
+  rm "$TEST_DIR/docs/specs/SPEC-9003-zero-section.md"
+  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  log_pass "Degrade-and-report: best-effort INDEX written, gap surfaced, exit 0"
+}
+
+test_spec0006_no_double_listing_idempotent() {  # TEST-004 / Spec-AC-04
+  log_info "Test: whole-doc vs per-AC deferred not double-listed; INDEX idempotent (TEST-004)..."
+  cat > "$TEST_DIR/docs/specs/SPEC-9001-whole-deferred.md" <<'MD'
+---
+id: SPEC-9001
+type: spec
+status: deferred
+links:
+  pr: []
+---
+# Whole-doc deferred spec (no deferred AC rows)
+MD
+  cat > "$TEST_DIR/docs/specs/SPEC-9002-perac-deferred.md" <<'MD'
+---
+id: SPEC-9002
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Non-deferred spec carrying a deferred AC row
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status       | Evidence | Review-By  | Notes          |
+|------------|-------------|--------------|----------|------------|----------------|
+| Spec-AC-01 | first       | implementing | —        | —          | —              |
+| Spec-AC-02 | second      | deferred     | —        | 2099-01-01 | needs upstream |
+MD
+  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > dbl-run1.log 2>&1) \
+    || log_fail "index gen failed: $(cat "$TEST_DIR/dbl-run1.log")"
+  local index="$TEST_DIR/docs/INDEX.md"
+  extract_section "$index" "## Deferred (whole-doc)" > "$TEST_DIR/whole.txt"
+  extract_section "$index" "## Deferred items (per-AC" > "$TEST_DIR/perac.txt"
+  grep -qF "SPEC-9001" "$TEST_DIR/whole.txt" \
+    || log_fail "SPEC-9001 must be in the whole-doc deferred section"
+  if grep -qF "SPEC-9001" "$TEST_DIR/perac.txt"; then
+    log_fail "SPEC-9001 (whole-doc deferred) must NOT appear in the per-AC deferred section"
+  fi
+  grep -qF "SPEC-9002" "$TEST_DIR/perac.txt" \
+    || log_fail "SPEC-9002's deferred AC row must be in the per-AC deferred section"
+  if grep -qF "SPEC-9002" "$TEST_DIR/whole.txt"; then
+    log_fail "SPEC-9002 (non-deferred doc) must NOT appear in the whole-doc deferred section"
+  fi
+  grep -v '^Generated:' "$index" > "$TEST_DIR/dbl1.snap"
+  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  grep -v '^Generated:' "$index" > "$TEST_DIR/dbl2.snap"
+  diff -q "$TEST_DIR/dbl1.snap" "$TEST_DIR/dbl2.snap" >/dev/null \
+    || log_fail "INDEX must be idempotent modulo the Generated line"
+  rm "$TEST_DIR/docs/specs/SPEC-9001-whole-deferred.md" "$TEST_DIR/docs/specs/SPEC-9002-perac-deferred.md"
+  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
+  log_pass "No double-listing across whole-doc vs per-AC deferred; INDEX idempotent"
+}
+
+test_spec0006_close_policy_prose() {  # TEST-005 / Spec-AC-05
+  log_info "Test: resolve-or-promote close-policy present in WORKFLOW.md + VALIDATION.prompt.md (TEST-005)..."
+  local wf="$PROJECT_ROOT/.aai/workflow/WORKFLOW.md"
+  local val="$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
+  assert_file "$wf"
+  assert_file "$val"
+  for f in "$wf" "$val"; do
+    grep -qF 'transition to `status: done`' "$f" \
+      || log_fail "close-policy missing 'transition to status: done' rule in $f"
+    grep -qF 'free-text WARNING' "$f" \
+      || log_fail "close-policy missing 'free-text WARNING' wording in $f"
+    grep -qF 'promote' "$f" \
+      || log_fail "close-policy missing the promote-to-tracked rule in $f"
+    grep -qF 'tracked item' "$f" \
+      || log_fail "close-policy missing 'tracked item' wording in $f"
+  done
+  log_pass "Resolve-or-promote close-policy codified in workflow + validation prompt"
+}
+
+test_spec0006_open_decision_guard() {  # TEST-006 / Spec-AC-06
+  log_info "Test: report-only open-decision-on-done guard flags WARNINGs, not notes; gate unchanged (TEST-006)..."
+  run_audit --no-event --path docs/opendecision > "$TEST_DIR/opendec.log"
+  assert_contains "$TEST_DIR/opendec.log" "Open decisions on done docs"
+  extract_section_h3 "$TEST_DIR/opendec.log" "### Open decisions on done docs" > "$TEST_DIR/opendec-sec.txt"
+  grep -qF "SPEC-9100" "$TEST_DIR/opendec-sec.txt" \
+    || log_fail "done doc with a buried WARNING decision (SPEC-9100) must be flagged"
+  grep -qF "SPEC-9102" "$TEST_DIR/opendec-sec.txt" \
+    || log_fail "done doc with a plural 'open decisions' WARNING (SPEC-9102) must be flagged"
+  if grep -qF "SPEC-9101" "$TEST_DIR/opendec-sec.txt"; then
+    log_fail "done doc with only an informational note (SPEC-9101) must NOT be flagged"
+  fi
+  # report-only: --check --strict exit code is unchanged (0) AND the section is present.
+  run_audit --check --strict --no-event --path docs/opendecision > "$TEST_DIR/opendec-gate.log" \
+    || log_fail "open-decision guard must not change the --check --strict exit code"
+  assert_contains "$TEST_DIR/opendec-gate.log" "Open decisions on done docs"
+  grep -qF "SPEC-9100" "$TEST_DIR/opendec-gate.log" \
+    || log_fail "the --check --strict run must still surface SPEC-9100"
+  log_pass "Open-decision-on-done guard is report-only with a clean negative control"
+}
+
+test_spec0006_no_regression_real_repo() {  # TEST-007 / Spec-AC-07
+  log_info "Test: real-repo docs-audit CLEAN and index idempotent — no regression (TEST-007)..."
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/repo-audit.log" 2>&1) \
+    || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/repo-audit.log")"
+  assert_contains "$TEST_DIR/repo-audit.log" "Verdict: CLEAN"
+  # Regenerating writes the real docs/INDEX.md (a fresh Generated: timestamp), so
+  # back it up first and restore it after the idempotence check — the suite must
+  # leave the worktree clean for CI/pre-commit clean-tree gates.
+  local idx_backup="$TEST_DIR/INDEX.md.orig"
+  cp "$PROJECT_ROOT/docs/INDEX.md" "$idx_backup"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/repo-idx1.log" 2>&1) \
+    || { cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"; log_fail "real-repo index gen (run 1) failed: $(cat "$TEST_DIR/repo-idx1.log")"; }
+  grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/repo-idx1.snap"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/repo-idx2.log" 2>&1) \
+    || { cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"; log_fail "real-repo index gen (run 2) failed: $(cat "$TEST_DIR/repo-idx2.log")"; }
+  grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/repo-idx2.snap"
+  # Restore the real index before asserting (so a diff failure can't leave it dirty).
+  cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"
+  diff -q "$TEST_DIR/repo-idx1.snap" "$TEST_DIR/repo-idx2.snap" >/dev/null \
+    || log_fail "real-repo INDEX must be idempotent modulo the Generated line"
+  log_pass "Real-repo audit CLEAN and INDEX idempotent (no regression)"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -1048,6 +1355,14 @@ main() {
   test_closeout_report_only_gate
   test_closeout_reverse_only
   test_closeout_forward_nonspec_not_flagged
+  setup_spec0006_opendecision_fixture
+  test_spec0006_deferred_whole_doc_section
+  test_spec0006_zero_section_strict_fatal
+  test_spec0006_zero_section_degrade_report
+  test_spec0006_no_double_listing_idempotent
+  test_spec0006_close_policy_prose
+  test_spec0006_open_decision_guard
+  test_spec0006_no_regression_real_repo
   test_index_continue_on_error
   echo ""
   log_pass "All $TEST_NAME tests passed"

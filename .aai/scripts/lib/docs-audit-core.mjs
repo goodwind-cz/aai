@@ -30,6 +30,14 @@ const DEFAULT_STALE_DAYS = 90;
 const CLOSEOUT_PARENT_TYPES = new Set(['rfc', 'prd']);
 const CLOSEOUT_PARENT_STATUSES = new Set(['proposed', 'accepted', 'implementing']);
 
+// SPEC-0006 Spec-AC-06 — open-decision-on-done guard. A body line that asserts an
+// UNRESOLVED decision: a token below combined with a WARNING context (a literal
+// WARNING word or a GitHub `> [!WARNING]` callout block), or an explicit
+// `<!-- OPEN-DECISION -->` marker. Narrow on purpose — an ordinary informational
+// note (no token, no WARNING) must NOT trip it (false-positive negative control).
+const OPEN_DECISION_TOKEN_RE = /\b(?:unresolved|open decisions?|must be (?:resolved|confirmed|decided)|pending (?:confirmations?|decisions?)|to be (?:resolved|confirmed|decided))\b/i;
+const OPEN_DECISION_COMMENT_RE = /<!--\s*OPEN-DECISION\s*-->/i;
+
 // --- config -----------------------------------------------------------------
 
 export function loadConfig(root) {
@@ -177,6 +185,48 @@ function rowHasEvidence(row) {
   return e !== '' && e !== '—' && e !== '-';
 }
 
+// SPEC-0006 Spec-AC-06 — scan a doc body for an open-decision marker OUTSIDE
+// fenced code blocks. Returns { marker, line } (1-based) for the first hit, or
+// null. Fenced ``` / ~~~ regions are skipped so inline examples never trip it.
+export function findOpenDecisionMarker(content) {
+  const lines = String(content ?? '').split('\n');
+  let inFence = false;
+  let fenceCh = null;
+  let calloutActive = false;
+  for (let i = 0; i < lines.length; i += 1) {
+    const raw = lines[i];
+    const fence = raw.match(/^\s*(```|~~~)/);
+    if (fence) {
+      const ch = fence[1][0];
+      if (!inFence) { inFence = true; fenceCh = ch; }
+      else if (raw.trim()[0] === fenceCh) { inFence = false; fenceCh = null; }
+      continue;
+    }
+    if (inFence) continue;
+
+    // Strip inline code spans before any pattern test so markers that appear
+    // only inside backticks (documentation examples, not real callouts) are not
+    // matched. Fenced-code-block awareness is handled above; this covers the
+    // single-line inline case.
+    const stripped = raw.replace(/`[^`\n]*`/g, '');
+
+    if (OPEN_DECISION_COMMENT_RE.test(stripped)) return { marker: 'OPEN-DECISION marker', line: i + 1 };
+
+    // Track a `> [!WARNING]` callout: its contiguous blockquote lines are a
+    // warning context too (the token may sit on a following quoted line).
+    const isCalloutHeader = /^\s*>\s*\[!WARNING\]/i.test(raw);
+    const isBlockquote = /^\s*>/.test(raw);
+    if (isCalloutHeader) calloutActive = true;
+    else if (calloutActive && !isBlockquote) calloutActive = false;
+
+    const inWarning = /\bWARNING\b/.test(stripped) || (calloutActive && isBlockquote);
+    if (inWarning && OPEN_DECISION_TOKEN_RE.test(stripped)) {
+      return { marker: 'WARNING with open-decision token', line: i + 1 };
+    }
+  }
+  return null;
+}
+
 export function runAudit(root, { quick = false, scopePath = null, today = new Date(), strict = false, strictTypes = false } = {}) {
   const config = loadConfig(root);
   const mode = quick ? 'quick' : ((config || strict) ? 'enforced' : 'report-only');
@@ -193,6 +243,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   const violations = [];
   const typeWarnings = [];
   const annotations = [];
+  const openDecisionDoneDocs = [];   // SPEC-0006 Spec-AC-06 (report-only)
 
   for (const f of files) {
     const content = fs.readFileSync(path.join(root, f.rel), 'utf8');
@@ -246,6 +297,15 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
       if (rb.kind === 'invalid') violations.push({ rel: f.rel, msg: `invalid Review-By "${rb.raw}" for ${row['Spec-AC']} (ISO date, skill label, label:date, or "<actor> <method>")` });
     }
     doc.status = status;
+
+    // SPEC-0006 Spec-AC-06 — READ-ONLY: a done doc carrying a buried open-decision
+    // marker (outside fenced code). Surfaced in its own digest section; NEVER
+    // feeds hardFail/needsTriage or any exit code (RFC-0001 mechanism-over-
+    // discipline: gated/indexed, not a hard gate until the signal is proven clean).
+    if (status === 'done') {
+      const od = findOpenDecisionMarker(content);
+      if (od) openDecisionDoneDocs.push({ id, rel: f.rel, marker: od.marker, line: od.line });
+    }
 
     // type validation (CHANGE-0001 D7): soft warning, hard with --strict-types
     if (fm.type && !DOC_TYPE_ENUM.has(String(fm.type).toLowerCase())) {
@@ -378,13 +438,15 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     violations: violations.length,
     typeWarnings: typeWarnings.length,
     closeoutCandidates: closeoutCandidates.length,
+    openDecisionDone: openDecisionDoneDocs.length,
   };
+  // openDecisionDoneDocs is deliberately absent from hardFail (report-only).
   const hardFail = mode === 'enforced' && (orphansNew.length > 0 || violations.length > 0);
 
   return {
     mode, config, docs, orphansNew, orphansLegacy, drift, violations,
     typeWarnings, annotations, pendingCommit, planLenient, closeoutCandidates,
-    counts, hardFail,
+    openDecisionDoneDocs, counts, hardFail,
   };
 }
 
