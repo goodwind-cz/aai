@@ -1,0 +1,80 @@
+{
+  "ref_id": "ISSUE-0001",
+  "spec_id": "SPEC-0007",
+  "reviewed_at_utc": "2026-06-30T15:59:27Z",
+  "reviewer_model": "claude-sonnet-4-6",
+  "scope": "uncommitted working tree on fix/issue-0001-crlf-frontmatter vs main (HEAD 22fe74d30c210901643663561167d38de34d2922)",
+  "files_reviewed": [
+    ".aai/scripts/lib/docs-model.mjs",
+    ".aai/scripts/generate-docs-index.mjs",
+    ".gitattributes",
+    "tests/skills/test-aai-docs-audit.sh",
+    "docs/specs/SPEC-0007-parsefrontmatter-crlf-tolerance-and-posix-index-paths.md"
+  ],
+  "verdict": "PASS",
+  "stage1": {
+    "verdict": "COMPLIANT",
+    "ac_results": [
+      {"ac": "Spec-AC-01", "status": "COMPLIANT", "test": "TEST-001", "note": "parseFrontmatter normalizeNewlines at entry; deep-equal for LF/CRLF/lone-CR; no trailing CR"},
+      {"ac": "Spec-AC-02", "status": "COMPLIANT", "test": "TEST-002", "note": "parseAcTable normalizeNewlines at entry; parseReviewBy/extractReferences receive only pre-normalized cells from ac.rows (all call sites traced and confirmed)"},
+      {"ac": "Spec-AC-03", "status": "COMPLIANT", "test": "TEST-003", "note": "POSIX-normalized rel at main scan source; d.path renderers clean; byte-identical on POSIX. Windows residual in Orphans section (WARNING-1, pre-existing)"},
+      {"ac": "Spec-AC-04", "status": "COMPLIANT", "test": "TEST-004", "note": "CRLF fixture corpus buckets correctly; Legacy(0); RED-proof confirmed"},
+      {"ac": "Spec-AC-05", "status": "COMPLIANT", "test": "TEST-005", "note": ".gitattributes both lines present; existing rules unchanged"},
+      {"ac": "Spec-AC-06", "status": "COMPLIANT", "test": "TEST-006", "note": "Report-only stderr guard: threshold >50% AND >1 correct; no exit-code change; positive/negative control both correct"},
+      {"ac": "Spec-AC-07", "status": "COMPLIANT", "test": "TEST-007", "note": "Suite green except known pre-existing test_index_continue_on_error; docs-audit CLEAN; index idempotent; SPEC-0006 no regression"}
+    ]
+  },
+  "stage2": {
+    "summary": {"errors": 0, "warnings": 1, "info": 3},
+    "findings": [
+      {
+        "id": "WARNING-1",
+        "severity": "WARNING",
+        "category": "best-practices",
+        "file": "generate-docs-index.mjs",
+        "line": 361,
+        "also": "docs-audit-core.mjs:136",
+        "message": "Orphans section uses d.rel from scanAuditDocs() without POSIX normalization — backslash paths on Windows land in docs/INDEX.md",
+        "breaking_input": "Windows checkout with orphan docs: d.rel = path.relative(root, full) returns backslash-separated paths, appearing as-is in the Orphans section of docs/INDEX.md",
+        "pre_existing": true,
+        "fix": "In docs-audit-core.mjs:136 change `const rel = path.relative(root, full)` to `const rel = path.relative(root, full).split(path.sep).join('/')`"
+      },
+      {
+        "id": "INFO-1",
+        "severity": "INFO",
+        "category": "style",
+        "file": "docs-audit-core.mjs",
+        "line": 192,
+        "message": "findOpenDecisionMarker receives unnormalized content and splits on \\n — residual CRLF exposure not in SPEC-0007 scope",
+        "pre_existing": true,
+        "fix": "Pass normalizeNewlines(content) to findOpenDecisionMarker at docs-audit-core.mjs:306"
+      },
+      {
+        "id": "INFO-2",
+        "severity": "INFO",
+        "category": "style",
+        "file": "tests/skills/test-aai-docs-audit.sh",
+        "message": "TEST-006 negative control fails both guard conditions simultaneously; no test for each condition individually",
+        "pre_existing": false,
+        "fix": "Non-blocking; noted for documentation"
+      },
+      {
+        "id": "INFO-3",
+        "severity": "INFO",
+        "category": "style",
+        "file": ".aai/scripts/lib/docs-model.mjs",
+        "line": 11,
+        "message": "normalizeNewlines exported (widens API); intentional for testability",
+        "pre_existing": false,
+        "fix": "No change needed; noted for documentation"
+      }
+    ]
+  },
+  "adversarial_focus": {
+    "1_parseReviewBy_extractReferences": "CLEAN — all call sites receive pre-normalized cells from ac.rows; no raw CRLF content reaches either function",
+    "2_posix_path_normalization": "PARTIAL — main scan loop and d.path renderers fixed; Orphans section d.rel not normalized (WARNING-1, pre-existing, Windows-only)",
+    "3_legacy_ratio_guard": "CLEAN — threshold >0.5 correct; floor >1 correct; stderr only; no exit-code change; division-by-zero not possible",
+    "4_normalizeNewlines_order": "CLEAN — CRLF first then lone-CR; no double-collapse or line-drop",
+    "5_spec0006_regression": "CLEAN — no regression to deferred section, zero-section invariant, or open-decision guard"
+  }
+}

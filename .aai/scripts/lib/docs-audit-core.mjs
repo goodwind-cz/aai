@@ -9,7 +9,7 @@ import {
   DOC_STATUS_ENUM, AC_STATUS_ENUM, TERMINAL_AC, DOC_TYPE_ENUM, DOC_ID_RE,
   DEFAULT_CATEGORY_PREFIXES, extractDocIds,
   parseFrontmatter, parseAcTable, parseISODate, parseReviewBy, specFrozenInBody,
-  validateCanonicalFrontmatter, asList,
+  validateCanonicalFrontmatter, asList, toPosix,
 } from './docs-model.mjs';
 
 export const CONFIG_PATH = 'docs/ai/docs-audit.yaml';
@@ -133,7 +133,10 @@ export function scanAuditDocs(root, { scopePath = null, scanExclude = [] } = {})
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (depth === 0 && entry.isDirectory() && EXCLUDE_DIRS.has(entry.name)) continue;
       const full = path.join(dir, entry.name);
-      const rel = path.relative(root, full);
+      // SPEC-0007 WARNING-1 — normalize to POSIX forward-slash separators so that
+      // scanExclude glob matching (POSIX) and the Orphans section of docs/INDEX.md
+      // carry forward-slash paths on every OS (no backslashes on Windows).
+      const rel = toPosix(path.relative(root, full));
       if (scanExclude.some(g => rel === g || rel.startsWith(g.replace(/\/+$/, '') + '/'))) continue;
       if (entry.isDirectory()) { visit(full, depth + 1); continue; }
       if (!entry.name.endsWith('.md') || entry.name === 'INDEX.md') continue;
@@ -142,10 +145,13 @@ export function scanAuditDocs(root, { scopePath = null, scanExclude = [] } = {})
       // prefix); they carry their id in frontmatter and must still be scanned
       // so their canonical-provenance schema is validated. Their fileId is
       // derived from the frontmatter id at parse time.
-      const inCanonical = rel.startsWith(path.join('docs', 'canonical') + path.sep);
+      // rel is POSIX-normalized (SPEC-0007 WARNING-1), so compare against a
+      // POSIX literal — path.join(...)+path.sep would be backslash on Windows
+      // and never match the forward-slash rel, dropping canonical docs there.
+      const inCanonical = rel.startsWith('docs/canonical/');
       if (!m && !inCanonical) continue;
       if (scopePath) {
-        const scope = path.relative(root, path.resolve(root, scopePath));
+        const scope = toPosix(path.relative(root, path.resolve(root, scopePath)));
         if (rel !== scope && !rel.startsWith(scope.replace(/\/+$/, '') + '/')) continue;
       }
       found.push({ rel, fileId: m ? m[1] : null });
