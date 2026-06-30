@@ -159,6 +159,19 @@ function main() {
         ])));
     }
     lines.push('');
+    // Open decisions on done docs (SPEC-0006 / Spec-AC-06): report-only — never
+    // feeds the exit-code path; surfaces done docs whose body buries an
+    // unresolved decision as a free-text WARNING.
+    lines.push(`### Open decisions on done docs: ${result.openDecisionDoneDocs.length}`);
+    lines.push('');
+    if (result.openDecisionDoneDocs.length === 0) lines.push('_None._');
+    else {
+      lines.push(...table(['Doc', 'Marker', 'Line', 'Path'],
+        result.openDecisionDoneDocs.map(d => [d.id, d.marker, String(d.line), d.rel])));
+      lines.push('');
+      lines.push('Report-only: resolve each decision before close, or promote it to a tracked item (a per-AC blocked/deferred row with Review-By, or a follow-up tracked doc).');
+    }
+    lines.push('');
     if (result.pendingCommit.length) {
       lines.push(`### Pending commit (verdicts reflect the working tree)`);
       lines.push('');

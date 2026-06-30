@@ -30,6 +30,12 @@ No other document may redefine or summarize workflow.
 - Inline mode requires a clean review scope before implementation and before review.
 - No PASS without executable evidence.
 - No merge/PR-ready state without Code Review PASS or an explicit human waiver.
+- Close-policy (resolve-or-promote): a doc MUST NOT transition to `status: done`
+  while unresolved decisions remain as free-text WARNINGs in its body. Resolve
+  them before close, or promote each to a tracked item (a per-AC `blocked`/
+  `deferred` row with a future `Review-By`, or a follow-up tracked doc). Never
+  close `done` with buried WARNING decisions. (`docs-audit` surfaces these in its
+  "Open decisions on done docs" report.)
 
 ## Stop conditions
 - Missing or ambiguous requirements
@@ -39,4 +45,6 @@ No other document may redefine or summarize workflow.
 - Dirty or ambiguous inline diff scope
 - Missing evidence / unverifiable claims
 - Code Review ERROR findings
+- A `done` transition requested while open decisions remain buried as free-text
+  WARNINGs (resolve-or-promote to a tracked item first)
 - Technology assumptions not grounded in docs/TECHNOLOGY.md

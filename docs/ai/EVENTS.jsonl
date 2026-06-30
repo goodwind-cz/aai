@@ -84,3 +84,15 @@
 {"v":1,"ts":"2026-06-26T19:29:50.624Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0005/Spec-AC-11","payload":{"commit":"51c5c73"}}
 {"v":1,"ts":"2026-06-26T19:29:50.681Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0005/Spec-AC-12","payload":{"commit":"51c5c73"}}
 {"v":1,"ts":"2026-06-26T19:29:50.739Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0005","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-30T10:03:10.029Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0006","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-06-30T10:17:32.159Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0006","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-06-30T10:24:41.309Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0006/Spec-AC-01","payload":{"commit":"val:2026-06-30T10:20Z"}}
+{"v":1,"ts":"2026-06-30T10:24:41.366Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0006/Spec-AC-02","payload":{"commit":"val:2026-06-30T10:20Z"}}
+{"v":1,"ts":"2026-06-30T10:24:41.426Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0006/Spec-AC-03","payload":{"commit":"val:2026-06-30T10:20Z"}}
+{"v":1,"ts":"2026-06-30T10:24:41.485Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0006/Spec-AC-04","payload":{"commit":"val:2026-06-30T10:20Z"}}
+{"v":1,"ts":"2026-06-30T10:24:41.542Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0006/Spec-AC-05","payload":{"commit":"val:2026-06-30T10:20Z"}}
+{"v":1,"ts":"2026-06-30T10:24:41.600Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0006/Spec-AC-06","payload":{"commit":"val:2026-06-30T10:20Z"}}
+{"v":1,"ts":"2026-06-30T10:24:41.658Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0006/Spec-AC-07","payload":{"commit":"val:2026-06-30T10:20Z"}}
+{"v":1,"ts":"2026-06-30T10:24:42.404Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0006","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-30T10:46:49.097Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0006","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-06-30T10:46:49.161Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"DEBT-0001","payload":{"from":"draft","to":"done"}}

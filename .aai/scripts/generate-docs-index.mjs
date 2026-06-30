@@ -209,6 +209,43 @@ function main() {
     return Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ');
   };
 
+  // SPEC-0006 — doc-level PLACEMENT sections. These are the only sections that
+  // "place" a whole doc (as opposed to per-AC / cross-cutting sections like
+  // Overdue, per-AC Deferred/Blocked, Broken references, or the audit sections).
+  // Computed once and reused both to render and to drive the coverage invariant,
+  // so the invariant is data-driven over actual section membership — any future
+  // DOC_STATUS_ENUM value added without a section is caught automatically.
+  const activeMembers = byStatus('implementing').concat(byStatus('accepted'), byStatus('proposed'), byStatus('frozen'));
+  const doneMembers = byStatus('done');
+  const draftMembers = byStatus('draft');
+  const deferredMembers = byStatus('deferred');           // Spec-AC-01 whole-doc deferred
+  const rejectedMembers = byStatus('rejected').concat(byStatus('superseded'));
+  const placementMembers = [canonicalDocs, activeMembers, doneMembers, draftMembers, deferredMembers, rejectedMembers];
+
+  // Spec-AC-02/03 — zero-section coverage invariant. A non-legacy doc that lands
+  // in NO placement section silently vanished before; surface it. Under --strict
+  // / lint-docs this is fatal (CI / pre-commit gate); otherwise degrade-and-report
+  // (best-effort index still written, gap surfaced). Legacy (no-frontmatter) docs
+  // are exempt — they land in the Legacy section.
+  const placedDocs = new Set();
+  for (const arr of placementMembers) for (const d of arr) placedDocs.add(d);
+  // NOTE: d.legacy (boolean) is true only for no-frontmatter docs (exempt from
+  // the invariant). d.status === 'legacy' is set for those same docs AND for any
+  // doc with frontmatter `status: legacy` — the two are distinct; a doc with
+  // `status: legacy` in its frontmatter has d.legacy = false and IS subject to
+  // the coverage invariant (intentional: no byStatus('legacy') placement section).
+  const coverageGaps = docs.filter(d => !d.legacy && !placedDocs.has(d));
+  if (coverageGaps.length > 0) {
+    if (strict) {
+      console.error('FAIL (strict): coverage invariant — doc(s) land in zero placement sections:');
+      for (const d of coverageGaps) console.error(`  - ${d.id} (${d.path}, status: ${d.status})`);
+      console.error('Add a doc-level section for that status, or fix the doc frontmatter; run without --strict for a best-effort index.');
+      process.exit(1);
+    }
+    console.warn(`WARNING: ${coverageGaps.length} doc(s) land in zero placement sections — surfaced as Coverage gaps (run with --strict to fail):`);
+    for (const d of coverageGaps) console.warn(`  - ${d.id} (${d.path}, status: ${d.status})`);
+  }
+
   const lines = [];
   lines.push(MARKER);
   lines.push('');
@@ -230,7 +267,7 @@ function main() {
     return out;
   });
 
-  section('Active (implementing)', byStatus('implementing').concat(byStatus('accepted'), byStatus('proposed'), byStatus('frozen')), items => {
+  section('Active (implementing)', activeMembers, items => {
     const out = ['| ID | Type | Status | Progress | Path |', '|---|---|---|---|---|'];
     for (const d of items) out.push(`| ${d.id} | ${d.type} | ${d.status} | ${progressFor(d)} | ${d.path} |`);
     return out;
@@ -250,13 +287,21 @@ function main() {
     return out;
   });
 
-  section('Done', byStatus('done'), items => {
+  section('Done', doneMembers, items => {
     const out = ['| ID | Type | Path |', '|---|---|---|'];
     for (const d of items) out.push(`| ${d.id} | ${d.type} | ${d.path} |`);
     return out;
   });
 
-  section('Drafts', byStatus('draft'), items => {
+  section('Drafts', draftMembers, items => {
+    const out = ['| ID | Type | Path |', '|---|---|---|'];
+    for (const d of items) out.push(`| ${d.id} | ${d.type} | ${d.path} |`);
+    return out;
+  });
+
+  // SPEC-0006 Spec-AC-01 — doc-level whole-doc `deferred` section. Distinct from
+  // the per-AC "Deferred items" section below (which lists deferred AC *rows*).
+  section('Deferred (whole-doc)', deferredMembers, items => {
     const out = ['| ID | Type | Path |', '|---|---|---|'];
     for (const d of items) out.push(`| ${d.id} | ${d.type} | ${d.path} |`);
     return out;
@@ -280,7 +325,7 @@ function main() {
     return out;
   });
 
-  section('Rejected / Superseded', byStatus('rejected').concat(byStatus('superseded')), items => {
+  section('Rejected / Superseded', rejectedMembers, items => {
     const out = ['| ID | Type | Status | Path |', '|---|---|---|---|'];
     for (const d of items) out.push(`| ${d.id} | ${d.type} | ${d.status} | ${d.path} |`);
     return out;
@@ -308,6 +353,17 @@ function main() {
   });
   if (skipped.length > 0) {
     section('Skipped (schema violations)', skipped, items => items.map(f => `- ${f}`));
+  }
+  // SPEC-0006 Spec-AC-03 — degrade-and-report surface for the coverage invariant:
+  // non-legacy docs that land in zero placement sections (best-effort run only;
+  // --strict aborted earlier). Rendered only when non-empty so a clean repo's
+  // index is unchanged.
+  if (coverageGaps.length > 0) {
+    section('Coverage gaps (zero placement sections)', coverageGaps, items => {
+      const out = ['| ID | Type | Status | Path |', '|---|---|---|---|'];
+      for (const d of items) out.push(`| ${d.id} | ${d.type} | ${d.status} | ${d.path} |`);
+      return out;
+    });
   }
 
   const today = ymd(todayUTC);

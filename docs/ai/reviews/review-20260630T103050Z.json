@@ -1,0 +1,84 @@
+{
+  "review_id": "review-20260630T103050Z",
+  "date_utc": "2026-06-30T10:30:50Z",
+  "reviewer": "claude-sonnet-4-6",
+  "ref_id": "DEBT-0001",
+  "spec_id": "SPEC-0006",
+  "scope": "uncommitted working tree on main",
+  "base_ref": "main",
+  "head_sha": "f1e294f516e6d8604e8f12d73d3e50fbf74bce46",
+  "verdict": "PASS",
+  "stage1": {
+    "verdict": "COMPLIANT",
+    "ac_results": [
+      { "ac": "Spec-AC-01", "result": "COMPLIANT", "note": "Deferred (whole-doc) section present and distinct from per-AC deferred items" },
+      { "ac": "Spec-AC-02", "result": "COMPLIANT", "note": "Data-driven zero-section invariant; --strict exits non-zero naming offenders" },
+      { "ac": "Spec-AC-03", "result": "COMPLIANT", "note": "Default mode degrade-and-report; INDEX always written; Coverage gaps section present" },
+      { "ac": "Spec-AC-04", "result": "COMPLIANT", "note": "No double-listing; idempotent (orthogonal doc-level vs AC-row data sources)" },
+      { "ac": "Spec-AC-05", "result": "COMPLIANT", "note": "Close-policy prose in both WORKFLOW.md and VALIDATION.prompt.md; required phrases grep-verified" },
+      { "ac": "Spec-AC-06", "result": "COMPLIANT*", "note": "Guard implemented and report-only; TEST-006 negative control (SPEC-9101) green. Latent inline-code-span false-positive noted (W1+W2); spec's stated negative control test is green." },
+      { "ac": "Spec-AC-07", "result": "COMPLIANT", "note": "No regression; TEST-001..007 registered before known-failing test_index_continue_on_error" }
+    ]
+  },
+  "stage2": {
+    "summary": { "errors": 0, "warnings": 2, "info": 3 },
+    "findings": [
+      {
+        "id": "W1",
+        "severity": "WARNING",
+        "category": "Correctness / false-positive",
+        "file": ".aai/scripts/lib/docs-audit-core.mjs",
+        "line": 216,
+        "title": "findOpenDecisionMarker does not strip inline code spans",
+        "breaking_input": "A done doc containing the line: `   unresolved decision — e.g. a \\`WARNING\\`/\\`> [!WARNING]\\` line combined with an`",
+        "effect": "Guard fires on SPEC-0006 line 93 when SPEC-0006 transitions to status:done. Report-only, no gate change. Latent.",
+        "fix": "Strip inline code spans before /\\bWARNING\\b/ test: `const stripped = raw.replace(/`[^`\\n]*`/g, '');`"
+      },
+      {
+        "id": "W2",
+        "severity": "WARNING",
+        "category": "Missing test coverage",
+        "file": "tests/skills/test-aai-docs-audit.sh",
+        "location": "setup_spec0006_opendecision_fixture / SPEC-9101 fixture",
+        "title": "TEST-006 negative control missing inline-code-span case",
+        "breaking_input": "Add line `See \\`WARNING: unresolved\\` in inline code.` to SPEC-9101 without the W1 fix; guard fires and test fails",
+        "effect": "Inline-code-span false-positive case is untested; the negative control gap is the direct test-coverage counterpart of W1.",
+        "fix": "Add an inline-code-span line to SPEC-9101 fixture: `See \\`WARNING: this mentions unresolved as an example\\` — not a real decision.`"
+      },
+      {
+        "id": "I1",
+        "severity": "INFO",
+        "category": "Style / maintainability",
+        "file": ".aai/scripts/generate-docs-index.mjs",
+        "lines": [108, 232],
+        "title": "`d.legacy` boolean vs `d.status='legacy'` frontmatter disambiguation",
+        "note": "Correct behavior; a comment would prevent future confusion between no-frontmatter legacy (d.legacy=true) and frontmatter status:legacy (d.legacy=false but status='legacy')."
+      },
+      {
+        "id": "I2",
+        "severity": "INFO",
+        "category": "Minor correctness edge case",
+        "file": ".aai/scripts/lib/docs-audit-core.mjs",
+        "line": 202,
+        "title": "Fence-length not checked in findOpenDecisionMarker",
+        "note": "CommonMark closing fence must be >= opener length; not checked. Very low risk in the doc corpus; only causes false negatives (misses markers), not false positives."
+      },
+      {
+        "id": "I3",
+        "severity": "INFO",
+        "category": "Design trade-off",
+        "file": ".aai/VALIDATION.prompt.md",
+        "title": "Close-policy enforced only via validator-agent instruction, not a hard gate",
+        "note": "By design per SPEC-0006 DD-5: escalation to gate deferred until signal proven clean."
+      }
+    ]
+  },
+  "adversarial_focus_verdict": "CONFIRMED — inline-code-span false positive in findOpenDecisionMarker is a genuine correctness bug. Latent, report-only, clear fix. Test coverage gap is real. Severity: WARNING (not ERROR); does not block merge.",
+  "other_checks": {
+    "zero_section_membership": "SAFE — all 9 non-legacy DOC_STATUS_ENUM values covered by exactly one placement array",
+    "double_counting_deferred": "SAFE — doc-level and AC-row-level deferred are orthogonal data structures",
+    "degrade_report_integrity": "SAFE — process.exit(1) only under strict; default path always writes INDEX",
+    "idempotence": "SAFE — coverageGaps set is deterministic; same input -> same output",
+    "redos": "SAFE — OPEN_DECISION_TOKEN_RE uses flat alternations; linear time"
+  }
+}
