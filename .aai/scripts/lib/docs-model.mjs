@@ -4,6 +4,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+// ISSUE-0001 / SPEC-0007 — normalize line endings ONCE at parser entry so every
+// `\n`-splitting parser behaves identically for LF, CRLF (Windows / core.autocrlf),
+// and lone-CR (classic-Mac) checkouts. CRLF first, then any remaining lone CR.
+// Files on disk are never mutated — only the in-memory working copy is normalized.
+export function normalizeNewlines(content) {
+  return String(content).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
+
+// SPEC-0007 WARNING-1 — convert any filesystem path to POSIX forward-slash form.
+// Splits on BOTH separator types so the helper is testable on any OS with a
+// literal-backslash input (not just path.sep), making Windows bugs unit-catchable
+// on macOS/Linux. No-op on POSIX (path.sep === '/').
+export function toPosix(p) {
+  return String(p).split(/[\\/]/).join('/');
+}
+
 export const DOC_STATUS_ENUM = new Set([
   'draft', 'proposed', 'accepted', 'implementing', 'frozen',
   'done', 'deferred', 'rejected', 'superseded', 'legacy',
@@ -143,6 +159,7 @@ export function walk(dir, out = []) {
 }
 
 export function parseFrontmatter(content) {
+  content = normalizeNewlines(content);
   if (!content.startsWith('---\n')) return null;
   const end = content.indexOf('\n---', 4);
   if (end < 0) return null;
@@ -190,6 +207,9 @@ export function parseFrontmatter(content) {
 }
 
 export function parseAcTable(content) {
+  // SPEC-0007 — normalize once at entry so the `.split('\n')` row scan below
+  // yields identical cells for LF / CRLF / lone-CR (and no value carries \r).
+  content = normalizeNewlines(content);
   // Find "## Acceptance Criteria Status" section, then the first markdown table.
   const sectionRe = /##\s+Acceptance Criteria Status\b[^\n]*\n([\s\S]+?)(?=\n##\s|\n*$)/i;
   const m = content.match(sectionRe);

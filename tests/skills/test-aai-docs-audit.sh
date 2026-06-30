@@ -1321,6 +1321,252 @@ test_spec0006_no_regression_real_repo() {  # TEST-007 / Spec-AC-07
   log_pass "Real-repo audit CLEAN and INDEX idempotent (no regression)"
 }
 
+# --- SPEC-0007 fixtures (ISSUE-0001): CRLF/lone-CR-tolerant parsers + POSIX paths ---
+
+# Build an isolated mini-repo under $TEST_DIR with the vendored scripts, so a
+# controlled corpus (CRLF / legacy-ratio) is scanned in isolation from the
+# accumulated fixture docs above. Echoes the repo path on stdout.
+setup_iso_repo() {
+  local name="$1"
+  local d="$TEST_DIR/iso-$name"
+  rm -rf "$d"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/specs" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test")
+  printf '%s' "$d"
+}
+
+# Convert stdin (LF) to a CRLF-terminated file at $1.
+write_crlf() { awk '{ printf "%s\r\n", $0 }' > "$1"; }
+
+test_issue0001_frontmatter_crlf_tolerance() {  # TEST-001 / Spec-AC-01
+  log_info "Test: parseFrontmatter identical for LF/CRLF/lone-CR, no trailing CR (TEST-001)..."
+  cat > "$TEST_DIR/t1.mjs" <<'EOF'
+import { parseFrontmatter } from './.aai/scripts/lib/docs-model.mjs';
+import assert from 'node:assert';
+const lf = `---
+id: SPEC-9999
+type: spec
+status: done
+links:
+  pr: []
+---
+# Doc
+`;
+const crlf = lf.replace(/\n/g, '\r\n');
+const cr = lf.replace(/\n/g, '\r');
+const a = parseFrontmatter(lf), b = parseFrontmatter(crlf), c = parseFrontmatter(cr);
+assert(a, 'LF must parse to an object');
+assert.deepStrictEqual(b, a, 'CRLF must deep-equal LF (RED pre-fix: parseFrontmatter(crlf) === null)');
+assert.deepStrictEqual(c, a, 'lone-CR must deep-equal LF');
+const noCR = (o) => o == null ? true
+  : typeof o === 'string' ? !o.includes('\r')
+  : typeof o === 'object' ? Object.values(o).every(noCR) : true;
+assert(noCR(a) && noCR(b) && noCR(c), 'no parsed value may carry a CR');
+console.log('ok');
+EOF
+  (cd "$TEST_DIR" && node t1.mjs) > "$TEST_DIR/t1.log" 2>&1 \
+    || log_fail "parseFrontmatter not CRLF/lone-CR tolerant: $(cat "$TEST_DIR/t1.log")"
+  rm -f "$TEST_DIR/t1.mjs"
+  log_pass "parseFrontmatter normalizes LF/CRLF/lone-CR to an identical object"
+}
+
+test_issue0001_actable_crlf_tolerance() {  # TEST-002 / Spec-AC-02
+  log_info "Test: parseAcTable rows cell-equal across LF/CRLF/CR; Review-By/refs carry no CR (TEST-002)..."
+  cat > "$TEST_DIR/t2.mjs" <<'EOF'
+import { parseAcTable, parseReviewBy, extractReferences } from './.aai/scripts/lib/docs-model.mjs';
+import assert from 'node:assert';
+const lf = `---
+id: SPEC-9999
+type: spec
+status: done
+links:
+  pr: []
+---
+# Doc
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By  | Notes          |
+|------------|-------------|--------|----------|------------|----------------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | 2026-05-01 | see → REF-0001 |
+`;
+const crlf = lf.replace(/\n/g, '\r\n');
+const cr = lf.replace(/\n/g, '\r');
+const rLF = parseAcTable(lf).rows, rCRLF = parseAcTable(crlf).rows, rCR = parseAcTable(cr).rows;
+assert(rLF.length === 1, 'LF must parse one AC row');
+assert.strictEqual(JSON.stringify(rCRLF), JSON.stringify(rLF), 'CRLF rows must equal LF rows');
+assert.strictEqual(JSON.stringify(rCR), JSON.stringify(rLF), 'lone-CR rows must equal LF rows (RED pre-fix: rows empty)');
+for (const rows of [rLF, rCRLF, rCR]) {
+  const row = rows[0];
+  for (const v of Object.values(row)) assert(!String(v).includes('\r'), 'no cell may carry a CR');
+  assert.strictEqual(parseReviewBy(row['Review-By']).kind, 'date', 'Review-By must parse as a date, not invalid');
+  assert.deepStrictEqual(extractReferences(row['Notes']), ['REF-0001'], 'reference must be REF-0001 (no CR)');
+}
+console.log('ok');
+EOF
+  (cd "$TEST_DIR" && node t2.mjs) > "$TEST_DIR/t2.log" 2>&1 \
+    || log_fail "parseAcTable/parseReviewBy/extractReferences not line-ending tolerant: $(cat "$TEST_DIR/t2.log")"
+  rm -f "$TEST_DIR/t2.mjs"
+  log_pass "AC-table rows equal across line endings; Review-By/refs clean"
+}
+
+test_issue0001_posix_paths_noop() {  # TEST-003 / Spec-AC-03
+  log_info "Test: real-repo INDEX paths are POSIX-only and the path change is a no-op on POSIX (TEST-003)..."
+  local idx="$PROJECT_ROOT/docs/INDEX.md"
+  local backup="$TEST_DIR/INDEX.t003.orig"
+  cp "$idx" "$backup"
+  grep -v '^Generated:' "$backup" > "$TEST_DIR/t003.before.snap"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/t003.gen.log" 2>&1) \
+    || { cp "$backup" "$idx"; log_fail "real-repo index gen failed: $(cat "$TEST_DIR/t003.gen.log")"; }
+  grep -v '^Generated:' "$idx" > "$TEST_DIR/t003.after.snap"
+  # POSIX-only: the committed artifact carries no backslash separators.
+  if grep -q '\\' "$idx"; then cp "$backup" "$idx"; log_fail "INDEX must contain forward-slash paths only (found a backslash)"; fi
+  # Restore the real index before asserting (a diff failure must not leave it dirty).
+  cp "$backup" "$idx"
+  diff -q "$TEST_DIR/t003.before.snap" "$TEST_DIR/t003.after.snap" >/dev/null \
+    || log_fail "POSIX-path change must be a no-op on POSIX (real INDEX byte-identical modulo Generated)"
+  log_pass "Real-repo INDEX is POSIX-only; path normalization is a no-op on POSIX"
+}
+
+test_issue0001_crlf_corpus_buckets() {  # TEST-004 / Spec-AC-04
+  log_info "Test: CRLF fixture corpus -> real-status buckets, <=1 Legacy, POSIX paths (TEST-004)..."
+  local d; d="$(setup_iso_repo crlf)"
+  write_crlf "$d/docs/specs/SPEC-7001-done.md" <<'MD'
+---
+id: SPEC-7001
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec
+MD
+  write_crlf "$d/docs/specs/SPEC-7002-draft.md" <<'MD'
+---
+id: SPEC-7002
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Draft spec
+MD
+  write_crlf "$d/docs/specs/SPEC-7003-impl.md" <<'MD'
+---
+id: SPEC-7003
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Implementing spec
+MD
+  (cd "$d" && git add -A && git commit -qm "crlf corpus")
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
+    || log_fail "generator failed on CRLF corpus: $(cat "$d/gen.log")"
+  local index="$d/docs/INDEX.md"
+  extract_section "$index" "## Done" | grep -qF "SPEC-7001" \
+    || log_fail "SPEC-7001 must land in Done (CRLF parsed), not Legacy"
+  extract_section "$index" "## Drafts" | grep -qF "SPEC-7002" \
+    || log_fail "SPEC-7002 must land in Drafts"
+  extract_section "$index" "## Active (implementing)" | grep -qF "SPEC-7003" \
+    || log_fail "SPEC-7003 must land in Active (implementing)"
+  assert_contains "$index" "## Legacy (no frontmatter) (0)"
+  if grep -q '\\' "$index"; then log_fail "CRLF-corpus INDEX must have forward-slash paths only"; fi
+  rm -rf "$d"
+  log_pass "CRLF corpus buckets by real status with POSIX paths (NOT all-Legacy)"
+}
+
+test_issue0001_gitattributes() {  # TEST-005 / Spec-AC-05
+  log_info "Test: .gitattributes carries the docs+mjs eol=lf rules; existing rules intact (TEST-005)..."
+  local ga="$PROJECT_ROOT/.gitattributes"
+  assert_file "$ga"
+  assert_contains "$ga" "docs/**/*.md text eol=lf"
+  assert_contains "$ga" "*.mjs text eol=lf"
+  # existing executable-script rules must remain untouched
+  assert_contains "$ga" "*.sh text eol=lf"
+  assert_contains "$ga" "*.bat text eol=crlf"
+  log_pass ".gitattributes adds docs/mjs LF rules without disturbing existing rules"
+}
+
+test_issue0001_legacy_ratio_guard() {  # TEST-006 / Spec-AC-06
+  log_info "Test: report-only legacy-ratio guard (>50% AND >1) warns on stderr, exit unchanged; negative control silent (TEST-006)..."
+  local d; d="$(setup_iso_repo legacy)"
+  # High-legacy: 3 no-frontmatter docs of 4 = 75% (>50%), legacyCount 3 (>1).
+  printf '# Legacy one\nno frontmatter\n' > "$d/docs/specs/LEG-1.md"
+  printf '# Legacy two\nno frontmatter\n' > "$d/docs/specs/LEG-2.md"
+  printf '# Legacy three\nno frontmatter\n' > "$d/docs/specs/LEG-3.md"
+  cat > "$d/docs/specs/SPEC-8001-ok.md" <<'MD'
+---
+id: SPEC-8001
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Valid draft
+MD
+  (cd "$d" && git add -A && git commit -qm "high-legacy corpus")
+  local ec=0
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.out 2> gen.err) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "legacy-ratio guard must NOT change the exit code (got $ec)"
+  grep -qiF "legacy-ratio guard" "$d/gen.err" \
+    || log_fail "high-legacy corpus must emit the legacy-ratio warning on stderr"
+  grep -qF "3 of 4 scanned docs are Legacy" "$d/gen.err" \
+    || log_fail "warning must name the legacy count (3) and the scanned-doc total (4)"
+  # Negative control: drop to 1 legacy of 2 (ratio 50%, count 1) — must stay silent.
+  rm "$d/docs/specs/LEG-2.md" "$d/docs/specs/LEG-3.md"
+  local ec2=0
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen2.out 2> gen2.err) || ec2=$?
+  [[ "$ec2" == 0 ]] || log_fail "negative-control run must still exit 0 (got $ec2)"
+  if grep -qiF "legacy-ratio guard" "$d/gen2.err"; then
+    log_fail "a normal corpus (<=1 legacy / <=50%) must NOT emit the legacy-ratio warning"
+  fi
+  rm -rf "$d"
+  log_pass "Legacy-ratio guard is report-only: warns on >50%&>1, silent on normal corpus, exit unchanged"
+}
+
+test_issue0001_no_regression_real_repo() {  # TEST-007 / Spec-AC-07
+  log_info "Test: real-repo docs-audit CLEAN and INDEX idempotent — no regression (TEST-007)..."
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/t007-audit.log" 2>&1) \
+    || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/t007-audit.log")"
+  assert_contains "$TEST_DIR/t007-audit.log" "Verdict: CLEAN"
+  local idx_backup="$TEST_DIR/INDEX.t007.orig"
+  cp "$PROJECT_ROOT/docs/INDEX.md" "$idx_backup"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/t007-idx1.log" 2>&1) \
+    || { cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"; log_fail "real-repo index gen (run 1) failed: $(cat "$TEST_DIR/t007-idx1.log")"; }
+  grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/t007-idx1.snap"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/t007-idx2.log" 2>&1) \
+    || { cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"; log_fail "real-repo index gen (run 2) failed: $(cat "$TEST_DIR/t007-idx2.log")"; }
+  grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/t007-idx2.snap"
+  cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"
+  diff -q "$TEST_DIR/t007-idx1.snap" "$TEST_DIR/t007-idx2.snap" >/dev/null \
+    || log_fail "real-repo INDEX must be idempotent modulo the Generated line"
+  log_pass "Real-repo audit CLEAN and INDEX idempotent (no regression)"
+}
+
+test_issue0001_posix_helper() {  # toPosix unit test / WARNING-1 / SPEC-0007
+  log_info "Test: toPosix converts backslash separators to forward slashes, idempotent on POSIX input (WARNING-1)..."
+  cat > "$TEST_DIR/t-posix.mjs" <<'EOF'
+import { toPosix } from './.aai/scripts/lib/docs-model.mjs';
+import assert from 'node:assert';
+// RED before the helper exists: import resolves to undefined, assert.strictEqual throws
+assert.strictEqual(toPosix('docs\\issues\\x.md'), 'docs/issues/x.md',
+  'backslash input must be converted to forward slashes');
+assert.strictEqual(toPosix('docs/issues/x.md'), 'docs/issues/x.md',
+  'POSIX input must be unchanged (idempotent)');
+console.log('ok');
+EOF
+  (cd "$TEST_DIR" && node t-posix.mjs) > "$TEST_DIR/t-posix.log" 2>&1 \
+    || log_fail "toPosix helper missing or incorrect: $(cat "$TEST_DIR/t-posix.log")"
+  rm -f "$TEST_DIR/t-posix.mjs"
+  log_pass "toPosix normalizes backslash inputs and is idempotent on forward-slash input"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -1363,6 +1609,14 @@ main() {
   test_spec0006_close_policy_prose
   test_spec0006_open_decision_guard
   test_spec0006_no_regression_real_repo
+  test_issue0001_frontmatter_crlf_tolerance
+  test_issue0001_actable_crlf_tolerance
+  test_issue0001_posix_paths_noop
+  test_issue0001_crlf_corpus_buckets
+  test_issue0001_gitattributes
+  test_issue0001_legacy_ratio_guard
+  test_issue0001_no_regression_real_repo
+  test_issue0001_posix_helper
   test_index_continue_on_error
   echo ""
   log_pass "All $TEST_NAME tests passed"

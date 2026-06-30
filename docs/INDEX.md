@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-06-30T13:06:14.402Z
+Generated: 2026-06-30T16:24:00.533Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (16)
+## Done (18)
 
 | ID | Type | Path |
 |---|---|---|
@@ -24,6 +24,7 @@ _None._
 | CHANGE-0003 | issues | docs/issues/CHANGE-0003-docs-audit-verify-mode.md |
 | CHANGE-0004 | issues | docs/issues/CHANGE-0004-docs-audit-parent-closeout-candidate.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
+| ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -35,6 +36,7 @@ _None._
 | SPEC-0004 | specs | docs/specs/SPEC-0004-enforced-multi-agent-state-locking.md |
 | SPEC-0005 | specs | docs/specs/SPEC-0005-automatic-parallel-mode-detection.md |
 | SPEC-0006 | specs | docs/specs/SPEC-0006-index-deferred-coverage-and-done-close-policy.md |
+| SPEC-0007 | specs | docs/specs/SPEC-0007-parsefrontmatter-crlf-tolerance-and-posix-index-paths.md |
 
 ## Drafts (1)
 
@@ -70,11 +72,9 @@ _None._
 
 _None._
 
-## Drift report (1)
+## Drift report (0)
 
-| Doc | Verdict | Evidence | Suggested next step |
-|---|---|---|---|
-| DEBT-0001 | probable-false-done | no commit and no ac_evidence event references this doc | reconcile AC table / evidence, then re-confirm done status |
+_None._
 
 ---
 Today (UTC): 2026-06-30 — counts above use this date for overdue checks.

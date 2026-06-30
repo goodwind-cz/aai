@@ -6,3 +6,8 @@
 # Keep Windows command scripts in CRLF.
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# ISSUE-0001 / SPEC-0007 — keep the docs corpus and the .mjs scripts that read it
+# LF regardless of core.autocrlf, so parseFrontmatter never sees a CRLF checkout.
+docs/**/*.md text eol=lf
+*.mjs text eol=lf

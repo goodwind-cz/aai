@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   DOC_STATUS_ENUM, AC_STATUS_ENUM, walk,
-  parseFrontmatter, parseAcTable, parseReviewBy, extractReferences,
+  parseFrontmatter, parseAcTable, parseReviewBy, extractReferences, toPosix,
 } from './lib/docs-model.mjs';
 import { runAudit, suggestedStep, loadConfig, firstCommitDate } from './lib/docs-audit-core.mjs';
 
@@ -99,7 +99,10 @@ function main() {
 
   for (const dir of SCAN_DIRS) {
     for (const filePath of walk(path.join(ROOT, dir))) {
-      const rel = path.relative(ROOT, filePath);
+      // SPEC-0007 — emit POSIX paths wherever a path enters a record/row, so the
+      // committed docs/INDEX.md is OS-independent. No-op on POSIX (path.sep === '/').
+      // toPosix() splits on both separator types so it is unit-testable on any OS.
+      const rel = toPosix(path.relative(ROOT, filePath));
       const content = fs.readFileSync(filePath, 'utf8');
       const fm = parseFrontmatter(content);
       const type = path.basename(path.dirname(filePath));
@@ -165,6 +168,19 @@ function main() {
     for (let i = docs.length - 1; i >= 0; i -= 1) {
       if (failedRels.has(docs[i].path)) docs.splice(i, 1);
     }
+  }
+
+  // SPEC-0007 Spec-AC-06 — report-only legacy-ratio tripwire. SPEC-0006's
+  // zero-section coverage invariant treats Legacy as a valid/exempt placement, so
+  // it structurally cannot detect a parser failure (e.g. a CRLF checkout) that
+  // collapses the whole corpus into Legacy. This guard closes that gap: a LOUD
+  // stderr WARNING when the Legacy bucket exceeds 50% of scanned docs AND the
+  // legacy count is greater than 1 (the >1 floor keeps a tiny corpus quiet). It
+  // is report-only — it changes NO exit code (a --strict fatal is deferred until
+  // the threshold is field-validated).
+  const legacyCount = docs.filter(d => d.legacy).length;
+  if (legacyCount > 1 && legacyCount / docs.length > 0.5) {
+    console.warn(`WARNING: legacy-ratio guard — ${legacyCount} of ${docs.length} scanned docs are Legacy (no frontmatter), over 50%. This often indicates a parser failure (e.g. CRLF/lone-CR line endings) collapsing the corpus into Legacy. Investigate before trusting docs/INDEX.md. (report-only; exit code unchanged)`);
   }
 
   const knownIds = new Set(docs.map(d => d.id));
