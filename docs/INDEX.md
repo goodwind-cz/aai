@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-06-30T16:16:28.740Z
+Generated: 2026-06-30T16:24:00.533Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -72,11 +72,9 @@ _None._
 
 _None._
 
-## Drift report (1)
+## Drift report (0)
 
-| Doc | Verdict | Evidence | Suggested next step |
-|---|---|---|---|
-| ISSUE-0001 | probable-false-done | no commit and no ac_evidence event references this doc | reconcile AC table / evidence, then re-confirm done status |
+_None._
 
 ---
 Today (UTC): 2026-06-30 — counts above use this date for overdue checks.
