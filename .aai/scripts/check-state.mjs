@@ -88,12 +88,12 @@ function parseMetricsBlock(blockLines) {
     const refMatch = line.match(/^ {4}([\w-]+):\s*$/);
     if (refMatch) {
       flush();
-      cur = { ref: refMatch[1], header: line, other: [], runsHeader: null, runs: [] };
+      cur = { ref: refMatch[1], header: line, other: [], hasRuns: false, runs: [] };
       continue;
     }
     if (!cur) { pre.push(line); continue; }   // stray line before any ref
     if (/^ {6}agent_runs:\s*$/.test(line)) {
-      cur.runsHeader = line;
+      cur.hasRuns = true;
       let curItem = null;
       let j = i + 1;
       for (; j < blockLines.length; j += 1) {
@@ -108,6 +108,11 @@ function parseMetricsBlock(blockLines) {
       i = j - 1;
       continue;
     }
+    // Inline agent_runs (e.g. the auto-init `agent_runs: []` form): mark the
+    // field present but do NOT keep it in `other`, so the merge re-emits a
+    // SINGLE canonical agent_runs and never produces a duplicate nested key
+    // (Codex P2 / ISSUE-0004 self-fix). An inline `[]` contributes no runs.
+    if (/^ {6}agent_runs:\s*\S/.test(line)) { cur.hasRuns = true; continue; }
     cur.other.push(line);
   }
   flush();
@@ -127,13 +132,11 @@ function mergeMetricsBlocks(parsed) {
     for (const r of b.refs) {
       if (!map.has(r.ref)) {
         order.push(r.ref);
-        map.set(r.ref, { header: r.header, other: r.other, runsHeader: r.runsHeader, runs: [...r.runs] });
+        map.set(r.ref, { header: r.header, other: r.other, hasRuns: r.hasRuns, runs: [...r.runs] });
       } else {
         const ex = map.get(r.ref);
-        if (r.runs.length) {
-          if (!ex.runsHeader) ex.runsHeader = r.runsHeader;
-          ex.runs.push(...r.runs);
-        }
+        ex.hasRuns = ex.hasRuns || r.hasRuns;
+        ex.runs.push(...r.runs);
       }
     }
   }
@@ -142,8 +145,15 @@ function mergeMetricsBlocks(parsed) {
   for (const ref of order) {
     const r = map.get(ref);
     out.push(r.header, ...r.other);
-    if (r.runsHeader) out.push(r.runsHeader);
-    for (const item of r.runs) out.push(...item);
+    // Emit exactly ONE canonical agent_runs field — block form when there are
+    // runs, else the inline empty form when the field was present (never both,
+    // so the auto-init `agent_runs: []` + a duplicate block never collide).
+    if (r.runs.length) {
+      out.push('      agent_runs:');
+      for (const item of r.runs) out.push(...item);
+    } else if (r.hasRuns) {
+      out.push('      agent_runs: []');
+    }
   }
   return out;
 }

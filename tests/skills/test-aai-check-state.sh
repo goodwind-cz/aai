@@ -155,6 +155,42 @@ test_repair_merges_no_data_loss() {  # TEST-005 / Spec-AC-05
   log_pass "Repair unions work_items + concatenates agent_runs (X:[r1,r2], Y:[r3]); zero loss; re-validate clean"
 }
 
+test_repair_inline_agent_runs() {  # TEST-011 / Codex P2 (ISSUE-0004 self-fix)
+  log_info "Test: --repair of a ref auto-initialized with inline 'agent_runs: []' + a dup block leaves NO duplicate nested agent_runs (TEST-011)..."
+  local dup="$TEST_DIR/state-inline.yaml"
+  cat > "$dup" <<'YAML'
+project_status: active
+metrics:
+  work_items:
+    ISSUE-9001:
+      human_time_minutes:
+        intake: null
+      agent_runs: []
+updated_at_utc: 2026-07-01T00:00:00Z
+metrics:
+  work_items:
+    ISSUE-9001:
+      agent_runs:
+        - role: run-inline-a
+          model_id: x
+        - role: run-inline-b
+          model_id: y
+YAML
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs --repair "$dup" > "$TEST_DIR/inline-repair.log" 2>&1) \
+    || log_fail "--repair must succeed on the inline-agent_runs case: $(cat "$TEST_DIR/inline-repair.log")"
+  # Exactly ONE nested agent_runs line for the ref (the Codex P2 bug emitted two:
+  # the inline `agent_runs: []` AND a block-form `agent_runs:`).
+  local ar_count
+  ar_count="$(grep -cE '^ {6}agent_runs:' "$dup" || true)"
+  [[ "$ar_count" == "1" ]] \
+    || log_fail "repaired STATE must have exactly ONE nested agent_runs: for the ref (got $ar_count — duplicate nested key)"
+  grep -qF "run-inline-a" "$dup" || log_fail "run-inline-a must survive (no data loss)"
+  grep -qF "run-inline-b" "$dup" || log_fail "run-inline-b must survive (no data loss)"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$dup" > "$TEST_DIR/inline-reval.log" 2>&1) \
+    || log_fail "re-validate after inline-agent_runs repair must exit 0: $(cat "$TEST_DIR/inline-reval.log")"
+  log_pass "Inline 'agent_runs: []' + dup block merges to ONE canonical agent_runs, both runs kept, re-validate clean"
+}
+
 test_prevention_wiring_present() {  # TEST-006 / Spec-AC-06
   log_info "Test: SKILL_CHECK_STATE [INV-14] + role-prompt append-into-existing guidance present (TEST-006)..."
   local skill="$PROJECT_ROOT/.aai/SKILL_CHECK_STATE.prompt.md"
@@ -199,6 +235,7 @@ main() {
   setup_fixture
   test_detect_duplicate_metrics
   test_repair_merges_no_data_loss
+  test_repair_inline_agent_runs
   test_prevention_wiring_present
   test_no_regression_real_state
   echo ""
