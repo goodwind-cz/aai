@@ -37,6 +37,17 @@ No other document may redefine or summarize workflow.
   close `done` with buried WARNING decisions. (`docs-audit` surfaces these in its
   "Open decisions on done docs" report.)
 
+## Re-runnable Maintenance Skills
+
+These skills are not workflow roles. They are agent-invocable entry points that
+can be re-run at any time, independent of the workflow phase.
+
+| Skill | Description | Source |
+|-------|-------------|--------|
+| `aai-docs-canon` | Consolidate layered docs into canonical per-domain layer in `docs/canonical/`; archive originals to `docs/_archive/` with back-links; two-phase with HUMAN gate. | `.aai/SKILL_DOCS_CANON.prompt.md` (RFC-0003 / SPEC-0002) |
+| `aai-test-canon` | Consolidate fragmented tests into canonical per-domain layer in `tests/canonical/`; archive originals to `tests/_archive/` with back-links; scaffold RED stubs for uncovered criteria; two-phase with HUMAN gate. | `.aai/SKILL_TEST_CANON.prompt.md` (RFC-0006 / SPEC-0008) |
+| `aai-docs-audit` | Docs hygiene and drift audit — orphan/false-done/stale detection. | `.aai/SKILL_DOCS_AUDIT.prompt.md` (RFC-0002) |
+
 ## Stop conditions
 - Missing or ambiguous requirements
 - Unmeasurable acceptance criteria

@@ -1,0 +1,113 @@
+{
+  "review_id": "review-20260630T224800Z",
+  "spec_id": "SPEC-0008",
+  "reviewer": "AAI Code Review Skill (independent agent)",
+  "scope": [
+    ".aai/scripts/test-canon.mjs",
+    ".aai/scripts/lib/test-canon-core.mjs",
+    ".aai/SKILL_TEST_CANON.prompt.md",
+    ".aai/workflow/WORKFLOW.md",
+    "tests/skills/test-aai-test-canon.sh",
+    "docs/specs/SPEC-0008-test-canonicalization-skill.md"
+  ],
+  "test_results": {
+    "suite": "tests/skills/test-aai-test-canon.sh",
+    "exit_code": 0,
+    "tests_run": 12,
+    "passed": 12,
+    "failed": 0
+  },
+  "stage1": {
+    "Spec-AC-01": { "status": "COMPLIANT", "evidence": "runPhase1 reads domain map + test files, builds matrix, writes proposal with approved:false, never moves tests. TEST-001 green." },
+    "Spec-AC-02": { "status": "NON-COMPLIANT", "details": "No git mv (uses fs.rmSync+fs.writeFileSync instead of git mv). verifyRunner only checks shebang, not actual runner execution. TEST-002/003/004/005 green but test assertions are soft." },
+    "Spec-AC-03": { "status": "NON-COMPLIANT", "details": "sourceHashes recorded from original paths. After Phase 2 archives originals, sources no longer exist. Re-run always detects drift because hashTestSources returns null for all. Idempotency broken — every re-run reports drift. TEST-006/007 green but test only checks map byte-identity, not behavioral idempotency." },
+    "Spec-AC-04": { "status": "NON-COMPLIANT", "details": "verifyRunner only checks shebang, not actual runner execution. Bidirectional back-links incomplete: archive→canonical present, but canonical→archive missing (renderCanonicalTest has no archive back-link). TEST-008 green but assertions are soft." },
+    "Spec-AC-05": { "status": "COMPLIANT", "evidence": "runPhase1 degrades gracefully when docs/canonical/ absent. TEST-009 green." },
+    "Spec-AC-06": { "status": "COMPLIANT", "evidence": "runPhase1 writes human-readable coverage report. TEST-010 green." },
+    "Spec-AC-07": { "status": "COMPLIANT", "evidence": "Stubs carry domain+criterion tags, syntactically valid bash. TEST-011 green." },
+    "Spec-AC-08": { "status": "NON-COMPLIANT", "details": "--drift reports without modifying files. But --resync reads from original paths that no longer exist after Phase 2 — sourceContents is empty, canonical loses all source content. Should read from archived sources. TEST-012 green but resync produces empty canonical." }
+  },
+  "stage2": {
+    "errors": [
+      {
+        "id": "E1",
+        "severity": "error",
+        "category": "best-practices",
+        "file": ".aai/scripts/lib/test-canon-core.mjs",
+        "line": 517,
+        "message": "Drift detection always triggers after Phase 2 because d.sources still points to originals that were archived and deleted. hashTestSources returns null for all, so every re-run detects drift. Re-run is not idempotent — behavior differs on every invocation.",
+        "fix": "Update d.sources to point to archived paths after moving, OR hash the archived copies, OR hash the canonical test content instead."
+      },
+      {
+        "id": "E2",
+        "severity": "error",
+        "category": "best-practices",
+        "file": ".aai/scripts/lib/test-canon-core.mjs",
+        "line": 439,
+        "message": "--resync reads source contents from original paths that no longer exist after Phase 2 archiving. sourceContents will be empty, producing a canonical test with only stubs and no real test content. Spec requires re-synthesizing from archived sources.",
+        "fix": "On --resync, read from tests/_archive/ paths using d.archivedAt mapping instead of d.sources paths."
+      }
+    ],
+    "warnings": [
+      {
+        "id": "W1",
+        "severity": "warning",
+        "category": "best-practices",
+        "file": ".aai/scripts/lib/test-canon-core.mjs",
+        "line": 506,
+        "message": "Uses fs.writeFileSync + fs.rmSync instead of git mv for archiving originals. Spec-AC-02 requires 'tracked git move'. Git may not detect the rename, losing file history.",
+        "fix": "Use `git mv` or `execSync('git mv ...')` to preserve rename tracking in git history."
+      },
+      {
+        "id": "W2",
+        "severity": "warning",
+        "category": "best-practices",
+        "file": ".aai/scripts/lib/test-canon-core.mjs",
+        "line": 374,
+        "message": "verifyRunner only checks shebang presence. Spec-AC-04 requires verifying the canonical suite 'still runs via existing runners'. No actual test execution through Pester, test-framework.sh, or test-*.sh runners.",
+        "fix": "Execute each canonical test through the project's existing runners and assert exit 0 before archiving."
+      },
+      {
+        "id": "W3",
+        "severity": "warning",
+        "category": "best-practices",
+        "file": ".aai/scripts/lib/test-canon-core.mjs",
+        "line": 292,
+        "message": "renderCanonicalTest does not include archive back-links. Spec-AC-04 requires bidirectional back-links (archive→canonical AND canonical→archive). Only archive files get '# Canonical:' pointer.",
+        "fix": "Add '# Archive: tests/_archive/...' lines to the canonical test file header for each archived source."
+      }
+    ],
+    "info": [
+      {
+        "id": "I1",
+        "severity": "info",
+        "category": "style",
+        "file": ".aai/scripts/lib/test-canon-core.mjs",
+        "line": 91,
+        "message": "mapTestToDomain uses heuristic name matching (slugClean/nameClean) which may produce incorrect domain assignments. The 'unclear' bucket + HITL review mitigate this per spec design, but the heuristic is coarse.",
+        "fix": "Consider using content-based matching (e.g., grep for domain references in test comments/frontmatter) in addition to name matching."
+      },
+      {
+        "id": "I2",
+        "severity": "info",
+        "category": "style",
+        "file": ".aai/scripts/lib/test-canon-core.mjs",
+        "line": 70,
+        "message": "extractCriteria only parses bullet items under '## Acceptance Criteria' heading. May miss criteria in other formats (tables, numbered lists, sub-headings).",
+        "fix": "Consider broader parsing for alternative criterion formats."
+      },
+      {
+        "id": "I3",
+        "severity": "info",
+        "category": "style",
+        "file": ".aai/scripts/test-canon.mjs",
+        "line": 39,
+        "message": "parseArgs defaults to --phase1 when no flag given. This is reasonable but could surprise users who invoke without args expecting help output.",
+        "fix": "Consider printing usage/help when no recognized args are given."
+      }
+    ]
+  },
+  "verdict": "FAIL",
+  "verdict_reason": "Stage 1: 4 Spec-AC non-compliant (Spec-AC-02, Spec-AC-03, Spec-AC-04, Spec-AC-08). Stage 2: 2 ERROR findings (E1: drift always triggers, E2: --resync reads non-existent paths).",
+  "recommendation": "Fix E1 (drift hash against archived paths), fix E2 (resync from archived sources), address W1 (git mv), W2 (real runner verification), W3 (bidirectional back-links). Then re-review."
+}
