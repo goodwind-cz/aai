@@ -75,6 +75,20 @@ spawn_marked() {
   echo "$pid"
 }
 
+# Spawn a MATCHED launcher whose argv[0] embeds $1 (the vitest token + a workspace
+# path) which FIRST backgrounds a token-less `sleep` child (its argv is plain
+# "sleep 600" — NO token) and THEN execs into a marked sleep. The launcher matches
+# the reaper's guards while its LIVE descendant does not — the SPEC-0009 P2 fixture
+# (a child whose argv dropped the token must still be reaped via the tree walk).
+# The child's ppid == the launcher pid (exec keeps the pid). Prints the launcher pid.
+spawn_parent_with_child() {
+  local argv0="$1"
+  bash -c 'sleep 600 & exec -a "$0" sleep 600' "$argv0" >/dev/null 2>&1 &
+  local pid=$!
+  track "$pid"
+  echo "$pid"
+}
+
 alive() { kill -0 "$1" >/dev/null 2>&1; }
 
 check_deps() {
@@ -378,7 +392,84 @@ test_013() {
   fi
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013"
+# --- TEST-014 — P1: wrapper under dash reaps a REPARENTED leaky child (SPEC-0009 P1)
+# RED-proofed: the `set -m` wrapper under NON-interactive dash (the Linux /bin/sh)
+# never creates the process group, so a reparented sleeper survives `kill -$PGID`.
+# The setsid/perl session-leader fix turns it GREEN. The original miss was that ALL
+# tests ran under macOS bash (where `set -m` DOES create the group), hiding the
+# Linux break — so this test runs the wrapper EXPLICITLY under `dash`.
+test_014() {
+  log_info "TEST-014: wrapper under dash — reparented leaky child leaves NO survivor (P1)..."
+  command -v dash >/dev/null 2>&1 || { log_pass "dash absent; P1 dash test skipped"; return 0; }
+  local marker="aai_p1dash_${$}_${RANDOM}_vitest"
+  local start end rc
+  start="$(date +%s)"
+  # The leaky child REPARENTS its worker: a subshell backgrounds a marked sleep,
+  # then the parent exits 0, orphaning the sleeper to init — only a real
+  # session/process-group (NOT `set -m` under dash) keeps it killable.
+  dash "$RUN_TESTS_SCRIPT" bash -c "( exec -a $marker sleep 300 ) & exit 0" >/dev/null 2>&1; rc=$?
+  end="$(date +%s)"
+  [[ "$rc" -eq 0 ]] || log_fail "a leaky child that exits 0 must yield exit 0 under dash (got $rc)"
+  [[ $((end - start)) -lt 30 ]] || log_fail "wrapper under dash must return promptly, took $((end - start))s"
+  sleep 1
+  if pgrep -f "$marker" >/dev/null 2>&1; then
+    local survivors
+    survivors="$(pgrep -f "$marker" | tr '\n' ' ')"
+    kill -9 $survivors >/dev/null 2>&1 || true
+    log_fail "reparented leaky descendant SURVIVED the wrapper under dash (pids: $survivors) — set -m does not create a group under dash (P1)"
+  fi
+  # Regression: the new group mechanism must NOT break exit-code / timeout fidelity
+  # under dash (setsid/perl exec keeps the pid, so wait sees the real status).
+  dash "$RUN_TESTS_SCRIPT" sh -c 'exit 7' >/dev/null 2>&1; rc=$?
+  [[ "$rc" -eq 7 ]] || log_fail "exit-code fidelity broke under dash: exit 7 -> $rc"
+  AAI_TEST_TIMEOUT=2 dash "$RUN_TESTS_SCRIPT" sh -c 'sleep 300' >/dev/null 2>&1; rc=$?
+  [[ "$rc" -eq 124 ]] || log_fail "timeout must still map to 124 under dash (got $rc)"
+  log_pass "wrapper under dash reaps the reparented child AND keeps exit/timeout fidelity (P1 fixed)"
+}
+
+# --- TEST-015 — P2: reaper kills the WHOLE matched tree incl. a token-less child --
+# RED-proofed: the pre-fix reaper TERMs only the matched launcher pid, so a
+# descendant whose argv dropped the vitest token survives. The tree/group kill turns
+# it GREEN. Regression: a DIFFERENT-workspace tree and a FRESH sibling MUST still
+# survive — the fix widens completeness for the matched target only, never the E1
+# workspace scope or the etime guard.
+test_015() {
+  log_info "TEST-015: reaper kills the matched launcher AND its token-less descendant; other-ws + fresh survive (P2)..."
+  [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
+  local ws other p_pid p_child o_pid o_child fresh_pid out
+  ws="$(mktemp -d "$TMP_ROOT/p2ws.XXXXXX")"
+  other="$(mktemp -d "$TMP_ROOT/p2other.XXXXXX")"
+  p_pid="$(spawn_parent_with_child "vitest_run_${ws}/worker")"
+  o_pid="$(spawn_parent_with_child "vitest_run_${other}/worker")"
+  sleep 3   # let both matched trees age past the 2s threshold below
+  p_child="$(pgrep -P "$p_pid" | head -1)"
+  o_child="$(pgrep -P "$o_pid" | head -1)"
+  [[ -n "$p_child" ]] || log_fail "fixture: matched launcher $p_pid has no live child"
+  track "$p_child"; [[ -n "$o_child" ]] && track "$o_child"
+  # The descendant must NOT carry the token — that is the whole point of P2.
+  if ps -o args= -p "$p_child" 2>/dev/null | grep -q "vitest"; then
+    log_fail "fixture invalid: the descendant argv still carries the vitest token"
+  fi
+  # Fresh sibling in the SAME workspace, spawned just now (younger than threshold).
+  fresh_pid="$(spawn_marked "vitest_fresh_${ws}/worker")"
+  alive "$p_pid"   || log_fail "fixture: matched launcher $p_pid not alive"
+  alive "$p_child" || log_fail "fixture: token-less child $p_child not alive"
+  alive "$o_pid"   || log_fail "fixture: other-ws launcher $o_pid not alive"
+  # Threshold 2s: the matched tree (~3s) is eligible; the fresh sibling (~0s) is not.
+  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS=2 sh "$REAP_SCRIPT" 2>&1)"
+  sleep 1
+  alive "$p_pid"   && log_fail "reaper failed to kill the matched launcher $p_pid"
+  alive "$p_child" && log_fail "reaper left the token-less descendant $p_child resident — matched tree not fully reaped (P2)"
+  alive "$o_pid"   || log_fail "reaper over-reached: killed the DIFFERENT-workspace launcher $o_pid — E1 workspace scope broadened"
+  if [[ -n "$o_child" ]]; then
+    alive "$o_child" || log_fail "reaper over-reached: killed the DIFFERENT-workspace child $o_child — E1 workspace scope broadened"
+  fi
+  alive "$fresh_pid" || log_fail "reaper over-reached: killed a FRESH sibling $fresh_pid younger than the step-start threshold — etime guard broadened"
+  echo "$out" | grep -qiE "reaped: *[1-9]" || log_fail "reaper must report a non-zero reaped count (got: $out)"
+  log_pass "reaper reaps the matched launcher + its token-less descendant; other-ws tree and fresh sibling survive (P2 fixed; E1+etime intact)"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015"
 
 main() {
   echo "Testing $TEST_NAME (process-group wrapper + workspace/etime-scoped reaper + wiring)"

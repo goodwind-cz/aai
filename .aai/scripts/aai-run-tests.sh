@@ -42,13 +42,31 @@ if [ "$#" -eq 0 ]; then
   exit 2
 fi
 
-# Enable job control so the backgrounded command becomes a process-group leader
-# (its pgid == its pid). Every descendant it spawns inherits that group, so a
-# single `kill -<signal> -<pgid>` reaps the whole tree.
-set -m
-
-"$@" &
-CMD_PID=$!
+# Launch the command as the leader of a NEW session / process group so that even
+# descendants it REPARENTS away (double-fork, `( ... ) & exit 0`) stay inside one
+# killable group (its pgid == its pid) and a single `kill -<sig> -<pgid>` reaps the
+# whole tree. `set -m` ALONE is not enough: under a non-interactive POSIX shell
+# (dash — the Linux /bin/sh) job control does NOT create the group, so a reparented
+# child escapes and survives (SPEC-0009 P1). Portable precedence:
+#   1. setsid(1)      — real new session leader (Linux; absent on macOS).
+#   2. perl POSIX::setsid — present on macOS + Linux; perl setsid()s then exec()s
+#      the command, so pid is unchanged (exit-code fidelity kept) and pgid == pid.
+#   3. bash job control (set -m) — ONLY when the wrapper itself runs under bash.
+#   4. bare background — last resort (no isolation) when none of the above exist.
+if command -v setsid >/dev/null 2>&1; then
+  setsid "$@" &
+  CMD_PID=$!
+elif command -v perl >/dev/null 2>&1; then
+  perl -e 'use POSIX qw(setsid); setsid(); exec @ARGV or exit 127' -- "$@" &
+  CMD_PID=$!
+elif [ -n "${BASH_VERSION:-}" ]; then
+  set -m
+  "$@" &
+  CMD_PID=$!
+else
+  "$@" &
+  CMD_PID=$!
+fi
 PGID="$CMD_PID"
 
 # Marker file the watchdog touches iff it fired (portable boolean across the
