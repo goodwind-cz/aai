@@ -108,3 +108,13 @@
 {"v":1,"ts":"2026-06-30T15:53:08.468Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0007","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-06-30T16:15:55.627Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0007","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-06-30T16:15:55.687Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"ISSUE-0001","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-06-30T21:53:19.092Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":21,"orphans":0,"drifted":0,"stale":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-06-30T22:00:40.057Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0008/Spec-AC-01","payload":{"commit":"c2f646030251e7ad2d5e28a6691657d3198a6f66"}}
+{"v":1,"ts":"2026-06-30T22:00:40.124Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0008/Spec-AC-02","payload":{"commit":"c2f646030251e7ad2d5e28a6691657d3198a6f66"}}
+{"v":1,"ts":"2026-06-30T22:00:40.188Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0008/Spec-AC-03","payload":{"commit":"c2f646030251e7ad2d5e28a6691657d3198a6f66"}}
+{"v":1,"ts":"2026-06-30T22:00:40.250Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0008/Spec-AC-04","payload":{"commit":"c2f646030251e7ad2d5e28a6691657d3198a6f66"}}
+{"v":1,"ts":"2026-06-30T22:00:40.310Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0008/Spec-AC-05","payload":{"commit":"c2f646030251e7ad2d5e28a6691657d3198a6f66"}}
+{"v":1,"ts":"2026-06-30T22:00:40.370Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0008/Spec-AC-06","payload":{"commit":"c2f646030251e7ad2d5e28a6691657d3198a6f66"}}
+{"v":1,"ts":"2026-06-30T22:00:40.428Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0008/Spec-AC-07","payload":{"commit":"c2f646030251e7ad2d5e28a6691657d3198a6f66"}}
+{"v":1,"ts":"2026-06-30T22:00:40.485Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0008/Spec-AC-08","payload":{"commit":"c2f646030251e7ad2d5e28a6691657d3198a6f66"}}
+{"v":1,"ts":"2026-06-30T22:00:52.159Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0008","payload":{"from":"draft","to":"done"}}

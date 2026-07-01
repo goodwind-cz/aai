@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-06-30T16:41:52.499Z
+Generated: 2026-07-01T09:33:11.992Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (18)
+## Done (20)
 
 | ID | Type | Path |
 |---|---|---|
@@ -30,6 +30,7 @@ _None._
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
 | RFC-0004 | rfc | docs/rfc/RFC-0004-enforced-multi-agent-state-locking.md |
 | RFC-0005 | rfc | docs/rfc/RFC-0005-automatic-parallel-mode-detection.md |
+| RFC-0006 | rfc | docs/rfc/RFC-0006-test-canonicalization-skill.md |
 | SPEC-0001 | specs | docs/specs/SPEC-0001-docs-hygiene-and-drift-audit.md |
 | SPEC-0002 | specs | docs/specs/SPEC-0002-docs-canonicalization-skill.md |
 | SPEC-0003 | specs | docs/specs/SPEC-0003-docs-audit-closeout-candidate.md |
@@ -37,12 +38,13 @@ _None._
 | SPEC-0005 | specs | docs/specs/SPEC-0005-automatic-parallel-mode-detection.md |
 | SPEC-0006 | specs | docs/specs/SPEC-0006-index-deferred-coverage-and-done-close-policy.md |
 | SPEC-0007 | specs | docs/specs/SPEC-0007-parsefrontmatter-crlf-tolerance-and-posix-index-paths.md |
+| SPEC-0008 | specs | docs/specs/SPEC-0008-test-canonicalization-skill.md |
 
 ## Drafts (1)
 
 | ID | Type | Path |
 |---|---|---|
-| RFC-0006 | rfc | docs/rfc/RFC-0006-test-canonicalization-skill.md |
+| ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -72,9 +74,11 @@ _None._
 
 _None._
 
-## Drift report (0)
+## Drift report (1)
 
-_None._
+| Doc | Verdict | Evidence | Suggested next step |
+|---|---|---|---|
+| RFC-0006 | probable-false-done | no commit and no ac_evidence event references this doc | reconcile AC table / evidence, then re-confirm done status |
 
 ---
-Today (UTC): 2026-06-30 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-01 — counts above use this date for overdue checks.

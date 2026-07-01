@@ -15,3 +15,4 @@
 #   - Append only. Never edit existing lines.
 #   - Written by ai/SKILL_HITL.prompt.md after human decision is recorded.
 #   - To append: echo '<json>' >> docs/ai/decisions.jsonl
+{"ref_id":"RFC-0006","recommendation":"recommended","rationale":"Cross-cutting feature adding new skill, test dir restructuring, git move operations. Isolation protects against destabilizing existing test layout or git history.","user_decision":"inline","review_scope":[".aai/scripts/test-canon.mjs",".aai/SKILL_TEST_CANON.prompt.md","tests/skills/test-aai-test-canon.sh","docs/ai/test-canon.proposal.json","docs/ai/test-canon.map.json","docs/specs/SPEC-0008-test-canonicalization-skill.md"],"timestamp":"2026-06-30T17:33:30Z"}
