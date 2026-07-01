@@ -75,6 +75,20 @@ INVARIANT CHECKS (run all, report each)
     FAIL if code_review.status == pass AND code_review.report_paths is empty
     PASS otherwise
 
+  [INV-14] duplicate top-level key (ISSUE-0004)
+    FAIL if any top-level key appears more than once — most critically a second
+         `metrics:` mapping. A duplicate top-level `metrics:` key silently shadows
+         the first block's work_items and agent_runs on a lenient YAML load
+         (last-key-wins), so data is dropped with no error.
+    PASS if every top-level key is unique.
+    DETECT: node .aai/scripts/check-state.mjs docs/ai/STATE.yaml (pure text scan,
+         no YAML dependency; exits non-zero naming the duplicated key).
+    REPAIR: node .aai/scripts/check-state.mjs --repair docs/ai/STATE.yaml merges
+         the duplicate `metrics:` blocks into one — union work_items, concatenate
+         agent_runs — with ZERO data loss, then re-validates.
+    WRITER RULE: always append into the EXISTING metrics.work_items.<ref>.agent_runs
+         list; never emit a second top-level `metrics:` key.
+
 OUTPUT FORMAT
 
 ---
@@ -96,6 +110,7 @@ Invariant results:
   [INV-11] impl strategy        : PASS | FAIL | WARN — <detail if not PASS>
   [INV-12] worktree gate        : PASS | FAIL | WARN — <detail if not PASS>
   [INV-13] code review status   : PASS | FAIL | WARN — <detail if not PASS>
+  [INV-14] no duplicate top-key : PASS | FAIL — <name the duplicated key(s) if not PASS>
 
 Overall: HEALTHY | DEGRADED | BROKEN
   HEALTHY  = all PASS

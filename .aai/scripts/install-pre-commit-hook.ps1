@@ -89,6 +89,10 @@ if [[ -f docs/INDEX.violations.md ]]; then
 else
   git rm --cached --quiet --ignore-unmatch docs/INDEX.violations.md
 fi
+# SPEC-0010 / ISSUE-0003: docs/INDEX.audit.md carries git-history-dependent
+# Orphans + Drift sections; it is git-ignored and must NEVER be staged (staging it
+# would reintroduce the committed-index non-idempotence). Belt-and-suspenders un-stage.
+git rm --cached --quiet --ignore-unmatch docs/INDEX.audit.md
 echo "AAI:INDEX-AUTOGEN: regenerated and staged docs/INDEX.md"
 '@
 
