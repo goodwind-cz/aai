@@ -28,6 +28,17 @@ Running `/aai-bootstrap` generates:
 The default implementation is `.aai/scripts/aai-bootstrap.sh`.
 Run it with `--dry-run` first to preview generated commands and file writes.
 
+## Leak-safe test routing (SPEC-0009)
+Generated `aai-test-*` skills (`aai-test-unit`, `aai-test-e2e`) route their
+detected command through the process-group wrapper
+`.aai/scripts/aai-run-tests.sh <cmd>` instead of invoking `vitest`/`playwright`
+directly. The wrapper runs the command in its own killable process group with an
+inline timeout, guaranteeing that a suite which leaks open handles cannot orphan
+a hung `vitest`/`esbuild` tree. The wrapper is vendored under `.aai/scripts/` by
+`aai-sync`, so the path resolves in every bootstrapped target. When Vitest is
+detected, bootstrap also emits leak-safe config guidance (`pool: 'forks'`,
+`maxForks: 2`, `teardownTimeout`) without overwriting an existing user config.
+
 ## Agent Visibility
 - Claude: reads slash skills directly from `.claude/skills/`
 - Codex: reads canonical mapping from `CODEX.md` + `.codex/skills.local/README.md`

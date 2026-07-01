@@ -81,6 +81,29 @@ LOOP PARAMETERS (use defaults unless overridden by caller)
       getting bigger — bound the run so unattended cost cannot grow unchecked. If no
       usage data is recorded, this condition never fires (no fabricated estimates).
 
+LEAK-SAFE TEST EXECUTION (SPEC-0009 / ISSUE-0002)
+Every externally-spawned test/build process must be in a killable group,
+resource-bounded, reaped on the step boundary, and accounted for — a long loop
+must never orphan hung `vitest`/`esbuild` trees (observed: ~40 trees / ~5.6 GB
+after a 17-tick run). This is a hard rule for every test-running tick:
+- ROUTE THROUGH THE WRAPPER: never invoke `vitest`/`tsc`/dev-servers directly.
+  Run every discovered test/build command through the process-group wrapper:
+    .aai/scripts/aai-run-tests.sh <cmd> [args...]
+  It runs the command in its own process group with an inline timeout
+  (`AAI_TEST_TIMEOUT`, default 300s → exit 124) and ALWAYS reaps the whole group
+  on return, so a leaky child can never outlive the call.
+- PRE-FLIGHT COUNT (loop start, once): count this-workspace `vitest`/`esbuild`
+  processes. If the count exceeds the threshold (default 5), `log()` a warning
+  (a prior run's leak must not compound) and run the scoped reaper:
+    .aai/scripts/aai-reap-tests.sh
+- POST-TICK REAP: after any test-running tick, run `.aai/scripts/aai-reap-tests.sh`
+  to sweep this-workspace survivors. The reaper is workspace-scoped (`$PWD`) and
+  etime-guarded (a fresh concurrent sibling is spared) — NEVER a global
+  `pkill -f vitest`.
+- TICK-LOG ACCOUNTING: record `lingering_procs` (post-reap workspace vitest/esbuild
+  count) and `free_memory` in the tick log line (step 6), mirroring the existing
+  token/cost discipline so a leak is VISIBLE, not silent.
+
 LOOP ALGORITHM
 At loop start (once): capture `harness_version` from the runtime
 (`claude --version` if available; otherwise the agent/runtime identifier).
@@ -268,6 +291,11 @@ For each tick (1..max_ticks):
        cache_read_tokens, est_cost_usd ONLY if the runtime exposes real usage figures.
        Never fabricate or estimate token counts — omit the fields if unknown. Real
        per-tick cost makes a cost regression visible instead of silent (see CACHING DISCIPLINE).
+     - LEAK ACCOUNTING (SPEC-0009): on a test-running tick also include
+       `lingering_procs` (this-workspace `vitest`/`esbuild` count AFTER the
+       post-tick `.aai/scripts/aai-reap-tests.sh` sweep) and `free_memory`
+       (host free memory), so a process/memory leak is visible in the tick log
+       rather than growing silently across ticks.
      - Do not estimate timing. Use real timestamps measured during execution.
      - Reject and BLOCK if timestamp cannot be verified from system clock or is >300s in the future vs current system UTC.
 

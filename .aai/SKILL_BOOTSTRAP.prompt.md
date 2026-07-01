@@ -50,6 +50,20 @@ The generator may create/update:
 - `.gemini/skills.local/README.md`
 - `.gitignore` cache-path hygiene entries
 
+## Leak-safe Test Commands (SPEC-0009)
+
+Generated `aai-test-unit` / `aai-test-e2e` skills route their detected command
+through the process-group wrapper `.aai/scripts/aai-run-tests.sh <cmd>` rather
+than invoking `vitest`/`playwright` directly. The wrapper runs the command in a
+killable process group with an inline timeout (default 300s → exit 124) so a
+suite that leaks open handles cannot orphan a hung `vitest`/`esbuild` tree; it is
+vendored under `.aai/scripts/` by `aai-sync`, so the path resolves in the target.
+When Vitest is detected, bootstrap also emits leak-safe config guidance
+(`pool: 'forks'`, `maxForks: 2`, `teardownTimeout`) — WITHOUT overwriting an
+existing user Vitest config. The loop additionally reaps this-workspace survivors
+after a test-running tick with the workspace+etime-scoped
+`.aai/scripts/aai-reap-tests.sh` (never a global `pkill -f vitest`).
+
 ## Safety Rules
 
 - Never manually overwrite an existing dynamic skill file.

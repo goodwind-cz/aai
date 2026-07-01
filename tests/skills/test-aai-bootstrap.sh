@@ -140,8 +140,8 @@ test_dry_run_has_no_writes() {
   bash "$BOOTSTRAP_SCRIPT" "$TEST_DIR" --dry-run > "$TEST_DIR/dry-run.log"
 
   assert_contains "$TEST_DIR/dry-run.log" "Mode: dry-run"
-  assert_contains "$TEST_DIR/dry-run.log" "/aai-test-unit -> npm test"
-  assert_contains "$TEST_DIR/dry-run.log" "/aai-test-e2e -> npm run test:e2e"
+  assert_contains "$TEST_DIR/dry-run.log" "/aai-test-unit -> .aai/scripts/aai-run-tests.sh npm test"
+  assert_contains "$TEST_DIR/dry-run.log" "/aai-test-e2e -> .aai/scripts/aai-run-tests.sh npm run test:e2e"
   assert_contains "$TEST_DIR/dry-run.log" "/aai-python-monty ->"
   assert_contains "$TEST_DIR/dry-run.log" "Authentication detected"
   assert_not_file "$TEST_DIR/.claude/skills/aai-test-unit/SKILL.md"
