@@ -386,5 +386,3 @@ For each implementation, validation, TDD, and code review artifact, record:
 Notes:
 This document defines HOW, not WHAT/WHY (ISSUE-0002 owns WHAT/WHY).
 This document does not define workflow.
-</content>
-</invoke>

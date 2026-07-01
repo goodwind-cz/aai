@@ -92,8 +92,11 @@ through a wrapper that runs in its own process group, enforces a hard wall-clock
 timeout, and kills the whole group on exit (success/failure/timeout):
 
 ```bash
-# scripts/aai-run-tests.sh  (POSIX; macOS + Linux)
-set -m                                  # new process group
+# .aai/scripts/aai-run-tests.sh  (POSIX; macOS + Linux)
+# NOTE: `set -m` (below) was the original sketch; the shipped wrapper (SPEC-0009)
+# uses setsid/perl to create a real session group, since `set -m` is a no-op in
+# non-interactive dash on Linux (Codex P1). Path is under .aai/ per SPEC-0009 D1.
+set -m                                  # new process group (illustrative)
 timeout_secs="${AAI_TEST_TIMEOUT:-300}"
 ( "$@" ) & cmd_pgid=$!
 ( sleep "$timeout_secs"; kill -TERM -"$cmd_pgid" 2>/dev/null ) & watchdog=$!
