@@ -204,8 +204,10 @@ function main() {
   // (null pre-commit, a date post-commit). The committed index lists violations
   // PLAINLY (git-invariant); the git-dependent "[legacy — auto-skipped]"
   // annotation is relocated to the git-ignored companion docs/INDEX.audit.md.
-  // firstCommitDate is used ONLY for the --strict abort decision (an exit code,
-  // not committed content).
+  // firstCommitDate (git history) is still queried to CLASSIFY violations
+  // (legacy-window auto-skip vs hard) — driving the companion annotation and the
+  // --strict abort — but it NO LONGER affects committed index CONTENT: the
+  // committed "Skipped" section lists violations plainly (git-invariant).
   let legacySkipped = [];
   if (failures.length > 0) {
     const legacyUntil = loadConfig(ROOT)?.legacy_until_date ?? null;
