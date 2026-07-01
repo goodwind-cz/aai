@@ -6,8 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import {
-  DOC_STATUS_ENUM, AC_STATUS_ENUM, TERMINAL_AC, DOC_TYPE_ENUM, DOC_ID_RE,
-  DEFAULT_CATEGORY_PREFIXES, extractDocIds,
+  DOC_STATUS_ENUM, TERMINAL_AC, DOC_TYPE_ENUM, DOC_ID_RE,
+  DEFAULT_CATEGORY_PREFIXES, extractDocIds, normalizeAcStatus,
   parseFrontmatter, parseAcTable, parseISODate, parseReviewBy, specFrozenInBody,
   validateCanonicalFrontmatter, asList, toPosix,
 } from './docs-model.mjs';
@@ -297,8 +297,13 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
       continue;
     }
     for (const row of ac.rows) {
-      const s = (row['Status'] ?? '').toLowerCase();
-      if (s && !AC_STATUS_ENUM.has(s)) violations.push({ rel: f.rel, msg: `unknown AC status "${row['Status']}" for ${row['Spec-AC']}` });
+      // SPEC-0010 Group C (ISSUE-0005) — same shared normalizer as the generator,
+      // so a qualified `<canonical> (<qualifier>)` is accepted (base status carried
+      // on the row) and only a genuinely-invalid status is a violation.
+      const rawStatus = row['Status'] ?? '';
+      const norm = normalizeAcStatus(rawStatus);
+      row._baseStatus = norm.status;
+      if (rawStatus.trim() && !norm.canonical) violations.push({ rel: f.rel, msg: `unknown AC status "${rawStatus}" for ${row['Spec-AC']}` });
       const rb = parseReviewBy(row['Review-By'], extraMethods);
       if (rb.kind === 'invalid') violations.push({ rel: f.rel, msg: `invalid Review-By "${rb.raw}" for ${row['Spec-AC']} (ISO date, skill label, label:date, or "<actor> <method>")` });
     }
@@ -350,8 +355,11 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     // drift heuristics (deliverable 2)
     const type = (fm.type ?? '').toLowerCase();
     if (status === 'done') {
-      const nonTerminal = ac.rows.filter(r => !TERMINAL_AC.has((r['Status'] ?? '').toLowerCase()));
-      const doneNoEvidence = ac.rows.filter(r => (r['Status'] ?? '').toLowerCase() === 'done' && !rowHasEvidence(r));
+      // SPEC-0010 Group C — classify by the normalized BASE status so a qualified
+      // `done (pre-existing)` counts as terminal `done`, aligned with the generator.
+      const baseOf = (r) => r._baseStatus ?? (r['Status'] ?? '').toLowerCase();
+      const nonTerminal = ac.rows.filter(r => !TERMINAL_AC.has(baseOf(r)));
+      const doneNoEvidence = ac.rows.filter(r => baseOf(r) === 'done' && !rowHasEvidence(r));
       if (ac.hasGate && (nonTerminal.length || doneNoEvidence.length)) {
         doc.verdict = 'probable-false-done';
         if (nonTerminal.length) doc.reasons.push(`${nonTerminal.length} AC row(s) non-terminal`);

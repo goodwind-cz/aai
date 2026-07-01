@@ -28,6 +28,35 @@ export const AC_STATUS_ENUM = new Set([
   'planned', 'implementing', 'done', 'deferred', 'blocked', 'rejected',
 ]);
 export const TERMINAL_AC = new Set(['done', 'deferred', 'blocked', 'rejected']);
+
+// SPEC-0010 Group C (ISSUE-0005) — shared AC-status normalizer consumed by BOTH
+// generate-docs-index.mjs AND docs-audit-core.mjs so the two engines never drift
+// on which AC statuses are accepted/terminal. Returns { status, qualifier,
+// canonical }:
+//   - bare canonical enum member (e.g. "done")            -> { status:'done', qualifier:null, canonical:true }
+//   - "<canonical> (<qualifier>)" (e.g. "done (pre-existing)")
+//                                                          -> { status:'done', qualifier:'pre-existing', canonical:true }
+//   - anything else (e.g. "finished", "donee", "done ()", "done (a) (b)")
+//                                                          -> { status:<lowered raw>, qualifier:null, canonical:false }
+// Narrow by construction: the leading token MUST be a canonical AC_STATUS_ENUM
+// member and there MUST be exactly ONE non-empty trailing parenthetical with no
+// nested parentheses. Base status drives placement, progress, and drift terminal
+// classification; the qualifier is preserved (never silently dropped).
+export function normalizeAcStatus(raw) {
+  const value = String(raw ?? '').trim().toLowerCase();
+  const m = value.match(/^([a-z][a-z-]*)\s*\((.+)\)$/);
+  if (m) {
+    const token = m[1].trim();
+    const qualifier = m[2].trim();
+    if (AC_STATUS_ENUM.has(token) && qualifier !== ''
+        && !qualifier.includes('(') && !qualifier.includes(')')) {
+      return { status: token, qualifier, canonical: true };
+    }
+    return { status: value, qualifier: null, canonical: false };
+  }
+  if (AC_STATUS_ENUM.has(value)) return { status: value, qualifier: null, canonical: true };
+  return { status: value, qualifier: null, canonical: false };
+}
 export const DOC_TYPE_ENUM = new Set([
   'issue', 'change', 'prd', 'decision', 'spec', 'rfc', 'techdebt',
   'plan', 'release', 'research', 'requirement',

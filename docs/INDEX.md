@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-01T11:26:10.054Z
+Generated: 2026-07-01T14:04:50.663Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (22)
+## Done (26)
 
 | ID | Type | Path |
 |---|---|---|
@@ -26,6 +26,9 @@ _None._
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
+| ISSUE-0003 | issues | docs/issues/ISSUE-0003-index-autogen-bakes-stale-drift-row.md |
+| ISSUE-0004 | issues | docs/issues/ISSUE-0004-state-duplicate-metrics-key-silently-shadows-data.md |
+| ISSUE-0005 | issues | docs/issues/ISSUE-0005-ac-status-qualifier-skips-whole-doc-from-index.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -41,6 +44,7 @@ _None._
 | SPEC-0007 | specs | docs/specs/SPEC-0007-parsefrontmatter-crlf-tolerance-and-posix-index-paths.md |
 | SPEC-0008 | specs | docs/specs/SPEC-0008-test-canonicalization-skill.md |
 | SPEC-0009 | specs | docs/specs/SPEC-0009-test-process-group-reaping-and-leak-accounting.md |
+| SPEC-0010 | specs | docs/specs/SPEC-0010-docs-index-and-state-tooling-robustness.md |
 
 ## Drafts (0)
 
@@ -67,14 +71,6 @@ _None._
 _None._
 
 ## Legacy (no frontmatter) (0)
-
-_None._
-
-## Orphans (need triage) (0)
-
-_None._
-
-## Drift report (0)
 
 _None._
 

@@ -38,6 +38,12 @@ docs/ai/loop/
 docs/ai/.session-context.md
 docs/ai/.pre-compact-state-backup.yaml
 
+# Docs index audit companion (SPEC-0010 / ISSUE-0003): the git-history-dependent
+# Orphans + Drift sections relocated out of the committed docs/INDEX.md so the
+# committed index is a pure function of on-disk docs (idempotent). Regenerated on
+# demand by generate-docs-index.mjs; drift/orphans also reported by docs-audit.mjs.
+docs/INDEX.audit.md
+
 # AAI per-dev runtime state (RFC-0001: STATE is per-developer local, never committed).
 # Cross-developer visibility lives in docs/ai/EVENTS.jsonl (append-only, committed).
 docs/ai/STATE.yaml

@@ -489,3 +489,12 @@ metrics.work_items[ref_id].agent_runs in docs/ai/STATE.yaml:
   cost_usd:         null
   tdd_tests:        <count of TEST-xxx completed in this run>
 Do NOT estimate any timing or token values. Only record measured/platform values.
+
+STATE-WRITE SAFETY (ISSUE-0004 / INV-14)
+When appending your agent_runs entry, append into the EXISTING metrics.work_items.<ref_id>.agent_runs
+list under the single top-level `metrics:` key; never emit a second top-level `metrics:` key.
+A duplicate top-level `metrics:` silently drops the first block's work_items and agent_runs on a
+lenient YAML load (ISSUE-0004). After editing, validate with:
+  node .aai/scripts/check-state.mjs docs/ai/STATE.yaml
+(REPAIR merges a duplicate `metrics:` with zero data loss:
+  node .aai/scripts/check-state.mjs --repair docs/ai/STATE.yaml).

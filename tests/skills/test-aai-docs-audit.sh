@@ -264,10 +264,16 @@ test_index_sections_and_idempotence() {
   # RFC-0001 sections survive the lib extraction (TEST-007)
   assert_contains "$index" "## Done"
   assert_contains "$index" "Legacy (no frontmatter)"
-  # RFC-0002 sections (TEST-005)
-  assert_contains "$index" "## Orphans (need triage) (2)"
-  assert_contains "$index" "## Drift report (3)"
-  assert_contains "$index" "probable-false-done"
+  # SPEC-0010 Group A (ISSUE-0003): the git-history-dependent audit sections are
+  # RELOCATED out of the committed INDEX into the git-ignored companion
+  # docs/INDEX.audit.md (so the committed INDEX is a pure function of on-disk docs).
+  assert_not_contains "$index" "## Orphans (need triage)"
+  assert_not_contains "$index" "## Drift report"
+  local audit="$TEST_DIR/docs/INDEX.audit.md"
+  assert_file "$audit"
+  assert_contains "$audit" "## Orphans (need triage) (2)"
+  assert_contains "$audit" "## Drift report (3)"
+  assert_contains "$audit" "probable-false-done"
 
   grep -v '^Generated:' "$index" > "$TEST_DIR/index-run1.snapshot"
   (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > index-run2.log 2>&1)
@@ -619,30 +625,33 @@ MD
 }
 
 test_index_legacy_autoskip() {
-  log_info "Test: index gen auto-skips violations in legacy docs (D13)..."
+  log_info "Test: index gen auto-skips whole-doc violations in legacy docs (D13)..."
+  # SPEC-0010 Group C note: unknown AC *status* is now a row-level (not whole-doc)
+  # violation, so it no longer feeds the legacy-autoskip path. This test therefore
+  # exercises legacy-autoskip via a whole-doc violation (an unknown FRONTMATTER
+  # status), which remains whole-doc.
   cat > "$TEST_DIR/docs/specs/SPEC-100-legacy-bad.md" <<'MD'
 ---
 id: SPEC-100
 type: spec
-status: implementing
+status: wibble-legacy-status
 links:
   pr: []
 ---
-# Legacy spec with a pre-canon AC status value
-
-## Acceptance Criteria Status
-
-| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
-|------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | first       | wip    | —        | —         | —     |
+# Legacy spec with a pre-canon (unknown) frontmatter status value
 MD
   (cd "$TEST_DIR" && git add docs/specs/SPEC-100-legacy-bad.md \
     && GIT_COMMITTER_DATE="2026-01-15T10:00:00Z" GIT_AUTHOR_DATE="2026-01-15T10:00:00Z" \
        git commit -qm "docs: legacy spec fixture")
   (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > legacy-skip.log 2>&1) \
     || log_fail "Legacy-doc violations must auto-skip, not hard-fail: $(cat "$TEST_DIR/legacy-skip.log")"
-  assert_contains "$TEST_DIR/docs/INDEX.md" "legacy — auto-skipped"
+  # SPEC-0010 (ISSUE-0003) WARNING-1: the committed INDEX lists the skipped doc
+  # PLAINLY (git-invariant) — the git-history-dependent "[legacy — auto-skipped]"
+  # annotation now lives ONLY in the git-ignored companion docs/INDEX.audit.md.
   assert_contains "$TEST_DIR/docs/INDEX.md" "SPEC-100"
+  assert_not_contains "$TEST_DIR/docs/INDEX.md" "legacy — auto-skipped"
+  assert_contains "$TEST_DIR/docs/INDEX.audit.md" "legacy — auto-skipped"
+  assert_contains "$TEST_DIR/docs/INDEX.audit.md" "SPEC-100"
   (cd "$TEST_DIR" && git rm -q docs/specs/SPEC-100-legacy-bad.md \
     && git commit -qm "docs: drop legacy fixture")
   (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
@@ -658,6 +667,259 @@ test_skill_prompt_modes() {
   assert_contains "$prompt" "VERIFY MODE"
   assert_contains "$prompt" "never writes or"
   log_pass "Audit / remediate / verify modes all documented"
+}
+
+# --- SPEC-0010 Group A (ISSUE-0003): committed-index idempotence + relocation ---
+
+# An isolated git repo with the vendored scripts, the pre-commit-hook installer,
+# and a .gitignore for the audit companion. Echoes the repo path on stdout.
+setup_spec0010_hook_repo() {
+  local d="$TEST_DIR/iso-hook-$1"
+  rm -rf "$d"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/specs" "$d/docs/issues" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  printf 'docs/INDEX.audit.md\n' > "$d/.gitignore"
+  (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test")
+  (cd "$d" && git add .aai .gitignore && git commit -qm "chore: vendor scripts")
+  (cd "$d" && bash .aai/scripts/install-pre-commit-hook.sh >/dev/null)
+  printf '%s' "$d"
+}
+
+test_spec0010_committed_index_idempotent() {  # TEST-001 / Spec-AC-01
+  log_info "Test: committed docs/INDEX.md == post-commit fresh regen (close-in-same-commit) (TEST-001)..."
+  local d; d="$(setup_spec0010_hook_repo idem)"
+  # A NON-spec done doc with no AC gate, first-mentioned by ID in the SAME commit.
+  # At hook (pre-commit) time no commit references it -> the drift heuristic bakes
+  # a probable-false-done row; the instant the commit exists a fresh regen clears
+  # it. Pre-fix that makes the committed INDEX non-idempotent.
+  cat > "$d/docs/issues/CHANGE-5001-close-in-commit.md" <<'MD'
+---
+id: CHANGE-5001
+type: change
+status: done
+links:
+  pr: []
+---
+# Closed in the same commit that first mentions it (no AC gate)
+MD
+  (cd "$d" && git add docs/issues/CHANGE-5001-close-in-commit.md \
+    && git commit -qm "feat: ship CHANGE-5001" >/dev/null) \
+    || log_fail "hook-driven commit failed"
+  # The committed index exactly as the AAI:INDEX-AUTOGEN hook staged it.
+  (cd "$d" && git show HEAD:docs/INDEX.md) > "$TEST_DIR/hook-committed.raw" \
+    || log_fail "docs/INDEX.md was not committed by the hook"
+  grep -v '^Generated:' "$TEST_DIR/hook-committed.raw" > "$TEST_DIR/hook-committed.snap"
+  # A fresh regen AFTER the commit object exists.
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
+    || log_fail "post-commit regen failed"
+  grep -v '^Generated:' "$d/docs/INDEX.md" > "$TEST_DIR/post-commit.snap"
+  diff -q "$TEST_DIR/hook-committed.snap" "$TEST_DIR/post-commit.snap" >/dev/null \
+    || log_fail "committed INDEX must byte-equal a post-commit fresh regen (modulo Generated) — no follow-up commit needed"
+  rm -rf "$d"
+  log_pass "Committed docs/INDEX.md is byte-idempotent to a post-commit fresh regen"
+}
+
+test_spec0010_index_git_state_invariant() {  # TEST-002 / Spec-AC-02
+  log_info "Test: mutating git history (docs unchanged) does not change INDEX; no Drift/Orphans heading (TEST-002)..."
+  local d; d="$(setup_iso_repo gitinvariant)"
+  mkdir -p "$d/docs/issues"
+  cat > "$d/docs/issues/CHANGE-5002-false-done.md" <<'MD'
+---
+id: CHANGE-5002
+type: change
+status: done
+links:
+  pr: []
+---
+# Done doc with no AC gate and (initially) no commit referencing its ID
+MD
+  (cd "$d" && git add -A && git commit -qm "docs: add fixture without mentioning the id" >/dev/null)
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
+    || log_fail "index gen (run 1) failed"
+  local index="$d/docs/INDEX.md"
+  grep -v '^Generated:' "$index" > "$TEST_DIR/gi-run1.snap"
+  # Mutate git history ONLY (docs on disk unchanged): a commit that now references
+  # the doc ID. Pre-fix this clears the baked drift row -> INDEX changes.
+  (cd "$d" && git commit --allow-empty -qm "chore: reference CHANGE-5002 now done" >/dev/null)
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
+    || log_fail "index gen (run 2) failed"
+  grep -v '^Generated:' "$index" > "$TEST_DIR/gi-run2.snap"
+  diff -q "$TEST_DIR/gi-run1.snap" "$TEST_DIR/gi-run2.snap" >/dev/null \
+    || log_fail "INDEX must be invariant to git-history mutation when docs on disk are unchanged"
+  assert_not_contains "$index" "## Drift report"
+  assert_not_contains "$index" "## Orphans"
+  rm -rf "$d"
+  log_pass "Committed INDEX is git-state-invariant; no Drift/Orphans heading embedded"
+}
+
+test_spec0010_audit_companion_gitignored() {  # TEST-003 / Spec-AC-03
+  log_info "Test: drift/orphan visibility preserved via docs-audit + git-ignored companion not staged by hook (TEST-003)..."
+  local d; d="$(setup_spec0010_hook_repo companion)"
+  cat > "$d/docs/issues/CHANGE-5003-false-done.md" <<'MD'
+---
+id: CHANGE-5003
+type: change
+status: done
+links:
+  pr: []
+---
+# Probable-false-done: done, no AC gate, no commit/ac_evidence referencing it
+MD
+  # Commit WITHOUT mentioning the id, so the drift verdict persists post-commit.
+  (cd "$d" && git add docs/issues/CHANGE-5003-false-done.md \
+    && git commit -qm "docs: add fixture" >/dev/null) \
+    || log_fail "hook commit failed"
+  # (a) docs-audit still reports the drift verdict + Orphans section (unchanged).
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_contains "$d/audit.log" "Drift report"
+  grep -F "CHANGE-5003" "$d/audit.log" | grep -qF "probable-false-done" \
+    || log_fail "docs-audit must still report CHANGE-5003 as probable-false-done"
+  # (b) the generator wrote the git-ignored companion carrying the relocated sections.
+  assert_file "$d/docs/INDEX.audit.md"
+  assert_contains "$d/docs/INDEX.audit.md" "## Drift report"
+  (cd "$d" && git check-ignore -q docs/INDEX.audit.md) \
+    || log_fail "docs/INDEX.audit.md must be git-ignored (git check-ignore should match)"
+  # (c) the pre-commit hook must NOT have staged/committed the companion.
+  if (cd "$d" && git show HEAD:docs/INDEX.audit.md >/dev/null 2>&1); then
+    log_fail "docs/INDEX.audit.md must NOT be committed by the AAI:INDEX-AUTOGEN hook"
+  fi
+  rm -rf "$d"
+  log_pass "Drift/orphans preserved via docs-audit + git-ignored companion; companion never staged"
+}
+
+# --- SPEC-0010 Group C (ISSUE-0005): row-level AC status + qualifier normalization ---
+
+test_spec0010_ac_row_level_not_whole_doc() {  # TEST-007 / Spec-AC-07
+  log_info "Test: one unknown AC status flags the ROW only; doc stays in its INDEX section (TEST-007)..."
+  local d; d="$(setup_iso_repo ac-rowlevel)"
+  cat > "$d/docs/specs/SPEC-6007-row-level.md" <<'MD'
+---
+id: SPEC-6007
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec with one genuinely-unknown AC status cell
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status       | Evidence | Review-By | Notes |
+|------------|-------------|--------------|----------|-----------|-------|
+| Spec-AC-01 | first       | done         | a1b2c3d  | TDD       | —     |
+| Spec-AC-02 | second      | bogus-status | —        | —         | —     |
+MD
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
+    || log_fail "default generator run must exit 0 (degrade-and-report): $(cat "$d/gen.log")"
+  local index="$d/docs/INDEX.md"
+  # Row-level, not whole-doc: the doc stays in its correct (Done) placement section.
+  extract_section "$index" "## Done" | grep -qF "SPEC-6007" \
+    || log_fail "SPEC-6007 must remain in the Done section (row-level skip, not whole-doc)"
+  # The offending row is surfaced in a row-level AC-status violations report.
+  assert_file "$d/docs/INDEX.violations.md"
+  assert_contains "$d/docs/INDEX.violations.md" "AC status violations"
+  grep -F "SPEC-6007" "$d/docs/INDEX.violations.md" | grep -qF "Spec-AC-02" \
+    || log_fail "the bogus row (SPEC-6007 / Spec-AC-02) must be listed as a row-level AC-status violation"
+  # NOT whole-doc-skipped from the index.
+  extract_section "$index" "## Skipped (schema violations)" > "$d/skipped.txt" 2>/dev/null || true
+  if grep -qF "SPEC-6007" "$d/skipped.txt" 2>/dev/null; then
+    log_fail "SPEC-6007 must NOT be whole-doc-skipped from the index"
+  fi
+  rm -rf "$d"
+  log_pass "Unknown AC status flags the row only; the doc stays indexed in its section"
+}
+
+test_spec0010_ac_qualifier_normalized() {  # TEST-008 / Spec-AC-08
+  log_info "Test: <canonical> (<qualifier>) normalized to base status, not a violation, --strict exit 0 (TEST-008)..."
+  local d; d="$(setup_iso_repo ac-qualifier)"
+  cat > "$d/docs/specs/SPEC-6008-qualifier.md" <<'MD'
+---
+id: SPEC-6008
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec whose AC row carries a qualified status
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status              | Evidence | Review-By | Notes                |
+|------------|-------------|---------------------|----------|-----------|----------------------|
+| Spec-AC-01 | first       | done (pre-existing) | a1b2c3d  | TDD       | inherited from prior |
+MD
+  # --strict must exit 0 (the qualified status is NOT a violation).
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs --strict > gen-strict.log 2>&1) \
+    || log_fail "generate-docs-index --strict must exit 0 on a qualified AC status: $(cat "$d/gen-strict.log")"
+  local index="$d/docs/INDEX.md"
+  extract_section "$index" "## Done" | grep -qF "SPEC-6008" \
+    || log_fail "SPEC-6008 must be indexed normally in the Done section"
+  # No AC-status violation recorded for the qualified row.
+  if [[ -f "$d/docs/INDEX.violations.md" ]] && grep -qF "SPEC-6008" "$d/docs/INDEX.violations.md"; then
+    log_fail "a qualified 'done (pre-existing)' row must NOT be reported as a violation"
+  fi
+  # normalizeAcStatus preserves the qualifier and stays narrow (unit-level).
+  cat > "$d/norm.mjs" <<'EOF'
+import { normalizeAcStatus } from './.aai/scripts/lib/docs-model.mjs';
+import assert from 'node:assert';
+const r = normalizeAcStatus('done (pre-existing)');
+assert.strictEqual(r.status, 'done', 'base status must be done');
+assert.strictEqual(r.canonical, true, 'qualified canonical token must be canonical');
+assert.strictEqual(r.qualifier, 'pre-existing', 'qualifier must be preserved, not dropped');
+assert.strictEqual(normalizeAcStatus('done').canonical, true, 'bare canonical still canonical');
+assert.strictEqual(normalizeAcStatus('finished').canonical, false, 'finished is genuine garbage');
+assert.strictEqual(normalizeAcStatus('donee').canonical, false, 'donee is not normalized');
+assert.strictEqual(normalizeAcStatus('done ()').canonical, false, 'empty parenthetical stays non-canonical');
+assert.strictEqual(normalizeAcStatus('done (a) (b)').canonical, false, 'multiple parentheticals stay non-canonical');
+console.log('ok');
+EOF
+  (cd "$d" && node norm.mjs) > "$d/norm.log" 2>&1 \
+    || log_fail "normalizeAcStatus qualifier handling incorrect: $(cat "$d/norm.log")"
+  rm -rf "$d"
+  log_pass "Qualified status normalized to base 'done'; qualifier preserved; narrow rule; --strict exit 0"
+}
+
+test_spec0010_ac_genuine_invalid_flagged_both() {  # TEST-009 / Spec-AC-09
+  log_info "Test: genuine-invalid AC status flagged by BOTH engines; qualified accepted by BOTH (TEST-009)..."
+  local d; d="$(setup_iso_repo ac-both)"
+  cat > "$d/docs/specs/SPEC-6009-both.md" <<'MD'
+---
+id: SPEC-6009
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec with one genuine-invalid AC status and one qualified status
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status              | Evidence | Review-By | Notes |
+|------------|-------------|---------------------|----------|-----------|-------|
+| Spec-AC-01 | first       | done (pre-existing) | a1b2c3d  | TDD       | —     |
+| Spec-AC-02 | second      | finished            | —        | —         | —     |
+MD
+  (cd "$d" && git add -A && git commit -qm "docs: SPEC-6009 fixture" >/dev/null 2>&1) || true
+  # Generator --strict: genuine garbage (finished) is still fatal.
+  if (cd "$d" && node .aai/scripts/generate-docs-index.mjs --strict > gen-strict.log 2>&1); then
+    log_fail "generate-docs-index --strict must exit 1 when a genuinely-invalid AC status is present"
+  fi
+  grep -qF "finished" "$d/gen-strict.log" \
+    || log_fail "generator --strict failure must name the invalid status (finished)"
+  # docs-audit: reports `finished`, accepts the qualified `done (pre-existing)`.
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs/SPEC-6009-both.md > audit.log 2>&1) || true
+  grep -F "SPEC-6009" "$d/audit.log" | grep -qF 'finished' \
+    || log_fail "docs-audit must flag the genuine-invalid status (finished)"
+  # Positive control (self-eval trap): the qualified row is NOT reported as a violation.
+  if grep -qF 'unknown AC status "done (pre-existing)"' "$d/audit.log"; then
+    log_fail "docs-audit must NOT flag the qualified 'done (pre-existing)' row (proves the check is not accept-all inverted)"
+  fi
+  rm -rf "$d"
+  log_pass "Genuine-invalid AC status flagged by both engines; qualified status accepted by both"
 }
 
 test_index_continue_on_error() {
@@ -1617,6 +1879,12 @@ main() {
   test_issue0001_legacy_ratio_guard
   test_issue0001_no_regression_real_repo
   test_issue0001_posix_helper
+  test_spec0010_committed_index_idempotent
+  test_spec0010_index_git_state_invariant
+  test_spec0010_audit_companion_gitignored
+  test_spec0010_ac_row_level_not_whole_doc
+  test_spec0010_ac_qualifier_normalized
+  test_spec0010_ac_genuine_invalid_flagged_both
   test_index_continue_on_error
   echo ""
   log_pass "All $TEST_NAME tests passed"

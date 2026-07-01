@@ -20,8 +20,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  DOC_STATUS_ENUM, AC_STATUS_ENUM, walk,
+  DOC_STATUS_ENUM, walk,
   parseFrontmatter, parseAcTable, parseReviewBy, extractReferences, toPosix,
+  normalizeAcStatus,
 } from './lib/docs-model.mjs';
 import { runAudit, suggestedStep, loadConfig, firstCommitDate } from './lib/docs-audit-core.mjs';
 
@@ -37,8 +38,15 @@ const strict = ARGV.includes('--strict') || ARGV.includes('lint-docs');
 const SCAN_DIRS = ['docs/issues', 'docs/rfc', 'docs/specs', 'docs/requirements', 'docs/releases', 'docs/canonical'];
 const OUT_PATH = path.join(ROOT, 'docs/INDEX.md');
 const VIOLATIONS_PATH = path.join(ROOT, 'docs/INDEX.violations.md');
+// SPEC-0010 Group A (ISSUE-0003) — the git-history-dependent audit sections
+// (Orphans + Drift report) are relocated here, OUT of the committed docs/INDEX.md,
+// into a git-ignored, marker-guarded companion (see .gitignore; never staged by
+// the AAI:INDEX-AUTOGEN pre-commit hook), so the committed index is a pure
+// function of on-disk docs (idempotent).
+const AUDIT_PATH = path.join(ROOT, 'docs/INDEX.audit.md');
 const MARKER = '# Docs Index — auto-generated, DO NOT EDIT';
 const VIOLATIONS_MARKER = '# Docs Index Violations — auto-generated, DO NOT EDIT';
+const AUDIT_MARKER = '# Docs Index Audit — auto-generated, DO NOT EDIT';
 
 const today = new Date();
 const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
@@ -57,7 +65,7 @@ function ymd(d) {
 // Manage docs/INDEX.violations.md: write it when there are skipped violations,
 // remove it when the repo is clean. Refuses to touch a pre-existing file whose
 // first non-empty line is not our marker (don't clobber a user's file).
-function writeViolationsReport(skipped) {
+function writeViolationsReport(skipped, acStatusViolations = []) {
   if (fs.existsSync(VIOLATIONS_PATH)) {
     const firstLine = fs.readFileSync(VIOLATIONS_PATH, 'utf8').split('\n').find(l => l.trim().length > 0) ?? '';
     if (firstLine.trim() !== VIOLATIONS_MARKER) {
@@ -65,7 +73,7 @@ function writeViolationsReport(skipped) {
       return;
     }
   }
-  if (skipped.length === 0) {
+  if (skipped.length === 0 && acStatusViolations.length === 0) {
     if (fs.existsSync(VIOLATIONS_PATH)) fs.rmSync(VIOLATIONS_PATH);
     return;
   }
@@ -74,16 +82,52 @@ function writeViolationsReport(skipped) {
     '',
     `Generated: ${new Date().toISOString()}`,
     '',
-    'These docs were SKIPPED from docs/INDEX.md because their frontmatter or',
-    'Acceptance-Criteria table violates the schema. The index is still produced',
-    '(degrade-and-report); fix the docs below and re-run the generator. Run',
-    '`node .aai/scripts/generate-docs-index.mjs --strict` to fail CI on these.',
-    '',
-    ...skipped.map(f => `- ${f}`),
-    '',
-  ].join('\n');
+  ];
+  if (skipped.length > 0) {
+    out.push(
+      'These docs were SKIPPED (whole-doc) from docs/INDEX.md because their frontmatter',
+      'or Acceptance-Criteria table violates the schema. The index is still produced',
+      '(degrade-and-report); fix the docs below and re-run the generator. Run',
+      '`node .aai/scripts/generate-docs-index.mjs --strict` to fail CI on these.',
+      '',
+      '## Skipped (whole-doc schema violations)',
+      '',
+      ...skipped.map(f => `- ${f}`),
+      '',
+    );
+  }
+  // SPEC-0010 Group C (ISSUE-0005) — row-level AC-status violations. The doc is
+  // still INDEXED normally (not whole-doc-skipped); only the offending row is
+  // flagged here. --strict promotes these to a fatal error (handled in main()).
+  if (acStatusViolations.length > 0) {
+    out.push(
+      '## AC status violations (row-level)',
+      '',
+      'These rows carry a non-canonical AC status. The doc stays in the index; the',
+      'row below is flagged. Fix the status (or use `<canonical> (<qualifier>)`).',
+      '',
+      ...acStatusViolations.map(v => `- ${v.rel}: unknown AC status "${v.raw}" for ${v.specAc}`),
+      '',
+    );
+  }
   fs.mkdirSync(path.dirname(VIOLATIONS_PATH), { recursive: true });
-  fs.writeFileSync(VIOLATIONS_PATH, out);
+  fs.writeFileSync(VIOLATIONS_PATH, out.join('\n'));
+}
+
+// SPEC-0010 Group A (ISSUE-0003) — write the git-ignored companion carrying the
+// relocated (git-history-dependent) Orphans + Drift sections. Marker-guarded like
+// the violations report. Because it is git-ignored and never staged by the hook,
+// it does not affect the committed index's idempotence.
+function writeAuditCompanion(body) {
+  if (fs.existsSync(AUDIT_PATH)) {
+    const firstLine = fs.readFileSync(AUDIT_PATH, 'utf8').split('\n').find(l => l.trim().length > 0) ?? '';
+    if (firstLine.trim() !== AUDIT_MARKER) {
+      console.warn(`WARNING: ${path.relative(ROOT, AUDIT_PATH)} exists without the auto-generated marker — leaving it untouched.`);
+      return;
+    }
+  }
+  fs.mkdirSync(path.dirname(AUDIT_PATH), { recursive: true });
+  fs.writeFileSync(AUDIT_PATH, body);
 }
 
 function main() {
@@ -96,6 +140,11 @@ function main() {
   const docs = [];
   const warnings = [];
   const failures = [];
+  // SPEC-0010 Group C (ISSUE-0005) — row-level AC-status violations kept SEPARATE
+  // from whole-doc `failures`: they never splice the doc out of the index (the doc
+  // stays placed), they are surfaced in INDEX.violations.md, and under --strict
+  // they remain fatal.
+  const acStatusViolations = [];
 
   for (const dir of SCAN_DIRS) {
     for (const filePath of walk(path.join(ROOT, dir))) {
@@ -118,9 +167,16 @@ function main() {
       }
       const acTable = parseAcTable(content);
       for (const row of acTable.rows) {
-        const s = (row['Status'] ?? '').toLowerCase();
-        if (s && !AC_STATUS_ENUM.has(s)) {
-          failures.push(`${rel}: unknown AC status "${row['Status']}" for ${row['Spec-AC']}`);
+        // SPEC-0010 Group C — normalize via the shared helper. A qualified
+        // `<canonical> (<qualifier>)` normalizes to its base status (not a
+        // violation, qualifier preserved on the row). A genuinely-invalid status
+        // is a ROW-LEVEL violation (doc stays indexed) — NOT a whole-doc failure.
+        const rawStatus = row['Status'] ?? '';
+        const norm = normalizeAcStatus(rawStatus);
+        row._baseStatus = norm.status;       // drives placement/progress/deferred-blocked reads
+        row._acQualifier = norm.qualifier;   // preserved, never silently dropped
+        if (rawStatus.trim() && !norm.canonical) {
+          acStatusViolations.push({ rel, specAc: row['Spec-AC'], raw: rawStatus });
         }
         // ISO date, skill label (TDD/Loop/code-review/manual/deferred), or
         // label:date combo (CHANGE-0001 D4); only dated forms feed overdue checks
@@ -143,14 +199,23 @@ function main() {
   // section regardless of mode — the window closes itself once legacy docs
   // are migrated.
   let skipped = [];
+  // SPEC-0010 (ISSUE-0003) WARNING-1: the legacy-window auto-skip label uses
+  // firstCommitDate (git history), which is NOT a pure function of on-disk docs
+  // (null pre-commit, a date post-commit). The committed index lists violations
+  // PLAINLY (git-invariant); the git-dependent "[legacy — auto-skipped]"
+  // annotation is relocated to the git-ignored companion docs/INDEX.audit.md.
+  // firstCommitDate is used ONLY for the --strict abort decision (an exit code,
+  // not committed content).
+  let legacySkipped = [];
   if (failures.length > 0) {
     const legacyUntil = loadConfig(ROOT)?.legacy_until_date ?? null;
     const hard = [];
     for (const f of failures) {
       const rel = f.slice(0, f.indexOf(': '));
       const first = legacyUntil ? firstCommitDate(ROOT, rel) : null;
-      if (first && first < legacyUntil) skipped.push(`${f} [legacy — auto-skipped]`);
+      if (first && first < legacyUntil) legacySkipped.push(f);
       else hard.push(f);
+      skipped.push(f);   // committed index: plain, git-invariant
     }
     if (hard.length > 0 && strict) {
       console.error('FAIL (strict): schema violations:');
@@ -158,8 +223,7 @@ function main() {
       console.error('Fix the docs above, or run without --strict for a best-effort index.');
       process.exit(1);
     }
-    // Non-strict default: never abort. Skip the offending docs and report them.
-    skipped.push(...hard);
+    // Non-strict default: never abort — every violation is already in `skipped`.
     if (hard.length > 0) {
       console.warn(`WARNING: ${hard.length} schema violation(s) — skipped from index (run with --strict to fail):`);
       for (const f of hard) console.warn(`  - ${f}`);
@@ -168,6 +232,20 @@ function main() {
     for (let i = docs.length - 1; i >= 0; i -= 1) {
       if (failedRels.has(docs[i].path)) docs.splice(i, 1);
     }
+  }
+
+  // SPEC-0010 Group C (ISSUE-0005) — row-level AC-status violations. Under
+  // --strict / lint-docs they remain FATAL (detection is not weakened); by
+  // default they are surfaced (INDEX.violations.md) while the doc stays indexed.
+  if (acStatusViolations.length > 0) {
+    if (strict) {
+      console.error('FAIL (strict): row-level AC status violation(s):');
+      for (const v of acStatusViolations) console.error(`  - ${v.rel}: unknown AC status "${v.raw}" for ${v.specAc}`);
+      console.error('Use a canonical status or `<canonical> (<qualifier>)`; run without --strict for a best-effort index.');
+      process.exit(1);
+    }
+    console.warn(`WARNING: ${acStatusViolations.length} row-level AC status violation(s) — doc(s) kept in index, rows flagged in INDEX.violations.md (run with --strict to fail):`);
+    for (const v of acStatusViolations) console.warn(`  - ${v.rel}: unknown AC status "${v.raw}" for ${v.specAc}`);
   }
 
   // SPEC-0007 Spec-AC-06 — report-only legacy-ratio tripwire. SPEC-0006's
@@ -191,7 +269,9 @@ function main() {
 
   for (const d of docs) {
     for (const row of d.ac.rows) {
-      const s = (row['Status'] ?? '').toLowerCase();
+      // SPEC-0010 Group C — read the normalized BASE status so a qualified
+      // `deferred (external)` / `blocked (upstream)` still lands in the right bucket.
+      const s = row._baseStatus ?? (row['Status'] ?? '').toLowerCase();
       if (s === 'deferred' || s === 'blocked') {
         const entry = { doc: d.id, ac: row['Spec-AC'], status: s, reviewBy: row['Review-By'] ?? '—', notes: row['Notes'] ?? '—' };
         if (s === 'deferred') deferredItems.push(entry);
@@ -221,7 +301,11 @@ function main() {
   const progressFor = (d) => {
     if (!d.ac.hasGate || d.ac.rows.length === 0) return '—';
     const counts = {};
-    for (const r of d.ac.rows) counts[r['Status']?.toLowerCase() ?? 'planned'] = (counts[r['Status']?.toLowerCase() ?? 'planned'] ?? 0) + 1;
+    // SPEC-0010 Group C — count by the normalized base status.
+    for (const r of d.ac.rows) {
+      const k = r._baseStatus || (r['Status']?.toLowerCase() ?? 'planned') || 'planned';
+      counts[k] = (counts[k] ?? 0) + 1;
+    }
     return Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ');
   };
 
@@ -269,13 +353,14 @@ function main() {
   lines.push(`Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md`);
   lines.push('');
 
-  const section = (title, items, renderRow) => {
-    lines.push(`## ${title} (${items.length})`);
-    lines.push('');
-    if (items.length === 0) { lines.push('_None._'); lines.push(''); return; }
-    for (const row of renderRow(items)) lines.push(row);
-    lines.push('');
+  const renderSection = (target, title, items, renderRow) => {
+    target.push(`## ${title} (${items.length})`);
+    target.push('');
+    if (items.length === 0) { target.push('_None._'); target.push(''); return; }
+    for (const row of renderRow(items)) target.push(row);
+    target.push('');
   };
+  const section = (title, items, renderRow) => renderSection(lines, title, items, renderRow);
 
   section('Overdue reviews', overdue, items => {
     const out = ['| Doc | AC | Status | Was Due | Notes |', '|---|---|---|---|---|'];
@@ -353,20 +438,41 @@ function main() {
     return out;
   });
 
-  // RFC-0002 audit sections — broader scan (all prefixed docs under docs/),
+  // RFC-0002 audit data — broader scan (all prefixed docs under docs/),
   // classification + drift verdicts. Report-only; tolerant to missing git.
+  // SPEC-0010 Group A (ISSUE-0003): these Orphans + Drift sections are
+  // git-history-dependent (runAudit probes git), so they are NO LONGER embedded
+  // in the committed docs/INDEX.md. They are written to the git-ignored companion
+  // docs/INDEX.audit.md below; docs-audit.mjs remains the on-demand authority.
   const audit = runAudit(ROOT, { today: todayUTC });
   const auditOrphans = [...audit.orphansNew, ...audit.orphansLegacy];
-  section('Orphans (need triage)', auditOrphans, items => {
+  const auditLines = [
+    AUDIT_MARKER,
+    '',
+    `Generated: ${new Date().toISOString()}`,
+    '',
+    'Git-ignored companion to docs/INDEX.md carrying the git-history-dependent',
+    'Orphans + Drift sections relocated out of the committed index (SPEC-0010 /',
+    'ISSUE-0003). NOT staged by the AAI:INDEX-AUTOGEN pre-commit hook. The same',
+    'drift/orphan analysis is reported on demand by',
+    '`node .aai/scripts/docs-audit.mjs`.',
+    '',
+  ];
+  renderSection(auditLines, 'Orphans (need triage)', auditOrphans, items => {
     const out = ['| Path | Age class | Problem |', '|---|---|---|'];
     for (const d of items) out.push(`| ${d.rel} | ${d.legacy ? 'legacy (soft)' : 'new (hard)'} | ${d.reasons.join('; ')} |`);
     return out;
   });
-  section('Drift report', audit.drift, items => {
+  renderSection(auditLines, 'Drift report', audit.drift, items => {
     const out = ['| Doc | Verdict | Evidence | Suggested next step |', '|---|---|---|---|'];
     for (const d of items) out.push(`| ${d.id} | ${d.verdict} | ${d.reasons.join('; ')} | ${suggestedStep(d)} |`);
     return out;
   });
+  // SPEC-0010 (ISSUE-0003) WARNING-1: which skipped docs were auto-demoted by the
+  // legacy_until_date migration window is git-history-dependent (firstCommitDate),
+  // so it lives in the companion, not the committed index.
+  renderSection(auditLines, 'Legacy auto-skipped (migration window)', legacySkipped,
+    items => items.map(f => `- ${f} [legacy — auto-skipped]`));
   if (skipped.length > 0) {
     section('Skipped (schema violations)', skipped, items => items.map(f => `- ${f}`));
   }
@@ -391,15 +497,20 @@ function main() {
   fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
   fs.writeFileSync(OUT_PATH, output);
 
-  // Companion violations report — keeps skipped-doc problems visible and
-  // machine-readable even when the (degrade-and-report) index itself is clean.
-  // Written only when there are violations; removed when the repo is clean so
-  // its mere existence is a signal. Marker-guarded like the index.
-  writeViolationsReport(skipped);
+  // Companion violations report — keeps skipped-doc problems and row-level
+  // AC-status violations visible and machine-readable even when the
+  // (degrade-and-report) index itself is clean. Written only when there are
+  // violations; removed when the repo is clean so its mere existence is a signal.
+  // Marker-guarded like the index.
+  writeViolationsReport(skipped, acStatusViolations);
+
+  // SPEC-0010 Group A — git-ignored companion carrying the relocated Orphans +
+  // Drift sections (git-history-dependent; never in the committed index).
+  writeAuditCompanion(auditLines.join('\n'));
 
   console.log(`Wrote ${path.relative(ROOT, OUT_PATH)} (${docs.length} docs, ${overdue.length} overdue, ${deferredItems.length} deferred, ${brokenRefs.length} broken refs)`);
-  if (skipped.length > 0) {
-    console.log(`Wrote ${path.relative(ROOT, VIOLATIONS_PATH)} (${skipped.length} violation(s) skipped from index)`);
+  if (skipped.length > 0 || acStatusViolations.length > 0) {
+    console.log(`Wrote ${path.relative(ROOT, VIOLATIONS_PATH)} (${skipped.length} whole-doc skipped, ${acStatusViolations.length} row-level AC-status violation(s))`);
   }
   if (warnings.length > 0) {
     console.warn(`${warnings.length} warning(s):`);
