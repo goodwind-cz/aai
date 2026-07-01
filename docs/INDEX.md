@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-01T09:33:56.076Z
+Generated: 2026-07-01T10:53:41.463Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (20)
+## Done (22)
 
 | ID | Type | Path |
 |---|---|---|
@@ -25,6 +25,7 @@ _None._
 | CHANGE-0004 | issues | docs/issues/CHANGE-0004-docs-audit-parent-closeout-candidate.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
+| ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -39,12 +40,11 @@ _None._
 | SPEC-0006 | specs | docs/specs/SPEC-0006-index-deferred-coverage-and-done-close-policy.md |
 | SPEC-0007 | specs | docs/specs/SPEC-0007-parsefrontmatter-crlf-tolerance-and-posix-index-paths.md |
 | SPEC-0008 | specs | docs/specs/SPEC-0008-test-canonicalization-skill.md |
+| SPEC-0009 | specs | docs/specs/SPEC-0009-test-process-group-reaping-and-leak-accounting.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
@@ -74,9 +74,11 @@ _None._
 
 _None._
 
-## Drift report (0)
+## Drift report (1)
 
-_None._
+| Doc | Verdict | Evidence | Suggested next step |
+|---|---|---|---|
+| ISSUE-0002 | probable-false-done | no commit and no ac_evidence event references this doc | reconcile AC table / evidence, then re-confirm done status |
 
 ---
 Today (UTC): 2026-07-01 — counts above use this date for overdue checks.

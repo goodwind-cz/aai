@@ -1191,6 +1191,51 @@ Skipped: 0 (0%)
 
 ---
 
+## Leak-safe test execution
+
+A long `/aai-loop` can orphan hung test process trees: `vitest run` does not exit
+when a suite leaves open handles, the launching agent's shell call returns with
+output captured, but nothing kills the spawned process *group* — so the hung tree
+is orphaned and grows unbounded (observed: ~40 trees / ~5.6 GB after a 17-tick
+run). AAI closes this with a four-part contract (SPEC-0009). Every
+externally-spawned test process must be in a **killable group**, **resource
+bounded**, **reaped on the step boundary**, and **accounted for**.
+
+1. **Killable group + timeout — the wrapper.** Run test/build commands through
+   `.aai/scripts/aai-run-tests.sh <cmd> [args...]`. It starts a new **process
+   group**, runs the command as the group leader, arms an inline timeout
+   (`AAI_TEST_TIMEOUT`, default 300s — macOS has no GNU `timeout`), and on every
+   exit path TERMs then KILLs the whole group. It returns the command's **real
+   exit code**, or **124** on timeout (so a *hung* run is distinguishable from a
+   *failed* one). A leaky child that backgrounds work and exits 0 still leaves no
+   survivor.
+
+2. **Bounded forks.** When Vitest is detected, `/aai-bootstrap` emits leak-safe
+   config guidance — `pool: 'forks'`, `poolOptions.forks.maxForks: 2`,
+   `minForks: 1`, `teardownTimeout: 10_000` — bounding a run to ~300–400 MB
+   instead of ~1.5 GB. Bootstrap never overwrites an existing Vitest config; you
+   apply the guidance yourself.
+
+3. **Scoped reaper — workspace + etime, never global.**
+   `.aai/scripts/aai-reap-tests.sh` is a defence-in-depth sweep the loop runs
+   after a test-running tick. It kills **only** `vitest`/`esbuild` processes whose
+   command line matches the current workspace path (`$PWD`, overridable via
+   `AAI_REAP_WORKSPACE`) **and** that are older than the step-start age threshold
+   (`AAI_REAP_MIN_AGE_SECS`), so a sibling subagent's in-flight run is never
+   killed. It is **never** a bare `pkill -f vitest`.
+
+4. **Tick-log accounting.** The loop records `lingering_procs` (post-reap
+   workspace vitest/esbuild count) and `free_memory` in each tick log line, so a
+   process or memory leak is visible in `docs/ai/LOOP_TICKS.jsonl` rather than
+   growing silently across ticks.
+
+Generated `aai-test-unit` / `aai-test-e2e` skills are already wrapped, and both
+`/aai-loop` and validation route discovered test commands through
+`.aai/scripts/aai-run-tests.sh` and reap with `.aai/scripts/aai-reap-tests.sh` on
+the step boundary.
+
+---
+
 ## Troubleshooting
 
 ### Common Issues

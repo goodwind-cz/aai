@@ -69,6 +69,7 @@ declare -a WRITTEN=()
 declare -a UNCHANGED=()
 
 PACKAGE_MANAGER=""
+VITEST_DETECTED=0
 AUTH_DETECTED=0
 AUTH_CREDENTIALS_REF=""
 AUTH_SESSION_REF=""
@@ -82,11 +83,45 @@ add_unique() {
   local array_name="$2"
   local existing
   local current=()
-  eval "current=(\"\${${array_name}[@]}\")"
-  for existing in "${current[@]}"; do
+  local len=0
+  # Guard the expansion so an empty array under `set -u` (bash 3.2 / macOS) does
+  # not abort with "unbound variable".
+  eval "len=\${#${array_name}[@]}"
+  if [[ "$len" -gt 0 ]]; then
+    eval "current=(\"\${${array_name}[@]}\")"
+  fi
+  for existing in "${current[@]:-}"; do
     [[ "$existing" == "$value" ]] && return 0
   done
   eval "${array_name}+=(\"\$value\")"
+}
+
+# Prefix a detected test command with the leak-safe process-group wrapper so a
+# generated aai-test-* skill can never orphan a hung test tree (SPEC-0009). The
+# wrapper is vendored under .aai/scripts/ by aai-sync, so the path resolves in
+# the target project.
+RUN_TESTS_WRAPPER=".aai/scripts/aai-run-tests.sh"
+wrap_test_command() {
+  printf '%s %s' "$RUN_TESTS_WRAPPER" "$1"
+}
+
+# Leak-safe Vitest guidance emitted (not applied) when Vitest is detected. This
+# is documentation only — bootstrap never overwrites a user's vitest config.
+vitest_leak_safe_guidance() {
+  cat <<'GUIDE'
+## Leak-safe Vitest configuration (bounds fork memory)
+- This project uses Vitest. A default `vitest run` sizes its fork pool to the CPU
+  count (~150 MB per worker), and a suite that leaves an open handle can leave the
+  whole tree resident. Bound a single run to ~300-400 MB by setting, in your
+  Vitest config:
+  - `pool: 'forks'`
+  - `poolOptions.forks.maxForks: 2`, `poolOptions.forks.minForks: 1`
+  - `teardownTimeout: 10_000`
+- Bootstrap does NOT edit an existing Vitest config; apply this yourself.
+- The generated command already runs through `.aai/scripts/aai-run-tests.sh`, which
+  puts the run in a killable process group with a timeout so no fork worker can
+  outlive the step.
+GUIDE
 }
 
 has_glob() {
@@ -322,7 +357,10 @@ detect_architecture() {
   has_glob "playwright.config.*" && add_unique "Playwright" DETECTED_TEST_TOOLS
   has_glob "cypress.config.*" && add_unique "Cypress" DETECTED_TEST_TOOLS
   has_glob "jest.config.*" && add_unique "Jest" DETECTED_TEST_TOOLS
-  has_glob "vitest.config.*" && add_unique "Vitest" DETECTED_TEST_TOOLS
+  if has_glob "vitest.config.*" || json_has_package_dep "vitest"; then
+    VITEST_DETECTED=1
+    add_unique "Vitest" DETECTED_TEST_TOOLS
+  fi
   [[ -f pytest.ini || -f tox.ini ]] && add_unique "pytest" DETECTED_TEST_TOOLS
   [[ -d tests || -d test ]] && add_unique "test directory" DETECTED_TEST_TOOLS
 
@@ -577,7 +615,11 @@ plan_skills() {
   local cmd
 
   if cmd="$(choose_unit_command 2>/dev/null)"; then
-    add_skill "aai-test-unit" "Run project unit tests with the detected project command." "$cmd"
+    local unit_extra=""
+    if [[ "$VITEST_DETECTED" -eq 1 ]]; then
+      unit_extra="$(vitest_leak_safe_guidance)"$'\n'
+    fi
+    add_skill "aai-test-unit" "Run project unit tests with the detected project command (routed through the leak-safe wrapper)." "$(wrap_test_command "$cmd")" "$unit_extra"
   else
     SKIPPED+=("aai-test-unit: no unit test command detected")
   fi
@@ -593,7 +635,7 @@ plan_skills() {
       fi
       extra+="- $AUTH_SESSION_REF"$'\n'
     fi
-    add_skill "aai-test-e2e" "Run project E2E tests with the detected project command." "$cmd" "$extra"
+    add_skill "aai-test-e2e" "Run project E2E tests with the detected project command (routed through the leak-safe wrapper)." "$(wrap_test_command "$cmd")" "$extra"
   else
     SKIPPED+=("aai-test-e2e: no E2E command detected")
   fi
