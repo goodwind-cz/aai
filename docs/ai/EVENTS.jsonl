@@ -183,3 +183,5 @@
 {"v":1,"ts":"2026-07-03T00:50:07.827Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0011","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-03T00:50:07.886Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"SPEC-0011","payload":{"validation":"pass","code_review":"pass","notes":"CHANGE-0005 delivered by SPEC-0011; closeout after Validation PASS + Code Review PASS"}}
 {"v":1,"ts":"2026-07-03T00:50:07.946Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0011","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260703T003739Z.md","notes":"Independent adversarial review: 0 ERROR / 1 WARNING(BP-001 fixed) / 2 INFO; all 12 Spec-AC COMPLIANT"}}
+{"v":1,"ts":"2026-07-03T11:31:42.476Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"CHANGE-0005","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-03T11:31:42.538Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"CHANGE-0005","payload":{"validation":"pass","code_review":"pass","notes":"Delivered by SPEC-0011 (PR #27); validation PASS, code review PASS"}}

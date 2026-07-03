@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-03T10:37:56.972Z
+Generated: 2026-07-03T11:33:58.962Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (27)
+## Done (28)
 
 | ID | Type | Path |
 |---|---|---|
@@ -23,6 +23,7 @@ _None._
 | CHANGE-0002 | issues | docs/issues/CHANGE-0002-docs-audit-engine-improvements-2.md |
 | CHANGE-0003 | issues | docs/issues/CHANGE-0003-docs-audit-verify-mode.md |
 | CHANGE-0004 | issues | docs/issues/CHANGE-0004-docs-audit-parent-closeout-candidate.md |
+| CHANGE-0005 | issues | docs/issues/CHANGE-0005-docs-audit-closeout-guardrails.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
@@ -47,11 +48,9 @@ _None._
 | SPEC-0010 | specs | docs/specs/SPEC-0010-docs-index-and-state-tooling-robustness.md |
 | SPEC-0011 | specs | docs/specs/SPEC-0011-docs-audit-closeout-guardrails.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0005 | issues | docs/issues/CHANGE-0005-docs-audit-closeout-guardrails.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
