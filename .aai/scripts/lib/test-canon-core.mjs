@@ -88,6 +88,22 @@ function extractCriteria(content) {
   return criteria;
 }
 
+// Determine which criteria are covered by source test contents.
+// A criterion is considered "covered" if any source test's content
+// mentions the criterion text or its AC-<domain>-N tag.
+function findCoveredCriteria(sourceContents, criteria, domain) {
+  const coveredIndexes = new Set();
+  for (let i = 0; i < criteria.length; i++) {
+    const crit = criteria[i];
+    const criterionTag = `AC-${domain}-${i + 1}`;
+    const isCovered = sourceContents.some(sc =>
+      sc.content.includes(crit) || sc.content.includes(criterionTag)
+    );
+    if (isCovered) coveredIndexes.add(i);
+  }
+  return coveredIndexes;
+}
+
 // Map a test file to canonical domains based on content analysis
 function mapTestToDomain(testContent, testName, domains) {
   const matches = [];
@@ -169,13 +185,24 @@ export function runPhase1(root) {
     }
   }
 
-  // Build coverage gap report
+  // Build coverage gap report — per-criterion check
   const coverage = {};
   for (const [domain, criteria] of Object.entries(criteriaMap)) {
     const covered = [];
     const uncovered = [];
+    // Collect source test contents for this domain for per-criterion matching
+    const domainSourceContents = [];
+    for (const [rel, m] of Object.entries(matrix)) {
+      if (m.domains.includes(domain)) {
+        const tf = testFiles.find(t => t.rel === rel);
+        if (tf) domainSourceContents.push({ rel, content: tf.content });
+      }
+    }
     for (const crit of criteria) {
-      const hasTest = Object.values(matrix).some(m => m.domains.includes(domain));
+      // Check if any domain source test mentions this specific criterion
+      const hasTest = domainSourceContents.some(sc =>
+        sc.content.includes(crit)
+      );
       if (hasTest) {
         covered.push(crit);
       } else {
@@ -290,7 +317,9 @@ export function isApprovedMap(map) {
 // --- Phase 2: Consolidate, archive, scaffold stubs ---
 
 // Build a canonical test file content from sources and stubs
-function renderCanonicalTest(domain, sources, stubs, archivePaths) {
+// Sources provide the actual test logic (run via bash on the archived copy);
+// stubs are RED (failing) placeholders for uncovered criteria.
+function renderCanonicalTest(domain, sources, sourceContents, stubs, archivePaths) {
   const lines = [
     '#!/usr/bin/env bash',
     '#',
@@ -312,25 +341,43 @@ function renderCanonicalTest(domain, sources, stubs, archivePaths) {
     '',
   ];
 
-  // Scaffolded stubs for uncovered criteria
+  // Stubs for uncovered criteria — RED (failing) placeholders
+  // Use return 1 (not exit 1) so run_all can tally passed/failed
   for (const stub of stubs) {
     lines.push(`test_${stub.criterionTag}() {`);
     lines.push(`  echo "FAIL (RED stub): ${stub.tag} — not yet implemented"`);
-    lines.push('  exit 1');
+    lines.push('  return 1');
     lines.push('}');
     lines.push('');
   }
 
   lines.push('# Run all tests');
+  lines.push('# When AAI_SKIP_STUBS=1, stubs are skipped so verifyRunner can check green exit.');
   lines.push('run_all() {');
   lines.push('  local passed=0');
   lines.push('  local failed=0');
   lines.push('  local total=0');
   lines.push('');
 
-  for (const stub of stubs) {
+  // Run each source test by executing the archived copy (preserves original logic)
+  for (let i = 0; i < sourceContents.length; i++) {
+    const archiveRel = archivePaths[i];
     lines.push(`  total=$((total + 1))`);
-    lines.push(`  if test_${stub.criterionTag} 2>/dev/null; then passed=$((passed + 1)); else failed=$((failed + 1)); fi`);
+    lines.push(`  if bash "${archiveRel}" 2>/dev/null; then passed=$((passed + 1)); else failed=$((failed + 1)); fi`);
+  }
+
+  // Only emit the stub-runner wrapper when there are stubs. An
+  // `if ... then ... fi` with an empty body is a bash syntax error, which
+  // would break `bash -n` for any fully-covered domain (0 stubs).
+  if (stubs.length > 0) {
+    lines.push('');
+    lines.push('  # Stubs — skipped when AAI_SKIP_STUBS is set (verify mode)');
+    lines.push('  if [ -z "${AAI_SKIP_STUBS:-}" ]; then');
+    for (const stub of stubs) {
+      lines.push(`    total=$((total + 1))`);
+      lines.push(`    if test_${stub.criterionTag} 2>/dev/null; then passed=$((passed + 1)); else failed=$((failed + 1)); fi`);
+    }
+    lines.push('  fi');
   }
 
   lines.push('');
@@ -381,7 +428,8 @@ function verifyRunner(root, canonicalDir) {
 
   const errors = [];
   for (const entry of fs.readdirSync(canonAbs, { withFileTypes: true })) {
-    if (entry.isFile() && entry.name.endsWith('.sh')) {
+    // Skip stub files — they are standalone RED scripts expected to fail
+    if (entry.isFile() && entry.name.endsWith('.sh') && !entry.name.includes('.stub')) {
       const abs = path.join(canonAbs, entry.name);
       try {
         const content = fs.readFileSync(abs, 'utf8');
@@ -397,14 +445,16 @@ function verifyRunner(root, canonicalDir) {
           errors.push(`${entry.name}: syntax check failed (bash -n): ${synErr.stderr?.toString().trim() || synErr.message}`);
           continue;
         }
-        // Runtime check — try executing; non-zero exit is acceptable for RED stubs
+        // Runtime check — verify real tests exit GREEN (exit 0).
+        // Stubs are skipped via AAI_SKIP_STUBS=1 so only real test logic runs.
         try {
-          execSync(`bash "${abs}"`, { stdio: ['ignore', 'pipe', 'pipe'], timeout: 10000 });
+          execSync(`AAI_SKIP_STUBS=1 bash "${abs}"`, { stdio: ['ignore', 'pipe', 'pipe'], timeout: 10000 });
         } catch (runErr) {
-          // Non-zero exit from the script is fine (RED stub expected to fail)
-          // But if bash itself crashed (signal), that is a failure
+          // Non-zero exit means real tests failed — gate must block archiving
           if (runErr.signal) {
             errors.push(`${entry.name}: runtime crash (${runErr.signal})`);
+          } else {
+            errors.push(`${entry.name}: real tests exited non-zero (${runErr.status}) — suite not green`);
           }
         }
       } catch (e) {
@@ -449,12 +499,18 @@ export function runPhase2(root, map, { resync = false } = {}) {
     const canonTestAbs = path.join(root, canonTestRel);
 
     // Re-run idempotence: unchanged sources + existing canonical => skip
+    let isDrifted = false;
     if (recorded && fs.existsSync(canonTestAbs)) {
       const rerunHashes = hashTestSources(root, sources, d.archivedAt);
       const unchanged = sources.every(s => rerunHashes[s] === recorded[s]);
       if (unchanged) { result.skipped.push(domain); continue; }
-      if (!resync) { result.drifted.push(domain); continue; }
+      isDrifted = true;
+      result.drifted.push(domain);
+      if (!resync) { continue; } // Skip processing if not resyncing
     }
+
+    // Track whether this domain was previously drifted and is now being re-synced
+    const wasDrifted = resync && isDrifted;
 
     // Collect source test contents (from original or archived locations)
     const sourceContents = [];
@@ -470,10 +526,14 @@ export function runPhase2(root, map, { resync = false } = {}) {
       }
     }
 
-    // Generate stubs for uncovered criteria
+    // Determine which criteria are covered by source tests
     const domainCriteria = criteriaMap[domain] || [];
+    const coveredIndexes = findCoveredCriteria(sourceContents, domainCriteria, domain);
+
+    // Generate stubs only for UNCOVERED criteria
     const stubs = [];
     for (let i = 0; i < domainCriteria.length; i++) {
+      if (coveredIndexes.has(i)) continue; // skip covered criteria
       const crit = domainCriteria[i];
       const criterionTag = `AC-${domain}-${i + 1}`;
       stubs.push({
@@ -486,10 +546,19 @@ export function runPhase2(root, map, { resync = false } = {}) {
     // Compute archive destination paths (for back-links in canonical test)
     const archivePaths = sources.map(src => path.join(ARCHIVE_TEST_DIR, archiveDestRel(src)));
 
-    // Write canonical test file with archive back-links (Spec-AC-04 bidirectional)
-    const testContent = renderCanonicalTest(domain, sourceContents.map(s => s.rel), stubs, archivePaths);
-    fs.writeFileSync(canonTestAbs, testContent);
-    result.written.push(domain);
+    // --- Step 1: Write canonical test with EXISTING source paths for verification ---
+    // Use original paths if they still exist; fall back to archived copies otherwise.
+    const verifyPaths = sources.map(src => {
+      if (fs.existsSync(path.join(root, src))) return src;
+      if (d.archivedAt?.[src]) {
+        const archivedAbs = path.join(root, d.archivedAt[src]);
+        if (fs.existsSync(archivedAbs)) return d.archivedAt[src];
+      }
+      return src; // won't exist — verify will report failure
+    });
+    const testContentVerify = renderCanonicalTest(domain, sourceContents.map(s => s.rel), sourceContents, stubs, verifyPaths);
+    fs.writeFileSync(canonTestAbs, testContentVerify);
+    fs.chmodSync(canonTestAbs, 0o755);
 
     // Write stub files for each uncovered criterion
     for (const stub of stubs) {
@@ -498,15 +567,14 @@ export function runPhase2(root, map, { resync = false } = {}) {
       fs.chmodSync(stubPath, 0o755);
     }
 
-    // Verify canonical tests are runnable before archiving (Spec-AC-04)
+    // --- Step 2: Verify canonical tests run green BEFORE archiving ---
+    // This gate ensures real test logic is preserved and runnable.
     const verification = verifyRunner(root, CANONICAL_TEST_DIR);
     if (!verification.ok) {
-      // Clean up written canonical tests and abort
       for (const err of verification.errors) {
         console.error(`[ERROR] Runner verification failed: ${err}`);
       }
       console.error('[ERROR] Aborting Phase 2 before archiving — canonical tests are not runnable');
-      // Remove the canonical test files we just wrote
       if (fs.existsSync(canonTestAbs)) fs.rmSync(canonTestAbs);
       for (const stub of stubs) {
         const stubPath = path.join(canonDir, `${domain}.${stub.criterionTag}.stub.sh`);
@@ -515,36 +583,90 @@ export function runPhase2(root, map, { resync = false } = {}) {
       throw new Error(`Runner verification failed for domain "${domain}" — aborting before archive`);
     }
 
-    // Move originals to archive with back-links (git mv for tracked move per Spec-AC-02)
+    // --- Step 3: Move originals to archive with back-links ---
+    // The archive step is atomic per domain: if any git mv fails partway
+    // through, the sources already moved in this loop are rolled back to their
+    // original paths so the repo returns to its pre-Phase-2 state.
     d.archivedAt = d.archivedAt ?? {};
+    const archiveErrors = [];
+    const movedSources = []; // { src, srcAbs, destRel, destAbs, originalContent }
     for (const src of sources) {
       const srcAbs = path.join(root, src);
       if (!fs.existsSync(srcAbs)) continue;
 
-      // Compute archive destination
       const destRel = path.join(ARCHIVE_TEST_DIR, archiveDestRel(src));
       const destAbs = path.join(root, destRel);
 
-      // Read original content
-      let content = fs.readFileSync(srcAbs, 'utf8');
+      let content;
+      try {
+        content = fs.readFileSync(srcAbs, 'utf8');
+      } catch (readErr) {
+        archiveErrors.push(`Failed to read ${srcAbs}: ${readErr.message}`);
+        break;
+      }
 
-      // Ensure dest directory exists
       fs.mkdirSync(path.dirname(destAbs), { recursive: true });
 
-      // Use git mv for tracked move (preserves file history)
-      execSync(`git mv "${srcAbs}" "${destAbs}"`, { stdio: ['ignore', 'pipe', 'pipe'] });
+      try {
+        execSync(`git mv "${srcAbs}" "${destAbs}"`, { stdio: ['ignore', 'pipe', 'pipe'] });
+      } catch (mvErr) {
+        archiveErrors.push(`git mv failed for ${srcAbs} -> ${destAbs}: ${mvErr.stderr?.toString().trim() || mvErr.message}`);
+        break;
+      }
 
-      // Prepend back-link to the moved file
+      const originalContent = content;
       content = `# Canonical: ${canonTestRel}\n${content}`;
       fs.writeFileSync(destAbs, content);
       result.archived.push(destRel);
-
-      // Record archive mapping
       d.archivedAt[src] = destRel;
+      movedSources.push({ src, srcAbs, destRel, destAbs, originalContent });
+    }
+
+    if (archiveErrors.length > 0) {
+      for (const err of archiveErrors) {
+        console.error(`[ERROR] Archive move failed: ${err}`);
+      }
+      // Roll back the sources already archived for THIS domain so the archive
+      // step is atomic — move each back to its original path, restore the
+      // original content (dropping the prepended back-link), and undo the
+      // archived-source bookkeeping.
+      for (const moved of movedSources.reverse()) {
+        try {
+          execSync(`git mv -f "${moved.destAbs}" "${moved.srcAbs}"`, { stdio: ['ignore', 'pipe', 'pipe'] });
+        } catch (rbErr) {
+          console.error(`[ERROR] Rollback git mv failed for ${moved.destAbs} -> ${moved.srcAbs}: ${rbErr.stderr?.toString().trim() || rbErr.message}`);
+        }
+        if (fs.existsSync(moved.srcAbs)) fs.writeFileSync(moved.srcAbs, moved.originalContent);
+        const ai = result.archived.indexOf(moved.destRel);
+        if (ai >= 0) result.archived.splice(ai, 1);
+        delete d.archivedAt[moved.src];
+      }
+      console.error('[ERROR] Aborting Phase 2 — archive moves incomplete, rolled back partial archive and cleaning up written canonical files');
+      if (fs.existsSync(canonTestAbs)) fs.rmSync(canonTestAbs);
+      for (const stub of stubs) {
+        const stubPath = path.join(canonDir, `${domain}.${stub.criterionTag}.stub.sh`);
+        if (fs.existsSync(stubPath)) fs.rmSync(stubPath);
+      }
+      throw new Error(`Archive move failed for domain "${domain}" — partial archive rolled back`);
+    }
+
+    // --- Step 4: Rewrite canonical test with archive paths (now exist) ---
+    // This ensures the canonical suite references the stable archived copies,
+    // not the (now-moved) original locations.
+    const testContentFinal = renderCanonicalTest(domain, sourceContents.map(s => s.rel), sourceContents, stubs, archivePaths);
+    fs.writeFileSync(canonTestAbs, testContentFinal);
+
+    // Update result tracking — resynced domains should not also appear as drifted
+    if (wasDrifted) {
+      result.resynced.push(domain);
+      // Remove from drifted list to avoid double-counting in CLI output
+      const idx = result.drifted.indexOf(domain);
+      if (idx >= 0) result.drifted.splice(idx, 1);
+    } else {
+      result.written.push(domain);
     }
 
     // Record source hashes from archived paths (originals no longer exist)
-    // This ensures re-run drift detection compares against stable archived copies
     d.sourceHashes = hashTestSources(root, d.sources, d.archivedAt);
   }
 
