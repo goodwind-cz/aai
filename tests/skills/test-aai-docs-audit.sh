@@ -929,7 +929,7 @@ MD
 }
 
 test_index_continue_on_error() {
-  log_info "Test: index generator --continue-on-error renders a partial index (D9)..."
+  log_info "Test: index generator degrade-and-report default + --strict gate (D9)..."
   cat > "$TEST_DIR/docs/specs/SPEC-998-bad-status.md" <<'MD'
 ---
 id: SPEC-998
@@ -940,17 +940,25 @@ links:
 ---
 # Schema-violating doc
 MD
-  if (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > index-fail.log 2>&1); then
-    log_fail "Default index run must still hard-fail on schema violations"
-  fi
-  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs --continue-on-error \
+  # Default (and the retained --continue-on-error no-op alias) is degrade-and-report:
+  # a schema violation never blocks the index — it exits 0 and writes a best-effort
+  # index with a "Skipped (schema violations)" section listing the bad doc.
+  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs \
     > index-partial.log 2>&1) \
-    || log_fail "--continue-on-error must exit 0: $(cat "$TEST_DIR/index-partial.log")"
+    || log_fail "Default run must degrade-and-report (exit 0): $(cat "$TEST_DIR/index-partial.log")"
   assert_contains "$TEST_DIR/docs/INDEX.md" "Skipped (schema violations)"
   assert_contains "$TEST_DIR/docs/INDEX.md" "SPEC-998"
+  # --continue-on-error is a retained no-op alias — same degrade-and-report behavior.
+  (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs --continue-on-error \
+    > index-alias.log 2>&1) \
+    || log_fail "--continue-on-error (no-op alias) must exit 0: $(cat "$TEST_DIR/index-alias.log")"
+  # --strict is the CI/pre-commit gate: it MUST hard-fail (non-zero) on the violation.
+  if (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs --strict > index-strict.log 2>&1); then
+    log_fail "--strict must hard-fail (non-zero) on a schema violation"
+  fi
   rm "$TEST_DIR/docs/specs/SPEC-998-bad-status.md"
   (cd "$TEST_DIR" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1)
-  log_pass "Partial index with skipped-violations section works"
+  log_pass "Default degrade-and-report + --strict gate both correct"
 }
 
 # --- SPEC-0003 closeout-candidate fixtures (CHANGE-0004) ----------------------
