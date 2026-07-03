@@ -1,0 +1,120 @@
+{
+  "date_utc": "2026-06-25T15:39:35Z",
+  "reviewer": "AAI Code Review role (independent context)",
+  "contract": "docs/specs/SPEC-0002-docs-canonicalization-skill.md",
+  "origin": "RFC-0003",
+  "mode": "inline",
+  "base_ref": "main",
+  "head_ref": "e838b433a632c167ee34d48f575d4aeb01f7daf6",
+  "scope": [
+    ".aai/scripts/lib/docs-model.mjs",
+    ".aai/scripts/lib/docs-audit-core.mjs",
+    ".aai/scripts/generate-docs-index.mjs",
+    ".aai/scripts/lib/docs-canon-core.mjs",
+    ".aai/scripts/docs-canon.mjs",
+    ".claude/skills/aai-docs-canon/SKILL.md",
+    ".aai/SKILL_DOCS_CANON.prompt.md",
+    "tests/skills/test-aai-docs-canon.sh"
+  ],
+  "stage1_spec_compliance": {
+    "verdict": "COMPLIANT",
+    "compliant": 11,
+    "noncompliant": 0,
+    "per_ac": {
+      "AC-01": "COMPLIANT",
+      "AC-02": "COMPLIANT",
+      "AC-03": "COMPLIANT",
+      "AC-04": "COMPLIANT",
+      "AC-05": "COMPLIANT",
+      "AC-06": "COMPLIANT",
+      "AC-07": "COMPLIANT",
+      "AC-08": "COMPLIANT",
+      "AC-09": "COMPLIANT",
+      "AC-10": "COMPLIANT",
+      "AC-11": "COMPLIANT"
+    }
+  },
+  "stage2_code_quality": {
+    "summary": { "errors": 0, "warnings": 3, "info": 5 },
+    "findings": [
+      {
+        "id": "WARNING-1",
+        "severity": "warning",
+        "category": "best-practices",
+        "file": ".aai/scripts/lib/docs-canon-core.mjs",
+        "line": "355-362",
+        "message": "archiveSource writes dest then rmSync src with no overwrite/duplicate-source guard; a malformed approved map (same source in two domains, or dest collision) causes silent overwrite or a mid-loop throw leaving a partially-mutated tree.",
+        "recommendation": "Validate the approved map for cross-domain source duplication; refuse to overwrite an existing dest; stage moves and delete originals only after all writes succeed."
+      },
+      {
+        "id": "WARNING-2",
+        "severity": "warning",
+        "category": "best-practices",
+        "file": ".aai/scripts/lib/docs-canon-core.mjs",
+        "line": "377-393",
+        "message": "Drift baseline (sourceHashes) is only set at first synthesis; no CLI path re-synthesizes a drifted domain and refreshes the baseline, so a domain can stay permanently DRIFTed without hand-editing the map JSON.",
+        "recommendation": "Add an explicit --resynth/--force path to re-synthesize and refresh recorded hashes."
+      },
+      {
+        "id": "WARNING-3",
+        "severity": "warning",
+        "category": "best-practices",
+        "file": "tests/skills/test-aai-docs-canon.sh",
+        "line": "663-668",
+        "message": "TEST-203 (AC-11 e2e gate) is an assertion-free marker; passes by reachability only.",
+        "recommendation": "Assert a concrete end-state invariant or remove it."
+      },
+      {
+        "id": "INFO-1",
+        "severity": "info",
+        "category": "style",
+        "file": ".aai/scripts/lib/docs-model.mjs",
+        "line": "270-279",
+        "message": "validateArchivedFrontmatter exported but never called; _archive is excluded from audit scan so archived frontmatter is never schema-validated.",
+        "recommendation": "Wire it into checkLinkIntegrity/an archive-audit mode, or remove."
+      },
+      {
+        "id": "INFO-2",
+        "severity": "info",
+        "category": "style",
+        "file": ".aai/scripts/lib/docs-canon-core.mjs",
+        "line": "18",
+        "message": "validateSectionContract imported but unused.",
+        "recommendation": "Remove unused import."
+      },
+      {
+        "id": "INFO-3",
+        "severity": "info",
+        "category": "style",
+        "file": ".aai/scripts/lib/docs-audit-core.mjs",
+        "line": "132-134",
+        "message": "inCanonical predicate ORs three overlapping checks (POSIX coincident); collapsible.",
+        "recommendation": "Reduce to a single path test."
+      },
+      {
+        "id": "INFO-4",
+        "severity": "info",
+        "category": "style",
+        "file": ".aai/scripts/lib/docs-canon-core.mjs",
+        "line": "17",
+        "message": "DOC_ID_RE imported but unused (file uses its own BODY_ID_RE).",
+        "recommendation": "Remove unused import."
+      },
+      {
+        "id": "INFO-5",
+        "severity": "info",
+        "category": "best-practices",
+        "file": "tests/skills/test-aai-docs-audit.sh",
+        "line": null,
+        "message": "OUT OF SCOPE: docs-audit suite exits 1 on D9 default-hard-fail test. Verified PRE-EXISTING via git stash (not caused by SPEC-0002); caused by commit c7ad5db. SPEC-0002 Verification lists this suite as an exit-0 gate, so the stale test should be reconciled separately.",
+        "recommendation": "Open a techdebt item to update the stale D9 test."
+      }
+    ]
+  },
+  "independent_verification": {
+    "test_aai_docs_canon_sh": "exit 0, 25/25 PASS",
+    "test_aai_docs_audit_sh": "exit 1, PRE-EXISTING (D9), confirmed identical with in-scope files stashed",
+    "frontmatter_backward_compat": "preserved (links/pr:[], quoted comma strings, [], null)"
+  },
+  "overall_status": "pass"
+}

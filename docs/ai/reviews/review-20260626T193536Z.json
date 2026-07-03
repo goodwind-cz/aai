@@ -1,0 +1,71 @@
+{
+  "ref_id": "RFC-0005",
+  "spec": "SPEC-0005",
+  "reviewer": "Independent Code Review (adversarial)",
+  "model_id": "claude-opus-4-8[1m]",
+  "date_utc": "2026-06-26T19:35:36Z",
+  "base_ref": "main",
+  "head_ref": "51c5c73b073dee704118cb3d6eaa95403d457742",
+  "verdict": "fail",
+  "stage1": {
+    "compliant": false,
+    "ac": {
+      "AC-01": "compliant",
+      "AC-02": "non-compliant",
+      "AC-03": "compliant",
+      "AC-04": "compliant",
+      "AC-05": "compliant",
+      "AC-06": "compliant",
+      "AC-07": "compliant",
+      "AC-08": "compliant",
+      "AC-09": "compliant",
+      "AC-10": "compliant",
+      "AC-11": "compliant",
+      "AC-12": "compliant"
+    }
+  },
+  "summary": { "errors": 1, "warnings": 1, "info": 2 },
+  "findings": [
+    {
+      "id": "E1",
+      "severity": "error",
+      "category": "best-practices/security",
+      "file": ".aai/scripts/orchestration-mode.mjs",
+      "lines": "67-118",
+      "title": "normalizePath does not canonicalize; whole-repo '.' and ./ // .. aliases are dangerous false negatives",
+      "breaking_inputs": [
+        {"A": ".", "B": "apps/api/", "output": "mode=parallel,k=2,A+B grouped"},
+        {"A": "./apps/api/", "B": "apps/api/", "output": "mode=parallel,k=2,A+B grouped"},
+        {"A": "apps//api/", "B": "apps/api/", "output": "mode=parallel,k=2,A+B grouped"},
+        {"A": "apps/web/../api/", "B": "apps/api/", "output": "mode=parallel,k=2,A+B grouped"}
+      ],
+      "impact": "Two inline write agents co-scheduled on overlapping/whole-repo paths -> same-file corruption; defeats the fail-closed safety property. '' '*' '/' fail-closed but '.' does not (inconsistent). Reachable via orchestrator-sourced declared paths."
+    },
+    {
+      "id": "W1",
+      "severity": "warning",
+      "category": "best-practices",
+      "file": ".aai/scripts/orchestration-mode.mjs",
+      "lines": "115-118",
+      "title": "Case-insensitive false negative on macOS (Apps/Api vs apps/api -> parallel)",
+      "breaking_inputs": [{"A": "Apps/Api/", "B": "apps/api/", "output": "mode=parallel,k=2,A+B grouped"}]
+    },
+    {
+      "id": "I1",
+      "severity": "info",
+      "category": "style",
+      "file": ".aai/scripts/orchestration-mode.mjs",
+      "lines": "159-192",
+      "title": "Duplicate-id / self-parent fail-closed logic has no dedicated test"
+    },
+    {
+      "id": "I2",
+      "severity": "info",
+      "category": "best-practices",
+      "title": "Determinism, exit-code contract, and K-math verified clean (no defect)"
+    }
+  ],
+  "segment_boundary_verdict": "safe (boundary-anchored startsWith(a + '/'); a/b does not cover a/bc; a/b conflicts a/b/c)",
+  "whole_repo_verdict": "mixed: '' '*' '**' '*.md' '/' fail-closed; '.' co-scheduled parallel (ERROR E1)",
+  "report_md": "docs/ai/reviews/review-20260626T193536Z.md"
+}

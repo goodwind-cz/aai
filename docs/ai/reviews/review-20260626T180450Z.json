@@ -1,0 +1,76 @@
+{
+  "ref_id": "RFC-0004",
+  "spec": "SPEC-0004",
+  "reviewed_utc": "2026-06-26T18:04:50Z",
+  "reviewer_model": "claude-opus-4-8[1m]",
+  "branch": "feat/multi-agent-state-locking",
+  "base_ref": "main",
+  "head_ref": "1128916301b9b9bbd72a034f25966f34786ad959",
+  "scope": [
+    ".aai/scripts/docs-lock.mjs",
+    "tests/skills/test-aai-docs-lock.sh",
+    ".aai/SUBAGENT_PROTOCOL.md",
+    ".aai/ORCHESTRATION_PARALLEL.prompt.md",
+    ".aai/system/LOCKS.md",
+    ".gitignore"
+  ],
+  "stage1_spec_compliance": {
+    "verdict": "non-compliant",
+    "acs": [
+      { "id": "Spec-AC-01", "verdict": "compliant", "test": "TEST-001" },
+      { "id": "Spec-AC-02", "verdict": "compliant", "test": "TEST-002" },
+      { "id": "Spec-AC-03", "verdict": "non-compliant", "test": "TEST-003", "note": "core safety invariant violated on the expired-reclaim path; TEST-003 only stresses a free scope" },
+      { "id": "Spec-AC-04", "verdict": "compliant", "test": "TEST-004,TEST-005" },
+      { "id": "Spec-AC-05", "verdict": "compliant", "test": "TEST-006,TEST-007", "note": "single-threaded compliant; its self-heal reclaim is what breaks AC-03 under concurrency" },
+      { "id": "Spec-AC-06", "verdict": "compliant", "test": "TEST-008" },
+      { "id": "Spec-AC-07", "verdict": "compliant", "test": "TEST-009" },
+      { "id": "Spec-AC-08", "verdict": "compliant", "test": "TEST-010" }
+    ]
+  },
+  "stage2_code_quality": {
+    "summary": { "error": 1, "warning": 2, "info": 5 },
+    "findings": [
+      {
+        "id": "E1",
+        "severity": "error",
+        "category": "concurrency/data-integrity",
+        "file": ".aai/scripts/docs-lock.mjs",
+        "lines": "125-149 (esp. 132-137)",
+        "title": "Expired-reclaim TOCTOU: two acquirers can both win one scope",
+        "detail": "The self-heal branch does an unconditional rmSync(p,{force:true}) by path. A slow acquirer that observed the OLD expired lock can delete a NEW fresh lock a faster acquirer just created, then create its own -> two exit-0 winners. Violates Spec-AC-03 / contradicts D4. Demonstrated empirically via an injected legal-preemption delay (2 winners, owner-A clobbered).",
+        "recommendation": "Replace blind rmSync+retry with an atomic rename-steal: each acquirer renameSync(p -> unique aside name); only one succeeds per inode (others get ENOENT and re-loop and fail closed), the winner unlinks the aside file then retries openSync(p,'wx'). Keeps O_EXCL as the create-arbiter and makes reclaim single-winner."
+      },
+      {
+        "id": "W1",
+        "severity": "warning",
+        "category": "test-coverage",
+        "file": "tests/skills/test-aai-docs-lock.sh",
+        "lines": "137-176",
+        "title": "TEST-003 never exercises the expired-reclaim concurrency path",
+        "detail": "TEST-003 starts from an empty lock dir, so the rmSync self-heal branch is never entered; the validator stress likewise used free scopes. That is why E1 passed green.",
+        "recommendation": "Add a concurrency test that pre-seeds an expired lock, launches N acquires, asserts exactly one exit 0 and one lock file. Should be RED under the current code (with injected preemption) and GREEN after the E1 fix."
+      },
+      {
+        "id": "W2",
+        "severity": "warning",
+        "category": "correctness",
+        "file": ".aai/scripts/docs-lock.mjs",
+        "lines": "51-57",
+        "title": "safeScope is many-to-one; distinct scopes can collide to one lock file",
+        "detail": "a/b, a:b, a_b all -> a_b.lock, causing false contention or cross-scope wrong-owner. Low risk for disciplined ref-id scopes, unbounded for free-form scope strings. Path traversal itself is SAFE (separators sanitized; . / .. cannot escape LOCKS_DIR).",
+        "recommendation": "Append a short hash of the original scope to the filename, or detect collision (stored scope != requested) and fail 2."
+      },
+      { "id": "I1", "severity": "info", "file": ".aai/scripts/docs-lock.mjs", "lines": "182,215", "title": "list output order is readdirSync (non-deterministic); sort by scope" },
+      { "id": "I2", "severity": "info", "file": ".aai/scripts/docs-lock.mjs", "lines": "163-171", "title": "release existsSync->readLock TOCTOU can turn an idempotent no-op into a spurious exit 4" },
+      { "id": "I3", "severity": "info", "file": ".aai/scripts/docs-lock.mjs", "lines": "241,212", "title": "reap(opts) called but function reap() ignores it; tidy for consistency" },
+      { "id": "I4", "severity": "info", "file": ".aai/scripts/docs-lock.mjs", "lines": "92-93,113", "title": "missing/non-numeric --ttl silently falls back to DEFAULT_TTL; consider exit 2" },
+      { "id": "I5", "severity": "info", "file": ".aai/scripts/docs-lock.mjs", "lines": "143", "title": "unchecked single writeSync; writeFileSync(fd,...) or return-value check is more defensive" }
+    ]
+  },
+  "expired_reclaim_toctou": {
+    "safe": false,
+    "reason": "openSync('wx') arbitrates only the create; the rmSync self-heal reclaim is an unconditional unlink-by-path that is not serialized, allowing a fresh lock to be clobbered and a second acquirer to win. Demonstrated reachable via an injected legal scheduler preemption (two exit-0 winners)."
+  },
+  "verdict": "FAILED",
+  "code_review_status": "fail"
+}
