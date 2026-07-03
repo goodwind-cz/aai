@@ -148,5 +148,3 @@ Frontmatter status values: draft | implementing | done | deferred | rejected | s
   artifact/event exists.
 - Related local work: CHANGE-0001/0002 (docs-audit engine improvements), CHANGE-0003
   (verify mode), CHANGE-0004 (parent-closeout-candidate), all under RFC-0002.
-</content>
-</invoke>

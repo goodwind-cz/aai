@@ -130,14 +130,19 @@ export function readEvents(root) {
 }
 
 // SPEC-0011 G3 — read-only probe for a corroborating code-review artifact under
-// docs/ai/{reviews,reports}/ whose filename contains the doc id. Substring match
-// per the naming convention `docs/ai/{reviews,reports}/*<ID>*`.
+// docs/ai/{reviews,reports}/ whose filename contains the doc id, per the naming
+// convention `docs/ai/{reviews,reports}/*<ID>*`. Boundary-aware: the id must not be
+// immediately flanked by an ADDITIONAL digit, so a shorter id (e.g. SPEC-001) is not
+// falsely corroborated by an artifact named for a longer sibling (e.g. SPEC-0011) —
+// mirroring the `id + '/'` roll-up boundary discipline used elsewhere in the engine.
 function reviewArtifactExists(root, id) {
+  const esc = String(id).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(?<![0-9])${esc}(?![0-9])`);
   for (const sub of ['reviews', 'reports']) {
     const dir = path.join(root, 'docs/ai', sub);
     if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
     for (const name of fs.readdirSync(dir)) {
-      if (name.includes(id)) return true;
+      if (re.test(name)) return true;
     }
   }
   return false;
@@ -588,25 +593,12 @@ export function closeoutCandidatesFor(docs) {
 // Status gate table, any AC row is non-terminal, any done row lacks Evidence, or
 // any Review-By token is schema-invalid. Purely on-disk (no git/event probing),
 // so it is deterministic and testable. Reuses the shared parsers — no fork.
-export function gateDoc(root, docId) {
-  const config = loadConfig(root);
-  const files = scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] });
-  const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
-  const extraMethods = config?.review_by_methods ?? [];
-  let target = null;
-  for (const f of files) {
-    const content = fs.readFileSync(path.join(root, f.rel), 'utf8');
-    const fm = parseFrontmatter(content);
-    const ids = extractDocIds(path.basename(f.rel), categoryPrefixes) ?? { primary: f.fileId };
-    const id = fm?.id ?? ids.primary;
-    if (id === docId || ids.primary === docId || f.fileId === docId) {
-      target = { rel: f.rel, content, id };
-      break;
-    }
-  }
-  if (!target) return { found: false, ok: false, reasons: [`no scanned doc resolves to id "${docId}"`] };
-
-  const ac = parseAcTable(target.content);
+// Shared structural gate over already-read doc CONTENT (no filesystem/id
+// resolution). Reused by both gateDoc (resolve-by-id, worktree file) and gateFile
+// (an explicit file path — e.g. a materialized STAGED blob) so the two entry points
+// apply byte-identical gate logic to whatever content they were handed.
+function gateContent(content, extraMethods) {
+  const ac = parseAcTable(content);
   const reasons = [];
   if (!ac.hasGate || ac.rows.length === 0) {
     reasons.push('missing AC Status table');
@@ -626,7 +618,44 @@ export function gateDoc(root, docId) {
       }
     }
   }
-  return { found: true, ok: reasons.length === 0, reasons };
+  return { ok: reasons.length === 0, reasons };
+}
+
+export function gateDoc(root, docId) {
+  const config = loadConfig(root);
+  const files = scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] });
+  const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
+  const extraMethods = config?.review_by_methods ?? [];
+  let target = null;
+  for (const f of files) {
+    const content = fs.readFileSync(path.join(root, f.rel), 'utf8');
+    const fm = parseFrontmatter(content);
+    const ids = extractDocIds(path.basename(f.rel), categoryPrefixes) ?? { primary: f.fileId };
+    const id = fm?.id ?? ids.primary;
+    if (id === docId || ids.primary === docId || f.fileId === docId) {
+      target = { rel: f.rel, content, id };
+      break;
+    }
+  }
+  if (!target) return { found: false, ok: false, reasons: [`no scanned doc resolves to id "${docId}"`] };
+
+  const { ok, reasons } = gateContent(target.content, extraMethods);
+  return { found: true, ok, reasons };
+}
+
+// SPEC-0011 G5 — gate the content of an EXPLICIT file path (not resolved by id).
+// The G5 pre-commit hook materializes the STAGED blob (`git show :<path>`) into a
+// temp file and gates THAT, so a staged-but-unreconciled `status: done` cannot pass
+// merely because the worktree has unstaged Evidence. Config (review_by_methods) is
+// still loaded from `root` so a project's configured methods are honored.
+export function gateFile(root, filePath) {
+  const config = loadConfig(root);
+  const extraMethods = config?.review_by_methods ?? [];
+  const abs = path.isAbsolute(filePath) ? filePath : path.join(root, filePath);
+  if (!fs.existsSync(abs)) return { found: false, ok: false, reasons: [`file not found: "${filePath}"`] };
+  const content = fs.readFileSync(abs, 'utf8');
+  const { ok, reasons } = gateContent(content, extraMethods);
+  return { found: true, ok, reasons };
 }
 
 export function suggestedStep(doc) {

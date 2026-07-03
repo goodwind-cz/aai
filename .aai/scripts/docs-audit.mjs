@@ -20,7 +20,7 @@
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { runAudit, suggestedStep, gateDoc, CONFIG_PATH } from './lib/docs-audit-core.mjs';
+import { runAudit, suggestedStep, gateDoc, gateFile, CONFIG_PATH } from './lib/docs-audit-core.mjs';
 
 const ROOT = process.cwd();
 
@@ -36,6 +36,7 @@ function parseArgs(argv) {
     else if (tok === '--list') args.list = true;
     else if (tok === '--path') args.path = argv[++i];
     else if (tok === '--gate') args.gate = argv[++i];
+    else if (tok === '--gate-file') args.gateFile = argv[++i];
   }
   return args;
 }
@@ -44,8 +45,18 @@ function parseArgs(argv) {
 // reasons and exits 1 on fail, 0 on pass, 2 when the id resolves to no scanned
 // doc. Scope-limited to the one doc; never emits a docs_audit event.
 function runGate(docId) {
-  const res = gateDoc(ROOT, docId);
-  console.log(`## Close Gate — ${docId}`);
+  emitGate(`## Close Gate — ${docId}`, gateDoc(ROOT, docId));
+}
+
+// SPEC-0011 G5 — `--gate-file <file>` gates the content of an explicit file path
+// (e.g. a materialized STAGED blob) rather than resolving the doc by id from the
+// worktree. Same exit contract as `--gate` (1 fail / 0 pass / 2 unreadable).
+function runGateFile(filePath) {
+  emitGate(`## Close Gate — ${filePath}`, gateFile(ROOT, filePath));
+}
+
+function emitGate(header, res) {
+  console.log(header);
   console.log('');
   if (!res.found) {
     console.log(`GATE ERROR: ${res.reasons.join('; ')}`);
@@ -85,6 +96,7 @@ function emitEvent(result, scope) {
 function main() {
   const args = parseArgs(process.argv);
   if (args.gate) runGate(args.gate);   // exits 1/0/2; never returns
+  if (args.gateFile) runGateFile(args.gateFile);   // exits 1/0/2; never returns
   const result = runAudit(ROOT, {
     quick: args.quick, scopePath: args.path, strict: args.strict,
     strictTypes: Boolean(args.strictTypes),

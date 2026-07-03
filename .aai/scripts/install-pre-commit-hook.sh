@@ -107,12 +107,23 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
   for f in $STAGED_SPECS; do
     # only when the STAGED diff ADDS a 'status: done' line (not an already-done spec)
     if git diff --cached -U0 -- "$f" | grep -Eq '^\+status:[[:space:]]*done([[:space:]]|$)'; then
-      gid="$(sed -n 's/^id:[[:space:]]*//p' "$f" | head -1)"
+      # Gate the STAGED content, not the worktree: materialize the staged blob so a
+      # staged-but-unreconciled done cannot pass merely because the worktree carries
+      # unstaged Evidence (SPEC-0011 G5). Read the id from the staged blob too.
+      STAGED_TMP="$(mktemp)"
+      if ! git show ":$f" > "$STAGED_TMP" 2>/dev/null; then
+        rm -f "$STAGED_TMP"
+        continue
+      fi
+      gid="$(sed -n 's/^id:[[:space:]]*//p' "$STAGED_TMP" | head -1)"
       if [[ -z "$gid" ]]; then
         gid="$(basename "$f" .md | grep -oE '^[A-Z]+(-[A-Z]+)*-[0-9]+' || true)"
       fi
-      [[ -z "$gid" ]] && continue
-      if GATE_OUT="$(node .aai/scripts/docs-audit.mjs --gate "$gid" 2>&1)"; then
+      if [[ -z "$gid" ]]; then
+        rm -f "$STAGED_TMP"
+        continue
+      fi
+      if GATE_OUT="$(node .aai/scripts/docs-audit.mjs --gate-file "$STAGED_TMP" 2>&1)"; then
         :
       elif [[ "$CLOSE_GATE_MODE" == "enforce" ]]; then
         echo "AAI:INDEX-AUTOGEN close-gate: $gid fails the close gate (close_gate: enforce) — commit aborted." >&2
@@ -122,6 +133,7 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
         echo "AAI:INDEX-AUTOGEN close-gate WARNING: $gid fails the close gate (report-only; commit allowed)." >&2
         echo "$GATE_OUT" >&2
       fi
+      rm -f "$STAGED_TMP"
     fi
   done
   if [[ "$CLOSE_GATE_FAILED" == 1 ]]; then

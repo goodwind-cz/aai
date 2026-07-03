@@ -2182,7 +2182,7 @@ MD
   grep -F "SPEC-1170" "$d/t1.log" | grep -qF "missing-close-telemetry" \
     || log_fail "missing-close-telemetry must name SPEC-1170"
   # (b) sibling id must NOT satisfy the parent.
-  (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed --ref SPEC-11700 --validation pass > /dev/null)
+  (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed --ref SPEC-11700 --validation pass --code-review pass > /dev/null)
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs/SPEC-1170-done.md > t2.log 2>&1) || true
   grep -qF "missing-close-telemetry" "$d/t2.log" \
     || log_fail "a sibling-id (SPEC-11700) close event must NOT satisfy SPEC-1170"
@@ -2421,6 +2421,148 @@ MD
   log_pass "--gate honors config.review_by_methods (configured combo passes; unconfigured fails)"
 }
 
+test_spec0011_hook_gates_staged_not_worktree() {  # TEST-017 / Spec-AC-10 (F2 remediation)
+  log_info "Test: hook gates the STAGED blob, not the worktree — staged-unreconciled done aborts under enforce even when the worktree adds Evidence (TEST-017)..."
+  local d; d="$(setup_spec0011_hook_repo stagedgate)"
+  # Baseline: an 'implementing' spec whose AC table has a done row with EMPTY evidence.
+  cat > "$d/docs/specs/SPEC-1210-flip.md" <<'MD'
+---
+id: SPEC-1210
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Flip candidate 1210
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | —        | TDD       | —     |
+MD
+  (cd "$d" && git add docs/specs && git commit -qm "docs: baseline implementing spec" >/dev/null) \
+    || log_fail "baseline commit failed"
+
+  printf 'close_gate: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  # STAGE an unreconciled done-flip: status done but the done row's Evidence is still empty.
+  cat > "$d/docs/specs/SPEC-1210-flip.md" <<'MD'
+---
+id: SPEC-1210
+type: spec
+status: done
+links:
+  pr: []
+---
+# Flip candidate 1210
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | —        | TDD       | —     |
+MD
+  (cd "$d" && git add docs/specs/SPEC-1210-flip.md docs/ai/docs-audit.yaml)
+  # Now the WORKTREE reconciles the row (adds Evidence) but is LEFT UNSTAGED, so the
+  # worktree passes the gate while the STAGED content is still unreconciled. Pre-fix
+  # the hook gated the worktree and let this through; post-fix it gates the staged blob.
+  cat > "$d/docs/specs/SPEC-1210-flip.md" <<'MD'
+---
+id: SPEC-1210
+type: spec
+status: done
+links:
+  pr: []
+---
+# Flip candidate 1210
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+  local ec=0
+  (cd "$d" && git commit -qm "docs: flip SPEC-1210 to done (staged unreconciled)" > staged.out 2>&1) || ec=$?
+  [[ "$ec" != 0 ]] || log_fail "enforce must ABORT: the STAGED content is unreconciled even though the worktree has Evidence (got $ec): $(cat "$d/staged.out")"
+  grep -qF "SPEC-1210" "$d/staged.out" || log_fail "abort must name the failing spec SPEC-1210"
+  grep -qiF "evidence" "$d/staged.out" || log_fail "abort reason must name the empty-evidence row (staged content)"
+  # the failing spec must NOT have been committed
+  if (cd "$d" && git cat-file -e "HEAD:docs/specs/SPEC-1210-flip.md" 2>/dev/null) && \
+     (cd "$d" && git show HEAD:docs/specs/SPEC-1210-flip.md | grep -qF 'status: done'); then
+    log_fail "the aborted staged-unreconciled done-flip must not have been committed"
+  fi
+  rm -rf "$d"
+  log_pass "Hook gates the STAGED blob, not the worktree (staged-unreconciled done aborts under enforce)"
+}
+
+test_spec0011_work_item_closed_requires_fields() {  # TEST-018 / Spec-AC-07 (F3 remediation)
+  log_info "Test: work_item_closed requires BOTH --validation and --code-review (empty payload rejected) (TEST-018)..."
+  local d; d="$(setup_iso_repo s11-witclose-fields)"
+  local ec=0
+  # (a) neither field -> exit 2
+  (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed --ref SPEC-1220 > /dev/null 2>&1) || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "work_item_closed with no validation/code-review must exit 2 (got $ec)"
+  # (b) only --validation -> exit 2
+  ec=0
+  (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed --ref SPEC-1220 --validation pass > /dev/null 2>&1) || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "work_item_closed with only --validation must exit 2 (got $ec)"
+  # (c) only --code-review -> exit 2
+  ec=0
+  (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed --ref SPEC-1220 --code-review pass > /dev/null 2>&1) || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "work_item_closed with only --code-review must exit 2 (got $ec)"
+  # no event may have been appended by the rejected calls
+  if [[ -f "$d/docs/ai/EVENTS.jsonl" ]] && grep -qF 'work_item_closed' "$d/docs/ai/EVENTS.jsonl"; then
+    log_fail "a rejected work_item_closed must not append an event"
+  fi
+  # (d) both fields -> exit 0 and a well-formed event is appended
+  (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed --ref SPEC-1220 --validation pass --code-review pass > /dev/null) \
+    || log_fail "work_item_closed with both fields must exit 0"
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"event":"work_item_closed"' \
+    || log_fail "a valid work_item_closed must append a JSONL event"
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"validation":"pass"' \
+    || log_fail "the valid event payload must carry validation"
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"code_review":"pass"' \
+    || log_fail "the valid event payload must carry code_review"
+  rm -rf "$d"
+  log_pass "work_item_closed rejects an empty/partial payload (exit 2); a complete payload exits 0"
+}
+
+test_spec0011_review_artifact_boundary() {  # TEST-019 / Spec-AC-06 (F4 remediation)
+  log_info "Test: a review artifact named for SPEC-0011 must NOT corroborate a claim for SPEC-001 (substring boundary) (TEST-019)..."
+  local d; d="$(setup_iso_repo s11-artifact-boundary)"
+  mkdir -p "$d/docs/ai/reviews"
+  # Only a longer-sibling artifact exists; it must NOT clear the shorter id's claim.
+  : > "$d/docs/ai/reviews/review-SPEC-0011-foo.md"
+  cat > "$d/docs/specs/SPEC-001-claim.md" <<'MD'
+---
+id: SPEC-001
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec asserting code-review (shorter id)
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By   | Notes |
+|------------|-------------|--------|----------|-------------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | code-review | —     |
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs/SPEC-001-claim.md > before.log 2>&1) || true
+  grep -F "SPEC-001" "$d/before.log" | grep -qF "review-claim-unbacked" \
+    || log_fail "a SPEC-0011 artifact must NOT corroborate SPEC-001 (substring false-match): $(cat "$d/before.log")"
+  # Positive control: the exact-id artifact DOES corroborate and clears the verdict.
+  : > "$d/docs/ai/reviews/review-SPEC-001-bar.md"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs/SPEC-001-claim.md > after.log 2>&1) || true
+  if grep -qF "review-claim-unbacked" "$d/after.log"; then
+    log_fail "an exact-id (SPEC-001) artifact must clear review-claim-unbacked"
+  fi
+  rm -rf "$d"
+  log_pass "review artifact match is boundary-aware (SPEC-0011 does not corroborate SPEC-001; exact id does)"
+}
+
 test_spec0011_regression() {  # TEST-015 / Spec-AC-12
   log_info "Test: real-repo docs-audit CLEAN, no false near-miss, INDEX idempotent (TEST-015)..."
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/s11-audit.log" 2>&1) \
@@ -2516,6 +2658,9 @@ main() {
   test_spec0011_hook_parity_grep
   test_spec0011_read_only
   test_spec0011_gate_honors_config_review_by_methods
+  test_spec0011_hook_gates_staged_not_worktree
+  test_spec0011_work_item_closed_requires_fields
+  test_spec0011_review_artifact_boundary
   test_spec0011_regression
   test_index_continue_on_error
   echo ""

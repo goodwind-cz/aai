@@ -99,10 +99,11 @@ function main() {
       break;
     case 'work_item_closed':
       // SPEC-0011 G2 — telemetry-at-close. --ref <DOC-ID> (already required above).
-      // Payload: free-text validation + code_review status tokens.
-      entry.payload = {};
-      if (args.validation) entry.payload.validation = args.validation;
-      if (args.code_review) entry.payload.code_review = args.code_review;
+      // Payload: validation + code_review status tokens, BOTH required so an empty
+      // close event cannot satisfy the docs-audit missing-close-telemetry check while
+      // carrying no real closeout signal.
+      if (!args.validation || !args.code_review) fail('work_item_closed requires --validation and --code-review');
+      entry.payload = { validation: args.validation, code_review: args.code_review };
       if (args.notes) entry.payload.notes = args.notes;
       break;
     case 'code_review_completed':
