@@ -366,14 +366,19 @@ function renderCanonicalTest(domain, sources, sourceContents, stubs, archivePath
     lines.push(`  if bash "${archiveRel}" 2>/dev/null; then passed=$((passed + 1)); else failed=$((failed + 1)); fi`);
   }
 
-  lines.push('');
-  lines.push('  # Stubs — skipped when AAI_SKIP_STUBS is set (verify mode)');
-  lines.push('  if [ -z "${AAI_SKIP_STUBS:-}" ]; then');
-  for (const stub of stubs) {
-    lines.push(`    total=$((total + 1))`);
-    lines.push(`    if test_${stub.criterionTag} 2>/dev/null; then passed=$((passed + 1)); else failed=$((failed + 1)); fi`);
+  // Only emit the stub-runner wrapper when there are stubs. An
+  // `if ... then ... fi` with an empty body is a bash syntax error, which
+  // would break `bash -n` for any fully-covered domain (0 stubs).
+  if (stubs.length > 0) {
+    lines.push('');
+    lines.push('  # Stubs — skipped when AAI_SKIP_STUBS is set (verify mode)');
+    lines.push('  if [ -z "${AAI_SKIP_STUBS:-}" ]; then');
+    for (const stub of stubs) {
+      lines.push(`    total=$((total + 1))`);
+      lines.push(`    if test_${stub.criterionTag} 2>/dev/null; then passed=$((passed + 1)); else failed=$((failed + 1)); fi`);
+    }
+    lines.push('  fi');
   }
-  lines.push('  fi');
 
   lines.push('');
   lines.push('  echo "Canonical suite ${TEST_DOMAIN}: ${passed}/${total} passed, ${failed} failed"');
@@ -579,8 +584,12 @@ export function runPhase2(root, map, { resync = false } = {}) {
     }
 
     // --- Step 3: Move originals to archive with back-links ---
+    // The archive step is atomic per domain: if any git mv fails partway
+    // through, the sources already moved in this loop are rolled back to their
+    // original paths so the repo returns to its pre-Phase-2 state.
     d.archivedAt = d.archivedAt ?? {};
     const archiveErrors = [];
+    const movedSources = []; // { src, srcAbs, destRel, destAbs, originalContent }
     for (const src of sources) {
       const srcAbs = path.join(root, src);
       if (!fs.existsSync(srcAbs)) continue;
@@ -593,7 +602,7 @@ export function runPhase2(root, map, { resync = false } = {}) {
         content = fs.readFileSync(srcAbs, 'utf8');
       } catch (readErr) {
         archiveErrors.push(`Failed to read ${srcAbs}: ${readErr.message}`);
-        continue;
+        break;
       }
 
       fs.mkdirSync(path.dirname(destAbs), { recursive: true });
@@ -602,26 +611,43 @@ export function runPhase2(root, map, { resync = false } = {}) {
         execSync(`git mv "${srcAbs}" "${destAbs}"`, { stdio: ['ignore', 'pipe', 'pipe'] });
       } catch (mvErr) {
         archiveErrors.push(`git mv failed for ${srcAbs} -> ${destAbs}: ${mvErr.stderr?.toString().trim() || mvErr.message}`);
-        continue;
+        break;
       }
 
+      const originalContent = content;
       content = `# Canonical: ${canonTestRel}\n${content}`;
       fs.writeFileSync(destAbs, content);
       result.archived.push(destRel);
       d.archivedAt[src] = destRel;
+      movedSources.push({ src, srcAbs, destRel, destAbs, originalContent });
     }
 
     if (archiveErrors.length > 0) {
       for (const err of archiveErrors) {
         console.error(`[ERROR] Archive move failed: ${err}`);
       }
-      console.error('[ERROR] Aborting Phase 2 — archive moves incomplete, cleaning up written canonical files');
+      // Roll back the sources already archived for THIS domain so the archive
+      // step is atomic — move each back to its original path, restore the
+      // original content (dropping the prepended back-link), and undo the
+      // archived-source bookkeeping.
+      for (const moved of movedSources.reverse()) {
+        try {
+          execSync(`git mv -f "${moved.destAbs}" "${moved.srcAbs}"`, { stdio: ['ignore', 'pipe', 'pipe'] });
+        } catch (rbErr) {
+          console.error(`[ERROR] Rollback git mv failed for ${moved.destAbs} -> ${moved.srcAbs}: ${rbErr.stderr?.toString().trim() || rbErr.message}`);
+        }
+        if (fs.existsSync(moved.srcAbs)) fs.writeFileSync(moved.srcAbs, moved.originalContent);
+        const ai = result.archived.indexOf(moved.destRel);
+        if (ai >= 0) result.archived.splice(ai, 1);
+        delete d.archivedAt[moved.src];
+      }
+      console.error('[ERROR] Aborting Phase 2 — archive moves incomplete, rolled back partial archive and cleaning up written canonical files');
       if (fs.existsSync(canonTestAbs)) fs.rmSync(canonTestAbs);
       for (const stub of stubs) {
         const stubPath = path.join(canonDir, `${domain}.${stub.criterionTag}.stub.sh`);
         if (fs.existsSync(stubPath)) fs.rmSync(stubPath);
       }
-      throw new Error(`Archive move failed for domain "${domain}" — partial state cleaned up`);
+      throw new Error(`Archive move failed for domain "${domain}" — partial archive rolled back`);
     }
 
     // --- Step 4: Rewrite canonical test with archive paths (now exist) ---

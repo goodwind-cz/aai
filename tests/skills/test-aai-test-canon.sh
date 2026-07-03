@@ -7,6 +7,7 @@
 # and --drift/--resync modes.
 #
 # Test IDs: TEST-001 through TEST-012 per SPEC-0008 Test Plan.
+#           TEST-013/TEST-014 are RFC-0006 review-fix regressions (PR #29).
 #
 # Exit codes:
 #   0  - All tests passed
@@ -745,6 +746,85 @@ test_012() {
 }
 
 # ==============================================================================
+# TEST-013: Fully-covered domain (0 stubs) yields a syntactically valid canonical
+#           suite that runs the archived source and exits 0.
+#           Regression for Bug 1 (empty `if` when stubs is empty → bash syntax
+#           error → verifyRunner aborts Phase 2 for the fully-covered case).
+# ==============================================================================
+test_013() {
+  log_info "--- TEST-013: Fully-covered domain (0 stubs) produces valid canonical (Bug 1) ---"
+
+  setup_fixture "test-canon" 1 2 "with-canonical"
+
+  # Make the single source test cover EVERY acceptance criterion (by embedding
+  # the AC-<domain>-N tags that findCoveredCriteria matches) so stubs is empty.
+  cat > "tests/skills/test-canon-1.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+# Covers AC-test-canon-1
+# Covers AC-test-canon-2
+echo "PASS: test-canon-1"
+EOF
+  chmod +x "tests/skills/test-canon-1.sh"
+  git add -A && git commit --no-gpg-sign -q -m "cover all criteria (0 stubs)" 2>/dev/null || true
+
+  # Phase 2 must SUCCEED. Pre-fix: the empty-if wrapper is a bash syntax error,
+  # so verifyRunner's `bash -n` fails and Phase 2 aborts here (RED-proof).
+  run_script --phase2 || log_fail "Phase 2 failed for fully-covered domain (0 stubs)"
+
+  # Canonical exists and is syntactically valid bash.
+  assert_file "tests/canonical/test-canon.sh"
+  bash -n "tests/canonical/test-canon.sh" 2>/dev/null || log_fail "Canonical test has syntax error (empty-if bug)"
+
+  # No stub-runner wrapper should be emitted when there are no stubs.
+  assert_not_contains "tests/canonical/test-canon.sh" "if [ -z"
+
+  # Running the canonical (archived source passes, no stubs) must exit 0.
+  bash "tests/canonical/test-canon.sh" >/dev/null 2>&1 || log_fail "Canonical suite did not exit 0 for fully-covered domain"
+
+  # And it must actually reference/run the archived source.
+  assert_file "tests/_archive/skills/test-canon-1.sh"
+
+  log_pass "TEST-013 passed"
+}
+
+# ==============================================================================
+# TEST-014: Atomic archive rollback on multi-source git mv failure.
+#           Regression for Bug 2 (a later source's git mv throws but earlier
+#           sources are left archived — a half-applied state).
+# ==============================================================================
+test_014() {
+  log_info "--- TEST-014: Atomic archive rollback on multi-source git mv failure (Bug 2) ---"
+
+  setup_fixture "test-canon" 2 1 "with-canonical"
+
+  # Force the 2nd source's git mv to fail by pre-creating its archive destination
+  # (git mv refuses to overwrite an existing destination).
+  mkdir -p tests/_archive/skills
+  cat > "tests/_archive/skills/test-canon-2.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "pre-existing archive blocker"
+EOF
+  git add -A && git commit --no-gpg-sign -q -m "pre-create archive blocker for source 2" 2>/dev/null || true
+
+  # Phase 2 must ABORT (2nd git mv fails on the existing destination).
+  if run_script --phase2 2>/dev/null; then
+    log_fail "Phase 2 succeeded despite forced git mv failure on 2nd source"
+  fi
+  log_pass "Phase 2 aborted on forced git mv failure"
+
+  # The 1st source must be ROLLED BACK to its original location...
+  assert_file "tests/skills/test-canon-1.sh"
+  # ...and NOT left archived. Pre-fix leaves it in tests/_archive/ (RED-proof).
+  assert_not_file "tests/_archive/skills/test-canon-1.sh"
+
+  # No canonical file may remain from the aborted run.
+  assert_not_file "tests/canonical/test-canon.sh"
+
+  log_pass "TEST-014 passed"
+}
+
+# ==============================================================================
 # Main
 # ==============================================================================
 run_all() {
@@ -753,6 +833,7 @@ run_all() {
   local tests=(
     test_001 test_002 test_003 test_004 test_005 test_006
     test_007 test_008 test_009 test_010 test_011 test_012
+    test_013 test_014
   )
   local total=${#tests[@]}
   local passed=0
