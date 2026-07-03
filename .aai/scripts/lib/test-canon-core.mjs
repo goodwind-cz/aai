@@ -198,16 +198,13 @@ export function runPhase1(root) {
         if (tf) domainSourceContents.push({ rel, content: tf.content });
       }
     }
-    for (const crit of criteria) {
-      // Check if any domain source test mentions this specific criterion
-      const hasTest = domainSourceContents.some(sc =>
-        sc.content.includes(crit)
-      );
-      if (hasTest) {
-        covered.push(crit);
-      } else {
-        uncovered.push(crit);
-      }
+    // Use the SAME text-OR-tag predicate as Phase 2 (findCoveredCriteria) so the
+    // two phases agree: a source referencing the stable AC-<domain>-N tag (not the
+    // full criterion text) is reported COVERED, not a false uncovered gap.
+    const coveredIndexes = findCoveredCriteria(domainSourceContents, criteria, domain);
+    for (let i = 0; i < criteria.length; i++) {
+      if (coveredIndexes.has(i)) covered.push(criteria[i]);
+      else uncovered.push(criteria[i]);
     }
     coverage[domain] = { covered, uncovered, total: criteria.length };
   }
@@ -319,7 +316,9 @@ export function isApprovedMap(map) {
 // Build a canonical test file content from sources and stubs
 // Sources provide the actual test logic (run via bash on the archived copy);
 // stubs are RED (failing) placeholders for uncovered criteria.
-function renderCanonicalTest(domain, sources, sourceContents, stubs, archivePaths) {
+// dispatch: [{ rel, execRel, runner }] — each source paired with its own exec
+// path and native runner so paths/runners always align with the actual source.
+function renderCanonicalTest(domain, sources, dispatch, stubs) {
   const lines = [
     '#!/usr/bin/env bash',
     '#',
@@ -330,7 +329,7 @@ function renderCanonicalTest(domain, sources, sourceContents, stubs, archivePath
     ...sources.map(s => `#   ${s}`),
     '#',
     '# Archive:',
-    ...(archivePaths || []).map(a => `#   ${a}`),
+    ...dispatch.map(d => `#   ${d.execRel}`),
     '#',
     '# Stubs (uncovered criteria):',
     ...stubs.map(s => `#   ${s.tag}`),
@@ -359,11 +358,12 @@ function renderCanonicalTest(domain, sources, sourceContents, stubs, archivePath
   lines.push('  local total=0');
   lines.push('');
 
-  // Run each source test by executing the archived copy (preserves original logic)
-  for (let i = 0; i < sourceContents.length; i++) {
-    const archiveRel = archivePaths[i];
+  // Run each source test via its NATIVE runner on the (archived) copy. Each
+  // source is paired with its own exec path + runner so a .mjs/.py/.ps1 source
+  // is dispatched correctly and paths never misalign with source contents.
+  for (const d of dispatch) {
     lines.push(`  total=$((total + 1))`);
-    lines.push(`  if bash "${archiveRel}" 2>/dev/null; then passed=$((passed + 1)); else failed=$((failed + 1)); fi`);
+    lines.push(`  if ${d.runner} "${d.execRel}" 2>/dev/null; then passed=$((passed + 1)); else failed=$((failed + 1)); fi`);
   }
 
   // Only emit the stub-runner wrapper when there are stubs. An
@@ -421,10 +421,49 @@ function archiveDestRel(srcRel) {
   return srcRel;
 }
 
+// Choose the first runner available on PATH; fall back to the first candidate.
+function resolveRunner(candidates) {
+  for (const r of candidates) {
+    try {
+      execSync(`command -v ${r}`, { stdio: 'ignore' });
+      return r;
+    } catch { /* not installed — try next candidate */ }
+  }
+  return candidates[0];
+}
+
+// Pick the native runner for a source test by extension.
+function runnerForExt(rel) {
+  if (rel.endsWith('.ps1')) return resolveRunner(['pwsh', 'powershell']);
+  if (rel.endsWith('.py')) return resolveRunner(['python3', 'python']);
+  if (rel.endsWith('.mjs')) return 'node';
+  return 'bash';
+}
+
+// Comment prefix for a source's language (so the archive back-link stays a valid
+// comment when the archived copy is run by its native runner).
+function commentPrefixForExt(rel) {
+  if (rel.endsWith('.mjs') || rel.endsWith('.js')) return '//';
+  return '#'; // .sh, .py, .ps1
+}
+
+// Prepend a "Canonical: <path>" back-link to an archived source WITHOUT breaking
+// it: inserted AFTER a leading shebang (a shebang is only valid on line 1 — for
+// JS a `#!` on line 2 is a syntax error) using a language-appropriate comment.
+function withBacklink(content, canonTestRel, rel) {
+  const backlink = `${commentPrefixForExt(rel)} Canonical: ${canonTestRel}`;
+  if (content.startsWith('#!')) {
+    const nl = content.indexOf('\n');
+    if (nl === -1) return `${content}\n${backlink}\n`;
+    return content.slice(0, nl + 1) + backlink + '\n' + content.slice(nl + 1);
+  }
+  return `${backlink}\n${content}`;
+}
+
 // Verify that canonical tests are runnable via existing runners (syntax check + runtime)
-function verifyRunner(root, canonicalDir) {
+export function verifyRunner(root, canonicalDir) {
   const canonAbs = path.join(root, canonicalDir);
-  if (!fs.existsSync(canonAbs)) return { ok: false, error: 'canonical test directory not found' };
+  if (!fs.existsSync(canonAbs)) return { ok: false, errors: ['canonical test directory not found'] };
 
   const errors = [];
   for (const entry of fs.readdirSync(canonAbs, { withFileTypes: true })) {
@@ -543,20 +582,28 @@ export function runPhase2(root, map, { resync = false } = {}) {
       });
     }
 
-    // Compute archive destination paths (for back-links in canonical test)
-    const archivePaths = sources.map(src => path.join(ARCHIVE_TEST_DIR, archiveDestRel(src)));
+    // Pair each source with its OWN exec path + native runner so paths/runners
+    // always align with the actual source content (never indexed positionally,
+    // which misaligns when sourceContents is a subset of sources).
+    // Step 1 dispatch: verify against EXISTING paths (original, archived fallback).
+    const dispatchVerify = sourceContents.map(sc => {
+      const src = sc.rel;
+      let execRel = src; // original path if it still exists
+      if (!fs.existsSync(path.join(root, src)) && d.archivedAt?.[src]) {
+        const archivedAbs = path.join(root, d.archivedAt[src]);
+        if (fs.existsSync(archivedAbs)) execRel = d.archivedAt[src];
+      }
+      return { rel: src, execRel, runner: runnerForExt(src) };
+    });
+    // Step 4 dispatch: final canonical references the stable archived copies.
+    const dispatchFinal = sourceContents.map(sc => ({
+      rel: sc.rel,
+      execRel: path.join(ARCHIVE_TEST_DIR, archiveDestRel(sc.rel)),
+      runner: runnerForExt(sc.rel),
+    }));
 
     // --- Step 1: Write canonical test with EXISTING source paths for verification ---
-    // Use original paths if they still exist; fall back to archived copies otherwise.
-    const verifyPaths = sources.map(src => {
-      if (fs.existsSync(path.join(root, src))) return src;
-      if (d.archivedAt?.[src]) {
-        const archivedAbs = path.join(root, d.archivedAt[src]);
-        if (fs.existsSync(archivedAbs)) return d.archivedAt[src];
-      }
-      return src; // won't exist — verify will report failure
-    });
-    const testContentVerify = renderCanonicalTest(domain, sourceContents.map(s => s.rel), sourceContents, stubs, verifyPaths);
+    const testContentVerify = renderCanonicalTest(domain, sourceContents.map(s => s.rel), dispatchVerify, stubs);
     fs.writeFileSync(canonTestAbs, testContentVerify);
     fs.chmodSync(canonTestAbs, 0o755);
 
@@ -615,7 +662,7 @@ export function runPhase2(root, map, { resync = false } = {}) {
       }
 
       const originalContent = content;
-      content = `# Canonical: ${canonTestRel}\n${content}`;
+      content = withBacklink(content, canonTestRel, src);
       fs.writeFileSync(destAbs, content);
       result.archived.push(destRel);
       d.archivedAt[src] = destRel;
@@ -653,8 +700,43 @@ export function runPhase2(root, map, { resync = false } = {}) {
     // --- Step 4: Rewrite canonical test with archive paths (now exist) ---
     // This ensures the canonical suite references the stable archived copies,
     // not the (now-moved) original locations.
-    const testContentFinal = renderCanonicalTest(domain, sourceContents.map(s => s.rel), sourceContents, stubs, archivePaths);
+    const testContentFinal = renderCanonicalTest(domain, sourceContents.map(s => s.rel), dispatchFinal, stubs);
     fs.writeFileSync(canonTestAbs, testContentFinal);
+
+    // --- Step 4b: RE-VERIFY against the archive paths ---
+    // A source test that derives its location from BASH_SOURCE/$0 can pass at its
+    // ORIGINAL path but FAIL once executed from tests/_archive/ (different repo
+    // root / path depth). Step 2's green gate ran against the originals, so we
+    // MUST re-verify now that the canonical points at the archived copies. If it
+    // fails, roll the archive back and abort so a suite that only breaks once
+    // archived never silently ships.
+    const reverification = verifyRunner(root, CANONICAL_TEST_DIR);
+    if (!reverification.ok) {
+      for (const err of reverification.errors) {
+        console.error(`[ERROR] Post-archive runner verification failed: ${err}`);
+      }
+      // Roll the archive back: move each archived copy to its original path,
+      // restore original content (dropping the back-link), and undo bookkeeping —
+      // reusing the same movedSources rollback as the Step 3 archive-move failure.
+      for (const moved of movedSources.reverse()) {
+        try {
+          execSync(`git mv -f "${moved.destAbs}" "${moved.srcAbs}"`, { stdio: ['ignore', 'pipe', 'pipe'] });
+        } catch (rbErr) {
+          console.error(`[ERROR] Rollback git mv failed for ${moved.destAbs} -> ${moved.srcAbs}: ${rbErr.stderr?.toString().trim() || rbErr.message}`);
+        }
+        if (fs.existsSync(moved.srcAbs)) fs.writeFileSync(moved.srcAbs, moved.originalContent);
+        const ai = result.archived.indexOf(moved.destRel);
+        if (ai >= 0) result.archived.splice(ai, 1);
+        delete d.archivedAt[moved.src];
+      }
+      console.error('[ERROR] Aborting Phase 2 — canonical suite fails once archived; rolled back archive and cleaning up canonical files');
+      if (fs.existsSync(canonTestAbs)) fs.rmSync(canonTestAbs);
+      for (const stub of stubs) {
+        const stubPath = path.join(canonDir, `${domain}.${stub.criterionTag}.stub.sh`);
+        if (fs.existsSync(stubPath)) fs.rmSync(stubPath);
+      }
+      throw new Error(`Post-archive runner verification failed for domain "${domain}" — rolled back archive`);
+    }
 
     // Update result tracking — resynced domains should not also appear as drifted
     if (wasDrifted) {

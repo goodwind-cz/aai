@@ -8,6 +8,11 @@
 #
 # Test IDs: TEST-001 through TEST-012 per SPEC-0008 Test Plan.
 #           TEST-013/TEST-014 are RFC-0006 review-fix regressions (PR #29).
+#           TEST-015..019 are RFC-0006 round-2 review-fix regressions:
+#             015 FIX A (post-archive re-verify + rollback),
+#             016/017 FIX B (native runner dispatch + per-source alignment),
+#             018 FIX C (Phase 1 tag-aware coverage),
+#             019 FIX D (verifyRunner errors[] shape).
 #
 # Exit codes:
 #   0  - All tests passed
@@ -825,6 +830,195 @@ EOF
 }
 
 # ==============================================================================
+# TEST-015: Re-verify canonical AFTER rewrite to archive paths; roll back if it
+#           only breaks once archived (round-2 FIX A).
+#           A source that derives its location from BASH_SOURCE passes at
+#           tests/skills/ but FAILS from tests/_archive/skills/ (different path
+#           depth). Phase 2 must re-verify post-archive and, on failure, roll the
+#           archive back (original restored, nothing archived, no canonical).
+# ==============================================================================
+test_015() {
+  log_info "--- TEST-015: Post-archive re-verify + rollback (FIX A) ---"
+
+  setup_fixture "test-canon" 1 1 "with-canonical"
+
+  # Source asserts its own path depth via BASH_SOURCE. It passes when invoked as
+  # tests/skills/test-canon-1.sh (3 path segments) but FAILS as
+  # tests/_archive/skills/test-canon-1.sh (4 segments). It also embeds the AC tag
+  # so the criterion is covered (0 stubs) and the failure is purely path-derived.
+  cat > "tests/skills/test-canon-1.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+# Covers AC-test-canon-1
+self="${BASH_SOURCE[0]}"
+IFS='/' read -ra parts <<< "$self"
+if [[ ${#parts[@]} -ne 3 ]]; then
+  echo "FAIL: unexpected path depth (${#parts[@]}) for $self"
+  exit 1
+fi
+echo "PASS: path depth ok"
+EOF
+  chmod +x "tests/skills/test-canon-1.sh"
+  git add -A && git commit --no-gpg-sign -q -m "path-depth-sensitive source" 2>/dev/null || true
+
+  # Phase 2 must ABORT. Pre-fix (no post-archive re-verify): Step 2 passes against
+  # the original path, sources are archived, Step 4 rewrites to archive paths but
+  # never re-verifies → Phase 2 succeeds and ships a broken-once-archived suite.
+  if run_script --phase2 2>/dev/null; then
+    log_fail "Phase 2 succeeded but the suite only passes before archiving (no re-verify)"
+  fi
+  log_pass "Phase 2 aborted after post-archive re-verify failed"
+
+  # Rollback: original restored in tests/skills/, nothing left in the archive, no canonical.
+  assert_file "tests/skills/test-canon-1.sh"
+  assert_not_file "tests/_archive/skills/test-canon-1.sh"
+  assert_not_file "tests/canonical/test-canon.sh"
+
+  log_pass "TEST-015 passed"
+}
+
+# ==============================================================================
+# TEST-016: Non-.sh source dispatched with its NATIVE runner (round-2 FIX B).
+#           A .mjs source must be dispatched via `node`, not hardcoded `bash`.
+# ==============================================================================
+test_016() {
+  log_info "--- TEST-016: Native runner dispatch for .mjs source (FIX B) ---"
+
+  setup_fixture "bdomain" 1 1 "with-canonical"
+
+  # Replace the .sh source with a .mjs source and repoint the map at it.
+  rm -f "tests/skills/bdomain-1.sh"
+  cat > "tests/skills/bdomain-1.mjs" <<'EOF'
+#!/usr/bin/env node
+// Covers AC-bdomain-1
+process.exit(0);
+EOF
+  node -e "
+    const f='docs/ai/test-canon.map.json';
+    const j=JSON.parse(require('fs').readFileSync(f,'utf8'));
+    j.domains['bdomain'].sources=['tests/skills/bdomain-1.mjs'];
+    require('fs').writeFileSync(f, JSON.stringify(j,null,2)+'\n');
+  "
+  git add -A && git commit --no-gpg-sign -q -m "mjs source for bdomain" 2>/dev/null || true
+
+  # Pre-fix: Step 2 runs `bash bdomain-1.mjs` → JS is not bash → verify fails →
+  # Phase 2 aborts, so this run_script call itself fails (RED). Post-fix: `node`.
+  run_script --phase2 || log_fail "Phase 2 failed for a .mjs source (native runner not used?)"
+
+  assert_file "tests/canonical/bdomain.sh"
+  # The dispatch line must use the native runner on the source's OWN archive path.
+  assert_contains "tests/canonical/bdomain.sh" 'node "tests/_archive/skills/bdomain-1.mjs"'
+  assert_not_contains "tests/canonical/bdomain.sh" 'bash "tests/_archive/skills/bdomain-1.mjs"'
+
+  log_pass "TEST-016 passed"
+}
+
+# ==============================================================================
+# TEST-017: Per-source path+runner alignment (round-2 FIX B / Copilot).
+#           A 2-source domain (one .sh, one .mjs): the generated canonical must
+#           reference EACH source's OWN archive path paired with its OWN runner —
+#           not a hardcoded `bash` nor a positionally-misindexed archive path.
+# ==============================================================================
+test_017() {
+  log_info "--- TEST-017: Per-source path+runner alignment (FIX B) ---"
+
+  setup_fixture "cdomain" 2 1 "with-canonical"
+
+  # Source 1 stays .sh (covers the single criterion → 0 stubs); source 2 → .mjs.
+  cat > "tests/skills/cdomain-1.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+# Covers AC-cdomain-1
+echo "PASS: cdomain-1"
+EOF
+  chmod +x "tests/skills/cdomain-1.sh"
+  rm -f "tests/skills/cdomain-2.sh"
+  cat > "tests/skills/cdomain-2.mjs" <<'EOF'
+#!/usr/bin/env node
+process.exit(0);
+EOF
+  node -e "
+    const f='docs/ai/test-canon.map.json';
+    const j=JSON.parse(require('fs').readFileSync(f,'utf8'));
+    j.domains['cdomain'].sources=['tests/skills/cdomain-1.sh','tests/skills/cdomain-2.mjs'];
+    require('fs').writeFileSync(f, JSON.stringify(j,null,2)+'\n');
+  "
+  git add -A && git commit --no-gpg-sign -q -m "two mixed-runner sources for cdomain" 2>/dev/null || true
+
+  run_script --phase2 || log_fail "Phase 2 failed for a mixed .sh/.mjs 2-source domain"
+
+  assert_file "tests/canonical/cdomain.sh"
+  # Each source paired with its OWN archive path AND its OWN native runner.
+  assert_contains "tests/canonical/cdomain.sh" 'bash "tests/_archive/skills/cdomain-1.sh"'
+  assert_contains "tests/canonical/cdomain.sh" 'node "tests/_archive/skills/cdomain-2.mjs"'
+  # The .mjs must NOT be dispatched with bash (pre-fix hardcoded-bash bug).
+  assert_not_contains "tests/canonical/cdomain.sh" 'bash "tests/_archive/skills/cdomain-2.mjs"'
+
+  log_pass "TEST-017 passed"
+}
+
+# ==============================================================================
+# TEST-018: Phase 1 coverage uses the SAME text-OR-tag predicate as Phase 2
+#           (round-2 FIX C). A source that references only the stable
+#           AC-<domain>-N tag (not the full criterion text) must be reported
+#           COVERED by Phase 1, agreeing with Phase 2's findCoveredCriteria.
+# ==============================================================================
+test_018() {
+  log_info "--- TEST-018: Phase 1 tag-aware coverage (FIX C) ---"
+
+  setup_fixture "test-canon" 1 1 "with-canonical"
+
+  # Source references the criterion ONLY by its stable tag, never the full text.
+  cat > "tests/skills/test-canon-1.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+# domain: test-canon
+# Covers criterion by stable tag only: AC-test-canon-1
+echo "PASS"
+EOF
+  chmod +x "tests/skills/test-canon-1.sh"
+  git add -A && git commit --no-gpg-sign -q -m "tag-only coverage source" 2>/dev/null || true
+
+  run_script --phase1 || log_fail "Phase 1 failed"
+
+  # Pre-fix (text-only check): criterion reported uncovered (covered=0/uncovered=1).
+  # Post-fix (text-OR-tag): reported covered (covered=1/uncovered=0).
+  local covered uncovered
+  covered=$(node -e "const j=JSON.parse(require('fs').readFileSync('docs/ai/test-canon.proposal.json','utf8')); console.log((j.coverage['test-canon'].covered||[]).length)")
+  uncovered=$(node -e "const j=JSON.parse(require('fs').readFileSync('docs/ai/test-canon.proposal.json','utf8')); console.log((j.coverage['test-canon'].uncovered||[]).length)")
+  [[ "$covered" == "1" ]] || log_fail "Phase 1 reported covered=$covered (expected 1) — tag not recognized as coverage"
+  [[ "$uncovered" == "0" ]] || log_fail "Phase 1 reported uncovered=$uncovered (expected 0) — false gap on tag-covered criterion"
+
+  log_pass "TEST-018 passed"
+}
+
+# ==============================================================================
+# TEST-019: verifyRunner error-shape consistency (round-2 FIX D).
+#           The missing-directory branch must return { errors: [...] } (array),
+#           matching every caller's `for (const err of verification.errors)` —
+#           not a singular `error` that makes iteration throw a secondary
+#           TypeError hiding the real message.
+# ==============================================================================
+test_019() {
+  log_info "--- TEST-019: verifyRunner returns errors[] on missing dir (FIX D) ---"
+
+  setup_fixture "test-canon" 1 1 "with-canonical"
+
+  node_eval "
+import { verifyRunner } from './.aai/scripts/lib/test-canon-core.mjs';
+const r = verifyRunner(process.cwd(), 'tests/canonical-does-not-exist');
+if (r.ok !== false) { console.error('expected ok:false, got '+JSON.stringify(r)); process.exit(1); }
+if (!Array.isArray(r.errors)) { console.error('errors is not an array: '+JSON.stringify(r)); process.exit(1); }
+let seen = '';
+for (const e of r.errors) { seen += e; }  // pre-fix: throws TypeError (errors undefined)
+if (!seen.includes('not found')) { console.error('root-cause message missing: '+seen); process.exit(1); }
+console.log('OK');
+" || log_fail "verifyRunner missing-dir shape breaks the caller's errors iteration (FIX D)"
+
+  log_pass "TEST-019 passed"
+}
+
+# ==============================================================================
 # Main
 # ==============================================================================
 run_all() {
@@ -833,7 +1027,8 @@ run_all() {
   local tests=(
     test_001 test_002 test_003 test_004 test_005 test_006
     test_007 test_008 test_009 test_010 test_011 test_012
-    test_013 test_014
+    test_013 test_014 test_015 test_016 test_017 test_018
+    test_019
   )
   local total=${#tests[@]}
   local passed=0
