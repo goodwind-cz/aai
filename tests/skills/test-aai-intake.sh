@@ -115,10 +115,14 @@ generate_intake_artifact() {
   local ref_id="$2"
   local title="$3"
 
-  local intake_file="docs/intake/${type^^}-$(printf "%03d" "$ref_id").md"
+  # Portable uppercase (bash 3.2 lacks ${var^^}, the default bash on macOS)
+  local type_uc
+  type_uc=$(printf '%s' "$type" | tr '[:lower:]' '[:upper:]')
+
+  local intake_file="docs/intake/${type_uc}-$(printf "%03d" "$ref_id").md"
 
   cat > "$intake_file" <<EOF
-# ${type^^}-$(printf "%03d" "$ref_id"): $title
+# ${type_uc}-$(printf "%03d" "$ref_id"): $title
 
 **Type:** $type
 **Created:** $(date -u +%Y-%m-%dT%H:%M:%SZ)

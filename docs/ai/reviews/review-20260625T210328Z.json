@@ -1,0 +1,84 @@
+{
+  "ref_id": "CHANGE-0004",
+  "spec": "SPEC-0003",
+  "reviewed_at_utc": "2026-06-25T21:03:28Z",
+  "reviewer": "AAI Code Review skill (independent)",
+  "model_id": "claude-opus-4-8[1m]",
+  "branch": "feat/docs-audit-closeout-candidate",
+  "base_ref": "main",
+  "head_ref": "bed4b4691097545761514227a8fdf609e706a7b7",
+  "scope": [
+    ".aai/scripts/lib/docs-audit-core.mjs",
+    ".aai/scripts/docs-audit.mjs",
+    "tests/skills/test-aai-docs-audit.sh"
+  ],
+  "stage1_spec_compliance": {
+    "verdict": "compliant",
+    "acs": [
+      { "id": "Spec-AC-01", "verdict": "compliant", "test": "TEST-001", "test_status": "pass" },
+      { "id": "Spec-AC-02", "verdict": "compliant", "test": "TEST-002", "test_status": "pass", "positive_control": "RFC-0010" },
+      { "id": "Spec-AC-03", "verdict": "compliant", "test": "TEST-003", "test_status": "pass", "positive_control": "RFC-0010" },
+      { "id": "Spec-AC-04", "verdict": "compliant", "test": "TEST-004", "test_status": "pass" },
+      { "id": "Spec-AC-05", "verdict": "compliant", "test": "TEST-005", "test_status": "pass", "positive_control": "RFC-0010" },
+      { "id": "Spec-AC-06", "verdict": "compliant", "test": "TEST-006", "test_status": "pass" }
+    ]
+  },
+  "stage2_code_quality": {
+    "verdict": "pass",
+    "report_only_invariant": "confirmed_in_code",
+    "summary": { "error": 0, "warning": 1, "info": 4 },
+    "findings": [
+      {
+        "severity": "warning",
+        "id": "WARN-1",
+        "category": "best-practices",
+        "file": "tests/skills/test-aai-docs-audit.sh",
+        "message": "Reverse-link union path (links.rfc/links.requirement) never independently exercised; every fixture's reverse link duplicates a forward links.spec id, so deleting the reverse-resolution block would not fail any test.",
+        "recommendation": "Add a reverse-only fixture (proposed rfc parent without links.spec + done spec whose links.rfc names it) and assert it IS flagged."
+      },
+      {
+        "severity": "info",
+        "id": "INFO-1",
+        "category": "best-practices",
+        "file": ".aai/scripts/lib/docs-audit-core.mjs",
+        "line": 387,
+        "message": "Forward links.spec resolution does not assert resolved doc is type:spec (reverse path does). A misfiled links.spec to a non-spec done doc could flag the parent.",
+        "recommendation": "Optionally add docType(r) === 'spec' to the all-done check for symmetry."
+      },
+      {
+        "severity": "info",
+        "id": "INFO-2",
+        "category": "performance",
+        "file": ".aai/scripts/lib/docs-audit-core.mjs",
+        "line": 383,
+        "message": "Reverse resolution is O(parents x docs); negligible at repo scale.",
+        "recommendation": "Optional prebuilt reverse index."
+      },
+      {
+        "severity": "info",
+        "id": "INFO-3",
+        "category": "style",
+        "file": ".aai/scripts/docs-audit.mjs",
+        "line": 77,
+        "message": "counts.closeoutCandidates populated but not shown in the digest summary header; only the dedicated section shows it.",
+        "recommendation": "No action required."
+      },
+      {
+        "severity": "info",
+        "id": "INFO-4",
+        "category": "best-practices",
+        "file": ".aai/scripts/lib/docs-audit-core.mjs",
+        "line": 30,
+        "message": "type:requirement parents out of scope by design (scope = rfc/prd per CHANGE-0004).",
+        "recommendation": "Awareness only; matches spec."
+      }
+    ]
+  },
+  "test_evidence": {
+    "command": "bash tests/skills/test-aai-docs-audit.sh",
+    "closeout_tests": "TEST-001..006 all PASS",
+    "known_preexisting_fail": "test_index_continue_on_error (runs after closeout tests; unrelated)",
+    "wiring": "closeout tests called before test_index_continue_on_error in main(), so they execute under set -e"
+  },
+  "verdict": "pass"
+}
