@@ -1,11 +1,16 @@
 ---
 id: CHANGE-0005
 type: change
-status: draft
+status: done
 links:
   rfc: RFC-0002
-  pr: []
-  commits: []
+  spec: SPEC-0011
+  pr:
+    - 27
+  commits:
+    - bbaef61
+    - 34b32e5
+    - 221c398
 ---
 
 # Change Request: Prevent "git-closed but AAI-unreconciled" specs (docs-audit closeout guardrails)
