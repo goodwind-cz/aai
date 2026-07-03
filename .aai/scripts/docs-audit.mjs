@@ -20,7 +20,7 @@
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { runAudit, suggestedStep, CONFIG_PATH } from './lib/docs-audit-core.mjs';
+import { runAudit, suggestedStep, gateDoc, CONFIG_PATH } from './lib/docs-audit-core.mjs';
 
 const ROOT = process.cwd();
 
@@ -35,8 +35,29 @@ function parseArgs(argv) {
     else if (tok === '--strict-types') args.strictTypes = true;
     else if (tok === '--list') args.list = true;
     else if (tok === '--path') args.path = argv[++i];
+    else if (tok === '--gate') args.gate = argv[++i];
   }
   return args;
+}
+
+// SPEC-0011 G1 — `--gate <DOC-ID>` offline close-time predicate. Prints the
+// reasons and exits 1 on fail, 0 on pass, 2 when the id resolves to no scanned
+// doc. Scope-limited to the one doc; never emits a docs_audit event.
+function runGate(docId) {
+  const res = gateDoc(ROOT, docId);
+  console.log(`## Close Gate — ${docId}`);
+  console.log('');
+  if (!res.found) {
+    console.log(`GATE ERROR: ${res.reasons.join('; ')}`);
+    process.exit(2);
+  }
+  if (res.ok) {
+    console.log('GATE PASS: AC Status table complete (every row terminal, every done row evidenced, every Review-By valid).');
+    process.exit(0);
+  }
+  console.log('GATE FAIL — the AC Status table is not reconciled:');
+  for (const r of res.reasons) console.log(`- ${r}`);
+  process.exit(1);
 }
 
 function table(header, rows) {
@@ -63,6 +84,7 @@ function emitEvent(result, scope) {
 
 function main() {
   const args = parseArgs(process.argv);
+  if (args.gate) runGate(args.gate);   // exits 1/0/2; never returns
   const result = runAudit(ROOT, {
     quick: args.quick, scopePath: args.path, strict: args.strict,
     strictTypes: Boolean(args.strictTypes),
@@ -170,6 +192,43 @@ function main() {
         result.openDecisionDoneDocs.map(d => [d.id, d.marker, String(d.line), d.rel])));
       lines.push('');
       lines.push('Report-only: resolve each decision before close, or promote it to a tracked item (a per-AC blocked/deferred row with Review-By, or a follow-up tracked doc).');
+    }
+    lines.push('');
+    // SPEC-0011 G4 — near-miss AC tables (report-only; never feeds the exit-code
+    // path). A table that LOOKS like an AC Status table but is not the canonical
+    // shape, so the drift verdict may be inaccurate.
+    lines.push(`### Near-miss AC tables: ${result.nearMissWarnings.length}`);
+    lines.push('');
+    if (result.nearMissWarnings.length === 0) lines.push('_None._');
+    else {
+      const rows = [];
+      for (const d of result.nearMissWarnings) {
+        for (const w of d.warnings) rows.push([d.id, w.kind, w.detail, d.rel]);
+      }
+      lines.push(...table(['Doc', 'Kind', 'Detail', 'Path'], rows));
+    }
+    lines.push('');
+    // SPEC-0011 G3 — Review-By claims not backed by an event/artifact (report-only).
+    lines.push(`### Review-By claims (unbacked): ${result.reviewClaimUnbacked.length}`);
+    lines.push('');
+    if (result.reviewClaimUnbacked.length === 0) lines.push('_None._');
+    else {
+      lines.push(...table(['Doc', 'Spec-AC', 'Review-By', 'Verdict', 'Path'],
+        result.reviewClaimUnbacked.map(r => [r.id, r.specAc, r.reviewBy, r.verdict, r.rel])));
+      lines.push('');
+      lines.push('Report-only: a `Review-By: code-review` claim with no corroborating code_review_completed / work_item_closed(code_review: pass*) event and no docs/ai/{reviews,reports}/*<ID>* artifact.');
+    }
+    lines.push('');
+    // SPEC-0011 G2 — telemetry-at-close: done docs missing a work_item_closed
+    // event (report-only).
+    lines.push(`### Missing close telemetry: ${result.missingCloseTelemetry.length}`);
+    lines.push('');
+    if (result.missingCloseTelemetry.length === 0) lines.push('_None._');
+    else {
+      lines.push(...table(['Doc', 'Verdict', 'Path'],
+        result.missingCloseTelemetry.map(d => [d.id, 'missing-close-telemetry', d.rel])));
+      lines.push('');
+      lines.push('Report-only: emit `append-event.mjs --event work_item_closed --ref <ID> --validation <v> --code-review <cr>` on close.');
     }
     lines.push('');
     if (result.pendingCommit.length) {

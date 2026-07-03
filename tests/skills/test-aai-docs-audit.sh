@@ -228,7 +228,13 @@ test_drift_verdicts() {
     || log_fail "SPEC-202 must be probable-partial"
   grep -F "ISSUE-203" "$log" | grep -qF "probable-stale-open" \
     || log_fail "ISSUE-203 must be probable-stale-open"
-  assert_not_contains "$log" "SPEC-204"
+  # The aligned doc must stay out of the DRIFT report. (SPEC-0011 adds report-only
+  # sections — e.g. Missing close telemetry — that legitimately list every done
+  # doc including SPEC-204, so scope this assertion to the Drift report section.)
+  extract_section_h3 "$log" "### Drift report" > "$TEST_DIR/drift-sec.txt"
+  if grep -qF "SPEC-204" "$TEST_DIR/drift-sec.txt"; then
+    log_fail "aligned SPEC-204 must not appear in the Drift report"
+  fi
   log_pass "All drift verdicts correct; aligned doc stays out of the report"
 }
 
@@ -1829,6 +1835,616 @@ EOF
   log_pass "toPosix normalizes backslash inputs and is idempotent on forward-slash input"
 }
 
+# --- SPEC-0011 fixtures (CHANGE-0005): docs-audit closeout guardrails G1-G5 ------
+
+# Isolated hook repo: vendored scripts + installed pre-commit hook + gitignore for
+# the audit companion. Echoes the repo path on stdout.
+setup_spec0011_hook_repo() {
+  local d="$TEST_DIR/iso-s11hook-$1"
+  rm -rf "$d"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/specs" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  printf 'docs/INDEX.audit.md\n' > "$d/.gitignore"
+  (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test")
+  (cd "$d" && git add .aai .gitignore && git commit -qm "chore: vendor scripts")
+  (cd "$d" && bash .aai/scripts/install-pre-commit-hook.sh >/dev/null)
+  printf '%s' "$d"
+}
+
+test_spec0011_gate_missing_table() {  # TEST-001 / Spec-AC-01
+  log_info "Test: --gate exit 1 + 'missing AC Status table' for a done spec with no AC table (TEST-001)..."
+  local d; d="$(setup_iso_repo s11-gate-missing)"
+  cat > "$d/docs/specs/SPEC-1101-no-table.md" <<'MD'
+---
+id: SPEC-1101
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec with no AC Status table
+MD
+  local ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-1101 > gate.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "--gate must exit 1 for a done spec missing its AC table (got $ec): $(cat "$d/gate.log")"
+  assert_contains "$d/gate.log" "missing AC Status table"
+  rm -rf "$d"
+  log_pass "--gate exits 1 naming the missing AC Status table"
+}
+
+test_spec0011_gate_fail_conditions() {  # TEST-002 / Spec-AC-01
+  log_info "Test: --gate exit 1 for non-terminal row / done-empty-evidence / invalid Review-By, naming the AC (TEST-002)..."
+  local d; d="$(setup_iso_repo s11-gate-fail)"
+  # (a) non-terminal AC row
+  cat > "$d/docs/specs/SPEC-1111-nonterminal.md" <<'MD'
+---
+id: SPEC-1111
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec with a non-terminal AC row
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status       | Evidence | Review-By | Notes |
+|------------|-------------|--------------|----------|-----------|-------|
+| Spec-AC-01 | first       | done         | a1b2c3d  | TDD       | —     |
+| Spec-AC-02 | second      | implementing | —        | —         | —     |
+MD
+  # (b) done row with empty evidence
+  cat > "$d/docs/specs/SPEC-1112-emptyev.md" <<'MD'
+---
+id: SPEC-1112
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec with a done row lacking evidence
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | —        | TDD       | —     |
+MD
+  # (c) schema-invalid Review-By token
+  cat > "$d/docs/specs/SPEC-1113-badreview.md" <<'MD'
+---
+id: SPEC-1113
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec with a schema-invalid Review-By
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | driver    | —     |
+MD
+  local ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-1111 > g1.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "non-terminal row must fail the gate (got $ec)"
+  grep -qF "Spec-AC-02" "$d/g1.log" || log_fail "gate reason must name the non-terminal Spec-AC-02"
+  grep -qiF "non-terminal" "$d/g1.log" || log_fail "gate reason must say non-terminal"
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-1112 > g2.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "done row with empty evidence must fail the gate (got $ec)"
+  grep -qF "Spec-AC-01" "$d/g2.log" || log_fail "gate reason must name the empty-evidence Spec-AC-01"
+  grep -qiF "evidence" "$d/g2.log" || log_fail "gate reason must mention evidence"
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-1113 > g3.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "invalid Review-By must fail the gate (got $ec)"
+  grep -qF "Spec-AC-01" "$d/g3.log" || log_fail "gate reason must name the invalid-Review-By Spec-AC-01"
+  grep -qiF "review-by" "$d/g3.log" || log_fail "gate reason must mention Review-By"
+  rm -rf "$d"
+  log_pass "--gate exit 1 for each failing condition, naming the offending Spec-AC"
+}
+
+test_spec0011_gate_pass_and_unknown() {  # TEST-003 / Spec-AC-02
+  log_info "Test: --gate exit 0 for a reconciled done spec; exit 2 for an unknown id (TEST-003)..."
+  local d; d="$(setup_iso_repo s11-gate-pass)"
+  cat > "$d/docs/specs/SPEC-1120-reconciled.md" <<'MD'
+---
+id: SPEC-1120
+type: spec
+status: done
+links:
+  pr: []
+---
+# Fully reconciled done spec
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By  | Notes |
+|------------|-------------|--------|----------|------------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD        | —     |
+| Spec-AC-02 | second      | done   | b2c3d4e  | code-review:2026-05-01 | — |
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-1120 > gpass.log 2>&1) \
+    || log_fail "--gate must exit 0 for a fully-reconciled done spec: $(cat "$d/gpass.log")"
+  local ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-9999 > gunknown.log 2>&1) || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "--gate must exit 2 for an unresolved id (got $ec)"
+  # RED-proof mutation control: dropping one Evidence cell flips the exit to 1.
+  sed -i.bak 's/| b2c3d4e  |/| —        |/' "$d/docs/specs/SPEC-1120-reconciled.md"
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-1120 > gmut.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "dropping an Evidence cell must flip the gate to exit 1 (got $ec)"
+  rm -rf "$d"
+  log_pass "--gate exit 0 reconciled / exit 2 unknown / exit 1 after Evidence mutation"
+}
+
+test_spec0011_nearmiss_evidence_column() {  # TEST-004 / Spec-AC-03
+  log_info "Test: 'Evidence (TEST)' near-miss column emits a distinct WARNING in docs-audit (TEST-004)..."
+  local d; d="$(setup_iso_repo s11-nearmiss-ev)"
+  cat > "$d/docs/specs/SPEC-1130-evcol.md" <<'MD'
+---
+id: SPEC-1130
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec whose AC table cites evidence under an 'Evidence (TEST)' column
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence (TEST) | Review-By | Notes |
+|------------|-------------|--------|-----------------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d         | TDD       | —     |
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs/SPEC-1130-evcol.md > nm.log 2>&1) || true
+  extract_section_h3 "$d/nm.log" "### Near-miss AC tables" > "$d/nm-sec.txt" 2>/dev/null || true
+  grep -qF "SPEC-1130" "$d/nm-sec.txt" \
+    || log_fail "near-miss section must flag SPEC-1130 (Evidence (TEST) column): $(cat "$d/nm.log")"
+  grep -qiF "Evidence (TEST)" "$d/nm-sec.txt" \
+    || log_fail "near-miss warning must name the malformed 'Evidence (TEST)' column"
+  rm -rf "$d"
+  log_pass "Evidence (TEST) column raises a distinct near-miss warning (not a silent mis-report)"
+}
+
+test_spec0011_nearmiss_both_surfaces() {  # TEST-005 / Spec-AC-04
+  log_info "Test: non-canonical heading / Review-By-like column near-miss in BOTH docs-audit + INDEX.violations; canonical warns in neither (TEST-005)..."
+  local d; d="$(setup_iso_repo s11-nearmiss-both)"
+  # Near-miss: AC-looking table under a non-canonical heading, with a 'Review By' column.
+  cat > "$d/docs/specs/SPEC-1140-noncanon.md" <<'MD'
+---
+id: SPEC-1140
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec with an AC-looking table under a non-canonical heading
+
+## Acceptance Criteria
+
+| Spec-AC    | Description | Status | Evidence | Review By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+  # Negative control: the exact canonical shape must warn in neither surface.
+  cat > "$d/docs/specs/SPEC-1141-canonical.md" <<'MD'
+---
+id: SPEC-1141
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec with the exact canonical AC table
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+  # Surface 1: docs-audit.mjs
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs > nm.log 2>&1) || true
+  extract_section_h3 "$d/nm.log" "### Near-miss AC tables" > "$d/nm-sec.txt" 2>/dev/null || true
+  grep -qF "SPEC-1140" "$d/nm-sec.txt" \
+    || log_fail "docs-audit near-miss section must flag SPEC-1140: $(cat "$d/nm.log")"
+  if grep -qF "SPEC-1141" "$d/nm-sec.txt"; then
+    log_fail "canonical SPEC-1141 must NOT be flagged as a near-miss (negative control)"
+  fi
+  # Surface 2: generate-docs-index.mjs -> docs/INDEX.violations.md
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen.log 2>&1) \
+    || log_fail "generate-docs-index must exit 0 (degrade-and-report): $(cat "$d/gen.log")"
+  assert_file "$d/docs/INDEX.violations.md"
+  grep -qF "SPEC-1140" "$d/docs/INDEX.violations.md" \
+    || log_fail "INDEX.violations.md must carry the near-miss warning for SPEC-1140"
+  if grep -qF "SPEC-1141" "$d/docs/INDEX.violations.md"; then
+    log_fail "canonical SPEC-1141 must NOT appear in INDEX.violations.md near-miss (negative control)"
+  fi
+  rm -rf "$d"
+  log_pass "Near-miss surfaces in BOTH docs-audit and INDEX.violations; canonical shape in neither"
+}
+
+test_spec0011_review_claim_unbacked() {  # TEST-006 / Spec-AC-05
+  log_info "Test: Review-By code-review with no event/artifact -> verdict review-claim-unbacked (TEST-006)..."
+  local d; d="$(setup_iso_repo s11-g3-unbacked)"
+  cat > "$d/docs/specs/SPEC-1150-claim.md" <<'MD'
+---
+id: SPEC-1150
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec asserting code-review with no backing
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By   | Notes |
+|------------|-------------|--------|----------|-------------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | code-review | —     |
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs/SPEC-1150-claim.md > g3.log 2>&1) || true
+  grep -qF "review-claim-unbacked" "$d/g3.log" \
+    || log_fail "unbacked code-review claim must yield review-claim-unbacked: $(cat "$d/g3.log")"
+  grep -F "SPEC-1150" "$d/g3.log" | grep -qF "review-claim-unbacked" \
+    || log_fail "review-claim-unbacked verdict must name SPEC-1150"
+  rm -rf "$d"
+  log_pass "Unbacked code-review Review-By claim flagged review-claim-unbacked"
+}
+
+test_spec0011_review_claim_backed() {  # TEST-007 / Spec-AC-06
+  log_info "Test: a corroborating code_review_completed event clears review-claim-unbacked (positive control, TEST-007)..."
+  local d; d="$(setup_iso_repo s11-g3-backed)"
+  cat > "$d/docs/specs/SPEC-1150-claim.md" <<'MD'
+---
+id: SPEC-1150
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec asserting code-review
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By   | Notes |
+|------------|-------------|--------|----------|-------------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | code-review | —     |
+MD
+  # Before backing: flagged (proves the check is a real cross-check, not accept-all).
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs/SPEC-1150-claim.md > before.log 2>&1) || true
+  grep -qF "review-claim-unbacked" "$d/before.log" \
+    || log_fail "pre-backing run must flag review-claim-unbacked (cross-check must be genuine)"
+  # Produce a real corroborating event via append-event (crosses SEAM-2).
+  (cd "$d" && node .aai/scripts/append-event.mjs --event code_review_completed --ref SPEC-1150 --verdict pass > /dev/null) \
+    || log_fail "append-event code_review_completed must succeed"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs/SPEC-1150-claim.md > after.log 2>&1) || true
+  if grep -qF "review-claim-unbacked" "$d/after.log"; then
+    log_fail "a backed claim (code_review_completed event) must clear review-claim-unbacked"
+  fi
+  rm -rf "$d"
+  log_pass "Backed code-review claim clears review-claim-unbacked (real event producer -> real audit consumer)"
+}
+
+test_spec0011_event_types() {  # TEST-008 / Spec-AC-07
+  log_info "Test: append-event accepts work_item_closed + code_review_completed; bogus exits 2 (TEST-008)..."
+  local d; d="$(setup_iso_repo s11-events)"
+  (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed --ref SPEC-1160 --validation pass --code-review pass > /dev/null) \
+    || log_fail "append-event work_item_closed must exit 0"
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"event":"work_item_closed"' \
+    || log_fail "work_item_closed must be appended as a JSONL event"
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"code_review":"pass"' \
+    || log_fail "work_item_closed payload must carry code_review"
+  (cd "$d" && node .aai/scripts/append-event.mjs --event code_review_completed --ref SPEC-1160 --verdict pass > /dev/null) \
+    || log_fail "append-event code_review_completed must exit 0"
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"event":"code_review_completed"' \
+    || log_fail "code_review_completed must be appended as a JSONL event"
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"verdict":"pass"' \
+    || log_fail "code_review_completed payload must carry verdict"
+  local ec=0
+  (cd "$d" && node .aai/scripts/append-event.mjs --event bogus --ref SPEC-1160 > /dev/null 2>&1) || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "an unknown event type must exit 2 (got $ec)"
+  rm -rf "$d"
+  log_pass "work_item_closed + code_review_completed accepted; unknown event exits 2"
+}
+
+test_spec0011_missing_close_telemetry() {  # TEST-009 / Spec-AC-07
+  log_info "Test: done spec with no work_item_closed event -> missing-close-telemetry (report-only), clears when present; sibling id no cross-match (TEST-009)..."
+  local d; d="$(setup_iso_repo s11-close-telem)"
+  cat > "$d/docs/specs/SPEC-1170-done.md" <<'MD'
+---
+id: SPEC-1170
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec awaiting close telemetry
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+  # (a) report-only: --check --strict still exits 0 while the signal is present.
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event --path docs/specs/SPEC-1170-done.md > t1.log 2>&1) \
+    || log_fail "missing-close-telemetry must be report-only (--check --strict exit 0)"
+  grep -qF "missing-close-telemetry" "$d/t1.log" \
+    || log_fail "a done spec with no work_item_closed event must be reported missing-close-telemetry"
+  grep -F "SPEC-1170" "$d/t1.log" | grep -qF "missing-close-telemetry" \
+    || log_fail "missing-close-telemetry must name SPEC-1170"
+  # (b) sibling id must NOT satisfy the parent.
+  (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed --ref SPEC-11700 --validation pass > /dev/null)
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs/SPEC-1170-done.md > t2.log 2>&1) || true
+  grep -qF "missing-close-telemetry" "$d/t2.log" \
+    || log_fail "a sibling-id (SPEC-11700) close event must NOT satisfy SPEC-1170"
+  # (c) clears once the real event references the id.
+  (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed --ref SPEC-1170 --validation pass --code-review pass > /dev/null)
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs/SPEC-1170-done.md > t3.log 2>&1) || true
+  if grep -qF "missing-close-telemetry" "$d/t3.log"; then
+    log_fail "missing-close-telemetry must clear once a work_item_closed event references SPEC-1170"
+  fi
+  rm -rf "$d"
+  log_pass "missing-close-telemetry is report-only, sibling-bounded, and clears on the real event"
+}
+
+test_spec0011_closeout_prompts_wired() {  # TEST-010 / Spec-AC-08
+  log_info "Test: VALIDATION step 8b + METRICS_FLUSH + SKILL_WRAP_UP wire --gate + work_item_closed + enforce/report-only (TEST-010)..."
+  local val="$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
+  local flush="$PROJECT_ROOT/.aai/METRICS_FLUSH.prompt.md"
+  local wrap="$PROJECT_ROOT/.aai/SKILL_WRAP_UP.prompt.md"
+  assert_file "$val"; assert_file "$flush"; assert_file "$wrap"
+  # VALIDATION step 8b: runs the gate before the done-flip, emits work_item_closed,
+  # and branches on enforce vs report-only.
+  assert_contains "$val" "docs-audit.mjs --gate"
+  assert_contains "$val" "work_item_closed"
+  grep -qF "enforce" "$val" || log_fail "VALIDATION must reference the enforce branch"
+  grep -qF "report-only" "$val" || log_fail "VALIDATION must reference the report-only branch"
+  # METRICS_FLUSH: emits work_item_closed alongside doc_lifecycle.
+  assert_contains "$flush" "work_item_closed"
+  # SKILL_WRAP_UP: closeout step runs the gate.
+  assert_contains "$wrap" "docs-audit.mjs --gate"
+  log_pass "Closeout prompts wire --gate + work_item_closed + enforce/report-only branch"
+}
+
+test_spec0011_config_close_gate() {  # TEST-011 / Spec-AC-09
+  log_info "Test: loadConfig exposes close_gate default report-only; enforce/report-only parsed (TEST-011)..."
+  local d; d="$(setup_iso_repo s11-config)"
+  cat > "$d/cfg.mjs" <<'EOF'
+import { loadConfig } from './.aai/scripts/lib/docs-audit-core.mjs';
+import fs from 'node:fs';
+import assert from 'node:assert';
+const P = 'docs/ai/docs-audit.yaml';
+// (a) config present WITHOUT close_gate -> default report-only.
+fs.writeFileSync(P, 'legacy_until_date: 2026-06-01\nstale_after_days: 90\n');
+assert.strictEqual(loadConfig(process.cwd()).close_gate, 'report-only', 'default must be report-only');
+// (b) explicit enforce.
+fs.writeFileSync(P, 'legacy_until_date: 2026-06-01\nclose_gate: enforce\n');
+assert.strictEqual(loadConfig(process.cwd()).close_gate, 'enforce', 'enforce must be parsed');
+// (c) explicit report-only.
+fs.writeFileSync(P, 'close_gate: report-only\n');
+assert.strictEqual(loadConfig(process.cwd()).close_gate, 'report-only', 'report-only must be parsed');
+console.log('ok');
+EOF
+  (cd "$d" && node cfg.mjs) > "$d/cfg.log" 2>&1 \
+    || log_fail "loadConfig close_gate handling incorrect: $(cat "$d/cfg.log")"
+  rm -rf "$d"
+  log_pass "loadConfig exposes close_gate (default report-only; enforce/report-only parsed)"
+}
+
+test_spec0011_hook_close_gate() {  # TEST-012 / Spec-AC-10
+  log_info "Test: pre-commit hook aborts an unreconciled done-flip under enforce, warns under report-only, clean when reconciled (TEST-012)..."
+  local d; d="$(setup_spec0011_hook_repo gate)"
+  # Baseline: three specs committed as 'implementing' with an incomplete AC table.
+  for n in 1180 1181 1182; do
+    cat > "$d/docs/specs/SPEC-${n}-flip.md" <<MD
+---
+id: SPEC-${n}
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Flip candidate ${n}
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status       | Evidence | Review-By | Notes |
+|------------|-------------|--------------|----------|-----------|-------|
+| Spec-AC-01 | first       | implementing | —        | —         | —     |
+MD
+  done
+  (cd "$d" && git add docs/specs && git commit -qm "docs: baseline implementing specs" >/dev/null) \
+    || log_fail "baseline commit failed"
+
+  # (a) report-only default: an unreconciled done-flip WARNS but commits.
+  printf 'close_gate: report-only\n' > "$d/docs/ai/docs-audit.yaml"
+  sed -i.bak 's/^status: implementing/status: done/' "$d/docs/specs/SPEC-1180-flip.md" && rm -f "$d/docs/specs/SPEC-1180-flip.md.bak"
+  (cd "$d" && git add docs/specs/SPEC-1180-flip.md docs/ai/docs-audit.yaml)
+  local ec=0
+  (cd "$d" && git commit -qm "docs: flip SPEC-1180 to done (report-only)" > report.out 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "report-only default must let the unreconciled done-flip commit (got $ec): $(cat "$d/report.out")"
+  grep -qiF "close-gate" "$d/report.out" || log_fail "report-only path must print a close-gate warning"
+
+  # (b) enforce: an unreconciled done-flip ABORTS with reasons.
+  printf 'close_gate: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  sed -i.bak 's/^status: implementing/status: done/' "$d/docs/specs/SPEC-1181-flip.md" && rm -f "$d/docs/specs/SPEC-1181-flip.md.bak"
+  (cd "$d" && git add docs/specs/SPEC-1181-flip.md docs/ai/docs-audit.yaml)
+  ec=0
+  (cd "$d" && git commit -qm "docs: flip SPEC-1181 to done (enforce)" > enforce.out 2>&1) || ec=$?
+  [[ "$ec" != 0 ]] || log_fail "enforce must ABORT an unreconciled done-flip commit"
+  grep -qF "SPEC-1181" "$d/enforce.out" || log_fail "enforce abort must name the failing spec SPEC-1181"
+  # the failing spec must NOT have been committed
+  if (cd "$d" && git cat-file -e "HEAD:docs/specs/SPEC-1181-flip.md" 2>/dev/null) && \
+     (cd "$d" && git show HEAD:docs/specs/SPEC-1181-flip.md | grep -qF 'status: done'); then
+    log_fail "the aborted done-flip must not have been committed"
+  fi
+  # Unstage/revert the aborted flip so its staged 'status: done' does not pollute
+  # the next commit (a failed commit leaves the index staged). Working-tree
+  # docs-audit.yaml stays 'enforce' for sub-case (c).
+  (cd "$d" && git reset -q && git checkout -q -- docs/specs/SPEC-1181-flip.md)
+
+  # (c) reconciled done-flip under enforce commits clean.
+  cat > "$d/docs/specs/SPEC-1182-flip.md" <<'MD'
+---
+id: SPEC-1182
+type: spec
+status: done
+links:
+  pr: []
+---
+# Flip candidate 1182 (reconciled)
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+  (cd "$d" && git add docs/specs/SPEC-1182-flip.md)
+  ec=0
+  (cd "$d" && git commit -qm "docs: flip SPEC-1182 to done (reconciled, enforce)" > clean.out 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "a reconciled done-flip must commit clean under enforce (got $ec): $(cat "$d/clean.out")"
+  rm -rf "$d"
+  log_pass "Hook: enforce aborts unreconciled done-flip, report-only warns, reconciled commits clean"
+}
+
+test_spec0011_hook_parity_grep() {  # TEST-013 / Spec-AC-10
+  log_info "Test: install-pre-commit-hook.sh AND .ps1 both embed the close-gate block at parity (TEST-013)..."
+  local sh="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
+  local ps="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1"
+  assert_file "$sh"; assert_file "$ps"
+  for f in "$sh" "$ps"; do
+    grep -qF "AAI:INDEX-AUTOGEN" "$f" || log_fail "$f must keep the AAI:INDEX-AUTOGEN marker"
+    grep -qF "docs-audit.mjs --gate" "$f" || log_fail "$f must embed the --gate call"
+    grep -qF "close_gate" "$f" || log_fail "$f must read the close_gate config"
+    grep -qF "enforce" "$f" || log_fail "$f must branch on enforce"
+    grep -qF "report-only" "$f" || log_fail "$f must branch on report-only"
+  done
+  log_pass "Both installers embed the close-gate block at parity"
+}
+
+test_spec0011_read_only() {  # TEST-014 / Spec-AC-11
+  log_info "Test: --gate + G3/G4 audit mutate NO fixture doc (RFC-0002 read-only invariant) (TEST-014)..."
+  local d; d="$(setup_iso_repo s11-readonly)"
+  cat > "$d/docs/specs/SPEC-1190-nearmiss.md" <<'MD'
+---
+id: SPEC-1190
+type: spec
+status: done
+links:
+  pr: []
+---
+# Near-miss + code-review claim fixture
+
+## Acceptance Criteria
+
+| Spec-AC    | Description | Status | Evidence | Review By   | Notes |
+|------------|-------------|--------|----------|-------------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | code-review | —     |
+MD
+  cat > "$d/docs/specs/SPEC-1191-done.md" <<'MD'
+---
+id: SPEC-1191
+type: spec
+status: done
+links:
+  pr: []
+---
+# Reconciled done spec
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+  local before after
+  before="$(cd "$d" && find docs/specs -type f -name '*.md' | sort | xargs shasum | shasum)"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event --path docs/specs > ro-audit.log 2>&1) || true
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-1191 > ro-gate.log 2>&1) || true
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-1190 > ro-gate2.log 2>&1) || true
+  after="$(cd "$d" && find docs/specs -type f -name '*.md' | sort | xargs shasum | shasum)"
+  [[ "$before" == "$after" ]] || log_fail "the audit/gate paths must not modify any doc file"
+  rm -rf "$d"
+  log_pass "--gate and the G3/G4 audit are read-only over the fixture docs"
+}
+
+test_spec0011_gate_honors_config_review_by_methods() {  # TEST-016 / Spec-AC-01 (BP-001 remediation)
+  log_info "Test: --gate threads config.review_by_methods into parseReviewBy, so a configured combo token passes (TEST-016)..."
+  local d; d="$(setup_iso_repo s11-gate-cfgmethods)"
+  # A fully-reconciled done spec whose only Review-By token ('sast:<date>') is a
+  # combo that is INVALID under the built-in method whitelist and ONLY valid when
+  # the project configures review_by_methods. Pre-fix gateDoc dropped the
+  # extraMethods argument, so this token classified as invalid -> FALSE gate FAIL.
+  cat > "$d/docs/specs/SPEC-1200-cfgmethod.md" <<'MD'
+---
+id: SPEC-1200
+type: spec
+status: done
+links:
+  pr: []
+---
+# Done spec whose Review-By relies on a configured method
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By     | Notes |
+|------------|-------------|--------|----------|---------------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | sast:2026-05-01 | —   |
+MD
+  # (a) WITH the configured method: gate must ACCEPT (exit 0). This is the
+  #     assertion that FAILS against pre-fix code (extraMethods ignored -> exit 1)
+  #     and PASSES post-fix.
+  printf 'review_by_methods: [sast]\nclose_gate: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-1200 > gcfg.log 2>&1) \
+    || log_fail "--gate must exit 0 when config.review_by_methods makes the token valid (BP-001): $(cat "$d/gcfg.log")"
+  # (b) Control — WITHOUT the configured method the very same token is genuinely
+  #     schema-invalid, so the gate must FAIL (exit 1) naming the AC and Review-By.
+  #     Proves the token's validity is contingent on the configured method (i.e.
+  #     this is exactly the case BP-001 would have mis-gated).
+  printf 'close_gate: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  local ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-1200 > gnocfg.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "without review_by_methods the combo token must fail the gate (got $ec): $(cat "$d/gnocfg.log")"
+  grep -qF "Spec-AC-01" "$d/gnocfg.log" || log_fail "gate reason must name the offending Spec-AC-01"
+  grep -qiF "review-by" "$d/gnocfg.log" || log_fail "gate reason must mention Review-By"
+  rm -rf "$d"
+  log_pass "--gate honors config.review_by_methods (configured combo passes; unconfigured fails)"
+}
+
+test_spec0011_regression() {  # TEST-015 / Spec-AC-12
+  log_info "Test: real-repo docs-audit CLEAN, no false near-miss, INDEX idempotent (TEST-015)..."
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/s11-audit.log" 2>&1) \
+    || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/s11-audit.log")"
+  assert_contains "$TEST_DIR/s11-audit.log" "Verdict: CLEAN"
+  # No false near-miss on the real corpus (narrow-by-construction detector).
+  extract_section_h3 "$TEST_DIR/s11-audit.log" "### Near-miss AC tables" > "$TEST_DIR/s11-nm.txt" 2>/dev/null || true
+  grep -qF "_None._" "$TEST_DIR/s11-nm.txt" \
+    || log_fail "real-repo near-miss section must be empty (no canonical shape may trip it): $(cat "$TEST_DIR/s11-nm.txt")"
+  # INDEX idempotent (backup/restore the real committed index).
+  local idx_backup="$TEST_DIR/INDEX.s11.orig"
+  cp "$PROJECT_ROOT/docs/INDEX.md" "$idx_backup"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/s11-idx1.log" 2>&1) \
+    || { cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"; log_fail "real-repo index gen (run 1) failed: $(cat "$TEST_DIR/s11-idx1.log")"; }
+  grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/s11-idx1.snap"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/s11-idx2.log" 2>&1) \
+    || { cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"; log_fail "real-repo index gen (run 2) failed: $(cat "$TEST_DIR/s11-idx2.log")"; }
+  grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/s11-idx2.snap"
+  cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"
+  diff -q "$TEST_DIR/s11-idx1.snap" "$TEST_DIR/s11-idx2.snap" >/dev/null \
+    || log_fail "real-repo INDEX must be idempotent modulo the Generated line"
+  log_pass "Real-repo audit CLEAN, no false near-miss, INDEX idempotent"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -1885,6 +2501,22 @@ main() {
   test_spec0010_ac_row_level_not_whole_doc
   test_spec0010_ac_qualifier_normalized
   test_spec0010_ac_genuine_invalid_flagged_both
+  test_spec0011_gate_missing_table
+  test_spec0011_gate_fail_conditions
+  test_spec0011_gate_pass_and_unknown
+  test_spec0011_nearmiss_evidence_column
+  test_spec0011_nearmiss_both_surfaces
+  test_spec0011_review_claim_unbacked
+  test_spec0011_review_claim_backed
+  test_spec0011_event_types
+  test_spec0011_missing_close_telemetry
+  test_spec0011_closeout_prompts_wired
+  test_spec0011_config_close_gate
+  test_spec0011_hook_close_gate
+  test_spec0011_hook_parity_grep
+  test_spec0011_read_only
+  test_spec0011_gate_honors_config_review_by_methods
+  test_spec0011_regression
   test_index_continue_on_error
   echo ""
   log_pass "All $TEST_NAME tests passed"

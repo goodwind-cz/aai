@@ -60,8 +60,9 @@ PROCESS
       older than 30 days. Keep docs/ai/reports/LATEST.md always.
    d. Never delete: docs/ai/METRICS.jsonl, docs/ai/decisions.jsonl,
       docs/ai/STATE.yaml, docs/ai/published/.
-7. For each ref_id flushed, append a `doc_lifecycle` event to docs/ai/EVENTS.jsonl (RFC-0001) to record the terminal lifecycle transition:
+7. For each ref_id flushed, append a `doc_lifecycle` event to docs/ai/EVENTS.jsonl (RFC-0001) to record the terminal lifecycle transition, AND a `work_item_closed` telemetry-at-close event (SPEC-0011 G2) so a closed work item carries closeout telemetry:
      node .aai/scripts/append-event.mjs --event doc_lifecycle --ref <ref_id> --from implementing --to done
+     node .aai/scripts/append-event.mjs --event work_item_closed --ref <ref_id> --validation pass --code-review <pass|waived|none>
    EVENTS append is best-effort; do not abort the flush on append failure.
 8. Report: list of ref_ids flushed, files cleaned (with ages), or "Nothing to flush."
 

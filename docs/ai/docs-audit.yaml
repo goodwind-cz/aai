@@ -5,3 +5,9 @@ legacy_until_date: 2026-06-12
 stale_after_days: 90
 scan_exclude: []
 backlog_globs: []
+# SPEC-0011 G5 — close-time gate enforcement (opt-in). Consulted ONLY by the
+# CALLERS (the AAI:INDEX-AUTOGEN pre-commit hook and the closeout skills) to choose
+# block-vs-warn; `docs-audit.mjs --gate <ID>` itself always returns the raw
+# predicate exit code. Values: enforce | report-only. Default (key or file absent)
+# is report-only — a failing close gate warns but never blocks the commit.
+close_gate: report-only

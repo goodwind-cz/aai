@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Append a single audit event to docs/ai/EVENTS.jsonl (RFC-0001 layer 5).
 //
-// Event types (closed set): ac_status, ac_evidence, defer_extended, doc_lifecycle, docs_audit.
+// Event types (closed set): ac_status, ac_evidence, defer_extended, doc_lifecycle,
+//   docs_audit, work_item_closed, code_review_completed (SPEC-0011 G2).
 // Required: --event, --ref. Auto-filled: v=1, ts (ISO UTC), actor (git slug).
 //
 // Examples:
@@ -22,7 +23,7 @@ import { execSync } from 'node:child_process';
 
 const EVENTS_PATH = path.join(process.cwd(), 'docs/ai/EVENTS.jsonl');
 const SCHEMA_VERSION = 1;
-const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit']);
+const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed']);
 
 function parseArgs(argv) {
   const args = {};
@@ -94,6 +95,22 @@ function main() {
         stale: Number(args.stale ?? 0),
         mode: typeof args.mode === 'string' ? args.mode : 'full',
       };
+      if (args.notes) entry.payload.notes = args.notes;
+      break;
+    case 'work_item_closed':
+      // SPEC-0011 G2 — telemetry-at-close. --ref <DOC-ID> (already required above).
+      // Payload: free-text validation + code_review status tokens.
+      entry.payload = {};
+      if (args.validation) entry.payload.validation = args.validation;
+      if (args.code_review) entry.payload.code_review = args.code_review;
+      if (args.notes) entry.payload.notes = args.notes;
+      break;
+    case 'code_review_completed':
+      // SPEC-0011 G2 — code-review completion. --ref <DOC-ID> (required above),
+      // --verdict <pass|fail>, optional --report <path>.
+      if (!args.verdict) fail('code_review_completed requires --verdict');
+      entry.payload = { verdict: args.verdict };
+      if (args.report) entry.payload.report = args.report;
       if (args.notes) entry.payload.notes = args.notes;
       break;
   }
