@@ -62,6 +62,16 @@ PROCESS
      "Uncommitted changes detected. Commit before ending session? [y/n]"
    - Do NOT commit automatically. Only if user says yes, suggest a commit message.
 
+4b. CLOSEOUT GATE (SPEC-0011 G1, report-only)
+   For any spec whose frontmatter is `status: done` in the working tree, run the
+   offline close-time gate and surface the result (never blocks the session):
+     node .aai/scripts/docs-audit.mjs --gate <DOC-ID>
+   Exit 1 means the AC Status table is not reconciled (missing table, a non-terminal
+   row, a done row with empty Evidence, or a schema-invalid Review-By) — report the
+   printed reasons in the wrap-up so the closeout is not silently left unreconciled.
+   This is advisory only; the Validation gate (VALIDATION.prompt.md step 8b) owns the
+   enforce/report-only decision.
+
 5. PREPARE NEXT SESSION CONTEXT
    Update docs/ai/STATE.yaml with session metadata:
    ```yaml

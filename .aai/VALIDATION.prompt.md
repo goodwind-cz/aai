@@ -139,6 +139,20 @@ PROCESS
     close `done` with buried WARNING decisions; if any remain, the verdict is
     FAIL naming the doc. (`docs-audit` surfaces these in its "Open decisions on
     done docs" report.)
+    CLOSE GATE (SPEC-0011 G1/G2): before writing `status: done` into a spec's
+    frontmatter, run the offline close-time gate
+      node .aai/scripts/docs-audit.mjs --gate <DOC-ID>
+    (exit 1 = the AC Status table is not reconciled — missing table, a non-terminal
+    row, a done row with empty Evidence, or a schema-invalid Review-By; exit 2 =
+    unresolved id). Consult `close_gate` in docs/ai/docs-audit.yaml: when
+    `close_gate: enforce`, a non-zero gate REFUSES the done-flip and the verdict is
+    FAIL with the printed reasons; when the key/config is absent or
+    `close_gate: report-only`, a non-zero gate raises a blocking-class WARNING but
+    does not by itself force FAIL (the AC STATUS GATE above still governs). On a
+    successful close, in addition to the per-row `ac_status` events, record the
+    telemetry-at-close event:
+      node .aai/scripts/append-event.mjs --event work_item_closed --ref <DOC-ID> --validation pass --code-review <pass|waived|none>
+    (append is best-effort; do not abort the verdict on append failure).
 9) Update docs/ai/STATE.yaml:
    - last_validation.status
    - last_validation.run_at_utc

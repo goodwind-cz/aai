@@ -92,6 +92,54 @@ fi
 # Orphans + Drift sections; it is git-ignored and must NEVER be staged (staging it
 # would reintroduce the committed-index non-idempotence). Belt-and-suspenders un-stage.
 git rm --cached --quiet --ignore-unmatch docs/INDEX.audit.md
+
+# AAI:INDEX-AUTOGEN close-gate (SPEC-0011 G5): for each staged spec whose diff ADDS
+# a 'status: done' frontmatter line, run the offline close gate. Block the commit
+# only when docs/ai/docs-audit.yaml sets close_gate: enforce; otherwise warn and
+# continue (report-only default — absent config or close_gate: report-only never blocks).
+if [[ -f .aai/scripts/docs-audit.mjs ]]; then
+  CLOSE_GATE_MODE="report-only"
+  if [[ -f docs/ai/docs-audit.yaml ]] && grep -Eq '^[[:space:]]*close_gate:[[:space:]]*enforce([[:space:]]|$)' docs/ai/docs-audit.yaml; then
+    CLOSE_GATE_MODE="enforce"
+  fi
+  CLOSE_GATE_FAILED=0
+  STAGED_SPECS="$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/specs/.*\.md$' || true)"
+  for f in $STAGED_SPECS; do
+    # only when the STAGED diff ADDS a 'status: done' line (not an already-done spec)
+    if git diff --cached -U0 -- "$f" | grep -Eq '^\+status:[[:space:]]*done([[:space:]]|$)'; then
+      # Gate the STAGED content, not the worktree: materialize the staged blob so a
+      # staged-but-unreconciled done cannot pass merely because the worktree carries
+      # unstaged Evidence (SPEC-0011 G5). Read the id from the staged blob too.
+      STAGED_TMP="$(mktemp)"
+      if ! git show ":$f" > "$STAGED_TMP" 2>/dev/null; then
+        rm -f "$STAGED_TMP"
+        continue
+      fi
+      gid="$(sed -n 's/^id:[[:space:]]*//p' "$STAGED_TMP" | head -1)"
+      if [[ -z "$gid" ]]; then
+        gid="$(basename "$f" .md | grep -oE '^[A-Z]+(-[A-Z]+)*-[0-9]+' || true)"
+      fi
+      if [[ -z "$gid" ]]; then
+        rm -f "$STAGED_TMP"
+        continue
+      fi
+      if GATE_OUT="$(node .aai/scripts/docs-audit.mjs --gate-file "$STAGED_TMP" 2>&1)"; then
+        :
+      elif [[ "$CLOSE_GATE_MODE" == "enforce" ]]; then
+        echo "AAI:INDEX-AUTOGEN close-gate: $gid fails the close gate (close_gate: enforce) — commit aborted." >&2
+        echo "$GATE_OUT" >&2
+        CLOSE_GATE_FAILED=1
+      else
+        echo "AAI:INDEX-AUTOGEN close-gate WARNING: $gid fails the close gate (report-only; commit allowed)." >&2
+        echo "$GATE_OUT" >&2
+      fi
+      rm -f "$STAGED_TMP"
+    fi
+  done
+  if [[ "$CLOSE_GATE_FAILED" == 1 ]]; then
+    exit 1
+  fi
+fi
 echo "AAI:INDEX-AUTOGEN: regenerated and staged docs/INDEX.md"
 HOOK
 chmod +x "$HOOK_PATH"

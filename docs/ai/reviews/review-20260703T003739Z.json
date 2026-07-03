@@ -1,0 +1,46 @@
+{
+  "date_utc": "2026-07-03T00:37:39Z",
+  "reviewer": "AAI Code Review role (independent)",
+  "model_id": "claude-opus-4-8[1m]",
+  "ref_id": "CHANGE-0005/SPEC-0011",
+  "scope": "SPEC-0011 docs-audit closeout guardrails G1-G5; working-tree diff vs main on feat/change-0005-docs-audit-closeout-guardrails",
+  "base_ref": "main",
+  "head_ref": "5fb07d0d415cf4d1fb600fa5f5a3ceae6ebaad0d",
+  "verdict": "pass",
+  "summary": { "files_reviewed": 12, "additions": 989, "deletions": 16, "errors": 0, "warnings": 1, "info": 2 },
+  "stage1_spec_compliance": "all Spec-AC 01-12 COMPLIANT",
+  "invariants": {
+    "rfc0002_read_only": "holds",
+    "g2_g3_g4_report_only": "holds (absent from hardFail and needsTriage)",
+    "g1_gate_sound_offline_predicate": "holds"
+  },
+  "findings": [
+    {
+      "id": "BP-001",
+      "severity": "warning",
+      "category": "best-practices",
+      "file": ".aai/scripts/lib/docs-audit-core.mjs",
+      "line": 619,
+      "summary": "gateDoc calls parseReviewBy without extraMethods; diverges from runAudit under review_by_methods config (false gate FAIL on custom combo/actor-method tokens under close_gate: enforce). Inert in this repo (empty review_by_methods).",
+      "recommendation": "Pass config.review_by_methods into parseReviewBy inside gateDoc."
+    },
+    {
+      "id": "BP-002",
+      "severity": "info",
+      "category": "best-practices",
+      "file": ".aai/scripts/lib/docs-audit-core.mjs",
+      "line": 143,
+      "summary": "G3 artifact corroboration uses substring name.includes(id) with no id boundary; loose against variable-width ids (\\d{1,5}). Report-only; no live impact (repo ids uniformly 4-digit). Matches spec residual risk.",
+      "recommendation": "Optional: anchor the artifact match to an id boundary."
+    },
+    {
+      "id": "BP-003",
+      "severity": "info",
+      "category": "best-practices",
+      "file": "docs/ai/reviews/",
+      "line": 0,
+      "summary": "Real review files are timestamp-named (no doc id), so the G3 artifact-glob branch is effectively dead in this repo; G3 relies on events in practice. Consistent with spec residual risk.",
+      "recommendation": "None required; documented residual risk."
+    }
+  ]
+}

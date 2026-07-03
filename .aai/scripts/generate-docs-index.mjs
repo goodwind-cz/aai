@@ -22,7 +22,7 @@ import path from 'node:path';
 import {
   DOC_STATUS_ENUM, walk,
   parseFrontmatter, parseAcTable, parseReviewBy, extractReferences, toPosix,
-  normalizeAcStatus,
+  normalizeAcStatus, detectNearMissAcTable,
 } from './lib/docs-model.mjs';
 import { runAudit, suggestedStep, loadConfig, firstCommitDate } from './lib/docs-audit-core.mjs';
 
@@ -65,7 +65,7 @@ function ymd(d) {
 // Manage docs/INDEX.violations.md: write it when there are skipped violations,
 // remove it when the repo is clean. Refuses to touch a pre-existing file whose
 // first non-empty line is not our marker (don't clobber a user's file).
-function writeViolationsReport(skipped, acStatusViolations = []) {
+function writeViolationsReport(skipped, acStatusViolations = [], nearMissWarnings = []) {
   if (fs.existsSync(VIOLATIONS_PATH)) {
     const firstLine = fs.readFileSync(VIOLATIONS_PATH, 'utf8').split('\n').find(l => l.trim().length > 0) ?? '';
     if (firstLine.trim() !== VIOLATIONS_MARKER) {
@@ -73,7 +73,7 @@ function writeViolationsReport(skipped, acStatusViolations = []) {
       return;
     }
   }
-  if (skipped.length === 0 && acStatusViolations.length === 0) {
+  if (skipped.length === 0 && acStatusViolations.length === 0 && nearMissWarnings.length === 0) {
     if (fs.existsSync(VIOLATIONS_PATH)) fs.rmSync(VIOLATIONS_PATH);
     return;
   }
@@ -107,6 +107,21 @@ function writeViolationsReport(skipped, acStatusViolations = []) {
       'row below is flagged. Fix the status (or use `<canonical> (<qualifier>)`).',
       '',
       ...acStatusViolations.map(v => `- ${v.rel}: unknown AC status "${v.raw}" for ${v.specAc}`),
+      '',
+    );
+  }
+  // SPEC-0011 G4 — near-miss AC tables. The doc stays in the index; the malformed
+  // table is flagged here (mirroring docs-audit.mjs), so a table that only LOOKS
+  // like an AC Status table is not silently mis-classified.
+  if (nearMissWarnings.length > 0) {
+    out.push(
+      '## Near-miss AC tables (malformed — verdict may be inaccurate)',
+      '',
+      'These docs carry a table that LOOKS like an Acceptance Criteria Status table',
+      'but is not the canonical shape (`## Acceptance Criteria Status` with exact',
+      '`Review-By` / `Evidence` columns), so drift verdicts may be inaccurate.',
+      '',
+      ...nearMissWarnings.flatMap(n => n.warnings.map(w => `- ${n.rel}: ${w.detail}`)),
       '',
     );
   }
@@ -145,6 +160,9 @@ function main() {
   // stays placed), they are surfaced in INDEX.violations.md, and under --strict
   // they remain fatal.
   const acStatusViolations = [];
+  // SPEC-0011 G4 — near-miss AC tables, surfaced in INDEX.violations.md (mirroring
+  // docs-audit.mjs). Never splices the doc out of the index; report-only.
+  const nearMissWarnings = [];
 
   for (const dir of SCAN_DIRS) {
     for (const filePath of walk(path.join(ROOT, dir))) {
@@ -166,6 +184,8 @@ function main() {
         continue;
       }
       const acTable = parseAcTable(content);
+      const nearMiss = detectNearMissAcTable(content).warnings;
+      if (nearMiss.length) nearMissWarnings.push({ rel, warnings: nearMiss });
       for (const row of acTable.rows) {
         // SPEC-0010 Group C — normalize via the shared helper. A qualified
         // `<canonical> (<qualifier>)` normalizes to its base status (not a
@@ -504,15 +524,15 @@ function main() {
   // (degrade-and-report) index itself is clean. Written only when there are
   // violations; removed when the repo is clean so its mere existence is a signal.
   // Marker-guarded like the index.
-  writeViolationsReport(skipped, acStatusViolations);
+  writeViolationsReport(skipped, acStatusViolations, nearMissWarnings);
 
   // SPEC-0010 Group A — git-ignored companion carrying the relocated Orphans +
   // Drift sections (git-history-dependent; never in the committed index).
   writeAuditCompanion(auditLines.join('\n'));
 
   console.log(`Wrote ${path.relative(ROOT, OUT_PATH)} (${docs.length} docs, ${overdue.length} overdue, ${deferredItems.length} deferred, ${brokenRefs.length} broken refs)`);
-  if (skipped.length > 0 || acStatusViolations.length > 0) {
-    console.log(`Wrote ${path.relative(ROOT, VIOLATIONS_PATH)} (${skipped.length} whole-doc skipped, ${acStatusViolations.length} row-level AC-status violation(s))`);
+  if (skipped.length > 0 || acStatusViolations.length > 0 || nearMissWarnings.length > 0) {
+    console.log(`Wrote ${path.relative(ROOT, VIOLATIONS_PATH)} (${skipped.length} whole-doc skipped, ${acStatusViolations.length} row-level AC-status violation(s), ${nearMissWarnings.length} near-miss AC table(s))`);
   }
   if (warnings.length > 0) {
     console.warn(`${warnings.length} warning(s):`);

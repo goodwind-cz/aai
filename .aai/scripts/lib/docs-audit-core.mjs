@@ -9,7 +9,7 @@ import {
   DOC_STATUS_ENUM, TERMINAL_AC, DOC_TYPE_ENUM, DOC_ID_RE,
   DEFAULT_CATEGORY_PREFIXES, extractDocIds, normalizeAcStatus,
   parseFrontmatter, parseAcTable, parseISODate, parseReviewBy, specFrozenInBody,
-  validateCanonicalFrontmatter, asList, toPosix,
+  validateCanonicalFrontmatter, asList, toPosix, detectNearMissAcTable,
 } from './docs-model.mjs';
 
 export const CONFIG_PATH = 'docs/ai/docs-audit.yaml';
@@ -51,6 +51,11 @@ export function loadConfig(root) {
     backlog_globs: [],
     review_by_methods: [],
     category_prefixes: [...DEFAULT_CATEGORY_PREFIXES],
+    // SPEC-0011 G5/config — close-time gate enforcement mode. Only the CALLERS
+    // (the G5 pre-commit hook, the closeout skills) consult this to choose
+    // block-vs-warn; `--gate` itself always returns the raw predicate exit code.
+    // Default report-only keeps mid-migration downstream repos non-blocking.
+    close_gate: 'report-only',
   };
   const LIST_KEYS = new Set(['scan_exclude', 'backlog_globs', 'review_by_methods', 'category_prefixes']);
   let listKey = null;
@@ -79,6 +84,7 @@ export function loadConfig(root) {
     if (key === 'legacy_until_date') cfg.legacy_until_date = val || null;
     else if (key === 'stale_after_days') cfg.stale_after_days = Number(val) || DEFAULT_STALE_DAYS;
     else if (key === 'plan_scan_mode') cfg.plan_scan_mode = (val === 'strict') ? 'strict' : 'lenient';
+    else if (key === 'close_gate') cfg.close_gate = (val === 'enforce') ? 'enforce' : 'report-only';
   }
   return cfg;
 }
@@ -121,6 +127,42 @@ export function readEvents(root) {
     try { events.push(JSON.parse(line)); } catch { /* tolerate partial lines */ }
   }
   return events;
+}
+
+// SPEC-0011 G3 — read-only probe for a corroborating code-review artifact under
+// docs/ai/{reviews,reports}/ whose filename contains the doc id, per the naming
+// convention `docs/ai/{reviews,reports}/*<ID>*`. Boundary-aware: the id must not be
+// immediately flanked by an ADDITIONAL digit, so a shorter id (e.g. SPEC-001) is not
+// falsely corroborated by an artifact named for a longer sibling (e.g. SPEC-0011) —
+// mirroring the `id + '/'` roll-up boundary discipline used elsewhere in the engine.
+function reviewArtifactExists(root, id) {
+  const esc = String(id).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(?<![0-9])${esc}(?![0-9])`);
+  for (const sub of ['reviews', 'reports']) {
+    const dir = path.join(root, 'docs/ai', sub);
+    if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
+    for (const name of fs.readdirSync(dir)) {
+      if (re.test(name)) return true;
+    }
+  }
+  return false;
+}
+
+// SPEC-0011 G3 — is a `Review-By: code-review` claim on `id` corroborated by an
+// event (code_review_completed, or work_item_closed with code_review ~ /^pass/i)
+// whose ref equals or rolls up to the id, OR by a review/report artifact?
+function reviewClaimBacked(events, id, root) {
+  const refMatch = (ref) => String(ref) === id || String(ref).startsWith(id + '/');
+  const byEvent = events.some(e => {
+    if (!refMatch(e.ref)) return false;
+    if (e.event === 'code_review_completed') return true;
+    if (e.event === 'work_item_closed') {
+      const cr = e.payload?.code_review;
+      return typeof cr === 'string' && /^pass/i.test(cr);
+    }
+    return false;
+  });
+  return byEvent || reviewArtifactExists(root, id);
 }
 
 // --- scan -------------------------------------------------------------------
@@ -250,19 +292,27 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   const typeWarnings = [];
   const annotations = [];
   const openDecisionDoneDocs = [];   // SPEC-0006 Spec-AC-06 (report-only)
+  const nearMissWarnings = [];       // SPEC-0011 G4 (report-only)
+  const reviewClaimUnbacked = [];    // SPEC-0011 G3 (report-only)
+  const missingCloseTelemetry = [];  // SPEC-0011 G2 (report-only)
 
   for (const f of files) {
     const content = fs.readFileSync(path.join(root, f.rel), 'utf8');
     const fm = parseFrontmatter(content);
     const ac = parseAcTable(content);
+    // SPEC-0011 G4 — near-miss AC table detection (report-only; NEVER hardFail).
+    // Attached to the doc record and aggregated; consumed by docs-audit.mjs and
+    // (independently recomputed) by generate-docs-index.mjs.
+    const nearMiss = detectNearMissAcTable(content).warnings;
     // filename-derived primary/related/scope (CHANGE-0002 D14/D15)
     const ids = extractDocIds(path.basename(f.rel), categoryPrefixes) ?? { primary: f.fileId, related: [], scope: null };
     const id = fm?.id ?? ids.primary;
     const doc = {
       rel: f.rel, id, fileId: ids.primary, relatedIds: ids.related, scope: ids.scope,
-      fm, ac, cls: null, verdict: null, reasons: [], legacy: false,
+      fm, ac, cls: null, verdict: null, reasons: [], legacy: false, nearMiss,
     };
     docs.push(doc);
+    if (nearMiss.length) nearMissWarnings.push({ id, rel: f.rel, warnings: nearMiss });
 
     // legacy/new split (D4): first-commit date vs legacy_until_date; untracked => new
     if (!quick && legacyUntil) {
@@ -308,6 +358,34 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
       if (rb.kind === 'invalid') violations.push({ rel: f.rel, msg: `invalid Review-By "${rb.raw}" for ${row['Spec-AC']} (ISO date, skill label, label:date, or "<actor> <method>")` });
     }
     doc.status = status;
+
+    // SPEC-0011 G3 — Review-By truthfulness cross-check (report-only; NEVER
+    // hardFail). For any AC row whose Review-By label is `code-review`, require a
+    // corroborating review event OR a docs/ai/{reviews,reports}/*<id>* artifact;
+    // absent all corroboration → verdict `review-claim-unbacked`. Skipped in quick
+    // mode (no EVENTS read). Cross-checked regardless of the row's own status.
+    if (!quick) {
+      let backed = null;   // computed lazily, once per doc
+      for (const row of ac.rows) {
+        const rb = parseReviewBy(row['Review-By'], extraMethods);
+        if (rb.label && rb.label.toLowerCase() === 'code-review') {
+          if (backed === null) backed = reviewClaimBacked(events, id, root);
+          if (!backed) {
+            reviewClaimUnbacked.push({ id, rel: f.rel, specAc: row['Spec-AC'], reviewBy: row['Review-By'], verdict: 'review-claim-unbacked' });
+          }
+        }
+      }
+    }
+
+    // SPEC-0011 G2 — telemetry-at-close (report-only; NEVER hardFail). A
+    // `status: done` doc with NO `work_item_closed` event whose ref equals the id
+    // (or rolls up id/<suffix>, mirroring the ac_evidence roll-up) is surfaced as
+    // `missing-close-telemetry`. Skipped in quick mode (no EVENTS read).
+    if (status === 'done' && !quick) {
+      const hasClose = events.some(e => e.event === 'work_item_closed'
+        && (String(e.ref) === id || String(e.ref).startsWith(id + '/')));
+      if (!hasClose) missingCloseTelemetry.push({ id, rel: f.rel });
+    }
 
     // SPEC-0006 Spec-AC-06 — READ-ONLY: a done doc carrying a buried open-decision
     // marker (outside fenced code). Surfaced in its own digest section; NEVER
@@ -453,14 +531,21 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     typeWarnings: typeWarnings.length,
     closeoutCandidates: closeoutCandidates.length,
     openDecisionDone: openDecisionDoneDocs.length,
+    nearMiss: nearMissWarnings.length,
+    reviewClaimUnbacked: reviewClaimUnbacked.length,
+    missingCloseTelemetry: missingCloseTelemetry.length,
   };
-  // openDecisionDoneDocs is deliberately absent from hardFail (report-only).
+  // SPEC-0011 G2/G3/G4 signals (nearMissWarnings, reviewClaimUnbacked,
+  // missingCloseTelemetry) are deliberately ABSENT from hardFail AND from the
+  // NEEDS-TRIAGE tally — report-only, preserving the RFC-0002 report-not-block
+  // posture (the audit REPORTS; the operator DECIDES).
   const hardFail = mode === 'enforced' && (orphansNew.length > 0 || violations.length > 0);
 
   return {
     mode, config, docs, orphansNew, orphansLegacy, drift, violations,
     typeWarnings, annotations, pendingCommit, planLenient, closeoutCandidates,
-    openDecisionDoneDocs, counts, hardFail,
+    openDecisionDoneDocs, nearMissWarnings, reviewClaimUnbacked,
+    missingCloseTelemetry, counts, hardFail,
   };
 }
 
@@ -500,6 +585,77 @@ export function closeoutCandidatesFor(docs) {
     });
   }
   return out.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+// SPEC-0011 G1 — offline structural close-time gate for ONE doc. Resolves docId
+// against the scanned docs (frontmatter id or filename id) and returns
+// { found, ok, reasons }. FAILS (ok:false) when the doc has no canonical AC
+// Status gate table, any AC row is non-terminal, any done row lacks Evidence, or
+// any Review-By token is schema-invalid. Purely on-disk (no git/event probing),
+// so it is deterministic and testable. Reuses the shared parsers — no fork.
+// Shared structural gate over already-read doc CONTENT (no filesystem/id
+// resolution). Reused by both gateDoc (resolve-by-id, worktree file) and gateFile
+// (an explicit file path — e.g. a materialized STAGED blob) so the two entry points
+// apply byte-identical gate logic to whatever content they were handed.
+function gateContent(content, extraMethods) {
+  const ac = parseAcTable(content);
+  const reasons = [];
+  if (!ac.hasGate || ac.rows.length === 0) {
+    reasons.push('missing AC Status table');
+  } else {
+    for (const row of ac.rows) {
+      const specAc = row['Spec-AC'];
+      const base = normalizeAcStatus(row['Status'] ?? '').status;
+      if (!TERMINAL_AC.has(base)) {
+        reasons.push(`${specAc} is non-terminal (status "${row['Status'] ?? ''}")`);
+      }
+      if (base === 'done' && !rowHasEvidence(row)) {
+        reasons.push(`${specAc} is done but Evidence is empty`);
+      }
+      const rb = parseReviewBy(row['Review-By'], extraMethods);
+      if (rb.kind === 'invalid') {
+        reasons.push(`${specAc} has schema-invalid Review-By "${rb.raw}"`);
+      }
+    }
+  }
+  return { ok: reasons.length === 0, reasons };
+}
+
+export function gateDoc(root, docId) {
+  const config = loadConfig(root);
+  const files = scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] });
+  const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
+  const extraMethods = config?.review_by_methods ?? [];
+  let target = null;
+  for (const f of files) {
+    const content = fs.readFileSync(path.join(root, f.rel), 'utf8');
+    const fm = parseFrontmatter(content);
+    const ids = extractDocIds(path.basename(f.rel), categoryPrefixes) ?? { primary: f.fileId };
+    const id = fm?.id ?? ids.primary;
+    if (id === docId || ids.primary === docId || f.fileId === docId) {
+      target = { rel: f.rel, content, id };
+      break;
+    }
+  }
+  if (!target) return { found: false, ok: false, reasons: [`no scanned doc resolves to id "${docId}"`] };
+
+  const { ok, reasons } = gateContent(target.content, extraMethods);
+  return { found: true, ok, reasons };
+}
+
+// SPEC-0011 G5 — gate the content of an EXPLICIT file path (not resolved by id).
+// The G5 pre-commit hook materializes the STAGED blob (`git show :<path>`) into a
+// temp file and gates THAT, so a staged-but-unreconciled `status: done` cannot pass
+// merely because the worktree has unstaged Evidence. Config (review_by_methods) is
+// still loaded from `root` so a project's configured methods are honored.
+export function gateFile(root, filePath) {
+  const config = loadConfig(root);
+  const extraMethods = config?.review_by_methods ?? [];
+  const abs = path.isAbsolute(filePath) ? filePath : path.join(root, filePath);
+  if (!fs.existsSync(abs)) return { found: false, ok: false, reasons: [`file not found: "${filePath}"`] };
+  const content = fs.readFileSync(abs, 'utf8');
+  const { ok, reasons } = gateContent(content, extraMethods);
+  return { found: true, ok, reasons };
 }
 
 export function suggestedStep(doc) {

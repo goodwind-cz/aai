@@ -240,7 +240,12 @@ export function parseAcTable(content) {
   // yields identical cells for LF / CRLF / lone-CR (and no value carries \r).
   content = normalizeNewlines(content);
   // Find "## Acceptance Criteria Status" section, then the first markdown table.
-  const sectionRe = /##\s+Acceptance Criteria Status\b[^\n]*\n([\s\S]+?)(?=\n##\s|\n*$)/i;
+  // Anchor the heading to line-start (string start or after a newline) so a prose
+  // mention of `## Acceptance Criteria Status` in backticks — common in meta-docs
+  // that document the AC-table format — does not shadow the real heading. The `$`
+  // semantics are unchanged (no `m` flag), so the non-greedy capture still runs to
+  // the next line-start `## ` heading or end of string.
+  const sectionRe = /(?:^|\n)##\s+Acceptance Criteria Status\b[^\n]*\n([\s\S]+?)(?=\n##\s|\n*$)/i;
   const m = content.match(sectionRe);
   if (!m) return { hasGate: false, rows: [] };
   const section = m[1];
@@ -261,6 +266,61 @@ export function parseAcTable(content) {
     rows.push(row);
   }
   return { hasGate: true, rows };
+}
+
+// SPEC-0011 G4 — near-miss AC-table detection. Returns { warnings: [{kind, detail}] }.
+// Fires when a doc carries a table that LOOKS like an Acceptance Criteria Status
+// table (a markdown table whose header has a `Spec-AC` column AND a Review-By-like
+// or Evidence-like column) but is NOT the exact canonical shape parseAcTable
+// recognizes — so the drift engine would silently mis-report or skip it. Narrow by
+// construction: the canonical `## Acceptance Criteria Status` heading with exact
+// `Review-By` + `Evidence` columns trips nothing. Tables that merely share the
+// `Spec-AC` key (Test Plan, Acceptance Criteria Mapping) are NOT AC-status-like
+// (they carry neither a Review-By nor an Evidence column) and never warn.
+export function detectNearMissAcTable(content) {
+  content = normalizeNewlines(content);
+  const lines = content.split('\n');
+  const warnings = [];
+  let heading = null;            // most-recent heading line (trimmed)
+  let headingCanonical = false;  // exactly the canonical `## Acceptance Criteria Status`
+  let headingAcLike = false;     // matches /acceptance criteria/i (any level)
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (/^#{1,6}\s+/.test(line)) {
+      heading = line.trim();
+      headingCanonical = /^##\s+Acceptance Criteria Status\b/.test(line);
+      headingAcLike = /acceptance criteria/i.test(line);
+      continue;
+    }
+    // A markdown table header row: a `|` line immediately followed by a separator.
+    if (!line.trim().startsWith('|')) continue;
+    const next = lines[i + 1] ?? '';
+    if (!/^\s*\|\s*[-:|\s]+\|/.test(next)) continue;
+    const cells = line.split('|').map(c => c.trim()).filter(Boolean);
+    if (!cells.includes('Spec-AC')) continue;
+    const hasReviewByCol = cells.some(c => /^review[\s_-]?by\b/i.test(c));
+    const hasEvidenceCol = cells.some(c => /^evidence\b/i.test(c));
+    if (!hasReviewByCol && !hasEvidenceCol) continue;   // Test Plan / Mapping tables: not AC-status-like
+    const reviewByMalformed = cells.find(c => /^review[\s_-]?by\b/i.test(c) && c !== 'Review-By');
+    const evidenceMalformed = cells.find(c => /^evidence\b.+/i.test(c));   // trailing text, e.g. "Evidence (TEST)"
+    // Narrow triggers (each independent, per Spec-AC-04 wording):
+    //  1. a heading that MATCHES /acceptance criteria/i but is NOT the canonical
+    //     `## Acceptance Criteria Status` — an AC section that parseAcTable will miss.
+    //     (A well-formed EXAMPLE table under an ordinary prose heading — e.g. an RFC
+    //     documenting the AC-table format — does NOT match and never trips.)
+    //  2. a malformed Evidence column (`Evidence (TEST)`), even under the canonical heading.
+    //  3. a malformed Review-By-like column (`Review By`, `ReviewBy`, ...).
+    if (headingAcLike && !headingCanonical) {
+      warnings.push({ kind: 'heading', detail: `malformed AC table — AC-like table under non-canonical heading ${heading ? `"${heading}"` : '(none)'}, expected "## Acceptance Criteria Status"; treated as missing, verdict may be inaccurate` });
+    }
+    if (evidenceMalformed) {
+      warnings.push({ kind: 'evidence-column', detail: `malformed AC table — Evidence column is "${evidenceMalformed}", not "Evidence"; evidence reads as empty, verdict may be inaccurate` });
+    }
+    if (reviewByMalformed) {
+      warnings.push({ kind: 'review-by-column', detail: `malformed AC table — Review-By column is "${reviewByMalformed}", not "Review-By"; gate table not recognized, verdict may be inaccurate` });
+    }
+  }
+  return { warnings };
 }
 
 export function parseISODate(s) {
