@@ -99,13 +99,26 @@ git rm --cached --quiet --ignore-unmatch docs/INDEX.audit.md
 # only when docs/ai/docs-audit.yaml sets close_gate: enforce; otherwise warn and
 # continue (report-only default — absent config or close_gate: report-only never blocks).
 if [[ -f .aai/scripts/docs-audit.mjs ]]; then
+  # SPEC-0013 W1 (SPEC-0011-F2 class): the gate MODE must come from the config
+  # that is actually being committed — the STAGED blob when docs-audit.yaml is
+  # staged, else HEAD — never the worktree copy, whose UNSTAGED edit could
+  # silently downgrade enforce -> warn. The worktree copy is the last resort
+  # only when the config exists in neither the index nor HEAD (fresh repo).
+  GATE_CFG="$(git show :docs/ai/docs-audit.yaml 2>/dev/null \
+    || git show HEAD:docs/ai/docs-audit.yaml 2>/dev/null \
+    || cat docs/ai/docs-audit.yaml 2>/dev/null \
+    || true)"
   CLOSE_GATE_MODE="report-only"
-  if [[ -f docs/ai/docs-audit.yaml ]] && grep -Eq '^[[:space:]]*close_gate:[[:space:]]*enforce([[:space:]]|$)' docs/ai/docs-audit.yaml; then
+  if printf '%s\n' "$GATE_CFG" | grep -Eq '^[[:space:]]*close_gate:[[:space:]]*enforce([[:space:]]|$)'; then
     CLOSE_GATE_MODE="enforce"
   fi
   CLOSE_GATE_FAILED=0
   STAGED_SPECS="$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/specs/.*\.md$' || true)"
-  for f in $STAGED_SPECS; do
+  # SPEC-0013 W2: newline-safe iteration — an unquoted `for` word-splits paths
+  # with spaces into nonexistent fragments whose failed `git show` silently
+  # SKIPS the gate (the worst failure shape for a gate).
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
     # only when the STAGED diff ADDS a 'status: done' line (not an already-done spec)
     if git diff --cached -U0 -- "$f" | grep -Eq '^\+status:[[:space:]]*done([[:space:]]|$)'; then
       # Gate the STAGED content, not the worktree: materialize the staged blob so a
@@ -136,8 +149,56 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
       fi
       rm -f "$STAGED_TMP"
     fi
-  done
+  done <<< "$STAGED_SPECS"
   if [[ "$CLOSE_GATE_FAILED" == 1 ]]; then
+    exit 1
+  fi
+fi
+
+# AAI:INDEX-AUTOGEN body-lint (SPEC-0013 H1): for each STAGED governed docs/**/*.md
+# file, materialize the STAGED blob (git show ":$f" — LEARNED 2026-07-03: gate what
+# is being committed, never the worktree copy) and body-lint it via
+# docs-audit.mjs --lint-body-file. Block the commit only when docs/ai/docs-audit.yaml
+# sets body_lint: enforce; otherwise warn and continue (report-only default,
+# mirroring close_gate). Non-governed dirs (ai, knowledge, archive, _archive,
+# project-sessions, templates, plans) and generated INDEX files are skipped.
+if [[ -f .aai/scripts/docs-audit.mjs ]]; then
+  # SPEC-0013 W1: same staged/HEAD-first config read as the close-gate block —
+  # an unstaged worktree edit must not downgrade enforce -> warn.
+  GATE_CFG="$(git show :docs/ai/docs-audit.yaml 2>/dev/null \
+    || git show HEAD:docs/ai/docs-audit.yaml 2>/dev/null \
+    || cat docs/ai/docs-audit.yaml 2>/dev/null \
+    || true)"
+  BODY_LINT_MODE="report-only"
+  if printf '%s\n' "$GATE_CFG" | grep -Eq '^[[:space:]]*body_lint:[[:space:]]*enforce([[:space:]]|$)'; then
+    BODY_LINT_MODE="enforce"
+  fi
+  BODY_LINT_FAILED=0
+  STAGED_GOVERNED_DOCS="$(git diff --cached --name-only --diff-filter=ACM \
+    | grep -E '^docs/.*\.md$' \
+    | grep -Ev '^docs/(ai|knowledge|archive|_archive|project-sessions|templates|plans)/' \
+    | grep -Ev '^docs/INDEX' || true)"
+  # SPEC-0013 W2: newline-safe iteration (see the close-gate loop above).
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    STAGED_TMP="$(mktemp)"
+    if ! git show ":$f" > "$STAGED_TMP" 2>/dev/null; then
+      rm -f "$STAGED_TMP"
+      continue
+    fi
+    if LINT_OUT="$(node .aai/scripts/docs-audit.mjs --lint-body-file "$STAGED_TMP" 2>&1)"; then
+      :
+    elif [[ "$BODY_LINT_MODE" == "enforce" ]]; then
+      echo "AAI:INDEX-AUTOGEN body-lint: $f fails body lint (body_lint: enforce) — commit aborted." >&2
+      echo "$LINT_OUT" >&2
+      BODY_LINT_FAILED=1
+    else
+      echo "AAI:INDEX-AUTOGEN body-lint WARNING: $f fails body lint (report-only; commit allowed)." >&2
+      echo "$LINT_OUT" >&2
+    fi
+    rm -f "$STAGED_TMP"
+  done <<< "$STAGED_GOVERNED_DOCS"
+  if [[ "$BODY_LINT_FAILED" == 1 ]]; then
     exit 1
   fi
 fi

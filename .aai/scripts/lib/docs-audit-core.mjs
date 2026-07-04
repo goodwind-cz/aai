@@ -56,6 +56,10 @@ export function loadConfig(root) {
     // block-vs-warn; `--gate` itself always returns the raw predicate exit code.
     // Default report-only keeps mid-migration downstream repos non-blocking.
     close_gate: 'report-only',
+    // SPEC-0013 H1/config — body-lint enforcement mode, mirroring close_gate.
+    // Consulted only by the pre-commit hook to choose block-vs-warn;
+    // `--lint-body-file` itself always returns the raw predicate exit code.
+    body_lint: 'report-only',
   };
   const LIST_KEYS = new Set(['scan_exclude', 'backlog_globs', 'review_by_methods', 'category_prefixes']);
   let listKey = null;
@@ -85,6 +89,7 @@ export function loadConfig(root) {
     else if (key === 'stale_after_days') cfg.stale_after_days = Number(val) || DEFAULT_STALE_DAYS;
     else if (key === 'plan_scan_mode') cfg.plan_scan_mode = (val === 'strict') ? 'strict' : 'lenient';
     else if (key === 'close_gate') cfg.close_gate = (val === 'enforce') ? 'enforce' : 'report-only';
+    else if (key === 'body_lint') cfg.body_lint = (val === 'enforce') ? 'enforce' : 'report-only';
   }
   return cfg;
 }
@@ -275,6 +280,146 @@ export function findOpenDecisionMarker(content) {
   return null;
 }
 
+// --- body lint (SPEC-0013 H1 / D1-D2) -----------------------------------------
+// Three conservative rules over the body AFTER the frontmatter block. Fenced
+// code blocks and inline code spans are NEVER flagged (the CHANGE-0007 intake
+// itself carries `</content>` in inline code — mandatory negative control).
+// Fence model (D1, CommonMark-aligned, conservative): a fence opens at a line
+// starting (after optional whitespace) with N >= 3 backticks or tildes; it
+// closes only at a fence-chars-only line of >= N of the SAME character. Nested
+// shorter fences inside an open fence are content, not fences. Two SPEC-0013
+// review-W3 refinements: a line-initial backtick run with another backtick on
+// the same line is an inline span, not a fence (backtick info strings may not
+// contain backticks), and inline code spans may cross line breaks within a
+// paragraph (minimal multi-line pairing; the span interior is never flagged).
+
+const STRAY_MARKUP_RE = /<\/content>|<content>|<\/invoke>|<invoke |<result>|<\/result>|<function_results>|<\/function_results>|<parameter /i;
+// (a) unfilled ID residue (literal X's): SPEC-XXXX, PRD-XXXX, ...
+const PLACEHOLDER_ID_RE = /\b[A-Z]{2,}-X{4,}\b/;
+// (b) literal all-caps angle token: <PLACEHOLDER>, <TODO_FILL>. Mixed-case /
+// prose angle text (`<why isolation is or is not useful>`) is intentionally
+// NOT flagged — false-positive posture wins (D1).
+const PLACEHOLDER_ANGLE_RE = /<[A-Z][A-Z0-9_]{2,}>/;
+
+// All backtick runs in a string, with positions and lengths.
+function backtickRuns(s) {
+  const runs = [];
+  const re = /`+/g;
+  let m;
+  while ((m = re.exec(s)) !== null) runs.push({ start: m.index, end: m.index + m[0].length, len: m[0].length });
+  return runs;
+}
+
+// Mask inline code spans in a single line, CommonMark-style: a run of N
+// backticks opens a span closed by the NEXT run of exactly N backticks; the
+// span content (and its delimiters) is blanked. Unpaired runs stay literal, so
+// a lone ``` in prose cannot mis-pair with a later single-backtick span.
+function maskInlineCode(line) {
+  const runs = backtickRuns(line);
+  if (runs.length < 2) return line;
+  const chars = line.split('');
+  let i = 0;
+  while (i < runs.length) {
+    let j = i + 1;
+    while (j < runs.length && runs[j].len !== runs[i].len) j += 1;
+    if (j < runs.length) {
+      for (let k = runs[i].start; k < runs[j].end; k += 1) chars[k] = ' ';
+      i = j + 1;
+    } else {
+      i += 1;
+    }
+  }
+  return chars.join('');
+}
+
+// Lint one doc's content. Returns [{ rule, line, detail }] with 1-based line
+// numbers over the ORIGINAL file (frontmatter included in the numbering, never
+// in the linted range). Pure function — no filesystem, no git.
+export function lintBody(content) {
+  const lines = String(content ?? '').split(/\r\n|\r|\n/);
+  // skip the frontmatter block if present (parseFrontmatter contract: opening
+  // '---' on line 1, closing line starting with '---')
+  let start = 0;
+  if (lines[0] === '---') {
+    for (let i = 1; i < lines.length; i += 1) {
+      if (lines[i].startsWith('---')) { start = i + 1; break; }
+    }
+  }
+  const findings = [];
+  const lintMaskedLine = (masked, idx) => {
+    const stray = masked.match(STRAY_MARKUP_RE);
+    if (stray) findings.push({ rule: 'stray-tool-markup', line: idx + 1, detail: `stray tool markup "${stray[0]}"` });
+    const phId = masked.match(PLACEHOLDER_ID_RE);
+    if (phId) findings.push({ rule: 'template-placeholder', line: idx + 1, detail: `unfilled template id "${phId[0]}"` });
+    const phAngle = masked.match(PLACEHOLDER_ANGLE_RE);
+    if (phAngle) findings.push({ rule: 'template-placeholder', line: idx + 1, detail: `template placeholder token "${phAngle[0]}"` });
+  };
+  let fence = null;   // { ch, len, line }
+  for (let i = start; i < lines.length; i += 1) {
+    const raw = lines[i];
+    const f = raw.match(/^\s*(`{3,}|~{3,})/);
+    // SPEC-0013 W3b (CommonMark): a backtick fence's info string may not
+    // contain backticks, so a line-initial backtick run followed by ANOTHER
+    // backtick on the SAME line (e.g. ``` x ``` as a 3-run code span) is
+    // inline code, not a fence open — fall through to ordinary masking
+    // instead of opening a phantom fence that swallows the rest of the doc.
+    // Only an OPENING candidate gets this treatment; inside an open fence
+    // every line is content. Tilde fences are unaffected (their info strings
+    // may contain backticks and they never close on the opening line).
+    const isInlineSpanNotFence = f && !fence && f[1][0] === '`' && raw.slice(f[0].length).includes('`');
+    if (f && !isInlineSpanNotFence) {
+      const ch = f[1][0];
+      const len = f[1].length;
+      if (!fence) {
+        fence = { ch, len, line: i + 1 };
+        continue;   // opening fence line (incl. info string) is never linted
+      }
+      // closes only at a fence-chars-only line of >= N of the SAME character
+      const closing = raw.trim();
+      const fenceCharsOnly = closing.split('').every(c => c === ch);
+      if (ch === fence.ch && len >= fence.len && fenceCharsOnly) {
+        fence = null;
+      }
+      continue;   // any fence-looking line inside a fence is content
+    }
+    if (fence) continue;
+    const masked = maskInlineCode(raw);
+    // SPEC-0013 W3a: minimal multi-line inline-span pairing. CommonMark code
+    // spans may cross line breaks within a paragraph; per-line masking cannot
+    // see them. If an UNPAIRED run survives single-line masking, look ahead
+    // for a run of exactly the same length later in the SAME paragraph (no
+    // blank line, no fence-shaped line in between). When found, everything
+    // from the opener to that closer is span content: lint only the text
+    // before the opener and after the closer (D1 conservative posture — the
+    // interior is NEVER flagged).
+    const leftover = backtickRuns(masked);
+    if (leftover.length > 0) {
+      const open = leftover[leftover.length - 1];
+      let closeAt = -1;
+      let closeRun = null;
+      for (let j = i + 1; j < lines.length; j += 1) {
+        const look = lines[j];
+        if (look.trim() === '') break;               // spans cannot cross blank lines
+        if (/^\s*(`{3,}|~{3,})/.test(look)) break;   // fence-shaped boundary — stay conservative
+        const r = backtickRuns(look).find((x) => x.len === open.len);
+        if (r) { closeAt = j; closeRun = r; break; }
+      }
+      if (closeAt !== -1) {
+        lintMaskedLine(masked.slice(0, open.start), i);
+        const rest = ' '.repeat(closeRun.end) + lines[closeAt].slice(closeRun.end);
+        lintMaskedLine(maskInlineCode(rest), closeAt);
+        i = closeAt;   // interior lines are span content — skipped entirely
+        continue;
+      }
+    }
+    lintMaskedLine(masked, i);
+  }
+  if (fence) {
+    findings.push({ rule: 'unbalanced-fence', line: fence.line, detail: `fence opened here (${fence.ch.repeat(fence.len)}) is still open at EOF` });
+  }
+  return findings;
+}
+
 export function runAudit(root, { quick = false, scopePath = null, today = new Date(), strict = false, strictTypes = false } = {}) {
   const config = loadConfig(root);
   const mode = quick ? 'quick' : ((config || strict) ? 'enforced' : 'report-only');
@@ -295,6 +440,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   const nearMissWarnings = [];       // SPEC-0011 G4 (report-only)
   const reviewClaimUnbacked = [];    // SPEC-0011 G3 (report-only)
   const missingCloseTelemetry = [];  // SPEC-0011 G2 (report-only)
+  const bodyLint = [];               // SPEC-0013 H1 (report-only; --strict promotes)
 
   for (const f of files) {
     const content = fs.readFileSync(path.join(root, f.rel), 'utf8');
@@ -313,6 +459,16 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     };
     docs.push(doc);
     if (nearMiss.length) nearMissWarnings.push({ id, rel: f.rel, warnings: nearMiss });
+
+    // SPEC-0013 H1 — body lint over the governed scan set, further excluding
+    // docs/plans/ under plan_scan_mode: lenient (operator notes, not authored
+    // content). Report-only in the digest; counts toward hardFail ONLY under
+    // the explicit --strict flag (D2 — never in config-enforced mode alone).
+    if (!(planMode === 'lenient' && f.rel.startsWith('docs/plans/'))) {
+      for (const bl of lintBody(content)) {
+        bodyLint.push({ rel: f.rel, id, rule: bl.rule, line: bl.line, detail: bl.detail });
+      }
+    }
 
     // legacy/new split (D4): first-commit date vs legacy_until_date; untracked => new
     if (!quick && legacyUntil) {
@@ -534,18 +690,23 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     nearMiss: nearMissWarnings.length,
     reviewClaimUnbacked: reviewClaimUnbacked.length,
     missingCloseTelemetry: missingCloseTelemetry.length,
+    bodyLint: bodyLint.length,
   };
   // SPEC-0011 G2/G3/G4 signals (nearMissWarnings, reviewClaimUnbacked,
   // missingCloseTelemetry) are deliberately ABSENT from hardFail AND from the
   // NEEDS-TRIAGE tally — report-only, preserving the RFC-0002 report-not-block
   // posture (the audit REPORTS; the operator DECIDES).
-  const hardFail = mode === 'enforced' && (orphansNew.length > 0 || violations.length > 0);
+  // SPEC-0013 H1 (D2): body lint promotes to hardFail ONLY under the explicit
+  // --strict flag (the intake POST-SAVE path) — never in config-enforced mode
+  // alone, so mid-migration repos with legacy bodies keep a passing --check.
+  const hardFail = (mode === 'enforced' && (orphansNew.length > 0 || violations.length > 0))
+    || (strict && bodyLint.length > 0);
 
   return {
     mode, config, docs, orphansNew, orphansLegacy, drift, violations,
     typeWarnings, annotations, pendingCommit, planLenient, closeoutCandidates,
     openDecisionDoneDocs, nearMissWarnings, reviewClaimUnbacked,
-    missingCloseTelemetry, counts, hardFail,
+    missingCloseTelemetry, bodyLint, counts, hardFail,
   };
 }
 
@@ -656,6 +817,23 @@ export function gateFile(root, filePath) {
   const content = fs.readFileSync(abs, 'utf8');
   const { ok, reasons } = gateContent(content, extraMethods);
   return { found: true, ok, reasons };
+}
+
+// SPEC-0013 H1 — lint the content of an EXPLICIT file path (not resolved by id),
+// mirroring gateFile (SPEC-0011 G5). The pre-commit hook materializes the STAGED
+// blob (`git show :<path>`, LEARNED 2026-07-03) into a temp file and lints THAT,
+// so a staged-but-dirty body cannot pass merely because the worktree copy was
+// fixed after staging. Returns { found, findings }.
+export function lintFile(root, filePath) {
+  const abs = path.isAbsolute(filePath) ? filePath : path.join(root, filePath);
+  if (!fs.existsSync(abs)) return { found: false, findings: [] };
+  let content;
+  try {
+    content = fs.readFileSync(abs, 'utf8');
+  } catch {
+    return { found: false, findings: [] };
+  }
+  return { found: true, findings: lintBody(content) };
 }
 
 export function suggestedStep(doc) {

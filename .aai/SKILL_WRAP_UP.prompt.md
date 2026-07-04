@@ -60,6 +60,10 @@ PROCESS
    - If clean: "✓ No uncommitted work"
    - If dirty: List modified/untracked files and ask:
      "Uncommitted changes detected. Commit before ending session? [y/n]"
+   - Orphaned review reports (SPEC-0013 H4): call out any untracked or modified
+     `docs/ai/reviews/*` files explicitly as "orphaned review reports" and
+     suggest staging them with the commit of the scope they reviewed (per
+     SKILL_CODE_REVIEW's report-staging rule) so they never orphan across sessions.
    - Do NOT commit automatically. Only if user says yes, suggest a commit message.
 
 4b. CLOSEOUT GATE (SPEC-0011 G1, report-only)
@@ -71,6 +75,12 @@ PROCESS
    printed reasons in the wrap-up so the closeout is not silently left unreconciled.
    This is advisory only; the Validation gate (VALIDATION.prompt.md step 8b) owns the
    enforce/report-only decision.
+
+4c. UNRECORDED WARNINGS ADVISORY (SPEC-0013 H6, report-only)
+   If STATE.yaml `code_review.status == pass` and its notes (or the latest
+   review report) carry WARNINGs with NO named `docs/ai/decisions.jsonl` entry
+   and NO tracked follow-up ref, list them as "unrecorded WARNINGs" in the
+   wrap-up. Advisory only — VALIDATION step 8b remains the enforcement backstop.
 
 5. PREPARE NEXT SESSION CONTEXT
    Update docs/ai/STATE.yaml with session metadata:
@@ -109,10 +119,12 @@ Duration: <if measurable from LOOP_TICKS>
 [Section 5: Next Session]
 ---
 
-AUTO-TRIGGER PATTERNS
-This skill can be auto-triggered when the user says:
-- "bye", "done", "that's all", "end session", "wrap up", "hotovo", "konec", "to je vše"
-Configure in .claude/triggers.json if auto-trigger is desired.
+INVOCATION
+Invoke deliberately (`/aai-wrap-up`) at the end of a work session. The skill
+wrapper's description carries the natural trigger phrases ("wrap up",
+"end session", "done for today", "hotovo", "konec", "bye") so the platform's
+native skill matching can surface it — there is no separate trigger-file
+mechanism (SPEC-0013 D8).
 
 STRICT RULES
 - Do NOT commit changes without explicit user approval.

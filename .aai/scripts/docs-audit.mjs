@@ -12,6 +12,13 @@
 //                                                   # (intake post-save check)
 //   node .aai/scripts/docs-audit.mjs --strict-types # unknown frontmatter type
 //                                                   # becomes a hard failure
+//   node .aai/scripts/docs-audit.mjs --lint-body    # body-lint digest only
+//                                                   # (SPEC-0013 H1; exit 0 unless
+//                                                   # combined with --strict)
+//   node .aai/scripts/docs-audit.mjs --lint-body-file <f>  # pure predicate on an
+//                                                   # explicit file (a materialized
+//                                                   # STAGED blob): 1 findings /
+//                                                   # 0 clean / 2 unreadable
 //
 // Modes: enforced (docs/ai/docs-audit.yaml present), report-only (absent), quick.
 // In report-only mode --check always exits 0 — first runs never drown the operator.
@@ -20,7 +27,11 @@
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { runAudit, suggestedStep, gateDoc, gateFile, CONFIG_PATH } from './lib/docs-audit-core.mjs';
+import {
+  runAudit, suggestedStep, gateDoc, gateFile, lintBody, lintFile,
+  scanAuditDocs, loadConfig, CONFIG_PATH,
+} from './lib/docs-audit-core.mjs';
+import fs from 'node:fs';
 
 const ROOT = process.cwd();
 
@@ -37,8 +48,66 @@ function parseArgs(argv) {
     else if (tok === '--path') args.path = argv[++i];
     else if (tok === '--gate') args.gate = argv[++i];
     else if (tok === '--gate-file') args.gateFile = argv[++i];
+    else if (tok === '--lint-body') args.lintBody = true;
+    else if (tok === '--lint-body-file') args.lintBodyFile = argv[++i];
   }
   return args;
+}
+
+// SPEC-0013 H1 (D2) — one finding, one digest line.
+function bodyLintLine(f) {
+  return `- ${f.rel}:${f.line} [${f.rule}] ${f.detail}`;
+}
+
+// SPEC-0013 H1 — `--lint-body`: lint-only digest over the governed scan set
+// (scanAuditDocs minus docs/plans/ under plan_scan_mode: lenient), honoring
+// `--path`. Exit 0 always unless combined with `--strict` (then 1 on findings).
+// Never emits a docs_audit event.
+function runLintBody(args) {
+  const config = loadConfig(ROOT);
+  const planMode = config?.plan_scan_mode ?? 'lenient';
+  const files = scanAuditDocs(ROOT, { scopePath: args.path, scanExclude: config?.scan_exclude ?? [] });
+  const findings = [];
+  let scanned = 0;
+  for (const f of files) {
+    if (planMode === 'lenient' && f.rel.startsWith('docs/plans/')) continue;
+    scanned += 1;
+    const content = fs.readFileSync(path.join(ROOT, f.rel), 'utf8');
+    for (const bl of lintBody(content)) findings.push({ rel: f.rel, ...bl });
+  }
+  console.log(`## Body Lint — ${new Date().toISOString().slice(0, 10)}`);
+  console.log('');
+  console.log(`- Scanned: ${scanned} docs${args.path ? ` | Scope: ${args.path}` : ''}`);
+  console.log('');
+  console.log(`### Body lint: ${findings.length}`);
+  console.log('');
+  if (findings.length === 0) console.log('_None._');
+  else for (const f of findings) console.log(bodyLintLine(f));
+  if (!args.strict) {
+    console.log('');
+    console.log('Report-only: body lint never fails this mode without --strict.');
+  }
+  process.exit(args.strict && findings.length > 0 ? 1 : 0);
+}
+
+// SPEC-0013 H1 — `--lint-body-file <file>`: pure predicate on an explicit file
+// path (e.g. a materialized STAGED blob), mirroring `--gate-file` (SPEC-0011 G5):
+// exit 1 findings / 0 clean / 2 unreadable. Never emits a docs_audit event.
+function runLintBodyFile(filePath) {
+  console.log(`## Body Lint — ${filePath}`);
+  console.log('');
+  const res = lintFile(ROOT, filePath);
+  if (!res.found) {
+    console.log(`LINT ERROR: file not found or unreadable: "${filePath}"`);
+    process.exit(2);
+  }
+  if (res.findings.length === 0) {
+    console.log('LINT PASS: no body-lint findings.');
+    process.exit(0);
+  }
+  console.log('LINT FAIL — body-lint findings:');
+  for (const f of res.findings) console.log(`- line ${f.line} [${f.rule}] ${f.detail}`);
+  process.exit(1);
 }
 
 // SPEC-0011 G1 — `--gate <DOC-ID>` offline close-time predicate. Prints the
@@ -97,6 +166,8 @@ function main() {
   const args = parseArgs(process.argv);
   if (args.gate) runGate(args.gate);   // exits 1/0/2; never returns
   if (args.gateFile) runGateFile(args.gateFile);   // exits 1/0/2; never returns
+  if (args.lintBodyFile) runLintBodyFile(args.lintBodyFile);   // exits 1/0/2; never returns
+  if (args.lintBody) runLintBody(args);   // exits 0 (or 1 with --strict); never returns
   const result = runAudit(ROOT, {
     quick: args.quick, scopePath: args.path, strict: args.strict,
     strictTypes: Boolean(args.strictTypes),
@@ -243,6 +314,17 @@ function main() {
       lines.push('Report-only: emit `append-event.mjs --event work_item_closed --ref <ID> --validation <v> --code-review <cr>` on close.');
     }
     lines.push('');
+    // SPEC-0013 H1 — body lint (report-only in this digest; the explicit
+    // --strict flag promotes findings to the hard-fail exit path, D2).
+    lines.push(`### Body lint: ${result.bodyLint.length}`);
+    lines.push('');
+    if (result.bodyLint.length === 0) lines.push('_None._');
+    else {
+      for (const f of result.bodyLint) lines.push(bodyLintLine(f));
+      lines.push('');
+      lines.push('Report-only without --strict: stray tool markup, unbalanced fences, and template placeholders in governed doc bodies (fenced blocks and inline code spans are never flagged).');
+    }
+    lines.push('');
     if (result.pendingCommit.length) {
       lines.push(`### Pending commit (verdicts reflect the working tree)`);
       lines.push('');
@@ -255,7 +337,8 @@ function main() {
   lines.push(`### Verdict: ${needsTriage === 0 ? 'CLEAN' : `NEEDS-TRIAGE (${needsTriage} items)`}`);
   if (result.hardFail) {
     lines.push('');
-    lines.push(`CHECK FAILED: ${counts.orphansNew} new orphan(s), ${counts.violations} schema violation(s).`);
+    const bodyLintPart = args.strict ? `, ${counts.bodyLint} body lint finding(s)` : '';
+    lines.push(`CHECK FAILED: ${counts.orphansNew} new orphan(s), ${counts.violations} schema violation(s)${bodyLintPart}.`);
   }
 
   console.log(lines.join('\n'));

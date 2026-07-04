@@ -1,0 +1,57 @@
+{
+  "date_utc": "2026-07-04T11:06:48Z",
+  "reviewer": "AAI Code Review Skill (independent)",
+  "ref_id": "CHANGE-0007/SPEC-0013",
+  "scope": "worktree feat/change-0007-hygiene-pack uncommitted vs main (git diff + untracked)",
+  "base_ref": "main",
+  "head_ref": null,
+  "stage1": {
+    "verdict": "COMPLIANT",
+    "spec_ac": {
+      "Spec-AC-01": "COMPLIANT", "Spec-AC-02": "COMPLIANT", "Spec-AC-03": "COMPLIANT",
+      "Spec-AC-04": "COMPLIANT", "Spec-AC-05": "COMPLIANT", "Spec-AC-06": "COMPLIANT",
+      "Spec-AC-07": "COMPLIANT", "Spec-AC-08": "COMPLIANT", "Spec-AC-09": "COMPLIANT"
+    },
+    "suites_rerun": {
+      "test-aai-docs-audit.sh": "PASS exit 0 (incl. TEST-001..009)",
+      "test-aai-hygiene-pack.sh": "PASS exit 0 (TEST-010..018)",
+      "real_repo_lint_body": "0 findings",
+      "real_repo_check_strict": "CLEAN exit 0"
+    }
+  },
+  "summary": { "errors": 0, "warnings": 4, "info": 6 },
+  "findings": [
+    {
+      "id": "WARNING-1", "severity": "warning", "category": "gate-robustness", "verified": "CONFIRMED (fixture probe)",
+      "file": ".aai/scripts/install-pre-commit-hook.sh", "line": 152,
+      "message": "Hook reads body_lint mode from WORKTREE docs/ai/docs-audit.yaml while linting STAGED blobs; unstaged config edit downgrades enforce->report-only (SPEC-0011 F2 class on the config input). Mirrors pre-existing close_gate behavior (D3-frozen).",
+      "disposition": "promote to follow-up intake (with WARNING-2)"
+    },
+    {
+      "id": "WARNING-2", "severity": "warning", "category": "gate-robustness", "verified": "CONFIRMED (fixture probe)",
+      "file": ".aai/scripts/install-pre-commit-hook.sh", "line": 158,
+      "message": "Unquoted 'for f in $STAGED_GOVERNED_DOCS' word-splits filenames with spaces; git show fails per fragment and the loop continues silently -> dirty staged doc commits even under body_lint: enforce. Same pattern in close_gate loop.",
+      "disposition": "promote to follow-up intake (with WARNING-1)"
+    },
+    {
+      "id": "WARNING-3", "severity": "warning", "category": "correctness-edge", "verified": "CONFIRMED (lintBody probes; corpus unaffected)",
+      "file": ".aai/scripts/lib/docs-audit-core.mjs", "line": 302,
+      "message": "CommonMark divergences: (a) multi-line inline code span content is falsely flagged (per-line masking); (b) line-initial two-run code span (``` x ```) misread as fence open -> spurious unbalanced-fence + swallows the rest of the doc (false-negative cascade). Latent only: real corpus clean.",
+      "disposition": "promote to follow-up intake (lintBody CommonMark edge hardening)"
+    },
+    {
+      "id": "WARNING-4", "severity": "warning", "category": "prompt-seam", "verified": "CONFIRMED (by construction)",
+      "file": ".aai/SKILL_PR.prompt.md", "line": 39,
+      "message": "Staged-vs-scope audit aborts/resets any staged path outside the derived scope list, but SKILL_CODE_REVIEW H4 mandates staging docs/ai/reviews/* with the scope's commit; only INDEX files are whitelisted companions -> agent following both prompts unstages the review reports (they re-orphan).",
+      "disposition": "remediate in-scope (extend expected-companions to docs/ai run artifacts / code_review.report_paths) or promote to follow-up"
+    },
+    { "id": "INFO-1", "severity": "info", "file": ".aai/scripts/lib/docs-audit-core.mjs", "line": 344, "message": "Stray tag in fence info string (```</content>) never linted (fence-open lines exempt). Contrived; accepted." },
+    { "id": "INFO-2", "severity": "info", "file": ".aai/scripts/install-pre-commit-hook.sh", "line": 155, "message": "Hook governed set diverges from scanAuditDocs: plans skipped unconditionally, non-ID docs linted, scan_exclude ignored. D3 literal wording sanctions it." },
+    { "id": "INFO-3", "severity": "info", "file": ".aai/scripts/lib/docs-audit-core.mjs", "line": 652, "message": "--quick --strict still promotes bodyLint to hardFail; surprising but no caller combines them." },
+    { "id": "INFO-4", "severity": "info", "file": "tests/skills/test-aai-hygiene-pack.sh", "line": 100, "message": "Loose greps: TEST-011 'push' and TEST-010 forbidden-string presence add no discriminating power; RED-proof carried by stricter anchors. Suite bash-3.2 clean." },
+    { "id": "INFO-5", "severity": "info", "file": ".aai/scripts/lib/docs-audit-core.mjs", "line": 341, "message": "Fence-open regex accepts 4+ space indentation (CommonMark: indented code). Latent phantom-fence shape; corpus clean." },
+    { "id": "INFO-6", "severity": "info", "file": ".aai/METRICS_FLUSH.prompt.md", "line": 71, "message": "Partial-flush reset leaves current_focus on the flushed ref while other items remain; matches frozen D6; next planning overwrites." }
+  ],
+  "verdict": "PASS",
+  "verdict_notes": "No ERRORs; Stage 1 compliant. Conditional PASS per H6: WARNING-4 recommended for in-scope one-line remediation before PR; WARNING-1/2/3 to be promoted to follow-up refs at closeout and named in code_review.notes."
+}

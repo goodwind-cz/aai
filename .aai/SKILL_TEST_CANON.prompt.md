@@ -58,6 +58,17 @@ PHASE 2 — Synthesize & canonicalize (auto, after approval)
    c. Scaffolds a failing/pending test stub (RED) for each uncovered acceptance
       criterion, tagged to domain + criterion. Stubs are syntactically valid so
       the runner can invoke them and observe RED.
+
+      Fixture diversity checklist (MANDATORY when authoring fixtures)
+      (SPEC-0013 H7) — every scaffolded stub set and consolidated suite must
+      cover these shapes:
+      - [ ] degenerate/empty collection (zero items, empty file, empty map)
+      - [ ] fully-covered / zero-remainder case (nothing left to do — the branch test-canon missed)
+      - [ ] multi-source / multi-writer case (more than one contributor to the same output)
+      - [ ] mid-operation failure (abort between steps; partial state observed)
+      - [ ] negative control (input that must NOT trigger the behavior)
+
+      RED-proof rule extension: ask "would this suite stay green if the happy path were the only path implemented?" — if yes, the suite is not evidence; add the missing shapes.
    d. Records source hashes for drift detection.
    e. Verifies the canonical suite still runs via existing runners before
       archiving originals. If verification fails, Phase 2 aborts before archiving.
