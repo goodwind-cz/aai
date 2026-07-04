@@ -220,3 +220,5 @@
 {"v":1,"ts":"2026-07-04T11:35:33.206Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0013","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260704T110648Z.md"}}
 {"v":1,"ts":"2026-07-04T11:40:17.714Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"CHANGE-0007","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-04T11:40:17.781Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"CHANGE-0007","payload":{"validation":"pass","code_review":"pass","notes":"Delivered by SPEC-0013 (PR #36)"}}
+{"v":1,"ts":"2026-07-04T13:14:50.186Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"REL-0001","payload":{"validation":"pass","code_review":"waived","notes":"Release cut v2026.07.04: all must-pass gates green at cut time (4 suites + audit CLEAN + index idempotent); docs-only release doc, code review waived"}}
+{"v":1,"ts":"2026-07-04T13:14:50.244Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"REL-0001","payload":{"from":"draft","to":"done"}}

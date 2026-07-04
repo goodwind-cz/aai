@@ -9,7 +9,7 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — hygiene: workflow hygiene pack (CHANGE-0007 / SPEC-0013)
+## [v2026.07.04] — hygiene: workflow hygiene pack (CHANGE-0007 / SPEC-0013)
 
 Eight workflow-hygiene gaps closed in one pack (PR #36, closeout #37):
 - **Body lint (H1):** `docs-audit.mjs --lint-body` / `--lint-body-file` — flags
@@ -39,7 +39,7 @@ Eight workflow-hygiene gaps closed in one pack (PR #36, closeout #37):
   `body_lint` and `close_gate` — same TOCTOU class as SPEC-0011 F2), staged-file
   loops are space-safe, lint masking handles multi-line inline spans.
 
-## [unreleased] — loops: transactional STATE CLI + transition fixes (CHANGE-0006 / SPEC-0012)
+## [v2026.07.04] — loops: transactional STATE CLI + transition fixes (CHANGE-0006 / SPEC-0012)
 
 Closes the root cause of repeated STATE.yaml corruption: runtime state edited
 as free-text YAML by LLMs with no transactional primitive (PR #34, closeout #35).
@@ -63,7 +63,7 @@ as free-text YAML by LLMs with no transactional primitive (PR #34, closeout #35)
   before handoff — validated live (first-try Validation PASS on both loops that
   ran after this landed).
 
-## [unreleased] — docs-audit: close-time guardrails (CHANGE-0005 / SPEC-0011)
+## [v2026.07.04] — docs-audit: close-time guardrails (CHANGE-0005 / SPEC-0011)
 
 Prevents "git-closed but AAI-unreconciled" specs (PR #27, closeout #28; evidence
 from downstream fh-workspace):
@@ -85,7 +85,7 @@ from downstream fh-workspace):
 - Post-review fixes: `work_item_closed` requires validation+code_review fields;
   digit-boundary artifact-id matching (SPEC-001 vs SPEC-0011).
 
-## [unreleased] — tests: canonicalization skill `aai-test-canon` (RFC-0006 / SPEC-0008) + engine fixes
+## [v2026.07.04] — tests: canonicalization skill `aai-test-canon` (RFC-0006 / SPEC-0008) + engine fixes
 
 Two-phase test-side twin of `aai-docs-canon` (PR #22): Phase 1 builds a
 traceability matrix + coverage-gap report and proposes a per-domain test map
@@ -99,7 +99,7 @@ re-verifies after the rewrite to archived paths, native runners per test type
 (.sh/.ps1/.py/.mjs), per-criterion Phase-1 coverage, atomic multi-source archive
 with rollback, zero-stub domains generate valid bash.
 
-## [unreleased] — chore: test portability + repo hygiene
+## [v2026.07.04] — chore: test portability + repo hygiene
 
 - `test_index_continue_on_error` realigned with the generator's
   degrade-and-report default (`--strict` is the gate) — the stale hard-fail
@@ -109,7 +109,7 @@ with rollback, zero-stub domains generate valid bash.
 - 11 orphaned code-review reports from prior sessions committed to
   `docs/ai/reviews/` (PR #33).
 
-## [unreleased] — ci: ps1-quality GitHub Actions workflow
+## [v2026.07.04] — ci: ps1-quality GitHub Actions workflow
 
 First CI for the repo (`.github/workflows/ps1-quality.yml`), wiring the
 PowerShell quality gate so the parse-error class that broke /aai-update is caught
@@ -121,7 +121,7 @@ not trigger it). Two jobs:
 - **windows-5_1** (windows): parse-checks every `.ps1` under **real Windows
   PowerShell 5.1** (the environment that actually broke) and under pwsh 7.
 
-## [unreleased] — chore: PowerShell test infrastructure (lint + Pester + pre-commit parse gate)
+## [v2026.07.04] — chore: PowerShell test infrastructure (lint + Pester + pre-commit parse gate)
 
 Adds a real verification harness for the vendored `.ps1` scripts so the class of
 failure that broke /aai-update (a PowerShell PARSE error that only surfaces when
@@ -146,7 +146,7 @@ a user runs the script) cannot reach `main`.
 - Fixed a real latent bug surfaced by the scan: `pre-commit-checks.ps1` assigned
   to the automatic variable `$matches` (renamed to `$hits`).
 
-## [unreleased] — fix(aai-update.ps1): PowerShell parse + flag parity
+## [v2026.07.04] — fix(aai-update.ps1): PowerShell parse + flag parity
 
 Fixes `/aai-update` failing under PowerShell. Two issues in
 `.aai/scripts/aai-update.ps1`:
@@ -171,7 +171,7 @@ replace that one `Write-Host "- Would run: ... -TargetRoot ""$Target"""` line
 with `Write-Host ('- Would run: SOURCE/.aai/scripts/aai-sync.ps1 -TargetRoot "{0}"' -f $Target)`,
 then re-run `/aai-update` to pull the rest.
 
-## [unreleased] — loops: automatic parallel-mode detection (RFC-0005)
+## [v2026.07.04] — loops: automatic parallel-mode detection (RFC-0005)
 
 Makes the existing parallel scheduler (`ORCHESTRATION_PARALLEL.prompt.md`, shipped
 with RFC-0004's locks) actually reachable. Previously `SKILL_LOOP`'s "RUN
@@ -224,7 +224,7 @@ wiring that routes the loop to the single or parallel orchestrator.
   `docs/ai/locks/` (gitignored), and is the enforcement floor RFC-0005's selector
   degrades to single without.
 
-## [unreleased] — docs: canonicalization skill (`aai-docs-canon`, RFC-0003)
+## [v2026.07.04] — docs: canonicalization skill (`aai-docs-canon`, RFC-0003)
 
 New re-runnable skill that consolidates **layered** documentation — an original
 intake plus its chain of specs, sub-specs, addendums, and corrections — into a
@@ -256,7 +256,7 @@ mode where a doc set is exhaustive for audit but unusable as a working reference
   contract in `docs/specs/SPEC-0002`, decision in `docs/rfc/RFC-0003`. Test
   suite `tests/skills/test-aai-docs-canon.sh` (RED-proofed TDD).
 
-## [unreleased] — loops: validator independence (separate context, not just a role)
+## [v2026.07.04] — loops: validator independence (separate context, not just a role)
 
 Strengthens the anti-self-evaluation work below with the structural fix the
 plan/build/judge demo actually relies on: the judge runs INDEPENDENTLY. An
@@ -282,7 +282,7 @@ own context — it inherits the builder's assumptions and rubber-stamps them.
   one INPUT contract (spec, diff/paths, evidence, STATE.yaml; never the builder's
   conversation).
 
-## [unreleased] — loops: anti self-evaluation (RED-proof + adversarial validation) + run-budget stop
+## [v2026.07.04] — loops: anti self-evaluation (RED-proof + adversarial validation) + run-budget stop
 
 Three guards drawn from loop-engineering practice (the Anthropic plan/build/judge
 demo + "loops explained" guide): a loop must not grade itself, and its per-iteration
@@ -306,7 +306,7 @@ cost must be bounded.
   (no-op when usage is absent — never fabricated). On exceed → escalate to HITL
   before starting another, costlier tick. Recorded as a `human_pause` stop reason.
 
-## [unreleased] — chore: make /aai-update deterministic (script, not narration)
+## [v2026.07.04] — chore: make /aai-update deterministic (script, not narration)
 
 `/aai-update` was a 113-line procedure the agent executed by narrating each of
 seven steps (echoing clone/sync commands, reasoning per step) — slow and chatty.
@@ -325,7 +325,7 @@ delegator:
   relay a short report, don't narrate steps or paste the full sync log. The agent
   now makes a single tool call instead of orchestrating seven by hand.
 
-## [unreleased] — unattended-safe loops: fresh-context recovery, propose-don't-ship, wake-up digest
+## [v2026.07.04] — unattended-safe loops: fresh-context recovery, propose-don't-ship, wake-up digest
 
 Builds on the loop-hardening below to make an overnight/scheduled run genuinely
 safe to leave alone — the gap between "a loop you babysit in chat" and "a loop
@@ -353,7 +353,7 @@ that works while you sleep". All three land in
   `docs/ai/reports/loop-digest-<stamp>.md`; also runnable standalone
   (`--write`, `--json`). The chat/log becomes a status dashboard, not a babysit.
 
-## [unreleased] — loop hardening: stagnation guard, version + cost telemetry, L1 triage
+## [v2026.07.04] — loop hardening: stagnation guard, version + cost telemetry, L1 triage
 
 Loop-engineering hardening informed by the Ralph Wiggum / loop-engineering
 prior art (Huntley, Osmani, Anthropic "Building Effective Agents"). The AAI
@@ -382,7 +382,7 @@ conditions, maker≠checker, evidence-gated PASS); these close the remaining gap
   presence, working-tree, last tick). Writes nothing, safe to `/schedule`;
   `--check` exits 1 on real docs drift for use as a CI/daily alarm.
 
-## [unreleased] — chore: gitignore TDD evidence logs
+## [v2026.07.04] — chore: gitignore TDD evidence logs
 
 `docs/ai/tdd/**` (red/green/refactor test-output logs) is now gitignored
 with a `.gitkeep` placeholder — same policy as `docs/ai/reports/**`:
@@ -395,7 +395,7 @@ runs create; canonical loop state lives in STATE.yaml/LOOP_TICKS.jsonl
 (local) and EVENTS.jsonl/METRICS.jsonl (committed). The migrate scripts'
 gitignore checks are now CR-tolerant (CRLF downstream gitignores).
 
-## [unreleased] — CHANGE-0003: docs-audit verify mode
+## [v2026.07.04] — CHANGE-0003: docs-audit verify mode
 
 Adds the third skill mode
 ([CHANGE-0003](docs/issues/CHANGE-0003-docs-audit-verify-mode.md)):
@@ -416,7 +416,7 @@ traces (commits, events); `verify` checks them against the code itself.
 - USER_GUIDE: "three modes, three questions" overview and verify step in
   the retro-cleanup workflow.
 
-## [unreleased] — CHANGE-0002: docs-audit engine improvements, round 2
+## [v2026.07.04] — CHANGE-0002: docs-audit engine improvements, round 2
 
 Triage and fixes for six further deficiencies from the downstream second
 remediation pass
@@ -453,7 +453,7 @@ fixed a real prefix-match bug).
   adding similar content — legacy/new classification could be wrong for
   similar-looking docs (found by the D13 fixture).
 
-## [unreleased] — CHANGE-0001: docs-audit engine improvements
+## [v2026.07.04] — CHANGE-0001: docs-audit engine improvements
 
 Triage and fixes for nine deficiencies reported from the first real
 downstream remediation run
@@ -488,7 +488,7 @@ no breaking change for existing projects.
   plus a "Skipped (schema violations)" section instead of hard-aborting;
   default CI behavior unchanged (D9).
 
-## [unreleased] — RFC-0002: docs hygiene and drift audit
+## [v2026.07.04] — RFC-0002: docs hygiene and drift audit
 
 Implements [RFC-0002](docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md)
 ([SPEC-0001](docs/specs/SPEC-0001-docs-hygiene-and-drift-audit.md)) in
@@ -531,7 +531,7 @@ REPORTS; the operator DECIDES — nothing is auto-fixed.
 - `SKILL_DOCTOR.prompt.md`: new CAT-11 Docs Hygiene category.
 - `generate-docs-index.mjs`: now consumes the shared parser lib.
 
-## [unreleased] — RFC-0001: AC-level tracking and multi-dev STATE
+## [v2026.07.04] — RFC-0001: AC-level tracking and multi-dev STATE
 
 Implements [RFC-0001](docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md)
 in three sequential PRs. Designed for zero breaking change in target
