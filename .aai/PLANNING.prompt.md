@@ -88,13 +88,24 @@ PROCESS
 10) Set SPEC-FROZEN: true only when all Spec-AC items are measurable, verifiable,
    AND every Spec-AC has at least one TEST-xxx entry in the Test Plan.
    AND implementation strategy is not `undecided`.
-11) Update docs/ai/STATE.yaml:
-   - current_focus for the planned scope
-   - active_work_items phase/status for the scope
-   - implementation_strategy.selected/source/rationale for the scope
-   - worktree.recommendation/rationale/base_ref/user_decision
-   - code_review.required/status/scope/base_ref
-   - updated_at_utc
+11) Update docs/ai/STATE.yaml — PRIMARY PATH (transactional CLI, SPEC-0012):
+      node .aai/scripts/state.mjs set-focus --type <type> --ref <REF-ID> --path <primary_path>
+      node .aai/scripts/state.mjs set-phase --ref <REF-ID> --phase planning --status in_progress --spec-path <spec_path>
+      node .aai/scripts/state.mjs set-strategy --selected <loop|tdd|hybrid> --source <spec_path> --rationale "<why>"
+      node .aai/scripts/state.mjs set-worktree --recommendation <not_needed|optional|recommended|required> --base-ref <ref> --rationale "<why>"
+      node .aai/scripts/state.mjs set-code-review --required <true|false> --status not_run --scope "<explicit paths or diff range>" --base-ref <ref>
+    Each command validates its enums, writes atomically, and bumps the real
+    `updated_at_utc` itself — never hand-edit these fields when the CLI exists.
+    FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer):
+    edit docs/ai/STATE.yaml by hand per the legacy field list below, then validate:
+      node .aai/scripts/check-state.mjs docs/ai/STATE.yaml
+    Legacy field list:
+    - current_focus for the planned scope
+    - active_work_items phase/status for the scope
+    - implementation_strategy.selected/source/rationale for the scope
+    - worktree.recommendation/rationale/base_ref/user_decision
+    - code_review.required/status/scope/base_ref
+    - updated_at_utc
 
 RATIONALIZATION TABLE (stop and correct any of these)
 | Rationalization                                        | Reality                                                      |
@@ -126,11 +137,17 @@ FINAL OUTPUT REQUIRED
 - Blocking questions (if any)
 
 METRICS (record in docs/ai/STATE.yaml)
-Capture real wall-clock timestamps:
-- started_utc: immediately before step 1 begins
-- ended_utc: immediately after STATE.yaml writeback completes
-After completing, append under
-metrics.work_items[ref_id].agent_runs in docs/ai/STATE.yaml:
+Capture `started_utc` from the system clock (`date -u +%Y-%m-%dT%H:%M:%SZ`)
+immediately before step 1 begins.
+PRIMARY PATH — after completing, append your agent run via the transactional CLI:
+  node .aai/scripts/state.mjs append-run --ref <REF-ID> --role Planning \
+    --model <your model identifier> --started <started_utc> \
+    [--note "<one-paragraph summary>"] [--tokens-in N --tokens-out N]
+The CLI self-stamps `ended_utc` and computes `duration_seconds` from the system
+clock, keeps `cost_usd: null`, and auto-initializes a missing
+metrics.work_items entry — never a second top-level `metrics:` key.
+FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
+append by hand under metrics.work_items[ref_id].agent_runs in docs/ai/STATE.yaml:
   role:             Planning
   model_id:         <your model identifier, e.g. claude-sonnet-4-5, gemini-2.0-flash>
   started_utc:      <ISO 8601 UTC, real measured start>
@@ -144,6 +161,9 @@ Do NOT estimate any timing or token values. Only record measured/platform values
 BEGIN NOW.
 
 STATE-WRITE SAFETY (ISSUE-0004 / INV-14)
+Primary path: `node .aai/scripts/state.mjs append-run ...` appends under the
+single top-level `metrics:` key by construction (it refuses to write a
+duplicate-key file). The hand-edit rules below apply to the FALLBACK path.
 When appending your agent_runs entry, append into the EXISTING metrics.work_items.<ref_id>.agent_runs
 list under the single top-level `metrics:` key; never emit a second top-level `metrics:` key.
 A duplicate top-level `metrics:` silently drops the first block's work_items and agent_runs on a

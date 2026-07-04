@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-03T22:11:40.268Z
+Generated: 2026-07-04T10:05:26.033Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (28)
+## Done (29)
 
 | ID | Type | Path |
 |---|---|---|
@@ -47,10 +47,14 @@ _None._
 | SPEC-0009 | specs | docs/specs/SPEC-0009-test-process-group-reaping-and-leak-accounting.md |
 | SPEC-0010 | specs | docs/specs/SPEC-0010-docs-index-and-state-tooling-robustness.md |
 | SPEC-0011 | specs | docs/specs/SPEC-0011-docs-audit-closeout-guardrails.md |
+| SPEC-0012 | specs | docs/specs/SPEC-0012-loop-reliability-transactional-state-cli.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0006 | issues | docs/issues/CHANGE-0006-loop-reliability-state-cli.md |
+| CHANGE-0007 | issues | docs/issues/CHANGE-0007-workflow-hygiene-pack.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -77,4 +81,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-03 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-04 — counts above use this date for overdue checks.

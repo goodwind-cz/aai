@@ -20,51 +20,33 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+// Shared structural primitives (SPEC-0012 D4): ONE definition of "duplicate
+// top-level key" / line normalization / block location, shared with the
+// transactional writer .aai/scripts/state.mjs — no logic fork.
+import { TOP_KEY_RE, duplicateKeys, inlineChildConflicts, splitLines, topBlockRanges } from './lib/state-core.mjs';
+
+// Report the "child lines under an inline-valued top-level header" corruption
+// (e.g. `metrics: {}` followed by indented `work_items:` — a mapping value
+// given twice; lenient YAML loads reject it). Detected, never auto-repaired.
+function failOnInlineChildConflicts(lines) {
+  const conflicts = inlineChildConflicts(lines);
+  if (conflicts.length === 0) return;
+  console.error(`FAIL: ${conflicts.length} top-level key(s) in ${target} carry an INLINE value with indented child lines beneath (invalid YAML — mapping value given twice):`);
+  for (const c of conflicts) {
+    console.error(`  - ${c.key} (line ${c.line}) — convert the inline value to block form (bare \`${c.key}:\` header) by hand`);
+  }
+  process.exit(1);
+}
 
 const ARGV = process.argv.slice(2);
 const REPAIR = ARGV.includes('--repair');
 const target = ARGV.find(a => !a.startsWith('--')) ?? 'docs/ai/STATE.yaml';
 
-// A top-level key line: `name:` at column 0 (no leading whitespace). Excludes
-// comments (`# ...`), document markers (`---`), and blank lines. Block-scalar and
-// nested content is indented, so it never matches at column 0.
-const TOP_KEY_RE = /^([A-Za-z_][\w-]*):/;
-
-function topLevelKeyCounts(lines) {
-  const counts = new Map();
-  for (const raw of lines) {
-    if (!raw || raw.startsWith('#') || raw.startsWith('---')) continue;
-    const m = raw.match(TOP_KEY_RE);
-    if (!m) continue;
-    counts.set(m[1], (counts.get(m[1]) ?? 0) + 1);
-  }
-  return counts;
-}
-
-function duplicateKeys(lines) {
-  const dups = [];
-  for (const [key, n] of topLevelKeyCounts(lines)) {
-    if (n > 1) dups.push({ key, count: n });
-  }
-  return dups;
-}
-
 // --- structural metrics-block merge (repair) --------------------------------
 
 // Return the [start, end) line-index ranges of every top-level `metrics:` block.
 function metricsBlockRanges(lines) {
-  const ranges = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    if (!/^metrics:\s*$/.test(lines[i])) continue;
-    let end = lines.length;
-    for (let j = i + 1; j < lines.length; j += 1) {
-      const l = lines[j];
-      if (l.startsWith('#') || l.startsWith('---')) continue;
-      if (TOP_KEY_RE.test(l)) { end = j; break; }
-    }
-    ranges.push([i, end]);
-  }
-  return ranges;
+  return topBlockRanges(lines, /^metrics:\s*$/);
 }
 
 // Parse one metrics block (its raw lines) into an ordered work_items structure.
@@ -188,11 +170,11 @@ function main() {
     process.exit(2);
   }
   const original = fs.readFileSync(abs, 'utf8');
-  const trailingNewline = original.endsWith('\n');
-  let lines = original.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-  // Drop the synthetic trailing empty element from a terminal newline so counts
-  // and re-emission are exact.
-  if (trailingNewline && lines.length && lines[lines.length - 1] === '') lines.pop();
+  // splitLines drops the synthetic trailing empty element from a terminal
+  // newline so counts and re-emission are exact (shared normalization).
+  const split = splitLines(original);
+  const trailingNewline = split.trailingNewline;
+  let lines = split.lines;
 
   if (REPAIR) {
     const before = duplicateKeys(lines);
@@ -215,6 +197,7 @@ function main() {
       }
       process.exit(1);
     }
+    failOnInlineChildConflicts(lines);
     console.log('OK: STATE.yaml has exactly one of every top-level key.');
     process.exit(0);
   }
@@ -228,6 +211,7 @@ function main() {
     console.error('`metrics:` blocks (union work_items, concatenate agent_runs, zero data loss).');
     process.exit(1);
   }
+  failOnInlineChildConflicts(lines);
   console.log(`OK: ${target} has exactly one of every top-level key.`);
   process.exit(0);
 }

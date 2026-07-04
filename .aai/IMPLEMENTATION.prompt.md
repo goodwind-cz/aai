@@ -93,12 +93,34 @@ PROCESS
 8) Update Test Plan status in the spec: set each TEST-xxx to `green` after its test passes.
 9) Execute verification commands (tests/lint/build) via shell tool, OR delegate to a Verification
    subagent if direct shell access is unavailable. Capture command outputs and exit codes.
-10) Update docs/ai/STATE.yaml:
-   - current_focus for the implemented scope
-   - active_work_items phase/status for the scope
-   - code_review.status: not_run if review is required for the changed scope
-   - code_review.scope: worktree diff, branch diff, staged diff, or explicit inline paths
-   - updated_at_utc
+9b) PRE-HANDOFF AC-TABLE RECONCILIATION (SPEC-0012 G4 — self-check, not a verdict):
+   Reconcile the spec's `## Acceptance Criteria Status` table for every Spec-AC
+   covered by this scope BEFORE handing off to Validation:
+   - Set each covered row to a terminal status (done | deferred | blocked |
+     rejected) with concrete Evidence (commit SHA, RUN_ID, or log path).
+   - A row you truthfully cannot finish gets `deferred`/`blocked` with a FUTURE
+     Review-By date plus Notes — never a fabricated `done`.
+   - Emit `ac_status` events (best-effort):
+       node .aai/scripts/append-event.mjs --event ac_status --ref <SPEC-ID>/<Spec-AC-ID> --from planned --to done
+   - Then run the close-gate self-check and fix until exit 0 before reporting complete:
+       node .aai/scripts/docs-audit.mjs --gate <SPEC-ID>
+   Validation's AC-STATUS GATE remains the enforcement backstop; this step stops
+   a gate-opted spec from reaching Validation with `planned` rows (a guaranteed
+   wasted FAIL→Remediation→re-Validation cycle).
+10) Update docs/ai/STATE.yaml — PRIMARY PATH (transactional CLI, SPEC-0012):
+      node .aai/scripts/state.mjs set-phase --ref <REF-ID> --phase validation --status in_progress
+      node .aai/scripts/state.mjs set-code-review --required true --status not_run --scope "<worktree diff, branch diff, staged diff, or explicit inline paths>"
+    (adjust set-focus/set-phase flags to the implemented scope; each command
+    bumps the real `updated_at_utc` itself)
+    FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer):
+    edit docs/ai/STATE.yaml by hand per the legacy field list below, then validate:
+      node .aai/scripts/check-state.mjs docs/ai/STATE.yaml
+    Legacy field list:
+    - current_focus for the implemented scope
+    - active_work_items phase/status for the scope
+    - code_review.status: not_run if review is required for the changed scope
+    - code_review.scope: worktree diff, branch diff, staged diff, or explicit inline paths
+    - updated_at_utc
 
 DECOMPOSITION (when scope has ≥3 independent modules)
 If the scope contains ≥3 independent files/modules with no shared mutable state:
@@ -146,11 +168,17 @@ FINAL OUTPUT REQUIRED
 - Open risks/blockers
 
 METRICS (record in docs/ai/STATE.yaml)
-Capture real wall-clock timestamps:
-- started_utc: immediately before step 1 begins
-- ended_utc: immediately after STATE.yaml writeback completes
-After completing, append under
-metrics.work_items[ref_id].agent_runs in docs/ai/STATE.yaml:
+Capture `started_utc` from the system clock (`date -u +%Y-%m-%dT%H:%M:%SZ`)
+immediately before step 1 begins.
+PRIMARY PATH — after completing, append your agent run via the transactional CLI:
+  node .aai/scripts/state.mjs append-run --ref <REF-ID> --role Implementation \
+    --model <your model identifier> --started <started_utc> \
+    [--note "<one-paragraph summary>"] [--tokens-in N --tokens-out N]
+The CLI self-stamps `ended_utc` and computes `duration_seconds` from the system
+clock, keeps `cost_usd: null`, and auto-initializes a missing
+metrics.work_items entry — never a second top-level `metrics:` key.
+FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
+append by hand under metrics.work_items[ref_id].agent_runs in docs/ai/STATE.yaml:
   role:             Implementation
   model_id:         <your model identifier, e.g. claude-sonnet-4-5, gemini-2.0-flash>
   started_utc:      <ISO 8601 UTC, real measured start>
@@ -164,6 +192,9 @@ Do NOT estimate any timing or token values. Only record measured/platform values
 BEGIN NOW.
 
 STATE-WRITE SAFETY (ISSUE-0004 / INV-14)
+Primary path: `node .aai/scripts/state.mjs append-run ...` appends under the
+single top-level `metrics:` key by construction (it refuses to write a
+duplicate-key file). The hand-edit rules below apply to the FALLBACK path.
 When appending your agent_runs entry, append into the EXISTING metrics.work_items.<ref_id>.agent_runs
 list under the single top-level `metrics:` key; never emit a second top-level `metrics:` key.
 A duplicate top-level `metrics:` silently drops the first block's work_items and agent_runs on a

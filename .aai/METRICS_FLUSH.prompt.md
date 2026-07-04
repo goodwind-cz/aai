@@ -41,9 +41,24 @@ PROCESS
 4. Append the new line to docs/ai/METRICS.jsonl (do NOT rewrite existing lines).
 5. After successful append to METRICS.jsonl, clean up STATE.yaml for each flushed ref_id:
    a. Remove the entire entry from metrics.work_items (data is now safe in METRICS.jsonl).
+      WHOLE-BLOCK REMOVALS (a-c) are outside the transactional CLI's mutation
+      surface — perform them as a GUARDED MANUAL EDIT and, immediately after,
+      validate the file:
+        node .aai/scripts/check-state.mjs docs/ai/STATE.yaml
    b. Remove matching entries from active_work_items where status == "done".
    c. If metrics.work_items becomes empty after cleanup, remove the metrics key entirely.
-   d. Only if NO active_work_items remain (all statuses are "done" or list is empty) after step b:
+   d. Only if NO active_work_items remain (all statuses are "done" or list is empty) after step b,
+      reset the runtime blocks to defaults — PRIMARY PATH (transactional CLI, SPEC-0012)
+      for the field-level resets it covers:
+        node .aai/scripts/state.mjs set-validation --status not_run
+        node .aai/scripts/state.mjs set-strategy --selected undecided
+        node .aai/scripts/state.mjs set-worktree --recommendation not_needed --user-decision undecided
+        node .aai/scripts/state.mjs set-code-review --required false --status not_run
+        node .aai/scripts/state.mjs set-focus --type none
+      then null the remaining default fields by hand where they differ (see the
+      legacy list below) and re-validate with check-state.mjs.
+      FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
+      apply ALL resets by hand, then validate with check-state.mjs:
       - Reset last_validation to defaults (status: not_run, run_at_utc: null, evidence_paths: [], notes: null).
       - Reset implementation_strategy to defaults (selected: undecided, source: null, rationale: null).
       - Reset worktree to defaults (recommendation: not_needed, user_decision: undecided, base_ref: null,
@@ -52,7 +67,8 @@ PROCESS
         head_ref: null, report_paths: [], notes: null).
       - Reset current_focus to defaults (type: none, ref_id: null, primary_path: null).
       - Reset locks.implementation to true (safe default — next scope must explicitly unlock).
-   e. Update updated_at_utc after cleanup.
+   e. Update updated_at_utc after cleanup (the CLI commands above bump it
+      automatically; bump it by hand only on the pure-manual path).
 6. Ephemeral file cleanup (only when step 5d triggered — full reset, no remaining work):
    a. Delete docs/ai/LOOP_TICKS.jsonl (runtime data, consumed in step 2).
    b. Delete files in docs/ai/tdd/ older than 7 days whose scope has been flushed.

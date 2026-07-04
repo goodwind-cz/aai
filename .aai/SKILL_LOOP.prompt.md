@@ -145,8 +145,10 @@ For each tick (1..max_ticks):
               STATE.yaml and the dispatched role prompt from scratch.
             · Tell it explicitly it is a recovery attempt for a stuck scope, so
               it re-reads state and changes approach rather than repeating.
-            · Append a `type: recovery` line to LOOP_TICKS.jsonl with
-              focus_ref_id/validation_status before and after.
+            · Append a `type: recovery` line to LOOP_TICKS.jsonl — primary path
+              `node .aai/scripts/state.mjs log-tick --type recovery ...` (same
+              flags as step 6), with focus_ref_id/validation_status before and
+              after; hand-write the line only on the step-6 fallback path.
             · If focus_ref_id OR validation_status changed → progress: reset the
               stagnation count and CONTINUE the loop (the clean context unstuck it).
             · If still no change → escalate to HITL (below).
@@ -155,9 +157,12 @@ For each tick (1..max_ticks):
           a session-resident loop trades it away for cache warmth, so re-introduce
           it surgically exactly when the loop is stuck.
         → ESCALATE TO HITL (recovery already tried and failed, or recovery disabled):
-          Set human_input.required = true with
-          blocking_reason = "Loop stagnated: <stagnation_limit> ticks with no change to focus or validation status (fresh-context recovery attempted)"
-          and a question_ref naming the stuck scope.
+          Set human_input.required = true — primary path:
+            node .aai/scripts/state.mjs set-human-input --required true \
+              --reason "Loop stagnated: <stagnation_limit> ticks with no change to focus or validation status (fresh-context recovery attempted)" \
+              --question "<question naming the stuck scope>"
+          (fallback: hand-edit human_input per STATE-WRITE note below) with a
+          question_ref naming the stuck scope.
         → Print the HITL block (HITL OUTPUT FORMAT) and EXIT.
         → Rationale: a stuck scope that survives a clean-context retry needs a
           changed prompt or scope from a human, not more spins (Huntley). Escalate
@@ -169,9 +174,12 @@ For each tick (1..max_ticks):
         budget; est_cost_usd for the cost budget). These are best-effort and only
         present when the runtime exposes real usage — if absent, this check is a
         no-op (never fabricate usage). If a configured limit is met or exceeded:
-        → Set human_input.required = true with
-          blocking_reason = "Run budget exhausted: <cumulative> >= <limit>"
-          and a question_ref naming the current scope.
+        → Set human_input.required = true — primary path:
+            node .aai/scripts/state.mjs set-human-input --required true \
+              --reason "Run budget exhausted: <cumulative> >= <limit>" \
+              --question "<question naming the current scope>"
+          (fallback: hand-edit human_input per STATE-WRITE note below) with a
+          question_ref naming the current scope.
         → Print the HITL block (HITL OUTPUT FORMAT) and EXIT.
         → Rationale: a loop that runs ten times costs ten prompts that each keep
           getting bigger. Stop before starting another, costlier tick rather than
@@ -209,8 +217,12 @@ For each tick (1..max_ticks):
        If `node` or the selector is unavailable, default to mode=single (safe).
      - RECORD the decision: write `orchestration.mode`, `orchestration.k`, and
        `orchestration.groups` into docs/ai/STATE.yaml (optional block; absent ==
-       auto, back-compat) and include `orchestration_mode`/`orchestration_k` in the
-       tick log line (step 6) so a human can see why a tick went single or parallel.
+       auto, back-compat). The orchestration block is outside the state.mjs
+       mutation surface — write it as a guarded manual edit and validate
+       immediately after with `node .aai/scripts/check-state.mjs
+       docs/ai/STATE.yaml`. Include `orchestration_mode`/`orchestration_k` in the
+       tick log line (step 6 log-tick reads them from STATE by default) so a
+       human can see why a tick went single or parallel.
      - Capture orchestration_ended_utc immediately after completion from system clock.
      - Expected result: docs/ai/STATE.yaml updated and a DISPATCH block produced.
 
@@ -283,7 +295,21 @@ For each tick (1..max_ticks):
 
   6. LOG the tick:
      Tick <N>: [role dispatched] → scope=<ref_id> → state=<project_status>/<last_validation.status>
-     - Append one `type: tick` JSON line to docs/ai/LOOP_TICKS.jsonl with:
+     PRIMARY PATH (transactional CLI, SPEC-0012) — append the tick line via:
+       node .aai/scripts/state.mjs log-tick --tick <N> --role "<role dispatched>" \
+         --scope <ref_id> --started <role_started_utc from step 4> \
+         [--exit-code N] [--focus-before <focus_ref_id at tick start>] \
+         [--validation-before <validation_status at tick start>] \
+         [--mode <single|parallel> --k <K>] [--harness <harness_version>] \
+         [--tokens-in N --tokens-out N --cache-read N --cost X]   # ONLY with real runtime usage \
+         [--lingering-procs N --free-memory X]                    # test-running ticks (SPEC-0009)
+     The helper self-stamps `ended_utc`, computes `duration_seconds` (never
+     null), defaults the "after" fields from the current STATE.yaml, validates
+     `--started` against the system clock (>300s future = rejected), and NEVER
+     emits token/cost/leak fields you did not pass — the model supplies only
+     semantic fields; the clock supplies time.
+     FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
+     append one `type: tick` JSON line to docs/ai/LOOP_TICKS.jsonl by hand with:
        tick, started_utc, ended_utc, duration_seconds, exit_code,
        focus_ref_id_before, focus_ref_id_after, validation_status_before, validation_status_after,
        harness_version.
@@ -347,6 +373,13 @@ To keep ticks cheap:
   per-tick dispatch context last.
 - Surface cost in the tick log (step 6) when the runtime exposes usage, so a per-tick
   cost regression is caught rather than silent.
+
+STATE-WRITE NOTE (SPEC-0012)
+Every human_input write above uses `node .aai/scripts/state.mjs
+set-human-input` as the primary path. FALLBACK — if .aai/scripts/state.mjs is
+absent (older vendored AAI layer): hand-edit the `human_input:` block
+(required/question/blocking_reason) plus `updated_at_utc`, then validate with
+`node .aai/scripts/check-state.mjs docs/ai/STATE.yaml`.
 
 STRICT RULES
 - Do NOT improvise role logic. Execute canonical role prompts exactly

@@ -99,6 +99,25 @@ DECISION LOGIC (FIRST MATCH WINS)
 14) If latest validation PASS → Dispatch: Metrics flush (.aai/METRICS_FLUSH.prompt.md) if not already
     flushed for this scope, then no action required and STOP.
 
+POST-REMEDIATION RESET ROUTING (SPEC-0012 G3 — how rules 10-13 interact):
+A COMPLETED remediation has already reset the block(s) that triggered it from
+`fail` to `not_run` via `node .aai/scripts/state.mjs reset-block
+last_validation` / `reset-block code_review` (Remediation never writes its own
+verdict). Consequently, on the tick AFTER a remediation:
+- rule 10 no longer matches (last_validation.status is `not_run`, not `fail`),
+  so the state falls through to rule 11 → a FRESH, INDEPENDENT Validation is
+  dispatched (never the remediation context re-validating itself);
+- rule 12 no longer matches when the review block was reset, so a
+  validation-PASS state falls through to rule 13 → a fresh Code Review.
+- With last_validation.status `pass` and only code_review reset to `not_run`,
+  rule 11's "validation not run recently" must NOT re-fire: a recorded `pass`
+  counts as run — dispatch rule 13 (Code Review) instead.
+If you observe `last_validation.status: fail` AND evidence that a remediation
+already completed for that same failure (post-remediation reset missing — e.g.
+an older vendored layer where state.mjs is absent and the manual reset was
+skipped), treat the missing reset as the defect: reset the failed block per the
+Remediation fallback instructions, then continue the decision logic.
+
 MODEL SELECTION (include in dispatch when subagent spawning is supported)
 Right-size the model to task complexity — do not default to the most capable model for everything:
 - Mechanical / isolated tasks (single-file edits, boilerplate, formatting): smaller/faster model
@@ -130,7 +149,12 @@ Output:
 METRICS AUTO-MANAGEMENT (NO MANUAL SETUP REQUIRED)
 When dispatching any role for a ref_id:
 1. Check if metrics.work_items contains an entry for that ref_id in STATE.yaml.
-2. If missing, auto-create it:
+2. If missing, no manual scaffold is needed on the primary path: the roles'
+   `node .aai/scripts/state.mjs append-run` call AUTO-INITIALIZES the missing
+   metrics.work_items.<ref_id> entry (human_time_minutes nulls included) under
+   the single top-level `metrics:` key.
+   FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
+   auto-create the entry by hand:
      - ref_id: <ref_id>
        human_time_minutes:
         intake: null      # user-provided intake minutes; human may override
@@ -144,7 +168,20 @@ When dispatching any role for a ref_id:
 STRICT RULES
 - Dispatch ONLY ONE role per run.
 - Do NOT do the role's work.
-- Update docs/ai/STATE.yaml before stopping (always, including auto-init/repair cases):
+- Update docs/ai/STATE.yaml before stopping (always, including auto-init/repair
+  cases) — PRIMARY PATH (transactional CLI, SPEC-0012):
+    node .aai/scripts/state.mjs set-focus --type <t> --ref <REF-ID> --path <p>
+    node .aai/scripts/state.mjs set-phase --ref <REF-ID> --phase <p> [--status <s>] [--path <p>] [--spec-path <p>]
+    node .aai/scripts/state.mjs set-strategy --selected <s> [--source <p>] [--rationale <t>]
+    node .aai/scripts/state.mjs set-worktree [--recommendation <r>] [--user-decision <d>] [--base-ref <r>] [--branch <b>] [--path <p>] [--inline-scope <t>]
+    node .aai/scripts/state.mjs set-code-review [--required <b>] [--status <s>] [--scope <t>] [--base-ref <r>] [--head-ref <r>]
+    node .aai/scripts/state.mjs set-human-input --required <true|false> [--question <t>] [--reason <t>]
+  (only the commands whose fields actually changed; each bumps the real
+  `updated_at_utc` itself; metrics.work_items auto-init is handled by the
+  roles' append-run — see METRICS AUTO-MANAGEMENT)
+  FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer):
+  edit the fields below by hand, then validate with
+  `node .aai/scripts/check-state.mjs docs/ai/STATE.yaml`:
   - current_focus (type/ref_id/primary_path)
   - active_work_items (create/update selected scope)
   - implementation_strategy (selected/source/rationale)
