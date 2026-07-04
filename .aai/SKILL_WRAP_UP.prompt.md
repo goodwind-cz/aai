@@ -82,6 +82,20 @@ PROCESS
    and NO tracked follow-up ref, list them as "unrecorded WARNINGs" in the
    wrap-up. Advisory only — VALIDATION step 8b remains the enforcement backstop.
 
+4d. OPERATOR-DOCS DRIFT CHECK (report-only)
+   If this session changed the operator-facing surface — a new or renamed
+   skill/wrapper, a new CLI/flag/config key an operator would invoke (e.g. a
+   docs-audit mode, a docs/ai/*.yaml key, a state.mjs subcommand), or a changed
+   workflow step — check whether docs/USER_GUIDE.md (and the CHANGELOG entry per
+   SKILL_PR step 3b) reflect it:
+     git log --oneline -5 -- docs/USER_GUIDE.md   # when was the guide last fed?
+     grep -c '<new-feature-keyword>' docs/USER_GUIDE.md
+   If the guide is missing the new surface, list the gap as "USER_GUIDE drift"
+   in the wrap-up and propose the update as a next-session item (or fix it now
+   if the user confirms). Rationale: per-change docs are complete but
+   fragmented; the guide once drifted a whole era behind (everything between
+   ISSUE-0002 and SPEC-0013 was undocumented for operators).
+
 5. PREPARE NEXT SESSION CONTEXT
    Update docs/ai/STATE.yaml with session metadata:
    ```yaml
