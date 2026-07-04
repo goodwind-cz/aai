@@ -120,7 +120,15 @@ Before starting TDD cycle:
 5. **Update Spec Test Plan**
    - Set the TEST-xxx status to `red` in the spec's `## Test Plan` table
 
-6. **Update STATE.yaml**
+6. **Update STATE.yaml** — PRIMARY PATH (transactional CLI, SPEC-0012):
+   ```bash
+   node .aai/scripts/state.mjs set-tdd-cycle --status RED --test-id TEST-xxx \
+     --spec-path docs/specs/SPEC-<id>.md --test-path [path-to-test-file] \
+     --red docs/ai/tdd/red-[timestamp].log
+   ```
+   FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
+   edit docs/ai/STATE.yaml by hand, then validate with
+   `node .aai/scripts/check-state.mjs docs/ai/STATE.yaml`:
    ```yaml
    tdd_cycle:
      status: RED
@@ -192,7 +200,15 @@ Before starting TDD cycle:
 4. **Update Spec Test Plan**
    - Set the TEST-xxx status to `green` in the spec's `## Test Plan` table
 
-5. **Update STATE.yaml**
+5. **Update STATE.yaml** — PRIMARY PATH (transactional CLI, SPEC-0012):
+   ```bash
+   node .aai/scripts/state.mjs set-tdd-cycle --status GREEN --test-id TEST-xxx \
+     --spec-path docs/specs/SPEC-<id>.md --test-path [path-to-test-file] \
+     --green docs/ai/tdd/green-[timestamp].log
+   ```
+   FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
+   edit docs/ai/STATE.yaml by hand, then validate with
+   `node .aai/scripts/check-state.mjs docs/ai/STATE.yaml`:
    ```yaml
    tdd_cycle:
      status: GREEN
@@ -256,7 +272,15 @@ Before starting TDD cycle:
    - Verify ALL tests still PASS
    - Document refactoring decisions
 
-5. **Update STATE.yaml**
+5. **Update STATE.yaml** — PRIMARY PATH (transactional CLI, SPEC-0012):
+   ```bash
+   node .aai/scripts/state.mjs set-tdd-cycle --status REFACTOR_COMPLETE \
+     --test-path [path-to-test-file] --refactor docs/ai/tdd/refactor-[timestamp].log
+   ```
+   Record the refactoring summary in docs/ai/decisions.jsonl (step 6 below).
+   FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
+   edit docs/ai/STATE.yaml by hand, then validate with
+   `node .aai/scripts/check-state.mjs docs/ai/STATE.yaml`:
    ```yaml
    tdd_cycle:
      status: REFACTOR_COMPLETE
@@ -299,6 +323,22 @@ After completing REFACTOR for one TEST-xxx:
    - Update `docs/knowledge/FACTS.md` with learnings
    - Update `docs/knowledge/PATTERNS.md` if new pattern emerged
 
+1b. **Pre-Handoff AC-Table Reconciliation (SPEC-0012 G4 — self-check, not a verdict)**
+   Before handing off to Validation, reconcile the spec's
+   `## Acceptance Criteria Status` table for every Spec-AC covered by the
+   completed TDD cycles:
+   - Set each covered row to a terminal status (done | deferred | blocked |
+     rejected) with concrete Evidence (commit SHA, RUN_ID, or the
+     docs/ai/tdd/*.log paths from the cycles).
+   - A row you truthfully cannot finish gets `deferred`/`blocked` with a FUTURE
+     Review-By date plus Notes — never a fabricated `done`.
+   - Emit `ac_status` events (best-effort):
+     `node .aai/scripts/append-event.mjs --event ac_status --ref <SPEC-ID>/<Spec-AC-ID> --from planned --to done`
+   - Then run the close-gate self-check and fix until exit 0 before reporting complete:
+     `node .aai/scripts/docs-audit.mjs --gate <SPEC-ID>`
+   Validation's AC-STATUS GATE remains the enforcement backstop; this step stops
+   a gate-opted spec from reaching Validation with `planned` rows.
+
 2. **Run Standard Validation**
    - Execute `.aai/VALIDATION.prompt.md` or dispatch Validation through
      `.aai/ORCHESTRATION.prompt.md`.
@@ -318,7 +358,14 @@ After completing REFACTOR for one TEST-xxx:
    - Capture from system clock immediately after the last TDD-owned state write.
    - Record agent_runs entry in STATE.yaml (see Metrics section below).
 
-5. **Clean TDD Cycle State**
+5. **Clean TDD Cycle State** — PRIMARY PATH (transactional CLI, SPEC-0012):
+   ```bash
+   node .aai/scripts/state.mjs set-tdd-cycle --status IDLE
+   ```
+   (`--status IDLE` nulls test_id/spec_path/test_path and all evidence fields.)
+   FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
+   edit docs/ai/STATE.yaml by hand, then validate with
+   `node .aai/scripts/check-state.mjs docs/ai/STATE.yaml`:
    ```yaml
    tdd_cycle:
      status: IDLE
@@ -474,11 +521,19 @@ User: "Add password strength validation"
 
 ### agent_runs (record in docs/ai/STATE.yaml)
 
-Capture real wall-clock timestamps:
-- started_utc: immediately before Phase 1 (RED) begins
-- ended_utc: immediately after the last phase completes (REFACTOR or Phase 4 commit)
-After completing, append under
-metrics.work_items[ref_id].agent_runs in docs/ai/STATE.yaml:
+Capture `started_utc` from the system clock (`date -u +%Y-%m-%dT%H:%M:%SZ`)
+immediately before Phase 1 (RED) begins.
+PRIMARY PATH — after the last phase completes, append your agent run via the
+transactional CLI:
+  node .aai/scripts/state.mjs append-run --ref <REF-ID> --role "TDD Implementation" \
+    --model <your model identifier> --started <started_utc> \
+    --tdd-tests <count of TEST-xxx completed> \
+    [--note "<cycles summary>"] [--tokens-in N --tokens-out N]
+The CLI self-stamps `ended_utc` and computes `duration_seconds` from the system
+clock, keeps `cost_usd: null`, and auto-initializes a missing
+metrics.work_items entry — never a second top-level `metrics:` key.
+FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
+append by hand under metrics.work_items[ref_id].agent_runs in docs/ai/STATE.yaml:
   role:             TDD
   model_id:         <your model identifier, e.g. claude-opus-4-6, claude-sonnet-4-5>
   started_utc:      <ISO 8601 UTC, real measured start>
@@ -491,6 +546,9 @@ metrics.work_items[ref_id].agent_runs in docs/ai/STATE.yaml:
 Do NOT estimate any timing or token values. Only record measured/platform values.
 
 STATE-WRITE SAFETY (ISSUE-0004 / INV-14)
+Primary path: `node .aai/scripts/state.mjs append-run ...` appends under the
+single top-level `metrics:` key by construction (it refuses to write a
+duplicate-key file). The hand-edit rules below apply to the FALLBACK path.
 When appending your agent_runs entry, append into the EXISTING metrics.work_items.<ref_id>.agent_runs
 list under the single top-level `metrics:` key; never emit a second top-level `metrics:` key.
 A duplicate top-level `metrics:` silently drops the first block's work_items and agent_runs on a

@@ -1,0 +1,56 @@
+{
+  "date_utc": "2026-07-04T09:37:42Z",
+  "reviewer": "AAI Code Review role (independent, claude-fable-5)",
+  "scope": "CHANGE-0006 / SPEC-0012 working-tree diff on feat/change-0006-state-cli (worktree /Users/ales/Projects/aai-feat-change-0006-state-cli)",
+  "stage1": {
+    "spec": "docs/specs/SPEC-0012-loop-reliability-transactional-state-cli.md",
+    "verdict": "COMPLIANT",
+    "spec_ac": {
+      "Spec-AC-01": "compliant", "Spec-AC-02": "compliant", "Spec-AC-03": "compliant",
+      "Spec-AC-04": "compliant", "Spec-AC-05": "compliant", "Spec-AC-06": "compliant",
+      "Spec-AC-07": "compliant", "Spec-AC-08": "compliant", "Spec-AC-09": "compliant",
+      "Spec-AC-10": "compliant", "Spec-AC-11": "compliant", "Spec-AC-12": "compliant"
+    },
+    "suite_rerun": "AAI_TEST_TIMEOUT=540 .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-state.sh -> exit 0 (TEST-001..020 PASS)"
+  },
+  "summary": { "errors": 0, "warnings": 5, "info": 7 },
+  "findings": [
+    { "id": "W1", "severity": "warning", "file": ".aai/scripts/state.mjs", "line": 736,
+      "message": "reset-block destroys |- (and |+/>+) style notes: else-branch replaces the whole field span, deleting prior audit-note lines (reproduced). CLI-emitted >- style unaffected; hand-edited/legacy files at risk." },
+    { "id": "W2", "severity": "warning", "file": ".aai/scripts/state.mjs", "line": 215,
+      "message": "Inline top-level block header (metrics: {}, metrics: null) treated as block header: append-run/set-* splice nested lines under it producing invalid YAML with exit 0; check-state.mjs (dup-key-only) passes the broken file (reproduced)." },
+    { "id": "W3", "severity": "warning", "file": ".aai/scripts/state.mjs", "line": 273,
+      "message": "Plain-scalar values written verbatim without quoting/validation: set-validation --ref 'CHANGE-1: bad' (also --branch/--base-ref/--model/--test-id) yields invalid YAML with exit 0 that the validator cannot detect (reproduced)." },
+    { "id": "W4", "severity": "warning", "file": ".aai/scripts/state.mjs", "line": 186,
+      "message": "Concurrent invocations lose updates (read-modify-write, rename-last-wins; reproduced). No lock taken (RFC-0004 docs-lock unused) and the last-writer-wins/single-writer posture is documented nowhere in state.mjs or SPEC-0012; role prompts unconditionally instruct per-role append-run, tension with SUBAGENT_PROTOCOL sole-writer rule under parallel dispatch." },
+    { "id": "W5", "severity": "warning", "file": ".aai/scripts/state.mjs", "line": 92,
+      "message": "Unknown/misspelled flags silently ignored: set-validation --evidnce/--notse drops evidence and notes with exit 0 (reproduced) — contrary to the closed-set fail-loud posture the CLI exists to enforce." },
+    { "id": "I1", "severity": "info", "file": ".aai/scripts/state.mjs", "line": 379,
+      "message": "set-focus leaves the previous scope's current_focus.spec_path stale when --spec-path not passed (no consumer found today)." },
+    { "id": "I2", "severity": "info", "file": ".aai/scripts/lib/state-core.mjs", "line": 39,
+      "message": "CRLF input file is rewritten whole-file LF on any mutation (documented normalization); TEST-020 diff locality does not hold for CRLF checkouts." },
+    { "id": "I3", "severity": "info", "file": ".aai/scripts/state.mjs", "line": 349,
+      "message": "log-tick on a duplicate-key STATE reads the FIRST duplicate block; YAML last-key-wins would give the LAST — *_after tick fields may reflect the dropped block (corrupt input only)." },
+    { "id": "I4", "severity": "info", "file": ".aai/scripts/state.mjs", "line": 815,
+      "message": "--state/--ticks given without a value silently fall back to the REAL default runtime paths; a fixture invocation that drops the argument mutates live state with exit 0." },
+    { "id": "I5", "severity": "info", "file": ".aai/METRICS_FLUSH.prompt.md", "line": 52,
+      "message": "Primary-path reset via set-validation --status not_run self-stamps run_at_utc (never null), so the documented default shape still needs the prescribed follow-up hand edit." },
+    { "id": "I6", "severity": "info", "file": ".aai/scripts/state.mjs", "line": 200,
+      "message": "Filesystem write failures surface as uncaught exceptions with exit 1, numerically colliding with the integrity-refusal exit-1 contract (message text disambiguates; target never corrupted)." },
+    { "id": "I7", "severity": "info", "file": ".aai/scripts/state.mjs", "line": 132,
+      "message": "Negative integers accepted (--tokens-in -5, --tick -1); stale .tmp-<pid> files never reaped; set-phase field insert can land after a trailing blank line (valid, cosmetic)." }
+  ],
+  "hostile_experiments": [
+    "|- notes + reset-block -> prior note lines deleted (W1)",
+    "metrics: {} + append-run -> invalid YAML, exit 0, check-state OK (W2)",
+    "set-validation --ref 'CHANGE-1: bad' -> invalid YAML, exit 0 (W3)",
+    "two concurrent mutators -> one committed mutation lost (W4)",
+    "misspelled --evidnce/--notse -> silently dropped, exit 0 (W5)",
+    "status 'fail  # comment' + reset-block -> safe refusal exit 2 (clean)",
+    "CRLF file -> LF whole-file rewrite, exit 0 (I2, documented)",
+    "duplicate-key STATE + log-tick -> tolerated, first-block read (I3)",
+    "column-0 'metrics:' inside folded note -> not constructible (textFieldLines re-indents; clean)"
+  ],
+  "verdict": "PASS",
+  "notes": "0 ERROR findings; Stage 1 fully compliant. WARNINGs are hostile/non-canonical-input robustness + concurrency-posture documentation gaps; recommend a follow-up hardening work item for W1-W5."
+}

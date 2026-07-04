@@ -98,11 +98,15 @@ OUTPUT FORMAT
 - Workstream 1..K with:
   Scope, Role, Inputs, Expected outputs, Stop condition, Isolation guidance
 - Deferred scopes
-- State update summary for docs/ai/STATE.yaml:
-  - current_focus
-  - active_work_items
-  - human_input (if blocked)
-  - updated_at_utc
+- State update summary for docs/ai/STATE.yaml (applied by YOU, the single
+  writer — PRIMARY PATH is the transactional CLI, SPEC-0012):
+    node .aai/scripts/state.mjs set-focus --type <t> --ref <REF-ID> --path <p>
+    node .aai/scripts/state.mjs set-phase --ref <REF-ID> --phase <p> [--status <s>]
+    node .aai/scripts/state.mjs set-human-input --required <true|false> [--question <t>] [--reason <t>]
+  (each bumps the real `updated_at_utc` itself)
+  FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer):
+  edit current_focus / active_work_items / human_input / updated_at_utc by
+  hand, then validate with `node .aai/scripts/check-state.mjs docs/ai/STATE.yaml`.
 
 SUBAGENT EXECUTION
 When the platform supports concurrent subagent spawning:
@@ -116,7 +120,10 @@ When the platform supports concurrent subagent spawning:
 3. DO NOT report to the user until ALL subagent result blocks are collected.
 4. Apply the merge protocol from .aai/SUBAGENT_PROTOCOL.md — you are the sole
    writer of docs/ai/STATE.yaml.
-5. Update docs/ai/STATE.yaml with merged results, then RELEASE each scope lock
+5. Update docs/ai/STATE.yaml with merged results — apply each merged field
+   through the transactional CLI (`node .aai/scripts/state.mjs set-* /
+   append-run / reset-block`, per the State update summary above; subagents
+   still NEVER write STATE) — then RELEASE each scope lock
    (`docs-lock release <scope> <owner>`), before any user-facing output.
 
 If the platform does NOT support concurrent subagents:
