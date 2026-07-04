@@ -9,6 +9,7 @@ Complete guide for using AAI (Autonomous AI) skills in your projects.
 - [Skills Catalog](#skills-catalog)
 - [Workflows](#workflows)
 - [Best Practices](#best-practices)
+- [Leak-safe test execution](#leak-safe-test-execution)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -191,6 +192,8 @@ AAI uses two different classes of documentation:
 | `/aai-code-review` | Review code | AI-powered review |
 | `/aai-docs-audit` | Docs hygiene | Drift detection: claimed vs implemented |
 | `/aai-docs-canon` | Docs consolidation | Layered intake/specs/RFCs → canonical per-domain layer + archive |
+| `/aai-test-canon` | Test consolidation | Fragmented tests → canonical per-domain suites + RED stubs for gaps |
+| `/aai-pr` | Open a PR | Scope-only staging, staged-vs-scope audit, PR body; never merges |
 | `/aai-profile` | Optimize | Performance analysis |
 | `/aai-auto-trigger` | Automate | Pattern-based triggering |
 
@@ -405,6 +408,42 @@ Lock files live under `docs/ai/locks/` (gitignored, per-agent-local). You should
 never need to edit them by hand; `reap` recovers a wedged scope if an
 orchestrator died mid-tick.
 
+#### `/aai-pr`
+**What:** PR ceremony (SPEC-0013). Turns a validated, review-passed scope into
+a pushed branch and an opened pull request — with scope-only staging and a
+hard merge boundary. It **never merges**; merging is an operator-only action.
+
+**When to use:**
+- After validation PASS and code review pass/waived, when the scope is ready
+  to leave the working tree
+- As the closing step of a loop-driven feature (the loop ends with an open PR)
+
+**Example:**
+```bash
+/aai-pr
+
+# 1. Derives the in-scope file list from STATE.yaml + the frozen spec
+#    (code_review.scope, worktree.inline_review_scope, spec Links)
+# 2. Stages ONLY in-scope paths — git add <path> per file
+# 3. Staged-vs-scope audit: git diff --cached --name-only must equal the
+#    scope list (plus expected companions: docs/INDEX.md, review reports,
+#    CHANGELOG.md) or it ABORTS and resets the offenders
+# 4. Adds a CHANGELOG.md entry for feat/fix scopes
+# 5. Conventional commit referencing the ref id, push, gh pr create
+#    with the PR body template (Summary / Scope / Spec-AC table /
+#    Review status / Test evidence / Links)
+# 6. Reports the PR URL and STOPS
+```
+
+**What it refuses to do:**
+- `git add -A`, `git add .`, `git commit -a` — forbidden (that is exactly how
+  unrelated in-flight files end up in a feature commit)
+- Commit before validation PASS + review pass/waived + your explicit
+  confirmation
+- `gh pr merge`, PR approval, or auto-merge — merging is yours, after your
+  own review
+- Force-push or history rewrites of a pushed branch
+
 ---
 
 ### 4. Quality & Validation
@@ -496,7 +535,44 @@ node .aai/scripts/docs-audit.mjs --list      # per-doc classification table
 node .aai/scripts/docs-audit.mjs --check     # CI gate (exit 1 on hard fails)
 node .aai/scripts/docs-audit.mjs --quick     # cheap counts, no git probes
 node .aai/scripts/docs-audit.mjs --path docs/specs   # scope to a subtree
+node .aai/scripts/docs-audit.mjs --gate SPEC-0011    # close-time gate (below)
+node .aai/scripts/docs-audit.mjs --lint-body         # body-lint digest (below)
 ```
+
+**Close-time gate (`--gate <DOC-ID>`, SPEC-0011):** an offline structural
+predicate over one doc's AC Status table, run **before** a `status: done`
+flip. It fails (exit 1) on: missing AC Status table, a non-terminal row, a
+done row with empty Evidence, or an invalid Review-By method. Exit 0 = pass,
+exit 2 = the id resolves to no scanned doc. The loop runs it automatically
+(VALIDATION done-flip, METRICS_FLUSH, wrap-up advisory, and the implementer's
+pre-handoff self-check); run it yourself before hand-closing a doc:
+```bash
+node .aai/scripts/docs-audit.mjs --gate CHANGE-0007
+# GATE PASS: AC Status table complete ...        (exit 0)
+# GATE FAIL — the AC Status table is not reconciled:   (exit 1, reasons listed)
+```
+`--gate-file <file>` gates an explicit file path instead of resolving by id —
+this is what the pre-commit hook uses on the materialized STAGED blob, so a
+clean worktree copy cannot mask a dirty staged one.
+
+**Body lint (`--lint-body`, SPEC-0013):** three rules over governed docs —
+stray tool markup (`</content>`, `<result>` and friends), unbalanced code
+fences (a fence still open at EOF), and leftover template placeholders.
+Fenced blocks and inline code spans are masked first, so documentation that
+*quotes* such markup (like this guide) is never flagged. Report-only by
+default; `--strict` promotes findings to exit 1. `--lint-body-file <file>` is
+the pure single-file predicate (exit 1 findings / 0 clean / 2 unreadable),
+again used by the pre-commit hook against staged content.
+
+**What the audit now reports** (report-only verdicts, never hard-fail):
+- `missing-close-telemetry` — a done doc with no `work_item_closed` close
+  event in EVENTS.jsonl (close events — `work_item_closed`,
+  `code_review_completed` — are appended via `append-event.mjs` at closeout)
+- `review-claim-unbacked` — a `Review-By: code-review` claim with no
+  corroborating event or report artifact
+- near-miss AC table WARNING — an almost-canonical table (e.g.
+  `Evidence (TEST)` columns, non-canonical headings) is called out explicitly
+  instead of being silently misread
 
 **Reading the verdicts:**
 - `tracked-done` — doc says done and evidence agrees (implemented)
@@ -527,7 +603,19 @@ category_prefixes:              # filename segments treated as scopes,
   - PHASE                       # not IDs (DECISION-PHASE-0-scope ->
   - MILESTONE                   # unique slug ID + scope PHASE-0)
   - EPIC
+close_gate: report-only         # report-only | enforce — pre-commit hook
+                                # behavior when a STAGED status:done flip
+                                # fails --gate-file: warn vs abort commit
+body_lint: report-only          # report-only | enforce — same for staged
+                                # governed docs failing --lint-body-file
 ```
+
+The two gate keys are consulted by the **callers** (the AAI pre-commit hook
+and the closeout skills), not by the script — `--gate`/`--lint-body-file`
+always return the raw predicate exit code. Under `report-only` (the default,
+also when the key or file is absent) the hook prints a warning and lets the
+commit through; under `enforce` it aborts the commit. Either way the hook
+checks the **staged blob**, not your worktree.
 
 **Three modes, three questions:**
 - audit (default) — "do recorded claims still match the traces?" (script:
@@ -603,6 +691,55 @@ node .aai/scripts/docs-canon.mjs --phase2 --resync  # re-synthesize drifted doma
 **Integration:** canonical docs are surfaced in `docs/INDEX.md` under a
 "Canonical layer" section; `docs/_archive/` is excluded from the active
 docs-audit scan, so archived docs are not mis-flagged as orphans.
+
+---
+
+#### `/aai-test-canon`
+
+The test-side twin of `/aai-docs-canon` (RFC-0006 / SPEC-0008). Consolidates
+tests fragmented per-change/issue (scattered across `tests/skills/`,
+`tests/self-hosting/`, ...) into a single canonical "current state" suite per
+functional domain in `tests/canonical/`, anchored on the approved docs-canon
+domain map. Use it when no single suite answers "what does this feature's
+test coverage look like today".
+
+**Two phases (human gate between them):**
+```bash
+# Phase 1 — analyze + propose (writes nothing under tests/canonical|_archive)
+node .aai/scripts/test-canon.mjs --phase1
+#   builds a traceability matrix (test -> domain), emits a coverage-gap report
+#   (acceptance criteria with no covering test), proposes a per-domain test
+#   map, and HALTS. Review docs/ai/test-canon.proposal.json, then persist an
+#   approved map to docs/ai/test-canon.map.json with "approved": true.
+
+# Phase 2 — consolidate + canonicalize (only on an approved map)
+node .aai/scripts/test-canon.mjs --phase2
+#   consolidates each domain's tests into tests/canonical/<domain>.sh, MOVES
+#   originals (tracked git move) to tests/_archive/ with a back-link, and
+#   scaffolds a failing/pending RED stub for each uncovered acceptance
+#   criterion — hand-off to /aai-tdd for GREEN. Verifies the canonical suite
+#   still runs via existing runners BEFORE archiving; aborts otherwise.
+
+# Re-run drift check / resolution
+node .aai/scripts/test-canon.mjs --drift            # report drifted domains
+node .aai/scripts/test-canon.mjs --phase2 --resync  # re-synthesize drifted domains
+```
+
+**What it guarantees:**
+- Domain boundaries are human-approved (HITL gate); the mechanical
+  consolidation is automated.
+- Originals are never destroyed — moved to `tests/_archive/` with a
+  `# Canonical:` forward pointer.
+- Phase 2 never implements GREEN — uncovered criteria become RED stubs and go
+  to `/aai-tdd`.
+- Tests it cannot confidently map land in an `unclear` bucket and stay in
+  place until you assign a domain.
+- Re-runs are idempotent: unchanged domains are skipped; changed sources are
+  reported as DRIFT and never silently overwritten (`--resync` resolves
+  deliberately).
+
+If `docs/canonical/` is absent (docs-canon has not run), Phase 1 degrades
+gracefully and maps against raw `docs/` instead of blocking.
 
 ---
 
@@ -994,6 +1131,45 @@ Skipped: 0 (0%)
 - Metrics
 ```
 
+#### Runtime state CLI (`state.mjs`)
+**What:** `.aai/scripts/state.mjs` is the transactional writer for
+`docs/ai/STATE.yaml` (SPEC-0012). All loop roles (Planning, Implementation,
+Validation, Remediation, TDD, Orchestration, Metrics Flush) now mutate state
+through its closed-set subcommands instead of free-text YAML edits: atomic
+tmp+rename writes, integrity refusal on a corrupt STATE (exit 1), enum
+validation, and comment/key-order-preserving edits.
+
+**When you would touch it:** normally never — the loop drives it. Operator
+cases: a manual HITL fix (answering a blocked question by hand), unblocking a
+wedged verdict during a hand-driven remediation, or scripted inspection/setup.
+Examples:
+```bash
+# Clear a human-input block by hand (what /aai-hitl does under the hood)
+node .aai/scripts/state.mjs set-human-input --required false
+
+# Reset a FAILED verdict block for re-validation
+node .aai/scripts/state.mjs reset-block last_validation
+# A pass/waived verdict is guarded — the command REFUSES to clobber it:
+node .aai/scripts/state.mjs reset-block code_review
+# state: reset-block: REFUSED — code_review.status is "pass" (not fail) ...
+node .aai/scripts/state.mjs reset-block code_review --force   # explicit human decision only
+
+# Record a strategy decision made outside the loop
+node .aai/scripts/state.mjs set-strategy --selected tdd --rationale "operator call"
+```
+(`log-tick` also exists but is loop-internal — it appends to
+`docs/ai/LOOP_TICKS.jsonl` and never touches STATE.)
+
+**Strict flags:** every subcommand rejects flags outside its declared set — a
+misspelled `--evidnce` fails loud with exit 2 and prints the valid set,
+instead of silently dropping your data. Exit contract: 0 success (including
+idempotent no-ops), 1 integrity refusal (file preserved byte-identical),
+2 usage/validation error before any write.
+
+**Rule:** never hand-edit `STATE.yaml`. If you absolutely must, run
+`node .aai/scripts/check-state.mjs` afterwards (or `/aai-check-state`, with
+`REPAIR:` prefix to auto-fix) before the next loop tick.
+
 #### `/aai-hitl`
 **What:** Human-in-the-loop resolver.
 
@@ -1044,17 +1220,22 @@ Skipped: 0 (0%)
 /aai-validate-report
 # Generates report with screenshots
 
-# 7. Share
+# 7. Open the pull request
+/aai-pr
+# Scope-only staging + staged-vs-scope audit + gh pr create
+# Reports the PR URL and stops — YOU merge it after your own review
+
+# 8. Share
 /aai-share docs/ai/reports/LATEST.md
 # Returns: https://aai-reports-xyz.pages.dev
 
-# 8. Cleanup worktree
+# 9. Cleanup worktree (after the PR is merged)
 /aai-worktree cleanup user-profile
 
-# 9. View metrics
+# 10. View metrics
 /aai-dashboard --publish
 
-# 10. Update project discussion thread and wrap up session
+# 11. Update project discussion thread and wrap up session
 /aai-session-journal "User profile and avatar flow"
 /aai-wrap-up
 # Captures learnings, proposes rules, prepares next session
@@ -1114,6 +1295,8 @@ Skipped: 0 (0%)
 /aai-hitl
 
 # 5. Loop completes automatically
+# A finished scope ends with an OPEN pull request (/aai-pr ceremony) —
+# the loop never merges; merging is your action after your own review.
 ```
 
 ---
@@ -1188,6 +1371,16 @@ Skipped: 0 (0%)
    - Proof of completion
    - Shareable temporary evidence
    - Promote durable conclusions into project-owned docs before commit
+
+4. **Warnings have teeth**
+   - A code-review PASS with WARNINGs is not a free pass: every WARNING must
+     be either remediated or recorded as an explicit decision
+     (decisions.jsonl / a follow-up ref). `/aai-wrap-up` surfaces any
+     unrecorded ones, so they cannot silently evaporate at session end.
+   - Implementers reconcile the spec's AC-Status table and run
+     `docs-audit.mjs --gate <DOC-ID>` as a self-check **before** handing off
+     to validation — this is why validations now tend to pass first-try
+     instead of bouncing on unreconciled tables (SPEC-0011/SPEC-0012).
 
 ---
 
@@ -1343,6 +1536,6 @@ ls docs/ai/METRICS.jsonl
 
 ---
 
-**Last Updated:** 2026-03-29
-**Version:** 1.2
+**Last Updated:** 2026-07-04
+**Version:** 1.3
 **Status:** Current
