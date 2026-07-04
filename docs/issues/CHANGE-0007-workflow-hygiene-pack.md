@@ -1,10 +1,13 @@
 ---
 id: CHANGE-0007
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  spec: SPEC-0013
+  pr:
+    - 36
+  commits:
+    - e7d6732
 ---
 
 # Change Request: Workflow hygiene pack — body lint, PR ceremony, review-response, warnings policy, fixture diversity, trigger/wrapper cleanup

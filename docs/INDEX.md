@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-04T11:37:01.450Z
+Generated: 2026-07-04T11:40:19.289Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (31)
+## Done (32)
 
 | ID | Type | Path |
 |---|---|---|
@@ -25,6 +25,7 @@ _None._
 | CHANGE-0004 | issues | docs/issues/CHANGE-0004-docs-audit-parent-closeout-candidate.md |
 | CHANGE-0005 | issues | docs/issues/CHANGE-0005-docs-audit-closeout-guardrails.md |
 | CHANGE-0006 | issues | docs/issues/CHANGE-0006-loop-reliability-state-cli.md |
+| CHANGE-0007 | issues | docs/issues/CHANGE-0007-workflow-hygiene-pack.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
@@ -51,11 +52,9 @@ _None._
 | SPEC-0012 | specs | docs/specs/SPEC-0012-loop-reliability-transactional-state-cli.md |
 | SPEC-0013 | specs | docs/specs/SPEC-0013-workflow-hygiene-pack.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0007 | issues | docs/issues/CHANGE-0007-workflow-hygiene-pack.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
