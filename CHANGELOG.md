@@ -9,6 +9,106 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — hygiene: workflow hygiene pack (CHANGE-0007 / SPEC-0013)
+
+Eight workflow-hygiene gaps closed in one pack (PR #36, closeout #37):
+- **Body lint (H1):** `docs-audit.mjs --lint-body` / `--lint-body-file` — flags
+  stray tool markup (`</content>`, `<result>`), unbalanced code fences, and
+  leftover template placeholders in governed docs; fenced blocks and inline code
+  spans are never flagged. Report-only by default, `--strict` promotes; wired
+  into intake POST-SAVE and the pre-commit hook (`body_lint` config key,
+  staged-blob discipline). First corpus scan caught a real legacy escape in
+  SPEC-0007.
+- **PR ceremony (H2):** new `/aai-pr` skill — scope-only staging (no `git add
+  -A`), a mandatory staged-vs-scope audit, conventional commits, PR body
+  template, and a hard NEVER-merge boundary (merging is operator-only).
+- **Review-response flow + warnings policy (H3/H4/H6):** SKILL_CODE_REVIEW now
+  codifies the external-PR-comment workflow (fetch → triage → RED-proofed fix →
+  inline reply → push), mandates staging review reports with the scope commit,
+  and requires every WARNING on a PASS to be remediated or recorded
+  (decisions.jsonl / follow-up ref); wrap-up surfaces unrecorded ones.
+- **Partial-flush verdict reset (H5):** METRICS_FLUSH resets
+  `last_validation`/`code_review` when the flushed item was the current focus
+  (ledger-before-reset), so verdicts no longer leak into the next scope.
+- **Fixture diversity (H7):** SKILL_TDD + SKILL_TEST_CANON require degenerate
+  fixtures (empty, fully-covered, multi-source, mid-operation failure).
+- **Wrapper/trigger cleanup (H8):** consumer-less `triggers.json` promise
+  removed; SUBAGENT-STOP added to aai-wrap-up/aai-flush; invoke lines unified;
+  SKILL_META documented as the session-start-injected prompt.
+- Post-review hardening: hooks read gate config from the staged/HEAD blob (both
+  `body_lint` and `close_gate` — same TOCTOU class as SPEC-0011 F2), staged-file
+  loops are space-safe, lint masking handles multi-line inline spans.
+
+## [unreleased] — loops: transactional STATE CLI + transition fixes (CHANGE-0006 / SPEC-0012)
+
+Closes the root cause of repeated STATE.yaml corruption: runtime state edited
+as free-text YAML by LLMs with no transactional primitive (PR #34, closeout #35).
+- **`.aai/scripts/state.mjs`** — 11 subcommands (`set-focus/phase/validation/
+  code-review/strategy/worktree/tdd-cycle/human-input`, `append-run`,
+  `log-tick`, `reset-block`): closed-set enums (exit 2), integrity refusal on a
+  corrupt STATE (exit 1), atomic tmp+rename writes with a crash-injection test
+  hook, self-stamped timestamps, comment/key-order-preserving edits, optimistic
+  concurrency check, strict per-subcommand flags (a misspelled `--flag` fails
+  loud instead of silently dropping data).
+- **`lib/state-core.mjs`** shared with `check-state.mjs` (CLI contract
+  unchanged); inline-header conflict detection in both writer and validator.
+- **Nine prompts migrated** (PLANNING, IMPLEMENTATION, VALIDATION, REMEDIATION,
+  SKILL_TDD, ORCHESTRATION ×2, METRICS_FLUSH, SKILL_LOOP) to the CLI as the
+  primary path, with a `state.mjs is absent` fallback for vendored repos.
+- **Transition fixes:** REMEDIATION resets only failed verdict blocks and never
+  writes its own verdict; ORCHESTRATION re-dispatches an independent
+  Validation/Review after remediation (no more self-validation / rule-10 loop).
+- **Implementer AC-table reconciliation:** IMPLEMENTATION step 9b / SKILL_TDD
+  Phase 4 reconcile the spec's AC-Status table and run `docs-audit --gate`
+  before handoff — validated live (first-try Validation PASS on both loops that
+  ran after this landed).
+
+## [unreleased] — docs-audit: close-time guardrails (CHANGE-0005 / SPEC-0011)
+
+Prevents "git-closed but AAI-unreconciled" specs (PR #27, closeout #28; evidence
+from downstream fh-workspace):
+- **G1 close gate:** `docs-audit.mjs --gate <DOC-ID>` — offline structural
+  predicate (missing AC-Status table / non-terminal row / done row with empty
+  Evidence / invalid Review-By ⇒ exit 1). Wired into the VALIDATION done-flip,
+  METRICS_FLUSH, and wrap-up (advisory).
+- **G2 close telemetry:** new `work_item_closed` + `code_review_completed`
+  events; report-only missing-close-telemetry check for done docs without a
+  close event.
+- **G3 truthfulness:** `Review-By: code-review` claims without a corroborating
+  event/artifact yield the report-only verdict `review-claim-unbacked`.
+- **G4 near-miss detection:** almost-canonical AC tables (`Evidence (TEST)`
+  columns, non-canonical headings) emit an explicit WARNING instead of being
+  silently misread.
+- **G5 pre-commit block (opt-in):** a staged `status: done` flip that fails the
+  gate aborts the commit under `close_gate: enforce` (report-only default);
+  the hook gates the STAGED blob (`--gate-file`), not the worktree.
+- Post-review fixes: `work_item_closed` requires validation+code_review fields;
+  digit-boundary artifact-id matching (SPEC-001 vs SPEC-0011).
+
+## [unreleased] — tests: canonicalization skill `aai-test-canon` (RFC-0006 / SPEC-0008) + engine fixes
+
+Two-phase test-side twin of `aai-docs-canon` (PR #22): Phase 1 builds a
+traceability matrix + coverage-gap report and proposes a per-domain test map
+(HITL gate); Phase 2 consolidates tests into `tests/canonical/`, archives
+originals with back-links, and scaffolds RED stubs for uncovered criteria
+(hand-off to `aai-tdd`), with idempotent re-runs and `--drift`/`--resync`.
+Post-merge review fixes (PR #29, #31): Phase 2 preserves source test logic (runs
+archived copies instead of replacing them with all-RED stubs; stubs only for
+genuinely uncovered criteria), verifyRunner gates on GREEN before archiving and
+re-verifies after the rewrite to archived paths, native runners per test type
+(.sh/.ps1/.py/.mjs), per-criterion Phase-1 coverage, atomic multi-source archive
+with rollback, zero-stub domains generate valid bash.
+
+## [unreleased] — chore: test portability + repo hygiene
+
+- `test_index_continue_on_error` realigned with the generator's
+  degrade-and-report default (`--strict` is the gate) — the stale hard-fail
+  expectation failed on every run (issue #30, PR #32).
+- `test-aai-intake.sh` made bash-3.2 portable (`${var^^}` removed) — the suite
+  errored on macOS default bash (PR #33).
+- 11 orphaned code-review reports from prior sessions committed to
+  `docs/ai/reviews/` (PR #33).
+
 ## [unreleased] — ci: ps1-quality GitHub Actions workflow
 
 First CI for the repo (`.github/workflows/ps1-quality.yml`), wiring the
