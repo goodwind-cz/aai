@@ -1,10 +1,13 @@
 ---
 id: CHANGE-0006
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  spec: SPEC-0012
+  pr:
+    - 34
+  commits:
+    - 4efbba6
 ---
 
 # Change Request: Loop reliability — transactional STATE CLI, remediation transition reset, implementer AC-table reconciliation
