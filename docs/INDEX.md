@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-04T10:05:26.033Z
+Generated: 2026-07-04T10:09:39.713Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (29)
+## Done (30)
 
 | ID | Type | Path |
 |---|---|---|
@@ -24,6 +24,7 @@ _None._
 | CHANGE-0003 | issues | docs/issues/CHANGE-0003-docs-audit-verify-mode.md |
 | CHANGE-0004 | issues | docs/issues/CHANGE-0004-docs-audit-parent-closeout-candidate.md |
 | CHANGE-0005 | issues | docs/issues/CHANGE-0005-docs-audit-closeout-guardrails.md |
+| CHANGE-0006 | issues | docs/issues/CHANGE-0006-loop-reliability-state-cli.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
@@ -49,11 +50,10 @@ _None._
 | SPEC-0011 | specs | docs/specs/SPEC-0011-docs-audit-closeout-guardrails.md |
 | SPEC-0012 | specs | docs/specs/SPEC-0012-loop-reliability-transactional-state-cli.md |
 
-## Drafts (2)
+## Drafts (1)
 
 | ID | Type | Path |
 |---|---|---|
-| CHANGE-0006 | issues | docs/issues/CHANGE-0006-loop-reliability-state-cli.md |
 | CHANGE-0007 | issues | docs/issues/CHANGE-0007-workflow-hygiene-pack.md |
 
 ## Deferred (whole-doc) (0)
