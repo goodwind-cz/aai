@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-04T12:43:21.805Z
+Generated: 2026-07-04T13:14:50.335Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (32)
+## Done (33)
 
 | ID | Type | Path |
 |---|---|---|
@@ -51,6 +51,7 @@ _None._
 | SPEC-0011 | specs | docs/specs/SPEC-0011-docs-audit-closeout-guardrails.md |
 | SPEC-0012 | specs | docs/specs/SPEC-0012-loop-reliability-transactional-state-cli.md |
 | SPEC-0013 | specs | docs/specs/SPEC-0013-workflow-hygiene-pack.md |
+| REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
 
