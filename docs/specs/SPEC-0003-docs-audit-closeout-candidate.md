@@ -152,7 +152,7 @@ parents as `closeout-candidate` so a human can close them. It never auto-closes.
     `closeoutCandidates` (array of `{ id, rel, status, specs: [doneSpecId...] }`),
     and returns it (and a `counts.closeoutCandidates` integer) WITHOUT touching
     `hardFail`/`needsTriage`. Import `asList` from `docs-model.mjs`. Add a
-    `suggestedStep`-style next-step string ("advance <PARENT> to done/accepted;
+    `suggestedStep`-style next-step string ("advance `<PARENT>` to done/accepted;
     record the implementing commit").
   - `.aai/scripts/docs-audit.mjs`: render a "Closeout candidates" section
     (parent id, status, satisfying spec id(s), suggested step) inside the

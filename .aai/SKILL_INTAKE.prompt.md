@@ -34,6 +34,10 @@ Follow that prompt exactly — do not merge or combine intake forms.
 STEP 2.5 — POST-SAVE CHECK (RFC-0002)
 After saving the artifact, verify template compliance:
   node .aai/scripts/docs-audit.mjs --check --strict --no-event --path <saved-file>
+This check also body-lints the artifact (SPEC-0013 H1): stray tool markup
+(`</content>`, `<invoke ...>`), unbalanced code fences, and unfilled template
+placeholders hard-fail under --strict. Body lint never flags content inside
+fenced blocks or inline code spans.
 If the check fails, fix the artifact's frontmatter per the doc type's template
 in .aai/templates/ and re-run until it passes. Do not proceed to STEP 3 while
 the check fails. If the script does not exist (older AAI layer), note that and

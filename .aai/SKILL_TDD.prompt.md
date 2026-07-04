@@ -141,10 +141,20 @@ Before starting TDD cycle:
        refactor: null
    ```
 
+**Fixture diversity checklist (MANDATORY when authoring fixtures)** (SPEC-0013 H7):
+- [ ] degenerate/empty collection (zero items, empty file, empty map)
+- [ ] fully-covered / zero-remainder case (nothing left to do — the branch test-canon missed)
+- [ ] multi-source / multi-writer case (more than one contributor to the same output)
+- [ ] mid-operation failure (abort between steps; partial state observed)
+- [ ] negative control (input that must NOT trigger the behavior)
+
+RED-proof rule extension: ask "would this suite stay green if the happy path were the only path implemented?" — if yes, the suite is not evidence; add the missing shapes.
+
 **RED Phase Checklist:**
 - [ ] TEST-xxx selected from spec Test Plan
 - [ ] Test file created/updated at expected path
 - [ ] Test matches TEST-xxx description from spec
+- [ ] Fixture diversity checklist satisfied (or the gap justified in the spec)
 - [ ] Test FAILS when run (verified)
 - [ ] Failure is for the right reason (not syntax error)
 - [ ] Evidence saved to docs/ai/tdd/
@@ -453,6 +463,11 @@ The difference is discipline: TDD enforces RED→GREEN→REFACTOR per test.
 5. **Cannot claim merge/PR readiness without review**
    - Code Review PASS or explicit human waiver is required when
      `code_review.required == true`
+
+6. **Cannot count an all-happy-path suite as evidence** (SPEC-0013 H7)
+   - The Phase 1 fixture diversity checklist is mandatory when authoring fixtures
+   - If the suite would stay green with only the happy path implemented,
+     it is not evidence — add the missing fixture shapes before claiming RED/GREEN
 
 ### Warnings
 

@@ -67,6 +67,27 @@ PROCESS
         head_ref: null, report_paths: [], notes: null).
       - Reset current_focus to defaults (type: none, ref_id: null, primary_path: null).
       - Reset locks.implementation to true (safe default — next scope must explicitly unlock).
+   d2. PARTIAL-FLUSH reset (SPEC-0013 H5): whenever a flushed ref_id equals
+      current_focus.ref_id (or last_validation.ref_id names it) while OTHER
+      active work items remain, still reset the verdict blocks so the flushed
+      item's PASS verdicts cannot leak into the next scope — PRIMARY PATH
+      (transactional CLI, SPEC-0012):
+        node .aai/scripts/state.mjs set-validation --status not_run --notes "reset after flush of <ref_id>"
+        node .aai/scripts/state.mjs set-code-review --required false --status not_run --notes "reset after flush of <ref_id>"
+      then null the remaining leaked fields (last_validation.evidence_paths,
+      last_validation.ref_id, code_review.scope, code_review.base_ref,
+      code_review.head_ref, code_review.report_paths) as a GUARDED MANUAL EDIT
+      and validate the file:
+        node .aai/scripts/check-state.mjs docs/ai/STATE.yaml
+      Do NOT reach for `reset-block` here: its notes marker hardcodes
+      remediation provenance ("pending independent re-validation" — wrong for a
+      flush) and it preserves verdict fields as audit history, which is exactly
+      the leak this reset removes. The ledger-before-reset ordering is
+      mandatory: the METRICS.jsonl append (steps 3c/4) happens BEFORE any
+      reset — the durable history lives in the ledger, never in STATE.yaml.
+      FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
+      apply the same verdict-block resets by hand (last_validation and
+      code_review to the defaults listed above), then validate with check-state.mjs.
    e. Update updated_at_utc after cleanup (the CLI commands above bump it
       automatically; bump it by hand only on the pure-manual path).
 6. Ephemeral file cleanup (only when step 5d triggered — full reset, no remaining work):

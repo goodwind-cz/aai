@@ -1,3 +1,6 @@
+<!-- Loaded automatically by hooks/session-start.sh / hooks/session-start.ps1
+     (wired in hooks/hooks.json, SessionStart matcher: startup|resume|clear|compact);
+     not a slash skill — do not create a wrapper for it (SPEC-0013 D8). -->
 EXTREMELY IMPORTANT: This project uses AAI (Autonomous Agent Interface).
 
 ## At the start of every session

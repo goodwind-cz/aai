@@ -2595,6 +2595,591 @@ test_spec0011_regression() {  # TEST-015 / Spec-AC-12
   log_pass "Real-repo audit CLEAN, no false near-miss, INDEX idempotent"
 }
 
+# --- CHANGE-0007 / SPEC-0013 H1 — body lint (TEST-001..009) ------------------
+
+test_change0007_lint_stray_markup() {  # TEST-001 / Spec-AC-01
+  log_info "Test: stray </content> outside code -> stray-tool-markup finding with rule id + line (TEST-001)..."
+  local d; d="$(setup_iso_repo c7-stray)"
+  cat > "$d/docs/specs/SPEC-7701-stray.md" <<'MD'
+---
+id: SPEC-7701
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Spec with leaked tool markup
+
+Some prose.
+</content>
+More residue: <invoke name="Bash"> here.
+MD
+  local ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body > lint.log 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "--lint-body without --strict must exit 0 (got $ec): $(cat "$d/lint.log")"
+  assert_contains "$d/lint.log" "### Body lint"
+  grep -qE 'SPEC-7701-stray\.md:11 .*stray-tool-markup' "$d/lint.log" \
+    || log_fail "finding must carry rel:line 11 + rule id stray-tool-markup: $(cat "$d/lint.log")"
+  grep -qE 'SPEC-7701-stray\.md:12 .*stray-tool-markup' "$d/lint.log" \
+    || log_fail "<invoke ...> on line 12 must also be flagged: $(cat "$d/lint.log")"
+  # The same section must ride in the ordinary --check digest (report-only).
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event > check.log 2>&1) || true
+  grep -qE '^### Body lint: [1-9]' "$d/check.log" \
+    || log_fail "--check digest must carry a non-zero '### Body lint:' section: $(cat "$d/check.log")"
+  rm -rf "$d"
+  log_pass "Stray tool markup flagged with rule id + line in the Body lint section (TEST-001)"
+}
+
+test_change0007_lint_unbalanced_fence() {  # TEST-002 / Spec-AC-01
+  log_info "Test: unclosed \`\`\` fence at EOF -> unbalanced-fence finding (TEST-002)..."
+  local d; d="$(setup_iso_repo c7-fence)"
+  cat > "$d/docs/specs/SPEC-7702-fence.md" <<'MD'
+---
+id: SPEC-7702
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Spec with an unclosed fence
+
+Prose.
+```js
+const x = 1;
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body > lint.log 2>&1) \
+    || log_fail "--lint-body must exit 0 without --strict: $(cat "$d/lint.log")"
+  grep -qE 'SPEC-7702-fence\.md:11 .*unbalanced-fence' "$d/lint.log" \
+    || log_fail "unclosed fence must be flagged as unbalanced-fence at its opening line 11: $(cat "$d/lint.log")"
+  rm -rf "$d"
+  log_pass "Unclosed fence at EOF flagged as unbalanced-fence (TEST-002)"
+}
+
+test_change0007_lint_placeholder() {  # TEST-003 / Spec-AC-01
+  log_info "Test: SPEC-XXXX residue + <PLACEHOLDER> flagged; mixed-case angle prose NOT flagged (TEST-003)..."
+  local d; d="$(setup_iso_repo c7-ph)"
+  cat > "$d/docs/specs/SPEC-7703-ph.md" <<'MD'
+---
+id: SPEC-7703
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Spec with template residue
+
+Unfilled id SPEC-XXXX left in the body.
+An all-caps token <PLACEHOLDER> and <TODO_FILL> too.
+But <why isolation is or is not useful> is legitimate prose.
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body > lint.log 2>&1) \
+    || log_fail "--lint-body must exit 0 without --strict: $(cat "$d/lint.log")"
+  grep -qE 'SPEC-7703-ph\.md:10 .*template-placeholder' "$d/lint.log" \
+    || log_fail "SPEC-XXXX body residue must be flagged as template-placeholder: $(cat "$d/lint.log")"
+  grep -qE 'SPEC-7703-ph\.md:11 .*template-placeholder' "$d/lint.log" \
+    || log_fail "<PLACEHOLDER>/<TODO_FILL> must be flagged as template-placeholder: $(cat "$d/lint.log")"
+  grep -qF "why isolation" "$d/lint.log" \
+    && log_fail "mixed-case angle prose must NOT be flagged (false-positive posture): $(cat "$d/lint.log")"
+  grep -qE ':12 ' "$d/lint.log" \
+    && log_fail "line 12 (mixed-case angle prose) must carry no finding: $(cat "$d/lint.log")"
+  rm -rf "$d"
+  log_pass "Template placeholders flagged; mixed-case angle prose spared (TEST-003)"
+}
+
+test_change0007_lint_negative_controls() {  # TEST-004 / Spec-AC-01
+  log_info "Test: clean doc + stray tag inside fence/inline code -> zero findings (TEST-004)..."
+  local d; d="$(setup_iso_repo c7-neg)"
+  cat > "$d/docs/specs/SPEC-7704-clean.md" <<'MD'
+---
+id: SPEC-7704
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Entirely clean spec
+
+Ordinary prose only.
+MD
+  cat > "$d/docs/specs/SPEC-7705-examples.md" <<'MD'
+---
+id: SPEC-7705
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Spec whose EXAMPLES carry the tokens (fences-in-examples control)
+
+```text
+</content>
+<PLACEHOLDER>
+SPEC-XXXX
+```
+
+Inline `</content>` and `SPEC-XXXX` and `<PLACEHOLDER>` in code spans.
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body > lint.log 2>&1) \
+    || log_fail "--lint-body must exit 0: $(cat "$d/lint.log")"
+  grep -qE '^### Body lint: 0' "$d/lint.log" \
+    || log_fail "clean + examples-only corpus must yield zero findings: $(cat "$d/lint.log")"
+  rm -rf "$d"
+  log_pass "Fenced and inline-code examples never flagged; clean doc clean (TEST-004)"
+}
+
+test_change0007_lint_degenerate_fixtures() {  # TEST-005 / Spec-AC-01
+  log_info "Test: empty body / frontmatter-only / 4-backtick-wraps-3 / tilde fences -> no crash, correct verdicts (TEST-005)..."
+  local d; d="$(setup_iso_repo c7-degen)"
+  # degenerate: empty body
+  printf -- '---\nid: SPEC-7706\ntype: spec\nstatus: draft\nlinks:\n  pr: []\n---\n' \
+    > "$d/docs/specs/SPEC-7706-emptybody.md"
+  # degenerate: frontmatter-only, no trailing newline
+  printf -- '---\nid: SPEC-7707\ntype: spec\nstatus: draft\nlinks:\n  pr: []\n---' \
+    > "$d/docs/specs/SPEC-7707-fmonly.md"
+  # nesting: 4-backtick fence wrapping a 3-backtick example — balanced, clean
+  cat > "$d/docs/specs/SPEC-7708-nested.md" <<'MD'
+---
+id: SPEC-7708
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Four-backtick fence wrapping a three-backtick example
+
+````markdown
+```js
+</content>
+```
+````
+MD
+  # tilde fence: balanced, tokens inside are content
+  cat > "$d/docs/specs/SPEC-7709-tilde.md" <<'MD'
+---
+id: SPEC-7709
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Tilde fence
+
+~~~
+</content>
+~~~
+MD
+  # tilde fence left open -> flagged
+  cat > "$d/docs/specs/SPEC-7710-tildeopen.md" <<'MD'
+---
+id: SPEC-7710
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Unclosed tilde fence
+
+~~~
+still open at EOF
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body > lint.log 2>&1) \
+    || log_fail "--lint-body must not crash on degenerate fixtures: $(cat "$d/lint.log")"
+  grep -qE '^### Body lint: 1' "$d/lint.log" \
+    || log_fail "exactly ONE finding expected (the open tilde fence): $(cat "$d/lint.log")"
+  grep -qE 'SPEC-7710-tildeopen\.md:10 .*unbalanced-fence' "$d/lint.log" \
+    || log_fail "the open tilde fence must be the flagged finding: $(cat "$d/lint.log")"
+  rm -rf "$d"
+  log_pass "Degenerate + nesting fixtures: no crash, only the open tilde fence flagged (TEST-005)"
+}
+
+test_change0007_lint_promotion_pair() {  # TEST-006 / Spec-AC-01
+  log_info "Test: findings -> --check exit 0 (report-only) but --check --strict exit 1 naming body lint; clean -> both 0 (TEST-006)..."
+  local d; d="$(setup_iso_repo c7-promo)"
+  # config-enforced mode (NOT strict): body lint must NOT promote to hardFail
+  printf 'legacy_until_date: 2020-01-01\n' > "$d/docs/ai/docs-audit.yaml"
+  cat > "$d/docs/specs/SPEC-7711-dirty.md" <<'MD'
+---
+id: SPEC-7711
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Dirty body
+
+</content>
+MD
+  local ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event > check.log 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "config-enforced --check WITHOUT --strict must stay exit 0 on body findings (got $ec): $(cat "$d/check.log")"
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > strict.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "--check --strict must exit 1 on body findings (got $ec): $(cat "$d/strict.log")"
+  grep -qiE 'CHECK FAILED.*body lint' "$d/strict.log" \
+    || log_fail "the strict failure must NAME body lint: $(cat "$d/strict.log")"
+  # clean corpus -> both exit 0
+  rm "$d/docs/specs/SPEC-7711-dirty.md"
+  cat > "$d/docs/specs/SPEC-7712-clean.md" <<'MD'
+---
+id: SPEC-7712
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Clean body
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event > c1.log 2>&1) \
+    || log_fail "clean corpus --check must exit 0: $(cat "$d/c1.log")"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > c2.log 2>&1) \
+    || log_fail "clean corpus --check --strict must exit 0: $(cat "$d/c2.log")"
+  rm -rf "$d"
+  log_pass "Promotion pair: report-only by default, hard-fail only under --strict (TEST-006)"
+}
+
+test_change0007_lint_body_file_predicate() {  # TEST-007 / Spec-AC-01
+  log_info "Test: --lint-body-file dirty->1 with findings, clean->0, missing->2 (TEST-007)..."
+  local d; d="$(setup_iso_repo c7-blob)"
+  printf '# Blob\n\n</content>\n' > "$d/dirty-blob.md"
+  printf '# Blob\n\nclean prose\n' > "$d/clean-blob.md"
+  local ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body-file dirty-blob.md > dirty.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "--lint-body-file on a dirty blob must exit 1 (got $ec): $(cat "$d/dirty.log")"
+  grep -qF "stray-tool-markup" "$d/dirty.log" \
+    || log_fail "dirty blob findings must be printed: $(cat "$d/dirty.log")"
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body-file clean-blob.md > clean.log 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "--lint-body-file on a clean blob must exit 0 (got $ec): $(cat "$d/clean.log")"
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body-file no-such-file.md > missing.log 2>&1) || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "--lint-body-file on a missing file must exit 2 (got $ec): $(cat "$d/missing.log")"
+  # No docs_audit event may be emitted by the pure predicate.
+  [[ ! -f "$d/docs/ai/EVENTS.jsonl" ]] \
+    || log_fail "--lint-body-file must never emit a docs_audit event"
+  rm -rf "$d"
+  log_pass "--lint-body-file exit contract 1/0/2 honored, no event (TEST-007)"
+}
+
+test_change0007_hook_body_lint() {  # TEST-008 / Spec-AC-01
+  log_info "Test: hook lints the STAGED blob — warn by default, block under body_lint: enforce, staged-clean passes (TEST-008)..."
+  # Wiring greps first: intake POST-SAVE + both installers reference body lint.
+  grep -qi "body lint" "$PROJECT_ROOT/.aai/SKILL_INTAKE.prompt.md" \
+    || log_fail "SKILL_INTAKE STEP 2.5 must reference body lint"
+  grep -qF -- "--lint-body-file" "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" \
+    || log_fail "install-pre-commit-hook.sh must embed the --lint-body-file call"
+  grep -qF -- "--lint-body-file" "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1" \
+    || log_fail "install-pre-commit-hook.ps1 must embed the --lint-body-file call (parity)"
+  grep -qF "body_lint" "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" \
+    || log_fail "install-pre-commit-hook.sh must read the body_lint config key"
+  grep -qF "body_lint" "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1" \
+    || log_fail "install-pre-commit-hook.ps1 must read the body_lint config key (parity)"
+
+  local d; d="$(setup_spec0011_hook_repo bodylint)"
+  grep -qF -- "--lint-body-file" "$d/.git/hooks/pre-commit" \
+    || log_fail "generated hook must carry the body-lint block"
+
+  # (a) staged-dirty / worktree-clean, DEFAULT (no config): warn but commit (TOCTOU rule).
+  cat > "$d/docs/specs/SPEC-7801-lint.md" <<'MD'
+---
+id: SPEC-7801
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Staged dirty
+
+</content>
+MD
+  (cd "$d" && git add docs/specs/SPEC-7801-lint.md)
+  # fix the WORKTREE copy only — the STAGED blob stays dirty
+  cat > "$d/docs/specs/SPEC-7801-lint.md" <<'MD'
+---
+id: SPEC-7801
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Staged dirty
+
+clean now
+MD
+  local ec=0
+  (cd "$d" && git commit -qm "docs: staged-dirty default" > a.out 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "default (report-only) must let the dirty staged blob commit (got $ec): $(cat "$d/a.out")"
+  grep -qiF "body-lint" "$d/a.out" \
+    || log_fail "default path must print a body-lint WARNING for the STAGED blob (worktree is clean!): $(cat "$d/a.out")"
+
+  # (b) body_lint: enforce blocks the dirty staged blob.
+  printf 'body_lint: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  cat > "$d/docs/specs/SPEC-7802-lint.md" <<'MD'
+---
+id: SPEC-7802
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Enforce me
+
+<PLACEHOLDER>
+MD
+  (cd "$d" && git add docs/specs/SPEC-7802-lint.md docs/ai/docs-audit.yaml)
+  ec=0
+  (cd "$d" && git commit -qm "docs: enforce block" > b.out 2>&1) || ec=$?
+  [[ "$ec" != 0 ]] || log_fail "body_lint: enforce must ABORT the commit of a dirty staged doc"
+  grep -qiF "body-lint" "$d/b.out" || log_fail "enforce abort must name body-lint: $(cat "$d/b.out")"
+  (cd "$d" && git reset -q && rm -f docs/specs/SPEC-7802-lint.md)
+
+  # (c) staged-clean / worktree-dirty passes silently (gate the staged blob, not the worktree).
+  rm -f "$d/docs/ai/docs-audit.yaml"
+  cat > "$d/docs/specs/SPEC-7803-lint.md" <<'MD'
+---
+id: SPEC-7803
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Staged clean
+
+fine
+MD
+  (cd "$d" && git add docs/specs/SPEC-7803-lint.md)
+  printf '\n</content>\n' >> "$d/docs/specs/SPEC-7803-lint.md"   # dirty the WORKTREE only
+  ec=0
+  (cd "$d" && git commit -qm "docs: staged-clean worktree-dirty" > c.out 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "a clean STAGED blob must commit even with a dirty worktree (got $ec): $(cat "$d/c.out")"
+  grep -qiF "body-lint" "$d/c.out" \
+    && log_fail "no body-lint warning may fire for a clean staged blob: $(cat "$d/c.out")"
+  rm -rf "$d"
+  log_pass "Hook body lint: staged-blob discipline, warn default, enforce blocks (TEST-008)"
+}
+
+test_change0007_regression() {  # TEST-009 / Spec-AC-09
+  # INDEX idempotence on the real repo is asserted by test_spec0011_regression
+  # in this same suite run; this case owns the body-lint-specific regression.
+  log_info "Test: real repo stays CLEAN under --check --strict with body lint active (TEST-009)..."
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --lint-body --no-event > "$TEST_DIR/c7-lint.log" 2>&1) \
+    || log_fail "real-repo --lint-body must exit 0: $(tail -10 "$TEST_DIR/c7-lint.log")"
+  grep -qE '^### Body lint: 0' "$TEST_DIR/c7-lint.log" \
+    || log_fail "real-repo governed corpus must carry ZERO body-lint findings: $(cat "$TEST_DIR/c7-lint.log")"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/c7-strict.log" 2>&1) \
+    || log_fail "real-repo --check --strict must exit 0 with body lint active: $(tail -10 "$TEST_DIR/c7-strict.log")"
+  assert_contains "$TEST_DIR/c7-strict.log" "Verdict: CLEAN"
+  log_pass "Real repo CLEAN with body lint active (TEST-009)"
+}
+
+test_change0007_hook_config_staged() {  # TEST-019 / Spec-AC-01 (review-20260704T110648Z W1)
+  log_info "Test: hook reads body_lint/close_gate mode from the STAGED/HEAD config — an unstaged worktree downgrade cannot bypass enforce (TEST-019)..."
+  local d; d="$(setup_spec0011_hook_repo cfgstaged)"
+  # Baseline: BOTH gate keys committed as enforce + one implementing spec for
+  # the close-gate sub-case.
+  printf 'close_gate: enforce\nbody_lint: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  cat > "$d/docs/specs/SPEC-7901-flip.md" <<'MD'
+---
+id: SPEC-7901
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Flip candidate 7901
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status       | Evidence | Review-By | Notes |
+|------------|-------------|--------------|----------|-----------|-------|
+| Spec-AC-01 | first       | implementing | —        | —         | —     |
+MD
+  (cd "$d" && git add docs/ai/docs-audit.yaml docs/specs/SPEC-7901-flip.md \
+    && git commit -qm "docs: enforce config + implementing spec" >/dev/null) \
+    || log_fail "baseline commit failed"
+
+  # (a) body_lint: an UNSTAGED worktree edit downgrades enforce -> report-only;
+  # the staged dirty doc must STILL be blocked (config TOCTOU, SPEC-0011-F2 class).
+  printf 'close_gate: enforce\nbody_lint: report-only\n' > "$d/docs/ai/docs-audit.yaml"
+  cat > "$d/docs/specs/SPEC-7902-dirty.md" <<'MD'
+---
+id: SPEC-7902
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Dirty body
+
+</content>
+MD
+  (cd "$d" && git add docs/specs/SPEC-7902-dirty.md)
+  local ec=0
+  (cd "$d" && git commit -qm "docs: dirty doc, unstaged config downgrade" > a.out 2>&1) || ec=$?
+  [[ "$ec" != 0 ]] || log_fail "unstaged config downgrade must NOT bypass body_lint: enforce: $(cat "$d/a.out")"
+  grep -qiF "body-lint" "$d/a.out" || log_fail "abort must name body-lint: $(cat "$d/a.out")"
+  (cd "$d" && git reset -q && rm -f docs/specs/SPEC-7902-dirty.md)
+
+  # (b) close_gate: the same downgrade vector on the close-gate key (worktree
+  # config silently DROPS the key; index/HEAD still say enforce).
+  printf 'body_lint: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  sed -i.bak 's/^status: implementing/status: done/' "$d/docs/specs/SPEC-7901-flip.md" && rm -f "$d/docs/specs/SPEC-7901-flip.md.bak"
+  (cd "$d" && git add docs/specs/SPEC-7901-flip.md)
+  ec=0
+  (cd "$d" && git commit -qm "docs: done-flip, unstaged close_gate downgrade" > b.out 2>&1) || ec=$?
+  [[ "$ec" != 0 ]] || log_fail "unstaged config downgrade must NOT bypass close_gate: enforce: $(cat "$d/b.out")"
+  grep -qiF "close-gate" "$d/b.out" || log_fail "abort must name close-gate: $(cat "$d/b.out")"
+  (cd "$d" && git reset -q && git checkout -q -- docs/specs/SPEC-7901-flip.md docs/ai/docs-audit.yaml)
+
+  # (c) positive control: a STAGED downgrade governs (the index blob is what commits).
+  printf 'close_gate: report-only\nbody_lint: report-only\n' > "$d/docs/ai/docs-audit.yaml"
+  cat > "$d/docs/specs/SPEC-7903-dirty.md" <<'MD'
+---
+id: SPEC-7903
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Dirty body
+
+</content>
+MD
+  (cd "$d" && git add docs/ai/docs-audit.yaml docs/specs/SPEC-7903-dirty.md)
+  ec=0
+  (cd "$d" && git commit -qm "docs: staged downgrade governs" > c.out 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "a STAGED report-only config must warn, not block (got $ec): $(cat "$d/c.out")"
+  grep -qiF "body-lint" "$d/c.out" || log_fail "report-only path must still print the warning: $(cat "$d/c.out")"
+
+  # (d) fresh-repo fallback: config never committed/staged -> the worktree copy
+  # is still honored (last-resort read).
+  local d2; d2="$(setup_spec0011_hook_repo cfgfresh)"
+  printf 'body_lint: enforce\n' > "$d2/docs/ai/docs-audit.yaml"
+  cat > "$d2/docs/specs/SPEC-7904-dirty.md" <<'MD'
+---
+id: SPEC-7904
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Dirty body
+
+</content>
+MD
+  (cd "$d2" && git add docs/specs/SPEC-7904-dirty.md)
+  ec=0
+  (cd "$d2" && git commit -qm "docs: fresh-repo untracked enforce config" > d.out 2>&1) || ec=$?
+  [[ "$ec" != 0 ]] || log_fail "untracked worktree config (fresh repo) must still enforce: $(cat "$d2/d.out")"
+  rm -rf "$d" "$d2"
+  log_pass "Hook gate modes read from the staged/HEAD config; worktree only as fresh-repo fallback (TEST-019)"
+}
+
+test_change0007_hook_space_filename() {  # TEST-020 / Spec-AC-01 (review-20260704T110648Z W2)
+  log_info "Test: a staged doc with a SPACE in its name cannot silently bypass enforce (body lint + close gate) (TEST-020)..."
+  local d; d="$(setup_spec0011_hook_repo spacename)"
+  printf 'close_gate: enforce\nbody_lint: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  cat > "$d/docs/specs/SPEC-7912 flip.md" <<'MD'
+---
+id: SPEC-7912
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Flip candidate 7912 (space in filename)
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status       | Evidence | Review-By | Notes |
+|------------|-------------|--------------|----------|-----------|-------|
+| Spec-AC-01 | first       | implementing | —        | —         | —     |
+MD
+  (cd "$d" && git add docs/ai/docs-audit.yaml "docs/specs/SPEC-7912 flip.md" \
+    && git commit -qm "docs: baseline enforce config + space-named implementing spec" >/dev/null) \
+    || log_fail "baseline commit failed"
+
+  # (a) body lint: a dirty doc whose name contains a space must be BLOCKED,
+  # not word-split into two nonexistent paths and silently skipped.
+  cat > "$d/docs/specs/SPEC-7911 draft.md" <<'MD'
+---
+id: SPEC-7911
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Dirty doc with a space in its filename
+
+</content>
+MD
+  (cd "$d" && git add "docs/specs/SPEC-7911 draft.md")
+  local ec=0
+  (cd "$d" && git commit -qm "docs: dirty space-named doc" > a.out 2>&1) || ec=$?
+  [[ "$ec" != 0 ]] || log_fail "body_lint: enforce must block a dirty staged doc even with a space in its name (silent gate bypass): $(cat "$d/a.out")"
+  grep -qiF "body-lint" "$d/a.out" || log_fail "abort must name body-lint: $(cat "$d/a.out")"
+  (cd "$d" && git reset -q && rm -f "docs/specs/SPEC-7911 draft.md")
+
+  # (b) close gate: an unreconciled done-flip of the space-named spec must be BLOCKED.
+  sed -i.bak 's/^status: implementing/status: done/' "$d/docs/specs/SPEC-7912 flip.md" && rm -f "$d/docs/specs/SPEC-7912 flip.md.bak"
+  (cd "$d" && git add "docs/specs/SPEC-7912 flip.md")
+  ec=0
+  (cd "$d" && git commit -qm "docs: done-flip space-named spec" > b.out 2>&1) || ec=$?
+  [[ "$ec" != 0 ]] || log_fail "close_gate: enforce must block an unreconciled done-flip even with a space in the filename: $(cat "$d/b.out")"
+  grep -qiF "close-gate" "$d/b.out" || log_fail "abort must name close-gate: $(cat "$d/b.out")"
+  rm -rf "$d"
+  log_pass "Space-named staged docs are gated, not silently skipped (TEST-020)"
+}
+
+test_change0007_lint_span_edges() {  # TEST-021 / Spec-AC-01 (review-20260704T110648Z W3)
+  log_info "Test: multi-line inline span masked; line-initial \`\`\` x \`\`\` is a span, not a fence — no swallow (TEST-021)..."
+  local d; d="$(setup_iso_repo c7-spanedges)"
+  # (a) a CommonMark inline code span crossing line breaks: its interior must
+  # never be flagged (D1: content inside inline code is NEVER flagged).
+  cat > "$d/docs/specs/SPEC-7920-mlspan.md" <<'MD'
+---
+id: SPEC-7920
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Multi-line inline code span
+
+Prose with `code that
+</content>
+keeps going` and ends clean.
+MD
+  # (b) a line-initial 3-run code span that CLOSES on the same line is an inline
+  # span (backtick fence info strings may not contain backticks), NOT a fence
+  # open — no spurious unbalanced-fence, and the rest of the doc is NOT swallowed.
+  cat > "$d/docs/specs/SPEC-7921-inlinefence.md" <<'MD'
+---
+id: SPEC-7921
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Line-initial two-run code span
+
+``` x ```
+prose after the span
+</content>
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body > lint.log 2>&1) \
+    || log_fail "--lint-body must exit 0 without --strict: $(cat "$d/lint.log")"
+  grep -qF "unbalanced-fence" "$d/lint.log" \
+    && log_fail "\`\`\` x \`\`\` on one line is an inline span, not a fence open: $(cat "$d/lint.log")"
+  grep -qF "SPEC-7920-mlspan.md" "$d/lint.log" \
+    && log_fail "no finding may fire inside a multi-line inline code span: $(cat "$d/lint.log")"
+  grep -qE 'SPEC-7921-inlinefence\.md:12 .*stray-tool-markup' "$d/lint.log" \
+    || log_fail "the real </content> AFTER the inline span must still be flagged (no false-negative cascade): $(cat "$d/lint.log")"
+  grep -qE '^### Body lint: 1' "$d/lint.log" \
+    || log_fail "exactly ONE finding expected across both fixtures: $(cat "$d/lint.log")"
+  rm -rf "$d"
+  log_pass "Multi-line spans masked; same-line backtick-run pairs are spans, not fences (TEST-021)"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -2670,6 +3255,18 @@ main() {
   test_spec0011_work_item_closed_requires_fields
   test_spec0011_review_artifact_boundary
   test_spec0011_regression
+  test_change0007_lint_stray_markup
+  test_change0007_lint_unbalanced_fence
+  test_change0007_lint_placeholder
+  test_change0007_lint_negative_controls
+  test_change0007_lint_degenerate_fixtures
+  test_change0007_lint_promotion_pair
+  test_change0007_lint_body_file_predicate
+  test_change0007_hook_body_lint
+  test_change0007_regression
+  test_change0007_hook_config_staged
+  test_change0007_hook_space_filename
+  test_change0007_lint_span_edges
   test_index_continue_on_error
   echo ""
   log_pass "All $TEST_NAME tests passed"

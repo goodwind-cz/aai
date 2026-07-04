@@ -434,6 +434,12 @@ code_review:
   notes: <short summary>
 ```
 
+Report staging (SPEC-0013 H4): after writing
+`docs/ai/reviews/review-<timestamp>.{md,json}`, stage the report files together
+with the scope's commit (or with the review-response commit) so review reports
+never orphan as untracked files across sessions. The wrap-up skill flags any
+untracked `docs/ai/reviews/*` as orphaned review reports.
+
 Status rules:
 - `pass`: Stage 1 compliant and no ERROR findings in Stage 2.
 - `fail`: any Spec-AC non-compliance, missing required TEST-xxx evidence, or
@@ -443,8 +449,47 @@ Status rules:
 
 Merge/PR readiness:
 - ERROR findings block merge/PR readiness.
-- WARNING findings require a recorded decision, remediation, or follow-up work item.
+- Warnings policy with teeth (SPEC-0013 H6): a PASS verdict with open WARNINGs
+  is conditional — before closeout, EACH WARNING must be either
+  (a) remediated, or
+  (b) promoted to a `docs/ai/decisions.jsonl` entry (decision id + rationale), or
+  (c) promoted to a tracked follow-up ref (an ISSUE/CHANGE id named in the
+      review notes).
+  The review report AND STATE.yaml `code_review.notes` must name the chosen
+  artifact per WARNING (decision id or follow-up ref). Unrecorded WARNINGs are
+  surfaced at closeout by SKILL_WRAP_UP (advisory) and by VALIDATION step 8b
+  (enforcement backstop).
 - INFO findings do not block.
+
+## External Review Response
+
+Codified flow for responding to EXTERNAL review findings on an open PR
+(SPEC-0013 H3; codifies the PR #27/#29 practice). Run it whenever a PR carries
+unresolved review threads from a human or a review bot.
+
+1. **Fetch the review threads:**
+   ```bash
+   gh api repos/{owner}/{repo}/pulls/{number}/comments   # inline review threads
+   gh pr view {number} --json reviews                     # top-level review verdicts
+   ```
+2. **Triage every finding** as real / stale / duplicate / disputed, and record a
+   one-line disposition per thread:
+   - real: the defect exists in the current head — remediate.
+   - stale: already fixed by a later commit — cite the fixing commit.
+   - duplicate: same root cause as another thread — cite the primary thread.
+   - disputed: you believe the finding is wrong — state why, with evidence;
+     leave the resolution to the reviewer.
+3. **Remediate each real finding with a RED-proofed regression test:** write the
+   test first, observe it FAIL against the pre-fix code (cite the red log under
+   docs/ai/tdd/), then fix and observe GREEN. A fix without a failing-first test
+   is not a remediation.
+4. **Reply inline per thread**, citing the fixing commit SHA and TEST id
+   (e.g. "Fixed in `abc1234`, regression covered by TEST-017"). For
+   stale/duplicate/disputed, reply with the disposition instead.
+   Never resolve a thread without a reply.
+5. **Push** the remediation commits (with the updated review report staged per
+   the report-staging rule above) and re-request review if the platform
+   requires it.
 
 ## GitHub Integration
 

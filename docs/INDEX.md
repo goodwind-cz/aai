@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-04T10:09:39.713Z
+Generated: 2026-07-04T11:37:01.450Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (30)
+## Done (31)
 
 | ID | Type | Path |
 |---|---|---|
@@ -49,6 +49,7 @@ _None._
 | SPEC-0010 | specs | docs/specs/SPEC-0010-docs-index-and-state-tooling-robustness.md |
 | SPEC-0011 | specs | docs/specs/SPEC-0011-docs-audit-closeout-guardrails.md |
 | SPEC-0012 | specs | docs/specs/SPEC-0012-loop-reliability-transactional-state-cli.md |
+| SPEC-0013 | specs | docs/specs/SPEC-0013-workflow-hygiene-pack.md |
 
 ## Drafts (1)
 
