@@ -43,6 +43,17 @@ PROCESS
    - The scope's code-review report artifacts under docs/ai/reviews/ are
      likewise expected companions: SKILL_CODE_REVIEW (H4) mandates staging
      them together with the scope's commit, so never unstage them here.
+   - Root `CHANGELOG.md` is an expected companion too (see step 3b).
+
+3b. CHANGELOG — keep the human-readable history fed (root `CHANGELOG.md`):
+   - For every feature/fix scope (feat/fix; pure chore/docs noise may skip),
+     add a `## [unreleased] — <type>: <title>` entry at the top of the entry
+     list, Keep-a-Changelog style, 3–10 hyphen bullets: what changed, why it
+     matters, and the ref ids (CHANGE-xxxx / SPEC-xxxx; PR number once known).
+   - Stage `CHANGELOG.md` together with the scope.
+   - Rationale: per-change docs (intake/spec/reviews/EVENTS) are complete but
+     fragmented; the changelog is the aggregated view operators actually read.
+     This step exists because the changelog once silently drifted 10 PRs behind.
 
 4. COMMIT — message conventions:
    - Conventional-commit style: `<type>(<scope>): <imperative summary>`
