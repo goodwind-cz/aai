@@ -9,6 +9,24 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — docs: entry-point restructure (README/docs-README/USER_GUIDE)
+
+- **README.md** rewritten as a lean landing page (~600 → ~250 lines): hero,
+  install/sync surface, and a new Orientation section (six-phase loop with the
+  worktree gate and Code Review, corrected repository map, runtime log catalog,
+  intake language policy) plus a pointer block to canonical sources. Stale
+  content removed: hard-coded skill counts, four-phase loop descriptions,
+  duplicated skills overview/table, and stale common flows.
+- **docs/README.md** rewritten as a thin index of the `docs/` tree (one line
+  per subdir, correct set incl. requirements/roles/templates/workflow/ai),
+  deferring to the root README for install and USER_GUIDE for usage.
+- **docs/USER_GUIDE.md** gains the content moved out of README: shell loop
+  runner reference (`autonomous-loop.sh/.ps1`) under Workflows, the
+  self-hosting contract + smoke tests under Maintenance & Testing, and a FAQ
+  subsection under Troubleshooting.
+- Skill counts are no longer hard-coded anywhere in the entry-point docs —
+  they defer to the USER_GUIDE Skills Catalog.
+
 ## [v2026.07.04] — hygiene: workflow hygiene pack (CHANGE-0007 / SPEC-0013)
 
 Eight workflow-hygiene gaps closed in one pack (PR #36, closeout #37):
