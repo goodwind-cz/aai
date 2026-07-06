@@ -10,9 +10,10 @@ This repository uses a reusable AAI.
 - Pattern library (project): docs/knowledge/PATTERNS.md
 - Pattern library (universal, sync-managed): .aai/knowledge/PATTERNS_UNIVERSAL.md
 - UI map: docs/knowledge/UI_MAP.md
-- Prompts: ai/*.prompt.md
+- Prompts: .aai/*.prompt.md
 - Subagent protocol: .aai/SUBAGENT_PROTOCOL.md
-- Human playbook: PLAYBOOK.md
+- Human playbook: .aai/PLAYBOOK.md
+- Runtime state writer: .aai/scripts/state.mjs (transactional STATE.yaml CLI — never hand-edit docs/ai/STATE.yaml)
 - Coordination locks (optional): .aai/system/LOCKS.md
 - Metrics ledger: docs/ai/METRICS.jsonl
 - Model pricing: .aai/system/PRICING.yaml
@@ -39,6 +40,10 @@ To update the AAI layer from a template worktree, see .aai/scripts/aai-sync.(sh|
    - Code Review: .aai/SKILL_CODE_REVIEW.prompt.md
    - Remediation: .aai/REMEDIATION.prompt.md
    - Follow the referenced prompt file exactly.
+
+3) Closeout: when Validation and Code Review PASS, open the PR via /aai-pr
+   (.aai/SKILL_PR.prompt.md). The agent never merges — merging is an
+   operator-only action.
 
 
 ### Entry points (low-token)
@@ -84,6 +89,15 @@ Follow .aai/SKILL_FLUSH.prompt.md        # Manual metrics flush & state cleanup 
 Follow .aai/SKILL_DOCTOR.prompt.md       # Environment health check — validates files, skills, knowledge, git (pro-workflow)
 Follow .aai/SKILL_DOCS_AUDIT.prompt.md   # Docs hygiene & drift audit — orphan/false-done/stale detection (RFC-0002)
 Follow .aai/SKILL_DOCS_CANON.prompt.md   # Docs canonicalization — consolidate layered intake/specs/RFCs into a canonical per-domain layer in docs/canonical/, archive originals (RFC-0003)
+Follow .aai/SKILL_TEST_CANON.prompt.md   # Test canonicalization — consolidate fragmented tests into tests/canonical/, archive originals, scaffold RED stubs (RFC-0006)
+Follow .aai/SKILL_PR.prompt.md           # PR ceremony — scope-only staging, staged-vs-scope audit, commit, push, gh pr create; NEVER merges (operator merges)
+Follow .aai/SKILL_TEST_SKILLS.prompt.md  # Run the AAI skill test framework and suites
+Follow .aai/SKILL_DOCS_HUB.prompt.md     # Generate the searchable HTML skill catalog / docs hub
+Follow .aai/SKILL_DECAPOD.prompt.md      # Decapod compliance advisory integration (intake/validation)
+Follow .aai/SKILL_AUTO_TRIGGER.prompt.md # Manage automatic skill triggers (.claude/triggers.json)
+Follow .aai/SKILL_DASHBOARD.prompt.md    # Metrics dashboard from telemetry (publishable via /aai-share)
+Follow .aai/SKILL_PROFILE.prompt.md      # Token/time/cache profiling with optimization suggestions
+Follow .aai/SKILL_UPDATE.prompt.md       # Re-sync the vendored AAI layer from canonical main
 Follow .aai/SKILL_REPLAY.prompt.md       # Contextual learning replay — surfaces relevant past learnings (pro-workflow)
 Follow .aai/SKILL_SESSION_JOURNAL.prompt.md # Named project session journal — human-readable cross-agent discussion trail
 Follow .aai/SKILL_WRAP_UP.prompt.md      # Session wrap-up — capture learnings, propose rules, prepare next session (pro-workflow)
@@ -214,6 +228,12 @@ Before committing, run quality gate checks (`.aai/scripts/pre-commit-checks.sh` 
 
 Skills that commit (/aai-tdd, /aai-loop, /aai-validate-report) should run these checks automatically.
 Use `--strict` flag to treat warnings as errors.
+
+Docs close gate (SPEC-0011/SPEC-0013): before flipping a governed doc to
+`status: done`, run `node .aai/scripts/docs-audit.mjs --gate <DOC-ID>`.
+The pre-commit hook enforces the gate and the body lint only when
+`docs/ai/docs-audit.yaml` sets `close_gate: enforce` / `body_lint: enforce`;
+the default is report-only (warn and continue).
 
 ## Learned Rules
 

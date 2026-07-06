@@ -10,6 +10,16 @@
 - ✅ Code Review Skill (`/aai-code-review`)
 - ✅ Performance Profiling (`/aai-profile`)
 
+## Shipped since (2026-06/07)
+
+- RFC-0002 — Docs hygiene and drift audit (`/aai-docs-audit`): orphan/false-done/stale classification with drift verdicts.
+- RFC-0003 — Docs canonicalization (`/aai-docs-canon`): canonical per-domain docs layer in `docs/canonical/` with archived originals.
+- RFC-0006 — Test canonicalization (`/aai-test-canon`): canonical per-domain test layer in `tests/canonical/` with RED stubs for coverage gaps.
+- SPEC-0011 — Docs-audit close gate (`--gate`, `close_gate` hook key): offline close-time predicate before any done-flip.
+- SPEC-0012 — Transactional STATE CLI (`.aai/scripts/state.mjs`): the only sanctioned STATE.yaml writer.
+- SPEC-0013 — Workflow hygiene pack: body lint (`--lint-body`, `body_lint` hook key), `/aai-pr` PR ceremony (never merges), and related gate wiring.
+- v2026.07.04 — Release cut bundling the hygiene pack (see `docs/releases/REL-0001-v2026-07-04.md`).
+
 ## 📋 Future Enhancements (Backlog)
 
 ### 1. Skill Marketplace / Community Templates
@@ -220,4 +230,4 @@ If you want to implement any of these ideas:
 
 ---
 
-Last Updated: 2026-03-07
+Last Updated: 2026-07-06

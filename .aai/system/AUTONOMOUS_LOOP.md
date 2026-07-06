@@ -13,12 +13,14 @@
 - **Orchestrator**
   - Reads `docs/ai/STATE.yaml` and workflow documents.
   - Chooses the next step and allowed role(s).
-- **Specialized agents**
+- **Specialized agents** (mapping to the six workflow phases in `.aai/workflow/WORKFLOW.md`)
   - **Planner**: converts intake/requirements into SPEC/TASK artifacts.
   - **Tech extractor/updater**: maintains `docs/TECHNOLOGY.md` when missing/outdated.
+  - **Implementation preparation (worktree gate)**: records the human worktree-vs-inline decision and review scope before implementation.
   - **Implementer**: executes changes only when implementation gate is open.
   - **Validator**: verifies traceability and evidence, returns PASS/FAIL.
-  - **Remediator**: applies minimal corrective changes after FAIL.
+  - **Code reviewer**: two-stage review (spec compliance, then code quality) after Validation; gates merge/PR readiness.
+  - **Remediator**: applies minimal corrective changes after a Validation or Code Review FAIL.
 - **HITL (Human-in-the-loop)**
   - Resolves disputed decisions, scope changes, and high-impact risk decisions.
 
