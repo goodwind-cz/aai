@@ -1188,6 +1188,24 @@ idempotent no-ops), 1 integrity refusal (file preserved byte-identical),
 # Unblocks loop
 ```
 
+#### Self-hosting contract and smoke tests
+**What:** AAI develops itself with AAI. The ownership model separates three
+layers so sync never clobbers project content:
+
+- **Canonical authoring layer** (vendored, sync-managed): `.aai/*.prompt.md`, `.aai/templates/*`, `.aai/system/*`, `.aai/scripts/*`.
+- **Project-generated layer** (project-owned, never overwritten): `docs/TECHNOLOGY.md`, `docs/requirements/*`, `docs/specs/*`, `docs/decisions/*`, `docs/knowledge/*`, `docs/project-sessions/*`.
+- **Runtime layer** (machine-written): `docs/ai/STATE.yaml`, `docs/ai/*.jsonl`, `docs/ai/reports/**`.
+
+See `.aai/system/SELF_HOSTING.md` for the full contract and
+`tests/fixtures/target-project/` for the disposable sync fixture.
+
+**Verify packaging (canonical repo only):**
+```bash
+bash tests/self-hosting/test-self-hosting-smoke.sh
+# or:
+powershell -ExecutionPolicy Bypass -File tests/self-hosting/test-self-hosting-smoke.ps1
+```
+
 ---
 
 ## Workflows
@@ -1298,6 +1316,60 @@ idempotent no-ops), 1 integrity refusal (file preserved byte-identical),
 # A finished scope ends with an OPEN pull request (/aai-pr ceremony) —
 # the loop never merges; merging is your action after your own review.
 ```
+
+### Shell loop runners (autonomous-loop.sh / .ps1)
+
+`/aai-loop` is the preferred way to run the loop inside a capable agent
+session. When you instead want to drive an agent CLI externally (repeated
+one-shot invocations from a shell), use the helper scripts
+`.aai/scripts/autonomous-loop.sh` / `.aai/scripts/autonomous-loop.ps1`. They
+run repeated autonomous ticks until a stop condition:
+
+- `project_status=paused`
+- `human_input.required=true`
+- `last_validation.status=pass`
+
+Default behavior is **skill-first**: each tick runs
+`.aai/SKILL_CHECK_STATE.prompt.md`, then `.aai/SKILL_INTAKE.prompt.md`, then
+`.aai/SKILL_LOOP.prompt.md`. Legacy orchestration-only behavior is available
+via `legacy` mode with a custom one-tick command.
+
+Bash:
+
+```bash
+./.aai/scripts/autonomous-loop.sh \
+  --mode skill \
+  --agent-command "codex" \
+  --max-iterations 20 \
+  --sleep-seconds 1 \
+  --auto-init-state
+```
+
+PowerShell (`-AgentCommand` accepts `codex`, `claude`, or `gemini`):
+
+```powershell
+.\.aai\scripts\autonomous-loop.ps1 `
+  -Mode skill `
+  -AgentCommand 'codex' `
+  -MaxIterations 20 `
+  -SleepSeconds 1 `
+  -AutoInitState
+
+# Legacy mode (custom one-tick command)
+.\.aai\scripts\autonomous-loop.ps1 `
+  -Mode legacy `
+  -TickCommand 'codex --prompt-file .aai/ORCHESTRATION.prompt.md' `
+  -MaxIterations 20 `
+  -SleepSeconds 1 `
+  -AutoInitState
+```
+
+Notes:
+
+- PyYAML is auto-installed if missing (PowerShell); use `-NoAutoInstallPyYaml` to disable.
+- In `skill` mode the script checks `.claude/skills/AAI_DYNAMIC_SKILLS.md` as a bootstrap marker; use `-SkipBootstrapCheck` / `--skip-bootstrap-check` only when you intentionally skip dynamic-skills bootstrap.
+- Use `-DryRun` (PowerShell) or `--dry-run` (Bash) to verify loop behavior without executing the agent command.
+- Validate skill readiness and evidence with `.aai/scripts/validate-skills.sh` / `.aai/scripts/validate-skills.ps1`.
 
 ---
 
@@ -1492,6 +1564,20 @@ ls docs/ai/METRICS.jsonl
 /aai-dashboard
 ```
 
+### FAQ
+
+**Q: Can I add another workflow doc?**
+A: No. Only `.aai/workflow/WORKFLOW.md` is canonical; no other document may
+redefine or summarize the workflow.
+
+**Q: Where do I list technologies? Can I assume them?**
+A: `docs/TECHNOLOGY.md` is the authoritative technology contract (created and
+updated by the tech prompts). Never assume technologies — consult it first.
+
+**Q: Where should older analyses go?**
+A: Move them to `docs/archive/analysis/` and treat them as immutable; do not
+extend archived analyses.
+
 ### Getting Help
 
 1. **View skill catalog:**
@@ -1536,6 +1622,6 @@ ls docs/ai/METRICS.jsonl
 
 ---
 
-**Last Updated:** 2026-07-04
-**Version:** 1.3
+**Last Updated:** 2026-07-06
+**Version:** 1.4
 **Status:** Current
