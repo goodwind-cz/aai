@@ -9,6 +9,33 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — docs: canonical-surfaces refresh (TECHNOLOGY contract, PLAYBOOK, AGENTS, shims, catalogs)
+
+- **docs/TECHNOLOGY.md** rewritten from the March auto-generated stub
+  ("Unknown / Not detected") into an evidence-based contract following
+  `.aai/templates/TECHNOLOGY_TEMPLATE.md`: dependency-free Node ESM tooling,
+  bash-3.2 test compatibility, PowerShell 5.1/7 mirrors, ps1-quality CI,
+  `state.mjs` STATE discipline, append-only JSONL ledgers.
+- **.aai/PLAYBOOK.md** updated from the legacy four-role model to the six-phase
+  loop (adds Implementation Preparation / worktree gate and Code Review) with a
+  current lifecycle: intake, loop, `/aai-pr` (agent opens the PR, never merges),
+  operator merge, closeout; names `state.mjs` as the only sanctioned STATE writer.
+- **.aai/AGENTS.md** fixed stale paths (`ai/*.prompt.md`, bare `PLAYBOOK.md`),
+  added `state.mjs` to canonical sources, added the missing skill prompt entries
+  to the catalog, documented the docs-audit close gate / body lint hook keys
+  under Quality Gates, and named `/aai-pr` as the closeout step.
+- **SKILLS.md**, **docs/SKILL_CATALOG.html**, **CODEX.md**, **GEMINI.md**
+  catalogs refreshed: missing skills (pr, docs-audit, docs-canon, test-canon)
+  added as rows and detail blocks, catalog data regenerated to the full wrapper
+  set with Code Review and Pull Request flow stages, and the shims' inline skill
+  enumerations replaced with a deferral to SKILLS.md / USER_GUIDE (no hard-coded
+  skill counts anywhere).
+- **.aai/workflow/WORKFLOW.md**, **.aai/system/AUTONOMOUS_LOOP.md**,
+  **docs/TODO.md** touched up: PR-ceremony gate line and `close_gate`/`body_lint`
+  key names in the workflow, six-phase entity naming in the loop doc, and a
+  "Shipped since" record (RFC-0002/0003/0006, SPEC-0011/0012/0013, v2026.07.04)
+  in the TODO.
+
 ## [unreleased] — docs: entry-point restructure (README/docs-README/USER_GUIDE)
 
 - **README.md** rewritten as a lean landing page (~600 → ~250 lines): hero,

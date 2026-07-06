@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-06T04:18:36.221Z
+Generated: 2026-07-06T04:38:50.292Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -53,9 +53,11 @@ _None._
 | SPEC-0013 | specs | docs/specs/SPEC-0013-workflow-hygiene-pack.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0008 | issues | docs/issues/CHANGE-0008-post-release-follow-ups.md |
 
 ## Deferred (whole-doc) (0)
 

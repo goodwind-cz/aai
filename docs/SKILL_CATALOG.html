@@ -221,7 +221,17 @@
                 <div class="flow-arrow">&rarr;</div>
                 <div class="flow-stage">
                     <div class="flow-stage-title">Validation</div>
-                    <div class="flow-stage-skills">aai-validate-report<br>aai-code-review</div>
+                    <div class="flow-stage-skills">aai-validate-report</div>
+                </div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-stage">
+                    <div class="flow-stage-title">Code Review</div>
+                    <div class="flow-stage-skills">aai-code-review</div>
+                </div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-stage">
+                    <div class="flow-stage-title">Pull Request</div>
+                    <div class="flow-stage-skills">aai-pr</div>
                 </div>
                 <div class="flow-arrow">&rarr;</div>
                 <div class="flow-stage">
@@ -463,6 +473,56 @@
             whenToUse: ["End of work session", "Before context gets lost", "After completing a feature"],
             leadsTo: [], prerequisites: [],
             tags: ["learnings", "session", "wrap-up"]
+        },
+        {
+            name: "aai-pr",
+            description: "PR ceremony for a validated, review-passed scope. Derives the scope file-list from STATE/spec, stages ONLY in-scope paths, audits staged-vs-scope, commits with project conventions, pushes, and opens the PR via gh pr create. Never merges — merging is an operator action.",
+            category: "workflow", badge: "Workflow", badgeClass: "badge-workflow",
+            prompt: ".aai/SKILL_PR.prompt.md",
+            usage: "/aai-pr",
+            whenToUse: ["After Validation PASS and Code Review PASS", "Turning a finished scope into a pull request"],
+            leadsTo: [], prerequisites: ["aai-code-review"],
+            tags: ["git", "pull-request", "ceremony"]
+        },
+        {
+            name: "aai-docs-audit",
+            description: "Docs hygiene and drift audit (RFC-0002). Classifies governed docs as orphan, false-done, or stale; verifies acceptance criteria against actual code; provides the close gate (--gate) and body lint (--lint-body) used by the pre-commit hook. Reports only — edits docs solely in operator-approved remediation/verify modes.",
+            category: "quality", badge: "Quality", badgeClass: "badge-quality",
+            prompt: ".aai/SKILL_DOCS_AUDIT.prompt.md",
+            usage: "/aai-docs-audit\n/aai-docs-audit verify SPEC-0013",
+            whenToUse: ["Before a release closeout", "Periodic docs hygiene review", "Verifying a doc's claims against code"],
+            leadsTo: ["aai-docs-canon"], prerequisites: [],
+            tags: ["docs", "drift", "audit"]
+        },
+        {
+            name: "aai-docs-canon",
+            description: "Docs canonicalization (RFC-0003). Consolidates layered intake/specs/RFCs into a canonical, function-categorized layer in docs/canonical/, preserving and back-linking originals in docs/_archive/. Phase 1 proposes a domain map gated by human approval; Phase 2 synthesizes canonical docs and reports drift on re-run.",
+            category: "quality", badge: "Quality", badgeClass: "badge-quality",
+            prompt: ".aai/SKILL_DOCS_CANON.prompt.md",
+            usage: "/aai-docs-canon",
+            whenToUse: ["No single current-state doc per feature", "After many layered intakes/specs accumulate"],
+            leadsTo: ["aai-test-canon"], prerequisites: [],
+            tags: ["docs", "canonical", "consolidation"]
+        },
+        {
+            name: "aai-test-canon",
+            description: "Test canonicalization (RFC-0006). Consolidates fragmented per-change tests into a canonical per-domain layer in tests/canonical/ (anchored on the canonical docs domain map), archives originals with back-links, scaffolds RED stubs for uncovered acceptance criteria (handing off to aai-tdd), and reports drift on re-run.",
+            category: "quality", badge: "Quality", badgeClass: "badge-quality",
+            prompt: ".aai/SKILL_TEST_CANON.prompt.md",
+            usage: "/aai-test-canon",
+            whenToUse: ["Tests fragmented per change/issue", "Coverage gaps against canonical docs"],
+            leadsTo: ["aai-tdd"], prerequisites: ["aai-docs-canon"],
+            tags: ["tests", "canonical", "coverage"]
+        },
+        {
+            name: "aai-update",
+            description: "Re-syncs the project's vendored AAI layer from the main branch of the canonical repository. Supports private upstreams, reports sync-conflict advisories, and recommends post-update checks (/aai-bootstrap, /aai-doctor, /aai-test-skills). Supports --dry-run preview.",
+            category: "quality", badge: "Quality", badgeClass: "badge-quality",
+            prompt: ".aai/SKILL_UPDATE.prompt.md",
+            usage: "/aai-update\n/aai-update --dry-run",
+            whenToUse: ["After upstream AAI changes", "Previewing what an update would change"],
+            leadsTo: ["aai-doctor", "aai-test-skills"], prerequisites: [],
+            tags: ["sync", "update", "vendored"]
         }
     ];
 

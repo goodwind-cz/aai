@@ -30,12 +30,17 @@ No other document may redefine or summarize workflow.
 - Inline mode requires a clean review scope before implementation and before review.
 - No PASS without executable evidence.
 - No merge/PR-ready state without Code Review PASS or an explicit human waiver.
+- Closeout PR ceremony: after Code Review PASS, the agent opens the PR via
+  /aai-pr (.aai/SKILL_PR.prompt.md); the agent never merges — merging is
+  operator-only.
 - Close-policy (resolve-or-promote): a doc MUST NOT transition to `status: done`
   while unresolved decisions remain as free-text WARNINGs in its body. Resolve
   them before close, or promote each to a tracked item (a per-AC `blocked`/
   `deferred` row with a future `Review-By`, or a follow-up tracked doc). Never
   close `done` with buried WARNING decisions. (`docs-audit` surfaces these in its
-  "Open decisions on done docs" report.)
+  "Open decisions on done docs" report. Pre-commit enforcement is controlled by
+  the `close_gate` and `body_lint` keys in `docs/ai/docs-audit.yaml`;
+  report-only by default.)
 
 ## Re-runnable Maintenance Skills
 
