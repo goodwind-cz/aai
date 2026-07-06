@@ -1,7 +1,35 @@
-# AAI (Canonical)
+# AAI — autonomous AI development that has to prove it
 
-This repository contains a reusable, low-friction AAI: a single workflow definition, semantic roles, canonical prompts, and templates that help humans and AI agents coordinate with traceability and evidence.
+**An AI agent that plans, implements, tests, validates and reviews your feature in an autonomous loop — and cannot mark anything "done" unless a machine-checked gate says the evidence actually exists. You keep the merge button.**
 
+AAI is a vendorable workflow layer for AI coding agents (Claude Code, Codex, Gemini). One command drops it into any repository and turns "the agent said it works" into a disciplined pipeline: intake → frozen spec with measurable acceptance criteria → TDD with RED-proofed tests → **independent validation in a separate context and a different model** → adversarial code review → gated closeout with telemetry. Every claim leaves a trail; every "done" is challenged before it counts.
+
+## Why it is different
+
+- **"Done" is gated, not declared.** `docs-audit --gate` refuses to close a spec whose acceptance table has a non-terminal row, an evidence-free "done", or an invalid sign-off. An opt-in pre-commit hook blocks the commit itself — and it gates the *staged* content, not what happens to be on disk.
+- **Validation is genuinely independent.** A fresh subagent with a clean context and a different model than the implementer — because self-evaluation rubber-stamps. In this repo's own history the independent pass repeatedly caught real bugs that a fully green test suite had hidden.
+- **Claims are cross-checked.** A test must first fail (RED-proof) before its pass means anything; a "code-review" sign-off without a recorded review artifact is flagged as `review-claim-unbacked`; docs with almost-right structure trigger warnings instead of silent misreads.
+- **The human stays the operator.** Human-in-the-loop gates for scope and isolation decisions, and a PR ceremony (`/aai-pr`) with a hard rule: the agent never merges. These guardrails run on this repository itself — they have even stopped their own author mid-release until close telemetry existed.
+- **Engineering hygiene built in.** Transactional runtime state (`state.mjs` — atomic writes, strict flags, no silent typo-drops), leak-safe test execution (no orphaned process trees), drift-aware docs with body linting, append-only audit events, per-change metrics.
+- **Vendorable and low-friction.** Ships as prompts + small Node/shell tools, no framework lock-in; wrappers for `.claude`, `.codex` and `.gemini`; backward-compatible updates via `/aai-update`.
+
+## Quick start
+
+```bash
+# 1. Install into your project (bash; PowerShell variant below)
+curl -fsSL https://raw.githubusercontent.com/goodwind-cz/aai/main/install.sh | bash
+
+# 2. Describe work in one sentence — AAI routes it to the right intake form
+/aai-intake "Add password reset via email"
+
+# 3. Run the autonomous loop: Planning → Implementation → Validation → Review
+/aai-loop
+
+# 4. Open the PR (scope-only staging, changelog entry, never merges)
+/aai-pr
+```
+
+Read next: **[User Guide](docs/USER_GUIDE.md)** (how to use every skill) · **[CHANGELOG](CHANGELOG.md)** · **[latest release](https://github.com/goodwind-cz/aai/releases/latest)** · canonical workflow in [.aai/workflow/WORKFLOW.md](.aai/workflow/WORKFLOW.md).
 
 ## Install AAI into the current project
 
