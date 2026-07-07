@@ -9,6 +9,23 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — state/hygiene: post-release follow-ups (CHANGE-0008 / SPEC-0014)
+
+- `state.mjs --clear <fields>` on set-worktree/set-code-review/set-validation/
+  set-focus: closed per-subcommand whitelists (verdict/status fields excluded —
+  reset-block owns them), scalars→null, lists→[], idempotent, atomic. Closes the
+  "stale fields leak across scopes and need hand edits" gap observed in three
+  consecutive loop runs.
+- `set-phase --spec-path` now places `spec_path` inside the work-item block
+  (was: spliced after the trailing blank line).
+- `aai-auto-trigger` DEPRECATED: the .claude/triggers.json mechanism it
+  configured has no runtime consumer (SPEC-0013 D8 grep-proof); prompt is now a
+  deprecation notice, wrappers/USER_GUIDE/AGENTS/catalog aligned.
+- Review hardening: E1 prototype-chain whitelist bypass (--clear toString wrote
+  junk with exit 0) fixed via Object.hasOwn; repeated --clear accumulates
+  (MULTI_FLAGS); fieldSpan handles blank-line paragraphs in block scalars.
+  First live exercise of the SPEC-0012 review-FAIL reset-block transition.
+
 ## [unreleased] — docs: canonical-surfaces refresh (TECHNOLOGY contract, PLAYBOOK, AGENTS, shims, catalogs)
 
 - **docs/TECHNOLOGY.md** rewritten from the March auto-generated stub

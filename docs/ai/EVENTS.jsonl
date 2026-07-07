@@ -222,3 +222,14 @@
 {"v":1,"ts":"2026-07-04T11:40:17.781Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"CHANGE-0007","payload":{"validation":"pass","code_review":"pass","notes":"Delivered by SPEC-0013 (PR #36)"}}
 {"v":1,"ts":"2026-07-04T13:14:50.186Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"REL-0001","payload":{"validation":"pass","code_review":"waived","notes":"Release cut v2026.07.04: all must-pass gates green at cut time (4 suites + audit CLEAN + index idempotent); docs-only release doc, code review waived"}}
 {"v":1,"ts":"2026-07-04T13:14:50.244Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"REL-0001","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-07T07:59:57.822Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0014/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-07T07:59:57.884Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0014/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-07T07:59:57.944Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0014/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-07T07:59:58.002Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0014/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-07T07:59:58.061Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0014/Spec-AC-05","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-07T07:59:58.122Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0014/Spec-AC-06","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-07T07:59:58.182Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0014/Spec-AC-07","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-07T08:01:02.571Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0014","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-07-07T08:36:41.292Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0014","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-07T08:36:41.351Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"SPEC-0014","payload":{"validation":"pass","code_review":"pass","notes":"Loop 2026-07-07 ticks 1-8; reviews review-20260707T081303Z (FAIL) + review-20260707T083427Z (PASS)"}}
+{"v":1,"ts":"2026-07-07T08:36:41.407Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0014","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260707T083427Z.md"}}

@@ -356,11 +356,11 @@
         },
         {
             name: "aai-auto-trigger",
-            description: "Automatic skill triggering system. Manages pattern matching config in .claude/triggers.json to auto-invoke appropriate skills based on user input.",
+            description: "DEPRECATED — the .claude/triggers.json mechanism has no runtime consumer, so triggers wired there never fire (SPEC-0013 D8 / SPEC-0014). Use wrapper-description trigger phrases instead; invoking it explains the deprecation.",
             category: "workflow", badge: "Workflow", badgeClass: "badge-workflow",
             prompt: ".aai/SKILL_AUTO_TRIGGER.prompt.md",
-            usage: "/aai-auto-trigger add",
-            whenToUse: ["Reducing manual invocations", "Automating common workflows"],
+            usage: "/aai-auto-trigger",
+            whenToUse: ["Understanding why auto-trigger is deprecated", "Finding the wrapper-description trigger-phrase channel"],
             leadsTo: [], prerequisites: [],
             tags: ["automation", "triggers", "patterns"]
         },

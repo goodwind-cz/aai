@@ -10,14 +10,23 @@
 // — mechanically closes the CHANGE-0005 timestamp-regex mishap class).
 //
 // Subcommands (D1):
-//   set-focus --type <t> [--ref <ID> --path <p>]           (--type none nulls ref/path)
+//   set-focus --type <t> [--ref <ID> --path <p>] [--clear spec_path]
+//                                       (--type none nulls ref/path/spec_path)
 //   set-phase --ref <ID> --phase <p> [--status <s>] [--path <p>] [--spec-path <p>]
 //   set-validation --status <s> [--ref <id>] [--evidence <p>]... [--notes <text>]
+//                  [--clear <f,f>]        (--clear alone allowed; no run_at_utc stamp)
 //   set-code-review [--status <s>] [--required <b>] [--scope <t>] [--base-ref <r>]
-//                   [--head-ref <r>] [--report <p>]... [--notes <t>]   (>=1 flag)
+//                   [--head-ref <r>] [--report <p>]... [--notes <t>] [--clear <f,f>] (>=1 flag)
 //   set-strategy --selected <s> [--source <p>] [--rationale <t>]
 //   set-worktree [--recommendation <r>] [--user-decision <d>] [--base-ref <r>]
-//                [--branch <b>] [--path <p>] [--inline-scope <t>] [--rationale <t>] (>=1 flag)
+//                [--branch <b>] [--path <p>] [--inline-scope <t>] [--rationale <t>]
+//                [--clear <f,f>] (>=1 flag)
+//
+// `--clear <field,field,...>` (SPEC-0014 F1): explicitly null stale fields via
+// closed per-subcommand whitelists (see CLEAR_FIELDS) — scalars/free-text to
+// `field: null`, lists to `field: []`. Verdict/status/policy fields are not
+// clearable by construction (reset-block keeps guard ownership); an unknown
+// field or a clear+set of the same field in one invocation exits 2 pre-write.
 //   set-tdd-cycle --status <IDLE|RED|GREEN|REFACTOR_COMPLETE> [--test-id ...]
 //                 [--spec-path ...] [--test-path ...] [--red ...] [--green ...] [--refactor ...]
 //   set-human-input --required <true|false> [--question <t>] [--reason <t>]
@@ -105,7 +114,10 @@ function nowIso() {
 
 // --- argv --------------------------------------------------------------------
 
-const MULTI_FLAGS = new Set(['evidence', 'report']);
+// `clear` accumulates like evidence/report (review-20260707T081303Z W1):
+// last-wins would silently DROP a whole clear instruction, the exact silent-drop
+// class the W5 strict-flag hardening exists to prevent.
+const MULTI_FLAGS = new Set(['evidence', 'report', 'clear']);
 
 function parseArgs(argv) {
   const pos = [];
@@ -134,12 +146,12 @@ function parseArgs(argv) {
 // instead of silently dropping the data. Keys are underscore-normalized.
 const GLOBAL_FLAGS = ['state', 'ticks'];
 const CMD_FLAGS = {
-  'set-focus': ['type', 'ref', 'path', 'spec_path'],
+  'set-focus': ['type', 'ref', 'path', 'spec_path', 'clear'],
   'set-phase': ['ref', 'phase', 'status', 'path', 'spec_path'],
-  'set-validation': ['status', 'ref', 'evidence', 'notes'],
-  'set-code-review': ['status', 'required', 'scope', 'base_ref', 'head_ref', 'report', 'notes'],
+  'set-validation': ['status', 'ref', 'evidence', 'notes', 'clear'],
+  'set-code-review': ['status', 'required', 'scope', 'base_ref', 'head_ref', 'report', 'notes', 'clear'],
   'set-strategy': ['selected', 'source', 'rationale'],
-  'set-worktree': ['recommendation', 'user_decision', 'base_ref', 'branch', 'path', 'inline_scope', 'rationale'],
+  'set-worktree': ['recommendation', 'user_decision', 'base_ref', 'branch', 'path', 'inline_scope', 'rationale', 'clear'],
   'set-tdd-cycle': ['status', 'test_id', 'spec_path', 'test_path', 'red', 'green', 'refactor'],
   'set-human-input': ['required', 'question', 'reason'],
   'append-run': ['ref', 'role', 'model', 'started', 'note', 'tokens_in', 'tokens_out', 'tdd_tests'],
@@ -337,11 +349,24 @@ function indentOf(line) {
 
 // Number of lines the field starting at blockLines[idx] occupies (the field
 // line plus any more-indented continuation lines: `>-` scalars, list items).
+// Blank lines are legal INSIDE block scalars (YAML spec): a blank run belongs
+// to the span only when a MORE-indented continuation follows it — stopping at
+// the first blank orphaned post-blank paragraphs of hand-edited `>-` fields on
+// clear/overwrite (review-20260707T081303Z W2). Otherwise the field ends there.
 function fieldSpan(blockLines, idx, indent) {
   let n = 1;
   for (let j = idx + 1; j < blockLines.length; j += 1) {
     const l = blockLines[j];
-    if (l.trim() === '') break;
+    if (l.trim() === '') {
+      let k = j;
+      while (k < blockLines.length && blockLines[k].trim() === '') k += 1;
+      if (k < blockLines.length && indentOf(blockLines[k]) > indent) {
+        n = k - idx + 1;   // the blank run + its continuation join the span
+        j = k;
+        continue;
+      }
+      break;
+    }
     if (indentOf(l) > indent) n += 1;
     else break;
   }
@@ -453,6 +478,89 @@ function appendListItems(blockLines, indent, name, items) {
   return blockLines;
 }
 
+// --- field clearing (SPEC-0014 F1 / D1-D2) ------------------------------------
+//
+// `--clear <field,field,...>` on set-worktree / set-code-review /
+// set-validation / set-focus. Closed per-subcommand whitelists (field names as
+// they appear in the YAML block, NOT flag names). Scalars/free-text clear to
+// `field: null`, lists to `field: []`; a missing whitelisted field is created
+// (setField's create-at-end normalization). Verdict/status/policy fields are
+// excluded BY CONSTRUCTION — `status` refusals name reset-block (D6 guard
+// ownership untouched). `flag` is the set-flag whose value would contradict
+// clearing the same field in one invocation (exit 2 before any write).
+const CLEAR_FIELDS = {
+  'set-worktree': {
+    branch: { kind: 'scalar', flag: 'branch' },
+    path: { kind: 'scalar', flag: 'path' },
+    base_ref: { kind: 'scalar', flag: 'base_ref' },
+    inline_review_scope: { kind: 'scalar', flag: 'inline_scope' },
+    rationale: { kind: 'scalar', flag: 'rationale' },
+  },
+  'set-code-review': {
+    scope: { kind: 'scalar', flag: 'scope' },
+    base_ref: { kind: 'scalar', flag: 'base_ref' },
+    head_ref: { kind: 'scalar', flag: 'head_ref' },
+    report_paths: { kind: 'list', flag: 'report' },
+    notes: { kind: 'scalar', flag: 'notes' },
+  },
+  'set-validation': {
+    ref_id: { kind: 'scalar', flag: 'ref' },
+    evidence_paths: { kind: 'list', flag: 'evidence' },
+    notes: { kind: 'scalar', flag: 'notes' },
+  },
+  'set-focus': {
+    spec_path: { kind: 'scalar', flag: 'spec_path' },
+  },
+};
+
+// Validate `--clear` for a subcommand: returns the (deduplicated) field list,
+// or [] when the flag is absent. Every refusal exits 2 BEFORE any write.
+function resolveClearList(cmd, flags) {
+  if (flags.clear === undefined) return [];
+  const spec = CLEAR_FIELDS[cmd];
+  const valid = Object.keys(spec).join(' ');
+  // `clear` is a MULTI_FLAG (W1): every occurrence accumulates; merge them into
+  // one comma-list. Any valueless/blank occurrence is refused outright.
+  const rawParts = Array.isArray(flags.clear) ? flags.clear : [flags.clear];
+  if (rawParts.some(v => v === true || String(v).trim() === '')) {
+    fail(`${cmd}: --clear requires a comma-separated field list (clearable: ${valid})`);
+  }
+  const fields = rawParts.join(',').split(',').map(s => s.trim()).filter(s => s !== '');
+  if (fields.length === 0) {
+    fail(`${cmd}: --clear requires a comma-separated field list (clearable: ${valid})`);
+  }
+  const seen = new Set();
+  for (const f of fields) {
+    // Own-property membership only (review-20260707T081303Z E1): plain spec[f]
+    // let Object.prototype names (toString, __proto__, ...) pass the "closed"
+    // whitelist and write junk keys into STATE with exit 0.
+    const info = Object.hasOwn(spec, f) ? spec[f] : undefined;
+    if (!info) {
+      const hint = f === 'status' && (cmd === 'set-validation' || cmd === 'set-code-review')
+        ? ' — a verdict status is guard-owned: use the sanctioned reset-block path instead'
+        : '';
+      fail(`${cmd}: --clear field "${f}" is not clearable (valid clearable set: ${valid})${hint}`);
+    }
+    if (flags[info.flag] !== undefined) {
+      fail(`${cmd}: --clear ${f} contradicts --${info.flag.replace(/_/g, '-')} in the same invocation `
+        + '— a field cannot be cleared and set at once');
+    }
+    seen.add(f);
+  }
+  return [...seen];
+}
+
+// Apply validated clears inside a block: scalar/free-text -> `field: null`,
+// list -> `field: []`. Re-clearing an already-null/[] field is an idempotent
+// field-level no-op (setField rewrites the identical line).
+function applyClears(blockLines, cmd, fields) {
+  const spec = CLEAR_FIELDS[cmd];
+  for (const f of fields) {
+    setField(blockLines, 2, f, [scalarLine(2, f, spec[f].kind === 'list' ? '[]' : 'null')]);
+  }
+  return blockLines;
+}
+
 // Read a direct scalar field value from a top-level block ('null' -> null).
 function readScalar(lines, blockKey, field, indent = 2) {
   const b = findBlock(lines, blockKey);
@@ -470,26 +578,40 @@ function readScalar(lines, blockKey, field, indent = 2) {
 // --- subcommands ---------------------------------------------------------------
 
 function cmdSetFocus(state, flags) {
-  const type = enumFlag(flags, 'type', FOCUS_TYPES, 'set-focus', { required: true });
+  const clears = resolveClearList('set-focus', flags);
+  // A pure `--clear` invocation needs no --type (SPEC-0014 D1); any set flag
+  // re-engages the normal required-type contract.
+  const clearOnly = clears.length > 0 && flags.type === undefined
+    && flags.ref === undefined && flags.path === undefined && flags.spec_path === undefined;
+  const type = clearOnly ? undefined : enumFlag(flags, 'type', FOCUS_TYPES, 'set-focus', { required: true });
   let ref = null;
   let p = null;
   if (type === 'none') {
     if (flags.ref !== undefined) ref = refFlag(flags, 'ref', 'set-focus');
     if (flags.path !== undefined) p = strFlag(flags, 'path', 'set-focus');
-  } else {
+  } else if (type !== undefined) {
     ref = refFlag(flags, 'ref', 'set-focus', { required: true });
     p = strFlag(flags, 'path', 'set-focus', { required: true });
   }
   editBlock(state.lines, 'current_focus', bl => {
-    setField(bl, 2, 'type', [scalarLine(2, 'type', type)]);
-    setField(bl, 2, 'ref_id', [scalarLine(2, 'ref_id', ref ?? 'null')]);
-    setField(bl, 2, 'primary_path', [scalarLine(2, 'primary_path', p === null ? 'null' : yq(p))]);
-    if (flags.spec_path !== undefined) {
-      setField(bl, 2, 'spec_path', [scalarLine(2, 'spec_path', yq(strFlag(flags, 'spec-path', 'set-focus')))]);
+    applyClears(bl, 'set-focus', clears);
+    if (type !== undefined) {
+      setField(bl, 2, 'type', [scalarLine(2, 'type', type)]);
+      setField(bl, 2, 'ref_id', [scalarLine(2, 'ref_id', ref ?? 'null')]);
+      setField(bl, 2, 'primary_path', [scalarLine(2, 'primary_path', p === null ? 'null' : yq(p))]);
+      if (flags.spec_path !== undefined) {
+        setField(bl, 2, 'spec_path', [scalarLine(2, 'spec_path', yq(strFlag(flags, 'spec-path', 'set-focus')))]);
+      } else if (type === 'none') {
+        // SPEC-0014 D2 bonus normalization: `--type none` nulls spec_path when
+        // present, exactly as it already nulls ref_id/primary_path.
+        nullFieldIfPresent(bl, 2, 'spec_path');
+      }
     }
     return bl;
   });
-  return `set-focus: type=${type} ref=${ref ?? 'null'}`;
+  return type !== undefined
+    ? `set-focus: type=${type} ref=${ref ?? 'null'}`
+    : `set-focus: cleared ${clears.join(',')}`;
 }
 
 function cmdSetPhase(state, flags) {
@@ -518,6 +640,18 @@ function cmdSetPhase(state, flags) {
         i = end - 1;
       }
     }
+    // SPEC-0014 D3: the INSERTION point for a missing item field must stay
+    // INSIDE the contiguous item lines — the run from `  - ref_id:` up to the
+    // first blank line (the legacy extent i1 scans ACROSS blanks, which spliced
+    // spec_path after the item's trailing blank — valid YAML, wrong placement).
+    // i1 stays the SEARCH range so an existing field parked after a blank by
+    // the pre-fix writer still updates in place instead of gaining a duplicate.
+    let cEnd = i1;
+    if (i0 !== -1) {
+      for (let j = i0 + 1; j < i1; j += 1) {
+        if (bl[j].trim() === '') { cEnd = j; break; }
+      }
+    }
     const setItemField = (name, value) => {
       for (let i = i0; i < i1; i += 1) {
         if (new RegExp(`^ {4}${name}:(\\s|$)`).test(bl[i]) || new RegExp(`^ {2}- ${name}:(\\s|$)`).test(bl[i])) {
@@ -526,7 +660,18 @@ function cmdSetPhase(state, flags) {
           return;
         }
       }
-      bl.splice(i1, 0, `    ${name}: ${value}`);
+      // Missing: create inside the contiguous item lines — spec_path directly
+      // after primary_path when that field exists; otherwise (and for every
+      // other created field) at the end of the contiguous lines, never after
+      // the blank (D3).
+      let at = cEnd;
+      if (name === 'spec_path') {
+        for (let i = i0; i < cEnd; i += 1) {
+          if (/^( {4}| {2}- )primary_path:(\s|$)/.test(bl[i])) { at = i + 1; break; }
+        }
+      }
+      bl.splice(at, 0, `    ${name}: ${value}`);
+      cEnd += 1;
       i1 += 1;
     };
     if (i0 === -1) {
@@ -549,25 +694,35 @@ function cmdSetPhase(state, flags) {
 }
 
 function cmdSetValidation(state, flags) {
-  const status = enumFlag(flags, 'status', VALIDATION_STATUSES, 'set-validation', { required: true });
+  const clears = resolveClearList('set-validation', flags);
+  // `--clear` alone is a valid invocation (SPEC-0014 D1); --status stays
+  // required otherwise. A clear-only call must NOT re-stamp run_at_utc — no
+  // validation ran.
+  const status = enumFlag(flags, 'status', VALIDATION_STATUSES, 'set-validation', { required: clears.length === 0 });
   const ref = strFlag(flags, 'ref', 'set-validation');
   const notes = strFlag(flags, 'notes', 'set-validation');
   const evidence = Array.isArray(flags.evidence) ? flags.evidence.map(String) : undefined;
   editBlock(state.lines, 'last_validation', bl => {
-    setField(bl, 2, 'status', [scalarLine(2, 'status', status)]);
-    setField(bl, 2, 'run_at_utc', [scalarLine(2, 'run_at_utc', nowIso())]);   // self-stamped
+    applyClears(bl, 'set-validation', clears);
+    if (status !== undefined) {
+      setField(bl, 2, 'status', [scalarLine(2, 'status', status)]);
+      setField(bl, 2, 'run_at_utc', [scalarLine(2, 'run_at_utc', nowIso())]);   // self-stamped
+    }
     if (ref !== undefined) setField(bl, 2, 'ref_id', [scalarLine(2, 'ref_id', yq(ref))]);
     if (evidence !== undefined) setField(bl, 2, 'evidence_paths', listFieldLines(2, 'evidence_paths', evidence));
     if (notes !== undefined) setField(bl, 2, 'notes', textFieldLines(2, 'notes', notes));
     return bl;
   });
-  return `set-validation: status=${status} (run_at_utc self-stamped)`;
+  return status !== undefined
+    ? `set-validation: status=${status} (run_at_utc self-stamped)`
+    : `set-validation: cleared ${clears.join(',')}`;
 }
 
 function cmdSetCodeReview(state, flags) {
+  const clears = resolveClearList('set-code-review', flags);
   const known = ['status', 'required', 'scope', 'base_ref', 'head_ref', 'report', 'notes'];
-  if (!known.some(k => flags[k] !== undefined)) {
-    fail('set-code-review: at least one of --status/--required/--scope/--base-ref/--head-ref/--report/--notes is required');
+  if (clears.length === 0 && !known.some(k => flags[k] !== undefined)) {
+    fail('set-code-review: at least one of --status/--required/--scope/--base-ref/--head-ref/--report/--notes/--clear is required');
   }
   const status = enumFlag(flags, 'status', REVIEW_STATUSES, 'set-code-review');
   const required = enumFlag(flags, 'required', BOOLS, 'set-code-review');
@@ -577,6 +732,7 @@ function cmdSetCodeReview(state, flags) {
   const notes = strFlag(flags, 'notes', 'set-code-review');
   const reports = Array.isArray(flags.report) ? flags.report.map(String) : undefined;
   editBlock(state.lines, 'code_review', bl => {
+    applyClears(bl, 'set-code-review', clears);
     if (required !== undefined) setField(bl, 2, 'required', [scalarLine(2, 'required', required)]);
     if (status !== undefined) setField(bl, 2, 'status', [scalarLine(2, 'status', status)]);
     if (scope !== undefined) setField(bl, 2, 'scope', textFieldLines(2, 'scope', scope));
@@ -603,9 +759,10 @@ function cmdSetStrategy(state, flags) {
 }
 
 function cmdSetWorktree(state, flags) {
+  const clears = resolveClearList('set-worktree', flags);
   const known = ['recommendation', 'user_decision', 'base_ref', 'branch', 'path', 'inline_scope', 'rationale'];
-  if (!known.some(k => flags[k] !== undefined)) {
-    fail('set-worktree: at least one of --recommendation/--user-decision/--base-ref/--branch/--path/--inline-scope/--rationale is required');
+  if (clears.length === 0 && !known.some(k => flags[k] !== undefined)) {
+    fail('set-worktree: at least one of --recommendation/--user-decision/--base-ref/--branch/--path/--inline-scope/--rationale/--clear is required');
   }
   const rec = enumFlag(flags, 'recommendation', RECOMMENDATIONS, 'set-worktree');
   const dec = enumFlag(flags, 'user-decision', USER_DECISIONS, 'set-worktree');
@@ -615,6 +772,7 @@ function cmdSetWorktree(state, flags) {
   const inlineScope = strFlag(flags, 'inline-scope', 'set-worktree');
   const rationale = strFlag(flags, 'rationale', 'set-worktree');
   editBlock(state.lines, 'worktree', bl => {
+    applyClears(bl, 'set-worktree', clears);
     if (rec !== undefined) setField(bl, 2, 'recommendation', [scalarLine(2, 'recommendation', rec)]);
     if (dec !== undefined) setField(bl, 2, 'user_decision', [scalarLine(2, 'user_decision', dec)]);
     if (baseRef !== undefined) setField(bl, 2, 'base_ref', [scalarLine(2, 'base_ref', yq(baseRef))]);

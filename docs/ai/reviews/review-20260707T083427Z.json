@@ -1,0 +1,70 @@
+{
+  "date_utc": "2026-07-07T08:34:27Z",
+  "reviewer": "AAI Code Review (independent re-review, model claude-sonnet-5)",
+  "ref": "CHANGE-0008",
+  "spec": "SPEC-0014",
+  "type": "re-review",
+  "prior_review": "docs/ai/reviews/review-20260707T081303Z.md",
+  "scope": {
+    "mode": "inline",
+    "base_ref": "main",
+    "head_ref": "feat/change-0008-follow-ups",
+    "paths": [
+      ".aai/scripts/state.mjs",
+      "tests/skills/test-aai-state.sh",
+      "tests/skills/test-aai-hygiene-pack.sh",
+      "docs/specs/SPEC-0014-state-clear-spec-path-placement-auto-trigger-alignment.md"
+    ]
+  },
+  "suites": {
+    "test-aai-state.sh": { "passed": 36, "total": 36, "exit_code": 0, "reaped": 0 },
+    "test-aai-hygiene-pack.sh": { "passed": 11, "total": 11, "exit_code": 0, "reaped": 0 }
+  },
+  "fix_verification": [
+    {
+      "id": "E1",
+      "status": "fixed",
+      "file": ".aai/scripts/state.mjs",
+      "line": 537,
+      "detail": "const info = Object.hasOwn(spec, f) ? spec[f] : undefined; replaces plain spec[f] access; excludes inherited Object.prototype members.",
+      "regression_test": "TEST-010 / test_034"
+    },
+    {
+      "id": "W1",
+      "status": "fixed",
+      "file": ".aai/scripts/state.mjs",
+      "line": 120,
+      "detail": "'clear' added to MULTI_FLAGS; resolveClearList merges all occurrences into one deduped list; contradiction/unknown-field check spans every occurrence.",
+      "regression_test": "TEST-011 / test_035"
+    },
+    {
+      "id": "W2",
+      "status": "fixed",
+      "file": ".aai/scripts/state.mjs",
+      "line": 356,
+      "detail": "fieldSpan joins a blank run into the span only when the next non-blank line is more-indented than the field; otherwise still breaks at the blank as before. Bounded by findBlock's block-scoping so it cannot bleed across a top-level block boundary.",
+      "regression_test": "TEST-012 / test_036 (PyYAML ground truth)"
+    }
+  ],
+  "probes": {
+    "prototype_chain_probe": "24/24 combinations (toString, __proto__, constructor, valueOf, hasOwnProperty, isPrototypeOf x 4 subcommands) -> exit 2, byte-identical fixture. E1 confirmed dead.",
+    "w1_reprobe": "--clear branch --clear path -> both nulled (exit 0); --clear branch --clear branch -> single deduped line; single --clear branch (no repeat) still works, path untouched.",
+    "w1_overcorrection_contradiction": "--clear branch --clear path --branch newbranch -> exit 2, contradiction message, byte-identical. Accumulation did not weaken the contradiction guard.",
+    "w2_reprobe": "hand-edited code_review.notes >- with blank-line paragraph, --clear notes -> notes: null, no orphan; PyYAML confirms notes == None.",
+    "w2_overcorrection_sibling": "field(>-) / blank / same-indent sibling key in same block -> clearing the field leaves the sibling untouched, span stops correctly at the blank.",
+    "w2_overcorrection_trailing_blank": "field as last line of a block, trailing blank before next top-level block -> overwrite leaves the blank intact and the next block completely untouched; findBlock bounds blockLines so cross-block bleed is structurally impossible.",
+    "setfield_overwrite_sideeffect": "overwriting (not clearing) a hand-edited >- field with a blank-line paragraph via --notes also correctly consumes the whole span, no orphan (PyYAML confirms new value).",
+    "check_state": "exit 0 (OK, exactly one of every top-level key) on all mutated probe fixtures"
+  },
+  "remaining_findings": [
+    { "id": "I1", "status": "unchanged, accepted", "note": "live STATE legacy stranded spec_path at docs/ai/STATE.yaml:37 still present by design (in-place update policy); cosmetic, non-blocking" },
+    { "id": "I2", "status": "unchanged, accepted", "note": "generic message for non-status guarded-field refusals; spec does not mandate the reset-block hint outside status" }
+  ],
+  "verdict": "pass",
+  "reports": [
+    "docs/ai/reviews/review-20260707T081303Z.md",
+    "docs/ai/reviews/review-20260707T081303Z.json",
+    "docs/ai/reviews/review-20260707T083427Z.md",
+    "docs/ai/reviews/review-20260707T083427Z.json"
+  ]
+}

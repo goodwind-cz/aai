@@ -6,6 +6,11 @@
 # guards, log-tick JSONL append) — plus the nine-prompt migration wiring and the
 # implementer AC-table reconciliation gate (D8). TEST-001..020 per SPEC-0012;
 # TEST-021..025 per the review-20260704T093742Z W1-W5 hardening remediation.
+# test_026..033 per CHANGE-0008 / SPEC-0014 (spec-local ids TEST-001..007 +
+# TEST-009): --clear field clearing (F1) + set-phase spec_path placement (F2).
+# test_034..036 per the review-20260707T081303Z E1/W1/W2 remediation (spec-local
+# ids TEST-010..012): prototype-chain clear names refused, repeated --clear
+# accumulates, blank-line block-scalar span cleared whole.
 #
 # ALL fixtures are scratch temp-dir copies (--state/--ticks overrides); the real
 # gitignored runtime files are NEVER touched (CHANGE-0006 constraint).
@@ -1109,8 +1114,562 @@ test_025_unknown_flags_rejected() {  # TEST-025 / review W5
   log_pass "Unknown flags fail loud with exit 2 + named flag + valid set; valid surface intact (TEST-025)"
 }
 
+# ---------------------------------------------------------------------------
+# CHANGE-0008 / SPEC-0014 — F1 `--clear <comma-list>` + F2 set-phase placement.
+# Fixture diversity (SKILL_TDD checklist): stale-populated (026/027),
+# already-null / already-[] and missing-field (030), guard-bypass negative
+# control (028), rejected-input atomicity (028/029), blank-line-separated item
+# + minimal item without primary_path + upsert control (031/032).
+
+# Fixture whose code_review block MISSES head_ref and notes entirely (clear
+# must CREATE `field: null` at end of block — missing-field shape).
+write_sparse_review_state() {
+  cat > "$1" <<'YAML'
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: CHANGE-0020
+  primary_path: docs/issues/CHANGE-0020.md
+code_review:
+  required: true
+  status: not_run
+  scope: >-
+    fixture review scope
+  base_ref: main
+  report_paths: []
+last_validation:
+  status: not_run
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+}
+
+# Fixture with a blank-line-separated work item that has NO spec_path yet —
+# the reproduced F2 placement-bug shape (D3).
+write_blank_separated_item_state() {
+  cat > "$1" <<'YAML'
+project_status: active
+
+current_focus:
+  type: intake_change
+  ref_id: CHANGE-0010
+  primary_path: docs/issues/CHANGE-0010.md
+
+active_work_items:
+  - ref_id: CHANGE-0010
+    status: in_progress
+    phase: implementation
+    primary_path: docs/issues/CHANGE-0010.md
+
+implementation_strategy:
+  selected: loop
+
+last_validation:
+  status: not_run
+
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+}
+
+test_026_clear_worktree_stale() {  # SPEC-0014 TEST-001 / Spec-AC-01
+  log_info "Test: set-worktree --clear branch,path nulls stale fields; block-local diff; check-state clean (SPEC-0014 TEST-001)..."
+  local s="$TEST_DIR/t26-state.yaml" before="$TEST_DIR/t26-before.yaml"
+  write_state_fixture "$s"
+  cp "$s" "$before"
+
+  st "$s" "$TEST_DIR/t26.log" set-worktree --clear branch,path \
+    || log_fail "set-worktree --clear branch,path must exit 0: $(cat "$TEST_DIR/t26.log")"
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}branch: null$' \
+    || log_fail "worktree.branch must be cleared to null"
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}path: null$' \
+    || log_fail "worktree.path must be cleared to null"
+  # Locality: ONLY worktree + updated_at_utc changed.
+  strip_block "$before" worktree > "$TEST_DIR/t26-b.txt"
+  strip_block "$s" worktree > "$TEST_DIR/t26-a.txt"
+  cmp -s "$TEST_DIR/t26-b.txt" "$TEST_DIR/t26-a.txt" \
+    || log_fail "--clear leaked outside worktree + updated_at_utc: $(diff "$TEST_DIR/t26-b.txt" "$TEST_DIR/t26-a.txt" | head -5)"
+  # Untouched siblings survive inside the block.
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}recommendation: recommended$' \
+    || log_fail "unnamed worktree fields must survive the clear"
+  ck "$s" "$TEST_DIR/t26-ck.log" || log_fail "check-state after --clear: $(cat "$TEST_DIR/t26-ck.log")"
+  log_pass "Stale worktree.branch/path cleared to null, diff block-local, validator clean (SPEC-0014 TEST-001)"
+}
+
+test_027_clear_across_subcommands() {  # SPEC-0014 TEST-002 / Spec-AC-01
+  log_info "Test: --clear across set-code-review/set-validation/set-focus; clear+set combo; --type none nulls spec_path (SPEC-0014 TEST-002)..."
+  local s="$TEST_DIR/t27-state.yaml"
+  write_state_fixture "$s"
+
+  # Populate stale values first (the CHANGE-0007 leak shape).
+  st "$s" "$TEST_DIR/t27-0.log" set-code-review --head-ref feat/stale-branch --report docs/ai/reviews/stale.md --notes "stale review notes" \
+    || log_fail "populating stale review fields must exit 0: $(cat "$TEST_DIR/t27-0.log")"
+
+  # set-code-review: scalar -> null, list -> [], free-text -> null.
+  st "$s" "$TEST_DIR/t27-1.log" set-code-review --clear head_ref,report_paths,notes \
+    || log_fail "set-code-review --clear must exit 0: $(cat "$TEST_DIR/t27-1.log")"
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}head_ref: null$' \
+    || log_fail "code_review.head_ref must be null after clear"
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}report_paths: \[\]$' \
+    || log_fail "code_review.report_paths must be [] after clear (list semantics)"
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}notes: null$' \
+    || log_fail "code_review.notes must be null after clear"
+  grep -qF "docs/ai/reviews/stale.md" "$s" && log_fail "stale report path must be gone after the list clear"
+  ck "$s" "$TEST_DIR/t27-1c.log" || log_fail "check-state after review clear: $(cat "$TEST_DIR/t27-1c.log")"
+
+  # list clear unlocks the replace workflow for the append-only --report flag.
+  st "$s" "$TEST_DIR/t27-2.log" set-code-review --report docs/ai/reviews/fresh.md \
+    || log_fail "re-append after list clear must exit 0: $(cat "$TEST_DIR/t27-2.log")"
+  grep -qE '^    - docs/ai/reviews/fresh.md$' "$s" || log_fail "cleared list must accept a fresh append"
+
+  # set-validation clear-only: no --status needed; run_at_utc NOT re-stamped.
+  st "$s" "$TEST_DIR/t27-3.log" set-validation --clear evidence_paths,ref_id,notes \
+    || log_fail "set-validation --clear (no --status) must exit 0: $(cat "$TEST_DIR/t27-3.log")"
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}evidence_paths: \[\]$' \
+    || log_fail "last_validation.evidence_paths must be [] after clear"
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}ref_id: null$' \
+    || log_fail "last_validation.ref_id must be null after clear"
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}notes: null$' \
+    || log_fail "last_validation.notes must be null after clear"
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}run_at_utc: 2026-07-01T00:00:00Z$' \
+    || log_fail "clear-only set-validation must NOT re-stamp run_at_utc (no validation ran)"
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s" | grep -qE '^ {2}status: not_run$' \
+    || log_fail "clear-only set-validation must leave status untouched"
+  ck "$s" "$TEST_DIR/t27-3c.log" || log_fail "check-state after validation clear: $(cat "$TEST_DIR/t27-3c.log")"
+
+  # set-focus --clear spec_path (clear-only, no --type).
+  st "$s" "$TEST_DIR/t27-4.log" set-focus --clear spec_path \
+    || log_fail "set-focus --clear spec_path must exit 0: $(cat "$TEST_DIR/t27-4.log")"
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^ {2}spec_path: null$' \
+    || log_fail "current_focus.spec_path must be null after clear"
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^ {2}type: intake_change$' \
+    || log_fail "clear-only set-focus must not touch type"
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^ {2}ref_id: CHANGE-0001$' \
+    || log_fail "clear-only set-focus must not touch ref_id"
+  ck "$s" "$TEST_DIR/t27-4c.log" || log_fail "check-state after focus clear: $(cat "$TEST_DIR/t27-4c.log")"
+
+  # --clear combined with a DISJOINT set flag: both apply in one invocation.
+  st "$s" "$TEST_DIR/t27-5.log" set-worktree --clear branch --base-ref develop \
+    || log_fail "--clear combined with a disjoint set flag must exit 0: $(cat "$TEST_DIR/t27-5.log")"
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}branch: null$' \
+    || log_fail "combined invocation must apply the clear"
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}base_ref: develop$' \
+    || log_fail "combined invocation must apply the disjoint set flag"
+  ck "$s" "$TEST_DIR/t27-5c.log" || log_fail "check-state after combined clear+set: $(cat "$TEST_DIR/t27-5c.log")"
+
+  # Bonus normalization: set-focus --type none also nulls spec_path (D2).
+  st "$s" "$TEST_DIR/t27-6.log" set-focus --type intake_change --ref CHANGE-0001 --path docs/issues/CHANGE-0001-fixture.md --spec-path docs/specs/SPEC-0001-fixture.md \
+    || log_fail "re-setting spec_path must exit 0: $(cat "$TEST_DIR/t27-6.log")"
+  st "$s" "$TEST_DIR/t27-7.log" set-focus --type none \
+    || log_fail "set-focus --type none must exit 0: $(cat "$TEST_DIR/t27-7.log")"
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^ {2}spec_path: null$' \
+    || log_fail "set-focus --type none must null spec_path exactly as it nulls ref_id/primary_path"
+  sed -n '/^current_focus:/,/^[a-z]/p' "$s" | grep -qE '^ {2}ref_id: null$' \
+    || log_fail "set-focus --type none must still null ref_id"
+  ck "$s" "$TEST_DIR/t27-7c.log" || log_fail "check-state after --type none: $(cat "$TEST_DIR/t27-7c.log")"
+  log_pass "--clear semantics correct across subcommands; combo works; --type none nulls spec_path (SPEC-0014 TEST-002)"
+}
+
+test_028_clear_guard_bypass_refused() {  # SPEC-0014 TEST-003 / Spec-AC-02
+  log_info "Test: --clear cannot bypass verdict/policy guards — refused exit 2 naming reset-block, zero writes (SPEC-0014 TEST-003)..."
+  local s="$TEST_DIR/t28-state.yaml" ec
+  write_state_fixture "$s" pass pass
+  cp "$s" "$TEST_DIR/t28-snap.yaml"
+
+  ec=0; st "$s" "$TEST_DIR/t28-1.log" set-validation --clear status || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "set-validation --clear status must be REFUSED exit 2 (got $ec): $(cat "$TEST_DIR/t28-1.log")"
+  grep -qF "reset-block" "$TEST_DIR/t28-1.log" \
+    || log_fail "refusal must name reset-block as the sanctioned path: $(cat "$TEST_DIR/t28-1.log")"
+  cmp -s "$s" "$TEST_DIR/t28-snap.yaml" || log_fail "refused clear must not write"
+
+  ec=0; st "$s" "$TEST_DIR/t28-2.log" set-code-review --clear status || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "set-code-review --clear status must be REFUSED exit 2 (got $ec): $(cat "$TEST_DIR/t28-2.log")"
+  grep -qF "reset-block" "$TEST_DIR/t28-2.log" \
+    || log_fail "review refusal must name reset-block: $(cat "$TEST_DIR/t28-2.log")"
+  cmp -s "$s" "$TEST_DIR/t28-snap.yaml" || log_fail "refused review clear must not write"
+
+  # Policy fields with closed-set reset values stay flag-only.
+  ec=0; st "$s" "$TEST_DIR/t28-3.log" set-worktree --clear recommendation || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "set-worktree --clear recommendation must exit 2 (got $ec): $(cat "$TEST_DIR/t28-3.log")"
+  ec=0; st "$s" "$TEST_DIR/t28-4.log" set-code-review --clear required || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "set-code-review --clear required must exit 2 (got $ec)"
+  ec=0; st "$s" "$TEST_DIR/t28-5.log" set-validation --clear run_at_utc || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "set-validation --clear run_at_utc must exit 2 (self-stamped field, got $ec)"
+  cmp -s "$s" "$TEST_DIR/t28-snap.yaml" || log_fail "no refused clear may write"
+
+  # D6 guard semantics byte-untouched: reset-block on pass still refused sans --force.
+  ec=0; st "$s" "$TEST_DIR/t28-6.log" reset-block last_validation || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "reset-block pass-guard must still refuse exit 2 after the --clear feature (got $ec)"
+  log_pass "Guard ownership preserved: status/policy fields not clearable, reset-block named, D6 intact (SPEC-0014 TEST-003)"
+}
+
+test_029_clear_strict_validation() {  # SPEC-0014 TEST-004 / Spec-AC-03
+  log_info "Test: unknown clear field / clear+set contradiction / empty list — exit 2, byte-identical file (SPEC-0014 TEST-004)..."
+  local s="$TEST_DIR/t29-state.yaml" ec
+  write_state_fixture "$s"
+  cp "$s" "$TEST_DIR/t29-snap.yaml"
+
+  # Unknown field: names the offender AND the full valid clearable set (W5 shape).
+  ec=0; st "$s" "$TEST_DIR/t29-1.log" set-worktree --clear bogus || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "unknown clear field must exit 2 (got $ec): $(cat "$TEST_DIR/t29-1.log")"
+  grep -qF "bogus" "$TEST_DIR/t29-1.log" || log_fail "error must name the offending field: $(cat "$TEST_DIR/t29-1.log")"
+  grep -qF "branch" "$TEST_DIR/t29-1.log" && grep -qF "inline_review_scope" "$TEST_DIR/t29-1.log" \
+    || log_fail "error must list the valid clearable set: $(cat "$TEST_DIR/t29-1.log")"
+
+  # A field from ANOTHER subcommand's whitelist is unknown here.
+  ec=0; st "$s" "$TEST_DIR/t29-2.log" set-focus --clear evidence_paths || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "cross-subcommand clear field must exit 2 (got $ec)"
+
+  # clear + set of the SAME field in one invocation: contradiction.
+  ec=0; st "$s" "$TEST_DIR/t29-3.log" set-worktree --clear branch --branch feat/x || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "--clear branch --branch x must exit 2 contradiction (got $ec): $(cat "$TEST_DIR/t29-3.log")"
+  # ...including the non-1:1 flag-to-field mappings (report -> report_paths).
+  ec=0; st "$s" "$TEST_DIR/t29-4.log" set-code-review --clear report_paths --report docs/ai/reviews/x.md || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "--clear report_paths --report x must exit 2 contradiction (got $ec)"
+  ec=0; st "$s" "$TEST_DIR/t29-5.log" set-validation --clear ref_id --ref CHANGE-0001 || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "--clear ref_id --ref x must exit 2 contradiction (got $ec)"
+
+  # Empty list: --clear without a value, and --clear "".
+  ec=0; st "$s" "$TEST_DIR/t29-6.log" set-worktree --clear || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "--clear without a value must exit 2 (got $ec)"
+  ec=0; st "$s" "$TEST_DIR/t29-7.log" set-worktree --clear "" || ec=$?
+  [[ "$ec" == 2 ]] || log_fail '--clear "" must exit 2 (got '"$ec"')'
+  ec=0; st "$s" "$TEST_DIR/t29-8.log" set-worktree --clear ", ," || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "--clear with only commas/whitespace must exit 2 (got $ec)"
+
+  cmp -s "$s" "$TEST_DIR/t29-snap.yaml" || log_fail "every rejected --clear must leave the file byte-identical"
+  log_pass "Strict clear-list validation: unknown/contradiction/empty all exit 2 with zero writes (SPEC-0014 TEST-004)"
+}
+
+test_030_clear_idempotent_and_missing() {  # SPEC-0014 TEST-005 / Spec-AC-04
+  log_info "Test: clearing already-null/[] fields is an idempotent exit-0 no-op; missing whitelisted field created as null (SPEC-0014 TEST-005)..."
+  local s="$TEST_DIR/t30-state.yaml"
+  write_state_fixture "$s"   # head_ref already null, report_paths already [], inline_review_scope already null
+
+  st "$s" "$TEST_DIR/t30-1.log" set-code-review --clear head_ref,report_paths \
+    || log_fail "clearing already-null/[] fields must exit 0: $(cat "$TEST_DIR/t30-1.log")"
+  local n
+  n="$(sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -cE '^ {2}head_ref:' || true)"
+  [[ "$n" == "1" ]] || log_fail "exactly one head_ref line after idempotent clear (got $n)"
+  n="$(sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -cE '^ {2}report_paths:' || true)"
+  [[ "$n" == "1" ]] || log_fail "exactly one report_paths line after idempotent clear (got $n)"
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}report_paths: \[\]$' \
+    || log_fail "already-[] list must stay a single [] line"
+
+  # Second run: still exit 0, still single lines (stable under repetition).
+  st "$s" "$TEST_DIR/t30-2.log" set-code-review --clear head_ref,report_paths \
+    || log_fail "second idempotent clear must exit 0: $(cat "$TEST_DIR/t30-2.log")"
+  grep -v '^updated_at_utc:' "$s" > "$TEST_DIR/t30-run1.txt"
+  st "$s" "$TEST_DIR/t30-3.log" set-code-review --clear head_ref,report_paths \
+    || log_fail "third idempotent clear must exit 0"
+  grep -v '^updated_at_utc:' "$s" > "$TEST_DIR/t30-run2.txt"
+  cmp -s "$TEST_DIR/t30-run1.txt" "$TEST_DIR/t30-run2.txt" \
+    || log_fail "repeated clears must be byte-identical modulo updated_at_utc"
+  ck "$s" "$TEST_DIR/t30-ck.log" || log_fail "check-state after idempotent clears: $(cat "$TEST_DIR/t30-ck.log")"
+
+  # Already-null free-text field (`>-` in the fixture becomes null, then stays).
+  st "$s" "$TEST_DIR/t30-4.log" set-worktree --clear rationale \
+    || log_fail "clearing the >- rationale must exit 0: $(cat "$TEST_DIR/t30-4.log")"
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}rationale: null$' \
+    || log_fail "worktree.rationale (>- scalar) must clear to a single null line"
+  grep -qF "Fixture worktree rationale." "$s" && log_fail "the >- continuation lines must be removed by the clear"
+  st "$s" "$TEST_DIR/t30-5.log" set-worktree --clear rationale \
+    || log_fail "re-clearing the already-null rationale must exit 0"
+
+  # A MISSING whitelisted field is created as `field: null` at end of block.
+  local m="$TEST_DIR/t30-sparse.yaml"
+  write_sparse_review_state "$m"
+  grep -qE '^ {2}head_ref:' "$m" && log_fail "sparse fixture must not carry head_ref (fixture guard)"
+  st "$m" "$TEST_DIR/t30-6.log" set-code-review --clear head_ref,notes \
+    || log_fail "clearing missing fields must exit 0 (create-as-null): $(cat "$TEST_DIR/t30-6.log")"
+  sed -n '/^code_review:/,/^[a-z]/p' "$m" | grep -qE '^ {2}head_ref: null$' \
+    || log_fail "missing head_ref must be created as null"
+  sed -n '/^code_review:/,/^[a-z]/p' "$m" | grep -qE '^ {2}notes: null$' \
+    || log_fail "missing notes must be created as null"
+  ck "$m" "$TEST_DIR/t30-6c.log" || log_fail "check-state after create-as-null: $(cat "$TEST_DIR/t30-6c.log")"
+  log_pass "Idempotent clears exit 0 with single field lines; missing fields created as null (SPEC-0014 TEST-005)"
+}
+
+test_031_spec_path_placement() {  # SPEC-0014 TEST-006 / Spec-AC-05
+  log_info "Test: set-phase --spec-path lands directly after primary_path INSIDE the item block; double-run byte-idempotent (SPEC-0014 TEST-006)..."
+  local s="$TEST_DIR/t31-state.yaml"
+  write_blank_separated_item_state "$s"
+
+  st "$s" "$TEST_DIR/t31-1.log" set-phase --ref CHANGE-0010 --phase validation --spec-path docs/specs/SPEC-0010-fixture.md \
+    || log_fail "set-phase --spec-path must exit 0: $(cat "$TEST_DIR/t31-1.log")"
+
+  # Byte-level placement assertion: the whole file (modulo updated_at_utc) must
+  # equal the expected shape — spec_path directly after primary_path, the blank
+  # line still TRAILING the item (the pre-fix bug spliced spec_path after it).
+  grep -v '^updated_at_utc:' "$s" > "$TEST_DIR/t31-actual.txt"
+  cat > "$TEST_DIR/t31-expected.txt" <<'YAML'
+project_status: active
+
+current_focus:
+  type: intake_change
+  ref_id: CHANGE-0010
+  primary_path: docs/issues/CHANGE-0010.md
+
+active_work_items:
+  - ref_id: CHANGE-0010
+    status: in_progress
+    phase: validation
+    primary_path: docs/issues/CHANGE-0010.md
+    spec_path: docs/specs/SPEC-0010-fixture.md
+
+implementation_strategy:
+  selected: loop
+
+last_validation:
+  status: not_run
+
+YAML
+  cmp -s "$TEST_DIR/t31-actual.txt" "$TEST_DIR/t31-expected.txt" \
+    || log_fail "spec_path placement wrong (must sit directly after primary_path inside the item): $(diff "$TEST_DIR/t31-expected.txt" "$TEST_DIR/t31-actual.txt" | head -8)"
+  ck "$s" "$TEST_DIR/t31-ck.log" || log_fail "check-state after placement: $(cat "$TEST_DIR/t31-ck.log")"
+
+  # Double-run idempotence: byte-identical modulo updated_at_utc.
+  st "$s" "$TEST_DIR/t31-2.log" set-phase --ref CHANGE-0010 --phase validation --spec-path docs/specs/SPEC-0010-fixture.md \
+    || log_fail "second identical set-phase must exit 0: $(cat "$TEST_DIR/t31-2.log")"
+  grep -v '^updated_at_utc:' "$s" > "$TEST_DIR/t31-actual2.txt"
+  cmp -s "$TEST_DIR/t31-actual.txt" "$TEST_DIR/t31-actual2.txt" \
+    || log_fail "double-run must be byte-identical modulo updated_at_utc: $(diff "$TEST_DIR/t31-actual.txt" "$TEST_DIR/t31-actual2.txt" | head -5)"
+  ck "$s" "$TEST_DIR/t31-2c.log" || log_fail "check-state after double run: $(cat "$TEST_DIR/t31-2c.log")"
+  log_pass "spec_path placed inside the item directly after primary_path; double-run stable (SPEC-0014 TEST-006)"
+}
+
+test_032_spec_path_fallback_and_upsert() {  # SPEC-0014 TEST-007 / Spec-AC-05
+  log_info "Test: item WITHOUT primary_path gets fields at end of contiguous item lines; upsert order control (SPEC-0014 TEST-007)..."
+  local s="$TEST_DIR/t32-state.yaml"
+  cat > "$s" <<'YAML'
+project_status: active
+
+current_focus:
+  type: intake_change
+  ref_id: CHANGE-0011
+  primary_path: docs/issues/CHANGE-0011.md
+
+active_work_items:
+  - ref_id: CHANGE-0011
+    status: in_progress
+    phase: implementation
+
+implementation_strategy:
+  selected: loop
+
+last_validation:
+  status: not_run
+
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+
+  # (a) fallback: no primary_path in the item -> spec_path at end of the
+  # CONTIGUOUS item lines, never after the trailing blank.
+  st "$s" "$TEST_DIR/t32-1.log" set-phase --ref CHANGE-0011 --phase validation --spec-path docs/specs/SPEC-0011-fixture.md \
+    || log_fail "set-phase --spec-path on a primary_path-less item must exit 0: $(cat "$TEST_DIR/t32-1.log")"
+  grep -v '^updated_at_utc:' "$s" > "$TEST_DIR/t32-actual.txt"
+  cat > "$TEST_DIR/t32-expected.txt" <<'YAML'
+project_status: active
+
+current_focus:
+  type: intake_change
+  ref_id: CHANGE-0011
+  primary_path: docs/issues/CHANGE-0011.md
+
+active_work_items:
+  - ref_id: CHANGE-0011
+    status: in_progress
+    phase: validation
+    spec_path: docs/specs/SPEC-0011-fixture.md
+
+implementation_strategy:
+  selected: loop
+
+last_validation:
+  status: not_run
+
+YAML
+  cmp -s "$TEST_DIR/t32-actual.txt" "$TEST_DIR/t32-expected.txt" \
+    || log_fail "fallback placement wrong (end of contiguous item lines): $(diff "$TEST_DIR/t32-expected.txt" "$TEST_DIR/t32-actual.txt" | head -8)"
+  ck "$s" "$TEST_DIR/t32-1c.log" || log_fail "check-state after fallback placement: $(cat "$TEST_DIR/t32-1c.log")"
+
+  # (b) creating primary_path later also lands INSIDE the item; spec_path then
+  # updates in place (D3: primary_path never after a blank).
+  st "$s" "$TEST_DIR/t32-2.log" set-phase --ref CHANGE-0011 --phase validation --path docs/issues/CHANGE-0011.md \
+    || log_fail "set-phase --path must exit 0: $(cat "$TEST_DIR/t32-2.log")"
+  sed -n '/^active_work_items:/,/^[a-z]/p' "$s" | sed -n '2,6p' > "$TEST_DIR/t32-item.txt"
+  grep -qE '^ {4}primary_path: docs/issues/CHANGE-0011.md$' "$TEST_DIR/t32-item.txt" \
+    || log_fail "created primary_path must sit inside the contiguous item lines: $(cat "$TEST_DIR/t32-item.txt")"
+  ck "$s" "$TEST_DIR/t32-2c.log" || log_fail "check-state after primary_path creation: $(cat "$TEST_DIR/t32-2c.log")"
+
+  # (c) upsert control: a NEW item keeps the ref_id/status/phase/primary_path/
+  # spec_path emission order (unchanged behavior, asserted as a control).
+  st "$s" "$TEST_DIR/t32-3.log" set-phase --ref ISSUE-0099 --phase planning --status planned --path docs/issues/ISSUE-0099.md --spec-path docs/specs/SPEC-0099.md \
+    || log_fail "upsert set-phase must exit 0: $(cat "$TEST_DIR/t32-3.log")"
+  awk '/^  - ref_id: ISSUE-0099$/{found=1} found && n<5 {print; n++}' "$s" > "$TEST_DIR/t32-upsert.txt"
+  cat > "$TEST_DIR/t32-upsert-expected.txt" <<'YAML'
+  - ref_id: ISSUE-0099
+    status: planned
+    phase: planning
+    primary_path: docs/issues/ISSUE-0099.md
+    spec_path: docs/specs/SPEC-0099.md
+YAML
+  cmp -s "$TEST_DIR/t32-upsert.txt" "$TEST_DIR/t32-upsert-expected.txt" \
+    || log_fail "upsert field order must stay ref_id/status/phase/primary_path/spec_path: $(cat "$TEST_DIR/t32-upsert.txt")"
+  ck "$s" "$TEST_DIR/t32-3c.log" || log_fail "check-state after upsert: $(cat "$TEST_DIR/t32-3c.log")"
+  log_pass "Fallback + created-field placement inside contiguous item lines; upsert order preserved (SPEC-0014 TEST-007)"
+}
+
+test_033_spec0014_regression_backstop() {  # SPEC-0014 TEST-009 / Spec-AC-07
+  log_info "Test: USER_GUIDE body-lint PASS (repo audit + index idempotence covered by TEST-019 in this same run) (SPEC-0014 TEST-009)..."
+  local ec=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --lint-body-file docs/USER_GUIDE.md > "$TEST_DIR/t33-lint.log" 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "docs-audit --lint-body-file docs/USER_GUIDE.md must exit 0 (got $ec): $(tail -10 "$TEST_DIR/t33-lint.log")"
+  log_pass "USER_GUIDE body lint clean; suite-level regression anchors green (SPEC-0014 TEST-009)"
+}
+
+test_034_clear_prototype_names_refused() {  # SPEC-0014 TEST-010 / Spec-AC-03 (review-20260707T081303Z E1)
+  log_info "Test: JS prototype-chain field names are NOT clearable — exit 2 naming the valid set, zero writes, all four subcommands (SPEC-0014 TEST-010)..."
+  local s="$TEST_DIR/t34-state.yaml" ec f
+  write_state_fixture "$s"
+  cp "$s" "$TEST_DIR/t34-snap.yaml"
+
+  # The whole Object.prototype member family must be refused as unknown fields.
+  for f in toString __proto__ constructor valueOf hasOwnProperty isPrototypeOf; do
+    ec=0; st "$s" "$TEST_DIR/t34-w.log" set-worktree --clear "$f" || ec=$?
+    [[ "$ec" == 2 ]] || log_fail "set-worktree --clear $f must exit 2 (got $ec): $(cat "$TEST_DIR/t34-w.log")"
+    grep -qF "not clearable" "$TEST_DIR/t34-w.log" \
+      || log_fail "refusal for $f must use the unknown-field message: $(cat "$TEST_DIR/t34-w.log")"
+    grep -qF "branch" "$TEST_DIR/t34-w.log" && grep -qF "inline_review_scope" "$TEST_DIR/t34-w.log" \
+      || log_fail "refusal for $f must name the valid clearable set: $(cat "$TEST_DIR/t34-w.log")"
+  done
+
+  # All four --clear subcommands share the whitelist helper: each must refuse.
+  ec=0; st "$s" "$TEST_DIR/t34-r.log" set-code-review --clear toString || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "set-code-review --clear toString must exit 2 (got $ec): $(cat "$TEST_DIR/t34-r.log")"
+  ec=0; st "$s" "$TEST_DIR/t34-v.log" set-validation --clear __proto__ || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "set-validation --clear __proto__ must exit 2 (got $ec): $(cat "$TEST_DIR/t34-v.log")"
+  ec=0; st "$s" "$TEST_DIR/t34-f.log" set-focus --clear valueOf || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "set-focus --clear valueOf must exit 2 (got $ec): $(cat "$TEST_DIR/t34-f.log")"
+
+  # A prototype name smuggled into an otherwise-valid comma list: refused pre-write.
+  ec=0; st "$s" "$TEST_DIR/t34-m.log" set-worktree --clear branch,toString || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "set-worktree --clear branch,toString must exit 2 (got $ec): $(cat "$TEST_DIR/t34-m.log")"
+
+  cmp -s "$s" "$TEST_DIR/t34-snap.yaml" \
+    || log_fail "refused prototype-name clears must leave the file byte-identical: $(diff "$TEST_DIR/t34-snap.yaml" "$s" | head -5)"
+  grep -qE '^ {2}(toString|__proto__|constructor|valueOf|hasOwnProperty|isPrototypeOf):' "$s" \
+    && log_fail "no prototype-named junk key may be written into STATE"
+  log_pass "Prototype-chain clear names refused exit 2 on all four subcommands, zero writes (SPEC-0014 TEST-010)"
+}
+
+test_035_clear_repeated_flag_accumulates() {  # SPEC-0014 TEST-011 / review-20260707T081303Z W1
+  log_info "Test: repeated --clear flags accumulate (no silent last-wins drop); dedupe; contradiction still caught across occurrences (SPEC-0014 TEST-011)..."
+  local s="$TEST_DIR/t35-state.yaml" ec n
+  write_state_fixture "$s"
+
+  # Two occurrences: BOTH instructions must apply (pre-fix: first silently dropped).
+  st "$s" "$TEST_DIR/t35-1.log" set-worktree --clear branch --clear path \
+    || log_fail "set-worktree --clear branch --clear path must exit 0: $(cat "$TEST_DIR/t35-1.log")"
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}branch: null$' \
+    || log_fail "first --clear occurrence (branch) must not be dropped"
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}path: null$' \
+    || log_fail "second --clear occurrence (path) must apply"
+  sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -qE '^ {2}recommendation: recommended$' \
+    || log_fail "unnamed worktree fields must survive the accumulated clear"
+  ck "$s" "$TEST_DIR/t35-1c.log" || log_fail "check-state after accumulated clear: $(cat "$TEST_DIR/t35-1c.log")"
+
+  # Repeat mixed with a comma-list: union of all occurrences.
+  st "$s" "$TEST_DIR/t35-2.log" set-code-review --clear head_ref --clear report_paths,notes \
+    || log_fail "mixed repeat + comma-list --clear must exit 0: $(cat "$TEST_DIR/t35-2.log")"
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}head_ref: null$' \
+    || log_fail "head_ref from the first occurrence must be cleared"
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}report_paths: \[\]$' \
+    || log_fail "report_paths from the second occurrence must be cleared"
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}notes: null$' \
+    || log_fail "notes from the second occurrence must be cleared"
+
+  # Same field twice across occurrences: dedupe, exactly one field line.
+  st "$s" "$TEST_DIR/t35-3.log" set-worktree --clear base_ref --clear base_ref \
+    || log_fail "duplicate field across --clear occurrences must exit 0 (dedupe): $(cat "$TEST_DIR/t35-3.log")"
+  n="$(sed -n '/^worktree:/,/^[a-z]/p' "$s" | grep -cE '^ {2}base_ref:' || true)"
+  [[ "$n" == "1" ]] || log_fail "exactly one base_ref line after deduped clear (got $n)"
+  ck "$s" "$TEST_DIR/t35-3c.log" || log_fail "check-state after deduped clear: $(cat "$TEST_DIR/t35-3c.log")"
+
+  # Strict validation still spans ALL occurrences: contradiction + unknown field.
+  cp "$s" "$TEST_DIR/t35-snap.yaml"
+  ec=0; st "$s" "$TEST_DIR/t35-4.log" set-worktree --clear branch --clear path --path /tmp/x || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "clear+set contradiction in a later occurrence must exit 2 (got $ec): $(cat "$TEST_DIR/t35-4.log")"
+  ec=0; st "$s" "$TEST_DIR/t35-5.log" set-worktree --clear branch --clear bogus || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "unknown field in a later occurrence must exit 2 (got $ec): $(cat "$TEST_DIR/t35-5.log")"
+  ec=0; st "$s" "$TEST_DIR/t35-6.log" set-worktree --clear branch --clear || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "valueless later --clear occurrence must exit 2 (got $ec): $(cat "$TEST_DIR/t35-6.log")"
+  cmp -s "$s" "$TEST_DIR/t35-snap.yaml" \
+    || log_fail "every refused repeated --clear must leave the file byte-identical"
+  log_pass "Repeated --clear accumulates (union + dedupe); strict validation spans all occurrences (SPEC-0014 TEST-011)"
+}
+
+test_036_clear_blankline_folded_scalar() {  # SPEC-0014 TEST-012 / review-20260707T081303Z W2
+  log_info "Test: clearing/overwriting a hand-edited >- field containing a BLANK line replaces the whole scalar — no orphaned continuation (SPEC-0014 TEST-012)..."
+  local s="$TEST_DIR/t36-state.yaml" n
+  write_state_fixture "$s"
+  # Hand-edit code_review.notes into a two-paragraph folded scalar (blank line
+  # inside the block scalar — legal YAML, never produced by this engine).
+  awk '{
+    if ($0 == "  notes: null") {
+      print "  notes: >-";
+      print "    para one line";
+      print "";
+      print "    para two line";
+    } else print
+  }' "$s" > "$s.tmp" && mv "$s.tmp" "$s"
+  grep -qF "para two line" "$s" || log_fail "fixture guard: blank-line folded notes not installed"
+  ck "$s" "$TEST_DIR/t36-0c.log" || log_fail "fixture control: hand-edited state must be valid pre-clear: $(cat "$TEST_DIR/t36-0c.log")"
+
+  # --clear must remove the WHOLE scalar span including the post-blank paragraph.
+  st "$s" "$TEST_DIR/t36-1.log" set-code-review --clear notes \
+    || log_fail "set-code-review --clear notes must exit 0: $(cat "$TEST_DIR/t36-1.log")"
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -qE '^ {2}notes: null$' \
+    || log_fail "code_review.notes must be a single null line after clear"
+  grep -qF "para one line" "$s" && log_fail "pre-blank continuation must be removed by the clear"
+  grep -qF "para two line" "$s" && log_fail "post-blank continuation must NOT be orphaned by the clear"
+  ck "$s" "$TEST_DIR/t36-1c.log" || log_fail "check-state after blank-line-scalar clear: $(cat "$TEST_DIR/t36-1c.log")"
+  # YAML-parser ground truth (PyYAML when available): notes must be real null,
+  # not the junk 'null\npara two line' string the orphaned span used to produce.
+  if command -v python3 >/dev/null 2>&1 && python3 -c "import yaml" >/dev/null 2>&1; then
+    python3 -c '
+import sys, yaml
+d = yaml.safe_load(open(sys.argv[1]))
+v = d["code_review"]["notes"]
+assert v is None, "expected notes == null, got %r" % (v,)
+' "$s" || log_fail "PyYAML ground truth: code_review.notes must parse as null after clear"
+    log_info "PyYAML ground truth confirmed notes == null"
+  else
+    log_info "PyYAML unavailable — byte-level orphan assertions stand alone"
+  fi
+
+  # Same helper class via setField OVERWRITE (--notes): whole span replaced too.
+  local o="$TEST_DIR/t36-over.yaml"
+  write_state_fixture "$o"
+  awk '{
+    if ($0 == "  notes: null") {
+      print "  notes: >-";
+      print "    para one line";
+      print "";
+      print "    para two line";
+    } else print
+  }' "$o" > "$o.tmp" && mv "$o.tmp" "$o"
+  st "$o" "$TEST_DIR/t36-2.log" set-code-review --notes "fresh notes" \
+    || log_fail "set-code-review --notes over a blank-line scalar must exit 0: $(cat "$TEST_DIR/t36-2.log")"
+  grep -qF "para two line" "$o" && log_fail "overwrite must not orphan the post-blank continuation"
+  sed -n '/^code_review:/,/^[a-z]/p' "$o" | grep -qE '^ {4}fresh notes$' \
+    || log_fail "overwrite must install the fresh >- content"
+  n="$(sed -n '/^code_review:/,/^[a-z]/p' "$o" | grep -cE '^ {2}notes:' || true)"
+  [[ "$n" == "1" ]] || log_fail "exactly one notes line after overwrite (got $n)"
+  ck "$o" "$TEST_DIR/t36-2c.log" || log_fail "check-state after blank-line-scalar overwrite: $(cat "$TEST_DIR/t36-2c.log")"
+  log_pass "Blank-line block scalars cleared/overwritten as one span; parser-true null; no orphans (SPEC-0014 TEST-012)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (transactional STATE CLI — SPEC-0012 TEST-001..025)"
+  echo "Testing $TEST_NAME (transactional STATE CLI — SPEC-0012 TEST-001..025 + SPEC-0014 additions)"
   check_deps
   setup_fixture
   test_001_happy_focus_phase
@@ -1138,6 +1697,17 @@ main() {
   test_023_scalar_quoting
   test_024_concurrent_guard
   test_025_unknown_flags_rejected
+  test_026_clear_worktree_stale
+  test_027_clear_across_subcommands
+  test_028_clear_guard_bypass_refused
+  test_029_clear_strict_validation
+  test_030_clear_idempotent_and_missing
+  test_031_spec_path_placement
+  test_032_spec_path_fallback_and_upsert
+  test_033_spec0014_regression_backstop
+  test_034_clear_prototype_names_refused
+  test_035_clear_repeated_flag_accumulates
+  test_036_clear_blankline_folded_scalar
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
