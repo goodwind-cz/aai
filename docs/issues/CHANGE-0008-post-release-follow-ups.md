@@ -1,11 +1,14 @@
 ---
 id: CHANGE-0008
 type: change
-status: draft
+status: done
 links:
   rfc: RFC-0002
-  pr: []
-  commits: []
+  spec: SPEC-0014
+  pr:
+    - 46
+  commits:
+    - 8a690f8
 ---
 
 # Change Request: Post-release follow-ups — state.mjs field clearing, spec_path placement, auto-trigger reality alignment

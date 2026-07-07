@@ -233,3 +233,5 @@
 {"v":1,"ts":"2026-07-07T08:36:41.292Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0014","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-07T08:36:41.351Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"SPEC-0014","payload":{"validation":"pass","code_review":"pass","notes":"Loop 2026-07-07 ticks 1-8; reviews review-20260707T081303Z (FAIL) + review-20260707T083427Z (PASS)"}}
 {"v":1,"ts":"2026-07-07T08:36:41.407Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0014","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260707T083427Z.md"}}
+{"v":1,"ts":"2026-07-07T15:38:52.081Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"CHANGE-0008","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-07T15:38:52.139Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"CHANGE-0008","payload":{"validation":"pass","code_review":"pass","notes":"Delivered by SPEC-0014 (PR #46)"}}

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-07T08:38:08.175Z
+Generated: 2026-07-07T15:38:53.848Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (34)
+## Done (35)
 
 | ID | Type | Path |
 |---|---|---|
@@ -26,6 +26,7 @@ _None._
 | CHANGE-0005 | issues | docs/issues/CHANGE-0005-docs-audit-closeout-guardrails.md |
 | CHANGE-0006 | issues | docs/issues/CHANGE-0006-loop-reliability-state-cli.md |
 | CHANGE-0007 | issues | docs/issues/CHANGE-0007-workflow-hygiene-pack.md |
+| CHANGE-0008 | issues | docs/issues/CHANGE-0008-post-release-follow-ups.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
@@ -54,11 +55,9 @@ _None._
 | SPEC-0014 | specs | docs/specs/SPEC-0014-state-clear-spec-path-placement-auto-trigger-alignment.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0008 | issues | docs/issues/CHANGE-0008-post-release-follow-ups.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
