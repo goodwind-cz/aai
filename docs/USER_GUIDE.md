@@ -195,7 +195,7 @@ AAI uses two different classes of documentation:
 | `/aai-test-canon` | Test consolidation | Fragmented tests → canonical per-domain suites + RED stubs for gaps |
 | `/aai-pr` | Open a PR | Scope-only staging, staged-vs-scope audit, PR body; never merges |
 | `/aai-profile` | Optimize | Performance analysis |
-| `/aai-auto-trigger` | Automate | Pattern-based triggering |
+| `/aai-auto-trigger` | Deprecated | No runtime consumer — use wrapper-description trigger phrases |
 
 ---
 
@@ -843,33 +843,18 @@ wrangler login
 
 ### 7. Automation & Integration
 
-#### `/aai-auto-trigger`
-**What:** Automatic skill triggering based on user input patterns.
+#### `/aai-auto-trigger` (deprecated)
+**What:** DEPRECATED — the `.claude/triggers.json` mechanism this skill
+configured has no runtime consumer, so triggers wired there never fire
+(grep-proven in SPEC-0013 D8). Invoking it now explains the deprecation.
 
-**When to use:**
-- Reducing manual invocations
-- Automating common workflows
-- Pattern-based routing
+**Instead:** put trigger phrases directly into the target skill wrapper's
+`description:` frontmatter (`.claude/skills/<name>/SKILL.md` plus the
+`.codex`/`.gemini` mirrors) — that is the channel native skill-matching
+actually reads. Example: the `aai-wrap-up` wrapper carries "wrap up",
+"end session", "done for today", "hotovo", "konec", "bye" in its description.
 
-**Example:**
-```bash
-# Setup triggers
-/aai-auto-trigger add
-
-# Pattern: "add.*feature"
-# Skill: aai-intake
-# Args: { type: "prd" }
-
-# Now this works automatically:
-User: "add login feature"
-→ Auto-triggers: /aai-intake "add login feature"
-```
-
-**Manages:**
-- `.claude/triggers.json` config
-- Pattern → skill mapping
-- Priority resolution
-- Enable/disable triggers
+Full notice: `.aai/SKILL_AUTO_TRIGGER.prompt.md`.
 
 #### `/aai-decapod`
 **What:** Decapod compliance framework integration.
@@ -1299,20 +1284,16 @@ powershell -ExecutionPolicy Bypass -File tests/self-hosting/test-self-hosting-sm
 ### Autonomous Workflow
 
 ```bash
-# 1. Setup auto-triggers (one-time)
-/aai-auto-trigger add
-# Pattern: "add.*feature" → /aai-intake
-
-# 2. Start autonomous loop
+# 1. Start autonomous loop
 /aai-loop
 
-# 3. Monitor progress
+# 2. Monitor progress
 /aai-check-state
 
-# 4. Resolve human decisions if needed
+# 3. Resolve human decisions if needed
 /aai-hitl
 
-# 5. Loop completes automatically
+# 4. Loop completes automatically
 # A finished scope ends with an OPEN pull request (/aai-pr ceremony) —
 # the loop never merges; merging is your action after your own review.
 ```
@@ -1394,7 +1375,7 @@ Notes:
 
 **Setup (one-time):**
 - `/aai-bootstrap` - Project init
-- `/aai-auto-trigger` - Automation setup
+- `/aai-auto-trigger` - Deprecated (use wrapper-description trigger phrases)
 
 ### Token Optimization
 
@@ -1402,9 +1383,9 @@ Notes:
    - Generates optimized project-specific skills
    - 90% token reduction for common tasks
 
-2. **Prefer auto-triggers**
-   - Set up once, saves tokens forever
-   - Example: "add feature" → `/aai-intake`
+2. **Prefer wrapper-description trigger phrases**
+   - Enrich a skill wrapper's `description:` with the phrases users actually say
+   - Example: the `aai-wrap-up` wrapper auto-invokes on "wrap up" / "end session"
 
 3. **Use worktrees for parallel work**
    - Isolated contexts
@@ -1425,8 +1406,8 @@ Notes:
    - Performance trends
    - Success rates
 
-3. **Standardize with auto-triggers**
-   - Team-wide patterns
+3. **Standardize with shared wrapper trigger phrases**
+   - Team-wide phrases in the skill wrapper descriptions
    - Consistent workflows
 
 ### Quality Gates
@@ -1606,7 +1587,7 @@ extend archived analyses.
    /aai-docs-hub
    /aai-share docs/SKILL_CATALOG.html
    ```
-3. **Set up auto-triggers for your team**
+3. **Add trigger phrases to the skill wrappers your team uses most**
 4. **Generate your first dashboard**
 5. **Share your first validation report**
    ```bash

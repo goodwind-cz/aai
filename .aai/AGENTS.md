@@ -94,7 +94,7 @@ Follow .aai/SKILL_PR.prompt.md           # PR ceremony — scope-only staging, s
 Follow .aai/SKILL_TEST_SKILLS.prompt.md  # Run the AAI skill test framework and suites
 Follow .aai/SKILL_DOCS_HUB.prompt.md     # Generate the searchable HTML skill catalog / docs hub
 Follow .aai/SKILL_DECAPOD.prompt.md      # Decapod compliance advisory integration (intake/validation)
-Follow .aai/SKILL_AUTO_TRIGGER.prompt.md # Manage automatic skill triggers (.claude/triggers.json)
+Follow .aai/SKILL_AUTO_TRIGGER.prompt.md # DEPRECATED — triggers.json has no runtime consumer; the notice points to wrapper-description trigger phrases (SPEC-0014)
 Follow .aai/SKILL_DASHBOARD.prompt.md    # Metrics dashboard from telemetry (publishable via /aai-share)
 Follow .aai/SKILL_PROFILE.prompt.md      # Token/time/cache profiling with optimization suggestions
 Follow .aai/SKILL_UPDATE.prompt.md       # Re-sync the vendored AAI layer from canonical main

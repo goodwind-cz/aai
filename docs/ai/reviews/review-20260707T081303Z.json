@@ -1,0 +1,99 @@
+{
+  "date_utc": "2026-07-07T08:13:03Z",
+  "reviewer": "AAI Code Review (independent context, model claude-fable-5)",
+  "ref": "CHANGE-0008",
+  "spec": "SPEC-0014",
+  "scope": {
+    "mode": "inline",
+    "base_ref": "main",
+    "head_ref": "feat/change-0008-follow-ups",
+    "paths": [
+      ".aai/scripts/state.mjs",
+      "tests/skills/test-aai-state.sh",
+      "tests/skills/test-aai-hygiene-pack.sh",
+      ".aai/SKILL_AUTO_TRIGGER.prompt.md",
+      ".claude/skills/aai-auto-trigger/SKILL.md",
+      ".codex/skills/aai-auto-trigger/SKILL.md",
+      ".gemini/skills/aai-auto-trigger/SKILL.md",
+      "docs/USER_GUIDE.md",
+      ".aai/AGENTS.md",
+      "docs/SKILL_CATALOG.html",
+      "docs/specs/SPEC-0014-state-clear-spec-path-placement-auto-trigger-alignment.md",
+      "docs/issues/CHANGE-0008-post-release-follow-ups.md"
+    ]
+  },
+  "stage1": {
+    "verdict": "NON-COMPLIANT",
+    "acs": {
+      "Spec-AC-01": "COMPLIANT",
+      "Spec-AC-02": "COMPLIANT",
+      "Spec-AC-03": "NON-COMPLIANT (prototype-chain field names bypass the closed whitelist and write)",
+      "Spec-AC-04": "COMPLIANT",
+      "Spec-AC-05": "COMPLIANT",
+      "Spec-AC-06": "COMPLIANT",
+      "Spec-AC-07": "COMPLIANT"
+    }
+  },
+  "summary": { "errors": 1, "warnings": 2, "info": 2 },
+  "findings": [
+    {
+      "id": "E1",
+      "severity": "error",
+      "category": "security",
+      "file": ".aai/scripts/state.mjs",
+      "line": 516,
+      "message": "resolveClearList membership test uses plain property access (spec[f]) on an object literal, so inherited Object.prototype names (toString, __proto__, constructor, valueOf, hasOwnProperty, isPrototypeOf, ...) pass the closed whitelist on all four --clear subcommands: exit 0 and a junk `field: null` line is written into the STATE block; check-state accepts the polluted file. Violates Spec-AC-03 (unknown field must exit 2 with no write) and the engine's exit-2-before-any-write contract. Verified: no status/verdict/policy field is reachable through this hole (not prototype members) — decision logic stays safe, the strict-validation invariant does not.",
+      "evidence": "probes: set-worktree --clear toString|__proto__|constructor -> exit 0, junk key written; set-validation --clear valueOf|hasOwnProperty|isPrototypeOf -> exit 0; set-validation --clear status -> exit 2 (control); check-state exit 0 on polluted file",
+      "recommendation": "const info = Object.hasOwn(spec, f) ? spec[f] : undefined; (or hasOwnProperty.call / Object.create(null) maps); add --clear toString / --clear __proto__ refusal cases to test_029"
+    },
+    {
+      "id": "W1",
+      "severity": "warning",
+      "category": "best-practices",
+      "file": ".aai/scripts/state.mjs",
+      "line": 117,
+      "message": "Repeated --clear flags are last-wins ('clear' not in MULTI_FLAGS): `set-worktree --clear branch --clear path` exits 0 with branch left stale — a whole clear instruction silently dropped, the exact silent-drop class the W5 hardening targets and the stale-leak class F1 exists to fix.",
+      "evidence": "probe: set-worktree --clear branch --clear path -> exit 0, path: null, branch: feat/stale survives",
+      "recommendation": "add 'clear' to MULTI_FLAGS and merge comma-lists in resolveClearList, or refuse repeated --clear with exit 2"
+    },
+    {
+      "id": "W2",
+      "severity": "warning",
+      "category": "best-practices",
+      "file": ".aai/scripts/state.mjs",
+      "line": 349,
+      "message": "fieldSpan stops at the first blank line, so clearing (or setField-overwriting) a hand-edited `>-` field whose content contains a blank line orphans the post-blank continuation lines: notes becomes the junk STRING 'null\\npara two line' (PyYAML-confirmed), not null; check-state exit 0 hides it. Pre-existing helper class (W1-of-SPEC-0012 family) shared with every setField overwrite; --clear widens the reachable surface. Engine-written `>-` fields are safe (textFieldLines never emits blank lines).",
+      "evidence": "probe: code_review.notes >- with two blank-separated paragraphs; set-code-review --clear notes -> notes: null + orphaned continuation; yaml.safe_load -> 'null\\npara two line'",
+      "recommendation": "make fieldSpan span blank lines while the next line is more-indented than the field, or refuse (exit 1) to rewrite a field whose span is followed by a deeper-indented post-blank continuation"
+    },
+    {
+      "id": "I1",
+      "severity": "info",
+      "category": "style",
+      "file": "docs/ai/STATE.yaml",
+      "line": 37,
+      "message": "Live STATE's CHANGE-0008 item still carries the legacy stranded spec_path after the blank line; the fixed writer updates it in place by design and never re-normalizes. One-time manual normalization would retire the last legacy shape.",
+      "recommendation": "optional: move the spec_path line above the blank during closeout"
+    },
+    {
+      "id": "I2",
+      "severity": "info",
+      "category": "style",
+      "file": ".aai/scripts/state.mjs",
+      "line": 518,
+      "message": "Only --clear status gets the sanctioned-path hint (reset-block); required/recommendation/user_decision/run_at_utc refusals fall back to the generic unknown-field message. Spec-compliant; naming the flag-only path would be friendlier.",
+      "recommendation": "optional: extend the hint map"
+    }
+  ],
+  "probes": {
+    "duplicate_spec_path_hunt": "clean — legacy stranded spec_path updates in place (count 1); two-item no bleed; last-block-no-trailing-blank correct + idempotent",
+    "folded_scalar_clear_hunt": "engine-written >- fields clean; hand-edited blank-line paragraphs orphan (W2)",
+    "guard_bypass": "status/required/recommendation/user_decision/run_at_utc all refused exit 2; reset-block D6 pass-guard intact",
+    "suites": "test-aai-state.sh 33/33 exit 0; test-aai-hygiene-pack.sh 11/11 exit 0; docs-audit --check --strict --no-event CLEAN exit 0; aai-reap-tests reaped 0"
+  },
+  "verdict": "fail",
+  "reports": [
+    "docs/ai/reviews/review-20260707T081303Z.md",
+    "docs/ai/reviews/review-20260707T081303Z.json"
+  ]
+}

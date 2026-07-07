@@ -4,6 +4,7 @@
 # (TEST-010..018, TEST-022). Asserts the H2–H8 prompt/wrapper edits are present and the
 # SPEC-0012 migration markers were preserved. RED-proof: run against the
 # PRE-CHANGE prompt/wrapper text — every test must FAIL before the edits land.
+# test_030 per CHANGE-0008 / SPEC-0014 TEST-008 (auto-trigger deprecation, F3).
 #
 # Exit codes:
 #   0  - All tests passed
@@ -314,6 +315,75 @@ test_022_pr_review_companions() {  # TEST-022 / Spec-AC-04 (review-20260704T1106
   log_pass "SKILL_PR treats scope-cited review reports as expected companions (TEST-022)"
 }
 
+test_030_auto_trigger_deprecation() {  # SPEC-0014 TEST-008 / Spec-AC-06 (CHANGE-0008 F3)
+  log_info "Test: aai-auto-trigger deprecated per SPEC-0014 D4 — notice, wrappers, USER_GUIDE, AGENTS.md, catalog, repo grep (SPEC-0014 TEST-008)..."
+  local f="$PROJECT_ROOT/.aai/SKILL_AUTO_TRIGGER.prompt.md"
+  [[ -f "$f" ]] || log_fail "missing .aai/SKILL_AUTO_TRIGGER.prompt.md (the deprecation notice must stay present)"
+
+  # (a) the notice: DEPRECATED marker + no-runtime-consumer evidence + real
+  # channel + out-of-scope note; the 500-line pattern-matching manual is GONE.
+  grep -qF "DEPRECATED" "$f" || log_fail "notice must carry the DEPRECATED marker"
+  grep -qiF "no runtime consumer" "$f" || log_fail "notice must carry the no-runtime-consumer evidence"
+  grep -qF "SPEC-0013" "$f" || log_fail "notice must point at the SPEC-0013 D8 grep evidence"
+  grep -qiF "trigger phrases" "$f" || log_fail "notice must name the real channel (wrapper-description trigger phrases)"
+  grep -qF "aai-wrap-up" "$f" || log_fail "notice must cite the aai-wrap-up precedent"
+  grep -qiF "out of scope" "$f" || log_fail "notice must state that building a real consumer is out of scope (CHANGE-0008)"
+  grep -qF '"triggers":' "$f" && log_fail "notice must drop the triggers.json config-structure manual"
+  grep -qF "/aai-auto-trigger add" "$f" && log_fail "notice must drop the CRUD operations manual"
+  local n
+  n="$(wc -l < "$f" | tr -d ' ')"
+  [[ "$n" -le 60 ]] || log_fail "notice must be a SHORT deprecation notice (~40 lines target, got $n)"
+
+  # (b) wrappers stay PRESENT in every tree (muscle memory) but say deprecated
+  # and no longer claim a working mechanism.
+  local t w
+  for t in $(skill_trees); do
+    w="$PROJECT_ROOT/$t/skills/aai-auto-trigger/SKILL.md"
+    [[ -f "$w" ]] || log_fail "wrapper must STAY present: $w (removing it breaks muscle memory/mirrors)"
+    grep -qE '^description: DEPRECATED' "$w" \
+      || log_fail "$w description must lead with DEPRECATED"
+    grep -qF ".aai/SKILL_AUTO_TRIGGER.prompt.md" "$w" || log_fail "$w must still point at the notice"
+    grep -qiE 'manages pattern' "$w" \
+      && log_fail "$w must no longer claim to manage a working pattern-matching mechanism"
+  done
+
+  # (c) USER_GUIDE: section-7 entry + quick-list line relabeled deprecated;
+  # the working-mechanism claims are gone.
+  local ug="$PROJECT_ROOT/docs/USER_GUIDE.md"
+  grep -A3 '#### `/aai-auto-trigger`' "$ug" | grep -qi "deprecated" \
+    || log_fail "USER_GUIDE Automation & Integration entry must be relabeled deprecated"
+  grep -qE '^\- `/aai-auto-trigger` - Deprecated' "$ug" \
+    || log_fail "USER_GUIDE quick skills list must relabel /aai-auto-trigger as Deprecated"
+  grep -qE '\| `/aai-auto-trigger` \| Deprecated \|' "$ug" \
+    || log_fail "USER_GUIDE Advanced Skills table must relabel /aai-auto-trigger as Deprecated"
+  grep -qF '`.claude/triggers.json` config' "$ug" \
+    && log_fail "USER_GUIDE must no longer claim /aai-auto-trigger manages a .claude/triggers.json config"
+  grep -qF "Setup auto-triggers" "$ug" \
+    && log_fail "USER_GUIDE must no longer instruct setting up auto-triggers as a working workflow"
+
+  # (d) AGENTS.md skill-index line relabeled.
+  grep -E 'SKILL_AUTO_TRIGGER' "$PROJECT_ROOT/.aai/AGENTS.md" | grep -qi "deprecated" \
+    || log_fail ".aai/AGENTS.md SKILL_AUTO_TRIGGER line must be relabeled deprecated"
+
+  # (e) generated catalog entry updated.
+  grep -A1 'name: "aai-auto-trigger"' "$PROJECT_ROOT/docs/SKILL_CATALOG.html" | grep -qi "deprecated" \
+    || log_fail "docs/SKILL_CATALOG.html aai-auto-trigger description must say deprecated"
+
+  # (f) discriminating repo grep: every non-historical file that mentions
+  # triggers.json must carry a deprecation marker (historical records and the
+  # already-reality-aligned SUPERPOWERS_INTEGRATION are out of scope per D4).
+  local hits h
+  hits="$(cd "$PROJECT_ROOT" && grep -rl "triggers.json" .aai docs .claude .codex .gemini 2>/dev/null || true)"
+  for h in $hits; do
+    case "$h" in
+      docs/releases/*|docs/specs/*|docs/issues/*|docs/ai/*|.aai/system/SUPERPOWERS_INTEGRATION.md) continue ;;
+    esac
+    grep -qi "deprecat" "$PROJECT_ROOT/$h" \
+      || log_fail "$h mentions triggers.json without a deprecation marker (presents a consumer-less mechanism as working)"
+  done
+  log_pass "Auto-trigger deprecation wired: notice + 3 wrappers + USER_GUIDE + AGENTS.md + catalog; repo grep reality-aligned (SPEC-0014 TEST-008)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -327,6 +397,7 @@ main() {
   test_017_invoke_lines
   test_018_skill_meta_loader
   test_022_pr_review_companions
+  test_030_auto_trigger_deprecation
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
