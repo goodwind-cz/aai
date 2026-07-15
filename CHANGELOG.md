@@ -9,6 +9,34 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: collision-free doc numbering across parallel clones (RFC-0007 / SPEC-0015)
+
+- Doc IDs were minted by a working-tree scan at intake, so two clones off the
+  same `main` both minted the same `TYPE-000N` and collided at merge. New model:
+  intake assigns a stable slug (`id: <slug>`, `number: null`,
+  `<TYPE>-DRAFT-<slug>.md`); the sequential `TYPE-000N` is allocated at the merge
+  serialization point — collision-proof by construction (merges to `main` are
+  serialized, so the second brancher re-derives the next number).
+- New `.aai/scripts/allocate-doc-number.mjs`: computes the next number from the
+  BASE REF via `git ls-tree` (never the working tree), renames DRAFT→numbered,
+  stamps `number`, rewrites references, regenerates the index. `--all`, `--path`,
+  `--dry-run`, `--backfill`, `--guard`; exit codes 0/2/3/4.
+- Guards in `pre-commit-checks.{sh,ps1}` (CHECK 8): no-DRAFT-at-merge and
+  duplicate-number, report-only by default, flippable via
+  `doc_number_guard: enforce` in `docs/ai/docs-audit.yaml`.
+- `generate-docs-index.mjs` derives the display id from `number` and surfaces
+  unnumbered drafts distinctly; backward compatible — legacy docs without a
+  `number` field render byte-identically.
+- Wiring: `SKILL_INTAKE` + all 8 `INTAKE_*` create DRAFT+slug; `SKILL_PR` runs the
+  allocator before staging; RFC/SPEC templates carry `number` + a
+  slug-as-primary-key note. Additive + degrade-and-report: allocator absent →
+  intake falls back to scan-and-mint, the guard is the backstop.
+- Realizes the cross-developer coordination RFC-0004 explicitly deferred;
+  complementary to the machine-local `docs-lock.mjs`, not a replacement.
+- Verification: 13/13 new tests green (TEST-006 concurrency centerpiece
+  RED-proofed against a working-tree-only stub); `docs-audit --check --strict`
+  CLEAN; existing suites unaffected.
+
 ## [unreleased] — state/hygiene: post-release follow-ups (CHANGE-0008 / SPEC-0014)
 
 - `state.mjs --clear <fields>` on set-worktree/set-code-review/set-validation/

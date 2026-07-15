@@ -1,15 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-07T15:38:53.848Z
+Generated: 2026-07-15T15:10:48.762Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (0)
+## Active (implementing) (2)
 
-_None._
+| ID | Type | Status | Progress | Path |
+|---|---|---|---|---|
+| SPEC-0015 | specs | implementing | 10 done | docs/specs/SPEC-0015-parallel-safe-doc-numbering.md |
+| RFC-0007 | rfc | accepted | — | docs/rfc/RFC-0007-parallel-safe-doc-numbering.md |
 
 ## Canonical layer (0)
 
@@ -84,4 +87,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-07 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-15 — counts above use this date for overdue checks.

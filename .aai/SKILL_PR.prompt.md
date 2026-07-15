@@ -29,6 +29,29 @@ PROCESS
    - Cross-check against `git status --porcelain`: every dirty file is either
      in-scope or explicitly listed as out-of-scope-left-behind.
 
+1b. NUMBER DRAFTS (SPEC-0015 / RFC-0007) — run the allocator BEFORE staging:
+   - Fetch the base ref, then run the merge-time number allocator so every
+     unnumbered DRAFT doc in scope gets its sequential `TYPE-000N` number derived
+     from the base ref (never a working-tree-only guess — that is the collision
+     bug RFC-0007 fixes):
+       node .aai/scripts/allocate-doc-number.mjs --all --base-ref origin/<base>
+     (or `--path docs/<type>/<TYPE>-DRAFT-<slug>.md` per draft). The allocator
+     renames each `*-DRAFT-*.md` to `<TYPE>-000N-<slug>.md`, stamps `number: N`
+     (leaving the slug `id` unchanged), rewrites in-repo references, and
+     regenerates docs/INDEX.md.
+   - Update the in-scope file list: DROP the old `*-DRAFT-*` path and ADD the
+     resulting `<TYPE>-000N-<slug>.md` path (plus docs/INDEX.md as an expected
+     companion).
+   - Exit codes: 0 success (or nothing to number); 3 base ref unreachable
+     (offline) — surface the warning and STOP (do not commit an unnumbered draft;
+     the no-DRAFT-at-merge guard would reject it anyway); 4 guard failure
+     (malformed draft / computed collision) — STOP and fix.
+   - FALLBACK (allocator absent, older AAI layer): if
+     `.aai/scripts/allocate-doc-number.mjs` does not exist, NOTE the missing
+     script and proceed — the draft was scan-and-minted at intake, and the
+     CI/pre-commit duplicate-number + no-DRAFT-at-merge guards are the backstop.
+   - MERGE BOUNDARY unchanged: the agent still never merges.
+
 2. STAGE — stage ONLY in-scope paths:
    - `git add <path>` per in-scope file. NEVER use `git add -A` or `git add .`
      (both are forbidden — they are exactly how unrelated in-flight files get

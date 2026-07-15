@@ -24,6 +24,18 @@ PROCESS
 6) If enough information is available, stop questions early.
 7) Output summary + completed Change markdown + suggested filename.
 
+DURABLE DOC IDENTITY (SPEC-0015 / RFC-0007)
+Create the artifact at docs/<type>/<TYPE>-DRAFT-<slug>.md (the literal DRAFT token
+marks an unnumbered doc) with frontmatter: id: <slug> (the durable PRIMARY KEY,
+never changed), number: null, status: draft. The slug is kebab-case of the topic
+(lowercase, ASCII, at most 48 chars). Do NOT scan-and-mint a TYPE-000N number at
+intake — the sequential display number is assigned at MERGE by
+.aai/scripts/allocate-doc-number.mjs (invoked by /aai-pr), and the human-facing
+TYPE-000N display id is derived from type + number by the index generator.
+FALLBACK (allocator absent, older AAI layer): scan-and-mint the next free
+TYPE-000N from existing docs and name the file docs/<type>/<TYPE>-000N-<slug>.md
+directly; the CI/pre-commit duplicate-number guard is the backstop.
+
 POST-SAVE CHECK (RFC-0002)
 After saving the document, verify template compliance:
   node .aai/scripts/docs-audit.mjs --check --strict --no-event --path <saved-file>

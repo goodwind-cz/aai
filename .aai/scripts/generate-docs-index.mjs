@@ -206,7 +206,24 @@ function main() {
         }
         row._parsedReviewBy = rb.date;
       }
-      docs.push({ path: rel, id: fm.id ?? path.basename(rel, '.md'), type, status, fm, ac: acTable, legacy: false });
+      // SPEC-0015 D5 — display-id resolution. When `number` is a non-null
+      // integer, the doc's DISPLAY id is `<TYPE>-<zero-padded number>` (TYPE
+      // read from the filename leading token, which survives the merge-time
+      // DRAFT->TYPE-000N rename); otherwise fall back to the slug `fm.id`, then
+      // the basename (legacy behavior — existing numbered docs whose id already
+      // IS the display id are unchanged). An unnumbered DRAFT file (`-DRAFT-` in
+      // the basename AND number null/absent) is surfaced distinctly in Drafts.
+      const base = path.basename(rel, '.md');
+      const rawNum = fm.number;
+      const num = (rawNum != null && /^\d+$/.test(String(rawNum).trim()))
+        ? parseInt(String(rawNum).trim(), 10) : null;
+      const prefixMatch = base.match(/^([A-Z]+(?:-[A-Z]+)*)-(?:DRAFT|\d{1,5})(?=[-.])/);
+      const prefix = prefixMatch ? prefixMatch[1] : null;
+      const displayId = (num != null && prefix)
+        ? `${prefix}-${String(num).padStart(4, '0')}`
+        : (fm.id ?? base);
+      const unnumbered = /-DRAFT-/.test(base) && num == null;
+      docs.push({ path: rel, id: displayId, type, status, fm, ac: acTable, legacy: false, unnumbered });
     }
   }
 
@@ -416,9 +433,12 @@ function main() {
     return out;
   });
 
+  // SPEC-0015 D5 — unnumbered DRAFT docs (`-DRAFT-` filename, number null) are
+  // placed here under their slug id and annotated distinctly, never emitted as a
+  // schema violation, coverage gap, or near-miss.
   section('Drafts', draftMembers, items => {
     const out = ['| ID | Type | Path |', '|---|---|---|'];
-    for (const d of items) out.push(`| ${d.id} | ${d.type} | ${d.path} |`);
+    for (const d of items) out.push(`| ${d.id}${d.unnumbered ? ' (unnumbered draft)' : ''} | ${d.type} | ${d.path} |`);
     return out;
   });
 

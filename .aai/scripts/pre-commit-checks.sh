@@ -197,6 +197,35 @@ if [ -n "$STAGED_PS1" ]; then
   fi
 fi
 
+# --- CHECK 8: Doc-numbering guards (SPEC-0015 / RFC-0007) ---
+# Two predicates, report-only by DEFAULT (mirroring close_gate / body_lint),
+# flippable to enforce via docs/ai/docs-audit.yaml `doc_number_guard: enforce`:
+#   - no-DRAFT-at-merge: any docs/*/*-DRAFT-*.md, or a governed doc still carrying
+#     `number: null`, present at the merge/commit point.
+#   - duplicate-number: two governed docs of the same type resolving to the same
+#     TYPE-000N (same type + number, or identical numeric filename prefixes).
+# A clean, fully-numbered tree passes both with exit 0. The allocator engine
+# (`--guard`) is the single source of truth for both predicates.
+DOC_NUMBER_GUARD="$PROJECT_ROOT/.aai/scripts/allocate-doc-number.mjs"
+if [ -f "$DOC_NUMBER_GUARD" ] && command -v node >/dev/null 2>&1; then
+  DN_MODE="report-only"
+  if grep -Eq '^[[:space:]]*doc_number_guard:[[:space:]]*enforce([[:space:]]|$)' \
+       "$PROJECT_ROOT/docs/ai/docs-audit.yaml" 2>/dev/null; then
+    DN_MODE="enforce"
+  fi
+  if DN_OUT="$(cd "$PROJECT_ROOT" && node "$DOC_NUMBER_GUARD" --guard 2>&1)"; then
+    pass "Doc-numbering guards clean (no-DRAFT-at-merge + duplicate-number)"
+  elif [ "$DN_MODE" = "enforce" ]; then
+    error "Doc-numbering guard failed (doc_number_guard: enforce) — commit blocked:"
+    echo "$DN_OUT" | sed 's/^/    /'
+  else
+    warn "Doc-numbering guard found violations (report-only; commit allowed):"
+    echo "$DN_OUT" | sed 's/^/    /'
+  fi
+else
+  pass "Doc-numbering guard skipped (allocator absent or node unavailable)"
+fi
+
 # --- SUMMARY ---
 echo ""
 echo "─────────────────────────────────────"

@@ -174,6 +174,35 @@ if ($stagedPs1.Count -gt 0) {
     if ($ps1Bad -eq 0) { Write-Pass-Check "Staged .ps1 scripts parse cleanly" }
 }
 
+# --- CHECK 8: Doc-numbering guards (SPEC-0015 / RFC-0007) ---
+# Two predicates, report-only by DEFAULT (mirroring close_gate / body_lint),
+# flippable to enforce via docs/ai/docs-audit.yaml `doc_number_guard: enforce`:
+#   - no-DRAFT-at-merge: any docs/*/*-DRAFT-*.md or governed `number: null` doc.
+#   - duplicate-number: two governed docs resolving to the same TYPE-000N.
+$DocNumberGuard = Join-Path $ProjectRoot ".aai/scripts/allocate-doc-number.mjs"
+if ((Test-Path $DocNumberGuard) -and (Get-Command node -ErrorAction SilentlyContinue)) {
+    $dnMode = "report-only"
+    $auditCfg = Join-Path $ProjectRoot "docs/ai/docs-audit.yaml"
+    if ((Test-Path $auditCfg) -and ((Get-Content $auditCfg -Raw) -match '(?m)^\s*doc_number_guard:\s*enforce(\s|$)')) {
+        $dnMode = "enforce"
+    }
+    Push-Location $ProjectRoot
+    $dnOut = node $DocNumberGuard --guard 2>&1
+    $dnOk = ($LASTEXITCODE -eq 0)
+    Pop-Location
+    if ($dnOk) {
+        Write-Pass-Check "Doc-numbering guards clean (no-DRAFT-at-merge + duplicate-number)"
+    } elseif ($dnMode -eq "enforce") {
+        Write-Error-Check "Doc-numbering guard failed (doc_number_guard: enforce) - commit blocked:"
+        $dnOut | ForEach-Object { Write-Host "    $_" }
+    } else {
+        Write-Warn-Check "Doc-numbering guard found violations (report-only; commit allowed):"
+        $dnOut | ForEach-Object { Write-Host "    $_" }
+    }
+} else {
+    Write-Pass-Check "Doc-numbering guard skipped (allocator absent or node unavailable)"
+}
+
 # --- SUMMARY ---
 Write-Host ""
 Write-Host "-------------------------------------"

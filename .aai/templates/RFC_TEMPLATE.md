@@ -1,6 +1,7 @@
 ---
-id: RFC-XXXX
+id: rfc-<slug>
 type: rfc
+number: null
 status: draft
 links:
   spec: null
@@ -9,6 +10,17 @@ links:
 ---
 
 # RFC (Decision Proposal)
+
+<!-- SPEC-0015 / RFC-0007 — Parallel-safe doc identity:
+  - `id` is the durable SLUG PRIMARY KEY (e.g. `rfc-parallel-safe-doc-numbering`),
+    assigned at intake and NEVER changed. Every in-branch cross-reference uses it.
+  - `number` is null at intake; the sequential integer is assigned at MERGE by
+    `.aai/scripts/allocate-doc-number.mjs`, which renames the file to
+    `RFC-000N-<slug>.md`. The human-facing `RFC-000N` display id is DERIVED from
+    `type` + `number` by the index generator — it is NOT stored in frontmatter.
+  - At intake the file is created as `docs/rfc/RFC-DRAFT-<slug>.md` (the literal
+    `DRAFT` token marks an unnumbered doc). -->
+
 
 Frontmatter status values: draft | proposed | accepted | implementing | done | deferred | rejected | superseded
 - draft: under authoring
