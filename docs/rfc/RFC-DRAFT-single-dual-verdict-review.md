@@ -2,7 +2,7 @@
 id: single-dual-verdict-review
 type: rfc
 number: null
-status: proposed
+status: accepted
 links:
   research: RES-0001
   spec: null
@@ -159,3 +159,6 @@ regresses, revert is a one-file prompt change.
   analysis (review+remediation ≈ 88% of implementation wall-clock).
 - Decision deliberately awaits operator direction — this RFC captures the
   proposal; no SPEC or implementation exists yet.
+- Decision 2026-07-16: ACCEPTED by project owner (ales@holubec.net) —
+  "schvaluji rfc, mergni a rozjed". Option B confirmed; proceed to SPEC and
+  implementation with the 5-scope measurement gate.

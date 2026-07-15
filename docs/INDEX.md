@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-15T23:08:42.956Z
+Generated: 2026-07-15T23:16:02.099Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -16,7 +16,7 @@ _None._
 | SPEC-0018 | specs | implementing | 5 done | docs/specs/SPEC-0018-spec-model-tiering-with-teeth.md |
 | SPEC-0019 | specs | implementing | 10 done | docs/specs/SPEC-0019-spec-mechanize-deterministic-ticks.md |
 | RFC-0007 | rfc | accepted | — | docs/rfc/RFC-0007-parallel-safe-doc-numbering.md |
-| single-dual-verdict-review | rfc | proposed | — | docs/rfc/RFC-DRAFT-single-dual-verdict-review.md |
+| single-dual-verdict-review | rfc | accepted | — | docs/rfc/RFC-DRAFT-single-dual-verdict-review.md |
 
 ## Canonical layer (0)
 
