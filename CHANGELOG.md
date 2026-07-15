@@ -9,6 +9,34 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: mechanize deterministic ticks (CHANGE-0009 / SPEC-0019)
+
+- The orchestrator's 14-rule dispatch decision, metrics flush arithmetic, and
+  metrics report aggregation were LLM ticks doing switch-statement work
+  (RES-0001 F2). Now scripts: orchestration-dispatch.mjs (pure decide() over a
+  read-only STATE snapshot; JSON dispatch block; exit 0 dispatch / 3 no-action
+  / 4 needs-LLM fail-closed), metrics-flush.mjs (line-surgical STATE cleanup —
+  never yaml.dump, header byte-preserved; ledger-before-reset; H5 partial
+  reset; idempotent resume; --dry-run), metrics-report.mjs (byte-deterministic
+  golden-testable).
+- state.mjs line engine extracted to lib/state-engine.mjs (verbatim; 54-test
+  suite guarded the refactor); shared lib/guard-config.mjs is now the single
+  parser of docs-audit.yaml (hooks' greps anchored to column 0 to match —
+  review W2; glued-comment token aligned); lib/pricing.mjs shares the
+  lookup_rules resolver.
+- Prompts shrunk to wrappers: ORCHESTRATION 181->40, METRICS_FLUSH 113->31,
+  METRICS_REPORT 49->15 lines.
+- docs-audit suite restored to a full green run (92 PASS): the CHANGE-0012
+  regression stanza builds its own DRAFT fixture (the hardcoded repo path
+  aborted the suite after allocation renamed it); self-containment guard
+  de-vacuoused (review W1).
+- TDD 19/19 RED->GREEN; independent validation PASS (sha256 zero-write proofs,
+  header byte-diff, resume idempotence); review PASS (rule-fidelity FAITHFUL
+  vs the old prose, flush-reset field diff complete, extraction VERBATIM;
+  W1/W2 remediated, W3/W4 promoted with operational note).
+- Dogfood: the dispatch script's first real decision (rule 11 -> Validation,
+  must_differ on model) was executed as this scope's own validation run.
+
 ## [unreleased] — fix: number width follows the type's convention (ISSUE-0006)
 
 - SPEC-0015's allocator and the index generator hardcoded 4-digit padding,

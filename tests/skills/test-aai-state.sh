@@ -2078,6 +2078,84 @@ test_051_change0010_regression() {  # CHANGE-0010 TEST-011 / Spec-AC-05
   log_pass "Docs stay audit-CLEAN; pricing suite wired (CHANGE-0010 TEST-011; full-suite exit 0 = this run)"
 }
 
+# --- CHANGE-0009 / spec-mechanize-deterministic-ticks --------------------------
+# test_052 = spec-local TEST-017 (Spec-AC-09): lib/guard-config.mjs is the single
+# JS parser of docs-audit.yaml; state.mjs is migrated to it with behavior
+# identical to the pre-refactor readIndependencePolicy stanzas (absent file /
+# absent key / report-only / enforce / invalid value -> stderr WARNING +
+# fail-open). The behavior seams themselves stay covered by test_042..046.
+
+test_052_guard_config_reader() {  # CHANGE-0009 TEST-017 / Spec-AC-09
+  log_info "Test: lib/guard-config.mjs shared reader semantics + state.mjs migration (CHANGE-0009 TEST-017)..."
+  local lib="$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs"
+  [[ -f "$lib" ]] || log_fail "missing shared reader $lib (RED until CHANGE-0009 lands)"
+  local d="$TEST_DIR/t52"
+  mkdir -p "$d"
+  cat > "$d/t52.mjs" <<'EOF'
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert';
+import { pathToFileURL } from 'node:url';
+
+const root = process.argv[2];
+const dir = process.argv[3];
+const { readGuardConfig } = await import(pathToFileURL(path.join(root, '.aai/scripts/lib/guard-config.mjs')).href);
+const cfg = p => path.join(dir, 'docs-audit.yaml');
+const warns = [];
+const opts = { warnPrefix: 'state', warn: m => warns.push(m) };
+
+// (a) absent file -> present:false, all dials fail-open report-only, no warning.
+fs.rmSync(cfg(), { force: true });
+let g = readGuardConfig(dir, opts);
+assert.strictEqual(g.present, false, 'absent file must report present:false');
+assert.strictEqual(g.independence, 'report-only', 'absent file: independence fail-open');
+assert.strictEqual(g.close_gate, 'report-only', 'absent file: close_gate fail-open');
+assert.strictEqual(g.doc_number_guard, 'report-only', 'absent file: doc_number_guard fail-open');
+assert.strictEqual(warns.length, 0, 'absent file must not warn');
+
+// (b) present, keys absent -> defaults, no warning.
+fs.writeFileSync(cfg(), 'legacy_until_date: 2026-06-12\nstale_after_days: 90\n');
+g = readGuardConfig(dir, opts);
+assert.strictEqual(g.present, true);
+assert.strictEqual(g.independence, 'report-only');
+assert.strictEqual(g.close_gate, 'report-only');
+assert.strictEqual(warns.length, 0, 'absent keys must not warn');
+
+// (c) explicit values parsed; trailing comments tolerated.
+fs.writeFileSync(cfg(), 'independence: enforce\nclose_gate: enforce  # note\ndoc_number_guard: report-only\n');
+g = readGuardConfig(dir, opts);
+assert.strictEqual(g.independence, 'enforce');
+assert.strictEqual(g.close_gate, 'enforce');
+assert.strictEqual(g.doc_number_guard, 'report-only');
+assert.strictEqual(warns.length, 0);
+
+// (d) commented-out key stays default (column-0 scan).
+fs.writeFileSync(cfg(), '# independence: enforce\n#close_gate: enforce\n');
+g = readGuardConfig(dir, opts);
+assert.strictEqual(g.independence, 'report-only', 'commented-out key must not enforce');
+assert.strictEqual(g.close_gate, 'report-only');
+
+// (e) invalid value -> stderr WARNING (same W1 wording as pre-refactor
+// state.mjs) + fail-open report-only.
+fs.writeFileSync(cfg(), 'independence: enforced\n');
+g = readGuardConfig(dir, opts);
+assert.strictEqual(g.independence, 'report-only', 'invalid value must fail open');
+assert.strictEqual(warns.length, 1, 'exactly one warning for the invalid value');
+assert.match(warns[0], /WARNING independence value "enforced"/, 'W1 wording preserved');
+assert.match(warns[0], /report-only \(fail-open default\)/, 'W1 fail-open wording preserved');
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$d/t52.mjs" "$PROJECT_ROOT" "$d") > "$d/t52.log" 2>&1 \
+    || log_fail "guard-config reader semantics failed: $(cat "$d/t52.log")"
+  # Migration proof: state.mjs consumes the shared reader instead of a private
+  # parser fork (SPEC-0018 W2 consolidation).
+  grep -qF "lib/guard-config.mjs" "$STATE_SCRIPT" \
+    || log_fail "state.mjs must import lib/guard-config.mjs (single JS parser of docs-audit.yaml)"
+  grep -qE 'independence:\\\\s|match\(/\^independence' "$STATE_SCRIPT" \
+    && log_fail "state.mjs must no longer carry its own independence line-parse fork"
+  log_pass "guard-config reader: defaults, enforce, comments, invalid-value WARNING; state.mjs migrated (CHANGE-0009 TEST-017)"
+}
+
 main() {
   echo "Testing $TEST_NAME (transactional STATE CLI — SPEC-0012 TEST-001..025 + SPEC-0014 additions)"
   check_deps
@@ -2133,6 +2211,7 @@ main() {
   test_049_wrapper_model_frontmatter
   test_050_flush_prompt_token_wiring
   test_051_change0010_regression
+  test_052_guard_config_reader
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

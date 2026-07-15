@@ -332,6 +332,42 @@ test_010_audit_and_reduction() {
   [[ $ok -eq 1 ]] && log_pass "TEST-010 strict audit clean, net reduction $reduction bytes" || log_fail "TEST-010 audit + byte reduction"
 }
 
+# TEST-011 (CHANGE-0009 spec-local TEST-015) — the three deterministic-tick
+# prompts are thin wrappers: <=40 lines each, each names its script path and
+# carries a degrade instruction for the script-absent vendored layer.
+test_011_tick_wrappers() {
+  local ok=1 pair f s n
+  local pairs=(
+    ".aai/ORCHESTRATION.prompt.md|.aai/scripts/orchestration-dispatch.mjs"
+    ".aai/METRICS_FLUSH.prompt.md|.aai/scripts/metrics-flush.mjs"
+    ".aai/METRICS_REPORT.prompt.md|.aai/scripts/metrics-report.mjs"
+  )
+  for pair in "${pairs[@]}"; do
+    f="${pair%%|*}"
+    s="${pair##*|}"
+    if [[ ! -f "$f" ]]; then
+      log_info "TEST-011: missing prompt $f"
+      ok=0
+      continue
+    fi
+    n=$(wc -l < "$f" | tr -d ' ')
+    if [[ "$n" -gt 40 ]]; then
+      log_info "TEST-011: $f is $n lines (> 40 — not a thin wrapper)"
+      ok=0
+    fi
+    if ! grep -qF "$s" "$f"; then
+      log_info "TEST-011: $f does not name its script $s"
+      ok=0
+    fi
+    if ! grep -qiE "degrade|DEGRADED" "$f"; then
+      log_info "TEST-011: $f carries no degrade instruction (script-absent path)"
+      ok=0
+    fi
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-011 deterministic-tick wrappers <=40 lines + script path + degrade (CHANGE-0009 TEST-015)" \
+    || log_fail "TEST-011 deterministic-tick wrappers (CHANGE-0009 TEST-015)"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -348,6 +384,7 @@ main() {
   test_008_loop_caching_and_payload
   test_009_digest_contract
   test_010_audit_and_reduction
+  test_011_tick_wrappers
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

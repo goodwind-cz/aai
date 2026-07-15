@@ -16,6 +16,10 @@ TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 AUDIT_SCRIPT="$PROJECT_ROOT/.aai/scripts/docs-audit.mjs"
+# Absolute self-path captured BEFORE any cd (review CHANGE-0009 W1: a bare
+# relative BASH_SOURCE is unresolvable after setup_fixture's cd, which made
+# the self-containment guard vacuous — grep exit 2 slipped through '&&').
+SUITE_FILE="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 
 cleanup() {
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
@@ -3348,13 +3352,31 @@ test_change0012_regression() {  # CHANGE-0012 TEST-011 / Spec-AC-04 (Seam 2)
     || log_fail "real-repo --check --strict must stay exit 0 after the scan widening: $(tail -5 "$TEST_DIR/c12-repo-audit.log")"
   assert_contains "$TEST_DIR/c12-repo-audit.log" "Orphans (need triage): 0"
   assert_not_contains "$TEST_DIR/c12-repo-audit.log" "CHECK FAILED"
-  # The live DRAFT spec of this very change is scanned non-vacuously.
-  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event \
-      --path docs/specs/SPEC-DRAFT-slug-refs-across-tooling.md > "$TEST_DIR/c12-repo-draft.log" 2>&1) \
-    || log_fail "real-repo strict check on the live DRAFT spec must exit 0: $(cat "$TEST_DIR/c12-repo-draft.log")"
-  grep -qF "Scanned: 1 docs" "$TEST_DIR/c12-repo-draft.log" \
-    || log_fail "the live DRAFT spec must be scanned (RED today: Scanned: 0 docs): $(head -3 "$TEST_DIR/c12-repo-draft.log")"
-  log_pass "Numbered gate paths byte-identical; real-repo strict audit exit 0 with DRAFTs visible (CHANGE-0012 TEST-011)"
+  # A DRAFT spec is scanned non-vacuously. CHANGE-0009 D10 (TEST-019): the
+  # stanza builds its OWN DRAFT fixture inside the isolated repo — it must
+  # never depend on a repo DRAFT file, because every repo DRAFT is destined to
+  # be renamed away at number allocation (the original hardcoded slug-refs
+  # draft path was deleted exactly so, aborting this suite). The regression
+  # intent (DRAFT docs join the scan set; --path <DRAFT> is non-vacuous) is
+  # preserved unchanged. NB: this comment deliberately avoids the literal
+  # deleted filename — the self-containment grep below would match it.
+  write_c12_doc "$d/docs/specs/SPEC-DRAFT-reg-scan-fixture.md" reg-scan-fixture done
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event \
+      --path docs/specs/SPEC-DRAFT-reg-scan-fixture.md > reg-draft.log 2>&1) \
+    || log_fail "strict check on the constructed DRAFT fixture must exit 0: $(cat "$d/reg-draft.log")"
+  grep -qF "Scanned: 1 docs" "$d/reg-draft.log" \
+    || log_fail "the constructed DRAFT fixture must be scanned non-vacuously (Scanned: 1 docs): $(head -3 "$d/reg-draft.log")"
+  # Self-containment guard: no REPO SPEC-DRAFT path may be hardcoded in this
+  # suite (fixture DRAFTs live under the iso repos only). Runs against the
+  # absolute SUITE_FILE (review W1: relative BASH_SOURCE broke after cd, and
+  # grep's exit-2 error slipped through the '&&' errexit exemption unnoticed).
+  [[ -r "$SUITE_FILE" ]] \
+    || log_fail "self-containment guard cannot read its own suite file: $SUITE_FILE"
+  grep -n 'PROJECT_ROOT[^)]*SPEC-DRAFT' "$SUITE_FILE" \
+    && log_fail "suite must not reference a repo SPEC-DRAFT path via PROJECT_ROOT"
+  grep -qF "SPEC-DRAFT-slug-refs""-across-tooling" "$SUITE_FILE" \
+    && log_fail "the deleted repo DRAFT path must not reappear in this suite"
+  log_pass "Numbered gate paths byte-identical; real-repo strict audit exit 0; DRAFT scan proven on a self-built fixture (CHANGE-0012 TEST-011 / CHANGE-0009 TEST-019)"
 }
 
 main() {
