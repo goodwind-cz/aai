@@ -202,18 +202,24 @@ test_prevention_wiring_present() {  # TEST-006 / Spec-AC-06
   grep -qF "check-state.mjs --repair" "$skill" \
     || log_fail "[INV-14] must point at check-state.mjs --repair"
 
-  # At least the primary role prompts must carry the append-into-existing guidance.
+  # Since CHANGE-0011 the append-into-existing / never-emit-a-second-metrics
+  # guidance is single-sourced in .aai/STATE_FALLBACK.md; role prompts carry a
+  # short fallback pointer at it instead of the inlined footer.
+  local fb="$PROJECT_ROOT/.aai/STATE_FALLBACK.md"
+  [[ -f "$fb" ]] || log_fail "missing $fb (single-source fallback doc, CHANGE-0011)"
+  grep -qF "never emit a second top-level" "$fb" \
+    || log_fail "STATE_FALLBACK.md must warn: never emit a second top-level metrics: key"
+  grep -qF "EXISTING" "$fb" && grep -qF "metrics.work_items" "$fb" \
+    || log_fail "STATE_FALLBACK.md must instruct appending into the EXISTING metrics.work_items"
   local found=0
   for p in "$PROJECT_ROOT/.aai/IMPLEMENTATION.prompt.md" "$PROJECT_ROOT/.aai/SKILL_TDD.prompt.md"; do
     [[ -f "$p" ]] || log_fail "missing role prompt $p"
-    grep -qF "never emit a second top-level \`metrics:\` key" "$p" \
-      || log_fail "role prompt must warn: never emit a second top-level metrics: key ($p)"
-    grep -qF "EXISTING metrics.work_items" "$p" \
-      || log_fail "role prompt must instruct appending into the EXISTING metrics.work_items ($p)"
+    grep -qF "STATE_FALLBACK.md" "$p" \
+      || log_fail "role prompt must point at .aai/STATE_FALLBACK.md for the hand-edit fallback ($p)"
     found=$((found + 1))
   done
-  [[ "$found" -ge 1 ]] || log_fail "no role prompt carried the append-into-existing guidance"
-  log_pass "[INV-14] invariant + append-into-existing role-prompt guidance present"
+  [[ "$found" -ge 1 ]] || log_fail "no role prompt carried the fallback pointer"
+  log_pass "[INV-14] invariant + single-sourced fallback guidance wired (STATE_FALLBACK.md + role-prompt pointers)"
 }
 
 test_no_regression_real_state() {  # TEST-010 (check-state half) / Spec-AC-10

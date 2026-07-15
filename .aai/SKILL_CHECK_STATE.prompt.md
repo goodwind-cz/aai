@@ -87,7 +87,8 @@ INVARIANT CHECKS (run all, report each)
          the duplicate `metrics:` blocks into one — union work_items, concatenate
          agent_runs — with ZERO data loss, then re-validates.
     WRITER RULE: always append into the EXISTING metrics.work_items.<ref>.agent_runs
-         list; never emit a second top-level `metrics:` key.
+         list under the single top-level `metrics:` key (full write-safety rules:
+         .aai/STATE_FALLBACK.md).
 
 OUTPUT FORMAT
 
