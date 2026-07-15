@@ -243,3 +243,7 @@
 {"v":1,"ts":"2026-07-15T17:58:32.563Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-slug-refs-across-tooling/Spec-AC-06","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-07-15T17:58:32.603Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-slug-refs-across-tooling/Spec-AC-07","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-07-15T18:21:28.902Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"aai-competitive-gap-and-model-efficiency","payload":{"commit":"0f9960e"}}
+{"v":1,"ts":"2026-07-15T18:31:03.103Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"RFC-0007","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-15T18:31:03.139Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"RFC-0007","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-15T18:31:03.175Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"CHANGE-0012","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-15T18:31:03.211Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"CHANGE-0012","payload":{"validation":"pass","code_review":"pass"}}
