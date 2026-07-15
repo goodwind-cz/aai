@@ -22,6 +22,12 @@ const SCAN_ROOT = 'docs';
 // consistently treated as preserved-not-active.
 const EXCLUDE_DIRS = new Set(['ai', 'knowledge', 'archive', '_archive', 'project-sessions', 'templates']);
 const ID_FILE_RE = DOC_ID_RE;
+// CHANGE-0012 / spec-slug-refs-across-tooling D3: `<TYPE>-DRAFT-<slug>.md`
+// basenames (SPEC-0015 slug-first drafts) are first-class audit citizens —
+// the same `(?:DRAFT|\d{1,5})` filename form generate-docs-index.mjs and
+// allocate-doc-number.mjs already accept. A DRAFT doc's audit id is its
+// frontmatter slug `id`; its fileId stays null (no display id until merge).
+const DRAFT_FILE_RE = /^[A-Z]+(?:-[A-Z]+)*-DRAFT(?=[-.])/;
 const OPEN_STATUSES = new Set(['draft', 'implementing']);
 const DEFAULT_STALE_DAYS = 90;
 // closeout-candidate detection (SPEC-0003 / CHANGE-0004): parents are scoped to
@@ -196,7 +202,10 @@ export function scanAuditDocs(root, { scopePath = null, scanExclude = [] } = {})
       // POSIX literal — path.join(...)+path.sep would be backslash on Windows
       // and never match the forward-slash rel, dropping canonical docs there.
       const inCanonical = rel.startsWith('docs/canonical/');
-      if (!m && !inCanonical) continue;
+      // CHANGE-0012 D3: DRAFT basenames join the scan set so `--gate <slug>`
+      // can resolve them and `--check --strict --path <DRAFT>` is non-vacuous.
+      const isDraft = !m && DRAFT_FILE_RE.test(entry.name);
+      if (!m && !isDraft && !inCanonical) continue;
       if (scopePath) {
         const scope = toPosix(path.relative(root, path.resolve(root, scopePath)));
         if (rel !== scope && !rel.startsWith(scope.replace(/\/+$/, '') + '/')) continue;
@@ -782,25 +791,44 @@ function gateContent(content, extraMethods) {
   return { ok: reasons.length === 0, reasons };
 }
 
+// CHANGE-0012 D2 — two-pass resolution over the scanned docs (DRAFT basenames
+// included per D3): (1) exact frontmatter `id` match (the durable PK per
+// SPEC-0015 D2 — covers slug DRAFTs and legacy docs whose frontmatter carries
+// `id: TYPE-000N`); (2) only when pass 1 finds nothing, filename-derived
+// display-id match. MORE THAN ONE match within a pass is an ERROR (found:false
+// => exit 2) listing every candidate path — the old per-file first-match loop
+// silently gated whichever file sorted first, i.e. the WRONG doc on an id
+// collision.
 export function gateDoc(root, docId) {
   const config = loadConfig(root);
   const files = scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] });
   const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
   const extraMethods = config?.review_by_methods ?? [];
-  let target = null;
-  for (const f of files) {
+  const entries = files.map(f => {
     const content = fs.readFileSync(path.join(root, f.rel), 'utf8');
     const fm = parseFrontmatter(content);
     const ids = extractDocIds(path.basename(f.rel), categoryPrefixes) ?? { primary: f.fileId };
-    const id = fm?.id ?? ids.primary;
-    if (id === docId || ids.primary === docId || f.fileId === docId) {
-      target = { rel: f.rel, content, id };
-      break;
-    }
+    return { rel: f.rel, content, fmId: fm?.id ?? null, fileIds: [ids.primary, f.fileId] };
+  });
+  let pass = 'frontmatter-id';
+  let matches = entries.filter(e => e.fmId === docId);
+  if (matches.length === 0) {
+    pass = 'display-id';
+    matches = entries.filter(e => e.fileIds.includes(docId));
   }
-  if (!target) return { found: false, ok: false, reasons: [`no scanned doc resolves to id "${docId}"`] };
-
-  const { ok, reasons } = gateContent(target.content, extraMethods);
+  if (matches.length === 0) {
+    return { found: false, ok: false, reasons: [`no scanned doc resolves to id "${docId}"`] };
+  }
+  if (matches.length > 1) {
+    return {
+      found: false, ok: false,
+      reasons: [
+        `ambiguous id "${docId}": ${matches.length} scanned docs match in the ${pass} pass — fail-closed, no doc gated`,
+        ...matches.map(m => `candidate: ${m.rel}`),
+      ],
+    };
+  }
+  const { ok, reasons } = gateContent(matches[0].content, extraMethods);
   return { found: true, ok, reasons };
 }
 

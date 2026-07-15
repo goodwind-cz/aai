@@ -235,3 +235,11 @@
 {"v":1,"ts":"2026-07-07T08:36:41.407Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0014","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260707T083427Z.md"}}
 {"v":1,"ts":"2026-07-07T15:38:52.081Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"CHANGE-0008","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-07T15:38:52.139Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"CHANGE-0008","payload":{"validation":"pass","code_review":"pass","notes":"Delivered by SPEC-0014 (PR #46)"}}
+{"v":1,"ts":"2026-07-15T17:58:32.365Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-slug-refs-across-tooling/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-15T17:58:32.408Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-slug-refs-across-tooling/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-15T17:58:32.447Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-slug-refs-across-tooling/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-15T17:58:32.487Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-slug-refs-across-tooling/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-15T17:58:32.524Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-slug-refs-across-tooling/Spec-AC-05","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-15T17:58:32.563Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-slug-refs-across-tooling/Spec-AC-06","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-15T17:58:32.603Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-slug-refs-across-tooling/Spec-AC-07","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-15T18:21:28.902Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"aai-competitive-gap-and-model-efficiency","payload":{"commit":"0f9960e"}}

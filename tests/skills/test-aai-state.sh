@@ -408,8 +408,10 @@ test_004_degenerate_inputs() {  # TEST-004 / Spec-AC-02
 
   ec=0; st "$s" "$TEST_DIR/t4-1.log" reset-block metrics || ec=$?
   [[ "$ec" == 2 ]] || log_fail "reset-block metrics (unknown block) must exit 2 (got $ec)"
-  ec=0; st "$s" "$TEST_DIR/t4-2.log" append-run --ref nope --role Implementation --model m --started "$NOW_UTC" || ec=$?
-  [[ "$ec" == 2 ]] || log_fail "append-run --ref nope (bad ref shape) must exit 2 (got $ec)"
+  # CHANGE-0012: lowercase slugs are now a VALID ref shape, so the bad-shape
+  # probe uses a value matching NEITHER shape (mixed case, no digits).
+  ec=0; st "$s" "$TEST_DIR/t4-2.log" append-run --ref Nope-Ref --role Implementation --model m --started "$NOW_UTC" || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "append-run --ref Nope-Ref (bad ref shape) must exit 2 (got $ec)"
   ec=0; st "$s" "$TEST_DIR/t4-3.log" set-validation || ec=$?
   [[ "$ec" == 2 ]] || log_fail "set-validation without --status must exit 2 (got $ec)"
   ec=0; st "$s" "$TEST_DIR/t4-4.log" set-code-review || ec=$?
@@ -1668,6 +1670,147 @@ assert v is None, "expected notes == null, got %r" % (v,)
   log_pass "Blank-line block scalars cleared/overwritten as one span; parser-true null; no orphans (SPEC-0014 TEST-012)"
 }
 
+# --- CHANGE-0012 / spec-slug-refs-across-tooling: slug refs in refFlag --------
+# SPEC D1: refFlag accepts EITHER the display shape ^[A-Z]+-\d+$ (REF_RE,
+# unchanged) OR the slug shape ^(?=[a-z0-9-]{3,53}$)[a-z0-9]+(?:-[a-z0-9]+)*$
+# (SLUG_RE, aligned with SPEC-0015 deriveSlug + optional -xxxx suffix). The two
+# shapes are disjoint (case); anything else exits 2 pre-write naming BOTH.
+
+test_037_slug_set_focus() {  # CHANGE-0012 TEST-001 / Spec-AC-01
+  log_info "Test: set-focus accepts a slug ref; ref_id written verbatim; check-state clean (CHANGE-0012 TEST-001)..."
+  local s="$TEST_DIR/t37-state.yaml"
+  write_state_fixture "$s"
+  st "$s" "$TEST_DIR/t37.log" set-focus --type intake_change --ref slug-refs-across-tooling \
+    --path docs/issues/CHANGE-DRAFT-slug-refs-across-tooling.md \
+    || log_fail "set-focus with a slug ref must exit 0 (RED today: exit 2): $(cat "$TEST_DIR/t37.log")"
+  grep -qE '^  ref_id: slug-refs-across-tooling$' "$s" \
+    || log_fail "current_focus.ref_id must carry the slug VERBATIM (unquoted plain scalar)"
+  ck "$s" "$TEST_DIR/t37-ck.log" || log_fail "check-state after slug set-focus: $(cat "$TEST_DIR/t37-ck.log")"
+  log_pass "set-focus accepts a slug ref verbatim; check-state clean (CHANGE-0012 TEST-001)"
+}
+
+test_038_slug_set_phase() {  # CHANGE-0012 TEST-002 / Spec-AC-01
+  log_info "Test: set-phase upserts a slug-keyed work item; DRAFT spec-path accepted (CHANGE-0012 TEST-002)..."
+  local s="$TEST_DIR/t38-state.yaml"
+  write_state_fixture "$s"
+  st "$s" "$TEST_DIR/t38.log" set-phase --ref slug-refs-across-tooling --phase planning --status in_progress \
+    --spec-path docs/specs/SPEC-DRAFT-slug-refs-across-tooling.md \
+    || log_fail "set-phase with a slug ref must exit 0 (RED today: exit 2): $(cat "$TEST_DIR/t38.log")"
+  grep -qE '^  - ref_id: slug-refs-across-tooling$' "$s" \
+    || log_fail "active_work_items must carry the upserted slug-keyed item"
+  grep -qE '^    spec_path: docs/specs/SPEC-DRAFT-slug-refs-across-tooling.md$' "$s" \
+    || log_fail "the DRAFT spec_path must be written (it is a path, not a ref)"
+  ck "$s" "$TEST_DIR/t38-ck.log" || log_fail "check-state after slug set-phase: $(cat "$TEST_DIR/t38-ck.log")"
+  # Second call UPDATES the same item in place (no duplicate slug item).
+  st "$s" "$TEST_DIR/t38b.log" set-phase --ref slug-refs-across-tooling --phase implementation \
+    || log_fail "slug set-phase update must exit 0: $(cat "$TEST_DIR/t38b.log")"
+  local n
+  n="$(grep -cE '^  - ref_id: slug-refs-across-tooling$' "$s" || true)"
+  [[ "$n" == "1" ]] || log_fail "slug item must be updated in place, not duplicated (got $n items)"
+  grep -qE '^    phase: implementation$' "$s" || log_fail "slug item phase must update to implementation"
+  log_pass "set-phase upserts/updates the slug-keyed work item with DRAFT spec_path (CHANGE-0012 TEST-002)"
+}
+
+test_039_slug_append_run_checkstate() {  # CHANGE-0012 TEST-003 / Spec-AC-01 (integration, Seam 1)
+  log_info "Test: append-run auto-inits metrics.work_items.<slug> and the REAL check-state passes (CHANGE-0012 TEST-003)..."
+  local s="$TEST_DIR/t39-state.yaml"
+  write_state_fixture "$s"
+  capture_now
+  st "$s" "$TEST_DIR/t39.log" append-run --ref slug-refs-across-tooling --role "TDD Implementation" \
+    --model claude-test --started "$NOW_UTC" --tdd-tests 3 \
+    || log_fail "append-run with a slug ref must exit 0 (RED today: exit 2): $(cat "$TEST_DIR/t39.log")"
+  grep -qE '^    slug-refs-across-tooling:$' "$s" \
+    || log_fail "metrics.work_items.<slug> entry must be auto-initialized"
+  ck "$s" "$TEST_DIR/t39-ck.log" \
+    || log_fail "REAL check-state must exit 0 on the slug-keyed STATE (Seam 1): $(cat "$TEST_DIR/t39-ck.log")"
+  # Second append lands INSIDE the same slug entry (no duplicate key).
+  st "$s" "$TEST_DIR/t39b.log" append-run --ref slug-refs-across-tooling --role Validation \
+    --model claude-test --started "$NOW_UTC" \
+    || log_fail "second slug append-run must exit 0: $(cat "$TEST_DIR/t39b.log")"
+  local n
+  n="$(grep -cE '^    slug-refs-across-tooling:$' "$s" || true)"
+  [[ "$n" == "1" ]] || log_fail "exactly one metrics.work_items slug key after two appends (got $n)"
+  ck "$s" "$TEST_DIR/t39b-ck.log" || log_fail "check-state after second slug append-run: $(cat "$TEST_DIR/t39b-ck.log")"
+  # Init-less STATE: the slug path must scaffold metrics itself too.
+  local m="$TEST_DIR/t39-min.yaml"
+  write_minimal_state "$m"
+  st "$m" "$TEST_DIR/t39m.log" append-run --ref slug-refs-across-tooling --role Planning \
+    --model claude-test --started "$NOW_UTC" \
+    || log_fail "init-less slug append-run must exit 0: $(cat "$TEST_DIR/t39m.log")"
+  ck "$m" "$TEST_DIR/t39m-ck.log" || log_fail "check-state after init-less slug append-run: $(cat "$TEST_DIR/t39m-ck.log")"
+  log_pass "append-run auto-inits + appends under the slug key; real check-state clean (CHANGE-0012 TEST-003)"
+}
+
+test_040_ref_shape_validation() {  # CHANGE-0012 TEST-004 / Spec-AC-03
+  log_info "Test: refs matching NEITHER shape exit 2 pre-write naming both shapes; boundary slugs accepted (CHANGE-0012 TEST-004)..."
+  local s="$TEST_DIR/t40-state.yaml"
+  write_state_fixture "$s"
+  cp "$s" "$TEST_DIR/t40-snapshot.yaml"
+  capture_now
+  local slug53 slug54 ec bad
+  slug53="$(printf 'a%.0s' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48)-b234"
+  slug54="a${slug53}"
+  [[ "${#slug53}" == 53 && "${#slug54}" == 54 ]] || log_fail "fixture guard: slug53/54 lengths wrong (${#slug53}/${#slug54})"
+
+  # Invalid under BOTH shapes: exit 2, byte-identical, message names both shapes.
+  for bad in "Mixed-Case" "has space" "$slug54" "-lead" "trail-" "a--b" "ab" ""; do
+    ec=0; st "$s" "$TEST_DIR/t40-case.log" set-focus --type intake_change --ref "$bad" --path docs/x.md || ec=$?
+    [[ "$ec" == 2 ]] || log_fail "set-focus --ref '$bad' must exit 2 (got $ec): $(cat "$TEST_DIR/t40-case.log")"
+    grep -qF '[A-Z]+-\d+' "$TEST_DIR/t40-case.log" \
+      || log_fail "usage message for '$bad' must name the display shape: $(cat "$TEST_DIR/t40-case.log")"
+    grep -qF '[a-z0-9-]{3,53}' "$TEST_DIR/t40-case.log" \
+      || log_fail "usage message for '$bad' must name the slug shape: $(cat "$TEST_DIR/t40-case.log")"
+    ec=0; st "$s" "$TEST_DIR/t40-case.log" set-phase --ref "$bad" --phase planning || ec=$?
+    [[ "$ec" == 2 ]] || log_fail "set-phase --ref '$bad' must exit 2 (got $ec)"
+    ec=0; st "$s" "$TEST_DIR/t40-case.log" append-run --ref "$bad" --role Planning --model m --started "$NOW_UTC" || ec=$?
+    [[ "$ec" == 2 ]] || log_fail "append-run --ref '$bad' must exit 2 (got $ec)"
+    cmp -s "$s" "$TEST_DIR/t40-snapshot.yaml" \
+      || log_fail "STATE must stay byte-identical after rejected ref '$bad'"
+  done
+
+  # Boundary accepts (negative controls for the reject set): 53-char slug with
+  # -xxxx suffix, minimum 3-char slug, pure-digit slug (never collides: lowercase).
+  for good in "$slug53" "abc" "2026-07"; do
+    st "$s" "$TEST_DIR/t40-good.log" set-phase --ref "$good" --phase planning --status planned \
+      || log_fail "set-phase --ref '$good' must exit 0 (valid slug): $(cat "$TEST_DIR/t40-good.log")"
+  done
+  ck "$s" "$TEST_DIR/t40-ck.log" || log_fail "check-state after boundary slugs: $(cat "$TEST_DIR/t40-ck.log")"
+
+  # Review W1 (CHANGE-0012): bare YAML-keyword slugs would be re-typed by YAML
+  # parsers when written unquoted (ref_id: null -> None) — refuse them exit 2,
+  # byte-identical. Longer slugs CONTAINING a keyword stay valid.
+  cp "$TEST_DIR/t40-snapshot.yaml" "$s"
+  local kw
+  for kw in null true false yes off; do
+    ec=0; st "$s" "$TEST_DIR/t40-kw.log" set-focus --type intake_change --ref "$kw" --path docs/x.md || ec=$?
+    [[ "$ec" == 2 ]] || log_fail "set-focus --ref '$kw' (YAML keyword) must exit 2 (got $ec)"
+    grep -qi 'YAML keyword' "$TEST_DIR/t40-kw.log" \
+      || log_fail "rejection for '$kw' must explain the YAML-keyword hazard: $(cat "$TEST_DIR/t40-kw.log")"
+    cmp -s "$s" "$TEST_DIR/t40-snapshot.yaml" \
+      || log_fail "STATE must stay byte-identical after rejected YAML-keyword ref '$kw'"
+  done
+  st "$s" "$TEST_DIR/t40-kw-good.log" set-phase --ref null-handling-fix --phase planning --status planned \
+    || log_fail "slug CONTAINING a keyword (null-handling-fix) must stay valid: $(cat "$TEST_DIR/t40-kw-good.log")"
+
+  log_pass "Neither-shape refs refused exit 2 naming both shapes, zero writes; boundary slugs accepted; YAML-keyword slugs refused (CHANGE-0012 TEST-004 + review W1)"
+}
+
+test_041_display_ref_regression() {  # CHANGE-0012 TEST-005 / Spec-AC-04
+  log_info "Test: TYPE-000N display refs still accepted on all three subcommands (REF_RE untouched) (CHANGE-0012 TEST-005)..."
+  local s="$TEST_DIR/t41-state.yaml"
+  write_state_fixture "$s"
+  capture_now
+  st "$s" "$TEST_DIR/t41a.log" set-focus --type intake_change --ref CHANGE-0012 --path docs/issues/CHANGE-0012.md \
+    || log_fail "set-focus with a display ref must stay exit 0: $(cat "$TEST_DIR/t41a.log")"
+  grep -qE '^  ref_id: CHANGE-0012$' "$s" || log_fail "display ref_id must be written verbatim"
+  st "$s" "$TEST_DIR/t41b.log" set-phase --ref CHANGE-0012 --phase implementation --status in_progress \
+    || log_fail "set-phase with a display ref must stay exit 0: $(cat "$TEST_DIR/t41b.log")"
+  st "$s" "$TEST_DIR/t41c.log" append-run --ref CHANGE-0012 --role Implementation --model claude-test --started "$NOW_UTC" \
+    || log_fail "append-run with a display ref must stay exit 0: $(cat "$TEST_DIR/t41c.log")"
+  ck "$s" "$TEST_DIR/t41-ck.log" || log_fail "check-state after display-ref trio: $(cat "$TEST_DIR/t41-ck.log")"
+  log_pass "Display refs behave byte-identically on all three subcommands (CHANGE-0012 TEST-005)"
+}
+
 main() {
   echo "Testing $TEST_NAME (transactional STATE CLI — SPEC-0012 TEST-001..025 + SPEC-0014 additions)"
   check_deps
@@ -1708,6 +1851,11 @@ main() {
   test_034_clear_prototype_names_refused
   test_035_clear_repeated_flag_accumulates
   test_036_clear_blankline_folded_scalar
+  test_037_slug_set_focus
+  test_038_slug_set_phase
+  test_039_slug_append_run_checkstate
+  test_040_ref_shape_validation
+  test_041_display_ref_regression
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

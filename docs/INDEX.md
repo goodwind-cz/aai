@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-15T17:27:37.908Z
+Generated: 2026-07-15T18:27:03.120Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | SPEC-0015 | specs | implementing | 10 done | docs/specs/SPEC-0015-parallel-safe-doc-numbering.md |
+| SPEC-0016 | specs | implementing | 7 done | docs/specs/SPEC-0016-spec-slug-refs-across-tooling.md |
 | RFC-0007 | rfc | accepted | — | docs/rfc/RFC-0007-parallel-safe-doc-numbering.md |
 
 ## Canonical layer (0)

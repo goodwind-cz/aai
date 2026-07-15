@@ -9,6 +9,28 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: slug refs across the tooling family (CHANGE-0012 / SPEC-0016)
+
+- SPEC-0015 made docs slug-first until merge, but `state.mjs` rejected slug refs
+  (`REF_RE ^[A-Z]+-\d+$`) and DRAFT basenames were invisible to the whole
+  docs-audit scan — so `--gate <slug>` missed them and `--check --path <DRAFT>`
+  passed vacuously ("Scanned: 0 docs", exit 0). Root cause was the scan set,
+  not gate resolution (found by Planning's code-reading, probe-verified).
+- `state.mjs`: refFlag accepts the disjoint slug shape
+  (`^(?=[a-z0-9-]{3,53}$)...`) beside TYPE-000N; bare YAML-keyword slugs
+  (null/true/false/yes/off) refused pre-write (review W1 — unquoted they
+  silently re-type as YAML booleans/null).
+- `docs-audit-core.mjs`: `<TYPE>-DRAFT-<slug>.md` admitted to the scan;
+  `gateDoc` two-pass resolution (frontmatter-id first, display-id second) with
+  fail-closed ambiguity (exit 2 listing candidates — replaces silent
+  first-file-wins).
+- RES-0001 closeout metadata completed (links.pr/commits + ac_evidence event),
+  clearing the pre-existing probable-false-done drift that blocked 5 real-repo
+  CLEAN test assertions across suites.
+- TDD 11/11 RED→GREEN; independent validation PASS (7/7 AC re-verified,
+  stash-proofed pre-existing failures); code review PASS (W1 remediated,
+  W2 promoted as documented limitation, W3 remediated).
+
 ## [unreleased] — feat: collision-free doc numbering across parallel clones (RFC-0007 / SPEC-0015 / PR #48)
 
 - Doc IDs were minted by a working-tree scan at intake, so two clones off the
