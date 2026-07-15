@@ -9,7 +9,7 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — feat: collision-free doc numbering across parallel clones (RFC-0007 / SPEC-0015)
+## [unreleased] — feat: collision-free doc numbering across parallel clones (RFC-0007 / SPEC-0015 / PR #48)
 
 - Doc IDs were minted by a working-tree scan at intake, so two clones off the
   same `main` both minted the same `TYPE-000N` and collided at merge. New model:
