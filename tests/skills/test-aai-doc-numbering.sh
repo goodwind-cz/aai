@@ -730,6 +730,85 @@ test_015_guard_staged_only() {
   log_pass "TEST-015 guard honors staged/merged tree (untracked ignored, staged caught)"
 }
 
+test_016_per_type_digit_width() {  # ISSUE per-type-digit-width AC-001..004
+  log_info "TEST-016: number width follows the type's existing convention (PRD 3-digit)..."
+  local d; d="$(setup_iso_repo t016)"
+
+  # AC-001: existing PRD-001 -> next allocation is PRD-002 (3-digit inherited)
+  mkdir -p "$d/docs/requirements"
+  cat > "$d/docs/requirements/PRD-001-legacy-feature.md" <<'MD'
+---
+id: PRD-001
+type: prd
+status: done
+links:
+  pr: []
+---
+# Legacy 3-digit PRD
+MD
+  (cd "$d" && git add docs && git commit -qm "docs: legacy 3-digit PRD" >/dev/null)
+  (cd "$d" && git checkout -q -b feature/prd-width)
+  write_draft "$d" requirements PRD next-feature
+  (cd "$d" && git add docs && git commit -qm "docs: PRD draft" >/dev/null)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/requirements/PRD-DRAFT-next-feature.md --base-ref main \
+      > alloc1.log 2>&1) \
+    || log_fail "PRD allocation must exit 0: $(cat "$d/alloc1.log")"
+  assert_file "$d/docs/requirements/PRD-002-next-feature.md"
+  [[ ! -f "$d/docs/requirements/PRD-0002-next-feature.md" ]] \
+    || log_fail "must inherit 3-digit width (PRD-002), not mint PRD-0002"
+
+  # AC-003: index display id is filename-verbatim (PRD-001, never PRD-0001)
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1)
+  assert_contains "$d/docs/INDEX.md" "PRD-001"
+  assert_not_contains "$d/docs/INDEX.md" "PRD-0001"
+
+  # AC-002a: empty PRD type defaults to 3-digit (PRD-001)
+  local d2; d2="$(setup_iso_repo t016b)"
+  (cd "$d2" && git checkout -q -b feature/prd-first)
+  mkdir -p "$d2/docs/requirements"
+  write_draft "$d2" requirements PRD first-ever
+  (cd "$d2" && git add docs && git commit -qm "docs: first PRD draft" >/dev/null)
+  (cd "$d2" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/requirements/PRD-DRAFT-first-ever.md --base-ref main \
+      > alloc2.log 2>&1) \
+    || log_fail "first-PRD allocation must exit 0: $(cat "$d2/alloc2.log")"
+  assert_file "$d2/docs/requirements/PRD-001-first-ever.md"
+
+  # AC-002b: regression — RFC keeps 4-digit inheritance (seeded RFC-0006 -> 0007)
+  seed_rfcs "$d2" 6
+  (cd "$d2" && git add docs && git commit -qm "docs: seed rfcs" >/dev/null)
+  write_draft "$d2" rfc RFC four-digit-regression
+  (cd "$d2" && git add docs && git commit -qm "docs: rfc draft" >/dev/null)
+  (cd "$d2" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/rfc/RFC-DRAFT-four-digit-regression.md --base-ref feature/prd-first \
+      > alloc3.log 2>&1) \
+    || log_fail "RFC allocation must exit 0: $(cat "$d2/alloc3.log")"
+  assert_file "$d2/docs/rfc/RFC-0007-four-digit-regression.md"
+
+  # AC-004: duplicate guard still flags PRD-001 vs PRD-0001 (numeric equality)
+  cat > "$d/docs/requirements/PRD-0001-imposter.md" <<'MD'
+---
+id: imposter
+type: prd
+number: 1
+status: draft
+links:
+  pr: []
+---
+# Imposter with same numeric id, different padding
+MD
+  (cd "$d" && git add docs/requirements/PRD-0001-imposter.md)
+  local ec=0
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --guard > guard.log 2>&1) || ec=$?
+  [[ "$ec" != 0 ]] || log_fail "duplicate guard must flag PRD-001 vs PRD-0001: $(cat "$d/guard.log")"
+  grep -q "PRD-001-legacy-feature.md" "$d/guard.log" && grep -q "PRD-0001-imposter.md" "$d/guard.log" \
+    || log_fail "guard message must name both offending files: $(cat "$d/guard.log")"
+
+  rm -rf "$d" "$d2"
+  log_pass "TEST-016 width inherited (PRD-002), empty-type default PRD-001, RFC stays 4-digit, cross-padding duplicate flagged"
+}
+
 main() {
   echo ""
   echo "AAI Doc-Numbering Test Suite (SPEC-0015 / RFC-0007)"
@@ -753,6 +832,7 @@ main() {
   test_013_regression
   test_014_crlf_stamp
   test_015_guard_staged_only
+  test_016_per_type_digit_width
 
   echo ""
   echo "All doc-numbering tests passed."

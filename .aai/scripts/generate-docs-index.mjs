@@ -219,8 +219,12 @@ function main() {
         ? parseInt(String(rawNum).trim(), 10) : null;
       const prefixMatch = base.match(/^([A-Z]+(?:-[A-Z]+)*)-(?:DRAFT|\d{1,5})(?=[-.])/);
       const prefix = prefixMatch ? prefixMatch[1] : null;
+      // ISSUE per-type-digit-width: a numbered FILENAME is the display id
+      // verbatim (PRD-001-x.md -> PRD-001, never re-padded to PRD-0001); the
+      // padStart fallback only covers number-in-frontmatter-but-DRAFT-filename.
+      const numToken = base.match(/^([A-Z]+(?:-[A-Z]+)*-\d{1,5})(?=[-.])/);
       const displayId = (num != null && prefix)
-        ? `${prefix}-${String(num).padStart(4, '0')}`
+        ? (numToken ? numToken[1] : `${prefix}-${String(num).padStart(4, '0')}`)
         : (fm.id ?? base);
       const unnumbered = /-DRAFT-/.test(base) && num == null;
       docs.push({ path: rel, id: displayId, type, status, fm, ac: acTable, legacy: false, unnumbered });

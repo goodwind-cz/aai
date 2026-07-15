@@ -37,6 +37,21 @@ RFC-0001).
 - Dogfood: the dispatch script's first real decision (rule 11 -> Validation,
   must_differ on model) was executed as this scope's own validation run.
 
+## [unreleased] — fix: number width follows the type's convention (ISSUE-0006)
+
+- SPEC-0015's allocator and the index generator hardcoded 4-digit padding,
+  clashing with the pre-existing 3-digit PRD convention (PRD-001 examples
+  across the canon). Reported by the operator. Parsing was already
+  width-agnostic (no guard blindness — render-only bug).
+- Allocator now inherits the display width from the type's highest-numbered
+  existing doc (base ref preferred), with per-type defaults for empty types
+  (PRD: 3-digit; everything else 4-digit). Width is stable within a batch.
+- Index display id for a numbered file is taken from the FILENAME verbatim
+  (PRD-001-x.md -> PRD-001, never re-padded to PRD-0001).
+- Cross-padding duplicates (PRD-001 vs PRD-0001) still flagged (numeric key).
+- TDD: TEST-016 RED->GREEN; doc-numbering + prompt-diet suites green; audit
+  CLEAN; existing 4-digit sequences unchanged (regression-tested).
+
 ## [unreleased] — feat: model tiering with teeth (CHANGE-0010 / SPEC-0018)
 
 - The MODEL SELECTION tiering contract existed in one prompt and was enforced
