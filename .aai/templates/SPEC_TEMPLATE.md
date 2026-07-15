@@ -1,6 +1,7 @@
 ---
-id: SPEC-XXXX
+id: <slug>
 type: spec
+number: null
 status: draft
 links:
   requirement: PRD-XXXX
@@ -10,6 +11,17 @@ links:
 ---
 
 # Implementation Spec Template
+
+<!-- SPEC-0015 / RFC-0007 — Parallel-safe doc identity:
+  - `id` is the durable SLUG PRIMARY KEY (e.g. `parallel-safe-doc-numbering`),
+    assigned at intake and NEVER changed. Every in-branch cross-reference uses it.
+  - `number` is null at intake; the sequential integer is assigned at MERGE by
+    `.aai/scripts/allocate-doc-number.mjs`, which renames the file to
+    `SPEC-000N-<slug>.md`. The human-facing `SPEC-000N` display id is DERIVED from
+    `type` + `number` by the index generator — it is NOT stored in frontmatter.
+  - At intake the file is created as `docs/specs/SPEC-DRAFT-<slug>.md` (the literal
+    `DRAFT` token marks an unnumbered doc). -->
+
 
 ## Links
 - Requirement: <PRD/Requirement document ID>

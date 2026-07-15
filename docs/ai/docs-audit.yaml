@@ -11,3 +11,9 @@ backlog_globs: []
 # predicate exit code. Values: enforce | report-only. Default (key or file absent)
 # is report-only — a failing close gate warns but never blocks the commit.
 close_gate: report-only
+# SPEC-0015 / RFC-0007 — parallel-safe doc-numbering guards (no-DRAFT-at-merge +
+# duplicate-number), consulted by the pre-commit host (pre-commit-checks.sh/.ps1)
+# AND by the CI mirror (.github/workflows/docs-numbering.yml) to choose
+# block-vs-warn. Values: enforce | report-only. Default (key or file absent) is
+# report-only — a violation warns/annotates but never blocks the commit or the PR.
+doc_number_guard: report-only
