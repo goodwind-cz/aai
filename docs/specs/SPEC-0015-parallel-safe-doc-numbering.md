@@ -146,6 +146,15 @@ Node stdlib only (zero deps, plain `node` invocation, per docs/TECHNOLOGY.md).
   `<TYPE>-` + the zero-padded (width 4) number (type prefix uppercased from the directory /
   frontmatter type); otherwise fall back to `fm.id` (slug) and then the basename (current
   behavior). This replaces the bare `fm.id ?? basename` id resolution for numbered docs.
+- AMENDED 2026-07-16 (ISSUE-0006, PR #55): the fixed width-4 above is superseded.
+  The zero-padding WIDTH follows the type's existing convention — inherited from the
+  type's highest-numbered doc (base ref preferred), with per-type defaults for empty
+  types (PRD: 3-digit, e.g. PRD-001; all other prefixes: 4-digit). A numbered FILENAME
+  is the display id verbatim (PRD-001-x.md -> PRD-001, never re-padded); the width-4
+  padStart remains only as the fallback for number-in-frontmatter-with-DRAFT-filename.
+  Cross-padding duplicates (PRD-001 vs PRD-0001) are detected by numeric equality.
+  Contract pinned by tests/skills/test-aai-doc-numbering.sh TEST-016; operative wording
+  in .aai/INTAKE_COMMON.md.
 - Unnumbered drafts: a doc with `number: null` (or absent) AND a DRAFT filename is placed in
   the Drafts section under its slug id and surfaced distinctly (annotated unnumbered), never
   emitted as a schema violation, coverage gap, or near-miss.
