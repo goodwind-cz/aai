@@ -595,6 +595,14 @@ if ($overwriteConflicts.Count -gt 0) {
 $templateSha = "UNKNOWN"
 try { $templateSha = (git -C $SrcRoot rev-parse HEAD) 2>$null } catch {}
 
+# Canonical repo URL for the drift check (spec-doctor-vendored-layer-drift D1):
+# the sync source's origin remote. Empty/failed -> UNKNOWN.
+$canonicalUrl = "UNKNOWN"
+try {
+  $canonicalUrl = (git -C $SrcRoot config --get remote.origin.url) 2>$null
+  if ([string]::IsNullOrWhiteSpace($canonicalUrl)) { $canonicalUrl = "UNKNOWN" }
+} catch { $canonicalUrl = "UNKNOWN" }
+
 $templateVersion = "UNKNOWN"
 $versionFile = Join-Path $SrcRoot "docs/ai/AAI_VERSION.md"
 if (Test-Path $versionFile) {
@@ -608,12 +616,14 @@ if (Test-Path $versionFile) {
 }
 
 $pinPath = Join-Path $TargetRoot ".aai/system/AAI_PIN.md"
+$null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $pinPath)
 @"
 # AAI Pin
 
 - Source path: $SrcRoot
 - Template version: $templateVersion
 - Template commit: $templateSha
+- Canonical repo: $canonicalUrl
 - Synced at (UTC): $((Get-Date).ToUniversalTime().ToString("o"))
 
 Notes:

@@ -137,6 +137,29 @@ HEALTH CHECK CATEGORIES (run all, report each)
   This category is informational, never blocks other AAI work; do NOT mark
   BROKEN from it.
 
+[CAT-13] Vendored Layer Drift (spec-doctor-vendored-layer-drift)
+  Is this project's vendored .aai/ layer behind the canonical AAI repo?
+  Run: node .aai/scripts/layer-drift.mjs
+  (compares .aai/system/AAI_PIN.md "Template commit" against the canonical
+  repo tip; canonical remote comes from the pin's "Canonical repo" field,
+  falling back to "Source path" for pre-contract pins. Read-only; network
+  bounded to one ls-remote with a 10s timeout.)
+  Map the exit code to the report line:
+  - exit 0                         → ✓ <script's verdict line>
+                                     ("layer up-to-date (pin <sha> == canonical main)"
+                                      or pin ahead of canonical — both healthy)
+  - exit 3                         → ⚠ <script's verdict line> — run /aai-update
+                                     ("layer BEHIND canonical by N commit(s)" when the
+                                      canonical repo is locally reachable; "unknown
+                                      distance" when only ls-remote inequality is provable)
+  - exit 4                         → ⚠ <script's verdict line> (info only)
+                                     ("layer drift unverifiable (offline / no pin)" —
+                                      also the normal verdict inside the canonical
+                                      template repo itself)
+  - exit 2 / script missing        → ⚠ layer-drift check unavailable ("Run /aai-update")
+  This category is informational, never blocks other AAI work; do NOT mark
+  BROKEN from it — offline or pin-less environments are legal.
+
 OUTPUT FORMAT
 
 ---
@@ -156,6 +179,7 @@ Checked at: <now ISO 8601 UTC>
 [CAT-10] RFC-0001 Migration: ✓ migrated | ⚠ needs migration: <action>
 [CAT-11] Docs Hygiene:      ✓ CLEAN | ⚠ N orphans / N drifted (run /aai-docs-audit)
 [CAT-12] Index Regen Hook:  ✓ installed | ⚠ not installed (optional)
+[CAT-13] Layer Drift:       ✓ up-to-date | ⚠ BEHIND canonical by N (run /aai-update) | ⚠ unverifiable (offline / no pin)
 
 Overall: HEALTHY | DEGRADED | BROKEN
   HEALTHY  = all ✓ (warnings allowed for optional items)
