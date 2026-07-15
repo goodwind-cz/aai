@@ -1,6 +1,6 @@
 ---
 name: aai-code-review
-description: Use when reviewing committed or staged code changes for security, performance, and style issues. Supports git diffs and GitHub PR review with structured severity comments.
+description: Use when reviewing committed or staged code changes. One dual-verdict pass returning spec_compliance (AC-table walk) and code_quality (BLOCKING/NON-BLOCKING findings) plus a mandatory cannot_verify list. Supports git diffs and GitHub PR review.
 ---
 
 Read the file `.aai/SKILL_CODE_REVIEW.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-code-review`.

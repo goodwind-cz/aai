@@ -1,6 +1,6 @@
 ---
 name: aai-code-review
-description: Automated code review for git diffs and GitHub PRs. Checks security, performance, style issues with severity levels. Can post structured review comments to GitHub PRs.
+description: Automated code review for git diffs and GitHub PRs. One dual-verdict pass returning spec_compliance (AC-table walk) and code_quality (BLOCKING/NON-BLOCKING findings) plus a mandatory cannot_verify list.
 ---
 
 Read the file `.aai/SKILL_CODE_REVIEW.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-code-review`.

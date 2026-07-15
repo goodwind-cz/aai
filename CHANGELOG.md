@@ -9,6 +9,27 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: single dual-verdict code review (RFC-0008 / SPEC-0021)
+
+- Two-stage review replaced by ONE read-only pass returning two verdicts —
+  spec_compliance (AC-table walk with per-AC citations) and code_quality
+  (BLOCKING/NON-BLOCKING with file:line + failure scenario) — plus a MANDATORY
+  cannot_verify list (silent gaps become named ones). SKILL_CODE_REVIEW
+  766 -> 213 lines; H6 warnings policy and H3 external-review-response kept
+  verbatim.
+- Anti-gaming contract in SUBAGENT_PROTOCOL: no coaching, no pre-rating, no
+  scope-exclusions by the dispatcher; diff handoff by path list; STATE write
+  only when the dispatch grants it (single-writer in parallel mode).
+- Measurement gate: deferred Spec-AC-05 row — compare review tokens/duration/
+  remediation cycles over the next 5 reviewed scopes vs two-stage history in
+  METRICS.jsonl; revert = git restore of the prior prompt.
+- Dogfooded on its own delivery: first dual-verdict review returned PASS with
+  2 NON-BLOCKING findings (NB-2 STATE-authority ambiguity remediated in-tree;
+  NB-1 old-taxonomy drift filed as CHANGE-0014) and a meta-note feeding the
+  measurement gate. Evidence base: RES-0001 F4 + Superpowers v6.0 evals
+  (equal quality, ~50% tokens, 2x speed) + own telemetry (review+remediation
+  ~= 88% of implementation wall-clock).
+
 ## [unreleased] — fix: empty-type width follows the project's dominant convention (ISSUE-0008)
 
 - Operator follow-up to ISSUE-0006: the empty-type width defaults encoded this

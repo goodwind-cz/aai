@@ -491,21 +491,18 @@ hard merge boundary. It **never merges**; merging is an operator-only action.
 
 **Example:**
 ```bash
-/aai-code-review                   # Review local changes
-/aai-code-review --pr 42           # Review GitHub PR
-/aai-code-review --pr 42 --post    # Post review to PR
+/aai-code-review                   # Review local changes (clean diff scope)
+/aai-code-review --pr 42           # Review a GitHub PR's diff
 ```
 
-**Checks:**
-- Security (SQL injection, XSS, credentials)
-- Performance (N+1 queries, inefficient loops)
-- Style (formatting, naming)
-- Best practices (error handling, DRY)
+**One pass, two verdicts (SPEC single-dual-verdict-review):**
+- spec_compliance: pass|fail — diff vs the frozen AC table, per-AC citations
+- code_quality: pass|fail — real defects with file:line + failure scenario
+- cannot_verify: mandatory list of claims the diff alone cannot substantiate
 
-**Severity levels:**
-- ERROR: Must fix (blocks)
-- WARNING: Should fix
-- INFO: Nice to have
+**Finding severity:**
+- BLOCKING: must fix before merge (fails the verdict)
+- NON-BLOCKING: needs a disposition (remediate or promote — warnings policy)
 
 #### `/aai-docs-audit`
 **What:** Docs hygiene and drift detection (RFC-0002). Classifies every

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-15T23:50:27.579Z
+Generated: 2026-07-15T23:51:14.288Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,9 +15,9 @@ _None._
 | SPEC-0016 | specs | implementing | 7 done | docs/specs/SPEC-0016-spec-slug-refs-across-tooling.md |
 | SPEC-0018 | specs | implementing | 5 done | docs/specs/SPEC-0018-spec-model-tiering-with-teeth.md |
 | SPEC-0019 | specs | implementing | 10 done | docs/specs/SPEC-0019-spec-mechanize-deterministic-ticks.md |
-| spec-single-dual-verdict-review | specs | implementing | 5 done, 1 deferred | docs/specs/SPEC-DRAFT-single-dual-verdict-review.md |
+| SPEC-0021 | specs | implementing | 5 done, 1 deferred | docs/specs/SPEC-0021-spec-single-dual-verdict-review.md |
 | RFC-0007 | rfc | accepted | — | docs/rfc/RFC-0007-parallel-safe-doc-numbering.md |
-| single-dual-verdict-review | rfc | accepted | — | docs/rfc/RFC-DRAFT-single-dual-verdict-review.md |
+| RFC-0008 | rfc | accepted | — | docs/rfc/RFC-0008-single-dual-verdict-review.md |
 
 ## Canonical layer (0)
 
@@ -73,7 +73,7 @@ _None._
 | CHANGE-0010 | issues | docs/issues/CHANGE-0010-model-tiering-with-teeth.md |
 | CHANGE-0011 | issues | docs/issues/CHANGE-0011-prompt-layer-diet-phase-1.md |
 | CHANGE-0012 | issues | docs/issues/CHANGE-0012-slug-refs-across-tooling.md |
-| review-taxonomy-alignment (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-review-taxonomy-alignment.md |
+| CHANGE-0014 | issues | docs/issues/CHANGE-0014-review-taxonomy-alignment.md |
 | ISSUE-0007 | issues | docs/issues/ISSUE-0007-state-list-append-indent.md |
 | ISSUE-0008 | issues | docs/issues/ISSUE-0008-project-dominant-width.md |
 | SPEC-0017 | specs | docs/specs/SPEC-0017-spec-prompt-layer-diet-phase-1.md |
@@ -86,7 +86,7 @@ _None._
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
-| spec-single-dual-verdict-review | Spec-AC-05 | manual:2026-08-31 | Checked at wrap-up once 5 post-change reviewed scopes exist in METRICS.jsonl; revert path = git restore of pre-change .aai/SKILL_CODE_REVIEW.prompt.md |
+| SPEC-0021 | Spec-AC-05 | manual:2026-08-31 | Checked at wrap-up once 5 post-change reviewed scopes exist in METRICS.jsonl; revert path = git restore of pre-change .aai/SKILL_CODE_REVIEW.prompt.md |
 
 ## Blocked items (per-AC, across all specs) (0)
 

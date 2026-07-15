@@ -1,11 +1,11 @@
 ---
 id: single-dual-verdict-review
 type: rfc
-number: null
+number: 8
 status: accepted
 links:
   research: RES-0001
-  spec: null
+  spec: spec-single-dual-verdict-review
   pr: []
   commits: []
 ---

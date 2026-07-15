@@ -71,14 +71,16 @@ Stop condition:
 
 ## Code Review
 Owns:
-- Stage 1: spec compliance against the frozen spec and TEST-xxx evidence
-- Stage 2: code quality review after compliance is evaluated
+- one dual verdict pass: spec_compliance (AC-table walk against the frozen
+  spec and TEST-xxx evidence) AND code_quality (BLOCKING/NON-BLOCKING
+  findings with file:line + failure scenario)
+- the mandatory cannot_verify list (claims the diff alone cannot substantiate)
 - diff-scope sanity checks for inline and worktree modes
 
 Must not:
-- start Stage 2 before Stage 1
+- let quality impressions soften compliance findings (disjoint evidence)
 - require a worktree when a clean diff scope exists
-- approve merge/PR readiness with ERROR findings
+- approve merge/PR readiness with BLOCKING findings or a failing verdict
 
 Stop condition:
 - review PASS, FAIL, or explicit human waiver recorded
