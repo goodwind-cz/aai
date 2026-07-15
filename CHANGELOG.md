@@ -9,7 +9,7 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — fix: number width follows the type's convention (ISSUE-0003)
+## [unreleased] — fix: number width follows the type's convention (ISSUE-0006)
 
 - SPEC-0015's allocator and the index generator hardcoded 4-digit padding,
   clashing with the pre-existing 3-digit PRD convention (PRD-001 examples
