@@ -148,8 +148,11 @@ Node stdlib only (zero deps, plain `node` invocation, per docs/TECHNOLOGY.md).
   behavior). This replaces the bare `fm.id ?? basename` id resolution for numbered docs.
 - AMENDED 2026-07-16 (ISSUE-0006, PR #55): the fixed width-4 above is superseded.
   The zero-padding WIDTH follows the type's existing convention — inherited from the
-  type's highest-numbered doc (base ref preferred), with per-type defaults for empty
-  types (PRD: 3-digit, e.g. PRD-001; all other prefixes: 4-digit). A numbered FILENAME
+  type's highest-numbered doc (base ref preferred); an empty type falls back to the
+  PROJECT's dominant width across all numbered governed docs (a vendored project with
+  an all-3-digit convention mints 3-digit for its first doc of a new type; amended
+  same-day via ISSUE project-dominant-width); a greenfield repo uses per-type defaults
+  (PRD: 3-digit, e.g. PRD-001; all other prefixes: 4-digit). A numbered FILENAME
   is the display id verbatim (PRD-001-x.md -> PRD-001, never re-padded); the width-4
   padStart remains only as the fallback for number-in-frontmatter-with-DRAFT-filename.
   Cross-padding duplicates (PRD-001 vs PRD-0001) are detected by numeric equality.
