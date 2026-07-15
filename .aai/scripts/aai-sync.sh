@@ -543,20 +543,28 @@ fi
 # Pin info
 TEMPLATE_SHA="UNKNOWN"
 TEMPLATE_VERSION="UNKNOWN"
+CANONICAL_URL="UNKNOWN"
 if command -v git >/dev/null 2>&1; then
   TEMPLATE_SHA="$(git -C "$SRC_ROOT" rev-parse HEAD 2>/dev/null || echo UNKNOWN)"
+  # Canonical repo URL for the drift check (spec-doctor-vendored-layer-drift D1):
+  # the sync source's origin remote. Empty/failed -> UNKNOWN (drift check then
+  # falls back to Source path, or degrades to unverifiable).
+  CANONICAL_URL="$(git -C "$SRC_ROOT" config --get remote.origin.url 2>/dev/null || true)"
+  [[ -z "$CANONICAL_URL" ]] && CANONICAL_URL="UNKNOWN"
 fi
 if [[ -f "$SRC_ROOT/docs/ai/AAI_VERSION.md" ]]; then
   TEMPLATE_VERSION="$(grep -E '^-? *Version:' "$SRC_ROOT/docs/ai/AAI_VERSION.md" 2>/dev/null | head -n1 | sed -E 's/.*Version:\s*//')"
   [[ -z "$TEMPLATE_VERSION" ]] && TEMPLATE_VERSION="UNKNOWN"
 fi
 
+mkdir -p "$DST_ROOT/.aai/system"
 cat > "$DST_ROOT/.aai/system/AAI_PIN.md" <<EOPIN
 # AAI Pin
 
 - Source path: $SRC_ROOT
 - Template version: $TEMPLATE_VERSION
 - Template commit: $TEMPLATE_SHA
+- Canonical repo: $CANONICAL_URL
 - Synced at (UTC): $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 Notes:

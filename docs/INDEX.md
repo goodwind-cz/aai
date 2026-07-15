@@ -1,13 +1,13 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-15T23:03:40.328Z
+Generated: 2026-07-15T23:40:02.690Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (5)
+## Active (implementing) (6)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
@@ -15,6 +15,7 @@ _None._
 | SPEC-0016 | specs | implementing | 7 done | docs/specs/SPEC-0016-spec-slug-refs-across-tooling.md |
 | SPEC-0018 | specs | implementing | 5 done | docs/specs/SPEC-0018-spec-model-tiering-with-teeth.md |
 | SPEC-0019 | specs | implementing | 10 done | docs/specs/SPEC-0019-spec-mechanize-deterministic-ticks.md |
+| SPEC-0020 | specs | implementing | 6 done | docs/specs/SPEC-0020-spec-doctor-vendored-layer-drift.md |
 | RFC-0007 | rfc | accepted | — | docs/rfc/RFC-0007-parallel-safe-doc-numbering.md |
 
 ## Canonical layer (0)
@@ -63,7 +64,7 @@ _None._
 | SPEC-0014 | specs | docs/specs/SPEC-0014-state-clear-spec-path-placement-auto-trigger-alignment.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (7)
+## Drafts (8)
 
 | ID | Type | Path |
 |---|---|---|
@@ -71,6 +72,7 @@ _None._
 | CHANGE-0010 | issues | docs/issues/CHANGE-0010-model-tiering-with-teeth.md |
 | CHANGE-0011 | issues | docs/issues/CHANGE-0011-prompt-layer-diet-phase-1.md |
 | CHANGE-0012 | issues | docs/issues/CHANGE-0012-slug-refs-across-tooling.md |
+| CHANGE-0013 | issues | docs/issues/CHANGE-0013-doctor-vendored-layer-drift.md |
 | ISSUE-0007 | issues | docs/issues/ISSUE-0007-state-list-append-indent.md |
 | ISSUE-0008 | issues | docs/issues/ISSUE-0008-project-dominant-width.md |
 | SPEC-0017 | specs | docs/specs/SPEC-0017-spec-prompt-layer-diet-phase-1.md |
