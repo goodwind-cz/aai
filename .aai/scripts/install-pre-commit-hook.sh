@@ -108,7 +108,7 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
     || cat docs/ai/docs-audit.yaml 2>/dev/null \
     || true)"
   CLOSE_GATE_MODE="report-only"
-  if printf '%s\n' "$GATE_CFG" | grep -Eq '^[[:space:]]*close_gate:[[:space:]]*enforce([[:space:]]|$)'; then
+  if printf '%s\n' "$GATE_CFG" | grep -Eq '^close_gate:[[:space:]]*enforce([[:space:]]|$)'; then
     CLOSE_GATE_MODE="enforce"
   fi
   CLOSE_GATE_FAILED=0
@@ -169,7 +169,7 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
     || cat docs/ai/docs-audit.yaml 2>/dev/null \
     || true)"
   BODY_LINT_MODE="report-only"
-  if printf '%s\n' "$GATE_CFG" | grep -Eq '^[[:space:]]*body_lint:[[:space:]]*enforce([[:space:]]|$)'; then
+  if printf '%s\n' "$GATE_CFG" | grep -Eq '^body_lint:[[:space:]]*enforce([[:space:]]|$)'; then
     BODY_LINT_MODE="enforce"
   fi
   BODY_LINT_FAILED=0

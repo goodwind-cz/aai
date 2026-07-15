@@ -98,6 +98,9 @@ git rm --cached --quiet --ignore-unmatch docs/INDEX.audit.md
 # a 'status: done' frontmatter line, run the offline close gate. Block the commit
 # only when docs/ai/docs-audit.yaml sets close_gate: enforce; otherwise warn and
 # continue (report-only default — absent config or close_gate: report-only never blocks).
+# NOTE (CHANGE-0009 D8): the grep below is a deliberate THIN mirror of the guard
+# dial; the CANONICAL reader of docs-audit.yaml is .aai/scripts/lib/guard-config.mjs
+# (a conformance test asserts the grep pattern and the reader agree on fixtures).
 if [[ -f .aai/scripts/docs-audit.mjs ]]; then
   # SPEC-0013 W1 (SPEC-0011-F2 class): the gate MODE must come from the config
   # that is actually being committed — the STAGED blob when docs-audit.yaml is
@@ -109,7 +112,7 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
     || cat docs/ai/docs-audit.yaml 2>/dev/null \
     || true)"
   CLOSE_GATE_MODE="report-only"
-  if printf '%s\n' "$GATE_CFG" | grep -Eq '^[[:space:]]*close_gate:[[:space:]]*enforce([[:space:]]|$)'; then
+  if printf '%s\n' "$GATE_CFG" | grep -Eq '^close_gate:[[:space:]]*enforce([[:space:]]|$)'; then
     CLOSE_GATE_MODE="enforce"
   fi
   CLOSE_GATE_FAILED=0
@@ -170,7 +173,7 @@ if [[ -f .aai/scripts/docs-audit.mjs ]]; then
     || cat docs/ai/docs-audit.yaml 2>/dev/null \
     || true)"
   BODY_LINT_MODE="report-only"
-  if printf '%s\n' "$GATE_CFG" | grep -Eq '^[[:space:]]*body_lint:[[:space:]]*enforce([[:space:]]|$)'; then
+  if printf '%s\n' "$GATE_CFG" | grep -Eq '^body_lint:[[:space:]]*enforce([[:space:]]|$)'; then
     BODY_LINT_MODE="enforce"
   fi
   BODY_LINT_FAILED=0

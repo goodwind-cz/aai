@@ -206,10 +206,13 @@ fi
 #     TYPE-000N (same type + number, or identical numeric filename prefixes).
 # A clean, fully-numbered tree passes both with exit 0. The allocator engine
 # (`--guard`) is the single source of truth for both predicates.
+# NOTE (CHANGE-0009 D8): this grep is a deliberate THIN mirror of the guard
+# dial; the CANONICAL reader of docs-audit.yaml is .aai/scripts/lib/guard-config.mjs
+# (a conformance test asserts this pattern and the reader agree on fixtures).
 DOC_NUMBER_GUARD="$PROJECT_ROOT/.aai/scripts/allocate-doc-number.mjs"
 if [ -f "$DOC_NUMBER_GUARD" ] && command -v node >/dev/null 2>&1; then
   DN_MODE="report-only"
-  if grep -Eq '^[[:space:]]*doc_number_guard:[[:space:]]*enforce([[:space:]]|$)' \
+  if grep -Eq '^doc_number_guard:[[:space:]]*enforce([[:space:]]|$)' \
        "$PROJECT_ROOT/docs/ai/docs-audit.yaml" 2>/dev/null; then
     DN_MODE="enforce"
   fi

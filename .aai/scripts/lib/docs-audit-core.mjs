@@ -11,7 +11,13 @@ import {
   parseFrontmatter, parseAcTable, parseISODate, parseReviewBy, specFrozenInBody,
   validateCanonicalFrontmatter, asList, toPosix, detectNearMissAcTable,
 } from './docs-model.mjs';
+import { guardConfigPresent } from './guard-config.mjs';
 
+// CONFIG_PATH stays here (audit-core owns its scan root); the PRESENCE probe
+// that flips enforced vs report-only mode is the SHARED one from
+// lib/guard-config.mjs (CHANGE-0009 D8) — the same file also carries the
+// independence/close_gate/doc_number_guard dials read by state.mjs and the
+// pre-commit hooks, so the coupling is documented at one import site.
 export const CONFIG_PATH = 'docs/ai/docs-audit.yaml';
 export const EVENTS_PATH = 'docs/ai/EVENTS.jsonl';
 const SCAN_ROOT = 'docs';
@@ -48,7 +54,7 @@ const OPEN_DECISION_COMMENT_RE = /<!--\s*OPEN-DECISION\s*-->/i;
 
 export function loadConfig(root) {
   const p = path.join(root, CONFIG_PATH);
-  if (!fs.existsSync(p)) return null;
+  if (!guardConfigPresent(path.dirname(p))) return null;
   const cfg = {
     legacy_until_date: null,
     stale_after_days: DEFAULT_STALE_DAYS,

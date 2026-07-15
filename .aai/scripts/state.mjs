@@ -93,7 +93,23 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { TOP_KEY_RE, BLOCK_SCALAR_REST_RE, duplicateKeys, inlineChildConflicts, splitLines, joinLines } from './lib/state-core.mjs';
+import { BLOCK_SCALAR_REST_RE, splitLines } from './lib/state-core.mjs';
+// The block/line engine lives in lib/state-engine.mjs (CHANGE-0009 D5) so
+// metrics-flush.mjs / orchestration-dispatch.mjs share ONE implementation;
+// behavior here is byte-identical to the pre-extraction private functions
+// (the state suite guards the refactor).
+import {
+  setEngineFailPrefix, engineFail, nowIso,
+  loadState, writeState, bumpUpdatedAt,
+  findBlock, editBlock, fieldSpan, fieldRe, scalarLine, indentOf,
+  yq, textFieldLines, listFieldLines,
+  setField, nullFieldIfPresent, appendListItems, readScalar, unquoteScalar,
+  lastImplementerModel,
+} from './lib/state-engine.mjs';
+// Single JS parser of the docs-audit.yaml guard dials (CHANGE-0009 D8).
+import { readGuardConfig } from './lib/guard-config.mjs';
+
+setEngineFailPrefix('state');
 
 // --- closed sets -------------------------------------------------------------
 
@@ -127,12 +143,7 @@ const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const FUTURE_SLACK_MS = 300 * 1000;
 
 function fail(msg, code = 2) {
-  console.error(`state: ${msg}`);
-  process.exit(code);
-}
-
-function nowIso() {
-  return new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+  engineFail(msg, code);   // prints `state: <msg>` (prefix set above)
 }
 
 // --- argv --------------------------------------------------------------------
@@ -260,260 +271,6 @@ function isoFlag(flags, name, cmd, { required = false } = {}) {
   return v;
 }
 
-// --- load / atomic write (D3) ------------------------------------------------
-
-function loadState(statePath) {
-  if (!fs.existsSync(statePath)) fail(`STATE file not found: ${statePath}`);
-  const raw = fs.readFileSync(statePath, 'utf8');   // exact bytes for the pre-rename concurrency recheck
-  const { lines, trailingNewline } = splitLines(raw);
-  const dups = duplicateKeys(lines);
-  if (dups.length > 0) {
-    fail(`refusing to edit ${statePath}: it ALREADY has duplicate top-level key(s) `
-      + `[${dups.map(d => `${d.key} x${d.count}`).join(', ')}] — repair first with: `
-      + `node .aai/scripts/check-state.mjs --repair ${statePath}`, 1);
-  }
-  return { lines, trailingNewline, raw, statePath };
-}
-
-function injectCrash(point) {
-  if (process.env.AAI_STATE_INJECT_CRASH === point) {
-    // Die UNCLEANLY at exactly this point (deterministic kill-mid-write tests).
-    process.kill(process.pid, 'SIGKILL');
-  }
-}
-
-function writeState(statePath, lines, trailingNewline, expectedRaw) {
-  const dups = duplicateKeys(lines);
-  if (dups.length > 0) {
-    fail(`refusing to write ${statePath}: the mutation would create duplicate top-level key(s) `
-      + `[${dups.map(d => d.key).join(', ')}] — original file preserved`, 1);
-  }
-  const conflicts = inlineChildConflicts(lines);
-  if (conflicts.length > 0) {
-    fail(`refusing to write ${statePath}: the mutation would splice child lines under an `
-      + `inline-valued top-level header [${conflicts.map(c => c.key).join(', ')}] (invalid YAML) `
-      + '— original file preserved', 1);
-  }
-  const content = joinLines(lines, trailingNewline);
-  const tmp = `${statePath}.tmp-${process.pid}`;
-  if (process.env.AAI_STATE_INJECT_CRASH === 'during-write') {
-    // Simulate a crash mid-write: partial tmp content, then die. The TARGET is
-    // untouched — rename below is the sole commit point.
-    fs.writeFileSync(tmp, content.slice(0, Math.floor(content.length / 2)));
-    process.kill(process.pid, 'SIGKILL');
-  }
-  fs.writeFileSync(tmp, content);
-  injectCrash('before-rename');
-  if (process.env.AAI_STATE_INJECT_CONCURRENT === 'before-rename') {
-    // Test-only fault hook: simulate a SECOND writer committing between our
-    // load and our rename (deterministic lost-update race).
-    fs.appendFileSync(statePath, '# concurrent-writer marker (test injection)\n');
-  }
-  // Optimistic concurrency recheck (single-writer posture, W4): if the target
-  // no longer matches the bytes captured at load, another writer committed in
-  // between — renaming our stale copy over it would silently LOSE that write.
-  if (expectedRaw !== undefined && fs.readFileSync(statePath, 'utf8') !== expectedRaw) {
-    fs.rmSync(tmp, { force: true });
-    fail(`concurrent modification detected: ${statePath} changed after it was read `
-      + '— no write performed; re-run the command to retry on the fresh file', 1);
-  }
-  fs.renameSync(tmp, statePath);   // atomic on same-filesystem POSIX
-}
-
-function bumpUpdatedAt(lines) {
-  const stamp = `updated_at_utc: ${nowIso()}`;
-  for (let i = 0; i < lines.length; i += 1) {
-    if (/^updated_at_utc:/.test(lines[i])) { lines[i] = stamp; return; }
-  }
-  lines.push(stamp);
-}
-
-// --- block engine (D2) ---------------------------------------------------------
-
-function findBlock(lines, key) {
-  for (let i = 0; i < lines.length; i += 1) {
-    const m = lines[i].match(TOP_KEY_RE);
-    if (!m || m[1] !== key) continue;
-    let end = lines.length;
-    for (let j = i + 1; j < lines.length; j += 1) {
-      const l = lines[j];
-      if (l.startsWith('#') || l.startsWith('---')) continue;
-      if (TOP_KEY_RE.test(l)) { end = j; break; }
-    }
-    return { start: i, end };
-  }
-  return null;
-}
-
-// Ensure a top-level block exists; create it (header + defaultLines) before the
-// real `updated_at_utc:` line (or at EOF) when missing.
-function ensureBlock(lines, key, defaultLines = []) {
-  let b = findBlock(lines, key);
-  if (b) return b;
-  let insertAt = lines.length;
-  for (let i = 0; i < lines.length; i += 1) {
-    if (/^updated_at_utc:/.test(lines[i])) { insertAt = i; break; }
-  }
-  lines.splice(insertAt, 0, `${key}:`, ...defaultLines, '');
-  return findBlock(lines, key);
-}
-
-// Edit one top-level block in place: fn(blockLines) returns the new block lines.
-// Refuses (exit 1) when the block header carries an inline value (`metrics: {}`,
-// `metrics: null`, ...): splicing nested lines under it would write invalid YAML
-// (mapping value given twice) — refuse rather than corrupt (D2 posture; review
-// W2). `opts.allowInline` whitelists a header rest the caller converts itself
-// (e.g. set-phase handles `active_work_items: []`).
-function editBlock(lines, key, fn, defaultLines = [], opts = {}) {
-  const b = ensureBlock(lines, key, defaultLines);
-  const header = lines[b.start];
-  const rest = header.slice(header.indexOf(':') + 1).trim();
-  if (rest !== '' && !rest.startsWith('#') && !(opts.allowInline && opts.allowInline.test(rest))) {
-    fail(`refusing to edit top-level block "${key}": its header carries an inline value `
-      + `(\`${header.trim()}\`) that the line engine cannot safely splice nested lines under `
-      + `— convert it to block form (bare \`${key}:\` header) by hand first; file preserved`, 1);
-  }
-  const blockLines = lines.slice(b.start, b.end);
-  const next = fn(blockLines) ?? blockLines;
-  lines.splice(b.start, b.end - b.start, ...next);
-}
-
-function indentOf(line) {
-  const m = line.match(/^ */);
-  return m ? m[0].length : 0;
-}
-
-// Number of lines the field starting at blockLines[idx] occupies (the field
-// line plus any more-indented continuation lines: `>-` scalars, list items).
-// Blank lines are legal INSIDE block scalars (YAML spec): a blank run belongs
-// to the span only when a MORE-indented continuation follows it — stopping at
-// the first blank orphaned post-blank paragraphs of hand-edited `>-` fields on
-// clear/overwrite (review-20260707T081303Z W2). Otherwise the field ends there.
-function fieldSpan(blockLines, idx, indent) {
-  let n = 1;
-  for (let j = idx + 1; j < blockLines.length; j += 1) {
-    const l = blockLines[j];
-    if (l.trim() === '') {
-      let k = j;
-      while (k < blockLines.length && blockLines[k].trim() === '') k += 1;
-      if (k < blockLines.length && indentOf(blockLines[k]) > indent) {
-        n = k - idx + 1;   // the blank run + its continuation join the span
-        j = k;
-        continue;
-      }
-      break;
-    }
-    if (indentOf(l) > indent) n += 1;
-    else break;
-  }
-  return n;
-}
-
-function fieldRe(indent, name) {
-  return new RegExp(`^ {${indent}}${name}:(\\s|$)`);
-}
-
-function scalarLine(indent, name, value) {
-  return `${' '.repeat(indent)}${name}: ${value}`;
-}
-
-// A plain scalar YAML could misparse: `: ` / trailing `:` (second mapping
-// value), ` #` (comment opener), leading indicator characters, or leading/
-// trailing whitespace. Already-safe values (paths, refs, timestamps, enums)
-// never match, so they stay unquoted and diffs stay minimal (review W3).
-function needsQuoting(v) {
-  if (v === '') return true;
-  if (/^[\s#\[\]{}&*!|>%@`"',]/.test(v)) return true;   // leading indicator char
-  if (/^[?:-](\s|$)/.test(v)) return true;              // `- x` / `? x` / `: x` / bare
-  if (/:(\s|$)/.test(v)) return true;                   // `k: v` inside, or trailing colon
-  if (/\s#/.test(v)) return true;                       // opens a comment mid-value
-  if (/\s$/.test(v)) return true;                       // trailing whitespace
-  return false;
-}
-
-// Quote a USER-SUPPLIED plain-scalar value when needed (single-quoted, `'`
-// doubled). Newlines/control chars cannot live on a single plain-scalar line at
-// all — reject exit 2 before any write (free-text belongs in `>-` fields).
-function yq(value) {
-  const s = String(value);
-  if (/[\r\n\t\0]/.test(s)) {
-    fail(`value ${JSON.stringify(s)} contains a newline/control character — not representable `
-      + 'as a plain scalar field (use a free-text --notes/--rationale style field)');
-  }
-  return needsQuoting(s) ? `'${s.replace(/'/g, "''")}'` : s;
-}
-
-// Free-text values are always written as `>-` block scalars (D2 normalization).
-function textFieldLines(indent, name, text) {
-  const sp = ' '.repeat(indent);
-  const out = [`${sp}${name}: >-`];
-  const segs = String(text).split(/\r?\n/).map(s => s.trim()).filter(s => s !== '');
-  if (segs.length === 0) return [scalarLine(indent, name, 'null')];
-  for (const seg of segs) out.push(`${sp}  ${seg}`);
-  return out;
-}
-
-function listFieldLines(indent, name, items) {
-  if (!items || items.length === 0) return [scalarLine(indent, name, '[]')];
-  const sp = ' '.repeat(indent);
-  const out = [`${sp}${name}:`];
-  for (const it of items) out.push(`${sp}  - ${yq(it)}`);
-  return out;
-}
-
-// Replace (or create at end of block) the field `name` at `indent` inside a
-// top-level block's lines. `newLines` is the full replacement line array.
-function setField(blockLines, indent, name, newLines) {
-  const re = fieldRe(indent, name);
-  for (let i = 1; i < blockLines.length; i += 1) {
-    if (re.test(blockLines[i])) {
-      const n = fieldSpan(blockLines, i, indent);
-      blockLines.splice(i, n, ...newLines);
-      return blockLines;
-    }
-  }
-  let at = blockLines.length;
-  while (at > 1 && (blockLines[at - 1].trim() === '' || blockLines[at - 1].startsWith('#'))) at -= 1;
-  blockLines.splice(at, 0, ...newLines);
-  return blockLines;
-}
-
-// Null a field only when it already exists (used by set-human-input false).
-function nullFieldIfPresent(blockLines, indent, name) {
-  const re = fieldRe(indent, name);
-  for (let i = 1; i < blockLines.length; i += 1) {
-    if (re.test(blockLines[i])) {
-      const n = fieldSpan(blockLines, i, indent);
-      blockLines.splice(i, n, scalarLine(indent, name, 'null'));
-      return blockLines;
-    }
-  }
-  return blockLines;
-}
-
-// Append items to a list field; converts an inline `name: []` to block form;
-// creates the field when missing.
-function appendListItems(blockLines, indent, name, items) {
-  const sp = ' '.repeat(indent);
-  const itemLines = items.map(it => `${sp}  - ${yq(it)}`);
-  const re = fieldRe(indent, name);
-  for (let i = 1; i < blockLines.length; i += 1) {
-    if (!re.test(blockLines[i])) continue;
-    const rest = blockLines[i].slice(blockLines[i].indexOf(':') + 1).trim();
-    if (rest === '[]' || rest === '') {
-      const n = fieldSpan(blockLines, i, indent);
-      const existing = rest === '' ? blockLines.slice(i + 1, i + n) : [];
-      blockLines.splice(i, n, `${sp}${name}:`, ...existing, ...itemLines);
-      return blockLines;
-    }
-    fail(`cannot append to non-empty inline list "${name}: ${rest}" — convert it to block form first`);
-  }
-  let at = blockLines.length;
-  while (at > 1 && (blockLines[at - 1].trim() === '' || blockLines[at - 1].startsWith('#'))) at -= 1;
-  blockLines.splice(at, 0, `${sp}${name}:`, ...itemLines);
-  return blockLines;
-}
-
 // --- field clearing (SPEC-0014 F1 / D1-D2) ------------------------------------
 //
 // `--clear <field,field,...>` on set-worktree / set-code-review /
@@ -597,20 +354,6 @@ function applyClears(blockLines, cmd, fields) {
   return blockLines;
 }
 
-// Read a direct scalar field value from a top-level block ('null' -> null).
-function readScalar(lines, blockKey, field, indent = 2) {
-  const b = findBlock(lines, blockKey);
-  if (!b) return null;
-  const re = fieldRe(indent, field);
-  for (let i = b.start + 1; i < b.end; i += 1) {
-    if (re.test(lines[i])) {
-      const v = lines[i].slice(lines[i].indexOf(':') + 1).trim();
-      return v === '' || v === 'null' ? null : v;
-    }
-  }
-  return null;
-}
-
 // --- validator independence (CHANGE-0010 / spec-model-tiering-with-teeth D2/D3)
 
 // Normalize a model id for the independence comparison: trim, lowercase, strip
@@ -621,88 +364,15 @@ function normalizeModelId(s) {
   return String(s).trim().toLowerCase().replace(/\[[^\]]*\]$/, '');
 }
 
-// Strip one layer of single/double quoting from a scalar read off a YAML line.
-function unquoteScalar(v) {
-  if (v.length >= 2 && v.startsWith("'") && v.endsWith("'")) {
-    return v.slice(1, -1).replace(/''/g, "'");
-  }
-  if (v.length >= 2 && v.startsWith('"') && v.endsWith('"')) return v.slice(1, -1);
-  return v;
-}
-
-// model_id of the LAST run whose role is Implementation or TDD Implementation
-// under metrics.work_items[<ref>].agent_runs (same line engine, no YAML lib).
-// Returns null when metrics/ref/agent_runs/implementer-run is missing — the
-// caller treats null as "skip safely" (never block honest work).
-function lastImplementerModel(lines, ref) {
-  const b = findBlock(lines, 'metrics');
-  if (!b) return null;
-  // Locate the `    <ref>:` entry (exact string compare — ref may be an
-  // arbitrary scalar read back from last_validation.ref_id, never regex it).
-  let e0 = -1;
-  for (let i = b.start + 1; i < b.end; i += 1) {
-    if (lines[i].replace(/\s+$/, '') === `    ${ref}:`) { e0 = i; break; }
-  }
-  if (e0 === -1) return null;
-  let e1 = b.end;
-  for (let j = e0 + 1; j < b.end; j += 1) {
-    const l = lines[j];
-    if (l.trim() === '' || l.trim().startsWith('#')) continue;
-    if (indentOf(l) < 6) { e1 = j; break; }   // next work_items key or dedent
-  }
-  // Locate agent_runs within the entry; inline `agent_runs: []` = no runs.
-  let arIdx = -1;
-  for (let i = e0 + 1; i < e1; i += 1) {
-    if (/^ {6}agent_runs:\s*$/.test(lines[i])) { arIdx = i; break; }
-    if (/^ {6}agent_runs:\s*\S/.test(lines[i])) return null;   // inline [] / scalar
-  }
-  if (arIdx === -1) return null;
-  // Scan run items: `        - role: X` starts a run, `          model_id: Y`
-  // belongs to the current run. Keep the last Implementation-role model.
-  let currentRole = null;
-  let lastImplModel = null;
-  for (let i = arIdx + 1; i < e1; i += 1) {
-    const l = lines[i];
-    if (l.trim() === '') continue;
-    if (indentOf(l) < 8) break;
-    let m = l.match(/^ {8}- role:\s*(.*)$/);
-    if (m) { currentRole = unquoteScalar(m[1].trim()); continue; }
-    m = l.match(/^ {10}model_id:\s*(.*)$/);
-    if (m && (currentRole === 'Implementation' || currentRole === 'TDD Implementation')) {
-      const v = unquoteScalar(m[1].trim());
-      if (v !== '' && v !== 'null') lastImplModel = v;
-    }
-  }
-  return lastImplModel;
-}
-
 // Read the `independence:` guard dial from the committed guard-policy file
-// sibling to the STATE file (D3: <dirname(statePath)>/docs-audit.yaml, the same
-// column-0 line scan used on STATE). Default when the file, the key, or a
-// valid value is absent: report-only (fail-open to warn — enforcement must not
-// block single-model environments unless explicitly opted in).
+// sibling to the STATE file (D3: <dirname(statePath)>/docs-audit.yaml) via the
+// SHARED reader lib/guard-config.mjs (CHANGE-0009 D8 — one JS parser, no fork).
+// Default when the file, the key, or a valid value is absent: report-only
+// (fail-open to warn — enforcement must not block single-model environments
+// unless explicitly opted in). Invalid values warn on stderr (review W1).
 function readIndependencePolicy(statePath) {
-  const cfgPath = path.join(path.dirname(statePath), 'docs-audit.yaml');
-  let raw;
-  try {
-    raw = fs.readFileSync(cfgPath, 'utf8');
-  } catch {
-    return { policy: 'report-only', cfgPath };
-  }
-  for (const line of raw.split(/\r?\n/)) {
-    const m = line.match(/^independence:\s*([^\s#]+)/);
-    if (m) {
-      // Review W1 (CHANGE-0010): a present-but-invalid value (e.g. "enforced",
-      // quoted, capitalized) falls open to report-only per the SPEC — but say
-      // so, or an operator who typoed the key believes enforcement is on.
-      if (m[1] !== 'enforce' && m[1] !== 'report-only') {
-        console.error(`state: WARNING independence value "${m[1]}" in ${cfgPath} is not `
-          + '"enforce" or "report-only" — treating as report-only (fail-open default)');
-      }
-      return { policy: m[1] === 'enforce' ? 'enforce' : 'report-only', cfgPath };
-    }
-  }
-  return { policy: 'report-only', cfgPath };
+  const cfg = readGuardConfig(path.dirname(statePath), { warnPrefix: 'state' });
+  return { policy: cfg.independence, cfgPath: cfg.cfgPath };
 }
 
 // --- subcommands ---------------------------------------------------------------

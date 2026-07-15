@@ -384,6 +384,76 @@ test_030_auto_trigger_deprecation() {  # SPEC-0014 TEST-008 / Spec-AC-06 (CHANGE
   log_pass "Auto-trigger deprecation wired: notice + 3 wrappers + USER_GUIDE + AGENTS.md + catalog; repo grep reality-aligned (SPEC-0014 TEST-008)"
 }
 
+test_031_guard_config_conformance() {  # CHANGE-0009 TEST-018 / Spec-AC-09
+  log_info "Test: shared guard-config reader agrees with the pre-commit shell greps on fixture configs (CHANGE-0009 TEST-018)..."
+  local lib="$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs"
+  local sh_hook="$PROJECT_ROOT/.aai/scripts/pre-commit-checks.sh"
+  local ps_hook="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1"
+  [[ -f "$lib" ]] || log_fail "missing shared reader $lib (RED until CHANGE-0009 lands)"
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+
+  # The deliberate thin greps must name the shared reader as canonical so the
+  # coupling is documented at the fork site (SPEC-0018 W2 / CHANGE-0009 D8).
+  grep -qF "lib/guard-config.mjs" "$sh_hook" \
+    || log_fail "pre-commit-checks.sh must name lib/guard-config.mjs as the canonical reader"
+  grep -qF "lib/guard-config.mjs" "$ps_hook" \
+    || log_fail "install-pre-commit-hook.ps1 must name lib/guard-config.mjs as the canonical reader"
+
+  # Extract the ACTUAL grep -Eq patterns from the hooks (drift in either side
+  # now fails this test instead of diverging silently).
+  local dn_pat cg_pat
+  dn_pat="$(awk -F"'" '/grep -Eq/ && /doc_number_guard:/ { print $(NF-1); exit }' "$sh_hook")"
+  cg_pat="$(awk -F"'" '/grep -Eq/ && /close_gate:/ { print $(NF-1); exit }' "$ps_hook")"
+  [[ -n "$dn_pat" ]] || log_fail "could not extract the doc_number_guard grep pattern from pre-commit-checks.sh"
+  [[ -n "$cg_pat" ]] || log_fail "could not extract the close_gate grep pattern from install-pre-commit-hook.ps1"
+
+  TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"
+  local d="$TEST_DIR/t31"
+  mkdir -p "$d"
+
+  reader_verdict() {  # $1 dir, $2 key -> enforce|report-only
+    (cd "$PROJECT_ROOT" && node --input-type=module -e '
+      import { readGuardConfig } from "./.aai/scripts/lib/guard-config.mjs";
+      const g = readGuardConfig(process.argv[1], { warn: () => {} });
+      console.log(g[process.argv[2]]);
+    ' "$1" "$2")
+  }
+
+  check_variant() {  # $1 label, $2 key, $3 pattern, $4 config-content ('' = absent file)
+    local label="$1" key="$2" pat="$3" content="$4"
+    rm -f "$d/docs-audit.yaml"
+    [[ -n "$content" ]] && printf '%s\n' "$content" > "$d/docs-audit.yaml"
+    local want="report-only"
+    if [[ -f "$d/docs-audit.yaml" ]] && grep -Eq "$pat" "$d/docs-audit.yaml" 2>/dev/null; then
+      want="enforce"
+    fi
+    local got
+    got="$(reader_verdict "$d" "$key")"
+    [[ "$got" == "$want" ]] \
+      || log_fail "conformance drift on '$label' ($key): shell grep says $want, reader says $got"
+  }
+
+  local key pat
+  for key in close_gate doc_number_guard; do
+    pat="$cg_pat"
+    [[ "$key" == "doc_number_guard" ]] && pat="$dn_pat"
+    check_variant "absent file" "$key" "$pat" ""
+    check_variant "absent key" "$key" "$pat" "legacy_until_date: 2026-06-12"
+    check_variant "enforce" "$key" "$pat" "$key: enforce"
+    check_variant "report-only" "$key" "$pat" "$key: report-only"
+    check_variant "trailing comment" "$key" "$pat" "$key: enforce  # note"
+    check_variant "commented out" "$key" "$pat" "# $key: enforce"
+    check_variant "invalid value" "$key" "$pat" "$key: enforced"
+    # Review CHANGE-0009 W2 variants: these four used to diverge (or were
+    # untested) between the hooks' greps and the shared reader.
+    check_variant "indented key" "$key" "$pat" "  $key: enforce"
+    check_variant "glued comment" "$key" "$pat" "$key: enforce# note"
+    check_variant "quoted value" "$key" "$pat" "$key: \"enforce\""
+    check_variant "CRLF line" "$key" "$pat" "$key: enforce"$'\r'
+  done
+  log_pass "Shared reader and shell grep patterns agree on all fixture variants (CHANGE-0009 TEST-018)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -398,6 +468,7 @@ main() {
   test_018_skill_meta_loader
   test_022_pr_review_companions
   test_030_auto_trigger_deprecation
+  test_031_guard_config_conformance
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
