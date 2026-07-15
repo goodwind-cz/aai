@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-15T21:24:30.790Z
+Generated: 2026-07-15T21:30:48.010Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -21,7 +21,7 @@ _None._
 
 _None._
 
-## Done (36)
+## Done (37)
 
 | ID | Type | Path |
 |---|---|---|
@@ -39,6 +39,7 @@ _None._
 | ISSUE-0003 | issues | docs/issues/ISSUE-0003-index-autogen-bakes-stale-drift-row.md |
 | ISSUE-0004 | issues | docs/issues/ISSUE-0004-state-duplicate-metrics-key-silently-shadows-data.md |
 | ISSUE-0005 | issues | docs/issues/ISSUE-0005-ac-status-qualifier-skips-whole-doc-from-index.md |
+| ISSUE-0006 | issues | docs/issues/ISSUE-0006-per-type-digit-width.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -70,7 +71,7 @@ _None._
 | CHANGE-0010 | issues | docs/issues/CHANGE-0010-model-tiering-with-teeth.md |
 | CHANGE-0011 | issues | docs/issues/CHANGE-0011-prompt-layer-diet-phase-1.md |
 | CHANGE-0012 | issues | docs/issues/CHANGE-0012-slug-refs-across-tooling.md |
-| ISSUE-0006 | issues | docs/issues/ISSUE-0006-per-type-digit-width.md |
+| ISSUE-0007 | issues | docs/issues/ISSUE-0007-state-list-append-indent.md |
 | SPEC-0017 | specs | docs/specs/SPEC-0017-spec-prompt-layer-diet-phase-1.md |
 
 ## Deferred (whole-doc) (0)
