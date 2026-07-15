@@ -1,0 +1,78 @@
+name: docs-numbering
+
+# CI mirror of the parallel-safe doc-numbering guards (SPEC-0015 / RFC-0007 D6:
+# the guards are "mirrored in CI"; D3 lists a "CI mirror in .github/workflows/").
+# It runs the SAME predicates the local pre-commit host runs — the allocator's
+# `--guard` (no-DRAFT-at-merge + duplicate-number) plus the docs-audit strict
+# check — against the pushed / PR tree.
+#
+# REPORT-ONLY by default: the guards' documented default is report-only
+# (docs/ai/docs-audit.yaml `doc_number_guard: report-only`), so a violation is
+# SURFACED but never blocks the PR. The guard step uses `continue-on-error: true`
+# and the summary step always succeeds. Flip to enforce when
+# docs/ai/docs-audit.yaml sets `doc_number_guard: enforce`: the "enforce gate"
+# step below reads that key and fails the job only then.
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  guards:
+    name: doc-numbering guards (report-only unless enforced)
+    runs-on: ubuntu-latest
+    steps:
+      # Full history so the allocator/guard can read the base ref via git.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Report-only: never fails the job. Captures the guard output for the summary
+      # and the enforce gate below.
+      - name: Doc-numbering guards (report-only)
+        id: guards
+        continue-on-error: true
+        run: |
+          set +e
+          echo "== allocate-doc-number.mjs --guard =="
+          node .aai/scripts/allocate-doc-number.mjs --guard
+          guard_rc=$?
+          echo "== docs-audit.mjs --check --strict --no-event =="
+          node .aai/scripts/docs-audit.mjs --check --strict --no-event
+          audit_rc=$?
+          echo "guard_rc=$guard_rc" >> "$GITHUB_OUTPUT"
+          echo "audit_rc=$audit_rc" >> "$GITHUB_OUTPUT"
+          if [ "$guard_rc" -ne 0 ] || [ "$audit_rc" -ne 0 ]; then
+            echo "::warning::doc-numbering guards found violations (report-only; not blocking). guard_rc=$guard_rc audit_rc=$audit_rc"
+          else
+            echo "doc-numbering guards clean."
+          fi
+          exit 0
+
+      # Enforce gate: fails the job ONLY when docs/ai/docs-audit.yaml opts in with
+      # `doc_number_guard: enforce`. Default (report-only) is a no-op pass.
+      - name: "Enforce gate (only when doc_number_guard: enforce)"
+        run: |
+          mode="report-only"
+          if grep -Eq '^[[:space:]]*doc_number_guard:[[:space:]]*enforce([[:space:]]|$)' \
+               docs/ai/docs-audit.yaml 2>/dev/null; then
+            mode="enforce"
+          fi
+          echo "doc_number_guard mode: $mode"
+          if [ "$mode" = "enforce" ]; then
+            if [ "${{ steps.guards.outputs.guard_rc }}" != "0" ] || \
+               [ "${{ steps.guards.outputs.audit_rc }}" != "0" ]; then
+              echo "::error::doc-numbering guards failed and doc_number_guard: enforce — blocking."
+              exit 1
+            fi
+          fi
+          echo "enforce gate: pass (mode=$mode)"

@@ -1,5 +1,5 @@
 ---
-id: rfc-<slug>
+id: <slug>
 type: rfc
 number: null
 status: draft
@@ -12,7 +12,7 @@ links:
 # RFC (Decision Proposal)
 
 <!-- SPEC-0015 / RFC-0007 — Parallel-safe doc identity:
-  - `id` is the durable SLUG PRIMARY KEY (e.g. `rfc-parallel-safe-doc-numbering`),
+  - `id` is the durable SLUG PRIMARY KEY (e.g. `parallel-safe-doc-numbering`),
     assigned at intake and NEVER changed. Every in-branch cross-reference uses it.
   - `number` is null at intake; the sequential integer is assigned at MERGE by
     `.aai/scripts/allocate-doc-number.mjs`, which renames the file to

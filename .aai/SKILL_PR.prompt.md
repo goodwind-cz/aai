@@ -31,14 +31,18 @@ PROCESS
 
 1b. NUMBER DRAFTS (SPEC-0015 / RFC-0007) — run the allocator BEFORE staging:
    - Fetch the base ref, then run the merge-time number allocator so every
-     unnumbered DRAFT doc in scope gets its sequential `TYPE-000N` number derived
+     unnumbered DRAFT doc IN SCOPE gets its sequential `TYPE-000N` number derived
      from the base ref (never a working-tree-only guess — that is the collision
-     bug RFC-0007 fixes):
-       node .aai/scripts/allocate-doc-number.mjs --all --base-ref origin/<base>
-     (or `--path docs/<type>/<TYPE>-DRAFT-<slug>.md` per draft). The allocator
-     renames each `*-DRAFT-*.md` to `<TYPE>-000N-<slug>.md`, stamps `number: N`
-     (leaving the slug `id` unchanged), rewrites in-repo references, and
-     regenerates docs/INDEX.md.
+     bug RFC-0007 fixes).
+   - Iterate ONLY the DRAFT docs from the step-1 in-scope file list and run the
+     allocator once PER in-scope draft with an explicit `--path` (never a blanket
+     `--all`): a bare `--all` would rename+stage any out-of-scope `*-DRAFT-*.md`
+     left behind in inline mode (step 1 explicitly permits out-of-scope-left-behind
+     files), pulling them into this scope. For each in-scope draft:
+       node .aai/scripts/allocate-doc-number.mjs --path docs/<type>/<TYPE>-DRAFT-<slug>.md --base-ref origin/<base>
+     The allocator renames that `*-DRAFT-*.md` to `<TYPE>-000N-<slug>.md`, stamps
+     `number: N` (leaving the slug `id` unchanged), rewrites in-repo references,
+     and regenerates docs/INDEX.md.
    - Update the in-scope file list: DROP the old `*-DRAFT-*` path and ADD the
      resulting `<TYPE>-000N-<slug>.md` path (plus docs/INDEX.md as an expected
      companion).

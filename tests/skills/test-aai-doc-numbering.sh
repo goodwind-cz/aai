@@ -247,6 +247,23 @@ test_005_exit_codes() {
   local rc=$?
   set -e
   [[ "$rc" -eq 2 ]] || log_fail "unknown flag must exit 2 (got $rc)"
+  # stray POSITIONAL arg -> 2, no writes (FIX 1: parseArgs _extra bug)
+  local pos_before; pos_before="$(ls "$d/docs/rfc" | sort | tr '\n' ',')"
+  set +e
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs stray-positional > pos.log 2>&1)
+  rc=$?
+  set -e
+  [[ "$rc" -eq 2 ]] || log_fail "stray positional arg must exit 2 (got $rc): $(cat "$d/pos.log")"
+  local pos_after; pos_after="$(ls "$d/docs/rfc" | sort | tr '\n' ',')"
+  [[ "$pos_before" == "$pos_after" ]] || log_fail "stray positional must not write (dir changed)"
+  # neither --path nor --all -> 2 with guidance (FIX 4: --all semantics)
+  set +e
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --base-ref main > noselect.log 2>&1)
+  rc=$?
+  set -e
+  [[ "$rc" -eq 2 ]] || log_fail "path-less call without --all must exit 2 (got $rc): $(cat "$d/noselect.log")"
+  grep -qiE 'specify --path|--all' "$d/noselect.log" \
+    || log_fail "no-selection error must guide toward --path/--all"
   # base ref unreachable -> 3, DRAFT byte-identical
   (cd "$d" && git checkout -q -b feature/x)
   write_draft "$d" rfc RFC unreachable-topic
@@ -346,8 +363,10 @@ test_007_no_draft_guard() {
   # clean numbered tree -> guard exit 0
   (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --guard > guard-clean.log 2>&1) \
     || log_fail "guard must exit 0 on a fully-numbered tree: $(cat "$d/guard-clean.log")"
-  # add a DRAFT -> guard exit non-zero naming the draft
+  # add a DRAFT -> guard exit non-zero naming the draft. The guard checks the
+  # STAGED/MERGED tree (SPEC-0015 D6), so the draft must be git-added to be seen.
   write_draft "$d" rfc RFC still-a-draft
+  (cd "$d" && git add docs/rfc/RFC-DRAFT-still-a-draft.md)
   set +e
   (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --guard > guard-draft.log 2>&1)
   local rc=$?
@@ -389,6 +408,8 @@ links:
 ---
 # Beta
 MD
+  # guard checks the STAGED/MERGED tree (SPEC-0015 D6): stage the colliding pair.
+  (cd "$d" && git add docs/rfc/RFC-0007-alpha.md docs/rfc/RFC-0007-beta.md)
   set +e
   (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --guard > guard-dup.log 2>&1)
   local rc=$?
@@ -489,6 +510,8 @@ links:
 ---
 # Two
 MD
+  # guard checks the STAGED/MERGED tree (SPEC-0015 D6): stage the colliding pair.
+  (cd "$d" && git add docs/rfc/RFC-0007-one.md docs/rfc/RFC-0007-two.md)
   set +e
   (cd "$d" && node .aai/scripts/guard-only.mjs --guard > guard.log 2>&1)
   local rc=$?
@@ -558,9 +581,15 @@ test_012_wiring() {
   local pr="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
   local intake="$PROJECT_ROOT/.aai/SKILL_INTAKE.prompt.md"
   assert_file "$pr"; assert_file "$intake"
-  # SKILL_PR invokes the allocator before staging
+  # SKILL_PR invokes the allocator before staging, per in-scope --path (FIX 7):
+  # a blanket --all would sweep in out-of-scope drafts left behind in inline mode.
   grep -qF "allocate-doc-number.mjs" "$pr" \
     || log_fail "SKILL_PR must invoke allocate-doc-number.mjs"
+  grep -qE "allocate-doc-number\.mjs.*--path" "$pr" \
+    || log_fail "SKILL_PR must invoke the allocator per in-scope --path"
+  if grep -qE "allocate-doc-number\.mjs.*--all" "$pr"; then
+    log_fail "SKILL_PR must NOT invoke the allocator with a blanket --all (out-of-scope sweep)"
+  fi
   # SKILL_INTAKE (+ INTAKE_*) create *-DRAFT-* with number: null
   grep -qF "DRAFT" "$intake" || log_fail "SKILL_INTAKE must reference the DRAFT filename convention"
   grep -qF "number: null" "$intake" || log_fail "SKILL_INTAKE must set number: null on intake"
@@ -586,7 +615,18 @@ test_012_wiring() {
   assert_file "$host"
   grep -qiE "no-?draft|DRAFT" "$host" || log_fail "pre-commit host must reference the no-DRAFT guard"
   grep -qiE "duplicate.?number|--guard" "$host" || log_fail "pre-commit host must reference the duplicate-number guard"
-  log_pass "TEST-012 wiring present across PR/intake/templates/pre-commit host"
+  # CI mirror of the guards (FIX 8 / SPEC-0015 D6 "mirrored in CI")
+  local wf="$PROJECT_ROOT/.github/workflows/docs-numbering.yml"
+  assert_file "$wf"
+  grep -qF "allocate-doc-number.mjs --guard" "$wf" \
+    || log_fail "CI workflow must run the allocator --guard"
+  grep -qF "docs-audit.mjs" "$wf" \
+    || log_fail "CI workflow must run docs-audit --check"
+  grep -qF "fetch-depth: 0" "$wf" \
+    || log_fail "CI workflow must checkout full history (fetch-depth: 0)"
+  grep -qiE "continue-on-error:[[:space:]]*true|report-only" "$wf" \
+    || log_fail "CI workflow must be report-only by default (non-blocking)"
+  log_pass "TEST-012 wiring present across PR/intake/templates/pre-commit host/CI mirror"
 }
 
 # --- TEST-013: regression backstop ------------------------------------------
@@ -606,6 +646,82 @@ test_013_regression() {
   diff -q "$TEST_DIR/repo-run1.snap" "$TEST_DIR/repo-run2.snap" >/dev/null \
     || log_fail "repo index must be byte-idempotent modulo Generated"
   log_pass "TEST-013 repo docs-audit CLEAN + index byte-idempotent"
+}
+
+# --- TEST-014: CRLF frontmatter preserved on stamp -------------------------
+test_014_crlf_stamp() {
+  log_info "TEST-014: a CRLF DRAFT is stamped and its \\r\\n endings preserved byte-for-byte..."
+  local d; d="$(setup_iso_repo t014)"
+  seed_rfcs "$d" 6
+  (cd "$d" && git checkout -q -b feature/crlf)
+  # Build a DRAFT with CRLF (\r\n) line endings byte-for-byte (%b interprets \r\n).
+  printf '%b' '---\r\nid: crlf-topic\r\ntype: rfc\r\nnumber: null\r\nstatus: draft\r\nlinks:\r\n  pr: []\r\n---\r\n# CRLF draft body\r\nSecond line\r\n' \
+    > "$d/docs/rfc/RFC-DRAFT-crlf-topic.md"
+  # sanity: the fixture really is CRLF (equal \r and \n counts, both > 0)
+  local cr0 lf0
+  cr0="$(tr -cd '\r' < "$d/docs/rfc/RFC-DRAFT-crlf-topic.md" | wc -c | tr -d ' ')"
+  lf0="$(tr -cd '\n' < "$d/docs/rfc/RFC-DRAFT-crlf-topic.md" | wc -c | tr -d ' ')"
+  [[ "$cr0" == "$lf0" && "$cr0" -gt 0 ]] || log_fail "fixture must be CRLF (cr=$cr0 lf=$lf0)"
+  (cd "$d" && git add docs/rfc && git commit -qm "docs: crlf draft" >/dev/null)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/rfc/RFC-DRAFT-crlf-topic.md --base-ref main > crlf.log 2>&1) \
+    || log_fail "allocator must stamp a CRLF draft (not silently skip): $(cat "$d/crlf.log")"
+  local out="$d/docs/rfc/RFC-0007-crlf-topic.md"
+  assert_file "$out"
+  [[ ! -f "$d/docs/rfc/RFC-DRAFT-crlf-topic.md" ]] || log_fail "CRLF DRAFT must be renamed away"
+  # number stamped (the bug: a CRLF file silently returned null -> no number)
+  grep -qF "number: 7" "$out" || log_fail "CRLF draft must be stamped number: 7"
+  grep -qF "id: crlf-topic" "$out" || log_fail "id must stay the slug"
+  grep -qF "# CRLF draft body" "$out" || log_fail "body must be preserved"
+  # CRLF preserved byte-for-byte: every \n still paired with a \r, none dropped.
+  local cr1 lf1
+  cr1="$(tr -cd '\r' < "$out" | wc -c | tr -d ' ')"
+  lf1="$(tr -cd '\n' < "$out" | wc -c | tr -d ' ')"
+  [[ "$cr1" == "$lf1" ]] || log_fail "CRLF must be preserved after stamp (cr=$cr1 lf=$lf1 — a bare LF leaked)"
+  # the fixture already carried `number: null`, so stampNumber REPLACES that line
+  # in place (no line added/removed): the CRLF count is unchanged byte-for-byte.
+  [[ "$cr1" -eq "$cr0" ]] || log_fail "in-place number replace must not change line count (cr0=$cr0 cr1=$cr1)"
+  # INSERT branch: a CRLF draft with NO `number` field -> number inserted after id
+  # with a CRLF-terminated line (not a bare LF).
+  printf '%b' '---\r\nid: crlf-insert\r\ntype: rfc\r\nstatus: draft\r\nlinks:\r\n  pr: []\r\n---\r\n# body\r\n' \
+    > "$d/docs/rfc/RFC-DRAFT-crlf-insert.md"
+  local cr2; cr2="$(tr -cd '\r' < "$d/docs/rfc/RFC-DRAFT-crlf-insert.md" | wc -c | tr -d ' ')"
+  (cd "$d" && git add docs/rfc && git commit -qm "docs: crlf insert draft" >/dev/null)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/rfc/RFC-DRAFT-crlf-insert.md --base-ref main > crlf2.log 2>&1) \
+    || log_fail "allocator must stamp a CRLF draft with no number field: $(cat "$d/crlf2.log")"
+  local out2="$d/docs/rfc/RFC-0008-crlf-insert.md"
+  assert_file "$out2"
+  grep -qF "number: 8" "$out2" || log_fail "inserted number must be 8"
+  local cr3 lf3
+  cr3="$(tr -cd '\r' < "$out2" | wc -c | tr -d ' ')"
+  lf3="$(tr -cd '\n' < "$out2" | wc -c | tr -d ' ')"
+  [[ "$cr3" == "$lf3" ]] || log_fail "inserted number line must be CRLF-terminated (cr=$cr3 lf=$lf3 — bare LF leaked)"
+  [[ "$cr3" -eq $((cr2 + 1)) ]] || log_fail "insert must add exactly one CRLF line (cr2=$cr2 cr3=$cr3)"
+  rm -rf "$d"
+  log_pass "TEST-014 CRLF draft stamped (replace + insert), \\r\\n endings preserved byte-for-byte"
+}
+
+# --- TEST-015: guard honors the staged/merged tree --------------------------
+test_015_guard_staged_only() {
+  log_info "TEST-015: an UNTRACKED draft does NOT trip the guard; a STAGED draft does..."
+  local d; d="$(setup_iso_repo t015)"
+  seed_rfcs "$d" 6   # tracked + committed -> clean numbered tree
+  # (a) a purely-untracked local draft must NOT trip the guard (SPEC-0015 D6:
+  # the guard checks the staged/merged tree, not the raw working dir).
+  write_draft "$d" rfc RFC untracked-draft
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --guard > guard-untracked.log 2>&1) \
+    || log_fail "an UNTRACKED draft must NOT trip the guard: $(cat "$d/guard-untracked.log")"
+  # (b) once STAGED, the same draft must trip the guard, naming it.
+  (cd "$d" && git add docs/rfc/RFC-DRAFT-untracked-draft.md)
+  set +e
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --guard > guard-staged.log 2>&1)
+  local rc=$?
+  set -e
+  [[ "$rc" -ne 0 ]] || log_fail "a STAGED draft must trip the guard"
+  assert_contains "$d/guard-staged.log" "RFC-DRAFT-untracked-draft"
+  rm -rf "$d"
+  log_pass "TEST-015 guard honors staged/merged tree (untracked ignored, staged caught)"
 }
 
 main() {
@@ -629,6 +745,8 @@ main() {
   test_011_backfill
   test_012_wiring
   test_013_regression
+  test_014_crlf_stamp
+  test_015_guard_staged_only
 
   echo ""
   echo "All doc-numbering tests passed."

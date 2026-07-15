@@ -136,17 +136,22 @@ export function numberFromFrontmatter(fm) {
 
 // Stamp `number: N` into a doc's frontmatter, preserving all other bytes.
 // Replaces an existing `number:` line, else inserts one right after `id:`.
+// EOL-agnostic: detects whether the frontmatter block uses LF or CRLF and
+// preserves the file's existing line endings byte-for-byte (a CRLF `---\r\n…`
+// draft is stamped exactly like an LF one — SPEC-0015 CRLF preservation).
 export function stampNumber(content, n) {
-  if (!content.startsWith('---\n')) return null;
-  const fmEnd = content.indexOf('\n---', 4);
+  const open = content.match(/^---(\r?\n)/);
+  if (!open) return null;
+  const eol = open[1]; // '\n' or '\r\n'
+  const fmEnd = content.indexOf(`${eol}---`, open[0].length);
   if (fmEnd < 0) return null;
   const head = content.slice(0, fmEnd);
   const rest = content.slice(fmEnd);
-  if (/\n[ \t]*number:[^\n]*/.test(head)) {
-    return head.replace(/(\n[ \t]*number:)[^\n]*/, `$1 ${n}`) + rest;
+  if (/(\r?\n)[ \t]*number:[^\r\n]*/.test(head)) {
+    return head.replace(/((\r?\n)[ \t]*number:)[^\r\n]*/, `$1 ${n}`) + rest;
   }
-  if (/\n[ \t]*id:[^\n]*/.test(head)) {
-    return head.replace(/(\n[ \t]*id:[^\n]*)/, `$1\nnumber: ${n}`) + rest;
+  if (/(\r?\n)[ \t]*id:[^\r\n]*/.test(head)) {
+    return head.replace(/(\r?\n[ \t]*id:[^\r\n]*)/, `$1${eol}number: ${n}`) + rest;
   }
   return null;
 }
@@ -209,6 +214,38 @@ function localNumbers(root, dir, prefix) {
 
 function isDraftBasename(base) {
   return /-DRAFT-/.test(base);
+}
+
+// True when `root` is inside a git work tree.
+function isGitWorkTree(root) {
+  return git(root, ['rev-parse', '--is-inside-work-tree']) === 'true';
+}
+
+// Governed doc files to evaluate for the guards (SPEC-0015 D6: the STAGED/MERGED
+// tree). Inside a git work tree we enumerate the git-tracked + staged-add set via
+// `git ls-files` so purely-untracked local drafts never trip the guard; content
+// is still read from the working tree. Not a git repo -> fs walk (degrade-and-report).
+function guardDocFiles(root) {
+  if (isGitWorkTree(root)) {
+    const specs = GOVERNED_DIRS.map((d) => `docs/${d}`);
+    const listing = git(root, ['ls-files', '--', ...specs]);
+    const files = [];
+    if (listing) {
+      for (const line of listing.split('\n')) {
+        if (line.endsWith('.md')) files.push(line);
+      }
+    }
+    return files;
+  }
+  const files = [];
+  for (const dir of GOVERNED_DIRS) {
+    const abs = path.join(root, 'docs', dir);
+    if (!fs.existsSync(abs)) continue;
+    for (const f of fs.readdirSync(abs)) {
+      if (f.endsWith('.md')) files.push(`docs/${dir}/${f}`);
+    }
+  }
+  return files;
 }
 
 function findAllDrafts(root) {
@@ -276,7 +313,7 @@ function parseArgs(argv) {
       case '-h': case '--help': opts.help = true; break;
       default:
         if (tok.startsWith('--')) { opts._badFlag = tok; }
-        else { opts._extra = (opts._extra || []).push?.(tok); }
+        else { (opts._extra ||= []).push(tok); }
     }
   }
   return opts;
@@ -292,28 +329,25 @@ function die(code, msg) {
 function runGuard(root) {
   const drafts = [];
   const byDisplay = new Map(); // "PREFIX-000N" -> [{rel, id}]
-  for (const dir of GOVERNED_DIRS) {
-    const abs = path.join(root, 'docs', dir);
-    if (!fs.existsSync(abs)) continue;
-    for (const f of fs.readdirSync(abs)) {
-      if (!f.endsWith('.md')) continue;
-      const rel = `docs/${dir}/${f}`;
-      const content = fs.readFileSync(path.join(abs, f), 'utf8');
-      const fm = parseFrontmatter(content);
-      const prefix = prefixFromBasename(f);
-      const fmNum = numberFromFrontmatter(fm);
-      // no-DRAFT-at-merge predicate
-      if (isDraftBasename(f) || (fm && 'number' in fm && fmNum == null && prefix)) {
-        drafts.push(rel);
-        continue;
-      }
-      // duplicate-number predicate
-      const num = fmNum ?? numberFromBasename(f);
-      if (prefix && num != null) {
-        const key = displayId(prefix, num);
-        if (!byDisplay.has(key)) byDisplay.set(key, []);
-        byDisplay.get(key).push({ rel, id: fm?.id ?? path.basename(f, '.md') });
-      }
+  for (const rel of guardDocFiles(root)) {
+    const abs = path.join(root, rel);
+    if (!fs.existsSync(abs)) continue; // read content from the working tree
+    const f = path.basename(rel);
+    const content = fs.readFileSync(abs, 'utf8');
+    const fm = parseFrontmatter(content);
+    const prefix = prefixFromBasename(f);
+    const fmNum = numberFromFrontmatter(fm);
+    // no-DRAFT-at-merge predicate
+    if (isDraftBasename(f) || (fm && 'number' in fm && fmNum == null && prefix)) {
+      drafts.push(rel);
+      continue;
+    }
+    // duplicate-number predicate
+    const num = fmNum ?? numberFromBasename(f);
+    if (prefix && num != null) {
+      const key = displayId(prefix, num);
+      if (!byDisplay.has(key)) byDisplay.set(key, []);
+      byDisplay.get(key).push({ rel, id: fm?.id ?? path.basename(f, '.md') });
     }
   }
   let violations = 0;
@@ -378,18 +412,24 @@ function findNumberedDocs(root) {
 
 // Normal allocation: number the selected DRAFT(s) from the base ref.
 function runAllocate(root, opts) {
+  // Selection (SPEC-0015 D3): the explicit --path, else (--all) every
+  // docs/*/*-DRAFT-*.md. Neither given is a usage error — a path-less call must
+  // opt into the blanket rename with --all (so it can never silently sweep in
+  // out-of-scope drafts left behind by an inline run).
   let drafts;
   if (opts.path) {
     const base = path.basename(opts.path);
     if (!isDraftBasename(base)) die(2, `--path is not a DRAFT doc (needs <TYPE>-DRAFT-<slug>.md): ${opts.path}`);
     if (!fs.existsSync(path.join(root, opts.path))) die(2, `--path not found: ${opts.path}`);
     drafts = [opts.path];
-  } else {
+  } else if (opts.all) {
     drafts = findAllDrafts(root);
     if (drafts.length === 0) {
       console.log('allocate: no DRAFT docs present — nothing to do.');
       return; // clean no-op (exit 0)
     }
+  } else {
+    die(2, 'nothing selected: specify --path <draft> or --all (SPEC-0015 D3). No writes.');
   }
 
   // Resolve the base ref (best-effort fetch + rev-parse). Unreachable -> exit 3,
@@ -452,6 +492,10 @@ function main() {
     process.exit(0);
   }
   if (opts._badFlag) die(2, `unknown flag "${opts._badFlag}"`);
+  if (opts._extra && opts._extra.length) {
+    die(2, `unexpected positional argument(s): ${opts._extra.join(' ')}\n` +
+      'Usage: allocate-doc-number.mjs [--path <draft>] [--type <t>] [--base-ref <ref>] [--all] [--backfill] [--dry-run] [--guard]');
+  }
   if (opts.type != null) { try { resolveType(opts.type); } catch (e) { die(2, e.message); } }
   const root = process.cwd();
   if (opts.guard) return runGuard(root);
