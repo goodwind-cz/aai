@@ -1,6 +1,7 @@
 ---
 name: aai-flush
 description: Use when the loop exited without flushing metrics, or after manual validation, to move completed work item data from STATE.yaml to METRICS.jsonl.
+model: haiku
 ---
 
 <SUBAGENT-STOP>

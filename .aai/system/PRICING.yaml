@@ -10,18 +10,40 @@ pricing_meta:
   currency: USD
   token_unit: per_1m_tokens
   default_effective_region: global
-  last_updated_utc: "2026-02-19T08:27:12Z"
+  last_updated_utc: "2026-07-15T19:19:02Z"
 
 update_policy:
   cadence_days: 30
   require_source_ref: true
   require_last_verified_utc: true
   on_unknown_model: "add model with null pricing and source_ref, then verify"
+  # CHANGE-0010 D4 prune rule (measurable): delete every models: entry that has
+  # null pricing AND does not appear in docs/ai/METRICS.jsonl history, plus its
+  # now-dangling model_aliases rows. `unknown` is always kept. Priced entries
+  # stay (valid data, other AAI projects may record them).
+  prune_rule: "null-priced AND absent from METRICS.jsonl history => delete (keep `unknown`)"
   update_steps:
     - "Read official vendor pricing page."
     - "Update model entry prices and last_verified_utc."
     - "If pricing is tiered, store standard list price in notes."
     - "Run metrics/report flow and verify null/known costs."
+
+# Deterministic model-id resolution for calculators/flush (CHANGE-0010 D4).
+# Apply the steps IN ORDER; the first step that lands on a `models:` key wins:
+#   1. strip-bracket-suffix: remove ONE trailing bracket suffix `[...]` from the
+#      runtime id (claude-opus-4-8[1m] -> claude-opus-4-8)
+#   2. model-aliases: apply the model_aliases map below
+#   3. exact-match: exact key match in models
+#   4. longest-prefix: longest models key that is a prefix of the id
+#   5. unknown-fallback: fall back to the `unknown` entry
+lookup_rules:
+  order:
+    - strip-bracket-suffix
+    - model-aliases
+    - exact-match
+    - longest-prefix
+    - unknown-fallback
+  strip_suffix_pattern: "\\[[^\\]]*\\]$"
 
 sources:
   openai-pricing:
@@ -35,58 +57,81 @@ sources:
   anthropic-pricing:
     provider: anthropic
     url: "https://www.anthropic.com/pricing"
-    last_verified_utc: null
+    last_verified_utc: "2026-07-15T19:19:02Z"
   google-ai-pricing:
     provider: google
     url: "https://ai.google.dev/gemini-api/docs/pricing"
     last_verified_utc: "2026-02-19T08:27:12Z"
+  deepseek-pricing:
+    provider: deepseek
+    url: "https://api-docs.deepseek.com/quick_start/pricing"
+    last_verified_utc: null
 
-# Normalize runtime model IDs to canonical pricing keys.
+# Normalize runtime model IDs to canonical pricing keys (lookup_rules step 2).
 model_aliases:
   gpt-4o-2024-xx: gpt-4o
   gpt-4o-mini-2024-xx: gpt-4o-mini
   gpt-5.3: gpt-5.3-codex
   gpt-5.3-codex-2026-02: gpt-5.3-codex
-  o3-mini: o3-mini
   gemini-2.5-pro-latest: gemini-2.5-pro
   gemini-2.5-flash-latest: gemini-2.5-flash
   gemini-3-pro-latest: gemini-3-pro-preview
   gemini-3-flash-latest: gemini-3-flash-preview
-  gemini-1.5-flash-latest: gemini-1.5-flash
-  claude-3-5-sonnet-latest: claude-3-5-sonnet
+  # Belt-and-braces for the one bracketed id already in METRICS.jsonl history:
+  # alias-only readers resolve it without implementing suffix stripping.
+  "claude-opus-4-8[1m]": claude-opus-4-8
 
 models:
-  # Anthropic Claude
-  claude-opus-4-6:
-    input_usd_per_m: 15.00
-    output_usd_per_m: 75.00
+  # Anthropic Claude (verified 2026-07-15 against anthropic-pricing)
+  claude-fable-5:
+    input_usd_per_m: 10.00
+    output_usd_per_m: 50.00
     source_ref: anthropic-pricing
-    last_verified_utc: null
+    last_verified_utc: "2026-07-15T19:19:02Z"
+  claude-opus-4-8:
+    input_usd_per_m: 5.00
+    output_usd_per_m: 25.00
+    source_ref: anthropic-pricing
+    last_verified_utc: "2026-07-15T19:19:02Z"
+  claude-opus-4-7:
+    input_usd_per_m: 5.00
+    output_usd_per_m: 25.00
+    source_ref: anthropic-pricing
+    last_verified_utc: "2026-07-15T19:19:02Z"
+  claude-opus-4-6:
+    input_usd_per_m: 5.00
+    output_usd_per_m: 25.00
+    source_ref: anthropic-pricing
+    last_verified_utc: "2026-07-15T19:19:02Z"
+  claude-sonnet-5:
+    input_usd_per_m: 3.00
+    output_usd_per_m: 15.00
+    source_ref: anthropic-pricing
+    last_verified_utc: "2026-07-15T19:19:02Z"
+    notes: "Standard list price. Intro pricing $2/$10 through 2026-08-31."
+  claude-sonnet-4-6:
+    input_usd_per_m: 3.00
+    output_usd_per_m: 15.00
+    source_ref: anthropic-pricing
+    last_verified_utc: "2026-07-15T19:19:02Z"
   claude-sonnet-4-5:
     input_usd_per_m: 3.00
     output_usd_per_m: 15.00
     source_ref: anthropic-pricing
-    last_verified_utc: null
+    last_verified_utc: "2026-07-15T19:19:02Z"
   claude-haiku-4-5:
-    input_usd_per_m: 0.80
-    output_usd_per_m: 4.00
+    input_usd_per_m: 1.00
+    output_usd_per_m: 5.00
     source_ref: anthropic-pricing
-    last_verified_utc: null
-  claude-3-7-sonnet:
+    last_verified_utc: "2026-07-15T19:19:02Z"
+
+  # DeepSeek
+  deepseek-v4-flash:
     input_usd_per_m: null
     output_usd_per_m: null
-    source_ref: anthropic-pricing
+    source_ref: deepseek-pricing
     last_verified_utc: null
-  claude-3-5-sonnet:
-    input_usd_per_m: null
-    output_usd_per_m: null
-    source_ref: anthropic-pricing
-    last_verified_utc: null
-  claude-3-5-haiku:
-    input_usd_per_m: null
-    output_usd_per_m: null
-    source_ref: anthropic-pricing
-    last_verified_utc: null
+    notes: "In METRICS.jsonl history; added per on_unknown_model policy — verify pricing in a follow-up."
 
   # Google Gemini
   gemini-2.0-flash:
@@ -102,21 +147,6 @@ models:
   gemini-1.5-pro:
     input_usd_per_m: 1.25
     output_usd_per_m: 5.00
-    source_ref: google-ai-pricing
-    last_verified_utc: null
-  gemini-1.5-flash:
-    input_usd_per_m: null
-    output_usd_per_m: null
-    source_ref: google-ai-pricing
-    last_verified_utc: null
-  gemini-1.5-flash-8b:
-    input_usd_per_m: null
-    output_usd_per_m: null
-    source_ref: google-ai-pricing
-    last_verified_utc: null
-  gemini-2.0-pro:
-    input_usd_per_m: null
-    output_usd_per_m: null
     source_ref: google-ai-pricing
     last_verified_utc: null
   gemini-2.5-pro:
@@ -155,21 +185,6 @@ models:
     output_usd_per_m: 0.60
     source_ref: openai-pricing
     last_verified_utc: null
-  gpt-4.1:
-    input_usd_per_m: null
-    output_usd_per_m: null
-    source_ref: openai-pricing
-    last_verified_utc: null
-  gpt-4.1-mini:
-    input_usd_per_m: null
-    output_usd_per_m: null
-    source_ref: openai-pricing
-    last_verified_utc: null
-  gpt-4.1-nano:
-    input_usd_per_m: null
-    output_usd_per_m: null
-    source_ref: openai-pricing
-    last_verified_utc: null
   gpt-5:
     input_usd_per_m: 1.25
     output_usd_per_m: 10.00
@@ -186,34 +201,14 @@ models:
     source_ref: openai-codex-release
     last_verified_utc: "2026-02-19T08:27:12Z"
     notes: "Inferred from OpenAI launch note: priced the same as GPT-5."
-  o1:
-    input_usd_per_m: null
-    output_usd_per_m: null
-    source_ref: openai-pricing
-    last_verified_utc: null
-  o1-mini:
-    input_usd_per_m: null
-    output_usd_per_m: null
-    source_ref: openai-pricing
-    last_verified_utc: null
   o3:
     input_usd_per_m: 10.00
     output_usd_per_m: 40.00
     source_ref: openai-pricing
     last_verified_utc: null
-  o3-mini:
-    input_usd_per_m: null
-    output_usd_per_m: null
-    source_ref: openai-pricing
-    last_verified_utc: null
   o4-mini:
     input_usd_per_m: 1.10
     output_usd_per_m: 4.40
-    source_ref: openai-pricing
-    last_verified_utc: null
-  o4:
-    input_usd_per_m: null
-    output_usd_per_m: null
     source_ref: openai-pricing
     last_verified_utc: null
 

@@ -92,11 +92,28 @@ IMPLEMENTATION STRATEGY AND ISOLATION
   not overlap.
 - Code review can run without a worktree if each scope has a clean explicit diff.
 
+MODEL SELECTION (include in every workstream dispatch when subagent spawning is supported)
+Right-size the model to task complexity — do not default to the most capable model for everything:
+- Mechanical / isolated tasks (single-file edits, boilerplate, formatting): smaller/faster model
+- Integration work (cross-module changes, wiring, migrations): standard model
+- Architecture, planning, reviews, complex debugging: most capable model available
+
+VALIDATOR INDEPENDENCE (axis separate from complexity right-sizing)
+When a dispatched workstream's Role is Validation, the dispatch MUST require:
+- a freshly spawned validator subagent with an INDEPENDENT context — never the
+  context that implemented the scope (self-evaluation rubber-stamps);
+- a model DIFFERENT from the one that implemented the scope, when the platform
+  supports model selection (a different model is less likely to share the
+  implementer's blind spots). Record the chosen validator model in the dispatch.
+See .aai/SUBAGENT_PROTOCOL.md → "Spawning a validator in a separate agent" for the
+concrete per-host invocation.
+
 OUTPUT FORMAT
 # Parallel Orchestration Plan
 - Selected K and rationale
 - Workstream 1..K with:
-  Scope, Role, Inputs, Expected outputs, Stop condition, Isolation guidance
+  Scope, Role, Model, Inputs, Expected outputs, Stop condition, Isolation guidance
+  (Model: explicit id or mechanical | standard | premium tier per MODEL SELECTION)
 - Deferred scopes
 - State update summary for docs/ai/STATE.yaml (applied by YOU, the single
   writer — PRIMARY PATH is the transactional CLI, SPEC-0012):
@@ -112,6 +129,9 @@ When the platform supports concurrent subagent spawning:
    (`docs-lock acquire <scope> <owner>`); on exit 3 skip/defer that scope. Then
    spawn ONE subagent with:
    - System prompt: the canonical role prompt from ai/<ROLE>.prompt.md
+   - Model: per MODEL SELECTION above (explicit id or mechanical | standard |
+     premium tier); for Validation, a model DIFFERENT from the implementer's
+     recorded model (VALIDATOR INDEPENDENCE)
    - Context: scope, inputs, and a copy of .aai/SUBAGENT_PROTOCOL.md
    Remind the subagent it MUST NOT write docs/ai/STATE.yaml (single-writer rule).
 2. Each subagent MUST return a result block as defined in .aai/SUBAGENT_PROTOCOL.md.

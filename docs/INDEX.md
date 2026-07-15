@@ -1,18 +1,19 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-15T19:41:34.933Z
+Generated: 2026-07-15T19:52:54.282Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (3)
+## Active (implementing) (4)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | SPEC-0015 | specs | implementing | 10 done | docs/specs/SPEC-0015-parallel-safe-doc-numbering.md |
 | SPEC-0016 | specs | implementing | 7 done | docs/specs/SPEC-0016-spec-slug-refs-across-tooling.md |
+| SPEC-0018 | specs | implementing | 5 done | docs/specs/SPEC-0018-spec-model-tiering-with-teeth.md |
 | RFC-0007 | rfc | accepted | — | docs/rfc/RFC-0007-parallel-safe-doc-numbering.md |
 
 ## Canonical layer (0)
