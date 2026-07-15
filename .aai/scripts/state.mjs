@@ -13,8 +13,18 @@
 //   set-focus --type <t> [--ref <ID> --path <p>] [--clear spec_path]
 //                                       (--type none nulls ref/path/spec_path)
 //   set-phase --ref <ID> --phase <p> [--status <s>] [--path <p>] [--spec-path <p>]
-//   set-validation --status <s> [--ref <id>] [--evidence <p>]... [--notes <text>]
+//   set-validation --status <s> [--ref <id>] [--model <id>] [--evidence <p>]...
+//                  [--notes <text>]
 //                  [--clear <f,f>]        (--clear alone allowed; no run_at_utc stamp)
+//                  --model = the VALIDATOR's model id (CHANGE-0010 D2): when a
+//                  verdict (pass|fail) is set it is compared against the last
+//                  Implementation/TDD Implementation run's model_id for the ref
+//                  (normalized: trim, lowercase, one trailing [..] suffix
+//                  stripped). Same base id = independence violation: WARNING +
+//                  write + exit 0 by default; with `independence: enforce` in
+//                  <dirname(state)>/docs-audit.yaml: NO write + exit 1. Missing
+//                  data (no --model, unresolvable ref, no implementer run)
+//                  skips safely with a stderr info line and exit 0.
 //   set-code-review [--status <s>] [--required <b>] [--scope <t>] [--base-ref <r>]
 //                   [--head-ref <r>] [--report <p>]... [--notes <t>] [--clear <f,f>] (>=1 flag)
 //   set-strategy --selected <s> [--source <p>] [--rationale <t>]
@@ -32,6 +42,9 @@
 //   set-human-input --required <true|false> [--question <t>] [--reason <t>]
 //   append-run --ref <ID> --role <R> --model <id> --started <ISO-UTC>
 //              [--note <t>] [--tokens-in N] [--tokens-out N] [--tdd-tests N]
+//              (CHANGE-0010 D5: omitting --tokens-in/--tokens-out still exits 0
+//              but prints ONE stderr WARNING after the successful write —
+//              cost_usd can never be computed from null tokens at flush)
 //   log-tick --tick N --role <t> --scope <ref> --started <ISO-UTC> [...]   (JSONL append; never touches STATE)
 //   reset-block <last_validation|code_review> [--force]                    (D6 guards)
 //
@@ -44,6 +57,8 @@
 //       mutation would create one, the target block header carries an inline
 //       value the line engine cannot safely splice under, or the file changed
 //       on disk between load and commit (concurrent modification — retry).
+//       ALSO: policy refusal (CHANGE-0010 D2) — set-validation independence
+//       violation under `independence: enforce` — no write performed.
 //       Original file preserved byte-identical in every case.
 //   2 — usage/validation error before any write (unknown subcommand, UNKNOWN
 //       FLAG for the subcommand, invalid enum, unknown block, bad --ref shape,
@@ -156,7 +171,7 @@ const GLOBAL_FLAGS = ['state', 'ticks'];
 const CMD_FLAGS = {
   'set-focus': ['type', 'ref', 'path', 'spec_path', 'clear'],
   'set-phase': ['ref', 'phase', 'status', 'path', 'spec_path'],
-  'set-validation': ['status', 'ref', 'evidence', 'notes', 'clear'],
+  'set-validation': ['status', 'ref', 'model', 'evidence', 'notes', 'clear'],
   'set-code-review': ['status', 'required', 'scope', 'base_ref', 'head_ref', 'report', 'notes', 'clear'],
   'set-strategy': ['selected', 'source', 'rationale'],
   'set-worktree': ['recommendation', 'user_decision', 'base_ref', 'branch', 'path', 'inline_scope', 'rationale', 'clear'],
@@ -257,7 +272,7 @@ function loadState(statePath) {
       + `[${dups.map(d => `${d.key} x${d.count}`).join(', ')}] — repair first with: `
       + `node .aai/scripts/check-state.mjs --repair ${statePath}`, 1);
   }
-  return { lines, trailingNewline, raw };
+  return { lines, trailingNewline, raw, statePath };
 }
 
 function injectCrash(point) {
@@ -596,6 +611,100 @@ function readScalar(lines, blockKey, field, indent = 2) {
   return null;
 }
 
+// --- validator independence (CHANGE-0010 / spec-model-tiering-with-teeth D2/D3)
+
+// Normalize a model id for the independence comparison: trim, lowercase, strip
+// ONE trailing bracket suffix (`claude-opus-4-8[1m]` -> `claude-opus-4-8` — a
+// context-window variant runs the same weights, hence the same blind spots).
+// No family taxonomy: different weights are treated as independent by design.
+function normalizeModelId(s) {
+  return String(s).trim().toLowerCase().replace(/\[[^\]]*\]$/, '');
+}
+
+// Strip one layer of single/double quoting from a scalar read off a YAML line.
+function unquoteScalar(v) {
+  if (v.length >= 2 && v.startsWith("'") && v.endsWith("'")) {
+    return v.slice(1, -1).replace(/''/g, "'");
+  }
+  if (v.length >= 2 && v.startsWith('"') && v.endsWith('"')) return v.slice(1, -1);
+  return v;
+}
+
+// model_id of the LAST run whose role is Implementation or TDD Implementation
+// under metrics.work_items[<ref>].agent_runs (same line engine, no YAML lib).
+// Returns null when metrics/ref/agent_runs/implementer-run is missing — the
+// caller treats null as "skip safely" (never block honest work).
+function lastImplementerModel(lines, ref) {
+  const b = findBlock(lines, 'metrics');
+  if (!b) return null;
+  // Locate the `    <ref>:` entry (exact string compare — ref may be an
+  // arbitrary scalar read back from last_validation.ref_id, never regex it).
+  let e0 = -1;
+  for (let i = b.start + 1; i < b.end; i += 1) {
+    if (lines[i].replace(/\s+$/, '') === `    ${ref}:`) { e0 = i; break; }
+  }
+  if (e0 === -1) return null;
+  let e1 = b.end;
+  for (let j = e0 + 1; j < b.end; j += 1) {
+    const l = lines[j];
+    if (l.trim() === '' || l.trim().startsWith('#')) continue;
+    if (indentOf(l) < 6) { e1 = j; break; }   // next work_items key or dedent
+  }
+  // Locate agent_runs within the entry; inline `agent_runs: []` = no runs.
+  let arIdx = -1;
+  for (let i = e0 + 1; i < e1; i += 1) {
+    if (/^ {6}agent_runs:\s*$/.test(lines[i])) { arIdx = i; break; }
+    if (/^ {6}agent_runs:\s*\S/.test(lines[i])) return null;   // inline [] / scalar
+  }
+  if (arIdx === -1) return null;
+  // Scan run items: `        - role: X` starts a run, `          model_id: Y`
+  // belongs to the current run. Keep the last Implementation-role model.
+  let currentRole = null;
+  let lastImplModel = null;
+  for (let i = arIdx + 1; i < e1; i += 1) {
+    const l = lines[i];
+    if (l.trim() === '') continue;
+    if (indentOf(l) < 8) break;
+    let m = l.match(/^ {8}- role:\s*(.*)$/);
+    if (m) { currentRole = unquoteScalar(m[1].trim()); continue; }
+    m = l.match(/^ {10}model_id:\s*(.*)$/);
+    if (m && (currentRole === 'Implementation' || currentRole === 'TDD Implementation')) {
+      const v = unquoteScalar(m[1].trim());
+      if (v !== '' && v !== 'null') lastImplModel = v;
+    }
+  }
+  return lastImplModel;
+}
+
+// Read the `independence:` guard dial from the committed guard-policy file
+// sibling to the STATE file (D3: <dirname(statePath)>/docs-audit.yaml, the same
+// column-0 line scan used on STATE). Default when the file, the key, or a
+// valid value is absent: report-only (fail-open to warn — enforcement must not
+// block single-model environments unless explicitly opted in).
+function readIndependencePolicy(statePath) {
+  const cfgPath = path.join(path.dirname(statePath), 'docs-audit.yaml');
+  let raw;
+  try {
+    raw = fs.readFileSync(cfgPath, 'utf8');
+  } catch {
+    return { policy: 'report-only', cfgPath };
+  }
+  for (const line of raw.split(/\r?\n/)) {
+    const m = line.match(/^independence:\s*([^\s#]+)/);
+    if (m) {
+      // Review W1 (CHANGE-0010): a present-but-invalid value (e.g. "enforced",
+      // quoted, capitalized) falls open to report-only per the SPEC — but say
+      // so, or an operator who typoed the key believes enforcement is on.
+      if (m[1] !== 'enforce' && m[1] !== 'report-only') {
+        console.error(`state: WARNING independence value "${m[1]}" in ${cfgPath} is not `
+          + '"enforce" or "report-only" — treating as report-only (fail-open default)');
+      }
+      return { policy: m[1] === 'enforce' ? 'enforce' : 'report-only', cfgPath };
+    }
+  }
+  return { policy: 'report-only', cfgPath };
+}
+
 // --- subcommands ---------------------------------------------------------------
 
 function cmdSetFocus(state, flags) {
@@ -721,8 +830,41 @@ function cmdSetValidation(state, flags) {
   // validation ran.
   const status = enumFlag(flags, 'status', VALIDATION_STATUSES, 'set-validation', { required: clears.length === 0 });
   const ref = strFlag(flags, 'ref', 'set-validation');
+  const model = strFlag(flags, 'model', 'set-validation');
   const notes = strFlag(flags, 'notes', 'set-validation');
   const evidence = Array.isArray(flags.evidence) ? flags.evidence.map(String) : undefined;
+
+  // Validator-independence check (CHANGE-0010 D2) — runs ONLY when a verdict
+  // is being set (pass|fail); placed BEFORE editBlock so an enforce refusal
+  // never touches the file. `--status not_run` and clear-only invocations
+  // never trigger it. Skip paths never block honest work (info line, exit 0).
+  if (status === 'pass' || status === 'fail') {
+    const skip = reason => console.error(`state: set-validation: independence not checked: ${reason}`);
+    if (model === undefined) {
+      skip('--model not provided (pass the validator model id to enable the maker≠checker check)');
+    } else {
+      const checkRef = ref !== undefined ? ref : readScalar(state.lines, 'last_validation', 'ref_id');
+      if (checkRef === null) {
+        skip('no --ref given and last_validation.ref_id is null');
+      } else {
+        const impl = lastImplementerModel(state.lines, checkRef);
+        if (impl === null) {
+          skip(`no Implementation/TDD Implementation run with a model_id found under metrics.work_items[${checkRef}].agent_runs`);
+        } else if (normalizeModelId(model) === normalizeModelId(impl)) {
+          const { policy, cfgPath } = readIndependencePolicy(state.statePath);
+          if (policy === 'enforce') {
+            fail(`set-validation: REFUSED — independence violation: validator model "${model}" `
+              + `equals implementer model "${impl}" for ${checkRef} (\`independence: enforce\` in ${cfgPath}); `
+              + 'no write performed — set the verdict from a different model or dial the key to report-only', 1);
+          }
+          console.error(`state: set-validation: WARNING independence violation — validator model "${model}" `
+            + `equals implementer model "${impl}" for ${checkRef}`);
+        }
+        // different normalized base ids: independent — silent pass.
+      }
+    }
+  }
+
   editBlock(state.lines, 'last_validation', bl => {
     applyClears(bl, 'set-validation', clears);
     if (status !== undefined) {
@@ -981,6 +1123,14 @@ function cmdAppendRun(state, flags) {
     bl.splice(ins, 0, ...runLines);
     return bl;
   }, ['  work_items:']);
+  // Token-capture teeth (CHANGE-0010 D5): warn — never block — when usage was
+  // not recorded. Printed by main() AFTER the successful atomic write.
+  if (tokensIn === undefined || tokensOut === undefined) {
+    state.postWriteWarnings = [
+      `state: append-run: WARNING tokens_in/tokens_out null for ${ref} role=${role} — cost_usd cannot `
+      + 'be computed at flush; pass --tokens-in/--tokens-out when the platform exposes usage',
+    ];
+  }
   return `append-run: ${ref} role=${role} duration_seconds=${duration} (ended_utc self-stamped ${ended})`;
 }
 
@@ -1144,6 +1294,8 @@ function main() {
   const msg = fn(state, flags);
   bumpUpdatedAt(state.lines);
   writeState(statePath, state.lines, state.trailingNewline, state.raw);
+  // Post-write warnings (CHANGE-0010 D5): only after the successful commit.
+  for (const w of state.postWriteWarnings ?? []) console.error(w);
   console.log(`state: ${msg} -> ${statePath}`);
 }
 

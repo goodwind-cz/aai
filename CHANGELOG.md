@@ -9,6 +9,26 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: model tiering with teeth (CHANGE-0010 / SPEC-0018)
+
+- The MODEL SELECTION tiering contract existed in one prompt and was enforced
+  nowhere (RES-0001 F2). Now: MODEL is a required dispatch-contract field
+  (SUBAGENT_PROTOCOL + ORCHESTRATION_PARALLEL gains the full tiering text);
+  `state.mjs set-validation --model` mechanically checks validator vs
+  implementer (normalized base id, [1m]-suffix aware; report-only default,
+  `independence: enforce` refuses the write exit 1; invalid config value fails
+  open WITH a stderr notice — review W1).
+- PRICING.yaml refreshed: current Claude family prices, lookup_rules
+  (strip-suffix -> aliases -> exact -> longest-prefix -> unknown), stale
+  entries pruned, last_verified_utc stamped — every model id in METRICS.jsonl
+  history now resolves.
+- append-run warns (once, stderr) when tokens are omitted, so the never-fed
+  cost pipeline becomes visible; 4 mechanical skill wrappers pinned to
+  `model: haiku`.
+- Hybrid TDD 11/11 RED->GREEN; independent validation PASS (probes reproduced,
+  write-ordering verified); review PASS (W1 remediated, W2 promoted;
+  cross-stream merge with CHANGE-0011 simulated clean).
+
 ## [unreleased] — fix: slug refs across the tooling family (CHANGE-0012 / SPEC-0016)
 
 - SPEC-0015 made docs slug-first until merge, but `state.mjs` rejected slug refs

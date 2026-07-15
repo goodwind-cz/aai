@@ -23,6 +23,7 @@ Each subagent call MUST specify all of the following:
 |---|---|
 | `ROLE` | Implementation \| Validation \| Planning \| Research |
 | `SCOPE` | Single file / module / requirement group — never overlapping with other subagents |
+| `MODEL` | REQUIRED (CHANGE-0010 D1) — an explicit model id (preferred, e.g. `claude-haiku-4-5`) or a tier (`mechanical \| standard \| premium`) when the platform maps tiers itself. Right-size per the MODEL SELECTION tiering in the orchestration prompts. For a Validation dispatch it MUST differ from the implementer's recorded model (see "Spawning a validator" below) |
 | `INPUT` | All context the subagent needs — do NOT rely on inherited ambient state |
 | `EXPECTED_OUTPUT` | A result block (see below) |
 | `SYSTEM_PROMPT` | The canonical role prompt from `ai/<ROLE>.prompt.md` |
@@ -34,7 +35,16 @@ The Validation role must run in an agent that did NOT produce the implementation
 is identical everywhere: a NEW agent receives `SYSTEM_PROMPT = .aai/VALIDATION.prompt.md`
 and `INPUT = { requirement/spec path, implementation diff or changed paths, evidence
 paths, docs/ai/STATE.yaml }` — and NOT the implementer's conversation/working context.
-Prefer a model different from the implementer's.
+
+Validator model rule (CHANGE-0010 D1): the dispatch MUST record the validator
+model (the `MODEL` contract field), and it MUST differ from the implementer's
+recorded model — the `model_id` of the last Implementation/TDD Implementation
+run in `metrics.work_items[<ref>].agent_runs` — whenever the platform supports
+model selection. A context-window variant (`claude-opus-4-8[1m]`) is the SAME
+model as its base id: same weights, same blind spots. Single-model environments
+record the reuse as a residual risk on the verdict. The mechanical backstop is
+`state.mjs set-validation --model <validator-model>` (warns by default; refuses
+the write under `independence: enforce` in docs/ai/docs-audit.yaml).
 
 - **In-session agentic harness (e.g. Claude Code):** call the host's agent/task
   tool to spawn a subagent. Pass the validation prompt + INPUT as the task, and set

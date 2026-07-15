@@ -247,3 +247,8 @@
 {"v":1,"ts":"2026-07-15T18:31:03.139Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"RFC-0007","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-15T18:31:03.175Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"CHANGE-0012","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-15T18:31:03.211Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"CHANGE-0012","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-15T19:26:09.166Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-model-tiering-with-teeth/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-15T19:26:09.207Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-model-tiering-with-teeth/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-15T19:26:09.241Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-model-tiering-with-teeth/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-15T19:26:09.278Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-model-tiering-with-teeth/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-15T19:26:09.314Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-model-tiering-with-teeth/Spec-AC-05","payload":{"from":"planned","to":"done"}}

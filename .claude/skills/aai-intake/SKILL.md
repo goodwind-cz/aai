@@ -1,6 +1,7 @@
 ---
 name: aai-intake
 description: Use when starting any new work — feature, bug, change, RFC, hotfix, techdebt, or release. Routes automatically to the correct intake template.
+model: haiku
 ---
 
 <SUBAGENT-STOP>

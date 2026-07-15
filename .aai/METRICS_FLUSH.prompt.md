@@ -25,8 +25,13 @@ PROCESS
    - If STATE.yaml already has a non-null `reviews` value, use STATE.yaml (human override wins).
    - Otherwise, set `reviews` from LOOP_TICKS sum.
 3. For each flushable work item in STATE.yaml metrics:
-   a. Calculate cost_usd for each agent_run where tokens_in/tokens_out are known
-      and cost_usd is currently null, using PRICING.yaml:
+   a. Resolve each agent_run's model_id to a PRICING.yaml key using the
+      `lookup_rules` section of .aai/system/PRICING.yaml — suffix-normalize
+      FIRST: strip one trailing bracket suffix `[...]` from the runtime id
+      (claude-opus-4-8[1m] -> claude-opus-4-8), then model_aliases -> exact
+      match -> longest-prefix -> `unknown` (CHANGE-0010 D5).
+      Then calculate cost_usd for each agent_run where tokens_in/tokens_out are
+      known and cost_usd is currently null:
       cost_usd = (tokens_in * input_usd_per_m + tokens_out * output_usd_per_m) / 1_000_000
    a2. Validate timing fidelity for each agent_run:
       - started_utc and ended_utc must be present and ISO-8601 parseable
@@ -102,6 +107,10 @@ PROCESS
      node .aai/scripts/append-event.mjs --event work_item_closed --ref <ref_id> --validation pass --code-review <pass|waived|none>
    EVENTS append is best-effort; do not abort the flush on append failure.
 8. Report: list of ref_ids flushed, files cleaned (with ages), or "Nothing to flush."
+   The report MUST additionally include one VISIBLE warning line per flushed
+   agent_run whose tokens_in or tokens_out is null (CHANGE-0010 D5):
+     WARNING <ref_id> run <role> (<model_id>): cost unattributable — tokens not recorded
+   Do not omit or aggregate these lines; each null-token run gets its own line.
 
 STRICT RULES
 - Append only to METRICS.jsonl — never modify existing lines. Each entry is one JSON line.

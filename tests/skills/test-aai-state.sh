@@ -11,6 +11,9 @@
 # test_034..036 per the review-20260707T081303Z E1/W1/W2 remediation (spec-local
 # ids TEST-010..012): prototype-chain clear names refused, repeated --clear
 # accumulates, blank-line block-scalar span cleared whole.
+# test_042..051 per CHANGE-0010 / spec-model-tiering-with-teeth (spec-local ids
+# TEST-001..005, TEST-007..011): set-validation --model independence check,
+# append-run token warning, MODEL dispatch wiring, wrapper model: frontmatter.
 #
 # ALL fixtures are scratch temp-dir copies (--state/--ticks overrides); the real
 # gitignored runtime files are NEVER touched (CHANGE-0006 constraint).
@@ -1811,6 +1814,270 @@ test_041_display_ref_regression() {  # CHANGE-0012 TEST-005 / Spec-AC-04
   log_pass "Display refs behave byte-identically on all three subcommands (CHANGE-0012 TEST-005)"
 }
 
+# --- CHANGE-0010 / spec-model-tiering-with-teeth ------------------------------
+# test_042..046 = spec-local TEST-001..005 (set-validation --model independence
+# check, D2/D3); test_047 = TEST-007 (append-run token warning, D5); test_048 =
+# TEST-008 (MODEL dispatch wiring, D1); test_049 = TEST-009 (wrapper model:
+# frontmatter, D6); test_050 = TEST-010 (METRICS_FLUSH wiring, D5); test_051 =
+# TEST-011 (regression: real-repo audit; full-suite exit 0 is main() itself).
+# TEST-006 (pricing lookup_rules) lives in tests/skills/test-aai-pricing.sh.
+
+# Isolated fixture dir: state.mjs resolves the independence config as
+# dirname(statePath)/docs-audit.yaml, so a per-test subdir gives config
+# isolation for free (SPEC D3).
+setup_independence_dir() {  # $1 = subdir name; echoes the dir path
+  local d="$TEST_DIR/$1"
+  mkdir -p "$d"
+  write_state_fixture "$d/STATE.yaml"
+  echo "$d"
+}
+
+# Sibling guard-policy file carrying close_gate/doc_number_guard AND
+# independence together (Seam C: coexistence with the existing dials).
+write_enforce_config() {  # $1 = dir
+  cat > "$1/docs-audit.yaml" <<'YAML'
+# fixture guard-policy file (Seam C: independence coexists with prior dials)
+legacy_until_date: 2026-06-12
+close_gate: report-only
+doc_number_guard: report-only
+independence: enforce
+YAML
+}
+
+test_042_independence_warn_default() {  # CHANGE-0010 TEST-001 / Spec-AC-02
+  log_info "Test: same-model verdict warns under report-only default but still writes (CHANGE-0010 TEST-001)..."
+  local d s
+  d="$(setup_independence_dir t42)"; s="$d/STATE.yaml"
+  capture_now
+  # Seam A: the implementer run is recorded by actually running append-run.
+  st "$s" "$d/ar.log" append-run --ref CHANGE-0001 --role Implementation --model claude-fable-5 --started "$NOW_UTC" \
+    || log_fail "fixture append-run must exit 0: $(cat "$d/ar.log")"
+  st "$s" "$d/sv.log" set-validation --status pass --ref CHANGE-0001 --model claude-fable-5 \
+    || log_fail "report-only violation must still exit 0 (RED today: unknown flag exit 2): $(cat "$d/sv.log")"
+  grep -q 'WARNING independence violation' "$d/sv.log" \
+    || log_fail "stderr must carry the WARNING independence violation line: $(cat "$d/sv.log")"
+  grep -q 'validator model "claude-fable-5"' "$d/sv.log" \
+    || log_fail "warning must name the validator model: $(cat "$d/sv.log")"
+  grep -q 'implementer model "claude-fable-5"' "$d/sv.log" \
+    || log_fail "warning must name the implementer model: $(cat "$d/sv.log")"
+  grep -qE '^  status: pass$' "$s" || log_fail "verdict must still be written under report-only"
+  ck "$s" "$d/ck.log" || log_fail "check-state after warned write: $(cat "$d/ck.log")"
+  log_pass "Same-model verdict: WARNING on stderr, write proceeds, exit 0 (CHANGE-0010 TEST-001)"
+}
+
+test_043_independence_enforce_refusal() {  # CHANGE-0010 TEST-002 / Spec-AC-02
+  log_info "Test: independence: enforce refuses the write (exit 1, byte-identical STATE) (CHANGE-0010 TEST-002)..."
+  local d s ec
+  d="$(setup_independence_dir t43)"; s="$d/STATE.yaml"
+  capture_now
+  st "$s" "$d/ar.log" append-run --ref CHANGE-0001 --role Implementation --model claude-fable-5 --started "$NOW_UTC" \
+    || log_fail "fixture append-run must exit 0: $(cat "$d/ar.log")"
+  write_enforce_config "$d"
+  cp "$s" "$d/snapshot.yaml"
+  ec=0; st "$s" "$d/sv.log" set-validation --status pass --ref CHANGE-0001 --model claude-fable-5 || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "enforce violation must exit 1 (got $ec): $(cat "$d/sv.log")"
+  grep -q 'validator model "claude-fable-5"' "$d/sv.log" \
+    || log_fail "refusal must name the validator model: $(cat "$d/sv.log")"
+  grep -q 'implementer model "claude-fable-5"' "$d/sv.log" \
+    || log_fail "refusal must name the implementer model: $(cat "$d/sv.log")"
+  grep -q 'independence' "$d/sv.log" \
+    || log_fail "refusal must name the independence config key: $(cat "$d/sv.log")"
+  cmp -s "$s" "$d/snapshot.yaml" \
+    || log_fail "STATE must stay byte-identical after the enforce refusal (no write)"
+
+  # Review W1 (CHANGE-0010): a present-but-INVALID independence value must fall
+  # open to report-only (write proceeds, exit 0) but must SAY SO on stderr.
+  printf 'independence: enforced\n' > "$d/docs-audit.yaml"
+  ec=0; st "$s" "$d/sv-typo.log" set-validation --status pass --ref CHANGE-0001 --model claude-fable-5 || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "invalid config value must fail open (exit 0, got $ec): $(cat "$d/sv-typo.log")"
+  grep -q 'WARNING independence value "enforced"' "$d/sv-typo.log" \
+    || log_fail "invalid config value must emit a stderr notice (review W1): $(cat "$d/sv-typo.log")"
+
+  log_pass "Enforce violation: exit 1, both models + config key named, zero write; invalid value fails open WITH notice (CHANGE-0010 TEST-002 + review W1)"
+}
+
+test_044_independence_different_models() {  # CHANGE-0010 TEST-003 / Spec-AC-02
+  log_info "Test: different-weights validator passes silently even under enforce (CHANGE-0010 TEST-003)..."
+  local d s
+  d="$(setup_independence_dir t44)"; s="$d/STATE.yaml"
+  capture_now
+  st "$s" "$d/ar.log" append-run --ref CHANGE-0001 --role Implementation --model claude-fable-5 --started "$NOW_UTC" \
+    || log_fail "fixture append-run must exit 0: $(cat "$d/ar.log")"
+  write_enforce_config "$d"
+  st "$s" "$d/sv.log" set-validation --status pass --ref CHANGE-0001 --model claude-sonnet-5 \
+    || log_fail "different validator model must exit 0 under enforce: $(cat "$d/sv.log")"
+  grep -q 'violation' "$d/sv.log" && log_fail "no violation text expected for independent models: $(cat "$d/sv.log")"
+  grep -q 'WARNING' "$d/sv.log" && log_fail "no WARNING expected for independent models: $(cat "$d/sv.log")"
+  grep -qE '^  status: pass$' "$s" || log_fail "verdict must be written for the independent validator"
+  ck "$s" "$d/ck.log" || log_fail "check-state after independent write: $(cat "$d/ck.log")"
+  log_pass "Different weights = independent: silent pass, verdict written (CHANGE-0010 TEST-003)"
+}
+
+test_045_independence_suffix_and_case() {  # CHANGE-0010 TEST-004 / Spec-AC-02
+  log_info "Test: [1m]-suffixed implementer equals its base id; comparison is case-insensitive (CHANGE-0010 TEST-004)..."
+  local d s ec
+  d="$(setup_independence_dir t45)"; s="$d/STATE.yaml"
+  capture_now
+  # Multi-run fixture: an EARLIER Implementation run with a different model —
+  # the scan must use the LAST Implementation-role run.
+  st "$s" "$d/ar0.log" append-run --ref CHANGE-0001 --role Implementation --model claude-sonnet-5 --started "$NOW_UTC" \
+    || log_fail "fixture append-run (earlier impl) must exit 0: $(cat "$d/ar0.log")"
+  st "$s" "$d/ar1.log" append-run --ref CHANGE-0001 --role "TDD Implementation" --model 'claude-opus-4-8[1m]' --started "$NOW_UTC" \
+    || log_fail "fixture append-run (bracket suffix) must exit 0: $(cat "$d/ar1.log")"
+  # Default (report-only): warn + write + exit 0.
+  st "$s" "$d/sv1.log" set-validation --status fail --ref CHANGE-0001 --model claude-opus-4-8 \
+    || log_fail "suffix-equal violation must exit 0 under default: $(cat "$d/sv1.log")"
+  grep -q 'WARNING independence violation' "$d/sv1.log" \
+    || log_fail "[1m] suffix must normalize EQUAL to the base id (last impl run wins): $(cat "$d/sv1.log")"
+  # Case variant is still the same weights.
+  st "$s" "$d/sv2.log" set-validation --status fail --ref CHANGE-0001 --model 'Claude-Opus-4-8' \
+    || log_fail "case-variant violation must exit 0 under default: $(cat "$d/sv2.log")"
+  grep -q 'WARNING independence violation' "$d/sv2.log" \
+    || log_fail "comparison must be case-insensitive: $(cat "$d/sv2.log")"
+  # Under enforce: exit 1, no write.
+  write_enforce_config "$d"
+  cp "$s" "$d/snapshot.yaml"
+  ec=0; st "$s" "$d/sv3.log" set-validation --status pass --ref CHANGE-0001 --model claude-opus-4-8 || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "suffix-equal violation must exit 1 under enforce (got $ec): $(cat "$d/sv3.log")"
+  cmp -s "$s" "$d/snapshot.yaml" || log_fail "STATE must stay byte-identical after enforce refusal"
+  log_pass "Bracket suffix + case normalize EQUAL; warn by default, refuse under enforce (CHANGE-0010 TEST-004)"
+}
+
+test_046_independence_safe_skips() {  # CHANGE-0010 TEST-005 / Spec-AC-02
+  log_info "Test: safe skips never block honest work (CHANGE-0010 TEST-005)..."
+  local d s
+  d="$(setup_independence_dir t46)"; s="$d/STATE.yaml"
+  # (a) verdict + --model but the ref has NO Implementation-role run (fixture
+  # only carries a Planning run for CHANGE-0001).
+  st "$s" "$d/a.log" set-validation --status pass --ref CHANGE-0001 --model claude-x \
+    || log_fail "(a) no-implementer-run skip must exit 0: $(cat "$d/a.log")"
+  grep -q 'independence not checked' "$d/a.log" \
+    || log_fail "(a) must print the stderr info line: $(cat "$d/a.log")"
+  grep -q 'violation' "$d/a.log" && log_fail "(a) must not report a violation: $(cat "$d/a.log")"
+  grep -qE '^  status: pass$' "$s" || log_fail "(a) verdict must be written"
+  # (b) verdict WITHOUT --model (backward compatible).
+  st "$s" "$d/b.log" set-validation --status fail --ref CHANGE-0001 \
+    || log_fail "(b) verdict without --model must exit 0: $(cat "$d/b.log")"
+  grep -q 'independence not checked' "$d/b.log" \
+    || log_fail "(b) must print the stderr info line: $(cat "$d/b.log")"
+  # (b2) unresolvable ref via the last_validation.ref_id default (fixture
+  # scalar CHANGE-0001/SPEC-0001 is not a work_items key) — reset ref_id first.
+  local d2 s2
+  d2="$(setup_independence_dir t46b)"; s2="$d2/STATE.yaml"
+  st "$s2" "$d2/b2.log" set-validation --status pass --model claude-x \
+    || log_fail "(b2) unresolvable default ref must exit 0: $(cat "$d2/b2.log")"
+  grep -q 'independence not checked' "$d2/b2.log" \
+    || log_fail "(b2) must print the stderr info line: $(cat "$d2/b2.log")"
+  # (c) --status not_run --model X never triggers the check.
+  st "$s" "$d/c.log" set-validation --status not_run --model claude-x \
+    || log_fail "(c) not_run must exit 0: $(cat "$d/c.log")"
+  grep -q 'independence' "$d/c.log" && log_fail "(c) not_run must not touch the independence check: $(cat "$d/c.log")"
+  # (d) clear-only invocation never triggers the check.
+  st "$s" "$d/dd.log" set-validation --clear notes --model claude-x \
+    || log_fail "(d) clear-only must exit 0: $(cat "$d/dd.log")"
+  grep -q 'independence' "$d/dd.log" && log_fail "(d) clear-only must not touch the independence check: $(cat "$d/dd.log")"
+  # (e) degenerate inline `agent_runs: []` — skip, never crash.
+  cat > "$d/STATE2.yaml" <<'YAML'
+project_status: active
+last_validation:
+  status: not_run
+metrics:
+  work_items:
+    CHANGE-0002:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs: []
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+  st "$d/STATE2.yaml" "$d/e.log" set-validation --status pass --ref CHANGE-0002 --model claude-x \
+    || log_fail "(e) inline empty agent_runs must skip safely exit 0: $(cat "$d/e.log")"
+  grep -q 'independence not checked' "$d/e.log" \
+    || log_fail "(e) must print the stderr info line: $(cat "$d/e.log")"
+  ck "$s" "$d/ck.log" || log_fail "check-state after skip-path writes: $(cat "$d/ck.log")"
+  log_pass "Safe skips (no impl run / no --model / bad ref / not_run / clear-only / empty runs) all exit 0 (CHANGE-0010 TEST-005)"
+}
+
+test_047_append_run_token_warning() {  # CHANGE-0010 TEST-007 / Spec-AC-04
+  log_info "Test: append-run persists integer tokens; omitting them warns ONCE on stderr, exit 0 (CHANGE-0010 TEST-007)..."
+  local s="$TEST_DIR/t47-state.yaml" n
+  write_state_fixture "$s"
+  capture_now
+  # Tokens provided: persisted as integers, NO warning.
+  st "$s" "$TEST_DIR/t47a.log" append-run --ref CHANGE-0001 --role Implementation --model claude-test \
+    --started "$NOW_UTC" --tokens-in 1200 --tokens-out 340 \
+    || log_fail "append-run with tokens must exit 0: $(cat "$TEST_DIR/t47a.log")"
+  grep -qE '^ {10}tokens_in: 1200$' "$s" || log_fail "tokens_in must persist as integer 1200"
+  grep -qE '^ {10}tokens_out: 340$' "$s" || log_fail "tokens_out must persist as integer 340"
+  grep -q 'WARNING tokens_in/tokens_out null' "$TEST_DIR/t47a.log" \
+    && log_fail "no token warning expected when both tokens are supplied: $(cat "$TEST_DIR/t47a.log")"
+  # Tokens omitted: exit 0 AND exactly ONE stderr warning line.
+  st "$s" "$TEST_DIR/t47b.log" append-run --ref CHANGE-0001 --role Validation --model claude-test --started "$NOW_UTC" \
+    || log_fail "append-run without tokens must still exit 0 (warn, never block): $(cat "$TEST_DIR/t47b.log")"
+  n="$(grep -c 'WARNING tokens_in/tokens_out null' "$TEST_DIR/t47b.log" || true)"
+  [[ "$n" == "1" ]] || log_fail "exactly ONE token warning line expected (got $n): $(cat "$TEST_DIR/t47b.log")"
+  grep -q 'role=Validation' "$TEST_DIR/t47b.log" || log_fail "warning must name the role: $(cat "$TEST_DIR/t47b.log")"
+  # Partial supply (only --tokens-in) still warns.
+  st "$s" "$TEST_DIR/t47c.log" append-run --ref CHANGE-0001 --role Planning --model claude-test \
+    --started "$NOW_UTC" --tokens-in 10 \
+    || log_fail "partial-token append-run must exit 0: $(cat "$TEST_DIR/t47c.log")"
+  grep -q 'WARNING tokens_in/tokens_out null' "$TEST_DIR/t47c.log" \
+    || log_fail "partial token supply must still warn: $(cat "$TEST_DIR/t47c.log")"
+  ck "$s" "$TEST_DIR/t47-ck.log" || log_fail "check-state after token appends: $(cat "$TEST_DIR/t47-ck.log")"
+  log_pass "Integer tokens persisted; omission warns once and exits 0 (CHANGE-0010 TEST-007)"
+}
+
+test_048_model_dispatch_wiring() {  # CHANGE-0010 TEST-008 / Spec-AC-01
+  log_info "Test: MODEL is a documented required dispatch field (grep wiring) (CHANGE-0010 TEST-008)..."
+  grep -qE '^\| .MODEL. \|' "$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md" \
+    || log_fail "SUBAGENT_PROTOCOL.md contract table must carry a MODEL row"
+  grep -q '^MODEL SELECTION' "$PROJECT_ROOT/.aai/ORCHESTRATION.prompt.md" \
+    || log_fail "ORCHESTRATION.prompt.md must keep its MODEL SELECTION section"
+  grep -q '^MODEL SELECTION' "$PROJECT_ROOT/.aai/ORCHESTRATION_PARALLEL.prompt.md" \
+    || log_fail "ORCHESTRATION_PARALLEL.prompt.md must gain the MODEL SELECTION section"
+  grep -q 'VALIDATOR INDEPENDENCE' "$PROJECT_ROOT/.aai/ORCHESTRATION_PARALLEL.prompt.md" \
+    || log_fail "ORCHESTRATION_PARALLEL.prompt.md must carry the validator independence rule"
+  grep -q 'Scope, Role, Model, Inputs' "$PROJECT_ROOT/.aai/ORCHESTRATION_PARALLEL.prompt.md" \
+    || log_fail "PARALLEL OUTPUT FORMAT workstream fields must include Model"
+  grep -q 'Model: per MODEL SELECTION' "$PROJECT_ROOT/.aai/ORCHESTRATION_PARALLEL.prompt.md" \
+    || log_fail "PARALLEL SUBAGENT EXECUTION dispatch fields must include MODEL"
+  log_pass "MODEL dispatch-contract wiring present in protocol + both orchestration prompts (CHANGE-0010 TEST-008)"
+}
+
+test_049_wrapper_model_frontmatter() {  # CHANGE-0010 TEST-009 / Spec-AC-05
+  log_info "Test: >=3 skill wrappers carry model: frontmatter; the 4 D6 wrappers pin model: haiku (CHANGE-0010 TEST-009)..."
+  local count w
+  count="$( (grep -l '^model:' "$PROJECT_ROOT"/.claude/skills/*/SKILL.md 2>/dev/null || true) | wc -l | tr -d ' ')"
+  [[ "$count" -ge 3 ]] || log_fail "expected >=3 wrappers with model: frontmatter (got $count)"
+  for w in aai-intake aai-check-state aai-flush aai-validate-report; do
+    sed -n '1,/^---$/p' "$PROJECT_ROOT/.claude/skills/$w/SKILL.md" | tail -n +2 | grep -q '^model: haiku$' \
+      || log_fail "$w/SKILL.md must carry model: haiku in its YAML frontmatter"
+  done
+  log_pass "Wrapper model: frontmatter present ($count wrappers; 4 D6 wrappers pinned haiku) (CHANGE-0010 TEST-009)"
+}
+
+test_050_flush_prompt_token_wiring() {  # CHANGE-0010 TEST-010 / Spec-AC-04
+  log_info "Test: METRICS_FLUSH prompt mandates null-token report warning + lookup_rules pricing resolution (CHANGE-0010 TEST-010)..."
+  local f="$PROJECT_ROOT/.aai/METRICS_FLUSH.prompt.md"
+  grep -q 'cost unattributable' "$f" \
+    || log_fail "flush prompt must mandate the visible 'cost unattributable — tokens not recorded' warning line"
+  grep -q 'lookup_rules' "$f" \
+    || log_fail "flush prompt pricing step must reference PRICING.yaml lookup_rules"
+  grep -qi 'bracket suffix' "$f" \
+    || log_fail "flush prompt must call out suffix normalization before lookup"
+  log_pass "Flush prompt carries the null-token warning contract and lookup_rules reference (CHANGE-0010 TEST-010)"
+}
+
+test_051_change0010_regression() {  # CHANGE-0010 TEST-011 / Spec-AC-05
+  log_info "Test: real-repo docs-audit stays CLEAN with the CHANGE-0010 docs; pricing suite present (CHANGE-0010 TEST-011)..."
+  local ec=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/t51-audit.log" 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "docs-audit --check --strict --no-event must exit 0 (got $ec): $(tail -10 "$TEST_DIR/t51-audit.log")"
+  [[ -f "$PROJECT_ROOT/tests/skills/test-aai-pricing.sh" ]] \
+    || log_fail "tests/skills/test-aai-pricing.sh (CHANGE-0010 TEST-006 suite) must exist"
+  log_pass "Docs stay audit-CLEAN; pricing suite wired (CHANGE-0010 TEST-011; full-suite exit 0 = this run)"
+}
+
 main() {
   echo "Testing $TEST_NAME (transactional STATE CLI — SPEC-0012 TEST-001..025 + SPEC-0014 additions)"
   check_deps
@@ -1856,6 +2123,16 @@ main() {
   test_039_slug_append_run_checkstate
   test_040_ref_shape_validation
   test_041_display_ref_regression
+  test_042_independence_warn_default
+  test_043_independence_enforce_refusal
+  test_044_independence_different_models
+  test_045_independence_suffix_and_case
+  test_046_independence_safe_skips
+  test_047_append_run_token_warning
+  test_048_model_dispatch_wiring
+  test_049_wrapper_model_frontmatter
+  test_050_flush_prompt_token_wiring
+  test_051_change0010_regression
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
