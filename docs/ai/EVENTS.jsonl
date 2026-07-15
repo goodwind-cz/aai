@@ -268,6 +268,7 @@
 {"v":1,"ts":"2026-07-15T21:30:18.571Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"CHANGE-0011","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-15T21:30:18.612Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"ISSUE-0006","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-15T21:30:44.104Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"per-type-digit-width","payload":{"commit":"b64906f"}}
+{"v":1,"ts":"2026-07-15T23:36:33.845Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/docs/specs/SPEC-DRAFT-single-dual-verdict-review.md","payload":{"total":1,"orphans":0,"drifted":0,"stale":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-07-15T23:08:45.990Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":50,"orphans":0,"drifted":0,"stale":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-07-15T23:17:39.381Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":51,"orphans":0,"drifted":0,"stale":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-07-15T23:21:12.435Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":51,"orphans":0,"drifted":0,"stale":0,"mode":"enforced"}}

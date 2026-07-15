@@ -83,7 +83,7 @@ Follow .aai/SKILL_VALIDATE_REPORT.prompt.md # Validation report with screenshot 
 Follow .aai/SKILL_CANONICALIZE.prompt.md # Canonicalize repository structure (migration, cleanup)
 Follow .aai/SKILL_TDD.prompt.md          # Enforced RED-GREEN-REFACTOR test-driven development (Superpowers pattern)
 Follow .aai/SKILL_WORKTREE.prompt.md     # Git worktree management for parallel development (Superpowers pattern)
-Follow .aai/SKILL_CODE_REVIEW.prompt.md  # Two-stage review: spec compliance first, code quality second
+Follow .aai/SKILL_CODE_REVIEW.prompt.md  # Single dual-verdict review: spec_compliance + code_quality in one pass, mandatory cannot_verify list
 Follow .aai/SKILL_SHARE.prompt.md        # Publish reports to Cloudflare Pages with shareable URL
 Follow .aai/SKILL_FLUSH.prompt.md        # Manual metrics flush & state cleanup (when loop doesn't complete it)
 Follow .aai/SKILL_DOCTOR.prompt.md       # Environment health check — validates files, skills, knowledge, git (pro-workflow)

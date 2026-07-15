@@ -454,6 +454,88 @@ test_031_guard_config_conformance() {  # CHANGE-0009 TEST-018 / Spec-AC-09
   log_pass "Shared reader and shell grep patterns agree on all fixture variants (CHANGE-0009 TEST-018)"
 }
 
+test_040_dual_verdict_prompt() {  # spec-single-dual-verdict-review TEST-001..004 / Spec-AC-01..02
+  log_info "Test: SKILL_CODE_REVIEW is a single dual-verdict pass, diet + preserved contracts (spec-single-dual-verdict-review TEST-001..004)..."
+  local f="$PROJECT_ROOT/.aai/SKILL_CODE_REVIEW.prompt.md"
+  [[ -f "$f" ]] || log_fail "missing .aai/SKILL_CODE_REVIEW.prompt.md"
+
+  # TEST-001 — prompt diet: the single pass fits in 250 lines (was 766, RES-0001 F3).
+  local n
+  n="$(wc -l < "$f" | tr -d ' ')"
+  [[ "$n" -le 250 ]] || log_fail "SKILL_CODE_REVIEW must be <=250 lines (got $n)"
+
+  # TEST-002 — dual-verdict block anchors (RFC single-dual-verdict-review Option B).
+  grep -qF "spec_compliance" "$f" || log_fail "prompt must carry the spec_compliance verdict"
+  grep -qF "code_quality" "$f" || log_fail "prompt must carry the code_quality verdict"
+  grep -qF "cannot_verify" "$f" || log_fail "prompt must carry the cannot_verify verdict class"
+  grep -qE "cannot_verify.*MANDATORY|MANDATORY.*cannot_verify" "$f" \
+    || log_fail "the cannot_verify section must be MANDATORY (empty list allowed, but the section is not optional)"
+  grep -qF "BLOCKING" "$f" || log_fail "code_quality findings must be rankable BLOCKING"
+  grep -qF "NON-BLOCKING" "$f" || log_fail "code_quality findings must be rankable NON-BLOCKING"
+  grep -qF "AC table walk" "$f" || log_fail "spec_compliance evidence must be the AC table walk"
+  grep -qF "per-AC citation" "$f" || log_fail "the AC table walk must demand a per-AC citation"
+  grep -qF "failure scenario" "$f" || log_fail "every quality finding must carry a concrete failure scenario"
+  grep -qiF "both verdicts pass" "$f" || log_fail "overall review pass must require BOTH verdicts to pass"
+
+  # TEST-003 — the two-stage scaffolding and the RES-0001 F3 fiction are gone.
+  grep -qF "TWO-STAGE REVIEW" "$f" && log_fail "the TWO-STAGE REVIEW mandatory-order block must be gone"
+  grep -qF "Stage 1" "$f" && log_fail "no Stage 1 scaffolding may remain"
+  grep -qF "Stage 2" "$f" && log_fail "no Stage 2 scaffolding may remain"
+  grep -qF "parseDiff" "$f" && log_fail "the inline JS diff-parser fiction must be gone"
+  grep -qF "jsChecks" "$f" && log_fail "the inline JS regex-checker arrays must be gone"
+  grep -qF "code-review-config.json" "$f" && log_fail "the consumer-less config JSON manual must be gone"
+  grep -qF ".github/workflows/code-review.yml" "$f" && log_fail "the CI workflow YAML must be gone"
+  grep -qF "## Troubleshooting" "$f" && log_fail "the troubleshooting table must be gone"
+
+  # TEST-004 — preserved verbatim-or-equivalent contracts.
+  grep -qF "DIFF SCOPE PREFLIGHT" "$f" || log_fail "the diff-scope preflight must be preserved"
+  grep -qF "SPEC-0013 H6" "$f" || log_fail "the H6 warnings policy must be preserved"
+  grep -qF "## External Review Response" "$f" || log_fail "the H3 external-review-response flow must be preserved"
+  grep -qF "docs/ai/reviews/" "$f" || log_fail "reports must stay under docs/ai/reviews/"
+  grep -qF "set-code-review" "$f" || log_fail "the set-code-review STATE contract must be preserved"
+  grep -qF "docs/validation/" "$f" || log_fail "the never-docs/validation lesson must be preserved"
+  log_pass "SKILL_CODE_REVIEW dual-verdict single pass wired: $n lines, anchors present, scaffolding gone (spec-single-dual-verdict-review TEST-001..004)"
+}
+
+test_041_anti_gaming_protocol() {  # spec-single-dual-verdict-review TEST-005 / Spec-AC-03
+  log_info "Test: SUBAGENT_PROTOCOL carries the review anti-gaming contract (spec-single-dual-verdict-review TEST-005)..."
+  local f="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
+  [[ -f "$f" ]] || log_fail "missing .aai/SUBAGENT_PROTOCOL.md"
+  grep -qF "MUST NOT characterize expected findings" "$f" \
+    || log_fail "protocol must ban the orchestrator from characterizing expected findings"
+  grep -qF "pre-rate severity" "$f" \
+    || log_fail "protocol must ban the orchestrator from pre-rating severity"
+  grep -qF "scope-exclude" "$f" \
+    || log_fail "protocol must ban the orchestrator from scope-excluding areas for the reviewer"
+  grep -qF "read-only on implementation files" "$f" \
+    || log_fail "protocol must make the reviewer context read-only on implementation files"
+  grep -qF "ref/path list" "$f" \
+    || log_fail "protocol must hand the diff off by ref/path list"
+  grep -qF "never pasted inline" "$f" \
+    || log_fail "protocol must forbid pasting the diff inline into the dispatch prompt"
+  log_pass "Review anti-gaming contract present in SUBAGENT_PROTOCOL (spec-single-dual-verdict-review TEST-005)"
+}
+
+test_042_dual_verdict_surfaces() {  # spec-single-dual-verdict-review TEST-006 / Spec-AC-04
+  log_info "Test: wrapper descriptions + ROLES.md + AGENTS.md match the dual-verdict shape (spec-single-dual-verdict-review TEST-006)..."
+  local t w
+  for t in $(skill_trees); do
+    w="$PROJECT_ROOT/$t/skills/aai-code-review/SKILL.md"
+    [[ -f "$w" ]] || log_fail "missing $t/skills/aai-code-review/SKILL.md"
+    grep -qiF "dual-verdict" "$w" || log_fail "$w description must name the dual-verdict single pass"
+    grep -qF "cannot_verify" "$w" || log_fail "$w description must name the cannot_verify verdict"
+  done
+  local r="$PROJECT_ROOT/.aai/roles/ROLES.md"
+  grep -qF "Stage 1" "$r" && log_fail "ROLES.md must no longer define a stage-ordered code review"
+  grep -qF "Stage 2" "$r" && log_fail "ROLES.md must no longer define a stage-ordered code review"
+  grep -qiF "dual verdict" "$r" || log_fail "ROLES.md Code Review role must own the dual-verdict pass"
+  grep -qF "cannot_verify" "$r" || log_fail "ROLES.md Code Review role must own the cannot_verify verdict"
+  local a="$PROJECT_ROOT/.aai/AGENTS.md"
+  grep -qiF "two-stage review" "$a" && log_fail "AGENTS.md must no longer describe the review as two-stage"
+  grep -qiF "dual-verdict" "$a" || log_fail "AGENTS.md skill index must describe the dual-verdict review"
+  log_pass "Dual-verdict surfaces aligned: wrappers x$(skill_trees | wc -l | tr -d ' '), ROLES.md, AGENTS.md (spec-single-dual-verdict-review TEST-006)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -469,6 +551,9 @@ main() {
   test_022_pr_review_companions
   test_030_auto_trigger_deprecation
   test_031_guard_config_conformance
+  test_040_dual_verdict_prompt
+  test_041_anti_gaming_protocol
+  test_042_dual_verdict_surfaces
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
