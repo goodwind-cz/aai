@@ -117,11 +117,16 @@ export function numberWidthFromBasename(basename) {
 // other prefix follows this repo's practice (RFC-0001, SPEC-0001, ...).
 export const DEFAULT_WIDTHS = { PRD: 3 };
 
-// Display width for a prefix: the width recorded on the HIGHEST-numbered
-// existing doc (base ref preferred over local on a tie), else the per-type
-// default. Maps are number -> digit-width as produced by baseRefNumbers /
-// localNumbers.
-export function deriveWidth(prefix, baseMap, localMap) {
+// Display width for a prefix — cascade (ISSUE per-type-digit-width +
+// ISSUE project-dominant-width):
+//   1. the width recorded on the type's HIGHEST-numbered existing doc
+//      (base ref preferred over local on a tie);
+//   2. else the PROJECT's dominant width across all numbered governed docs
+//      (a vendored project with an all-3-digit convention mints 3-digit for
+//      its first doc of a new type);
+//   3. else the per-type greenfield default.
+// Maps are number -> digit-width as produced by baseRefNumbers/localNumbers.
+export function deriveWidth(prefix, baseMap, localMap, projectWidth = null) {
   let bestNum = -1;
   let bestWidth = null;
   for (const m of [localMap, baseMap]) { // base last so it wins ties
@@ -129,7 +134,36 @@ export function deriveWidth(prefix, baseMap, localMap) {
       if (num >= bestNum) { bestNum = num; bestWidth = width; }
     }
   }
-  return bestWidth ?? DEFAULT_WIDTHS[prefix] ?? 4;
+  return bestWidth ?? projectWidth ?? DEFAULT_WIDTHS[prefix] ?? 4;
+}
+
+// Dominant (modal) digit-width across ALL numbered governed docs on the base
+// ref ∪ local working tree; null when the project has no numbered docs.
+// Tie-break: 4 if 4 is among the tied widths, else the smallest tied width
+// (deterministic).
+export function projectDominantWidth(root, baseSha) {
+  const counts = new Map(); // width -> occurrences
+  const bump = (basename) => {
+    const w = numberWidthFromBasename(basename);
+    if (w != null) counts.set(w, (counts.get(w) ?? 0) + 1);
+  };
+  for (const dir of GOVERNED_DIRS) {
+    if (baseSha) {
+      const listing = git(root, ['ls-tree', '-r', '--name-only', baseSha, '--', `docs/${dir}`]);
+      if (listing) for (const line of listing.split('\n')) bump(path.basename(line));
+    }
+    const abs = path.join(root, 'docs', dir);
+    if (fs.existsSync(abs)) for (const f of fs.readdirSync(abs)) bump(f);
+  }
+  if (counts.size === 0) return null;
+  let best = null;
+  let bestCount = -1;
+  for (const [w, c] of counts) {
+    if (c > bestCount || (c === bestCount && (w === 4 || (best !== 4 && w < best)))) {
+      best = w; bestCount = c;
+    }
+  }
+  return best;
 }
 
 // Leading id-prefix token from a basename: RFC, SPEC, CHANGE, DECISION-RFC, ...
@@ -475,6 +509,7 @@ function runAllocate(root, opts) {
   const plan = [];
   const claimed = new Map(); // prefix -> next running number within this batch
   const widths = new Map();  // prefix -> derived display width (stable within the batch)
+  let projWidth;             // lazily-computed project-dominant width (once per batch)
   for (const rel of drafts) {
     const abs = path.join(root, rel);
     const content = fs.readFileSync(abs, 'utf8');
@@ -490,8 +525,10 @@ function runAllocate(root, opts) {
     const localMap = localNumbers(root, dir, prefix);
     const nums = new Set([...baseMap.keys(), ...localMap.keys()]);
     // Width follows the type's existing convention (ISSUE per-type-digit-width):
-    // inherit from the highest-numbered existing doc, else the per-type default.
-    const width = widths.get(prefix) ?? deriveWidth(prefix, baseMap, localMap);
+    // inherit from the highest-numbered existing doc, else the project's
+    // dominant width (ISSUE project-dominant-width), else per-type defaults.
+    if (projWidth === undefined) projWidth = projectDominantWidth(root, baseSha);
+    const width = widths.get(prefix) ?? deriveWidth(prefix, baseMap, localMap, projWidth);
     widths.set(prefix, width);
     const start = claimed.get(prefix) ?? nextNumber(nums);
     const n = Math.max(start, nextNumber(nums));

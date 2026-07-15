@@ -9,6 +9,17 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: empty-type width follows the project's dominant convention (ISSUE-0008)
+
+- Operator follow-up to ISSUE-0006: the empty-type width defaults encoded this
+  template repo's practice, so a vendored project with an ALL-3-digit
+  convention would still get 4-digit for the first doc of a new type. Width
+  cascade now: type's own docs -> project-dominant width (mode across all
+  numbered governed docs) -> greenfield per-type defaults.
+- TDD TEST-017 RED->GREEN (3-digit project mints RFC-001; type-own 4-digit
+  inheritance still wins over dominant 3); SPEC-0015 amendment + INTAKE_COMMON
+  wording extended same-day.
+
 ## [unreleased] — feat: mechanize deterministic ticks (CHANGE-0009 / SPEC-0019)
 
 - The orchestrator's 14-rule dispatch decision, metrics flush arithmetic, and

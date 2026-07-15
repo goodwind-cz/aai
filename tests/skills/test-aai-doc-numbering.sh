@@ -809,6 +809,73 @@ MD
   log_pass "TEST-016 width inherited (PRD-002), empty-type default PRD-001, RFC stays 4-digit, cross-padding duplicate flagged"
 }
 
+test_017_project_dominant_width() {  # ISSUE project-dominant-width AC-001..004
+  log_info "TEST-017: empty-type width falls back to the PROJECT's dominant width..."
+  local d; d="$(setup_iso_repo t017)"
+
+  # Fixture: an all-3-digit project (two types), no RFC docs at all.
+  mkdir -p "$d/docs/requirements" "$d/docs/issues"
+  cat > "$d/docs/requirements/PRD-001-legacy.md" <<'MD'
+---
+id: PRD-001
+type: prd
+status: done
+links:
+  pr: []
+---
+# 3-digit PRD
+MD
+  cat > "$d/docs/issues/ISSUE-042-legacy.md" <<'MD'
+---
+id: ISSUE-042
+type: issue
+status: done
+links:
+  pr: []
+---
+# 3-digit ISSUE
+MD
+  (cd "$d" && git add docs && git commit -qm "docs: all-3-digit project" >/dev/null)
+  (cd "$d" && git checkout -q -b feature/first-rfc)
+  write_draft "$d" rfc RFC first-rfc-ever
+  (cd "$d" && git add docs && git commit -qm "docs: first RFC draft" >/dev/null)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/rfc/RFC-DRAFT-first-rfc-ever.md --base-ref main \
+      > alloc.log 2>&1) \
+    || log_fail "first-RFC allocation must exit 0: $(cat "$d/alloc.log")"
+  # AC-001: dominant project width (3) wins over the generic 4-digit default
+  assert_file "$d/docs/rfc/RFC-001-first-rfc-ever.md"
+  [[ ! -f "$d/docs/rfc/RFC-0001-first-rfc-ever.md" ]] \
+    || log_fail "empty type in a 3-digit project must mint RFC-001, not RFC-0001"
+
+  # AC-003: type-own inheritance beats project-dominant (4-digit SPEC type
+  # in the same mostly-3-digit project keeps 4-digit).
+  mkdir -p "$d/docs/specs"
+  cat > "$d/docs/specs/SPEC-0009-legacy.md" <<'MD'
+---
+id: SPEC-0009
+type: spec
+status: done
+links:
+  pr: []
+---
+# 4-digit SPEC
+MD
+  (cd "$d" && git add docs && git commit -qm "docs: 4-digit spec" >/dev/null)
+  write_draft "$d" specs SPEC next-spec
+  (cd "$d" && git add docs && git commit -qm "docs: spec draft" >/dev/null)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/specs/SPEC-DRAFT-next-spec.md --base-ref feature/first-rfc \
+      > alloc2.log 2>&1) \
+    || log_fail "SPEC allocation must exit 0: $(cat "$d/alloc2.log")"
+  assert_file "$d/docs/specs/SPEC-0010-next-spec.md"
+
+  # AC-002/AC-004 regression: this template repo's layout (t016 already covers
+  # empty-PRD greenfield default 3 and RFC 4-digit inheritance).
+  rm -rf "$d"
+  log_pass "TEST-017 project-dominant width for empty types; type-own inheritance still wins"
+}
+
 main() {
   echo ""
   echo "AAI Doc-Numbering Test Suite (SPEC-0015 / RFC-0007)"
@@ -833,6 +900,7 @@ main() {
   test_014_crlf_stamp
   test_015_guard_staged_only
   test_016_per_type_digit_width
+  test_017_project_dominant_width
 
   echo ""
   echo "All doc-numbering tests passed."
