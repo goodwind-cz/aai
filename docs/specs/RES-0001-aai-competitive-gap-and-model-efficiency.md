@@ -4,8 +4,10 @@ type: research
 number: 1
 status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 49
+  commits:
+    - 0f9960e
 ---
 
 # Research — AAI Competitive Gap Analysis and Model-Efficiency Audit

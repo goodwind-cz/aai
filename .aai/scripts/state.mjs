@@ -100,6 +100,14 @@ const MODES = ['single', 'parallel'];
 const RESETTABLE_BLOCKS = ['last_validation', 'code_review'];
 
 const REF_RE = /^[A-Z]+-\d+$/;
+// CHANGE-0012 / spec-slug-refs-across-tooling D1: SLUG shape — aligned with the
+// SPEC-0015 deriveSlug output (lowercase kebab, max 48 chars) plus an optional
+// 4-char base36 collision suffix (53 total); min 3 as a typo guard. DISJOINT
+// from REF_RE by construction (case), so no ref can match both.
+const SLUG_RE = /^(?=[a-z0-9-]{3,53}$)[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// Review W1 (CHANGE-0012): bare YAML-1.1 boolean/null keywords that SLUG_RE
+// would otherwise accept but YAML parsers silently re-type when unquoted.
+const YAML_KEYWORD_SLUGS = new Set(['null', 'true', 'false', 'yes', 'off']);
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const FUTURE_SLACK_MS = 300 * 1000;
 
@@ -208,7 +216,20 @@ function numFlag(flags, name, cmd) {
 function refFlag(flags, name, cmd, { required = false } = {}) {
   const v = strFlag(flags, name, cmd, { required });
   if (v === undefined) return undefined;
-  if (!REF_RE.test(v)) fail(`${cmd}: --${name} "${v}" does not match ^[A-Z]+-\\d+$`);
+  // CHANGE-0012 D1/D5: closed set of two disjoint shapes; anything else fails
+  // closed (exit 2, pre-write) with a usage message naming BOTH shapes.
+  if (!REF_RE.test(v) && !SLUG_RE.test(v)) {
+    fail(`${cmd}: --${name} "${v}" matches neither the display shape ^[A-Z]+-\\d+$ `
+      + 'nor the slug shape ^(?=[a-z0-9-]{3,53}$)[a-z0-9]+(?:-[a-z0-9]+)*$');
+  }
+  // Review W1 (CHANGE-0012): a bare YAML-keyword slug (null/true/false/yes/no/
+  // on/off) would be written unquoted and silently re-typed by YAML parsers
+  // (ref_id: null -> None). Fail closed instead; deriveSlug never NEEDS these
+  // as full slugs and longer slugs containing them (e.g. null-handling) pass.
+  if (YAML_KEYWORD_SLUGS.has(v)) {
+    fail(`${cmd}: --${name} "${v}" is a bare YAML keyword and would be re-typed `
+      + 'when the state file is parsed; use a longer slug');
+  }
   return v;
 }
 

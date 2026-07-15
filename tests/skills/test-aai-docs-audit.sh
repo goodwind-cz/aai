@@ -3180,6 +3180,183 @@ MD
   log_pass "Multi-line spans masked; same-line backtick-run pairs are spans, not fences (TEST-021)"
 }
 
+# --- CHANGE-0012 / spec-slug-refs-across-tooling: DRAFT docs in the scan set +
+# --- two-pass gate resolution (frontmatter-id, then display-id; ambiguity = exit 2)
+
+# Write a governed doc with frontmatter id/status and a one-row AC table.
+# Args: $1 = path, $2 = frontmatter id, $3 = AC row status (e.g. "done" or
+# "planned"), $4 = Spec-AC label (default Spec-AC-01)
+write_c12_doc() {
+  local p="$1" id="$2" acstatus="$3" acid="${4:-Spec-AC-01}" evidence="a1b2c3d"
+  [[ "$3" == "done" ]] || evidence="—"
+  cat > "$p" <<MD
+---
+id: $id
+type: spec
+number: null
+status: draft
+links:
+  pr: []
+---
+# Fixture doc $id
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status    | Evidence  | Review-By | Notes |
+|------------|-------------|-----------|-----------|-----------|-------|
+| $acid | first       | $acstatus | $evidence | —         | —     |
+MD
+}
+
+test_change0012_gate_slug_draft() {  # CHANGE-0012 TEST-006 / Spec-AC-02
+  log_info "Test: --gate <slug> resolves a <TYPE>-DRAFT-<slug>.md doc by frontmatter id and EVALUATES the gate (CHANGE-0012 TEST-006)..."
+  local d ec
+  d="$(setup_iso_repo c12-gate-slug)"
+  write_c12_doc "$d/docs/specs/SPEC-DRAFT-my-widget.md" my-widget done
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate my-widget > gate-pass.log 2>&1) \
+    || log_fail "--gate my-widget must exit 0 for a reconciled DRAFT (RED today: exit 2): $(cat "$d/gate-pass.log")"
+  assert_contains "$d/gate-pass.log" "GATE PASS"
+  # Unreconciled row: exit 1 (evaluation, not mere resolution — never 2).
+  write_c12_doc "$d/docs/specs/SPEC-DRAFT-my-widget.md" my-widget planned
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate my-widget > gate-fail.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "--gate my-widget must exit 1 for a non-terminal row (RED today: exit 2; got $ec): $(cat "$d/gate-fail.log")"
+  grep -qiF "non-terminal" "$d/gate-fail.log" || log_fail "gate reason must say non-terminal"
+  log_pass "--gate <slug> resolves the DRAFT by frontmatter id and evaluates content: 0 reconciled / 1 unreconciled (CHANGE-0012 TEST-006)"
+}
+
+test_change0012_draft_scanned_nonvacuous() {  # CHANGE-0012 TEST-007 / Spec-AC-05
+  log_info "Test: --check --strict --path <DRAFT> scans 1 doc (non-vacuous) and hard-fails a schema-violating DRAFT (CHANGE-0012 TEST-007)..."
+  local d ec
+  d="$(setup_iso_repo c12-scan)"
+  write_c12_doc "$d/docs/specs/SPEC-DRAFT-my-widget.md" my-widget done
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event --path docs/specs/SPEC-DRAFT-my-widget.md > scan-ok.log 2>&1) \
+    || log_fail "--check --strict on a compliant DRAFT must exit 0: $(cat "$d/scan-ok.log")"
+  grep -qF "Scanned: 1 docs" "$d/scan-ok.log" \
+    || log_fail "the DRAFT must actually be SCANNED (RED today: 'Scanned: 0 docs' vacuous pass): $(head -3 "$d/scan-ok.log")"
+  # Schema-violating DRAFT (frontmatter missing status): hard fail, not vacuous pass.
+  cat > "$d/docs/specs/SPEC-DRAFT-broken.md" <<'MD'
+---
+id: broken-draft
+type: spec
+number: null
+---
+# DRAFT missing status
+MD
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event --path docs/specs/SPEC-DRAFT-broken.md > scan-bad.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "--check --strict on a schema-violating DRAFT must exit 1 (RED today: vacuous exit 0; got $ec): $(cat "$d/scan-bad.log")"
+  grep -qF "Scanned: 1 docs" "$d/scan-bad.log" || log_fail "the violating DRAFT must be scanned, not skipped"
+  grep -qF "SPEC-DRAFT-broken.md" "$d/scan-bad.log" || log_fail "the violation must name the DRAFT file"
+  log_pass "DRAFT basenames are first-class audit citizens: scanned non-vacuously, violations hard-fail (CHANGE-0012 TEST-007)"
+}
+
+test_change0012_gate_resolution_order() {  # CHANGE-0012 TEST-008 / Spec-AC-06
+  log_info "Test: gate resolution order — frontmatter-id pass first, filename display-id pass second (CHANGE-0012 TEST-008)..."
+  local d ec
+  d="$(setup_iso_repo c12-order)"
+  # A: DRAFT whose frontmatter id LOOKS like a lowercased display id; reconciled (gates PASS).
+  write_c12_doc "$d/docs/specs/SPEC-DRAFT-order-a.md" spec-0042 done
+  # B: numbered file SPEC-0042-widget.md with an UNRELATED frontmatter id; non-terminal row Spec-AC-77 (gates FAIL).
+  write_c12_doc "$d/docs/specs/SPEC-0042-widget.md" widget-b planned Spec-AC-77
+  # --gate spec-0042 resolves A via the FRONTMATTER pass only (exit 0).
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate spec-0042 > order-a.log 2>&1) \
+    || log_fail "--gate spec-0042 must gate doc A via the frontmatter pass (RED today: exit 2): $(cat "$d/order-a.log")"
+  assert_contains "$d/order-a.log" "GATE PASS"
+  # --gate SPEC-0042 resolves B via the DISPLAY pass (exit 1, names B's row).
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-0042 > order-b.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "--gate SPEC-0042 must gate doc B via the display pass (got $ec): $(cat "$d/order-b.log")"
+  grep -qF "Spec-AC-77" "$d/order-b.log" || log_fail "the display pass must have gated doc B (expected its Spec-AC-77 reason)"
+  log_pass "Frontmatter-id pass wins first; filename display-id pass second; shapes never cross (CHANGE-0012 TEST-008)"
+}
+
+test_change0012_gate_ambiguous_id() {  # CHANGE-0012 TEST-009 / Spec-AC-06
+  log_info "Test: two docs sharing a frontmatter id — --gate exits 2 listing BOTH candidates (CHANGE-0012 TEST-009)..."
+  local d ec
+  d="$(setup_iso_repo c12-dup)"
+  mkdir -p "$d/docs/issues"
+  # docs/issues/ sorts before docs/specs/: pre-fix first-file-wins silently
+  # gates the RECONCILED issue doc (exit 0) and never sees the failing spec.
+  write_c12_doc "$d/docs/issues/CHANGE-0099-dup.md" dup-target done
+  write_c12_doc "$d/docs/specs/SPEC-0098-dup.md" dup-target planned
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate dup-target > dup.log 2>&1) || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "--gate on a duplicated id must exit 2 fail-closed (RED today: silent first-file-wins exit 0; got $ec): $(cat "$d/dup.log")"
+  assert_contains "$d/dup.log" "docs/issues/CHANGE-0099-dup.md"
+  assert_contains "$d/dup.log" "docs/specs/SPEC-0098-dup.md"
+  log_pass "Duplicate-id gate fails loud (exit 2) listing every candidate path — never directory-sort-order resolution (CHANGE-0012 TEST-009)"
+}
+
+test_change0012_allocation_durability() {  # CHANGE-0012 TEST-010 / Spec-AC-07 (Seam 3)
+  log_info "Test: after the simulated merge-time rename the SAME slug gates the SAME doc; slug-keyed STATE needs no migration (CHANGE-0012 TEST-010)..."
+  local d ec
+  d="$(setup_iso_repo c12-alloc)"
+  write_c12_doc "$d/docs/specs/SPEC-DRAFT-my-widget.md" my-widget done
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate my-widget > alloc-before.log 2>&1) \
+    || log_fail "--gate my-widget must pass on the DRAFT side: $(cat "$d/alloc-before.log")"
+  # Slug-keyed STATE written by the REAL state CLI on the DRAFT side.
+  cat > "$d/state.yaml" <<'YAML'
+project_status: active
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+  (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$d/state.yaml" set-phase --ref my-widget \
+    --phase implementation --status in_progress --spec-path docs/specs/SPEC-DRAFT-my-widget.md > "$d/st1.log" 2>&1) \
+    || log_fail "slug set-phase on the DRAFT side must exit 0: $(cat "$d/st1.log")"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$d/state.yaml" append-run --ref my-widget \
+    --role Planning --model claude-test --started "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$d/st2.log" 2>&1) \
+    || log_fail "slug append-run on the DRAFT side must exit 0: $(cat "$d/st2.log")"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$d/state.yaml" > "$d/ck1.log" 2>&1) \
+    || log_fail "check-state must pass on the DRAFT side: $(cat "$d/ck1.log")"
+  # Simulated allocator rename (SPEC-0015 D2): DRAFT -> numbered file, number
+  # stamped, frontmatter id UNCHANGED. STATE is NOT touched (no migration).
+  awk '{ if ($0 == "number: null") print "number: 7"; else print }' \
+    "$d/docs/specs/SPEC-DRAFT-my-widget.md" > "$d/docs/specs/SPEC-0007-my-widget.md"
+  rm "$d/docs/specs/SPEC-DRAFT-my-widget.md"
+  grep -qE '^id: my-widget$' "$d/docs/specs/SPEC-0007-my-widget.md" \
+    || log_fail "fixture guard: frontmatter id must survive the rename unchanged"
+  # The SAME slug gates the SAME doc with the SAME verdict (frontmatter pass).
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate my-widget > alloc-after.log 2>&1) \
+    || log_fail "--gate my-widget must still pass after the rename (slug is the durable PK): $(cat "$d/alloc-after.log")"
+  assert_contains "$d/alloc-after.log" "GATE PASS"
+  # The derived display id ALSO resolves now (display pass; no ambiguity).
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-0007 > alloc-display.log 2>&1) \
+    || log_fail "--gate SPEC-0007 must resolve the renamed doc via the display pass: $(cat "$d/alloc-display.log")"
+  # Slug-keyed STATE still validates BYTE-UNCHANGED — no migration required.
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$d/state.yaml" > "$d/ck2.log" 2>&1) \
+    || log_fail "check-state must still pass after the rename with the STATE untouched: $(cat "$d/ck2.log")"
+  log_pass "Slug ref resolves the same doc before and after allocation; slug-keyed STATE valid with zero migration (CHANGE-0012 TEST-010)"
+}
+
+test_change0012_regression() {  # CHANGE-0012 TEST-011 / Spec-AC-04 (Seam 2)
+  log_info "Test: numbered --gate/--gate-file unchanged; real-repo strict audit exit 0 with DRAFT docs newly visible (CHANGE-0012 TEST-011)..."
+  local d ec
+  d="$(setup_iso_repo c12-reg)"
+  write_c12_doc "$d/docs/specs/SPEC-0042-widget.md" SPEC-0042 done
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-0042 > reg-gate.log 2>&1) \
+    || log_fail "--gate on an existing numbered doc must stay exit 0: $(cat "$d/reg-gate.log")"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate-file docs/specs/SPEC-0042-widget.md > reg-gatefile.log 2>&1) \
+    || log_fail "--gate-file must stay exit 0: $(cat "$d/reg-gatefile.log")"
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-9999 > reg-unknown.log 2>&1) || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "--gate on an unresolved id must stay exit 2 (got $ec)"
+  assert_contains "$d/reg-unknown.log" "no scanned doc resolves"
+  # Real repo: the scan widening makes DRAFT docs visible WITHOUT introducing
+  # new orphans/violations. (Verdict text may carry pre-existing report-only
+  # drift — e.g. RES-0001 — so assert the hard-gate signals, not CLEAN.)
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/c12-repo-audit.log" 2>&1) \
+    || log_fail "real-repo --check --strict must stay exit 0 after the scan widening: $(tail -5 "$TEST_DIR/c12-repo-audit.log")"
+  assert_contains "$TEST_DIR/c12-repo-audit.log" "Orphans (need triage): 0"
+  assert_not_contains "$TEST_DIR/c12-repo-audit.log" "CHECK FAILED"
+  # The live DRAFT spec of this very change is scanned non-vacuously.
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event \
+      --path docs/specs/SPEC-DRAFT-slug-refs-across-tooling.md > "$TEST_DIR/c12-repo-draft.log" 2>&1) \
+    || log_fail "real-repo strict check on the live DRAFT spec must exit 0: $(cat "$TEST_DIR/c12-repo-draft.log")"
+  grep -qF "Scanned: 1 docs" "$TEST_DIR/c12-repo-draft.log" \
+    || log_fail "the live DRAFT spec must be scanned (RED today: Scanned: 0 docs): $(head -3 "$TEST_DIR/c12-repo-draft.log")"
+  log_pass "Numbered gate paths byte-identical; real-repo strict audit exit 0 with DRAFTs visible (CHANGE-0012 TEST-011)"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -3268,6 +3445,12 @@ main() {
   test_change0007_hook_space_filename
   test_change0007_lint_span_edges
   test_index_continue_on_error
+  test_change0012_gate_slug_draft
+  test_change0012_draft_scanned_nonvacuous
+  test_change0012_gate_resolution_order
+  test_change0012_gate_ambiguous_id
+  test_change0012_allocation_durability
+  test_change0012_regression
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
