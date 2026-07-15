@@ -112,15 +112,7 @@ PROCESS
       node .aai/scripts/state.mjs set-code-review --required true --status not_run --scope "<worktree diff, branch diff, staged diff, or explicit inline paths>"
     (adjust set-focus/set-phase flags to the implemented scope; each command
     bumps the real `updated_at_utc` itself)
-    FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer):
-    edit docs/ai/STATE.yaml by hand per the legacy field list below, then validate:
-      node .aai/scripts/check-state.mjs docs/ai/STATE.yaml
-    Legacy field list:
-    - current_focus for the implemented scope
-    - active_work_items phase/status for the scope
-    - code_review.status: not_run if review is required for the changed scope
-    - code_review.scope: worktree diff, branch diff, staged diff, or explicit inline paths
-    - updated_at_utc
+    FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and follow it.
 
 DECOMPOSITION (when scope has ≥3 independent modules)
 If the scope contains ≥3 independent files/modules with no shared mutable state:
@@ -177,28 +169,8 @@ PRIMARY PATH — after completing, append your agent run via the transactional C
 The CLI self-stamps `ended_utc` and computes `duration_seconds` from the system
 clock, keeps `cost_usd: null`, and auto-initializes a missing
 metrics.work_items entry — never a second top-level `metrics:` key.
-FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
-append by hand under metrics.work_items[ref_id].agent_runs in docs/ai/STATE.yaml:
-  role:             Implementation
-  model_id:         <your model identifier, e.g. claude-sonnet-4-5, gemini-2.0-flash>
-  started_utc:      <ISO 8601 UTC, real measured start>
-  ended_utc:        <ISO 8601 UTC, real measured end>
-  duration_seconds: <integer, ended_utc - started_utc>
-  tokens_in:        <integer if your platform exposes it, otherwise null>
-  tokens_out:       <integer if your platform exposes it, otherwise null>
-  cost_usd:         null
+FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and
+follow it (agent_runs hand-append + write-safety rules).
 Do NOT estimate any timing or token values. Only record measured/platform values.
 
 BEGIN NOW.
-
-STATE-WRITE SAFETY (ISSUE-0004 / INV-14)
-Primary path: `node .aai/scripts/state.mjs append-run ...` appends under the
-single top-level `metrics:` key by construction (it refuses to write a
-duplicate-key file). The hand-edit rules below apply to the FALLBACK path.
-When appending your agent_runs entry, append into the EXISTING metrics.work_items.<ref_id>.agent_runs
-list under the single top-level `metrics:` key; never emit a second top-level `metrics:` key.
-A duplicate top-level `metrics:` silently drops the first block's work_items and agent_runs on a
-lenient YAML load (ISSUE-0004). After editing, validate with:
-  node .aai/scripts/check-state.mjs docs/ai/STATE.yaml
-(REPAIR merges a duplicate `metrics:` with zero data loss:
-  node .aai/scripts/check-state.mjs --repair docs/ai/STATE.yaml).

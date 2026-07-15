@@ -590,16 +590,22 @@ test_012_wiring() {
   if grep -qE "allocate-doc-number\.mjs.*--all" "$pr"; then
     log_fail "SKILL_PR must NOT invoke the allocator with a blanket --all (out-of-scope sweep)"
   fi
-  # SKILL_INTAKE (+ INTAKE_*) create *-DRAFT-* with number: null
-  grep -qF "DRAFT" "$intake" || log_fail "SKILL_INTAKE must reference the DRAFT filename convention"
-  grep -qF "number: null" "$intake" || log_fail "SKILL_INTAKE must set number: null on intake"
+  # SKILL_INTAKE (+ INTAKE_*) create *-DRAFT-* with number: null. Since
+  # CHANGE-0011 the DURABLE DOC IDENTITY block is single-sourced in
+  # .aai/INTAKE_COMMON.md and the intake prompts reference it.
+  local common="$PROJECT_ROOT/.aai/INTAKE_COMMON.md"
+  assert_file "$common"
+  grep -qF "DRAFT" "$common" || log_fail "INTAKE_COMMON.md must reference the DRAFT filename convention"
+  grep -qF "number: null" "$common" || log_fail "INTAKE_COMMON.md must set number: null on intake"
+  grep -qF "INTAKE_COMMON.md" "$intake" \
+    || log_fail "SKILL_INTAKE must reference INTAKE_COMMON.md (single-sourced DRAFT identity block)"
   local wired=0 f
   for f in "$PROJECT_ROOT"/.aai/INTAKE_*.prompt.md; do
-    if grep -qF "DRAFT" "$f" && grep -qF "number: null" "$f"; then
+    if grep -qF "INTAKE_COMMON.md" "$f"; then
       wired=$((wired+1))
     fi
   done
-  [[ "$wired" -ge 1 ]] || log_fail "at least one INTAKE_*.prompt.md must create a DRAFT with number: null"
+  [[ "$wired" -ge 1 ]] || log_fail "at least one INTAKE_*.prompt.md must reference INTAKE_COMMON.md"
   # templates carry a number field + slug-as-primary-key note
   local rfct="$PROJECT_ROOT/.aai/templates/RFC_TEMPLATE.md"
   local spect="$PROJECT_ROOT/.aai/templates/SPEC_TEMPLATE.md"

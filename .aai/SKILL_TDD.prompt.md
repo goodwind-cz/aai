@@ -126,20 +126,8 @@ Before starting TDD cycle:
      --spec-path docs/specs/SPEC-<id>.md --test-path [path-to-test-file] \
      --red docs/ai/tdd/red-[timestamp].log
    ```
-   FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
-   edit docs/ai/STATE.yaml by hand, then validate with
-   `node .aai/scripts/check-state.mjs docs/ai/STATE.yaml`:
-   ```yaml
-   tdd_cycle:
-     status: RED
-     test_id: TEST-xxx
-     spec_path: docs/specs/SPEC-<id>.md
-     test_path: [path-to-test-file]
-     evidence:
-       red: docs/ai/tdd/red-[timestamp].log
-       green: null
-       refactor: null
-   ```
+   FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md
+   and follow its TDD-cycle hand-edit rule (status RED + red evidence path).
 
 **Fixture diversity checklist (MANDATORY when authoring fixtures)** (SPEC-0013 H7):
 - [ ] degenerate/empty collection (zero items, empty file, empty map)
@@ -216,20 +204,8 @@ RED-proof rule extension: ask "would this suite stay green if the happy path wer
      --spec-path docs/specs/SPEC-<id>.md --test-path [path-to-test-file] \
      --green docs/ai/tdd/green-[timestamp].log
    ```
-   FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
-   edit docs/ai/STATE.yaml by hand, then validate with
-   `node .aai/scripts/check-state.mjs docs/ai/STATE.yaml`:
-   ```yaml
-   tdd_cycle:
-     status: GREEN
-     test_id: TEST-xxx
-     spec_path: docs/specs/SPEC-<id>.md
-     test_path: [path-to-test-file]
-     evidence:
-       red: docs/ai/tdd/red-[timestamp].log
-       green: docs/ai/tdd/green-[timestamp].log
-       refactor: null
-   ```
+   FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md
+   and follow its TDD-cycle hand-edit rule (status GREEN + green evidence path).
 
 **GREEN Phase Checklist:**
 - [ ] Implementation added to source code
@@ -288,22 +264,8 @@ RED-proof rule extension: ask "would this suite stay green if the happy path wer
      --test-path [path-to-test-file] --refactor docs/ai/tdd/refactor-[timestamp].log
    ```
    Record the refactoring summary in docs/ai/decisions.jsonl (step 6 below).
-   FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
-   edit docs/ai/STATE.yaml by hand, then validate with
-   `node .aai/scripts/check-state.mjs docs/ai/STATE.yaml`:
-   ```yaml
-   tdd_cycle:
-     status: REFACTOR_COMPLETE
-     test_path: [path-to-test-file]
-     evidence:
-       red: docs/ai/tdd/red-[timestamp].log
-       green: docs/ai/tdd/green-[timestamp].log
-       refactor: docs/ai/tdd/refactor-[timestamp].log
-     refactoring_summary: |
-       - Extracted login validation to separate function
-       - Renamed variables for clarity
-       - Simplified error handling
-   ```
+   FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md
+   and follow its TDD-cycle hand-edit rule (status REFACTOR_COMPLETE + refactor evidence path).
 
 6. **Record Decision**
    - Append decision entries to `docs/ai/decisions.jsonl`
@@ -373,20 +335,8 @@ After completing REFACTOR for one TEST-xxx:
    node .aai/scripts/state.mjs set-tdd-cycle --status IDLE
    ```
    (`--status IDLE` nulls test_id/spec_path/test_path and all evidence fields.)
-   FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
-   edit docs/ai/STATE.yaml by hand, then validate with
-   `node .aai/scripts/check-state.mjs docs/ai/STATE.yaml`:
-   ```yaml
-   tdd_cycle:
-     status: IDLE
-     test_id: null
-     spec_path: null
-     test_path: null
-     evidence:
-       red: null
-       green: null
-       refactor: null
-   ```
+   FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md
+   and follow its TDD-cycle hand-edit rule (status IDLE, all other fields null).
 
 6. **Prepare Commit Only With Explicit Approval**
    - Do not commit automatically.
@@ -547,27 +497,6 @@ transactional CLI:
 The CLI self-stamps `ended_utc` and computes `duration_seconds` from the system
 clock, keeps `cost_usd: null`, and auto-initializes a missing
 metrics.work_items entry — never a second top-level `metrics:` key.
-FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
-append by hand under metrics.work_items[ref_id].agent_runs in docs/ai/STATE.yaml:
-  role:             TDD
-  model_id:         <your model identifier, e.g. claude-opus-4-6, claude-sonnet-4-5>
-  started_utc:      <ISO 8601 UTC, real measured start>
-  ended_utc:        <ISO 8601 UTC, real measured end>
-  duration_seconds: <integer, ended_utc - started_utc>
-  tokens_in:        <integer if your platform exposes it, otherwise null>
-  tokens_out:       <integer if your platform exposes it, otherwise null>
-  cost_usd:         null
-  tdd_tests:        <count of TEST-xxx completed in this run>
+FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and
+follow it (agent_runs hand-append incl. tdd_tests + write-safety rules).
 Do NOT estimate any timing or token values. Only record measured/platform values.
-
-STATE-WRITE SAFETY (ISSUE-0004 / INV-14)
-Primary path: `node .aai/scripts/state.mjs append-run ...` appends under the
-single top-level `metrics:` key by construction (it refuses to write a
-duplicate-key file). The hand-edit rules below apply to the FALLBACK path.
-When appending your agent_runs entry, append into the EXISTING metrics.work_items.<ref_id>.agent_runs
-list under the single top-level `metrics:` key; never emit a second top-level `metrics:` key.
-A duplicate top-level `metrics:` silently drops the first block's work_items and agent_runs on a
-lenient YAML load (ISSUE-0004). After editing, validate with:
-  node .aai/scripts/check-state.mjs docs/ai/STATE.yaml
-(REPAIR merges a duplicate `metrics:` with zero data loss:
-  node .aai/scripts/check-state.mjs --repair docs/ai/STATE.yaml).

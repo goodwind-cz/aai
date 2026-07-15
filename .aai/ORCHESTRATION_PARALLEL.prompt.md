@@ -104,9 +104,7 @@ OUTPUT FORMAT
     node .aai/scripts/state.mjs set-phase --ref <REF-ID> --phase <p> [--status <s>]
     node .aai/scripts/state.mjs set-human-input --required <true|false> [--question <t>] [--reason <t>]
   (each bumps the real `updated_at_utc` itself)
-  FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer):
-  edit current_focus / active_work_items / human_input / updated_at_utc by
-  hand, then validate with `node .aai/scripts/check-state.mjs docs/ai/STATE.yaml`.
+  FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and follow it.
 
 SUBAGENT EXECUTION
 When the platform supports concurrent subagent spawning:
