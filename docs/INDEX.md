@@ -1,13 +1,13 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-15T23:40:02.690Z
+Generated: 2026-07-15T23:41:06.578Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (6)
+## Active (implementing) (7)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
@@ -17,6 +17,7 @@ _None._
 | SPEC-0019 | specs | implementing | 10 done | docs/specs/SPEC-0019-spec-mechanize-deterministic-ticks.md |
 | SPEC-0020 | specs | implementing | 6 done | docs/specs/SPEC-0020-spec-doctor-vendored-layer-drift.md |
 | RFC-0007 | rfc | accepted | — | docs/rfc/RFC-0007-parallel-safe-doc-numbering.md |
+| single-dual-verdict-review | rfc | accepted | — | docs/rfc/RFC-DRAFT-single-dual-verdict-review.md |
 
 ## Canonical layer (0)
 
