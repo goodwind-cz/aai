@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-15T19:52:54.282Z
+Generated: 2026-07-15T20:52:02.738Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -61,7 +61,7 @@ _None._
 | SPEC-0014 | specs | docs/specs/SPEC-0014-state-clear-spec-path-placement-auto-trigger-alignment.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (5)
+## Drafts (6)
 
 | ID | Type | Path |
 |---|---|---|
@@ -69,6 +69,7 @@ _None._
 | CHANGE-0010 | issues | docs/issues/CHANGE-0010-model-tiering-with-teeth.md |
 | CHANGE-0011 | issues | docs/issues/CHANGE-0011-prompt-layer-diet-phase-1.md |
 | CHANGE-0012 | issues | docs/issues/CHANGE-0012-slug-refs-across-tooling.md |
+| ISSUE-0006 | issues | docs/issues/ISSUE-0006-per-type-digit-width.md |
 | SPEC-0017 | specs | docs/specs/SPEC-0017-spec-prompt-layer-diet-phase-1.md |
 
 ## Deferred (whole-doc) (0)
