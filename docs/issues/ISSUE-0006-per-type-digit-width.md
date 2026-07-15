@@ -2,7 +2,7 @@
 id: per-type-digit-width
 type: issue
 number: 6
-status: draft
+status: done
 links:
   spec: SPEC-0015
   pr: []
