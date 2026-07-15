@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-15T15:53:43.073Z
+Generated: 2026-07-15T17:25:25.897Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -58,9 +58,14 @@ _None._
 | SPEC-0014 | specs | docs/specs/SPEC-0014-state-clear-spec-path-placement-auto-trigger-alignment.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (4)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0009 | issues | docs/issues/CHANGE-0009-mechanize-deterministic-ticks.md |
+| CHANGE-0010 | issues | docs/issues/CHANGE-0010-model-tiering-with-teeth.md |
+| CHANGE-0011 | issues | docs/issues/CHANGE-0011-prompt-layer-diet-phase-1.md |
+| CHANGE-0012 | issues | docs/issues/CHANGE-0012-slug-refs-across-tooling.md |
 
 ## Deferred (whole-doc) (0)
 
