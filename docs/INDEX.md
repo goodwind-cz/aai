@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-15T15:53:43.073Z
+Generated: 2026-07-15T17:22:28.817Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -18,7 +18,7 @@ _None._
 
 _None._
 
-## Done (35)
+## Done (36)
 
 | ID | Type | Path |
 |---|---|---|
@@ -42,6 +42,7 @@ _None._
 | RFC-0004 | rfc | docs/rfc/RFC-0004-enforced-multi-agent-state-locking.md |
 | RFC-0005 | rfc | docs/rfc/RFC-0005-automatic-parallel-mode-detection.md |
 | RFC-0006 | rfc | docs/rfc/RFC-0006-test-canonicalization-skill.md |
+| RES-0001 | specs | docs/specs/RES-0001-aai-competitive-gap-and-model-efficiency.md |
 | SPEC-0001 | specs | docs/specs/SPEC-0001-docs-hygiene-and-drift-audit.md |
 | SPEC-0002 | specs | docs/specs/SPEC-0002-docs-canonicalization-skill.md |
 | SPEC-0003 | specs | docs/specs/SPEC-0003-docs-audit-closeout-candidate.md |
