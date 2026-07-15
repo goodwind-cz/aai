@@ -17,6 +17,9 @@ never changed), number: null, status: draft. The slug is kebab-case of the topic
 intake — the sequential display number is assigned at MERGE by
 .aai/scripts/allocate-doc-number.mjs (invoked by /aai-pr), and the human-facing
 TYPE-000N display id is derived from type + number by the index generator.
+The zero-padding WIDTH follows the type's existing convention (inherited from
+the highest-numbered doc of that type; defaults: PRD is 3-digit, e.g. PRD-001,
+all other prefixes 4-digit, e.g. RFC-0001).
 FALLBACK (allocator absent, older AAI layer): scan-and-mint the next free
 TYPE-000N from existing docs and name the file docs/<type>/<TYPE>-000N-<slug>.md
 directly; the CI/pre-commit duplicate-number guard is the backstop.

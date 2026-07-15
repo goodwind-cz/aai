@@ -98,9 +98,38 @@ export function draftFilename(type, slug, suffix) {
   return `docs/${dir}/${prefix}-DRAFT-${tail}.md`;
 }
 
-// Zero-padded (width 4) display id from a prefix + integer number.
-export function displayId(prefix, number) {
-  return `${prefix}-${String(number).padStart(4, '0')}`;
+// Zero-padded display id from a prefix + integer number. Width defaults to 4
+// (this repo's universal practice) but callers that know the type's existing
+// convention pass it explicitly (ISSUE per-type-digit-width: PRD is 3-digit).
+export function displayId(prefix, number, width = 4) {
+  return `${prefix}-${String(number).padStart(width, '0')}`;
+}
+
+// Digit-width of the number token in a numbered basename, else null
+// (PRD-001-x.md -> 3, RFC-0007-x.md -> 4).
+export function numberWidthFromBasename(basename) {
+  const m = String(basename).match(/^[A-Z]+(?:-[A-Z]+)*-(\d{1,5})(?=[-.])/);
+  return m ? m[1].length : null;
+}
+
+// Default widths for types with NO existing numbered docs. PRD keeps the
+// original documented convention (PRD-001 examples across the canon); every
+// other prefix follows this repo's practice (RFC-0001, SPEC-0001, ...).
+export const DEFAULT_WIDTHS = { PRD: 3 };
+
+// Display width for a prefix: the width recorded on the HIGHEST-numbered
+// existing doc (base ref preferred over local on a tie), else the per-type
+// default. Maps are number -> digit-width as produced by baseRefNumbers /
+// localNumbers.
+export function deriveWidth(prefix, baseMap, localMap) {
+  let bestNum = -1;
+  let bestWidth = null;
+  for (const m of [localMap, baseMap]) { // base last so it wins ties
+    for (const [num, width] of m) {
+      if (num >= bestNum) { bestNum = num; bestWidth = width; }
+    }
+  }
+  return bestWidth ?? DEFAULT_WIDTHS[prefix] ?? 4;
 }
 
 // Leading id-prefix token from a basename: RFC, SPEC, CHANGE, DECISION-RFC, ...
@@ -181,15 +210,18 @@ function resolveBaseRef(root, baseRef) {
 
 // Numbers for a given prefix present under docs/<dir> ON the base ref (read via
 // git, NEVER the working tree). Union with locally-numbered-but-unmerged docs.
+// Both return Map<number, digit-width> so allocation can inherit the type's
+// existing zero-padding convention (ISSUE per-type-digit-width). Map.has(n)
+// keeps the previous Set-style membership checks working.
 function baseRefNumbers(root, baseRef, dir, prefix) {
-  const nums = new Set();
+  const nums = new Map();
   const listing = git(root, ['ls-tree', '-r', '--name-only', baseRef, '--', `docs/${dir}`]);
   if (listing) {
     for (const line of listing.split('\n')) {
       const base = path.basename(line);
       if (prefixFromBasename(base) === prefix) {
         const n = numberFromBasename(base);
-        if (n != null) nums.add(n);
+        if (n != null) nums.set(n, numberWidthFromBasename(base));
       }
     }
   }
@@ -197,14 +229,14 @@ function baseRefNumbers(root, baseRef, dir, prefix) {
 }
 
 function localNumbers(root, dir, prefix) {
-  const nums = new Set();
+  const nums = new Map();
   const abs = path.join(root, 'docs', dir);
   if (!fs.existsSync(abs)) return nums;
   for (const f of fs.readdirSync(abs)) {
     if (!f.endsWith('.md')) continue;
     if (prefixFromBasename(f) === prefix) {
       const n = numberFromBasename(f);
-      if (n != null) nums.add(n);
+      if (n != null) nums.set(n, numberWidthFromBasename(f));
     }
   }
   return nums;
@@ -442,6 +474,7 @@ function runAllocate(root, opts) {
   // Validate + plan every draft BEFORE writing anything (no partial rename).
   const plan = [];
   const claimed = new Map(); // prefix -> next running number within this batch
+  const widths = new Map();  // prefix -> derived display width (stable within the batch)
   for (const rel of drafts) {
     const abs = path.join(root, rel);
     const content = fs.readFileSync(abs, 'utf8');
@@ -453,15 +486,21 @@ function runAllocate(root, opts) {
     if (!prefix) die(4, `GUARD FAIL: ${rel} filename carries no TYPE prefix. No rename performed.`);
     const dir = path.basename(path.dirname(rel));
     // union: base-ref numbers ∪ local numbers ∪ numbers already claimed in this batch
-    const nums = new Set([...baseRefNumbers(root, baseSha, dir, prefix), ...localNumbers(root, dir, prefix)]);
+    const baseMap = baseRefNumbers(root, baseSha, dir, prefix);
+    const localMap = localNumbers(root, dir, prefix);
+    const nums = new Set([...baseMap.keys(), ...localMap.keys()]);
+    // Width follows the type's existing convention (ISSUE per-type-digit-width):
+    // inherit from the highest-numbered existing doc, else the per-type default.
+    const width = widths.get(prefix) ?? deriveWidth(prefix, baseMap, localMap);
+    widths.set(prefix, width);
     const start = claimed.get(prefix) ?? nextNumber(nums);
     const n = Math.max(start, nextNumber(nums));
     claimed.set(prefix, n + 1);
     // collision guard: the computed target must not already exist on the base ref.
-    if (baseRefNumbers(root, baseSha, dir, prefix).has(n)) {
-      die(4, `GUARD FAIL: computed ${displayId(prefix, n)} already exists on ${opts.baseRef}. No rename performed.`);
+    if (baseMap.has(n)) {
+      die(4, `GUARD FAIL: computed ${displayId(prefix, n, width)} already exists on ${opts.baseRef}. No rename performed.`);
     }
-    const newBase = `${displayId(prefix, n)}-${slug}`;
+    const newBase = `${displayId(prefix, n, width)}-${slug}`;
     plan.push({ rel, dir, prefix, slug, n, oldBase: base, newBase, newRel: `docs/${dir}/${newBase}.md` });
   }
 
