@@ -9,6 +9,24 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: doctor reports vendored-layer drift (CHANGE-0013 / SPEC-0020)
+
+- A target project's vendored .aai/ layer silently ages — fixes land in canon
+  and nobody is told (operator hit this twice with ISSUE-0006/0008). New
+  .aai/scripts/layer-drift.mjs compares the AAI_PIN commit against canonical
+  main with honest tiers: local repo -> exact "BEHIND by N", ls-remote ->
+  inequality only, offline/no pin -> unverifiable info (never a failure).
+  Doctor gains CAT-13 wiring; exit 0/3/4/2 + --json.
+- AAI_PIN contract extended with a "Canonical repo:" line stamped by both
+  aai-sync.sh and aai-sync.ps1 (fork-safe: NO hardcoded upstream fallback).
+- Review B1 caught pre-merge: the CLI main-guard never fired from paths with
+  spaces (percent-encoding) or through symlinks (macOS /tmp) — silently exit
+  0, which doctor would read as green. Fixed with decoded+realpath guard +
+  TEST-014 regression; follow-up noted for the same latent pattern in other
+  script guards.
+- 14 fixture tests, zero real network; validation PASS (A/B hardening repro);
+  re-review PASS.
+
 ## [unreleased] — fix: empty-type width follows the project's dominant convention (ISSUE-0008)
 
 - Operator follow-up to ISSUE-0006: the empty-type width defaults encoded this

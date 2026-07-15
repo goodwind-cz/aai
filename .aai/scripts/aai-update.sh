@@ -124,7 +124,7 @@ fi
 
 if [[ -f "$TARGET/.aai/system/AAI_PIN.md" ]]; then
   echo "- AAI_PIN:"
-  grep -iE 'source|version|commit|ref' "$TARGET/.aai/system/AAI_PIN.md" | sed 's/^/  /' || true
+  grep -iE 'source|version|commit|canonical|ref' "$TARGET/.aai/system/AAI_PIN.md" | sed 's/^/  /' || true
 fi
 
 latest_conflict="$(ls -t "$TARGET"/docs/ai/reports/sync-conflicts-*.md 2>/dev/null | head -1 || true)"
