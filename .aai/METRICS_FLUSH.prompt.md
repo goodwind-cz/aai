@@ -56,17 +56,9 @@ PROCESS
         node .aai/scripts/state.mjs set-code-review --required false --status not_run
         node .aai/scripts/state.mjs set-focus --type none
       then null the remaining default fields by hand where they differ (see the
-      legacy list below) and re-validate with check-state.mjs.
-      FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
-      apply ALL resets by hand, then validate with check-state.mjs:
-      - Reset last_validation to defaults (status: not_run, run_at_utc: null, evidence_paths: [], notes: null).
-      - Reset implementation_strategy to defaults (selected: undecided, source: null, rationale: null).
-      - Reset worktree to defaults (recommendation: not_needed, user_decision: undecided, base_ref: null,
-        branch: null, path: null, inline_review_scope: null, rationale: null).
-      - Reset code_review to defaults (required: false, status: not_run, scope: null, base_ref: null,
-        head_ref: null, report_paths: [], notes: null).
-      - Reset current_focus to defaults (type: none, ref_id: null, primary_path: null).
-      - Reset locks.implementation to true (safe default — next scope must explicitly unlock).
+      flush-reset defaults in .aai/STATE_FALLBACK.md) and re-validate with check-state.mjs.
+      FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md
+      and apply ALL its flush-reset defaults by hand, then validate with check-state.mjs.
    d2. PARTIAL-FLUSH reset (SPEC-0013 H5): whenever a flushed ref_id equals
       current_focus.ref_id (or last_validation.ref_id names it) while OTHER
       active work items remain, still reset the verdict blocks so the flushed
@@ -85,9 +77,8 @@ PROCESS
       the leak this reset removes. The ledger-before-reset ordering is
       mandatory: the METRICS.jsonl append (steps 3c/4) happens BEFORE any
       reset — the durable history lives in the ledger, never in STATE.yaml.
-      FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
-      apply the same verdict-block resets by hand (last_validation and
-      code_review to the defaults listed above), then validate with check-state.mjs.
+      FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md
+      and apply its partial-flush verdict-block resets by hand, then validate with check-state.mjs.
    e. Update updated_at_utc after cleanup (the CLI commands above bump it
       automatically; bump it by hand only on the pure-manual path).
 6. Ephemeral file cleanup (only when step 5d triggered — full reset, no remaining work):

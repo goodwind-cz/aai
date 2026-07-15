@@ -9,6 +9,23 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — chore: prompt-layer diet phase 1 (CHANGE-0011 / SPEC-0017)
+
+- Prompt corpus cut by ~35 KB (~10%): the 4 intake boilerplate blocks moved to
+  one shared .aai/INTAKE_COMMON.md (8 files -> 1 pointer each; fixed the
+  INTAKE_CHANGE metrics-question typo drift the duplication predicted);
+  SKILL_PROFILE rewritten 737 -> 79 lines over real data sources (fictional
+  Profiler deleted); ~22 state.mjs-absent FALLBACK blocks + 5 STATE-WRITE
+  SAFETY footers consolidated into .aai/STATE_FALLBACK.md with 2-line pointers.
+- SKILL_LOOP caching guidance fixed (frozen canon first, volatile STATE last —
+  was inverted, guaranteeing a per-tick cache break) and the orchestrator
+  payload switched to the ~1KB loop-digest.mjs --json summary instead of the
+  full 27KB STATE.yaml (orchestrator reads STATE from disk itself).
+- New suite tests/skills/test-aai-prompt-diet.sh (10 tests, grep-RED evidence).
+- Loop validation PASS (independent, Sonnet; KB delta re-measured via stash);
+  review PASS (digest-sufficiency analyzed SAFE; N1/N2 remediated, N3/N4
+  promoted). RES-0001 finding F3, phase 1.
+
 ## [unreleased] — fix: slug refs across the tooling family (CHANGE-0012 / SPEC-0016)
 
 - SPEC-0015 made docs slug-first until merge, but `state.mjs` rejected slug refs

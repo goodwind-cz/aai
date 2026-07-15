@@ -210,8 +210,17 @@ For each tick (1..max_ticks):
          · mode == parallel -> System prompt / instructions: contents of
            `.aai/ORCHESTRATION_PARALLEL.prompt.md`, fanning out the `parallel`
            group's scopes with K = selector `k` (each scope lock-acquired first).
-     - Context: current docs/ai/STATE.yaml contents, current tick number, and the
-       selector decision (mode/k/groups/reasons).
+     - Context: current tick number, the selector decision (mode/k/groups/reasons),
+       and the output of `node .aai/scripts/loop-digest.mjs --json` (~1KB run
+       summary). Do NOT inject full docs/ai/STATE.yaml contents: the orchestrator
+       prompt's STATE DISCOVERY (MANDATORY) section already reads
+       docs/ai/STATE.yaml from disk itself (the authoritative source). Documented digest JSON fields: ticks,
+       durationSeconds, harnessVersion, startedUtc, endedUtc, scopes[],
+       finalValidation, recoveries, recoveryOutcomes[], stopReason,
+       cost{input,output,cacheRead,usd,any}, git{branch,uncommitted,recentCommits[]}.
+       DEGRADATION: if .aai/scripts/loop-digest.mjs is absent or `node` fails,
+       fall back to injecting the full current docs/ai/STATE.yaml contents
+       (legacy behavior) and note the degradation in this tick's log line.
      - Preferred: spawn a subagent.
      - Fallback: execute the chosen orchestrator prompt directly in this session.
        If `node` or the selector is unavailable, default to mode=single (safe).
@@ -308,11 +317,8 @@ For each tick (1..max_ticks):
      `--started` against the system clock (>300s future = rejected), and NEVER
      emits token/cost/leak fields you did not pass — the model supplies only
      semantic fields; the clock supplies time.
-     FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
-     append one `type: tick` JSON line to docs/ai/LOOP_TICKS.jsonl by hand with:
-       tick, started_utc, ended_utc, duration_seconds, exit_code,
-       focus_ref_id_before, focus_ref_id_after, validation_status_before, validation_status_after,
-       harness_version.
+     FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md
+     and follow its tick-line hand-append rule.
      - COST (optional, best-effort): also include input_tokens, output_tokens,
        cache_read_tokens, est_cost_usd ONLY if the runtime exposes real usage figures.
        Never fabricate or estimate token counts — omit the fields if unknown. Real
@@ -368,18 +374,18 @@ To keep ticks cheap:
 - Run the loop SESSION-RESIDENT (this in-session SKILL_LOOP), NOT one cold
   `claude -p` invocation or hourly `/schedule` routine per tick. A per-tick cold
   start or an hourly schedule outlives the TTL and pays full input price every run.
-- Keep the stable prefix stable: canonical prompts (.aai/*.prompt.md) and STATE.yaml
-  lead the context so the cacheable prefix is reused tick-to-tick; put the volatile
-  per-tick dispatch context last.
+- Keep the stable prefix stable: ONLY frozen canon (.aai/*.prompt.md) leads the
+  context, so the cacheable prefix is reused tick-to-tick.
+- Volatile content (STATE.yaml, the loop digest, per-tick dispatch context) goes LAST:
+  STATE.yaml mutates every tick, so placing it in the prefix breaks the prompt
+  cache at the earliest byte on every tick.
 - Surface cost in the tick log (step 6) when the runtime exposes usage, so a per-tick
   cost regression is caught rather than silent.
 
 STATE-WRITE NOTE (SPEC-0012)
 Every human_input write above uses `node .aai/scripts/state.mjs
-set-human-input` as the primary path. FALLBACK — if .aai/scripts/state.mjs is
-absent (older vendored AAI layer): hand-edit the `human_input:` block
-(required/question/blocking_reason) plus `updated_at_utc`, then validate with
-`node .aai/scripts/check-state.mjs docs/ai/STATE.yaml`.
+set-human-input` as the primary path.
+FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and follow it.
 
 STRICT RULES
 - Do NOT improvise role logic. Execute canonical role prompts exactly

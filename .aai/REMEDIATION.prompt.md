@@ -46,17 +46,12 @@ PROCESS
    (fail → not_run, with a reset marker in notes) routes the next orchestration
    tick to rule 11 (fresh independent Validation) or rule 13 (fresh Code
    Review); an already-not_run block is an idempotent no-op.
-   FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer):
-   edit docs/ai/STATE.yaml by hand — set ONLY the failed block's `status:` from
-   `fail` to `not_run` (leave run_at_utc/evidence_paths/report_paths as audit
-   history; touch nothing else), bump updated_at_utc, then validate:
-      node .aai/scripts/check-state.mjs docs/ai/STATE.yaml
+   FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md
+   and follow its remediation-reset rule.
 5) Update the remaining STATE fields — PRIMARY PATH:
       node .aai/scripts/state.mjs set-phase --ref <REF-ID> --phase <validation|code_review> --status in_progress
       node .aai/scripts/state.mjs set-human-input --required true --question "<question>" --reason "<blocker>"   # only if blocked on a human decision
-   FALLBACK — if .aai/scripts/state.mjs is absent: edit active_work_items /
-   human_input / updated_at_utc by hand, then validate with check-state.mjs as
-   above.
+   FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and follow it.
 6) STOP after the reset + your agent-run append (METRICS below). Do NOT loop:
    the independent re-Validation / re-Review happens on the NEXT orchestration
    tick, never inside this remediation context. If remaining blockers require
@@ -79,28 +74,8 @@ PRIMARY PATH — after completing, append your agent run via the transactional C
 The CLI self-stamps `ended_utc` and computes `duration_seconds` from the system
 clock, keeps `cost_usd: null`, and auto-initializes a missing
 metrics.work_items entry — never a second top-level `metrics:` key.
-FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
-append by hand under metrics.work_items[ref_id].agent_runs in docs/ai/STATE.yaml:
-  role:             Remediation
-  model_id:         <your model identifier, e.g. claude-sonnet-4-5, gemini-2.0-flash>
-  started_utc:      <ISO 8601 UTC, real measured start>
-  ended_utc:        <ISO 8601 UTC, real measured end>
-  duration_seconds: <integer, ended_utc - started_utc>
-  tokens_in:        <integer if your platform exposes it, otherwise null>
-  tokens_out:       <integer if your platform exposes it, otherwise null>
-  cost_usd:         null
+FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and
+follow it (agent_runs hand-append + write-safety rules).
 Do NOT estimate any timing or token values. Only record measured/platform values.
 
 BEGIN NOW AND CONTINUE AUTONOMOUSLY.
-
-STATE-WRITE SAFETY (ISSUE-0004 / INV-14)
-Primary path: `node .aai/scripts/state.mjs append-run ...` appends under the
-single top-level `metrics:` key by construction (it refuses to write a
-duplicate-key file). The hand-edit rules below apply to the FALLBACK path.
-When appending your agent_runs entry, append into the EXISTING metrics.work_items.<ref_id>.agent_runs
-list under the single top-level `metrics:` key; never emit a second top-level `metrics:` key.
-A duplicate top-level `metrics:` silently drops the first block's work_items and agent_runs on a
-lenient YAML load (ISSUE-0004). After editing, validate with:
-  node .aai/scripts/check-state.mjs docs/ai/STATE.yaml
-(REPAIR merges a duplicate `metrics:` with zero data loss:
-  node .aai/scripts/check-state.mjs --repair docs/ai/STATE.yaml).

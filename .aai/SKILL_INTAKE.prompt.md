@@ -32,35 +32,15 @@ Load and follow the instructions in the intake prompt file for the detected type
 Follow that prompt exactly — do not merge or combine intake forms.
 
 STEP 2.4 — DURABLE DOC IDENTITY (SPEC-0015 / RFC-0007)
-Create the artifact with slug-primary identity and NO sequential number:
-- Filename: docs/<type>/<TYPE>-DRAFT-<slug>.md (the literal token `DRAFT` in the
-  number slot marks an unnumbered doc). <TYPE> is the id prefix (RFC, SPEC, ISSUE,
-  CHANGE, PRD, REL); <type> is the directory (rfc, specs, issues, requirements,
-  releases). The slug is kebab-case of the topic (lowercase, ASCII, ≤48 chars).
-- Frontmatter: `id: <slug>` (the durable PRIMARY KEY, never changed),
-  `number: null` (assigned at MERGE by the allocator), `status: draft`.
-- Do NOT scan-and-mint a `TYPE-000N` number at intake. The sequential display
-  number is assigned at the merge serialization point by
-  `.aai/scripts/allocate-doc-number.mjs` (invoked by /aai-pr), and the human-facing
-  `TYPE-000N` display id is derived from `type` + `number` by the index generator.
-- FALLBACK (allocator absent, older AAI layer): if
-  `.aai/scripts/allocate-doc-number.mjs` does not exist, fall back to the legacy
-  scan-and-mint numbering (pick the next free `TYPE-000N` from the existing docs)
-  and name the file `docs/<type>/<TYPE>-000N-<slug>.md` directly. The
-  CI/pre-commit duplicate-number guard is the backstop.
+Apply the "DURABLE DOC IDENTITY (SPEC-0015 / RFC-0007)" block from .aai/INTAKE_COMMON.md exactly.
 Intake stays fully local and offline: no fetch, no write to main.
 
 STEP 2.5 — POST-SAVE CHECK (RFC-0002)
-After saving the artifact, verify template compliance:
-  node .aai/scripts/docs-audit.mjs --check --strict --no-event --path <saved-file>
+Apply the "POST-SAVE CHECK (RFC-0002)" block from .aai/INTAKE_COMMON.md exactly; do not proceed to STEP 3 while the check fails.
 This check also body-lints the artifact (SPEC-0013 H1): stray tool markup
 (`</content>`, `<invoke ...>`), unbalanced code fences, and unfilled template
 placeholders hard-fail under --strict. Body lint never flags content inside
 fenced blocks or inline code spans.
-If the check fails, fix the artifact's frontmatter per the doc type's template
-in .aai/templates/ and re-run until it passes. Do not proceed to STEP 3 while
-the check fails. If the script does not exist (older AAI layer), note that and
-continue.
 
 STEP 2.6 — REGENERATE DOCS INDEX (RFC-0001)
 The intake artifact lives under docs/, so docs/INDEX.md is now stale.
@@ -93,10 +73,7 @@ Index:     docs/INDEX.md regenerated
 Next step: Run .aai/ORCHESTRATION.prompt.md to dispatch the next role.
 ---
 
-LANGUAGE POLICY
-- Accept user input in any language.
-- Saved artifacts must be written in English.
-- Ask follow-up questions in the user's language.
+SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its four blocks (language policy, durable doc identity, post-save check, metrics question) exactly.
 
 EFFICIENCY RULES
 - Ask only for missing high-impact fields.

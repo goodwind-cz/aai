@@ -115,8 +115,9 @@ verdict). Consequently, on the tick AFTER a remediation:
 If you observe `last_validation.status: fail` AND evidence that a remediation
 already completed for that same failure (post-remediation reset missing — e.g.
 an older vendored layer where state.mjs is absent and the manual reset was
-skipped), treat the missing reset as the defect: reset the failed block per the
-Remediation fallback instructions, then continue the decision logic.
+skipped — see .aai/STATE_FALLBACK.md), treat the missing reset as the defect:
+reset the failed block per the remediation-reset rule in .aai/STATE_FALLBACK.md,
+then continue the decision logic.
 
 MODEL SELECTION (include in dispatch when subagent spawning is supported)
 Right-size the model to task complexity — do not default to the most capable model for everything:
@@ -153,13 +154,8 @@ When dispatching any role for a ref_id:
    `node .aai/scripts/state.mjs append-run` call AUTO-INITIALIZES the missing
    metrics.work_items.<ref_id> entry (human_time_minutes nulls included) under
    the single top-level `metrics:` key.
-   FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer),
-   auto-create the entry by hand:
-     - ref_id: <ref_id>
-       human_time_minutes:
-        intake: null      # user-provided intake minutes; human may override
-        reviews: null     # loop runner derives from LOOP_TICKS pause/resume gaps; human may override
-       agent_runs: []
+   FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md
+   and follow its agent_runs hand-append rule (includes the entry auto-create shape).
 3. When decision is rule 10 (PASS) and metrics not yet flushed for this ref_id:
    Dispatch .aai/METRICS_FLUSH.prompt.md before stopping.
    The flush agent handles STATE.yaml cleanup (removes flushed metrics.work_items
@@ -179,17 +175,7 @@ STRICT RULES
   (only the commands whose fields actually changed; each bumps the real
   `updated_at_utc` itself; metrics.work_items auto-init is handled by the
   roles' append-run — see METRICS AUTO-MANAGEMENT)
-  FALLBACK — if .aai/scripts/state.mjs is absent (older vendored AAI layer):
-  edit the fields below by hand, then validate with
-  `node .aai/scripts/check-state.mjs docs/ai/STATE.yaml`:
-  - current_focus (type/ref_id/primary_path)
-  - active_work_items (create/update selected scope)
-  - implementation_strategy (selected/source/rationale)
-  - worktree (recommendation/user_decision/base_ref/branch/path/inline_review_scope)
-  - code_review (required/status/scope/base_ref/head_ref/report_paths)
-  - human_input (if blocked/awaiting decision)
-  - metrics.work_items (auto-init entry if missing for current ref_id)
-  - updated_at_utc (ISO 8601 UTC)
+  FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and follow it.
 - Stop after dispatch.
 
 BEGIN NOW.
