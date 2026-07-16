@@ -109,6 +109,12 @@ const metricsRaw = fs.readFileSync(metricsPath, 'utf8');
 const historyIds = new Set();
 for (const m of metricsRaw.matchAll(/"model_id"\s*:\s*"([^"]*)"/g)) historyIds.add(m[1]);
 if (historyIds.size === 0) fail('001', 'no model_id values found in METRICS.jsonl (test would be vacuous)');
+// The literal id "unknown" is the CANONICAL not-reported sentinel: METRICS_FLUSH
+// mandates 'model_id: record exactly as reported; use "unknown" if not
+// reported', and PRICING.yaml keeps the matching null-priced sentinel entry.
+// A recorded "unknown" is therefore an acknowledged gap, not a resolution
+// failure — exempt it from Assert 1 (it resolves to itself by design).
+historyIds.delete('unknown');
 
 // Assert 1: every historical id resolves to a non-unknown entry.
 for (const id of historyIds) {
