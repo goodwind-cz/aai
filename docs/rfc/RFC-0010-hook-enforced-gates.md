@@ -1,7 +1,7 @@
 ---
 id: hook-enforced-gates
 type: rfc
-number: null
+number: 10
 status: accepted
 links:
   research: RES-0001
