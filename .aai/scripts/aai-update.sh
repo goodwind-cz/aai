@@ -82,11 +82,28 @@ else
   if [[ "$REPO" == *://* || "$REPO" == *@*:* ]]; then CLONE_URL="$REPO"; else CLONE_URL="https://github.com/$REPO.git"; fi
   if [[ "$DRY_RUN" != "1" ]]; then
     TMP="$(mktemp -d "${TMPDIR:-/tmp}/aai-src.XXXXXX")"
-    if command -v gh >/dev/null 2>&1 && gh repo clone "$REPO" "$TMP" -- --branch "$REF" --depth 1 >/dev/null 2>&1; then
-      :
-    elif git clone --branch "$REF" --depth 1 "$CLONE_URL" "$TMP" >/dev/null 2>&1; then
-      :
-    else
+    cloned=0
+    # git refuses to clone into a non-empty dir, and a failed attempt leaves a
+    # partial one behind — so wipe TMP before every attempt.
+    if command -v gh >/dev/null 2>&1; then
+      rm -rf "$TMP"
+      gh repo clone "$REPO" "$TMP" -- --branch "$REF" --depth 1 >/dev/null 2>&1 && cloned=1
+    fi
+    if [[ "$cloned" != "1" ]]; then
+      rm -rf "$TMP"
+      git clone --branch "$REF" --depth 1 "$CLONE_URL" "$TMP" >/dev/null 2>&1 && cloned=1
+    fi
+    if [[ "$cloned" != "1" ]]; then
+      # Last resort: a truly anonymous clone. On a machine where `gh auth setup-git`
+      # wired gh in as git's credential helper, a broken/expired token gets injected
+      # even into the plain `git clone` above — 401-ing a PUBLIC repo that needs no
+      # auth at all. Emptying the credential helper + any injected auth header forces
+      # git to fetch anonymously, so the public canonical repo clones with no creds.
+      rm -rf "$TMP"
+      git -c credential.helper= -c http.https://github.com/.extraheader= \
+          clone --branch "$REF" --depth 1 "$CLONE_URL" "$TMP" >/dev/null 2>&1 && cloned=1
+    fi
+    if [[ "$cloned" != "1" ]]; then
       echo "ERROR: could not fetch $REPO@$REF (auth or network?). Treat as an access issue, not a missing repo." >&2
       exit 3
     fi
