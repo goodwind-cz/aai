@@ -80,16 +80,16 @@ const RULES = [
   { id: '3', when: 'docs/TECHNOLOGY.md missing', then: 'dispatch Technology extraction (.aai/TECH_EXTRACT.prompt.md)' },
   { id: '4', when: '.aai/workflow/WORKFLOW.md missing', then: 'dispatch Bootstrap (.aai/BOOTSTRAP.prompt.md)' },
   { id: '5', when: 'focus spec_path null or spec file missing', then: 'dispatch Planning' },
-  { id: '6', when: 'spec not frozen (no SPEC-FROZEN: true) or frontmatter status not draft/implementing', then: 'dispatch Planning' },
+  { id: '6', when: 'spec not frozen (no SPEC-FROZEN: true) or frontmatter status not draft/implementing; ceremony L0 (RFC-0009) prunes the status arm (tech-note doc), never the marker arm', then: 'dispatch Planning' },
   { id: '7', when: 'implementation_strategy.selected missing or undecided', then: 'dispatch Planning' },
-  { id: '8', when: 'worktree.recommendation in {recommended, required} AND user_decision == undecided', then: 'dispatch Implementation Preparation / Worktree decision (.aai/SKILL_WORKTREE.prompt.md)' },
+  { id: '8', when: 'worktree.recommendation in {recommended, required} AND user_decision == undecided; ceremony L3 (RFC-0009): undecided gates for ANY recommendation (worktree mandatory)', then: 'dispatch Implementation Preparation / Worktree decision (.aai/SKILL_WORKTREE.prompt.md)' },
   { id: '9a', when: 'phase in {planning done, preparation} AND strategy == tdd', then: 'dispatch TDD Implementation (.aai/SKILL_TDD.prompt.md)' },
   { id: '9b', when: 'phase in {planning done, preparation} AND strategy == hybrid', then: 'dispatch TDD Implementation (the role reads the spec TEST-xxx ordering)' },
   { id: '9c', when: 'phase in {planning done, preparation} AND strategy == loop', then: 'dispatch Implementation (.aai/IMPLEMENTATION.prompt.md)' },
   { id: '10', when: 'last_validation.status == fail', then: 'dispatch Remediation (.aai/REMEDIATION.prompt.md); fail + last run already Remediation -> needs_llm possible_missing_remediation_reset' },
   { id: '11', when: 'last_validation.status == not_run AND phase in {implementation, validation, remediation, code_review}', then: 'dispatch Validation (.aai/VALIDATION.prompt.md) with validator_independence' },
   { id: '12', when: 'code_review.status == fail', then: 'dispatch Remediation (.aai/REMEDIATION.prompt.md)' },
-  { id: '13', when: 'validation pass AND code_review.required AND status not in {pass, waived}', then: 'dispatch Code Review (.aai/SKILL_CODE_REVIEW.prompt.md)' },
+  { id: '13', when: 'validation pass AND code_review.required AND status not in {pass, waived}; ceremony L3 (RFC-0009): required coerced true, waived -> needs_llm l3_review_waived_requires_operator_checkpoint', then: 'dispatch Code Review (.aai/SKILL_CODE_REVIEW.prompt.md)' },
   { id: '14', when: 'validation pass AND focus ref absent from METRICS.jsonl', then: 'dispatch Metrics Flush (.aai/METRICS_FLUSH.prompt.md); ref present -> no action required' },
 ];
 
@@ -240,17 +240,31 @@ export function decide(snapshot) {
   if (!s.focus || s.focus.ref_id == null) return needsLlm(s, ['no_focus_ref']);
   // Rules 5+6 — spec mapping / freeze proxies.
   if (!s.spec || s.spec.path == null || !s.spec.present) return dispatchFor('Planning', s, '5');
-  if (!s.spec.frozen || !['draft', 'implementing'].includes(s.spec.frontmatter_status)) {
+  // Ceremony level (RFC-0009 / spec-scale-adaptive-ceremony): FAIL-CLOSED to 2
+  // (full ceremony). Anything outside the declared integer enum — absent field,
+  // legacy snapshot, garbage frontmatter token — can only ever ADD ceremony,
+  // never prune a gate. The snapshot builder applies the same guard; this one
+  // re-guards pure-call inputs (old/hand-built snapshots).
+  const lvl = [0, 1, 2, 3].includes(s.spec.ceremony_level) ? s.spec.ceremony_level : 2;
+  // Rule 6 — freeze proxy. L0 prunes ONLY the frontmatter-status arm (the
+  // tech-note lives in the intake CHANGE doc, whose status lifecycle is not
+  // the spec enum); the SPEC-FROZEN marker arm is never pruned.
+  if (!s.spec.frozen || (lvl !== 0 && !['draft', 'implementing'].includes(s.spec.frontmatter_status))) {
     return dispatchFor('Planning', s, '6');
   }
   // Rule 7 — strategy undecided.
   if (s.strategy_selected == null || s.strategy_selected === 'undecided') {
     return dispatchFor('Planning', s, '7');
   }
-  // Rule 8 — worktree recommendation gate.
-  if (s.worktree && ['recommended', 'required'].includes(s.worktree.recommendation)
-    && s.worktree.user_decision === 'undecided') {
-    return dispatchFor('Implementation Preparation / Worktree decision', s, '8');
+  // Rule 8 — worktree recommendation gate. L3 tightens: the recommendation is
+  // coerced to `required` (worktree decision mandatory for protected surfaces).
+  if (s.worktree && s.worktree.user_decision === 'undecided') {
+    const legacyArm = ['recommended', 'required'].includes(s.worktree.recommendation);
+    if (legacyArm) return dispatchFor('Implementation Preparation / Worktree decision', s, '8');
+    if (lvl === 3) {
+      return dispatchFor('Implementation Preparation / Worktree decision', s, '8',
+        { reasons: ['l3_worktree_mandatory'] });
+    }
   }
   // The remaining rules read the focus work item.
   if (!s.work_item) return needsLlm(s, ['focus_ref_not_in_active_work_items']);
@@ -283,10 +297,19 @@ export function decide(snapshot) {
   // Judgment residue — a `pass` that does not name the focus ref may be a
   // stale/leaked verdict; "not run recently" is not mechanically decidable.
   if (vstatus === 'pass' && !vmatch) return needsLlm(s, ['validation_staleness_unknown']);
-  // Rule 13 — validation pass, review required and missing.
-  if (vstatus === 'pass' && s.review && s.review.required === true
+  // L3 (RFC-0009): review is MANDATORY on protected surfaces — a recorded
+  // waiver is not mechanically acceptable at L3; flag it for the operator
+  // checkpoint instead of proceeding to the flush arm (fail-closed).
+  if (vstatus === 'pass' && lvl === 3 && s.review && s.review.status === 'waived') {
+    return needsLlm(s, ['l3_review_waived_requires_operator_checkpoint'], '13');
+  }
+  // Rule 13 — validation pass, review required and missing. L3 coerces
+  // `required` to true (L0's review OPTIONALITY is input-side policy — a
+  // recorded required:false / waiver — which this rule already honors).
+  if (vstatus === 'pass' && s.review && (s.review.required === true || lvl === 3)
     && !['pass', 'waived'].includes(s.review.status)) {
-    return dispatchFor('Code Review', s, '13');
+    return dispatchFor('Code Review', s, '13',
+      lvl === 3 && s.review.required !== true ? { reasons: ['l3_review_mandatory'] } : {});
   }
   // Judgment residue — verdicts satisfied but code changed after them
   // ("review outdated relative to diff" is not mechanically provable).
@@ -381,7 +404,10 @@ export function buildSnapshot(statePath, root) {
     checkEnum(item.status, ITEM_STATUSES, 'active_work_items[].status');
   }
   const specPath = (item && item.spec_path) || readScalar(lines, 'current_focus', 'spec_path');
-  const spec = { path: specPath ?? null, present: false, frozen: false, frontmatter_status: null };
+  // ceremony_level (RFC-0009): read from the spec_path file's frontmatter,
+  // FAIL-CLOSED to 2 (full ceremony) on absent field, missing file, missing
+  // frontmatter, yaml null, or any token outside the literal enum 0|1|2|3.
+  const spec = { path: specPath ?? null, present: false, frozen: false, frontmatter_status: null, ceremony_level: 2 };
   if (specPath) {
     const abs = path.resolve(root, specPath);
     if (fs.existsSync(abs)) {
@@ -392,6 +418,8 @@ export function buildSnapshot(statePath, root) {
       if (fm) {
         const st = fm[1].match(/^status:\s*(\S+)/m);
         if (st) spec.frontmatter_status = st[1];
+        const cl = fm[1].match(/^ceremony_level:\s*(\S+)\s*$/m);
+        if (cl && ['0', '1', '2', '3'].includes(cl[1])) spec.ceremony_level = Number(cl[1]);
       }
     }
   }

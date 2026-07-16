@@ -3,6 +3,7 @@ id: <slug>
 type: spec
 number: null
 status: draft
+ceremony_level: 2
 links:
   requirement: PRD-XXXX
   rfc: null
@@ -21,6 +22,21 @@ links:
     `type` + `number` by the index generator — it is NOT stored in frontmatter.
   - At intake the file is created as `docs/specs/SPEC-DRAFT-<slug>.md` (the literal
     `DRAFT` token marks an unnumbered doc). -->
+
+<!-- RFC-0009 — Scale-adaptive ceremony:
+  `ceremony_level: 0..3` is declared by Planning at spec freeze
+  (.aai/PLANNING.prompt.md step 10) against the gate table in
+  .aai/workflow/WORKFLOW.md "Ceremony levels". Keep the default 2 (today's
+  full pipeline) unless the scope genuinely fits a lighter or heavier tier:
+  - 0 (typo/docs-only, no behavior change) and 1 (small single-surface fix)
+    REQUIRE a body line starting with the literal
+    `Ceremony justification: ` naming why the scope is small/safe — the
+    docs-audit close gate checks it (report-only by default via close_gate).
+  - 3 is MANDATORY when the scope touches a protected surface — see
+    `protected_paths_l3` in docs/ai/docs-audit.yaml (state engine, allocator,
+    guards, workflow canon by default).
+  Legacy specs without the field are implicit level 2 (never flagged); the
+  dispatch fail-closes any absent/unparseable value to 2 (full ceremony). -->
 
 
 ## Links

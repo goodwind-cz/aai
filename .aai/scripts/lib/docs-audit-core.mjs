@@ -72,15 +72,22 @@ export function loadConfig(root) {
     // Consulted only by the pre-commit hook to choose block-vs-warn;
     // `--lint-body-file` itself always returns the raw predicate exit code.
     body_lint: 'report-only',
+    // RFC-0009 / spec-scale-adaptive-ceremony — project-owned L3
+    // protected-surface list (POLICY + canonical defaults live in
+    // .aai/workflow/WORKFLOW.md "Ceremony levels"). Consult-time input for
+    // Planning (a spec touching a listed path must declare ceremony_level: 3)
+    // and review upward re-classification; no mechanical diff enforcement yet.
+    protected_paths_l3: [],
   };
-  const LIST_KEYS = new Set(['scan_exclude', 'backlog_globs', 'review_by_methods', 'category_prefixes']);
+  const LIST_KEYS = new Set(['scan_exclude', 'backlog_globs', 'review_by_methods', 'category_prefixes', 'protected_paths_l3']);
   let listKey = null;
   for (const raw of fs.readFileSync(p, 'utf8').split('\n')) {
     const line = raw.replace(/#.*$/, '').trimEnd();
     if (!line.trim()) continue;
     const item = line.match(/^\s+-\s+(.*)$/);
     if (item && listKey) { cfg[listKey].push(item[1].trim().replace(/^["']|["']$/g, '')); continue; }
-    const kv = line.match(/^([a-zA-Z_]+):\s*(.*)$/);
+    // key pattern allows digits after the first char (protected_paths_l3)
+    const kv = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*):\s*(.*)$/);
     if (!kv) continue;
     const [, key, rawVal] = kv;
     const val = rawVal.trim();
@@ -776,6 +783,24 @@ export function closeoutCandidatesFor(docs) {
 function gateContent(content, extraMethods) {
   const ac = parseAcTable(content);
   const reasons = [];
+  // RFC-0009 / spec-scale-adaptive-ceremony — ceremony-level close checks.
+  // The enum lives in SPEC frontmatter (a governed docs surface), so its
+  // validation belongs HERE, not in check-state (which validates only
+  // docs/ai/STATE.yaml structure — STATE never stores the level). An ABSENT
+  // field is legacy implicit L2 and is never flagged (zero migration); a YAML
+  // `null` counts as absent. Enforcement rides the existing `close_gate` dial
+  // (report-only by default) — the dispatch fail-closes independently, so an
+  // invalid value can only be reported here, never prune a gate there.
+  const fm = parseFrontmatter(content);
+  const clRaw = fm ? fm.ceremony_level : undefined;
+  if (clRaw !== undefined && clRaw !== null) {
+    if (!['0', '1', '2', '3'].includes(String(clRaw))) {
+      reasons.push(`schema-invalid ceremony_level "${clRaw}" (allowed: 0 | 1 | 2 | 3)`);
+    } else if ((String(clRaw) === '0' || String(clRaw) === '1')
+      && !/(?:^|\n)Ceremony justification:[ \t]*\S/.test(content)) {
+      reasons.push(`ceremony_level ${clRaw} requires a "Ceremony justification: ..." body line (RFC-0009 level-inflation guard)`);
+    }
+  }
   if (!ac.hasGate || ac.rows.length === 0) {
     reasons.push('missing AC Status table');
   } else {

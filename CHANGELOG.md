@@ -9,6 +9,23 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: scale-adaptive ceremony levels (RFC-0009 / SPEC-0030)
+
+- Specs declare ceremony_level 0-3 at freeze (justified in-doc); the gate
+  table prunes EXPLICITLY by level, never silently: L0 (typo-class) skips the
+  frozen-SPEC form (tech-note in the CHANGE doc; justification line required
+  at close); L1 lean; L2 = today's default (legacy specs implicitly L2, zero
+  migration); L3 (protected surfaces via protected_paths_l3 config) ADDS
+  protection — recorded worktree decision mandatory, review coerced required,
+  waived review at L3 escalates to an operator checkpoint.
+- Dispatch reads the level from spec frontmatter FAIL-CLOSED (absent/garbage
+  -> L2; proven on a 9-value garbage matrix + bit-identical L2 legacy
+  comparison against pre-change dispatch). Validation is never pruned at any
+  level (constitution article 1 held by construction).
+- Also fixes a latent loadConfig regex bug (digit-bearing config keys).
+  Review NB-1/NB-2 remediated (real idempotence probe; L3 worktree cell
+  aligned to house 'required' semantics).
+
 ## [unreleased] — feat: hook-enforced gates overlay for Claude Code (RFC-0010 / SPEC-0029)
 
 - Opt-in PreToolUse/Stop hooks template mirroring EXISTING script gates

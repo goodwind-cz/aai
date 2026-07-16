@@ -5,7 +5,7 @@ number: 9
 status: accepted
 links:
   research: RES-0001
-  spec: null
+  spec: spec-scale-adaptive-ceremony
   pr: []
   commits: []
 ---
