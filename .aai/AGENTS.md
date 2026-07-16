@@ -3,6 +3,7 @@
 This repository uses a reusable AAI.
 
 ## Canonical sources
+- Project constitution (ratified principles, checked at spec freeze): docs/CONSTITUTION.md
 - Workflow (single source): .aai/workflow/WORKFLOW.md
 - Semantic roles: .aai/roles/ROLES.md
 - Technology contract: docs/TECHNOLOGY.md (created by .aai/TECH_EXTRACT.prompt.md)

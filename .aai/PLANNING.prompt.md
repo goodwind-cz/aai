@@ -88,6 +88,11 @@ PROCESS
 10) Set SPEC-FROZEN: true only when all Spec-AC items are measurable, verifiable,
    AND every Spec-AC has at least one TEST-xxx entry in the Test Plan.
    AND implementation strategy is not `undecided`.
+   Constitution check (docs/CONSTITUTION.md, if present): check each article
+   against the planned scope and record a `## Constitution deviations` section
+   in the spec — the literal `None.`, or a justified list (article number, the
+   deviation, why it is justified). An unjustifiable deviation blocks freeze.
+   Required for new specs; pre-existing specs without the section stay valid.
 11) Emit the work-item brief (subagent handoff): create docs/ai/briefs/<REF-ID>.md
    from .aai/templates/BRIEF_TEMPLATE.md — skip this step while SPEC-FROZEN is false.
    Fill Scope & Why, the AC ↔ Task Map, Constraints & Canon Pointers (repo PATHS

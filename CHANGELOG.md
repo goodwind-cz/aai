@@ -9,6 +9,21 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: project constitution with justified-exception tracking (CHANGE-0019 / SPEC-0028)
+
+- docs/CONSTITUTION.md: 7 one-sentence articles distilled from scattered canon
+  (evidence-before-claims, KISS/YAGNI, tri-platform portability,
+  degrade-and-report, additive-first, single-writer STATE, operator-only
+  merge), each pointing at its authoritative source. Merge of the introducing
+  PR = ratification (header softened per validation axis-e finding — the
+  original "Ratified by" overclaimed a review that had not happened).
+- PLANNING freeze step checks the articles; specs carry a "Constitution
+  deviations" section (required for new, optional for legacy — spec-kit
+  accountable-deviation pattern, RES-0001 P2). This scope dogfoods it.
+- Review NB: Article 7 carve-out question (strict operator-only vs
+  operator-DIRECTED agent merges) promoted to the ratification decision;
+  the session merge-direction practice is now recorded in decisions.jsonl.
+
 ## [unreleased] — feat: systematic-debugging gate for remediation (CHANGE-0018 / SPEC-0027)
 
 - New .aai/SKILL_DEBUG.prompt.md (68 lines): root-cause-first protocol —
