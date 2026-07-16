@@ -9,6 +9,22 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: systematic-debugging gate for remediation (CHANGE-0018 / SPEC-0027)
+
+- New .aai/SKILL_DEBUG.prompt.md (68 lines): root-cause-first protocol —
+  READ (full error, never tail-only) -> REPRODUCE (before any edit) ->
+  ISOLATE (recent changes, boundary instrumentation, backward trace) ->
+  FIX-AT-CAUSE (the fix must make the reproduction pass); 6-row
+  rationalization table citing this repo's own fieldSpan near-miss as the
+  motivating example; SKILL_VERIFY cross-link (DEBUG governs before-fix,
+  VERIFY before-claim). Superpowers pattern, RES-0001 P2.
+- REMEDIATION wires the gate in 2 purely additive lines before its fix step;
+  wrappers x3; 8-test suite. Review NB (unbounded awk) fixed — and the fix
+  itself exposed a second bug (prose-anchored pattern), root-caused via the
+  new SKILL_DEBUG discipline; both landed anchored+bounded.
+- Validation PASS (byte-for-byte RED reconstruction); dual-verdict review
+  PASS.
+
 ## [unreleased] — feat: work-item brief as subagent handoff (CHANGE-0017 / SPEC-0026)
 
 - Planning now emits a self-contained brief per work item (BMAD story
