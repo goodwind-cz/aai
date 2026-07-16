@@ -2,7 +2,7 @@
 id: delta-spec-lifecycle
 type: rfc
 number: 11
-status: proposed
+status: accepted
 links:
   research: RES-0001
   spec: null
@@ -82,3 +82,8 @@ canonical requirements (Deltas optional).
 
 ## Approvals
 - Required approvers: Project owner (ales@holubec.net).
+- Decision 2026-07-16: ACCEPTED by project owner (ales@holubec.net) —
+  "schvaluji RFC-0011, mergni a rozjed". Open questions resolved per the
+  RFC's leans, delegated by the wholesale approval: merge trigger = PR
+  ceremony (canonical diff reviewable in the PR); REQ ids = per-domain
+  sequential (REQ-<DOMAIN>-NNN). Delivery in the three staged SPECs.
