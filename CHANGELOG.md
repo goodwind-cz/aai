@@ -9,6 +9,22 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — chore: orchestration surfaces aligned to the dual-verdict taxonomy (CHANGE-0014 / SPEC-0024)
+
+- 15+2 occurrences of the retired Stage-1/Stage-2 + ERROR/WARNING review
+  vocabulary reworded across REMEDIATION, SKILL_TDD, WORKFLOW,
+  ORCHESTRATION_HITL, orchestration-dispatch (display string), AUTONOMOUS_LOOP
+  and SUPERPOWERS_INTEGRATION. REMEDIATION's finding intake now names the
+  dual-verdict report schema fields exactly (spec_compliance/ac_walk,
+  BLOCKING/NON-BLOCKING/failure_scenario, cannot_verify as evidence gaps) —
+  a review-FAIL dispatch buckets without guessing.
+- New hygiene sweep test_043 keeps the old taxonomy from creeping back
+  (whitelist anchored to the hit path prefix — review NB-1 remediated
+  in-tree).
+- Validation PASS (independent inventory MATCH; adversarial probe proved the
+  sweep non-tautological); dual-verdict review PASS (measurement-gate data
+  point #3).
+
 ## [unreleased] — chore: session lessons promoted into the vendored layer (CHANGE-0015 / SPEC-0023)
 
 - Universal workflow lessons from the 2026-07-15/16 sessions now live in the

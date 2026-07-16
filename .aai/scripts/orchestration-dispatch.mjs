@@ -163,7 +163,7 @@ function dispatchFor(role, snapshot, rule, extra = {}) {
       system_prompt: '.aai/SKILL_CODE_REVIEW.prompt.md',
       inputs: [specPath, 'docs/ai/STATE.yaml'].filter(Boolean),
       expected_outputs: ['review report under docs/ai/reviews/', 'verdict via state.mjs set-code-review'],
-      stop_condition: 'review verdict recorded (ERROR findings block readiness)',
+      stop_condition: 'review verdict recorded (BLOCKING findings block readiness)',
     },
     'Metrics Flush': {
       system_prompt: '.aai/METRICS_FLUSH.prompt.md',

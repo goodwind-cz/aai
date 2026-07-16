@@ -536,6 +536,58 @@ test_042_dual_verdict_surfaces() {  # spec-single-dual-verdict-review TEST-006 /
   log_pass "Dual-verdict surfaces aligned: wrappers x$(skill_trees | wc -l | tr -d ' '), ROLES.md, AGENTS.md (spec-single-dual-verdict-review TEST-006)"
 }
 
+test_043_review_taxonomy_alignment() {  # spec-review-taxonomy-alignment TEST-001..002 / Spec-AC-01..02 (CHANGE-0014)
+  log_info "Test: orchestration-facing surfaces speak the dual-verdict taxonomy (spec-review-taxonomy-alignment TEST-001..002)..."
+
+  # TEST-001 — repo-wide negative grep: the retired Stage-1/Stage-2 +
+  # ERROR/WARNING review taxonomy is gone from every orchestration-facing
+  # tree (.aai + skill wrappers). Whitelist: .aai/SKILL_CODE_REVIEW.prompt.md
+  # only — its "replaces the former two-stage flow" note is a historical
+  # self-reference and the review prompt is out of CHANGE-0014 scope
+  # (test_040 already bans Stage 1/2 scaffolding inside it). Immutable
+  # history (docs/**, CHANGELOG) and this suite (tests/**) are outside the
+  # swept trees by construction.
+  local trees=("$PROJECT_ROOT/.aai") t hits
+  for t in $(skill_trees); do trees+=("$PROJECT_ROOT/$t"); done
+  # Review CHANGE-0014 NB-1: anchor the whitelist to the HIT PATH PREFIX —
+  # an unanchored substring filter would silently whitelist any OTHER swept
+  # file whose line merely mentions the reviewed prompt's path.
+  hits="$(grep -rniE 'Stage 1|Stage 2|stage-1|stage-2|two-stage|mandatory stage|ERROR finding|WARNING finding|ERROR/WARNING|ERROR blocks|WARNING requires' \
+    "${trees[@]}" 2>/dev/null | grep -vE "^${PROJECT_ROOT}/\.aai/SKILL_CODE_REVIEW\.prompt\.md:" || true)"
+  if [[ -n "$hits" ]]; then
+    echo "$hits" >&2
+    log_fail "old review taxonomy still present on orchestration-facing surfaces (see hits above)"
+  fi
+
+  # TEST-002 — positive anchors (non-vacuous): the finding-intake wording in
+  # REMEDIATION matches the dual-verdict report schema FIELD NAMES so a
+  # review-FAIL dispatch buckets correctly.
+  local r="$PROJECT_ROOT/.aai/REMEDIATION.prompt.md"
+  grep -qF "spec_compliance" "$r" || log_fail "REMEDIATION must bucket by the spec_compliance verdict"
+  grep -qF "code_quality" "$r" || log_fail "REMEDIATION must bucket by the code_quality verdict"
+  grep -qF "ac_walk" "$r" || log_fail "REMEDIATION must point at the report's ac_walk rows"
+  grep -qF "BLOCKING" "$r" || log_fail "REMEDIATION must key code-quality fixes on BLOCKING findings"
+  grep -qF "NON-BLOCKING" "$r" || log_fail "REMEDIATION must carry the NON-BLOCKING (H6) disposition duty"
+  grep -qF "failure_scenario" "$r" || log_fail "REMEDIATION must name the findings' failure_scenario field"
+  grep -qF "cannot_verify" "$r" || log_fail "REMEDIATION must name cannot_verify as evidence gaps, not defects"
+
+  # The reworded surfaces carry the new vocabulary.
+  grep -qF "BLOCKING findings block readiness" "$PROJECT_ROOT/.aai/scripts/orchestration-dispatch.mjs" \
+    || log_fail "dispatch Code Review stop_condition must speak BLOCKING findings"
+  grep -qF "Code Review BLOCKING findings" "$PROJECT_ROOT/.aai/workflow/WORKFLOW.md" \
+    || log_fail "WORKFLOW stop condition must speak BLOCKING findings"
+  grep -qF "Code Review BLOCKING findings" "$PROJECT_ROOT/.aai/ORCHESTRATION_HITL.prompt.md" \
+    || log_fail "HITL trigger 9 must speak BLOCKING findings"
+  grep -qF "BLOCKING findings" "$PROJECT_ROOT/.aai/SKILL_TDD.prompt.md" \
+    || log_fail "SKILL_TDD code-review gate must speak BLOCKING findings"
+  grep -qiF "dual-verdict" "$PROJECT_ROOT/.aai/system/AUTONOMOUS_LOOP.md" \
+    || log_fail "AUTONOMOUS_LOOP Code reviewer must be described as dual-verdict"
+  grep -qiF "dual-verdict" "$PROJECT_ROOT/.aai/system/SUPERPOWERS_INTEGRATION.md" \
+    || log_fail "SUPERPOWERS_INTEGRATION must describe the dual-verdict review"
+
+  log_pass "Dual-verdict taxonomy aligned on orchestration-facing surfaces (spec-review-taxonomy-alignment TEST-001..002)"
+}
+
 test_050_pr_merge_conflict() {  # spec-learned-to-layer-promotion TEST-001 / Spec-AC-01
   log_info "Test: SKILL_PR merge-conflict resolution + verify-merge + cleanup-after-MERGED (spec-learned-to-layer-promotion TEST-001)..."
   local f="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
@@ -608,6 +660,7 @@ main() {
   test_040_dual_verdict_prompt
   test_041_anti_gaming_protocol
   test_042_dual_verdict_surfaces
+  test_043_review_taxonomy_alignment
   test_050_pr_merge_conflict
   test_051_no_number_prediction
   test_052_loop_drift_preflight

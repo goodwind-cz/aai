@@ -28,13 +28,19 @@ PROCESS
    - Unclear acceptance criteria (unmeasurable)
    - Missing implementation
    - Missing or invalid evidence
-   - Code Review Stage 1 spec non-compliance
-   - Code Review Stage 2 ERROR findings
+   - Code Review spec_compliance verdict fail — remediate the non-compliant
+     rows of the report's ac_walk (each row's citation names the gap)
+   - Code Review code_quality verdict fail — remediate BLOCKING findings
+     (each carries file:line + failure_scenario); NON-BLOCKING findings
+     carry the H6 disposition duty (fix, decision entry, or follow-up ref)
+   - The report's cannot_verify entries are named evidence gaps, not
+     defects — close one only when the dispatch explicitly asks for it
 3) Apply fixes in order:
    a) Spec fixes (mapping, measurability, verification commands)
    b) Evidence fixes (commands, scripts, tests)
    c) Implementation fixes (only if required)
-   d) Code quality/security fixes from Code Review ERROR findings
+   d) Code quality/security fixes from Code Review BLOCKING findings
+      (then NON-BLOCKING dispositions per the H6 policy)
    You may run the affected test commands to check your own fixes land — that
    is fix verification, not a validation verdict.
 4) RESET the failed block(s) — PRIMARY PATH (transactional CLI, SPEC-0012 G3):
