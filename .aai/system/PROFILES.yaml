@@ -111,6 +111,7 @@ core:
   - .aai/scripts/pre-commit-checks.sh
   - .aai/scripts/pre-compact-save.ps1
   - .aai/scripts/pre-compact-save.sh
+  - .aai/scripts/spec-lint.mjs
   - .aai/scripts/state.mjs
   - .aai/scripts/triage.ps1
   - .aai/scripts/triage.sh
@@ -121,6 +122,7 @@ core:
   - .aai/system/PRICING.yaml
   - .aai/system/PROFILES.yaml
   - .aai/templates/BRIEF_TEMPLATE.md
+  - .aai/templates/CANONICAL_TEMPLATE.md
   - .aai/templates/CHANGE_TEMPLATE.md
   - .aai/templates/DECISION_TEMPLATE.md
   - .aai/templates/DOCS_AUDIT_TEST_TEMPLATE.md
@@ -149,9 +151,12 @@ extended:
   - .aai/SKILL_CANONICALIZE.prompt.md
   - .aai/SKILL_DASHBOARD.prompt.md
   - .aai/SKILL_DECAPOD.prompt.md
+  - .aai/SKILL_DESLOP.prompt.md
   - .aai/SKILL_DOCS_CANON.prompt.md
   - .aai/SKILL_DOCS_HUB.prompt.md
+  - .aai/SKILL_INTERROGATE.prompt.md
   - .aai/SKILL_PROFILE.prompt.md
+  - .aai/SKILL_SCOUT.prompt.md
   - .aai/SKILL_SESSION_JOURNAL.prompt.md
   - .aai/SKILL_SHARE.prompt.md
   - .aai/SKILL_TEST_CANON.prompt.md

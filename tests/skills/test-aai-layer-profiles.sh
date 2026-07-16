@@ -133,12 +133,21 @@ build_fixture_sources() {
   git -C "$FIX_SRC" add -A
   git -C "$FIX_SRC" commit -qm "fixture source (new engine)"
 
-  # Identical tree, but the ENGINE we run is HEAD's (pre-change) aai-sync.sh.
+  # Identical tree, but the ENGINE we run is the PRE-PROFILE aai-sync.sh. While
+  # the layer-profiles change was unmerged this was simply HEAD (working tree =
+  # new engine, HEAD = old); once #84 merged, HEAD IS the profile engine and a
+  # HEAD baseline makes this test a no-op (empty pin diff). Pin the baseline
+  # durably to the PARENT of the commit that introduced profile support — the
+  # oldest commit touching the `PROFILES.yaml` marker in this file — so the
+  # "default == pre-profile behavior" guarantee stays provable as HEAD advances.
   FIX_SRC_OLD="$TMP_ROOT/src-old"
   cp -R "$FIX_SRC" "$FIX_SRC_OLD"
   rm -rf "$FIX_SRC_OLD/.git"
-  git -C "$PROJECT_ROOT" show "HEAD:.aai/scripts/aai-sync.sh" > "$FIX_SRC_OLD/.aai/scripts/aai-sync.sh" \
-    || log_fail "cannot extract HEAD:.aai/scripts/aai-sync.sh (pre-change engine)"
+  local profile_intro
+  profile_intro="$(git -C "$PROJECT_ROOT" log --reverse --format='%H' -S 'PROFILES.yaml' -- .aai/scripts/aai-sync.sh | head -1)"
+  [[ -n "$profile_intro" ]] || log_fail "cannot locate the commit that introduced profile support in aai-sync.sh"
+  git -C "$PROJECT_ROOT" show "${profile_intro}^:.aai/scripts/aai-sync.sh" > "$FIX_SRC_OLD/.aai/scripts/aai-sync.sh" \
+    || log_fail "cannot extract pre-profile aai-sync.sh at ${profile_intro}^ (shallow clone missing history?)"
   git -C "$FIX_SRC_OLD" init -q -b main
   git -C "$FIX_SRC_OLD" config user.email "test@example.invalid"
   git -C "$FIX_SRC_OLD" config user.name "AAI Test"
