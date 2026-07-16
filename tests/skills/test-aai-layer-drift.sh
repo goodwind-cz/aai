@@ -331,6 +331,44 @@ test_no_real_network() {
   log_pass "Self-check: fixtures only (file:// + non-routable placeholders)"
 }
 
+# --- TEST-015 — pin Profile line tolerance (CHANGE layer-profiles) ------------
+test_profile_pin_tolerance() {
+  log_info "TEST-015: pin containing '- Profile: core' still verifies (parser tolerance)..."
+  local pin="$TMP_ROOT/t015/AAI_PIN.md" out rc
+  mkdir -p "$TMP_ROOT/t015"
+  {
+    echo "# AAI Pin"
+    echo ""
+    echo "- Source path: $CANON"
+    echo "- Template version: v-test"
+    echo "- Template commit: ${CANON_SHAS[2]}"
+    echo "- Canonical repo: $CANON"
+    echo "- Profile: core"
+    echo "- Synced at (UTC): 2026-07-16T00:00:00Z"
+  } > "$pin"
+  set +e
+  out="$(rundrift --pin "$pin" 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "Profile-stamped pin must still verify up-to-date, exit 0 (got $rc): $out"
+  echo "$out" | grep -qi "up-to-date" || log_fail "expected up-to-date line, got: $out"
+  # --json contract stays intact with the extra pin line present.
+  set +e
+  out="$(rundrift --pin "$pin" --json 2>&1)"
+  set -e
+  echo "$out" | node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      if (j.status !== "up_to_date") die("status: " + j.status);
+      if (j.relation !== "equal") die("relation: " + j.relation);
+      if (!j.pin_commit) die("missing pin_commit");
+    });
+  ' || log_fail "Profile-stamped pin broke the --json contract: $out"
+  log_pass "TEST-015 layer-drift tolerates the pin Profile line"
+}
+
 test_space_in_path() {  # Review B1 regression
   log_info "TEST-014: CLI executes from a path containing a space (main-guard URL-decode bug)..."
   local d="$TMP_ROOT/space dir/.aai/scripts"
@@ -365,6 +403,7 @@ main() {
   test_ps1_parity
   test_doctor_wiring
   test_no_real_network
+  test_profile_pin_tolerance
   test_space_in_path
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="
 }

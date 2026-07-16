@@ -1,0 +1,182 @@
+# .aai/system/PROFILES.yaml — vendored-layer profiles (CHANGE layer-profiles,
+# RES-0001 P3 rec 13, OpenSpec pattern).
+#
+# CONTRACT
+# - Two flat lists of repo-relative paths under .aai/ (.aai/cache/** excluded —
+#   runtime artifact, never synced). Their UNION must equal the vendored .aai
+#   tree exactly: 100% classified, disjoint, no stale entries. Enforced by
+#   tests/skills/test-aai-layer-profiles.sh TEST-001 against the LIVE tree —
+#   a new .aai file that is not classified here fails the suite.
+# - `extended` PROFILE = the whole tree (core list + extended list). The
+#   extended sync path never reads this file — copy-everything behavior is
+#   structurally unchanged. `core` PROFILE = exactly the `core:` list.
+# - Consumed by .aai/scripts/aai-sync.sh / aai-sync.ps1 (--profile core).
+#   Parsed line-based ("  - <path>") by bash awk and PowerShell regex — keep
+#   this exact two-space-dash indentation; indented "  #" comment lines are
+#   ignored by both parsers.
+# - CLASSIFICATION RULE (spec spec-layer-profiles D2):
+#   core = the workflow engine — orchestration/role/intake prompts, state +
+#   docs + index + events scripts and their import closure, gates (TDD /
+#   verify / debug / review / check-state / docs-audit / pre-commit /
+#   hook-gate / locks), loop + HITL + flush, distribution & health (sync /
+#   update / doctor / layer-drift / bootstrap / migrate-state), templates the
+#   flows instantiate, and canon.
+#   extended = reporting & publishing (dashboard, profile, metrics-report,
+#   docs-hub, share, validate-report), integrations (decapod, expert),
+#   one-off maintenance/migration (canonicalize, docs-canon, test-canon,
+#   migrate-yaml-to-jsonl), session conveniences (session-journal, wrap-up),
+#   brownfield analysis, deprecated (auto-trigger), self-hosting QA.
+# - Non-.aai surfaces (root shims, hooks/, agent skill wrappers, docs/knowledge
+#   seeds) are profile-independent and always synced; wrappers self-report when
+#   their prompt is absent (spec D3).
+
+core:
+  - .aai/AGENTS.md
+  - .aai/BOOTSTRAP.prompt.md
+  - .aai/BOOTSTRAP_DIFF.prompt.md
+  - .aai/IMPLEMENTATION.prompt.md
+  - .aai/INTAKE_CHANGE.prompt.md
+  - .aai/INTAKE_COMMON.md
+  - .aai/INTAKE_HOTFIX.prompt.md
+  - .aai/INTAKE_ISSUE.prompt.md
+  - .aai/INTAKE_PRD.prompt.md
+  - .aai/INTAKE_RELEASE.prompt.md
+  - .aai/INTAKE_RESEARCH.prompt.md
+  - .aai/INTAKE_RFC.prompt.md
+  - .aai/INTAKE_TECHDEBT.prompt.md
+  - .aai/MEMORY_REVIEW.prompt.md
+  - .aai/METRICS_FLUSH.prompt.md
+  - .aai/ORCHESTRATION.prompt.md
+  - .aai/ORCHESTRATION_HITL.prompt.md
+  - .aai/ORCHESTRATION_PARALLEL.prompt.md
+  - .aai/PLANNING.prompt.md
+  - .aai/PLAYBOOK.md
+  - .aai/REMEDIATION.prompt.md
+  - .aai/SKILL_BOOTSTRAP.prompt.md
+  - .aai/SKILL_CHECK_STATE.prompt.md
+  - .aai/SKILL_CODE_REVIEW.prompt.md
+  - .aai/SKILL_DEBUG.prompt.md
+  - .aai/SKILL_DOCS_AUDIT.prompt.md
+  - .aai/SKILL_DOCTOR.prompt.md
+  - .aai/SKILL_FLUSH.prompt.md
+  - .aai/SKILL_HITL.prompt.md
+  - .aai/SKILL_INTAKE.prompt.md
+  - .aai/SKILL_LOOP.prompt.md
+  - .aai/SKILL_META.prompt.md
+  - .aai/SKILL_PR.prompt.md
+  - .aai/SKILL_REPLAY.prompt.md
+  - .aai/SKILL_TDD.prompt.md
+  - .aai/SKILL_UPDATE.prompt.md
+  - .aai/SKILL_VERIFY.prompt.md
+  - .aai/SKILL_WORKTREE.prompt.md
+  - .aai/STATE_FALLBACK.md
+  - .aai/SUBAGENT_PROTOCOL.md
+  - .aai/TECH_EXTRACT.prompt.md
+  - .aai/TECH_UPDATE_DIFF.prompt.md
+  - .aai/VALIDATION.prompt.md
+  - .aai/knowledge/PATTERNS_UNIVERSAL.md
+  - .aai/roles/ROLES.md
+  - .aai/scripts/aai-bootstrap.sh
+  - .aai/scripts/aai-reap-tests.sh
+  - .aai/scripts/aai-run-tests.sh
+  - .aai/scripts/aai-sync.ps1
+  - .aai/scripts/aai-sync.sh
+  - .aai/scripts/aai-update.ps1
+  - .aai/scripts/aai-update.sh
+  - .aai/scripts/allocate-doc-number.mjs
+  - .aai/scripts/append-event.mjs
+  - .aai/scripts/autonomous-loop.ps1
+  - .aai/scripts/autonomous-loop.sh
+  - .aai/scripts/check-state.mjs
+  - .aai/scripts/claude-hook-gate.sh
+  - .aai/scripts/docs-audit.mjs
+  - .aai/scripts/docs-lock.mjs
+  - .aai/scripts/generate-docs-index.mjs
+  - .aai/scripts/install-pre-commit-hook.ps1
+  - .aai/scripts/install-pre-commit-hook.sh
+  - .aai/scripts/layer-drift.mjs
+  - .aai/scripts/lib/docs-audit-core.mjs
+  - .aai/scripts/lib/docs-model.mjs
+  - .aai/scripts/lib/guard-config.mjs
+  - .aai/scripts/lib/pricing.mjs
+  - .aai/scripts/lib/state-core.mjs
+  - .aai/scripts/lib/state-engine.mjs
+  - .aai/scripts/loop-digest.mjs
+  - .aai/scripts/metrics-flush.mjs
+  - .aai/scripts/migrate-state-to-local.ps1
+  - .aai/scripts/migrate-state-to-local.sh
+  - .aai/scripts/orchestration-dispatch.mjs
+  - .aai/scripts/orchestration-mode.mjs
+  - .aai/scripts/pre-commit-checks.ps1
+  - .aai/scripts/pre-commit-checks.sh
+  - .aai/scripts/pre-compact-save.ps1
+  - .aai/scripts/pre-compact-save.sh
+  - .aai/scripts/state.mjs
+  - .aai/scripts/triage.ps1
+  - .aai/scripts/triage.sh
+  - .aai/system/AAI_PIN.md
+  - .aai/system/AUTONOMOUS_LOOP.md
+  - .aai/system/DYNAMIC_SKILLS.md
+  - .aai/system/LOCKS.md
+  - .aai/system/PRICING.yaml
+  - .aai/system/PROFILES.yaml
+  - .aai/templates/BRIEF_TEMPLATE.md
+  - .aai/templates/CHANGE_TEMPLATE.md
+  - .aai/templates/DECISION_TEMPLATE.md
+  - .aai/templates/DOCS_AUDIT_TEST_TEMPLATE.md
+  - .aai/templates/ISSUE_TEMPLATE.md
+  - .aai/templates/KNOWLEDGE_TEMPLATE.md
+  - .aai/templates/RELEASE_TEMPLATE.md
+  - .aai/templates/REQUIREMENT_TEMPLATE.md
+  - .aai/templates/RESEARCH_TEMPLATE.md
+  - .aai/templates/RFC_TEMPLATE.md
+  - .aai/templates/ROLE_TEMPLATE.md
+  - .aai/templates/SPEC_TEMPLATE.md
+  - .aai/templates/TECHDEBT_TEMPLATE.md
+  - .aai/templates/TECHNOLOGY_TEMPLATE.md
+  - .aai/templates/WORKFLOW_TEMPLATE.md
+  - .aai/templates/hooks/settings-hooks.json
+  - .aai/workflow/WORKFLOW.md
+
+extended:
+  - .aai/DOCS_COMPRESS_TO_FACTS.prompt.md
+  - .aai/EXPERT_RESOLVE.prompt.md
+  - .aai/GENERATE_README.prompt.md
+  - .aai/METRICS_REPORT.prompt.md
+  - .aai/REVERSE_ANALYSIS_DASH_FASTAPI_CELERY.prompt.md
+  - .aai/REVERSE_ANALYSIS_GENERIC.prompt.md
+  - .aai/SKILL_AUTO_TRIGGER.prompt.md
+  - .aai/SKILL_CANONICALIZE.prompt.md
+  - .aai/SKILL_DASHBOARD.prompt.md
+  - .aai/SKILL_DECAPOD.prompt.md
+  - .aai/SKILL_DOCS_CANON.prompt.md
+  - .aai/SKILL_DOCS_HUB.prompt.md
+  - .aai/SKILL_PROFILE.prompt.md
+  - .aai/SKILL_SESSION_JOURNAL.prompt.md
+  - .aai/SKILL_SHARE.prompt.md
+  - .aai/SKILL_TEST_CANON.prompt.md
+  - .aai/SKILL_TEST_SKILLS.prompt.md
+  - .aai/SKILL_VALIDATE_REPORT.prompt.md
+  - .aai/SKILL_WRAP_UP.prompt.md
+  - .aai/scripts/PSScriptAnalyzerSettings.psd1
+  - .aai/scripts/aai-canonicalize.ps1
+  - .aai/scripts/aai-canonicalize.sh
+  - .aai/scripts/cloudflare-share.ps1
+  - .aai/scripts/cloudflare-share.sh
+  - .aai/scripts/docs-canon.mjs
+  - .aai/scripts/expert-fetch.ps1
+  - .aai/scripts/expert-fetch.sh
+  - .aai/scripts/generate-dashboard.mjs
+  - .aai/scripts/lib/docs-canon-core.mjs
+  - .aai/scripts/lib/test-canon-core.mjs
+  - .aai/scripts/metrics-report.mjs
+  - .aai/scripts/migrate-yaml-to-jsonl.ps1
+  - .aai/scripts/migrate-yaml-to-jsonl.sh
+  - .aai/scripts/share-convert.mjs
+  - .aai/scripts/test-canon.mjs
+  - .aai/scripts/validate-skills.ps1
+  - .aai/scripts/validate-skills.sh
+  - .aai/system/EXPERT_REGISTRY.yaml
+  - .aai/system/SELF_HOSTING.md
+  - .aai/system/SUPERPOWERS_INTEGRATION.md
+  - .aai/templates/PROJECT_SESSION_TEMPLATE.md
