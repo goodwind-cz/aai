@@ -9,6 +9,18 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: three optional advisory skills (CHANGE-0020 / SPEC-0031)
+
+- SKILL_SCOUT (pre-implementation readiness 0-100 over 5 dimensions, GO/HOLD
+  advisory at 70), SKILL_DESLOP (diff-scoped AI-slop removal with behavior-
+  unchanged suite rule), SKILL_INTERROGATE (one-question decision walk with
+  recommended answers and planning_decision ledger lines). pro-workflow
+  patterns per RES-0001 P3, fidelity validated against the upstream source.
+- Strictly ADVISORY: shared disclaimer literal, zero references from any
+  gate/dispatch/workflow surface (negatively asserted by the suite).
+  Validation NB (ledger key ref->ref_id) + review NB (pin the key in the
+  test) both remediated.
+
 ## [unreleased] — feat: scale-adaptive ceremony levels (RFC-0009 / SPEC-0030)
 
 - Specs declare ceremony_level 0-3 at freeze (justified in-doc); the gate

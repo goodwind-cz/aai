@@ -15,3 +15,5 @@
 {"timestamp":"2026-07-16T14:50:22Z","type":"skill_test","run_id":"test-20260716-144717","total":24,"passed":23,"failed":1,"skipped":0}
 {"timestamp":"2026-07-16T15:04:25Z","type":"skill_test","run_id":"test-20260716-150120","total":24,"passed":23,"failed":1,"skipped":0}
 {"timestamp":"2026-07-16T15:07:42Z","type":"skill_test","run_id":"test-20260716-150437","total":24,"passed":23,"failed":1,"skipped":0}
+{"timestamp":"2026-07-16T15:52:45Z","type":"skill_test","run_id":"test-20260716-154921","total":26,"passed":24,"failed":2,"skipped":0}
+{"timestamp":"2026-07-16T15:57:23Z","type":"skill_test","run_id":"test-20260716-155400","total":26,"passed":25,"failed":1,"skipped":0}

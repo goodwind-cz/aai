@@ -104,6 +104,9 @@ Follow .aai/SKILL_SESSION_JOURNAL.prompt.md # Named project session journal — 
 Follow .aai/SKILL_WRAP_UP.prompt.md      # Session wrap-up — capture learnings, propose rules, prepare next session (pro-workflow)
 Follow .aai/SKILL_VERIFY.prompt.md       # Verification-before-completion gate — IDENTIFY-RUN-READ-VERIFY-CLAIM (Superpowers pattern)
 Follow .aai/SKILL_DEBUG.prompt.md        # Systematic-debugging root-cause gate — READ-REPRODUCE-ISOLATE-FIX-AT-CAUSE (Superpowers pattern)
+Follow .aai/SKILL_SCOUT.prompt.md        # OPTIONAL advisory: pre-implementation readiness score 0-100, GO/HOLD at 70, never blocks (pro-workflow)
+Follow .aai/SKILL_DESLOP.prompt.md       # OPTIONAL advisory: diff-scoped AI-slop removal before review, behavior unchanged, never blocks (pro-workflow)
+Follow .aai/SKILL_INTERROGATE.prompt.md  # OPTIONAL advisory: plan decision-walk, one pre-answered question at a time, ledger to decisions.jsonl, never blocks (pro-workflow)
 ```
 
 #### Project-Specific Skills (Auto-Generated)
