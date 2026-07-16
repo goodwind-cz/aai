@@ -276,3 +276,6 @@
 {"v":1,"ts":"2026-07-15T23:10:46.909Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":49,"orphans":0,"drifted":0,"stale":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-07-15T23:59:37.632Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"CHANGE-0001","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-15T23:59:37.670Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"CHANGE-0001","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-16T00:15:02.501Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"doctor-vendored-layer-drift","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-16T00:15:02.543Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"single-dual-verdict-review","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-16T00:15:02.581Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"ISSUE-0007","payload":{"validation":"pass","code_review":"pass"}}
