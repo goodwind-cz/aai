@@ -4,7 +4,11 @@
 // Reads docs/ai/METRICS.jsonl (+ PRICING.yaml to fill null cost_usd where both
 // token counts are known — the SAME lookup_rules resolver flush uses, from
 // lib/pricing.mjs) and writes the exact METRICS_REPORT.prompt.md markdown
-// (Per Work Item / Totals / Per Model Breakdown) to stdout.
+// (Per Work Item / Totals / Per Model Breakdown / Per-Strategy Reliability)
+// to stdout. The reliability section (SPEC-DRAFT-truth-scoring) groups entries
+// by their flush-recorded `strategy` (lexicographic; no string -> 'n/a') and
+// aggregates the `reliability` object; ledger lines predating the field
+// contribute 'n/a' stats — old lines are never reinterpreted.
 //
 // Determinism contract (AC-004, golden-tested): no file writes, no clock, no
 // locale — fixed toFixed(2) USD, leverage one decimal + 'x', rows in ledger
@@ -143,6 +147,32 @@ function main() {
     const runs = byModel.get(id);
     out.push(`| ${id} | ${runs.length} | ${tokenCell(runs, 'tokens_in')} | ${tokenCell(runs, 'tokens_out')} | ${costCell(runs)} |`);
   }
+  out.push('');
+  out.push('### Per-Strategy Reliability');
+  out.push('| strategy | items | first-pass clean | avg validation fails | avg review fails | avg remediations |');
+  out.push('|----------|-------|------------------|----------------------|------------------|------------------|');
+  const byStrategy = new Map();
+  for (const e of entries) {
+    const key = typeof e.strategy === 'string' && e.strategy !== '' ? e.strategy : 'n/a';
+    if (!byStrategy.has(key)) byStrategy.set(key, []);
+    byStrategy.get(key).push(e);
+  }
+  // The flush-recorded reliability object, or null on pre-truth-scoring lines.
+  const relOf = e => (e.reliability && typeof e.reliability === 'object' && !Array.isArray(e.reliability) ? e.reliability : null);
+  const avgCell = (group, field) => {
+    const vals = group.map(relOf).filter(r => r && typeof r[field] === 'number').map(r => r[field]);
+    if (vals.length === 0) return 'n/a';
+    return (vals.reduce((a, v) => a + v, 0) / vals.length).toFixed(1);
+  };
+  for (const key of [...byStrategy.keys()].sort()) {
+    const group = byStrategy.get(key);
+    const flagged = group.map(relOf).filter(r => r && typeof r.first_pass_clean === 'boolean');
+    const clean = flagged.filter(r => r.first_pass_clean === true).length;
+    const fpc = flagged.length === 0 ? 'n/a' : `${clean}/${flagged.length} (${(100 * clean / flagged.length).toFixed(0)}%)`;
+    out.push(`| ${key} | ${group.length} | ${fpc} | ${avgCell(group, 'validation_fails')} | ${avgCell(group, 'review_fails')} | ${avgCell(group, 'remediation_runs')} |`);
+  }
+  out.push('');
+  out.push('Note: reliability derives from runs recorded at flush; older ledger lines without it render n/a.');
   console.log(out.join('\n'));
   process.exit(0);
 }

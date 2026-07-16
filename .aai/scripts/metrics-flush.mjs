@@ -24,6 +24,13 @@
 //   - ledger entries are built exclusively from strings/numbers/nulls read off
 //     lines — no Date object can ever reach the ledger (closes mistake #2);
 //     a guard asserts JSON.parse(JSON.stringify(entry)) deep-equals entry;
+//   - truth-scoring (SPEC-DRAFT-truth-scoring / RES-0001 P3): every new entry
+//     carries `strategy` (implementation_strategy.selected off STATE; null
+//     when undecided/absent) and `reliability{validation_fails, review_fails,
+//     remediation_runs, first_pass_clean}` derived ONLY from the recorded
+//     runs (spec rules R1-R6): remediation count is structural (role contains
+//     "remediation"), fail counts require the recorded "VERDICT: FAIL" marker
+//     in the run note — never estimated, events are not a derivation source;
 //   - ORDERING (mandatory): build + pre-validate EVERYTHING in memory first
 //     (the mutated STATE must pass the check-state structural invariants),
 //     then append the ledger line(s), then commit STATE via the engine's
@@ -310,8 +317,35 @@ function trustedDuration(run, nowMs) {
   return run.duration_seconds;
 }
 
+// Truth-scoring reliability (SPEC-DRAFT-truth-scoring rules R1-R6): counts of
+// what was RECORDED, never a reconstruction. A fail cycle whose run note is
+// null or lacks the verdict marker is invisible to the fail counters —
+// remediation_runs stays the structural witness (a Remediation run is only
+// dispatched after a recorded FAIL), so first_pass_clean requires ALL THREE
+// counts to be zero rather than trusting the marker-gated counts alone.
+const FAIL_MARKER_RE = /\bVERDICT:\s*FAIL\b/i;
+
+function reliabilityOf(runs) {
+  let validationFails = 0;
+  let reviewFails = 0;
+  let remediationRuns = 0;
+  for (const r of runs) {
+    const role = typeof r.role === 'string' ? r.role.toLowerCase() : '';
+    const failNoted = typeof r.note === 'string' && FAIL_MARKER_RE.test(r.note);
+    if (role.includes('remediation')) remediationRuns += 1;
+    if (role.includes('validation') && failNoted) validationFails += 1;
+    if (role.includes('review') && failNoted) reviewFails += 1;
+  }
+  return {
+    validation_fails: validationFails,
+    review_fails: reviewFails,
+    remediation_runs: remediationRuns,
+    first_pass_clean: validationFails === 0 && reviewFails === 0 && remediationRuns === 0,
+  };
+}
+
 function buildEntry(entry, ctx) {
-  const { pricing, nowMs, dateUtc, reviewsFromTicks, title } = ctx;
+  const { pricing, nowMs, dateUtc, reviewsFromTicks, title, strategy } = ctx;
   const warnings = [];
   const runs = entry.runs.map(r => {
     const tokensIn = typeof r.tokens_in === 'number' ? r.tokens_in : null;
@@ -351,6 +385,8 @@ function buildEntry(entry, ctx) {
       agent_duration_seconds: agentSeconds,
       total_cost_usd: totalCost,
     },
+    strategy,
+    reliability: reliabilityOf(entry.runs),
     verdict: 'PASS',
   };
   // No-Date/JSON-safety guard (manual-flush mistake #2, mechanically closed):
@@ -566,6 +602,11 @@ function main() {
   const rRequired = readScalar(origLines, 'code_review', 'required') === 'true';
   const rStatus = readScalar(origLines, 'code_review', 'status');
   const focusRef = scalarOrNull(readScalar(origLines, 'current_focus', 'ref_id'));
+  // Truth-scoring R5: the strategy singleton is scoped to the refs the PASS
+  // verdict names (every flushed ref, by the gate above) — 'undecided' or an
+  // absent block records null, never a guess.
+  const stratSel = scalarOrNull(readScalar(origLines, 'implementation_strategy', 'selected'));
+  const strategy = stratSel !== null && stratSel !== 'undecided' ? stratSel : null;
 
   const skipped = {};
   const toFlush = [];
@@ -598,6 +639,7 @@ function main() {
     dateUtc,
     reviewsFromTicks,
     title: titleFor(root, workItemDocPath(origLines, entry.ref)),
+    strategy,
   }));
 
   const completedRefs = [...toFlush.map(e => e.ref), ...toResume.map(e => e.ref)];
