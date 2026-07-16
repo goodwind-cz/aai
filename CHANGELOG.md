@@ -9,6 +9,25 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: delta-spec lifecycle — SPEC `## Deltas` section + shape validation (CHANGE-0025 / SPEC-0037)
+
+- Second stage of the RFC-0011 delta-spec lifecycle (builds on SPEC-0034's
+  canonical Requirements contract): a SPEC may carry an optional `## Deltas`
+  section declaring `### ADDED REQ-<DOMAIN> — …` (no number; assigned at merge),
+  `### MODIFIED REQ-<DOMAIN>-NNN — …`, and `### REMOVED REQ-<DOMAIN>-NNN` blocks
+  against named canonical domains. The target domain derives from the id
+  (`reqDomainToSlug`, the reversible inverse of `domainToReqDomain`).
+- spec-lint validates the section SHAPE only (operation keyword, id grammar per
+  op, domain derivability, one-SHALL for ADDED/MODIFIED, empty body for REMOVED,
+  no duplicate/conflicting ops) with precise `delta-*` finding codes. A spec with
+  no `## Deltas` section is unaffected. One shared reader (`parseDeltasSection` in
+  docs-model.mjs) that the close-time merge will reuse; grammar defined once.
+  Commented content (the template ships the example commented) parses inert.
+- Cross-doc resolution and the actual merge into `docs/canonical/` are the next
+  stage. Independent validation PASS; dual-verdict review PASS after remediating
+  a phantom-delta trap (template comment stripping), a weak test assertion, and
+  a fail-closed consumption contract for the merge consumer.
+
 ## [unreleased] — feat: level-aware close gate for L0/L1 lean specs (CHANGE-0024 / SPEC-0036)
 
 - docs-audit's close gate and done-drift check become ceremony-level aware: a

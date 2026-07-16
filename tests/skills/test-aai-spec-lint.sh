@@ -444,6 +444,120 @@ test_011_seam_survival() {
   [[ $ok -eq 1 ]] && log_pass "TEST-011 seam survival (audit/diet/index)" || log_fail "TEST-011 seam survival"
 }
 
+# Build a spec = clean body + a `## Deltas` section (block content on stdin).
+# The delta-stage-2 fixtures reuse the clean spec so the ONLY findings under
+# test are the new delta-* codes (RFC-0011 delta-spec lifecycle).
+with_deltas() {
+  clean_spec_body
+  printf '\n## Deltas\n\n'
+  cat
+  printf '\n'
+}
+
+# --- TEST-003 (delta-stage-2) — spec-lint validates the `## Deltas` shape ------
+# A well-formed section yields ZERO delta findings; each malformed variant emits
+# exactly its D2 code. (spec-delta-stage-2 Test Plan TEST-003.)
+test_delta_003_shape() {
+  local out rc ok=1
+
+  # well-formed: one ADDED (no NNN), one MODIFIED, one REMOVED -> clean
+  new_fixture_root
+  with_deltas > "$FIX/docs/specs/SPEC-DRAFT-deltas-clean.md" <<'EOF'
+### ADDED REQ-OAUTH2_LOGIN — Password grant retired
+The system SHALL reject the OAuth2 password grant on the login endpoint.
+
+- Scenario: WHEN a password-grant token request arrives THEN it is refused with 400.
+
+### MODIFIED REQ-AUTH-001 — Session expiry tightened
+The system SHALL expire an idle session after 15 minutes.
+
+### REMOVED REQ-AUTH-009
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-003 clean deltas" || ok=0
+  echo "$out" | grep -q "delta-" && { log_info "TEST-003: well-formed Deltas produced a delta finding: $out"; ok=0; }
+
+  # malformed variants -> one code each (fixture path names the expected code)
+  local block code
+  delta_case() {
+    code="$1"; shift
+    new_fixture_root
+    with_deltas > "$FIX/docs/specs/SPEC-DRAFT-$code.md"
+    out="$(runlint "$FIX" 2>&1)"; rc=$?
+    expect_exit 1 "$rc" "TEST-003 $code exit" || ok=0
+    # Assert on the bracketed RULE token, not a bare substring — the fixture
+    # filename (SPEC-DRAFT-$code.md) also contains $code, so a substring grep
+    # would match the path regardless of which rule actually fired (review F3).
+    echo "$out" | grep -qF "[$code]" || { log_info "TEST-003: no [$code] rule emitted; got: $out"; ok=0; }
+  }
+
+  delta_case delta-op-invalid <<'EOF'
+### RENAMED REQ-AUTH-001 — bad op
+The system SHALL x.
+EOF
+  delta_case delta-added-numbered <<'EOF'
+### ADDED REQ-AUTH-001 — numbered add
+The system SHALL x.
+EOF
+  delta_case delta-id-malformed <<'EOF'
+### MODIFIED REQ-auth-1 — lowercase kebab unpadded id
+The system SHALL x.
+EOF
+  delta_case delta-domain-underivable <<'EOF'
+### ADDED REQ-Auth — mixed-case domain
+The system SHALL x.
+EOF
+  delta_case delta-shall-count <<'EOF'
+### MODIFIED REQ-AUTH-002 — two shalls
+The system SHALL a.
+The system SHALL b.
+EOF
+  delta_case delta-scenario-malformed <<'EOF'
+### ADDED REQ-AUTH — bad scenario
+The system SHALL x.
+
+- Scenario: missing the keywords entirely.
+EOF
+  delta_case delta-duplicate <<'EOF'
+### MODIFIED REQ-AUTH-004 — first
+The system SHALL a.
+
+### REMOVED REQ-AUTH-004
+EOF
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-003 (delta-stage-2) Deltas shape validation" || log_fail "TEST-003 (delta-stage-2) Deltas shape validation"
+}
+
+# --- TEST-004 (delta-stage-2) — legacy control: no `## Deltas` = zero new findings
+# A spec with NO Deltas section produces zero delta findings (byte-identical
+# finding set to pre-change); the whole real corpus stays LINT PASS.
+# (spec-delta-stage-2 Test Plan TEST-004.)
+test_delta_004_legacy_control() {
+  local out rc ok=1
+
+  # a plain clean spec (no `## Deltas`) lints clean, emits no delta-* finding
+  new_fixture_root
+  clean_spec_body > "$FIX/docs/specs/SPEC-DRAFT-legacy.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-004 legacy clean" || ok=0
+  echo "$out" | grep -q "delta-" && { log_info "TEST-004: legacy spec produced a delta finding"; ok=0; }
+
+  # a present-but-empty `## Deltas` section is a valid state -> no finding
+  new_fixture_root
+  with_deltas > "$FIX/docs/specs/SPEC-DRAFT-emptydeltas.md" <<'EOF'
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-004 empty deltas" || ok=0
+  echo "$out" | grep -q "delta-" && { log_info "TEST-004: empty Deltas section produced a finding"; ok=0; }
+
+  # the REAL corpus (no `## Deltas` sections today) stays LINT PASS with no delta-*
+  out="$(runlint "$PROJECT_ROOT" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-004 real corpus" || ok=0
+  echo "$out" | grep -q "delta-" && { log_info "TEST-004: real corpus produced a delta finding"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-004 (delta-stage-2) legacy/empty Deltas unaffected; corpus LINT PASS" || log_fail "TEST-004 (delta-stage-2) legacy control"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -458,6 +572,8 @@ main() {
   test_009_real_corpus
   test_010_advisory_wiring
   test_011_seam_survival
+  test_delta_003_shape
+  test_delta_004_legacy_control
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then
