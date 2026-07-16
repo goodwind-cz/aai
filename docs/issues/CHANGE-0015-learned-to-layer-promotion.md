@@ -2,10 +2,12 @@
 id: learned-to-layer-promotion
 type: change
 number: 15
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 65
+  commits:
+    - 833ef7c
 ---
 
 # Change — Promote Session Lessons Into the Vendored Layer (+ drift-check preflight)

@@ -2,12 +2,14 @@
 id: spec-work-item-brief
 type: spec
 number: 26
-status: draft
+status: done
 links:
   change: work-item-brief
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 72
+  commits:
+    - 715bc81
 ---
 
 # SPEC — Self-Contained Work-Item Brief as Subagent Handoff

@@ -2,10 +2,12 @@
 id: state-list-append-indent
 type: issue
 number: 7
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 63
+  commits:
+    - 26b21b7
 ---
 
 # Issue — state.mjs List-Field Writes Emit Mis-Indented Sibling Items (invalid YAML)

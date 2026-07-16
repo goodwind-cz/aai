@@ -2,13 +2,15 @@
 id: spec-model-tiering-with-teeth
 type: spec
 number: 18
-status: implementing
+status: done
 links:
   change: CHANGE-0010
   research: RES-0001
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 54
+  commits:
+    - c245241
 ---
 
 # SPEC — Model Tiering With Teeth (dispatch MODEL field, mechanical independence check, live pricing, token capture)

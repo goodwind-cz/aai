@@ -2,12 +2,16 @@
 id: spec-single-dual-verdict-review
 type: spec
 number: 21
-status: implementing
+status: done
 links:
   rfc: single-dual-verdict-review
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 62
+    - 70
+  commits:
+    - 3619b43
+    - 19508a5
 ---
 
 # SPEC — Single Dual-Verdict Code Review (one pass, two verdicts, anti-gaming hardened)

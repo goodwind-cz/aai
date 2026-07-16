@@ -2,12 +2,14 @@
 id: scale-adaptive-ceremony
 type: rfc
 number: 9
-status: accepted
+status: done
 links:
   research: RES-0001
   spec: spec-scale-adaptive-ceremony
-  pr: []
-  commits: []
+  pr:
+    - 77
+  commits:
+    - a9b073e
 ---
 
 # RFC — Scale-Adaptive Ceremony Levels (right-size the pipeline to the work)

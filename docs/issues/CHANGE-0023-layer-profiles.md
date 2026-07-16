@@ -2,11 +2,13 @@
 id: layer-profiles
 type: change
 number: 23
-status: draft
+status: done
 links:
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 84
+  commits:
+    - b2efc0a
 ---
 
 # Change — Core/Extended Profiles for the Vendored Layer

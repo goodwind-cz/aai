@@ -2,11 +2,13 @@
 id: verification-before-completion
 type: change
 number: 16
-status: draft
+status: done
 links:
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 68
+  commits:
+    - 05f9208
 ---
 
 # Change — Verification-Before-Completion Gate Skill

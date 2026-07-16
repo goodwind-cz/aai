@@ -2,13 +2,15 @@
 id: spec-state-list-append-indent
 type: spec
 number: 22
-status: implementing
+status: done
 links:
   issue: ISSUE-0007
   rfc: null
   requirement: null
-  pr: []
-  commits: []
+  pr:
+    - 63
+  commits:
+    - 26b21b7
 ---
 
 # SPEC — state list-append indent fidelity + structural list lint (ISSUE-0007)

@@ -2,13 +2,15 @@
 id: spec-advisory-skills
 type: spec
 number: 31
-status: draft
+status: done
 ceremony_level: 2
 links:
   change: advisory-skills
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 79
+  commits:
+    - 0b4ce55
 ---
 
 # SPEC — Three Optional Advisory Skills: scout, deslop, interrogate

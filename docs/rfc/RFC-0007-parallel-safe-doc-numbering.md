@@ -1,12 +1,14 @@
 ---
 id: RFC-0007
 type: rfc
-status: accepted
+status: done
 links:
   rfc: RFC-0004
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - 48
+  commits:
+    - c29457f
 ---
 
 # RFC-0007 — Collision-Free Doc Numbering Across Parallel Clones (assign the sequence number at merge)

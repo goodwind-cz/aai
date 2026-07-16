@@ -2,12 +2,14 @@
 id: l1-close-gate
 type: change
 number: 24
-status: draft
+status: done
 links:
   spec: spec-l1-close-gate
   amends: spec-scale-adaptive-ceremony
-  pr: []
-  commits: []
+  pr:
+    - 85
+  commits:
+    - 7e89f03
 ---
 
 # Change — Reconcile the Close Gate and Drift Check With L0/L1 Lean Specs

@@ -2,11 +2,13 @@
 id: mechanize-deterministic-ticks
 type: change
 number: 9
-status: draft
+status: done
 links:
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 56
+  commits:
+    - 4137797
 ---
 
 # Change — Mechanize Deterministic Ticks (orchestration dispatch, metrics flush/report as scripts)

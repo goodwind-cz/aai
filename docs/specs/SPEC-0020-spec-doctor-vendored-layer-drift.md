@@ -2,13 +2,15 @@
 id: spec-doctor-vendored-layer-drift
 type: spec
 number: 20
-status: implementing
+status: done
 links:
   change: doctor-vendored-layer-drift
   research: RES-0001
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 61
+  commits:
+    - 5a99e93
 ---
 
 # SPEC — aai-doctor Reports Vendored-Layer Drift vs Canonical Main

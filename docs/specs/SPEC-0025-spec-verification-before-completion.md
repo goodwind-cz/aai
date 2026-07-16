@@ -2,12 +2,14 @@
 id: spec-verification-before-completion
 type: spec
 number: 25
-status: draft
+status: done
 links:
   change: verification-before-completion
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 68
+  commits:
+    - 05f9208
 ---
 
 # SPEC — Verification-Before-Completion Gate Skill

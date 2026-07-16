@@ -2,13 +2,15 @@
 id: spec-mechanize-deterministic-ticks
 type: spec
 number: 19
-status: implementing
+status: done
 links:
   change: CHANGE-0009
   research: RES-0001
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 56
+  commits:
+    - 4137797
 ---
 
 # SPEC — Mechanize Deterministic Ticks (orchestration dispatch, metrics flush, metrics report as scripts)

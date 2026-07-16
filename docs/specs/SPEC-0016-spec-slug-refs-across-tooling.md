@@ -2,13 +2,15 @@
 id: spec-slug-refs-across-tooling
 type: spec
 number: 16
-status: implementing
+status: done
 links:
   change: CHANGE-0012
   research: RES-0001
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 51
+  commits:
+    - 58757fd
 ---
 
 # SPEC — Accept slug refs across the tooling family (state.mjs, docs-audit scan + --gate)

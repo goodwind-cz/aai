@@ -2,12 +2,14 @@
 id: delta-stage-2
 type: change
 number: 25
-status: draft
+status: done
 links:
   spec: spec-delta-stage-2
   rfc: delta-spec-lifecycle
-  pr: []
-  commits: []
+  pr:
+    - 87
+  commits:
+    - 489e07d
 ---
 
 # Change — Delta-Spec Lifecycle, Stage 2: SPEC `## Deltas` Section + Shape Validation

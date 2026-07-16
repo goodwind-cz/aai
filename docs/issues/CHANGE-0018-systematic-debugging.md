@@ -2,11 +2,13 @@
 id: systematic-debugging
 type: change
 number: 18
-status: draft
+status: done
 links:
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 73
+  commits:
+    - 253cd77
 ---
 
 # Change — Systematic-Debugging Discipline for Remediation

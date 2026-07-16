@@ -2,11 +2,13 @@
 id: slug-refs-across-tooling
 type: change
 number: 12
-status: draft
+status: done
 links:
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 51
+  commits:
+    - 58757fd
 ---
 
 # Change — Accept Slug Refs Across the Tooling Family (state.mjs, docs-audit --gate)

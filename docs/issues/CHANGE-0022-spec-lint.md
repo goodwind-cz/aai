@@ -2,12 +2,14 @@
 id: spec-lint
 type: change
 number: 22
-status: implementing
+status: done
 links:
   research: RES-0001
   spec: spec-spec-lint
-  pr: []
-  commits: []
+  pr:
+    - 82
+  commits:
+    - 18b861f
 ---
 
 # Change — spec-lint.mjs: Deterministic Structural Validation of Spec Documents

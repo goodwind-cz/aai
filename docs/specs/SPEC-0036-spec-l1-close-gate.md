@@ -2,13 +2,15 @@
 id: spec-l1-close-gate
 type: spec
 number: 36
-status: implementing
+status: done
 ceremony_level: 2
 links:
   change: l1-close-gate
   rfc: scale-adaptive-ceremony
-  pr: []
-  commits: []
+  pr:
+    - 85
+  commits:
+    - 7e89f03
 ---
 
 # SPEC — Level-Aware Close Gate and Done-Drift Check (L0/L1 lean specs can close)

@@ -2,11 +2,13 @@
 id: review-taxonomy-alignment
 type: change
 number: 14
-status: draft
+status: done
 links:
   spec: spec-single-dual-verdict-review
-  pr: []
-  commits: []
+  pr:
+    - 66
+  commits:
+    - 0cadd9f
 ---
 
 # Change — Align Orchestration-Facing Surfaces With the Dual-Verdict Review Taxonomy

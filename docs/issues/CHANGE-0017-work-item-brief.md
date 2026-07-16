@@ -2,11 +2,13 @@
 id: work-item-brief
 type: change
 number: 17
-status: draft
+status: done
 links:
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 72
+  commits:
+    - 715bc81
 ---
 
 # Change — Self-Contained Work-Item Brief as Subagent Handoff

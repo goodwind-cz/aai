@@ -2,11 +2,13 @@
 id: doctor-vendored-layer-drift
 type: change
 number: 13
-status: draft
+status: done
 links:
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 61
+  commits:
+    - 5a99e93
 ---
 
 # Change — aai-doctor Reports Vendored-Layer Drift vs Canonical Main

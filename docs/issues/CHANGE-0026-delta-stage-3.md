@@ -2,12 +2,14 @@
 id: delta-stage-3
 type: change
 number: 26
-status: draft
+status: done
 links:
   spec: spec-delta-stage-3
   rfc: delta-spec-lifecycle
-  pr: []
-  commits: []
+  pr:
+    - 88
+  commits:
+    - 605e17d
 ---
 
 # Change — Delta-Spec Lifecycle, Stage 3: Close-Time Delta Merge + Provenance Drift
