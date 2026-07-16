@@ -222,6 +222,201 @@ test_prevention_wiring_present() {  # TEST-006 / Spec-AC-06
   log_pass "[INV-14] invariant + single-sourced fallback guidance wired (STATE_FALLBACK.md + role-prompt pointers)"
 }
 
+test_list_indent_lint() {  # ISSUE-0007 TEST-002 / Spec-AC-02
+  log_info "Test: structural list-indent lint — mis-indented sibling fails LOUD; uniform lists + nested shapes pass (ISSUE-0007 TEST-002)..."
+  local bad="$TEST_DIR/state-lint-bad.yaml"
+  # The exact 2026-07-15 corruption class: sibling appended 2 spaces past the
+  # key under a list whose items sit 4 spaces past the key (line 6 is the bad one).
+  cat > "$bad" <<'YAML'
+project_status: active
+code_review:
+  required: true
+  report_paths:
+      - docs/ai/reviews/r1.md
+    - docs/ai/reviews/r2.md
+  notes: null
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+  if (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$bad" > "$TEST_DIR/lint-bad.log" 2>&1); then
+    log_fail "mis-indented list sibling must exit non-zero (this class parsed clean pre-ISSUE-0007)"
+  fi
+  grep -qF "report_paths" "$TEST_DIR/lint-bad.log" \
+    || log_fail "lint failure must name the offending key (report_paths): $(cat "$TEST_DIR/lint-bad.log")"
+  grep -qE "line 6" "$TEST_DIR/lint-bad.log" \
+    || log_fail "lint failure must name the offending line number (6): $(cat "$TEST_DIR/lint-bad.log")"
+  grep -qiE "indent" "$TEST_DIR/lint-bad.log" \
+    || log_fail "lint failure must describe the indent mismatch: $(cat "$TEST_DIR/lint-bad.log")"
+
+  # Same class in last_validation.evidence_paths is caught too.
+  local bad2="$TEST_DIR/state-lint-bad2.yaml"
+  cat > "$bad2" <<'YAML'
+project_status: active
+last_validation:
+  status: not_run
+  evidence_paths:
+      - docs/ai/tdd/green-a.log
+    - docs/ai/tdd/green-b.log
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+  if (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$bad2" > "$TEST_DIR/lint-bad2.log" 2>&1); then
+    log_fail "mis-indented evidence_paths sibling must exit non-zero"
+  fi
+  grep -qF "evidence_paths" "$TEST_DIR/lint-bad2.log" \
+    || log_fail "lint failure must name evidence_paths: $(cat "$TEST_DIR/lint-bad2.log")"
+
+  # Uniform engine-convention list (key+2) passes.
+  local ok1="$TEST_DIR/state-lint-ok1.yaml"
+  cat > "$ok1" <<'YAML'
+project_status: active
+code_review:
+  report_paths:
+    - docs/ai/reviews/r1.md
+    - docs/ai/reviews/r2.md
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$ok1" > "$TEST_DIR/lint-ok1.log" 2>&1) \
+    || log_fail "uniform key+2 list must pass: $(cat "$TEST_DIR/lint-ok1.log")"
+
+  # Uniform DEEP list (key+4 — legal YAML another writer may emit) passes.
+  local ok2="$TEST_DIR/state-lint-ok2.yaml"
+  cat > "$ok2" <<'YAML'
+project_status: active
+code_review:
+  report_paths:
+      - docs/ai/reviews/r1.md
+      - docs/ai/reviews/r2.md
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$ok2" > "$TEST_DIR/lint-ok2.log" 2>&1) \
+    || log_fail "uniform key+4 list must pass (lint binds siblings to the FIRST item, not to a fixed convention): $(cat "$TEST_DIR/lint-ok2.log")"
+
+  # Realistic nested shapes (active_work_items item maps, agent_runs items with
+  # continuation lines and a nested key) must produce NO false positives.
+  local ok3="$TEST_DIR/state-lint-ok3.yaml"
+  cat > "$ok3" <<'YAML'
+# docs/ai/STATE.yaml - fixture
+#   updated_at_utc: (schema header trap)
+project_status: active
+active_work_items:
+  - ref_id: CHANGE-0001
+    status: in_progress
+    phase: implementation
+    primary_path: docs/issues/CHANGE-0001.md
+  - ref_id: ISSUE-0007
+    status: in_progress
+    phase: implementation
+last_validation:
+  status: not_run
+  evidence_paths:
+    - docs/ai/tdd/green-a.log
+    - docs/ai/tdd/green-b.log
+metrics:
+  work_items:
+    CHANGE-0001:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Planning
+          model_id: claude-test
+          note: run-1
+        - role: Implementation
+          model_id: claude-test
+          note: run-2
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$ok3" > "$TEST_DIR/lint-ok3.log" 2>&1) \
+    || log_fail "nested item-map/agent_runs shapes must not false-positive: $(cat "$TEST_DIR/lint-ok3.log")"
+  log_pass "List-indent lint: mis-indented siblings fail loud with key+line; uniform and nested shapes pass (ISSUE-0007 TEST-002)"
+}
+
+test_orphan_item_lint() {  # ISSUE-0007 TEST-008 / Spec-AC-06 (remediation)
+  log_info "Test: orphaned-item lint — \`- \` at a key's own indent after its inline value fails LOUD; legal 0-relative lists pass (ISSUE-0007 TEST-008)..."
+  # The exact validation-ISSUE-0007-20260715T233312Z probe (d) corruption: a
+  # whole-field rewrite over a 0-relative list wrote `report_paths: []` and
+  # left the old item orphaned directly below (line 5). BLOCK_KEY_RE never
+  # matched the inline-valued key, so the pre-remediation lint exited 0.
+  local bad="$TEST_DIR/state-orphan-bad.yaml"
+  cat > "$bad" <<'YAML'
+project_status: active
+code_review:
+  status: not_run
+  report_paths: []
+  - docs/ai/reviews/orphan.md
+  notes: null
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+  if (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$bad" > "$TEST_DIR/orphan-bad.log" 2>&1); then
+    log_fail "orphaned item below an inline-valued key must exit non-zero (pre-remediation lint hole)"
+  fi
+  grep -qF "report_paths" "$TEST_DIR/orphan-bad.log" \
+    || log_fail "orphan lint must name the offending key (report_paths): $(cat "$TEST_DIR/orphan-bad.log")"
+  grep -qE "line 5" "$TEST_DIR/orphan-bad.log" \
+    || log_fail "orphan lint must name the offending line number (5): $(cat "$TEST_DIR/orphan-bad.log")"
+
+  # RED-D shape: bare key, first item DEEPER, then shallower orphans at the
+  # key's own indent (a pre-remediation setField over a populated 0-relative
+  # list wrote the new deeper items and orphaned the old ones below).
+  local bad2="$TEST_DIR/state-orphan-bad2.yaml"
+  cat > "$bad2" <<'YAML'
+project_status: active
+last_validation:
+  status: not_run
+  evidence_paths:
+    - docs/ai/tdd/green-c.log
+  - docs/ai/tdd/orphan-a.log
+  - docs/ai/tdd/orphan-b.log
+  notes: null
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+  if (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$bad2" > "$TEST_DIR/orphan-bad2.log" 2>&1); then
+    log_fail "shallower orphans at the key's own indent must exit non-zero"
+  fi
+  grep -qF "evidence_paths" "$TEST_DIR/orphan-bad2.log" \
+    || log_fail "lint must name evidence_paths: $(cat "$TEST_DIR/orphan-bad2.log")"
+  grep -qE "line 6" "$TEST_DIR/orphan-bad2.log" \
+    || log_fail "lint must name the first orphan line (6): $(cat "$TEST_DIR/orphan-bad2.log")"
+
+  # LEGAL 0-relative block sequences (the metrics suite's own fixture shape:
+  # items at the SAME column as their bare key), folded scalars with
+  # continuation lines, and nested orchestration shapes must all pass.
+  local ok="$TEST_DIR/state-orphan-ok.yaml"
+  cat > "$ok" <<'YAML'
+project_status: active
+code_review:
+  status: not_run
+  report_paths:
+  - docs/ai/reviews/r1.md
+  - docs/ai/reviews/r2.md
+  notes: null
+last_validation:
+  status: not_run
+  evidence_paths:
+  - docs/ai/tdd/green-a.log
+  notes: >-
+    a folded scalar
+    with continuation lines
+orchestration:
+  mode: single
+  k: 1
+  groups:
+  - kind: sequential
+    scopes:
+    - null
+active_work_items:
+  - ref_id: CHANGE-0001
+    status: done
+    phase: validation
+  - ref_id: ISSUE-0007
+    status: in_progress
+    phase: implementation
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$ok" > "$TEST_DIR/orphan-ok.log" 2>&1) \
+    || log_fail "legal 0-relative lists / folded scalars / nested shapes must not false-positive: $(cat "$TEST_DIR/orphan-ok.log")"
+  log_pass "Orphaned-item lint: inline-value + equal-indent item fails loud with key+line; legal 0-relative shapes pass (ISSUE-0007 TEST-008)"
+}
+
 test_no_regression_real_state() {  # TEST-010 (check-state half) / Spec-AC-10
   log_info "Test: real repo STATE.yaml (if present) validates clean (TEST-010)..."
   local real="$PROJECT_ROOT/docs/ai/STATE.yaml"
@@ -243,6 +438,8 @@ main() {
   test_repair_merges_no_data_loss
   test_repair_inline_agent_runs
   test_prevention_wiring_present
+  test_list_indent_lint
+  test_orphan_item_lint
   test_no_regression_real_state
   echo ""
   log_pass "All $TEST_NAME tests passed"

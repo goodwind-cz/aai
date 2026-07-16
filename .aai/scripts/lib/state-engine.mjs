@@ -169,21 +169,44 @@ export function indentOf(line) {
 // to the span only when a MORE-indented continuation follows it — stopping at
 // the first blank orphaned post-blank paragraphs of hand-edited `>-` fields on
 // clear/overwrite (review-20260707T081303Z W2). Otherwise the field ends there.
+//
+// ZERO-RELATIVE-INDENT lists (validation-ISSUE-0007-20260715T233312Z): when
+// the key line is BARE (`key:` with no inline value), YAML allows its block
+// sequence's `- ` items to sit at the SAME column as the key — that sequence
+// IS the key's value, so those equal-indent item lines join the span too.
+// Excluding them made every whole-field rewrite (setField / listFieldLines /
+// nullFieldIfPresent — e.g. the metrics-flush full reset writing
+// `report_paths: []`) truncate one line short and leave the items orphaned
+// below the replacement: invalid YAML. A sibling KEY at equal indent still
+// terminates the span — keys never start with `- `, so the item shape
+// distinguishes them. An equal-indent `- ` line here can never belong to a
+// PARENT structure: a parent sequence's dash column is always at least 2 left
+// of the keys of the mapping it contains (compact mappings put their keys
+// right of the dash), so under a bare key at this indent an equal-indent item
+// is that key's own 0-relative sequence by construction. Nested deeper lists
+// were already included by the strict `>` case; keys with an inline value
+// (incl. `>-`/`|` block-scalar headers) keep the strict `>` behavior — an
+// equal-indent `- ` after those is NOT part of the value (the lint in
+// check-state.mjs reports that shape as an orphan).
 export function fieldSpan(blockLines, idx, indent) {
+  const rest = blockLines[idx].slice(blockLines[idx].indexOf(':') + 1).trim();
+  const bareKey = rest === '' || rest.startsWith('#');
+  const inSpan = l => indentOf(l) > indent
+    || (bareKey && indentOf(l) === indent && /^-(\s|$)/.test(l.slice(indent)));
   let n = 1;
   for (let j = idx + 1; j < blockLines.length; j += 1) {
     const l = blockLines[j];
     if (l.trim() === '') {
       let k = j;
       while (k < blockLines.length && blockLines[k].trim() === '') k += 1;
-      if (k < blockLines.length && indentOf(blockLines[k]) > indent) {
+      if (k < blockLines.length && inSpan(blockLines[k])) {
         n = k - idx + 1;   // the blank run + its continuation join the span
         j = k;
         continue;
       }
       break;
     }
-    if (indentOf(l) > indent) n += 1;
+    if (inSpan(l)) n += 1;
     else break;
   }
   return n;
@@ -272,10 +295,14 @@ export function nullFieldIfPresent(blockLines, indent, name) {
 }
 
 // Append items to a list field; converts an inline `name: []` to block form;
-// creates the field when missing.
+// creates the field when missing. New siblings take the indent of the list's
+// EXISTING first `- ` item (ISSUE-0007: hardcoding key-indent+2 wrote a
+// shallower sibling under any list whose items sit deeper — legal YAML a hand
+// repair or foreign writer can produce — yielding a file PyYAML rejects).
+// Empty/missing lists fall back to the engine convention key-indent+2.
 export function appendListItems(blockLines, indent, name, items) {
   const sp = ' '.repeat(indent);
-  const itemLines = items.map(it => `${sp}  - ${yq(it)}`);
+  const defaultItemSp = `${sp}  `;
   const re = fieldRe(indent, name);
   for (let i = 1; i < blockLines.length; i += 1) {
     if (!re.test(blockLines[i])) continue;
@@ -283,6 +310,12 @@ export function appendListItems(blockLines, indent, name, items) {
     if (rest === '[]' || rest === '') {
       const n = fieldSpan(blockLines, i, indent);
       const existing = rest === '' ? blockLines.slice(i + 1, i + n) : [];
+      let itemSp = defaultItemSp;
+      for (const l of existing) {
+        const m = l.match(/^( +)- /);
+        if (m) { itemSp = m[1]; break; }   // first existing item sets the indent
+      }
+      const itemLines = items.map(it => `${itemSp}- ${yq(it)}`);
       blockLines.splice(i, n, `${sp}${name}:`, ...existing, ...itemLines);
       return blockLines;
     }
@@ -290,7 +323,7 @@ export function appendListItems(blockLines, indent, name, items) {
   }
   let at = blockLines.length;
   while (at > 1 && (blockLines[at - 1].trim() === '' || blockLines[at - 1].startsWith('#'))) at -= 1;
-  blockLines.splice(at, 0, `${sp}${name}:`, ...itemLines);
+  blockLines.splice(at, 0, `${sp}${name}:`, ...items.map(it => `${defaultItemSp}- ${yq(it)}`));
   return blockLines;
 }
 

@@ -37,7 +37,7 @@ Edit only the fields your role's primary-path command would have written, plus
   `fail` to `not_run`; leave run_at_utc/evidence_paths/report_paths as audit
   history; touch nothing else
 - flush resets (METRICS_FLUSH step 5d — apply ALL by hand):
-  - last_validation → status: not_run, run_at_utc: null, evidence_paths: [], notes: null
+  - last_validation → status: not_run, run_at_utc: null, ref_id: null, evidence_paths: [], notes: null
   - implementation_strategy → selected: undecided, source: null, rationale: null
   - worktree → recommendation: not_needed, user_decision: undecided, base_ref: null,
     branch: null, path: null, inline_review_scope: null, rationale: null

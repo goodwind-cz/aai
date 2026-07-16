@@ -68,7 +68,11 @@ setEngineFailPrefix('metrics-flush');
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const FUTURE_SLACK_MS = 300 * 1000;
-// The ephemeral-cleanup protected set (prompt 6d) — a HARD constant.
+// The ephemeral-cleanup protected set (prompt 6d) — a HARD constant. Dotfile
+// keepers (`.gitkeep` and any other dot-basename) are protected as a CLASS in
+// the rm guard below: they are TRACKED placeholder files the gitignore
+// carve-outs depend on, never ephemeral output (ISSUE-0007 bundled nit — the
+// >7d tdd sweep deleted docs/ai/tdd/.gitkeep).
 const PROTECTED = new Set(['METRICS.jsonl', 'decisions.jsonl', 'STATE.yaml', 'published']);
 
 function fail(msg, code = 2) {
@@ -462,7 +466,9 @@ function ageDays(nowMs, mtimeMs) {
 
 function cleanupEphemeral(stateDir, ticksPath, nowMs, report) {
   const rm = (p, why) => {
-    if (PROTECTED.has(path.basename(p))) return;   // hard constant, belt & braces
+    const base = path.basename(p);
+    if (PROTECTED.has(base)) return;   // hard constant, belt & braces
+    if (base.startsWith('.')) return;  // dotfile keepers (.gitkeep) are tracked placeholders, never ephemeral
     fs.rmSync(p, { recursive: true, force: true });
     report.push(`Cleaned: ${p} (${why})`);
   };
