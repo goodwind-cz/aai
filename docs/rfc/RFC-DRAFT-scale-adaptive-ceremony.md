@@ -2,7 +2,7 @@
 id: scale-adaptive-ceremony
 type: rfc
 number: null
-status: proposed
+status: accepted
 links:
   research: RES-0001
   spec: null
@@ -70,3 +70,5 @@ this week).
 
 ## Approvals
 - Required approvers: Project owner (ales@holubec.net).
+- Decision 2026-07-16: ACCEPTED by project owner (ales@holubec.net) —
+  "schvaluji oba, mergni a rozjed". Proceed to SPEC and implementation.

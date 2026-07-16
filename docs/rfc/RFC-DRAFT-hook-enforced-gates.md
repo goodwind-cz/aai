@@ -2,7 +2,7 @@
 id: hook-enforced-gates
 type: rfc
 number: null
-status: proposed
+status: accepted
 links:
   research: RES-0001
   spec: null
@@ -71,3 +71,5 @@ the platform that supports it, at zero portability cost (opt-in overlay).
 
 ## Approvals
 - Required approvers: Project owner (ales@holubec.net).
+- Decision 2026-07-16: ACCEPTED by project owner (ales@holubec.net) —
+  "schvaluji oba, mergni a rozjed". Proceed to SPEC and implementation.

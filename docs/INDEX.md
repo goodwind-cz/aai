@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-16T12:14:03.150Z
+Generated: 2026-07-16T14:16:48.907Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -22,8 +22,8 @@ _None._
 | SPEC-0024 | specs | implementing | 3 done | docs/specs/SPEC-0024-spec-review-taxonomy-alignment.md |
 | RFC-0007 | rfc | accepted | — | docs/rfc/RFC-0007-parallel-safe-doc-numbering.md |
 | RFC-0008 | rfc | accepted | — | docs/rfc/RFC-0008-single-dual-verdict-review.md |
-| hook-enforced-gates | rfc | proposed | — | docs/rfc/RFC-DRAFT-hook-enforced-gates.md |
-| scale-adaptive-ceremony | rfc | proposed | — | docs/rfc/RFC-DRAFT-scale-adaptive-ceremony.md |
+| hook-enforced-gates | rfc | accepted | — | docs/rfc/RFC-DRAFT-hook-enforced-gates.md |
+| scale-adaptive-ceremony | rfc | accepted | — | docs/rfc/RFC-DRAFT-scale-adaptive-ceremony.md |
 
 ## Canonical layer (0)
 
