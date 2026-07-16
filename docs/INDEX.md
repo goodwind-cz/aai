@@ -1,13 +1,13 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-16T15:26:49.054Z
+Generated: 2026-07-16T15:55:52.341Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (13)
+## Active (implementing) (14)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
@@ -24,6 +24,7 @@ _None._
 | RFC-0008 | rfc | accepted | — | docs/rfc/RFC-0008-single-dual-verdict-review.md |
 | RFC-0009 | rfc | accepted | — | docs/rfc/RFC-0009-scale-adaptive-ceremony.md |
 | RFC-0010 | rfc | accepted | — | docs/rfc/RFC-0010-hook-enforced-gates.md |
+| RFC-0011 | rfc | accepted | — | docs/rfc/RFC-0011-delta-spec-lifecycle.md |
 
 ## Canonical layer (0)
 
