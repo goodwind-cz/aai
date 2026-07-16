@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-16T16:16:17.914Z
+Generated: 2026-07-16T16:26:59.540Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -72,7 +72,7 @@ _None._
 | SPEC-0014 | specs | docs/specs/SPEC-0014-state-clear-spec-path-placement-auto-trigger-alignment.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (22)
+## Drafts (24)
 
 | ID | Type | Path |
 |---|---|---|
@@ -88,6 +88,7 @@ _None._
 | CHANGE-0018 | issues | docs/issues/CHANGE-0018-systematic-debugging.md |
 | CHANGE-0019 | issues | docs/issues/CHANGE-0019-constitution.md |
 | CHANGE-0020 | issues | docs/issues/CHANGE-0020-advisory-skills.md |
+| CHANGE-0021 | issues | docs/issues/CHANGE-0021-truth-scoring.md |
 | ISSUE-0007 | issues | docs/issues/ISSUE-0007-state-list-append-indent.md |
 | ISSUE-0008 | issues | docs/issues/ISSUE-0008-project-dominant-width.md |
 | SPEC-0017 | specs | docs/specs/SPEC-0017-spec-prompt-layer-diet-phase-1.md |
@@ -98,6 +99,7 @@ _None._
 | SPEC-0029 | specs | docs/specs/SPEC-0029-spec-hook-enforced-gates.md |
 | SPEC-0030 | specs | docs/specs/SPEC-0030-spec-scale-adaptive-ceremony.md |
 | SPEC-0031 | specs | docs/specs/SPEC-0031-spec-advisory-skills.md |
+| SPEC-0032 | specs | docs/specs/SPEC-0032-spec-truth-scoring.md |
 
 ## Deferred (whole-doc) (0)
 

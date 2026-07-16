@@ -16,6 +16,12 @@
 #   - transactionality: ledger-before-reset, crash resume, --dry-run (TEST-013)
 #   - report golden: byte-deterministic markdown (TEST-014)
 #
+# Truth-scoring (SPEC-DRAFT-truth-scoring, RES-0001 P3) — TEST-006/TEST-014
+# goldens extended (strategy + reliability fields / Per-Strategy Reliability
+# section), plus:
+#   - reliability derivation matrix per spec rules R1-R6 (TEST-017)
+#   - per-strategy reliability report golden, old lines n/a (TEST-018)
+#
 # ALL fixtures are scratch temp-dir repos (path-flag overrides); the real
 # runtime files are NEVER touched. bash 3.2 compatible.
 #
@@ -304,7 +310,7 @@ test_006_flush_golden() {
   [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "exactly one ledger line must be appended"
   grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
   cat > "$d/want.jsonl" <<'GOLDEN'
-{"date_utc":"2026-07-15","ref_id":"CHANGE-0001","title":"Golden fixture item","human_time_minutes":{"intake":null,"reviews":2},"agent_runs":[{"role":"Planning","model_id":"claude-opus-4-8[1m]","started_utc":"2026-07-15T10:00:00Z","ended_utc":"2026-07-15T10:02:00Z","duration_seconds":120,"tokens_in":1000000,"tokens_out":100000,"cost_usd":7.5},{"role":"Implementation","model_id":"sonnet-latest","started_utc":"2026-07-15T10:02:00Z","ended_utc":"2026-07-15T10:12:00Z","duration_seconds":600,"tokens_in":2000000,"tokens_out":200000,"cost_usd":9},{"role":"Validation","model_id":"claude-sonnet-5-20260101","started_utc":"2026-07-15T10:12:00Z","ended_utc":"2026-07-15T10:13:40Z","duration_seconds":100,"tokens_in":1000000,"tokens_out":1000000,"cost_usd":18},{"role":"Code Review","model_id":"mystery-9000","started_utc":"2026-07-15T10:13:40Z","ended_utc":"2026-07-15T10:14:40Z","duration_seconds":60,"tokens_in":10,"tokens_out":10,"cost_usd":null}],"totals":{"human_time_minutes":2,"agent_duration_seconds":880,"total_cost_usd":null},"verdict":"PASS"}
+{"date_utc":"2026-07-15","ref_id":"CHANGE-0001","title":"Golden fixture item","human_time_minutes":{"intake":null,"reviews":2},"agent_runs":[{"role":"Planning","model_id":"claude-opus-4-8[1m]","started_utc":"2026-07-15T10:00:00Z","ended_utc":"2026-07-15T10:02:00Z","duration_seconds":120,"tokens_in":1000000,"tokens_out":100000,"cost_usd":7.5},{"role":"Implementation","model_id":"sonnet-latest","started_utc":"2026-07-15T10:02:00Z","ended_utc":"2026-07-15T10:12:00Z","duration_seconds":600,"tokens_in":2000000,"tokens_out":200000,"cost_usd":9},{"role":"Validation","model_id":"claude-sonnet-5-20260101","started_utc":"2026-07-15T10:12:00Z","ended_utc":"2026-07-15T10:13:40Z","duration_seconds":100,"tokens_in":1000000,"tokens_out":1000000,"cost_usd":18},{"role":"Code Review","model_id":"mystery-9000","started_utc":"2026-07-15T10:13:40Z","ended_utc":"2026-07-15T10:14:40Z","duration_seconds":60,"tokens_in":10,"tokens_out":10,"cost_usd":null}],"totals":{"human_time_minutes":2,"agent_duration_seconds":880,"total_cost_usd":null},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
 GOLDEN
   diff -u "$d/want.jsonl" "$d/got.jsonl" > "$d/golden.diff" 2>&1 \
     || log_fail "ledger line must byte-equal the golden (strip-[1m] 7.5, alias 9, longest-prefix 18, unknown null): $(cat "$d/golden.diff")"
@@ -315,7 +321,7 @@ GOLDEN
     if (JSON.stringify(o) !== l) { console.error("round-trip mismatch"); process.exit(1); }
   ' "$d/got.jsonl" || log_fail "entry must deep-equal its own JSON round-trip"
   grep -qF "CHANGE-0001" "$OUT" || log_fail "report must name the flushed ref: $(cat "$OUT")"
-  log_pass "Golden ledger line exact: [1m]-strip, alias, longest-prefix, unknown->null (TEST-006)"
+  log_pass "Golden ledger line exact: [1m]-strip, alias, longest-prefix, unknown->null, clean strategy+reliability (TEST-006)"
 }
 
 # --- TEST-007: timing fidelity ---------------------------------------------------
@@ -703,6 +709,13 @@ Note: "~" prefix on cost means partial (some runs had null token data).
 |----------|------|-----------|------------|----------|
 | model-a | 1 | n/a | n/a | n/a |
 | model-b | 2 | 3000000 | 300000 | $16.50 |
+
+### Per-Strategy Reliability
+| strategy | items | first-pass clean | avg validation fails | avg review fails | avg remediations |
+|----------|-------|------------------|----------------------|------------------|------------------|
+| n/a | 2 | n/a | n/a | n/a | n/a |
+
+Note: reliability derives from runs recorded at flush; older ledger lines without it render n/a.
 GOLDEN
   runrep() { (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-report.mjs --metrics "$d/METRICS.jsonl" --pricing "$d/PRICING.yaml"); }
   runrep > "$d/run1.md" 2> "$d/run1.err" || log_fail "report must exit 0: $(cat "$d/run1.err")"
@@ -782,8 +795,138 @@ test_016_zero_relative_full_reset() {  # ISSUE-0007 TEST-009 / Spec-AC-06 (remed
   log_pass "Full reset over 0-relative lists: whole spans consumed, no orphans, PyYAML + check-state clean (ISSUE-0007 TEST-009)"
 }
 
+# --- TEST-017: reliability derivation matrix (SPEC-DRAFT-truth-scoring R1-R6) --------
+
+test_017_reliability_derivation() {
+  log_info "Test: reliability derived ONLY from recorded runs — FAIL markers counted, PASS/null notes not; suffixed remediation roles counted; undecided strategy -> null (TEST-017)..."
+  local d
+  # (a) bumpy history: 1 validation FAIL (marker), 1 review FAIL (marker),
+  # 2 remediation runs (one with a suffixed role + null note), PASS-noted
+  # re-runs NOT counted, original no-note runs NOT counted as fails.
+  d="$(mk_repo t17)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  node -e '
+    const fs = require("fs"); const p = process.argv[1];
+    let s = fs.readFileSync(p, "utf8");
+    const extra = [
+      "        - role: Validation",
+      "          model_id: claude-v",
+      "          note: \"VERDICT: FAIL. AC-2 unmet (adversarial probe)\"",
+      "          started_utc: 2026-07-15T10:15:00Z",
+      "          ended_utc: 2026-07-15T10:16:00Z",
+      "          duration_seconds: 60",
+      "          tokens_in: null",
+      "          tokens_out: null",
+      "          cost_usd: null",
+      "        - role: Remediation",
+      "          model_id: claude-r",
+      "          started_utc: 2026-07-15T10:16:00Z",
+      "          ended_utc: 2026-07-15T10:17:00Z",
+      "          duration_seconds: 60",
+      "          tokens_in: null",
+      "          tokens_out: null",
+      "          cost_usd: null",
+      "        - role: Validation",
+      "          model_id: claude-v",
+      "          note: >-",
+      "            VERDICT: PASS. all clear after remediation",
+      "          started_utc: 2026-07-15T10:17:00Z",
+      "          ended_utc: 2026-07-15T10:18:00Z",
+      "          duration_seconds: 60",
+      "          tokens_in: null",
+      "          tokens_out: null",
+      "          cost_usd: null",
+      "        - role: Code Review",
+      "          model_id: claude-c",
+      "          note: >-",
+      "            Stage 1 NON-COMPLIANT. VERDICT: FAIL. E1 blocking",
+      "          started_utc: 2026-07-15T10:18:00Z",
+      "          ended_utc: 2026-07-15T10:19:00Z",
+      "          duration_seconds: 60",
+      "          tokens_in: null",
+      "          tokens_out: null",
+      "          cost_usd: null",
+      "        - role: Remediation (E1 blocking)",
+      "          model_id: claude-r",
+      "          note: null",
+      "          started_utc: 2026-07-15T10:19:00Z",
+      "          ended_utc: 2026-07-15T10:20:00Z",
+      "          duration_seconds: 60",
+      "          tokens_in: null",
+      "          tokens_out: null",
+      "          cost_usd: null",
+      "        - role: Code Review (re-review)",
+      "          model_id: claude-c",
+      "          note: \"VERDICT: PASS. clean\"",
+      "          started_utc: 2026-07-15T10:20:00Z",
+      "          ended_utc: 2026-07-15T10:21:00Z",
+      "          duration_seconds: 60",
+      "          tokens_in: null",
+      "          tokens_out: null",
+      "          cost_usd: null",
+    ].join("\n");
+    s = s.replace("\n\nupdated_at_utc:", "\n" + extra + "\n\nupdated_at_utc:");
+    fs.writeFileSync(p, s);
+  ' "$d/docs/ai/STATE.yaml"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
+  grep -qF '"strategy":"tdd","reliability":{"validation_fails":1,"review_fails":1,"remediation_runs":2,"first_pass_clean":false},"verdict":"PASS"' "$d/got.jsonl" \
+    || log_fail "(a) entry must carry strategy tdd + reliability {1,1,2,false} in order after totals (marker-noted fails only, suffixed remediation counted, PASS/null notes not): $(cat "$d/got.jsonl")"
+
+  # (b) clean history + undecided strategy -> strategy null, counts 0, clean.
+  d="$(mk_repo t17b)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  node -e '
+    const fs = require("fs"); const p = process.argv[1];
+    let s = fs.readFileSync(p, "utf8");
+    s = s.replace("  selected: tdd", "  selected: undecided");
+    fs.writeFileSync(p, s);
+  ' "$d/docs/ai/STATE.yaml"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "(b) flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
+  grep -qF '"strategy":null,"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"' "$d/got.jsonl" \
+    || log_fail "(b) undecided strategy must record null; clean run must be first_pass_clean true: $(cat "$d/got.jsonl")"
+  log_pass "Reliability derivation matrix per R1-R6: marker-gated fail counts, structural remediation count, honest strategy null (TEST-017)"
+}
+
+# --- TEST-018: per-strategy reliability report golden --------------------------------
+
+test_018_report_strategy_golden() {
+  log_info "Test: Per-Strategy Reliability section byte-equals the golden; old lines group under n/a (TEST-018)..."
+  local d="$TEST_DIR/t18"
+  mkdir -p "$d"
+  write_pricing "$d/PRICING.yaml"
+  cat > "$d/METRICS.jsonl" <<'JSONL'
+# ledger comment
+{"date_utc":"2026-07-01","ref_id":"OLD-0001","title":"Old line","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Implementation","model_id":"claude-sonnet-5","started_utc":"2026-07-01T10:00:00Z","ended_utc":"2026-07-01T10:10:00Z","duration_seconds":600,"tokens_in":1000000,"tokens_out":100000,"cost_usd":null}],"totals":{"human_time_minutes":0,"agent_duration_seconds":600,"total_cost_usd":null},"verdict":"PASS"}
+{"date_utc":"2026-07-02","ref_id":"NEW-0001","title":"Tdd clean","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Implementation","model_id":"claude-sonnet-5","started_utc":"2026-07-02T10:00:00Z","ended_utc":"2026-07-02T10:10:00Z","duration_seconds":600,"tokens_in":null,"tokens_out":null,"cost_usd":null}],"totals":{"human_time_minutes":0,"agent_duration_seconds":600,"total_cost_usd":null},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
+{"date_utc":"2026-07-03","ref_id":"NEW-0002","title":"Loop bumpy","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Implementation","model_id":"claude-sonnet-5","started_utc":"2026-07-03T10:00:00Z","ended_utc":"2026-07-03T10:10:00Z","duration_seconds":600,"tokens_in":null,"tokens_out":null,"cost_usd":null}],"totals":{"human_time_minutes":0,"agent_duration_seconds":600,"total_cost_usd":null},"strategy":"loop","reliability":{"validation_fails":1,"review_fails":0,"remediation_runs":2,"first_pass_clean":false},"verdict":"PASS"}
+{"date_utc":"2026-07-04","ref_id":"NEW-0003","title":"Loop clean","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Implementation","model_id":"claude-sonnet-5","started_utc":"2026-07-04T10:00:00Z","ended_utc":"2026-07-04T10:10:00Z","duration_seconds":600,"tokens_in":null,"tokens_out":null,"cost_usd":null}],"totals":{"human_time_minutes":0,"agent_duration_seconds":600,"total_cost_usd":null},"strategy":"loop","reliability":{"validation_fails":0,"review_fails":1,"remediation_runs":1,"first_pass_clean":false},"verdict":"PASS"}
+JSONL
+  cat > "$d/want-section.md" <<'GOLDEN'
+### Per-Strategy Reliability
+| strategy | items | first-pass clean | avg validation fails | avg review fails | avg remediations |
+|----------|-------|------------------|----------------------|------------------|------------------|
+| loop | 2 | 0/2 (0%) | 0.5 | 0.5 | 1.5 |
+| n/a | 1 | n/a | n/a | n/a | n/a |
+| tdd | 1 | 1/1 (100%) | 0.0 | 0.0 | 0.0 |
+
+Note: reliability derives from runs recorded at flush; older ledger lines without it render n/a.
+GOLDEN
+  runrep18() { (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-report.mjs --metrics "$d/METRICS.jsonl" --pricing "$d/PRICING.yaml"); }
+  runrep18 > "$d/run1.md" 2> "$d/run1.err" || log_fail "report must exit 0: $(cat "$d/run1.err")"
+  runrep18 > "$d/run2.md" 2>/dev/null || log_fail "second run must exit 0"
+  cmp -s "$d/run1.md" "$d/run2.md" || log_fail "identical input bytes must yield identical output bytes"
+  sed -n '/^### Per-Strategy Reliability$/,$p' "$d/run1.md" > "$d/got-section.md"
+  diff -u "$d/want-section.md" "$d/got-section.md" > "$d/golden.diff" 2>&1 \
+    || log_fail "Per-Strategy Reliability section must byte-equal the golden (lex order, n/a group, X/Y (P%) rate, one-decimal avgs): $(cat "$d/golden.diff")"
+  log_pass "Per-Strategy Reliability golden exact; deterministic; old lines n/a (TEST-018)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014)"
+  echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018)"
   check_deps
   setup_fixture
   test_006_flush_golden
@@ -797,6 +940,8 @@ main() {
   test_014_report_golden
   test_015_fallback_ref_id_parity
   test_016_zero_relative_full_reset
+  test_017_reliability_derivation
+  test_018_report_strategy_golden
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

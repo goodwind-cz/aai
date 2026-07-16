@@ -9,6 +9,20 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: truth-scoring on the metrics ledger (CHANGE-0021 / SPEC-0032)
+
+- Flushed ledger entries gain reliability{validation_fails, review_fails,
+  remediation_runs, first_pass_clean} + a strategy stamp — derived ONLY from
+  recorded runs (normative rules R1-R6; R6 documents what is honestly NOT
+  derivable: an unmarked FAIL is invisible to the marker counts but
+  structurally witnessed by remediation_runs). metrics-report renders a
+  Per-Strategy Reliability table; legacy lines render n/a.
+- FIRST live ceremony_level: 1 scope — the lean L1 spec reviewed cleaner
+  than a typical L2 (reviewer: "mechanical code-to-rule diff"), and its
+  validation found the L1 close-gate machinery gap (gateContent demands the
+  canonical AC-Status table regardless of level) — fixed in the companion
+  l1-close-gate scope. Review: zero findings.
+
 ## [unreleased] — feat: three optional advisory skills (CHANGE-0020 / SPEC-0031)
 
 - SKILL_SCOUT (pre-implementation readiness 0-100 over 5 dimensions, GO/HOLD
