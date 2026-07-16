@@ -9,6 +9,30 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: delta-spec lifecycle — close-time delta merge + provenance drift (CHANGE-0026 / SPEC-0038)
+
+- Final stage of the RFC-0011 delta-spec lifecycle. New `delta-merge.mjs` applies
+  a merging spec's `## Deltas` into `docs/canonical/<domain>.md` at PR ceremony:
+  ADDED gets the next unused per-domain NNN, MODIFIED replaces the requirement's
+  body, REMOVED retires it (a `<!-- RETIRED … -->` tombstone reserves the NNN so
+  it is never reused). Line-surgical (untouched lines byte-identical), byte-
+  idempotent, all-or-nothing fail-closed (zero writes on any delta violation,
+  missing canonical doc, absent MODIFIED/REMOVED id, or ADDED title collision),
+  deterministic (no LLM in the write path). Reuses the stage-1/2 parsers as the
+  single grammar source.
+- docs-audit `--check` gains a provenance drift check: every canonical
+  requirement must trace to a merging spec (`untraced-canonical-requirement` /
+  `broken-canonical-provenance`); a no-op with no false positives when
+  `docs/canonical/` is empty. This is also the gate that resolves the NB-1
+  obligation SPEC-0034 promoted.
+- The PR ceremony (SKILL_PR) runs delta-merge after number allocation so the
+  canonical diff is in the PR and reviewable (the RFC's chosen merge trigger);
+  fail-closed STOP on any merge error; documented no-op when a spec has no
+  `## Deltas` or the repo has no canonical layer. `docs/canonical/` is empty in
+  this repo, so merge + drift are no-ops here — the engine ships fixture-tested
+  and ready. Independent validation caught and drove remediation of a tombstone-
+  deletion bug (retired-NNN reuse) before this passed; dual-verdict review PASS.
+
 ## [unreleased] — feat: delta-spec lifecycle — SPEC `## Deltas` section + shape validation (CHANGE-0025 / SPEC-0037)
 
 - Second stage of the RFC-0011 delta-spec lifecycle (builds on SPEC-0034's

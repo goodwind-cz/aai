@@ -3632,6 +3632,126 @@ test_l1gate_done_drift_pipe_drop() {  # spec-l1-close-gate TEST-008 / Spec-AC-04
   log_pass "Done-drift check mirrors the gate: pipe-dropped non-terminal row flips probable-false-done naming it"
 }
 
+# --- RFC-0011 (delta-spec lifecycle) D3: canonical-provenance drift check ------
+
+# Write a canonical doc for $2 (domain) into repo dir $1 with the requirement
+# blocks piped on stdin (heading/SHALL/Provenance authored by the caller).
+write_canonical_doc() {
+  local d="$1" domain="$2"
+  mkdir -p "$d/docs/canonical"
+  {
+    printf -- '---\nid: CANON-%s\ntype: canonical\ndomain: %s\nstatus: accepted\nsources:\n  - docs/_archive/specs/SPEC-old.md\n---\n\n' "$domain" "$domain"
+    printf '# Canonical: %s\n\n## Overview / Intent\n\nIntent.\n\n## Requirements\n\n' "$domain"
+    cat
+    printf '\n## UI\n\nUI.\n'
+  } > "$d/docs/canonical/$domain.md"
+}
+
+test_delta3_provenance_drift() {  # spec-delta-stage-3 TEST-004 / Spec-AC-02
+  local dash="—"
+  log_info "Test: docs-audit --check flags untraced/broken canonical provenance; fully-traced is CLEAN (TEST-004)..."
+
+  # (a) drift repo: one untraced (Provenance —), one broken (names a missing
+  # spec), one traced (names a scanned spec) requirement.
+  local d; d="$(setup_iso_repo prov-drift)"
+  cat > "$d/docs/specs/SPEC-0031-trace-target.md" <<'MD'
+---
+id: SPEC-0031
+type: spec
+status: accepted
+links:
+  pr: []
+---
+# A scanned spec the traced requirement resolves to
+MD
+  write_canonical_doc "$d" oauth2-login <<MD
+### REQ-OAUTH2_LOGIN-001 ${dash} Untraced
+The system SHALL do the untraced thing.
+
+Provenance: —
+
+### REQ-OAUTH2_LOGIN-002 ${dash} Broken
+The system SHALL do the broken thing.
+
+Provenance: SPEC-9999
+
+### REQ-OAUTH2_LOGIN-003 ${dash} Traced
+The system SHALL do the traced thing.
+
+Provenance: SPEC-0031
+MD
+  if (cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > drift.log 2>&1); then
+    log_fail "TEST-004: --check --strict must exit 1 when a canonical requirement is untraced/broken"
+  fi
+  extract_section_h3 "$d/drift.log" "### Canonical provenance drift" > "$d/prov-sec.txt"
+  grep -qF "untraced-canonical-requirement" "$d/prov-sec.txt" \
+    || log_fail "TEST-004: an empty Provenance must surface untraced-canonical-requirement"
+  grep -qF "broken-canonical-provenance" "$d/prov-sec.txt" \
+    || log_fail "TEST-004: a Provenance naming a missing spec must surface broken-canonical-provenance"
+  grep -F "REQ-OAUTH2_LOGIN-001" "$d/prov-sec.txt" | grep -qF "untraced-canonical-requirement" \
+    || log_fail "TEST-004: REQ-001 (empty Provenance) must be the untraced finding"
+  grep -F "REQ-OAUTH2_LOGIN-002" "$d/prov-sec.txt" | grep -qF "broken-canonical-provenance" \
+    || log_fail "TEST-004: REQ-002 (SPEC-9999) must be the broken finding"
+  # Positive control: the traced requirement is NOT flagged (proves not accept-all).
+  if grep -qF "REQ-OAUTH2_LOGIN-003" "$d/prov-sec.txt"; then
+    log_fail "TEST-004: the traced REQ-003 (Provenance SPEC-0031, resolvable) must NOT be flagged"
+  fi
+  rm -rf "$d"
+
+  # (b) fully-traced repo: every requirement resolves -> CLEAN, exit 0.
+  d="$(setup_iso_repo prov-clean)"
+  cat > "$d/docs/specs/SPEC-0031-trace-target.md" <<'MD'
+---
+id: SPEC-0031
+type: spec
+status: accepted
+links:
+  pr: []
+---
+# Scanned spec
+MD
+  write_canonical_doc "$d" oauth2-login <<MD
+### REQ-OAUTH2_LOGIN-001 ${dash} Traced
+The system SHALL do the traced thing.
+
+Provenance: SPEC-0031
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > clean.log 2>&1) \
+    || log_fail "TEST-004: a fully-traced canonical doc must exit 0 (CLEAN): $(cat "$d/clean.log")"
+  assert_contains "$d/clean.log" "Canonical provenance drift: 0"
+  extract_section_h3 "$d/clean.log" "### Verdict" | grep -qF "CLEAN" \
+    || log_fail "TEST-004: a fully-traced repo must report the CLEAN verdict"
+  rm -rf "$d"
+  log_pass "Provenance drift flags untraced/broken, leaves resolvable requirements CLEAN (TEST-004)"
+}
+
+test_delta3_empty_canonical_control() {  # spec-delta-stage-3 TEST-005 / Spec-AC-02
+  log_info "Test: no docs/canonical/ -> docs-audit --check --strict emits NO provenance finding (real repo stays CLEAN) (TEST-005)..."
+  local d; d="$(setup_iso_repo prov-empty)"
+  # A clean doc, but deliberately NO docs/canonical/ directory at all.
+  cat > "$d/docs/specs/SPEC-0040-ordinary.md" <<'MD'
+---
+id: SPEC-0040
+type: spec
+status: accepted
+links:
+  pr: []
+---
+# An ordinary open spec; this repo carries no canonical layer
+MD
+  [[ -d "$d/docs/canonical" ]] && log_fail "TEST-005: control repo must have NO docs/canonical/"
+  # Assert ONLY the no-false-positive invariants (true both before and after the
+  # drift check ships — this control passes pre-change by construction).
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > empty.log 2>&1) \
+    || log_fail "TEST-005: empty-canonical repo must exit 0 (no false positive): $(cat "$d/empty.log")"
+  assert_not_contains "$d/empty.log" "untraced-canonical-requirement"
+  assert_not_contains "$d/empty.log" "broken-canonical-provenance"
+  extract_section_h3 "$d/empty.log" "### Verdict" | grep -qF "CLEAN" \
+    || log_fail "TEST-005: empty-canonical repo must report CLEAN"
+  rm -rf "$d"
+  log_pass "Empty/absent docs/canonical/ contributes no provenance finding; repo stays CLEAN (TEST-005)"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -3733,6 +3853,8 @@ main() {
   test_l1gate_garbage_level_fail_closed
   test_l1gate_pipe_drop_reconciled
   test_l1gate_done_drift_pipe_drop
+  test_delta3_provenance_drift
+  test_delta3_empty_canonical_control
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
