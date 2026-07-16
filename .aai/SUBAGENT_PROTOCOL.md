@@ -28,6 +28,20 @@ Each subagent call MUST specify all of the following:
 | `EXPECTED_OUTPUT` | A result block (see below) |
 | `SYSTEM_PROMPT` | The canonical role prompt from `ai/<ROLE>.prompt.md` |
 
+### Work-item brief handoff (default INPUT)
+
+When Planning has emitted a brief at `docs/ai/briefs/<ref>.md` (from
+`.aai/templates/BRIEF_TEMPLATE.md`, PLANNING step 11), the dispatch `INPUT`
+DEFAULTS to the brief path plus the diff scope — the brief is self-contained
+(scope & why, AC ↔ task map, canon POINTERS, evidence contract), so the
+subagent does not re-read the full spec + canon cold. Degrade clause: when no
+brief exists for the ref, fall back to the spec path + requirement/intake
+paths as before — never block a dispatch on a missing brief. The brief's
+Return Record section is the "Result block (mandatory subagent output)" below,
+verbatim (single source: that section wins on any divergence); the subagent
+fills it instead of inventing its own report format. Briefs are gitignored
+runtime artifacts — cite them in dispatches, never commit them.
+
 ## Review dispatch anti-gaming rules (RFC single-dual-verdict-review)
 
 These rules bind every Code Review dispatch at the same tier as the `MODEL`
