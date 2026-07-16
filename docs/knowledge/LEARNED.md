@@ -43,3 +43,21 @@
   no-number-prediction, verify-merge, cleanup-after-MERGED, enforce flip)
   were promoted INTO the vendored layer (SPEC learned-to-layer-promotion) —
   they deliberately do NOT live here, so vendored projects inherit them.
+
+## Session 2026-07-16/17 (RES-0001 tail + delta-spec lifecycle)
+
+- Per-scope metrics are LOST if a worktree's `STATE.yaml` is not archived to
+  `docs/ai/archive/worktrees/` BEFORE `git worktree remove`. The archive
+  convention already existed (see above), but it was not followed for the
+  l1-close-gate / delta-stage-2 / delta-stage-3 scopes this session, so their
+  ledger entries are unrecoverable — and reconstructing them post-hoc would
+  fabricate reliability data (forbidden by SPEC-0032 truth-scoring). Fix the
+  ORDER: `cp <wt>/docs/ai/STATE.yaml docs/ai/archive/worktrees/STATE-<slug>-<ts>.yaml`
+  (or run the metrics flush) as the FIRST post-MERGED cleanup step, before
+  removing the worktree. (Source: this session's wrap-up.)
+- Two independent gates are not redundant: on delta-stage-3 the dual-verdict
+  review PASSED by tracing the code, but independent validation on a DIFFERENT
+  model FAILED it by actually running multi-run fixtures — catching a tombstone
+  deletion that reused a retired REQ id. For deterministic writers, a validator
+  that executes adversarial multi-run scenarios beats static review. Keep both.
+  (Source: SPEC-0038 validation, PR #88.)
