@@ -9,6 +9,28 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: level-aware close gate for L0/L1 lean specs (CHANGE-0024 / SPEC-0036)
+
+- docs-audit's close gate and done-drift check become ceremony-level aware: a
+  validly declared ceremony_level 0/1 "lean" spec (a `## Acceptance Criteria`
+  table with Spec-AC + Status columns + a `Ceremony justification:` line) can
+  now pass `--gate`/`--gate-file` and close CLEAN, instead of being blocked by
+  the canonical `## Acceptance Criteria Status` table requirement. L2/absent
+  specs keep byte-identical gate reasons and drift verdicts; a garbage
+  ceremony_level fails closed to full canonical requirements. Surfaced by the
+  first live L1 spec (SPEC-0032), whose own AC table is brought to the
+  canonical lean shape here so it is genuinely gate-closeable.
+- Silent-drop hardening: the shared lean parser splits rows on a naive `|`, so
+  a row whose cell holds a literal pipe (plain or escaped) was dropped and the
+  gate could PASS while a declared AC went unchecked. parseLeanAcTable now
+  returns `declaredIds` from the same line set it parses; both the close gate
+  and the done-drift check reconcile declared-vs-parsed and fail/flag naming
+  any unparseable row (immune to indentation — one source of truth, no sibling
+  regex to drift). spec-lint accepts the lean shape at L1 in step with the gate.
+- Independent validation PASS; dual-verdict review PASS after remediating two
+  reviewer-found silent-drop escapes (indented row; drift check not mirroring
+  the gate). Regression tests: TEST-001..008 in test-aai-docs-audit.sh.
+
 ## [unreleased] — feat: core/extended profiles for the vendored layer (CHANGE-0023 / SPEC-0035)
 
 - aai-sync gains --profile core|extended (default extended = byte-identical

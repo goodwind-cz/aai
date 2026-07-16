@@ -3379,6 +3379,259 @@ test_change0012_regression() {  # CHANGE-0012 TEST-011 / Spec-AC-04 (Seam 2)
   log_pass "Numbered gate paths byte-identical; real-repo strict audit exit 0; DRAFT scan proven on a self-built fixture (CHANGE-0012 TEST-011 / CHANGE-0009 TEST-019)"
 }
 
+# --- CHANGE l1-close-gate (spec-l1-close-gate): level-aware close gate + drift ---
+# SPEC-0030 defined L0/L1 lean specs (lean AC table + `Ceremony justification: `
+# line) but gateContent and the done-drift check still demanded the canonical
+# AC Status table unconditionally — so no lean spec could ever close (first
+# live L1 validation, 2026-07-16). These stanzas freeze the level-aware rules.
+
+# write_l1gate_spec <path> <id> <status> <ceremony-frontmatter-line|-> \
+#                   <justification: yes|no> <row-status> <table: lean|canonical|none>
+write_l1gate_spec() {
+  local p="$1" id="$2" status="$3" cl="$4" just="$5" rowst="$6" table="$7"
+  {
+    echo '---'
+    echo "id: $id"
+    echo 'type: spec'
+    echo "status: $status"
+    [[ "$cl" != "-" ]] && echo "$cl"
+    echo 'links:'
+    echo '  pr: []'
+    echo '---'
+    echo "# Fixture spec $id"
+    echo ''
+    if [[ "$just" == "yes" ]]; then
+      echo 'Ceremony justification: S-sized single-surface fix (one script, one test).'
+      echo ''
+    fi
+    if [[ "$table" == "lean" ]]; then
+      echo '## Acceptance Criteria'
+      echo ''
+      echo '| Spec-AC    | Requirement          | Status  |'
+      echo '|------------|----------------------|---------|'
+      echo "| Spec-AC-01 | does the small thing | $rowst |"
+    elif [[ "$table" == "canonical" ]]; then
+      echo '## Acceptance Criteria Status'
+      echo ''
+      echo '| Spec-AC    | Description | Status  | Evidence | Review-By | Notes |'
+      echo '|------------|-------------|---------|----------|-----------|-------|'
+      echo "| Spec-AC-01 | first       | $rowst | a1b2c3d  | TDD       | —     |"
+    fi
+  } > "$p"
+}
+
+test_l1gate_lean_gate_pass() {  # spec-l1-close-gate TEST-001 / Spec-AC-01
+  log_info "Test: L1 lean spec (Spec-AC+Status + justification) passes --gate/--gate-file; non-terminal lean row fails naming it (TEST-001)..."
+  local d ec
+  d="$(setup_iso_repo l1gate-pass)"
+  write_l1gate_spec "$d/docs/specs/SPEC-7101-lean.md" SPEC-7101 draft 'ceremony_level: 1' yes done lean
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7101 > g.log 2>&1) \
+    || log_fail "L1 lean spec must pass --gate (RED pre-fix: missing AC Status table): $(cat "$d/g.log")"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate-file docs/specs/SPEC-7101-lean.md > gf.log 2>&1) \
+    || log_fail "L1 lean spec must pass --gate-file: $(cat "$d/gf.log")"
+  # level 0 gets the same lean acceptance as level 1
+  write_l1gate_spec "$d/docs/specs/SPEC-7102-lean0.md" SPEC-7102 draft 'ceremony_level: 0' yes done lean
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7102 > g0.log 2>&1) \
+    || log_fail "L0 lean spec must pass --gate: $(cat "$d/g0.log")"
+  # non-terminal lean row still blocks the close, naming the row
+  write_l1gate_spec "$d/docs/specs/SPEC-7103-open.md" SPEC-7103 draft 'ceremony_level: 1' yes implementing lean
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7103 > gnt.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "non-terminal lean row must fail the gate (got $ec): $(cat "$d/gnt.log")"
+  grep -qF "Spec-AC-01" "$d/gnt.log" || log_fail "lean gate reason must name Spec-AC-01"
+  grep -qiF "non-terminal" "$d/gnt.log" || log_fail "lean gate reason must say non-terminal"
+  rm -rf "$d"
+  log_pass "L1/L0 lean specs pass the gate; non-terminal lean rows fail naming the row"
+}
+
+test_l1gate_missing_justification() {  # spec-l1-close-gate TEST-002 / Spec-AC-01
+  log_info "Test: L1 lean spec WITHOUT the justification line fails the gate naming it — and ONLY it (TEST-002)..."
+  local d ec
+  d="$(setup_iso_repo l1gate-nojust)"
+  write_l1gate_spec "$d/docs/specs/SPEC-7111-nojust.md" SPEC-7111 draft 'ceremony_level: 1' no done lean
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7111 > g.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "L1 without justification must fail the gate (got $ec): $(cat "$d/g.log")"
+  grep -qF "Ceremony justification" "$d/g.log" \
+    || log_fail "gate reason must name the missing Ceremony justification line"
+  # RED pre-fix: the gate ALSO complained 'missing AC Status table' — the lean
+  # table must now satisfy the structural check, leaving justification the only gap.
+  assert_not_contains "$d/g.log" "missing AC Status table"
+  rm -rf "$d"
+  log_pass "Missing justification is the single named gate failure for an L1 lean spec"
+}
+
+test_l1gate_done_lean_clean() {  # spec-l1-close-gate TEST-003 / Spec-AC-01
+  log_info "Test: done L1 lean spec is aligned/CLEAN under --check --strict; dropping justification flips to probable-partial (TEST-003)..."
+  local d
+  d="$(setup_iso_repo l1gate-done)"
+  write_l1gate_spec "$d/docs/specs/SPEC-7115-done.md" SPEC-7115 done 'ceremony_level: 1' yes done lean
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > chk.log 2>&1) \
+    || log_fail "strict check must exit 0 for a done L1 lean spec: $(cat "$d/chk.log")"
+  assert_contains "$d/chk.log" "Verdict: CLEAN"
+  assert_not_contains "$d/chk.log" "probable-partial"
+  # mutation control: without the justification line the done lean spec drifts
+  write_l1gate_spec "$d/docs/specs/SPEC-7115-done.md" SPEC-7115 done 'ceremony_level: 1' no done lean
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event > chk2.log 2>&1) || true
+  assert_contains "$d/chk2.log" "NEEDS-TRIAGE"
+  assert_contains "$d/chk2.log" "probable-partial"
+  rm -rf "$d"
+  log_pass "Done L1 lean spec stays CLEAN; justification removal drifts probable-partial"
+}
+
+test_l1gate_l2_regression() {  # spec-l1-close-gate TEST-004 / Spec-AC-02
+  log_info "Test: L2-explicit and absent-level specs keep canonical requirements byte-for-byte (lean table alone still fails) (TEST-004)..."
+  local d ec
+  d="$(setup_iso_repo l1gate-l2)"
+  write_l1gate_spec "$d/docs/specs/SPEC-7121-l2lean.md" SPEC-7121 draft 'ceremony_level: 2' yes done lean
+  write_l1gate_spec "$d/docs/specs/SPEC-7122-nolevel.md" SPEC-7122 draft - yes done lean
+  for id in SPEC-7121 SPEC-7122; do
+    ec=0
+    (cd "$d" && node .aai/scripts/docs-audit.mjs --gate "$id" > "g-$id.log" 2>&1) || ec=$?
+    [[ "$ec" == 1 ]] || log_fail "$id (non-lean-eligible) with only a lean table must fail the gate (got $ec)"
+    grep -qF "missing AC Status table" "$d/g-$id.log" \
+      || log_fail "$id gate reason must stay the canonical 'missing AC Status table'"
+  done
+  # done + strict: both drift probable-partial exactly as before
+  write_l1gate_spec "$d/docs/specs/SPEC-7121-l2lean.md" SPEC-7121 done 'ceremony_level: 2' yes done lean
+  write_l1gate_spec "$d/docs/specs/SPEC-7122-nolevel.md" SPEC-7122 done - yes done lean
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event > chk.log 2>&1) || true
+  assert_contains "$d/chk.log" "probable-partial"
+  # canonical L2 done spec still passes the gate (regression the other way)
+  write_l1gate_spec "$d/docs/specs/SPEC-7123-canon.md" SPEC-7123 done 'ceremony_level: 2' no done canonical
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7123 > gcanon.log 2>&1) \
+    || log_fail "canonical L2 done spec must keep passing the gate: $(cat "$d/gcanon.log")"
+  rm -rf "$d"
+  log_pass "L2/absent keep canonical gate + drift behavior; canonical table still passes"
+}
+
+test_l1gate_garbage_level_fail_closed() {  # spec-l1-close-gate TEST-005 / Spec-AC-02
+  log_info "Test: garbage ceremony_level fails CLOSED — schema-invalid reason AND full canonical requirements (TEST-005)..."
+  local d ec
+  d="$(setup_iso_repo l1gate-garbage)"
+  write_l1gate_spec "$d/docs/specs/SPEC-7131-banana.md" SPEC-7131 draft 'ceremony_level: banana' yes done lean
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7131 > g.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "garbage ceremony_level must fail the gate (got $ec): $(cat "$d/g.log")"
+  grep -qF "schema-invalid ceremony_level" "$d/g.log" \
+    || log_fail "gate must report the schema-invalid ceremony_level"
+  grep -qF "missing AC Status table" "$d/g.log" \
+    || log_fail "garbage level must NOT unlock the lean shape (fail-closed to canonical requirements)"
+  rm -rf "$d"
+  log_pass "Garbage ceremony_level fails closed: reported invalid + canonical table still required"
+}
+
+test_l1gate_pipe_drop_reconciled() {  # spec-l1-close-gate TEST-007 / Spec-AC-04
+  log_info "Test: a lean row broken by a literal pipe is silently dropped by the parser — the gate must RECONCILE declared-vs-parsed ids and FAIL naming it, not PASS on the survivors, incl. an INDENTED broken row (TEST-007)..."
+  local d ec
+  d="$(setup_iso_repo l1gate-pipedrop)"
+  # Spec-AC-02's cell carries a literal '|', so the naive pipe-split yields a
+  # phantom cell, the row fails the column-count check, and parseLeanAcTable
+  # DROPS it. Pre-fix the gate validated only Spec-AC-01 (terminal) and PASSED.
+  {
+    echo '---'; echo 'id: SPEC-7141'; echo 'type: spec'; echo 'status: draft'
+    echo 'ceremony_level: 1'; echo 'links:'; echo '  pr: []'; echo '---'
+    echo '# Fixture spec SPEC-7141'; echo ''
+    echo 'Ceremony justification: S-sized single-surface fix (one script, one test).'; echo ''
+    echo '## Acceptance Criteria'; echo ''
+    echo '| Spec-AC    | Requirement                 | Status |'
+    echo '|------------|-----------------------------|--------|'
+    echo '| Spec-AC-01 | plain requirement no pipes  | done   |'
+    echo '| Spec-AC-02 | value is a | inside the cell | done   |'
+  } > "$d/docs/specs/SPEC-7141-pipedrop.md"
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7141 > g.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "pipe-dropped declared row must FAIL the gate, not pass on survivors (got $ec): $(cat "$d/g.log")"
+  grep -qF "Spec-AC-02" "$d/g.log" || log_fail "gate reason must NAME the unparseable declared row Spec-AC-02: $(cat "$d/g.log")"
+  grep -qiF "did not parse" "$d/g.log" || log_fail "gate reason must explain the row did not parse: $(cat "$d/g.log")"
+  # negative control: escaping the pipe as \| does NOT rescue the author (the
+  # parser does not unescape) — the gate must STILL fail, steering to rewording.
+  sed 's/a | inside/a \\| inside/' "$d/docs/specs/SPEC-7141-pipedrop.md" > "$d/docs/specs/SPEC-7142-esc.md"
+  sed -i.bak 's/SPEC-7141/SPEC-7142/' "$d/docs/specs/SPEC-7142-esc.md" && rm -f "$d/docs/specs/SPEC-7142-esc.md.bak"
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7142 > g2.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "escaped-pipe row must STILL fail (parser does not unescape) (got $ec): $(cat "$d/g2.log")"
+  grep -qF "Spec-AC-02" "$d/g2.log" || log_fail "escaped-pipe variant must also name Spec-AC-02"
+  # Review F1 regression: an INDENTED broken row. parseLeanAcTable accepts rows
+  # via l.trim().startsWith('|') (1-3 leading spaces are valid markdown), so the
+  # reconciler MUST use the same whitespace tolerance — a column-0-anchored
+  # recovery would miss this and let the gate falsely PASS.
+  {
+    echo '---'; echo 'id: SPEC-7143'; echo 'type: spec'; echo 'status: draft'
+    echo 'ceremony_level: 1'; echo 'links:'; echo '  pr: []'; echo '---'
+    echo '# Fixture spec SPEC-7143'; echo ''
+    echo 'Ceremony justification: S-sized single-surface fix (one script, one test).'; echo ''
+    echo '## Acceptance Criteria'; echo ''
+    echo '| Spec-AC    | Requirement                | Status |'
+    echo '|------------|----------------------------|--------|'
+    echo '| Spec-AC-01 | plain requirement no pipes | done   |'
+    echo '  | Spec-AC-02 | indented with a | pipe   | done   |'
+  } > "$d/docs/specs/SPEC-7143-indent.md"
+  ec=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7143 > g3.log 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "INDENTED pipe-dropped row must FAIL the gate, not pass (got $ec): $(cat "$d/g3.log")"
+  grep -qF "Spec-AC-02" "$d/g3.log" || log_fail "indented variant must also name Spec-AC-02: $(cat "$d/g3.log")"
+  # review re-verify nit: a well-formed but SUFFIXED id cell parses cleanly and
+  # must NOT be misreported as a pipe-drop (declaredIds vs stored-id mismatch).
+  {
+    echo '---'; echo 'id: SPEC-7144'; echo 'type: spec'; echo 'status: draft'
+    echo 'ceremony_level: 1'; echo 'links:'; echo '  pr: []'; echo '---'
+    echo '# Fixture spec SPEC-7144'; echo ''
+    echo 'Ceremony justification: S-sized single-surface fix (one script, one test).'; echo ''
+    echo '## Acceptance Criteria'; echo ''
+    echo '| Spec-AC          | Requirement                | Status |'
+    echo '|------------------|----------------------------|--------|'
+    echo '| Spec-AC-01       | plain requirement no pipes | done   |'
+    echo '| Spec-AC-02 (opt) | suffixed id, clean row     | done   |'
+  } > "$d/docs/specs/SPEC-7144-suffix.md"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7144 > g4.log 2>&1) || true
+  if grep -qF "did not parse" "$d/g4.log"; then log_fail "suffixed-but-parseable id cell must NOT trip the pipe-drop message: $(cat "$d/g4.log")"; fi
+  rm -rf "$d"
+  log_pass "Pipe-broken declared lean row is reconciled and fails the gate naming it (plain + escaped + indented)"
+}
+
+test_l1gate_done_drift_pipe_drop() {  # spec-l1-close-gate TEST-008 / Spec-AC-04
+  log_info "Test: a DONE L1 lean spec with a pipe-dropped NON-TERMINAL declared row must NOT report CLEAN — the done-drift check mirrors the gate (D3) and flags probable-false-done naming it (TEST-008)..."
+  local d
+  d="$(setup_iso_repo l1gate-driftdrop)"
+  # Spec-AC-02 is dropped by the parser (literal pipe) AND its status is
+  # non-terminal ('implementing'). Pre-fix the drift check saw only the terminal
+  # Spec-AC-01 and reported CLEAN — the SPEC-0012 invisibility on the close path.
+  {
+    echo '---'; echo 'id: SPEC-7151'; echo 'type: spec'; echo 'status: done'
+    echo 'ceremony_level: 1'; echo 'links:'; echo '  pr: []'; echo '---'
+    echo '# Fixture spec SPEC-7151'; echo ''
+    echo 'Ceremony justification: S-sized single-surface fix (one script, one test).'; echo ''
+    echo '## Acceptance Criteria'; echo ''
+    echo '| Spec-AC    | Requirement                | Status       |'
+    echo '|------------|----------------------------|--------------|'
+    echo '| Spec-AC-01 | plain requirement no pipes | done         |'
+    echo '| Spec-AC-02 | value is a | in the cell   | implementing |'
+  } > "$d/docs/specs/SPEC-7151-driftdrop.md"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event > chk.log 2>&1) || true
+  assert_contains "$d/chk.log" "NEEDS-TRIAGE"
+  assert_contains "$d/chk.log" "probable-false-done"
+  grep -qF "Spec-AC-02" "$d/chk.log" || log_fail "drift reason must NAME the invisible non-terminal row Spec-AC-02: $(cat "$d/chk.log")"
+  grep -qiF "unparseable" "$d/chk.log" || log_fail "drift reason must flag the row unparseable: $(cat "$d/chk.log")"
+  # negative control: reword the pipe out AND flip status to done -> CLEAN/aligned
+  {
+    echo '---'; echo 'id: SPEC-7152'; echo 'type: spec'; echo 'status: done'
+    echo 'ceremony_level: 1'; echo 'links:'; echo '  pr: []'; echo '---'
+    echo '# Fixture spec SPEC-7152'; echo ''
+    echo 'Ceremony justification: S-sized single-surface fix (one script, one test).'; echo ''
+    echo '## Acceptance Criteria'; echo ''
+    echo '| Spec-AC    | Requirement                | Status |'
+    echo '|------------|----------------------------|--------|'
+    echo '| Spec-AC-01 | plain requirement no pipes | done   |'
+    echo '| Spec-AC-02 | value is safe no pipes here | done  |'
+  } > "$d/docs/specs/SPEC-7151-driftdrop.md"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > chk2.log 2>&1) \
+    || log_fail "reworked done lean spec must be CLEAN under strict: $(cat "$d/chk2.log")"
+  assert_contains "$d/chk2.log" "CLEAN"
+  rm -rf "$d"
+  log_pass "Done-drift check mirrors the gate: pipe-dropped non-terminal row flips probable-false-done naming it"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -3473,6 +3726,13 @@ main() {
   test_change0012_gate_ambiguous_id
   test_change0012_allocation_durability
   test_change0012_regression
+  test_l1gate_lean_gate_pass
+  test_l1gate_missing_justification
+  test_l1gate_done_lean_clean
+  test_l1gate_l2_regression
+  test_l1gate_garbage_level_fail_closed
+  test_l1gate_pipe_drop_reconciled
+  test_l1gate_done_drift_pipe_drop
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
