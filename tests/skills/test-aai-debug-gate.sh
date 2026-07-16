@@ -78,7 +78,10 @@ test_003_rationalization_table() {
   local section total data
   # Review NB-1: bound the extraction at the NEXT '## ' heading — an unbounded
   # to-EOF slice would count pipe-rows from any later table and falsely pass.
-  section=$(awk '/[Rr]ationalization [Tt]able/{found=1; print; next} found && /^## /{exit} found' "$GATE_FILE")
+  # Anchor on the HEADING (^## ...), not any prose mention: the original
+  # unanchored pattern matched a line-6 reference and the bound then exited at
+  # the first later heading, extracting nothing (found while fixing NB-1).
+  section=$(awk '/^## [Rr]ationalization [Tt]able/{found=1; print; next} found && /^## /{exit} found' "$GATE_FILE")
   total=$(printf '%s\n' "$section" | grep -c '^\s*|')
   data=$((total - 2))
   if [[ "$data" -ge 5 ]]; then

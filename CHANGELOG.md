@@ -19,10 +19,24 @@ RFC-0001).
   motivating example; SKILL_VERIFY cross-link (DEBUG governs before-fix,
   VERIFY before-claim). Superpowers pattern, RES-0001 P2.
 - REMEDIATION wires the gate in 2 purely additive lines before its fix step;
-  wrappers x3; 8-test suite (floor asserted via the prompt-diet suite itself,
-  no duplicated baselines; review NB bound the table-extraction awk).
+  wrappers x3; 8-test suite. Review NB (unbounded awk) fixed — and the fix
+  itself exposed a second bug (prose-anchored pattern), root-caused via the
+  new SKILL_DEBUG discipline; both landed anchored+bounded.
 - Validation PASS (byte-for-byte RED reconstruction); dual-verdict review
   PASS.
+
+## [unreleased] — feat: work-item brief as subagent handoff (CHANGE-0017 / SPEC-0026)
+
+- Planning now emits a self-contained brief per work item (BMAD story
+  pattern, RES-0001 P2): Scope & why / AC-task map / canon POINTERS (never
+  copies) / evidence contract / Return Record — the Record embeds the
+  SUBAGENT_PROTOCOL result block byte-identical (mechanically diffed by the
+  test). Briefs live in gitignored docs/ai/briefs/; SUBAGENT_PROTOCOL makes
+  them the DEFAULT dispatch input with an explicit never-block degrade to
+  spec paths. ORCHESTRATION wrapper untouched (40/40 cap).
+- Validation PASS (functional probe: generated brief stands alone);
+  dual-verdict review PASS (verbatim proof re-diffed independently; one
+  accepted disposition on SPEC-0012's dated step citations).
 
 ## [unreleased] — chore: dual-verdict measurement gate evaluated — KEEP (SPEC-0021 closed)
 

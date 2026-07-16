@@ -642,6 +642,82 @@ test_052_loop_drift_preflight() {  # spec-learned-to-layer-promotion TEST-004 / 
   log_pass "SKILL_LOOP drift preflight named with silent degrade (spec-learned-to-layer-promotion TEST-004)"
 }
 
+test_060_work_item_brief() {  # spec-work-item-brief TEST-001..006 / Spec-AC-01..02 (CHANGE work-item-brief)
+  log_info "Test: work-item brief — template + PLANNING emit step + protocol handoff + gitignore (spec-work-item-brief TEST-001..006)..."
+  local tpl="$PROJECT_ROOT/.aai/templates/BRIEF_TEMPLATE.md"
+  local pl="$PROJECT_ROOT/.aai/PLANNING.prompt.md"
+  local sp="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
+  local gi="$PROJECT_ROOT/.gitignore"
+
+  # TEST-001 — template exists, <=60 lines, 5 section anchors, pointers-not-copies rule.
+  [[ -f "$tpl" ]] || log_fail "missing .aai/templates/BRIEF_TEMPLATE.md"
+  local n
+  n="$(wc -l < "$tpl" | tr -d ' ')"
+  [[ "$n" -le 60 ]] || log_fail "BRIEF_TEMPLATE.md must be <=60 lines (got $n)"
+  local sec
+  for sec in "## Scope & Why" "## AC ↔ Task Map" "## Constraints & Canon Pointers" "## Evidence Contract" "## Return Record"; do
+    grep -qF "$sec" "$tpl" || log_fail "BRIEF_TEMPLATE.md must carry the section anchor '$sec'"
+  done
+  grep -qiF "never paste full copies" "$tpl" \
+    || log_fail "BRIEF_TEMPLATE.md must carry the pointers-not-copies rule (canon paths only, never paste full copies)"
+
+  # TEST-002 — Return Record skeleton is byte-identical to the SUBAGENT_PROTOCOL
+  # result block (single source; S1 seam crossed mechanically, not by prose).
+  grep -qF "Result block (mandatory subagent output)" "$tpl" \
+    || log_fail "BRIEF_TEMPLATE.md must cite the SUBAGENT_PROTOCOL section 'Result block (mandatory subagent output)' as single source"
+  TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"
+  awk 'f&&/^```$/{exit} f{print} /^```yaml$/{f=1}' "$sp" > "$TEST_DIR/t60-proto.yaml"
+  awk 'f&&/^```$/{exit} f{print} /^```yaml$/{f=1}' "$tpl" > "$TEST_DIR/t60-brief.yaml"
+  grep -qF "subagent_result:" "$TEST_DIR/t60-proto.yaml" \
+    || log_fail "could not extract the subagent_result skeleton from SUBAGENT_PROTOCOL.md"
+  grep -qF "subagent_result:" "$TEST_DIR/t60-brief.yaml" \
+    || log_fail "BRIEF_TEMPLATE.md Return Record must embed the fenced subagent_result YAML skeleton"
+  diff -u "$TEST_DIR/t60-proto.yaml" "$TEST_DIR/t60-brief.yaml" > "$TEST_DIR/t60.diff" \
+    || log_fail "Return Record skeleton must be BYTE-IDENTICAL to the SUBAGENT_PROTOCOL result block: $(cat "$TEST_DIR/t60.diff")"
+
+  # TEST-003 — PLANNING emits the brief as a numbered step between freeze and STATE update.
+  grep -qF "docs/ai/briefs/" "$pl" || log_fail "PLANNING must emit the brief under docs/ai/briefs/"
+  grep -qF ".aai/templates/BRIEF_TEMPLATE.md" "$pl" || log_fail "PLANNING emit step must name the template path"
+  grep -qiF "SPEC-FROZEN is false" "$pl" || log_fail "PLANNING emit step must skip while SPEC-FROZEN is false"
+  grep -qiF "gitignored runtime artifact" "$pl" || log_fail "PLANNING emit step must state briefs are gitignored runtime artifacts"
+  local l_freeze l_emit l_state
+  l_freeze="$(grep -n "Set SPEC-FROZEN: true" "$pl" | head -1 | cut -d: -f1)"
+  l_emit="$(grep -n "docs/ai/briefs/" "$pl" | head -1 | cut -d: -f1)"
+  l_state="$(grep -n "Update docs/ai/STATE.yaml — PRIMARY PATH" "$pl" | head -1 | cut -d: -f1)"
+  [[ -n "$l_freeze" && -n "$l_emit" && -n "$l_state" ]] \
+    || log_fail "PLANNING must keep the freeze step, the emit step, and the STATE-update step greppable"
+  [[ "$l_emit" -gt "$l_freeze" && "$l_emit" -lt "$l_state" ]] \
+    || log_fail "PLANNING emit step must sit AFTER the SPEC-FROZEN step (line $l_freeze) and BEFORE the STATE-update step (line $l_state); got line $l_emit"
+
+  # TEST-004 — gitignore block + behavioral check (S4: ask git, not just the text).
+  grep -qF "docs/ai/briefs/**" "$gi" || log_fail ".gitignore must ignore docs/ai/briefs/**"
+  grep -qF '!docs/ai/briefs/.gitkeep' "$gi" || log_fail ".gitignore must un-ignore docs/ai/briefs/.gitkeep (reports-style pattern)"
+  [[ -f "$PROJECT_ROOT/docs/ai/briefs/.gitkeep" ]] || log_fail "docs/ai/briefs/.gitkeep placeholder must exist"
+  git -C "$PROJECT_ROOT" check-ignore -q docs/ai/briefs/some-ref.md \
+    || log_fail "git must ignore docs/ai/briefs/some-ref.md (runtime artifact class)"
+  git -C "$PROJECT_ROOT" check-ignore -q docs/ai/briefs/.gitkeep \
+    && log_fail "git must NOT ignore docs/ai/briefs/.gitkeep (directory placeholder stays committed)"
+
+  # TEST-005 — protocol handoff: default-when-present + explicit degrade + single-source Return Record.
+  grep -qF "docs/ai/briefs/" "$sp" || log_fail "SUBAGENT_PROTOCOL must name the brief path docs/ai/briefs/<ref>.md"
+  grep -qiF "DEFAULTS to the brief" "$sp" || log_fail "SUBAGENT_PROTOCOL must make the brief the DEFAULT dispatch INPUT when present"
+  grep -qiF "fall back to the spec path" "$sp" || log_fail "SUBAGENT_PROTOCOL must carry the degrade-to-spec-path clause"
+  grep -qiF "never block a dispatch on a missing brief" "$sp" || log_fail "the degrade clause must state a missing brief never blocks a dispatch"
+  grep -qF "Return Record" "$sp" && grep -qiF "verbatim" "$sp" \
+    || log_fail "SUBAGENT_PROTOCOL must state the brief's Return Record is the result block, verbatim"
+  grep -qF "CHANGE-0010 D1" "$sp" || log_fail "the MODEL contract row (CHANGE-0010 D1) must stay intact"
+  grep -qF "MUST NOT characterize expected findings" "$sp" || log_fail "the review anti-gaming rules must stay intact"
+
+  # TEST-006 — ORCHESTRATION wrapper untouched in behavior: <=40 lines and the
+  # SUBAGENT_PROTOCOL route (how dispatch inputs reach the brief mention) intact.
+  local orch="$PROJECT_ROOT/.aai/ORCHESTRATION.prompt.md"
+  n="$(wc -l < "$orch" | tr -d ' ')"
+  [[ "$n" -le 40 ]] || log_fail "ORCHESTRATION.prompt.md must stay <=40 lines (got $n) — the brief mention belongs in SUBAGENT_PROTOCOL (spec D5)"
+  grep -qF ".aai/SUBAGENT_PROTOCOL.md" "$orch" \
+    || log_fail "ORCHESTRATION must keep routing dispatches through .aai/SUBAGENT_PROTOCOL.md (the brief mention's reachability path)"
+  log_pass "Work-item brief wired: template ($(wc -l < "$tpl" | tr -d ' ') lines) + verbatim Return Record + PLANNING step + protocol default/degrade + gitignore (spec-work-item-brief TEST-001..006)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -664,6 +740,7 @@ main() {
   test_050_pr_merge_conflict
   test_051_no_number_prediction
   test_052_loop_drift_preflight
+  test_060_work_item_brief
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
