@@ -1,13 +1,13 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-16T00:15:02.672Z
+Generated: 2026-07-16T10:31:43.552Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (9)
+## Active (implementing) (10)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
@@ -18,6 +18,7 @@ _None._
 | SPEC-0020 | specs | implementing | 6 done | docs/specs/SPEC-0020-spec-doctor-vendored-layer-drift.md |
 | SPEC-0021 | specs | implementing | 5 done, 1 deferred | docs/specs/SPEC-0021-spec-single-dual-verdict-review.md |
 | SPEC-0022 | specs | implementing | 6 done | docs/specs/SPEC-0022-spec-state-list-append-indent.md |
+| SPEC-0023 | specs | implementing | 5 done | docs/specs/SPEC-0023-spec-learned-to-layer-promotion.md |
 | RFC-0007 | rfc | accepted | — | docs/rfc/RFC-0007-parallel-safe-doc-numbering.md |
 | RFC-0008 | rfc | accepted | — | docs/rfc/RFC-0008-single-dual-verdict-review.md |
 
@@ -67,7 +68,7 @@ _None._
 | SPEC-0014 | specs | docs/specs/SPEC-0014-state-clear-spec-path-placement-auto-trigger-alignment.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (9)
+## Drafts (10)
 
 | ID | Type | Path |
 |---|---|---|
@@ -77,6 +78,7 @@ _None._
 | CHANGE-0012 | issues | docs/issues/CHANGE-0012-slug-refs-across-tooling.md |
 | CHANGE-0013 | issues | docs/issues/CHANGE-0013-doctor-vendored-layer-drift.md |
 | CHANGE-0014 | issues | docs/issues/CHANGE-0014-review-taxonomy-alignment.md |
+| CHANGE-0015 | issues | docs/issues/CHANGE-0015-learned-to-layer-promotion.md |
 | ISSUE-0007 | issues | docs/issues/ISSUE-0007-state-list-append-indent.md |
 | ISSUE-0008 | issues | docs/issues/ISSUE-0008-project-dominant-width.md |
 | SPEC-0017 | specs | docs/specs/SPEC-0017-spec-prompt-layer-diet-phase-1.md |

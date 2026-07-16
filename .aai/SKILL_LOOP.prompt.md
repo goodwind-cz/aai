@@ -109,6 +109,11 @@ At loop start (once): capture `harness_version` from the runtime
 (`claude --version` if available; otherwise the agent/runtime identifier).
 Record it in every tick line so a behavior regression can be correlated with a
 harness upgrade (version drift). If unavailable, record "unknown".
+Also at loop start (once): vendored-layer drift preflight — if
+.aai/scripts/layer-drift.mjs exists, run `node .aai/scripts/layer-drift.mjs` and
+print its one-line verdict as an INFORMATIONAL line (never block or branch on
+its exit code; the script is read-only and self-bounded). If the script is
+absent (older vendored layer), skip silently.
 
 For each tick (1..max_ticks):
 
