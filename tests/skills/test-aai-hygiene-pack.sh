@@ -536,6 +536,60 @@ test_042_dual_verdict_surfaces() {  # spec-single-dual-verdict-review TEST-006 /
   log_pass "Dual-verdict surfaces aligned: wrappers x$(skill_trees | wc -l | tr -d ' '), ROLES.md, AGENTS.md (spec-single-dual-verdict-review TEST-006)"
 }
 
+test_050_pr_merge_conflict() {  # spec-learned-to-layer-promotion TEST-001 / Spec-AC-01
+  log_info "Test: SKILL_PR merge-conflict resolution + verify-merge + cleanup-after-MERGED (spec-learned-to-layer-promotion TEST-001)..."
+  local f="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
+  [[ -f "$f" ]] || log_fail "missing .aai/SKILL_PR.prompt.md"
+  grep -qF "MERGE-CONFLICT RESOLUTION" "$f" \
+    || log_fail "SKILL_PR must carry a MERGE-CONFLICT RESOLUTION section"
+  grep -qF "generate-docs-index.mjs" "$f" \
+    || log_fail "SKILL_PR must resolve docs/INDEX.md conflicts by regenerating via generate-docs-index.mjs"
+  grep -qi "hand-merge" "$f" \
+    || log_fail "SKILL_PR must forbid hand-merging docs/INDEX.md"
+  grep -qF "[unreleased]" "$f" && grep -qiE "stack(s|ing)? both|both \[unreleased\]" "$f" \
+    || log_fail "SKILL_PR must stack BOTH [unreleased] CHANGELOG entries on conflict"
+  grep -qi "union merge" "$f" && grep -qF "EVENTS.jsonl" "$f" \
+    || log_fail "SKILL_PR must union-merge docs/ai/EVENTS.jsonl conflicts (RFC-0001 append-only)"
+  grep -qF "^<<<<<<<" "$f" \
+    || log_fail "SKILL_PR must grep '^<<<<<<<' for surviving conflict markers before git add"
+  grep -qF "MERGE_HEAD" "$f" \
+    || log_fail "SKILL_PR must verify a merge actually happened (MERGE_HEAD / 2 parents) — dirty tree silently aborts git merge"
+  grep -qiE "silently abort" "$f" \
+    || log_fail "SKILL_PR must name the silent-abort failure mode of git merge on a dirty tree"
+  grep -qF "gh pr view" "$f" && grep -qiE "only after .* MERGED|MERGED.*(before|then).*clean" "$f" \
+    || log_fail "SKILL_PR must gate branch/worktree cleanup on gh pr view reporting MERGED"
+  log_pass "SKILL_PR merge-conflict + verify-merge + cleanup-after-MERGED anchors present (spec-learned-to-layer-promotion TEST-001)"
+}
+
+test_051_no_number_prediction() {  # spec-learned-to-layer-promotion TEST-002 / Spec-AC-02
+  log_info "Test: no-number-prediction rule in INTAKE_COMMON + SKILL_PR (spec-learned-to-layer-promotion TEST-002)..."
+  local c="$PROJECT_ROOT/.aai/INTAKE_COMMON.md"
+  local p="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
+  [[ -f "$c" ]] || log_fail "missing .aai/INTAKE_COMMON.md"
+  [[ -f "$p" ]] || log_fail "missing .aai/SKILL_PR.prompt.md"
+  grep -qiE "never predict" "$c" \
+    || log_fail "INTAKE_COMMON.md must carry the never-predict-a-number rule"
+  grep -qiE "never predict" "$p" \
+    || log_fail "SKILL_PR must carry the never-predict-a-number rule"
+  grep -qiE "after allocation" "$p" \
+    || log_fail "SKILL_PR must state that commit messages / changelog entries / PR titles are written AFTER allocation"
+  log_pass "no-number-prediction rule present in INTAKE_COMMON + SKILL_PR (spec-learned-to-layer-promotion TEST-002)"
+}
+
+test_052_loop_drift_preflight() {  # spec-learned-to-layer-promotion TEST-004 / Spec-AC-04
+  log_info "Test: SKILL_LOOP layer-drift preflight + silent degrade (spec-learned-to-layer-promotion TEST-004)..."
+  local f="$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md"
+  [[ -f "$f" ]] || log_fail "missing .aai/SKILL_LOOP.prompt.md"
+  grep -qF "layer-drift.mjs" "$f" \
+    || log_fail "SKILL_LOOP must run layer-drift.mjs at loop start (drift preflight)"
+  # degrade + informational clauses must be co-located with the drift line
+  grep -B3 -A5 "layer-drift.mjs" "$f" | grep -qiE "skip silently|silently skip" \
+    || log_fail "SKILL_LOOP drift preflight must degrade silently when layer-drift.mjs is absent (older vendored layers)"
+  grep -B3 -A5 "layer-drift.mjs" "$f" | grep -qi "informational" \
+    || log_fail "SKILL_LOOP drift preflight must be informational (never block or branch on exit code)"
+  log_pass "SKILL_LOOP drift preflight named with silent degrade (spec-learned-to-layer-promotion TEST-004)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -554,6 +608,9 @@ main() {
   test_040_dual_verdict_prompt
   test_041_anti_gaming_protocol
   test_042_dual_verdict_surfaces
+  test_050_pr_merge_conflict
+  test_051_no_number_prediction
+  test_052_loop_drift_preflight
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

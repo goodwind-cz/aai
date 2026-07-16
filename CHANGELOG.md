@@ -9,6 +9,25 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — chore: session lessons promoted into the vendored layer (CHANGE-0015 / SPEC-0023)
+
+- Universal workflow lessons from the 2026-07-15/16 sessions now live in the
+  sync-managed layer (LEARNED.md never syncs — project-owned): SKILL_PR gains
+  a MERGE-CONFLICT RESOLUTION step (INDEX regenerate / CHANGELOG stack both /
+  EVENTS union / conflict-marker grep before git add), verify-the-merge-
+  happened (MERGE_HEAD/2-parents — a dirty tree makes git merge abort
+  silently) and cleanup-only-after-PR-reads-MERGED; INTAKE_COMMON + SKILL_PR
+  carry never-predict-a-number-before-allocation.
+- doc_number_guard default flipped to ENFORCE (template): staged DRAFT docs
+  now block the commit; safe for the dev flow because drafts stay untracked
+  until the ceremony allocates before staging (proven on the real hook incl.
+  adversarial CRLF-config and number:null probes).
+- SKILL_LOOP preflight runs layer-drift.mjs as one informational line (silent
+  when absent) — vendored projects see layer drift at session start.
+- Validation PASS (independent; enforce flip reproduced from scratch); dual-
+  verdict review PASS (measurement-gate data point #2; one accepted
+  disposition recorded in decisions.jsonl).
+
 ## [unreleased] — fix: STATE list-field integrity (ISSUE-0007 / SPEC-0022)
 
 - Three corruption sightings in one day traced to two engine defects:

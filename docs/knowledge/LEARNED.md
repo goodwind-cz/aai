@@ -28,3 +28,18 @@
 
 ## Conventions
 <!-- Example: - [2026-03-08] Write repository documents in English, chat in user's language (source: project rule) -->
+
+## Session 2026-07-15/16 (P1 delivery + follow-ups)
+
+- `tests/skills/test-aai-worktree.sh` fails deterministically in its scratch-git
+  fixture on this machine ("Commit not found in feature branch") — known
+  pre-existing environmental failure, reproduced on clean main repeatedly.
+  Verify suspected regressions via stash/main comparison before chasing it.
+  (Source: CHANGE-0012/0010/0009 validation runs, 2026-07-15.)
+- `docs/ai/archive/worktrees/` is this repo's local, untracked convention for
+  archiving a worktree's STATE.yaml before `git worktree remove` (established
+  2026-07-15; consumed by ledger-recovery flushes). Do not delete casually.
+- Universal workflow lessons from this session (merge-conflict resolution,
+  no-number-prediction, verify-merge, cleanup-after-MERGED, enforce flip)
+  were promoted INTO the vendored layer (SPEC learned-to-layer-promotion) —
+  they deliberately do NOT live here, so vendored projects inherit them.

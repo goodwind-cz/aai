@@ -55,6 +55,9 @@ PROCESS
      script and proceed — the draft was scan-and-minted at intake, and the
      CI/pre-commit duplicate-number + no-DRAFT-at-merge guards are the backstop.
    - MERGE BOUNDARY unchanged: the agent still never merges.
+   - NEVER predict a TYPE-000N number before the allocator assigns it: commit
+     messages, CHANGELOG entries, and PR titles naming the number are written
+     AFTER allocation (this step), never before. Until then, reference the slug id.
 
 2. STAGE — stage ONLY in-scope paths:
    - `git add <path>` per in-scope file. NEVER use `git add -A` or `git add .`
@@ -114,11 +117,30 @@ PROCESS
      <change doc>, <spec doc>
      ```
 
+5b. MERGE-CONFLICT RESOLUTION + VERIFY MERGE (when syncing the branch with base):
+   - Resolve conflicts by file class:
+       docs/INDEX.md        → NEVER hand-merge; take either side, then regenerate:
+                              node .aai/scripts/generate-docs-index.mjs
+       CHANGELOG.md         → stack BOTH [unreleased] entries (keep both blocks,
+                              branch entry on top)
+       docs/ai/EVENTS.jsonl → union merge: append-only log (RFC-0001), keep
+                              BOTH sides' lines
+   - Before `git add` of ANY resolved file: `grep -n '^<<<<<<<' <file>` must
+     return nothing — no conflict marker may survive.
+   - After ANY `git merge`, VERIFY the merge actually happened before committing
+     resolutions: a dirty tree makes `git merge` silently abort (observed: a
+     squash-merge base moved, the merge aborted, and the resolution commit then
+     claimed a merge that never happened). Confirm `.git/MERGE_HEAD` exists
+     (merge in progress) or the resulting commit has 2 parents.
+
 6. MERGE BOUNDARY (hard rule):
    - NEVER merge. `gh pr merge` is FORBIDDEN in this skill, in the loop, and in
      any subagent it spawns. Merging is an operator-only action performed by a
      human after their own review. Do not enable auto-merge either.
    - After opening the PR, report the PR URL and stop.
+   - Branch/worktree cleanup is post-merge work: delete the branch or remove the
+     worktree only after `gh pr view <n> --json state` reads MERGED — never on
+     the assumption that a merge happened.
 
 STRICT RULES
 - No `git add -A`, no `git add .`, no `git commit -a`.

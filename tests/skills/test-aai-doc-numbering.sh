@@ -876,6 +876,55 @@ MD
   log_pass "TEST-017 project-dominant width for empty types; type-own inheritance still wins"
 }
 
+# --- TEST-018: doc_number_guard enforce flip -----------------------------
+# spec-learned-to-layer-promotion Spec-AC-03: the repo default is now enforce,
+# and the enforce path is safe for the DRAFT-carrying development flow because
+# the guard evaluates the STAGED/MERGED tree (git ls-files, SPEC-0015 D6 /
+# CHANGE-0012 FIX 3) and /aai-pr allocates numbers BEFORE staging — so a
+# staged tree is DRAFT-free by construction and untracked working-tree drafts
+# never block a commit. Drives the REAL pre-commit host end-to-end.
+test_018_enforce_flip() {
+  log_info "TEST-018: repo dial = enforce; host passes numbered staged tree, blocks staged DRAFT loud..."
+  # (a) the repo's committed default is enforce
+  grep -Eq '^doc_number_guard:[[:space:]]*enforce([[:space:]]|$)' \
+      "$PROJECT_ROOT/docs/ai/docs-audit.yaml" \
+    || log_fail "docs/ai/docs-audit.yaml must set doc_number_guard: enforce (RED: still report-only)"
+  local d; d="$(setup_iso_repo t018)"
+  seed_rfcs "$d" 4
+  mkdir -p "$d/docs/ai"
+  printf 'doc_number_guard: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  # (b) enforce + fully-numbered STAGED tree -> host exits 0
+  cat > "$d/docs/rfc/RFC-0005-numbered-scope.md" <<'MD'
+---
+id: numbered-scope
+type: rfc
+number: 5
+status: draft
+links:
+  pr: []
+---
+# Numbered in-scope doc
+MD
+  (cd "$d" && git add docs/rfc/RFC-0005-numbered-scope.md docs/ai/docs-audit.yaml)
+  (cd "$d" && bash .aai/scripts/pre-commit-checks.sh > pc-numbered.log 2>&1) \
+    || log_fail "enforce + staged numbered tree must pass the host: $(tail -8 "$d/pc-numbered.log")"
+  # (c) an UNTRACKED working-tree draft must NOT block (dev flow before allocation)
+  write_draft "$d" rfc RFC in-flight-dev-draft
+  (cd "$d" && bash .aai/scripts/pre-commit-checks.sh > pc-untracked.log 2>&1) \
+    || log_fail "enforce + UNTRACKED draft must still pass (guard reads the staged tree): $(tail -8 "$d/pc-untracked.log")"
+  # (d) enforce + STAGED draft -> host blocks loud (exit 1, names the draft + the dial)
+  (cd "$d" && git add docs/rfc/RFC-DRAFT-in-flight-dev-draft.md)
+  set +e
+  (cd "$d" && bash .aai/scripts/pre-commit-checks.sh > pc-draft.log 2>&1)
+  local rc=$?
+  set -e
+  [[ "$rc" -ne 0 ]] || log_fail "enforce + STAGED draft must block the commit (exit 1)"
+  assert_contains "$d/pc-draft.log" "RFC-DRAFT-in-flight-dev-draft"
+  assert_contains "$d/pc-draft.log" "doc_number_guard: enforce"
+  rm -rf "$d"
+  log_pass "TEST-018 enforce flip: numbered staged tree passes, untracked draft ignored, staged DRAFT blocks loud"
+}
+
 main() {
   echo ""
   echo "AAI Doc-Numbering Test Suite (SPEC-0015 / RFC-0007)"
@@ -901,6 +950,7 @@ main() {
   test_015_guard_staged_only
   test_016_per_type_digit_width
   test_017_project_dominant_width
+  test_018_enforce_flip
 
   echo ""
   echo "All doc-numbering tests passed."
