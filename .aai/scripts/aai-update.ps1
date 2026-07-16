@@ -78,12 +78,26 @@ try {
     if (-not $DryRun) {
       $Tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("aai-src-" + [System.IO.Path]::GetRandomFileName())
       $cloned = $false
+      # git refuses to clone into a non-empty dir, and a failed attempt leaves a
+      # partial one behind - so wipe $Tmp before every attempt.
       if (Get-Command gh -ErrorAction SilentlyContinue) {
+        if (Test-Path $Tmp) { Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue }
         gh repo clone $Repo $Tmp -- --branch $Ref --depth 1 *> $null
         if ($LASTEXITCODE -eq 0) { $cloned = $true }
       }
       if (-not $cloned) {
+        if (Test-Path $Tmp) { Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue }
         git clone --branch $Ref --depth 1 $CloneUrl $Tmp *> $null
+        if ($LASTEXITCODE -eq 0) { $cloned = $true }
+      }
+      if (-not $cloned) {
+        # Last resort: a truly anonymous clone. On a machine where `gh auth setup-git`
+        # wired gh in as git's credential helper, a broken/expired token gets injected
+        # even into the plain `git clone` above - 401-ing a PUBLIC repo that needs no
+        # auth at all. Emptying the credential helper + any injected auth header forces
+        # git to fetch anonymously, so the public canonical repo clones with no creds.
+        if (Test-Path $Tmp) { Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue }
+        git -c credential.helper= -c http.https://github.com/.extraheader= clone --branch $Ref --depth 1 $CloneUrl $Tmp *> $null
         if ($LASTEXITCODE -eq 0) { $cloned = $true }
       }
       if (-not $cloned) {
