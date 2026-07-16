@@ -290,6 +290,8 @@ After completing REFACTOR for one TEST-xxx:
 
 ### Phase 4: Documentation, Validation & Review Gate
 
+No completion claim in this phase without the `.aai/SKILL_VERIFY.prompt.md` gate.
+
 1. **Update Documentation**
    - Add/update code comments
    - Update `docs/knowledge/FACTS.md` with learnings

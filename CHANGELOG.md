@@ -9,6 +9,25 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: verification-before-completion gate skill (CHANGE-0016 / SPEC-0025)
+
+- New .aai/SKILL_VERIFY.prompt.md (71 lines): the Iron Law gate — IDENTIFY the
+  claim -> RUN the check -> READ the output -> VERIFY it matches -> only then
+  CLAIM; 7-row rationalization table (stale runs, partial checks, "passed
+  earlier", trusting subagent self-reports, ...); subagent reports verified
+  via git status/diff, never taken as evidence. Superpowers pattern, RES-0001
+  P2 rec 7a.
+- Wired into IMPLEMENTATION (replaces its 6-line rule block — move-not-loss
+  validated), VALIDATION step 7b and SKILL_TDD Phase 4; wrappers in all three
+  agent trees; 8-test grep suite.
+- Delivered by the FIRST full /aai-loop run on the mechanized stack: 5 ticks
+  (Planning->Implementation->Validation->Review->script Flush), dispatch by
+  orchestration-dispatch.mjs (zero LLM orchestration ticks), tier-routed
+  models per dispatch (implementation on Sonnet), validator independence
+  enforced mechanically, tick telemetry in LOOP_TICKS. Validation PASS;
+  dual-verdict review PASS (gate applied to its own review — measurement-gate
+  data point #4).
+
 ## [unreleased] — chore: orchestration surfaces aligned to the dual-verdict taxonomy (CHANGE-0014 / SPEC-0024)
 
 - 15+2 occurrences of the retired Stage-1/Stage-2 + ERROR/WARNING review
