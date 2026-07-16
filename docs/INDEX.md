@@ -1,16 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-16T16:28:16.876Z
+Generated: 2026-07-16T16:36:28.104Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (14)
+## Active (implementing) (16)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
+| CHANGE-0022 | issues | implementing | — | docs/issues/CHANGE-0022-spec-lint.md |
 | SPEC-0015 | specs | implementing | 10 done | docs/specs/SPEC-0015-parallel-safe-doc-numbering.md |
 | SPEC-0016 | specs | implementing | 7 done | docs/specs/SPEC-0016-spec-slug-refs-across-tooling.md |
 | SPEC-0018 | specs | implementing | 5 done | docs/specs/SPEC-0018-spec-model-tiering-with-teeth.md |
@@ -20,6 +21,7 @@ _None._
 | SPEC-0022 | specs | implementing | 6 done | docs/specs/SPEC-0022-spec-state-list-append-indent.md |
 | SPEC-0023 | specs | implementing | 5 done | docs/specs/SPEC-0023-spec-learned-to-layer-promotion.md |
 | SPEC-0024 | specs | implementing | 3 done | docs/specs/SPEC-0024-spec-review-taxonomy-alignment.md |
+| SPEC-0033 | specs | implementing | 4 done | docs/specs/SPEC-0033-spec-spec-lint.md |
 | RFC-0007 | rfc | accepted | — | docs/rfc/RFC-0007-parallel-safe-doc-numbering.md |
 | RFC-0008 | rfc | accepted | — | docs/rfc/RFC-0008-single-dual-verdict-review.md |
 | RFC-0009 | rfc | accepted | — | docs/rfc/RFC-0009-scale-adaptive-ceremony.md |

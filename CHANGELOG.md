@@ -9,6 +9,21 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: spec-lint — deterministic spec-structure validation (CHANGE-0022 / SPEC-0033)
+
+- New .aai/scripts/spec-lint.mjs (report-only, exit 0/1/2, --json): AC-id
+  uniqueness/sequence, done-needs-evidence, Test-Plan-to-AC mapping (list +
+  NN..MM ranges), SPEC-FROZEN/strategy consistency, ceremony_level enum, and
+  the new ac-row-unparseable class — rows silently DROPPED by the shared
+  table parser (escaped pipes) are now loud. Boundary vs docs-audit written
+  as a normative table (structure vs lifecycle, no duplication; shared
+  parsers imported, not reimplemented).
+- Paid for itself at birth: found SPEC-0012's Spec-AC-08 row invisible to
+  docs-audit, the index AND the close gate since June (escaped-pipe Evidence
+  cell) — fixed; corpus now 31 specs / 0 findings. Review F1 (compact-row
+  false positive) remediated in-tree with a negative control; F2 promoted.
+- 2-line advisory wiring in PLANNING + VALIDATION with degrade clauses.
+
 ## [unreleased] — feat: truth-scoring on the metrics ledger (CHANGE-0021 / SPEC-0032)
 
 - Flushed ledger entries gain reliability{validation_fails, review_fails,
