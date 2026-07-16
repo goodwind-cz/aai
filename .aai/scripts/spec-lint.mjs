@@ -24,7 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   normalizeNewlines, parseFrontmatter, parseAcTable, normalizeAcStatus,
-  specFrozenInBody, walk, toPosix,
+  specFrozenInBody, walk, toPosix, parseLeanAcTable,
 } from './lib/docs-model.mjs';
 
 const ROOT = process.cwd();
@@ -191,6 +191,15 @@ export function lintContent(content) {
         }
       }
     }
+  } else if (level <= 1) {
+    // L0/L1 lean table (no canonical gate): seed knownIds so the Test-Plan
+    // mapping check below doesn't flag every lean AC id as unknown (validation
+    // F1 second face — the lean ids ARE the spec's ACs at these levels).
+    const lean = parseLeanAcTable(norm);
+    for (const row of lean.rows) {
+      const id = row['Spec-AC'];
+      if (id) knownIds.add(id);
+    }
   }
 
   // --- Test Plan -> Spec-AC mapping -----------------------------------------
@@ -208,8 +217,12 @@ export function lintContent(content) {
   }
 
   // --- SPEC-FROZEN consistency ----------------------------------------------
-  // Strategy is exempt at levels 0/1 (RFC-0009 lean artifacts); the AC table
-  // is exempt at level 0 only (the L0 tech-note lives in a CHANGE doc).
+  // Strategy is exempt at levels 0/1 (RFC-0009 lean artifacts). The AC table:
+  // L0 exempt (tech-note lives in the CHANGE doc); L1 satisfied by a LEAN
+  // table (ids+status) — must match the close gate, which now accepts it
+  // (CHANGE l1-close-gate); L2+ require the canonical gate table. Reporting a
+  // frozen-without-ac-table on an L1 lean spec that the gate passes CLEAN was
+  // a real tool-disagreement (validation F1).
   if (specFrozenInBody(norm)) {
     if (level >= 2) {
       const strat = norm.match(/^-\s*Strategy:\s*(\S+)/m);
@@ -218,8 +231,13 @@ export function lintContent(content) {
         add('frozen-without-strategy', `SPEC-FROZEN is true but implementation strategy is ${strategy ? `"${strategy}"` : 'missing'}`);
       }
     }
-    if (level >= 1 && !ac.hasGate) {
+    if (level >= 2 && !ac.hasGate) {
       add('frozen-without-ac-table', 'SPEC-FROZEN is true but no canonical Acceptance Criteria Status gate table is present');
+    } else if (level === 1 && !ac.hasGate) {
+      const lean = parseLeanAcTable(norm);
+      if (lean.rows.length === 0) {
+        add('frozen-without-ac-table', 'SPEC-FROZEN is true (ceremony_level 1) but no Acceptance Criteria table (lean or canonical) is present');
+      }
     }
   }
 

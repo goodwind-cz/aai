@@ -1,13 +1,13 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-16T16:52:48.871Z
+Generated: 2026-07-16T17:55:00.737Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (17)
+## Active (implementing) (18)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
@@ -23,6 +23,7 @@ _None._
 | SPEC-0024 | specs | implementing | 3 done | docs/specs/SPEC-0024-spec-review-taxonomy-alignment.md |
 | SPEC-0033 | specs | implementing | 4 done | docs/specs/SPEC-0033-spec-spec-lint.md |
 | SPEC-0035 | specs | implementing | 3 done | docs/specs/SPEC-0035-spec-layer-profiles.md |
+| SPEC-0036 | specs | implementing | 4 done | docs/specs/SPEC-0036-spec-l1-close-gate.md |
 | RFC-0007 | rfc | accepted | — | docs/rfc/RFC-0007-parallel-safe-doc-numbering.md |
 | RFC-0008 | rfc | accepted | — | docs/rfc/RFC-0008-single-dual-verdict-review.md |
 | RFC-0009 | rfc | accepted | — | docs/rfc/RFC-0009-scale-adaptive-ceremony.md |
@@ -75,7 +76,7 @@ _None._
 | SPEC-0014 | specs | docs/specs/SPEC-0014-state-clear-spec-path-placement-auto-trigger-alignment.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (26)
+## Drafts (27)
 
 | ID | Type | Path |
 |---|---|---|
@@ -93,6 +94,7 @@ _None._
 | CHANGE-0020 | issues | docs/issues/CHANGE-0020-advisory-skills.md |
 | CHANGE-0021 | issues | docs/issues/CHANGE-0021-truth-scoring.md |
 | CHANGE-0023 | issues | docs/issues/CHANGE-0023-layer-profiles.md |
+| CHANGE-0024 | issues | docs/issues/CHANGE-0024-l1-close-gate.md |
 | ISSUE-0007 | issues | docs/issues/ISSUE-0007-state-list-append-indent.md |
 | ISSUE-0008 | issues | docs/issues/ISSUE-0008-project-dominant-width.md |
 | SPEC-0017 | specs | docs/specs/SPEC-0017-spec-prompt-layer-diet-phase-1.md |

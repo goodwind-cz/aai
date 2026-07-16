@@ -393,6 +393,46 @@ export function parseAcTable(content) {
   return { hasGate: true, rows };
 }
 
+// spec-l1-close-gate D1 — lean AC table for ceremony_level 0/1 docs
+// (RFC-0009 / SPEC-0030 WORKFLOW ceremony table: "lean SPEC (AC table only) +
+// justification"). Recognizes the first markdown table under a heading line
+// that is exactly `## Acceptance Criteria` or `## Acceptance Criteria Status`
+// (case-insensitive; nothing else on the heading line, so `## Acceptance
+// Criteria Mapping` never matches) whose header row has BOTH a `Spec-AC` and a
+// `Status` column. `Review-By` / `Evidence` columns are OPTIONAL — the caller
+// validates them only when present. Placeholder rows are skipped exactly as in
+// parseAcTable. Returns { hasLean, rows }. Lean tables never trip
+// detectNearMissAcTable by construction (no Review-By/Evidence-like columns).
+export function parseLeanAcTable(content) {
+  content = normalizeNewlines(content);
+  const sectionRe = /(?:^|\n)##\s+Acceptance Criteria(?:\s+Status)?[ \t]*\n([\s\S]+?)(?=\n##\s|\n*$)/i;
+  const m = content.match(sectionRe);
+  if (!m) return { hasLean: false, rows: [], declaredIds: [] };
+  const lines = m[1].split('\n').filter(l => l.trim().startsWith('|'));
+  if (lines.length < 2) return { hasLean: false, rows: [], declaredIds: [] };
+  const header = lines[0].split('|').map(c => c.trim()).filter(Boolean);
+  if (!header.includes('Spec-AC') || !header.includes('Status')) return { hasLean: false, rows: [], declaredIds: [] };
+  const sepIdx = lines.findIndex((l, i) => i > 0 && /^\s*\|\s*[-:|\s]+\|/.test(l));
+  if (sepIdx < 0) return { hasLean: true, rows: [], declaredIds: [] };
+  const rows = [];
+  // declaredIds is drawn from the SAME line set the parser walks — a row whose
+  // cell-count breaks (e.g. a literal pipe) is still counted as declared, so a
+  // consumer can reconcile declared-vs-parsed and never silently lose an AC.
+  // No sibling regex to drift from (docs-audit-core F1): one source of truth.
+  const declaredIds = [];
+  for (const line of lines.slice(sepIdx + 1)) {
+    const idm = line.match(/^\s*\|\s*(Spec-AC-\d+)\b/);
+    if (idm) declaredIds.push(idm[1]);
+    const cells = line.split('|').map(c => c.trim()).slice(1, -1);
+    if (cells.length !== header.length) continue;
+    const row = {};
+    header.forEach((h, i) => { row[h] = cells[i]; });
+    if (!row['Spec-AC'] || row['Spec-AC'].startsWith('Spec-AC-xx') || row['Spec-AC'].startsWith('<')) continue;
+    rows.push(row);
+  }
+  return { hasLean: true, rows, declaredIds };
+}
+
 // SPEC-0011 G4 — near-miss AC-table detection. Returns { warnings: [{kind, detail}] }.
 // Fires when a doc carries a table that LOOKS like an Acceptance Criteria Status
 // table (a markdown table whose header has a `Spec-AC` column AND a Review-By-like

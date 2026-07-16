@@ -130,7 +130,8 @@ PROCESS
     For each spec whose frontmatter `status` changed (e.g., implementing → done) as a result of this validation, append a `doc_lifecycle` event with --from/--to. EVENTS append is best-effort; do not abort the verdict on append failure.
 8b) DONE-TRANSITION ASSERTION (RFC-0002): before writing `status: done` into any
     doc's frontmatter, assert the Acceptance Criteria Status table — when the
-    doc's template mandates one (type spec) — exists with every row terminal and
+    doc's template mandates one (type spec; a ceremony_level 0/1 spec satisfies it
+    with its lean AC table — Spec-AC + Status columns — plus the Ceremony justification line) — exists with every row terminal and
     every done row carrying Evidence. A spec without the table must not
     transition to done (that is the probable-partial drift shape). If the
     assertion fails, the verdict is FAIL with the specific gap named.

@@ -8,8 +8,9 @@ import { execSync } from 'node:child_process';
 import {
   DOC_STATUS_ENUM, TERMINAL_AC, DOC_TYPE_ENUM, DOC_ID_RE,
   DEFAULT_CATEGORY_PREFIXES, extractDocIds, normalizeAcStatus,
-  parseFrontmatter, parseAcTable, parseISODate, parseReviewBy, specFrozenInBody,
-  validateCanonicalFrontmatter, asList, toPosix, detectNearMissAcTable,
+  parseFrontmatter, parseAcTable, parseLeanAcTable, parseISODate, parseReviewBy,
+  specFrozenInBody, validateCanonicalFrontmatter, asList, toPosix,
+  detectNearMissAcTable,
 } from './docs-model.mjs';
 import { guardConfigPresent } from './guard-config.mjs';
 
@@ -35,6 +36,36 @@ const ID_FILE_RE = DOC_ID_RE;
 // frontmatter slug `id`; its fileId stays null (no display id until merge).
 const DRAFT_FILE_RE = /^[A-Z]+(?:-[A-Z]+)*-DRAFT(?=[-.])/;
 const OPEN_STATUSES = new Set(['draft', 'implementing']);
+// RFC-0009 L0/L1 level-inflation guard: the literal `Ceremony justification: `
+// body line. Shared by the close gate and the done-drift check
+// (spec-l1-close-gate D2/D3) — one definition, no fork.
+const CEREMONY_JUSTIFICATION_RE = /(?:^|\n)Ceremony justification:[ \t]*\S/;
+// spec-l1-close-gate D2 — lean-eligibility comes ONLY from a validly declared
+// ceremony_level of 0 or 1. Absent/null = legacy implicit L2; a garbage value
+// keeps full canonical requirements (fail-closed, same discipline as the
+// dispatch: a bad declaration can only ever ADD ceremony, never remove it).
+const isLeanCeremonyLevel = (clRaw) => clRaw !== undefined && clRaw !== null
+  && (String(clRaw) === '0' || String(clRaw) === '1');
+// spec-l1-close-gate — the lean AC parser splits rows on a naive `|`, so a row
+// whose cell carries a literal pipe (plain `|` OR an escaped `\|`, which this
+// parser does NOT unescape) gains a phantom cell, fails the column-count check,
+// and is SILENTLY dropped — leaving a consumer to validate only the survivors
+// while a declared row goes unchecked. parseLeanAcTable returns `declaredIds`
+// (every Spec-AC id in the SAME line set it walks, dropped rows included); a
+// declared id absent from the parsed `rows` is an unparseable row. Both the
+// close gate and the done-drift check reconcile on it so neither can pass/clean
+// while a declared AC is invisible.
+const unparseableLeanIds = (lean) => {
+  // Compare on the LEADING Spec-AC-NN of each parsed row's id cell, matching how
+  // declaredIds is extracted (`^\s*\|\s*(Spec-AC-\d+)\b`). A well-formed but
+  // suffixed id cell (e.g. "Spec-AC-02 (note)") parses cleanly and must NOT be
+  // misreported as an unparseable pipe-drop — it declared and it parsed.
+  const parsed = new Set(lean.rows.map(r => {
+    const m = String(r['Spec-AC'] ?? '').match(/^(Spec-AC-\d+)\b/);
+    return m ? m[1] : r['Spec-AC'];
+  }));
+  return (lean.declaredIds ?? []).filter(id => !parsed.has(id));
+};
 const DEFAULT_STALE_DAYS = 90;
 // closeout-candidate detection (SPEC-0003 / CHANGE-0004): parents are scoped to
 // rfc/prd only (change docs also carry links.spec and would false-positive), and
@@ -621,8 +652,39 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
         if (nonTerminal.length) doc.reasons.push(`${nonTerminal.length} AC row(s) non-terminal`);
         if (doneNoEvidence.length) doc.reasons.push(`${doneNoEvidence.length} done AC row(s) without evidence`);
       } else if (!ac.hasGate && type === 'spec') {
-        doc.verdict = 'probable-partial';
-        doc.reasons.push('status done but mandated AC Status table is absent');
+        // spec-l1-close-gate D3 — a validly declared ceremony_level 0/1 spec
+        // closes on the lean shape (mirrors gateContent exactly): lean AC
+        // table (Spec-AC + Status) with terminal rows + the `Ceremony
+        // justification: ` line. Anything else (incl. garbage levels —
+        // fail-closed) keeps the legacy probable-partial verdict.
+        const clRaw = fm.ceremony_level;
+        const lean = isLeanCeremonyLevel(clRaw) ? parseLeanAcTable(content) : null;
+        if (!isLeanCeremonyLevel(clRaw)) {
+          doc.verdict = 'probable-partial';
+          doc.reasons.push('status done but mandated AC Status table is absent');
+        } else if (!lean.hasLean || lean.rows.length === 0) {
+          doc.verdict = 'probable-partial';
+          doc.reasons.push(`status done but the ceremony_level ${clRaw} lean AC table (Spec-AC + Status columns) is absent`);
+        } else if (!CEREMONY_JUSTIFICATION_RE.test(content)) {
+          doc.verdict = 'probable-partial';
+          doc.reasons.push(`status done but the ceremony_level ${clRaw} "Ceremony justification: ..." body line is absent`);
+        } else {
+          // D3 — mirror the gate's silent-drop reconciliation: an unparseable
+          // declared row (literal pipe) hides its own status, so a done spec
+          // carrying one cannot be trusted done (probable-false-done), exactly
+          // as the close gate refuses to pass it.
+          const unparseable = unparseableLeanIds(lean);
+          const leanNonTerminal = lean.rows.filter(r => !TERMINAL_AC.has(normalizeAcStatus(r['Status'] ?? '').status));
+          if (unparseable.length) {
+            doc.verdict = 'probable-false-done';
+            doc.reasons.push(`${unparseable.length} lean AC row(s) unparseable (${unparseable.join(', ')} — a literal "|" in a cell hides the row's status)`);
+          }
+          if (leanNonTerminal.length) {
+            doc.verdict = 'probable-false-done';
+            doc.reasons.push(`${leanNonTerminal.length} lean AC row(s) non-terminal`);
+          }
+          // all lean rows terminal, parseable + justified: aligned (tracked-done below)
+        }
       } else if (!ac.hasGate && !quick) {
         const hasCommit = lastIdMentionDate(root, id) != null;
         // PARENT-ID/sub-item refs roll up to the parent, but sibling IDs
@@ -796,27 +858,54 @@ function gateContent(content, extraMethods) {
   if (clRaw !== undefined && clRaw !== null) {
     if (!['0', '1', '2', '3'].includes(String(clRaw))) {
       reasons.push(`schema-invalid ceremony_level "${clRaw}" (allowed: 0 | 1 | 2 | 3)`);
-    } else if ((String(clRaw) === '0' || String(clRaw) === '1')
-      && !/(?:^|\n)Ceremony justification:[ \t]*\S/.test(content)) {
+    } else if (isLeanCeremonyLevel(clRaw)
+      && !CEREMONY_JUSTIFICATION_RE.test(content)) {
       reasons.push(`ceremony_level ${clRaw} requires a "Ceremony justification: ..." body line (RFC-0009 level-inflation guard)`);
     }
   }
-  if (!ac.hasGate || ac.rows.length === 0) {
-    reasons.push('missing AC Status table');
-  } else {
-    for (const row of ac.rows) {
+  // Canonical vs lean structural check (spec-l1-close-gate D1/D2). `canonical`
+  // = true runs the exact legacy row checks (Review-By always schema-checked,
+  // done rows always need Evidence) so every non-lean-eligible doc keeps
+  // byte-identical gate reasons. Lean rows check the optional columns only
+  // when the table actually carries them.
+  const checkRows = (rows, canonical) => {
+    for (const row of rows) {
       const specAc = row['Spec-AC'];
       const base = normalizeAcStatus(row['Status'] ?? '').status;
       if (!TERMINAL_AC.has(base)) {
         reasons.push(`${specAc} is non-terminal (status "${row['Status'] ?? ''}")`);
       }
-      if (base === 'done' && !rowHasEvidence(row)) {
+      if (base === 'done' && (canonical || row['Evidence'] !== undefined) && !rowHasEvidence(row)) {
         reasons.push(`${specAc} is done but Evidence is empty`);
       }
-      const rb = parseReviewBy(row['Review-By'], extraMethods);
-      if (rb.kind === 'invalid') {
-        reasons.push(`${specAc} has schema-invalid Review-By "${rb.raw}"`);
+      if (canonical || row['Review-By'] !== undefined) {
+        const rb = parseReviewBy(row['Review-By'], extraMethods);
+        if (rb.kind === 'invalid') {
+          reasons.push(`${specAc} has schema-invalid Review-By "${rb.raw}"`);
+        }
       }
+    }
+  };
+  if (!isLeanCeremonyLevel(clRaw)) {
+    // Legacy path — absent/null/garbage/2/3: unchanged behavior.
+    if (!ac.hasGate || ac.rows.length === 0) {
+      reasons.push('missing AC Status table');
+    } else {
+      checkRows(ac.rows, true);
+    }
+  } else if (ac.hasGate && ac.rows.length > 0) {
+    // A lean-eligible doc that volunteers the full canonical table gets the
+    // full canonical checks.
+    checkRows(ac.rows, true);
+  } else {
+    const lean = parseLeanAcTable(content);
+    if (!lean.hasLean || lean.rows.length === 0) {
+      reasons.push(`missing AC table (ceremony_level ${clRaw} lean shape: a "## Acceptance Criteria" table with Spec-AC + Status columns)`);
+    } else {
+      for (const id of unparseableLeanIds(lean)) {
+        reasons.push(`${id} is declared in the AC table but its row did not parse (a literal "|" inside a cell breaks the row — reword to remove pipes)`);
+      }
+      checkRows(lean.rows, false);
     }
   }
   return { ok: reasons.length === 0, reasons };
