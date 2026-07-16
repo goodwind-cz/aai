@@ -88,7 +88,18 @@ PROCESS
 10) Set SPEC-FROZEN: true only when all Spec-AC items are measurable, verifiable,
    AND every Spec-AC has at least one TEST-xxx entry in the Test Plan.
    AND implementation strategy is not `undecided`.
-11) Update docs/ai/STATE.yaml — PRIMARY PATH (transactional CLI, SPEC-0012):
+   Constitution check (docs/CONSTITUTION.md, if present): check each article
+   against the planned scope and record a `## Constitution deviations` section
+   in the spec — the literal `None.`, or a justified list (article number, the
+   deviation, why it is justified). An unjustifiable deviation blocks freeze.
+   Required for new specs; pre-existing specs without the section stay valid.
+11) Emit the work-item brief (subagent handoff): create docs/ai/briefs/<REF-ID>.md
+   from .aai/templates/BRIEF_TEMPLATE.md — skip this step while SPEC-FROZEN is false.
+   Fill Scope & Why, the AC ↔ Task Map, Constraints & Canon Pointers (repo PATHS
+   only, never pasted canon bodies), and the Evidence Contract from the frozen
+   spec; leave the Return Record skeleton blank for the subagent. Briefs are
+   gitignored runtime artifacts (like docs/ai/reports/) — regenerate on re-plan.
+12) Update docs/ai/STATE.yaml — PRIMARY PATH (transactional CLI, SPEC-0012):
       node .aai/scripts/state.mjs set-focus --type <type> --ref <REF-ID> --path <primary_path>
       node .aai/scripts/state.mjs set-phase --ref <REF-ID> --phase planning --status in_progress --spec-path <spec_path>
       node .aai/scripts/state.mjs set-strategy --selected <loop|tdd|hybrid> --source <spec_path> --rationale "<why>"
@@ -124,6 +135,7 @@ FINAL OUTPUT REQUIRED
 - Worktree recommendation, rationale, and whether a user decision is required
 - Initial code review scope and whether review is required
 - Spec path(s) updated
+- Work-item brief path emitted (docs/ai/briefs/<REF-ID>.md), or why skipped
 - Freeze status (SPEC-FROZEN true/false) with rationale
 - Blocking questions (if any)
 

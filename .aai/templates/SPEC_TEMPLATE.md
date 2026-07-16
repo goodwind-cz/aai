@@ -72,6 +72,17 @@ For each requirement AC:
 - Spec-AC-xxx: <implementation-oriented, verifiable statement>
 - Verification: <command(s) + expected evidence>
 
+## Constitution deviations
+
+None.
+
+<!-- Filled by Planning at spec freeze (.aai/PLANNING.prompt.md step 10) by
+  checking each article of docs/CONSTITUTION.md against the planned scope.
+  Keep the literal `None.`, or replace it with a justified list — article
+  number, the deviation, why it is justified. Required for new specs going
+  forward; optional for pre-existing specs (docs-audit never flags legacy
+  docs for lacking this section). -->
+
 ## Acceptance Criteria Status
 
 Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.

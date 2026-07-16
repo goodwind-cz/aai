@@ -9,6 +9,50 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: project constitution with justified-exception tracking (CHANGE-0019 / SPEC-0028)
+
+- docs/CONSTITUTION.md: 7 one-sentence articles distilled from scattered canon
+  (evidence-before-claims, KISS/YAGNI, tri-platform portability,
+  degrade-and-report, additive-first, single-writer STATE, operator-only
+  merge), each pointing at its authoritative source. Merge of the introducing
+  PR = ratification (header softened per validation axis-e finding — the
+  original "Ratified by" overclaimed a review that had not happened).
+- PLANNING freeze step checks the articles; specs carry a "Constitution
+  deviations" section (required for new, optional for legacy — spec-kit
+  accountable-deviation pattern, RES-0001 P2). This scope dogfoods it.
+- Review NB: Article 7 carve-out question (strict operator-only vs
+  operator-DIRECTED agent merges) promoted to the ratification decision;
+  the session merge-direction practice is now recorded in decisions.jsonl.
+
+## [unreleased] — feat: systematic-debugging gate for remediation (CHANGE-0018 / SPEC-0027)
+
+- New .aai/SKILL_DEBUG.prompt.md (68 lines): root-cause-first protocol —
+  READ (full error, never tail-only) -> REPRODUCE (before any edit) ->
+  ISOLATE (recent changes, boundary instrumentation, backward trace) ->
+  FIX-AT-CAUSE (the fix must make the reproduction pass); 6-row
+  rationalization table citing this repo's own fieldSpan near-miss as the
+  motivating example; SKILL_VERIFY cross-link (DEBUG governs before-fix,
+  VERIFY before-claim). Superpowers pattern, RES-0001 P2.
+- REMEDIATION wires the gate in 2 purely additive lines before its fix step;
+  wrappers x3; 8-test suite. Review NB (unbounded awk) fixed — and the fix
+  itself exposed a second bug (prose-anchored pattern), root-caused via the
+  new SKILL_DEBUG discipline; both landed anchored+bounded.
+- Validation PASS (byte-for-byte RED reconstruction); dual-verdict review
+  PASS.
+
+## [unreleased] — feat: work-item brief as subagent handoff (CHANGE-0017 / SPEC-0026)
+
+- Planning now emits a self-contained brief per work item (BMAD story
+  pattern, RES-0001 P2): Scope & why / AC-task map / canon POINTERS (never
+  copies) / evidence contract / Return Record — the Record embeds the
+  SUBAGENT_PROTOCOL result block byte-identical (mechanically diffed by the
+  test). Briefs live in gitignored docs/ai/briefs/; SUBAGENT_PROTOCOL makes
+  them the DEFAULT dispatch input with an explicit never-block degrade to
+  spec paths. ORCHESTRATION wrapper untouched (40/40 cap).
+- Validation PASS (functional probe: generated brief stands alone);
+  dual-verdict review PASS (verbatim proof re-diffed independently; one
+  accepted disposition on SPEC-0012's dated step citations).
+
 ## [unreleased] — chore: dual-verdict measurement gate evaluated — KEEP (SPEC-0021 closed)
 
 - 5/5 reviewed scopes collected; wall-clock parity-or-better vs the two-stage

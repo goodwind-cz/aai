@@ -3,6 +3,7 @@
 This repository uses a reusable AAI.
 
 ## Canonical sources
+- Project constitution (ratified principles, checked at spec freeze): docs/CONSTITUTION.md
 - Workflow (single source): .aai/workflow/WORKFLOW.md
 - Semantic roles: .aai/roles/ROLES.md
 - Technology contract: docs/TECHNOLOGY.md (created by .aai/TECH_EXTRACT.prompt.md)
@@ -102,6 +103,7 @@ Follow .aai/SKILL_REPLAY.prompt.md       # Contextual learning replay — surfac
 Follow .aai/SKILL_SESSION_JOURNAL.prompt.md # Named project session journal — human-readable cross-agent discussion trail
 Follow .aai/SKILL_WRAP_UP.prompt.md      # Session wrap-up — capture learnings, propose rules, prepare next session (pro-workflow)
 Follow .aai/SKILL_VERIFY.prompt.md       # Verification-before-completion gate — IDENTIFY-RUN-READ-VERIFY-CLAIM (Superpowers pattern)
+Follow .aai/SKILL_DEBUG.prompt.md        # Systematic-debugging root-cause gate — READ-REPRODUCE-ISOLATE-FIX-AT-CAUSE (Superpowers pattern)
 ```
 
 #### Project-Specific Skills (Auto-Generated)

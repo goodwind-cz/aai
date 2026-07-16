@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-16T14:16:48.907Z
+Generated: 2026-07-16T14:17:34.731Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -71,7 +71,7 @@ _None._
 | SPEC-0014 | specs | docs/specs/SPEC-0014-state-clear-spec-path-placement-auto-trigger-alignment.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (12)
+## Drafts (18)
 
 | ID | Type | Path |
 |---|---|---|
@@ -83,10 +83,16 @@ _None._
 | CHANGE-0014 | issues | docs/issues/CHANGE-0014-review-taxonomy-alignment.md |
 | CHANGE-0015 | issues | docs/issues/CHANGE-0015-learned-to-layer-promotion.md |
 | CHANGE-0016 | issues | docs/issues/CHANGE-0016-verification-before-completion.md |
+| CHANGE-0017 | issues | docs/issues/CHANGE-0017-work-item-brief.md |
+| CHANGE-0018 | issues | docs/issues/CHANGE-0018-systematic-debugging.md |
+| CHANGE-0019 | issues | docs/issues/CHANGE-0019-constitution.md |
 | ISSUE-0007 | issues | docs/issues/ISSUE-0007-state-list-append-indent.md |
 | ISSUE-0008 | issues | docs/issues/ISSUE-0008-project-dominant-width.md |
 | SPEC-0017 | specs | docs/specs/SPEC-0017-spec-prompt-layer-diet-phase-1.md |
 | SPEC-0025 | specs | docs/specs/SPEC-0025-spec-verification-before-completion.md |
+| SPEC-0026 | specs | docs/specs/SPEC-0026-spec-work-item-brief.md |
+| SPEC-0027 | specs | docs/specs/SPEC-0027-spec-systematic-debugging.md |
+| SPEC-0028 | specs | docs/specs/SPEC-0028-spec-constitution.md |
 
 ## Deferred (whole-doc) (0)
 
