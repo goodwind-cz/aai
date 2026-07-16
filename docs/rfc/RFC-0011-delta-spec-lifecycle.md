@@ -5,7 +5,7 @@ number: 11
 status: accepted
 links:
   research: RES-0001
-  spec: null
+  spec: spec-delta-stage-1
   pr: []
   commits: []
 ---
@@ -86,4 +86,4 @@ canonical requirements (Deltas optional).
   "schvaluji RFC-0011, mergni a rozjed". Open questions resolved per the
   RFC's leans, delegated by the wholesale approval: merge trigger = PR
   ceremony (canonical diff reviewable in the PR); REQ ids = per-domain
-  sequential (REQ-<DOMAIN>-NNN). Delivery in the three staged SPECs.
+  sequential (`REQ-<DOMAIN>-NNN`). Delivery in the three staged SPECs.

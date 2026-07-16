@@ -29,15 +29,35 @@ HARD RULES
 
 CANONICAL DOCUMENT CONTRACT (enforced by code)
 Each canonical doc carries provenance frontmatter (`type: canonical`,
-`domain: <slug>`, non-empty `sources:` list) and the FIVE fixed layer sections
+`domain: <slug>`, non-empty `sources:` list) and the SIX fixed layer sections
 as level-2 headings, in this order:
 1. `## Overview / Intent`
-2. `## UI`
-3. `## Processes / Behavior`
-4. `## Data model`
-5. `## Superseded decisions`
+2. `## Requirements`
+3. `## UI`
+4. `## Processes / Behavior`
+5. `## Data model`
+6. `## Superseded decisions`
 Any content classified `superseded` is harvested ONLY into
 `## Superseded decisions` (what was decided, why it changed, link to source).
+
+REQUIREMENTS SECTION (RFC-0011, delta-spec lifecycle)
+`## Requirements` is the per-domain requirements contract — the authoritative
+"current state" requirement set and the merge target for RFC-0011's
+close-time delta merges. Each requirement block is
+`### REQ-<DOMAIN>-NNN — <title>` + exactly one SHALL statement + optional
+`- Scenario: WHEN ... THEN ...` bullet(s) + a `Provenance:` line naming the
+spec that merged it (the literal `Provenance: —` until a delta merge fills
+it). `<DOMAIN>` derives from the domain slug by uppercase kebab→snake:
+`auth` -> `AUTH`, `oauth2-login` -> `OAUTH2_LOGIN`. NNN is per-domain
+sequential, zero-padded to at least 3 digits. Ids are STABLE — never
+renumbered, never reused; a removed requirement retires its id. Phase-2
+synthesis emits the section SKELETON by construction and an EMPTY section is
+valid (empty allowed — populating blocks is a delta-merge concern); you MAY
+formalize requirement-level content found in the sources into contract-shaped
+blocks via the requirements section body, but never invent requirements the
+sources do not state. Shape reference: .aai/templates/CANONICAL_TEMPLATE.md;
+grammar source of truth: REQ_ID_RE / REQ_HEADING_RE / parseRequirementsSection
+in .aai/scripts/lib/docs-model.mjs.
 
 PROCESS
 
@@ -61,7 +81,10 @@ PHASE 2 — Synthesize & canonicalize (auto, after approval)
    Intent, UI, Processes/Behavior, Data model) by merging the live layers of
    the contributing sources — apply addendums, drop superseded content, keep
    acceptance criteria/intent. The deterministic CLI guarantees the section
-   contract and provenance; you supply the merged prose.
+   contract and provenance; you supply the merged prose. The `## Requirements`
+   section is emitted as its skeleton by the CLI (see REQUIREMENTS SECTION
+   above): leave it empty unless the sources STATE requirement-level content
+   you can formalize into contract-shaped REQ blocks.
 6) Run: `node .aai/scripts/docs-canon.mjs --phase2`
    This writes each `docs/canonical/<domain>.md`, moves contributing originals
    to `docs/_archive/` with `status: archived` + `canonical:` back-pointer,

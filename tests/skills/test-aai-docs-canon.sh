@@ -382,21 +382,25 @@ JSON
 # ---------------------------------------------------------------------------
 
 test_section_contract_validator() {
-  log_info "TEST-114: section-contract validator (all five ordered ok; missing => violation) (unit)..."
+  log_info "TEST-114: section-contract validator (all six ordered ok; missing => violation) (unit)..."
+  # RFC-0011 stage 1 (spec-delta-stage-1): `## Requirements` is the second
+  # fixed section, so the good fixture carries six ordered sections now.
   node_eval '
     import { validateSectionContract as v } from "./.aai/scripts/lib/docs-model.mjs";
-    const good = "## Overview / Intent\nx\n## UI\nx\n## Processes / Behavior\nx\n## Data model\nx\n## Superseded decisions\nx";
+    const good = "## Overview / Intent\nx\n## Requirements\nx\n## UI\nx\n## Processes / Behavior\nx\n## Data model\nx\n## Superseded decisions\nx";
     if (!v(good).ok) { console.error("ordered should pass", v(good).violations); process.exit(1); }
-    const missing = "## Overview / Intent\n## UI\n## Data model\n## Superseded decisions";
+    const missing = "## Overview / Intent\n## Requirements\n## UI\n## Data model\n## Superseded decisions";
     if (v(missing).ok) { console.error("missing section should fail"); process.exit(1); }
-    const outOfOrder = "## UI\n## Overview / Intent\n## Processes / Behavior\n## Data model\n## Superseded decisions";
+    const outOfOrder = "## UI\n## Overview / Intent\n## Requirements\n## Processes / Behavior\n## Data model\n## Superseded decisions";
     if (v(outOfOrder).ok) { console.error("out-of-order should fail"); process.exit(1); }
+    const legacyFive = "## Overview / Intent\nx\n## UI\nx\n## Processes / Behavior\nx\n## Data model\nx\n## Superseded decisions\nx";
+    if (v(legacyFive).ok) { console.error("pre-stage-1 five-section body should fail (resync path)"); process.exit(1); }
   ' || log_fail "TEST-114: section-contract validator wrong"
-  log_pass "TEST-114: section-contract validator enforces five ordered sections"
+  log_pass "TEST-114: section-contract validator enforces six ordered sections"
 }
 
 test_synthesis_sections_and_superseded_isolation() {
-  log_info "TEST-115: synthesized canonical has 5 ordered sections; superseded linked ONLY in last (int)..."
+  log_info "TEST-115: synthesized canonical has 6 ordered sections; superseded linked ONLY in last (int)..."
   write_approved_map
   run_canon --phase2 > "$TEST_DIR/phase2.log" || log_fail "TEST-115: phase2 must succeed"
   local canon="$TEST_DIR/docs/canonical/spec-x.md"
@@ -419,7 +423,7 @@ test_synthesis_sections_and_superseded_isolation() {
     if (!after.includes("SPEC-X-a.md")) { console.error("superseded source not harvested"); process.exit(1); }
   ' || log_fail "TEST-115: section/superseded isolation wrong"
   # reset for subsequent tests that need fresh sources
-  log_pass "TEST-115: five ordered sections; superseded harvested + isolated"
+  log_pass "TEST-115: six ordered sections; superseded harvested + isolated"
 }
 
 # ---------------------------------------------------------------------------
@@ -723,11 +727,12 @@ test_e2e_suite_marker() {
   log_info "TEST-203: end-to-end pipeline produces a clean canonical layer (e2e)..."
   reset_fixture_seams   # runs phase1-approved-map + phase2 end to end
 
-  # 1) canonical doc exists with the five fixed sections in order
+  # 1) canonical doc exists with the six fixed sections (RFC-0011 stage 1
+  #    added ## Requirements) in order
   local canon="$TEST_DIR/docs/canonical/spec-x.md"
   assert_file "$canon"
   assert_contains "$canon" "type: canonical"
-  for section in "## Overview" "## UI" "## Processes" "## Data model" "## Superseded decisions"; do
+  for section in "## Overview" "## Requirements" "## UI" "## Processes" "## Data model" "## Superseded decisions"; do
     grep -qF "$section" "$canon" || log_fail "TEST-203: canonical missing section '$section'"
   done
   # superseded source must be harvested only under the Superseded section
