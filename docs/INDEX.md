@@ -1,13 +1,13 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-15T23:53:09.816Z
+Generated: 2026-07-16T00:13:38.991Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (8)
+## Active (implementing) (9)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
@@ -17,6 +17,7 @@ _None._
 | SPEC-0019 | specs | implementing | 10 done | docs/specs/SPEC-0019-spec-mechanize-deterministic-ticks.md |
 | SPEC-0020 | specs | implementing | 6 done | docs/specs/SPEC-0020-spec-doctor-vendored-layer-drift.md |
 | SPEC-0021 | specs | implementing | 5 done, 1 deferred | docs/specs/SPEC-0021-spec-single-dual-verdict-review.md |
+| SPEC-0022 | specs | implementing | 6 done | docs/specs/SPEC-0022-spec-state-list-append-indent.md |
 | RFC-0007 | rfc | accepted | — | docs/rfc/RFC-0007-parallel-safe-doc-numbering.md |
 | RFC-0008 | rfc | accepted | — | docs/rfc/RFC-0008-single-dual-verdict-review.md |
 
@@ -107,4 +108,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-15 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-16 — counts above use this date for overdue checks.

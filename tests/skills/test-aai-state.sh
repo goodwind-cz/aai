@@ -2156,6 +2156,218 @@ EOF
   log_pass "guard-config reader: defaults, enforce, comments, invalid-value WARNING; state.mjs migrated (CHANGE-0009 TEST-017)"
 }
 
+# PyYAML whole-file round-trip: $1=state file, $2=log. Returns 0 on parse OK,
+# 1 on parse failure, 42 when python3/PyYAML is unavailable (assert skipped).
+py_yaml_roundtrip() {
+  command -v python3 >/dev/null 2>&1 || return 42
+  python3 -c "import yaml" >/dev/null 2>&1 || return 42
+  python3 -c "import sys, yaml; yaml.safe_load(open(sys.argv[1]))" "$1" > "$2" 2>&1
+}
+
+# STATE whose report_paths/evidence_paths items sit 4 spaces past the key —
+# legal YAML a foreign writer or hand repair can produce (ISSUE-0007 shape).
+write_deep_list_state() {
+  cat > "$1" <<'YAML'
+project_status: active
+
+code_review:
+  required: true
+  status: not_run
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths:
+      - docs/ai/reviews/r1.md
+  notes: null
+
+last_validation:
+  status: not_run
+  run_at_utc: null
+  ref_id: ISSUE-0007
+  evidence_paths:
+      - docs/ai/tdd/green-a.log
+  notes: null
+
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+}
+
+test_053_list_append_indent() {  # ISSUE-0007 TEST-001 / Spec-AC-01
+  log_info "Test: append to a populated list matches the EXISTING item indent; PyYAML round-trip passes (ISSUE-0007 TEST-001)..."
+  local s="$TEST_DIR/state-t53.yaml"
+  write_deep_list_state "$s"
+  st "$s" "$TEST_DIR/t53-1.log" set-code-review --report docs/ai/reviews/r2.md \
+    || log_fail "set-code-review --report append must exit 0: $(cat "$TEST_DIR/t53-1.log")"
+  # Both siblings at the list's EXISTING indent (6 spaces: key-indent 2 + 4).
+  local indents
+  indents="$(sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -E '^ *- ' | sed -E 's/^( *)- .*/\1/' | awk '{ print length }' | sort -u | tr '\n' ' ')"
+  [[ "$indents" == "6 " ]] \
+    || log_fail "appended sibling must share the existing 6-space item indent (unique indents: ${indents}); block: $(sed -n '/^code_review:/,/^[a-z]/p' "$s")"
+  grep -qE '^      - docs/ai/reviews/r1.md$' "$s" || log_fail "existing item must survive at its own indent"
+  grep -qE '^      - docs/ai/reviews/r2.md$' "$s" || log_fail "appended item must land at the existing 6-space indent"
+  # Whole-file PyYAML round-trip (the exact reader that rejected the sightings).
+  local pyec=0
+  py_yaml_roundtrip "$s" "$TEST_DIR/t53-py.log" || pyec=$?
+  if [[ "$pyec" == 42 ]]; then
+    log_info "python3/PyYAML unavailable — round-trip assert skipped (structural asserts above still bind)"
+  else
+    [[ "$pyec" == 0 ]] || log_fail "PyYAML must parse the appended file: $(cat "$TEST_DIR/t53-py.log")"
+  fi
+  # Fallback: empty inline list still converts to the engine convention (key+2).
+  local s2="$TEST_DIR/state-t53b.yaml"
+  write_state_fixture "$s2"
+  st "$s2" "$TEST_DIR/t53-2.log" set-code-review --report docs/ai/reviews/rb.md \
+    || log_fail "append onto 'report_paths: []' must exit 0: $(cat "$TEST_DIR/t53-2.log")"
+  grep -qE '^    - docs/ai/reviews/rb.md$' "$s2" \
+    || log_fail "empty-list fallback must keep the key-indent+2 engine convention"
+  log_pass "List append matches existing item indent (deep list) and falls back to key+2 on empty lists; PyYAML round-trip clean (ISSUE-0007 TEST-001)"
+}
+
+test_054_list_append_regression() {  # ISSUE-0007 TEST-003 / Spec-AC-03
+  log_info "Test: report_paths + evidence_paths regression stanzas; engine-convention append bytes unchanged (ISSUE-0007 TEST-003)..."
+  # (a) report_paths: engine-written list (4-space items) appended again — the
+  # pre-ISSUE-0007 byte shape must be preserved exactly (no behavior change on
+  # the engine's own convention).
+  local s="$TEST_DIR/state-t54.yaml"
+  write_state_fixture "$s"
+  st "$s" "$TEST_DIR/t54-1.log" set-code-review --report docs/ai/reviews/a.md \
+    || log_fail "(a) first append must exit 0: $(cat "$TEST_DIR/t54-1.log")"
+  st "$s" "$TEST_DIR/t54-2.log" set-code-review --report docs/ai/reviews/b.md \
+    || log_fail "(a) second append must exit 0: $(cat "$TEST_DIR/t54-2.log")"
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -A2 -E '^ {2}report_paths:$' > "$TEST_DIR/t54-got.txt"
+  printf '  report_paths:\n    - docs/ai/reviews/a.md\n    - docs/ai/reviews/b.md\n' > "$TEST_DIR/t54-want.txt"
+  diff -u "$TEST_DIR/t54-want.txt" "$TEST_DIR/t54-got.txt" > "$TEST_DIR/t54-diff.txt" 2>&1 \
+    || log_fail "(a) engine-convention append bytes must be unchanged: $(cat "$TEST_DIR/t54-diff.txt")"
+  local pyec=0
+  py_yaml_roundtrip "$s" "$TEST_DIR/t54-py1.log" || pyec=$?
+  [[ "$pyec" == 1 ]] && log_fail "(a) PyYAML must parse the engine-convention file: $(cat "$TEST_DIR/t54-py1.log")"
+  # (b) evidence_paths on a deep (4-space-relative) list: set-validation
+  # --evidence rewrites the WHOLE field uniformly — never a mixed-indent block.
+  local s2="$TEST_DIR/state-t54b.yaml"
+  write_deep_list_state "$s2"
+  st "$s2" "$TEST_DIR/t54-3.log" set-validation --status not_run --evidence docs/ai/tdd/green-b.log \
+    || log_fail "(b) set-validation --evidence must exit 0: $(cat "$TEST_DIR/t54-3.log")"
+  local vindents
+  vindents="$(sed -n '/^last_validation:/,/^[a-z]/p' "$s2" | grep -E '^ *- ' | sed -E 's/^( *)- .*/\1/' | awk '{ print length }' | sort -u | wc -l | tr -d ' ')"
+  [[ "$vindents" == "1" ]] \
+    || log_fail "(b) evidence_paths items must share ONE indent after the write: $(sed -n '/^last_validation:/,/^[a-z]/p' "$s2")"
+  pyec=0
+  py_yaml_roundtrip "$s2" "$TEST_DIR/t54-py2.log" || pyec=$?
+  [[ "$pyec" == 1 ]] && log_fail "(b) PyYAML must parse after the evidence_paths write: $(cat "$TEST_DIR/t54-py2.log")"
+  # (b2) appending a report on the SAME deep fixture keeps last_validation's
+  # deep list untouched byte-for-byte (diff locality across blocks).
+  cp "$s2" "$TEST_DIR/t54-before-b2.yaml"
+  st "$s2" "$TEST_DIR/t54-4.log" set-code-review --report docs/ai/reviews/r9.md \
+    || log_fail "(b2) report append on the deep fixture must exit 0: $(cat "$TEST_DIR/t54-4.log")"
+  sed -n '/^last_validation:/,/^[a-z]/p' "$TEST_DIR/t54-before-b2.yaml" | grep -v '^updated_at_utc:' > "$TEST_DIR/t54-lv-before.txt"
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s2" | grep -v '^updated_at_utc:' > "$TEST_DIR/t54-lv-after.txt"
+  cmp -s "$TEST_DIR/t54-lv-before.txt" "$TEST_DIR/t54-lv-after.txt" \
+    || log_fail "(b2) last_validation block must stay byte-identical when only code_review is appended"
+  pyec=0
+  py_yaml_roundtrip "$s2" "$TEST_DIR/t54-py3.log" || pyec=$?
+  [[ "$pyec" == 1 ]] && log_fail "(b2) PyYAML must still parse the whole file: $(cat "$TEST_DIR/t54-py3.log")"
+  log_pass "report_paths/evidence_paths regression stanzas green: engine bytes unchanged, deep lists stay uniform + parseable (ISSUE-0007 TEST-003)"
+}
+
+# ZERO-relative-indent lists: items at the SAME column as their key (legal YAML
+# block sequence; the shape the metrics suite's own write_flush_state emits).
+# validation-ISSUE-0007-20260715T233312Z: fieldSpan excluded these items, so
+# every whole-field rewrite orphaned them below the replacement (invalid YAML).
+write_zero_list_state() {
+  cat > "$1" <<'YAML'
+project_status: active
+
+code_review:
+  required: true
+  status: not_run
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths:
+  - docs/ai/reviews/r1.md
+  notes: null
+
+last_validation:
+  status: not_run
+  run_at_utc: null
+  ref_id: ISSUE-0007
+  evidence_paths:
+  - docs/ai/tdd/green-a.log
+  - docs/ai/tdd/green-b.log
+  notes: null
+
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+}
+
+test_055_zero_relative_rewrite() {  # ISSUE-0007 TEST-006 / Spec-AC-06 (remediation)
+  log_info "Test: whole-field rewrite over a 0-relative-indent list consumes the WHOLE span — no orphaned items (ISSUE-0007 TEST-006)..."
+  # (a) set-validation --evidence rewrites evidence_paths (listFieldLines via
+  # setField): both 0-relative items must be REPLACED, not orphaned below.
+  local s="$TEST_DIR/state-t55.yaml"
+  write_zero_list_state "$s"
+  st "$s" "$TEST_DIR/t55-1.log" set-validation --status not_run --evidence docs/ai/tdd/green-c.log \
+    || log_fail "(a) set-validation --evidence must exit 0: $(cat "$TEST_DIR/t55-1.log")"
+  grep -qF -- "- docs/ai/tdd/green-a.log" "$s" && log_fail "(a) old 0-relative item green-a must be consumed by the rewrite (orphan found)"
+  grep -qF -- "- docs/ai/tdd/green-b.log" "$s" && log_fail "(a) old 0-relative item green-b must be consumed by the rewrite (orphan found)"
+  grep -qE '^    - docs/ai/tdd/green-c.log$' "$s" || log_fail "(a) rewritten list must carry the new item at the engine convention (key+2)"
+  local pyec=0
+  py_yaml_roundtrip "$s" "$TEST_DIR/t55-py1.log" || pyec=$?
+  [[ "$pyec" == 1 ]] && log_fail "(a) PyYAML must parse after the 0-relative rewrite: $(cat "$TEST_DIR/t55-py1.log")"
+  ck "$s" "$TEST_DIR/t55-ck1.log" || log_fail "(a) check-state must pass after the rewrite: $(cat "$TEST_DIR/t55-ck1.log")"
+  # (b) reset-block last_validation nulls the WHOLE 0-relative span too.
+  local s2="$TEST_DIR/state-t55b.yaml"
+  write_zero_list_state "$s2"
+  st "$s2" "$TEST_DIR/t55-2.log" reset-block last_validation \
+    || log_fail "(b) reset-block must exit 0: $(cat "$TEST_DIR/t55-2.log")"
+  pyec=0
+  py_yaml_roundtrip "$s2" "$TEST_DIR/t55-py2.log" || pyec=$?
+  [[ "$pyec" == 1 ]] && log_fail "(b) PyYAML must parse after reset-block on the 0-relative fixture: $(cat "$TEST_DIR/t55-py2.log")"
+  ck "$s2" "$TEST_DIR/t55-ck2.log" || log_fail "(b) check-state must pass after reset-block: $(cat "$TEST_DIR/t55-ck2.log")"
+  # (c) regression byte-diff: the SAME rewrite over 2-space-relative (engine
+  # convention) and 4-space-relative (deep) lists is byte-identical to the
+  # expected block — the equal-indent span extension must not change them.
+  local s3="$TEST_DIR/state-t55c.yaml"
+  write_state_fixture "$s3"
+  st "$s3" "$TEST_DIR/t55-3.log" set-validation --status not_run --evidence docs/ai/tdd/green-c.log \
+    || log_fail "(c) rewrite on the engine-convention fixture must exit 0: $(cat "$TEST_DIR/t55-3.log")"
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s3" | grep -A1 -E '^ {2}evidence_paths:$' > "$TEST_DIR/t55-got2.txt"
+  printf '  evidence_paths:\n    - docs/ai/tdd/green-c.log\n' > "$TEST_DIR/t55-want2.txt"
+  diff -u "$TEST_DIR/t55-want2.txt" "$TEST_DIR/t55-got2.txt" > "$TEST_DIR/t55-diff2.txt" 2>&1 \
+    || log_fail "(c) 2-space-relative rewrite bytes must be unchanged: $(cat "$TEST_DIR/t55-diff2.txt")"
+  local s4="$TEST_DIR/state-t55d.yaml"
+  write_deep_list_state "$s4"
+  st "$s4" "$TEST_DIR/t55-4.log" set-validation --status not_run --evidence docs/ai/tdd/green-c.log \
+    || log_fail "(c) rewrite on the deep fixture must exit 0: $(cat "$TEST_DIR/t55-4.log")"
+  sed -n '/^last_validation:/,/^[a-z]/p' "$s4" | grep -A1 -E '^ {2}evidence_paths:$' > "$TEST_DIR/t55-got4.txt"
+  diff -u "$TEST_DIR/t55-want2.txt" "$TEST_DIR/t55-got4.txt" > "$TEST_DIR/t55-diff4.txt" 2>&1 \
+    || log_fail "(c) 4-space-relative rewrite bytes must be unchanged (whole span consumed, engine-convention output): $(cat "$TEST_DIR/t55-diff4.txt")"
+  log_pass "0-relative-indent list rewrites consume the whole span (set-validation + reset-block); 2-/4-space-relative bytes unchanged (ISSUE-0007 TEST-006)"
+}
+
+test_056_zero_relative_append() {  # ISSUE-0007 TEST-007 / Spec-AC-06 (remediation)
+  log_info "Test: append to a 0-relative-indent list lands at the EXISTING item indent, after the existing items (ISSUE-0007 TEST-007)..."
+  local s="$TEST_DIR/state-t56.yaml"
+  write_zero_list_state "$s"
+  st "$s" "$TEST_DIR/t56-1.log" set-code-review --report docs/ai/reviews/r2.md \
+    || log_fail "set-code-review --report append must exit 0: $(cat "$TEST_DIR/t56-1.log")"
+  sed -n '/^code_review:/,/^[a-z]/p' "$s" | grep -A2 -E '^ {2}report_paths:$' > "$TEST_DIR/t56-got.txt"
+  printf '  report_paths:\n  - docs/ai/reviews/r1.md\n  - docs/ai/reviews/r2.md\n' > "$TEST_DIR/t56-want.txt"
+  diff -u "$TEST_DIR/t56-want.txt" "$TEST_DIR/t56-got.txt" > "$TEST_DIR/t56-diff.txt" 2>&1 \
+    || log_fail "appended sibling must land at the existing 0-relative indent, AFTER the existing item: $(cat "$TEST_DIR/t56-diff.txt")"
+  local pyec=0
+  py_yaml_roundtrip "$s" "$TEST_DIR/t56-py.log" || pyec=$?
+  if [[ "$pyec" == 42 ]]; then
+    log_info "python3/PyYAML unavailable — round-trip assert skipped (byte asserts above still bind)"
+  else
+    [[ "$pyec" == 0 ]] || log_fail "PyYAML must parse the appended 0-relative file: $(cat "$TEST_DIR/t56-py.log")"
+  fi
+  ck "$s" "$TEST_DIR/t56-ck.log" || log_fail "check-state must pass after the 0-relative append: $(cat "$TEST_DIR/t56-ck.log")"
+  log_pass "0-relative append: sibling at the existing item indent, order preserved, PyYAML + check-state clean (ISSUE-0007 TEST-007)"
+}
+
 main() {
   echo "Testing $TEST_NAME (transactional STATE CLI — SPEC-0012 TEST-001..025 + SPEC-0014 additions)"
   check_deps
@@ -2212,6 +2424,10 @@ main() {
   test_050_flush_prompt_token_wiring
   test_051_change0010_regression
   test_052_guard_config_reader
+  test_053_list_append_indent
+  test_054_list_append_regression
+  test_055_zero_relative_rewrite
+  test_056_zero_relative_append
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

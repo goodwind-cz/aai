@@ -9,6 +9,27 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: STATE list-field integrity (ISSUE-0007 / SPEC-0022)
+
+- Three corruption sightings in one day traced to two engine defects:
+  appendListItems hardcoded sibling indent at key+2 (mis-indented siblings on
+  deeper lists), and fieldSpan's strict `>` excluded 0-relative block
+  sequences under a bare key (whole-field rewrites -> orphaned `- ` lines =
+  invalid YAML). Both fixed in lib/state-engine.mjs; 2-/4-relative behavior
+  byte-invariant (golden-diffed).
+- check-state gains structural lints that make this class fail LOUD:
+  listIndentViolations (mixed item indents) + orphanItemViolations (orphan
+  item after an inline-valued key) — no YAML dependency, wired into check and
+  post-repair paths. Previously check-state passed on corrupted files while
+  PyYAML crashed.
+- metrics-flush ephemeral cleanup keeps dotfile keepers (.gitkeep swept in
+  its first production run); STATE_FALLBACK gains last_validation.ref_id
+  parity.
+- Full gate history: validation FAIL (independent probe found the fieldSpan
+  gap beyond the original scope) -> remediation -> fresh validation PASS
+  (6/6) -> dual-verdict review PASS (first post-merge run of the new review
+  contract; one accepted detection boundary recorded in decisions.jsonl).
+
 ## [unreleased] — feat: single dual-verdict code review (RFC-0008 / SPEC-0021)
 
 - Two-stage review replaced by ONE read-only pass returning two verdicts —

@@ -554,6 +554,12 @@ test_012_full_reset_cleanup() {
   echo oldtdd > "$d/docs/ai/tdd/red-old.log"
   touch -t 202607010000 "$d/docs/ai/tdd/red-old.log"
   echo newtdd > "$d/docs/ai/tdd/green-new.log"
+  # TRACKED dotfile keepers (gitignore carve-outs depend on them) — even when
+  # older than every prune window they must survive (ISSUE-0007 bundled nit).
+  : > "$d/docs/ai/tdd/.gitkeep"
+  touch -t 202601010000 "$d/docs/ai/tdd/.gitkeep"
+  : > "$d/docs/ai/reports/.gitkeep"
+  touch -t 202601010000 "$d/docs/ai/reports/.gitkeep"
   # Protected set.
   echo '{"d":1}' > "$d/docs/ai/decisions.jsonl"
   mkdir -p "$d/docs/ai/published"
@@ -564,6 +570,7 @@ test_012_full_reset_cleanup() {
   # Full reset defaults (STATE_FALLBACK.md flush-reset list).
   sed -n '/^last_validation:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}status: not_run$' || log_fail "last_validation.status must reset"
   sed -n '/^last_validation:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}run_at_utc: null$' || log_fail "run_at_utc must null on full reset"
+  sed -n '/^last_validation:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}ref_id: null$' || log_fail "last_validation.ref_id must null on full reset (STATE_FALLBACK parity)"
   sed -n '/^implementation_strategy:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}selected: undecided$' || log_fail "strategy must reset to undecided"
   sed -n '/^worktree:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}recommendation: not_needed$' || log_fail "worktree.recommendation must reset"
   sed -n '/^worktree:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}user_decision: undecided$' || log_fail "worktree.user_decision must reset"
@@ -581,6 +588,9 @@ test_012_full_reset_cleanup() {
   [[ ! -d "$d/docs/ai/reports/screenshots/oldrun" ]] || log_fail ">30d screenshots dir must be pruned"
   [[ ! -f "$d/docs/ai/tdd/red-old.log" ]] || log_fail ">7d tdd evidence must be pruned"
   [[ -f "$d/docs/ai/tdd/green-new.log" ]] || log_fail "recent tdd evidence must survive"
+  # Dotfile keepers survive every sweep regardless of age (ISSUE-0007 nit a).
+  [[ -f "$d/docs/ai/tdd/.gitkeep" ]] || log_fail "TRACKED docs/ai/tdd/.gitkeep must survive the >7d tdd sweep (dotfile keeper protection)"
+  [[ -f "$d/docs/ai/reports/.gitkeep" ]] || log_fail "docs/ai/reports/.gitkeep must survive the reports sweep"
   # Protected set NEVER deleted.
   [[ -f "$d/docs/ai/METRICS.jsonl" ]] || log_fail "METRICS.jsonl is protected"
   [[ -f "$d/docs/ai/decisions.jsonl" ]] || log_fail "decisions.jsonl is protected"
@@ -715,6 +725,63 @@ GOLDEN
   log_pass "Report byte-deterministic, golden-exact, ~ partial marker, lex model order, empty + corrupt handled (TEST-014)"
 }
 
+test_015_fallback_ref_id_parity() {  # ISSUE-0007 TEST-005 / Spec-AC-05 (SPEC-0019 deviation-3 follow-up)
+  log_info "Test: STATE_FALLBACK.md flush-reset last_validation line carries ref_id: null (parity with applyFullReset) (ISSUE-0007 TEST-005)..."
+  local fb="$PROJECT_ROOT/.aai/STATE_FALLBACK.md"
+  [[ -f "$fb" ]] || log_fail "missing $fb"
+  # The hand-edit full-reset list must name every field the primary path nulls:
+  # applyFullReset writes last_validation.ref_id: null, so the fallback line
+  # must include it (a hand flush that skips it leaves a stale ref_id).
+  grep -E '^\s*- last_validation' "$fb" | grep -qF 'ref_id: null' \
+    || log_fail "STATE_FALLBACK.md last_validation flush-reset line must include 'ref_id: null': $(grep -E '^\s*- last_validation' "$fb")"
+  # And the primary path really nulls it (the parity being documented).
+  grep -qF "'ref_id', 'null'" "$FLUSH" \
+    || log_fail "metrics-flush.mjs applyFullReset must null last_validation.ref_id"
+  log_pass "STATE_FALLBACK full-reset list carries last_validation ref_id: null — hand-edit parity with applyFullReset (ISSUE-0007 TEST-005)"
+}
+
+# --- TEST-009 (remediation): full reset over 0-relative-indent lists ----------------
+
+test_016_zero_relative_full_reset() {  # ISSUE-0007 TEST-009 / Spec-AC-06 (remediation)
+  log_info "Test: full reset over 0-relative-indent lists leaves NO orphaned items (validation-ISSUE-0007-20260715T233312Z probe d) (ISSUE-0007 TEST-009)..."
+  # write_flush_state's OWN list shape is 0-relative (report_paths /
+  # evidence_paths items at the same column as their key — legal YAML). The
+  # validator's probe (d) showed applyFullReset's `report_paths: []` /
+  # `evidence_paths: []` setField writes truncated the span one line short
+  # (fieldSpan used strict `>`), orphaning the old item below the new `[]`
+  # marker: invalid YAML that check-state also missed. This is the exact
+  # repro, with the assertions test_011/test_012 were blind to.
+  local d
+  d="$(mk_repo t16)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  # Confirm the fixture really is 0-relative (guards against fixture drift).
+  grep -qE '^ {2}report_paths:$' "$d/docs/ai/STATE.yaml" || log_fail "fixture must carry a bare report_paths: key"
+  grep -qE '^ {2}- docs/ai/reviews/review-fixture.md$' "$d/docs/ai/STATE.yaml" \
+    || log_fail "fixture must carry the 0-relative report_paths item (same column as key)"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  local st="$d/docs/ai/STATE.yaml"
+  # No orphaned `- ` lines may survive the whole-field `[]` rewrites.
+  grep -qF -- "- docs/ai/reviews/review-fixture.md" "$st" \
+    && log_fail "report_paths item orphaned below 'report_paths: []' (fieldSpan excluded the 0-relative span): $(sed -n '/^code_review:/,/^[a-z_]/p' "$st")"
+  grep -qF -- "- docs/ai/reports/validation-fixture.md" "$st" \
+    && log_fail "evidence_paths item orphaned below 'evidence_paths: []': $(sed -n '/^last_validation:/,/^[a-z_]/p' "$st")"
+  sed -n '/^code_review:/,/^[a-z_]/p' "$st" | grep -qE '^ {2}report_paths: \[\]$' || log_fail "report_paths must reset to []"
+  sed -n '/^last_validation:/,/^[a-z_]/p' "$st" | grep -qE '^ {2}evidence_paths: \[\]$' || log_fail "evidence_paths must reset to []"
+  # The flushed file must be VALID YAML end-to-end (the reader that rejected
+  # the corrupted probe output), and check-state must agree.
+  if command -v python3 >/dev/null 2>&1 && python3 -c "import yaml" >/dev/null 2>&1; then
+    python3 -c "import sys, yaml; yaml.safe_load(open(sys.argv[1]))" "$st" > "$d/py.log" 2>&1 \
+      || log_fail "PyYAML must parse the fully-reset STATE: $(cat "$d/py.log")"
+  else
+    log_info "python3/PyYAML unavailable — round-trip assert skipped (orphan greps above still bind)"
+  fi
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$st" > "$d/ck.log" 2>&1) \
+    || log_fail "check-state must pass after the 0-relative full reset: $(cat "$d/ck.log")"
+  log_pass "Full reset over 0-relative lists: whole spans consumed, no orphans, PyYAML + check-state clean (ISSUE-0007 TEST-009)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014)"
   check_deps
@@ -728,6 +795,8 @@ main() {
   test_012_full_reset_cleanup
   test_013_transactionality
   test_014_report_golden
+  test_015_fallback_ref_id_parity
+  test_016_zero_relative_full_reset
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

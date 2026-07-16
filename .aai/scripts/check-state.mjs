@@ -17,6 +17,11 @@
 // loss: work_items are unioned and, for a ref present in more than one block, its
 // agent_runs are concatenated (append, preserving order and count). Any OTHER
 // duplicate top-level key is reported but NOT auto-merged (scoped, fail-loud).
+//
+// ISSUE-0007 adds a whole-file structural LIST-INDENT LINT (see
+// listIndentViolations below): a `- ` sibling written shallower than the
+// list's first item is invalid YAML this scan previously missed. Detection
+// only — never auto-repaired.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -41,6 +46,138 @@ function failOnInlineChildConflicts(lines) {
 const ARGV = process.argv.slice(2);
 const REPAIR = ARGV.includes('--repair');
 const target = ARGV.find(a => !a.startsWith('--')) ?? 'docs/ai/STATE.yaml';
+
+// --- structural list-indent lint (ISSUE-0007 / Spec-AC-02) -------------------
+//
+// The class check-state used to miss: a `- ` list item appended at a SHALLOWER
+// indent than its siblings (e.g. 2 spaces past the key under a list whose
+// items sit 4 past it) — invalid YAML PyYAML rejects while a top-level-keys
+// scan passes. No YAML parser ships with node and the repo takes no deps, so
+// this stays a pure text lint: for every block key whose first significant
+// child is a `- ` item line, every subsequent direct sibling item of that
+// block must share the FIRST item's indent. A `- ` line indented strictly
+// between the key and the first item is exactly this corruption. Lines deeper
+// than the first item belong to nested keys (agent_runs entries, item maps)
+// and are validated by their own key's pass — no false positives by
+// construction. Detection only; the write path is fixed in state-engine.mjs.
+
+const indentOf = l => (l.match(/^ */) ?? [''])[0].length;
+const isSkipLine = l => l.trim() === '' || l.trim().startsWith('#') || l.startsWith('---');
+// A block key line: `key:` with no inline value (optionally a trailing comment).
+const BLOCK_KEY_RE = /^( *)([^\s#-][^:]*):\s*(?:#.*)?$/;
+
+function listIndentViolations(lines) {
+  const out = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const km = lines[i].match(BLOCK_KEY_RE);
+    if (!km) continue;
+    const keyIndent = km[1].length;
+    let j = i + 1;
+    while (j < lines.length && isSkipLine(lines[j])) j += 1;
+    if (j >= lines.length) continue;
+    const first = lines[j].match(/^( *)- /);
+    if (!first || first[1].length <= keyIndent) continue;   // not a block sequence
+    const itemIndent = first[1].length;
+    for (let t = j; t < lines.length; t += 1) {
+      const l = lines[t];
+      if (isSkipLine(l)) continue;
+      const ind = indentOf(l);
+      if (ind <= keyIndent) {
+        // A `- ` line at EXACTLY the key's indent cannot be a sibling mapping
+        // key (keys never start with `- `) and cannot belong to this list
+        // (its items sit deeper) — it is an orphaned item, invalid YAML
+        // (validation-ISSUE-0007-20260715T233312Z probe d, RED-D shape).
+        if (ind === keyIndent && /^-(\s|$)/.test(l.slice(ind))) {
+          out.push({
+            line: t + 1,
+            key: km[2].trim(),
+            got: ind,
+            want: itemIndent,
+          });
+          continue;   // an orphan cannot END the mapping — keep scanning
+        }
+        break;   // block ended
+      }
+      const m = l.match(/^( *)- /);
+      if (m && ind < itemIndent) {
+        out.push({
+          line: t + 1,
+          key: km[2].trim(),
+          got: ind,
+          want: itemIndent,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+// --- orphaned-item lint (ISSUE-0007 remediation) -----------------------------
+//
+// The shape validation-ISSUE-0007-20260715T233312Z proved the lint above
+// misses: a `- ` item line at indent I directly following (or following the
+// span of) a `key: <inline-value>` line at indent I. The inline value IS the
+// key's whole value, so the item belongs to nothing — invalid YAML (PyYAML:
+// `expected <block end>, but found '-'`). Historically produced by whole-field
+// rewrites over 0-relative-indent lists (fieldSpan excluded the equal-indent
+// items; fixed in state-engine.mjs — this lint is the safety net for files
+// corrupted before the fix or by foreign writers). No false positives by
+// construction: within a block mapping every entry at indent I is a `key:`
+// line, and a compact mapping's parent-sequence dashes sit at least 2 columns
+// LEFT of its keys, so a `- ` at exactly a key's indent is never legal there.
+// Deeper lines after the inline value are skipped as the key's own span
+// (block-scalar `>-`/`|` continuations, flow-collection folds).
+
+// A key line CARRYING an inline value (not a bare `key:`, not comment-only).
+const INLINE_KEY_RE = /^( *)([^\s#-][^:]*): +[^#\s]/;
+
+function orphanItemViolations(lines) {
+  const out = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const km = lines[i].match(INLINE_KEY_RE);
+    if (!km) continue;
+    const keyIndent = km[1].length;
+    let j = i + 1;
+    while (j < lines.length) {
+      const c = lines[j];
+      if (c.startsWith('---')) { j = lines.length; break; }   // document boundary — stop
+      if (c.trim() === '' || c.trim().startsWith('#')) { j += 1; continue; }
+      if (indentOf(c) > keyIndent) { j += 1; continue; }      // the key's own span
+      break;
+    }
+    if (j >= lines.length) continue;
+    const l = lines[j];
+    if (indentOf(l) === keyIndent && /^-(\s|$)/.test(l.slice(keyIndent))) {
+      out.push({ line: j + 1, key: km[2].trim(), keyLine: i + 1 });
+    }
+  }
+  return out;
+}
+
+function failOnOrphanItemViolations(lines) {
+  const bad = orphanItemViolations(lines);
+  if (bad.length === 0) return;
+  console.error(`FAIL: ${bad.length} ORPHANED list item(s) in ${target} (invalid YAML — a \`- \` item at the same indent as a key that already carries an inline value belongs to nothing):`);
+  for (const v of bad) {
+    console.error(`  - key "${v.key}" (line ${v.keyLine}) carries an inline value, but line ${v.line} is a \`- \` item at the key's own indent`);
+  }
+  console.error('This is the ISSUE-0007 remediation class (a whole-field rewrite over a');
+  console.error('0-relative-indent list left its items orphaned). Re-attach the flagged');
+  console.error('item(s) to the right key (or delete them) by hand.');
+  process.exit(1);
+}
+
+function failOnListIndentViolations(lines) {
+  const bad = listIndentViolations(lines);
+  if (bad.length === 0) return;
+  console.error(`FAIL: ${bad.length} mis-indented list item(s) in ${target} (invalid YAML — a sibling must share the indent of the list's first item):`);
+  for (const v of bad) {
+    console.error(`  - key "${v.key}": item at line ${v.line} has indent ${v.got}, the list's first item uses indent ${v.want}`);
+  }
+  console.error('This is the ISSUE-0007 class (a list append written shallower than its');
+  console.error('siblings). Re-indent the flagged item(s) to match the first item by hand.');
+  process.exit(1);
+}
 
 // --- structural metrics-block merge (repair) --------------------------------
 
@@ -198,6 +335,8 @@ function main() {
       process.exit(1);
     }
     failOnInlineChildConflicts(lines);
+    failOnListIndentViolations(lines);
+    failOnOrphanItemViolations(lines);
     console.log('OK: STATE.yaml has exactly one of every top-level key.');
     process.exit(0);
   }
@@ -212,6 +351,8 @@ function main() {
     process.exit(1);
   }
   failOnInlineChildConflicts(lines);
+  failOnListIndentViolations(lines);
+  failOnOrphanItemViolations(lines);
   console.log(`OK: ${target} has exactly one of every top-level key.`);
   process.exit(0);
 }
