@@ -1,7 +1,7 @@
 ---
 id: scale-adaptive-ceremony
 type: rfc
-number: null
+number: 9
 status: accepted
 links:
   research: RES-0001
