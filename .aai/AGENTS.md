@@ -101,6 +101,7 @@ Follow .aai/SKILL_UPDATE.prompt.md       # Re-sync the vendored AAI layer from c
 Follow .aai/SKILL_REPLAY.prompt.md       # Contextual learning replay — surfaces relevant past learnings (pro-workflow)
 Follow .aai/SKILL_SESSION_JOURNAL.prompt.md # Named project session journal — human-readable cross-agent discussion trail
 Follow .aai/SKILL_WRAP_UP.prompt.md      # Session wrap-up — capture learnings, propose rules, prepare next session (pro-workflow)
+Follow .aai/SKILL_VERIFY.prompt.md       # Verification-before-completion gate — IDENTIFY-RUN-READ-VERIFY-CLAIM (Superpowers pattern)
 ```
 
 #### Project-Specific Skills (Auto-Generated)

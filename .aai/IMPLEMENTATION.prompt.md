@@ -136,11 +136,7 @@ RATIONALIZATION TABLE (stop and correct any of these)
 | "No worktree means no review"                | Review works on a diff. Inline mode needs clean scope. |
 
 VERIFICATION-BEFORE-COMPLETION RULE
-Before reporting any task as complete:
-- Execute the relevant test/build/lint command via shell tool.
-- Read the full output. Check the exit code.
-- Forbidden language in completion reports: "should work", "probably passes", "seems fine", "likely OK", "Great!", "Done!" without evidence.
-- If you cannot run commands: state explicitly "NOT VERIFIED — shell access unavailable" and let Validation own the verdict.
+Before reporting any task as complete, apply the gate in `.aai/SKILL_VERIFY.prompt.md` (IDENTIFY→RUN→READ→VERIFY→CLAIM). If you cannot run commands: state explicitly "NOT VERIFIED — shell access unavailable" and let Validation own the verdict.
 
 STRICT RULES
 - If spec gaps are found, stop and return scope to Planning instead of improvising.

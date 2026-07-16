@@ -38,6 +38,7 @@ set of wrapper directories in `.claude/skills/`.
 | aai-docs-canon | Consolidate layered docs into a canonical per-domain layer | `/aai-docs-canon` | `--prompt-file .aai/SKILL_DOCS_CANON.prompt.md` |
 | aai-test-canon | Consolidate fragmented tests into a canonical per-domain suite | `/aai-test-canon` | `--prompt-file .aai/SKILL_TEST_CANON.prompt.md` |
 | aai-pr | Scope-audited commit, push, and PR creation (never merges) | `/aai-pr` | `--prompt-file .aai/SKILL_PR.prompt.md` |
+| aai-verify | Verification-before-completion gate (IDENTIFY-RUN-READ-VERIFY-CLAIM) | `/aai-verify` | `--prompt-file .aai/SKILL_VERIFY.prompt.md` |
 
 ## Skills in Detail
 

@@ -121,6 +121,7 @@ PROCESS
       (these are exactly where a rubber-stamped criterion does the most damage).
 6) Build coverage table.
 7) Run AC STATUS GATE (see section above) and record any blocking findings.
+7b) Apply the `.aai/SKILL_VERIFY.prompt.md` gate before producing any verdict.
 8) Produce PASS / FAIL verdict. PASS requires both (a) all test suites green and (b) AC STATUS GATE clear.
 8a) For each Spec-AC that moved to `done` during this validation (Evidence column populated), append an `ac_evidence` event to docs/ai/EVENTS.jsonl via:
     node .aai/scripts/append-event.mjs --event ac_evidence --ref SPEC-XXXX/Spec-AC-YY --commit <sha-or-RUN_ID>
