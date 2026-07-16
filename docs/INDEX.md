@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-16T16:36:28.104Z
+Generated: 2026-07-16T16:47:37.457Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -74,7 +74,7 @@ _None._
 | SPEC-0014 | specs | docs/specs/SPEC-0014-state-clear-spec-path-placement-auto-trigger-alignment.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (24)
+## Drafts (25)
 
 | ID | Type | Path |
 |---|---|---|
@@ -102,6 +102,7 @@ _None._
 | SPEC-0030 | specs | docs/specs/SPEC-0030-spec-scale-adaptive-ceremony.md |
 | SPEC-0031 | specs | docs/specs/SPEC-0031-spec-advisory-skills.md |
 | SPEC-0032 | specs | docs/specs/SPEC-0032-spec-truth-scoring.md |
+| SPEC-0034 | specs | docs/specs/SPEC-0034-spec-delta-stage-1.md |
 
 ## Deferred (whole-doc) (0)
 

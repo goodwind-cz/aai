@@ -9,6 +9,21 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: delta-spec lifecycle stage 1 — canonical requirements contract (RFC-0011 / SPEC-0034)
+
+- RFC-0011 stage 1 of 3: the canonical layer gains a Requirements contract —
+  `### REQ-<DOMAIN>-NNN — <title>` + one SHALL + optional Scenario +
+  Provenance line; ids stable (never renumbered/reused, gaps legal); domain =
+  uppercase snake of the canonical doc's slug (digit-boundary unambiguous by
+  construction). Grammar exported as REQ_ID_RE/REQ_HEADING_RE/
+  domainToReqDomain/parseRequirementsSection for stages 2-3 to import (single
+  source). docs-canon emits the (empty-valid) skeleton; CANONICAL_TEMPLATE.md
+  documents it. Stages 2 (Deltas section + spec-lint) and 3 (delta-merge at PR
+  ceremony) seam-noted in D6/D7.
+- Review NB-2 remediated: validatePhase2Plan rejects an invalid domain slug at
+  pre-flight, before archiveSource, so a bad key can't half-mutate the tree.
+  NB-1 (old-shape migration re-render) promoted to a stage-2 obligation.
+
 ## [unreleased] — feat: spec-lint — deterministic spec-structure validation (CHANGE-0022 / SPEC-0033)
 
 - New .aai/scripts/spec-lint.mjs (report-only, exit 0/1/2, --json): AC-id

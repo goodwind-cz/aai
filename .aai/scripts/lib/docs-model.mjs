@@ -65,10 +65,15 @@ export const DOC_TYPE_ENUM = new Set([
 ]);
 
 // RFC-0003 / SPEC-0002 — fixed hybrid layer sections, in order. The canonical
-// synthesizer must emit exactly these five level-2 headings in this order, and
+// synthesizer must emit exactly these level-2 headings in this order, and
 // any content classified `superseded` belongs only under the last one.
+// RFC-0011 (delta-spec lifecycle): `Requirements` joins as the SECOND fixed
+// section — the per-domain requirements contract and the close-time
+// delta-merge target. Explicit contract tightening: pre-RFC-0011 canonical
+// docs re-enter compliance via `docs-canon.mjs --phase2 --resync`.
 export const CANONICAL_SECTIONS = [
   'Overview / Intent',
+  'Requirements',
   'UI',
   'Processes / Behavior',
   'Data model',
@@ -77,6 +82,126 @@ export const CANONICAL_SECTIONS = [
 
 // A domain slug is lowercased, starts alnum, then alnum/hyphen (RFC-0003 step 7).
 export const DOMAIN_SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
+
+// --- RFC-0011 (delta-spec lifecycle) — canonical Requirements contract ------
+//
+// A requirement id is `REQ-<DOMAIN>-NNN`: <DOMAIN> is the uppercase
+// kebab→snake derivation of the canonical doc's domain slug
+// ("auth" -> "AUTH", "oauth2-login" -> "OAUTH2_LOGIN"; see
+// domainToReqDomain), NNN a per-domain sequential number zero-padded to at
+// least three digits (unbounded — never capped at 999). Because the derived
+// domain token contains underscores only, the trailing `-NNN` boundary stays
+// unambiguous even for slugs containing digits. Ids are STABLE: never
+// renumbered and never reused; a removed requirement retires its id (gaps are
+// legal). Shape reference: .aai/templates/CANONICAL_TEMPLATE.md.
+export const REQ_ID_RE = /^REQ-[A-Z0-9][A-Z0-9_]*-\d{3,}$/;
+// Requirement heading inside `## Requirements`: `### REQ-<DOMAIN>-NNN — <title>`
+export const REQ_HEADING_RE = /^###\s+(REQ-[A-Z0-9][A-Z0-9_]*-\d{3,})\s+—\s+(\S.*?)\s*$/;
+// Provenance line: names the spec that merged the requirement into the
+// canonical layer (the delta merge writes it at PR ceremony); `Provenance: —` (or an
+// empty value) is the defined not-yet-merged state.
+const REQ_PROVENANCE_RE = /^Provenance:\s*(.*)$/;
+
+// Derive the REQ id domain token from a canonical domain slug:
+// uppercase, kebab→snake. Throws on a non-slug input (fail fast, art. 4).
+export function domainToReqDomain(slug) {
+  const s = String(slug ?? '').trim();
+  if (!DOMAIN_SLUG_RE.test(s)) {
+    throw new Error(`domainToReqDomain: "${s}" is not a valid domain slug (${DOMAIN_SLUG_RE})`);
+  }
+  return s.toUpperCase().replace(/-/g, '_');
+}
+
+// Parse the `## Requirements` section of a canonical doc body (RFC-0011).
+// Returns { present, requirements, violations }:
+//   - present: whether the `## Requirements` heading exists;
+//   - requirements: [{ id, title, shallCount, scenarios, provenance }] —
+//     provenance is null while the block reads `Provenance: —`/empty, else
+//     the merging-spec ref string (the close-time delta merge fills it);
+//   - violations: contract breaches (missing section, malformed `###`
+//     heading, duplicate id, id/domain mismatch when `domain` is given,
+//     SHALL count != 1, missing/duplicate Provenance line).
+// An EMPTY section (no `###` blocks) is a VALID state — a domain may carry
+// zero formalized requirements until specs declare deltas against it.
+// Consumers: tests today; by design, the later RFC-0011 stages consume it
+// (spec-lint Deltas validation; delta-merge + docs-audit provenance drift).
+export function parseRequirementsSection(content, { domain } = {}) {
+  const body = normalizeNewlines(content);
+  const violations = [];
+  const requirements = [];
+
+  const m = body.match(/(?:^|\n)##\s+Requirements\s*\n([\s\S]*?)(?=\n##\s|$)/);
+  if (!m) {
+    return { present: false, requirements, violations: ['missing "## Requirements" section'] };
+  }
+  const section = m[1];
+  const expectedDomain = domain != null ? domainToReqDomain(domain) : null;
+
+  // split into blocks at level-3 headings; text before the first heading is
+  // skeleton prose (placeholder/comment) and carries no requirement.
+  const lines = section.split('\n');
+  const seen = new Set();
+  let current = null; // { id, title, lines: [] }
+  const flush = () => {
+    if (!current) return;
+    const { id, title, lines: blockLines } = current;
+    let shallCount = 0;
+    const scenarios = [];
+    let provenance;
+    let provenanceSeen = 0;
+    for (const line of blockLines) {
+      const sc = line.match(/^-\s+Scenario:\s*(.+)$/);
+      if (sc) { scenarios.push(sc[1].trim()); continue; }
+      const pv = line.match(REQ_PROVENANCE_RE);
+      if (pv) {
+        provenanceSeen += 1;
+        const v = pv[1].trim();
+        provenance = (v === '' || v === '—' || v === '-') ? null : v;
+        continue;
+      }
+      if (/\bSHALL\b/.test(line)) shallCount += 1;
+    }
+    if (shallCount !== 1) {
+      violations.push(`${id}: exactly one SHALL statement required (found ${shallCount})`);
+    }
+    if (provenanceSeen === 0) {
+      violations.push(`${id}: missing "Provenance:" line (use "Provenance: —" until a delta merge fills it)`);
+    } else if (provenanceSeen > 1) {
+      violations.push(`${id}: duplicate "Provenance:" line`);
+    }
+    if (expectedDomain != null) {
+      const tok = id.replace(/^REQ-/, '').replace(/-\d+$/, '');
+      if (tok !== expectedDomain) {
+        violations.push(`${id}: domain token "${tok}" does not match doc domain "${expectedDomain}"`);
+      }
+    }
+    requirements.push({
+      id, title, shallCount, scenarios,
+      provenance: provenance === undefined ? null : provenance,
+    });
+    current = null;
+  };
+
+  for (const line of lines) {
+    if (/^###\s/.test(line)) {
+      flush();
+      const h = line.match(REQ_HEADING_RE);
+      if (!h) {
+        violations.push(`malformed requirement heading "${line.trim()}" (expected "### REQ-<DOMAIN>-NNN — <title>")`);
+        current = null;
+        continue;
+      }
+      if (seen.has(h[1])) violations.push(`duplicate requirement id ${h[1]}`);
+      seen.add(h[1]);
+      current = { id: h[1], title: h[2], lines: [] };
+      continue;
+    }
+    if (current) current.lines.push(line);
+  }
+  flush();
+
+  return { present: true, requirements, violations };
+}
 
 // Doc IDs in filenames: PREFIX-DIGITS plus compound forms with letter
 // segments between prefix and number (SPEC-CHANGE-027, DECISION-RFC-002,

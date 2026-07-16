@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {
-  CANONICAL_SECTIONS,
+  CANONICAL_SECTIONS, domainToReqDomain, DOMAIN_SLUG_RE,
   parseFrontmatter, asList,
 } from './docs-model.mjs';
 
@@ -277,10 +277,18 @@ function archivedResolver(domainEntry) {
 
 // --- Phase 2: synthesis scaffold + archive move (Spec-AC-03/06) -------------
 
-// Build the canonical doc text: frontmatter + five fixed sections. The agent
-// supplies per-section prose via `sectionBodies` (slug-keyed); deterministic
-// code guarantees the section contract and provenance frontmatter. Superseded
+// Build the canonical doc text: frontmatter + the fixed sections
+// (CANONICAL_SECTIONS — six since RFC-0011). The agent supplies
+// per-section prose via `sectionBodies` (slug-keyed); deterministic code
+// guarantees the section contract and provenance frontmatter. Superseded
 // source back-links are harvested into the final section.
+//
+// `## Requirements` (RFC-0011, delta-spec lifecycle) is emitted as
+// a SKELETON: the contract comment plus — when no `sectionBodies.requirements`
+// content is supplied — an explicit empty-valid placeholder. Empty is a
+// COMPLETE state (a domain may carry zero formalized requirements until specs
+// declare deltas against it), so the generic `_To be synthesized._`
+// placeholder is deliberately not used here.
 export function renderCanonicalDoc({ domain, sources, supersededSources = [], sectionBodies = {} }) {
   const fm = [
     '---',
@@ -305,6 +313,18 @@ export function renderCanonicalDoc({ domain, sources, supersededSources = [], se
           lines.push(`- Superseded source: [${s}](${path.posix.relative(CANONICAL_DIR, s)})`);
         }
       }
+      lines.push('');
+    } else if (section === 'Requirements') {
+      // Contract comment: continuation lines are indented so the example
+      // heading is never parsed as a real `### ` requirement block.
+      lines.push('<!-- Requirements contract (RFC-0011): each requirement block is');
+      lines.push('  `### REQ-<DOMAIN>-NNN — <title>` + exactly one SHALL statement + optional');
+      lines.push('  "- Scenario:" bullet(s) + a "Provenance:" line naming the spec that merged');
+      lines.push('  it ("Provenance: —" until a close-time delta merge fills it).');
+      lines.push(`  \`<DOMAIN>\` is the uppercase kebab→snake of this doc's domain slug`);
+      lines.push(`  ("${domain}" -> "${domainToReqDomain(domain)}"). Ids are stable — never renumber, never reuse;`);
+      lines.push('  a removed requirement retires its id. Shape: .aai/templates/CANONICAL_TEMPLATE.md -->');
+      lines.push(sectionBodies.requirements ?? '_No requirements recorded for this domain yet._');
       lines.push('');
     } else {
       const slug = section.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -365,6 +385,15 @@ export function validatePhase2Plan(root, map, { canonicalDir = CANONICAL_DIR, ar
   const destOwner = {};   // destRel -> first srcRel that maps there
   const isArchived = (rel) => rel.startsWith(archiveDir + '/') || rel.startsWith(archiveDir + path.sep);
   for (const [domain, d] of Object.entries(map.domains ?? {})) {
+    // Review NB-2: reject an invalid domain slug HERE, at pre-flight, before any
+    // archiveSource mutation. renderCanonicalDoc -> domainToReqDomain throws on
+    // a bad slug, and render runs AFTER sources are archived — an unchecked bad
+    // key left a half-mutated tree (sources archived, no canonical) that failed
+    // the next preflight with "source does not exist".
+    if (!DOMAIN_SLUG_RE.test(domain)) {
+      errors.push(`domain key "${domain}" is not a valid slug (${DOMAIN_SLUG_RE}) — lowercase kebab-case required`);
+      continue;
+    }
     // domains that will skip or drift (recorded hashes + existing canonical)
     // do not move anything, so they impose no plan constraints.
     const recorded = d?.sourceHashes ?? null;
