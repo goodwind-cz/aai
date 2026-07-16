@@ -40,6 +40,9 @@ set of wrapper directories in `.claude/skills/`.
 | aai-pr | Scope-audited commit, push, and PR creation (never merges) | `/aai-pr` | `--prompt-file .aai/SKILL_PR.prompt.md` |
 | aai-verify | Verification-before-completion gate (IDENTIFY-RUN-READ-VERIFY-CLAIM) | `/aai-verify` | `--prompt-file .aai/SKILL_VERIFY.prompt.md` |
 | aai-debug | Systematic-debugging root-cause gate (READ-REPRODUCE-ISOLATE-FIX-AT-CAUSE) | `/aai-debug` | `--prompt-file .aai/SKILL_DEBUG.prompt.md` |
+| aai-scout | Optional pre-implementation readiness score 0-100, GO/HOLD advisory at 70 (never blocks) | `/aai-scout` | `--prompt-file .aai/SKILL_SCOUT.prompt.md` |
+| aai-deslop | Optional diff-scoped AI-slop removal pass before review, behavior unchanged (never blocks) | `/aai-deslop` | `--prompt-file .aai/SKILL_DESLOP.prompt.md` |
+| aai-interrogate | Optional plan decision-walk, one pre-answered question at a time, ledger to decisions.jsonl (never blocks) | `/aai-interrogate` | `--prompt-file .aai/SKILL_INTERROGATE.prompt.md` |
 
 ## Skills in Detail
 
