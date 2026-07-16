@@ -325,6 +325,19 @@ function main() {
       lines.push('Report-only without --strict: stray tool markup, unbalanced fences, and template placeholders in governed doc bodies (fenced blocks and inline code spans are never flagged).');
     }
     lines.push('');
+    // RFC-0011 (delta-spec lifecycle) D3 — canonical-provenance drift. A
+    // requirement in docs/canonical/*.md whose Provenance is empty (never
+    // merged) or names a spec that resolves to no scanned doc. Empty/absent
+    // docs/canonical/ contributes nothing here. Hard-fails --check in enforced
+    // or --strict mode (see runAudit hardFail).
+    lines.push(`### Canonical provenance drift: ${result.provenanceDrift.length}`);
+    lines.push('');
+    if (result.provenanceDrift.length === 0) lines.push('_None._');
+    else {
+      lines.push(...table(['Canonical doc', 'Requirement', 'Kind', 'Detail', 'Path'],
+        result.provenanceDrift.map(p => [p.id, p.reqId, p.kind, p.detail, p.rel])));
+    }
+    lines.push('');
     if (result.pendingCommit.length) {
       lines.push(`### Pending commit (verdicts reflect the working tree)`);
       lines.push('');
@@ -333,12 +346,13 @@ function main() {
     }
   }
 
-  const needsTriage = counts.orphans + counts.drifted + counts.obsolete + counts.violations;
+  const needsTriage = counts.orphans + counts.drifted + counts.obsolete + counts.violations + counts.provenanceDrift;
   lines.push(`### Verdict: ${needsTriage === 0 ? 'CLEAN' : `NEEDS-TRIAGE (${needsTriage} items)`}`);
   if (result.hardFail) {
     lines.push('');
     const bodyLintPart = args.strict ? `, ${counts.bodyLint} body lint finding(s)` : '';
-    lines.push(`CHECK FAILED: ${counts.orphansNew} new orphan(s), ${counts.violations} schema violation(s)${bodyLintPart}.`);
+    const provPart = counts.provenanceDrift ? `, ${counts.provenanceDrift} canonical provenance drift finding(s)` : '';
+    lines.push(`CHECK FAILED: ${counts.orphansNew} new orphan(s), ${counts.violations} schema violation(s)${bodyLintPart}${provPart}.`);
   }
 
   console.log(lines.join('\n'));

@@ -10,7 +10,7 @@ import {
   DEFAULT_CATEGORY_PREFIXES, extractDocIds, normalizeAcStatus,
   parseFrontmatter, parseAcTable, parseLeanAcTable, parseISODate, parseReviewBy,
   specFrozenInBody, validateCanonicalFrontmatter, asList, toPosix,
-  detectNearMissAcTable,
+  detectNearMissAcTable, parseRequirementsSection,
 } from './docs-model.mjs';
 import { guardConfigPresent } from './guard-config.mjs';
 
@@ -494,6 +494,11 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   const reviewClaimUnbacked = [];    // SPEC-0011 G3 (report-only)
   const missingCloseTelemetry = [];  // SPEC-0011 G2 (report-only)
   const bodyLint = [];               // SPEC-0013 H1 (report-only; --strict promotes)
+  // RFC-0011 (delta-spec lifecycle) D3 — canonical-provenance drift. Collected
+  // per canonical doc during the scan, resolved in a post-pass once every
+  // scanned id is known. NO-OP when there are no canonical docs (this repo's
+  // live state) — contributes nothing, no false positive.
+  const canonicalTrace = [];         // [{ rel, id, requirements: [{ id, provenance }] }]
 
   for (const f of files) {
     const content = fs.readFileSync(path.join(root, f.rel), 'utf8');
@@ -619,6 +624,16 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
       const v = validateCanonicalFrontmatter(fm);
       for (const msg of v.violations) {
         violations.push({ rel: f.rel, msg: `canonical frontmatter: ${msg}` });
+      }
+      // RFC-0011 D3 — harvest this canonical doc's requirement provenance for
+      // the post-scan drift resolution. parseRequirementsSection is the shared
+      // reader (D5 — no grammar re-expressed).
+      const req = parseRequirementsSection(content);
+      if (req.present && req.requirements.length) {
+        canonicalTrace.push({
+          id, rel: f.rel,
+          requirements: req.requirements.map(r => ({ id: r.id, provenance: r.provenance })),
+        });
       }
     }
 
@@ -752,6 +767,29 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     }
   }
 
+  // RFC-0011 D3 — resolve canonical-provenance drift now that every scanned id
+  // is known. A requirement with an empty/null Provenance is untraced; one
+  // naming a spec id that resolves to no scanned doc is broken. When there are
+  // no canonical docs this loop is empty — the check contributes nothing.
+  const provenanceDrift = [];
+  if (canonicalTrace.length) {
+    const knownIds = new Set();
+    for (const d of docs) {
+      for (const k of [d.id, d.fileId, ...(d.relatedIds ?? [])]) {
+        if (k) knownIds.add(String(k));
+      }
+    }
+    for (const c of canonicalTrace) {
+      for (const r of c.requirements) {
+        if (r.provenance == null) {
+          provenanceDrift.push({ rel: c.rel, id: c.id, reqId: r.id, kind: 'untraced-canonical-requirement', detail: 'empty Provenance (never merged from a spec)' });
+        } else if (!knownIds.has(String(r.provenance))) {
+          provenanceDrift.push({ rel: c.rel, id: c.id, reqId: r.id, kind: 'broken-canonical-provenance', detail: `Provenance "${r.provenance}" resolves to no scanned doc` });
+        }
+      }
+    }
+  }
+
   const orphans = docs.filter(d => d.cls === 'orphan');
   const orphansNew = orphans.filter(d => !d.legacy);
   const orphansLegacy = orphans.filter(d => d.legacy);
@@ -775,6 +813,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     reviewClaimUnbacked: reviewClaimUnbacked.length,
     missingCloseTelemetry: missingCloseTelemetry.length,
     bodyLint: bodyLint.length,
+    provenanceDrift: provenanceDrift.length,
   };
   // SPEC-0011 G2/G3/G4 signals (nearMissWarnings, reviewClaimUnbacked,
   // missingCloseTelemetry) are deliberately ABSENT from hardFail AND from the
@@ -783,14 +822,19 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   // SPEC-0013 H1 (D2): body lint promotes to hardFail ONLY under the explicit
   // --strict flag (the intake POST-SAVE path) — never in config-enforced mode
   // alone, so mid-migration repos with legacy bodies keep a passing --check.
+  // RFC-0011 D3 — canonical-provenance drift is a hard governance gate: it
+  // fails --check in enforced OR --strict mode (mirroring the violations gate),
+  // and stays a report-only digest signal otherwise. Empty canonical => zero
+  // findings => no effect (this repo stays CLEAN).
   const hardFail = (mode === 'enforced' && (orphansNew.length > 0 || violations.length > 0))
-    || (strict && bodyLint.length > 0);
+    || (strict && bodyLint.length > 0)
+    || ((mode === 'enforced' || strict) && provenanceDrift.length > 0);
 
   return {
     mode, config, docs, orphansNew, orphansLegacy, drift, violations,
     typeWarnings, annotations, pendingCommit, planLenient, closeoutCandidates,
     openDecisionDoneDocs, nearMissWarnings, reviewClaimUnbacked,
-    missingCloseTelemetry, bodyLint, counts, hardFail,
+    missingCloseTelemetry, bodyLint, provenanceDrift, counts, hardFail,
   };
 }
 
