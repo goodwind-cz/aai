@@ -19,7 +19,7 @@
   - **Implementation preparation (worktree gate)**: records the human worktree-vs-inline decision and review scope before implementation.
   - **Implementer**: executes changes only when implementation gate is open.
   - **Validator**: verifies traceability and evidence, returns PASS/FAIL.
-  - **Code reviewer**: two-stage review (spec compliance, then code quality) after Validation; gates merge/PR readiness.
+  - **Code reviewer**: dual-verdict review (one pass returning spec_compliance and code_quality verdicts plus a mandatory cannot_verify list) after Validation; gates merge/PR readiness.
   - **Remediator**: applies minimal corrective changes after a Validation or Code Review FAIL.
 - **HITL (Human-in-the-loop)**
   - Resolves disputed decisions, scope changes, and high-impact risk decisions.

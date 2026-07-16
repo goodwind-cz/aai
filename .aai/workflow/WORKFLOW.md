@@ -60,7 +60,7 @@ can be re-run at any time, independent of the workflow phase.
 - Missing worktree decision when worktree is recommended or required
 - Dirty or ambiguous inline diff scope
 - Missing evidence / unverifiable claims
-- Code Review ERROR findings
+- Code Review BLOCKING findings (code_quality verdict fail)
 - A `done` transition requested while open decisions remain buried as free-text
   WARNINGs (resolve-or-promote to a tracked item first)
 - Technology assumptions not grounded in docs/TECHNOLOGY.md

@@ -61,17 +61,19 @@ AAI has integrated proven patterns from the [Superpowers framework](https://gith
 - Clear progress indicators
 - Better parallelization
 
-### 4. Two-Stage Code Review
+### 4. Dual-Verdict Code Review
 
 **Superpowers Concept:**
-- Stage 1: Spec compliance (blocking)
-- Stage 2: Code quality (non-blocking warnings)
+- Separate compliance and quality review passes with severity levels
+  (spec compliance gates; quality issues warn)
 
 **AAI Implementation:**
-- `/aai-code-review` with two mandatory stages
-- Spec violations block completion
-- ERROR findings block merge/PR readiness
-- WARNING findings require a recorded decision, remediation, or follow-up item
+- `/aai-code-review` — one dual-verdict pass returning spec_compliance
+  (AC-table walk) and code_quality verdicts, plus a mandatory cannot_verify list
+- A spec_compliance fail blocks completion
+- BLOCKING findings fail the code_quality verdict and block merge/PR readiness
+- NON-BLOCKING findings carry the H6 disposition duty (recorded decision,
+  remediation, or follow-up item)
 - Review works on a clean diff and does not require a worktree
 
 **Benefits:**
@@ -121,8 +123,8 @@ User: "Add password reset feature"
    → Verify all acceptance criteria with executable evidence
 
 6. /aai-code-review
-   → Stage 1: Spec compliance
-   → Stage 2: Code quality
+   → spec_compliance verdict: AC-table walk with per-AC citations
+   → code_quality verdict: BLOCKING/NON-BLOCKING findings (+ cannot_verify list)
 
 7. /aai-worktree cleanup password-reset
    → Merge and remove worktree
@@ -239,8 +241,9 @@ triggers:
 
 **AAI Status:** Implemented in `/aai-code-review`
 
-**Current behavior:** ERROR blocks merge/PR readiness, WARNING requires a
-recorded decision/remediation/follow-up, INFO is advisory.
+**Current behavior:** a BLOCKING finding fails the code_quality verdict and
+blocks merge/PR readiness, a NON-BLOCKING finding needs a recorded
+decision/remediation/follow-up (H6), INFO is advisory and never gates.
 
 ## Migration Guide
 

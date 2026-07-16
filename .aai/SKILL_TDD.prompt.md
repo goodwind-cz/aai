@@ -322,8 +322,10 @@ After completing REFACTOR for one TEST-xxx:
      after validation evidence exists.
    - Code review may use a worktree diff, branch diff, staged diff, or explicit
      inline path scope. It does not require a worktree.
-   - ERROR findings block merge/PR readiness.
-   - WARNING findings require a recorded decision or follow-up task.
+   - BLOCKING findings fail the code_quality verdict and block merge/PR
+     readiness.
+   - NON-BLOCKING findings require a recorded decision or follow-up task
+     (H6 disposition duty).
    - PASS or explicit human waiver must be recorded before merge/PR-ready output.
 
 4. **Capture `ended_utc`**
