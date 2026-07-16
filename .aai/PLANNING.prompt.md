@@ -93,6 +93,15 @@ PROCESS
    in the spec — the literal `None.`, or a justified list (article number, the
    deviation, why it is justified). An unjustifiable deviation blocks freeze.
    Required for new specs; pre-existing specs without the section stay valid.
+   Ceremony level (RFC-0009): declare `ceremony_level: 0..3` in the spec
+   frontmatter at freeze — 0 typo/docs-only, 1 small single-surface fix,
+   2 full pipeline (the default), 3 protected surfaces. Gates prune ONLY by
+   the .aai/workflow/WORKFLOW.md "Ceremony levels" table, never silently.
+   Levels 0/1 REQUIRE a body line starting `Ceremony justification: ` naming
+   why the scope is small/safe (close-gate checked; review may re-classify
+   upward). Level 3 is MANDATORY when the scope touches a path listed in
+   `protected_paths_l3` (docs/ai/docs-audit.yaml). An absent field is
+   implicit level 2 — legacy specs stay valid unchanged.
 11) Emit the work-item brief (subagent handoff): create docs/ai/briefs/<REF-ID>.md
    from .aai/templates/BRIEF_TEMPLATE.md — skip this step while SPEC-FROZEN is false.
    Fill Scope & Why, the AC ↔ Task Map, Constraints & Canon Pointers (repo PATHS

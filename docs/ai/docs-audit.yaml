@@ -21,3 +21,18 @@ close_gate: report-only
 # (git ls-files), and /aai-pr allocates numbers before staging, so untracked
 # working-tree drafts never block. Projects may set report-only.
 doc_number_guard: enforce
+# RFC-0009 / spec-scale-adaptive-ceremony — L3 protected surfaces (project-owned
+# config; the POLICY and these canonical defaults live in
+# .aai/workflow/WORKFLOW.md "Ceremony levels"). A spec whose scope touches any
+# listed path MUST declare `ceremony_level: 3` at freeze; review may
+# re-classify a level upward (recorded finding). Consult-time policy for
+# Planning/review — no mechanical diff enforcement yet (phase 2 candidate).
+protected_paths_l3:
+  - .aai/scripts/state.mjs
+  - .aai/scripts/lib/state-engine.mjs
+  - .aai/scripts/lib/state-core.mjs
+  - .aai/scripts/allocate-doc-number.mjs
+  - .aai/scripts/pre-commit-checks.sh
+  - .aai/scripts/pre-commit-checks.ps1
+  - .aai/workflow/WORKFLOW.md
+  - docs/CONSTITUTION.md

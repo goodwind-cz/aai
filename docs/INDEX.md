@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-16T15:24:53.024Z
+Generated: 2026-07-16T15:26:49.054Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -71,7 +71,7 @@ _None._
 | SPEC-0014 | specs | docs/specs/SPEC-0014-state-clear-spec-path-placement-auto-trigger-alignment.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (19)
+## Drafts (20)
 
 | ID | Type | Path |
 |---|---|---|
@@ -94,6 +94,7 @@ _None._
 | SPEC-0027 | specs | docs/specs/SPEC-0027-spec-systematic-debugging.md |
 | SPEC-0028 | specs | docs/specs/SPEC-0028-spec-constitution.md |
 | SPEC-0029 | specs | docs/specs/SPEC-0029-spec-hook-enforced-gates.md |
+| SPEC-0030 | specs | docs/specs/SPEC-0030-spec-scale-adaptive-ceremony.md |
 
 ## Deferred (whole-doc) (0)
 
