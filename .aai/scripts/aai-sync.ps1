@@ -1,6 +1,7 @@
 param(
   [Parameter(Mandatory=$true)]
-  [string]$TargetRoot
+  [string]$TargetRoot,
+  [string]$Profile = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,6 +13,22 @@ $ErrorActionPreference = "Stop"
 #
 # Example:
 #   .\.aai\scripts\aai-sync.ps1 -TargetRoot z:\AI\maty-ai
+#   .\.aai\scripts\aai-sync.ps1 -TargetRoot ..\maty-ai -Profile core
+#
+# Profiles (CHANGE layer-profiles / .aai/system/PROFILES.yaml):
+#   extended (default) - the whole vendored layer; copy behavior identical to
+#                        the pre-profile sync (the manifest is never consulted).
+#   core               - exactly the PROFILES.yaml core: list (the workflow
+#                        engine); non-core .aai files are pruned from the
+#                        target, target-only scripts are preserved.
+# Resolution when -Profile is absent: the target pin's "- Profile:" line
+# (sticky - /aai-update re-syncs keep the installed profile), else extended.
+# (Validated manually, not via ValidateSet, so the empty sticky default stays
+# legal and the error message matches aai-sync.sh.)
+
+if ($Profile -and ($Profile -ne "core") -and ($Profile -ne "extended")) {
+  throw "Invalid -Profile value: $Profile (allowed: core|extended)"
+}
 
 function Copy-Replace {
   param(
@@ -97,8 +114,38 @@ if (!(Test-Path $TargetRoot)) {
 
 $TargetRoot = (Resolve-Path $TargetRoot).Path
 
+# Resolve the effective profile: explicit flag > sticky target pin > extended.
+if (-not $Profile) {
+  $existingPin = Join-Path $TargetRoot ".aai/system/AAI_PIN.md"
+  if (Test-Path $existingPin) {
+    $pinMatch = Select-String -Path $existingPin -Pattern '^- Profile: (core|extended)\s*$' | Select-Object -First 1
+    if ($pinMatch) { $Profile = $pinMatch.Matches[0].Groups[1].Value }
+  }
+}
+if (-not $Profile) { $Profile = "extended" }
+
 Write-Host "Syncing AAI from: $SrcRoot"
 Write-Host "Target project:     $TargetRoot"
+Write-Host "Profile:            $Profile"
+
+# Core profile needs the manifest (extended never reads it - copy-everything
+# behavior is structurally unchanged).
+$coreFiles = @()
+if ($Profile -eq "core") {
+  $profilesManifest = Join-Path $SrcRoot ".aai/system/PROFILES.yaml"
+  if (!(Test-Path $profilesManifest)) {
+    throw "-Profile core requires the manifest: $profilesManifest"
+  }
+  $inCore = $false
+  foreach ($line in (Get-Content $profilesManifest)) {
+    if ($line -match '^core:\s*$') { $inCore = $true; continue }
+    if ($line -match '^\S') { $inCore = $false; continue }
+    if ($inCore -and $line -match '^  - (.+)$') { $coreFiles += $Matches[1].Trim() }
+  }
+  if ($coreFiles.Count -eq 0) {
+    throw "No core entries found in $profilesManifest"
+  }
+}
 
 # Target directories (AAI layer only)
 foreach ($d in @(".aai/workflow",".aai/roles",".aai/templates",".aai/scripts",".aai/system",".aai/knowledge",".claude/skills",".claude-plugin",".codex/skills",".codex/skills.local",".cursor/rules",".gemini/skills",".gemini/skills.local",".github","docs/knowledge","docs/ai","hooks")) {
@@ -197,32 +244,73 @@ $targetTechnologyPath = Join-Path $TargetRoot "docs/TECHNOLOGY.md"
 # Entry-by-entry so we can merge scripts/ and preserve target-only scripts.
 New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot ".aai") | Out-Null
 
-# Top-level files and non-scripts directories: overwrite from source
-# Skip scripts/ (merged separately) and cache/ (runtime artifact, not synced)
-Get-ChildItem -Path (Join-Path $SrcRoot ".aai") -Force | Where-Object { $_.Name -notin @("scripts","cache") } | ForEach-Object {
-  $targetAaiPath = Join-Path $TargetRoot ".aai"
-  Copy-Replace $_.FullName (Join-Path $targetAaiPath $_.Name)
-}
-
-# Clean stale top-level items in target .aai/ that no longer exist in source (except scripts/, cache/)
-Get-ChildItem -Path (Join-Path $TargetRoot ".aai") -Force | Where-Object { $_.Name -notin @("scripts","cache") } | ForEach-Object {
-  $srcAaiPath = Join-Path $SrcRoot ".aai"
-  if (!(Test-Path (Join-Path $srcAaiPath $_.Name))) {
-    Remove-Item $_.FullName -Recurse -Force
-    Write-Host "  CLEAN removed stale: .aai/$($_.Name)"
+if ($Profile -eq "core") {
+  # -- CORE PROFILE: filtered .aai copy per PROFILES.yaml core: list ---------
+  Write-Host "  PROFILE core: filtered .aai copy per .aai/system/PROFILES.yaml"
+  foreach ($rel in $coreFiles) {
+    $srcFile = Join-Path $SrcRoot $rel
+    if (!(Test-Path $srcFile -PathType Leaf)) {
+      Write-Host "  WARN core-listed file missing in source (skipped): $rel"
+      continue
+    }
+    $dstFile = Join-Path $TargetRoot $rel
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dstFile) | Out-Null
+    Copy-Replace $srcFile $dstFile
   }
-}
 
-# scripts/: file-by-file merge - overwrite source scripts, preserve target-only
-$srcScripts = Join-Path $SrcRoot ".aai/scripts"
-$dstScripts = Join-Path $TargetRoot ".aai/scripts"
-New-Item -ItemType Directory -Force -Path $dstScripts | Out-Null
-Get-ChildItem -Path $srcScripts -Force | ForEach-Object {
-  Copy-Replace $_.FullName (Join-Path $dstScripts $_.Name)
-}
-Get-ChildItem -Path $dstScripts -Force | ForEach-Object {
-  if (!(Test-Path (Join-Path $srcScripts $_.Name))) {
-    Write-Host "  PRESERVE target-only script: .aai/scripts/$($_.Name)"
+  # Prune target .aai files not in the core list: removes extended files from
+  # a previous extended sync AND stale files. Preserved: target-only scripts
+  # (same PRESERVE semantics as the extended merge) and runtime cache/.
+  $dstAai = Join-Path $TargetRoot ".aai"
+  Get-ChildItem -Path $dstAai -Recurse -File -Force -ErrorAction SilentlyContinue | ForEach-Object {
+    $rel = $_.FullName.Substring($TargetRoot.Length).TrimStart('\','/') -replace '\\','/'
+    if ($rel -like ".aai/cache/*") { return }
+    if ($coreFiles -notcontains $rel) {
+      if (($rel -like ".aai/scripts/*") -and !(Test-Path (Join-Path $SrcRoot $rel))) {
+        Write-Host "  PRESERVE target-only script: $rel"
+        return
+      }
+      Remove-Item $_.FullName -Force
+      Write-Host "  PROFILE prune (not in core): $rel"
+    }
+  }
+
+  # Drop directories the prune emptied (cache/ guarded above).
+  Get-ChildItem -Path $dstAai -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+    Sort-Object { $_.FullName.Length } -Descending | ForEach-Object {
+      if ((Get-ChildItem -Path $_.FullName -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+        Remove-Item $_.FullName -Force
+      }
+    }
+} else {
+  # -- EXTENDED PROFILE (default): copy everything - unchanged behavior ------
+  # Top-level files and non-scripts directories: overwrite from source
+  # Skip scripts/ (merged separately) and cache/ (runtime artifact, not synced)
+  Get-ChildItem -Path (Join-Path $SrcRoot ".aai") -Force | Where-Object { $_.Name -notin @("scripts","cache") } | ForEach-Object {
+    $targetAaiPath = Join-Path $TargetRoot ".aai"
+    Copy-Replace $_.FullName (Join-Path $targetAaiPath $_.Name)
+  }
+
+  # Clean stale top-level items in target .aai/ that no longer exist in source (except scripts/, cache/)
+  Get-ChildItem -Path (Join-Path $TargetRoot ".aai") -Force | Where-Object { $_.Name -notin @("scripts","cache") } | ForEach-Object {
+    $srcAaiPath = Join-Path $SrcRoot ".aai"
+    if (!(Test-Path (Join-Path $srcAaiPath $_.Name))) {
+      Remove-Item $_.FullName -Recurse -Force
+      Write-Host "  CLEAN removed stale: .aai/$($_.Name)"
+    }
+  }
+
+  # scripts/: file-by-file merge - overwrite source scripts, preserve target-only
+  $srcScripts = Join-Path $SrcRoot ".aai/scripts"
+  $dstScripts = Join-Path $TargetRoot ".aai/scripts"
+  New-Item -ItemType Directory -Force -Path $dstScripts | Out-Null
+  Get-ChildItem -Path $srcScripts -Force | ForEach-Object {
+    Copy-Replace $_.FullName (Join-Path $dstScripts $_.Name)
+  }
+  Get-ChildItem -Path $dstScripts -Force | ForEach-Object {
+    if (!(Test-Path (Join-Path $srcScripts $_.Name))) {
+      Write-Host "  PRESERVE target-only script: .aai/scripts/$($_.Name)"
+    }
   }
 }
 
@@ -624,6 +712,7 @@ $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $pinPath)
 - Template version: $templateVersion
 - Template commit: $templateSha
 - Canonical repo: $canonicalUrl
+- Profile: $Profile
 - Synced at (UTC): $((Get-Date).ToUniversalTime().ToString("o"))
 
 Notes:

@@ -4,21 +4,78 @@ set -euo pipefail
 # Push AAI layer FROM this repository INTO a target project.
 #
 # Usage (run from anywhere, script finds its own repo root):
-#   ./.aai/scripts/aai-sync.sh <path-to-target-project>
+#   ./.aai/scripts/aai-sync.sh <path-to-target-project> [--profile core|extended]
 #
 # Example:
 #   ./.aai/scripts/aai-sync.sh ../maty-ai
+#   ./.aai/scripts/aai-sync.sh ../maty-ai --profile core
+#
+# Profiles (CHANGE layer-profiles / .aai/system/PROFILES.yaml):
+#   extended (default) — the whole vendored layer; copy behavior identical to
+#                        the pre-profile sync (the manifest is never consulted).
+#   core               — exactly the PROFILES.yaml `core:` list (the workflow
+#                        engine); non-core .aai files are pruned from the
+#                        target, target-only scripts are preserved.
+# Resolution when --profile is absent: the target pin's `- Profile:` line
+# (sticky — /aai-update re-syncs keep the installed profile), else extended.
 
-DST_ROOT="${1:-}"
+DST_ROOT=""
+PROFILE_ARG=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --profile)
+      PROFILE_ARG="${2:-}"
+      if [[ -z "$PROFILE_ARG" ]]; then
+        echo "ERROR: --profile needs a value (core|extended)"
+        exit 1
+      fi
+      shift 2
+      ;;
+    --profile=*)
+      PROFILE_ARG="${1#--profile=}"
+      shift
+      ;;
+    *)
+      if [[ -z "$DST_ROOT" ]]; then
+        DST_ROOT="$1"
+      else
+        echo "ERROR: unexpected argument: $1"
+        echo "Usage: $0 <path-to-target-project> [--profile core|extended]"
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
 if [[ -z "$DST_ROOT" ]]; then
-  echo "Usage: $0 <path-to-target-project>"
+  echo "Usage: $0 <path-to-target-project> [--profile core|extended]"
   exit 1
 fi
+
+case "$PROFILE_ARG" in
+  ""|core|extended) ;;
+  *)
+    echo "ERROR: invalid --profile value: $PROFILE_ARG (allowed: core|extended)"
+    exit 1
+    ;;
+esac
 
 if [[ ! -d "$DST_ROOT" ]]; then
   echo "ERROR: Target directory does not exist: $DST_ROOT"
   exit 1
 fi
+DST_ROOT="$(cd "$DST_ROOT" && pwd)"
+
+# Resolve the effective profile: explicit flag > sticky target pin > extended.
+PROFILE="$PROFILE_ARG"
+if [[ -z "$PROFILE" && -f "$DST_ROOT/.aai/system/AAI_PIN.md" ]]; then
+  PIN_PROFILE="$(tr -d '\r' < "$DST_ROOT/.aai/system/AAI_PIN.md" | sed -n 's/^- Profile: //p' | head -n1 | sed 's/[[:space:]]*$//')"
+  case "$PIN_PROFILE" in
+    core|extended) PROFILE="$PIN_PROFILE" ;;
+  esac
+fi
+[[ -z "$PROFILE" ]] && PROFILE="extended"
 
 # Resolve source = this repository's root (three levels up from this script: .aai/scripts/X.sh)
 SRC_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -30,6 +87,27 @@ fi
 
 echo "Syncing AAI from: $SRC_ROOT"
 echo "Target project:     $DST_ROOT"
+echo "Profile:            $PROFILE"
+
+# Core profile needs the manifest (extended never reads it — copy-everything
+# behavior is structurally unchanged).
+CORE_FILES=""
+if [[ "$PROFILE" == "core" ]]; then
+  PROFILES_MANIFEST="$SRC_ROOT/.aai/system/PROFILES.yaml"
+  if [[ ! -f "$PROFILES_MANIFEST" ]]; then
+    echo "ERROR: --profile core requires the manifest: $PROFILES_MANIFEST"
+    exit 1
+  fi
+  CORE_FILES="$(awk '
+    $0 == "core:" { f = 1; next }
+    /^[^ ]/       { f = 0 }
+    f && sub(/^  - /, "") { sub(/[ \t\r]+$/, ""); print }  # F3: trim trailing ws (ps1 .Trim parity)
+  ' "$PROFILES_MANIFEST")"
+  if [[ -z "$CORE_FILES" ]]; then
+    echo "ERROR: no core entries found in $PROFILES_MANIFEST"
+    exit 1
+  fi
+fi
 
 # Target directories (AAI layer only)
 mkdir -p \
@@ -193,40 +271,79 @@ TARGET_TECHNOLOGY_PATH="$DST_ROOT/docs/TECHNOLOGY.md"
 # Entry-by-entry so we can merge scripts/ and preserve target-only scripts.
 mkdir -p "$DST_ROOT/.aai"
 
-# Top-level files and non-scripts directories: overwrite from source
-# Skip scripts/ (merged separately) and cache/ (runtime artifact, not synced)
-for item in "$SRC_ROOT/.aai/"*; do
-  [[ -e "$item" ]] || continue
-  name="$(basename "$item")"
-  [[ "$name" == "scripts" || "$name" == "cache" ]] && continue
-  copy_replace "$item" "$DST_ROOT/.aai/$name"
-done
+if [[ "$PROFILE" == "core" ]]; then
+  # ── CORE PROFILE: filtered .aai copy per PROFILES.yaml `core:` list ──────
+  echo "  PROFILE core: filtered .aai copy per .aai/system/PROFILES.yaml"
+  while IFS= read -r rel; do
+    [[ -n "$rel" ]] || continue
+    if [[ ! -f "$SRC_ROOT/$rel" ]]; then
+      echo "  WARN core-listed file missing in source (skipped): $rel"
+      continue
+    fi
+    mkdir -p "$DST_ROOT/$(dirname "$rel")"
+    copy_replace "$SRC_ROOT/$rel" "$DST_ROOT/$rel"
+  done <<< "$CORE_FILES"
 
-# Clean stale top-level items in target .aai/ that no longer exist in source (except scripts/, cache/)
-for item in "$DST_ROOT/.aai/"*; do
-  [[ -e "$item" ]] || continue
-  name="$(basename "$item")"
-  [[ "$name" == "scripts" || "$name" == "cache" ]] && continue
-  if [[ ! -e "$SRC_ROOT/.aai/$name" ]]; then
-    rm -rf "$item"
-    echo "  CLEAN removed stale: .aai/$name"
-  fi
-done
+  # Prune target .aai files not in the core list: removes extended files from
+  # a previous extended sync AND stale files. Preserved: target-only scripts
+  # (same PRESERVE semantics as the extended merge) and runtime cache/.
+  while IFS= read -r tgt; do
+    [[ -n "$tgt" ]] || continue
+    rel="${tgt#"$DST_ROOT"/}"  # F1: quote — an unquoted $DST_ROOT is glob-interpreted; a [ ] * ? in the path would leave rel absolute and every rel-keyed guard would miss (mass-delete)
+    case "$rel" in .aai/cache/*) continue ;; esac
+    if ! printf '%s\n' "$CORE_FILES" | grep -qxF "$rel"; then
+      case "$rel" in
+        .aai/scripts/*)
+          if [[ ! -e "$SRC_ROOT/$rel" ]]; then
+            echo "  PRESERVE target-only script: $rel"
+            continue
+          fi
+          ;;
+      esac
+      rm -f "$tgt"
+      echo "  PROFILE prune (not in core): $rel"
+    fi
+  done < <(find "$DST_ROOT/.aai" -type f)
 
-# scripts/: file-by-file merge — overwrite source scripts, preserve target-only
-mkdir -p "$DST_ROOT/.aai/scripts"
-for src_script in "$SRC_ROOT/.aai/scripts/"*; do
-  [[ -e "$src_script" ]] || continue
-  fname="$(basename "$src_script")"
-  copy_replace "$src_script" "$DST_ROOT/.aai/scripts/$fname"
-done
-for dst_script in "$DST_ROOT/.aai/scripts/"*; do
-  [[ -e "$dst_script" ]] || continue
-  fname="$(basename "$dst_script")"
-  if [[ ! -e "$SRC_ROOT/.aai/scripts/$fname" ]]; then
-    echo "  PRESERVE target-only script: .aai/scripts/$fname"
-  fi
-done
+  # Drop directories the prune emptied (never cache/, guarded above).
+  find "$DST_ROOT/.aai" -depth -type d -empty -delete 2>/dev/null || true
+else
+  # ── EXTENDED PROFILE (default): copy everything — unchanged behavior ─────
+  # Top-level files and non-scripts directories: overwrite from source
+  # Skip scripts/ (merged separately) and cache/ (runtime artifact, not synced)
+  for item in "$SRC_ROOT/.aai/"*; do
+    [[ -e "$item" ]] || continue
+    name="$(basename "$item")"
+    [[ "$name" == "scripts" || "$name" == "cache" ]] && continue
+    copy_replace "$item" "$DST_ROOT/.aai/$name"
+  done
+
+  # Clean stale top-level items in target .aai/ that no longer exist in source (except scripts/, cache/)
+  for item in "$DST_ROOT/.aai/"*; do
+    [[ -e "$item" ]] || continue
+    name="$(basename "$item")"
+    [[ "$name" == "scripts" || "$name" == "cache" ]] && continue
+    if [[ ! -e "$SRC_ROOT/.aai/$name" ]]; then
+      rm -rf "$item"
+      echo "  CLEAN removed stale: .aai/$name"
+    fi
+  done
+
+  # scripts/: file-by-file merge — overwrite source scripts, preserve target-only
+  mkdir -p "$DST_ROOT/.aai/scripts"
+  for src_script in "$SRC_ROOT/.aai/scripts/"*; do
+    [[ -e "$src_script" ]] || continue
+    fname="$(basename "$src_script")"
+    copy_replace "$src_script" "$DST_ROOT/.aai/scripts/$fname"
+  done
+  for dst_script in "$DST_ROOT/.aai/scripts/"*; do
+    [[ -e "$dst_script" ]] || continue
+    fname="$(basename "$dst_script")"
+    if [[ ! -e "$SRC_ROOT/.aai/scripts/$fname" ]]; then
+      echo "  PRESERVE target-only script: .aai/scripts/$fname"
+    fi
+  done
+fi
 
 # Claude Code skills (session helpers):
 # copy template skills file-by-file and preserve target-only local skills.
@@ -565,6 +682,7 @@ cat > "$DST_ROOT/.aai/system/AAI_PIN.md" <<EOPIN
 - Template version: $TEMPLATE_VERSION
 - Template commit: $TEMPLATE_SHA
 - Canonical repo: $CANONICAL_URL
+- Profile: $PROFILE
 - Synced at (UTC): $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 Notes:

@@ -157,6 +157,12 @@ HEALTH CHECK CATEGORIES (run all, report each)
                                       also the normal verdict inside the canonical
                                       template repo itself)
   - exit 2 / script missing        → ⚠ layer-drift check unavailable ("Run /aai-update")
+  Layer profile (CHANGE layer-profiles): also read .aai/system/AAI_PIN.md and
+  report which vendored-layer profile is installed — the pin's `- Profile:`
+  line (`core` or `extended`, stamped by aai-sync). Append it to the report
+  line as `profile: <name>`. A pin without the line (pre-contract) or no pin
+  at all → `profile: extended (implicit)`. Informational only — the profile
+  never changes the verdict.
   This category is informational, never blocks other AAI work; do NOT mark
   BROKEN from it — offline or pin-less environments are legal.
 
@@ -179,7 +185,7 @@ Checked at: <now ISO 8601 UTC>
 [CAT-10] RFC-0001 Migration: ✓ migrated | ⚠ needs migration: <action>
 [CAT-11] Docs Hygiene:      ✓ CLEAN | ⚠ N orphans / N drifted (run /aai-docs-audit)
 [CAT-12] Index Regen Hook:  ✓ installed | ⚠ not installed (optional)
-[CAT-13] Layer Drift:       ✓ up-to-date | ⚠ BEHIND canonical by N (run /aai-update) | ⚠ unverifiable (offline / no pin)
+[CAT-13] Layer Drift:       ✓ up-to-date (profile: extended) | ⚠ BEHIND canonical by N (run /aai-update) | ⚠ unverifiable (offline / no pin) — always suffix `profile: core|extended` from the pin ("extended (implicit)" when the line is absent)
 
 Overall: HEALTHY | DEGRADED | BROKEN
   HEALTHY  = all ✓ (warnings allowed for optional items)

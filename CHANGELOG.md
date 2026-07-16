@@ -9,6 +9,22 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: core/extended profiles for the vendored layer (CHANGE-0023 / SPEC-0035)
+
+- aai-sync gains --profile core|extended (default extended = byte-identical
+  for existing consumers): core = the workflow engine (orchestration, roles,
+  intake, state/docs/gates scripts), extended = everything (dashboards, share,
+  decapod, session tooling). PROFILES.yaml classifies 100% of the vendored
+  tree (106 core / 41 extended / 147 total; a conformance test fails on any
+  unclassified addition). Profile is sticky via an AAI_PIN 'Profile:' line and
+  shown by /aai-doctor; layer-drift is profile-agnostic. OpenSpec pattern,
+  RES-0001 P3.
+- Review caught a real BLOCKING defect: an unquoted prefix-strip glob-
+  interpreted the target path, mass-deleting the whole core layer on a target
+  whose path contained [ ] * ? (only the pin survived, exit 0). Fixed
+  (quoted strip) with a RED-proven bracket-path regression test; two sh↔ps1
+  parser-parity drifts (F2/F3, trailing whitespace) fixed in the same pass.
+
 ## [unreleased] — feat: delta-spec lifecycle stage 1 — canonical requirements contract (RFC-0011 / SPEC-0034)
 
 - RFC-0011 stage 1 of 3: the canonical layer gains a Requirements contract —
