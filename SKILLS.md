@@ -39,6 +39,7 @@ set of wrapper directories in `.claude/skills/`.
 | aai-test-canon | Consolidate fragmented tests into a canonical per-domain suite | `/aai-test-canon` | `--prompt-file .aai/SKILL_TEST_CANON.prompt.md` |
 | aai-pr | Scope-audited commit, push, and PR creation (never merges) | `/aai-pr` | `--prompt-file .aai/SKILL_PR.prompt.md` |
 | aai-verify | Verification-before-completion gate (IDENTIFY-RUN-READ-VERIFY-CLAIM) | `/aai-verify` | `--prompt-file .aai/SKILL_VERIFY.prompt.md` |
+| aai-debug | Systematic-debugging root-cause gate (READ-REPRODUCE-ISOLATE-FIX-AT-CAUSE) | `/aai-debug` | `--prompt-file .aai/SKILL_DEBUG.prompt.md` |
 
 ## Skills in Detail
 

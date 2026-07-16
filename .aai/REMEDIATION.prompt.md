@@ -35,6 +35,8 @@ PROCESS
      carry the H6 disposition duty (fix, decision entry, or follow-up ref)
    - The report's cannot_verify entries are named evidence gaps, not
      defects — close one only when the dispatch explicitly asks for it
+   Before fixing ANY defect: apply the root-cause gate in
+   .aai/SKILL_DEBUG.prompt.md — READ → REPRODUCE → ISOLATE → FIX-AT-CAUSE.
 3) Apply fixes in order:
    a) Spec fixes (mapping, measurability, verification commands)
    b) Evidence fixes (commands, scripts, tests)
