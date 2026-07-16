@@ -149,7 +149,7 @@ Orchestration dispatch rule 13 and `state.mjs set-code-review` are unchanged.
 | Spec-AC-02 | Preserved contracts: diff-scope preflight, H6 warnings policy, H3 external-review-response, docs/ai/reviews/ + set-code-review STATE contract, never-docs/validation lesson, report-staging companion rule | done | TEST-004 green + pre-existing hygiene stanzas test_011/test_012/test_014 green (same green log) | — | — |
 | Spec-AC-03 | SUBAGENT_PROTOCOL.md carries the three anti-gaming rules (no coaching/pre-rating/scope-exclusion; reviewer read-only on implementation files; diff handoff by ref/path list, never pasted inline) | done | TEST-005 green (same green log); RED same red log | — | — |
 | Spec-AC-04 | All three wrapper descriptions match the dual-verdict shape; ROLES.md Code Review role and AGENTS.md index line carry no stage-ordering wording | done | TEST-006 green (same green log); RED same red log | — | — |
-| Spec-AC-05 | measurement-window: after ~5 reviewed scopes, compare review tokens, wall-clock, and remediation cycles vs the two-stage history in docs/ai/METRICS.jsonl; keep the single-pass prompt on parity-or-better, else revert by restoring the prior prompt from git | deferred | — | manual:2026-08-31 | Checked at wrap-up once 5 post-change reviewed scopes exist in METRICS.jsonl; revert path = git restore of pre-change .aai/SKILL_CODE_REVIEW.prompt.md |
+| Spec-AC-05 | measurement-window: after ~5 reviewed scopes, compare review tokens, wall-clock, and remediation cycles vs the two-stage history in docs/ai/METRICS.jsonl; keep the single-pass prompt on parity-or-better, else revert by restoring the prior prompt from git | done | Measurement gate evaluation section below (2026-07-16); METRICS.jsonl review-run durations both eras | manual:2026-07-16 | Evaluated with 5/5 data points — verdict KEEP (parity-or-better on wall-clock and catch quality; token axis unmeasurable, see caveats) |
 | Spec-AC-06 | Full sweep green: hygiene, state, dispatch, metrics, docs-audit, doc-numbering, prompt-diet suites; repo-wide strict docs audit clean; docs index idempotent; check-state OK | done | TEST-007 sweep log docs/ai/tdd/sweep-20260715T233105Z-dual-verdict.log (7 suites exit 0; strict audit CLEAN; index idempotent modulo Generated stamp; check-state OK) | — | — |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
@@ -239,3 +239,43 @@ This document defines HOW, not WHAT/WHY. It does not define workflow.
 - cannot_verify items: tracked by the deferred Spec-AC-05 measurement row
   (real-world parity), a smoke run in Codex/Gemini (operator errand), and the
   behavioral nature of rule 1 (accepted residual).
+
+## Measurement gate evaluation (2026-07-16, 5/5 reviewed scopes)
+
+Data (docs/ai/METRICS.jsonl Code Review role runs, duration_seconds):
+- TWO-STAGE era: n=19 non-null runs (2026-06-25..07-15), mean 446 s, median 375 s.
+- DUAL-VERDICT era: n=5 — ISSUE-0007 405 s, CHANGE-0015 323 s, CHANGE-0014
+  355 s, CHANGE-0016 221 s, PR#67 post-merge 686 s. Mean 398 s (-11% vs
+  two-stage mean), median 355 s (-5%). Spec-backed subset (n=4, excluding the
+  spec-less post-merge outlier whose meta-note explains the extra reading):
+  mean 326 s (-27%).
+
+Quality axis (parity-or-better required):
+- Review-FAIL rate: two-stage era caught blocking defects pre-merge (CR-1,
+  B1); dual-verdict era: 0 FAILs in 5, but every review produced substantive
+  NON-BLOCKING findings with dispositions (LEARNED scope mismatch, baseline
+  duplication, whitelist anchoring, agent-hang risk + TOCTOU on operator
+  code) — catch quality maintained, including on code no pipeline had seen.
+- The mandatory cannot_verify section produced honest, closable gap lists in
+  all 5 reviews (reviewers explicitly credited it for preventing implied
+  passes).
+- Remediation cycles attributable to review: two-stage era >=1 on most
+  scopes; dual era 1 in 5 (ISSUE-0007's cycle originated in validation, not
+  review). Confounded by the same-period tooling hardening — reported, not
+  claimed as review-driven.
+
+Caveats (honest limits):
+- TOKEN comparison — the RFC's headline axis — is UNMEASURABLE: tokens_in/out
+  are null across both eras (runtime does not expose usage; CHANGE-0010's
+  warning machinery now makes the gap visible on every run). The -50% token
+  claim therefore remains imported from Superpowers' evals, not locally
+  demonstrated.
+- Small n (5 vs 19), heterogeneous scope sizes, and the eras also differ in
+  tooling maturity (dispatch mechanization landed mid-window).
+
+VERDICT: KEEP the single dual-verdict prompt. Wall-clock is parity-or-better
+(-5% median, -11..-27% mean), catch quality is maintained with strictly
+better honesty artifacts (cannot_verify), and no post-merge regression
+attributable to a missed review finding was observed. Revert path remains
+documented and unexercised. Re-evaluate the token axis if/when the harness
+exposes real usage.

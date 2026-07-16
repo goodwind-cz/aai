@@ -97,6 +97,7 @@ try {
         # auth at all. Emptying the credential helper + any injected auth header forces
         # git to fetch anonymously, so the public canonical repo clones with no creds.
         if (Test-Path $Tmp) { Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue }
+        $env:GIT_TERMINAL_PROMPT = '0'  # PR#67 review NB-1: never prompt
         git -c credential.helper= -c http.https://github.com/.extraheader= clone --branch $Ref --depth 1 $CloneUrl $Tmp *> $null
         if ($LASTEXITCODE -eq 0) { $cloned = $true }
       }
@@ -137,7 +138,7 @@ try {
   $pin = Join-Path $Target ".aai/system/AAI_PIN.md"
   if (Test-Path $pin) {
     Write-Host "- AAI_PIN:"
-    Select-String -Path $pin -Pattern 'source|version|commit|ref' | ForEach-Object { Write-Host "  $($_.Line)" }
+    Select-String -Path $pin -Pattern 'source|version|commit|ref|canonical' | ForEach-Object { Write-Host "  $($_.Line)" }
   }
 
   $reports = Join-Path $Target "docs/ai/reports"
