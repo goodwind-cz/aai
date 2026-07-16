@@ -137,6 +137,17 @@ PROCESS
    - NEVER merge. `gh pr merge` is FORBIDDEN in this skill, in the loop, and in
      any subagent it spawns. Merging is an operator-only action performed by a
      human after their own review. Do not enable auto-merge either.
+   - Hook marker (RFC-0010, opt-in overlay): projects with the Claude hooks
+     overlay installed deny `git merge` / `gh pr merge` mechanically unless
+     `AAI_OPERATOR_MERGE=1` is set on that command. The agent NEVER sets this
+     marker for itself. It exists so the OPERATOR — or an agent acting on the
+     operator's explicit, recorded direction (cf. the docs/ai/decisions.jsonl
+     directed-merge record, 2026-07-16) — can perform a directed merge without
+     disabling the overlay. Constitution article 7 is unchanged: this ceremony
+     still ends at `gh pr create`. Honest framing: the marker is a guardrail
+     against habit, not a security boundary — setting it without the operator's
+     explicit direction is a constitution violation, not a technical
+     impossibility.
    - After opening the PR, report the PR URL and stop.
    - Branch/worktree cleanup is post-merge work: delete the branch or remove the
      worktree only after `gh pr view <n> --json state` reads MERGED — never on

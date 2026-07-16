@@ -5,7 +5,7 @@ number: 10
 status: accepted
 links:
   research: RES-0001
-  spec: null
+  spec: spec-hook-enforced-gates
   pr: []
   commits: []
 ---
@@ -68,6 +68,12 @@ the platform that supports it, at zero portability cost (opt-in overlay).
 - Should the merge-deny hook exist at all given the owner's standing
   merge authorization pattern in this repo? (It targets OTHER projects'
   default posture.)
+  - RESOLVED 2026-07-16: the owner ratified docs/CONSTITUTION.md with STRICT
+    article 7 (operator-only merge, no carve-out), so the merge-deny hook
+    ships as designed. The `AAI_OPERATOR_MERGE=1` env marker is the escape
+    for operator-directed merges (documented in .aai/SKILL_PR.prompt.md
+    step 6, aligned with the docs/ai/decisions.jsonl directed-merge record);
+    it is a guardrail, not a security boundary.
 
 ## Approvals
 - Required approvers: Project owner (ales@holubec.net).

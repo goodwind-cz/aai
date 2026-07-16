@@ -4,23 +4,27 @@ set -euo pipefail
 # Generate project-local AAI dynamic skills from evidence in the target repo.
 #
 # Usage:
-#   ./.aai/scripts/aai-bootstrap.sh [target-root] [--dry-run] [--force]
+#   ./.aai/scripts/aai-bootstrap.sh [target-root] [--dry-run] [--force] [--with-claude-hooks]
 #
 # Safety model:
 # - Creates or updates only known dynamic skill files and local discovery indexes.
 # - Refuses to overwrite a skill file that does not contain the AAI dynamic marker.
 # - --dry-run prints planned writes without changing files.
 # - --force is the explicit confirmation for replacing unmarked dynamic skill paths.
+# - --with-claude-hooks (OPT-IN, RFC-0010): merge the AAI hook-enforced gates
+#   overlay from .aai/templates/hooks/settings-hooks.json into .claude/settings.json
+#   (additive merge; existing settings preserved; never overwrites silently).
 
 DRY_RUN=0
 FORCE=0
+WITH_CLAUDE_HOOKS=0
 TARGET=""
 GENERATOR=".aai/scripts/aai-bootstrap.sh"
 SKILL_MARKER="AAI-DYNAMIC-SKILL:START"
 FILE_MARKER="AAI-DYNAMIC-FILE:START"
 
 usage() {
-  sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 for arg in "$@"; do
@@ -30,6 +34,9 @@ for arg in "$@"; do
       ;;
     --force)
       FORCE=1
+      ;;
+    --with-claude-hooks)
+      WITH_CLAUDE_HOOKS=1
       ;;
     -h|--help)
       usage
@@ -906,6 +913,96 @@ write_outputs() {
   ensure_gitignore
 }
 
+# OPT-IN Claude Code hooks overlay (RFC-0010 / spec-hook-enforced-gates).
+# Only runs under --with-claude-hooks; a default bootstrap run NEVER touches
+# .claude/settings.json. Merge semantics (never overwrite silently):
+# - existing settings.json is parsed and kept; ONLY the "hooks" key gains the
+#   overlay entries, and only those whose command string is not already
+#   present (idempotent re-run; foreign keys/hooks preserved);
+# - an existing file that does not parse as JSON is REFUSED with a manual
+#   merge instruction — the file is left byte-identical;
+# - a missing template or missing node degrades to a WARN + skip (the .aai
+#   scripts remain the gate floor without the overlay).
+install_claude_hooks() {
+  [[ "$WITH_CLAUDE_HOOKS" -eq 1 ]] || return 0
+  local tpl=".aai/templates/hooks/settings-hooks.json"
+  local dst=".claude/settings.json"
+
+  if [[ ! -f "$tpl" ]]; then
+    echo "WARN: Claude hooks template not found ($tpl) — skipping hooks install. Vendor it via .aai/scripts/aai-sync.sh, then rerun with --with-claude-hooks."
+    return 0
+  fi
+  if ! command -v node >/dev/null 2>&1; then
+    echo "WARN: node unavailable — cannot merge the hooks overlay. Manual step: merge the \"hooks\" key from $tpl into $dst yourself."
+    return 0
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    WRITTEN+=("[dry-run] $dst (merge AAI hooks overlay from $tpl)")
+    return 0
+  fi
+
+  mkdir -p .claude
+  local merge_out
+  if merge_out="$(node -e '
+const fs = require("fs");
+const [tplPath, dstPath] = process.argv.slice(1);
+const tpl = JSON.parse(fs.readFileSync(tplPath, "utf8"));
+let dst = {};
+if (fs.existsSync(dstPath)) {
+  try {
+    dst = JSON.parse(fs.readFileSync(dstPath, "utf8"));
+  } catch (e) {
+    console.error("existing " + dstPath + " is not valid JSON — refusing to touch it. Merge the \"hooks\" key from " + tplPath + " manually.");
+    process.exit(1);
+  }
+}
+if (typeof dst !== "object" || dst === null || Array.isArray(dst)) {
+  console.error("existing " + dstPath + " is not a JSON object — refusing to touch it. Merge manually from " + tplPath + ".");
+  process.exit(1);
+}
+// Review NB-1: a pre-existing non-object "hooks" key (e.g. hooks: []) would
+// make the merge silently drop entries while reporting success — refuse loud.
+if ("hooks" in dst && (typeof dst.hooks !== "object" || dst.hooks === null || Array.isArray(dst.hooks))) {
+  console.error("existing " + dstPath + " has a non-object \"hooks\" key — refusing to touch it. Fix it or merge manually from " + tplPath + ".");
+  process.exit(1);
+}
+dst.hooks = dst.hooks || {};
+let added = 0, skipped = 0;
+for (const [event, matchers] of Object.entries(tpl.hooks || {})) {
+  dst.hooks[event] = dst.hooks[event] || [];
+  for (const m of matchers) {
+    for (const h of (m.hooks || [])) {
+      const present = dst.hooks[event].some((x) => (x.hooks || []).some((y) => y.command === h.command));
+      if (present) { skipped++; continue; }
+      let entry = dst.hooks[event].find((x) => x.matcher === m.matcher);
+      if (!entry) {
+        entry = (m.matcher !== undefined) ? { matcher: m.matcher, hooks: [] } : { hooks: [] };
+        dst.hooks[event].push(entry);
+      }
+      entry.hooks.push(h);
+      added++;
+    }
+  }
+}
+if (added > 0) fs.writeFileSync(dstPath, JSON.stringify(dst, null, 2) + "\n");
+console.log("hooks overlay: " + added + " hook(s) added, " + skipped + " already present -> " + dstPath);
+' "$tpl" "$dst" 2>&1)"; then
+    echo "  $merge_out"
+    if printf '%s' "$merge_out" | grep -q "0 hook(s) added"; then
+      UNCHANGED+=("$dst (AAI hooks overlay already present)")
+    else
+      WRITTEN+=("$dst (AAI hooks overlay merged)")
+    fi
+  else
+    echo "ERROR: hooks overlay merge refused — $merge_out" >&2
+    echo "ERROR: $dst left untouched. Merge the \"hooks\" key from $tpl manually." >&2
+    # Review NB-1 follow-through: --with-claude-hooks was EXPLICITLY requested;
+    # delivering nothing must fail the command, not warn-and-succeed.
+    HOOKS_MERGE_FAILED=1
+  fi
+  return 0
+}
+
 print_summary() {
   echo
   echo "AAI bootstrap summary"
@@ -967,4 +1064,8 @@ if [[ "${#CONFLICTS[@]}" -gt 0 ]]; then
 fi
 
 write_outputs
+install_claude_hooks
 print_summary
+
+# Review NB-1: an explicitly requested hooks overlay that was refused fails the run.
+if [ "${HOOKS_MERGE_FAILED:-0}" = "1" ]; then exit 3; fi

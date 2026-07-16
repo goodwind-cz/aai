@@ -1,0 +1,34 @@
+{
+  "_comment": "AAI hook-enforced gates overlay (RFC-0010 / spec-hook-enforced-gates). OPT-IN: nothing installs this automatically — run .aai/scripts/aai-bootstrap.sh --with-claude-hooks to merge the 'hooks' key into the project's .claude/settings.json (existing settings are merged additively, never overwritten; unparseable files are refused with a manual-merge instruction). Absence of this overlay leaves behavior unchanged on every platform — the .aai scripts remain the cross-platform gate floor (Codex/Gemini/older Claude). Every hook is a thin adapter call into .aai/scripts/claude-hook-gate.sh, which only routes to EXISTING gates (pre-commit-checks.sh; constitution articles 6/7) and fails OPEN on its own errors; each command below additionally guards the adapter's absence so a hooks-only install degrades to a no-op. Guardrail, not a security boundary.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "G=\"${CLAUDE_PROJECT_DIR:-.}/.aai/scripts/claude-hook-gate.sh\"; if [ -f \"$G\" ]; then bash \"$G\" commit; fi"
+          },
+          {
+            "type": "command",
+            "command": "G=\"${CLAUDE_PROJECT_DIR:-.}/.aai/scripts/claude-hook-gate.sh\"; if [ -f \"$G\" ]; then bash \"$G\" merge; fi"
+          },
+          {
+            "type": "command",
+            "command": "G=\"${CLAUDE_PROJECT_DIR:-.}/.aai/scripts/claude-hook-gate.sh\"; if [ -f \"$G\" ]; then bash \"$G\" state-dump; fi"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "G=\"${CLAUDE_PROJECT_DIR:-.}/.aai/scripts/claude-hook-gate.sh\"; if [ -f \"$G\" ]; then bash \"$G\" stop-nudge; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

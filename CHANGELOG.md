@@ -9,6 +9,22 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: hook-enforced gates overlay for Claude Code (RFC-0010 / SPEC-0029)
+
+- Opt-in PreToolUse/Stop hooks template mirroring EXISTING script gates
+  (zero new logic in hooks): git commit -> pre-commit-checks; git/gh merge ->
+  ratified article-7 deny with the AAI_OPERATOR_MERGE ceremony escape;
+  yaml.dump on STATE.yaml -> state.mjs pointer; Stop wrap-up nudge (never
+  blocks). Fail-open everywhere; absence = unchanged behavior; Codex/Gemini
+  unaffected (scripts remain the floor). Install via aai-bootstrap
+  --with-claude-hooks (idempotent merge; refuses loud on unmergeable
+  settings.json and now FAILS the run when the requested overlay cannot land
+  — review NB-1 follow-through).
+- Review caught two real edges pre-merge: hooks:[] silent false success and
+  the 'git -C <worktree> merge' matcher bypass — both remediated with
+  regression stanzas. Hooks schema verified against live docs by validation
+  (one harmless assumption corrected).
+
 ## [unreleased] — feat: project constitution with justified-exception tracking (CHANGE-0019 / SPEC-0028)
 
 - docs/CONSTITUTION.md: 7 one-sentence articles distilled from scattered canon
