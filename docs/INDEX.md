@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-16T11:50:18.884Z
+Generated: 2026-07-16T12:09:53.027Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -16,7 +16,7 @@ _None._
 | SPEC-0018 | specs | implementing | 5 done | docs/specs/SPEC-0018-spec-model-tiering-with-teeth.md |
 | SPEC-0019 | specs | implementing | 10 done | docs/specs/SPEC-0019-spec-mechanize-deterministic-ticks.md |
 | SPEC-0020 | specs | implementing | 6 done | docs/specs/SPEC-0020-spec-doctor-vendored-layer-drift.md |
-| SPEC-0021 | specs | implementing | 5 done, 1 deferred | docs/specs/SPEC-0021-spec-single-dual-verdict-review.md |
+| SPEC-0021 | specs | implementing | 6 done | docs/specs/SPEC-0021-spec-single-dual-verdict-review.md |
 | SPEC-0022 | specs | implementing | 6 done | docs/specs/SPEC-0022-spec-state-list-append-indent.md |
 | SPEC-0023 | specs | implementing | 5 done | docs/specs/SPEC-0023-spec-learned-to-layer-promotion.md |
 | SPEC-0024 | specs | implementing | 3 done | docs/specs/SPEC-0024-spec-review-taxonomy-alignment.md |
@@ -90,11 +90,9 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (1)
+## Deferred items (per-AC, across all specs) (0)
 
-| Source Doc | AC | Review-By | Notes |
-|---|---|---|---|
-| SPEC-0021 | Spec-AC-05 | manual:2026-08-31 | Checked at wrap-up once 5 post-change reviewed scopes exist in METRICS.jsonl; revert path = git restore of pre-change .aai/SKILL_CODE_REVIEW.prompt.md |
+_None._
 
 ## Blocked items (per-AC, across all specs) (0)
 

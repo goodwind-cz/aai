@@ -100,8 +100,8 @@ else
       # auth at all. Emptying the credential helper + any injected auth header forces
       # git to fetch anonymously, so the public canonical repo clones with no creds.
       rm -rf "$TMP"
-      git -c credential.helper= -c http.https://github.com/.extraheader= \
-          clone --branch "$REF" --depth 1 "$CLONE_URL" "$TMP" >/dev/null 2>&1 && cloned=1
+      GIT_TERMINAL_PROMPT=0 git -c credential.helper= -c http.https://github.com/.extraheader= \
+          clone --branch "$REF" --depth 1 "$CLONE_URL" "$TMP" >/dev/null 2>&1 && cloned=1  # PR#67 review NB-1: never prompt (agent sessions would hang)
     fi
     if [[ "$cloned" != "1" ]]; then
       echo "ERROR: could not fetch $REPO@$REF (auth or network?). Treat as an access issue, not a missing repo." >&2

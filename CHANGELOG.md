@@ -9,6 +9,22 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — chore: dual-verdict measurement gate evaluated — KEEP (SPEC-0021 closed)
+
+- 5/5 reviewed scopes collected; wall-clock parity-or-better vs the two-stage
+  era (median -5%, mean -11%, spec-backed subset -27%); catch quality
+  maintained incl. on operator code merged outside the pipeline (PR #67
+  post-merge review: agent-hang risk + temp-path TOCTOU found). Token axis
+  honestly UNMEASURABLE (null usage both eras) — the -50% claim stays
+  imported, not demonstrated. Verdict: KEEP; revert path unexercised.
+- PR #67 review NB-1 remediated here: anonymous clone attempt now sets
+  GIT_TERMINAL_PROMPT=0 in both twins (a private canonical repo would hang an
+  agent session on a username prompt); ps1 pin evidence grep gains the
+  SPEC-0020 'canonical' widening (INFO-2). NB-2 (TOCTOU) promoted with
+  disposition in decisions.jsonl.
+- Ledger completed for CHANGE-0014/0015 review runs (archive recovery) so the
+  gate had all five data points; pricing suite green.
+
 ## [unreleased] — feat: verification-before-completion gate skill (CHANGE-0016 / SPEC-0025)
 
 - New .aai/SKILL_VERIFY.prompt.md (71 lines): the Iron Law gate — IDENTIFY the
