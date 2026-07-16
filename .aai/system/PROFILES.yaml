@@ -89,6 +89,7 @@ core:
   - .aai/scripts/autonomous-loop.sh
   - .aai/scripts/check-state.mjs
   - .aai/scripts/claude-hook-gate.sh
+  - .aai/scripts/delta-merge.mjs
   - .aai/scripts/docs-audit.mjs
   - .aai/scripts/docs-lock.mjs
   - .aai/scripts/generate-docs-index.mjs
