@@ -102,6 +102,8 @@ PROCESS
    upward). Level 3 is MANDATORY when the scope touches a path listed in
    `protected_paths_l3` (docs/ai/docs-audit.yaml). An absent field is
    implicit level 2 — legacy specs stay valid unchanged.
+   Post-freeze advisory: run `node .aai/scripts/spec-lint.mjs --path <spec_path>` and report
+   its structural findings (report-only — never blocks freeze); if the script is absent, note it and continue.
 11) Emit the work-item brief (subagent handoff): create docs/ai/briefs/<REF-ID>.md
    from .aai/templates/BRIEF_TEMPLATE.md — skip this step while SPEC-FROZEN is false.
    Fill Scope & Why, the AC ↔ Task Map, Constraints & Canon Pointers (repo PATHS

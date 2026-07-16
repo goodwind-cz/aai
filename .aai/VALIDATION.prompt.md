@@ -93,6 +93,8 @@ and reported, but the verdict cannot be PASS until all gate rules pass.
 
 PROCESS
 1) Read docs/ai/STATE.yaml and verify validation is allowed (not paused, not blocked by human_input).
+   Advisory: run `node .aai/scripts/spec-lint.mjs --path <spec_path>` and record its structural
+   findings as advisory context (report-only in v1, never the verdict); if the script is absent, note it and continue.
 2) Inventory all requirements and acceptance criteria.
 3) Verify mapping to implementation specs.
 4) Locate implementation paths.
