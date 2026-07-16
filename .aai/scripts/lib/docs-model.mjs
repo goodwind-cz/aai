@@ -112,6 +112,24 @@ export function domainToReqDomain(slug) {
   return s.toUpperCase().replace(/-/g, '_');
 }
 
+// Exact inverse of domainToReqDomain: reverse a REQ id domain token back to its
+// canonical domain slug (snake→kebab, lowercase). "OAUTH2_LOGIN" -> "oauth2-login",
+// "AUTH" -> "auth". Because a domain slug is kebab with no underscores, the
+// reversal is unambiguous. Throws on any token that does NOT round-trip to a
+// DOMAIN_SLUG_RE slug — i.e. the reversal must reproduce the input under
+// domainToReqDomain (fail fast, matching domainToReqDomain's convention). A
+// lowercase input is not a canonical REQ domain token and is rejected (never
+// silently lowercased). Consumers: parseDeltasSection here; the delta merge that
+// RFC-0011 (delta-spec lifecycle) schedules for a later delivery.
+export function reqDomainToSlug(token) {
+  const t = String(token ?? '').trim();
+  const slug = t.toLowerCase().replace(/_/g, '-');
+  if (!DOMAIN_SLUG_RE.test(slug) || domainToReqDomain(slug) !== t) {
+    throw new Error(`reqDomainToSlug: "${t}" does not reverse to a valid domain slug (${DOMAIN_SLUG_RE})`);
+  }
+  return slug;
+}
+
 // Parse the `## Requirements` section of a canonical doc body (RFC-0011).
 // Returns { present, requirements, violations }:
 //   - present: whether the `## Requirements` heading exists;
@@ -201,6 +219,169 @@ export function parseRequirementsSection(content, { domain } = {}) {
   flush();
 
   return { present: true, requirements, violations };
+}
+
+// Parse the optional SPEC `## Deltas` section (RFC-0011, delta-spec lifecycle).
+// A SPEC may declare intended requirement changes as level-3 delta blocks, each
+// an operation on ONE canonical requirement; spec-lint checks their SHAPE and
+// the later delta merge consumes the SAME parsed `deltas` to resolve targets, so
+// the grammar is implemented ONCE (mirrors parseRequirementsSection).
+//
+// Returns { present, deltas, violations }:
+//   - present: whether an EXACT `## Deltas` heading exists (nothing else on the
+//     line, so `## Deltas Rationale` never matches);
+//   - deltas: one entry per block with a recognized op —
+//     { op, id, domain, slug, title, shallCount, scenarios }. `op` is
+//     ADDED|MODIFIED|REMOVED; `id` the full REQ-… string as authored (no NNN for
+//     ADDED); `domain` the uppercase-snake token (null when underivable/malformed);
+//     `slug` the reversed kebab slug (null when underivable); `title` null for
+//     REMOVED;
+//   - violations: [{ code, detail, line }] — the D2 finding codes, most-specific
+//     first: delta-op-invalid, delta-added-numbered, delta-id-malformed,
+//     delta-domain-underivable, delta-shall-count, delta-scenario-malformed,
+//     delta-duplicate.
+//
+// SHAPE ONLY — this asserts nothing about the live canonical layer (does the
+// MODIFIED/REMOVED id exist? is the target doc present?). Cross-doc resolution
+// and the NNN assignment for ADDED belong to the delta merge. An absent section
+// -> { present:false, deltas:[], violations:[] }; a present-but-empty section
+// (no `###` blocks) is a VALID state -> { present:true, deltas:[], violations:[] }.
+// Reuses REQ_ID_RE and reqDomainToSlug so a delta id is exactly an id the
+// canonical layer accepts (single source of truth).
+// Blank out HTML-comment regions while preserving line count (each stripped
+// char except newlines becomes empty), so line numbers reported downstream stay
+// accurate. Commented-out content is INACTIVE by author intent — a `## Deltas`
+// example shipped commented in SPEC_TEMPLATE, or a delta block an author
+// comments out to disable it, must not be parsed as live content.
+export function stripHtmlComments(content) {
+  return String(content).replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ''));
+}
+
+export function parseDeltasSection(content) {
+  const lines = stripHtmlComments(normalizeNewlines(content)).split('\n');
+  const deltas = [];
+  const violations = [];
+
+  // Locate the EXACT `## Deltas` heading (nothing else on the line). Commented
+  // headings are already blanked by stripHtmlComments, so a template-derived
+  // spec that leaves the example commented reports present:false (not phantom
+  // deltas) — the shape the delta merge relies on (no accidental canonical writes).
+  let start = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/^##\s+Deltas\s*$/.test(lines[i])) { start = i; break; }
+  }
+  if (start < 0) return { present: false, deltas, violations };
+
+  // Gather level-3 blocks until the next level-2 heading. `^##\s` never matches
+  // a `### ` line (its third char is `#`, not whitespace), so nested blocks stay in.
+  const blocks = [];
+  let cur = null;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (/^##\s/.test(line)) break;
+    if (/^###\s/.test(line)) {
+      if (cur) blocks.push(cur);
+      cur = { heading: line, lineNo: i + 1, bodyLines: [] };
+      continue;
+    }
+    if (cur) cur.bodyLines.push(line);
+  }
+  if (cur) blocks.push(cur);
+
+  const OPS = new Set(['ADDED', 'MODIFIED', 'REMOVED']);
+  const numberedSeen = new Set();    // full REQ-<DOMAIN>-NNN ids already targeted
+  const addedTitleSeen = new Set();  // `${domain} ${title.toLowerCase()}`
+
+  for (const b of blocks) {
+    const V = (code, detail) => violations.push({ code, detail, line: b.lineNo });
+    const hm = b.heading.match(/^###\s+(\S+)(?:\s+(.*\S))?\s*$/);
+    const op = hm ? hm[1] : '';
+    if (!OPS.has(op)) {
+      V('delta-op-invalid', `delta heading "${b.heading.trim()}" — first token must be ADDED, MODIFIED, or REMOVED`);
+      continue;
+    }
+    const rest = (hm && hm[2]) ? hm[2].trim() : '';
+
+    // Body facts: SHALL-line count, scenario bullets (WHEN … THEN … validity).
+    let shallCount = 0;
+    const scenarios = [];
+    const badScenarios = [];
+    for (const bl of b.bodyLines) {
+      const sc = bl.match(/^-\s+Scenario:\s*(.+)$/);
+      if (sc) {
+        const text = sc[1].trim();
+        scenarios.push(text);
+        if (!/\bWHEN\b[\s\S]*\bTHEN\b/.test(text)) badScenarios.push(text);
+        continue;
+      }
+      if (/\bSHALL\b/.test(bl)) shallCount += 1;
+    }
+
+    // Id + title. ADDED/MODIFIED carry `<id> — <title>`; REMOVED is id-only.
+    const dash = rest.split(/\s+—\s+/);
+    const idToken = (dash[0] || '').trim();
+    const title = dash.length > 1 ? dash.slice(1).join(' — ').trim() : null;
+
+    let domain = null;
+    let slug = null;
+    if (op === 'ADDED') {
+      if (/^REQ-.+-\d{3,}$/.test(idToken)) {
+        V('delta-added-numbered', `ADDED id "${idToken}" carries a number — the NNN is assigned at merge, never authored`);
+      } else if (!/^REQ-\S+$/.test(idToken)) {
+        V('delta-id-malformed', `ADDED id "${idToken}" must be REQ-<DOMAIN> (uppercase-snake domain, no number)`);
+      } else {
+        const domTok = idToken.slice(4);
+        try {
+          slug = reqDomainToSlug(domTok);
+          domain = domTok;
+        } catch {
+          V('delta-domain-underivable', `ADDED domain "${domTok}" does not reverse to a valid canonical slug`);
+        }
+      }
+    } else {
+      // MODIFIED / REMOVED target an EXISTING REQ-<DOMAIN>-NNN id.
+      if (!REQ_ID_RE.test(idToken)) {
+        V('delta-id-malformed', `${op} id "${idToken}" must match REQ-<DOMAIN>-NNN`);
+      } else {
+        const domTok = idToken.replace(/^REQ-/, '').replace(/-\d+$/, '');
+        try {
+          slug = reqDomainToSlug(domTok);
+          domain = domTok;
+        } catch {
+          V('delta-domain-underivable', `${op} domain "${domTok}" does not reverse to a valid canonical slug`);
+        }
+      }
+    }
+
+    // Body-shape rules.
+    if (op === 'REMOVED') {
+      if (shallCount > 0 || scenarios.length > 0 || title != null) {
+        V('delta-shall-count', `REMOVED block for "${idToken}" must be empty — no title, SHALL line, or scenario`);
+      }
+    } else {
+      if (shallCount !== 1) {
+        V('delta-shall-count', `${op} block for "${idToken}" must carry exactly one SHALL line (found ${shallCount})`);
+      }
+      for (const bad of badScenarios) {
+        V('delta-scenario-malformed', `scenario "${bad}" must match "WHEN … THEN …"`);
+      }
+    }
+
+    // Duplicate targeting.
+    if (REQ_ID_RE.test(idToken)) {
+      if (numberedSeen.has(idToken)) V('delta-duplicate', `${idToken} is targeted by more than one delta block`);
+      else numberedSeen.add(idToken);
+    }
+    if (op === 'ADDED' && domain != null && title != null) {
+      const key = `${domain} ${title.toLowerCase()}`;
+      if (addedTitleSeen.has(key)) V('delta-duplicate', `ADDED title "${title}" collides with another ADDED in domain ${domain}`);
+      else addedTitleSeen.add(key);
+    }
+
+    deltas.push({ op, id: idToken, domain, slug, title, shallCount, scenarios });
+  }
+
+  return { present: true, deltas, violations };
 }
 
 // Doc IDs in filenames: PREFIX-DIGITS plus compound forms with letter

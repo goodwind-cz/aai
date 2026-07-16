@@ -99,6 +99,40 @@ None.
   forward; optional for pre-existing specs (docs-audit never flags legacy
   docs for lacking this section). -->
 
+<!-- OPTIONAL `## Deltas` section (RFC-0011, delta-spec lifecycle). Include it
+  ONLY when this change alters canonical requirements; omit it entirely
+  otherwise (a spec with no `## Deltas` section is completely unaffected — the
+  section is optional and legacy specs stay valid). To use it, uncomment the
+  heading and the block(s) below. spec-lint validates the SHAPE
+  (parseDeltasSection); the deterministic delta merge applies the blocks into
+  docs/canonical/ at PR ceremony — nothing is resolved against the live
+  canonical layer here.
+
+  Each level-3 block is ONE operation on ONE canonical requirement. `<DOMAIN>`
+  is the uppercase-snake REQ domain token; the target canonical slug is DERIVED
+  from it by snake→kebab (OAUTH2_LOGIN -> oauth2-login) — no separate target
+  line. The three ops:
+  - ADDED   `### ADDED REQ-<DOMAIN> — <title>` proposes a NEW requirement. NO
+            `-NNN` number (the next unused NNN per domain is assigned at merge).
+            Body: exactly one SHALL line; optional `- Scenario: WHEN … THEN …`.
+  - MODIFIED `### MODIFIED REQ-<DOMAIN>-NNN — <title>` replaces an EXISTING
+            requirement's body. Body: exactly one SHALL line; optional scenarios.
+  - REMOVED `### REMOVED REQ-<DOMAIN>-NNN` retires an EXISTING id permanently.
+            Empty block — no title, no SHALL, no scenarios.
+
+## Deltas
+
+### ADDED REQ-OAUTH2_LOGIN — Password grant retired
+The system SHALL reject the OAuth2 password grant on the login endpoint.
+
+- Scenario: WHEN a password-grant token request arrives THEN it is refused with 400.
+
+### MODIFIED REQ-AUTH-001 — Session expiry tightened
+The system SHALL expire an idle authenticated session after 15 minutes.
+
+### REMOVED REQ-AUTH-009
+-->
+
 ## Acceptance Criteria Status
 
 Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.

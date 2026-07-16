@@ -24,7 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   normalizeNewlines, parseFrontmatter, parseAcTable, normalizeAcStatus,
-  specFrozenInBody, walk, toPosix, parseLeanAcTable,
+  specFrozenInBody, walk, toPosix, parseLeanAcTable, parseDeltasSection,
 } from './lib/docs-model.mjs';
 
 const ROOT = process.cwd();
@@ -215,6 +215,16 @@ export function lintContent(content) {
       }
     }
   }
+
+  // --- Deltas shape validation (RFC-0011, delta-spec lifecycle) -------------
+  // The optional `## Deltas` section declares intended requirement changes;
+  // spec-lint checks their SHAPE via the shared parseDeltasSection reader (same
+  // grammar the canonical layer accepts — one source of truth). A spec with NO
+  // `## Deltas` section produces ZERO findings here (legacy specs untouched);
+  // a present-but-empty section is a valid state. Each parsed violation renders
+  // one-for-one into a finding with its D2 code and the block's line number.
+  const deltas = parseDeltasSection(norm);
+  for (const v of deltas.violations) add(v.code, v.detail, v.line ?? null);
 
   // --- SPEC-FROZEN consistency ----------------------------------------------
   // Strategy is exempt at levels 0/1 (RFC-0009 lean artifacts). The AC table:

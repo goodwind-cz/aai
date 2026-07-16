@@ -35,6 +35,11 @@ PROCESS
 2) Determine target scope from current_focus and active_work_items.
 3) Read the relevant requirement/intake artifacts for the scope.
 4) Create or update docs/specs/SPEC-<id>.md using .aai/templates/SPEC_TEMPLATE.md.
+   Declaring Deltas (RFC-0011, delta-spec lifecycle): when the change ADDS,
+   MODIFIES, or REMOVES a canonical requirement, declare it in the spec's
+   optional `## Deltas` section (ADDED/MODIFIED/REMOVED blocks against
+   REQ-<DOMAIN>[-NNN] ids — see SPEC_TEMPLATE) so the close-time merge into
+   docs/canonical/ is mechanical. Omit it when no canonical requirement changes.
 5) Build explicit mapping for each requirement AC:
    Requirement AC -> Spec-AC -> verification command(s) -> expected evidence.
 6) Build Test Plan: for each Spec-AC, enumerate concrete tests in the ## Test Plan table:
