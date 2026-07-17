@@ -1094,26 +1094,15 @@ test_017_seam_survival_spec0041() {
     (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-ceremony-levels.sh "$fn" > "$TEST_DIR/t17-$fn.log" 2>&1) \
       || log_fail "$fn must stay green post-change: $(tail -20 "$TEST_DIR/t17-$fn.log")"
   done
-  # test_010 itself re-runs prompt-diet (see below) via a KNOWN pre-existing
-  # byte-budget shortfall (LEARNED 2026-07-17) unrelated to this scope; it is
-  # exercised directly below instead of via the subprocess loop above so that
-  # shortfall is isolated to ONE assertion rather than aborting this whole test.
+  # test_010 itself re-runs prompt-diet (see below); it is exercised directly
+  # here too so the seam is proven independently of the loop above.
 
-  # S3 -- prompt-diet floor. A documented PRE-EXISTING shortfall (TEST-010
-  # byte-budget, ~485 bytes short, reproduced on clean main before this scope
-  # touched anything -- LEARNED 2026-07-17) already fails this suite; this
-  # scope must not add any OTHER failure on top of it. Tolerate ONLY that
-  # named pre-existing line; any other FAIL is a real regression.
-  local diet_ec=0 diet_fails
-  (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-prompt-diet.sh > "$TEST_DIR/t17-diet.log" 2>&1) || diet_ec=$?
-  diet_fails="$(grep -c '^FAIL ' "$TEST_DIR/t17-diet.log" || true)"
-  if [[ "$diet_ec" != 0 ]]; then
-    if [[ "$diet_fails" == "1" ]] && grep -q "^FAIL TEST-010 audit + byte reduction" "$TEST_DIR/t17-diet.log"; then
-      log_info "prompt-diet: pre-existing TEST-010 byte-budget shortfall only (LEARNED 2026-07-17), no new regression: $(grep 'net reduction' "$TEST_DIR/t17-diet.log")"
-    else
-      log_fail "prompt-diet must not regress beyond the documented pre-existing TEST-010 shortfall: $(tail -20 "$TEST_DIR/t17-diet.log")"
-    fi
-  fi
+  # S3 -- prompt-diet floor. The pre-existing TEST-010 byte-budget shortfall
+  # (LEARNED 2026-07-17) is RESOLVED (DEBT-0002/SPEC-0048: JUSTIFIED_GROWTH_BYTES
+  # ledger credit + bounded headroom-cap guard) -- plain exit-0 assertion, no
+  # tolerance branch.
+  (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-prompt-diet.sh > "$TEST_DIR/t17-diet.log" 2>&1) \
+    || log_fail "prompt-diet must exit 0 (DEBT-0002 shortfall resolved): $(tail -20 "$TEST_DIR/t17-diet.log")"
 
   # S4 -- repo-wide strict audit.
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/t17-audit.log" 2>&1) \
@@ -1136,14 +1125,14 @@ main() {
   test_007_spec_template
   test_008_planning_step10
   test_009_workflow_and_config
-  # test_011..017 run BEFORE test_010 on purpose: test_010 re-runs
-  # tests/skills/test-aai-prompt-diet.sh, which carries a documented
-  # PRE-EXISTING byte-budget shortfall (LEARNED 2026-07-17, reproduced on
-  # clean main before this scope touched anything) and therefore aborts this
-  # whole `set -euo pipefail` script once it fails. Running the new
-  # spec-loop-ceremony-aware-dispatch stanzas first lets a single `main`
-  # invocation prove TEST-011..017 green before that pre-existing failure is
-  # reached; test_017 re-asserts prompt-diet itself with the same tolerance.
+  # test_011..017 run before test_010. Historically test_010 re-ran
+  # tests/skills/test-aai-prompt-diet.sh, which carried a documented
+  # PRE-EXISTING byte-budget shortfall (LEARNED 2026-07-17) that aborted this
+  # whole `set -euo pipefail` script once it failed; that shortfall is now
+  # RESOLVED (DEBT-0002/SPEC-0048), so both test_017's S3 assertion and
+  # test_010 assert prompt-diet exit 0 directly -- the ordering is kept for
+  # stability (spec-loop-ceremony-aware-dispatch stanzas before the older
+  # spec-scale-adaptive-ceremony seam-survival stanza).
   test_011_decide_lane_table
   test_012_validation_dispatch_payload
   test_013_cli_lane_field

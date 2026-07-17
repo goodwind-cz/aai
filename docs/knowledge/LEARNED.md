@@ -60,6 +60,24 @@
   to run unrelated stanzas before `test_010_seam_survival`, to avoid masking
   their results. (Source: CHANGE-0030/SPEC-0041 TDD Implementation, TEST-007
   RED/GREEN evidence, docs/ai/tdd/ceremony-lane-green.log.)
+  **RESOLVED 2026-07-17 (DEBT-0002/SPEC-0048):** the fixed byte floor was
+  calibrated for the SPEC-0017 diet corpus and never re-baselined as later
+  canon-mandated additions (dual-verdict review taxonomy, VALIDATION 8a,
+  CEREMONY LANE, RED_CLASS, SECRETS PREFLIGHT, doc-number reservation,
+  ceremony-lane surfaces) legitimately grew it. Fix: a `JUSTIFIED_GROWTH_BYTES`
+  ledger constant (6144 B, itemized inline) is credited into the reduction —
+  `BASELINE_PROMPT_BYTES`/`REQUIRED_REDUCTION_BYTES` stay unchanged (rewriting
+  them would erase history and IS the blank-raise anti-pattern) — plus a new
+  `0 <= headroom <= HEADROOM_CAP` (2048 B) anti-bloat guard so the credit
+  cannot be padded and future unjustified growth still fails. Also raised the
+  TEST-011 thin-wrapper line ceiling 40->45 (zero headroom broke live on a
+  1-line canon growth). `test_017`'s pre-existing-shortfall tolerance in
+  `test-aai-ceremony-levels.sh` is removed — a plain exit-0 assertion now
+  suffices, and the full ceremony suite is green end to end. (Source:
+  DEBT-0002 TDD Implementation, docs/ai/tdd/red-20260717T185005Z-*.log,
+  docs/ai/tdd/red-20260717T185240Z-*.log,
+  docs/ai/tdd/green-20260717T185321Z-*.log,
+  docs/ai/tdd/green-20260717T185451Z-*.log.)
 
 ## Session 2026-07-16/17 (RES-0001 tail + delta-spec lifecycle)
 

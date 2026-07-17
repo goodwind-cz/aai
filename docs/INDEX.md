@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T18:39:29.828Z
+Generated: 2026-07-17T19:20:26.038Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (105)
+## Done (106)
 
 | ID | Type | Path |
 |---|---|---|
@@ -55,6 +55,7 @@ _None._
 | CHANGE-0034 | issues | docs/issues/CHANGE-0034-intake-secrets-preflight.md |
 | CHANGE-0035 | issues | docs/issues/CHANGE-0035-doc-number-origin-reservation.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
+| DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
 | ISSUE-0003 | issues | docs/issues/ISSUE-0003-index-autogen-bakes-stale-drift-row.md |
@@ -129,7 +130,7 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
+| SPEC-0048 | specs | docs/specs/SPEC-0048-prompt-diet-byte-budget-true-up.md |
 
 ## Deferred (whole-doc) (0)
 
