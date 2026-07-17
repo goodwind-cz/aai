@@ -4,8 +4,10 @@ type: techdebt
 number: 2
 status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 100
+  commits:
+    - e3a1b08
 ---
 
 # Tech Debt: prompt-diet TEST-010 byte-budget floor breached on clean main

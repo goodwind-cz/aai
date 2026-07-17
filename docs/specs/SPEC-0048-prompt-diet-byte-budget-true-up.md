@@ -2,13 +2,15 @@
 id: prompt-diet-byte-budget-true-up
 type: spec
 number: 48
-status: draft
+status: done
 ceremony_level: 1
 links:
   requirement: DEBT-0002
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 100
+  commits:
+    - e3a1b08
 ---
 
 # Spec — prompt-diet byte-budget & thin-wrapper ceiling true-up (DEBT-0002)

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T19:20:26.038Z
+Generated: 2026-07-17T19:21:11.626Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (106)
+## Done (107)
 
 | ID | Type | Path |
 |---|---|---|
@@ -124,13 +124,12 @@ _None._
 | SPEC-0045 | specs | docs/specs/SPEC-0045-spec-intake-secrets-preflight.md |
 | SPEC-0046 | specs | docs/specs/SPEC-0046-spec-test-wrapper-windows-fallback.md |
 | SPEC-0047 | specs | docs/specs/SPEC-0047-spec-doc-number-origin-reservation.md |
+| SPEC-0048 | specs | docs/specs/SPEC-0048-prompt-diet-byte-budget-true-up.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| SPEC-0048 | specs | docs/specs/SPEC-0048-prompt-diet-byte-budget-true-up.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

@@ -678,3 +678,7 @@
 {"v":1,"ts":"2026-07-17T19:18:57.424Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0048","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260717T191722Z.md","notes":"dual-verdict PASS/PASS; 1 NON-BLOCKING (H6 disposition pending orchestrator); 2 cannot_verify"}}
 {"v":1,"ts":"2026-07-17T19:20:05.566Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"prompt-diet-byte-budget-true-up","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-17T19:20:05.602Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"prompt-diet-byte-budget-true-up","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T19:20:57.643Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"prompt-diet-byte-budget-true-up","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T19:20:57.679Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"prompt-diet-byte-budget-true-up","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T19:20:57.710Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"prompt-diet-byte-budget-true-up","payload":{"commit":"e3a1b08"}}
+{"v":1,"ts":"2026-07-17T19:21:01.014Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":107,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
