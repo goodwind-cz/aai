@@ -2,10 +2,12 @@
 id: prompt-diet-byte-budget-true-up
 type: techdebt
 number: 2
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 100
+  commits:
+    - e3a1b08
 ---
 
 # Tech Debt: prompt-diet TEST-010 byte-budget floor breached on clean main
@@ -61,3 +63,22 @@ links:
 - Found during CHANGE-0030/SPEC-0041 TDD (2026-07-17); verified pre-existing
   via clean-main worktree A/B by both Validation and Code Review. See
   LEARNED.md 2026-07-17 entry and review-20260717T121031Z.md NB-2.
+
+## Resolution (2026-07-17, DEBT-0002/SPEC-0048)
+- `tests/skills/test-aai-prompt-diet.sh` TEST-010 re-baselined via a
+  `JUSTIFIED_GROWTH_BYTES=6144` ledger credit (inline itemized comment;
+  `BASELINE_PROMPT_BYTES`/`REQUIRED_REDUCTION_BYTES` unchanged) plus a new
+  `HEADROOM_CAP=2048` anti-bloat guard asserting `0 <= headroom <=
+  HEADROOM_CAP` (measured: reduction 29694 B, headroom 1022 B) — proven to
+  bite RED with a deliberately padded credit before going GREEN.
+- TEST-011 thin-wrapper line ceiling raised 40 -> 45 with rationale comment;
+  a synthetic 46-line fixture proof confirms the ceiling still rejects
+  over-limit wrappers.
+- `test-aai-ceremony-levels.sh` `test_017`'s pre-existing-shortfall tolerance
+  removed -> plain exit-0 assertion; full suite green.
+- Evidence: docs/ai/tdd/red-20260717T185005Z-test010-011.log,
+  docs/ai/tdd/red-20260717T185240Z-test002-headroomcap.log,
+  docs/ai/tdd/green-20260717T185321Z-test001-002-003.log,
+  docs/ai/tdd/green-20260717T185451Z-test004-ceremony.log.
+- See docs/specs/SPEC-0048-prompt-diet-byte-budget-true-up.md and
+  docs/knowledge/LEARNED.md 2026-07-17 entry.

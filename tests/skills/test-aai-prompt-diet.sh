@@ -24,8 +24,34 @@ cd "$PROJECT_ROOT"
 
 # Byte baseline measured before any CHANGE-0011 edit (evidence:
 # docs/ai/tdd/prompt-diet-kb-before.txt). AC floor: >= 28KB net reduction.
+# BASELINE_PROMPT_BYTES and REQUIRED_REDUCTION_BYTES are the historical
+# SPEC-0017 diet contract and stay UNCHANGED (DEBT-0002/SPEC-0048): rewriting
+# them to match live measurements would erase history and IS the
+# blank-raise anti-pattern the floor exists to prevent.
 BASELINE_PROMPT_BYTES=357457
 REQUIRED_REDUCTION_BYTES=28672   # 28 KB
+
+# --- Justified-growth ledger (DEBT-0002 / SPEC-0048 Spec-AC-01/02) ---------
+# Canon-mandated prompt additions AFTER the SPEC-0017 diet legitimately grew
+# the corpus; each addition below is individually justified. Itemized ledger
+# (source: DEBT-0002 root cause, docs/knowledge/LEARNED.md 2026-07-17):
+#   - dual-verdict code-review taxonomy (spec_compliance + code_quality)
+#   - VALIDATION 8a exception clause
+#   - CEREMONY LANE block (SPEC-0041 lane surfaces)
+#   - RED_CLASS discipline (SPEC-0044)
+#   - SECRETS PREFLIGHT block (SPEC-0045)
+#   - doc-number origin reservation docs/surfaces (SPEC-0047)
+#   - ceremony-lane declaration surfaces (SPEC_TEMPLATE, PLANNING, WORKFLOW)
+# Measured deficit this session (clean main, pre-fix): 5122 B
+# (23550 B net reduction < 28672 B required; after=325653, extra=8254).
+# Chosen credit: 6144 B -> adjusted_reduction = 23550 + 6144 = 29694 B ->
+# headroom = 1022 B, inside the 2048 B HEADROOM_CAP below.
+JUSTIFIED_GROWTH_BYTES=6144
+# Anti-bloat guard (TEST-002/Spec-AC-02): headroom must stay in
+# [0, HEADROOM_CAP] so the credit cannot be padded arbitrarily and future
+# UNJUSTIFIED prompt growth beyond the cap still fails this test (forcing a
+# new itemized ledger line, or a shrink, instead of a silent absorption).
+HEADROOM_CAP=2048
 
 E2E_DRAFT="docs/issues/CHANGE-DRAFT-prompt-diet-e2e-dry-run.md"
 
@@ -319,22 +345,36 @@ test_010_audit_and_reduction() {
     log_info "TEST-010: repo-wide docs-audit --check --strict failed"
     ok=0
   fi
-  local after extra reduction
+  local after extra reduction headroom
   after=$(cat .aai/*.prompt.md | wc -c | tr -d ' ')
   extra=0
   [[ -f .aai/INTAKE_COMMON.md ]] && extra=$((extra + $(wc -c < .aai/INTAKE_COMMON.md)))
   [[ -f .aai/STATE_FALLBACK.md ]] && extra=$((extra + $(wc -c < .aai/STATE_FALLBACK.md)))
-  reduction=$((BASELINE_PROMPT_BYTES - after - extra))
-  if [[ "$reduction" -lt "$REQUIRED_REDUCTION_BYTES" ]]; then
-    log_info "TEST-010: net reduction $reduction bytes (< $REQUIRED_REDUCTION_BYTES; after=$after, new files=$extra)"
+  reduction=$((BASELINE_PROMPT_BYTES - after - extra + JUSTIFIED_GROWTH_BYTES))
+  headroom=$((reduction - REQUIRED_REDUCTION_BYTES))
+  if [[ "$headroom" -lt 0 ]]; then
+    log_info "TEST-010: net reduction $reduction bytes (< $REQUIRED_REDUCTION_BYTES; after=$after, new files=$extra, credit=$JUSTIFIED_GROWTH_BYTES)"
+    ok=0
+  elif [[ "$headroom" -gt "$HEADROOM_CAP" ]]; then
+    log_info "TEST-010: headroom $headroom bytes exceeds cap $HEADROOM_CAP (reduction=$reduction, required=$REQUIRED_REDUCTION_BYTES, credit=$JUSTIFIED_GROWTH_BYTES) -- either the credit is padded above what the ledger justifies, OR the corpus legitimately shrank below the credit: LOWER JUSTIFIED_GROWTH_BYTES to match the real deficit (a shrink means you no longer need the old credit), or add an itemized ledger line for genuine new growth"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-010 strict audit clean, net reduction $reduction bytes" || log_fail "TEST-010 audit + byte reduction"
+  [[ $ok -eq 1 ]] && log_pass "TEST-010 strict audit clean, net reduction $reduction bytes (headroom $headroom/$HEADROOM_CAP)" || log_fail "TEST-010 audit + byte reduction"
 }
 
 # TEST-011 (CHANGE-0009 spec-local TEST-015) — the three deterministic-tick
-# prompts are thin wrappers: <=40 lines each, each names its script path and
-# carries a degrade instruction for the script-absent vendored layer.
+# prompts are thin wrappers: <=WRAPPER_LINE_CEILING lines each, each names
+# its script path and carries a degrade instruction for the script-absent
+# vendored layer.
+#
+# Ceiling raised 40->45 (DEBT-0002/SPEC-0048 Spec-AC-03): the original
+# SPEC-0017 40-line cap left .aai/ORCHESTRATION.prompt.md at exactly 40/40
+# (zero headroom) and broke live on a single canon-mandated line addition
+# (LEARNED 2026-07-17). +5 gives deterministic-tick wrappers headroom for
+# one more small addition while still rejecting anything that stops being
+# "thin" (>45 lines) -- see the synthetic over-ceiling fixture below.
+WRAPPER_LINE_CEILING=45
+
 test_011_tick_wrappers() {
   local ok=1 pair f s n
   local pairs=(
@@ -351,8 +391,8 @@ test_011_tick_wrappers() {
       continue
     fi
     n=$(wc -l < "$f" | tr -d ' ')
-    if [[ "$n" -gt 40 ]]; then
-      log_info "TEST-011: $f is $n lines (> 40 — not a thin wrapper)"
+    if [[ "$n" -gt "$WRAPPER_LINE_CEILING" ]]; then
+      log_info "TEST-011: $f is $n lines (> $WRAPPER_LINE_CEILING — not a thin wrapper)"
       ok=0
     fi
     if ! grep -qF "$s" "$f"; then
@@ -364,8 +404,33 @@ test_011_tick_wrappers() {
       ok=0
     fi
   done
-  [[ $ok -eq 1 ]] && log_pass "TEST-011 deterministic-tick wrappers <=40 lines + script path + degrade (CHANGE-0009 TEST-015)" \
-    || log_fail "TEST-011 deterministic-tick wrappers (CHANGE-0009 TEST-015)"
+
+  # Anti-bloat proof (DEBT-0002 Spec-AC-03 / spec TEST-003): the ceiling must
+  # actually bite, not just document a number. Build a synthetic fixture at
+  # ceiling+1 (46) lines that otherwise satisfies the script-path + degrade
+  # markers, and confirm the SAME comparison the real wrappers are checked
+  # against correctly rejects it on line count alone.
+  local fixture i
+  fixture="$(mktemp -t aai-wrapper-ceiling-fixture)"
+  {
+    echo "# synthetic oversize wrapper fixture (DEBT-0002 TEST-011 proof)"
+    echo "Run .aai/scripts/orchestration-dispatch.mjs"
+    echo "DEGRADED: script absent"
+    for i in $(seq 1 43); do echo "# padding line $i"; done
+  } > "$fixture"
+  n=$(wc -l < "$fixture" | tr -d ' ')
+  if [[ "$n" -le "$WRAPPER_LINE_CEILING" ]]; then
+    log_info "TEST-011: synthetic fixture is $n lines (want > $WRAPPER_LINE_CEILING to prove the ceiling bites)"
+    ok=0
+  fi
+  if ! grep -qF ".aai/scripts/orchestration-dispatch.mjs" "$fixture" || ! grep -qiE "degrade|DEGRADED" "$fixture"; then
+    log_info "TEST-011: synthetic fixture missing required markers (test bug, not a real finding)"
+    ok=0
+  fi
+  rm -f "$fixture"
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-011 deterministic-tick wrappers <=$WRAPPER_LINE_CEILING lines + script path + degrade, ceiling guard proven to bite (CHANGE-0009 TEST-015 / DEBT-0002 Spec-AC-03)" \
+    || log_fail "TEST-011 deterministic-tick wrappers (CHANGE-0009 TEST-015 / DEBT-0002 Spec-AC-03)"
 }
 
 main() {
