@@ -616,3 +616,26 @@
 {"v":1,"ts":"2026-07-17T15:22:56.798Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-intake-secrets-preflight","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-17T15:22:56.831Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"intake-secrets-preflight","payload":{"commit":"cea19d7"}}
 {"v":1,"ts":"2026-07-17T15:23:00.091Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":103,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-17T15:36:28.980Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-wrapper-windows-fallback","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-07-17T16:01:39.219Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0046/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T16:01:39.255Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0046/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T16:01:39.293Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0046/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T16:01:39.331Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0046/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T16:01:39.367Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0046/Spec-AC-05","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T16:01:39.403Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0046/Spec-AC-06","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T16:01:39.441Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0046/Spec-AC-07","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T16:01:39.479Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0046/Spec-AC-08","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T16:01:39.517Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0046/Spec-AC-09","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T16:01:39.555Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0046/Spec-AC-10","payload":{"from":"planned","to":"deferred"}}
+{"v":1,"ts":"2026-07-17T16:10:23.155Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0046/Spec-AC-01","payload":{"commit":"VAL-20260717T160436Z"}}
+{"v":1,"ts":"2026-07-17T16:10:23.189Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0046/Spec-AC-02","payload":{"commit":"VAL-20260717T160436Z"}}
+{"v":1,"ts":"2026-07-17T16:10:23.221Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0046/Spec-AC-03","payload":{"commit":"VAL-20260717T160436Z"}}
+{"v":1,"ts":"2026-07-17T16:10:23.254Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0046/Spec-AC-04","payload":{"commit":"VAL-20260717T160436Z"}}
+{"v":1,"ts":"2026-07-17T16:10:23.286Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0046/Spec-AC-05","payload":{"commit":"VAL-20260717T160436Z"}}
+{"v":1,"ts":"2026-07-17T16:10:23.320Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0046/Spec-AC-06","payload":{"commit":"VAL-20260717T160436Z"}}
+{"v":1,"ts":"2026-07-17T16:10:23.352Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0046/Spec-AC-07","payload":{"commit":"VAL-20260717T160436Z"}}
+{"v":1,"ts":"2026-07-17T16:10:23.384Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0046/Spec-AC-08","payload":{"commit":"VAL-20260717T160436Z"}}
+{"v":1,"ts":"2026-07-17T16:10:23.416Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0046/Spec-AC-09","payload":{"commit":"VAL-20260717T160436Z"}}
+{"v":1,"ts":"2026-07-17T16:18:14.418Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0046","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260717T161627Z.md","notes":"dual-verdict: spec_compliance pass (AC-01..09 compliant, AC-10 deferred/RR-1), code_quality pass, 0 BLOCKING, 4 NON-BLOCKING (NB-A timeout race, NB-B Int32 coercion, NB-C WSL reap env passthrough, NB-D evidence-timestamp typo=validator NB-1 confirmed) pending orchestrator disposition; INFO-1 windows-latest Pester opportunity"}}
+{"v":1,"ts":"2026-07-17T16:30:50.723Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"test-wrapper-windows-fallback","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-17T16:30:50.754Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"test-wrapper-windows-fallback","payload":{"validation":"pass","code_review":"pass"}}

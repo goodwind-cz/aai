@@ -1,15 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T15:23:00.180Z
+Generated: 2026-07-17T16:31:13.588Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (0)
+## Active (implementing) (1)
 
-_None._
+| ID | Type | Status | Progress | Path |
+|---|---|---|---|---|
+| SPEC-0046 | specs | implementing | 9 done, 1 deferred | docs/specs/SPEC-0046-spec-test-wrapper-windows-fallback.md |
 
 ## Canonical layer (0)
 
@@ -132,9 +134,11 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (0)
+## Deferred items (per-AC, across all specs) (1)
 
-_None._
+| Source Doc | AC | Review-By | Notes |
+|---|---|---|---|
+| SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
 

@@ -16,6 +16,7 @@ on:
       - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
       - 'tests/skills/test-ps1-quality.sh'
       - 'tests/skills/aai-update.Tests.ps1'
+      - 'tests/skills/aai-win-dispatch.Tests.ps1'
       - '.github/workflows/ps1-quality.yml'
   pull_request:
     paths:
@@ -23,6 +24,7 @@ on:
       - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
       - 'tests/skills/test-ps1-quality.sh'
       - 'tests/skills/aai-update.Tests.ps1'
+      - 'tests/skills/aai-win-dispatch.Tests.ps1'
       - '.github/workflows/ps1-quality.yml'
   workflow_dispatch: {}
 

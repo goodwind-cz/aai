@@ -27,6 +27,18 @@
 # Output: prints the number of reaped process trees ("reaped: N"). No-op (exit 0)
 # when nothing matches.
 #
+# Platform matrix (Spec-AC-07 / SPEC-0046-spec-test-wrapper-windows-fallback;
+# kept identical across this header, aai-run-tests.sh, aai-run-tests.ps1,
+# aai-reap-tests.ps1, and docs/TECHNOLOGY.md):
+#   macOS                              - full contract above (BSD ps etime + pid/ppid walk)
+#   Linux                              - full contract above (GNU ps etime + pid/ppid walk)
+#   Windows + WSL                      - full contract, via WSL delegation (aai-reap-tests.ps1)
+#   Windows + Git-Bash-only (no WSL)   - this POSIX file is not the primary reap path on
+#                                         native Windows; aai-reap-tests.ps1's native (Windows
+#                                         process table) reap covers it — see that file
+#   Windows, neither WSL nor Git Bash  - AAI-ENV-ERROR path lives in aai-run-tests.ps1; this
+#                                         POSIX file is never reached in that configuration
+#
 # POSIX sh; works on macOS (BSD ps) + Linux (GNU ps).
 
 set -u

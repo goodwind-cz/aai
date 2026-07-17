@@ -24,6 +24,24 @@
 #
 # Environment:
 #   AAI_TEST_TIMEOUT  timeout in seconds (default 300; non-integer or <=0 -> 300)
+#   AAI_UNAME         test-only override for the `uname -s` probe below
+#                      (SPEC-0046 Spec-AC-05); unset on macOS/Linux in normal
+#                      use — this file's behavior there is UNCHANGED.
+#
+# Platform matrix (Spec-AC-07 / SPEC-0046-spec-test-wrapper-windows-fallback;
+# kept identical across this header, aai-reap-tests.sh, aai-run-tests.ps1,
+# aai-reap-tests.ps1, and docs/TECHNOLOGY.md):
+#   macOS                              - full contract above (setsid/perl-setsid group-kill)
+#   Linux                              - full contract above (setsid group-kill)
+#   Windows + WSL                      - full contract, via WSL delegation (aai-run-tests.ps1)
+#   Windows + Git-Bash-only (no WSL)   - DEGRADED (this file's MSYS branch below): no
+#                                         setsid/perl-setsid pretence; best-effort Windows
+#                                         `taskkill //T` tree-kill when available, else plain
+#                                         `kill`; detached/reparented descendants NOT guaranteed
+#                                         reaped (no POSIX sessions on Windows) — weaker than
+#                                         the contract above; announced once on stderr
+#   Windows, neither WSL nor Git Bash  - AAI-ENV-ERROR: ..., exit 78 (aai-run-tests.ps1); this
+#                                         POSIX file is never reached in that configuration
 #
 # POSIX sh; works on macOS + Linux (no GNU-only tools).
 
@@ -36,6 +54,22 @@ case "$TIMEOUT" in
   '' | *[!0-9]*) TIMEOUT=300 ;;
 esac
 [ "$TIMEOUT" -gt 0 ] 2>/dev/null || TIMEOUT=300
+
+# MSYS/MINGW detection (Spec-AC-05): running directly INSIDE Git Bash (no WSL,
+# no real POSIX session support) needs a documented degraded launch/cleanup
+# chain, never the setsid/perl-setsid pretence below (those primitives do not
+# give real process-group isolation under MSYS). AAI_UNAME is a test-only
+# override so this branch is unit-testable on macOS/Linux (tests/skills/
+# test-aai-win-fallback.sh TEST-007); with it UNSET, `uname -s` reports
+# Darwin/Linux and this is a no-op — byte-identical to pre-change behavior.
+UNAME_S="${AAI_UNAME:-$(uname -s 2>/dev/null || echo unknown)}"
+DEGRADED_MSYS=0
+case "$UNAME_S" in
+  MSYS*|MINGW*) DEGRADED_MSYS=1 ;;
+esac
+if [ "$DEGRADED_MSYS" -eq 1 ]; then
+  echo "AAI-DEGRADED-MODE: running under Git-Bash/MSYS ($UNAME_S) - no POSIX process-group guarantee; using best-effort Windows tree-kill (taskkill //T) or plain kill; detached/reparented descendants are NOT guaranteed reaped (see docs/TECHNOLOGY.md platform matrix)." >&2
+fi
 
 if [ "$#" -eq 0 ]; then
   echo "usage: aai-run-tests.sh <command> [args...]" >&2
@@ -53,7 +87,10 @@ fi
 #      the command, so pid is unchanged (exit-code fidelity kept) and pgid == pid.
 #   3. bash job control (set -m) — ONLY when the wrapper itself runs under bash.
 #   4. bare background — last resort (no isolation) when none of the above exist.
-if command -v setsid >/dev/null 2>&1; then
+if [ "$DEGRADED_MSYS" -eq 1 ]; then
+  "$@" &
+  CMD_PID=$!
+elif command -v setsid >/dev/null 2>&1; then
   setsid "$@" &
   CMD_PID=$!
 elif command -v perl >/dev/null 2>&1; then
@@ -84,7 +121,15 @@ rm -f "$TIMED_OUT_FILE"
     i=$((i + 1))
   done
   : > "$TIMED_OUT_FILE"
-  kill -TERM -"$PGID" 2>/dev/null || kill -TERM "$CMD_PID" 2>/dev/null
+  if [ "$DEGRADED_MSYS" -eq 1 ]; then
+    if command -v taskkill >/dev/null 2>&1; then
+      taskkill //PID "$CMD_PID" //T >/dev/null 2>&1 || kill -TERM "$CMD_PID" 2>/dev/null
+    else
+      kill -TERM "$CMD_PID" 2>/dev/null
+    fi
+  else
+    kill -TERM -"$PGID" 2>/dev/null || kill -TERM "$CMD_PID" 2>/dev/null
+  fi
 ) &
 WATCHDOG_PID=$!
 
@@ -105,9 +150,21 @@ rm -f "$TIMED_OUT_FILE"
 # ALWAYS reap the whole group on every exit path (success / failure / timeout),
 # so a descendant that outlived the group leader (the classic hung-vitest leak)
 # is TERM'd, then KILL'd after a short grace.
-kill -TERM -"$PGID" 2>/dev/null
-sleep 1
-kill -KILL -"$PGID" 2>/dev/null
+if [ "$DEGRADED_MSYS" -eq 1 ]; then
+  if command -v taskkill >/dev/null 2>&1; then
+    taskkill //PID "$CMD_PID" //T >/dev/null 2>&1 || kill -TERM "$CMD_PID" 2>/dev/null
+    sleep 1
+    taskkill //PID "$CMD_PID" //T //F >/dev/null 2>&1 || kill -KILL "$CMD_PID" 2>/dev/null
+  else
+    kill -TERM "$CMD_PID" 2>/dev/null
+    sleep 1
+    kill -KILL "$CMD_PID" 2>/dev/null
+  fi
+else
+  kill -TERM -"$PGID" 2>/dev/null
+  sleep 1
+  kill -KILL -"$PGID" 2>/dev/null
+fi
 
 if [ "$TIMED_OUT" -eq 1 ]; then
   exit 124
