@@ -36,6 +36,7 @@ Frontmatter status values: draft | implementing | done | deferred | rejected | s
 
 ## Constraints / Risks
 - Known risks or constraints:
+- Secrets preflight results (if any secret referenced): `ref -> exists|empty|missing` per reference; never the value.
 
 ## Notes
 - Additional context, links, or logs.

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T14:27:37.142Z
+Generated: 2026-07-17T15:22:32.414Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -119,13 +119,14 @@ _None._
 | SPEC-0044 | specs | docs/specs/SPEC-0044-spec-tdd-red-evidence-classification.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (3)
+## Drafts (4)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0034 | issues | docs/issues/CHANGE-0034-intake-secrets-preflight.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0009 | issues | docs/issues/ISSUE-0009-test-wrapper-windows-fallback.md |
+| SPEC-0045 | specs | docs/specs/SPEC-0045-spec-intake-secrets-preflight.md |
 
 ## Deferred (whole-doc) (0)
 

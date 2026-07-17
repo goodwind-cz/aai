@@ -22,7 +22,7 @@ PROCESS
 7) If enough information is available, stop questions early.
 8) Output summary + completed Issue markdown + suggested filename.
 
-SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its four blocks (language policy, durable doc identity, post-save check, metrics question) exactly.
+SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its four blocks (language policy, durable doc identity, post-save check, metrics question) exactly, plus the SECRETS PREFLIGHT block when the scope references a local secret.
 
 BEGIN with (in the user's language):
 "What is the issue (short title)?"
