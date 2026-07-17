@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T09:28:05.090Z
+Generated: 2026-07-17T12:13:31.763Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -111,9 +111,18 @@ _None._
 | SPEC-0040 | specs | docs/specs/SPEC-0040-spec-docs-audit-d2-evidence-hardening.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (8)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0030 | issues | docs/issues/CHANGE-0030-loop-ceremony-aware-dispatch.md |
+| CHANGE-0031 | issues | docs/issues/CHANGE-0031-dispatch-new-intake-after-completed-scope.md |
+| CHANGE-0032 | issues | docs/issues/CHANGE-0032-loop-token-usage-capture.md |
+| CHANGE-0033 | issues | docs/issues/CHANGE-0033-tdd-red-evidence-classification.md |
+| CHANGE-0034 | issues | docs/issues/CHANGE-0034-intake-secrets-preflight.md |
+| DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
+| ISSUE-0009 | issues | docs/issues/ISSUE-0009-test-wrapper-windows-fallback.md |
+| SPEC-0041 | specs | docs/specs/SPEC-0041-spec-loop-ceremony-aware-dispatch.md |
 
 ## Deferred (whole-doc) (0)
 
