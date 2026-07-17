@@ -2,10 +2,12 @@
 id: intake-secrets-preflight
 type: change
 number: 34
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 97
+  commits:
+    - cea19d7
 ---
 
 # Change — Intake Preflight Check for Referenced Local Secrets (exists/empty/missing, never the value)

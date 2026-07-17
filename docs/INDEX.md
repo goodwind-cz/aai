@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T15:22:32.414Z
+Generated: 2026-07-17T15:23:00.180Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (99)
+## Done (101)
 
 | ID | Type | Path |
 |---|---|---|
@@ -52,6 +52,7 @@ _None._
 | CHANGE-0031 | issues | docs/issues/CHANGE-0031-dispatch-new-intake-after-completed-scope.md |
 | CHANGE-0032 | issues | docs/issues/CHANGE-0032-loop-token-usage-capture.md |
 | CHANGE-0033 | issues | docs/issues/CHANGE-0033-tdd-red-evidence-classification.md |
+| CHANGE-0034 | issues | docs/issues/CHANGE-0034-intake-secrets-preflight.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
@@ -117,16 +118,15 @@ _None._
 | SPEC-0042 | specs | docs/specs/SPEC-0042-spec-dispatch-new-intake-after-completed-scope.md |
 | SPEC-0043 | specs | docs/specs/SPEC-0043-spec-loop-token-usage-capture.md |
 | SPEC-0044 | specs | docs/specs/SPEC-0044-spec-tdd-red-evidence-classification.md |
+| SPEC-0045 | specs | docs/specs/SPEC-0045-spec-intake-secrets-preflight.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (4)
+## Drafts (2)
 
 | ID | Type | Path |
 |---|---|---|
-| CHANGE-0034 | issues | docs/issues/CHANGE-0034-intake-secrets-preflight.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0009 | issues | docs/issues/ISSUE-0009-test-wrapper-windows-fallback.md |
-| SPEC-0045 | specs | docs/specs/SPEC-0045-spec-intake-secrets-preflight.md |
 
 ## Deferred (whole-doc) (0)
 

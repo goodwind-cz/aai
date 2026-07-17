@@ -611,3 +611,8 @@
 {"v":1,"ts":"2026-07-17T15:21:50.316Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"CHANGE-0034","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260717T152035Z.md","notes":"SPEC-0045 dual-verdict pass; 1 NON-BLOCKING (NB-1 .env multiline shadow) pending orchestrator disposition"}}
 {"v":1,"ts":"2026-07-17T15:22:32.242Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"intake-secrets-preflight","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-17T15:22:32.277Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"intake-secrets-preflight","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T15:22:56.730Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"intake-secrets-preflight","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T15:22:56.765Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-intake-secrets-preflight","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T15:22:56.798Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-intake-secrets-preflight","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T15:22:56.831Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"intake-secrets-preflight","payload":{"commit":"cea19d7"}}
+{"v":1,"ts":"2026-07-17T15:23:00.091Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":103,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

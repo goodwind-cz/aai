@@ -2,13 +2,15 @@
 id: spec-intake-secrets-preflight
 type: spec
 number: 45
-status: draft
+status: done
 ceremony_level: 2
 links:
   change: intake-secrets-preflight
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 97
+  commits:
+    - cea19d7
 ---
 
 # SPEC — Intake Secrets Preflight: exists/empty/missing, never the value
