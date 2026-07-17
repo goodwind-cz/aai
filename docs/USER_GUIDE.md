@@ -579,8 +579,11 @@ again used by the pre-commit hook against staged content.
   possibly shipped elsewhere and never closed
 - `probable-false-open` — open doc (draft/implementing/accepted) whose
   delivery is already evidenced (a later feat/fix/chore commit mentioning it,
-  an `ac_evidence` event, or a fully terminal evidenced AC table); confirm
-  delivery, then run the close ceremony
+  an `ac_evidence` event, a `work_item_closed` event, or a fully terminal
+  evidenced AC table — a done row's Evidence cell counts even when it also
+  cites a `docs/ai/tdd/` proof log, as long as it also carries a
+  delivery-grade citation: a git-verified commit hash or a PR reference);
+  confirm delivery, then run the close ceremony
 - `probable-partial` — spec marked done without the mandated AC table
 - `orphan` — doc without canonical frontmatter (new ones fail `--check`)
 

@@ -4219,6 +4219,295 @@ test_change0027_doc_surfaces_mention_false_open() {  # TEST-014 / Spec-AC-09
   log_pass "USER_GUIDE.md and SKILL.md both mention the false-open verdict (TEST-014)"
 }
 
+# --- CHANGE-0028 / SPEC-docs-audit-d2-evidence-hardening — D2(b)/D2(c)
+# delivery-evidence hardening (TEST-001..011) --------------------------------
+#
+# Every positive-firing stanza below shares the CHANGE-9001 positive control
+# (via setup_fo_repo + assert_fo_control_flagged, SPEC-0039 precedent) so a
+# purely-negative assertion can never pass vacuously against the unmodified
+# engine.
+
+test_change0028_mixed_cell_git_hash_flags() {  # TEST-001 / Spec-AC-01
+  log_info "Test: mixed Evidence cell (TDD log + git-verified commit hash) flags via AC-table signal (TEST-001)..."
+  local d; d="$(setup_fo_repo fo028-hash)"
+  # A commit whose hash gets cited in the mixed Evidence cell below.
+  echo "delivery" > "$d/HASH-DELIVERY.md"
+  (cd "$d" && git add HASH-DELIVERY.md && git commit -qm "chore: unrelated delivery commit for hash citation")
+  local hash; hash="$(cd "$d" && git rev-parse --short=10 HEAD)"
+  cat > "$d/docs/specs/SPEC-5860-mixed-hash.md" <<MD
+---
+id: SPEC-5860
+type: spec
+status: accepted
+links:
+  pr: []
+---
+# Accepted spec with a mixed TDD-log + hash Evidence cell
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | TEST-001 green — docs/ai/tdd/green-20260101T000000Z-fixture.log; delivered ${hash} | — | — |
+MD
+  (cd "$d" && git add docs/specs/SPEC-5860-mixed-hash.md && git commit -qm "docs: add SPEC-5860 fixture")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  grep -F "SPEC-5860" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-001: mixed TDD-log + git-verified hash Evidence cell must flag via AC-table signal"
+  grep -F "SPEC-5860" "$d/drift-sec.txt" | grep -qF "AC Status table fully terminal with evidence" \
+    || log_fail "TEST-001: reasons must name the AC-table signal"
+  rm -rf "$d"
+  log_pass "Mixed TDD-log + git-verified commit hash Evidence cell flags via AC-table signal (TEST-001)"
+}
+
+test_change0028_mixed_cell_pr_ref_flags() {  # TEST-002 / Spec-AC-02
+  log_info "Test: mixed Evidence cells with PR #N and /pull/N URL citations flag via AC-table signal (TEST-002)..."
+  local d; d="$(setup_fo_repo fo028-pr)"
+  cat > "$d/docs/specs/SPEC-5861-mixed-pr.md" <<'MD'
+---
+id: SPEC-5861
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Implementing spec with mixed TDD-log + PR-reference Evidence cells
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | TEST-001 green — docs/ai/tdd/green-20260101T000000Z-a.log; landed via PR #91 | — | — |
+| Spec-AC-02 | second      | done   | TEST-002 green — docs/ai/tdd/green-20260101T000000Z-b.log; see https://example.com/goodwind-cz/aai/pull/91 | — | — |
+MD
+  (cd "$d" && git add docs/specs/SPEC-5861-mixed-pr.md && git commit -qm "docs: add SPEC-5861 fixture")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  grep -F "SPEC-5861" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-002: mixed TDD-log + PR-reference Evidence cell must flag via AC-table signal"
+  rm -rf "$d"
+  log_pass "Mixed TDD-log + PR reference Evidence cells flag via AC-table signal (TEST-002)"
+}
+
+test_change0028_mixed_cell_prose_not_flagged() {  # TEST-003 / Spec-AC-04
+  log_info "Test: mixed Evidence cell TDD-log + non-delivery prose only stays unflagged (guard control, TEST-003)..."
+  local d; d="$(setup_fo_repo fo028-prose)"
+  cat > "$d/docs/specs/SPEC-5862-mixed-prose.md" <<'MD'
+---
+id: SPEC-5862
+type: spec
+status: accepted
+links:
+  pr: []
+---
+# Accepted spec whose Evidence cell mixes a TDD log with non-delivery prose
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | TEST-001 green — docs/ai/tdd/green-20260101T000000Z-c.log; re-verified locally, looks good | — | — |
+MD
+  (cd "$d" && git add docs/specs/SPEC-5862-mixed-prose.md && git commit -qm "docs: add SPEC-5862 fixture")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  if grep -qF "SPEC-5862" "$d/drift-sec.txt"; then
+    log_fail "TEST-003: TDD-log + non-delivery prose Evidence cell must NOT flag (precision guard)"
+  fi
+  rm -rf "$d"
+  log_pass "Mixed TDD-log + non-delivery prose Evidence cell stays unflagged (TEST-003)"
+}
+
+test_change0028_mixed_cell_unresolvable_hash_not_flagged() {  # TEST-004 / Spec-AC-04
+  log_info "Test: mixed Evidence cell TDD-log + hash-shaped token absent from git stays unflagged (git-verify guard, TEST-004)..."
+  local d; d="$(setup_fo_repo fo028-badhash)"
+  cat > "$d/docs/specs/SPEC-5863-mixed-badhash.md" <<'MD'
+---
+id: SPEC-5863
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Implementing spec whose Evidence cell mixes a TDD log with a nonexistent hash-shaped token
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | TEST-001 green — docs/ai/tdd/green-20260101T000000Z-d.log; commit abcdef1 | — | — |
+MD
+  (cd "$d" && git add docs/specs/SPEC-5863-mixed-badhash.md && git commit -qm "docs: add SPEC-5863 fixture")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  if grep -qF "SPEC-5863" "$d/drift-sec.txt"; then
+    log_fail "TEST-004: TDD-log + unresolvable hash-shaped token Evidence cell must NOT flag (git-verify guard)"
+  fi
+  rm -rf "$d"
+  log_pass "Mixed TDD-log + unresolvable hash-shaped token Evidence cell stays unflagged (TEST-004)"
+}
+
+test_change0028_spec0039_verbatim_replica_not_flagged() {  # TEST-005 / Spec-AC-03
+  log_info "Test: verbatim replica of SPEC-0039's real Spec-AC-07 Evidence cell stays unflagged (TEST-005)..."
+  local d; d="$(setup_fo_repo fo028-replica)"
+  cat > "$d/docs/specs/SPEC-5864-replica.md" <<'MD'
+---
+id: SPEC-5864
+type: spec
+status: accepted
+links:
+  pr: []
+---
+# Accepted spec replicating SPEC-0039's real Spec-AC-07 Evidence cell verbatim
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-07 | existing verdicts unchanged; quick skips; D5 precedence  | done    | TEST-009/010/013/015 green — docs/ai/tdd/green-20260716T233008Z-change0027-remediation-full-suite.log (115 PASS, full suite incl. real-repo-CLEAN regressions); repo audit re-verified CLEAN post-fix (`node .aai/scripts/docs-audit.mjs --check --strict --no-event` exit 0) | TDD | Remediation CHANGE-0027: TEST-015 added (in-flight-spec no-regression control) |
+MD
+  (cd "$d" && git add docs/specs/SPEC-5864-replica.md && git commit -qm "docs: add SPEC-5864 fixture")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  if grep -qF "SPEC-5864" "$d/drift-sec.txt"; then
+    log_fail "TEST-005: verbatim replica of SPEC-0039's real Spec-AC-07 Evidence cell must NOT flag"
+  fi
+  rm -rf "$d"
+  log_pass "Verbatim replica of SPEC-0039's real Spec-AC-07 Evidence cell stays unflagged (TEST-005)"
+}
+
+test_change0028_arm_b_fileid_ac_evidence_flags() {  # TEST-006 / Spec-AC-05
+  log_info "Test: ac_evidence event ref matching fileId (not frontmatter id) with hash-shaped payload.commit fires Arm B (TEST-006)..."
+  local d; d="$(setup_fo_repo fo028-armb)"
+  cat > "$d/docs/specs/SPEC-5865-armb-fileid.md" <<'MD'
+---
+id: armb-legacy-slug
+type: spec
+status: accepted
+links:
+  pr: []
+---
+# Accepted spec whose frontmatter id differs from its numbered filename
+MD
+  (cd "$d" && git add docs/specs/SPEC-5865-armb-fileid.md \
+    && git commit -qm "docs: add SPEC-5865 fixture")
+  (cd "$d" && node .aai/scripts/append-event.mjs --event ac_evidence \
+    --ref SPEC-5865/Spec-AC-01 --commit a1b2c3d4e5 > /dev/null)
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  grep -F "armb-legacy-slug" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-006: Arm B (fileId-ref ac_evidence with hash payload) must flag the doc (armb-legacy-slug)"
+  grep -F "armb-legacy-slug" "$d/drift-sec.txt" | grep -qF "ac_evidence event" \
+    || log_fail "TEST-006: reasons must name the ac_evidence event signal"
+  rm -rf "$d"
+  log_pass "Arm B: fileId-ref ac_evidence event with hash-shaped payload.commit fires (TEST-006)"
+}
+
+test_change0028_arm_b_inflight_discriminator_guard() {  # TEST-007 / Spec-AC-06
+  log_info "Test: Arm B in-flight discriminator rejects validation-window payload.commit and evidence-only payload (guard control, TEST-007)..."
+  local d; d="$(setup_fo_repo fo028-armb-guard)"
+  cat > "$d/docs/specs/SPEC-5866-armb-guard.md" <<'MD'
+---
+id: armb-guard-slug
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Implementing spec whose fileId-ref ac_evidence events are validation-window/evidence-only
+MD
+  (cd "$d" && git add docs/specs/SPEC-5866-armb-guard.md \
+    && git commit -qm "docs: add SPEC-5866 fixture")
+  (cd "$d" && node .aai/scripts/append-event.mjs --event ac_evidence \
+    --ref SPEC-5866/Spec-AC-01 --commit "validation-20260101T000000Z re-verified PASS (full suite green)" > /dev/null)
+  (cd "$d" && node .aai/scripts/append-event.mjs --event ac_evidence \
+    --ref SPEC-5866/Spec-AC-02 --evidence "shipped" > /dev/null)
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  if grep -qF "armb-guard-slug" "$d/drift-sec.txt"; then
+    log_fail "TEST-007: Arm B must NOT fire for a validation-window payload.commit or an evidence-only payload"
+  fi
+  rm -rf "$d"
+  log_pass "Arm B in-flight discriminator rejects validation-window and evidence-only payloads (TEST-007)"
+}
+
+test_change0028_arm_c_work_item_closed_flags() {  # TEST-008 / Spec-AC-07
+  log_info "Test: work_item_closed event fires unconditionally for either id candidate — fileId ref AND slug-id ref (TEST-008)..."
+  local d; d="$(setup_fo_repo fo028-armc)"
+  cat > "$d/docs/specs/SPEC-5867-armc-fileid-ref.md" <<'MD'
+---
+id: armc-fileid-slug
+type: spec
+status: accepted
+links:
+  pr: []
+---
+# Accepted spec closed via a fileId-ref work_item_closed event
+MD
+  cat > "$d/docs/specs/SPEC-5868-armc-slugid-ref.md" <<'MD'
+---
+id: armc-slugid-slug
+type: spec
+status: accepted
+links:
+  pr: []
+---
+# Accepted spec closed via a slug-id-ref work_item_closed event
+MD
+  (cd "$d" && git add docs/specs/SPEC-5867-armc-fileid-ref.md docs/specs/SPEC-5868-armc-slugid-ref.md \
+    && git commit -qm "docs: add SPEC-5867 SPEC-5868 fixtures")
+  (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed \
+    --ref SPEC-5867 --validation pass --code-review pass > /dev/null)
+  (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed \
+    --ref armc-slugid-slug --validation pass --code-review pass > /dev/null)
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  grep -F "armc-fileid-slug" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-008: work_item_closed fileId-ref must flag the doc (armc-fileid-slug)"
+  grep -F "armc-fileid-slug" "$d/drift-sec.txt" | grep -qF "work_item_closed event" \
+    || log_fail "TEST-008: reasons must name the work_item_closed event signal (fileId ref)"
+  grep -F "armc-slugid-slug" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-008: work_item_closed slug-id-ref must flag the doc (armc-slugid-slug)"
+  grep -F "armc-slugid-slug" "$d/drift-sec.txt" | grep -qF "work_item_closed event" \
+    || log_fail "TEST-008: reasons must name the work_item_closed event signal (slug-id ref)"
+  rm -rf "$d"
+  log_pass "work_item_closed event fires unconditionally for both fileId-ref and slug-id-ref forms (TEST-008)"
+}
+
+test_change0028_real_repo_clean() {  # TEST-009 / Spec-AC-08
+  log_info "Test: real-repo docs-audit stays CLEAN with zero false-open verdicts after D2 hardening (TEST-009)..."
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/c0028-audit.log" 2>&1) \
+    || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/c0028-audit.log")"
+  assert_contains "$TEST_DIR/c0028-audit.log" "Verdict: CLEAN"
+  assert_contains "$TEST_DIR/c0028-audit.log" "False-open: 0"
+  if grep -qF "probable-false-open" "$TEST_DIR/c0028-audit.log"; then
+    log_fail "TEST-009: real-repo audit must carry zero probable-false-open verdicts (SPEC-0039 and all in-flight docs must stay unflagged)"
+  fi
+  log_pass "Real-repo audit stays CLEAN with zero false-open verdicts (TEST-009)"
+}
+
+test_change0028_userguide_mentions_work_item_closed() {  # TEST-011 / Spec-AC-10
+  log_info "Test: USER_GUIDE.md probable-false-open bullet (specifically) names the work_item_closed event (TEST-011)..."
+  # Scoped to the probable-false-open bullet's own lines (up to the next
+  # top-level bullet) — USER_GUIDE.md already mentions work_item_closed
+  # elsewhere (the missing-close-telemetry bullet), so a whole-file grep
+  # would pass vacuously and not prove THIS bullet was updated (D8).
+  local bullet
+  bullet="$(awk '/^- `probable-false-open`/{flag=1} flag{print} flag && /^- `probable-partial`/{exit}' "$PROJECT_ROOT/docs/USER_GUIDE.md")"
+  echo "$bullet" | grep -qF "work_item_closed" \
+    || log_fail "TEST-011: the probable-false-open bullet itself must name the work_item_closed event"
+  log_pass "USER_GUIDE.md probable-false-open bullet names the work_item_closed event (TEST-011)"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -4336,6 +4625,16 @@ main() {
   test_change0027_index_seam
   test_change0027_quick_mode_skips_probe
   test_change0027_doc_surfaces_mention_false_open
+  test_change0028_mixed_cell_git_hash_flags
+  test_change0028_mixed_cell_pr_ref_flags
+  test_change0028_mixed_cell_prose_not_flagged
+  test_change0028_mixed_cell_unresolvable_hash_not_flagged
+  test_change0028_spec0039_verbatim_replica_not_flagged
+  test_change0028_arm_b_fileid_ac_evidence_flags
+  test_change0028_arm_b_inflight_discriminator_guard
+  test_change0028_arm_c_work_item_closed_flags
+  test_change0028_real_repo_clean
+  test_change0028_userguide_mentions_work_item_closed
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
