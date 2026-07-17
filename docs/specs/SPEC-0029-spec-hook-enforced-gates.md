@@ -2,12 +2,14 @@
 id: spec-hook-enforced-gates
 type: spec
 number: 29
-status: draft
+status: done
 links:
   rfc: hook-enforced-gates
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 76
+  commits:
+    - 2954e7a
 ---
 
 # SPEC — Hook-Enforced Gates on Claude Code (opt-in overlay)

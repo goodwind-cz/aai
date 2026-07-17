@@ -2,13 +2,15 @@
 id: spec-delta-stage-1
 type: spec
 number: 34
-status: draft
+status: done
 ceremony_level: 2
 links:
   rfc: delta-spec-lifecycle
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 83
+  commits:
+    - 443ddcf
 ---
 
 # SPEC — Delta-Spec Lifecycle, Stage 1: Canonical-Layer Requirements Contract

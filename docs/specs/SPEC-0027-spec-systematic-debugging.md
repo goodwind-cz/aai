@@ -2,12 +2,14 @@
 id: spec-systematic-debugging
 type: spec
 number: 27
-status: draft
+status: done
 links:
   change: systematic-debugging
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 73
+  commits:
+    - 253cd77
 ---
 
 # SPEC — Systematic-Debugging Gate Skill for Remediation

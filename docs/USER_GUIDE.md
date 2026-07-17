@@ -577,6 +577,10 @@ again used by the pre-commit hook against staged content.
 - `probable-false-done` — doc claims done, evidence disagrees
 - `probable-stale-open` — open doc untouched past `stale_after_days`;
   possibly shipped elsewhere and never closed
+- `probable-false-open` — open doc (draft/implementing/accepted) whose
+  delivery is already evidenced (a later feat/fix/chore commit mentioning it,
+  an `ac_evidence` event, or a fully terminal evidenced AC table); confirm
+  delivery, then run the close ceremony
 - `probable-partial` — spec marked done without the mandated AC table
 - `orphan` — doc without canonical frontmatter (new ones fail `--check`)
 

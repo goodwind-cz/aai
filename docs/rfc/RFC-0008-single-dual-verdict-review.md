@@ -2,12 +2,14 @@
 id: single-dual-verdict-review
 type: rfc
 number: 8
-status: accepted
+status: done
 links:
   research: RES-0001
   spec: spec-single-dual-verdict-review
-  pr: []
-  commits: []
+  pr:
+    - 62
+  commits:
+    - 3619b43
 ---
 
 # RFC — Replace Two-Stage Code Review With a Single Dual-Verdict Reviewer

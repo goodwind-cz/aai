@@ -2,13 +2,15 @@
 id: spec-delta-stage-3
 type: spec
 number: 38
-status: implementing
+status: done
 ceremony_level: 2
 links:
   change: delta-stage-3
   rfc: delta-spec-lifecycle
-  pr: []
-  commits: []
+  pr:
+    - 88
+  commits:
+    - 605e17d
 ---
 
 # SPEC — Delta-Spec Lifecycle, Stage 3: Close-Time Delta Merge + Provenance Drift

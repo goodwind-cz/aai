@@ -2,13 +2,15 @@
 id: spec-scale-adaptive-ceremony
 type: spec
 number: 30
-status: draft
+status: done
 ceremony_level: 2
 links:
   rfc: scale-adaptive-ceremony
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 77
+  commits:
+    - a9b073e
 ---
 
 # SPEC — Scale-Adaptive Ceremony Levels (right-size the pipeline to the work)

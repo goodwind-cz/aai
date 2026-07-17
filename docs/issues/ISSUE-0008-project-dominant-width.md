@@ -2,11 +2,13 @@
 id: project-dominant-width
 type: issue
 number: 8
-status: draft
+status: done
 links:
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 59
+  commits:
+    - 4965ef1
 ---
 
 # Issue — Empty-Type Width Defaults Ignore the Project's Own Convention

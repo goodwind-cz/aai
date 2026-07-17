@@ -2,11 +2,13 @@
 id: prompt-layer-diet-phase-1
 type: change
 number: 11
-status: draft
+status: done
 links:
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 53
+  commits:
+    - 06cffb5
 ---
 
 # Change — Prompt-Layer Diet, Phase 1 (dedupe, delete fiction, fix caching order, STATE digest)

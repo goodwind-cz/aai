@@ -2,11 +2,13 @@
 id: truth-scoring
 type: change
 number: 21
-status: draft
+status: done
 links:
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 80
+  commits:
+    - bbf0ad4
 ---
 
 # Change — Truth-Scoring on the Metrics Ledger

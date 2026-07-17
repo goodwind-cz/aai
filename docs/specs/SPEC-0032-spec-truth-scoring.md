@@ -2,14 +2,16 @@
 id: spec-truth-scoring
 type: spec
 number: 32
-status: draft
+status: done
 ceremony_level: 1
 links:
   change: truth-scoring
   research: RES-0001
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 80
+  commits:
+    - bbf0ad4
 ---
 
 # SPEC — Truth-Scoring on the Metrics Ledger (reliability facts at flush)

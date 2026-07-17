@@ -2,13 +2,15 @@
 id: spec-prompt-layer-diet-phase-1
 type: spec
 number: 17
-status: draft
+status: done
 links:
   change: CHANGE-0011
   research: RES-0001
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 53
+  commits:
+    - 06cffb5
 ---
 
 # SPEC — Prompt-layer diet, phase 1 (intake include, delete fiction, footer dedup, caching order + digest)

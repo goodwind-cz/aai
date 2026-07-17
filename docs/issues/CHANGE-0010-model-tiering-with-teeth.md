@@ -2,11 +2,13 @@
 id: model-tiering-with-teeth
 type: change
 number: 10
-status: draft
+status: done
 links:
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 54
+  commits:
+    - c245241
 ---
 
 # Change — Model Tiering With Teeth (dispatch contract, mechanical checks, live cost data)

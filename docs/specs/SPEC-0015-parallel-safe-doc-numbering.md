@@ -1,12 +1,14 @@
 ---
 id: SPEC-0015
 type: spec
-status: implementing
+status: done
 links:
   requirement: null
   rfc: RFC-0007
-  pr: []
-  commits: []
+  pr:
+    - 48
+  commits:
+    - c29457f
 ---
 
 # SPEC-0015 — Parallel-safe doc numbering: slug-primary identity + merge-time number allocation (RFC-0007)

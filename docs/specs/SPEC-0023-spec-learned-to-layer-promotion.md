@@ -2,13 +2,15 @@
 id: spec-learned-to-layer-promotion
 type: spec
 number: 23
-status: implementing
+status: done
 links:
   change: learned-to-layer-promotion
   requirement: null
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 65
+  commits:
+    - 833ef7c
 ---
 
 # SPEC — Promote session lessons into the vendored layer (+ drift-check preflight)

@@ -2,12 +2,18 @@
 id: delta-spec-lifecycle
 type: rfc
 number: 11
-status: accepted
+status: done
 links:
   research: RES-0001
   spec: spec-delta-stage-1
-  pr: []
-  commits: []
+  pr:
+    - 83
+    - 87
+    - 88
+  commits:
+    - 443ddcf
+    - 489e07d
+    - 605e17d
 ---
 
 # RFC — Delta-Spec Lifecycle: Prevent Doc Sprawl by Construction

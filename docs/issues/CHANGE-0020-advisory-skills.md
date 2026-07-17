@@ -2,11 +2,13 @@
 id: advisory-skills
 type: change
 number: 20
-status: draft
+status: done
 links:
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 79
+  commits:
+    - 0b4ce55
 ---
 
 # Change — Three Optional Advisory Skills: scout, deslop, plan-interrogate

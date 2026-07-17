@@ -2,13 +2,15 @@
 id: spec-delta-stage-2
 type: spec
 number: 37
-status: implementing
+status: done
 ceremony_level: 2
 links:
   change: delta-stage-2
   rfc: delta-spec-lifecycle
-  pr: []
-  commits: []
+  pr:
+    - 87
+  commits:
+    - 489e07d
 ---
 
 # SPEC — Delta-Spec Lifecycle, Stage 2: SPEC `## Deltas` Section + Shape Validation

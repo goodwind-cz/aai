@@ -2,12 +2,14 @@
 id: spec-constitution
 type: spec
 number: 28
-status: draft
+status: done
 links:
   change: constitution
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 74
+  commits:
+    - 2a36132
 ---
 
 # SPEC — Project Constitution With Justified-Exception Tracking

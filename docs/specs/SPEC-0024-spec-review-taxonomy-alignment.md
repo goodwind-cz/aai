@@ -2,13 +2,15 @@
 id: spec-review-taxonomy-alignment
 type: spec
 number: 24
-status: implementing
+status: done
 links:
   change: review-taxonomy-alignment
   requirement: null
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 66
+  commits:
+    - 0cadd9f
 ---
 
 # SPEC — Align Orchestration-Facing Surfaces With the Dual-Verdict Review Taxonomy (CHANGE-0014)

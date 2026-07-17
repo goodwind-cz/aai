@@ -2,12 +2,14 @@
 id: hook-enforced-gates
 type: rfc
 number: 10
-status: accepted
+status: done
 links:
   research: RES-0001
   spec: spec-hook-enforced-gates
-  pr: []
-  commits: []
+  pr:
+    - 76
+  commits:
+    - 2954e7a
 ---
 
 # RFC — Hook-Enforced Gates on Claude Code (additive hardening layer)

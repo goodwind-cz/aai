@@ -155,6 +155,7 @@ function emitEvent(result, scope) {
       '--orphans', String(result.counts.orphans),
       '--drifted', String(result.counts.drifted),
       '--stale', String(result.counts.stale),
+      '--false-open', String(result.counts.falseOpen),
       '--mode', result.mode,
     ], { stdio: 'ignore' });
   } catch {
@@ -179,7 +180,7 @@ function main() {
   lines.push(`## Docs Audit — ${new Date().toISOString().slice(0, 10)}`);
   lines.push('');
   lines.push(`- Mode: ${mode}${args.path ? ` | Scope: ${args.path}` : ''}`);
-  lines.push(`- Scanned: ${counts.total} docs | Orphans: ${counts.orphans} (${counts.orphans - counts.orphansNew} legacy soft) | Drifted: ${counts.drifted} | Stale: ${counts.stale} | Obsolete: ${counts.obsolete}`);
+  lines.push(`- Scanned: ${counts.total} docs | Orphans: ${counts.orphans} (${counts.orphans - counts.orphansNew} legacy soft) | Drifted: ${counts.drifted} | Stale: ${counts.stale} | False-open: ${counts.falseOpen} | Obsolete: ${counts.obsolete}`);
   lines.push(`- Tracked: ${counts.trackedOpen} open, ${counts.trackedDone} done, ${counts.superseded} superseded/rejected`);
   lines.push('');
 

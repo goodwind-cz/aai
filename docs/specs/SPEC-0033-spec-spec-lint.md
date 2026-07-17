@@ -2,13 +2,15 @@
 id: spec-spec-lint
 type: spec
 number: 33
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: spec-lint
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 82
+  commits:
+    - 18b861f
 ---
 
 # SPEC — spec-lint.mjs: Deterministic Structural Validation of Spec Documents

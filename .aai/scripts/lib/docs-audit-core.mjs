@@ -36,6 +36,10 @@ const ID_FILE_RE = DOC_ID_RE;
 // frontmatter slug `id`; its fileId stays null (no display id until merge).
 const DRAFT_FILE_RE = /^[A-Z]+(?:-[A-Z]+)*-DRAFT(?=[-.])/;
 const OPEN_STATUSES = new Set(['draft', 'implementing']);
+// CHANGE-0027 / SPEC-0039 D1 — eligible statuses for the false-open drift
+// heuristic. Deliberately separate from OPEN_STATUSES (which still drives
+// ONLY probable-stale-open): false-open additionally covers `accepted`.
+const FALSE_OPEN_STATUSES = new Set(['draft', 'implementing', 'accepted']);
 // RFC-0009 L0/L1 level-inflation guard: the literal `Ceremony justification: `
 // body line. Shared by the close gate and the done-drift check
 // (spec-l1-close-gate D2/D3) — one definition, no fork.
@@ -169,6 +173,117 @@ function lastEditDate(root, rel) {
 
 function lastIdMentionDate(root, id) {
   return git(root, `log -1 --grep="${id}" --format=%cs`) || null;
+}
+
+// CHANGE-0027 / SPEC-0039 D4 — mention boundary (CHANGE-0002 D11 extended to
+// slugs). A numbered id (TYPE-NNNN, e.g. CHANGE-0027) allows a trailing "-"
+// (so a basename mention "CHANGE-0009-<slug>" counts for CHANGE-0009) but
+// never matches inside a longer sibling numeric id (CHANGE-030 never matches
+// inside CHANGE-0301). A slug id (no trailing digit) never matches inside a
+// longer sibling slug (its right boundary excludes "-" too).
+const NUMBERED_ID_RE = /^[A-Z]+(?:-[A-Z]+)*-\d{1,5}(?:-\d+)?$/;
+function idMentionRegex(id) {
+  const esc = String(id).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return NUMBERED_ID_RE.test(id)
+    ? new RegExp(`(?<![0-9A-Za-z])${esc}(?![0-9])`)
+    : new RegExp(`(?<![0-9A-Za-z-])${esc}(?![0-9A-Za-z-])`);
+}
+
+// D3 — commit hashes that ADDED the doc's file (the intake commit(s)); these
+// never count as delivery evidence (no --follow, per CHANGE-0002 D13, mirrors
+// firstCommitDate).
+function addCommitHashes(root, rel) {
+  const out = git(root, `log --diff-filter=A --format=%H -- "${rel}"`);
+  return out ? new Set(out.split('\n').filter(Boolean)) : new Set();
+}
+
+// D2(a)/D3/D4 — every commit whose SUBJECT is delivery-shaped (feat/fix/chore)
+// AND mentions `id` at a real boundary. `git log --grep` pre-filters at the
+// git level (cheap, may over-match); the exact D4 boundary regex re-checks
+// the SUBJECT only (never the body), so a coincidental body-only mention can
+// never masquerade as delivery evidence.
+const DELIVERY_SUBJECT_RE = /^(feat|fix|chore)(\([^)]*\))?!?:/;
+
+// D2(c) corroboration — an Evidence cell whose ONLY content is a path under
+// docs/ai/tdd/ (this project's RED/GREEN proof-log convention) is same-session
+// test-pass proof, not delivery corroboration. See falseOpenEvidence below.
+const TDD_LOG_EVIDENCE_RE = /docs\/ai\/tdd\//;
+function deliveryCommitsForId(root, id) {
+  const out = git(root, `log --grep="${id}" --format=%H%x1f%s`);
+  if (!out) return [];
+  const re = idMentionRegex(id);
+  const hashes = [];
+  for (const line of out.split('\n')) {
+    if (!line) continue;
+    const sep = line.indexOf('\x1f');
+    if (sep < 0) continue;
+    const hash = line.slice(0, sep);
+    const subject = line.slice(sep + 1);
+    if (DELIVERY_SUBJECT_RE.test(subject) && re.test(subject)) hashes.push(hash);
+  }
+  return hashes;
+}
+
+// CHANGE-0027 / SPEC-0039 — D2's three delivery-evidence signals for one
+// eligible open doc. Returns { evidenced, reasons }; reasons names every
+// signal that actually fired (D10) — never fabricated, never silent.
+function falseOpenEvidence(root, doc, events) {
+  const reasons = [];
+  let evidenced = false;
+
+  // D2(a)/D3/D4 — delivery commit(s) mentioning the id or numbered fileId,
+  // excluding the doc's own add-commit(s).
+  const idCandidates = [...new Set([doc.id, doc.fileId].filter(Boolean))];
+  if (idCandidates.length) {
+    const addCommits = addCommitHashes(root, doc.rel);
+    const hashes = new Set();
+    for (const idc of idCandidates) {
+      for (const hash of deliveryCommitsForId(root, idc)) {
+        if (!addCommits.has(hash)) hashes.add(hash);
+      }
+    }
+    if (hashes.size) {
+      evidenced = true;
+      const shortHashes = [...hashes].slice(0, 3).map(h => h.slice(0, 7));
+      reasons.push(`delivery commit(s) ${shortHashes.join(', ')} mention ${doc.id}`);
+    }
+  }
+
+  // D2(b) — ac_evidence event, same roll-up boundary as probable-false-done
+  // (CHANGE-0002 D11): ref equal to the id, or ref.startsWith(id + '/').
+  if (events.some(e => e.event === 'ac_evidence'
+      && (String(e.ref) === doc.id || String(e.ref).startsWith(doc.id + '/')))) {
+    evidenced = true;
+    reasons.push('ac_evidence event');
+  }
+
+  // D2(c) — fully terminal canonical AC Status table, every done row evidenced.
+  // Corroboration: a done row's Evidence pointing ONLY at this project's own
+  // same-session TDD proof log (docs/ai/tdd/*.log — the RED/GREEN artifact
+  // named in the Evidence contract) proves the tests passed locally; it does
+  // NOT by itself prove the work was DELIVERED. Without that distinction,
+  // D2(c) alone fires on every spec's normal mid-validation lifecycle state
+  // (AC table completed by TDD, doc still draft/implementing, close ceremony
+  // simply not run yet) — indistinguishable from "delivered and abandoned
+  // open" (the incident class D2(c) exists to catch). At least one done row
+  // must therefore cite something else (a commit hash, PR link, ac_evidence
+  // ref, etc.) for the table-alone signal to fire; rowHasEvidence itself is
+  // unchanged (still reused as-is — no parser fork).
+  const ac = doc.ac;
+  if (ac?.hasGate && ac.rows.length > 0) {
+    const statuses = ac.rows.map(r => normalizeAcStatus(r['Status'] ?? '').status);
+    const allTerminal = statuses.every(s => TERMINAL_AC.has(s));
+    const doneRows = ac.rows.filter((r, i) => statuses[i] === 'done');
+    const allDoneEvidenced = doneRows.every(r => rowHasEvidence(r));
+    const hasDeliveryEvidence = doneRows.some(r =>
+      rowHasEvidence(r) && !TDD_LOG_EVIDENCE_RE.test(String(r['Evidence'] ?? '')));
+    if (allTerminal && allDoneEvidenced && hasDeliveryEvidence) {
+      evidenced = true;
+      reasons.push('AC Status table fully terminal with evidence');
+    }
+  }
+
+  return { evidenced, reasons };
 }
 
 // --- events -----------------------------------------------------------------
@@ -644,6 +759,22 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
 
     if (status === 'superseded' || status === 'rejected') { doc.cls = 'superseded'; continue; }
 
+    // CHANGE-0027 / SPEC-0039 — false-open drift heuristic. Runs BEFORE the
+    // frozen-marker early exit (D6 — a frozen-in-body draft is still checked)
+    // and BEFORE the stale-open branch below (D5 — a doc that is both stale
+    // and delivery-evidenced upgrades to the more actionable
+    // probable-false-open). Skipped entirely in --quick (D7 — no git/EVENTS
+    // probes). A doc without delivery evidence falls through unchanged.
+    if (FALSE_OPEN_STATUSES.has(status) && !quick) {
+      const fo = falseOpenEvidence(root, doc, events);
+      if (fo.evidenced) {
+        doc.verdict = 'probable-false-open';
+        doc.reasons.push(...fo.reasons);
+        doc.cls = 'drifted';
+        continue;
+      }
+    }
+
     // legacy frozen-in-body marker (CHANGE-0001 D2): a draft doc carrying
     // SPEC-FROZEN: true is effectively frozen, not a stale-open candidate
     if (status === 'draft' && specFrozenInBody(content)) {
@@ -801,6 +932,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     orphansNew: orphansNew.length,
     drifted: drift.length,
     stale: drift.filter(d => d.verdict === 'probable-stale-open').length,
+    falseOpen: drift.filter(d => d.verdict === 'probable-false-open').length,
     obsolete: docs.filter(d => d.cls === 'obsolete').length,
     trackedOpen: docs.filter(d => d.cls === 'tracked-open').length,
     trackedDone: docs.filter(d => d.cls === 'tracked-done').length,
@@ -1032,6 +1164,7 @@ export function suggestedStep(doc) {
   if (doc.cls === 'orphan') return `add frontmatter per .aai/templates (type ${doc.rel.split('/')[1] ?? 'doc'})`;
   switch (doc.verdict) {
     case 'probable-false-done': return 'reconcile AC table / evidence, then re-confirm done status';
+    case 'probable-false-open': return 'confirm delivery, then run close ceremony (status flip + links.pr/commits + doc_lifecycle/work_item_closed events)';
     case 'probable-partial': return 'add the Acceptance Criteria Status table, then re-validate';
     case 'probable-stale-open': return 'confirm whether work shipped elsewhere; close or revive';
     default: return doc.cls === 'obsolete' ? 're-decide overdue deferral' : '—';

@@ -2,13 +2,15 @@
 id: spec-layer-profiles
 type: spec
 number: 35
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: layer-profiles
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 84
+  commits:
+    - b2efc0a
 ---
 
 # SPEC — Core/Extended Profiles for the Vendored Layer (aai-sync)

@@ -2,11 +2,13 @@
 id: constitution
 type: change
 number: 19
-status: draft
+status: done
 links:
   research: RES-0001
-  pr: []
-  commits: []
+  pr:
+    - 74
+  commits:
+    - 2a36132
 ---
 
 # Change — Project Constitution With Justified-Exception Tracking
