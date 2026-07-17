@@ -264,6 +264,11 @@ export function lintContent(content) {
     if (section) {
       const sectionStart = section.index + section[0].indexOf(section[1]);
       let offset = 0;
+      // SPEC-0051: tally the RAW first-cell id on every data row (filtered to
+      // well-formed Spec-AC-NN so range rows / malformed ids never enter it —
+      // range rows already fail the (?=\s|\|) lookahead below; malformed ids
+      // are owned by ac-id-malformed) for the raw-vs-parsed reconciliation.
+      const rawCount = new Map();
       for (const line of section[1].split('\n')) {
         const lineNo = lineAt(norm, sectionStart + offset);
         offset += line.length + 1;
@@ -271,8 +276,30 @@ export function lintContent(content) {
         // swallowed pipes on compact rows (|Spec-AC-01|a|...), mangling the id
         // into the whole pipe-run and firing a spurious unparseable finding.
         const raw = line.match(/^\|\s*(Spec-AC-\d+)(?=\s|\|)/);
-        if (raw && !knownIds.has(raw[1])) {
+        if (!raw) continue;
+        if (AC_ID_RE.test(raw[1])) rawCount.set(raw[1], (rawCount.get(raw[1]) ?? 0) + 1);
+        if (!knownIds.has(raw[1])) {
           add('ac-row-unparseable', `row for ${raw[1]} was dropped by the shared table parser (cell count breaks the header — check escaped/raw pipes in a cell); it is invisible to docs-audit, the index, and the close gate`, lineNo);
+        }
+      }
+      // SPEC-0051: a duplicate id whose second (or later) copy is dropped by
+      // the shared parser's cell-count break is invisible to BOTH existing
+      // checks — the surviving copy seeds knownIds (silencing ac-row-
+      // unparseable) and only one copy reaches ac.rows (silencing ac-id-
+      // duplicate). Reconcile rawCount against the parser's surviving rows:
+      // rawCount > parsedCount AND parsedCount >= 1 (the >=1 guard hands the
+      // fully-vanished case, parsedCount == 0, to ac-row-unparseable so
+      // neither rule double-reports the other's shape).
+      const parsedCount = new Map();
+      for (const row of ac.rows) {
+        const id = row['Spec-AC'];
+        if (AC_ID_RE.test(id)) parsedCount.set(id, (parsedCount.get(id) ?? 0) + 1);
+      }
+      for (const [id, rc] of rawCount) {
+        const pc = parsedCount.get(id) ?? 0;
+        if (rc > pc && pc >= 1) {
+          const dropped = rc - pc;
+          add('duplicate-ac-id', `${id} appears in ${rc} raw AC-table rows but only ${pc} survived the shared parser — a duplicate id dropped ${dropped} row${dropped === 1 ? '' : 's'} (invisible to docs-audit, the index, and the close gate)`);
         }
       }
     }

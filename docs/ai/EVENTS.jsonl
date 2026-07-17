@@ -721,3 +721,23 @@
 {"v":1,"ts":"2026-07-17T20:59:21.806Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-dispatch-4a-fail-verdict-precedence","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-17T20:59:21.843Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"dispatch-4a-fail-verdict-precedence","payload":{"commit":"64a7548"}}
 {"v":1,"ts":"2026-07-17T20:59:25.878Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":111,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-17T21:02:51.907Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-lint-duplicate-ac-id","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-17T21:10:40.140Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-DRAFT-spec-lint-duplicate-ac-id","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-17T21:20:23.179Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-lint-duplicate-ac-id/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T21:20:23.217Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-lint-duplicate-ac-id/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T21:20:23.255Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-lint-duplicate-ac-id/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T21:20:23.291Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-lint-duplicate-ac-id/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T21:20:23.328Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-lint-duplicate-ac-id/Spec-AC-05","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T21:27:42.928Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0051/Spec-AC-01","payload":{"commit":"docs/ai/tdd/green-20260717T211900Z-spec-lint-duplicate-ac-id-test001-005.log"}}
+{"v":1,"ts":"2026-07-17T21:27:42.967Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0051/Spec-AC-02","payload":{"commit":"docs/ai/tdd/green-20260717T211900Z-spec-lint-duplicate-ac-id-test001-005.log"}}
+{"v":1,"ts":"2026-07-17T21:27:43.002Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0051/Spec-AC-03","payload":{"commit":"docs/ai/tdd/green-20260717T211900Z-spec-lint-duplicate-ac-id-test001-005.log"}}
+{"v":1,"ts":"2026-07-17T21:27:43.038Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0051/Spec-AC-04","payload":{"commit":"docs/ai/tdd/green-20260717T211900Z-spec-lint-duplicate-ac-id-test001-005.log"}}
+{"v":1,"ts":"2026-07-17T21:27:43.075Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0051/Spec-AC-05","payload":{"commit":"docs/ai/tdd/green-20260717T211900Z-spec-lint-duplicate-ac-id-test001-005.log"}}
+{"v":1,"ts":"2026-07-17T21:33:51.210Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0051","payload":{"verdict":"pass","report":"docs/ai/reviews/review-dual-verdict-20260717T213126Z-spec-lint-duplicate-ac-id.md","notes":"dual-verdict PASS/PASS; spec_compliance 5/5 Spec-AC compliant (independently re-verified); code_quality 0 BLOCKING 0 NON-BLOCKING, all 5 attention points cleared; 1 INFO (mixed 3-raw/2-parse fires both rules, both true/non-gating); 1 cannot_verify (lean deferral, closed by clean corpus). Corpus 51/0 findings exit 0; suite 18/18; test diff 208/0 additive"}}
+{"v":1,"ts":"2026-07-17T21:34:37.504Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-lint-duplicate-ac-id","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-17T21:34:37.541Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-lint-duplicate-ac-id","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T21:35:07.213Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-lint-duplicate-ac-id","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T21:35:07.252Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-spec-lint-duplicate-ac-id","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-17T21:35:07.287Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-lint-duplicate-ac-id","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T21:35:07.322Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-lint-duplicate-ac-id","payload":{"commit":"ef43dab"}}
+{"v":1,"ts":"2026-07-17T21:35:11.349Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":113,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
