@@ -2,10 +2,12 @@
 id: docs-audit-d2-evidence-hardening
 type: change
 number: 28
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 92
+  commits:
+    - 6c3ec66
 ---
 
 # Change — Harden D2(b)/D2(c) delivery-evidence signals in docs-audit

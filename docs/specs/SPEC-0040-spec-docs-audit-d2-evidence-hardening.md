@@ -2,13 +2,15 @@
 id: spec-docs-audit-d2-evidence-hardening
 type: spec
 number: 40
-status: draft
+status: done
 ceremony_level: 2
 links:
   change: docs-audit-d2-evidence-hardening
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 92
+  commits:
+    - 6c3ec66
 ---
 
 # SPEC — Docs-Audit D2(b)/D2(c) Delivery-Evidence Hardening

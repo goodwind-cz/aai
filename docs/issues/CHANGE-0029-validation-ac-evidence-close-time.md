@@ -2,11 +2,13 @@
 id: validation-ac-evidence-close-time
 type: change
 number: 29
-status: draft
+status: done
 ceremony_level: 1
 links:
-  pr: []
-  commits: []
+  pr:
+    - 92
+  commits:
+    - 6c3ec66
 ---
 
 # Change — Defer `ac_evidence` Emission to Close Ceremony for Open Slug-ID Docs
