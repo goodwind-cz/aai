@@ -682,3 +682,15 @@
 {"v":1,"ts":"2026-07-17T19:20:57.679Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"prompt-diet-byte-budget-true-up","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-17T19:20:57.710Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"prompt-diet-byte-budget-true-up","payload":{"commit":"e3a1b08"}}
 {"v":1,"ts":"2026-07-17T19:21:01.014Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":107,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-17T19:43:49.480Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"secrets-preflight-env-multiline","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-17T19:49:35.967Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-DRAFT-secrets-preflight-env-multiline","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-17T19:51:15.998Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":109,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-17T20:00:30.742Z","actor":"ales_holubec.net","event":"ac_status","ref":"secrets-preflight-env-multiline/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T20:00:30.779Z","actor":"ales_holubec.net","event":"ac_status","ref":"secrets-preflight-env-multiline/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T20:00:30.813Z","actor":"ales_holubec.net","event":"ac_status","ref":"secrets-preflight-env-multiline/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T20:08:23.658Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0049/Spec-AC-01","payload":{"commit":"green-20260717T200002Z-secrets-preflight-env-multiline-test007-010"}}
+{"v":1,"ts":"2026-07-17T20:08:23.695Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0049/Spec-AC-02","payload":{"commit":"green-20260717T200002Z-secrets-preflight-env-multiline-test007-010"}}
+{"v":1,"ts":"2026-07-17T20:08:23.728Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0049/Spec-AC-03","payload":{"commit":"green-20260717T200002Z-secrets-preflight-env-multiline-test007-010"}}
+{"v":1,"ts":"2026-07-17T20:14:22.091Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0049","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260717T201256Z.md","notes":"dual-verdict PASS/PASS; spec_compliance pass (Spec-AC-01..03 compliant, TEST-007..010 green); code_quality pass, 0 BLOCKING, 1 NON-BLOCKING (RR-2 accepted-limitation, no leak), 1 INFO; 2 cannot_verify"}}
+{"v":1,"ts":"2026-07-17T20:15:13.975Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"secrets-preflight-env-multiline","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-17T20:15:14.016Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"secrets-preflight-env-multiline","payload":{"validation":"pass","code_review":"pass"}}
