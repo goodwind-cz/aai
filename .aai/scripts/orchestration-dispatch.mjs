@@ -79,7 +79,7 @@ const RULES = [
   { id: '2', when: 'human_input.required == true', then: 'no action required (waiting for human decision)' },
   { id: '3', when: 'docs/TECHNOLOGY.md missing', then: 'dispatch Technology extraction (.aai/TECH_EXTRACT.prompt.md)' },
   { id: '4', when: '.aai/workflow/WORKFLOW.md missing', then: 'dispatch Bootstrap (.aai/BOOTSTRAP.prompt.md)' },
-  { id: '4a', when: 'focus work item done/absent AND focus ref flushed to METRICS.jsonl (spec-dispatch-new-intake-after-completed-scope D1); exactly one open mappable docs/issues intake (draft/implementing, no done work item) -> retarget; zero -> no_action scope_complete_no_open_intake; 2+/unmappable/scan-failure -> needs_llm named reasons', then: 'dispatch Planning retarget (.aai/PLANNING.prompt.md) to the open intake, or no_action/needs_llm per candidate count' },
+  { id: '4a', when: 'focus work item done/absent AND focus ref flushed to METRICS.jsonl (spec-dispatch-new-intake-after-completed-scope D1) AND no recorded fail verdict (validation.status !== fail AND review.status !== fail; CHANGE-0036 fail-verdict precedence guard — abstains so decide() falls through to rule 10/12 Remediation instead of burying the failure); exactly one open mappable docs/issues intake (draft/implementing, no done work item) -> retarget; zero -> no_action scope_complete_no_open_intake; 2+/unmappable/scan-failure -> needs_llm named reasons', then: 'dispatch Planning retarget (.aai/PLANNING.prompt.md) to the open intake, or no_action/needs_llm per candidate count' },
   { id: '5', when: 'focus spec_path null or spec file missing', then: 'dispatch Planning' },
   { id: '6', when: 'spec not frozen (no SPEC-FROZEN: true) or frontmatter status not draft/implementing; ceremony L0 (RFC-0009) prunes the status arm (tech-note doc), never the marker arm', then: 'dispatch Planning' },
   { id: '7', when: 'implementation_strategy.selected missing or undecided', then: 'dispatch Planning' },
@@ -311,7 +311,15 @@ export function decide(snapshot) {
   // the terminal marker) — a done-but-not-yet-flushed item still walks the
   // normal close pipeline (rules 13/14) untouched; requiring `flushed` keeps
   // that pipeline from being hijacked.
-  if ((s.work_item == null || s.work_item.status === 'done') && s.flushed === true) {
+  // A recorded FAIL verdict (validation OR code review) on the completed focus
+  // is NOT retargetable: 4a must abstain so decide() falls through to rules
+  // 10/12 (Remediation) — a buried failure is worse than a delayed retarget
+  // (CHANGE-0036 / reconciles SPEC-0042 D5 for the done+flushed corner).
+  const focusHasFailVerdict = (s.validation && s.validation.status === 'fail')
+    || (s.review && s.review.status === 'fail');
+  if ((s.work_item == null || s.work_item.status === 'done')
+      && s.flushed === true
+      && !focusHasFailVerdict) {
     const fromRef = s.focus.ref_id;
     const candidates = s.open_intakes;
     // Probe failure: fail-closed, never guess.

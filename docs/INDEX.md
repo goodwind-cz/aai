@@ -1,15 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T20:16:04.701Z
+Generated: 2026-07-17T20:58:51.977Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (0)
+## Active (implementing) (1)
 
-_None._
+| ID | Type | Status | Progress | Path |
+|---|---|---|---|---|
+| SPEC-0050 | specs | implementing | 6 done | docs/specs/SPEC-0050-spec-dispatch-4a-fail-verdict-precedence.md |
 
 ## Canonical layer (0)
 
@@ -129,9 +131,11 @@ _None._
 | SPEC-0049 | specs | docs/specs/SPEC-0049-secrets-preflight-env-multiline.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0036 | issues | docs/issues/CHANGE-0036-dispatch-4a-fail-verdict-precedence.md |
 
 ## Deferred (whole-doc) (0)
 

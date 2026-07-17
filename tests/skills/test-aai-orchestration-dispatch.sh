@@ -1129,8 +1129,316 @@ EOF
   log_pass "Purity on retarget snapshots + zero writes + docs-audit strict + check-state OK (TEST-012/spec TEST-007)"
 }
 
+## ==========================================================================
+## dispatch-4a-fail-verdict-precedence (SPEC-0050, CHANGE-0036)
+## Spec TEST-001..006, mapped to suite functions test_013..test_018. New
+## fixtures live ONLY here (SPEC-0041 D5 reserved this suite for this
+## dispatch scope); test_001..test_012 above are never edited.
+## ==========================================================================
+
+# --- TEST-013 (Spec TEST-001/Spec-AC-01): validation fail -> rule 10, not 4a ---
+
+test_013_fail_verdict_validation_precedence() {
+  log_info "Test: decide(): done+flushed + validation fail + one open intake + eligible shape -> rule 10 Remediation, not 4a (Spec TEST-001)..."
+  cat > "$TEST_DIR/t13.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const candidate = {
+  ref_id: 'some-open-intake',
+  primary_path: 'docs/issues/CHANGE-9999-some-open-intake.md',
+  doc_type: 'change',
+  item_status: 'draft',
+  unmappable: false,
+};
+
+const base = () => ({
+  project_status: 'active',
+  human_input_required: false,
+  technology_present: true,
+  workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0027' },
+  work_item: { phase: 'validation', status: 'done' },
+  spec: { path: 'docs/specs/SPEC-0027-fx.md', present: true, frozen: true, frontmatter_status: 'implementing', ceremony_level: 2 },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'fail', ref_id: 'CHANGE-0027' },
+  review: { required: true, status: 'not_run' },
+  flushed: true,
+  implementer_model: null,
+  last_run_role: 'Validation',
+  open_intakes: [candidate],
+});
+
+const d = decide(base());
+assert.strictEqual(d.verdict, 'dispatch', JSON.stringify(d));
+assert.strictEqual(d.rule, '10', JSON.stringify(d));
+assert.strictEqual(d.role, 'Remediation', JSON.stringify(d));
+assert.strictEqual(d.retarget, null, JSON.stringify(d));
+assert.notStrictEqual(d.rule, '4a', JSON.stringify(d));
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t13.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t13.log" 2>&1 \
+    || log_fail "validation-fail precedence over 4a failed: $(cat "$TEST_DIR/t13.log")"
+  log_pass "decide(): validation fail on done+flushed focus -> rule 10 Remediation, not 4a (TEST-013/spec TEST-001)"
+}
+
+# --- TEST-014 (Spec TEST-002/Spec-AC-02): code_review fail -> rule 12, not 4a --
+
+test_014_fail_verdict_review_precedence() {
+  log_info "Test: decide(): done+flushed + validation not_run + code_review fail + phase code_review -> rule 12 Remediation, not 4a (Spec TEST-002)..."
+  cat > "$TEST_DIR/t14.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const candidate = {
+  ref_id: 'some-open-intake',
+  primary_path: 'docs/issues/CHANGE-9999-some-open-intake.md',
+  doc_type: 'change',
+  item_status: 'draft',
+  unmappable: false,
+};
+
+const base = () => ({
+  project_status: 'active',
+  human_input_required: false,
+  technology_present: true,
+  workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0027' },
+  work_item: { phase: 'code_review', status: 'done' },
+  spec: { path: 'docs/specs/SPEC-0027-fx.md', present: true, frozen: true, frontmatter_status: 'implementing', ceremony_level: 2 },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'not_run', ref_id: null },
+  review: { required: true, status: 'fail' },
+  flushed: true,
+  implementer_model: null,
+  last_run_role: 'Code Review',
+  open_intakes: [candidate],
+});
+
+const d = decide(base());
+assert.strictEqual(d.verdict, 'dispatch', JSON.stringify(d));
+assert.strictEqual(d.rule, '12', JSON.stringify(d));
+assert.strictEqual(d.role, 'Remediation', JSON.stringify(d));
+assert.strictEqual(d.retarget, null, JSON.stringify(d));
+assert.notStrictEqual(d.rule, '4a', JSON.stringify(d));
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t14.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t14.log" 2>&1 \
+    || log_fail "code_review-fail precedence over 4a failed: $(cat "$TEST_DIR/t14.log")"
+  log_pass "decide(): code_review fail on done+flushed focus -> rule 12 Remediation, not 4a (TEST-014/spec TEST-002)"
+}
+
+# --- TEST-015 (Spec TEST-003/Spec-AC-01+02): CLI end-to-end fail precedence ----
+
+test_015_cli_fail_precedence() {
+  log_info "Test: CLI end-to-end on real fixture repos: validation-fail -> exit 0 rule 10; review-fail -> exit 0 rule 12; retarget null in both (Spec TEST-003)..."
+  local d
+
+  # (a) validation fail, done+flushed, eligible phase validation -> rule 10.
+  d="$(mk_root t15a)"
+  write_spec "$d/docs/specs/SPEC-0001-fx.md" implementing true
+  write_dstate "$d/docs/ai/STATE.yaml" fail not_run validation done tdd optional inline CHANGE-0001 true
+  printf '{"date_utc":"2026-07-01","ref_id":"CHANGE-0001","agent_runs":[]}\n' > "$d/docs/ai/METRICS.jsonl"
+  write_intake_doc "$d/docs/issues/CHANGE-0002-other.md" CHANGE-0002 change 2 draft
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) validation-fail fixture must exit 0 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "dispatch" && o.rule === "10" && o.role === "Remediation"'
+  jassert "$OUT" 'o.retarget === null'
+
+  # (b) code_review fail, done+flushed, eligible phase code_review -> rule 12.
+  d="$(mk_root t15b)"
+  write_spec "$d/docs/specs/SPEC-0001-fx.md" implementing true
+  write_dstate "$d/docs/ai/STATE.yaml" not_run fail code_review done tdd optional inline CHANGE-0001 true
+  printf '{"date_utc":"2026-07-01","ref_id":"CHANGE-0001","agent_runs":[]}\n' > "$d/docs/ai/METRICS.jsonl"
+  write_intake_doc "$d/docs/issues/CHANGE-0002-other.md" CHANGE-0002 change 2 draft
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "(b) review-fail fixture must exit 0 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "dispatch" && o.rule === "12" && o.role === "Remediation"'
+  jassert "$OUT" 'o.retarget === null'
+
+  log_pass "CLI end-to-end: validation-fail -> rule 10, review-fail -> rule 12, retarget null (TEST-015/spec TEST-003)"
+}
+
+# --- TEST-016 (Spec TEST-004/Spec-AC-03): survival + negative control ---------
+
+test_016_survival_negative_control() {
+  log_info "Test: negative control -- no-fail done+flushed+one intake retains today's 4a retarget; full legacy suite test_001..012 stays green, zero assertion edits (Spec TEST-004)..."
+  local d
+
+  # Negative control: no fail verdict present -> rule 4a fires exactly as
+  # before the guard (unaffected).
+  d="$(mk_root t16neg)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass pass validation done tdd optional inline CHANGE-0001
+  printf '{"date_utc":"2026-07-01","ref_id":"CHANGE-0001","agent_runs":[]}\n' > "$d/docs/ai/METRICS.jsonl"
+  write_intake_doc "$d/docs/issues/CHANGE-0002-other.md" CHANGE-0002 change 2 draft
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "negative control must still exit 0 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "dispatch" && o.rule === "4a" && o.role === "Planning"'
+  jassert "$OUT" 'o.retarget !== null && o.retarget.to_ref === "CHANGE-0002"'
+
+  # Survival: the FULL legacy suite (test_001..test_012, which internally
+  # re-runs the real ceremony-suite lane stanzas via test_011) re-run
+  # post-change, zero assertion edits (Seam S1 crossing test).
+  test_001_decide_table
+  test_002_cli_contract
+  test_003_reset_routing
+  test_004_fail_closed
+  test_005_flush_arm_and_independence
+  test_006_arm4a_decide_table
+  test_007_rule11_done_skip
+  test_008_arm4a_ambiguity
+  test_009_cli_integration
+  test_010_evidence_replay
+  test_011_seam_survival
+  test_012_purity_and_hygiene
+
+  log_pass "Survival + negative control: 4a unchanged with no fail verdict; full legacy suite exit 0 (TEST-016/spec TEST-004)"
+}
+
+# --- TEST-017 (Spec TEST-005/Spec-AC-05): fail-closed invariant, parametric ----
+
+test_017_fail_closed_invariant() {
+  log_info "Test: fail-closed invariant -- done+validation fail, done+review fail, work_item null+fail, both fail -- NONE yields a 4a dispatch/non-null retarget (Spec TEST-005)..."
+  cat > "$TEST_DIR/t17.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const candidate = {
+  ref_id: 'some-open-intake',
+  primary_path: 'docs/issues/CHANGE-9999-some-open-intake.md',
+  doc_type: 'change',
+  item_status: 'draft',
+  unmappable: false,
+};
+
+const base = () => ({
+  project_status: 'active',
+  human_input_required: false,
+  technology_present: true,
+  workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0027' },
+  work_item: { phase: 'validation', status: 'done' },
+  spec: { path: 'docs/specs/SPEC-0027-fx.md', present: true, frozen: true, frontmatter_status: 'implementing', ceremony_level: 2 },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'not_run', ref_id: null },
+  review: { required: true, status: 'not_run' },
+  flushed: true,
+  implementer_model: null,
+  last_run_role: 'Validation',
+  open_intakes: [candidate],
+});
+
+// (1) done + validation fail.
+{
+  const s = base();
+  s.validation = { status: 'fail', ref_id: 'CHANGE-0027' };
+  const d = decide(s);
+  assert.notStrictEqual(d.rule, '4a', JSON.stringify(d));
+  assert.strictEqual(d.retarget, null, JSON.stringify(d));
+}
+
+// (2) done + review fail (eligible phase code_review).
+{
+  const s = base();
+  s.work_item = { phase: 'code_review', status: 'done' };
+  s.review = { required: true, status: 'fail' };
+  const d = decide(s);
+  assert.notStrictEqual(d.rule, '4a', JSON.stringify(d));
+  assert.strictEqual(d.retarget, null, JSON.stringify(d));
+}
+
+// (3) work_item == null + validation fail -> needs_llm focus_ref_not_in_active_work_items.
+{
+  const s = base();
+  s.work_item = null;
+  s.validation = { status: 'fail', ref_id: 'CHANGE-0027' };
+  const d = decide(s);
+  assert.notStrictEqual(d.rule, '4a', JSON.stringify(d));
+  assert.strictEqual(d.verdict, 'needs_llm', JSON.stringify(d));
+  assert.ok(d.reasons.includes('focus_ref_not_in_active_work_items'), JSON.stringify(d.reasons));
+  assert.strictEqual(d.retarget, null, JSON.stringify(d));
+}
+
+// (4) both verdicts fail -> still abstains (no 4a retarget).
+{
+  const s = base();
+  s.validation = { status: 'fail', ref_id: 'CHANGE-0027' };
+  s.review = { required: true, status: 'fail' };
+  const d = decide(s);
+  assert.notStrictEqual(d.rule, '4a', JSON.stringify(d));
+  assert.strictEqual(d.retarget, null, JSON.stringify(d));
+}
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t17.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t17.log" 2>&1 \
+    || log_fail "fail-closed invariant failed: $(cat "$TEST_DIR/t17.log")"
+  log_pass "Fail-closed invariant: no 4a retarget for any fail shape, incl. null work_item (TEST-017/spec TEST-005)"
+}
+
+# --- TEST-018 (Spec TEST-006/Spec-AC-04): purity + 4a doc-string guard --------
+
+test_018_purity_and_docstring_guard() {
+  log_info "Test: decide() purity on a fail-verdict snapshot (double-decide + input-freeze) + RULES 4a when doc string documents the abstention guard (Spec TEST-006)..."
+  cat > "$TEST_DIR/t18.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const s1 = {
+  project_status: 'active', human_input_required: false, technology_present: true, workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0027' },
+  work_item: { phase: 'validation', status: 'done' },
+  spec: { path: 'docs/specs/SPEC-0027-fx.md', present: true, frozen: true, frontmatter_status: 'implementing', ceremony_level: 2 },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'fail', ref_id: 'CHANGE-0027' },
+  review: { required: true, status: 'not_run' },
+  flushed: true,
+  implementer_model: null,
+  last_run_role: 'Validation',
+  open_intakes: [{ ref_id: 'some-open-intake', primary_path: 'docs/issues/CHANGE-9999-some-open-intake.md', doc_type: 'change', item_status: 'draft', unmappable: false }],
+};
+const frozen = JSON.stringify(s1);
+const a = decide(s1);
+const b = decide(JSON.parse(frozen));
+assert.strictEqual(JSON.stringify(a), JSON.stringify(b), 'decide must be deterministic on a fail-verdict guard snapshot');
+assert.strictEqual(JSON.stringify(s1), frozen, 'decide must not mutate its fail-verdict-guard-snapshot input');
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t18.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t18.log" 2>&1 \
+    || log_fail "decide() purity on fail-verdict snapshot failed: $(cat "$TEST_DIR/t18.log")"
+
+  # RULES table 4a `when` doc string must document the fail-verdict guard
+  # (greppable for fail + Remediation, per Spec-AC-04).
+  local when4a="$TEST_DIR/t18-when4a.txt"
+  grep "id: '4a'" "$PROJECT_ROOT/.aai/scripts/orchestration-dispatch.mjs" > "$when4a" \
+    || log_fail "RULES table must still contain the id: '4a' entry"
+  grep -qi "fail" "$when4a" || log_fail "4a when doc string must document the fail-verdict guard (mention 'fail'): $(cat "$when4a")"
+  grep -q "Remediation" "$when4a" || log_fail "4a when doc string must document the fall-through to Remediation: $(cat "$when4a")"
+
+  log_pass "decide() purity on fail-verdict snapshot; 4a when doc string documents the guard (TEST-018/spec TEST-006)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012)"
+  echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018)"
   check_deps
   setup_fixture
   test_001_decide_table
@@ -1145,6 +1453,12 @@ main() {
   test_010_evidence_replay
   test_011_seam_survival
   test_012_purity_and_hygiene
+  test_013_fail_verdict_validation_precedence
+  test_014_fail_verdict_review_precedence
+  test_015_cli_fail_precedence
+  test_016_survival_negative_control
+  test_017_fail_closed_invariant
+  test_018_purity_and_docstring_guard
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
