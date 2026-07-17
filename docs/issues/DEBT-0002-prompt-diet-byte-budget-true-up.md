@@ -51,6 +51,12 @@ links:
 - Do not silently absorb future unjustified prompt growth: the re-baseline
   must document what grew and why (SPEC-0017 discipline).
 
+## Notes (W2 fold-in, review-20260717T134629Z)
+- Also true up the TEST-011 40-line ceiling headroom for deterministic-tick
+  wrapper prompts: .aai/ORCHESTRATION.prompt.md sits at exactly 40/40 lines
+  (zero headroom; a one-line growth broke it live on 2026-07-17 — validation
+  FAIL 133218Z). Re-baseline alongside the byte floor.
+
 ## Notes
 - Found during CHANGE-0030/SPEC-0041 TDD (2026-07-17); verified pre-existing
   via clean-main worktree A/B by both Validation and Code Review. See

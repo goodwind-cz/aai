@@ -129,6 +129,30 @@ Timing capture rules:
 - Use UTC ISO-8601 with explicit `Z` or `+00:00`.
 - `duration_seconds` MUST match `ended_utc - started_utc` (tolerance +/-1s).
 
+## Harness-reported usage capture
+
+Token usage is captured ONLY from the harness-level result visible to the dispatching parent (Agent-tool completion, headless `--output-format json`, etc.) — never from a subagent's own self-report (D1); a subagent cannot observe its own usage, so any figure it produced would be fabricated.
+
+- Decomposed shape (`usage.input_tokens`/`usage.output_tokens`/
+  `usage.cache_read_input_tokens`, `total_cost_usd`): pass values through the
+  existing flags — `append-run --tokens-in N --tokens-out N`; `log-tick --tokens-in N --tokens-out N [--cache-read N] [--cost X]` (`--cost` only
+  when the runtime itself reports a real cost figure) (D2).
+- Undecomposed total (a single combined count, e.g. the in-session Agent
+  tool's completion total, no in/out split): record it VERBATIM in
+  `append-run --note` using the fixed grammar `usage_total_tokens=<N>`
+  (recommended full form: `usage_total_tokens=<N> (harness total; in/out not
+  exposed)`). Numeric token flags are OMITTED. NEVER split a total into
+  in/out components, and NEVER relabel it as `tokens_out`/`tokens_in` —
+  input and output prices differ, so a mislabeled total would poison
+  `cost_usd`. The flush "cost unattributable" warning correctly continues to
+  fire for such runs (D3).
+- Nothing exposed: omit all usage flags — the existing null/never-fabricate
+  behavior is preserved byte-for-byte; no estimation path exists (D4).
+
+| Rationalization                                  | Reality                                                                                                          |
+|---------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| "I'll estimate the in/out split from the total"   | Never — record the total in the note (`usage_total_tokens=<N>`) or record nothing; splitting fabricates a component claim and would poison cost_usd. |
+
 ## Single-writer rule (HARD — RFC-0004 / SPEC-0004 D7)
 
 A dispatched subagent **MUST NOT write `docs/ai/STATE.yaml`**. The orchestrator
@@ -174,7 +198,10 @@ After all subagents complete, the orchestrator MUST:
    - `last_validation.status` (or equivalent phase field)
    - `last_validation.evidence_paths`
    - `active_work_items` updated for each affected scope
-   - `metrics.work_items[ref_id].agent_runs` with measured timing fields from accepted subagent results
+   - `metrics.work_items[ref_id].agent_runs` with measured timing fields from
+     accepted subagent results, attaching harness-reported usage per
+     "Harness-reported usage capture" above (D5: subagent-mode role runs are
+     appended HERE at merge time, never self-appended by the role)
    - `updated_at_utc`
 4. Only after STATE.yaml is updated: proceed to deliver result to user.
 

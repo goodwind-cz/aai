@@ -6,7 +6,8 @@ RUN THE TICK
 1. Run: node .aai/scripts/orchestration-dispatch.mjs --human
 2. Exit 0 (dispatch): relay the JSON dispatch — spawn the named role per
    .aai/SUBAGENT_PROTOCOL.md (system_prompt, inputs, expected outputs, stop
-   condition), honoring suggested_tier and validator_independence. Then step 5.
+   condition), honoring suggested_tier and validator_independence. After the
+   role completes, append its run via state.mjs append-run with harness-reported usage per SUBAGENT_PROTOCOL.md. Then step 5.
 3. Exit 3 (no_action): report "No action required" + the JSON reasons; STOP.
 4. Exit 4 (needs_llm): handle ONLY the named reasons, nothing else:
    - state_file_missing / duplicate_top_level_key / missing_required_block /
@@ -30,7 +31,6 @@ first-match table). SPEC-0012 G3 routing is emergent: a completed remediation
 already ran reset-block, so rules 10/12 stop matching and the state falls to
 rule 11 (fresh independent Validation) or rule 13 (fresh Code Review); a pass
 with only code_review reset dispatches rule 13, never re-fires rule 11.
-
 MODEL SELECTION — map suggested_tier: mechanical -> smallest/fastest model;
 standard -> mid-tier; premium -> most capable. Validation MUST get a freshly
 spawned independent context and a model differing from implementer_model.
