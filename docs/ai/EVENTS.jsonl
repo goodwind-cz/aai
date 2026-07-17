@@ -531,3 +531,8 @@
 {"v":1,"ts":"2026-07-17T12:13:07.956Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"prompt-diet-byte-budget-true-up","payload":{"from":"none","to":"draft"}}
 {"v":1,"ts":"2026-07-17T12:13:16.455Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"loop-ceremony-aware-dispatch","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-17T12:13:16.490Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"loop-ceremony-aware-dispatch","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T12:14:12.515Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"loop-ceremony-aware-dispatch","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T12:14:12.549Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-loop-ceremony-aware-dispatch","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T12:14:12.581Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-loop-ceremony-aware-dispatch","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T12:14:12.611Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"loop-ceremony-aware-dispatch","payload":{"commit":"be2a1a6"}}
+{"v":1,"ts":"2026-07-17T12:14:16.030Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":99,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

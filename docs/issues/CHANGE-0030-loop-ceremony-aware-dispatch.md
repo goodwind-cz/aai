@@ -2,10 +2,12 @@
 id: loop-ceremony-aware-dispatch
 type: change
 number: 30
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 93
+  commits:
+    - be2a1a6
 ---
 
 # Change — Ceremony-Aware LOOP Dispatch (extend L0-L3 to the runner, not just doc shape)

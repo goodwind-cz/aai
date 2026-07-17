@@ -2,13 +2,15 @@
 id: spec-loop-ceremony-aware-dispatch
 type: spec
 number: 41
-status: draft
+status: done
 ceremony_level: 2
 links:
   change: loop-ceremony-aware-dispatch
   rfc: scale-adaptive-ceremony
-  pr: []
-  commits: []
+  pr:
+    - 93
+  commits:
+    - be2a1a6
 ---
 
 # SPEC — Ceremony-Aware LOOP Dispatch Lane (L0/L1 lightweight, L2/L3 unchanged)
