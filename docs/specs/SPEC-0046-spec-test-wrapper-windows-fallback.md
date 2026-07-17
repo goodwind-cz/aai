@@ -2,13 +2,15 @@
 id: spec-test-wrapper-windows-fallback
 type: spec
 number: 46
-status: implementing
+status: done
 ceremony_level: 2
 links:
   issue: test-wrapper-windows-fallback
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 98
+  commits:
+    - 7fc7912
 ---
 
 # SPEC — Test-Wrapper Windows Fallback: deterministic interpreter resolution (ISSUE-0009)
