@@ -2,13 +2,15 @@
 id: spec-loop-token-usage-capture
 type: spec
 number: 43
-status: draft
+status: done
 ceremony_level: 2
 links:
   change: loop-token-usage-capture
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 95
+  commits:
+    - 5ad4c1d
 ---
 
 # SPEC — Capture Harness-Reported Token Usage into log-tick / append-run (prompt-layer wiring)

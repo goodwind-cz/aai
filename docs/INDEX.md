@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T13:55:48.960Z
+Generated: 2026-07-17T13:55:58.625Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (95)
+## Done (97)
 
 | ID | Type | Path |
 |---|---|---|
@@ -50,6 +50,7 @@ _None._
 | CHANGE-0029 | issues | docs/issues/CHANGE-0029-validation-ac-evidence-close-time.md |
 | CHANGE-0030 | issues | docs/issues/CHANGE-0030-loop-ceremony-aware-dispatch.md |
 | CHANGE-0031 | issues | docs/issues/CHANGE-0031-dispatch-new-intake-after-completed-scope.md |
+| CHANGE-0032 | issues | docs/issues/CHANGE-0032-loop-token-usage-capture.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
@@ -113,18 +114,17 @@ _None._
 | SPEC-0040 | specs | docs/specs/SPEC-0040-spec-docs-audit-d2-evidence-hardening.md |
 | SPEC-0041 | specs | docs/specs/SPEC-0041-spec-loop-ceremony-aware-dispatch.md |
 | SPEC-0042 | specs | docs/specs/SPEC-0042-spec-dispatch-new-intake-after-completed-scope.md |
+| SPEC-0043 | specs | docs/specs/SPEC-0043-spec-loop-token-usage-capture.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (6)
+## Drafts (4)
 
 | ID | Type | Path |
 |---|---|---|
-| CHANGE-0032 | issues | docs/issues/CHANGE-0032-loop-token-usage-capture.md |
 | CHANGE-0033 | issues | docs/issues/CHANGE-0033-tdd-red-evidence-classification.md |
 | CHANGE-0034 | issues | docs/issues/CHANGE-0034-intake-secrets-preflight.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0009 | issues | docs/issues/ISSUE-0009-test-wrapper-windows-fallback.md |
-| SPEC-0043 | specs | docs/specs/SPEC-0043-spec-loop-token-usage-capture.md |
 
 ## Deferred (whole-doc) (0)
 

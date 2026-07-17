@@ -571,3 +571,8 @@
 {"v":1,"ts":"2026-07-17T13:47:36.858Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0043","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260717T134629Z.md"}}
 {"v":1,"ts":"2026-07-17T13:48:21.707Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"loop-token-usage-capture","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-17T13:48:21.745Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"loop-token-usage-capture","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T13:49:01.086Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"loop-token-usage-capture","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T13:49:01.123Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-loop-token-usage-capture","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T13:49:01.162Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-loop-token-usage-capture","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T13:49:01.196Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"loop-token-usage-capture","payload":{"commit":"5ad4c1d"}}
+{"v":1,"ts":"2026-07-17T13:49:04.510Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":100,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

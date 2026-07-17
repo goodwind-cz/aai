@@ -2,10 +2,12 @@
 id: loop-token-usage-capture
 type: change
 number: 32
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 95
+  commits:
+    - 5ad4c1d
 ---
 
 # Change — Capture Real Runtime Token Usage into log-tick / append-run
