@@ -2,10 +2,12 @@
 id: test-wrapper-windows-fallback
 type: issue
 number: 9
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 98
+  commits:
+    - 7fc7912
 ---
 
 # Issue — Test Wrappers Are Bash/POSIX-Only; No Deterministic Windows Fallback

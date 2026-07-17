@@ -12,7 +12,9 @@
 #   2. PSScriptAnalyzer at Error severity using .aai/scripts/PSScriptAnalyzerSettings.psd1
 #      (includes PSUseCompatibleSyntax targeting 5.1 + 7.0). Skipped-with-note if
 #      the module is absent.
-#   3. Pester smoke tests for aai-update.ps1. Skipped-with-note if Pester absent.
+#   3. Pester smoke tests: aai-update.Tests.ps1 (aai-update.ps1) AND
+#      aai-win-dispatch.Tests.ps1 (SPEC-0046 Windows test-wrapper dispatchers,
+#      Spec-AC-09). Skipped-with-note if Pester absent.
 #
 # Exit codes:
 #   0  - All checks passed
@@ -26,7 +28,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PS_DIR="$PROJECT_ROOT/.aai/scripts"
 SETTINGS="$PS_DIR/PSScriptAnalyzerSettings.psd1"
-PESTER_TESTS="$SCRIPT_DIR/aai-update.Tests.ps1"
+PESTER_TESTS="$SCRIPT_DIR/aai-update.Tests.ps1,$SCRIPT_DIR/aai-win-dispatch.Tests.ps1"
 
 log_pass() { echo "PASS: $*"; }
 log_fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -94,20 +96,20 @@ else
   log_info "SKIP PSScriptAnalyzer (module absent; install: pwsh -c \"Install-Module PSScriptAnalyzer -Scope CurrentUser\")"
 fi
 
-# --- 3. Pester smoke tests for aai-update.ps1 ---------------------------------
+# --- 3. Pester smoke tests: aai-update.ps1 + the Windows dispatchers ---------
 has_pester="$(pwsh -NoProfile -Command 'if (Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 }) { "yes" } else { "no" }' 2>/dev/null || echo no)"
 if [[ "$has_pester" == "yes" ]]; then
-  log_info "Running Pester smoke tests (aai-update.Tests.ps1) ..."
+  log_info "Running Pester smoke tests (aai-update.Tests.ps1, aai-win-dispatch.Tests.ps1) ..."
   if PESTER_TESTS="$PESTER_TESTS" pwsh -NoProfile -Command '
       $cfg = New-PesterConfiguration
-      $cfg.Run.Path = $env:PESTER_TESTS
+      $cfg.Run.Path = @($env:PESTER_TESTS -split ",")
       $cfg.Run.Exit = $true
       $cfg.Output.Verbosity = "Detailed"
       Invoke-Pester -Configuration $cfg
     '; then
     log_pass "Pester smoke tests passed"
   else
-    log_fail "Pester smoke tests failed (aai-update.ps1)"
+    log_fail "Pester smoke tests failed (aai-update.ps1 and/or aai-win-dispatch.Tests.ps1)"
   fi
 else
   log_info "SKIP Pester (Pester v5 absent; install: pwsh -c \"Install-Module Pester -Scope CurrentUser\")"

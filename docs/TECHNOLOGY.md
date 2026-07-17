@@ -89,8 +89,24 @@
   validates itself); shared fixtures in `tests/fixtures/`
 - E2E: not applicable (no deployed surface)
 - Contract / smoke: Pester suites for PowerShell
-  (`tests/skills/aai-update.Tests.ps1`) and PSScriptAnalyzer static analysis
+  (`tests/skills/aai-update.Tests.ps1`, `tests/skills/aai-win-dispatch.Tests.ps1`)
+  and PSScriptAnalyzer static analysis
   (settings: `.aai/scripts/PSScriptAnalyzerSettings.psd1`)
+- Windows test-wrapper support matrix (Spec-AC-07 / SPEC-0046 — kept identical
+  across this row, the `.sh` wrapper headers, and the `.ps1` dispatcher
+  headers):
+
+  | Platform                          | Test-wrapper contract |
+  |------------------------------------|------------------------|
+  | macOS                              | full SPEC-0009 contract (killable process group + inline timeout watchdog) |
+  | Linux                              | full SPEC-0009 contract |
+  | Windows + WSL                      | full contract, via WSL delegation (`.aai/scripts/aai-run-tests.ps1` / `aai-reap-tests.ps1`) |
+  | Windows + Git-Bash-only (no WSL)   | DEGRADED: launched-tree `taskkill /T` only; detached/reparented descendants NOT guaranteed reaped (no POSIX sessions on Windows) — explicitly weaker than the SPEC-0009 contract |
+  | Windows, neither WSL nor Git Bash  | `AAI-ENV-ERROR: ...`, exit 78 (sysexits `EX_CONFIG`); no test run attempted |
+
+  Real Windows-host process-cleanup semantics are documented but NOT verified
+  by this repo's own CI (macOS/Linux only) — see SPEC-0046's Manual
+  verification protocol (MV-1..MV-3) and residual risk RR-1.
 
 ## Tooling
 

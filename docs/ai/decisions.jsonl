@@ -4,13 +4,11 @@
 #   - HITL answers (human decisions that unblocked the loop)
 #   - Implementation lock overrides
 #   - Rejected alternatives during planning
-#
 # Schema per entry:
 #   {"ts":"ISO8601Z","type":"hitl|lock_override|planning_rejection",
 #    "ref":"PRD-001","by":"human|agent",
 #    "question":"...(for hitl)","answer":"...(for hitl)",
 #    "blocking_reason":"...(for hitl)","notes":"..."}
-#
 # Rules:
 #   - Append only. Never edit existing lines.
 #   - Written by ai/SKILL_HITL.prompt.md after human decision is recorded.
@@ -55,3 +53,6 @@
 {"v": 1, "ts": "2026-07-17T18:13:33Z", "actor": "orchestrator", "type": "review_disposition", "ref_id": "CHANGE-0035", "finding": "NB-3: reservation ref names embed the allocating draft's digit width - padding-divergent clones could mint CHANGE-100 vs CHANGE-0100 and both win (frozen spec D1 root cause).", "decision": "promote-to-spec-level-follow-up-ref (width-normalized ref names need a D1 amendment).", "source": "docs/ai/reviews/review-20260717T181026Z.md"}
 {"v": 1, "ts": "2026-07-17T18:13:33Z", "actor": "orchestrator", "type": "review_disposition", "ref_id": "CHANGE-0035", "finding": "NB-4: guard mode now fetches origin main on every pre-commit run (network round-trip/offline timeout on a hot local path; exit codes unchanged).", "decision": "promote-to-follow-up-ref (skip fetch in guard mode / cache).", "source": "docs/ai/reviews/review-20260717T181026Z.md"}
 {"v": 1, "ts": "2026-07-17T18:13:33Z", "actor": "orchestrator", "type": "review_disposition", "ref_id": "CHANGE-0035", "finding": "Dev-2: ceremony-levels TEST-016 byte-freeze tripwire narrowed from spec-lint.mjs+docs-audit-core.mjs to docs-audit-core.mjs only (spec-lint legitimately extended by SPEC-0047 D6).", "decision": "recorded - permanent relaxation acknowledged; docs-audit-core freeze remains.", "source": "docs/ai/reviews/review-20260717T181026Z.md"}
+{"v": 1, "ts": "2026-07-17T16:30:50Z", "actor": "orchestrator", "type": "review_disposition", "ref_id": "ISSUE-0009", "finding": "NB-A outer Git-Bash watchdog raced inner .sh reap-grace (false 124); NB-B AAI_TEST_TIMEOUT Int32 overflow crash; NB-C WSL-delegated reap dropped workspace/min-age env (MIN_AGE=0 risk) + double reaped-line print.", "decision": "remediated-in-tree post-review (grace +5s, TryParse fallback 300, env passthrough + single authoritative print; +6 Pester cases, 37/37 green).", "source": "docs/ai/reviews/review-20260717T161627Z.md"}
+{"v": 1, "ts": "2026-07-17T16:30:50Z", "actor": "orchestrator", "type": "review_disposition", "ref_id": "ISSUE-0009", "finding": "NB-D: SPEC-0046 AC-05/06 evidence cells cited the RED timestamp for the GREEN log.", "decision": "remediated at close - cells now cite green-20260717T155744Z.", "source": "docs/ai/reviews/review-20260717T161627Z.md"}
+{"v": 1, "ts": "2026-07-17T16:30:50Z", "actor": "orchestrator", "type": "review_disposition", "ref_id": "ISSUE-0009", "finding": "INFO-1: windows-latest CI ships Git for Windows - a Pester/MV-2-lite job could shrink RR-1 before the 2026-10-17 Review-By.", "decision": "promote-to-follow-up-ref - candidate enhancement tracked alongside SPEC-0046 Spec-AC-10 deferred row.", "source": "docs/ai/reviews/review-20260717T161627Z.md"}
