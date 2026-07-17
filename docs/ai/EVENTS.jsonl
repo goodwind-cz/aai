@@ -628,3 +628,10 @@
 {"v":1,"ts":"2026-07-17T17:28:07.679Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0047/Spec-AC-08","payload":{"from":"planned","to":"done","notes":"CHANGE-0035 TDD implementation — all 15 TEST-xxx green (new suite) + existing SPEC-0015 suite green (D9)"}}
 {"v":1,"ts":"2026-07-17T17:28:07.711Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0047/Spec-AC-09","payload":{"from":"planned","to":"done","notes":"CHANGE-0035 TDD implementation — all 15 TEST-xxx green (new suite) + existing SPEC-0015 suite green (D9)"}}
 {"v":1,"ts":"2026-07-17T17:28:07.745Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0047/Spec-AC-10","payload":{"from":"planned","to":"done","notes":"CHANGE-0035 TDD implementation — all 15 TEST-xxx green (new suite) + existing SPEC-0015 suite green (D9)"}}
+{"v":1,"ts":"2026-07-17T18:14:35.157Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"doc-number-origin-reservation","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T18:14:35.190Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-doc-number-origin-reservation","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T18:14:35.220Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-doc-number-origin-reservation","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T18:14:35.255Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"doc-number-origin-reservation","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T18:14:35.288Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"doc-number-origin-reservation","payload":{"commit":"ff55d1e"}}
+{"v":1,"ts":"2026-07-17T18:14:35.327Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-doc-number-origin-reservation","payload":{"commit":"ff55d1e"}}
+{"v":1,"ts":"2026-07-17T18:14:38.869Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":105,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

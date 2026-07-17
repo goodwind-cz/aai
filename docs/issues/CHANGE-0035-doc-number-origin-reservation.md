@@ -2,10 +2,12 @@
 id: doc-number-origin-reservation
 type: change
 number: 35
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 99
+  commits:
+    - ff55d1e
 ---
 
 # Change — Atomic Doc-Number Reservation in Origin (Collision Guard + Slug Discipline + Coupled Families)

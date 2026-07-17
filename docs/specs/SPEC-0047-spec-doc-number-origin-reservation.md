@@ -2,13 +2,15 @@
 id: spec-doc-number-origin-reservation
 type: spec
 number: 47
-status: draft
+status: done
 ceremony_level: 3
 links:
   requirement: CHANGE-0035
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 99
+  commits:
+    - ff55d1e
 ---
 
 # SPEC — Atomic Doc-Number Reservation in Origin (CHANGE-0035)
