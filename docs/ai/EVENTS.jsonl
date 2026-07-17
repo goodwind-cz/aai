@@ -591,3 +591,8 @@
 {"v":1,"ts":"2026-07-17T14:26:19.413Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0044","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260717T142458Z.md","notes":"dual-verdict: spec_compliance pass 5/5, code_quality pass, 0 BLOCKING, 1 NON-BLOCKING (NB-1 BOM tolerance, disposition promote-to-follow-up); probe (c) adjudicated by-design"}}
 {"v":1,"ts":"2026-07-17T14:26:59.024Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"tdd-red-evidence-classification","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-17T14:26:59.062Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"tdd-red-evidence-classification","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T14:27:33.610Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"tdd-red-evidence-classification","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T14:27:33.644Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-tdd-red-evidence-classification","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T14:27:33.677Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-tdd-red-evidence-classification","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T14:27:33.708Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"tdd-red-evidence-classification","payload":{"commit":"a8a3bf2"}}
+{"v":1,"ts":"2026-07-17T14:27:37.060Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":102,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

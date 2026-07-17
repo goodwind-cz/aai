@@ -2,13 +2,15 @@
 id: spec-tdd-red-evidence-classification
 type: spec
 number: 44
-status: draft
+status: done
 ceremony_level: 2
 links:
   change: tdd-red-evidence-classification
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 96
+  commits:
+    - a8a3bf2
 ---
 
 # SPEC — RED Evidence Classification: Machine-Distinguish product_red from infra_fail
