@@ -2,10 +2,12 @@
 id: spec-lint-duplicate-ac-id
 type: issue
 number: 11
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 103
+  commits:
+    - ef43dab
 ---
 
 # Issue: spec-lint silently drops a duplicate Spec-AC-id row (raw-vs-parsed miss)

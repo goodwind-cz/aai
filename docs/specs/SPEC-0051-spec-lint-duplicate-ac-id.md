@@ -2,13 +2,15 @@
 id: spec-lint-duplicate-ac-id
 type: spec
 number: 51
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: ISSUE-0011
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 103
+  commits:
+    - ef43dab
 ---
 
 # Spec: spec-lint — surface a duplicate Spec-AC-id that silently drops a row
