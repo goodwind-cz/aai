@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T19:21:11.626Z
+Generated: 2026-07-17T20:16:04.701Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (107)
+## Done (109)
 
 | ID | Type | Path |
 |---|---|---|
@@ -65,6 +65,7 @@ _None._
 | ISSUE-0007 | issues | docs/issues/ISSUE-0007-state-list-append-indent.md |
 | ISSUE-0008 | issues | docs/issues/ISSUE-0008-project-dominant-width.md |
 | ISSUE-0009 | issues | docs/issues/ISSUE-0009-test-wrapper-windows-fallback.md |
+| ISSUE-0010 | issues | docs/issues/ISSUE-0010-secrets-preflight-env-multiline.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -125,6 +126,7 @@ _None._
 | SPEC-0046 | specs | docs/specs/SPEC-0046-spec-test-wrapper-windows-fallback.md |
 | SPEC-0047 | specs | docs/specs/SPEC-0047-spec-doc-number-origin-reservation.md |
 | SPEC-0048 | specs | docs/specs/SPEC-0048-prompt-diet-byte-budget-true-up.md |
+| SPEC-0049 | specs | docs/specs/SPEC-0049-secrets-preflight-env-multiline.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)

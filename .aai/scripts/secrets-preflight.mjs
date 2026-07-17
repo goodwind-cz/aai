@@ -42,9 +42,17 @@
 //         generic coercion). A present string value -> empty/exists by
 //         length. A present non-string, non-null terminal (number, boolean,
 //         object, array) -> String-coerced for the length test ONLY.
-//   .env: line-scan for `KEY=` or `export KEY=` (first match wins, top to
-//         bottom); one pair of matching surrounding quotes ("..." or '...')
-//         is stripped before the length test; no other trimming.
+//   .env: quoting-aware line-scan for `KEY=` or `export KEY=` (first genuine
+//         top-level assignment wins, top to bottom). When a candidate
+//         assignment's value opens with a quote (`"` or `'`) that is not
+//         closed on the SAME physical line, subsequent lines are consumed as
+//         value continuation up to (and including) the line bearing the
+//         matching closing quote, or EOF if never closed; those consumed
+//         interior lines are never re-scanned as top-level assignments, even
+//         when they look like `KEY=...` themselves (SPEC-0049). One pair of
+//         matching surrounding quotes is stripped before the length test
+//         (now applied to the full, possibly multiline, value); no other
+//         trimming.
 //   Any check against a file that could not be read (ENOENT/EACCES/any read
 //   error) or a JSON file that failed to parse classifies as `missing` for
 //   every key requested against that file (see NEVER-ECHO RULES).
@@ -195,26 +203,92 @@ function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Line-scan for `KEY=` or `export KEY=`, first match wins. One pair of
-// matching surrounding quotes is stripped before the length test.
+// Any top-level assignment shape (no leading whitespace, `export` prefix
+// optional), regardless of key name. Used ONLY to detect where a quoted
+// multiline value starts so its interior lines can be skipped — never to
+// classify a value itself (that stays scoped to the requested key's own
+// regex in classifyEnvFileKey below).
+const ANY_ASSIGNMENT_RE = /^(?:export\s+)?[^\s=][^=]*=(.*)$/;
+
+// Given the value text captured immediately after `KEY=` on line `startIdx`,
+// determine whether it opens a quote left unclosed on that same physical
+// line and, if so, consume subsequent lines as continuation up to (and
+// including) the line bearing the matching closing quote char, or EOF if
+// never closed (SPEC-0049). Returns the full — possibly multiline — value
+// text and the index of the first line AFTER the consumed span. Never
+// inspects the requested key; operates purely on value text and line shape,
+// so it is safe to reuse both for masking OTHER keys' interiors and for
+// gathering the target key's own (possibly multiline) value.
+function consumeQuotedValue(lines, startIdx, firstLineVal) {
+  const quote = firstLineVal.length > 0 && (firstLineVal[0] === '"' || firstLineVal[0] === "'")
+    ? firstLineVal[0]
+    : null;
+  const closedSameLine =
+    quote !== null && firstLineVal.length >= 2 && firstLineVal[firstLineVal.length - 1] === quote;
+  if (quote === null || closedSameLine) {
+    return { value: firstLineVal, nextIndex: startIdx + 1 };
+  }
+  let value = firstLineVal;
+  let j = startIdx + 1;
+  while (j < lines.length) {
+    value += '\n' + lines[j];
+    const isClosingLine = lines[j].includes(quote);
+    j += 1;
+    if (isClosingLine) break;
+  }
+  return { value, nextIndex: j };
+}
+
+// One pair of matching surrounding quotes ("..." or '...') is stripped
+// before the length test; no other trimming.
+function stripSurroundingQuotes(value) {
+  if (value.length < 2) return value;
+  const first = value[0];
+  const last = value[value.length - 1];
+  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+// Marks every line index that is INTERIOR to some quoted multiline value
+// (any key, not just the one being looked up) so those lines are never
+// re-scanned as fresh top-level assignments — the fix for the first-match
+// scan misreading a `KEY=`-shaped interior fragment (SPEC-0049).
+function computeConsumedLineMask(lines) {
+  const consumed = new Array(lines.length).fill(false);
+  let i = 0;
+  while (i < lines.length) {
+    const m = ANY_ASSIGNMENT_RE.exec(lines[i]);
+    if (!m) {
+      i += 1;
+      continue;
+    }
+    const { nextIndex } = consumeQuotedValue(lines, i, m[1]);
+    for (let k = i + 1; k < nextIndex; k += 1) consumed[k] = true;
+    i = nextIndex;
+  }
+  return consumed;
+}
+
+// Quoting-aware line-scan for `KEY=` or `export KEY=` (SPEC-0049): first
+// genuine top-level assignment wins, top to bottom; interior lines of any
+// quoted multiline value (this key's or another's) are never treated as
+// assignments. One pair of matching surrounding quotes is stripped from the
+// full (possibly multiline) value before the length test.
 function classifyEnvFileKey(raw, key) {
   const escaped = escapeRegExp(key);
   const rePlain = new RegExp(`^${escaped}=(.*)$`);
   const reExport = new RegExp(`^export\\s+${escaped}=(.*)$`);
   const lines = raw.split(/\r?\n/);
-  for (const line of lines) {
-    const m = rePlain.exec(line) || reExport.exec(line);
-    if (m) {
-      let val = m[1];
-      if (val.length >= 2) {
-        const first = val[0];
-        const last = val[val.length - 1];
-        if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
-          val = val.slice(1, -1);
-        }
-      }
-      return val.length === 0 ? 'empty' : 'exists';
-    }
+  const consumed = computeConsumedLineMask(lines);
+  for (let idx = 0; idx < lines.length; idx += 1) {
+    if (consumed[idx]) continue;
+    const m = rePlain.exec(lines[idx]) || reExport.exec(lines[idx]);
+    if (!m) continue;
+    const { value } = consumeQuotedValue(lines, idx, m[1]);
+    const stripped = stripSurroundingQuotes(value);
+    return stripped.length === 0 ? 'empty' : 'exists';
   }
   return 'missing';
 }

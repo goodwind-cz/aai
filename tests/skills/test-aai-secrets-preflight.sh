@@ -35,6 +35,23 @@
 #     both templates keep every pre-change heading; test-aai-intake.sh
 #     still exits 0.
 #
+# SPEC-0049 / ISSUE-0010 additions (quoting-aware `.env` multiline fidelity):
+#   - TEST-007 (Spec-AC-01): a quoted multiline value's interior `KEY=`-shaped
+#     lines are never read as top-level assignments — interior-only key ->
+#     `missing`, a key shadowed by an interior fragment still resolves to its
+#     real (later) top-level assignment, a plain key after the block is still
+#     found, both `"..."` and `'...'` multiline forms are handled, and the
+#     multiline key itself classifies `exists`.
+#   - TEST-008 (Spec-AC-02): empty classification — `KEY=`, `KEY=""`,
+#     `KEY=''`, and a real empty assignment shadowed by an earlier multiline
+#     interior fragment all classify `empty`, never `exists`.
+#   - TEST-009 (Spec-AC-03): adversarial never-echo on the new parser paths —
+#     a sentinel inside a multiline interior line and inside an
+#     unterminated-quote value never appears in combined stdout+stderr for
+#     any invocation shape; every run exits 0.
+#   - TEST-010 (Spec-AC-03): full-suite regression — TEST-001..006 re-run
+#     individually through the aai-run-tests.sh wrapper and stay green.
+#
 # Fixture diversity checklist (SPEC-0013 H7), mapped:
 #   - degenerate/empty            -> empty JSON {} / empty .env file (TEST-001)
 #   - zero-remainder               -> single-check invocation, exactly one
@@ -633,6 +650,190 @@ test_006_additive_budget_regression() {
   log_pass "Additive/budget regression: strict audit clean, line budget held, template headings intact, intake suite green (TEST-006)"
 }
 
+# --- TEST-007 (Spec-AC-01): quoting-aware multiline scan --------------------
+
+test_007_multiline_quoting_aware() {
+  log_info "Test: quoted multiline value's interior KEY= lines are not top-level assignments (TEST-007)..."
+  local f="$TEST_DIR"
+  local out err code
+
+  cat > "$f/multiline.env" <<'ENVV'
+CERT_SENTINEL_KEY="-----BEGIN CERTIFICATE-----
+INTERIOR_ONLY_KEY=fragment-should-not-count-as-assignment
+SHADOWED_KEY=interior-fragment-should-not-win
+-----END CERTIFICATE-----"
+SHADOWED_KEY=real-later-value
+AFTER_BLOCK=found-me
+TOKEN_SINGLE='-----BEGIN TOKEN-----
+SINGLE_INTERIOR_KEY=also-should-not-count
+-----END TOKEN-----'
+ENVV
+
+  # interior-only key (appears ONLY inside a quoted multiline block) -> missing
+  out="$f/t7-interior-only.out"; err="$f/t7-interior-only.err"
+  code=$(run_helper "$out" "$err" --file "$f/multiline.env" --key INTERIOR_ONLY_KEY)
+  assert_exit "interior-only key" 0 "$code"
+  assert_stdout_line "interior-only key (double-quoted block) must classify missing, not exists" \
+    "$out" "file:$f/multiline.env#INTERIOR_ONLY_KEY missing"
+
+  # shadowed key: an interior fragment shares the name, but a genuine
+  # top-level assignment appears after the block -> the real one is found
+  # (both non-empty here; TEST-008 covers the empty-shadow RED-proof).
+  out="$f/t7-shadowed.out"; err="$f/t7-shadowed.err"
+  code=$(run_helper "$out" "$err" --file "$f/multiline.env" --key SHADOWED_KEY)
+  assert_exit "shadowed key resolves to real later assignment" 0 "$code"
+  assert_stdout_line "shadowed key -> real later (non-empty) assignment classifies exists" \
+    "$out" "file:$f/multiline.env#SHADOWED_KEY exists"
+
+  # plain key after the multiline block -> scan resumes correctly, still found
+  out="$f/t7-after.out"; err="$f/t7-after.err"
+  code=$(run_helper "$out" "$err" --file "$f/multiline.env" --key AFTER_BLOCK)
+  assert_exit "key after multiline block" 0 "$code"
+  assert_stdout_line "key after multiline block is still found" \
+    "$out" "file:$f/multiline.env#AFTER_BLOCK exists"
+
+  # the multiline key itself (non-empty content) -> exists ("..." form)
+  out="$f/t7-multiline-key.out"; err="$f/t7-multiline-key.err"
+  code=$(run_helper "$out" "$err" --file "$f/multiline.env" --key CERT_SENTINEL_KEY)
+  assert_exit "multiline key itself (double-quoted)" 0 "$code"
+  assert_stdout_line "multiline key itself classifies exists" \
+    "$out" "file:$f/multiline.env#CERT_SENTINEL_KEY exists"
+
+  # '...' single-quoted multiline form: interior fragment -> missing
+  out="$f/t7-single-interior.out"; err="$f/t7-single-interior.err"
+  code=$(run_helper "$out" "$err" --file "$f/multiline.env" --key SINGLE_INTERIOR_KEY)
+  assert_exit "interior key inside single-quoted multiline block" 0 "$code"
+  assert_stdout_line "interior key inside '...' block must classify missing, not exists" \
+    "$out" "file:$f/multiline.env#SINGLE_INTERIOR_KEY missing"
+
+  # '...' single-quoted multiline key itself -> exists
+  out="$f/t7-token-single.out"; err="$f/t7-token-single.err"
+  code=$(run_helper "$out" "$err" --file "$f/multiline.env" --key TOKEN_SINGLE)
+  assert_exit "single-quoted multiline key itself" 0 "$code"
+  assert_stdout_line "single-quoted multiline key itself classifies exists" \
+    "$out" "file:$f/multiline.env#TOKEN_SINGLE exists"
+
+  log_pass "Quoting-aware multiline scan: interior lines never satisfy a lookup, shadowed/after/multiline keys resolve correctly, both quote forms handled (TEST-007)"
+}
+
+# --- TEST-008 (Spec-AC-02): empty & quoted-empty & shadowed-empty ----------
+
+test_008_empty_and_quoted_empty() {
+  log_info "Test: empty classification incl. quoted-empty and multiline-shadowed-empty (TEST-008)..."
+  local f="$TEST_DIR"
+  local out err code
+
+  cat > "$f/empties.env" <<'ENVV'
+PLAIN_EMPTY=
+DOUBLE_QUOTED_EMPTY=""
+SINGLE_QUOTED_EMPTY=''
+CERT_SHADOW="-----BEGIN CERTIFICATE-----
+SHADOWED_PLAIN_EMPTY=interior-fragment-nonempty-should-not-win
+-----END CERTIFICATE-----"
+SHADOWED_PLAIN_EMPTY=
+TOKEN_SHADOW='-----BEGIN TOKEN-----
+SHADOWED_QUOTED_EMPTY=interior-fragment-nonempty-should-not-win
+-----END TOKEN-----'
+SHADOWED_QUOTED_EMPTY=''
+ENVV
+
+  out="$f/t8-plain.out"; err="$f/t8-plain.err"
+  code=$(run_helper "$out" "$err" --file "$f/empties.env" --key PLAIN_EMPTY)
+  assert_exit "KEY= plain empty" 0 "$code"
+  assert_stdout_line "KEY= classifies empty" "$out" "file:$f/empties.env#PLAIN_EMPTY empty"
+
+  out="$f/t8-dquote.out"; err="$f/t8-dquote.err"
+  code=$(run_helper "$out" "$err" --file "$f/empties.env" --key DOUBLE_QUOTED_EMPTY)
+  assert_exit 'KEY="" double-quoted empty' 0 "$code"
+  assert_stdout_line 'KEY="" classifies empty' "$out" "file:$f/empties.env#DOUBLE_QUOTED_EMPTY empty"
+
+  out="$f/t8-squote.out"; err="$f/t8-squote.err"
+  code=$(run_helper "$out" "$err" --file "$f/empties.env" --key SINGLE_QUOTED_EMPTY)
+  assert_exit "KEY='' single-quoted empty" 0 "$code"
+  assert_stdout_line "KEY='' classifies empty" "$out" "file:$f/empties.env#SINGLE_QUOTED_EMPTY empty"
+
+  # RED-gating arm: a real plain-empty assignment shadowed by an earlier
+  # double-quoted multiline block's non-empty interior fragment -> empty,
+  # never exists (the pre-fix first-match parser reports exists here).
+  out="$f/t8-shadow-plain.out"; err="$f/t8-shadow-plain.err"
+  code=$(run_helper "$out" "$err" --file "$f/empties.env" --key SHADOWED_PLAIN_EMPTY)
+  assert_exit "multiline-shadowed plain-empty" 0 "$code"
+  assert_stdout_line "real empty assignment shadowed by interior fragment must classify empty, not exists" \
+    "$out" "file:$f/empties.env#SHADOWED_PLAIN_EMPTY empty"
+
+  # RED-gating arm: a real quoted-empty ('') assignment shadowed by an
+  # earlier single-quoted multiline block's non-empty interior fragment.
+  out="$f/t8-shadow-quoted.out"; err="$f/t8-shadow-quoted.err"
+  code=$(run_helper "$out" "$err" --file "$f/empties.env" --key SHADOWED_QUOTED_EMPTY)
+  assert_exit "multiline-shadowed quoted-empty ('')" 0 "$code"
+  assert_stdout_line "real KEY='' assignment shadowed by interior fragment must classify empty, not exists" \
+    "$out" "file:$f/empties.env#SHADOWED_QUOTED_EMPTY empty"
+
+  log_pass "Empty classification: plain/double/single-quoted empty and both multiline-shadowed-empty arms all classify empty, never exists (TEST-008)"
+}
+
+# --- TEST-009 (Spec-AC-03): adversarial never-echo on new paths ------------
+
+test_009_never_echo_multiline() {
+  log_info "Test: never-echo on new parser paths — sentinel inside a multiline interior line and an unterminated-quote value never leaks (TEST-009)..."
+  local f="$TEST_DIR"
+  local sentinel="SENTINEL_ml_7d2c9a1f_do_not_leak"
+  local out err code combined
+
+  cat > "$f/never-echo.env" <<ENVV
+MULTILINE_WITH_SENTINEL="-----BEGIN CERT-----
+INTERIOR_KEY=$sentinel
+-----END CERT-----"
+AFTER_MULTILINE=found-me
+UNTERMINATED="unterminated-$sentinel-to-eof
+ENVV
+
+  out="$f/t9.out"; err="$f/t9.err"
+  code=$(run_helper "$out" "$err" \
+    --file "$f/never-echo.env" --key MULTILINE_WITH_SENTINEL \
+    --file "$f/never-echo.env" --key INTERIOR_KEY \
+    --file "$f/never-echo.env" --key AFTER_MULTILINE \
+    --file "$f/never-echo.env" --key UNTERMINATED)
+  assert_exit "never-echo multiline/unterminated invocation" 0 "$code"
+  assert_stdout_line "multiline key (contains sentinel) classifies exists" \
+    "$out" "file:$f/never-echo.env#MULTILINE_WITH_SENTINEL exists"
+  assert_stdout_line "interior key (sentinel-shaped fragment) classifies missing" \
+    "$out" "file:$f/never-echo.env#INTERIOR_KEY missing"
+  assert_stdout_line "later key after the block is found" \
+    "$out" "file:$f/never-echo.env#AFTER_MULTILINE exists"
+  assert_stdout_line "unterminated-quote key (consumed to EOF, non-empty) classifies exists" \
+    "$out" "file:$f/never-echo.env#UNTERMINATED exists"
+  combined="$(cat "$out" "$err" 2>/dev/null)"
+  [[ "$combined" != *"$sentinel"* ]] \
+    || log_fail "TEST-009: sentinel leaked into combined stdout+stderr on a new parser path"
+
+  log_pass "Never-echo on new paths: sentinel absent from multiline interior, multiline key, and unterminated-quote invocations; all exit 0 (TEST-009)"
+}
+
+# --- TEST-010 (Spec-AC-03): full-suite regression ---------------------------
+
+test_010_full_suite_regression() {
+  log_info "Test: TEST-001..006 re-run individually via aai-run-tests.sh wrapper, unchanged and green (TEST-010)..."
+  local t log_path
+  local regression_tests=(
+    test_001_classification_matrix
+    test_002_never_echo_matrix
+    test_003_exit_contract
+    test_004_canon_grep_contract
+    test_005_e2e_dry_run
+    test_006_additive_budget_regression
+  )
+  for t in "${regression_tests[@]}"; do
+    log_path="$TEST_DIR/t10-$t.log"
+    (AAI_TEST_TIMEOUT="${AAI_TEST_TIMEOUT:-600}" \
+      "$RUN_TESTS_SH" bash "$PROJECT_ROOT/tests/skills/test-aai-secrets-preflight.sh" "$t" \
+      > "$log_path" 2>&1) \
+      || log_fail "TEST-010: $t must still exit 0 under aai-run-tests.sh: $(tail -20 "$log_path")"
+  done
+
+  log_pass "Full-suite regression: TEST-001..006 unchanged and green via aai-run-tests.sh wrapper (TEST-010)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -650,6 +851,10 @@ main() {
   test_004_canon_grep_contract
   test_005_e2e_dry_run
   test_006_additive_budget_regression
+  test_007_multiline_quoting_aware
+  test_008_empty_and_quoted_empty
+  test_009_never_echo_multiline
+  test_010_full_suite_regression
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
