@@ -558,6 +558,209 @@ EOF
   [[ $ok -eq 1 ]] && log_pass "TEST-004 (delta-stage-2) legacy/empty Deltas unaffected; corpus LINT PASS" || log_fail "TEST-004 (delta-stage-2) legacy control"
 }
 
+# --- SPEC-0051 TEST-001 — dropped-duplicate reconciliation (Spec-AC-01/02) ------
+# A duplicate Spec-AC-02 whose second copy is dropped by an escaped-pipe
+# cell-count break: the surviving copy seeds knownIds (silencing
+# ac-row-unparseable) and only the surviving copy reaches ac.rows (silencing
+# ac-id-duplicate) — the raw-vs-parsed reconciliation is the ONLY thing that
+# can still catch it.
+test_dupac_001_dropped_duplicate() {
+  new_fixture_root
+  write_spec "$FIX/docs/specs/SPEC-DRAFT-dupac-dropped.md" <<'EOF'
+---
+id: fixture-dupac-dropped
+type: spec
+number: null
+status: implementing
+links:
+  pr: []
+---
+
+# Fixture — duplicate id, one copy dropped by escaped pipe
+
+SPEC-FROZEN: true
+
+## Implementation strategy
+- Strategy: loop
+- Rationale: fixture
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | run-1    | —         | —     |
+| Spec-AC-02 | second      | done   | run-2    | —         | —     |
+| Spec-AC-02 | second-dup  | done   | notes preserved (`\|-`/`>+`/`\|`) run-3 | — | — |
+
+## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
+|----------|------------|------|-----------------------|-------------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/x.sh            | a           | green  |
+| TEST-002 | Spec-AC-02 | unit | tests/x.sh            | b           | green  |
+EOF
+  local out rc ok=1
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-001(dupac)" || ok=0
+  echo "$out" | grep -q "duplicate-ac-id" || { log_info "TEST-001(dupac): no duplicate-ac-id finding"; ok=0; }
+  echo "$out" | grep -q "Spec-AC-02" || { log_info "TEST-001(dupac): repeated id not named"; ok=0; }
+  # Spec-AC-02: detail reports the raw-vs-parsed delta (2 raw rows, 1 survived).
+  echo "$out" | grep -qE "Spec-AC-02 appears in 2 raw AC-table rows but only 1 survived" \
+    || { log_info "TEST-001(dupac): raw-vs-parsed delta (2 raw / 1 parsed) not reported: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-001(dupac) dropped-duplicate names id + raw-vs-parsed delta" || log_fail "TEST-001(dupac) dropped-duplicate reconciliation"
+}
+
+# --- SPEC-0051 TEST-002 — both copies parse: existing rule only (Spec-AC-03) ----
+# A duplicate id whose BOTH copies parse is already caught by ac-id-duplicate;
+# the new rule must NOT also fire (rawCount == parsedCount == 2, so rc > pc is
+# false).
+test_dupac_002_both_parse_no_double_report() {
+  new_fixture_root
+  clean_spec_body | sed 's/| Spec-AC-02 | second/| Spec-AC-01 | second/; s/| TEST-002 | Spec-AC-02 |/| TEST-002 | Spec-AC-01 |/' \
+    > "$FIX/docs/specs/SPEC-DRAFT-dupac-bothparse.md"
+  local out rc ok=1
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-002(dupac)" || ok=0
+  echo "$out" | grep -q "ac-id-duplicate" || { log_info "TEST-002(dupac): no ac-id-duplicate"; ok=0; }
+  echo "$out" | grep -q "duplicate-ac-id" && { log_info "TEST-002(dupac): both-parse dup falsely ALSO fired duplicate-ac-id: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-002(dupac) both-parse duplicate -> ac-id-duplicate only" || log_fail "TEST-002(dupac) both-parse no double-report"
+}
+
+# --- SPEC-0051 TEST-003 — fully-vanished row: existing rule only (Spec-AC-03) ---
+# A single (non-duplicated) row dropped by the shared parser is already caught
+# by ac-row-unparseable; the new rule must NOT also fire (parsedCount == 0, so
+# the pc >= 1 guard excludes it).
+test_dupac_003_vanished_no_double_report() {
+  new_fixture_root
+  write_spec "$FIX/docs/specs/SPEC-DRAFT-dupac-vanished.md" <<'EOF'
+---
+id: fixture-dupac-vanished
+type: spec
+number: null
+status: implementing
+links:
+  pr: []
+---
+
+# Fixture — single row fully dropped, no surviving copy
+
+SPEC-FROZEN: true
+
+## Implementation strategy
+- Strategy: loop
+- Rationale: fixture
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | run-1    | —         | —     |
+| Spec-AC-02 | second      | done   | notes preserved (`\|-`/`>+`/`\|`) run-2 | — | — |
+
+## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
+|----------|------------|------|-----------------------|-------------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/x.sh            | a           | green  |
+EOF
+  local out rc ok=1
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-003(dupac)" || ok=0
+  echo "$out" | grep -q "ac-row-unparseable" || { log_info "TEST-003(dupac): no ac-row-unparseable"; ok=0; }
+  echo "$out" | grep -q "duplicate-ac-id" && { log_info "TEST-003(dupac): fully-vanished row falsely ALSO fired duplicate-ac-id: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-003(dupac) fully-vanished row -> ac-row-unparseable only" || log_fail "TEST-003(dupac) vanished-row no double-report"
+}
+
+# --- SPEC-0051 TEST-004 — no false positives on legitimate shapes (Spec-AC-04) --
+# A clean gate table with a compact row plus a Test-Plan Spec-AC-NN..MM range,
+# and a genuine lean L1 AC table (no Review-By column, !ac.hasGate), must each
+# emit zero duplicate-ac-id findings.
+test_dupac_004_no_false_positives() {
+  local out rc ok=1
+
+  # clean gate table: compact rows (rc == pc) + a Test-Plan range reference
+  # (range rows never enter rawCount — the (?=\s|\|) lookahead excludes them).
+  new_fixture_root
+  write_spec "$FIX/docs/specs/SPEC-DRAFT-dupac-compact-range.md" <<'EOF'
+---
+id: fixture-dupac-compact-range
+type: spec
+number: null
+status: implementing
+links:
+  pr: []
+---
+
+# Fixture — compact rows + Test-Plan range, no duplicates
+
+SPEC-FROZEN: true
+
+## Implementation strategy
+- Strategy: loop
+- Rationale: fixture
+
+## Acceptance Criteria Status
+
+| Spec-AC | Description | Status | Evidence | Review-By | Notes |
+|---------|-------------|--------|----------|-----------|-------|
+|Spec-AC-01|first|done|run-1|—|—|
+|Spec-AC-02|second|done|run-2|—|—|
+
+## Test Plan
+
+| Test ID  | Spec-AC        | Type | File path (expected) | Description | Status |
+|----------|----------------|------|-----------------------|-------------|--------|
+| TEST-001 | Spec-AC-01..02 | unit | tests/x.sh            | a           | green  |
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-004(dupac) compact+range" || ok=0
+  echo "$out" | grep -q "duplicate-ac-id" && { log_info "TEST-004(dupac): compact+range fixture falsely fired duplicate-ac-id: $out"; ok=0; }
+
+  # genuine lean L1 table (no Review-By column -> !ac.hasGate): the new rule
+  # lives INSIDE the if (ac.hasGate) branch, so it can never run here.
+  new_fixture_root
+  write_spec "$FIX/docs/specs/SPEC-DRAFT-dupac-lean.md" <<'EOF'
+---
+id: fixture-dupac-lean
+type: spec
+number: null
+status: implementing
+ceremony_level: 1
+links:
+  pr: []
+---
+
+# Fixture — lean L1, no canonical gate table
+
+SPEC-FROZEN: true
+
+Ceremony justification: single-surface fixture fix.
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Status  |
+|------------|---------|
+| Spec-AC-01 | planned |
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-004(dupac) lean L1" || ok=0
+  echo "$out" | grep -q "duplicate-ac-id" && { log_info "TEST-004(dupac): lean L1 fixture falsely fired duplicate-ac-id: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-004(dupac) no false positives (compact/range/lean)" || log_fail "TEST-004(dupac) no false positives"
+}
+
+# --- SPEC-0051 TEST-005 — real corpus + full suite stay clean (Spec-AC-05) ------
+# The real repo corpus lints with zero duplicate-ac-id findings; "existing
+# suite stays green with zero assertion edits" is proven by this same suite
+# run (test_001..test_011, test_delta_003/004 above) staying green end to end.
+test_dupac_005_real_corpus() {
+  local out rc ok=1
+  out="$(runlint "$PROJECT_ROOT" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-005(dupac) real corpus" || ok=0
+  echo "$out" | grep -q "duplicate-ac-id" && { log_info "TEST-005(dupac): real corpus produced a duplicate-ac-id finding: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-005(dupac) real corpus zero duplicate-ac-id findings" || log_fail "TEST-005(dupac) real corpus"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -574,6 +777,11 @@ main() {
   test_011_seam_survival
   test_delta_003_shape
   test_delta_004_legacy_control
+  test_dupac_001_dropped_duplicate
+  test_dupac_002_both_parse_no_double_report
+  test_dupac_003_vanished_no_double_report
+  test_dupac_004_no_false_positives
+  test_dupac_005_real_corpus
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

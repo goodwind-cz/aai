@@ -1,15 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T20:59:25.972Z
+Generated: 2026-07-17T21:34:37.669Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (0)
+## Active (implementing) (1)
 
-_None._
+| ID | Type | Status | Progress | Path |
+|---|---|---|---|---|
+| SPEC-0051 | specs | implementing | 5 done | docs/specs/SPEC-0051-spec-lint-duplicate-ac-id.md |
 
 ## Canonical layer (0)
 
@@ -131,9 +133,11 @@ _None._
 | SPEC-0050 | specs | docs/specs/SPEC-0050-spec-dispatch-4a-fail-verdict-precedence.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0011 | issues | docs/issues/ISSUE-0011-spec-lint-duplicate-ac-id.md |
 
 ## Deferred (whole-doc) (0)
 
