@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T23:39:33.127Z
+Generated: 2026-07-17T23:40:06.565Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (113)
+## Done (115)
 
 | ID | Type | Path |
 |---|---|---|
@@ -68,6 +68,7 @@ _None._
 | ISSUE-0009 | issues | docs/issues/ISSUE-0009-test-wrapper-windows-fallback.md |
 | ISSUE-0010 | issues | docs/issues/ISSUE-0010-secrets-preflight-env-multiline.md |
 | ISSUE-0011 | issues | docs/issues/ISSUE-0011-spec-lint-duplicate-ac-id.md |
+| ISSUE-0012 | issues | docs/issues/ISSUE-0012-aai-update-temp-toctou.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -131,14 +132,12 @@ _None._
 | SPEC-0049 | specs | docs/specs/SPEC-0049-secrets-preflight-env-multiline.md |
 | SPEC-0050 | specs | docs/specs/SPEC-0050-spec-dispatch-4a-fail-verdict-precedence.md |
 | SPEC-0051 | specs | docs/specs/SPEC-0051-spec-lint-duplicate-ac-id.md |
+| SPEC-0052 | specs | docs/specs/SPEC-0052-spec-aai-update-temp-toctou.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| ISSUE-0012 | issues | docs/issues/ISSUE-0012-aai-update-temp-toctou.md |
-| SPEC-0052 | specs | docs/specs/SPEC-0052-spec-aai-update-temp-toctou.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

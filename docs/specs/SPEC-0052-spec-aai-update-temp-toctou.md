@@ -2,13 +2,15 @@
 id: spec-aai-update-temp-toctou
 type: spec
 number: 52
-status: draft
+status: done
 ceremony_level: 1
 links:
   issue: aai-update-temp-toctou
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 104
+  commits:
+    - dfa9b10
 ---
 
 # SPEC — aai-update temp-dir TOCTOU: retain the mktemp parent, clone into a subdir (ISSUE-0012)

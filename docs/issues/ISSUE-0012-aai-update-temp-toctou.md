@@ -2,10 +2,12 @@
 id: aai-update-temp-toctou
 type: issue
 number: 12
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 104
+  commits:
+    - dfa9b10
 ---
 
 # Issue: aai-update reuses a wiped mktemp path (TOCTOU → code execution on shared hosts)

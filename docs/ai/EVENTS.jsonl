@@ -752,3 +752,8 @@
 {"v":1,"ts":"2026-07-17T23:38:50.488Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0052","payload":{"verdict":"pass","report":"docs/ai/reviews/review-dual-verdict-20260717T233730Z-aai-update-temp-toctou.md","notes":"ISSUE-0012/SPEC-0052 temp-dir TOCTOU: dual-verdict PASS/PASS; sh 5/5 + ps1 9/9 re-run green"}}
 {"v":1,"ts":"2026-07-17T23:39:32.958Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"aai-update-temp-toctou","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-17T23:39:32.998Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"aai-update-temp-toctou","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T23:40:02.293Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"aai-update-temp-toctou","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T23:40:02.329Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-aai-update-temp-toctou","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-17T23:40:02.366Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"aai-update-temp-toctou","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T23:40:02.406Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"aai-update-temp-toctou","payload":{"commit":"dfa9b10"}}
+{"v":1,"ts":"2026-07-17T23:40:06.475Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":115,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
