@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T21:35:11.443Z
+Generated: 2026-07-17T23:39:33.127Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -133,9 +133,12 @@ _None._
 | SPEC-0051 | specs | docs/specs/SPEC-0051-spec-lint-duplicate-ac-id.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0012 | issues | docs/issues/ISSUE-0012-aai-update-temp-toctou.md |
+| SPEC-0052 | specs | docs/specs/SPEC-0052-spec-aai-update-temp-toctou.md |
 
 ## Deferred (whole-doc) (0)
 

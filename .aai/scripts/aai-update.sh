@@ -31,6 +31,7 @@ KEEP_TEMP=0
 FORCE=0
 TARGET="$(pwd)"
 TMP=""
+SRCDIR=""
 
 # Set the cleanup trap immediately so even early exits (--help, guard refusal)
 # remove this relocated self-copy. TMP is filled in later; cleanup tolerates empty.
@@ -82,16 +83,20 @@ else
   if [[ "$REPO" == *://* || "$REPO" == *@*:* ]]; then CLONE_URL="$REPO"; else CLONE_URL="https://github.com/$REPO.git"; fi
   if [[ "$DRY_RUN" != "1" ]]; then
     TMP="$(mktemp -d "${TMPDIR:-/tmp}/aai-src.XXXXXX")"
+    SRCDIR="$TMP/src"
     cloned=0
     # git refuses to clone into a non-empty dir, and a failed attempt leaves a
-    # partial one behind — so wipe TMP before every attempt.
+    # partial one behind — so wipe SRCDIR before every attempt. TMP itself is the
+    # securely-owned mktemp parent and is NEVER rm-rf'd-and-recreated mid-run
+    # (ISSUE-0012 TOCTOU fix): only the SRCDIR subdirectory is wiped between
+    # attempts, so the ownership guarantee on the parent is never up for grabs.
     if command -v gh >/dev/null 2>&1; then
-      rm -rf "$TMP"
-      gh repo clone "$REPO" "$TMP" -- --branch "$REF" --depth 1 >/dev/null 2>&1 && cloned=1
+      rm -rf "$SRCDIR"
+      gh repo clone "$REPO" "$SRCDIR" -- --branch "$REF" --depth 1 >/dev/null 2>&1 && cloned=1
     fi
     if [[ "$cloned" != "1" ]]; then
-      rm -rf "$TMP"
-      git clone --branch "$REF" --depth 1 "$CLONE_URL" "$TMP" >/dev/null 2>&1 && cloned=1
+      rm -rf "$SRCDIR"
+      git clone --branch "$REF" --depth 1 "$CLONE_URL" "$SRCDIR" >/dev/null 2>&1 && cloned=1
     fi
     if [[ "$cloned" != "1" ]]; then
       # Last resort: a truly anonymous clone. On a machine where `gh auth setup-git`
@@ -99,16 +104,16 @@ else
       # even into the plain `git clone` above — 401-ing a PUBLIC repo that needs no
       # auth at all. Emptying the credential helper + any injected auth header forces
       # git to fetch anonymously, so the public canonical repo clones with no creds.
-      rm -rf "$TMP"
+      rm -rf "$SRCDIR"
       GIT_TERMINAL_PROMPT=0 git -c credential.helper= -c http.https://github.com/.extraheader= \
-          clone --branch "$REF" --depth 1 "$CLONE_URL" "$TMP" >/dev/null 2>&1 && cloned=1  # PR#67 review NB-1: never prompt (agent sessions would hang)
+          clone --branch "$REF" --depth 1 "$CLONE_URL" "$SRCDIR" >/dev/null 2>&1 && cloned=1  # PR#67 review NB-1: never prompt (agent sessions would hang)
     fi
     if [[ "$cloned" != "1" ]]; then
       echo "ERROR: could not fetch $REPO@$REF (auth or network?). Treat as an access issue, not a missing repo." >&2
       exit 3
     fi
   fi
-  SRC="$TMP"
+  SRC="$SRCDIR"
   SRC_DESC="$CLONE_URL@$REF"
 fi
 
