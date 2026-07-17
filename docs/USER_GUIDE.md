@@ -648,6 +648,73 @@ checks the **staged blob**, not your worktree.
 
 ---
 
+#### Doc-number reservation & merge guard (CHANGE-0035 / SPEC-0047)
+
+**What:** `.aai/scripts/allocate-doc-number.mjs` reserves the candidate
+`TYPE-NNNN` number **in origin** before renaming the local DRAFT, so two
+clones racing to allocate the same number can never both win.
+
+**How it works:**
+- The allocator atomically creates a create-only ref
+  `refs/aai/docnums/<TYPE>-<NNNN>` in `origin`
+  (`git push --atomic --force-with-lease=<ref>: origin HEAD:<ref>`) BEFORE
+  stamping/renaming the local DRAFT. Ref content is irrelevant — its
+  EXISTENCE is the semaphore.
+- Candidate numbers are computed over a union of local docs, the base ref,
+  ALL fetched `origin/*` branch trees, and existing reservation refs — a
+  number taken only on an unmerged origin branch (or held by a naked
+  reservation ref) is never re-granted.
+- If the push is rejected (the ref already exists), the allocator retries
+  the next free number (capped at 50 attempts).
+- **Offline / no push permission:** allocation still proceeds, but the doc's
+  frontmatter is stamped `number_reserved: false` and a WARNING is printed
+  (fail-open with a visible tax, never a silent collision). Complete the
+  reservation later:
+  ```bash
+  node .aai/scripts/allocate-doc-number.mjs --reserve --path docs/issues/CHANGE-0042-my-topic.md
+  ```
+  Success removes the `number_reserved` line; if the ref now exists (someone
+  else claimed it in the meantime), the command exits 4 naming the
+  collision — re-run allocation to get a fresh number.
+
+**Merge guard (`--guard`, two NEW predicates on top of the existing
+no-DRAFT / duplicate-number checks):**
+- **Cross-branch collision** — a staged governed doc's `TYPE-NNNN` already
+  exists on the base ref (`--base-ref`, default `origin/main`; CI passes the
+  PR's target branch) under a DIFFERENT slug `id` → exit 4.
+- **Unreserved marker** — any governed doc still carrying
+  `number_reserved: false` → exit 4, naming the doc and the `--reserve`
+  command to complete it.
+
+Both predicates ride the existing `doc_number_guard` dial in
+`docs/ai/docs-audit.yaml` (`enforce` | `report-only`) and the existing
+pre-commit host / CI wiring — no new wiring point.
+
+**Coupled doc families (optional):** declare families that should share ONE
+counter in `docs/ai/docs-audit.yaml`:
+```yaml
+coupled_families:
+  - CHANGE+SPEC-CHANGE
+```
+Next-free is then computed over the UNION of taken numbers across every
+member of the group, and the reservation push covers ALL member refs in one
+atomic push (all-or-nothing — a collision on ANY member retries the whole
+set). AAI core ships this key ABSENT; this repo does not enable coupling.
+Links-based pairing (frontmatter `links:`) remains the authoritative pairing
+model — coupling is additive.
+
+**Slug-handle discipline lint (report-only, never blocks):**
+```bash
+node .aai/scripts/spec-lint.mjs --slug-handles
+```
+Warns when a session-artifact filename (`docs/ai/reviews/`,
+`docs/ai/reports/`, `docs/ai/briefs/`, `tests/`) embeds a governed
+`TYPE-NNN(N)` token with no corresponding numbered doc yet — a nudge to keep
+using the slug (`CHANGE-036-review.md`) instead of baking in a number before
+it is confirmed reserved.
+
+---
+
 #### `/aai-docs-canon`
 
 Consolidates **layered** documentation — where an original intake spawned a

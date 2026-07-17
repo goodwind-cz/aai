@@ -76,3 +76,52 @@ export function readGuardConfig(dir, opts = {}) {
   }
   return out;
 }
+
+// coupled_families (CHANGE-0035 / SPEC-0047 D7) — an OPTIONAL list-shaped key,
+// read separately from the enforce/report-only dials above (a genuinely
+// different grammar: a YAML block list, not a scalar). Line-parser-friendly:
+//   coupled_families:
+//     - CHANGE+SPEC-CHANGE
+// Each list item is a '+'-joined group of prefixes sharing one counter (D7).
+// Absent key / absent file / a group with fewer than 2 members -> ignored
+// (fail-open: no coupling). AAI core ships this key ABSENT.
+export function readCoupledFamilies(dir) {
+  const cfgPath = path.join(dir, GUARD_CONFIG_BASENAME);
+  let raw;
+  try {
+    raw = fs.readFileSync(cfgPath, 'utf8');
+  } catch {
+    return [];
+  }
+  const groups = [];
+  let inKey = false;
+  for (const line of raw.split(/\r?\n/)) {
+    if (/^coupled_families:\s*(#.*)?$/.test(line)) { inKey = true; continue; }
+    if (!inKey) continue;
+    const item = line.match(/^[ \t]+-\s*([A-Za-z0-9+_-]+)\s*(#.*)?$/);
+    if (item) {
+      const members = item[1].split('+').map((s) => s.trim().toUpperCase()).filter(Boolean);
+      if (members.length > 1) groups.push(members);
+      else console.error(`WARNING: coupled_families item "${item[1]}" has fewer than 2 members — ignored (coupling OFF for it)`);
+      continue;
+    }
+    if (/^[^\s#]/.test(line)) inKey = false; // next column-0 key ends the block
+    else if (/^[ \t]+-/.test(line) && line.trim() !== '-') {
+      // list item that did NOT match the member grammar (spaces, bad chars):
+      // silent ignore here would silently disable coupling (review-20260717T181026Z NB-2)
+      console.error(`WARNING: coupled_families item ${JSON.stringify(line.trim())} does not match TYPE+TYPE grammar — ignored (coupling OFF for it)`);
+    }
+  }
+  return groups;
+}
+
+// The full coupled group containing `prefix` (including `prefix` itself), or
+// the singleton [prefix] when it is in no configured group (the default,
+// uncoupled case — D7 "AAI core ships the key absent").
+export function coupledGroupFor(groups, prefix) {
+  const p = String(prefix).toUpperCase();
+  for (const g of groups) {
+    if (g.includes(p)) return g;
+  }
+  return [p];
+}

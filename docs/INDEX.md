@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T16:32:09.999Z
+Generated: 2026-07-17T18:39:29.828Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (103)
+## Done (105)
 
 | ID | Type | Path |
 |---|---|---|
@@ -53,6 +53,7 @@ _None._
 | CHANGE-0032 | issues | docs/issues/CHANGE-0032-loop-token-usage-capture.md |
 | CHANGE-0033 | issues | docs/issues/CHANGE-0033-tdd-red-evidence-classification.md |
 | CHANGE-0034 | issues | docs/issues/CHANGE-0034-intake-secrets-preflight.md |
+| CHANGE-0035 | issues | docs/issues/CHANGE-0035-doc-number-origin-reservation.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
@@ -121,6 +122,7 @@ _None._
 | SPEC-0044 | specs | docs/specs/SPEC-0044-spec-tdd-red-evidence-classification.md |
 | SPEC-0045 | specs | docs/specs/SPEC-0045-spec-intake-secrets-preflight.md |
 | SPEC-0046 | specs | docs/specs/SPEC-0046-spec-test-wrapper-windows-fallback.md |
+| SPEC-0047 | specs | docs/specs/SPEC-0047-spec-doc-number-origin-reservation.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (1)

@@ -3,15 +3,22 @@ name: docs-numbering
 # CI mirror of the parallel-safe doc-numbering guards (SPEC-0015 / RFC-0007 D6:
 # the guards are "mirrored in CI"; D3 lists a "CI mirror in .github/workflows/").
 # It runs the SAME predicates the local pre-commit host runs — the allocator's
-# `--guard` (no-DRAFT-at-merge + duplicate-number) plus the docs-audit strict
-# check — against the pushed / PR tree.
+# `--guard` (no-DRAFT-at-merge + duplicate-number + CHANGE-0035 D5 cross-branch
+# collision + unreserved marker) plus the docs-audit strict check — against
+# the pushed / PR tree. On `pull_request` events the guard's `--base-ref` is
+# the PR's TARGET branch (`github.base_ref`, CHANGE-0035 D5), so the cross-
+# branch collision predicate checks against the real merge target rather than
+# the default `origin/main`. A `--slug-handles` spec-lint step (CHANGE-0035
+# D6) runs always-report-only, independent of the enforce gate below.
 #
 # REPORT-ONLY by default: the guards' documented default is report-only
 # (docs/ai/docs-audit.yaml `doc_number_guard: report-only`), so a violation is
 # SURFACED but never blocks the PR. The guard step uses `continue-on-error: true`
 # and the summary step always succeeds. Flip to enforce when
 # docs/ai/docs-audit.yaml sets `doc_number_guard: enforce`: the "enforce gate"
-# step below reads that key and fails the job only then.
+# step below reads that key and fails the job only then — it covers the NEW
+# CHANGE-0035 guard predicates too, since they ride the same `--guard` exit
+# code (guard_rc) already gated here.
 
 on:
   push:
@@ -37,14 +44,22 @@ jobs:
           node-version: '20'
 
       # Report-only: never fails the job. Captures the guard output for the summary
-      # and the enforce gate below.
+      # and the enforce gate below. --base-ref is the PR's target branch on
+      # pull_request events (CHANGE-0035 D5), else the allocator's own default
+      # (origin/main).
       - name: Doc-numbering guards (report-only)
         id: guards
         continue-on-error: true
+        env:
+          PR_BASE_REF: ${{ github.base_ref }}
         run: |
           set +e
-          echo "== allocate-doc-number.mjs --guard =="
-          node .aai/scripts/allocate-doc-number.mjs --guard
+          base_ref="origin/main"
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ -n "$PR_BASE_REF" ]; then
+            base_ref="origin/$PR_BASE_REF"
+          fi
+          echo "== allocate-doc-number.mjs --guard --base-ref $base_ref =="
+          node .aai/scripts/allocate-doc-number.mjs --guard --base-ref "$base_ref"
           guard_rc=$?
           echo "== docs-audit.mjs --check --strict --no-event =="
           node .aai/scripts/docs-audit.mjs --check --strict --no-event
@@ -55,6 +70,19 @@ jobs:
             echo "::warning::doc-numbering guards found violations (report-only; not blocking). guard_rc=$guard_rc audit_rc=$audit_rc"
           else
             echo "doc-numbering guards clean."
+          fi
+          exit 0
+
+      # CHANGE-0035 D6: slug-handle discipline lint, always report-only —
+      # independent of the enforce gate below (spec-lint's own contract never
+      # hard-gates in v1).
+      - name: "Slug-handle lint (spec-lint --slug-handles, always report-only)"
+        run: |
+          set +e
+          node .aai/scripts/spec-lint.mjs --slug-handles
+          rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning::spec-lint --slug-handles found unconfirmed handles (report-only; not blocking)."
           fi
           exit 0
 

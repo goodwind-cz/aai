@@ -14,11 +14,21 @@
 //   node .aai/scripts/spec-lint.mjs              # all docs/specs/**/*.md with type: spec
 //   node .aai/scripts/spec-lint.mjs --path <p>   # exactly one file, any type
 //   node .aai/scripts/spec-lint.mjs --json       # machine-readable result
+//   node .aai/scripts/spec-lint.mjs --slug-handles  # CHANGE-0035 D6, see below
 //
 // Exit codes: 0 clean / 1 findings / 2 usage error or unreadable --path.
 // REPORT-ONLY: never writes any file, never emits events, never a hard gate
 // in v1 — wired as an advisory line in PLANNING (post-freeze) and VALIDATION
 // (step 1). No whitelist mechanism in v1: real corpus findings get FIXED.
+//
+// --slug-handles (CHANGE-0035 / SPEC-0047 D6): a SEPARATE, OPT-IN scan mode
+// (slug-only handle discipline) — additive to the intra-spec-structure lint
+// above, not a variant of it. Scope: FILENAMES under session-artifact dirs
+// (docs/ai/reviews/, docs/ai/reports/, docs/ai/briefs/, tests/) embedding a
+// governed `TYPE-NNN(N)` token with no corresponding numbered governed doc
+// anywhere in the local tree -> WARN (the number was baked into an artifact
+// before it was confirmed reserved). Same report-only exit contract (0 clean
+// / 1 findings); never blocks.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -34,9 +44,11 @@ const AC_RANGE_RE = /^Spec-AC-(\d{2})\.\.(\d{2})$/;
 
 function usage() {
   console.error(
-    'Usage: spec-lint [--path <file>] [--json]\n' +
+    'Usage: spec-lint [--path <file>] [--json] [--slug-handles]\n' +
     '  Lints spec documents for intra-spec structure (report-only).\n' +
     '  Default scope: docs/specs/**/*.md with frontmatter type: spec.\n' +
+    '  --slug-handles: separate opt-in scan (CHANGE-0035 D6) over session-\n' +
+    '  artifact filenames for unconfirmed TYPE-NNN(N) handles.\n' +
     '  Exit: 0 clean | 1 findings | 2 usage error / unreadable --path.',
   );
 }
@@ -48,16 +60,89 @@ function fail(msg) {
 }
 
 function parseArgs(argv) {
-  const args = { path: null, json: false };
+  const args = { path: null, json: false, slugHandles: false };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--json') args.json = true;
+    else if (tok === '--slug-handles') args.slugHandles = true;
     else if (tok === '--path') {
       args.path = argv[++i];
       if (args.path === undefined || args.path.startsWith('--')) fail('--path needs a value');
     } else fail(`unknown flag: ${tok}`);
   }
   return args;
+}
+
+// --- --slug-handles (CHANGE-0035 D6) -----------------------------------------
+
+const SLUG_HANDLE_GOVERNED_DIRS = ['rfc', 'specs', 'issues', 'requirements', 'releases'];
+const SLUG_HANDLE_PREFIXES = ['RFC', 'SPEC', 'ISSUE', 'CHANGE', 'DEBT', 'PRD', 'REL'];
+const SESSION_ARTIFACT_DIRS = ['docs/ai/reviews', 'docs/ai/reports', 'docs/ai/briefs', 'tests'];
+
+function walkAllFiles(dirAbs) {
+  const out = [];
+  const stack = [dirAbs];
+  while (stack.length) {
+    const cur = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(cur, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const ent of entries) {
+      const abs = path.join(cur, ent.name);
+      if (ent.isDirectory()) stack.push(abs);
+      else if (ent.isFile()) out.push(abs);
+    }
+  }
+  return out;
+}
+
+// Numeric TYPE:NUM pairs actually present as governed doc FILENAMES anywhere
+// under docs/ (numeric equality, not string equality — an artifact token
+// with a different zero-padding width than the eventual doc must still
+// match, the exact motivating incident).
+function knownGovernedIds(root) {
+  const known = new Set();
+  for (const dir of SLUG_HANDLE_GOVERNED_DIRS) {
+    const abs = path.join(root, 'docs', dir);
+    if (!fs.existsSync(abs)) continue;
+    for (const f of fs.readdirSync(abs)) {
+      const m = f.match(/^([A-Z]+(?:-[A-Z]+)*)-(\d{1,5})(?=[-.])/);
+      if (m) known.add(`${m[1]}:${parseInt(m[2], 10)}`);
+    }
+  }
+  return known;
+}
+
+// Findings [{ rel, rule, detail }] for the --slug-handles scan. Pure given a
+// (root, known-ids) pair so it stays unit-testable without a real tree.
+export function lintSlugHandles(root) {
+  const findings = [];
+  const known = knownGovernedIds(root);
+  const tokenRe = new RegExp(`\\b(${SLUG_HANDLE_PREFIXES.join('|')})-(\\d{2,5})\\b`, 'g');
+  for (const dirRel of SESSION_ARTIFACT_DIRS) {
+    const abs = path.join(root, dirRel);
+    if (!fs.existsSync(abs)) continue;
+    for (const fileAbs of walkAllFiles(abs)) {
+      const rel = toPosix(path.relative(root, fileAbs));
+      const base = path.basename(fileAbs);
+      tokenRe.lastIndex = 0;
+      let m;
+      while ((m = tokenRe.exec(base))) {
+        const key = `${m[1]}:${parseInt(m[2], 10)}`;
+        if (!known.has(key)) {
+          findings.push({
+            rel,
+            rule: 'slug-handle-unconfirmed',
+            detail: `filename embeds ${m[1]}-${m[2]} with no corresponding numbered governed doc in the local tree`,
+          });
+        }
+      }
+    }
+  }
+  return findings;
 }
 
 // 1-based line number of a character offset in normalized content.
@@ -268,6 +353,27 @@ function lintFileAt(absPath, rel) {
 
 function main() {
   const args = parseArgs(process.argv);
+
+  if (args.slugHandles) {
+    const findings = lintSlugHandles(ROOT);
+    const clean = findings.length === 0;
+    if (args.json) {
+      console.log(JSON.stringify({ mode: 'slug-handles', findings, clean }, null, 2));
+    } else {
+      console.log(`## Spec Lint — slug-handles — ${new Date().toISOString().slice(0, 10)}`);
+      console.log('');
+      console.log(`- Findings: ${findings.length}`);
+      console.log('');
+      if (clean) {
+        console.log('LINT PASS: no unconfirmed slug-handle findings.');
+      } else {
+        console.log('LINT FINDINGS (report-only — advisory, never a hard gate):');
+        for (const f of findings) console.log(`- ${f.rel} [${f.rule}] ${f.detail}`);
+      }
+    }
+    process.exit(clean ? 0 : 1);
+  }
+
   const findings = [];
   let scanned = 0;
   let skipped = 0;

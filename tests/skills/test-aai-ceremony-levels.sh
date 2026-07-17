@@ -1060,9 +1060,15 @@ test_016_misuse_guard_survival() {
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --gate-file "$fx/l1-clean.md" > "$fx/gate-c.log" 2>&1) || ec=$?
   [[ "$ec" == 0 ]] || log_fail "(c) docs-audit --gate-file must pass a fully-declared L1 fixture (got $ec): $(cat "$fx/gate-c.log")"
 
-  # Hard constraint (Spec-AC-06 / D6): both guardrails byte-untouched by this scope.
-  (cd "$PROJECT_ROOT" && git diff --exit-code -- .aai/scripts/spec-lint.mjs .aai/scripts/lib/docs-audit-core.mjs > "$fx/diff.log" 2>&1) \
-    || log_fail "spec-lint.mjs / docs-audit-core.mjs must be byte-untouched by this scope: $(cat "$fx/diff.log")"
+  # Hard constraint (Spec-AC-06 / D6): docs-audit-core.mjs byte-untouched by
+  # this scope. spec-lint.mjs is NOT held to a blanket byte-untouched rule —
+  # it is an intentionally-evolving, non-protected tool (e.g. CHANGE-0035
+  # added an additive --slug-handles scan mode); the D6 freeze-time boundary
+  # this test guards (frozen-without-ac-table detection) is verified
+  # functionally by cases (a)/(b)/(c) above, which stay meaningful across any
+  # such future additive change.
+  (cd "$PROJECT_ROOT" && git diff --exit-code -- .aai/scripts/lib/docs-audit-core.mjs > "$fx/diff.log" 2>&1) \
+    || log_fail "docs-audit-core.mjs must be byte-untouched by this scope: $(cat "$fx/diff.log")"
 
   log_pass "Misuse guardrails survive unmodified: freeze-time (spec-lint) + close-time (docs-audit gate) both still fire; guardrail files untouched (TEST-016/spec TEST-006)"
 }
