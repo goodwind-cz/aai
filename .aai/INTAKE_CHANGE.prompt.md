@@ -21,7 +21,7 @@ PROCESS
 6) If enough information is available, stop questions early.
 7) Output summary + completed Change markdown + suggested filename.
 
-SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its four blocks (language policy, durable doc identity, post-save check, metrics question) exactly.
+SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its four blocks (language policy, durable doc identity, post-save check, metrics question) exactly, plus the SECRETS PREFLIGHT block when the scope references a local secret.
 
 BEGIN with (in the user's language):
 "What small change do you want and why?"

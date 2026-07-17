@@ -1,8 +1,9 @@
 # Shared intake policy blocks (CHANGE-0011)
 
 Applies to every `.aai/INTAKE_*.prompt.md` intake assistant. Each intake prompt
-references this file with a single SHARED POLICY line; apply all four blocks
-below exactly as written.
+references this file with a single SHARED POLICY line; apply the four
+universal blocks below exactly as written, plus the SECRETS PREFLIGHT block
+where the dispatching prompt names it.
 
 ## LANGUAGE POLICY
 - Accept user responses in any language.
@@ -44,3 +45,13 @@ If the user provides a number N, append or update in docs/ai/STATE.yaml:
         human_time_minutes:
           intake: N
 If the user skips or ref_id is not yet known, leave intake: null.
+
+## SECRETS PREFLIGHT (CHANGE-0034)
+If the scope references a local secret (an env var or a config key holding a
+credential), never print, cat, or echo it. For each reference, run
+`node .aai/scripts/secrets-preflight.mjs --env NAME` (env var) or
+`--file PATH --key dotted.key` (config file) and record one
+`ref -> exists|empty|missing` line per reference under the saved doc's
+Constraints/Risks section. If the author states no secret is referenced,
+skip this block with zero extra questions. Results are informational only
+and never block saving the intake.

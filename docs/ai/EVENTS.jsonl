@@ -596,3 +596,23 @@
 {"v":1,"ts":"2026-07-17T14:27:33.677Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-tdd-red-evidence-classification","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-17T14:27:33.708Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"tdd-red-evidence-classification","payload":{"commit":"a8a3bf2"}}
 {"v":1,"ts":"2026-07-17T14:27:37.060Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":102,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-17T14:51:47.604Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-intake-secrets-preflight","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-17T14:53:39.176Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":103,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-17T15:06:59.658Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-intake-secrets-preflight/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T15:06:59.696Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-intake-secrets-preflight/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T15:06:59.729Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-intake-secrets-preflight/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T15:06:59.760Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-intake-secrets-preflight/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T15:06:59.792Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-intake-secrets-preflight/Spec-AC-05","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T15:15:12.835Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0045/Spec-AC-01","payload":{"commit":"green-20260717T150502Z-intake-secrets-preflight-test001-006"}}
+{"v":1,"ts":"2026-07-17T15:15:12.869Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0045/Spec-AC-02","payload":{"commit":"green-20260717T150502Z-intake-secrets-preflight-test001-006"}}
+{"v":1,"ts":"2026-07-17T15:15:12.902Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0045/Spec-AC-03","payload":{"commit":"green-20260717T150502Z-intake-secrets-preflight-test001-006"}}
+{"v":1,"ts":"2026-07-17T15:15:12.934Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0045/Spec-AC-04","payload":{"commit":"green-20260717T150502Z-intake-secrets-preflight-test001-006"}}
+{"v":1,"ts":"2026-07-17T15:15:12.968Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0045/Spec-AC-05","payload":{"commit":"green-20260717T150502Z-intake-secrets-preflight-test001-006"}}
+{"v":1,"ts":"2026-07-17T15:21:50.316Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"CHANGE-0034","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260717T152035Z.md","notes":"SPEC-0045 dual-verdict pass; 1 NON-BLOCKING (NB-1 .env multiline shadow) pending orchestrator disposition"}}
+{"v":1,"ts":"2026-07-17T15:22:32.242Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"intake-secrets-preflight","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-17T15:22:32.277Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"intake-secrets-preflight","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T15:22:56.730Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"intake-secrets-preflight","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T15:22:56.765Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-intake-secrets-preflight","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T15:22:56.798Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-intake-secrets-preflight","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T15:22:56.831Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"intake-secrets-preflight","payload":{"commit":"cea19d7"}}
+{"v":1,"ts":"2026-07-17T15:23:00.091Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":103,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
