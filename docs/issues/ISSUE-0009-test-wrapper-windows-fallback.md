@@ -113,6 +113,12 @@ or falling back to a working path.
   pipeline; verification may need to lean on manual runs or a
   downstream-project report until/unless a Windows CI runner is added.
 
+## Notes (NB-1 fold-in, review-20260717T142458Z)
+- Related Windows-capture defect: tdd-evidence-check.mjs rejects a UTF-8
+  BOM-prefixed `RED_CLASS:` header as UNCLASSIFIED (exit 2) — false rejection
+  blocking GREEN on validly labeled Windows-captured logs (fail-closed, never
+  false accept). Strip BOM before the header match when fixing this scope.
+
 ## Notes
 - Evidence: `.aai/scripts/aai-run-tests.sh` header comment (lines 1-28) and
   the setsid/perl/bash-job-control fallback chain (lines 45-69) explicitly

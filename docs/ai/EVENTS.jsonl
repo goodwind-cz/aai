@@ -576,3 +576,23 @@
 {"v":1,"ts":"2026-07-17T13:49:01.162Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-loop-token-usage-capture","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-17T13:49:01.196Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"loop-token-usage-capture","payload":{"commit":"5ad4c1d"}}
 {"v":1,"ts":"2026-07-17T13:49:04.510Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":100,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-17T14:03:22.036Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-tdd-red-evidence-classification","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-17T14:11:49.625Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-tdd-red-evidence-classification/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T14:11:49.663Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-tdd-red-evidence-classification/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T14:11:49.695Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-tdd-red-evidence-classification/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T14:11:49.730Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-tdd-red-evidence-classification/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T14:11:49.760Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-tdd-red-evidence-classification/Spec-AC-05","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T14:20:39.129Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0044/Spec-AC-01","payload":{"commit":"green-20260717T141023Z"}}
+{"v":1,"ts":"2026-07-17T14:20:39.166Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0044/Spec-AC-02","payload":{"commit":"green-20260717T141023Z"}}
+{"v":1,"ts":"2026-07-17T14:20:39.199Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0044/Spec-AC-03","payload":{"commit":"green-20260717T141023Z"}}
+{"v":1,"ts":"2026-07-17T14:20:39.229Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0044/Spec-AC-04","payload":{"commit":"green-20260717T141023Z"}}
+{"v":1,"ts":"2026-07-17T14:20:39.262Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0044/Spec-AC-05","payload":{"commit":"green-20260717T141023Z"}}
+{"v":1,"ts":"2026-07-17T14:26:10.317Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0044","payload":{"verdict":"pass"}}
+{"v":1,"ts":"2026-07-17T14:26:19.413Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0044","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260717T142458Z.md","notes":"dual-verdict: spec_compliance pass 5/5, code_quality pass, 0 BLOCKING, 1 NON-BLOCKING (NB-1 BOM tolerance, disposition promote-to-follow-up); probe (c) adjudicated by-design"}}
+{"v":1,"ts":"2026-07-17T14:26:59.024Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"tdd-red-evidence-classification","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-17T14:26:59.062Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"tdd-red-evidence-classification","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T14:27:33.610Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"tdd-red-evidence-classification","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T14:27:33.644Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-tdd-red-evidence-classification","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T14:27:33.677Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-tdd-red-evidence-classification","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T14:27:33.708Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"tdd-red-evidence-classification","payload":{"commit":"a8a3bf2"}}
+{"v":1,"ts":"2026-07-17T14:27:37.060Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":102,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

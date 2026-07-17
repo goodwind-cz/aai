@@ -2,10 +2,12 @@
 id: tdd-red-evidence-classification
 type: change
 number: 33
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 96
+  commits:
+    - a8a3bf2
 ---
 
 # Change — Machine-Distinguish Product RED from Infrastructure-Failure RED

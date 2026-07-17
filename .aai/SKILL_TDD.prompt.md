@@ -116,6 +116,12 @@ Before starting TDD cycle:
    - Save test output to `docs/ai/tdd/red-[timestamp].log`
    - Verify test FAILS with expected error message
    - If test passes, it's not testing new behavior - STOP and revise
+   - **Classify it** (SPEC-0044): prepend one header line —
+     `RED_CLASS: product_red` if the test's own assertion output reached,
+     else `RED_CLASS: infra_fail` — then run
+     `node .aai/scripts/tdd-evidence-check.mjs --red <log>` (see script
+     header for the full rule); non-zero blocks GREEN until
+     product_red-classified
 
 5. **Update Spec Test Plan**
    - Set the TEST-xxx status to `red` in the spec's `## Test Plan` table
@@ -145,11 +151,13 @@ RED-proof rule extension: ask "would this suite stay green if the happy path wer
 - [ ] Fixture diversity checklist satisfied (or the gap justified in the spec)
 - [ ] Test FAILS when run (verified)
 - [ ] Failure is for the right reason (not syntax error)
+- [ ] RED_CLASS header written and `tdd-evidence-check.mjs` exits 0
 - [ ] Evidence saved to docs/ai/tdd/
 - [ ] Spec Test Plan status updated to `red`
 - [ ] STATE.yaml updated
 
-**BLOCK:** Cannot proceed to GREEN until RED evidence exists.
+**BLOCK:** Cannot proceed to GREEN until RED evidence exists and is
+product_red-classified.
 
 ### Phase 2: GREEN (Minimal Implementation)
 
