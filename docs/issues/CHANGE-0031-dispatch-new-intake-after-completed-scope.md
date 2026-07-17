@@ -2,10 +2,12 @@
 id: dispatch-new-intake-after-completed-scope
 type: change
 number: 31
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 94
+  commits:
+    - 9c49150
 ---
 
 # Change — Dispatcher Must Retarget Focus Off a Completed/Flushed Scope

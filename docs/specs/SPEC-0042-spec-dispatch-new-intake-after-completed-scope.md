@@ -2,13 +2,15 @@
 id: spec-dispatch-new-intake-after-completed-scope
 type: spec
 number: 42
-status: draft
+status: done
 ceremony_level: 2
 links:
   change: dispatch-new-intake-after-completed-scope
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 94
+  commits:
+    - 9c49150
 ---
 
 # SPEC — Deterministic Focus Retarget Off a Completed/Flushed Scope
