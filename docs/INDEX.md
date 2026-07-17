@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T12:14:25.667Z
+Generated: 2026-07-17T13:00:29.991Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -113,7 +113,7 @@ _None._
 | SPEC-0041 | specs | docs/specs/SPEC-0041-spec-loop-ceremony-aware-dispatch.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (6)
+## Drafts (7)
 
 | ID | Type | Path |
 |---|---|---|
@@ -123,6 +123,7 @@ _None._
 | CHANGE-0034 | issues | docs/issues/CHANGE-0034-intake-secrets-preflight.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0009 | issues | docs/issues/ISSUE-0009-test-wrapper-windows-fallback.md |
+| SPEC-0042 | specs | docs/specs/SPEC-0042-spec-dispatch-new-intake-after-completed-scope.md |
 
 ## Deferred (whole-doc) (0)
 

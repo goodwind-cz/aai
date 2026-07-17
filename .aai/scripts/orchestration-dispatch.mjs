@@ -79,6 +79,7 @@ const RULES = [
   { id: '2', when: 'human_input.required == true', then: 'no action required (waiting for human decision)' },
   { id: '3', when: 'docs/TECHNOLOGY.md missing', then: 'dispatch Technology extraction (.aai/TECH_EXTRACT.prompt.md)' },
   { id: '4', when: '.aai/workflow/WORKFLOW.md missing', then: 'dispatch Bootstrap (.aai/BOOTSTRAP.prompt.md)' },
+  { id: '4a', when: 'focus work item done/absent AND focus ref flushed to METRICS.jsonl (spec-dispatch-new-intake-after-completed-scope D1); exactly one open mappable docs/issues intake (draft/implementing, no done work item) -> retarget; zero -> no_action scope_complete_no_open_intake; 2+/unmappable/scan-failure -> needs_llm named reasons', then: 'dispatch Planning retarget (.aai/PLANNING.prompt.md) to the open intake, or no_action/needs_llm per candidate count' },
   { id: '5', when: 'focus spec_path null or spec file missing', then: 'dispatch Planning' },
   { id: '6', when: 'spec not frozen (no SPEC-FROZEN: true) or frontmatter status not draft/implementing; ceremony L0 (RFC-0009) prunes the status arm (tech-note doc), never the marker arm', then: 'dispatch Planning' },
   { id: '7', when: 'implementation_strategy.selected missing or undecided', then: 'dispatch Planning' },
@@ -210,6 +211,7 @@ function dispatchFor(role, snapshot, rule, extra = {}) {
       : null,
     lane: deriveLane(snapshot.spec),
     reasons: extra.reasons ?? [],
+    retarget: null,
   };
 }
 
@@ -227,6 +229,7 @@ function noAction(rule, snapshot, reasons) {
     validator_independence: null,
     lane: null,
     reasons,
+    retarget: null,
   };
 }
 
@@ -244,6 +247,44 @@ function needsLlm(snapshot, reasons, rule = null) {
     validator_independence: null,
     lane: null,
     reasons,
+    retarget: null,
+  };
+}
+
+// Doc-type -> current_focus.type enum mapping (spec-dispatch-new-intake-after-
+// completed-scope D2): only the three docs/issues intake classes are mappable;
+// techdebt/rfc/prd/release have no matching enum member (or their own
+// pipeline) and stay unmappable (fail-closed, never guessed).
+const OPEN_INTAKE_DOC_TYPES = { change: 'intake_change', issue: 'intake_issue', hotfix: 'intake_hotfix' };
+
+// Rule 4a dispatch constructor (D3/D4) — separate from dispatchFor() because
+// its ref_id/inputs/lane target the NEW open intake, not the (closed) snapshot
+// focus: inputs carry the candidate's own primary_path (never the closed
+// scope's spec path) and lane is deriveLane(null) (full/2/full) since the new
+// scope has no spec yet — composing cleanly instead of leaking the old
+// scope's ceremony onto the new one.
+function dispatchRetarget(candidate, snapshot, fromRef) {
+  const inputs = [candidate.primary_path, 'docs/TECHNOLOGY.md'];
+  if (snapshot.locks_present) inputs.push('.aai/system/LOCKS.md');
+  return {
+    verdict: 'dispatch',
+    rule: '4a',
+    role: 'Planning',
+    ref_id: candidate.ref_id,
+    system_prompt: '.aai/PLANNING.prompt.md',
+    inputs,
+    expected_outputs: ['frozen spec (SPEC-FROZEN: true) with measurable AC + Test Plan + implementation strategy'],
+    stop_condition: 'spec frozen with a Test Plan and implementation_strategy recorded in STATE',
+    suggested_tier: TIERS.Planning,
+    validator_independence: null,
+    lane: deriveLane(null),
+    reasons: ['focus_completed_retarget_to_open_intake'],
+    retarget: {
+      from_ref: fromRef,
+      to_ref: candidate.ref_id,
+      to_type: OPEN_INTAKE_DOC_TYPES[candidate.doc_type],
+      to_primary_path: candidate.primary_path,
+    },
   };
 }
 
@@ -262,6 +303,28 @@ export function decide(snapshot) {
   if (!s.workflow_present) return dispatchFor('Bootstrap', s, '4');
   // Ref-consuming rules need a focus ref; inferring one is LLM work (auto-init).
   if (!s.focus || s.focus.ref_id == null) return needsLlm(s, ['no_focus_ref']);
+  // Rule 4a (spec-dispatch-new-intake-after-completed-scope D1) — retarget off
+  // a terminally complete focus, evaluated before any spec/strategy/worktree
+  // rule can re-offer the CLOSED scope. Fires only when the focus work item is
+  // terminal (status done, or absent because flush already removed it) AND
+  // the focus ref is flushed to METRICS.jsonl (the rule-14 probe, reused as
+  // the terminal marker) — a done-but-not-yet-flushed item still walks the
+  // normal close pipeline (rules 13/14) untouched; requiring `flushed` keeps
+  // that pipeline from being hijacked.
+  if ((s.work_item == null || s.work_item.status === 'done') && s.flushed === true) {
+    const fromRef = s.focus.ref_id;
+    const candidates = s.open_intakes;
+    // Probe failure: fail-closed, never guess.
+    if (candidates === null) return needsLlm(s, ['open_intake_scan_failed'], '4a');
+    if (candidates.length === 0) return noAction('4a', s, ['scope_complete_no_open_intake']);
+    if (candidates.length >= 2) {
+      const names = candidates.map(c => c.ref_id ?? c.primary_path);
+      return needsLlm(s, [`multiple_open_intakes:${names.join(',')}`], '4a');
+    }
+    const only = candidates[0];
+    if (only.unmappable) return needsLlm(s, [`open_intake_unmappable:${only.primary_path}`], '4a');
+    return dispatchRetarget(only, s, fromRef);
+  }
   // Rules 5+6 — spec mapping / freeze proxies.
   if (!s.spec || s.spec.path == null || !s.spec.present) return dispatchFor('Planning', s, '5');
   // Ceremony level (RFC-0009 / spec-scale-adaptive-ceremony): FAIL-CLOSED to 2
@@ -315,8 +378,14 @@ export function decide(snapshot) {
     return dispatchFor('Remediation', s, '10');
   }
   // Rule 11 — implementation exists but validation not run. A recorded `pass`
-  // counts as run (G3: never re-fire 11 on a pass + review-only reset).
+  // counts as run (G3: never re-fire 11 on a pass + review-only reset). The
+  // status !== 'done' clause (spec-dispatch-new-intake-after-completed-scope
+  // D5) is an explicit skip: a done work item is terminal and must never be
+  // re-offered to Validation — the flushed variant is resolved by the 4a arm
+  // above; the not-yet-flushed variant degrades to needs_llm no_rule_matched
+  // (structurally ambiguous, recorded edge case, not a gap).
   if (vstatus === 'not_run'
+    && s.work_item.status !== 'done'
     && ['implementation', 'validation', 'remediation', 'code_review'].includes(phase)) {
     return dispatchFor('Validation', s, '11',
       lane.selected === 'lightweight' ? { reasons: ['lightweight_lane_declared_scope'] } : {});
@@ -393,6 +462,71 @@ function parseWorkItems(lines) {
 
 function parseBool(v) {
   return v === 'true' ? true : v === 'false' ? false : v;
+}
+
+function parseIntakeFrontmatter(rawBody) {
+  const body = rawBody.replace(/\r\n?/g, '\n'); // CRLF tolerance, mirrors the spec parser (review-20260717T125756Z NB-2)
+  const fm = body.match(/^---\n([\s\S]*?)\n---/);
+  if (!fm) return { id: null, type: null, status: null };
+  const idM = fm[1].match(/^id:\s*(\S+)\s*$/m);
+  const typeM = fm[1].match(/^type:\s*(\S+)\s*$/m);
+  const statusM = fm[1].match(/^status:\s*(\S+)\s*$/m);
+  return { id: idM ? idM[1] : null, type: typeM ? typeM[1] : null, status: statusM ? statusM[1] : null };
+}
+
+// open_intakes probe (spec-dispatch-new-intake-after-completed-scope D2):
+// top-level docs/issues/*.md, sorted by filename for determinism. A doc is a
+// CANDIDATE when its frontmatter status is draft/implementing, OR when its
+// frontmatter cannot be parsed (missing id or status) — an unparseable doc is
+// kept as a fail-closed UNMAPPABLE candidate, never silently skipped (it can
+// still block the deterministic path). Two exclusions apply only to
+// draft/implementing docs: the doc matching the current focus (frontmatter
+// id, matched work-item ref, or `TYPE-NNNN` filename prefix), and a candidate
+// whose matched work item is already `done` (false-open, not a plannable
+// scope). Work-item matching is primary_path first, then frontmatter id —
+// this bridges mixed ref conventions (number-based CHANGE-0027 vs slug ids).
+// Returns null on a directory scan failure (fail-closed: the CLI degrades to
+// needs_llm open_intake_scan_failed).
+function buildOpenIntakes(root, focusRef, workItems) {
+  const dir = path.resolve(root, 'docs/issues');
+  let files;
+  try {
+    files = fs.readdirSync(dir).filter(f => f.endsWith('.md')).sort();
+  } catch {
+    return null;
+  }
+  const candidates = [];
+  for (const fname of files) {
+    const relPath = `docs/issues/${fname}`;
+    let body;
+    try {
+      body = fs.readFileSync(path.join(dir, fname), 'utf8');
+    } catch {
+      candidates.push({ ref_id: null, primary_path: relPath, doc_type: null, item_status: null, unmappable: true });
+      continue;
+    }
+    const { id, type, status } = parseIntakeFrontmatter(body);
+    if (id == null || status == null) {
+      candidates.push({ ref_id: id, primary_path: relPath, doc_type: type, item_status: status, unmappable: true });
+      continue;
+    }
+    if (!['draft', 'implementing'].includes(status)) continue; // closed doc: not a candidate
+
+    const filenamePrefix = (fname.match(/^([A-Z]+-\d+)-/) || [])[1] || null;
+    const matchedItem = workItems.find(it => it.primary_path === relPath)
+      ?? workItems.find(it => it.ref_id === id)
+      ?? null;
+    const isFocusDoc = id === focusRef
+      || (matchedItem && matchedItem.ref_id === focusRef)
+      || filenamePrefix === focusRef;
+    if (isFocusDoc) continue;
+    if (matchedItem && matchedItem.status === 'done') continue; // false-open, not plannable
+
+    const refId = matchedItem ? matchedItem.ref_id : id;
+    const focusType = OPEN_INTAKE_DOC_TYPES[type] ?? null;
+    candidates.push({ ref_id: refId, primary_path: relPath, doc_type: type, item_status: status, unmappable: focusType == null });
+  }
+  return candidates;
 }
 
 // buildSnapshot(statePath, root) -> { snapshot, problems[] }
@@ -483,6 +617,7 @@ export function buildSnapshot(statePath, root) {
     }
   }
   const runs = focusRef ? agentRunsFor(lines, focusRef) : [];
+  const openIntakes = buildOpenIntakes(root, focusRef, items);
   const snapshot = {
     project_status: projectStatus,
     human_input_required: parseBool(humanRequired) === true,
@@ -497,6 +632,7 @@ export function buildSnapshot(statePath, root) {
     validation,
     review,
     flushed,
+    open_intakes: openIntakes,
     implementer_model: focusRef ? lastImplementerModel(lines, focusRef) : null,
     last_run_role: runs.length ? runs[runs.length - 1].role : null,
   };

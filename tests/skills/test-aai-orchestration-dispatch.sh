@@ -88,6 +88,25 @@ $([[ "$frozen" == "true" ]] && echo "SPEC-FROZEN: true")
 MD
 }
 
+# write_intake_doc <path> <id> <type> <number> <status> — docs/issues fixture
+# (spec-dispatch-new-intake-after-completed-scope D2 open_intakes probe input).
+write_intake_doc() {
+  local p="$1" id="$2" type="$3" number="$4" status="$5"
+  cat > "$p" <<MD
+---
+id: $id
+type: $type
+number: $number
+status: $status
+links:
+  pr: []
+  commits: []
+---
+
+# Fixture intake doc
+MD
+}
+
 # write_dstate <file> [vstatus] [rstatus] [phase] [istatus] [strategy] [wrec] [wdec] [vref] [rrequired]
 # Canonical full fixture mirroring the real schema incl. the commented header.
 write_dstate() {
@@ -529,8 +548,589 @@ test_005_flush_arm_and_independence() {
   log_pass "Rule-14 flush arm + validator_independence payload correct (TEST-005)"
 }
 
+## ==========================================================================
+## spec-dispatch-new-intake-after-completed-scope (SPEC-0042, CHANGE-0031)
+## TEST-001..007, mapped to suite functions test_006..test_012. New fixtures
+## live ONLY here (SPEC-0041 D5 reserved this suite for this scope); the
+## CHANGE-0009 stanzas above (test_001..005) are never edited.
+## ==========================================================================
+
+# --- TEST-006 (Spec TEST-001/Spec-AC-01): decide() 4a table ---------------------
+
+test_006_arm4a_decide_table() {
+  log_info "Test: decide() 4a arm: done+flushed / absent+flushed + one open intake -> Planning retarget with payload/reason/lane full; done+unflushed -> close pipeline untouched (TEST-001)..."
+  cat > "$TEST_DIR/t6.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const candidate = {
+  ref_id: 'docs-audit-d2-evidence-hardening',
+  primary_path: 'docs/issues/CHANGE-0028-docs-audit-d2-evidence-hardening.md',
+  doc_type: 'change',
+  item_status: 'draft',
+  unmappable: false,
+};
+
+const base = () => ({
+  project_status: 'active',
+  human_input_required: false,
+  technology_present: true,
+  workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0027' },
+  work_item: { phase: 'validation', status: 'done' },
+  spec: { path: 'docs/specs/SPEC-0027-fx.md', present: true, frozen: true, frontmatter_status: 'done', ceremony_level: 2 },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'pass', ref_id: 'CHANGE-0027' },
+  review: { required: true, status: 'pass' },
+  flushed: true,
+  implementer_model: null,
+  last_run_role: 'Metrics Flush',
+  open_intakes: [candidate],
+});
+
+// (1) done + flushed -> 4a retarget dispatch.
+{
+  const d = decide(base());
+  assert.strictEqual(d.verdict, 'dispatch');
+  assert.strictEqual(d.rule, '4a');
+  assert.strictEqual(d.role, 'Planning');
+  assert.strictEqual(d.ref_id, candidate.ref_id);
+  assert.deepStrictEqual(d.retarget, {
+    from_ref: 'CHANGE-0027', to_ref: candidate.ref_id, to_type: 'intake_change', to_primary_path: candidate.primary_path,
+  });
+  assert.ok(d.reasons.includes('focus_completed_retarget_to_open_intake'), JSON.stringify(d.reasons));
+  assert.deepStrictEqual(d.lane, { selected: 'full', ceremony_level: 2, validation_depth: 'full' });
+  assert.ok(d.inputs.includes(candidate.primary_path) && d.inputs.includes('docs/TECHNOLOGY.md'), JSON.stringify(d.inputs));
+  assert.ok(!d.inputs.includes('docs/specs/SPEC-0027-fx.md'), 'must not carry the CLOSED scope spec path into the new-scope inputs');
+}
+
+// (2) absent (flushed removed the item) + flushed -> same retarget shape.
+{
+  const s = base();
+  s.work_item = null;
+  const d = decide(s);
+  assert.strictEqual(d.verdict, 'dispatch');
+  assert.strictEqual(d.rule, '4a');
+  assert.strictEqual(d.retarget.to_ref, candidate.ref_id);
+}
+
+// (3) done but NOT yet flushed -> the normal close pipeline (rule 14) fires
+// untouched; 4a must not hijack a not-yet-flushed done item.
+{
+  const s = base();
+  s.flushed = false;
+  s.spec.frontmatter_status = 'implementing';
+  const d = decide(s);
+  assert.strictEqual(d.rule, '14', JSON.stringify(d));
+  assert.strictEqual(d.role, 'Metrics Flush');
+  assert.strictEqual(d.retarget, null);
+}
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t6.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t6.log" 2>&1 \
+    || log_fail "decide() 4a arm table failed: $(cat "$TEST_DIR/t6.log")"
+  log_pass "decide() 4a arm: retarget dispatch (done/absent+flushed), close pipeline untouched when unflushed (TEST-006/spec TEST-001)"
+}
+
+# --- TEST-007 (Spec TEST-002/Spec-AC-02): rule-11 done-skip ---------------------
+
+test_007_rule11_done_skip() {
+  log_info "Test: rule-11 done-skip: done+not_run never dispatches Validation (flushed -> 4a; unflushed -> needs_llm no_rule_matched); non-done items still fire rule 11 (TEST-002)..."
+  cat > "$TEST_DIR/t7rule11.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const base = () => ({
+  project_status: 'active',
+  human_input_required: false,
+  technology_present: true,
+  workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0027' },
+  work_item: { phase: 'implementation', status: 'done' },
+  spec: { path: 'docs/specs/SPEC-0027-fx.md', present: true, frozen: true, frontmatter_status: 'implementing', ceremony_level: 2 },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'not_run', ref_id: null },
+  review: { required: true, status: 'not_run' },
+  flushed: false,
+  implementer_model: null,
+  last_run_role: null,
+  open_intakes: [],
+});
+
+// (a) done + not_run + flushed -> 4a resolves it (here: zero candidates -> no_action), NEVER rule 11.
+{
+  const s = base();
+  s.flushed = true;
+  const d = decide(s);
+  assert.notStrictEqual(d.rule, '11', JSON.stringify(d));
+  assert.strictEqual(d.rule, '4a');
+  assert.strictEqual(d.verdict, 'no_action');
+}
+
+// (b) done + not_run + NOT flushed -> degrades to needs_llm no_rule_matched
+// (structurally ambiguous residue, D5 recorded edge case).
+{
+  const d = decide(base());
+  assert.strictEqual(d.verdict, 'needs_llm');
+  assert.strictEqual(d.rule, null);
+  assert.ok(d.reasons.includes('no_rule_matched'), JSON.stringify(d.reasons));
+}
+
+// (c) non-done item in an eligible phase still fires rule 11 exactly as today.
+for (const phase of ['implementation', 'validation', 'remediation', 'code_review']) {
+  const s = base();
+  s.work_item = { phase, status: 'in_progress' };
+  const d = decide(s);
+  assert.strictEqual(d.rule, '11', `phase ${phase}: ${JSON.stringify(d)}`);
+  assert.strictEqual(d.role, 'Validation');
+}
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t7rule11.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t7rule11.log" 2>&1 \
+    || log_fail "rule-11 done-skip failed: $(cat "$TEST_DIR/t7rule11.log")"
+  log_pass "Rule 11 never fires on a done work item; non-done items unaffected (TEST-007/spec TEST-002)"
+}
+
+# --- TEST-008 (Spec TEST-003/Spec-AC-03): decide() ambiguity outcomes -----------
+
+test_008_arm4a_ambiguity() {
+  log_info "Test: decide() 4a ambiguity: 0 -> no_action scope_complete_no_open_intake; 2+ -> needs_llm multiple_open_intakes; unmappable -> open_intake_unmappable; scan-failed -> open_intake_scan_failed (TEST-003)..."
+  cat > "$TEST_DIR/t8.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const base = () => ({
+  project_status: 'active',
+  human_input_required: false,
+  technology_present: true,
+  workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0027' },
+  work_item: null,
+  spec: { path: null, present: false, frozen: false, frontmatter_status: null, ceremony_level: 2 },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'pass', ref_id: 'CHANGE-0027' },
+  review: { required: true, status: 'pass' },
+  flushed: true,
+  implementer_model: null,
+  last_run_role: 'Metrics Flush',
+  open_intakes: [],
+});
+
+// (a) zero candidates -> no_action, exit-class rule 4a, named reason.
+{
+  const d = decide(base());
+  assert.strictEqual(d.verdict, 'no_action');
+  assert.strictEqual(d.rule, '4a');
+  assert.deepStrictEqual(d.reasons, ['scope_complete_no_open_intake']);
+  assert.strictEqual(d.retarget, null);
+}
+
+// (b) two or more candidates -> needs_llm, reason names EVERY candidate ref.
+{
+  const s = base();
+  s.open_intakes = [
+    { ref_id: 'CHANGE-0002', primary_path: 'docs/issues/CHANGE-0002-a.md', doc_type: 'change', item_status: 'draft', unmappable: false },
+    { ref_id: 'CHANGE-0003', primary_path: 'docs/issues/CHANGE-0003-b.md', doc_type: 'issue', item_status: 'implementing', unmappable: false },
+  ];
+  const d = decide(s);
+  assert.strictEqual(d.verdict, 'needs_llm');
+  assert.strictEqual(d.rule, '4a');
+  assert.strictEqual(d.reasons.length, 1);
+  assert.ok(/^multiple_open_intakes:/.test(d.reasons[0]), d.reasons[0]);
+  assert.ok(d.reasons[0].includes('CHANGE-0002') && d.reasons[0].includes('CHANGE-0003'), d.reasons[0]);
+  assert.strictEqual(d.retarget, null);
+}
+
+// (c) single unmappable candidate (e.g. techdebt, no enum member) -> named reason.
+{
+  const s = base();
+  s.open_intakes = [
+    { ref_id: 'prompt-diet-byte-budget-true-up', primary_path: 'docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md', doc_type: 'techdebt', item_status: 'draft', unmappable: true },
+  ];
+  const d = decide(s);
+  assert.strictEqual(d.verdict, 'needs_llm');
+  assert.strictEqual(d.rule, '4a');
+  assert.deepStrictEqual(d.reasons, ['open_intake_unmappable:docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md']);
+}
+
+// (d) probe failure (open_intakes: null) -> named reason, never a guess.
+{
+  const s = base();
+  s.open_intakes = null;
+  const d = decide(s);
+  assert.strictEqual(d.verdict, 'needs_llm');
+  assert.strictEqual(d.rule, '4a');
+  assert.deepStrictEqual(d.reasons, ['open_intake_scan_failed']);
+}
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t8.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t8.log" 2>&1 \
+    || log_fail "4a ambiguity outcomes failed: $(cat "$TEST_DIR/t8.log")"
+  log_pass "Fail-closed ambiguity: 0/2+/unmappable/scan-failed all named, never a guess (TEST-008/spec TEST-003)"
+}
+
+# --- TEST-009 (Spec TEST-004/Spec-AC-01+03): CLI end-to-end on fixture repos ----
+
+test_009_cli_integration() {
+  log_info "Test: CLI 4a end-to-end on REAL docs/issues fixtures: exit 0/3/4, retarget payload valid for set-focus, mixed ref-convention, scan-failure, retarget null elsewhere (TEST-004)..."
+  local d
+
+  # (a) exit 0 + mixed ref-convention: the candidate's OWN active_work_items
+  # entry uses a number-based ref (CHANGE-0002) while its frontmatter carries a
+  # DIFFERENT slug id -- primary_path match must win (D2), not the frontmatter id.
+  d="$(mk_root t9a)"
+  cat > "$d/docs/ai/STATE.yaml" <<YAML
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: CHANGE-0027
+  primary_path: docs/issues/CHANGE-0027-fixture.md
+active_work_items:
+  - ref_id: CHANGE-0027
+    status: done
+    phase: validation
+    primary_path: docs/issues/CHANGE-0027-fixture.md
+    spec_path: docs/specs/SPEC-0001-fx.md
+  - ref_id: CHANGE-0002
+    status: planned
+    phase: planning
+    primary_path: docs/issues/CHANGE-0002-other.md
+    spec_path: null
+implementation_strategy:
+  selected: tdd
+  source: null
+  rationale: null
+worktree:
+  recommendation: optional
+  user_decision: inline
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: true
+  status: pass
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+last_validation:
+  status: pass
+  run_at_utc: 2026-07-01T00:00:00Z
+  ref_id: CHANGE-0027
+  evidence_paths: []
+  notes: null
+human_input:
+  required: false
+  question: null
+locks:
+  implementation: true
+tdd_cycle:
+  status: IDLE
+  test_id: null
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+  printf '{"date_utc":"2026-07-01","ref_id":"CHANGE-0027","agent_runs":[]}\n' > "$d/docs/ai/METRICS.jsonl"
+  write_intake_doc "$d/docs/issues/CHANGE-0002-other.md" some-slug-id change 2 draft
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) 4a retarget must exit 0 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "dispatch" && o.rule === "4a" && o.role === "Planning"'
+  jassert "$OUT" 'o.ref_id === "CHANGE-0002"'
+  jassert "$OUT" 'o.retarget.from_ref === "CHANGE-0027" && o.retarget.to_ref === "CHANGE-0002" && o.retarget.to_type === "intake_change" && o.retarget.to_primary_path === "docs/issues/CHANGE-0002-other.md"'
+  jassert "$OUT" '["intake_change","intake_issue","intake_prd","intake_hotfix","intake_research","intake_rfc","intake_release","technology_extraction","maintenance","none"].includes(o.retarget.to_type)'
+  jassert "$OUT" 'o.lane.selected === "full" && o.lane.ceremony_level === 2 && o.lane.validation_depth === "full"'
+  jassert "$OUT" 'o.inputs.includes("docs/issues/CHANGE-0002-other.md") && o.inputs.includes("docs/TECHNOLOGY.md")'
+
+  # (b) zero candidates -> no_action exit 3.
+  d="$(mk_root t9b)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass pass validation done tdd optional inline CHANGE-0001
+  printf '{"date_utc":"2026-07-01","ref_id":"CHANGE-0001","agent_runs":[]}\n' > "$d/docs/ai/METRICS.jsonl"
+  run_dispatch "$d"
+  [[ "$EC" == 3 ]] || log_fail "(b) zero candidates must exit 3 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "no_action" && o.rule === "4a" && o.reasons.includes("scope_complete_no_open_intake") && o.retarget === null'
+
+  # (c) two candidates -> needs_llm exit 4, naming every ref.
+  d="$(mk_root t9c)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass pass validation done tdd optional inline CHANGE-0001
+  printf '{"date_utc":"2026-07-01","ref_id":"CHANGE-0001","agent_runs":[]}\n' > "$d/docs/ai/METRICS.jsonl"
+  write_intake_doc "$d/docs/issues/CHANGE-0002-a.md" CHANGE-0002 change 2 draft
+  write_intake_doc "$d/docs/issues/CHANGE-0003-b.md" CHANGE-0003 change 3 implementing
+  run_dispatch "$d"
+  [[ "$EC" == 4 ]] || log_fail "(c) two candidates must exit 4 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "needs_llm" && o.rule === "4a" && o.retarget === null'
+  jassert "$OUT" 'o.reasons.some(r => /^multiple_open_intakes:/.test(r) && r.includes("CHANGE-0002") && r.includes("CHANGE-0003"))'
+
+  # (d) single unmappable candidate (techdebt) -> needs_llm exit 4, named path.
+  d="$(mk_root t9d)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass pass validation done tdd optional inline CHANGE-0001
+  printf '{"date_utc":"2026-07-01","ref_id":"CHANGE-0001","agent_runs":[]}\n' > "$d/docs/ai/METRICS.jsonl"
+  write_intake_doc "$d/docs/issues/DEBT-0001-techdebt.md" some-debt-id techdebt 1 draft
+  run_dispatch "$d"
+  [[ "$EC" == 4 ]] || log_fail "(d) unmappable candidate must exit 4 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "needs_llm" && o.rule === "4a"'
+  jassert "$OUT" 'o.reasons.includes("open_intake_unmappable:docs/issues/DEBT-0001-techdebt.md")'
+
+  # (e) directory scan failure (docs/issues is not a directory) -> needs_llm exit 4.
+  d="$(mk_root t9e)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass pass validation done tdd optional inline CHANGE-0001
+  printf '{"date_utc":"2026-07-01","ref_id":"CHANGE-0001","agent_runs":[]}\n' > "$d/docs/ai/METRICS.jsonl"
+  rm -rf "$d/docs/issues"
+  printf 'not a directory' > "$d/docs/issues"
+  run_dispatch "$d"
+  [[ "$EC" == 4 ]] || log_fail "(e) scan failure must exit 4 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "needs_llm" && o.rule === "4a" && o.reasons.includes("open_intake_scan_failed")'
+
+  # (f) non-4a verdict still carries retarget: null (additive-only contract).
+  d="$(mk_root t9f)"
+  write_dstate "$d/docs/ai/STATE.yaml"   # not_run + phase implementation, status in_progress -> rule 11
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "(f) live-focus fixture must still dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "11" && o.retarget === null'
+
+  log_pass "CLI 4a end-to-end: exit 0/3/4 shapes, mixed-convention match, scan failure, retarget null elsewhere (TEST-009/spec TEST-004)"
+}
+
+# --- TEST-010 (Spec TEST-005/Spec-AC-05): evidence replay -----------------------
+
+test_010_evidence_replay() {
+  log_info "Test: evidence replay -- tick-1 (2026-07-17) -> 4a retarget; tick-9 (2026-07-16) -> no_action; neither needs_llm (TEST-005)..."
+  local d
+
+  # Tick-1 shape (LOOP_TICKS line 11): CHANGE-0027 done+flushed, its spec
+  # present with terminal (done) frontmatter status, ONE open intake with no
+  # work item yet (docs-audit-d2-evidence-hardening). Pre-change this fixture
+  # reproduces the stale rule-6 Planning dispatch on the closed scope.
+  d="$(mk_root t10-tick1)"
+  write_spec "$d/docs/specs/SPEC-0039-fx.md" done true
+  cat > "$d/docs/ai/STATE.yaml" <<YAML
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: CHANGE-0027
+  primary_path: docs/issues/CHANGE-0027-false-open-drift-heuristic.md
+  spec_path: docs/specs/SPEC-0039-fx.md
+active_work_items: []
+implementation_strategy:
+  selected: tdd
+  source: null
+  rationale: null
+worktree:
+  recommendation: optional
+  user_decision: inline
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: true
+  status: pass
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+last_validation:
+  status: pass
+  run_at_utc: 2026-07-16T23:40:00Z
+  ref_id: CHANGE-0027
+  evidence_paths: []
+  notes: null
+human_input:
+  required: false
+  question: null
+locks:
+  implementation: true
+tdd_cycle:
+  status: IDLE
+  test_id: null
+updated_at_utc: 2026-07-17T00:00:00Z
+YAML
+  printf '{"date_utc":"2026-07-16","ref_id":"CHANGE-0027","agent_runs":[]}\n' > "$d/docs/ai/METRICS.jsonl"
+  write_intake_doc "$d/docs/issues/CHANGE-0028-docs-audit-d2-evidence-hardening.md" docs-audit-d2-evidence-hardening change 28 draft
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "tick-1 replay must dispatch 4a retarget (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "dispatch" && o.rule === "4a" && o.role === "Planning"'
+  jassert "$OUT" 'o.retarget && o.retarget.from_ref === "CHANGE-0027" && o.retarget.to_ref === "docs-audit-d2-evidence-hardening"'
+
+  # Tick-9 shape (LOOP_TICKS line 10): focus done+flushed, last_validation
+  # reset to not_run (H5-reset residue), zero open intakes. Pre-change this
+  # fixture reproduces the rule-11 Validation dispatch on a flushed corpse.
+  d="$(mk_root t10-tick9)"
+  cat > "$d/docs/ai/STATE.yaml" <<YAML
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: CHANGE-0027
+  primary_path: docs/issues/CHANGE-0027-false-open-drift-heuristic.md
+active_work_items: []
+implementation_strategy:
+  selected: tdd
+  source: null
+  rationale: null
+worktree:
+  recommendation: optional
+  user_decision: inline
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: true
+  status: not_run
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+last_validation:
+  status: not_run
+  run_at_utc: 2026-07-16T23:50:00Z
+  ref_id: null
+  evidence_paths: []
+  notes: null
+human_input:
+  required: false
+  question: null
+locks:
+  implementation: true
+tdd_cycle:
+  status: IDLE
+  test_id: null
+updated_at_utc: 2026-07-16T23:50:00Z
+YAML
+  printf '{"date_utc":"2026-07-16","ref_id":"CHANGE-0027","agent_runs":[]}\n' > "$d/docs/ai/METRICS.jsonl"
+  run_dispatch "$d"
+  [[ "$EC" == 3 ]] || log_fail "tick-9 replay must resolve no_action (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "no_action" && o.rule === "4a" && o.reasons.includes("scope_complete_no_open_intake")'
+
+  log_pass "Evidence replay: tick-1 -> 4a retarget, tick-9 -> no_action; neither needs_llm (TEST-010/spec TEST-005)"
+}
+
+# --- TEST-011 (Spec TEST-006/Spec-AC-04): seam survival -------------------------
+
+test_011_seam_survival() {
+  log_info "Test: seam survival -- legacy dispatch stanzas + real ceremony-suite lane stanzas green; live-focus additive-only diff retarget:null (TEST-006)..."
+  # (a) the full legacy dispatch suite (CHANGE-0009 TEST-001..005), re-run
+  # post-change (S1 crossing test).
+  test_001_decide_table
+  test_002_cli_contract
+  test_003_reset_routing
+  test_004_fail_closed
+  test_005_flush_arm_and_independence
+
+  # (b) the REAL ceremony-suite lane stanzas, single-function invocation
+  # (LEARNED 2026-07-17 masking note: the suite's main() aborts on the
+  # pre-existing prompt-diet TEST-010 byte-budget shortfall before reaching
+  # test_011..016, so each function is invoked directly here).
+  local ceremony_log="$TEST_DIR/t11-ceremony.log" fn
+  : > "$ceremony_log"
+  for fn in test_011_decide_lane_table test_012_validation_dispatch_payload test_013_cli_lane_field \
+            test_014_fixture_chain_lightweight test_015_prompt_lane_surfaces test_016_misuse_guard_survival; do
+    (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-ceremony-levels.sh "$fn") >> "$ceremony_log" 2>&1 \
+      || log_fail "ceremony-suite stanza $fn must stay green: $(tail -30 "$ceremony_log")"
+  done
+
+  # (c) live-focus (non-done) fixture output differs from pre-change ONLY by
+  # the additive retarget: null field.
+  local d
+  d="$(mk_root t11live)"
+  write_dstate "$d/docs/ai/STATE.yaml"   # not_run + phase implementation, status in_progress -> rule 11
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "live-focus fixture must still dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "11" && o.role === "Validation" && o.retarget === null'
+
+  log_pass "Seam survival: legacy dispatch + real ceremony-suite stanzas green; live-focus additive-only diff (TEST-011/spec TEST-006)"
+}
+
+# --- TEST-012 (Spec TEST-007/Spec-AC-06): purity + zero-writes + hygiene -------
+
+test_012_purity_and_hygiene() {
+  log_info "Test: decide() purity on retarget snapshots + CLI zero-writes (cksum) + docs-audit strict + check-state (TEST-007)..."
+  cat > "$TEST_DIR/t12.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const s1 = {
+  project_status: 'active', human_input_required: false, technology_present: true, workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0027' },
+  work_item: null,
+  spec: { path: 'docs/specs/SPEC-0027-fx.md', present: true, frozen: true, frontmatter_status: 'done', ceremony_level: 2 },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'pass', ref_id: 'CHANGE-0027' },
+  review: { required: true, status: 'pass' },
+  flushed: true,
+  implementer_model: null,
+  last_run_role: 'Metrics Flush',
+  open_intakes: [{ ref_id: 'docs-audit-d2-evidence-hardening', primary_path: 'docs/issues/CHANGE-0028-docs-audit-d2-evidence-hardening.md', doc_type: 'change', item_status: 'draft', unmappable: false }],
+};
+const frozen = JSON.stringify(s1);
+const a = decide(s1);
+const b = decide(JSON.parse(frozen));
+assert.strictEqual(JSON.stringify(a), JSON.stringify(b), 'decide must be deterministic on retarget snapshots');
+assert.strictEqual(JSON.stringify(s1), frozen, 'decide must not mutate its retarget-snapshot input');
+assert.strictEqual(a.rule, '4a');
+assert.strictEqual(a.verdict, 'dispatch');
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t12.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t12.log" 2>&1 \
+    || log_fail "decide() purity on retarget snapshot failed: $(cat "$TEST_DIR/t12.log")"
+
+  # CLI zero-writes: cksum STATE + the fixture docs/issues tree unchanged
+  # across a 4a-shaped run.
+  local d before_state after_state before_issues after_issues
+  d="$(mk_root t12cli)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass pass implementation done tdd optional inline CHANGE-0001
+  printf '{"date_utc":"2026-07-01","ref_id":"CHANGE-0001","agent_runs":[]}\n' > "$d/docs/ai/METRICS.jsonl"
+  write_intake_doc "$d/docs/issues/CHANGE-0002-other.md" CHANGE-0002 change 2 draft
+  before_state="$(cksum "$d/docs/ai/STATE.yaml")"
+  before_issues="$(find "$d/docs/issues" -type f -exec cksum {} \; | sort)"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "purity fixture must dispatch 4a (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "4a" && o.retarget !== null'
+  after_state="$(cksum "$d/docs/ai/STATE.yaml")"
+  after_issues="$(find "$d/docs/issues" -type f -exec cksum {} \; | sort)"
+  [[ "$before_state" == "$after_state" ]] || log_fail "the 4a arm must NEVER write STATE"
+  [[ "$before_issues" == "$after_issues" ]] || log_fail "the 4a arm must NEVER write the docs/issues fixture tree"
+
+  # Repo-wide hygiene gates.
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/t12-audit.log" 2>&1) \
+    || log_fail "docs-audit --check --strict --no-event must exit 0: $(tail -30 "$TEST_DIR/t12-audit.log")"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs > "$TEST_DIR/t12-checkstate.log" 2>&1) \
+    || log_fail "check-state.mjs must exit 0: $(tail -30 "$TEST_DIR/t12-checkstate.log")"
+  grep -q "OK" "$TEST_DIR/t12-checkstate.log" || log_fail "check-state.mjs must report OK: $(cat "$TEST_DIR/t12-checkstate.log")"
+
+  log_pass "Purity on retarget snapshots + zero writes + docs-audit strict + check-state OK (TEST-012/spec TEST-007)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005)"
+  echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012)"
   check_deps
   setup_fixture
   test_001_decide_table
@@ -538,6 +1138,13 @@ main() {
   test_003_reset_routing
   test_004_fail_closed
   test_005_flush_arm_and_independence
+  test_006_arm4a_decide_table
+  test_007_rule11_done_skip
+  test_008_arm4a_ambiguity
+  test_009_cli_integration
+  test_010_evidence_replay
+  test_011_seam_survival
+  test_012_purity_and_hygiene
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
