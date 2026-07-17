@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T20:16:04.701Z
+Generated: 2026-07-17T20:59:25.972Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (109)
+## Done (111)
 
 | ID | Type | Path |
 |---|---|---|
@@ -54,6 +54,7 @@ _None._
 | CHANGE-0033 | issues | docs/issues/CHANGE-0033-tdd-red-evidence-classification.md |
 | CHANGE-0034 | issues | docs/issues/CHANGE-0034-intake-secrets-preflight.md |
 | CHANGE-0035 | issues | docs/issues/CHANGE-0035-doc-number-origin-reservation.md |
+| CHANGE-0036 | issues | docs/issues/CHANGE-0036-dispatch-4a-fail-verdict-precedence.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -127,6 +128,7 @@ _None._
 | SPEC-0047 | specs | docs/specs/SPEC-0047-spec-doc-number-origin-reservation.md |
 | SPEC-0048 | specs | docs/specs/SPEC-0048-prompt-diet-byte-budget-true-up.md |
 | SPEC-0049 | specs | docs/specs/SPEC-0049-secrets-preflight-env-multiline.md |
+| SPEC-0050 | specs | docs/specs/SPEC-0050-spec-dispatch-4a-fail-verdict-precedence.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
