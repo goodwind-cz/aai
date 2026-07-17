@@ -2,13 +2,15 @@
 id: secrets-preflight-env-multiline
 type: spec
 number: 49
-status: draft
+status: done
 ceremony_level: 1
 links:
   requirement: ISSUE-0010
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 101
+  commits:
+    - 3449c57
 ---
 
 # Spec: secrets-preflight `.env` parser becomes quoting-aware (multiline fidelity)

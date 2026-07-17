@@ -2,10 +2,12 @@
 id: secrets-preflight-env-multiline
 type: issue
 number: 10
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 101
+  commits:
+    - 3449c57
 ---
 
 # Issue: secrets-preflight `.env` first-match line-scan misreads multiline values
