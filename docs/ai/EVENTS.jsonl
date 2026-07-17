@@ -616,3 +616,5 @@
 {"v":1,"ts":"2026-07-17T15:22:56.798Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-intake-secrets-preflight","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-17T15:22:56.831Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"intake-secrets-preflight","payload":{"commit":"cea19d7"}}
 {"v":1,"ts":"2026-07-17T15:23:00.091Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":103,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-17T16:46:56.727Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"doc-number-origin-reservation","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-17T16:53:57.114Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0047","payload":{"from":"none","to":"draft"}}
