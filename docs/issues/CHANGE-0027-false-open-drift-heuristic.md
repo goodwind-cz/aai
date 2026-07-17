@@ -2,10 +2,12 @@
 id: false-open-drift-heuristic
 type: change
 number: 27
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 91
+  commits:
+    - bc33f96
 ---
 
 # Change — Docs-audit false-open drift heuristic (delivered but still draft/implementing)

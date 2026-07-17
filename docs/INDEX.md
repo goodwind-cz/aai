@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T07:52:13.825Z
+Generated: 2026-07-17T07:53:05.016Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (86)
+## Done (88)
 
 | ID | Type | Path |
 |---|---|---|
@@ -45,6 +45,7 @@ _None._
 | CHANGE-0024 | issues | docs/issues/CHANGE-0024-l1-close-gate.md |
 | CHANGE-0025 | issues | docs/issues/CHANGE-0025-delta-stage-2.md |
 | CHANGE-0026 | issues | docs/issues/CHANGE-0026-delta-stage-3.md |
+| CHANGE-0027 | issues | docs/issues/CHANGE-0027-false-open-drift-heuristic.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
@@ -104,14 +105,12 @@ _None._
 | SPEC-0036 | specs | docs/specs/SPEC-0036-spec-l1-close-gate.md |
 | SPEC-0037 | specs | docs/specs/SPEC-0037-spec-delta-stage-2.md |
 | SPEC-0038 | specs | docs/specs/SPEC-0038-spec-delta-stage-3.md |
+| SPEC-0039 | specs | docs/specs/SPEC-0039-spec-false-open-drift-heuristic.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0027 | issues | docs/issues/CHANGE-0027-false-open-drift-heuristic.md |
-| SPEC-0039 | specs | docs/specs/SPEC-0039-spec-false-open-drift-heuristic.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

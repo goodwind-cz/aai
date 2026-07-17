@@ -2,13 +2,15 @@
 id: spec-false-open-drift-heuristic
 type: spec
 number: 39
-status: draft
+status: done
 ceremony_level: 2
 links:
   change: false-open-drift-heuristic
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 91
+  commits:
+    - bc33f96
 ---
 
 # SPEC — Docs-Audit `probable-false-open` Drift Heuristic

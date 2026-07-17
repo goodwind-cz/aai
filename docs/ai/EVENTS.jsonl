@@ -463,3 +463,11 @@
 {"v":1,"ts":"2026-07-16T23:48:03.219Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"CHANGE-0027","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260716-234625.md","notes":"dual verdict pass: spec_compliance 9/9 compliant, code_quality 0 BLOCKING / 2 NON-BLOCKING (D2c mixed-evidence-cell recall miss; D2b slug-id vs numbered event-ref blind spot) — dispositions pending orchestrator per H6"}}
 {"v":1,"ts":"2026-07-16T23:49:01.745Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"CHANGE-0027","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-16T23:49:01.781Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"CHANGE-0027","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T07:52:25.997Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"false-open-drift-heuristic","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T07:52:26.032Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-false-open-drift-heuristic","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T07:52:26.066Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-false-open-drift-heuristic","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T07:52:28.622Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":88,"orphans":0,"drifted":1,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-17T07:52:37.090Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":88,"orphans":0,"drifted":1,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-17T07:52:51.983Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"false-open-drift-heuristic","payload":{"commit":"bc33f96"}}
+{"v":1,"ts":"2026-07-17T07:52:52.021Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"false-open-drift-heuristic","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T07:52:54.671Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":88,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
