@@ -277,6 +277,58 @@ test_005_additive_regression() {
   log_pass "Additive regression: legacy probe=2, no sweep, tdd.sh green, state.mjs zero-diff, docs-audit clean (TEST-005)"
 }
 
+# --- TEST-010 (SPEC-0046 Spec-AC-08): BOM+CRLF product_red -> exit 0 ACCEPTED --
+
+test_006_bom_foldin_accept() {
+  log_info "Test: BOM+CRLF RED_CLASS: product_red -> exit 0 ACCEPTED (SPEC-0046 TEST-010)..."
+
+  local f="$TEST_DIR"
+
+  # UTF-8 BOM (EF BB BF) + CRLF line endings, otherwise a valid single header line.
+  printf '\xEF\xBB\xBFRED_CLASS: product_red\r\nAssertionError: expected 5 got 4\r\n' \
+    > "$f/bom-crlf-product-red.log"
+  assert_exit "BOM+CRLF product_red accepted" 0 "$(run_check "$f/bom-crlf-product-red.log")"
+
+  # BOM + LF (no CRLF) header-only line -> 0 (zero-remainder shape, BOM variant).
+  printf '\xEF\xBB\xBFRED_CLASS: product_red\n' > "$f/bom-lf-header-only.log"
+  assert_exit "BOM+LF header-only accepted" 0 "$(run_check "$f/bom-lf-header-only.log")"
+
+  log_pass "BOM-prefixed logs (CRLF and LF) with a valid product_red header are ACCEPTED (TEST-010)"
+}
+
+# --- TEST-011 (SPEC-0046 Spec-AC-08): fail-closed behavior unchanged with BOM --
+
+test_007_bom_failclosed_unchanged() {
+  log_info "Test: fail-closed unchanged with BOM — 0/2 headers->2, bad value->2, infra_fail->1, mid-file BOM inert (SPEC-0046 TEST-011)..."
+
+  local f="$TEST_DIR"
+
+  # BOM + zero RED_CLASS lines -> 2 (still unclassified).
+  printf '\xEF\xBB\xBFjust a plain log, no header\r\n' > "$f/bom-missing.log"
+  assert_exit "BOM + missing header" 2 "$(run_check "$f/bom-missing.log")"
+
+  # BOM + two conflicting RED_CLASS lines -> 2 (exactly-one rule still holds).
+  printf '\xEF\xBB\xBFRED_CLASS: product_red\r\nRED_CLASS: infra_fail\r\n' > "$f/bom-duplicate.log"
+  assert_exit "BOM + duplicate conflicting headers" 2 "$(run_check "$f/bom-duplicate.log")"
+
+  # BOM + unrecognized value -> 2.
+  printf '\xEF\xBB\xBFRED_CLASS: bogus\r\n' > "$f/bom-unknown.log"
+  assert_exit "BOM + unknown value" 2 "$(run_check "$f/bom-unknown.log")"
+
+  # BOM + infra_fail -> 1 (REJECTED, not silently accepted or unclassified).
+  printf '\xEF\xBB\xBFRED_CLASS: infra_fail\r\nError: crash mid-run\r\n' > "$f/bom-infra.log"
+  assert_exit "BOM + infra_fail" 1 "$(run_check "$f/bom-infra.log")"
+
+  # A BOM byte sequence anywhere OTHER than byte 0 must be inert — a valid header
+  # at the true start of the file still classifies normally even if a stray
+  # BOM-like byte sequence appears later in the body.
+  printf 'RED_CLASS: product_red\r\nsome output \xEF\xBB\xBF embedded mid-file, inert\r\n' \
+    > "$f/bom-midfile.log"
+  assert_exit "mid-file BOM is inert (byte-0-only strip)" 0 "$(run_check "$f/bom-midfile.log")"
+
+  log_pass "Fail-closed behaviors unchanged with BOM combos; BOM stripped ONLY at byte 0 (TEST-011)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -287,6 +339,8 @@ main() {
   test_003_skill_tdd_canon
   test_004_validation_canon
   test_005_additive_regression
+  test_006_bom_foldin_accept
+  test_007_bom_failclosed_unchanged
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

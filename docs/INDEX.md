@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T15:23:00.180Z
+Generated: 2026-07-17T16:32:09.999Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (101)
+## Done (103)
 
 | ID | Type | Path |
 |---|---|---|
@@ -62,6 +62,7 @@ _None._
 | ISSUE-0006 | issues | docs/issues/ISSUE-0006-per-type-digit-width.md |
 | ISSUE-0007 | issues | docs/issues/ISSUE-0007-state-list-append-indent.md |
 | ISSUE-0008 | issues | docs/issues/ISSUE-0008-project-dominant-width.md |
+| ISSUE-0009 | issues | docs/issues/ISSUE-0009-test-wrapper-windows-fallback.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -119,22 +120,24 @@ _None._
 | SPEC-0043 | specs | docs/specs/SPEC-0043-spec-loop-token-usage-capture.md |
 | SPEC-0044 | specs | docs/specs/SPEC-0044-spec-tdd-red-evidence-classification.md |
 | SPEC-0045 | specs | docs/specs/SPEC-0045-spec-intake-secrets-preflight.md |
+| SPEC-0046 | specs | docs/specs/SPEC-0046-spec-test-wrapper-windows-fallback.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (1)
 
 | ID | Type | Path |
 |---|---|---|
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
-| ISSUE-0009 | issues | docs/issues/ISSUE-0009-test-wrapper-windows-fallback.md |
 
 ## Deferred (whole-doc) (0)
 
 _None._
 
-## Deferred items (per-AC, across all specs) (0)
+## Deferred items (per-AC, across all specs) (1)
 
-_None._
+| Source Doc | AC | Review-By | Notes |
+|---|---|---|---|
+| SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
 

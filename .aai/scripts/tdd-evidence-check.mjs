@@ -112,6 +112,16 @@ function main() {
     usageError(`cannot read red log: ${redPath} (${err.message})`);
   }
 
+  // NB-1 fold-in (SPEC-0046 Spec-AC-08): a Windows-captured log may carry a
+  // leading UTF-8 BOM (U+FEFF). Node's readFileSync does not strip it, so it
+  // would otherwise glue onto the first line and break the anchored RED_CLASS
+  // match, false-rejecting an otherwise valid header (fail-closed, never a
+  // false accept). Strip ONLY a BOM at byte 0 — one anywhere else in the file
+  // is a literal byte and must not be touched.
+  if (content.charCodeAt(0) === 0xfeff) {
+    content = content.slice(1);
+  }
+
   const lines = content.split('\n').map((line) => line.replace(/\r$/, ''));
   const matches = [];
   for (const line of lines) {
