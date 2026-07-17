@@ -87,7 +87,7 @@ const RULES = [
   { id: '9b', when: 'phase in {planning done, preparation} AND strategy == hybrid', then: 'dispatch TDD Implementation (the role reads the spec TEST-xxx ordering)' },
   { id: '9c', when: 'phase in {planning done, preparation} AND strategy == loop', then: 'dispatch Implementation (.aai/IMPLEMENTATION.prompt.md)' },
   { id: '10', when: 'last_validation.status == fail', then: 'dispatch Remediation (.aai/REMEDIATION.prompt.md); fail + last run already Remediation -> needs_llm possible_missing_remediation_reset' },
-  { id: '11', when: 'last_validation.status == not_run AND phase in {implementation, validation, remediation, code_review}', then: 'dispatch Validation (.aai/VALIDATION.prompt.md) with validator_independence' },
+  { id: '11', when: 'last_validation.status == not_run AND phase in {implementation, validation, remediation, code_review}; ceremony L0/L1 (spec-loop-ceremony-aware-dispatch): lightweight lane adds reason lightweight_lane_declared_scope (lane.validation_depth == declared_scope)', then: 'dispatch Validation (.aai/VALIDATION.prompt.md) with validator_independence' },
   { id: '12', when: 'code_review.status == fail', then: 'dispatch Remediation (.aai/REMEDIATION.prompt.md)' },
   { id: '13', when: 'validation pass AND code_review.required AND status not in {pass, waived}; ceremony L3 (RFC-0009): required coerced true, waived -> needs_llm l3_review_waived_requires_operator_checkpoint', then: 'dispatch Code Review (.aai/SKILL_CODE_REVIEW.prompt.md)' },
   { id: '14', when: 'validation pass AND focus ref absent from METRICS.jsonl', then: 'dispatch Metrics Flush (.aai/METRICS_FLUSH.prompt.md); ref present -> no action required' },
@@ -105,6 +105,27 @@ const RULES = [
 function refMatches(vref, ref) {
   if (vref == null || ref == null) return false;
   return vref === ref || String(vref).split('/').includes(ref);
+}
+
+// D1 (spec-loop-ceremony-aware-dispatch) — derived ceremony-aware dispatch
+// lane. FAIL-CLOSED identically to the effective-level guard in decide():
+// absent, garbage, out-of-range, or null resolves to level 2 (full). A pure
+// function of the snapshot's spec object, so every dispatchFor() call
+// (including the pre-spec rules 3/4/5, where no ceremony_level is knowable
+// yet) carries a consistent lane without threading an extra parameter
+// through every call site. Never a new rule: rule predicates/order/verdicts
+// are untouched by this pair of helpers.
+function deriveLevel(spec) {
+  const raw = spec && spec.ceremony_level;
+  return [0, 1, 2, 3].includes(raw) ? raw : 2;
+}
+function deriveLane(spec) {
+  const lvl = deriveLevel(spec);
+  return {
+    selected: lvl <= 1 ? 'lightweight' : 'full',
+    ceremony_level: lvl,
+    validation_depth: lvl <= 1 ? 'declared_scope' : 'full',
+  };
 }
 
 function dispatchFor(role, snapshot, rule, extra = {}) {
@@ -187,6 +208,7 @@ function dispatchFor(role, snapshot, rule, extra = {}) {
     validator_independence: role === 'Validation'
       ? { implementer_model: snapshot.implementer_model ?? null, must_differ: true }
       : null,
+    lane: deriveLane(snapshot.spec),
     reasons: extra.reasons ?? [],
   };
 }
@@ -203,6 +225,7 @@ function noAction(rule, snapshot, reasons) {
     stop_condition: 'no action required',
     suggested_tier: null,
     validator_independence: null,
+    lane: null,
     reasons,
   };
 }
@@ -219,6 +242,7 @@ function needsLlm(snapshot, reasons, rule = null) {
     stop_condition: 'LLM wrapper must take over the flagged edge (fail-closed)',
     suggested_tier: null,
     validator_independence: null,
+    lane: null,
     reasons,
   };
 }
@@ -245,7 +269,14 @@ export function decide(snapshot) {
   // legacy snapshot, garbage frontmatter token — can only ever ADD ceremony,
   // never prune a gate. The snapshot builder applies the same guard; this one
   // re-guards pure-call inputs (old/hand-built snapshots).
-  const lvl = [0, 1, 2, 3].includes(s.spec.ceremony_level) ? s.spec.ceremony_level : 2;
+  const lvl = deriveLevel(s.spec);
+  // Ceremony-aware dispatch lane (spec-loop-ceremony-aware-dispatch D1): a
+  // DERIVED OUTPUT FIELD, never a new rule — computed once, immediately
+  // after the lvl guard above, from the SAME already-guarded value. Used
+  // below only to annotate the rule-11 Validation dispatch with its
+  // lightweight-lane reason; dispatchFor() independently derives the same
+  // value for every other dispatch verdict (see deriveLane()).
+  const lane = deriveLane(s.spec);
   // Rule 6 — freeze proxy. L0 prunes ONLY the frontmatter-status arm (the
   // tech-note lives in the intake CHANGE doc, whose status lifecycle is not
   // the spec enum); the SPEC-FROZEN marker arm is never pruned.
@@ -287,7 +318,8 @@ export function decide(snapshot) {
   // counts as run (G3: never re-fire 11 on a pass + review-only reset).
   if (vstatus === 'not_run'
     && ['implementation', 'validation', 'remediation', 'code_review'].includes(phase)) {
-    return dispatchFor('Validation', s, '11');
+    return dispatchFor('Validation', s, '11',
+      lane.selected === 'lightweight' ? { reasons: ['lightweight_lane_declared_scope'] } : {});
   }
   // Rule 12 — review FAIL -> Remediation (same forensic residue as rule 10).
   if (s.review && s.review.status === 'fail') {
