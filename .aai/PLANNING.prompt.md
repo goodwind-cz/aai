@@ -107,6 +107,10 @@ PROCESS
    upward). Level 3 is MANDATORY when the scope touches a path listed in
    `protected_paths_l3` (docs/ai/docs-audit.yaml). An absent field is
    implicit level 2 — legacy specs stay valid unchanged.
+   Dispatch lane (spec-loop-ceremony-aware-dispatch): the declared level also
+   SELECTS the dispatch lane — 0/1 lightweight (declared-scope validation),
+   2/3 full (unchanged). At L0/L1 the Test Plan IS the declared validation
+   scope, so every TEST-xxx row must name a directly executable command.
    Post-freeze advisory: run `node .aai/scripts/spec-lint.mjs --path <spec_path>` and report
    its structural findings (report-only — never blocks freeze); if the script is absent, note it and continue.
 11) Emit the work-item brief (subagent handoff): create docs/ai/briefs/<REF-ID>.md

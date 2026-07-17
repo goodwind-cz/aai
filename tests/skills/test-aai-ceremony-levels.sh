@@ -200,6 +200,40 @@ ${bodyline}
 MD
 }
 
+# write_lean_spec <path> <ceremony_level> <with_ac_table true|false> <with_justification true|false>
+# A frozen L0/L1-shaped fixture (spec-loop-ceremony-aware-dispatch TEST-006):
+# lean "## Acceptance Criteria" table (Spec-AC + Status only, no Evidence/
+# Review-By columns) and/or the "Ceremony justification: " body line, toggled
+# independently so misuse combinations can be probed one axis at a time.
+write_lean_spec() {
+  local p="$1" cl="$2" withac="$3" withjust="$4" ac_block="" just_line=""
+  if [[ "$withac" == "true" ]]; then
+    ac_block=$'## Acceptance Criteria\n\n| Spec-AC    | Description | Status |\n|------------|-------------|--------|\n| Spec-AC-01 | fixture     | done   |'
+  fi
+  if [[ "$withjust" == "true" ]]; then
+    just_line="Ceremony justification: fixture lean scope, no engine/test surface."
+  fi
+  cat > "$p" <<MD
+---
+id: fixture-lean-doc
+type: spec
+number: null
+status: draft
+ceremony_level: $cl
+links:
+  pr: []
+---
+
+# Lean fixture spec
+
+$just_line
+
+SPEC-FROZEN: true
+
+$ac_block
+MD
+}
+
 # --- TEST-001: decide() fail-closed default + legacy baseline ------------------
 
 test_001_decide_fail_closed_default() {
@@ -678,8 +712,413 @@ test_010_seam_survival() {
   log_pass "Seams survive: dispatch suite, prompt-diet, strict audit all green (TEST-010)"
 }
 
+## ==========================================================================
+## spec-loop-ceremony-aware-dispatch (SPEC-0041, CHANGE-0030) TEST-001..007
+## mapped to suite functions test_011..test_017. D5: additive stanzas ONLY --
+## the SPEC-0030 stanzas above (test_001..010) are never edited.
+## ==========================================================================
+
+# --- TEST-011 (Spec TEST-001/Spec-AC-01): decide() lane table ------------------
+
+test_011_decide_lane_table() {
+  log_info "Test: decide() lane {selected, ceremony_level, validation_depth}: 0/1 lightweight, 2/3 full; fail-closed full incl. missing spec file; no_action/needs_llm lane null; purity (TEST-001)..."
+  cat > "$TEST_DIR/t11.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const base = () => ({
+  project_status: 'active',
+  human_input_required: false,
+  technology_present: true,
+  workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0001' },
+  work_item: { phase: 'implementation', status: 'in_progress' },
+  spec: { path: 'docs/specs/SPEC-0001-fx.md', present: true, frozen: true, frontmatter_status: 'draft' },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'pass', ref_id: 'CHANGE-0001' },
+  review: { required: true, status: 'not_run' },
+  flushed: false,
+  implementer_model: null,
+  last_run_role: 'Validation',
+});
+
+// Levels 0/1 -> lightweight lane; 2/3 -> full. Baseline routes to rule 13.
+const expect = { 0: 'lightweight', 1: 'lightweight', 2: 'full', 3: 'full' };
+for (const [lvl, sel] of Object.entries(expect)) {
+  const s = base();
+  s.spec.ceremony_level = Number(lvl);
+  const d = decide(s);
+  assert.strictEqual(d.verdict, 'dispatch');
+  assert.ok(d.lane, `level ${lvl} must carry a lane object: ${JSON.stringify(d)}`);
+  assert.strictEqual(d.lane.selected, sel, `level ${lvl}: ${JSON.stringify(d.lane)}`);
+  assert.strictEqual(d.lane.ceremony_level, Number(lvl));
+  assert.strictEqual(d.lane.validation_depth, sel === 'lightweight' ? 'declared_scope' : 'full');
+}
+
+// Fail-closed: absent/garbage/out-of-range/null/NaN -> lane full (mirrors TEST-001's level sweep).
+for (const lvl of [undefined, null, 'banana', '1', 7, -1, 2.5, NaN]) {
+  const s = base();
+  if (lvl !== undefined) s.spec.ceremony_level = lvl;
+  const d = decide(s);
+  assert.strictEqual(d.lane.selected, 'full', `garbage level ${String(lvl)}: ${JSON.stringify(d.lane)}`);
+  assert.strictEqual(d.lane.ceremony_level, 2);
+}
+
+// Missing spec file (rule 5, dispatch Planning) fires before any ceremony
+// level can be known: fail-closed still applies -- lane full.
+{
+  const s = base();
+  s.spec = { path: 'docs/specs/SPEC-9999-missing.md', present: false, frozen: false, frontmatter_status: null };
+  const d = decide(s);
+  assert.strictEqual(d.rule, '5');
+  assert.ok(d.lane, 'rule-5 dispatch must still carry a lane object');
+  assert.strictEqual(d.lane.selected, 'full', `missing spec file must fail-closed to full: ${JSON.stringify(d.lane)}`);
+}
+
+// no_action (rule 1, paused) -> lane null.
+{
+  const s = base();
+  s.project_status = 'paused';
+  const d = decide(s);
+  assert.strictEqual(d.verdict, 'no_action');
+  assert.strictEqual(d.lane, null, `no_action must carry lane null: ${JSON.stringify(d)}`);
+}
+
+// needs_llm (no focus ref) -> lane null.
+{
+  const s = base();
+  s.focus = { type: 'intake_change', ref_id: null };
+  const d = decide(s);
+  assert.strictEqual(d.verdict, 'needs_llm');
+  assert.strictEqual(d.lane, null, `needs_llm must carry lane null: ${JSON.stringify(d)}`);
+}
+
+// Purity: same snapshot in, same decision out (incl. lane), input untouched.
+const s1 = base();
+s1.spec.ceremony_level = 1;
+const frozen = JSON.stringify(s1);
+const a = decide(s1);
+const b = decide(JSON.parse(frozen));
+assert.strictEqual(JSON.stringify(a), JSON.stringify(b), 'decide must be deterministic (incl. lane)');
+assert.strictEqual(JSON.stringify(s1), frozen, 'decide must not mutate its input');
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t11.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t11.log" 2>&1 \
+    || log_fail "decide() lane table failed: $(cat "$TEST_DIR/t11.log")"
+  log_pass "decide(): lane {selected, ceremony_level, validation_depth} table + fail-closed + null on no_action/needs_llm (TEST-011/spec TEST-001)"
+}
+
+# --- TEST-012 (Spec TEST-002/Spec-AC-02): Validation dispatch payload ----------
+
+test_012_validation_dispatch_payload() {
+  log_info "Test: rule-11 Validation dispatch: L0/L1 declared_scope + lightweight_lane_declared_scope reason; L2/L3 full + reasons unchanged; lane coexists with L3 annotations elsewhere (TEST-002)..."
+  cat > "$TEST_DIR/t12.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const base = () => ({
+  project_status: 'active',
+  human_input_required: false,
+  technology_present: true,
+  workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0001' },
+  work_item: { phase: 'implementation', status: 'in_progress' },
+  spec: { path: 'docs/specs/SPEC-0001-fx.md', present: true, frozen: true, frontmatter_status: 'draft', ceremony_level: 1 },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'not_run', ref_id: null },
+  review: { required: true, status: 'not_run' },
+  flushed: false,
+  implementer_model: null,
+  last_run_role: null,
+});
+
+// L1 -> lightweight; declared_scope depth; lightweight_lane_declared_scope reason.
+{
+  const d = decide(base());
+  assert.strictEqual(d.rule, '11');
+  assert.strictEqual(d.role, 'Validation');
+  assert.strictEqual(d.lane.validation_depth, 'declared_scope');
+  assert.ok(d.reasons.includes('lightweight_lane_declared_scope'), JSON.stringify(d.reasons));
+}
+// L0 -> same shape.
+{
+  const s = base(); s.spec.ceremony_level = 0;
+  const d = decide(s);
+  assert.strictEqual(d.rule, '11');
+  assert.strictEqual(d.lane.validation_depth, 'declared_scope');
+  assert.ok(d.reasons.includes('lightweight_lane_declared_scope'));
+}
+// L2 -> full, reasons EMPTY (byte-identical to pre-change: rule 11 never added reasons before).
+{
+  const s = base(); s.spec.ceremony_level = 2;
+  const d = decide(s);
+  assert.strictEqual(d.rule, '11');
+  assert.strictEqual(d.lane.validation_depth, 'full');
+  assert.deepStrictEqual(d.reasons, [], `L2 rule-11 reasons must stay empty: ${JSON.stringify(d.reasons)}`);
+}
+// L3 -> full, reasons EMPTY (unchanged).
+{
+  const s = base(); s.spec.ceremony_level = 3;
+  const d = decide(s);
+  assert.strictEqual(d.rule, '11');
+  assert.strictEqual(d.lane.validation_depth, 'full');
+  assert.deepStrictEqual(d.reasons, []);
+}
+// L3 alongside an EXISTING l3_* annotation (rule 13 review coercion): lane
+// full and the legacy l3_review_mandatory reason both present, undisturbed
+// by the new lane field -- the two annotation mechanisms coexist cleanly.
+{
+  const s = base();
+  s.spec.ceremony_level = 3;
+  s.validation = { status: 'pass', ref_id: 'CHANGE-0001' };
+  s.review = { required: false, status: 'not_run' };
+  s.last_run_role = 'Validation';
+  const d = decide(s);
+  assert.strictEqual(d.rule, '13');
+  assert.strictEqual(d.lane.selected, 'full');
+  assert.ok(d.reasons.includes('l3_review_mandatory'), JSON.stringify(d.reasons));
+  assert.ok(!d.reasons.includes('lightweight_lane_declared_scope'));
+}
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t12.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t12.log" 2>&1 \
+    || log_fail "Validation dispatch payload failed: $(cat "$TEST_DIR/t12.log")"
+  log_pass "rule 11: L0/L1 declared_scope + reason, L2/L3 full + reasons unchanged, coexists with L3 annotations (TEST-012/spec TEST-002)"
+}
+
+# --- TEST-013 (Spec TEST-003/Spec-AC-01): CLI end-to-end lane field ------------
+
+test_013_cli_lane_field() {
+  log_info "Test: CLI end-to-end: lane field in stdout JSON, fail-closed via fixtures, exit codes + --human unaffected (TEST-003)..."
+  local d tag
+
+  # declared 1 -> lightweight, full payload shape.
+  d="$(mk_root t13a)"
+  write_spec "$d/docs/specs/SPEC-0001-fx.md" draft true "ceremony_level: 1"
+  write_dstate "$d/docs/ai/STATE.yaml"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) L1 fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.lane && o.lane.selected === "lightweight" && o.lane.ceremony_level === 1 && o.lane.validation_depth === "declared_scope"'
+
+  # banana/absent/7/null -> full, exit code still 0 (dispatch unaffected).
+  for tag in banana absent seven null; do
+    d="$(mk_root "t13_$tag")"
+    case "$tag" in
+      banana) write_spec "$d/docs/specs/SPEC-0001-fx.md" draft true "ceremony_level: banana" ;;
+      absent) write_spec "$d/docs/specs/SPEC-0001-fx.md" draft true ;;
+      seven)  write_spec "$d/docs/specs/SPEC-0001-fx.md" draft true "ceremony_level: 7" ;;
+      null)   write_spec "$d/docs/specs/SPEC-0001-fx.md" draft true "ceremony_level: null" ;;
+    esac
+    write_dstate "$d/docs/ai/STATE.yaml"
+    run_dispatch "$d"
+    [[ "$EC" == 0 ]] || log_fail "($tag) must still dispatch (got $EC): $(cat "$OUT" "$ERR")"
+    jassert "$OUT" 'o.lane && o.lane.selected === "full" && o.lane.ceremony_level === 2 && o.lane.validation_depth === "full"'
+  done
+
+  # exit code 3 (no_action, paused) -> lane null, unaffected.
+  d="$(mk_root t13_paused)"
+  write_spec "$d/docs/specs/SPEC-0001-fx.md" draft true "ceremony_level: 1"
+  write_dstate "$d/docs/ai/STATE.yaml"
+  sed -i.bak 's/^project_status: active$/project_status: paused/' "$d/docs/ai/STATE.yaml" && rm -f "$d/docs/ai/STATE.yaml.bak"
+  run_dispatch "$d"
+  [[ "$EC" == 3 ]] || log_fail "paused fixture must be no_action (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.lane === null'
+
+  # exit code 4 (needs_llm, stale validation ref) -> lane null, unaffected.
+  d="$(mk_root t13_needsllm)"
+  write_spec "$d/docs/specs/SPEC-0001-fx.md" draft true "ceremony_level: 1"
+  write_dstate "$d/docs/ai/STATE.yaml" pass not_run implementation in_progress tdd optional inline CHANGE-9999
+  run_dispatch "$d"
+  [[ "$EC" == 4 ]] || log_fail "stale-validation fixture must be needs_llm (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.lane === null'
+
+  # --human still emits its stderr DISPATCH FORMAT block unaffected.
+  d="$(mk_root t13_human)"
+  write_spec "$d/docs/specs/SPEC-0001-fx.md" draft true "ceremony_level: 1"
+  write_dstate "$d/docs/ai/STATE.yaml"
+  run_dispatch "$d" --human
+  [[ "$EC" == 0 ]] || log_fail "--human fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  grep -q "=== ORCHESTRATION DISPATCH" "$ERR" || log_fail "--human must still print the DISPATCH FORMAT block: $(cat "$ERR")"
+  jassert "$OUT" 'o.lane && o.lane.selected === "lightweight"'
+  log_pass "CLI: lane field wired end-to-end, fail-closed via fixtures, exit codes + --human unaffected (TEST-013/spec TEST-003)"
+}
+
+# --- TEST-014 (Spec TEST-004/Spec-AC-03): L0/L1 fixture-chain ------------------
+
+test_014_fixture_chain_lightweight() {
+  log_info "Test: L1 (and L0) fixture-chain: Implementation -> Validation -> Code Review (3 lightweight dispatches) then Metrics Flush / no_action (TEST-004)..."
+  local d lvl
+
+  for lvl in 1 0; do
+    d="$(mk_root "t14_l${lvl}")"
+    write_spec "$d/docs/specs/SPEC-0001-fx.md" draft true "ceremony_level: $lvl"
+
+    # Step 1: preparation phase, loop strategy -> dispatch Implementation (rule 9c), lightweight.
+    write_dstate "$d/docs/ai/STATE.yaml" not_run not_run preparation in_progress loop optional inline
+    run_dispatch "$d"
+    [[ "$EC" == 0 ]] || log_fail "(L$lvl step1) must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+    jassert "$OUT" 'o.role === "Implementation" && o.lane && o.lane.selected === "lightweight"'
+
+    # Step 2: implementation phase, validation not_run -> dispatch Validation (rule 11), lightweight + reason.
+    write_dstate "$d/docs/ai/STATE.yaml" not_run not_run implementation in_progress loop optional inline
+    run_dispatch "$d"
+    [[ "$EC" == 0 ]] || log_fail "(L$lvl step2) must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+    jassert "$OUT" 'o.role === "Validation" && o.lane.selected === "lightweight" && o.lane.validation_depth === "declared_scope" && o.reasons.includes("lightweight_lane_declared_scope")'
+
+    # Step 3: validation pass, review not_run required -> dispatch Code Review (rule 13), lightweight.
+    write_dstate "$d/docs/ai/STATE.yaml" pass not_run implementation in_progress loop optional inline CHANGE-0001 true
+    run_dispatch "$d"
+    [[ "$EC" == 0 ]] || log_fail "(L$lvl step3) must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+    jassert "$OUT" 'o.role === "Code Review" && o.lane.selected === "lightweight"'
+
+    # Step 4 (mechanical arm, not counted among the 3): validation pass, review
+    # pass, not yet flushed -> Metrics Flush.
+    write_dstate "$d/docs/ai/STATE.yaml" pass pass implementation in_progress loop optional inline CHANGE-0001 true
+    run_dispatch "$d"
+    [[ "$EC" == 0 ]] || log_fail "(L$lvl step4) must dispatch flush (got $EC): $(cat "$OUT" "$ERR")"
+    jassert "$OUT" 'o.role === "Metrics Flush"'
+
+    # Step 5: already flushed -> no_action, lane null.
+    echo '{"ref_id":"CHANGE-0001"}' > "$d/docs/ai/METRICS.jsonl"
+    run_dispatch "$d"
+    [[ "$EC" == 3 ]] || log_fail "(L$lvl step5) must be no_action once flushed (got $EC): $(cat "$OUT" "$ERR")"
+    jassert "$OUT" 'o.verdict === "no_action" && o.lane === null'
+  done
+  log_pass "Fixture-chain: L1/L0 walk Implementation -> Validation -> Code Review (3 lightweight dispatches) then flush/no_action (TEST-014/spec TEST-004)"
+}
+
+# --- TEST-015 (Spec TEST-005/Spec-AC-05): prompt lane surfaces -----------------
+
+test_015_prompt_lane_surfaces() {
+  log_info "Test: VALIDATION CEREMONY LANE block (fail-closed + declared-scope wording); PLANNING lane lines inside step 10; steps 11/12 survive, no step 13 (TEST-005)..."
+  local v="$PROJECT_ROOT/.aai/VALIDATION.prompt.md" p="$PROJECT_ROOT/.aai/PLANNING.prompt.md" block
+
+  grep -q "^CEREMONY LANE" "$v" || log_fail "VALIDATION.prompt.md must carry a CEREMONY LANE block"
+  block="$(awk '/^CEREMONY LANE/{f=1} /^PROCESS$/{f=0} f' "$v")"
+  [[ -n "$block" ]] || log_fail "CEREMONY LANE block body not found (must end before PROCESS)"
+  echo "$block" | grep -qi "fail-closed" || log_fail "CEREMONY LANE block must name the fail-closed rule"
+  echo "$block" | grep -qi "declared" || log_fail "CEREMONY LANE block must name the L0/L1 declared-scope validation rule"
+  echo "$block" | grep -q "lane.selected" || log_fail "CEREMONY LANE block must reference the dispatch lane.selected field"
+
+  block="$(awk '/^10\) /{f=1} /^11\) /{f=0} f' "$p")"
+  [[ -n "$block" ]] || log_fail "PLANNING step 10 block not found"
+  echo "$block" | grep -qi "dispatch lane" || log_fail "step 10 must name the dispatch lane"
+  echo "$block" | grep -q "L0/L1" || log_fail "step 10 lane wording must name L0/L1"
+  grep -q "^11) Emit the work-item brief" "$p" || log_fail "step 11 must survive unrenumbered"
+  grep -q "^12) Update docs/ai/STATE.yaml" "$p" || log_fail "step 12 must survive unrenumbered"
+  grep -qE "^13\) " "$p" && log_fail "no step 13 may be introduced (renumber guard)"
+  log_pass "Prompt surfaces: VALIDATION CEREMONY LANE block + PLANNING step-10 lane lines, numbering intact (TEST-015/spec TEST-005)"
+}
+
+# --- TEST-016 (Spec TEST-006/Spec-AC-06): misuse guard survival ----------------
+
+test_016_misuse_guard_survival() {
+  log_info "Test: misuse guard survival post-change (freeze-time spec-lint + close-time docs-audit gate); guardrail files byte-untouched (TEST-006)..."
+  local fx="$TEST_DIR/misuse016" ec
+  mkdir -p "$fx"
+
+  # (a) frozen L1, no AC table at all, no justification -> spec-lint flags
+  # frozen-without-ac-table; docs-audit --gate-file exits 1 (missing AC table).
+  write_lean_spec "$fx/l1-bare.md" 1 false false
+  ec=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/spec-lint.mjs --path "$fx/l1-bare.md" --json > "$fx/lint-a.json" 2>"$fx/lint-a.err") || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "(a) spec-lint must find the bare L1 fixture unclean (got $ec): $(cat "$fx/lint-a.json" "$fx/lint-a.err")"
+  grep -q "frozen-without-ac-table" "$fx/lint-a.json" || log_fail "(a) spec-lint reason must be frozen-without-ac-table: $(cat "$fx/lint-a.json")"
+  ec=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --gate-file "$fx/l1-bare.md" > "$fx/gate-a.log" 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "(a) docs-audit --gate-file must fail the bare L1 fixture (got $ec): $(cat "$fx/gate-a.log")"
+
+  # (b) frozen L1, lean AC table present, NO justification -> spec-lint clean
+  # (missing-justification is out of spec-lint's boundary per D6); docs-audit
+  # --gate-file exits 1 naming the ceremony justification line (close-time
+  # backstop still fires, byte-identical to pre-change behavior).
+  write_lean_spec "$fx/l1-nojust.md" 1 true false
+  ec=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/spec-lint.mjs --path "$fx/l1-nojust.md" --json > "$fx/lint-b.json" 2>"$fx/lint-b.err") || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "(b) spec-lint must be clean (missing-justification is a close-time-only check): $(cat "$fx/lint-b.json" "$fx/lint-b.err")"
+  ec=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --gate-file "$fx/l1-nojust.md" > "$fx/gate-b.log" 2>&1) || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "(b) docs-audit --gate-file must fail without justification (got $ec): $(cat "$fx/gate-b.log")"
+  grep -qi "justification" "$fx/gate-b.log" || log_fail "(b) gate reason must name the ceremony justification line: $(cat "$fx/gate-b.log")"
+
+  # (c) control: lean AC table + justification present -> both clean.
+  write_lean_spec "$fx/l1-clean.md" 1 true true
+  ec=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/spec-lint.mjs --path "$fx/l1-clean.md" --json > "$fx/lint-c.json" 2>"$fx/lint-c.err") || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "(c) spec-lint must be clean on a fully-declared L1 fixture: $(cat "$fx/lint-c.json" "$fx/lint-c.err")"
+  ec=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --gate-file "$fx/l1-clean.md" > "$fx/gate-c.log" 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "(c) docs-audit --gate-file must pass a fully-declared L1 fixture (got $ec): $(cat "$fx/gate-c.log")"
+
+  # Hard constraint (Spec-AC-06 / D6): both guardrails byte-untouched by this scope.
+  (cd "$PROJECT_ROOT" && git diff --exit-code -- .aai/scripts/spec-lint.mjs .aai/scripts/lib/docs-audit-core.mjs > "$fx/diff.log" 2>&1) \
+    || log_fail "spec-lint.mjs / docs-audit-core.mjs must be byte-untouched by this scope: $(cat "$fx/diff.log")"
+
+  log_pass "Misuse guardrails survive unmodified: freeze-time (spec-lint) + close-time (docs-audit gate) both still fire; guardrail files untouched (TEST-016/spec TEST-006)"
+}
+
+# --- TEST-017 (Spec TEST-007/Spec-AC-04..06): seam survival --------------------
+
+test_017_seam_survival_spec0041() {
+  log_info "Test: seam survival for SPEC-0041: dispatch suite green (S1), ceremony TEST-001..010 green, prompt-diet no NEW regression (S3), strict audit exit 0 (S4) (TEST-007)..."
+
+  # S1 -- dispatch suite (also the CHANGE-0031 seam) stays green.
+  (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-orchestration-dispatch.sh > "$TEST_DIR/t17-dispatch.log" 2>&1) \
+    || log_fail "dispatch suite must stay green post-change: $(tail -20 "$TEST_DIR/t17-dispatch.log")"
+
+  # ceremony TEST-001..010 stanzas (SPEC-0030) re-verified green, each as an
+  # independent subprocess (isolated fixture dir; the file's own
+  # single-function invocation mode, used identically by TDD RED/GREEN runs).
+  local fn
+  for fn in test_001_decide_fail_closed_default test_002_decide_l0_rule6_prune \
+            test_003_decide_l3_worktree test_004_decide_l3_review \
+            test_005_cli_fail_closed_parsing test_006_close_gate_justification \
+            test_007_spec_template test_008_planning_step10 \
+            test_009_workflow_and_config; do
+    (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-ceremony-levels.sh "$fn" > "$TEST_DIR/t17-$fn.log" 2>&1) \
+      || log_fail "$fn must stay green post-change: $(tail -20 "$TEST_DIR/t17-$fn.log")"
+  done
+  # test_010 itself re-runs prompt-diet (see below) via a KNOWN pre-existing
+  # byte-budget shortfall (LEARNED 2026-07-17) unrelated to this scope; it is
+  # exercised directly below instead of via the subprocess loop above so that
+  # shortfall is isolated to ONE assertion rather than aborting this whole test.
+
+  # S3 -- prompt-diet floor. A documented PRE-EXISTING shortfall (TEST-010
+  # byte-budget, ~485 bytes short, reproduced on clean main before this scope
+  # touched anything -- LEARNED 2026-07-17) already fails this suite; this
+  # scope must not add any OTHER failure on top of it. Tolerate ONLY that
+  # named pre-existing line; any other FAIL is a real regression.
+  local diet_ec=0 diet_fails
+  (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-prompt-diet.sh > "$TEST_DIR/t17-diet.log" 2>&1) || diet_ec=$?
+  diet_fails="$(grep -c '^FAIL ' "$TEST_DIR/t17-diet.log" || true)"
+  if [[ "$diet_ec" != 0 ]]; then
+    if [[ "$diet_fails" == "1" ]] && grep -q "^FAIL TEST-010 audit + byte reduction" "$TEST_DIR/t17-diet.log"; then
+      log_info "prompt-diet: pre-existing TEST-010 byte-budget shortfall only (LEARNED 2026-07-17), no new regression: $(grep 'net reduction' "$TEST_DIR/t17-diet.log")"
+    else
+      log_fail "prompt-diet must not regress beyond the documented pre-existing TEST-010 shortfall: $(tail -20 "$TEST_DIR/t17-diet.log")"
+    fi
+  fi
+
+  # S4 -- repo-wide strict audit.
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/t17-audit.log" 2>&1) \
+    || log_fail "repo-wide strict audit must exit 0: $(tail -30 "$TEST_DIR/t17-audit.log")"
+  grep -qE "Scanned: [1-9][0-9]* docs" "$TEST_DIR/t17-audit.log" \
+    || log_fail "strict audit must be non-vacuous: $(head -10 "$TEST_DIR/t17-audit.log")"
+  log_pass "Seams survive: dispatch suite, ceremony TEST-001..010, prompt-diet (no new regression), strict audit all green (TEST-017/spec TEST-007)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (spec-scale-adaptive-ceremony TEST-001..010)"
+  echo "Testing $TEST_NAME (spec-scale-adaptive-ceremony TEST-001..010 + spec-loop-ceremony-aware-dispatch TEST-011..017)"
   check_deps
   setup_fixture
   test_001_decide_fail_closed_default
@@ -691,6 +1130,21 @@ main() {
   test_007_spec_template
   test_008_planning_step10
   test_009_workflow_and_config
+  # test_011..017 run BEFORE test_010 on purpose: test_010 re-runs
+  # tests/skills/test-aai-prompt-diet.sh, which carries a documented
+  # PRE-EXISTING byte-budget shortfall (LEARNED 2026-07-17, reproduced on
+  # clean main before this scope touched anything) and therefore aborts this
+  # whole `set -euo pipefail` script once it fails. Running the new
+  # spec-loop-ceremony-aware-dispatch stanzas first lets a single `main`
+  # invocation prove TEST-011..017 green before that pre-existing failure is
+  # reached; test_017 re-asserts prompt-diet itself with the same tolerance.
+  test_011_decide_lane_table
+  test_012_validation_dispatch_payload
+  test_013_cli_lane_field
+  test_014_fixture_chain_lightweight
+  test_015_prompt_lane_surfaces
+  test_016_misuse_guard_survival
+  test_017_seam_survival_spec0041
   test_010_seam_survival
   echo ""
   log_pass "All $TEST_NAME tests passed"

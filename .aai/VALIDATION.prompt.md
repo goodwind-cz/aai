@@ -91,6 +91,21 @@ When the gate blocks PASS, the verdict is FAIL with the gate message as
 the primary failure reason. Test execution evidence is still collected
 and reported, but the verdict cannot be PASS until all gate rules pass.
 
+CEREMONY LANE (spec-loop-ceremony-aware-dispatch)
+- The dispatch JSON's `lane` field selects validation depth, fail-closed:
+  an absent, garbage, out-of-range, or null `ceremony_level` on the focus
+  spec always resolves to `lane.selected == "full"` — never lightweight.
+- When `lane.selected == "lightweight"` (ceremony_level 0/1), step 5's
+  discovery/execution obligation is scoped to the DECLARED test scope — the
+  executable command(s) named by the frozen spec/tech-note's Test Plan rows
+  (or, for a lean L0/L1 artifact, its Verification/AC-table command lines) —
+  plus any suite that directly covers the changed paths; the full-repository
+  sweep is NOT required within that scope. Everything else — independence,
+  adversarial stance, AC STATUS GATE, evidence discipline, RED-proof — is
+  unchanged at every level.
+- When `lane.selected == "full"` (ceremony_level 2/3, or any fail-closed
+  case above), run the full discovery/execution sweep exactly as today.
+
 PROCESS
 1) Read docs/ai/STATE.yaml and verify validation is allowed (not paused, not blocked by human_input).
    Advisory: run `node .aai/scripts/spec-lint.mjs --path <spec_path>` and record its structural

@@ -44,6 +44,23 @@
   were promoted INTO the vendored layer (SPEC learned-to-layer-promotion) —
   they deliberately do NOT live here, so vendored projects inherit them.
 
+## Session 2026-07-17 (CHANGE-0030/SPEC-0041 TDD)
+
+- `tests/skills/test-aai-prompt-diet.sh` TEST-010 (corpus byte-budget floor,
+  `BASELINE_PROMPT_BYTES` / `REQUIRED_REDUCTION_BYTES`) already FAILS on clean
+  main — reproduced via git-stash comparison before touching anything (net
+  reduction 28187 bytes < 28672 required, ~485B short at c144736/PR #92).
+  Known pre-existing, out-of-scope environmental failure, same category as
+  the 2026-07-15 `test-aai-worktree.sh` entry above: verify via stash/main
+  comparison before chasing it as a regression. `test_010_seam_survival` in
+  `tests/skills/test-aai-ceremony-levels.sh` re-runs this suite and therefore
+  ALSO fails pre-existing (the whole `set -euo pipefail` script aborts at that
+  point) — run new/other stanzas via the file's single-function invocation
+  mode (`bash tests/skills/test-aai-ceremony-levels.sh <fn>`), or order `main`
+  to run unrelated stanzas before `test_010_seam_survival`, to avoid masking
+  their results. (Source: CHANGE-0030/SPEC-0041 TDD Implementation, TEST-007
+  RED/GREEN evidence, docs/ai/tdd/ceremony-lane-green.log.)
+
 ## Session 2026-07-16/17 (RES-0001 tail + delta-spec lifecycle)
 
 - Per-scope metrics are LOST if a worktree's `STATE.yaml` is not archived to
