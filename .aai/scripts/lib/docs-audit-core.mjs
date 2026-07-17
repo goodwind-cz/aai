@@ -208,6 +208,33 @@ const DELIVERY_SUBJECT_RE = /^(feat|fix|chore)(\([^)]*\))?!?:/;
 // docs/ai/tdd/ (this project's RED/GREEN proof-log convention) is same-session
 // test-pass proof, not delivery corroboration. See falseOpenEvidence below.
 const TDD_LOG_EVIDENCE_RE = /docs\/ai\/tdd\//;
+
+// CHANGE-0028 / SPEC-docs-audit-d2-evidence-hardening D2(c) v2 — a mixed cell
+// (TDD log path PLUS other content) still counts toward hasDeliveryEvidence
+// when it also carries a delivery-grade citation: a git-verified commit hash,
+// or a PR reference. Hash tokens are boundary-guarded (never match inside a
+// longer alphanumeric run, e.g. a TDD log timestamp like
+// `20260716T233008Z`) so only a maximal, isolated lowercase-hex run is a
+// candidate; each candidate is then verified against the audited repo's git
+// object store (a failed probe simply does not count — never a flag).
+const HASH_TOKEN_RE = /(?<![0-9A-Za-z])[0-9a-f]{7,40}(?![0-9A-Za-z])/g;
+const PR_REF_RE = /\bPR\s*#\d+/i;
+const PR_URL_RE = /\/pull\/\d+(?![0-9])/;
+// D2(b) Arm B in-flight discriminator — payload.commit's trimmed WHOLE value
+// must be hash-shaped; a descriptive validation-window sentence never matches.
+const PLAUSIBLE_HASH_RE = /^[0-9a-f]{7,40}$/;
+
+// D2(c) v2 — does `cell` carry a delivery-grade citation (D2(ii))? Only
+// consulted for a cell that ALSO mentions docs/ai/tdd/ (the mixed-cell case);
+// a TDD-mention-free cell is already handled by the preserved v1 arm.
+function cellHasDeliveryCitation(root, cell) {
+  const tokens = cell.match(HASH_TOKEN_RE) ?? [];
+  for (const tok of tokens) {
+    if (git(root, `rev-parse --quiet --verify ${tok}^{commit}`) !== null) return true;
+  }
+  return PR_REF_RE.test(cell) || PR_URL_RE.test(cell);
+}
+
 function deliveryCommitsForId(root, id) {
   const out = git(root, `log --grep="${id}" --format=%H%x1f%s`);
   if (!out) return [];
@@ -249,34 +276,62 @@ function falseOpenEvidence(root, doc, events) {
     }
   }
 
-  // D2(b) — ac_evidence event, same roll-up boundary as probable-false-done
-  // (CHANGE-0002 D11): ref equal to the id, or ref.startsWith(id + '/').
-  if (events.some(e => e.event === 'ac_evidence'
-      && (String(e.ref) === doc.id || String(e.ref).startsWith(doc.id + '/')))) {
+  // D2(b) v2 — ac_evidence event, same roll-up boundary as probable-false-done
+  // (CHANGE-0002 D11): ref equal to a candidate, or ref.startsWith(cand + '/').
+  const idRef = (ref, cand) => String(ref) === cand || String(ref).startsWith(cand + '/');
+  // Arm A (v1, preserved verbatim): ref matches doc.id — unconditional.
+  const armA = events.some(e => e.event === 'ac_evidence' && idRef(e.ref, doc.id));
+  // Arm B (NEW, D3): ref matches doc.fileId under the same boundary,
+  // applicable only when fileId is set and differs from id (e.g. a numbered
+  // filename whose frontmatter still carries a different slug id). Gated by
+  // a structural in-flight discriminator: payload.commit's trimmed WHOLE
+  // value must be hash-shaped — excludes validation-window re-verification
+  // sentences and evidence-only payloads regardless of future wording.
+  const armB = !!doc.fileId && doc.fileId !== doc.id && events.some(e => {
+    if (e.event !== 'ac_evidence' || !idRef(e.ref, doc.fileId)) return false;
+    const commit = e.payload?.commit;
+    return typeof commit === 'string' && PLAUSIBLE_HASH_RE.test(commit.trim());
+  });
+  if (armA || armB) {
     evidenced = true;
     reasons.push('ac_evidence event');
   }
 
-  // D2(c) — fully terminal canonical AC Status table, every done row evidenced.
-  // Corroboration: a done row's Evidence pointing ONLY at this project's own
-  // same-session TDD proof log (docs/ai/tdd/*.log — the RED/GREEN artifact
-  // named in the Evidence contract) proves the tests passed locally; it does
-  // NOT by itself prove the work was DELIVERED. Without that distinction,
-  // D2(c) alone fires on every spec's normal mid-validation lifecycle state
-  // (AC table completed by TDD, doc still draft/implementing, close ceremony
-  // simply not run yet) — indistinguishable from "delivered and abandoned
-  // open" (the incident class D2(c) exists to catch). At least one done row
-  // must therefore cite something else (a commit hash, PR link, ac_evidence
-  // ref, etc.) for the table-alone signal to fire; rowHasEvidence itself is
-  // unchanged (still reused as-is — no parser fork).
+  // Arm C (NEW, D3) — work_item_closed event matching EITHER id candidate,
+  // unconditional: it is emitted only by the close ceremony/flush, never
+  // during validation, so its presence against a still-open doc is
+  // definitionally false-open drift.
+  if (events.some(e => e.event === 'work_item_closed' && idCandidates.some(c => idRef(e.ref, c)))) {
+    evidenced = true;
+    reasons.push('work_item_closed event');
+  }
+
+  // D2(c) v2 — fully terminal canonical AC Status table, every done row
+  // evidenced. Corroboration: a done row's Evidence pointing ONLY at this
+  // project's own same-session TDD proof log (docs/ai/tdd/*.log — the
+  // RED/GREEN artifact named in the Evidence contract) proves the tests
+  // passed locally; it does NOT by itself prove the work was DELIVERED.
+  // Without that distinction, D2(c) alone fires on every spec's normal
+  // mid-validation lifecycle state (AC table completed by TDD, doc still
+  // draft/implementing, close ceremony simply not run yet) —
+  // indistinguishable from "delivered and abandoned open" (the incident
+  // class D2(c) exists to catch). At least one done row must therefore cite
+  // something else for the table-alone signal to fire: either the cell has
+  // NO docs/ai/tdd/ mention at all (v1 arm, preserved byte-identically), OR
+  // (NEW) a MIXED cell — TDD log plus other content — still counts when that
+  // other content is a delivery-grade citation (cellHasDeliveryCitation).
+  // rowHasEvidence itself is unchanged (still reused as-is — no parser fork).
   const ac = doc.ac;
   if (ac?.hasGate && ac.rows.length > 0) {
     const statuses = ac.rows.map(r => normalizeAcStatus(r['Status'] ?? '').status);
     const allTerminal = statuses.every(s => TERMINAL_AC.has(s));
     const doneRows = ac.rows.filter((r, i) => statuses[i] === 'done');
     const allDoneEvidenced = doneRows.every(r => rowHasEvidence(r));
-    const hasDeliveryEvidence = doneRows.some(r =>
-      rowHasEvidence(r) && !TDD_LOG_EVIDENCE_RE.test(String(r['Evidence'] ?? '')));
+    const hasDeliveryEvidence = doneRows.some(r => {
+      if (!rowHasEvidence(r)) return false;
+      const cell = String(r['Evidence'] ?? '');
+      return !TDD_LOG_EVIDENCE_RE.test(cell) || cellHasDeliveryCitation(root, cell);
+    });
     if (allTerminal && allDoneEvidenced && hasDeliveryEvidence) {
       evidenced = true;
       reasons.push('AC Status table fully terminal with evidence');

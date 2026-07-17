@@ -127,6 +127,7 @@ PROCESS
 8) Produce PASS / FAIL verdict. PASS requires both (a) all test suites green and (b) AC STATUS GATE clear.
 8a) For each Spec-AC that moved to `done` during this validation (Evidence column populated), append an `ac_evidence` event to docs/ai/EVENTS.jsonl via:
     node .aai/scripts/append-event.mjs --event ac_evidence --ref SPEC-XXXX/Spec-AC-YY --commit <sha-or-RUN_ID>
+    EXCEPTION: if the doc's frontmatter `status` is still open (`draft`/`implementing`) and its only matchable ref is the slug `id` (no numbered `fileId` yet), do NOT emit this event now — the slug ref unconditionally trips the probable-false-open heuristic's Arm A and would self-flag the still-open doc. Record the per-AC evidence in the validation report instead and defer emission to the close ceremony (step 8b), once `status` has flipped to `done`. Numbered docs and already-`done` docs are unaffected.
     For each spec whose frontmatter `status` changed (e.g., implementing → done) as a result of this validation, append a `doc_lifecycle` event with --from/--to. EVENTS append is best-effort; do not abort the verdict on append failure.
 8b) DONE-TRANSITION ASSERTION (RFC-0002): before writing `status: done` into any
     doc's frontmatter, assert the Acceptance Criteria Status table — when the

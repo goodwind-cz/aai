@@ -471,3 +471,20 @@
 {"v":1,"ts":"2026-07-17T07:52:51.983Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"false-open-drift-heuristic","payload":{"commit":"bc33f96"}}
 {"v":1,"ts":"2026-07-17T07:52:52.021Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"false-open-drift-heuristic","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-17T07:52:54.671Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":88,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-17T08:11:22.936Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":88,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-17T08:23:00.626Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"docs-audit-d2-evidence-hardening","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-17T08:33:45.131Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-docs-audit-d2-evidence-hardening","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-17T08:52:31.685Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-docs-audit-d2-evidence-hardening/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T08:52:31.722Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-docs-audit-d2-evidence-hardening/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T08:52:31.757Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-docs-audit-d2-evidence-hardening/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T08:52:31.794Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-docs-audit-d2-evidence-hardening/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T08:52:31.832Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-docs-audit-d2-evidence-hardening/Spec-AC-05","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T08:52:31.871Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-docs-audit-d2-evidence-hardening/Spec-AC-06","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T08:52:31.919Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-docs-audit-d2-evidence-hardening/Spec-AC-07","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T08:52:31.955Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-docs-audit-d2-evidence-hardening/Spec-AC-08","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T08:52:31.991Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-docs-audit-d2-evidence-hardening/Spec-AC-09","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T08:52:32.024Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-docs-audit-d2-evidence-hardening/Spec-AC-10","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T09:18:15.994Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"CHANGE-0028","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260717-091525.md","notes":"dual verdict pass: spec_compliance 10/10 compliant, code_quality 0 BLOCKING / 1 NON-BLOCKING (VALIDATION step 8a slug-DRAFT ac_evidence footgun -> recommended follow-up ref) / 3 INFO; NB-1/NB-2 of review-20260716-234625 verified closed"}}
+{"v":1,"ts":"2026-07-17T09:19:41.011Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"docs-audit-d2-evidence-hardening","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-17T09:19:41.042Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"docs-audit-d2-evidence-hardening","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T09:25:49.772Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"validation-ac-evidence-close-time","payload":{"from":"none","to":"draft"}}

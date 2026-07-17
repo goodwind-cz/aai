@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T07:53:05.016Z
+Generated: 2026-07-17T09:26:42.432Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -108,9 +108,13 @@ _None._
 | SPEC-0039 | specs | docs/specs/SPEC-0039-spec-false-open-drift-heuristic.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (3)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0028 | issues | docs/issues/CHANGE-0028-docs-audit-d2-evidence-hardening.md |
+| CHANGE-0029 | issues | docs/issues/CHANGE-0029-validation-ac-evidence-close-time.md |
+| SPEC-0040 | specs | docs/specs/SPEC-0040-spec-docs-audit-d2-evidence-hardening.md |
 
 ## Deferred (whole-doc) (0)
 
