@@ -178,7 +178,7 @@ For each tick (1..max_ticks):
         docs/ai/LOOP_TICKS.jsonl (input_tokens + output_tokens for the token
         budget; est_cost_usd for the cost budget). These are best-effort and only
         present when the runtime exposes real usage — if absent, this check is a
-        no-op (never fabricate usage). If a configured limit is met or exceeded:
+        no-op (never fabricate usage). Also add harness-reported undecomposed totals observed at subagent completions this run (SUBAGENT_PROTOCOL.md); absent data keeps this a no-op — never fabricated. If a configured limit is met or exceeded:
         → Set human_input.required = true — primary path:
             node .aai/scripts/state.mjs set-human-input --required true \
               --reason "Run budget exhausted: <cumulative> >= <limit>" \
@@ -258,6 +258,7 @@ For each tick (1..max_ticks):
        from the filesystem + evidence, and record "validator shared context with
        implementer" as a residual risk that lowers confidence in the PASS.
      - Capture role_ended_utc immediately after completion from system clock.
+     - Capture harness-reported usage from the completed role's tool result per SUBAGENT_PROTOCOL.md "Harness-reported usage capture" (decomposed -> tokens-in/out flags; undecomposed total -> merge-append note; nothing -> omit).
      - Expected result: role work completed and STATE.yaml updated with results.
 
   5. CHECKPOINT GATE (if checkpoint_mode != none):
@@ -328,6 +329,7 @@ For each tick (1..max_ticks):
        cache_read_tokens, est_cost_usd ONLY if the runtime exposes real usage figures.
        Never fabricate or estimate token counts — omit the fields if unknown. Real
        per-tick cost makes a cost regression visible instead of silent (see CACHING DISCIPLINE).
+     - Undecomposed totals are NOT passed as these flags — they flow to the merge append-run note (D3) and the run-budget tally (condition f, SUBAGENT_PROTOCOL.md) instead.
      - LEAK ACCOUNTING (SPEC-0009): on a test-running tick also include
        `lingering_procs` (this-workspace `vitest`/`esbuild` count AFTER the
        post-tick `.aai/scripts/aai-reap-tests.sh` sweep) and `free_memory`

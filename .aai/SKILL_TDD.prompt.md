@@ -490,6 +490,7 @@ User: "Add password strength validation"
 
 ### agent_runs (record in docs/ai/STATE.yaml)
 
+Subagent-mode carve-out (D5): dispatched as a subagent -> do NOT self-append; return the result block — the orchestrator appends with harness usage per SUBAGENT_PROTOCOL.md; direct execution -> self-append below, usage omitted.
 Capture `started_utc` from the system clock (`date -u +%Y-%m-%dT%H:%M:%SZ`)
 immediately before Phase 1 (RED) begins.
 PRIMARY PATH — after the last phase completes, append your agent run via the
