@@ -2,10 +2,12 @@
 id: dispatch-4a-fail-verdict-precedence
 type: change
 number: 36
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 102
+  commits:
+    - 64a7548
 ---
 
 # Change — Rule 4a must not retarget away from an unaddressed FAIL verdict

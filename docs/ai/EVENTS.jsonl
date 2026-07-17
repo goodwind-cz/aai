@@ -716,3 +716,8 @@
 {"v":1,"ts":"2026-07-17T20:58:11.226Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0050","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260717T205700Z.md","notes":"dual-verdict PASS/PASS; 0 BLOCKING, 0 NON-BLOCKING; 2 cannot_verify"}}
 {"v":1,"ts":"2026-07-17T20:58:51.813Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"dispatch-4a-fail-verdict-precedence","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-17T20:58:51.849Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"dispatch-4a-fail-verdict-precedence","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T20:59:21.730Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"dispatch-4a-fail-verdict-precedence","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T20:59:21.769Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-dispatch-4a-fail-verdict-precedence","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-17T20:59:21.806Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-dispatch-4a-fail-verdict-precedence","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T20:59:21.843Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"dispatch-4a-fail-verdict-precedence","payload":{"commit":"64a7548"}}
+{"v":1,"ts":"2026-07-17T20:59:25.878Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":111,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

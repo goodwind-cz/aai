@@ -2,13 +2,15 @@
 id: spec-dispatch-4a-fail-verdict-precedence
 type: spec
 number: 50
-status: implementing
+status: done
 ceremony_level: 2
 links:
   change: dispatch-4a-fail-verdict-precedence
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 102
+  commits:
+    - 64a7548
 ---
 
 # SPEC — Rule 4a Must Not Retarget Away From an Unaddressed FAIL Verdict
