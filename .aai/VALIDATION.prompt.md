@@ -136,6 +136,10 @@ PROCESS
       failing may be tautological and self-validating → record as a residual risk;
       for security, data-integrity, or bug-fix ACs, missing RED-proof is a FAIL
       (these are exactly where a rubber-stamped criterion does the most damage).
+      Additionally (SPEC-0044): run `node .aai/scripts/tdd-evidence-check.mjs
+      --red <log>` on the scope's recorded RED log(s); infra_fail or
+      unclassified NEW evidence is not RED-proof. Legacy logs (pre-change, no
+      RED_CLASS line) keep today's by-eye spot-check.
 6) Build coverage table.
 7) Run AC STATUS GATE (see section above) and record any blocking findings.
 7b) Apply the `.aai/SKILL_VERIFY.prompt.md` gate before producing any verdict.
