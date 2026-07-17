@@ -3752,6 +3752,473 @@ MD
   log_pass "Empty/absent docs/canonical/ contributes no provenance finding; repo stays CLEAN (TEST-005)"
 }
 
+# --- CHANGE-0027 / SPEC-0039 — probable-false-open drift heuristic (TEST-001..014) ---
+#
+# Every stanza below shares a canonical POSITIVE CONTROL doc (CHANGE-9001,
+# via setup_fo_repo + assert_fo_control_flagged) so a purely-negative
+# assertion can never pass vacuously against the UNMODIFIED (pre-feature)
+# engine — the same RED-proof idiom used by test_closeout_spec_not_all_done
+# elsewhere in this suite. TEST-001 and TEST-009 carry their own positive
+# assertions instead (no separate control needed).
+
+# Isolated repo (setup_iso_repo) plus one delivered-but-open doc (implementing,
+# CHANGE-9001) that the false-open heuristic must flag. Echoes the repo path.
+setup_fo_repo() {
+  local name="$1"
+  local d; d="$(setup_iso_repo "$name")"
+  mkdir -p "$d/docs/issues"
+  cat > "$d/docs/issues/CHANGE-9001-fo-control.md" <<'MD'
+---
+id: CHANGE-9001
+type: change
+status: implementing
+links:
+  pr: []
+---
+# Positive control: delivered but never closed
+MD
+  (cd "$d" && git add docs/issues/CHANGE-9001-fo-control.md \
+    && git commit -qm "docs: intake CHANGE-9001")
+  echo shipped > "$d/CONTROL-DELIVERY.md"
+  (cd "$d" && git add CONTROL-DELIVERY.md \
+    && git commit -qm "feat: deliver CHANGE-9001 to production")
+  printf '%s' "$d"
+}
+
+assert_fo_control_flagged() {  # $1 = audit log path
+  grep -F "CHANGE-9001" "$1" | grep -qF "probable-false-open" \
+    || log_fail "RED-proof: positive control CHANGE-9001 must be flagged probable-false-open"
+}
+
+test_change0027_delivery_commit_flags() {  # TEST-001 / Spec-AC-01
+  log_info "Test: eligible open doc + later feat: commit mentioning it -> probable-false-open with a cited hash, for every eligible status (TEST-001)..."
+  local d; d="$(setup_iso_repo fo-delivery)"
+  mkdir -p "$d/docs/issues"
+  cat > "$d/docs/issues/CHANGE-5801-fo-draft.md" <<'MD'
+---
+id: CHANGE-5801
+type: change
+status: draft
+links:
+  pr: []
+---
+# Draft change, delivered but never closed
+MD
+  cat > "$d/docs/issues/CHANGE-5802-fo-implementing.md" <<'MD'
+---
+id: CHANGE-5802
+type: change
+status: implementing
+links:
+  pr: []
+---
+# Implementing change, delivered but never closed
+MD
+  cat > "$d/docs/issues/CHANGE-5803-fo-accepted.md" <<'MD'
+---
+id: CHANGE-5803
+type: change
+status: accepted
+links:
+  pr: []
+---
+# Accepted change, delivered but never closed
+MD
+  (cd "$d" && git add docs/issues \
+    && git commit -qm "docs: intake CHANGE-5801 CHANGE-5802 CHANGE-5803")
+  echo delivered > "$d/DELIVERY.md"
+  (cd "$d" && git add DELIVERY.md \
+    && git commit -qm "feat: deliver CHANGE-5801 CHANGE-5802 CHANGE-5803 to production")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  for id in CHANGE-5801 CHANGE-5802 CHANGE-5803; do
+    grep -F "$id" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+      || log_fail "TEST-001: $id must be flagged probable-false-open"
+  done
+  local row; row="$(grep -F "CHANGE-5801" "$d/drift-sec.txt" | head -1)"
+  echo "$row" | grep -qF "delivery commit(s)" \
+    || log_fail "TEST-001: reasons must name the delivery-commit signal"
+  echo "$row" | grep -Eq '[0-9a-f]{7}' \
+    || log_fail "TEST-001: drift row Evidence cell must carry a short commit hash"
+  rm -rf "$d"
+  log_pass "Delivery-commit signal flags every eligible open status, with a hash cited (TEST-001)"
+}
+
+test_change0027_intake_only_not_flagged() {  # TEST-002 / Spec-AC-02
+  log_info "Test: doc referenced only by its own feat:-prefixed add-commit is NOT flagged (TEST-002)..."
+  local d; d="$(setup_fo_repo fo-intake-only)"
+  cat > "$d/docs/issues/CHANGE-5810-intake-only.md" <<'MD'
+---
+id: CHANGE-5810
+type: change
+status: draft
+links:
+  pr: []
+---
+# Freshly intaken change
+MD
+  (cd "$d" && git add docs/issues/CHANGE-5810-intake-only.md \
+    && git commit -qm "feat: intake CHANGE-5810")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  if grep -qF "CHANGE-5810" "$d/drift-sec.txt"; then
+    log_fail "TEST-002: own add-commit (even feat:-prefixed) must NOT count as delivery evidence"
+  fi
+  rm -rf "$d"
+  log_pass "Own add-commit never counts as delivery evidence, even when feat:-prefixed (TEST-002)"
+}
+
+test_change0027_nondelivery_mentions_not_flagged() {  # TEST-003 / Spec-AC-02
+  log_info "Test: later docs:/merge-subject mentions only do NOT flag (TEST-003)..."
+  local d; d="$(setup_fo_repo fo-nondelivery)"
+  cat > "$d/docs/issues/CHANGE-5811-docs-only.md" <<'MD'
+---
+id: CHANGE-5811
+type: change
+status: implementing
+links:
+  pr: []
+---
+# Change mentioned only in non-delivery commits
+MD
+  (cd "$d" && git add docs/issues/CHANGE-5811-docs-only.md \
+    && git commit -qm "docs: add CHANGE-5811 fixture")
+  printf '\nnote\n' >> "$d/docs/issues/CHANGE-5811-docs-only.md"
+  (cd "$d" && git add docs/issues/CHANGE-5811-docs-only.md \
+    && git commit -qm "docs: update CHANGE-5811 notes")
+  (cd "$d" && git commit --allow-empty -qm "Merge pull request #1 from origin/CHANGE-5811-branch")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  if grep -qF "CHANGE-5811" "$d/drift-sec.txt"; then
+    log_fail "TEST-003: docs:/merge-subject mentions must NOT count as delivery evidence"
+  fi
+  rm -rf "$d"
+  log_pass "docs: and merge-subject mentions never count as delivery evidence (TEST-003)"
+}
+
+test_change0027_sibling_numbered_boundary() {  # TEST-004 / Spec-AC-03
+  log_info "Test: CHANGE-030 open, feat: ... CHANGE-0301 -> CHANGE-030 not flagged (TEST-004)..."
+  local d; d="$(setup_fo_repo fo-sibling-numbered)"
+  cat > "$d/docs/issues/CHANGE-030-sibling.md" <<'MD'
+---
+id: CHANGE-030
+type: change
+status: draft
+links:
+  pr: []
+---
+# Sibling-prone numbered id
+MD
+  (cd "$d" && git add docs/issues/CHANGE-030-sibling.md \
+    && git commit -qm "docs: add CHANGE-030 fixture")
+  echo shipped > "$d/OTHER-DELIVERY.md"
+  (cd "$d" && git add OTHER-DELIVERY.md \
+    && git commit -qm "feat: ship CHANGE-0301 unrelated work")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  if grep -qF "CHANGE-030" "$d/drift-sec.txt"; then
+    log_fail "TEST-004: CHANGE-0301 mention must NOT satisfy sibling CHANGE-030 (boundary D4)"
+  fi
+  rm -rf "$d"
+  log_pass "Numbered sibling-ID boundary respected: CHANGE-0301 does not satisfy CHANGE-030 (TEST-004)"
+}
+
+test_change0027_sibling_slug_boundary() {  # TEST-005 / Spec-AC-03
+  log_info "Test: slug id not matched inside a longer sibling slug mention (TEST-005)..."
+  local d; d="$(setup_fo_repo fo-sibling-slug)"
+  cat > "$d/docs/specs/SPEC-DRAFT-delta-merge.md" <<'MD'
+---
+id: delta-merge
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Slug-id draft, sibling-prone
+MD
+  (cd "$d" && git add docs/specs/SPEC-DRAFT-delta-merge.md \
+    && git commit -qm "docs: add delta-merge draft fixture")
+  echo shipped > "$d/SIBLING-DELIVERY.md"
+  (cd "$d" && git add SIBLING-DELIVERY.md \
+    && git commit -qm "feat: ship delta-merge-stage-3 fully")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  if grep -qF "delta-merge" "$d/drift-sec.txt"; then
+    log_fail "TEST-005: delta-merge-stage-3 mention must NOT satisfy sibling slug delta-merge (boundary D4)"
+  fi
+  rm -rf "$d"
+  log_pass "Slug sibling-ID boundary respected: delta-merge-stage-3 does not satisfy delta-merge (TEST-005)"
+}
+
+test_change0027_ac_evidence_event_flags() {  # TEST-006 / Spec-AC-04
+  log_info "Test: ac_evidence event (rolled-up ref) flags; event named in reasons (TEST-006)..."
+  local d; d="$(setup_fo_repo fo-ac-evidence)"
+  cat > "$d/docs/issues/CHANGE-5812-ac-evidence.md" <<'MD'
+---
+id: CHANGE-5812
+type: change
+status: accepted
+links:
+  pr: []
+---
+# Change with delivery proven only by an ac_evidence event
+MD
+  (cd "$d" && git add docs/issues/CHANGE-5812-ac-evidence.md \
+    && git commit -qm "docs: add CHANGE-5812 fixture")
+  (cd "$d" && node .aai/scripts/append-event.mjs --event ac_evidence \
+    --ref CHANGE-5812/delivered-subtask --evidence "shipped" > /dev/null)
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  grep -F "CHANGE-5812" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-006: CHANGE-5812 must be flagged via the ac_evidence signal"
+  grep -F "CHANGE-5812" "$d/drift-sec.txt" | grep -qF "ac_evidence event" \
+    || log_fail "TEST-006: reasons must name the ac_evidence event signal"
+  rm -rf "$d"
+  log_pass "ac_evidence event (rolled-up ref) flags the doc; event named in reasons (TEST-006)"
+}
+
+test_change0027_ac_table_signal() {  # TEST-007 / Spec-AC-05
+  log_info "Test: fully terminal evidenced AC table flags; non-terminal control does not (TEST-007)..."
+  local d; d="$(setup_fo_repo fo-ac-table)"
+  cat > "$d/docs/specs/SPEC-5820-terminal-table.md" <<'MD'
+---
+id: SPEC-5820
+type: spec
+status: accepted
+links:
+  pr: []
+---
+# Accepted spec whose AC table is already fully terminal + evidenced
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status    | Evidence | Review-By | Notes |
+|------------|-------------|-----------|----------|-----------|-------|
+| Spec-AC-01 | first       | done      | a1b2c3d  | —         | —     |
+| Spec-AC-02 | second      | deferred  | —        | —         | —     |
+MD
+  cat > "$d/docs/specs/SPEC-5821-partial-table.md" <<'MD'
+---
+id: SPEC-5821
+type: spec
+status: accepted
+links:
+  pr: []
+---
+# Accepted spec whose AC table is still partially open (control)
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status       | Evidence | Review-By | Notes |
+|------------|-------------|--------------|----------|-----------|-------|
+| Spec-AC-01 | first       | done         | a1b2c3d  | —         | —     |
+| Spec-AC-02 | second      | implementing | —        | —         | —     |
+MD
+  (cd "$d" && git add docs/specs && git commit -qm "docs: add SPEC-5820 SPEC-5821 fixtures")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  grep -F "SPEC-5820" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-007: fully terminal evidenced AC table must flag SPEC-5820"
+  grep -F "SPEC-5820" "$d/drift-sec.txt" | grep -qF "AC Status table fully terminal with evidence" \
+    || log_fail "TEST-007: reasons must name the AC-table signal"
+  if grep -qF "SPEC-5821" "$d/drift-sec.txt"; then
+    log_fail "TEST-007: a non-terminal AC table must NOT trigger the false-open AC-table signal"
+  fi
+  rm -rf "$d"
+  log_pass "Fully terminal evidenced AC table flags; non-terminal table stays unflagged (TEST-007)"
+}
+
+test_change0027_digest_and_event() {  # TEST-008 / Spec-AC-06 (SEAM-2)
+  log_info "Test: digest row + False-open summary + NEEDS-TRIAGE; EVENTS.jsonl carries the false-open count (TEST-008)..."
+  local d; d="$(setup_fo_repo fo-digest)"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  assert_contains "$d/audit.log" "False-open: 1"
+  extract_section_h3 "$d/audit.log" "### Verdict" | grep -qF "NEEDS-TRIAGE" \
+    || log_fail "TEST-008: any false-open doc must flip the overall verdict to NEEDS-TRIAGE"
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"event":"docs_audit"' \
+    || log_fail "TEST-008: last EVENTS line must be a docs_audit event"
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -qF '"false_open":1' \
+    || log_fail "TEST-008: docs_audit payload must carry the false-open count"
+  rm -rf "$d"
+  log_pass "Digest carries the false-open row + summary + NEEDS-TRIAGE; event payload carries the count (TEST-008)"
+}
+
+test_change0027_precedence_over_stale() {  # TEST-009 / Spec-AC-07
+  log_info "Test: stale AND delivered -> probable-false-open; stale only -> probable-stale-open unchanged (TEST-009)..."
+  local d; d="$(setup_iso_repo fo-precedence)"
+  mkdir -p "$d/docs/issues"
+  cat > "$d/docs/issues/CHANGE-5830-stale-delivered.md" <<'MD'
+---
+id: CHANGE-5830
+type: change
+status: implementing
+links:
+  pr: []
+---
+# Stale-aged AND delivery-evidenced (must upgrade to false-open)
+MD
+  cat > "$d/docs/issues/CHANGE-5831-stale-only.md" <<'MD'
+---
+id: CHANGE-5831
+type: change
+status: implementing
+links:
+  pr: []
+---
+# Stale-aged, no delivery evidence (must stay probable-stale-open)
+MD
+  (cd "$d" && git add docs/issues \
+    && GIT_COMMITTER_DATE="2026-01-15T10:00:00Z" GIT_AUTHOR_DATE="2026-01-15T10:00:00Z" \
+       git commit -qm "docs: add CHANGE-5830 CHANGE-5831 fixtures")
+  # A backdated delivery commit for CHANGE-5830 ONLY — old enough that, absent
+  # the false-open upgrade, its own mention-age would ALSO exceed
+  # stale_after_days (default 90d), proving this is a genuine D5 precedence
+  # upgrade, not merely a recency artifact.
+  echo shipped > "$d/OLD-DELIVERY.md"
+  (cd "$d" && git add OLD-DELIVERY.md \
+    && GIT_COMMITTER_DATE="2026-01-20T10:00:00Z" GIT_AUTHOR_DATE="2026-01-20T10:00:00Z" \
+       git commit -qm "feat: deliver CHANGE-5830 to production")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  grep -F "CHANGE-5830" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-009: stale-AND-delivered doc must upgrade to probable-false-open"
+  if grep -F "CHANGE-5830" "$d/drift-sec.txt" | grep -qF "probable-stale-open"; then
+    log_fail "TEST-009: stale-AND-delivered doc must NOT stay probable-stale-open"
+  fi
+  grep -F "CHANGE-5831" "$d/drift-sec.txt" | grep -qF "probable-stale-open" \
+    || log_fail "TEST-009: stale-only doc (no delivery evidence) must keep probable-stale-open exactly as today"
+  rm -rf "$d"
+  log_pass "False-open takes precedence over stale-open; undelivered stale docs unchanged (TEST-009)"
+}
+
+test_change0027_frozen_draft_probe() {  # TEST-011 / Spec-AC-08
+  log_info "Test: frozen-in-body draft: evidenced -> flagged; unevidenced -> aligned/tracked-open (TEST-011)..."
+  local d; d="$(setup_fo_repo fo-frozen-draft)"
+  cat > "$d/docs/specs/SPEC-5840-frozen-evidenced.md" <<'MD'
+---
+id: SPEC-5840
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Frozen-in-body draft, already delivered
+
+📋 SPEC-FROZEN: true
+MD
+  cat > "$d/docs/specs/SPEC-5841-frozen-unevidenced.md" <<'MD'
+---
+id: SPEC-5841
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Frozen-in-body draft, not yet delivered (control)
+
+📋 SPEC-FROZEN: true
+MD
+  (cd "$d" && git add docs/specs && git commit -qm "docs: add SPEC-5840 SPEC-5841 fixtures")
+  echo shipped > "$d/FROZEN-DELIVERY.md"
+  (cd "$d" && git add FROZEN-DELIVERY.md \
+    && git commit -qm "feat: ship SPEC-5840 fully")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --list --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  grep -F "SPEC-5840" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-011: a delivery-evidenced frozen-in-body draft must be flagged (D6)"
+  if grep -qF "SPEC-5841" "$d/drift-sec.txt"; then
+    log_fail "TEST-011: an unevidenced frozen-in-body draft must NOT be flagged"
+  fi
+  grep -F "SPEC-5841" "$d/audit.log" | grep -qF "frozen" \
+    || log_fail "TEST-011: unevidenced frozen-in-body draft must keep its byte-identical frozen classification"
+  rm -rf "$d"
+  log_pass "Frozen-in-body drafts checked: delivered flags, unevidenced stays aligned/tracked-open (TEST-011)"
+}
+
+test_change0027_ac_table_tdd_log_only_not_flagged() {  # TEST-015 / Spec-AC-07
+  log_info "Test: in-flight spec — AC table completed by TDD, evidenced ONLY by same-session TDD proof logs, no delivering commit/event -> stays aligned, NOT probable-false-open (TEST-015)..."
+  local d; d="$(setup_fo_repo fo-tdd-log-only)"
+  cat > "$d/docs/specs/SPEC-5850-inflight-tdd-only.md" <<'MD'
+---
+id: SPEC-5850
+type: spec
+status: draft
+links:
+  pr: []
+---
+# In-flight spec: AC table completed by TDD, not yet delivered
+
+📋 SPEC-FROZEN: true
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | TEST-001 green — docs/ai/tdd/green-20260101T000000Z-fixture-test001.log | TDD | — |
+| Spec-AC-02 | second      | done   | TEST-002 green — docs/ai/tdd/green-20260101T000000Z-fixture-test002.log | TDD | — |
+MD
+  (cd "$d" && git add docs/specs/SPEC-5850-inflight-tdd-only.md \
+    && git commit -qm "docs: add SPEC-5850 in-flight fixture")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --list --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  if grep -qF "SPEC-5850" "$d/drift-sec.txt"; then
+    log_fail "TEST-015: an in-flight spec whose AC table is evidenced only by same-session TDD proof logs must NOT be flagged probable-false-open without a corroborating delivery commit or ac_evidence event"
+  fi
+  grep -F "SPEC-5850" "$d/audit.log" | grep -qF "frozen" \
+    || log_fail "TEST-015: in-flight frozen-in-body draft must keep its byte-identical frozen classification"
+  rm -rf "$d"
+  log_pass "In-flight spec with TDD-log-only AC evidence stays aligned, not false-open — no regression on the audit's own repo (TEST-015)"
+}
+
+test_change0027_index_seam() {  # TEST-012 / Spec-AC-09 (SEAM-1)
+  log_info "Test: generate-docs-index.mjs renders the false-open row + D9 suggested step (TEST-012)..."
+  local d; d="$(setup_fo_repo fo-index-seam)"
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > index.log 2>&1) \
+    || log_fail "TEST-012: generate-docs-index.mjs failed: $(cat "$d/index.log")"
+  local audit="$d/docs/INDEX.audit.md"
+  assert_file "$audit"
+  assert_contains "$audit" "probable-false-open"
+  grep -F "CHANGE-9001" "$audit" | grep -qF "probable-false-open" \
+    || log_fail "TEST-012: INDEX.audit.md must carry the false-open row for CHANGE-9001"
+  assert_contains "$audit" "confirm delivery, then run close ceremony"
+  rm -rf "$d"
+  log_pass "generate-docs-index.mjs (SEAM-1) renders the false-open row with the D9 suggested step (TEST-012)"
+}
+
+test_change0027_quick_mode_skips_probe() {  # TEST-013 / Spec-AC-07
+  log_info "Test: --quick digest carries no false-open probe/row (TEST-013)..."
+  local d; d="$(setup_fo_repo fo-quick)"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --quick > quick.log 2>&1) || true
+  assert_contains "$d/quick.log" "Mode: quick"
+  assert_not_contains "$d/quick.log" "probable-false-open"
+  # The summary count field itself is always printed (symmetric with the
+  # pre-existing Stale: 0 behavior in quick mode) — it must read zero because
+  # the probe never ran, not because the field is hidden.
+  assert_contains "$d/quick.log" "False-open: 0"
+  # Positive control: the SAME fixture flags under a full run (proves --quick
+  # really is skipping the probe, not merely a fixture that never triggers it).
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > full.log 2>&1) || true
+  assert_fo_control_flagged "$d/full.log"
+  rm -rf "$d"
+  log_pass "--quick skips the false-open probe entirely; full run on the same fixture flags it (TEST-013)"
+}
+
+test_change0027_doc_surfaces_mention_false_open() {  # TEST-014 / Spec-AC-09
+  log_info "Test: USER_GUIDE.md verdict list + SKILL.md description mention false-open (TEST-014)..."
+  assert_contains "$PROJECT_ROOT/docs/USER_GUIDE.md" "probable-false-open"
+  assert_contains "$PROJECT_ROOT/.claude/skills/aai-docs-audit/SKILL.md" "false-open"
+  log_pass "USER_GUIDE.md and SKILL.md both mention the false-open verdict (TEST-014)"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -3855,6 +4322,20 @@ main() {
   test_l1gate_done_drift_pipe_drop
   test_delta3_provenance_drift
   test_delta3_empty_canonical_control
+  test_change0027_delivery_commit_flags
+  test_change0027_intake_only_not_flagged
+  test_change0027_nondelivery_mentions_not_flagged
+  test_change0027_sibling_numbered_boundary
+  test_change0027_sibling_slug_boundary
+  test_change0027_ac_evidence_event_flags
+  test_change0027_ac_table_signal
+  test_change0027_digest_and_event
+  test_change0027_precedence_over_stale
+  test_change0027_frozen_draft_probe
+  test_change0027_ac_table_tdd_log_only_not_flagged
+  test_change0027_index_seam
+  test_change0027_quick_mode_skips_probe
+  test_change0027_doc_surfaces_mention_false_open
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

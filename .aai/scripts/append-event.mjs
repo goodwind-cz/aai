@@ -93,6 +93,7 @@ function main() {
         orphans: Number(args.orphans ?? 0),
         drifted: Number(args.drifted ?? 0),
         stale: Number(args.stale ?? 0),
+        false_open: Number(args.false_open ?? 0),
         mode: typeof args.mode === 'string' ? args.mode : 'full',
       };
       if (args.notes) entry.payload.notes = args.notes;

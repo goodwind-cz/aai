@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-16T22:36:27.057Z
+Generated: 2026-07-17T07:52:13.825Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -106,11 +106,12 @@ _None._
 | SPEC-0038 | specs | docs/specs/SPEC-0038-spec-delta-stage-3.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (2)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0027 | issues | docs/issues/CHANGE-0027-false-open-drift-heuristic.md |
+| SPEC-0039 | specs | docs/specs/SPEC-0039-spec-false-open-drift-heuristic.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -137,4 +138,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-16 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-17 — counts above use this date for overdue checks.

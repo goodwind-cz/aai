@@ -438,3 +438,28 @@
 {"v":1,"ts":"2026-07-16T22:36:02.963Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"SPEC-0009","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-16T22:36:02.997Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"SPEC-0010","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-16T22:36:05.637Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":87,"orphans":0,"drifted":0,"stale":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-16T22:50:55.755Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-false-open-drift-heuristic","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-16T23:10:43.487Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0039/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-16T23:10:43.523Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0039/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-16T23:10:43.557Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0039/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-16T23:10:43.588Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0039/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-16T23:10:43.620Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0039/Spec-AC-05","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-16T23:10:43.653Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0039/Spec-AC-06","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-16T23:10:43.684Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0039/Spec-AC-07","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-16T23:10:43.715Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0039/Spec-AC-08","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-16T23:10:43.744Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0039/Spec-AC-09","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-16T23:14:01.284Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":88,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-16T23:29:47.351Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":88,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-16T23:37:19.143Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":88,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-16T23:40:23.885Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0039/Spec-AC-01","payload":{"commit":"validation-20260716T233913Z re-verified PASS (suite exit0, repo CLEAN)"}}
+{"v":1,"ts":"2026-07-16T23:40:23.922Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0039/Spec-AC-02","payload":{"commit":"validation-20260716T233913Z re-verified PASS (suite exit0, repo CLEAN)"}}
+{"v":1,"ts":"2026-07-16T23:40:23.958Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0039/Spec-AC-03","payload":{"commit":"validation-20260716T233913Z re-verified PASS (suite exit0, repo CLEAN)"}}
+{"v":1,"ts":"2026-07-16T23:40:23.992Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0039/Spec-AC-04","payload":{"commit":"validation-20260716T233913Z re-verified PASS (suite exit0, repo CLEAN)"}}
+{"v":1,"ts":"2026-07-16T23:40:24.025Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0039/Spec-AC-05","payload":{"commit":"validation-20260716T233913Z re-verified PASS (suite exit0, repo CLEAN)"}}
+{"v":1,"ts":"2026-07-16T23:40:24.058Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0039/Spec-AC-06","payload":{"commit":"validation-20260716T233913Z re-verified PASS (suite exit0, repo CLEAN)"}}
+{"v":1,"ts":"2026-07-16T23:40:24.092Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0039/Spec-AC-07","payload":{"commit":"validation-20260716T233913Z re-verified PASS (suite exit0, repo CLEAN)"}}
+{"v":1,"ts":"2026-07-16T23:40:24.123Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0039/Spec-AC-08","payload":{"commit":"validation-20260716T233913Z re-verified PASS (suite exit0, repo CLEAN)"}}
+{"v":1,"ts":"2026-07-16T23:40:24.159Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0039/Spec-AC-09","payload":{"commit":"validation-20260716T233913Z re-verified PASS (suite exit0, repo CLEAN)"}}
+{"v":1,"ts":"2026-07-16T23:48:03.219Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"CHANGE-0027","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260716-234625.md","notes":"dual verdict pass: spec_compliance 9/9 compliant, code_quality 0 BLOCKING / 2 NON-BLOCKING (D2c mixed-evidence-cell recall miss; D2b slug-id vs numbered event-ref blind spot) — dispositions pending orchestrator per H6"}}
+{"v":1,"ts":"2026-07-16T23:49:01.745Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"CHANGE-0027","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-16T23:49:01.781Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"CHANGE-0027","payload":{"validation":"pass","code_review":"pass"}}
