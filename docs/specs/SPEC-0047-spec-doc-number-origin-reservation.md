@@ -269,16 +269,16 @@ operator pre-merge checkpoint.
 
 | Spec-AC    | Description                                            | Status  | Evidence | Review-By | Notes |
 |------------|--------------------------------------------------------|---------|----------|-----------|-------|
-| Spec-AC-01 | Reservation ref created in origin before local rename  | planned | —        | —         | —     |
-| Spec-AC-02 | Next-free over local ∪ origin/* ∪ reservation refs     | planned | —        | —         | —     |
-| Spec-AC-03 | Ref-exists rejection retries next free (cap 50)        | planned | —        | —         | —     |
-| Spec-AC-04 | Offline/no-permission fallback marker + completion     | planned | —        | —         | —     |
-| Spec-AC-05 | Merge guard: cross-branch collision + unreserved block | planned | —        | —         | —     |
-| Spec-AC-06 | spec-lint --slug-handles artifact-filename warning     | planned | —        | —         | —     |
-| Spec-AC-07 | Coupled families: union counter + atomic multi-ref     | planned | —        | —         | —     |
-| Spec-AC-08 | Back-compat: no config/no origin behaves as today      | planned | —        | —         | —     |
-| Spec-AC-09 | CI wiring: base-ref guard + lint step + enforce gate   | planned | —        | —         | —     |
-| Spec-AC-10 | TECHNOLOGY.md + USER_GUIDE.md rows                     | planned | —        | —         | —     |
+| Spec-AC-01 | Reservation ref created in origin before local rename  | done | TEST-001/TEST-016/TEST-017 green (remediation of validation F1 — same-sha `--force-with-lease` no-op, fixed via per-attempt nonce-commit push), docs/ai/tdd/green-20260717T174800Z-remediation-new-suite.log | — | Remediated 2026-07-17 post-validation FAIL (validation-20260717T174229Z-SPEC-0047.md F1) |
+| Spec-AC-02 | Next-free over local ∪ origin/* ∪ reservation refs     | done | TEST-003/TEST-004 green, docs/ai/tdd/green-20260717T174800Z-remediation-new-suite.log | — | — |
+| Spec-AC-03 | Ref-exists rejection retries next free (cap 50)        | done | TEST-002/TEST-016/TEST-017 green (direct unit test of reserveAtomic + remediation of validation F1 same-sha false-success, uncoupled and coupled), docs/ai/tdd/green-20260717T174800Z-remediation-new-suite.log | — | Remediated 2026-07-17 post-validation FAIL (validation-20260717T174229Z-SPEC-0047.md F1) |
+| Spec-AC-04 | Offline/no-permission fallback marker + completion     | done | TEST-005/TEST-007/TEST-015/TEST-018 green (remediation of validation F2 — permission-denied push over-matched the collision predicate, narrowed to the lease-rejection signal "stale info"), docs/ai/tdd/green-20260717T174800Z-remediation-new-suite.log | — | Remediated 2026-07-17 post-validation FAIL (validation-20260717T174229Z-SPEC-0047.md F2) |
+| Spec-AC-05 | Merge guard: cross-branch collision + unreserved block | done | TEST-006/TEST-007/TEST-014 green, docs/ai/tdd/green-20260717T173500Z-final-new-suite.log | — | — |
+| Spec-AC-06 | spec-lint --slug-handles artifact-filename warning     | done | TEST-008 green, docs/ai/tdd/green-20260717T173500Z-final-new-suite.log | — | — |
+| Spec-AC-07 | Coupled families: union counter + atomic multi-ref     | done | TEST-009/TEST-010/TEST-017 green (TEST-017 remediates validation F1's coupled same-sha variant — one member's no-op previously let the whole atomic push false-succeed), docs/ai/tdd/green-20260717T174800Z-remediation-new-suite.log | — | Remediated 2026-07-17 post-validation FAIL (validation-20260717T174229Z-SPEC-0047.md F1) |
+| Spec-AC-08 | Back-compat: no config/no origin behaves as today      | done | TEST-011 green (D9 invariant, unmodified suite semantics via setup_iso_repo origin addition), docs/ai/tdd/green-20260717T174800Z-remediation-new-suite.log (TEST-011 embedded) | — | — |
+| Spec-AC-09 | CI wiring: base-ref guard + lint step + enforce gate   | done | TEST-012 green, docs/ai/tdd/green-20260717T174800Z-remediation-new-suite.log; .github/workflows/docs-numbering.yml | — | — |
+| Spec-AC-10 | TECHNOLOGY.md + USER_GUIDE.md rows                     | done | TEST-013 green, docs/ai/tdd/green-20260717T174800Z-remediation-new-suite.log; docs/TECHNOLOGY.md, docs/USER_GUIDE.md | — | — |
 
 ## Implementation plan
 - Components: `.aai/scripts/allocate-doc-number.mjs` (reserve step in
@@ -303,21 +303,49 @@ operator pre-merge checkpoint.
 
 | Test ID  | Spec-AC    | Type        | File path (expected)                              | Description                                                                 | Status  |
 |----------|------------|-------------|---------------------------------------------------|-----------------------------------------------------------------------------|---------|
-| TEST-001 | Spec-AC-01 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Allocation creates refs/aai/docnums/<ID> in bare origin before rename; ref + renamed file both present | pending |
-| TEST-002 | Spec-AC-03 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Pre-existing reservation ref (racing clone) → create-only push rejected → allocator retries and lands next free; both refs exist | pending |
-| TEST-003 | Spec-AC-02 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Number taken only on an unmerged origin side branch is skipped (SPEC-0042-incident regression) | pending |
-| TEST-004 | Spec-AC-02 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Naked reservation ref (no doc anywhere) is treated as taken                 | pending |
-| TEST-005 | Spec-AC-04 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Unreachable push target → allocation proceeds, stamps number_reserved: false, prints WARNING, exit 0 | pending |
-| TEST-006 | Spec-AC-05 | integration | tests/skills/test-aai-doc-number-reservation.sh   | --guard exit 4 when staged TYPE-NNNN exists on base ref under different id  | pending |
-| TEST-007 | Spec-AC-04, Spec-AC-05 | integration | tests/skills/test-aai-doc-number-reservation.sh | --guard blocks number_reserved: false; --reserve completes (marker removed, guard clean) or exits 4 when ref exists | pending |
-| TEST-008 | Spec-AC-06 | unit        | tests/skills/test-aai-doc-number-reservation.sh   | spec-lint --slug-handles flags artifact filename embedding TYPE-NNN with no merged doc; clean when doc exists | pending |
-| TEST-009 | Spec-AC-07 | integration | tests/skills/test-aai-doc-number-reservation.sh   | coupled_families group: next-free over union (5,3 → 6 for both); one atomic push creates both refs | pending |
-| TEST-010 | Spec-AC-07 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Atomic all-or-nothing: one member ref pre-exists → neither ref created at that number; pair retries together | pending |
-| TEST-011 | Spec-AC-08 | integration | tests/skills/test-aai-doc-numbering.sh            | Existing SPEC-0015 suite passes per D9 (back-compat invariant — see RED-proof note) | pending |
-| TEST-012 | Spec-AC-09 | unit        | tests/skills/test-aai-doc-number-reservation.sh   | Grep assertions: workflow passes PR base as --base-ref, has slug-handles lint step, enforce gate covers new predicates | pending |
-| TEST-013 | Spec-AC-10 | unit        | tests/skills/test-aai-doc-number-reservation.sh   | TECHNOLOGY.md + USER_GUIDE.md contain reservation/marker/coupled_families/guard rows | pending |
-| TEST-014 | Spec-AC-05 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Seam S1: pre-commit host surfaces a NEW-predicate-only failure under doc_number_guard: enforce | pending |
-| TEST-015 | Spec-AC-04 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Seam S3: docs-audit --check --strict raises no frontmatter finding for number_reserved: false | pending |
+| TEST-001 | Spec-AC-01 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Allocation creates refs/aai/docnums/<ID> in bare origin before rename; ref + renamed file both present | green |
+| TEST-002 | Spec-AC-03 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Pre-existing reservation ref (racing clone) → create-only push rejected → allocator retries and lands next free; both refs exist | green |
+| TEST-003 | Spec-AC-02 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Number taken only on an unmerged origin side branch is skipped (SPEC-0042-incident regression) | green |
+| TEST-004 | Spec-AC-02 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Naked reservation ref (no doc anywhere) is treated as taken                 | green |
+| TEST-005 | Spec-AC-04 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Unreachable push target → allocation proceeds, stamps number_reserved: false, prints WARNING, exit 0 | green |
+| TEST-006 | Spec-AC-05 | integration | tests/skills/test-aai-doc-number-reservation.sh   | --guard exit 4 when staged TYPE-NNNN exists on base ref under different id  | green |
+| TEST-007 | Spec-AC-04, Spec-AC-05 | integration | tests/skills/test-aai-doc-number-reservation.sh | --guard blocks number_reserved: false; --reserve completes (marker removed, guard clean) or exits 4 when ref exists | green |
+| TEST-008 | Spec-AC-06 | unit        | tests/skills/test-aai-doc-number-reservation.sh   | spec-lint --slug-handles flags artifact filename embedding TYPE-NNN with no merged doc; clean when doc exists | green |
+| TEST-009 | Spec-AC-07 | integration | tests/skills/test-aai-doc-number-reservation.sh   | coupled_families group: next-free over union (5,3 → 6 for both); one atomic push creates both refs | green |
+| TEST-010 | Spec-AC-07 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Atomic all-or-nothing: one member ref pre-exists → neither ref created at that number; pair retries together | green |
+| TEST-011 | Spec-AC-08 | integration | tests/skills/test-aai-doc-numbering.sh            | Existing SPEC-0015 suite passes per D9 (back-compat invariant — see RED-proof note) | green |
+| TEST-012 | Spec-AC-09 | unit        | tests/skills/test-aai-doc-number-reservation.sh   | Grep assertions: workflow passes PR base as --base-ref, has slug-handles lint step, enforce gate covers new predicates | green |
+| TEST-013 | Spec-AC-10 | unit        | tests/skills/test-aai-doc-number-reservation.sh   | TECHNOLOGY.md + USER_GUIDE.md contain reservation/marker/coupled_families/guard rows | green |
+| TEST-014 | Spec-AC-05 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Seam S1: pre-commit host surfaces a NEW-predicate-only failure under doc_number_guard: enforce | green |
+| TEST-015 | Spec-AC-04 | integration | tests/skills/test-aai-doc-number-reservation.sh   | Seam S3: docs-audit --check --strict raises no frontmatter finding for number_reserved: false | green |
+| TEST-016 | Spec-AC-01, Spec-AC-03 | integration | tests/skills/test-aai-doc-number-reservation.sh | Remediation of validation F1: two reserveAtomic attempts from the SAME HEAD (no intervening commit) must not both "win" the number — a same-sha `--force-with-lease` push is a silent no-op unless the pushed object is per-attempt unique | green |
+| TEST-017 | Spec-AC-01, Spec-AC-03, Spec-AC-07 | integration | tests/skills/test-aai-doc-number-reservation.sh | Remediation of validation F1 (coupled variant): a same-HEAD coupled-family retry must reject the PAIR, not false-succeed because one member's ref happened to already be at the same sha | green |
+| TEST-018 | Spec-AC-04 | integration | tests/skills/test-aai-doc-number-reservation.sh | Remediation of validation F2: a permission-denied/unpacker-error push (read-only bare origin, distinct from TEST-005's unreachable-path case) must fall through to the D4 provisional path (number_reserved: false + WARNING + exit 0), never the 50-attempt retry storm ending in die(4) | green |
+
+Evidence: docs/ai/tdd/red-20260717T171247Z-per-test.log (RED, TEST-001..010/
+012..014, product_red-accepted by tdd-evidence-check.mjs);
+docs/ai/tdd/pre-existing-green-TEST-011-TEST-015.log (TEST-011/TEST-015 pass
+today by design, per the RED-proof exception below); docs/ai/tdd/green-
+20260717T173500Z-final-new-suite.log + green-20260717T173500Z-final-old-suite.log
+(GREEN, all 15 + the existing SPEC-0015 suite, both exit 0).
+
+REMEDIATION (2026-07-17, post-validation FAIL — validation-20260717T174229Z-
+SPEC-0047.md): F1 (same-sha `--force-with-lease` silent no-op false-success,
+uncoupled and coupled) and F2 (permission-denied push over-matched by the
+`/rejected/i` collision predicate, causing a 50-attempt retry storm instead
+of the D4 provisional fallback) fixed at cause in `pushReservation` —
+(F1) push a per-attempt globally-unique dangling commit (`git commit-tree
+<empty-tree> -m <nonce>`) instead of `HEAD`, so a pre-existing ref can never
+coincidentally share the pushed sha and the create-only lease always
+evaluates; (F2) narrow the collision predicate from
+`/rejected|stale info|already exists/i` to `/stale info/i` (the exact
+create-only lease-rejection signal), routing every other push failure to the
+provisional-marker path. TEST-016/017/018 added, each RED-proofed against
+the unfixed code (docs/ai/tdd/red-20260717T174800Z-remediation-per-test.log,
+product_red-accepted by tdd-evidence-check.mjs) before the fix, then GREEN
+(docs/ai/tdd/green-20260717T174800Z-remediation-new-suite.log, all 18/18,
+TEST-011 back-compat embedded). Re-validation of this reset is pending on the
+next orchestration tick.
 
 RED-proof obligation: every AC-gating test above must be observed FAILING
 without the change before its pass counts as evidence — including the `loop`

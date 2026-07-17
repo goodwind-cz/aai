@@ -58,9 +58,16 @@ check_deps() {
 }
 
 # Vendor the doc-numbering toolchain into an isolated git repo. Echoes the path.
+# CHANGE-0035 / SPEC-0047 D9 back-compat: every fixture gets a REAL bare-repo
+# origin (local, zero network) so the new reservation-before-rename step
+# succeeds silently in every existing test — no fixture here observes the D4
+# provisional-marker fallback, so every pre-existing assertion in this suite
+# stays byte-for-byte unmodified (the marker/warning-observing exception in D9
+# applies to NO stanza in this file).
 setup_iso_repo() {
   local d="$TEST_DIR/iso-$1"
-  rm -rf "$d"
+  local bare="$TEST_DIR/origin-$1.git"
+  rm -rf "$d" "$bare"
   mkdir -p "$d/.aai/scripts/lib" \
            "$d/docs/rfc" "$d/docs/specs" "$d/docs/issues" \
            "$d/docs/requirements" "$d/docs/releases" "$d/docs/ai"
@@ -75,6 +82,8 @@ setup_iso_repo() {
      && git config user.name "AAI Test")
   printf 'docs/INDEX.audit.md\n' > "$d/.gitignore"
   (cd "$d" && git add .aai .gitignore && git commit -qm "chore: vendor scripts")
+  git init -q --bare "$bare"
+  (cd "$d" && git remote add origin "$bare")
   printf '%s' "$d"
 }
 

@@ -57,6 +57,16 @@
     line-edit engine with no YAML library; hand-edits are forbidden
   - Append-only JSONL ledgers: `docs/ai/METRICS.jsonl`, `docs/ai/EVENTS.jsonl`,
     `docs/ai/LOOP_TICKS.jsonl`, `docs/ai/decisions.jsonl`
+  - `refs/aai/docnums/<TYPE>-<NNNN>` — doc-number RESERVATION refs in
+    `origin` (CHANGE-0035 / SPEC-0047). One create-only ref per reserved
+    display number (`git push --atomic --force-with-lease=<ref>: origin
+    HEAD:<ref>`) — ref EXISTENCE is the semaphore, content is irrelevant.
+    Frontmatter `number_reserved: false` marks a doc allocated provisionally
+    (reservation push failed for a non-collision reason); completed via
+    `node .aai/scripts/allocate-doc-number.mjs --reserve --path <doc>`. The
+    OPTIONAL `coupled_families` key in `docs/ai/docs-audit.yaml` (parsed only
+    by `.aai/scripts/lib/guard-config.mjs`) lets doc-type families share one
+    counter (AAI core ships this key ABSENT).
 - Messaging / jobs: none
 - Auth / identity: none in-repo (gh CLI and Wrangler authentication are
   external operator concerns)
@@ -150,6 +160,9 @@
 
 ## Change Log
 
+- 2026-07-17: Documented the CHANGE-0035 / SPEC-0047 doc-number reservation
+  protocol (`refs/aai/docnums/*`, `number_reserved` marker, optional
+  `coupled_families` config) under Data / persistence.
 - 2026-07-06: Full rewrite. Replaced the 2026-03-06 PowerShell-generated stub
   ("Unknown" / "Not detected") with an evidence-based contract produced by
   manual repository inspection following `.aai/TECH_EXTRACT.prompt.md`
