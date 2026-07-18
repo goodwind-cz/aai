@@ -876,3 +876,12 @@
 {"v":1,"ts":"2026-07-18T14:18:32.010Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"remediate-spec-id-collisions","payload":{"validation":"pass","code_review":"waived"}}
 {"v":1,"ts":"2026-07-18T14:18:32.050Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"remediate-spec-id-collisions","payload":{"commit":"ed355ef"}}
 {"v":1,"ts":"2026-07-18T14:18:46.130Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":126,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-18T15:24:44.238Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-lint-enforce-spec-id-prefix","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-18T15:33:17.207Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-lint-enforce-spec-id-prefix","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-07-18T15:42:09.998Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-spec-lint-enforce-spec-id-prefix/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-18T15:42:10.037Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-spec-lint-enforce-spec-id-prefix/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-18T15:42:10.074Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-spec-lint-enforce-spec-id-prefix/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-18T15:53:53.270Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0058/Spec-AC-01","payload":{"commit":"VAL-20260718T155241Z"}}
+{"v":1,"ts":"2026-07-18T15:53:53.306Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0058/Spec-AC-02","payload":{"commit":"VAL-20260718T155241Z"}}
+{"v":1,"ts":"2026-07-18T15:53:53.340Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0058/Spec-AC-03","payload":{"commit":"VAL-20260718T155241Z"}}
+{"v":1,"ts":"2026-07-18T15:59:26.184Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0058","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260718T155746Z.md","notes":"L1 lightweight dual-verdict: 3/3 Spec-AC compliant; 0 BLOCKING, 1 NON-BLOCKING (prompt-diet ledger true-up 7453->9239 folded into scope, honest+necessary) -> promote-to-decision or split commit"}}

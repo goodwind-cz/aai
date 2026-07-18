@@ -1,15 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-18T14:18:55.795Z
+Generated: 2026-07-18T16:00:24.784Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (0)
+## Active (implementing) (1)
 
-_None._
+| ID | Type | Status | Progress | Path |
+|---|---|---|---|---|
+| SPEC-0058 | specs | implementing | 3 done | docs/specs/SPEC-0058-spec-spec-lint-enforce-spec-id-prefix.md |
 
 ## Canonical layer (0)
 
@@ -146,9 +148,11 @@ _None._
 | SPEC-0057 | specs | docs/specs/SPEC-0057-spec-docs-audit-duplicate-doc-id.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0016 | issues | docs/issues/ISSUE-0016-spec-lint-enforce-spec-id-prefix.md |
 
 ## Deferred (whole-doc) (0)
 
