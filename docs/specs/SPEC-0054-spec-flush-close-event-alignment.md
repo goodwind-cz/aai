@@ -2,13 +2,15 @@
 id: spec-flush-close-event-alignment
 type: spec
 number: 54
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: flush-close-event-alignment
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 106
+  commits:
+    - cc06fc8
 ---
 
 # SPEC — metrics-flush stops emitting close lifecycle events (CHANGE-0038)

@@ -793,3 +793,10 @@
 {"v":1,"ts":"2026-07-18T06:58:18.466Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0054/Spec-AC-04","payload":{"commit":"validation-flush-close-event-alignment-20260718T065712Z"}}
 {"v":1,"ts":"2026-07-18T06:58:18.502Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0054/Spec-AC-05","payload":{"commit":"validation-flush-close-event-alignment-20260718T065712Z"}}
 {"v":1,"ts":"2026-07-18T07:04:19.209Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"CHANGE-0038","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260718T070306Z.md","notes":"SPEC-0054 flush-close-event-alignment: both verdicts pass, no findings"}}
+{"v":1,"ts":"2026-07-18T07:05:28.682Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"flush-close-event-alignment","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-18T07:05:28.721Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"flush-close-event-alignment","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-18T07:05:28.755Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"flush-close-event-alignment","payload":{"commit":"cc06fc8"}}
+{"v":1,"ts":"2026-07-18T07:05:28.790Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-flush-close-event-alignment","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-18T07:05:28.826Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-flush-close-event-alignment","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-18T07:05:28.862Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-flush-close-event-alignment","payload":{"commit":"cc06fc8"}}
+{"v":1,"ts":"2026-07-18T07:05:41.702Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":119,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

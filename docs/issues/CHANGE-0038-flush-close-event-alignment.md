@@ -2,10 +2,12 @@
 id: flush-close-event-alignment
 type: change
 number: 38
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 106
+  commits:
+    - cc06fc8
 ---
 
 # Change — metrics-flush must not emit wrong-ref / wrong-status close events
