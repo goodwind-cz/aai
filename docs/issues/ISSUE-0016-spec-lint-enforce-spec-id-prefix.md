@@ -2,10 +2,12 @@
 id: spec-lint-enforce-spec-id-prefix
 type: issue
 number: 16
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 111
+  commits:
+    - 0940309
 ---
 
 # Issue: spec-lint should flag a spec whose id is a collision-prone bare slug

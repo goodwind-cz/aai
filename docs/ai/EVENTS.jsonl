@@ -885,3 +885,10 @@
 {"v":1,"ts":"2026-07-18T15:53:53.306Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0058/Spec-AC-02","payload":{"commit":"VAL-20260718T155241Z"}}
 {"v":1,"ts":"2026-07-18T15:53:53.340Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0058/Spec-AC-03","payload":{"commit":"VAL-20260718T155241Z"}}
 {"v":1,"ts":"2026-07-18T15:59:26.184Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0058","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260718T155746Z.md","notes":"L1 lightweight dual-verdict: 3/3 Spec-AC compliant; 0 BLOCKING, 1 NON-BLOCKING (prompt-diet ledger true-up 7453->9239 folded into scope, honest+necessary) -> promote-to-decision or split commit"}}
+{"v":1,"ts":"2026-07-18T16:00:51.719Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-lint-enforce-spec-id-prefix","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-18T16:00:51.754Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-lint-enforce-spec-id-prefix","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-18T16:00:51.790Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-lint-enforce-spec-id-prefix","payload":{"commit":"0940309"}}
+{"v":1,"ts":"2026-07-18T16:00:51.825Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-spec-lint-enforce-spec-id-prefix","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-18T16:00:51.860Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-spec-lint-enforce-spec-id-prefix","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-18T16:00:51.895Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-spec-lint-enforce-spec-id-prefix","payload":{"commit":"0940309"}}
+{"v":1,"ts":"2026-07-18T16:01:06.141Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":128,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

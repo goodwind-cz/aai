@@ -1,23 +1,21 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-18T16:00:24.784Z
+Generated: 2026-07-18T16:01:16.214Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (0)
 
-| ID | Type | Status | Progress | Path |
-|---|---|---|---|---|
-| SPEC-0058 | specs | implementing | 3 done | docs/specs/SPEC-0058-spec-spec-lint-enforce-spec-id-prefix.md |
+_None._
 
 ## Canonical layer (0)
 
 _None._
 
-## Done (126)
+## Done (128)
 
 | ID | Type | Path |
 |---|---|---|
@@ -77,6 +75,7 @@ _None._
 | ISSUE-0013 | issues | docs/issues/ISSUE-0013-secrets-preflight-unterminated-quote-safe-direction.md |
 | ISSUE-0014 | issues | docs/issues/ISSUE-0014-docs-audit-duplicate-doc-id.md |
 | ISSUE-0015 | issues | docs/issues/ISSUE-0015-remediate-spec-id-collisions.md |
+| ISSUE-0016 | issues | docs/issues/ISSUE-0016-spec-lint-enforce-spec-id-prefix.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -146,13 +145,12 @@ _None._
 | SPEC-0055 | specs | docs/specs/SPEC-0055-spec-worktree-telemetry-reconciliation.md |
 | SPEC-0056 | specs | docs/specs/SPEC-0056-secrets-preflight-unterminated-quote-safe-direction.md |
 | SPEC-0057 | specs | docs/specs/SPEC-0057-spec-docs-audit-duplicate-doc-id.md |
+| SPEC-0058 | specs | docs/specs/SPEC-0058-spec-spec-lint-enforce-spec-id-prefix.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| ISSUE-0016 | issues | docs/issues/ISSUE-0016-spec-lint-enforce-spec-id-prefix.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

@@ -2,13 +2,15 @@
 id: spec-spec-lint-enforce-spec-id-prefix
 type: spec
 number: 58
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: ISSUE-0016
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 111
+  commits:
+    - 0940309
 ---
 
 # Spec: spec-lint flags a collision-prone bare-slug spec id (`spec-id-shape`)
