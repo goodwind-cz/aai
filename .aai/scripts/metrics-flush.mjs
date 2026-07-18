@@ -34,9 +34,9 @@
 //   - ORDERING (mandatory): build + pre-validate EVERYTHING in memory first
 //     (the mutated STATE must pass the check-state structural invariants),
 //     then append the ledger line(s), then commit STATE via the engine's
-//     atomic tmp+rename with the concurrency recheck, then events
-//     (best-effort), then ephemeral cleanup. Ledger-before-reset: a crash
-//     between ledger append and STATE commit leaves STATE original;
+//     atomic tmp+rename with the concurrency recheck, then ephemeral cleanup.
+//     Ledger-before-reset: a crash between ledger append and STATE commit
+//     leaves STATE original;
 //   - IDEMPOTENT RESUME: a ref already IN the ledger but still present in
 //     STATE metrics.work_items is an interrupted flush -> cleanup-only pass
 //     (no second append, no duplicate ledger line);
@@ -50,10 +50,13 @@
 //     verdict; a red check-state after commit is exit 1 with the pre-flush
 //     STATE content saved to <state>.pre-flush-<ts> for recovery.
 //
-// Flags: --state/--metrics/--ticks/--pricing/--events <path> (fixture
-// injection), --ref <id> (restrict), --dry-run (print the full plan JSON,
-// write nothing), --now <ISO> (test-only clock pin; env AAI_FLUSH_NOW
-// equivalent). AAI_FLUSH_INJECT_CRASH=after-ledger is a test-only fault hook.
+// Flags: --state/--metrics/--ticks/--pricing <path> (fixture injection),
+// --events <path> (DEPRECATED, SPEC-0054/CHANGE-0038 — parsed and accepted
+// for back-compat only; flush never emits close-lifecycle events, so this is
+// a NO-OP; close-work-item.mjs owns doc_lifecycle/work_item_closed), --ref
+// <id> (restrict), --dry-run (print the full plan JSON, write nothing),
+// --now <ISO> (test-only clock pin; env AAI_FLUSH_NOW equivalent).
+// AAI_FLUSH_INJECT_CRASH=after-ledger is a test-only fault hook.
 //
 // Exit codes: 0 flushed (or nothing to flush — the report says which),
 // 1 integrity refusal / post-commit check failure (original preserved or the
@@ -542,32 +545,6 @@ function cleanupEphemeral(stateDir, ticksPath, nowMs, report) {
   }
 }
 
-// --- events (best-effort) ------------------------------------------------------------------
-
-function emitEvents(eventsPath, refs, reviewToken, report) {
-  const suffix = path.join('docs', 'ai', 'EVENTS.jsonl');
-  const abs = path.resolve(eventsPath);
-  if (!abs.endsWith(path.sep + suffix)) {
-    report.push(`NOTE: events path ${eventsPath} is not a docs/ai/EVENTS.jsonl layout — events skipped (best-effort)`);
-    return;
-  }
-  const cwd = abs.slice(0, abs.length - suffix.length - 1);
-  const appender = path.join(SCRIPT_DIR, 'append-event.mjs');
-  for (const ref of refs) {
-    for (const args of [
-      ['--event', 'doc_lifecycle', '--ref', ref, '--from', 'implementing', '--to', 'done'],
-      ['--event', 'work_item_closed', '--ref', ref, '--validation', 'pass', '--code-review', reviewToken],
-    ]) {
-      try {
-        const r = spawnSync(process.execPath, [appender, ...args], { cwd, encoding: 'utf8' });
-        if (r.status !== 0) report.push(`NOTE: append-event ${args[1]} for ${ref} failed (best-effort): ${String(r.stderr).trim()}`);
-      } catch (e) {
-        report.push(`NOTE: append-event ${args[1]} for ${ref} failed (best-effort): ${e}`);
-      }
-    }
-  }
-}
-
 // --- main -----------------------------------------------------------------------------------
 
 function main() {
@@ -576,7 +553,9 @@ function main() {
   const metricsPath = path.resolve(process.cwd(), opts.metrics);
   const ticksPath = path.resolve(process.cwd(), opts.ticks);
   const pricingPath = path.resolve(process.cwd(), opts.pricing);
-  const eventsPath = path.resolve(process.cwd(), opts.events);
+  // opts.events is parsed and accepted (--events flag stays valid, back-compat
+  // no-op — SPEC-0054/CHANGE-0038) but never resolved/used: flush no longer
+  // emits close-lifecycle events, so there is no events path to touch.
   if (!fs.existsSync(statePath)) fail(`STATE file not found: ${statePath}`);
 
   const raw = fs.readFileSync(statePath, 'utf8');
@@ -717,10 +696,7 @@ function main() {
     fail(`post-commit check-state FAILED — pre-flush STATE saved to ${recovery} for recovery:\n${check.stdout}${check.stderr}`, 1);
   }
 
-  // 4) Events (best-effort, never abort the flush).
-  emitEvents(eventsPath, completedRefs, rRequired ? (rStatus ?? 'none') : 'none', report);
-
-  // 5) Ephemeral cleanup ONLY on full reset.
+  // 4) Ephemeral cleanup ONLY on full reset.
   if (fullReset) cleanupEphemeral(stateDir, ticksPath, nowMs, report);
 
   // Report.

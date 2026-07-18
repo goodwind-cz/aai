@@ -2220,11 +2220,17 @@ test_spec0011_closeout_prompts_wired() {  # TEST-010 / Spec-AC-08
   assert_contains "$val" "work_item_closed"
   grep -qF "enforce" "$val" || log_fail "VALIDATION must reference the enforce branch"
   grep -qF "report-only" "$val" || log_fail "VALIDATION must reference the report-only branch"
-  # METRICS_FLUSH: emits work_item_closed alongside doc_lifecycle.
-  assert_contains "$flush" "work_item_closed"
+  # METRICS_FLUSH (SPEC-0054/CHANGE-0038 — flush no longer owns the close
+  # lifecycle): must NOT claim it emits work_item_closed/doc_lifecycle, and
+  # must point at close-work-item.mjs as the single source of truth instead.
+  grep -qF "work_item_closed" "$flush" \
+    && log_fail "METRICS_FLUSH.prompt.md must not claim it emits work_item_closed — close-work-item.mjs owns the close lifecycle (SPEC-0054): $(grep -n work_item_closed "$flush")"
+  grep -qF "doc_lifecycle" "$flush" \
+    && log_fail "METRICS_FLUSH.prompt.md must not claim it emits doc_lifecycle — close-work-item.mjs owns the close lifecycle (SPEC-0054): $(grep -n doc_lifecycle "$flush")"
+  assert_contains "$flush" "close-work-item.mjs"
   # SKILL_WRAP_UP: closeout step runs the gate.
   assert_contains "$wrap" "docs-audit.mjs --gate"
-  log_pass "Closeout prompts wire --gate + work_item_closed + enforce/report-only branch"
+  log_pass "Closeout prompts wire --gate + enforce/report-only branch; METRICS_FLUSH no longer claims the close-event emission (SPEC-0054)"
 }
 
 test_spec0011_config_close_gate() {  # TEST-011 / Spec-AC-09

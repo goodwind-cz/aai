@@ -14,8 +14,13 @@ RUN
      node .aai/scripts/state.mjs set-validation --status not_run --notes "reset after flush of <ref_id>"
      node .aai/scripts/state.mjs set-code-review --required false --status not_run --notes "reset after flush of <ref_id>"
    plus nulling the leaked ref/evidence/scope fields — the full reset +
-   ephemeral cleanup when no active work remains, and the doc_lifecycle +
-   work_item_closed events (best-effort).
+   ephemeral cleanup when no active work remains. Flush is METRICS-LEDGER
+   ONLY (SPEC-0054/CHANGE-0038): it never touches docs/ai/EVENTS.jsonl and
+   emits no close-lifecycle events of any kind.
+   `close-work-item.mjs` (CHANGE-0037/SPEC-0053) is the SINGLE SOURCE OF TRUTH
+   for the close lifecycle, run through the canonical close flow
+   (.aai/SKILL_PR.prompt.md step 5c) — never this flush. The `--events` flag
+   is accepted for back-compat only and is a NO-OP.
 2. Relay the script's report VERBATIM, including every
    "WARNING <ref_id> run <role> (<model_id>): cost unattributable — tokens not
    recorded" line. Never omit or aggregate these lines.
