@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-18T03:43:55.578Z
+Generated: 2026-07-18T03:45:17.726Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (115)
+## Done (117)
 
 | ID | Type | Path |
 |---|---|---|
@@ -55,6 +55,7 @@ _None._
 | CHANGE-0034 | issues | docs/issues/CHANGE-0034-intake-secrets-preflight.md |
 | CHANGE-0035 | issues | docs/issues/CHANGE-0035-doc-number-origin-reservation.md |
 | CHANGE-0036 | issues | docs/issues/CHANGE-0036-dispatch-4a-fail-verdict-precedence.md |
+| CHANGE-0037 | issues | docs/issues/CHANGE-0037-deterministic-close-ceremony.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -133,14 +134,12 @@ _None._
 | SPEC-0050 | specs | docs/specs/SPEC-0050-spec-dispatch-4a-fail-verdict-precedence.md |
 | SPEC-0051 | specs | docs/specs/SPEC-0051-spec-lint-duplicate-ac-id.md |
 | SPEC-0052 | specs | docs/specs/SPEC-0052-spec-aai-update-temp-toctou.md |
+| SPEC-0053 | specs | docs/specs/SPEC-0053-spec-deterministic-close-ceremony.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0037 | issues | docs/issues/CHANGE-0037-deterministic-close-ceremony.md |
-| SPEC-0053 | specs | docs/specs/SPEC-0053-spec-deterministic-close-ceremony.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

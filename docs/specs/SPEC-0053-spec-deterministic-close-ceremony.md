@@ -2,13 +2,15 @@
 id: spec-deterministic-close-ceremony
 type: spec
 number: 53
-status: draft
+status: done
 ceremony_level: 2
 links:
   change: deterministic-close-ceremony
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 105
+  commits:
+    - 4bb6d81
 ---
 
 # SPEC — Deterministic close-ceremony mechanism (`close-work-item.mjs`)

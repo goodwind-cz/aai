@@ -2,10 +2,12 @@
 id: deterministic-close-ceremony
 type: change
 number: 37
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 105
+  commits:
+    - 4bb6d81
 ---
 
 # Change — Deterministic close-ceremony mechanism (no agent-improvised close)
