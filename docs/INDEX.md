@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-18T03:45:17.726Z
+Generated: 2026-07-18T07:05:00.529Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -137,9 +137,12 @@ _None._
 | SPEC-0053 | specs | docs/specs/SPEC-0053-spec-deterministic-close-ceremony.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0038 | issues | docs/issues/CHANGE-0038-flush-close-event-alignment.md |
+| SPEC-0054 | specs | docs/specs/SPEC-0054-spec-flush-close-event-alignment.md |
 
 ## Deferred (whole-doc) (0)
 

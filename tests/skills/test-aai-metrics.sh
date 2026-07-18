@@ -275,6 +275,64 @@ Body.
 MD
 }
 
+# --- SPEC-0054 seam fixtures (flush no longer emits close events; real audit +
+# close-work-item.mjs cross-tool seam) -------------------------------------------
+
+# write_frontmatter_doc <path> <id> <type> <status> — a real frontmatter'd doc
+# so close-work-item.mjs (frontmatter id resolution) and docs-audit.mjs (real
+# drift heuristics) both see a proper doc, not the header-only golden fixture.
+write_frontmatter_doc() {
+  local f="$1" id="$2" type="$3" status="$4"
+  mkdir -p "$(dirname "$f")"
+  cat > "$f" <<EOF
+---
+id: $id
+type: $type
+status: $status
+links:
+  pr: []
+  commits: []
+---
+
+# Fixture doc $id
+
+Body.
+EOF
+}
+
+write_audit_config() {  # $1 file — report-only audit config (no enforced hardFail noise)
+  cat > "$1" <<'YAML'
+legacy_until_date: 2020-01-01
+stale_after_days: 90
+scan_exclude: []
+backlog_globs: []
+close_gate: report-only
+doc_number_guard: report-only
+protected_paths_l3: []
+YAML
+}
+
+# mk_seam_repo <name> — mk_repo PLUS a real git repo + docs-audit config +
+# empty EVENTS.jsonl, for tests that cross the flush <-> docs-audit <->
+# close-work-item.mjs seam (SEAM-1, SPEC-0054).  Echoes dir.
+mk_seam_repo() {
+  local d
+  d="$(mk_repo "$1")"
+  write_audit_config "$d/docs/ai/docs-audit.yaml"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  git init -q "$d"
+  git -C "$d" config user.email test@example.com
+  git -C "$d" config user.name "AAI Test"
+  printf '%s' "$d"
+}
+
+# event_count <events-file> <event-name> <ref> — count of matching JSONL lines.
+event_count() {
+  local f="$1" ev="$2" ref="$3"
+  [[ -f "$f" ]] || { echo 0; return; }
+  grep -cF "\"event\":\"$ev\",\"ref\":\"$ref\"" "$f" || true
+}
+
 # run_flush <root> [extra flags...] — combined output in $OUT, exit in $EC.
 OUT=""
 EC=0
@@ -602,13 +660,15 @@ test_012_full_reset_cleanup() {
   [[ -f "$d/docs/ai/decisions.jsonl" ]] || log_fail "decisions.jsonl is protected"
   [[ -f "$st" ]] || log_fail "STATE.yaml is protected"
   [[ -f "$d/docs/ai/published/page.html" ]] || log_fail "published/ is protected"
-  # Events emitted best-effort (doc_lifecycle + work_item_closed).
-  [[ -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "EVENTS.jsonl must receive the closeout events"
-  grep -qF '"event":"doc_lifecycle"' "$d/docs/ai/EVENTS.jsonl" || log_fail "doc_lifecycle event missing"
-  grep -qF '"event":"work_item_closed"' "$d/docs/ai/EVENTS.jsonl" || log_fail "work_item_closed event missing"
+  # SPEC-0054 Option A: flush no longer owns the close lifecycle
+  # (close-work-item.mjs does) — it must not touch EVENTS.jsonl at all, even
+  # on a full reset (RED pre-fix: doc_lifecycle + work_item_closed were
+  # emitted here, best-effort).
+  [[ ! -f "$d/docs/ai/EVENTS.jsonl" ]] \
+    || log_fail "flush must never create/write EVENTS.jsonl — close-work-item.mjs owns the close lifecycle: $(cat "$d/docs/ai/EVENTS.jsonl")"
   (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$st" > "$d/ck.log" 2>&1) \
     || log_fail "check-state must pass after full reset: $(cat "$d/ck.log")"
-  log_pass "Full reset defaults + cleanup: ticks deleted, >30d pruned, LATEST + protected set kept, events emitted (TEST-012)"
+  log_pass "Full reset defaults + cleanup: ticks deleted, >30d pruned, LATEST + protected set kept, NO close events (flush is metrics-ledger only) (TEST-012)"
 }
 
 # --- TEST-013: transactionality ------------------------------------------------------
@@ -925,8 +985,116 @@ GOLDEN
   log_pass "Per-Strategy Reliability golden exact; deterministic; old lines n/a (TEST-018)"
 }
 
+# --- SPEC-0054 (CHANGE-0038): flush stops emitting close lifecycle events ------------
+# close-work-item.mjs (CHANGE-0037/SPEC-0053) is now the SINGLE SOURCE OF TRUTH
+# for doc_lifecycle/work_item_closed. TEST-001..004 cross the flush <-> real
+# docs-audit engine <-> close-work-item.mjs seam (SEAM-1) — no mocking.
+
+test_019_no_close_events_from_flush() {  # TEST-001 (Spec-AC-01)
+  log_info "Test: flush of a draft-closed work item emits ZERO doc_lifecycle/work_item_closed to EVENTS (TEST-001)..."
+  local d
+  d="$(mk_repo t19)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_frontmatter_doc "$d/docs/issues/CHANGE-0001-golden.md" CHANGE-0001 change draft
+  # Edge case (a): EVENTS.jsonl absent before flush -> must STAY absent.
+  rm -f "$d/docs/ai/EVENTS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ ! -f "$d/docs/ai/EVENTS.jsonl" ]] \
+    || log_fail "flush must not create/touch EVENTS.jsonl (RED pre-fix: doc_lifecycle --from implementing + work_item_closed emitted for a doc that actually closed from draft): $(cat "$d/docs/ai/EVENTS.jsonl")"
+  log_pass "Flush emits NO doc_lifecycle/work_item_closed; EVENTS.jsonl stays absent (TEST-001)"
+}
+
+test_020_numbered_ref_audit_clean() {  # TEST-002 (Spec-AC-02)
+  log_info "Test: numbered STATE ref_id + slug frontmatter id — post-flush docs-audit CLEAN, no flush-attributable finding (TEST-002)..."
+  local d
+  d="$(mk_seam_repo t20)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  # Rename the STATE ref from the bare slug CHANGE-0001 to a NUMBERED form
+  # (SPEC-0099) while the doc keeps its OWN slug frontmatter id — the exact
+  # ref-form mismatch the audit matches on fm.id, never the numbered fileId
+  # (spec Problem #2). The doc's filename-derived fileId is "SPEC-0099".
+  node -e '
+    const fs = require("fs"); const p = process.argv[1];
+    let s = fs.readFileSync(p, "utf8");
+    s = s.replace(/CHANGE-0001/g, "SPEC-0099");
+    fs.writeFileSync(p, s);
+  ' "$d/docs/ai/STATE.yaml"
+  write_frontmatter_doc "$d/docs/issues/SPEC-0099-golden.md" numbered-fixture-slug spec draft
+  git -C "$d" add -A && git -C "$d" commit -q -m "seam fixture t20"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --no-event --path docs/issues/SPEC-0099-golden.md > audit.log 2>&1) || true
+  grep -qF "probable-false-open" "$d/audit.log" \
+    && log_fail "flush must not trip probable-false-open Arm C via the numbered STATE ref (RED pre-fix: work_item_closed --ref SPEC-0099 matches the doc's fileId, not its slug id): $(cat "$d/audit.log")"
+  grep -qF "missing-close-telemetry" "$d/audit.log" \
+    && log_fail "a still-open (draft) doc must never surface missing-close-telemetry: $(cat "$d/audit.log")"
+  log_pass "Numbered STATE ref_id vs slug frontmatter id — flush emits nothing, post-flush audit CLEAN (TEST-002)"
+}
+
+test_021_flush_then_close_no_double_emit() {  # TEST-003 (Spec-AC-03)
+  log_info "Test: flush THEN close-work-item.mjs — exactly one work_item_closed + one terminal doc_lifecycle per ref (TEST-003)..."
+  local d commit="1234567890abcdef1234567890abcdef12345678" cec=0
+  d="$(mk_seam_repo t21)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_frontmatter_doc "$d/docs/issues/CHANGE-0001-golden.md" CHANGE-0001 change draft
+  git -C "$d" add -A && git -C "$d" commit -q -m "seam fixture t21"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/close-work-item.mjs" --ref CHANGE-0001 --pr 1 --commit "$commit" --review pass > close.log 2>&1) || cec=$?
+  [[ "$cec" == 0 ]] || log_fail "close-work-item.mjs must exit 0 after flush: $(cat "$d/close.log")"
+  local dl wic
+  dl="$(event_count "$d/docs/ai/EVENTS.jsonl" doc_lifecycle CHANGE-0001)"
+  wic="$(event_count "$d/docs/ai/EVENTS.jsonl" work_item_closed CHANGE-0001)"
+  [[ "$dl" == 1 ]] || log_fail "exactly ONE terminal doc_lifecycle expected for CHANGE-0001 after flush+close (got $dl — RED pre-fix: flush's hardcoded --from implementing double-emits alongside close's correct --from draft): $(cat "$d/docs/ai/EVENTS.jsonl")"
+  [[ "$wic" == 1 ]] || log_fail "exactly ONE work_item_closed expected for CHANGE-0001 after flush+close (got $wic): $(cat "$d/docs/ai/EVENTS.jsonl")"
+  log_pass "flush -> close-work-item.mjs: single-emission invariant holds (TEST-003)"
+}
+
+test_022_close_then_flush_no_double_emit() {  # TEST-004 (Spec-AC-03)
+  log_info "Test: close-work-item.mjs THEN flush — flush adds no duplicate close event (TEST-004)..."
+  local d commit="abcdef1234567890abcdef1234567890abcdef12" cec=0
+  d="$(mk_seam_repo t22)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_frontmatter_doc "$d/docs/issues/CHANGE-0001-golden.md" CHANGE-0001 change draft
+  git -C "$d" add -A && git -C "$d" commit -q -m "seam fixture t22"
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/close-work-item.mjs" --ref CHANGE-0001 --pr 1 --commit "$commit" --review pass > close.log 2>&1) || cec=$?
+  [[ "$cec" == 0 ]] || log_fail "close-work-item.mjs must exit 0: $(cat "$d/close.log")"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 after close (got $EC): $(cat "$OUT")"
+  local dl wic
+  dl="$(event_count "$d/docs/ai/EVENTS.jsonl" doc_lifecycle CHANGE-0001)"
+  wic="$(event_count "$d/docs/ai/EVENTS.jsonl" work_item_closed CHANGE-0001)"
+  [[ "$dl" == 1 ]] || log_fail "exactly ONE terminal doc_lifecycle expected for CHANGE-0001 after close+flush (got $dl — RED pre-fix: flush re-emits an UNCONDITIONAL doc_lifecycle/work_item_closed with no dedup, on top of close's correct pair): $(cat "$d/docs/ai/EVENTS.jsonl")"
+  [[ "$wic" == 1 ]] || log_fail "exactly ONE work_item_closed expected for CHANGE-0001 after close+flush (got $wic): $(cat "$d/docs/ai/EVENTS.jsonl")"
+  log_pass "close-work-item.mjs -> flush: flush adds no duplicate close event (TEST-004)"
+}
+
+test_023_ledger_shape_unchanged() {  # TEST-005 (Spec-AC-04, regression control)
+  log_info "Test: the flushed METRICS.jsonl entry shape is unaffected by the events-removal (regression control) (TEST-005)..."
+  local d
+  d="$(mk_repo t23)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  write_golden_doc "$d"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
+  node -e '
+    const fs = require("fs");
+    const got = JSON.parse(fs.readFileSync(process.argv[1], "utf8").trim());
+    const wantKeys = ["date_utc","ref_id","title","human_time_minutes","agent_runs","totals","strategy","reliability","verdict"];
+    const gotKeys = Object.keys(got);
+    if (JSON.stringify(gotKeys) !== JSON.stringify(wantKeys)) {
+      console.error("ledger entry key set/order changed: got " + JSON.stringify(gotKeys) + " want " + JSON.stringify(wantKeys));
+      process.exit(1);
+    }
+  ' "$d/got.jsonl" || log_fail "ledger entry shape must be byte/shape unchanged by the events-removal"
+  log_pass "Ledger record shape unchanged by removing the events emission (TEST-005)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018)"
+  echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005)"
   check_deps
   setup_fixture
   test_006_flush_golden
@@ -942,6 +1110,11 @@ main() {
   test_016_zero_relative_full_reset
   test_017_reliability_derivation
   test_018_report_strategy_golden
+  test_019_no_close_events_from_flush
+  test_020_numbered_ref_audit_clean
+  test_021_flush_then_close_no_double_emit
+  test_022_close_then_flush_no_double_emit
+  test_023_ledger_shape_unchanged
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
