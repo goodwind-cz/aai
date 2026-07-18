@@ -215,10 +215,13 @@ const ANY_ASSIGNMENT_RE = /^(?:export\s+)?[^\s=][^=]*=(.*)$/;
 // line and, if so, consume subsequent lines as continuation up to (and
 // including) the line bearing the matching closing quote char, or EOF if
 // never closed (SPEC-0049). Returns the full — possibly multiline — value
-// text and the index of the first line AFTER the consumed span. Never
+// text, the index of the first line AFTER the consumed span, and whether the
+// value was left unterminated (ISSUE-0013 / SPEC-0056: a quote was opened
+// and no matching close char appeared on any line before EOF). Never
 // inspects the requested key; operates purely on value text and line shape,
-// so it is safe to reuse both for masking OTHER keys' interiors and for
-// gathering the target key's own (possibly multiline) value.
+// so it is safe to reuse both for masking OTHER keys' interiors (which reads
+// only `nextIndex`, ignoring `unterminated`) and for gathering the target
+// key's own (possibly multiline) value.
 function consumeQuotedValue(lines, startIdx, firstLineVal) {
   const quote = firstLineVal.length > 0 && (firstLineVal[0] === '"' || firstLineVal[0] === "'")
     ? firstLineVal[0]
@@ -226,17 +229,21 @@ function consumeQuotedValue(lines, startIdx, firstLineVal) {
   const closedSameLine =
     quote !== null && firstLineVal.length >= 2 && firstLineVal[firstLineVal.length - 1] === quote;
   if (quote === null || closedSameLine) {
-    return { value: firstLineVal, nextIndex: startIdx + 1 };
+    return { value: firstLineVal, nextIndex: startIdx + 1, unterminated: false };
   }
   let value = firstLineVal;
   let j = startIdx + 1;
+  let closed = false;
   while (j < lines.length) {
     value += '\n' + lines[j];
     const isClosingLine = lines[j].includes(quote);
     j += 1;
-    if (isClosingLine) break;
+    if (isClosingLine) {
+      closed = true;
+      break;
+    }
   }
-  return { value, nextIndex: j };
+  return { value, nextIndex: j, unterminated: !closed };
 }
 
 // One pair of matching surrounding quotes ("..." or '...') is stripped
@@ -286,7 +293,11 @@ function classifyEnvFileKey(raw, key) {
     if (consumed[idx]) continue;
     const m = rePlain.exec(lines[idx]) || reExport.exec(lines[idx]);
     if (!m) continue;
-    const { value } = consumeQuotedValue(lines, idx, m[1]);
+    const { value, unterminated } = consumeQuotedValue(lines, idx, m[1]);
+    // ISSUE-0013 / SPEC-0056: an unterminated quote means the value's extent
+    // cannot be trustworthily established — classify missing (safe
+    // direction) before the length test, never exists/empty.
+    if (unterminated) return 'missing';
     const stripped = stripSurroundingQuotes(value);
     return stripped.length === 0 ? 'empty' : 'exists';
   }

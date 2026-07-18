@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-18T09:54:00.777Z
+Generated: 2026-07-18T11:31:27.422Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -141,9 +141,12 @@ _None._
 | SPEC-0055 | specs | docs/specs/SPEC-0055-spec-worktree-telemetry-reconciliation.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0013 | issues | docs/issues/ISSUE-0013-secrets-preflight-unterminated-quote-safe-direction.md |
+| SPEC-0056 | specs | docs/specs/SPEC-0056-secrets-preflight-unterminated-quote-safe-direction.md |
 
 ## Deferred (whole-doc) (0)
 

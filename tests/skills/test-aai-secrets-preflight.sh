@@ -52,6 +52,17 @@
 #   - TEST-010 (Spec-AC-03): full-suite regression — TEST-001..006 re-run
 #     individually through the aai-run-tests.sh wrapper and stay green.
 #
+# ISSUE-0013 / SPEC-0056 addition (unterminated-quote value classifies
+# toward `missing`, safe direction):
+#   - TEST-011 (Spec-AC-01, Spec-AC-02, Spec-AC-03): a target key whose
+#     quoted value opens but never closes before EOF (bare `KEY="`@EOF,
+#     non-empty `"`-interior@EOF, non-empty `'`-interior@EOF) classifies
+#     `missing`, never `exists`; negative controls (properly-closed
+#     multiline, `KEY=""`/`KEY=''`, unquoted `KEY=v`) prove no
+#     over-correction; sentinel inside an unterminated value never leaks.
+#   - TEST-009 was EDITED (single assertion): the UNTERMINATED status
+#     assertion flips `exists` -> `missing` to match the new safe direction.
+#
 # Fixture diversity checklist (SPEC-0013 H7), mapped:
 #   - degenerate/empty            -> empty JSON {} / empty .env file (TEST-001)
 #   - zero-remainder               -> single-check invocation, exactly one
@@ -801,8 +812,8 @@ ENVV
     "$out" "file:$f/never-echo.env#INTERIOR_KEY missing"
   assert_stdout_line "later key after the block is found" \
     "$out" "file:$f/never-echo.env#AFTER_MULTILINE exists"
-  assert_stdout_line "unterminated-quote key (consumed to EOF, non-empty) classifies exists" \
-    "$out" "file:$f/never-echo.env#UNTERMINATED exists"
+  assert_stdout_line "unterminated-quote key (consumed to EOF, non-empty) classifies missing (ISSUE-0013 safe direction)" \
+    "$out" "file:$f/never-echo.env#UNTERMINATED missing"
   combined="$(cat "$out" "$err" 2>/dev/null)"
   [[ "$combined" != *"$sentinel"* ]] \
     || log_fail "TEST-009: sentinel leaked into combined stdout+stderr on a new parser path"
@@ -834,6 +845,106 @@ test_010_full_suite_regression() {
   log_pass "Full-suite regression: TEST-001..006 unchanged and green via aai-run-tests.sh wrapper (TEST-010)"
 }
 
+# --- TEST-011 (Spec-AC-01, Spec-AC-02, Spec-AC-03): unterminated-quote
+#     safe direction (ISSUE-0013 / SPEC-0056) -----------------------------
+
+test_011_unterminated_quote_safe_direction() {
+  log_info "Test: unterminated-quote value classifies missing (safe direction); negative controls prove no over-correction (TEST-011)..."
+  local f="$TEST_DIR"
+  local sentinel="SENTINEL_ut_3e8f1a2c_do_not_leak"
+  local out err code combined
+
+  # Fixture diversity checklist (SPEC-0013 H7), mapped for this narrow,
+  # single-classifier-branch fix (no file-load/multi-writer surface is
+  # touched — that is already covered by TEST-002):
+  #   - degenerate/empty  -> (a) bare KEY="@EOF: the smallest possible
+  #                          unterminated value (zero interior bytes).
+  #   - zero-remainder     -> the properly-closed multiline negative control
+  #                          below: nothing left ambiguous once a real close
+  #                          char is found.
+  #   - multi-source/multi-writer -> N/A; scope is one classifier branch in
+  #                          one file-read path (spec Scope: single surface).
+  #   - mid-operation failure -> N/A; no file-load/parse failure path is
+  #                          touched by this fix (unchanged, see TEST-002).
+  #   - negative control   -> four arms below (properly-closed multiline,
+  #                          both quoted-empty forms, unquoted plain value).
+
+  # --- unterminated arms: each lives in its OWN file. An unterminated value
+  #     consumes to EOF (SPEC-0049), so nothing meaningful could follow it in
+  #     the same file. Each must classify missing, never exists/empty. ---
+
+  # (a) bare KEY="@EOF -- quote opens, nothing else, file ends immediately.
+  printf 'BARE_EOF="\n' > "$f/t11-bare-eof.env"
+  out="$f/t11-bare.out"; err="$f/t11-bare.err"
+  code=$(run_helper "$out" "$err" --file "$f/t11-bare-eof.env" --key BARE_EOF)
+  assert_exit "bare unterminated quote at EOF" 0 "$code"
+  assert_stdout_line "bare KEY=\"@EOF must classify missing (unterminated safe direction), never exists" \
+    "$out" "file:$f/t11-bare-eof.env#BARE_EOF missing"
+
+  # (b) non-empty double-quoted interior running to EOF, never closed.
+  cat > "$f/t11-dquote-eof.env" <<ENVV
+DQUOTE_INTERIOR="unterminated-$sentinel-to-eof
+ENVV
+  out="$f/t11-dquote.out"; err="$f/t11-dquote.err"
+  code=$(run_helper "$out" "$err" --file "$f/t11-dquote-eof.env" --key DQUOTE_INTERIOR)
+  assert_exit "non-empty double-quoted unterminated interior to EOF" 0 "$code"
+  assert_stdout_line "non-empty \"-interior@EOF must classify missing, never exists" \
+    "$out" "file:$f/t11-dquote-eof.env#DQUOTE_INTERIOR missing"
+  combined="$(cat "$out" "$err" 2>/dev/null)"
+  [[ "$combined" != *"$sentinel"* ]] \
+    || log_fail "TEST-011: sentinel leaked into combined stdout+stderr on the unterminated double-quote path"
+
+  # (c) non-empty single-quoted interior running to EOF, never closed.
+  cat > "$f/t11-squote-eof.env" <<ENVV
+SQUOTE_INTERIOR='unterminated-$sentinel-to-eof
+ENVV
+  out="$f/t11-squote.out"; err="$f/t11-squote.err"
+  code=$(run_helper "$out" "$err" --file "$f/t11-squote-eof.env" --key SQUOTE_INTERIOR)
+  assert_exit "non-empty single-quoted unterminated interior to EOF" 0 "$code"
+  assert_stdout_line "non-empty '-interior@EOF must classify missing, never exists" \
+    "$out" "file:$f/t11-squote-eof.env#SQUOTE_INTERIOR missing"
+  combined="$(cat "$out" "$err" 2>/dev/null)"
+  [[ "$combined" != *"$sentinel"* ]] \
+    || log_fail "TEST-011: sentinel leaked into combined stdout+stderr on the unterminated single-quote path"
+
+  # --- negative controls: properly-closed values and unquoted values must
+  #     NOT be over-corrected toward missing. ---
+  cat > "$f/t11-negctrl.env" <<'ENVV'
+PROPER_MULTILINE="-----BEGIN CERTIFICATE-----
+middle-line-of-cert
+-----END CERTIFICATE-----"
+DQUOTE_EMPTY=""
+SQUOTE_EMPTY=''
+UNQUOTED_PLAIN=plain-unquoted-value
+ENVV
+
+  out="$f/t11-proper-multiline.out"; err="$f/t11-proper-multiline.err"
+  code=$(run_helper "$out" "$err" --file "$f/t11-negctrl.env" --key PROPER_MULTILINE)
+  assert_exit "properly-closed multiline negative control" 0 "$code"
+  assert_stdout_line "properly-closed multiline (END line bears close char) stays exists, not over-corrected" \
+    "$out" "file:$f/t11-negctrl.env#PROPER_MULTILINE exists"
+
+  out="$f/t11-dquote-empty.out"; err="$f/t11-dquote-empty.err"
+  code=$(run_helper "$out" "$err" --file "$f/t11-negctrl.env" --key DQUOTE_EMPTY)
+  assert_exit 'quoted-empty "" negative control' 0 "$code"
+  assert_stdout_line 'KEY="" (closed, quoted-empty) stays empty, not over-corrected to missing' \
+    "$out" "file:$f/t11-negctrl.env#DQUOTE_EMPTY empty"
+
+  out="$f/t11-squote-empty.out"; err="$f/t11-squote-empty.err"
+  code=$(run_helper "$out" "$err" --file "$f/t11-negctrl.env" --key SQUOTE_EMPTY)
+  assert_exit "quoted-empty '' negative control" 0 "$code"
+  assert_stdout_line "KEY='' (closed, quoted-empty) stays empty, not over-corrected to missing" \
+    "$out" "file:$f/t11-negctrl.env#SQUOTE_EMPTY empty"
+
+  out="$f/t11-unquoted.out"; err="$f/t11-unquoted.err"
+  code=$(run_helper "$out" "$err" --file "$f/t11-negctrl.env" --key UNQUOTED_PLAIN)
+  assert_exit "unquoted value negative control" 0 "$code"
+  assert_stdout_line "unquoted KEY=v stays exists, never flagged unterminated" \
+    "$out" "file:$f/t11-negctrl.env#UNQUOTED_PLAIN exists"
+
+  log_pass "Unterminated-quote safe direction: bare/non-empty double/single-quoted EOF arms classify missing; properly-closed multiline/quoted-empty/unquoted negative controls unchanged; no sentinel leak (TEST-011)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -855,6 +966,7 @@ main() {
   test_008_empty_and_quoted_empty
   test_009_never_echo_multiline
   test_010_full_suite_regression
+  test_011_unterminated_quote_safe_direction
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
