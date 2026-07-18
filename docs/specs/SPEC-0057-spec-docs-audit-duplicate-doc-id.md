@@ -2,13 +2,15 @@
 id: spec-docs-audit-duplicate-doc-id
 type: spec
 number: 57
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: ISSUE-0014
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 109
+  commits:
+    - 53ad03b
 ---
 
 # Spec: docs-audit detects duplicate frontmatter doc-ids (governance-integrity backstop)

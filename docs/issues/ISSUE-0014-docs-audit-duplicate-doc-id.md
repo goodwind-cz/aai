@@ -2,10 +2,12 @@
 id: docs-audit-duplicate-doc-id
 type: issue
 number: 14
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 109
+  commits:
+    - 53ad03b
 ---
 
 # Issue: docs-audit silently overwrites duplicate frontmatter ids instead of flagging them
