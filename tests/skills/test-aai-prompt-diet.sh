@@ -55,7 +55,14 @@ REQUIRED_REDUCTION_BYTES=28672   # 28 KB
 #     adjusted_reduction = 23550 + 7453 = 29694 B (net reduction back-computed
 #     from the true 325653/23550 pre-scope baseline via the 1309 delta) ->
 #     headroom returns to 1022 B, same as the post-DEBT-0002 baseline.
-JUSTIFIED_GROWTH_BYTES=7453
+#   - workflow-hardening wiring prose, CHANGE-0038 + CHANGE-0039 (canon-mandated):
+#     CHANGE-0038/SPEC-0054 METRICS_FLUSH.prompt.md rewrite (flush no longer
+#     emits close events) + CHANGE-0039/SPEC-0055 SKILL_PR step 2b (RECONCILE
+#     WORKTREE TELEMETRY invocation prose) grew .aai/*.prompt.md by +1786 B
+#     (after 326962 -> 328748) with no credit bump, re-breaching the floor by
+#     764 B. True-up: 7453 + 1786 = 9239 -> headroom returns to 1022 B (inside
+#     the 2048 B HEADROOM_CAP). Trued up during ISSUE-0016 (hygiene).
+JUSTIFIED_GROWTH_BYTES=9239
 # Anti-bloat guard (TEST-002/Spec-AC-02): headroom must stay in
 # [0, HEADROOM_CAP] so the credit cannot be padded arbitrarily and future
 # UNJUSTIFIED prompt growth beyond the cap still fails this test (forcing a

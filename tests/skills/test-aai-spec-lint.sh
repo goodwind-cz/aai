@@ -69,7 +69,7 @@ runlint() {
 clean_spec_body() {
   cat <<'EOF'
 ---
-id: fixture-clean
+id: spec-fixture-clean
 type: spec
 number: null
 status: implementing
@@ -214,7 +214,7 @@ test_005_frozen_consistency() {
   new_fixture_root
   write_spec "$FIX/docs/specs/SPEC-DRAFT-lean.md" <<'EOF'
 ---
-id: fixture-lean
+id: spec-fixture-lean
 type: spec
 number: null
 status: implementing
@@ -276,7 +276,7 @@ test_007_unparseable_row() {
   # more cells than the header and the shared parser DROPS the row.
   write_spec "$FIX/docs/specs/SPEC-DRAFT-escpipe.md" <<'EOF'
 ---
-id: fixture-escpipe
+id: spec-fixture-escpipe
 type: spec
 number: null
 status: implementing
@@ -318,7 +318,7 @@ EOF
   new_fixture_root
   write_spec "$FIX/docs/specs/SPEC-DRAFT-compact.md" <<'EOF'
 ---
-id: fixture-compact
+id: spec-fixture-compact
 type: spec
 number: null
 status: implementing
@@ -358,7 +358,7 @@ test_008_cli_contract() {
   local out rc ok=1
   new_fixture_root
   clean_spec_body > "$FIX/docs/specs/SPEC-DRAFT-a.md"
-  clean_spec_body | sed 's/id: fixture-clean/id: fixture-b/' > "$FIX/docs/specs/SPEC-DRAFT-b.md"
+  clean_spec_body | sed 's/id: spec-fixture-clean/id: spec-fixture-b/' > "$FIX/docs/specs/SPEC-DRAFT-b.md"
   # research doc with a broken table must be SKIPPED by the default scan
   clean_spec_body | sed 's/^type: spec/type: research/; s/| Spec-AC-02 | second/| Spec-AC-01 | second/' \
     > "$FIX/docs/specs/RES-0001-fixture.md"
@@ -568,7 +568,7 @@ test_dupac_001_dropped_duplicate() {
   new_fixture_root
   write_spec "$FIX/docs/specs/SPEC-DRAFT-dupac-dropped.md" <<'EOF'
 ---
-id: fixture-dupac-dropped
+id: spec-fixture-dupac-dropped
 type: spec
 number: null
 status: implementing
@@ -634,7 +634,7 @@ test_dupac_003_vanished_no_double_report() {
   new_fixture_root
   write_spec "$FIX/docs/specs/SPEC-DRAFT-dupac-vanished.md" <<'EOF'
 ---
-id: fixture-dupac-vanished
+id: spec-fixture-dupac-vanished
 type: spec
 number: null
 status: implementing
@@ -683,7 +683,7 @@ test_dupac_004_no_false_positives() {
   new_fixture_root
   write_spec "$FIX/docs/specs/SPEC-DRAFT-dupac-compact-range.md" <<'EOF'
 ---
-id: fixture-dupac-compact-range
+id: spec-fixture-dupac-compact-range
 type: spec
 number: null
 status: implementing
@@ -721,7 +721,7 @@ EOF
   new_fixture_root
   write_spec "$FIX/docs/specs/SPEC-DRAFT-dupac-lean.md" <<'EOF'
 ---
-id: fixture-dupac-lean
+id: spec-fixture-dupac-lean
 type: spec
 number: null
 status: implementing
@@ -761,6 +761,96 @@ test_dupac_005_real_corpus() {
   [[ $ok -eq 1 ]] && log_pass "TEST-005(dupac) real corpus zero duplicate-ac-id findings" || log_fail "TEST-005(dupac) real corpus"
 }
 
+# --- SPEC-0058 TEST-001 — bare-slug spec id flagged (Spec-AC-01) ----------------
+# A type: spec fixture whose id is a bare slug (neither numbered SPEC-NNNN nor
+# spec--prefixed) — otherwise clean — must yield exactly one spec-id-shape
+# finding naming the id and the spec-<change-slug> guidance; exit 1.
+test_specidshape_001_bareslug_flagged() {
+  new_fixture_root
+  clean_spec_body | sed 's/^id: spec-fixture-clean/id: secrets-preflight-env-multiline/' \
+    > "$FIX/docs/specs/SPEC-DRAFT-bareslug.md"
+  local out rc ok=1 n
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-001(specidshape)" || ok=0
+  n=$(echo "$out" | grep -c "\[spec-id-shape\]")
+  [[ "$n" -eq 1 ]] || { log_info "TEST-001(specidshape): expected exactly 1 spec-id-shape finding, got $n: $out"; ok=0; }
+  echo "$out" | grep -q 'secrets-preflight-env-multiline' || { log_info "TEST-001(specidshape): id not named in finding"; ok=0; }
+  echo "$out" | grep -q 'spec-<change-slug>' || { log_info "TEST-001(specidshape): spec-<change-slug> guidance missing"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-001(specidshape) bare-slug spec id flagged" || log_fail "TEST-001(specidshape) bare-slug spec id flagged"
+}
+
+# --- SPEC-0058 TEST-002 — negative controls: prefixed / numbered ids clean (Spec-AC-02) --
+# A spec--prefixed id and a legacy numbered SPEC-NNNN id each lint CLEAN.
+test_specidshape_002_negative_controls() {
+  local out rc ok=1
+
+  # spec--prefixed control (clean_spec_body's id is already spec-fixture-clean)
+  new_fixture_root
+  clean_spec_body > "$FIX/docs/specs/SPEC-DRAFT-prefixed.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-002(specidshape) prefixed" || ok=0
+  echo "$out" | grep -q "spec-id-shape" && { log_info "TEST-002(specidshape): spec--prefixed id falsely flagged: $out"; ok=0; }
+
+  # legacy numbered SPEC-NNNN control
+  new_fixture_root
+  clean_spec_body | sed 's/^id: spec-fixture-clean/id: SPEC-0099/' \
+    > "$FIX/docs/specs/SPEC-DRAFT-numbered.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-002(specidshape) numbered" || ok=0
+  echo "$out" | grep -q "spec-id-shape" && { log_info "TEST-002(specidshape): numbered SPEC-NNNN id falsely flagged: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-002(specidshape) prefixed + numbered ids lint clean" || log_fail "TEST-002(specidshape) negative controls"
+}
+
+# --- SPEC-0058 TEST-003 — type guard: non-spec doc via --path not flagged (Spec-AC-02) --
+# The check runs ONLY for type: spec docs. A type: research doc with a
+# bare-slug id, linted via --path (any-type entry point), is NOT flagged.
+test_specidshape_003_type_guard() {
+  new_fixture_root
+  clean_spec_body | sed 's/^id: spec-fixture-clean/id: bare-research-slug/; s/^type: spec/type: research/' \
+    > "$FIX/docs/specs/SPEC-DRAFT-research.md"
+  local out rc ok=1
+  out="$(runlint "$FIX" --path docs/specs/SPEC-DRAFT-research.md 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-003(specidshape)" || ok=0
+  echo "$out" | grep -q "spec-id-shape" && { log_info "TEST-003(specidshape): non-spec --path doc falsely flagged: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-003(specidshape) type guard: non-spec --path doc not flagged" || log_fail "TEST-003(specidshape) type guard"
+}
+
+# --- SPEC-0058 TEST-004 — real-corpus loop: zero spec-id-shape findings (Spec-AC-03) --
+# An explicit loop over every real docs/specs/SPEC-*.md (read-only, not a mock)
+# asserts zero spec-id-shape findings — the corpus is clean post-remediation.
+test_specidshape_004_real_corpus_loop() {
+  local ok=1 f rel out rc
+  for f in "$PROJECT_ROOT"/docs/specs/SPEC-*.md; do
+    [[ -f "$f" ]] || continue
+    rel="docs/specs/$(basename "$f")"
+    out="$(cd "$PROJECT_ROOT" && node "$LINT" --path "$rel" 2>&1)"; rc=$?
+    if echo "$out" | grep -q "spec-id-shape"; then
+      log_info "TEST-004(specidshape): $rel produced a spec-id-shape finding: $out"; ok=0
+    fi
+    if [[ $rc -eq 2 ]]; then
+      log_info "TEST-004(specidshape): $rel unreadable (exit 2): $out"; ok=0
+    fi
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-004(specidshape) real-corpus loop: zero spec-id-shape findings" || log_fail "TEST-004(specidshape) real-corpus loop"
+}
+
+# --- SPEC-0058 TEST-005 — fixture-id alignment regression guard (Spec-AC-03) ----
+# Every existing type: spec fixture id in THIS file was mechanically spec--
+# prefixed so the new rule doesn't break prior expect-clean stanzas. Guard
+# against a future fixture being added without the prefix (which would flip an
+# expect-clean stanza to a false positive under the new rule).
+test_specidshape_005_fixture_alignment_regression() {
+  local hits
+  hits="$(grep -n '^id: fixture-' "$PROJECT_ROOT/tests/skills/test-aai-spec-lint.sh" || true)"
+  if [[ -n "$hits" ]]; then
+    log_info "TEST-005(specidshape): unprefixed type:spec fixture id(s) found (would trip spec-id-shape): $hits"
+    log_fail "TEST-005(specidshape) fixture-id alignment regression guard"
+  else
+    log_pass "TEST-005(specidshape) fixture-id alignment regression guard (no unprefixed fixture ids)"
+  fi
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -782,6 +872,11 @@ main() {
   test_dupac_003_vanished_no_double_report
   test_dupac_004_no_false_positives
   test_dupac_005_real_corpus
+  test_specidshape_001_bareslug_flagged
+  test_specidshape_002_negative_controls
+  test_specidshape_003_type_guard
+  test_specidshape_004_real_corpus_loop
+  test_specidshape_005_fixture_alignment_regression
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

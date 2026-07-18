@@ -216,6 +216,21 @@ export function lintContent(content) {
   const fm = parseFrontmatter(norm) ?? {};
   const ac = parseAcTable(norm);
 
+  // spec-id-shape (SPEC-0058): a type: spec doc whose frontmatter id is a
+  // collision-prone bare slug (neither the legacy numbered SPEC-NNNN form nor
+  // a spec--prefixed slug) shares its originating change/issue's id — the
+  // root cause of several real spec-id collisions. Guarded on type===spec so
+  // --path mode never flags a non-spec doc. Empty/missing id is docs-audit's
+  // boundary, not this check's.
+  if (String(fm.type ?? '').toLowerCase() === 'spec') {
+    const id = String(fm.id ?? '');
+    const numbered = /^SPEC-\d+$/i.test(id);
+    const prefixed = id.startsWith('spec-');
+    if (id !== '' && !numbered && !prefixed) {
+      add('spec-id-shape', `spec id "${id}" is a bare slug (neither the numbered SPEC-NNNN form nor a spec-<slug> id) — rename it to spec-<change-slug> so it cannot collide with its change/issue id`);
+    }
+  }
+
   // ceremony_level enum (advisory freeze-time twin of the close-gate check;
   // absent or YAML null is legacy implicit level 2, never flagged).
   let level = 2;
