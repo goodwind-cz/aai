@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-17T23:40:06.565Z
+Generated: 2026-07-18T03:43:55.578Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -135,9 +135,12 @@ _None._
 | SPEC-0052 | specs | docs/specs/SPEC-0052-spec-aai-update-temp-toctou.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0037 | issues | docs/issues/CHANGE-0037-deterministic-close-ceremony.md |
+| SPEC-0053 | specs | docs/specs/SPEC-0053-spec-deterministic-close-ceremony.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -166,4 +169,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-17 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-18 — counts above use this date for overdue checks.

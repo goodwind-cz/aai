@@ -46,7 +46,16 @@ REQUIRED_REDUCTION_BYTES=28672   # 28 KB
 # (23550 B net reduction < 28672 B required; after=325653, extra=8254).
 # Chosen credit: 6144 B -> adjusted_reduction = 23550 + 6144 = 29694 B ->
 # headroom = 1022 B, inside the 2048 B HEADROOM_CAP below.
-JUSTIFIED_GROWTH_BYTES=6144
+#   - deterministic close-ceremony wiring prose, CHANGE-0037/SPEC-0053
+#     Spec-AC-05 (AC-005 mandates this prose): .aai/SKILL_PR.prompt.md step 5c
+#     (+1144 B, close-work-item.mjs invocation instructions) + VALIDATION 8b
+#     (+165 B, hand-flip/hand-emit removal replaced by close-ceremony pointer
+#     prose) = +1309 B measured (main .aai/*.prompt.md=325653 ->
+#     this-branch=326962). True-up: 6144 + 1309 = 7453 ->
+#     adjusted_reduction = 23550 + 7453 = 29694 B (net reduction back-computed
+#     from the true 325653/23550 pre-scope baseline via the 1309 delta) ->
+#     headroom returns to 1022 B, same as the post-DEBT-0002 baseline.
+JUSTIFIED_GROWTH_BYTES=7453
 # Anti-bloat guard (TEST-002/Spec-AC-02): headroom must stay in
 # [0, HEADROOM_CAP] so the credit cannot be padded arbitrarily and future
 # UNJUSTIFIED prompt growth beyond the cap still fails this test (forcing a
