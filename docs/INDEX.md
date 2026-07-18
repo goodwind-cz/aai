@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-18T13:02:16.290Z
+Generated: 2026-07-18T14:18:02.083Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -145,9 +145,11 @@ _None._
 | SPEC-0057 | specs | docs/specs/SPEC-0057-spec-docs-audit-duplicate-doc-id.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0015 | issues | docs/issues/ISSUE-0015-remediate-spec-id-collisions.md |
 
 ## Deferred (whole-doc) (0)
 

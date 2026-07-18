@@ -1,5 +1,5 @@
 ---
-id: secrets-preflight-env-multiline
+id: spec-secrets-preflight-env-multiline
 type: spec
 number: 49
 status: done

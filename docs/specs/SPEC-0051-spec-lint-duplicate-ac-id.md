@@ -1,5 +1,5 @@
 ---
-id: spec-lint-duplicate-ac-id
+id: spec-spec-lint-duplicate-ac-id
 type: spec
 number: 51
 status: done
