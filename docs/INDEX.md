@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-18T11:34:28.601Z
+Generated: 2026-07-18T12:58:13.163Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -143,9 +143,12 @@ _None._
 | SPEC-0056 | specs | docs/specs/SPEC-0056-secrets-preflight-unterminated-quote-safe-direction.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0014 | issues | docs/issues/ISSUE-0014-docs-audit-duplicate-doc-id.md |
+| SPEC-0057 | specs | docs/specs/SPEC-0057-spec-docs-audit-duplicate-doc-id.md |
 
 ## Deferred (whole-doc) (0)
 
