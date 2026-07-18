@@ -2,13 +2,15 @@
 id: spec-worktree-telemetry-reconciliation
 type: spec
 number: 55
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: worktree-telemetry-reconciliation
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 107
+  commits:
+    - 41e44c5
 ---
 
 # SPEC — reconcile worktree-stranded committed telemetry at PR time (CHANGE-0039)

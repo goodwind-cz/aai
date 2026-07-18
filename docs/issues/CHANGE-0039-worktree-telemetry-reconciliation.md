@@ -2,10 +2,12 @@
 id: worktree-telemetry-reconciliation
 type: change
 number: 39
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 107
+  commits:
+    - 41e44c5
 ---
 
 # Change — reconcile worktree-stranded committed telemetry at PR time
