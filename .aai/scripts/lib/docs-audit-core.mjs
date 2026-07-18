@@ -942,6 +942,11 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   // id index and asList() — no second scan. NOT part of hardFail/needsTriage.
   const closeoutCandidates = closeoutCandidatesFor(docs);
 
+  // duplicate-doc-id detection (SPEC-0057 / ISSUE-0014): READ-ONLY post-pass,
+  // same docs[] as closeoutCandidatesFor above — no second scan, no git/EVENTS
+  // read, so it runs identically in --quick.
+  const duplicateDocIds = duplicateDocIdsFor(docs);
+
   // pending-commit notice (CHANGE-0001 D6): the verdict already reflects the
   // working tree; this only tells the operator which scanned docs differ from git
   let pendingCommit = [];
@@ -995,6 +1000,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     violations: violations.length,
     typeWarnings: typeWarnings.length,
     closeoutCandidates: closeoutCandidates.length,
+    duplicateDocId: duplicateDocIds.length,
     openDecisionDone: openDecisionDoneDocs.length,
     nearMiss: nearMissWarnings.length,
     reviewClaimUnbacked: reviewClaimUnbacked.length,
@@ -1020,7 +1026,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   return {
     mode, config, docs, orphansNew, orphansLegacy, drift, violations,
     typeWarnings, annotations, pendingCommit, planLenient, closeoutCandidates,
-    openDecisionDoneDocs, nearMissWarnings, reviewClaimUnbacked,
+    duplicateDocIds, openDecisionDoneDocs, nearMissWarnings, reviewClaimUnbacked,
     missingCloseTelemetry, bodyLint, provenanceDrift, counts, hardFail,
   };
 }
@@ -1059,6 +1065,30 @@ export function closeoutCandidatesFor(docs) {
       specs: [...specIds].sort(),
       suggestedStep: `advance ${parent.id} to done/accepted; record the implementing commit`,
     });
+  }
+  return out.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+// SPEC-0057 / ISSUE-0014 — detect >=2 scanned docs sharing one EFFECTIVE
+// frontmatter id (`fm.id ?? primary`, the SAME key `byId` and every id-keyed
+// check use). Mirrors closeoutCandidatesFor: a READ-ONLY post-scan pass over
+// the same docs[] (no git, no EVENTS) — runs identically in --quick. Does NOT
+// change how `id` is computed and does NOT change byId's last-writer-wins
+// semantics (detection-only; byId hardening is a separate, out-of-scope
+// follow-up). Each scanned doc contributes exactly one docs[] record (one
+// file = one record), so a single doc's slug id vs its own numbered fileId
+// can never self-collide — a duplicate requires >=2 distinct docs[] entries.
+export function duplicateDocIdsFor(docs) {
+  const byId = new Map();
+  for (const d of docs) {
+    if (!d.id) continue;
+    const key = String(d.id);
+    if (!byId.has(key)) byId.set(key, []);
+    byId.get(key).push(d.rel);
+  }
+  const out = [];
+  for (const [id, paths] of byId) {
+    if (paths.length > 1) out.push({ id, paths: [...paths].sort() });
   }
   return out.sort((a, b) => a.id.localeCompare(b.id));
 }

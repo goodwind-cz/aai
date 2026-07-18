@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-18T11:34:28.601Z
+Generated: 2026-07-18T13:02:16.290Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (123)
+## Done (125)
 
 | ID | Type | Path |
 |---|---|---|
@@ -73,6 +73,7 @@ _None._
 | ISSUE-0011 | issues | docs/issues/ISSUE-0011-spec-lint-duplicate-ac-id.md |
 | ISSUE-0012 | issues | docs/issues/ISSUE-0012-aai-update-temp-toctou.md |
 | ISSUE-0013 | issues | docs/issues/ISSUE-0013-secrets-preflight-unterminated-quote-safe-direction.md |
+| ISSUE-0014 | issues | docs/issues/ISSUE-0014-docs-audit-duplicate-doc-id.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -141,6 +142,7 @@ _None._
 | SPEC-0054 | specs | docs/specs/SPEC-0054-spec-flush-close-event-alignment.md |
 | SPEC-0055 | specs | docs/specs/SPEC-0055-spec-worktree-telemetry-reconciliation.md |
 | SPEC-0056 | specs | docs/specs/SPEC-0056-secrets-preflight-unterminated-quote-safe-direction.md |
+| SPEC-0057 | specs | docs/specs/SPEC-0057-spec-docs-audit-duplicate-doc-id.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)

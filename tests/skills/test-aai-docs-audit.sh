@@ -1582,7 +1582,14 @@ test_spec0006_no_regression_real_repo() {  # TEST-007 / Spec-AC-07
   log_info "Test: real-repo docs-audit CLEAN and index idempotent — no regression (TEST-007)..."
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/repo-audit.log" 2>&1) \
     || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/repo-audit.log")"
-  assert_contains "$TEST_DIR/repo-audit.log" "Verdict: CLEAN"
+  # SPEC-0057: the whole-digest Verdict line now correctly reads NEEDS-TRIAGE
+  # on the real repo (3 pre-existing, tracked duplicate-doc-id collisions,
+  # verdict-only/not hardFail — unrelated to this test's own regression
+  # surface), so assert the hard-gate/orphan signals this stanza actually
+  # guards, not the coarse verdict text (mirrors test_change0012_regression's
+  # same precedent for pre-existing report-only drift).
+  assert_contains "$TEST_DIR/repo-audit.log" "Orphans (need triage): 0"
+  assert_not_contains "$TEST_DIR/repo-audit.log" "CHECK FAILED"
   # Regenerating writes the real docs/INDEX.md (a fresh Generated: timestamp), so
   # back it up first and restore it after the idempotence check — the suite must
   # leave the worktree clean for CI/pre-commit clean-tree gates.
@@ -1814,7 +1821,12 @@ test_issue0001_no_regression_real_repo() {  # TEST-007 / Spec-AC-07
   log_info "Test: real-repo docs-audit CLEAN and INDEX idempotent — no regression (TEST-007)..."
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/t007-audit.log" 2>&1) \
     || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/t007-audit.log")"
-  assert_contains "$TEST_DIR/t007-audit.log" "Verdict: CLEAN"
+  # SPEC-0057: see test_spec0006_no_regression_real_repo's comment — the
+  # real-repo Verdict line now correctly reads NEEDS-TRIAGE (3 pre-existing,
+  # tracked, verdict-only duplicate-doc-id collisions); assert the hard-gate
+  # signal this stanza actually guards instead.
+  assert_contains "$TEST_DIR/t007-audit.log" "Orphans (need triage): 0"
+  assert_not_contains "$TEST_DIR/t007-audit.log" "CHECK FAILED"
   local idx_backup="$TEST_DIR/INDEX.t007.orig"
   cp "$PROJECT_ROOT/docs/INDEX.md" "$idx_backup"
   (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/t007-idx1.log" 2>&1) \
@@ -2585,7 +2597,12 @@ test_spec0011_regression() {  # TEST-015 / Spec-AC-12
   log_info "Test: real-repo docs-audit CLEAN, no false near-miss, INDEX idempotent (TEST-015)..."
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/s11-audit.log" 2>&1) \
     || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/s11-audit.log")"
-  assert_contains "$TEST_DIR/s11-audit.log" "Verdict: CLEAN"
+  # SPEC-0057: see test_spec0006_no_regression_real_repo's comment — the
+  # real-repo Verdict line now correctly reads NEEDS-TRIAGE (3 pre-existing,
+  # tracked, verdict-only duplicate-doc-id collisions); assert the hard-gate
+  # signal this stanza actually guards instead.
+  assert_contains "$TEST_DIR/s11-audit.log" "Orphans (need triage): 0"
+  assert_not_contains "$TEST_DIR/s11-audit.log" "CHECK FAILED"
   # No false near-miss on the real corpus (narrow-by-construction detector).
   extract_section_h3 "$TEST_DIR/s11-audit.log" "### Near-miss AC tables" > "$TEST_DIR/s11-nm.txt" 2>/dev/null || true
   grep -qF "_None._" "$TEST_DIR/s11-nm.txt" \
@@ -2977,7 +2994,12 @@ test_change0007_regression() {  # TEST-009 / Spec-AC-09
     || log_fail "real-repo governed corpus must carry ZERO body-lint findings: $(cat "$TEST_DIR/c7-lint.log")"
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/c7-strict.log" 2>&1) \
     || log_fail "real-repo --check --strict must exit 0 with body lint active: $(tail -10 "$TEST_DIR/c7-strict.log")"
-  assert_contains "$TEST_DIR/c7-strict.log" "Verdict: CLEAN"
+  # SPEC-0057: see test_spec0006_no_regression_real_repo's comment — the
+  # real-repo Verdict line now correctly reads NEEDS-TRIAGE (3 pre-existing,
+  # tracked, verdict-only duplicate-doc-id collisions, unrelated to body
+  # lint); assert the hard-gate signal this stanza actually guards instead.
+  assert_contains "$TEST_DIR/c7-strict.log" "Orphans (need triage): 0"
+  assert_not_contains "$TEST_DIR/c7-strict.log" "CHECK FAILED"
   log_pass "Real repo CLEAN with body lint active (TEST-009)"
 }
 
@@ -4493,7 +4515,13 @@ test_change0028_real_repo_clean() {  # TEST-009 / Spec-AC-08
   log_info "Test: real-repo docs-audit stays CLEAN with zero false-open verdicts after D2 hardening (TEST-009)..."
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/c0028-audit.log" 2>&1) \
     || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/c0028-audit.log")"
-  assert_contains "$TEST_DIR/c0028-audit.log" "Verdict: CLEAN"
+  # SPEC-0057: see test_spec0006_no_regression_real_repo's comment — the
+  # real-repo Verdict line now correctly reads NEEDS-TRIAGE (3 pre-existing,
+  # tracked, verdict-only duplicate-doc-id collisions, unrelated to
+  # false-open); assert the hard-gate signal this stanza actually guards
+  # instead. False-open: 0 (below) remains this test's real regression proof.
+  assert_contains "$TEST_DIR/c0028-audit.log" "Orphans (need triage): 0"
+  assert_not_contains "$TEST_DIR/c0028-audit.log" "CHECK FAILED"
   assert_contains "$TEST_DIR/c0028-audit.log" "False-open: 0"
   if grep -qF "probable-false-open" "$TEST_DIR/c0028-audit.log"; then
     log_fail "TEST-009: real-repo audit must carry zero probable-false-open verdicts (SPEC-0039 and all in-flight docs must stay unflagged)"
@@ -4512,6 +4540,178 @@ test_change0028_userguide_mentions_work_item_closed() {  # TEST-011 / Spec-AC-10
   echo "$bullet" | grep -qF "work_item_closed" \
     || log_fail "TEST-011: the probable-false-open bullet itself must name the work_item_closed event"
   log_pass "USER_GUIDE.md probable-false-open bullet names the work_item_closed event (TEST-011)"
+}
+
+# --- SPEC-0057 / ISSUE-0014 — duplicate frontmatter doc-id detection (TEST-101..104) ---
+
+setup_dupid_fixture() {
+  log_info "Setting up duplicate-doc-id fixture (SPEC-0057)..."
+  mkdir -p "$TEST_DIR/docs/dupid"
+  cd "$TEST_DIR"
+
+  # TEST-101 positive control: a spec + an issue sharing one frontmatter id
+  # (mirrors the motivating bug — a spec created without the `spec-` prefix
+  # colliding with its own intake's slug).
+  cat > docs/dupid/SPEC-9401-collision.md <<'MD'
+---
+id: dupid-collision-x
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Spec sharing an id with its own intake (the motivating bug)
+MD
+  cat > docs/dupid/ISSUE-9401-collision.md <<'MD'
+---
+id: dupid-collision-x
+type: issue
+status: draft
+links:
+  pr: []
+---
+# Issue sharing an id with its spec
+MD
+
+  # Multi-writer case (SPEC-0057 edge case: 3+ carriers in one group) — proves
+  # the Count column and grouping are not hardcoded to exactly two carriers.
+  cat > docs/dupid/SPEC-9402-triple-a.md <<'MD'
+---
+id: dupid-collision-triple
+type: spec
+status: draft
+links:
+  pr: []
+---
+# First of three docs sharing one id
+MD
+  cat > docs/dupid/ISSUE-9402-triple-b.md <<'MD'
+---
+id: dupid-collision-triple
+type: issue
+status: draft
+links:
+  pr: []
+---
+# Second of three docs sharing one id
+MD
+  cat > docs/dupid/CHANGE-9402-triple-c.md <<'MD'
+---
+id: dupid-collision-triple
+type: change
+status: draft
+links:
+  pr: []
+---
+# Third of three docs sharing one id
+MD
+
+  git add docs/dupid && git commit -qm "test: duplicate-doc-id fixtures (SPEC-0057)"
+  log_pass "Duplicate-doc-id fixture ready"
+}
+
+setup_dupid_clean_fixture() {
+  log_info "Setting up duplicate-doc-id negative-control fixture (SPEC-0057)..."
+  mkdir -p "$TEST_DIR/docs/dupid-clean"
+  cd "$TEST_DIR"
+
+  # Negative control (Spec-AC-02): a correctly `spec-`-prefixed change+spec
+  # pair — change id X, spec id spec-X — has two DISTINCT effective ids and
+  # must never be flagged.
+  cat > docs/dupid-clean/CHANGE-9410-cleanpair.md <<'MD'
+---
+id: dupid-cleanpair
+type: change
+status: draft
+links:
+  pr: []
+---
+# Change (the intake side of a correctly prefixed pair)
+MD
+  cat > docs/dupid-clean/SPEC-9410-cleanpair.md <<'MD'
+---
+id: spec-dupid-cleanpair
+type: spec
+status: draft
+links:
+  requirement: dupid-cleanpair
+  pr: []
+---
+# Spec (correctly spec-prefixed; distinct effective id from its intake)
+MD
+
+  # Slug-vs-fileId of the SAME doc (structural exclusion, Spec-AC-02a): the
+  # frontmatter id differs from this doc's own numbered fileId (SPEC-9411).
+  # One docs[] record, one effective id — never a self-collision.
+  cat > docs/dupid-clean/SPEC-9411-sluginfo.md <<'MD'
+---
+id: dupid-standalone-slug
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Slug id differs from this doc's own numbered fileId (SPEC-9411) — not a duplicate
+MD
+
+  git add docs/dupid-clean && git commit -qm "test: duplicate-doc-id negative-control fixture (SPEC-0057)"
+  log_pass "Duplicate-doc-id negative-control fixture ready"
+}
+
+test_spec0057_duplicate_id_flagged() {  # TEST-101 / Spec-AC-01
+  log_info "Test: two docs sharing one frontmatter id are flagged, naming id + both paths; verdict NEEDS-TRIAGE (TEST-101)..."
+  run_audit --no-event --path docs/dupid > "$TEST_DIR/dupid.log"
+  assert_contains "$TEST_DIR/dupid.log" "### Duplicate doc ids"
+  grep -F "dupid-collision-x" "$TEST_DIR/dupid.log" | grep -qF "SPEC-9401-collision.md" \
+    || log_fail "TEST-101: duplicate-doc-id row must name id dupid-collision-x + SPEC-9401 path"
+  grep -F "dupid-collision-x" "$TEST_DIR/dupid.log" | grep -qF "ISSUE-9401-collision.md" \
+    || log_fail "TEST-101: duplicate-doc-id row must name id dupid-collision-x + ISSUE-9401 path"
+  # multi-writer (3 carriers): the Count column reflects 3, not hardcoded to 2
+  grep -F "dupid-collision-triple" "$TEST_DIR/dupid.log" | grep -qF "| 3 |" \
+    || log_fail "TEST-101: a 3-carrier group must report Count 3"
+  assert_contains "$TEST_DIR/dupid.log" "Verdict: NEEDS-TRIAGE"
+  log_pass "Duplicate frontmatter id flagged with id + all carrying paths (TEST-101)"
+}
+
+test_spec0057_no_false_positive() {  # TEST-102 / Spec-AC-02
+  log_info "Test: unique-id corpus incl. spec-prefixed pair + slug-vs-fileId doc -> zero findings, CLEAN (TEST-102)..."
+  run_audit --no-event --path docs/dupid-clean > "$TEST_DIR/dupid-clean.log"
+  assert_contains "$TEST_DIR/dupid-clean.log" "### Duplicate doc ids: 0"
+  assert_contains "$TEST_DIR/dupid-clean.log" "Verdict: CLEAN"
+  log_pass "Unique-id corpus reports zero duplicate-doc-id findings (TEST-102)"
+}
+
+test_spec0057_check_exit_code_unchanged() {  # TEST-103 / Spec-AC-03
+  log_info "Test: duplicate-doc-id is verdict-only, not hardFail — --check exits 0 on a duplicate-bearing fixture (TEST-103)..."
+  run_audit --check --no-event --path docs/dupid > "$TEST_DIR/dupid-check.log" \
+    || log_fail "TEST-103: --check must exit 0 on a duplicate-doc-id-only fixture (verdict-only, not hardFail)"
+  assert_contains "$TEST_DIR/dupid-check.log" "### Duplicate doc ids"
+  log_pass "Duplicate-doc-id detection is verdict-only; --check exit code unchanged (TEST-103)"
+}
+
+test_spec0057_real_repo_known_collisions() {  # TEST-104 / Spec-AC-04
+  log_info "Test: real repo reports exactly the 3 known legacy duplicate-doc-id collisions; verdict NEEDS-TRIAGE; --check --strict exits 0 (TEST-104)..."
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --no-event > "$TEST_DIR/s57-real.log" 2>&1) \
+    || log_fail "real-repo docs-audit must exit 0: $(tail -5 "$TEST_DIR/s57-real.log")"
+  # Assert presence of the three known ids (not a strict count) so a future,
+  # separately-remediated collision cannot spuriously break this control.
+  for id in prompt-diet-byte-budget-true-up secrets-preflight-env-multiline spec-lint-duplicate-ac-id; do
+    grep -qF "$id" "$TEST_DIR/s57-real.log" \
+      || log_fail "TEST-104: expected known collision id '$id' in the Duplicate doc ids section"
+  done
+  for p in docs/specs/SPEC-0048-prompt-diet-byte-budget-true-up.md \
+           docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md \
+           docs/specs/SPEC-0049-secrets-preflight-env-multiline.md \
+           docs/issues/ISSUE-0010-secrets-preflight-env-multiline.md \
+           docs/specs/SPEC-0051-spec-lint-duplicate-ac-id.md \
+           docs/issues/ISSUE-0011-spec-lint-duplicate-ac-id.md; do
+    grep -qF "$p" "$TEST_DIR/s57-real.log" \
+      || log_fail "TEST-104: expected carrying path '$p' in the Duplicate doc ids section"
+  done
+  assert_contains "$TEST_DIR/s57-real.log" "Verdict: NEEDS-TRIAGE"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/s57-check.log" 2>&1) \
+    || log_fail "TEST-104: real-repo --check --strict must still exit 0 (duplicate-doc-id is verdict-only, not hardFail): $(tail -10 "$TEST_DIR/s57-check.log")"
+  log_pass "Real repo reports exactly the 3 known legacy collisions; verdict flips to NEEDS-TRIAGE; CI exit code unchanged (TEST-104)"
 }
 
 main() {
@@ -4641,6 +4841,12 @@ main() {
   test_change0028_arm_c_work_item_closed_flags
   test_change0028_real_repo_clean
   test_change0028_userguide_mentions_work_item_closed
+  setup_dupid_fixture
+  test_spec0057_duplicate_id_flagged
+  test_spec0057_check_exit_code_unchanged
+  setup_dupid_clean_fixture
+  test_spec0057_no_false_positive
+  test_spec0057_real_repo_known_collisions
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

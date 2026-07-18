@@ -265,6 +265,20 @@ function main() {
         ])));
     }
     lines.push('');
+    // Duplicate doc ids (SPEC-0057 / ISSUE-0014): report-only signal folded into
+    // needsTriage (NOT hardFail) — >=2 scanned docs sharing one effective
+    // frontmatter id; id-keyed resolution (byId, closeout) silently picks one
+    // until each doc is given a unique id.
+    lines.push(`### Duplicate doc ids: ${result.duplicateDocIds.length}`);
+    lines.push('');
+    if (result.duplicateDocIds.length === 0) lines.push('_None._');
+    else {
+      lines.push(...table(['Id', 'Count', 'Paths'],
+        result.duplicateDocIds.map(g => [g.id, String(g.paths.length), g.paths.join(' + ')])));
+      lines.push('');
+      lines.push('Two or more scanned docs share one frontmatter `id` — id-keyed resolution (byId, closeout) silently picks one. Give each doc a unique id (e.g. `spec-`-prefix a spec that shares its intake\'s slug).');
+    }
+    lines.push('');
     // Open decisions on done docs (SPEC-0006 / Spec-AC-06): report-only — never
     // feeds the exit-code path; surfaces done docs whose body buries an
     // unresolved decision as a free-text WARNING.
@@ -347,7 +361,7 @@ function main() {
     }
   }
 
-  const needsTriage = counts.orphans + counts.drifted + counts.obsolete + counts.violations + counts.provenanceDrift;
+  const needsTriage = counts.orphans + counts.drifted + counts.obsolete + counts.violations + counts.provenanceDrift + counts.duplicateDocId;
   lines.push(`### Verdict: ${needsTriage === 0 ? 'CLEAN' : `NEEDS-TRIAGE (${needsTriage} items)`}`);
   if (result.hardFail) {
     lines.push('');
