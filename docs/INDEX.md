@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-18T16:01:16.214Z
+Generated: 2026-07-18T22:19:59.727Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -148,9 +148,12 @@ _None._
 | SPEC-0058 | specs | docs/specs/SPEC-0058-spec-spec-lint-enforce-spec-id-prefix.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0040 | issues | docs/issues/CHANGE-0040-prompt-diet-itemized-growth-ledger.md |
+| SPEC-0059 | specs | docs/specs/SPEC-0059-spec-prompt-diet-itemized-growth-ledger.md |
 
 ## Deferred (whole-doc) (0)
 

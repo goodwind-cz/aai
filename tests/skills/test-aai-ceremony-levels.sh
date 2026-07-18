@@ -179,7 +179,7 @@ write_gate_doc() {
   local p="$1" fmline="${2:-}" bodyline="${3:-}"
   cat > "$p" <<MD
 ---
-id: fixture-gate-doc
+id: spec-fixture-gate-doc
 type: spec
 number: null
 status: done
@@ -215,7 +215,7 @@ write_lean_spec() {
   fi
   cat > "$p" <<MD
 ---
-id: fixture-lean-doc
+id: spec-fixture-lean-doc
 type: spec
 number: null
 status: draft
