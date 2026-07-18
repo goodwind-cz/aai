@@ -147,9 +147,9 @@ PROCESS
 8a) For each Spec-AC that moved to `done` during this validation (Evidence column populated), append an `ac_evidence` event to docs/ai/EVENTS.jsonl via:
     node .aai/scripts/append-event.mjs --event ac_evidence --ref SPEC-XXXX/Spec-AC-YY --commit <sha-or-RUN_ID>
     EXCEPTION: if the doc's frontmatter `status` is still open (`draft`/`implementing`) and its only matchable ref is the slug `id` (no numbered `fileId` yet), do NOT emit this event now — the slug ref unconditionally trips the probable-false-open heuristic's Arm A and would self-flag the still-open doc. Record the per-AC evidence in the validation report instead and defer emission to the close ceremony (step 8b), once `status` has flipped to `done`. Numbered docs and already-`done` docs are unaffected.
-    For each spec whose frontmatter `status` changed (e.g., implementing → done) as a result of this validation, append a `doc_lifecycle` event with --from/--to. EVENTS append is best-effort; do not abort the verdict on append failure.
-8b) DONE-TRANSITION ASSERTION (RFC-0002): before writing `status: done` into any
-    doc's frontmatter, assert the Acceptance Criteria Status table — when the
+    For each spec whose frontmatter `status` changed to something OTHER than `done` as a result of this validation, append a `doc_lifecycle` event with --from/--to (best-effort). The `done` transition itself — and its `doc_lifecycle` event — is performed by `close-work-item.mjs` at the close step (8b, CHANGE-0037 / SPEC-0053), never hand-emitted here.
+8b) DONE-TRANSITION ASSERTION (RFC-0002): before a doc transitions to
+    `status: done`, assert the Acceptance Criteria Status table — when the
     doc's template mandates one (type spec; a ceremony_level 0/1 spec satisfies it
     with its lean AC table — Spec-AC + Status columns — plus the Ceremony justification line) — exists with every row terminal and
     every done row carrying Evidence. A spec without the table must not
@@ -163,8 +163,8 @@ PROCESS
     close `done` with buried WARNING decisions; if any remain, the verdict is
     FAIL naming the doc. (`docs-audit` surfaces these in its "Open decisions on
     done docs" report.)
-    CLOSE GATE (SPEC-0011 G1/G2): before writing `status: done` into a spec's
-    frontmatter, run the offline close-time gate
+    CLOSE GATE (SPEC-0011 G1/G2): before a spec transitions to `done`, run the
+    offline close-time gate
       node .aai/scripts/docs-audit.mjs --gate <DOC-ID>
     (exit 1 = the AC Status table is not reconciled — missing table, a non-terminal
     row, a done row with empty Evidence, or a schema-invalid Review-By; exit 2 =
@@ -172,11 +172,13 @@ PROCESS
     `close_gate: enforce`, a non-zero gate REFUSES the done-flip and the verdict is
     FAIL with the printed reasons; when the key/config is absent or
     `close_gate: report-only`, a non-zero gate raises a blocking-class WARNING but
-    does not by itself force FAIL (the AC STATUS GATE above still governs). On a
-    successful close, in addition to the per-row `ac_status` events, record the
-    telemetry-at-close event:
-      node .aai/scripts/append-event.mjs --event work_item_closed --ref <DOC-ID> --validation pass --code-review <pass|waived|none>
-    (append is best-effort; do not abort the verdict on append failure).
+    does not by itself force FAIL (the AC STATUS GATE above still governs).
+    DETERMINISTIC CLOSE (CHANGE-0037 / SPEC-0053): once both gates above clear,
+    the frontmatter status flip, `links.pr`/`links.commits` stamping, and the
+    close event set (`doc_lifecycle`, `work_item_closed`, `ac_evidence`) are
+    performed by `close-work-item.mjs` at the PR step (see
+    `.aai/SKILL_PR.prompt.md`), never by hand here — this step's duty ends at
+    the two gates above.
 9) Update docs/ai/STATE.yaml — PRIMARY PATH (transactional CLI, SPEC-0012):
       node .aai/scripts/state.mjs set-validation --status <pass|fail> --ref <REF-ID> \
         --evidence <path> [--evidence <path>]... --notes "<verdict summary>"

@@ -135,6 +135,23 @@ PROCESS
      the resolution commit then claimed a merge that never happened). Confirm
      `.git/MERGE_HEAD` exists (merge in progress) or the commit has 2 parents.
 
+5c. CLOSE THE WORK ITEM (CHANGE-0037 / SPEC-0053) — now that the PR number and
+   head commit are known, run the deterministic close ceremony instead of
+   hand-editing frontmatter or hand-emitting close events:
+     node .aai/scripts/close-work-item.mjs --ref <slug> --pr <N> --commit <sha> \
+       [--spec <spec-slug>] --review <pass|waived|none>
+   - `<slug>` is the primary work-item doc's frontmatter `id`; pass
+     `--spec <spec-slug>` when this scope also has a linked spec doc.
+     `--review` mirrors `code_review.status` (pass/waived/none).
+   - Exit 0 = closed (or already closed — idempotent). Exit 1 = the post-close
+     self-verify audit was not CLEAN; the script already rolled back — STOP
+     and investigate before retrying. Exit 2 = usage error (bad ref, a
+     non-done-terminal status); nothing was written — fix the flag and retry.
+   - Stage and push the mutated doc(s) + docs/ai/EVENTS.jsonl as a follow-up
+     `chore(close): <ref> close ceremony` commit on the SAME branch (same
+     scope-only staging discipline as steps 2-4), updating the open PR.
+   - Merge boundary unchanged: this step never merges.
+
 6. MERGE BOUNDARY (hard rule):
    - NEVER merge. `gh pr merge` is FORBIDDEN in this skill, in the loop, and in
      any subagent it spawns. Merging is an operator-only action performed by a
