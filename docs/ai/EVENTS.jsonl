@@ -741,3 +741,19 @@
 {"v":1,"ts":"2026-07-17T21:35:07.287Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-lint-duplicate-ac-id","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-17T21:35:07.322Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-lint-duplicate-ac-id","payload":{"commit":"ef43dab"}}
 {"v":1,"ts":"2026-07-17T21:35:11.349Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":113,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-17T23:05:52.277Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"aai-update-temp-toctou","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-17T23:10:53.244Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-aai-update-temp-toctou","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-17T23:25:58.018Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-aai-update-temp-toctou/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T23:25:58.063Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-aai-update-temp-toctou/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T23:25:58.099Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-aai-update-temp-toctou/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-17T23:32:30.635Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0052/Spec-AC-01","payload":{"commit":"docs/ai/tdd/green-20260717T232500Z-aai-update-temp-toctou-test001-005.log"}}
+{"v":1,"ts":"2026-07-17T23:32:30.672Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0052/Spec-AC-02","payload":{"commit":"docs/ai/tdd/green-20260717T233500Z-aai-update-temp-toctou-test006-010.log"}}
+{"v":1,"ts":"2026-07-17T23:32:30.713Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0052/Spec-AC-03","payload":{"commit":"docs/ai/tdd/green-20260717T233500Z-aai-update-temp-toctou-test006-010.log"}}
+{"v":1,"ts":"2026-07-17T23:38:50.488Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"SPEC-0052","payload":{"verdict":"pass","report":"docs/ai/reviews/review-dual-verdict-20260717T233730Z-aai-update-temp-toctou.md","notes":"ISSUE-0012/SPEC-0052 temp-dir TOCTOU: dual-verdict PASS/PASS; sh 5/5 + ps1 9/9 re-run green"}}
+{"v":1,"ts":"2026-07-17T23:39:32.958Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"aai-update-temp-toctou","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-17T23:39:32.998Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"aai-update-temp-toctou","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T23:40:02.293Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"aai-update-temp-toctou","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-17T23:40:02.329Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-aai-update-temp-toctou","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-17T23:40:02.366Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"aai-update-temp-toctou","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-17T23:40:02.406Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"aai-update-temp-toctou","payload":{"commit":"dfa9b10"}}
+{"v":1,"ts":"2026-07-17T23:40:06.475Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":115,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

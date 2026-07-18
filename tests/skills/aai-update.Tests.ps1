@@ -8,6 +8,22 @@
 #      (--dry-run, --repo, --ref, --force) are accepted, not just -DryRun/-Repo.
 #   4. The canonical-repo guard still refuses (exit 2) without -Force.
 #
+# ISSUE-0012 / SPEC-0052 additions (temp-dir TOCTOU fix — ps1 parity):
+#   - TEST-006 (Spec-AC-02): static — clone-target in all three attempts is
+#     $SrcDir (=$Tmp/src), never bare $Tmp; $Tmp created once as a directory.
+#     RED on the current (unfixed) script.
+#   - TEST-007 (Spec-AC-02): static — no `Remove-Item ... $Tmp` in the attempt
+#     cascade; per-attempt wipe targets $SrcDir; only the `finally` block
+#     removes $Tmp. RED on the current (unfixed) script.
+#   - TEST-008 (Spec-AC-02): `[Parser]::ParseFile` clean — covered by the
+#     pre-existing "parses with no syntax errors" test below.
+#   - TEST-009 (Spec-AC-03, SEAM-1 parity): integration — a real clone from a
+#     local file:// fixture repo with -KeepTemp: the repo materializes at
+#     $Tmp/src and $Tmp is retained. Skips cleanly if git/pwsh unavailable.
+#   - TEST-010 (Spec-AC-03): the four pre-existing Describe blocks below
+#     (parses / canonical-repo guard / dry-run / bash long-flag / robustness)
+#     are the regression guards proving behavior is unchanged.
+#
 # Run via: pwsh -NoProfile -Command "Invoke-Pester tests/skills/aai-update.Tests.ps1"
 # (the bash gate tests/skills/test-ps1-quality.sh wraps this and skips if pwsh
 #  or Pester is unavailable).
@@ -77,6 +93,83 @@ Describe 'aai-update.ps1' {
             $r = Invoke-Update -ScriptArgs @('--force', '--dry-run', '--bogus', 'xyz')
             $r.Code | Should -Be 0
             $r.Err  | Should -Match "ignoring unrecognized argument '--bogus'"
+        }
+    }
+
+    Context 'temp-dir lifecycle (ISSUE-0012 / SPEC-0052 — retain $Tmp, clone into $SrcDir)' {
+        BeforeAll {
+            $script:UpdateContent = Get-Content -Raw $script:Update
+        }
+
+        It 'TEST-006: clone target is $SrcDir (=$Tmp/src) in all three attempts, never bare $Tmp; $Tmp created once as a directory' {
+            ([regex]::Matches($script:UpdateContent, [regex]::Escape('gh repo clone $Repo $SrcDir'))).Count | Should -Be 1
+            ([regex]::Matches($script:UpdateContent, [regex]::Escape('$CloneUrl $SrcDir'))).Count | Should -Be 2
+            ([regex]::Matches($script:UpdateContent, [regex]::Escape('gh repo clone $Repo $Tmp'))).Count | Should -Be 0
+            ([regex]::Matches($script:UpdateContent, [regex]::Escape('$CloneUrl $Tmp'))).Count | Should -Be 0
+            ([regex]::Matches($script:UpdateContent, [regex]::Escape('New-Item -ItemType Directory -Path $Tmp -Force'))).Count | Should -Be 1
+            ([regex]::Matches($script:UpdateContent, [regex]::Escape('$SrcDir = Join-Path $Tmp ''src'''))).Count | Should -Be 1
+            ([regex]::Matches($script:UpdateContent, [regex]::Escape('$Src = $SrcDir'))).Count | Should -Be 1
+        }
+
+        It 'TEST-007: no Remove-Item ... $Tmp in the attempt cascade; per-attempt wipe targets $SrcDir; only finally removes $Tmp' {
+            ([regex]::Matches($script:UpdateContent, [regex]::Escape('Remove-Item -Recurse -Force $SrcDir -ErrorAction SilentlyContinue'))).Count | Should -Be 3
+            ([regex]::Matches($script:UpdateContent, [regex]::Escape('Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue'))).Count | Should -Be 1
+        }
+    }
+
+    Context 'SEAM-1 integration (ISSUE-0012 / SPEC-0052 — real clone parity)' {
+        It 'TEST-009: file:// fixture clone with -KeepTemp lands at $Tmp/src; $Tmp retained (skips if git unavailable)' {
+            if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+                Set-ItResult -Skipped -Because 'git not installed'
+                return
+            }
+
+            $workDir = Join-Path ([System.IO.Path]::GetTempPath()) ("aai-update-ps1-e2e-" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $workDir -Force | Out-Null
+            try {
+                # Build a minimal fixture "canonical repo" with a fake aai-sync.ps1
+                # that proves it ran (and against which TARGET) without needing the
+                # real sync logic.
+                $fixtureSrc = Join-Path $workDir 'fixture-src-repo'
+                New-Item -ItemType Directory -Path (Join-Path $fixtureSrc '.aai/scripts') -Force | Out-Null
+                $fixtureSyncPath = Join-Path $fixtureSrc '.aai/scripts/aai-sync.ps1'
+                @'
+param([string]$TargetRoot)
+New-Item -ItemType Directory -Path $TargetRoot -Force | Out-Null
+"FIXTURE_SYNC_RAN target=$TargetRoot" | Set-Content -Path (Join-Path $TargetRoot 'FIXTURE_SYNC_MARKER')
+'@ | Set-Content -Path $fixtureSyncPath
+                git -C $fixtureSrc init -q -b main
+                git -C $fixtureSrc -c user.email=test@example.com -c user.name=test add -A
+                git -C $fixtureSrc -c user.email=test@example.com -c user.name=test commit -q -m fixture
+
+                $targetDir = Join-Path $workDir 'target'
+                New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+                $fixtureTmpBase = Join-Path $workDir 'tmpbase'
+                New-Item -ItemType Directory -Path $fixtureTmpBase -Force | Out-Null
+
+                $errFile = [System.IO.Path]::GetTempFileName()
+                Push-Location $targetDir
+                try {
+                    $env:TMPDIR = $fixtureTmpBase
+                    $out = & pwsh -NoProfile -File $script:Update -Repo "file://$fixtureSrc" -Force -KeepTemp 2>$errFile
+                    $code = $LASTEXITCODE
+                } finally {
+                    Pop-Location
+                    Remove-Item Env:\TMPDIR -ErrorAction SilentlyContinue
+                }
+                $errText = Get-Content $errFile -Raw -ErrorAction SilentlyContinue
+                Remove-Item $errFile -ErrorAction SilentlyContinue
+
+                $code | Should -Be 0 -Because "stderr: $errText"
+
+                $foundTmp = Get-ChildItem -Path $fixtureTmpBase -Directory -Filter 'aai-src-*' -ErrorAction SilentlyContinue | Select-Object -First 1
+                $foundTmp | Should -Not -BeNullOrEmpty
+                (Test-Path (Join-Path $foundTmp.FullName 'src/.git')) | Should -BeTrue
+                (Test-Path (Join-Path $foundTmp.FullName 'src/.aai/scripts/aai-sync.ps1')) | Should -BeTrue
+                (Test-Path (Join-Path $targetDir 'FIXTURE_SYNC_MARKER')) | Should -BeTrue
+            } finally {
+                Remove-Item -Recurse -Force $workDir -ErrorAction SilentlyContinue
+            }
         }
     }
 }

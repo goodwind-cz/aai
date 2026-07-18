@@ -64,6 +64,7 @@ if ((Get-NormSlug $Repo) -and ((Get-NormSlug $targetOrigin) -eq (Get-NormSlug $R
 }
 
 $Tmp = $null
+$SrcDir = $null
 try {
   # Resolve SOURCE: an existing local checkout, or a fresh shallow clone.
   if (Test-Path -PathType Container $Repo) {
@@ -77,17 +78,22 @@ try {
     $SrcDesc = "$CloneUrl@$Ref"
     if (-not $DryRun) {
       $Tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("aai-src-" + [System.IO.Path]::GetRandomFileName())
+      New-Item -ItemType Directory -Path $Tmp -Force | Out-Null
+      $SrcDir = Join-Path $Tmp 'src'
       $cloned = $false
       # git refuses to clone into a non-empty dir, and a failed attempt leaves a
-      # partial one behind - so wipe $Tmp before every attempt.
+      # partial one behind - so wipe $SrcDir before every attempt. $Tmp itself is
+      # the retained, owned parent and is NEVER removed-and-recreated mid-run
+      # (ISSUE-0012 TOCTOU fix): only the $SrcDir subdirectory is wiped between
+      # attempts, so the ownership guarantee on the parent is never up for grabs.
       if (Get-Command gh -ErrorAction SilentlyContinue) {
-        if (Test-Path $Tmp) { Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue }
-        gh repo clone $Repo $Tmp -- --branch $Ref --depth 1 *> $null
+        if (Test-Path $SrcDir) { Remove-Item -Recurse -Force $SrcDir -ErrorAction SilentlyContinue }
+        gh repo clone $Repo $SrcDir -- --branch $Ref --depth 1 *> $null
         if ($LASTEXITCODE -eq 0) { $cloned = $true }
       }
       if (-not $cloned) {
-        if (Test-Path $Tmp) { Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue }
-        git clone --branch $Ref --depth 1 $CloneUrl $Tmp *> $null
+        if (Test-Path $SrcDir) { Remove-Item -Recurse -Force $SrcDir -ErrorAction SilentlyContinue }
+        git clone --branch $Ref --depth 1 $CloneUrl $SrcDir *> $null
         if ($LASTEXITCODE -eq 0) { $cloned = $true }
       }
       if (-not $cloned) {
@@ -96,9 +102,9 @@ try {
         # even into the plain `git clone` above - 401-ing a PUBLIC repo that needs no
         # auth at all. Emptying the credential helper + any injected auth header forces
         # git to fetch anonymously, so the public canonical repo clones with no creds.
-        if (Test-Path $Tmp) { Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue }
+        if (Test-Path $SrcDir) { Remove-Item -Recurse -Force $SrcDir -ErrorAction SilentlyContinue }
         $env:GIT_TERMINAL_PROMPT = '0'  # PR#67 review NB-1: never prompt
-        git -c credential.helper= -c http.https://github.com/.extraheader= clone --branch $Ref --depth 1 $CloneUrl $Tmp *> $null
+        git -c credential.helper= -c http.https://github.com/.extraheader= clone --branch $Ref --depth 1 $CloneUrl $SrcDir *> $null
         if ($LASTEXITCODE -eq 0) { $cloned = $true }
       }
       if (-not $cloned) {
@@ -106,7 +112,7 @@ try {
         exit 3
       }
     }
-    $Src = $Tmp
+    $Src = $SrcDir
   }
 
   if ($DryRun) {
