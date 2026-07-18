@@ -1,14 +1,16 @@
 ---
-id: secrets-preflight-unterminated-quote-safe-direction
+id: spec-secrets-preflight-unterminated-quote-safe-direction
 type: spec
 number: 56
-status: draft
+status: done
 ceremony_level: 1
 links:
   requirement: ISSUE-0013
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 108
+  commits:
+    - 2d9a40f
 ---
 
 # Spec: secrets-preflight unterminated-quote value classifies toward `missing` (safe direction)

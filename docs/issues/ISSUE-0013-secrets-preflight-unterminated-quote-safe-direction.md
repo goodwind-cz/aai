@@ -2,10 +2,12 @@
 id: secrets-preflight-unterminated-quote-safe-direction
 type: issue
 number: 13
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 108
+  commits:
+    - 2d9a40f
 ---
 
 # Issue: secrets-preflight unterminated-quote value should classify toward missing, not exists
