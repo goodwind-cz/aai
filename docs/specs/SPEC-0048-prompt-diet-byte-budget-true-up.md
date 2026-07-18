@@ -1,5 +1,5 @@
 ---
-id: prompt-diet-byte-budget-true-up
+id: spec-prompt-diet-byte-budget-true-up
 type: spec
 number: 48
 status: done

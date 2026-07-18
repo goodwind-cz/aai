@@ -4690,28 +4690,18 @@ test_spec0057_check_exit_code_unchanged() {  # TEST-103 / Spec-AC-03
 }
 
 test_spec0057_real_repo_known_collisions() {  # TEST-104 / Spec-AC-04
-  log_info "Test: real repo reports exactly the 3 known legacy duplicate-doc-id collisions; verdict NEEDS-TRIAGE; --check --strict exits 0 (TEST-104)..."
+  log_info "Test: real repo is free of duplicate-doc-id collisions after remediation; --check --strict exits 0 (TEST-104)..."
+  # The 3 legacy collisions SPEC-0057's detector originally surfaced
+  # (prompt-diet-byte-budget-true-up, secrets-preflight-env-multiline,
+  # spec-lint-duplicate-ac-id — specs created without the spec- prefix) were
+  # remediated (ISSUE-0015: spec ids -> spec-<slug> + telemetry backfill). This
+  # control now guards that the detector runs on the real repo and finds NONE.
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --no-event > "$TEST_DIR/s57-real.log" 2>&1) \
     || log_fail "real-repo docs-audit must exit 0: $(tail -5 "$TEST_DIR/s57-real.log")"
-  # Assert presence of the three known ids (not a strict count) so a future,
-  # separately-remediated collision cannot spuriously break this control.
-  for id in prompt-diet-byte-budget-true-up secrets-preflight-env-multiline spec-lint-duplicate-ac-id; do
-    grep -qF "$id" "$TEST_DIR/s57-real.log" \
-      || log_fail "TEST-104: expected known collision id '$id' in the Duplicate doc ids section"
-  done
-  for p in docs/specs/SPEC-0048-prompt-diet-byte-budget-true-up.md \
-           docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md \
-           docs/specs/SPEC-0049-secrets-preflight-env-multiline.md \
-           docs/issues/ISSUE-0010-secrets-preflight-env-multiline.md \
-           docs/specs/SPEC-0051-spec-lint-duplicate-ac-id.md \
-           docs/issues/ISSUE-0011-spec-lint-duplicate-ac-id.md; do
-    grep -qF "$p" "$TEST_DIR/s57-real.log" \
-      || log_fail "TEST-104: expected carrying path '$p' in the Duplicate doc ids section"
-  done
-  assert_contains "$TEST_DIR/s57-real.log" "Verdict: NEEDS-TRIAGE"
+  assert_contains "$TEST_DIR/s57-real.log" "### Duplicate doc ids: 0"
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/s57-check.log" 2>&1) \
-    || log_fail "TEST-104: real-repo --check --strict must still exit 0 (duplicate-doc-id is verdict-only, not hardFail): $(tail -10 "$TEST_DIR/s57-check.log")"
-  log_pass "Real repo reports exactly the 3 known legacy collisions; verdict flips to NEEDS-TRIAGE; CI exit code unchanged (TEST-104)"
+    || log_fail "TEST-104: real-repo --check --strict must exit 0: $(tail -10 "$TEST_DIR/s57-check.log")"
+  log_pass "Real repo has zero duplicate-doc-id collisions post-remediation; CI exit 0 (TEST-104)"
 }
 
 main() {
