@@ -872,3 +872,7 @@
 {"v":1,"ts":"2026-07-18T14:07:10.130Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"remediate-spec-id-collisions","payload":{"from":"none","to":"draft"}}
 {"v":1,"ts":"2026-07-18T14:09:10.661Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":126,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-07-18T14:10:31.530Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":126,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-18T14:18:31.970Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"remediate-spec-id-collisions","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-18T14:18:32.010Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"remediate-spec-id-collisions","payload":{"validation":"pass","code_review":"waived"}}
+{"v":1,"ts":"2026-07-18T14:18:32.050Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"remediate-spec-id-collisions","payload":{"commit":"ed355ef"}}
+{"v":1,"ts":"2026-07-18T14:18:46.130Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":126,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

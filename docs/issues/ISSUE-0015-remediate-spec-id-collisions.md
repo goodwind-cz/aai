@@ -2,10 +2,12 @@
 id: remediate-spec-id-collisions
 type: issue
 number: 15
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 110
+  commits:
+    - ed355ef
 ---
 
 # Issue: remediate the 3 legacy spec-id collisions surfaced by SPEC-0057
