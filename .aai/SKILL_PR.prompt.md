@@ -66,6 +66,26 @@ PROCESS
      (both are forbidden — they are exactly how unrelated in-flight files get
      bundled into a feature commit).
 
+2b. RECONCILE WORKTREE TELEMETRY (CHANGE-0039 / SPEC-0055) — after staging,
+   BEFORE the step-3 audit: worktree-isolated scopes build in a linked git
+   worktree while STATE/flush run in the MAIN checkout, which strands the
+   scope's committed-class `docs/ai/METRICS.jsonl` ledger record (and any
+   scope-ref `docs/ai/EVENTS.jsonl` lines) as an uncommitted edit in main —
+   lost on branch/worktree cleanup unless carried onto this branch now
+   (observed live on PR #99). Run the deterministic helper from the scope
+   tree:
+       node .aai/scripts/reconcile-telemetry.mjs --ref <ref>
+   - Detects sibling worktrees via `git worktree list --porcelain` (no STATE
+     read); for an INLINE scope (no sibling) or nothing stranded for this
+     ref, it is a verified no-op — proceed.
+   - Exit 0 (carried or no-op): proceed — any carried `docs/ai/METRICS.jsonl`/
+     `docs/ai/EVENTS.jsonl` lines are already staged by the helper.
+   - Exit 1 (write happened, post-write verify failed): STOP the ceremony —
+     the partial write was reverted and the source is untouched; investigate
+     before retrying.
+   - FALLBACK: if `reconcile-telemetry.mjs` is absent (older layer), NOTE it
+     and proceed — the step 5b merge-conflict union step remains the backstop.
+
 3. AUDIT — staged-vs-scope audit (MANDATORY before commit):
    - Run `git diff --cached --name-only` and compare against the scope list.
    - Any staged path NOT in the scope list ⇒ ABORT: print the offending paths,
@@ -78,6 +98,8 @@ PROCESS
    - Root `CHANGELOG.md` is an expected companion too (see step 3b).
    - `docs/canonical/<slug>.md` files written by the step-1c delta merge are
      expected companions too; never unstage them.
+   - `docs/ai/METRICS.jsonl` / `docs/ai/EVENTS.jsonl` staged by the step-2b
+     reconcile are expected companions too (CHANGE-0039): never unstage them.
 
 3b. CHANGELOG — keep the human-readable history fed (root `CHANGELOG.md`):
    - For every feature/fix scope (feat/fix; pure chore/docs noise may skip),

@@ -800,3 +800,25 @@
 {"v":1,"ts":"2026-07-18T07:05:28.826Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-flush-close-event-alignment","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-18T07:05:28.862Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-flush-close-event-alignment","payload":{"commit":"cc06fc8"}}
 {"v":1,"ts":"2026-07-18T07:05:41.702Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":119,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-18T09:12:49.032Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"worktree-telemetry-reconciliation","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-18T09:20:20.216Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-worktree-telemetry-reconciliation","payload":{"from":"none","to":"draft"}}
+{"v":1,"ts":"2026-07-18T09:37:23.248Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-worktree-telemetry-reconciliation/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-18T09:37:23.286Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-worktree-telemetry-reconciliation/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-18T09:37:23.320Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-worktree-telemetry-reconciliation/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-18T09:37:23.355Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-worktree-telemetry-reconciliation/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-18T09:37:23.392Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-worktree-telemetry-reconciliation/Spec-AC-05","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-18T09:37:23.429Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-worktree-telemetry-reconciliation/Spec-AC-06","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-18T09:46:04.594Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0055/Spec-AC-01","payload":{"commit":"VAL-20260718T094520Z-reconcile-telemetry"}}
+{"v":1,"ts":"2026-07-18T09:46:04.633Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0055/Spec-AC-02","payload":{"commit":"VAL-20260718T094520Z-reconcile-telemetry"}}
+{"v":1,"ts":"2026-07-18T09:46:04.672Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0055/Spec-AC-03","payload":{"commit":"VAL-20260718T094520Z-reconcile-telemetry"}}
+{"v":1,"ts":"2026-07-18T09:46:04.706Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0055/Spec-AC-04","payload":{"commit":"VAL-20260718T094520Z-reconcile-telemetry"}}
+{"v":1,"ts":"2026-07-18T09:46:04.749Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0055/Spec-AC-05","payload":{"commit":"VAL-20260718T094520Z-reconcile-telemetry"}}
+{"v":1,"ts":"2026-07-18T09:46:04.784Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0055/Spec-AC-06","payload":{"commit":"VAL-20260718T094520Z-reconcile-telemetry"}}
+{"v":1,"ts":"2026-07-18T09:52:21.057Z","actor":"ales_holubec.net","event":"code_review_completed","ref":"worktree-telemetry-reconciliation","payload":{"verdict":"pass","report":"docs/ai/reviews/review-20260718T095043Z.md","notes":"CHANGE-0039/SPEC-0055 dual-verdict PASS/PASS. 6/6 Spec-AC compliant; suite re-run 9/9 green, real ledgers md5-unchanged. Carry-before-clean, multiset working-vs-HEAD diff, surgical scrub, writeAndVerify byte-exact revert, ref filter (segment/prefix) all verified correct. 0 BLOCKING 0 NON-BLOCKING; INFO-1 unreachable dry-run guard, INFO-2 STATE green-log pointer drift (out of code scope). 1 cannot_verify (live multi-worktree PR run; mitigated by fixtures + 45/45 adversarial)."}}
+{"v":1,"ts":"2026-07-18T09:53:38.006Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"worktree-telemetry-reconciliation","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-18T09:53:38.045Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"worktree-telemetry-reconciliation","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-18T09:53:38.083Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"worktree-telemetry-reconciliation","payload":{"commit":"41e44c5"}}
+{"v":1,"ts":"2026-07-18T09:53:38.121Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-worktree-telemetry-reconciliation","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-18T09:53:38.159Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-worktree-telemetry-reconciliation","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-18T09:53:38.197Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-worktree-telemetry-reconciliation","payload":{"commit":"41e44c5"}}
+{"v":1,"ts":"2026-07-18T09:53:51.293Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":121,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
