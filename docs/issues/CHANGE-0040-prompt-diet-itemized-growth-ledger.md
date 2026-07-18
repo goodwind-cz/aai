@@ -2,10 +2,12 @@
 id: prompt-diet-itemized-growth-ledger
 type: change
 number: 40
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 112
+  commits:
+    - d225157
 ---
 
 # Change — prompt-diet: itemized justified-growth ledger (no magic-number bumps)

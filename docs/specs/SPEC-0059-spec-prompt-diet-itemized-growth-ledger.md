@@ -2,13 +2,15 @@
 id: spec-prompt-diet-itemized-growth-ledger
 type: spec
 number: 59
-status: draft
+status: done
 ceremony_level: 1
 links:
   requirement: CHANGE-0040
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 112
+  commits:
+    - d225157
 ---
 
 # Spec: prompt-diet itemized justified-growth ledger (no magic-number bumps)

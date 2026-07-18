@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-18T22:19:59.727Z
+Generated: 2026-07-18T22:20:53.850Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (128)
+## Done (130)
 
 | ID | Type | Path |
 |---|---|---|
@@ -58,6 +58,7 @@ _None._
 | CHANGE-0037 | issues | docs/issues/CHANGE-0037-deterministic-close-ceremony.md |
 | CHANGE-0038 | issues | docs/issues/CHANGE-0038-flush-close-event-alignment.md |
 | CHANGE-0039 | issues | docs/issues/CHANGE-0039-worktree-telemetry-reconciliation.md |
+| CHANGE-0040 | issues | docs/issues/CHANGE-0040-prompt-diet-itemized-growth-ledger.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -146,14 +147,12 @@ _None._
 | SPEC-0056 | specs | docs/specs/SPEC-0056-secrets-preflight-unterminated-quote-safe-direction.md |
 | SPEC-0057 | specs | docs/specs/SPEC-0057-spec-docs-audit-duplicate-doc-id.md |
 | SPEC-0058 | specs | docs/specs/SPEC-0058-spec-spec-lint-enforce-spec-id-prefix.md |
+| SPEC-0059 | specs | docs/specs/SPEC-0059-spec-prompt-diet-itemized-growth-ledger.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0040 | issues | docs/issues/CHANGE-0040-prompt-diet-itemized-growth-ledger.md |
-| SPEC-0059 | specs | docs/specs/SPEC-0059-spec-prompt-diet-itemized-growth-ledger.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
