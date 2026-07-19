@@ -31,43 +31,52 @@ cd "$PROJECT_ROOT"
 BASELINE_PROMPT_BYTES=357457
 REQUIRED_REDUCTION_BYTES=28672   # 28 KB
 
-# --- Justified-growth ledger (DEBT-0002 / SPEC-0048 Spec-AC-01/02) ---------
+# --- Justified-growth ledger (DEBT-0002/SPEC-0048 -> CHANGE-0040/SPEC-0059) -
 # Canon-mandated prompt additions AFTER the SPEC-0017 diet legitimately grew
-# the corpus; each addition below is individually justified. Itemized ledger
-# (source: DEBT-0002 root cause, docs/knowledge/LEARNED.md 2026-07-17):
-#   - dual-verdict code-review taxonomy (spec_compliance + code_quality)
-#   - VALIDATION 8a exception clause
-#   - CEREMONY LANE block (SPEC-0041 lane surfaces)
-#   - RED_CLASS discipline (SPEC-0044)
-#   - SECRETS PREFLIGHT block (SPEC-0045)
-#   - doc-number origin reservation docs/surfaces (SPEC-0047)
-#   - ceremony-lane declaration surfaces (SPEC_TEMPLATE, PLANNING, WORKFLOW)
-# Measured deficit this session (clean main, pre-fix): 5122 B
-# (23550 B net reduction < 28672 B required; after=325653, extra=8254).
-# Chosen credit: 6144 B -> adjusted_reduction = 23550 + 6144 = 29694 B ->
-# headroom = 1022 B, inside the 2048 B HEADROOM_CAP below.
-#   - deterministic close-ceremony wiring prose, CHANGE-0037/SPEC-0053
-#     Spec-AC-05 (AC-005 mandates this prose): .aai/SKILL_PR.prompt.md step 5c
-#     (+1144 B, close-work-item.mjs invocation instructions) + VALIDATION 8b
-#     (+165 B, hand-flip/hand-emit removal replaced by close-ceremony pointer
-#     prose) = +1309 B measured (main .aai/*.prompt.md=325653 ->
-#     this-branch=326962). True-up: 6144 + 1309 = 7453 ->
-#     adjusted_reduction = 23550 + 7453 = 29694 B (net reduction back-computed
-#     from the true 325653/23550 pre-scope baseline via the 1309 delta) ->
-#     headroom returns to 1022 B, same as the post-DEBT-0002 baseline.
-#   - workflow-hardening wiring prose, CHANGE-0038 + CHANGE-0039 (canon-mandated):
-#     CHANGE-0038/SPEC-0054 METRICS_FLUSH.prompt.md rewrite (flush no longer
-#     emits close events) + CHANGE-0039/SPEC-0055 SKILL_PR step 2b (RECONCILE
-#     WORKTREE TELEMETRY invocation prose) grew .aai/*.prompt.md by +1786 B
-#     (after 326962 -> 328748) with no credit bump, re-breaching the floor by
-#     764 B. True-up: 7453 + 1786 = 9239 -> headroom returns to 1022 B (inside
-#     the 2048 B HEADROOM_CAP). Trued up during ISSUE-0016 (hygiene).
-JUSTIFIED_GROWTH_BYTES=9239
+# the corpus. JUSTIFIED_GROWTH_BYTES is no longer a manually-bumped magic
+# number: it is the portable bash-3.2 sum of the leading `<bytes>` field of
+# each JUSTIFIED_ADDITIONS entry below (no bc, no mapfile, no declare -A —
+# just `${_entry%% *}` + `$(( ))`, so it also runs under the Windows/Git-Bash
+# matrix). Each entry is self-documenting: "<bytes> <ref> <rationale>".
+# Adding a new legitimate prompt addition is a one-line array append with its
+# own audit trail, not a recomputed constant (source: DEBT-0002 root cause,
+# docs/knowledge/LEARNED.md 2026-07-17; true-up history: ISSUE-0016).
+JUSTIFIED_ADDITIONS=(
+  "6144 DEBT-0002 dual-verdict code-review taxonomy + VALIDATION 8a exception + CEREMONY LANE block (SPEC-0041) + RED_CLASS discipline (SPEC-0044) + SECRETS PREFLIGHT (SPEC-0045) + doc-number origin reservation (SPEC-0047) + ceremony-lane declaration surfaces (SPEC_TEMPLATE/PLANNING/WORKFLOW); measured deficit 5122 B, credit chosen 6144 B for 1022 B headroom"
+  "1309 CHANGE-0037 deterministic close-ceremony wiring prose: SKILL_PR.prompt.md step 5c close-work-item.mjs invocation (+1144 B) + VALIDATION 8b hand-flip/hand-emit removal replaced by close-ceremony pointer (+165 B)"
+  "1786 CHANGE-0038+0039 workflow-hardening wiring prose: METRICS_FLUSH.prompt.md rewrite (flush no longer emits close events, SPEC-0054) + SKILL_PR step 2b RECONCILE WORKTREE TELEMETRY invocation prose (SPEC-0055)"
+)
+JUSTIFIED_GROWTH_BYTES=0
+for _entry in "${JUSTIFIED_ADDITIONS[@]}"; do
+  JUSTIFIED_GROWTH_BYTES=$(( JUSTIFIED_GROWTH_BYTES + ${_entry%% *} ))
+done
 # Anti-bloat guard (TEST-002/Spec-AC-02): headroom must stay in
 # [0, HEADROOM_CAP] so the credit cannot be padded arbitrarily and future
 # UNJUSTIFIED prompt growth beyond the cap still fails this test (forcing a
 # new itemized ledger line, or a shrink, instead of a silent absorption).
 HEADROOM_CAP=2048
+
+# Pure helpers factored out of TEST-010 (Spec-AC-02/SPEC-0059) so the
+# TEST-014/TEST-015 stanzas below can drive them with SYNTHETIC inputs,
+# proving the breach-deficit template and the cap-bite guard WITHOUT
+# mutating the real JUSTIFIED_ADDITIONS ledger or reading the live corpus.
+
+# compute_reduction_headroom <baseline> <after> <extra> <credit> <required>
+# Mirrors TEST-010's exact formula; echoes "<reduction> <headroom>".
+compute_reduction_headroom() {
+  local baseline=$1 after=$2 extra=$3 credit=$4 required=$5
+  local reduction=$(( baseline - after - extra + credit ))
+  local headroom=$(( reduction - required ))
+  echo "$reduction $headroom"
+}
+
+# justified_growth_breach_suggestion <reduction> <required>
+# Computes the exact deficit and echoes a ready-to-paste ledger-entry line.
+justified_growth_breach_suggestion() {
+  local reduction=$1 required=$2
+  local deficit=$(( required - reduction ))
+  echo "JUSTIFIED_ADDITIONS+=( \"$deficit <REF-ID> <rationale>\" )"
+}
 
 E2E_DRAFT="docs/issues/CHANGE-DRAFT-prompt-diet-e2e-dry-run.md"
 
@@ -366,10 +375,10 @@ test_010_audit_and_reduction() {
   extra=0
   [[ -f .aai/INTAKE_COMMON.md ]] && extra=$((extra + $(wc -c < .aai/INTAKE_COMMON.md)))
   [[ -f .aai/STATE_FALLBACK.md ]] && extra=$((extra + $(wc -c < .aai/STATE_FALLBACK.md)))
-  reduction=$((BASELINE_PROMPT_BYTES - after - extra + JUSTIFIED_GROWTH_BYTES))
-  headroom=$((reduction - REQUIRED_REDUCTION_BYTES))
+  read -r reduction headroom <<<"$(compute_reduction_headroom "$BASELINE_PROMPT_BYTES" "$after" "$extra" "$JUSTIFIED_GROWTH_BYTES" "$REQUIRED_REDUCTION_BYTES")"
   if [[ "$headroom" -lt 0 ]]; then
     log_info "TEST-010: net reduction $reduction bytes (< $REQUIRED_REDUCTION_BYTES; after=$after, new files=$extra, credit=$JUSTIFIED_GROWTH_BYTES)"
+    log_info "  $(justified_growth_breach_suggestion "$reduction" "$REQUIRED_REDUCTION_BYTES")"
     ok=0
   elif [[ "$headroom" -gt "$HEADROOM_CAP" ]]; then
     log_info "TEST-010: headroom $headroom bytes exceeds cap $HEADROOM_CAP (reduction=$reduction, required=$REQUIRED_REDUCTION_BYTES, credit=$JUSTIFIED_GROWTH_BYTES) -- either the credit is padded above what the ledger justifies, OR the corpus legitimately shrank below the credit: LOWER JUSTIFIED_GROWTH_BYTES to match the real deficit (a shrink means you no longer need the old credit), or add an itemized ledger line for genuine new growth"
@@ -449,6 +458,94 @@ test_011_tick_wrappers() {
     || log_fail "TEST-011 deterministic-tick wrappers (CHANGE-0009 TEST-015 / DEBT-0002 Spec-AC-03)"
 }
 
+# TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# 9239 AND equals an independent re-sum of JUSTIFIED_ADDITIONS.
+test_012_growth_sum_matches_ledger() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-012 (spec TEST-001) JUSTIFIED_ADDITIONS array does not exist yet"
+    return
+  fi
+  local ok=1 independent_sum=0 _e
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    independent_sum=$(( independent_sum + ${_e%% *} ))
+  done
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 9239 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 9239)"
+    ok=0
+  fi
+  if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
+    log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 9239 == independent re-sum" \
+    || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
+}
+
+# TEST-013 (spec TEST-002, SPEC-0059 Spec-AC-01) — array has >=3 entries;
+# each entry's leading field is numeric bytes.
+test_013_ledger_entry_shape() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-013 (spec TEST-002) JUSTIFIED_ADDITIONS array does not exist yet"
+    return
+  fi
+  local ok=1 _e lead
+  if [[ "${#JUSTIFIED_ADDITIONS[@]}" -lt 3 ]]; then
+    log_info "TEST-013 (spec TEST-002): JUSTIFIED_ADDITIONS has ${#JUSTIFIED_ADDITIONS[@]} entries (want >=3)"
+    ok=0
+  fi
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    lead="${_e%% *}"
+    if ! [[ "$lead" =~ ^[0-9]+$ ]]; then
+      log_info "TEST-013 (spec TEST-002): entry '$_e' has non-numeric leading bytes field '$lead'"
+      ok=0
+    fi
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-013 (spec TEST-002) ledger entries >=3, numeric leading bytes field" \
+    || log_fail "TEST-013 (spec TEST-002) ledger entry shape"
+}
+
+# TEST-014 (spec TEST-003, SPEC-0059 Spec-AC-02) — synthetic breach input
+# prints a paste-ready JUSTIFIED_ADDITIONS+=( "..." ) line with the correct
+# computed deficit, WITHOUT touching the real ledger.
+test_014_breach_suggestion_deficit() {
+  if ! declare -f justified_growth_breach_suggestion >/dev/null 2>&1; then
+    log_fail "TEST-014 (spec TEST-003) justified_growth_breach_suggestion() does not exist yet"
+    return
+  fi
+  local out expected_deficit=1234
+  local synth_required=$REQUIRED_REDUCTION_BYTES
+  local synth_reduction=$(( synth_required - expected_deficit ))
+  out=$(justified_growth_breach_suggestion "$synth_reduction" "$synth_required")
+  case "$out" in
+    *'JUSTIFIED_ADDITIONS+=( "'"$expected_deficit"' '*)
+      log_pass "TEST-014 (spec TEST-003) synthetic breach -> deficit=$expected_deficit paste-ready entry" ;;
+    *)
+      log_info "TEST-014 (spec TEST-003): got '$out' (want deficit=$expected_deficit paste-ready entry)"
+      log_fail "TEST-014 (spec TEST-003) breach suggestion deficit" ;;
+  esac
+}
+
+# TEST-015 (spec TEST-004, SPEC-0059 Spec-AC-02) — synthetic over-padded
+# credit is still detected as headroom > HEADROOM_CAP (cap guard still
+# bites), driven through the SAME formula TEST-010 uses, without touching
+# the real corpus or ledger.
+test_015_headroom_cap_still_bites() {
+  if ! declare -f compute_reduction_headroom >/dev/null 2>&1; then
+    log_fail "TEST-015 (spec TEST-004) compute_reduction_headroom() does not exist yet"
+    return
+  fi
+  local reduction headroom
+  local synth_baseline=$REQUIRED_REDUCTION_BYTES
+  local synth_credit=$(( HEADROOM_CAP + 1 ))
+  read -r reduction headroom <<<"$(compute_reduction_headroom "$synth_baseline" 0 0 "$synth_credit" "$REQUIRED_REDUCTION_BYTES")"
+  if [[ "$headroom" -gt "$HEADROOM_CAP" ]]; then
+    log_pass "TEST-015 (spec TEST-004) over-padded synthetic credit ($synth_credit) -> headroom($headroom) > CAP($HEADROOM_CAP), cap guard still bites"
+  else
+    log_info "TEST-015 (spec TEST-004): synthetic headroom=$headroom not > cap=$HEADROOM_CAP (credit=$synth_credit)"
+    log_fail "TEST-015 (spec TEST-004) cap-bite guard"
+  fi
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -466,6 +563,10 @@ main() {
   test_009_digest_contract
   test_010_audit_and_reduction
   test_011_tick_wrappers
+  test_012_growth_sum_matches_ledger
+  test_013_ledger_entry_shape
+  test_014_breach_suggestion_deficit
+  test_015_headroom_cap_still_bites
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then
