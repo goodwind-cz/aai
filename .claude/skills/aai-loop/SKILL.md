@@ -1,6 +1,6 @@
 ---
 name: aai-loop
-description: Use when starting or resuming the full autonomous AAI development loop. Runs Planning → Implementation → Validation → Remediation cycles automatically until PASS or human input is required.
+description: Use when starting or resuming the full autonomous AAI development loop. Runs Planning → Implementation → Validation → Remediation cycles automatically until PASS or human input is required. Ceremony-aware: a spec's ceremony_level 0/1 routes small scopes through a lighter lane (implementation → declared-scope validation → one review), while 2/3 (and any absent/invalid level) run the full pipeline.
 ---
 
 <SUBAGENT-STOP>

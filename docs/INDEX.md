@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-19T02:09:01.435Z
+Generated: 2026-07-19T04:42:35.517Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (130)
+## Done (131)
 
 | ID | Type | Path |
 |---|---|---|
@@ -59,6 +59,7 @@ _None._
 | CHANGE-0038 | issues | docs/issues/CHANGE-0038-flush-close-event-alignment.md |
 | CHANGE-0039 | issues | docs/issues/CHANGE-0039-worktree-telemetry-reconciliation.md |
 | CHANGE-0040 | issues | docs/issues/CHANGE-0040-prompt-diet-itemized-growth-ledger.md |
+| CHANGE-0041 | issues | docs/issues/CHANGE-0041-user-docs-workflow-hardening.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |

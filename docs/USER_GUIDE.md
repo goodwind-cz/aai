@@ -280,6 +280,56 @@ AAI uses two different classes of documentation:
 - RFCs → RFC doc
 - Releases → Release doc
 
+#### Secrets preflight (`secrets-preflight.mjs`)
+**What:** An intake-time helper (SPEC-0045) that confirms a locally referenced
+secret is present and non-empty **without ever reading, printing, logging, or
+persisting the value**. It is a read-only existence classifier — never a
+secrets manager. Use it when an intake or setup step needs to know "is this
+credential configured?" before proceeding, and you do not want the value to
+touch the transcript.
+
+**Grammar:**
+```bash
+# Environment variables (one --env per check; repeatable)
+node .aai/scripts/secrets-preflight.mjs --env OPENAI_API_KEY --env STRIPE_SECRET
+
+# A config-file key (dotted path). Each --key binds to the most recent --file.
+node .aai/scripts/secrets-preflight.mjs --file config.json --key auth.token
+node .aai/scripts/secrets-preflight.mjs --file .env.local --key DATABASE_URL
+
+# Mixed, multiple files:
+node .aai/scripts/secrets-preflight.mjs \
+  --env GITHUB_TOKEN \
+  --file config.json --key api.key --key api.secret \
+  --file .env --key SESSION_SECRET
+```
+Supported file formats: `.json` (parsed, dotted-path walk) and `.env` / `.env.*`
+(quoting-aware line scan). Any other extension — including `.yaml`/`.yml` — is a
+usage error (stdlib-only, no YAML parser).
+
+**Output:** exactly one line per requested check, in request order:
+```
+env:OPENAI_API_KEY exists
+env:STRIPE_SECRET missing
+file:config.json#auth.token empty
+```
+The status is always one of the closed set **`exists` | `empty` | `missing`**
+(env unset → `missing`; present but zero-length / JSON `null` → `empty`;
+otherwise `exists`). An unreadable or unparseable file classifies every key
+against it as `missing` with a fixed `note: <path>: unreadable/parse failed
+(content not shown)` on stderr.
+
+**Never-echo guarantee:** references (env names, file paths, keys) are echoed
+because they are not secret; the underlying **value is never interpolated into
+any output, log line, or exception** — values are only tested for absence and
+`.length === 0`. Even an internal error prints only a fixed
+`secrets-preflight: internal error (details suppressed)` string.
+
+**Exit contract (informational, non-blocking):** `0` every check classified
+(`missing` is a fact, not an error); `2` usage error (no checks, a `--key` with
+no preceding `--file`, an unknown flag, or an unsupported format); `1`
+unexpected internal error.
+
 ---
 
 ### 3. Development Workflows
@@ -351,6 +401,40 @@ AAI uses two different classes of documentation:
 # Dispatches roles (Planning → Implementation → Validation)
 # Stops on completion or human input needed
 ```
+
+#### Ceremony-aware dispatch — the lightweight lane (`ceremony_level`)
+
+**What:** Not every scope needs the full pipeline. A spec can declare a
+`ceremony_level` (RFC-0009 / SPEC-0041) in its frontmatter, and the loop's
+deterministic dispatcher (`.aai/scripts/orchestration-dispatch.mjs`, `deriveLane`)
+routes small scopes through a leaner sequence.
+
+**Declaring it — one frontmatter key in the spec:**
+```yaml
+---
+id: spec-my-change
+type: spec
+ceremony_level: 1     # 0 | 1 | 2 | 3
+---
+```
+
+**What each level means:**
+- **L0 / L1 — the lightweight lane.** Small, single-surface, reversible scopes.
+  The loop runs a leaner pipeline: Implementation → **declared-scope** Validation
+  (only the scope the spec names, not a full-suite sweep) → **one** review. L0 is
+  the leanest (the tech-note can live in the CHANGE doc; no canonical AC table
+  required); L1 is satisfied by a lean AC table (ids + status). Both require a
+  `Ceremony justification: ...` body line so the level is a deliberate choice,
+  not an accident.
+- **L2 / L3 — the full pipeline.** The default. Multi-surface work, engine or
+  protected-path changes: full-suite Validation, independent validator, the
+  complete review + close ceremony.
+
+**Fail-closed to full:** an **absent, `null`, garbage, or out-of-range** level
+resolves to **L2 (full)** — the lean lane is only ever taken on an explicit,
+valid `0` or `1`. `spec-lint` also flags an invalid value at freeze
+(`ceremony-level-invalid`), and the close gate reports a schema-invalid level.
+Legacy specs with no `ceremony_level` behave exactly as before (implicit L2).
 
 #### Parallel multi-agent orchestration
 
@@ -444,6 +528,64 @@ hard merge boundary. It **never merges**; merging is an operator-only action.
   own review
 - Force-push or history rewrites of a pushed branch
 
+#### Deterministic close ceremony (`close-work-item.mjs`)
+
+**What:** Closing a work item — flipping `status` to `done`, stamping the PR and
+commit into `links`, emitting the close event set, and confirming the audit
+agrees — used to be hand-improvised prose that agents got subtly wrong (missed
+flips, wrong event ref form, un-emitted `ac_evidence`). `.aai/scripts/close-work-item.mjs`
+(CHANGE-0037 / SPEC-0053) mechanizes it so a close is **correct by construction**.
+The loop's Validation and PR ceremonies now run it automatically — **operators no
+longer hand-edit frontmatter or hand-emit close events.**
+
+**What it does, in one transaction:**
+1. **Resolves** each doc by its frontmatter slug `id` (the same two-pass scan the
+   docs-audit gate uses). Zero or more-than-one match → **fail-closed** usage
+   error (exit 2) naming every candidate; it never guesses on an ambiguous or
+   duplicate id.
+2. **Flips status** off the doc's *actual* on-disk value: `draft` /
+   `implementing` / `accepted` → `done`. `done` is a no-op (idempotent); any
+   other terminal status (`deferred` / `rejected` / `superseded`) is refused —
+   it never silently reopens or repurposes a doc.
+3. **Stamps** `links.pr` and `links.commits` (append-if-absent, deduped).
+4. **Emits the complete close event set** via `append-event.mjs`, each keyed on
+   the doc's **slug `id`** (never the numbered file id — docs-audit matches
+   identity on `fm.id`): `doc_lifecycle` (only on a real transition),
+   `work_item_closed`, and `ac_evidence --commit <sha>` (for both the primary
+   doc and a paired `--spec`). Status-flip is written first, so a still-open doc
+   can never carry a `work_item_closed` event mid-close.
+5. **Regenerates `docs/INDEX.md` and self-verifies against the REAL docs-audit
+   engine** — every closed ref must classify `tracked-done` / aligned with no
+   `missing-close-telemetry`.
+6. **Rolls back on any drift:** if the self-verify finds a problem, it restores
+   every mutated doc byte-for-byte, truncates `EVENTS.jsonl` back to its
+   snapshot length, regenerates the INDEX, and exits non-zero. No half-closed
+   doc is ever left on disk. It is idempotent — re-running on an already-closed
+   item does nothing.
+
+**Grammar:**
+```bash
+node .aai/scripts/close-work-item.mjs \
+  --ref <slug> --pr <N> --commit <sha> \
+  [--spec <spec-slug>] [--review <pass|waived|none>] [--dry-run]
+```
+- `--ref <slug>` — the primary work-item doc's frontmatter `id` (required).
+- `--pr <N>` — PR number stamped into `links.pr` (integer, required).
+- `--commit <sha>` — delivery commit for `links.commits` and the `ac_evidence`
+  event (required).
+- `--spec <spec-slug>` — optionally close a paired spec in the **same**
+  transaction (both resolve up front; either failure aborts before any write;
+  a self-verify failure rolls **both** back).
+- `--review <pass|waived|none>` — the `code_review` token for `work_item_closed`
+  (default `none`; validation is always `pass` — this ceremony only runs after a
+  PASS).
+- `--dry-run` — print the planned mutation and event set as JSON, write nothing.
+
+**Exit contract:** `0` closed (or nothing to do); `1` self-verify failed after a
+real close (rolled back) or an internal error; `2` usage error — bad flag, an
+unresolvable / ambiguous / duplicate id, or a non-done-terminal status (nothing
+written).
+
 ---
 
 ### 4. Quality & Validation
@@ -503,6 +645,38 @@ hard merge boundary. It **never merges**; merging is an operator-only action.
 **Finding severity:**
 - BLOCKING: must fix before merge (fails the verdict)
 - NON-BLOCKING: needs a disposition (remediate or promote — warnings policy)
+
+#### Quality gates & optional advisory skills
+
+Two **gates** (apply a discipline before you claim something is done) and three
+**advisory** skills (score/clean/clarify — advisory only, they never block):
+
+- **`/aai-verify`** — the verification-before-completion gate. Before ANY
+  completion claim (Implementation hand-off, TDD GREEN, Validation verdict),
+  apply IDENTIFY → RUN → READ → VERIFY → then CLAIM. No "done" without having
+  run the thing and read the result.
+- **`/aai-debug`** — the systematic-debugging root-cause gate. For any failing
+  test, bug, or validation finding, apply READ → REPRODUCE → ISOLATE →
+  FIX-AT-CAUSE. No fix without an identified root cause (no symptom patches).
+- **`/aai-scout`** *(advisory)* — optional readiness score before implementation:
+  0–100 over five dimensions (scope clarity, pattern familiarity, dependency
+  awareness, edge cases, test strategy) with a GO/HOLD advisory at 70. Never blocks.
+- **`/aai-deslop`** *(advisory)* — optional, after implementation and before code
+  review: remove AI slop from the CURRENT DIFF only (obvious comments, defensive
+  try/catch on trusted paths, premature abstraction, unrequested features,
+  annotations on untouched code). Behavior must stay unchanged (suite still passes).
+- **`/aai-interrogate`** *(advisory)* — optional at spec freeze (or when a plan
+  feels underdetermined): walk open decisions one question at a time, each with a
+  recommended answer; codebase-resolvable ones are inferred silently, and every
+  decision is appended to `docs/ai/decisions.jsonl`.
+
+```bash
+/aai-verify        # gate a completion claim with evidence
+/aai-debug         # root-cause a failing test before fixing
+/aai-scout         # readiness 0-100, GO/HOLD at 70 (advisory)
+/aai-deslop        # strip AI slop from the current diff (advisory)
+/aai-interrogate   # resolve open spec decisions one at a time (advisory)
+```
 
 #### `/aai-docs-audit`
 **What:** Docs hygiene and drift detection (RFC-0002). Classifies every
@@ -570,6 +744,15 @@ again used by the pre-commit hook against staged content.
 - near-miss AC table WARNING — an almost-canonical table (e.g.
   `Evidence (TEST)` columns, non-canonical headings) is called out explicitly
   instead of being silently misread
+- `duplicate-doc-id` — two (or more) scanned docs share the **same frontmatter
+  `id`** (SPEC-0057). Because AAI matches doc identity on `fm.id`, colliding ids
+  let events, close telemetry, and audit verdicts land on the wrong doc, so the
+  audit surfaces every collision (id + the paths that share it). This is a
+  **verdict-only** finding: it moves the digest verdict to **NEEDS-TRIAGE** but
+  the **`--check` / CI exit stays 0** (it is not a hard fail). **Remediate** by
+  renaming the offending spec's id to the collision-proof `spec-<slug>` form
+  (see the spec-lint note below) and backfilling any telemetry that was written
+  under the shared id.
 
 **Reading the verdicts:**
 - `tracked-done` — doc says done and evidence agrees (implemented)
@@ -712,6 +895,44 @@ Warns when a session-artifact filename (`docs/ai/reviews/`,
 `TYPE-NNN(N)` token with no corresponding numbered doc yet — a nudge to keep
 using the slug (`CHANGE-036-review.md`) instead of baking in a number before
 it is confirmed reserved.
+
+---
+
+#### Spec structure lint (`spec-lint.mjs`) — `spec-id-shape` & the `spec-` id convention
+
+**What:** `.aai/scripts/spec-lint.mjs` is a deterministic, **report-only**
+structural lint for `docs/specs/**` (AC-id uniqueness/sequence, status tokens,
+Test-Plan → Spec-AC mapping, `ceremony_level` enum, and more). It runs as an
+advisory line at spec freeze and in Validation — it never writes files or hard-
+gates.
+
+```bash
+node .aai/scripts/spec-lint.mjs                 # all docs/specs/**/*.md (type: spec)
+node .aai/scripts/spec-lint.mjs --path <file>   # lint exactly one file
+node .aai/scripts/spec-lint.mjs --json          # machine-readable
+# Exit: 0 clean | 1 findings | 2 usage error
+```
+
+**The `spec-id-shape` finding + the `spec-` id convention (SPEC-0058):** a
+spec's frontmatter `id` must be **`spec-<change-slug>`** (or the legacy numbered
+`SPEC-NNNN` form) — **never a bare slug**. A bare slug collides with the id of
+the change/issue the spec came from (both would be, e.g., `my-feature`), which
+is exactly the `duplicate-doc-id` collision the audit flags above. `spec-lint`
+catches it at freeze:
+```yaml
+# spec frontmatter — WRONG (bare slug, collides with its change id):
+id: docs-audit-duplicate-doc-id
+# RIGHT (spec- prefixed, cannot collide):
+id: spec-docs-audit-duplicate-doc-id
+```
+A `type: spec` doc whose `id` is neither `SPEC-NNNN` nor `spec-`-prefixed
+produces:
+```
+[spec-id-shape] spec id "docs-audit-duplicate-doc-id" is a bare slug
+  (neither the numbered SPEC-NNNN form nor a spec-<slug> id) — rename it to
+  spec-<change-slug> so it cannot collide with its change/issue id
+```
+(An empty/missing id is docs-audit's boundary, not this check's.)
 
 ---
 
@@ -1674,6 +1895,6 @@ extend archived analyses.
 
 ---
 
-**Last Updated:** 2026-07-06
-**Version:** 1.4
+**Last Updated:** 2026-07-19
+**Version:** 1.5
 **Status:** Current
