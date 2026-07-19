@@ -2,10 +2,12 @@
 id: user-docs-workflow-hardening
 type: change
 number: 41
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 114
+  commits:
+    - 0d542b5
 ---
 
 # Change — user-facing docs for the workflow-hardening + collision-guard changes
