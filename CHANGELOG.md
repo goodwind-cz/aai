@@ -9,6 +9,32 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — docs: user-facing docs for the workflow-hardening + collision-guard changes (CHANGE-0041)
+
+- `docs/USER_GUIDE.md` now documents five previously-undocumented user-visible
+  features shipped this session, each described against the actual shipped
+  behavior:
+  - **Deterministic close ceremony** (`close-work-item.mjs`, CHANGE-0037 /
+    SPEC-0053) — resolve-by-slug, status flip, `links` + close-event stamping,
+    self-verify against the real docs-audit, byte-exact rollback on drift,
+    idempotent, fail-closed on ambiguous/duplicate id; the loop's Validation/PR
+    ceremonies run it automatically (no more hand-closing).
+  - **Lightweight lane** (`ceremony_level` 0/1, SPEC-0041) — how to declare the
+    level and what L0–L3 mean; L0/L1 run a leaner pipeline, L2/L3 (and any
+    absent/invalid level, fail-closed) run the full one.
+  - **docs-audit `duplicate-doc-id`** (SPEC-0057) — two docs sharing one
+    frontmatter id; verdict-only NEEDS-TRIAGE, `--check`/CI exit unchanged; how
+    to remediate.
+  - **spec-lint `spec-id-shape`** + the **`spec-<slug>` id convention**
+    (SPEC-0058) — a spec id must be `spec-<change-slug>` (or legacy `SPEC-NNNN`),
+    never a bare slug that collides with its change.
+  - **secrets-preflight** (`secrets-preflight.mjs`, SPEC-0045) — the
+    `--env` / `--file`+`--key` grammar, the `exists|empty|missing` output, and
+    the never-echo guarantee.
+- Updated the affected skill descriptions: `aai-pr` (close step), `aai-docs-audit`
+  (duplicate-doc-id), `aai-intake` (secrets preflight), `aai-loop` (lightweight
+  lane). Docs-only change — no code/behavior change.
+
 ## [unreleased] — feat: delta-spec lifecycle — close-time delta merge + provenance drift (CHANGE-0026 / SPEC-0038)
 
 - Final stage of the RFC-0011 delta-spec lifecycle. New `delta-merge.mjs` applies

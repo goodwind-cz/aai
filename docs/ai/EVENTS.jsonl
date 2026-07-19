@@ -907,3 +907,5 @@
 {"v":1,"ts":"2026-07-18T22:20:29.136Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-prompt-diet-itemized-growth-ledger","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-18T22:20:29.171Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-prompt-diet-itemized-growth-ledger","payload":{"commit":"d225157"}}
 {"v":1,"ts":"2026-07-18T22:20:43.561Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":130,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-19T02:09:52.248Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":130,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-19T02:49:09.559Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"user-docs-workflow-hardening","payload":{"from":"none","to":"draft"}}
