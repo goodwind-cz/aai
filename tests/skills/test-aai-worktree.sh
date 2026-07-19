@@ -229,7 +229,14 @@ test_worktree_isolation() {
   git commit -q -m "Add login feature"
 
   # Verify commit is in feature branch
-  if ! git log --oneline | grep -q "Add login feature"; then
+  # Capture output first, then grep the variable — grepping a live
+  # `git log --oneline | grep -q ...` pipe under `set -o pipefail` lets grep's
+  # early exit (on first match) send SIGPIPE to git log, which pipefail then
+  # propagates as a false failure. Capturing avoids any producer ever
+  # receiving SIGPIPE from this grep.
+  local feature_log
+  feature_log="$(git log --oneline)"
+  if ! grep -q "Add login feature" <<<"$feature_log"; then
     log_fail "Commit not found in feature branch"
   fi
 
@@ -241,8 +248,10 @@ test_worktree_isolation() {
     log_fail "File from feature branch leaked to main"
   fi
 
-  # Verify commit is not in main
-  if git log --oneline | grep -q "Add login feature"; then
+  # Verify commit is not in main (same captured-variable pattern as above)
+  local main_log
+  main_log="$(git log --oneline)"
+  if grep -q "Add login feature" <<<"$main_log"; then
     log_fail "Commit from feature branch leaked to main"
   fi
 

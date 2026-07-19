@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-19T09:08:08.728Z
+Generated: 2026-07-19T11:29:13.045Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -153,9 +153,12 @@ _None._
 | SPEC-0060 | specs | docs/specs/SPEC-0060-spec-prompt-diet-floor-credit-drift.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0042 | issues | docs/issues/CHANGE-0042-test-infra-reds-and-ci-gate.md |
+| SPEC-0061 | specs | docs/specs/SPEC-0061-spec-test-infra-reds-and-ci-gate.md |
 
 ## Deferred (whole-doc) (0)
 

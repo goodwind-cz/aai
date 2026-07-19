@@ -9,6 +9,29 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: three hidden test-infra reds + gate the skill suite in CI (CHANGE-0042 / SPEC-0061)
+
+- A serialized full-suite run (honoring each suite's shebang, not forced `sh`)
+  surfaced three real reds on `main` that had accumulated invisibly because the
+  skill test suites were not run in CI:
+  - **`test-aai-layer-profiles`** — `.aai/system/PROFILES.yaml` did not classify
+    six vendored files (`close-work-item.mjs`, `reconcile-telemetry.mjs`,
+    `secrets-preflight.mjs`, `tdd-evidence-check.mjs`, `aai-reap-tests.ps1`,
+    `aai-run-tests.ps1`); all six added to `core`.
+  - **`test-aai-worktree`** — a `set -o pipefail` + `git log --oneline | grep -q`
+    SIGPIPE false-failure (grep -q closes the pipe on the newest-commit match,
+    `git log` gets SIGPIPE 141, pipefail propagates it, `if !` inverts to a false
+    FAIL). Fixed by capturing `git log` to a variable first; both isolation
+    assertions stay meaningful.
+  - **`test-self-hosting-smoke`** — `aai-sync.sh` (and its companion
+    `validate-skills.sh`, both invoked directly by the smoke) were committed
+    non-executable (100644); restored to 100755.
+- **Structural prevention:** added `.github/workflows/skill-suite.yml` — runs the
+  skill suite on push/PR honoring each suite's shebang and failing the job on any
+  red suite, with the slow self-hosting smoke in a separate timeboxed job. This
+  closes the CI gap that let these reds (and the earlier verify-gate red) ship
+  unseen.
+
 ## [unreleased] — fix: unify the two prompt-diet byte floors into a shared ledger (ISSUE-0017 / SPEC-0060)
 
 - Fixed a real red on `main`: `tests/skills/test-aai-verify-gate.sh` TEST-006
