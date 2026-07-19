@@ -79,7 +79,10 @@ check_deps() {
   [[ -f "$VALIDATION" ]] || log_fail "VALIDATION.prompt.md not found: $VALIDATION"
   [[ -f "$STATE_SCRIPT" ]] || log_fail "state CLI not found: $STATE_SCRIPT"
   [[ -f "$DOCS_AUDIT" ]] || log_fail "docs-audit.mjs not found: $DOCS_AUDIT"
-  [[ -f "$LEGACY_RED_LOG" ]] || log_fail "legacy fixture log not found: $LEGACY_RED_LOG"
+  # LEGACY_RED_LOG is NOT checked here: it is a gitignored per-dev runtime
+  # artifact (docs/ai/tdd/**), absent on a fresh checkout. ensure_legacy_red_log
+  # (called from main after setup_fixture) self-seeds a scratch stand-in when
+  # the real one is missing, rather than hard-failing on its absence.
   [[ -f "$TDD_REGRESSION_SUITE" ]] || log_fail "regression suite not found: $TDD_REGRESSION_SUITE"
   [[ -f "$RUN_TESTS_SH" ]] || log_fail "aai-run-tests.sh not found: $RUN_TESTS_SH"
   # NOTE: CHECK_SCRIPT is intentionally NOT required here — TEST-001/002 RED
@@ -90,6 +93,33 @@ check_deps() {
 
 setup_fixture() {
   TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-tdd-evidence-test.XXXXXX")"
+}
+
+# RC1 (Spec-AC-02): docs/ai/tdd/dispatch-retarget-red.log is gitignored
+# per-dev runtime evidence, so it does not exist on a fresh checkout (e.g.
+# Linux CI). Self-seed a representative legacy-format (pre-RED_CLASS) fixture
+# under $TEST_DIR when the real file is absent, and repoint LEGACY_RED_LOG at
+# it — cleaned up automatically by the existing TEST_DIR trap. When the real
+# file IS present (a developer's local checkout), it is used unchanged
+# (non-regression; TEST-005's "probed explicitly, no repo-wide sweep" intent
+# is unaffected either way since the path is always passed explicitly).
+ensure_legacy_red_log() {
+  if [[ ! -f "$LEGACY_RED_LOG" ]]; then
+    LEGACY_RED_LOG="$TEST_DIR/self-seeded-dispatch-retarget-red.log"
+    cat > "$LEGACY_RED_LOG" <<'EOF'
+=== RED-proof run: self-seeded legacy fixture (pre-RED_CLASS format) ===
+Pre-change tree. Expected: assertion FAIL below (no RED_CLASS header line).
+
+### test_legacy_seed ###
+INFO: Checking dependencies...
+PASS: Dependencies checked
+FAIL: legacy assertion failed: AssertionError [ERR_ASSERTION]
+    at file:///self-seeded-legacy-fixture.mjs:1:1
+Node.js v22.0.0
+exit_code: 1
+EOF
+    log_info "docs/ai/tdd/dispatch-retarget-red.log absent (fresh checkout) — self-seeded a legacy-format stand-in at $LEGACY_RED_LOG"
+  fi
 }
 
 run_check() {
@@ -333,6 +363,7 @@ main() {
   echo "=== $TEST_NAME ==="
   check_deps
   setup_fixture
+  ensure_legacy_red_log
 
   test_001_contract_matrix
   test_002_realistic_fixture_pair

@@ -389,7 +389,7 @@ test_011_tick_wrappers() {
   # markers, and confirm the SAME comparison the real wrappers are checked
   # against correctly rejects it on line count alone.
   local fixture i
-  fixture="$(mktemp -t aai-wrapper-ceiling-fixture)"
+  fixture="$(mktemp "${TMPDIR:-/tmp}/aai-wrapper-ceiling-fixture.XXXXXX")"
   {
     echo "# synthetic oversize wrapper fixture (DEBT-0002 TEST-011 proof)"
     echo "Run .aai/scripts/orchestration-dispatch.mjs"

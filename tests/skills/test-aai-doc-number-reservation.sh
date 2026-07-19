@@ -89,7 +89,7 @@ mk_repo() {
     cp "$PROJECT_ROOT/$f" "$d/$f" 2>/dev/null || true
   done
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
-  (cd "$d" && git init -q \
+  (cd "$d" && git init -q -b main \
      && git config user.email test@example.com \
      && git config user.name "AAI Test")
   printf 'docs/INDEX.audit.md\n' > "$d/.gitignore"
