@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-19T11:30:22.635Z
+Generated: 2026-07-19T15:28:08.961Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -155,9 +155,12 @@ _None._
 | SPEC-0061 | specs | docs/specs/SPEC-0061-spec-test-infra-reds-and-ci-gate.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0043 | issues | docs/issues/CHANGE-0043-skill-suite-linux-ci-portability.md |
+| SPEC-0062 | specs | docs/specs/SPEC-0062-spec-skill-suite-linux-ci-portability.md |
 
 ## Deferred (whole-doc) (0)
 
