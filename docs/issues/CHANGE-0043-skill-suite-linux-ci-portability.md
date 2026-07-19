@@ -2,10 +2,12 @@
 id: skill-suite-linux-ci-portability
 number: 43
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 116
+  commits:
+    - 1723088986d10ebcff1ab10b42d81354cb3b586e
 ---
 
 # Make the skill test suites pass on the Linux CI runner (Ubuntu)

@@ -2,7 +2,7 @@
 id: spec-skill-suite-linux-ci-portability
 type: spec
 number: 62
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: skill-suite-linux-ci-portability
@@ -10,7 +10,8 @@ links:
   rfc: null
   pr:
     - 116
-  commits: []
+  commits:
+    - 1723088986d10ebcff1ab10b42d81354cb3b586e
 ---
 
 # Spec — Make the skill test suites pass on the Linux CI runner

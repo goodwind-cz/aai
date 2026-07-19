@@ -925,3 +925,9 @@
 {"v":1,"ts":"2026-07-19T11:30:01.522Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-infra-reds-and-ci-gate","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-19T11:30:01.558Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-test-infra-reds-and-ci-gate","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-19T11:30:01.594Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-test-infra-reds-and-ci-gate","payload":{"commit":"afc688df6d9d8f0ebb217f7b7ce9b26ab4a9db09"}}
+{"v":1,"ts":"2026-07-19T15:28:14.624Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"skill-suite-linux-ci-portability","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-19T15:28:14.662Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"skill-suite-linux-ci-portability","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-19T15:28:14.698Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"skill-suite-linux-ci-portability","payload":{"commit":"1723088986d10ebcff1ab10b42d81354cb3b586e"}}
+{"v":1,"ts":"2026-07-19T15:28:14.736Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-skill-suite-linux-ci-portability","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-19T15:28:14.770Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-skill-suite-linux-ci-portability","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-19T15:28:14.805Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-skill-suite-linux-ci-portability","payload":{"commit":"1723088986d10ebcff1ab10b42d81354cb3b586e"}}

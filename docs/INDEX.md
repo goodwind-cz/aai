@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-19T15:28:08.961Z
+Generated: 2026-07-19T15:28:33.285Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (135)
+## Done (137)
 
 | ID | Type | Path |
 |---|---|---|
@@ -61,6 +61,7 @@ _None._
 | CHANGE-0040 | issues | docs/issues/CHANGE-0040-prompt-diet-itemized-growth-ledger.md |
 | CHANGE-0041 | issues | docs/issues/CHANGE-0041-user-docs-workflow-hardening.md |
 | CHANGE-0042 | issues | docs/issues/CHANGE-0042-test-infra-reds-and-ci-gate.md |
+| CHANGE-0043 | issues | docs/issues/CHANGE-0043-skill-suite-linux-ci-portability.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -153,14 +154,12 @@ _None._
 | SPEC-0059 | specs | docs/specs/SPEC-0059-spec-prompt-diet-itemized-growth-ledger.md |
 | SPEC-0060 | specs | docs/specs/SPEC-0060-spec-prompt-diet-floor-credit-drift.md |
 | SPEC-0061 | specs | docs/specs/SPEC-0061-spec-test-infra-reds-and-ci-gate.md |
+| SPEC-0062 | specs | docs/specs/SPEC-0062-spec-skill-suite-linux-ci-portability.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0043 | issues | docs/issues/CHANGE-0043-skill-suite-linux-ci-portability.md |
-| SPEC-0062 | specs | docs/specs/SPEC-0062-spec-skill-suite-linux-ci-portability.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
