@@ -9,6 +9,26 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: unify the two prompt-diet byte floors into a shared ledger (ISSUE-0017 / SPEC-0060)
+
+- Fixed a real red on `main`: `tests/skills/test-aai-verify-gate.sh` TEST-006
+  failed (net reduction 20455 < 28672) because it applied the same
+  `BASELINE_PROMPT_BYTES`/`REQUIRED_REDUCTION_BYTES` as
+  `tests/skills/test-aai-prompt-diet.sh` TEST-010 but **without** the
+  `JUSTIFIED_GROWTH_BYTES` credit (=9239) that TEST-010 gained during this
+  session's ledger true-ups (CHANGE-0038/0039/0040) — the credited prompt
+  growth double-counted as a floor violation in the second copy.
+- Extracted the diet-floor constants, the `JUSTIFIED_ADDITIONS` ledger (3
+  entries, sum 9239, verbatim), and the two pure helpers into a single
+  sourceable `tests/skills/lib/prompt-diet-ledger.sh`; both suites now `source`
+  it, so the two floors can never drift apart again — the structural fix for the
+  recurring "two copies of one gate, only one maintained" pattern
+  (docs/knowledge/LEARNED.md, DEBT-0002).
+- `test-aai-verify-gate.sh` TEST-006 now uses the credited formula
+  (`29694 >= 28672`, headroom 1022/2048); `test-aai-prompt-diet.sh`
+  TEST-010/012/013 stay green (ledger sum unchanged); the third consumer
+  `test-aai-ceremony-levels.sh` stays green. Test-infra only; no runtime change.
+
 ## [unreleased] — docs: user-facing docs for the workflow-hardening + collision-guard changes (CHANGE-0041)
 
 - `docs/USER_GUIDE.md` now documents five previously-undocumented user-visible

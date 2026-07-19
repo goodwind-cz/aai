@@ -23,10 +23,13 @@ cd "$PROJECT_ROOT"
 
 GATE_FILE=".aai/SKILL_VERIFY.prompt.md"
 
-# Byte baseline shared with tests/skills/test-aai-prompt-diet.sh TEST-010
-# (same formula, re-measured here per spec D2/TEST-006 — Seam S1).
-BASELINE_PROMPT_BYTES=357457
-REQUIRED_REDUCTION_BYTES=28672   # 28 KB
+# Diet-floor constants, JUSTIFIED_ADDITIONS ledger, and the two pure helpers
+# are single-sourced from the shared library (prompt-diet-floor-credit-drift /
+# SPEC-DRAFT-spec-prompt-diet-floor-credit-drift.md) — the SAME source
+# tests/skills/test-aai-prompt-diet.sh TEST-010 reads, so the two floors can
+# no longer drift (Seam S1). Sourced at top level, after SCRIPT_DIR is
+# computed, so the absolute path resolves regardless of the later `cd`.
+source "$SCRIPT_DIR/lib/prompt-diet-ledger.sh"
 
 FAILED=0
 
@@ -126,18 +129,23 @@ test_005_wiring_pointers() {
     || log_fail "TEST-005 wiring pointers"
 }
 
-# TEST-006 — prompt-diet byte formula re-measured post-change (Seam S1 survival invariant)
+# TEST-006 — prompt-diet byte formula re-measured post-change (Seam S1 survival invariant).
+# Credited formula (identical to prompt-diet TEST-010, sourced not re-typed):
+# reduction = BASELINE - after - extra + JUSTIFIED_GROWTH_BYTES. This is a
+# LOWER-bound floor check only — the HEADROOM_CAP upper anti-bloat guard stays
+# prompt-diet TEST-010's sole responsibility; duplicating it here would
+# re-create the very "two copies of one gate" drift this suite now avoids.
 test_006_prompt_diet_floor() {
-  local after extra reduction
+  local after extra reduction headroom
   after=$(cat .aai/*.prompt.md 2>/dev/null | wc -c | tr -d ' ')
   extra=0
   [[ -f .aai/INTAKE_COMMON.md ]] && extra=$((extra + $(wc -c < .aai/INTAKE_COMMON.md)))
   [[ -f .aai/STATE_FALLBACK.md ]] && extra=$((extra + $(wc -c < .aai/STATE_FALLBACK.md)))
-  reduction=$((BASELINE_PROMPT_BYTES - after - extra))
-  if [[ "$reduction" -ge "$REQUIRED_REDUCTION_BYTES" ]]; then
-    log_pass "TEST-006 prompt-diet floor holds (net reduction $reduction bytes >= $REQUIRED_REDUCTION_BYTES)"
+  read -r reduction headroom <<<"$(compute_reduction_headroom "$BASELINE_PROMPT_BYTES" "$after" "$extra" "$JUSTIFIED_GROWTH_BYTES" "$REQUIRED_REDUCTION_BYTES")"
+  if [[ "$headroom" -ge 0 ]]; then
+    log_pass "TEST-006 prompt-diet floor holds (net reduction $reduction bytes >= $REQUIRED_REDUCTION_BYTES, credit=$JUSTIFIED_GROWTH_BYTES)"
   else
-    log_fail "TEST-006 prompt-diet floor broken (net reduction $reduction bytes < $REQUIRED_REDUCTION_BYTES; after=$after, new files=$extra)"
+    log_fail "TEST-006 prompt-diet floor broken (net reduction $reduction bytes < $REQUIRED_REDUCTION_BYTES; after=$after, new files=$extra, credit=$JUSTIFIED_GROWTH_BYTES)"
   fi
 }
 
