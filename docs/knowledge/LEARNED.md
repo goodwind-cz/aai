@@ -96,3 +96,48 @@
   deletion that reused a retired REQ id. For deterministic writers, a validator
   that executes adversarial multi-run scenarios beats static review. Keep both.
   (Source: SPEC-0038 validation, PR #88.)
+
+## Session 2026-07-17/19 (workflow-hardening arc + spec-id collision cascade)
+
+- Spec DRAFT slugs MUST be `spec-`-prefixed (`id: spec-<change-slug>`). A spec
+  named with a bare-slug id collides with its change/issue's id; the audit's
+  `byId` map is last-writer-wins, so one doc silently overwrites the other and
+  the audit still reports CLEAN. Four collisions shipped this session
+  (SPEC-0048/0049/0051/0056) before being caught. Defence-in-depth now exists
+  at three layers: lint at freeze (`spec-lint` `spec-id-shape`, SPEC-0058),
+  detect at audit (`docs-audit` duplicate-doc-id, SPEC-0057), fail-closed at
+  close (`close-work-item.mjs`). (Source: ISSUE-0015 remediation; SPEC-0057/0058.)
+- Mechanize any recurring agent-hand-performed governance ceremony that has
+  correctness rules. The close ceremony (status flip + links + the exact
+  slug-ref event set + re-audit) was ~10 manual steps and tripped
+  false-open/false-done 3× before `close-work-item.mjs` made it
+  correct-by-construction (snapshot -> apply -> self-verify via the real audit
+  -> rollback on drift). Same for `metrics-flush` (stop emitting wrong-ref
+  close events) and worktree telemetry (reconcile at PR). (Source: CHANGE-0037/
+  0038/0039.)
+- A new audit/lint GATE must be validated against the WHOLE existing corpus AND
+  all test fixtures before merge — not just its own scope's tests. The SPEC-0057
+  duplicate-id detector correctly flipped the real repo to NEEDS-TRIAGE (3 real
+  latent collisions). The SPEC-0058 `spec-id-shape` rule shipped under-migrated:
+  it flagged bare-slug `type:spec` TEST FIXTURES (indistinguishable from real
+  specs by content or filename), breaking `test-aai-ceremony-levels.sh` on main.
+  Run the full suite matrix, not just the declared scope. (Source: SPEC-0057/
+  0058; ceremony-levels fallout, CHANGE-0040.)
+- `close-work-item.mjs` self-verifies full-CLEAN, so it CANNOT close a scope
+  whose own change makes the repo NEEDS-TRIAGE (e.g. shipping a detector that
+  flags pre-existing debt) — hand-close those, then remediate. It also
+  fail-closes on an ambiguous/duplicate id — a guardrail that caught the
+  SPEC-0056 collision. (Source: SPEC-0056/0057 close.)
+- The prompt-diet byte floor re-breaches on EVERY scope that adds
+  `.aai/*.prompt.md` prose; the anti-bloat guard only flags it when the suite
+  runs (main was silently red by 764 B this session). Bumping the
+  `JUSTIFIED_ADDITIONS` ledger is now part of definition-of-done for any
+  prompt-touching scope, and the credit is an itemized summed array (not a magic
+  number) so the fix is a self-documenting data append. (Source: DEBT-0002,
+  CHANGE-0040.)
+- Two operational hazards for the loop: (1) inline validation that runs
+  `git checkout`/`stash` mutates the SHARED working tree — prefer worktree
+  isolation for git-mutating roles. (2) Concurrent audit-touching test suites
+  cross-contaminate: each drops ephemeral DRAFT docs into `docs/` while another
+  runs a repo-wide strict audit -> spurious failures. Serialize them.
+  (Source: ISSUE-0012 validation; CHANGE-0040 validation.)
