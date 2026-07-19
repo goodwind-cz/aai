@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-19T04:42:35.517Z
+Generated: 2026-07-19T09:08:08.728Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (131)
+## Done (133)
 
 | ID | Type | Path |
 |---|---|---|
@@ -78,6 +78,7 @@ _None._
 | ISSUE-0014 | issues | docs/issues/ISSUE-0014-docs-audit-duplicate-doc-id.md |
 | ISSUE-0015 | issues | docs/issues/ISSUE-0015-remediate-spec-id-collisions.md |
 | ISSUE-0016 | issues | docs/issues/ISSUE-0016-spec-lint-enforce-spec-id-prefix.md |
+| ISSUE-0017 | issues | docs/issues/ISSUE-0017-prompt-diet-floor-credit-drift.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -149,6 +150,7 @@ _None._
 | SPEC-0057 | specs | docs/specs/SPEC-0057-spec-docs-audit-duplicate-doc-id.md |
 | SPEC-0058 | specs | docs/specs/SPEC-0058-spec-spec-lint-enforce-spec-id-prefix.md |
 | SPEC-0059 | specs | docs/specs/SPEC-0059-spec-prompt-diet-itemized-growth-ledger.md |
+| SPEC-0060 | specs | docs/specs/SPEC-0060-spec-prompt-diet-floor-credit-drift.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)

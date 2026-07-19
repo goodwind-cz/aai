@@ -22,61 +22,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# Byte baseline measured before any CHANGE-0011 edit (evidence:
-# docs/ai/tdd/prompt-diet-kb-before.txt). AC floor: >= 28KB net reduction.
-# BASELINE_PROMPT_BYTES and REQUIRED_REDUCTION_BYTES are the historical
-# SPEC-0017 diet contract and stay UNCHANGED (DEBT-0002/SPEC-0048): rewriting
-# them to match live measurements would erase history and IS the
-# blank-raise anti-pattern the floor exists to prevent.
-BASELINE_PROMPT_BYTES=357457
-REQUIRED_REDUCTION_BYTES=28672   # 28 KB
-
-# --- Justified-growth ledger (DEBT-0002/SPEC-0048 -> CHANGE-0040/SPEC-0059) -
-# Canon-mandated prompt additions AFTER the SPEC-0017 diet legitimately grew
-# the corpus. JUSTIFIED_GROWTH_BYTES is no longer a manually-bumped magic
-# number: it is the portable bash-3.2 sum of the leading `<bytes>` field of
-# each JUSTIFIED_ADDITIONS entry below (no bc, no mapfile, no declare -A —
-# just `${_entry%% *}` + `$(( ))`, so it also runs under the Windows/Git-Bash
-# matrix). Each entry is self-documenting: "<bytes> <ref> <rationale>".
-# Adding a new legitimate prompt addition is a one-line array append with its
-# own audit trail, not a recomputed constant (source: DEBT-0002 root cause,
-# docs/knowledge/LEARNED.md 2026-07-17; true-up history: ISSUE-0016).
-JUSTIFIED_ADDITIONS=(
-  "6144 DEBT-0002 dual-verdict code-review taxonomy + VALIDATION 8a exception + CEREMONY LANE block (SPEC-0041) + RED_CLASS discipline (SPEC-0044) + SECRETS PREFLIGHT (SPEC-0045) + doc-number origin reservation (SPEC-0047) + ceremony-lane declaration surfaces (SPEC_TEMPLATE/PLANNING/WORKFLOW); measured deficit 5122 B, credit chosen 6144 B for 1022 B headroom"
-  "1309 CHANGE-0037 deterministic close-ceremony wiring prose: SKILL_PR.prompt.md step 5c close-work-item.mjs invocation (+1144 B) + VALIDATION 8b hand-flip/hand-emit removal replaced by close-ceremony pointer (+165 B)"
-  "1786 CHANGE-0038+0039 workflow-hardening wiring prose: METRICS_FLUSH.prompt.md rewrite (flush no longer emits close events, SPEC-0054) + SKILL_PR step 2b RECONCILE WORKTREE TELEMETRY invocation prose (SPEC-0055)"
-)
-JUSTIFIED_GROWTH_BYTES=0
-for _entry in "${JUSTIFIED_ADDITIONS[@]}"; do
-  JUSTIFIED_GROWTH_BYTES=$(( JUSTIFIED_GROWTH_BYTES + ${_entry%% *} ))
-done
-# Anti-bloat guard (TEST-002/Spec-AC-02): headroom must stay in
-# [0, HEADROOM_CAP] so the credit cannot be padded arbitrarily and future
-# UNJUSTIFIED prompt growth beyond the cap still fails this test (forcing a
-# new itemized ledger line, or a shrink, instead of a silent absorption).
-HEADROOM_CAP=2048
-
-# Pure helpers factored out of TEST-010 (Spec-AC-02/SPEC-0059) so the
-# TEST-014/TEST-015 stanzas below can drive them with SYNTHETIC inputs,
-# proving the breach-deficit template and the cap-bite guard WITHOUT
-# mutating the real JUSTIFIED_ADDITIONS ledger or reading the live corpus.
-
-# compute_reduction_headroom <baseline> <after> <extra> <credit> <required>
-# Mirrors TEST-010's exact formula; echoes "<reduction> <headroom>".
-compute_reduction_headroom() {
-  local baseline=$1 after=$2 extra=$3 credit=$4 required=$5
-  local reduction=$(( baseline - after - extra + credit ))
-  local headroom=$(( reduction - required ))
-  echo "$reduction $headroom"
-}
-
-# justified_growth_breach_suggestion <reduction> <required>
-# Computes the exact deficit and echoes a ready-to-paste ledger-entry line.
-justified_growth_breach_suggestion() {
-  local reduction=$1 required=$2
-  local deficit=$(( required - reduction ))
-  echo "JUSTIFIED_ADDITIONS+=( \"$deficit <REF-ID> <rationale>\" )"
-}
+# Diet-floor constants, JUSTIFIED_ADDITIONS ledger, and the two pure helpers
+# are single-sourced from the shared library (prompt-diet-floor-credit-drift /
+# SPEC-DRAFT-spec-prompt-diet-floor-credit-drift.md) so this suite and
+# tests/skills/test-aai-verify-gate.sh can never drift from each other again
+# (DEBT-0002 "two copies of one gate" pattern). Sourced at top level (not
+# inside a function) so JUSTIFIED_ADDITIONS stays a global visible to
+# `declare -p` in TEST-012/013 below.
+source "$SCRIPT_DIR/lib/prompt-diet-ledger.sh"
 
 E2E_DRAFT="docs/issues/CHANGE-DRAFT-prompt-diet-e2e-dry-run.md"
 

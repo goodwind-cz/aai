@@ -913,3 +913,9 @@
 {"v":1,"ts":"2026-07-19T02:59:54.653Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"user-docs-workflow-hardening","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-19T02:59:54.690Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"user-docs-workflow-hardening","payload":{"commit":"0d542b5"}}
 {"v":1,"ts":"2026-07-19T03:00:09.550Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":131,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-19T09:07:45.070Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"prompt-diet-floor-credit-drift","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-19T09:07:45.106Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"prompt-diet-floor-credit-drift","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-19T09:07:45.145Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"prompt-diet-floor-credit-drift","payload":{"commit":"6130cef4fb51c96a2d2470f307a4111f6ddfff4a"}}
+{"v":1,"ts":"2026-07-19T09:07:45.180Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-prompt-diet-floor-credit-drift","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-19T09:07:45.213Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-prompt-diet-floor-credit-drift","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-19T09:07:45.251Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-prompt-diet-floor-credit-drift","payload":{"commit":"6130cef4fb51c96a2d2470f307a4111f6ddfff4a"}}
