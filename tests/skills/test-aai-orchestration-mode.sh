@@ -287,7 +287,20 @@ test_wiring_skill_loop() {
 # --- TEST-016 — STATE.yaml schema header (Spec-AC-11) -------------------------
 test_wiring_state_schema() {
   log_info "TEST-016: STATE.yaml schema header documents orchestration.mode/k/groups + absent==auto..."
-  [[ -f "$STATE_DOC" ]] || log_fail "missing $STATE_DOC"
+  # RC1 (Spec-AC-02): docs/ai/STATE.yaml is gitignored per-dev runtime state
+  # (RFC-0001) — it does not exist on a fresh checkout (e.g. Linux CI), and
+  # there is no canonical initializer that manufactures its full schema-header
+  # comment block from nothing (only runtime-data fields, via state.mjs).
+  # Fabricating that documentation text here would itself be a hand-written
+  # STATE stub (Constitution Art. 6 forbids exactly that). Degrade and report
+  # (Constitution Art. 4): when a developer's local STATE.yaml is absent,
+  # soft-skip this one check (not the whole suite — TEST-001..015/017 are
+  # unaffected and still run) rather than hard-failing on an artifact that is
+  # absent by design on a fresh checkout.
+  if [[ ! -f "$STATE_DOC" ]]; then
+    log_info "TEST-016: SKIP — $STATE_DOC absent (gitignored per-dev state; fresh checkout has no local copy to inspect)"
+    return 0
+  fi
   grep -qiE "orchestration\.mode:.*auto.*single.*parallel" "$STATE_DOC" || log_fail "STATE header must document orchestration.mode (auto|single|parallel)"
   grep -qiE "orchestration\.k" "$STATE_DOC" || log_fail "STATE header must document orchestration.k"
   grep -qiE "orchestration\.groups" "$STATE_DOC" || log_fail "STATE header must document orchestration.groups"

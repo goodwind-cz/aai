@@ -202,12 +202,13 @@ run_test() {
       FAILED_TESTS=$((FAILED_TESTS + 1))
       echo "FAIL" > "$RUN_DIR/${skill_name}.result"
 
-      # Show failure details in verbose mode
-      if [[ "$VERBOSE" == "true" ]]; then
-        echo "--- Error Details ---"
-        tail -n 20 "$log_file"
-        echo "---"
-      fi
+      # Always surface failure details (not just in --verbose): a non-verbose
+      # aggregate run that only prints PASS/FAIL is undiagnosable in CI, which
+      # is exactly how the Linux-only skill-suite reds stayed opaque. Dump the
+      # failing suite's output tail so a CI log alone explains the failure.
+      echo "--- Error Details ($skill_name) ---"
+      tail -n 30 "$log_file"
+      echo "--- end $skill_name ---"
       ;;
   esac
 

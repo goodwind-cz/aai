@@ -1122,9 +1122,20 @@ EOF
   # Repo-wide hygiene gates.
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/t12-audit.log" 2>&1) \
     || log_fail "docs-audit --check --strict --no-event must exit 0: $(tail -30 "$TEST_DIR/t12-audit.log")"
-  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs > "$TEST_DIR/t12-checkstate.log" 2>&1) \
-    || log_fail "check-state.mjs must exit 0: $(tail -30 "$TEST_DIR/t12-checkstate.log")"
-  grep -q "OK" "$TEST_DIR/t12-checkstate.log" || log_fail "check-state.mjs must report OK: $(cat "$TEST_DIR/t12-checkstate.log")"
+  # RC1 (Spec-AC-02): docs/ai/STATE.yaml is gitignored per-dev runtime state
+  # (RFC-0001) — absent on a fresh checkout (e.g. Linux CI). This gate exists
+  # to catch the REAL repo's state being left invariant-invalid by this
+  # suite's own operations (which all run against isolated $d fixtures, never
+  # the real path); with no real local STATE.yaml to begin with, there is
+  # nothing to invariant-check or corrupt. Degrade and report (Constitution
+  # Art. 4) rather than hard-fail on an artifact absent by design.
+  if [[ -f "$PROJECT_ROOT/docs/ai/STATE.yaml" ]]; then
+    (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs > "$TEST_DIR/t12-checkstate.log" 2>&1) \
+      || log_fail "check-state.mjs must exit 0: $(tail -30 "$TEST_DIR/t12-checkstate.log")"
+    grep -q "OK" "$TEST_DIR/t12-checkstate.log" || log_fail "check-state.mjs must report OK: $(cat "$TEST_DIR/t12-checkstate.log")"
+  else
+    log_info "check-state.mjs repo-wide gate SKIPPED — $PROJECT_ROOT/docs/ai/STATE.yaml absent (gitignored per-dev state; fresh checkout has no local copy to invariant-check)"
+  fi
 
   log_pass "Purity on retarget snapshots + zero writes + docs-audit strict + check-state OK (TEST-012/spec TEST-007)"
 }

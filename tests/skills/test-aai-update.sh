@@ -240,7 +240,9 @@ test_005_integration_file_fixture_clone() {
   # parent $TMP retained (not the exit-trap's job here since --keep-temp) and
   # owned by the invoking user
   local owner_uid invoker_uid
-  owner_uid="$(stat -f '%u' "$found_tmp" 2>/dev/null || stat -c '%u' "$found_tmp" 2>/dev/null || true)"
+  # GNU `stat -f` means `--file-system` (succeeds, wrong data) so it must NOT
+  # be tried first on Linux; try GNU `stat -c` first, then BSD `stat -f`.
+  owner_uid="$(stat -c '%u' "$found_tmp" 2>/dev/null || stat -f '%u' "$found_tmp" 2>/dev/null || true)"
   invoker_uid="$(id -u)"
   [[ -z "$owner_uid" || "$owner_uid" == "$invoker_uid" ]] \
     || log_fail "TEST-005a: retained \$TMP is not owned by the invoking user (owner=$owner_uid, invoker=$invoker_uid)"

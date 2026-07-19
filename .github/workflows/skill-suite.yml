@@ -1,0 +1,69 @@
+name: skill-suite
+
+# Gates the tests/skills/ suite in CI (test-infra-reds-and-ci-gate /
+# spec-test-infra-reds-and-ci-gate AC-004). Before this workflow, CI only ran
+# docs-numbering + ps1-quality, so skill-suite regressions (three real reds:
+# PROFILES.yaml classification, a worktree pipefail/SIGPIPE false-failure,
+# aai-sync.sh's git mode) accumulated invisibly. This workflow is the
+# structural fix: every push/PR now runs the same suite.
+#
+# `skills` job: runs `bash tests/skills/test-framework.sh`, the repo's own
+# aggregate meta-runner. It already invokes every `test-aai-*.sh` suite via
+# `bash "$test_file"` (never `sh <file>` — all 41 suites are
+# `#!/usr/bin/env bash`; forcing `sh` was the false-pass bug this change
+# fixes) and already treats a suite's exit 42 as SKIP vs any other non-zero
+# as FAIL, exiting 1 only if at least one suite failed. Re-implementing that
+# loop here would just duplicate it.
+#
+# `self-hosting-smoke` job: kept SEPARATE from `skills` with its own
+# `timeout-minutes`. tests/self-hosting/test-self-hosting-smoke.sh installs a
+# bootstrapped copy of the repo and re-runs validation against it (~2-3 min,
+# heavier than any single tests/skills/ suite) — isolating it keeps its slow
+# signal from padding out (or timing out) the fast skill-suite feedback loop.
+#
+# fetch-depth: 0 is required: tests/skills/test-aai-layer-profiles.sh probes
+# full git history (`git log -S 'PROFILES.yaml'` / `git show <sha>^:...`) to
+# locate the commit that introduced profile support — a shallow checkout
+# fails that lookup.
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  skills:
+    name: skill test suite (tests/skills/, via test-framework.sh)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run tests/skills/ suite (honors each suite's own #!/usr/bin/env bash shebang; never forced sh)
+        run: bash tests/skills/test-framework.sh
+
+  self-hosting-smoke:
+    name: self-hosting smoke (separate job — bootstraps + re-validates a full copy, ~2-3 min)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run self-hosting smoke test
+        run: bash tests/self-hosting/test-self-hosting-smoke.sh

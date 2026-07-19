@@ -77,7 +77,9 @@ core:
   - .aai/knowledge/PATTERNS_UNIVERSAL.md
   - .aai/roles/ROLES.md
   - .aai/scripts/aai-bootstrap.sh
+  - .aai/scripts/aai-reap-tests.ps1
   - .aai/scripts/aai-reap-tests.sh
+  - .aai/scripts/aai-run-tests.ps1
   - .aai/scripts/aai-run-tests.sh
   - .aai/scripts/aai-sync.ps1
   - .aai/scripts/aai-sync.sh
@@ -89,6 +91,7 @@ core:
   - .aai/scripts/autonomous-loop.sh
   - .aai/scripts/check-state.mjs
   - .aai/scripts/claude-hook-gate.sh
+  - .aai/scripts/close-work-item.mjs
   - .aai/scripts/delta-merge.mjs
   - .aai/scripts/docs-audit.mjs
   - .aai/scripts/docs-lock.mjs
@@ -112,8 +115,11 @@ core:
   - .aai/scripts/pre-commit-checks.sh
   - .aai/scripts/pre-compact-save.ps1
   - .aai/scripts/pre-compact-save.sh
+  - .aai/scripts/reconcile-telemetry.mjs
+  - .aai/scripts/secrets-preflight.mjs
   - .aai/scripts/spec-lint.mjs
   - .aai/scripts/state.mjs
+  - .aai/scripts/tdd-evidence-check.mjs
   - .aai/scripts/triage.ps1
   - .aai/scripts/triage.sh
   - .aai/system/AAI_PIN.md

@@ -207,13 +207,20 @@ test_006() {
   ws="$(mktemp -d "$TMP_ROOT/ws6.XXXXXX")"
   # Old matching process: spawn, then let it age past the threshold.
   old_pid="$(spawn_marked "vitest_old_${ws}/worker")"
-  sleep 3
+  sleep 8
   # Fresh matching process (same workspace): started just now.
   fresh_pid="$(spawn_marked "vitest_fresh_${ws}/worker")"
   alive "$old_pid" || log_fail "fixture setup: old proc $old_pid not alive"
   alive "$fresh_pid" || log_fail "fixture setup: fresh proc $fresh_pid not alive"
-  # Threshold 2s: old (~3s) is eligible, fresh (~0s) is a sibling's in-flight run.
-  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS=2 sh "$REAP_SCRIPT" 2>&1)"
+  # Threshold 5s, old sleeps 8s: wide margins on BOTH sides (old comfortably >
+  # threshold; fresh comfortably < threshold) so the whole-second `ps etime`
+  # granularity plus a loaded/throttled CI runner's fork+exec/ps-snapshot
+  # latency between "fresh spawned" and "reaper samples etime" (a real timing
+  # race — not an etime-format bug — observed on Linux CI with the old 3s/2s
+  # margins) cannot push a genuinely-fresh sibling's observed age across the
+  # threshold. old (~8s) is eligible, fresh (~0s, needs <5s of overhead to
+  # stay spared) is a sibling's in-flight run.
+  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS=5 sh "$REAP_SCRIPT" 2>&1)"
   sleep 1
   alive "$old_pid" && log_fail "reaper failed to reap the OLD matching proc $old_pid"
   alive "$fresh_pid" || log_fail "reaper killed a FRESH sibling $fresh_pid younger than the step-start threshold — concurrency guard violated"
@@ -441,7 +448,7 @@ test_015() {
   other="$(mktemp -d "$TMP_ROOT/p2other.XXXXXX")"
   p_pid="$(spawn_parent_with_child "vitest_run_${ws}/worker")"
   o_pid="$(spawn_parent_with_child "vitest_run_${other}/worker")"
-  sleep 3   # let both matched trees age past the 2s threshold below
+  sleep 8   # let both matched trees age well past the 5s threshold below
   p_child="$(pgrep -P "$p_pid" | head -1)"
   o_child="$(pgrep -P "$o_pid" | head -1)"
   [[ -n "$p_child" ]] || log_fail "fixture: matched launcher $p_pid has no live child"
@@ -455,8 +462,14 @@ test_015() {
   alive "$p_pid"   || log_fail "fixture: matched launcher $p_pid not alive"
   alive "$p_child" || log_fail "fixture: token-less child $p_child not alive"
   alive "$o_pid"   || log_fail "fixture: other-ws launcher $o_pid not alive"
-  # Threshold 2s: the matched tree (~3s) is eligible; the fresh sibling (~0s) is not.
-  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS=2 sh "$REAP_SCRIPT" 2>&1)"
+  # Threshold 5s, matched trees sleep 8s: wide margins on BOTH sides (see
+  # TEST-006's comment for why — a real Linux-CI timing race, not an etime
+  # format bug: whole-second `ps etime` granularity plus a loaded runner's
+  # fork+exec/ps-snapshot latency between "fresh spawned" and "reaper samples
+  # etime" could push the old 3s/2s margins' fresh sibling across the
+  # threshold). The matched trees (~8s) are eligible; the fresh sibling (~0s,
+  # needs <5s of overhead to stay spared) is not.
+  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS=5 sh "$REAP_SCRIPT" 2>&1)"
   sleep 1
   alive "$p_pid"   && log_fail "reaper failed to kill the matched launcher $p_pid"
   alive "$p_child" && log_fail "reaper left the token-less descendant $p_child resident — matched tree not fully reaped (P2)"
