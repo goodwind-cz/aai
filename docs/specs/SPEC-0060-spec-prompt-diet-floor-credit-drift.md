@@ -2,13 +2,15 @@
 id: spec-prompt-diet-floor-credit-drift
 type: spec
 number: 60
-status: draft
+status: done
 ceremony_level: 1
 links:
   requirement: prompt-diet-floor-credit-drift
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 115
+  commits:
+    - 6130cef4fb51c96a2d2470f307a4111f6ddfff4a
 ---
 
 # Spec: prompt-diet byte-floor credit drift — single sourceable ledger both suites read

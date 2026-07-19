@@ -2,10 +2,12 @@
 id: prompt-diet-floor-credit-drift
 number: 17
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 115
+  commits:
+    - 6130cef4fb51c96a2d2470f307a4111f6ddfff4a
 ---
 
 # Prompt-diet byte floor drift: verify-gate TEST-006 lacks the justified-growth credit
