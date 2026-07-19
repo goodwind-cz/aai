@@ -141,3 +141,53 @@
   cross-contaminate: each drops ephemeral DRAFT docs into `docs/` while another
   runs a repo-wide strict audit -> spurious failures. Serialize them.
   (Source: ISSUE-0012 validation; CHANGE-0040 validation.)
+
+## Session 2026-07-19 (skill-suite CI gate + Linux portability)
+
+- A test runner that forces `sh <file>` on `#!/usr/bin/env bash` suites produces
+  FALSE PASSES (bash-only syntax like process substitution `< <(…)` or arrays
+  either errors early or is silently mis-parsed). Honor each suite's shebang
+  (`bash "$f"` or execute directly). A serialized full-suite sweep that forced
+  `sh` hid a real red (`verify-gate` TEST-006) and mis-flagged `hooks-overlay`;
+  the shebang-honoring rerun surfaced 15 real failures the first pass masked.
+  (Source: this session's `otestuj` v1 vs v2 runners.)
+- NEVER `git clean` under `docs/` in a verification/iteration loop — the intake
+  DRAFTs, frozen spec, and review report of the in-flight scope are UNTRACKED but
+  wanted; `git clean` deletes them. Restore only tracked telemetry
+  (`git checkout -- docs/ai/EVENTS.jsonl docs/ai/METRICS.jsonl docs/INDEX.md`).
+  A `git clean -fdq docs/` between suite runs destroyed a spec+issue+review
+  mid-loop (recovered by re-prompting the still-alive Planning/Review subagents).
+- Metrics flush (rule 14) fires BEFORE the operator's PR step and its
+  partial-flush reset (SPEC-0013 H5, triggered by a stale sibling work item like
+  `pr-67-post-merge-review`) nulls `last_validation`/`code_review` — so
+  `SKILL_PR` preconditions then fail. Truthfully RE-RECORD the genuine PASS
+  verdicts (evidence already exists) before the PR ceremony. Candidate workflow
+  fix: defer rule 14 until after PR, or don't partial-reset the just-flushed
+  focus ref. (Source: PR #115/#116 ceremonies this session.)
+- Skill suites are written/run on macOS (BSD tools) but CI runs Ubuntu (GNU) —
+  latent BSD/GNU breakage passes locally, fails only in CI. Concrete traps found:
+  `mktemp -t <bare-prefix>` errors "too few X's" on GNU (use a full `…​.XXXXXX`
+  template, identical on both); `stat -f '%u'` SUCCEEDS on GNU as
+  `--file-system` (wrong data) so `stat -f || stat -c` never falls through — try
+  GNU `stat -c` FIRST. (Source: CHANGE-0043/SPEC-0062, RC2/RC4.)
+- A fresh CI checkout lacks per-dev gitignored runtime files (`docs/ai/STATE.yaml`
+  RFC-0001, `docs/ai/tdd/*.log`) and lacks a local `main` branch (detached PR
+  checkout / temp repos default to `master` or an empty ref). Suites must be
+  hermetic: self-seed the precondition via the canonical initializer (or
+  soft-skip when genuinely absent, degrade-and-report), and build fixture repos
+  with `git init -b main`. Do NOT assume a developer's environment on CI.
+  (Source: CHANGE-0043 RC1/RC3.)
+- The single highest-leverage structural win: skill suites were never gated in CI
+  (only docs-numbering + ps1-quality ran), so reds accumulated invisibly — one
+  merged red (verify-gate), three test-infra reds, and 15 Linux-portability
+  failures. Adding `.github/workflows/skill-suite.yml` (run every suite honoring
+  shebangs, fail on any red, slow self-hosting smoke in a separate timeboxed job)
+  is the prevention. Corollary: an aggregate runner MUST dump a failing suite's
+  output tail ALWAYS (not only under `--verbose`), else CI failures are opaque —
+  this diagnostic change is what made the Linux root-cause analysis possible from
+  the CI log alone. (Source: CHANGE-0042/0043.)
+- When only CI reproduces a failure (platform-specific), CI IS the authoritative
+  validator — the loop's Validation/Review subagents run on the local host and
+  cannot attest green-on-Linux. Weave CI into the loop: implementer pushes, the
+  CI run is the RED->GREEN evidence, Validation verifies `gh run` conclusion +
+  headSha-matches-HEAD + local non-regression. (Source: CHANGE-0043 loop.)
