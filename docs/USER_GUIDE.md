@@ -646,6 +646,38 @@ written).
 - BLOCKING: must fix before merge (fails the verdict)
 - NON-BLOCKING: needs a disposition (remediate or promote — warnings policy)
 
+#### Quality gates & optional advisory skills
+
+Two **gates** (apply a discipline before you claim something is done) and three
+**advisory** skills (score/clean/clarify — advisory only, they never block):
+
+- **`/aai-verify`** — the verification-before-completion gate. Before ANY
+  completion claim (Implementation hand-off, TDD GREEN, Validation verdict),
+  apply IDENTIFY → RUN → READ → VERIFY → then CLAIM. No "done" without having
+  run the thing and read the result.
+- **`/aai-debug`** — the systematic-debugging root-cause gate. For any failing
+  test, bug, or validation finding, apply READ → REPRODUCE → ISOLATE →
+  FIX-AT-CAUSE. No fix without an identified root cause (no symptom patches).
+- **`/aai-scout`** *(advisory)* — optional readiness score before implementation:
+  0–100 over five dimensions (scope clarity, pattern familiarity, dependency
+  awareness, edge cases, test strategy) with a GO/HOLD advisory at 70. Never blocks.
+- **`/aai-deslop`** *(advisory)* — optional, after implementation and before code
+  review: remove AI slop from the CURRENT DIFF only (obvious comments, defensive
+  try/catch on trusted paths, premature abstraction, unrequested features,
+  annotations on untouched code). Behavior must stay unchanged (suite still passes).
+- **`/aai-interrogate`** *(advisory)* — optional at spec freeze (or when a plan
+  feels underdetermined): walk open decisions one question at a time, each with a
+  recommended answer; codebase-resolvable ones are inferred silently, and every
+  decision is appended to `docs/ai/decisions.jsonl`.
+
+```bash
+/aai-verify        # gate a completion claim with evidence
+/aai-debug         # root-cause a failing test before fixing
+/aai-scout         # readiness 0-100, GO/HOLD at 70 (advisory)
+/aai-deslop        # strip AI slop from the current diff (advisory)
+/aai-interrogate   # resolve open spec decisions one at a time (advisory)
+```
+
 #### `/aai-docs-audit`
 **What:** Docs hygiene and drift detection (RFC-0002). Classifies every
 prefixed doc under `docs/` and compares what each doc claims (frontmatter
