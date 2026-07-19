@@ -919,3 +919,9 @@
 {"v":1,"ts":"2026-07-19T09:07:45.180Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-prompt-diet-floor-credit-drift","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-19T09:07:45.213Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-prompt-diet-floor-credit-drift","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-19T09:07:45.251Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-prompt-diet-floor-credit-drift","payload":{"commit":"6130cef4fb51c96a2d2470f307a4111f6ddfff4a"}}
+{"v":1,"ts":"2026-07-19T11:30:01.396Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"test-infra-reds-and-ci-gate","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-19T11:30:01.434Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"test-infra-reds-and-ci-gate","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-19T11:30:01.482Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"test-infra-reds-and-ci-gate","payload":{"commit":"afc688df6d9d8f0ebb217f7b7ce9b26ab4a9db09"}}
+{"v":1,"ts":"2026-07-19T11:30:01.522Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-infra-reds-and-ci-gate","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-19T11:30:01.558Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-test-infra-reds-and-ci-gate","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-19T11:30:01.594Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-test-infra-reds-and-ci-gate","payload":{"commit":"afc688df6d9d8f0ebb217f7b7ce9b26ab4a9db09"}}

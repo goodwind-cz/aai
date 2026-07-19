@@ -2,10 +2,12 @@
 id: test-infra-reds-and-ci-gate
 number: 42
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 116
+  commits:
+    - afc688df6d9d8f0ebb217f7b7ce9b26ab4a9db09
 ---
 
 # Fix three hidden test-infra reds and gate the skill suite in CI

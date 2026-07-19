@@ -2,13 +2,15 @@
 id: spec-test-infra-reds-and-ci-gate
 type: spec
 number: 61
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: test-infra-reds-and-ci-gate
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 116
+  commits:
+    - afc688df6d9d8f0ebb217f7b7ce9b26ab4a9db09
 ---
 
 # Implementation Spec — Fix three hidden test-infra reds and gate the skill suite in CI
