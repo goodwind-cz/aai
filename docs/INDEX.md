@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-19T15:47:14.898Z
+Generated: 2026-07-20T08:41:15.996Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -157,9 +157,12 @@ _None._
 | SPEC-0062 | specs | docs/specs/SPEC-0062-spec-skill-suite-linux-ci-portability.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| aai-release-skill (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-aai-release-skill.md |
+| spec-aai-release-skill (unnumbered draft) | specs | docs/specs/SPEC-DRAFT-spec-aai-release-skill.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -188,4 +191,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-19 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-20 — counts above use this date for overdue checks.

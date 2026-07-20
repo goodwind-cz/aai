@@ -194,6 +194,7 @@ AAI uses two different classes of documentation:
 | `/aai-docs-canon` | Docs consolidation | Layered intake/specs/RFCs → canonical per-domain layer + archive |
 | `/aai-test-canon` | Test consolidation | Fragmented tests → canonical per-domain suites + RED stubs for gaps |
 | `/aai-pr` | Open a PR | Scope-only staging, staged-vs-scope audit, PR body; never merges |
+| `/aai-release` | Cut a release | Roll CHANGELOG, commit, tag, publish, push; operator-gated, safe dry-run |
 | `/aai-profile` | Optimize | Performance analysis |
 | `/aai-auto-trigger` | Deprecated | No runtime consumer — use wrapper-description trigger phrases |
 
@@ -585,6 +586,35 @@ node .aai/scripts/close-work-item.mjs \
 real close (rolled back) or an internal error; `2` usage error — bad flag, an
 unresolvable / ambiguous / duplicate id, or a non-done-terminal status (nothing
 written).
+
+#### `/aai-release`
+**What:** Cuts a release. `.aai/scripts/aai-release.{sh,ps1}` rolls the root
+`CHANGELOG.md`'s `[unreleased]` blocks into a versioned section (byte-preserved,
+idempotent), commits `chore(release): <version>`, creates an annotated git tag,
+publishes a GitHub release with notes derived from that section, and pushes —
+behind an operator gate with a safe default plan-only mode. Works identically
+releasing AAI itself or a downstream project with the AAI layer deployed.
+
+**When to use:**
+- A validated, merged scope is ready to ship as a versioned release
+- Previewing what the next cut would look like (default-safe: no flags needed)
+
+**Example:**
+```bash
+/aai-release                        # plan-only: prints the plan, changes nothing
+/aai-release --version v1.2.3       # verbatim version (any scheme, incl. SemVer)
+/aai-release --confirm              # THE CUT: roll + commit + tag + push + publish
+/aai-release --confirm --no-remote  # THE CUT, but skip push + gh release create
+```
+
+**Safety:**
+- Default-safe: a bare invocation and `--dry-run` behave identically — zero
+  writes, exit 0. The agent never passes `--confirm` on its own initiative;
+  publishing is an operator decision.
+- Fail-closed preconditions (zero writes on refusal): dirty tree, missing/empty/
+  malformed `[unreleased]` region, an existing tag for the resolved version, or
+  `gh` absent/unauthenticated on the publish path (dry-run still works offline).
+- Version defaults to CalVer `vYYYY.MM.DD` when `--version` is omitted.
 
 ---
 
