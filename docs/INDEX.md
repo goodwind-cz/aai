@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-20T12:16:14.787Z
+Generated: 2026-07-20T12:55:07.067Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -163,18 +163,17 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| reaper-deterministic-age-guard (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-reaper-deterministic-age-guard.md |
-| spec-reaper-deterministic-age-guard (unnumbered draft) | specs | docs/specs/SPEC-DRAFT-spec-reaper-deterministic-age-guard.md |
+| ISSUE-0018 | issues | docs/issues/ISSUE-0018-reaper-deterministic-age-guard.md |
+| SPEC-0064 | specs | docs/specs/SPEC-0064-spec-reaper-deterministic-age-guard.md |
 
 ## Deferred (whole-doc) (0)
 
 _None._
 
-## Deferred items (per-AC, across all specs) (2)
+## Deferred items (per-AC, across all specs) (1)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
-| spec-reaper-deterministic-age-guard | Spec-AC-07 | 2026-07-27 | Local determinism proven (TEST-001/016 delay-injection); CI is the authoritative environment for this flake per LEARNED 2026-07-19 — spot-check a repeated Ubuntu run once pushed. |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
