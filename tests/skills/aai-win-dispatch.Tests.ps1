@@ -277,6 +277,98 @@ Describe 'aai-reap-tests.ps1' {
         }
     }
 
+    Context 'StepStart (reaper-deterministic-age-guard, Spec-AC-05): contract parity with the .sh reaper''s epoch mode' {
+        BeforeEach {
+            $script:now = Get-Date '2026-07-17T12:00:00'
+            $script:stepStart = $script:now.AddSeconds(-10)
+            $script:snapshot = @(
+                # Pre-step survivor: CreationDate well before (StepStart - Grace) -> REAP.
+                [PSCustomObject]@{ ProcessId = 200; CommandLine = 'node vitest run C:\ws\myproject\worker.js'; CreationDate = $script:now.AddSeconds(-120) }
+                # Post-step sibling: CreationDate at/after StepStart -> SPARE, even though its
+                # age (2s) would exceed a legacy MinAgeSeconds of 0 — StepStart takes over.
+                [PSCustomObject]@{ ProcessId = 201; CommandLine = 'node vitest run C:\ws\myproject\worker.js'; CreationDate = $script:now.AddSeconds(-2) }
+                # Right at the boundary: CreationDate == StepStart - Grace -> SPARE (>= is spare,
+                # mirrors the .sh reaper's strict `<` for reap).
+                [PSCustomObject]@{ ProcessId = 202; CommandLine = 'node vitest run C:\ws\myproject\worker.js'; CreationDate = $script:stepStart.AddSeconds(-2) }
+            )
+        }
+
+        It 'Get-ReapCandidates -StepStart spares CreationDate >= StepStart-Grace and reaps older, ignoring MinAgeSeconds' {
+            $candidates = Get-ReapCandidates -Snapshot $script:snapshot -Workspace 'C:\ws\myproject' `
+                -MinAgeSeconds 999 -Now $script:now -StepStart $script:stepStart -GraceSeconds 2
+            $candidates.Count | Should -Be 1
+            $candidates[0].ProcessId | Should -Be 200
+        }
+
+        It 'Get-ReapCandidates without -StepStart stays byte-identical to the legacy MinAgeSeconds path' {
+            $legacy = Get-ReapCandidates -Snapshot $script:snapshot -Workspace 'C:\ws\myproject' -MinAgeSeconds 30 -Now $script:now
+            # Legacy mode: age >= 30 -> only the ~120s-old process (200) qualifies; the ~2s
+            # (201) and ~12s (202) siblings are both younger than 30s -> spared.
+            $legacy.Count | Should -Be 1
+            $legacy[0].ProcessId | Should -Be 200
+        }
+
+        It 'Invoke-ReapNative -StepStart reaps only the pre-step survivor' {
+            Mock Get-ProcessSnapshot { $script:snapshot }
+            Mock Get-Date { $script:now }
+            Mock Stop-ProcessTree { }
+            $out = Invoke-ReapNative -Workspace 'C:\ws\myproject' -MinAgeSeconds 999 -StepStart $script:stepStart -GraceSeconds 2
+            Should -Invoke Stop-ProcessTree -Times 1 -Exactly -ParameterFilter { $ProcessId -eq 200 }
+            Should -Invoke Stop-ProcessTree -Times 0 -Exactly -ParameterFilter { $ProcessId -eq 201 }
+            Should -Invoke Stop-ProcessTree -Times 0 -Exactly -ParameterFilter { $ProcessId -eq 202 }
+            ($out -join "`n") | Should -Match 'reaped: 1'
+        }
+
+        It 'Get-StepStartFromEpoch: valid positive integer <= now returns the local DateTime' {
+            $nowEpoch = [DateTimeOffset]$script:now
+            $raw = [string]([DateTimeOffset]$script:stepStart).ToUnixTimeSeconds()
+            $result = Get-StepStartFromEpoch -Raw $raw -Now $script:now
+            $result | Should -Not -BeNullOrEmpty
+            [Math]::Abs(($result - $script:stepStart).TotalSeconds) | Should -BeLessThan 1
+        }
+
+        It 'Get-StepStartFromEpoch: unset/empty/non-integer/negative/zero/future all fail safe to $null (never global)' {
+            $future = ([DateTimeOffset]$script:now).ToUnixTimeSeconds() + 100000
+            @($null, '', 'abc', '-5', '0', $future) | ForEach-Object {
+                Get-StepStartFromEpoch -Raw $_ -Now $script:now | Should -BeNullOrEmpty
+            }
+        }
+
+        It 'Invoke-ReapDispatch fail-safe: an invalid AAI_REAP_STEP_START_EPOCH falls back to legacy AAI_REAP_MIN_AGE_SECS (never a global kill)' {
+            Mock Get-ProcessSnapshot { $script:snapshot }
+            Mock Get-Date { $script:now }
+            Mock Stop-ProcessTree { }
+            Mock Resolve-Interpreter { @{ Mode = 'error' } }
+            $env:AAI_REAP_WORKSPACE = 'C:\ws\myproject'
+            $env:AAI_REAP_MIN_AGE_SECS = '30'
+            $env:AAI_REAP_STEP_START_EPOCH = 'not-an-epoch'
+            try {
+                Invoke-ReapDispatch | Out-Null
+            } finally {
+                Remove-Item Env:\AAI_REAP_WORKSPACE -ErrorAction SilentlyContinue
+                Remove-Item Env:\AAI_REAP_MIN_AGE_SECS -ErrorAction SilentlyContinue
+                Remove-Item Env:\AAI_REAP_STEP_START_EPOCH -ErrorAction SilentlyContinue
+            }
+            # Legacy MinAgeSeconds=30 path: only the ~120s-old process (200) qualifies.
+            Should -Invoke Stop-ProcessTree -Times 1 -Exactly -ParameterFilter { $ProcessId -eq 200 }
+            Should -Invoke Stop-ProcessTree -Times 0 -Exactly -ParameterFilter { $ProcessId -eq 201 }
+            Should -Invoke Stop-ProcessTree -Times 0 -Exactly -ParameterFilter { $ProcessId -eq 202 }
+        }
+
+        It 'Get-ReapWslDelegationArgs forwards AAI_REAP_STEP_START_EPOCH/AAI_REAP_GRACE_SECS only when StepStartEpoch is supplied' {
+            $withStepStart = Get-ReapWslDelegationArgs -ShScriptPath 'C:\repo\.aai\scripts\aai-reap-tests.sh' `
+                -Workspace 'C:\ws\myproject' -MinAgeSeconds 0 -StepStartEpoch '1750000000' -GraceSeconds '2' `
+                -WslPathResolver { param($p) '/mnt/c/repo/.aai/scripts/aai-reap-tests.sh' }
+            $withStepStart | Should -Be @('-e', 'env', 'AAI_REAP_WORKSPACE=C:\ws\myproject', 'AAI_REAP_MIN_AGE_SECS=0', `
+                'AAI_REAP_STEP_START_EPOCH=1750000000', 'AAI_REAP_GRACE_SECS=2', '/mnt/c/repo/.aai/scripts/aai-reap-tests.sh')
+
+            $withoutStepStart = Get-ReapWslDelegationArgs -ShScriptPath 'C:\repo\.aai\scripts\aai-reap-tests.sh' `
+                -Workspace 'C:\ws\myproject' -MinAgeSeconds 0 `
+                -WslPathResolver { param($p) '/mnt/c/repo/.aai/scripts/aai-reap-tests.sh' }
+            $withoutStepStart | Should -Be @('-e', 'env', 'AAI_REAP_WORKSPACE=C:\ws\myproject', 'AAI_REAP_MIN_AGE_SECS=0', '/mnt/c/repo/.aai/scripts/aai-reap-tests.sh')
+        }
+    }
+
     Context 'NB-C: WSL-delegated reap forwards AAI_REAP_WORKSPACE/AAI_REAP_MIN_AGE_SECS and prints a single summary line' {
         It 'Get-ReapWslDelegationArgs builds the correct wsl.exe delegation argv (env passthrough for BOTH overrides + script)' {
             $wslArgs = Get-ReapWslDelegationArgs -ShScriptPath 'C:\repo\.aai\scripts\aai-reap-tests.sh' `

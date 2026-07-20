@@ -96,10 +96,16 @@ after a 17-tick run). This is a hard rule for every test-running tick:
   processes. If the count exceeds the threshold (default 5), `log()` a warning
   (a prior run's leak must not compound) and run the scoped reaper:
     .aai/scripts/aai-reap-tests.sh
-- POST-TICK REAP: after any test-running tick, run `.aai/scripts/aai-reap-tests.sh`
-  to sweep this-workspace survivors. The reaper is workspace-scoped (`$PWD`) and
-  etime-guarded (a fresh concurrent sibling is spared) — NEVER a global
-  `pkill -f vitest`.
+- POST-TICK REAP: at the START of the test step (before the test command
+  launches), capture the step-start epoch — `AAI_REAP_STEP_START_EPOCH=$(date +%s)`
+  — and export it. After any test-running tick, run `.aai/scripts/aai-reap-tests.sh`
+  with that same `AAI_REAP_STEP_START_EPOCH` in its environment, to sweep
+  this-workspace survivors. The reaper is workspace-scoped (`$PWD`) and uses that
+  step-start epoch for a deterministic, overhead-independent age guard (a fresh
+  concurrent sibling spawned at/after the step boundary is always spared, a
+  genuine pre-step survivor is always reaped) — NEVER a global `pkill -f vitest`.
+  If the step owner does not capture/pass `AAI_REAP_STEP_START_EPOCH`, the reaper
+  fails safe to its legacy fixed-`AAI_REAP_MIN_AGE_SECS` behavior.
 - TICK-LOG ACCOUNTING: record `lingering_procs` (post-reap workspace vitest/esbuild
   count) and `free_memory` in the tick log line (step 6), mirroring the existing
   token/cost discipline so a leak is VISIBLE, not silent.

@@ -104,6 +104,17 @@
   | Windows + Git-Bash-only (no WSL)   | DEGRADED: launched-tree `taskkill /T` only; detached/reparented descendants NOT guaranteed reaped (no POSIX sessions on Windows) — explicitly weaker than the SPEC-0009 contract |
   | Windows, neither WSL nor Git Bash  | `AAI-ENV-ERROR: ...`, exit 78 (sysexits `EX_CONFIG`); no test run attempted |
 
+  Reaper age guard (`.aai/scripts/aai-reap-tests.sh` / `aai-reap-tests.ps1`,
+  "reaper-deterministic-age-guard"): the post-step survivor sweep's spare-vs-
+  reap decision is STEP-START-EPOCH relative when the step owner (SKILL_LOOP /
+  VALIDATION) passes `AAI_REAP_STEP_START_EPOCH` — deterministic and invariant
+  to reaper overhead/host load, since both the `ps etime` sample and the
+  snapshot instant grow together. Unset/invalid/future falls back to the
+  legacy fixed `AAI_REAP_MIN_AGE_SECS` threshold byte-for-byte (fail-safe,
+  never a global kill). The `.ps1` twin's `-StepStart` is CONTRACT parity only
+  — `Get-ReapCandidates` already uses a real per-process `CreationDate`, so it
+  never had the `ps etime` whole-second-rounding flake to begin with.
+
   Real Windows-host process-cleanup semantics are documented but NOT verified
   by this repo's own CI (macOS/Linux only) — see SPEC-0046's Manual
   verification protocol (MV-1..MV-3) and residual risk RR-1.

@@ -12,17 +12,50 @@
 #   - WORKSPACE scope: the process command line must contain the workspace path
 #     (AAI_REAP_WORKSPACE, default $PWD). A matching process in a DIFFERENT
 #     workspace (a sibling checkout) is left alone.
-#   - ETIME guard: under concurrent subagents, a matching process YOUNGER than
-#     AAI_REAP_MIN_AGE_SECS (a sibling's in-flight run started after this step
-#     began) is NEVER killed. Only trees older than the threshold are reaped.
+#   - AGE guard (Guard 3): under concurrent subagents, a matching process that
+#     is part of THIS step's own in-flight work is NEVER killed. Only trees
+#     that predate the step are reaped. Two modes (deterministic epoch mode
+#     preferred; fixed-threshold legacy mode is the fail-safe fallback):
+#       - EPOCH MODE (AAI_REAP_STEP_START_EPOCH set + valid): capture
+#         SNAP_NOW=$(date +%s) at the SAME instant as the `ps` snapshot; per
+#         process compute start_epoch = SNAP_NOW - etime_secs; REAP iff
+#         start_epoch < AAI_REAP_STEP_START_EPOCH - AAI_REAP_GRACE_SECS, else
+#         SPARE. Reaper overhead/host load inflates SNAP_NOW and the sampled
+#         etime by the SAME amount, so start_epoch (and the decision) is
+#         invariant to it — this is what makes the guard deterministic instead
+#         of a wall-clock race against a fixed constant.
+#       - LEGACY MODE (AAI_REAP_STEP_START_EPOCH unset/invalid/future — the
+#         SAFETY-CRITICAL fail-safe): reap iff etime_secs >= AAI_REAP_MIN_AGE_SECS,
+#         exactly the pre-epoch behavior. NEVER "reap everything" on invalid
+#         input — legacy mode is workspace+token scoped like every other mode.
 #
 # Usage:
 #   .aai/scripts/aai-reap-tests.sh
 #
 # Environment:
-#   AAI_REAP_WORKSPACE    workspace path to scope by (default $PWD)
-#   AAI_REAP_MIN_AGE_SECS minimum process age in seconds to be eligible
-#                         (default 0; a younger matching process is spared)
+#   AAI_REAP_WORKSPACE        workspace path to scope by (default $PWD)
+#   AAI_REAP_MIN_AGE_SECS     LEGACY MODE minimum process age in seconds to be
+#                             eligible (default 0; a younger matching process
+#                             is spared). Used only when EPOCH MODE is not
+#                             active (see AAI_REAP_STEP_START_EPOCH below).
+#   AAI_REAP_STEP_START_EPOCH step-start Unix epoch seconds (e.g.
+#                             `$(date +%s)` captured by the step owner —
+#                             SKILL_LOOP / VALIDATION — before the test step
+#                             launches). Activates EPOCH MODE when it is a
+#                             valid positive integer <= the reaper's own
+#                             `date +%s` at snapshot time; a process is reaped
+#                             iff its computed start time is before
+#                             (this value - AAI_REAP_GRACE_SECS). Unset, empty,
+#                             non-integer, negative, zero, or a FUTURE value
+#                             (clock skew) all fall back to LEGACY MODE —
+#                             never a global kill. Additive: omitting it keeps
+#                             today's LEGACY MODE behavior byte-for-byte.
+#   AAI_REAP_GRACE_SECS       EPOCH MODE grace window in seconds absorbing
+#                             `ps etime` whole-second truncation + snapshot
+#                             sampling skew (default 2). A non-negative integer
+#                             overrides it (for deterministic testing, not
+#                             production tuning); anything else coerces to the
+#                             default. Ignored in LEGACY MODE.
 #
 # Output: prints the number of reaped process trees ("reaped: N"). No-op (exit 0)
 # when nothing matches.
@@ -49,6 +82,15 @@ MIN_AGE="${AAI_REAP_MIN_AGE_SECS:-0}"
 case "$MIN_AGE" in
   '' | *[!0-9]*) MIN_AGE=0 ;;
 esac
+
+# Strip leading zeros from a digit string so POSIX $(()) never treats a
+# zero-padded value as octal (bash's 10# base-notation errors under dash —
+# W1). Empty input -> "0".
+strip_lz() {
+  _v="$1"
+  _v="${_v#"${_v%%[!0]*}"}"
+  printf '%s' "${_v:-0}"
+}
 
 # Convert a ps ELAPSED/etime field to whole seconds. Handles the BSD/GNU forms:
 #   SS            (rare)
@@ -127,6 +169,41 @@ ps axo pid=,etime=,args= > "$SNAP" 2>/dev/null || {
   echo "reaped: 0"
   exit 0
 }
+# SNAP_NOW is captured IMMEDIATELY adjacent to the ps snapshot instant above —
+# this is what makes EPOCH MODE deterministic: whatever overhead delayed this
+# point (mktemp, the ps fork+exec itself, host load) delays SNAP_NOW and every
+# process's sampled etime by the SAME amount, so start_epoch = SNAP_NOW - etime
+# is unaffected by it (ps etime + date +%s ONLY — no `ps -o lstart`, no
+# BSD/GNU `date -d`/`date -j` string parsing; LEARNED 2026-07-19).
+SNAP_NOW="$(date +%s)"
+
+# Parse AAI_REAP_STEP_START_EPOCH: EPOCH MODE activates ONLY when it is a
+# valid positive integer <= SNAP_NOW (a future step-start is nonsense — clock
+# skew). Unset / empty / non-integer / negative / zero / future all leave
+# STEP_START empty, which falls back to the EXACT legacy AAI_REAP_MIN_AGE_SECS
+# behavior below (SAFETY-CRITICAL fail-safe — never "reap everything").
+STEP_START=""
+_step_start_raw="${AAI_REAP_STEP_START_EPOCH:-}"
+case "$_step_start_raw" in
+  '' | *[!0-9]*) ;;
+  *)
+    _step_start_norm="$(strip_lz "$_step_start_raw")"
+    if [ "$_step_start_norm" -gt 0 ] 2>/dev/null && [ "$_step_start_norm" -le "$SNAP_NOW" ] 2>/dev/null; then
+      STEP_START="$_step_start_norm"
+    fi
+    ;;
+esac
+
+# Parse AAI_REAP_GRACE_SECS (EPOCH MODE only): default 2 (1s etime truncation +
+# 1s snapshot sampling skew). A non-negative integer overrides it (deterministic
+# testing only, not production tuning); anything else coerces to the default.
+GRACE=2
+_grace_raw="${AAI_REAP_GRACE_SECS:-}"
+case "$_grace_raw" in
+  '') ;;
+  *[!0-9]*) ;;
+  *) GRACE="$(strip_lz "$_grace_raw")" ;;
+esac
 
 MATCH_PIDS=""
 # `while read < file` runs in the CURRENT shell (no pipe subshell), so the
@@ -154,9 +231,18 @@ while read -r pid etime rest; do
     *"${WORKSPACE}/"*) ;;
     *) continue ;;
   esac
-  # Guard 3: etime — spare anything younger than the step-start threshold.
+  # Guard 3: age — spare anything that is this step's own in-flight work.
   age="$(etime_to_secs "$etime")"
-  [ "$age" -ge "$MIN_AGE" ] 2>/dev/null || continue
+  if [ -n "$STEP_START" ]; then
+    # EPOCH MODE: start_epoch and STEP_START are both instants fixed before
+    # this reaper ran, so the decision is invariant to reaper overhead.
+    start_epoch=$((SNAP_NOW - age))
+    threshold=$((STEP_START - GRACE))
+    [ "$start_epoch" -lt "$threshold" ] 2>/dev/null || continue
+  else
+    # LEGACY MODE (fail-safe fallback): exact pre-epoch fixed-threshold behavior.
+    [ "$age" -ge "$MIN_AGE" ] 2>/dev/null || continue
+  fi
   MATCH_PIDS="$MATCH_PIDS $pid"
 done < "$SNAP"
 rm -f "$SNAP"

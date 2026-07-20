@@ -35,6 +35,7 @@ JUSTIFIED_ADDITIONS=(
   "1309 CHANGE-0037 deterministic close-ceremony wiring prose: SKILL_PR.prompt.md step 5c close-work-item.mjs invocation (+1144 B) + VALIDATION 8b hand-flip/hand-emit removal replaced by close-ceremony pointer (+165 B)"
   "1786 CHANGE-0038+0039 workflow-hardening wiring prose: METRICS_FLUSH.prompt.md rewrite (flush no longer emits close events, SPEC-0054) + SKILL_PR step 2b RECONCILE WORKTREE TELEMETRY invocation prose (SPEC-0055)"
   "3100 aai-release-skill new .aai/SKILL_RELEASE.prompt.md thin-wrapper prompt (SPEC-DRAFT-spec-aai-release-skill D9) documenting the /aai-release deterministic release-cut engine (--dry-run/--version/--confirm/--no-remote), mirroring SKILL_UPDATE.prompt.md's shape; measured deficit 3027 B, credit chosen 3100 B for 73 B headroom"
+  "825 reaper-deterministic-age-guard SKILL_LOOP.prompt.md POST-TICK REAP + VALIDATION.prompt.md step-boundary reap prose documenting the step owner's AAI_REAP_STEP_START_EPOCH=\$(date +%s) capture/handoff to the reaper's deterministic epoch guard; measured deficit 825 B, credit chosen 825 B for 0 B headroom"
 )
 JUSTIFIED_GROWTH_BYTES=0
 for _entry in "${JUSTIFIED_ADDITIONS[@]}"; do

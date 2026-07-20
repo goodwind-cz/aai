@@ -44,20 +44,29 @@ USER_GUIDE_DOC="$PROJECT_ROOT/docs/USER_GUIDE.md"
 SKILL_BOOTSTRAP_DOC="$PROJECT_ROOT/.aai/SKILL_BOOTSTRAP.prompt.md"
 
 TMP_ROOT=""
-SPAWNED_PIDS=""
+SPAWNED_PIDS_FILE=""
 
 log_pass() { echo "PASS: $*"; }
 log_fail() { echo "FAIL: $*" >&2; exit 1; }
 log_skip() { echo "SKIP: $*"; exit 42; }
 log_info() { echo "INFO: $*"; }
 
-track() { SPAWNED_PIDS="$SPAWNED_PIDS $1"; }
+# Appends to a FILE, not a shell variable: most callers invoke the spawn_*
+# helpers via command substitution ($(...)), which runs in a SUBSHELL — a
+# variable mutated there is invisible to this script's own trap. A file write
+# is a real filesystem effect and survives the subshell exiting, so cleanup()
+# below reliably reaps every throwaway marked sleep proc this suite spawns,
+# including the ones a test deliberately leaves alive (spared-by-design
+# fixtures like an other-workspace or fresh sibling).
+track() { [[ -n "$SPAWNED_PIDS_FILE" ]] && echo "$1" >> "$SPAWNED_PIDS_FILE"; }
 
 cleanup() {
   local p
-  for p in $SPAWNED_PIDS; do
-    kill -9 "$p" >/dev/null 2>&1 || true
-  done
+  if [[ -n "${SPAWNED_PIDS_FILE:-}" && -f "$SPAWNED_PIDS_FILE" ]]; then
+    while IFS= read -r p; do
+      [[ -n "$p" ]] && kill -9 "$p" >/dev/null 2>&1 || true
+    done < "$SPAWNED_PIDS_FILE"
+  fi
   if [[ -n "${TMP_ROOT:-}" && -d "$TMP_ROOT" ]]; then
     rm -rf "$TMP_ROOT"
   fi
@@ -98,6 +107,8 @@ check_deps() {
   command -v pgrep >/dev/null 2>&1 || log_skip "pgrep not found"
   command -v mktemp >/dev/null 2>&1 || log_skip "mktemp not found"
   TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aai-run-tests-test.XXXXXX")"
+  SPAWNED_PIDS_FILE="$TMP_ROOT/.spawned_pids"
+  : > "$SPAWNED_PIDS_FILE"
   log_pass "Dependencies checked"
 }
 
@@ -199,32 +210,30 @@ test_005() {
   log_pass "reaper kills only the in-workspace match; the other-workspace sibling survives"
 }
 
-# --- TEST-006 — etime guard: fresh sibling spared, old reaped (Spec-AC-06) ----
+# --- TEST-006 — epoch guard: post-step sibling spared, pre-step reaped (Spec-AC-01/02, migrated) ----
+# MIGRATED off the fixed-threshold margin-hope (etime >= MIN_AGE=5 with wide
+# sleeps) onto the deterministic STEP-START-EPOCH contract: the decision is by
+# CONSTRUCTION (relative to a captured step boundary), not by hoping reaper
+# overhead stays under a constant.
 test_006() {
-  log_info "TEST-006: etime guard — a fresh (younger-than-threshold) matching proc is NOT reaped; an older one IS..."
+  log_info "TEST-006: epoch guard — a post-step-boundary matching proc is NOT reaped; a pre-step one IS..."
   [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
-  local ws old_pid fresh_pid out
+  local ws old_pid step_start fresh_pid out
   ws="$(mktemp -d "$TMP_ROOT/ws6.XXXXXX")"
-  # Old matching process: spawn, then let it age past the threshold.
+  # Old matching process predates the step boundary.
   old_pid="$(spawn_marked "vitest_old_${ws}/worker")"
-  sleep 8
-  # Fresh matching process (same workspace): started just now.
+  sleep 3
+  # Step boundary captured HERE — everything spawned at/after this instant is
+  # this step's own work and must be spared regardless of reaper overhead.
+  step_start="$(date +%s)"
   fresh_pid="$(spawn_marked "vitest_fresh_${ws}/worker")"
   alive "$old_pid" || log_fail "fixture setup: old proc $old_pid not alive"
   alive "$fresh_pid" || log_fail "fixture setup: fresh proc $fresh_pid not alive"
-  # Threshold 5s, old sleeps 8s: wide margins on BOTH sides (old comfortably >
-  # threshold; fresh comfortably < threshold) so the whole-second `ps etime`
-  # granularity plus a loaded/throttled CI runner's fork+exec/ps-snapshot
-  # latency between "fresh spawned" and "reaper samples etime" (a real timing
-  # race — not an etime-format bug — observed on Linux CI with the old 3s/2s
-  # margins) cannot push a genuinely-fresh sibling's observed age across the
-  # threshold. old (~8s) is eligible, fresh (~0s, needs <5s of overhead to
-  # stay spared) is a sibling's in-flight run.
-  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS=5 sh "$REAP_SCRIPT" 2>&1)"
+  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" sh "$REAP_SCRIPT" 2>&1)"
   sleep 1
-  alive "$old_pid" && log_fail "reaper failed to reap the OLD matching proc $old_pid"
-  alive "$fresh_pid" || log_fail "reaper killed a FRESH sibling $fresh_pid younger than the step-start threshold — concurrency guard violated"
-  log_pass "etime guard reaps the old tree and spares the fresh concurrent sibling"
+  alive "$old_pid" && log_fail "reaper failed to reap the pre-step matching proc $old_pid"
+  alive "$fresh_pid" || log_fail "reaper killed a FRESH sibling $fresh_pid spawned at/after the step boundary — epoch guard violated"
+  log_pass "epoch guard reaps the pre-step tree and spares the post-step-boundary sibling, deterministically"
 }
 
 # --- TEST-007 — SKILL_LOOP routing + preflight + tick accounting (Spec-AC-07) --
@@ -393,7 +402,29 @@ test_013() {
     fi
     alive "$match_pid" && log_fail "reaper under dash did not reap the aged in-workspace proc $match_pid — bashism no-op/under-reap under POSIX sh (W1)"
     echo "$out" | grep -qiE "reaped: *[1-9]" || log_fail "reaper under dash must report a non-zero reaped count (got: $out)"
-    log_pass "reaper runs clean under POSIX sh (dash): no bashisms, guard + etime path work (W1 fixed)"
+
+    # Extend W1 to the EPOCH path (Spec-AC-04): the STEP-START-relative
+    # decision must also be bashism-free under dash — spare a post-step
+    # sibling, reap a pre-step survivor, in the SAME dash invocation contract.
+    local ws2 old_pid step_start fresh_pid out2 err2
+    ws2="$(mktemp -d "$TMP_ROOT/posix-epoch.XXXXXX")"
+    old_pid="$(spawn_marked "vitest_epoch_old_${ws2}/worker")"
+    sleep 3
+    step_start="$(date +%s)"
+    fresh_pid="$(spawn_marked "vitest_epoch_fresh_${ws2}/worker")"
+    alive "$old_pid" || log_fail "fixture setup: epoch-old proc $old_pid not alive"
+    alive "$fresh_pid" || log_fail "fixture setup: epoch-fresh proc $fresh_pid not alive"
+    err2="$TMP_ROOT/dash-epoch-stderr.$$"
+    out2="$(AAI_REAP_WORKSPACE="$ws2" AAI_REAP_STEP_START_EPOCH="$step_start" dash "$REAP_SCRIPT" 2>"$err2")"
+    sleep 1
+    if grep -qiE 'not found|expecting EOF|arithmetic|[Ss]yntax error|unexpected' "$err2"; then
+      log_fail "epoch mode emitted shell errors under dash (bashism) — $(tr '\n' ';' < "$err2")"
+    fi
+    alive "$old_pid" && log_fail "epoch mode under dash failed to reap the pre-step survivor $old_pid"
+    alive "$fresh_pid" || log_fail "epoch mode under dash killed the post-step-boundary sibling $fresh_pid"
+    echo "$out2" | grep -qiE "reaped: *[1-9]" || log_fail "epoch mode under dash must report a non-zero reaped count (got: $out2)"
+
+    log_pass "reaper runs clean under POSIX sh (dash): no bashisms in legacy OR epoch path (W1 fixed + extended)"
   else
     log_pass "reaper contains no bash-only [[ ]] in code (W1); dash absent, dynamic check skipped"
   fi
@@ -441,14 +472,15 @@ test_014() {
 # survive — the fix widens completeness for the matched target only, never the E1
 # workspace scope or the etime guard.
 test_015() {
-  log_info "TEST-015: reaper kills the matched launcher AND its token-less descendant; other-ws + fresh survive (P2)..."
+  log_info "TEST-015: reaper kills the matched launcher AND its token-less descendant; other-ws + post-step-boundary fresh survive (P2, migrated)..."
   [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
-  local ws other p_pid p_child o_pid o_child fresh_pid out
+  local ws other p_pid p_child o_pid o_child step_start fresh_pid out
   ws="$(mktemp -d "$TMP_ROOT/p2ws.XXXXXX")"
   other="$(mktemp -d "$TMP_ROOT/p2other.XXXXXX")"
   p_pid="$(spawn_parent_with_child "vitest_run_${ws}/worker")"
   o_pid="$(spawn_parent_with_child "vitest_run_${other}/worker")"
-  sleep 8   # let both matched trees age well past the 5s threshold below
+  sleep 4   # let the forked child come up; comfortably beyond default GRACE(2)
+            # so the step boundary captured below isn't right at the edge
   p_child="$(pgrep -P "$p_pid" | head -1)"
   o_child="$(pgrep -P "$o_pid" | head -1)"
   [[ -n "$p_child" ]] || log_fail "fixture: matched launcher $p_pid has no live child"
@@ -457,19 +489,15 @@ test_015() {
   if ps -o args= -p "$p_child" 2>/dev/null | grep -q "vitest"; then
     log_fail "fixture invalid: the descendant argv still carries the vitest token"
   fi
-  # Fresh sibling in the SAME workspace, spawned just now (younger than threshold).
+  # Step boundary captured HERE — both matched trees predate it; the fresh
+  # sibling below is spawned at/after it and must survive DETERMINISTICALLY
+  # (epoch guard by construction, not a margin-hope on ps etime granularity).
+  step_start="$(date +%s)"
   fresh_pid="$(spawn_marked "vitest_fresh_${ws}/worker")"
   alive "$p_pid"   || log_fail "fixture: matched launcher $p_pid not alive"
   alive "$p_child" || log_fail "fixture: token-less child $p_child not alive"
   alive "$o_pid"   || log_fail "fixture: other-ws launcher $o_pid not alive"
-  # Threshold 5s, matched trees sleep 8s: wide margins on BOTH sides (see
-  # TEST-006's comment for why — a real Linux-CI timing race, not an etime
-  # format bug: whole-second `ps etime` granularity plus a loaded runner's
-  # fork+exec/ps-snapshot latency between "fresh spawned" and "reaper samples
-  # etime" could push the old 3s/2s margins' fresh sibling across the
-  # threshold). The matched trees (~8s) are eligible; the fresh sibling (~0s,
-  # needs <5s of overhead to stay spared) is not.
-  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS=5 sh "$REAP_SCRIPT" 2>&1)"
+  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" sh "$REAP_SCRIPT" 2>&1)"
   sleep 1
   alive "$p_pid"   && log_fail "reaper failed to kill the matched launcher $p_pid"
   alive "$p_child" && log_fail "reaper left the token-less descendant $p_child resident — matched tree not fully reaped (P2)"
@@ -477,12 +505,138 @@ test_015() {
   if [[ -n "$o_child" ]]; then
     alive "$o_child" || log_fail "reaper over-reached: killed the DIFFERENT-workspace child $o_child — E1 workspace scope broadened"
   fi
-  alive "$fresh_pid" || log_fail "reaper over-reached: killed a FRESH sibling $fresh_pid younger than the step-start threshold — etime guard broadened"
+  alive "$fresh_pid" || log_fail "reaper over-reached: killed a FRESH sibling $fresh_pid spawned at/after the step boundary — epoch guard broadened"
   echo "$out" | grep -qiE "reaped: *[1-9]" || log_fail "reaper must report a non-zero reaped count (got: $out)"
-  log_pass "reaper reaps the matched launcher + its token-less descendant; other-ws tree and fresh sibling survive (P2 fixed; E1+etime intact)"
+  log_pass "reaper reaps the matched launcher + its token-less descendant; other-ws tree and post-step-boundary sibling survive (P2 fixed; E1+epoch intact)"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015"
+# --- TEST-016 — epoch mode is invariant to injected reaper delay (Spec-AC-01/02) --
+# RED-proofed: against a pre-change (fixed-threshold) reaper, the SAME scenario
+# spares at delay=0 but FLIPS to reap at delay>=MIN_AGE+GRACE — the exact flake
+# (PR #118/#119). The fixed reaper spares at BOTH delays because SNAP_NOW and the
+# sampled etime grow together (overhead cancels out): start_epoch stays constant.
+# AAI_REAP_MIN_AGE_SECS=5 is passed alongside STEP_START purely so the SAME
+# invocation RED-proofs a pre-change reaper (which ignores STEP_START and falls
+# back to its only guard, the fixed MIN_AGE); the fixed reaper's epoch mode
+# ignores MIN_AGE entirely once STEP_START is valid.
+test_016() {
+  log_info "TEST-016: epoch mode — fresh sibling SPARED regardless of injected reaper delay (overhead-independent; RED-proofs the pre-change flake)..."
+  [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
+  local ws step_start fresh_pid out delay
+  ws="$(mktemp -d "$TMP_ROOT/ws16.XXXXXX")"
+  for delay in 0 7; do
+    step_start="$(date +%s)"
+    fresh_pid="$(spawn_marked "vitest_fresh16_${delay}_${ws}/worker")"
+    alive "$fresh_pid" || log_fail "fixture setup: fresh proc $fresh_pid not alive (delay=$delay)"
+    sleep "$delay"   # simulate reaper overhead / host load between step-start and the reap sweep
+    out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" AAI_REAP_MIN_AGE_SECS=5 sh "$REAP_SCRIPT" 2>&1)"
+    sleep 1
+    if ! alive "$fresh_pid"; then
+      log_fail "reaper killed a FRESH sibling $fresh_pid at injected delay=${delay}s — overhead not cancelled (reaper output: $out)"
+    fi
+    kill -9 "$fresh_pid" >/dev/null 2>&1 || true
+  done
+  log_pass "epoch mode spares the fresh sibling identically at delay=0 and delay=7s (overhead-independent, deterministic)"
+}
+
+# --- TEST-017 — epoch mode reaps a genuine pre-step survivor regardless of MIN_AGE (Spec-AC-01) --
+test_017() {
+  log_info "TEST-017: epoch mode — a genuine PRE-STEP survivor is REAPED even at a MIN_AGE the legacy fixed threshold would have used to spare it..."
+  [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
+  local ws survivor_pid step_start out
+  ws="$(mktemp -d "$TMP_ROOT/ws17.XXXXXX")"
+  # Survivor predates the step: spawn it, wait, THEN capture step_start — so
+  # survivor's start_epoch is strictly before STEP_START-GRACE.
+  survivor_pid="$(spawn_marked "vitest_survivor17_${ws}/worker")"
+  sleep 3
+  step_start="$(date +%s)"
+  alive "$survivor_pid" || log_fail "fixture setup: survivor proc $survivor_pid not alive"
+  # MIN_AGE=999 is IRRELEVANT to epoch mode; if the reaper wrongly fell back to
+  # legacy behavior here it would SPARE this (~3s old) survivor instead.
+  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" AAI_REAP_MIN_AGE_SECS=999 sh "$REAP_SCRIPT" 2>&1)"
+  sleep 1
+  alive "$survivor_pid" && log_fail "epoch mode failed to reap a genuine pre-step survivor $survivor_pid (reaper output: $out)"
+  echo "$out" | grep -qiE "reaped: *[1-9]" || log_fail "reaper must report a non-zero reaped count (got: $out)"
+  log_pass "epoch mode reaps a genuine pre-step survivor regardless of a high legacy MIN_AGE"
+}
+
+# --- TEST-018 — fail-safe: invalid/unset/future STEP_START -> exact legacy MIN_AGE behavior (Spec-AC-03) --
+test_018() {
+  log_info "TEST-018: fail-safe — unset/empty/non-integer/negative/non-positive/future AAI_REAP_STEP_START_EPOCH falls back to EXACT legacy MIN_AGE behavior; never global..."
+  [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
+  local ws invalid old_pid fresh_pid out future
+  ws="$(mktemp -d "$TMP_ROOT/ws18.XXXXXX")"
+  future=$(( $(date +%s) + 100000 ))
+  # Wide margins on BOTH sides (old comfortably > MIN_AGE, fresh comfortably <
+  # MIN_AGE) — legacy mode is the UNCHANGED pre-epoch fixed-threshold path, so
+  # it carries the same whole-second `ps etime` rounding this spec's epoch mode
+  # exists to fix; a tight margin here would reintroduce that exact flake.
+  for invalid in UNSET EMPTY "abc" "-5" "0" "$future"; do
+    old_pid="$(spawn_marked "vitest_old18_${ws}/worker")"
+    sleep 5
+    fresh_pid="$(spawn_marked "vitest_fresh18_${ws}/worker")"
+    alive "$old_pid" || log_fail "fixture setup: old proc $old_pid not alive (case='$invalid')"
+    alive "$fresh_pid" || log_fail "fixture setup: fresh proc $fresh_pid not alive (case='$invalid')"
+    case "$invalid" in
+      UNSET)
+        out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS=3 sh "$REAP_SCRIPT" 2>&1)"
+        ;;
+      EMPTY)
+        out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="" AAI_REAP_MIN_AGE_SECS=3 sh "$REAP_SCRIPT" 2>&1)"
+        ;;
+      *)
+        out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$invalid" AAI_REAP_MIN_AGE_SECS=3 sh "$REAP_SCRIPT" 2>&1)"
+        ;;
+    esac
+    sleep 1
+    if alive "$old_pid"; then
+      kill -9 "$fresh_pid" >/dev/null 2>&1 || true
+      log_fail "fail-safe broken (case='$invalid'): legacy MIN_AGE=3 should have reaped the ~5s-old match (reaper output: $out)"
+    fi
+    if ! alive "$fresh_pid"; then
+      log_fail "fail-safe broken (case='$invalid'): legacy MIN_AGE=3 must still spare the fresh match (reaper output: $out)"
+    fi
+    kill -9 "$fresh_pid" >/dev/null 2>&1 || true
+  done
+  log_pass "invalid/unset/future STEP_START falls back to EXACT legacy MIN_AGE behavior for every case (never global)"
+}
+
+# --- TEST-019 — portability: epoch mode is ps etime + date +%s ONLY (Spec-AC-04) --
+test_019() {
+  log_info "TEST-019: portability — epoch mode uses ONLY ps etime + date +%s; no ps -o lstart, no date -d/-j string parsing..."
+  [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
+  # Static guard on CODE only (comments legitimately name the forbidden
+  # constructs to document why they're avoided — strip comments first, same
+  # technique TEST-013 uses for the [[ ]] guard).
+  local code
+  code="$(sed 's/#.*$//' "$REAP_SCRIPT")"
+  echo "$code" | grep -qE 'lstart' \
+    && log_fail "reaper must not parse ps -o lstart (BSD/GNU epoch-parsing minefield, LEARNED 2026-07-19)"
+  echo "$code" | grep -qE 'date -d|date -j' \
+    && log_fail "reaper must not use date -d/-j string parsing (BSD/GNU minefield, LEARNED 2026-07-19)"
+  grep -qF 'AAI_REAP_STEP_START_EPOCH' "$REAP_SCRIPT" \
+    || log_fail "reaper must support AAI_REAP_STEP_START_EPOCH (epoch mode not implemented)"
+  grep -qE 'date \+%s' "$REAP_SCRIPT" \
+    || log_fail "reaper must capture the snapshot instant via date +%s"
+  log_pass "reaper source uses only ps etime + date +%s (no lstart, no date -d/-j string parsing)"
+}
+
+# --- TEST-020 — producer wiring documented in SKILL_LOOP + VALIDATION (Spec-AC-06) --
+test_020() {
+  log_info "TEST-020: grep SKILL_LOOP + VALIDATION — step owner captures AAI_REAP_STEP_START_EPOCH=\$(date +%s) at the step boundary and hands it to the reaper..."
+  [[ -f "$SKILL_LOOP_DOC" ]] || log_fail "missing $SKILL_LOOP_DOC"
+  [[ -f "$VALIDATION_DOC" ]] || log_fail "missing $VALIDATION_DOC"
+  local doc
+  for doc in "$SKILL_LOOP_DOC" "$VALIDATION_DOC"; do
+    grep -qF "AAI_REAP_STEP_START_EPOCH" "$doc" \
+      || log_fail "$doc must document capturing/passing AAI_REAP_STEP_START_EPOCH"
+    grep -qE 'date \+%s' "$doc" \
+      || log_fail "$doc must document capturing the step-start epoch via date +%s"
+  done
+  log_pass "SKILL_LOOP and VALIDATION document the step-start-epoch capture + handoff to the reaper"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020"
 
 main() {
   echo "Testing $TEST_NAME (process-group wrapper + workspace/etime-scoped reaper + wiring)"
