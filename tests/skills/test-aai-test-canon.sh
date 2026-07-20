@@ -513,7 +513,7 @@ test_007() {
   local timestamps_before=""
   for f in docs/canonical/* tests/canonical/*; do
     if [[ -f "$f" ]]; then
-      timestamps_before+="$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null):$f "
+      timestamps_before+="$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null):$f "
     fi
   done
 
@@ -533,7 +533,7 @@ test_007() {
   for f in docs/canonical/* tests/canonical/*; do
     if [[ -f "$f" ]]; then
       local ts_after
-      ts_after=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null)
+      ts_after=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null)
       if [[ "$ts_after" != "$(echo "$timestamps_before" | grep -o "$f" | head -1 || true)" ]]; then
         log_info "File $f — checking timestamp stability"
       fi
@@ -719,7 +719,7 @@ test_012() {
   # Record timestamps AFTER modification but BEFORE --drift
   local before_drift
   before_drift=$(find docs/ tests/ -type f -name "*.md" -o -name "*.sh" -o -name "*.json" 2>/dev/null | sort | while read -r f; do
-    echo "$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null):$f"
+    echo "$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null):$f"
   done)
 
   # Run --drift — should NOT modify any files (exit 1 when drift found is expected)
@@ -732,7 +732,7 @@ test_012() {
   # Verify no file timestamps changed by --drift
   local after_drift
   after_drift=$(find docs/ tests/ -type f -name "*.md" -o -name "*.sh" -o -name "*.json" 2>/dev/null | sort | while read -r f; do
-    echo "$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null):$f"
+    echo "$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null):$f"
   done)
 
   if [[ "$before_drift" == "$after_drift" ]]; then
