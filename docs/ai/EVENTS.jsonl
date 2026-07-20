@@ -931,3 +931,9 @@
 {"v":1,"ts":"2026-07-19T15:28:14.736Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-skill-suite-linux-ci-portability","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-19T15:28:14.770Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-skill-suite-linux-ci-portability","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-19T15:28:14.805Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-skill-suite-linux-ci-portability","payload":{"commit":"1723088986d10ebcff1ab10b42d81354cb3b586e"}}
+{"v":1,"ts":"2026-07-20T09:19:46.731Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"aai-release-skill","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-20T09:19:46.766Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"aai-release-skill","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-20T09:19:46.802Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"aai-release-skill","payload":{"commit":"0cb294da05939165a3ee1399f1ec26bde9aba45d"}}
+{"v":1,"ts":"2026-07-20T09:19:46.837Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-aai-release-skill","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-20T09:19:46.872Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-aai-release-skill","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-20T09:19:46.910Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-aai-release-skill","payload":{"commit":"0cb294da05939165a3ee1399f1ec26bde9aba45d"}}

@@ -2,10 +2,12 @@
 id: aai-release-skill
 number: 44
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 118
+  commits:
+    - 0cb294da05939165a3ee1399f1ec26bde9aba45d
 ---
 
 # Portable `/aai-release` skill — cut a release (self-host or any deployed project)

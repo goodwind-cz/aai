@@ -2,13 +2,15 @@
 id: spec-aai-release-skill
 type: spec
 number: 63
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: aai-release-skill
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 118
+  commits:
+    - 0cb294da05939165a3ee1399f1ec26bde9aba45d
 ---
 
 # Implementation Spec — Portable `/aai-release` skill (deterministic release-cut engine)
