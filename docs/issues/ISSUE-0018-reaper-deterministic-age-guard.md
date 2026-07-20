@@ -2,10 +2,12 @@
 id: reaper-deterministic-age-guard
 number: 18
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 120
+  commits:
+    - b6df8347937b45e053653175e0a3f0ae8e918618
 ---
 
 # Reaper age guard is a wall-clock race: make the fresh-sibling decision deterministic

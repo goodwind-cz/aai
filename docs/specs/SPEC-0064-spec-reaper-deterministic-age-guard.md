@@ -2,13 +2,15 @@
 id: spec-reaper-deterministic-age-guard
 type: spec
 number: 64
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: reaper-deterministic-age-guard
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 120
+  commits:
+    - b6df8347937b45e053653175e0a3f0ae8e918618
 ---
 
 # Implementation Spec — Reaper deterministic step-start age guard
