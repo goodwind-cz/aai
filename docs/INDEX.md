@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-20T08:41:15.996Z
+Generated: 2026-07-20T09:18:41.841Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -161,8 +161,8 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| aai-release-skill (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-aai-release-skill.md |
-| spec-aai-release-skill (unnumbered draft) | specs | docs/specs/SPEC-DRAFT-spec-aai-release-skill.md |
+| CHANGE-0044 | issues | docs/issues/CHANGE-0044-aai-release-skill.md |
+| SPEC-0063 | specs | docs/specs/SPEC-0063-spec-aai-release-skill.md |
 
 ## Deferred (whole-doc) (0)
 

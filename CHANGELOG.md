@@ -9,7 +9,7 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — feat: portable `/aai-release` skill — deterministic release-cut engine (aai-release-skill)
+## [unreleased] — feat: portable `/aai-release` skill — deterministic release-cut engine (CHANGE-0044 / SPEC-0063)
 
 - Added `.aai/scripts/aai-release.{sh,ps1}` — a deterministic release-cut engine
   behind the new `/aai-release` skill (`.aai/SKILL_RELEASE.prompt.md` +
