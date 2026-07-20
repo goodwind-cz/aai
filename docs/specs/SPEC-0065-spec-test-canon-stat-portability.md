@@ -2,13 +2,15 @@
 id: spec-test-canon-stat-portability
 type: spec
 number: 65
-status: draft
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/ISSUE-0019-test-canon-stat-portability.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 121
+  commits:
+    - fb69fdef0280f5776e6a005f62303f8f4949fffc
 ---
 
 # Implementation Spec — test-canon mtime read: GNU-first `stat` portability

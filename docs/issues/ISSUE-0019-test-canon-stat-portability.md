@@ -2,10 +2,12 @@
 id: test-canon-stat-portability
 number: 19
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 121
+  commits:
+    - fb69fdef0280f5776e6a005f62303f8f4949fffc
 ---
 
 # test-aai-test-canon.sh reads wrong mtime on Linux (`stat -f` tried before `stat -c`)
