@@ -113,7 +113,7 @@ try {
     $hline = $lines[$hi]
     $bodyStart = $hi + 1
     $bodyEnd = $headIdx[$k + 1] - 1
-    if ($hline -match '^## \[unreleased\] — ') {
+    if ($hline -match ('^## \[unreleased\] ' + [char]0x2014 + ' ')) {
       $type[$k] = "ENTRY"; $entryCount++
     } elseif ($hline -match '^## \[unreleased\]') {
       if ($hline -match '^## \[unreleased\][ \t]*$') {
@@ -210,7 +210,7 @@ try {
     Write-Host "- Commit message:   chore(release): $Version"
     Write-Host ""
     Write-Host "## CHANGELOG rollup (would write)"
-    Select-String -Path $OutFile -Pattern ("^## \[" + [regex]::Escape($Version) + "\] — ") | ForEach-Object { Write-Host "  $($_.LineNumber):$($_.Line)" }
+    Select-String -Path $OutFile -Pattern ("^## \[" + [regex]::Escape($Version) + "\] " + [char]0x2014 + " ") | ForEach-Object { Write-Host "  $($_.LineNumber):$($_.Line)" }
     Write-Host "  ## [unreleased]   <- fresh scaffold inserted above the rolled section"
     Write-Host ""
     Write-Host "## Release notes preview (title=$Version)"
