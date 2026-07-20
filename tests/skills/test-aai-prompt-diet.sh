@@ -412,7 +412,7 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# 9239 AND equals an independent re-sum of JUSTIFIED_ADDITIONS.
+# 12339 AND equals an independent re-sum of JUSTIFIED_ADDITIONS.
 test_012_growth_sum_matches_ledger() {
   if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
     log_fail "TEST-012 (spec TEST-001) JUSTIFIED_ADDITIONS array does not exist yet"
@@ -422,15 +422,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 9239 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 9239)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 12339 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 12339)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 9239 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 12339 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

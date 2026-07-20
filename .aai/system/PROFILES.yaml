@@ -64,6 +64,7 @@ core:
   - .aai/SKILL_LOOP.prompt.md
   - .aai/SKILL_META.prompt.md
   - .aai/SKILL_PR.prompt.md
+  - .aai/SKILL_RELEASE.prompt.md
   - .aai/SKILL_REPLAY.prompt.md
   - .aai/SKILL_TDD.prompt.md
   - .aai/SKILL_UPDATE.prompt.md
@@ -79,6 +80,8 @@ core:
   - .aai/scripts/aai-bootstrap.sh
   - .aai/scripts/aai-reap-tests.ps1
   - .aai/scripts/aai-reap-tests.sh
+  - .aai/scripts/aai-release.ps1
+  - .aai/scripts/aai-release.sh
   - .aai/scripts/aai-run-tests.ps1
   - .aai/scripts/aai-run-tests.sh
   - .aai/scripts/aai-sync.ps1

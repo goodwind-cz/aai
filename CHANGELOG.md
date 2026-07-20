@@ -9,6 +9,34 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: portable `/aai-release` skill — deterministic release-cut engine (CHANGE-0044 / SPEC-0063)
+
+- Added `.aai/scripts/aai-release.{sh,ps1}` — a deterministic release-cut engine
+  behind the new `/aai-release` skill (`.aai/SKILL_RELEASE.prompt.md` +
+  `.claude/.codex/.gemini` wrappers). Rolls the root `CHANGELOG.md`'s
+  `[unreleased]` blocks into a versioned section (line-surgical, idempotent,
+  content byte-preserved), commits `chore(release): <version>` staging only
+  `CHANGELOG.md`, creates an annotated git tag, publishes a GitHub release with
+  notes derived from that same rolled section (SEAM-1: single source of truth),
+  and pushes — behind an operator gate (`--confirm`/`--yes`) with a safe
+  default plan-only mode (bare invocation and `--dry-run` behave identically:
+  zero writes, exit 0).
+- Fail-closed precondition matrix (zero writes on refusal): dirty working
+  tree; missing/empty/malformed `[unreleased]` region; an existing tag for the
+  resolved version; `gh` absent/unauthenticated on the publish path only (the
+  plan path works fully offline). Version resolves from `--version <v>`
+  verbatim (any scheme, incl. SemVer) or defaults to CalVer `vYYYY.MM.DD`
+  (pinnable via `AAI_RELEASE_DATE` for deterministic tests/CI). A `--no-remote`
+  flag / `AAI_RELEASE_NO_REMOTE=1` env twin skips `git push` + `gh release
+  create` for local-only cuts and test safety.
+- Generic by construction — the only inputs are the repo root, its
+  `CHANGELOG.md`, and its git/`gh` remote, so it runs identically releasing AAI
+  itself or a downstream project that has the AAI layer deployed.
+- `tests/skills/test-aai-release.sh` (21 tests) exercises the rollup transform,
+  the precondition matrix, the remote seam (stubbed `gh` + local `file://`
+  bare remote — never a real publish/push), and portability, entirely in
+  throwaway scratch repos.
+
 ## [unreleased] — fix: make the skill test suites pass on the Linux CI runner (CHANGE-0043 / SPEC-0062)
 
 - The new `skill-suite` CI gate (CHANGE-0042) was red on Ubuntu while every suite
