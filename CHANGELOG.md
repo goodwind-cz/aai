@@ -9,7 +9,26 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased]
+## [unreleased] — fix: deterministic reaper age guard — remove aai-run-tests CI flake (ISSUE-0018 / SPEC-0064)
+
+- The test-process reaper (`.aai/scripts/aai-reap-tests.sh`) decided
+  fresh-sibling-vs-survivor by comparing an overhead-inflated `ps etime` against a
+  FIXED `AAI_REAP_MIN_AGE_SECS`, so on a loaded Linux CI runner a genuinely-fresh
+  sibling could be sampled past the constant and wrongly reaped — flaking the
+  `aai-run-tests` suite (a required check that blocked PR #118/#119). The prior
+  2s→5s margin widen (CHANGE-0043) only lowered the probability.
+- Fix: a **step-start-epoch-relative** decision that is invariant to reaper
+  overhead — capture `SNAP_NOW=$(date +%s)` at the `ps` snapshot instant, compute
+  `start_epoch = SNAP_NOW − etime`, and reap iff `start_epoch < STEP_START − GRACE`
+  (both terms move together, so overhead cancels). `AAI_REAP_STEP_START_EPOCH`
+  (valid: digits, >0, ≤ now) + `AAI_REAP_GRACE_SECS` (default 2); unset/invalid/
+  future **fails safe to the exact legacy `MIN_AGE` behavior** — never a global
+  kill, and Guards 1 (token) & 2 (workspace) are untouched.
+- Producer wiring documented in `SKILL_LOOP` / `VALIDATION` (the step owner
+  captures the epoch); PowerShell twin gains `-StepStart` contract parity. Portable
+  (`ps etime` + `date +%s` only). RED-proofed: the old reaper flips spare→reap
+  under an injected 7s delay; the new one is delay-invariant. Verified by two
+  consecutive green Ubuntu `skill-suite` CI runs.
 
 ## [v2026.07.20] — feat: portable `/aai-release` skill — deterministic release-cut engine (CHANGE-0044 / SPEC-0063)
 

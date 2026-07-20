@@ -117,13 +117,18 @@ PROCESS
    a) Read docs/TECHNOLOGY.md to identify test tooling and commands.
    b) Scan the repository for test configuration files (e.g. playwright.config.*, cypress.config.*, jest.config.*, pytest.ini, vitest.config.*, etc.).
    c) For EACH discovered test type (unit, integration, e2e, contract, smoke), execute its test command.
-      LEAK-SAFE EXECUTION (SPEC-0009): run every discovered test command THROUGH
-      the process-group wrapper `.aai/scripts/aai-run-tests.sh <cmd>` — never
+      LEAK-SAFE EXECUTION (SPEC-0009): capture the step-start epoch —
+      `AAI_REAP_STEP_START_EPOCH=$(date +%s)` — BEFORE launching the test
+      command, then run every discovered test command THROUGH the
+      process-group wrapper `.aai/scripts/aai-run-tests.sh <cmd>` — never
       invoke `vitest`/`tsc`/dev-servers directly — so a suite that leaks open
       handles cannot orphan a hung tree (a timeout maps to exit 124). After the
       test step completes, reap this-workspace survivors on the step boundary
-      with the workspace+etime-scoped reaper `.aai/scripts/aai-reap-tests.sh`
-      (never a global `pkill -f vitest`).
+      with the workspace-scoped reaper `.aai/scripts/aai-reap-tests.sh`, passing
+      it that same `AAI_REAP_STEP_START_EPOCH` so its age guard is a
+      deterministic, overhead-independent step-start-relative decision (never a
+      global `pkill -f vitest`; an unset epoch fails safe to the reaper's legacy
+      fixed-`AAI_REAP_MIN_AGE_SECS` behavior).
    d) If e2e tests exist (config file or test directory found) but were NOT executed → automatic FAIL.
    e) Record exit code and output for every test command as evidence.
    f) For each seam identified during planning (PLANNING step 6a), confirm an INTEGRATION test actually crosses it and was

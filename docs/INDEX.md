@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-20T09:19:57.256Z
+Generated: 2026-07-20T12:55:34.269Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (139)
+## Done (141)
 
 | ID | Type | Path |
 |---|---|---|
@@ -82,6 +82,7 @@ _None._
 | ISSUE-0015 | issues | docs/issues/ISSUE-0015-remediate-spec-id-collisions.md |
 | ISSUE-0016 | issues | docs/issues/ISSUE-0016-spec-lint-enforce-spec-id-prefix.md |
 | ISSUE-0017 | issues | docs/issues/ISSUE-0017-prompt-diet-floor-credit-drift.md |
+| ISSUE-0018 | issues | docs/issues/ISSUE-0018-reaper-deterministic-age-guard.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -157,6 +158,7 @@ _None._
 | SPEC-0061 | specs | docs/specs/SPEC-0061-spec-test-infra-reds-and-ci-gate.md |
 | SPEC-0062 | specs | docs/specs/SPEC-0062-spec-skill-suite-linux-ci-portability.md |
 | SPEC-0063 | specs | docs/specs/SPEC-0063-spec-aai-release-skill.md |
+| SPEC-0064 | specs | docs/specs/SPEC-0064-spec-reaper-deterministic-age-guard.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
