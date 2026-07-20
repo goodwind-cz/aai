@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-20T12:55:34.269Z
+Generated: 2026-07-20T13:56:04.730Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -161,9 +161,12 @@ _None._
 | SPEC-0064 | specs | docs/specs/SPEC-0064-spec-reaper-deterministic-age-guard.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0019 | issues | docs/issues/ISSUE-0019-test-canon-stat-portability.md |
+| SPEC-0065 | specs | docs/specs/SPEC-0065-spec-test-canon-stat-portability.md |
 
 ## Deferred (whole-doc) (0)
 

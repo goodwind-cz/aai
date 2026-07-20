@@ -9,6 +9,17 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: GNU-first `stat` for mtime in test-aai-test-canon.sh (ISSUE-0019 / SPEC-0065)
+
+- `tests/skills/test-aai-test-canon.sh` read file mtimes at four sites via
+  `stat -f %m … || stat -c %Y …` — the RC4 bug class: on GNU/Linux `stat -f`
+  succeeds (it means `--file-system`), so the `stat -c` fallback never ran and the
+  suite read a wrong value on the Linux runner. Swapped to GNU-first
+  `stat -c %Y … || stat -f %m …`, matching the already-shipped
+  `tests/skills/test-aai-update.sh`. Behavior-preserving on macOS. This finishes
+  cleaning the RC4 class repo-wide; it is correctness hygiene and does NOT claim to
+  fix the (separate, still-undiagnosed) intermittent test-canon flake.
+
 ## [unreleased] — fix: deterministic reaper age guard — remove aai-run-tests CI flake (ISSUE-0018 / SPEC-0064)
 
 - The test-process reaper (`.aai/scripts/aai-reap-tests.sh`) decided
