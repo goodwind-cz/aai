@@ -46,10 +46,10 @@ Describe 'aai-run-tests.ps1' {
         }
 
         It 'builds the correct wsl.exe delegation argv (env passthrough + script + command)' {
-            $args = Get-WslDelegationArgs -Command @('sh', '-c', 'exit 0') `
+            $argv = Get-WslDelegationArgs -Command @('sh', '-c', 'exit 0') `
                 -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 300 `
                 -WslPathResolver { param($p) '/mnt/c/repo/.aai/scripts/aai-run-tests.sh' }
-            $args | Should -Be @('-e', 'env', 'AAI_TEST_TIMEOUT=300', '/mnt/c/repo/.aai/scripts/aai-run-tests.sh', 'sh', '-c', 'exit 0')
+            $argv | Should -Be @('-e', 'env', 'AAI_TEST_TIMEOUT=300', '/mnt/c/repo/.aai/scripts/aai-run-tests.sh', 'sh', '-c', 'exit 0')
         }
 
         It 'Invoke-Dispatch calls the WSL launch path with the resolved argv when WSL is usable' {
