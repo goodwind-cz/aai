@@ -9,7 +9,9 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — feat: portable `/aai-release` skill — deterministic release-cut engine (CHANGE-0044 / SPEC-0063)
+## [unreleased]
+
+## [v2026.07.20] — feat: portable `/aai-release` skill — deterministic release-cut engine (CHANGE-0044 / SPEC-0063)
 
 - Added `.aai/scripts/aai-release.{sh,ps1}` — a deterministic release-cut engine
   behind the new `/aai-release` skill (`.aai/SKILL_RELEASE.prompt.md` +
@@ -37,7 +39,7 @@ RFC-0001).
   bare remote — never a real publish/push), and portability, entirely in
   throwaway scratch repos.
 
-## [unreleased] — fix: make the skill test suites pass on the Linux CI runner (CHANGE-0043 / SPEC-0062)
+## [v2026.07.20] — fix: make the skill test suites pass on the Linux CI runner (CHANGE-0043 / SPEC-0062)
 
 - The new `skill-suite` CI gate (CHANGE-0042) was red on Ubuntu while every suite
   passed on macOS. Root-cause analysis (enabled by making `test-framework.sh`
@@ -60,7 +62,7 @@ RFC-0001).
 - `test-framework.sh` now always surfaces a failing suite's output tail, so a CI
   log alone explains a failure (previously diagnosable only with `--verbose`).
 
-## [unreleased] — fix: three hidden test-infra reds + gate the skill suite in CI (CHANGE-0042 / SPEC-0061)
+## [v2026.07.20] — fix: three hidden test-infra reds + gate the skill suite in CI (CHANGE-0042 / SPEC-0061)
 
 - A serialized full-suite run (honoring each suite's shebang, not forced `sh`)
   surfaced three real reds on `main` that had accumulated invisibly because the
@@ -83,7 +85,7 @@ RFC-0001).
   closes the CI gap that let these reds (and the earlier verify-gate red) ship
   unseen.
 
-## [unreleased] — fix: unify the two prompt-diet byte floors into a shared ledger (ISSUE-0017 / SPEC-0060)
+## [v2026.07.20] — fix: unify the two prompt-diet byte floors into a shared ledger (ISSUE-0017 / SPEC-0060)
 
 - Fixed a real red on `main`: `tests/skills/test-aai-verify-gate.sh` TEST-006
   failed (net reduction 20455 < 28672) because it applied the same
@@ -103,7 +105,7 @@ RFC-0001).
   TEST-010/012/013 stay green (ledger sum unchanged); the third consumer
   `test-aai-ceremony-levels.sh` stays green. Test-infra only; no runtime change.
 
-## [unreleased] — docs: user-facing docs for the workflow-hardening + collision-guard changes (CHANGE-0041)
+## [v2026.07.20] — docs: user-facing docs for the workflow-hardening + collision-guard changes (CHANGE-0041)
 
 - `docs/USER_GUIDE.md` now documents five previously-undocumented user-visible
   features shipped this session, each described against the actual shipped
@@ -129,7 +131,7 @@ RFC-0001).
   (duplicate-doc-id), `aai-intake` (secrets preflight), `aai-loop` (lightweight
   lane). Docs-only change — no code/behavior change.
 
-## [unreleased] — feat: delta-spec lifecycle — close-time delta merge + provenance drift (CHANGE-0026 / SPEC-0038)
+## [v2026.07.20] — feat: delta-spec lifecycle — close-time delta merge + provenance drift (CHANGE-0026 / SPEC-0038)
 
 - Final stage of the RFC-0011 delta-spec lifecycle. New `delta-merge.mjs` applies
   a merging spec's `## Deltas` into `docs/canonical/<domain>.md` at PR ceremony:
@@ -153,7 +155,7 @@ RFC-0001).
   and ready. Independent validation caught and drove remediation of a tombstone-
   deletion bug (retired-NNN reuse) before this passed; dual-verdict review PASS.
 
-## [unreleased] — feat: delta-spec lifecycle — SPEC `## Deltas` section + shape validation (CHANGE-0025 / SPEC-0037)
+## [v2026.07.20] — feat: delta-spec lifecycle — SPEC `## Deltas` section + shape validation (CHANGE-0025 / SPEC-0037)
 
 - Second stage of the RFC-0011 delta-spec lifecycle (builds on SPEC-0034's
   canonical Requirements contract): a SPEC may carry an optional `## Deltas`
@@ -172,7 +174,7 @@ RFC-0001).
   a phantom-delta trap (template comment stripping), a weak test assertion, and
   a fail-closed consumption contract for the merge consumer.
 
-## [unreleased] — feat: level-aware close gate for L0/L1 lean specs (CHANGE-0024 / SPEC-0036)
+## [v2026.07.20] — feat: level-aware close gate for L0/L1 lean specs (CHANGE-0024 / SPEC-0036)
 
 - docs-audit's close gate and done-drift check become ceremony-level aware: a
   validly declared ceremony_level 0/1 "lean" spec (a `## Acceptance Criteria`
@@ -194,7 +196,7 @@ RFC-0001).
   reviewer-found silent-drop escapes (indented row; drift check not mirroring
   the gate). Regression tests: TEST-001..008 in test-aai-docs-audit.sh.
 
-## [unreleased] — feat: core/extended profiles for the vendored layer (CHANGE-0023 / SPEC-0035)
+## [v2026.07.20] — feat: core/extended profiles for the vendored layer (CHANGE-0023 / SPEC-0035)
 
 - aai-sync gains --profile core|extended (default extended = byte-identical
   for existing consumers): core = the workflow engine (orchestration, roles,
@@ -210,7 +212,7 @@ RFC-0001).
   (quoted strip) with a RED-proven bracket-path regression test; two sh↔ps1
   parser-parity drifts (F2/F3, trailing whitespace) fixed in the same pass.
 
-## [unreleased] — feat: delta-spec lifecycle stage 1 — canonical requirements contract (RFC-0011 / SPEC-0034)
+## [v2026.07.20] — feat: delta-spec lifecycle stage 1 — canonical requirements contract (RFC-0011 / SPEC-0034)
 
 - RFC-0011 stage 1 of 3: the canonical layer gains a Requirements contract —
   `### REQ-<DOMAIN>-NNN — <title>` + one SHALL + optional Scenario +
@@ -225,7 +227,7 @@ RFC-0001).
   pre-flight, before archiveSource, so a bad key can't half-mutate the tree.
   NB-1 (old-shape migration re-render) promoted to a stage-2 obligation.
 
-## [unreleased] — feat: spec-lint — deterministic spec-structure validation (CHANGE-0022 / SPEC-0033)
+## [v2026.07.20] — feat: spec-lint — deterministic spec-structure validation (CHANGE-0022 / SPEC-0033)
 
 - New .aai/scripts/spec-lint.mjs (report-only, exit 0/1/2, --json): AC-id
   uniqueness/sequence, done-needs-evidence, Test-Plan-to-AC mapping (list +
@@ -240,7 +242,7 @@ RFC-0001).
   false positive) remediated in-tree with a negative control; F2 promoted.
 - 2-line advisory wiring in PLANNING + VALIDATION with degrade clauses.
 
-## [unreleased] — feat: truth-scoring on the metrics ledger (CHANGE-0021 / SPEC-0032)
+## [v2026.07.20] — feat: truth-scoring on the metrics ledger (CHANGE-0021 / SPEC-0032)
 
 - Flushed ledger entries gain reliability{validation_fails, review_fails,
   remediation_runs, first_pass_clean} + a strategy stamp — derived ONLY from
@@ -254,7 +256,7 @@ RFC-0001).
   canonical AC-Status table regardless of level) — fixed in the companion
   l1-close-gate scope. Review: zero findings.
 
-## [unreleased] — feat: three optional advisory skills (CHANGE-0020 / SPEC-0031)
+## [v2026.07.20] — feat: three optional advisory skills (CHANGE-0020 / SPEC-0031)
 
 - SKILL_SCOUT (pre-implementation readiness 0-100 over 5 dimensions, GO/HOLD
   advisory at 70), SKILL_DESLOP (diff-scoped AI-slop removal with behavior-
@@ -266,7 +268,7 @@ RFC-0001).
   Validation NB (ledger key ref->ref_id) + review NB (pin the key in the
   test) both remediated.
 
-## [unreleased] — feat: scale-adaptive ceremony levels (RFC-0009 / SPEC-0030)
+## [v2026.07.20] — feat: scale-adaptive ceremony levels (RFC-0009 / SPEC-0030)
 
 - Specs declare ceremony_level 0-3 at freeze (justified in-doc); the gate
   table prunes EXPLICITLY by level, never silently: L0 (typo-class) skips the
@@ -283,7 +285,7 @@ RFC-0001).
   Review NB-1/NB-2 remediated (real idempotence probe; L3 worktree cell
   aligned to house 'required' semantics).
 
-## [unreleased] — feat: hook-enforced gates overlay for Claude Code (RFC-0010 / SPEC-0029)
+## [v2026.07.20] — feat: hook-enforced gates overlay for Claude Code (RFC-0010 / SPEC-0029)
 
 - Opt-in PreToolUse/Stop hooks template mirroring EXISTING script gates
   (zero new logic in hooks): git commit -> pre-commit-checks; git/gh merge ->
@@ -299,7 +301,7 @@ RFC-0001).
   regression stanzas. Hooks schema verified against live docs by validation
   (one harmless assumption corrected).
 
-## [unreleased] — feat: project constitution with justified-exception tracking (CHANGE-0019 / SPEC-0028)
+## [v2026.07.20] — feat: project constitution with justified-exception tracking (CHANGE-0019 / SPEC-0028)
 
 - docs/CONSTITUTION.md: 7 one-sentence articles distilled from scattered canon
   (evidence-before-claims, KISS/YAGNI, tri-platform portability,
@@ -314,7 +316,7 @@ RFC-0001).
   operator-DIRECTED agent merges) promoted to the ratification decision;
   the session merge-direction practice is now recorded in decisions.jsonl.
 
-## [unreleased] — feat: systematic-debugging gate for remediation (CHANGE-0018 / SPEC-0027)
+## [v2026.07.20] — feat: systematic-debugging gate for remediation (CHANGE-0018 / SPEC-0027)
 
 - New .aai/SKILL_DEBUG.prompt.md (68 lines): root-cause-first protocol —
   READ (full error, never tail-only) -> REPRODUCE (before any edit) ->
@@ -330,7 +332,7 @@ RFC-0001).
 - Validation PASS (byte-for-byte RED reconstruction); dual-verdict review
   PASS.
 
-## [unreleased] — feat: work-item brief as subagent handoff (CHANGE-0017 / SPEC-0026)
+## [v2026.07.20] — feat: work-item brief as subagent handoff (CHANGE-0017 / SPEC-0026)
 
 - Planning now emits a self-contained brief per work item (BMAD story
   pattern, RES-0001 P2): Scope & why / AC-task map / canon POINTERS (never
@@ -343,7 +345,7 @@ RFC-0001).
   dual-verdict review PASS (verbatim proof re-diffed independently; one
   accepted disposition on SPEC-0012's dated step citations).
 
-## [unreleased] — chore: dual-verdict measurement gate evaluated — KEEP (SPEC-0021 closed)
+## [v2026.07.20] — chore: dual-verdict measurement gate evaluated — KEEP (SPEC-0021 closed)
 
 - 5/5 reviewed scopes collected; wall-clock parity-or-better vs the two-stage
   era (median -5%, mean -11%, spec-backed subset -27%); catch quality
@@ -359,7 +361,7 @@ RFC-0001).
 - Ledger completed for CHANGE-0014/0015 review runs (archive recovery) so the
   gate had all five data points; pricing suite green.
 
-## [unreleased] — feat: verification-before-completion gate skill (CHANGE-0016 / SPEC-0025)
+## [v2026.07.20] — feat: verification-before-completion gate skill (CHANGE-0016 / SPEC-0025)
 
 - New .aai/SKILL_VERIFY.prompt.md (71 lines): the Iron Law gate — IDENTIFY the
   claim -> RUN the check -> READ the output -> VERIFY it matches -> only then
@@ -378,7 +380,7 @@ RFC-0001).
   dual-verdict review PASS (gate applied to its own review — measurement-gate
   data point #4).
 
-## [unreleased] — chore: orchestration surfaces aligned to the dual-verdict taxonomy (CHANGE-0014 / SPEC-0024)
+## [v2026.07.20] — chore: orchestration surfaces aligned to the dual-verdict taxonomy (CHANGE-0014 / SPEC-0024)
 
 - 15+2 occurrences of the retired Stage-1/Stage-2 + ERROR/WARNING review
   vocabulary reworded across REMEDIATION, SKILL_TDD, WORKFLOW,
@@ -394,7 +396,7 @@ RFC-0001).
   sweep non-tautological); dual-verdict review PASS (measurement-gate data
   point #3).
 
-## [unreleased] — chore: session lessons promoted into the vendored layer (CHANGE-0015 / SPEC-0023)
+## [v2026.07.20] — chore: session lessons promoted into the vendored layer (CHANGE-0015 / SPEC-0023)
 
 - Universal workflow lessons from the 2026-07-15/16 sessions now live in the
   sync-managed layer (LEARNED.md never syncs — project-owned): SKILL_PR gains
@@ -413,7 +415,7 @@ RFC-0001).
   verdict review PASS (measurement-gate data point #2; one accepted
   disposition recorded in decisions.jsonl).
 
-## [unreleased] — fix: STATE list-field integrity (ISSUE-0007 / SPEC-0022)
+## [v2026.07.20] — fix: STATE list-field integrity (ISSUE-0007 / SPEC-0022)
 
 - Three corruption sightings in one day traced to two engine defects:
   appendListItems hardcoded sibling indent at key+2 (mis-indented siblings on
@@ -434,7 +436,7 @@ RFC-0001).
   (6/6) -> dual-verdict review PASS (first post-merge run of the new review
   contract; one accepted detection boundary recorded in decisions.jsonl).
 
-## [unreleased] — feat: single dual-verdict code review (RFC-0008 / SPEC-0021)
+## [v2026.07.20] — feat: single dual-verdict code review (RFC-0008 / SPEC-0021)
 
 - Two-stage review replaced by ONE read-only pass returning two verdicts —
   spec_compliance (AC-table walk with per-AC citations) and code_quality
@@ -455,7 +457,7 @@ RFC-0001).
   (equal quality, ~50% tokens, 2x speed) + own telemetry (review+remediation
   ~= 88% of implementation wall-clock).
 
-## [unreleased] — feat: doctor reports vendored-layer drift (CHANGE-0013 / SPEC-0020)
+## [v2026.07.20] — feat: doctor reports vendored-layer drift (CHANGE-0013 / SPEC-0020)
 
 - A target project's vendored .aai/ layer silently ages — fixes land in canon
   and nobody is told (operator hit this twice with ISSUE-0006/0008). New
@@ -473,7 +475,7 @@ RFC-0001).
 - 14 fixture tests, zero real network; validation PASS (A/B hardening repro);
   re-review PASS.
 
-## [unreleased] — fix: empty-type width follows the project's dominant convention (ISSUE-0008)
+## [v2026.07.20] — fix: empty-type width follows the project's dominant convention (ISSUE-0008)
 
 - Operator follow-up to ISSUE-0006: the empty-type width defaults encoded this
   template repo's practice, so a vendored project with an ALL-3-digit
@@ -484,7 +486,7 @@ RFC-0001).
   inheritance still wins over dominant 3); SPEC-0015 amendment + INTAKE_COMMON
   wording extended same-day.
 
-## [unreleased] — feat: mechanize deterministic ticks (CHANGE-0009 / SPEC-0019)
+## [v2026.07.20] — feat: mechanize deterministic ticks (CHANGE-0009 / SPEC-0019)
 
 - The orchestrator's 14-rule dispatch decision, metrics flush arithmetic, and
   metrics report aggregation were LLM ticks doing switch-statement work
@@ -512,7 +514,7 @@ RFC-0001).
 - Dogfood: the dispatch script's first real decision (rule 11 -> Validation,
   must_differ on model) was executed as this scope's own validation run.
 
-## [unreleased] — fix: number width follows the type's convention (ISSUE-0006)
+## [v2026.07.20] — fix: number width follows the type's convention (ISSUE-0006)
 
 - SPEC-0015's allocator and the index generator hardcoded 4-digit padding,
   clashing with the pre-existing 3-digit PRD convention (PRD-001 examples
@@ -527,7 +529,7 @@ RFC-0001).
 - TDD: TEST-016 RED->GREEN; doc-numbering + prompt-diet suites green; audit
   CLEAN; existing 4-digit sequences unchanged (regression-tested).
 
-## [unreleased] — feat: model tiering with teeth (CHANGE-0010 / SPEC-0018)
+## [v2026.07.20] — feat: model tiering with teeth (CHANGE-0010 / SPEC-0018)
 
 - The MODEL SELECTION tiering contract existed in one prompt and was enforced
   nowhere (RES-0001 F2). Now: MODEL is a required dispatch-contract field
@@ -547,7 +549,7 @@ RFC-0001).
   write-ordering verified); review PASS (W1 remediated, W2 promoted;
   cross-stream merge with CHANGE-0011 simulated clean).
 
-## [unreleased] — chore: prompt-layer diet phase 1 (CHANGE-0011 / SPEC-0017)
+## [v2026.07.20] — chore: prompt-layer diet phase 1 (CHANGE-0011 / SPEC-0017)
 
 - Prompt corpus cut by ~35 KB (~10%): the 4 intake boilerplate blocks moved to
   one shared .aai/INTAKE_COMMON.md (8 files -> 1 pointer each; fixed the
@@ -564,7 +566,7 @@ RFC-0001).
   review PASS (digest-sufficiency analyzed SAFE; N1/N2 remediated, N3/N4
   promoted). RES-0001 finding F3, phase 1.
 
-## [unreleased] — fix: slug refs across the tooling family (CHANGE-0012 / SPEC-0016)
+## [v2026.07.20] — fix: slug refs across the tooling family (CHANGE-0012 / SPEC-0016)
 
 - SPEC-0015 made docs slug-first until merge, but `state.mjs` rejected slug refs
   (`REF_RE ^[A-Z]+-\d+$`) and DRAFT basenames were invisible to the whole
@@ -586,7 +588,7 @@ RFC-0001).
   stash-proofed pre-existing failures); code review PASS (W1 remediated,
   W2 promoted as documented limitation, W3 remediated).
 
-## [unreleased] — feat: collision-free doc numbering across parallel clones (RFC-0007 / SPEC-0015 / PR #48)
+## [v2026.07.20] — feat: collision-free doc numbering across parallel clones (RFC-0007 / SPEC-0015 / PR #48)
 
 - Doc IDs were minted by a working-tree scan at intake, so two clones off the
   same `main` both minted the same `TYPE-000N` and collided at merge. New model:
@@ -614,7 +616,7 @@ RFC-0001).
   RED-proofed against a working-tree-only stub); `docs-audit --check --strict`
   CLEAN; existing suites unaffected.
 
-## [unreleased] — state/hygiene: post-release follow-ups (CHANGE-0008 / SPEC-0014)
+## [v2026.07.20] — state/hygiene: post-release follow-ups (CHANGE-0008 / SPEC-0014)
 
 - `state.mjs --clear <fields>` on set-worktree/set-code-review/set-validation/
   set-focus: closed per-subcommand whitelists (verdict/status fields excluded —
@@ -631,7 +633,7 @@ RFC-0001).
   (MULTI_FLAGS); fieldSpan handles blank-line paragraphs in block scalars.
   First live exercise of the SPEC-0012 review-FAIL reset-block transition.
 
-## [unreleased] — docs: canonical-surfaces refresh (TECHNOLOGY contract, PLAYBOOK, AGENTS, shims, catalogs)
+## [v2026.07.20] — docs: canonical-surfaces refresh (TECHNOLOGY contract, PLAYBOOK, AGENTS, shims, catalogs)
 
 - **docs/TECHNOLOGY.md** rewritten from the March auto-generated stub
   ("Unknown / Not detected") into an evidence-based contract following
@@ -658,7 +660,7 @@ RFC-0001).
   "Shipped since" record (RFC-0002/0003/0006, SPEC-0011/0012/0013, v2026.07.04)
   in the TODO.
 
-## [unreleased] — docs: entry-point restructure (README/docs-README/USER_GUIDE)
+## [v2026.07.20] — docs: entry-point restructure (README/docs-README/USER_GUIDE)
 
 - **README.md** rewritten as a lean landing page (~600 → ~250 lines): hero,
   install/sync surface, and a new Orientation section (six-phase loop with the
