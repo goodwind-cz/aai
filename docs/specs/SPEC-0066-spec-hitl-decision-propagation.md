@@ -2,13 +2,15 @@
 id: spec-hitl-decision-propagation
 type: spec
 number: 66
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0020-hitl-decision-propagation.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 122
+  commits:
+    - 1908a3a27ae4039edcf2bb90e52e4de82be9178c
 ---
 
 # Spec: HITL resolution propagates the answer to the STATE field it governs

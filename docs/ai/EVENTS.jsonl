@@ -949,3 +949,9 @@
 {"v":1,"ts":"2026-07-20T13:56:10.660Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-canon-stat-portability","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-20T13:56:10.692Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-test-canon-stat-portability","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-20T13:56:10.723Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-test-canon-stat-portability","payload":{"commit":"fb69fdef0280f5776e6a005f62303f8f4949fffc"}}
+{"v":1,"ts":"2026-07-21T10:59:10.443Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"hitl-decision-propagation","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-21T10:59:10.482Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"hitl-decision-propagation","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-21T10:59:10.514Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"hitl-decision-propagation","payload":{"commit":"1908a3a27ae4039edcf2bb90e52e4de82be9178c"}}
+{"v":1,"ts":"2026-07-21T10:59:10.547Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-hitl-decision-propagation","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-21T10:59:10.579Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-hitl-decision-propagation","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-21T10:59:10.609Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-hitl-decision-propagation","payload":{"commit":"1908a3a27ae4039edcf2bb90e52e4de82be9178c"}}

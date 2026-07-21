@@ -2,10 +2,12 @@
 id: hitl-decision-propagation
 number: 20
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 122
+  commits:
+    - 1908a3a27ae4039edcf2bb90e52e4de82be9178c
 ---
 
 # HITL resolve is a no-op for the loop: the answer never reaches the STATE field that gates it
