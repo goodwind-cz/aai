@@ -36,6 +36,7 @@ JUSTIFIED_ADDITIONS=(
   "1786 CHANGE-0038+0039 workflow-hardening wiring prose: METRICS_FLUSH.prompt.md rewrite (flush no longer emits close events, SPEC-0054) + SKILL_PR step 2b RECONCILE WORKTREE TELEMETRY invocation prose (SPEC-0055)"
   "3100 aai-release-skill new .aai/SKILL_RELEASE.prompt.md thin-wrapper prompt (SPEC-DRAFT-spec-aai-release-skill D9) documenting the /aai-release deterministic release-cut engine (--dry-run/--version/--confirm/--no-remote), mirroring SKILL_UPDATE.prompt.md's shape; measured deficit 3027 B, credit chosen 3100 B for 73 B headroom"
   "825 reaper-deterministic-age-guard SKILL_LOOP.prompt.md POST-TICK REAP + VALIDATION.prompt.md step-boundary reap prose documenting the step owner's AAI_REAP_STEP_START_EPOCH=\$(date +%s) capture/handoff to the reaper's deterministic epoch guard; measured deficit 825 B, credit chosen 825 B for 0 B headroom"
+  "5396 hitl-decision-propagation SKILL_HITL.prompt.md STEP 4c trigger->target mapping table + normalization table + fail-closed rule + write-ordering rule (replacing the old absolute STATE-field prohibition) + ORCHESTRATION_HITL.prompt.md [HITL-<n>] blocking_reason stamping prose (SPEC-DRAFT-spec-hitl-decision-propagation); measured deficit 4848 B + 548 B code-review remediation (scope FAIL-CLOSED to enum targets so HITL-1..6/8 cannot deadlock; sanction set-human-input for the STEP 5 clear so the narrowed guardrail cannot forbid the resolver's own job); credit chosen 5396 B for 0 B headroom"
 )
 JUSTIFIED_GROWTH_BYTES=0
 for _entry in "${JUSTIFIED_ADDITIONS[@]}"; do
