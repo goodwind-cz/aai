@@ -567,34 +567,42 @@ test_018() {
   local ws invalid old_pid fresh_pid out future
   ws="$(mktemp -d "$TMP_ROOT/ws18.XXXXXX")"
   future=$(( $(date +%s) + 100000 ))
-  # Wide margins on BOTH sides (old comfortably > MIN_AGE, fresh comfortably <
-  # MIN_AGE) — legacy mode is the UNCHANGED pre-epoch fixed-threshold path, so
-  # it carries the same whole-second `ps etime` rounding this spec's epoch mode
-  # exists to fix; a tight margin here would reintroduce that exact flake.
-  for invalid in UNSET EMPTY "abc" "-5" "0" "$future"; do
-    old_pid="$(spawn_marked "vitest_old18_${ws}/worker")"
-    sleep 5
-    fresh_pid="$(spawn_marked "vitest_fresh18_${ws}/worker")"
-    alive "$old_pid" || log_fail "fixture setup: old proc $old_pid not alive (case='$invalid')"
-    alive "$fresh_pid" || log_fail "fixture setup: fresh proc $fresh_pid not alive (case='$invalid')"
-    case "$invalid" in
-      UNSET)
-        out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS=3 sh "$REAP_SCRIPT" 2>&1)"
-        ;;
-      EMPTY)
-        out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="" AAI_REAP_MIN_AGE_SECS=3 sh "$REAP_SCRIPT" 2>&1)"
-        ;;
-      *)
-        out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$invalid" AAI_REAP_MIN_AGE_SECS=3 sh "$REAP_SCRIPT" 2>&1)"
-        ;;
+  # LOAD-IMMUNE MARGINS (do not "widen" a single threshold — that is what flaked).
+  # Legacy mode is the UNCHANGED pre-epoch fixed-threshold path, so it still
+  # carries the whole-second `ps etime` rounding + reaper-overhead race that epoch
+  # mode exists to fix. One MIN_AGE cannot thread BOTH needles under CI load, so
+  # each DIRECTION gets a threshold where load pushes it AWAY from failure:
+  #   - reap-old   : MIN_AGE=1 vs a ~3s-old proc — overhead only ages it further
+  #                  (more reapable), so this direction cannot flip.
+  #   - spare-fresh: MIN_AGE=60 vs a ~0s proc — flipping needs a 60s stall between
+  #                  spawn and the reaper's ps sample, which is not plausible.
+  # Both directions still prove the LEGACY path was taken (invalid STEP_START).
+  reap_run() {  # reap_run <invalid-case> <min-age>
+    case "$1" in
+      UNSET) AAI_REAP_WORKSPACE="$ws" AAI_REAP_MIN_AGE_SECS="$2" sh "$REAP_SCRIPT" 2>&1 ;;
+      EMPTY) AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="" AAI_REAP_MIN_AGE_SECS="$2" sh "$REAP_SCRIPT" 2>&1 ;;
+      *)     AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$1" AAI_REAP_MIN_AGE_SECS="$2" sh "$REAP_SCRIPT" 2>&1 ;;
     esac
+  }
+  for invalid in UNSET EMPTY "abc" "-5" "0" "$future"; do
+    # Direction 1 — legacy still REAPS a genuine pre-threshold survivor.
+    old_pid="$(spawn_marked "vitest_old18_${ws}/worker")"
+    sleep 3
+    alive "$old_pid" || log_fail "fixture setup: old proc $old_pid not alive (case='$invalid')"
+    out="$(reap_run "$invalid" 1)"
     sleep 1
     if alive "$old_pid"; then
-      kill -9 "$fresh_pid" >/dev/null 2>&1 || true
-      log_fail "fail-safe broken (case='$invalid'): legacy MIN_AGE=3 should have reaped the ~5s-old match (reaper output: $out)"
+      kill -9 "$old_pid" >/dev/null 2>&1 || true
+      log_fail "fail-safe broken (case='$invalid'): legacy MIN_AGE=1 should have reaped the ~3s-old match (reaper output: $out)"
     fi
+
+    # Direction 2 — legacy still SPARES a genuine fresh sibling.
+    fresh_pid="$(spawn_marked "vitest_fresh18_${ws}/worker")"
+    alive "$fresh_pid" || log_fail "fixture setup: fresh proc $fresh_pid not alive (case='$invalid')"
+    out="$(reap_run "$invalid" 60)"
+    sleep 1
     if ! alive "$fresh_pid"; then
-      log_fail "fail-safe broken (case='$invalid'): legacy MIN_AGE=3 must still spare the fresh match (reaper output: $out)"
+      log_fail "fail-safe broken (case='$invalid'): legacy MIN_AGE=60 must still spare the fresh match (reaper output: $out)"
     fi
     kill -9 "$fresh_pid" >/dev/null 2>&1 || true
   done
