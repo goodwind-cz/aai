@@ -9,6 +9,35 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: HITL answers now reach the STATE field they gate (ISSUE-0020 / SPEC-0066)
+
+- **Reported from a downstream AAI deployment, reproduced twice here.** Resolving a
+  human-in-the-loop block was a **no-op for the loop**: `SKILL_HITL` was forbidden
+  from writing anything but `human_input`, while dispatch **rule 8** gates on
+  `worktree.user_decision`. An answered worktree question therefore stayed
+  `undecided` — the question re-fired and the anti-stagnation guard halted the loop.
+  The decision *looked* recorded (decision artifact + `decisions.jsonl`); only the
+  loop's non-progress revealed it.
+- Fix (prompt-only, deliberately avoiding a `protected_paths_l3` `state.mjs` schema
+  change that would have forced L3 — whose mandatory-worktree rule would route this
+  fix through the very gate it repairs):
+  - `SKILL_HITL` gained an explicit **9-row trigger→target mapping** applied via the
+    EXISTING typed `state.mjs` setters (`[HITL-7]` → `set-worktree --user-decision`,
+    `[HITL-8]` → `set-code-review --scope`, `[HITL-9]` → `set-code-review --status`).
+    `[HITL-6]` maps to `none` **deliberately** — `last_validation` has no waiver enum,
+    so forcing `pass` would forge evidence.
+  - The guardrail is **narrowed, not deleted**: `human_input` plus the ONE declared
+    target field, via the typed CLI — nothing else.
+  - **Write ordering:** the target setter runs BEFORE clearing `human_input`, so a
+    crash leaves the block re-askable instead of silently losing the decision.
+  - **Fail-closed:** free-text answers normalize to the setter enum; unmappable
+    answers never guess (scoped to enum targets, so the no-gate triggers still resolve).
+  - `ORCHESTRATION_HITL` stamps `[HITL-<n>]` into `blocking_reason` so the target is
+    unambiguous rather than inferred.
+- New `tests/skills/test-aai-hitl-propagation.sh` (15 tests) including a **seam test**
+  that extracts the `[HITL-7]` command from the prompt, runs it against a fixture
+  STATE, re-dispatches, and asserts rule 8 stops firing.
+
 ## [unreleased] — fix: GNU-first `stat` for mtime in test-aai-test-canon.sh (ISSUE-0019 / SPEC-0065)
 
 - `tests/skills/test-aai-test-canon.sh` read file mtimes at four sites via
