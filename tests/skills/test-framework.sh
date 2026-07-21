@@ -207,6 +207,15 @@ run_test() {
       # is exactly how the Linux-only skill-suite reds stayed opaque. Dump the
       # failing suite's output tail so a CI log alone explains the failure.
       echo "--- Error Details ($skill_name) ---"
+      # A plain tail is NOT enough: verbose suites (e.g. aai-test-canon) push the
+      # failing assertion far above a 30-line window, so the CI log showed only a
+      # "N/M passed" summary and the failure stayed undiagnosable. Surface every
+      # failure line from the WHOLE log first, then the tail for surrounding
+      # context. Portable: grep -E only (no -P), non-match tolerated.
+      echo "--- failure lines (whole log) ---"
+      grep -nE '(^|[[:space:]])(FAIL|ERROR|not ok|✗)' "$log_file" 2>/dev/null | head -n 25 \
+        || echo "(no explicit failure marker matched — see tail below)"
+      echo "--- tail (last 30 lines) ---"
       tail -n 30 "$log_file"
       echo "--- end $skill_name ---"
       ;;
