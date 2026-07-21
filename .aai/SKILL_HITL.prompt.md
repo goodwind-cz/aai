@@ -111,12 +111,16 @@ Answer normalization (free text → enum, case-insensitive, trimmed):
 | `[HITL-9]` | `fix`, `remediate`, "fix them" | `fail` (routes rule 12 → Remediation) |
 | `[HITL-8]` | any non-empty path list or diff range, verbatim | free text |
 
-FAIL-CLOSED rule: an answer that does not map to exactly one enum value is
-UNMAPPABLE. The resolver MUST NOT guess, MUST NOT pick a default, and MUST NOT
-clear `human_input`. On UNMAPPABLE: ask ONE targeted follow-up (STEP 3
+FAIL-CLOSED rule — applies ONLY to triggers whose STEP 4c target takes an ENUM
+(`[HITL-7]`, `[HITL-9]`): an answer that does not map to exactly one enum value
+is UNMAPPABLE. The resolver MUST NOT guess, MUST NOT pick a default, and MUST
+NOT clear `human_input`. On UNMAPPABLE: ask ONE targeted follow-up (STEP 3
 budget). If still unmappable, leave the gate unresolved, leave
 `human_input.required: true`, and print `HITL UNRESOLVED` naming the trigger
 and the accepted forms.
+Triggers with target `none` (`[HITL-1]`..`[HITL-6]`) and the free-text target
+(`[HITL-8]`, any non-empty path list or diff range) are NEVER UNMAPPABLE on
+enum grounds — once the answer is recorded they resolve normally via STEP 5.
 
 Apply the target (when the row names a command, not `none`):
 - Run the row's declared `state.mjs` command with the normalized enum/value.
@@ -139,8 +143,11 @@ NARROWED GUARDRAIL (replaces the old absolute prohibition): the resolver may
 write `human_input` PLUS the ONE declared target field for the answered
 trigger, via the typed `state.mjs` CLI — nothing else. The target is read
 from the STEP 4c mapping table; a trigger whose target is `none` permits NO
-STATE write beyond `human_input`. Never hand-edit `docs/ai/STATE.yaml`; never
-invent a setter or flag that the mapping table does not name.
+STATE write beyond `human_input`. Never hand-edit `docs/ai/STATE.yaml`. Use
+only typed setters: the STEP 4c row's command for the target field, and
+`state.mjs set-human-input --required false` for the STEP 5 `human_input`
+clear itself — that clear is ALWAYS permitted (it is the resolver's own job)
+and needs no mapping row. Never invent any OTHER setter or flag.
 
 STEP 6 — RESUME
 After STATE.yaml is updated, output:
