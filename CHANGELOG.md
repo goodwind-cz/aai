@@ -9,6 +9,26 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: aai-release.ps1 native git/gh guarded against stderr-as-error on Windows PS 5.1 (ISSUE-0021 / SPEC-0067)
+
+- `aai-release.ps1` ran `git push` (and `gh release create`) unguarded under
+  `$ErrorActionPreference='Stop'`. On **Windows PowerShell 5.1**, `git push`'s
+  normal `To <remote>…` **stderr** progress is promoted to a terminating
+  `NativeCommandError`, so `/aai-release --confirm` aborted **after** the local
+  commit+tag even though the push succeeded — a half-done release. (Same class as
+  a downstream `aai-update.ps1` `git clone` report; that one was already guarded on
+  `main`, their copy was stale.)
+- Added `Invoke-NativeChecked`: localizes `$ErrorActionPreference='Continue'`, runs
+  `& exe args 2>&1`, captures `$LASTEXITCODE`, returns on 0 (never throws on
+  success-stderr), and **throws WITH the captured stderr on non-zero exit** —
+  diagnostics-preserving on purpose (not a blanket `*> $null`, which would hide a
+  real rejected/auth/network failure on an outward-facing publish). Routed the
+  cut-path `add`/`commit`/`tag`/`push`/`push-tag`/`gh release` through it.
+- Honest limit: the defect is Windows-PS-5.1-specific; pwsh 7 (CI's runtime) does
+  not reproduce it and CI only parse-checks 5.1. The Pester tests prove the
+  helper's logic; the actual 5.1 runtime fix is covered by a documented manual
+  smoke, not CI.
+
 ## [unreleased] — fix: HITL answers now reach the STATE field they gate (ISSUE-0020 / SPEC-0066)
 
 - **Reported from a downstream AAI deployment, reproduced twice here.** Resolving a

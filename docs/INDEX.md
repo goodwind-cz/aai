@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-21T10:59:28.195Z
+Generated: 2026-07-22T13:23:14.560Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -165,9 +165,12 @@ _None._
 | SPEC-0066 | specs | docs/specs/SPEC-0066-spec-hitl-decision-propagation.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0021 | issues | docs/issues/ISSUE-0021-ps1-native-stderr-guard.md |
+| SPEC-0067 | specs | docs/specs/SPEC-0067-spec-ps1-native-stderr-guard.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -196,4 +199,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-21 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-22 — counts above use this date for overdue checks.
