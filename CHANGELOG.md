@@ -9,6 +9,29 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: Planning surfaces companion obligations (prompt-diet ledger + PROFILES) (ISSUE-0025 / SPEC-0071)
+
+- Two repo invariants were enforced only at the CI trailing edge, so a scope that
+  looked "done" at planning time shipped incomplete and reddened CI: (1) any edit
+  that grows the prompt corpus (`.aai/*.prompt.md`, `.aai/AGENTS.md`) needs a
+  `JUSTIFIED_ADDITIONS` true-up in `tests/skills/lib/prompt-diet-ledger.sh` or the
+  byte-floor test cascades through half the suite; (2) any new `.aai/**` file needs
+  a `.aai/system/PROFILES.yaml` classification or the layer-profiles manifest gate
+  (and `aai-release` TEST-020) fails. Both were tripped repeatedly (three PRs in
+  one session); rule (1) was already definition-of-done in `LEARNED.md` but lived
+  nowhere the planner actually reads.
+- Added a closed, two-entry **"3a) COMPANION OBLIGATIONS CHECK"** to
+  `.aai/PLANNING.prompt.md`: each trigger → its required companion → the concrete
+  file to edit, so the planner folds the companion into the spec's scope BEFORE
+  freezing. It is a planner-facing checklist, not an auto-detection script.
+- Self-demonstrating: because the change edits `.aai/PLANNING.prompt.md`, its own
+  scope includes the prompt-diet ledger true-up (566 B measured, credited at 0 B
+  headroom; TEST-012 checkpoint 19792 → 20358) — the fix obeys the rule it
+  introduces. Verified by `tests/skills/test-aai-hygiene-pack.sh`
+  (`test_070_companion_obligations`) + the byte-floor/manifest suites green on
+  macOS + Linux CI. Ceremony L1, no protected path touched. Propagates downstream
+  via `/aai-update`.
+
 ## [unreleased] — fix: enforce one dedicated git branch per work item (ISSUE-0024 / SPEC-0070)
 
 - The loop had NO deterministic step that creates or verifies a per-work-item

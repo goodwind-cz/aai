@@ -718,6 +718,57 @@ test_060_work_item_brief() {  # spec-work-item-brief TEST-001..006 / Spec-AC-01.
   log_pass "Work-item brief wired: template ($(wc -l < "$tpl" | tr -d ' ') lines) + verbatim Return Record + PLANNING step + protocol default/degrade + gitignore (spec-work-item-brief TEST-001..006)"
 }
 
+test_070_companion_obligations() {  # spec-planning-companion-obligations TEST-001..003 / Spec-AC-01..03
+  log_info "Test: PLANNING companion-obligations checklist — both triggers + companions + files, closed to 2 (spec-planning-companion-obligations TEST-001..003)..."
+  local pl="$PROJECT_ROOT/.aai/PLANNING.prompt.md"
+  [[ -f "$pl" ]] || log_fail "missing .aai/PLANNING.prompt.md"
+
+  # Heading present (RED-proof: grep -c "COMPANION OBLIGATIONS" = 0 today).
+  grep -qF "COMPANION OBLIGATIONS" "$pl" \
+    || log_fail "PLANNING must carry a COMPANION OBLIGATIONS checklist step"
+
+  # TEST-001 — positioned BEFORE the existing '4) Create or update docs/specs' step.
+  local l_check l_spec
+  l_check="$(grep -n "COMPANION OBLIGATIONS" "$pl" | head -1 | cut -d: -f1)"
+  l_spec="$(grep -n "Create or update docs/specs" "$pl" | head -1 | cut -d: -f1)"
+  [[ -n "$l_check" && -n "$l_spec" ]] \
+    || log_fail "PLANNING must keep both the COMPANION OBLIGATIONS step and the 'Create or update docs/specs' step greppable"
+  [[ "$l_check" -lt "$l_spec" ]] \
+    || log_fail "COMPANION OBLIGATIONS step (line $l_check) must sit BEFORE the spec-creation step (line $l_spec)"
+
+  # Extract the checklist block: from the heading line to the next numbered step.
+  TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"
+  local blk="$TEST_DIR/t70-block.txt"
+  awk '/COMPANION OBLIGATIONS/{f=1} f&&/^[0-9]+\)/{exit} f{print}' "$pl" > "$blk"
+  [[ -s "$blk" ]] || log_fail "could not extract the COMPANION OBLIGATIONS block from PLANNING"
+
+  # TEST-001 — trigger 1 (prompt-corpus byte growth) -> ledger true-up companion + file.
+  grep -qF "prompt corpus" "$blk" \
+    || log_fail "block must name trigger 1: prompt-corpus byte growth"
+  grep -qF "JUSTIFIED_ADDITIONS" "$blk" \
+    || log_fail "block must name the prompt-diet ledger true-up companion (JUSTIFIED_ADDITIONS entry)"
+  grep -qF "tests/skills/lib/prompt-diet-ledger.sh" "$blk" \
+    || log_fail "block must point trigger 1 at tests/skills/lib/prompt-diet-ledger.sh"
+
+  # TEST-002 — trigger 2 (a new .aai/** file) -> PROFILES.yaml classification companion + file.
+  grep -qF ".aai/**" "$blk" \
+    || log_fail "block must name trigger 2: a new .aai/** file"
+  grep -qiF "classif" "$blk" \
+    || log_fail "block must name the PROFILES classification companion"
+  grep -qF ".aai/system/PROFILES.yaml" "$blk" \
+    || log_fail "block must point trigger 2 at .aai/system/PROFILES.yaml"
+
+  # TEST-003 — CLOSED to exactly two trigger bullets (no third obligation, no
+  # auto-detection guard added). Counts bullet lines that carry a '->' mapping;
+  # the trailing 'Neither applies -> skip' line is not a bullet and is excluded.
+  local bullets
+  bullets="$(grep -cE '^[[:space:]]*-[[:space:]].*->' "$blk" || true)"
+  [[ "$bullets" -eq 2 ]] \
+    || log_fail "COMPANION OBLIGATIONS block must contain EXACTLY 2 trigger bullets (closed list), got $bullets"
+
+  log_pass "PLANNING companion-obligations checklist: both triggers + companions + files, closed to 2 bullets (spec-planning-companion-obligations TEST-001..003)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -741,6 +792,7 @@ main() {
   test_051_no_number_prediction
   test_052_loop_drift_preflight
   test_060_work_item_brief
+  test_070_companion_obligations
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
