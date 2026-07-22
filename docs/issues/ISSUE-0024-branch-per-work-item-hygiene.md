@@ -2,10 +2,12 @@
 id: branch-per-work-item-hygiene
 number: 24
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 129
+  commits:
+    - e4fdbca77a8776b3859b52d474102e9ddbf386b3
 ---
 
 # The loop never enforces a fresh per-work-item branch: SKILL_PR pushes "the current branch" whatever it is

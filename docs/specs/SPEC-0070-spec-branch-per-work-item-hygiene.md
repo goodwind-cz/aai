@@ -2,13 +2,15 @@
 id: spec-branch-per-work-item-hygiene
 type: spec
 number: 70
-status: draft
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/ISSUE-0024-branch-per-work-item-hygiene.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 129
+  commits:
+    - e4fdbca77a8776b3859b52d474102e9ddbf386b3
 ---
 
 # Implementation Spec — deterministic branch-per-work-item hygiene guard
