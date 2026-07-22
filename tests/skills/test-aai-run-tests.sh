@@ -565,7 +565,6 @@ test_018() {
   log_info "TEST-018: fail-safe — unset/empty/non-integer/negative/non-positive/future AAI_REAP_STEP_START_EPOCH falls back to EXACT legacy MIN_AGE behavior; never global..."
   [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
   local ws invalid old_pid fresh_pid out future
-  ws="$(mktemp -d "$TMP_ROOT/ws18.XXXXXX")"
   future=$(( $(date +%s) + 100000 ))
   # LOAD-IMMUNE MARGINS (do not "widen" a single threshold — that is what flaked).
   # Legacy mode is the UNCHANGED pre-epoch fixed-threshold path, so it still
@@ -585,6 +584,12 @@ test_018() {
     esac
   }
   for invalid in UNSET EMPTY "abc" "-5" "0" "$future"; do
+    # STATE ISOLATION: a FRESH workspace per case so the reaper (which matches by
+    # AAI_REAP_WORKSPACE) can NEVER match a marker process spawned by an earlier
+    # case or the other direction — the shared-workspace pollution that flaked
+    # the spare-fresh assertion under CI load (reaped a leaked cross-iteration
+    # proc). The split-direction margins below are unchanged.
+    ws="$(mktemp -d "$TMP_ROOT/ws18.XXXXXX")"
     # Direction 1 — legacy still REAPS a genuine pre-threshold survivor.
     old_pid="$(spawn_marked "vitest_old18_${ws}/worker")"
     sleep 3
@@ -604,7 +609,10 @@ test_018() {
     if ! alive "$fresh_pid"; then
       log_fail "fail-safe broken (case='$invalid'): legacy MIN_AGE=60 must still spare the fresh match (reaper output: $out)"
     fi
-    kill -9 "$fresh_pid" >/dev/null 2>&1 || true
+    # Guaranteed teardown of BOTH marker processes before the next case — a
+    # reap-old that missed under load must not leak old_pid into a later case
+    # (the fresh workspace above already isolates, but leave nothing running).
+    kill -9 "$old_pid" "$fresh_pid" >/dev/null 2>&1 || true
   done
   log_pass "invalid/unset/future STEP_START falls back to EXACT legacy MIN_AGE behavior for every case (never global)"
 }
