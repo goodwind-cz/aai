@@ -9,6 +9,26 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: metrics-flush `--sweep` clears stranded completed refs (ISSUE-0022 / SPEC-0068)
+
+- `metrics-flush` moved only the ref named by the transient `last_validation`
+  singleton to the committed `METRICS.jsonl`, so a completed item that is not the
+  CURRENT validation ref **strands** in `STATE.metrics.work_items` and never
+  reaches the ledger the dashboard reads. Reported downstream (19 stranded);
+  confirmed here (12 `done` items + `pr-67` SKIPPED on every tick this session).
+- Added opt-in `--sweep` (default flush **byte-unchanged**): flushes every
+  stranded entry whose ref carries **durable completion provenance** — a committed
+  work-item close event in `docs/ai/EVENTS.jsonl` (the record `close-work-item.mjs`
+  stamps only after its self-verify audit) **AND** `active_work_items` status
+  `done`. **STRICT / fail-closed:** a `done`-without-close ref is reported, never
+  flushed — the truth-scoring guarantee is preserved, re-anchored on durable proof
+  instead of the transient singleton. `--sweep --ref <id>` targets one ref.
+  EVENTS.jsonl is read-only; idempotent; reuses the existing integrity
+  refusal / rollback / ledger-before-STATE ordering.
+- Design note: deliberately kept ENTIRELY in `metrics-flush.mjs` (no STATE schema
+  field → no `state.mjs` → no forced L3 worktree, the gate this class of fix keeps
+  hitting) by using durable proof that already exists rather than a new field.
+
 ## [unreleased] — fix: aai-release.ps1 native git/gh guarded against stderr-as-error on Windows PS 5.1 (ISSUE-0021 / SPEC-0067)
 
 - `aai-release.ps1` ran `git push` (and `gh release create`) unguarded under

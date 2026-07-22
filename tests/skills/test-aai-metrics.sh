@@ -275,6 +275,107 @@ Body.
 MD
 }
 
+# --- metrics-flush-strands-completed-refs (--sweep) fixtures -------------------
+
+# write_sweep_state <file> <REF:STATUS...> — a lean sweep-focused STATE
+# fixture (no golden-header comment block — that's TEST-010's concern, not
+# ours). last_validation is not_run/ref_id null and code_review.required is
+# false so the DEFAULT gate never fires for ANY of these refs — isolates the
+# sweep gate from the default gate entirely, one test at a time.
+# Each REF gets one active_work_items entry at STATUS (done|in_progress) plus
+# a metrics.work_items entry with exactly one agent_run (runs.length>0, so
+# only the provenance gate — not the "no agent_runs" skip — is under test).
+write_sweep_state() {
+  local f="$1"
+  shift
+  {
+    echo "project_status: active"
+    echo "current_focus:"
+    echo "  type: none"
+    echo "  ref_id: null"
+    echo "  primary_path: null"
+    echo "active_work_items:"
+    local spec ref status
+    for spec in "$@"; do
+      ref="${spec%%:*}"
+      status="${spec##*:}"
+      echo "  - ref_id: $ref"
+      echo "    status: $status"
+      echo "    phase: validation"
+      echo "    primary_path: docs/issues/${ref}.md"
+    done
+    cat <<'YAML'
+implementation_strategy:
+  selected: tdd
+  source: null
+  rationale: null
+worktree:
+  recommendation: not_needed
+  user_decision: undecided
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: false
+  status: not_run
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+last_validation:
+  status: not_run
+  run_at_utc: null
+  ref_id: null
+  evidence_paths: []
+  notes: null
+human_input:
+  required: false
+  question: null
+locks:
+  implementation: true
+tdd_cycle:
+  status: IDLE
+  test_id: null
+  spec_path: null
+  test_path: null
+  evidence:
+    red: null
+    green: null
+    refactor: null
+metrics:
+  work_items:
+YAML
+    for spec in "$@"; do
+      ref="${spec%%:*}"
+      cat <<REFYAML
+    $ref:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Implementation
+          model_id: claude-sonnet-5
+          started_utc: 2026-07-15T09:00:00Z
+          ended_utc: 2026-07-15T09:10:00Z
+          duration_seconds: 600
+          tokens_in: 1000000
+          tokens_out: 100000
+          cost_usd: null
+REFYAML
+    done
+    echo ""
+    echo "updated_at_utc: 2026-07-15T11:30:00Z"
+  } > "$f"
+}
+
+write_closed_event() {  # $1 file $2 ref $3 ts — append one work_item_closed line
+  printf '{"v":1,"ts":"%s","actor":"test","event":"work_item_closed","ref":"%s","payload":{}}\n' "$3" "$2" >> "$1"
+}
+
 # --- SPEC-0054 seam fixtures (flush no longer emits close events; real audit +
 # close-work-item.mjs cross-tool seam) -------------------------------------------
 
@@ -1093,8 +1194,272 @@ test_023_ledger_shape_unchanged() {  # TEST-005 (Spec-AC-04, regression control)
   log_pass "Ledger record shape unchanged by removing the events emission (TEST-005)"
 }
 
+# --- metrics-flush-strands-completed-refs: --sweep (TEST-101..109) -------------
+# SPEC-DRAFT-spec-metrics-flush-sweep.md D1-D5. Every fixture is a scratch
+# temp-dir repo; the real docs/ai/{STATE.yaml,METRICS.jsonl,EVENTS.jsonl} are
+# NEVER touched by these tests.
+
+test_101_sweep_flag_parse() {
+  log_info "Test: --sweep flag parses; listed in the unknown-flag usage string; accepted with exit 0 (TEST-101, Spec-AC-01)..."
+  local cnt
+  cnt="$(grep -c -- '--sweep' "$FLUSH" || true)"
+  [[ "$cnt" -ge 1 ]] || log_fail "metrics-flush.mjs must reference --sweep at least once (RED baseline was 0)"
+  local d
+  d="$(mk_repo t101)"
+  write_sweep_state "$d/docs/ai/STATE.yaml" "ITEM-Z:in_progress"
+  run_flush "$d" --sweep
+  [[ "$EC" == 0 ]] || log_fail "--sweep must be accepted (exit 0, got $EC): $(cat "$OUT")"
+  local usage_out usage_ec=0
+  usage_out="$( (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-flush.mjs --bogus-flag 2>&1) )" || usage_ec=$?
+  [[ "$usage_ec" == 2 ]] || log_fail "unknown flag must still exit 2 (got $usage_ec): $usage_out"
+  echo "$usage_out" | grep -qF -- '--sweep' || log_fail "unknown-flag usage string must list --sweep: $usage_out"
+  log_pass "--sweep parses, is accepted, and is listed in usage (TEST-101)"
+}
+
+test_102_sweep_flushes_closed_ref() {
+  log_info "Test: --sweep flushes a stranded done ref with a durable work_item_closed event; ledger shape-identical (TEST-102, Spec-AC-02)..."
+  local d
+  d="$(mk_repo t102)"
+  write_sweep_state "$d/docs/ai/STATE.yaml" "ITEM-B:done"
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" ITEM-B "2026-07-15T10:30:00Z"
+  run_flush "$d" --sweep
+  [[ "$EC" == 0 ]] || log_fail "sweep must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "exactly one ledger line must be appended by sweep"
+  grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
+  node -e '
+    const fs = require("fs");
+    const o = JSON.parse(fs.readFileSync(process.argv[1], "utf8").trim());
+    const wantKeys = ["date_utc","ref_id","title","human_time_minutes","agent_runs","totals","strategy","reliability","verdict"];
+    if (JSON.stringify(Object.keys(o)) !== JSON.stringify(wantKeys)) { console.error("key set/order changed: " + JSON.stringify(Object.keys(o))); process.exit(1); }
+    if (o.ref_id !== "ITEM-B") { console.error("ref_id must be ITEM-B, got " + o.ref_id); process.exit(1); }
+    if (o.verdict !== "PASS") { console.error("verdict must be PASS, got " + o.verdict); process.exit(1); }
+  ' "$d/got.jsonl" || log_fail "swept ledger line golden key-set/order/verdict wrong: $(cat "$d/got.jsonl")"
+  grep -qF "Flushed: ITEM-B" "$OUT" || log_fail "report must name the swept ref: $(cat "$OUT")"
+  grep -qE '^ {4}ITEM-B:' "$d/docs/ai/STATE.yaml" && log_fail "swept metrics entry must be surgically removed from STATE"
+  grep -qF "ref_id: ITEM-B" "$d/docs/ai/STATE.yaml" && log_fail "swept done active_work_items entry must be surgically removed"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$d/docs/ai/STATE.yaml" > "$d/ck.log" 2>&1) \
+    || log_fail "check-state must pass after sweep: $(cat "$d/ck.log")"
+  log_pass "Sweep flushes a durably-closed stranded ref; ledger shape-identical to a normal flush (TEST-102)"
+}
+
+test_103_sweep_fail_closed() {
+  log_info "Test: no close event -> SKIP+report, ledger byte-identical; close event but in-flight -> never swept (TEST-103, Spec-AC-03)..."
+  local d
+  # (a) done, NO close event (degenerate: EVENTS.jsonl exists but is empty).
+  d="$(mk_repo t103a)"
+  write_sweep_state "$d/docs/ai/STATE.yaml" "ITEM-B:done"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"
+  run_flush "$d" --sweep
+  [[ "$EC" == 0 ]] || log_fail "(a) must exit 0 (got $EC): $(cat "$OUT")"
+  cmp -s "$d/docs/ai/METRICS.jsonl" "$d/ledger.before" || log_fail "(a) ledger must stay byte-identical"
+  grep -qiF "no durable work_item_closed event" "$OUT" || log_fail "(a) report must name the fail-closed reason: $(cat "$OUT")"
+  grep -qE '^ {4}ITEM-B:' "$d/docs/ai/STATE.yaml" || log_fail "(a) un-swept entry must remain in STATE"
+
+  # (b) NEGATIVE CONTROL: close event present but the item is still in_progress
+  # (in-flight) -> must NEVER be swept, regardless of the durable event.
+  d="$(mk_repo t103b)"
+  write_sweep_state "$d/docs/ai/STATE.yaml" "ITEM-B:in_progress"
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" ITEM-B "2026-07-15T10:30:00Z"
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"
+  run_flush "$d" --sweep
+  [[ "$EC" == 0 ]] || log_fail "(b) must exit 0 (got $EC): $(cat "$OUT")"
+  cmp -s "$d/docs/ai/METRICS.jsonl" "$d/ledger.before" || log_fail "(b) ledger must stay byte-identical (in-flight must never be swept)"
+  grep -qiE "in_progress|in-flight" "$OUT" || log_fail "(b) report must name the in-flight reason: $(cat "$OUT")"
+  grep -qF "ref_id: ITEM-B" "$d/docs/ai/STATE.yaml" || log_fail "(b) in-flight item must stay byte-present"
+  log_pass "Fail-closed: no close event skipped+reported; in-flight-with-close-event never swept (TEST-103)"
+}
+
+test_104_default_unchanged() {
+  log_info "Test: no-flag run reproduces the TEST-006 golden ledger byte-for-byte; a stranded-but-closed non-focus ref stays SKIPPED without --sweep (TEST-104, Spec-AC-04)..."
+  local d
+  d="$(mk_repo t104)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  write_golden_doc "$d"
+  # A stranded done ref, durably closed, that is NOT the last_validation ref —
+  # must stay untouched when --sweep is absent.
+  node -e '
+    const fs = require("fs"); const p = process.argv[1];
+    let s = fs.readFileSync(p, "utf8");
+    s = s.replace("active_work_items:\n  - ref_id: CHANGE-0001",
+      "active_work_items:\n  - ref_id: ITEM-B\n    status: done\n    phase: validation\n    primary_path: docs/issues/ITEM-B.md\n  - ref_id: CHANGE-0001");
+    const extra = [
+      "    ITEM-B:",
+      "      human_time_minutes:",
+      "        intake: null",
+      "        reviews: null",
+      "      agent_runs:",
+      "        - role: Implementation",
+      "          model_id: claude-sonnet-5",
+      "          started_utc: 2026-07-15T09:00:00Z",
+      "          ended_utc: 2026-07-15T09:10:00Z",
+      "          duration_seconds: 600",
+      "          tokens_in: 1000000",
+      "          tokens_out: 100000",
+      "          cost_usd: null",
+    ].join("\n");
+    s = s.replace("metrics:\n  work_items:\n    CHANGE-0001:", "metrics:\n  work_items:\n" + extra + "\n    CHANGE-0001:");
+    fs.writeFileSync(p, s);
+  ' "$d/docs/ai/STATE.yaml"
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" ITEM-B "2026-07-15T09:30:00Z"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "only CHANGE-0001 may flush without --sweep"
+  grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
+  cat > "$d/want.jsonl" <<'GOLDEN'
+{"date_utc":"2026-07-15","ref_id":"CHANGE-0001","title":"Golden fixture item","human_time_minutes":{"intake":null,"reviews":2},"agent_runs":[{"role":"Planning","model_id":"claude-opus-4-8[1m]","started_utc":"2026-07-15T10:00:00Z","ended_utc":"2026-07-15T10:02:00Z","duration_seconds":120,"tokens_in":1000000,"tokens_out":100000,"cost_usd":7.5},{"role":"Implementation","model_id":"sonnet-latest","started_utc":"2026-07-15T10:02:00Z","ended_utc":"2026-07-15T10:12:00Z","duration_seconds":600,"tokens_in":2000000,"tokens_out":200000,"cost_usd":9},{"role":"Validation","model_id":"claude-sonnet-5-20260101","started_utc":"2026-07-15T10:12:00Z","ended_utc":"2026-07-15T10:13:40Z","duration_seconds":100,"tokens_in":1000000,"tokens_out":1000000,"cost_usd":18},{"role":"Code Review","model_id":"mystery-9000","started_utc":"2026-07-15T10:13:40Z","ended_utc":"2026-07-15T10:14:40Z","duration_seconds":60,"tokens_in":10,"tokens_out":10,"cost_usd":null}],"totals":{"human_time_minutes":2,"agent_duration_seconds":880,"total_cost_usd":null},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
+GOLDEN
+  diff -u "$d/want.jsonl" "$d/got.jsonl" > "$d/golden.diff" 2>&1 \
+    || log_fail "no-flag ledger line must byte-equal the TEST-006 golden: $(cat "$d/golden.diff")"
+  grep -qE '^ {4}ITEM-B:' "$d/docs/ai/STATE.yaml" || log_fail "stranded ITEM-B metrics entry must remain (not flushed without --sweep)"
+  grep -qF "ref_id: ITEM-B" "$d/docs/ai/STATE.yaml" || log_fail "stranded ITEM-B active_work_items entry must remain"
+  grep -qiE "ITEM-B.*(validation verdict|needs PASS)" "$OUT" || log_fail "report must name why ITEM-B was skipped: $(cat "$OUT")"
+  log_pass "Default (no-flag) flush byte-identical to TEST-006; stranded-but-closed ref stays skipped without --sweep (TEST-104)"
+}
+
+test_105_sweep_state_hygiene() {
+  log_info "Test: sweep of two done closed refs while an in_progress ref remains: both removed, in-flight untouched, no spurious verdict reset, check-state green (TEST-105, Spec-AC-05)..."
+  local d
+  d="$(mk_repo t105)"
+  write_sweep_state "$d/docs/ai/STATE.yaml" "ITEM-B:done" "ITEM-D:done" "ITEM-C:in_progress"
+  # Give code_review a non-default value to prove a swept NON-focus ref never
+  # triggers a spurious verdict-block reset (D5).
+  node -e '
+    const fs = require("fs"); const p = process.argv[1];
+    let s = fs.readFileSync(p, "utf8");
+    s = s.replace("code_review:\n  required: false\n  status: not_run", "code_review:\n  required: true\n  status: pass");
+    fs.writeFileSync(p, s);
+  ' "$d/docs/ai/STATE.yaml"
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" ITEM-B "2026-07-15T10:30:00Z"
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" ITEM-D "2026-07-15T10:31:00Z"
+  run_flush "$d" --sweep
+  [[ "$EC" == 0 ]] || log_fail "sweep must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "exactly two ledger lines expected (ITEM-B + ITEM-D)"
+  local st="$d/docs/ai/STATE.yaml"
+  grep -qE '^ {4}ITEM-B:' "$st" && log_fail "ITEM-B metrics entry must be removed"
+  grep -qE '^ {4}ITEM-D:' "$st" && log_fail "ITEM-D metrics entry must be removed"
+  grep -qE '^ {4}ITEM-C:' "$st" || log_fail "ITEM-C (in_progress) metrics entry must remain byte-present"
+  grep -qF "ref_id: ITEM-B" "$st" && log_fail "ITEM-B active_work_items entry must be removed"
+  grep -qF "ref_id: ITEM-D" "$st" && log_fail "ITEM-D active_work_items entry must be removed"
+  grep -qF "ref_id: ITEM-C" "$st" || log_fail "ITEM-C active_work_items entry must remain byte-present"
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}required: true$' \
+    || log_fail "swept non-focus refs must NOT trigger a spurious code_review reset (D5)"
+  sed -n '/^code_review:/,/^[a-z_]*:/p' "$st" | grep -qE '^ {2}status: pass$' \
+    || log_fail "swept non-focus refs must NOT reset code_review.status"
+  grep -qE '^ {2}selected: tdd$' "$st" || log_fail "partial (non-full) reset must NOT touch implementation_strategy"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$st" > "$d/ck.log" 2>&1) \
+    || log_fail "check-state must pass after sweep hygiene: $(cat "$d/ck.log")"
+  log_pass "STATE hygiene: surgical removal of both swept refs, in-flight untouched, no spurious reset (TEST-105)"
+}
+
+test_106_sweep_integrity_refusal() {
+  log_info "Test: pre-existing duplicate top-level key under --sweep -> exit 1 integrity refusal, STATE + ledger untouched (TEST-106, Spec-AC-05)..."
+  local d
+  d="$(mk_repo t106)"
+  write_sweep_state "$d/docs/ai/STATE.yaml" "ITEM-B:done"
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" ITEM-B "2026-07-15T10:30:00Z"
+  # Inject a duplicate top-level key — a structurally invalid planned STATE,
+  # the exact invariant the pre-flush guard exists to catch (must still fire
+  # correctly with --sweep, never be bypassed by the new flag).
+  printf '\nactive_work_items:\n  - ref_id: DUP-0001\n    status: done\n' >> "$d/docs/ai/STATE.yaml"
+  cp "$d/docs/ai/STATE.yaml" "$d/state.before"
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"
+  run_flush "$d" --sweep
+  [[ "$EC" == 1 ]] || log_fail "must exit 1 (got $EC): $(cat "$OUT")"
+  grep -qiE "duplicate top-level key|integrity refusal" "$OUT" || log_fail "must report the integrity refusal reason: $(cat "$OUT")"
+  cmp -s "$d/docs/ai/STATE.yaml" "$d/state.before" || log_fail "STATE must stay byte-identical (original preserved)"
+  cmp -s "$d/docs/ai/METRICS.jsonl" "$d/ledger.before" || log_fail "ledger must stay byte-identical (nothing written)"
+  log_pass "Structurally-invalid STATE under --sweep refuses + rolls back, exactly like the default path (TEST-106)"
+}
+
+test_107_sweep_idempotent() {
+  log_info "Test: a second --sweep is a no-op; crash-then-resume is cleanup-only with no duplicate ledger line (TEST-107, Spec-AC-06)..."
+  local d
+  # (a) fully-covered / zero-remainder: second sweep after a successful one.
+  d="$(mk_repo t107a)"
+  write_sweep_state "$d/docs/ai/STATE.yaml" "ITEM-B:done"
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" ITEM-B "2026-07-15T10:30:00Z"
+  run_flush "$d" --sweep
+  [[ "$EC" == 0 ]] || log_fail "(1) sweep must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "(1) exactly one ledger line expected"
+  run_flush "$d" --sweep
+  [[ "$EC" == 0 ]] || log_fail "(2) re-sweep must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "(2) re-sweep must not append a duplicate line"
+  grep -qiF "nothing to flush" "$OUT" || log_fail "(2) re-sweep must report Nothing to flush: $(cat "$OUT")"
+
+  # (b) mid-operation failure: crash AFTER the ledger append, BEFORE the STATE
+  # commit -> resume is cleanup-only, no duplicate line.
+  d="$(mk_repo t107b)"
+  write_sweep_state "$d/docs/ai/STATE.yaml" "ITEM-D:done"
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" ITEM-D "2026-07-15T10:30:00Z"
+  local ec=0
+  (cd "$PROJECT_ROOT" && AAI_FLUSH_INJECT_CRASH=after-ledger node .aai/scripts/metrics-flush.mjs \
+    --state "$d/docs/ai/STATE.yaml" --metrics "$d/docs/ai/METRICS.jsonl" \
+    --ticks "$d/docs/ai/LOOP_TICKS.jsonl" --pricing "$d/PRICING.yaml" \
+    --events "$d/docs/ai/EVENTS.jsonl" --now "$NOW_PIN" --sweep > "$d/crash.log" 2>&1) || ec=$?
+  [[ "$ec" != 0 ]] || log_fail "(b) injected crash must not exit 0"
+  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "(b) the ledger line must already be durable pre-crash"
+  grep -qE '^ {4}ITEM-D:' "$d/docs/ai/STATE.yaml" || log_fail "(b) STATE must still carry ITEM-D pre-resume (interrupted flush)"
+  run_flush "$d" --sweep
+  [[ "$EC" == 0 ]] || log_fail "(c) resume sweep must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "(c) resume must NOT append a second ledger line"
+  grep -qE '^ {4}ITEM-D:' "$d/docs/ai/STATE.yaml" && log_fail "(c) resume must complete the STATE cleanup for ITEM-D"
+  grep -qiE "resume|already in (the )?ledger" "$OUT" || log_fail "(c) report must say it resumed an interrupted flush: $(cat "$OUT")"
+  log_pass "Second sweep is a no-op; crash-then-resume is cleanup-only, no double-flush (TEST-107)"
+}
+
+test_108_sweep_targeted_ref() {
+  log_info "Test: --sweep --ref B restricts the sweep to the single stranded ref; others report not-selected (TEST-108, Spec-AC-07)..."
+  local d
+  d="$(mk_repo t108)"
+  write_sweep_state "$d/docs/ai/STATE.yaml" "ITEM-B:done" "ITEM-E:done"
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" ITEM-B "2026-07-15T10:30:00Z"
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" ITEM-E "2026-07-15T10:31:00Z"
+  run_flush "$d" --sweep --ref ITEM-B
+  [[ "$EC" == 0 ]] || log_fail "targeted sweep must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "exactly one ledger line (ITEM-B only) expected"
+  grep -qF '"ref_id":"ITEM-B"' "$d/docs/ai/METRICS.jsonl" || log_fail "the flushed line must be ITEM-B"
+  grep -qF '"ref_id":"ITEM-E"' "$d/docs/ai/METRICS.jsonl" && log_fail "ITEM-E must NOT be flushed by a targeted sweep"
+  grep -qE '^ {4}ITEM-E:' "$d/docs/ai/STATE.yaml" || log_fail "ITEM-E must remain in STATE (not selected)"
+  grep -qiF "ITEM-E: not selected (--ref restriction)" "$OUT" || log_fail "report must name ITEM-E as not selected: $(cat "$OUT")"
+  log_pass "--sweep --ref composes with the existing --ref restriction (TEST-108)"
+}
+
+test_109_sweep_seam_close_then_sweep() {
+  log_info "Test: SEAM-1 — a REAL close-work-item.mjs run stamps work_item_closed, then --sweep flushes it (no mock); absent EVENTS fail-closes and creates none (TEST-109, Spec-AC-08)..."
+  local d commit="deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" cec=0
+  d="$(mk_seam_repo t109)"
+  write_sweep_state "$d/docs/ai/STATE.yaml" "ITEM-B:done"
+  write_frontmatter_doc "$d/docs/issues/ITEM-0001-close-seam.md" ITEM-B issue implementing
+  git -C "$d" add -A && git -C "$d" commit -q -m "seam fixture t109"
+  (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/close-work-item.mjs" --ref ITEM-B --pr 1 --commit "$commit" --review pass > close.log 2>&1) || cec=$?
+  [[ "$cec" == 0 ]] || log_fail "close-work-item.mjs must exit 0: $(cat "$d/close.log")"
+  local wic
+  wic="$(event_count "$d/docs/ai/EVENTS.jsonl" work_item_closed ITEM-B)"
+  [[ "$wic" == 1 ]] || log_fail "close-work-item.mjs must stamp exactly one work_item_closed for ITEM-B: $(cat "$d/docs/ai/EVENTS.jsonl")"
+  run_flush "$d" --sweep
+  [[ "$EC" == 0 ]] || log_fail "sweep after the real close must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "exactly one ledger line expected (ITEM-B via the real close event)"
+  grep -qF '"ref_id":"ITEM-B"' "$d/docs/ai/METRICS.jsonl" || log_fail "the flushed line must be ITEM-B"
+  grep -qE '^ {4}ITEM-B:' "$d/docs/ai/STATE.yaml" && log_fail "swept ITEM-B metrics entry must be removed from STATE"
+
+  # Absent EVENTS.jsonl under --sweep -> every stranded ref fail-closed, and
+  # sweep must never create the file (READ-ONLY invariant).
+  local d2
+  d2="$(mk_repo t109b)"
+  write_sweep_state "$d2/docs/ai/STATE.yaml" "ITEM-F:done"
+  rm -f "$d2/docs/ai/EVENTS.jsonl"
+  run_flush "$d2" --sweep
+  [[ "$EC" == 0 ]] || log_fail "absent-EVENTS sweep must still exit 0 (fail-closed, not a crash) (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d2")" == 0 ]] || log_fail "absent-EVENTS sweep must flush nothing"
+  [[ ! -f "$d2/docs/ai/EVENTS.jsonl" ]] || log_fail "sweep must never create EVENTS.jsonl"
+  grep -qiF "no durable work_item_closed event" "$OUT" || log_fail "absent-EVENTS report must name the fail-closed reason: $(cat "$OUT")"
+  log_pass "SEAM-1: real close-work-item.mjs -> sweep flushes it; absent EVENTS fail-closes and creates none (TEST-109)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005)"
+  echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109)"
   check_deps
   setup_fixture
   test_006_flush_golden
@@ -1115,6 +1480,15 @@ main() {
   test_021_flush_then_close_no_double_emit
   test_022_close_then_flush_no_double_emit
   test_023_ledger_shape_unchanged
+  test_101_sweep_flag_parse
+  test_102_sweep_flushes_closed_ref
+  test_103_sweep_fail_closed
+  test_104_default_unchanged
+  test_105_sweep_state_hygiene
+  test_106_sweep_integrity_refusal
+  test_107_sweep_idempotent
+  test_108_sweep_targeted_ref
+  test_109_sweep_seam_close_then_sweep
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
