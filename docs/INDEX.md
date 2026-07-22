@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-22T13:23:38.018Z
+Generated: 2026-07-22T15:07:18.103Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -167,9 +167,12 @@ _None._
 | SPEC-0067 | specs | docs/specs/SPEC-0067-spec-ps1-native-stderr-guard.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0022 | issues | docs/issues/ISSUE-0022-metrics-flush-strands-completed-refs.md |
+| SPEC-0068 | specs | docs/specs/SPEC-0068-spec-metrics-flush-sweep.md |
 
 ## Deferred (whole-doc) (0)
 
