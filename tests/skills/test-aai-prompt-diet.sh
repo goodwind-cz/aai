@@ -412,9 +412,10 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# 19298 (true-up: metrics-flush-strands-completed-refs added a 418 B itemized
-# entry for the METRICS_FLUSH.prompt.md --sweep mention to the prior 18560 B
-# total) AND equals an independent re-sum of JUSTIFIED_ADDITIONS. This
+# 19298 (true-up: metrics-flush-strands-completed-refs added a 738 B itemized
+# entry for the METRICS_FLUSH.prompt.md --sweep mention + its code-review reword,
+# to the prior 18560 B total) AND equals an independent re-sum of
+# JUSTIFIED_ADDITIONS. This
 # expected total is bumped, never recomputed silently, each time a scope
 # legitimately appends a ledger entry (LEARNED.md 2026-07-17: the true-up is
 # definition-of-done for prompt-touching scopes).
