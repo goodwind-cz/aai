@@ -92,6 +92,7 @@ core:
   - .aai/scripts/append-event.mjs
   - .aai/scripts/autonomous-loop.ps1
   - .aai/scripts/autonomous-loop.sh
+  - .aai/scripts/branch-guard.mjs
   - .aai/scripts/check-state.mjs
   - .aai/scripts/claude-hook-gate.sh
   - .aai/scripts/close-work-item.mjs
