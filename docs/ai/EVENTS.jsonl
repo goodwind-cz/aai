@@ -973,3 +973,9 @@
 {"v":1,"ts":"2026-07-22T20:42:54.500Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-018-workspace-isolation","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-22T20:42:54.533Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-test-018-workspace-isolation","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-22T20:42:54.566Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-test-018-workspace-isolation","payload":{"commit":"1f725c291cc3bc5e9f211b00bf4212eee237910e"}}
+{"v":1,"ts":"2026-07-22T22:03:40.039Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"branch-per-work-item-hygiene","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-22T22:03:40.073Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"branch-per-work-item-hygiene","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-22T22:03:40.106Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"branch-per-work-item-hygiene","payload":{"commit":"e4fdbca77a8776b3859b52d474102e9ddbf386b3"}}
+{"v":1,"ts":"2026-07-22T22:03:40.141Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-branch-per-work-item-hygiene","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-22T22:03:40.174Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-branch-per-work-item-hygiene","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-22T22:03:40.207Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-branch-per-work-item-hygiene","payload":{"commit":"e4fdbca77a8776b3859b52d474102e9ddbf386b3"}}
