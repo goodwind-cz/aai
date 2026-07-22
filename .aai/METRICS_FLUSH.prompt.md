@@ -20,7 +20,13 @@ RUN
    `close-work-item.mjs` (CHANGE-0037/SPEC-0053) is the SINGLE SOURCE OF TRUTH
    for the close lifecycle, run through the canonical close flow
    (.aai/SKILL_PR.prompt.md step 5c) — never this flush. The `--events` flag
-   is accepted for back-compat only and is a NO-OP.
+   is accepted for back-compat only and is a NO-OP unless `--sweep` is passed.
+   Optional `--sweep` (opt-in, additive): also flushes every STRANDED
+   metrics.work_items entry with DURABLE completion provenance — a committed
+   work_item_closed event for that EXACT ref in EVENTS.jsonl (read-only,
+   never written) AND active_work_items[ref].status=='done' — fail-closed and
+   reported otherwise, never a fabricated PASS; `--sweep --ref <id>` targets
+   one ref.
 2. Relay the script's report VERBATIM, including every
    "WARNING <ref_id> run <role> (<model_id>): cost unattributable — tokens not
    recorded" line. Never omit or aggregate these lines.

@@ -51,11 +51,16 @@
 //     STATE content saved to <state>.pre-flush-<ts> for recovery.
 //
 // Flags: --state/--metrics/--ticks/--pricing <path> (fixture injection),
-// --events <path> (DEPRECATED, SPEC-0054/CHANGE-0038 — parsed and accepted
-// for back-compat only; flush never emits close-lifecycle events, so this is
-// a NO-OP; close-work-item.mjs owns doc_lifecycle/work_item_closed), --ref
-// <id> (restrict), --dry-run (print the full plan JSON, write nothing),
-// --now <ISO> (test-only clock pin; env AAI_FLUSH_NOW equivalent).
+// --events <path> (SPEC-0054/CHANGE-0038: flush never EMITS close-lifecycle
+// events — close-work-item.mjs owns doc_lifecycle/work_item_closed — but
+// metrics-flush-strands-completed-refs/SPEC-DRAFT-spec-metrics-flush-sweep
+// READS this path under --sweep, never writes it), --ref <id> (restrict),
+// --dry-run (print the full plan JSON, write nothing), --sweep (OPT-IN:
+// additionally flush every stranded metrics.work_items entry that carries
+// DURABLE completion provenance — a committed work_item_closed event for the
+// EXACT ref in EVENTS.jsonl AND active_work_items[ref].status==='done';
+// fail-closed otherwise, reported, never fabricated — see D1 below and the
+// spec), --now <ISO> (test-only clock pin; env AAI_FLUSH_NOW equivalent).
 // AAI_FLUSH_INJECT_CRASH=after-ledger is a test-only fault hook.
 //
 // Exit codes: 0 flushed (or nothing to flush — the report says which),
@@ -101,12 +106,14 @@ function parseArgs(argv) {
     events: 'docs/ai/EVENTS.jsonl',
     ref: null,
     dryRun: false,
+    sweep: false,
     now: process.env.AAI_FLUSH_NOW ?? null,
   };
   const valueFlags = { '--state': 'state', '--metrics': 'metrics', '--ticks': 'ticks', '--pricing': 'pricing', '--events': 'events', '--ref': 'ref', '--now': 'now' };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--dry-run') { opts.dryRun = true; continue; }
+    if (tok === '--sweep') { opts.sweep = true; continue; }
     if (tok in valueFlags) {
       const v = argv[i + 1];
       if (v === undefined || v.startsWith('--')) fail(`${tok} requires a value`);
@@ -114,7 +121,7 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
-    fail(`unknown flag "${tok}" (valid: --state --metrics --ticks --pricing --events --ref --dry-run --now)`);
+    fail(`unknown flag "${tok}" (valid: --state --metrics --ticks --pricing --events --ref --dry-run --sweep --now)`);
   }
   if (opts.now !== null && (!ISO_RE.test(opts.now) || Number.isNaN(Date.parse(opts.now)))) {
     fail(`--now "${opts.now}" is not an ISO-8601 UTC timestamp`);
@@ -230,6 +237,25 @@ function ledgerRefs(metricsPath) {
     try {
       const o = JSON.parse(t);
       if (o && typeof o.ref_id === 'string') refs.add(o.ref_id);
+    } catch { /* best-effort matching probe */ }
+  }
+  return refs;
+}
+
+// metrics-flush-strands-completed-refs (--sweep, D1/D2): the set of refs with
+// a committed `work_item_closed` event in EVENTS.jsonl — the SAME predicate
+// close-work-item.mjs:hasWorkItemClosed uses (exact ref match). READ-ONLY:
+// called only when opts.sweep; never creates the file; empty Set when absent
+// (fail-closed, not a crash).
+function closedRefs(eventsPath) {
+  const refs = new Set();
+  if (!fs.existsSync(eventsPath)) return refs;
+  for (const line of fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/)) {
+    const t = line.trim();
+    if (t === '' || t.startsWith('#')) continue;
+    try {
+      const o = JSON.parse(t);
+      if (o && o.event === 'work_item_closed' && typeof o.ref === 'string') refs.add(o.ref);
     } catch { /* best-effort matching probe */ }
   }
   return refs;
@@ -553,9 +579,12 @@ function main() {
   const metricsPath = path.resolve(process.cwd(), opts.metrics);
   const ticksPath = path.resolve(process.cwd(), opts.ticks);
   const pricingPath = path.resolve(process.cwd(), opts.pricing);
-  // opts.events is parsed and accepted (--events flag stays valid, back-compat
-  // no-op — SPEC-0054/CHANGE-0038) but never resolved/used: flush no longer
-  // emits close-lifecycle events, so there is no events path to touch.
+  // opts.events resolves to a path but is only ever READ, and only under
+  // --sweep (D1/D2, metrics-flush-strands-completed-refs); the default
+  // (no-flag) path never opens it — flush still never WRITES/creates
+  // EVENTS.jsonl (SPEC-0054/CHANGE-0038: close-work-item.mjs owns the close
+  // lifecycle).
+  const eventsPath = path.resolve(process.cwd(), opts.events);
   if (!fs.existsSync(statePath)) fail(`STATE file not found: ${statePath}`);
 
   const raw = fs.readFileSync(statePath, 'utf8');
@@ -574,6 +603,13 @@ function main() {
   const pricing = loadPricing(pricingPath);
   const inLedger = ledgerRefs(metricsPath);
   const reviewsFromTicks = ticksReviewMinutes(ticksPath);
+  // D1/D2: the closed-event set is read ONLY under --sweep (never opened on
+  // the default path, keeping the "flush never touches EVENTS" invariant
+  // intact for TEST-012/019 et al.). The done-status lookup is a pure
+  // in-memory re-read of origLines (already loaded) — cheap either way.
+  const closed = opts.sweep ? closedRefs(eventsPath) : new Set();
+  const { items: workItemsList } = parseWorkItems(origLines);
+  const statusByRef = new Map(workItemsList.map(it => [it.ref_id, it.status]));
 
   const { entries } = parseMetricsEntries(origLines);
   const vStatus = readScalar(origLines, 'last_validation', 'status');
@@ -590,25 +626,49 @@ function main() {
   const skipped = {};
   const toFlush = [];
   const toResume = [];
+  const sweptRefs = [];
   for (const entry of entries) {
     const ref = entry.ref;
     if (opts.ref && ref !== opts.ref) { skipped[ref] = 'not selected (--ref restriction)'; continue; }
     if (inLedger.has(ref)) { toResume.push(entry); continue; }   // interrupted flush
+
+    // DEFAULT gate — BYTE-UNCHANGED from the pre-sweep logic (D2): the
+    // current-validation ref, review pass/waived when required, runs>0.
+    let defaultReason = null;
     if (!(vStatus === 'pass' && refMatches(vRef, ref))) {
-      skipped[ref] = vStatus === 'pass'
+      defaultReason = vStatus === 'pass'
         ? `validation verdict does not name ${ref} (last_validation.ref_id: ${vRef ?? 'null'}) — needs PASS for this ref`
         : `validation verdict is "${vStatus ?? 'null'}" (needs PASS or CANCELLED)`;
+    } else if (rRequired && !['pass', 'waived'].includes(rStatus ?? '')) {
+      defaultReason = `code_review required but status "${rStatus ?? 'null'}" (needs pass or waived)`;
+    } else if (entry.runs.length === 0) {
+      defaultReason = 'no agent_runs recorded in STATE metrics';
+    }
+
+    if (defaultReason === null) { toFlush.push(entry); continue; }
+
+    // D1 sweep gate (STRICT / fail-closed) — an ADDITIONAL OR path, only when
+    // --sweep is set; never removes/weakens what the default gate would flush.
+    if (opts.sweep) {
+      if (entry.runs.length === 0) {
+        skipped[ref] = 'no agent_runs recorded in STATE metrics';
+        continue;
+      }
+      if (!closed.has(ref)) {
+        skipped[ref] = 'no durable work_item_closed event in EVENTS.jsonl — fail-closed';
+        continue;
+      }
+      const status = statusByRef.get(ref);
+      if (status !== 'done') {
+        skipped[ref] = `active_work_items status is "${status ?? 'null'}" (needs done for --sweep; in-flight items are never swept) — fail-closed`;
+        continue;
+      }
+      toFlush.push(entry);
+      sweptRefs.push(ref);
       continue;
     }
-    if (rRequired && !['pass', 'waived'].includes(rStatus ?? '')) {
-      skipped[ref] = `code_review required but status "${rStatus ?? 'null'}" (needs pass or waived)`;
-      continue;
-    }
-    if (entry.runs.length === 0) {
-      skipped[ref] = 'no agent_runs recorded in STATE metrics';
-      continue;
-    }
-    toFlush.push(entry);
+
+    skipped[ref] = defaultReason;
   }
 
   // Build ledger entries + warnings in memory FIRST.
@@ -656,6 +716,7 @@ function main() {
     const plan = {
       dry_run: true,
       flush: toFlush.map(e => e.ref),
+      swept: sweptRefs,
       resume: toResume.map(e => e.ref),
       skipped,
       entries: built.map(b => b.ledgerEntry),
