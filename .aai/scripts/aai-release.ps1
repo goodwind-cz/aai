@@ -36,6 +36,38 @@ param(
   [string[]]$ExtraArgs
 )
 
+function Invoke-NativeChecked {
+  # Diagnostics-preserving checked-invoke (ps1-native-stderr-guard /
+  # SPEC-DRAFT-spec-ps1-native-stderr-guard, Spec-AC-01). A native command's
+  # SUCCESS-stderr (e.g. `git push`'s "To <remote>..." progress line) must
+  # NEVER be promoted to a terminating error under this script's outer
+  # `$ErrorActionPreference = 'Stop'` (that promotion is Windows PowerShell
+  # 5.1 behavior; see the issue). This helper localizes EAP to 'Continue' for
+  # the duration of the call, captures merged stdout+stderr, and gates
+  # SOLELY on `$LASTEXITCODE`: zero -> return the captured output, never
+  # throw, regardless of stderr content; non-zero -> throw a terminating
+  # error whose message INCLUDES the captured text, so a real failure
+  # (rejected push, auth, network) still fails loudly with git/gh's own
+  # diagnostic - never a blanket `*> $null` that would hide it.
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][string]$Exe,
+    [Parameter(Mandatory)][string[]]$Arguments
+  )
+  $prevEap = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  $out = & $Exe @Arguments 2>&1
+  $exitCode = $LASTEXITCODE
+  $ErrorActionPreference = $prevEap
+  if ($exitCode -ne 0) {
+    $joined = ($out | ForEach-Object { "$_" }) -join [Environment]::NewLine
+    throw "$Exe $($Arguments -join ' ') failed (exit ${exitCode}): $joined"
+  }
+  return $out
+}
+
+if ($MyInvocation.InvocationName -ne '.') {
+
 $extra = @(); if ($ExtraArgs) { $extra = @($ExtraArgs) }
 for ($i = 0; $i -lt $extra.Count; $i++) {
   switch -Regex ($extra[$i]) {
@@ -250,20 +282,21 @@ try {
   Move-Item -Force -LiteralPath $OutFile -Destination $Changelog
   $OutFile = $null
 
-  git -C $Root add -- CHANGELOG.md
-  git -C $Root commit -q -m "chore(release): $Version"
-  git -C $Root tag -a $Version -m $Version
+  Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'add', '--', 'CHANGELOG.md') | Out-Null
+  Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'commit', '-q', '-m', "chore(release): $Version") | Out-Null
+  Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'tag', '-a', $Version, '-m', $Version) | Out-Null
 
+  $shortSha = (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'rev-parse', '--short', 'HEAD') | Select-Object -Last 1)
   Write-Host "## aai-release - cut complete"
   Write-Host "- Version: $Version"
-  Write-Host "- Commit:  $(git -C $Root rev-parse --short HEAD)"
+  Write-Host "- Commit:  $shortSha"
   Write-Host "- Tag:     $Version (annotated)"
 
   if (-not $NoRemote) {
-    git -C $Root push origin $branch
-    git -C $Root push origin "refs/tags/$Version"
+    Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'push', 'origin', $branch) | Out-Null
+    Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'push', 'origin', "refs/tags/$Version") | Out-Null
     Push-Location $Root
-    try { gh release create $Version --title $Version --notes-file $NotesFile } finally { Pop-Location }
+    try { Invoke-NativeChecked -Exe 'gh' -Arguments @('release', 'create', $Version, '--title', $Version, '--notes-file', $NotesFile) | Out-Null } finally { Pop-Location }
     Write-Host "- Pushed:  $branch + tag $Version"
     Write-Host "- Published: gh release create $Version"
   } else {
@@ -273,3 +306,7 @@ try {
   if ($OutFile -and (Test-Path $OutFile)) { Remove-Item -Force $OutFile -ErrorAction SilentlyContinue }
   if ($NotesFile -and (Test-Path $NotesFile)) { Remove-Item -Force $NotesFile -ErrorAction SilentlyContinue }
 }
+
+}  # end: if ($MyInvocation.InvocationName -ne '.') - dot-sourcing defines
+   # Invoke-NativeChecked (and any other functions above this guard) without
+   # performing arg-parse or a release (ps1-native-stderr-guard, Spec-AC-03).
