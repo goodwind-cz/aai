@@ -2,10 +2,12 @@
 id: metrics-flush-strands-completed-refs
 number: 22
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 126
+  commits:
+    - 54d7beadcf58551f4b677e67dde404c5e7c60d1f
 ---
 
 # metrics-flush strands completed work items: only the current-validation ref is ever flushed

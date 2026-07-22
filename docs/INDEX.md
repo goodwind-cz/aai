@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-22T15:07:18.103Z
+Generated: 2026-07-22T15:07:46.885Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (147)
+## Done (149)
 
 | ID | Type | Path |
 |---|---|---|
@@ -86,6 +86,7 @@ _None._
 | ISSUE-0019 | issues | docs/issues/ISSUE-0019-test-canon-stat-portability.md |
 | ISSUE-0020 | issues | docs/issues/ISSUE-0020-hitl-decision-propagation.md |
 | ISSUE-0021 | issues | docs/issues/ISSUE-0021-ps1-native-stderr-guard.md |
+| ISSUE-0022 | issues | docs/issues/ISSUE-0022-metrics-flush-strands-completed-refs.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -165,14 +166,12 @@ _None._
 | SPEC-0065 | specs | docs/specs/SPEC-0065-spec-test-canon-stat-portability.md |
 | SPEC-0066 | specs | docs/specs/SPEC-0066-spec-hitl-decision-propagation.md |
 | SPEC-0067 | specs | docs/specs/SPEC-0067-spec-ps1-native-stderr-guard.md |
+| SPEC-0068 | specs | docs/specs/SPEC-0068-spec-metrics-flush-sweep.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| ISSUE-0022 | issues | docs/issues/ISSUE-0022-metrics-flush-strands-completed-refs.md |
-| SPEC-0068 | specs | docs/specs/SPEC-0068-spec-metrics-flush-sweep.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

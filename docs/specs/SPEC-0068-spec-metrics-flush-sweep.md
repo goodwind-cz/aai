@@ -2,13 +2,15 @@
 id: spec-metrics-flush-sweep
 type: spec
 number: 68
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: metrics-flush-strands-completed-refs
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 126
+  commits:
+    - 54d7beadcf58551f4b677e67dde404c5e7c60d1f
 ---
 
 # Implementation Spec: metrics-flush `--sweep` (durable-provenance multi-ref flush)
