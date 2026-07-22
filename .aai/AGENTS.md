@@ -167,6 +167,12 @@ Worktree and review policy:
 - If inline diff scope contains unrelated changes, block and ask for exact paths or a diff range.
 - Merge/PR readiness requires Validation PASS and Code Review PASS, unless the user explicitly waives review.
 
+One branch per work item:
+
+- Every work item is developed on a dedicated branch whose name contains its `current_focus.ref_id` (the existing `<type>/<ref-id>` convention, e.g. `fix/branch-per-work-item-hygiene`). Never pile a new work item onto a stale or shared branch.
+- SKILL_PR's "0. BRANCH HYGIENE" precondition (`.aai/scripts/branch-guard.mjs`) fails closed before any push if the current branch is the base branch, is detached, or does not correspond to the current ref_id. It is read-only and never rewrites history — an already-committed wrong branch is reported with remediation, not auto-fixed.
+- `node .aai/scripts/branch-guard.mjs --suggest` prints the canonical `<type-token>/<ref-id>` branch name so implementation can cut the branch up front.
+
 ### Skill Invocation (Claude vs Codex)
 
 - Claude-style slash command:

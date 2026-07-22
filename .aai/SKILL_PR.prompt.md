@@ -11,6 +11,13 @@ files are staged, committed, and pushed, and the PR body carries the evidence
 trail (Spec-AC / TEST table, review status, links).
 
 PRECONDITIONS (all must hold before any git write)
+- 0. BRANCH HYGIENE — run `node .aai/scripts/branch-guard.mjs --base <base>`
+  (base ref from `docs/ai/STATE.yaml` `worktree.base_ref`, default `main`)
+  BEFORE any other precondition or git write, so it gates staging AND push.
+  Exit 0: proceed. Non-zero: STOP — print the guard's stderr remediation
+  verbatim; do not stage, commit, or push. The guard fails closed when the
+  current branch is the base branch, is detached, or does not correspond to
+  the current `current_focus.ref_id`.
 - Validation PASS recorded in docs/ai/STATE.yaml (`last_validation.status: pass`).
 - If `code_review.required == true`: `code_review.status` is `pass` or `waived`.
 - Explicit user confirmation to commit/push (AGENTS.md commit gating policy:

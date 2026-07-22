@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-22T20:44:27.582Z
+Generated: 2026-07-22T22:03:04.025Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -171,9 +171,12 @@ _None._
 | SPEC-0069 | specs | docs/specs/SPEC-0069-spec-test-018-workspace-isolation.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0024 | issues | docs/issues/ISSUE-0024-branch-per-work-item-hygiene.md |
+| SPEC-0070 | specs | docs/specs/SPEC-0070-spec-branch-per-work-item-hygiene.md |
 
 ## Deferred (whole-doc) (0)
 

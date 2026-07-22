@@ -9,6 +9,33 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: enforce one dedicated git branch per work item (ISSUE-0024 / SPEC-0070)
+
+- The loop had NO deterministic step that creates or verifies a per-work-item
+  branch on the INLINE strategy (the common L0-L2 path): `SKILL_PR` step 5 pushed
+  *"the current branch"* whatever it was — branch creation existed only in
+  `SKILL_WORKTREE` (the L3 path) and `AGENTS.md` gave no branch guidance at all.
+  A downstream agent consequently piled successive work items onto one long-lived,
+  misleadingly-named branch (`feat/change-158-…`) with nothing to catch that the
+  branch did not correspond to the current `current_focus.ref_id`.
+- Added `.aai/scripts/branch-guard.mjs` — a READ-ONLY guard (imports the same
+  `lib/state-core` helpers `orchestration-dispatch.mjs` uses; never writes STATE)
+  that FAILS CLOSED with a closed exit-code set: 0 pass; 1 on the base branch;
+  2 detached HEAD; 3 branch name does not map to `current_focus.ref_id`; 4
+  config-error (STATE/ref unresolvable — defaults closed). Every non-zero exit
+  prints a copy-pasteable `git checkout -b <type>/<ref-id> origin/<base>`
+  remediation; `--suggest` prints the canonical branch name for the current ref.
+- Wired it as an additive **"0. BRANCH HYGIENE"** precondition in
+  `.aai/SKILL_PR.prompt.md` (runs the guard, STOPS before any push on failure) and
+  documented the one-branch-per-work-item rule in `.aai/AGENTS.md`. Fail-closed by
+  design: it never rewrites history or force-pushes a mis-branched commit — it
+  stops and tells the operator to re-branch. Covered by
+  `tests/skills/test-aai-branch-guard.sh` (8 tests, all fail classes + `--suggest`,
+  green on macOS + Linux CI).
+- Design note: kept at ceremony **L1** by living entirely in a NEW non-protected
+  script + prompt + docs — no `protected_paths_l3` file touched (no forced L3
+  worktree). Propagates to every downstream project via `/aai-update`.
+
 ## [unreleased] — fix: TEST-018 fresh per-case workspace removes residual reaper flake (ISSUE-0023 / SPEC-0069)
 
 - `tests/skills/test-aai-run-tests.sh` TEST-018 (reaper legacy fail-safe) still
