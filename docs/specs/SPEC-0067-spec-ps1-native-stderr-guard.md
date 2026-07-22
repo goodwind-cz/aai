@@ -2,13 +2,15 @@
 id: spec-ps1-native-stderr-guard
 type: spec
 number: 67
-status: draft
+status: done
 ceremony_level: 2
 links:
   issue: ps1-native-stderr-guard
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 125
+  commits:
+    - 81ed35dd5dbc1ca68440158d8754852400cefc1c
 ---
 
 # SPEC — aai-release.ps1 native git/gh stderr guard (diagnostics-preserving)

@@ -2,10 +2,12 @@
 id: ps1-native-stderr-guard
 number: 21
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 125
+  commits:
+    - 81ed35dd5dbc1ca68440158d8754852400cefc1c
 ---
 
 # aai-release.ps1 `git push` trips NativeCommandError on Windows PowerShell 5.1
