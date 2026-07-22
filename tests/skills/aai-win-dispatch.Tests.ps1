@@ -22,6 +22,7 @@ BeforeAll {
     $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
     $script:RunDispatcher = Join-Path $RepoRoot '.aai/scripts/aai-run-tests.ps1'
     $script:ReapDispatcher = Join-Path $RepoRoot '.aai/scripts/aai-reap-tests.ps1'
+    $script:ReleaseScript = Join-Path $RepoRoot '.aai/scripts/aai-release.ps1'
 }
 
 Describe 'aai-run-tests.ps1' {
@@ -210,6 +211,181 @@ Describe 'aai-run-tests.ps1' {
                 -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 2
             $rc | Should -Be 124
             Should -Invoke Stop-ProcessTree -Times 1 -Exactly -ParameterFilter { $ProcessId -eq 4242 }
+        }
+    }
+}
+
+Describe 'aai-release.ps1' {
+    # ps1-native-stderr-guard (SPEC-DRAFT-spec-ps1-native-stderr-guard,
+    # TEST-001..004, 006, 007). Dot-sourcing aai-release.ps1 defines
+    # Invoke-NativeChecked WITHOUT performing a release — the
+    # `$MyInvocation.InvocationName -ne '.'` guard around the executable body
+    # (arg-parse through the closing finally) is what makes that safe. The
+    # TEST-006/TEST-007 checks below spawn a CHILD pwsh process rather than
+    # dot-sourcing in-process, because pre-fix (and on any regression) the
+    # unguarded body calls `exit N` on its own preconditions, which would
+    # otherwise kill this entire Pester run rather than just the probe.
+
+    BeforeEach {
+        # Re-dot-source before every test so this suite's own $LASTEXITCODE /
+        # function state never leaks between tests (mirrors the pattern above).
+        . $script:ReleaseScript
+    }
+
+    It 'parses with no syntax errors' {
+        $errors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile(
+            $script:ReleaseScript, [ref]$null, [ref]$errors) | Out-Null
+        $errors | Should -BeNullOrEmpty
+    }
+
+    Context 'TEST-001 (Spec-AC-01): static contract — helper defined with a local EAP override' {
+        It 'defines function Invoke-NativeChecked' {
+            $content = Get-Content -Raw $script:ReleaseScript
+            $content | Should -Match 'function\s+Invoke-NativeChecked'
+        }
+
+        It 'sets a local $ErrorActionPreference = ''Continue'' inside the helper' {
+            $content = Get-Content -Raw $script:ReleaseScript
+            $content | Should -Match "\`$ErrorActionPreference\s*=\s*'Continue'"
+        }
+    }
+
+    Context 'TEST-002/TEST-003 (Spec-AC-01): Invoke-NativeChecked behavioral contract' {
+        It 'TEST-002: stub writes stderr AND exits 0 -> returns without throwing' {
+            # NB: assignment must happen OUTSIDE a `{ } | Should -Not -Throw`
+            # scriptblock — that scriptblock is a child scope, so an
+            # assignment inside it never leaks to an outer $result. try/catch
+            # does not introduce a new variable scope, so it does.
+            $result = $null
+            $threw = $false
+            try {
+                $result = Invoke-NativeChecked -Exe 'pwsh' -Arguments @(
+                    '-NoProfile', '-Command',
+                    '[Console]::Error.WriteLine("benign progress text"); exit 0'
+                )
+            } catch {
+                $threw = $true
+            }
+            $threw | Should -Be $false
+            ($result -join "`n") | Should -Match 'benign progress text'
+        }
+
+        It 'TEST-003: stub writes stderr AND exits non-zero -> throws and the message CONTAINS the stderr text' {
+            {
+                Invoke-NativeChecked -Exe 'pwsh' -Arguments @(
+                    '-NoProfile', '-Command',
+                    '[Console]::Error.WriteLine("real failure diagnostic"); exit 1'
+                )
+            } | Should -Throw '*real failure diagnostic*'
+        }
+    }
+
+    Context 'TEST-004 (Spec-AC-02): every cut-path native call is routed through the helper; probes untouched' {
+        It 'no bare git -C $Root push/add/commit/tag statement remains' {
+            $content = Get-Content -Raw $script:ReleaseScript
+            $content | Should -Not -Match '(?m)^\s*git\s+-C\s+\$Root\s+(push|add|commit|tag)\b'
+        }
+
+        It 'no bare gh release create statement remains' {
+            # Unanchored on purpose: a bare call reads as contiguous source text
+            # "gh release create" even mid-line (e.g. inside a try{}); after the
+            # fix the exe/verb/noun become separate quoted Invoke-NativeChecked
+            # array elements, so this contiguous substring no longer appears in
+            # CODE. Write-Host display strings and header comments (e.g. "-
+            # Published: gh release create $Version", "# ... skip push + gh
+            # release create") legitimately still contain that phrase as text,
+            # so those lines are excluded from this check.
+            $offending = Get-Content $script:ReleaseScript | Where-Object {
+                $trimmed = $_.TrimStart()
+                $_ -notmatch 'Write-Host' -and -not $trimmed.StartsWith('#') -and $_ -match 'gh\s+release\s+create'
+            }
+            $offending | Should -BeNullOrEmpty
+        }
+
+        It 'git add/commit/tag are invoked through Invoke-NativeChecked' {
+            $content = Get-Content -Raw $script:ReleaseScript
+            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'add'"
+            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'commit'"
+            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'tag'"
+        }
+
+        It 'the display git rev-parse --short HEAD is invoked through Invoke-NativeChecked' {
+            $content = Get-Content -Raw $script:ReleaseScript
+            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'rev-parse',\s*'--short',\s*'HEAD'"
+        }
+
+        It 'both git push calls are invoked through Invoke-NativeChecked' {
+            $content = Get-Content -Raw $script:ReleaseScript
+            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'push',\s*'origin',\s*\`$branch\)"
+            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'push',\s*'origin',\s*""refs/tags"
+        }
+
+        It 'gh release create is invoked through Invoke-NativeChecked' {
+            $content = Get-Content -Raw $script:ReleaseScript
+            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'gh'\s+-Arguments\s+@\('release',\s*'create'"
+        }
+
+        It 'the tolerant probes (rev-parse -q --verify, gh auth status) keep their existing *> $null handling' {
+            $content = Get-Content -Raw $script:ReleaseScript
+            $content | Should -Match 'rev-parse\s+-q\s+--verify\s+"refs/tags/\$Version"\s+\*>\s+\$null'
+            $content | Should -Match 'gh\s+auth\s+status\s+\*>\s+\$null'
+        }
+    }
+
+    Context 'TEST-006 (Spec-AC-03): dot-source guard — defines the helper WITHOUT running a release' {
+        It 'dot-sourcing in a child process defines Invoke-NativeChecked and does not exit early on release preconditions' {
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('aai-release-dotsource-' + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $tmp | Out-Null
+            try {
+                $probeFile = Join-Path $tmp 'probe.ps1'
+                $probeBody = @"
+Set-Location -LiteralPath '$tmp'
+. '$($script:ReleaseScript)'
+if (Get-Command Invoke-NativeChecked -ErrorAction SilentlyContinue) { Write-Output 'HELPER_DEFINED' } else { Write-Output 'HELPER_MISSING' }
+Write-Output 'DOTSOURCE_COMPLETED'
+"@
+                Set-Content -LiteralPath $probeFile -Value $probeBody
+                $out = & pwsh -NoProfile -File $probeFile 2>&1
+                $exitCode = $LASTEXITCODE
+                ($out -join "`n") | Should -Match 'HELPER_DEFINED'
+                ($out -join "`n") | Should -Match 'DOTSOURCE_COMPLETED'
+                $exitCode | Should -Be 0
+            } finally {
+                Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    Context 'TEST-007 (Spec-AC-03): -File -DryRun regression — the guard does not change normal execution' {
+        It 'pwsh -File aai-release.ps1 -DryRun in a throwaway git fixture exits 0 and prints the plan header' {
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('aai-release-dryrun-' + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $tmp | Out-Null
+            try {
+                Push-Location $tmp
+                try {
+                    & git init -q .
+                    & git config user.email 'aai-test@example.com'
+                    & git config user.name 'AAI Test'
+                    $changelog = @"
+# Changelog
+
+## [unreleased] — Added
+- placeholder entry for TEST-007
+"@
+                    Set-Content -LiteralPath (Join-Path $tmp 'CHANGELOG.md') -Value $changelog
+                    & git add -- CHANGELOG.md
+                    & git commit -q -m 'init'
+                    $out = & pwsh -NoProfile -File $script:ReleaseScript -DryRun 2>&1
+                    $exitCode = $LASTEXITCODE
+                } finally {
+                    Pop-Location
+                }
+                $exitCode | Should -Be 0
+                ($out -join "`n") | Should -Match 'aai-release \(plan\)'
+            } finally {
+                Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+            }
         }
     }
 }
