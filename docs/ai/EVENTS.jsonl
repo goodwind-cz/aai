@@ -967,3 +967,9 @@
 {"v":1,"ts":"2026-07-22T15:07:25.443Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-metrics-flush-sweep","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-22T15:07:25.480Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-metrics-flush-sweep","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-22T15:07:25.515Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-metrics-flush-sweep","payload":{"commit":"54d7beadcf58551f4b677e67dde404c5e7c60d1f"}}
+{"v":1,"ts":"2026-07-22T20:42:54.389Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"test-018-workspace-isolation","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-22T20:42:54.430Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"test-018-workspace-isolation","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-22T20:42:54.467Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"test-018-workspace-isolation","payload":{"commit":"1f725c291cc3bc5e9f211b00bf4212eee237910e"}}
+{"v":1,"ts":"2026-07-22T20:42:54.500Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-018-workspace-isolation","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-22T20:42:54.533Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-test-018-workspace-isolation","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-22T20:42:54.566Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-test-018-workspace-isolation","payload":{"commit":"1f725c291cc3bc5e9f211b00bf4212eee237910e"}}

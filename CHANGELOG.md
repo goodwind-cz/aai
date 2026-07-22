@@ -9,7 +9,29 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased]
+## [unreleased] — fix: TEST-018 fresh per-case workspace removes residual reaper flake (ISSUE-0023 / SPEC-0069)
+
+- `tests/skills/test-aai-run-tests.sh` TEST-018 (reaper legacy fail-safe) still
+  flaked intermittently on CI **after** the SPEC-0064 split-direction margin fix
+  (PR #123) — it blocked the release rollup PR #127 and other merges. Root cause of
+  the RESIDUAL flake was NOT the margins: all six invalid-epoch cases
+  (UNSET/EMPTY/abc/-5/0/future) shared **one** workspace `$ws` (a single `mktemp -d`
+  above the `for invalid` loop). The reaper matches by `AAI_REAP_WORKSPACE`, so a
+  `spare-fresh` reap in a later case could match/reap a process leaked from an
+  earlier case's `reap-old` direction → the observed "must still spare the fresh
+  match (reaper output: reaped: 1)".
+- Fix is **state isolation, not another widened margin**: moved the `mktemp -d`
+  workspace **inside** the loop (fresh `$ws` per case, so the reaper can only ever
+  match that case's own two procs) and made teardown kill **both** `old_pid` and
+  `fresh_pid` every iteration (previously only the fresh one), so a `reap-old` that
+  missed under load cannot leak into a later case. The split-direction margins
+  (MIN_AGE=1 reap-old / 60 spare-fresh) are **preserved unchanged**.
+- **Test-only change**: the production reaper `.aai/scripts/aai-reap-tests.sh` is
+  untouched (its epoch guard is correct and deterministically covered by
+  TEST-006/016/017). Honest note: the flake is load-related and reproduces only
+  under Linux CI — verified green on `skill-suite` across **two** runs at the same
+  HEAD, the load-authoritative environment; the fix removes the shared-state
+  MECHANISM rather than out-margining the race.
 
 ## [v2026.07.22] — feat: metrics-flush `--sweep` clears stranded completed refs (ISSUE-0022 / SPEC-0068)
 
