@@ -33,7 +33,7 @@ RFC-0001).
   HEAD, the load-authoritative environment; the fix removes the shared-state
   MECHANISM rather than out-margining the race.
 
-## [unreleased] — feat: metrics-flush `--sweep` clears stranded completed refs (ISSUE-0022 / SPEC-0068)
+## [v2026.07.22] — feat: metrics-flush `--sweep` clears stranded completed refs (ISSUE-0022 / SPEC-0068)
 
 - `metrics-flush` moved only the ref named by the transient `last_validation`
   singleton to the committed `METRICS.jsonl`, so a completed item that is not the
@@ -53,7 +53,7 @@ RFC-0001).
   field → no `state.mjs` → no forced L3 worktree, the gate this class of fix keeps
   hitting) by using durable proof that already exists rather than a new field.
 
-## [unreleased] — fix: aai-release.ps1 native git/gh guarded against stderr-as-error on Windows PS 5.1 (ISSUE-0021 / SPEC-0067)
+## [v2026.07.22] — fix: aai-release.ps1 native git/gh guarded against stderr-as-error on Windows PS 5.1 (ISSUE-0021 / SPEC-0067)
 
 - `aai-release.ps1` ran `git push` (and `gh release create`) unguarded under
   `$ErrorActionPreference='Stop'`. On **Windows PowerShell 5.1**, `git push`'s
@@ -73,7 +73,7 @@ RFC-0001).
   helper's logic; the actual 5.1 runtime fix is covered by a documented manual
   smoke, not CI.
 
-## [unreleased] — fix: HITL answers now reach the STATE field they gate (ISSUE-0020 / SPEC-0066)
+## [v2026.07.22] — fix: HITL answers now reach the STATE field they gate (ISSUE-0020 / SPEC-0066)
 
 - **Reported from a downstream AAI deployment, reproduced twice here.** Resolving a
   human-in-the-loop block was a **no-op for the loop**: `SKILL_HITL` was forbidden
@@ -102,7 +102,7 @@ RFC-0001).
   that extracts the `[HITL-7]` command from the prompt, runs it against a fixture
   STATE, re-dispatches, and asserts rule 8 stops firing.
 
-## [unreleased] — fix: GNU-first `stat` for mtime in test-aai-test-canon.sh (ISSUE-0019 / SPEC-0065)
+## [v2026.07.22] — fix: GNU-first `stat` for mtime in test-aai-test-canon.sh (ISSUE-0019 / SPEC-0065)
 
 - `tests/skills/test-aai-test-canon.sh` read file mtimes at four sites via
   `stat -f %m … || stat -c %Y …` — the RC4 bug class: on GNU/Linux `stat -f`
@@ -113,7 +113,7 @@ RFC-0001).
   cleaning the RC4 class repo-wide; it is correctness hygiene and does NOT claim to
   fix the (separate, still-undiagnosed) intermittent test-canon flake.
 
-## [unreleased] — fix: deterministic reaper age guard — remove aai-run-tests CI flake (ISSUE-0018 / SPEC-0064)
+## [v2026.07.22] — fix: deterministic reaper age guard — remove aai-run-tests CI flake (ISSUE-0018 / SPEC-0064)
 
 - The test-process reaper (`.aai/scripts/aai-reap-tests.sh`) decided
   fresh-sibling-vs-survivor by comparing an overhead-inflated `ps etime` against a
