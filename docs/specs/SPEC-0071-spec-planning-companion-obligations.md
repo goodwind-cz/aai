@@ -2,13 +2,15 @@
 id: spec-planning-companion-obligations
 type: spec
 number: 71
-status: draft
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/ISSUE-0025-planning-companion-obligations.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 130
+  commits:
+    - ac1af1f05b9bb451100f544ece34a2878a9b6671
 ---
 
 # Implementation Spec — Planning companion-obligations checklist

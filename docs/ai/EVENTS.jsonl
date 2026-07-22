@@ -979,3 +979,9 @@
 {"v":1,"ts":"2026-07-22T22:03:40.141Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-branch-per-work-item-hygiene","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-22T22:03:40.174Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-branch-per-work-item-hygiene","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-22T22:03:40.207Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-branch-per-work-item-hygiene","payload":{"commit":"e4fdbca77a8776b3859b52d474102e9ddbf386b3"}}
+{"v":1,"ts":"2026-07-22T23:32:28.650Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"planning-companion-obligations","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-22T23:32:28.687Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"planning-companion-obligations","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-22T23:32:28.721Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"planning-companion-obligations","payload":{"commit":"ac1af1f05b9bb451100f544ece34a2878a9b6671"}}
+{"v":1,"ts":"2026-07-22T23:32:28.751Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-planning-companion-obligations","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-22T23:32:28.782Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-planning-companion-obligations","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-22T23:32:28.811Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-planning-companion-obligations","payload":{"commit":"ac1af1f05b9bb451100f544ece34a2878a9b6671"}}

@@ -2,10 +2,12 @@
 id: planning-companion-obligations
 number: 25
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 130
+  commits:
+    - ac1af1f05b9bb451100f544ece34a2878a9b6671
 ---
 
 # Planning never surfaces "companion obligations", so prompt/`.aai`-touching scopes ship incomplete and break CI
