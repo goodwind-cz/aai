@@ -548,11 +548,24 @@ test_017() {
   # Survivor predates the step: spawn it, wait, THEN capture step_start — so
   # survivor's start_epoch is strictly before STEP_START-GRACE.
   survivor_pid="$(spawn_marked "vitest_survivor17_${ws}/worker")"
-  sleep 3
+  # MARGIN — DO NOT NARROW. Epoch mode reaps iff
+  #   start_epoch < STEP_START - GRACE,   start_epoch = SNAP_NOW - age
+  # with GRACE(2) the reaper's production default and `age` derived from
+  # `ps etime`, which is FLOOR-truncated to whole seconds — so the computed
+  # start_epoch can read up to ~1s LATER than the true spawn instant. The
+  # minimum theoretically-clearing gap is therefore GRACE(2) + 1s(truncation)
+  # = 3s, and counting the additional 1s quantization of the `date +%s` that
+  # captures step_start below it is GRACE(2) + 1 + 1 = 4s. The former `sleep 3`
+  # sat EXACTLY ON that boundary with ZERO slack, and flaked under CI load
+  # ("reaped: 0", observed on PR #129). `sleep 6` leaves 3s of slack under the
+  # lenient model and 2s under the conservative one. DO NOT NARROW this back
+  # toward 3s: re-derive the slack from GRACE first — the deterministic
+  # spare/reap boundary itself is pinned by TEST-021, not by this margin.
+  sleep 6
   step_start="$(date +%s)"
   alive "$survivor_pid" || log_fail "fixture setup: survivor proc $survivor_pid not alive"
   # MIN_AGE=999 is IRRELEVANT to epoch mode; if the reaper wrongly fell back to
-  # legacy behavior here it would SPARE this (~3s old) survivor instead.
+  # legacy behavior here it would SPARE this (~6s old) survivor instead.
   out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" AAI_REAP_MIN_AGE_SECS=999 sh "$REAP_SCRIPT" 2>&1)"
   sleep 1
   alive "$survivor_pid" && log_fail "epoch mode failed to reap a genuine pre-step survivor $survivor_pid (reaper output: $out)"
@@ -652,7 +665,68 @@ test_020() {
   log_pass "SKILL_LOOP and VALIDATION document the step-start-epoch capture + handoff to the reaper"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020"
+# --- TEST-021 — deterministic epoch-boundary probe: SPARE at it, REAP past it (Spec-AC-02) --
+# Companion to TEST-017, not a duplicate. TEST-017 positions its survivor with a
+# real wall-clock gap (proving the end-to-end ps/date sampling path against a
+# realistic pre-step leak); this test instead pins the spare-vs-reap DECISION by
+# INJECTING AAI_REAP_STEP_START_EPOCH computed with integer arithmetic from a
+# reference epoch captured immediately BEFORE the spawn — so the outcome cannot
+# drift with host load at all. Both step_start values stay in the PAST, so epoch
+# mode really is active (a FUTURE value would trip the legacy fail-safe, which is
+# TEST-018's job, not this one's).
+#
+# Arithmetic. With ref_epoch = floor(T0) captured just before the spawn, the
+# reaper computes start_epoch = SNAP_NOW - age = ref_epoch - floor(g - f - d),
+# where f = frac(T0), g = frac(the reaper's own snapshot instant) and d = the
+# spawn delay. floor(g - f - d) <= 0 always (g < 1), and is >= -1 whenever
+# d < 1s, so start_epoch lands in {ref_epoch, ref_epoch+1} — NEVER below
+# ref_epoch. Hence:
+#   Case A  step_start = ref_epoch + GRACE      -> threshold = ref_epoch
+#           start_epoch < ref_epoch is impossible          => SPARE by construction
+#   Case B  step_start = ref_epoch + GRACE + 2  -> threshold = ref_epoch + 2
+#           start_epoch <= ref_epoch+1 < ref_epoch+2       => REAP  by construction
+# The +2 in Case B clears the WHOLE {ref_epoch, ref_epoch+1} band. Measured
+# (macOS, 20 samples over offsets GRACE+0..GRACE+3): start_epoch - ref_epoch was
+# 0 every time, so GRACE+1 already reaped and GRACE+2 carries a full extra second
+# of margin over the observed reading while still covering the theoretical
+# ref_epoch+1 case. DO NOT NARROW +2 to +1: that puts the ref_epoch+1 reading
+# exactly ON the threshold — the same zero-slack mistake TEST-017 above documents.
+#
+# GRACE below MUST track aai-reap-tests.sh's own AAI_REAP_GRACE_SECS default (2).
+# The test deliberately does NOT override that env var, so it exercises the
+# PRODUCTION default; if the reaper's default ever changes, this constant must
+# change with it.
+test_021() {
+  log_info "TEST-021: epoch mode — injected STEP_START pins the boundary deterministically: SPARE at ref+GRACE, REAP at ref+GRACE+2..."
+  [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
+  local ws grace ref_epoch survivor_pid step_start out
+  grace=2
+  ws="$(mktemp -d "$TMP_ROOT/ws21.XXXXXX")"
+  # ref_epoch BEFORE the spawn: a `date +%s` taken earlier can only floor to the
+  # same or an earlier second than the true spawn instant.
+  ref_epoch="$(date +%s)"
+  survivor_pid="$(spawn_marked "vitest_boundary21_${ws}/worker")"
+  sleep 4   # clear of the etime 0-1s rounding edge (same idiom as TEST-015), and
+            # enough that both injected step_start values are already in the past
+  alive "$survivor_pid" || log_fail "fixture setup: survivor proc $survivor_pid not alive"
+
+  # Case A — AT the boundary: threshold == ref_epoch => must SPARE.
+  step_start=$(( ref_epoch + grace ))
+  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" sh "$REAP_SCRIPT" 2>&1)"
+  sleep 1
+  alive "$survivor_pid" || log_fail "Case A: reaper killed the survivor $survivor_pid AT the boundary (ref_epoch=$ref_epoch step_start=$step_start threshold=$(( step_start - grace )); reaper output: $out)"
+  echo "$out" | grep -qxE "reaped: *0" || log_fail "Case A: reaper must report 'reaped: 0' at the boundary (got: $out)"
+
+  # Case B — 2s PAST the boundary: threshold == ref_epoch+2 => must REAP.
+  step_start=$(( ref_epoch + grace + 2 ))
+  out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" sh "$REAP_SCRIPT" 2>&1)"
+  sleep 1
+  alive "$survivor_pid" && log_fail "Case B: reaper failed to reap the survivor $survivor_pid past the boundary (ref_epoch=$ref_epoch step_start=$step_start threshold=$(( step_start - grace )); reaper output: $out)"
+  echo "$out" | grep -qiE "reaped: *[1-9]" || log_fail "Case B: reaper must report a non-zero reaped count past the boundary (got: $out)"
+  log_pass "epoch boundary pinned by arithmetic: SPARE at ref+GRACE, REAP at ref+GRACE+2 (no wall-clock race)"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021"
 
 main() {
   echo "Testing $TEST_NAME (process-group wrapper + workspace/etime-scoped reaper + wiring)"
