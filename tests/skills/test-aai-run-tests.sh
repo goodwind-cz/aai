@@ -222,7 +222,18 @@ test_006() {
   ws="$(mktemp -d "$TMP_ROOT/ws6.XXXXXX")"
   # Old matching process predates the step boundary.
   old_pid="$(spawn_marked "vitest_old_${ws}/worker")"
-  sleep 3
+  # SAME zero-slack boundary defect TEST-017 had (see its comment): the reaper
+  # reaps iff start_epoch < STEP_START - GRACE(2), and `start_epoch` is derived
+  # from a FLOOR-truncated etime, so the minimum reliably-reapable gap is
+  # GRACE(2) + 1s truncation = 3s (4s counting the `date +%s` quantization of
+  # step_start). The former `sleep 3` sat EXACTLY on that boundary with ZERO
+  # slack and flaked under CI load ("reaper failed to reap the pre-step matching
+  # proc", observed on PR #131). `sleep 6` leaves 3s of slack under the lenient
+  # model and 2s under the conservative one. DO NOT NARROW this back toward 3s:
+  # re-derive the slack from GRACE first. Only the PRE-step side needs the
+  # margin — the fresh sibling below is spawned after step_start, so it is
+  # unambiguously post-boundary.
+  sleep 6
   # Step boundary captured HERE — everything spawned at/after this instant is
   # this step's own work and must be spared regardless of reaper overhead.
   step_start="$(date +%s)"
@@ -409,7 +420,14 @@ test_013() {
     local ws2 old_pid step_start fresh_pid out2 err2
     ws2="$(mktemp -d "$TMP_ROOT/posix-epoch.XXXXXX")"
     old_pid="$(spawn_marked "vitest_epoch_old_${ws2}/worker")"
-    sleep 3
+    # SAME zero-slack boundary defect as TEST-006/TEST-017 (see their comments):
+    # the minimum reliably-reapable pre-step gap is GRACE(2) + 1s etime
+    # floor-truncation = 3s (4s counting step_start's own `date +%s`
+    # quantization), so `sleep 3` sat EXACTLY on the boundary. It survived local
+    # runs only because this branch needs `dash` (absent on many macOS hosts) and
+    # so effectively ran on CI alone. DO NOT NARROW back toward 3s: re-derive the
+    # slack from GRACE first.
+    sleep 6
     step_start="$(date +%s)"
     fresh_pid="$(spawn_marked "vitest_epoch_fresh_${ws2}/worker")"
     alive "$old_pid" || log_fail "fixture setup: epoch-old proc $old_pid not alive"
@@ -479,8 +497,17 @@ test_015() {
   other="$(mktemp -d "$TMP_ROOT/p2other.XXXXXX")"
   p_pid="$(spawn_parent_with_child "vitest_run_${ws}/worker")"
   o_pid="$(spawn_parent_with_child "vitest_run_${other}/worker")"
-  sleep 4   # let the forked child come up; comfortably beyond default GRACE(2)
-            # so the step boundary captured below isn't right at the edge
+  # FOURTH site of the same zero-slack defect as TEST-006/013/017 — and a
+  # REPEAT: commit eedea6d once widened this to `sleep 8` for exactly this
+  # CI-load race, and the epoch-mode migration (d45fe4e) narrowed it back to 4 on
+  # the reasoning the old comment here used ("comfortably beyond GRACE(2)").
+  # That reasoning is WRONG: the pre-step gap must exceed
+  # GRACE(2) + 1s etime floor-truncation + 1s `date +%s` quantization = 4s, so
+  # `sleep 4` sat AT the conservative minimum — measured real slack was ~60ms,
+  # supplied only by the pgrep/ps calls below. Restored to `sleep 8` (4s slack).
+  # DO NOT NARROW: re-derive from GRACE first. The deterministic spare/reap
+  # boundary itself is pinned by TEST-021, not by this margin.
+  sleep 8   # let the forked child come up AND clear the epoch boundary band
   p_child="$(pgrep -P "$p_pid" | head -1)"
   o_child="$(pgrep -P "$o_pid" | head -1)"
   [[ -n "$p_child" ]] || log_fail "fixture: matched launcher $p_pid has no live child"

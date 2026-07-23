@@ -76,6 +76,78 @@ reaper defect — confirmed by reading `.aai/scripts/aai-reap-tests.sh` in full
 during this planning pass; no discrepancy found between the documented
 contract and the implementation.
 
+## Scope extension (post-freeze, 2026-07-23)
+
+HONEST AMENDMENT — this section records a scope change made AFTER the spec was
+frozen, rather than editing the original scope silently.
+
+The intake and the frozen Scope above asserted that `test_017` was the ONLY
+assertion sitting on the reaper's epoch ambiguity boundary ("TEST-016 is safe
+because it asserts far from the boundary; TEST-017 is the remaining one that
+asserts ON it"). **That claim was false.** CI on PR #131 falsified it by failing
+a DIFFERENT test with the same signature — `test_006`
+("reaper failed to reap the pre-step matching proc"). A systematic audit was then
+run over the whole suite for the real defect signature — a `sleep N` immediately
+preceding a `step_start="$(date +%s)"` capture on a path that later asserts a
+pre-step REAP:
+
+```
+awk '/sleep [0-9]+/ {s=$0; gsub(/[^0-9]/,"",s); pend=s; pl=NR}
+     /step_start="\$\(date \+%s\)"/ && pend!="" && NR-pl<=12 {print pl": sleep "pend; pend=""}' \
+  tests/skills/test-aai-run-tests.sh
+```
+
+That audit reported THREE call sites — and was ITSELF incomplete. It carried an
+undisclosed 12-line proximity window (`NR-pl<=12`), which structurally EXCLUDED a
+fourth site whose gap spans 13 lines. Independent Validation AND independent Code
+Review each re-ran the search without the window and both found the same missing
+site, `test_015` — where two `pgrep -P` forks and a `ps` call sit between the
+`sleep` and the `step_start` capture. Validation measured its real slack at
+~60ms.
+
+`test_015` is also a REPEAT: `git log` shows commit `eedea6d` once widened
+`test_006` and `test_015` to `sleep 8` for exactly this CI-load race under the
+legacy reaper, and the epoch-mode migration (`d45fe4e`) narrowed both back down
+(`3` and `4`) on "comfortably beyond GRACE" reasoning — the same reasoning that
+produced this PR's failure. `test_006` got caught here; `test_015` had not.
+
+FOUR call sites total, all now clear of the boundary band:
+
+| site | before | after |
+|------|--------|-------|
+| `test_006` | `sleep 3` | `sleep 6` |
+| `test_013` (dash/epoch branch) | `sleep 3` | `sleep 6` |
+| `test_015` | `sleep 4` | `sleep 8` (restores the `eedea6d` value) |
+| `test_017` | `sleep 3` | `sleep 6` |
+
+Each carries the arithmetic and a DO-NOT-NARROW note. Nothing else changed:
+`.aai/scripts/aai-reap-tests.sh` remains byte-unchanged with `GRACE=2`, and no new
+mechanism was introduced. The doc was REOPENED (`status: done -> implementing`,
+recorded as `doc_lifecycle` events for ISSUE-0026 and SPEC-0072) rather than
+carrying a closed status while this extended work was still in flight.
+
+Tooling gap found while doing this (NOT fixed here — deliberately out of scope,
+recorded so it is not lost): the doc lifecycle was briefly reopened
+(`done -> implementing`) to avoid carrying a closed status during active work.
+That is the FIRST such transition ever recorded in this repo, and `docs-audit`
+cannot represent it: its false-open heuristic has no mechanism for a newer
+`doc_lifecycle` event to supersede an older `work_item_closed`/`ac_evidence`
+signal, so the reopen deterministically produced `False-open: 2` and would have
+failed `tests/skills/test-aai-docs-audit.sh`. Proven by stashing the reopen
+(CLEAN without it, NEEDS-TRIAGE with it). The reopen was therefore reverted and
+the item re-closed; EVENTS.jsonl honestly records the full
+close -> reopen -> re-close sequence. Consequence for AAI: a mid-flight reopen is
+currently NOT a supported operation — either finish and re-close, or open a
+separate work item. Worth its own intake.
+
+Two lessons recorded for the next reader:
+1. The defect is a PROPERTY OF THE SIGNATURE (any pre-step assertion whose gap is
+   not provably > GRACE + truncation + quantization), so it must be audited by
+   signature across the whole file — never fixed one reported site at a time.
+2. An audit with an undisclosed cutoff is worse than no audit, because it reads
+   as coverage. State the window, or use none: the windowless per-function scan
+   is the one that found all four.
+
 ## Scope
 - In scope: `tests/skills/test-aai-run-tests.sh` only —
   1. Widen `test_017`'s survivor pre-step gap from `sleep 3` to `sleep 6`,
@@ -301,7 +373,7 @@ None.
 
 | Spec-AC    | Description                                                                 | Status  | Evidence | Review-By | Notes |
 |------------|------------------------------------------------------------------------------|---------|----------|-----------|-------|
-| Spec-AC-01 | `test_017` pre-step gap widened `sleep 3`->`sleep 6` + margin comment         | done    | TEST-001 structural grep: RED before edit (4 failures: not `sleep 6`, still `sleep 3`, no `GRACE(2)` comment, no `DO NOT NARROW` note) -> GREEN after (exit 0). `bash tests/skills/test-aai-run-tests.sh 017` exit 0. | — | Inline margin comment states the GRACE(2)+truncation(+quantization) arithmetic and forbids re-narrowing. |
+| Spec-AC-01 | EVERY pre-step gap widened `sleep 3`->`sleep 6` + margin comment (post-freeze: all four sites — `test_006`, `test_013` epoch branch, `test_015`, `test_017`) | done    | TEST-001 structural grep: RED before edit (4 failures: not `sleep 6`, still `sleep 3`, no `GRACE(2)` comment, no `DO NOT NARROW` note) -> GREEN after (exit 0). Post-freeze audit (see "Scope extension"): all three `sleep N` -> `step_start` pairs now read `sleep 6`; `bash tests/skills/test-aai-run-tests.sh 006 013 015 017 021` exit 0. Windowless per-function re-audit confirms all FOUR pre-step sites (test_006/013/017 at `sleep 6`, test_015 at `sleep 8`) clear the band; test_016 has no pre-step sleep (spare direction). | — | Inline margin comment at each site states the GRACE(2)+truncation(+quantization) arithmetic and forbids re-narrowing. |
 | Spec-AC-02 | New deterministic boundary probe (`test_021`) pins spare/reap via injected STEP_START | done    | RED (existence): `test_021: command not found` pre-edit. RED (non-tautological): `AAI_REAP_SCRIPT=<stub with GRACE=0> bash tests/skills/test-aai-run-tests.sh 021` -> `FAIL: Case A ... reaped: 1`, exit 1. GREEN: `bash tests/skills/test-aai-run-tests.sh 021` exit 0. | — | Offsets empirically confirmed (see Notes under Test Plan): 20 samples, `start_epoch - ref_epoch == 0` every time; `GRACE+0` spared 5/5, `GRACE+1..+3` reaped 5/5. `+2` kept as specified. |
 | Spec-AC-03 | `test_017` still proves its original epoch-vs-legacy-MIN_AGE property        | done    | `bash tests/skills/test-aai-run-tests.sh 017` exit 0; `AAI_REAP_MIN_AGE_SECS=999` + non-zero `reaped:` assertions unchanged in the diff. | — | Only the margin moved; assertions untouched. |
 | Spec-AC-04 | Production reaper `.aai/scripts/aai-reap-tests.sh` byte-unchanged             | done    | `git diff --stat main...HEAD -- .aai/scripts/aai-reap-tests.sh` -> empty; `git status --porcelain -- .aai/scripts/aai-reap-tests.sh` -> empty. | — | `GRACE` stays `2`. |
