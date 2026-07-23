@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-23T14:09:40.905Z
+Generated: 2026-07-23T19:14:19.645Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -177,9 +177,12 @@ _None._
 | SPEC-0072 | specs | docs/specs/SPEC-0072-spec-reaper-epoch-survivor-robustness.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0027 | issues | docs/issues/ISSUE-0027-false-open-metrics-and-supersession.md |
+| SPEC-0073 | specs | docs/specs/SPEC-0073-spec-false-open-metrics-and-supersession.md |
 
 ## Deferred (whole-doc) (0)
 

@@ -21,6 +21,10 @@ import { guardConfigPresent } from './guard-config.mjs';
 // pre-commit hooks, so the coupling is documented at one import site.
 export const CONFIG_PATH = 'docs/ai/docs-audit.yaml';
 export const EVENTS_PATH = 'docs/ai/EVENTS.jsonl';
+// #133 — the flush ledger (metrics-flush.mjs writes one compact JSON object per
+// line, keyed by ref_id, behind a `#`-comment preamble). Same path convention
+// as EVENTS_PATH; read-only consumption by falseOpenEvidence's Arm D.
+export const METRICS_PATH = 'docs/ai/METRICS.jsonl';
 const SCAN_ROOT = 'docs';
 // RFC-0003 / SPEC-0002 SEAM-3: the canonicalization layer archives originals to
 // `docs/_archive/` (with underscore). The historical exclude list named
@@ -235,6 +239,17 @@ function cellHasDeliveryCitation(root, cell) {
   return PR_REF_RE.test(cell) || PR_URL_RE.test(cell);
 }
 
+// #134 — committer date of a delivery commit, normalized to UTC `Z` so it
+// compares lexically against event `ts` / flush ts as one total order. Read-only
+// and never throws: a git-probe failure or an unparseable date yields '' (that
+// hash contributes no delivery timestamp — fail-closed, keeps the doc flagged).
+function commitDateTs(root, hash) {
+  const iso = git(root, `show -s --format=%cI ${hash}`);
+  if (!iso) return '';
+  const d = new Date(iso.trim());
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString();
+}
+
 function deliveryCommitsForId(root, id) {
   const out = git(root, `log --grep="${id}" --format=%H%x1f%s`);
   if (!out) return [];
@@ -251,6 +266,16 @@ function deliveryCommitsForId(root, id) {
   return hashes;
 }
 
+// #134 — normalize a METRICS `date_utc` (YYYY-MM-DD, no clock) to the LAST
+// instant of that day so it compares against a full ISO-8601-Z event `ts` as a
+// correct total order. Anchoring to end-of-day makes a same-day reopen NOT
+// strictly newer than the flush: supersession then requires a reopen on a
+// strictly LATER day, keeping the guardrail bias toward flagging a genuine
+// false-open. A malformed/absent date yields '' (no METRICS-derived delivery
+// time — falls back to the event-derived timestamp, never throws).
+const FLUSH_DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const flushDateToTs = (d) => (typeof d === 'string' && FLUSH_DATE_ONLY_RE.test(d)) ? `${d}T23:59:59.999Z` : '';
+
 // CHANGE-0027 / SPEC-0039 — D2's three delivery-evidence signals for one
 // eligible open doc. Returns { evidenced, reasons }; reasons names every
 // signal that actually fired (D10) — never fabricated, never silent.
@@ -259,19 +284,20 @@ function falseOpenEvidence(root, doc, events) {
   let evidenced = false;
 
   // D2(a)/D3/D4 — delivery commit(s) mentioning the id or numbered fileId,
-  // excluding the doc's own add-commit(s).
+  // excluding the doc's own add-commit(s). Hoisted to function scope so #134
+  // supersession can read these commits' committer dates for deliveryTs.
   const idCandidates = [...new Set([doc.id, doc.fileId].filter(Boolean))];
+  const deliveryHashes = new Set();
   if (idCandidates.length) {
     const addCommits = addCommitHashes(root, doc.rel);
-    const hashes = new Set();
     for (const idc of idCandidates) {
       for (const hash of deliveryCommitsForId(root, idc)) {
-        if (!addCommits.has(hash)) hashes.add(hash);
+        if (!addCommits.has(hash)) deliveryHashes.add(hash);
       }
     }
-    if (hashes.size) {
+    if (deliveryHashes.size) {
       evidenced = true;
-      const shortHashes = [...hashes].slice(0, 3).map(h => h.slice(0, 7));
+      const shortHashes = [...deliveryHashes].slice(0, 3).map(h => h.slice(0, 7));
       reasons.push(`delivery commit(s) ${shortHashes.join(', ')} mention ${doc.id}`);
     }
   }
@@ -338,6 +364,67 @@ function falseOpenEvidence(root, doc, events) {
     }
   }
 
+  // Arm D (NEW, #133 / D1) — METRICS.jsonl flush record. A work item is written
+  // to docs/ai/METRICS.jsonl only after validation PASS + a satisfied review
+  // gate, so a flush record keyed by this doc's WHOLE ref_id (id or numbered
+  // fileId — flush records are never sub-refs, so exact `.has()` match, no
+  // roll-up boundary unlike Arm B) proves delivery even when no commit, event,
+  // or AC table names the doc (the phantom-open flushed-intake case #133 fixes).
+  const metricsFlushes = readMetricsFlushes(root);
+  if (idCandidates.some(c => metricsFlushes.has(c))) {
+    evidenced = true;
+    reasons.push('work-item flush record (METRICS.jsonl)');
+  }
+
+  // Supersession (NEW, #134 / D2) — runs LAST, after every arm (incl. Arm D)
+  // has fired, because the existence-only arms above are unordered and a later
+  // deliberate reopen must be able to revoke older delivery evidence. Take the
+  // latest doc_lifecycle event for this doc (same idRef boundary the arms use;
+  // ISO-8601-Z timestamps sort correctly as strings). If it moved the doc to a
+  // still-open status AND is newer than the newest dated delivery-ledger event
+  // (work_item_closed / ac_evidence), the reopen supersedes: suppress the
+  // false-open verdict. Guardrail — an older reopen (predating the delivery
+  // evidence), a latest transition to a terminal status, or no lifecycle event
+  // at all leaves the verdict untouched: a bare frontmatter mismatch never
+  // suppresses a genuine false-open. Trusts ONLY the append-only ledger event.
+  if (evidenced) {
+    const lifecycle = events.filter(e => e.event === 'doc_lifecycle'
+      && e.ts && idCandidates.some(c => idRef(e.ref, c)));
+    if (lifecycle.length) {
+      const latest = lifecycle.reduce((a, b) => (String(b.ts) > String(a.ts) ? b : a));
+      const to = String(latest.payload?.to ?? '').toLowerCase();
+      if (FALSE_OPEN_STATUSES.has(to)) {
+        // Newest DATED delivery signal across every arm that can be timestamped:
+        // a matching work_item_closed / ac_evidence event ts, a delivery-commit
+        // committer date (Arm A), and the METRICS flush date. Folding in ALL of
+        // them (not just events) is the point — a doc whose only proof is a
+        // commit or a flush must still get a real delivery time, or an older/any
+        // reopen would wrongly supersede it. D2(c) AC-status-table evidence is
+        // genuinely un-timestampable and deliberately contributes nothing.
+        let deliveryTs = events
+          .filter(e => (e.event === 'work_item_closed' || e.event === 'ac_evidence')
+            && e.ts && idCandidates.some(c => idRef(e.ref, c)))
+          .reduce((max, e) => (String(e.ts) > max ? String(e.ts) : max), '');
+        for (const hash of deliveryHashes) {
+          const cts = commitDateTs(root, hash);
+          if (cts > deliveryTs) deliveryTs = cts;
+        }
+        for (const c of idCandidates) {
+          const fts = flushDateToTs(metricsFlushes.get(c));
+          if (fts > deliveryTs) deliveryTs = fts;
+        }
+        // Fail-closed: supersede ONLY when we can PROVE the reopen postdates a
+        // DATED delivery signal. When delivery is un-timestampable (deliveryTs
+        // empty — the AC-table-only case), do NOT suppress: keep flagging so a
+        // human confirms, never silently hide real drift (a governance audit's
+        // bias is toward surfacing, not hiding).
+        if (deliveryTs && String(latest.ts) > deliveryTs) {
+          return { evidenced: false, reasons: [`reopened (doc_lifecycle -> ${to}) supersedes prior delivery evidence`] };
+        }
+      }
+    }
+  }
+
   return { evidenced, reasons };
 }
 
@@ -352,6 +439,36 @@ export function readEvents(root) {
     try { events.push(JSON.parse(line)); } catch { /* tolerate partial lines */ }
   }
   return events;
+}
+
+// #133 / D1/D4 — a Map of every `ref_id` recorded in docs/ai/METRICS.jsonl to
+// its latest flush `date_utc` (or null when a record carries none). The ledger
+// is JSONL with a leading `#`-comment preamble, so blank and `#`-prefixed lines
+// are skipped and each JSON.parse is guarded — a missing file, a comment-only
+// file, or a malformed line yields no entry and never throws (fail-closed,
+// mirroring readEvents's existsSync + per-line try/catch). The date is carried
+// (not just the ref) so supersession can timestamp a METRICS-only delivery
+// (#133 x #134): without it a flush-only doc has no delivery time and ANY
+// reopen — even one predating the flush — would wrongly supersede it.
+export function readMetricsFlushes(root) {
+  const flushes = new Map();   // ref_id -> latest date_utc (YYYY-MM-DD) | null
+  const p = path.join(root, METRICS_PATH);
+  if (!fs.existsSync(p)) return flushes;
+  for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) continue;
+    try {
+      const rec = JSON.parse(t);
+      if (!rec || rec.ref_id == null) continue;
+      const rid = String(rec.ref_id);
+      const date = (rec.date_utc != null) ? String(rec.date_utc) : null;
+      const prev = flushes.has(rid) ? flushes.get(rid) : null;
+      // keep the latest flush date for a re-flushed ref (lexical max on the
+      // YYYY-MM-DD form); a dateless record never overwrites a dated one.
+      flushes.set(rid, (prev && date) ? (date > prev ? date : prev) : (date ?? prev));
+    } catch { /* tolerate a malformed flush line */ }
+  }
+  return flushes;
 }
 
 // SPEC-0011 G3 — read-only probe for a corroborating code-review artifact under

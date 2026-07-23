@@ -9,6 +9,35 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: docs-audit false-open now reads METRICS + orders its signals (ISSUE-0027 / SPEC-0073, closes #133 #134)
+
+- `docs-audit-core.mjs` `falseOpenEvidence()` decided drift from four evidence
+  arms, all pure existence checks with no time ordering. Two reported defects, same
+  function, opposite directions: (#133) it never read `docs/ai/METRICS.jsonl`, so a
+  flushed intake doc — whose AC table lives in its spec and whose delivery commits
+  name the spec, not the intake — matched no arm and sat "open" forever
+  (downstream: 18 of 19 flushed docs invisible); (#134) because the arms were
+  existence-only, delivery evidence was permanent, so a legitimately reopened doc
+  (`done -> implementing`) still read as false-open and reddened the required
+  `test-aai-docs-audit.sh` CI check.
+- Added a fifth **METRICS arm** (`readMetricsFlushes()`: reads the JSONL ledger,
+  skips the `#` header and unparseable lines, never throws; a flush whose `ref_id`
+  matches `doc.id`/`doc.fileId` is delivery evidence) and a **supersession** rule:
+  the latest `doc_lifecycle` transition to an open status suppresses the false-open
+  verdict only when it is provably newer than delivery.
+- Correctness took three review rounds and converged on one principle. Supersession
+  must compare the reopen against `deliveryTs` = the MAX over EVERY dateable arm —
+  `work_item_closed`/`ac_evidence` event ts, delivery-commit committer dates
+  (`git show %cI`, normalized to UTC Z, fail-closed), AND the METRICS flush date —
+  and it supersedes ONLY when `deliveryTs` is non-empty and strictly older than the
+  reopen. The earlier "supersede when delivery time is unknown" fallback was
+  backwards for a governance audit and blinded it for commit-only and
+  AC-table-only docs; it is now fail-closed (unknown delivery time -> keep
+  flagging). Covered by 12 synthetic sub-cases (a-k + a same-day boundary) in
+  `test-aai-docs-audit.sh`; the real corpus proves nothing here (0 open docs), so
+  every case builds its own fixture. Ceremony L1, no protected path touched.
+  Closes GitHub #133 and #134.
+
 ## [unreleased] — fix: move TEST-017 off the reaper's epoch ambiguity boundary (ISSUE-0026 / SPEC-0072)
 
 - `tests/skills/test-aai-run-tests.sh` TEST-017 flaked intermittently on CI
