@@ -2,10 +2,12 @@
 id: reaper-epoch-survivor-robustness
 number: 26
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 131
+  commits:
+    - c1ba56d57b58159cfa6d11e0e0e26b7dde5a04c5
 ---
 
 # TEST-017 asserts an epoch-mode reap AT the reaper's documented ambiguity boundary, so it flakes under CI load
