@@ -366,12 +366,29 @@ function falseOpenEvidence(root, doc, events) {
 
   // Arm D (NEW, #133 / D1) — METRICS.jsonl flush record. A work item is written
   // to docs/ai/METRICS.jsonl only after validation PASS + a satisfied review
-  // gate, so a flush record keyed by this doc's WHOLE ref_id (id or numbered
-  // fileId — flush records are never sub-refs, so exact `.has()` match, no
-  // roll-up boundary unlike Arm B) proves delivery even when no commit, event,
-  // or AC table names the doc (the phantom-open flushed-intake case #133 fixes).
+  // gate, so a flush record for this doc proves delivery even when no commit,
+  // event, or AC table names it (the phantom-open flushed-intake case #133
+  // fixes). Match ONLY the frontmatter slug `doc.id`, NEVER the numbered
+  // `fileId`: a METRICS ref_id is the work-item slug (current_focus.ref_id),
+  // which equals the intake doc's frontmatter id under current tooling. (Two
+  // legacy pre-SPEC-0054 ledger rows carry a numbered ref_id instead — both long
+  // since `done`, no live impact — the same dormant class Arm C already accepts;
+  // the slug-only match neither helps nor harms them.) Keying on fileId would
+  // falsely flag a still-draft doc whose numbered FILENAME coincides with some
+  // unrelated numbered STATE ref (SPEC-0054 "Problem #2", asserted by
+  // test-aai-metrics TEST-020). Uses the same idRef roll-up boundary the event
+  // arms use.
   const metricsFlushes = readMetricsFlushes(root);
-  if (idCandidates.some(c => metricsFlushes.has(c))) {
+  let metricsFlushDate = '';   // latest matching flush date (YYYY-MM-DD) or ''
+  let metricsFlushHit = false;
+  if (doc.id) {
+    for (const [ref, date] of metricsFlushes) {
+      if (!idRef(ref, doc.id)) continue;
+      metricsFlushHit = true;
+      if (date && date > metricsFlushDate) metricsFlushDate = date;
+    }
+  }
+  if (metricsFlushHit) {
     evidenced = true;
     reasons.push('work-item flush record (METRICS.jsonl)');
   }
@@ -409,10 +426,8 @@ function falseOpenEvidence(root, doc, events) {
           const cts = commitDateTs(root, hash);
           if (cts > deliveryTs) deliveryTs = cts;
         }
-        for (const c of idCandidates) {
-          const fts = flushDateToTs(metricsFlushes.get(c));
-          if (fts > deliveryTs) deliveryTs = fts;
-        }
+        const fts = flushDateToTs(metricsFlushDate);   // slug-keyed, matches Arm D
+        if (fts > deliveryTs) deliveryTs = fts;
         // Fail-closed: supersede ONLY when we can PROVE the reopen postdates a
         // DATED delivery signal. When delivery is un-timestampable (deliveryTs
         // empty — the AC-table-only case), do NOT suppress: keep flagging so a

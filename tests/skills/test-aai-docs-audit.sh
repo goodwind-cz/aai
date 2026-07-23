@@ -4552,7 +4552,7 @@ test_change0028_userguide_mentions_work_item_closed() {  # TEST-011 / Spec-AC-10
 # event): the real upstream corpus has zero open docs and proves nothing here.
 
 test_fometrics_flush_arm() {  # TEST-001 / Spec-AC-01 (+ Spec-AC-03 garble sub-case)
-  log_info "Test: METRICS.jsonl flush record flags an open intake by id (a) or fileId (c); no-match (b) + garbled lines (d) safe (TEST-001)..."
+  log_info "Test: METRICS.jsonl flush record flags an open intake by slug id (a); fileId-only (c) + no-match (b) + garbled lines (d) do NOT flag (TEST-001)..."
   local d; d="$(setup_fo_repo fo-metrics-arm)"
   # (a) flushed intake, frontmatter id == fileId, ONLY proof is the METRICS line
   cat > "$d/docs/issues/CHANGE-5830-flush-a.md" <<'MD'
@@ -4576,8 +4576,11 @@ links:
 ---
 # Intake with no ledger flush record
 MD
-  # (c) numbered file whose frontmatter id differs from its fileId; matched
-  # only via the numbered fileId (CHANGE-5832) -> confirms the "or fileId" clause
+  # (c) numbered file whose frontmatter slug id (flush-fileid-slug) DIFFERS from
+  # its numbered fileId (CHANGE-5832); the METRICS record is keyed by the
+  # numbered fileId. The arm must key on the slug id ONLY, so this must NOT flag
+  # (SPEC-0054 "Problem #2" — a numbered STATE ref coinciding with a doc's
+  # filename must not falsely flag it; asserted independently by metrics TEST-020).
   cat > "$d/docs/issues/CHANGE-5832-flush-fileid.md" <<'MD'
 ---
 id: flush-fileid-slug
@@ -4586,7 +4589,7 @@ status: draft
 links:
   pr: []
 ---
-# Flushed intake matched only through its numbered fileId
+# Numbered filename whose slug id differs from the METRICS ref_id (fileId)
 MD
   (cd "$d" && git add docs/issues \
     && git commit -qm "docs: intake CHANGE-5830 CHANGE-5831 CHANGE-5832")
@@ -4611,15 +4614,17 @@ JSONL
     || log_fail "TEST-001(a): CHANGE-5830 must be flagged via the METRICS flush record"
   grep -F "CHANGE-5830" "$d/drift-sec.txt" | grep -qF "flush record" \
     || log_fail "TEST-001(a): reasons must name the flush-record (METRICS) signal, distinct from the four existing reasons"
-  # (c) fileId-only match -> flagged (listed by its frontmatter slug id)
-  grep -F "flush-fileid-slug" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
-    || log_fail "TEST-001(c): a METRICS ref_id matching the numbered fileId (CHANGE-5832) must flag its slug-id doc"
+  # (c) fileId-ONLY match (slug id differs) -> must NOT flag (key on slug id,
+  # never the numbered filename; SPEC-0054 Problem #2 / metrics TEST-020)
+  if grep -qF "flush-fileid-slug" "$d/drift-sec.txt"; then
+    log_fail "TEST-001(c): a METRICS ref_id matching only the numbered fileId (CHANGE-5832) must NOT flag the slug-id doc (SPEC-0054 Problem #2)"
+  fi
   # (b) no flush line, and (d) garbled lines did not spuriously flag it
   if grep -qF "CHANGE-5831" "$d/drift-sec.txt"; then
     log_fail "TEST-001(b): a doc with no METRICS flush line must NOT be flagged by the METRICS arm"
   fi
   rm -rf "$d"
-  log_pass "METRICS flush arm flags by id (a) and fileId (c); no-match (b) + garbled/comment lines (d) stay safe (TEST-001)"
+  log_pass "METRICS flush arm flags by slug id (a); fileId-only (c), no-match (b) + garbled/comment lines (d) stay unflagged (TEST-001)"
 }
 
 test_fometrics_supersession() {  # TEST-002 / Spec-AC-02

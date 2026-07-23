@@ -208,7 +208,7 @@ convention) rather than introducing new abstractions.
 
 | Spec-AC    | Description                                                        | Status  | Evidence | Review-By | Notes |
 |------------|---------------------------------------------------------------------|---------|----------|-----------|-------|
-| Spec-AC-01 | METRICS.jsonl flush-record arm flags a matching id/fileId; no match -> not flagged | done | TEST-001 green docs/ai/tdd/green-20260723T180210Z-fometrics.log (sub-cases a-d) | —         | Arm D readMetricsFlushes in docs-audit-core.mjs |
+| Spec-AC-01 | METRICS.jsonl flush-record arm flags a matching frontmatter slug `id` (NOT the numbered `fileId`, SPEC-0054 Problem #2); no match -> not flagged | done | round-4 RED docs/ai/tdd/red-20260723T193605Z-fometrics-c-inverted.log (fileId-only match wrongly flagged) -> GREEN docs/ai/tdd/green-20260723T193619Z-fometrics-c-inverted.log; sub-cases a-d + inverted (c); test-aai-metrics TEST-020 exit 0 | —         | Arm D readMetricsFlushes in docs-audit-core.mjs, slug-id-only via idRef |
 | Spec-AC-02 | Newer doc_lifecycle reopen supersedes older delivery evidence; older/no reopen still flags | done | TEST-002 green docs/ai/tdd/green-20260723T185357Z-fometrics-ijk.log (sub-cases e-k: event, METRICS, commit + AC-table arms) | —         | supersession folds event+commit+flush dates into deliveryTs, fail-closed |
 | Spec-AC-03 | Read-only, fail-closed on garbled METRICS lines; no protected path touched; full regression suite green | done | full suite exit 0 (134 PASS) captured in docs/ai/tdd/green-20260723T185416Z-fometrics-fullsuite.log; real-repo audit CLEAN False-open 0; no protected path in diff | —         | fail-closed try/catch per line, no fs writes |
 
