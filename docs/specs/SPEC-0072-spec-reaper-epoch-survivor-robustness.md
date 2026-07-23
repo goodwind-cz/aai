@@ -1,11 +1,11 @@
 ---
 id: spec-reaper-epoch-survivor-robustness
 type: spec
-number: null
+number: 72
 status: implementing
 ceremony_level: 1
 links:
-  requirement: docs/issues/ISSUE-DRAFT-reaper-epoch-survivor-robustness.md
+  requirement: docs/issues/ISSUE-0026-reaper-epoch-survivor-robustness.md
   rfc: null
   pr: []
   commits: []
@@ -28,7 +28,7 @@ in `protected_paths_l3` (docs/ai/docs-audit.yaml): `.aai/scripts/state.mjs`,
 -> Level 1.
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-reaper-epoch-survivor-robustness.md
+- Requirement: docs/issues/ISSUE-0026-reaper-epoch-survivor-robustness.md
 - Prior art: docs/specs/SPEC-0064-spec-reaper-deterministic-age-guard.md (the
   epoch-mode contract this fixture asserts against), SPEC-0009 (original
   reaper), SPEC-0062/CHANGE-0043 (an earlier margin-widen that reduced but did
@@ -395,7 +395,7 @@ For each implementation / validation / TDD / code-review artifact record:
 - Base ref: main
 - Worktree branch/path: n/a (inline)
 - Inline review scope: `tests/skills/test-aai-run-tests.sh`,
-  `docs/specs/SPEC-DRAFT-spec-reaper-epoch-survivor-robustness.md`
+  `docs/specs/SPEC-0072-spec-reaper-epoch-survivor-robustness.md`
 
 Allowed worktree recommendation values:
 - not_needed: small, low-risk, clearly scoped change

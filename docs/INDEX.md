@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-23T11:11:08.811Z
+Generated: 2026-07-23T11:13:30.733Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -11,7 +11,7 @@ _None._
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
-| spec-reaper-epoch-survivor-robustness | specs | implementing | 4 done, 1 deferred | docs/specs/SPEC-DRAFT-spec-reaper-epoch-survivor-robustness.md |
+| SPEC-0072 | specs | implementing | 4 done, 1 deferred | docs/specs/SPEC-0072-spec-reaper-epoch-survivor-robustness.md |
 
 ## Canonical layer (0)
 
@@ -181,7 +181,7 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| reaper-epoch-survivor-robustness (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-reaper-epoch-survivor-robustness.md |
+| ISSUE-0026 | issues | docs/issues/ISSUE-0026-reaper-epoch-survivor-robustness.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -191,7 +191,7 @@ _None._
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
-| spec-reaper-epoch-survivor-robustness | Spec-AC-05 | 2026-07-30 | Deferred, not done: CI is the AUTHORITATIVE environment for this load-dependent flake and a local pass is explicitly insufficient evidence. TEST-004 (repeated `skill-suite` green on Ubuntu) is owned by Validation/PR after push. |
+| SPEC-0072 | Spec-AC-05 | 2026-07-30 | Deferred, not done: CI is the AUTHORITATIVE environment for this load-dependent flake and a local pass is explicitly insufficient evidence. TEST-004 (repeated `skill-suite` green on Ubuntu) is owned by Validation/PR after push. |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)

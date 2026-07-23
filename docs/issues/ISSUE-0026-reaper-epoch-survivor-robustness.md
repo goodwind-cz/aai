@@ -1,6 +1,6 @@
 ---
 id: reaper-epoch-survivor-robustness
-number: null
+number: 26
 type: issue
 status: draft
 links:

@@ -9,6 +9,30 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: move TEST-017 off the reaper's epoch ambiguity boundary (ISSUE-0026 / SPEC-0072)
+
+- `tests/skills/test-aai-run-tests.sh` TEST-017 flaked intermittently on CI
+  (`epoch mode failed to reap a genuine pre-step survivor … reaped: 0`), reddening
+  unrelated PRs (hit on #129, whose diff never touches the reaper).
+- Root cause was NOT a reaper defect: the reaper reaps iff
+  `start_epoch < STEP_START - GRACE` with `GRACE=2` (documented as 1s `etime`
+  truncation + 1s snapshot skew), and `start_epoch = SNAP_NOW - floor(etime)` can
+  read up to ~1s LATER than the true start. TEST-017 gave the survivor a nominal
+  **3s** pre-step gap — exactly `GRACE(2) + 1s truncation`, the minimum reapable
+  gap with **zero slack** — so the outcome hinged on sub-second phase alignment and
+  CI load flipped it. The test was asserting INSIDE the contract's resolution limit.
+- Widened `test_017`'s gap to 6s with the arithmetic spelled out and an explicit
+  anti-tuning note, and added **`test_021`**, which pins the spare/reap boundary
+  DETERMINISTICALLY via an injected `AAI_REAP_STEP_START_EPOCH` (SPARE at
+  `ref+GRACE`, REAP at `ref+GRACE+2`) — the property is now proven by arithmetic
+  instead of wall-clock racing. Offsets were empirically confirmed against the real
+  reaper (20 samples: k=0 SPARE 5/5, k≥1 REAP 5/5).
+- **`.aai/scripts/aai-reap-tests.sh` is byte-unchanged** — `GRACE` stays 2.
+  Raising it was explicitly rejected: GRACE is the truncation/skew budget, and
+  widening it would make the reaper spare genuinely-leaked processes. No
+  retry/loop-until-pass either — the boundary is removed, not masked. Cost: +10.2s
+  suite runtime. Ceremony L1, no protected path touched.
+
 ## [unreleased] — fix: Planning surfaces companion obligations (prompt-diet ledger + PROFILES) (ISSUE-0025 / SPEC-0071)
 
 - Two repo invariants were enforced only at the CI trailing edge, so a scope that
