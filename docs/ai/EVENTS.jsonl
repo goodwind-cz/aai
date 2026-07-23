@@ -985,3 +985,27 @@
 {"v":1,"ts":"2026-07-22T23:32:28.751Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-planning-companion-obligations","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-22T23:32:28.782Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-planning-companion-obligations","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-22T23:32:28.811Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-planning-companion-obligations","payload":{"commit":"ac1af1f05b9bb451100f544ece34a2878a9b6671"}}
+{"v":1,"ts":"2026-07-23T11:01:34.370Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-reaper-epoch-survivor-robustness/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-23T11:01:34.409Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-reaper-epoch-survivor-robustness/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-23T11:01:34.444Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-reaper-epoch-survivor-robustness/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-23T11:01:34.477Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-reaper-epoch-survivor-robustness/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-23T11:01:34.511Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-reaper-epoch-survivor-robustness/Spec-AC-06","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-23T11:01:34.543Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-reaper-epoch-survivor-robustness/Spec-AC-05","payload":{"from":"planned","to":"deferred"}}
+{"v":1,"ts":"2026-07-23T11:29:30.476Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":157,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-23T11:30:42.445Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":157,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-23T11:47:52.163Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"reaper-epoch-survivor-robustness","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-23T11:47:52.197Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"reaper-epoch-survivor-robustness","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-23T11:47:52.227Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"reaper-epoch-survivor-robustness","payload":{"commit":"c1ba56d57b58159cfa6d11e0e0e26b7dde5a04c5"}}
+{"v":1,"ts":"2026-07-23T11:47:52.260Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-reaper-epoch-survivor-robustness","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-23T11:47:52.290Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-reaper-epoch-survivor-robustness","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-23T11:47:52.321Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-reaper-epoch-survivor-robustness","payload":{"commit":"c1ba56d57b58159cfa6d11e0e0e26b7dde5a04c5"}}
+{"v":1,"ts":"2026-07-23T12:14:39.087Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"ISSUE-0026","payload":{"from":"done","to":"implementing"}}
+{"v":1,"ts":"2026-07-23T12:14:39.123Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0072","payload":{"from":"done","to":"implementing"}}
+{"v":1,"ts":"2026-07-23T12:16:54.291Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":157,"orphans":0,"drifted":2,"stale":0,"false_open":2,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-23T12:17:38.310Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":157,"orphans":0,"drifted":2,"stale":0,"false_open":2,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-23T12:26:12.470Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":157,"orphans":0,"drifted":2,"stale":0,"false_open":2,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-23T12:26:12.508Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"ISSUE-0026","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-23T12:26:12.541Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"SPEC-0072","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-23T12:26:26.496Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":157,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-23T13:04:25.937Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0072/Spec-AC-05","payload":{"from":"deferred","to":"done","notes":"repeated-green CI evidence arrived: run 30007717119 attempts 1+2 both success at final HEAD"}}
+{"v":1,"ts":"2026-07-23T13:04:32.526Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":157,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

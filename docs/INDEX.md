@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-22T23:32:51.245Z
+Generated: 2026-07-23T13:04:40.866Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (155)
+## Done (157)
 
 | ID | Type | Path |
 |---|---|---|
@@ -90,6 +90,7 @@ _None._
 | ISSUE-0023 | issues | docs/issues/ISSUE-0023-test-018-workspace-isolation.md |
 | ISSUE-0024 | issues | docs/issues/ISSUE-0024-branch-per-work-item-hygiene.md |
 | ISSUE-0025 | issues | docs/issues/ISSUE-0025-planning-companion-obligations.md |
+| ISSUE-0026 | issues | docs/issues/ISSUE-0026-reaper-epoch-survivor-robustness.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -173,6 +174,7 @@ _None._
 | SPEC-0069 | specs | docs/specs/SPEC-0069-spec-test-018-workspace-isolation.md |
 | SPEC-0070 | specs | docs/specs/SPEC-0070-spec-branch-per-work-item-hygiene.md |
 | SPEC-0071 | specs | docs/specs/SPEC-0071-spec-planning-companion-obligations.md |
+| SPEC-0072 | specs | docs/specs/SPEC-0072-spec-reaper-epoch-survivor-robustness.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
@@ -206,4 +208,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-22 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-23 — counts above use this date for overdue checks.
