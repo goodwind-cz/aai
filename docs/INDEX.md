@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-23T12:37:07.293Z
+Generated: 2026-07-23T13:04:40.866Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -185,11 +185,10 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (2)
+## Deferred items (per-AC, across all specs) (1)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
-| SPEC-0072 | Spec-AC-05 | 2026-08-06 | Deferred, not done: CI is the AUTHORITATIVE environment for this load-dependent flake and a local pass is explicitly insufficient evidence. TEST-004 (repeated `skill-suite` green on Ubuntu) is collected on PR #131; this row flips to done with the run ids once both runs are green. Review-By honours the AC-gate 14-day floor. |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
