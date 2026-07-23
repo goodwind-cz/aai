@@ -34,6 +34,14 @@ PROCESS
 1) Read docs/ai/STATE.yaml and verify planning is allowed (project not paused, no blocking human input).
 2) Determine target scope from current_focus and active_work_items.
 3) Read the relevant requirement/intake artifacts for the scope.
+3a) COMPANION OBLIGATIONS CHECK (closed list, two entries — do not add a third
+   here; a new auto-detection script would be a separate, larger scope):
+   - Adds bytes to the prompt corpus (`.aai/*.prompt.md`, `.aai/AGENTS.md`) -> fold
+     a prompt-diet ledger true-up (new JUSTIFIED_ADDITIONS entry + bumped TEST-012
+     checkpoint) into scope + Test Plan: tests/skills/lib/prompt-diet-ledger.sh.
+   - Adds a NEW `.aai/**` file -> fold a classification entry into scope + Test
+     Plan: .aai/system/PROFILES.yaml.
+   Neither applies -> skip, no note required.
 4) Create or update docs/specs/SPEC-<id>.md using .aai/templates/SPEC_TEMPLATE.md.
    Declaring Deltas (RFC-0011, delta-spec lifecycle): when the change ADDS,
    MODIFIES, or REMOVES a canonical requirement, declare it in the spec's

@@ -412,9 +412,9 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# 19792 (true-up: branch-per-work-item-hygiene added a 494 B itemized entry for
-# the SKILL_PR.prompt.md "0. BRANCH HYGIENE" precondition + AGENTS.md
-# one-branch-per-work-item rule, to the prior 19298 B total) AND equals an
+# 20358 (true-up: planning-companion-obligations added a 566 B itemized entry for
+# the PLANNING.prompt.md step-3a COMPANION OBLIGATIONS CHECK checklist, to the
+# prior 19792 B total) AND equals an
 # independent re-sum of JUSTIFIED_ADDITIONS. This
 # expected total is bumped, never recomputed silently, each time a scope
 # legitimately appends a ledger entry (LEARNED.md 2026-07-17: the true-up is
@@ -428,15 +428,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 19792 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 19792)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 20358 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 20358)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 19792 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 20358 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

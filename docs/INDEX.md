@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-22T22:04:02.094Z
+Generated: 2026-07-22T23:32:51.245Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (153)
+## Done (155)
 
 | ID | Type | Path |
 |---|---|---|
@@ -89,6 +89,7 @@ _None._
 | ISSUE-0022 | issues | docs/issues/ISSUE-0022-metrics-flush-strands-completed-refs.md |
 | ISSUE-0023 | issues | docs/issues/ISSUE-0023-test-018-workspace-isolation.md |
 | ISSUE-0024 | issues | docs/issues/ISSUE-0024-branch-per-work-item-hygiene.md |
+| ISSUE-0025 | issues | docs/issues/ISSUE-0025-planning-companion-obligations.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -171,6 +172,7 @@ _None._
 | SPEC-0068 | specs | docs/specs/SPEC-0068-spec-metrics-flush-sweep.md |
 | SPEC-0069 | specs | docs/specs/SPEC-0069-spec-test-018-workspace-isolation.md |
 | SPEC-0070 | specs | docs/specs/SPEC-0070-spec-branch-per-work-item-hygiene.md |
+| SPEC-0071 | specs | docs/specs/SPEC-0071-spec-planning-companion-obligations.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
