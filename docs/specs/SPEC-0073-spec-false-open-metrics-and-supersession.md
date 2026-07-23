@@ -2,14 +2,16 @@
 id: spec-false-open-metrics-and-supersession
 type: spec
 number: 73
-status: draft
+status: done
 ceremony_level: 1
 links:
   issue: false-open-metrics-and-supersession
   github_issues: [133, 134]
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 136
+  commits:
+    - 8eb7d9baab34cff3b3d79cc6c1f0ecda8efaddd5
 ---
 
 <!-- SPEC-0015 / RFC-0007 — Parallel-safe doc identity: `id` is the durable

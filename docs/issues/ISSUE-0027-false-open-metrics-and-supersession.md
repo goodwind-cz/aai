@@ -2,10 +2,12 @@
 id: false-open-metrics-and-supersession
 number: 27
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 136
+  commits:
+    - 8eb7d9baab34cff3b3d79cc6c1f0ecda8efaddd5
   github_issues: [133, 134]
 ---
 
