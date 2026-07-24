@@ -9,7 +9,9 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — fix: test-canon TEST-006 asserts on phase2's drift report, not a first-file proxy (ISSUE-0031 / SPEC-0077)
+## [unreleased]
+
+## [v2026.07.24] — fix: test-canon TEST-006 asserts on phase2's drift report, not a first-file proxy (ISSUE-0031 / SPEC-0077)
 
 - `test-aai-test-canon.sh` TEST-006 flaked on Ubuntu CI (`Phase 2 silently
   overwrote canonical tests despite drift`) on unrelated PRs; it does not
@@ -36,7 +38,7 @@ RFC-0001).
   2026-08-10). Same family as the TEST-018 reaper attribution fix (SPEC-0076).
   Ceremony L1, no protected path, test-canon core untouched.
 
-## [unreleased] — fix: TEST-018 spare-fresh attributes the kill to the reaper (ISSUE-0030 / SPEC-0076)
+## [v2026.07.24] — fix: TEST-018 spare-fresh attributes the kill to the reaper (ISSUE-0030 / SPEC-0076)
 
 - `test-aai-run-tests.sh` TEST-018 spare-fresh direction flaked on Ubuntu CI
   (`legacy MIN_AGE=60 must still spare the fresh match (reaper output: reaped: 1)`)
@@ -61,7 +63,7 @@ RFC-0001).
   is deferred (Review-By 2026-08-10). No margin widened, no retry added. Ceremony
   L1, no protected path (reaper decision logic untouched).
 
-## [unreleased] — fix: metrics-flush can retire a stranded non-work-item entry (ISSUE-0029 / SPEC-0075)
+## [v2026.07.24] — fix: metrics-flush can retire a stranded non-work-item entry (ISSUE-0029 / SPEC-0075)
 
 - `metrics-flush.mjs` had exactly two dispositions per `metrics.work_items` entry:
   flush (truth-gated) or SKIP. A post-merge review mis-recorded as a work item
@@ -85,7 +87,7 @@ RFC-0001).
   Covered by TEST-001..008 in `test-aai-metrics.sh` incl. a 5-vector truth-gate
   bypass hunt. Ceremony L1, no protected path.
 
-## [unreleased] — fix: branch-guard passes recognized non-work-item branches (ISSUE-0028 / SPEC-0074, closes #135)
+## [v2026.07.24] — fix: branch-guard passes recognized non-work-item branches (ISSUE-0028 / SPEC-0074, closes #135)
 
 - `branch-guard.mjs` (the SKILL_PR "0. BRANCH HYGIENE" precondition, shipped in
   SPEC-0070) matched the current branch against `current_focus.ref_id` and assumed
@@ -108,7 +110,7 @@ RFC-0001).
   `test-aai-branch-guard.sh` (full suite 42/42 on CI). Ceremony L1, no protected
   path. Closes GitHub #135.
 
-## [unreleased] — fix: docs-audit false-open now reads METRICS + orders its signals (ISSUE-0027 / SPEC-0073, closes #133 #134)
+## [v2026.07.24] — fix: docs-audit false-open now reads METRICS + orders its signals (ISSUE-0027 / SPEC-0073, closes #133 #134)
 
 - `docs-audit-core.mjs` `falseOpenEvidence()` decided drift from four evidence
   arms, all pure existence checks with no time ordering. Two reported defects, same
@@ -137,7 +139,7 @@ RFC-0001).
   every case builds its own fixture. Ceremony L1, no protected path touched.
   Closes GitHub #133 and #134.
 
-## [unreleased] — fix: move TEST-017 off the reaper's epoch ambiguity boundary (ISSUE-0026 / SPEC-0072)
+## [v2026.07.24] — fix: move TEST-017 off the reaper's epoch ambiguity boundary (ISSUE-0026 / SPEC-0072)
 
 - `tests/skills/test-aai-run-tests.sh` TEST-017 flaked intermittently on CI
   (`epoch mode failed to reap a genuine pre-step survivor … reaped: 0`), reddening
@@ -161,7 +163,7 @@ RFC-0001).
   retry/loop-until-pass either — the boundary is removed, not masked. Cost: +10.2s
   suite runtime. Ceremony L1, no protected path touched.
 
-## [unreleased] — fix: Planning surfaces companion obligations (prompt-diet ledger + PROFILES) (ISSUE-0025 / SPEC-0071)
+## [v2026.07.24] — fix: Planning surfaces companion obligations (prompt-diet ledger + PROFILES) (ISSUE-0025 / SPEC-0071)
 
 - Two repo invariants were enforced only at the CI trailing edge, so a scope that
   looked "done" at planning time shipped incomplete and reddened CI: (1) any edit
@@ -184,7 +186,7 @@ RFC-0001).
   macOS + Linux CI. Ceremony L1, no protected path touched. Propagates downstream
   via `/aai-update`.
 
-## [unreleased] — fix: enforce one dedicated git branch per work item (ISSUE-0024 / SPEC-0070)
+## [v2026.07.24] — fix: enforce one dedicated git branch per work item (ISSUE-0024 / SPEC-0070)
 
 - The loop had NO deterministic step that creates or verifies a per-work-item
   branch on the INLINE strategy (the common L0-L2 path): `SKILL_PR` step 5 pushed
@@ -211,7 +213,7 @@ RFC-0001).
   script + prompt + docs — no `protected_paths_l3` file touched (no forced L3
   worktree). Propagates to every downstream project via `/aai-update`.
 
-## [unreleased] — fix: TEST-018 fresh per-case workspace removes residual reaper flake (ISSUE-0023 / SPEC-0069)
+## [v2026.07.24] — fix: TEST-018 fresh per-case workspace removes residual reaper flake (ISSUE-0023 / SPEC-0069)
 
 - `tests/skills/test-aai-run-tests.sh` TEST-018 (reaper legacy fail-safe) still
   flaked intermittently on CI **after** the SPEC-0064 split-direction margin fix
