@@ -2,10 +2,12 @@
 id: test-018-legacy-spare-attribution
 number: 30
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 139
+  commits:
+    - 8c8c2ea04e988fa9eb096d9fc689df78c3c1d6e6
   github_issues: []
 ---
 

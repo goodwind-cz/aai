@@ -2,13 +2,15 @@
 id: spec-test-018-legacy-spare-attribution
 type: spec
 number: 76
-status: draft
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/ISSUE-0030-test-018-legacy-spare-attribution.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 139
+  commits:
+    - 8c8c2ea04e988fa9eb096d9fc689df78c3c1d6e6
 ---
 
 # Implementation Spec — TEST-018 spare-fresh attribution + reaper observability
