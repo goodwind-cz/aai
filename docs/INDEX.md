@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-24T08:12:58.836Z
+Generated: 2026-07-24T13:08:45.013Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -181,9 +181,12 @@ _None._
 | SPEC-0074 | specs | docs/specs/SPEC-0074-spec-branch-guard-no-work-item.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0029 | issues | docs/issues/ISSUE-0029-retire-stranded-nonworkitem-metric.md |
+| SPEC-0075 | specs | docs/specs/SPEC-0075-spec-retire-stranded-nonworkitem-metric.md |
 
 ## Deferred (whole-doc) (0)
 

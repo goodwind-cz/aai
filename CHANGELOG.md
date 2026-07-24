@@ -9,6 +9,30 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: metrics-flush can retire a stranded non-work-item entry (ISSUE-0029 / SPEC-0075)
+
+- `metrics-flush.mjs` had exactly two dispositions per `metrics.work_items` entry:
+  flush (truth-gated) or SKIP. A post-merge review mis-recorded as a work item
+  (`pr-67-post-merge-review`, a fable-5 dual-verdict review of PR #67) satisfies
+  NEITHER flush predicate — no `last_validation` PASS names it, no committed
+  `work_item_closed` event — so it printed a misleading `SKIP` on every flush
+  forever, with no cleanup path, training operators to ignore SKIP.
+- Added a fail-closed `--retire <ref> [--reason "..."]` mode: it REFUSES (no
+  mutation) any ref that would flush by EITHER existing predicate — reusing those
+  exact predicates so it can only over-refuse, never bypass the truth-gate — and
+  refuses a ref absent from `metrics.work_items`. On a genuinely-stranded ref it
+  appends a durable `metric_retired` audit event to `EVENTS.jsonl` (carrying the
+  reason + a compact `discarded_runs` summary so the telemetry is preserved, not
+  dropped) BEFORE removing the STATE entry (ledger-before-STATE, same
+  refusal/rollback shape as flush). `--dry-run` reports the plan without writing
+  and still refuses a flushable ref; the default no-`--retire` path is
+  byte-unchanged. Documented in the script's own `--help`, NOT in
+  `METRICS_FLUSH.prompt.md` (SPEC-0054 invariant).
+- Dogfooded: retired `pr-67-post-merge-review` in this PR — the standing SKIP is
+  gone and the `metric_retired` record preserves the discarded review's telemetry.
+  Covered by TEST-001..008 in `test-aai-metrics.sh` incl. a 5-vector truth-gate
+  bypass hunt. Ceremony L1, no protected path.
+
 ## [unreleased] — fix: branch-guard passes recognized non-work-item branches (ISSUE-0028 / SPEC-0074, closes #135)
 
 - `branch-guard.mjs` (the SKILL_PR "0. BRANCH HYGIENE" precondition, shipped in
