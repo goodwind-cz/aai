@@ -290,7 +290,84 @@ test_008() {
   log_pass "AGENTS.md documents the one-branch-per-work-item rule naming branch-guard.mjs"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008"
+# --- TEST-009 — allowlisted non-work-item prefix, set-but-unrelated ref_id -> exit 0 (Spec-AC-01) --
+test_009() {
+  log_info "TEST-009: chore/, release/, docs/ prefixed branches with a set-but-unrelated ref_id -> guard exit 0 naming the matched prefix..."
+  local pair prefix branch repo ref="unrelated-work-item"
+  for pair in \
+      "chore/:chore/tenant-cleanup" \
+      "release/:release/v1.2.3" \
+      "docs/:docs/typo-fix"; do
+    prefix="${pair%%:*}"; branch="${pair##*:}"
+    repo="$(make_repo "t009-${prefix%/}")"
+    # ref_id is SET to a value the allowlisted branch name does NOT contain, so the
+    # pre-fix guard would fall through to the containment check and exit 3 (RED).
+    write_state "$repo" intake_issue "$ref"
+    ( cd "$repo" && git checkout -b "$branch" >/dev/null 2>&1 ) \
+      || log_fail "fixture setup: could not create $branch"
+    run_guard "$repo" --base main
+    [[ "$RC" -eq 0 ]] \
+      || log_fail "allowlisted branch $branch with an unrelated ref_id must exit 0 (got $RC; stderr: $ERR)"
+    echo "$OUT" | grep -qF "$prefix" \
+      || log_fail "stdout must name the matched prefix $prefix (got: $OUT)"
+    # Distinct from the ref_id-match pass message — it must NOT claim a ref_id match.
+    echo "$OUT" | grep -qiF "matches current_focus.ref_id" \
+      && log_fail "allowlist pass must use a DISTINCT message, not the ref_id-match line (got: $OUT)"
+  done
+  log_pass "chore//release//docs/ branches with an unrelated ref_id -> exit 0 with a distinct prefix-naming message"
+}
+
+# --- TEST-010 — allowlisted prefix with a CLEARED ref_id (Tier B, STATE readable) -> exit 0 (Spec-AC-01) --
+test_010() {
+  log_info "TEST-010: chore/ branch with a cleared/empty ref_id (STATE readable) -> guard exit 0 (Tier B)..."
+  local repo
+  repo="$(make_repo t010)"
+  # STATE opens fine but carries no focus (ref_id null) — Tier B. Pre-fix this
+  # exited 4 via the combined item-3 check; post-fix the allowlist lets it pass.
+  write_state "$repo" intake_issue "null"
+  ( cd "$repo" && git checkout -b "chore/tenant-cleanup" >/dev/null 2>&1 ) \
+    || log_fail "fixture setup: could not create chore/tenant-cleanup"
+  run_guard "$repo" --base main
+  [[ "$RC" -eq 0 ]] \
+    || log_fail "allowlisted branch with a cleared ref_id (Tier B) must exit 0 (got $RC; stderr: $ERR)"
+  echo "$OUT" | grep -qF "chore/" \
+    || log_fail "stdout must name the matched prefix chore/ (got: $OUT)"
+  log_pass "allowlisted branch + cleared ref_id (Tier B) -> exit 0"
+}
+
+# --- TEST-011 — allowlisted prefix but STATE FILE ABSENT (Tier A) -> exit 4 (Spec-AC-04) --
+# NON-DISCRIMINATING BY DESIGN: exit 4 both before and after this change. Pins that
+# a genuinely unreadable STATE still fails closed even on an allowlisted branch.
+test_011() {
+  log_info "TEST-011: chore/ branch with STATE.yaml absent (Tier A) -> guard exit 4 (allowlist never overrides an unreadable file)..."
+  local repo
+  repo="$(make_repo t011)"
+  # No write_state — STATE.yaml is genuinely absent (Tier A), not merely empty.
+  ( cd "$repo" && git checkout -b "chore/tenant-cleanup" >/dev/null 2>&1 ) \
+    || log_fail "fixture setup: could not create chore/tenant-cleanup"
+  run_guard "$repo" --base main
+  [[ "$RC" -eq 4 ]] \
+    || log_fail "allowlisted branch with an absent STATE (Tier A) must exit 4 (got $RC; stderr: $ERR)"
+  log_pass "allowlisted branch + absent STATE (Tier A) -> exit 4, fail-closed"
+}
+
+# --- TEST-012 — base-vs-allowlist collision -> exit 1, base wins (Spec-AC-02) --
+# NON-DISCRIMINATING BY DESIGN: exit 1 both before and after. Pins that the
+# base-branch check always precedes the allowlist check.
+test_012() {
+  log_info "TEST-012: branch AND --base both 'chore/legacy-main' -> guard exit 1 (base check precedes the allowlist)..."
+  local repo ref="valid-unrelated-ref"
+  repo="$(make_repo t012)"
+  write_state "$repo" intake_issue "$ref"
+  ( cd "$repo" && git checkout -b "chore/legacy-main" >/dev/null 2>&1 ) \
+    || log_fail "fixture setup: could not create chore/legacy-main"
+  run_guard "$repo" --base "chore/legacy-main"
+  [[ "$RC" -eq 1 ]] \
+    || log_fail "a branch that is simultaneously the base AND allowlist-shaped must exit 1, never 0 (got $RC; stderr: $ERR)"
+  log_pass "base-vs-allowlist collision -> exit 1 (base check wins over the allowlist)"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012"
 
 main() {
   echo "Testing $TEST_NAME (deterministic branch-per-work-item hygiene guard)"

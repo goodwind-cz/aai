@@ -9,6 +9,29 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: branch-guard passes recognized non-work-item branches (ISSUE-0028 / SPEC-0074, closes #135)
+
+- `branch-guard.mjs` (the SKILL_PR "0. BRANCH HYGIENE" precondition, shipped in
+  SPEC-0070) matched the current branch against `current_focus.ref_id` and assumed
+  EVERY branch belongs to a work item. Branches that legitimately do not —
+  `chore/*` (telemetry/cleanup), `release/v*` (the `/aai-release` cut), `docs/*` —
+  hit the ref_id-mismatch check and exited 3 (or 4 on a cleared focus), so the
+  precondition blocked them. Hit live committing post-merge telemetry on
+  `chore/metrics-flush-telemetry` (PR #132).
+- Added a closed, path-segment PREFIX allowlist (`chore/`, `release/`, `docs/`),
+  checked AFTER the base-branch guard and BEFORE the ref_id checks: a matching
+  branch exits 0 with a distinct "recognized non-work-item branch" message (no
+  remediation line). The base check still fires first (a chore is never committed
+  straight to `main`), and the #129 anti-drift guarantee is untouched — a
+  work-item-type branch (`feat/`/`fix/`) whose name lacks the current ref_id still
+  exits 3. Matching is a path-segment prefix (`startsWith('chore/')`), not a
+  substring, so `documentation-foo`/`choreography/x`/`release-notes` do NOT leak
+  through. STATE handling splits Tier A (unreadable/unparseable -> still exit 4,
+  the allowlist never rescues a broken STATE) from Tier B (readable, empty ref_id
+  -> allowlisted branch passes). Covered by TEST-009..012 in
+  `test-aai-branch-guard.sh` (full suite 42/42 on CI). Ceremony L1, no protected
+  path. Closes GitHub #135.
+
 ## [unreleased] — fix: docs-audit false-open now reads METRICS + orders its signals (ISSUE-0027 / SPEC-0073, closes #133 #134)
 
 - `docs-audit-core.mjs` `falseOpenEvidence()` decided drift from four evidence

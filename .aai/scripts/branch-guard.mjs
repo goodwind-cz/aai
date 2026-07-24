@@ -23,21 +23,37 @@
 //                    branch exists). Still reads STATE — a broken/empty ref_id
 //                    exits 4, never a silent pass.
 //
+// A branch may also legitimately have NO work item — a chore, a release cut, or
+// a docs-only edit. Such branches carry a recognized non-work-item PREFIX
+// (ALLOWLIST_PREFIXES: `chore/`, `release/`, `docs/`) and pass (exit 0) with a
+// distinct message, once the guard has confirmed the branch is not the base and
+// STATE is readable. This splits the STATE read into two tiers:
+//   Tier A — STATE cannot be opened/read at all (missing/corrupt): fails closed
+//            EVERYWHERE, even on an allowlisted branch (order item 3).
+//   Tier B — STATE opens fine but records no focus (ref_id empty/null): fails
+//            closed for non-allowlisted branches (item 6), but an allowlisted
+//            branch still passes (item 5).
+//
 // Deterministic check order (guard mode) — EARLIER checks win:
-//   1. cwd not inside a git work tree            -> exit 4
+//   1. cwd not inside a git work tree              -> exit 4
 //   2. HEAD detached (`git rev-parse --abbrev-ref HEAD` == "HEAD") -> exit 2
-//   3. STATE unreadable OR ref_id empty/null     -> exit 4
-//   4. current branch == base branch             -> exit 1
-//   5. current branch does NOT contain ref_id    -> exit 3
-//   6. otherwise                                 -> exit 0
+//   3. Tier A — STATE cannot be opened/read at all -> exit 4 (unconditional)
+//   4. current branch == base branch:
+//        4a. ref_id empty/null (Tier B)            -> exit 4
+//        4b. ref_id set                            -> exit 1
+//   5. current branch matches an ALLOWLIST_PREFIX  -> exit 0 (non-work-item pass)
+//   6. Tier B on a non-allowlisted branch          -> exit 4
+//   7. current branch does NOT contain ref_id      -> exit 3
+//   8. otherwise                                   -> exit 0
 //
 // Exit codes (closed set):
-//   0 — branch matches current_focus.ref_id, neither base nor detached.
+//   0 — branch matches current_focus.ref_id, OR is a recognized non-work-item
+//       branch (allowlisted prefix); neither base nor detached.
 //   1 — current branch equals the base branch.
 //   2 — HEAD is detached.
 //   3 — current branch name does not contain the ref_id slug.
-//   4 — config/usage error (not a git repo, STATE unreadable, ref_id empty/null,
-//       bad flag).
+//   4 — config/usage error (not a git repo, STATE unreadable, ref_id empty/null
+//       on a non-allowlisted branch, bad flag).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -45,6 +61,20 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { splitLines } from './lib/state-core.mjs';
 import { readScalar, unquoteScalar } from './lib/state-engine.mjs';
+
+// Recognized NON-work-item branch prefixes. A CLOSED allowlist: a branch whose
+// name starts with one of these legitimately has no work item to verify against
+// (chores, release cuts, doc-only edits), so the guard passes it (exit 0) once
+// it has established the branch is NOT the base branch and STATE is readable.
+// The trailing slash is baked in on purpose so `choreography/x` does NOT match
+// `chore/` (segment-safe prefix match). Work-item type tokens (`feat/`, `fix/`)
+// are DELIBERATELY excluded — those must still contain the current ref_id.
+const ALLOWLIST_PREFIXES = ['chore/', 'release/', 'docs/'];
+
+// Return the allowlisted prefix a branch name starts with, or null.
+function matchAllowlistPrefix(branch) {
+  return ALLOWLIST_PREFIXES.find((p) => branch.startsWith(p)) ?? null;
+}
 
 // current_focus.type -> branch type-token. Closed + deterministic; used ONLY to
 // build the --suggest output and the remediation string. Any unmapped/blank
@@ -94,22 +124,28 @@ function currentBranch(cwd) {
 }
 
 // Read current_focus.ref_id/.type from STATE (read-only). Returns
-// { ok, refId, type } — ok:false means the file is unreadable or ref_id is
-// empty/null (fail-closed). Never throws.
+// { ok, fileReadable, refId, type }. Two distinct failure tiers:
+//   Tier A — fileReadable:false — the file could not be opened/read at all
+//            (missing/corrupt). Fails closed EVERYWHERE, even on an allowlisted
+//            branch.
+//   Tier B — fileReadable:true, ok:false — the file opened fine but carries no
+//            focus (ref_id empty/null). Fails closed for non-allowlisted
+//            branches, but an allowlisted-prefix branch may still pass.
+// `ok` stays true only when a non-empty ref_id was found. Never throws.
 function readFocus(statePath) {
   let raw;
   try {
     raw = fs.readFileSync(statePath, 'utf8');
   } catch {
-    return { ok: false, refId: null, type: null };
+    return { ok: false, fileReadable: false, refId: null, type: null };
   }
   const { lines } = splitLines(raw);
   const refRaw = readScalar(lines, 'current_focus', 'ref_id');
   const typeRaw = readScalar(lines, 'current_focus', 'type');
   const refId = refRaw == null ? null : unquoteScalar(refRaw);
   const type = typeRaw == null ? null : unquoteScalar(typeRaw);
-  if (refId == null || refId === '') return { ok: false, refId: null, type };
-  return { ok: true, refId, type };
+  if (refId == null || refId === '') return { ok: false, fileReadable: true, refId: null, type };
+  return { ok: true, fileReadable: true, refId, type };
 }
 
 function parseArgs(argv) {
@@ -184,30 +220,60 @@ function main() {
     process.exit(2);
   }
 
-  // Order item 3 — STATE unreadable / ref_id empty -> fail closed.
+  // Order item 3 — Tier A: STATE cannot be opened/read at all -> fail closed,
+  // unconditionally, before the branch name is even inspected. This is the ONLY
+  // STATE-read failure that still blocks an allowlisted branch.
   const statePath = resolveStatePath(opts, cwd);
-  const focus = statePath ? readFocus(statePath) : { ok: false, type: null, refId: null };
+  const focus = statePath ? readFocus(statePath) : { ok: false, fileReadable: false, type: null, refId: null };
+  if (!focus.fileReadable) {
+    console.error('branch-guard: current_focus.ref_id is not set in STATE.yaml (cannot verify the branch).');
+    console.error(`  Remediation: ${remediation(focus.type, focus.refId, opts.base)}`);
+    process.exit(4);
+  }
+
+  // Order item 4 — current branch equals the base branch. Checked BEFORE the
+  // allowlist so a branch that is simultaneously the base and allowlist-shaped
+  // still never passes. 4a: cleared ref_id (Tier B) -> exit 4 (unchanged from
+  // today). 4b: ref_id set -> exit 1 (base-branch violation).
+  if (branch === opts.base) {
+    if (!focus.ok) {
+      console.error('branch-guard: current_focus.ref_id is not set in STATE.yaml (cannot verify the branch).');
+      console.error(`  Remediation: ${remediation(focus.type, focus.refId, opts.base)}`);
+      process.exit(4);
+    }
+    console.error(`branch-guard: on the base branch "${opts.base}" — start a dedicated work-item branch first.`);
+    console.error(`  Remediation: ${remediation(focus.type, focus.refId, opts.base)}`);
+    process.exit(1);
+  }
+
+  // Order item 5 — NEW: a recognized non-work-item branch prefix passes with a
+  // DISTINCT message (no remediation — it is a pass). Reached only once item 4
+  // has established the branch is not the base; fires whether ref_id is
+  // set-but-unrelated or empty/null (Tier B) — the allowlist needs no focus.
+  const prefix = matchAllowlistPrefix(branch);
+  if (prefix) {
+    console.log(`branch-guard: OK — "${branch}" is a recognized non-work-item branch (prefix "${prefix}"; no work item claimed).`);
+    process.exit(0);
+  }
+
+  // Order item 6 — Tier B on a non-allowlisted branch -> fail closed (identical
+  // outcome to today's combined item-3 check for every non-allowlisted branch).
   if (!focus.ok) {
     console.error('branch-guard: current_focus.ref_id is not set in STATE.yaml (cannot verify the branch).');
     console.error(`  Remediation: ${remediation(focus.type, focus.refId, opts.base)}`);
     process.exit(4);
   }
 
-  // Order item 4 — current branch equals the base branch.
-  if (branch === opts.base) {
-    console.error(`branch-guard: on the base branch "${opts.base}" — start a dedicated work-item branch first.`);
-    console.error(`  Remediation: ${remediation(focus.type, focus.refId, opts.base)}`);
-    process.exit(1);
-  }
-
-  // Order item 5 — branch name must CONTAIN the ref_id slug (per intake convention).
+  // Order item 7 — branch name must CONTAIN the ref_id slug (per intake
+  // convention). The #129 anti-drift guarantee — a work-item-type branch whose
+  // name does not contain the current ref_id still exits 3.
   if (!branch.includes(focus.refId)) {
     console.error(`branch-guard: branch "${branch}" does not correspond to current_focus.ref_id "${focus.refId}".`);
     console.error(`  Remediation: ${remediation(focus.type, focus.refId, opts.base)}`);
     process.exit(3);
   }
 
-  // Order item 6 — pass.
+  // Order item 8 — pass.
   console.log(`branch-guard: OK — branch "${branch}" matches current_focus.ref_id "${focus.refId}".`);
   process.exit(0);
 }
