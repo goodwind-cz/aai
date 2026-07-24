@@ -1035,3 +1035,9 @@
 {"v":1,"ts":"2026-07-24T15:12:43.064Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-018-legacy-spare-attribution","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-24T15:12:43.098Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-test-018-legacy-spare-attribution","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-24T15:12:43.130Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-test-018-legacy-spare-attribution","payload":{"commit":"8c8c2ea04e988fa9eb096d9fc689df78c3c1d6e6"}}
+{"v":1,"ts":"2026-07-24T16:10:56.439Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"test-canon-drift-detection","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-24T16:10:56.470Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"test-canon-drift-detection","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-24T16:10:56.499Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"test-canon-drift-detection","payload":{"commit":"155b6cc1e8fb9219ea7a0e1b4fbe02f8c46bfb33"}}
+{"v":1,"ts":"2026-07-24T16:10:56.531Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-canon-drift-detection","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-24T16:10:56.564Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-test-canon-drift-detection","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-24T16:10:56.596Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-test-canon-drift-detection","payload":{"commit":"155b6cc1e8fb9219ea7a0e1b4fbe02f8c46bfb33"}}

@@ -470,25 +470,100 @@ test_006() {
   fi
   log_pass "Re-run is idempotent (map byte-identical)"
 
-  # Now modify an archived source test (simulates real drift to archived copy)
-  echo "# Modified content" >> "tests/_archive/skills/test-canon-1.sh"
-  git add -A && git commit --no-gpg-sign -q -m "modify archived source" 2>/dev/null || true
+  # ---- Drift attribution + isolation + completeness (Spec-AC-01..04) ----
+  # This block replaces a fragile before/after `sha256sum tests/canonical/* | head
+  # -c 40` proxy (which truncated the piped hash listing to its first 40 bytes —
+  # not even one whole 64-hex digest — and only ever partially covered the
+  # alphabetically-first file). It de-flakes by ATTRIBUTION + COMPLETE MEASUREMENT:
+  # asserting on Phase 2's own authoritative drift report and on the drifted
+  # domain's own canonical file, not on an inferred whole-directory byte-diff. CI
+  # (Ubuntu, under load) remains the authoritative validator for the reported flake.
+  local domain="test-canon"                          # kept in sync with setup_fixture above
+  local drifted_canon="tests/canonical/${domain}.sh" # the drifted domain's own canonical file
 
-  # Re-run Phase 2 — should detect drift and NOT silently overwrite
-  # The implementation should either:
-  #   a) Refuse to run (exit non-zero) because drift detected, OR
-  #   b) Report drift without overwriting
-  # It MUST NOT silently overwrite the canonical test layer
-  local before_mod
-  before_mod=$(sha256sum tests/canonical/* 2>/dev/null | head -c 40 || echo "no-canonical")
-  if run_script --phase2 2>/dev/null; then
-    local after_mod
-    after_mod=$(sha256sum tests/canonical/* 2>/dev/null | head -c 40 || echo "no-canonical")
-    if [[ "$before_mod" != "$after_mod" ]]; then
-      log_fail "Phase 2 silently overwrote canonical tests despite drift — should report drift"
-    fi
+  # Snapshot the whole canonical layer ONCE, before the drift-triggering re-run, so
+  # the isolated-file check and the whole-layer digest both compare against the SAME
+  # pre-drift state (capture-once discipline; diagnosable later with a real diff).
+  local snapshot_dir
+  snapshot_dir="$(mktemp -d "${TMPDIR:-/tmp}/aai-test-canon-snap.XXXXXX")"
+  cp -R tests/canonical "$snapshot_dir/" 2>/dev/null || true
+  local snap_canon="$snapshot_dir/canonical"
+
+  local before_digest
+  before_digest=$(sha256sum tests/canonical/* 2>/dev/null | sort | sha256sum || echo "no-canonical")
+
+  # Introduce drift by modifying an archived source with a marker that references
+  # the domain's OWN acceptance-criterion tag (AC-<domain>-1). This is deliberate: a
+  # content-neutral marker triggers drift detection but does NOT change the rendered
+  # canonical bytes even under --resync (the renderer embeds source paths and
+  # uncovered-criterion stubs, never source body text), which would make the
+  # discriminating --resync check below vacuous. An AC-tag marker flips that
+  # criterion from uncovered to covered, so --resync DOES change the rendered bytes.
+  echo "# drift-marker covers AC-${domain}-1" >> "tests/_archive/skills/${domain}-1.sh"
+  git add -A && git commit --no-gpg-sign -q -m "modify archived source (AC-tag drift marker)" 2>/dev/null || true
+
+  # (1) ATTRIBUTION (Spec-AC-01): capture Phase 2's own STDOUT and assert its
+  # authoritative drift report NAMES the drifted domain. Phase 2 exits 0 even with
+  # drift present, so do NOT gate the assertion on exit code.
+  local phase2_out
+  phase2_out=$(run_script --phase2 2>&1) || true
+  if ! echo "$phase2_out" | grep -Eq "DRIFT \(changed since synthesis, NOT rewritten\): [1-9][0-9]* \(.*${domain}.*\)"; then
+    echo "$phase2_out" >&2
+    rm -rf "$snapshot_dir"
+    log_fail "Phase 2 did not report DRIFT naming domain '${domain}' after archived-source drift"
   fi
+  log_pass "Phase 2 reported drift for domain '${domain}' (attribution)"
 
+  # (2) ISOLATION (Spec-AC-02): the DRIFTED domain's own canonical file must be
+  # byte-identical to its pre-drift snapshot — Phase 2 skips (never rewrites) a
+  # drifted domain. Checked in isolation from any non-drifted domain Phase 2 may
+  # legitimately rewrite on the same run.
+  if ! cmp -s "$drifted_canon" "$snap_canon/${domain}.sh"; then
+    echo "--- drifted-domain canonical file changed despite drift (should be skipped) ---" >&2
+    diff -u "$snap_canon/${domain}.sh" "$drifted_canon" >&2 || true
+    rm -rf "$snapshot_dir"
+    log_fail "Phase 2 overwrote the drifted domain's canonical file ${drifted_canon} despite drift"
+  fi
+  log_pass "Drifted domain's canonical file unchanged by no-resync Phase 2 (isolation)"
+
+  # (3) COMPLETENESS / DIAGNOSABILITY (Spec-AC-03): a complete, order-stable
+  # whole-layer digest (every file, sorted — no truncation, no first-file bias) must
+  # be unchanged. On mismatch, dump a per-file diff against the snapshot before
+  # failing so a CI recurrence names which file changed instead of a bare inference.
+  local after_digest
+  after_digest=$(sha256sum tests/canonical/* 2>/dev/null | sort | sha256sum || echo "no-canonical")
+  if [[ "$before_digest" != "$after_digest" ]]; then
+    echo "--- canonical layer digest changed on no-resync Phase 2 (before=$before_digest after=$after_digest) ---" >&2
+    local sf
+    for sf in tests/canonical/*; do
+      [[ -f "$sf" ]] || continue
+      diff -u "$snap_canon/$(basename "$sf")" "$sf" >&2 2>/dev/null || true
+    done
+    rm -rf "$snapshot_dir"
+    log_fail "Phase 2 changed the canonical layer despite drift (see per-file diff above)"
+  fi
+  log_pass "Whole canonical layer digest unchanged on no-resync Phase 2 (completeness)"
+
+  # (4) NOT WEAKENED / DISCRIMINATING (Spec-AC-04): prove the isolation check above
+  # is sensitive, not vacuous. Running --resync on the SAME drifted domain MUST
+  # (a) change the drifted domain's canonical bytes vs the pre-drift snapshot and
+  # (b) reclassify the domain into Phase 2's "Re-synced (drift resolved)" report —
+  # i.e. a genuine drifted-domain overwrite IS caught by the same byte-identical
+  # assertion that just passed on the drift-skip path.
+  local resync_out
+  resync_out=$(run_script --phase2 --resync 2>&1) || true
+  if ! echo "$resync_out" | grep -Eq "Re-synced \(drift resolved\): [1-9][0-9]* \(.*${domain}.*\)"; then
+    echo "$resync_out" >&2
+    rm -rf "$snapshot_dir"
+    log_fail "--resync did not reclassify domain '${domain}' as Re-synced (drift resolved)"
+  fi
+  if cmp -s "$drifted_canon" "$snap_canon/${domain}.sh"; then
+    rm -rf "$snapshot_dir"
+    log_fail "--resync left the drifted domain's canonical file byte-identical — isolation check would be vacuous"
+  fi
+  log_pass "--resync changed the drifted canonical file and reported Re-synced (discriminating)"
+
+  rm -rf "$snapshot_dir"
   log_pass "TEST-006 passed"
 }
 

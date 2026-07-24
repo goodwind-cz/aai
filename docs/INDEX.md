@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-24T15:13:10.293Z
+Generated: 2026-07-24T16:11:20.113Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (165)
+## Done (167)
 
 | ID | Type | Path |
 |---|---|---|
@@ -95,6 +95,7 @@ _None._
 | ISSUE-0028 | issues | docs/issues/ISSUE-0028-branch-guard-no-work-item.md |
 | ISSUE-0029 | issues | docs/issues/ISSUE-0029-retire-stranded-nonworkitem-metric.md |
 | ISSUE-0030 | issues | docs/issues/ISSUE-0030-test-018-legacy-spare-attribution.md |
+| ISSUE-0031 | issues | docs/issues/ISSUE-0031-test-canon-drift-detection.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -183,6 +184,7 @@ _None._
 | SPEC-0074 | specs | docs/specs/SPEC-0074-spec-branch-guard-no-work-item.md |
 | SPEC-0075 | specs | docs/specs/SPEC-0075-spec-retire-stranded-nonworkitem-metric.md |
 | SPEC-0076 | specs | docs/specs/SPEC-0076-spec-test-018-legacy-spare-attribution.md |
+| SPEC-0077 | specs | docs/specs/SPEC-0077-spec-test-canon-drift-detection.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
@@ -193,11 +195,12 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (2)
+## Deferred items (per-AC, across all specs) (3)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
 | SPEC-0076 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-Linux-only flake; local pass is not sufficient evidence (Honesty requirements section). Owned by Validation after push. |
+| SPEC-0077 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-only flake; local pass is not sufficient evidence (Honesty requirements). Owned by Validation after push. |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
