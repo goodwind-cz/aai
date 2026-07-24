@@ -54,7 +54,8 @@
 // --events <path> (SPEC-0054/CHANGE-0038: flush never EMITS close-lifecycle
 // events — close-work-item.mjs owns doc_lifecycle/work_item_closed — but
 // metrics-flush-strands-completed-refs/SPEC-DRAFT-spec-metrics-flush-sweep
-// READS this path under --sweep, never writes it), --ref <id> (restrict),
+// READS this path under --sweep, and --retire both READS and APPENDS to it),
+// --ref <id> (restrict),
 // --dry-run (print the full plan JSON, write nothing), --sweep (OPT-IN:
 // additionally flush every stranded metrics.work_items entry that carries
 // DURABLE completion provenance — a committed work_item_closed event for the
@@ -63,9 +64,29 @@
 // spec), --now <ISO> (test-only clock pin; env AAI_FLUSH_NOW equivalent).
 // AAI_FLUSH_INJECT_CRASH=after-ledger is a test-only fault hook.
 //
-// Exit codes: 0 flushed (or nothing to flush — the report says which),
-// 1 integrity refusal / post-commit check failure (original preserved or the
-// recovery file named), 2 usage.
+// --retire <ref> [--reason "<text>"] (SPEC-DRAFT-spec-retire-stranded-
+// nonworkitem-metric): the sanctioned exit for a metrics.work_items entry that
+// is legitimately NOT a work item and would otherwise SKIP forever (satisfies
+// neither flushability predicate). Structurally DISJOINT from the flush loop —
+// when set, main() branches to handleRetire() and never touches the default
+// path, so the no---retire behavior is byte-unchanged by construction. It is
+// FAIL-CLOSED: it REFUSES (exit 1, nothing written) any ref that WOULD flush by
+// EITHER existing predicate — the default (last_validation.status===pass naming
+// the ref) OR the sweep (a committed work_item_closed event for the ref in
+// EVENTS.jsonl, checked UNCONDITIONALLY), and any ref absent from
+// metrics.work_items. On a genuinely-stranded ref it appends ONE durable
+// metric_retired event (v/ts/actor/event/ref/payload{reason, discarded_runs:
+// compact {role, model_id, duration_seconds} per run — telemetry preserved,
+// not silently deleted}) to EVENTS.jsonl via a direct fs.appendFileSync
+// (mirroring this script's own ledger-append idiom; NOT append-event.mjs),
+// THEN removes the entry from STATE (ledger-before-STATE ordering). --dry-run
+// --retire prints the plan and writes nothing, but STILL refuses a flushable
+// ref (never a truth-gate bypass). --reason defaults to null when omitted.
+//
+// Exit codes: 0 flushed / nothing to flush / retired (or dry-run plan printed),
+// 1 integrity refusal / post-commit check failure / retire refused (would
+// flush, or ref absent) — original preserved or the recovery file named,
+// 2 usage.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -95,6 +116,19 @@ function fail(msg, code = 2) {
   process.exit(code);
 }
 
+// git user.email -> a sanitized actor slug, mirroring append-event.mjs's own
+// actorSlug() fallback semantics ("unknown" on any failure). Used only by the
+// --retire audit event; spawnSync is already imported (no new dependency).
+function actorSlug() {
+  try {
+    const r = spawnSync('git', ['config', 'user.email'], { encoding: 'utf8' });
+    if (r.status !== 0 || typeof r.stdout !== 'string') return 'unknown';
+    return r.stdout.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '_') || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 // --- argv -----------------------------------------------------------------------
 
 function parseArgs(argv) {
@@ -107,9 +141,11 @@ function parseArgs(argv) {
     ref: null,
     dryRun: false,
     sweep: false,
+    retire: null,
+    reason: null,
     now: process.env.AAI_FLUSH_NOW ?? null,
   };
-  const valueFlags = { '--state': 'state', '--metrics': 'metrics', '--ticks': 'ticks', '--pricing': 'pricing', '--events': 'events', '--ref': 'ref', '--now': 'now' };
+  const valueFlags = { '--state': 'state', '--metrics': 'metrics', '--ticks': 'ticks', '--pricing': 'pricing', '--events': 'events', '--ref': 'ref', '--retire': 'retire', '--reason': 'reason', '--now': 'now' };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--dry-run') { opts.dryRun = true; continue; }
@@ -121,7 +157,7 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
-    fail(`unknown flag "${tok}" (valid: --state --metrics --ticks --pricing --events --ref --dry-run --sweep --now)`);
+    fail(`unknown flag "${tok}" (valid: --state --metrics --ticks --pricing --events --ref --dry-run --sweep --retire --reason --now)`);
   }
   if (opts.now !== null && (!ISO_RE.test(opts.now) || Number.isNaN(Date.parse(opts.now)))) {
     fail(`--now "${opts.now}" is not an ISO-8601 UTC timestamp`);
@@ -571,6 +607,109 @@ function cleanupEphemeral(stateDir, ticksPath, nowMs, report) {
   }
 }
 
+// --- retire (SPEC-DRAFT-spec-retire-stranded-nonworkitem-metric) --------------------------
+// The sanctioned exit for a stranded, legitimately-not-a-work-item entry. A
+// FAIL-CLOSED branch reached ONLY when opts.retire is set (structurally
+// disjoint from the flush loop). It REUSES the two existing flushability
+// predicates verbatim — never a new/looser check — so it can never be a
+// truth-gate bypass. Ledger(EVENTS)-before-STATE ordering mirrors the default
+// flush's D-invariant.
+function handleRetire(ctx) {
+  const {
+    ref, reason, entries, vStatus, vRef, eventsPath, statePath,
+    origLines, trailingNewline, raw, nowIsoStr, opts,
+  } = ctx;
+
+  // 1) Existence guard — exact match (metrics.work_items keys are literal).
+  const entry = entries.find(e => e.ref === ref);
+  if (!entry) {
+    fail(`retire refused: "${ref}" is not present in metrics.work_items — nothing to retire`, 1);
+  }
+
+  // 2) FAIL-CLOSED flushability guards (BOTH before the --dry-run branch, so a
+  // dry-run on a flushable ref is STILL refused — never a preview of a bypass).
+  //   (a) the DEFAULT predicate, verbatim from the flush loop.
+  if (vStatus === 'pass' && refMatches(vRef, ref)) {
+    fail(`retire refused: "${ref}" would flush (last_validation.status is pass and names ${ref}) `
+      + '— flush it, do not retire (fail-closed truth-gate)', 1);
+  }
+  //   (b) the SWEEP predicate — closedRefs() called UNCONDITIONALLY for retire
+  //   (regardless of whether --sweep was also passed).
+  if (closedRefs(eventsPath).has(ref)) {
+    fail(`retire refused: "${ref}" would flush (a committed work_item_closed event exists for ${ref} in EVENTS.jsonl) `
+      + '— flush it, do not retire (fail-closed truth-gate)', 1);
+  }
+
+  // 3) Build the audit record — compact discarded_runs read VERBATIM off the
+  // entry's own parsed runs (no re-derivation, no re-scoring).
+  const discardedRuns = entry.runs.map(r => ({
+    role: r.role ?? null,
+    model_id: r.model_id ?? null,
+    duration_seconds: typeof r.duration_seconds === 'number' ? r.duration_seconds : (r.duration_seconds ?? null),
+  }));
+  const event = {
+    v: 1,
+    ts: nowIsoStr,
+    actor: actorSlug(),
+    event: 'metric_retired',
+    ref,
+    payload: { reason: reason ?? null, discarded_runs: discardedRuns },
+  };
+  // Same JSON-round-trip safety guard buildEntry applies to ledger entries.
+  const roundTrip = JSON.parse(JSON.stringify(event));
+  if (JSON.stringify(roundTrip) !== JSON.stringify(event)) {
+    fail(`internal guard: metric_retired event for ${ref} is not JSON-round-trip stable — refusing to append`, 1);
+  }
+
+  // 4) --dry-run: report the plan, write nothing (guards already passed above).
+  if (opts.dryRun) {
+    console.log(JSON.stringify({
+      dry_run: true,
+      retire: ref,
+      reason: reason ?? null,
+      would_remove_from_state: true,
+      event,
+    }, null, 2));
+    process.exit(0);
+  }
+
+  // 5) Mutate a COPY of origLines via the EXISTING surgical helper (drops the
+  // whole metrics: block when it empties). Retire never touches the verdict
+  // blocks — a stranded non-work-item was never wired into them.
+  const lines = [...origLines];
+  removeMetricsEntries(lines, [ref]);
+  bumpUpdatedAt(lines, nowIsoStr);
+
+  // 6) In-memory pre-validation (same structural invariants as the flush path).
+  const mDups = duplicateKeys(lines);
+  const mConf = inlineChildConflicts(lines);
+  if (mDups.length > 0 || mConf.length > 0) {
+    fail('integrity refusal: the planned STATE cleanup would violate structural invariants '
+      + `(duplicates: [${mDups.map(d => d.key).join(', ')}], inline conflicts: [${mConf.map(c => c.key).join(', ')}]) `
+      + '— nothing written, original preserved', 1);
+  }
+
+  // 7) LEDGER(EVENTS)-BEFORE-STATE: the audit record is durable before STATE
+  // changes at all. Direct append-only fs.appendFileSync (never a rewrite).
+  fs.mkdirSync(path.dirname(eventsPath), { recursive: true });
+  fs.appendFileSync(eventsPath, `${JSON.stringify(event)}\n`);
+
+  // 8) STATE commit via the engine's atomic tmp + concurrency recheck + rename.
+  writeState(statePath, lines, trailingNewline, raw);
+
+  // 9) Post-commit check-state; red => exit 1 with a recovery file.
+  const check = spawnSync(process.execPath, [path.join(SCRIPT_DIR, 'check-state.mjs'), statePath], { encoding: 'utf8' });
+  if (check.status !== 0) {
+    const recovery = `${statePath}.pre-flush-${nowIsoStr.replace(/[-:]/g, '')}`;
+    fs.writeFileSync(recovery, raw);
+    fail(`post-commit check-state FAILED — pre-flush STATE saved to ${recovery} for recovery:\n${check.stdout}${check.stderr}`, 1);
+  }
+
+  console.log(`Retired: ${ref} -> ${path.relative(process.cwd(), eventsPath)} (metric_retired)`);
+  console.log(`check-state: OK (${path.relative(process.cwd(), statePath)})`);
+  process.exit(0);
+}
+
 // --- main -----------------------------------------------------------------------------------
 
 function main() {
@@ -622,6 +761,17 @@ function main() {
   // absent block records null, never a guess.
   const stratSel = scalarOrNull(readScalar(origLines, 'implementation_strategy', 'selected'));
   const strategy = stratSel !== null && stratSel !== 'undecided' ? stratSel : null;
+
+  // --retire (SPEC-DRAFT-spec-retire-stranded-nonworkitem-metric): a
+  // structurally-disjoint branch that NEVER reaches the default flush loop —
+  // this is what keeps the no---retire behavior byte-unchanged by construction.
+  if (opts.retire !== null) {
+    handleRetire({
+      ref: opts.retire, reason: opts.reason, entries, vStatus, vRef,
+      eventsPath, statePath, origLines, trailingNewline, raw, nowIsoStr, opts,
+    });
+    return; // unreached — handleRetire always process.exit()s.
+  }
 
   const skipped = {};
   const toFlush = [];

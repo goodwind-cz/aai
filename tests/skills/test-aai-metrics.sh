@@ -376,6 +376,93 @@ write_closed_event() {  # $1 file $2 ref $3 ts — append one work_item_closed l
   printf '{"v":1,"ts":"%s","actor":"test","event":"work_item_closed","ref":"%s","payload":{}}\n' "$3" "$2" >> "$1"
 }
 
+# --- retire-stranded-nonworkitem-metric (--retire) fixtures -------------------
+# write_retire_state <file> <ref> [vstatus=not_run] [vref=null] — a minimal
+# STATE with EXACTLY one metrics.work_items entry <ref> carrying two agent_runs
+# (Planning 120s, Implementation 600s) and NO active_work_items entry for it
+# (the stranded, never-a-work-item shape the retire mode targets). Defaults:
+# last_validation not_run / ref_id null and code_review not_run/false, so the
+# DEFAULT flush gate never names <ref> — this isolates the retire guards. Pass
+# vstatus=pass vref=<ref> to make <ref> flushable-by-the-default-predicate
+# (the fail-closed guard must then REFUSE the retire).
+write_retire_state() {
+  local f="$1" ref="$2" vstatus="${3:-not_run}" vref="${4:-null}"
+  cat > "$f" <<YAML
+project_status: active
+current_focus:
+  type: none
+  ref_id: null
+  primary_path: null
+active_work_items: []
+implementation_strategy:
+  selected: tdd
+  source: null
+  rationale: null
+worktree:
+  recommendation: not_needed
+  user_decision: undecided
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: false
+  status: not_run
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+last_validation:
+  status: $vstatus
+  run_at_utc: null
+  ref_id: $vref
+  evidence_paths: []
+  notes: null
+human_input:
+  required: false
+  question: null
+locks:
+  implementation: true
+tdd_cycle:
+  status: IDLE
+  test_id: null
+  spec_path: null
+  test_path: null
+  evidence:
+    red: null
+    green: null
+    refactor: null
+metrics:
+  work_items:
+    $ref:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Planning
+          model_id: claude-sonnet-5
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:02:00Z
+          duration_seconds: 120
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+        - role: Implementation
+          model_id: claude-opus-4-8
+          started_utc: 2026-07-15T10:02:00Z
+          ended_utc: 2026-07-15T10:12:00Z
+          duration_seconds: 600
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+
+updated_at_utc: 2026-07-15T11:30:00Z
+YAML
+}
+
 # --- SPEC-0054 seam fixtures (flush no longer emits close events; real audit +
 # close-work-item.mjs cross-tool seam) -------------------------------------------
 
@@ -1458,8 +1545,175 @@ test_109_sweep_seam_close_then_sweep() {
   log_pass "SEAM-1: real close-work-item.mjs -> sweep flushes it; absent EVENTS fail-closes and creates none (TEST-109)"
 }
 
+# --- retire-stranded-nonworkitem-metric: --retire (TEST-001..008) -------------
+# SPEC-DRAFT-spec-retire-stranded-nonworkitem-metric. Every fixture is a
+# scratch temp-dir repo; the real docs/ai/{STATE.yaml,EVENTS.jsonl} are NEVER
+# touched. None of these depend on the real pr-67-post-merge-review entry.
+
+test_110_retire_stranded_ref() {  # TEST-001 (Spec-AC-04) + TEST-002 (Spec-AC-05)
+  log_info "Test: --retire on a genuinely stranded ref removes it from STATE + appends one metric_retired event; payload carries reason + discarded_runs (TEST-001/TEST-002)..."
+  local d
+  d="$(mk_repo t110)"
+  write_retire_state "$d/docs/ai/STATE.yaml" STRAY-0001
+  # A stranded ref was never closed — EVENTS.jsonl absent before the retire.
+  rm -f "$d/docs/ai/EVENTS.jsonl"
+  run_flush "$d" --retire STRAY-0001 --reason "mis-recorded, not a work item"
+  [[ "$EC" == 0 ]] || log_fail "retire of a stranded ref must exit 0 (got $EC): $(cat "$OUT")"
+  # STATE: the entry and the now-empty metrics block are gone (surgical removal).
+  grep -qE '^ {4}STRAY-0001:' "$d/docs/ai/STATE.yaml" && log_fail "retired metrics entry must be removed from STATE"
+  grep -qE '^metrics:' "$d/docs/ai/STATE.yaml" && log_fail "emptied metrics block must be removed entirely"
+  # EVENTS: exactly one metric_retired line appended for the ref.
+  [[ -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "retire must append the metric_retired event to EVENTS.jsonl"
+  local n
+  n="$(grep -cF '"event":"metric_retired","ref":"STRAY-0001"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 1 ]] || log_fail "exactly one metric_retired event expected (got $n): $(cat "$d/docs/ai/EVENTS.jsonl")"
+  # TEST-002: payload.reason + payload.discarded_runs field-exact.
+  node -e '
+    const fs = require("fs");
+    const lines = fs.readFileSync(process.argv[1], "utf8").split("\n").filter(l => l.trim());
+    const ev = lines.map(l => JSON.parse(l)).find(o => o.event === "metric_retired" && o.ref === "STRAY-0001");
+    if (!ev) { console.error("no metric_retired event"); process.exit(1); }
+    for (const k of ["v","ts","actor","event","ref","payload"]) if (!(k in ev)) { console.error("event missing key " + k); process.exit(1); }
+    if (ev.payload.reason !== "mis-recorded, not a work item") { console.error("reason wrong: " + JSON.stringify(ev.payload.reason)); process.exit(1); }
+    const dr = ev.payload.discarded_runs;
+    const want = [
+      {role:"Planning",model_id:"claude-sonnet-5",duration_seconds:120},
+      {role:"Implementation",model_id:"claude-opus-4-8",duration_seconds:600},
+    ];
+    if (JSON.stringify(dr) !== JSON.stringify(want)) { console.error("discarded_runs mismatch: got " + JSON.stringify(dr)); process.exit(1); }
+  ' "$d/docs/ai/EVENTS.jsonl" || log_fail "metric_retired payload wrong (reason + 2 compact discarded_runs)"
+  # The mutated STATE is structurally valid.
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$d/docs/ai/STATE.yaml" > "$d/ck.log" 2>&1) \
+    || log_fail "check-state must pass after retire: $(cat "$d/ck.log")"
+  grep -qF "Retired: STRAY-0001" "$OUT" || log_fail "report must name the retired ref: $(cat "$OUT")"
+  log_pass "Stranded ref retired: STATE entry removed, one metric_retired event with reason + 2 discarded_runs (TEST-001/TEST-002)"
+}
+
+test_111_retire_refused_default_flushable() {  # TEST-003 (Spec-AC-01)
+  log_info "Test: --retire REFUSES a ref last_validation names with PASS; STATE + EVENTS byte-unchanged (TEST-003)..."
+  local d
+  d="$(mk_repo t111)"
+  write_retire_state "$d/docs/ai/STATE.yaml" FLUSHABLE-0001 pass FLUSHABLE-0001
+  : > "$d/docs/ai/EVENTS.jsonl"
+  cp "$d/docs/ai/STATE.yaml" "$d/state.before"
+  cp "$d/docs/ai/EVENTS.jsonl" "$d/events.before"
+  run_flush "$d" --retire FLUSHABLE-0001
+  [[ "$EC" == 1 ]] || log_fail "retire of a flushable ref must exit 1 (got $EC): $(cat "$OUT")"
+  grep -qiF "would flush" "$OUT" || log_fail "refusal must say the ref would flush: $(cat "$OUT")"
+  grep -qiF "last_validation" "$OUT" || log_fail "refusal must name last_validation as the reason: $(cat "$OUT")"
+  cmp -s "$d/docs/ai/STATE.yaml" "$d/state.before" || log_fail "STATE must stay byte-identical on refusal"
+  cmp -s "$d/docs/ai/EVENTS.jsonl" "$d/events.before" || log_fail "EVENTS must stay byte-identical on refusal"
+  log_pass "Retire refuses a last_validation-PASS-named ref (fail-closed truth-gate), nothing written (TEST-003)"
+}
+
+test_112_retire_refused_sweep_flushable() {  # TEST-004 (Spec-AC-02)
+  log_info "Test: --retire REFUSES a ref with a committed work_item_closed event (regardless of --sweep); no mutation (TEST-004)..."
+  local d
+  d="$(mk_repo t112)"
+  write_retire_state "$d/docs/ai/STATE.yaml" CLOSED-0001
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" CLOSED-0001 "2026-07-15T10:30:00Z"
+  cp "$d/docs/ai/STATE.yaml" "$d/state.before"
+  cp "$d/docs/ai/EVENTS.jsonl" "$d/events.before"
+  run_flush "$d" --retire CLOSED-0001
+  [[ "$EC" == 1 ]] || log_fail "retire of a durably-closed ref must exit 1 (got $EC): $(cat "$OUT")"
+  grep -qiF "would flush" "$OUT" || log_fail "refusal must say the ref would flush: $(cat "$OUT")"
+  grep -qiF "work_item_closed" "$OUT" || log_fail "refusal must name the committed work_item_closed event: $(cat "$OUT")"
+  cmp -s "$d/docs/ai/STATE.yaml" "$d/state.before" || log_fail "STATE must stay byte-identical on refusal"
+  cmp -s "$d/docs/ai/EVENTS.jsonl" "$d/events.before" || log_fail "EVENTS must stay byte-identical on refusal (append-only, never rewritten)"
+  log_pass "Retire refuses a ref with a committed work_item_closed event (sweep predicate, unconditional), nothing written (TEST-004)"
+}
+
+test_113_retire_refused_not_in_state() {  # TEST-005 (Spec-AC-03)
+  log_info "Test: --retire REFUSES a ref absent from metrics.work_items; no mutation (TEST-005)..."
+  local d
+  d="$(mk_repo t113)"
+  write_retire_state "$d/docs/ai/STATE.yaml" PRESENT-0001
+  : > "$d/docs/ai/EVENTS.jsonl"
+  cp "$d/docs/ai/STATE.yaml" "$d/state.before"
+  cp "$d/docs/ai/EVENTS.jsonl" "$d/events.before"
+  run_flush "$d" --retire NOT-A-REF
+  [[ "$EC" == 1 ]] || log_fail "retire of an absent ref must exit 1 (got $EC): $(cat "$OUT")"
+  grep -qiF "not present in metrics.work_items" "$OUT" || log_fail "refusal must say the ref is not present: $(cat "$OUT")"
+  cmp -s "$d/docs/ai/STATE.yaml" "$d/state.before" || log_fail "STATE must stay byte-identical on refusal"
+  cmp -s "$d/docs/ai/EVENTS.jsonl" "$d/events.before" || log_fail "EVENTS must stay byte-identical on refusal"
+  log_pass "Retire refuses an absent ref with a clear message, nothing written (TEST-005)"
+}
+
+test_114_retire_dry_run() {  # TEST-006 (Spec-AC-06)
+  log_info "Test: --dry-run --retire prints a plan for a retirable ref (writes nothing) and STILL refuses a flushable ref (no bypass) (TEST-006)..."
+  local d
+  # (a) retirable ref: plan printed, exit 0, nothing written.
+  d="$(mk_repo t114a)"
+  write_retire_state "$d/docs/ai/STATE.yaml" STRAY-0001
+  rm -f "$d/docs/ai/EVENTS.jsonl"
+  cp "$d/docs/ai/STATE.yaml" "$d/state.before"
+  run_flush "$d" --dry-run --retire STRAY-0001 --reason "not a work item"
+  [[ "$EC" == 0 ]] || log_fail "(a) dry-run retire of a retirable ref must exit 0 (got $EC): $(cat "$OUT")"
+  node -e '
+    const fs = require("fs");
+    const raw = fs.readFileSync(process.argv[1], "utf8");
+    const o = JSON.parse(raw.slice(raw.indexOf("{")));
+    if (!o.dry_run) { console.error("plan must carry dry_run: true"); process.exit(1); }
+    if (o.retire !== "STRAY-0001") { console.error("plan must name the ref"); process.exit(1); }
+    if (!o.event || o.event.event !== "metric_retired" || o.event.ref !== "STRAY-0001") { console.error("plan must carry the would-be metric_retired event"); process.exit(1); }
+  ' "$OUT" || log_fail "(a) dry-run must print the retire plan JSON: $(cat "$OUT")"
+  cmp -s "$d/docs/ai/STATE.yaml" "$d/state.before" || log_fail "(a) dry-run must not touch STATE"
+  [[ ! -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "(a) dry-run must not create/append EVENTS.jsonl: $(cat "$d/docs/ai/EVENTS.jsonl" 2>/dev/null)"
+
+  # (b) flushable ref: STILL refused, same exit/reason as the non-dry-run case,
+  # no plan printed, nothing written.
+  d="$(mk_repo t114b)"
+  write_retire_state "$d/docs/ai/STATE.yaml" FLUSHABLE-0001 pass FLUSHABLE-0001
+  : > "$d/docs/ai/EVENTS.jsonl"
+  cp "$d/docs/ai/STATE.yaml" "$d/state.before"
+  cp "$d/docs/ai/EVENTS.jsonl" "$d/events.before"
+  run_flush "$d" --dry-run --retire FLUSHABLE-0001
+  [[ "$EC" == 1 ]] || log_fail "(b) dry-run must NOT bypass the guard — a flushable ref must still exit 1 (got $EC): $(cat "$OUT")"
+  grep -qiF "would flush" "$OUT" || log_fail "(b) dry-run refusal must name the would-flush reason: $(cat "$OUT")"
+  grep -qiF "dry_run" "$OUT" && log_fail "(b) a refused dry-run must NOT print a plan: $(cat "$OUT")"
+  cmp -s "$d/docs/ai/STATE.yaml" "$d/state.before" || log_fail "(b) refused dry-run must not touch STATE"
+  cmp -s "$d/docs/ai/EVENTS.jsonl" "$d/events.before" || log_fail "(b) refused dry-run must not touch EVENTS"
+
+  # (c) SWEEP-flushable ref (committed work_item_closed, NO last_validation PASS)
+  # under --dry-run: the sweep predicate must still refuse — dry-run must not
+  # bypass EITHER flushability predicate (code-review coverage-gap closure).
+  d="$(mk_repo t114c)"
+  write_retire_state "$d/docs/ai/STATE.yaml" CLOSED-0002
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" CLOSED-0002 "2026-07-15T10:30:00Z"
+  cp "$d/docs/ai/STATE.yaml" "$d/state.before"
+  cp "$d/docs/ai/EVENTS.jsonl" "$d/events.before"
+  run_flush "$d" --dry-run --retire CLOSED-0002
+  [[ "$EC" == 1 ]] || log_fail "(c) dry-run must NOT bypass the sweep predicate — a work_item_closed ref must still exit 1 (got $EC): $(cat "$OUT")"
+  grep -qiF "work_item_closed" "$OUT" || log_fail "(c) dry-run sweep refusal must name the committed work_item_closed event: $(cat "$OUT")"
+  grep -qiF "dry_run" "$OUT" && log_fail "(c) a refused dry-run must NOT print a plan: $(cat "$OUT")"
+  cmp -s "$d/docs/ai/STATE.yaml" "$d/state.before" || log_fail "(c) refused dry-run must not touch STATE"
+  cmp -s "$d/docs/ai/EVENTS.jsonl" "$d/events.before" || log_fail "(c) refused dry-run must not touch EVENTS"
+  log_pass "Dry-run retire reports a retirable ref without writing, and still refuses a flushable ref via BOTH predicates (no bypass) (TEST-006)"
+}
+
+test_116_retire_documented_not_in_prompt() {  # TEST-008 (Spec-AC-08)
+  log_info "Test: --retire/--reason documented in metrics-flush.mjs header + usage; METRICS_FLUSH.prompt.md still lacks the literal work_item_closed (TEST-008)..."
+  # (a) top-of-file comment block (before the first import) documents both flags.
+  local header
+  header="$(sed -n '1,/^import /p' "$FLUSH")"
+  echo "$header" | grep -qF -- '--retire' || log_fail "top-of-file comment must document --retire"
+  echo "$header" | grep -qF -- '--reason' || log_fail "top-of-file comment must document --reason"
+  # (b) unknown-flag usage string lists --retire (grep the parseArgs fail text).
+  local usage_out usage_ec=0
+  usage_out="$( (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-flush.mjs --bogus-flag 2>&1) )" || usage_ec=$?
+  [[ "$usage_ec" == 2 ]] || log_fail "unknown flag must exit 2 (got $usage_ec): $usage_out"
+  echo "$usage_out" | grep -qF -- '--retire' || log_fail "unknown-flag usage string must list --retire: $usage_out"
+  # (c) SPEC-0054 negative invariant re-verified locally: the prompt file must
+  # NOT carry the literal work_item_closed (documenting retire's guard there
+  # would risk reintroducing it — retire is documented in the script only).
+  local prompt="$PROJECT_ROOT/.aai/METRICS_FLUSH.prompt.md"
+  [[ -f "$prompt" ]] || log_fail "missing $prompt"
+  grep -qF "work_item_closed" "$prompt" && log_fail "METRICS_FLUSH.prompt.md must NOT contain the literal work_item_closed (SPEC-0054)"
+  log_pass "--retire/--reason documented in the script only; prompt file free of work_item_closed (TEST-008)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109)"
+  echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008)"
   check_deps
   setup_fixture
   test_006_flush_golden
@@ -1489,6 +1743,12 @@ main() {
   test_107_sweep_idempotent
   test_108_sweep_targeted_ref
   test_109_sweep_seam_close_then_sweep
+  test_110_retire_stranded_ref
+  test_111_retire_refused_default_flushable
+  test_112_retire_refused_sweep_flushable
+  test_113_retire_refused_not_in_state
+  test_114_retire_dry_run
+  test_116_retire_documented_not_in_prompt
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
