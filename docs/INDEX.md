@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-23T20:15:15.334Z
+Generated: 2026-07-24T08:12:10.004Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -179,9 +179,12 @@ _None._
 | SPEC-0073 | specs | docs/specs/SPEC-0073-spec-false-open-metrics-and-supersession.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0028 | issues | docs/issues/ISSUE-0028-branch-guard-no-work-item.md |
+| SPEC-0074 | specs | docs/specs/SPEC-0074-spec-branch-guard-no-work-item.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -210,4 +213,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-23 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-24 — counts above use this date for overdue checks.
