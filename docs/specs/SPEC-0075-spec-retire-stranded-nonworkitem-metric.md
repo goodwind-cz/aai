@@ -2,13 +2,15 @@
 id: spec-retire-stranded-nonworkitem-metric
 type: spec
 number: 75
-status: draft
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/ISSUE-0029-retire-stranded-nonworkitem-metric.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 138
+  commits:
+    - 417adfe682b3d9e17e8237998c01c55bc87d0d85
 ---
 
 # Implementation Spec — retire-stranded-nonworkitem-metric

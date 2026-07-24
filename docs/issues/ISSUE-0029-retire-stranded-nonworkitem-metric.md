@@ -2,10 +2,12 @@
 id: retire-stranded-nonworkitem-metric
 number: 29
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 138
+  commits:
+    - 417adfe682b3d9e17e8237998c01c55bc87d0d85
 ---
 
 # metrics-flush has no way to retire a stranded NON-work-item entry, so `pr-67-post-merge-review` prints SKIP forever
