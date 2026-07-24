@@ -4542,6 +4542,296 @@ test_change0028_userguide_mentions_work_item_closed() {  # TEST-011 / Spec-AC-10
   log_pass "USER_GUIDE.md probable-false-open bullet names the work_item_closed event (TEST-011)"
 }
 
+# --- false-open-metrics-and-supersession (#133 METRICS arm + #134 supersession) ---
+#
+# Both stanzas reuse setup_fo_repo's positive control (CHANGE-9001, flagged via
+# a real delivery commit) as the RED-proof anchor, so the negative guardrail
+# assertions can never pass vacuously against the UNMODIFIED engine — the same
+# idiom the SPEC-0039 stanzas above use. Every fixture is synthetic (a throwaway
+# doc plus a synthetic METRICS.jsonl line and/or a synthetic doc_lifecycle
+# event): the real upstream corpus has zero open docs and proves nothing here.
+
+test_fometrics_flush_arm() {  # TEST-001 / Spec-AC-01 (+ Spec-AC-03 garble sub-case)
+  log_info "Test: METRICS.jsonl flush record flags an open intake by slug id (a); fileId-only (c) + no-match (b) + garbled lines (d) do NOT flag (TEST-001)..."
+  local d; d="$(setup_fo_repo fo-metrics-arm)"
+  # (a) flushed intake, frontmatter id == fileId, ONLY proof is the METRICS line
+  cat > "$d/docs/issues/CHANGE-5830-flush-a.md" <<'MD'
+---
+id: CHANGE-5830
+type: change
+status: draft
+links:
+  pr: []
+---
+# Flushed intake whose only delivery proof is the METRICS ledger
+MD
+  # (b) same shape, NO matching flush line -> must stay unflagged (guardrail)
+  cat > "$d/docs/issues/CHANGE-5831-noflush.md" <<'MD'
+---
+id: CHANGE-5831
+type: change
+status: draft
+links:
+  pr: []
+---
+# Intake with no ledger flush record
+MD
+  # (c) numbered file whose frontmatter slug id (flush-fileid-slug) DIFFERS from
+  # its numbered fileId (CHANGE-5832); the METRICS record is keyed by the
+  # numbered fileId. The arm must key on the slug id ONLY, so this must NOT flag
+  # (SPEC-0054 "Problem #2" — a numbered STATE ref coinciding with a doc's
+  # filename must not falsely flag it; asserted independently by metrics TEST-020).
+  cat > "$d/docs/issues/CHANGE-5832-flush-fileid.md" <<'MD'
+---
+id: flush-fileid-slug
+type: change
+status: draft
+links:
+  pr: []
+---
+# Numbered filename whose slug id differs from the METRICS ref_id (fileId)
+MD
+  (cd "$d" && git add docs/issues \
+    && git commit -qm "docs: intake CHANGE-5830 CHANGE-5831 CHANGE-5832")
+  # (d) METRICS.jsonl carries a `#`-comment preamble AND one unparseable line
+  mkdir -p "$d/docs/ai"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+# AAI Metrics Ledger — append-only, one JSON object per line (JSONL format)
+#
+{"date_utc":"2026-07-20","ref_id":"CHANGE-5830","title":"flushed a"}
+{ this line is deliberately not valid json and must be skipped, never thrown
+{"date_utc":"2026-07-20","ref_id":"CHANGE-5832","title":"flushed via fileId"}
+JSONL
+  local rc=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || rc=$?
+  # (d) fail-closed: a comment header + garbled line must NOT throw
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "TEST-001(d): docs-audit must complete without throwing on comment/garbled METRICS lines (rc=$rc): $(tail -5 "$d/audit.log")"
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  # (a) id match -> flagged, with a reason naming the flush/METRICS signal
+  grep -F "CHANGE-5830" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-001(a): CHANGE-5830 must be flagged via the METRICS flush record"
+  grep -F "CHANGE-5830" "$d/drift-sec.txt" | grep -qF "flush record" \
+    || log_fail "TEST-001(a): reasons must name the flush-record (METRICS) signal, distinct from the four existing reasons"
+  # (c) fileId-ONLY match (slug id differs) -> must NOT flag (key on slug id,
+  # never the numbered filename; SPEC-0054 Problem #2 / metrics TEST-020)
+  if grep -qF "flush-fileid-slug" "$d/drift-sec.txt"; then
+    log_fail "TEST-001(c): a METRICS ref_id matching only the numbered fileId (CHANGE-5832) must NOT flag the slug-id doc (SPEC-0054 Problem #2)"
+  fi
+  # (b) no flush line, and (d) garbled lines did not spuriously flag it
+  if grep -qF "CHANGE-5831" "$d/drift-sec.txt"; then
+    log_fail "TEST-001(b): a doc with no METRICS flush line must NOT be flagged by the METRICS arm"
+  fi
+  rm -rf "$d"
+  log_pass "METRICS flush arm flags by slug id (a); fileId-only (c), no-match (b) + garbled/comment lines (d) stay unflagged (TEST-001)"
+}
+
+test_fometrics_supersession() {  # TEST-002 / Spec-AC-02
+  log_info "Test: newer doc_lifecycle reopen supersedes delivery evidence (e); older reopen (f) + no reopen (g) still flag (TEST-002)..."
+  local d; d="$(setup_fo_repo fo-supersession)"
+  # (e) delivered via work_item_closed, THEN reopened (reopen ts > close ts)
+  cat > "$d/docs/specs/SPEC-5840-reopened-newer.md" <<'MD'
+---
+id: SPEC-5840
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Delivered, then legitimately reopened with a NEWER lifecycle event
+MD
+  # (f) reopened BEFORE the delivery evidence (reopen ts < close ts) -> still flags
+  cat > "$d/docs/specs/SPEC-5841-reopened-older.md" <<'MD'
+---
+id: SPEC-5841
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# A reopen that predates the delivery evidence must NOT suppress
+MD
+  # (g) delivered, left open, NO doc_lifecycle event at all -> still flags
+  cat > "$d/docs/specs/SPEC-5842-no-reopen.md" <<'MD'
+---
+id: SPEC-5842
+type: spec
+status: accepted
+links:
+  pr: []
+---
+# Delivered but left open with no reopen event (genuine false-open)
+MD
+  # (h) METRICS-ONLY delivery + a reopen OLDER than the flush -> STILL flags.
+  # The flush record's date_utc must be able to timestamp the delivery; a doc
+  # whose only evidence is a flush that POSTDATES the reopen must not be
+  # superseded (#133 x #134 interaction).
+  cat > "$d/docs/issues/CHANGE-5850-metrics-older-reopen.md" <<'MD'
+---
+id: CHANGE-5850
+type: change
+status: draft
+links:
+  pr: []
+---
+# Flush-only delivery whose flush postdates a stale reopen
+MD
+  # (h-boundary) METRICS-only delivery + a SAME-DAY flush+reopen -> STILL flags.
+  # date_utc is day-granular while the reopen carries a full ISO ts; a same-day
+  # reopen must NOT be treated as strictly newer than the flush (conservative:
+  # only a strictly-later-day reopen supersedes a flush).
+  cat > "$d/docs/issues/CHANGE-5851-metrics-sameday.md" <<'MD'
+---
+id: CHANGE-5851
+type: change
+status: draft
+links:
+  pr: []
+---
+# Flush-only delivery reopened the same UTC day as the flush
+MD
+  (cd "$d" && git add docs/specs docs/issues \
+    && git commit -qm "docs: intake SPEC-5840 SPEC-5841 SPEC-5842 CHANGE-5850 CHANGE-5851")
+  # Synthetic flush ledger: CHANGE-5850's flush is 30 days in the FUTURE of the
+  # reopen (emitted below at real now); CHANGE-5851's flush is the reopen's own
+  # UTC day. Dates computed at run time so the fixture never expires.
+  local fo_today fo_future
+  fo_today="$(date -u +%Y-%m-%d)"
+  fo_future="$(node -e 'console.log(new Date(Date.now()+30*864e5).toISOString().slice(0,10))')"
+  mkdir -p "$d/docs/ai"
+  {
+    printf '# synthetic flush ledger for supersession boundary cases\n'
+    printf '{"date_utc":"%s","ref_id":"CHANGE-5850","title":"flush postdates the reopen"}\n' "$fo_future"
+    printf '{"date_utc":"%s","ref_id":"CHANGE-5851","title":"same-day flush and reopen"}\n' "$fo_today"
+  } > "$d/docs/ai/METRICS.jsonl"
+  # (e) close FIRST, then reopen -> latest doc_lifecycle is newer than the close
+  (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed \
+    --ref SPEC-5840 --validation pass --code-review pass > /dev/null)
+  sleep 1
+  (cd "$d" && node .aai/scripts/append-event.mjs --event doc_lifecycle \
+    --ref SPEC-5840 --from done --to implementing > /dev/null)
+  # (f) reopen FIRST, then close -> the reopen is OLDER than the delivery evidence
+  (cd "$d" && node .aai/scripts/append-event.mjs --event doc_lifecycle \
+    --ref SPEC-5841 --from done --to implementing > /dev/null)
+  sleep 1
+  (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed \
+    --ref SPEC-5841 --validation pass --code-review pass > /dev/null)
+  # (g) close only, no lifecycle event
+  (cd "$d" && node .aai/scripts/append-event.mjs --event work_item_closed \
+    --ref SPEC-5842 --validation pass --code-review pass > /dev/null)
+  # (h) + (h-boundary) reopens emitted at real now (older than the future flush,
+  # same day as the same-day flush) via the real writer
+  (cd "$d" && node .aai/scripts/append-event.mjs --event doc_lifecycle \
+    --ref CHANGE-5850 --from done --to implementing > /dev/null)
+  (cd "$d" && node .aai/scripts/append-event.mjs --event doc_lifecycle \
+    --ref CHANGE-5851 --from done --to implementing > /dev/null)
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  # (e) newer reopen supersedes the work_item_closed evidence -> NOT flagged
+  if grep -qF "SPEC-5840" "$d/drift-sec.txt"; then
+    log_fail "TEST-002(e): a NEWER doc_lifecycle reopen must supersede delivery evidence (SPEC-5840 must NOT be flagged)"
+  fi
+  # (f) reopen older than delivery evidence -> STILL flagged
+  grep -F "SPEC-5841" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-002(f): a reopen OLDER than the delivery evidence must NOT suppress (SPEC-5841 must STILL flag)"
+  # (g) no reopen event at all -> STILL flagged (supersession never blinds a genuine false-open)
+  grep -F "SPEC-5842" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-002(g): a delivered doc left open with NO reopen event must STILL flag (SPEC-5842)"
+  # (h) METRICS-only delivery + reopen OLDER than the flush -> STILL flagged
+  grep -F "CHANGE-5850" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-002(h): METRICS-only evidence with a reopen OLDER than the flush must STILL flag (CHANGE-5850)"
+  # (h-boundary) same-day flush + reopen -> STILL flagged (day-granular flush not beaten by a same-day ts)
+  grep -F "CHANGE-5851" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-002(h-boundary): a same-day flush+reopen must STILL flag (CHANGE-5851)"
+  rm -rf "$d"
+  log_pass "Newer reopen supersedes (e); older (f), no-reopen (g), METRICS-only older reopen (h) + same-day boundary still flag (TEST-002)"
+}
+
+test_fometrics_supersession_delivery_arms() {  # TEST-002 / Spec-AC-02 (i, j, k)
+  log_info "Test: supersession deliveryTs covers the commit + AC-table arms; fail-closed when un-timestampable (i, j, k)..."
+  local d; d="$(setup_fo_repo fo-superarms)"
+  mkdir -p "$d/docs/ai"
+  # (i) reopened THEN commit-delivered (commit NEWER than reopen) -> STILL flagged
+  cat > "$d/docs/specs/SPEC-5860-reopen-then-commit.md" <<'MD'
+---
+id: SPEC-5860
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Reopened, then delivered by a LATER commit (commit date > reopen ts)
+MD
+  # (j) commit-delivered THEN reopened (reopen strictly NEWER than commit) -> NOT flagged
+  cat > "$d/docs/specs/SPEC-5861-commit-then-reopen.md" <<'MD'
+---
+id: SPEC-5861
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Delivered, then legitimately reopened AFTER the commit (reopen ts > commit date)
+MD
+  # (k) AC-table-only evidence (D2c: terminal + evidenced, no event/commit/flush)
+  # + a reopen -> STILL flagged (delivery is genuinely un-timestampable)
+  cat > "$d/docs/specs/SPEC-5862-actable-only.md" <<'MD'
+---
+id: SPEC-5862
+type: spec
+status: accepted
+links:
+  pr: []
+---
+# Un-timestampable AC-table delivery evidence, reopened
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence                            | Review-By | Notes |
+|------------|-------------|--------|-------------------------------------|-----------|-------|
+| Spec-AC-01 | only        | done   | shipped in prod, see release notes  | —         | —     |
+MD
+  (cd "$d" && git add docs/specs \
+    && git commit -qm "docs: intake SPEC-5860 SPEC-5861 SPEC-5862")
+  # Delivery commits with EXPLICIT committer dates: %cI is second-granular, so
+  # a real-clock commit could tie the reopen ts within a second and flake.
+  # Fixed past dates keep (i)/(j) ordering deterministic and non-expiring.
+  echo s860 > "$d/D860.md"
+  (cd "$d" && git add D860.md \
+    && GIT_AUTHOR_DATE="2025-06-01T00:00:00Z" GIT_COMMITTER_DATE="2025-06-01T00:00:00Z" \
+       git commit -qm "feat: deliver SPEC-5860 to production")
+  echo s861 > "$d/D861.md"
+  (cd "$d" && git add D861.md \
+    && GIT_AUTHOR_DATE="2025-03-01T00:00:00Z" GIT_COMMITTER_DATE="2025-03-01T00:00:00Z" \
+       git commit -qm "feat: deliver SPEC-5861 to production")
+  # Hand-written doc_lifecycle reopens with controlled ts (synthetic ledger):
+  #   SPEC-5860 reopen 2025-03-01 < commit 2025-06-01  -> (i) still flags
+  #   SPEC-5861 reopen 2025-06-01 > commit 2025-03-01  -> (j) supersedes
+  #   SPEC-5862 reopen 2025-06-01, no dated delivery    -> (k) still flags
+  {
+    printf '{"v":1,"ts":"2025-03-01T00:00:00.000Z","actor":"test","event":"doc_lifecycle","ref":"SPEC-5860","payload":{"from":"done","to":"implementing"}}\n'
+    printf '{"v":1,"ts":"2025-06-01T00:00:00.000Z","actor":"test","event":"doc_lifecycle","ref":"SPEC-5861","payload":{"from":"done","to":"implementing"}}\n'
+    printf '{"v":1,"ts":"2025-06-01T00:00:00.000Z","actor":"test","event":"doc_lifecycle","ref":"SPEC-5862","payload":{"from":"done","to":"implementing"}}\n'
+  } >> "$d/docs/ai/EVENTS.jsonl"
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || true
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  # (i) commit newer than reopen -> STILL flagged
+  grep -F "SPEC-5860" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-002(i): reopen THEN newer commit-delivery must STILL flag (SPEC-5860 — commit date must feed deliveryTs)"
+  # (j) reopen strictly newer than commit -> NOT flagged (proves commit dates are used)
+  if grep -qF "SPEC-5861" "$d/drift-sec.txt"; then
+    log_fail "TEST-002(j): a reopen strictly newer than the delivery commit must supersede (SPEC-5861 must NOT be flagged)"
+  fi
+  # (k) un-timestampable AC-table evidence + reopen -> STILL flagged (fail-closed)
+  grep -F "SPEC-5862" "$d/drift-sec.txt" | grep -qF "probable-false-open" \
+    || log_fail "TEST-002(k): un-timestampable AC-table evidence must STILL flag on any reopen (SPEC-5862)"
+  rm -rf "$d"
+  log_pass "Supersession deliveryTs covers commit dates (i, j) and fail-closes on un-timestampable AC-table evidence (k) (TEST-002 i-k)"
+}
+
 # --- SPEC-0057 / ISSUE-0014 — duplicate frontmatter doc-id detection (TEST-101..104) ---
 
 setup_dupid_fixture() {
@@ -4831,6 +5121,9 @@ main() {
   test_change0028_arm_c_work_item_closed_flags
   test_change0028_real_repo_clean
   test_change0028_userguide_mentions_work_item_closed
+  test_fometrics_flush_arm
+  test_fometrics_supersession
+  test_fometrics_supersession_delivery_arms
   setup_dupid_fixture
   test_spec0057_duplicate_id_flagged
   test_spec0057_check_exit_code_unchanged
