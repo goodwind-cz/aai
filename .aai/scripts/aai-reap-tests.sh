@@ -167,6 +167,11 @@ SNAP="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/aai-reap.$$.snap")"
 ps axo pid=,etime=,args= > "$SNAP" 2>/dev/null || {
   rm -f "$SNAP"
   echo "reaped: 0"
+  # Additive diagnostic (SPEC test-018-legacy-spare-attribution / Spec-AC-01):
+  # a stable, always-present companion line to `reaped: N` reporting the pid
+  # list. Empty tail here (ps snapshot failed => nothing matched). Reporting
+  # only — no decision surface.
+  echo "reaped pids:"
   exit 0
 }
 # SNAP_NOW is captured IMMEDIATELY adjacent to the ps snapshot instant above —
@@ -287,4 +292,11 @@ fi
 rm -f "$PSNAP"
 
 echo "reaped: $REAPED"
+# Additive diagnostic (SPEC test-018-legacy-spare-attribution / Spec-AC-01):
+# report the exact pid set the `reaped: N` count above was derived from. Sourced
+# verbatim from MATCH_PIDS (the already-computed match accumulator; it carries a
+# leading space, giving `reaped pids: <p1> <p2> ...`), empty tail when N=0. This
+# is a pure report of an already-decided value — it adds NO guard and changes
+# NOTHING about which pids enter MATCH_PIDS or get killed. POSIX sh, no bashisms.
+echo "reaped pids:$MATCH_PIDS"
 exit 0

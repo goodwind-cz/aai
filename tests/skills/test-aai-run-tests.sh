@@ -100,6 +100,23 @@ spawn_parent_with_child() {
 
 alive() { kill -0 "$1" >/dev/null 2>&1; }
 
+# Parse the reaper's OWN reported reaped-pids list from its stdout — the
+# `reaped pids:<space-list>` line the reaper prints alongside `reaped: N`
+# (empty tail when it reaped nothing). This is what lets test_018 ATTRIBUTE a
+# reap to the reaper itself instead of inferring it from a proc's liveness
+# (which an external kill would mis-attribute). SPEC test-018-legacy-spare-attribution.
+reaped_pids_of() { printf '%s\n' "$1" | sed -n 's/^reaped pids://p'; }
+
+# True iff <pid> ($1) appears as a token in the reaper's reported reaped-pids
+# list parsed from the reaper stdout ($2).
+reaper_reaped_pid() {
+  local want="$1" tok
+  for tok in $(reaped_pids_of "$2"); do
+    [[ "$tok" == "$want" ]] && return 0
+  done
+  return 1
+}
+
 check_deps() {
   log_info "Checking dependencies..."
   command -v bash >/dev/null 2>&1 || log_skip "bash not found"
@@ -641,13 +658,35 @@ test_018() {
       log_fail "fail-safe broken (case='$invalid'): legacy MIN_AGE=1 should have reaped the ~3s-old match (reaper output: $out)"
     fi
 
-    # Direction 2 — legacy still SPARES a genuine fresh sibling.
+    # Direction 2 — legacy still SPARES a genuine fresh sibling. ATTRIBUTION,
+    # not a liveness proxy (SPEC test-018-legacy-spare-attribution / Spec-AC-03):
+    # assert fresh_pid is NOT in the reaper's OWN reported reaped-pids list, so
+    # an EXTERNAL death of fresh_pid (a Linux ps-etime read race, an unrelated
+    # runner kill) is no longer mis-attributed to the reaper. Only the reaper
+    # actually reaping fresh_pid fails this direction — fresh_pid dying for a
+    # non-reaper reason no longer flakes the test.
     fresh_pid="$(spawn_marked "vitest_fresh18_${ws}/worker")"
     alive "$fresh_pid" || log_fail "fixture setup: fresh proc $fresh_pid not alive (case='$invalid')"
     out="$(reap_run "$invalid" 60)"
     sleep 1
-    if ! alive "$fresh_pid"; then
-      log_fail "fail-safe broken (case='$invalid'): legacy MIN_AGE=60 must still spare the fresh match (reaper output: $out)"
+    # On ANY reaped>0 in this spare-fresh direction (suspicious under this
+    # ~0s-fresh / MIN_AGE=60 fixture), DUMP evidence (Spec-AC-04): the
+    # workspace-scoped `ps` snapshot + each reported pid's parsed etime — so a
+    # Linux `ps etime` read-race that recurs in CI is captured with the data
+    # needed to root-cause it. Silent on the normal `reaped: 0` path (no noise).
+    if echo "$out" | grep -qiE "reaped: *[1-9]"; then
+      {
+        echo "DIAG(test_018 spare-fresh case='$invalid'): reaper reported reaped>0 — evidence follows"
+        echo "DIAG reaper output: $out"
+        echo "DIAG workspace ps snapshot (pid ppid etime args, scoped to $ws):"
+        ps axo pid=,ppid=,etime=,args= 2>/dev/null | grep -F "$ws" || true
+        for _rp in $(reaped_pids_of "$out"); do
+          echo "DIAG reported-pid $_rp parsed etime: $(ps -o etime= -p "$_rp" 2>/dev/null | tr -d ' ')"
+        done
+      } >&2
+    fi
+    if reaper_reaped_pid "$fresh_pid" "$out"; then
+      log_fail "fail-safe broken (case='$invalid'): legacy MIN_AGE=60 reaper's OWN reaped-pids list claims the fresh match $fresh_pid (reaper output: $out)"
     fi
     # Guaranteed teardown of BOTH marker processes before the next case — a
     # reap-old that missed under load must not leak old_pid into a later case

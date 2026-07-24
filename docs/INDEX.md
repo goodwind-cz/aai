@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-24T13:09:40.182Z
+Generated: 2026-07-24T15:13:10.293Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (163)
+## Done (165)
 
 | ID | Type | Path |
 |---|---|---|
@@ -94,6 +94,7 @@ _None._
 | ISSUE-0027 | issues | docs/issues/ISSUE-0027-false-open-metrics-and-supersession.md |
 | ISSUE-0028 | issues | docs/issues/ISSUE-0028-branch-guard-no-work-item.md |
 | ISSUE-0029 | issues | docs/issues/ISSUE-0029-retire-stranded-nonworkitem-metric.md |
+| ISSUE-0030 | issues | docs/issues/ISSUE-0030-test-018-legacy-spare-attribution.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -181,6 +182,7 @@ _None._
 | SPEC-0073 | specs | docs/specs/SPEC-0073-spec-false-open-metrics-and-supersession.md |
 | SPEC-0074 | specs | docs/specs/SPEC-0074-spec-branch-guard-no-work-item.md |
 | SPEC-0075 | specs | docs/specs/SPEC-0075-spec-retire-stranded-nonworkitem-metric.md |
+| SPEC-0076 | specs | docs/specs/SPEC-0076-spec-test-018-legacy-spare-attribution.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
@@ -191,10 +193,11 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (1)
+## Deferred items (per-AC, across all specs) (2)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
+| SPEC-0076 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-Linux-only flake; local pass is not sufficient evidence (Honesty requirements section). Owned by Validation after push. |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
