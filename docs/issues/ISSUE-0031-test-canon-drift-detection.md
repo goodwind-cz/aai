@@ -2,10 +2,12 @@
 id: test-canon-drift-detection
 number: 31
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 140
+  commits:
+    - 155b6cc1e8fb9219ea7a0e1b4fbe02f8c46bfb33
   github_issues: []
 ---
 

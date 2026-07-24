@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-24T16:10:15.921Z
+Generated: 2026-07-24T16:11:20.113Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (165)
+## Done (167)
 
 | ID | Type | Path |
 |---|---|---|
@@ -95,6 +95,7 @@ _None._
 | ISSUE-0028 | issues | docs/issues/ISSUE-0028-branch-guard-no-work-item.md |
 | ISSUE-0029 | issues | docs/issues/ISSUE-0029-retire-stranded-nonworkitem-metric.md |
 | ISSUE-0030 | issues | docs/issues/ISSUE-0030-test-018-legacy-spare-attribution.md |
+| ISSUE-0031 | issues | docs/issues/ISSUE-0031-test-canon-drift-detection.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -183,14 +184,12 @@ _None._
 | SPEC-0074 | specs | docs/specs/SPEC-0074-spec-branch-guard-no-work-item.md |
 | SPEC-0075 | specs | docs/specs/SPEC-0075-spec-retire-stranded-nonworkitem-metric.md |
 | SPEC-0076 | specs | docs/specs/SPEC-0076-spec-test-018-legacy-spare-attribution.md |
+| SPEC-0077 | specs | docs/specs/SPEC-0077-spec-test-canon-drift-detection.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| ISSUE-0031 | issues | docs/issues/ISSUE-0031-test-canon-drift-detection.md |
-| SPEC-0077 | specs | docs/specs/SPEC-0077-spec-test-canon-drift-detection.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

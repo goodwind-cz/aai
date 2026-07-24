@@ -2,13 +2,15 @@
 id: spec-test-canon-drift-detection
 type: spec
 number: 77
-status: draft
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/ISSUE-0031-test-canon-drift-detection.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 140
+  commits:
+    - 155b6cc1e8fb9219ea7a0e1b4fbe02f8c46bfb33
 ---
 
 # Implementation Spec — TEST-006 (test-canon) drift-detection attribution + complete measurement
