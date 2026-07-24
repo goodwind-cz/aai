@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-24T08:12:10.004Z
+Generated: 2026-07-24T08:12:58.836Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -15,7 +15,7 @@ _None._
 
 _None._
 
-## Done (159)
+## Done (161)
 
 | ID | Type | Path |
 |---|---|---|
@@ -92,6 +92,7 @@ _None._
 | ISSUE-0025 | issues | docs/issues/ISSUE-0025-planning-companion-obligations.md |
 | ISSUE-0026 | issues | docs/issues/ISSUE-0026-reaper-epoch-survivor-robustness.md |
 | ISSUE-0027 | issues | docs/issues/ISSUE-0027-false-open-metrics-and-supersession.md |
+| ISSUE-0028 | issues | docs/issues/ISSUE-0028-branch-guard-no-work-item.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -177,14 +178,12 @@ _None._
 | SPEC-0071 | specs | docs/specs/SPEC-0071-spec-planning-companion-obligations.md |
 | SPEC-0072 | specs | docs/specs/SPEC-0072-spec-reaper-epoch-survivor-robustness.md |
 | SPEC-0073 | specs | docs/specs/SPEC-0073-spec-false-open-metrics-and-supersession.md |
+| SPEC-0074 | specs | docs/specs/SPEC-0074-spec-branch-guard-no-work-item.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| ISSUE-0028 | issues | docs/issues/ISSUE-0028-branch-guard-no-work-item.md |
-| SPEC-0074 | specs | docs/specs/SPEC-0074-spec-branch-guard-no-work-item.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

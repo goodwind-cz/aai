@@ -2,13 +2,15 @@
 id: spec-branch-guard-no-work-item
 type: spec
 number: 74
-status: draft
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/ISSUE-0028-branch-guard-no-work-item.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 137
+  commits:
+    - 43a54c9d2727a682a7134b8576e585f7766ff4cd
 ---
 
 # Implementation Spec — branch-guard no-work-item prefix allowlist

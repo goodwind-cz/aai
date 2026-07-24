@@ -2,10 +2,12 @@
 id: branch-guard-no-work-item
 number: 28
 type: issue
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 137
+  commits:
+    - 43a54c9d2727a682a7134b8576e585f7766ff4cd
   github_issues: [135]
 ---
 
