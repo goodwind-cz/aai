@@ -9,6 +9,33 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: test-canon TEST-006 asserts on phase2's drift report, not a first-file proxy (ISSUE-0031 / SPEC-0077)
+
+- `test-aai-test-canon.sh` TEST-006 flaked on Ubuntu CI (`Phase 2 silently
+  overwrote canonical tests despite drift`) on unrelated PRs; it does not
+  reproduce locally (0/40 under load). It derived pass/fail from
+  `sha256sum tests/canonical/* | head -c 40` before/after a post-drift Phase 2 —
+  the first 40 chars of the FIRST canonical file's hash only, ignoring every other
+  file and conflating "any canonical byte changed" with "the DRIFTED domain was
+  overwritten" (Phase 2 legitimately rewrites the non-drifted domains every run).
+  The canonical render is deterministic (no timestamp), so a spurious CI-load diff
+  was reported as a phase2 data-loss bug the local model never exhibits.
+- Rewrote TEST-006's assertion (test-only — the phase2 comparator in
+  `test-canon-core.mjs` is UNCHANGED; no race was proven): it now asserts on Phase
+  2's OWN authoritative report (`DRIFT (changed since synthesis, NOT rewritten): N
+  (<domain>)` names the drifted domain), isolates the DRIFTED domain's canonical
+  file and checks it byte-identical before/after (separate from the rewritten
+  non-drifted domains), replaces `head -c 40` with a complete order-stable digest
+  that dumps which file changed on mismatch, and pins a discriminating `--resync`
+  case (which DOES change the drifted file + reports `Re-synced`). A mutation test
+  proves the isolation assertion still fails on a genuine un-flagged overwrite —
+  the de-flake does not weaken the test.
+- HONEST SCOPE: does NOT claim to fix the underlying (non-reproducible) mechanism —
+  de-flakes by attribution + complete measurement + instrumentation. CI is the sole
+  authoritative validator; Spec-AC-06 (repeated green CI) is deferred (Review-By
+  2026-08-10). Same family as the TEST-018 reaper attribution fix (SPEC-0076).
+  Ceremony L1, no protected path, test-canon core untouched.
+
 ## [unreleased] — fix: TEST-018 spare-fresh attributes the kill to the reaper (ISSUE-0030 / SPEC-0076)
 
 - `test-aai-run-tests.sh` TEST-018 spare-fresh direction flaked on Ubuntu CI

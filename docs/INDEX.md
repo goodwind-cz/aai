@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-24T15:13:10.293Z
+Generated: 2026-07-24T16:10:15.921Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -185,19 +185,23 @@ _None._
 | SPEC-0076 | specs | docs/specs/SPEC-0076-spec-test-018-legacy-spare-attribution.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0031 | issues | docs/issues/ISSUE-0031-test-canon-drift-detection.md |
+| SPEC-0077 | specs | docs/specs/SPEC-0077-spec-test-canon-drift-detection.md |
 
 ## Deferred (whole-doc) (0)
 
 _None._
 
-## Deferred items (per-AC, across all specs) (2)
+## Deferred items (per-AC, across all specs) (3)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
 | SPEC-0076 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-Linux-only flake; local pass is not sufficient evidence (Honesty requirements section). Owned by Validation after push. |
+| SPEC-0077 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-only flake; local pass is not sufficient evidence (Honesty requirements). Owned by Validation after push. |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
