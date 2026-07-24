@@ -9,6 +9,31 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: TEST-018 spare-fresh attributes the kill to the reaper (ISSUE-0030 / SPEC-0076)
+
+- `test-aai-run-tests.sh` TEST-018 spare-fresh direction flaked on Ubuntu CI
+  (`legacy MIN_AGE=60 must still spare the fresh match (reaper output: reaped: 1)`)
+  and recurred AFTER both prior fixes — PR #123 (split-direction margins) and
+  PR #128 (per-case workspace isolation). The failure is not derivable from the
+  local model: legacy mode reaps iff `etime >= 60`, the fresh proc is ~0s old, and
+  a 180-iteration load repro on macOS produced 0/180. The test blamed the reaper
+  from a pure liveness proxy (`! alive fresh_pid`), but the reaper only reported a
+  COUNT — so a fresh proc killed by ANY cause (a Linux `ps etime` read-race inside
+  the reaper, an unrelated runner process it matched, external interference) was
+  mis-attributed to a reaper spare-failure.
+- The reaper now prints an ADDITIVE `reaped pids: <list>` line (echoing the pids it
+  already decided to reap — its epoch/legacy DECISION is byte-behaviour-identical;
+  TEST-006/013/015/016/017 unchanged-green, diff has zero removed/modified lines).
+  TEST-018 spare-fresh now asserts `fresh_pid` is NOT in that list — attributable,
+  immune to an external kill of fresh_pid — and dumps the `ps` snapshot + parsed
+  etimes on any `reaped > 0`, so a recurrence in CI is captured with evidence
+  instead of a bare `reaped: 1`.
+- HONEST SCOPE: this does NOT claim to fix the underlying (non-reproducible)
+  mechanism — it de-flakes by ATTRIBUTION and instruments for evidence. CI (Ubuntu,
+  under load) is the sole authoritative validator; Spec-AC-06 (repeated green CI)
+  is deferred (Review-By 2026-08-10). No margin widened, no retry added. Ceremony
+  L1, no protected path (reaper decision logic untouched).
+
 ## [unreleased] — fix: metrics-flush can retire a stranded non-work-item entry (ISSUE-0029 / SPEC-0075)
 
 - `metrics-flush.mjs` had exactly two dispositions per `metrics.work_items` entry:

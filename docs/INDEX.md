@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-24T13:09:40.182Z
+Generated: 2026-07-24T15:12:12.645Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -183,18 +183,22 @@ _None._
 | SPEC-0075 | specs | docs/specs/SPEC-0075-spec-retire-stranded-nonworkitem-metric.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ISSUE-0030 | issues | docs/issues/ISSUE-0030-test-018-legacy-spare-attribution.md |
+| SPEC-0076 | specs | docs/specs/SPEC-0076-spec-test-018-legacy-spare-attribution.md |
 
 ## Deferred (whole-doc) (0)
 
 _None._
 
-## Deferred items (per-AC, across all specs) (1)
+## Deferred items (per-AC, across all specs) (2)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
+| SPEC-0076 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-Linux-only flake; local pass is not sufficient evidence (Honesty requirements section). Owned by Validation after push. |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
