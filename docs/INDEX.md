@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T18:03:54.004Z
+Generated: 2026-07-25T20:47:02.816Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -18,7 +18,7 @@ _None._
 
 _None._
 
-## Done (180)
+## Done (181)
 
 | ID | Type | Path |
 |---|---|---|
@@ -73,6 +73,7 @@ _None._
 | CHANGE-0049 | issues | docs/issues/CHANGE-0049-feedback-upsert-review.md |
 | CHANGE-0050 | issues | docs/issues/CHANGE-0050-reaper-test-018-etime-shape-guard.md |
 | CHANGE-0052 | issues | docs/issues/CHANGE-0052-close-work-item-brief-cleanup.md |
+| CHANGE-0053 | issues | docs/issues/CHANGE-0053-reaper-etime-impossible-age-clamp.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
