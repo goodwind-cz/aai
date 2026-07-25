@@ -1,16 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-24T23:08:13.427Z
+Generated: 2026-07-25T01:08:28.867Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
+| SPEC-0078 | specs | implementing | 12 done | docs/specs/SPEC-0078-spec-friction-capture-foundation.md |
 | RFC-0012 | rfc | accepted | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 
 ## Canonical layer (0)
@@ -189,9 +190,11 @@ _None._
 | SPEC-0077 | specs | docs/specs/SPEC-0077-spec-test-canon-drift-detection.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0045 | issues | docs/issues/CHANGE-0045-friction-capture-foundation.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -222,4 +225,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-24 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-25 — counts above use this date for overdue checks.

@@ -36,6 +36,13 @@ docs/ai/tdd/**
 !docs/ai/tdd/
 !docs/ai/tdd/.gitkeep
 
+# Friction capture spool (RFC-0012 Phase 0): untracked, project-local JSONL
+# observations written by .aai/scripts/aai-friction.mjs. Offline capture only;
+# never committed. Only the directory placeholder is kept.
+docs/ai/friction/**
+!docs/ai/friction/
+!docs/ai/friction/.gitkeep
+
 # Archived worktree STATE.yaml snapshots — local convention: copy a worktree's
 # STATE here BEFORE `git worktree remove` so the metrics flush can recover its
 # ledger (docs/knowledge/LEARNED.md). Per-dev runtime like reports/tdd, never
