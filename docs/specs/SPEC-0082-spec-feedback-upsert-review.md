@@ -78,14 +78,14 @@ None.
 
 | Spec-AC    | Description                                              | Status  | Evidence | Review-By | Notes |
 |------------|---------------------------------------------------------|---------|----------|-----------|-------|
-| Spec-AC-01 | plain run makes no GitHub write (prepare-only)          | done    | docs/ai/tdd/green-20260725T124732Z-upsert.log | —         | GREEN |
-| Spec-AC-02 | templated title/body; summary only if redaction-passes  | done    | docs/ai/tdd/green-20260725T124732Z-upsert.log | —         | GREEN |
-| Spec-AC-03 | transmit redaction reuses aai-redact; poisoned dropped  | done    | docs/ai/tdd/green-20260725T124732Z-upsert.log | —         | GREEN |
-| Spec-AC-04 | dedup by v1:<fingerprint> marker (no duplicate)         | done    | docs/ai/tdd/green-20260725T124732Z-upsert.log | —         | GREEN |
-| Spec-AC-05 | budget: over-limit prepared-deferred, not filed         | done    | docs/ai/tdd/green-20260725T124732Z-upsert.log | —         | GREEN |
-| Spec-AC-06 | destination pin; auto refused; degrade to prepare-none  | done    | docs/ai/tdd/green-20260725T124732Z-upsert.log | —         | GREEN |
-| Spec-AC-07 | --publish --confirm re-verifies + is the only write     | done    | docs/ai/tdd/green-20260725T124732Z-upsert.log | —         | GREEN |
-| Spec-AC-08 | companion PROFILES + prompt-diet true-up                | done    | docs/ai/tdd/green-20260725T124732Z-upsert.log | —         | GREEN |
+| Spec-AC-01 | plain run makes no GitHub write (prepare-only)          | done    | a35afd5 (TDD green; tdd logs are gitignored runtime artifacts) | —         | GREEN |
+| Spec-AC-02 | templated title/body; summary only if redaction-passes  | done    | a35afd5 (TDD green; tdd logs are gitignored runtime artifacts) | —         | GREEN |
+| Spec-AC-03 | transmit redaction reuses aai-redact; poisoned dropped  | done    | a35afd5 (TDD green; tdd logs are gitignored runtime artifacts) | —         | GREEN |
+| Spec-AC-04 | dedup by v1:<fingerprint> marker (no duplicate)         | done    | a35afd5 (TDD green; tdd logs are gitignored runtime artifacts) | —         | GREEN |
+| Spec-AC-05 | budget: over-limit prepared-deferred, not filed         | done    | a35afd5 (TDD green; tdd logs are gitignored runtime artifacts) | —         | GREEN |
+| Spec-AC-06 | destination pin; auto refused; degrade to prepare-none  | done    | a35afd5 (TDD green; tdd logs are gitignored runtime artifacts) | —         | GREEN |
+| Spec-AC-07 | --publish --confirm re-verifies + is the only write     | done    | a35afd5 (TDD green; tdd logs are gitignored runtime artifacts) | —         | GREEN |
+| Spec-AC-08 | companion PROFILES + prompt-diet true-up                | done    | a35afd5 (TDD green; tdd logs are gitignored runtime artifacts) | —         | GREEN |
 
 ## Implementation plan
 - `.aai/scripts/aai-feedback-upsert.mjs` (node stdlib only; shells out to `gh`

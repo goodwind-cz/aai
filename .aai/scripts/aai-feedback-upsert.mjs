@@ -85,36 +85,49 @@ function parseArgs(argv) {
 // direct child of `upsert:`; `max_new_issues_per_7d` from `upsert: > budget:`.
 // Any anomaly leaves the safe default (mode local, destination null).
 function indentOf(l) { return l.length - l.trimStart().length; }
+// Strip a YAML inline comment (whitespace + `#...` to end) from a value. A `#`
+// with no preceding whitespace is left alone (part of the value). Without this,
+// `destination: goodwind-cz/aai   # pinned` would fail the destination regex and
+// the engine would wrongly behave as "no destination" (PR review P1).
+function stripComment(v) { return v.replace(/(^|\s)#.*$/, '$1').trim(); }
+
 function loadConfig(path) {
-  const cfg = { mode: 'local', destination: null, maxNewPer7d: 3, cooldownDays: 7 };
+  const cfg = { mode: 'local', destination: null, maxNewPer7d: 3, cooldownDays: 7, labels: [] };
   let text; try { text = readFileSync(path, 'utf8'); } catch { return cfg; }
   let section = null;         // 'triage' | 'upsert' | null
   let childIndent = null;
-  let inBudget = false; let budgetIndent = null;
+  let sub = null; let subIndent = null;   // 'budget' | 'labels' sub-block
   for (const raw of text.split('\n')) {
     if (!raw.trim() || /^[ \t]*#/.test(raw)) continue;
     const indent = indentOf(raw); const line = raw.trim();
     if (indent === 0) {
       section = /^triage[ \t]*:/.test(line) ? 'triage'
         : /^upsert[ \t]*:/.test(line) ? 'upsert' : null;
-      childIndent = null; inBudget = false;
+      childIndent = null; sub = null;
       continue;
     }
     if (!section) continue;
     if (childIndent === null) childIndent = indent;
     if (indent === childIndent) {
-      inBudget = false;
+      sub = null;
       const kv = line.match(/^([a-z_]+)[ \t]*:(.*)$/); if (!kv) continue;
-      const key = kv[1]; const val = kv[2].trim();
+      const key = kv[1]; const val = stripComment(kv[2].trim());
       if (section === 'triage' && key === 'mode' && MODES.has(val)) cfg.mode = val;
       if (section === 'upsert' && key === 'destination' && /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(val)) cfg.destination = val;
       if (section === 'upsert' && key === 'cooldown_days' && /^\d+$/.test(val)) cfg.cooldownDays = parseInt(val, 10);
-      if (section === 'upsert' && key === 'budget') { inBudget = true; budgetIndent = null; }
-    } else if (section === 'upsert' && inBudget && indent > childIndent) {
-      if (budgetIndent === null) budgetIndent = indent;
-      if (indent === budgetIndent) {
-        const m = line.match(/^max_new_issues_per_7d[ \t]*:[ \t]*(\d+)[ \t]*$/);
-        if (m) cfg.maxNewPer7d = parseInt(m[1], 10);
+      if (section === 'upsert' && key === 'budget' && val === '') { sub = 'budget'; subIndent = null; }
+      if (section === 'upsert' && key === 'labels' && val === '') { sub = 'labels'; subIndent = null; }
+    } else if (section === 'upsert' && sub && indent > childIndent) {
+      if (subIndent === null) subIndent = indent;
+      if (indent === subIndent) {
+        if (sub === 'budget') {
+          const m = line.match(/^max_new_issues_per_7d[ \t]*:[ \t]*(\d+)[ \t]*$/);
+          if (m) cfg.maxNewPer7d = parseInt(m[1], 10);
+        } else if (sub === 'labels') {
+          const m = line.match(/^-[ \t]+(.+)$/);
+          const lab = m && stripComment(m[1].trim());
+          if (lab && /^[A-Za-z0-9._-]{1,50}$/.test(lab)) cfg.labels.push(lab);
+        }
       }
     }
   }
@@ -205,11 +218,17 @@ function safeEvidenceRef(v) {
   return (typeof v === 'string' && EVIDENCE_REF_RE.test(v) && !v.split('/').includes('..')) ? v : null;
 }
 function safeFailureClass(v) { return FAILURE_CLASSES.has(v) ? v : REDACTED; }
+// The fingerprint is the dedup key + the issue marker + part of the printed
+// command; it must be the exact capture shape `v1:<32-hex>` (PR review P1). An
+// off-shape fingerprint (a poisoned spool/report) could otherwise carry
+// secret/identity content into a gh search, the draft, or the advertised command
+// — so a cluster with an invalid fingerprint is SKIPPED entirely.
+function safeFingerprint(fp) { return (typeof fp === 'string' && /^v1:[0-9a-f]{32}$/.test(fp)) ? fp : null; }
 
 // Build a transmit-redacted issue payload. EVERY interpolated field is re-validated
 // against its safe domain (double redaction, RFC-0013 D3) — the upsert never trusts
 // the spool, so no field can carry a secret/path/identity into a gh argument.
-function buildPayload(rep, cluster) {
+function buildPayload(rep, cluster, fp) {
   const fclass = safeFailureClass(rep.failure_class);
   const skill = safeIdent(rep.skill_id);
   const phase = safeIdent(rep.skill_phase);
@@ -238,7 +257,7 @@ function buildPayload(rep, cluster) {
     if (r.ok) { summaryLine = `\n> ${r.value}`; redactionStatus = 'transmit_clean'; }
     else redactionStatus = 'transmit_dropped';
   }
-  const body = `${summaryLine ? summaryLine + '\n\n' : ''}${facts.join('\n')}\n\n${MARKER(rep.fingerprint)}\n`;
+  const body = `${summaryLine ? summaryLine + '\n\n' : ''}${facts.join('\n')}\n\n${MARKER(fp)}\n`;
   return { title, body, redaction_status: redactionStatus };
 }
 
@@ -260,17 +279,26 @@ function prepare(args, cfg) {
   const rows = readSpool(args.spool);
   const candidates = (report.clusters || []).filter((c) => c.decision === 'review_candidate');
   ensureDir(PENDING_DIR);
+  const nowMs = Number(process.env.AAI_NOW_MS) || Date.now();
+  const overBudget = newIssuesLast7d(nowMs) >= cfg.maxNewPer7d;
   const prepared = [];
   for (const cluster of candidates) {
-    const rep = representative(rows, cluster.fingerprint);
+    const fp = safeFingerprint(cluster.fingerprint);
+    if (!fp) continue; // skip an off-shape / poisoned fingerprint entirely
+    const rep = representative(rows, fp);
     if (!rep) continue;
-    const payload = buildPayload(rep, cluster);
-    const ds = dedupSearch(cfg.destination, cluster.fingerprint);
-    const draftPath = join(PENDING_DIR, `${cluster.fingerprint.replace(/[^A-Za-z0-9]/g, '_')}.md`);
-    const status = ds.exists ? 'update_existing' : 'new';
+    const payload = buildPayload(rep, cluster, fp);
+    const ds = dedupSearch(cfg.destination, fp);
+    // Reflect the real state in the draft status so a prepare run does not
+    // advertise "new" for a candidate that is actually blocked/deferred.
+    const status = !ds.searched ? 'blocked_dedup_unavailable'
+      : ds.exists ? 'update_existing'
+      : overBudget ? 'deferred_budget'
+      : 'new';
+    const draftPath = join(PENDING_DIR, `${fp.replace(/[^A-Za-z0-9]/g, '_')}.md`);
     writeFileSync(draftPath,
       `# ${payload.title}\n\n<!-- status: ${status} | redaction: ${payload.redaction_status} -->\n\n${payload.body}`);
-    prepared.push({ fingerprint: cluster.fingerprint, status, draftPath });
+    prepared.push({ fingerprint: fp, status, draftPath });
   }
   return prepared;
 }
@@ -294,35 +322,39 @@ function main() {
       process.stderr.write('aai-feedback-upsert: publish requires mode=review and a configured destination\n');
       process.exit(2);
     }
+    const fp = safeFingerprint(args.publish);
+    if (!fp) { process.stderr.write(`aai-feedback-upsert: ${args.publish} is not a valid fingerprint (expected v1:<32-hex>)\n`); process.exit(2); }
     const rows = readSpool(args.spool);
     const report = readJson(args.report, { clusters: [] });
-    const cluster = (report.clusters || []).find((c) => c.fingerprint === args.publish && c.decision === 'review_candidate');
-    const rep = cluster && representative(rows, args.publish);
-    if (!rep) { process.stderr.write(`aai-feedback-upsert: ${args.publish} is not a current review_candidate\n`); process.exit(2); }
+    const cluster = (report.clusters || []).find((c) => c.fingerprint === fp && c.decision === 'review_candidate');
+    const rep = cluster && representative(rows, fp);
+    if (!rep) { process.stderr.write(`aai-feedback-upsert: ${fp} is not a current review_candidate\n`); process.exit(2); }
     // Dedup FIRST, fail-closed: if we cannot CONFIRM there is no existing issue
     // (gh unavailable or unparseable output), REFUSE to create — a search hiccup
     // must never fan out into a duplicate.
-    const ds = dedupSearch(cfg.destination, args.publish);
+    const ds = dedupSearch(cfg.destination, fp);
     if (!ds.searched) {
-      process.stderr.write(`aai-feedback-upsert: could not verify dedup for ${args.publish} (gh search unavailable) — refusing to create\n`);
+      process.stderr.write(`aai-feedback-upsert: could not verify dedup for ${fp} (gh search unavailable) — refusing to create\n`);
       process.exit(1);
     }
     if (ds.exists) {
-      process.stdout.write(`existing issue carries the marker for ${args.publish}; skipping duplicate create\n`);
+      process.stdout.write(`existing issue carries the marker for ${fp}; skipping duplicate create\n`);
       process.exit(0);
     }
     // Re-verify budget immediately before the write (no stale payload).
     const nowMs = Number(process.env.AAI_NOW_MS) || Date.now();
     if (newIssuesLast7d(nowMs) >= cfg.maxNewPer7d) {
-      process.stdout.write(`budget reached (${cfg.maxNewPer7d}/7d) — deferring ${args.publish}, not filed\n`);
+      process.stdout.write(`budget reached (${cfg.maxNewPer7d}/7d) — deferring ${fp}, not filed\n`);
       process.exit(0);
     }
-    const payload = buildPayload(rep, cluster);
-    const r = runGh(['issue', 'create', '--repo', cfg.destination, '--title', payload.title, '--body', payload.body], { mutating: true });
+    const payload = buildPayload(rep, cluster, fp);
+    const ghArgs = ['issue', 'create', '--repo', cfg.destination, '--title', payload.title, '--body', payload.body];
+    for (const label of cfg.labels) ghArgs.push('--label', label);
+    const r = runGh(ghArgs, { mutating: true });
     if (!r.ok) { process.stderr.write('aai-feedback-upsert: gh issue create failed (is gh authenticated?)\n'); process.exit(1); }
     ensureDir(FRICTION_DIR);
-    appendFileSync(LEDGER, JSON.stringify({ event: 'issue_created', fingerprint: args.publish, ts_ms: nowMs, destination: cfg.destination }) + '\n');
-    process.stdout.write(`filed issue for ${args.publish} in ${cfg.destination}\n`);
+    appendFileSync(LEDGER, JSON.stringify({ event: 'issue_created', fingerprint: fp, ts_ms: nowMs, destination: cfg.destination }) + '\n');
+    process.stdout.write(`filed issue for ${fp} in ${cfg.destination}\n`);
     process.exit(0);
   }
 
@@ -333,9 +365,17 @@ function main() {
   }
   const prepared = prepare(args, cfg);
   if (!prepared.length) { process.stdout.write('no review_candidate clusters to prepare\n'); process.exit(0); }
+  // Preserve any non-default --config/--report/--spool overrides in the advertised
+  // confirmed-write command, so copy/paste targets the same inputs (PR review).
+  const overrides = [
+    args.config !== DEFAULT_CONFIG ? `--config ${args.config}` : '',
+    args.report !== DEFAULT_REPORT ? `--report ${args.report}` : '',
+    args.spool !== DEFAULT_SPOOL ? `--spool ${args.spool}` : '',
+  ].filter(Boolean).join(' ');
+  const ov = overrides ? ` ${overrides}` : '';
   process.stdout.write(`prepared ${prepared.length} issue draft(s) in ${PENDING_DIR} (mode=review, dest=${cfg.destination}):\n`);
   for (const p of prepared) {
-    process.stdout.write(`  ${p.status.padEnd(15)} ${p.fingerprint}  -> review then: node .aai/scripts/aai-feedback-upsert.mjs --publish ${p.fingerprint} --confirm\n`);
+    process.stdout.write(`  ${p.status.padEnd(24)} ${p.fingerprint}  -> review then: node .aai/scripts/aai-feedback-upsert.mjs${ov} --publish ${p.fingerprint} --confirm\n`);
   }
 }
 

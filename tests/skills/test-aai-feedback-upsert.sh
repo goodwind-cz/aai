@@ -39,13 +39,13 @@ SH
   export GH_CALLS
   printf '[]' > "$TEST_DIR/empty.json"; SEARCH_RESULT="$TEST_DIR/empty.json"; export SEARCH_RESULT
   # a review-mode config
-  printf 'triage:\n  mode: review\nupsert:\n  destination: goodwind-cz/aai\n  budget:\n    max_new_issues_per_7d: 3\n' > "$TEST_DIR/fb.yaml"
+  printf 'triage:\n  mode: review\nupsert:\n  destination: goodwind-cz/aai   # pinned (RFC-0012 D1)\n  budget:\n    max_new_issues_per_7d: 3\n' > "$TEST_DIR/fb.yaml"
   # a spool + report with one review_candidate
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
-{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaa","impact":"high","confidence":"high","reproducible":true}
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","confidence":"high","reproducible":true}
 JSONL
   cat > "$TEST_DIR/friction/triage-report.json" <<'JSON'
-{"schema":"aai-triage/v1","clusters":[{"fingerprint":"v1:aaa","failure_class":"contract_violation","recurrence":2,"score":9,"decision":"review_candidate","auto_publishable":false}]}
+{"schema":"aai-triage/v1","clusters":[{"fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","failure_class":"contract_violation","recurrence":2,"score":9,"decision":"review_candidate","auto_publishable":false}]}
 JSON
 }
 
@@ -66,7 +66,7 @@ test_001_prepare_no_write() {
   local code; code="$(RUN)"
   [ "$code" = "0" ] || log_fail "TEST-001: plain run must exit 0 ($(cat "$TEST_DIR/err"))"
   [ "$(creates)" = "0" ] || log_fail "TEST-001: plain run must make ZERO issue-create calls (made $(creates))"
-  [ -f "$TEST_DIR/friction/pending-issues/v1_aaa.md" ] || log_fail "TEST-001: a draft must be written"
+  [ -f "$TEST_DIR/friction/pending-issues/v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md" ] || log_fail "TEST-001: a draft must be written"
   log_pass "plain run is prepare-only: no mutating gh call, draft written (TEST-001)"
 }
 
@@ -75,12 +75,12 @@ test_002_template_and_redaction() {
   log_info "Test: title/body templated; poisoned summary dropped by transmit redaction (TEST-002/003)..."
   # add a poisoned summary to the observation
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
-{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaa","impact":"high","summary":"failed at /Users/ales/.ssh/id_rsa"}
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high","summary":"failed at /Users/ales/.ssh/id_rsa"}
 JSONL
   reset_calls; RUN >/dev/null
-  local draft="$TEST_DIR/friction/pending-issues/v1_aaa.md"
+  local draft="$TEST_DIR/friction/pending-issues/v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md"
   grep -qF "[contract_violation] SKILL_TDD/impl (high impact)" "$draft" || log_fail "TEST-002: title must be templated from structured fields"
-  grep -qF "aai-friction:v1:aaa" "$draft" || log_fail "TEST-002: body must carry the dedup marker"
+  grep -qF "aai-friction:v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "$draft" || log_fail "TEST-002: body must carry the dedup marker"
   grep -qF "id_rsa" "$draft" && log_fail "TEST-003: a poisoned summary must be DROPPED (transmit redaction), never in the draft"
   grep -qF "transmit_dropped" "$draft" || log_fail "TEST-003: redaction_status must record the drop"
   log_pass "title/body templated; poisoned summary dropped by transmit redaction (TEST-002/003)"
@@ -91,10 +91,10 @@ test_004_dedup() {
   log_info "Test: an existing marker -> no duplicate NEW issue (TEST-004)..."
   printf '[{"number":42}]' > "$TEST_DIR/existing.json"; SEARCH_RESULT="$TEST_DIR/existing.json"
   reset_calls; RUN >/dev/null
-  local draft="$TEST_DIR/friction/pending-issues/v1_aaa.md"
+  local draft="$TEST_DIR/friction/pending-issues/v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md"
   grep -qF "status: update_existing" "$draft" || log_fail "TEST-004: existing marker -> draft marked update_existing"
   # confirmed publish must NOT create when one already exists
-  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaa --confirm >/dev/null
+  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
   [ "$(creates)" = "0" ] || log_fail "TEST-004: must not create a duplicate when an issue already carries the marker"
   SEARCH_RESULT="$TEST_DIR/empty.json"
   log_pass "existing marker deduped: draft=update_existing, no duplicate create (TEST-004)"
@@ -106,7 +106,7 @@ test_005_budget() {
   # seed the ledger with max_new_issues_per_7d recent creates
   local led="$TEST_DIR/friction/upsert-ledger.jsonl"
   for i in 1 2 3; do echo "{\"event\":\"issue_created\",\"fingerprint\":\"v1:old$i\",\"ts_ms\":999999999999}" >> "$led"; done
-  reset_calls; local out; RUN "$TEST_DIR/fb.yaml" --publish v1:aaa --confirm >/dev/null; out="$(cat "$TEST_DIR/out")"
+  reset_calls; local out; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null; out="$(cat "$TEST_DIR/out")"
   [ "$(creates)" = "0" ] || log_fail "TEST-005: over-budget publish must NOT create an issue"
   echo "$out" | grep -qi "budget" || log_fail "TEST-005: must report the budget deferral"
   log_pass "budget met -> deferred, no create (TEST-005)"
@@ -116,11 +116,11 @@ test_005_budget() {
 test_006_config() {
   log_info "Test: destination pin; auto refused; local/missing-dest -> prepare-none (TEST-006)..."
   # auto refused
-  printf 'triage:\n  mode: auto\nupsert:\n  destination: goodwind-cz/aai\n' > "$TEST_DIR/fbauto.yaml"
+  printf 'triage:\n  mode: auto\nupsert:\n  destination: goodwind-cz/aai   # pinned (RFC-0012 D1)\n' > "$TEST_DIR/fbauto.yaml"
   RUN "$TEST_DIR/fbauto.yaml" >/dev/null; local code=$?
   grep -qi "auto is refused\|mode=auto" "$TEST_DIR/err" || log_fail "TEST-006: auto mode must be refused"
   # local mode -> prepare nothing
-  printf 'triage:\n  mode: local\nupsert:\n  destination: goodwind-cz/aai\n' > "$TEST_DIR/fblocal.yaml"
+  printf 'triage:\n  mode: local\nupsert:\n  destination: goodwind-cz/aai   # pinned (RFC-0012 D1)\n' > "$TEST_DIR/fblocal.yaml"
   reset_calls; RUN "$TEST_DIR/fblocal.yaml" >/dev/null
   [ "$(creates)" = "0" ] || log_fail "TEST-006: local mode must make no gh call"
   grep -qi "prepare-none\|nothing prepared" "$TEST_DIR/out" || log_fail "TEST-006: local mode must prepare nothing"
@@ -131,15 +131,15 @@ test_006_config() {
 test_007_confirm_only_write() {
   log_info "Test: --publish needs --confirm; confirmed -> one create + ledger append (TEST-007)..."
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
-{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaa","impact":"high"}
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high"}
 JSONL
   rm -f "$TEST_DIR/friction/upsert-ledger.jsonl"
   # without --confirm: no write
-  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaa >/dev/null
+  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa >/dev/null
   [ "$(creates)" = "0" ] || log_fail "TEST-007: --publish without --confirm must NOT write"
   grep -qi "without --confirm" "$TEST_DIR/out" || log_fail "TEST-007: must state it refuses without --confirm"
   # with --confirm: exactly one create + ledger append
-  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaa --confirm >/dev/null
+  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
   [ "$(creates)" = "1" ] || log_fail "TEST-007: confirmed publish must make exactly one create (made $(creates))"
   grep -qF "issue_created" "$TEST_DIR/friction/upsert-ledger.jsonl" || log_fail "TEST-007: confirmed publish must append to the ledger"
   log_pass "confirmed publish is the only write; ledger appended (TEST-007)"
@@ -166,10 +166,10 @@ test_010_field_sanitization() {
   # the charset/enum gate. (Token-shaped fixtures below are assembled from fragments
   # so no scannable provider-secret literal is committed to this file.)
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
-{"schema_version":2,"os_family":"macos-attacker@evil.com","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD_/Users/ales/.ssh/id_rsa","skill_phase":"impl with spaces","failure_class":"contract_violation","fingerprint":"v1:aaa","impact":"high) not-an-enum (","evidence_ref":"/Users/ales/.ssh/id_rsa"}
+{"schema_version":2,"os_family":"macos-attacker@evil.com","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD_/Users/ales/.ssh/id_rsa","skill_phase":"impl with spaces","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high) not-an-enum (","evidence_ref":"/Users/ales/.ssh/id_rsa"}
 JSONL
-  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaa --confirm >/dev/null
-  local leak; leak="$( { cat "$GH_CALLS"; cat "$TEST_DIR/friction/pending-issues/v1_aaa.md" 2>/dev/null; } | grep -oE 'id_rsa|/Users/|@evil|not-an-enum' || true)"
+  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  local leak; leak="$( { cat "$GH_CALLS"; cat "$TEST_DIR/friction/pending-issues/v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md" 2>/dev/null; } | grep -oE 'id_rsa|/Users/|@evil|not-an-enum' || true)"
   [ -z "$leak" ] || log_fail "TEST-010: a hostile field leaked into the gh argv or draft: $leak"
   grep -qF "<redacted>" "$GH_CALLS" || log_fail "TEST-010: hostile identifier fields must be redacted in the payload"
   # CLEAN-TOKEN case (regression): a secret that is itself identifier-shaped
@@ -178,9 +178,9 @@ JSONL
   # Prefixes are fragment-assembled so no contiguous provider-secret literal is
   # committed (GitHub push-protection); the runtime string still trips the detector.
   local GHP="gh""p_" SKL="sk""_live_" AKIA="AKI""A"
-  printf '{"schema_version":2,"os_family":"macos","aai_pin":"%sABCDEFGHIJKLMNOP","node_major":22,"skill_id":"%s1234567890abcdefghijklmnopqrstuvwxyzAB","skill_phase":"%s51ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij","failure_class":"contract_violation","fingerprint":"v1:aaa","impact":"high"}\n' \
+  printf '{"schema_version":2,"os_family":"macos","aai_pin":"%sABCDEFGHIJKLMNOP","node_major":22,"skill_id":"%s1234567890abcdefghijklmnopqrstuvwxyzAB","skill_phase":"%s51ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high"}\n' \
     "$AKIA" "$GHP" "$SKL" > "$TEST_DIR/friction/observations.jsonl"
-  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaa --confirm >/dev/null
+  reset_calls; RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
   local tleak; tleak="$(grep -oE "${GHP}[A-Za-z0-9]+|${SKL}[A-Za-z0-9]+|${AKIA}[A-Z0-9]{16}" "$GH_CALLS" || true)"
   [ -z "$tleak" ] || log_fail "TEST-010: a charset-clean secret token leaked into the gh argv: $tleak"
   log_pass "every non-summary field re-sanitized incl. charset-clean secret tokens (TEST-010)"
@@ -190,15 +190,44 @@ JSONL
 test_011_dedup_failclosed() {
   log_info "Test: confirm-publish refuses to create when dedup search is unverifiable (TEST-011)..."
   cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
-{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaa","impact":"high"}
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high"}
 JSONL
   # mock gh returns malformed (unparseable) search output
   printf 'not json {[' > "$TEST_DIR/garbage.json"; SEARCH_RESULT="$TEST_DIR/garbage.json"
-  reset_calls; local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaa --confirm)"
+  reset_calls; local code; code="$(RUN "$TEST_DIR/fb.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm)"
   [ "$(creates)" = "0" ] || log_fail "TEST-011: must NOT create when dedup cannot be verified"
   [ "$code" != "0" ] || log_fail "TEST-011: an unverifiable dedup must fail (non-zero), not silently create"
   SEARCH_RESULT="$TEST_DIR/empty.json"
   log_pass "dedup fail-closed: unverifiable search refuses the create (TEST-011)"
+}
+
+# --- TEST-012 (PR review): fingerprint validation + labels applied ------------
+test_012_fingerprint_and_labels() {
+  log_info "Test: off-shape fingerprint skipped; configured labels applied on create (TEST-012)..."
+  # a report with a POISONED (off-shape) fingerprint alongside a valid one
+  cat > "$TEST_DIR/friction/observations.jsonl" <<'JSONL'
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"SKILL_TDD","skill_phase":"impl","failure_class":"contract_violation","fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","impact":"high"}
+{"schema_version":2,"os_family":"macos","aai_pin":"unknown","node_major":22,"skill_id":"X","skill_phase":"y","failure_class":"contract_violation","fingerprint":"v1:POISON_/Users/x/.ssh","impact":"high"}
+JSONL
+  cat > "$TEST_DIR/friction/triage-report.json" <<'JSON'
+{"clusters":[{"fingerprint":"v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","failure_class":"contract_violation","recurrence":2,"score":9,"decision":"review_candidate","auto_publishable":false},{"fingerprint":"v1:POISON_/Users/x/.ssh","failure_class":"contract_violation","recurrence":2,"score":9,"decision":"review_candidate","auto_publishable":false}]}
+JSON
+  # config WITH a labels list
+  printf 'triage:\n  mode: review\nupsert:\n  destination: goodwind-cz/aai   # pin\n  labels:\n    - aai-friction\n' > "$TEST_DIR/fblab.yaml"
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" >/dev/null
+  # only the valid fingerprint gets a draft; the poisoned one is skipped (never a file / never a gh call carrying it)
+  [ -f "$TEST_DIR/friction/pending-issues/v1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md" ] || log_fail "TEST-012: valid fingerprint must be prepared"
+  ls "$TEST_DIR/friction/pending-issues/" | grep -qi "POISON\|ssh\|Users" && log_fail "TEST-012: an off-shape fingerprint must be skipped (no draft)"
+  grep -qi "POISON\|/Users/\|\.ssh" "$GH_CALLS" && log_fail "TEST-012: an off-shape fingerprint must never reach a gh call" || true
+  # poisoned fingerprint publish is rejected (RUN echoes the node exit code)
+  local pc; pc="$(RUN "$TEST_DIR/fblab.yaml" --publish "v1:POISON_/Users/x/.ssh" --confirm)"
+  [ "$pc" != "0" ] || log_fail "TEST-012: publishing an off-shape fingerprint must be rejected"
+  # labels applied on a valid confirmed create (clear the shared ledger so an
+  # earlier test's budget does not defer this create)
+  rm -f "$TEST_DIR/friction/upsert-ledger.jsonl"
+  reset_calls; RUN "$TEST_DIR/fblab.yaml" --publish v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --confirm >/dev/null
+  grep -qF "label aai-friction" "$GH_CALLS" || log_fail "TEST-012: configured labels must be applied on create ($(cat "$TEST_DIR/out"))"
+  log_pass "off-shape fingerprint skipped/rejected; configured labels applied (TEST-012)"
 }
 
 test_009_profiles() {
@@ -222,6 +251,7 @@ main() {
   test_008_static_write_gate
   test_010_field_sanitization
   test_011_dedup_failclosed
+  test_012_fingerprint_and_labels
   test_009_profiles
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
