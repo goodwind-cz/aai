@@ -702,7 +702,12 @@ test_101_v1_backward_compat() {
   local keys; keys="$(line_keys "$sp/observations.jsonl")"
   [ "$keys" = "aai_pin,failure_class,fingerprint,node_major,os_family,schema_version,skill_id,skill_phase" ] \
     || log_fail "TEST-101: v1 must persist exactly the 8 legacy keys (got: $keys)"
-  log_pass "v1 record byte-compatible: exactly the 8 legacy keys (TEST-101)"
+  # Byte-compat is about ORDER too: assert the raw JSONL key order is the exact
+  # pre-v2 sequence (Object.keys preserves insertion order), not just the set.
+  local order; order="$(node -e 'const l=require("fs").readFileSync(process.argv[1],"utf8").trim();process.stdout.write(Object.keys(JSON.parse(l)).join(","))' "$sp/observations.jsonl")"
+  [ "$order" = "schema_version,os_family,aai_pin,node_major,skill_id,skill_phase,failure_class,fingerprint" ] \
+    || log_fail "TEST-101: v1 key ORDER must be byte-identical to the pre-v2 tool (got: $order)"
+  log_pass "v1 record byte-compatible: exactly the 8 legacy keys in the original order (TEST-101)"
 }
 
 # --- TEST-102 (Spec-AC-01): v2 persists structured; forged key dropped -------
@@ -765,9 +770,10 @@ test_104_evidence_ref_shape() {
   \"evidence_ref\": \"$good\""
     [ "$(run_record "$sp" "$TEST_DIR/g.json")" = "0" ] || log_fail "TEST-104: '$good' must be accepted ($(cat "$ERR"))"
   done
-  # rejected: URL / absolute path / arbitrary / PATH TRAVERSAL (regression:
-  # docs/../../etc/passwd masqueraded as a repo-relative doc path).
-  for bad in "http://evil.com" "/etc/passwd" "just some text" "docs/../../etc/passwd" "docs/../secret"; do
+  # rejected: URL / absolute path / arbitrary / PATH TRAVERSAL / doc-id SUFFIX
+  # (regressions: docs/../../etc/passwd traversal; SPEC-0079-<free-text> suffix
+  # would be a free-text identity channel bypassing the redactor — PR review P1).
+  for bad in "http://evil.com" "/etc/passwd" "just some text" "docs/../../etc/passwd" "docs/../secret" "SPEC-0079-private-customer-acme" "SPEC-0079foo"; do
     write_v2 "$TEST_DIR/b.json" ",
   \"evidence_ref\": \"$bad\""
     [ "$(run_record "$sp" "$TEST_DIR/b.json")" != "0" ] || log_fail "TEST-104: '$bad' must be rejected"
@@ -862,6 +868,26 @@ test_108_redactor_no_network_static() {
   log_pass "redactor module is pure (imports nothing; no network/process surface) (TEST-108)"
 }
 
+# --- TEST-112 (Spec-AC-04): summary_enabled is scoped to the capture block -----
+# PR review P1: a stray summary_enabled:true in an unrelated section must NOT
+# override capture.summary_enabled:false.
+test_112_summary_enabled_scoped() {
+  log_info "Test: summary_enabled is read only under capture: (unrelated section cannot flip it) (TEST-112)..."
+  local sp="$TEST_DIR/sp112"; mkdir -p "$sp"
+  write_v2 "$TEST_DIR/s112.json" ',
+  "summary": "the gate threw on a missing transition"'
+  # stray true in another section, capture explicitly false -> must stay off
+  printf 'other:\n  summary_enabled: true\ncapture:\n  summary_enabled: false\n' > "$TEST_DIR/fb-stray.yaml"
+  export AAI_FEEDBACK_CONFIG="$TEST_DIR/fb-stray.yaml"
+  local code; code="$(run_record "$sp" "$TEST_DIR/s112.json")"
+  unset AAI_FEEDBACK_CONFIG
+  assert_exit "scoped config" 0 "$code"
+  assert_key_absent "TEST-112" "$(line_keys "$sp/observations.jsonl")" "summary"
+  [ "$(line_get "$sp/observations.jsonl" redaction_status)" = "none" ] \
+    || log_fail "TEST-112: a stray summary_enabled outside capture: must not enable the summary"
+  log_pass "summary_enabled is scoped to the capture block; unrelated sections cannot flip it (TEST-112)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -901,6 +927,7 @@ main() {
   test_106_summary_poisoned_dropped
   test_107_only_summary_redacted
   test_108_redactor_no_network_static
+  test_112_summary_enabled_scoped
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

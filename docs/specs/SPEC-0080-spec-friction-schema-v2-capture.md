@@ -44,9 +44,11 @@ SPEC-FROZEN: true
   8 legacy keys BYTE-IDENTICAL to today; a v2 record persists the 8 plus the valid
   structured fields present; any input key outside the expanded allowlist is
   dropped (deny-by-default). Verification: v1 golden-line diff + v2 key-set assert + forged-key drop.
-- Spec-AC-02 (AC-002): `reproducible` (bool), `impact`/`confidence`
-  (low|medium|high), `workaround` (none|manual|automatic) are type/enum-validated;
-  an invalid value → named-field ValidationError, nothing persisted. Verification: per-field bad fixtures.
+- Spec-AC-02 (AC-002): `reproducible` (bool), `impact` (low|medium|high|critical —
+  the existing IMPACT_VALUES domain, a superset of RFC-0013 D1's initial
+  low|medium|high; still a leak-free enum), `confidence` (low|medium|high),
+  `workaround` (none|manual|automatic) are type/enum-validated; an invalid value →
+  named-field ValidationError, nothing persisted. Verification: per-field bad fixtures.
 - Spec-AC-03 (AC-003): `evidence_ref` accepts ONLY a repo-relative doc path
   (`docs/...`) or an AAI doc id (`^(SPEC|CHANGE|ISSUE|RFC|PRD|RES|DEBT)-\d{4}`);
   a URL / absolute path / arbitrary string → rejected. Verification: accept + reject fixtures.

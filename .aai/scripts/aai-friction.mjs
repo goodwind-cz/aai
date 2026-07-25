@@ -52,8 +52,12 @@ const SUPPORTED_SCHEMA_VERSIONS = [1, 2];
 const WORKAROUND_VALUES = ['none', 'manual', 'automatic'];
 const REDACTION_STATUS_VALUES = ['none', 'capture_clean', 'capture_dropped_fields'];
 // evidence_ref (RFC-0013 D5): a SAFE pointer only — a repo-relative docs/ path or
-// an AAI doc id. No URLs, no absolute paths, no free text.
-const EVIDENCE_REF_RE = /^(?:docs\/[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*|(?:SPEC|CHANGE|ISSUE|RFC|PRD|RES|DEBT)-\d{4}[A-Za-z0-9-]*)$/;
+// an AAI doc id. No URLs, no absolute paths, no free text. The doc-id arm ends
+// EXACTLY after the 4 digits: a trailing `[A-Za-z0-9-]*` suffix (e.g.
+// `SPEC-0079-private-customer-acme`) would be a free-text identity channel that
+// bypasses the redactor, so it is rejected (PR review P1). Use the `docs/…` arm
+// for a full document reference.
+const EVIDENCE_REF_RE = /^(?:docs\/[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*|(?:SPEC|CHANGE|ISSUE|RFC|PRD|RES|DEBT)-\d{4})$/;
 const FINGERPRINT_VERSION = 1;
 // Atomic-append size bound. A single write() of a line strictly under PIPE_BUF
 // is not interleaved with another concurrent O_APPEND writer's; a line that
@@ -376,8 +380,23 @@ function loadSummaryEnabled() {
   } catch {
     return false; // no config -> fail closed
   }
-  const m = text.match(/^[ \t]*summary_enabled[ \t]*:[ \t]*(true|false)[ \t]*$/m);
-  return m ? m[1] === 'true' : false;
+  // SCOPED read: only `summary_enabled` DIRECTLY under the top-level `capture:`
+  // mapping counts. A stray `summary_enabled: true` in an unrelated section must
+  // never override the privacy opt-out (PR review P1). Any dedent to another
+  // top-level key ends the capture block. Fail closed to false throughout.
+  let inCapture = false;
+  for (const line of text.split('\n')) {
+    if (/^[ \t]/.test(line)) {
+      if (inCapture) {
+        const m = line.match(/^[ \t]+summary_enabled[ \t]*:[ \t]*(true|false)[ \t]*$/);
+        if (m) return m[1] === 'true';
+      }
+      continue; // indented line outside capture -> ignore
+    }
+    // a non-indented, non-blank line is a new top-level key
+    inCapture = /^capture[ \t]*:/.test(line);
+  }
+  return false;
 }
 
 // --- record subcommand ------------------------------------------------------

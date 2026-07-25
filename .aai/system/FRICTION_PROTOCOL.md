@@ -131,10 +131,12 @@ FAIL-CLOSED and defends in two layers:
 1. **Allow-list charset gate (primary).** Deny-list detection of secrets in free
    text is fundamentally incomplete, so the summary is first required to consist
    ONLY of a conservative ASCII prose set (letters, digits, space, and
-   `,.;:'"()!?-`). This categorically rejects — before any detector runs — every
+   `,.;:'"()!?_-`). This categorically rejects — before any detector runs — every
    non-ASCII character (zero-width spaces, fullwidth digits, homoglyphs), path
-   separators (`/` `\`), `@` (emails/handles/git remotes), and `_ + = ~`
-   (underscore-prefixed tokens like Stripe `sk_live_`).
+   separators (`/` `\`), `@` (emails/handles/git remotes), and `+ = ~`.
+   `_` is PERMITTED (real AAI filenames use it, e.g. `AAI_PIN.md`); an
+   underscore-prefixed secret like Stripe `sk_live_…` is instead caught by the
+   deny-list token detectors below.
 2. **Deny-list detectors (defense-in-depth)** for threats that live inside the
    safe charset: secret prefixes (`AKIA`, `sk-`, `ghp_`…), high-entropy and
    mixed-case-with-digit token runs, IPv4 and `::`-compressed IPv6, FQDNs, long

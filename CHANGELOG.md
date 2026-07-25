@@ -9,7 +9,7 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — feat: RFC-0013 Slice A — friction schema v2 + hard redactor (CHANGE friction-schema-v2-capture / SPEC spec-friction-schema-v2-capture)
+## [unreleased] — feat: RFC-0013 Slice A — friction schema v2 + hard redactor (CHANGE-0047 / SPEC-0080)
 
 - First code slice of RFC-0013: extends the offline capture CLI to persist
   **schema v2 structured signal fields** and adds the **hard, fail-closed

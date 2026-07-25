@@ -55,7 +55,12 @@ const DETECTORS = [
   // (`::1`, `fe80::1`, `2001:db8::1`): two-or-more colon-separated hextet slots
   // where each slot may be empty (that is what `::` is).
   ['ipv6', /(?:[0-9A-Fa-f]{0,4}:){2,}[0-9A-Fa-f]{0,4}/],
-  ['fqdn', /\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+(?:com|org|net|io|dev|co|edu|gov|internal|local|cz|ai)\b/],
+  // FQDN with a known TLD. The list is broadened (PR review) to common gTLDs and
+  // ccTLDs beyond the original handful, while deliberately EXCLUDING code file
+  // extensions (mjs/js/ts/sh/py/md/yaml/yml/json/jsonl/log/txt) so a summary
+  // naming a script (`close-work-item.mjs`) is not a false positive. A bare
+  // dotless hostname remains accepted residual (indistinguishable from a word).
+  ['fqdn', /\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+(?:com|org|net|io|dev|co|edu|gov|internal|local|cz|ai|ru|uk|de|fr|eu|us|info|biz|app|cloud|xyz|tech|online|site|me|tv|gov\.uk|co\.uk)\b/],
   ['user_handle', /(?:^|\s)@[A-Za-z0-9_\-]{2,}\b/],
   ['user_pass', /\b[A-Za-z0-9._\-]+:[^\s@/]+@/],
   // Long digit runs (ids, phone numbers, account numbers). No \b anchor so a
