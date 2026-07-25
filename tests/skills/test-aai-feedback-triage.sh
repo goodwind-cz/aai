@@ -187,7 +187,22 @@ test_012_failclosed_config() {
   printf 'other:\n  mode: auto\ntriage:\n  mode: local\n' > "$cfg"
   run "$sp" "$cfg" "$rep" >/dev/null
   [ "$(rp "$rep" mode)" = "local" ] || log_fail "TEST-012: mode must be read only under triage:"
-  log_pass "fail-closed config: malformed / out-of-scope mode -> local (TEST-012)"
+  # PR review: mode nested DEEPER than a direct child (under thresholds) must NOT count
+  printf 'triage:\n  thresholds:\n    mode: auto\n' > "$cfg"
+  run "$sp" "$cfg" "$rep" >/dev/null
+  [ "$(rp "$rep" mode)" = "local" ] || log_fail "TEST-012: a non-direct-child mode must be ignored (nesting scope)"
+  # PR review: a malformed / unknown-key triage block forces local even with a valid mode present
+  printf 'triage:\n  mode: auto\n  broken: [\n' > "$cfg"
+  run "$sp" "$cfg" "$rep" >/dev/null
+  [ "$(rp "$rep" mode)" = "local" ] || log_fail "TEST-012: a malformed triage block must fail closed to local"
+  printf 'triage:\n  mode: auto\n  evil: yes\n' > "$cfg"
+  run "$sp" "$cfg" "$rep" >/dev/null
+  [ "$(rp "$rep" mode)" = "local" ] || log_fail "TEST-012: an unknown direct-child key must fail closed to local"
+  # a syntactically valid, in-scope non-local mode IS adopted (parsed, no net effect here)
+  printf 'triage:\n  mode: review\n' > "$cfg"
+  run "$sp" "$cfg" "$rep" >/dev/null
+  [ "$(rp "$rep" mode)" = "review" ] || log_fail "TEST-012: a valid in-scope mode:review must be adopted"
+  log_pass "fail-closed config: nesting-scoped, malformed/unknown-key -> local; valid mode adopted (TEST-012)"
 }
 
 # --- TEST-013: profiles classification --------------------------------------

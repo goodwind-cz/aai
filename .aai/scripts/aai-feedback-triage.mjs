@@ -93,23 +93,69 @@ function parseArgs(argv) {
 // Scoped, fail-closed read of the triage mode + threshold from feedback.yaml.
 // Mirrors aai-friction's capture-block discipline: only keys DIRECTLY under the
 // top-level `triage:` mapping count; anything unparseable degrades to local.
+// Read the triage mode + threshold from the `triage:` block, STRICTLY scoped and
+// FAIL-CLOSED (PR review). Rules:
+//  - `mode` is read ONLY from a DIRECT child of top-level `triage:` (exact child
+//    indent) — a `mode:` nested deeper (e.g. under `thresholds:`) is ignored.
+//  - `review_candidate` is read ONLY from a direct child of `triage: > thresholds:`.
+//  - The triage block's direct children are ALLOW-LISTED to {mode, thresholds}.
+//    ANY other direct-child key, or a syntactically malformed direct-child line,
+//    marks the block untrusted -> mode is forced to `local` (a malformed config
+//    must never leave a non-local mode in effect).
+function indentOf(line) { return line.length - line.trimStart().length; }
+
 function loadConfig(path) {
   const cfg = { mode: 'local', threshold: DEFAULT_THRESHOLD };
   let text;
   try { text = readFileSync(path, 'utf8'); } catch { return cfg; }
+
   let inTriage = false;
-  for (const line of text.split('\n')) {
-    if (/^[ \t]/.test(line)) {
-      if (!inTriage) continue;
-      let m = line.match(/^[ \t]+mode[ \t]*:[ \t]*([A-Za-z]+)[ \t]*$/);
-      if (m && MODES.has(m[1])) cfg.mode = m[1];
-      m = line.match(/^[ \t]+review_candidate[ \t]*:[ \t]*(\d+)[ \t]*$/);
-      if (m) cfg.threshold = parseInt(m[1], 10);
+  let childIndent = null;     // indent of triage's direct children
+  let inThresholds = false;
+  let thresholdsIndent = null;
+  let untrusted = false;      // any anomaly in the triage block -> force local
+
+  for (const raw of text.split('\n')) {
+    if (!raw.trim() || /^[ \t]*#/.test(raw)) continue; // blank / comment
+    const indent = indentOf(raw);
+    const line = raw.trim();
+
+    if (!inTriage) {
+      if (indent === 0 && /^triage[ \t]*:/.test(line)) inTriage = true;
       continue;
     }
-    inTriage = /^triage[ \t]*:/.test(line);
+    if (indent === 0) break; // dedent to another top-level key -> triage ended
+
+    if (childIndent === null) childIndent = indent;
+
+    if (indent === childIndent) {
+      inThresholds = false;
+      // Every direct child must be a well-formed `key:` on the allow-list.
+      const kv = line.match(/^([a-z_]+)[ \t]*:(.*)$/);
+      if (!kv) { untrusted = true; continue; }
+      const key = kv[1];
+      const val = kv[2].trim();
+      if (key === 'mode') {
+        if (MODES.has(val)) cfg.mode = val; else untrusted = true;
+      } else if (key === 'thresholds') {
+        if (val !== '') untrusted = true; // thresholds must be a mapping (no inline value)
+        inThresholds = true;
+        thresholdsIndent = null;
+      } else {
+        untrusted = true; // unknown direct-child key -> untrusted
+      }
+    } else if (inThresholds && indent > childIndent) {
+      if (thresholdsIndent === null) thresholdsIndent = indent;
+      if (indent === thresholdsIndent) {
+        const m = line.match(/^review_candidate[ \t]*:[ \t]*(\d+)[ \t]*$/);
+        if (m) cfg.threshold = parseInt(m[1], 10);
+        else if (/^review_candidate[ \t]*:/.test(line)) untrusted = true;
+      }
+    }
+    // deeper lines under a non-thresholds child are ignored structurally.
   }
-  if (!MODES.has(cfg.mode)) cfg.mode = 'local'; // fail closed
+
+  if (untrusted || !MODES.has(cfg.mode)) cfg.mode = 'local'; // fail closed
   return cfg;
 }
 
