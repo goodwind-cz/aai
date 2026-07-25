@@ -100,6 +100,57 @@ the fingerprint section; they are NOT written to the Phase 0 spool.
 
 ---
 
+## Observation schema v2 (RFC-0013)
+
+Schema v2 is backward compatible: a `schema_version: 1` record is accepted and
+persisted EXACTLY as before (the eight v1 keys, byte-identical). A
+`schema_version: 2` record additionally PERSISTS a small set of **structured
+signal fields** — leak-free by construction (bool / enum / shape-restricted
+pointer), so they carry triage signal without any free-text channel:
+
+| Field          | Type / domain                              | Notes                                              |
+|----------------|--------------------------------------------|----------------------------------------------------|
+| `reproducible` | boolean                                    | did the reporter reproduce it deterministically    |
+| `impact`       | enum `low \| medium \| high \| critical`   | blast radius                                       |
+| `confidence`   | enum `low \| medium \| high`               | reporter confidence it is AAI-owned                |
+| `workaround`   | enum `none \| manual \| automatic`         | cost of the current workaround                     |
+| `evidence_ref` | safe pointer: repo-relative `docs/…` path OR an AAI doc id (`SPEC-0079`, …) | URLs / absolute paths / free text are REJECTED |
+| `summary`      | opt-in short free-text (<= 200 chars)      | persisted ONLY when enabled AND certified clean    |
+| `redaction_status` | enum `none \| capture_clean \| capture_dropped_fields` | which redaction outcome the capture pass recorded |
+
+Structured/enum/bool/`evidence_ref` fields BYPASS the redactor by construction —
+only `summary` is ever redacted.
+
+### Summary redaction (D2/D3/D4)
+
+The free-text `summary` is off by default. It is persisted only when
+`.aai/feedback.yaml` `capture.summary_enabled: true` AND the hard redactor
+(`.aai/scripts/lib/aai-redact.mjs`) certifies it clean. The redactor is
+FAIL-CLOSED and defends in two layers:
+
+1. **Allow-list charset gate (primary).** Deny-list detection of secrets in free
+   text is fundamentally incomplete, so the summary is first required to consist
+   ONLY of a conservative ASCII prose set (letters, digits, space, and
+   `,.;:'"()!?-`). This categorically rejects — before any detector runs — every
+   non-ASCII character (zero-width spaces, fullwidth digits, homoglyphs), path
+   separators (`/` `\`), `@` (emails/handles/git remotes), and `_ + = ~`
+   (underscore-prefixed tokens like Stripe `sk_live_`).
+2. **Deny-list detectors (defense-in-depth)** for threats that live inside the
+   safe charset: secret prefixes (`AKIA`, `sk-`, `ghp_`…), high-entropy and
+   mixed-case-with-digit token runs, IPv4 and `::`-compressed IPv6, FQDNs, long
+   digit runs, PEM headers.
+
+If EITHER layer fires, the field is DROPPED (never persisted class-redacted in
+the capture pass) and `redaction_status` becomes `capture_dropped_fields` — the
+structured record still persists. Residual risk (RFC-0013 Risks, accepted): a
+bare hostname with no dot is indistinguishable from an ordinary word and cannot
+be detected in free text; the opt-in/off-by-default/local-only posture bounds the
+blast radius. This is the CAPTURE pass of RFC-0013's double redaction; the
+TRANSMIT pass (later upsert slice) re-runs the SAME shared redactor before any
+external write.
+
+---
+
 ## D6 persisted-field allowlist
 
 Per RFC-0012 D6, the observation's persisted (and, in later phases,

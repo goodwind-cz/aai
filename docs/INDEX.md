@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T07:34:05.574Z
+Generated: 2026-07-25T09:58:04.765Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| RFC-0013 | rfc | accepted | — | docs/rfc/RFC-0013-friction-record-v2-redaction.md |
+| RFC-0013 | rfc | implementing | — | docs/rfc/RFC-0013-friction-record-v2-redaction.md |
 
 ## Canonical layer (0)
 
@@ -194,9 +194,12 @@ _None._
 | SPEC-0079 | specs | docs/specs/SPEC-0079-spec-friction-shadow-capture-wiring.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0047 | issues | docs/issues/CHANGE-0047-friction-schema-v2-capture.md |
+| SPEC-0080 | specs | docs/specs/SPEC-0080-spec-friction-schema-v2-capture.md |
 
 ## Deferred (whole-doc) (0)
 
