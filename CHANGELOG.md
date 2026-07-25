@@ -9,7 +9,33 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased]
+## [unreleased] — feat: RFC-0012 Phase 0 — offline friction capture foundation (CHANGE-0045 / SPEC-0078)
+
+- First implementation slice of the accepted RFC-0012 (AAI self-improvement /
+  friction feedback loop): the OFFLINE local-capture foundation. Everything
+  downstream of capture (triage/upsert, the maintainer skill, any GitHub/network
+  write, `.aai/feedback.yaml` modes, budgets) is DEFERRED to later phases.
+- Adds `.aai/system/FRICTION_PROTOCOL.md` (the canonical contract: failure-class
+  taxonomy + exclusions, versioned observation schema v1, the D6 field allowlist,
+  the v1 deterministic fingerprint, and the redaction/atomic-append policy) and a
+  dependency-free `.aai/scripts/aai-friction.mjs record` CLI that writes one JSONL
+  line per observation to a gitignored project-local spool (`docs/ai/friction/`).
+  Node stdlib only; no npm; cross-platform.
+- Privacy by construction (RFC-0012 D6): the persisted record is built by copying
+  ONLY the 8 allowlisted keys (OS family, AAI pin, Node major, skill id + phase,
+  failure class, fingerprint) into a fresh object — a DENY-BY-DEFAULT allowlist,
+  not a denylist — so forbidden identity fields (hostnames, absolute paths, repo
+  remotes, usernames, project ids) and any novel caller key are structurally
+  dropped, and the derived fields use REAL local values (a caller cannot forge
+  them). Capture performs NO network I/O and holds NO token. Both properties are
+  skill-suite-enforced.
+- Concurrency + integrity: appends via `appendFileSync` (O_APPEND) so parallel
+  agents' captures don't lose lines; the atomic-append guarantee is made true by
+  construction with 128-char caps on the free identifier fields plus an
+  unconditional pre-append guard that rejects any serialized line reaching
+  PIPE_BUF (4096 B). 19 skill-suite tests incl. a 20/30-way concurrent-writer
+  test. Ceremony L2, no protected path, no prompt-corpus edit; the two new
+  `.aai/**` files are classified in PROFILES.yaml.
 
 ## [v2026.07.24] — fix: test-canon TEST-006 asserts on phase2's drift report, not a first-file proxy (ISSUE-0031 / SPEC-0077)
 

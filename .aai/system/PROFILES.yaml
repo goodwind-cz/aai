@@ -177,6 +177,7 @@ extended:
   - .aai/scripts/PSScriptAnalyzerSettings.psd1
   - .aai/scripts/aai-canonicalize.ps1
   - .aai/scripts/aai-canonicalize.sh
+  - .aai/scripts/aai-friction.mjs
   - .aai/scripts/cloudflare-share.ps1
   - .aai/scripts/cloudflare-share.sh
   - .aai/scripts/docs-canon.mjs
@@ -193,6 +194,7 @@ extended:
   - .aai/scripts/validate-skills.ps1
   - .aai/scripts/validate-skills.sh
   - .aai/system/EXPERT_REGISTRY.yaml
+  - .aai/system/FRICTION_PROTOCOL.md
   - .aai/system/SELF_HOSTING.md
   - .aai/system/SUPERPOWERS_INTEGRATION.md
   - .aai/templates/PROJECT_SESSION_TEMPLATE.md

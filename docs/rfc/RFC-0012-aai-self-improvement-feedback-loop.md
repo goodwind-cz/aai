@@ -2,7 +2,7 @@
 id: aai-self-improvement-feedback-loop
 type: rfc
 number: 12
-status: accepted
+status: implementing
 links:
   spec: null
   pr: []
