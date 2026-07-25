@@ -29,54 +29,75 @@ import { scanAuditDocs } from './lib/docs-audit-core.mjs';
 // Statuses at which a work item is still in flight, so its brief is a LIVE handoff.
 // Every other DOC_STATUS_ENUM value (done|deferred|rejected|superseded|legacy) is
 // terminal — the brief is consumed and safe to prune.
-const OPEN_STATUSES = new Set(['draft', 'proposed', 'accepted', 'implementing', 'frozen']);
+// The EXPLICIT terminal set — a brief is pruned ONLY when its doc's status is one
+// of these (or the brief is an orphan). Everything NOT here — an open status, an
+// empty status, or an unrecognized/typo'd value — is KEPT. Deleting on merely
+// "not open" would over-prune an unknown/future status (PR #152 review, Codex +
+// Copilot P2): the safe direction for a delete is to keep on any uncertainty.
+const TERMINAL_STATUSES = new Set(['done', 'deferred', 'rejected', 'superseded', 'legacy']);
 
 const ROOT = process.cwd();
 const BRIEFS_DIR = path.join(ROOT, 'docs', 'ai', 'briefs');
 
 // Map EVERY doc identifier (frontmatter slug id AND numbered display id) -> status,
-// so a brief named by either form resolves to its doc's lifecycle status.
+// so a brief named by either form resolves to its doc's lifecycle status. A doc
+// that cannot be read/parsed still EXISTS, so its display id is registered with an
+// 'unknown' status — its brief is then KEPT, never orphan-pruned on a transient
+// read/parse error (only a brief with NO doc file at all is treated as an orphan).
 function buildStatusIndex() {
   const idx = new Map();
   for (const { rel } of scanAuditDocs(ROOT)) {
-    let fm;
-    try { fm = parseFrontmatter(readFileSync(path.join(ROOT, rel), 'utf8')); } catch { continue; }
-    if (!fm) continue;
-    const status = String(fm.status || '').toLowerCase();
-    if (!status) continue;
     const display = extractDocIds(path.basename(rel), DEFAULT_CATEGORY_PREFIXES);
-    for (const key of [fm.id, display && display.primary].filter(Boolean)) {
-      // First writer wins is fine — a doc's ids are unique; a later duplicate id is
-      // itself a docs-audit finding, not this sweep's concern.
-      if (!idx.has(key)) idx.set(key, status);
+    let fm = null;
+    try { fm = parseFrontmatter(readFileSync(path.join(ROOT, rel), 'utf8')); } catch { /* unparseable */ }
+    const status = fm ? String(fm.status || '').toLowerCase() : '';
+    // Slug id only when parsed; display id (from the filename) is always available.
+    const keys = [fm && fm.id, display && display.primary].filter(Boolean);
+    for (const key of keys) {
+      // First writer wins — a doc's ids are unique; a later duplicate id is itself a
+      // docs-audit finding, not this sweep's concern. An empty status -> 'unknown'
+      // so the brief is kept, not pruned.
+      if (!idx.has(key)) idx.set(key, status || 'unknown');
     }
   }
   return idx;
+}
+
+// Decide + prune. Returns { pruned[], kept }. Wrapped by main() so an unexpected
+// FS error (unreadable briefs dir, transient failure) degrades to a no-op with
+// exit 0 — a hygiene sweep must never crash a caller like /aai-wrap-up.
+function sweep(dryRun) {
+  const pruned = [];
+  const kept = [];
+  if (!existsSync(BRIEFS_DIR)) return { pruned, kept };
+  const index = buildStatusIndex();
+  const briefs = readdirSync(BRIEFS_DIR).filter((f) => f.endsWith('.md') && f !== '.gitkeep');
+  for (const file of briefs) {
+    const name = file.replace(/\.md$/i, '');
+    const status = index.get(name);
+    let reason;
+    if (status === undefined) reason = 'orphan (no matching doc)';
+    else if (TERMINAL_STATUSES.has(status)) reason = `terminal (${status})`;
+    else { kept.push({ file, status }); continue; }  // OPEN or unrecognized -> KEEP
+    if (!dryRun) {
+      try { rmSync(path.join(BRIEFS_DIR, file)); } catch { /* best-effort */ }
+    }
+    pruned.push({ file, reason });
+  }
+  return { pruned, kept };
 }
 
 function main() {
   const dryRun = process.argv.includes('--dry-run');
   const asJson = process.argv.includes('--json');
 
-  const pruned = [];
-  const kept = [];
-
-  if (existsSync(BRIEFS_DIR)) {
-    const index = buildStatusIndex();
-    const briefs = readdirSync(BRIEFS_DIR).filter((f) => f.endsWith('.md') && f !== '.gitkeep');
-    for (const file of briefs) {
-      const name = file.replace(/\.md$/i, '');
-      const status = index.get(name);
-      if (status && OPEN_STATUSES.has(status)) {
-        kept.push({ file, status });
-        continue;
-      }
-      const reason = status ? `terminal (${status})` : 'orphan (no matching doc)';
-      if (!dryRun) {
-        try { rmSync(path.join(BRIEFS_DIR, file)); } catch { /* best-effort */ }
-      }
-      pruned.push({ file, reason });
-    }
+  let pruned = [];
+  let kept = [];
+  try {
+    ({ pruned, kept } = sweep(dryRun));
+  } catch (err) {
+    // Best-effort: any unexpected error degrades to a no-op (never a non-zero exit).
+    process.stderr.write(`prune-stale-briefs: skipped (${err && err.message ? err.message : err})\n`);
   }
 
   if (asJson) {
