@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T06:17:47.608Z
+Generated: 2026-07-25T07:34:05.574Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| RFC-0013 | rfc | accepted | — | docs/rfc/RFC-0013-friction-record-v2-redaction.md |
 
 ## Canonical layer (0)
 
