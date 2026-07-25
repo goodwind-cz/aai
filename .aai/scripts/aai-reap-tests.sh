@@ -99,6 +99,19 @@ strip_lz() {
 #   D-HH:MM:SS
 etime_to_secs() {
   et="$1"
+  # FAIL-SAFE shape guard (defensive; PR review). A valid ps ELAPSED/etime field
+  # is ONLY digits, colons, and a leading `-` day separator. If a `ps` column read
+  # ever misaligns (a word from argv landing here), parsing it would yield a
+  # nondeterministic age; anything not etime-shaped is treated as age 0 (spare).
+  # This only ever makes the reaper MORE conservative (age 0 never crosses a
+  # positive MIN_AGE / never predates a step-start), never reaps more. NOTE: this
+  # is defensive hardening, not the confirmed root-cause fix for the test-018
+  # legacy spare-fresh flake — a non-numeric word already fell through to a spare
+  # in the prior code (the `-ge` comparison errored -> `|| continue`), so the true
+  # cause is still under investigation via the `reaped ages:` diagnostic below.
+  case "$et" in
+    '' | *[!0-9:-]*) echo 0; return ;;
+  esac
   days=0
   case "$et" in
     *-*)
@@ -170,8 +183,10 @@ ps axo pid=,etime=,args= > "$SNAP" 2>/dev/null || {
   # Additive diagnostic (SPEC test-018-legacy-spare-attribution / Spec-AC-01):
   # a stable, always-present companion line to `reaped: N` reporting the pid
   # list. Empty tail here (ps snapshot failed => nothing matched). Reporting
-  # only — no decision surface.
+  # only — no decision surface. `reaped ages:` is emitted on BOTH exit paths so
+  # the output shape is stable (PR review).
   echo "reaped pids:"
+  echo "reaped ages:"
   exit 0
 }
 # SNAP_NOW is captured IMMEDIATELY adjacent to the ps snapshot instant above —
@@ -211,6 +226,7 @@ case "$_grace_raw" in
 esac
 
 MATCH_PIDS=""
+MATCH_AGES=""   # "<pid>=<snapshot-age-secs>" per matched pid, for authoritative diagnosis
 # `while read < file` runs in the CURRENT shell (no pipe subshell), so the
 # accumulated pid list survives the loop.
 while read -r pid etime rest; do
@@ -249,6 +265,7 @@ while read -r pid etime rest; do
     [ "$age" -ge "$MIN_AGE" ] 2>/dev/null || continue
   fi
   MATCH_PIDS="$MATCH_PIDS $pid"
+  MATCH_AGES="$MATCH_AGES $pid=$age"
 done < "$SNAP"
 rm -f "$SNAP"
 
@@ -299,4 +316,11 @@ echo "reaped: $REAPED"
 # is a pure report of an already-decided value — it adds NO guard and changes
 # NOTHING about which pids enter MATCH_PIDS or get killed. POSIX sh, no bashisms.
 echo "reaped pids:$MATCH_PIDS"
+# Authoritative age diagnostic: the snapshot-time age (seconds) the reaper
+# computed for EACH matched pid — the exact value the age guard decided on. If
+# the legacy fail-safe ever mis-reaps a fresh sibling under CI load, this line
+# captures WHY (the age it saw) at decision time, not a post-mortem re-read of a
+# process that has since exited. Existing parsers key on `reaped pids:` only and
+# ignore this additional line.
+echo "reaped ages:$MATCH_AGES"
 exit 0

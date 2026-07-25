@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T12:03:09.584Z
+Generated: 2026-07-25T16:21:12.221Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -18,7 +18,7 @@ _None._
 
 _None._
 
-## Done (175)
+## Done (177)
 
 | ID | Type | Path |
 |---|---|---|
@@ -70,6 +70,7 @@ _None._
 | CHANGE-0046 | issues | docs/issues/CHANGE-0046-friction-shadow-capture-wiring.md |
 | CHANGE-0047 | issues | docs/issues/CHANGE-0047-friction-schema-v2-capture.md |
 | CHANGE-0048 | issues | docs/issues/CHANGE-0048-feedback-triage-offline.md |
+| CHANGE-0050 | issues | docs/issues/CHANGE-0050-reaper-test-018-etime-shape-guard.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -196,6 +197,7 @@ _None._
 | SPEC-0079 | specs | docs/specs/SPEC-0079-spec-friction-shadow-capture-wiring.md |
 | SPEC-0080 | specs | docs/specs/SPEC-0080-spec-friction-schema-v2-capture.md |
 | SPEC-0081 | specs | docs/specs/SPEC-0081-spec-feedback-triage-offline.md |
+| SPEC-0083 | specs | docs/specs/SPEC-0083-spec-reaper-test-018-etime-shape-guard.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
@@ -206,12 +208,13 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (3)
+## Deferred items (per-AC, across all specs) (4)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
 | SPEC-0076 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-Linux-only flake; local pass is not sufficient evidence (Honesty requirements section). Owned by Validation after push. |
 | SPEC-0077 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-only flake; local pass is not sufficient evidence (Honesty requirements). Owned by Validation after push. |
+| SPEC-0083 | Spec-AC-04 | 2026-08-15 | CI-authoritative; the flake is CI-load-only and not locally reproducible |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
