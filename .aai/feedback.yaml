@@ -26,3 +26,15 @@ triage:
     # A cluster whose composite score (impact + confidence + reproducible +
     # recurrence) reaches this becomes a `review_candidate` in the report.
     review_candidate: 4
+
+upsert:
+  # RFC-0012 Phase 2c / Slice C — review-mode GitHub upsert (approval-gated).
+  # A plain run of aai-feedback-upsert.mjs is PREPARE-ONLY (no GitHub write); an
+  # issue is filed ONLY via an explicit human `--publish <fp> --confirm`. Active
+  # only when triage.mode is `review`. `auto` is refused (locked).
+  destination: goodwind-cz/aai   # pinned destination repo (RFC-0012 D1)
+  budget:
+    max_new_issues_per_7d: 3
+  cooldown_days: 7
+  labels:
+    - aai-friction

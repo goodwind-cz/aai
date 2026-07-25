@@ -412,8 +412,8 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# 22332 (true-up: feedback-triage-offline added a 1486 B itemized entry for the
-# new .aai/SKILL_FEEDBACK_TRIAGE.prompt.md wrapper, over the prior 20846 B total
+# 24263 (true-up: feedback-upsert-review added a 1931 B itemized entry for the
+# new .aai/SKILL_FEEDBACK_UPSERT.prompt.md wrapper, over the prior 22332 B total
 # which came from friction-shadow-capture-wiring's 488 B AGENTS.md entry) AND
 # equals an independent re-sum of JUSTIFIED_ADDITIONS. This
 # expected total is bumped, never recomputed silently, each time a scope
@@ -428,15 +428,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 22332 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 22332)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 24263 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 24263)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 22332 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 24263 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
