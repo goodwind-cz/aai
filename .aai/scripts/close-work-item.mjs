@@ -361,6 +361,31 @@ function rollback(snapshot, eventsSnapshotLen) {
   }
 }
 
+// Best-effort prune of each closed ref's Planning-emitted work-item brief
+// (docs/ai/briefs/<ref>.md — a gitignored runtime handoff artifact, like
+// docs/ai/reports/). The brief is consumed once the item is durably closed, so
+// leaving it on disk only lets stale briefs accumulate for done items. Runs
+// ONLY after the self-verified close: a missing brief, an unlink error, or a
+// ref that could escape the briefs dir is silently skipped — the close is the
+// durable outcome and must never fail on a housekeeping unlink. A later re-plan
+// regenerates the brief, so removal here is safe.
+function pruneBriefs(refs) {
+  const pruned = [];
+  for (const ref of refs) {
+    if (!ref || ref.includes('/') || ref.includes('\\') || ref.includes('..')) continue;
+    const p = path.join(ROOT, 'docs/ai/briefs', `${ref}.md`);
+    try {
+      if (fs.existsSync(p)) {
+        fs.rmSync(p);
+        pruned.push(`${ref}.md`);
+      }
+    } catch {
+      /* best-effort housekeeping; the close already succeeded */
+    }
+  }
+  return pruned;
+}
+
 // --- main ----------------------------------------------------------------------
 
 function main() {
@@ -499,7 +524,13 @@ function main() {
     process.exit(1);
   }
 
-  console.log(`close-work-item: closed ${refs.join(', ')} (pr #${args.pr}, commit ${args.commit})`);
+  const pruned = pruneBriefs(refs);
+  const briefNote = pruned.length
+    ? ` (pruned brief${pruned.length > 1 ? 's' : ''}: ${pruned.join(', ')})`
+    : '';
+  console.log(
+    `close-work-item: closed ${refs.join(', ')} (pr #${args.pr}, commit ${args.commit})${briefNote}`
+  );
   process.exit(0);
 }
 
