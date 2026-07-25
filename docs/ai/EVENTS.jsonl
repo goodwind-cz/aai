@@ -1104,6 +1104,11 @@
 {"v":1,"ts":"2026-07-25T16:20:36.592Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-reaper-test-018-etime-shape-guard","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-25T16:20:36.625Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-reaper-test-018-etime-shape-guard","payload":{"commit":"a2f5a473273e2b53be0933df79c074bff7a70376"}}
 {"v":1,"ts":"2026-07-25T16:21:12.134Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":179,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-25T17:54:30.604Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":182,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-25T17:56:54.579Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"close-work-item-brief-cleanup","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-25T17:56:54.610Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"close-work-item-brief-cleanup","payload":{"validation":"pass","code_review":"none"}}
+{"v":1,"ts":"2026-07-25T17:56:54.640Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"close-work-item-brief-cleanup","payload":{"commit":"4bc117c1698f783ac30600b23c8ad82a9e1214fe"}}
+{"v":1,"ts":"2026-07-25T17:57:25.188Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":182,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-07-25T17:43:08.778Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"friction-feedback-discovery","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-25T17:43:08.814Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"friction-feedback-discovery","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-25T17:43:08.851Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"friction-feedback-discovery","payload":{"commit":"523b48f00cbba166c3c9a0cefe008dee90d9f733"}}

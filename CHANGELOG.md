@@ -9,6 +9,18 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — chore: close-work-item brief auto-cleanup (CHANGE-0052)
+
+- The deterministic close ceremony (`.aai/scripts/close-work-item.mjs`) now prunes
+  each closed doc's Planning-emitted work-item brief (`docs/ai/briefs/<REF-ID>.md`,
+  both the slug- and display-id-named forms) once the close is durably
+  self-verified. Briefs are gitignored runtime handoff
+  artifacts; pruning at close keeps the dir scoped to in-flight work with no
+  operator action. Best-effort: a missing brief / unlink error never fails the
+  close (it runs downstream of self-verify), a path-escape guard blocks any ref
+  that could reach outside `docs/ai/briefs/`, and the pruned brief(s) are named in
+  the success line. Regression test: TEST-013 in `test-aai-close-work-item.sh`.
+
 ## [unreleased] — feat: RFC-0012 friction feedback discovery + gh auth preflight + user docs (CHANGE-0051 / SPEC-0084)
 
 - Makes the friction feedback loop VISIBLE and USABLE for a human operator (it was

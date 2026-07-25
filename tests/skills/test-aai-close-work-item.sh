@@ -697,6 +697,48 @@ EOF
   log_pass "Null fm.id resolved by display-id: clean pre-write exit 2, doc + EVENTS untouched (TEST-012, B3)"
 }
 
+# --- TEST-013 (CHANGE-0052): brief auto-cleanup on close ---------------------
+
+test_013_brief_cleanup_on_close() {
+  log_info "Test: brief auto-cleanup -> a durable close prunes docs/ai/briefs/<ref>.md, spares an unrelated brief, never fails the close (TEST-013)..."
+  local dir; dir=$(new_fixture_repo "t013")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t013.md" "t013-slug" "implementing"
+  commit_fixture_docs "$dir"
+
+  # Three briefs: the SLUG-named brief (t013-slug.md), the DISPLAY-ID-named brief
+  # (CHANGE-0001.md — PLANNING has historically named briefs by either form), and
+  # an unrelated one that MUST survive.
+  mkdir -p "$dir/docs/ai/briefs"
+  printf 'brief for t013-slug\n' > "$dir/docs/ai/briefs/t013-slug.md"
+  printf 'brief for CHANGE-0001 display id\n' > "$dir/docs/ai/briefs/CHANGE-0001.md"
+  printf 'brief for someone else\n' > "$dir/docs/ai/briefs/other-slug.md"
+
+  local out="$TEST_DIR/t013.out" err="$TEST_DIR/t013.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t013-slug --pr 13 --commit e0e0e13)
+  assert_exit "brief-cleanup close" 0 "$code"
+
+  [[ ! -e "$dir/docs/ai/briefs/t013-slug.md" ]] \
+    || log_fail "t013: SLUG-named brief for the closed ref was NOT pruned"
+  [[ ! -e "$dir/docs/ai/briefs/CHANGE-0001.md" ]] \
+    || log_fail "t013: DISPLAY-ID-named brief for the closed ref was NOT pruned (bot-review P2)"
+  [[ -e "$dir/docs/ai/briefs/other-slug.md" ]] \
+    || log_fail "t013: an UNRELATED brief was wrongly pruned"
+  grep -qF "pruned brief" "$out" \
+    || log_fail "t013: success line did not report the pruned brief: $(cat "$out")"
+
+  # No-brief close must still succeed cleanly (best-effort, missing brief is a no-op).
+  local dir2; dir2=$(new_fixture_repo "t013b")
+  write_change_doc "$dir2/docs/issues/CHANGE-0001-t013b.md" "t013b-slug" "implementing"
+  commit_fixture_docs "$dir2"
+  out="$TEST_DIR/t013b.out"; err="$TEST_DIR/t013b.err"
+  code=$(run_close "$dir2" "$out" "$err" --ref t013b-slug --pr 14 --commit f0f0f14)
+  assert_exit "no-brief close still succeeds" 0 "$code"
+  grep -qF "pruned brief" "$out" \
+    && log_fail "t013b: reported a pruned brief when none existed: $(cat "$out")"
+
+  log_pass "Brief auto-cleanup: closed ref's brief pruned, unrelated brief spared, no-brief close clean (TEST-013)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -720,6 +762,7 @@ main() {
   test_010_fail_closed_index_regen_rollback
   test_011_inline_nonempty_links_normalized
   test_012_null_fm_id_pre_write_guard
+  test_013_brief_cleanup_on_close
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

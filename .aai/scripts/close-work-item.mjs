@@ -361,6 +361,44 @@ function rollback(snapshot, eventsSnapshotLen) {
   }
 }
 
+// Best-effort prune of each closed doc's Planning-emitted work-item brief
+// (docs/ai/briefs/<REF-ID>.md — a gitignored runtime handoff artifact, like
+// docs/ai/reports/). The brief is consumed once the item is durably closed, so
+// leaving it on disk only lets stale briefs accumulate for done items.
+//
+// PLANNING step 11 names the brief by `<REF-ID>`, which is historically EITHER
+// the frontmatter slug `id` (e.g. friction-capture-foundation.md) OR the numbered
+// display id (e.g. CHANGE-0027.md) — both forms exist on disk. So for each closed
+// doc we prune every candidate name: the slug (fmId) AND each display id
+// (fileIds), deduped (bot-review P2: display-ID briefs were being missed).
+//
+// Runs ONLY after the self-verified close: a missing brief, an unlink error, or a
+// name that could escape the briefs dir is silently skipped — the close is the
+// durable outcome and must never fail on a housekeeping unlink. A later re-plan
+// regenerates the brief, so removal here is safe.
+function pruneBriefs(plan) {
+  const names = new Set();
+  for (const d of plan) {
+    for (const id of [d.fmId, ...(d.fileIds || [])]) {
+      if (id) names.add(id);
+    }
+  }
+  const pruned = [];
+  for (const name of names) {
+    if (name.includes('/') || name.includes('\\') || name.includes('..')) continue;
+    const p = path.join(ROOT, 'docs/ai/briefs', `${name}.md`);
+    try {
+      if (fs.existsSync(p)) {
+        fs.rmSync(p);
+        pruned.push(`${name}.md`);
+      }
+    } catch {
+      /* best-effort housekeeping; the close already succeeded */
+    }
+  }
+  return pruned;
+}
+
 // --- main ----------------------------------------------------------------------
 
 function main() {
@@ -499,7 +537,13 @@ function main() {
     process.exit(1);
   }
 
-  console.log(`close-work-item: closed ${refs.join(', ')} (pr #${args.pr}, commit ${args.commit})`);
+  const pruned = pruneBriefs(plan);
+  const briefNote = pruned.length
+    ? ` (pruned brief${pruned.length > 1 ? 's' : ''}: ${pruned.join(', ')})`
+    : '';
+  console.log(
+    `close-work-item: closed ${refs.join(', ')} (pr #${args.pr}, commit ${args.commit})${briefNote}`
+  );
   process.exit(0);
 }
 
