@@ -182,6 +182,15 @@ function main() {
   lines.push(`- Mode: ${mode}${args.path ? ` | Scope: ${args.path}` : ''}`);
   lines.push(`- Scanned: ${counts.total} docs | Orphans: ${counts.orphans} (${counts.orphans - counts.orphansNew} legacy soft) | Drifted: ${counts.drifted} | Stale: ${counts.stale} | False-open: ${counts.falseOpen} | Obsolete: ${counts.obsolete}`);
   lines.push(`- Tracked: ${counts.trackedOpen} open, ${counts.trackedDone} done, ${counts.superseded} superseded/rejected`);
+  // Rollout progress (always-shown): an in-flight rfc/prd umbrella's `status` enum
+  // never shows how far along it is — this rolls up its done/total child docs so
+  // partial progress is visible on a plain `docs-audit --check`. Report-only.
+  if (result.parentProgress && result.parentProgress.length > 0) {
+    const seg = result.parentProgress
+      .map((p) => `${p.id} ${p.done}/${p.total}`)
+      .join(' · ');
+    lines.push(`- Rollout: ${seg}`);
+  }
   lines.push('');
 
   if (mode === 'report-only') {
@@ -253,6 +262,20 @@ function main() {
       for (const a of result.annotations) lines.push(`- ${a.id}: ${a.key} = ${a.value}`);
       lines.push('');
     }
+    // Rollout progress (report-only): done/total child docs per in-flight rfc/prd
+    // umbrella, so partial progress is visible — the parent `status` enum never is.
+    lines.push(`### Rollout progress: ${result.parentProgress.length}`);
+    lines.push('');
+    if (result.parentProgress.length === 0) lines.push('_None._');
+    else {
+      lines.push(...table(['Parent', 'Type', 'Status', 'Children done', 'Path'],
+        result.parentProgress.map(p => [
+          p.id, p.type, p.status,
+          `${p.done}/${p.total} (${p.total ? Math.round((p.done / p.total) * 100) : 0}%)`,
+          p.rel,
+        ])));
+    }
+    lines.push('');
     // Closeout candidates (SPEC-0003 / CHANGE-0004): report-only — never feeds
     // the exit-code path; surfaces non-terminal parents whose specs are all done.
     lines.push(`### Closeout candidates: ${result.closeoutCandidates.length}`);

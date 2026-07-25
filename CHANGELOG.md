@@ -9,6 +9,22 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: umbrella progress rollup + RFC Rollout Status (CHANGE-0055)
+
+- `docs-audit` now surfaces an in-flight umbrella's PROGRESS, which its coarse
+  `status: implementing` never showed. Every run prints a `- Rollout:` line
+  (e.g. `RFC-0012 10/11 · RFC-0013 2/2`) and `--list` adds a `### Rollout progress`
+  table — done/total child docs per non-terminal rfc/prd parent, matched on BOTH
+  the slug id and the numbered display id (children link by display id). Report-only.
+- RFC-0012 and RFC-0013 gain a human-maintained `## Rollout Status` phase/proposal
+  roadmap (captures not-started phases the automatic rollup can't see); RFC_TEMPLATE
+  ships a stub for future umbrellas.
+- **Parser fix (root cause):** `parseFrontmatter` dropped `links.rfc` /
+  `links.requirement` whenever the `links:` block also held a block-style list
+  (`pr:\n  - 147`) — a block-list item clobbered the whole nested object, silently
+  breaking every reverse-link consumer (the rollup AND closeout detection). Now
+  tracks the nested key so block-list items attach correctly. No test regression.
+
 ## [unreleased] — chore: AAI-level stale-brief sweep (CHANGE-0054)
 
 - New `.aai/scripts/prune-stale-briefs.mjs` sweeps stale work-item briefs

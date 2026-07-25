@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T22:01:44.083Z
+Generated: 2026-07-25T23:01:40.859Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -207,9 +207,11 @@ _None._
 | SPEC-0084 | specs | docs/specs/SPEC-0084-spec-friction-feedback-discovery.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0055 | issues | docs/issues/CHANGE-0055-umbrella-progress-rollup.md |
 
 ## Deferred (whole-doc) (0)
 

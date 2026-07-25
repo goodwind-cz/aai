@@ -1074,6 +1074,11 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   // id index and asList() — no second scan. NOT part of hardFail/needsTriage.
   const closeoutCandidates = closeoutCandidatesFor(docs);
 
+  // Rollout progress rollup (done/total children per non-terminal rfc/prd parent):
+  // makes an in-flight umbrella's PARTIAL progress visible, which its coarse
+  // `status` enum never shows. READ-ONLY, same docs[], runs in --quick.
+  const parentProgress = parentProgressFor(docs);
+
   // duplicate-doc-id detection (SPEC-0057 / ISSUE-0014): READ-ONLY post-pass,
   // same docs[] as closeoutCandidatesFor above — no second scan, no git/EVENTS
   // read, so it runs identically in --quick.
@@ -1158,8 +1163,9 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   return {
     mode, config, docs, orphansNew, orphansLegacy, drift, violations,
     typeWarnings, annotations, pendingCommit, planLenient, closeoutCandidates,
-    duplicateDocIds, openDecisionDoneDocs, nearMissWarnings, reviewClaimUnbacked,
-    missingCloseTelemetry, bodyLint, provenanceDrift, counts, hardFail,
+    parentProgress, duplicateDocIds, openDecisionDoneDocs, nearMissWarnings,
+    reviewClaimUnbacked, missingCloseTelemetry, bodyLint, provenanceDrift, counts,
+    hardFail,
   };
 }
 
@@ -1197,6 +1203,53 @@ export function closeoutCandidatesFor(docs) {
       specs: [...specIds].sort(),
       suggestedStep: `advance ${parent.id} to done/accepted; record the implementing commit`,
     });
+  }
+  return out.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+// Rollout progress rollup: for every non-terminal rfc/prd parent that has child
+// docs, count how many children are `done`. Where closeoutCandidatesFor flags ONLY
+// parents whose specs are ALL done (and counts specs), this reports the raw
+// done/total over EVERY linked child doc (any type), so an operator can see PARTIAL
+// progress on an in-flight umbrella — the parent's `status` is a coarse lifecycle
+// enum (draft→implementing→done) that never shows how far along it is. Children =
+// forward asList(links.spec) UNION reverse links (a scanned doc whose links.rfc /
+// links.requirement names the parent). READ-ONLY post-scan pass over the same
+// docs[] — no git/EVENTS read, so it runs identically in --quick. Informational —
+// NOT part of hardFail/needsTriage. Returns
+// [{ id, rel, type, status, done, total }] sorted by id; parents with 0 children
+// are omitted (nothing to roll up).
+export function parentProgressFor(docs) {
+  // Index by BOTH the slug id AND the numbered display id (fileId): a child links
+  // its parent by the DISPLAY id (e.g. `links.rfc: RFC-0012`) while the parent's
+  // own `id` is the slug, so matching on the slug alone resolves nothing.
+  const byId = new Map();
+  for (const d of docs) {
+    for (const k of [d.id, d.fileId].filter(Boolean)) if (!byId.has(k)) byId.set(k, d);
+  }
+  const docType = (d) => String(d.fm?.type ?? '').toLowerCase();
+  const out = [];
+  for (const parent of docs) {
+    if (!CLOSEOUT_PARENT_TYPES.has(docType(parent))) continue;
+    if (!CLOSEOUT_PARENT_STATUSES.has(parent.status)) continue;
+    const parentRefs = [parent.id, parent.fileId].filter(Boolean);
+    const children = new Set();   // doc objects, deduped by identity
+    // Forward: the parent's own links.spec (each id resolved slug-or-display).
+    for (const sid of asList(parent.fm?.links?.spec)) {
+      const d = byId.get(sid); if (d && d !== parent) children.add(d);
+    }
+    // Reverse: any scanned doc whose links.rfc / links.requirement names the parent
+    // (by slug OR display id).
+    for (const d of docs) {
+      if (d === parent) continue;
+      const reverse = [...asList(d.fm?.links?.rfc), ...asList(d.fm?.links?.requirement)];
+      if (reverse.some((r) => parentRefs.includes(r))) children.add(d);
+    }
+    if (children.size === 0) continue;
+    const arr = [...children];
+    const done = arr.filter((c) => c.status === 'done').length;
+    // Report the display id (RFC-0012) when present — what an operator recognizes.
+    out.push({ id: parent.fileId || parent.id, rel: parent.rel, type: docType(parent), status: parent.status, done, total: arr.length });
   }
   return out.sort((a, b) => a.id.localeCompare(b.id));
 }
