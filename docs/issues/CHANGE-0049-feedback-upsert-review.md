@@ -2,12 +2,14 @@
 id: feedback-upsert-review
 number: 49
 type: change
-status: draft
+status: done
 links:
   rfc: RFC-0012
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - 148
+  commits:
+    - a35afd5241e934716765fc5009c2f87a445ffbcf
 ---
 
 # RFC-0012 Phase 2c / Slice C — review-mode GitHub upsert (approval-gated)

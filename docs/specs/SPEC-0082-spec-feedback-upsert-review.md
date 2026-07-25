@@ -2,13 +2,15 @@
 id: spec-feedback-upsert-review
 type: spec
 number: 82
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: CHANGE-0049-feedback-upsert-review
   rfc: RFC-0012
-  pr: []
-  commits: []
+  pr:
+    - 148
+  commits:
+    - a35afd5241e934716765fc5009c2f87a445ffbcf
 ---
 
 # SPEC — RFC-0012 Phase 2c / Slice C: review-mode GitHub upsert (approval-gated)
