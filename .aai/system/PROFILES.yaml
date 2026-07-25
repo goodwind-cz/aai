@@ -196,6 +196,7 @@ extended:
   - .aai/scripts/metrics-report.mjs
   - .aai/scripts/migrate-yaml-to-jsonl.ps1
   - .aai/scripts/migrate-yaml-to-jsonl.sh
+  - .aai/scripts/prune-stale-briefs.mjs
   - .aai/scripts/share-convert.mjs
   - .aai/scripts/test-canon.mjs
   - .aai/scripts/validate-skills.ps1

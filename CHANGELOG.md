@@ -9,6 +9,17 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — chore: AAI-level stale-brief sweep (CHANGE-0054)
+
+- New `.aai/scripts/prune-stale-briefs.mjs` sweeps stale work-item briefs
+  (`docs/ai/briefs/<REF-ID>.md`, gitignored Planning handoffs) across the repo in
+  one pass, wired into `/aai-wrap-up` (step 6b) so every AAI project sweeps its own
+  briefs at session end. It prunes only briefs whose work item is terminal
+  (`done|deferred|rejected|superseded|legacy`) or orphaned, and KEEPS every brief
+  whose item is still open (a live handoff). `--dry-run`/`--json`, `.gitkeep`
+  preserved, exit 0 always. Complements CHANGE-0052's per-close prune (which never
+  cleaned the backlog). Fixture suite: `test-aai-prune-stale-briefs.sh`.
+
 ## [unreleased] — chore: close-work-item brief auto-cleanup (CHANGE-0052)
 
 - The deterministic close ceremony (`.aai/scripts/close-work-item.mjs`) now prunes

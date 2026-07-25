@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T20:59:46.469Z
+Generated: 2026-07-25T22:00:29.859Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -206,9 +206,11 @@ _None._
 | SPEC-0084 | specs | docs/specs/SPEC-0084-spec-friction-feedback-discovery.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0054 | issues | docs/issues/CHANGE-0054-prune-stale-briefs.md |
 
 ## Deferred (whole-doc) (0)
 

@@ -129,6 +129,17 @@ PROCESS
    output verbatim in the report ONLY when it is non-silent; never run any publish
    or network write from wrap-up.
 
+6b. STALE-BRIEF SWEEP (docs-lifecycle hygiene)
+   Prune Planning-emitted briefs whose work item is terminal or orphaned — they
+   are gitignored runtime artifacts that otherwise accumulate:
+   ```
+   node .aai/scripts/prune-stale-briefs.mjs
+   ```
+   It KEEPS every brief whose work item is still open (a live handoff) and removes
+   only terminal/orphan ones; it is a no-op when nothing is stale. Include its
+   one-line summary in the report ONLY when it pruned something. If the script is
+   absent (older layer), skip silently.
+
 7. FINAL OUTPUT
    Combine all sections into a single clean report.
 
