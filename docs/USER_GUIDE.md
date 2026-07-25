@@ -1901,6 +1901,82 @@ extend archived analyses.
 
 ---
 
+## Friction feedback loop (RFC-0012)
+
+AAI can capture where the **framework itself** rubs — a contradictory prompt, a
+broken AAI script, a missing template — and, with you in the loop, turn that into
+an upstream GitHub issue so the framework gets fixed for everyone. It is **safe by
+construction**: capture is silent and offline, only structured/redacted data is
+stored, and **no issue is ever filed without your explicit confirmation.**
+
+### How it flows
+
+1. **Capture (silent, automatic, offline).** While you work, a skill that hits an
+   AAI-owned failure records one structured observation to a local, untracked
+   spool (`docs/ai/friction/observations.jsonl`). No prose is stored by default,
+   no network, no token. You will not notice it — that is intentional (shadow
+   mode). Let it accumulate real data for a couple of weeks before acting on it.
+
+2. **Discover — how you know there is anything to do.** You do not have to
+   remember. At the end of a session `/aai-wrap-up` surfaces a one-line nudge, and
+   you can check anytime:
+   ```bash
+   node .aai/scripts/aai-feedback-status.mjs
+   # e.g. "friction feedback: 12 observation(s) captured · 2 draft(s) pending
+   #       your --confirm · gh: ready"
+   ```
+   It is silent when nothing has been captured.
+
+3. **Triage (local, offline).** Turn the raw spool into a scored, de-duplicated
+   local report:
+   ```bash
+   node .aai/scripts/aai-feedback-triage.mjs   # or /aai-feedback-triage
+   ```
+   Clusters that clear the threshold are marked `review_candidate`. Nothing leaves
+   your machine.
+
+4. **Prepare drafts (still no write).** Turn `review_candidate`s into ready-to-file,
+   **transmit-redacted**, deduplicated issue drafts — this writes local files only:
+   ```bash
+   node .aai/scripts/aai-feedback-upsert.mjs   # or /aai-feedback-upsert
+   # -> writes docs/ai/friction/pending-issues/<fingerprint>.md and prints the
+   #    exact confirmed-write command for each
+   ```
+
+5. **Review, then file — the only step that touches GitHub, and only on your
+   `--confirm`.** Read the draft in `docs/ai/friction/pending-issues/`, and if you
+   approve, file it:
+   ```bash
+   node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm
+   ```
+   This is the single mutating GitHub call. It re-runs the redaction + a
+   per-installation budget check immediately before filing.
+
+### GitHub authentication (prerequisite)
+
+The engine **holds no token**. It shells out to the GitHub CLI (`gh`) and borrows
+**your** authenticated session, so before you publish you must:
+```bash
+gh auth login
+```
+Your token lives only in `gh`'s own credential store — never in AAI config, the
+spool, or the repo. If `gh` is missing or not logged in, the status nudge and the
+publish command tell you plainly (`run: gh auth login`), preparation still works
+offline, and a publish attempt fails closed (it refuses to file rather than risk a
+duplicate or an unauthenticated call).
+
+### What is and isn't stored
+
+Persisted per observation: OS family, AAI/Node version, the skill + phase, the
+failure class, a fingerprint, and (schema v2) leak-free signal fields
+(impact/confidence/reproducible/workaround, a shape-restricted `evidence_ref`). An
+optional one-line human `summary` is **off by default**; when enabled it passes a
+hard, fail-closed redactor. Configure destination repo, budget, labels, and the
+summary opt-in in `.aai/feedback.yaml`. Automatic (no-confirm) upsert is a future,
+metrics-gated capability and is locked today.
+
+---
+
 ## Next Steps
 
 1. **Complete the getting started workflow above**
