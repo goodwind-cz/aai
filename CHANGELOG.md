@@ -9,7 +9,7 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — feat: RFC-0012 friction feedback discovery + gh auth preflight + user docs (CHANGE friction-feedback-discovery / SPEC spec-friction-feedback-discovery)
+## [unreleased] — feat: RFC-0012 friction feedback discovery + gh auth preflight + user docs (CHANGE-0051 / SPEC-0084)
 
 - Makes the friction feedback loop VISIBLE and USABLE for a human operator (it was
   built but undiscoverable). New offline `.aai/scripts/aai-feedback-status.mjs`

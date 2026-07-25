@@ -1,12 +1,15 @@
 ---
 id: friction-feedback-discovery
+number: 51
 type: change
-status: draft
+status: done
 links:
   rfc: RFC-0012
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - 150
+  commits:
+    - 523b48f00cbba166c3c9a0cefe008dee90d9f733
 ---
 
 # RFC-0012 — friction feedback discovery + gh auth preflight + user docs

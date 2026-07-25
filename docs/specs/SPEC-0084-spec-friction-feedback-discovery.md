@@ -1,14 +1,16 @@
 ---
 id: spec-friction-feedback-discovery
 type: spec
-number: null
-status: draft
+number: 84
+status: done
 ceremony_level: 2
 links:
-  requirement: CHANGE-DRAFT-friction-feedback-discovery
+  requirement: CHANGE-0051-friction-feedback-discovery
   rfc: RFC-0012
-  pr: []
-  commits: []
+  pr:
+    - 150
+  commits:
+    - 523b48f00cbba166c3c9a0cefe008dee90d9f733
 ---
 
 # SPEC — RFC-0012 friction feedback discovery + gh auth preflight + user docs
@@ -16,7 +18,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-friction-feedback-discovery.md
+- Requirement: docs/issues/CHANGE-0051-friction-feedback-discovery.md
 - Foundation: aai-feedback-triage.mjs, aai-feedback-upsert.mjs, feedback.yaml
 - Technology contract: docs/TECHNOLOGY.md
 
