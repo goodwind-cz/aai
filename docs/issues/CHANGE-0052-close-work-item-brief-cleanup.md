@@ -2,11 +2,13 @@
 id: close-work-item-brief-cleanup
 number: 52
 type: change
-status: draft
+status: done
 links:
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - 151
+  commits:
+    - 4bc117c1698f783ac30600b23c8ad82a9e1214fe
 ---
 
 # Close-work-item brief auto-cleanup
