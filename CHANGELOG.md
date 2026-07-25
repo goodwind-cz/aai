@@ -21,6 +21,21 @@ RFC-0001).
   that could reach outside `docs/ai/briefs/`, and the pruned brief(s) are named in
   the success line. Regression test: TEST-013 in `test-aai-close-work-item.sh`.
 
+## [unreleased] — feat: RFC-0012 friction feedback discovery + gh auth preflight + user docs (CHANGE-0051 / SPEC-0084)
+
+- Makes the friction feedback loop VISIBLE and USABLE for a human operator (it was
+  built but undiscoverable). New offline `.aai/scripts/aai-feedback-status.mjs`
+  reports captured observations, drafts pending `--confirm`, and whether GitHub
+  `gh` is authenticated (read-only `gh auth status`) + the next command — silent
+  when nothing is captured.
+- `/aai-wrap-up` now surfaces that nudge at session end. `aai-feedback-upsert.mjs`
+  gains a `gh auth` preflight so publishing gives a clear up-front `run: gh auth
+  login` instead of only failing reactively (the engine still holds no token — it
+  borrows the operator's authenticated `gh` session).
+- `docs/USER_GUIDE.md` gains a "Friction feedback loop" section documenting the
+  capture -> discover -> triage -> prepare -> review -> `--confirm` workflow, the
+  `gh auth login` prerequisite, and what is / isn't stored.
+
 ## [unreleased] — fix: reaper CI-load flake root-cause — pre-epoch impossible-age clamp (CHANGE-0053)
 
 - Root-cause fix for the recurring CI-load-only reaper flake in BOTH directions

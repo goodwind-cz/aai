@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T20:47:02.816Z
+Generated: 2026-07-25T20:59:46.469Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -18,7 +18,7 @@ _None._
 
 _None._
 
-## Done (181)
+## Done (183)
 
 | ID | Type | Path |
 |---|---|---|
@@ -72,6 +72,7 @@ _None._
 | CHANGE-0048 | issues | docs/issues/CHANGE-0048-feedback-triage-offline.md |
 | CHANGE-0049 | issues | docs/issues/CHANGE-0049-feedback-upsert-review.md |
 | CHANGE-0050 | issues | docs/issues/CHANGE-0050-reaper-test-018-etime-shape-guard.md |
+| CHANGE-0051 | issues | docs/issues/CHANGE-0051-friction-feedback-discovery.md |
 | CHANGE-0052 | issues | docs/issues/CHANGE-0052-close-work-item-brief-cleanup.md |
 | CHANGE-0053 | issues | docs/issues/CHANGE-0053-reaper-etime-impossible-age-clamp.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
@@ -202,6 +203,7 @@ _None._
 | SPEC-0081 | specs | docs/specs/SPEC-0081-spec-feedback-triage-offline.md |
 | SPEC-0082 | specs | docs/specs/SPEC-0082-spec-feedback-upsert-review.md |
 | SPEC-0083 | specs | docs/specs/SPEC-0083-spec-reaper-test-018-etime-shape-guard.md |
+| SPEC-0084 | specs | docs/specs/SPEC-0084-spec-friction-feedback-discovery.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)

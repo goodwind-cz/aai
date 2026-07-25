@@ -1109,5 +1109,14 @@
 {"v":1,"ts":"2026-07-25T17:56:54.610Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"close-work-item-brief-cleanup","payload":{"validation":"pass","code_review":"none"}}
 {"v":1,"ts":"2026-07-25T17:56:54.640Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"close-work-item-brief-cleanup","payload":{"commit":"4bc117c1698f783ac30600b23c8ad82a9e1214fe"}}
 {"v":1,"ts":"2026-07-25T17:57:25.188Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":182,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-25T17:43:08.778Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"friction-feedback-discovery","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-25T17:43:08.814Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"friction-feedback-discovery","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-25T17:43:08.851Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"friction-feedback-discovery","payload":{"commit":"523b48f00cbba166c3c9a0cefe008dee90d9f733"}}
+{"v":1,"ts":"2026-07-25T17:43:08.885Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-friction-feedback-discovery","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-25T17:43:08.918Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-friction-feedback-discovery","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-25T17:43:08.953Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-friction-feedback-discovery","payload":{"commit":"523b48f00cbba166c3c9a0cefe008dee90d9f733"}}
+{"v":1,"ts":"2026-07-25T17:43:44.782Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":183,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-25T17:44:12.565Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":183,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-25T17:44:21.956Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"aai-self-improvement-feedback-loop","payload":{"from":"implementing","to":"implementing"}}
 {"v":1,"ts":"2026-07-25T20:12:47.941Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"reaper-etime-impossible-age-clamp","payload":{"validation":"pass","code_review":"none"}}
 {"v":1,"ts":"2026-07-25T20:12:47.972Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"reaper-etime-impossible-age-clamp","payload":{"commit":"c721f0b4c34205698030edc7a7dcd48e6dd37f2c"}}
