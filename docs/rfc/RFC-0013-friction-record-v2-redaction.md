@@ -2,7 +2,7 @@
 id: friction-record-v2-redaction
 type: rfc
 number: 13
-status: accepted
+status: implementing
 links:
   spec: null
   rfc: RFC-0012

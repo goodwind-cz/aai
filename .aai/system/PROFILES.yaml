@@ -174,6 +174,7 @@ extended:
   - .aai/SKILL_TEST_SKILLS.prompt.md
   - .aai/SKILL_VALIDATE_REPORT.prompt.md
   - .aai/SKILL_WRAP_UP.prompt.md
+  - .aai/feedback.yaml
   - .aai/scripts/PSScriptAnalyzerSettings.psd1
   - .aai/scripts/aai-canonicalize.ps1
   - .aai/scripts/aai-canonicalize.sh
@@ -184,6 +185,7 @@ extended:
   - .aai/scripts/expert-fetch.ps1
   - .aai/scripts/expert-fetch.sh
   - .aai/scripts/generate-dashboard.mjs
+  - .aai/scripts/lib/aai-redact.mjs
   - .aai/scripts/lib/docs-canon-core.mjs
   - .aai/scripts/lib/test-canon-core.mjs
   - .aai/scripts/metrics-report.mjs

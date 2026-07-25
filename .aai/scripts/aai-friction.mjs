@@ -37,6 +37,7 @@ import { readFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { redactSummary, MAX_SUMMARY_LEN } from './lib/aai-redact.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, '..', '..');
@@ -44,6 +45,23 @@ const AAI_PIN_PATH = join(SCRIPT_DIR, '..', 'system', 'AAI_PIN.md');
 const SPOOL_FILE_NAME = 'observations.jsonl';
 const MAX_INPUT_BYTES = 65536;
 const SCHEMA_VERSION = 1;
+// RFC-0013: schema v2 persists structured signal fields (still leak-free) and,
+// opt-in, a hard-redacted summary. v1 records are accepted and persisted exactly
+// as before (backward compatible, byte-identical).
+const SUPPORTED_SCHEMA_VERSIONS = [1, 2];
+const WORKAROUND_VALUES = ['none', 'manual', 'automatic'];
+// Schema v2 impact domain per RFC-0013 D1 (low|medium|high). Deliberately does
+// NOT include the legacy IMPACT_VALUES 'critical' — v2 honors the frozen RFC
+// decision, so a v2 record with impact:critical is rejected (PR review P2).
+const V2_IMPACT_VALUES = ['low', 'medium', 'high'];
+const REDACTION_STATUS_VALUES = ['none', 'capture_clean', 'capture_dropped_fields'];
+// evidence_ref (RFC-0013 D5): a SAFE pointer only — a repo-relative docs/ path or
+// an AAI doc id. No URLs, no absolute paths, no free text. The doc-id arm ends
+// EXACTLY after the 4 digits: a trailing `[A-Za-z0-9-]*` suffix (e.g.
+// `SPEC-0079-private-customer-acme`) would be a free-text identity channel that
+// bypasses the redactor, so it is rejected (PR review P1). Use the `docs/…` arm
+// for a full document reference.
+const EVIDENCE_REF_RE = /^(?:docs\/[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*|(?:SPEC|CHANGE|ISSUE|RFC|PRD|RES|DEBT)-\d{4})$/;
 const FINGERPRINT_VERSION = 1;
 // Atomic-append size bound. A single write() of a line strictly under PIPE_BUF
 // is not interleaved with another concurrent O_APPEND writer's; a line that
@@ -73,16 +91,21 @@ Usage:
   node .aai/scripts/aai-friction.mjs --help
 
 record
-  Validate a schema-v1 observation (JSON) and append ONE JSONL line to the
-  untracked spool at docs/ai/friction/${SPOOL_FILE_NAME}. Pass a file path, or
-  '-' to read the observation from stdin.
+  Validate a schema-v1 or -v2 observation (JSON) and append ONE JSONL line to
+  the untracked spool at docs/ai/friction/${SPOOL_FILE_NAME}. Pass a file path,
+  or '-' to read the observation from stdin.
 
 Guarantees:
   - Offline: no token and no network access is ever used.
   - D6 allowlist (deny-by-default): the persisted line contains ONLY the eight
-    safe keys (schema_version, os_family, aai_pin, node_major, skill_id,
-    skill_phase, failure_class, fingerprint). Every other key in the input —
-    named identity fields or any novel key — is dropped by construction.
+    safe v1 keys (schema_version, os_family, aai_pin, node_major, skill_id,
+    skill_phase, failure_class, fingerprint) plus, for schema_version 2, the
+    leak-free structured signal fields (reproducible, impact, confidence,
+    workaround, evidence_ref, redaction_status). Every other input key — named
+    identity fields or any novel key — is dropped by construction.
+  - Redaction (RFC-0013): the opt-in free-text 'summary' (schema v2) is persisted
+    only when .aai/feedback.yaml enables it AND the hard redactor certifies it
+    clean; otherwise it is dropped fail-closed (the record still persists).
   - Concurrency-safe: the line is appended with O_APPEND, so concurrent
     record processes never lose or interleave lines; a rejected input never
     leaves a partial line.
@@ -184,11 +207,12 @@ function validate(obj) {
   if (!Object.prototype.hasOwnProperty.call(obj, 'schema_version')) {
     throw new ValidationError('missing required field: schema_version');
   }
-  if (obj.schema_version !== SCHEMA_VERSION) {
+  if (!SUPPORTED_SCHEMA_VERSIONS.includes(obj.schema_version)) {
     throw new ValidationError(
-      `field 'schema_version' must equal ${SCHEMA_VERSION} (unsupported schema version)`
+      `field 'schema_version' must be one of: ${SUPPORTED_SCHEMA_VERSIONS.join(', ')} (unsupported schema version)`
     );
   }
+  const schemaVersion = obj.schema_version;
   const skillId = requireString(obj, 'skill_id');
   capField('skill_id', skillId);
   const skillPhase = requireString(obj, 'skill_phase');
@@ -216,7 +240,60 @@ function validate(obj) {
       throw new ValidationError("field 'evidence_refs' has wrong type (expected an array of strings)");
     }
   }
-  return { skillId, skillPhase, failureClass, expected, observed };
+
+  // --- schema v2 structured fields (RFC-0013) — collected ONLY for v2 records,
+  // so a v1 record's persisted line is byte-identical to the pre-v2 tool. All
+  // are optional; each is type/enum/shape-validated. These are leak-free by
+  // construction (bool/enum/shape-restricted pointer) and NEVER reach the
+  // redactor — only the opt-in free-text `summary` (handled at record time) does.
+  let v2;
+  if (schemaVersion === 2) {
+    v2 = {};
+    if (Object.prototype.hasOwnProperty.call(obj, 'reproducible')) {
+      if (typeof obj.reproducible !== 'boolean') {
+        throw new ValidationError("field 'reproducible' has wrong type (expected a boolean)");
+      }
+      v2.reproducible = obj.reproducible;
+    }
+    // confidence was already enum-validated above (optionalEnum). impact is
+    // re-validated against the TIGHTER v2 domain (RFC-0013 D1) — the legacy
+    // optionalEnum accepts 'critical', which v2 must reject.
+    if (Object.prototype.hasOwnProperty.call(obj, 'impact')) {
+      if (!V2_IMPACT_VALUES.includes(obj.impact)) {
+        throw new ValidationError(`field 'impact' must be one of: ${V2_IMPACT_VALUES.join(', ')} (schema v2)`);
+      }
+      v2.impact = obj.impact;
+    }
+    if (Object.prototype.hasOwnProperty.call(obj, 'confidence')) v2.confidence = obj.confidence;
+    if (Object.prototype.hasOwnProperty.call(obj, 'workaround')) {
+      if (!WORKAROUND_VALUES.includes(obj.workaround)) {
+        throw new ValidationError(`field 'workaround' must be one of: ${WORKAROUND_VALUES.join(', ')}`);
+      }
+      v2.workaround = obj.workaround;
+    }
+    if (Object.prototype.hasOwnProperty.call(obj, 'evidence_ref')) {
+      const ref = obj.evidence_ref;
+      // Shape gate PLUS an explicit traversal guard: EVIDENCE_REF_RE permits `.`
+      // in a path segment (so `..` is syntactically a "valid" segment), which
+      // would let `docs/../../etc/passwd` masquerade as a repo-relative doc
+      // path. Reject any `..` component so the pointer cannot escape the repo.
+      if (typeof ref !== 'string' || !EVIDENCE_REF_RE.test(ref) || ref.split('/').includes('..')) {
+        throw new ValidationError(
+          "field 'evidence_ref' must be a repo-relative docs/ path (no '..') or an AAI doc id (e.g. SPEC-0079); URLs, absolute paths, traversal, and free text are rejected"
+        );
+      }
+      capField('evidence_ref', ref);
+      v2.evidenceRef = ref;
+    }
+    if (Object.prototype.hasOwnProperty.call(obj, 'summary')) {
+      if (typeof obj.summary !== 'string') {
+        throw new ValidationError("field 'summary' has wrong type (expected a string)");
+      }
+      v2.summary = obj.summary; // redaction is applied at record time, fail-closed
+    }
+  }
+
+  return { skillId, skillPhase, failureClass, expected, observed, schemaVersion, v2 };
 }
 
 // --- locally derived fields (never trusted from the caller) -----------------
@@ -301,6 +378,38 @@ function appendLine(line) {
   appendFileSync(target, line + '\n');
 }
 
+// --- feedback.yaml config (opt-in summary gate) -----------------------------
+// RFC-0013 D2: the free-text `summary` is persisted ONLY when the operator
+// opts in via `.aai/feedback.yaml` `capture.summary_enabled: true`. Absent or
+// unparseable config FAILS CLOSED to `false` (no free-text persisted). Minimal
+// line-based read — no YAML dependency (Technology contract: zero deps).
+function loadSummaryEnabled() {
+  const path = process.env.AAI_FEEDBACK_CONFIG || join(REPO_ROOT, '.aai', 'feedback.yaml');
+  let text;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch {
+    return false; // no config -> fail closed
+  }
+  // SCOPED read: only `summary_enabled` DIRECTLY under the top-level `capture:`
+  // mapping counts. A stray `summary_enabled: true` in an unrelated section must
+  // never override the privacy opt-out (PR review P1). Any dedent to another
+  // top-level key ends the capture block. Fail closed to false throughout.
+  let inCapture = false;
+  for (const line of text.split('\n')) {
+    if (/^[ \t]/.test(line)) {
+      if (inCapture) {
+        const m = line.match(/^[ \t]+summary_enabled[ \t]*:[ \t]*(true|false)[ \t]*$/);
+        if (m) return m[1] === 'true';
+      }
+      continue; // indented line outside capture -> ignore
+    }
+    // a non-indented, non-blank line is a new top-level key
+    inCapture = /^capture[ \t]*:/.test(line);
+  }
+  return false;
+}
+
 // --- record subcommand ------------------------------------------------------
 
 function parseRecordArgs(rest) {
@@ -331,7 +440,7 @@ function record(rest) {
   // allowlisted keys into a fresh object. No input key other than the three
   // explicitly named below can reach this object.
   const persisted = {
-    schema_version: SCHEMA_VERSION,
+    schema_version: fields.schemaVersion,
     os_family: deriveOsFamily(),
     aai_pin: deriveAaiPin(),
     node_major: deriveNodeMajor(),
@@ -340,6 +449,33 @@ function record(rest) {
     failure_class: fields.failureClass,
     fingerprint: computeFingerprint(fields),
   };
+
+  // Schema v2 (RFC-0013): append the leak-free structured fields that are
+  // present, then handle the opt-in, hard-redacted, fail-closed `summary`. The
+  // v1 branch above is left byte-identical — v2 keys are ADDED only for v2.
+  if (fields.schemaVersion === 2) {
+    const v2 = fields.v2 || {};
+    if (v2.reproducible !== undefined) persisted.reproducible = v2.reproducible;
+    if (v2.impact !== undefined) persisted.impact = v2.impact;
+    if (v2.confidence !== undefined) persisted.confidence = v2.confidence;
+    if (v2.workaround !== undefined) persisted.workaround = v2.workaround;
+    if (v2.evidenceRef !== undefined) persisted.evidence_ref = v2.evidenceRef;
+    // Free-text summary: only if opted in AND the redactor certifies it clean.
+    // Deny-by-default + fail-closed DROP (RFC-0013 D2/D4): an uncertain summary
+    // is dropped (never persisted class-redacted in the capture pass), the
+    // structured record still persists, and redaction_status records the outcome.
+    let redactionStatus = 'none';
+    if (v2.summary !== undefined && loadSummaryEnabled()) {
+      const r = redactSummary(v2.summary, { maxLen: MAX_SUMMARY_LEN });
+      if (r.ok) {
+        persisted.summary = r.value;
+        redactionStatus = 'capture_clean';
+      } else {
+        redactionStatus = 'capture_dropped_fields';
+      }
+    }
+    persisted.redaction_status = redactionStatus;
+  }
 
   // Hard atomic-append guard (belt-and-suspenders over the per-field caps): a
   // line is appended with O_APPEND only if it is strictly under PIPE_BUF, so a

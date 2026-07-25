@@ -567,11 +567,14 @@ test_015_help() {
 test_016_portability() {
   log_info "Test: every import node:-prefixed; this file uses full mktemp templates (TEST-016)..."
   [ -f "$SCRIPT" ] || log_fail "TEST-016: $SCRIPT does not exist"
-  # Every `import ... from '<target>'` target must start with node: — keep only
-  # import lines whose module is NOT node:-prefixed; that set must be empty.
+  # Every `import ... from '<target>'` target must be either a node: builtin OR a
+  # LOCAL relative module (./ or ../) — never a bare external package (the
+  # zero-runtime-dependency contract forbids npm deps, not local sibling modules
+  # like ./lib/aai-redact.mjs). Keep only import lines whose module is neither
+  # node:-prefixed nor relative; that set must be empty.
   local bad
-  bad="$(grep -nE "^import[^\"']*from ['\"]" "$SCRIPT" | grep -vE "from ['\"]node:" || true)"
-  [ -z "$bad" ] || log_fail "TEST-016: non-node: import target(s) present:
+  bad="$(grep -nE "^import[^\"']*from ['\"]" "$SCRIPT" | grep -vE "from ['\"](node:|\\.\\.?/)" || true)"
+  [ -z "$bad" ] || log_fail "TEST-016: import target(s) that are neither node: nor local-relative:
 $bad"
   # No CommonJS require of a bare package either.
   grep -qE "require\(['\"][^n.]" "$SCRIPT" \
@@ -672,6 +675,224 @@ JSON
   log_pass "Over-cap line rejected (no write); normal record records; at-cap concurrency lossless (TEST-019)"
 }
 
+# === RFC-0013 Slice A: schema v2 + hard redactor ============================
+
+# Writes a schema-v2 observation to $1; $2 = extra comma-prefixed raw members.
+write_v2() {
+  local path="$1" extra="${2:-}"
+  cat > "$path" <<JSON
+{
+  "schema_version": 2,
+  "skill_id": "SKILL_TDD",
+  "skill_phase": "validation",
+  "failure_class": "contract_violation",
+  "expected_behavior": "the gate passes",
+  "observed_behavior": "the gate threw"${extra}
+}
+JSON
+}
+
+# --- TEST-101 (Spec-AC-01): v1 stays byte-identical (backward compat) --------
+test_101_v1_backward_compat() {
+  log_info "Test: a schema-v1 record persists exactly the 8 legacy keys (TEST-101)..."
+  local sp="$TEST_DIR/sp101"; mkdir -p "$sp"
+  write_wellformed "$TEST_DIR/v1.json"
+  local code; code="$(run_record "$sp" "$TEST_DIR/v1.json")"
+  assert_exit "v1 record" 0 "$code"
+  local keys; keys="$(line_keys "$sp/observations.jsonl")"
+  [ "$keys" = "aai_pin,failure_class,fingerprint,node_major,os_family,schema_version,skill_id,skill_phase" ] \
+    || log_fail "TEST-101: v1 must persist exactly the 8 legacy keys (got: $keys)"
+  # Byte-compat is about ORDER too: assert the raw JSONL key order is the exact
+  # pre-v2 sequence (Object.keys preserves insertion order), not just the set.
+  local order; order="$(node -e 'const l=require("fs").readFileSync(process.argv[1],"utf8").trim();process.stdout.write(Object.keys(JSON.parse(l)).join(","))' "$sp/observations.jsonl")"
+  [ "$order" = "schema_version,os_family,aai_pin,node_major,skill_id,skill_phase,failure_class,fingerprint" ] \
+    || log_fail "TEST-101: v1 key ORDER must be byte-identical to the pre-v2 tool (got: $order)"
+  log_pass "v1 record byte-compatible: exactly the 8 legacy keys in the original order (TEST-101)"
+}
+
+# --- TEST-102 (Spec-AC-01): v2 persists structured; forged key dropped -------
+test_102_v2_structured_persisted() {
+  log_info "Test: a schema-v2 record persists structured fields; forged key dropped (TEST-102)..."
+  local sp="$TEST_DIR/sp102"; mkdir -p "$sp"
+  write_v2 "$TEST_DIR/v2.json" ',
+  "reproducible": true,
+  "impact": "high",
+  "confidence": "medium",
+  "workaround": "manual",
+  "evidence_ref": "SPEC-0079",
+  "hostname": "forged.example.com"'
+  local code; code="$(run_record "$sp" "$TEST_DIR/v2.json")"
+  assert_exit "v2 record" 0 "$code"
+  local keys; keys="$(line_keys "$sp/observations.jsonl")"
+  for k in reproducible impact confidence workaround evidence_ref redaction_status; do
+    assert_key_present "TEST-102" "$keys" "$k"
+  done
+  assert_key_absent "TEST-102" "$keys" "hostname"
+  assert_key_absent "TEST-102" "$keys" "summary"
+  [ "$(line_get "$sp/observations.jsonl" redaction_status)" = "none" ] \
+    || log_fail "TEST-102: redaction_status must be 'none' with no summary"
+  [ "$(line_get "$sp/observations.jsonl" evidence_ref)" = "SPEC-0079" ] \
+    || log_fail "TEST-102: evidence_ref must persist verbatim"
+  log_pass "v2 persists structured fields; forged identity key dropped (TEST-102)"
+}
+
+# --- TEST-103 (Spec-AC-02): invalid enum/bool rejected ----------------------
+test_103_v2_invalid_rejected() {
+  log_info "Test: invalid v2 enum/bool values are rejected with a named field (TEST-103)..."
+  local sp="$TEST_DIR/sp103"; mkdir -p "$sp"
+  # bad impact
+  write_v2 "$TEST_DIR/bi.json" ',
+  "impact": "catastrophic"'
+  [ "$(run_record "$sp" "$TEST_DIR/bi.json")" != "0" ] || log_fail "TEST-103: bad impact must be rejected"
+  grep -qF "impact" "$ERR" || log_fail "TEST-103: error must name 'impact'"
+  # 'critical' passes the legacy IMPACT_VALUES but v2 must reject it (RFC-0013 D1)
+  write_v2 "$TEST_DIR/bc.json" ',
+  "impact": "critical"'
+  [ "$(run_record "$sp" "$TEST_DIR/bc.json")" != "0" ] || log_fail "TEST-103: v2 impact 'critical' must be rejected (RFC-0013 D1 domain)"
+  grep -qF "impact" "$ERR" || log_fail "TEST-103: error must name 'impact'"
+  # bad workaround
+  write_v2 "$TEST_DIR/bw.json" ',
+  "workaround": "wishful"'
+  [ "$(run_record "$sp" "$TEST_DIR/bw.json")" != "0" ] || log_fail "TEST-103: bad workaround must be rejected"
+  grep -qF "workaround" "$ERR" || log_fail "TEST-103: error must name 'workaround'"
+  # bad reproducible type
+  write_v2 "$TEST_DIR/br.json" ',
+  "reproducible": "yes"'
+  [ "$(run_record "$sp" "$TEST_DIR/br.json")" != "0" ] || log_fail "TEST-103: non-bool reproducible must be rejected"
+  grep -qF "reproducible" "$ERR" || log_fail "TEST-103: error must name 'reproducible'"
+  [ "$(spool_count "$sp/observations.jsonl")" = "0" ] || log_fail "TEST-103: no invalid record may persist"
+  log_pass "invalid v2 enum/bool values rejected, named, nothing persisted (TEST-103)"
+}
+
+# --- TEST-104 (Spec-AC-03): evidence_ref safe-pointer shape -----------------
+test_104_evidence_ref_shape() {
+  log_info "Test: evidence_ref accepts safe pointers, rejects URL/abs/free (TEST-104)..."
+  local sp="$TEST_DIR/sp104"; mkdir -p "$sp"
+  # accepted: AAI doc id + docs/ path
+  for good in "SPEC-0079" "docs/ai/tdd/x.log" "CHANGE-0046"; do
+    rm -f "$sp/observations.jsonl"
+    write_v2 "$TEST_DIR/g.json" ",
+  \"evidence_ref\": \"$good\""
+    [ "$(run_record "$sp" "$TEST_DIR/g.json")" = "0" ] || log_fail "TEST-104: '$good' must be accepted ($(cat "$ERR"))"
+  done
+  # rejected: URL / absolute path / arbitrary / PATH TRAVERSAL / doc-id SUFFIX
+  # (regressions: docs/../../etc/passwd traversal; SPEC-0079-<free-text> suffix
+  # would be a free-text identity channel bypassing the redactor — PR review P1).
+  for bad in "http://evil.com" "/etc/passwd" "just some text" "docs/../../etc/passwd" "docs/../secret" "SPEC-0079-private-customer-acme" "SPEC-0079foo"; do
+    write_v2 "$TEST_DIR/b.json" ",
+  \"evidence_ref\": \"$bad\""
+    [ "$(run_record "$sp" "$TEST_DIR/b.json")" != "0" ] || log_fail "TEST-104: '$bad' must be rejected"
+    grep -qF "evidence_ref" "$ERR" || log_fail "TEST-104: rejection must name 'evidence_ref'"
+  done
+  log_pass "evidence_ref: safe pointers accepted; URL/abs/free rejected (TEST-104)"
+}
+
+# --- TEST-105 (Spec-AC-04): summary opt-in default off ----------------------
+test_105_summary_optin() {
+  log_info "Test: summary is opt-in (default off); clean summary → capture_clean (TEST-105)..."
+  local sp="$TEST_DIR/sp105"; mkdir -p "$sp"
+  write_v2 "$TEST_DIR/s.json" ',
+  "summary": "the gate threw on a missing transition"'
+  # default: no config -> fail closed off
+  local code; code="$(run_record "$sp" "$TEST_DIR/s.json")"
+  assert_exit "summary default off" 0 "$code"
+  assert_key_absent "TEST-105" "$(line_keys "$sp/observations.jsonl")" "summary"
+  [ "$(line_get "$sp/observations.jsonl" redaction_status)" = "none" ] \
+    || log_fail "TEST-105: default-off must leave redaction_status 'none'"
+  # enabled + clean
+  rm -f "$sp/observations.jsonl"
+  printf 'capture:\n  summary_enabled: true\n' > "$TEST_DIR/fb-on.yaml"
+  export AAI_FEEDBACK_CONFIG="$TEST_DIR/fb-on.yaml"
+  code="$(run_record "$sp" "$TEST_DIR/s.json")"
+  unset AAI_FEEDBACK_CONFIG
+  assert_exit "summary on clean" 0 "$code"
+  [ "$(line_get "$sp/observations.jsonl" summary)" = "the gate threw on a missing transition" ] \
+    || log_fail "TEST-105: clean summary must persist verbatim when enabled"
+  [ "$(line_get "$sp/observations.jsonl" redaction_status)" = "capture_clean" ] \
+    || log_fail "TEST-105: clean summary → redaction_status capture_clean"
+  log_pass "summary opt-in default off; enabled+clean → capture_clean (TEST-105)"
+}
+
+# --- TEST-106 (Spec-AC-05): poisoned summary dropped, record kept -----------
+test_106_summary_poisoned_dropped() {
+  log_info "Test: a poisoned summary is dropped (fail closed), record still persists (TEST-106)..."
+  local sp="$TEST_DIR/sp106"; mkdir -p "$sp"
+  printf 'capture:\n  summary_enabled: true\n' > "$TEST_DIR/fb-on.yaml"
+  export AAI_FEEDBACK_CONFIG="$TEST_DIR/fb-on.yaml"
+  # each poisoned class must drop the summary but keep the structured record
+  local i=0
+  for poison in "failed at /Users/ales/.ssh/id_rsa" "see http://x.internal/y" "ping 10.1.2.3 hung" "mailto ales@holubec.net"; do
+    i=$((i + 1))
+    rm -f "$sp/observations.jsonl"
+    write_v2 "$TEST_DIR/p$i.json" ",
+  \"impact\": \"low\",
+  \"summary\": \"$poison\""
+    local code; code="$(run_record "$sp" "$TEST_DIR/p$i.json")"
+    assert_exit "poisoned summary run $i" 0 "$code"
+    [ "$(spool_count "$sp/observations.jsonl")" = "1" ] || log_fail "TEST-106: record must still persist (poison $i)"
+    assert_key_absent "TEST-106" "$(line_keys "$sp/observations.jsonl")" "summary"
+    assert_key_present "TEST-106" "$(line_keys "$sp/observations.jsonl")" "impact"
+    [ "$(line_get "$sp/observations.jsonl" redaction_status)" = "capture_dropped_fields" ] \
+      || log_fail "TEST-106: poisoned summary → redaction_status capture_dropped_fields (poison $i)"
+  done
+  unset AAI_FEEDBACK_CONFIG
+  log_pass "poisoned summary dropped fail-closed; structured record kept (TEST-106)"
+}
+
+# --- TEST-107 (Spec-AC-06): only summary is redacted ------------------------
+test_107_only_summary_redacted() {
+  log_info "Test: the redactor is invoked ONLY on the summary path (TEST-107)..."
+  # Structural: redactSummary is imported and called; the only call site is the
+  # summary branch (grep shows a single redactSummary( invocation in the script).
+  local n; n="$(grep -c 'redactSummary(' "$SCRIPT")"
+  [ "$n" = "1" ] || log_fail "TEST-107: expected exactly one redactSummary( call site (got $n)"
+  # A structured field carrying a detector-like value is impossible (enums/shape),
+  # so a valid evidence_ref persists verbatim, never class-redacted.
+  local sp="$TEST_DIR/sp107"; mkdir -p "$sp"
+  write_v2 "$TEST_DIR/e.json" ',
+  "evidence_ref": "docs/ai/tdd/red.log"'
+  run_record "$sp" "$TEST_DIR/e.json" >/dev/null
+  [ "$(line_get "$sp/observations.jsonl" evidence_ref)" = "docs/ai/tdd/red.log" ] \
+    || log_fail "TEST-107: structured evidence_ref must persist verbatim (never redacted)"
+  log_pass "only the summary path is redacted; structured fields persist verbatim (TEST-107)"
+}
+
+# --- TEST-108 (Spec-AC-07): redactor + engine stay offline (static) ---------
+test_108_redactor_no_network_static() {
+  log_info "Test: the redactor module has no network/token surface (TEST-108)..."
+  local redact="$PROJECT_ROOT/.aai/scripts/lib/aai-redact.mjs"
+  [ -f "$redact" ] || log_fail "TEST-108: redactor module missing"
+  # The redactor is a PURE module: it imports NOTHING (no node:, no local, no
+  # bare package) and calls no network/process primitive. Assert on real code
+  # surface, not prose — the words "network"/"I/O" appear only in comments.
+  grep -qE "^\s*(import |const .*=\s*require\()" "$redact" \
+    && log_fail "TEST-108: redactor must import nothing (pure module)" || true
+  if grep -qE "fetch\(|child_process|\bnet\.|\bhttps?\.|\.request\(|process\.env|\bexec" "$redact"; then
+    log_fail "TEST-108: redactor must call no network/process primitive: $(grep -nE 'fetch\(|child_process|https?\.|process\.env|exec' "$redact" | head -1)"
+  fi
+  log_pass "redactor module is pure (imports nothing; no network/process surface) (TEST-108)"
+}
+
+# --- TEST-112 (Spec-AC-04): summary_enabled is scoped to the capture block -----
+# PR review P1: a stray summary_enabled:true in an unrelated section must NOT
+# override capture.summary_enabled:false.
+test_112_summary_enabled_scoped() {
+  log_info "Test: summary_enabled is read only under capture: (unrelated section cannot flip it) (TEST-112)..."
+  local sp="$TEST_DIR/sp112"; mkdir -p "$sp"
+  write_v2 "$TEST_DIR/s112.json" ',
+  "summary": "the gate threw on a missing transition"'
+  # stray true in another section, capture explicitly false -> must stay off
+  printf 'other:\n  summary_enabled: true\ncapture:\n  summary_enabled: false\n' > "$TEST_DIR/fb-stray.yaml"
+  export AAI_FEEDBACK_CONFIG="$TEST_DIR/fb-stray.yaml"
+  local code; code="$(run_record "$sp" "$TEST_DIR/s112.json")"
+  unset AAI_FEEDBACK_CONFIG
+  assert_exit "scoped config" 0 "$code"
+  assert_key_absent "TEST-112" "$(line_keys "$sp/observations.jsonl")" "summary"
+  [ "$(line_get "$sp/observations.jsonl" redaction_status)" = "none" ] \
+    || log_fail "TEST-112: a stray summary_enabled outside capture: must not enable the summary"
+  log_pass "summary_enabled is scoped to the capture block; unrelated sections cannot flip it (TEST-112)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -701,6 +922,17 @@ main() {
   test_016_portability
   test_018_concurrent_no_loss
   test_019_oversize_line_rejected
+
+  # RFC-0013 Slice A: schema v2 + hard redactor
+  test_101_v1_backward_compat
+  test_102_v2_structured_persisted
+  test_103_v2_invalid_rejected
+  test_104_evidence_ref_shape
+  test_105_summary_optin
+  test_106_summary_poisoned_dropped
+  test_107_only_summary_redacted
+  test_108_redactor_no_network_static
+  test_112_summary_enabled_scoped
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

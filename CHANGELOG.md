@@ -9,6 +9,27 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: RFC-0013 Slice A — friction schema v2 + hard redactor (CHANGE-0047 / SPEC-0080)
+
+- First code slice of RFC-0013: extends the offline capture CLI to persist
+  **schema v2 structured signal fields** and adds the **hard, fail-closed
+  redactor** for the opt-in `summary`. Unblocks meaningful triage (Phase 2)
+  while keeping the default record prose-free.
+- `.aai/scripts/aai-friction.mjs`: accepts `schema_version` 1 or 2 (v1 records
+  stay byte-identical). For v2 it persists `reproducible` (bool), `impact`,
+  `confidence`, `workaround` (enums), and `evidence_ref` (a shape-restricted safe
+  pointer — repo-relative `docs/…` path or AAI doc id; URLs/abs paths/free text
+  rejected). All leak-free by construction and never redacted.
+- `.aai/scripts/lib/aai-redact.mjs` (new): a pure, deny-by-default, fail-closed
+  redactor. The opt-in free-text `summary` (schema v2, off by default via
+  `.aai/feedback.yaml` `capture.summary_enabled`) is persisted only if the
+  redactor certifies it clean; any secret/path/identity/host/ip/token/long-digit/
+  control/over-length match DROPS the field (never kept class-redacted in the
+  capture pass), recording `redaction_status: capture_dropped_fields`. This is
+  the capture half of RFC-0013's double redaction; the transmit pass reuses it.
+- `.aai/feedback.yaml` (new, minimal): `capture.summary_enabled: false` default.
+  Companion: both new `.aai/**` files classified in PROFILES.yaml.
+
 ## [unreleased] — feat: RFC-0012 Phase 1 — local shadow-mode friction capture wiring (CHANGE-0046 / SPEC-0079)
 
 - Second implementation slice of RFC-0012 (shadow mode): wires the dormant

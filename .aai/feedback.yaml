@@ -1,0 +1,17 @@
+# .aai/feedback.yaml — RFC-0012 / RFC-0013 friction feedback configuration.
+#
+# This slice (RFC-0013 Slice A) consumes ONLY the `capture.summary_enabled`
+# toggle. The triage/upsert/auto-gate config (mode, destination, budget,
+# thresholds, labels) lands in later slices and will be added here then.
+#
+# CONTRACT
+# - Read by .aai/scripts/aai-friction.mjs (capture). Absent or unparseable
+#   config FAILS CLOSED — summary capture stays OFF.
+
+capture:
+  # RFC-0013 D2: persist an opt-in, hard-redacted, fail-closed free-text
+  # `summary` on schema-v2 observations. Default OFF — the default record is
+  # prose-free; the issue title is templated from structured fields. Turn this
+  # on only if you accept that a short human summary (hard-redacted, dropped on
+  # any uncertainty) may be stored in the local untracked spool.
+  summary_enabled: false
