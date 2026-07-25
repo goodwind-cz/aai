@@ -12,8 +12,9 @@ RFC-0001).
 ## [unreleased] — chore: close-work-item brief auto-cleanup (CHANGE-0052)
 
 - The deterministic close ceremony (`.aai/scripts/close-work-item.mjs`) now prunes
-  each closed ref's Planning-emitted work-item brief (`docs/ai/briefs/<ref>.md`)
-  once the close is durably self-verified. Briefs are gitignored runtime handoff
+  each closed doc's Planning-emitted work-item brief (`docs/ai/briefs/<REF-ID>.md`,
+  both the slug- and display-id-named forms) once the close is durably
+  self-verified. Briefs are gitignored runtime handoff
   artifacts; pruning at close keeps the dir scoped to in-flight work with no
   operator action. Best-effort: a missing brief / unlink error never fails the
   close (it runs downstream of self-verify), a path-escape guard blocks any ref

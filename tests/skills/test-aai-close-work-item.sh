@@ -705,9 +705,12 @@ test_013_brief_cleanup_on_close() {
   write_change_doc "$dir/docs/issues/CHANGE-0001-t013.md" "t013-slug" "implementing"
   commit_fixture_docs "$dir"
 
-  # Two briefs: the one for the ref being closed, and an unrelated one that MUST survive.
+  # Three briefs: the SLUG-named brief (t013-slug.md), the DISPLAY-ID-named brief
+  # (CHANGE-0001.md — PLANNING has historically named briefs by either form), and
+  # an unrelated one that MUST survive.
   mkdir -p "$dir/docs/ai/briefs"
   printf 'brief for t013-slug\n' > "$dir/docs/ai/briefs/t013-slug.md"
+  printf 'brief for CHANGE-0001 display id\n' > "$dir/docs/ai/briefs/CHANGE-0001.md"
   printf 'brief for someone else\n' > "$dir/docs/ai/briefs/other-slug.md"
 
   local out="$TEST_DIR/t013.out" err="$TEST_DIR/t013.err" code
@@ -715,7 +718,9 @@ test_013_brief_cleanup_on_close() {
   assert_exit "brief-cleanup close" 0 "$code"
 
   [[ ! -e "$dir/docs/ai/briefs/t013-slug.md" ]] \
-    || log_fail "t013: brief for the closed ref was NOT pruned"
+    || log_fail "t013: SLUG-named brief for the closed ref was NOT pruned"
+  [[ ! -e "$dir/docs/ai/briefs/CHANGE-0001.md" ]] \
+    || log_fail "t013: DISPLAY-ID-named brief for the closed ref was NOT pruned (bot-review P2)"
   [[ -e "$dir/docs/ai/briefs/other-slug.md" ]] \
     || log_fail "t013: an UNRELATED brief was wrongly pruned"
   grep -qF "pruned brief" "$out" \
