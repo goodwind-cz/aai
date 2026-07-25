@@ -1312,6 +1312,145 @@ test_closeout_forward_nonspec_not_flagged() {
   log_pass "Forward link to a non-spec done doc does not satisfy all-specs-done"
 }
 
+# --- Rollout progress rollup (CHANGE-0055): done/total children per in-flight parent ---
+
+# Parent RFC with a SLUG frontmatter id (like real RFCs — id != display id) and
+# children that link it by its DISPLAY id via BLOCK-LIST links (pr:/commits: with
+# `- item`), so the fixture exercises BOTH the id-and-display matching AND the
+# frontmatter-parser fix (a block-list under links.pr used to clobber links.rfc).
+setup_rollout_fixture() {
+  log_info "Setting up rollout-progress fixture (CHANGE-0055)..."
+  mkdir -p "$TEST_DIR/docs/rollout"
+  cd "$TEST_DIR"
+  cat > docs/rollout/RFC-0030-umbrella.md <<'MD'
+---
+id: umbrella-slug
+type: rfc
+status: implementing
+links:
+  spec: null
+---
+# In-flight umbrella (slug id, not RFC-0030)
+MD
+  # Two DONE children + one OPEN child, all reverse-linking the parent by DISPLAY
+  # id (RFC-0030) with block-list pr/commits (the parser-fix vector).
+  local i
+  for i in 1 2; do
+    cat > "docs/rollout/SPEC-003${i}-child-${i}.md" <<MD
+---
+id: spec-child-${i}
+type: spec
+number: 3${i}
+status: done
+links:
+  requirement: null
+  rfc: RFC-0030
+  pr:
+    - 4${i}
+  commits:
+    - deadbeefcafe000000000000000000000000000${i}
+---
+# Done child ${i}
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | c${i}        | done   | a1b2c3d  | TDD       | —     |
+MD
+  done
+  cat > docs/rollout/SPEC-0033-child-3.md <<'MD'
+---
+id: spec-child-3
+type: spec
+number: 33
+status: implementing
+links:
+  requirement: null
+  rfc: RFC-0030
+  pr:
+    - 43
+  commits:
+    - deadbeefcafe0000000000000000000000000003
+---
+# Still-open child 3
+MD
+  # A DRAFT umbrella that already spawned a done child — progress must still show
+  # (PR #154 review, Codex P2: draft umbrellas were excluded).
+  cat > docs/rollout/RFC-0040-draft-umbrella.md <<'MD'
+---
+id: draft-umbrella-slug
+type: rfc
+status: draft
+links:
+  spec: null
+---
+# Draft umbrella with a done child
+MD
+  cat > docs/rollout/SPEC-0041-draft-child.md <<'MD'
+---
+id: spec-draft-child
+type: spec
+number: 41
+status: done
+links:
+  requirement: null
+  rfc: RFC-0040
+  pr:
+    - 51
+  commits:
+    - deadbeefcafe0000000000000000000000000041
+---
+# Done child of a draft umbrella
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | d          | done   | a1b2c3d  | TDD       | —     |
+MD
+  git add docs/rollout && git commit -qm "test: rollout-progress fixture (CHANGE-0055)"
+  log_pass "Rollout-progress fixture ready"
+}
+
+test_rollout_progress_partial() {  # Spec-AC-01
+  log_info "Test: --list Rollout progress shows the slug-id parent at 2/3 done (CHANGE-0055)..."
+  run_audit --list --no-event --path docs/rollout > "$TEST_DIR/rollout.log" 2>&1 || true
+  assert_contains "$TEST_DIR/rollout.log" "### Rollout progress:"
+  # The parent is reported by its DISPLAY id, with 2 of 3 children done. Proves the
+  # id-and-display matching AND the block-list-links parser fix (else links.rfc is
+  # dropped and no children resolve).
+  extract_section_h3 "$TEST_DIR/rollout.log" "### Rollout progress" > "$TEST_DIR/rollout-sec.log"
+  assert_contains "$TEST_DIR/rollout-sec.log" "RFC-0030"
+  assert_contains "$TEST_DIR/rollout-sec.log" "2/3 (67%)"
+  log_pass "Rollout progress: slug-id parent RFC-0030 shown 2/3 (67%) via display-id + block-list links"
+}
+
+test_rollout_progress_summary_line() {  # Spec-AC-02
+  log_info "Test: a plain 'docs-audit --check' surfaces the '- Rollout:' one-liner (not just --list) (CHANGE-0055)..."
+  run_audit --check --no-event --path docs/rollout > "$TEST_DIR/rollout-default.log" 2>&1 || true
+  # NOTE: assert pattern must not start with "-" (grep would parse it as an option).
+  assert_contains "$TEST_DIR/rollout-default.log" "Rollout: RFC-0030 2/3"
+  log_pass "Rollout one-liner visible on 'docs-audit --check' (the operator's normal run)"
+}
+
+test_rollout_report_only() {  # Spec-AC-03
+  log_info "Test: rollout progress is report-only (exit 0) + a DRAFT umbrella is included (CHANGE-0055)..."
+  # Report-only means the rollup NEVER flips the exit code — assert exit 0 directly
+  # rather than swallowing it with `|| true` (PR #154 review, Copilot).
+  local rc=0
+  run_audit --check --no-event --path docs/rollout > "$TEST_DIR/rollout-ro.log" 2>&1 || rc=$?
+  [[ "$rc" == "0" ]] || log_fail "Rollout report-only: docs-audit --check must exit 0 on a clean in-flight-umbrella scope (got $rc)"
+  # BOTH the implementing (RFC-0030) and the DRAFT (RFC-0040) umbrellas roll up.
+  run_audit --list --no-event --path docs/rollout > "$TEST_DIR/rollout-ro2.log"
+  extract_section_h3 "$TEST_DIR/rollout-ro2.log" "### Rollout progress" > "$TEST_DIR/rollout-ro-sec.log"
+  assert_contains "$TEST_DIR/rollout-ro-sec.log" "### Rollout progress: 2"
+  assert_contains "$TEST_DIR/rollout-ro-sec.log" "RFC-0040"
+  grep -qE 'RFC-0040 .* draft .* 1/1' "$TEST_DIR/rollout-ro-sec.log" \
+    || log_fail "Draft umbrella RFC-0040 must roll up 1/1 (draft parents are included)"
+  log_pass "Rollout progress: report-only (exit 0); implementing + draft umbrellas both rolled up"
+}
+
 # --- SPEC-0006 fixtures (DEBT-0001): whole-doc deferred coverage + done close-policy ----
 
 # Isolated subtree holding the open-decision-on-done cases (TEST-006). Committed
@@ -5028,6 +5167,10 @@ main() {
   test_closeout_report_only_gate
   test_closeout_reverse_only
   test_closeout_forward_nonspec_not_flagged
+  setup_rollout_fixture
+  test_rollout_progress_partial
+  test_rollout_progress_summary_line
+  test_rollout_report_only
   setup_spec0006_opendecision_fixture
   test_spec0006_deferred_whole_doc_section
   test_spec0006_zero_section_strict_fatal

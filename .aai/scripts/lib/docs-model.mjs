@@ -502,6 +502,7 @@ export function parseFrontmatter(content) {
   const fm = {};
   let currentKey = null;
   let nested = null;
+  let nestedKey = null;   // last scalar key seen INSIDE a nested object (e.g. links.pr)
   let list = null;
   for (const rawLine of block.split('\n')) {
     if (!rawLine.trim() || rawLine.trim().startsWith('#')) continue;
@@ -510,14 +511,26 @@ export function parseFrontmatter(content) {
       // YAML block list item: "  - value" (RFC-0003 sources:, links lists).
       const li = rawLine.trim().match(/^-\s*(.*)$/);
       if (li) {
-        if (list == null) { list = []; fm[currentKey] = list; nested = null; }
-        const item = li[1].trim();
-        if (item !== '') list.push(item.replace(/^["']|["']$/g, ''));
+        const item = li[1].trim().replace(/^["']|["']$/g, '');
+        // The item belongs to the most recent scalar key at the deeper indent: a
+        // NESTED key (e.g. links.pr) when we are inside a nested object, else the
+        // top-level currentKey list (e.g. RFC-0003 sources:). Previously a block
+        // item under a nested key clobbered the WHOLE nested object with a fresh
+        // list, silently DROPPING sibling scalar keys like links.rfc /
+        // links.requirement — which broke every reverse-link consumer.
+        if (nested != null && nestedKey != null) {
+          if (!Array.isArray(nested[nestedKey])) nested[nestedKey] = [];
+          if (item !== '') nested[nestedKey].push(item);
+        } else {
+          if (list == null) { list = []; fm[currentKey] = list; }
+          if (item !== '') list.push(item);
+        }
         continue;
       }
-      if (nested == null) { nested = {}; fm[currentKey] = nested; }
+      if (nested == null) { nested = {}; fm[currentKey] = nested; list = null; }
       const m = rawLine.trim().match(/^([a-zA-Z_][\w-]*):\s*(.*)$/);
       if (m) {
+        nestedKey = m[1];
         const v = m[2].trim();
         if (v === '' || v === '[]') nested[m[1]] = (v === '[]') ? [] : null;
         else if (v === 'null') nested[m[1]] = null;
@@ -526,6 +539,7 @@ export function parseFrontmatter(content) {
       continue;
     }
     nested = null;
+    nestedKey = null;
     list = null;
     const m = rawLine.match(/^([a-zA-Z_][\w-]*):\s*(.*)$/);
     if (!m) continue;

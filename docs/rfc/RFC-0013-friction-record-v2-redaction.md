@@ -123,6 +123,21 @@ plus the fingerprint — no free-text at all.
 - Adds a small redaction module + detector set that both capture and transmit
   share (single-sourced, skill-suite-enforced).
 
+## Rollout Status
+
+Human-maintained delivery roadmap. The AUTOMATIC per-child-doc rollup (done/total
+of docs linking `rfc: RFC-0013`) is surfaced by `node .aai/scripts/docs-audit.mjs`
+(`- Rollout:` / `### Rollout progress`). Note: only the schema-v2-capture pair
+links back to this RFC; the redactor it introduced is REUSED (not re-linked) by the
+triage/upsert slices, which link RFC-0012.
+
+| Proposal | Status | Delivered by |
+|----------|--------|--------------|
+| Schema v2 (structured signal, prose-free default) | done | CHANGE-0047/SPEC-0080 (schema-v2 capture) |
+| Hard redactor (allow-list charset + deny-list detectors) | done | `.aai/scripts/lib/aai-redact.mjs` (Slice A) |
+| Double redaction (capture + transmit reuse) | done | capture in `aai-friction.mjs`; transmit in `aai-feedback-upsert.mjs` (CHANGE-0049) |
+| Opt-in short summary (fail-closed, default off) | done | CHANGE-0047 (`feedback.yaml capture.summary_enabled`) |
+
 ## Risks
 
 - Detector completeness: a hard redactor can only catch known shapes. Mitigation:

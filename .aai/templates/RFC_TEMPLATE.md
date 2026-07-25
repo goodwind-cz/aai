@@ -49,6 +49,19 @@ Frontmatter status values: draft | proposed | accepted | implementing | done | d
 - Operational impact:
 - Migration/compatibility notes:
 
+## Rollout Status
+<!-- For a MULTI-PHASE / umbrella RFC only (delete this section for a single-scope
+RFC). The frontmatter `status` is a coarse lifecycle enum that never shows how far
+along the umbrella is. Keep this human-maintained phase/proposal roadmap in sync as
+child work items land; the AUTOMATIC per-child-doc rollup (done/total of docs
+linking `rfc: <THIS-ID>`) is surfaced by `node .aai/scripts/docs-audit.mjs`
+(`- Rollout:` line / `### Rollout progress` table). This table adds the phases that
+have no child doc yet — not-started work the audit cannot see. -->
+
+| Phase | Description | Status | Delivered by |
+|-------|-------------|--------|--------------|
+| 0 | <phase> | not started | — |
+
 ## Risks
 - Primary risks and mitigations:
 

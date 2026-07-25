@@ -207,6 +207,24 @@ links:
   - Phase 5: consider automatic fix PR preparation; retain human merge forever.
   - Missing config or `gh` must degrade to local-only, not fail a skill.
 
+## Rollout Status
+
+Human-maintained phase roadmap (the coarse frontmatter `status: implementing`
+never shows how far along this umbrella is). The AUTOMATIC per-child-doc rollup —
+done/total of every doc linking `rfc: RFC-0012` — is surfaced by
+`node .aai/scripts/docs-audit.mjs` (the `- Rollout:` line / `### Rollout progress`
+table); this table adds the phases that have no child doc yet (not-started work the
+audit cannot see).
+
+| Phase | Description | Status | Delivered by |
+|-------|-------------|--------|--------------|
+| 0 | Taxonomy, schema, privacy policy, fixtures | done | CHANGE-0045/SPEC-0078 (capture foundation) + RFC-0013 |
+| 1 | Local shadow mode | done | CHANGE-0046/SPEC-0079 (shadow-capture wiring) |
+| 2 | Review mode in AAI + threshold calibration | in progress | CHANGE-0047/SPEC-0080 (schema v2), CHANGE-0048/SPEC-0081 (triage), CHANGE-0049/SPEC-0082 (upsert), CHANGE-0051/SPEC-0084 (discovery); remaining: auto-gate (D8), fix-PR scaffolding |
+| 3 | Review mode in selected downstream projects | not started | — |
+| 4 | Explicit auto opt-in for proven categories | not started | — |
+| 5 | Automatic fix-PR preparation (human merge always) | not started | — |
+
 ## Risks
 
 - Sensitive public disclosure: collect summaries, redact twice, block uncertain

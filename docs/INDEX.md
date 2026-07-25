@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T22:01:44.083Z
+Generated: 2026-07-25T23:03:00.581Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -18,7 +18,7 @@ _None._
 
 _None._
 
-## Done (184)
+## Done (185)
 
 | ID | Type | Path |
 |---|---|---|
@@ -76,6 +76,7 @@ _None._
 | CHANGE-0052 | issues | docs/issues/CHANGE-0052-close-work-item-brief-cleanup.md |
 | CHANGE-0053 | issues | docs/issues/CHANGE-0053-reaper-etime-impossible-age-clamp.md |
 | CHANGE-0054 | issues | docs/issues/CHANGE-0054-prune-stale-briefs.md |
+| CHANGE-0055 | issues | docs/issues/CHANGE-0055-umbrella-progress-rollup.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
