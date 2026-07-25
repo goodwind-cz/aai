@@ -2,13 +2,15 @@
 id: spec-friction-schema-v2-capture
 type: spec
 number: 80
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: CHANGE-0047-friction-schema-v2-capture
   rfc: RFC-0013
-  pr: []
-  commits: []
+  pr:
+    - 146
+  commits:
+    - 49bb6fcc74080c1501c9609d85d0d38b87ad1eb2
 ---
 
 # SPEC — RFC-0013 Slice A: schema-v2 capture + hard redactor (capture pass)

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T09:58:11.133Z
+Generated: 2026-07-25T09:59:21.602Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -18,7 +18,7 @@ _None._
 
 _None._
 
-## Done (171)
+## Done (173)
 
 | ID | Type | Path |
 |---|---|---|
@@ -68,6 +68,7 @@ _None._
 | CHANGE-0044 | issues | docs/issues/CHANGE-0044-aai-release-skill.md |
 | CHANGE-0045 | issues | docs/issues/CHANGE-0045-friction-capture-foundation.md |
 | CHANGE-0046 | issues | docs/issues/CHANGE-0046-friction-shadow-capture-wiring.md |
+| CHANGE-0047 | issues | docs/issues/CHANGE-0047-friction-schema-v2-capture.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -192,14 +193,12 @@ _None._
 | SPEC-0077 | specs | docs/specs/SPEC-0077-spec-test-canon-drift-detection.md |
 | SPEC-0078 | specs | docs/specs/SPEC-0078-spec-friction-capture-foundation.md |
 | SPEC-0079 | specs | docs/specs/SPEC-0079-spec-friction-shadow-capture-wiring.md |
+| SPEC-0080 | specs | docs/specs/SPEC-0080-spec-friction-schema-v2-capture.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0047 | issues | docs/issues/CHANGE-0047-friction-schema-v2-capture.md |
-| SPEC-0080 | specs | docs/specs/SPEC-0080-spec-friction-schema-v2-capture.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

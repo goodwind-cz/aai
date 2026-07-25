@@ -2,12 +2,14 @@
 id: friction-schema-v2-capture
 number: 47
 type: change
-status: draft
+status: done
 links:
   rfc: RFC-0013
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - 146
+  commits:
+    - 49bb6fcc74080c1501c9609d85d0d38b87ad1eb2
 ---
 
 # RFC-0013 Slice A — schema-v2 capture + hard redactor (capture pass)
