@@ -1041,3 +1041,9 @@
 {"v":1,"ts":"2026-07-24T16:10:56.531Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-test-canon-drift-detection","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-24T16:10:56.564Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-test-canon-drift-detection","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-24T16:10:56.596Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-test-canon-drift-detection","payload":{"commit":"155b6cc1e8fb9219ea7a0e1b4fbe02f8c46bfb33"}}
+{"v":1,"ts":"2026-07-25T01:08:59.714Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"friction-capture-foundation","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-25T01:08:59.746Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"friction-capture-foundation","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-25T01:08:59.779Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"friction-capture-foundation","payload":{"commit":"88232f977dec60d75ba246b760ec03af02e194a8"}}
+{"v":1,"ts":"2026-07-25T01:08:59.816Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-friction-capture-foundation","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-25T01:08:59.850Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-friction-capture-foundation","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-25T01:08:59.882Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-friction-capture-foundation","payload":{"commit":"88232f977dec60d75ba246b760ec03af02e194a8"}}

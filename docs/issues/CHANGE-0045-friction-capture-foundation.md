@@ -2,12 +2,14 @@
 id: friction-capture-foundation
 number: 45
 type: change
-status: draft
+status: done
 links:
   rfc: RFC-0012
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - 143
+  commits:
+    - 88232f977dec60d75ba246b760ec03af02e194a8
 ---
 
 # RFC-0012 Phase 0 — friction capture foundation (protocol + schema + offline capture CLI + spool)

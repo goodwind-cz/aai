@@ -2,13 +2,15 @@
 id: spec-friction-capture-foundation
 type: spec
 number: 78
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0045-friction-capture-foundation.md
   rfc: RFC-0012
-  pr: []
-  commits: []
+  pr:
+    - 143
+  commits:
+    - 88232f977dec60d75ba246b760ec03af02e194a8
 ---
 
 # Implementation Spec — RFC-0012 Phase 0: friction capture foundation
