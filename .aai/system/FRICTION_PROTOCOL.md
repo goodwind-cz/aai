@@ -111,7 +111,7 @@ pointer), so they carry triage signal without any free-text channel:
 | Field          | Type / domain                              | Notes                                              |
 |----------------|--------------------------------------------|----------------------------------------------------|
 | `reproducible` | boolean                                    | did the reporter reproduce it deterministically    |
-| `impact`       | enum `low \| medium \| high \| critical`   | blast radius                                       |
+| `impact`       | enum `low \| medium \| high` (RFC-0013 D1)  | blast radius                                       |
 | `confidence`   | enum `low \| medium \| high`               | reporter confidence it is AAI-owned                |
 | `workaround`   | enum `none \| manual \| automatic`         | cost of the current workaround                     |
 | `evidence_ref` | safe pointer: repo-relative `docs/…` path OR an AAI doc id (`SPEC-0079`, …) | URLs / absolute paths / free text are REJECTED |

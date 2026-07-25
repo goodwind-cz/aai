@@ -61,6 +61,13 @@ const DETECTORS = [
   // naming a script (`close-work-item.mjs`) is not a false positive. A bare
   // dotless hostname remains accepted residual (indistinguishable from a word).
   ['fqdn', /\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+(?:com|org|net|io|dev|co|edu|gov|internal|local|cz|ai|ru|uk|de|fr|eu|us|info|biz|app|cloud|xyz|tech|online|site|me|tv|gov\.uk|co\.uk)\b/],
+  // Multi-label FQDN (>=3 labels / >=2 dots) with an alpha final label, e.g.
+  // `api.customer.tech`, `build.internal.corp` — caught regardless of TLD so an
+  // unlisted-TLD host does not leak (PR review P1). A single-dot `word.word`
+  // (file `close-work-item.mjs`, or `build.company`) is deliberately NOT matched
+  // here — it is indistinguishable from a filename/extension; the TLD list above
+  // covers the common single-dot domains, and the rest is accepted residual.
+  ['fqdn_multi', /\b[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?){1,}\.[a-z]{2,}\b/i],
   ['user_handle', /(?:^|\s)@[A-Za-z0-9_\-]{2,}\b/],
   ['user_pass', /\b[A-Za-z0-9._\-]+:[^\s@/]+@/],
   // Long digit runs (ids, phone numbers, account numbers). No \b anchor so a

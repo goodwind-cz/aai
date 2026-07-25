@@ -38,7 +38,7 @@ links:
   - Extend `.aai/scripts/aai-friction.mjs`:
     - Accept `schema_version` ∈ {1, 2} (v1 unchanged; v2 enables the new persisted
       fields). Persist, for v2, the structured fields into the D6 allowlist:
-      `reproducible` (bool), `impact` (low|medium|high|critical), `confidence`
+      `reproducible` (bool), `impact` (low|medium|high), `confidence`
       (low|medium|high), `workaround` (none|manual|automatic), `evidence_ref`
       (shape-validated safe pointer: repo-relative doc path or AAI doc id only).
     - Expand the deny-by-default allowlist to exactly the v1 eight PLUS these

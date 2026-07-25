@@ -73,6 +73,8 @@ main() {
   assert_drop "user handle"  "blame @someuser for the config"
   assert_drop "long digits"  "account 123456789012 overflowed"
   assert_drop "fqdn"         "resolved host build.internal today"
+  assert_drop "fqdn multi"   "api.customer.tech returned 500"
+  assert_drop "fqdn unlisted" "build.internal.corp went down"
 
   # Regression: adversarial bypasses found in independent validation (must DROP).
   assert_drop "rel path no-slash"  "home/ales/.ssh/id_rsa"

@@ -745,6 +745,11 @@ test_103_v2_invalid_rejected() {
   "impact": "catastrophic"'
   [ "$(run_record "$sp" "$TEST_DIR/bi.json")" != "0" ] || log_fail "TEST-103: bad impact must be rejected"
   grep -qF "impact" "$ERR" || log_fail "TEST-103: error must name 'impact'"
+  # 'critical' passes the legacy IMPACT_VALUES but v2 must reject it (RFC-0013 D1)
+  write_v2 "$TEST_DIR/bc.json" ',
+  "impact": "critical"'
+  [ "$(run_record "$sp" "$TEST_DIR/bc.json")" != "0" ] || log_fail "TEST-103: v2 impact 'critical' must be rejected (RFC-0013 D1 domain)"
+  grep -qF "impact" "$ERR" || log_fail "TEST-103: error must name 'impact'"
   # bad workaround
   write_v2 "$TEST_DIR/bw.json" ',
   "workaround": "wishful"'

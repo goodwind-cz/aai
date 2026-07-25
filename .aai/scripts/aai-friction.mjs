@@ -50,6 +50,10 @@ const SCHEMA_VERSION = 1;
 // as before (backward compatible, byte-identical).
 const SUPPORTED_SCHEMA_VERSIONS = [1, 2];
 const WORKAROUND_VALUES = ['none', 'manual', 'automatic'];
+// Schema v2 impact domain per RFC-0013 D1 (low|medium|high). Deliberately does
+// NOT include the legacy IMPACT_VALUES 'critical' — v2 honors the frozen RFC
+// decision, so a v2 record with impact:critical is rejected (PR review P2).
+const V2_IMPACT_VALUES = ['low', 'medium', 'high'];
 const REDACTION_STATUS_VALUES = ['none', 'capture_clean', 'capture_dropped_fields'];
 // evidence_ref (RFC-0013 D5): a SAFE pointer only — a repo-relative docs/ path or
 // an AAI doc id. No URLs, no absolute paths, no free text. The doc-id arm ends
@@ -251,8 +255,15 @@ function validate(obj) {
       }
       v2.reproducible = obj.reproducible;
     }
-    // impact / confidence were already enum-validated above (optionalEnum).
-    if (Object.prototype.hasOwnProperty.call(obj, 'impact')) v2.impact = obj.impact;
+    // confidence was already enum-validated above (optionalEnum). impact is
+    // re-validated against the TIGHTER v2 domain (RFC-0013 D1) — the legacy
+    // optionalEnum accepts 'critical', which v2 must reject.
+    if (Object.prototype.hasOwnProperty.call(obj, 'impact')) {
+      if (!V2_IMPACT_VALUES.includes(obj.impact)) {
+        throw new ValidationError(`field 'impact' must be one of: ${V2_IMPACT_VALUES.join(', ')} (schema v2)`);
+      }
+      v2.impact = obj.impact;
+    }
     if (Object.prototype.hasOwnProperty.call(obj, 'confidence')) v2.confidence = obj.confidence;
     if (Object.prototype.hasOwnProperty.call(obj, 'workaround')) {
       if (!WORKAROUND_VALUES.includes(obj.workaround)) {
