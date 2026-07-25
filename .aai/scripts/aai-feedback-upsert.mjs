@@ -160,6 +160,23 @@ function runGh(args, { mutating } = {}) {
   }
 }
 
+// Read-only `gh auth status` preflight so the operator gets a clear, up-front
+// "run: gh auth login" instead of only a late create failure (PR review / UX).
+// Never mutates. Returns 'ready' | 'unauthenticated' | 'absent'.
+function ghAuthState() {
+  const bin = process.env.AAI_GH_BIN || 'gh';
+  try {
+    execFileSync(bin, ['auth', 'status'], { stdio: ['ignore', 'ignore', 'ignore'] });
+    return 'ready';
+  } catch (e) {
+    return e && e.code === 'ENOENT' ? 'absent' : 'unauthenticated';
+  }
+}
+function ghAuthHint(state) {
+  return state === 'absent' ? 'GitHub CLI `gh` not found — install it and run: gh auth login'
+    : 'GitHub `gh` is not authenticated — run: gh auth login';
+}
+
 // Read-only dedup search for the fingerprint marker. Returns a TRI-STATE:
 // { searched } is false when gh is unavailable OR its output is unparseable
 // (transient error / API drift). Callers must distinguish "searched and none"
@@ -322,6 +339,13 @@ function main() {
       process.stderr.write('aai-feedback-upsert: publish requires mode=review and a configured destination\n');
       process.exit(2);
     }
+    // Auth preflight: fail fast with a clear message before any work if gh cannot
+    // authenticate — the engine holds no token, it borrows the operator's gh session.
+    const authState = ghAuthState();
+    if (authState !== 'ready') {
+      process.stderr.write(`aai-feedback-upsert: ${ghAuthHint(authState)}\n`);
+      process.exit(1);
+    }
     const fp = safeFingerprint(args.publish);
     if (!fp) { process.stderr.write(`aai-feedback-upsert: ${args.publish} is not a valid fingerprint (expected v1:<32-hex>)\n`); process.exit(2); }
     const rows = readSpool(args.spool);
@@ -365,6 +389,12 @@ function main() {
   }
   const prepared = prepare(args, cfg);
   if (!prepared.length) { process.stdout.write('no review_candidate clusters to prepare\n'); process.exit(0); }
+  // Surface the auth prerequisite up front (prepare still works offline; the
+  // eventual --confirm publish needs an authenticated gh).
+  const prepAuth = ghAuthState();
+  if (prepAuth !== 'ready') {
+    process.stdout.write(`note: ${ghAuthHint(prepAuth)} — drafts are prepared, but publishing will need it\n`);
+  }
   // Preserve any non-default --config/--report/--spool overrides in the advertised
   // confirmed-write command, so copy/paste targets the same inputs (PR review).
   const overrides = [

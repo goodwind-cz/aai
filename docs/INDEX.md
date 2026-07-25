@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T17:00:59.219Z
+Generated: 2026-07-25T17:42:20.308Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -202,9 +202,12 @@ _None._
 | SPEC-0083 | specs | docs/specs/SPEC-0083-spec-reaper-test-018-etime-shape-guard.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| friction-feedback-discovery (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-friction-feedback-discovery.md |
+| spec-friction-feedback-discovery (unnumbered draft) | specs | docs/specs/SPEC-DRAFT-spec-friction-feedback-discovery.md |
 
 ## Deferred (whole-doc) (0)
 

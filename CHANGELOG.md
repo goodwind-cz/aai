@@ -9,6 +9,21 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: RFC-0012 friction feedback discovery + gh auth preflight + user docs (CHANGE friction-feedback-discovery / SPEC spec-friction-feedback-discovery)
+
+- Makes the friction feedback loop VISIBLE and USABLE for a human operator (it was
+  built but undiscoverable). New offline `.aai/scripts/aai-feedback-status.mjs`
+  reports captured observations, drafts pending `--confirm`, and whether GitHub
+  `gh` is authenticated (read-only `gh auth status`) + the next command — silent
+  when nothing is captured.
+- `/aai-wrap-up` now surfaces that nudge at session end. `aai-feedback-upsert.mjs`
+  gains a `gh auth` preflight so publishing gives a clear up-front `run: gh auth
+  login` instead of only failing reactively (the engine still holds no token — it
+  borrows the operator's authenticated `gh` session).
+- `docs/USER_GUIDE.md` gains a "Friction feedback loop" section documenting the
+  capture -> discover -> triage -> prepare -> review -> `--confirm` workflow, the
+  `gh auth login` prerequisite, and what is / isn't stored.
+
 ## [unreleased] — feat: RFC-0012 Phase 2c / Slice C — review-mode GitHub upsert (CHANGE feedback-upsert-review / SPEC spec-feedback-upsert-review)
 
 - The first network slice, approval-gated. New `/aai-feedback-upsert` +

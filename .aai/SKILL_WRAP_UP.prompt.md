@@ -117,7 +117,19 @@ PROCESS
    • <any blocked or paused work items>
    ```
 
-6. FINAL OUTPUT
+6. FRICTION FEEDBACK NUDGE (RFC-0012 discovery)
+   Surface the local friction feedback state so the operator sees captured
+   observations / pending drafts they would otherwise never know about:
+   ```
+   node .aai/scripts/aai-feedback-status.mjs
+   ```
+   It prints one line ("N observation(s) captured · M draft(s) pending your
+   --confirm · gh: <ready|run gh auth login>") plus the next command, and is
+   SILENT when nothing is captured (shadow mode is quiet by design). Include its
+   output verbatim in the report ONLY when it is non-silent; never run any publish
+   or network write from wrap-up.
+
+7. FINAL OUTPUT
    Combine all sections into a single clean report.
 
 OUTPUT FORMAT

@@ -180,6 +180,7 @@ extended:
   - .aai/scripts/PSScriptAnalyzerSettings.psd1
   - .aai/scripts/aai-canonicalize.ps1
   - .aai/scripts/aai-canonicalize.sh
+  - .aai/scripts/aai-feedback-status.mjs
   - .aai/scripts/aai-feedback-triage.mjs
   - .aai/scripts/aai-feedback-upsert.mjs
   - .aai/scripts/aai-friction.mjs
