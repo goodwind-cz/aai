@@ -1,14 +1,16 @@
 ---
 id: spec-feedback-triage-offline
 type: spec
-number: null
-status: draft
+number: 81
+status: done
 ceremony_level: 2
 links:
-  requirement: CHANGE-DRAFT-feedback-triage-offline
+  requirement: CHANGE-0048-feedback-triage-offline
   rfc: RFC-0012
-  pr: []
-  commits: []
+  pr:
+    - 147
+  commits:
+    - 82ca9e3f2225af92a38e09dfba8128c18fbd2e78
 ---
 
 # SPEC — RFC-0012 Phase 2 / RFC-0013 Slice B: offline triage over schema-v2 records
@@ -16,7 +18,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-feedback-triage-offline.md
+- Requirement: docs/issues/CHANGE-0048-feedback-triage-offline.md
 - RFC: docs/rfc/RFC-0012-...md (section 2 triage); docs/rfc/RFC-0013-...md (schema v2 signal)
 - Foundation: .aai/scripts/aai-friction.mjs (capture v2), .aai/system/FRICTION_PROTOCOL.md
 - Technology contract: docs/TECHNOLOGY.md

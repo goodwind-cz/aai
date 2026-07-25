@@ -9,7 +9,7 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — feat: RFC-0012 Phase 2 / Slice B — offline friction triage (CHANGE feedback-triage-offline / SPEC spec-feedback-triage-offline)
+## [unreleased] — feat: RFC-0012 Phase 2 / Slice B — offline friction triage (CHANGE-0048 / SPEC-0081)
 
 - The offline triage core, now that schema v2 gives it real signal. New
   `/aai-feedback-triage` + `.aai/scripts/aai-feedback-triage.mjs`: reads the local

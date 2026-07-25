@@ -1,12 +1,15 @@
 ---
 id: feedback-triage-offline
+number: 48
 type: change
-status: draft
+status: done
 links:
   rfc: RFC-0012
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - 147
+  commits:
+    - 82ca9e3f2225af92a38e09dfba8128c18fbd2e78
 ---
 
 # RFC-0012 Phase 2 / RFC-0013 Slice B — offline triage over schema-v2 records (local mode)
