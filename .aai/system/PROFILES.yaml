@@ -166,6 +166,7 @@ extended:
   - .aai/SKILL_DOCS_CANON.prompt.md
   - .aai/SKILL_DOCS_HUB.prompt.md
   - .aai/SKILL_FEEDBACK_TRIAGE.prompt.md
+  - .aai/SKILL_FEEDBACK_UPSERT.prompt.md
   - .aai/SKILL_INTERROGATE.prompt.md
   - .aai/SKILL_PROFILE.prompt.md
   - .aai/SKILL_SCOUT.prompt.md
@@ -180,6 +181,7 @@ extended:
   - .aai/scripts/aai-canonicalize.ps1
   - .aai/scripts/aai-canonicalize.sh
   - .aai/scripts/aai-feedback-triage.mjs
+  - .aai/scripts/aai-feedback-upsert.mjs
   - .aai/scripts/aai-friction.mjs
   - .aai/scripts/cloudflare-share.ps1
   - .aai/scripts/cloudflare-share.sh

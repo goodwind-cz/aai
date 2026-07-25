@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T12:03:09.584Z
+Generated: 2026-07-25T13:18:15.916Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -198,9 +198,12 @@ _None._
 | SPEC-0081 | specs | docs/specs/SPEC-0081-spec-feedback-triage-offline.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0049 | issues | docs/issues/CHANGE-0049-feedback-upsert-review.md |
+| SPEC-0082 | specs | docs/specs/SPEC-0082-spec-feedback-upsert-review.md |
 
 ## Deferred (whole-doc) (0)
 

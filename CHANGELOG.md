@@ -9,6 +9,23 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: RFC-0012 Phase 2c / Slice C — review-mode GitHub upsert (CHANGE feedback-upsert-review / SPEC spec-feedback-upsert-review)
+
+- The first network slice, approval-gated. New `/aai-feedback-upsert` +
+  `.aai/scripts/aai-feedback-upsert.mjs` turns the triage report's
+  `review_candidate` clusters into transmit-redacted, deduplicated, budget-checked
+  GitHub issue drafts. **A plain run writes NOTHING to GitHub** — it prepares
+  drafts to `docs/ai/friction/pending-issues/` and prints the exact command.
+- A GitHub issue is filed ONLY via an explicit human `--publish <fp> --confirm`,
+  which re-runs the transmit redaction + budget check immediately before the write
+  — the single mutating `gh` call site. `auto` is refused (locked); `local`
+  prepares nothing.
+- Transmit-pass redaction reuses `.aai/scripts/lib/aai-redact.mjs` (the second half
+  of RFC-0013's double redaction); dedup via a `<!-- aai-friction:<fp> -->` marker;
+  budget `max_new_issues_per_7d` (default 3, local ledger); pinned `destination`
+  repo. The engine holds no token — it shells to an authenticated `gh`; missing gh
+  degrades to prepare-nothing. Tests mock `gh` (no real network call).
+
 ## [unreleased] — feat: RFC-0012 Phase 2 / Slice B — offline friction triage (CHANGE-0048 / SPEC-0081)
 
 - The offline triage core, now that schema v2 gives it real signal. New
