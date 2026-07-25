@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T01:09:21.239Z
+Generated: 2026-07-25T01:31:44.818Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -11,7 +11,7 @@ _None._
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
-| RFC-0012 | rfc | accepted | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 
 ## Canonical layer (0)
 
