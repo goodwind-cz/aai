@@ -1,14 +1,16 @@
 ---
 id: spec-friction-shadow-capture-wiring
 type: spec
-number: null
-status: draft
+number: 79
+status: done
 ceremony_level: 2
 links:
-  requirement: CHANGE-DRAFT-friction-shadow-capture-wiring
+  requirement: CHANGE-0046-friction-shadow-capture-wiring
   rfc: RFC-0012
-  pr: []
-  commits: []
+  pr:
+    - 144
+  commits:
+    - c67b8b1d742ce8e929fdbf3add5d626f8d528305
 ---
 
 # SPEC — RFC-0012 Phase 1: local shadow-mode friction capture wiring
@@ -16,7 +18,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-friction-shadow-capture-wiring.md (RFC-0012 Phase 1)
+- Requirement: docs/issues/CHANGE-0046-friction-shadow-capture-wiring.md (RFC-0012 Phase 1)
 - RFC: docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md (section 1 "Local capture shared by every skill")
 - Phase 0 foundation: .aai/system/FRICTION_PROTOCOL.md, .aai/scripts/aai-friction.mjs
 - Technology contract: docs/TECHNOLOGY.md

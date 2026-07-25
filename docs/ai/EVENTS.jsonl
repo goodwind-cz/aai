@@ -1054,3 +1054,10 @@
 {"v":1,"ts":"2026-07-25T06:13:17.197Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":172,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
 {"v":1,"ts":"2026-07-25T06:13:35.837Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"aai-self-improvement-feedback-loop","payload":{"from":"implementing","to":"implementing"}}
 {"v":1,"ts":"2026-07-25T06:13:42.945Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":172,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-25T06:16:09.076Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"friction-shadow-capture-wiring","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-25T06:16:09.109Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"friction-shadow-capture-wiring","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-25T06:16:09.140Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"friction-shadow-capture-wiring","payload":{"commit":"c67b8b1d742ce8e929fdbf3add5d626f8d528305"}}
+{"v":1,"ts":"2026-07-25T06:16:09.173Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-friction-shadow-capture-wiring","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-25T06:16:09.203Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-friction-shadow-capture-wiring","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-25T06:16:09.234Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-friction-shadow-capture-wiring","payload":{"commit":"c67b8b1d742ce8e929fdbf3add5d626f8d528305"}}
+{"v":1,"ts":"2026-07-25T06:17:47.503Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":172,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

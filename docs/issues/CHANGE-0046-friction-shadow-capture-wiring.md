@@ -1,12 +1,15 @@
 ---
 id: friction-shadow-capture-wiring
+number: 46
 type: change
-status: draft
+status: done
 links:
   rfc: RFC-0012
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - 144
+  commits:
+    - c67b8b1d742ce8e929fdbf3add5d626f8d528305
 ---
 
 # RFC-0012 Phase 1 — local shadow-mode friction capture wiring

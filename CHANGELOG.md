@@ -9,7 +9,7 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — feat: RFC-0012 Phase 1 — local shadow-mode friction capture wiring (CHANGE friction-shadow-capture-wiring / SPEC-DRAFT-spec-friction-shadow-capture-wiring)
+## [unreleased] — feat: RFC-0012 Phase 1 — local shadow-mode friction capture wiring (CHANGE-0046 / SPEC-0079)
 
 - Second implementation slice of RFC-0012 (shadow mode): wires the dormant
   Phase-0 capture CLI into the skill surface as ONE canonical seam, inherited by
