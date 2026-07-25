@@ -1,13 +1,15 @@
 ---
 id: spec-reaper-test-018-etime-shape-guard
 type: spec
-number: null
-status: draft
+number: 83
+status: done
 ceremony_level: 2
 links:
-  requirement: CHANGE-DRAFT-reaper-test-018-etime-shape-guard
-  pr: []
-  commits: []
+  requirement: CHANGE-0050-reaper-test-018-etime-shape-guard
+  pr:
+    - 149
+  commits:
+    - a2f5a473273e2b53be0933df79c074bff7a70376
 ---
 
 # SPEC — Reaper test-018 legacy spare-fresh flake: etime shape fail-safe guard
@@ -15,7 +17,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-reaper-test-018-etime-shape-guard.md
+- Requirement: docs/issues/CHANGE-0050-reaper-test-018-etime-shape-guard.md
 - Related: SPEC-0064 (reaper deterministic age guard), SPEC-0076 (test-018 attribution)
 - Technology contract: docs/TECHNOLOGY.md
 

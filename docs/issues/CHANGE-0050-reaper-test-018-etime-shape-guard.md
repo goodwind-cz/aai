@@ -1,11 +1,14 @@
 ---
 id: reaper-test-018-etime-shape-guard
+number: 50
 type: change
-status: draft
+status: done
 links:
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - 149
+  commits:
+    - a2f5a473273e2b53be0933df79c074bff7a70376
 ---
 
 # Reaper test-018 legacy spare-fresh flake — etime shape fail-safe guard
