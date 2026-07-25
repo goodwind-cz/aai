@@ -796,7 +796,7 @@ test_021() {
 }
 
 # --- TEST-022 — etime SHAPE guard: a non-etime-shaped elapsed field -> age 0 -----
-# ROOT CAUSE of the recurring test-018 legacy spare-fresh CI-load flake: a
+# DEFENSIVE parse hardening (not the confirmed root-cause fix). Rationale: a
 # just-forked process can momentarily present an EMPTY etime to `ps`, shifting the
 # `pid etime args` column read so an argv WORD lands in the etime field. Parsing
 # that word yielded a nondeterministic non-zero age that could cross MIN_AGE and
@@ -823,7 +823,7 @@ test_022() {
     [ "$(ets "$g")" = "0" ] || log_fail "TEST-022: non-etime field [$g] must fail safe to age 0 (got $(ets "$g")) — a fresh process must never be reaped by a shifted column"
   done
   rm -f "$fn"
-  log_pass "etime_to_secs fails safe on non-etime input (age 0); valid etimes parse — closes the test-018 column-shift race (TEST-022)"
+  log_pass "etime_to_secs fails safe & deterministic on non-etime input (age 0); valid etimes parse exactly (TEST-022)"
 }
 
 ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022"

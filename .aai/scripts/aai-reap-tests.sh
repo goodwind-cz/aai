@@ -99,15 +99,16 @@ strip_lz() {
 #   D-HH:MM:SS
 etime_to_secs() {
   et="$1"
-  # FAIL-SAFE shape guard (test-018 legacy spare-fresh flake): a valid ps
-  # ELAPSED/etime field is ONLY digits, colons, and a leading `-` day separator.
-  # A just-forked process can momentarily present an EMPTY etime to `ps`, which
-  # shifts the `pid etime args` column read so a WORD from argv lands in this
-  # field. Parsing that word would yield a nondeterministic non-zero age and
-  # could reap a fresh sibling under CI load. Anything that is not etime-shaped
-  # is therefore treated as age 0 (spare) — this only ever makes the reaper more
-  # conservative (age 0 never crosses a positive MIN_AGE / never predates a
-  # step-start), never reaps more.
+  # FAIL-SAFE shape guard (defensive; PR review). A valid ps ELAPSED/etime field
+  # is ONLY digits, colons, and a leading `-` day separator. If a `ps` column read
+  # ever misaligns (a word from argv landing here), parsing it would yield a
+  # nondeterministic age; anything not etime-shaped is treated as age 0 (spare).
+  # This only ever makes the reaper MORE conservative (age 0 never crosses a
+  # positive MIN_AGE / never predates a step-start), never reaps more. NOTE: this
+  # is defensive hardening, not the confirmed root-cause fix for the test-018
+  # legacy spare-fresh flake — a non-numeric word already fell through to a spare
+  # in the prior code (the `-ge` comparison errored -> `|| continue`), so the true
+  # cause is still under investigation via the `reaped ages:` diagnostic below.
   case "$et" in
     '' | *[!0-9:-]*) echo 0; return ;;
   esac
@@ -182,8 +183,10 @@ ps axo pid=,etime=,args= > "$SNAP" 2>/dev/null || {
   # Additive diagnostic (SPEC test-018-legacy-spare-attribution / Spec-AC-01):
   # a stable, always-present companion line to `reaped: N` reporting the pid
   # list. Empty tail here (ps snapshot failed => nothing matched). Reporting
-  # only — no decision surface.
+  # only — no decision surface. `reaped ages:` is emitted on BOTH exit paths so
+  # the output shape is stable (PR review).
   echo "reaped pids:"
+  echo "reaped ages:"
   exit 0
 }
 # SNAP_NOW is captured IMMEDIATELY adjacent to the ps snapshot instant above —
