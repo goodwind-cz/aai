@@ -678,6 +678,9 @@ test_018() {
       {
         echo "DIAG(test_018 spare-fresh case='$invalid'): reaper reported reaped>0 — evidence follows"
         echo "DIAG reaper output: $out"
+        # Authoritative: the snapshot-time age the reaper computed per matched pid
+        # (its own `reaped ages:` line) — root-causes a mis-reap at DECISION time.
+        echo "DIAG reaper-computed ages:$(printf '%s\n' "$out" | sed -n 's/^reaped ages://p')"
         echo "DIAG workspace ps snapshot (pid ppid etime args, scoped to $ws):"
         ps axo pid=,ppid=,etime=,args= 2>/dev/null | grep -F "$ws" || true
         for _rp in $(reaped_pids_of "$out"); do
@@ -792,7 +795,38 @@ test_021() {
   log_pass "epoch boundary pinned by arithmetic: SPARE at ref+GRACE, REAP at ref+GRACE+2 (no wall-clock race)"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021"
+# --- TEST-022 — etime SHAPE guard: a non-etime-shaped elapsed field -> age 0 -----
+# ROOT CAUSE of the recurring test-018 legacy spare-fresh CI-load flake: a
+# just-forked process can momentarily present an EMPTY etime to `ps`, shifting the
+# `pid etime args` column read so an argv WORD lands in the etime field. Parsing
+# that word yielded a nondeterministic non-zero age that could cross MIN_AGE and
+# reap a FRESH sibling. The reaper's etime_to_secs now fails safe: anything not
+# etime-shaped (only [0-9:-]) is age 0 (spare). This is a DETERMINISTIC unit test
+# of that guard (no CI-load timing dependency) — it sources the pure function out
+# of the reaper and drives it with the exact garbage shapes the race produces.
+test_022() {
+  log_info "TEST-022: etime_to_secs fail-safe — empty / argv-word / non-etime input -> age 0 (spare), valid etimes still parse..."
+  [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
+  local fn; fn="$TMP_ROOT/etime_fn.$$.sh"
+  sed -n '/^etime_to_secs() {/,/^}/p' "$REAP_SCRIPT" > "$fn"
+  grep -q 'etime_to_secs' "$fn" || log_fail "TEST-022: could not extract etime_to_secs from the reaper"
+  local ets
+  ets() { sh -c ". '$fn'; etime_to_secs \"\$1\"" _ "$1"; }
+  # Valid etimes must still parse exactly (no regression to the reap-old direction).
+  [ "$(ets '00:00')" = "0" ]        || log_fail "TEST-022: 00:00 must be 0 (got $(ets '00:00'))"
+  [ "$(ets '00:03')" = "3" ]        || log_fail "TEST-022: 00:03 must be 3"
+  [ "$(ets '01:00')" = "60" ]       || log_fail "TEST-022: 01:00 must be 60"
+  [ "$(ets '1-00:00:00')" = "86400" ] || log_fail "TEST-022: 1-00:00:00 must be 86400"
+  # Non-etime-shaped fields (the column-shift race) must ALL fail safe to 0.
+  local g
+  for g in '' 'vitest_fresh18' 'worker' 'high' 'abc:def' '1.2.3' '/tmp/ws/x' 'node'; do
+    [ "$(ets "$g")" = "0" ] || log_fail "TEST-022: non-etime field [$g] must fail safe to age 0 (got $(ets "$g")) — a fresh process must never be reaped by a shifted column"
+  done
+  rm -f "$fn"
+  log_pass "etime_to_secs fails safe on non-etime input (age 0); valid etimes parse — closes the test-018 column-shift race (TEST-022)"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022"
 
 main() {
   echo "Testing $TEST_NAME (process-group wrapper + workspace/etime-scoped reaper + wiring)"

@@ -99,6 +99,18 @@ strip_lz() {
 #   D-HH:MM:SS
 etime_to_secs() {
   et="$1"
+  # FAIL-SAFE shape guard (test-018 legacy spare-fresh flake): a valid ps
+  # ELAPSED/etime field is ONLY digits, colons, and a leading `-` day separator.
+  # A just-forked process can momentarily present an EMPTY etime to `ps`, which
+  # shifts the `pid etime args` column read so a WORD from argv lands in this
+  # field. Parsing that word would yield a nondeterministic non-zero age and
+  # could reap a fresh sibling under CI load. Anything that is not etime-shaped
+  # is therefore treated as age 0 (spare) — this only ever makes the reaper more
+  # conservative (age 0 never crosses a positive MIN_AGE / never predates a
+  # step-start), never reaps more.
+  case "$et" in
+    '' | *[!0-9:-]*) echo 0; return ;;
+  esac
   days=0
   case "$et" in
     *-*)
@@ -211,6 +223,7 @@ case "$_grace_raw" in
 esac
 
 MATCH_PIDS=""
+MATCH_AGES=""   # "<pid>=<snapshot-age-secs>" per matched pid, for authoritative diagnosis
 # `while read < file` runs in the CURRENT shell (no pipe subshell), so the
 # accumulated pid list survives the loop.
 while read -r pid etime rest; do
@@ -249,6 +262,7 @@ while read -r pid etime rest; do
     [ "$age" -ge "$MIN_AGE" ] 2>/dev/null || continue
   fi
   MATCH_PIDS="$MATCH_PIDS $pid"
+  MATCH_AGES="$MATCH_AGES $pid=$age"
 done < "$SNAP"
 rm -f "$SNAP"
 
@@ -299,4 +313,11 @@ echo "reaped: $REAPED"
 # is a pure report of an already-decided value — it adds NO guard and changes
 # NOTHING about which pids enter MATCH_PIDS or get killed. POSIX sh, no bashisms.
 echo "reaped pids:$MATCH_PIDS"
+# Authoritative age diagnostic: the snapshot-time age (seconds) the reaper
+# computed for EACH matched pid — the exact value the age guard decided on. If
+# the legacy fail-safe ever mis-reaps a fresh sibling under CI load, this line
+# captures WHY (the age it saw) at decision time, not a post-mortem re-read of a
+# process that has since exited. Existing parsers key on `reaped pids:` only and
+# ignore this additional line.
+echo "reaped ages:$MATCH_AGES"
 exit 0
