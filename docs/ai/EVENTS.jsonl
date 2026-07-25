@@ -1097,3 +1097,10 @@
 {"v":1,"ts":"2026-07-25T13:19:35.790Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-feedback-upsert-review","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-25T13:19:35.823Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-feedback-upsert-review","payload":{"commit":"a35afd5241e934716765fc5009c2f87a445ffbcf"}}
 {"v":1,"ts":"2026-07-25T13:20:18.507Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":179,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-25T16:20:36.460Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"reaper-test-018-etime-shape-guard","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-25T16:20:36.491Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"reaper-test-018-etime-shape-guard","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-25T16:20:36.527Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"reaper-test-018-etime-shape-guard","payload":{"commit":"a2f5a473273e2b53be0933df79c074bff7a70376"}}
+{"v":1,"ts":"2026-07-25T16:20:36.560Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-reaper-test-018-etime-shape-guard","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-25T16:20:36.592Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-reaper-test-018-etime-shape-guard","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-25T16:20:36.625Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-reaper-test-018-etime-shape-guard","payload":{"commit":"a2f5a473273e2b53be0933df79c074bff7a70376"}}
+{"v":1,"ts":"2026-07-25T16:21:12.134Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":179,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
