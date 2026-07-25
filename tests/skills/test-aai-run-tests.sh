@@ -810,8 +810,10 @@ test_022() {
   local fn; fn="$TMP_ROOT/etime_fn.$$.sh"
   sed -n '/^etime_to_secs() {/,/^}/p' "$REAP_SCRIPT" > "$fn"
   grep -q 'etime_to_secs' "$fn" || log_fail "TEST-022: could not extract etime_to_secs from the reaper"
-  local ets
+  local ets ets2
   ets() { sh -c ". '$fn'; etime_to_secs \"\$1\"" _ "$1"; }
+  # 2-arg form: pass SNAP_NOW so the pre-epoch plausibility clamp is exercised.
+  ets2() { sh -c ". '$fn'; etime_to_secs \"\$1\" \"\$2\"" _ "$1" "$2"; }
   # Valid etimes must still parse exactly (no regression to the reap-old direction).
   [ "$(ets '00:00')" = "0" ]        || log_fail "TEST-022: 00:00 must be 0 (got $(ets '00:00'))"
   [ "$(ets '00:03')" = "3" ]        || log_fail "TEST-022: 00:03 must be 3"
@@ -822,8 +824,24 @@ test_022() {
   for g in '' 'vitest_fresh18' 'worker' 'high' 'abc:def' '1.2.3' '/tmp/ws/x' 'node'; do
     [ "$(ets "$g")" = "0" ] || log_fail "TEST-022: non-etime field [$g] must fail safe to age 0 (got $(ets "$g")) — a fresh process must never be reaped by a shifted column"
   done
+  # RANGE guard (root-cause hardening): a bare multi-digit number or an
+  # out-of-range component is NOT a valid ps etime -> age 0. This RED-proofs the
+  # bare-integer column-shift vector (the old parser returned the number verbatim).
+  [ "$(ets '38109073018720')" = "0" ] || log_fail "TEST-022: a bare 14-digit number must be rejected as out-of-range -> age 0 (got $(ets '38109073018720'))"
+  [ "$(ets '99:99')" = "0" ]  || log_fail "TEST-022: 99:99 (mm/ss > 59) must be rejected -> age 0 (got $(ets '99:99'))"
+  [ "$(ets '77')" = "0" ]     || log_fail "TEST-022: bare 77 (ss > 59) must be rejected -> age 0 (got $(ets '77'))"
+  # PRE-EPOCH PLAUSIBILITY CLAMP (the exact CI-load flake): a grammar-VALID but
+  # physically-impossible huge-day etime (a mid-fork /proc start_time race renders
+  # 441077234-00:18:40 -> 38109073018720 s) must clamp to age 0 when SNAP_NOW is
+  # supplied. Without the clamp (1-arg) the raw seconds pass through — proving the
+  # clamp, not grammar, is what closes this vector. A NOW just below the Unix epoch.
+  local NOW=1753000000
+  [ "$(ets '441077234-00:18:40')" = "38109073018720" ] || log_fail "TEST-022: 1-arg (no clamp) must return raw grammar seconds for the huge-day form (got $(ets '441077234-00:18:40')) — proves the RED baseline"
+  [ "$(ets2 '441077234-00:18:40' "$NOW")" = "0" ] || log_fail "TEST-022: an age >= SNAP_NOW (pre-epoch start) must clamp to 0 — the reaper must SPARE a fresh match whose etime the kernel garbled (got $(ets2 '441077234-00:18:40' "$NOW"))"
+  # The clamp must NOT reject a genuinely-old-but-plausible age (never spares a real leak).
+  [ "$(ets2 '10-00:00:00' "$NOW")" = "864000" ] || log_fail "TEST-022: a real 10-day age (864000 s, well under SNAP_NOW) must NOT be clamped (got $(ets2 '10-00:00:00' "$NOW"))"
   rm -f "$fn"
-  log_pass "etime_to_secs fails safe & deterministic on non-etime input (age 0); valid etimes parse exactly (TEST-022)"
+  log_pass "etime_to_secs fails safe on non-etime + out-of-range + impossible-age input (age 0); valid etimes parse exactly, real large ages survive the clamp (TEST-022)"
 }
 
 ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022"

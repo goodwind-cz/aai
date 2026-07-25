@@ -99,16 +99,10 @@ strip_lz() {
 #   D-HH:MM:SS
 etime_to_secs() {
   et="$1"
-  # FAIL-SAFE shape guard (defensive; PR review). A valid ps ELAPSED/etime field
-  # is ONLY digits, colons, and a leading `-` day separator. If a `ps` column read
-  # ever misaligns (a word from argv landing here), parsing it would yield a
-  # nondeterministic age; anything not etime-shaped is treated as age 0 (spare).
-  # This only ever makes the reaper MORE conservative (age 0 never crosses a
-  # positive MIN_AGE / never predates a step-start), never reaps more. NOTE: this
-  # is defensive hardening, not the confirmed root-cause fix for the test-018
-  # legacy spare-fresh flake — a non-numeric word already fell through to a spare
-  # in the prior code (the `-ge` comparison errored -> `|| continue`), so the true
-  # cause is still under investigation via the `reaped ages:` diagnostic below.
+  now="${2:-}"   # optional SNAP_NOW; enables the pre-epoch plausibility clamp below
+  # Charset guard: a valid ps ELAPSED/etime field is ONLY digits, colons and a
+  # leading `-` day separator. If a `ps` column read ever misaligns (a word from
+  # argv landing here), anything not etime-shaped is treated as age 0 (spare).
   case "$et" in
     '' | *[!0-9:-]*) echo 0; return ;;
   esac
@@ -144,7 +138,28 @@ etime_to_secs() {
   h="${h:-0}";       h="${h#"${h%%[!0]*}"}";          h="${h:-0}"
   m="${m:-0}";       m="${m#"${m%%[!0]*}"}";          m="${m:-0}"
   s="${s:-0}";       s="${s#"${s%%[!0]*}"}";          s="${s:-0}"
-  echo $(((days * 86400) + (h * 3600) + (m * 60) + s))
+  # STRICT ps-grammar RANGE guard: seconds and minutes are 00-59 and hours 00-23
+  # (ps rolls any overflow up into the next unit / the day field — it NEVER emits
+  # a bare number >= 60 or a 24+ hour field). A component out of range is a garbled
+  # field, e.g. a bare multi-digit number that slid into the etime column -> age 0.
+  if [ "$s" -gt 59 ] 2>/dev/null || [ "$m" -gt 59 ] 2>/dev/null || [ "$h" -gt 23 ] 2>/dev/null; then
+    echo 0; return
+  fi
+  total=$(((days * 86400) + (h * 3600) + (m * 60) + s))
+  # PRE-EPOCH PLAUSIBILITY CLAMP — the ROOT-CAUSE guard for the test-018 (legacy
+  # spare-fresh) AND test-006/015/016 (epoch over-reach) CI-load flakes. A process
+  # cannot have started before the Unix epoch, so an age >= now is impossible.
+  # Under heavy CI load, reading /proc for a JUST-FORKED process can sample a
+  # near-zero start_time, so `ps` renders etime as a huge, GRAMMAR-VALID day form
+  # (observed on CI: `441077234-..` -> ~3.8e13 s) that the range guard above cannot
+  # catch. Such an age is treated as 0 (just started = spare) in BOTH modes: legacy
+  # spares (0 < MIN_AGE), epoch spares (start_epoch = SNAP_NOW - 0 = now). Never
+  # kill a process you cannot confidently age. `now` omitted (unit tests) -> the
+  # clamp is skipped so the pure grammar->seconds mapping stays testable.
+  if [ -n "$now" ] && [ "$total" -ge "$now" ] 2>/dev/null; then
+    echo 0; return
+  fi
+  echo "$total"
 }
 
 # Print a matched pid followed by ALL its transitive descendants, computed with a
@@ -252,8 +267,10 @@ while read -r pid etime rest; do
     *"${WORKSPACE}/"*) ;;
     *) continue ;;
   esac
-  # Guard 3: age — spare anything that is this step's own in-flight work.
-  age="$(etime_to_secs "$etime")"
+  # Guard 3: age — spare anything that is this step's own in-flight work. SNAP_NOW
+  # is passed so etime_to_secs can clamp a physically-impossible (pre-epoch) age
+  # from a garbled ps etime to 0 — the root-cause guard for the CI-load flake.
+  age="$(etime_to_secs "$etime" "$SNAP_NOW")"
   if [ -n "$STEP_START" ]; then
     # EPOCH MODE: start_epoch and STEP_START are both instants fixed before
     # this reaper ran, so the decision is invariant to reaper overhead.

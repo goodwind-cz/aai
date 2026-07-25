@@ -9,6 +9,21 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: reaper CI-load flake root-cause — pre-epoch impossible-age clamp (CHANGE-0053)
+
+- Root-cause fix for the recurring CI-load-only reaper flake in BOTH directions
+  (`test-aai-run-tests.sh` TEST-018 legacy spare-fresh + TEST-006/015/016 epoch
+  over-reach). The #149 `reaped ages:` diagnostic caught it on CI:
+  `208482=38109073018720` — a just-forked process aged at ~38 trillion seconds
+  because a mid-fork `/proc` `start_time` race makes `ps` render etime as a huge,
+  grammar-valid ~441M-day form the charset guard can't catch.
+- `etime_to_secs` now (1) clamps any age `>= SNAP_NOW` to 0 — a process cannot have
+  started before the Unix epoch, so an impossible age is a garbled etime and the
+  match is SPARED (fail-safe) in both legacy and epoch modes — and (2) enforces the
+  strict ps grammar (ss/mm 00-59, hh 00-23) so a bare multi-digit column-shift word
+  is rejected to 0. Both only ever spare more, never reap more. TEST-022 extended
+  (RED-proofed against the pre-change parser). Closes SPEC-0083 AC-04.
+
 ## [unreleased] — feat: RFC-0012 Phase 2c / Slice C — review-mode GitHub upsert (CHANGE feedback-upsert-review / SPEC spec-feedback-upsert-review)
 
 - The first network slice, approval-gated. New `/aai-feedback-upsert` +
