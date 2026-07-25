@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T01:31:44.818Z
+Generated: 2026-07-25T06:01:24.456Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -191,9 +191,12 @@ _None._
 | SPEC-0078 | specs | docs/specs/SPEC-0078-spec-friction-capture-foundation.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| friction-shadow-capture-wiring (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-friction-shadow-capture-wiring.md |
+| spec-friction-shadow-capture-wiring (unnumbered draft) | specs | docs/specs/SPEC-DRAFT-spec-friction-shadow-capture-wiring.md |
 
 ## Deferred (whole-doc) (0)
 

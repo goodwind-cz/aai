@@ -221,3 +221,45 @@ on scrubbing text after the fact:
 The standing invariants a downstream reviewer/validation checks: "capture
 emits nothing over the network" and "no identity field ever leaves the
 machine". Both are enforced by the skill suite (`tests/skills/test-aai-friction.sh`).
+
+---
+
+## Skill wiring (shadow capture)
+
+RFC-0012 Phase 1 — local **shadow mode**. This is the ONE canonical seam every
+universal AAI skill inherits (via the pointer in `.aai/AGENTS.md`); thin
+platform wrappers reference this section rather than duplicating it. Capture is
+silent evidence-gathering only — there is no triage, no upstream write, and no
+network in this phase.
+
+**When to record.** While running any AAI skill, record a friction observation
+ONLY when you hit evidence of an AAI-owned failure per the failure-class
+taxonomy above (contradictory/impossible AAI instructions; a missing or invalid
+AAI-owned file, command, template, or transition; a deterministic AAI
+script/workflow-contract failure; repeated recovery caused by an AAI abstraction
+leak; a human correction identifying an AAI prompt/skill defect; a documented
+downstream or cross-platform contract violation). Honor the Exclusions list —
+expected test failures, ordinary target-project bugs, invalid user input, HITL
+pauses, transient provider/network failures, unavailable optional tools, and
+cosmetic preferences are NOT friction unless recurrence shows a systemic
+problem. When in doubt, do not record.
+
+**How to record.** Build a schema-v1 observation (see "Observation schema v1")
+and hand it to the offline capture CLI on stdin or a file:
+
+```
+node .aai/scripts/aai-friction.mjs record --input <path|->
+```
+
+The CLI applies the D6 deny-by-default allowlist and appends one JSONL line to
+the untracked spool `docs/ai/friction/observations.jsonl`. It performs no
+network I/O and holds no token.
+
+**Shadow contract (best-effort, never masks the caller).** Capture is
+**best-effort** and MUST NOT change, replace, or mask the calling skill's own
+result — exit codes and outputs of the skill are the contract, not the capture.
+If `record` is absent, errors, or rejects the observation, **swallow** that
+outcome (a single INFO line at most) and continue the skill unchanged; never
+escalate a capture failure into a skill failure, and never make the skill's
+success depend on a successful capture. This mirrors the "Capture never masks
+the caller" invariant above.
