@@ -1375,6 +1375,40 @@ links:
 ---
 # Still-open child 3
 MD
+  # A DRAFT umbrella that already spawned a done child — progress must still show
+  # (PR #154 review, Codex P2: draft umbrellas were excluded).
+  cat > docs/rollout/RFC-0040-draft-umbrella.md <<'MD'
+---
+id: draft-umbrella-slug
+type: rfc
+status: draft
+links:
+  spec: null
+---
+# Draft umbrella with a done child
+MD
+  cat > docs/rollout/SPEC-0041-draft-child.md <<'MD'
+---
+id: spec-draft-child
+type: spec
+number: 41
+status: done
+links:
+  requirement: null
+  rfc: RFC-0040
+  pr:
+    - 51
+  commits:
+    - deadbeefcafe0000000000000000000000000041
+---
+# Done child of a draft umbrella
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | d          | done   | a1b2c3d  | TDD       | —     |
+MD
   git add docs/rollout && git commit -qm "test: rollout-progress fixture (CHANGE-0055)"
   log_pass "Rollout-progress fixture ready"
 }
@@ -1401,10 +1435,20 @@ test_rollout_progress_summary_line() {  # Spec-AC-02
 }
 
 test_rollout_report_only() {  # Spec-AC-03
-  log_info "Test: rollout progress is report-only — exactly one in-flight parent rolled up (CHANGE-0055)..."
-  run_audit --list --no-event --path docs/rollout > "$TEST_DIR/rollout-ro.log" 2>&1 || true
-  assert_contains "$TEST_DIR/rollout-ro.log" "### Rollout progress: 1"
-  log_pass "Rollout progress is informational (report-only), exactly one in-flight parent rolled up"
+  log_info "Test: rollout progress is report-only (exit 0) + a DRAFT umbrella is included (CHANGE-0055)..."
+  # Report-only means the rollup NEVER flips the exit code — assert exit 0 directly
+  # rather than swallowing it with `|| true` (PR #154 review, Copilot).
+  local rc=0
+  run_audit --check --no-event --path docs/rollout > "$TEST_DIR/rollout-ro.log" 2>&1 || rc=$?
+  [[ "$rc" == "0" ]] || log_fail "Rollout report-only: docs-audit --check must exit 0 on a clean in-flight-umbrella scope (got $rc)"
+  # BOTH the implementing (RFC-0030) and the DRAFT (RFC-0040) umbrellas roll up.
+  run_audit --list --no-event --path docs/rollout > "$TEST_DIR/rollout-ro2.log"
+  extract_section_h3 "$TEST_DIR/rollout-ro2.log" "### Rollout progress" > "$TEST_DIR/rollout-ro-sec.log"
+  assert_contains "$TEST_DIR/rollout-ro-sec.log" "### Rollout progress: 2"
+  assert_contains "$TEST_DIR/rollout-ro-sec.log" "RFC-0040"
+  grep -qE 'RFC-0040 .* draft .* 1/1' "$TEST_DIR/rollout-ro-sec.log" \
+    || log_fail "Draft umbrella RFC-0040 must roll up 1/1 (draft parents are included)"
+  log_pass "Rollout progress: report-only (exit 0); implementing + draft umbrellas both rolled up"
 }
 
 # --- SPEC-0006 fixtures (DEBT-0001): whole-doc deferred coverage + done close-policy ----

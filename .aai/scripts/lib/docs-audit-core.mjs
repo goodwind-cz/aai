@@ -80,6 +80,11 @@ const DEFAULT_STALE_DAYS = 90;
 // only non-terminal, ready statuses are eligible (draft excluded — not yet ready).
 const CLOSEOUT_PARENT_TYPES = new Set(['rfc', 'prd']);
 const CLOSEOUT_PARENT_STATUSES = new Set(['proposed', 'accepted', 'implementing']);
+// Rollout-progress parents: EVERY non-terminal status, INCLUDING draft/frozen —
+// a draft umbrella that already spawned child docs is making progress worth
+// showing (broader than closeout's "ready to close" set, which excludes draft;
+// PR #154 review, Codex P2).
+const ROLLUP_PARENT_STATUSES = new Set(['draft', 'proposed', 'accepted', 'implementing', 'frozen']);
 
 // SPEC-0006 Spec-AC-06 — open-decision-on-done guard. A body line that asserts an
 // UNRESOLVED decision: a token below combined with a WARNING context (a literal
@@ -1231,7 +1236,7 @@ export function parentProgressFor(docs) {
   const out = [];
   for (const parent of docs) {
     if (!CLOSEOUT_PARENT_TYPES.has(docType(parent))) continue;
-    if (!CLOSEOUT_PARENT_STATUSES.has(parent.status)) continue;
+    if (!ROLLUP_PARENT_STATUSES.has(parent.status)) continue;
     const parentRefs = [parent.id, parent.fileId].filter(Boolean);
     const children = new Set();   // doc objects, deduped by identity
     // Forward: the parent's own links.spec (each id resolved slug-or-display).
