@@ -97,14 +97,23 @@ strip_lz() {
 #   MM:SS
 #   HH:MM:SS
 #   D-HH:MM:SS
+# Returns the process age in whole seconds for a VALID, physically-plausible ps
+# etime, or the sentinel -1 ("cannot confidently age -> spare") for anything
+# unparseable or impossible. The caller MUST skip a negative result before any
+# threshold comparison: folding it to 0 would NOT spare the process under the
+# documented default AAI_REAP_MIN_AGE_SECS=0, where the legacy check `0 >= 0` is
+# true and reaps a fresh match (PR #152 review, Codex P1). -1 is out of band from
+# every real age (>= 0) and, as a fail-safe, also spares via both mode checks on
+# its own (legacy: -1 < MIN_AGE; epoch: start_epoch = SNAP_NOW+1 >= threshold).
 etime_to_secs() {
   et="$1"
   now="${2:-}"   # optional SNAP_NOW; enables the pre-epoch plausibility clamp below
-  # Charset guard: a valid ps ELAPSED/etime field is ONLY digits, colons and a
-  # leading `-` day separator. If a `ps` column read ever misaligns (a word from
-  # argv landing here), anything not etime-shaped is treated as age 0 (spare).
+  # Charset guard: a valid ps ELAPSED/etime field is ONLY digits, colons and an
+  # OPTIONAL leading `<days>-` separator (the D-HH:MM:SS day form). If a `ps` column
+  # read ever misaligns (a word from argv landing here), a non-etime-shaped field
+  # is unparseable -> sentinel -1 (spare).
   case "$et" in
-    '' | *[!0-9:-]*) echo 0; return ;;
+    '' | *[!0-9:-]*) echo -1; return ;;
   esac
   days=0
   case "$et" in
@@ -141,9 +150,9 @@ etime_to_secs() {
   # STRICT ps-grammar RANGE guard: seconds and minutes are 00-59 and hours 00-23
   # (ps rolls any overflow up into the next unit / the day field — it NEVER emits
   # a bare number >= 60 or a 24+ hour field). A component out of range is a garbled
-  # field, e.g. a bare multi-digit number that slid into the etime column -> age 0.
+  # field, e.g. a bare multi-digit number that slid into the etime column -> -1.
   if [ "$s" -gt 59 ] 2>/dev/null || [ "$m" -gt 59 ] 2>/dev/null || [ "$h" -gt 23 ] 2>/dev/null; then
-    echo 0; return
+    echo -1; return
   fi
   total=$(((days * 86400) + (h * 3600) + (m * 60) + s))
   # PRE-EPOCH PLAUSIBILITY CLAMP — the ROOT-CAUSE guard for the test-018 (legacy
@@ -152,12 +161,12 @@ etime_to_secs() {
   # Under heavy CI load, reading /proc for a JUST-FORKED process can sample a
   # near-zero start_time, so `ps` renders etime as a huge, GRAMMAR-VALID day form
   # (observed on CI: `441077234-..` -> ~3.8e13 s) that the range guard above cannot
-  # catch. Such an age is treated as 0 (just started = spare) in BOTH modes: legacy
-  # spares (0 < MIN_AGE), epoch spares (start_epoch = SNAP_NOW - 0 = now). Never
-  # kill a process you cannot confidently age. `now` omitted (unit tests) -> the
-  # clamp is skipped so the pure grammar->seconds mapping stays testable.
+  # catch. Such an age is UNPARSEABLE -> sentinel -1 (spare), which the caller skips
+  # before EITHER mode's threshold — never kill a process you cannot confidently
+  # age. `now` omitted (unit tests) -> the clamp is skipped so the pure
+  # grammar->seconds mapping stays testable.
   if [ -n "$now" ] && [ "$total" -ge "$now" ] 2>/dev/null; then
-    echo 0; return
+    echo -1; return
   fi
   echo "$total"
 }
@@ -268,9 +277,14 @@ while read -r pid etime rest; do
     *) continue ;;
   esac
   # Guard 3: age — spare anything that is this step's own in-flight work. SNAP_NOW
-  # is passed so etime_to_secs can clamp a physically-impossible (pre-epoch) age
-  # from a garbled ps etime to 0 — the root-cause guard for the CI-load flake.
+  # is passed so etime_to_secs can flag a physically-impossible (pre-epoch) age
+  # from a garbled ps etime — the root-cause guard for the CI-load flake.
   age="$(etime_to_secs "$etime" "$SNAP_NOW")"
+  # An UNPARSEABLE/impossible age (sentinel < 0) is skipped BEFORE either mode's
+  # threshold — never reap a process we cannot confidently age. This must precede
+  # the legacy check: folding it to 0 would still reap under the documented default
+  # MIN_AGE=0 (`0 >= 0` true), defeating the fail-safe (PR #152 review, Codex P1).
+  [ "$age" -lt 0 ] 2>/dev/null && continue
   if [ -n "$STEP_START" ]; then
     # EPOCH MODE: start_epoch and STEP_START are both instants fixed before
     # this reaper ran, so the decision is invariant to reaper overhead.

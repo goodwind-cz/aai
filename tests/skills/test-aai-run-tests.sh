@@ -805,7 +805,7 @@ test_021() {
 # of that guard (no CI-load timing dependency) — it sources the pure function out
 # of the reaper and drives it with the exact garbage shapes the race produces.
 test_022() {
-  log_info "TEST-022: etime_to_secs fail-safe — empty / argv-word / non-etime input -> age 0 (spare), valid etimes still parse..."
+  log_info "TEST-022: etime_to_secs fail-safe — non-etime / out-of-range / impossible age -> sentinel -1 (spare); valid etimes parse exactly..."
   [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
   local fn; fn="$TMP_ROOT/etime_fn.$$.sh"
   sed -n '/^etime_to_secs() {/,/^}/p' "$REAP_SCRIPT" > "$fn"
@@ -819,29 +819,37 @@ test_022() {
   [ "$(ets '00:03')" = "3" ]        || log_fail "TEST-022: 00:03 must be 3"
   [ "$(ets '01:00')" = "60" ]       || log_fail "TEST-022: 01:00 must be 60"
   [ "$(ets '1-00:00:00')" = "86400" ] || log_fail "TEST-022: 1-00:00:00 must be 86400"
-  # Non-etime-shaped fields (the column-shift race) must ALL fail safe to 0.
+  # Non-etime-shaped fields (the column-shift race) must ALL fail safe to the
+  # sentinel -1 (spare). NOT 0: under the documented default MIN_AGE=0 a folded-to-0
+  # age satisfies the legacy `0 >= 0` and would REAP a fresh match (Codex P1). The
+  # caller skips any age < 0 before either threshold, regardless of MIN_AGE.
   local g
   for g in '' 'vitest_fresh18' 'worker' 'high' 'abc:def' '1.2.3' '/tmp/ws/x' 'node'; do
-    [ "$(ets "$g")" = "0" ] || log_fail "TEST-022: non-etime field [$g] must fail safe to age 0 (got $(ets "$g")) — a fresh process must never be reaped by a shifted column"
+    [ "$(ets "$g")" = "-1" ] || log_fail "TEST-022: non-etime field [$g] must fail safe to sentinel -1 (got $(ets "$g")) — a fresh process must never be reaped by a shifted column"
   done
-  # RANGE guard (root-cause hardening): a bare multi-digit number or an
-  # out-of-range component is NOT a valid ps etime -> age 0. This RED-proofs the
-  # bare-integer column-shift vector (the old parser returned the number verbatim).
-  [ "$(ets '38109073018720')" = "0" ] || log_fail "TEST-022: a bare 14-digit number must be rejected as out-of-range -> age 0 (got $(ets '38109073018720'))"
-  [ "$(ets '99:99')" = "0" ]  || log_fail "TEST-022: 99:99 (mm/ss > 59) must be rejected -> age 0 (got $(ets '99:99'))"
-  [ "$(ets '77')" = "0" ]     || log_fail "TEST-022: bare 77 (ss > 59) must be rejected -> age 0 (got $(ets '77'))"
+  # RANGE guard: a bare multi-digit number or an out-of-range component is NOT a
+  # valid ps etime -> -1. RED-proofs the bare-integer column-shift vector (the old
+  # parser returned the number verbatim).
+  [ "$(ets '38109073018720')" = "-1" ] || log_fail "TEST-022: a bare 14-digit number must be rejected as out-of-range -> -1 (got $(ets '38109073018720'))"
+  [ "$(ets '99:99')" = "-1" ]  || log_fail "TEST-022: 99:99 (mm/ss > 59) must be rejected -> -1 (got $(ets '99:99'))"
+  [ "$(ets '77')" = "-1" ]     || log_fail "TEST-022: bare 77 (ss > 59) must be rejected -> -1 (got $(ets '77'))"
   # PRE-EPOCH PLAUSIBILITY CLAMP (the exact CI-load flake): a grammar-VALID but
   # physically-impossible huge-day etime (a mid-fork /proc start_time race renders
-  # 441077234-00:18:40 -> 38109073018720 s) must clamp to age 0 when SNAP_NOW is
-  # supplied. Without the clamp (1-arg) the raw seconds pass through — proving the
-  # clamp, not grammar, is what closes this vector. A NOW just below the Unix epoch.
+  # 441077234-00:18:40 -> 38109073018720 s) must resolve to the -1 sentinel when
+  # SNAP_NOW is supplied. Without it (1-arg) the raw seconds pass through — proving
+  # the clamp, not grammar, closes this vector. NOW is a representative SNAP_NOW
+  # (epoch seconds, ~2025); any real process age is orders of magnitude below it.
   local NOW=1753000000
   [ "$(ets '441077234-00:18:40')" = "38109073018720" ] || log_fail "TEST-022: 1-arg (no clamp) must return raw grammar seconds for the huge-day form (got $(ets '441077234-00:18:40')) — proves the RED baseline"
-  [ "$(ets2 '441077234-00:18:40' "$NOW")" = "0" ] || log_fail "TEST-022: an age >= SNAP_NOW (pre-epoch start) must clamp to 0 — the reaper must SPARE a fresh match whose etime the kernel garbled (got $(ets2 '441077234-00:18:40' "$NOW"))"
+  [ "$(ets2 '441077234-00:18:40' "$NOW")" = "-1" ] || log_fail "TEST-022: an age >= SNAP_NOW (pre-epoch start) must resolve to -1 — the reaper must SPARE a fresh match whose etime the kernel garbled (got $(ets2 '441077234-00:18:40' "$NOW"))"
   # The clamp must NOT reject a genuinely-old-but-plausible age (never spares a real leak).
   [ "$(ets2 '10-00:00:00' "$NOW")" = "864000" ] || log_fail "TEST-022: a real 10-day age (864000 s, well under SNAP_NOW) must NOT be clamped (got $(ets2 '10-00:00:00' "$NOW"))"
+  # Codex P1: the spare sentinel MUST be strictly negative so the caller's
+  # `[ age -lt 0 ] && continue` fires BEFORE the legacy `age >= MIN_AGE` check —
+  # otherwise MIN_AGE=0 (the documented default) would reap it via `0 >= 0`.
+  [ "$(ets2 '441077234-00:18:40' "$NOW")" -lt 0 ] 2>/dev/null || log_fail "TEST-022: the impossible-age sentinel must be < 0 so it is skipped even under MIN_AGE=0 (Codex P1)"
   rm -f "$fn"
-  log_pass "etime_to_secs fails safe on non-etime + out-of-range + impossible-age input (age 0); valid etimes parse exactly, real large ages survive the clamp (TEST-022)"
+  log_pass "etime_to_secs fails safe on non-etime + out-of-range + impossible-age input (sentinel -1 < 0, spared under any MIN_AGE); valid etimes parse exactly, real large ages survive the clamp (TEST-022)"
 }
 
 ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022"

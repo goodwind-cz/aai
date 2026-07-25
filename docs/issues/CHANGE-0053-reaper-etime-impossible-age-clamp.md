@@ -30,10 +30,13 @@ links:
   post-boundary sibling). ONE bad age → BOTH failure directions.
 - Fix: a **pre-epoch plausibility clamp** in `etime_to_secs` — a process cannot
   have started before the Unix epoch, so any computed age `>= SNAP_NOW` is
-  physically impossible and is treated as age 0 (just started = spare). Plus a
-  strict ps-grammar **range guard** (seconds/minutes 00-59, hours 00-23) that
-  rejects a bare multi-digit number sliding into the etime column. Both only ever
-  make the reaper MORE conservative (spare on uncertainty) — never reap more.
+  physically impossible and resolves to a distinct `-1` sentinel the reaper SKIPS
+  before either mode's threshold. Plus a strict ps-grammar **range guard**
+  (seconds/minutes 00-59, hours 00-23) that rejects a bare multi-digit number
+  sliding into the etime column. The sentinel is `-1` (not 0) deliberately: under
+  the documented default `MIN_AGE=0`, a folded-to-0 age satisfies the legacy
+  `0 >= 0` and would still reap a fresh match. Both guards only ever make the
+  reaper MORE conservative (spare on uncertainty) — never reap more.
 
 ## Type
 - change (test-infra / reaper de-flake; safety-critical fail-safe direction; the
@@ -48,10 +51,11 @@ links:
 
 ## Scope
 - In scope:
-  - `.aai/scripts/aai-reap-tests.sh`: `etime_to_secs` gains (1) a strict range
-    guard (ss/mm 00-59, hh 00-23 → out-of-range = age 0) and (2) an optional
-    `now` (SNAP_NOW) 2nd arg enabling the pre-epoch clamp (`total >= now` → 0).
-    The Guard-3 call site passes `SNAP_NOW`.
+  - `.aai/scripts/aai-reap-tests.sh`: `etime_to_secs` returns a `-1` sentinel for
+    every unparseable/impossible field via (1) a strict range guard (ss/mm 00-59,
+    hh 00-23) and (2) an optional `now` (SNAP_NOW) 2nd arg enabling the pre-epoch
+    clamp (`total >= now` → -1). The Guard-3 call site passes `SNAP_NOW` and skips
+    any `age < 0` (`continue`) BEFORE either mode's threshold comparison.
   - `tests/skills/test-aai-run-tests.sh`: TEST-022 extended — a bare 14-digit
     number and out-of-range components reject to 0; the exact huge-day form
     (`441077234-00:18:40`) returns raw seconds with 1 arg (RED baseline) and
@@ -71,12 +75,14 @@ links:
   legitimate reap-old direction (TEST-017 still reaps a real pre-step survivor).
 
 ## Acceptance Criteria
-- AC-001: `etime_to_secs` clamps any age `>= now` (2nd arg) to 0; the exact CI
-  form `441077234-00:18:40` returns `38109073018720` with 1 arg (RED baseline) and
-  `0` with `now`. Deterministic unit test (TEST-022), RED against the pre-change
-  parser.
+- AC-001: `etime_to_secs` resolves any age `>= now` (2nd arg) to the sentinel
+  `-1`; the exact CI form `441077234-00:18:40` returns `38109073018720` with 1 arg
+  (RED baseline) and `-1` with `now`. The caller skips a negative age BEFORE either
+  mode's threshold (a distinct sentinel, not 0 — under the default `MIN_AGE=0`,
+  folding to 0 would still reap via `0 >= 0`). Deterministic unit test (TEST-022),
+  RED against the pre-change parser.
 - AC-002: `etime_to_secs` rejects a bare multi-digit number and out-of-range
-  ss/mm (`>59`) / hh (`>23`) components to age 0; valid etimes (`00:03`→3,
+  ss/mm (`>59`) / hh (`>23`) components to `-1`; valid etimes (`00:03`→3,
   `01:00`→60, `1-00:00:00`→86400) parse exactly; a real 10-day age (`10-00:00:00`
   →864000) is NOT clamped.
 - AC-003: the full `test-aai-run-tests.sh` reaper suite passes locally and runs
@@ -88,7 +94,9 @@ links:
 - Extracted the pre-change `etime_to_secs` and confirmed it returns the raw
   `38109073018720` / `6039` for the new assertions (RED), the new one returns 0.
 - CI-authoritative for the CI-load recurrence: TEST-018 + TEST-006 must stop
-  flaking across subsequent unrelated PRs (Review-By below; closes SPEC-0083 AC-04).
+  flaking across subsequent unrelated PRs. This is the root-cause fix SPEC-0083
+  AC-04 tracks; that AC's closure remains CI-authoritative/deferred (Review-By
+  2026-08-15) until the flake is confirmed gone across those PRs — not closed here.
 
 ## Constraints / Risks
 - The clamp bound (`>= SNAP_NOW ≈ 1.75e9 s`) is ~55 years — no real process

@@ -21,8 +21,12 @@ RFC-0001).
   started before the Unix epoch, so an impossible age is a garbled etime and the
   match is SPARED (fail-safe) in both legacy and epoch modes — and (2) enforces the
   strict ps grammar (ss/mm 00-59, hh 00-23) so a bare multi-digit column-shift word
-  is rejected to 0. Both only ever spare more, never reap more. TEST-022 extended
-  (RED-proofed against the pre-change parser). Closes SPEC-0083 AC-04.
+  is rejected. Impossible/unparseable ages resolve to a distinct `-1` sentinel the
+  reaper skips before EITHER mode's threshold — folding to 0 would still reap under
+  the documented default `MIN_AGE=0` (`0 >= 0`). Both only ever spare more, never
+  reap more. TEST-022 extended (RED-proofed against the pre-change parser). This is
+  the root-cause fix SPEC-0083 AC-04 tracks; its closure stays CI-authoritative
+  (Review-By 2026-08-15) — the flake must stay gone across subsequent PRs.
 
 ## [unreleased] — feat: RFC-0012 Phase 2c / Slice C — review-mode GitHub upsert (CHANGE feedback-upsert-review / SPEC spec-feedback-upsert-review)
 
