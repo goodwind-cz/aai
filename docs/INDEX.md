@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T01:31:44.818Z
+Generated: 2026-07-25T06:17:47.608Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (169)
+## Done (171)
 
 | ID | Type | Path |
 |---|---|---|
@@ -66,6 +66,7 @@ _None._
 | CHANGE-0043 | issues | docs/issues/CHANGE-0043-skill-suite-linux-ci-portability.md |
 | CHANGE-0044 | issues | docs/issues/CHANGE-0044-aai-release-skill.md |
 | CHANGE-0045 | issues | docs/issues/CHANGE-0045-friction-capture-foundation.md |
+| CHANGE-0046 | issues | docs/issues/CHANGE-0046-friction-shadow-capture-wiring.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -189,6 +190,7 @@ _None._
 | SPEC-0076 | specs | docs/specs/SPEC-0076-spec-test-018-legacy-spare-attribution.md |
 | SPEC-0077 | specs | docs/specs/SPEC-0077-spec-test-canon-drift-detection.md |
 | SPEC-0078 | specs | docs/specs/SPEC-0078-spec-friction-capture-foundation.md |
+| SPEC-0079 | specs | docs/specs/SPEC-0079-spec-friction-shadow-capture-wiring.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)

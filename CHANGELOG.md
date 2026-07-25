@@ -9,6 +9,28 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: RFC-0012 Phase 1 — local shadow-mode friction capture wiring (CHANGE-0046 / SPEC-0079)
+
+- Second implementation slice of RFC-0012 (shadow mode): wires the dormant
+  Phase-0 capture CLI into the skill surface as ONE canonical seam, inherited by
+  every universal skill via the shared guide — capture-only, no triage, no
+  upstream, no network (all Phase 2+ still deferred).
+- Adds a "Skill wiring (shadow capture)" section to `.aai/system/FRICTION_PROTOCOL.md`
+  (when/how to record, by reference to the taxonomy; the offline
+  `node .aai/scripts/aai-friction.mjs record --input <path|->` command; and the
+  shadow best-effort / never-mask / swallow contract) and ONE thin inheriting
+  pointer in `.aai/AGENTS.md` (`### Friction capture (shadow)`) — the protocol
+  body is never duplicated per prompt (DRY).
+- Enforced by a new skill-suite guard `tests/skills/test-aai-friction-wiring.sh`
+  (7 tests) with a negative control proving the guard fails when either side of
+  the seam is removed, and an end-to-end test crossing the prose→CLI seam.
+- Companion prompt-diet ledger true-up: +488 B AGENTS.md pointer credited
+  (TEST-012 checkpoint 20358 → 20846, headroom 488/2048). No new `.aai/**` file,
+  so PROFILES.yaml is unaffected.
+- Shadow observation window (>= 2 weeks) and Phase 2 (review mode + threshold
+  calibration) remain tracked against RFC-0012 — this slice delivers only the
+  code that enables shadow capture.
+
 ## [unreleased] — feat: RFC-0012 Phase 0 — offline friction capture foundation (CHANGE-0045 / SPEC-0078)
 
 - First implementation slice of the accepted RFC-0012 (AAI self-improvement /

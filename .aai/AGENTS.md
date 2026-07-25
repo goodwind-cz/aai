@@ -173,6 +173,15 @@ One branch per work item:
 - SKILL_PR's "0. BRANCH HYGIENE" precondition (`.aai/scripts/branch-guard.mjs`) fails closed before any push if the current branch is the base branch, is detached, or does not correspond to the current ref_id. It is read-only and never rewrites history — an already-committed wrong branch is reported with remediation, not auto-fixed.
 - `node .aai/scripts/branch-guard.mjs --suggest` prints the canonical `<type-token>/<ref-id>` branch name so implementation can cut the branch up front.
 
+### Friction capture (shadow)
+
+Every universal skill shares one seam: `.aai/system/FRICTION_PROTOCOL.md` →
+"Skill wiring (shadow capture)". When you hit an AAI-owned failure (per that
+doc's taxonomy, honoring its exclusions), record one observation via
+`node .aai/scripts/aai-friction.mjs record --input <path|->`. Capture is
+best-effort, local-only, and never masks the skill's own result — swallow any
+capture error and continue. Do not restate the protocol here; follow the seam.
+
 ### Skill Invocation (Claude vs Codex)
 
 - Claude-style slash command:
