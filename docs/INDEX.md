@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T10:44:59.960Z
+Generated: 2026-07-25T11:51:27.502Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -196,9 +196,12 @@ _None._
 | SPEC-0080 | specs | docs/specs/SPEC-0080-spec-friction-schema-v2-capture.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| feedback-triage-offline (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-feedback-triage-offline.md |
+| spec-feedback-triage-offline (unnumbered draft) | specs | docs/specs/SPEC-DRAFT-spec-feedback-triage-offline.md |
 
 ## Deferred (whole-doc) (0)
 

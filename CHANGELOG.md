@@ -9,6 +9,24 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat: RFC-0012 Phase 2 / Slice B — offline friction triage (CHANGE feedback-triage-offline / SPEC spec-feedback-triage-offline)
+
+- The offline triage core, now that schema v2 gives it real signal. New
+  `/aai-feedback-triage` + `.aai/scripts/aai-feedback-triage.mjs`: reads the local
+  spool, applies hard gates (schema, AAI-ownership taxonomy, sanitization), scores
+  each observation from its v2 structured signals (impact + confidence +
+  reproducible) with a v1 recurrence fallback, clusters by fingerprint, and writes
+  a LOCAL triage report — offline, no GitHub token, no network, no issue writes.
+- Per cluster the report records `failure_class`, `recurrence`, a composite
+  `score`, a `decision` (`review_candidate` at/above the configured threshold, else
+  `retain`), and `auto_publishable` — **always `false`** in this slice (auto is
+  locked until a later slice). `review`/`auto` config modes are parsed but have no
+  network effect here; config is fail-closed to `local`.
+- Adds a `triage` section to `.aai/feedback.yaml`, a thin
+  `.aai/SKILL_FEEDBACK_TRIAGE.prompt.md` wrapper, PROFILES.yaml classification,
+  and a prompt-diet ledger true-up. The review-mode upsert that consumes this
+  report is the next slice (Slice C).
+
 ## [unreleased] — feat: RFC-0013 Slice A — friction schema v2 + hard redactor (CHANGE-0047 / SPEC-0080)
 
 - First code slice of RFC-0013: extends the offline capture CLI to persist
