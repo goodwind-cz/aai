@@ -2,11 +2,13 @@
 id: prune-stale-briefs
 number: 54
 type: change
-status: draft
+status: done
 links:
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - 153
+  commits:
+    - 3d66df40050764866f9252e3a3fa0ff99a03d975
 ---
 
 # AAI-level stale-brief sweep

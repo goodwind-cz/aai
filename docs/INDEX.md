@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T22:00:29.859Z
+Generated: 2026-07-25T22:01:44.083Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -18,7 +18,7 @@ _None._
 
 _None._
 
-## Done (183)
+## Done (184)
 
 | ID | Type | Path |
 |---|---|---|
@@ -75,6 +75,7 @@ _None._
 | CHANGE-0051 | issues | docs/issues/CHANGE-0051-friction-feedback-discovery.md |
 | CHANGE-0052 | issues | docs/issues/CHANGE-0052-close-work-item-brief-cleanup.md |
 | CHANGE-0053 | issues | docs/issues/CHANGE-0053-reaper-etime-impossible-age-clamp.md |
+| CHANGE-0054 | issues | docs/issues/CHANGE-0054-prune-stale-briefs.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -206,11 +207,9 @@ _None._
 | SPEC-0084 | specs | docs/specs/SPEC-0084-spec-friction-feedback-discovery.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0054 | issues | docs/issues/CHANGE-0054-prune-stale-briefs.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
