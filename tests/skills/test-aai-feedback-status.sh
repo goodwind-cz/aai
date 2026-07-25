@@ -72,14 +72,20 @@ test_003_no_mutation() {
   log_pass "no mutating gh call; only read-only auth status (TEST-003)"
 }
 
-# --- TEST-004: empty spool -> quiet, exit 0 --------------------------------
+# --- TEST-004: empty spool -> SILENT (no output), exit 0 -------------------
+# The wrap-up nudge (SKILL_WRAP_UP step 6) must be silent when nothing is
+# captured — it prints its output verbatim ONLY when non-silent. So the human
+# path must emit NOTHING on an empty loop (bot-review P2: Copilot + Codex).
 test_004_empty() {
-  log_info "Test: nothing captured -> quiet message, exit 0 (TEST-004)..."
+  log_info "Test: nothing captured -> SILENT (empty stdout), exit 0 (TEST-004)..."
   mock_gh 0
   local out; out="$(run "$TD/empty" "$TD/bin/gh")"; local code=$?
   [ "$code" = "0" ] || log_fail "TEST-004: empty must exit 0"
-  echo "$out" | grep -qi "nothing captured" || log_fail "TEST-004: empty must say nothing captured"
-  log_pass "empty spool -> quiet, exit 0 (TEST-004)"
+  [ -z "$out" ] || log_fail "TEST-004: empty must be SILENT (no stdout), got: $out"
+  # --json still emits the object even when empty (a programmatic caller wants the zeros).
+  local jout; jout="$(run "$TD/empty" "$TD/bin/gh" --json)"
+  [ "$(printf '%s' "$jout" | jq_field observations)" = "0" ] || log_fail "TEST-004: --json must still emit observations:0 when empty"
+  log_pass "empty spool -> SILENT human line, --json still emits, exit 0 (TEST-004)"
 }
 
 main() {

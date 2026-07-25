@@ -18,7 +18,7 @@
 //
 // Node stdlib only.
 
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
@@ -96,8 +96,11 @@ function main() {
     process.exit(0);
   }
 
+  // Silent when there is nothing to surface (shadow mode is quiet by design):
+  // the human nudge writes NOTHING on an empty loop so /aai-wrap-up can include
+  // its output verbatim only when non-silent. --json above always emits the
+  // object (a programmatic caller wants the zeros); this silence is human-only.
   if (observations === 0 && drafts === 0) {
-    process.stdout.write('friction feedback: nothing captured yet (shadow mode is silent by design)\n');
     process.exit(0);
   }
   process.stdout.write(
