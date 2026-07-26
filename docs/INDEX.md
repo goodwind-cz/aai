@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-26T18:54:43.446Z
+Generated: 2026-07-26T18:55:31.871Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (192)
+## Done (193)
 
 | ID | Type | Path |
 |---|---|---|
@@ -80,6 +80,7 @@ _None._
 | CHANGE-0057 | issues | docs/issues/CHANGE-0057-docs-rollup-userguide.md |
 | CHANGE-0058 | issues | docs/issues/CHANGE-0058-token-capture-canary.md |
 | CHANGE-0059 | issues | docs/issues/CHANGE-0059-prompt-dedup-canonical-includes.md |
+| CHANGE-0060 | issues | docs/issues/CHANGE-0060-pr-post-open-review-sweep.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |

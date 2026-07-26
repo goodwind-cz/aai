@@ -23,6 +23,15 @@ RFC-0001).
   still injecting the full protocol into parallel unit payloads + two
   dangling result-block refs; remediated and permanently pinned by an
   extended hygiene TEST-082. Refs: CHANGE-0061, SPEC-0087.
+## [unreleased] — feat: SKILL_PR step 5d — post-open bot-review sweep before merge-readiness (CHANGE-0060)
+- Codifies the PR-level review-response discipline as canon: after
+  `gh pr create` + CI, poll bot inline comments (they never appear in
+  `gh pr checks`), fix legitimate findings on the same branch or rebut them
+  in a PR comment (never silent), push a review-response commit with one
+  summary comment, and wait for the CI re-run before any merge-readiness
+  claim. Merge stays operator-only.
+- Evidence base: PR #158 (7 real bot findings) and #159 (3 + a fix-of-fix)
+  — previously held only by session memory. Ref: CHANGE-0060.
 
 ## [unreleased] — refactor: prompt dedup — canonical includes for ceremony rules, AC gate, role boilerplate (CHANGE-0059 / SPEC-0086)
 

@@ -1177,3 +1177,7 @@
 {"v":1,"ts":"2026-07-26T18:33:09.388Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-subagent-protocol-slim/Spec-AC-03","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-07-26T18:33:09.420Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-subagent-protocol-slim/Spec-AC-04","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-07-26T18:33:09.452Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-subagent-protocol-slim/Spec-AC-05","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-07-25T13:39:55.253Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":179,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-26T18:22:06.002Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"pr-post-open-review-sweep","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-26T18:22:06.035Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"pr-post-open-review-sweep","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-26T18:22:06.068Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"pr-post-open-review-sweep","payload":{"commit":"899712c074347e65520ca496ba2fb9e6729675c3"}}
