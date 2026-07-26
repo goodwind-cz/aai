@@ -325,13 +325,13 @@ owning prompt names the hook and invokes capture right there, so an agent does
 not need to recall this protocol to trigger it:
 
 - **Validation FAIL recorded** — `.aai/VALIDATION.prompt.md` produces a FAIL
-  verdict (step 8), or hits a canon-file gate/lint failure during discovery
-  (step 5).
+  verdict (step 8).
 - **Remediation dispatched** — `.aai/REMEDIATION.prompt.md` categorizes an
   incoming failure as AAI-owned (step 1/2), before applying any fix.
 - **Canon-file gate/lint/CI failure** handled — a gate, lint, or CI check fails
-  on an AAI-owned canon file, including the post-open CI-failure handling point
-  in `.aai/SKILL_PR.prompt.md` (step 5d).
+  on an AAI-owned canon file: validation discovery (`.aai/VALIDATION.prompt.md`
+  step 5h) and the post-open CI-failure handling point in
+  `.aai/SKILL_PR.prompt.md` (step 5d).
 - **Canon-surface check failure during implementation** — a test suite, gate,
   lint, or accounting check (e.g. the prompt-diet ledger/headroom guard) fails
   mid-implementation in `.aai/IMPLEMENTATION.prompt.md` (post-verification

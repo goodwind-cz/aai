@@ -28,7 +28,7 @@
 #   TEST-007 (Spec-AC-01) integration: the documented record command runs
 #                         end-to-end -> exactly one spool line, exit 0.
 #
-# docs/specs/SPEC-DRAFT-spec-friction-capture-default-on.md (friction-capture-
+# docs/specs/SPEC-0088-spec-friction-capture-default-on.md (friction-capture-
 # default-on) appends suite-local TEST-008..016 below (existing TEST-001..007
 # above are NOT renumbered — they cover the Phase 1 wiring spec). Each new
 # case is annotated with the spec's own TEST-NNN id it satisfies:
@@ -290,6 +290,7 @@ hooks_wired() {
   grep -qi "validation FAIL" "$protocol"        || return 1
   grep -qi "remediation dispatch" "$protocol"   || return 1
   grep -qi "canon-file gate/lint/CI failure" "$protocol" || return 1
+  grep -qi "canon-surface check failure" "$protocol"      || return 1
   local f
   for f in "$validation" "$remediation" "$skillpr"; do
     [ -f "$f" ] || return 1
@@ -535,13 +536,16 @@ test_016_unwritable_spool_negative_control() {
   "observed_behavior": "the spool directory is unwritable"
 }
 JSON
-  chmod -R a-w "$sp"
+  # Root-safe blocked spool (PR #162 Codex P2): chmod a-w does not stop UID 0,
+  # so nest the spool path under a regular FILE — writes fail with ENOTDIR
+  # for every UID, root included.
+  local blocked="$sp/blocker-file/spool"
+  : > "$sp/blocker-file"
   # Setup sanity: the capture call itself must actually fail against the
-  # unwritable dir, else this negative control would be vacuous.
+  # blocked spool path, else this negative control would be vacuous.
   local cap_code=0
-  AAI_FRICTION_SPOOL_DIR="$sp" node "$SCRIPT" record --input "$input" \
+  AAI_FRICTION_SPOOL_DIR="$blocked" node "$SCRIPT" record --input "$input" \
     > "$TEST_DIR/cap016.out" 2> "$TEST_DIR/cap016.err" || cap_code=$?
-  chmod -R u+w "$sp"
   [ "$cap_code" != "0" ] \
     || log_fail "TEST-016: setup invalid — capture must actually fail against an unwritable spool dir"
 
@@ -551,13 +555,11 @@ JSON
   simulate_hook_wrapped_step() {
     ( exit 4 )
     local primary_rc=$?
-    AAI_FRICTION_SPOOL_DIR="$sp" node "$SCRIPT" record --input "$input" >/dev/null 2>&1 || true
+    AAI_FRICTION_SPOOL_DIR="$blocked" node "$SCRIPT" record --input "$input" >/dev/null 2>&1 || true
     return "$primary_rc"
   }
-  chmod -R a-w "$sp"
   local final_rc=0
   simulate_hook_wrapped_step || final_rc=$?
-  chmod -R u+w "$sp"
   [ "$final_rc" = "4" ] \
     || log_fail "TEST-016: capture failure at the hook must not change the primary step's exit code (got $final_rc, want 4)"
   log_pass "Capture failure into an unwritable spool preserves the primary step's own exit code (TEST-016 / spec TEST-009)"
