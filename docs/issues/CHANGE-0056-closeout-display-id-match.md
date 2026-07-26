@@ -2,11 +2,13 @@
 id: closeout-display-id-match
 number: 56
 type: change
-status: draft
+status: done
 links:
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - 155
+  commits:
+    - 3c35f3746469ab934790917bcfe03560f279ea99
 ---
 
 # Closeout candidate: display-id match + Rollout-Status guard
