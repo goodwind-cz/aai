@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-07-26T22:38:12.044Z",
+  "generatedAt": "2026-07-26T22:45:24.990Z",
   "project": "aai",
   "counts": {
-    "delivered": 107,
-    "in_progress": 2,
+    "delivered": 108,
+    "in_progress": 1,
     "releases": 1,
     "tokens_total": 15266889
   },
@@ -13,19 +13,6 @@
     "type": "intake_change"
   },
   "in_progress": [
-    {
-      "ref": "token-economics-end-to-end",
-      "title": "Change — Token economics end-to-end: metrics-report reads usage notes; overview v2 shows cost per feature",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-DRAFT-token-economics-end-to-end.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-DRAFT-spec-token-economics-end-to-end.md",
-      "validation": null,
-      "review": null
-    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
@@ -131,6 +118,19 @@
       "spec": "docs/specs/SPEC-0088-spec-friction-capture-default-on.md",
       "validation": "docs/ai/reports/VALIDATION-friction-capture-default-on-20260726.md",
       "review": "docs/ai/reviews/review-dual-verdict-friction-capture-default-on-20260726T202511Z.md"
+    },
+    {
+      "ref": "token-economics-end-to-end",
+      "title": "Change — Token economics end-to-end: metrics-report reads usage notes; overview v2 shows cost per feature",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0063-token-economics-end-to-end.md",
+      "closed_on": "2026-07-26",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0089-spec-token-economics-end-to-end.md",
+      "validation": "docs/ai/reports/validation-token-economics-end-to-end-20260726T223843Z.md",
+      "review": "docs/ai/reviews/review-dual-verdict-token-economics-end-to-end-20260726T224220Z.md"
     },
     {
       "ref": "friction-record-v2-redaction",
@@ -1529,6 +1529,19 @@
           "spec": "docs/specs/SPEC-0088-spec-friction-capture-default-on.md",
           "validation": "docs/ai/reports/VALIDATION-friction-capture-default-on-20260726.md",
           "review": "docs/ai/reviews/review-dual-verdict-friction-capture-default-on-20260726T202511Z.md"
+        },
+        {
+          "ref": "token-economics-end-to-end",
+          "title": "Change — Token economics end-to-end: metrics-report reads usage notes; overview v2 shows cost per feature",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0063-token-economics-end-to-end.md",
+          "closed_on": "2026-07-26",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0089-spec-token-economics-end-to-end.md",
+          "validation": "docs/ai/reports/validation-token-economics-end-to-end-20260726T223843Z.md",
+          "review": "docs/ai/reviews/review-dual-verdict-token-economics-end-to-end-20260726T224220Z.md"
         },
         {
           "ref": "friction-record-v2-redaction",

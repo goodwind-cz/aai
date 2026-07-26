@@ -2,13 +2,15 @@
 id: spec-token-economics-end-to-end
 type: spec
 number: 89
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: null
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 163
+  commits:
+    - 00f593ad20dce1d4ecd813604b6397113ddbc73d
 ---
 
 # Implementation Spec — Token economics end-to-end: metrics-report reads usage notes; overview v2 shows tokens per feature

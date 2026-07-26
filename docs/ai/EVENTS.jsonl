@@ -1206,3 +1206,9 @@
 {"v":1,"ts":"2026-07-26T21:28:17.994Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-friction-capture-default-on","payload":{"commit":"5c4d232f249c079ab2a29d8e4667a13cf0154e80"}}
 {"v":1,"ts":"2026-07-26T22:10:48.354Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":200,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-07-26T22:11:00.159Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":200,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-26T22:45:07.556Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"token-economics-end-to-end","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-26T22:45:07.586Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"token-economics-end-to-end","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-26T22:45:07.616Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"token-economics-end-to-end","payload":{"commit":"00f593ad20dce1d4ecd813604b6397113ddbc73d"}}
+{"v":1,"ts":"2026-07-26T22:45:07.646Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-token-economics-end-to-end","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-26T22:45:07.675Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-token-economics-end-to-end","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-26T22:45:07.704Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-token-economics-end-to-end","payload":{"commit":"00f593ad20dce1d4ecd813604b6397113ddbc73d"}}

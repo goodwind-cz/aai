@@ -2,10 +2,12 @@
 id: token-economics-end-to-end
 number: 63
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 163
+  commits:
+    - 00f593ad20dce1d4ecd813604b6397113ddbc73d
 ---
 
 # Change — Token economics end-to-end: metrics-report reads usage notes; overview v2 shows cost per feature
