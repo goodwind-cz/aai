@@ -1143,3 +1143,10 @@
 {"v":1,"ts":"2026-07-26T06:25:49.224Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":188,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-07-26T06:25:57.187Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":188,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-07-26T06:30:09.880Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":189,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-26T06:31:07.957Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"friction-record-v2-redaction","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-26T06:31:07.989Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"friction-record-v2-redaction","payload":{"validation":"pass","code_review":"none"}}
+{"v":1,"ts":"2026-07-26T06:31:08.020Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"friction-record-v2-redaction","payload":{"commit":"06901555ca94fa47a7792ca8774a5f67bf159454"}}
+{"v":1,"ts":"2026-07-26T06:31:32.984Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"docs-rollup-userguide","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-26T06:31:33.014Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"docs-rollup-userguide","payload":{"validation":"pass","code_review":"none"}}
+{"v":1,"ts":"2026-07-26T06:31:33.045Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"docs-rollup-userguide","payload":{"commit":"06901555ca94fa47a7792ca8774a5f67bf159454"}}
+{"v":1,"ts":"2026-07-26T06:32:04.800Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":189,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

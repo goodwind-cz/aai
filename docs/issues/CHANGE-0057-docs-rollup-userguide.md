@@ -2,11 +2,13 @@
 id: docs-rollup-userguide
 number: 57
 type: change
-status: draft
+status: done
 links:
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - 156
+  commits:
+    - 06901555ca94fa47a7792ca8774a5f67bf159454
 ---
 
 # USER_GUIDE: docs-audit rollup / closeout / brief sweep + close completed RFC-0013
