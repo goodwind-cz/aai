@@ -10,7 +10,7 @@ links:
     - 00f593ad20dce1d4ecd813604b6397113ddbc73d
 ---
 
-# Change — Token economics end-to-end: metrics-report reads usage notes; overview v2 shows cost per feature
+# Change — Token economics end-to-end: metrics-report reads usage notes; overview v2 shows tokens per feature
 
 ## Summary
 - Close the last gap in the telemetry chain: agent runs now record real

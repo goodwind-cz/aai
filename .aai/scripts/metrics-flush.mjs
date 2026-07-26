@@ -91,6 +91,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+
+// Best-effort overview refresh after a REAL flush (PR #163 Codex P2): the
+// rule-4b late-flush path lands ledger entries after close-work-item's regen,
+// so token totals on the overview would stay stale until the next close.
+// Mirrors close-work-item's helper: swallow everything, never affect exit 0.
+function regenerateOverviewBestEffort() {
+  try {
+    const gen = path.join(SCRIPT_DIR, 'generate-overview.mjs');
+    if (!fs.existsSync(gen)) return;
+    spawnSync(process.execPath, [gen], { stdio: 'ignore' });
+  } catch (err) {
+    process.stderr.write(`metrics-flush: INFO overview regen skipped (best-effort, non-fatal): ${err.message}\n`);
+  }
+}
+
 import { fileURLToPath } from 'node:url';
 import { splitLines, duplicateKeys, inlineChildConflicts } from './lib/state-core.mjs';
 import {
@@ -942,6 +957,7 @@ function main() {
   if (fullReset) console.log('Full reset applied: no active work remains (flush-reset defaults per .aai/STATE_FALLBACK.md)');
   for (const l of report) console.log(l);
   console.log(`check-state: OK (${path.relative(process.cwd(), statePath)})`);
+  regenerateOverviewBestEffort();
   process.exit(0);
 }
 

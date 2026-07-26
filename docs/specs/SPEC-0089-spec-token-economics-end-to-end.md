@@ -163,8 +163,10 @@ Status values: planned | implementing | done | deferred | blocked | rejected
     grouping; unmatched items -> close-month bucket from EVENTS close date.
   - successful close -> spawn generate-overview (best-effort) -> overview-data.json.
 - Release membership convention (additive, backward compatible): a release doc
-  may carry an additive frontmatter member list of work-item refs (slug id or
-  display id) under its links block. REL-0001 carries none today, so all its
+  may carry an additive frontmatter member list of work-item refs under its
+  links block; matching is by EXACT ref form (the item's frontmatter id) —
+  a display-id form that differs from the item id falls back to the
+  close-month group (recorded follow-up; PR #163 review alignment). REL-0001 carries none today, so all its
   members deterministically take the close-month fallback path (proves AC-004's
   fallback arm).
 - Edge cases:

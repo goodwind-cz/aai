@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-26T22:45:32.726Z
+Generated: 2026-07-26T23:00:01.684Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -221,9 +221,11 @@ _None._
 | SPEC-0089 | specs | docs/specs/SPEC-0089-spec-token-economics-end-to-end.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| allocator-rewrite-all-trees (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-allocator-rewrite-all-trees.md |
 
 ## Deferred (whole-doc) (0)
 
