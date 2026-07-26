@@ -328,6 +328,7 @@ test_010_audit_and_reduction() {
   extra=0
   [[ -f .aai/INTAKE_COMMON.md ]] && extra=$((extra + $(wc -c < .aai/INTAKE_COMMON.md)))
   [[ -f .aai/STATE_FALLBACK.md ]] && extra=$((extra + $(wc -c < .aai/STATE_FALLBACK.md)))
+  [[ -f .aai/ROLE_COMMON.md ]] && extra=$((extra + $(wc -c < .aai/ROLE_COMMON.md)))
   read -r reduction headroom <<<"$(compute_reduction_headroom "$BASELINE_PROMPT_BYTES" "$after" "$extra" "$JUSTIFIED_GROWTH_BYTES" "$REQUIRED_REDUCTION_BYTES")"
   if [[ "$headroom" -lt 0 ]]; then
     log_info "TEST-010: net reduction $reduction bytes (< $REQUIRED_REDUCTION_BYTES; after=$after, new files=$extra, credit=$JUSTIFIED_GROWTH_BYTES)"
@@ -412,13 +413,14 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# 29802 (true-up: token-capture-canary added a 912 B itemized entry for the
-# SKILL_LOOP.prompt.md step 4/6 mandatory-usage-note + --started/--harness
-# wiring prose, over the prior 28890 B total from auditor-autonomy-pack) AND
-# equals an independent re-sum of JUSTIFIED_ADDITIONS. This
-# expected total is bumped, never recomputed silently, each time a scope
-# legitimately appends a ledger entry (LEARNED.md 2026-07-17: the true-up is
-# definition-of-done for prompt-touching scopes).
+# 26781 (true-up: prompt-dedup-canonical-includes appended a -3021 B NEGATIVE
+# entry that reclaims credit no longer needed once the D5/ceremony/AC-gate
+# dedup genuinely shrank the corpus, over the prior 29802 B total from
+# token-capture-canary) AND equals an independent re-sum of
+# JUSTIFIED_ADDITIONS. This expected total is bumped, never recomputed
+# silently, each time a scope legitimately appends a ledger entry
+# (LEARNED.md 2026-07-17: the true-up is definition-of-done for
+# prompt-touching scopes).
 test_012_growth_sum_matches_ledger() {
   if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
     log_fail "TEST-012 (spec TEST-001) JUSTIFIED_ADDITIONS array does not exist yet"
@@ -428,15 +430,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 29802 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 29802)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 26781 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 26781)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 29802 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 26781 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
@@ -454,7 +456,10 @@ test_013_ledger_entry_shape() {
   fi
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     lead="${_e%% *}"
-    if ! [[ "$lead" =~ ^[0-9]+$ ]]; then
+    # A leading '-' is allowed (prompt-dedup-canonical-includes): a NEGATIVE
+    # entry reclaims credit when the corpus genuinely shrank below what the
+    # ledger justified (see TEST-010's own remediation message).
+    if ! [[ "$lead" =~ ^-?[0-9]+$ ]]; then
       log_info "TEST-013 (spec TEST-002): entry '$_e' has non-numeric leading bytes field '$lead'"
       ok=0
     fi

@@ -107,13 +107,12 @@ PROCESS
    deviation, why it is justified). An unjustifiable deviation blocks freeze.
    Required for new specs; pre-existing specs without the section stay valid.
    Ceremony level (RFC-0009): declare `ceremony_level: 0..3` in the spec
-   frontmatter at freeze — 0 typo/docs-only, 1 small single-surface fix,
-   2 full pipeline (the default), 3 protected surfaces. Gates prune ONLY by
-   the .aai/workflow/WORKFLOW.md "Ceremony levels" table, never silently.
-   Levels 0/1 REQUIRE a body line starting `Ceremony justification: ` naming
-   why the scope is small/safe (close-gate checked; review may re-classify
-   upward). Level 3 is MANDATORY when the scope touches a path listed in
-   `protected_paths_l3` (docs/ai/docs-audit.yaml). An absent field is
+   frontmatter at freeze. The four levels' meaning and the protected-surface
+   MANDATORY-L3 mechanic are defined ONLY in the .aai/workflow/WORKFLOW.md
+   "Ceremony levels" table — read it before declaring a level; gates prune
+   ONLY by that table, never silently. Levels 0/1 REQUIRE a body line
+   starting `Ceremony justification: ` naming why the scope is small/safe
+   (close-gate checked; review may re-classify upward). An absent field is
    implicit level 2 — legacy specs stay valid unchanged.
    Dispatch lane (spec-loop-ceremony-aware-dispatch): the declared level also
    SELECTS the dispatch lane — 0/1 lightweight (declared-scope validation),
@@ -168,18 +167,6 @@ FINAL OUTPUT REQUIRED
 - Blocking questions (if any)
 
 METRICS (record in docs/ai/STATE.yaml)
-Subagent-mode carve-out (D5): dispatched as a subagent -> do NOT self-append; return the result block — the orchestrator appends with harness usage per SUBAGENT_PROTOCOL.md; direct execution -> self-append below, usage omitted.
-Capture `started_utc` from the system clock (`date -u +%Y-%m-%dT%H:%M:%SZ`)
-immediately before step 1 begins.
-PRIMARY PATH — after completing, append your agent run via the transactional CLI:
-  node .aai/scripts/state.mjs append-run --ref <REF-ID> --role Planning \
-    --model <your model identifier> --started <started_utc> \
-    [--note "<one-paragraph summary>"] [--tokens-in N --tokens-out N]
-The CLI self-stamps `ended_utc` and computes `duration_seconds` from the system
-clock, keeps `cost_usd: null`, and auto-initializes a missing
-metrics.work_items entry — never a second top-level `metrics:` key.
-FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and
-follow it (agent_runs hand-append + write-safety rules).
-Do NOT estimate any timing or token values. Only record measured/platform values.
+See .aai/ROLE_COMMON.md (role: Planning) for the append-run metrics procedure.
 
 BEGIN NOW.

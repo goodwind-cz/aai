@@ -57,17 +57,23 @@ Detection:
   `Review-By` (case-sensitive).
 - All other specs are treated as legacy and bypass the gate entirely.
 
-Rule 1 — No silent partials (per-spec, at PASS claim time):
-- For the spec under validation, every Spec-AC row in the AC Status table
-  must have a terminal status: done | deferred | blocked | rejected.
-- Any row with status planned or implementing blocks PASS with message:
-  "AC-status gate: <SPEC-ID>/<Spec-AC-ID> is <status>; mark it done|deferred|blocked|rejected before claiming PASS."
+MECHANICAL CHECKS (delegated to the script — no LLM re-derivation): before
+producing any PASS verdict on an opted-in spec, run
+  node .aai/scripts/docs-audit.mjs --gate <SPEC-ID>
+and honor its exit code: exit 0 clears the three rules below; a non-zero
+exit blocks PASS with the script's printed reasons as the primary failure
+reason. The script computes, deterministically:
+- Rule 1 — No silent partials: every Spec-AC row in the AC Status table has
+  a terminal status (done | deferred | blocked | rejected); a planned or
+  implementing row blocks PASS.
+- Rule 2 — No unsubstantiated done: every done row's Evidence column is
+  non-empty (commit SHA, RUN_ID, or other concrete artifact reference).
+- Rule 4 (format clause) — every Review-By value parses as a valid ISO date
+  or a recognized label; a schema-invalid Review-By blocks PASS.
 
-Rule 2 — No unsubstantiated done (per-spec, at PASS claim time):
-- For every row with status done, the Evidence column must be non-empty
-  (commit SHA, RUN_ID, or other concrete artifact reference).
-- Empty Evidence on a done row blocks PASS with message:
-  "AC-status gate: <SPEC-ID>/<Spec-AC-ID> is done but Evidence is empty; add commit SHA or RUN_ID."
+PROSE RULES (the script does NOT compute these — it gates exactly one doc
+and performs zero date-vs-today comparison; do not delete this section, its
+removal would regress enforcement):
 
 Rule 3 — Overdue review is a global interrupt (repo-wide, every PASS attempt):
 - Before producing any PASS verdict, scan every spec under
@@ -79,17 +85,16 @@ Rule 3 — Overdue review is a global interrupt (repo-wide, every PASS attempt):
   the one currently under validation. The interrupt is global on purpose:
   deferred items must not silently rot.
 
-Rule 4 — Anti-cheat on Review-By (per-spec, at PASS claim time):
+Rule 4 (anti-cheat clause) — per-spec, at PASS claim time:
 - For every row with status deferred or blocked, Review-By must be at
   least 14 days in the future from the current UTC date.
 - A Review-By less than 14 days out blocks PASS with:
   "AC-status gate: Review-By for <SPEC-ID>/<Spec-AC-ID> is <date> (less than 14 days from today); pick a date at least 14 days out or implement the AC now."
-- A Review-By in an unparseable format blocks PASS with:
-  "AC-status gate: Review-By for <SPEC-ID>/<Spec-AC-ID> is not a valid ISO date (YYYY-MM-DD)."
 
-When the gate blocks PASS, the verdict is FAIL with the gate message as
-the primary failure reason. Test execution evidence is still collected
-and reported, but the verdict cannot be PASS until all gate rules pass.
+When the gate blocks PASS (script exit non-zero, or a prose rule above
+fires), the verdict is FAIL with the gate message as the primary failure
+reason. Test execution evidence is still collected and reported, but the
+verdict cannot be PASS until all gate rules pass.
 
 CEREMONY LANE (spec-loop-ceremony-aware-dispatch)
 - The dispatch JSON's `lane` field selects validation depth, fail-closed:
@@ -239,18 +244,6 @@ FINAL OUTPUT REQUIRED
   If fail, list each violating Spec-AC with the specific gate rule (1, 2, 3, or 4) and message.
 
 METRICS (record in docs/ai/STATE.yaml)
-Subagent-mode carve-out (D5): dispatched as a subagent -> do NOT self-append; return the result block — the orchestrator appends with harness usage per SUBAGENT_PROTOCOL.md; direct execution -> self-append below, usage omitted.
-Capture `started_utc` from the system clock (`date -u +%Y-%m-%dT%H:%M:%SZ`)
-immediately before step 1 begins.
-PRIMARY PATH — after completing, append your agent run via the transactional CLI:
-  node .aai/scripts/state.mjs append-run --ref <REF-ID> --role Validation \
-    --model <your model identifier> --started <started_utc> \
-    [--note "<verdict + evidence summary>"] [--tokens-in N --tokens-out N]
-The CLI self-stamps `ended_utc` and computes `duration_seconds` from the system
-clock, keeps `cost_usd: null`, and auto-initializes a missing
-metrics.work_items entry — never a second top-level `metrics:` key.
-FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and
-follow it (agent_runs hand-append + write-safety rules).
-Do NOT estimate any timing or token values. Only record measured/platform values.
+See .aai/ROLE_COMMON.md (role: Validation) for the append-run metrics procedure.
 
 BEGIN NOW.

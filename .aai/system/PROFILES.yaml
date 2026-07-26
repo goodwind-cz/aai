@@ -52,6 +52,7 @@ core:
   - .aai/PLANNING.prompt.md
   - .aai/PLAYBOOK.md
   - .aai/REMEDIATION.prompt.md
+  - .aai/ROLE_COMMON.md
   - .aai/SKILL_BOOTSTRAP.prompt.md
   - .aai/SKILL_CHECK_STATE.prompt.md
   - .aai/SKILL_CODE_REVIEW.prompt.md
