@@ -917,6 +917,17 @@ function cmdLogTick(state, flags, ticksPath) {
 
   fs.mkdirSync(path.dirname(ticksPath), { recursive: true });
   fs.appendFileSync(ticksPath, JSON.stringify(entry) + '\n');
+  // Token-capture-canary teeth (Spec-AC-02): warn — never block — on stderr,
+  // AFTER the successful append, when the tick's own signals look bogus.
+  // Mirrors the append-run warn-on-null-tokens teeth (line ~798 above).
+  if (duration === 0) {
+    console.error(`state: log-tick: WARNING duration_seconds is 0 for tick ${tick} role=${role} scope=${scope} `
+      + '— started==ended (a bogus/late-captured --started collapses the tick to zero duration)');
+  }
+  if (harness === undefined) {
+    console.error(`state: log-tick: WARNING harness_version is "unknown" for tick ${tick} role=${role} scope=${scope} `
+      + '— pass --harness so a behavior regression can be correlated with a harness upgrade');
+  }
   console.log(`state: log-tick appended to ${ticksPath}: ${JSON.stringify(entry)}`);
 }
 

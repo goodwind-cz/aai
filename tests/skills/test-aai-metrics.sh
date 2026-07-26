@@ -1712,8 +1712,77 @@ test_116_retire_documented_not_in_prompt() {  # TEST-008 (Spec-AC-08)
   log_pass "--retire/--reason documented in the script only; prompt file free of work_item_closed (TEST-008)"
 }
 
+# --- token-capture-canary: 3-way per-run classification (spec TEST-001..003) ---
+# SPEC-DRAFT-spec-token-capture-canary.md Spec-AC-01. buildEntry() classifies
+# every agent_run into exactly one of decomposed | undecomposed-note |
+# capture-missing; decomposed emits neither line, undecomposed-note emits one
+# INFO line (naming ref/role/N), capture-missing emits one WARNING (naming
+# ref/role) -- never both for the same run.
+
+test_117_classify_decomposed() {
+  log_info "Test: a run with numeric tokens_in/out (decomposed) emits NEITHER an INFO nor a WARNING line (spec TEST-001)..."
+  local d
+  d="$(mk_repo t117)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  # write_flush_state's default 4 runs all carry numeric tokens_in/out already.
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qE '^(INFO|WARNING) CHANGE-0001 run ' "$OUT" \
+    && log_fail "decomposed runs (numeric tokens) must emit NO classification line: $(cat "$OUT")"
+  log_pass "Decomposed runs (numeric tokens) emit no INFO/WARNING classification line (spec TEST-001)"
+}
+
+test_118_classify_undecomposed_note() {
+  log_info "Test: null-token run with a usage_total_tokens=N note emits exactly one INFO line naming ref/role/N; no WARNING (spec TEST-002)..."
+  local d
+  d="$(mk_repo t118)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  node -e '
+    const fs = require("fs"); const p = process.argv[1];
+    let s = fs.readFileSync(p, "utf8");
+    // Null run2 (Implementation) tokens and attach an undecomposed-total note.
+    s = s.replace("          tokens_in: 2000000\n          tokens_out: 200000\n          cost_usd: null",
+                  "          tokens_in: null\n          tokens_out: null\n          cost_usd: null\n          note: usage_total_tokens=262134 (harness total; in/out not exposed)");
+    fs.writeFileSync(p, s);
+  ' "$d/docs/ai/STATE.yaml"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  local n
+  n="$(grep -cE '^INFO CHANGE-0001 run Implementation' "$OUT" || true)"
+  [[ "$n" == 1 ]] || log_fail "exactly one INFO line expected for the undecomposed-note run (got $n): $(cat "$OUT")"
+  grep -qE '^INFO CHANGE-0001 run Implementation \(sonnet-latest\): undecomposed total 262134 observed; cost unattributable by design' "$OUT" \
+    || log_fail "INFO line must name ref/role and the observed total, worded per spec: $(cat "$OUT")"
+  grep -qE '^WARNING CHANGE-0001 run Implementation' "$OUT" \
+    && log_fail "an undecomposed-note run must NOT also emit the generic capture-missing WARNING: $(cat "$OUT")"
+  log_pass "Undecomposed-note run emits exactly one INFO line naming ref/role/N; no WARNING (spec TEST-002)"
+}
+
+test_119_classify_capture_missing() {
+  log_info "Test: null-token run with no usage note emits exactly one capture-missing WARNING naming ref/role (spec TEST-003)..."
+  local d
+  d="$(mk_repo t119)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  node -e '
+    const fs = require("fs"); const p = process.argv[1];
+    let s = fs.readFileSync(p, "utf8");
+    s = s.replace("          tokens_in: 1000000\n          tokens_out: 1000000\n          cost_usd: null",
+                  "          tokens_in: null\n          tokens_out: null\n          cost_usd: null");
+    fs.writeFileSync(p, s);
+  ' "$d/docs/ai/STATE.yaml"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  local n
+  n="$(grep -cE '^WARNING CHANGE-0001 run Validation' "$OUT" || true)"
+  [[ "$n" == 1 ]] || log_fail "exactly one capture-missing WARNING expected for the null-token/no-note run (got $n): $(cat "$OUT")"
+  grep -qE '^WARNING CHANGE-0001 run Validation \(claude-sonnet-5-20260101\): cost unattributable' "$OUT" \
+    || log_fail "WARNING must name ref/role/model with the cost-unattributable wording: $(cat "$OUT")"
+  grep -qE '^INFO CHANGE-0001 run Validation' "$OUT" \
+    && log_fail "a capture-missing run must NOT also emit an INFO line: $(cat "$OUT")"
+  log_pass "Capture-missing run (null tokens, no note) emits exactly one WARNING naming ref/role (spec TEST-003)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008)"
+  echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003)"
   check_deps
   setup_fixture
   test_006_flush_golden
@@ -1749,6 +1818,9 @@ main() {
   test_113_retire_refused_not_in_state
   test_114_retire_dry_run
   test_116_retire_documented_not_in_prompt
+  test_117_classify_decomposed
+  test_118_classify_undecomposed_note
+  test_119_classify_capture_missing
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -141,11 +141,13 @@ Token usage is captured ONLY from the harness-level result visible to the dispat
   tool's completion total, no in/out split): record it VERBATIM in
   `append-run --note` using the fixed grammar `usage_total_tokens=<N>`
   (recommended full form: `usage_total_tokens=<N> (harness total; in/out not
-  exposed)`). Numeric token flags are OMITTED. NEVER split a total into
+  exposed)`). This `usage_total_tokens=<N>` note is MANDATORY whenever a
+  harness total is visible — see "Merge protocol" below; it must never be
+  treated as optional, so "no usage signal" can only mean the harness
+  exposed nothing. Numeric token flags are OMITTED. NEVER split a total into
   in/out components, and NEVER relabel it as `tokens_out`/`tokens_in` —
   input and output prices differ, so a mislabeled total would poison
-  `cost_usd`. The flush "cost unattributable" warning correctly continues to
-  fire for such runs (D3).
+  `cost_usd`. The flush now classifies this as undecomposed-note and emits an INFO line, not the capture-missing WARNING — cost stays unattributable by design (D3, reclassified: token-capture-canary).
 - Nothing exposed: omit all usage flags — the existing null/never-fabricate
   behavior is preserved byte-for-byte; no estimation path exists (D4).
 
@@ -201,7 +203,10 @@ After all subagents complete, the orchestrator MUST:
    - `metrics.work_items[ref_id].agent_runs` with measured timing fields from
      accepted subagent results, attaching harness-reported usage per
      "Harness-reported usage capture" above (D5: subagent-mode role runs are
-     appended HERE at merge time, never self-appended by the role)
+     appended HERE at merge time, never self-appended by the role). The
+     `usage_total_tokens=<N>` note is MANDATORY on this append whenever the
+     harness result exposed a total (decomposed or undecomposed) — the
+     orchestrator MUST NOT skip it as optional (token-capture-canary)
    - `updated_at_utc`
 4. Only after STATE.yaml is updated: proceed to deliver result to user.
 

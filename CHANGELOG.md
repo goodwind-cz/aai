@@ -11,6 +11,28 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: token-capture canary — loud telemetry-capture gaps (CHANGE-0058 / SPEC-0085)
+
+- `metrics-flush.mjs` now classifies every agent run three ways — `decomposed`
+  (numeric tokens), `undecomposed-note` (`usage_total_tokens=<N>` in the run
+  note → INFO, cost unattributable by design), `capture-missing` (no numbers
+  AND no note → WARNING, the real defect class) — replacing the single
+  undifferentiated null-token warning. 255 nulls become a triaged signal.
+- `state.mjs log-tick` emits loud stderr WARNINGs when the computed duration
+  is 0 (caller passed a log-time `--started`) or when `--harness` is omitted
+  — the two silent regressions observed across all 2026-07-25 ticks. Warn,
+  never block: exit codes and written lines are unchanged.
+- `SUBAGENT_PROTOCOL.md` merge protocol + `SKILL_LOOP.prompt.md` step 4 make
+  recording the harness's undecomposed total MANDATORY whenever one is
+  visible; D3 prose reclassified WARNING→INFO for honest totals.
+- Reframed two stale L3 "landmine" stanzas (`test-aai-hitl-propagation.sh`
+  TEST-014, `test-aai-tdd-evidence.sh` TEST-005) that froze a prior scope's
+  one-time zero-diff constraint into a permanent invariant: a touched
+  protected path now passes iff a frozen `ceremony_level: 3` spec ships in
+  the same diff (anti-drive-by teeth preserved, verified by negative arms).
+- Evidence: independent L3 validation PASS (framework 49/49), dual-verdict
+  code review PASS/PASS (0 blocking). Refs: CHANGE-0058, SPEC-0085.
+
 ## [v2026.07.26] — docs: USER_GUIDE for docs-audit rollup / brief sweep + close RFC-0013 (CHANGE-0057)
 
 - `docs/USER_GUIDE.md` gains a "Docs health & umbrella progress (docs-audit)"

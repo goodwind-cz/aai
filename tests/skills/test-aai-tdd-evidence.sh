@@ -23,7 +23,14 @@
 #     evidence, and carries the legacy (pre-change, no RED_CLASS) carve-out.
 #   - TEST-005 (Spec-AC-05): additive regression — legacy repo log probed
 #     explicitly (exit 2, no repo-wide sweep); test-aai-tdd.sh regression;
-#     `git diff` empty on .aai/scripts/state.mjs; docs-audit strict exit 0.
+#     .aai/scripts/state.mjs diff is authorized by a frozen ceremony_level:3
+#     spec in the same diff/tree when non-empty (reframed by token-capture-
+#     canary, docs/specs/SPEC-DRAFT-spec-token-capture-canary.md — mirrors
+#     the tests/skills/test-aai-hitl-propagation.sh TEST-014 reframe: the
+#     original "state.mjs has zero diff, ever" assertion was a one-time
+#     delivery constraint of THIS scope, not a permanent repo invariant, so
+#     it would fail every future legitimately-authorized L3 change forever);
+#     docs-audit strict exit 0.
 #
 # Fixture diversity checklist (SPEC-0013 H7), mapped for TEST-001:
 #   - degenerate/empty            -> empty log file                  -> 2
@@ -293,11 +300,37 @@ test_005_additive_regression() {
     "$RUN_TESTS_SH" bash "$TDD_REGRESSION_SUITE" > "$regress_log" 2>&1) \
     || log_fail "TEST-005: tests/skills/test-aai-tdd.sh must still exit 0: $(tail -20 "$regress_log")"
 
-  # Protected surface: state.mjs must have zero diff.
+  # Protected surface (reframed by token-capture-canary — mirrors
+  # test-aai-hitl-propagation.sh TEST-014): a non-empty state.mjs diff is
+  # authorized when a FROZEN ceremony_level:3 spec is present in the same
+  # diff/tree; an untouched state.mjs keeps passing exactly as before
+  # (unchanged fast path).
   local diff_out
   diff_out="$(cd "$PROJECT_ROOT" && git diff --stat -- .aai/scripts/state.mjs)"
-  [[ -z "$diff_out" ]] \
-    || log_fail "TEST-005: .aai/scripts/state.mjs must have zero diff (protected L3 surface): $diff_out"
+  if [[ -n "$diff_out" ]]; then
+    local changed spec_hits authorizer="" f
+    changed="$( (cd "$PROJECT_ROOT" && {
+      git diff --name-only main...HEAD 2>/dev/null
+      git status --porcelain 2>/dev/null | sed -E 's/^...//'
+    }) | sort -u)"
+    spec_hits="$(printf '%s\n' "$changed" | grep -E '^docs/specs/.*\.md$' || true)"
+    if [[ -n "$spec_hits" ]]; then
+      while IFS= read -r f; do
+        [[ -n "$f" ]] || continue
+        [[ -f "$PROJECT_ROOT/$f" ]] || continue
+        if grep -qE '^ceremony_level:[[:space:]]*3[[:space:]]*$' "$PROJECT_ROOT/$f" \
+          && grep -qE '^SPEC-FROZEN:[[:space:]]*true[[:space:]]*$' "$PROJECT_ROOT/$f"; then
+          authorizer="$f"
+          break
+        fi
+      done <<EOF
+$spec_hits
+EOF
+    fi
+    if [[ -z "$authorizer" ]]; then
+      log_fail "TEST-005: .aai/scripts/state.mjs diff present with no frozen ceremony_level:3 spec authorizing it: $diff_out"
+    fi
+  fi
 
   # docs-audit strict check must still exit 0.
   local audit_log="$TEST_DIR/docs-audit.log"

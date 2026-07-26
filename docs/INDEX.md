@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-26T09:56:08.909Z
+Generated: 2026-07-26T14:21:35.695Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -210,9 +210,12 @@ _None._
 | SPEC-0084 | specs | docs/specs/SPEC-0084-spec-friction-feedback-discovery.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0058 | issues | docs/issues/CHANGE-0058-token-capture-canary.md |
+| SPEC-0085 | specs | docs/specs/SPEC-0085-spec-token-capture-canary.md |
 
 ## Deferred (whole-doc) (0)
 

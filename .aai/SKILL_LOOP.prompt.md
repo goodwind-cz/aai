@@ -264,7 +264,8 @@ For each tick (1..max_ticks):
        from the filesystem + evidence, and record "validator shared context with
        implementer" as a residual risk that lowers confidence in the PASS.
      - Capture role_ended_utc immediately after completion from system clock.
-     - Capture harness-reported usage from the completed role's tool result per SUBAGENT_PROTOCOL.md "Harness-reported usage capture" (decomposed -> tokens-in/out flags; undecomposed total -> merge-append note; nothing -> omit).
+     - Capture harness-reported usage from the completed role's tool result per SUBAGENT_PROTOCOL.md "Harness-reported usage capture" (decomposed -> tokens-in/out flags; undecomposed total -> merge-append note; nothing -> omit). The `usage_total_tokens=<N>` note is MANDATORY at merge time whenever the harness exposed a total — never optional; skipping it is what left METRICS.jsonl with 0 recorded tokens across 255 runs (token-capture-canary).
+     - Also capture this role_started_utc and the loop-start harness_version here for step 6's log-tick call — passing both prevents the log-tick duration/harness WARNINGs.
      - Expected result: role work completed and STATE.yaml updated with results.
 
   5. CHECKPOINT GATE (if checkpoint_mode != none):
@@ -331,6 +332,13 @@ For each tick (1..max_ticks):
      semantic fields; the clock supplies time.
      FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md
      and follow its tick-line hand-append rule.
+     - MANDATORY inputs: `--started` MUST be the exact `role_started_utc`
+       captured in step 4, never a fresh timestamp taken at log-tick time —
+       passing "now" collapses duration_seconds to 0 and trips the log-tick
+       duration WARNING. `--harness` MUST be the loop-start `harness_version`
+       — omitting it trips the log-tick harness WARNING and leaves
+       harness_version "unknown". Both WARNINGs are visibility-only (warn,
+       not block) but should never fire on a correctly-wired tick.
      - COST (optional, best-effort): also include input_tokens, output_tokens,
        cache_read_tokens, est_cost_usd ONLY if the runtime exposes real usage figures.
        Never fabricate or estimate token counts — omit the fields if unknown. Real
