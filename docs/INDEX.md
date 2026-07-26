@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-26T14:59:00.177Z
+Generated: 2026-07-26T18:02:26.727Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (190)
+## Done (192)
 
 | ID | Type | Path |
 |---|---|---|
@@ -79,6 +79,7 @@ _None._
 | CHANGE-0056 | issues | docs/issues/CHANGE-0056-closeout-display-id-match.md |
 | CHANGE-0057 | issues | docs/issues/CHANGE-0057-docs-rollup-userguide.md |
 | CHANGE-0058 | issues | docs/issues/CHANGE-0058-token-capture-canary.md |
+| CHANGE-0059 | issues | docs/issues/CHANGE-0059-prompt-dedup-canonical-includes.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -210,23 +211,28 @@ _None._
 | SPEC-0083 | specs | docs/specs/SPEC-0083-spec-reaper-test-018-etime-shape-guard.md |
 | SPEC-0084 | specs | docs/specs/SPEC-0084-spec-friction-feedback-discovery.md |
 | SPEC-0085 | specs | docs/specs/SPEC-0085-spec-token-capture-canary.md |
+| SPEC-0086 | specs | docs/specs/SPEC-0086-spec-prompt-dedup-canonical-includes.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| subagent-protocol-slim (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-subagent-protocol-slim.md |
+| spec-subagent-protocol-slim (unnumbered draft) | specs | docs/specs/SPEC-DRAFT-spec-subagent-protocol-slim.md |
 
 ## Deferred (whole-doc) (0)
 
 _None._
 
-## Deferred items (per-AC, across all specs) (4)
+## Deferred items (per-AC, across all specs) (5)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
 | SPEC-0076 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-Linux-only flake; local pass is not sufficient evidence (Honesty requirements section). Owned by Validation after push. |
 | SPEC-0077 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-only flake; local pass is not sufficient evidence (Honesty requirements). Owned by Validation after push. |
 | SPEC-0083 | Spec-AC-04 | 2026-08-15 | CI-authoritative; the flake is CI-load-only and not locally reproducible |
+| SPEC-0086 | Spec-AC-05 | 2026-08-15 | Full-framework TEST-010 confirmation deferred to Validation by design (dispatch constraint), not a real gap in this scope's own edits |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)

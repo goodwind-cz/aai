@@ -70,6 +70,7 @@ IMPLEMENTATION="$PROJECT_ROOT/.aai/IMPLEMENTATION.prompt.md"
 VALIDATION="$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
 REMEDIATION="$PROJECT_ROOT/.aai/REMEDIATION.prompt.md"
 SKILL_TDD="$PROJECT_ROOT/.aai/SKILL_TDD.prompt.md"
+ROLE_COMMON="$PROJECT_ROOT/.aai/ROLE_COMMON.md"
 
 cleanup() {
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
@@ -98,6 +99,7 @@ check_deps() {
   for f in "$PLANNING" "$IMPLEMENTATION" "$VALIDATION" "$REMEDIATION" "$SKILL_TDD"; do
     [[ -f "$f" ]] || log_fail "role prompt not found: $f"
   done
+  [[ -f "$ROLE_COMMON" ]] || log_fail "ROLE_COMMON.md not found: $ROLE_COMMON"
   log_pass "Dependencies checked"
 }
 
@@ -149,18 +151,35 @@ test_002_total_grammar_canon() {
   log_pass "usage_total_tokens= grammar + never-split/never-relabel prohibition present (TEST-002)"
 }
 
-# --- TEST-003 (Spec-AC-03): subagent-mode append carve-out -------------------
+# --- TEST-003 (Spec-AC-03): subagent-mode append carve-out, single-sourced ---
+# (prompt-dedup-canonical-includes TEST-005/Spec-AC-03: the D5 carve-out BODY
+# lives in exactly ONE file, .aai/ROLE_COMMON.md; each of the five role
+# prompts carries a pointer naming it + its own --role value, never the
+# literal "Subagent-mode carve-out" phrase itself.)
 
 test_003_role_carveout_canon() {
-  log_info "Test: five role prompts carry the subagent-mode append carve-out; ORCHESTRATION appends with usage (TEST-003)..."
+  log_info "Test: D5 carve-out body single-sourced in ROLE_COMMON.md; five role prompts carry a pointer + role value (not the inline body); ORCHESTRATION appends with usage (TEST-003)..."
+
+  grep -qE 'Subagent-mode carve-out.*SUBAGENT_PROTOCOL\.md' "$ROLE_COMMON" \
+    || log_fail "TEST-003: .aai/ROLE_COMMON.md must carry the canonical subagent-mode carve-out body referencing SUBAGENT_PROTOCOL.md (D5)"
 
   local names=("PLANNING" "IMPLEMENTATION" "VALIDATION" "REMEDIATION" "SKILL_TDD")
   local files=("$PLANNING" "$IMPLEMENTATION" "$VALIDATION" "$REMEDIATION" "$SKILL_TDD")
+  local roles=("Planning" "Implementation" "Validation" "Remediation" "TDD Implementation")
   local i=0
   while [[ $i -lt ${#files[@]} ]]; do
-    local f="${files[$i]}" n="${names[$i]}"
-    grep -qE 'Subagent-mode carve-out.*SUBAGENT_PROTOCOL\.md' "$f" \
-      || log_fail "TEST-003: $n.prompt.md must carry a subagent-mode append carve-out referencing SUBAGENT_PROTOCOL.md (D5)"
+    local f="${files[$i]}" n="${names[$i]}" r="${roles[$i]}"
+    grep -qF "ROLE_COMMON.md" "$f" \
+      || log_fail "TEST-003: $n.prompt.md must carry a pointer naming .aai/ROLE_COMMON.md"
+    # The role value must sit ON the pointer line itself — a bare occurrence
+    # elsewhere in the prompt must not satisfy this check (PR #159 bot review).
+    # Both unquoted and quoted forms are canonical: ROLE_COMMON.md itself
+    # mandates quoting when the role value contains a space (TDD Implementation).
+    { grep -F "ROLE_COMMON.md" "$f" | grep -qF "(role: $r)"; } \
+      || { grep -F "ROLE_COMMON.md" "$f" | grep -qF "(role: \"$r\")"; } \
+      || log_fail "TEST-003: $n.prompt.md pointer line must name its own --role value as '(role: $r)'"
+    grep -qF 'Subagent-mode carve-out' "$f" \
+      && log_fail "TEST-003: $n.prompt.md must NOT re-inline the 'Subagent-mode carve-out' body (it must live only in ROLE_COMMON.md)"
     i=$((i + 1))
   done
 
@@ -169,7 +188,7 @@ test_003_role_carveout_canon() {
   grep -qF 'append-run' "$ORCH" \
     || log_fail "TEST-003: ORCHESTRATION.prompt.md must reference append-run for the merge-time write"
 
-  log_pass "Subagent-mode append carve-out present on all five role prompts; ORCHESTRATION appends with usage (TEST-003)"
+  log_pass "D5 carve-out single-sourced in ROLE_COMMON.md; all five role prompts point to it with their --role value; ORCHESTRATION appends with usage (TEST-003)"
 }
 
 # --- TEST-004 (Spec-AC-04): run-budget tally counts observed totals ---------

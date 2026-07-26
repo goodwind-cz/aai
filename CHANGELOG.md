@@ -11,6 +11,20 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — refactor: prompt dedup — canonical includes for ceremony rules, AC gate, role boilerplate (CHANGE-0059 / SPEC-0086)
+
+- Prompt corpus shrinks 4687 B in the TEST-010 glob (net −3021 B): the
+  ceremony-level table now lives ONLY in WORKFLOW.md (PLANNING/VALIDATION
+  carry pointers), the VALIDATION AC gate delegates Rules 1/2/4-format to
+  `docs-audit.mjs --gate` (Rule 3 + the 14-day anti-cheat window correctly
+  RETAINED as prose — the script does not compute them), and the 5 copies of
+  the D5 metrics carve-out fold into one `.aai/ROLE_COMMON.md`.
+- Removes the divergence risk of two gate definitions for unattended runs;
+  every role spawn now pays fewer duplicated context bytes.
+- Prompt-diet ledger reconciled with a NEGATIVE −3021 B entry (29802 → 26781);
+  grep-pinned stanzas retargeted to the pointer form. Refs: CHANGE-0059,
+  SPEC-0086.
+
 ## [unreleased] — feat: token-capture canary — loud telemetry-capture gaps (CHANGE-0058 / SPEC-0085)
 
 - `metrics-flush.mjs` now classifies every agent run three ways — `decomposed`

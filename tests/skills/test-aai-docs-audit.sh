@@ -5235,6 +5235,63 @@ test_spec0057_real_repo_known_collisions() {  # TEST-104 / Spec-AC-04
   log_pass "Real repo has zero duplicate-doc-id collisions post-remediation; CI exit 0 (TEST-104)"
 }
 
+test_pdci_validation_gate_delegation() {  # prompt-dedup-canonical-includes spec TEST-003 / Spec-AC-02
+  log_info "Test: VALIDATION AC gate names docs-audit.mjs --gate for the mechanical checks AND retains Rule 3 (repo-wide overdue) + Rule 4-anti-cheat (14-day-future) prose (TEST-003)..."
+  local v="$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
+  [[ -f "$v" ]] || log_fail "TEST-003: VALIDATION.prompt.md not found"
+
+  grep -qF "MECHANICAL CHECKS" "$v" \
+    || log_fail "TEST-003: VALIDATION AC gate must carry a MECHANICAL CHECKS block delegating Rules 1/2/4-format to the script"
+  grep -qF "no LLM re-derivation" "$v" \
+    || log_fail "TEST-003: MECHANICAL CHECKS block must state the script is authoritative (no LLM re-derivation)"
+  sed -n '/^AC STATUS GATE/,/^PROCESS$/p' "$v" | grep -qE 'docs-audit\.mjs --gate' \
+    || log_fail "TEST-003: VALIDATION AC gate must name a mandatory docs-audit.mjs --gate <ref> invocation ahead of PASS"
+  # the old per-rule restatement of the Rule 1/2 block-PASS message templates
+  # must be GONE (the script now owns the mechanical derivation).
+  grep -qF 'mark it done|deferred|blocked|rejected before claiming PASS' "$v" \
+    && log_fail "TEST-003: VALIDATION must not re-derive Rule 1's block-PASS message inline (delegated to --gate)"
+  grep -qF 'is done but Evidence is empty; add commit SHA or RUN_ID' "$v" \
+    && log_fail "TEST-003: VALIDATION must not re-derive Rule 2's block-PASS message inline (delegated to --gate)"
+  # Rules 3 / 4-anti-cheat (NOT computed by the script) must survive as prose.
+  grep -qi "overdue" "$v" \
+    || log_fail "TEST-003: VALIDATION must retain the Rule 3 repo-wide overdue-review prose"
+  grep -qi "global interrupt" "$v" \
+    || log_fail "TEST-003: VALIDATION must retain the Rule 3 'global interrupt' framing"
+  grep -q "14 days" "$v" \
+    || log_fail "TEST-003: VALIDATION must retain the Rule 4 anti-cheat 14-day-future prose"
+  grep -qi "anti-cheat" "$v" \
+    || log_fail "TEST-003: VALIDATION must retain the Rule 4 anti-cheat clause naming"
+  log_pass "VALIDATION delegates Rules 1/2/4-format to --gate (old inline messages gone); retains Rule 3 + Rule 4-anti-cheat prose (TEST-003)"
+}
+
+test_pdci_gate_characterization_temporal_gap() {  # prompt-dedup-canonical-includes spec TEST-004 / Spec-AC-02
+  log_info "Test: characterization guard -- --gate PASSES a spec with a PAST Review-By and a <14-day-future Review-By on deferred/blocked rows (proves Rules 3/4-anti-cheat are non-delegable) (TEST-004)..."
+  local d near_future
+  d="$(setup_iso_repo pdci-temporal-char)"
+  near_future="$(date -u -v+5d +%Y-%m-%d 2>/dev/null || date -u -d '+5 days' +%Y-%m-%d)"
+  cat > "$d/docs/specs/SPEC-1300-temporal-char.md" <<MD
+---
+id: SPEC-1300
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Temporal characterization fixture (past + near-future Review-By)
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description        | Status   | Evidence | Review-By    | Notes |
+|------------|---------------------|----------|----------|--------------|-------|
+| Spec-AC-01 | overdue review      | deferred | a1b2c3d  | 2020-01-01   | —     |
+| Spec-AC-02 | near-future review  | blocked  | b2c3d4e  | $near_future | —     |
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-1300 > gchar.log 2>&1) \
+    || log_fail "TEST-004: --gate must PASS a PAST-Review-By + <14-day-future-Review-By spec (script computes zero date-vs-today comparison; proves Rules 3/4-anti-cheat cannot be delegated, so VALIDATION prose retention is justified): $(cat "$d/gchar.log")"
+  rm -rf "$d"
+  log_pass "Characterization guard: --gate does not enforce the temporal rules; VALIDATION prose retention for Rules 3/4-anti-cheat is justified (TEST-004)"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -5378,6 +5435,8 @@ main() {
   setup_dupid_clean_fixture
   test_spec0057_no_false_positive
   test_spec0057_real_repo_known_collisions
+  test_pdci_validation_gate_delegation
+  test_pdci_gate_characterization_temporal_gap
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

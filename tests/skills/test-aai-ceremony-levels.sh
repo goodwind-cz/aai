@@ -1112,6 +1112,44 @@ test_017_seam_survival_spec0041() {
   log_pass "Seams survive: dispatch suite, ceremony TEST-001..010, prompt-diet (no new regression), strict audit all green (TEST-017/spec TEST-007)"
 }
 
+# --- TEST-018 (prompt-dedup-canonical-includes spec TEST-001/Spec-AC-01):
+# PLANNING step 10 trimmed to a WORKFLOW.md pointer -----------------------
+
+test_018_step10_workflow_pointer() {
+  log_info "Test: PLANNING step 10 points at WORKFLOW.md, carries no four-level paraphrase / no protected-surface MANDATORY-L3 restatement; residue retained; no ceremony table row leaks into PLANNING/VALIDATION (prompt-dedup-canonical-includes TEST-001/Spec-AC-01)..."
+  local p="$PROJECT_ROOT/.aai/PLANNING.prompt.md" v="$PROJECT_ROOT/.aai/VALIDATION.prompt.md" block
+
+  block="$(awk '/^10\) /{f=1} /^11\) /{f=0} f' "$p")"
+  [[ -n "$block" ]] || log_fail "TEST-018: PLANNING step 10 block not found"
+
+  echo "$block" | grep -qF ".aai/workflow/WORKFLOW.md" \
+    || log_fail "TEST-018: step 10 must point at .aai/workflow/WORKFLOW.md as the single source of the ceremony levels"
+  echo "$block" | grep -qi "typo/docs-only" \
+    && log_fail "TEST-018: step 10 must not restate the four-level meaning paraphrase (found 'typo/docs-only')"
+  echo "$block" | grep -qF "MANDATORY when the scope touches" \
+    && log_fail "TEST-018: step 10 must not restate the protected-surface MANDATORY-L3 mechanic"
+
+  # role-specific residue Planning alone owns must survive the trim.
+  echo "$block" | grep -q "ceremony_level" \
+    || log_fail "TEST-018: step 10 must still declare ceremony_level"
+  echo "$block" | grep -q "Ceremony justification:" \
+    || log_fail "TEST-018: step 10 must still name the Ceremony justification: line"
+  echo "$block" | grep -qi "dispatch lane" \
+    || log_fail "TEST-018: step 10 must still name the dispatch lane"
+  echo "$block" | grep -q "L0/L1" \
+    || log_fail "TEST-018: step 10 must still name L0/L1"
+
+  # no full ceremony gate table row (the table lives ONLY in WORKFLOW.md).
+  if grep -qE '^\|[^|]*\|[^|]*\bL0\b[^|]*\|[^|]*\bL1\b[^|]*\|[^|]*\bL2\b[^|]*\|[^|]*\bL3\b[^|]*\|' "$p"; then
+    log_fail "TEST-018: no ceremony gate table row may appear in PLANNING"
+  fi
+  if grep -qE '^\|[^|]*\|[^|]*\bL0\b[^|]*\|[^|]*\bL1\b[^|]*\|[^|]*\bL2\b[^|]*\|[^|]*\bL3\b[^|]*\|' "$v"; then
+    log_fail "TEST-018: no ceremony gate table row may appear in VALIDATION"
+  fi
+
+  log_pass "PLANNING step 10 trimmed to a WORKFLOW.md pointer; residue retained; no table-row leak (TEST-018/spec TEST-001)"
+}
+
 main() {
   echo "Testing $TEST_NAME (spec-scale-adaptive-ceremony TEST-001..010 + spec-loop-ceremony-aware-dispatch TEST-011..017)"
   check_deps
@@ -1141,6 +1179,7 @@ main() {
   test_016_misuse_guard_survival
   test_017_seam_survival_spec0041
   test_010_seam_survival
+  test_018_step10_workflow_pointer
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
