@@ -1977,6 +1977,40 @@ metrics-gated capability and is locked today.
 
 ---
 
+## Docs health & umbrella progress (docs-audit)
+
+`node .aai/scripts/docs-audit.mjs` reports the health of the `docs/` layer. Two
+surfaces are worth knowing:
+
+**Rollout progress.** An in-flight umbrella (an RFC or PRD with child specs) shows
+only a coarse `status: implementing` — it never tells you *how far along* it is.
+Every audit run now adds a rollup:
+
+```
+- Rollout: RFC-0012 10/11 · RFC-0013 2/2
+```
+
+That is `done/total` **child docs** per non-terminal umbrella (any doc whose
+`links.rfc` / `links.requirement` names the parent, matched by slug **or** numbered
+id). `docs-audit --list` expands it into a `### Rollout progress` table with a
+percentage. It is **report-only** — it never changes the exit code. For the phases
+that have *no child doc yet* (not-started work the rollup can't see), keep a
+human-maintained `## Rollout Status` table in the umbrella's body (RFC_TEMPLATE
+ships a stub).
+
+**Closeout candidates.** When every spec linked to a non-terminal umbrella is
+`done`, the audit suggests advancing the umbrella to `done` — unless its
+`## Rollout Status` table still lists a not-started phase (then it holds off).
+Report-only; act on it with the close ceremony.
+
+**Stale-brief sweep.** Planning emits a per-work-item brief under
+`docs/ai/briefs/` (a gitignored handoff). `node .aai/scripts/prune-stale-briefs.mjs`
+removes briefs whose work item is terminal or orphaned while keeping live ones;
+`/aai-wrap-up` runs it automatically at session end, so briefs never accumulate.
+`--dry-run` previews; it is best-effort and never fails a caller.
+
+---
+
 ## Next Steps
 
 1. **Complete the getting started workflow above**
