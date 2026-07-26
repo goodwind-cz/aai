@@ -2,12 +2,14 @@
 id: friction-record-v2-redaction
 type: rfc
 number: 13
-status: implementing
+status: done
 links:
   spec: null
   rfc: RFC-0012
-  pr: []
-  commits: []
+  pr:
+    - 156
+  commits:
+    - 06901555ca94fa47a7792ca8774a5f67bf159454
 ---
 
 # RFC — Friction observation schema v2 + redaction policy (unblocks RFC-0012 Phase 2)

@@ -9,6 +9,16 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — docs: USER_GUIDE for docs-audit rollup / brief sweep + close RFC-0013 (CHANGE-0057)
+
+- `docs/USER_GUIDE.md` gains a "Docs health & umbrella progress (docs-audit)"
+  section documenting the `- Rollout:` line + `### Rollout progress` table
+  (CHANGE-0055), the Rollout-Status-guarded closeout candidates (CHANGE-0056), and
+  the stale-brief sweep (CHANGE-0054) — closing this session's operator-docs drift.
+- Closes the completed **RFC-0013** (schema v2 + redaction): `implementing → done`
+  (all proposals + its child spec done; it was a closeout candidate). RFC-0012's
+  rollup consequently reads 11/11.
+
 ## [unreleased] — fix: closeout candidate display-id match + Rollout guard (CHANGE-0056)
 
 - `docs-audit`'s closeout-candidate pass ("all this umbrella's specs are done →

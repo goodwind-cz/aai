@@ -1,24 +1,23 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-26T04:29:33.999Z
+Generated: 2026-07-26T06:45:18.249Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| RFC-0013 | rfc | implementing | — | docs/rfc/RFC-0013-friction-record-v2-redaction.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Done (186)
+## Done (188)
 
 | ID | Type | Path |
 |---|---|---|
@@ -78,6 +77,7 @@ _None._
 | CHANGE-0054 | issues | docs/issues/CHANGE-0054-prune-stale-briefs.md |
 | CHANGE-0055 | issues | docs/issues/CHANGE-0055-umbrella-progress-rollup.md |
 | CHANGE-0056 | issues | docs/issues/CHANGE-0056-closeout-display-id-match.md |
+| CHANGE-0057 | issues | docs/issues/CHANGE-0057-docs-rollup-userguide.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -122,6 +122,7 @@ _None._
 | RFC-0009 | rfc | docs/rfc/RFC-0009-scale-adaptive-ceremony.md |
 | RFC-0010 | rfc | docs/rfc/RFC-0010-hook-enforced-gates.md |
 | RFC-0011 | rfc | docs/rfc/RFC-0011-delta-spec-lifecycle.md |
+| RFC-0013 | rfc | docs/rfc/RFC-0013-friction-record-v2-redaction.md |
 | RES-0001 | specs | docs/specs/RES-0001-aai-competitive-gap-and-model-efficiency.md |
 | SPEC-0001 | specs | docs/specs/SPEC-0001-docs-hygiene-and-drift-audit.md |
 | SPEC-0002 | specs | docs/specs/SPEC-0002-docs-canonicalization-skill.md |
