@@ -1214,3 +1214,9 @@
 {"v":1,"ts":"2026-07-26T22:45:07.704Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-token-economics-end-to-end","payload":{"commit":"00f593ad20dce1d4ecd813604b6397113ddbc73d"}}
 {"v":1,"ts":"2026-07-26T23:36:45.462Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":202,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-07-26T23:39:25.647Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":202,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-26T23:58:22.785Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"allocator-rewrite-all-trees","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-26T23:58:22.815Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"allocator-rewrite-all-trees","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-26T23:58:22.844Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"allocator-rewrite-all-trees","payload":{"commit":"987f33acdf2fc5c2a1e2c241e3aced84f780a1cb"}}
+{"v":1,"ts":"2026-07-26T23:58:22.875Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-allocator-rewrite-all-trees","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-26T23:58:22.907Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-allocator-rewrite-all-trees","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-26T23:58:22.938Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-allocator-rewrite-all-trees","payload":{"commit":"987f33acdf2fc5c2a1e2c241e3aced84f780a1cb"}}

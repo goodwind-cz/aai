@@ -2,13 +2,15 @@
 id: spec-allocator-rewrite-all-trees
 type: spec
 number: 90
-status: draft
+status: done
 ceremony_level: 3
 links:
   requirement: docs/issues/CHANGE-0064-allocator-rewrite-all-trees.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 164
+  commits:
+    - 987f33acdf2fc5c2a1e2c241e3aced84f780a1cb
 ---
 
 # Implementation Spec — allocator-rewrite-all-trees

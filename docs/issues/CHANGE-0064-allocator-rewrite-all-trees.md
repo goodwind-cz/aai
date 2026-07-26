@@ -2,10 +2,12 @@
 id: allocator-rewrite-all-trees
 number: 64
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 164
+  commits:
+    - 987f33acdf2fc5c2a1e2c241e3aced84f780a1cb
 ---
 
 # Change — Allocator rewrites DRAFT references in all committed-class trees
