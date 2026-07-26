@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-25T23:03:00.581Z
+Generated: 2026-07-26T04:28:38.513Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -208,9 +208,11 @@ _None._
 | SPEC-0084 | specs | docs/specs/SPEC-0084-spec-friction-feedback-discovery.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0056 | issues | docs/issues/CHANGE-0056-closeout-display-id-match.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -242,4 +244,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-25 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-26 — counts above use this date for overdue checks.
