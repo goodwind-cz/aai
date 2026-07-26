@@ -12,7 +12,7 @@ review:
       - { ac: Spec-AC-03, call: compliant,
           citation: "payload refs → CONTRACT: IMPLEMENTATION:78,121 / VALIDATION:206 / ORCH_PARALLEL:42,137,139 / SKILL_LOOP:259 / SKILL_TDD:176 / BRIEF_TEMPLATE:35; orchestrator refs stay PROTOCOL: IMPLEMENTATION:120,146 / ORCH_PARALLEL:110,141 / VALIDATION:235; no full-protocol-to-unit; TEST-082 extended to pin IMPLEMENTATION+SKILL_TDD" }
       - { ac: Spec-AC-04, call: compliant,
-          citation: ".aai/system/PROFILES.yaml core += SUBAGENT_CONTRACT.md; cat .aai/*.prompt.md | wc -c = 345010 (unchanged, byte-neutral 17-char renames); TEST-006/007" }
+          citation: ".aai/system/PROFILES.yaml core += SUBAGENT_CONTRACT.md; corpus = 345010 at relocation time, byte-neutral renames; post-review SKILL_LOOP:18 clause fix adds an itemized +32 B ledger entry (TEST-012 pin 27805); TEST-006/007" }
       - { ac: Spec-AC-05, call: cannot-verify,
           citation: "targeted suites recorded green post-remediation (validation report + AC table); not re-run locally per efficiency/operator direction — PR CI is the binding gate" }
   code_quality:
@@ -56,7 +56,7 @@ No remaining reference passes the full `SUBAGENT_PROTOCOL.md` as a dispatched-un
 - Result-block YAML in CONTRACT is **byte-identical** to the pre-change PROTOCOL fence (`diff` empty against `main:.aai/SUBAGENT_PROTOCOL.md`). ✓
 - No rule lost: single-writer subagent core (MUST-NOT-write STATE.yaml, allowed-write list, the 2 subagent rationalization rows) moved intact to CONTRACT; PROTOCOL keeps the orchestrator serialization note + a pointer to CONTRACT for the subagent-facing core; the PROTOCOL table was correctly renamed "Orchestrator lock-serialization rationalization table" retaining only its 2 lock rows.
 - No duplication: 5-phrase spot-grep confirmed each phrase in exactly one file (subagent_result:/MUST-NOT-write/duration_seconds → CONTRACT-only, 0 in PROTOCOL; self-report/characterize-findings → PROTOCOL-only, 0 in CONTRACT).
-- Byte-neutral: `cat .aai/*.prompt.md | wc -c` = **345010** (unchanged), consistent with the no-true-up claim.
+- Byte-neutral at review time: corpus = **345010**; the post-review SKILL_LOOP:18 clause fix (disposition of NB-1 below) added +32 B with its own itemized ledger entry (TEST-012 pin 27805).
 
 ## (c) TEST-082 pins the leak permanently
 

@@ -157,10 +157,11 @@ below reflects this corrected content list.
   - Spec-AC-04: companion obligations satisfied — (i) `.aai/SUBAGENT_CONTRACT.md`
     classified in `.aai/system/PROFILES.yaml` `core`; (ii) prompt-diet ledger:
     NO true-up needed because the ONLY in-glob (`.aai/*.prompt.md`) edits are
-    byte-neutral 17-char renames — `JUSTIFIED_GROWTH_BYTES` stays 26781 and
+    byte-neutral 17-char renames; the follow-up SKILL_LOOP:18 clause fix
+    (code-review disposition) added an itemized +32 B ledger entry, so
     TEST-010 net reduction/headroom are unchanged. Verified, not assumed:
-    corpus `cat .aai/*.prompt.md | wc -c` unchanged at 345010, TEST-012 pin
-    26781 holds.
+    the corpus measures 345010 at relocation time (+32 B after the clause
+    fix) and the TEST-012 pin lands at 27805 (post-#160 base 27773 + 32).
   - Verification: `bash tests/skills/test-aai-layer-profiles.sh` (TEST-001);
     `bash tests/skills/test-aai-prompt-diet.sh` (TEST-010/012); byte-count
     before/after equal.
@@ -242,7 +243,7 @@ preserved exactly on the move (copy the current lines 109-125 verbatim).
 | TEST-004 | Spec-AC-02 | unit        | tests/skills/test-aai-hygiene-pack.sh (test_060, RETARGET) | Return-Record byte-diff source repointed from PROTOCOL (`$sp`) to a new CONTRACT var; `subagent_result:` extracted from CONTRACT; TEST-005 brief-handoff greps stay on PROTOCOL | green |
 | TEST-005 | Spec-AC-02 | unit        | tests/skills/test-aai-docs-lock.sh (test_wiring_and_protocol, RETARGET) | single-writer greps (L415 `MUST NOT write…STATE.yaml`, L417 sole writer, L420 `STATE.yaml`) repointed from `$PROTOCOL_DOC` to new `$CONTRACT_DOC`; ORCHESTRATION_PARALLEL docs-lock + LOCKS.md greps unchanged | green |
 | TEST-006 | Spec-AC-04 | integration | tests/skills/test-aai-layer-profiles.sh (TEST-001, existing) | union of PROFILES core+extended equals live `.aai` tree — passes only once `.aai/SUBAGENT_CONTRACT.md` is classified | green |
-| TEST-007 | Spec-AC-04 | unit        | tests/skills/test-aai-prompt-diet.sh (TEST-010/012, existing) | corpus reduction/headroom unchanged; `JUSTIFIED_GROWTH_BYTES` == 26781 — proves the in-glob edits are byte-neutral (no ledger true-up) | green |
+| TEST-007 | Spec-AC-04 | unit        | tests/skills/test-aai-prompt-diet.sh (TEST-010/012, existing) | relocation edits byte-neutral; the SKILL_LOOP:18 clause fix carries an itemized +32 B entry — `JUSTIFIED_GROWTH_BYTES` re-sums to the TEST-012 pin (27805 post-#160) | green |
 | TEST-008 | Spec-AC-05 | integration | tests/skills/test-aai-token-capture.sh (existing) | harness-usage + merge + ROLE_COMMON pins still green; SKILL_LOOP still mentions `SUBAGENT_PROTOCOL.md` (no regression from retargets) | green |
 | TEST-009 | Spec-AC-05 | unit        | tests/skills/test-aai-state.sh (TEST-008, existing) | MODEL row still present in `SUBAGENT_PROTOCOL.md` contract table (call-contract table not moved) | green |
 
@@ -269,7 +270,7 @@ protocol prose, with its retarget verdict):
 - bash tests/skills/test-aai-prompt-diet.sh
 - (regression, targeted) bash tests/skills/test-aai-token-capture.sh
 - (regression, targeted) bash tests/skills/test-aai-state.sh
-- grep contracts per Spec-AC-01..03; `cat .aai/*.prompt.md | wc -c` == 345010.
+- grep contracts per Spec-AC-01..03; corpus byte count == 345010 at relocation time (+32 B after the SKILL_LOOP:18 clause fix).
 - Full framework run: PR CI only (operator direction — not run locally).
 - PASS criteria: all TEST-xxx green AND all Spec-AC in a terminal status.
 - Post-freeze advisory: `node .aai/scripts/spec-lint.mjs --path
