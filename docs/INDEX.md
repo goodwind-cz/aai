@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-26T18:02:26.727Z
+Generated: 2026-07-26T18:54:43.446Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -218,8 +218,8 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| subagent-protocol-slim (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-subagent-protocol-slim.md |
-| spec-subagent-protocol-slim (unnumbered draft) | specs | docs/specs/SPEC-DRAFT-spec-subagent-protocol-slim.md |
+| CHANGE-0061 | issues | docs/issues/CHANGE-0061-subagent-protocol-slim.md |
+| SPEC-0087 | specs | docs/specs/SPEC-0087-spec-subagent-protocol-slim.md |
 
 ## Deferred (whole-doc) (0)
 

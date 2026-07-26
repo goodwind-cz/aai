@@ -15,7 +15,7 @@ AUTHORITATIVE SOURCES
 - docs/ai/LOOP_TICKS.jsonl (append-only runtime timing events, one JSON object per line) — per-developer local, gitignored (RFC-0001)
 - docs/ai/EVENTS.jsonl (append-only audit log of AC status / doc lifecycle transitions) — shared, committed (RFC-0001)
 - .aai/ORCHESTRATION.prompt.md  (tick orchestrator logic — do NOT duplicate it here)
-- .aai/SUBAGENT_PROTOCOL.md  (if present: result block format and merge protocol)
+- .aai/SUBAGENT_PROTOCOL.md  (if present: merge protocol; result block format lives in .aai/SUBAGENT_CONTRACT.md)
 
 EVENTS LOG (RFC-0001)
 Append audit events to docs/ai/EVENTS.jsonl when AC status or doc lifecycle
@@ -256,7 +256,7 @@ For each tick (1..max_ticks):
        NOT run in the context that produced the implementation — self-evaluation
        rubber-stamps. Spawn a DEDICATED validator subagent whose context contains
        ONLY the artifacts (requirement/spec, implementation diff/paths, evidence,
-       .aai/SUBAGENT_PROTOCOL.md) — never the implementer's accumulated working
+       .aai/SUBAGENT_CONTRACT.md) — never the implementer's accumulated working
        context. Prefer a different model_id than the implementer when the platform
        offers one (a different model is less likely to share the implementer's
        blind spots). If true context isolation is impossible (no subagent support),

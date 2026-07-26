@@ -22,6 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOCK_SCRIPT="${DOCS_LOCK_SCRIPT:-$PROJECT_ROOT/.aai/scripts/docs-lock.mjs}"
 PROTOCOL_DOC="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
+CONTRACT_DOC="$PROJECT_ROOT/.aai/SUBAGENT_CONTRACT.md"
 ORCH_DOC="$PROJECT_ROOT/.aai/ORCHESTRATION_PARALLEL.prompt.md"
 LOCKS_VIEW_DOC="$PROJECT_ROOT/.aai/system/LOCKS.md"
 
@@ -408,17 +409,20 @@ test_gitignore() {
 test_wiring_and_protocol() {
   log_info "TEST-010: single-writer rule + orchestrator wiring + LOCKS.md demotion present..."
   [[ -f "$PROTOCOL_DOC" ]] || log_fail "missing $PROTOCOL_DOC"
+  [[ -f "$CONTRACT_DOC" ]] || log_fail "missing $CONTRACT_DOC"
   [[ -f "$ORCH_DOC" ]] || log_fail "missing $ORCH_DOC"
   [[ -f "$LOCKS_VIEW_DOC" ]] || log_fail "missing $LOCKS_VIEW_DOC"
 
-  # SUBAGENT_PROTOCOL: hard rule "MUST NOT write ... STATE.yaml" + sole writer
-  grep -qiE "MUST NOT (write|modify).*STATE\.yaml" "$PROTOCOL_DOC" \
-    || log_fail "SUBAGENT_PROTOCOL must carry the hard 'MUST NOT write ... STATE.yaml' rule"
-  grep -qiE "sole.*(STATE )?writer|only .*STATE.* writer|sole writer" "$PROTOCOL_DOC" \
-    || log_fail "SUBAGENT_PROTOCOL must name the orchestrator as the sole STATE writer"
+  # SUBAGENT_CONTRACT: hard rule "MUST NOT write ... STATE.yaml" + sole writer
+  # (retargeted from SUBAGENT_PROTOCOL.md — spec-subagent-protocol-slim
+  # TEST-005: section 9 core relocated to the subagent-facing CONTRACT).
+  grep -qiE "MUST NOT (write|modify).*STATE\.yaml" "$CONTRACT_DOC" \
+    || log_fail "SUBAGENT_CONTRACT must carry the hard 'MUST NOT write ... STATE.yaml' rule"
+  grep -qiE "sole.*(STATE )?writer|only .*STATE.* writer|sole writer" "$CONTRACT_DOC" \
+    || log_fail "SUBAGENT_CONTRACT must name the orchestrator as the sole STATE writer"
   # rationalization-table row referencing the no-STATE-write rule
-  grep -qiF "STATE.yaml" "$PROTOCOL_DOC" \
-    || log_fail "SUBAGENT_PROTOCOL must reference STATE.yaml in its rule/table"
+  grep -qiF "STATE.yaml" "$CONTRACT_DOC" \
+    || log_fail "SUBAGENT_CONTRACT must reference STATE.yaml in its rule/table"
 
   # ORCHESTRATION_PARALLEL: docs-lock acquire/release wiring + degrade fallback
   grep -qF "docs-lock" "$ORCH_DOC" \

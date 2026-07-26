@@ -73,6 +73,7 @@ core:
   - .aai/SKILL_VERIFY.prompt.md
   - .aai/SKILL_WORKTREE.prompt.md
   - .aai/STATE_FALLBACK.md
+  - .aai/SUBAGENT_CONTRACT.md
   - .aai/SUBAGENT_PROTOCOL.md
   - .aai/TECH_EXTRACT.prompt.md
   - .aai/TECH_UPDATE_DIFF.prompt.md

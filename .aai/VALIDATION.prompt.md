@@ -203,7 +203,7 @@ PARALLEL VALIDATION (when scope has ≥3 independent requirement groups)
 If requirements can be grouped into ≥3 independent groups (no cross-dependency):
 1. Group requirements by independence before starting any verification.
 2. Spawn one Validation subagent per group (see .aai/SUBAGENT_PROTOCOL.md).
-   Each subagent receives: its requirement group, linked spec items, and .aai/SUBAGENT_PROTOCOL.md.
+   Each subagent receives: its requirement group, linked spec items, and .aai/SUBAGENT_CONTRACT.md.
 3. Each subagent executes its verification commands and returns a result block.
 4. Overall verdict: PASS only if ALL subagent groups return PASS.
 5. Evidence from all subagents MUST be recorded in STATE.yaml before issuing the final verdict.

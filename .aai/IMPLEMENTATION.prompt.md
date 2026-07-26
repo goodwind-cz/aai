@@ -75,7 +75,7 @@ PROCESS
    ```
    - Delegate to a subagent with the expert body PLUS AAI constraints
      (see `.aai/EXPERT_RESOLVE.prompt.md` Step 5 for the injection template)
-   - The expert subagent MUST return a result block per `.aai/SUBAGENT_PROTOCOL.md`
+   - The expert subagent MUST return a result block per `.aai/SUBAGENT_CONTRACT.md`
    - If fetch fails or no match, proceed without expert (graceful degradation)
 6c) PYTHON MONTY SCRATCHPAD (optional, pre-implementation only):
    - If `.claude/skills/aai-python-monty/SKILL.md` exists and the current scope is Python,
@@ -118,7 +118,7 @@ DECOMPOSITION (when scope has ≥3 independent modules)
 If the scope contains ≥3 independent files/modules with no shared mutable state:
 1. List decomposed units explicitly before starting any implementation.
 2. Spawn one Implementation subagent per unit (see .aai/SUBAGENT_PROTOCOL.md).
-   Each subagent receives: its unit scope, relevant Spec-AC items, and .aai/SUBAGENT_PROTOCOL.md.
+   Each subagent receives: its unit scope, relevant Spec-AC items, and .aai/SUBAGENT_CONTRACT.md.
 3. Each subagent implements ONE unit and returns a result block.
 4. After all subagents complete: verify integration (imports, interfaces, shared contracts).
 5. Do NOT mark implementation complete until the integration check passes.

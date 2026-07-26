@@ -647,6 +647,7 @@ test_060_work_item_brief() {  # spec-work-item-brief TEST-001..006 / Spec-AC-01.
   local tpl="$PROJECT_ROOT/.aai/templates/BRIEF_TEMPLATE.md"
   local pl="$PROJECT_ROOT/.aai/PLANNING.prompt.md"
   local sp="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
+  local cd="$PROJECT_ROOT/.aai/SUBAGENT_CONTRACT.md"
   local gi="$PROJECT_ROOT/.gitignore"
 
   # TEST-001 — template exists, <=60 lines, 5 section anchors, pointers-not-copies rule.
@@ -661,19 +662,22 @@ test_060_work_item_brief() {  # spec-work-item-brief TEST-001..006 / Spec-AC-01.
   grep -qiF "never paste full copies" "$tpl" \
     || log_fail "BRIEF_TEMPLATE.md must carry the pointers-not-copies rule (canon paths only, never paste full copies)"
 
-  # TEST-002 — Return Record skeleton is byte-identical to the SUBAGENT_PROTOCOL
+  # TEST-002 — Return Record skeleton is byte-identical to the SUBAGENT_CONTRACT
   # result block (single source; S1 seam crossed mechanically, not by prose).
-  grep -qF "Result block (mandatory subagent output)" "$tpl" \
-    || log_fail "BRIEF_TEMPLATE.md must cite the SUBAGENT_PROTOCOL section 'Result block (mandatory subagent output)' as single source"
+  # Retargeted from SUBAGENT_PROTOCOL.md to SUBAGENT_CONTRACT.md
+  # (spec-subagent-protocol-slim TEST-004: section 7 relocated to CONTRACT).
+  [[ -f "$cd" ]] || log_fail "missing .aai/SUBAGENT_CONTRACT.md"
+  grep -qF ".aai/SUBAGENT_CONTRACT.md" "$tpl" \
+    || log_fail "BRIEF_TEMPLATE.md must cite the SUBAGENT_CONTRACT section 'Result block (mandatory subagent output)' as single source"
   TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"
-  awk 'f&&/^```$/{exit} f{print} /^```yaml$/{f=1}' "$sp" > "$TEST_DIR/t60-proto.yaml"
+  awk 'f&&/^```$/{exit} f{print} /^```yaml$/{f=1}' "$cd" > "$TEST_DIR/t60-proto.yaml"
   awk 'f&&/^```$/{exit} f{print} /^```yaml$/{f=1}' "$tpl" > "$TEST_DIR/t60-brief.yaml"
   grep -qF "subagent_result:" "$TEST_DIR/t60-proto.yaml" \
-    || log_fail "could not extract the subagent_result skeleton from SUBAGENT_PROTOCOL.md"
+    || log_fail "could not extract the subagent_result skeleton from SUBAGENT_CONTRACT.md"
   grep -qF "subagent_result:" "$TEST_DIR/t60-brief.yaml" \
     || log_fail "BRIEF_TEMPLATE.md Return Record must embed the fenced subagent_result YAML skeleton"
   diff -u "$TEST_DIR/t60-proto.yaml" "$TEST_DIR/t60-brief.yaml" > "$TEST_DIR/t60.diff" \
-    || log_fail "Return Record skeleton must be BYTE-IDENTICAL to the SUBAGENT_PROTOCOL result block: $(cat "$TEST_DIR/t60.diff")"
+    || log_fail "Return Record skeleton must be BYTE-IDENTICAL to the SUBAGENT_CONTRACT result block: $(cat "$TEST_DIR/t60.diff")"
 
   # TEST-003 — PLANNING emits the brief as a numbered step between freeze and STATE update.
   grep -qF "docs/ai/briefs/" "$pl" || log_fail "PLANNING must emit the brief under docs/ai/briefs/"
@@ -716,6 +720,130 @@ test_060_work_item_brief() {  # spec-work-item-brief TEST-001..006 / Spec-AC-01.
   grep -qF ".aai/SUBAGENT_PROTOCOL.md" "$orch" \
     || log_fail "ORCHESTRATION must keep routing dispatches through .aai/SUBAGENT_PROTOCOL.md (the brief mention's reachability path)"
   log_pass "Work-item brief wired: template ($(wc -l < "$tpl" | tr -d ' ') lines) + verbatim Return Record + PLANNING step + protocol default/degrade + gitignore (spec-work-item-brief TEST-001..006)"
+}
+
+test_080_subagent_contract_exists() {  # spec-subagent-protocol-slim TEST-001 / Spec-AC-01
+  log_info "Test: .aai/SUBAGENT_CONTRACT.md exists, <=60 lines, carries the required tokens (spec-subagent-protocol-slim TEST-001)..."
+  local f="$PROJECT_ROOT/.aai/SUBAGENT_CONTRACT.md"
+  [[ -f "$f" ]] || log_fail "missing .aai/SUBAGENT_CONTRACT.md"
+  local n
+  n="$(wc -l < "$f" | tr -d ' ')"
+  [[ "$n" -le 60 ]] || log_fail "SUBAGENT_CONTRACT.md must be <=60 lines (got $n)"
+  grep -qF "subagent_result:" "$f" \
+    || log_fail "CONTRACT must carry the fenced subagent_result: result block"
+  grep -qF "duration_seconds" "$f" \
+    || log_fail "CONTRACT must carry the duration_seconds timing rule"
+  grep -qiE "MUST NOT write.*STATE\.yaml" "$f" \
+    || log_fail "CONTRACT must carry the MUST NOT write STATE.yaml rule"
+  grep -qiE "sole.*(STATE )?writer|only .*STATE.* writer|sole writer" "$f" \
+    || log_fail "CONTRACT must name the orchestrator as the sole STATE writer"
+  grep -qF "docs/ai/tdd/" "$f" \
+    || log_fail "CONTRACT must carry the allowed-write list entry docs/ai/tdd/"
+  grep -qF "append-event.mjs" "$f" \
+    || log_fail "CONTRACT must carry the allowed-write list entry append-event.mjs"
+  grep -qiF "rationalization" "$f" \
+    || log_fail "CONTRACT must carry the subagent-binding rationalization table"
+  grep -qiF "self-report" "$f" \
+    || log_fail "CONTRACT must carry the do-NOT-self-report-usage prohibition line"
+  log_pass "SUBAGENT_CONTRACT.md present, $n lines, required tokens present (spec-subagent-protocol-slim TEST-001)"
+}
+
+test_081_no_rule_duplication() {  # spec-subagent-protocol-slim TEST-002 / Spec-AC-02
+  log_info "Test: no rule sentence duplicated between CONTRACT and PROTOCOL — 5-phrase spot-grep (spec-subagent-protocol-slim TEST-002)..."
+  local contract="$PROJECT_ROOT/.aai/SUBAGENT_CONTRACT.md"
+  local protocol="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
+  [[ -f "$contract" ]] || log_fail "missing .aai/SUBAGENT_CONTRACT.md"
+  [[ -f "$protocol" ]] || log_fail "missing .aai/SUBAGENT_PROTOCOL.md"
+
+  # (a) subagent_result: fence -> CONTRACT only
+  grep -qF "subagent_result:" "$contract" \
+    || log_fail "'subagent_result:' must be present in SUBAGENT_CONTRACT.md"
+  grep -qF "subagent_result:" "$protocol" \
+    && log_fail "'subagent_result:' must NOT remain in SUBAGENT_PROTOCOL.md (moved to CONTRACT)"
+
+  # (b) MUST NOT write ... STATE.yaml -> CONTRACT only
+  grep -qF 'MUST NOT write `docs/ai/STATE.yaml`' "$contract" \
+    || log_fail "'MUST NOT write STATE.yaml' must be present in SUBAGENT_CONTRACT.md"
+  grep -qF 'MUST NOT write `docs/ai/STATE.yaml`' "$protocol" \
+    && log_fail "'MUST NOT write STATE.yaml' must NOT remain in SUBAGENT_PROTOCOL.md (moved to CONTRACT)"
+
+  # (c) duration_seconds ... match -> CONTRACT only
+  grep -qF 'duration_seconds` MUST match' "$contract" \
+    || log_fail "'duration_seconds MUST match' must be present in SUBAGENT_CONTRACT.md"
+  grep -qF 'duration_seconds` MUST match' "$protocol" \
+    && log_fail "'duration_seconds MUST match' must NOT remain in SUBAGENT_PROTOCOL.md (moved to CONTRACT)"
+
+  # (d) never from a subagent's own self-report -> PROTOCOL only
+  grep -qF "never from a subagent's own self-report" "$protocol" \
+    || log_fail "'never from a subagent's own self-report' must be present in SUBAGENT_PROTOCOL.md"
+  grep -qF "never from a subagent's own self-report" "$contract" \
+    && log_fail "'never from a subagent's own self-report' must NOT appear in SUBAGENT_CONTRACT.md (orchestrator-only)"
+
+  # (e) MUST NOT characterize expected findings -> PROTOCOL only
+  grep -qF "MUST NOT characterize expected findings" "$protocol" \
+    || log_fail "'MUST NOT characterize expected findings' must be present in SUBAGENT_PROTOCOL.md"
+  grep -qF "MUST NOT characterize expected findings" "$contract" \
+    && log_fail "'MUST NOT characterize expected findings' must NOT appear in SUBAGENT_CONTRACT.md (orchestrator-only)"
+
+  log_pass "5-phrase spot-grep: each phrase lives in exactly one file (spec-subagent-protocol-slim TEST-002)"
+}
+
+test_082_dispatch_refs_name_contract() {  # spec-subagent-protocol-slim TEST-003 / Spec-AC-03
+  log_info "Test: dispatch payload refs name SUBAGENT_CONTRACT.md; orchestrator-only refs stay on SUBAGENT_PROTOCOL.md (spec-subagent-protocol-slim TEST-003)..."
+  local orch_p="$PROJECT_ROOT/.aai/ORCHESTRATION_PARALLEL.prompt.md"
+  local loop="$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md"
+  local val="$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
+  local tpl="$PROJECT_ROOT/.aai/templates/BRIEF_TEMPLATE.md"
+  [[ -f "$orch_p" ]] || log_fail "missing .aai/ORCHESTRATION_PARALLEL.prompt.md"
+  [[ -f "$loop" ]] || log_fail "missing .aai/SKILL_LOOP.prompt.md"
+  [[ -f "$val" ]] || log_fail "missing .aai/VALIDATION.prompt.md"
+  [[ -f "$tpl" ]] || log_fail "missing .aai/templates/BRIEF_TEMPLATE.md"
+
+  # ORCHESTRATION_PARALLEL: payload refs -> CONTRACT
+  grep -qF '`.aai/SUBAGENT_CONTRACT.md`, Single-writer rule' "$orch_p" \
+    || log_fail "ORCHESTRATION_PARALLEL single-writer pointer must name SUBAGENT_CONTRACT.md"
+  grep -qF 'a copy of .aai/SUBAGENT_CONTRACT.md' "$orch_p" \
+    || log_fail "ORCHESTRATION_PARALLEL subagent context must pass a copy of SUBAGENT_CONTRACT.md"
+  grep -qF 'result block as defined in .aai/SUBAGENT_CONTRACT.md' "$orch_p" \
+    || log_fail "ORCHESTRATION_PARALLEL result-block reference must name SUBAGENT_CONTRACT.md"
+  # ORCHESTRATION_PARALLEL: orchestrator-only refs stay on PROTOCOL
+  grep -qF 'See .aai/SUBAGENT_PROTOCOL.md' "$orch_p" \
+    || log_fail "ORCHESTRATION_PARALLEL validator-spawning pointer must stay on SUBAGENT_PROTOCOL.md"
+  grep -qF 'merge protocol from .aai/SUBAGENT_PROTOCOL.md' "$orch_p" \
+    || log_fail "ORCHESTRATION_PARALLEL merge-protocol reference must stay on SUBAGENT_PROTOCOL.md"
+
+  # SKILL_LOOP: validator-payload ref -> CONTRACT; harness-usage refs stay PROTOCOL
+  grep -qF '.aai/SUBAGENT_CONTRACT.md) — never the implementer'"'"'s accumulated working' "$loop" \
+    || log_fail "SKILL_LOOP validator-payload context must name SUBAGENT_CONTRACT.md"
+  grep -qF "SUBAGENT_PROTOCOL.md" "$loop" \
+    || log_fail "SKILL_LOOP must retain at least one SUBAGENT_PROTOCOL.md mention (harness-usage refs, token-capture TEST-001)"
+
+  # VALIDATION: per-subagent payload ref -> CONTRACT; merge-protocol ref stays PROTOCOL
+  grep -qF 'linked spec items, and .aai/SUBAGENT_CONTRACT.md' "$val" \
+    || log_fail "VALIDATION per-subagent payload reference must name SUBAGENT_CONTRACT.md"
+  grep -qF 'merged per .aai/SUBAGENT_PROTOCOL.md' "$val" \
+    || log_fail "VALIDATION merge-protocol reference must stay on SUBAGENT_PROTOCOL.md"
+
+  # BRIEF_TEMPLATE single-source citation
+  grep -qF '.aai/SUBAGENT_CONTRACT.md section' "$tpl" \
+    || log_fail "BRIEF_TEMPLATE single-source citation must name SUBAGENT_CONTRACT.md"
+
+  # IMPLEMENTATION + SKILL_TDD: unit payload + expert result-block refs -> CONTRACT
+  # (validation FAIL 20260726T184217Z caught IMPLEMENTATION:121 leaking the
+  # full protocol into every parallel Implementation unit payload; the merge
+  # and spawn-criteria refs legitimately stay on PROTOCOL.)
+  local impl="$PROJECT_ROOT/.aai/IMPLEMENTATION.prompt.md"
+  local tdd="$PROJECT_ROOT/.aai/SKILL_TDD.prompt.md"
+  grep -qF 'Spec-AC items, and .aai/SUBAGENT_CONTRACT.md' "$impl" \
+    || log_fail "IMPLEMENTATION unit payload must name SUBAGENT_CONTRACT.md (never the full protocol)"
+  grep -qF 'result block per `.aai/SUBAGENT_CONTRACT.md`' "$impl" \
+    || log_fail "IMPLEMENTATION expert result-block reference must name SUBAGENT_CONTRACT.md"
+  grep -qF 'merged per .aai/SUBAGENT_PROTOCOL.md' "$impl" \
+    || log_fail "IMPLEMENTATION merge-protocol reference must stay on SUBAGENT_PROTOCOL.md"
+  grep -qF 'result block per `.aai/SUBAGENT_CONTRACT.md`' "$tdd" \
+    || log_fail "SKILL_TDD expert result-block reference must name SUBAGENT_CONTRACT.md"
+
+  log_pass "Dispatch payload refs resolve to SUBAGENT_CONTRACT.md; orchestrator-only refs stay on SUBAGENT_PROTOCOL.md (spec-subagent-protocol-slim TEST-003)"
 }
 
 test_070_companion_obligations() {  # spec-planning-companion-obligations TEST-001..003 / Spec-AC-01..03
@@ -793,6 +921,9 @@ main() {
   test_052_loop_drift_preflight
   test_060_work_item_brief
   test_070_companion_obligations
+  test_080_subagent_contract_exists
+  test_081_no_rule_duplication
+  test_082_dispatch_refs_name_contract
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

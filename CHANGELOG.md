@@ -11,6 +11,19 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — refactor: subagent contract split — per-dispatch payload slimmed (CHANGE-0061 / SPEC-0087)
+
+- New `.aai/SUBAGENT_CONTRACT.md` (58 lines): the ONLY per-dispatch payload a
+  spawned subagent receives — result block + timing rules, single-writer
+  duty, allowed-write list, self-report-usage prohibition. The 223-line
+  SUBAGENT_PROTOCOL.md becomes orchestrator-side only (merge protocol,
+  review anti-gaming, validator spawning, harness-usage capture) — a unit
+  no longer pays ~2k words for ~400 words of duty, 4-6 times per work item.
+- Validation FAIL round earned its keep: caught IMPLEMENTATION.prompt.md:121
+  still injecting the full protocol into parallel unit payloads + two
+  dangling result-block refs; remediated and permanently pinned by an
+  extended hygiene TEST-082. Refs: CHANGE-0061, SPEC-0087.
+
 ## [unreleased] — refactor: prompt dedup — canonical includes for ceremony rules, AC gate, role boilerplate (CHANGE-0059 / SPEC-0086)
 
 - Prompt corpus shrinks 4687 B in the TEST-010 glob (net −3021 B): the
