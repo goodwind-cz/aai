@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-07-26T23:58:40.515Z",
+  "generatedAt": "2026-07-26T23:58:48.271Z",
   "project": "aai",
   "counts": {
     "delivered": 109,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 15789471
+    "tokens_total": 16253728
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -139,8 +139,8 @@
       "status": "done",
       "path": "docs/issues/CHANGE-0064-allocator-rewrite-all-trees.md",
       "closed_on": "2026-07-26",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 87,
+      "token_total": 464257,
       "spec": "docs/specs/SPEC-0090-spec-allocator-rewrite-all-trees.md",
       "validation": "docs/ai/reports/VALIDATION-20260726T234752Z-allocator-rewrite-all-trees.md",
       "review": "docs/ai/reviews/review-20260726T235244Z-allocator-rewrite-all-trees.md"
@@ -1563,8 +1563,8 @@
           "status": "done",
           "path": "docs/issues/CHANGE-0064-allocator-rewrite-all-trees.md",
           "closed_on": "2026-07-26",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 87,
+          "token_total": 464257,
           "spec": "docs/specs/SPEC-0090-spec-allocator-rewrite-all-trees.md",
           "validation": "docs/ai/reports/VALIDATION-20260726T234752Z-allocator-rewrite-all-trees.md",
           "review": "docs/ai/reviews/review-20260726T235244Z-allocator-rewrite-all-trees.md"
