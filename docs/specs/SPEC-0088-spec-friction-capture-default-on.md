@@ -2,13 +2,15 @@
 id: spec-friction-capture-default-on
 type: spec
 number: 88
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0062-friction-capture-default-on.md
   rfc: RFC-0012
-  pr: []
-  commits: []
+  pr:
+    - 162
+  commits:
+    - 5c4d232f249c079ab2a29d8e4667a13cf0154e80
 ---
 
 # Spec — Activate the friction feedback loop: default-on shadow capture + wrap-up triage feed

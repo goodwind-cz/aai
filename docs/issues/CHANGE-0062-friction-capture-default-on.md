@@ -2,10 +2,12 @@
 id: friction-capture-default-on
 number: 62
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 162
+  commits:
+    - 5c4d232f249c079ab2a29d8e4667a13cf0154e80
 ---
 
 # Change — Activate the friction feedback loop: default-on shadow capture + wrap-up triage feed
