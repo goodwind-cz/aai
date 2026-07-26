@@ -73,6 +73,43 @@ export const TYPE_MAP = {
 // Directories that hold governed, numberable docs (index/guard scope).
 export const GOVERNED_DIRS = ['rfc', 'specs', 'issues', 'requirements', 'releases'];
 
+// Committed-class markdown roots scanned by the reference-rewrite pass
+// (allocator-rewrite-all-trees, Spec-AC-01/Spec-AC-05). Each entry is either
+// a directory (walked recursively for *.md) or a specific file. Includes the
+// five GOVERNED_DIRS roots (existing scan preserved) plus every other
+// committed-class tree that has carried a dangling DRAFT reference in
+// practice (product docs, review reports, session notes, knowledge docs,
+// repo-root README/CHANGELOG).
+export const REWRITE_TREES = [
+  ...GOVERNED_DIRS.map((d) => `docs/${d}`),
+  'docs/product',
+  'docs/ai/reviews',
+  'docs/project-sessions',
+  'docs/knowledge',
+  'README.md',
+  'CHANGELOG.md',
+];
+
+// Runtime/archive prefixes that must NEVER be rewritten, even when nested
+// under a scanned REWRITE_TREES root — e.g. docs/ai/reports sits under
+// docs/ai, whose sibling docs/ai/reviews IS scanned (Spec-AC-02 nesting
+// case). Defense-in-depth: the allowlist above already excludes these by
+// construction; this explicit list documents the guarantee and anchors the
+// byte-identity tests.
+export const EXCLUDED_TREES = [
+  'docs/archive',
+  'docs/_archive',
+  'docs/ai/reports',
+  'docs/ai/briefs',
+  'docs/ai/tdd',
+  'docs/ai/friction',
+  'docs/ai/archive',
+  'docs/ai/loop',
+  'docs/ai/locks',
+  'docs/ai/tests',
+  '.aai/cache',
+];
+
 // --- pure helpers (unit-testable without git) --------------------------------
 
 // Slug = kebab-case of the topic (SPEC-0015 D1). lowercase; transliterate to
@@ -550,22 +587,94 @@ function findAllDrafts(root) {
   return out.sort();
 }
 
-// Rewrite in-repo references to the old DRAFT basename -> the new numbered
-// basename across governed docs (path/link references; the slug `id` is
-// unchanged so cross-references keyed on `id` need no rewrite).
-function rewriteReferences(root, oldBase, newBase) {
-  for (const dir of GOVERNED_DIRS) {
-    const abs = path.join(root, 'docs', dir);
-    if (!fs.existsSync(abs)) continue;
-    for (const f of fs.readdirSync(abs)) {
-      if (!f.endsWith('.md')) continue;
-      const p = path.join(abs, f);
-      const content = fs.readFileSync(p, 'utf8');
-      if (!content.includes(oldBase)) continue;
-      const updated = content.split(oldBase).join(newBase);
-      if (updated !== content) fs.writeFileSync(p, updated);
+// True when repo-relative `rel` falls under an EXCLUDED_TREES prefix
+// (exact match or a path segment boundary — a prefix never matches a
+// same-named sibling, e.g. "docs/ai/reports" does not exclude
+// "docs/ai/reports-extra").
+export function isExcludedTree(rel) {
+  return EXCLUDED_TREES.some((ex) => rel === ex || rel.startsWith(`${ex}/`));
+}
+
+// Recursive *.md collector for one REWRITE_TREES directory root. Skips any
+// path under an EXCLUDED_TREES prefix; an unreadable subdirectory is
+// degrade-and-report (skipped, not fatal).
+function walkMarkdown(absDir, relDir, out) {
+  let entries;
+  try {
+    entries = fs.readdirSync(absDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const rel = `${relDir}/${entry.name}`;
+    if (isExcludedTree(rel)) continue;
+    const abs = path.join(absDir, entry.name);
+    if (entry.isDirectory()) {
+      walkMarkdown(abs, rel, out);
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      out.push(rel);
     }
   }
+}
+
+// Deduplicated repo-relative *.md paths across REWRITE_TREES, skipping
+// missing roots (fs.existsSync guard, matching the existing degrade-and-
+// report pattern) and any path under an EXCLUDED_TREES prefix.
+function collectRewriteFiles(root) {
+  const seen = new Set();
+  const out = [];
+  for (const treeRoot of REWRITE_TREES) {
+    if (isExcludedTree(treeRoot)) continue; // defensive; not expected in practice
+    const abs = path.join(root, treeRoot);
+    if (!fs.existsSync(abs)) continue;
+    if (fs.statSync(abs).isDirectory()) {
+      const files = [];
+      walkMarkdown(abs, treeRoot, files);
+      for (const f of files) {
+        if (!seen.has(f)) { seen.add(f); out.push(f); }
+      }
+    } else if (treeRoot.endsWith('.md') && !seen.has(treeRoot)) {
+      seen.add(treeRoot);
+      out.push(treeRoot);
+    }
+  }
+  return out;
+}
+
+// The REWRITE_TREES entry a collected file belongs to (longest-prefix
+// match) — used only to group the dry-run report by tree.
+function ownerTreeFor(rel) {
+  let best = null;
+  for (const treeRoot of REWRITE_TREES) {
+    if ((rel === treeRoot || rel.startsWith(`${treeRoot}/`)) && (!best || treeRoot.length > best.length)) {
+      best = treeRoot;
+    }
+  }
+  return best ?? rel;
+}
+
+// Rewrite in-repo references to the old DRAFT basename -> the new numbered
+// basename across every REWRITE_TREES location (path/link references; the
+// slug `id` is unchanged so cross-references keyed on `id` need no rewrite).
+// Reuses the EXISTING verbatim substring matcher (content.includes guard +
+// content.split(oldBase).join(newBase) + write-only-if-changed) — no new or
+// boundary-aware matcher. { dryRun: true } computes and returns the planned
+// per-tree change set WITHOUT writing anything (Spec-AC-04).
+function rewriteReferences(root, oldBase, newBase, { dryRun = false } = {}) {
+  const report = new Map(); // tree root -> changed file[]
+  for (const rel of collectRewriteFiles(root)) {
+    const p = path.join(root, rel);
+    const content = fs.readFileSync(p, 'utf8');
+    if (!content.includes(oldBase)) continue;
+    const updated = content.split(oldBase).join(newBase);
+    if (updated !== content) {
+      if (!dryRun) fs.writeFileSync(p, updated);
+      const tree = ownerTreeFor(rel);
+      if (!report.has(tree)) report.set(tree, []);
+      report.get(tree).push(rel);
+    }
+  }
+  return report;
 }
 
 function regenerateIndex(root) {
@@ -842,7 +951,13 @@ function runAllocate(root, opts) {
   }
 
   if (opts.dryRun) {
-    for (const p of plan) console.log(`${p.rel} -> ${p.newRel} (number ${p.n})`);
+    for (const p of plan) {
+      console.log(`${p.rel} -> ${p.newRel} (number ${p.n})`);
+      const report = rewriteReferences(root, p.oldBase, p.newBase, { dryRun: true });
+      for (const [tree, files] of report) {
+        console.log(`  planned rewrite in ${tree}: ${files.join(', ')}`);
+      }
+    }
     console.log(`dry-run: ${plan.length} draft(s) would be numbered.`);
     return;
   }

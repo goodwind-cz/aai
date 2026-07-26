@@ -11,6 +11,20 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: allocator rewrites DRAFT references in all committed-class trees (CHANGE-0064 / SPEC-0090) [L3]
+
+- allocate-doc-number.mjs now rewrites DRAFT->numbered references across ALL
+  committed-class markdown trees (docs/product, docs/ai/reviews,
+  docs/project-sessions, docs/knowledge, README, CHANGELOG) behind exported
+  REWRITE_TREES/EXCLUDED_TREES constants — removing a recurring class of bot
+  findings (10+ hand-sed fixes across PRs #158-#163) at the source.
+- L3 protected-surface discipline: matcher byte-identical to main (verified
+  independently), mutation-tested separator guard + committed TEST-109 probe,
+  symlink no-escape, dry-run per-tree report, idempotence proven. First live
+  run rewrote this very scope's own references with zero manual fixes.
+  Refs: CHANGE-0064, SPEC-0090.
+
+
 ## [unreleased] — feat: token economics end-to-end — reports and overview read real usage (CHANGE-0063 / SPEC-0089)
 
 - metrics-report now aggregates the canonical usage_total_tokens markers:
