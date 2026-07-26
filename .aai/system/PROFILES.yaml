@@ -112,6 +112,7 @@ core:
   - .aai/scripts/lib/pricing.mjs
   - .aai/scripts/lib/state-core.mjs
   - .aai/scripts/lib/state-engine.mjs
+  - .aai/scripts/lib/usage-note.mjs
   - .aai/scripts/loop-digest.mjs
   - .aai/scripts/metrics-flush.mjs
   - .aai/scripts/migrate-state-to-local.ps1

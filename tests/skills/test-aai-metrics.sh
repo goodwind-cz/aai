@@ -938,10 +938,10 @@ JSONL
 ## AAI Metrics Summary
 
 ### Per Work Item
-| ref_id | title | human (min) | agent (sec) | cost USD | leverage | verdict |
-|--------|-------|-------------|-------------|----------|----------|---------|
-| AAA-0001 | First | 10 | 600 | $7.50 | 1.0x | PASS |
-| AAA-0002 | Second | 0 | 600 | ~$9.00 | n/a | PASS |
+| ref_id | title | human (min) | agent (sec) | cost USD | agent tokens (undecomposed) | leverage | verdict |
+|--------|-------|-------------|-------------|----------|------------------------------|----------|---------|
+| AAA-0001 | First | 10 | 600 | $7.50 | n/a | 1.0x | PASS |
+| AAA-0002 | Second | 0 | 600 | ~$9.00 | n/a | n/a | PASS |
 
 Note: "~" prefix on cost means partial (some runs had null token data).
 
@@ -957,6 +957,15 @@ Note: "~" prefix on cost means partial (some runs had null token data).
 |----------|------|-----------|------------|----------|
 | model-a | 1 | n/a | n/a | n/a |
 | model-b | 2 | 3000000 | 300000 | $16.50 |
+
+### Per-Role Token Rollup
+| role | agent tokens (undecomposed) |
+|------|------------------------------|
+| Implementation | n/a |
+| Planning | n/a |
+| Validation | n/a |
+
+Note: undecomposed tokens are display-only — never converted to a USD figure (the marker carries no in/out split to price).
 
 ### Per-Strategy Reliability
 | strategy | items | first-pass clean | avg validation fails | avg review fails | avg remediations |
@@ -1781,8 +1790,130 @@ test_119_classify_capture_missing() {
   log_pass "Capture-missing run (null tokens, no note) emits exactly one WARNING naming ref/role (spec TEST-003)"
 }
 
+# --- token-economics-end-to-end TEST-001..004 --------------------------------
+# (SPEC-DRAFT-spec-token-economics-end-to-end). TEST-003/TEST-004 are the
+# integrity-critical rows (RED-proof obligation).
+
+# write_ledger_line <file> <ref> <title> <notes-json...> — appends one raw
+# METRICS.jsonl line with N runs, each carrying the given note text (role
+# Run<i>, no tokens_in/out, cost_usd null). $1 file, $2 ref, $3 title, then
+# one note string per run (pass '' for a run with no note field).
+write_ledger_line() {
+  local f="$1" ref="$2" title="$3"
+  shift 3
+  node -e '
+    const fs = require("fs");
+    const [file, ref, title, ...notes] = process.argv.slice(1);
+    const runs = notes.map((n, i) => {
+      const r = { role: `Run${i}`, model_id: "m", started_utc: null, ended_utc: null,
+        duration_seconds: null, tokens_in: null, tokens_out: null, cost_usd: null };
+      if (n !== "") r.note = n;
+      return r;
+    });
+    const entry = { date_utc: "2026-07-20", ref_id: ref, title,
+      human_time_minutes: { intake: 0, reviews: 0 }, agent_runs: runs,
+      totals: { human_time_minutes: 0, agent_duration_seconds: 0, total_cost_usd: null },
+      verdict: "PASS" };
+    fs.appendFileSync(file, JSON.stringify(entry) + "\n");
+  ' "$f" "$ref" "$title" "$@"
+}
+
+test_120_shared_lib_grep_contract() {  # token-economics TEST-003 (Spec-AC-01)
+  log_info "Test: USAGE_NOTE_RE lives in exactly one source file (lib/usage-note.mjs); flush + report import it, never re-declare it (token-economics TEST-003)..."
+  local hits n
+  hits="$(grep -rlF 'usage_total_tokens=(\d+)' "$PROJECT_ROOT/.aai/scripts" 2>/dev/null || true)"
+  n="$(printf '%s\n' "$hits" | grep -c . || true)"
+  [[ "$n" == "1" ]] || log_fail "raw usage-note regex literal must exist in exactly one file (got $n): $hits"
+  printf '%s\n' "$hits" | grep -qF ".aai/scripts/lib/usage-note.mjs" \
+    || log_fail "the single source file must be .aai/scripts/lib/usage-note.mjs (got: $hits)"
+  grep -qE "from '\\./lib/usage-note\\.mjs'" "$PROJECT_ROOT/.aai/scripts/metrics-flush.mjs" \
+    || log_fail "metrics-flush.mjs must import from lib/usage-note.mjs"
+  grep -qE "USAGE_NOTE_RE" "$PROJECT_ROOT/.aai/scripts/metrics-flush.mjs" \
+    || log_fail "metrics-flush.mjs must reference USAGE_NOTE_RE (imported, not inlined)"
+  grep -qE "from '\\./lib/usage-note\\.mjs'" "$PROJECT_ROOT/.aai/scripts/metrics-report.mjs" \
+    || log_fail "metrics-report.mjs must import from lib/usage-note.mjs"
+  log_pass "Single-source marker grammar: exactly one raw regex literal (lib/usage-note.mjs); flush + report both import it (token-economics TEST-003)"
+}
+
+test_121_seam_marker_agreement() {  # token-economics TEST-004 (Spec-AC-01, SEAM 1)
+  log_info "Test: SEAM — a note flush classifies undecomposed-INFO is counted by report; a malformed note flush drops is ignored by report (all consumers agree) (token-economics TEST-004)..."
+  local d
+  d="$(mk_repo t121)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  node -e '
+    const fs = require("fs"); const p = process.argv[1];
+    let s = fs.readFileSync(p, "utf8");
+    // Implementation run (was numeric 2000000/200000): null tokens + a VALID marker note.
+    s = s.replace("          tokens_in: 2000000\n          tokens_out: 200000\n          cost_usd: null",
+                  "          tokens_in: null\n          tokens_out: null\n          cost_usd: null\n          note: usage_total_tokens=262134 (harness total; in/out not exposed)");
+    // Validation run (was numeric 1000000/1000000): null tokens + a MALFORMED marker note.
+    s = s.replace("          tokens_in: 1000000\n          tokens_out: 1000000\n          cost_usd: null",
+                  "          tokens_in: null\n          tokens_out: null\n          cost_usd: null\n          note: usage_total_tokens=999x (malformed on purpose)");
+    fs.writeFileSync(p, s);
+  ' "$d/docs/ai/STATE.yaml"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qE '^INFO CHANGE-0001 run Implementation \(sonnet-latest\): undecomposed total 262134 observed' "$OUT" \
+    || log_fail "flush must classify the valid-marker run as undecomposed-INFO: $(cat "$OUT")"
+  grep -qE '^WARNING CHANGE-0001 run Validation' "$OUT" \
+    || log_fail "flush must classify the malformed-marker run as capture-missing WARNING (malformed is not an honest total): $(cat "$OUT")"
+
+  local rep_out="$d/report.md"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-report.mjs --metrics "$d/docs/ai/METRICS.jsonl" --pricing "$d/PRICING.yaml") > "$rep_out" \
+    || log_fail "report must exit 0 on the flushed ledger: $(cat "$rep_out")"
+  grep -qE '^\| CHANGE-0001 \|.*\| 262134 \|' "$rep_out" \
+    || log_fail "report's per-item undecomposed-token column must equal the flush-classified total 262134, malformed dropped (got): $(cat "$rep_out")"
+  log_pass "Seam: flush's undecomposed-INFO total (262134) is counted by report; the malformed note flush drops is ignored by report — all consumers agree (token-economics TEST-004)"
+}
+
+test_122_report_per_item_undecomposed_column() {  # token-economics TEST-001 (Spec-AC-02)
+  log_info "Test: Per Work Item undecomposed-token column sums valid markers, ignores malformed + prefixed markers, n/a when none (token-economics TEST-001)..."
+  local d="$TEST_DIR/t122"
+  mkdir -p "$d"
+  write_pricing "$d/PRICING.yaml"
+  : > "$d/METRICS.jsonl"
+  write_ledger_line "$d/METRICS.jsonl" "BBB-0001" "Multi-run" \
+    'usage_total_tokens=1000 (ok)' 'not_usage_total_tokens=5000 (prefixed key, ignored)'
+  write_ledger_line "$d/METRICS.jsonl" "BBB-0002" "Malformed only" \
+    'usage_total_tokens=42x (malformed value, ignored)'
+  write_ledger_line "$d/METRICS.jsonl" "BBB-0003" "No notes" '' ''
+  local out="$d/out.md"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-report.mjs --metrics "$d/METRICS.jsonl" --pricing "$d/PRICING.yaml") > "$out" \
+    || log_fail "report must exit 0: $(cat "$out")"
+  grep -qE '^\| BBB-0001 \|.*\| 1000 \|' "$out" \
+    || log_fail "BBB-0001 (1 valid + 1 prefixed-ignored) must sum to 1000: $(cat "$out")"
+  grep -qE '^\| BBB-0002 \|.*\| n/a \|' "$out" \
+    || log_fail "BBB-0002 (malformed value only) must render n/a: $(cat "$out")"
+  grep -qE '^\| BBB-0003 \|.*\| n/a \|' "$out" \
+    || log_fail "BBB-0003 (no notes) must render n/a: $(cat "$out")"
+  log_pass "Per Work Item undecomposed-token column sums valid markers, drops malformed/prefixed, n/a when none (token-economics TEST-001)"
+}
+
+test_123_report_per_role_token_rollup() {  # token-economics TEST-002 (Spec-AC-03)
+  log_info "Test: per-role token rollup section sums valid markers by role; tokens only, never a USD figure from undecomposed totals (token-economics TEST-002)..."
+  local d="$TEST_DIR/t123"
+  mkdir -p "$d"
+  write_pricing "$d/PRICING.yaml"
+  cat > "$d/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-20","ref_id":"CCC-0001","title":"One","human_time_minutes":{"intake":0,"reviews":0},"agent_runs":[{"role":"Implementation","model_id":"m","tokens_in":null,"tokens_out":null,"cost_usd":null,"note":"usage_total_tokens=700 (a)"}],"totals":{"human_time_minutes":0,"agent_duration_seconds":0,"total_cost_usd":null},"verdict":"PASS"}
+{"date_utc":"2026-07-21","ref_id":"CCC-0002","title":"Two","human_time_minutes":{"intake":0,"reviews":0},"agent_runs":[{"role":"Implementation","model_id":"m","tokens_in":null,"tokens_out":null,"cost_usd":null,"note":"usage_total_tokens=300 (b)"},{"role":"Validation","model_id":"m","tokens_in":null,"tokens_out":null,"cost_usd":null,"note":"usage_total_tokens=1x (malformed)"}],"totals":{"human_time_minutes":0,"agent_duration_seconds":0,"total_cost_usd":null},"verdict":"PASS"}
+JSONL
+  local out="$d/out.md"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-report.mjs --metrics "$d/METRICS.jsonl" --pricing "$d/PRICING.yaml") > "$out" \
+    || log_fail "report must exit 0: $(cat "$out")"
+  grep -qE '^### Per-Role Token Rollup' "$out" \
+    || log_fail "report must render a Per-Role Token Rollup section: $(cat "$out")"
+  grep -qE '^\| Implementation \| 1000 \|' "$out" \
+    || log_fail "Implementation role must sum 700+300=1000 across items: $(cat "$out")"
+  grep -qE '^\| Validation \| n/a \|' "$out" \
+    || log_fail "Validation role (malformed-only marker) must render n/a: $(cat "$out")"
+  awk '/^### Per-Role Token Rollup/,/^### Per-Strategy Reliability/' "$out" | grep -qE '\$[0-9]' \
+    && log_fail "the per-role token rollup section must NEVER render a USD figure from undecomposed totals: $(cat "$out")"
+  log_pass "Per-role token rollup sums valid markers by role, tokens only, never fabricates USD (token-economics TEST-002)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003)"
+  echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003 + token-economics-end-to-end TEST-001..004,011)"
   check_deps
   setup_fixture
   test_006_flush_golden
@@ -1821,6 +1952,10 @@ main() {
   test_117_classify_decomposed
   test_118_classify_undecomposed_note
   test_119_classify_capture_missing
+  test_120_shared_lib_grep_contract
+  test_121_seam_marker_agreement
+  test_122_report_per_item_undecomposed_column
+  test_123_report_per_role_token_rollup
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

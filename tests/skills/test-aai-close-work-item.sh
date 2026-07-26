@@ -739,6 +739,63 @@ test_013_brief_cleanup_on_close() {
   log_pass "Brief auto-cleanup: closed ref's brief pruned, unrelated brief spared, no-brief close clean (TEST-013)"
 }
 
+# --- token-economics-end-to-end TEST-008/TEST-009 (Spec-AC-06) ---------------
+# best-effort overview-data regen as the STRICTLY LAST step of a successful
+# close (after self-verify + pruneBriefs); a generator failure is swallowed —
+# never changes the close exit code, never reaches rollback (negative
+# control). RED-proof obligation: both are integrity-critical rows.
+
+test_014_overview_regen_best_effort() {  # token-economics TEST-008
+  log_info "Test: a successful close regenerates overview-data.json best-effort and exits 0 (token-economics TEST-008)..."
+  local dir; dir=$(new_fixture_repo "t014")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t014.md" "t014-slug" "draft"
+  commit_fixture_docs "$dir"
+
+  [[ -e "$dir/docs/ai/overview-data.json" ]] \
+    && log_fail "t014: fixture setup bug — overview-data.json must not pre-exist"
+
+  local out="$TEST_DIR/t014.out" err="$TEST_DIR/t014.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t014-slug --pr 14 --commit c0c0c14)
+  assert_exit "close with overview regen" 0 "$code"
+
+  [[ -f "$dir/docs/ai/overview-data.json" ]] \
+    || log_fail "t014: close did not regenerate docs/ai/overview-data.json (Spec-AC-06 best-effort hook)"
+  node -e '
+    const fs = require("fs");
+    const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const hit = m.delivered.find(x => x.ref === "t014-slug");
+    if (!hit) { console.error("t014-slug not present in regenerated delivered list"); process.exit(1); }
+    if (hit.status !== "done") { console.error("regenerated overview shows non-done status: " + hit.status); process.exit(1); }
+  ' "$dir/docs/ai/overview-data.json" || log_fail "t014: regenerated overview-data.json does not reflect the just-closed item"
+
+  log_pass "Successful close regenerates overview-data.json best-effort, closed item present as done, exit 0 (token-economics TEST-008)"
+}
+
+test_015_overview_regen_failure_negative_control() {  # token-economics TEST-009
+  log_info "Test: NEGATIVE CONTROL — a rigged overview-generator failure leaves close exit 0, the doc still done, close events intact (no rollback) (token-economics TEST-009)..."
+  local dir; dir=$(new_fixture_repo "t015")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t015.md" "t015-slug" "draft"
+  commit_fixture_docs "$dir"
+
+  # Rig the generator to fail: put a DIRECTORY where it must write a file, so
+  # generate-overview.mjs's fs.writeFileSync throws EISDIR. No flag/mock
+  # needed -- this exercises the REAL generator failing for real.
+  mkdir -p "$dir/docs/ai/overview-data.json"
+
+  local out="$TEST_DIR/t015.out" err="$TEST_DIR/t015.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t015-slug --pr 15 --commit d0d0d15)
+  assert_exit "close survives a rigged generator failure" 0 "$code"
+
+  grep -q '^status: done$' "$dir/docs/issues/CHANGE-0001-t015.md" \
+    || log_fail "t015: the close itself must NOT be rolled back by a generator failure -- doc must still be done"
+  [[ "$(events_count "$dir/docs/ai/EVENTS.jsonl" work_item_closed t015-slug)" -ge 1 ]] \
+    || log_fail "t015: work_item_closed event must still be present (no rollback triggered by the generator failure)"
+  [[ "$(events_count "$dir/docs/ai/EVENTS.jsonl" doc_lifecycle t015-slug)" -ge 1 ]] \
+    || log_fail "t015: doc_lifecycle event must still be present (no rollback triggered by the generator failure)"
+
+  log_pass "Generator failure is swallowed: close exit 0, doc still done, close events intact, no rollback (token-economics TEST-009)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -763,6 +820,8 @@ main() {
   test_011_inline_nonempty_links_normalized
   test_012_null_fm_id_pre_write_guard
   test_013_brief_cleanup_on_close
+  test_014_overview_regen_best_effort
+  test_015_overview_regen_failure_negative_control
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

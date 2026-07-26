@@ -11,6 +11,22 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: token economics end-to-end — reports and overview read real usage (CHANGE-0063 / SPEC-0089)
+
+- metrics-report now aggregates the canonical usage_total_tokens markers:
+  per-item "agent tokens (undecomposed)" column + a Per-Role Token Rollup
+  (first live read: 35 items, 15.27M tokens; TDD Implementation 4.83M,
+  Planning 3.50M). Tokens only — never a fabricated USD from an
+  undecomposed total.
+- Stakeholder overview shows tokens per delivered feature + grand total,
+  groups Delivered by release (links.members frontmatter) with close-month
+  fallback, and REGENERATES ITSELF at every successful close-work-item run
+  (strictly best-effort — EISDIR-rig proven not to touch the close verdict).
+- New single-source marker helper .aai/scripts/lib/usage-note.mjs (flush,
+  report, overview all import it; grep-contract forbids literal reappearing).
+  Refs: CHANGE-0063, SPEC-0089.
+
+
 ## [unreleased] — feat: friction feedback loop activated — default-on capture + wrap-up triage (CHANGE-0062 / SPEC-0088)
 
 - The RFC-0012 self-improvement loop had complete infrastructure and ZERO

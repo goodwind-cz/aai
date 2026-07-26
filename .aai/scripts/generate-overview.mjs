@@ -19,6 +19,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { extractUsageTotal } from './lib/usage-note.mjs';
 
 const ROOT = process.cwd();
 const SCAN_DIRS = ['docs/issues', 'docs/rfc', 'docs/requirements', 'docs/releases'];
@@ -115,6 +116,59 @@ function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// readReleaseMembers(body) -> array of work-item ref strings from a release
+// doc's ADDITIVE frontmatter `links.members` list (Spec-AC-05, token-economics
+// end-to-end). Backward compatible: a release with no `members:` key (e.g.
+// REL-0001) yields [] and every one of its items takes the close-month
+// fallback path. Supports both inline (`members: [a, b]`) and block
+// (`members:\n  - a\n  - b`) YAML list forms; line-discipline parse, no YAML
+// library (docs/TECHNOLOGY.md), same house style as lib/pricing.mjs.
+function readReleaseMembers(body) {
+  const norm = body.replace(/\r\n?/g, '\n');
+  const fm = norm.match(/^---\n([\s\S]*?)\n---/);
+  if (!fm) return [];
+  const lines = fm[1].split('\n');
+  const linksIdx = lines.findIndex((l) => /^links:\s*$/.test(l));
+  if (linksIdx === -1) return [];
+  let membersIdx = -1;
+  for (let i = linksIdx + 1; i < lines.length; i += 1) {
+    if (/^\S/.test(lines[i])) break; // dedented out of the links: block
+    if (/^ {2}members:/.test(lines[i])) { membersIdx = i; break; }
+  }
+  if (membersIdx === -1) return [];
+  const inline = lines[membersIdx].match(/^ {2}members:\s*\[(.*)\]\s*$/);
+  if (inline) {
+    return inline[1].split(',').map((s) => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+  }
+  const members = [];
+  for (let i = membersIdx + 1; i < lines.length; i += 1) {
+    const m = lines[i].match(/^ {4}-\s*(.+?)\s*$/);
+    if (!m) break;
+    members.push(m[1].replace(/^["']|["']$/g, ''));
+  }
+  return members;
+}
+
+// tokensByRef(metrics) -> Map<ref_id, integer token total>, summing valid
+// usage_total_tokens markers (extractUsageTotal, the SAME shared grammar
+// metrics-flush/metrics-report use) across every run of every METRICS entry
+// for that ref. A ref with NO valid marker anywhere is absent from the map
+// (decorate() reads that absence as null — never a fabricated zero).
+function tokensByRef(metrics) {
+  const map = new Map();
+  for (const m of metrics) {
+    if (!m.ref_id) continue;
+    let sum = 0;
+    let any = false;
+    for (const r of m.agent_runs ?? []) {
+      const t = extractUsageTotal(r.note);
+      if (t !== null) { sum += t; any = true; }
+    }
+    if (any) map.set(m.ref_id, (map.get(m.ref_id) ?? 0) + sum);
+  }
+  return map;
+}
+
 function buildModel() {
   const docs = scanDocs();
   const events = readJsonl('docs/ai/EVENTS.jsonl');
@@ -133,6 +187,7 @@ function buildModel() {
     const secs = (m.agent_runs ?? []).reduce((a, r) => a + (r.duration_seconds || 0), 0);
     effort.set(m.ref_id, (effort.get(m.ref_id) || 0) + secs);
   }
+  const tokens = tokensByRef(metrics);
   const specs = docs.filter(d => d.dir === SPEC_DIR);
   const specsByRef = new Map();
   for (const d of specs) {
@@ -158,6 +213,7 @@ function buildModel() {
       path: d.path,
       closed_on: closeKey ? closedAt.get(closeKey) : null,
       agent_minutes: effort.has(ref) ? Math.round(effort.get(ref) / 60) : null,
+      token_total: tokens.has(ref) ? tokens.get(ref) : null,
       spec: specsByRef.get(ref) ?? specByFilename(ref),
       validation: evidenceFor(ref, 'docs/ai/reports'),
       review: evidenceFor(ref, 'docs/ai/reviews'),
@@ -167,18 +223,53 @@ function buildModel() {
   const delivered = items.filter(d => d.status === 'done').map(decorate)
     .sort((a, b) => String(b.closed_on ?? '').localeCompare(String(a.closed_on ?? '')));
   const inProgress = items.filter(d => ['draft', 'implementing', 'in_progress'].includes(d.status)).map(decorate);
-  const releases = docs.filter(d => d.dir === 'docs/releases').map(decorate);
+  const releaseDocs = docs.filter(d => d.dir === 'docs/releases');
+  const releases = releaseDocs.map(decorate);
+
+  // Spec-AC-05: group Delivered by release membership (additive frontmatter
+  // links.members), close-month fallback for items no release names. Reads
+  // each release doc's raw body again (scanDocs() keeps only parsed fields).
+  const releaseMembership = new Map(); // ref -> {id, title, path}
+  for (const d of releaseDocs) {
+    let body;
+    try { body = fs.readFileSync(path.join(ROOT, d.path), 'utf8'); } catch { continue; }
+    for (const member of readReleaseMembers(body)) {
+      if (!releaseMembership.has(member)) {
+        releaseMembership.set(member, { id: d.id ?? d.file, title: d.title ?? d.id ?? d.file, path: d.path });
+      }
+    }
+  }
+  const groups = new Map(); // key -> {key, kind, label, ref, path, items}
+  for (const d of delivered) {
+    const rel = releaseMembership.get(d.ref);
+    if (rel) {
+      const key = `release:${rel.id}`;
+      if (!groups.has(key)) groups.set(key, { key, kind: 'release', label: rel.title, ref: rel.id, path: rel.path, items: [] });
+      groups.get(key).items.push(d);
+    } else {
+      const month = d.closed_on ? d.closed_on.slice(0, 7) : 'undated';
+      const key = `month:${month}`;
+      if (!groups.has(key)) groups.set(key, { key, kind: 'month', label: month === 'undated' ? 'Undated' : month, items: [] });
+      groups.get(key).items.push(d);
+    }
+  }
+  const releaseGroups = [...groups.values()].filter(g => g.kind === 'release').sort((a, b) => a.label.localeCompare(b.label));
+  const monthGroups = [...groups.values()].filter(g => g.kind === 'month').sort((a, b) => b.label.localeCompare(a.label));
+  const deliveredGroups = [...releaseGroups, ...monthGroups];
+
+  const tokensTotal = delivered.reduce((a, d) => a + (d.token_total ?? 0), 0);
 
   return {
     generatedAt: new Date().toISOString(),
     project: path.basename(ROOT),
-    counts: { delivered: delivered.length, in_progress: inProgress.length, releases: releases.length },
+    counts: { delivered: delivered.length, in_progress: inProgress.length, releases: releases.length, tokens_total: tokensTotal },
     waiting_on_you: state && state.human_required
       ? { question: state.human_question, focus: state.focus_ref }
       : null,
     current_focus: state ? { ref: state.focus_ref, type: state.focus_type } : null,
     in_progress: inProgress,
     delivered,
+    delivered_groups: deliveredGroups,
     releases,
   };
 }
@@ -187,6 +278,7 @@ function itemCard(it) {
   const meta = [
     it.closed_on ? `delivered ${esc(it.closed_on)}` : null,
     it.agent_minutes != null ? `${it.agent_minutes} min agent time` : null,
+    it.token_total != null ? `${it.token_total} tokens` : null,
     esc(it.type),
   ].filter(Boolean).join(' · ');
   const links = [
@@ -208,7 +300,7 @@ function renderHtml(model) {
     ? `<section><h2>In progress (${model.in_progress.length})</h2><ul>${model.in_progress.map(itemCard).join('\n')}</ul></section>`
     : '<section><h2>In progress</h2><p class="meta">Nothing in flight.</p></section>';
   const delivered = model.delivered.length
-    ? `<section><h2>Delivered (${model.delivered.length})</h2><ul>${model.delivered.map(itemCard).join('\n')}</ul></section>`
+    ? `<section><h2>Delivered (${model.delivered.length})</h2>${model.delivered_groups.map(g => `<h3>${esc(g.label)}</h3><ul>${g.items.map(itemCard).join('\n')}</ul>`).join('\n')}</section>`
     : '<section><h2>Delivered</h2><p class="meta">Nothing delivered yet.</p></section>';
   const releases = model.releases.length
     ? `<section><h2>Releases</h2><ul>${model.releases.map(itemCard).join('\n')}</ul></section>`
@@ -244,6 +336,7 @@ function renderHtml(model) {
   <div><b>${model.counts.delivered}</b>delivered</div>
   <div><b>${model.counts.in_progress}</b>in progress</div>
   <div><b>${model.counts.releases}</b>releases</div>
+  <div><b>${model.counts.tokens_total}</b>agent tokens (delivered)</div>
 </div>
 ${waiting}
 ${inProg}

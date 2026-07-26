@@ -82,6 +82,7 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const EVENTS_PATH = path.join(ROOT, 'docs/ai/EVENTS.jsonl');
 const APPEND_EVENT = path.join(SCRIPT_DIR, 'append-event.mjs');
 const GENERATE_INDEX = path.join(SCRIPT_DIR, 'generate-docs-index.mjs');
+const GENERATE_OVERVIEW = path.join(SCRIPT_DIR, 'generate-overview.mjs');
 
 // D3 — flip-eligible statuses. `done` is handled separately (no-op). Every
 // other status (deferred | rejected | superseded | anything unrecognized) is
@@ -316,6 +317,26 @@ function regenerateIndex() {
   }
 }
 
+// --- overview regen (Spec-AC-06, token-economics-end-to-end) -----------------
+//
+// Best-effort regen of the stakeholder overview, invoked as the STRICTLY LAST
+// step of a successful close (after self-verify + pruneBriefs, called from
+// main() only once every write/event/self-verify/brief-prune step has
+// already succeeded). A generator failure here must NEVER change the close
+// exit code and must NEVER reach rollback() -- the close verdict never
+// depends on a report page (negative control: token-economics TEST-009).
+// Unlike regenerateIndex() (which THROWS so self-verify failures still roll
+// back the close), this function swallows every failure itself -- there is
+// no caller left that could roll back by the time it runs.
+function regenerateOverviewBestEffort() {
+  try {
+    if (!fs.existsSync(GENERATE_OVERVIEW)) return;
+    execFileSync('node', [GENERATE_OVERVIEW], { stdio: 'ignore', cwd: ROOT });
+  } catch (err) {
+    process.stderr.write(`close-work-item: INFO overview regen skipped (best-effort, non-fatal): ${err.message}\n`);
+  }
+}
+
 // For each closed ref, assert the REAL audit classifies it tracked-done /
 // aligned with no missing-close-telemetry entry (Spec-AC-02). The audit
 // engine is the oracle — no heuristic is re-implemented here.
@@ -544,6 +565,7 @@ function main() {
   console.log(
     `close-work-item: closed ${refs.join(', ')} (pr #${args.pr}, commit ${args.commit})${briefNote}`
   );
+  regenerateOverviewBestEffort();
   process.exit(0);
 }
 

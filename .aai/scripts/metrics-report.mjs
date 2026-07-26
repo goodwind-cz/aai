@@ -25,6 +25,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadPricing, runCostUsd } from './lib/pricing.mjs';
+import { extractUsageTotal } from './lib/usage-note.mjs';
 
 function fail(msg, code = 2) {
   console.error(`metrics-report: ${msg}`);
@@ -63,6 +64,26 @@ function tokenCell(runs, key) {
   const known = runs.filter(r => typeof r[key] === 'number');
   if (known.length === 0) return 'n/a';
   return String(known.reduce((a, r) => a + r[key], 0));
+}
+
+// Spec-AC-02/03 (token-economics-end-to-end): sum of the canonical
+// usage_total_tokens=<N> marker across `runs`, via the SAME shared
+// lib/usage-note.mjs extractUsageTotal metrics-flush classifies with — a
+// malformed value or a prefixed key never counts (extractUsageTotal returns
+// null for both). 'n/a' when NO run in the group carries a valid marker.
+// TOKENS ONLY — this is never converted to a USD figure (the marker carries
+// no in/out split to price).
+function undecomposedTokenCell(runs) {
+  let sum = 0;
+  let any = false;
+  for (const r of runs) {
+    const t = extractUsageTotal(r.note);
+    if (t !== null) {
+      sum += t;
+      any = true;
+    }
+  }
+  return any ? String(sum) : 'n/a';
 }
 
 function main() {
@@ -108,8 +129,8 @@ function main() {
   out.push('## AAI Metrics Summary');
   out.push('');
   out.push('### Per Work Item');
-  out.push('| ref_id | title | human (min) | agent (sec) | cost USD | leverage | verdict |');
-  out.push('|--------|-------|-------------|-------------|----------|----------|---------|');
+  out.push('| ref_id | title | human (min) | agent (sec) | cost USD | agent tokens (undecomposed) | leverage | verdict |');
+  out.push('|--------|-------|-------------|-------------|----------|------------------------------|----------|---------|');
   let totalHuman = 0;
   let totalAgent = 0;
   let passCount = 0;
@@ -122,7 +143,7 @@ function main() {
     if (verdict === 'PASS') passCount += 1;
     totalHuman += human;
     totalAgent += agent;
-    out.push(`| ${e.ref_id ?? 'n/a'} | ${e.title ?? 'n/a'} | ${human} | ${agent} | ${costCell(e._runs)} | ${leverage} | ${verdict} |`);
+    out.push(`| ${e.ref_id ?? 'n/a'} | ${e.title ?? 'n/a'} | ${human} | ${agent} | ${costCell(e._runs)} | ${undecomposedTokenCell(e._runs)} | ${leverage} | ${verdict} |`);
   }
   out.push('');
   out.push('Note: "~" prefix on cost means partial (some runs had null token data).');
@@ -147,6 +168,21 @@ function main() {
     const runs = byModel.get(id);
     out.push(`| ${id} | ${runs.length} | ${tokenCell(runs, 'tokens_in')} | ${tokenCell(runs, 'tokens_out')} | ${costCell(runs)} |`);
   }
+  out.push('');
+  out.push('### Per-Role Token Rollup');
+  out.push('| role | agent tokens (undecomposed) |');
+  out.push('|------|------------------------------|');
+  const byRole = new Map();
+  for (const r of allRuns) {
+    const role = typeof r.role === 'string' && r.role !== '' ? r.role : 'unknown';
+    if (!byRole.has(role)) byRole.set(role, []);
+    byRole.get(role).push(r);
+  }
+  for (const role of [...byRole.keys()].sort()) {
+    out.push(`| ${role} | ${undecomposedTokenCell(byRole.get(role))} |`);
+  }
+  out.push('');
+  out.push('Note: undecomposed tokens are display-only — never converted to a USD figure (the marker carries no in/out split to price).');
   out.push('');
   out.push('### Per-Strategy Reliability');
   out.push('| strategy | items | first-pass clean | avg validation fails | avg review fails | avg remediations |');
