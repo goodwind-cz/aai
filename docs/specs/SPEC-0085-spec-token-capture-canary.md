@@ -2,13 +2,15 @@
 id: spec-token-capture-canary
 type: spec
 number: 85
-status: draft
+status: done
 ceremony_level: 3
 links:
   requirement: docs/issues/CHANGE-0058-token-capture-canary.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 158
+  commits:
+    - b2d8041ed1da2dfe50ec0c71cab870f966552f37
 ---
 
 # Implementation Spec — Token-Capture Canary (make silent telemetry-capture gaps loud)

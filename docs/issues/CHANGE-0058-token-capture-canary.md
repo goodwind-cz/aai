@@ -2,10 +2,12 @@
 id: token-capture-canary
 number: 58
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 158
+  commits:
+    - b2d8041ed1da2dfe50ec0c71cab870f966552f37
 ---
 
 # Change — Token-Capture Canary (make silent telemetry-capture gaps loud)

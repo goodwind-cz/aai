@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-26T14:21:35.695Z
+Generated: 2026-07-26T14:22:35.846Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (188)
+## Done (190)
 
 | ID | Type | Path |
 |---|---|---|
@@ -78,6 +78,7 @@ _None._
 | CHANGE-0055 | issues | docs/issues/CHANGE-0055-umbrella-progress-rollup.md |
 | CHANGE-0056 | issues | docs/issues/CHANGE-0056-closeout-display-id-match.md |
 | CHANGE-0057 | issues | docs/issues/CHANGE-0057-docs-rollup-userguide.md |
+| CHANGE-0058 | issues | docs/issues/CHANGE-0058-token-capture-canary.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -208,14 +209,12 @@ _None._
 | SPEC-0082 | specs | docs/specs/SPEC-0082-spec-feedback-upsert-review.md |
 | SPEC-0083 | specs | docs/specs/SPEC-0083-spec-reaper-test-018-etime-shape-guard.md |
 | SPEC-0084 | specs | docs/specs/SPEC-0084-spec-friction-feedback-discovery.md |
+| SPEC-0085 | specs | docs/specs/SPEC-0085-spec-token-capture-canary.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0058 | issues | docs/issues/CHANGE-0058-token-capture-canary.md |
-| SPEC-0085 | specs | docs/specs/SPEC-0085-spec-token-capture-canary.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
