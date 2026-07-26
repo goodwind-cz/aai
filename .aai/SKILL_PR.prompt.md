@@ -196,6 +196,10 @@ PROCESS
      staging discipline of steps 2-4 is unchanged for remediation commits.
    - Wait for the CI re-run and repeat this sweep ONCE for NEW comments
      before declaring merge-ready.
+   - FRICTION HOOK (canon-file gate/lint/CI failure handled, default-on): when
+     a CI check or bot finding here surfaces an AAI-owned defect, best-effort
+     record it per .aai/system/FRICTION_PROTOCOL.md "Deterministic hook
+     points" (schema v2); swallow any capture failure, never block the sweep.
    - Merge boundary unchanged: this step never merges.
 
 6. MERGE BOUNDARY (hard rule):

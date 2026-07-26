@@ -150,10 +150,19 @@ PROCESS
       --red <log>` on the scope's recorded RED log(s); infra_fail or
       unclassified NEW evidence is not RED-proof. Legacy logs (pre-change, no
       RED_CLASS line) keep today's by-eye spot-check.
+   h) FRICTION HOOK (canon-file gate/lint/CI failure, default-on): when a gate,
+      lint, or CI check fails on an AAI-owned canon file during discovery,
+      best-effort record it per `.aai/system/FRICTION_PROTOCOL.md` "Skill
+      wiring (shadow capture)" -> "Deterministic hook points" (schema v2);
+      swallow any capture failure, never let it affect this step's outcome.
 6) Build coverage table.
 7) Run AC STATUS GATE (see section above) and record any blocking findings.
 7b) Apply the `.aai/SKILL_VERIFY.prompt.md` gate before producing any verdict.
 8) Produce PASS / FAIL verdict. PASS requires both (a) all test suites green and (b) AC STATUS GATE clear.
+   FRICTION HOOK (validation FAIL recorded, default-on): on a FAIL verdict,
+   best-effort record it per `.aai/system/FRICTION_PROTOCOL.md` "Deterministic
+   hook points" (schema v2); swallow any capture failure, never let it change
+   the verdict.
 8a) For each Spec-AC that moved to `done` during this validation (Evidence column populated), append an `ac_evidence` event to docs/ai/EVENTS.jsonl via:
     node .aai/scripts/append-event.mjs --event ac_evidence --ref SPEC-XXXX/Spec-AC-YY --commit <sha-or-RUN_ID>
     EXCEPTION: if the doc's frontmatter `status` is still open (`draft`/`implementing`) and its only matchable ref is the slug `id` (no numbered `fileId` yet), do NOT emit this event now — the slug ref unconditionally trips the probable-false-open heuristic's Arm A and would self-flag the still-open doc. Record the per-AC evidence in the validation report instead and defer emission to the close ceremony (step 8b), once `status` has flipped to `done`. Numbered docs and already-`done` docs are unaffected.

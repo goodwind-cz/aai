@@ -11,6 +11,23 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: friction feedback loop activated — default-on capture + wrap-up triage (CHANGE-0062 / SPEC-0088)
+
+- The RFC-0012 self-improvement loop had complete infrastructure and ZERO
+  data (recall-dependent seam; planning root-caused all four of this
+  session's real frictions as predictably missed). Capture is now the
+  DEFAULT action at four deterministic hook points: validation FAIL,
+  remediation dispatch, canon-file gate/lint/CI failure, and canon-surface
+  check failure during implementation (the headroom-cap-trap class, added
+  as the validation R2 disposition).
+- SKILL_WRAP_UP step 6: a non-empty spool ALWAYS yields the offline triage
+  report + proposed-intake one-liners; empty spool stays silent. Capture
+  remains best-effort and never touches a primary exit code (negative
+  controls TEST-011/016).
+- First real observation recorded (prompt-diet headroom-cap trap) — the
+  loop finally has data. Ledger +1881+453 B itemized (pin 30139).
+  Refs: CHANGE-0062, SPEC-0088.
+
 ## [unreleased] — refactor: subagent contract split — per-dispatch payload slimmed (CHANGE-0061 / SPEC-0087)
 
 - New `.aai/SUBAGENT_CONTRACT.md` (58 lines): the ONLY per-dispatch payload a

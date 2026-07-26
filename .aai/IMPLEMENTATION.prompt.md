@@ -138,6 +138,13 @@ RATIONALIZATION TABLE (stop and correct any of these)
 VERIFICATION-BEFORE-COMPLETION RULE
 Before reporting any task as complete, apply the gate in `.aai/SKILL_VERIFY.prompt.md` (IDENTIFY→RUN→READ→VERIFY→CLAIM). If you cannot run commands: state explicitly "NOT VERIFIED — shell access unavailable" and let Validation own the verdict.
 
+FRICTION HOOK (canon-surface check failure during implementation, default-on):
+when a test suite, gate, lint, or accounting check (e.g. the prompt-diet
+ledger/headroom guard) FAILS on an AAI-owned canon surface mid-implementation,
+best-effort record it per `.aai/system/FRICTION_PROTOCOL.md` "Skill wiring
+(shadow capture)" -> "Deterministic hook points" (schema v2); swallow any
+capture failure, never let it affect the implementation step's outcome.
+
 STRICT RULES
 - If spec gaps are found, stop and return scope to Planning instead of improvising.
 - Keep changes minimal and scoped.
