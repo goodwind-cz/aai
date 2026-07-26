@@ -173,7 +173,10 @@ test_003_role_carveout_canon() {
       || log_fail "TEST-003: $n.prompt.md must carry a pointer naming .aai/ROLE_COMMON.md"
     # The role value must sit ON the pointer line itself — a bare occurrence
     # elsewhere in the prompt must not satisfy this check (PR #159 bot review).
-    grep -F "ROLE_COMMON.md" "$f" | grep -qF "(role: $r)" \
+    # Both unquoted and quoted forms are canonical: ROLE_COMMON.md itself
+    # mandates quoting when the role value contains a space (TDD Implementation).
+    { grep -F "ROLE_COMMON.md" "$f" | grep -qF "(role: $r)"; } \
+      || { grep -F "ROLE_COMMON.md" "$f" | grep -qF "(role: \"$r\")"; } \
       || log_fail "TEST-003: $n.prompt.md pointer line must name its own --role value as '(role: $r)'"
     grep -qF 'Subagent-mode carve-out' "$f" \
       && log_fail "TEST-003: $n.prompt.md must NOT re-inline the 'Subagent-mode carve-out' body (it must live only in ROLE_COMMON.md)"
