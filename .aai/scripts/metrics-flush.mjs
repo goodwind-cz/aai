@@ -422,12 +422,15 @@ function buildEntry(entry, ctx) {
     // note matching the canonical usage_total_tokens=<digits> grammar ->
     // undecomposed-note (one INFO line, cost unattributable BY DESIGN — the
     // harness never exposed the split); else -> capture-missing (one WARNING
-    // line — the harness observed a total and it was silently dropped). A
-    // malformed/non-numeric usage_total_tokens= value does NOT match \d+ and
-    // falls through to capture-missing on purpose (a malformed note is not an
-    // honest total).
+    // line — the harness observed a total and it was silently dropped). The
+    // marker must be the COMPLETE canonical token, delimited on both sides:
+    // a malformed value (usage_total_tokens=123oops) or a prefixed key
+    // (not_usage_total_tokens=456) falls through to capture-missing on
+    // purpose — a malformed note is not an honest total (PR #158 bot review).
     if (tokensIn === null || tokensOut === null) {
-      const noteMatch = typeof r.note === 'string' ? r.note.match(/usage_total_tokens=(\d+)/) : null;
+      const noteMatch = typeof r.note === 'string'
+        ? r.note.match(/(?:^|[\s"'(\[])usage_total_tokens=(\d+)(?=$|[\s"'),\].;])/)
+        : null;
       if (noteMatch) {
         warnings.push(`INFO ${entry.ref} run ${r.role} (${r.model_id ?? 'unknown'}): undecomposed total ${noteMatch[1]} observed; cost unattributable by design`);
       } else {

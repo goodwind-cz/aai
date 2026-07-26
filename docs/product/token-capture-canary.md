@@ -2,7 +2,7 @@
 id: token-capture-canary
 type: product
 status: current
-spec: docs/specs/SPEC-DRAFT-spec-token-capture-canary.md
+spec: docs/specs/SPEC-0085-spec-token-capture-canary.md
 updated: 2026-07-26
 ---
 
@@ -62,6 +62,7 @@ LOOP_TICKS.jsonl shapes are byte-compatible with prior records.
 
 ## Links
 
-- Request: docs/issues/CHANGE-DRAFT-token-capture-canary.md
-- Spec: docs/specs/SPEC-DRAFT-spec-token-capture-canary.md
+- Request: docs/issues/CHANGE-0058-token-capture-canary.md
+- Spec: docs/specs/SPEC-0085-spec-token-capture-canary.md
 - Validation evidence: docs/ai/reports/validation-token-capture-canary-20260726T131158Z.md
+  (local runtime artifact, not committed; summarized with suite counts in PR #158)

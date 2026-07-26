@@ -904,7 +904,7 @@ function cmdLogTick(state, flags, ticksPath) {
     validation_status_after: validationNow,
     orchestration_mode: modeNow,
     orchestration_k: kNow,
-    harness_version: harness ?? 'unknown',
+    harness_version: (harness === undefined || String(harness).trim() === '') ? 'unknown' : harness,
   };
   // Optional usage/leak fields ONLY when their flag was passed — the helper
   // never fabricates usage (D7).
@@ -922,11 +922,11 @@ function cmdLogTick(state, flags, ticksPath) {
   // Mirrors the append-run warn-on-null-tokens teeth (line ~798 above).
   if (duration === 0) {
     console.error(`state: log-tick: WARNING duration_seconds is 0 for tick ${tick} role=${role} scope=${scope} `
-      + '— started==ended (a bogus/late-captured --started collapses the tick to zero duration)');
+      + '— the computed duration rounded to zero (a sub-second tick, or a bogus/late-captured --started passed at log time instead of the real role start)');
   }
-  if (harness === undefined) {
-    console.error(`state: log-tick: WARNING harness_version is "unknown" for tick ${tick} role=${role} scope=${scope} `
-      + '— pass --harness so a behavior regression can be correlated with a harness upgrade');
+  if (harness === undefined || String(harness).trim() === '') {
+    console.error(`state: log-tick: WARNING harness_version recorded as "unknown" for tick ${tick} role=${role} scope=${scope} `
+      + '— pass a non-empty --harness so a behavior regression can be correlated with a harness upgrade');
   }
   console.log(`state: log-tick appended to ${ticksPath}: ${JSON.stringify(entry)}`);
 }

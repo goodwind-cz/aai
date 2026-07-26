@@ -7,8 +7,8 @@ generated_utc: 2026-07-26T13:48:08Z
 
 ```yaml
 review:
-  scope: "git diff main (working tree) — inline_review_scope: .aai/scripts/metrics-flush.mjs, .aai/scripts/state.mjs, .aai/SUBAGENT_PROTOCOL.md, .aai/SKILL_LOOP.prompt.md, tests/skills/test-aai-metrics.sh, tests/skills/test-aai-token-capture.sh, tests/skills/lib/prompt-diet-ledger.sh, tests/skills/test-aai-prompt-diet.sh, tests/skills/test-aai-hitl-propagation.sh, tests/skills/test-aai-tdd-evidence.sh, docs/specs/SPEC-DRAFT-spec-token-capture-canary.md, docs/issues/CHANGE-DRAFT-token-capture-canary.md, docs/INDEX.md"
-  spec: docs/specs/SPEC-DRAFT-spec-token-capture-canary.md (ceremony_level 3, SPEC-FROZEN:true)
+  scope: "git diff main (working tree) — inline_review_scope: .aai/scripts/metrics-flush.mjs, .aai/scripts/state.mjs, .aai/SUBAGENT_PROTOCOL.md, .aai/SKILL_LOOP.prompt.md, tests/skills/test-aai-metrics.sh, tests/skills/test-aai-token-capture.sh, tests/skills/lib/prompt-diet-ledger.sh, tests/skills/test-aai-prompt-diet.sh, tests/skills/test-aai-hitl-propagation.sh, tests/skills/test-aai-tdd-evidence.sh, docs/specs/SPEC-0085-spec-token-capture-canary.md, docs/issues/CHANGE-0058-token-capture-canary.md, docs/INDEX.md"
+  spec: docs/specs/SPEC-0085-spec-token-capture-canary.md (ceremony_level 3, SPEC-FROZEN:true)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -48,8 +48,8 @@ review:
 # Code Review — token-capture-canary (dual verdict)
 
 - Scope: uncommitted working tree on `feat/token-capture-canary` vs `main` (inline mode per STATE `worktree.user_decision: inline`, scope list above).
-- Spec: `docs/specs/SPEC-DRAFT-spec-token-capture-canary.md` (ceremony_level 3, SPEC-FROZEN:true, hybrid).
-- Intake: `docs/issues/CHANGE-DRAFT-token-capture-canary.md`.
+- Spec: `docs/specs/SPEC-0085-spec-token-capture-canary.md` (ceremony_level 3, SPEC-FROZEN:true, hybrid).
+- Intake: `docs/issues/CHANGE-0058-token-capture-canary.md`.
 - Anti-gaming note: the dispatch supplied scope + spec + the validation report only; it did not pre-characterize findings or pre-rate severity beyond flagging the L3 protected surface (state.mjs) and asking for correctness-not-style focus, which is compatible with the anti-gaming contract. Full scope reviewed.
 
 ## Verdict 1 — spec_compliance: PASS
