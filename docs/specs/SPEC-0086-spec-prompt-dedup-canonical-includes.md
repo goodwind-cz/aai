@@ -2,13 +2,15 @@
 id: spec-prompt-dedup-canonical-includes
 type: spec
 number: 86
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: prompt-dedup-canonical-includes
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 159
+  commits:
+    - bd4142d7bdbb316f4fd329b7d45698be435c7356
 ---
 
 # Implementation Spec — Prompt dedup: canonical sources for ceremony rules, AC gate, and role boilerplate

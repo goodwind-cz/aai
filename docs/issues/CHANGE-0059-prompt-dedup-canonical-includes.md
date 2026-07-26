@@ -2,10 +2,12 @@
 id: prompt-dedup-canonical-includes
 number: 59
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 159
+  commits:
+    - bd4142d7bdbb316f4fd329b7d45698be435c7356
 ---
 
 # Change — Prompt dedup: single canonical sources for ceremony rules, AC gate, and role boilerplate
