@@ -173,7 +173,7 @@ product_red-classified.
    - Delegate GREEN implementation to a subagent using the expert body
      wrapped in AAI constraints (see `.aai/EXPERT_RESOLVE.prompt.md` Step 5)
    - The expert receives: failing test names, expected behavior, TECHNOLOGY.md constraints
-   - The expert MUST return a result block per `.aai/SUBAGENT_PROTOCOL.md`
+   - The expert MUST return a result block per `.aai/SUBAGENT_CONTRACT.md`
    - If fetch fails or no match, implement without expert (graceful degradation)
 
 0b. **Python Monty Scratchpad (optional)** — pre-implementation only.

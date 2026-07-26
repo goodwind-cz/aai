@@ -39,7 +39,7 @@ PARALLELISM RULES
 SCOPE LOCKING (atomic, mechanical — RFC-0004 / SPEC-0004)
 - The orchestrator is the SINGLE writer of `docs/ai/STATE.yaml`. Subagents NEVER
   write STATE; they return a result block and you merge it (see
-  `.aai/SUBAGENT_PROTOCOL.md`, Single-writer rule).
+  `.aai/SUBAGENT_CONTRACT.md`, Single-writer rule).
 - BEFORE dispatching a role for a scope, ACQUIRE the scope lock:
   `node .aai/scripts/docs-lock.mjs acquire <scope> <owner>`
   - exit 0 => lock held by you; dispatch the workstream.
@@ -134,9 +134,9 @@ When the platform supports concurrent subagent spawning:
    - Model: per MODEL SELECTION above (explicit id or mechanical | standard |
      premium tier); for Validation, a model DIFFERENT from the implementer's
      recorded model (VALIDATOR INDEPENDENCE)
-   - Context: scope, inputs, and a copy of .aai/SUBAGENT_PROTOCOL.md
+   - Context: scope, inputs, and a copy of .aai/SUBAGENT_CONTRACT.md
    Remind the subagent it MUST NOT write docs/ai/STATE.yaml (single-writer rule).
-2. Each subagent MUST return a result block as defined in .aai/SUBAGENT_PROTOCOL.md.
+2. Each subagent MUST return a result block as defined in .aai/SUBAGENT_CONTRACT.md.
 3. DO NOT report to the user until ALL subagent result blocks are collected.
 4. Apply the merge protocol from .aai/SUBAGENT_PROTOCOL.md — you are the sole
    writer of docs/ai/STATE.yaml.

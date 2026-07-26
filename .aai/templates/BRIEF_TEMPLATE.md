@@ -32,9 +32,9 @@ path — lifted from the spec's Verification section.
 
 ## Return Record
 Fill this skeleton and return it as your result block — do not invent another
-format. Single source: .aai/SUBAGENT_PROTOCOL.md section
-"Result block (mandatory subagent output)"; if this skeleton and the protocol
-ever diverge, the protocol wins (re-sync the template).
+format. Single source: .aai/SUBAGENT_CONTRACT.md section
+"Result block (mandatory subagent output)"; if this skeleton and the contract
+ever diverge, the contract wins (re-sync the template).
 
 ```yaml
 subagent_result:

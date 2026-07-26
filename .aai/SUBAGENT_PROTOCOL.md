@@ -3,6 +3,11 @@
 This document defines the contract for spawning, running, and merging subagent work.
 All agents that support parallelism MUST follow this protocol.
 
+`.aai/SUBAGENT_CONTRACT.md` is the per-dispatch payload — the ~60-line duty
+sheet (result block, timing, single-writer core) every spawned subagent
+actually receives. This document is the ORCHESTRATOR-side material: read it
+if you are the dispatching side, not a dispatched unit.
+
 ## When to decompose
 
 An agent MAY spawn subagents when:
@@ -25,7 +30,7 @@ Each subagent call MUST specify all of the following:
 | `SCOPE` | Single file / module / requirement group — never overlapping with other subagents |
 | `MODEL` | REQUIRED (CHANGE-0010 D1) — an explicit model id (preferred, e.g. `claude-haiku-4-5`) or a tier (`mechanical \| standard \| premium`) when the platform maps tiers itself. Right-size per the MODEL SELECTION tiering in the orchestration prompts. For a Validation dispatch it MUST differ from the implementer's recorded model (see "Spawning a validator" below) |
 | `INPUT` | All context the subagent needs — do NOT rely on inherited ambient state |
-| `EXPECTED_OUTPUT` | A result block (see below) |
+| `EXPECTED_OUTPUT` | A result block (see `.aai/SUBAGENT_CONTRACT.md`) |
 | `SYSTEM_PROMPT` | The canonical role prompt from `ai/<ROLE>.prompt.md` |
 
 ### Work-item brief handoff (default INPUT)
@@ -37,10 +42,11 @@ DEFAULTS to the brief path plus the diff scope — the brief is self-contained
 subagent does not re-read the full spec + canon cold. Degrade clause: when no
 brief exists for the ref, fall back to the spec path + requirement/intake
 paths as before — never block a dispatch on a missing brief. The brief's
-Return Record section is the "Result block (mandatory subagent output)" below,
-verbatim (single source: that section wins on any divergence); the subagent
-fills it instead of inventing its own report format. Briefs are gitignored
-runtime artifacts — cite them in dispatches, never commit them.
+Return Record section is `.aai/SUBAGENT_CONTRACT.md`'s "Result block (mandatory
+subagent output)" section, verbatim (single source: that section wins on any
+divergence); the subagent fills it instead of inventing its own report format.
+Briefs are gitignored runtime artifacts — cite them in dispatches, never
+commit them.
 
 ## Review dispatch anti-gaming rules (RFC single-dual-verdict-review)
 
@@ -90,8 +96,9 @@ the write under `independence: enforce` in docs/ai/docs-audit.yaml).
 - **In-session agentic harness (e.g. Claude Code):** call the host's agent/task
   tool to spawn a subagent. Pass the validation prompt + INPUT as the task, and set
   the per-subagent model override to a model other than the implementer's. The
-  subagent runs in its own fresh context by construction and returns the result
-  block below. The parent loop only merges the verdict — it does not re-judge.
+  subagent runs in its own fresh context by construction and returns the
+  result block (`.aai/SUBAGENT_CONTRACT.md`). The parent loop only merges the
+  verdict — it does not re-judge.
 - **Other in-session hosts (Codex, Gemini, …):** use that host's subagent/task
   primitive with the same INPUT contract and a distinct model where available.
 - **Headless / CLI runner:** run validation as a SEPARATE process — ideally a
@@ -101,33 +108,6 @@ the write under `independence: enforce` in docs/ai/docs-audit.yaml).
 - **No subagent/process isolation available (fallback):** clear/reset context, then
   run validation re-reading ONLY the artifacts above. Record "validator shared
   context with implementer" as a residual risk that lowers confidence in the PASS.
-
-## Result block (mandatory subagent output)
-
-Every subagent MUST return a result block in this exact YAML format:
-
-```yaml
-subagent_result:
-  scope: <scope id or path>
-  role: <Implementation | Validation | Planning | Research>
-  status: PASS | FAIL | BLOCKED
-  started_utc: <ISO 8601 UTC captured from system clock>
-  ended_utc: <ISO 8601 UTC captured from system clock>
-  duration_seconds: <integer = ended_utc - started_utc>
-  evidence:
-    - command: <shell command or verification step>
-      exit_code: <int>
-      output_snippet: <first 200 chars of relevant output>
-  files_changed:
-    - <relative path>
-  blockers:
-    - <description of any blocker; empty list if none>
-```
-
-Timing capture rules:
-- Capture `started_utc` and `ended_utc` from the runtime system clock (`date -u` / `Get-Date ...ToUniversalTime()`), never from model estimation.
-- Use UTC ISO-8601 with explicit `Z` or `+00:00`.
-- `duration_seconds` MUST match `ended_utc - started_utc` (tolerance +/-1s).
 
 ## Harness-reported usage capture
 
@@ -157,18 +137,16 @@ Token usage is captured ONLY from the harness-level result visible to the dispat
 
 ## Single-writer rule (HARD — RFC-0004 / SPEC-0004 D7)
 
-A dispatched subagent **MUST NOT write `docs/ai/STATE.yaml`**. The orchestrator
-is the **SOLE STATE writer**. A subagent returns its result block (below) and
-nothing more; the orchestrator merges that block and performs every mutation of
-`docs/ai/STATE.yaml` through the merge protocol. This closes the lost-update race
-that occurs the moment K >= 2 subagents touch `STATE.yaml` directly.
-
-What a subagent MAY write: its own scoped source/test files, append-only evidence
-under `docs/ai/tdd/`, and `docs/ai/EVENTS.jsonl` via `append-event.mjs` (the
-append-only, commutative audit log). What it MUST NOT write: `docs/ai/STATE.yaml`
-(orchestrator-only). The orchestrator additionally serializes scope ownership with
-the atomic lock CLI `.aai/scripts/docs-lock.mjs` (acquire before dispatch, release
-after merge) so two orchestrators cannot drive the same scope concurrently.
+The orchestrator is the SOLE writer of `docs/ai/STATE.yaml`; a subagent returns
+its result block and nothing more, and the orchestrator merges that block and
+performs every mutation of `docs/ai/STATE.yaml` through the merge protocol
+below. This closes the lost-update race that occurs the moment K >= 2
+subagents touch `STATE.yaml` directly. The subagent-facing core of this rule
+(the no-write duty, the allowed-write list, its rationalization rows) is in
+`.aai/SUBAGENT_CONTRACT.md`. The orchestrator additionally serializes scope
+ownership with the atomic lock CLI `.aai/scripts/docs-lock.mjs` (acquire
+before dispatch, release after merge — see ORCHESTRATION_PARALLEL "SCOPE
+LOCKING") so two orchestrators cannot drive the same scope concurrently.
 
 Honesty note: this is a protocol rule binding an LLM subagent, so it is partly
 process, not a hard runtime guard. The mechanically enforced core is (a) the
@@ -176,12 +154,10 @@ process, not a hard runtime guard. The mechanically enforced core is (a) the
 and (b) the merge protocol. A runtime `git diff`-based STATE-mutation guard is a
 recommended follow-up (residual risk R-GUARD), not yet built.
 
-### Single-writer rationalization table (stop and correct any of these)
+### Orchestrator lock-serialization rationalization table (stop and correct any of these)
 
 | Rationalization                                          | Reality                                                                 |
-|---------------------------------------------------------|-------------------------------------------------------------------------|
-| "My update to STATE.yaml is tiny, I'll just write it"   | Subagents MUST NOT write `docs/ai/STATE.yaml`. Return a result block; the orchestrator is the sole writer. |
-| "I'll write STATE so the orchestrator doesn't have to"  | Direct subagent STATE writes race and lose updates at K >= 2. That is exactly the bug this rule removes. |
+|-----------------------------------------------------------|-------------------------------------------------------------------------|
 | "I acquired nothing, the scope was obviously free"      | Always `docs-lock acquire <scope> <owner>` before working a scope; a free-looking scope can be claimed concurrently. |
 | "I'm done, I'll leave the lock for cleanup/TTL"         | Release explicitly after merge (`docs-lock release <scope> <owner>`); TTL reclaim is a crash safety net, not the normal path. |
 

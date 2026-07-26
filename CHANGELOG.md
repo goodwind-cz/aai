@@ -11,8 +11,19 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat: SKILL_PR step 5d — post-open bot-review sweep before merge-readiness (CHANGE-0060)
+## [unreleased] — refactor: subagent contract split — per-dispatch payload slimmed (CHANGE-0061 / SPEC-0087)
 
+- New `.aai/SUBAGENT_CONTRACT.md` (58 lines): the ONLY per-dispatch payload a
+  spawned subagent receives — result block + timing rules, single-writer
+  duty, allowed-write list, self-report-usage prohibition. The 223-line
+  SUBAGENT_PROTOCOL.md becomes orchestrator-side only (merge protocol,
+  review anti-gaming, validator spawning, harness-usage capture) — a unit
+  no longer pays ~2k words for ~400 words of duty, 4-6 times per work item.
+- Validation FAIL round earned its keep: caught IMPLEMENTATION.prompt.md:121
+  still injecting the full protocol into parallel unit payloads + two
+  dangling result-block refs; remediated and permanently pinned by an
+  extended hygiene TEST-082. Refs: CHANGE-0061, SPEC-0087.
+## [unreleased] — feat: SKILL_PR step 5d — post-open bot-review sweep before merge-readiness (CHANGE-0060)
 - Codifies the PR-level review-response discipline as canon: after
   `gh pr create` + CI, poll bot inline comments (they never appear in
   `gh pr checks`), fix legitimate findings on the same branch or rebut them
