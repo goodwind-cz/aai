@@ -1979,7 +1979,7 @@ metrics-gated capability and is locked today.
 
 ## Docs health & umbrella progress (docs-audit)
 
-`node .aai/scripts/docs-audit.mjs` reports the health of the `docs/` layer. Two
+`node .aai/scripts/docs-audit.mjs` reports the health of the `docs/` layer. Three
 surfaces are worth knowing:
 
 **Rollout progress.** An in-flight umbrella (an RFC or PRD with child specs) shows
