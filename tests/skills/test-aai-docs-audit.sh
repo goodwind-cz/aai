@@ -1398,6 +1398,22 @@ test_closeout_rollout_guard() {  # CHANGE-0056 Spec-AC-02
   log_pass "Rollout-Status guard withholds close on an umbrella with pending phases"
 }
 
+test_rollout_status_pipe_styles() {  # CHANGE-0056 Spec-AC-02 (Codex P2)
+  log_info "Test: hasUnfinishedRolloutPhases parses Rollout tables WITH and WITHOUT outer pipes (CHANGE-0056)..."
+  local out
+  out=$(cd "$PROJECT_ROOT" && node --input-type=module -e '
+    import { hasUnfinishedRolloutPhases } from "./.aai/scripts/lib/docs-audit-core.mjs";
+    const outer = "## Rollout Status\n\n| Phase | Status | By |\n|---|---|---|\n| 0 | done | x |\n| 1 | not started | — |\n";
+    const noOuter = "## Rollout Status\n\nPhase | Status | By\n--- | --- | ---\n0 | done | x\n1 | not started | —\n";
+    const allDone = "## Rollout Status\n\nPhase | Status | By\n--- | --- | ---\n0 | done | x\n1 | done | y\n";
+    const none = "## Other\n\n| a | b |\n|---|---|\n| 1 | 2 |\n";
+    console.log([hasUnfinishedRolloutPhases(outer), hasUnfinishedRolloutPhases(noOuter), hasUnfinishedRolloutPhases(allDone), hasUnfinishedRolloutPhases(none)].join(","));
+  ')
+  [[ "$out" == "true,true,false,false" ]] \
+    || log_fail "hasUnfinishedRolloutPhases pipe-style handling wrong: got [$out], want [true,true,false,false]"
+  log_pass "Rollout Status parsed with and without outer pipes; all-done and no-table -> false"
+}
+
 # --- Rollout progress rollup (CHANGE-0055): done/total children per in-flight parent ---
 
 # Parent RFC with a SLUG frontmatter id (like real RFCs — id != display id) and
@@ -5255,6 +5271,7 @@ main() {
   test_closeout_forward_nonspec_not_flagged
   test_closeout_display_id_match
   test_closeout_rollout_guard
+  test_rollout_status_pipe_styles
   setup_rollout_fixture
   test_rollout_progress_partial
   test_rollout_progress_summary_line

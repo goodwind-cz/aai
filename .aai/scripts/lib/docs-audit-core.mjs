@@ -1194,8 +1194,14 @@ export function hasUnfinishedRolloutPhases(content) {
     if (/^##\s/.test(raw)) { inSection = /^##\s+Rollout Status\s*$/i.test(raw); statusIdx = -1; sawHeader = false; continue; }
     if (!inSection) continue;
     const line = raw.trim();
-    if (!line.startsWith('|')) continue;
-    const cells = line.split('|').slice(1, -1).map((c) => c.trim());
+    if (!line.includes('|')) continue;   // a pipe-table row (outer pipes optional)
+    let parts = line.split('|');
+    // Drop the empty edge cells ONLY when the row carries outer pipes, so a table
+    // written WITHOUT them (`Phase | Status | ...`) parses identically (PR #155
+    // review, Codex P2).
+    if (line.startsWith('|')) parts = parts.slice(1);
+    if (line.endsWith('|')) parts = parts.slice(0, -1);
+    const cells = parts.map((c) => c.trim());
     if (cells.every((c) => /^[-:\s]*$/.test(c))) continue;   // separator row (---)
     if (!sawHeader) { statusIdx = cells.map((c) => c.toLowerCase()).indexOf('status'); sawHeader = true; continue; }
     if (statusIdx < 0) continue;
@@ -1214,10 +1220,13 @@ export function hasUnfinishedRolloutPhases(content) {
 // its body declares no unfinished Rollout Status phase (else all-specs-done is a
 // FALSE close signal for an umbrella with not-yet-spec'd phases).
 export function closeoutCandidatesFor(docs) {
+  // Slug id keeps SPEC-0057's last-writer-wins on a duplicate id; the numbered
+  // display id is added ONLY as an alias for a still-free key, so display-id
+  // resolution never changes which doc a colliding slug id resolves to (PR #155
+  // review, Copilot).
   const byId = new Map();
-  for (const d of docs) {
-    for (const k of [d.id, d.fileId].filter(Boolean)) if (!byId.has(k)) byId.set(k, d);
-  }
+  for (const d of docs) { if (d.id) byId.set(d.id, d); }
+  for (const d of docs) { if (d.fileId && !byId.has(d.fileId)) byId.set(d.fileId, d); }
   const docType = (d) => String(d.fm?.type ?? '').toLowerCase();
   const out = [];
   for (const parent of docs) {
@@ -1266,10 +1275,10 @@ export function parentProgressFor(docs) {
   // Index by BOTH the slug id AND the numbered display id (fileId): a child links
   // its parent by the DISPLAY id (e.g. `links.rfc: RFC-0012`) while the parent's
   // own `id` is the slug, so matching on the slug alone resolves nothing.
+  // Slug id last-writer-wins (SPEC-0057); display id only aliases a free key.
   const byId = new Map();
-  for (const d of docs) {
-    for (const k of [d.id, d.fileId].filter(Boolean)) if (!byId.has(k)) byId.set(k, d);
-  }
+  for (const d of docs) { if (d.id) byId.set(d.id, d); }
+  for (const d of docs) { if (d.fileId && !byId.has(d.fileId)) byId.set(d.fileId, d); }
   const docType = (d) => String(d.fm?.type ?? '').toLowerCase();
   const out = [];
   for (const parent of docs) {
