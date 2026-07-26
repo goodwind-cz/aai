@@ -181,6 +181,21 @@ PROCESS
      scope-only staging discipline as steps 2-4), updating the open PR.
    - Merge boundary unchanged: this step never merges.
 
+5d. POST-OPEN REVIEW SWEEP (CHANGE pr-post-open-review-sweep) — external
+   reviewer bots (Copilot, Codex) post INLINE comments that never appear in
+   `gh pr checks`. Before ANY merge-readiness claim:
+   - After CI completes, poll once:
+     `gh api repos/<owner>/<repo>/pulls/<n>/comments` (+ `gh pr view <n>
+     --json reviews`). Zero findings after a green run -> record "no bot
+     findings" and stop.
+   - Triage EVERY finding: fix legitimate ones on the SAME branch (scope-only
+     staging discipline of steps 2-4 unchanged), rebut false positives in a
+     PR comment — never silently ignore either kind.
+   - Push the review-response commit, post ONE summary comment mapping each
+     finding to its disposition, and wait for the CI re-run (and one repeat
+     of this sweep for NEW comments) before declaring merge-ready.
+   - Merge boundary unchanged: this step never merges.
+
 6. MERGE BOUNDARY (hard rule):
    - NEVER merge. `gh pr merge` is FORBIDDEN in this skill, in the loop, and in
      any subagent it spawns. Merging is an operator-only action performed by a
