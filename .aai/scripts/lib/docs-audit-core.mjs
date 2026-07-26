@@ -821,6 +821,10 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     const doc = {
       rel: f.rel, id, fileId: ids.primary, relatedIds: ids.related, scope: ids.scope,
       fm, ac, cls: null, verdict: null, reasons: [], legacy: false, nearMiss,
+      // A `## Rollout Status` roadmap row that is not `done` marks an umbrella with
+      // unfinished, not-yet-spec'd work — closeout uses this to avoid a false close
+      // suggestion when the linked specs are all done but phases remain.
+      rolloutUnfinished: hasUnfinishedRolloutPhases(content),
     };
     docs.push(doc);
     if (nearMiss.length) nearMissWarnings.push({ id, rel: f.rel, warnings: nearMiss });
@@ -1174,25 +1178,68 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   };
 }
 
+// True iff the doc body declares a `## Rollout Status` roadmap with at least one
+// phase/proposal row that is NOT `done` — i.e. the human roadmap says there is
+// unfinished, not-yet-spec'd work beyond whatever child specs already exist. The
+// "Status" column is located BY HEADER NAME (it sits at different positions in
+// RFC-0012 vs RFC-0013), so the check is robust to column order. Used to STOP
+// closeout from suggesting an umbrella be closed just because its linked specs are
+// all done while phases 3-5 (no child doc yet) are still pending.
+export function hasUnfinishedRolloutPhases(content) {
+  const lines = String(content ?? '').split(/\r?\n/);
+  let inSection = false;
+  let statusIdx = -1;
+  let sawHeader = false;
+  for (const raw of lines) {
+    if (/^##\s/.test(raw)) { inSection = /^##\s+Rollout Status\s*$/i.test(raw); statusIdx = -1; sawHeader = false; continue; }
+    if (!inSection) continue;
+    const line = raw.trim();
+    if (!line.includes('|')) continue;   // a pipe-table row (outer pipes optional)
+    let parts = line.split('|');
+    // Drop the empty edge cells ONLY when the row carries outer pipes, so a table
+    // written WITHOUT them (`Phase | Status | ...`) parses identically (PR #155
+    // review, Codex P2).
+    if (line.startsWith('|')) parts = parts.slice(1);
+    if (line.endsWith('|')) parts = parts.slice(0, -1);
+    const cells = parts.map((c) => c.trim());
+    if (cells.every((c) => /^[-:\s]*$/.test(c))) continue;   // separator row (---)
+    if (!sawHeader) { statusIdx = cells.map((c) => c.toLowerCase()).indexOf('status'); sawHeader = true; continue; }
+    if (statusIdx < 0) continue;
+    const status = (cells[statusIdx] ?? '').toLowerCase();
+    if (status && status !== 'done') return true;   // a not-yet-done phase
+  }
+  return false;
+}
+
 // Resolve non-terminal rfc/prd parents whose every linked spec is done.
 // Returns [{ id, rel, type, status, specs: [doneSpecId...], suggestedStep }].
 // Linked-spec resolution = forward asList(links.spec) UNION reverse links
-// (a scanned spec whose links.rfc / links.requirement names the parent). A
-// parent is flagged iff it resolves >= 1 spec AND every resolved spec id maps to
-// a scanned doc with status `done` (an unresolvable id => not flagged).
+// (a scanned doc whose links.rfc / links.requirement names the parent, matched on
+// the parent's SLUG id OR its numbered DISPLAY id — children link by display id).
+// A parent is flagged iff it resolves >= 1 spec, every resolved spec is done, AND
+// its body declares no unfinished Rollout Status phase (else all-specs-done is a
+// FALSE close signal for an umbrella with not-yet-spec'd phases).
 export function closeoutCandidatesFor(docs) {
+  // Slug id keeps SPEC-0057's last-writer-wins on a duplicate id; the numbered
+  // display id is added ONLY as an alias for a still-free key, so display-id
+  // resolution never changes which doc a colliding slug id resolves to (PR #155
+  // review, Copilot).
   const byId = new Map();
   for (const d of docs) { if (d.id) byId.set(d.id, d); }
+  for (const d of docs) { if (d.fileId && !byId.has(d.fileId)) byId.set(d.fileId, d); }
   const docType = (d) => String(d.fm?.type ?? '').toLowerCase();
   const out = [];
   for (const parent of docs) {
     if (!CLOSEOUT_PARENT_TYPES.has(docType(parent))) continue;
     if (!CLOSEOUT_PARENT_STATUSES.has(parent.status)) continue;
+    // The human roadmap declares work beyond the linked specs -> never suggest close.
+    if (parent.rolloutUnfinished) continue;
+    const parentRefs = [parent.id, parent.fileId].filter(Boolean);
     const specIds = new Set(asList(parent.fm?.links?.spec));
     for (const d of docs) {
       if (docType(d) !== 'spec' || !d.id) continue;
       const reverse = [...asList(d.fm?.links?.rfc), ...asList(d.fm?.links?.requirement)];
-      if (reverse.includes(parent.id)) specIds.add(d.id);
+      if (reverse.some((r) => parentRefs.includes(r))) specIds.add(d.id);
     }
     if (specIds.size === 0) continue;
     const resolved = [...specIds].map(sid => byId.get(sid));
@@ -1201,12 +1248,12 @@ export function closeoutCandidatesFor(docs) {
     // id does not count as "all linked specs done" (guards a misfiled link).
     if (resolved.some(r => !r || docType(r) !== 'spec' || r.status !== 'done')) continue;
     out.push({
-      id: parent.id,
+      id: parent.fileId || parent.id,
       rel: parent.rel,
       type: docType(parent),
       status: parent.status,
       specs: [...specIds].sort(),
-      suggestedStep: `advance ${parent.id} to done/accepted; record the implementing commit`,
+      suggestedStep: `advance ${parent.fileId || parent.id} to done/accepted; record the implementing commit`,
     });
   }
   return out.sort((a, b) => a.id.localeCompare(b.id));
@@ -1228,10 +1275,10 @@ export function parentProgressFor(docs) {
   // Index by BOTH the slug id AND the numbered display id (fileId): a child links
   // its parent by the DISPLAY id (e.g. `links.rfc: RFC-0012`) while the parent's
   // own `id` is the slug, so matching on the slug alone resolves nothing.
+  // Slug id last-writer-wins (SPEC-0057); display id only aliases a free key.
   const byId = new Map();
-  for (const d of docs) {
-    for (const k of [d.id, d.fileId].filter(Boolean)) if (!byId.has(k)) byId.set(k, d);
-  }
+  for (const d of docs) { if (d.id) byId.set(d.id, d); }
+  for (const d of docs) { if (d.fileId && !byId.has(d.fileId)) byId.set(d.fileId, d); }
   const docType = (d) => String(d.fm?.type ?? '').toLowerCase();
   const out = [];
   for (const parent of docs) {

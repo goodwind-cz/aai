@@ -1226,6 +1226,73 @@ links:
 # A done CHANGE doc — not a spec; must not satisfy all-specs-done
 MD
 
+  # CHANGE-0056: parent with a SLUG frontmatter id (id != display id) whose done
+  # spec reverse-links it by its DISPLAY id. The old slug-only match missed this;
+  # matching on slug OR display id now flags it.
+  cat > docs/closeout/RFC-0080-slug-umbrella.md <<'MD'
+---
+id: slug-umbrella
+type: rfc
+status: implementing
+links:
+  spec: null
+---
+# Umbrella with a slug id, child links by display id
+MD
+  cat > docs/closeout/SPEC-0088-slug-child.md <<'MD'
+---
+id: slug-child
+type: spec
+status: done
+links:
+  rfc: RFC-0080
+---
+# Done child linking the parent by DISPLAY id
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+
+  # CHANGE-0056: parent with ALL linked specs done BUT a `## Rollout Status`
+  # roadmap declaring a not-started phase — must NOT be flagged (the roadmap says
+  # there is unfinished, not-yet-spec'd work beyond the linked specs).
+  cat > docs/closeout/RFC-0090-roadmap-umbrella.md <<'MD'
+---
+id: roadmap-umbrella
+type: rfc
+status: implementing
+links:
+  spec: null
+---
+# Umbrella whose specs are done but whose roadmap has pending phases
+
+## Rollout Status
+
+| Phase | Description | Status | Delivered by |
+|-------|-------------|--------|--------------|
+| 0 | first phase | done | SPEC-0090 |
+| 1 | later phase | not started | — |
+MD
+  cat > docs/closeout/SPEC-0090-roadmap-child.md <<'MD'
+---
+id: roadmap-child
+type: spec
+status: done
+links:
+  rfc: RFC-0090
+---
+# The only done child of the roadmap umbrella
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
+MD
+
   git add docs/closeout && git commit -qm "test: closeout-candidate fixtures (SPEC-0003)"
   log_pass "Closeout fixture ready"
 }
@@ -1310,6 +1377,41 @@ test_closeout_forward_nonspec_not_flagged() {
   # RFC-0070's links.spec names CHANGE-0070 (type change, done) — not a spec
   assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0070 to"
   log_pass "Forward link to a non-spec done doc does not satisfy all-specs-done"
+}
+
+test_closeout_display_id_match() {  # CHANGE-0056 Spec-AC-01
+  log_info "Test: a SLUG-id parent whose done spec links by DISPLAY id is flagged (CHANGE-0056)..."
+  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
+  # RED without the id-and-display match: reverse.includes(slug) misses a display-id link.
+  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0080 to"
+  log_pass "Closeout resolves a display-id reverse link on a slug-id parent (RFC-0080 flagged)"
+}
+
+test_closeout_rollout_guard() {  # CHANGE-0056 Spec-AC-02
+  log_info "Test: an all-specs-done umbrella with a not-started Rollout phase is NOT flagged (CHANGE-0056)..."
+  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
+  # positive control (RED-proof): flagging genuinely works for a roadmap-free parent
+  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0080 to"
+  # RFC-0090's specs are all done, but its Rollout Status declares a not-started
+  # phase -> the guard withholds the close suggestion.
+  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0090 to"
+  log_pass "Rollout-Status guard withholds close on an umbrella with pending phases"
+}
+
+test_rollout_status_pipe_styles() {  # CHANGE-0056 Spec-AC-02 (Codex P2)
+  log_info "Test: hasUnfinishedRolloutPhases parses Rollout tables WITH and WITHOUT outer pipes (CHANGE-0056)..."
+  local out
+  out=$(cd "$PROJECT_ROOT" && node --input-type=module -e '
+    import { hasUnfinishedRolloutPhases } from "./.aai/scripts/lib/docs-audit-core.mjs";
+    const outer = "## Rollout Status\n\n| Phase | Status | By |\n|---|---|---|\n| 0 | done | x |\n| 1 | not started | — |\n";
+    const noOuter = "## Rollout Status\n\nPhase | Status | By\n--- | --- | ---\n0 | done | x\n1 | not started | —\n";
+    const allDone = "## Rollout Status\n\nPhase | Status | By\n--- | --- | ---\n0 | done | x\n1 | done | y\n";
+    const none = "## Other\n\n| a | b |\n|---|---|\n| 1 | 2 |\n";
+    console.log([hasUnfinishedRolloutPhases(outer), hasUnfinishedRolloutPhases(noOuter), hasUnfinishedRolloutPhases(allDone), hasUnfinishedRolloutPhases(none)].join(","));
+  ')
+  [[ "$out" == "true,true,false,false" ]] \
+    || log_fail "hasUnfinishedRolloutPhases pipe-style handling wrong: got [$out], want [true,true,false,false]"
+  log_pass "Rollout Status parsed with and without outer pipes; all-done and no-table -> false"
 }
 
 # --- Rollout progress rollup (CHANGE-0055): done/total children per in-flight parent ---
@@ -5167,6 +5269,9 @@ main() {
   test_closeout_report_only_gate
   test_closeout_reverse_only
   test_closeout_forward_nonspec_not_flagged
+  test_closeout_display_id_match
+  test_closeout_rollout_guard
+  test_rollout_status_pipe_styles
   setup_rollout_fixture
   test_rollout_progress_partial
   test_rollout_progress_summary_line

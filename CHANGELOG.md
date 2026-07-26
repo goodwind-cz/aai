@@ -9,6 +9,19 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — fix: closeout candidate display-id match + Rollout guard (CHANGE-0056)
+
+- `docs-audit`'s closeout-candidate pass ("all this umbrella's specs are done →
+  suggest closing it") had the same latent bug CHANGE-0055 fixed for the rollup: it
+  matched a child's reverse `links.rfc` against the parent's SLUG id only, while
+  children link by DISPLAY id — so for a real slug-id RFC it resolved no children
+  and never fired. Now matches on slug id OR display id.
+- To avoid over-firing, closeout now SKIPS any umbrella whose body declares a
+  `## Rollout Status` roadmap with a not-`done` phase (new
+  `hasUnfinishedRolloutPhases`, Status column located by header name). Net effect on
+  the real repo: RFC-0013 is now correctly suggested for close; RFC-0012 (phases 3-5
+  not started) is correctly withheld. Report-only; 2 new tests, RED-proofed.
+
 ## [unreleased] — feat: umbrella progress rollup + RFC Rollout Status (CHANGE-0055)
 
 - `docs-audit` now surfaces an in-flight umbrella's PROGRESS, which its coarse
