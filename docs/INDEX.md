@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-26T17:48:40.581Z
+Generated: 2026-07-26T18:02:26.727Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -214,9 +214,12 @@ _None._
 | SPEC-0086 | specs | docs/specs/SPEC-0086-spec-prompt-dedup-canonical-includes.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| subagent-protocol-slim (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-subagent-protocol-slim.md |
+| spec-subagent-protocol-slim (unnumbered draft) | specs | docs/specs/SPEC-DRAFT-spec-subagent-protocol-slim.md |
 
 ## Deferred (whole-doc) (0)
 

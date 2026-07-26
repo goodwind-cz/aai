@@ -19,12 +19,16 @@ links:
   PLANNING.prompt.md ~109-121, VALIDATION.prompt.md ~94-108, plus the
   orchestration-dispatch.mjs implementation which is the only mechanical
   consumer); (2) VALIDATION.prompt.md's prose AC STATUS GATE (~lines 47-92)
-  re-implements as LLM prose exactly what `docs-audit.mjs --gate` computes
-  deterministically (terminal-status check, empty-Evidence check, ISO
-  Review-By date math, 14-day anti-cheat window) — and the script is already
-  invoked later in the same prompt; (3) the ~15-line metrics/append-run
+  re-implements as LLM prose what `docs-audit.mjs --gate` computes
+  deterministically for Rules 1/2/4-format (terminal-status check,
+  empty-Evidence check, schema-invalid Review-By) — the script is already
+  invoked later in the same prompt. Planning correction: the gate does NOT
+  compute Rule 3 (repo-wide overdue interrupt) or the 14-day anti-cheat
+  window; that prose is intentionally RETAINED (SPEC-0086 wins over this
+  intake's original premise); (3) the ~15-line metrics/append-run
   "Subagent-mode carve-out (D5)" boilerplate is repeated at the foot of
-  PLANNING, IMPLEMENTATION, VALIDATION, and REMEDIATION.
+  five prompts: PLANNING, IMPLEMENTATION, VALIDATION, REMEDIATION, and
+  SKILL_TDD.
 
 ## Motivation / Business Value
 - Every loop tick pays these duplicated bytes in context, on every role spawn
@@ -78,10 +82,12 @@ links:
 - AC-001: grep proves single-source: the ceremony gate table rows exist only
   in WORKFLOW.md; PLANNING/VALIDATION contain a pointer line naming
   WORKFLOW.md and no table copy (fixture-verified greps).
-- AC-002: VALIDATION.prompt.md contains no AC-status date math ("14-day",
-  "Review-By" comparison prose) outside the docs-audit --gate invocation
-  contract; the gate step names the script and honors its exit code.
-- AC-003: the D5 carve-out text exists in exactly one file; the four role
+- AC-002: VALIDATION.prompt.md delegates the mechanically-computed gate arms
+  (Rules 1/2/4-format) to the docs-audit --gate invocation contract (names
+  the script, honors its exit code) and RETAINS Rule 3 + the 14-day
+  anti-cheat window as prose — the script does not compute those (per
+  SPEC-0086; supersedes this intake's original blanket-removal wording).
+- AC-003: the D5 carve-out text exists in exactly one file; the five role
   prompts reference it (grep-verified) and byte-shrink vs HEAD.
 - AC-004: prompt corpus total bytes strictly decrease (wc -c over the
   TEST-010 glob, before vs after recorded); prompt-diet suite green with

@@ -171,8 +171,10 @@ test_003_role_carveout_canon() {
     local f="${files[$i]}" n="${names[$i]}" r="${roles[$i]}"
     grep -qF "ROLE_COMMON.md" "$f" \
       || log_fail "TEST-003: $n.prompt.md must carry a pointer naming .aai/ROLE_COMMON.md"
-    grep -qF "$r" "$f" \
-      || log_fail "TEST-003: $n.prompt.md must name its own --role value ($r) alongside the ROLE_COMMON.md pointer"
+    # The role value must sit ON the pointer line itself — a bare occurrence
+    # elsewhere in the prompt must not satisfy this check (PR #159 bot review).
+    grep -F "ROLE_COMMON.md" "$f" | grep -qF "(role: $r)" \
+      || log_fail "TEST-003: $n.prompt.md pointer line must name its own --role value as '(role: $r)'"
     grep -qF 'Subagent-mode carve-out' "$f" \
       && log_fail "TEST-003: $n.prompt.md must NOT re-inline the 'Subagent-mode carve-out' body (it must live only in ROLE_COMMON.md)"
     i=$((i + 1))
