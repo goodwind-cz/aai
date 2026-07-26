@@ -26,7 +26,8 @@ links:
   and #159 (3 findings + 1 fix-of-fix) prove the bots catch real defects
   (unbounded marker regex, weak grep anchoring) that the in-pipeline review
   missed. Uncodified, any other agent/operator merges past them.
-- Operator direction 2026-07-26: "zapracuj to do SKILL_PR jako 5d".
+- Operator direction 2026-07-26 (Czech): "zapracuj to do SKILL_PR jako 5d"
+  (English: "incorporate it into SKILL_PR as step 5d").
 
 ## Scope
 - In scope: .aai/SKILL_PR.prompt.md new step 5d (~12 lines) between 5c and 6;

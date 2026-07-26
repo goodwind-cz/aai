@@ -413,7 +413,7 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# 27676 (true-up: pr-post-open-review-sweep added a +895 B itemized entry for
+# 27773 (true-up: pr-post-open-review-sweep added a +992 B itemized entry for
 # SKILL_PR step 5d POST-OPEN REVIEW SWEEP, over the prior 26781 B total after
 # prompt-dedup-canonical-includes appended a -3021 B NEGATIVE
 # entry that reclaims credit no longer needed once the D5/ceremony/AC-gate
@@ -432,15 +432,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 27676 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 27676)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 27773 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 27773)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 27676 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 27773 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
