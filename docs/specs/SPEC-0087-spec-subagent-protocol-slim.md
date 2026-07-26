@@ -2,13 +2,15 @@
 id: spec-subagent-protocol-slim
 type: spec
 number: 87
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0061-subagent-protocol-slim.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 161
+  commits:
+    - 52cdc55dd25a0515c81486ae75d554873f71988d
 ---
 
 # Implementation Spec — Slim the per-dispatch subagent contract (brief-first, result-block-only handoff)

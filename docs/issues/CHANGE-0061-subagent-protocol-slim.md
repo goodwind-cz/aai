@@ -2,10 +2,12 @@
 id: subagent-protocol-slim
 number: 61
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 161
+  commits:
+    - 52cdc55dd25a0515c81486ae75d554873f71988d
 ---
 
 # Change — Slim the per-dispatch subagent contract (brief-first, result-block-only handoff)
