@@ -9,7 +9,9 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — docs: USER_GUIDE for docs-audit rollup / brief sweep + close RFC-0013 (CHANGE-0057)
+## [unreleased]
+
+## [v2026.07.26] — docs: USER_GUIDE for docs-audit rollup / brief sweep + close RFC-0013 (CHANGE-0057)
 
 - `docs/USER_GUIDE.md` gains a "Docs health & umbrella progress (docs-audit)"
   section documenting the `- Rollout:` line + `### Rollout progress` table
@@ -19,7 +21,7 @@ RFC-0001).
   (all proposals + its child spec done; it was a closeout candidate). RFC-0012's
   rollup consequently reads 11/11.
 
-## [unreleased] — fix: closeout candidate display-id match + Rollout guard (CHANGE-0056)
+## [v2026.07.26] — fix: closeout candidate display-id match + Rollout guard (CHANGE-0056)
 
 - `docs-audit`'s closeout-candidate pass ("all this umbrella's specs are done →
   suggest closing it") had the same latent bug CHANGE-0055 fixed for the rollup: it
@@ -32,7 +34,7 @@ RFC-0001).
   the real repo: RFC-0013 is now correctly suggested for close; RFC-0012 (phases 3-5
   not started) is correctly withheld. Report-only; 2 new tests, RED-proofed.
 
-## [unreleased] — feat: umbrella progress rollup + RFC Rollout Status (CHANGE-0055)
+## [v2026.07.26] — feat: umbrella progress rollup + RFC Rollout Status (CHANGE-0055)
 
 - `docs-audit` now surfaces an in-flight umbrella's PROGRESS, which its coarse
   `status: implementing` never showed. Every run prints a `- Rollout:` line
@@ -48,7 +50,7 @@ RFC-0001).
   breaking every reverse-link consumer (the rollup AND closeout detection). Now
   tracks the nested key so block-list items attach correctly. No test regression.
 
-## [unreleased] — chore: AAI-level stale-brief sweep (CHANGE-0054)
+## [v2026.07.26] — chore: AAI-level stale-brief sweep (CHANGE-0054)
 
 - New `.aai/scripts/prune-stale-briefs.mjs` sweeps stale work-item briefs
   (`docs/ai/briefs/<REF-ID>.md`, gitignored Planning handoffs) across the repo in
@@ -59,7 +61,7 @@ RFC-0001).
   preserved, exit 0 always. Complements CHANGE-0052's per-close prune (which never
   cleaned the backlog). Fixture suite: `test-aai-prune-stale-briefs.sh`.
 
-## [unreleased] — chore: close-work-item brief auto-cleanup (CHANGE-0052)
+## [v2026.07.26] — chore: close-work-item brief auto-cleanup (CHANGE-0052)
 
 - The deterministic close ceremony (`.aai/scripts/close-work-item.mjs`) now prunes
   each closed doc's Planning-emitted work-item brief (`docs/ai/briefs/<REF-ID>.md`,
@@ -71,7 +73,7 @@ RFC-0001).
   that could reach outside `docs/ai/briefs/`, and the pruned brief(s) are named in
   the success line. Regression test: TEST-013 in `test-aai-close-work-item.sh`.
 
-## [unreleased] — feat: RFC-0012 friction feedback discovery + gh auth preflight + user docs (CHANGE-0051 / SPEC-0084)
+## [v2026.07.26] — feat: RFC-0012 friction feedback discovery + gh auth preflight + user docs (CHANGE-0051 / SPEC-0084)
 
 - Makes the friction feedback loop VISIBLE and USABLE for a human operator (it was
   built but undiscoverable). New offline `.aai/scripts/aai-feedback-status.mjs`
@@ -86,7 +88,7 @@ RFC-0001).
   capture -> discover -> triage -> prepare -> review -> `--confirm` workflow, the
   `gh auth login` prerequisite, and what is / isn't stored.
 
-## [unreleased] — fix: reaper CI-load flake root-cause — pre-epoch impossible-age clamp (CHANGE-0053)
+## [v2026.07.26] — fix: reaper CI-load flake root-cause — pre-epoch impossible-age clamp (CHANGE-0053)
 
 - Root-cause fix for the recurring CI-load-only reaper flake in BOTH directions
   (`test-aai-run-tests.sh` TEST-018 legacy spare-fresh + TEST-006/015/016 epoch
@@ -105,7 +107,7 @@ RFC-0001).
   the root-cause fix SPEC-0083 AC-04 tracks; its closure stays CI-authoritative
   (Review-By 2026-08-15) — the flake must stay gone across subsequent PRs.
 
-## [unreleased] — feat: RFC-0012 Phase 2c / Slice C — review-mode GitHub upsert (CHANGE feedback-upsert-review / SPEC spec-feedback-upsert-review)
+## [v2026.07.26] — feat: RFC-0012 Phase 2c / Slice C — review-mode GitHub upsert (CHANGE feedback-upsert-review / SPEC spec-feedback-upsert-review)
 
 - The first network slice, approval-gated. New `/aai-feedback-upsert` +
   `.aai/scripts/aai-feedback-upsert.mjs` turns the triage report's
@@ -122,7 +124,7 @@ RFC-0001).
   repo. The engine holds no token — it shells to an authenticated `gh`; missing gh
   degrades to prepare-nothing. Tests mock `gh` (no real network call).
 
-## [unreleased] — feat: RFC-0012 Phase 2 / Slice B — offline friction triage (CHANGE-0048 / SPEC-0081)
+## [v2026.07.26] — feat: RFC-0012 Phase 2 / Slice B — offline friction triage (CHANGE-0048 / SPEC-0081)
 
 - The offline triage core, now that schema v2 gives it real signal. New
   `/aai-feedback-triage` + `.aai/scripts/aai-feedback-triage.mjs`: reads the local
@@ -140,7 +142,7 @@ RFC-0001).
   and a prompt-diet ledger true-up. The review-mode upsert that consumes this
   report is the next slice (Slice C).
 
-## [unreleased] — feat: RFC-0013 Slice A — friction schema v2 + hard redactor (CHANGE-0047 / SPEC-0080)
+## [v2026.07.26] — feat: RFC-0013 Slice A — friction schema v2 + hard redactor (CHANGE-0047 / SPEC-0080)
 
 - First code slice of RFC-0013: extends the offline capture CLI to persist
   **schema v2 structured signal fields** and adds the **hard, fail-closed
@@ -161,7 +163,7 @@ RFC-0001).
 - `.aai/feedback.yaml` (new, minimal): `capture.summary_enabled: false` default.
   Companion: both new `.aai/**` files classified in PROFILES.yaml.
 
-## [unreleased] — feat: RFC-0012 Phase 1 — local shadow-mode friction capture wiring (CHANGE-0046 / SPEC-0079)
+## [v2026.07.26] — feat: RFC-0012 Phase 1 — local shadow-mode friction capture wiring (CHANGE-0046 / SPEC-0079)
 
 - Second implementation slice of RFC-0012 (shadow mode): wires the dormant
   Phase-0 capture CLI into the skill surface as ONE canonical seam, inherited by
@@ -183,7 +185,7 @@ RFC-0001).
   calibration) remain tracked against RFC-0012 — this slice delivers only the
   code that enables shadow capture.
 
-## [unreleased] — feat: RFC-0012 Phase 0 — offline friction capture foundation (CHANGE-0045 / SPEC-0078)
+## [v2026.07.26] — feat: RFC-0012 Phase 0 — offline friction capture foundation (CHANGE-0045 / SPEC-0078)
 
 - First implementation slice of the accepted RFC-0012 (AAI self-improvement /
   friction feedback loop): the OFFLINE local-capture foundation. Everything
