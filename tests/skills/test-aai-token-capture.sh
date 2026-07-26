@@ -18,14 +18,36 @@
 #   - TEST-004 (Spec-AC-04): SKILL_LOOP stop condition f's run-budget tally
 #     counts observed undecomposed totals; the never-fabricate no-op clause
 #     is retained verbatim.
-#   - TEST-005 (Spec-AC-02, seam): append-run --note "usage_total_tokens=..."
-#     (no token flags) round-trips verbatim through STATE.yaml into a flushed
-#     METRICS.jsonl line, tokens stay null, and the "cost unattributable"
-#     warning still fires (never silenced for an undecomposed total).
+#   - TEST-005 (Spec-AC-02, seam / SPEC-DRAFT-spec-token-capture-canary spec
+#     TEST-004): append-run --note "usage_total_tokens=..." (no token flags)
+#     round-trips verbatim through STATE.yaml into a flushed METRICS.jsonl
+#     line, tokens stay null, and the run now gets an INFO line (reclassified
+#     from the old generic WARNING, token-capture-canary Spec-AC-01); a
+#     sibling run with no note/no tokens at all still gets the capture-missing
+#     WARNING (never silenced, never conflated with the honest undecomposed
+#     case).
 #
-# ALL fixtures for TEST-005 are scratch temp-dir files (--state/--metrics/
-# --ticks/--pricing/--events overrides); the real gitignored runtime files
-# are NEVER touched. bash 3.2 compatible (no ${var^^}, no declare -A).
+# token-capture-canary (SPEC-DRAFT-spec-token-capture-canary.md) adds:
+#   - test_006_log_tick_duration_warning (spec TEST-005, Spec-AC-02):
+#     state.mjs log-tick with started==ended (duration 0) emits a stderr
+#     WARNING containing "duration"; exit 0; tick line still appended.
+#   - test_007_log_tick_harness_warning (spec TEST-006, Spec-AC-02):
+#     state.mjs log-tick with --harness omitted emits a stderr WARNING
+#     containing "harness"; exit 0; harness_version stays "unknown".
+#   - test_008_log_tick_negative_control (spec TEST-007, Spec-AC-02):
+#     a healthy tick (nonzero duration AND --harness present) emits NO
+#     warning (non-tautology guard).
+#   - test_009_mandatory_usage_note_wording (spec TEST-008, Spec-AC-03):
+#     SUBAGENT_PROTOCOL.md "Merge protocol" + SKILL_LOOP.prompt.md step 4
+#     carry MANDATORY/non-optional usage_total_tokens=<N> wording.
+#   - test_010_d3_prose_reclassified (spec TEST-009, Spec-AC-03):
+#     SUBAGENT_PROTOCOL.md D3 prose no longer claims the flush WARNING fires
+#     for an undecomposed total (reflects the INFO reclassification).
+#
+# ALL fixtures for TEST-005..010 are scratch temp-dir files (--state/
+# --metrics/--ticks/--pricing/--events overrides); the real gitignored
+# runtime files are NEVER touched. bash 3.2 compatible (no ${var^^}, no
+# declare -A).
 #
 # Exit codes:
 #   0  - All tests passed
@@ -261,7 +283,7 @@ YAML
 }
 
 test_005_seam_total_note_roundtrip() {
-  log_info "Test: append-run usage_total_tokens= note round-trips STATE -> METRICS.jsonl, tokens null, warning fires (TEST-005)..."
+  log_info "Test: SEAM-1 end-to-end -- append-run usage_total_tokens= note round-trips STATE -> METRICS.jsonl, tokens null, INFO fires (reclassified from WARNING); a sibling no-note/no-tokens run gets the capture-missing WARNING (TEST-005 legacy id / spec TEST-004)..."
 
   local d="$TEST_DIR/t005"
   mkdir -p "$d/docs/ai"
@@ -284,6 +306,13 @@ test_005_seam_total_note_roundtrip() {
     --note "$note" > "$ar_log" 2>&1) \
     || log_fail "TEST-005: append-run with note-only usage must exit 0: $(cat "$ar_log")"
 
+  # Sibling run: nothing exposed at all (no tokens, no note) -> capture-missing.
+  local ar2_log="$d/append-run2.log"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$s" append-run \
+    --ref CHANGE-9001 --role Planning --model claude-test --started "$NOW_UTC" \
+    > "$ar2_log" 2>&1) \
+    || log_fail "TEST-005: append-run with no usage signal at all must exit 0: $(cat "$ar2_log")"
+
   grep -qF "usage_total_tokens=262134" "$s" \
     || log_fail "TEST-005: STATE agent_runs note must carry usage_total_tokens=262134 verbatim"
   sed -n '/^    CHANGE-9001:$/,$p' "$s" | grep -qE '^ {10}tokens_in: null$' \
@@ -301,10 +330,99 @@ test_005_seam_total_note_roundtrip() {
     || log_fail "TEST-005: flushed METRICS.jsonl line must carry the note verbatim: $(cat "$m")"
   grep -q '"tokens_in":null' "$m" \
     || log_fail "TEST-005: flushed METRICS.jsonl run must keep tokens_in null"
-  grep -qE 'cost unattributable' "$flush_log" \
-    || log_fail "TEST-005: flush must still emit the 'cost unattributable' warning for an undecomposed total (never silenced): $(cat "$flush_log")"
+  grep -qE '^INFO CHANGE-9001 run Implementation .*undecomposed total 262134 observed; cost unattributable by design' "$flush_log" \
+    || log_fail "TEST-005 (spec TEST-004): flush must emit an INFO line for the undecomposed-note run (reclassified from WARNING, never silenced): $(cat "$flush_log")"
+  grep -qE '^WARNING CHANGE-9001 run Implementation' "$flush_log" \
+    && log_fail "TEST-005 (spec TEST-004): the undecomposed-note run must NOT also emit the generic capture-missing WARNING: $(cat "$flush_log")"
+  grep -qE '^WARNING CHANGE-9001 run Planning .*cost unattributable' "$flush_log" \
+    || log_fail "TEST-005 (spec TEST-004): the sibling no-note/no-tokens run must still get the capture-missing WARNING: $(cat "$flush_log")"
 
-  log_pass "usage_total_tokens= note round-trips verbatim, tokens stay null, warning fires (TEST-005)"
+  log_pass "SEAM-1: usage_total_tokens= note round-trips verbatim -> INFO (reclassified); no-signal sibling run -> capture-missing WARNING (TEST-005 legacy id / spec TEST-004)"
+}
+
+# --- log-tick duration-0 / missing-harness stderr WARNINGs (Spec-AC-02) ------
+
+test_006_log_tick_duration_warning() {
+  log_info "Test: log-tick with started==ended (duration 0) emits a stderr WARNING containing 'duration'; exit 0; tick still appended (spec TEST-005)..."
+  local s="$TEST_DIR/t006-state.yaml" tk="$TEST_DIR/t006-ticks.jsonl"
+  write_state_fixture_005 "$s"
+  local i out err duration=""
+  for i in 1 2 3 4 5; do
+    out="$TEST_DIR/t006-$i.out"
+    err="$TEST_DIR/t006-$i.err"
+    : > "$tk"
+    capture_now
+    (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$s" --ticks "$tk" log-tick \
+        --tick 1 --role Implementation --scope CHANGE-9001 --started "$NOW_UTC" --harness 2.1.211 \
+        > "$out" 2> "$err") \
+      || log_fail "TEST-006 (spec TEST-005): log-tick must exit 0 even when duration collapses to 0 (attempt $i): $(cat "$err")"
+    duration="$(node -e '
+      const lines = require("fs").readFileSync(process.argv[1], "utf8").trim().split("\n");
+      console.log(JSON.parse(lines[lines.length - 1]).duration_seconds);
+    ' "$tk")"
+    [[ "$duration" == "0" ]] && break
+  done
+  [[ "$duration" == "0" ]] || log_fail "TEST-006 (spec TEST-005): could not reproduce duration_seconds 0 in 5 attempts (env too slow?) last=$duration"
+  grep -qi 'WARNING' "$err" || log_fail "TEST-006 (spec TEST-005): stderr must carry a WARNING when duration_seconds is 0: $(cat "$err")"
+  grep -qi 'duration' "$err" || log_fail "TEST-006 (spec TEST-005): the WARNING must contain the substring 'duration': $(cat "$err")"
+  [[ -s "$tk" ]] || log_fail "TEST-006 (spec TEST-005): tick line must still be appended (warn, not block)"
+  log_pass "log-tick duration-0 WARNING fires on stderr, exit 0, tick still appended (spec TEST-005)"
+}
+
+test_007_log_tick_harness_warning() {
+  log_info "Test: log-tick with --harness omitted emits a stderr WARNING containing 'harness'; harness_version stays 'unknown' (spec TEST-006)..."
+  local s="$TEST_DIR/t007-state.yaml" tk="$TEST_DIR/t007-ticks.jsonl"
+  write_state_fixture_005 "$s"
+  : > "$tk"
+  local out="$TEST_DIR/t007.out" err="$TEST_DIR/t007.err"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$s" --ticks "$tk" log-tick \
+      --tick 2 --role Validation --scope CHANGE-9001 --started 2026-07-15T10:00:00Z \
+      > "$out" 2> "$err") \
+    || log_fail "TEST-007 (spec TEST-006): log-tick must exit 0 even without --harness: $(cat "$err")"
+  grep -qi 'WARNING' "$err" || log_fail "TEST-007 (spec TEST-006): stderr must carry a WARNING when --harness is omitted: $(cat "$err")"
+  grep -qi 'harness' "$err" || log_fail "TEST-007 (spec TEST-006): the WARNING must contain the substring 'harness': $(cat "$err")"
+  grep -qF '"harness_version":"unknown"' "$tk" \
+    || log_fail "TEST-007 (spec TEST-006): tick line must record harness_version unknown when --harness omitted: $(cat "$tk")"
+  log_pass "log-tick missing-harness WARNING fires on stderr, exit 0, harness_version stays unknown (spec TEST-006)"
+}
+
+test_008_log_tick_negative_control() {
+  log_info "Test: valid nonzero duration AND --harness present -> NO duration/harness WARNING (non-tautology negative control, spec TEST-007)..."
+  local s="$TEST_DIR/t008-state.yaml" tk="$TEST_DIR/t008-ticks.jsonl"
+  write_state_fixture_005 "$s"
+  : > "$tk"
+  local out="$TEST_DIR/t008.out" err="$TEST_DIR/t008.err"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$s" --ticks "$tk" log-tick \
+      --tick 5 --role Implementation --scope CHANGE-9001 --started 2026-07-15T10:00:00Z --harness 2.1.211 \
+      > "$out" 2> "$err") \
+    || log_fail "TEST-008 (spec TEST-007): log-tick must exit 0: $(cat "$err")"
+  [[ ! -s "$err" ]] || log_fail "TEST-008 (spec TEST-007): no WARNING may fire on a healthy tick (non-tautology guard): $(cat "$err")"
+  log_pass "no duration/harness WARNING on a healthy tick -- non-tautology negative control holds (spec TEST-007)"
+}
+
+# --- SUBAGENT_PROTOCOL / SKILL_LOOP MANDATORY usage-note wording (Spec-AC-03) --
+
+test_009_mandatory_usage_note_wording() {
+  log_info "Test: SUBAGENT_PROTOCOL Merge protocol + SKILL_LOOP step 4 carry MANDATORY usage_total_tokens=<N> wording (spec TEST-008)..."
+
+  sed -n '/^## Merge protocol/,/^## /p' "$PROTOCOL" | grep -qE 'usage_total_tokens=<N>.*MANDATORY|MANDATORY.*usage_total_tokens=<N>' \
+    || log_fail "TEST-009 (spec TEST-008): SUBAGENT_PROTOCOL.md 'Merge protocol' section must make usage_total_tokens=<N> MANDATORY, not optional"
+
+  sed -n '/^  4\. RUN DISPATCHED ROLE/,/^  5\. /p' "$LOOP" | grep -qE 'usage_total_tokens=<N>.*MANDATORY|MANDATORY.*usage_total_tokens=<N>' \
+    || log_fail "TEST-009 (spec TEST-008): SKILL_LOOP.prompt.md step 4 must make usage_total_tokens=<N> MANDATORY, not optional"
+
+  log_pass "MANDATORY usage_total_tokens=<N> wording present in Merge protocol + SKILL_LOOP step 4 (spec TEST-008)"
+}
+
+test_010_d3_prose_reclassified() {
+  log_info "Test: SUBAGENT_PROTOCOL D3 prose no longer claims the flush WARNING fires for an undecomposed total (spec TEST-009)..."
+
+  grep -qF 'The flush "cost unattributable" warning correctly continues to fire for such runs (D3)' "$PROTOCOL" \
+    && log_fail "TEST-010 (spec TEST-009): SUBAGENT_PROTOCOL.md must no longer claim the flush WARNING fires for an undecomposed total"
+  grep -qE 'undecomposed-note.*INFO|INFO line.*undecomposed' "$PROTOCOL" \
+    || log_fail "TEST-010 (spec TEST-009): SUBAGENT_PROTOCOL.md must state the flush now emits an INFO line for an undecomposed total"
+
+  log_pass "SUBAGENT_PROTOCOL D3 prose reclassified to INFO (spec TEST-009)"
 }
 
 main() {
@@ -317,6 +435,11 @@ main() {
   test_003_role_carveout_canon
   test_004_run_budget_tally_canon
   test_005_seam_total_note_roundtrip
+  test_006_log_tick_duration_warning
+  test_007_log_tick_harness_warning
+  test_008_log_tick_negative_control
+  test_009_mandatory_usage_note_wording
+  test_010_d3_prose_reclassified
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

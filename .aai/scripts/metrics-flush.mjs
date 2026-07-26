@@ -417,8 +417,25 @@ function buildEntry(entry, ctx) {
     const tokensOut = typeof r.tokens_out === 'number' ? r.tokens_out : null;
     let cost = typeof r.cost_usd === 'number' ? r.cost_usd : null;
     if (cost === null) cost = runCostUsd(pricing, r.model_id, tokensIn, tokensOut);
+    // Token-capture-canary 3-way classification (Spec-AC-01): numeric
+    // tokens_in AND tokens_out -> decomposed (no line, handled above); else a
+    // note matching the canonical usage_total_tokens=<digits> grammar ->
+    // undecomposed-note (one INFO line, cost unattributable BY DESIGN — the
+    // harness never exposed the split); else -> capture-missing (one WARNING
+    // line — the harness observed a total and it was silently dropped). The
+    // marker must be the COMPLETE canonical token, delimited on both sides:
+    // a malformed value (usage_total_tokens=123oops) or a prefixed key
+    // (not_usage_total_tokens=456) falls through to capture-missing on
+    // purpose — a malformed note is not an honest total (PR #158 bot review).
     if (tokensIn === null || tokensOut === null) {
-      warnings.push(`WARNING ${entry.ref} run ${r.role} (${r.model_id ?? 'unknown'}): cost unattributable — tokens not recorded`);
+      const noteMatch = typeof r.note === 'string'
+        ? r.note.match(/(?:^|[\s"'(\[])usage_total_tokens=(\d+)(?=$|[\s"'),\].;])/)
+        : null;
+      if (noteMatch) {
+        warnings.push(`INFO ${entry.ref} run ${r.role} (${r.model_id ?? 'unknown'}): undecomposed total ${noteMatch[1]} observed; cost unattributable by design`);
+      } else {
+        warnings.push(`WARNING ${entry.ref} run ${r.role} (${r.model_id ?? 'unknown'}): cost unattributable — tokens not recorded`);
+      }
     }
     const out = { role: r.role, model_id: r.model_id ?? 'unknown' };
     if (typeof r.note === 'string' && r.note !== '') out.note = r.note;

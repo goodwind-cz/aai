@@ -20,7 +20,13 @@
 #     run it, re-dispatch.
 #   - TEST-013 (prompt-diet ledger true-up) lives in test-aai-prompt-diet.sh
 #     and is not duplicated here.
-#   - TEST-014/015: no protected_paths_l3 path touched; the pre-existing
+#   - TEST-014/015: a touched protected_paths_l3 path is authorized by a
+#     frozen ceremony_level:3 spec present in the same diff/tree (reframed by
+#     token-capture-canary, docs/specs/SPEC-DRAFT-spec-token-capture-canary.md
+#     -- the original one-time delivery constraint of THIS scope, "MY branch
+#     touches no L3 path", made every future legitimate L3 change fail the
+#     suite forever; the real WORKFLOW invariant is "an L3 touch MUST be
+#     declared level 3", not "no branch may ever touch L3"); the pre-existing
 #     dispatch/state suites stay green.
 #
 # ALL dispatch fixtures are scratch temp-dir roots (--state/--root overrides);
@@ -390,10 +396,22 @@ test_012_seam_command_flips_gate() {
   log_pass "SEAM: prompt-declared [HITL-7] command -> state.mjs -> dispatch verdict, rule 8 stops firing (TEST-012)"
 }
 
-# --- TEST-014 (Spec-AC-07): no protected_paths_l3 path touched -----------------
+# --- TEST-014 (Spec-AC-07): a touched protected_paths_l3 path is declared L3 ---
+#
+# Reframed by token-capture-canary (docs/specs/SPEC-DRAFT-spec-token-capture-
+# canary.md): the original assertion ("this branch touches NO L3 path") was a
+# one-time delivery constraint of the hitl-decision-propagation scope, encoded
+# as a permanent repo-wide invariant -- every future LEGITIMATE L3 change
+# (ceremony_level: 3, worktree/review gates, WORKFLOW.md "Ceremony levels")
+# would then fail this suite forever. The real WORKFLOW invariant this test
+# enforces now: a diff/tree that touches a protected_paths_l3 path MUST carry
+# a FROZEN spec (in that same diff/tree) declaring `ceremony_level: 3` --
+# anti-drive-by teeth preserved (an L3 touch with no such spec still fails),
+# while an untouched-L3 branch keeps passing exactly as before (unchanged
+# fast path).
 
 test_014_no_protected_path_touched() {
-  log_info "Test: branch diff touches no protected_paths_l3 path (TEST-014)..."
+  log_info "Test: a touched protected_paths_l3 path is authorized by a frozen ceremony_level:3 spec in the same diff/tree (TEST-014)..."
   [[ -f "$DOCS_AUDIT" ]] || { log_fail "TEST-014: $DOCS_AUDIT not found"; return; }
   local protected changed hit
   protected="$(sed -n 's/^  - //p' "$DOCS_AUDIT" | head -8)"
@@ -409,10 +427,36 @@ test_014_no_protected_path_touched() {
   }) | sort -u)"
 
   hit="$(printf '%s\n' "$changed" | grep -x -F -f <(printf '%s\n' "$protected") || true)"
-  if [[ -n "$hit" ]]; then
-    log_fail "TEST-014: branch diff touches protected_paths_l3 path(s): $hit"
-  else
+  if [[ -z "$hit" ]]; then
     log_pass "TEST-014: no protected_paths_l3 path touched by this branch"
+    return
+  fi
+
+  # An L3 path IS touched -- look for a FROZEN ceremony_level:3 spec among the
+  # changed docs/specs/*.md files (present on disk NOW; a deleted/renamed-away
+  # spec authorizes nothing). Grepping the file content (not just its path)
+  # keeps this a real declaration check, not a filename convention check.
+  local spec_hits authorizer=""
+  spec_hits="$(printf '%s\n' "$changed" | grep -E '^docs/specs/.*\.md$' || true)"
+  local f
+  if [[ -n "$spec_hits" ]]; then
+    while IFS= read -r f; do
+      [[ -n "$f" ]] || continue
+      [[ -f "$PROJECT_ROOT/$f" ]] || continue
+      if grep -qE '^ceremony_level:[[:space:]]*3[[:space:]]*$' "$PROJECT_ROOT/$f" \
+        && grep -qE '^SPEC-FROZEN:[[:space:]]*true[[:space:]]*$' "$PROJECT_ROOT/$f"; then
+        authorizer="$f"
+        break
+      fi
+    done <<EOF
+$spec_hits
+EOF
+  fi
+
+  if [[ -n "$authorizer" ]]; then
+    log_pass "TEST-014: protected_paths_l3 path(s) touched ($hit) but authorized by frozen ceremony_level:3 spec $authorizer"
+  else
+    log_fail "TEST-014: protected_paths_l3 path(s) touched with no frozen ceremony_level:3 spec authorizing it: $hit"
   fi
 }
 
