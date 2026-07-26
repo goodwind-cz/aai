@@ -316,3 +316,35 @@ outcome (a single INFO line at most) and continue the skill unchanged; never
 escalate a capture failure into a skill failure, and never make the skill's
 success depend on a successful capture. This mirrors the "Capture never masks
 the caller" invariant above.
+
+### Deterministic hook points (default-on capture)
+
+The guidance above is recall-dependent by design for the general case. At the
+following moments, capture is instead the DEFAULT best-effort action — the
+owning prompt names the hook and invokes capture right there, so an agent does
+not need to recall this protocol to trigger it:
+
+- **Validation FAIL recorded** — `.aai/VALIDATION.prompt.md` produces a FAIL
+  verdict (step 8), or hits a canon-file gate/lint failure during discovery
+  (step 5).
+- **Remediation dispatched** — `.aai/REMEDIATION.prompt.md` categorizes an
+  incoming failure as AAI-owned (step 1/2), before applying any fix.
+- **Canon-file gate/lint/CI failure** handled — a gate, lint, or CI check fails
+  on an AAI-owned canon file, including the post-open CI-failure handling point
+  in `.aai/SKILL_PR.prompt.md` (step 5d).
+- **Canon-surface check failure during implementation** — a test suite, gate,
+  lint, or accounting check (e.g. the prompt-diet ledger/headroom guard) fails
+  mid-implementation in `.aai/IMPLEMENTATION.prompt.md` (post-verification
+  block; added as the validation R2 disposition — the headroom-cap trap class
+  fired there with no hook present).
+
+At each hook the default is ATTEMPT, not recall: build a schema-v2 observation
+(see "Observation schema v2" above) for the fitting `failure_class` and invoke
+the record command above. The failure-class taxonomy and its exclusions remain
+the ownership gate unchanged — a hook does not widen what counts as AAI-owned
+friction, it only removes the recall dependency for an event that already fits
+the taxonomy. The shadow contract is unchanged at a hook: capture stays
+best-effort, must never mask or change the primary step's own result, and any
+capture failure (absent CLI, unwritable spool, rejected input) is swallowed
+with at most a single INFO line — the hook never widens the contract, it only
+widens WHEN capture is attempted.

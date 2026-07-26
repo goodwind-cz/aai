@@ -413,12 +413,15 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# 27805 (true-up: pr-post-open-review-sweep added a +992 B itemized entry for
-# SKILL_PR step 5d POST-OPEN REVIEW SWEEP, over the prior 26781 B total after
-# prompt-dedup-canonical-includes appended a -3021 B NEGATIVE
-# entry that reclaims credit no longer needed once the D5/ceremony/AC-gate
-# dedup genuinely shrank the corpus, over the prior 29802 B total from
-# token-capture-canary) AND equals an independent re-sum of
+# 30139 (true-up: friction-capture-default-on added a +1881 B itemized entry
+# for the thin FRICTION HOOK pointers wired into VALIDATION/REMEDIATION/
+# SKILL_PR/SKILL_WRAP_UP naming FRICTION_PROTOCOL.md's new "Deterministic hook
+# points" subsection, over the prior 27805 B total after pr-post-open-review-
+# sweep added a +992 B itemized entry for SKILL_PR step 5d POST-OPEN REVIEW
+# SWEEP, over the prior 26781 B total after prompt-dedup-canonical-includes
+# appended a -3021 B NEGATIVE entry that reclaims credit no longer needed once
+# the D5/ceremony/AC-gate dedup genuinely shrank the corpus, over the prior
+# 29802 B total from token-capture-canary) AND equals an independent re-sum of
 # JUSTIFIED_ADDITIONS. This expected total is bumped, never recomputed
 # silently, each time a scope legitimately appends a ledger entry
 # (LEARNED.md 2026-07-17: the true-up is definition-of-done for
@@ -432,15 +435,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 27805 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 27805)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 30139 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 30139)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 27805 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 30139 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

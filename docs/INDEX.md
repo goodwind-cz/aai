@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-26T19:22:32.699Z
+Generated: 2026-07-26T21:27:45.429Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -217,9 +217,12 @@ _None._
 | SPEC-0087 | specs | docs/specs/SPEC-0087-spec-subagent-protocol-slim.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0062 | issues | docs/issues/CHANGE-0062-friction-capture-default-on.md |
+| SPEC-0088 | specs | docs/specs/SPEC-0088-spec-friction-capture-default-on.md |
 
 ## Deferred (whole-doc) (0)
 

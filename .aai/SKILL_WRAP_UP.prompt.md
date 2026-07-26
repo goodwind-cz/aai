@@ -129,6 +129,18 @@ PROCESS
    output verbatim in the report ONLY when it is non-silent; never run any publish
    or network write from wrap-up.
 
+   TRIAGE ON NON-EMPTY SPOOL (default-on, closes the loop): when the status
+   line above reports a non-empty spool (observations > 0), ALWAYS run the
+   offline triage engine and surface its findings as a triage report:
+   ```
+   node .aai/scripts/aai-feedback-triage.mjs
+   ```
+   List each `review_candidate` cluster from the written report as a
+   proposed-intake one-liner ("<failure_class> x<recurrence>, score <score> ->
+   fingerprint <fingerprint>"), so captured data becomes visible action
+   instead of a silent file. An EMPTY spool stays SILENT exactly as above (no
+   triage run, no report line) — the quiet-by-design contract is unchanged.
+
 6b. STALE-BRIEF SWEEP (docs-lifecycle hygiene)
    Prune Planning-emitted briefs whose work item is terminal or orphaned — they
    are gitignored runtime artifacts that otherwise accumulate:
