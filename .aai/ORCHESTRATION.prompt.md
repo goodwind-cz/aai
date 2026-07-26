@@ -31,9 +31,9 @@ first-match table). SPEC-0012 G3 routing is emergent: a completed remediation
 already ran reset-block, so rules 10/12 stop matching and the state falls to
 rule 11 (fresh independent Validation) or rule 13 (fresh Code Review); a pass
 with only code_review reset dispatches rule 13, never re-fires rule 11.
-MODEL SELECTION — map suggested_tier: mechanical -> smallest/fastest model;
-standard -> mid-tier; premium -> most capable. Validation MUST get a freshly
-spawned independent context and a model differing from implementer_model.
+MODEL SELECTION — honor suggested_model (.aai/system/MODEL_ROUTING.yaml) when
+non-null; else tiers mechanical/standard/premium -> smallest/mid/top. Validation
+MUST get a fresh independent context and a model differing from implementer_model.
 DEGRADED PATH — if .aai/scripts/orchestration-dispatch.mjs is absent (older
 vendored layer): report DEGRADED, decide manually from .aai/workflow/WORKFLOW.md
 + docs/ai/STATE.yaml, then update STATE as in step 5.

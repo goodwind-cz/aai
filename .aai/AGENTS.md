@@ -75,6 +75,7 @@ Use them when the agent supports subagent spawning or sequential tool use.
 
 #### Universal Skills (AAI Template)
 ```text
+Follow .aai/SKILL_SHIP.prompt.md         # End-to-end autopilot: need -> intake -> loop -> product docs -> ONE ship checkpoint -> PR (never merges)
 Follow .aai/SKILL_LOOP.prompt.md         # Full autonomous multi-tick loop (replaces shell loop runner)
 Follow .aai/SKILL_INTAKE.prompt.md       # Universal intake router — auto-detects type from description
 Follow .aai/SKILL_HITL.prompt.md         # Human-in-the-loop resolver — surfaces blocked question, unblocks state

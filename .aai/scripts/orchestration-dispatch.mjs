@@ -80,6 +80,7 @@ const RULES = [
   { id: '3', when: 'docs/TECHNOLOGY.md missing', then: 'dispatch Technology extraction (.aai/TECH_EXTRACT.prompt.md)' },
   { id: '4', when: '.aai/workflow/WORKFLOW.md missing', then: 'dispatch Bootstrap (.aai/BOOTSTRAP.prompt.md)' },
   { id: '4a', when: 'focus work item done/absent AND focus ref flushed to METRICS.jsonl (spec-dispatch-new-intake-after-completed-scope D1) AND no recorded fail verdict (validation.status !== fail AND review.status !== fail; CHANGE-0036 fail-verdict precedence guard — abstains so decide() falls through to rule 10/12 Remediation instead of burying the failure); exactly one open mappable docs/issues intake (draft/implementing, no done work item) -> retarget; zero -> no_action scope_complete_no_open_intake; 2+/unmappable/scan-failure -> needs_llm named reasons', then: 'dispatch Planning retarget (.aai/PLANNING.prompt.md) to the open intake, or no_action/needs_llm per candidate count' },
+  { id: '4b', when: 'focus work item done/absent AND focus ref NOT flushed to METRICS.jsonl AND a committed work_item_closed event for the focus ref exists in docs/ai/EVENTS.jsonl (close ceremony ran — possibly in another session/clone whose local STATE verdicts never traveled) AND no recorded fail verdict AND no unsatisfied required review; closes the close->flush->retarget autonomy gap: without this arm a closed-but-unflushed focus falls to rule 5 and re-offers Planning for a finished scope', then: 'dispatch Metrics Flush (.aai/METRICS_FLUSH.prompt.md); after the flush lands, rule 4a retargets or reports scope_complete_no_open_intake' },
   { id: '5', when: 'focus spec_path null or spec file missing', then: 'dispatch Planning' },
   { id: '6', when: 'spec not frozen (no SPEC-FROZEN: true) or frontmatter status not draft/implementing; ceremony L0 (RFC-0009) prunes the status arm (tech-note doc), never the marker arm', then: 'dispatch Planning' },
   { id: '7', when: 'implementation_strategy.selected missing or undecided', then: 'dispatch Planning' },
@@ -318,20 +319,33 @@ export function decide(snapshot) {
   const focusHasFailVerdict = (s.validation && s.validation.status === 'fail')
     || (s.review && s.review.status === 'fail');
   if ((s.work_item == null || s.work_item.status === 'done')
-      && s.flushed === true
       && !focusHasFailVerdict) {
-    const fromRef = s.focus.ref_id;
-    const candidates = s.open_intakes;
-    // Probe failure: fail-closed, never guess.
-    if (candidates === null) return needsLlm(s, ['open_intake_scan_failed'], '4a');
-    if (candidates.length === 0) return noAction('4a', s, ['scope_complete_no_open_intake']);
-    if (candidates.length >= 2) {
-      const names = candidates.map(c => c.ref_id ?? c.primary_path);
-      return needsLlm(s, [`multiple_open_intakes:${names.join(',')}`], '4a');
+    if (s.flushed === true) {
+      const fromRef = s.focus.ref_id;
+      const candidates = s.open_intakes;
+      // Probe failure: fail-closed, never guess.
+      if (candidates === null) return needsLlm(s, ['open_intake_scan_failed'], '4a');
+      if (candidates.length === 0) return noAction('4a', s, ['scope_complete_no_open_intake']);
+      if (candidates.length >= 2) {
+        const names = candidates.map(c => c.ref_id ?? c.primary_path);
+        return needsLlm(s, [`multiple_open_intakes:${names.join(',')}`], '4a');
+      }
+      const only = candidates[0];
+      if (only.unmappable) return needsLlm(s, [`open_intake_unmappable:${only.primary_path}`], '4a');
+      return dispatchRetarget(only, s, fromRef);
     }
-    const only = candidates[0];
-    if (only.unmappable) return needsLlm(s, [`open_intake_unmappable:${only.primary_path}`], '4a');
-    return dispatchRetarget(only, s, fromRef);
+    // Rule 4b — closed but not yet flushed. A committed work_item_closed
+    // event in docs/ai/EVENTS.jsonl proves the close ceremony ran even when
+    // this session's LOCAL STATE carries no pass verdict (fresh clone, new
+    // session after a merged PR): without this arm the state falls through
+    // to rule 5 and re-offers Planning for a finished scope. Guards: a fail
+    // verdict already abstained above; a required-but-unsatisfied review
+    // still routes to rule 13 (never prune the review gate mechanically).
+    if (s.close_event_present === true
+        && !(s.review && s.review.required === true
+             && !['pass', 'waived'].includes(s.review.status))) {
+      return dispatchFor('Metrics Flush', s, '4b', { reasons: ['closed_but_unflushed_focus'] });
+    }
   }
   // Rules 5+6 — spec mapping / freeze proxies.
   if (!s.spec || s.spec.path == null || !s.spec.present) return dispatchFor('Planning', s, '5');
@@ -624,6 +638,26 @@ export function buildSnapshot(statePath, root) {
       } catch { /* unparseable ledger line: best-effort probe, skip */ }
     }
   }
+  // Rule 4b close-event probe: a committed work_item_closed event for the
+  // focus ref proves the close ceremony ran (possibly in another session or
+  // clone whose local STATE verdicts never traveled). Best-effort scan of the
+  // shared append-only audit log; any read/parse failure leaves the flag
+  // false, which preserves pre-4b behavior exactly.
+  let closeEventPresent = false;
+  const eventsPath = path.resolve(root, 'docs/ai/EVENTS.jsonl');
+  if (focusRef && fs.existsSync(eventsPath)) {
+    for (const line of fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/)) {
+      const t = line.trim();
+      if (t === '' || t.startsWith('#')) continue;
+      try {
+        const e = JSON.parse(t);
+        if (e.event === 'work_item_closed' && refMatches(e.ref, focusRef)) {
+          closeEventPresent = true;
+          break;
+        }
+      } catch { /* unparseable event line: best-effort probe, skip */ }
+    }
+  }
   const runs = focusRef ? agentRunsFor(lines, focusRef) : [];
   const openIntakes = buildOpenIntakes(root, focusRef, items);
   const snapshot = {
@@ -640,6 +674,7 @@ export function buildSnapshot(statePath, root) {
     validation,
     review,
     flushed,
+    close_event_present: closeEventPresent,
     open_intakes: openIntakes,
     implementer_model: focusRef ? lastImplementerModel(lines, focusRef) : null,
     last_run_role: runs.length ? runs[runs.length - 1].role : null,
@@ -693,6 +728,53 @@ function printRules() {
   console.log('with only code_review reset routes to 13 and never re-fires 11.');
 }
 
+// Optional deterministic tier->model binding (.aai/system/MODEL_ROUTING.yaml).
+// Absent file => suggested_model stays null and the orchestrator falls back to
+// interpreting suggested_tier itself (pre-binding behavior, fully back-compat).
+// Line-based parse mirroring the PROFILES.yaml discipline: two-space-indented
+// `  <key>: <value>` rows under `tiers:` / `roles:` sections only.
+function loadModelRouting(root) {
+  const p = path.resolve(root, '.aai/system/MODEL_ROUTING.yaml');
+  if (!fs.existsSync(p)) return null;
+  const routing = { tiers: {}, roles: {}, validation_alternate: null };
+  let section = null;
+  let raw;
+  try {
+    raw = fs.readFileSync(p, 'utf8');
+  } catch {
+    return null;
+  }
+  for (const line of raw.split(/\r?\n/)) {
+    if (line.trim() === '' || line.trim().startsWith('#')) continue;
+    if (/^tiers:\s*$/.test(line)) { section = 'tiers'; continue; }
+    if (/^roles:\s*$/.test(line)) { section = 'roles'; continue; }
+    const top = line.match(/^validation_alternate:\s*(\S+)\s*$/);
+    if (top) { routing.validation_alternate = top[1] === 'null' ? null : top[1]; section = null; continue; }
+    if (/^\S/.test(line)) { section = null; continue; }
+    const kv = line.match(/^ {2}([^:#]+):\s*(\S+)\s*$/);
+    if (kv && section) routing[section][kv[1].trim()] = kv[2];
+  }
+  return routing;
+}
+
+// suggested_model resolution order: per-role override, then tier default,
+// then null. Validator independence backstop: when the routed Validation
+// model equals the recorded implementer model, swap to validation_alternate
+// (same weights = same blind spots; SUBAGENT_PROTOCOL.md validator rule).
+function suggestModel(out, routing) {
+  if (!routing || out.verdict !== 'dispatch') return null;
+  let model = (out.role && routing.roles[out.role])
+    ?? (out.suggested_tier ? routing.tiers[out.suggested_tier] : null)
+    ?? null;
+  if (out.role === 'Validation' && model
+      && out.validator_independence
+      && out.validator_independence.implementer_model === model
+      && routing.validation_alternate) {
+    model = routing.validation_alternate;
+  }
+  return model;
+}
+
 function humanBlock(out) {
   const lines = [
     '=== ORCHESTRATION DISPATCH (deterministic tick) ===',
@@ -704,6 +786,7 @@ function humanBlock(out) {
     `Expected outputs: ${out.expected_outputs.join(', ') || '(none)'}`,
     `Stop condition: ${out.stop_condition}`,
     `Suggested model tier: ${out.suggested_tier ?? '(n/a)'}`,
+    `Suggested model id: ${out.suggested_model ?? '(unbound — no .aai/system/MODEL_ROUTING.yaml)'}`,
   ];
   if (out.validator_independence) {
     lines.push(`Validator independence: implementer_model=${out.validator_independence.implementer_model ?? 'null'} (validator model must differ)`);
@@ -729,6 +812,7 @@ function main() {
       out = decide(snapshot);
       out.state_summary = snapshot;
     }
+    out.suggested_model = suggestModel(out, loadModelRouting(root));
   } catch (err) {
     console.error(`orchestration-dispatch: internal error: ${err && err.stack ? err.stack : err}`);
     process.exit(1);

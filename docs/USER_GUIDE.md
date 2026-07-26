@@ -1517,6 +1517,40 @@ powershell -ExecutionPolicy Bypass -File tests/self-hosting/test-self-hosting-sm
 
 ## Workflows
 
+### End-to-end autopilot (/aai-ship)
+
+The shortest path from a stated need to a PR is the ship autopilot:
+
+```bash
+/aai-ship "Add user profile page with avatar upload"
+```
+
+It chains intake -> loop (planning, implementation, validation, review) ->
+product docs -> PR behind exactly ONE approval surface (the ship checkpoint:
+scope, diff stat, evidence links, "Ship? [y/n]"). Autopilot defaults are
+recorded, never silent: the intake metrics question is skipped, and the
+worktree gate auto-resolves (`optional`/`not_needed` -> inline,
+`recommended` -> worktree) — except `required` recommendations and ceremony
+L3 scopes, which always stop for a human. Genuine judgment calls (HITL-1..6)
+still pause the ride; answer them and re-run `/aai-ship` to resume. The agent
+never merges — that stays operator-only.
+
+Two supporting surfaces:
+
+- `/aai-overview` (or `node .aai/scripts/generate-overview.mjs`) renders
+  `docs/ai/overview.html` — a plain-language page of delivered items (with
+  spec/validation/review links), in-progress work, and anything waiting on a
+  human decision. Publish it with `/aai-share` for stakeholders.
+- `.aai/system/MODEL_ROUTING.yaml` binds dispatch tiers to concrete model ids
+  (mechanical -> small/cheap, standard -> mid, premium -> top; per-role
+  overrides supported). Every dispatch now carries `suggested_model`; delete
+  the file to fall back to tier hints only. Keep it in sync with
+  `.aai/system/PRICING.yaml` so routed runs stay costable.
+- Delivered user-visible scopes leave a product artifact at
+  `docs/product/<ref>.md` (functional description, data model, interfaces —
+  from `.aai/templates/PRODUCT_TEMPLATE.md`), so end-user documentation
+  accumulates per feature instead of drifting.
+
 ### Complete Feature Development
 
 ```bash

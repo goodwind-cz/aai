@@ -38,6 +38,8 @@ set of wrapper directories in `.claude/skills/`.
 | aai-docs-canon | Consolidate layered docs into a canonical per-domain layer | `/aai-docs-canon` | `--prompt-file .aai/SKILL_DOCS_CANON.prompt.md` |
 | aai-test-canon | Consolidate fragmented tests into a canonical per-domain suite | `/aai-test-canon` | `--prompt-file .aai/SKILL_TEST_CANON.prompt.md` |
 | aai-pr | Scope-audited commit, push, and PR creation (never merges) | `/aai-pr` | `--prompt-file .aai/SKILL_PR.prompt.md` |
+| aai-ship | End-to-end autopilot: need to PR-ready with ONE ship checkpoint (never merges) | `/aai-ship` | `--prompt-file .aai/SKILL_SHIP.prompt.md` |
+| aai-overview | Generate the stakeholder project-overview page (delivered / in progress / waiting on you) | `/aai-overview` | `node .aai/scripts/generate-overview.mjs` |
 | aai-verify | Verification-before-completion gate (IDENTIFY-RUN-READ-VERIFY-CLAIM) | `/aai-verify` | `--prompt-file .aai/SKILL_VERIFY.prompt.md` |
 | aai-debug | Systematic-debugging root-cause gate (READ-REPRODUCE-ISOLATE-FIX-AT-CAUSE) | `/aai-debug` | `--prompt-file .aai/SKILL_DEBUG.prompt.md` |
 | aai-scout | Optional pre-implementation readiness score 0-100, GO/HOLD advisory at 70 (never blocks) | `/aai-scout` | `--prompt-file .aai/SKILL_SCOUT.prompt.md` |
