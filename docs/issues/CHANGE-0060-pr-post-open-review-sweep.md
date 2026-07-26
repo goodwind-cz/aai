@@ -2,10 +2,12 @@
 id: pr-post-open-review-sweep
 number: 60
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 160
+  commits:
+    - 899712c074347e65520ca496ba2fb9e6729675c3
 ---
 
 # Change — SKILL_PR step 5d: post-open bot-review sweep before merge-readiness
