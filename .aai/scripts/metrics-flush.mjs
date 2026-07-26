@@ -91,6 +91,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+
+// Best-effort overview refresh after a REAL flush (PR #163 Codex P2): the
+// rule-4b late-flush path lands ledger entries after close-work-item's regen,
+// so token totals on the overview would stay stale until the next close.
+// Mirrors close-work-item's helper: swallow everything, never affect exit 0.
+function regenerateOverviewBestEffort() {
+  try {
+    const gen = path.join(SCRIPT_DIR, 'generate-overview.mjs');
+    if (!fs.existsSync(gen)) return;
+    spawnSync(process.execPath, [gen], { stdio: 'ignore' });
+  } catch (err) {
+    process.stderr.write(`metrics-flush: INFO overview regen skipped (best-effort, non-fatal): ${err.message}\n`);
+  }
+}
+
 import { fileURLToPath } from 'node:url';
 import { splitLines, duplicateKeys, inlineChildConflicts } from './lib/state-core.mjs';
 import {
@@ -98,6 +113,7 @@ import {
   nullFieldIfPresent, readScalar, unquoteScalar, indentOf, writeState, bumpUpdatedAt,
 } from './lib/state-engine.mjs';
 import { loadPricing, runCostUsd } from './lib/pricing.mjs';
+import { USAGE_NOTE_RE } from './lib/usage-note.mjs';
 
 setEngineFailPrefix('metrics-flush');
 
@@ -428,8 +444,13 @@ function buildEntry(entry, ctx) {
     // (not_usage_total_tokens=456) falls through to capture-missing on
     // purpose — a malformed note is not an honest total (PR #158 bot review).
     if (tokensIn === null || tokensOut === null) {
+      // Spec-AC-01 (token-economics-end-to-end): USAGE_NOTE_RE now lives in
+      // lib/usage-note.mjs (single source) — imported here, not re-declared.
+      // Match semantics unchanged: same regex object, same `.match()` call,
+      // same first-capture-group read, so every existing golden and the
+      // classify tests above stay byte-identical.
       const noteMatch = typeof r.note === 'string'
-        ? r.note.match(/(?:^|[\s"'(\[])usage_total_tokens=(\d+)(?=$|[\s"'),\].;])/)
+        ? r.note.match(USAGE_NOTE_RE)
         : null;
       if (noteMatch) {
         warnings.push(`INFO ${entry.ref} run ${r.role} (${r.model_id ?? 'unknown'}): undecomposed total ${noteMatch[1]} observed; cost unattributable by design`);
@@ -936,6 +957,7 @@ function main() {
   if (fullReset) console.log('Full reset applied: no active work remains (flush-reset defaults per .aai/STATE_FALLBACK.md)');
   for (const l of report) console.log(l);
   console.log(`check-state: OK (${path.relative(process.cwd(), statePath)})`);
+  regenerateOverviewBestEffort();
   process.exit(0);
 }
 
