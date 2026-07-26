@@ -1,23 +1,192 @@
 {
   "summary": {
-    "total": 0,
+    "total": 311,
     "totalTokens": 0,
-    "avgDuration": 0,
-    "successRate": "0.0",
+    "avgDuration": 591534,
+    "successRate": "100.0",
     "activeWorktrees": 0,
     "publishes": 0,
-    "workItems": 0,
-    "period": "No data"
+    "workItems": 73,
+    "period": "2026-06-25 to 2026-07-25"
   },
-  "tokensByTime": {},
-  "skillStats": [],
+  "tokensByTime": {
+    "2026-06-30": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-01": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-02": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-03": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-04": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-07": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-06-25": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-06-26": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-15": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-16": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-17": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-18": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-19": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-20": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-21": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-22": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-23": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-24": {
+      "input": 0,
+      "output": 0
+    },
+    "2026-07-25": {
+      "input": 0,
+      "output": 0
+    }
+  },
+  "skillStats": [
+    {
+      "name": "Validation",
+      "count": 74,
+      "avgTokens": 0,
+      "avgDuration": "565.1",
+      "successRate": "100.0"
+    },
+    {
+      "name": "Code Review",
+      "count": 71,
+      "avgTokens": 0,
+      "avgDuration": "347.1",
+      "successRate": "100.0"
+    },
+    {
+      "name": "Planning",
+      "count": 63,
+      "avgTokens": 0,
+      "avgDuration": "363.0",
+      "successRate": "100.0"
+    },
+    {
+      "name": "TDD Implementation",
+      "count": 42,
+      "avgTokens": 0,
+      "avgDuration": "1477.0",
+      "successRate": "100.0"
+    },
+    {
+      "name": "Implementation",
+      "count": 30,
+      "avgTokens": 0,
+      "avgDuration": "586.9",
+      "successRate": "100.0"
+    },
+    {
+      "name": "Remediation",
+      "count": 24,
+      "avgTokens": 0,
+      "avgDuration": "436.3",
+      "successRate": "100.0"
+    },
+    {
+      "name": "Implementation (loop)",
+      "count": 1,
+      "avgTokens": 0,
+      "avgDuration": "190.0",
+      "successRate": "100.0"
+    },
+    {
+      "name": "Remediation (E1 over-kill)",
+      "count": 1,
+      "avgTokens": 0,
+      "avgDuration": "900.0",
+      "successRate": "100.0"
+    },
+    {
+      "name": "Code Review (re-review)",
+      "count": 1,
+      "avgTokens": 0,
+      "avgDuration": "744.0",
+      "successRate": "100.0"
+    },
+    {
+      "name": "Remediation (W1 POSIX)",
+      "count": 1,
+      "avgTokens": 0,
+      "avgDuration": "1354.0",
+      "successRate": "100.0"
+    },
+    {
+      "name": "Remediation (P1+P2 Codex)",
+      "count": 1,
+      "avgTokens": 0,
+      "avgDuration": "359.0",
+      "successRate": "100.0"
+    },
+    {
+      "name": "Remediation (WARNING-1 firstCommitDate)",
+      "count": 1,
+      "avgTokens": 0,
+      "avgDuration": "252.0",
+      "successRate": "100.0"
+    },
+    {
+      "name": "Remediation (Copilot nits + Codex P2 inline-agent_runs)",
+      "count": 1,
+      "avgTokens": 0,
+      "avgDuration": "720.0",
+      "successRate": "100.0"
+    }
+  ],
   "tddStats": null,
   "worktreeStats": null,
   "publishStats": null,
-  "generatedAt": "2026-03-09T13:58:44.704Z",
+  "generatedAt": "2026-07-26T08:44:19.097Z",
   "source": {
-    "entries": 0,
-    "operations": 0,
+    "entries": 73,
+    "operations": 311,
     "schema": "work-item-ledger"
   },
   "filters": {

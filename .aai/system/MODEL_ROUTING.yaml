@@ -1,0 +1,35 @@
+# .aai/system/MODEL_ROUTING.yaml — deterministic tier -> model-id binding.
+#
+# CONTRACT
+# - Consumed by .aai/scripts/orchestration-dispatch.mjs: every dispatch verdict
+#   carries `suggested_model` resolved as roles[<role>] ?? tiers[<tier>] ?? null.
+#   The orchestrator honors suggested_model when the platform supports model
+#   selection; suggested_tier remains the fallback hint when it does not.
+# - DELETE OR EMPTY THIS FILE to restore pre-binding behavior (suggested_model
+#   stays null and the orchestrator LLM interprets suggested_tier itself).
+# - Parsed line-based like PROFILES.yaml: keep the exact two-space indentation
+#   of `  <key>: <value>` rows; nesting deeper than one level is not read.
+# - Model ids must resolve in .aai/system/PRICING.yaml (exact / longest-prefix)
+#   so metrics-flush can cost every routed run. Update BOTH files together.
+# - WHY: routing ~70% of mechanical/standard calls away from frontier models is
+#   the single largest lever on autonomous-run cost. Binding the map here makes
+#   the choice deterministic and auditable instead of a per-tick LLM judgment.
+#
+# Tier defaults (dispatch suggested_tier -> model id).
+tiers:
+  mechanical: claude-haiku-4-5
+  standard: claude-sonnet-5
+  premium: claude-opus-4-8
+
+# Optional per-role overrides (dispatch role name -> model id). A role row
+# beats its tier default. Role names are the dispatch verdict `role` strings,
+# e.g. "Code Review", "TDD Implementation", "Metrics Flush".
+roles:
+  Planning: claude-opus-4-8
+  Code Review: claude-opus-4-8
+
+# Validator-independence backstop: when the routed Validation model would
+# EQUAL the recorded implementer model (same weights = same blind spots),
+# dispatch swaps Validation to this model instead (SUBAGENT_PROTOCOL.md
+# "Spawning a validator" rule, CHANGE-0010 D1).
+validation_alternate: claude-opus-4-8

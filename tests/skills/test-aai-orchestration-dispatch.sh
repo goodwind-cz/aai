@@ -1448,6 +1448,124 @@ EOF
   log_pass "decide() purity on fail-verdict snapshot; 4a when doc string documents the guard (TEST-018/spec TEST-006)"
 }
 
+# --- TEST-019: rule 4b close-event bridge + MODEL_ROUTING binding --------------
+
+test_019_rule4b_close_event_bridge() {
+  log_info "Test: rule 4b closed-but-unflushed bridge (pure + CLI + EVENTS probe) and MODEL_ROUTING suggested_model binding (TEST-019)..."
+  cat > "$TEST_DIR/t19.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const base = () => ({
+  project_status: 'active', human_input_required: false, technology_present: true, workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0001' },
+  work_item: null,
+  spec: { path: 'docs/specs/SPEC-0001-fx.md', present: true, frozen: true, frontmatter_status: 'done', ceremony_level: 2 },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'not_run', ref_id: null },
+  review: { required: false, status: 'not_run' },
+  flushed: false,
+  close_event_present: true,
+  open_intakes: [],
+  implementer_model: null,
+  last_run_role: null,
+});
+
+// (1) 4b fires: closed (event) + unflushed + no fail + review satisfied.
+let d = decide(base());
+assert.strictEqual(d.rule, '4b', `expected 4b, got ${d.rule} (${JSON.stringify(d.reasons)})`);
+assert.strictEqual(d.role, 'Metrics Flush');
+assert.strictEqual(d.suggested_tier, 'mechanical');
+assert.ok(d.reasons.includes('closed_but_unflushed_focus'), 'reasons must name the bridge');
+
+// (2) done work item (not just absent) also bridges.
+let s = base();
+s.work_item = { phase: 'validation', status: 'done' };
+d = decide(s);
+assert.strictEqual(d.rule, '4b', `done work item: expected 4b, got ${d.rule}`);
+
+// (3) review guard: required-but-unsatisfied review must NOT be pruned by 4b.
+s = base();
+s.review = { required: true, status: 'not_run' };
+d = decide(s);
+assert.notStrictEqual(d.rule, '4b', 'unsatisfied required review must abstain from 4b');
+
+// (4) fail-verdict precedence: a validation fail routes to Remediation, never 4b.
+s = base();
+s.work_item = { phase: 'implementation', status: 'done' };
+s.spec.frontmatter_status = 'implementing';
+s.validation = { status: 'fail', ref_id: 'CHANGE-0001' };
+d = decide(s);
+assert.strictEqual(d.rule, '10', `fail verdict: expected 10, got ${d.rule}`);
+
+// (5) 4a precedence: a flushed focus takes the retarget arm, never 4b.
+s = base();
+s.flushed = true;
+d = decide(s);
+assert.strictEqual(d.rule, '4a', `flushed: expected 4a, got ${d.rule}`);
+assert.strictEqual(d.verdict, 'no_action');
+
+// (6) absent close_event_present field (legacy snapshot) preserves old behavior.
+s = base();
+delete s.close_event_present;
+d = decide(s);
+assert.notStrictEqual(d.rule, '4b', 'legacy snapshot without the probe field must never 4b');
+
+// (7) purity on a 4b snapshot.
+s = base();
+const frozen = JSON.stringify(s);
+const a = decide(s);
+const b = decide(JSON.parse(frozen));
+assert.strictEqual(JSON.stringify(a), JSON.stringify(b), 'decide must be deterministic on 4b snapshots');
+assert.strictEqual(JSON.stringify(s), frozen, 'decide must not mutate its 4b-snapshot input');
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t19.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t19.log" 2>&1 \
+    || log_fail "rule 4b pure decide() cases failed: $(cat "$TEST_DIR/t19.log")"
+
+  # CLI: EVENTS.jsonl probe drives 4b end-to-end on a closed-but-unflushed fixture.
+  local d
+  d="$(mk_root t19cli)"
+  write_dstate "$d/docs/ai/STATE.yaml" not_run not_run validation done tdd optional inline CHANGE-0001 false
+  printf '{"v":1,"ts":"2026-07-01T00:00:00Z","actor":"fixture","event":"work_item_closed","ref":"CHANGE-0001","payload":{"validation":"pass","code_review":"none"}}\n' \
+    > "$d/docs/ai/EVENTS.jsonl"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "4b CLI fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "4b" && o.role === "Metrics Flush" && o.suggested_tier === "mechanical"'
+  jassert "$OUT" 'o.state_summary.close_event_present === true && o.state_summary.flushed === false'
+  # No MODEL_ROUTING.yaml in the fixture root: suggested_model must be null.
+  jassert "$OUT" '"suggested_model" in o && o.suggested_model === null'
+
+  # MODEL_ROUTING binding: tier default resolves, per-role override wins.
+  mkdir -p "$d/.aai/system"
+  cat > "$d/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+tiers:
+  mechanical: fixture-mini
+  standard: fixture-mid
+  premium: fixture-top
+YAML
+  run_dispatch "$d"
+  jassert "$OUT" 'o.suggested_model === "fixture-mini"'
+  cat >> "$d/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
+roles:
+  Metrics Flush: fixture-override
+YAML
+  run_dispatch "$d"
+  jassert "$OUT" 'o.suggested_model === "fixture-override"'
+
+  # Negative control: same fixture WITHOUT the close event never 4bs.
+  rm "$d/docs/ai/EVENTS.jsonl"
+  run_dispatch "$d" || true
+  jassert "$OUT" 'o.rule !== "4b"'
+
+  log_pass "Rule 4b close-event bridge + MODEL_ROUTING suggested_model binding (TEST-019)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018)"
   check_deps
@@ -1470,6 +1588,7 @@ main() {
   test_016_survival_negative_control
   test_017_fail_closed_invariant
   test_018_purity_and_docstring_guard
+  test_019_rule4b_close_event_bridge
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
