@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 #
 # Test: aai-overview — token economics overview v2
-# (docs/specs/SPEC-DRAFT-spec-token-economics-end-to-end.md, TEST-005..007).
+# (docs/specs/SPEC-0089-spec-token-economics-end-to-end.md, TEST-005..007)
+# and the dev-progress-hub "In flight now" section
+# (docs/specs/SPEC-0093-spec-dev-progress-hub.md, TEST-001..006).
 #
 # Verifies .aai/scripts/generate-overview.mjs:
 #   - TEST-005 (Spec-AC-04): overview-data.json per-item token total equals
@@ -15,6 +17,17 @@
 #     is named in a release doc's frontmatter links.members list renders
 #     under that release heading; an item named by no release falls back to
 #     a close-month group derived from its close date.
+#   - TEST-001/002 (dev-progress-hub Spec-AC-01): fixture STATE.yaml + 6 loop
+#     ticks render an "In flight now" section with focus/phase/strategy/
+#     worktree/validation/review chips, and exactly the last 5 ticks newest
+#     first.
+#   - TEST-003 (dev-progress-hub Spec-AC-02): STATE absent, ticks absent, and
+#     ticks present-but-empty all omit the section entirely and exit 0.
+#   - TEST-004 (dev-progress-hub Spec-AC-03): a malformed JSONL tick line
+#     never shifts or shrinks the rendered 5-tick window.
+#   - TEST-005 dph (dev-progress-hub Spec-AC-04, SEAM): overview-data.json's
+#     in_flight block matches the SAME run's rendered HTML — one model field,
+#     two renderers, no drift possible between them.
 #
 # ALL fixtures are scratch temp-dir repos (generate-overview.mjs/metrics-
 # report.mjs always run with cwd = the fixture dir via --output/--metrics
@@ -144,6 +157,64 @@ models:
     input_usd_per_m: null
     output_usd_per_m: null
 YAML
+}
+
+# write_state_yaml <path> <ref> <focus-type> <phase> <strategy> <worktree-rec>
+#   <worktree-decision> <validation-status> <review-status>
+# — minimal fixture matching the REAL docs/ai/STATE.yaml shape generate-
+# overview.mjs's readState()/findActiveWorkItem() line-discipline parser
+# reads: current_focus + a matching active_work_items[] entry (for phase),
+# implementation_strategy, worktree, code_review, last_validation, human_input.
+write_state_yaml() {
+  local p="$1" ref="$2" ftype="$3" phase="$4" strategy="$5" wrec="$6" wdec="$7" vstatus="$8" rstatus="$9"
+  cat > "$p" <<EOF
+project_status: active
+current_focus:
+  type: $ftype
+  ref_id: $ref
+  primary_path: docs/issues/fixture.md
+  spec_path: null
+active_work_items:
+  - ref_id: $ref
+    status: in_progress
+    phase: $phase
+implementation_strategy:
+  selected: $strategy
+  source: docs/specs/fixture.md
+  rationale: fixture
+worktree:
+  recommendation: $wrec
+  user_decision: $wdec
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: fixture
+code_review:
+  required: true
+  status: $rstatus
+  scope: fixture
+  base_ref: null
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: fixture
+last_validation:
+  status: $vstatus
+  run_at_utc: 2026-07-27T00:00:00Z
+  ref_id: $ref
+  evidence_paths: []
+  notes: fixture
+human_input:
+  required: false
+  question: null
+EOF
+}
+
+# write_tick <ticks-file> <tick-num> <role> <scope> <duration_seconds> <harness>
+# — appends one well-formed LOOP_TICKS.jsonl row (real-shape fields).
+write_tick() {
+  printf '{"type":"tick","tick":%s,"role":"%s","scope":"%s","started_utc":"2026-07-27T00:00:00Z","ended_utc":"2026-07-27T00:00:30Z","duration_seconds":%s,"exit_code":0,"harness_version":"%s"}\n' \
+    "$2" "$3" "$4" "$5" "$6" >> "$1"
 }
 
 # run_overview <dir> -> writes overview-data.json + overview.html into <dir>,
@@ -283,16 +354,199 @@ test_007_release_grouping_and_close_month_fallback() {
   log_pass "Delivered grouping: release-member item groups under its release; unnamed items fall back to close-month groups (token-economics TEST-007)"
 }
 
+# --- TEST-001/002 (Spec-AC-01): In-flight section render + newest-first order ---
+
+test_dph01_in_flight_renders_focus_and_chips() {
+  log_info "Test: fixture STATE + ticks render the In-flight section with focus/phase/strategy/worktree/validation/review chips (dev-progress-hub TEST-001)..."
+  local d
+  d="$(mk_repo dph01)"
+  write_state_yaml "$d/docs/ai/STATE.yaml" "FIX-DPH1" "intake_change" "implementation" "tdd" "recommended" "inline" "pass" "not_run"
+  local i
+  for i in 1 2 3 4 5 6; do
+    write_tick "$d/docs/ai/LOOP_TICKS.jsonl" "$i" "Role$i" "scope-$i" "$((i * 10))" "h$i.0"
+  done
+  run_overview "$d"
+  [[ "$EC" == 0 ]] || log_fail "overview must exit 0: $(cat "$OUT")"
+  local html="$d/docs/ai/overview.html"
+  grep -qF "In flight now" "$html" || log_fail "missing 'In flight now' section heading"
+  # Localize chip assertions to the In-flight section only (PR #167 review):
+  # tokens like "pass"/"inline" appear elsewhere in overview.html.
+  local section
+  section="$(awk '/In flight now/,/<\/section>/' "$html")"
+  grep -qF "FIX-DPH1" "$html" || log_fail "missing focus ref"
+  printf '%s' "$section" | grep -qF "implementation" || log_fail "missing focus phase chip"
+  grep -qF "tdd" "$html" || log_fail "missing strategy chip"
+  grep -qF "recommended" "$html" || log_fail "missing worktree recommendation chip"
+  printf '%s' "$section" | grep -qF "inline" || log_fail "missing worktree user-decision chip"
+  printf '%s' "$section" | grep -qF "pass" || log_fail "missing validation-status chip"
+  grep -qF "not_run" "$html" || log_fail "missing review-status chip"
+  log_pass "In-flight section renders focus/phase/strategy/worktree/validation/review (dev-progress-hub TEST-001)"
+}
+
+test_dph02_last_five_ticks_newest_first() {
+  log_info "Test: exactly the last 5 ticks render, newest first; the oldest (tick 1) is excluded (dev-progress-hub TEST-002)..."
+  local d
+  d="$(mk_repo dph02)"
+  write_state_yaml "$d/docs/ai/STATE.yaml" "FIX-DPH2" "intake_change" "validation" "loop" "optional" "waived" "fail" "pass"
+  local i
+  for i in 1 2 3 4 5 6; do
+    write_tick "$d/docs/ai/LOOP_TICKS.jsonl" "$i" "Role$i" "scope-$i" "$((i * 10))" "h$i.0"
+  done
+  run_overview "$d"
+  [[ "$EC" == 0 ]] || log_fail "overview must exit 0: $(cat "$OUT")"
+  local dj="$d/docs/ai/overview-data.json"
+  local count order has_one
+  count="$(node_get "$dj" 'm.in_flight?.ticks?.length')"
+  [[ "$count" == "5" ]] || log_fail "expected exactly 5 ticks in in_flight.ticks, got $count"
+  order="$(node_get "$dj" 'm.in_flight?.ticks?.map(t=>t.tick)?.join(",")')"
+  [[ "$order" == "6,5,4,3,2" ]] || log_fail "expected newest-first order 6,5,4,3,2, got $order"
+  has_one="$(node_get "$dj" 'm.in_flight?.ticks?.some(t=>t.tick===1)')"
+  [[ "$has_one" == "false" ]] || log_fail "tick 1 (the 6th-oldest) must not appear in the last-5 window"
+  node -e '
+    const fs = require("fs");
+    const html = fs.readFileSync(process.argv[1], "utf8");
+    const order = ["scope-6", "scope-5", "scope-4", "scope-3", "scope-2"];
+    let last = -1;
+    for (const s of order) {
+      const idx = html.indexOf(s);
+      if (idx === -1) { console.error("missing " + s + " in rendered HTML"); process.exit(1); }
+      if (idx < last) { console.error("out of order at " + s); process.exit(1); }
+      last = idx;
+    }
+  ' "$d/docs/ai/overview.html" || log_fail "rendered ticks must appear newest-first in the HTML table"
+  log_pass "Last 5 ticks render newest first; the 6th-oldest tick is excluded (dev-progress-hub TEST-002)"
+}
+
+# --- TEST-003 (Spec-AC-02): graceful omission -------------------------------
+
+test_dph03_graceful_omission() {
+  log_info "Test: STATE absent, ticks absent, and ticks present-but-empty all omit the section entirely and exit 0 (dev-progress-hub TEST-003)..."
+  local dA dB dC inflight
+
+  dA="$(mk_repo dph03a)"
+  write_tick "$dA/docs/ai/LOOP_TICKS.jsonl" 1 "Role1" "scope-1" 10 "h1.0"
+  run_overview "$dA"
+  [[ "$EC" == 0 ]] || log_fail "STATE-absent case must exit 0: $(cat "$OUT")"
+  grep -qF "In flight now" "$dA/docs/ai/overview.html" && log_fail "STATE-absent case must omit the In-flight section"
+  inflight="$(node_get "$dA/docs/ai/overview-data.json" 'm.in_flight')"
+  [[ "$inflight" == "null" ]] || log_fail "STATE-absent case must have in_flight null, got $inflight"
+
+  dB="$(mk_repo dph03b)"
+  write_state_yaml "$dB/docs/ai/STATE.yaml" "FIX-DPH3B" "intake_change" "implementation" "tdd" "recommended" "inline" "pass" "not_run"
+  run_overview "$dB"
+  [[ "$EC" == 0 ]] || log_fail "ticks-absent case must exit 0: $(cat "$OUT")"
+  grep -qF "In flight now" "$dB/docs/ai/overview.html" && log_fail "ticks-absent case must omit the In-flight section"
+  inflight="$(node_get "$dB/docs/ai/overview-data.json" 'm.in_flight')"
+  [[ "$inflight" == "null" ]] || log_fail "ticks-absent case must have in_flight null, got $inflight"
+
+  dC="$(mk_repo dph03c)"
+  write_state_yaml "$dC/docs/ai/STATE.yaml" "FIX-DPH3C" "intake_change" "implementation" "tdd" "recommended" "inline" "pass" "not_run"
+  : > "$dC/docs/ai/LOOP_TICKS.jsonl"
+  run_overview "$dC"
+  [[ "$EC" == 0 ]] || log_fail "ticks-empty case must exit 0: $(cat "$OUT")"
+  grep -qF "In flight now" "$dC/docs/ai/overview.html" && log_fail "ticks-empty case must omit the In-flight section"
+  inflight="$(node_get "$dC/docs/ai/overview-data.json" 'm.in_flight')"
+  [[ "$inflight" == "null" ]] || log_fail "ticks-empty case must have in_flight null, got $inflight"
+
+  log_pass "STATE-absent, ticks-absent, and ticks-empty all gracefully omit the section (dev-progress-hub TEST-003)"
+}
+
+# --- TEST-004 (Spec-AC-03): malformed tick line never consumes a slot -------
+
+test_dph04_malformed_line_no_slot_consumed() {
+  log_info "Test: a JSON-parse-invalid line among 6 valid ticks does not shift or shrink the rendered 5-tick window (dev-progress-hub TEST-004)..."
+  local d
+  d="$(mk_repo dph04)"
+  write_state_yaml "$d/docs/ai/STATE.yaml" "FIX-DPH4" "intake_change" "code_review" "hybrid" "required" "worktree" "pass" "pass"
+  write_tick "$d/docs/ai/LOOP_TICKS.jsonl" 1 "Role1" "scope-1" 10 "h1.0"
+  write_tick "$d/docs/ai/LOOP_TICKS.jsonl" 2 "Role2" "scope-2" 20 "h1.0"
+  write_tick "$d/docs/ai/LOOP_TICKS.jsonl" 3 "Role3" "scope-3" 30 "h1.0"
+  write_tick "$d/docs/ai/LOOP_TICKS.jsonl" 4 "Role4" "scope-4" 40 "h1.0"
+  write_tick "$d/docs/ai/LOOP_TICKS.jsonl" 5 "Role5" "scope-5" 50 "h1.0"
+  printf '{"type":"tick","tick":99,"role":"Broken","scope":"unterminated\n' >> "$d/docs/ai/LOOP_TICKS.jsonl"
+  write_tick "$d/docs/ai/LOOP_TICKS.jsonl" 6 "Role6" "scope-6" 60 "h1.0"
+  run_overview "$d"
+  [[ "$EC" == 0 ]] || log_fail "malformed-line fixture must still exit 0: $(cat "$OUT")"
+  local dj="$d/docs/ai/overview-data.json"
+  local order count
+  order="$(node_get "$dj" 'm.in_flight?.ticks?.map(t=>t.tick)?.join(",")')"
+  [[ "$order" == "6,5,4,3,2" ]] || log_fail "malformed line must not shift the 5-tick window; expected 6,5,4,3,2, got $order"
+  count="$(node_get "$dj" 'm.in_flight?.ticks?.length')"
+  [[ "$count" == "5" ]] || log_fail "malformed line must not shrink the window below 5, got $count"
+  log_pass "Malformed tick line is skipped and never occupies one of the 5 slots (dev-progress-hub TEST-004)"
+
+  # Shape arms (PR #167 review + Codex P2 legacy-producer tolerance):
+  # (a) a legacy tick WITHOUT role/scope is kept, normalized to placeholders;
+  # (b) a JSON-valid row with a non-tick type is dropped without a slot.
+  local d2
+  d2="$(mk_repo dph04b)"
+  write_state_yaml "$d2/docs/ai/STATE.yaml" "FIX-DPH4B" "intake_change" "implementation" "tdd" "required" "inline" "not_run" "not_run"
+  write_tick "$d2/docs/ai/LOOP_TICKS.jsonl" 1 "Role1" "scope-1" 10 "h1.0"
+  printf '{"type":"tick","tick":2,"started_utc":"2026-07-27T00:00:00Z","duration_seconds":5}\n' >> "$d2/docs/ai/LOOP_TICKS.jsonl"
+  printf '{"type":"docs_audit","tick":98,"role":"NotATick","scope":"x"}\n' >> "$d2/docs/ai/LOOP_TICKS.jsonl"
+  write_tick "$d2/docs/ai/LOOP_TICKS.jsonl" 3 "Role3" "scope-3" 30 "h1.0"
+  run_overview "$d2"
+  [[ "$EC" == 0 ]] || log_fail "shape-arm fixture must exit 0: $(cat "$OUT")"
+  local dj2="$d2/docs/ai/overview-data.json" order2 legacyrole
+  order2="$(node_get "$dj2" 'm.in_flight?.ticks?.map(t=>t.tick)?.join(",")')"
+  [[ "$order2" == "3,2,1" ]] || log_fail "legacy tick kept + non-tick dropped; expected 3,2,1, got $order2"
+  legacyrole="$(node_get "$dj2" 'm.in_flight?.ticks?.[1]?.role')"
+  [[ "$legacyrole" == "(legacy tick)" ]] || log_fail "legacy tick must normalize role placeholder, got $legacyrole"
+  log_pass "Legacy role-less tick normalized and kept; JSON-valid non-tick row dropped (shape arms)"
+}
+
+# --- TEST-005 dph (Spec-AC-04, SEAM): overview-data.json mirrors the render -
+
+test_dph05_data_json_mirrors_render() {
+  log_info "Test: SEAM — overview-data.json's in_flight block matches the SAME run's rendered HTML, field for field (dev-progress-hub TEST-005)..."
+  local d
+  d="$(mk_repo dph05)"
+  write_state_yaml "$d/docs/ai/STATE.yaml" "FIX-DPH5" "intake_issue" "remediation" "hybrid" "optional" "waived" "fail" "fail"
+  local i
+  for i in 1 2 3 4 5 6; do
+    write_tick "$d/docs/ai/LOOP_TICKS.jsonl" "$i" "Role$i" "scope-$i" "$((i * 10))" "h$i.0"
+  done
+  run_overview "$d"
+  [[ "$EC" == 0 ]] || log_fail "overview must exit 0: $(cat "$OUT")"
+  local dj="$d/docs/ai/overview-data.json"
+  local html="$d/docs/ai/overview.html"
+  local jref jphase jstrategy jwrec jwdec jvstatus jrstatus
+  jref="$(node_get "$dj" 'm.in_flight?.focus?.ref')"
+  jphase="$(node_get "$dj" 'm.in_flight?.focus?.phase')"
+  jstrategy="$(node_get "$dj" 'm.in_flight?.strategy')"
+  jwrec="$(node_get "$dj" 'm.in_flight?.worktree?.recommendation')"
+  jwdec="$(node_get "$dj" 'm.in_flight?.worktree?.user_decision')"
+  jvstatus="$(node_get "$dj" 'm.in_flight?.validation_status')"
+  jrstatus="$(node_get "$dj" 'm.in_flight?.review_status')"
+  [[ "$jref" == "FIX-DPH5" ]] || log_fail "in_flight.focus.ref mismatch: $jref"
+  [[ "$jphase" == "remediation" ]] || log_fail "in_flight.focus.phase mismatch: $jphase"
+  [[ "$jstrategy" == "hybrid" ]] || log_fail "in_flight.strategy mismatch: $jstrategy"
+  [[ "$jwrec" == "optional" ]] || log_fail "in_flight.worktree.recommendation mismatch: $jwrec"
+  [[ "$jwdec" == "waived" ]] || log_fail "in_flight.worktree.user_decision mismatch: $jwdec"
+  [[ "$jvstatus" == "fail" ]] || log_fail "in_flight.validation_status mismatch: $jvstatus"
+  [[ "$jrstatus" == "fail" ]] || log_fail "in_flight.review_status mismatch: $jrstatus"
+  local v
+  for v in "$jref" "$jphase" "$jstrategy" "$jwrec" "$jwdec"; do
+    grep -qF "$v" "$html" || log_fail "SEAM violated: HTML must show in_flight value '$v' present in overview-data.json"
+  done
+  log_pass "SEAM: overview-data.json in_flight block matches the same run's rendered HTML (dev-progress-hub TEST-005)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (token-economics-end-to-end TEST-005..007)"
+  echo "Testing $TEST_NAME (token-economics-end-to-end TEST-005..007 + dev-progress-hub TEST-001..006)"
   check_deps
   setup_fixture
   test_005_per_item_tokens_and_grand_total
   test_005b_no_marker_item_is_null
   test_006_seam_overview_report_agreement
   test_007_release_grouping_and_close_month_fallback
+  test_dph01_in_flight_renders_focus_and_chips
+  test_dph02_last_five_ticks_newest_first
+  test_dph03_graceful_omission
+  test_dph04_malformed_line_no_slot_consumed
+  test_dph05_data_json_mirrors_render
   echo ""
-  log_pass "All $TEST_NAME tests passed"
+  log_pass "All $TEST_NAME tests passed (dev-progress-hub TEST-006: full-suite regression check)"
 }
 
 # Allow sourcing for isolated per-test execution (TDD RED/GREEN evidence);

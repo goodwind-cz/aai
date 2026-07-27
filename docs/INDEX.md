@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T08:05:36.327Z
+Generated: 2026-07-27T09:13:50.756Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (205)
+## Done (207)
 
 | ID | Type | Path |
 |---|---|---|
@@ -87,6 +87,7 @@ _None._
 | CHANGE-0064 | issues | docs/issues/CHANGE-0064-allocator-rewrite-all-trees.md |
 | CHANGE-0065 | issues | docs/issues/CHANGE-0065-cheap-model-in-practice.md |
 | CHANGE-0066 | issues | docs/issues/CHANGE-0066-product-docs-enforced.md |
+| CHANGE-0067 | issues | docs/issues/CHANGE-0067-dev-progress-hub.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -225,6 +226,7 @@ _None._
 | SPEC-0090 | specs | docs/specs/SPEC-0090-spec-allocator-rewrite-all-trees.md |
 | SPEC-0091 | specs | docs/specs/SPEC-0091-spec-cheap-model-in-practice.md |
 | SPEC-0092 | specs | docs/specs/SPEC-0092-spec-product-docs-enforced.md |
+| SPEC-0093 | specs | docs/specs/SPEC-0093-spec-dev-progress-hub.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
