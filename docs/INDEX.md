@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T19:18:39.709Z
+Generated: 2026-07-27T19:41:02.029Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -240,12 +240,19 @@ _None._
 | SPEC-0098 | specs | docs/specs/SPEC-0098-spec-prompt-hash-runtime-wiring.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (9)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0074 | issues | docs/issues/CHANGE-0074-state-bootstrap-template.md |
 | CHANGE-0075 | issues | docs/issues/CHANGE-0075-rollup-exclusion-visibility.md |
+| CHANGE-0076 | issues | docs/issues/CHANGE-0076-dashboard-refit.md |
+| CHANGE-0077 | issues | docs/issues/CHANGE-0077-decapod-prune.md |
+| CHANGE-0078 | issues | docs/issues/CHANGE-0078-docs-hub-generator.md |
+| CHANGE-0079 | issues | docs/issues/CHANGE-0079-doctor-determinize.md |
+| CHANGE-0080 | issues | docs/issues/CHANGE-0080-session-journal-contract.md |
+| CHANGE-0081 | issues | docs/issues/CHANGE-0081-skill-sweep-quick-wins.md |
+| CHANGE-0082 | issues | docs/issues/CHANGE-0082-validate-report-contract.md |
 
 ## Deferred (whole-doc) (0)
 

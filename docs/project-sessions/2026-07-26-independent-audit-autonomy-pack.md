@@ -41,6 +41,24 @@ view of what was delivered.
    (+3451 B in-glob, +148 B AGENTS.md; headroom 636/2048), TEST-012 expected
    total bumped to 29005, USER_GUIDE + SKILLS.md documentation.
 
+## Skill-sweep results (2026-07-27, three parallel hands-on auditors)
+
+All ~20 previously-untouched skills audited hands-on (read-only smoke runs,
+promise-vs-behavior checks, token economics, staleness, consumer evidence).
+Verdicts: 12 KEEP-AS-IS (share, replay, debug, verify, update,
+feedback-triage/upsert, auto-trigger, deslop, meta, scout, interrogate-watch,
+profile), 3 QUICK-WINs fixed in this ride (canonicalize bash-3.2 unbound
+arrays — reproduced live; test-canon --help/unknown-flag footgun that
+performed a real write during the audit itself, TEST-020 pin;
+generate-dashboard positional-arg collision silently overwriting
+docs/ai/dashboard.html — reproduced twice), 5 INTAKEs (doctor-determinize,
+dashboard-refit incl. test-skills trim, docs-hub-generator — catalog is
+8/35 skills stale, session-journal-contract, validate-report-contract) and
+1 LEGACY-PRUNE (decapod-prune: external CLI never built, ~55 KB dead
+weight, zero consumers since March). The roadmap's broader legacy-prune
+item RESOLVED with evidence: autonomous-loop.*, triage.*, claude-hook-gate
+and the migration scripts are all actively wired — only decapod is dead.
+
 ## Final run status (2026-07-27, autonomous run complete)
 
 Fourteen PRs merged across the run (#157-#170). Everything from the original

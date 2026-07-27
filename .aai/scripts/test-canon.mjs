@@ -36,6 +36,15 @@ import {
 
 const ROOT = process.cwd();
 
+function usage(code) {
+  console.log('Usage: test-canon.mjs [--phase1 | --phase2 | --drift] [--resync]');
+  console.log('  --phase1  analyze + write docs/ai/test-canon.proposal.json, then HALT (default)');
+  console.log('  --phase2  apply an approved proposal');
+  console.log('  --drift   report-only drift check');
+  console.log('  --resync  with --phase2: refresh proposal before applying');
+  process.exit(code);
+}
+
 function parseArgs(argv) {
   const args = { phase: null, resync: false };
   for (let i = 2; i < argv.length; i += 1) {
@@ -44,6 +53,11 @@ function parseArgs(argv) {
     else if (tok === '--phase2') args.phase = 2;
     else if (tok === '--drift') args.phase = 'drift';
     else if (tok === '--resync') args.resync = true;
+    else if (tok === '--help' || tok === '-h') usage(0);
+    // An unrecognized flag must never silently fall through to the default
+    // phase-1 run — phase 1 WRITES the proposal file (a typo'd flag used to
+    // trigger a real write; skill-sweep 2026-07-27).
+    else usage(2);
   }
   if (args.phase == null) args.phase = 1;
   return args;

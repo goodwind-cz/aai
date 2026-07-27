@@ -1093,6 +1093,21 @@ console.log('OK');
   log_pass "TEST-019 passed"
 }
 
+test_020() {
+  log_info "--- TEST-020: --help exits 0 and an unknown flag exits 2, neither writes the proposal (skill-sweep footgun) ---"
+
+  setup_fixture "test-canon" 1 1 "with-canonical"
+
+  node .aai/scripts/test-canon.mjs --help > /dev/null 2>&1 \
+    || log_fail "--help must exit 0 (got $?)"
+  node .aai/scripts/test-canon.mjs --typo > /dev/null 2>&1
+  [[ $? -eq 2 ]] || log_fail "unknown flag must exit 2 with usage, never fall through to a live phase-1 run"
+  [[ ! -f docs/ai/test-canon.proposal.json ]] \
+    || log_fail "--help/unknown flag must never write docs/ai/test-canon.proposal.json"
+
+  log_pass "TEST-020 passed"
+}
+
 # ==============================================================================
 # Main
 # ==============================================================================
@@ -1103,7 +1118,7 @@ run_all() {
     test_001 test_002 test_003 test_004 test_005 test_006
     test_007 test_008 test_009 test_010 test_011 test_012
     test_013 test_014 test_015 test_016 test_017 test_018
-    test_019
+    test_019 test_020
   )
   local total=${#tests[@]}
   local passed=0
