@@ -183,6 +183,11 @@ suites:
       - .aai/SUBAGENT_PROTOCOL.md
       - .aai/system/LOCKS.md
 
+  aai-doctor:
+    globs:
+      - .aai/scripts/aai-doctor.mjs
+      - .aai/SKILL_DOCTOR.prompt.md
+
   aai-feedback-status:
     globs:
       - .aai/scripts/aai-feedback-status.mjs

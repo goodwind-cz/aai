@@ -191,3 +191,4 @@
   cannot attest green-on-Linux. Weave CI into the loop: implementer pushes, the
   CI run is the RED->GREEN evidence, Validation verifies `gh run` conclusion +
   headSha-matches-HEAD + local non-regression. (Source: CHANGE-0043 loop.)
+- [2026-07-27] Bash 3.2 (macOS default): never cross-reference variables inside ONE local statement (local name="$1" d="$ROOT/$name" leaves d empty under set -u) — split into two local lines; and every git-fixture helper must refuse to run when its target dir is empty or non-absolute (guard [[ -n "$d" && "$d" = /* ]] before any git -C "$d"), otherwise a broken fixture silently operates on the REAL repository. (source: doctor-determinize ride 2026-07-28: fixture helper bug executed git -C '' against the real repo (self-corrected; forensically verified))
