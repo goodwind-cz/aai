@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Test: CI test-impact selection (CHANGE ci-test-impact-selection /
-# SPEC spec-ci-test-impact-selection, TEST-001..013).
+# SPEC spec-ci-test-impact-selection, TEST-001..013 + review remediations
+# TEST-017..019).
 #
 # Verifies .aai/scripts/select-suites.mjs — the deterministic, zero-dep,
 # always-exit-0 selector that maps a changed-path diff onto tests/skills/
@@ -332,6 +333,20 @@ test_017_hostile_core_name_fails_open() {  # review remediation: core-name chars
   log_pass "Hostile core name never reaches the workflow shell: FULL_RUN internal-error, exit 0 (TEST-017)"
 }
 
+test_019_ghost_core_entry_fails_open() {  # 5d sweep (Codex P2): core name without a suites row
+  log_info "Test: a core entry with no suites row degrades to FULL_RUN internal-error, never CORE <ghost>/negative DROPPED (TEST-019)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  small_map "$TEST_DIR"
+  printf 'core:\n  - aai-ghost\n\nsuites:\n  aai-alpha:\n    globs:\n      - src/alpha/**\n' \
+    > "$TEST_DIR/tests/skills/suite-map.yaml"
+  run_sel "$TEST_DIR" "src/alpha/foo.js"
+  [[ "$CODE" -eq 0 ]] || log_fail "exit code must be 0 on ghost core entry, got $CODE: $OUT"
+  echo "$OUT" | grep -qE '^FULL_RUN reason=internal-error path=core entry has no suites row: aai-ghost$' \
+    || log_fail "ghost core entry must degrade to FULL_RUN internal-error naming the entry: $OUT"
+  echo "$OUT" | grep -qE '^(SELECTED|CORE|DROPPED) ' && log_fail "no selection lines may leak past a ghost core entry: $OUT"
+  log_pass "Ghost core entry fails open, never emitted to the workflow (TEST-019)"
+}
+
 test_018_gate_job_contract() {  # review remediation: required-check continuity
   log_info "Test: aggregating gate job carries the branch-protection check name and needs all three jobs (TEST-018)..."
   grep -qF 'name: skill test suite (tests/skills/, via test-framework.sh)' "$WORKFLOW_FILE" \
@@ -361,6 +376,7 @@ main() {
   test_013_workflow_wiring
   test_017_hostile_core_name_fails_open
   test_018_gate_job_contract
+  test_019_ghost_core_entry_fails_open
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

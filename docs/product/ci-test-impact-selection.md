@@ -61,7 +61,8 @@ Nothing is required for a normal PR — selection is automatic:
   schema — not general YAML (its own header documents the exact
   indentation contract).
 - `docs/ai/docs-audit.yaml` `protected_paths_l3` — read live by the selector
-  as the third fail-open trigger class; never duplicated into the suite map.
+  as one of the three fail-open trigger classes (checked FIRST, before
+  shared-lib and unmapped); never duplicated into the suite map.
 
 ## Interfaces and contracts
 

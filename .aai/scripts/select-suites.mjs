@@ -232,6 +232,14 @@ function main() {
   if (core.length === 0 || Object.keys(suites).length === 0) {
     return fullRun('internal-error', `suite-map empty or malformed: ${mapPath}`);
   }
+  // Every core entry must name a defined suite: a misspelled/removed core
+  // row would otherwise emit CORE <ghost> (workflow runs a nonexistent
+  // suite) and corrupt the DROPPED arithmetic (negative count).
+  for (const c of core) {
+    if (!suites[c]) {
+      return fullRun('internal-error', `core entry has no suites row: ${c}`);
+    }
+  }
 
   let protectedL3 = [];
   if (existsSync(auditPath)) {
