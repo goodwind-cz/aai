@@ -11,6 +11,18 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — chore: decapod integration pruned — only true dead code found by the skill-sweep (CHANGE-0077) [L2]
+
+- Removed ~55 KB: SKILL_DECAPOD.prompt.md (9571 B file; ledger retires 9573 B incl. 2 B prior reword slack), 3 wrapper dirs,
+  DECAPOD_INTEGRATION.md, docs/ai/compliance/*, config example, plus every
+  live-tree pointer (AGENTS.md dispatch row, SKILLS.md, wrapper READMEs,
+  USER_GUIDE section, copilot-instructions). The external `decapod` CLI was
+  never shipped; zero consumers since 2026-03 (skill-sweep group C
+  evidence). Git history is the archive.
+- Governance: ledger -9573 RECLAIMED negative entry (precedent: SPEC-0059
+  reconciliation), TEST-012 pin 31311 -> 21738 RED-first, headroom back to
+  636/2048; layer-profiles 100% invariant holds (186 files).
+
 ## [unreleased] — feat: STATE bootstrap template — virgin targets init mechanically (CHANGE-0074 / SPEC-0099) [L2]
 
 - Universality-proof F1 closed: `.aai/templates/STATE_TEMPLATE.yaml` is now

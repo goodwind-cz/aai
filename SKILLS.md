@@ -25,7 +25,6 @@ set of wrapper directories in `.claude/skills/`.
 | aai-flush | Flush metrics from STATE.yaml to METRICS.jsonl and clean up | `/aai-flush` | `--prompt-file .aai/SKILL_FLUSH.prompt.md` |
 | aai-test-skills | Run the AAI skill test framework and suites | `/aai-test-skills` | `--prompt-file .aai/SKILL_TEST_SKILLS.prompt.md` |
 | aai-docs-hub | Generate documentation hub and skill catalog pages | `/aai-docs-hub` | `--prompt-file .aai/SKILL_DOCS_HUB.prompt.md` |
-| aai-decapod | Run compliance advisory workflow with Decapod | `/aai-decapod` | `--prompt-file .aai/SKILL_DECAPOD.prompt.md` |
 | aai-auto-trigger | Suggest and auto-trigger relevant skills for context | `/aai-auto-trigger` | `--prompt-file .aai/SKILL_AUTO_TRIGGER.prompt.md` |
 | aai-dashboard | Build metrics dashboard artifacts from telemetry | `/aai-dashboard` | `--prompt-file .aai/SKILL_DASHBOARD.prompt.md` |
 | aai-code-review | Run AI-assisted code review on PRs/changes | `/aai-code-review` | `--prompt-file .aai/SKILL_CODE_REVIEW.prompt.md` |

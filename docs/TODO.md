@@ -4,7 +4,7 @@
 
 - ✅ Skill Testing Framework (`/aai-test-skills`)
 - ✅ Interactive Docs Hub (`/aai-docs-hub`)
-- ✅ Decapod Integration PoC (`/aai-decapod`)
+- ❌ Decapod Integration PoC — PRUNED 2026-07-28 (CHANGE-0077: external CLI never shipped, zero consumers)
 - ✅ Auto-Trigger System (`/aai-auto-trigger`)
 - ✅ Metrics Dashboard (`/aai-dashboard`)
 - ✅ Code Review Skill (`/aai-code-review`)

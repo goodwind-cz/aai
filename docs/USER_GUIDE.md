@@ -1178,28 +1178,6 @@ actually reads. Example: the `aai-wrap-up` wrapper carries "wrap up",
 
 Full notice: `.aai/SKILL_AUTO_TRIGGER.prompt.md`.
 
-#### `/aai-decapod`
-**What:** Decapod compliance framework integration.
-
-**When to use:**
-- Compliance requirements (SOC2, HIPAA, GDPR)
-- Governance needs
-- Attestation artifacts
-
-**Example:**
-```bash
-/aai-decapod
-
-# Runs advisory checks before planning
-# Generates attestation after validation
-# Stores in docs/ai/compliance/
-```
-
-**Supports:**
-- SOC2, ISO27001, HIPAA, GDPR, PCI-DSS
-- Advisory checks (pre-planning)
-- Attestation generation (post-validation)
-
 ---
 
 ### 8. Session Management (pro-workflow)
@@ -1866,7 +1844,6 @@ cd /path/to/your-project
 
 # Install missing tools:
 npm install -g wrangler    # For /aai-share
-npm install -g @decapod/cli # For /aai-decapod
 ```
 
 #### "Wrangler authentication failed"
@@ -1934,7 +1911,6 @@ extend archived analyses.
 
 3. **Check documentation:**
    - This guide: `docs/USER_GUIDE.md`
-   - Technical docs: `docs/ai/DECAPOD_INTEGRATION.md`
    - TODO/roadmap: `docs/TODO.md`
 
 ---
