@@ -1912,6 +1912,121 @@ JSONL
   log_pass "Per-role token rollup sums valid markers by role, tokens only, never fabricates USD (token-economics TEST-002)"
 }
 
+test_124_flush_prompt_hash_passthrough() {  # prompt-hash-telemetry TEST-005 / Spec-AC-03
+  log_info "Test: flush copies prompt_hash into the ledger byte-unchanged when present; a sibling run without it gets no prompt_hash key (prompt-hash-telemetry TEST-005)..."
+  local d
+  d="$(mk_repo t124)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  write_golden_doc "$d"
+  local h="deadbeefcafe1234567890abcdef1234567890abcdef1234567890abcdef12"
+  node -e '
+    const fs = require("fs");
+    const p = process.argv[1];
+    const hash = process.argv[2];
+    let s = fs.readFileSync(p, "utf8");
+    s = s.replace(
+      "          cost_usd: null\n        - role: Implementation",
+      "          cost_usd: null\n          prompt_hash: " + hash + "\n        - role: Implementation"
+    );
+    fs.writeFileSync(p, s);
+  ' "$d/docs/ai/STATE.yaml" "$h"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
+  node -e '
+    const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8").trim());
+    const hash = process.argv[2];
+    const planning = o.agent_runs[0];
+    const impl = o.agent_runs[1];
+    if (planning.role !== "Planning" || planning.prompt_hash !== hash) {
+      console.error("Planning run prompt_hash mismatch: " + JSON.stringify(planning)); process.exit(1);
+    }
+    if (impl.role !== "Implementation" || Object.prototype.hasOwnProperty.call(impl, "prompt_hash")) {
+      console.error("Implementation run (no prompt_hash in STATE) must carry NO prompt_hash key: " + JSON.stringify(impl)); process.exit(1);
+    }
+  ' "$d/got.jsonl" "$h" || log_fail "prompt_hash passthrough wrong: $(cat "$d/got.jsonl")"
+  log_pass "flush copies prompt_hash byte-unchanged when present; omits the key entirely when absent (prompt-hash-telemetry TEST-005)"
+}
+
+test_125_flush_seam1_append_run_prompt_hash() {  # prompt-hash-telemetry TEST-007 (SEAM-1, integration)
+  log_info "Test: SEAM-1 — real append-run --prompt-hash then real flush; ledger line carries the exact hash (prompt-hash-telemetry TEST-007)..."
+  local d
+  d="$(mk_repo t125)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  write_golden_doc "$d"
+  local h now
+  h="feedface0011223344556677889900aabbccddeeff00112233445566778899"
+  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$d/docs/ai/STATE.yaml" \
+      append-run --ref CHANGE-0001 --role "TDD Implementation" --model claude-test \
+      --started "$now" --prompt-hash "$h" > "$d/append.log" 2>&1) \
+    || log_fail "seam fixture: real append-run --prompt-hash must exit 0: $(cat "$d/append.log")"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "flush must exit 0 (got $EC): $(cat "$OUT")"
+  grep -v -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" > "$d/got.jsonl"
+  node -e '
+    const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8").trim());
+    const hash = process.argv[2];
+    const run = o.agent_runs.find(r => r.role === "TDD Implementation");
+    if (!run || run.prompt_hash !== hash) {
+      console.error("SEAM-1: TDD Implementation run must carry the exact appended hash: " + JSON.stringify(run)); process.exit(1);
+    }
+  ' "$d/got.jsonl" "$h" || log_fail "SEAM-1 append-run -> flush hash mismatch: $(cat "$d/got.jsonl")"
+  log_pass "SEAM-1: real append-run --prompt-hash -> real flush -> exact hash in the emitted ledger line (prompt-hash-telemetry TEST-007)"
+}
+
+test_126_report_prompt_versions_multi_hash() {  # prompt-hash-telemetry TEST-008 (SEAM-2, integration)
+  log_info "Test: SEAM-2 — multi-hash ledger fixture yields a Prompt versions section grouping run counts by hash per role (prompt-hash-telemetry TEST-008)..."
+  local d="$TEST_DIR/t126"
+  mkdir -p "$d"
+  write_pricing "$d/PRICING.yaml"
+  cat > "$d/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-20","ref_id":"DDD-0001","title":"One","human_time_minutes":{"intake":0,"reviews":0},"agent_runs":[{"role":"Implementation","model_id":"m","tokens_in":null,"tokens_out":null,"cost_usd":null,"prompt_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"totals":{"human_time_minutes":0,"agent_duration_seconds":0,"total_cost_usd":null},"verdict":"PASS"}
+{"date_utc":"2026-07-21","ref_id":"DDD-0002","title":"Two","human_time_minutes":{"intake":0,"reviews":0},"agent_runs":[{"role":"Implementation","model_id":"m","tokens_in":null,"tokens_out":null,"cost_usd":null,"prompt_hash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},{"role":"Implementation","model_id":"m","tokens_in":null,"tokens_out":null,"cost_usd":null,"prompt_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"totals":{"human_time_minutes":0,"agent_duration_seconds":0,"total_cost_usd":null},"verdict":"PASS"}
+{"date_utc":"2026-07-22","ref_id":"DDD-0003","title":"Three","human_time_minutes":{"intake":0,"reviews":0},"agent_runs":[{"role":"Validation","model_id":"m","tokens_in":null,"tokens_out":null,"cost_usd":null,"prompt_hash":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}],"totals":{"human_time_minutes":0,"agent_duration_seconds":0,"total_cost_usd":null},"verdict":"PASS"}
+JSONL
+  local out="$d/out.md"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-report.mjs --metrics "$d/METRICS.jsonl" --pricing "$d/PRICING.yaml") > "$out" \
+    || log_fail "report must exit 0: $(cat "$out")"
+  grep -qE '^### Prompt versions' "$out" \
+    || log_fail "multi-hash ledger must render a Prompt versions section: $(cat "$out")"
+  grep -qE '^\| Implementation \| aaaaaaaaaaaa \| 2 \|' "$out" \
+    || log_fail "Implementation/aaaaaaaaaaaa must count 2 runs: $(cat "$out")"
+  grep -qE '^\| Implementation \| bbbbbbbbbbbb \| 1 \|' "$out" \
+    || log_fail "Implementation/bbbbbbbbbbbb must count 1 run: $(cat "$out")"
+  awk '/^### Prompt versions/,0' "$out" | grep -qE '^\| Validation ' \
+    && log_fail "Validation has only ONE distinct hash — it must NOT appear in the Prompt versions grouping: $(cat "$out")"
+  log_pass "SEAM-2: multi-hash ledger -> Prompt versions section groups run counts by hash per role (prompt-hash-telemetry TEST-008)"
+}
+
+test_127_report_no_prompt_versions_single_hash() {  # prompt-hash-telemetry TEST-009 / Spec-AC-04
+  log_info "Test: single-hash-per-role ledger yields NO Prompt versions section; report otherwise unchanged (prompt-hash-telemetry TEST-009)..."
+  local d="$TEST_DIR/t127"
+  mkdir -p "$d"
+  write_pricing "$d/PRICING.yaml"
+  cat > "$d/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-20","ref_id":"EEE-0001","title":"One","human_time_minutes":{"intake":0,"reviews":0},"agent_runs":[{"role":"Implementation","model_id":"m","tokens_in":null,"tokens_out":null,"cost_usd":null,"prompt_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"totals":{"human_time_minutes":0,"agent_duration_seconds":0,"total_cost_usd":null},"verdict":"PASS"}
+{"date_utc":"2026-07-21","ref_id":"EEE-0002","title":"Two","human_time_minutes":{"intake":0,"reviews":0},"agent_runs":[{"role":"Implementation","model_id":"m","tokens_in":null,"tokens_out":null,"cost_usd":null,"prompt_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"totals":{"human_time_minutes":0,"agent_duration_seconds":0,"total_cost_usd":null},"verdict":"PASS"}
+JSONL
+  local out="$d/out.md" out_nohash="$d/out-nohash.md"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-report.mjs --metrics "$d/METRICS.jsonl" --pricing "$d/PRICING.yaml") > "$out" \
+    || log_fail "report must exit 0: $(cat "$out")"
+  grep -qE '^### Prompt versions' "$out" \
+    && log_fail "a single hash per role must NEVER render a Prompt versions section: $(cat "$out")"
+
+  # Report otherwise unchanged: an identical ledger with NO prompt_hash field
+  # at all must render byte-identical output (module the fixture's own hash
+  # section which never fires here either way).
+  sed 's/,"prompt_hash":"[0-9a-f]*"//' "$d/METRICS.jsonl" > "$d/METRICS-nohash.jsonl"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-report.mjs --metrics "$d/METRICS-nohash.jsonl" --pricing "$d/PRICING.yaml") > "$out_nohash" \
+    || log_fail "report (no prompt_hash field at all) must exit 0: $(cat "$out_nohash")"
+  diff -u "$out_nohash" "$out" \
+    || log_fail "report output must be identical whether or not prompt_hash is present, when no role has >1 hash: $(diff "$out_nohash" "$out")"
+  log_pass "Single hash per role -> no Prompt versions section; report output otherwise unchanged (prompt-hash-telemetry TEST-009)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003 + token-economics-end-to-end TEST-001..004,011)"
   check_deps
@@ -1956,6 +2071,10 @@ main() {
   test_121_seam_marker_agreement
   test_122_report_per_item_undecomposed_column
   test_123_report_per_role_token_rollup
+  test_124_flush_prompt_hash_passthrough
+  test_125_flush_seam1_append_run_prompt_hash
+  test_126_report_prompt_versions_multi_hash
+  test_127_report_no_prompt_versions_single_hash
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

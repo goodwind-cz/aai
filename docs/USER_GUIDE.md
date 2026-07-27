@@ -2099,6 +2099,12 @@ Closing a user-facing work item now carries a real check: if the primary request
 
 [Product doc](product/product-docs-enforced.md) · [Spec](specs/SPEC-0092-spec-product-docs-enforced.md)
 
+### Prompt-hash telemetry (content-addressed identity of effective role instructions)
+
+Telemetry knew model, duration, and tokens for a run — but never WHICH VERSION of the role's instructions produced it. Prompt edits are the most common change class in this factory, and until now they were invisible in run history: two runs of the same role, on different days, looked identical even if the role prompt, `SUBAGENT_CONTRACT.md`, or `docs/knowledge/LEARNED.md` had changed underneath them in between.
+
+[Product doc](product/prompt-hash-telemetry.md) · [Spec](specs/SPEC-0096-spec-prompt-hash-telemetry.md)
+
 ### Role output contracts (deterministic EXPECT validation)
 
 Every dispatched subagent must end with a structured result block. Until now, only another model read it — a malformed or incomplete block cost an expensive round of confusion. The factory now validates each returned result block deterministically (no model call): required fields, status enum, ISO-UTC timestamps, duration arithmetic (including the negative-duration corner), and at least one evidence entry with an integer exit code. A violating block is rejected with machine-readable reasons and one re-prompt before anything reaches the shared state.

@@ -42,9 +42,14 @@
 //   set-human-input --required <true|false> [--question <t>] [--reason <t>]
 //   append-run --ref <ID> --role <R> --model <id> --started <ISO-UTC>
 //              [--note <t>] [--tokens-in N] [--tokens-out N] [--tdd-tests N]
+//              [--prompt-hash <12-64 lowercase hex>]
 //              (CHANGE-0010 D5: omitting --tokens-in/--tokens-out still exits 0
 //              but prints ONE stderr WARNING after the successful write —
 //              cost_usd can never be computed from null tokens at flush)
+//              (prompt-hash-telemetry D1: --prompt-hash is OPTIONAL and
+//              additive-only; a malformed value exits 2 pre-write; the field
+//              is pushed AFTER the conditional tdd_tests line, so an absent
+//              flag leaves all existing goldens byte-identical)
 //   log-tick --tick N --role <t> --scope <ref> --started <ISO-UTC> [...]   (JSONL append; never touches STATE)
 //   reset-block <last_validation|code_review> [--force]                    (D6 guards)
 //
@@ -188,7 +193,7 @@ const CMD_FLAGS = {
   'set-worktree': ['recommendation', 'user_decision', 'base_ref', 'branch', 'path', 'inline_scope', 'rationale', 'clear'],
   'set-tdd-cycle': ['status', 'test_id', 'spec_path', 'test_path', 'red', 'green', 'refactor'],
   'set-human-input': ['required', 'question', 'reason'],
-  'append-run': ['ref', 'role', 'model', 'started', 'note', 'tokens_in', 'tokens_out', 'tdd_tests'],
+  'append-run': ['ref', 'role', 'model', 'started', 'note', 'tokens_in', 'tokens_out', 'tdd_tests', 'prompt_hash'],
   'log-tick': ['tick', 'role', 'scope', 'started', 'type', 'exit_code', 'mode', 'k', 'harness',
     'tokens_in', 'tokens_out', 'cache_read', 'cost', 'lingering_procs', 'free_memory',
     'focus_before', 'validation_before'],
@@ -255,6 +260,19 @@ function refFlag(flags, name, cmd, { required = false } = {}) {
   if (YAML_KEYWORD_SLUGS.has(v)) {
     fail(`${cmd}: --${name} "${v}" is a bare YAML keyword and would be re-typed `
       + 'when the state file is parsed; use a longer slug');
+  }
+  return v;
+}
+
+// 12-64 lowercase hex chars (prompt-hash-telemetry Spec-AC-02): the shortest
+// grouping-safe prefix through the full sha256 digest. Bad shape -> usage
+// error naming BOTH the flag and the hex rule, exit 2, no write.
+const PROMPT_HASH_RE = /^[0-9a-f]{12,64}$/;
+function hexFlag(flags, name, cmd, { required = false } = {}) {
+  const v = strFlag(flags, name, cmd, { required });
+  if (v === undefined) return undefined;
+  if (!PROMPT_HASH_RE.test(v)) {
+    fail(`${cmd}: --${name} "${v}" must be 12-64 lowercase hex characters`);
   }
   return v;
 }
@@ -706,6 +724,7 @@ function cmdAppendRun(state, flags) {
   const tokensIn = intFlag(flags, 'tokens-in', 'append-run');
   const tokensOut = intFlag(flags, 'tokens-out', 'append-run');
   const tddTests = intFlag(flags, 'tdd-tests', 'append-run');
+  const promptHash = hexFlag(flags, 'prompt-hash', 'append-run');
 
   const ended = nowIso();   // SELF-STAMPED from the system clock
   const duration = Math.max(0, Math.round((Date.parse(ended) - Date.parse(started)) / 1000));
@@ -725,6 +744,7 @@ function cmdAppendRun(state, flags) {
     '          cost_usd: null',
   );
   if (tddTests !== undefined) runLines.push(`          tdd_tests: ${tddTests}`);
+  if (promptHash !== undefined) runLines.push(`          prompt_hash: ${promptHash}`);
 
   editBlock(state.lines, 'metrics', bl => {
     // Ensure `  work_items:` exists directly under metrics.

@@ -319,7 +319,7 @@ test_002_cli_contract() {
   [[ "$EC" == 0 ]] || log_fail "dispatch fixture must exit 0 (got $EC): $(cat "$OUT" "$ERR")"
   # stdout is EXACTLY ONE JSON object with the full D3 key set.
   jassert "$OUT" 'o.verdict === "dispatch" && o.rule === "11" && o.role === "Validation"'
-  jassert "$OUT" '["verdict","rule","role","ref_id","system_prompt","inputs","expected_outputs","stop_condition","suggested_tier","validator_independence","reasons","state_summary"].every(k => k in o)'
+  jassert "$OUT" '["verdict","rule","role","ref_id","system_prompt","inputs","expected_outputs","stop_condition","suggested_tier","validator_independence","reasons","state_summary","prompt_hash"].every(k => k in o)'
   jassert "$OUT" 'o.ref_id === "CHANGE-0001" && Array.isArray(o.inputs) && Array.isArray(o.expected_outputs) && Array.isArray(o.reasons)'
   jassert "$OUT" 'typeof o.stop_condition === "string" && o.stop_condition.length > 0'
   jassert "$OUT" 'o.system_prompt === ".aai/VALIDATION.prompt.md"'
@@ -1789,6 +1789,41 @@ test_026_docs_lane_key_contract() {
   log_pass "MODEL_ROUTING role@lane contract + user-facing routing note documented (TEST-026)"
 }
 
+test_027_prompt_hash_advisory() {  # prompt-hash-telemetry TEST-010 (SEAM-3, integration)
+  log_info "Test: SEAM-3 — dispatch --human prints an advisory prompt-hash line for the dispatched role, computed via the real lib (prompt-hash-telemetry TEST-010)..."
+  local d
+  d="$(mk_root t27)"
+  write_dstate "$d/docs/ai/STATE.yaml"   # not_run + phase implementation -> rule 11 dispatch (Validation)
+  run_dispatch "$d" --human
+  [[ "$EC" == 0 ]] || log_fail "dispatch --human must exit 0 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "dispatch" && o.role === "Validation"'
+  grep -qiE '^Prompt hash: [0-9a-f]{12}' "$ERR" \
+    || log_fail "--human stderr must carry an advisory 'Prompt hash: <12-hex>' line: $(cat "$ERR")"
+  log_pass "SEAM-3: --human advisory line carries a real 12-hex prompt hash for the dispatched role (prompt-hash-telemetry TEST-010)"
+}
+
+test_028_prompt_hash_json_additive() {  # prompt-hash-telemetry TEST-011 / Spec-AC-05
+  log_info "Test: dispatch stdout JSON carries prompt_hash on a dispatch verdict (additive); TEST-002 key-set extended; no-action verdict unaffected (prompt-hash-telemetry TEST-011)..."
+  local d
+  d="$(mk_root t28)"
+  write_dstate "$d/docs/ai/STATE.yaml"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "dispatch fixture must exit 0 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" '["verdict","rule","role","ref_id","system_prompt","inputs","expected_outputs","stop_condition","suggested_tier","validator_independence","reasons","state_summary","prompt_hash"].every(k => k in o)'
+  jassert "$OUT" 'typeof o.prompt_hash === "string" && /^[0-9a-f]{64}$/.test(o.prompt_hash)'
+
+  # no-action verdict (paused): prompt_hash stays absent — additive-only, no
+  # role dispatched means nothing to hash.
+  local d2
+  d2="$(mk_root t28-paused)"
+  write_dstate "$d2/docs/ai/STATE.yaml"
+  sed -i.bak 's/^project_status: active$/project_status: paused/' "$d2/docs/ai/STATE.yaml" && rm -f "$d2/docs/ai/STATE.yaml.bak"
+  run_dispatch "$d2"
+  [[ "$EC" == 3 ]] || log_fail "paused fixture must exit 3 (got $EC): $(cat "$OUT")"
+  jassert "$OUT" 'o.verdict === "no_action" && !("prompt_hash" in o)'
+  log_pass "prompt_hash additive on dispatch JSON (real 64-hex); TEST-002 key-set extended; no_action unaffected (prompt-hash-telemetry TEST-011)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026; TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
   check_deps
@@ -1818,6 +1853,8 @@ main() {
   test_023_absent_routing_null_on_lightweight_lane
   test_024_pure_independence_swap_over_lane
   test_026_docs_lane_key_contract
+  test_027_prompt_hash_advisory
+  test_028_prompt_hash_json_additive
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
