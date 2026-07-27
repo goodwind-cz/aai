@@ -11,6 +11,17 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: dev-progress view — the overview shows what the factory is doing right now (CHANGE-0067 / SPEC-0093)
+
+- generate-overview.mjs gains an "In flight now" section: current focus
+  (ref/type/phase/strategy/worktree), validation/review verdict chips, and
+  the last 5 loop ticks newest-first — sourced from local STATE.yaml and
+  LOOP_TICKS.jsonl with graceful omission on a fresh clone.
+- Adversarially leak-tested: STATE free-text fields (notes, rationale,
+  questions) never render; only enum/known scalars. Malformed tick lines
+  are skipped without consuming a display slot.
+
+
 ## [unreleased] — feat: product docs enforced at close + generated USER_GUIDE rollup (CHANGE-0066 / SPEC-0092)
 
 - close-work-item.mjs gains a pre-write product-doc gate: a primary

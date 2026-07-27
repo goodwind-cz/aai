@@ -96,12 +96,63 @@ function readState() {
     const v = m[1].trim();
     return v === '' || v === 'null' ? null : v.replace(/^["']|["']$/g, '');
   };
+  const focusRef = scalar('current_focus', 'ref_id');
+  const workItem = findActiveWorkItem(raw, focusRef);
   return {
-    focus_ref: scalar('current_focus', 'ref_id'),
+    focus_ref: focusRef,
     focus_type: scalar('current_focus', 'type'),
+    focus_phase: workItem ? workItem.phase : null,
+    strategy: scalar('implementation_strategy', 'selected'),
+    worktree_recommendation: scalar('worktree', 'recommendation'),
+    worktree_user_decision: scalar('worktree', 'user_decision'),
+    validation_status: scalar('last_validation', 'status'),
+    review_status: scalar('code_review', 'status'),
     human_required: scalar('human_input', 'required') === 'true',
     human_question: scalar('human_input', 'question'),
   };
+}
+
+// findActiveWorkItem(raw, refId) -> {ref_id, phase, status} for the
+// active_work_items[] entry matching ref_id, or null (dev-progress-hub
+// Spec-AC-01). Line-discipline parse, same house style as
+// readReleaseMembers(): each item starts at "  - ref_id: <id>" (2-space
+// indent); its scalar keys follow at 4-space indent until the next item or
+// the block dedents to a new top-level (0-indent) key.
+function findActiveWorkItem(raw, refId) {
+  if (!refId) return null;
+  const lines = raw.split(/\r?\n/);
+  const start = lines.findIndex((l) => /^active_work_items:\s*$/.test(l));
+  if (start === -1) return null;
+  let current = null;
+  let match = null;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (/^\S/.test(line)) break; // dedented out of the active_work_items block
+    const itemStart = line.match(/^ {2}-\s*ref_id:\s*(.+?)\s*$/);
+    if (itemStart) {
+      current = { ref_id: itemStart[1].replace(/^["']|["']$/g, ''), phase: null, status: null };
+      if (current.ref_id === refId) match = current;
+      continue;
+    }
+    if (!current) continue;
+    const phaseMatch = line.match(/^ {4}phase:\s*(.+?)\s*$/);
+    if (phaseMatch) current.phase = phaseMatch[1].replace(/^["']|["']$/g, '');
+    const statusMatch = line.match(/^ {4}status:\s*(.+?)\s*$/);
+    if (statusMatch) current.status = statusMatch[1].replace(/^["']|["']$/g, '');
+  }
+  return match;
+}
+
+// readTicks(limit) -> last <limit> LOOP_TICKS.jsonl rows shaped like a tick
+// (role + scope present as strings), newest first (dev-progress-hub
+// Spec-AC-01/03). Reuses readJsonl(), which already try/catches per line and
+// drops anything JSON.parse can't read — a malformed line is dropped BEFORE
+// the slice, so it can never occupy one of the <limit> slots regardless of
+// where in the file it sits.
+function readTicks(limit) {
+  const rows = readJsonl('docs/ai/LOOP_TICKS.jsonl')
+    .filter((r) => r && typeof r === 'object' && typeof r.role === 'string' && typeof r.scope === 'string');
+  return rows.slice(-limit).reverse();
 }
 
 // Evidence links: newest validation report / review file naming the ref.
@@ -174,6 +225,26 @@ function buildModel() {
   const events = readJsonl('docs/ai/EVENTS.jsonl');
   const metrics = readJsonl('docs/ai/METRICS.jsonl');
   const state = readState();
+  const ticks = readTicks(5);
+  // in_flight (dev-progress-hub Spec-AC-01/02): built ONCE here and consumed
+  // by both renderHtml() and the overview-data.json write below — a single
+  // model field feeding two renderers, so they cannot drift out of sync
+  // (Spec-AC-04 SEAM). null (graceful omission) unless there is a real
+  // current focus AND at least one parseable recent tick.
+  const inFlight = (state && state.focus_ref && ticks.length > 0) ? {
+    focus: { ref: state.focus_ref, type: state.focus_type, phase: state.focus_phase },
+    strategy: state.strategy,
+    worktree: { recommendation: state.worktree_recommendation, user_decision: state.worktree_user_decision },
+    validation_status: state.validation_status,
+    review_status: state.review_status,
+    ticks: ticks.map((t) => ({
+      tick: t.tick ?? null,
+      role: t.role,
+      scope: t.scope,
+      duration_seconds: typeof t.duration_seconds === 'number' ? t.duration_seconds : null,
+      harness_version: t.harness_version ?? null,
+    })),
+  } : null;
 
   const closedAt = new Map();
   for (const e of events) {
@@ -267,6 +338,7 @@ function buildModel() {
       ? { question: state.human_question, focus: state.focus_ref }
       : null,
     current_focus: state ? { ref: state.focus_ref, type: state.focus_type } : null,
+    in_flight: inFlight,
     in_progress: inProgress,
     delivered,
     delivered_groups: deliveredGroups,
@@ -292,10 +364,36 @@ function itemCard(it) {
   return `<li><strong>${esc(it.title)}</strong><br><span class="meta">${meta}</span><br><span class="links">${links}</span></li>`;
 }
 
+// inFlightSection(model) -> "In flight now" HTML, or '' when in_flight is
+// null (dev-progress-hub Spec-AC-01/02): current focus (ref/type/phase),
+// strategy/worktree/validation/review chips, and the last 5 ticks
+// (already newest-first from readTicks()) as a compact table.
+function inFlightSection(model) {
+  const f = model.in_flight;
+  if (!f) return '';
+  const chips = [
+    f.strategy ? `strategy: ${esc(f.strategy)}` : null,
+    f.worktree && f.worktree.recommendation
+      ? `worktree: ${esc(f.worktree.recommendation)}${f.worktree.user_decision ? ` / ${esc(f.worktree.user_decision)}` : ''}`
+      : null,
+    f.validation_status ? `validation: ${esc(f.validation_status)}` : null,
+    f.review_status ? `review: ${esc(f.review_status)}` : null,
+  ].filter(Boolean).map((c) => `<span class="chip">${c}</span>`).join('');
+  const rows = f.ticks.map((t) => `<tr><td>${esc(t.tick)}</td><td>${esc(t.role)}</td><td>${esc(t.scope)}</td><td>${t.duration_seconds ?? ''}</td><td>${esc(t.harness_version)}</td></tr>`).join('\n');
+  return `<section><h2>In flight now</h2>
+<p><strong>${esc(f.focus.ref)}</strong> <span class="meta">${esc(f.focus.type)}${f.focus.phase ? ` · ${esc(f.focus.phase)}` : ''}</span></p>
+<div class="chips">${chips}</div>
+<table class="ticks"><thead><tr><th>Tick</th><th>Role</th><th>Scope</th><th>Duration (s)</th><th>Harness</th></tr></thead><tbody>
+${rows}
+</tbody></table>
+</section>`;
+}
+
 function renderHtml(model) {
   const waiting = model.waiting_on_you
     ? `<section class="alert"><h2>Waiting on you</h2><p>${esc(model.waiting_on_you.question ?? 'A decision is required.')}${model.waiting_on_you.focus ? ` <span class="meta">(scope: ${esc(model.waiting_on_you.focus)})</span>` : ''}</p></section>`
     : '';
+  const inFlight = inFlightSection(model);
   const inProg = model.in_progress.length
     ? `<section><h2>In progress (${model.in_progress.length})</h2><ul>${model.in_progress.map(itemCard).join('\n')}</ul></section>`
     : '<section><h2>In progress</h2><p class="meta">Nothing in flight.</p></section>';
@@ -327,6 +425,10 @@ function renderHtml(model) {
   a:hover { text-decoration: underline; }
   .links { font-size: .85rem; }
   .alert { background: var(--alert-bg); border-radius: .5rem; padding: .2rem 1rem .8rem; margin-top: 1.5rem; }
+  .chips { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0 1rem; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: .2rem .7rem; font-size: .8rem; color: var(--muted); }
+  table.ticks { border-collapse: collapse; width: 100%; font-size: .85rem; }
+  table.ticks th, table.ticks td { border-bottom: 1px solid var(--line); padding: .35rem .5rem; text-align: left; }
 </style>
 </head>
 <body>
@@ -339,6 +441,7 @@ function renderHtml(model) {
   <div><b>${model.counts.tokens_total}</b>agent tokens (delivered)</div>
 </div>
 ${waiting}
+${inFlight}
 ${inProg}
 ${delivered}
 ${releases}
