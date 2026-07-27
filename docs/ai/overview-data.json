@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-07-27T12:31:31.793Z",
+  "generatedAt": "2026-07-27T12:31:40.631Z",
   "project": "aai",
   "counts": {
     "delivered": 115,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 18446108
+    "tokens_total": 18955589
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -16,15 +16,15 @@
     "focus": {
       "ref": "prompt-hash-telemetry",
       "type": "intake_change",
-      "phase": "code_review"
+      "phase": null
     },
     "strategy": "tdd",
     "worktree": {
       "recommendation": "required",
       "user_decision": "inline"
     },
-    "validation_status": "pass",
-    "review_status": "pass",
+    "validation_status": "not_run",
+    "review_status": "not_run",
     "ticks": [
       {
         "tick": 4,
@@ -151,8 +151,8 @@
       "status": "done",
       "path": "docs/issues/CHANGE-0070-prompt-hash-telemetry.md",
       "closed_on": "2026-07-27",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 39,
+      "token_total": 509481,
       "spec": "docs/specs/SPEC-0096-spec-prompt-hash-telemetry.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260727T122835Z-prompt-hash-telemetry.md"
@@ -1653,8 +1653,8 @@
           "status": "done",
           "path": "docs/issues/CHANGE-0070-prompt-hash-telemetry.md",
           "closed_on": "2026-07-27",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 39,
+          "token_total": 509481,
           "spec": "docs/specs/SPEC-0096-spec-prompt-hash-telemetry.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260727T122835Z-prompt-hash-telemetry.md"
