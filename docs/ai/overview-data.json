@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-07-27T06:59:36.797Z",
+  "generatedAt": "2026-07-27T08:05:36.246Z",
   "project": "aai",
   "counts": {
-    "delivered": 110,
+    "delivered": 111,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 16621391
+    "tokens_total": 17239888
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "cheap-model-in-practice",
+    "ref": "product-docs-enforced",
     "type": "intake_change"
   },
   "in_progress": [
@@ -40,6 +40,19 @@
       "spec": "docs/specs/SPEC-0091-spec-cheap-model-in-practice.md",
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "product-docs-enforced",
+      "title": "Change — Product docs enforced at close + USER_GUIDE rollup generated from them",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0066-product-docs-enforced.md",
+      "closed_on": "2026-07-27",
+      "agent_minutes": 30,
+      "token_total": 618497,
+      "spec": "docs/specs/SPEC-0092-spec-product-docs-enforced.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260727T080154Z-product-docs-enforced.md"
     },
     {
       "ref": "closeout-display-id-match",
@@ -1477,6 +1490,19 @@
           "spec": "docs/specs/SPEC-0091-spec-cheap-model-in-practice.md",
           "validation": null,
           "review": null
+        },
+        {
+          "ref": "product-docs-enforced",
+          "title": "Change — Product docs enforced at close + USER_GUIDE rollup generated from them",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0066-product-docs-enforced.md",
+          "closed_on": "2026-07-27",
+          "agent_minutes": 30,
+          "token_total": 618497,
+          "spec": "docs/specs/SPEC-0092-spec-product-docs-enforced.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260727T080154Z-product-docs-enforced.md"
         },
         {
           "ref": "closeout-display-id-match",

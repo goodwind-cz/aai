@@ -65,6 +65,12 @@
 //      internal error.
 //   2  usage error: missing/invalid flag, unresolvable/ambiguous ref, or a
 //      non-done-terminal status. Nothing written.
+//   3  product-doc gate REFUSED (spec-product-docs-enforced D3): the primary
+//      --ref doc's frontmatter carries a truthy `user_visible` and
+//      docs/product/<slug>.md is missing/placeholder under a
+//      `product_doc_gate: enforce` dial. Evaluated BEFORE any write (never a
+//      rollback path) — nothing written. --dry-run never returns 3 (the
+//      verdict is reported informationally in its JSON instead).
 //
 // Node stdlib only (docs/TECHNOLOGY.md). Reuses append-event.mjs verbatim
 // (no forked event schema) and the shared docs-audit engine (no re-implemented
@@ -76,6 +82,8 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { scanAuditDocs, loadConfig, runAudit, readEvents } from './lib/docs-audit-core.mjs';
 import { parseFrontmatter, extractDocIds, DEFAULT_CATEGORY_PREFIXES } from './lib/docs-model.mjs';
+import { readGuardConfig } from './lib/guard-config.mjs';
+import { REQUIRED_PRODUCT_SECTIONS, missingProductSections } from './lib/product-doc.mjs';
 
 const ROOT = process.cwd();
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -83,6 +91,7 @@ const EVENTS_PATH = path.join(ROOT, 'docs/ai/EVENTS.jsonl');
 const APPEND_EVENT = path.join(SCRIPT_DIR, 'append-event.mjs');
 const GENERATE_INDEX = path.join(SCRIPT_DIR, 'generate-docs-index.mjs');
 const GENERATE_OVERVIEW = path.join(SCRIPT_DIR, 'generate-overview.mjs');
+const GENERATE_USERGUIDE_ROLLUP = path.join(SCRIPT_DIR, 'generate-userguide-rollup.mjs');
 
 // D3 — flip-eligible statuses. `done` is handled separately (no-op). Every
 // other status (deferred | rejected | superseded | anything unrecognized) is
@@ -150,6 +159,52 @@ function resolveDoc(root, slug) {
     };
   }
   return { found: true, doc: matches[0] };
+}
+
+// --- product-doc gate (D1-D3, spec-product-docs-enforced) --------------------
+//
+// Evaluated ONLY for the PRIMARY --ref doc (D1 — the always-present anchor;
+// --spec is optional and reading the trigger from it would silently fail-open
+// on every close that omits --spec). Truthy `user_visible` is narrow: the
+// frontmatter value lower-cased equals the string "true"; anything else
+// (false, absent, garbage) leaves the gate silent (D1 legacy-safe default).
+
+function truthyUserVisible(fm) {
+  const v = fm?.user_visible;
+  if (v === undefined || v === null) return false;
+  return String(v).trim().toLowerCase() === 'true';
+}
+
+// evaluateProductDocGate(primaryDoc) -> { userVisible, severity, slug?,
+//   productDocPath?, productDocExists?, missingSections?, dial?, reason? }
+// severity is 'none' (not gated, or a real product doc present), 'warn'
+// (report-only dial), or 'refuse' (enforce dial). Read-only — callers decide
+// whether/when to act on the verdict (D3: the refuse branch must run BEFORE
+// any write; --dry-run must never act on it).
+function evaluateProductDocGate(primaryDoc) {
+  if (!truthyUserVisible(primaryDoc.fm)) return { userVisible: false, severity: 'none' };
+  const slug = primaryDoc.fmId;
+  const productDocPath = `docs/product/${slug}.md`;
+  const abs = path.join(ROOT, productDocPath);
+  const exists = fs.existsSync(abs);
+  const missing = exists ? missingProductSections(fs.readFileSync(abs, 'utf8')) : REQUIRED_PRODUCT_SECTIONS.slice();
+  if (missing.length === 0) {
+    return { userVisible: true, severity: 'none', slug, productDocPath, productDocExists: true, missingSections: [] };
+  }
+  const dial = readGuardConfig(path.join(ROOT, 'docs/ai')).product_doc_gate;
+  const reason = exists
+    ? `user_visible scope "${slug}" product doc ${productDocPath} is missing/placeholder section(s): ${missing.join(', ')}`
+    : `user_visible scope "${slug}" has no product doc at ${productDocPath}`;
+  return {
+    userVisible: true,
+    severity: dial === 'enforce' ? 'refuse' : 'warn',
+    slug,
+    productDocPath,
+    productDocExists: exists,
+    missingSections: missing,
+    dial,
+    reason,
+  };
 }
 
 // --- frontmatter line-surgical mutation (D4) ---------------------------------
@@ -337,6 +392,24 @@ function regenerateOverviewBestEffort() {
   }
 }
 
+// --- USER_GUIDE rollup regen (D5, spec-product-docs-enforced) ---------------
+//
+// Best-effort regen of the USER_GUIDE "Delivered features (generated)"
+// section, invoked as the STRICTLY LAST step of a successful close,
+// immediately AFTER regenerateOverviewBestEffort() -- reusing that exact
+// pattern verbatim: fs.existsSync guard (the generator is an `extended`-
+// profile file and may be absent in a core-only sync, D6), swallow every
+// failure to an INFO stderr line, never reach rollback, never change the exit
+// code (negative-control-backed, Spec-AC-04).
+function regenerateUserguideRollupBestEffort() {
+  try {
+    if (!fs.existsSync(GENERATE_USERGUIDE_ROLLUP)) return;
+    execFileSync('node', [GENERATE_USERGUIDE_ROLLUP], { stdio: 'ignore', cwd: ROOT });
+  } catch (err) {
+    process.stderr.write(`close-work-item: INFO userguide rollup regen skipped (best-effort, non-fatal): ${err.message}\n`);
+  }
+}
+
 // For each closed ref, assert the REAL audit classifies it tracked-done /
 // aligned with no missing-close-telemetry entry (Spec-AC-02). The audit
 // engine is the oracle — no heuristic is re-implemented here.
@@ -463,6 +536,22 @@ function main() {
     resolved.push({ slug, ...r.doc, status });
   }
 
+  // D3 — product-doc gate: evaluated for the PRIMARY doc (resolved[0] ==
+  // args.ref, D1) directly after resolution + status validation, BEFORE
+  // anything else that could write (including the idempotency short-circuit's
+  // own INDEX regen below) -- a refusal must write nothing (hard constraint).
+  // --dry-run reports the verdict informationally in its JSON further below
+  // and always writes nothing / exits 0 regardless of the dial, so the
+  // refuse/warn branches here are skipped for it.
+  const productDocGate = evaluateProductDocGate(resolved[0]);
+  if (!args.dryRun && productDocGate.severity === 'refuse') {
+    process.stderr.write(`close-work-item: REFUSED (product-doc gate) — ${productDocGate.reason}\n`);
+    process.exit(3);
+  }
+  if (!args.dryRun && productDocGate.severity === 'warn') {
+    process.stderr.write(`close-work-item: WARNING (product-doc gate) — ${productDocGate.reason}\n`);
+  }
+
   const events = readEvents(ROOT);
   const plan = resolved.map((d) => ({
     ...d,
@@ -478,6 +567,7 @@ function main() {
     console.log(JSON.stringify(
       {
         anyMutation,
+        productDocGate,
         plan: plan.map((p) => ({
           ref: p.fmId,
           rel: p.rel,
@@ -566,6 +656,7 @@ function main() {
     `close-work-item: closed ${refs.join(', ')} (pr #${args.pr}, commit ${args.commit})${briefNote}`
   );
   regenerateOverviewBestEffort();
+  regenerateUserguideRollupBestEffort();
   process.exit(0);
 }
 

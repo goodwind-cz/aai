@@ -24,7 +24,10 @@ import path from 'node:path';
 export const GUARD_CONFIG_BASENAME = 'docs-audit.yaml';
 
 // The closed set of enforce/report-only guard dials this reader owns.
-export const GUARD_DIALS = ['independence', 'close_gate', 'doc_number_guard'];
+// `product_doc_gate` (spec-product-docs-enforced D3) mirrors `close_gate`:
+// same grammar, same fail-open default, consulted by close-work-item.mjs to
+// choose warn-vs-refuse for its pre-write product-doc gate.
+export const GUARD_DIALS = ['independence', 'close_gate', 'doc_number_guard', 'product_doc_gate'];
 
 // Presence probe shared with docs-audit.mjs mode detection (enforced vs
 // report-only hangs off this file's existence — documented coupling, D8).
@@ -50,6 +53,7 @@ export function readGuardConfig(dir, opts = {}) {
     independence: 'report-only',
     close_gate: 'report-only',
     doc_number_guard: 'report-only',
+    product_doc_gate: 'report-only',
   };
   let raw;
   try {
@@ -65,7 +69,7 @@ export function readGuardConfig(dir, opts = {}) {
     // comment ("enforce# note") therefore yields the token "enforce#", which
     // fails the closed-set check below and falls open WITH a warning — the
     // same verdict the hooks' grep boundary (enforce([[:space:]]|$)) reaches.
-    const m = line.match(/^(independence|close_gate|doc_number_guard):\s*(\S+)/);
+    const m = line.match(/^(independence|close_gate|doc_number_guard|product_doc_gate):\s*(\S+)/);
     if (!m || seen.has(m[1])) continue;   // column-0 only; first occurrence wins
     seen.add(m[1]);
     if (m[2] !== 'enforce' && m[2] !== 'report-only') {

@@ -110,6 +110,7 @@ core:
   - .aai/scripts/lib/docs-model.mjs
   - .aai/scripts/lib/guard-config.mjs
   - .aai/scripts/lib/pricing.mjs
+  - .aai/scripts/lib/product-doc.mjs
   - .aai/scripts/lib/state-core.mjs
   - .aai/scripts/lib/state-engine.mjs
   - .aai/scripts/lib/usage-note.mjs
@@ -197,6 +198,7 @@ extended:
   - .aai/scripts/expert-fetch.sh
   - .aai/scripts/generate-dashboard.mjs
   - .aai/scripts/generate-overview.mjs
+  - .aai/scripts/generate-userguide-rollup.mjs
   - .aai/scripts/lib/aai-redact.mjs
   - .aai/scripts/lib/docs-canon-core.mjs
   - .aai/scripts/lib/test-canon-core.mjs

@@ -21,6 +21,14 @@ close_gate: report-only
 # (git ls-files), and /aai-pr allocates numbers before staging, so untracked
 # working-tree drafts never block. Projects may set report-only.
 doc_number_guard: enforce
+# spec-product-docs-enforced D3 — close-time product-doc gate (opt-in via the
+# PRIMARY work-item doc's frontmatter `user_visible: true`; absent key stays
+# ungated). Consulted ONLY by close-work-item.mjs to choose warn-vs-refuse for
+# a user_visible scope closing without a real docs/product/<ref>.md. Values:
+# enforce | report-only. Default (key or file absent, or an invalid value) is
+# report-only, fail-open — a missing/placeholder product doc warns loudly on
+# stderr but never blocks the close. AAI core ships this key report-only.
+product_doc_gate: report-only
 # RFC-0009 / spec-scale-adaptive-ceremony — L3 protected surfaces (project-owned
 # config; the POLICY and these canonical defaults live in
 # .aai/workflow/WORKFLOW.md "Ceremony levels"). A spec whose scope touches any

@@ -89,6 +89,8 @@ CLOSE_SCRIPT="$PROJECT_ROOT/.aai/scripts/close-work-item.mjs"
 DOCS_AUDIT="$PROJECT_ROOT/.aai/scripts/docs-audit.mjs"
 SKILL_PR="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
 VALIDATION_PROMPT="$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
+TEST_SELF="$PROJECT_ROOT/tests/skills/test-aai-close-work-item.sh"
+GUARD_CONFIG_LIB="$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs"
 
 cleanup() {
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
@@ -232,6 +234,206 @@ SPEC-FROZEN: true
 |----------|------------|------|-----------|--------------|--------|
 | TEST-001 | Spec-AC-01 | unit | n/a       | fixture      | green  |
 EOF
+}
+
+# --- product-doc-gate fixture builders (product-docs-enforced) --------------
+
+# write_user_visible_change_doc <path> <id> <status> — same shape as
+# write_change_doc but with `user_visible: true` in frontmatter (D1 trigger key).
+write_user_visible_change_doc() {
+  local path="$1" id="$2" status="$3"
+  cat > "$path" <<EOF
+---
+id: $id
+type: change
+status: $status
+user_visible: true
+links:
+  pr: []
+  commits: []
+---
+
+# Change — Fixture $id (user_visible)
+
+## Summary
+- fixture doc for close-work-item product-doc gate tests.
+
+## Motivation / Business Value
+- n/a
+
+## Scope
+- In scope: fixture only.
+- Out of scope: everything else.
+
+## Affected Area
+- test fixture.
+
+## Desired Behavior (To-Be)
+- n/a
+
+## Acceptance Criteria
+- AC-001: fixture.
+
+## Verification
+- n/a
+
+## Constraints / Risks
+- n/a
+
+## Notes
+- ephemeral fixture; never committed to the real repo.
+EOF
+}
+
+# set_product_doc_gate_dial <fixture_dir> <enforce|report-only|bogus> —
+# appends the dial to the fixture's docs-audit.yaml (first occurrence wins in
+# guard-config.mjs's column-0 scan, and the fixture's base file has no
+# pre-existing product_doc_gate line).
+set_product_doc_gate_dial() {
+  local dir="$1" value="$2"
+  printf 'product_doc_gate: %s\n' "$value" >> "$dir/docs/ai/docs-audit.yaml"
+}
+
+# write_real_product_doc <fixture_dir> <slug> — a REAL (non-placeholder)
+# product doc at docs/product/<slug>.md: every required section filled
+# ("None." for Data model/Interfaces, matching PRODUCT_TEMPLATE's explicit
+# positive-empty marker).
+write_real_product_doc() {
+  local dir="$1" slug="$2"
+  mkdir -p "$dir/docs/product"
+  cat > "$dir/docs/product/$slug.md" <<EOF
+---
+id: $slug
+type: product
+status: current
+spec: docs/specs/SPEC-9999-spec-$slug.md
+updated: 2026-01-01
+---
+
+# Fixture Feature $slug
+
+## What it does
+
+Functional description for the $slug fixture product doc.
+
+## How to use it
+
+Usage instructions for $slug.
+
+## Data model
+
+None.
+
+## Interfaces and contracts
+
+None.
+
+## Limits and non-goals
+
+None.
+
+## Links
+
+- Request: docs/issues/CHANGE-DRAFT-$slug.md
+- Spec: docs/specs/SPEC-9999-spec-$slug.md
+EOF
+}
+
+# write_placeholder_data_model_product_doc <fixture_dir> <slug> — the Data
+# model section still carries the unfilled template angle-bracket token;
+# Interfaces and contracts is real (isolates the Data-model placeholder case).
+write_placeholder_data_model_product_doc() {
+  local dir="$1" slug="$2"
+  mkdir -p "$dir/docs/product"
+  cat > "$dir/docs/product/$slug.md" <<EOF
+---
+id: $slug
+type: product
+status: current
+spec: docs/specs/SPEC-9999-spec-$slug.md
+updated: 2026-01-01
+---
+
+# Fixture Feature $slug
+
+## What it does
+
+Functional description for the $slug fixture product doc.
+
+## How to use it
+
+Usage instructions for $slug.
+
+## Data model
+
+<Entities/records/files this feature introduces or changes: name, fields
+worth knowing, where stored, retention. "None." if no data shape changed.>
+
+## Interfaces and contracts
+
+None.
+
+## Limits and non-goals
+
+None.
+
+## Links
+
+- Request: docs/issues/CHANGE-DRAFT-$slug.md
+- Spec: docs/specs/SPEC-9999-spec-$slug.md
+EOF
+}
+
+# write_placeholder_interfaces_product_doc <fixture_dir> <slug> — Interfaces
+# and contracts still carries the unfilled template token; Data model is
+# real (isolates the Interfaces placeholder case, TEST-006).
+write_placeholder_interfaces_product_doc() {
+  local dir="$1" slug="$2"
+  mkdir -p "$dir/docs/product"
+  cat > "$dir/docs/product/$slug.md" <<EOF
+---
+id: $slug
+type: product
+status: current
+spec: docs/specs/SPEC-9999-spec-$slug.md
+updated: 2026-01-01
+---
+
+# Fixture Feature $slug
+
+## What it does
+
+Functional description for the $slug fixture product doc.
+
+## How to use it
+
+Usage instructions for $slug.
+
+## Data model
+
+None.
+
+## Interfaces and contracts
+
+<Public surfaces this feature adds or changes: CLI commands and exit codes,
+API endpoints, file formats, events, env vars. One line each: surface,
+shape, stability promise. "None." if no public surface changed.>
+
+## Limits and non-goals
+
+None.
+
+## Links
+
+- Request: docs/issues/CHANGE-DRAFT-$slug.md
+- Spec: docs/specs/SPEC-9999-spec-$slug.md
+EOF
+}
+
+# write_none_dot_product_doc <fixture_dir> <slug> — Data model AND Interfaces
+# both read the literal "None." (TEST-006: must count as REAL and PASS).
+write_none_dot_product_doc() {
+  write_real_product_doc "$1" "$2"
 }
 
 # --- invocation + assertion helpers ------------------------------------------
@@ -796,6 +998,268 @@ test_015_overview_regen_failure_negative_control() {  # token-economics TEST-009
   log_pass "Generator failure is swallowed: close exit 0, doc still done, close events intact, no rollback (token-economics TEST-009)"
 }
 
+# --- product-docs-enforced TEST-001 (Spec-AC-01): report-only warns ---------
+
+test_016_gate_report_only_warns() {
+  log_info "Test: user_visible + missing product doc + report-only dial: WARNING on stderr, close exit 0, doc flipped (product-docs-enforced TEST-001)..."
+  local dir; dir=$(new_fixture_repo "t016")
+  write_user_visible_change_doc "$dir/docs/issues/CHANGE-0001-t016.md" "t016-slug" "draft"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t016.out" err="$TEST_DIR/t016.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t016-slug --pr 16 --commit a1a1a16)
+  assert_exit "report-only gate close" 0 "$code"
+
+  grep -qi 'WARNING.*product-doc gate' "$err" \
+    || log_fail "t016: expected a product-doc-gate WARNING on stderr, got: $(cat "$err")"
+  grep -qF 't016-slug' "$err" || log_fail "t016: WARNING did not name the scope"
+  grep -q '^status: done$' "$dir/docs/issues/CHANGE-0001-t016.md" \
+    || log_fail "t016: report-only must still let the close proceed (status not flipped)"
+
+  log_pass "Report-only gate: WARNING on stderr, close proceeds, doc flipped (product-docs-enforced TEST-001)"
+}
+
+# --- product-docs-enforced TEST-002 (Spec-AC-01): enforce refuses pre-write -
+
+test_017_gate_enforce_refuses_pre_write() {
+  log_info "Test: user_visible + missing product doc + enforce dial: refuse exit non-zero, doc bytes + EVENTS length unchanged (pre-write) (product-docs-enforced TEST-002)..."
+  local dir; dir=$(new_fixture_repo "t017")
+  set_product_doc_gate_dial "$dir" "enforce"
+  write_user_visible_change_doc "$dir/docs/issues/CHANGE-0001-t017.md" "t017-slug" "draft"
+  commit_fixture_docs "$dir"
+  cp "$dir/docs/issues/CHANGE-0001-t017.md" "$TEST_DIR/t017-before.md"
+  local events_before; events_before=$(file_size "$dir/docs/ai/EVENTS.jsonl")
+
+  local out="$TEST_DIR/t017.out" err="$TEST_DIR/t017.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t017-slug --pr 17 --commit b1b1b17)
+  assert_exit "enforce gate refuses" 3 "$code"
+  grep -qi 'REFUSED.*product-doc gate' "$err" \
+    || log_fail "t017: expected a product-doc-gate REFUSED line on stderr, got: $(cat "$err")"
+  grep -qF 't017-slug' "$err" || log_fail "t017: REFUSED reason did not name the scope"
+
+  diff -q "$TEST_DIR/t017-before.md" "$dir/docs/issues/CHANGE-0001-t017.md" >/dev/null \
+    || log_fail "t017: doc was mutated despite a pre-write refusal"
+  [[ "$(file_size "$dir/docs/ai/EVENTS.jsonl")" == "$events_before" ]] \
+    || log_fail "t017: EVENTS.jsonl grew despite a pre-write refusal"
+  [[ ! -e "$dir/docs/INDEX.md" ]] \
+    || log_fail "t017: docs/INDEX.md was created despite a pre-write refusal (gate must fire before ANY write, including self-verify's INDEX regen)"
+
+  log_pass "Enforce gate: refuse exit 3, nothing written (doc + EVENTS + INDEX untouched) (product-docs-enforced TEST-002)"
+}
+
+# --- product-docs-enforced TEST-003 (Spec-AC-01): absent key negative control
+
+test_018_gate_absent_user_visible_negative_control() {
+  log_info "Test: user_visible absent (legacy) -- gate silent, close proceeds regardless of product doc, even under enforce (product-docs-enforced TEST-003)..."
+  local dir; dir=$(new_fixture_repo "t018")
+  set_product_doc_gate_dial "$dir" "enforce"
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t018.md" "t018-slug" "draft"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t018.out" err="$TEST_DIR/t018.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t018-slug --pr 18 --commit c1c1c18)
+  assert_exit "absent user_visible proceeds under enforce" 0 "$code"
+  if grep -qi 'product-doc gate' "$err"; then
+    log_fail "t018: gate must be SILENT when user_visible is absent, got: $(cat "$err")"
+  fi
+  grep -q '^status: done$' "$dir/docs/issues/CHANGE-0001-t018.md" \
+    || log_fail "t018: close did not proceed for a legacy (non-user_visible) doc"
+
+  log_pass "Negative control: absent user_visible is silent and unaffected by the enforce dial (product-docs-enforced TEST-003)"
+}
+
+# --- product-docs-enforced TEST-004 (Spec-AC-01): real product doc passes ---
+
+test_019_gate_real_product_doc_passes_enforce() {
+  log_info "Test: user_visible + real product doc present under enforce: close proceeds, no warning (product-docs-enforced TEST-004)..."
+  local dir; dir=$(new_fixture_repo "t019")
+  set_product_doc_gate_dial "$dir" "enforce"
+  write_user_visible_change_doc "$dir/docs/issues/CHANGE-0001-t019.md" "t019-slug" "draft"
+  write_real_product_doc "$dir" "t019-slug"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t019.out" err="$TEST_DIR/t019.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t019-slug --pr 19 --commit d1d1d19)
+  assert_exit "real product doc under enforce proceeds" 0 "$code"
+  if grep -qi 'product-doc gate' "$err"; then
+    log_fail "t019: a REAL product doc must not warn/refuse, got: $(cat "$err")"
+  fi
+  grep -q '^status: done$' "$dir/docs/issues/CHANGE-0001-t019.md" \
+    || log_fail "t019: close did not proceed despite a real product doc"
+
+  log_pass "Real product doc present: enforce proceeds silently (product-docs-enforced TEST-004)"
+}
+
+# --- product-docs-enforced TEST-005 (Spec-AC-02): placeholder Data model ----
+
+test_020_gate_placeholder_data_model_counts_missing() {
+  log_info "Test: a product doc with a placeholder Data model section counts as missing (enforce refuses) (product-docs-enforced TEST-005)..."
+  local dir; dir=$(new_fixture_repo "t020")
+  set_product_doc_gate_dial "$dir" "enforce"
+  write_user_visible_change_doc "$dir/docs/issues/CHANGE-0001-t020.md" "t020-slug" "draft"
+  write_placeholder_data_model_product_doc "$dir" "t020-slug"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t020.out" err="$TEST_DIR/t020.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t020-slug --pr 20 --commit e1e1e20)
+  assert_exit "placeholder Data model refuses under enforce" 3 "$code"
+  grep -qF 'Data model' "$err" \
+    || log_fail "t020: REFUSED reason did not name the placeholder Data model section, got: $(cat "$err")"
+
+  log_pass "Placeholder Data model counts as missing: enforce refuses, names the section (product-docs-enforced TEST-005)"
+}
+
+# --- product-docs-enforced TEST-006 (Spec-AC-02): placeholder Interfaces + --
+# an explicit None. section counts as real --------------------------------
+
+test_021_gate_placeholder_interfaces_and_none_dot_passes() {
+  log_info "Test: placeholder Interfaces section counts as missing; a section reading None. counts as real and passes (product-docs-enforced TEST-006)..."
+  local dir; dir=$(new_fixture_repo "t021")
+  set_product_doc_gate_dial "$dir" "enforce"
+  write_user_visible_change_doc "$dir/docs/issues/CHANGE-0001-t021a.md" "t021a-slug" "draft"
+  write_placeholder_interfaces_product_doc "$dir" "t021a-slug"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t021a.out" err="$TEST_DIR/t021a.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t021a-slug --pr 21 --commit f1f1f21)
+  assert_exit "placeholder Interfaces refuses under enforce" 3 "$code"
+  grep -qF 'Interfaces and contracts' "$err" \
+    || log_fail "t021a: REFUSED reason did not name the placeholder Interfaces section, got: $(cat "$err")"
+
+  # Sibling case in the SAME fixture repo: a doc whose Data model AND
+  # Interfaces both read the literal "None." must PASS (D2: "None." is REAL).
+  write_user_visible_change_doc "$dir/docs/issues/CHANGE-0002-t021b.md" "t021b-slug" "draft"
+  write_none_dot_product_doc "$dir" "t021b-slug"
+  commit_fixture_docs "$dir"
+
+  out="$TEST_DIR/t021b.out"; err="$TEST_DIR/t021b.err"
+  code=$(run_close "$dir" "$out" "$err" --ref t021b-slug --pr 21 --commit 01f1f21)
+  assert_exit "None. sections pass under enforce" 0 "$code"
+  if grep -qi 'product-doc gate' "$err"; then
+    log_fail "t021b: explicit None. sections must PASS (be treated as real), got: $(cat "$err")"
+  fi
+
+  log_pass "Placeholder Interfaces refuses (named); explicit None. sections pass (product-docs-enforced TEST-006)"
+}
+
+# --- product-docs-enforced TEST-011 (Spec-AC-04 SEAM): best-effort rollup ---
+# hook updates USER_GUIDE on a real close --------------------------------
+
+test_022_seam_close_updates_userguide_rollup() {
+  log_info "Test: SEAM -- a real close of a user_visible item with a real product doc updates the USER_GUIDE marked region (product-docs-enforced TEST-011)..."
+  local dir; dir=$(new_fixture_repo "t022")
+  write_user_visible_change_doc "$dir/docs/issues/CHANGE-0001-t022.md" "t022-slug" "draft"
+  write_real_product_doc "$dir" "t022-slug"
+  commit_fixture_docs "$dir"
+
+  [[ ! -e "$dir/docs/USER_GUIDE.md" ]] \
+    || log_fail "t022: fixture setup bug -- docs/USER_GUIDE.md must not pre-exist"
+
+  local out="$TEST_DIR/t022.out" err="$TEST_DIR/t022.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t022-slug --pr 22 --commit a2a2a22)
+  assert_exit "close with rollup hook" 0 "$code"
+
+  [[ -f "$dir/docs/USER_GUIDE.md" ]] \
+    || log_fail "t022: close did not regenerate docs/USER_GUIDE.md (best-effort rollup hook, D5)"
+  grep -qF '<!-- AAI:USERGUIDE-ROLLUP:BEGIN' "$dir/docs/USER_GUIDE.md" \
+    || log_fail "t022: USER_GUIDE.md missing the rollup BEGIN marker"
+  grep -qF 'Fixture Feature t022-slug' "$dir/docs/USER_GUIDE.md" \
+    || log_fail "t022: rendered rollup does not carry the just-closed item's product doc title"
+
+  log_pass "SEAM: a real close regenerates USER_GUIDE with the product doc rendered in the marked region (product-docs-enforced TEST-011)"
+}
+
+# --- product-docs-enforced TEST-012 (Spec-AC-04): negative control ----------
+# a rigged rollup failure never changes the close exit code -----------------
+
+test_023_negative_control_rollup_failure() {
+  log_info "Test: NEGATIVE CONTROL -- a rigged rollup-generator failure leaves close exit 0, doc done, close events intact (no rollback) (product-docs-enforced TEST-012)..."
+  local dir; dir=$(new_fixture_repo "t023")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t023.md" "t023-slug" "draft"
+  commit_fixture_docs "$dir"
+
+  # Rig the generator to fail: put a DIRECTORY where it must write a file, so
+  # generate-userguide-rollup.mjs's fs.writeFileSync throws EISDIR -- the same
+  # deterministic in-repo rigging technique as the overview-regen negative
+  # control (test_015).
+  mkdir -p "$dir/docs/USER_GUIDE.md"
+
+  local out="$TEST_DIR/t023.out" err="$TEST_DIR/t023.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t023-slug --pr 23 --commit b2b2b23)
+  assert_exit "close survives a rigged rollup failure" 0 "$code"
+
+  grep -q '^status: done$' "$dir/docs/issues/CHANGE-0001-t023.md" \
+    || log_fail "t023: the close itself must NOT be rolled back by a rollup-generator failure -- doc must still be done"
+  [[ "$(events_count "$dir/docs/ai/EVENTS.jsonl" work_item_closed t023-slug)" -ge 1 ]] \
+    || log_fail "t023: work_item_closed event must still be present (no rollback triggered by the rollup failure)"
+  [[ "$(events_count "$dir/docs/ai/EVENTS.jsonl" doc_lifecycle t023-slug)" -ge 1 ]] \
+    || log_fail "t023: doc_lifecycle event must still be present (no rollback triggered by the rollup failure)"
+  grep -qi 'userguide rollup regen skipped' "$out" "$err" 2>/dev/null || true
+
+  log_pass "Generator failure is swallowed: close exit 0, doc still done, close events intact, no rollback (product-docs-enforced TEST-012)"
+}
+
+# --- product-docs-enforced TEST-013 (Spec-AC-05): legacy suite regression ---
+
+test_024_legacy_suite_regression() {
+  log_info "Test: full existing close-work-item suite (legacy TEST-001..015) stays green -- no regression from the product-doc gate + rollup hook (product-docs-enforced TEST-013)..."
+  local legacy_tests="test_001_draft_close test_002_implementing_close test_003_non_done_terminal_guard \
+test_004_ref_form_and_audit_clean test_005_pair_close test_006_pair_pre_write_abort \
+test_007_idempotent_rerun test_008_fail_closed_rollback test_009_canon_grep_contract \
+test_010_fail_closed_index_regen_rollback test_011_inline_nonempty_links_normalized \
+test_012_null_fm_id_pre_write_guard test_013_brief_cleanup_on_close \
+test_014_overview_regen_best_effort test_015_overview_regen_failure_negative_control"
+  local t out
+  for t in $legacy_tests; do
+    out="$TEST_DIR/regress-$t.out"
+    if ! bash "$TEST_SELF" "$t" > "$out" 2>&1; then
+      log_fail "product-docs-enforced TEST-013: legacy $t FAILED under regression re-run: $(tail -20 "$out")"
+    fi
+  done
+  log_pass "Legacy suite regression: all 15 pre-existing close-work-item tests still pass standalone (product-docs-enforced TEST-013)"
+}
+
+# --- product-docs-enforced TEST-014 (Spec-AC-05): guard-config dial (unit) --
+
+test_025_guard_config_product_doc_gate_dial() {
+  log_info "Test: guard-config readGuardConfig returns product_doc_gate for enforce, report-only, and invalid-value fail-open (product-docs-enforced TEST-014, unit)..."
+  local dir="$TEST_DIR/t025-guard-config"
+  mkdir -p "$dir"
+  local probe="$TEST_DIR/t025-probe.mjs"
+  cat > "$probe" <<PROBE
+import { readGuardConfig } from '$GUARD_CONFIG_LIB';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const dir = process.argv[2];
+
+fs.writeFileSync(path.join(dir, 'docs-audit.yaml'), 'product_doc_gate: enforce\n');
+let cfg = readGuardConfig(dir, { warn: () => {} });
+if (cfg.product_doc_gate !== 'enforce') { console.error('expected enforce, got ' + cfg.product_doc_gate); process.exit(1); }
+
+fs.writeFileSync(path.join(dir, 'docs-audit.yaml'), 'product_doc_gate: report-only\n');
+cfg = readGuardConfig(dir, { warn: () => {} });
+if (cfg.product_doc_gate !== 'report-only') { console.error('expected report-only, got ' + cfg.product_doc_gate); process.exit(1); }
+
+let warned = false;
+fs.writeFileSync(path.join(dir, 'docs-audit.yaml'), 'product_doc_gate: bogus\n');
+cfg = readGuardConfig(dir, { warn: () => { warned = true; } });
+if (cfg.product_doc_gate !== 'report-only') { console.error('expected fail-open report-only for an invalid value, got ' + cfg.product_doc_gate); process.exit(1); }
+if (!warned) { console.error('expected a warning callback on an invalid product_doc_gate value'); process.exit(1); }
+
+fs.writeFileSync(path.join(dir, 'docs-audit.yaml'), 'legacy_until_date: 2020-01-01\n');
+cfg = readGuardConfig(dir, { warn: () => {} });
+if (cfg.product_doc_gate !== 'report-only') { console.error('expected default report-only when the key is absent, got ' + cfg.product_doc_gate); process.exit(1); }
+
+console.log('OK');
+PROBE
+
+  node "$probe" "$dir" > "$TEST_DIR/t025.out" 2>&1 \
+    || log_fail "product-docs-enforced TEST-014: guard-config product_doc_gate dial checks failed: $(cat "$TEST_DIR/t025.out")"
+
+  log_pass "guard-config product_doc_gate: enforce / report-only / invalid-fail-open / absent-default all correct (product-docs-enforced TEST-014)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -822,6 +1286,16 @@ main() {
   test_013_brief_cleanup_on_close
   test_014_overview_regen_best_effort
   test_015_overview_regen_failure_negative_control
+  test_016_gate_report_only_warns
+  test_017_gate_enforce_refuses_pre_write
+  test_018_gate_absent_user_visible_negative_control
+  test_019_gate_real_product_doc_passes_enforce
+  test_020_gate_placeholder_data_model_counts_missing
+  test_021_gate_placeholder_interfaces_and_none_dot_passes
+  test_022_seam_close_updates_userguide_rollup
+  test_023_negative_control_rollup_failure
+  test_024_legacy_suite_regression
+  test_025_guard_config_product_doc_gate_dial
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

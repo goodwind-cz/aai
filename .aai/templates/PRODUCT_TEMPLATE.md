@@ -15,6 +15,27 @@ Written for a READER OF THE PRODUCT, not of the pipeline: no workflow
 jargon, no AC ids in prose. Keep every section; write "None." when a
 section genuinely has no content — an empty heading is drift, an explicit
 "None." is a statement. English, plain Markdown, no emoji.
+
+CONVENTION (spec-product-docs-enforced D1-D2): setting `user_visible: true`
+on the primary work-item doc's (change/issue/prd) frontmatter is what makes
+THIS product doc required at close time. The filename slug here must equal
+that primary doc's frontmatter `id` (docs/product/<id>.md) — close-work-item.mjs
+looks this file up by that exact slug. Without a real doc at that path (every
+required section below — "What it does", "Data model", "Interfaces and
+contracts" — filled in, not left as an unfilled `<...>` placeholder), closing
+a `user_visible: true` scope warns loudly by default, or refuses outright
+under `product_doc_gate: enforce` in docs/ai/docs-audit.yaml. A section that
+genuinely has nothing to report still needs the explicit literal "None." —
+that counts as filled; an empty or placeholder-only section does not.
+-->
+
+<!--
+GENERATED ROLLUP: every real (non-placeholder) product doc under
+docs/product/*.md is picked up automatically by
+`node .aai/scripts/generate-userguide-rollup.mjs`, which renders the "What it
+does" first paragraph + links into the "Delivered features (generated)"
+section of docs/USER_GUIDE.md. No extra step needed beyond writing this file
+correctly.
 -->
 
 ## What it does
