@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 //
 // check-role-output.mjs — deterministic EXPECT validation of a dispatched
-// role's `subagent_result` result block (SPEC-DRAFT-spec-role-output-contracts,
+// role's `subagent_result` result block (SPEC-0094-spec-role-output-contracts,
 // adoption of Promptbook's EXPECT/EXAMPLE pattern).
 //
 // PURPOSE
@@ -28,6 +28,7 @@
 //   3. E-BAD-STATUS       — `status` is one of PASS / FAIL / BLOCKED.
 //   4. E-NO-EVIDENCE      — `evidence` has at least one entry with an
 //      INTEGER `exit_code`.
+//   8. E-MALFORMED-LINE — a base-indent block line that is neither a key nor a comment (never silently skipped)
 //   5. E-BAD-TIMESTAMP    — `started_utc` and `ended_utc` are each a
 //      parseable ISO-8601 UTC timestamp with an explicit `Z` or `+00:00`
 //      offset (mirrors the CONTRACT timing rule; a non-UTC offset such as
@@ -97,8 +98,10 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--file') {
       filePath = argv[++i];
+      if (filePath === undefined || filePath.startsWith('--')) usageError('--file requires a path value');
     } else if (argv[i] === '--now') {
       nowArg = argv[++i];
+      if (nowArg === undefined || nowArg.startsWith('--')) usageError('--now requires an ISO timestamp value');
     } else {
       usageError(`unrecognized argument: ${argv[i]}`);
     }
@@ -110,6 +113,15 @@ function parseIsoUtc(str) {
   if (typeof str !== 'string' || !ISO_UTC_RE.test(str)) return null;
   const d = new Date(str);
   if (Number.isNaN(d.getTime())) return null;
+  // Round-trip the calendar components: JS Date silently rolls over
+  // nonexistent dates (2026-02-30 -> Mar 2), which must be a violation.
+  const mDate = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/.exec(str);
+  if (!mDate) return null;
+  if (d.getUTCFullYear() !== Number(mDate[1]) || d.getUTCMonth() + 1 !== Number(mDate[2])
+      || d.getUTCDate() !== Number(mDate[3]) || d.getUTCHours() !== Number(mDate[4])
+      || d.getUTCMinutes() !== Number(mDate[5]) || d.getUTCSeconds() !== Number(mDate[6])) {
+    return null;
+  }
   return d;
 }
 
@@ -207,12 +219,19 @@ function parseEvidenceList(nested) {
     const fieldIndent = listIndent + 2;
     while (i < nested.length && nested[i].indent === fieldIndent) {
       const fm = /^([A-Za-z0-9_.-]+):[ \t]*(.*)$/.exec(nested[i].content);
-      if (fm) obj[fm[1]] = parseScalar(fm[2]);
+      if (fm) {
+        obj[fm[1]] = parseScalar(fm[2]);
+        if (fm[1] === 'exit_code') obj.exit_code_raw = fm[2].trim();
+      }
       i++;
     }
     if (obj.exit_code !== undefined) {
-      const n = Number(obj.exit_code);
-      obj.exit_code = Number.isInteger(n) ? n : obj.exit_code;
+      // Type-preserving: only an UNQUOTED integer literal counts — a quoted
+      // "0" is a string in YAML and must fail the integer requirement
+      // (PR #168 Codex P2).
+      const rawInt = typeof obj.exit_code_raw === 'string' && /^-?\d+$/.test(obj.exit_code_raw);
+      obj.exit_code = rawInt ? Number(obj.exit_code_raw) : obj.exit_code_raw;
+      delete obj.exit_code_raw;
     }
     items.push(obj);
   }
@@ -234,6 +253,7 @@ function parseSubagentResultBlock(candidateRawLines) {
 
   const present = new Set();
   const fields = {};
+  const malformed = [];
   let evidence = [];
   let filesChanged = [];
   let blockers = [];
@@ -246,6 +266,9 @@ function parseSubagentResultBlock(candidateRawLines) {
     }
     const m = /^([A-Za-z0-9_.-]+):[ \t]*(.*)$/.exec(body[i].content);
     if (!m) {
+      // Track instead of silently skipping (PR #168 Codex P2): a base-indent
+      // line that is neither a key nor a comment is a malformed block line.
+      if (!body[i].content.startsWith('#')) malformed.push(body[i].content.slice(0, 60));
       i++;
       continue;
     }
@@ -276,11 +299,15 @@ function parseSubagentResultBlock(candidateRawLines) {
     // else: extra extension field — nested lines already consumed above;
     // intentionally ignored (validate required core only).
   }
-  return { present, fields, evidence, files_changed: filesChanged, blockers };
+  return { present, fields, evidence, files_changed: filesChanged, blockers, malformed };
 }
 
 function validateResult(parsed, nowMs) {
   const violations = [];
+
+  for (const bad of parsed.malformed ?? []) {
+    violations.push(['E-MALFORMED-LINE', `unparseable block line: ${bad}`]);
+  }
 
   for (const key of REQUIRED_FIELDS) {
     if (!parsed.present.has(key)) {

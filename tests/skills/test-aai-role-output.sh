@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: role-output-contracts — deterministic EXPECT validation of dispatched-
-# role result blocks (docs/specs/SPEC-DRAFT-spec-role-output-contracts.md).
+# role result blocks (docs/specs/SPEC-0094-spec-role-output-contracts.md).
 #
 # Verifies .aai/scripts/check-role-output.mjs (LAST subagent_result fence
 # extraction, six EXPECT postconditions, machine-parseable

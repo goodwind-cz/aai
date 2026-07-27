@@ -13,7 +13,7 @@ subagent_result:
       exit_code: 0
       output_snippet: "OK: spec structurally valid"
   files_changed:
-    - docs/specs/SPEC-DRAFT-spec-role-output-contracts.md
+    - docs/specs/SPEC-0094-spec-role-output-contracts.md
   blockers: []
 ```
 
