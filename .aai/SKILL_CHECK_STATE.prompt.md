@@ -8,8 +8,8 @@ The canonical schema and invariants are defined as comments inside the
 TRACKED template `.aai/templates/STATE_TEMPLATE.yaml` — not docs/ai/STATE.yaml
 itself, which is gitignored on a fresh checkout and may not exist yet (a
 virgin target project cannot read a schema out of a file it doesn't have).
-A live docs/ai/STATE.yaml's header comment block must equal the template's
-verbatim; read the template header — do not rely on memorized field names.
+A live docs/ai/STATE.yaml's header comment block must match the template
+header verbatim; read the template — do not rely on memorized field names.
 Treat the template header as authoritative if any inline list below diverges.
 
 INVARIANT CHECKS (run all, report each)

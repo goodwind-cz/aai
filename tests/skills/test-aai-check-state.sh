@@ -462,7 +462,18 @@ test_repair_creates_missing_state_from_template() {  # TEST-001 / Spec-AC-01 (sp
     || log_fail "dispatch verdict on the created STATE must name reason no_focus_ref: $(cat "$dispatch_out")"
   grep -qF "state_file_missing" "$dispatch_out" \
     && log_fail "dispatch verdict must NOT report state_file_missing once the file has been created: $(cat "$dispatch_out")"
-  log_pass "--repair on a missing target creates the STATE file from the template (stamped, template-parity) and dispatch yields no_focus_ref"
+  # First append-run on the created file must extend metrics.work_items in
+  # place — the {} form corrupted it (duplicate inner key + orphaned {}).
+  (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$missing" set-focus --type intake_change --ref pin-demo --path docs/issues/x.md > /dev/null 2>&1) \
+    || log_fail "set-focus on the created STATE must succeed"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$missing" append-run --ref pin-demo --role "Planning" --model claude-haiku-4-5 --started 2026-01-01T00:00:00Z > /dev/null 2>&1) \
+    || log_fail "first append-run on the created STATE must succeed"
+  [[ "$(grep -c '^  work_items:' "$missing")" -eq 1 ]] \
+    || log_fail "first append-run must not duplicate the work_items key: $(grep -n 'work_items' "$missing")"
+  grep -v '^\s*#' "$missing" | grep -q '{}' && log_fail "no orphaned {} may remain after the first append-run: $(grep -n '{}' "$missing" | grep -v '#')"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$missing" > /dev/null 2>&1) \
+    || log_fail "created STATE must still validate after the first append-run"
+  log_pass "--repair on a missing target creates the STATE file from the template (stamped, template-parity), dispatch yields no_focus_ref, and the first append-run extends metrics cleanly"
 }
 
 test_template_header_matches_live_state() {  # TEST-002 / Spec-AC-02 (spec-state-bootstrap-template)

@@ -56,5 +56,8 @@ last_validation:
   evidence_paths: []
   notes: null
 metrics:
-  work_items: {}
+  # bare (empty-mapping) form — the ONLY empty representation state.mjs
+  # append-run extends in place; a literal {} would be left orphaned above
+  # a duplicated key on the first run append (PR #176 Codex P1)
+  work_items:
 updated_at_utc: TEMPLATE_PLACEHOLDER
