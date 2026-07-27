@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T17:42:55.158Z
+Generated: 2026-07-27T18:16:29.632Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -237,9 +237,12 @@ _None._
 | SPEC-0097 | specs | docs/specs/SPEC-0097-spec-ci-test-impact-selection.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0072 | issues | docs/issues/CHANGE-0072-prompt-hash-runtime-wiring.md |
+| SPEC-0098 | specs | docs/specs/SPEC-0098-spec-prompt-hash-runtime-wiring.md |
 
 ## Deferred (whole-doc) (0)
 
