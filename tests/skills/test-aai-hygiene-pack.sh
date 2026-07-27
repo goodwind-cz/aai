@@ -846,6 +846,22 @@ test_082_dispatch_refs_name_contract() {  # spec-subagent-protocol-slim TEST-003
   log_pass "Dispatch payload refs resolve to SUBAGENT_CONTRACT.md; orchestrator-only refs stay on SUBAGENT_PROTOCOL.md (spec-subagent-protocol-slim TEST-003)"
 }
 
+test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-03
+  log_info "Test: every tests/skills/test-aai-*.sh has a tests/skills/suite-map.yaml row (spec-ci-test-impact-selection AC-003)..."
+  local map="$PROJECT_ROOT/tests/skills/suite-map.yaml"
+  [[ -f "$map" ]] || log_fail "missing tests/skills/suite-map.yaml"
+  local f name missing=0
+  for f in "$PROJECT_ROOT"/tests/skills/test-aai-*.sh; do
+    name="$(basename "$f" .sh)"
+    name="${name#test-}"
+    grep -qE "^  ${name}:\$" "$map" \
+      || { log_info "MISSING suite-map row for: $name"; missing=1; }
+  done
+  [[ "$missing" -eq 0 ]] \
+    || log_fail "one or more test-aai-*.sh suites have no tests/skills/suite-map.yaml row (see MISSING lines above) — a new suite must be mapped or it silently escapes selection accounting"
+  log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003)"
+}
+
 test_070_companion_obligations() {  # spec-planning-companion-obligations TEST-001..003 / Spec-AC-01..03
   log_info "Test: PLANNING companion-obligations checklist — both triggers + companions + files, closed to 2 (spec-planning-companion-obligations TEST-001..003)..."
   local pl="$PROJECT_ROOT/.aai/PLANNING.prompt.md"
@@ -924,6 +940,7 @@ main() {
   test_080_subagent_contract_exists
   test_081_no_rule_duplication
   test_082_dispatch_refs_name_contract
+  test_090_suite_map_pin
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

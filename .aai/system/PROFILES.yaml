@@ -129,6 +129,7 @@ core:
   - .aai/scripts/pre-compact-save.sh
   - .aai/scripts/reconcile-telemetry.mjs
   - .aai/scripts/secrets-preflight.mjs
+  - .aai/scripts/select-suites.mjs
   - .aai/scripts/spec-lint.mjs
   - .aai/scripts/state.mjs
   - .aai/scripts/tdd-evidence-check.mjs

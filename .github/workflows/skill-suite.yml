@@ -1,43 +1,145 @@
 name: skill-suite
 
 # Gates the tests/skills/ suite in CI (test-infra-reds-and-ci-gate /
-# spec-test-infra-reds-and-ci-gate AC-004). Before this workflow, CI only ran
-# docs-numbering + ps1-quality, so skill-suite regressions (three real reds:
-# PROFILES.yaml classification, a worktree pipefail/SIGPIPE false-failure,
-# aai-sync.sh's git mode) accumulated invisibly. This workflow is the
-# structural fix: every push/PR now runs the same suite.
+# spec-test-infra-reds-and-ci-gate AC-004). Before that change, CI only ran
+# docs-numbering + ps1-quality, so skill-suite regressions accumulated
+# invisibly. This workflow runs the same suite on every push/PR.
 #
-# `skills` job: runs `bash tests/skills/test-framework.sh`, the repo's own
-# aggregate meta-runner. It already invokes every `test-aai-*.sh` suite via
-# `bash "$test_file"` (never `sh <file>` — all 41 suites are
-# `#!/usr/bin/env bash`; forcing `sh` was the false-pass bug this change
-# fixes) and already treats a suite's exit 42 as SKIP vs any other non-zero
-# as FAIL, exiting 1 only if at least one suite failed. Re-implementing that
-# loop here would just duplicate it.
+# CI TEST-IMPACT SELECTION (CHANGE ci-test-impact-selection /
+# spec-ci-test-impact-selection). A typical PR push touches 2-5 mappable
+# surfaces; running all ~50 suites on every review-fix push burned 12+
+# CI-hours in one weekend. The `select` job runs
+# .aai/scripts/select-suites.mjs against the diff and maps changed paths onto
+# tests/skills/suite-map.yaml suites. Two outcomes:
+#   - mode=selected: `skills-selected` runs ONLY the matched suites + the
+#     always-on core set (check-state, docs-audit, spec-lint), via
+#     `test-framework.sh --skill <name>` per suite (never a hand-rolled
+#     runner — reuses the exit-42-is-SKIP contract test-framework.sh already
+#     owns).
+#   - mode=full: `skills-full` runs the complete framework via
+#     `test-framework.sh`, unchanged from before this feature. This is the
+#     FAIL-OPEN path: an unmapped changed path, a `.aai/scripts/lib/**`
+#     shared-lib change, or a `docs/ai/docs-audit.yaml` protected_paths_l3
+#     change all force it, and the selector's own internal errors (bad
+#     base-ref, unreadable map) fall open to it too — selection never
+#     silently narrows coverage on a path it isn't sure about.
+# `mode=full` is ALSO the unconditional outcome on push-to-main, the nightly
+# schedule, workflow_dispatch, and any PR carrying the `ci-full` label — the
+# selector itself is only consulted on `pull_request` events, and only when
+# none of those overrides apply.
 #
-# `self-hosting-smoke` job: kept SEPARATE from `skills` with its own
-# `timeout-minutes`. tests/self-hosting/test-self-hosting-smoke.sh installs a
-# bootstrapped copy of the repo and re-runs validation against it (~2-3 min,
-# heavier than any single tests/skills/ suite) — isolating it keeps its slow
-# signal from padding out (or timing out) the fast skill-suite feedback loop.
+# HONEST TRADEOFF: the safety net moves, it does not disappear. A regression
+# whose only signal lives in a suite the selector didn't pick for THIS diff
+# is caught at merge-to-main (mode=full, always) or at the next nightly run —
+# never silently dropped, but not on the PR itself either. suite-map.yaml is
+# deliberately generous (over-selection is cheap; under-selection is exactly
+# what the fail-open triad above exists to catch), and
+# tests/skills/test-aai-hygiene-pack.sh pins that every test-aai-*.sh file
+# has a suite-map row, so a new suite can't silently go unmapped.
 #
-# fetch-depth: 0 is required: tests/skills/test-aai-layer-profiles.sh probes
-# full git history (`git log -S 'PROFILES.yaml'` / `git show <sha>^:...`) to
-# locate the commit that introduced profile support — a shallow checkout
-# fails that lookup.
+# `ci-full` LABEL CAVEAT: GitHub Actions evaluates a PR's label set at the
+# moment the workflow run STARTS. Adding the label after a PR is already open
+# does not retroactively re-run this workflow — push an empty commit,
+# `workflow_dispatch` it, or resync the PR (e.g. a rebase) after labeling.
+# `pull_request` intentionally uses the default `types` (opened, synchronize,
+# reopened) — NOT `labeled` — so merely adding/removing an unrelated label
+# never re-triggers the whole suite.
+#
+# `self-hosting-smoke` job: kept SEPARATE from the skill suite jobs with its
+# own `timeout-minutes`, UNCONDITIONED by selection (out of scope for this
+# feature — it is not one of the tests/skills/ suites test-framework.sh
+# loops over). It runs on every push/PR/dispatch exactly as before, and now
+# also on the nightly schedule (a new trigger this change adds to the whole
+# workflow) — a deliberate widening: a comprehensive nightly gate should
+# include the self-hosting smoke test too.
+#
+# fetch-depth: 0 is required on every job that runs tests/skills/ or the
+# selector: tests/skills/test-aai-layer-profiles.sh probes full git history,
+# and the selector's `--base-ref` diff needs the merge-base with main.
 
 on:
   push:
     branches: [main]
-  pull_request: {}
+  pull_request:
+    types: [opened, synchronize, reopened]
+  schedule:
+    - cron: '17 3 * * *'  # nightly full framework, ~03:17 UTC
   workflow_dispatch: {}
 
 permissions:
   contents: read
 
 jobs:
-  skills:
-    name: skill test suite (tests/skills/, via test-framework.sh)
+  select:
+    name: select suites (PR impact analysis; full elsewhere)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.select.outputs.mode }}
+      suites: ${{ steps.select.outputs.suites }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - id: select
+        name: Run select-suites.mjs (PR only; every other event is always full)
+        run: |
+          set -e
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "mode=full" >> "$GITHUB_OUTPUT"
+            echo "non-PR event (${{ github.event_name }}): full framework always runs"
+            exit 0
+          fi
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'ci-full') }}" == "true" ]]; then
+            echo "mode=full" >> "$GITHUB_OUTPUT"
+            echo "ci-full label present: full framework requested"
+            exit 0
+          fi
+          # fetch-depth: 0 above already fetched full history for every
+          # branch (including the base), so origin/<base> is resolvable here.
+          OUT="$(node .aai/scripts/select-suites.mjs --base-ref "origin/${{ github.event.pull_request.base.ref }}")"
+          echo "$OUT"
+          if echo "$OUT" | grep -q '^FULL_RUN'; then
+            echo "mode=full" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=selected" >> "$GITHUB_OUTPUT"
+            SUITES="$(echo "$OUT" | grep -E '^(SELECTED|CORE) ' | awk '{print $2}' | sort -u | tr '\n' ' ')"
+            echo "suites=$SUITES" >> "$GITHUB_OUTPUT"
+          fi
+
+  skills-selected:
+    name: skill suite (selected, via test-framework.sh --skill)
+    needs: select
+    if: needs.select.outputs.mode == 'selected'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run selected suites (each via test-framework.sh --skill <name>)
+        run: |
+          set -e
+          for s in ${{ needs.select.outputs.suites }}; do
+            echo "::group::$s"
+            bash tests/skills/test-framework.sh --skill "$s"
+            echo "::endgroup::"
+          done
+
+  skills-full:
+    name: skill test suite (full framework, via test-framework.sh)
+    needs: select
+    if: needs.select.outputs.mode == 'full'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -51,6 +153,32 @@ jobs:
 
       - name: Run tests/skills/ suite (honors each suite's own #!/usr/bin/env bash shebang; never forced sh)
         run: bash tests/skills/test-framework.sh
+
+  # Aggregating gate: carries the EXACT name branch protection already
+  # requires ("skill test suite (tests/skills/, via test-framework.sh)").
+  # skills-selected and skills-full are mutually exclusive (one is always
+  # skipped), so neither leaf job may be a required check — this job is the
+  # single always-reporting verdict: it fails unless the mode-relevant leaf
+  # succeeded.
+  gate:
+    name: skill test suite (tests/skills/, via test-framework.sh)
+    needs: [select, skills-selected, skills-full]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the mode-relevant skills job to have succeeded
+        run: |
+          set -e
+          echo "select=${{ needs.select.result }} mode=${{ needs.select.outputs.mode }} selected=${{ needs.skills-selected.result }} full=${{ needs.skills-full.result }}"
+          if [ "${{ needs.select.result }}" != "success" ]; then
+            echo "select job did not succeed"; exit 1
+          fi
+          if [ "${{ needs.select.outputs.mode }}" = "selected" ]; then
+            [ "${{ needs.skills-selected.result }}" = "success" ] || { echo "selected-mode run failed"; exit 1; }
+          else
+            [ "${{ needs.skills-full.result }}" = "success" ] || { echo "full-mode run failed"; exit 1; }
+          fi
 
   self-hosting-smoke:
     name: self-hosting smoke (separate job — bootstraps + re-validates a full copy, ~2-3 min)

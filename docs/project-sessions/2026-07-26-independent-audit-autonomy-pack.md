@@ -41,6 +41,32 @@ view of what was delivered.
    (+3451 B in-glob, +148 B AGENTS.md; headroom 636/2048), TEST-012 expected
    total bumped to 29005, USER_GUIDE + SKILLS.md documentation.
 
+## Final run status (2026-07-27, autonomous run complete)
+
+Fourteen PRs merged across the run (#157-#170). Everything from the original
+audit roadmap AND the extended original-assignment gap list AND the three
+Promptbook adoptions is delivered except the recorded follow-ups below.
+Follow-ups (tracked, unshipped): metrics-report per-run hash display
+(additivity renegotiation), runtime producer wiring for --prompt-hash,
+stall-hook friction class, EARS AC notation, legacy prune, allocator
+rewrite of script/test headers, universality proof on the fixture project,
+skill-sweep of the ~15 untouched skills, CONTRACT 60-line headroom.
+
+## Roadmap execution status (updated 2026-07-26 evening)
+
+Delivered same-day via /aai-ship rides: item 1 (token-capture canary,
+PR #158, CHANGE-0058), item 2 (prompt dedup, PR #159, CHANGE-0059,
+corpus −4687 B), item 3 (subagent contract split, PR #161, CHANGE-0061)
+plus the operator-directed SKILL_PR step 5d bot-review sweep (PR #160,
+CHANGE-0060). Process upgrades en route: local full-framework duplication
+cut to CI-only (operator direction — was 3x per ride); two stale
+L3 zero-diff test landmines reframed; 5d sweep canonized after catching
+7+3+3+3 real bot findings across four PRs. Remaining items renumber to:
+(1) friction capture default-on, (2) overview v2 (cost/feature once token
+telemetry accrues, auto-regen at close), (3) EARS ACs, legacy prune,
+allocator-rewrite-all-trees, token-capture canary follow-through in
+metrics-report. Next ride: /aai-ship "friction capture default-on".
+
 ## Roadmap (recommended next intakes, highest leverage first)
 
 1. Token/cost capture is 100% null in METRICS.jsonl despite SPEC-0043 being
@@ -68,6 +94,42 @@ view of what was delivered.
 8. Phase-boundary compaction (ACE-FCA): each role already emits artifacts;
    audit role dispatches to ensure NO transcript context crosses a phase
    boundary, only artifact paths.
+
+## Extension: Promptbook (Book language) analysis (added 2026-07-27, operator request)
+
+Source: github.com/webgptorg/promptbook (+ specs/book-language.md, examples/
+pipelines, ptbk.io). Maturity check: real but pre-1.0 single-maintainer
+project (167 stars, 0 tagged releases, npm 0.113.0-11 prerelease, explicit
+not-production warning), mid-pivot from a pipeline DSL with testable output
+contracts toward a hosted persistent-agent SaaS ("Agents Server"). Notably,
+its most relevant feature (EXPECT output validation) is fully working only
+in the older generation and sits "reserved, not implemented" in the new one.
+Verdict: adopt the ideas, not the dependency.
+
+Adoption candidates for AAI (ranked):
+1. EXPECT-style declarative output contracts on role outputs, checked
+   deterministically (no LLM) before the expensive review, plus
+   EXAMPLE-as-test-fixture run in CI (their test-books.yml precedent) —
+   candidate ride: "role output contracts".
+2. Append-only self-learning with a structural gate: persist a LEARNED/
+   knowledge append ONLY if after == before + append (their self-learning
+   spec's hard guarantee) + a Teacher/critic reviewer before any automated
+   append — direct upgrade for the friction->LEARNED promotion path.
+3. Content-addressed prompt identity: hash each effective role prompt
+   (role + AGENTS + LEARNED snapshot) into telemetry per run — answers
+   "did this role's instructions change between run A and B" and correlates
+   metric regressions with prompt edits (their computeAgentHash).
+4. Inheritance provenance markers: stamp dispatched prompts with the
+   resolved canon/LEARNED versions they inherited (their visible
+   NOTE-inherited-FROM pattern), instead of implicit convention.
+5. Graceful degrade-with-provenance on unresolved cross-references (never
+   silent, always a visible structured NOTE in the artifact).
+6. Named composable POSTPROCESSING declared next to the prompt whose output
+   it cleans (contract visible in one place).
+7. Deliberately NOT adopting: the single-flat-file everything-is-a-keyword
+   design (their own repo shows the cost: two incompatible language
+   generations, stale blueprint, EXPECT stranded); AAI's separation of
+   prompts / dispatch scripts / state / telemetry stays.
 
 ## Evidence
 
