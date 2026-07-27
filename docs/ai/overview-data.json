@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-07-26T23:58:48.271Z",
+  "generatedAt": "2026-07-27T06:59:28.917Z",
   "project": "aai",
   "counts": {
-    "delivered": 109,
+    "delivered": 110,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 16253728
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "allocator-rewrite-all-trees",
+    "ref": "cheap-model-in-practice",
     "type": "intake_change"
   },
   "in_progress": [
@@ -28,6 +28,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "cheap-model-in-practice",
+      "title": "Change — Cheap-model delegation in practice: Haiku for mechanical roles, tier-appropriate validation",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0065-cheap-model-in-practice.md",
+      "closed_on": "2026-07-27",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0091-spec-cheap-model-in-practice.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "closeout-display-id-match",
       "title": "Closeout candidate: display-id match + Rollout-Status guard",
@@ -1452,6 +1465,19 @@
       "kind": "month",
       "label": "2026-07",
       "items": [
+        {
+          "ref": "cheap-model-in-practice",
+          "title": "Change — Cheap-model delegation in practice: Haiku for mechanical roles, tier-appropriate validation",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0065-cheap-model-in-practice.md",
+          "closed_on": "2026-07-27",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0091-spec-cheap-model-in-practice.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "closeout-display-id-match",
           "title": "Closeout candidate: display-id match + Rollout-Status guard",

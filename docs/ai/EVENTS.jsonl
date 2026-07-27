@@ -1222,3 +1222,9 @@
 {"v":1,"ts":"2026-07-26T23:58:22.938Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-allocator-rewrite-all-trees","payload":{"commit":"987f33acdf2fc5c2a1e2c241e3aced84f780a1cb"}}
 {"v":1,"ts":"2026-07-27T06:34:29.138Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":204,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-07-27T06:34:42.501Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":204,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-07-27T06:59:10.996Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"cheap-model-in-practice","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-27T06:59:11.028Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"cheap-model-in-practice","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-27T06:59:11.057Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"cheap-model-in-practice","payload":{"commit":"cd140d6f523dcbb97e5e7e34cd161a29657860d0"}}
+{"v":1,"ts":"2026-07-27T06:59:11.088Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-cheap-model-in-practice","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-27T06:59:11.118Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-cheap-model-in-practice","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-27T06:59:11.149Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-cheap-model-in-practice","payload":{"commit":"cd140d6f523dcbb97e5e7e34cd161a29657860d0"}}

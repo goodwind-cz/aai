@@ -2,13 +2,15 @@
 id: spec-cheap-model-in-practice
 type: spec
 number: 91
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0065-cheap-model-in-practice.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 165
+  commits:
+    - cd140d6f523dcbb97e5e7e34cd161a29657860d0
 ---
 
 # Spec — Cheap-model delegation in practice: lane-aware model routing

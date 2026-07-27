@@ -2,10 +2,12 @@
 id: cheap-model-in-practice
 number: 65
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 165
+  commits:
+    - cd140d6f523dcbb97e5e7e34cd161a29657860d0
 ---
 
 # Change — Cheap-model delegation in practice: Haiku for mechanical roles, tier-appropriate validation
