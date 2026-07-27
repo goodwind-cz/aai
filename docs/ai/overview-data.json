@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-07-27T08:05:28.095Z",
+  "generatedAt": "2026-07-27T08:05:36.246Z",
   "project": "aai",
   "counts": {
     "delivered": 111,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 16621391
+    "tokens_total": 17239888
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -48,8 +48,8 @@
       "status": "done",
       "path": "docs/issues/CHANGE-0066-product-docs-enforced.md",
       "closed_on": "2026-07-27",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 30,
+      "token_total": 618497,
       "spec": "docs/specs/SPEC-0092-spec-product-docs-enforced.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260727T080154Z-product-docs-enforced.md"
@@ -1498,8 +1498,8 @@
           "status": "done",
           "path": "docs/issues/CHANGE-0066-product-docs-enforced.md",
           "closed_on": "2026-07-27",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 30,
+          "token_total": 618497,
           "spec": "docs/specs/SPEC-0092-spec-product-docs-enforced.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260727T080154Z-product-docs-enforced.md"
