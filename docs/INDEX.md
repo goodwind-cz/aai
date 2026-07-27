@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T10:04:27.613Z
+Generated: 2026-07-27T10:05:17.710Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (207)
+## Done (209)
 
 | ID | Type | Path |
 |---|---|---|
@@ -88,6 +88,7 @@ _None._
 | CHANGE-0065 | issues | docs/issues/CHANGE-0065-cheap-model-in-practice.md |
 | CHANGE-0066 | issues | docs/issues/CHANGE-0066-product-docs-enforced.md |
 | CHANGE-0067 | issues | docs/issues/CHANGE-0067-dev-progress-hub.md |
+| CHANGE-0068 | issues | docs/issues/CHANGE-0068-role-output-contracts.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -227,14 +228,12 @@ _None._
 | SPEC-0091 | specs | docs/specs/SPEC-0091-spec-cheap-model-in-practice.md |
 | SPEC-0092 | specs | docs/specs/SPEC-0092-spec-product-docs-enforced.md |
 | SPEC-0093 | specs | docs/specs/SPEC-0093-spec-dev-progress-hub.md |
+| SPEC-0094 | specs | docs/specs/SPEC-0094-spec-role-output-contracts.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0068 | issues | docs/issues/CHANGE-0068-role-output-contracts.md |
-| SPEC-0094 | specs | docs/specs/SPEC-0094-spec-role-output-contracts.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

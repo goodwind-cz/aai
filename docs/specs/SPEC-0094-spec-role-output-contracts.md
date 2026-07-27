@@ -2,13 +2,15 @@
 id: spec-role-output-contracts
 type: spec
 number: 94
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0068-role-output-contracts.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 168
+  commits:
+    - 366ee38c9bdb4247dc90c86cd26f9853a4844635
 ---
 
 # Implementation Spec — Role output contracts: deterministic EXPECT validation of subagent result blocks

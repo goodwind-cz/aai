@@ -2,10 +2,12 @@
 id: role-output-contracts
 number: 68
 type: change
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 168
+  commits:
+    - 366ee38c9bdb4247dc90c86cd26f9853a4844635
 ---
 
 # Change — Role output contracts: deterministic EXPECT validation of subagent result blocks

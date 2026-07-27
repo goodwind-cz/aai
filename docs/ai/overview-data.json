@@ -1,64 +1,64 @@
 {
-  "generatedAt": "2026-07-27T08:57:44.653Z",
+  "generatedAt": "2026-07-27T10:05:17.596Z",
   "project": "aai",
   "counts": {
-    "delivered": 112,
+    "delivered": 113,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 17548117
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "dev-progress-hub",
+    "ref": "role-output-contracts",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "dev-progress-hub",
+      "ref": "role-output-contracts",
       "type": "intake_change",
-      "phase": null
+      "phase": "code_review"
     },
-    "strategy": "tdd",
+    "strategy": "hybrid",
     "worktree": {
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "not_run",
-    "review_status": "not_run",
+    "validation_status": "pass",
+    "review_status": "pass",
     "ticks": [
+      {
+        "tick": 4,
+        "role": "Code Review",
+        "scope": "role-output-contracts",
+        "duration_seconds": 685,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 3,
+        "role": "Validation",
+        "scope": "role-output-contracts",
+        "duration_seconds": 1043,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 2,
+        "role": "TDD Implementation",
+        "scope": "role-output-contracts",
+        "duration_seconds": 628,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 1,
+        "role": "Planning",
+        "scope": "role-output-contracts",
+        "duration_seconds": 463,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
       {
         "tick": 3,
         "role": "Code Review",
         "scope": "dev-progress-hub",
         "duration_seconds": 80,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 2,
-        "role": "Validation",
-        "scope": "dev-progress-hub",
-        "duration_seconds": 0,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 1,
-        "role": "Planning+Implementation",
-        "scope": "dev-progress-hub",
-        "duration_seconds": 756,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 4,
-        "role": "Code Review",
-        "scope": "product-docs-enforced",
-        "duration_seconds": 182,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 3,
-        "role": "Validation",
-        "scope": "product-docs-enforced",
-        "duration_seconds": 189,
         "harness_version": "2.1.218 (Claude Code)"
       }
     ]
@@ -117,6 +117,19 @@
       "spec": "docs/specs/SPEC-0093-spec-dev-progress-hub.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260727T085458Z-dev-progress-hub.md"
+    },
+    {
+      "ref": "role-output-contracts",
+      "title": "Change — Role output contracts: deterministic EXPECT validation of subagent result blocks",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0068-role-output-contracts.md",
+      "closed_on": "2026-07-27",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0094-spec-role-output-contracts.md",
+      "validation": null,
+      "review": null
     },
     {
       "ref": "closeout-display-id-match",
@@ -1580,6 +1593,19 @@
           "spec": "docs/specs/SPEC-0093-spec-dev-progress-hub.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260727T085458Z-dev-progress-hub.md"
+        },
+        {
+          "ref": "role-output-contracts",
+          "title": "Change — Role output contracts: deterministic EXPECT validation of subagent result blocks",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0068-role-output-contracts.md",
+          "closed_on": "2026-07-27",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0094-spec-role-output-contracts.md",
+          "validation": null,
+          "review": null
         },
         {
           "ref": "closeout-display-id-match",
