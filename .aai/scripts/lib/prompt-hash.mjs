@@ -31,7 +31,9 @@ const ABSENT = 'ABSENT';
 // rather than throwing — the hash function itself never throws.
 function readOrNull(absPath) {
   try {
-    return fs.readFileSync(absPath, 'utf8');
+    // Raw bytes — a UTF-8 decode/re-encode would alter invalid sequences
+    // and hash something other than the file on disk (PR #170 Codex P2).
+    return fs.readFileSync(absPath);
   } catch {
     return null;
   }

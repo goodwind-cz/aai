@@ -49,7 +49,7 @@
 //              (prompt-hash-telemetry D1: --prompt-hash is OPTIONAL and
 //              additive-only; a malformed value exits 2 pre-write; the field
 //              is pushed AFTER the conditional tdd_tests line, so an absent
-//              flag leaves every existing goldens byte-identical)
+//              flag leaves all existing goldens byte-identical)
 //   log-tick --tick N --role <t> --scope <ref> --started <ISO-UTC> [...]   (JSONL append; never touches STATE)
 //   reset-block <last_validation|code_review> [--force]                    (D6 guards)
 //

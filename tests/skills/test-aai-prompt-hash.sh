@@ -48,7 +48,7 @@ log_info() { echo "INFO: $*"; }
 check_deps() {
   log_info "Checking dependencies..."
   command -v node >/dev/null 2>&1 || log_skip "node not found"
-  [[ -f "$LIB" ]] || log_fail "lib not found: $LIB (RED until prompt-hash-telemetry lands)"
+  [[ -f "$LIB" ]] || log_fail "lib not found: $LIB (the prompt-hash lib is a hard dependency of this suite)"
   log_pass "Dependencies checked"
 }
 

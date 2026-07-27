@@ -39,8 +39,9 @@ links:
     12-64 hex chars), stored on the run entry as prompt_hash; absent flag
     => field omitted (never fabricated). PROTECTED SURFACE (L3).
   - metrics-flush: pass prompt_hash through to the ledger entry unchanged.
-  - metrics-report: per-item runs show the short hash; a "Prompt versions"
-    note groups run counts by hash per role when >1 hash exists.
+  - metrics-report: a "Prompt versions" note groups run counts by short
+    hash per role when more than one hash exists (per-run hash display
+    recorded as a follow-up; single-hash reports stay byte-identical).
   - orchestration-dispatch --human output prints the effective hash for
     the dispatched role (advisory; uses the lib).
   - Tests: hash determinism + ABSENT marker; append-run flag validation
@@ -59,7 +60,7 @@ links:
 
 ## Desired Behavior (To-Be)
 - Every orchestrated run can carry prompt_hash; ledger preserves it;
-  report shows instruction-version groups; dispatch prints the hash it
+  report shows instruction-version groups (role-level); dispatch prints the hash it
   expects the role to run under.
 
 ## Acceptance Criteria

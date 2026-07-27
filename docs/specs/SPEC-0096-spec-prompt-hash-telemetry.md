@@ -68,7 +68,7 @@ For each requirement AC:
 - Verification: `bash tests/skills/test-aai-metrics.sh` (TEST-005, TEST-006, TEST-007) exit 0.
 
 - Maps to: AC-004 (intake)
-- Spec-AC-04: `metrics-report.mjs` shows each run's short 12-hex `prompt_hash` where present, and emits a "Prompt versions" grouping section counting runs by hash per role ONLY when a role has more than one distinct hash; when every role has at most one hash the report gains no new section (output otherwise unchanged).
+- Spec-AC-04: `metrics-report.mjs` emits a "Prompt versions" grouping section counting runs by short 12-hex hash per role ONLY when a role has more than one distinct hash; when every role has at most one hash the report gains no new section (output otherwise unchanged). Per-run hash display in the item rows is a recorded follow-up (PR #170 review alignment), not part of this AC.
 - Verification: `bash tests/skills/test-aai-metrics.sh` (TEST-008, TEST-009) exit 0.
 
 - Maps to: AC-005 (intake)
