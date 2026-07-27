@@ -1,64 +1,64 @@
 {
-  "generatedAt": "2026-07-27T11:17:19.073Z",
+  "generatedAt": "2026-07-27T12:31:31.793Z",
   "project": "aai",
   "counts": {
-    "delivered": 114,
+    "delivered": 115,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 18446108
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "learned-append-gate",
+    "ref": "prompt-hash-telemetry",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "learned-append-gate",
+      "ref": "prompt-hash-telemetry",
       "type": "intake_change",
-      "phase": null
+      "phase": "code_review"
     },
     "strategy": "tdd",
     "worktree": {
-      "recommendation": "optional",
+      "recommendation": "required",
       "user_decision": "inline"
     },
-    "validation_status": "not_run",
-    "review_status": "not_run",
+    "validation_status": "pass",
+    "review_status": "pass",
     "ticks": [
+      {
+        "tick": 4,
+        "role": "Code Review",
+        "scope": "prompt-hash-telemetry",
+        "duration_seconds": 131,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 3,
+        "role": "Validation",
+        "scope": "prompt-hash-telemetry",
+        "duration_seconds": 59,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 2,
+        "role": "TDD Implementation",
+        "scope": "prompt-hash-telemetry",
+        "duration_seconds": 1321,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 1,
+        "role": "Planning",
+        "scope": "prompt-hash-telemetry",
+        "duration_seconds": 808,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
       {
         "tick": 3,
         "role": "Code Review",
         "scope": "learned-append-gate",
         "duration_seconds": 297,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 2,
-        "role": "Validation",
-        "scope": "learned-append-gate",
-        "duration_seconds": 249,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 1,
-        "role": "Planning+Implementation",
-        "scope": "learned-append-gate",
-        "duration_seconds": 1012,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 4,
-        "role": "Code Review",
-        "scope": "role-output-contracts",
-        "duration_seconds": 685,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 3,
-        "role": "Validation",
-        "scope": "role-output-contracts",
-        "duration_seconds": 1043,
         "harness_version": "2.1.218 (Claude Code)"
       }
     ]
@@ -143,6 +143,19 @@
       "spec": "docs/specs/SPEC-0095-spec-learned-append-gate.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260727T111121Z-learned-append-gate.md"
+    },
+    {
+      "ref": "prompt-hash-telemetry",
+      "title": "Change — Prompt-hash telemetry: content-addressed identity of effective role instructions",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0070-prompt-hash-telemetry.md",
+      "closed_on": "2026-07-27",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0096-spec-prompt-hash-telemetry.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260727T122835Z-prompt-hash-telemetry.md"
     },
     {
       "ref": "closeout-display-id-match",
@@ -1632,6 +1645,19 @@
           "spec": "docs/specs/SPEC-0095-spec-learned-append-gate.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260727T111121Z-learned-append-gate.md"
+        },
+        {
+          "ref": "prompt-hash-telemetry",
+          "title": "Change — Prompt-hash telemetry: content-addressed identity of effective role instructions",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0070-prompt-hash-telemetry.md",
+          "closed_on": "2026-07-27",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0096-spec-prompt-hash-telemetry.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260727T122835Z-prompt-hash-telemetry.md"
         },
         {
           "ref": "closeout-display-id-match",

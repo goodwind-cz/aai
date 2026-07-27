@@ -2,13 +2,15 @@
 id: spec-prompt-hash-telemetry
 type: spec
 number: 96
-status: draft
+status: done
 ceremony_level: 3
 links:
   requirement: docs/issues/CHANGE-0070-prompt-hash-telemetry.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 170
+  commits:
+    - 1c2f602f7533fe80ccffd221778ae213a53e9970
 ---
 
 # Implementation Spec — Prompt-hash telemetry: content-addressed identity of effective role instructions

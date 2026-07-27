@@ -2,11 +2,13 @@
 id: prompt-hash-telemetry
 number: 70
 type: change
-status: draft
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 170
+  commits:
+    - 1c2f602f7533fe80ccffd221778ae213a53e9970
 ---
 
 # Change — Prompt-hash telemetry: content-addressed identity of effective role instructions
