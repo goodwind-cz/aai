@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-07-27T06:59:28.917Z",
+  "generatedAt": "2026-07-27T06:59:36.797Z",
   "project": "aai",
   "counts": {
     "delivered": 110,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 16253728
+    "tokens_total": 16621391
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -35,8 +35,8 @@
       "status": "done",
       "path": "docs/issues/CHANGE-0065-cheap-model-in-practice.md",
       "closed_on": "2026-07-27",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 20,
+      "token_total": 367663,
       "spec": "docs/specs/SPEC-0091-spec-cheap-model-in-practice.md",
       "validation": null,
       "review": null
@@ -1472,8 +1472,8 @@
           "status": "done",
           "path": "docs/issues/CHANGE-0065-cheap-model-in-practice.md",
           "closed_on": "2026-07-27",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 20,
+          "token_total": 367663,
           "spec": "docs/specs/SPEC-0091-spec-cheap-model-in-practice.md",
           "validation": null,
           "review": null
