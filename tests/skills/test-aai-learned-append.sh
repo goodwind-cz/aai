@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Test: learned-append-gate (CHANGE-DRAFT-learned-append-gate,
+# Test: learned-append-gate (CHANGE-0069-learned-append-gate,
 # docs/specs/SPEC-0095-spec-learned-append-gate.md, TEST-001..017).
 #
 # Covers the structurally-enforced append-only gate for docs/knowledge/LEARNED.md:

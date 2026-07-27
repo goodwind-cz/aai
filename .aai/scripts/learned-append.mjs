@@ -72,7 +72,7 @@
 //
 // Node stdlib only (Technology contract: zero runtime dependencies).
 
-import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, existsSync, openSync, closeSync, unlinkSync, statSync, chmodSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 
@@ -101,17 +101,26 @@ Exit codes: 0 written/would-write/help, 1 rejected (not a pure append,
 nothing written), 2 usage error.`);
 }
 
+function requireValue(argv, i, flag) {
+  const v = argv[i];
+  if (v === undefined || v.startsWith('--')) {
+    process.stderr.write(`learned-append: usage error — ${flag} requires a value\n`);
+    process.exit(2);
+  }
+  return v;
+}
+
 function parseArgs(argv) {
   const args = {};
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
     switch (tok) {
       case '--help': args.help = true; break;
-      case '--text': args.text = argv[++i]; break;
-      case '--file': args.file = argv[++i]; break;
-      case '--source': args.source = argv[++i]; break;
-      case '--section': args.section = argv[++i]; break;
-      case '--target': args.target = argv[++i]; break;
+      case '--text': args.text = requireValue(argv, ++i, '--text'); break;
+      case '--file': args.file = requireValue(argv, ++i, '--file'); break;
+      case '--source': args.source = requireValue(argv, ++i, '--source'); break;
+      case '--section': args.section = requireValue(argv, ++i, '--section'); break;
+      case '--target': args.target = requireValue(argv, ++i, '--target'); break;
       case '--full': args.full = true; break;
       case '--dry-run': args.dryRun = true; break;
       default: fail(`unknown flag: ${tok}`, 2);
@@ -140,6 +149,12 @@ function todayUTC() {
 }
 
 function formatEntry(text, source, dateStr) {
+  // A rule entry is exactly one line: embedded line breaks would let one
+  // "entry" smuggle arbitrary extra lines past the format (PR #169 P2).
+  if (/[\r\n]/.test(text) || /[\r\n]/.test(source)) {
+    process.stderr.write('learned-append: usage error — rule text and source must be single-line (no line breaks)\n');
+    process.exit(2);
+  }
   return `- [${dateStr}] ${text} (source: ${source})`;
 }
 
@@ -213,7 +228,7 @@ function diffSummary(original, candidate) {
   const lines = [
     `not a pure append: original length ${original.length}, candidate length ${candidate.length}, first divergence at byte offset ${i}`,
   ];
-  if (i >= original.length && candidate.length < original.length) {
+  if (candidate.length < original.length) {
     lines.push('  candidate is a strict prefix of the original (a deletion/truncation)');
   }
   lines.push(`  original ...${JSON.stringify(origCtx)}...`);
@@ -224,7 +239,43 @@ function diffSummary(original, candidate) {
 function atomicWrite(targetPath, content) {
   const tmp = path.join(path.dirname(targetPath), `.${path.basename(targetPath)}.tmp-${process.pid}-${randomBytes(4).toString('hex')}`);
   writeFileSync(tmp, content);
+  // Preserve the target's permission bits across replacement (PR #169 P2).
+  try { chmodSync(tmp, statSync(targetPath).mode & 0o7777); } catch { /* new file: default mode */ }
   renameSync(tmp, targetPath);
+}
+
+// Exclusive advisory lock serializing concurrent append writers (PR #169
+// Codex P1): two overlapping wrap-ups could both pass isPureAppend against
+// the same original and the later rename would discard the earlier accepted
+// rule. wx-create; stale after 30s is reclaimed; 3 retries with backoff.
+const LOCK_STALE_MS = 30_000;
+function withAppendLock(targetPath, fn) {
+  const lock = `${targetPath}.lock`;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const fd = openSync(lock, 'wx');
+      try {
+        writeFileSync(lock, String(process.pid));
+        return fn();
+      } finally {
+        closeSync(fd);
+        try { unlinkSync(lock); } catch { /* already gone */ }
+      }
+    } catch (err) {
+      if (err && err.code === 'EEXIST') {
+        try {
+          if (Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS) { unlinkSync(lock); continue; }
+        } catch { continue; }
+        const waitMs = 150 * (attempt + 1);
+        const end = Date.now() + waitMs;
+        while (Date.now() < end) { /* brief sync backoff */ }
+        continue;
+      }
+      throw err;
+    }
+  }
+  process.stderr.write(`learned-append: rejected — could not acquire ${lock} (concurrent writer); retry later\n`);
+  process.exit(1);
 }
 
 function main() {
@@ -266,7 +317,25 @@ function main() {
     process.exit(0);
   }
 
-  atomicWrite(targetPath, candidate);
+  withAppendLock(targetPath, () => {
+    // Re-read under the lock: another writer may have appended since our
+    // initial read; re-verify the pure-append invariant against the CURRENT
+    // content and re-base the candidate when it still holds (P1 fix).
+    const current = existsSync(targetPath) ? readFileSync(targetPath, 'utf8') : '';
+    let toWrite = candidate;
+    if (current !== original) {
+      if (!isPureAppend(original, current)) {
+        process.stderr.write('learned-append: rejected — target changed non-appendingly under our feet; re-run against the current file\n');
+        process.exit(1);
+      }
+      toWrite = current + candidate.slice(original.length);
+      if (!isPureAppend(current, toWrite)) {
+        process.stderr.write('learned-append: rejected — re-based candidate is not a pure append of the current file\n');
+        process.exit(1);
+      }
+    }
+    atomicWrite(targetPath, toWrite);
+  });
   console.log(appended.length === 0
     ? `learned-append: no-op — ${targetPath} already matched the candidate`
     : `learned-append: appended ${appended.length} bytes to ${targetPath}`);
