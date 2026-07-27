@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T09:13:50.756Z
+Generated: 2026-07-27T10:05:26.335Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (207)
+## Done (209)
 
 | ID | Type | Path |
 |---|---|---|
@@ -88,6 +88,7 @@ _None._
 | CHANGE-0065 | issues | docs/issues/CHANGE-0065-cheap-model-in-practice.md |
 | CHANGE-0066 | issues | docs/issues/CHANGE-0066-product-docs-enforced.md |
 | CHANGE-0067 | issues | docs/issues/CHANGE-0067-dev-progress-hub.md |
+| CHANGE-0068 | issues | docs/issues/CHANGE-0068-role-output-contracts.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -227,6 +228,7 @@ _None._
 | SPEC-0091 | specs | docs/specs/SPEC-0091-spec-cheap-model-in-practice.md |
 | SPEC-0092 | specs | docs/specs/SPEC-0092-spec-product-docs-enforced.md |
 | SPEC-0093 | specs | docs/specs/SPEC-0093-spec-dev-progress-hub.md |
+| SPEC-0094 | specs | docs/specs/SPEC-0094-spec-role-output-contracts.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
@@ -237,13 +239,14 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (6)
+## Deferred items (per-AC, across all specs) (7)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
 | SPEC-0076 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-Linux-only flake; local pass is not sufficient evidence (Honesty requirements section). Owned by Validation after push. |
 | SPEC-0077 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-only flake; local pass is not sufficient evidence (Honesty requirements). Owned by Validation after push. |
 | SPEC-0090 | Spec-AC-07 | 2026-08-10 | Local half (targeted suites) is green; PR CI full framework is the authoritative gate and has not run yet (not yet pushed/PR'd) — defer to done once CI is green on the PR. |
+| SPEC-0094 | Spec-AC-05 | 2026-08-10 | PR CI leg (TEST-015) verifies on push; local legs all green |
 | SPEC-0083 | Spec-AC-04 | 2026-08-15 | CI-authoritative; the flake is CI-load-only and not locally reproducible |
 | SPEC-0086 | Spec-AC-05 | 2026-08-15 | Full-framework TEST-010 confirmation deferred to Validation by design (dispatch constraint), not a real gap in this scope's own edits |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |

@@ -2093,6 +2093,12 @@ Closing a user-facing work item now carries a real check: if the primary request
 
 [Product doc](product/product-docs-enforced.md) · [Spec](specs/SPEC-0092-spec-product-docs-enforced.md)
 
+### Role output contracts (deterministic EXPECT validation)
+
+Every dispatched subagent must end with a structured result block. Until now, only another model read it — a malformed or incomplete block cost an expensive round of confusion. The factory now validates each returned result block deterministically (no model call): required fields, status enum, ISO-UTC timestamps, duration arithmetic (including the negative-duration corner), and at least one evidence entry with an integer exit code. A violating block is rejected with machine-readable reasons and one re-prompt before anything reaches the shared state.
+
+[Product doc](product/role-output-contracts.md) · [Spec](specs/SPEC-0094-spec-role-output-contracts.md)
+
 ### Friction feedback loop, activated (default-on capture + wrap-up triage)
 
 The factory's self-improvement loop (RFC-0012) had complete infrastructure and zero data: capturing a friction observation depended on an agent remembering to do it mid-failure. Capture is now the DEFAULT action at four deterministic hook points — a validation FAIL, a remediation dispatch, a canon-file gate/lint/CI failure, and a canon-surface check failure during implementation. Session wrap-up then turns any captured observations into a triage report with proposed intake one-liners, so recurring friction becomes backlog instead of folklore.
