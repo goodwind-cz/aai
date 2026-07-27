@@ -1,0 +1,63 @@
+# docs/ai/STATE.yaml - AAI runtime state (managed by orchestration; humans need not edit)
+#
+# CANONICAL SCHEMA / INVARIANTS (authoritative; see .aai/SKILL_CHECK_STATE.prompt.md)
+#   project_status:            active | paused
+#   current_focus.type:        intake_change | intake_issue | intake_prd | intake_hotfix |
+#                              intake_research | intake_rfc | intake_release |
+#                              technology_extraction | maintenance | none
+#   active_work_items[].status: planned | in_progress | blocked | done
+#   active_work_items[].phase:  planning | preparation | implementation | validation |
+#                              code_review | remediation
+#   implementation_strategy.selected: loop | tdd | hybrid | undecided
+#   worktree.recommendation:   not_needed | optional | recommended | required
+#   worktree.user_decision:    undecided | worktree | inline | waived
+#   code_review.status:        not_run | pass | fail | waived
+#   last_validation.status:    pass | fail | not_run
+#   updated_at_utc:            ISO 8601 UTC
+#   orchestration.mode:        auto | single | parallel   (RFC-0005 / SPEC-0005; default auto)
+#   orchestration.k:           integer chosen fan-out for the last tick (1 when single)
+#   orchestration.groups:      last selector partition [{kind: parallel|sequential, scopes: [...]}]
+#     The whole orchestration block is OPTIONAL and non-breaking: an absent block == auto
+#     (back-compat) - existing single-scope projects behave exactly as before.
+#     orchestration.mode is also the durable override input (a loop arg may
+#     override it per tick). Written by SKILL_LOOP from .aai/scripts/orchestration-mode.mjs.
+project_status: active
+current_focus:
+  type: none
+  ref_id: null
+  primary_path: null
+  spec_path: null
+active_work_items: []
+implementation_strategy:
+  selected: undecided
+  source: null
+  rationale: null
+worktree:
+  recommendation: not_needed
+  user_decision: undecided
+  base_ref: null
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: false
+  status: not_run
+  scope: null
+  base_ref: null
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+last_validation:
+  status: not_run
+  run_at_utc: null
+  ref_id: null
+  evidence_paths: []
+  notes: null
+metrics:
+  # bare (empty-mapping) form — the ONLY empty representation state.mjs
+  # append-run extends in place; a literal {} would be left orphaned above
+  # a duplicated key on the first run append (PR #176 Codex P1)
+  work_items:
+updated_at_utc: TEMPLATE_PLACEHOLDER

@@ -25,6 +25,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 // Shared structural primitives (SPEC-0012 D4): ONE definition of "duplicate
 // top-level key" / line normalization / block location, shared with the
 // transactional writer .aai/scripts/state.mjs — no logic fork.
@@ -300,9 +301,56 @@ function repairMetrics(lines) {
   return { lines: out, merged: true };
 }
 
+// --- create-from-template (state-bootstrap-template / F1 universality-proof)
+//
+// A virgin target project has no docs/ai/STATE.yaml (it is gitignored on a
+// fresh checkout) and previously nothing could mechanically create one: the
+// canonical schema lived ONLY in that missing file's own header comment.
+// `--repair` on a MISSING target now creates it from the TRACKED canonical
+// template `.aai/templates/STATE_TEMPLATE.yaml` (the schema header's source
+// of truth going forward — see .aai/SKILL_CHECK_STATE.prompt.md). The
+// template path is resolved relative to THIS SCRIPT's own location, not
+// cwd, so a synced copy running inside a target project reads its own
+// vendored template rather than any coincidentally-present cwd file.
+const UPDATED_AT_PLACEHOLDER_LINE = 'updated_at_utc: TEMPLATE_PLACEHOLDER';
+
+function createFromTemplate(abs) {
+  const templatePath = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../templates/STATE_TEMPLATE.yaml',
+  );
+  if (!fs.existsSync(templatePath)) {
+    console.error(`ERROR: STATE file not found: ${target}, and the canonical template is also missing: ${templatePath}`);
+    process.exit(2);
+  }
+  let templateBody;
+  try {
+    templateBody = fs.readFileSync(templatePath, 'utf8');
+  } catch (err) {
+    console.error(`ERROR: could not read the canonical template ${templatePath}: ${err.code || err.message}`);
+    process.exit(1);
+  }
+  if (!templateBody.includes(UPDATED_AT_PLACEHOLDER_LINE)) {
+    console.error(`ERROR: template ${templatePath} is missing the expected placeholder line ("${UPDATED_AT_PLACEHOLDER_LINE}") — refusing to create a STATE file with a stale/unstamped timestamp.`);
+    process.exit(1);
+  }
+  const stamp = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const body = templateBody.replace(UPDATED_AT_PLACEHOLDER_LINE, `updated_at_utc: ${stamp}`);
+  try {
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, body);
+  } catch (err) {
+    console.error(`ERROR: could not create ${target} from template: ${err.code || err.message} — check directory permissions on ${path.dirname(abs)}.`);
+    process.exit(1);
+  }
+  console.log(`CREATED: ${target} did not exist — created from template ${path.relative(process.cwd(), templatePath)}, stamped updated_at_utc: ${stamp}.`);
+  process.exit(0);
+}
+
 function main() {
   const abs = path.resolve(process.cwd(), target);
   if (!fs.existsSync(abs)) {
+    if (REPAIR) createFromTemplate(abs);   // never returns (process.exit)
     console.error(`ERROR: STATE file not found: ${target}`);
     process.exit(2);
   }

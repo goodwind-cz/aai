@@ -413,8 +413,11 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# 31025 (true-up: prompt-hash-runtime-wiring added a +131 B itemized entry for
-# the SKILL_LOOP.prompt.md step 4 --prompt-hash pass-through pointer, over the
+# 31311 (true-up: state-bootstrap-template added a +286 B itemized entry for
+# the SKILL_CHECK_STATE.prompt.md AUTHORITATIVE SCHEMA reword naming the new
+# .aai/templates/STATE_TEMPLATE.yaml as the canonical schema source, over the
+# prior 31025 B total after prompt-hash-runtime-wiring added a +131 B itemized
+# entry for the SKILL_LOOP.prompt.md step 4 --prompt-hash pass-through pointer, over the
 # prior 30894 B total after learned-append-gate added a +755 B itemized entry
 # for the SKILL_WRAP_UP.prompt.md step 3 critic-then-gate rewrite + step 6
 # cross-reference, over the prior 30139 B total after friction-capture-
@@ -440,15 +443,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 31025 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 31025)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 31311 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 31311)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 31025 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 31311 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

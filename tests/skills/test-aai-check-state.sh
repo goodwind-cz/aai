@@ -430,6 +430,148 @@ test_no_regression_real_state() {  # TEST-010 (check-state half) / Spec-AC-10
   fi
 }
 
+test_repair_creates_missing_state_from_template() {  # TEST-001 / Spec-AC-01 (spec-state-bootstrap-template)
+  log_info "Test: --repair on a MISSING target creates it from .aai/templates/STATE_TEMPLATE.yaml and dispatch yields no_focus_ref, never state_file_missing (TEST-001)..."
+  local template="$PROJECT_ROOT/.aai/templates/STATE_TEMPLATE.yaml"
+  [[ -f "$template" ]] || log_fail "missing $template"
+
+  local missing="$TEST_DIR/nested/docs/ai/STATE.yaml"
+  [[ -e "$missing" ]] && log_fail "fixture precondition: $missing must not pre-exist"
+
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs --repair "$missing" > "$TEST_DIR/create.log" 2>&1) \
+    || log_fail "--repair on a missing target must exit 0: $(cat "$TEST_DIR/create.log")"
+  [[ -f "$missing" ]] || log_fail "--repair must create the target file (including parent dirs)"
+  grep -qiF "created from template" "$TEST_DIR/create.log" \
+    || log_fail "--repair creation must print a clear 'created from template' line: $(cat "$TEST_DIR/create.log")"
+
+  # Byte-equal to the template EXCEPT the stamped updated_at_utc line.
+  local norm_actual="$TEST_DIR/actual-normalized.yaml" norm_template="$TEST_DIR/template-normalized.yaml"
+  sed 's/^updated_at_utc:.*/updated_at_utc: NORMALIZED/' "$missing" > "$norm_actual"
+  sed 's/^updated_at_utc:.*/updated_at_utc: NORMALIZED/' "$template" > "$norm_template"
+  diff -q "$norm_template" "$norm_actual" >/dev/null \
+    || log_fail "created STATE must be byte-equal to the template modulo the stamped updated_at_utc line: $(diff "$norm_template" "$norm_actual")"
+  grep -qE '^updated_at_utc: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' "$missing" \
+    || log_fail "created STATE must stamp updated_at_utc with a real ISO 8601 UTC timestamp (no placeholder left behind): $(grep '^updated_at_utc:' "$missing")"
+
+  # Dispatch on the created file yields no_focus_ref, not state_file_missing.
+  local dispatch_out="$TEST_DIR/dispatch.json" dispatch_exit=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/orchestration-dispatch.mjs --state "$missing" --root "$PROJECT_ROOT" > "$dispatch_out" 2>"$TEST_DIR/dispatch.err") || dispatch_exit=$?
+  [[ "$dispatch_exit" == "4" ]] \
+    || log_fail "dispatch on the created STATE must exit 4 (needs_llm): got $dispatch_exit ($(cat "$TEST_DIR/dispatch.err"))"
+  grep -qF "no_focus_ref" "$dispatch_out" \
+    || log_fail "dispatch verdict on the created STATE must name reason no_focus_ref: $(cat "$dispatch_out")"
+  grep -qF "state_file_missing" "$dispatch_out" \
+    && log_fail "dispatch verdict must NOT report state_file_missing once the file has been created: $(cat "$dispatch_out")"
+  # First append-run on the created file must extend metrics.work_items in
+  # place — the {} form corrupted it (duplicate inner key + orphaned {}).
+  (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$missing" set-focus --type intake_change --ref pin-demo --path docs/issues/x.md > /dev/null 2>&1) \
+    || log_fail "set-focus on the created STATE must succeed"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$missing" append-run --ref pin-demo --role "Planning" --model claude-haiku-4-5 --started 2026-01-01T00:00:00Z > /dev/null 2>&1) \
+    || log_fail "first append-run on the created STATE must succeed"
+  [[ "$(grep -c '^  work_items:' "$missing")" -eq 1 ]] \
+    || log_fail "first append-run must not duplicate the work_items key: $(grep -n 'work_items' "$missing")"
+  grep -v '^\s*#' "$missing" | grep -q '{}' && log_fail "no orphaned {} may remain after the first append-run: $(grep -n '{}' "$missing" | grep -v '#')"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$missing" > /dev/null 2>&1) \
+    || log_fail "created STATE must still validate after the first append-run"
+  log_pass "--repair on a missing target creates the STATE file from the template (stamped, template-parity), dispatch yields no_focus_ref, and the first append-run extends metrics cleanly"
+}
+
+test_template_header_matches_live_state() {  # TEST-002 / Spec-AC-02 (spec-state-bootstrap-template)
+  log_info "Test: STATE_TEMPLATE.yaml's leading comment header byte-equals the live docs/ai/STATE.yaml header, when a live file exists (TEST-002)..."
+  local template="$PROJECT_ROOT/.aai/templates/STATE_TEMPLATE.yaml"
+  local live="$PROJECT_ROOT/docs/ai/STATE.yaml"
+  [[ -f "$template" ]] || log_fail "missing $template"
+  if [[ ! -f "$live" ]]; then
+    log_info "no live docs/ai/STATE.yaml present (per-dev, gitignored) — skipping header-parity check"
+    log_pass "template/live header-parity check skipped (no live STATE.yaml)"
+    return
+  fi
+  # The header is the leading contiguous run of comment ('#') lines.
+  local header_lines
+  header_lines="$(awk '/^#/{print; next} {exit}' "$template" | wc -l | tr -d ' ')"
+  [[ "$header_lines" -gt 0 ]] || log_fail "template has no leading comment header block"
+  local tmpl_header="$TEST_DIR/tmpl-header.txt" live_header="$TEST_DIR/live-header.txt"
+  head -n "$header_lines" "$template" > "$tmpl_header"
+  head -n "$header_lines" "$live" > "$live_header"
+  diff -q "$tmpl_header" "$live_header" >/dev/null \
+    || log_fail "template header (first $header_lines lines) must byte-equal the live STATE.yaml header: $(diff "$tmpl_header" "$live_header" | head -20)"
+  log_pass "Template schema header byte-equals the live docs/ai/STATE.yaml header ($header_lines lines)"
+}
+
+test_template_standalone_parses_and_carries_canonical_keys() {  # TEST-003 / Spec-AC-02 (spec-state-bootstrap-template)
+  log_info "Test: STATE_TEMPLATE.yaml parses under check-state's structural loader and carries every canonical top-level key (TEST-003)..."
+  local template="$PROJECT_ROOT/.aai/templates/STATE_TEMPLATE.yaml"
+  [[ -f "$template" ]] || log_fail "missing $template"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$template" > "$TEST_DIR/template-parse.log" 2>&1) \
+    || log_fail "template must parse clean under check-state.mjs (no duplicate/mis-indented/orphaned structure): $(cat "$TEST_DIR/template-parse.log")"
+  local key
+  for key in project_status current_focus active_work_items implementation_strategy worktree code_review last_validation updated_at_utc; do
+    grep -qE "^${key}:" "$template" \
+      || log_fail "template must carry canonical top-level key '$key'"
+  done
+  log_pass "Template parses clean and carries every canonical top-level key"
+}
+
+test_skill_check_state_names_template_as_authoritative() {  # TEST-004 / Spec-AC-02 (spec-state-bootstrap-template)
+  log_info "Test: SKILL_CHECK_STATE.prompt.md's AUTHORITATIVE SCHEMA paragraph names the template as the canonical schema source (TEST-004)..."
+  local skill="$PROJECT_ROOT/.aai/SKILL_CHECK_STATE.prompt.md"
+  [[ -f "$skill" ]] || log_fail "missing $skill"
+  local para
+  para="$(awk '/^AUTHORITATIVE SCHEMA$/{flag=1; next} flag && /^$/{exit} flag' "$skill")"
+  [[ -n "$para" ]] || log_fail "AUTHORITATIVE SCHEMA paragraph not found in $skill"
+  echo "$para" | grep -qF ".aai/templates/STATE_TEMPLATE.yaml" \
+    || log_fail "AUTHORITATIVE SCHEMA paragraph must name .aai/templates/STATE_TEMPLATE.yaml as the canonical schema source: $para"
+  echo "$para" | grep -qiF "gitignored" \
+    || log_fail "AUTHORITATIVE SCHEMA paragraph should explain docs/ai/STATE.yaml is gitignored on a fresh checkout (why the template, not the live file, is canonical): $para"
+  log_pass "SKILL_CHECK_STATE.prompt.md names the template as the authoritative schema source"
+}
+
+test_repair_existing_file_untouched_by_creation_path() {  # TEST-005 / Spec-AC-03 (spec-state-bootstrap-template, regression)
+  log_info "Test: --repair on an EXISTING, already-clean STATE file never takes the create-from-template path (byte-unchanged) (TEST-005)..."
+  local existing="$TEST_DIR/state-existing-clean.yaml"
+  write_clean_state "$existing"
+  local before="$TEST_DIR/state-existing-clean.before.yaml"
+  cp "$existing" "$before"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs --repair "$existing" > "$TEST_DIR/repair-existing.log" 2>&1) \
+    || log_fail "--repair on an already-clean existing file must exit 0: $(cat "$TEST_DIR/repair-existing.log")"
+  diff -q "$before" "$existing" >/dev/null \
+    || log_fail "--repair on an already-clean EXISTING file must not rewrite it (create-from-template must never fire when the file already exists): $(diff "$before" "$existing")"
+  grep -qiF "created from template" "$TEST_DIR/repair-existing.log" \
+    && log_fail "an EXISTING file's --repair run must never print the create-from-template message: $(cat "$TEST_DIR/repair-existing.log")"
+  log_pass "--repair on an existing clean file is a byte-unchanged no-op; the create-from-template path never fires"
+}
+
+test_create_fail_loud_missing_template() {  # TEST-006 / review pin: absent template -> exit 2, clear ERROR, no file created
+  log_info "Test: --repair on a missing target with an ABSENT template exits 2 with a clear ERROR and creates nothing (TEST-006)..."
+  local sandbox="$TEST_DIR/no-template"
+  mkdir -p "$sandbox/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/check-state.mjs" "$sandbox/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/state-core.mjs" "$sandbox/.aai/scripts/lib/"
+  # deliberately NO .aai/templates/STATE_TEMPLATE.yaml sibling
+  local rc=0
+  (cd "$sandbox" && node .aai/scripts/check-state.mjs --repair docs/ai/STATE.yaml > "$TEST_DIR/no-template.log" 2>&1) || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "absent template must exit 2, got $rc: $(cat "$TEST_DIR/no-template.log")"
+  grep -q "ERROR:" "$TEST_DIR/no-template.log" || log_fail "absent template must print a clear ERROR line: $(cat "$TEST_DIR/no-template.log")"
+  [[ ! -e "$sandbox/docs/ai/STATE.yaml" ]] || log_fail "absent template must never create a STATE file"
+  log_pass "absent template fails loud (exit 2, ERROR named, nothing created) (TEST-006)"
+}
+
+test_create_fail_loud_missing_placeholder() {  # TEST-007 / review pin: template without the stamp placeholder -> exit 1, refusal, no file
+  log_info "Test: --repair refuses (exit 1) a template missing the updated_at_utc placeholder and creates nothing (TEST-007)..."
+  local sandbox="$TEST_DIR/bad-template"
+  mkdir -p "$sandbox/.aai/scripts/lib" "$sandbox/.aai/templates"
+  cp "$PROJECT_ROOT/.aai/scripts/check-state.mjs" "$sandbox/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/state-core.mjs" "$sandbox/.aai/scripts/lib/"
+  sed '/^updated_at_utc: TEMPLATE_PLACEHOLDER$/d' "$PROJECT_ROOT/.aai/templates/STATE_TEMPLATE.yaml" \
+    > "$sandbox/.aai/templates/STATE_TEMPLATE.yaml"
+  local rc=0
+  (cd "$sandbox" && node .aai/scripts/check-state.mjs --repair docs/ai/STATE.yaml > "$TEST_DIR/bad-template.log" 2>&1) || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "placeholder-less template must exit 1, got $rc: $(cat "$TEST_DIR/bad-template.log")"
+  grep -q "placeholder" "$TEST_DIR/bad-template.log" || log_fail "refusal must name the missing placeholder: $(cat "$TEST_DIR/bad-template.log")"
+  [[ ! -e "$sandbox/docs/ai/STATE.yaml" ]] || log_fail "placeholder-less template must never create a STATE file"
+  log_pass "unstampable template refused (exit 1, placeholder named, nothing created) (TEST-007)"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (STATE duplicate-key validator)"
   check_deps
@@ -441,6 +583,13 @@ main() {
   test_list_indent_lint
   test_orphan_item_lint
   test_no_regression_real_state
+  test_repair_creates_missing_state_from_template
+  test_template_header_matches_live_state
+  test_template_standalone_parses_and_carries_canonical_keys
+  test_skill_check_state_names_template_as_authoritative
+  test_repair_existing_file_untouched_by_creation_path
+  test_create_fail_loud_missing_template
+  test_create_fail_loud_missing_placeholder
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

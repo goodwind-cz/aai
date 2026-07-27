@@ -80,6 +80,7 @@ suites:
   aai-check-state:
     globs:
       - .aai/scripts/check-state.mjs
+      - .aai/templates/STATE_TEMPLATE.yaml
       - .aai/SKILL_CHECK_STATE.prompt.md
       - .aai/STATE_FALLBACK.md
       - .aai/IMPLEMENTATION.prompt.md
