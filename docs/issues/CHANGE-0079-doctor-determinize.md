@@ -2,11 +2,13 @@
 id: doctor-determinize
 number: 79
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 178
+  commits:
+    - 8e167599068a3ce15c02cae2bd7d3175200b754e
 ---
 
 # Change — aai-doctor: replace prose-computed categories with one deterministic script

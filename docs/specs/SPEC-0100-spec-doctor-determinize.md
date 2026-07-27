@@ -2,13 +2,15 @@
 id: spec-doctor-determinize
 type: spec
 number: 100
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: CHANGE-0079
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 178
+  commits:
+    - 8e167599068a3ce15c02cae2bd7d3175200b754e
 ---
 
 ## Links

@@ -1307,3 +1307,9 @@
 {"v":1,"ts":"2026-07-27T22:49:42.977Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"decapod-prune","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-27T22:49:43.007Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"decapod-prune","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-27T22:49:43.039Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"decapod-prune","payload":{"commit":"070a61638556d5eddf534bcf887bf90ff810d6eb"}}
+{"v":1,"ts":"2026-07-27T23:58:44.041Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"doctor-determinize","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-27T23:58:44.072Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"doctor-determinize","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-27T23:58:44.102Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"doctor-determinize","payload":{"commit":"8e167599068a3ce15c02cae2bd7d3175200b754e"}}
+{"v":1,"ts":"2026-07-27T23:58:44.133Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-doctor-determinize","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-27T23:58:44.163Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-doctor-determinize","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-27T23:58:44.192Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-doctor-determinize","payload":{"commit":"8e167599068a3ce15c02cae2bd7d3175200b754e"}}
