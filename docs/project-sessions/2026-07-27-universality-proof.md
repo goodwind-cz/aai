@@ -1,11 +1,13 @@
 # Universality proof — AAI layer on a virgin non-AAI project (2026-07-27)
 
-Claim under test: the factory is universal — any project scale, user only
-states needs. Method: hands-on, no simulation. A real 40-line Node CLI
-("tempo": BPM/ms/Hz conversions, `node --test` suite, own git history) was
-created outside the repo, AAI was bootstrapped onto it via `install.sh
---source-root <aai> --target-root <project>`, and one complete factory
-cycle was executed inside the target using only the synced layer.
+Claim under test: the factory is universal — it works at any project
+scale, with the user doing nothing beyond stating a need. Method:
+hands-on, no simulation. A real 40-line Node CLI ("tempo": BPM/ms/Hz
+conversions, `node --test` suite, own git history) was created outside
+the repo, AAI was bootstrapped onto it via
+`install.sh --source-root <aai> --target-root <project>`, and one
+complete factory cycle was executed inside the target using only the
+synced layer.
 
 ## What ran unmodified (positives)
 
@@ -59,9 +61,29 @@ L0-L1 tiny projects (waived review with rationale, deterministic
 validation), L2 team defaults (maker≠checker, dual-verdict, CI impact
 selection), L3 regulated (protected paths + operator sign-off).
 
-## Artifacts
+## Artifacts and preserved evidence
 
 Scratch target project (session-local, disposable):
 `<scratchpad>/uniproof` — git history: baseline, bootstrap commit,
-feature commit, close-artifacts commit. Evidence quoted above lives in
-the target's docs/ai/ ledgers; this journal is the durable record.
+feature commit, close-artifacts commit. Because that tree is unavailable
+to later audits by design, the load-bearing evidence is preserved
+verbatim here:
+
+- Virgin-tree dispatch (fail-closed):
+  `verdict=needs_llm reasons=["state_file_missing:<target>/docs/ai/STATE.yaml"]`.
+- Post-init dispatch: `rule 5 (dispatch) Role: Planning Scope:
+  tap-tempo-command ... Suggested model id: claude-opus-4-8` with
+  `Prompt hash: 8590674acb63` (full hash
+  `8590674acb6383e6f1669a36711ffaa32df179238b2b5a760357d7e2f595a721`).
+- TDD: RED `npm test` exit 1 (`# pass 3 / # fail 1` — tap import
+  missing), GREEN exit 0 (`# pass 5 / # fail 0`); CLI demo
+  `tempo tap 0,500,1000,1500` -> `120.00`.
+- Close + flush: `close-work-item: closed tap-tempo-command,
+  spec-tap-tempo-command (pr #1, commit 92d9b83...)` after a product-doc
+  gate WARNING (report-only default); `metrics-flush` wrote the METRICS
+  row whose Planning run carries the full 64-hex `prompt_hash` above —
+  verified non-null in the target's docs/ai/METRICS.jsonl.
+- Rollup: `userguide-rollup: 0 delivered feature(s)` while the product
+  doc failed the placeholder predicate (F2), then
+  `1 delivered feature(s)` after the Data model section was filled per
+  PRODUCT_TEMPLATE.

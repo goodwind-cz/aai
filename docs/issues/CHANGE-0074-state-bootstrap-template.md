@@ -27,9 +27,13 @@ links:
   the file creates it byte-equal to the template and exits 0; dispatch on
   the result yields `no_focus_ref` (not `state_file_missing`)
   (suite-verified RED/GREEN).
-- AC-002: template carries the schema header verbatim (single source: a
-  pin test asserts header equality with the canonical repo STATE.yaml
-  comment block, preventing drift).
+- AC-002: the TEMPLATE becomes the tracked canonical source of the schema
+  header (docs/ai/STATE.yaml is gitignored on fresh checkouts, so it can
+  never serve as the pin baseline). Direction of the pin test: WHEN a
+  live docs/ai/STATE.yaml exists, its header comment block must equal the
+  template's; the template itself is asserted standalone (parses, carries
+  every schema key). SKILL_CHECK_STATE prose updated to name the template
+  as the authoritative schema location.
 - AC-003: no regression — check-state suite green; existing-file repair
   behavior byte-unchanged.
 

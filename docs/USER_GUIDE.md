@@ -2085,8 +2085,10 @@ journal: docs/project-sessions/2026-07-27-universality-proof.md.
 Pick ceremony weight by project scale — the machinery is identical, only
 the dials move:
 
-- **Tiny / personal (one file to a few modules).** Ceremony L0-L1:
-  intake + frozen spec can be one short doc; review `waived` with a
+- **Tiny / personal (one file to a few modules).** Ceremony L0-L1: at
+  L0 the intake and frozen spec may be a single short doc; at L1 keep
+  them separate but minimal (a one-screen spec with an AC table is
+  enough); review `waived` with a
   recorded rationale; validation = deterministic test runs. Product docs
   only for `user_visible: true` scopes (the close gate warns in
   report-only mode by default — flip `product_doc_gate` to `enforce` once
@@ -2097,16 +2099,19 @@ the dials move:
   (suite-map) once the test suite passes ~10 suites.
 - **Platform / regulated (protected surfaces).** Add L3 protected-path
   listing (`docs/ai/docs-audit.yaml` `protected_paths_l3`) so state
-  engines, migration scripts and workflow contracts always fail open to
-  full verification and human sign-off at merge time.
+  engines, migration scripts and workflow contracts always fail CLOSED
+  into full ceremony: full verification plus operator sign-off at merge
+  time (in CI impact selection the same trigger escalates to the full
+  suite run).
 
-Two bootstrap caveats found by the proof (tracked as intakes): a virgin
-target has no `docs/ai/STATE.yaml` and the layer ships no template — the
-first orchestration tick must hand-create it from the canonical schema
-(until `check-state --repair` learns to create it); and the USER_GUIDE
-rollup silently excludes product docs that fail the placeholder
-predicate — run `close-work-item` (or read its gate warning) to see what
-is missing.
+Two bootstrap caveats found by the proof (tracked as intakes
+CHANGE-0074/CHANGE-0075): a virgin target has no `docs/ai/STATE.yaml`
+and the layer ships no template — the first orchestration tick must
+hand-create it from the canonical schema (until
+`node .aai/scripts/check-state.mjs --repair` learns to create it); and
+the USER_GUIDE rollup silently excludes product docs that fail the
+placeholder predicate — run `node .aai/scripts/close-work-item.mjs` (or
+read its gate warning) to see which section is missing.
 
 ---
 
