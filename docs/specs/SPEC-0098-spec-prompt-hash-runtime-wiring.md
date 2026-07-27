@@ -2,13 +2,15 @@
 id: spec-prompt-hash-runtime-wiring
 type: spec
 number: 98
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0072-prompt-hash-runtime-wiring.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 172
+  commits:
+    - f3015f6b1959392ed2a5bd71b625de7b3decc2ac
 ---
 
 # Implementation Spec — Prompt-hash runtime wiring: the orchestrator actually records the hash dispatch already computes

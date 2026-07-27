@@ -2,11 +2,13 @@
 id: prompt-hash-runtime-wiring
 number: 72
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 172
+  commits:
+    - f3015f6b1959392ed2a5bd71b625de7b3decc2ac
 ---
 
 # Change — prompt-hash runtime wiring: the orchestrator actually records the hash dispatch already computes
