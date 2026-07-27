@@ -535,8 +535,21 @@ test_016_skill_loop_prompt_hash_pointer() {
     log_info "TEST-016: $f does not name the --prompt-hash append-run flag"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-016 SKILL_LOOP prompt-hash pass-through pointer" \
-    || log_fail "TEST-016 SKILL_LOOP prompt-hash pass-through pointer"
+  # Both layers must carry the pass-through: SKILL_LOOP for the parent-loop
+  # path AND SUBAGENT_PROTOCOL for the single-mode orchestration agent that
+  # actually executes append-run at merge time (PR #172 Codex P1 — the
+  # parent-loop pointer alone never reaches the appending component).
+  local p=.aai/SUBAGENT_PROTOCOL.md
+  if ! grep -qF -- "--prompt-hash" "$p"; then
+    log_info "TEST-016: $p does not name the --prompt-hash append-run pass-through"
+    ok=0
+  fi
+  if ! grep -qF "prompt_hash" "$p"; then
+    log_info "TEST-016: $p does not reference the dispatch JSON prompt_hash field"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-016 prompt-hash pass-through pointer (SKILL_LOOP + SUBAGENT_PROTOCOL)" \
+    || log_fail "TEST-016 prompt-hash pass-through pointer (SKILL_LOOP + SUBAGENT_PROTOCOL)"
 }
 
 main() {
