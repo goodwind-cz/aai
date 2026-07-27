@@ -13,7 +13,7 @@ RFC-0001).
 
 ## [unreleased] — chore: decapod integration pruned — only true dead code found by the skill-sweep (CHANGE-0077) [L2]
 
-- Removed ~55 KB: SKILL_DECAPOD.prompt.md (9571 B corpus), 3 wrapper dirs,
+- Removed ~55 KB: SKILL_DECAPOD.prompt.md (9571 B file; ledger retires 9573 B incl. 2 B prior reword slack), 3 wrapper dirs,
   DECAPOD_INTEGRATION.md, docs/ai/compliance/*, config example, plus every
   live-tree pointer (AGENTS.md dispatch row, SKILLS.md, wrapper READMEs,
   USER_GUIDE section, copilot-instructions). The external `decapod` CLI was

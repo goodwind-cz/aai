@@ -413,7 +413,10 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# 21738 (true-up: state-bootstrap-template added a +286 B itemized entry for
+# 21738 (true-up: decapod-prune retired -9573 B via a NEGATIVE RECLAIMED
+# entry — the deleted SKILL_DECAPOD.prompt.md's 9571 B plus 2 B residual
+# reword slack — dropping the total from 31311; before that,
+# state-bootstrap-template added a +286 B itemized entry for
 # the SKILL_CHECK_STATE.prompt.md AUTHORITATIVE SCHEMA reword naming the new
 # .aai/templates/STATE_TEMPLATE.yaml as the canonical schema source, over the
 # prior 31025 B total after prompt-hash-runtime-wiring added a +131 B itemized
