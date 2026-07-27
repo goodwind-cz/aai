@@ -2087,6 +2087,12 @@ The stakeholder overview page (`docs/ai/overview.html`) already showed what was 
 
 [Product doc](product/dev-progress-hub.md) · [Spec](specs/SPEC-0093-spec-dev-progress-hub.md)
 
+### Learned-append gate: structurally enforced append-only self-learning
+
+`docs/knowledge/LEARNED.md` is the project's running list of corrections and learnings, loaded into every session to avoid repeating mistakes. Until now, anything writing to it — human or automated — was a free-form file edit, so an automated "self-improvement" step could in principle rewrite or delete an existing rule while adding a new one. This change adds a small, dependency-free gate that a write MUST pass: the resulting file has to be byte-exactly the current file plus new content appended at the end — any rewrite, reordering, mid-file insertion, or deletion is refused outright, with nothing written. The end-of-session wrap-up flow now routes every confirmed rule through a short review pass and then this gate, instead of editing the file directly.
+
+[Product doc](product/learned-append-gate.md) · [Spec](specs/SPEC-0095-spec-learned-append-gate.md)
+
 ### Product docs enforced at close, plus a generated USER_GUIDE rollup
 
 Closing a user-facing work item now carries a real check: if the primary request doc opts in with `user_visible: true` and the matching docs/product/&lt;ref&gt;.md is missing or still has unfilled template sections, the close ceremony prints a loud warning by default, or refuses outright (nothing written) when the stricter dial is turned on. Separately, docs/USER_GUIDE.md now carries a "Delivered features (generated)" section that is rebuilt automatically every time a work item closes, listing every real product doc with a link and a one-paragraph summary — so the user guide can no longer silently drift out of date the way it used to.

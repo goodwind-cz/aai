@@ -28,30 +28,31 @@
 </head>
 <body>
 <h1>aai — Project Overview</h1>
-<p class="meta">Generated 2026-07-27T10:05:26.252Z · regenerate with <code>node .aai/scripts/generate-overview.mjs</code></p>
+<p class="meta">Generated 2026-07-27T11:17:10.739Z · regenerate with <code>node .aai/scripts/generate-overview.mjs</code></p>
 <div class="counts">
-  <div><b>113</b>delivered</div>
+  <div><b>114</b>delivered</div>
   <div><b>1</b>in progress</div>
   <div><b>1</b>releases</div>
   <div><b>18021942</b>agent tokens (delivered)</div>
 </div>
 
 <section><h2>In flight now</h2>
-<p><strong>role-output-contracts</strong> <span class="meta">intake_change</span></p>
-<div class="chips"><span class="chip">strategy: hybrid</span><span class="chip">worktree: optional / inline</span><span class="chip">validation: not_run</span><span class="chip">review: not_run</span></div>
+<p><strong>learned-append-gate</strong> <span class="meta">intake_change · code_review</span></p>
+<div class="chips"><span class="chip">strategy: tdd</span><span class="chip">worktree: optional / inline</span><span class="chip">validation: pass</span><span class="chip">review: pass</span></div>
 <table class="ticks"><thead><tr><th>Tick</th><th>Role</th><th>Scope</th><th>Duration (s)</th><th>Harness</th></tr></thead><tbody>
+<tr><td>3</td><td>Code Review</td><td>learned-append-gate</td><td>297</td><td>2.1.218 (Claude Code)</td></tr>
+<tr><td>2</td><td>Validation</td><td>learned-append-gate</td><td>249</td><td>2.1.218 (Claude Code)</td></tr>
+<tr><td>1</td><td>Planning+Implementation</td><td>learned-append-gate</td><td>1012</td><td>2.1.218 (Claude Code)</td></tr>
 <tr><td>4</td><td>Code Review</td><td>role-output-contracts</td><td>685</td><td>2.1.218 (Claude Code)</td></tr>
 <tr><td>3</td><td>Validation</td><td>role-output-contracts</td><td>1043</td><td>2.1.218 (Claude Code)</td></tr>
-<tr><td>2</td><td>TDD Implementation</td><td>role-output-contracts</td><td>628</td><td>2.1.218 (Claude Code)</td></tr>
-<tr><td>1</td><td>Planning</td><td>role-output-contracts</td><td>463</td><td>2.1.218 (Claude Code)</td></tr>
-<tr><td>3</td><td>Code Review</td><td>dev-progress-hub</td><td>80</td><td>2.1.218 (Claude Code)</td></tr>
 </tbody></table>
 </section>
 <section><h2>In progress (1)</h2><ul><li><strong>RFC (Decision Proposal)</strong><br><span class="meta">rfc</span><br><span class="links"><a href="../../docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md">request</a></span></li></ul></section>
-<section><h2>Delivered (113)</h2><h3>2026-07</h3><ul><li><strong>Change — Cheap-model delegation in practice: Haiku for mechanical roles, tier-appropriate validation</strong><br><span class="meta">delivered 2026-07-27 · 20 min agent time · 367663 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0065-cheap-model-in-practice.md">request</a> · <a href="../../docs/specs/SPEC-0091-spec-cheap-model-in-practice.md">spec</a></span></li>
+<section><h2>Delivered (114)</h2><h3>2026-07</h3><ul><li><strong>Change — Cheap-model delegation in practice: Haiku for mechanical roles, tier-appropriate validation</strong><br><span class="meta">delivered 2026-07-27 · 20 min agent time · 367663 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0065-cheap-model-in-practice.md">request</a> · <a href="../../docs/specs/SPEC-0091-spec-cheap-model-in-practice.md">spec</a></span></li>
 <li><strong>Change — Product docs enforced at close + USER_GUIDE rollup generated from them</strong><br><span class="meta">delivered 2026-07-27 · 30 min agent time · 618497 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0066-product-docs-enforced.md">request</a> · <a href="../../docs/specs/SPEC-0092-spec-product-docs-enforced.md">spec</a> · <a href="../../docs/ai/reviews/review-20260727T080154Z-product-docs-enforced.md">code review</a></span></li>
 <li><strong>Change — Dev-progress view in the overview: what the factory is doing right now</strong><br><span class="meta">delivered 2026-07-27 · 22 min agent time · 308229 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0067-dev-progress-hub.md">request</a> · <a href="../../docs/specs/SPEC-0093-spec-dev-progress-hub.md">spec</a> · <a href="../../docs/ai/reviews/review-20260727T085458Z-dev-progress-hub.md">code review</a></span></li>
 <li><strong>Change — Role output contracts: deterministic EXPECT validation of subagent result blocks</strong><br><span class="meta">delivered 2026-07-27 · 47 min agent time · 473825 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0068-role-output-contracts.md">request</a> · <a href="../../docs/specs/SPEC-0094-spec-role-output-contracts.md">spec</a></span></li>
+<li><strong>Change — Learned-append gate: structurally enforced append-only self-learning</strong><br><span class="meta">delivered 2026-07-27 · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0069-learned-append-gate.md">request</a> · <a href="../../docs/specs/SPEC-0095-spec-learned-append-gate.md">spec</a> · <a href="../../docs/ai/reviews/review-20260727T111121Z-learned-append-gate.md">code review</a></span></li>
 <li><strong>Closeout candidate: display-id match + Rollout-Status guard</strong><br><span class="meta">delivered 2026-07-26 · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0056-closeout-display-id-match.md">request</a></span></li>
 <li><strong>USER_GUIDE: docs-audit rollup / closeout / brief sweep + close completed RFC-0013</strong><br><span class="meta">delivered 2026-07-26 · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0057-docs-rollup-userguide.md">request</a></span></li>
 <li><strong>Change — Token-Capture Canary (make silent telemetry-capture gaps loud)</strong><br><span class="meta">delivered 2026-07-26 · 145 min agent time · 631296 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0058-token-capture-canary.md">request</a> · <a href="../../docs/specs/SPEC-0085-spec-token-capture-canary.md">spec</a> · <a href="../../docs/ai/reports/validation-token-capture-canary-20260726T131158Z.md">validation evidence</a> · <a href="../../docs/ai/reviews/review-dual-verdict-token-capture-canary-20260726T134808Z.md">code review</a></span></li>

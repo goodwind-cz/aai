@@ -1,25 +1,23 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T11:16:23.825Z
+Generated: 2026-07-27T11:17:10.847Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (3)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
-| CHANGE-0069 | issues | implementing | — | docs/issues/CHANGE-0069-learned-append-gate.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0095 | specs | implementing | 5 done | docs/specs/SPEC-0095-spec-learned-append-gate.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Done (209)
+## Done (211)
 
 | ID | Type | Path |
 |---|---|---|
@@ -91,6 +89,7 @@ _None._
 | CHANGE-0066 | issues | docs/issues/CHANGE-0066-product-docs-enforced.md |
 | CHANGE-0067 | issues | docs/issues/CHANGE-0067-dev-progress-hub.md |
 | CHANGE-0068 | issues | docs/issues/CHANGE-0068-role-output-contracts.md |
+| CHANGE-0069 | issues | docs/issues/CHANGE-0069-learned-append-gate.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -231,6 +230,7 @@ _None._
 | SPEC-0092 | specs | docs/specs/SPEC-0092-spec-product-docs-enforced.md |
 | SPEC-0093 | specs | docs/specs/SPEC-0093-spec-dev-progress-hub.md |
 | SPEC-0094 | specs | docs/specs/SPEC-0094-spec-role-output-contracts.md |
+| SPEC-0095 | specs | docs/specs/SPEC-0095-spec-learned-append-gate.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)

@@ -2,11 +2,13 @@
 id: learned-append-gate
 number: 69
 type: change
-status: implementing
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 169
+  commits:
+    - 34906b46a4ef6a59ac300fbf4f2bb1e9a2896ac2
 ---
 
 # Change — Learned-append gate: structurally enforced append-only self-learning

@@ -2,13 +2,15 @@
 id: spec-learned-append-gate
 type: spec
 number: 95
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: CHANGE-0069-learned-append-gate
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 169
+  commits:
+    - 34906b46a4ef6a59ac300fbf4f2bb1e9a2896ac2
 ---
 
 # SPEC — Learned-append gate: structurally enforced append-only self-learning

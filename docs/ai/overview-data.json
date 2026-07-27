@@ -1,31 +1,52 @@
 {
-  "generatedAt": "2026-07-27T10:05:26.252Z",
+  "generatedAt": "2026-07-27T11:17:10.739Z",
   "project": "aai",
   "counts": {
-    "delivered": 113,
+    "delivered": 114,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 18021942
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "role-output-contracts",
+    "ref": "learned-append-gate",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "role-output-contracts",
+      "ref": "learned-append-gate",
       "type": "intake_change",
-      "phase": null
+      "phase": "code_review"
     },
-    "strategy": "hybrid",
+    "strategy": "tdd",
     "worktree": {
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "not_run",
-    "review_status": "not_run",
+    "validation_status": "pass",
+    "review_status": "pass",
     "ticks": [
+      {
+        "tick": 3,
+        "role": "Code Review",
+        "scope": "learned-append-gate",
+        "duration_seconds": 297,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 2,
+        "role": "Validation",
+        "scope": "learned-append-gate",
+        "duration_seconds": 249,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 1,
+        "role": "Planning+Implementation",
+        "scope": "learned-append-gate",
+        "duration_seconds": 1012,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
       {
         "tick": 4,
         "role": "Code Review",
@@ -38,27 +59,6 @@
         "role": "Validation",
         "scope": "role-output-contracts",
         "duration_seconds": 1043,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 2,
-        "role": "TDD Implementation",
-        "scope": "role-output-contracts",
-        "duration_seconds": 628,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 1,
-        "role": "Planning",
-        "scope": "role-output-contracts",
-        "duration_seconds": 463,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 3,
-        "role": "Code Review",
-        "scope": "dev-progress-hub",
-        "duration_seconds": 80,
         "harness_version": "2.1.218 (Claude Code)"
       }
     ]
@@ -130,6 +130,19 @@
       "spec": "docs/specs/SPEC-0094-spec-role-output-contracts.md",
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "learned-append-gate",
+      "title": "Change — Learned-append gate: structurally enforced append-only self-learning",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0069-learned-append-gate.md",
+      "closed_on": "2026-07-27",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0095-spec-learned-append-gate.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260727T111121Z-learned-append-gate.md"
     },
     {
       "ref": "closeout-display-id-match",
@@ -1606,6 +1619,19 @@
           "spec": "docs/specs/SPEC-0094-spec-role-output-contracts.md",
           "validation": null,
           "review": null
+        },
+        {
+          "ref": "learned-append-gate",
+          "title": "Change — Learned-append gate: structurally enforced append-only self-learning",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0069-learned-append-gate.md",
+          "closed_on": "2026-07-27",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0095-spec-learned-append-gate.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260727T111121Z-learned-append-gate.md"
         },
         {
           "ref": "closeout-display-id-match",
