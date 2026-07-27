@@ -276,7 +276,9 @@ test_012_real_git_diff_seam() {  # Spec-AC-01, SEAM: real git diff --name-only -
   mkdir -p "$repo"
   (
     cd "$repo"
-    git init -q
+    # -b main: never inherit the runner's init.defaultBranch (CI defaults to
+    # master, which broke the base-ref main lookup — PR #171 first CI run)
+    git init -q -b main
     small_map "$repo"
     mkdir -p src/alpha
     echo "seed" > README.md
