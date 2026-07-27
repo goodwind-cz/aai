@@ -1,0 +1,509 @@
+# tests/skills/suite-map.yaml — CI test-impact selection map
+# (CHANGE ci-test-impact-selection / SPEC spec-ci-test-impact-selection).
+#
+# Consumed by .aai/scripts/select-suites.mjs (hand-rolled line-based parser,
+# zero deps — NOT a general YAML file; keep the exact indentation below:
+# `core:` / `full_run_triggers:` / `suites:` at column 0, suite names at
+# 2 spaces, `globs:` at 4 spaces, list items at 6 spaces).
+#
+# CONTRACT
+# - `core:` names suites that run on EVERY selected-mode PR regardless of the
+#   diff (cheap, always-on safety net). They still get a `suites:` row below
+#   (with their own real globs) so the hygiene pin (test-aai-hygiene-pack.sh)
+#   can prove every test-aai-*.sh file has exactly one row — the row is just
+#   redundant for selection purposes since core suites never need matching.
+# - `full_run_triggers.shared_lib_globs` names paths that escalate straight
+#   to FULL_RUN when touched — shared library code with fan-out no single
+#   suite's glob list can safely bound. `docs/ai/docs-audit.yaml`
+#   `protected_paths_l3` is read directly (not duplicated here) as the
+#   second FULL_RUN trigger class; the third is any changed path matching NO
+#   suite below.
+# - `suites.<name>.globs` — the paths that make a diff select this suite. Be
+#   GENEROUS: over-selection only costs a few extra minutes of CI; under-
+#   selection is exactly what the fail-open triad above exists to catch. The
+#   selector ALSO implicitly matches `tests/skills/test-<name>.sh` (the
+#   suite's own test file) for every suite without it needing to be listed.
+# - AC-003 (hygiene pin): every `tests/skills/test-aai-*.sh` file on disk
+#   MUST have a corresponding `suites.<name>` row, `<name>` being the
+#   filename with the `test-` prefix and `.sh` suffix stripped. A new suite
+#   added without a row fails tests/skills/test-aai-hygiene-pack.sh.
+
+core:
+  - aai-check-state
+  - aai-docs-audit
+  - aai-spec-lint
+
+full_run_triggers:
+  shared_lib_globs:
+    - .aai/scripts/lib/**
+
+suites:
+  aai-advisory-skills:
+    globs:
+      - .aai/SKILL_SCOUT.prompt.md
+      - .aai/SKILL_DESLOP.prompt.md
+      - .aai/SKILL_INTERROGATE.prompt.md
+      - .claude/skills/aai-scout/**
+      - .claude/skills/aai-deslop/**
+      - .claude/skills/aai-interrogate/**
+      - .codex/skills/aai-scout/**
+      - .codex/skills/aai-deslop/**
+      - .codex/skills/aai-interrogate/**
+      - .gemini/skills/aai-scout/**
+      - .gemini/skills/aai-deslop/**
+      - .gemini/skills/aai-interrogate/**
+
+  aai-bootstrap:
+    globs:
+      - .aai/scripts/aai-bootstrap.sh
+      - .aai/BOOTSTRAP.prompt.md
+      - .aai/BOOTSTRAP_DIFF.prompt.md
+      - .aai/SKILL_BOOTSTRAP.prompt.md
+      - .claude/skills/aai-bootstrap/**
+      - .codex/skills/aai-bootstrap/**
+      - .gemini/skills/aai-bootstrap/**
+
+  aai-branch-guard:
+    globs:
+      - .aai/scripts/branch-guard.mjs
+      - .aai/AGENTS.md
+      - .aai/SKILL_PR.prompt.md
+
+  aai-ceremony-levels:
+    globs:
+      - .aai/PLANNING.prompt.md
+      - .aai/VALIDATION.prompt.md
+      - .aai/scripts/orchestration-dispatch.mjs
+      - .aai/templates/SPEC_TEMPLATE.md
+      - .aai/workflow/WORKFLOW.md
+
+  aai-check-state:
+    globs:
+      - .aai/scripts/check-state.mjs
+      - .aai/SKILL_CHECK_STATE.prompt.md
+      - .aai/STATE_FALLBACK.md
+      - .aai/IMPLEMENTATION.prompt.md
+      - .aai/SKILL_TDD.prompt.md
+
+  aai-close-work-item:
+    globs:
+      - .aai/scripts/close-work-item.mjs
+      - .aai/SKILL_PR.prompt.md
+      - .aai/VALIDATION.prompt.md
+
+  aai-constitution:
+    globs:
+      - docs/CONSTITUTION.md
+      - .aai/PLANNING.prompt.md
+      - .aai/templates/SPEC_TEMPLATE.md
+      - .aai/AGENTS.md
+
+  aai-debug-gate:
+    globs:
+      - .aai/SKILL_DEBUG.prompt.md
+      - .aai/REMEDIATION.prompt.md
+      - .claude/skills/aai-debug/**
+      - .codex/skills/aai-debug/**
+      - .gemini/skills/aai-debug/**
+
+  aai-delta-stage1:
+    globs:
+      - .aai/SKILL_DOCS_CANON.prompt.md
+      - .aai/scripts/docs-canon.mjs
+      - .aai/templates/CANONICAL_TEMPLATE.md
+
+  aai-delta-stage2:
+    globs:
+      - .aai/PLANNING.prompt.md
+      - .aai/scripts/spec-lint.mjs
+      - .aai/templates/SPEC_TEMPLATE.md
+
+  aai-delta-stage3:
+    globs:
+      - .aai/SKILL_PR.prompt.md
+      - .aai/scripts/delta-merge.mjs
+
+  aai-doc-number-reservation:
+    globs:
+      - .aai/scripts/allocate-doc-number.mjs
+
+  aai-doc-numbering:
+    globs:
+      - .aai/INTAKE_COMMON.md
+      - .aai/SKILL_INTAKE.prompt.md
+      - .aai/SKILL_PR.prompt.md
+      - .aai/scripts/allocate-doc-number.mjs
+      - .aai/scripts/append-event.mjs
+      - .aai/scripts/generate-docs-index.mjs
+      - .aai/scripts/pre-commit-checks.sh
+      - .aai/scripts/pre-commit-checks.ps1
+      - .aai/templates/RFC_TEMPLATE.md
+      - .aai/templates/SPEC_TEMPLATE.md
+
+  aai-docs-audit:
+    globs:
+      - .aai/scripts/docs-audit.mjs
+      - .aai/METRICS_FLUSH.prompt.md
+      - .aai/SKILL_DOCS_AUDIT.prompt.md
+      - .aai/SKILL_INTAKE.prompt.md
+      - .aai/SKILL_WRAP_UP.prompt.md
+      - .aai/VALIDATION.prompt.md
+      - .aai/scripts/append-event.mjs
+      - .aai/scripts/generate-docs-index.mjs
+      - .aai/scripts/install-pre-commit-hook.ps1
+      - .aai/scripts/install-pre-commit-hook.sh
+      - docs/ai/docs-audit.yaml
+      - docs/specs/**
+      - docs/issues/**
+      - docs/rfc/**
+      - docs/canonical/**
+      - docs/_archive/**
+      - docs/releases/**
+      - CHANGELOG.md
+      - README.md
+
+  aai-docs-canon:
+    globs:
+      - .aai/SKILL_DOCS_CANON.prompt.md
+      - .aai/scripts/docs-canon.mjs
+      - .aai/scripts/append-event.mjs
+      - .aai/scripts/generate-docs-index.mjs
+
+  aai-docs-lock:
+    globs:
+      - .aai/scripts/docs-lock.mjs
+      - .aai/ORCHESTRATION_PARALLEL.prompt.md
+      - .aai/SUBAGENT_CONTRACT.md
+      - .aai/SUBAGENT_PROTOCOL.md
+      - .aai/system/LOCKS.md
+
+  aai-feedback-status:
+    globs:
+      - .aai/scripts/aai-feedback-status.mjs
+
+  aai-feedback-triage:
+    globs:
+      - .aai/scripts/aai-feedback-triage.mjs
+      - .aai/scripts/aai-friction.mjs
+
+  aai-feedback-upsert:
+    globs:
+      - .aai/scripts/aai-feedback-upsert.mjs
+
+  aai-friction-wiring:
+    globs:
+      - .aai/AGENTS.md
+      - .aai/IMPLEMENTATION.prompt.md
+      - .aai/REMEDIATION.prompt.md
+      - .aai/SKILL_PR.prompt.md
+      - .aai/SKILL_WRAP_UP.prompt.md
+      - .aai/VALIDATION.prompt.md
+      - .aai/scripts/aai-feedback-triage.mjs
+      - .aai/scripts/aai-friction.mjs
+      - .aai/system/FRICTION_PROTOCOL.md
+
+  aai-friction:
+    globs:
+      - .aai/scripts/aai-friction.mjs
+      - .aai/system/AAI_PIN.md
+      - .aai/system/FRICTION_PROTOCOL.md
+      - .aai/system/PROFILES.yaml
+
+  aai-hitl-propagation:
+    globs:
+      - .aai/ORCHESTRATION_HITL.prompt.md
+      - .aai/SKILL_HITL.prompt.md
+      - .aai/scripts/orchestration-dispatch.mjs
+
+  aai-hooks-overlay:
+    globs:
+      - .aai/templates/hooks/**
+      - .aai/scripts/claude-hook-gate.sh
+      - .aai/scripts/aai-bootstrap.sh
+      - .aai/SKILL_PR.prompt.md
+
+  aai-hygiene-pack:
+    globs:
+      - .aai/AGENTS.md
+      - .aai/IMPLEMENTATION.prompt.md
+      - .aai/INTAKE_COMMON.md
+      - .aai/METRICS_FLUSH.prompt.md
+      - .aai/ORCHESTRATION.prompt.md
+      - .aai/ORCHESTRATION_HITL.prompt.md
+      - .aai/ORCHESTRATION_PARALLEL.prompt.md
+      - .aai/PLANNING.prompt.md
+      - .aai/REMEDIATION.prompt.md
+      - .aai/SKILL_AUTO_TRIGGER.prompt.md
+      - .aai/SKILL_CODE_REVIEW.prompt.md
+      - .aai/SKILL_WRAP_UP.prompt.md
+      - .aai/SKILL_TDD.prompt.md
+      - .aai/SKILL_TEST_CANON.prompt.md
+      - .aai/SKILL_META.prompt.md
+      - .aai/SKILL_LOOP.prompt.md
+      - .aai/SUBAGENT_PROTOCOL.md
+      - .aai/SUBAGENT_CONTRACT.md
+      - .aai/scripts/pre-commit-checks.sh
+      - .aai/scripts/install-pre-commit-hook.ps1
+      - .aai/roles/ROLES.md
+      - .aai/system/AUTONOMOUS_LOOP.md
+      - .aai/system/SUPERPOWERS_INTEGRATION.md
+      - docs/USER_GUIDE.md
+      - docs/SKILL_CATALOG.html
+      - .claude/skills/**/SKILL.md
+      - .codex/skills/**/SKILL.md
+      - .gemini/skills/**/SKILL.md
+      - hooks/session-start.sh
+      - hooks/session-start.ps1
+      - hooks/hooks.json
+
+  aai-intake:
+    globs:
+      - .aai/SKILL_INTAKE.prompt.md
+      - .aai/INTAKE_COMMON.md
+      - .aai/INTAKE_CHANGE.prompt.md
+      - .aai/INTAKE_HOTFIX.prompt.md
+      - .aai/INTAKE_ISSUE.prompt.md
+      - .aai/INTAKE_PRD.prompt.md
+      - .aai/INTAKE_RELEASE.prompt.md
+      - .aai/INTAKE_RESEARCH.prompt.md
+      - .aai/INTAKE_RFC.prompt.md
+      - .aai/INTAKE_TECHDEBT.prompt.md
+      - .aai/templates/*_TEMPLATE.md
+      - docs/intake/**
+      - .claude/skills/aai-intake/**
+      - .codex/skills/aai-intake/**
+      - .gemini/skills/aai-intake/**
+
+  aai-layer-drift:
+    globs:
+      - .aai/scripts/layer-drift.mjs
+      - .aai/SKILL_DOCTOR.prompt.md
+      - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-update.sh
+      - .aai/scripts/aai-update.ps1
+      - .aai/system/AAI_PIN.md
+
+  aai-layer-profiles:
+    globs:
+      - .aai/system/PROFILES.yaml
+      - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-sync.ps1
+      - .aai/SKILL_DOCTOR.prompt.md
+      - .aai/system/AAI_PIN.md
+
+  aai-learned-append:
+    globs:
+      - .aai/scripts/learned-append.mjs
+      - .aai/SKILL_WRAP_UP.prompt.md
+      - .aai/system/FRICTION_PROTOCOL.md
+      - docs/knowledge/LEARNED.md
+
+  aai-metrics:
+    globs:
+      - .aai/scripts/metrics-flush.mjs
+      - .aai/scripts/metrics-report.mjs
+      - .aai/METRICS_FLUSH.prompt.md
+      - .aai/METRICS_REPORT.prompt.md
+      - .aai/STATE_FALLBACK.md
+      - .aai/scripts/close-work-item.mjs
+      - .aai/system/PRICING.yaml
+
+  aai-orchestration-dispatch:
+    globs:
+      - .aai/scripts/orchestration-dispatch.mjs
+      - .aai/system/MODEL_ROUTING.yaml
+      - .aai/workflow/WORKFLOW.md
+
+  aai-orchestration-mode:
+    globs:
+      - .aai/scripts/orchestration-mode.mjs
+      - .aai/ORCHESTRATION.prompt.md
+      - .aai/ORCHESTRATION_PARALLEL.prompt.md
+      - .aai/SKILL_LOOP.prompt.md
+
+  aai-overview:
+    globs:
+      - .aai/scripts/generate-overview.mjs
+      - .aai/scripts/metrics-report.mjs
+      - docs/product/**
+
+  aai-pricing:
+    globs:
+      - .aai/system/PRICING.yaml
+
+  aai-prompt-diet:
+    globs:
+      - .aai/*.prompt.md
+      - .aai/AGENTS.md
+      - .aai/SUBAGENT_PROTOCOL.md
+      - .aai/SUBAGENT_CONTRACT.md
+      - .aai/PLAYBOOK.md
+      - .aai/ROLE_COMMON.md
+
+  aai-prompt-hash:
+    globs:
+      - .aai/scripts/state.mjs
+      - .aai/scripts/metrics-flush.mjs
+      - .aai/scripts/metrics-report.mjs
+      - .aai/scripts/orchestration-dispatch.mjs
+
+  aai-prune-stale-briefs:
+    globs:
+      - .aai/scripts/prune-stale-briefs.mjs
+      - .aai/templates/BRIEF_TEMPLATE.md
+      - .aai/PLANNING.prompt.md
+
+  aai-reconcile-telemetry:
+    globs:
+      - .aai/scripts/reconcile-telemetry.mjs
+      - .aai/SKILL_PR.prompt.md
+
+  aai-redact:
+    globs:
+      - .aai/scripts/lib/aai-redact.mjs
+
+  aai-release:
+    globs:
+      - .aai/scripts/aai-release.sh
+      - .aai/scripts/aai-release.ps1
+      - .aai/SKILL_RELEASE.prompt.md
+      - CHANGELOG.md
+      - .claude/skills/aai-release/**
+      - .codex/skills/aai-release/**
+      - .gemini/skills/aai-release/**
+
+  aai-role-output:
+    globs:
+      - .aai/scripts/check-role-output.mjs
+      - .aai/SUBAGENT_CONTRACT.md
+      - .aai/SUBAGENT_PROTOCOL.md
+
+  aai-run-tests:
+    globs:
+      - .aai/scripts/aai-run-tests.sh
+      - .aai/scripts/aai-reap-tests.sh
+      - .aai/scripts/aai-run-tests.ps1
+      - .aai/scripts/aai-reap-tests.ps1
+      - .aai/SKILL_BOOTSTRAP.prompt.md
+      - .aai/SKILL_LOOP.prompt.md
+      - .aai/VALIDATION.prompt.md
+      - .aai/system/DYNAMIC_SKILLS.md
+
+  aai-secrets-preflight:
+    globs:
+      - .aai/scripts/secrets-preflight.mjs
+      - .aai/INTAKE_CHANGE.prompt.md
+      - .aai/INTAKE_COMMON.md
+      - .aai/INTAKE_ISSUE.prompt.md
+      - .aai/templates/CHANGE_TEMPLATE.md
+      - .aai/templates/ISSUE_TEMPLATE.md
+
+  aai-share:
+    globs:
+      - .aai/scripts/cloudflare-share.sh
+      - .aai/scripts/cloudflare-share.ps1
+      - .aai/SKILL_SHARE.prompt.md
+      - .claude/skills/aai-share/**
+      - .codex/skills/aai-share/**
+      - .gemini/skills/aai-share/**
+
+  aai-spec-lint:
+    globs:
+      - .aai/scripts/spec-lint.mjs
+      - .aai/PLANNING.prompt.md
+      - .aai/VALIDATION.prompt.md
+      - .aai/templates/SPEC_TEMPLATE.md
+      - docs/specs/**
+
+  aai-state:
+    globs:
+      - .aai/scripts/state.mjs
+      - .aai/IMPLEMENTATION.prompt.md
+      - .aai/METRICS_FLUSH.prompt.md
+      - .aai/ORCHESTRATION.prompt.md
+      - .aai/ORCHESTRATION_PARALLEL.prompt.md
+      - .aai/REMEDIATION.prompt.md
+      - .aai/SKILL_TDD.prompt.md
+      - .aai/SUBAGENT_PROTOCOL.md
+
+  aai-tdd-evidence:
+    globs:
+      - .aai/scripts/tdd-evidence-check.mjs
+      - .aai/SKILL_TDD.prompt.md
+      - .aai/VALIDATION.prompt.md
+      - .aai/scripts/aai-run-tests.sh
+
+  aai-tdd:
+    globs:
+      - .aai/SKILL_TDD.prompt.md
+      - .aai/IMPLEMENTATION.prompt.md
+      - .claude/skills/aai-tdd/**
+      - .codex/skills/aai-tdd/**
+      - .gemini/skills/aai-tdd/**
+
+  aai-test-canon:
+    globs:
+      - .aai/scripts/test-canon.mjs
+      - .aai/SKILL_TEST_CANON.prompt.md
+      - .claude/skills/aai-test-canon/**
+      - .codex/skills/aai-test-canon/**
+      - .gemini/skills/aai-test-canon/**
+
+  aai-token-capture:
+    globs:
+      - .aai/scripts/metrics-flush.mjs
+      - .aai/IMPLEMENTATION.prompt.md
+      - .aai/ORCHESTRATION.prompt.md
+      - .aai/PLANNING.prompt.md
+      - .aai/REMEDIATION.prompt.md
+      - .aai/ROLE_COMMON.md
+      - .aai/SKILL_LOOP.prompt.md
+      - .aai/SKILL_TDD.prompt.md
+      - .aai/SUBAGENT_PROTOCOL.md
+      - .aai/VALIDATION.prompt.md
+
+  aai-update:
+    globs:
+      - .aai/scripts/aai-update.sh
+      - .aai/scripts/aai-update.ps1
+      - .claude/skills/aai-update/**
+      - .codex/skills/aai-update/**
+      - .gemini/skills/aai-update/**
+
+  aai-userguide-rollup:
+    globs:
+      - .aai/scripts/generate-userguide-rollup.mjs
+      - docs/product/**
+      - docs/USER_GUIDE.md
+
+  aai-verify-gate:
+    globs:
+      - .aai/SKILL_VERIFY.prompt.md
+      - .aai/IMPLEMENTATION.prompt.md
+      - .aai/VALIDATION.prompt.md
+      - .aai/SKILL_TDD.prompt.md
+      - .claude/skills/aai-verify/**
+      - .codex/skills/aai-verify/**
+      - .gemini/skills/aai-verify/**
+
+  aai-win-fallback:
+    globs:
+      - .aai/scripts/aai-run-tests.sh
+      - .aai/scripts/aai-reap-tests.sh
+      - .aai/scripts/aai-run-tests.ps1
+      - .aai/scripts/aai-reap-tests.ps1
+      - docs/TECHNOLOGY.md
+
+  aai-worktree:
+    globs:
+      - .aai/SKILL_WORKTREE.prompt.md
+      - .claude/skills/aai-worktree/**
+      - .codex/skills/aai-worktree/**
+      - .gemini/skills/aai-worktree/**
+
+  aai-suite-select:
+    globs:
+      - tests/skills/suite-map.yaml
+      - .aai/scripts/select-suites.mjs
+      - .github/workflows/skill-suite.yml

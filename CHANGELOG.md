@@ -11,6 +11,25 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: CI test impact selection — PR pushes run affected suites, full framework moves to merge + nightly (CHANGE-0071 / SPEC-0097) [L2]
+
+- PR CI now runs only the suites whose watched paths the diff touches
+  (declarative `tests/skills/suite-map.yaml`, one row per suite, hygiene-
+  pinned) plus a 3-suite always-on core; typical PR drops from ~25 min /
+  55 suites to a targeted subset. The full framework moves to push-to-main,
+  nightly cron, and an on-demand `ci-full` label.
+- Fail-open safety: `.aai/scripts/select-suites.mjs` escalates to FULL_RUN
+  whenever any changed path is unmapped, touches `.aai/scripts/lib/**`, or
+  exactly matches a `protected_paths_l3` entry (read live from
+  docs/ai/docs-audit.yaml); its own errors (malformed map, hostile core
+  name, bad base-ref) degrade to `FULL_RUN reason=internal-error` with
+  exit 0 — the selector can never fail or silently narrow the build.
+- Auditable output: every `SELECTED` line names the matching path, one
+  exact `DROPPED <n>` line — no silent truncation.
+- Branch-protection continuity: an aggregating `gate` job keeps the
+  pre-split required-check name and fails unless the mode-relevant leaf
+  job succeeded (review finding, TEST-018).
+
 ## [unreleased] — feat: prompt-hash telemetry — content-addressed identity of role instructions (CHANGE-0070 / SPEC-0096) [L3]
 
 - Promptbook-inspired (adoption candidate 3): every orchestrated run can
