@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: USER_GUIDE "Delivered features (generated)" rollup generator
-# (docs/specs/SPEC-DRAFT-spec-product-docs-enforced.md D4, TEST-007..010).
+# (docs/specs/SPEC-0092-spec-product-docs-enforced.md D4, TEST-007..010).
 #
 # Covers .aai/scripts/generate-userguide-rollup.mjs — a NEW generator that
 # renders one marker-delimited section into docs/USER_GUIDE.md from

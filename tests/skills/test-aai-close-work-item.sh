@@ -1194,7 +1194,7 @@ test_023_negative_control_rollup_failure() {
     || log_fail "t023: work_item_closed event must still be present (no rollback triggered by the rollup failure)"
   [[ "$(events_count "$dir/docs/ai/EVENTS.jsonl" doc_lifecycle t023-slug)" -ge 1 ]] \
     || log_fail "t023: doc_lifecycle event must still be present (no rollback triggered by the rollup failure)"
-  grep -qi 'userguide rollup regen skipped' "$out$err" 2>/dev/null || true
+  grep -qi 'userguide rollup regen skipped' "$out" "$err" 2>/dev/null || true
 
   log_pass "Generator failure is swallowed: close exit 0, doc still done, close events intact, no rollback (product-docs-enforced TEST-012)"
 }

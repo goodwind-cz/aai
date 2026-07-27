@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat: product docs enforced at close + generated USER_GUIDE rollup (CHANGE-product-docs-enforced / SPEC-product-docs-enforced)
+## [unreleased] — feat: product docs enforced at close + generated USER_GUIDE rollup (CHANGE-0066 / SPEC-0092)
 
 - close-work-item.mjs gains a pre-write product-doc gate: a primary
   work-item doc opting in with `user_visible: true` must carry a real
@@ -30,7 +30,9 @@ RFC-0001).
 - guard-config.mjs GUARD_DIALS extended with `product_doc_gate`; PROFILES.yaml
   classifies the new generator (extended) and its shared predicate module
   lib/product-doc.mjs (core, since close-work-item.mjs imports it).
-  Refs: product-docs-enforced. — lane-aware role overrides, Haiku for mechanical roles (CHANGE-0065 / SPEC-0091)
+  Refs: CHANGE-0066, SPEC-0092.
+
+## [unreleased] — feat: cheap-model routing in practice — lane-aware role overrides, Haiku for mechanical roles (CHANGE-0065 / SPEC-0091)
 
 - MODEL_ROUTING roles map now supports the lane-aware key form
   role@lane (resolution: roles[role@lane] then roles[role] then

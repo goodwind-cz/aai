@@ -23,11 +23,16 @@ export const REQUIRED_PRODUCT_SECTIONS = ['What it does', 'Data model', 'Interfa
 export function extractSection(content, heading) {
   const norm = String(content).replace(/\r\n?/g, '\n');
   const escaped = String(heading).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Blank out fenced code blocks first (PR #166 Codex P2): a ## line shown
+  // inside a fence is content, not a section heading. Line count preserved.
+  const defenced = norm.replace(/^```[^\n]*\n[\s\S]*?^```[ \t]*$/gm,
+    (blk) => blk.split('\n').map(() => '').join('\n'));
   const re = new RegExp(`^##[ \\t]+${escaped}[ \\t]*$`, 'm');
-  const m = re.exec(norm);
+  const m = re.exec(defenced);
   if (!m) return null;
+  const restDefenced = defenced.slice(m.index + m[0].length);
+  const next = restDefenced.search(/^##[ \t]+/m);
   const rest = norm.slice(m.index + m[0].length);
-  const next = rest.search(/^##[ \t]+/m);
   return next === -1 ? rest : rest.slice(0, next);
 }
 
