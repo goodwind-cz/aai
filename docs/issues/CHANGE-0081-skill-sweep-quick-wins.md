@@ -2,11 +2,13 @@
 id: skill-sweep-quick-wins
 number: 81
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 175
+  commits:
+    - f2201aa53ae1499c514ca1d3f70e751fd809c5a8
 ---
 
 # Change — skill-sweep batch: three verified quick-win fixes + six findings intakes
