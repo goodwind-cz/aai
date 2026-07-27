@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T18:56:25.035Z
+Generated: 2026-07-27T19:18:39.709Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -240,9 +240,12 @@ _None._
 | SPEC-0098 | specs | docs/specs/SPEC-0098-spec-prompt-hash-runtime-wiring.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0074 | issues | docs/issues/CHANGE-0074-state-bootstrap-template.md |
+| CHANGE-0075 | issues | docs/issues/CHANGE-0075-rollup-exclusion-visibility.md |
 
 ## Deferred (whole-doc) (0)
 
