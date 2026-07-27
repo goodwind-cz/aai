@@ -2,11 +2,13 @@
 id: dev-progress-hub
 number: 67
 type: change
-status: draft
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 167
+  commits:
+    - 2cdf408347828780d04d3fd4c914a5c88daca8b0
 ---
 
 # Change — Dev-progress view in the overview: what the factory is doing right now

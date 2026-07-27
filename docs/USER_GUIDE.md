@@ -2081,6 +2081,12 @@ removes briefs whose work item is terminal or orphaned while keeping live ones;
 
 ## Delivered features (generated)
 
+### Dev-progress view in the overview: what the factory is doing right now
+
+The stakeholder overview page (`docs/ai/overview.html`) already showed what was delivered and what was in progress, but nothing about the ride actually running right now. It now adds an "In flight now" section: the current focus (what it is, what type of work, what phase it is in), a strategy chip, a worktree chip, a validation-status chip, a review-status chip, and a compact table of the last 5 loop ticks (role, scope, duration, harness), newest first. On a fresh clone, or whenever there is nothing actually running, the section is simply absent — no error, no empty placeholder.
+
+[Product doc](product/dev-progress-hub.md) · [Spec](specs/SPEC-0093-spec-dev-progress-hub.md)
+
 ### Product docs enforced at close, plus a generated USER_GUIDE rollup
 
 Closing a user-facing work item now carries a real check: if the primary request doc opts in with `user_visible: true` and the matching docs/product/&lt;ref&gt;.md is missing or still has unfilled template sections, the close ceremony prints a loud warning by default, or refuses outright (nothing written) when the stricter dial is turned on. Separately, docs/USER_GUIDE.md now carries a "Delivered features (generated)" section that is rebuilt automatically every time a work item closes, listing every real product doc with a link and a one-paragraph summary — so the user guide can no longer silently drift out of date the way it used to.

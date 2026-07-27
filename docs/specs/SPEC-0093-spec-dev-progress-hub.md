@@ -2,13 +2,15 @@
 id: spec-dev-progress-hub
 type: spec
 number: 93
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0067-dev-progress-hub.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 167
+  commits:
+    - 2cdf408347828780d04d3fd4c914a5c88daca8b0
 ---
 
 # Implementation Spec — Dev-progress view in the overview: what the factory is doing right now

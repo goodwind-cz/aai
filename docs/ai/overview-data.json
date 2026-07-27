@@ -1,16 +1,67 @@
 {
-  "generatedAt": "2026-07-27T08:05:36.246Z",
+  "generatedAt": "2026-07-27T08:57:36.100Z",
   "project": "aai",
   "counts": {
-    "delivered": 111,
+    "delivered": 112,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 17239888
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "product-docs-enforced",
+    "ref": "dev-progress-hub",
     "type": "intake_change"
+  },
+  "in_flight": {
+    "focus": {
+      "ref": "dev-progress-hub",
+      "type": "intake_change",
+      "phase": "code_review"
+    },
+    "strategy": "tdd",
+    "worktree": {
+      "recommendation": "optional",
+      "user_decision": "inline"
+    },
+    "validation_status": "pass",
+    "review_status": "pass",
+    "ticks": [
+      {
+        "tick": 3,
+        "role": "Code Review",
+        "scope": "dev-progress-hub",
+        "duration_seconds": 80,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 2,
+        "role": "Validation",
+        "scope": "dev-progress-hub",
+        "duration_seconds": 0,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 1,
+        "role": "Planning+Implementation",
+        "scope": "dev-progress-hub",
+        "duration_seconds": 756,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 4,
+        "role": "Code Review",
+        "scope": "product-docs-enforced",
+        "duration_seconds": 182,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 3,
+        "role": "Validation",
+        "scope": "product-docs-enforced",
+        "duration_seconds": 189,
+        "harness_version": "2.1.218 (Claude Code)"
+      }
+    ]
   },
   "in_progress": [
     {
@@ -53,6 +104,19 @@
       "spec": "docs/specs/SPEC-0092-spec-product-docs-enforced.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260727T080154Z-product-docs-enforced.md"
+    },
+    {
+      "ref": "dev-progress-hub",
+      "title": "Change — Dev-progress view in the overview: what the factory is doing right now",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0067-dev-progress-hub.md",
+      "closed_on": "2026-07-27",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0093-spec-dev-progress-hub.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260727T085458Z-dev-progress-hub.md"
     },
     {
       "ref": "closeout-display-id-match",
@@ -1503,6 +1567,19 @@
           "spec": "docs/specs/SPEC-0092-spec-product-docs-enforced.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260727T080154Z-product-docs-enforced.md"
+        },
+        {
+          "ref": "dev-progress-hub",
+          "title": "Change — Dev-progress view in the overview: what the factory is doing right now",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0067-dev-progress-hub.md",
+          "closed_on": "2026-07-27",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0093-spec-dev-progress-hub.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260727T085458Z-dev-progress-hub.md"
         },
         {
           "ref": "closeout-display-id-match",
