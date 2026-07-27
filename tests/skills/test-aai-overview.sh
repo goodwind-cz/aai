@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # Test: aai-overview — token economics overview v2
-# (docs/specs/SPEC-DRAFT-spec-token-economics-end-to-end.md, TEST-005..007)
+# (docs/specs/SPEC-0089-spec-token-economics-end-to-end.md, TEST-005..007)
 # and the dev-progress-hub "In flight now" section
-# (docs/specs/SPEC-DRAFT-spec-dev-progress-hub.md, TEST-001..006).
+# (docs/specs/SPEC-0093-spec-dev-progress-hub.md, TEST-001..006).
 #
 # Verifies .aai/scripts/generate-overview.mjs:
 #   - TEST-005 (Spec-AC-04): overview-data.json per-item token total equals
@@ -369,12 +369,16 @@ test_dph01_in_flight_renders_focus_and_chips() {
   [[ "$EC" == 0 ]] || log_fail "overview must exit 0: $(cat "$OUT")"
   local html="$d/docs/ai/overview.html"
   grep -qF "In flight now" "$html" || log_fail "missing 'In flight now' section heading"
+  # Localize chip assertions to the In-flight section only (PR #167 review):
+  # tokens like "pass"/"inline" appear elsewhere in overview.html.
+  local section
+  section="$(awk '/In flight now/,/<\/section>/' "$html")"
   grep -qF "FIX-DPH1" "$html" || log_fail "missing focus ref"
-  grep -qF "implementation" "$html" || log_fail "missing focus phase chip"
+  printf '%s' "$section" | grep -qF "implementation" || log_fail "missing focus phase chip"
   grep -qF "tdd" "$html" || log_fail "missing strategy chip"
   grep -qF "recommended" "$html" || log_fail "missing worktree recommendation chip"
-  grep -qF "inline" "$html" || log_fail "missing worktree user-decision chip"
-  grep -qF "pass" "$html" || log_fail "missing validation-status chip"
+  printf '%s' "$section" | grep -qF "inline" || log_fail "missing worktree user-decision chip"
+  printf '%s' "$section" | grep -qF "pass" || log_fail "missing validation-status chip"
   grep -qF "not_run" "$html" || log_fail "missing review-status chip"
   log_pass "In-flight section renders focus/phase/strategy/worktree/validation/review (dev-progress-hub TEST-001)"
 }
@@ -470,6 +474,25 @@ test_dph04_malformed_line_no_slot_consumed() {
   count="$(node_get "$dj" 'm.in_flight?.ticks?.length')"
   [[ "$count" == "5" ]] || log_fail "malformed line must not shrink the window below 5, got $count"
   log_pass "Malformed tick line is skipped and never occupies one of the 5 slots (dev-progress-hub TEST-004)"
+
+  # Shape arms (PR #167 review + Codex P2 legacy-producer tolerance):
+  # (a) a legacy tick WITHOUT role/scope is kept, normalized to placeholders;
+  # (b) a JSON-valid row with a non-tick type is dropped without a slot.
+  local d2
+  d2="$(mk_repo dph04b)"
+  write_state_yaml "$d2/docs/ai/STATE.yaml" "FIX-DPH4B" "intake_change" "implementation" "tdd" "required" "inline" "not_run" "not_run"
+  write_tick "$d2/docs/ai/LOOP_TICKS.jsonl" 1 "Role1" "scope-1" 10 "h1.0"
+  printf '{"type":"tick","tick":2,"started_utc":"2026-07-27T00:00:00Z","duration_seconds":5}\n' >> "$d2/docs/ai/LOOP_TICKS.jsonl"
+  printf '{"type":"docs_audit","tick":98,"role":"NotATick","scope":"x"}\n' >> "$d2/docs/ai/LOOP_TICKS.jsonl"
+  write_tick "$d2/docs/ai/LOOP_TICKS.jsonl" 3 "Role3" "scope-3" 30 "h1.0"
+  run_overview "$d2"
+  [[ "$EC" == 0 ]] || log_fail "shape-arm fixture must exit 0: $(cat "$OUT")"
+  local dj2="$d2/docs/ai/overview-data.json" order2 legacyrole
+  order2="$(node_get "$dj2" 'm.in_flight?.ticks?.map(t=>t.tick)?.join(",")')"
+  [[ "$order2" == "3,2,1" ]] || log_fail "legacy tick kept + non-tick dropped; expected 3,2,1, got $order2"
+  legacyrole="$(node_get "$dj2" 'm.in_flight?.ticks?.[1]?.role')"
+  [[ "$legacyrole" == "(legacy tick)" ]] || log_fail "legacy tick must normalize role placeholder, got $legacyrole"
+  log_pass "Legacy role-less tick normalized and kept; JSON-valid non-tick row dropped (shape arms)"
 }
 
 # --- TEST-005 dph (Spec-AC-04, SEAM): overview-data.json mirrors the render -

@@ -151,7 +151,15 @@ function findActiveWorkItem(raw, refId) {
 // where in the file it sits.
 function readTicks(limit) {
   const rows = readJsonl('docs/ai/LOOP_TICKS.jsonl')
-    .filter((r) => r && typeof r === 'object' && typeof r.role === 'string' && typeof r.scope === 'string');
+    .filter((r) => r && typeof r === 'object' && (r.type === undefined || r.type === 'tick' || r.type === 'recovery'))
+    // Legacy producers (autonomous-loop.sh/.ps1, STATE_FALLBACK schema) emit
+    // tick rows WITHOUT role/scope — normalize to placeholders rather than
+    // dropping supported records (PR #167 Codex P2).
+    .map((r) => ({
+      ...r,
+      role: typeof r.role === 'string' ? r.role : '(legacy tick)',
+      scope: typeof r.scope === 'string' ? r.scope : '(unknown)',
+    }));
   return rows.slice(-limit).reverse();
 }
 
