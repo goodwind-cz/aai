@@ -265,6 +265,7 @@ For each tick (1..max_ticks):
        implementer" as a residual risk that lowers confidence in the PASS.
      - Capture role_ended_utc immediately after completion from system clock.
      - Capture harness-reported usage from the completed role's tool result per SUBAGENT_PROTOCOL.md "Harness-reported usage capture" (decomposed -> tokens-in/out flags; undecomposed total -> merge-append note; nothing -> omit). The `usage_total_tokens=<N>` note is MANDATORY at merge time whenever the harness exposed a total — never optional; skipping it is what left METRICS.jsonl with 0 recorded tokens across 255 runs (token-capture-canary).
+     - Dispatch printed `Prompt hash: <hex>`? Pass the full hex (JSON `prompt_hash`) as `--prompt-hash` on this role's append-run.
      - Also capture this role_started_utc and the loop-start harness_version here for step 6's log-tick call — passing both prevents the log-tick duration/harness WARNINGs.
      - Expected result: role work completed and STATE.yaml updated with results.
 

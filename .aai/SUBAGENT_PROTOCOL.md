@@ -130,6 +130,11 @@ Token usage is captured ONLY from the harness-level result visible to the dispat
   `cost_usd`. The flush now classifies this as undecomposed-note and emits an INFO line, not the capture-missing WARNING — cost stays unattributable by design (D3, reclassified: token-capture-canary).
 - Nothing exposed: omit all usage flags — the existing null/never-fabricate
   behavior is preserved byte-for-byte; no estimation path exists (D4).
+- Prompt hash (SPEC-0098 consumer wiring): when the dispatch JSON carried a
+  `prompt_hash` field, pass the FULL hex through as `--prompt-hash` on that
+  role's append-run. The dispatch human block's `Prompt hash:` line is a
+  truncated 12-char display — never copy it; the JSON field is the value.
+  No dispatch hash (no_action/needs_llm, older dispatcher) = omit the flag.
 
 | Rationalization                                  | Reality                                                                                                          |
 |---------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
@@ -192,7 +197,9 @@ After all subagents complete, the orchestrator MUST:
      appended HERE at merge time, never self-appended by the role). The
      `usage_total_tokens=<N>` note is MANDATORY on this append whenever the
      harness result exposed a total (decomposed or undecomposed) — the
-     orchestrator MUST NOT skip it as optional (token-capture-canary)
+     orchestrator MUST NOT skip it as optional (token-capture-canary);
+     likewise `--prompt-hash <full hex>` whenever the dispatch JSON carried
+     `prompt_hash` (see "Harness-reported usage capture" above)
    - `updated_at_utc`
 4. Only after STATE.yaml is updated: proceed to deliver result to user.
 

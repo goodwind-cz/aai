@@ -413,8 +413,10 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# 30894 (true-up: learned-append-gate added a +755 B itemized entry for the
-# SKILL_WRAP_UP.prompt.md step 3 critic-then-gate rewrite + step 6
+# 31025 (true-up: prompt-hash-runtime-wiring added a +131 B itemized entry for
+# the SKILL_LOOP.prompt.md step 4 --prompt-hash pass-through pointer, over the
+# prior 30894 B total after learned-append-gate added a +755 B itemized entry
+# for the SKILL_WRAP_UP.prompt.md step 3 critic-then-gate rewrite + step 6
 # cross-reference, over the prior 30139 B total after friction-capture-
 # default-on added a +1881 B itemized entry for the thin FRICTION HOOK
 # pointers wired into VALIDATION/REMEDIATION/SKILL_PR/SKILL_WRAP_UP naming
@@ -438,15 +440,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 30894 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 30894)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 31025 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 31025)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 30894 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 31025 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
@@ -518,6 +520,38 @@ test_015_headroom_cap_still_bites() {
   fi
 }
 
+# TEST-016 (prompt-hash-runtime-wiring, Spec-AC-01) — SKILL_LOOP.prompt.md
+# names a --prompt-hash pass-through from the dispatch `Prompt hash:` line so
+# an orchestrator following the loop verbatim records prompt_hash on the
+# dispatched role's append-run (the producer side, PR #170, was otherwise
+# never consumed).
+test_016_skill_loop_prompt_hash_pointer() {
+  local ok=1 f=.aai/SKILL_LOOP.prompt.md
+  if ! grep -qF "Prompt hash:" "$f"; then
+    log_info "TEST-016: $f does not reference the dispatch 'Prompt hash:' line"
+    ok=0
+  fi
+  if ! grep -qF -- "--prompt-hash" "$f"; then
+    log_info "TEST-016: $f does not name the --prompt-hash append-run flag"
+    ok=0
+  fi
+  # Both layers must carry the pass-through: SKILL_LOOP for the parent-loop
+  # path AND SUBAGENT_PROTOCOL for the single-mode orchestration agent that
+  # actually executes append-run at merge time (PR #172 Codex P1 — the
+  # parent-loop pointer alone never reaches the appending component).
+  local p=.aai/SUBAGENT_PROTOCOL.md
+  if ! grep -qF -- "--prompt-hash" "$p"; then
+    log_info "TEST-016: $p does not name the --prompt-hash append-run pass-through"
+    ok=0
+  fi
+  if ! grep -qF "prompt_hash" "$p"; then
+    log_info "TEST-016: $p does not reference the dispatch JSON prompt_hash field"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-016 prompt-hash pass-through pointer (SKILL_LOOP + SUBAGENT_PROTOCOL)" \
+    || log_fail "TEST-016 prompt-hash pass-through pointer (SKILL_LOOP + SUBAGENT_PROTOCOL)"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -539,6 +573,7 @@ main() {
   test_013_ledger_entry_shape
   test_014_breach_suggestion_deficit
   test_015_headroom_cap_still_bites
+  test_016_skill_loop_prompt_hash_pointer
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

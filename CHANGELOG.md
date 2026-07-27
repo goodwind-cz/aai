@@ -11,6 +11,16 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: prompt-hash runtime wiring — the loop records the hash dispatch computes (CHANGE-0072 / SPEC-0098) [L2]
+
+- SKILL_LOOP's append-run boilerplate now instructs the orchestrator to pass
+  the dispatch's full-hex `prompt_hash` (JSON field, not the truncated
+  12-char display) as `--prompt-hash` — closing the consumer gap left by
+  SPEC-0096: METRICS rows gain non-null prompt_hash from the next ride on.
+- Prompt-corpus governed: +131 B exact ledger entry, TEST-012 pin
+  30894 -> 31025 (RED-first), TEST-016 grep contract; ORCHESTRATION
+  untouched at its 40/40-line cap.
+
 ## [unreleased] — feat: CI test impact selection — PR pushes run affected suites, full framework moves to merge + nightly (CHANGE-0071 / SPEC-0097) [L2]
 
 - PR CI now runs only the suites whose watched paths the diff touches
