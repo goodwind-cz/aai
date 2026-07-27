@@ -597,7 +597,8 @@ export function isExcludedTree(rel) {
 
 // Recursive *.md collector for one REWRITE_TREES directory root. Skips any
 // path under an EXCLUDED_TREES prefix; an unreadable subdirectory is
-// degrade-and-report (skipped, not fatal).
+// silently skipped (not fatal, no report — allocation must not fail on a
+// permissions oddity in a non-governed tree).
 function walkMarkdown(absDir, relDir, out) {
   let entries;
   try {
@@ -618,8 +619,8 @@ function walkMarkdown(absDir, relDir, out) {
 }
 
 // Deduplicated repo-relative *.md paths across REWRITE_TREES, skipping
-// missing roots (fs.existsSync guard, matching the existing degrade-and-
-// report pattern) and any path under an EXCLUDED_TREES prefix.
+// missing roots (fs.existsSync guard — silently skipped) and any path under
+// an EXCLUDED_TREES prefix; symlinked roots are rejected with a WARNING.
 function collectRewriteFiles(root) {
   const seen = new Set();
   const out = [];
@@ -627,6 +628,13 @@ function collectRewriteFiles(root) {
     if (isExcludedTree(treeRoot)) continue; // defensive; not expected in practice
     const abs = path.join(root, treeRoot);
     if (!fs.existsSync(abs)) continue;
+    // Symlinked roots are REJECTED, never traversed (PR #164 Codex P1): a
+    // vendored docs/product or README.md symlink would otherwise let the
+    // rewrite escape the repository. lstat sees the link itself.
+    if (fs.lstatSync(abs).isSymbolicLink()) {
+      process.stderr.write(`allocate-doc-number: WARNING rewrite root ${treeRoot} is a symlink — skipped (never followed)\n`);
+      continue;
+    }
     if (fs.statSync(abs).isDirectory()) {
       const files = [];
       walkMarkdown(abs, treeRoot, files);
