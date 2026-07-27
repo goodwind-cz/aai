@@ -2,13 +2,15 @@
 id: spec-state-bootstrap-template
 type: spec
 number: 99
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0074-state-bootstrap-template.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 176
+  commits:
+    - 3d028c3c022d836eeebb5d7f43e9288ba09f0471
 ---
 
 # Implementation Spec — Ship STATE_TEMPLATE.yaml and teach check-state --repair to create a missing STATE

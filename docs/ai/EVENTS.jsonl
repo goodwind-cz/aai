@@ -1298,3 +1298,9 @@
 {"v":1,"ts":"2026-07-27T20:14:36.232Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"skill-sweep-quick-wins","payload":{"commit":"f2201aa53ae1499c514ca1d3f70e751fd809c5a8"}}
 {"v":1,"ts":"2026-07-27T22:04:37.604Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"state-bootstrap-template","payload":{"from":"draft","to":"draft"}}
 {"v":1,"ts":"2026-07-27T22:04:37.637Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-state-bootstrap-template","payload":{"from":"draft","to":"draft"}}
+{"v":1,"ts":"2026-07-27T22:05:34.445Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"state-bootstrap-template","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-27T22:05:34.477Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"state-bootstrap-template","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-27T22:05:34.507Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"state-bootstrap-template","payload":{"commit":"3d028c3c022d836eeebb5d7f43e9288ba09f0471"}}
+{"v":1,"ts":"2026-07-27T22:05:34.537Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-state-bootstrap-template","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-27T22:05:34.567Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-state-bootstrap-template","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-27T22:05:34.598Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-state-bootstrap-template","payload":{"commit":"3d028c3c022d836eeebb5d7f43e9288ba09f0471"}}

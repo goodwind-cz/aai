@@ -2,11 +2,13 @@
 id: state-bootstrap-template
 number: 74
 type: change
-status: draft
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 176
+  commits:
+    - 3d028c3c022d836eeebb5d7f43e9288ba09f0471
 ---
 
 # Change — ship STATE_TEMPLATE.yaml and teach check-state --repair to create a missing STATE
