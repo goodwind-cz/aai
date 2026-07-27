@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-26T23:00:01.684Z
+Generated: 2026-07-26T23:58:48.347Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (199)
+## Done (201)
 
 | ID | Type | Path |
 |---|---|---|
@@ -84,6 +84,7 @@ _None._
 | CHANGE-0061 | issues | docs/issues/CHANGE-0061-subagent-protocol-slim.md |
 | CHANGE-0062 | issues | docs/issues/CHANGE-0062-friction-capture-default-on.md |
 | CHANGE-0063 | issues | docs/issues/CHANGE-0063-token-economics-end-to-end.md |
+| CHANGE-0064 | issues | docs/issues/CHANGE-0064-allocator-rewrite-all-trees.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -219,24 +220,24 @@ _None._
 | SPEC-0087 | specs | docs/specs/SPEC-0087-spec-subagent-protocol-slim.md |
 | SPEC-0088 | specs | docs/specs/SPEC-0088-spec-friction-capture-default-on.md |
 | SPEC-0089 | specs | docs/specs/SPEC-0089-spec-token-economics-end-to-end.md |
+| SPEC-0090 | specs | docs/specs/SPEC-0090-spec-allocator-rewrite-all-trees.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| allocator-rewrite-all-trees (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-allocator-rewrite-all-trees.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
 _None._
 
-## Deferred items (per-AC, across all specs) (5)
+## Deferred items (per-AC, across all specs) (6)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
 | SPEC-0076 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-Linux-only flake; local pass is not sufficient evidence (Honesty requirements section). Owned by Validation after push. |
 | SPEC-0077 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-only flake; local pass is not sufficient evidence (Honesty requirements). Owned by Validation after push. |
+| SPEC-0090 | Spec-AC-07 | 2026-08-10 | Local half (targeted suites) is green; PR CI full framework is the authoritative gate and has not run yet (not yet pushed/PR'd) — defer to done once CI is green on the PR. |
 | SPEC-0083 | Spec-AC-04 | 2026-08-15 | CI-authoritative; the flake is CI-load-only and not locally reproducible |
 | SPEC-0086 | Spec-AC-05 | 2026-08-15 | Full-framework TEST-010 confirmation deferred to Validation by design (dispatch constraint), not a real gap in this scope's own edits |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |

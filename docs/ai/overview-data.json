@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-07-26T22:45:24.990Z",
+  "generatedAt": "2026-07-26T23:58:48.271Z",
   "project": "aai",
   "counts": {
-    "delivered": 108,
+    "delivered": 109,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 15266889
+    "tokens_total": 16253728
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "token-economics-end-to-end",
+    "ref": "allocator-rewrite-all-trees",
     "type": "intake_change"
   },
   "in_progress": [
@@ -121,16 +121,29 @@
     },
     {
       "ref": "token-economics-end-to-end",
-      "title": "Change — Token economics end-to-end: metrics-report reads usage notes; overview v2 shows cost per feature",
+      "title": "Change — Token economics end-to-end: metrics-report reads usage notes; overview v2 shows tokens per feature",
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0063-token-economics-end-to-end.md",
       "closed_on": "2026-07-26",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 31,
+      "token_total": 522582,
       "spec": "docs/specs/SPEC-0089-spec-token-economics-end-to-end.md",
       "validation": "docs/ai/reports/validation-token-economics-end-to-end-20260726T223843Z.md",
       "review": "docs/ai/reviews/review-dual-verdict-token-economics-end-to-end-20260726T224220Z.md"
+    },
+    {
+      "ref": "allocator-rewrite-all-trees",
+      "title": "Change — Allocator rewrites DRAFT references in all committed-class trees",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0064-allocator-rewrite-all-trees.md",
+      "closed_on": "2026-07-26",
+      "agent_minutes": 87,
+      "token_total": 464257,
+      "spec": "docs/specs/SPEC-0090-spec-allocator-rewrite-all-trees.md",
+      "validation": "docs/ai/reports/VALIDATION-20260726T234752Z-allocator-rewrite-all-trees.md",
+      "review": "docs/ai/reviews/review-20260726T235244Z-allocator-rewrite-all-trees.md"
     },
     {
       "ref": "friction-record-v2-redaction",
@@ -1532,16 +1545,29 @@
         },
         {
           "ref": "token-economics-end-to-end",
-          "title": "Change — Token economics end-to-end: metrics-report reads usage notes; overview v2 shows cost per feature",
+          "title": "Change — Token economics end-to-end: metrics-report reads usage notes; overview v2 shows tokens per feature",
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0063-token-economics-end-to-end.md",
           "closed_on": "2026-07-26",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 31,
+          "token_total": 522582,
           "spec": "docs/specs/SPEC-0089-spec-token-economics-end-to-end.md",
           "validation": "docs/ai/reports/validation-token-economics-end-to-end-20260726T223843Z.md",
           "review": "docs/ai/reviews/review-dual-verdict-token-economics-end-to-end-20260726T224220Z.md"
+        },
+        {
+          "ref": "allocator-rewrite-all-trees",
+          "title": "Change — Allocator rewrites DRAFT references in all committed-class trees",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0064-allocator-rewrite-all-trees.md",
+          "closed_on": "2026-07-26",
+          "agent_minutes": 87,
+          "token_total": 464257,
+          "spec": "docs/specs/SPEC-0090-spec-allocator-rewrite-all-trees.md",
+          "validation": "docs/ai/reports/VALIDATION-20260726T234752Z-allocator-rewrite-all-trees.md",
+          "review": "docs/ai/reviews/review-20260726T235244Z-allocator-rewrite-all-trees.md"
         },
         {
           "ref": "friction-record-v2-redaction",

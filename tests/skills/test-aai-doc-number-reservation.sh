@@ -83,6 +83,8 @@ mk_repo() {
            "$d/docs/rfc" "$d/docs/specs" "$d/docs/issues" \
            "$d/docs/requirements" "$d/docs/releases" "$d/docs/ai" \
            "$d/docs/ai/reviews" "$d/docs/ai/reports" "$d/docs/ai/briefs" \
+           "$d/docs/product" "$d/docs/project-sessions" "$d/docs/knowledge" \
+           "$d/docs/archive" \
            "$d/tests"
   local f
   for f in "${PROJECT_FILES[@]}"; do
@@ -710,6 +712,273 @@ test_018_readonly_origin_provisional_no_retry_storm() {
   log_pass "TEST-018 permission-denied origin: provisional marker + WARNING + exit 0, no retry storm (F2 fixed)"
 }
 
+# =============================================================================
+# TEST-101 (Spec-AC-01): full-CLI allocation rewrites the DRAFT ref to the
+# numbered basename across every newly-scanned committed-class tree (product,
+# reviews, sessions, knowledge, root README/CHANGELOG). Also exercises the
+# degenerate/empty-collection shape (a same-tree file with NO draft reference
+# must stay untouched — the unchanged-guard path) as a negative control.
+test_101_widen_rewrite_scan() {
+  log_info "TEST-101: full-CLI allocation rewrites refs in product, reviews, sessions, knowledge, root README/CHANGELOG..."
+  local d; d="$(mk_repo t101)"
+  (cd "$d" && git checkout -q -b feature/101)
+  write_draft "$d" rfc RFC widen-topic
+  local old="RFC-DRAFT-widen-topic" new="RFC-0001-widen-topic"
+  printf '# Product doc\nSee %s for details.\n' "$old" > "$d/docs/product/uses-draft.md"
+  printf '# Review\nRefs %s.\n' "$old" > "$d/docs/ai/reviews/review-widen.md"
+  printf '# Session\nDiscussed %s.\n' "$old" > "$d/docs/project-sessions/2026-07-27-widen.md"
+  printf '# Knowledge\nLink to %s.\n' "$old" > "$d/docs/knowledge/widen-notes.md"
+  printf '# README\nSee %s.\n' "$old" > "$d/README.md"
+  printf '# Changelog\n- Added %s.\n' "$old" > "$d/CHANGELOG.md"
+  # negative control / degenerate case: a product doc with NO draft reference.
+  printf '# Unrelated\nNothing to see here.\n' > "$d/docs/product/unrelated.md"
+  local unrelated_before
+  unrelated_before="$(shasum -a 256 "$d/docs/product/unrelated.md" | awk '{print $1}')"
+  (cd "$d" && git add -A && git commit -qm "docs: draft + references" >/dev/null)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/rfc/RFC-DRAFT-widen-topic.md --base-ref main > alloc.log 2>&1) \
+    || log_fail "allocation must exit 0: $(cat "$d/alloc.log")"
+  assert_file "$d/docs/rfc/RFC-0001-widen-topic.md"
+  for f in docs/product/uses-draft.md docs/ai/reviews/review-widen.md \
+           docs/project-sessions/2026-07-27-widen.md docs/knowledge/widen-notes.md \
+           README.md CHANGELOG.md; do
+    assert_contains "$d/$f" "$new"
+    assert_not_contains "$d/$f" "$old"
+  done
+  local unrelated_after
+  unrelated_after="$(shasum -a 256 "$d/docs/product/unrelated.md" | awk '{print $1}')"
+  [[ "$unrelated_before" == "$unrelated_after" ]] \
+    || log_fail "a same-tree file with no draft reference must stay byte-identical (unchanged guard)"
+  rm -rf "$d"
+  log_pass "TEST-101 widened rewrite scan: all six newly-scanned trees rewritten; unrelated file untouched"
+}
+
+# =============================================================================
+# TEST-102 (Spec-AC-01, seam S2): self-reference in the renamed draft body is
+# rewritten after the rename (the just-renamed file lives in a scanned dir).
+test_102_self_reference_seam_s2() {
+  log_info "TEST-102: self-reference in the renamed draft body is rewritten (seam S2)..."
+  local d; d="$(mk_repo t102)"
+  (cd "$d" && git checkout -q -b feature/102)
+  local slug="self-ref-topic"
+  cat > "$d/docs/rfc/RFC-DRAFT-$slug.md" <<MD
+---
+id: $slug
+type: rfc
+number: null
+status: draft
+links:
+  pr: []
+---
+# Draft: $slug
+See also RFC-DRAFT-$slug.md for the canonical link.
+MD
+  (cd "$d" && git add docs/rfc && git commit -qm "docs: self-referencing draft" >/dev/null)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path "docs/rfc/RFC-DRAFT-$slug.md" --base-ref main > alloc.log 2>&1) \
+    || log_fail "allocation must exit 0: $(cat "$d/alloc.log")"
+  local out="$d/docs/rfc/RFC-0001-$slug.md"
+  assert_file "$out"
+  assert_contains "$out" "RFC-0001-$slug.md"
+  assert_not_contains "$out" "RFC-DRAFT-$slug.md"
+  rm -rf "$d"
+  log_pass "TEST-102 seam S2: self-reference in the renamed draft body rewritten"
+}
+
+# =============================================================================
+# TEST-103 (Spec-AC-02): excluded fixture files (docs/archive, and
+# docs/ai/reports nested BESIDE the scanned docs/ai/reviews) stay byte-
+# identical, even though they carry the exact DRAFT token (negative control:
+# the token must NOT trigger a rewrite in an excluded tree).
+test_103_excluded_trees_byte_identical() {
+  log_info "TEST-103: excluded fixture files (docs/archive, docs/ai/reports beside docs/ai/reviews) byte-identical..."
+  local d; d="$(mk_repo t103)"
+  (cd "$d" && git checkout -q -b feature/103)
+  write_draft "$d" rfc RFC excl-topic
+  local old="RFC-DRAFT-excl-topic"
+  printf '# Archived\nStale ref %s.\n' "$old" > "$d/docs/archive/stale.md"
+  printf '# Report spool\nStale ref %s.\n' "$old" > "$d/docs/ai/reports/spool.md"
+  (cd "$d" && git add -A && git commit -qm "docs: draft + excluded fixtures" >/dev/null)
+  local before_archive before_reports
+  before_archive="$(shasum -a 256 "$d/docs/archive/stale.md" | awk '{print $1}')"
+  before_reports="$(shasum -a 256 "$d/docs/ai/reports/spool.md" | awk '{print $1}')"
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/rfc/RFC-DRAFT-excl-topic.md --base-ref main > alloc.log 2>&1) \
+    || log_fail "allocation must exit 0: $(cat "$d/alloc.log")"
+  local after_archive after_reports
+  after_archive="$(shasum -a 256 "$d/docs/archive/stale.md" | awk '{print $1}')"
+  after_reports="$(shasum -a 256 "$d/docs/ai/reports/spool.md" | awk '{print $1}')"
+  [[ "$before_archive" == "$after_archive" ]] || log_fail "docs/archive fixture must be byte-identical after allocation"
+  [[ "$before_reports" == "$after_reports" ]] \
+    || log_fail "docs/ai/reports fixture (nested beside scanned docs/ai/reviews) must be byte-identical after allocation"
+  assert_contains "$d/docs/archive/stale.md" "$old"
+  assert_contains "$d/docs/ai/reports/spool.md" "$old"
+  rm -rf "$d"
+  log_pass "TEST-103 excluded trees byte-identical; nested docs/ai/reports beside scanned docs/ai/reviews untouched"
+}
+
+# =============================================================================
+# TEST-104 (Spec-AC-03): a second allocation run is a clean no-op (no DRAFT
+# remains); every rewrite-tree file is sha-unchanged between run1-after and
+# run2-after (fully-covered / zero-remainder shape).
+test_104_idempotent_second_run() {
+  log_info "TEST-104: second allocation run is a no-op; rewrite-tree files sha-unchanged run1-after vs run2-after..."
+  local d; d="$(mk_repo t104)"
+  (cd "$d" && git checkout -q -b feature/104)
+  write_draft "$d" rfc RFC idem-topic
+  local old="RFC-DRAFT-idem-topic"
+  printf '# Product\nSee %s.\n' "$old" > "$d/docs/product/idem.md"
+  (cd "$d" && git add -A && git commit -qm "docs: draft + ref" >/dev/null)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/rfc/RFC-DRAFT-idem-topic.md --base-ref main > alloc1.log 2>&1) \
+    || log_fail "first allocation must exit 0: $(cat "$d/alloc1.log")"
+  local sha_after1
+  sha_after1="$(shasum -a 256 "$d/docs/product/idem.md" | awk '{print $1}')"
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --all --base-ref main > alloc2.log 2>&1) \
+    || log_fail "second allocation must exit 0: $(cat "$d/alloc2.log")"
+  assert_contains "$d/alloc2.log" "nothing to do"
+  local sha_after2
+  sha_after2="$(shasum -a 256 "$d/docs/product/idem.md" | awk '{print $1}')"
+  [[ "$sha_after1" == "$sha_after2" ]] \
+    || log_fail "docs/product fixture must be sha-unchanged between run1-after and run2-after"
+  rm -rf "$d"
+  log_pass "TEST-104 idempotent second run: no-op, rewrite-tree file sha-unchanged"
+}
+
+# =============================================================================
+# TEST-105 (Spec-AC-04): --dry-run reports the planned per-tree rewrite set
+# and writes nothing; every fixture file (draft and reference) stays byte-
+# identical to its pre-run state; the DRAFT file is still present.
+test_105_dry_run_reports_and_no_write() {
+  log_info "TEST-105: dry-run reports planned per-tree rewrites and writes nothing; DRAFT still present..."
+  local d; d="$(mk_repo t105)"
+  (cd "$d" && git checkout -q -b feature/105)
+  write_draft "$d" rfc RFC dryrun-topic
+  local old="RFC-DRAFT-dryrun-topic"
+  printf '# Product\nSee %s.\n' "$old" > "$d/docs/product/dry.md"
+  (cd "$d" && git add -A && git commit -qm "docs: draft + ref" >/dev/null)
+  local before_product before_draft
+  before_product="$(shasum -a 256 "$d/docs/product/dry.md" | awk '{print $1}')"
+  before_draft="$(shasum -a 256 "$d/docs/rfc/RFC-DRAFT-dryrun-topic.md" | awk '{print $1}')"
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/rfc/RFC-DRAFT-dryrun-topic.md --base-ref main --dry-run > dry.log 2>&1) \
+    || log_fail "dry-run must exit 0: $(cat "$d/dry.log")"
+  assert_contains "$d/dry.log" "docs/product"
+  assert_contains "$d/dry.log" "dry.md"
+  assert_file "$d/docs/rfc/RFC-DRAFT-dryrun-topic.md"
+  [[ ! -f "$d/docs/rfc/RFC-0001-dryrun-topic.md" ]] || log_fail "dry-run must not rename the draft"
+  local after_product after_draft
+  after_product="$(shasum -a 256 "$d/docs/product/dry.md" | awk '{print $1}')"
+  after_draft="$(shasum -a 256 "$d/docs/rfc/RFC-DRAFT-dryrun-topic.md" | awk '{print $1}')"
+  [[ "$before_product" == "$after_product" ]] || log_fail "dry-run must not write the docs/product fixture"
+  [[ "$before_draft" == "$after_draft" ]] || log_fail "dry-run must not touch the DRAFT file"
+  rm -rf "$d"
+  log_pass "TEST-105 dry-run reports planned per-tree rewrites; writes nothing; DRAFT still present"
+}
+
+# =============================================================================
+# TEST-106 (Spec-AC-05): a probe imports REWRITE_TREES and EXCLUDED_TREES and
+# asserts membership (structural teeth — a single exported constant, not a
+# second matcher).
+test_106_rewrite_trees_constants_probe() {
+  log_info "TEST-106: probe imports REWRITE_TREES/EXCLUDED_TREES and asserts membership..."
+  local d; d="$(mk_repo t106 no)"
+  cat > "$d/probe.mjs" <<'EOF'
+// Namespace import (not a named import) so a not-yet-exported constant
+// surfaces as the probe's OWN assert.ok failure (RED_CLASS: product_red)
+// rather than an ESM SyntaxError at module-load time (which would die before
+// any assertion ran and classify as infra_fail).
+import * as mod from './.aai/scripts/allocate-doc-number.mjs';
+import assert from 'node:assert';
+assert.ok(Array.isArray(mod.REWRITE_TREES),
+  'REWRITE_TREES must be an exported array (got: ' + typeof mod.REWRITE_TREES + ')');
+assert.ok(Array.isArray(mod.EXCLUDED_TREES),
+  'EXCLUDED_TREES must be an exported array (got: ' + typeof mod.EXCLUDED_TREES + ')');
+assert.ok(mod.REWRITE_TREES.includes('docs/product'), 'REWRITE_TREES must include docs/product');
+assert.ok(mod.EXCLUDED_TREES.includes('docs/archive'), 'EXCLUDED_TREES must include docs/archive');
+assert.ok(mod.EXCLUDED_TREES.includes('docs/ai/reports'), 'EXCLUDED_TREES must include docs/ai/reports');
+console.log('ok');
+EOF
+  (cd "$d" && node probe.mjs) > "$d/probe.log" 2>&1 \
+    || log_fail "TEST-106 constants probe failed: $(cat "$d/probe.log")"
+  assert_contains "$d/probe.log" "ok"
+  rm -rf "$d"
+  log_pass "TEST-106 REWRITE_TREES/EXCLUDED_TREES exported and carry the expected membership"
+}
+
+# =============================================================================
+# TEST-107 (Spec-AC-06): existing allocation/collision/guard suites pass
+# unchanged (regression guard). Exempt from RED-proof by design (spec Test
+# Plan): it passes today and its evidentiary value is staying green.
+test_107_regression_doc_numbering_suite() {
+  log_info "TEST-107: existing allocation/collision/guard suites pass unchanged (regression)..."
+  (cd "$PROJECT_ROOT" && AAI_TEST_TIMEOUT=600 \
+      bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-doc-numbering.sh \
+      > "$TEST_DIR/regression-107.log" 2>&1)
+  local rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "doc-numbering suite must stay green (Spec-AC-06): rc=$rc: $(tail -40 "$TEST_DIR/regression-107.log")"
+  assert_contains "$TEST_DIR/regression-107.log" "All doc-numbering tests passed."
+  log_pass "TEST-107 existing doc-numbering suite green (regression guard)"
+}
+
+# =============================================================================
+# TEST-108 (Spec-AC-07): targeted allocator suites are green locally; PR CI
+# full framework is the authoritative gate. Like TEST-107, this is a
+# suite-level meta-assertion (not new allocator behavior), so it is treated
+# as regression-shaped and exempt from a standalone RED-proof: its real
+# evidence is the exit code of THIS suite's own run (TEST-101..107 above),
+# which the outer test harness (aai-run-tests.sh) observes. This function
+# adds a deterministic, non-recursive wiring check (both targeted suite files
+# present, syntactically valid, and executable) rather than re-invoking this
+# same suite file from within itself, which would recurse without bound.
+test_108_targeted_suites_wiring() {
+  log_info "TEST-108: targeted allocator suites are present and syntactically valid (Spec-AC-07)..."
+  local this_suite="$PROJECT_ROOT/tests/skills/test-aai-doc-number-reservation.sh"
+  local sibling_suite="$PROJECT_ROOT/tests/skills/test-aai-doc-numbering.sh"
+  assert_file "$this_suite"
+  assert_file "$sibling_suite"
+  # Both suites are invoked as `bash <path>` (see TEST-107 / aai-run-tests.sh),
+  # not executed directly, so only readability + syntax validity are asserted
+  # — no execute-bit requirement (test-aai-doc-numbering.sh legitimately ships
+  # without one).
+  [[ -r "$this_suite" ]] || log_fail "this suite must be readable"
+  [[ -r "$sibling_suite" ]] || log_fail "the sibling doc-numbering suite must be readable"
+  bash -n "$this_suite" || log_fail "this suite must be syntactically valid bash"
+  bash -n "$sibling_suite" || log_fail "the sibling doc-numbering suite must be syntactically valid bash"
+  log_pass "TEST-108 targeted allocator suites present and syntactically valid; PR CI full framework remains authoritative"
+}
+
+
+# TEST-109 (review NB-1, PR allocator-rewrite-all-trees): the isExcludedTree
+# separator guard is load-bearing in COMMITTED coverage — no excluded tree is
+# nested under a scanned root in the real repo, so TEST-103 alone would pass
+# even with a no-op guard. Probe the exported predicate directly: exact tree,
+# nested file, separator guard (reports vs reports-extra), non-excluded root.
+test_109_excluded_guard_unit_probe() {
+  log_info "TEST-109: isExcludedTree unit probe (nested, separator guard, negatives)..."
+  local out
+  out="$(node --input-type=module -e "
+    import { isExcludedTree } from '$PROJECT_ROOT/.aai/scripts/allocate-doc-number.mjs';
+    const cases = [
+      ['docs/ai/reports/spool.md', true],
+      ['docs/ai/reports', true],
+      ['docs/ai/reports-extra/file.md', false],
+      ['docs/archive/deep/nested/old.md', true],
+      ['docs/knowledge/FACTS.md', false],
+      ['docs/product/x.md', false],
+    ];
+    let bad = 0;
+    for (const [rel, want] of cases) {
+      const got = isExcludedTree(rel);
+      if (got !== want) { console.log('MISMATCH ' + rel + ' got=' + got + ' want=' + want); bad++; }
+    }
+    console.log(bad === 0 ? 'PROBE_OK' : 'PROBE_FAIL');
+  " 2>&1)" || log_fail "TEST-109: probe execution failed: $out"
+  [[ "$out" == *PROBE_OK* ]] || log_fail "TEST-109: guard probe mismatches: $out"
+  log_pass "TEST-109 isExcludedTree guard probe (nested + separator + negatives)"
+}
+
 main() {
   echo ""
   echo "AAI Doc-Number Reservation Test Suite (CHANGE-0035 / SPEC-0047)"
@@ -736,9 +1005,24 @@ main() {
   test_016_same_sha_retries_not_false_success
   test_017_coupled_same_sha_neither_lands
   test_018_readonly_origin_provisional_no_retry_storm
+  test_101_widen_rewrite_scan
+  test_102_self_reference_seam_s2
+  test_103_excluded_trees_byte_identical
+  test_109_excluded_guard_unit_probe
+  test_104_idempotent_second_run
+  test_105_dry_run_reports_and_no_write
+  test_106_rewrite_trees_constants_probe
+  test_107_regression_doc_numbering_suite
+  test_108_targeted_suites_wiring
 
   echo ""
   echo "All doc-number-reservation tests passed."
 }
 
-main "$@"
+# Only auto-run when EXECUTED directly (bash test-aai-doc-number-reservation.sh).
+# Sourcing this file (e.g. `source ... ; test_101_widen_rewrite_scan`) lets a
+# single TEST-xxx run in isolation for RED/GREEN evidence capture without
+# tripping the earlier tests' `set -e`-fatal `log_fail`.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
