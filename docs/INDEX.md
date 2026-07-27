@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T11:17:19.153Z
+Generated: 2026-07-27T12:30:39.231Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -233,9 +233,12 @@ _None._
 | SPEC-0095 | specs | docs/specs/SPEC-0095-spec-learned-append-gate.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0070 | issues | docs/issues/CHANGE-0070-prompt-hash-telemetry.md |
+| SPEC-0096 | specs | docs/specs/SPEC-0096-spec-prompt-hash-telemetry.md |
 
 ## Deferred (whole-doc) (0)
 

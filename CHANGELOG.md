@@ -11,6 +11,19 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: prompt-hash telemetry — content-addressed identity of role instructions (CHANGE-0070 / SPEC-0096) [L3]
+
+- Promptbook-inspired (adoption candidate 3): every orchestrated run can
+  record a sha256 of the EFFECTIVE instructions it ran under (role prompt +
+  SUBAGENT_CONTRACT + LEARNED snapshot) via the new additive append-run
+  --prompt-hash flag; flush passes it to METRICS byte-unchanged;
+  metrics-report groups runs by instruction version; dispatch prints the
+  advisory hash. "Did this role change between run A and B" is now a
+  mechanical query.
+- L3 discipline: append-run byte-identical when the flag is absent (proven
+  main-vs-branch by the independent validator); bad hex writes nothing.
+
+
 ## [unreleased] — feat: learned-append gate — structurally enforced append-only self-learning (CHANGE-0069 / SPEC-0095)
 
 - Promptbook-inspired (adoption candidate 2): the only sanctioned automated

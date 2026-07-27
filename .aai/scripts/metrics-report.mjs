@@ -209,6 +209,40 @@ function main() {
   }
   out.push('');
   out.push('Note: reliability derives from runs recorded at flush; older ledger lines without it render n/a.');
+
+  // Prompt versions (prompt-hash-telemetry Spec-AC-04): per-role grouping of
+  // run counts by short 12-hex prompt_hash — ONLY for roles carrying more
+  // than one DISTINCT hash (a role with at most one hash never changed its
+  // effective instructions across its recorded runs, so it is not
+  // interesting here). Emitted ADDITIVELY: when no role qualifies, no
+  // section header is printed at all — the rest of the report is unchanged.
+  const byRolePromptHash = new Map();
+  for (const r of allRuns) {
+    if (typeof r.prompt_hash !== 'string') continue;
+    const role = typeof r.role === 'string' && r.role !== '' ? r.role : 'unknown';
+    const short = r.prompt_hash.slice(0, 12);
+    if (!byRolePromptHash.has(role)) byRolePromptHash.set(role, new Map());
+    const hashes = byRolePromptHash.get(role);
+    hashes.set(short, (hashes.get(short) ?? 0) + 1);
+  }
+  const promptRows = [];
+  for (const role of [...byRolePromptHash.keys()].sort()) {
+    const hashes = byRolePromptHash.get(role);
+    if (hashes.size <= 1) continue;   // single version per role: nothing to compare
+    for (const hash of [...hashes.keys()].sort()) {
+      promptRows.push(`| ${role} | ${hash} | ${hashes.get(hash)} |`);
+    }
+  }
+  if (promptRows.length > 0) {
+    out.push('');
+    out.push('### Prompt versions');
+    out.push('| role | prompt_hash | runs |');
+    out.push('|------|-------------|------|');
+    out.push(...promptRows);
+    out.push('');
+    out.push('Note: a role appears here only when its recorded runs carry more than one distinct prompt_hash (its effective instructions changed between runs).');
+    out.push('');
+  }
   console.log(out.join('\n'));
   process.exit(0);
 }

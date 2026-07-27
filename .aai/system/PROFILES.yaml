@@ -113,6 +113,7 @@ core:
   - .aai/scripts/lib/guard-config.mjs
   - .aai/scripts/lib/pricing.mjs
   - .aai/scripts/lib/product-doc.mjs
+  - .aai/scripts/lib/prompt-hash.mjs
   - .aai/scripts/lib/state-core.mjs
   - .aai/scripts/lib/state-engine.mjs
   - .aai/scripts/lib/usage-note.mjs

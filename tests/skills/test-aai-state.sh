@@ -2368,6 +2368,112 @@ test_056_zero_relative_append() {  # ISSUE-0007 TEST-007 / Spec-AC-06 (remediati
   log_pass "0-relative append: sibling at the existing item indent, order preserved, PyYAML + check-state clean (ISSUE-0007 TEST-007)"
 }
 
+test_057_prompt_hash_valid() {  # prompt-hash-telemetry TEST-002 / Spec-AC-02
+  log_info "Test: append-run stores a valid --prompt-hash as a prompt_hash scalar (prompt-hash-telemetry TEST-002)..."
+  local s="$TEST_DIR/t57-state.yaml"
+  write_state_fixture "$s"
+  capture_now
+  local h64="a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9"
+  st "$s" "$TEST_DIR/t57a.log" append-run --ref CHANGE-0001 --role Implementation --model claude-test \
+      --started "$NOW_UTC" --prompt-hash "$h64" \
+    || log_fail "append-run with a valid 64-hex --prompt-hash must exit 0: $(cat "$TEST_DIR/t57a.log")"
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE "^ {10}prompt_hash: ${h64}\$" \
+    || log_fail "prompt_hash must be stored as a scalar on the run entry (64-hex case)"
+
+  # Boundary: minimum 12-hex length also accepted.
+  local h12="0123456789ab"
+  st "$s" "$TEST_DIR/t57b.log" append-run --ref CHANGE-0001 --role Validation --model claude-test \
+      --started "$NOW_UTC" --prompt-hash "$h12" \
+    || log_fail "append-run with a valid 12-hex --prompt-hash must exit 0: $(cat "$TEST_DIR/t57b.log")"
+  sed -n '/^    CHANGE-0001:$/,$p' "$s" | grep -qE "^ {10}prompt_hash: ${h12}\$" \
+    || log_fail "prompt_hash must be stored as a scalar on the run entry (12-hex boundary case)"
+
+  ck "$s" "$TEST_DIR/t57-ck.log" || log_fail "check-state after --prompt-hash runs: $(cat "$TEST_DIR/t57-ck.log")"
+  log_pass "append-run stores a valid --prompt-hash (12- and 64-hex) as a prompt_hash scalar (prompt-hash-telemetry TEST-002)"
+}
+
+test_058_prompt_hash_invalid() {  # prompt-hash-telemetry TEST-003 / Spec-AC-02
+  log_info "Test: append-run with non-hex or out-of-range --prompt-hash exits 2, usage error, STATE byte-identical (prompt-hash-telemetry TEST-003)..."
+  local s="$TEST_DIR/t58-state.yaml" snap="$TEST_DIR/t58-snapshot.yaml"
+  write_state_fixture "$s"
+  cp "$s" "$snap"
+  capture_now
+  local bad ec
+  # Too short (11 hex), too long (65 hex), uppercase hex, non-hex chars, empty.
+  local too_long
+  too_long="$(printf 'a%.0s' $(seq 1 65))"
+  for bad in "0123456789a" "$too_long" "A1B2C3D4E5F6" "not-hex-value!" "" "12 34 56 78 90 ab"; do
+    ec=0
+    st "$s" "$TEST_DIR/t58-case.log" append-run --ref CHANGE-0001 --role Implementation --model claude-test \
+        --started "$NOW_UTC" --prompt-hash "$bad" || ec=$?
+    [[ "$ec" == 2 ]] || log_fail "append-run --prompt-hash '$bad' must exit 2 (got $ec): $(cat "$TEST_DIR/t58-case.log")"
+    # Must be REJECTED BY HEX VALIDATION specifically (not merely "unknown
+    # flag" — that would pass for the wrong reason before --prompt-hash even
+    # exists as a recognized flag).
+    grep -qi 'unknown flag' "$TEST_DIR/t58-case.log" \
+      && log_fail "'$bad' rejected as an unrecognized flag, not by hex validation (wrong reason): $(cat "$TEST_DIR/t58-case.log")"
+    grep -qiE -- '--prompt-hash.*(hex|12-64|12 to 64)' "$TEST_DIR/t58-case.log" \
+      || log_fail "usage error for '$bad' must name --prompt-hash AND the 12-64 lowercase hex rule: $(cat "$TEST_DIR/t58-case.log")"
+    cmp -s "$s" "$snap" || log_fail "STATE must stay byte-identical after rejected --prompt-hash '$bad' (no write)"
+  done
+  log_pass "Malformed --prompt-hash values exit 2 with a usage error and write nothing (prompt-hash-telemetry TEST-003)"
+}
+
+test_059_prompt_hash_absent_goldens() {  # prompt-hash-telemetry TEST-004 / Spec-AC-02
+  log_info "Test: append-run without --prompt-hash omits the field; existing goldens byte-identical with/without tdd_tests (prompt-hash-telemetry TEST-004)..."
+  local s="$TEST_DIR/t59a-state.yaml"
+  write_state_fixture "$s"
+  capture_now
+  st "$s" "$TEST_DIR/t59a.log" append-run --ref CHANGE-0001 --role Implementation --model claude-test --started "$NOW_UTC" \
+    || log_fail "append-run without --prompt-hash must exit 0: $(cat "$TEST_DIR/t59a.log")"
+  ! grep -q 'prompt_hash:' "$s" || log_fail "prompt_hash key must be entirely omitted when the flag is absent"
+  # Golden shape: exactly the known 8 fields, in order, nothing appended after cost_usd.
+  sed -n '/^        - role: Implementation$/,$p' "$s" | head -8 | sed \
+    -e 's/^\( *ended_utc: \).*/\1<NORM>/' -e 's/^\( *duration_seconds: \).*/\1<NORM>/' \
+    > "$TEST_DIR/t59a-got.txt"
+  cat > "$TEST_DIR/t59a-want.txt" <<EOF
+        - role: Implementation
+          model_id: claude-test
+          started_utc: ${NOW_UTC}
+          ended_utc: <NORM>
+          duration_seconds: <NORM>
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+EOF
+  diff -u "$TEST_DIR/t59a-want.txt" "$TEST_DIR/t59a-got.txt" \
+    || log_fail "golden run entry (no tdd_tests, no prompt_hash) must stay byte-identical: $(diff "$TEST_DIR/t59a-want.txt" "$TEST_DIR/t59a-got.txt")"
+
+  # Same, but WITH --tdd-tests (D1: prompt_hash pushes AFTER tdd_tests; absent
+  # flag must leave tdd_tests as the genuine LAST line — zero delta).
+  local s2="$TEST_DIR/t59b-state.yaml"
+  write_state_fixture "$s2"
+  st "$s2" "$TEST_DIR/t59b.log" append-run --ref CHANGE-0001 --role "TDD Implementation" --model claude-test \
+      --started "$NOW_UTC" --tdd-tests 4 \
+    || log_fail "append-run with --tdd-tests (no --prompt-hash) must exit 0: $(cat "$TEST_DIR/t59b.log")"
+  ! grep -q 'prompt_hash:' "$s2" || log_fail "prompt_hash key must be omitted even when --tdd-tests is present"
+  sed -n '/^        - role: TDD Implementation$/,$p' "$s2" | head -9 | sed \
+    -e 's/^\( *ended_utc: \).*/\1<NORM>/' -e 's/^\( *duration_seconds: \).*/\1<NORM>/' \
+    > "$TEST_DIR/t59b-got.txt"
+  cat > "$TEST_DIR/t59b-want.txt" <<EOF
+        - role: TDD Implementation
+          model_id: claude-test
+          started_utc: ${NOW_UTC}
+          ended_utc: <NORM>
+          duration_seconds: <NORM>
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          tdd_tests: 4
+EOF
+  diff -u "$TEST_DIR/t59b-want.txt" "$TEST_DIR/t59b-got.txt" \
+    || log_fail "golden run entry (with tdd_tests, no prompt_hash) must stay byte-identical, tdd_tests genuinely last: $(diff "$TEST_DIR/t59b-want.txt" "$TEST_DIR/t59b-got.txt")"
+
+  ck "$s" "$TEST_DIR/t59a-ck.log" || log_fail "check-state after absent-flag run: $(cat "$TEST_DIR/t59a-ck.log")"
+  ck "$s2" "$TEST_DIR/t59b-ck.log" || log_fail "check-state after absent-flag + tdd_tests run: $(cat "$TEST_DIR/t59b-ck.log")"
+  log_pass "Absent --prompt-hash omits the field entirely; goldens byte-identical with and without tdd_tests (prompt-hash-telemetry TEST-004)"
+}
+
 main() {
   echo "Testing $TEST_NAME (transactional STATE CLI — SPEC-0012 TEST-001..025 + SPEC-0014 additions)"
   check_deps
@@ -2428,6 +2534,9 @@ main() {
   test_054_list_append_regression
   test_055_zero_relative_rewrite
   test_056_zero_relative_append
+  test_057_prompt_hash_valid
+  test_058_prompt_hash_invalid
+  test_059_prompt_hash_absent_goldens
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

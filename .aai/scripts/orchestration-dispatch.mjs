@@ -44,6 +44,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { splitLines, duplicateKeys, inlineChildConflicts } from './lib/state-core.mjs';
 import { findBlock, readScalar, indentOf, unquoteScalar, agentRunsFor, lastImplementerModel } from './lib/state-engine.mjs';
+import { computeEffectivePromptHash, shortHash } from './lib/prompt-hash.mjs';
 
 // --- closed sets (mirror state.mjs / check-state semantics) --------------------
 
@@ -801,6 +802,9 @@ function humanBlock(out) {
   if (out.validator_independence) {
     lines.push(`Validator independence: implementer_model=${out.validator_independence.implementer_model ?? 'null'} (validator model must differ)`);
   }
+  if (typeof out.prompt_hash === 'string') {
+    lines.push(`Prompt hash: ${shortHash(out.prompt_hash)} (informational — content-addressed identity of the effective instruction stack)`);
+  }
   console.error(lines.join('\n'));
 }
 
@@ -823,6 +827,12 @@ function main() {
       out.state_summary = snapshot;
     }
     out.suggested_model = suggestModel(out, loadModelRouting(root));
+    // prompt-hash-telemetry Spec-AC-05: additive-only — only a real dispatch
+    // (system_prompt present) gets a prompt_hash; no_action/needs_llm verdicts
+    // (no role, no system_prompt) are untouched.
+    if (out.system_prompt) {
+      out.prompt_hash = computeEffectivePromptHash(out.system_prompt, root);
+    }
   } catch (err) {
     console.error(`orchestration-dispatch: internal error: ${err && err.stack ? err.stack : err}`);
     process.exit(1);

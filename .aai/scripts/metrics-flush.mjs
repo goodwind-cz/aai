@@ -467,6 +467,7 @@ function buildEntry(entry, ctx) {
     out.tokens_out = tokensOut;
     out.cost_usd = cost;
     if (typeof r.tdd_tests === 'number') out.tdd_tests = r.tdd_tests;
+    if (typeof r.prompt_hash === 'string') out.prompt_hash = r.prompt_hash;
     return out;
   });
   const reviews = entry.reviews !== null && typeof entry.reviews === 'number'
