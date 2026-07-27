@@ -2081,6 +2081,12 @@ removes briefs whose work item is terminal or orphaned while keeping live ones;
 
 ## Delivered features (generated)
 
+### CI test impact selection
+
+CI used to run the whole `tests/skills/` framework (~50 suites, ~25 minutes) on every single push to a pull request — including review-fix pushes that touch one file. A weekend of iteration on one PR could burn 12+ CI-hours this way.
+
+[Product doc](product/ci-test-impact-selection.md) · [Spec](specs/SPEC-0097-spec-ci-test-impact-selection.md)
+
 ### Dev-progress view in the overview: what the factory is doing right now
 
 The stakeholder overview page (`docs/ai/overview.html`) already showed what was delivered and what was in progress, but nothing about the ride actually running right now. It now adds an "In flight now" section: the current focus (what it is, what type of work, what phase it is in), a strategy chip, a worktree chip, a validation-status chip, a review-status chip, and a compact table of the last 5 loop ticks (role, scope, duration, harness), newest first. On a fresh clone, or whenever there is nothing actually running, the section is simply absent — no error, no empty placeholder.

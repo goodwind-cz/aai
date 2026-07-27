@@ -2,13 +2,15 @@
 id: spec-ci-test-impact-selection
 type: spec
 number: 97
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0071-ci-test-impact-selection.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 171
+  commits:
+    - 7df1d74d75eba3aededa71336accca78714a4996
 ---
 
 # Implementation Spec — CI test impact selection: PR pushes run affected suites, full framework moves to merge + nightly

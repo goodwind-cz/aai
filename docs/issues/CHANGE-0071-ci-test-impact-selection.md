@@ -2,11 +2,13 @@
 id: ci-test-impact-selection
 number: 71
 type: change
-status: draft
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 171
+  commits:
+    - 7df1d74d75eba3aededa71336accca78714a4996
 ---
 
 # Change — CI test impact selection: PR pushes run affected suites, full framework moves to merge + nightly
