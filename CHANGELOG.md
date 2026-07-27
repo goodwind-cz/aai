@@ -11,7 +11,26 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat: cheap-model routing in practice — lane-aware role overrides, Haiku for mechanical roles (CHANGE-0065 / SPEC-0091)
+## [unreleased] — feat: product docs enforced at close + generated USER_GUIDE rollup (CHANGE-product-docs-enforced / SPEC-product-docs-enforced)
+
+- close-work-item.mjs gains a pre-write product-doc gate: a primary
+  work-item doc opting in with `user_visible: true` must carry a real
+  docs/product/<ref>.md (every required section filled, not left as an
+  unfilled template placeholder) or the close warns loudly by default
+  (`product_doc_gate: report-only`) or refuses outright, nothing written
+  (`product_doc_gate: enforce`, new exit code 3). Absent `user_visible`
+  stays byte-for-byte unaffected (fail-open, legacy-safe).
+- New .aai/scripts/generate-userguide-rollup.mjs renders a marker-delimited
+  "Delivered features (generated)" section in docs/USER_GUIDE.md from
+  docs/product/*.md, sorted by `updated` descending, byte-idempotent
+  (no timestamps inside the marker), placeholder docs excluded. Invoked
+  best-effort as the last step of a successful close, mirroring the
+  overview-regen hook (a generator failure never changes the close exit
+  code).
+- guard-config.mjs GUARD_DIALS extended with `product_doc_gate`; PROFILES.yaml
+  classifies the new generator (extended) and its shared predicate module
+  lib/product-doc.mjs (core, since close-work-item.mjs imports it).
+  Refs: product-docs-enforced. — lane-aware role overrides, Haiku for mechanical roles (CHANGE-0065 / SPEC-0091)
 
 - MODEL_ROUTING roles map now supports the lane-aware key form
   role@lane (resolution: roles[role@lane] then roles[role] then
