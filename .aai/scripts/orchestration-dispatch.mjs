@@ -757,13 +757,23 @@ function loadModelRouting(root) {
   return routing;
 }
 
-// suggested_model resolution order: per-role override, then tier default,
-// then null. Validator independence backstop: when the routed Validation
-// model equals the recorded implementer model, swap to validation_alternate
-// (same weights = same blind spots; SUBAGENT_PROTOCOL.md validator rule).
-function suggestModel(out, routing) {
+// suggested_model resolution order: lane-scoped role override (role@lane,
+// e.g. "Validation@lightweight"), then per-role override, then tier default,
+// then null. The lane key is built from out.lane.selected (produced by
+// deriveLane() — "lightweight" on ceremony L0/L1, "full" otherwise) so a
+// ceremony-lightweight dispatch can resolve a distinct model without
+// touching the plain role/tier defaults every other dispatch relies on
+// (additive/back-compat: configs and out shapes without a lane resolve
+// byte-identically to before this step existed). Validator independence
+// backstop applied AFTER, unchanged: when the routed Validation model equals
+// the recorded implementer model, swap to validation_alternate (same
+// weights = same blind spots; SUBAGENT_PROTOCOL.md validator rule).
+export function suggestModel(out, routing) {
   if (!routing || out.verdict !== 'dispatch') return null;
-  let model = (out.role && routing.roles[out.role])
+  const laneSelected = out.lane && out.lane.selected;
+  const laneKey = out.role && laneSelected ? `${out.role}@${laneSelected}` : null;
+  let model = (laneKey && routing.roles[laneKey])
+    ?? (out.role && routing.roles[out.role])
     ?? (out.suggested_tier ? routing.tiers[out.suggested_tier] : null)
     ?? null;
   if (out.role === 'Validation' && model

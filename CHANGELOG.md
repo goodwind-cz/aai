@@ -11,6 +11,19 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: cheap-model routing in practice — lane-aware role overrides, Haiku for mechanical roles (CHANGE-0065 / SPEC-0091)
+
+- MODEL_ROUTING roles map now supports the lane-aware key form
+  role@lane (resolution: roles[role@lane] then roles[role] then
+  tiers[tier] then null; validator-independence swap still applied last).
+- Shipped pins: Metrics Flush -> claude-haiku-4-5 (first real cheap-tier
+  binding — the per-role token rollup showed 0 haiku tokens across 15.9M
+  recorded), Validation@lightweight -> claude-sonnet-5 (explicit, auditable;
+  zero behavioral delta today by design — mechanism proven via sentinels).
+- decide()/RULES/deriveLane byte-identical to main (validator-verified).
+  Refs: CHANGE-0065, SPEC-0091.
+
+
 ## [unreleased] — feat: allocator rewrites DRAFT references in all committed-class trees (CHANGE-0064 / SPEC-0090) [L3]
 
 - allocate-doc-number.mjs now rewrites DRAFT->numbered references across ALL

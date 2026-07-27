@@ -1566,8 +1566,231 @@ YAML
   log_pass "Rule 4b close-event bridge + MODEL_ROUTING suggested_model binding (TEST-019)"
 }
 
+## Spec TEST-020..026 (cheap-model-in-practice), mapped to suite functions
+## test_020..test_026. Proves suggestModel()'s lane-aware lookup step:
+## resolution order becomes roles[role@lane.selected] ?? roles[role] ??
+## tiers[tier] ?? null, independence swap unchanged AFTER. decide()/RULES/
+## deriveLane() are byte-unchanged; only suggestModel + MODEL_ROUTING.yaml
+## + docs move. Distinct fixture sentinels prove the lane key is genuinely
+## exercised (not silently falling through to an identical tier default).
+
+# --- TEST-020 (Spec-AC-01): shipped Metrics Flush explicit role row ------------
+
+test_020_metrics_flush_explicit_row() {
+  log_info "Test: fixture-root Metrics Flush dispatch against the REAL committed MODEL_ROUTING.yaml resolves claude-haiku-4-5 via the explicit role row (not merely the mechanical tier default) (TEST-020)..."
+  local d
+  d="$(mk_root t20)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass pass implementation in_progress
+  mkdir -p "$d/.aai/system"
+  cp "$PROJECT_ROOT/.aai/system/MODEL_ROUTING.yaml" "$d/.aai/system/MODEL_ROUTING.yaml"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-020 fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "dispatch" && o.rule === "14" && o.role === "Metrics Flush"'
+  jassert "$OUT" 'o.suggested_model === "claude-haiku-4-5"'
+  # Prove it via the explicit row, not just the (coincidentally identical)
+  # mechanical tier default: the shipped file must literally carry the row.
+  grep -qE '^  Metrics Flush:[[:space:]]*claude-haiku-4-5[[:space:]]*$' "$d/.aai/system/MODEL_ROUTING.yaml" \
+    || log_fail "TEST-020: shipped MODEL_ROUTING.yaml is missing the explicit 'Metrics Flush: claude-haiku-4-5' role row"
+  log_pass "Metrics Flush resolves haiku via the explicit shipped role row (TEST-020)"
+}
+
+# --- TEST-021 (Spec-AC-02): pure suggestModel lane-key precedence --------------
+
+test_021_pure_lane_precedence() {
+  log_info "Test: pure suggestModel() lane-key resolution order roles[role@lane] ?? roles[role] ?? tiers[tier] ?? null, incl. degenerate/negative-control fixtures (TEST-021)..."
+  cat > "$TEST_DIR/t21.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { suggestModel } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const dispatchOut = (role, tier, laneSelected) => ({
+  verdict: 'dispatch',
+  role,
+  suggested_tier: tier,
+  lane: laneSelected == null ? null : {
+    selected: laneSelected,
+    ceremony_level: laneSelected === 'lightweight' ? 1 : 2,
+    validation_depth: laneSelected === 'lightweight' ? 'declared_scope' : 'full',
+  },
+  validator_independence: role === 'Validation' ? { implementer_model: null, must_differ: true } : null,
+});
+
+// (1) lightweight lane resolves the role@lightweight sentinel over the plain role row.
+let routing = { tiers: { standard: 'tier-sentinel' }, roles: { Validation: 'role-sentinel', 'Validation@lightweight': 'lane-sentinel' }, validation_alternate: null };
+assert.strictEqual(suggestModel(dispatchOut('Validation', 'standard', 'lightweight'), routing), 'lane-sentinel', 'lightweight lane must resolve the @lightweight row over the plain role row');
+
+// (2) full lane must NOT pick up an @lightweight-scoped row; falls to the plain role row.
+assert.strictEqual(suggestModel(dispatchOut('Validation', 'standard', 'full'), routing), 'role-sentinel', 'full lane must not resolve an @lightweight-scoped row');
+
+// (3) full lane with no plain role row falls through to the tier default.
+routing = { tiers: { standard: 'tier-sentinel' }, roles: { 'Validation@lightweight': 'lane-sentinel' }, validation_alternate: null };
+assert.strictEqual(suggestModel(dispatchOut('Validation', 'standard', 'full'), routing), 'tier-sentinel', 'full lane with only an @lightweight row must resolve the tier default, never the lane row');
+
+// (4) lightweight lane with no @lane row falls back to the plain role row (additive/back-compat).
+routing = { tiers: { standard: 'tier-sentinel' }, roles: { Validation: 'role-sentinel' }, validation_alternate: null };
+assert.strictEqual(suggestModel(dispatchOut('Validation', 'standard', 'lightweight'), routing), 'role-sentinel', 'lightweight lane with no @lane row must fall back to the plain role row');
+
+// (5) negative control: a DIFFERENT role's @lightweight row must never leak onto this role.
+routing = { tiers: { standard: 'tier-sentinel' }, roles: { 'Code Review@lightweight': 'other-role-lane-sentinel' }, validation_alternate: null };
+assert.strictEqual(suggestModel(dispatchOut('Validation', 'standard', 'lightweight'), routing), 'tier-sentinel', "a different role's @lane key must never satisfy this role's lookup");
+
+// (6) degenerate: empty roles/tiers tables resolve to null.
+routing = { tiers: {}, roles: {}, validation_alternate: null };
+assert.strictEqual(suggestModel(dispatchOut('Validation', 'standard', 'lightweight'), routing), null, 'empty routing tables resolve to null');
+
+// (7) mid-operation-shaped: dispatch verdict with lane entirely absent must not throw and must fall back past the lane step.
+routing = { tiers: { standard: 'tier-sentinel' }, roles: { Validation: 'role-sentinel' }, validation_alternate: null };
+assert.strictEqual(suggestModel(dispatchOut('Validation', 'standard', null), routing), 'role-sentinel', 'missing lane object must not throw and must fall back to the plain role row');
+
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t21.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t21.log" 2>&1 \
+    || log_fail "pure suggestModel lane-key precedence failed: $(cat "$TEST_DIR/t21.log")"
+  log_pass "Pure suggestModel lane-key precedence (TEST-021)"
+}
+
+# --- TEST-022 (Spec-AC-02): CLI end-to-end across the lane seam ----------------
+
+test_022_cli_lane_seam() {
+  log_info "Test: CLI end-to-end across the real lane seam (spec ceremony_level -> deriveLane -> suggestModel): L1 fixture spec + @lightweight MODEL_ROUTING yields the lane sentinel; L2 fixture with the SAME routing yields the tier sentinel (negative control) (TEST-022)..."
+  local d d2
+
+  # (a) lightweight lane (ceremony_level: 1) resolves the lane sentinel.
+  d="$(mk_root t22a)"
+  cat > "$d/docs/specs/SPEC-0001-fx.md" <<MD
+---
+id: SPEC-0001
+type: spec
+number: 1
+status: draft
+ceremony_level: 1
+links:
+  pr: []
+---
+
+SPEC-FROZEN: true
+
+## Test Plan
+MD
+  write_dstate "$d/docs/ai/STATE.yaml"
+  mkdir -p "$d/.aai/system"
+  cat > "$d/.aai/system/MODEL_ROUTING.yaml" <<YAML
+tiers:
+  standard: tier-sentinel-022
+roles:
+  Validation@lightweight: lane-sentinel-022
+YAML
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-022(a) fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "11" && o.role === "Validation" && o.lane.selected === "lightweight"'
+  jassert "$OUT" 'o.suggested_model === "lane-sentinel-022"'
+
+  # (b) negative control: same routing file, full lane (default ceremony_level
+  # 2 fixture spec from mk_root) must resolve the tier sentinel, never the
+  # lane sentinel -- proves the lane key is genuinely gated on the seam, not a
+  # coincidence of the fixture.
+  d2="$(mk_root t22b)"
+  write_dstate "$d2/docs/ai/STATE.yaml"
+  mkdir -p "$d2/.aai/system"
+  cp "$d/.aai/system/MODEL_ROUTING.yaml" "$d2/.aai/system/MODEL_ROUTING.yaml"
+  run_dispatch "$d2"
+  [[ "$EC" == 0 ]] || log_fail "TEST-022(b) fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "11" && o.role === "Validation" && o.lane.selected === "full"'
+  jassert "$OUT" 'o.suggested_model === "tier-sentinel-022"'
+
+  log_pass "CLI end-to-end lane seam: lightweight resolves the lane sentinel, full lane resolves the tier default (TEST-022)"
+}
+
+# --- TEST-023 (Spec-AC-03): absent MODEL_ROUTING stays null (regression pin) ---
+
+test_023_absent_routing_null_on_lightweight_lane() {
+  log_info "Test: absent MODEL_ROUTING.yaml yields suggested_model null even on a lightweight-lane dispatch -- regression pin alongside TEST-019's unbound arm, now covering the lane-aware code path (TEST-023)..."
+  local d
+  d="$(mk_root t23)"
+  cat > "$d/docs/specs/SPEC-0001-fx.md" <<MD
+---
+id: SPEC-0001
+type: spec
+number: 1
+status: draft
+ceremony_level: 1
+links:
+  pr: []
+---
+
+SPEC-FROZEN: true
+
+## Test Plan
+MD
+  write_dstate "$d/docs/ai/STATE.yaml"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-023 fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.lane.selected === "lightweight"'
+  jassert "$OUT" '"suggested_model" in o && o.suggested_model === null'
+  log_pass "Absent MODEL_ROUTING stays null on the lightweight lane (TEST-023)"
+}
+
+# --- TEST-024 (Spec-AC-04): independence swap still wins over a lane override --
+
+test_024_pure_independence_swap_over_lane() {
+  log_info "Test: pure suggestModel() -- validator-independence swap still fires when the LANE-resolved Validation model collides with implementer_model; unaffected when it doesn't; unaffected by the lane work when no alternate is configured (TEST-024)..."
+  cat > "$TEST_DIR/t24.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { suggestModel } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const out = (implModel) => ({
+  verdict: 'dispatch',
+  role: 'Validation',
+  suggested_tier: 'standard',
+  lane: { selected: 'lightweight', ceremony_level: 1, validation_depth: 'declared_scope' },
+  validator_independence: { implementer_model: implModel, must_differ: true },
+});
+
+// (1) lane-resolved model COLLIDES with implementer -> independence swap still wins.
+let routing = { tiers: { standard: 'tier-x' }, roles: { 'Validation@lightweight': 'same-sentinel' }, validation_alternate: 'alt-sentinel' };
+assert.strictEqual(suggestModel(out('same-sentinel'), routing), 'alt-sentinel', 'independence swap must fire on a lane-resolved collision');
+
+// (2) negative control: no collision -> the lane-resolved model stands.
+routing = { tiers: { standard: 'tier-x' }, roles: { 'Validation@lightweight': 'lane-sentinel' }, validation_alternate: 'alt-sentinel' };
+assert.strictEqual(suggestModel(out('some-other-model'), routing), 'lane-sentinel', 'no collision -> the lane-resolved model stands unmodified');
+
+// (3) degenerate: collision but no validation_alternate configured -> colliding model stands (pre-existing behavior, unchanged by the lane work).
+routing = { tiers: { standard: 'tier-x' }, roles: { 'Validation@lightweight': 'same-sentinel' }, validation_alternate: null };
+assert.strictEqual(suggestModel(out('same-sentinel'), routing), 'same-sentinel', 'absent validation_alternate leaves the colliding lane-resolved model in place');
+
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t24.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t24.log" 2>&1 \
+    || log_fail "pure independence-swap-over-lane cases failed: $(cat "$TEST_DIR/t24.log")"
+  log_pass "Validator-independence swap still wins over a lane override (TEST-024)"
+}
+
+# --- TEST-026 (Spec-AC-06): docs record the role@lane key + no-regression note -
+
+test_026_docs_lane_key_contract() {
+  log_info "Test: MODEL_ROUTING.yaml documents the role@lane key form + restates the no-inline-comment rule + carries both shipped rows; docs/USER_GUIDE.md notes ceremony-lane routing (TEST-026)..."
+  local routing_file="$PROJECT_ROOT/.aai/system/MODEL_ROUTING.yaml"
+  local guide_file="$PROJECT_ROOT/docs/USER_GUIDE.md"
+  grep -qE '@lightweight' "$routing_file" \
+    || log_fail "TEST-026: MODEL_ROUTING.yaml header must document the role@lane key form (an @lightweight example)"
+  grep -qiE 'no inline .?#? ?comments|NO inline' "$routing_file" \
+    || log_fail "TEST-026: MODEL_ROUTING.yaml header must restate the no-inline-comment rule"
+  grep -qE '^  Metrics Flush:[[:space:]]*claude-haiku-4-5[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-026: MODEL_ROUTING.yaml must carry the explicit 'Metrics Flush: claude-haiku-4-5' role row"
+  grep -qE '^  Validation@lightweight:[[:space:]]*claude-sonnet-5[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-026: MODEL_ROUTING.yaml must carry the 'Validation@lightweight: claude-sonnet-5' lane row"
+  grep -qiE 'lane-scoped|role@lane|ceremony-lane' "$guide_file" \
+    || log_fail "TEST-026: docs/USER_GUIDE.md must note ceremony-lane / role@lane routing"
+  log_pass "MODEL_ROUTING role@lane contract + user-facing routing note documented (TEST-026)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018)"
+  echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026; TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
   check_deps
   setup_fixture
   test_001_decide_table
@@ -1589,6 +1812,12 @@ main() {
   test_017_fail_closed_invariant
   test_018_purity_and_docstring_guard
   test_019_rule4b_close_event_bridge
+  test_020_metrics_flush_explicit_row
+  test_021_pure_lane_precedence
+  test_022_cli_lane_seam
+  test_023_absent_routing_null_on_lightweight_lane
+  test_024_pure_independence_swap_over_lane
+  test_026_docs_lane_key_contract
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
