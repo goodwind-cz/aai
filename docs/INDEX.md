@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T18:50:05.268Z
+Generated: 2026-07-27T18:56:25.035Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (217)
+## Done (218)
 
 | ID | Type | Path |
 |---|---|---|
@@ -93,6 +93,7 @@ _None._
 | CHANGE-0070 | issues | docs/issues/CHANGE-0070-prompt-hash-telemetry.md |
 | CHANGE-0071 | issues | docs/issues/CHANGE-0071-ci-test-impact-selection.md |
 | CHANGE-0072 | issues | docs/issues/CHANGE-0072-prompt-hash-runtime-wiring.md |
+| CHANGE-0073 | issues | docs/issues/CHANGE-0073-suite-map-factory-doc-paths.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -239,11 +240,9 @@ _None._
 | SPEC-0098 | specs | docs/specs/SPEC-0098-spec-prompt-hash-runtime-wiring.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0073 | issues | docs/issues/CHANGE-0073-suite-map-factory-doc-paths.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

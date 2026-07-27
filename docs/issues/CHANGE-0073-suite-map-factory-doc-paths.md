@@ -2,11 +2,13 @@
 id: suite-map-factory-doc-paths
 number: 73
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 173
+  commits:
+    - a61edc9b5f19f1d434e4c6fceb7dd7f5ff6fb2ea
 ---
 
 # Change — suite-map: map factory doc trees so factory rides actually get selected mode
