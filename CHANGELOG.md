@@ -11,6 +11,19 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: STATE bootstrap template — virgin targets init mechanically (CHANGE-0074 / SPEC-0099) [L2]
+
+- Universality-proof F1 closed: `.aai/templates/STATE_TEMPLATE.yaml` is now
+  the TRACKED canonical schema source (the live docs/ai/STATE.yaml is
+  gitignored on fresh checkouts, so it could never serve as the baseline),
+  and `check-state.mjs --repair` creates a missing STATE from it —
+  script-relative template resolution (symlink/cwd-attack proof), real UTC
+  stamp, fail-loud on absent/unstampable template (exit 2/1, pinned
+  TEST-006/007), existing-file behavior byte-unchanged.
+- A fresh target's first dispatch now proceeds to `no_focus_ref` instead of
+  dead-ending on `state_file_missing`. Ledger +286 B (SKILL_CHECK_STATE
+  reword), TEST-012 pin 31311 RED-first.
+
 ## [unreleased] — fix: skill-sweep batch — three verified tooling footguns + six findings intakes (CHANGE-0081) [L2]
 
 - Hands-on sweep of ~20 previously untouched skills (three parallel

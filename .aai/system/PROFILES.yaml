@@ -156,6 +156,7 @@ core:
   - .aai/templates/RFC_TEMPLATE.md
   - .aai/templates/ROLE_TEMPLATE.md
   - .aai/templates/SPEC_TEMPLATE.md
+  - .aai/templates/STATE_TEMPLATE.yaml
   - .aai/templates/TECHDEBT_TEMPLATE.md
   - .aai/templates/TECHNOLOGY_TEMPLATE.md
   - .aai/templates/WORKFLOW_TEMPLATE.md

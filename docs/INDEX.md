@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T20:14:45.450Z
+Generated: 2026-07-27T21:49:38.180Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -241,7 +241,7 @@ _None._
 | SPEC-0098 | specs | docs/specs/SPEC-0098-spec-prompt-hash-runtime-wiring.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (8)
+## Drafts (9)
 
 | ID | Type | Path |
 |---|---|---|
@@ -253,6 +253,7 @@ _None._
 | CHANGE-0079 | issues | docs/issues/CHANGE-0079-doctor-determinize.md |
 | CHANGE-0080 | issues | docs/issues/CHANGE-0080-session-journal-contract.md |
 | CHANGE-0082 | issues | docs/issues/CHANGE-0082-validate-report-contract.md |
+| SPEC-0099 | specs | docs/specs/SPEC-0099-spec-state-bootstrap-template.md |
 
 ## Deferred (whole-doc) (0)
 

@@ -4,9 +4,13 @@ You read docs/ai/STATE.yaml, validate all structural invariants, and report heal
 Run this before starting any role to catch drift or corruption early.
 
 AUTHORITATIVE SCHEMA
-The canonical schema and invariants are defined as comments inside docs/ai/STATE.yaml itself.
-Always read the file header — do not rely on memorized field names.
-Treat the STATE.yaml header as authoritative if any inline list below diverges.
+The canonical schema and invariants are defined as comments inside the
+TRACKED template `.aai/templates/STATE_TEMPLATE.yaml` — not docs/ai/STATE.yaml
+itself, which is gitignored on a fresh checkout and may not exist yet (a
+virgin target project cannot read a schema out of a file it doesn't have).
+A live docs/ai/STATE.yaml's header comment block must equal the template's
+verbatim; read the template header — do not rely on memorized field names.
+Treat the template header as authoritative if any inline list below diverges.
 
 INVARIANT CHECKS (run all, report each)
 
