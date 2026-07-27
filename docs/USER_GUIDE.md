@@ -2085,7 +2085,7 @@ removes briefs whose work item is terminal or orphaned while keeping live ones;
 
 Closing a user-facing work item now carries a real check: if the primary request doc opts in with `user_visible: true` and the matching docs/product/&lt;ref&gt;.md is missing or still has unfilled template sections, the close ceremony prints a loud warning by default, or refuses outright (nothing written) when the stricter dial is turned on. Separately, docs/USER_GUIDE.md now carries a "Delivered features (generated)" section that is rebuilt automatically every time a work item closes, listing every real product doc with a link and a one-paragraph summary — so the user guide can no longer silently drift out of date the way it used to.
 
-[Product doc](product/product-docs-enforced.md) · [Spec](specs/SPEC-DRAFT-spec-product-docs-enforced.md)
+[Product doc](product/product-docs-enforced.md) · [Spec](specs/SPEC-0092-spec-product-docs-enforced.md)
 
 ### Friction feedback loop, activated (default-on capture + wrap-up triage)
 

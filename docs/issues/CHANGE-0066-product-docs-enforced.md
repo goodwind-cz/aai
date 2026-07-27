@@ -2,11 +2,13 @@
 id: product-docs-enforced
 number: 66
 type: change
-status: draft
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 166
+  commits:
+    - d644c96db40198bdb19c882ec4eb2cf6ed925093
 ---
 
 # Change — Product docs enforced at close + USER_GUIDE rollup generated from them

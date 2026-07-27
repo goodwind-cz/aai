@@ -1,24 +1,23 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T08:04:57.262Z
+Generated: 2026-07-27T08:05:28.203Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0092 | specs | implementing | 6 done | docs/specs/SPEC-0092-spec-product-docs-enforced.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Done (203)
+## Done (205)
 
 | ID | Type | Path |
 |---|---|---|
@@ -87,6 +86,7 @@ _None._
 | CHANGE-0063 | issues | docs/issues/CHANGE-0063-token-economics-end-to-end.md |
 | CHANGE-0064 | issues | docs/issues/CHANGE-0064-allocator-rewrite-all-trees.md |
 | CHANGE-0065 | issues | docs/issues/CHANGE-0065-cheap-model-in-practice.md |
+| CHANGE-0066 | issues | docs/issues/CHANGE-0066-product-docs-enforced.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -224,13 +224,12 @@ _None._
 | SPEC-0089 | specs | docs/specs/SPEC-0089-spec-token-economics-end-to-end.md |
 | SPEC-0090 | specs | docs/specs/SPEC-0090-spec-allocator-rewrite-all-trees.md |
 | SPEC-0091 | specs | docs/specs/SPEC-0091-spec-cheap-model-in-practice.md |
+| SPEC-0092 | specs | docs/specs/SPEC-0092-spec-product-docs-enforced.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0066 | issues | docs/issues/CHANGE-0066-product-docs-enforced.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

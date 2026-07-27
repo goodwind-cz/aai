@@ -2,13 +2,15 @@
 id: spec-product-docs-enforced
 type: spec
 number: 92
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: product-docs-enforced
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 166
+  commits:
+    - d644c96db40198bdb19c882ec4eb2cf6ed925093
 ---
 
 # Spec — Product docs enforced at close + USER_GUIDE rollup generated from them
