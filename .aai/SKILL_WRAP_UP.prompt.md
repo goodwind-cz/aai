@@ -53,7 +53,15 @@ PROCESS
    ```
 
    Wait for user confirmation before adding each rule.
-   If confirmed, append to the appropriate section of docs/knowledge/LEARNED.md with today's date.
+   If confirmed, route it through a compact critic pass first (one focused
+   check: does it generalize beyond this session, is it a duplicate of an
+   existing rule, is the source honest — reuse the existing review-subagent
+   convention, no new role) and ONLY THEN append it — never a direct edit:
+     node .aai/scripts/learned-append.mjs --source "<how this was learned>" --text "<rule text>"
+   The gate accepts only a byte-exact pure append (any rewrite, reorder,
+   mid-insert, or deletion is rejected with nothing written) and stamps the
+   house date+source format itself — see .aai/system/FRICTION_PROTOCOL.md's
+   "Learned-append gate" pointer for the full contract.
 
 4. CHECK UNCOMMITTED WORK
    Run `git status` (read-only) and report:
@@ -140,6 +148,9 @@ PROCESS
    fingerprint <fingerprint>"), so captured data becomes visible action
    instead of a silent file. An EMPTY spool stays SILENT exactly as above (no
    triage run, no report line) — the quiet-by-design contract is unchanged.
+   If a cluster is later turned into a proposed LEARNED.md rule, it routes
+   through the SAME step 3 critic-then-gate flow above — never a direct edit
+   here either.
 
 6b. STALE-BRIEF SWEEP (docs-lifecycle hygiene)
    Prune Planning-emitted briefs whose work item is terminal or orphaned — they
