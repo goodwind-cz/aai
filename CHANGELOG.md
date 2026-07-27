@@ -11,6 +11,22 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix: skill-sweep batch — three verified tooling footguns + six findings intakes (CHANGE-0081) [L2]
+
+- Hands-on sweep of ~20 previously untouched skills (three parallel
+  auditors). Fixed with live repros: aai-canonicalize.sh crashed macOS
+  default bash 3.2 on empty detection arrays (now empty-safe AND the
+  "Not detected" defaults still render — the first fix idiom regressed
+  them, caught by review); test-canon.mjs --help/typo'd flags silently ran
+  a LIVE proposal-writing phase 1 (usage branch, exit 0/2, TEST-020);
+  generate-dashboard.mjs positional args silently overwrote
+  docs/ai/dashboard.html (consumed-slot booleans); bonus: pre-existing
+  $ROOT$ROOT path doubling silently skipped the YAML->JSONL migration.
+- Findings filed: CHANGE-0076..0080 + CHANGE-0082 (dashboard-refit,
+  decapod-prune, docs-hub-generator, doctor-determinize,
+  session-journal-contract, validate-report-contract). Legacy-prune
+  roadmap item resolved with evidence: only decapod is dead.
+
 ## [unreleased] — fix: suite-map maps factory doc trees — factory rides actually get selected mode (CHANGE-0073) [L1]
 
 - CI impact selection (CHANGE-0071) fail-opened on every factory PR because

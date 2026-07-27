@@ -82,12 +82,15 @@ declare -a actions=()
 
 yaml_loop="$ROOT/docs/ai/LOOP_TICKS.yaml"
 yaml_metrics="$ROOT/docs/ai/METRICS.yaml"
-migrate_script="$ROOT$ROOT/.aai/scripts/migrate-yaml-to-jsonl.sh"
-if [[ -x "$migrate_script" && ( -f "$yaml_loop" || -f "$yaml_metrics" ) ]]; then
+migrate_script="$ROOT/.aai/scripts/migrate-yaml-to-jsonl.sh"
+# -f + explicit bash: the helper ships mode 644 in normal checkouts, so an
+# -x test (plus the former $ROOT$ROOT path doubling) kept this branch
+# permanently dead (PR #175 Codex P1).
+if [[ -f "$migrate_script" && ( -f "$yaml_loop" || -f "$yaml_metrics" ) ]]; then
   if $is_dry_run; then
-    log_dry "migrate yaml->jsonl: $migrate_script \"$ROOT\""
+    log_dry "migrate yaml->jsonl: bash $migrate_script \"$ROOT\""
   else
-    "$migrate_script" "$ROOT"
+    bash "$migrate_script" "$ROOT"
   fi
   actions+=("Migrated YAML runtime files into JSONL format.")
 fi
@@ -188,19 +191,19 @@ Generated at (UTC): $NOW_UTC
 Generator: .aai/scripts/aai-canonicalize.sh
 
 ## Languages
-$(list_or_default "Unknown (no common manifest detected)" "${languages[@]}")
+$(list_or_default "Unknown (no common manifest detected)" ${languages[@]+"${languages[@]}"})
 
 ## Package/Dependency Managers
-$(list_or_default "Not detected" "${package_managers[@]}")
+$(list_or_default "Not detected" ${package_managers[@]+"${package_managers[@]}"})
 
 ## Test Tooling (Detected by Files)
-$(list_or_default "Not detected" "${test_tools[@]}")
+$(list_or_default "Not detected" ${test_tools[@]+"${test_tools[@]}"})
 
 ## Build/Runtime Tooling (Detected by Files)
-$(list_or_default "Not detected" "${build_tools[@]}")
+$(list_or_default "Not detected" ${build_tools[@]+"${build_tools[@]}"})
 
 ## CI/CD Signals
-$(list_or_default "Not detected" "${ci_signals[@]}")
+$(list_or_default "Not detected" ${ci_signals[@]+"${ci_signals[@]}"})
 
 ## Notes
 - This is an inferred summary based on repository files.

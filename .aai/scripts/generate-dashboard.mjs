@@ -12,6 +12,12 @@ function parseArgs(argv) {
     skill: null,
     dataOnly: false
   };
+  // Positional slots track consumption explicitly: comparing against the
+  // default STRING mis-routes the 2nd positional into metricsPath whenever
+  // the 1st equals the default value (silently overwriting the real
+  // docs/ai/dashboard.html; skill-sweep 2026-07-27).
+  let metricsSet = false;
+  let outputSet = false;
 
   for (let i = 2; i < argv.length; i += 1) {
     const token = argv[i];
@@ -34,23 +40,33 @@ function parseArgs(argv) {
       args.dataOnly = true;
       continue;
     }
-    if (token === '--metrics' && argv[i + 1]) {
-      args.metricsPath = argv[i + 1];
+    if (token === '--metrics' || token === '--output') {
+      if (!argv[i + 1]) {
+        console.error(`${token} requires a value`);
+        process.exit(2);
+      }
+      if (token === '--metrics') { args.metricsPath = argv[i + 1]; metricsSet = true; }
+      else { args.outputPath = argv[i + 1]; outputSet = true; }
       i += 1;
       continue;
     }
-    if (token === '--output' && argv[i + 1]) {
-      args.outputPath = argv[i + 1];
-      i += 1;
-      continue;
+    // Unknown flags must never silently proceed with defaults — that is the
+    // exact class of footgun the positional fix addresses (a typo'd --ouput
+    // would otherwise overwrite docs/ai/dashboard.html).
+    if (token.startsWith('-')) {
+      console.error(`unknown flag: ${token}`);
+      console.error('Usage: generate-dashboard.mjs [--metrics <path>] [--output <path>] [--from D] [--to D] [--skill S] [--data-only]');
+      process.exit(2);
     }
 
-    if (!token.startsWith('-') && args.metricsPath === 'docs/ai/METRICS.jsonl') {
+    if (!token.startsWith('-') && !metricsSet) {
       args.metricsPath = token;
+      metricsSet = true;
       continue;
     }
-    if (!token.startsWith('-') && args.outputPath === 'docs/ai/dashboard.html') {
+    if (!token.startsWith('-') && !outputSet) {
       args.outputPath = token;
+      outputSet = true;
       continue;
     }
   }
