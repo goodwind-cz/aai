@@ -11,6 +11,17 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: role output contracts — deterministic EXPECT validation of subagent results (CHANGE-0068 / SPEC-0094)
+
+- Promptbook-inspired (adoption candidate 1): every dispatched subagent's
+  result block is now validated by .aai/scripts/check-role-output.mjs —
+  no model call, machine-readable ROLE-OUTPUT-VIOLATION lines, exit 0/1,
+  one reject-and-re-prompt before any STATE merge. Seven violation codes
+  incl. the negative-duration corner (review-hardened).
+- EXAMPLE fixtures per role class run in CI (new test-aai-role-output.sh);
+  SUBAGENT_CONTRACT carries a one-line EXPECT pointer (60-line cap held).
+
+
 ## [unreleased] — feat: dev-progress view — the overview shows what the factory is doing right now (CHANGE-0067 / SPEC-0093)
 
 - generate-overview.mjs gains an "In flight now" section: current focus

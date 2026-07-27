@@ -56,3 +56,5 @@ write: `docs/ai/STATE.yaml` (orchestrator-only).
 |-----------------------------------------------------------|-------------------------------------------------------------------------|
 | "My update to STATE.yaml is tiny, I'll just write it"   | Subagents MUST NOT write `docs/ai/STATE.yaml`. Return a result block; the orchestrator is the sole writer. |
 | "I'll write STATE so the orchestrator doesn't have to"  | Direct subagent STATE writes race and lose updates at K >= 2. That is exactly the bug this rule removes. |
+
+EXPECT: the result block above is validated by `.aai/scripts/check-role-output.mjs` against six deterministic postconditions (docs/specs/SPEC-DRAFT-spec-role-output-contracts.md) before merge.

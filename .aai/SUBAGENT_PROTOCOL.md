@@ -166,6 +166,16 @@ recommended follow-up (residual risk R-GUARD), not yet built.
 After all subagents complete, the orchestrator MUST:
 
 1. Collect ALL subagent result blocks — do not proceed with a partial set.
+   Before any STATE.yaml merge, run the mandatory deterministic checker on
+   each collected block: `node .aai/scripts/check-role-output.mjs --file
+   <path>` (or pipe the block via stdin). A clean run (exit 0) proceeds to
+   step 2. A violating run (exit 1, `ROLE-OUTPUT-VIOLATION:` lines) is
+   reject-and-re-prompt-ONCE — re-dispatch that subagent with the printed
+   violation lines and nothing else merges for that scope until it returns
+   a clean block or a second violating return, which is treated as a
+   BLOCKED result for step 2 below. If `.aai/scripts/check-role-output.mjs`
+   is absent, degrade-and-report (prose) rather than hard-crash — never
+   block the merge on missing tooling.
 2. Evaluate overall status:
    - `PASS` only if every subagent returned `PASS`
    - `FAIL` if any subagent returned `FAIL` — trigger Remediation for that scope only

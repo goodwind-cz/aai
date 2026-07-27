@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T09:13:50.756Z
+Generated: 2026-07-27T10:04:27.613Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -229,21 +229,25 @@ _None._
 | SPEC-0093 | specs | docs/specs/SPEC-0093-spec-dev-progress-hub.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0068 | issues | docs/issues/CHANGE-0068-role-output-contracts.md |
+| SPEC-0094 | specs | docs/specs/SPEC-0094-spec-role-output-contracts.md |
 
 ## Deferred (whole-doc) (0)
 
 _None._
 
-## Deferred items (per-AC, across all specs) (6)
+## Deferred items (per-AC, across all specs) (7)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
 | SPEC-0076 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-Linux-only flake; local pass is not sufficient evidence (Honesty requirements section). Owned by Validation after push. |
 | SPEC-0077 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-only flake; local pass is not sufficient evidence (Honesty requirements). Owned by Validation after push. |
 | SPEC-0090 | Spec-AC-07 | 2026-08-10 | Local half (targeted suites) is green; PR CI full framework is the authoritative gate and has not run yet (not yet pushed/PR'd) — defer to done once CI is green on the PR. |
+| SPEC-0094 | Spec-AC-05 | 2026-08-10 | PR CI leg (TEST-015) verifies on push; local legs all green |
 | SPEC-0083 | Spec-AC-04 | 2026-08-15 | CI-authoritative; the flake is CI-load-only and not locally reproducible |
 | SPEC-0086 | Spec-AC-05 | 2026-08-15 | Full-framework TEST-010 confirmation deferred to Validation by design (dispatch constraint), not a real gap in this scope's own edits |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
