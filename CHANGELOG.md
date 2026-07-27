@@ -11,6 +11,18 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: learned-append gate — structurally enforced append-only self-learning (CHANGE-0069 / SPEC-0095)
+
+- Promptbook-inspired (adoption candidate 2): the only sanctioned automated
+  path to docs/knowledge/LEARNED.md is .aai/scripts/learned-append.mjs —
+  persist ONLY when result == original + pure append (byte-exact), else
+  exit 1 with nothing written (tree-hash proven). Atomic temp+rename,
+  dry-run zero-write, house-format stamping.
+- Wrap-up routes every proposed rule through a critic pass BEFORE the gate
+  (ordering test-pinned); no self-improvement step can silently rewrite
+  prior rules. Guardrail, not a security boundary (hand edits unaffected).
+
+
 ## [unreleased] — feat: role output contracts — deterministic EXPECT validation of subagent results (CHANGE-0068 / SPEC-0094)
 
 - Promptbook-inspired (adoption candidate 1): every dispatched subagent's

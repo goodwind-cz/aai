@@ -1,17 +1,19 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T10:05:26.335Z
+Generated: 2026-07-27T11:16:23.825Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
+| CHANGE-0069 | issues | implementing | — | docs/issues/CHANGE-0069-learned-append-gate.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0095 | specs | implementing | 5 done | docs/specs/SPEC-0095-spec-learned-append-gate.md |
 
 ## Canonical layer (0)
 

@@ -348,3 +348,15 @@ best-effort, must never mask or change the primary step's own result, and any
 capture failure (absent CLI, unwritable spool, rejected input) is swallowed
 with at most a single INFO line — the hook never widens the contract, it only
 widens WHEN capture is attempted.
+
+---
+
+## Learned-append gate (pointer)
+
+Automated growth of `docs/knowledge/LEARNED.md` is a separate mechanism from
+friction capture above: it goes exclusively through the structural
+append-only gate `.aai/scripts/learned-append.mjs` (never a direct edit).
+See `.aai/SKILL_WRAP_UP.prompt.md` step 3 for the critic-then-gate flow this
+protects. Documented here only as a co-located pointer for skills that reach
+this file via the wrap-up flow — the gate's own contract lives in its script
+header, not duplicated here.
