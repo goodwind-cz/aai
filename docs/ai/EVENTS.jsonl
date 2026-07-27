@@ -1304,3 +1304,6 @@
 {"v":1,"ts":"2026-07-27T22:05:34.537Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-state-bootstrap-template","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-27T22:05:34.567Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-state-bootstrap-template","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-27T22:05:34.598Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-state-bootstrap-template","payload":{"commit":"3d028c3c022d836eeebb5d7f43e9288ba09f0471"}}
+{"v":1,"ts":"2026-07-27T22:49:42.977Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"decapod-prune","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-27T22:49:43.007Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"decapod-prune","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-27T22:49:43.039Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"decapod-prune","payload":{"commit":"070a61638556d5eddf534bcf887bf90ff810d6eb"}}

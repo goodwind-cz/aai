@@ -2,11 +2,13 @@
 id: decapod-prune
 number: 77
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 177
+  commits:
+    - 070a61638556d5eddf534bcf887bf90ff810d6eb
 ---
 
 # Change — prune the decapod integration surface (dead since March, CLI never built)
