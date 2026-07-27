@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-07-27T11:17:10.739Z",
+  "generatedAt": "2026-07-27T11:17:19.073Z",
   "project": "aai",
   "counts": {
     "delivered": 114,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 18021942
+    "tokens_total": 18446108
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -16,15 +16,15 @@
     "focus": {
       "ref": "learned-append-gate",
       "type": "intake_change",
-      "phase": "code_review"
+      "phase": null
     },
     "strategy": "tdd",
     "worktree": {
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "pass",
-    "review_status": "pass",
+    "validation_status": "not_run",
+    "review_status": "not_run",
     "ticks": [
       {
         "tick": 3,
@@ -138,8 +138,8 @@
       "status": "done",
       "path": "docs/issues/CHANGE-0069-learned-append-gate.md",
       "closed_on": "2026-07-27",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 39,
+      "token_total": 424166,
       "spec": "docs/specs/SPEC-0095-spec-learned-append-gate.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260727T111121Z-learned-append-gate.md"
@@ -1627,8 +1627,8 @@
           "status": "done",
           "path": "docs/issues/CHANGE-0069-learned-append-gate.md",
           "closed_on": "2026-07-27",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 39,
+          "token_total": 424166,
           "spec": "docs/specs/SPEC-0095-spec-learned-append-gate.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260727T111121Z-learned-append-gate.md"
