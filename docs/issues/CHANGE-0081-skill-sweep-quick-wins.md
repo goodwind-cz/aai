@@ -16,7 +16,9 @@ links:
   auditors over ~20 previously untouched skills; journal section in
   docs/project-sessions/2026-07-26-independent-audit-autonomy-pack.md):
   (1) aai-canonicalize.sh: 5 empty-array expansions crash under macOS
-  default bash 3.2 with set -u — "${arr[@]-}" fix, verified with /bin/bash;
+  default bash 3.2 with set -u — fixed with the empty-safe
+  ${arr[@]+"${arr[@]}"} idiom (the naive "${arr[@]-}" form regressed the
+  default texts and was rejected in review), verified with /bin/bash;
   (2) test-canon.mjs: --help/any unknown flag silently fell through to a
   LIVE phase-1 run that writes docs/ai/test-canon.proposal.json (fired
   during the audit itself) — usage branch added, exit 0/2, TEST-020 pin;

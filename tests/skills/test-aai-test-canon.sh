@@ -1100,8 +1100,9 @@ test_020() {
 
   node .aai/scripts/test-canon.mjs --help > /dev/null 2>&1 \
     || log_fail "--help must exit 0 (got $?)"
-  node .aai/scripts/test-canon.mjs --typo > /dev/null 2>&1
-  [[ $? -eq 2 ]] || log_fail "unknown flag must exit 2 with usage, never fall through to a live phase-1 run"
+  local typo_rc=0
+  if node .aai/scripts/test-canon.mjs --typo > /dev/null 2>&1; then typo_rc=0; else typo_rc=$?; fi
+  [[ "$typo_rc" -eq 2 ]] || log_fail "unknown flag must exit 2 with usage, never fall through to a live phase-1 run (got $typo_rc)"
   [[ ! -f docs/ai/test-canon.proposal.json ]] \
     || log_fail "--help/unknown flag must never write docs/ai/test-canon.proposal.json"
 

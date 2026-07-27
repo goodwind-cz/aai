@@ -40,17 +40,23 @@ function parseArgs(argv) {
       args.dataOnly = true;
       continue;
     }
-    if (token === '--metrics' && argv[i + 1]) {
-      args.metricsPath = argv[i + 1];
-      metricsSet = true;
+    if (token === '--metrics' || token === '--output') {
+      if (!argv[i + 1]) {
+        console.error(`${token} requires a value`);
+        process.exit(2);
+      }
+      if (token === '--metrics') { args.metricsPath = argv[i + 1]; metricsSet = true; }
+      else { args.outputPath = argv[i + 1]; outputSet = true; }
       i += 1;
       continue;
     }
-    if (token === '--output' && argv[i + 1]) {
-      args.outputPath = argv[i + 1];
-      outputSet = true;
-      i += 1;
-      continue;
+    // Unknown flags must never silently proceed with defaults — that is the
+    // exact class of footgun the positional fix addresses (a typo'd --ouput
+    // would otherwise overwrite docs/ai/dashboard.html).
+    if (token.startsWith('-')) {
+      console.error(`unknown flag: ${token}`);
+      console.error('Usage: generate-dashboard.mjs [--metrics <path>] [--output <path>] [--from D] [--to D] [--skill S] [--data-only]');
+      process.exit(2);
     }
 
     if (!token.startsWith('-') && !metricsSet) {
