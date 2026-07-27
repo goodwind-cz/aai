@@ -22,7 +22,7 @@
 #   update / doctor / layer-drift / bootstrap / migrate-state), templates the
 #   flows instantiate, and canon.
 #   extended = reporting & publishing (dashboard, profile, metrics-report,
-#   docs-hub, share, validate-report), integrations (decapod, expert),
+#   docs-hub, share, validate-report), integrations (expert),
 #   one-off maintenance/migration (canonicalize, docs-canon, test-canon,
 #   migrate-yaml-to-jsonl), session conveniences (session-journal, wrap-up),
 #   brownfield analysis, deprecated (auto-trigger), self-hosting QA.
@@ -173,7 +173,6 @@ extended:
   - .aai/SKILL_AUTO_TRIGGER.prompt.md
   - .aai/SKILL_CANONICALIZE.prompt.md
   - .aai/SKILL_DASHBOARD.prompt.md
-  - .aai/SKILL_DECAPOD.prompt.md
   - .aai/SKILL_DESLOP.prompt.md
   - .aai/SKILL_DOCS_CANON.prompt.md
   - .aai/SKILL_DOCS_HUB.prompt.md
