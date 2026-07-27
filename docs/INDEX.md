@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T19:07:24.834Z
+Generated: 2026-07-27T19:09:58.623Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -244,8 +244,8 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| rollup-exclusion-visibility (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-rollup-exclusion-visibility.md |
-| state-bootstrap-template (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-state-bootstrap-template.md |
+| CHANGE-0074 | issues | docs/issues/CHANGE-0074-state-bootstrap-template.md |
+| CHANGE-0075 | issues | docs/issues/CHANGE-0075-rollup-exclusion-visibility.md |
 
 ## Deferred (whole-doc) (0)
 

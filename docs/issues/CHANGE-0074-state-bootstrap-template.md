@@ -1,6 +1,6 @@
 ---
 id: state-bootstrap-template
-number: null
+number: 74
 type: change
 status: draft
 user_visible: true
