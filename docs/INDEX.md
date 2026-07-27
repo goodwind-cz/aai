@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-26T23:58:48.347Z
+Generated: 2026-07-27T06:58:58.945Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0091 | specs | implementing | 6 done | docs/specs/SPEC-0091-spec-cheap-model-in-practice.md |
 
 ## Canonical layer (0)
 
@@ -223,9 +224,11 @@ _None._
 | SPEC-0090 | specs | docs/specs/SPEC-0090-spec-allocator-rewrite-all-trees.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0065 | issues | docs/issues/CHANGE-0065-cheap-model-in-practice.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -259,4 +262,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-26 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-27 — counts above use this date for overdue checks.

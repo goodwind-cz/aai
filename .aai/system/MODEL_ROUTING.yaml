@@ -2,8 +2,9 @@
 #
 # CONTRACT
 # - Consumed by .aai/scripts/orchestration-dispatch.mjs: every dispatch verdict
-#   carries `suggested_model` resolved as roles[<role>] ?? tiers[<tier>] ?? null.
-#   The orchestrator honors suggested_model when the platform supports model
+#   carries `suggested_model` resolved as roles[<role>@<lane>] ?? roles[<role>]
+#   ?? tiers[<tier>] ?? null (see LANE-SCOPED ROLE KEYS below). The
+#   orchestrator honors suggested_model when the platform supports model
 #   selection; suggested_tier remains the fallback hint when it does not.
 # - DELETE OR EMPTY THIS FILE to restore pre-binding behavior (suggested_model
 #   stays null and the orchestrator LLM interprets suggested_tier itself).
@@ -14,6 +15,17 @@
 # - WHY: routing ~70% of mechanical/standard calls away from frontier models is
 #   the single largest lever on autonomous-run cost. Binding the map here makes
 #   the choice deterministic and auditable instead of a per-tick LLM judgment.
+# - LANE-SCOPED ROLE KEYS: a role row may carry an `@lane` suffix, e.g.
+#   `Validation@lightweight`. Resolution order in suggestModel() is
+#   roles[role@lane.selected] ?? roles[role] ?? tiers[tier] ?? null, where
+#   lane.selected is "lightweight" on ceremony L0/L1 dispatches and "full"
+#   otherwise (deriveLane()). A lane-scoped row wins ONLY on a matching-lane
+#   dispatch for that exact role; every other dispatch (no @lane key, or a
+#   non-matching lane) falls through the chain unchanged. Configs with no
+#   @lane keys resolve byte-identically to before this key form existed
+#   (additive, back-compat).
+# - Role rows take NO inline `# comments` — the parser regex drops any row
+#   whose value is followed by a comment. Put comments on their own line.
 #
 # Tier defaults (dispatch suggested_tier -> model id).
 tiers:
@@ -27,6 +39,19 @@ tiers:
 roles:
   Planning: claude-opus-4-8
   Code Review: claude-opus-4-8
+  # Explicit pin, auditable — the mechanical tier default already resolves
+  # to this model id today; this row makes the choice visible in the file
+  # rather than an implicit tier fallthrough.
+  Metrics Flush: claude-haiku-4-5
+  # Lane-scoped: wins over the plain tier default ONLY on a ceremony
+  # L0/L1 (lightweight-lane) Validation dispatch. With the CURRENT tier
+  # map (standard: claude-sonnet-5) this resolves to the SAME model id a
+  # full-lane Validation already gets — zero behavioral delta today. The
+  # row (a) makes the lightweight-lane choice explicit/auditable and
+  # (b) establishes the role@lane resolution mechanism so a later change
+  # can pin a genuinely distinct lightweight model without touching tier
+  # defaults.
+  Validation@lightweight: claude-sonnet-5
 
 # Validator-independence backstop: when the routed Validation model would
 # EQUAL the recorded implementer model (same weights = same blind spots),

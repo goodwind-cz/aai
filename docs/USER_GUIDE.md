@@ -1543,9 +1543,13 @@ Two supporting surfaces:
   human decision. Publish it with `/aai-share` for stakeholders.
 - `.aai/system/MODEL_ROUTING.yaml` binds dispatch tiers to concrete model ids
   (mechanical -> small/cheap, standard -> mid, premium -> top; per-role
-  overrides supported). Every dispatch now carries `suggested_model`; delete
-  the file to fall back to tier hints only. Keep it in sync with
-  `.aai/system/PRICING.yaml` so routed runs stay costable.
+  overrides supported, plus lane-scoped `<Role Name>@lightweight` overrides
+  that win only on a ceremony L0/L1 (lightweight-lane) dispatch for that
+  role — resolution order is `roles[role@lane] -> roles[role] -> tiers[tier]
+  -> null`, and configs without any `@lane` key resolve exactly as before).
+  Every dispatch now carries `suggested_model`; delete the file to fall back
+  to tier hints only. Keep it in sync with `.aai/system/PRICING.yaml` so
+  routed runs stay costable.
 - Delivered user-visible scopes leave a product artifact at
   `docs/product/<ref>.md` (functional description, data model, interfaces —
   from `.aai/templates/PRODUCT_TEMPLATE.md`), so end-user documentation
