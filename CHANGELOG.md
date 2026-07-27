@@ -11,6 +11,15 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix: suite-map maps factory doc trees — factory rides actually get selected mode (CHANGE-0073) [L1]
+
+- CI impact selection (CHANGE-0071) fail-opened on every factory PR because
+  generated/ledger doc paths (docs/INDEX.md, EVENTS/METRICS ledgers,
+  USER_GUIDE, overview, session journals) had no map row. Each now maps to
+  its natural owner suite; a typical ride doc-set selects 3 core + ~7 owner
+  suites (DROPPED 45) instead of a 55-suite full run. Data-file-only;
+  fail-open, always-on core, post-merge full gate and nightly unchanged.
+
 ## [unreleased] — feat: prompt-hash runtime wiring — the loop records the hash dispatch computes (CHANGE-0072 / SPEC-0098) [L2]
 
 - SKILL_LOOP's append-run boilerplate now instructs the orchestrator to pass

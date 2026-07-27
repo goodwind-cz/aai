@@ -139,6 +139,7 @@ suites:
       - .aai/scripts/pre-commit-checks.ps1
       - .aai/templates/RFC_TEMPLATE.md
       - .aai/templates/SPEC_TEMPLATE.md
+      - docs/INDEX.md
 
   aai-docs-audit:
     globs:
@@ -161,6 +162,10 @@ suites:
       - docs/releases/**
       - CHANGELOG.md
       - README.md
+      - docs/INDEX.md
+      - docs/ai/EVENTS.jsonl
+      - docs/project-sessions/**
+      - docs/TECHNOLOGY.md
 
   aai-docs-canon:
     globs:
@@ -208,6 +213,7 @@ suites:
       - .aai/system/AAI_PIN.md
       - .aai/system/FRICTION_PROTOCOL.md
       - .aai/system/PROFILES.yaml
+      - docs/ai/friction/**
 
   aai-hitl-propagation:
     globs:
@@ -298,6 +304,7 @@ suites:
       - .aai/SKILL_WRAP_UP.prompt.md
       - .aai/system/FRICTION_PROTOCOL.md
       - docs/knowledge/LEARNED.md
+      - docs/knowledge/**
 
   aai-metrics:
     globs:
@@ -308,6 +315,7 @@ suites:
       - .aai/STATE_FALLBACK.md
       - .aai/scripts/close-work-item.mjs
       - .aai/system/PRICING.yaml
+      - docs/ai/METRICS.jsonl
 
   aai-orchestration-dispatch:
     globs:
@@ -327,6 +335,8 @@ suites:
       - .aai/scripts/generate-overview.mjs
       - .aai/scripts/metrics-report.mjs
       - docs/product/**
+      - docs/ai/overview.html
+      - docs/ai/overview-data.json
 
   aai-pricing:
     globs:
@@ -353,6 +363,7 @@ suites:
       - .aai/scripts/prune-stale-briefs.mjs
       - .aai/templates/BRIEF_TEMPLATE.md
       - .aai/PLANNING.prompt.md
+      - docs/ai/briefs/**
 
   aai-reconcile-telemetry:
     globs:
@@ -433,6 +444,7 @@ suites:
       - .aai/SKILL_TDD.prompt.md
       - .aai/VALIDATION.prompt.md
       - .aai/scripts/aai-run-tests.sh
+      - docs/ai/tdd/**
 
   aai-tdd:
     globs:
