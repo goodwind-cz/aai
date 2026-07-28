@@ -365,8 +365,12 @@ test_030_auto_trigger_deprecation() {  # SPEC-0014 TEST-008 / Spec-AC-06 (CHANGE
   grep -E 'SKILL_AUTO_TRIGGER' "$PROJECT_ROOT/.aai/AGENTS.md" | grep -qi "deprecated" \
     || log_fail ".aai/AGENTS.md SKILL_AUTO_TRIGGER line must be relabeled deprecated"
 
-  # (e) generated catalog entry updated.
-  grep -A1 'name: "aai-auto-trigger"' "$PROJECT_ROOT/docs/SKILL_CATALOG.html" | grep -qi "deprecated" \
+  # (e) generated catalog entry updated (CHANGE-0078: docs/SKILL_CATALOG.html
+  # is now emitted by generate-docs-hub.mjs as `<h3>aai-auto-trigger</h3>`
+  # followed by a `<p class="desc">` carrying the SKILL.md description
+  # verbatim, not the old hand-authored `name: "aai-auto-trigger"` JS
+  # literal shape).
+  grep -A2 '<h3>aai-auto-trigger</h3>' "$PROJECT_ROOT/docs/SKILL_CATALOG.html" | grep -qi "deprecated" \
     || log_fail "docs/SKILL_CATALOG.html aai-auto-trigger description must say deprecated"
 
   # (f) discriminating repo grep: every non-historical file that mentions

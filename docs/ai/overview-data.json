@@ -1,69 +1,108 @@
 {
-  "generatedAt": "2026-07-27T12:31:40.631Z",
+  "generatedAt": "2026-07-28T02:02:44.126Z",
   "project": "aai",
   "counts": {
-    "delivered": 115,
-    "in_progress": 1,
+    "delivered": 124,
+    "in_progress": 4,
     "releases": 1,
-    "tokens_total": 18955589
+    "tokens_total": 21385667
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "prompt-hash-telemetry",
+    "ref": "docs-hub-generator",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "prompt-hash-telemetry",
+      "ref": "docs-hub-generator",
       "type": "intake_change",
-      "phase": null
+      "phase": "implementation"
     },
     "strategy": "tdd",
     "worktree": {
-      "recommendation": "required",
+      "recommendation": "not_needed",
       "user_decision": "inline"
     },
     "validation_status": "not_run",
     "review_status": "not_run",
     "ticks": [
       {
-        "tick": 4,
-        "role": "Code Review",
-        "scope": "prompt-hash-telemetry",
-        "duration_seconds": 131,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 3,
-        "role": "Validation",
-        "scope": "prompt-hash-telemetry",
-        "duration_seconds": 59,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
         "tick": 2,
-        "role": "TDD Implementation",
-        "scope": "prompt-hash-telemetry",
-        "duration_seconds": 1321,
+        "role": "Code Review",
+        "scope": "docs-hub-generator",
+        "duration_seconds": 360,
         "harness_version": "2.1.218 (Claude Code)"
       },
       {
         "tick": 1,
-        "role": "Planning",
-        "scope": "prompt-hash-telemetry",
-        "duration_seconds": 808,
+        "role": "Planning+Implementation",
+        "scope": "docs-hub-generator",
+        "duration_seconds": 1020,
         "harness_version": "2.1.218 (Claude Code)"
       },
       {
-        "tick": 3,
+        "tick": 2,
         "role": "Code Review",
-        "scope": "learned-append-gate",
-        "duration_seconds": 297,
+        "scope": "dashboard-refit",
+        "duration_seconds": 300,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 1,
+        "role": "Planning+Implementation",
+        "scope": "dashboard-refit",
+        "duration_seconds": 480,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 2,
+        "role": "Code Review",
+        "scope": "doctor-determinize",
+        "duration_seconds": 360,
         "harness_version": "2.1.218 (Claude Code)"
       }
     ]
   },
   "in_progress": [
+    {
+      "ref": "rollup-exclusion-visibility",
+      "title": "Change — userguide rollup names every excluded product doc and the missing section",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0075-rollup-exclusion-visibility.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "session-journal-contract",
+      "title": "Change — session-journal: reconcile prompt contract with actual practice",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0080-session-journal-contract.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "validate-report-contract",
+      "title": "Change — validate-report: reconcile the promised artifacts with the real validation path",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0082-validate-report-contract.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
@@ -79,6 +118,32 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "dashboard-refit",
+      "title": "Change — dashboard + test-skills prompts: drop dead source dump, fix schema docs, decide --publish",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0076-dashboard-refit.md",
+      "closed_on": "2026-07-28",
+      "agent_minutes": 20,
+      "token_total": 235648,
+      "spec": "docs/specs/SPEC-0101-spec-dashboard-refit.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "docs-hub-generator",
+      "title": "Change — docs-hub: deterministic generate-docs-hub.mjs (catalog is 8/35 skills stale)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0078-docs-hub-generator.md",
+      "closed_on": "2026-07-28",
+      "agent_minutes": 38,
+      "token_total": 306896,
+      "spec": "docs/specs/SPEC-0102-spec-docs-hub-generator.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "cheap-model-in-practice",
       "title": "Change — Cheap-model delegation in practice: Haiku for mechanical roles, tier-appropriate validation",
@@ -156,6 +221,97 @@
       "spec": "docs/specs/SPEC-0096-spec-prompt-hash-telemetry.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260727T122835Z-prompt-hash-telemetry.md"
+    },
+    {
+      "ref": "ci-test-impact-selection",
+      "title": "Change — CI test impact selection: PR pushes run affected suites, full framework moves to merge + nightly",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0071-ci-test-impact-selection.md",
+      "closed_on": "2026-07-27",
+      "agent_minutes": 47,
+      "token_total": 442239,
+      "spec": "docs/specs/SPEC-0097-spec-ci-test-impact-selection.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "prompt-hash-runtime-wiring",
+      "title": "Change — prompt-hash runtime wiring: the orchestrator actually records the hash dispatch already computes",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0072-prompt-hash-runtime-wiring.md",
+      "closed_on": "2026-07-27",
+      "agent_minutes": 24,
+      "token_total": 267424,
+      "spec": "docs/specs/SPEC-0098-spec-prompt-hash-runtime-wiring.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "suite-map-factory-doc-paths",
+      "title": "Change — suite-map: map factory doc trees so factory rides actually get selected mode",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0073-suite-map-factory-doc-paths.md",
+      "closed_on": "2026-07-27",
+      "agent_minutes": 5,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "state-bootstrap-template",
+      "title": "Change — ship STATE_TEMPLATE.yaml and teach check-state --repair to create a missing STATE",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0074-state-bootstrap-template.md",
+      "closed_on": "2026-07-27",
+      "agent_minutes": 47,
+      "token_total": 379757,
+      "spec": "docs/specs/SPEC-0099-spec-state-bootstrap-template.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "decapod-prune",
+      "title": "Change — prune the decapod integration surface (dead since March, CLI never built)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0077-decapod-prune.md",
+      "closed_on": "2026-07-27",
+      "agent_minutes": 20,
+      "token_total": 51596,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "doctor-determinize",
+      "title": "Change — aai-doctor: replace prose-computed categories with one deterministic script",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0079-doctor-determinize.md",
+      "closed_on": "2026-07-27",
+      "agent_minutes": 128,
+      "token_total": 449075,
+      "spec": "docs/specs/SPEC-0100-spec-doctor-determinize.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "skill-sweep-quick-wins",
+      "title": "Change — skill-sweep batch: three verified quick-win fixes + six findings intakes",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0081-skill-sweep-quick-wins.md",
+      "closed_on": "2026-07-27",
+      "agent_minutes": 18,
+      "token_total": 297443,
+      "spec": null,
+      "validation": null,
+      "review": null
     },
     {
       "ref": "closeout-display-id-match",
@@ -1582,6 +1738,32 @@
       "label": "2026-07",
       "items": [
         {
+          "ref": "dashboard-refit",
+          "title": "Change — dashboard + test-skills prompts: drop dead source dump, fix schema docs, decide --publish",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0076-dashboard-refit.md",
+          "closed_on": "2026-07-28",
+          "agent_minutes": 20,
+          "token_total": 235648,
+          "spec": "docs/specs/SPEC-0101-spec-dashboard-refit.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "docs-hub-generator",
+          "title": "Change — docs-hub: deterministic generate-docs-hub.mjs (catalog is 8/35 skills stale)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0078-docs-hub-generator.md",
+          "closed_on": "2026-07-28",
+          "agent_minutes": 38,
+          "token_total": 306896,
+          "spec": "docs/specs/SPEC-0102-spec-docs-hub-generator.md",
+          "validation": null,
+          "review": null
+        },
+        {
           "ref": "cheap-model-in-practice",
           "title": "Change — Cheap-model delegation in practice: Haiku for mechanical roles, tier-appropriate validation",
           "type": "change",
@@ -1658,6 +1840,97 @@
           "spec": "docs/specs/SPEC-0096-spec-prompt-hash-telemetry.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260727T122835Z-prompt-hash-telemetry.md"
+        },
+        {
+          "ref": "ci-test-impact-selection",
+          "title": "Change — CI test impact selection: PR pushes run affected suites, full framework moves to merge + nightly",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0071-ci-test-impact-selection.md",
+          "closed_on": "2026-07-27",
+          "agent_minutes": 47,
+          "token_total": 442239,
+          "spec": "docs/specs/SPEC-0097-spec-ci-test-impact-selection.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "prompt-hash-runtime-wiring",
+          "title": "Change — prompt-hash runtime wiring: the orchestrator actually records the hash dispatch already computes",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0072-prompt-hash-runtime-wiring.md",
+          "closed_on": "2026-07-27",
+          "agent_minutes": 24,
+          "token_total": 267424,
+          "spec": "docs/specs/SPEC-0098-spec-prompt-hash-runtime-wiring.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "suite-map-factory-doc-paths",
+          "title": "Change — suite-map: map factory doc trees so factory rides actually get selected mode",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0073-suite-map-factory-doc-paths.md",
+          "closed_on": "2026-07-27",
+          "agent_minutes": 5,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "state-bootstrap-template",
+          "title": "Change — ship STATE_TEMPLATE.yaml and teach check-state --repair to create a missing STATE",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0074-state-bootstrap-template.md",
+          "closed_on": "2026-07-27",
+          "agent_minutes": 47,
+          "token_total": 379757,
+          "spec": "docs/specs/SPEC-0099-spec-state-bootstrap-template.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "decapod-prune",
+          "title": "Change — prune the decapod integration surface (dead since March, CLI never built)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0077-decapod-prune.md",
+          "closed_on": "2026-07-27",
+          "agent_minutes": 20,
+          "token_total": 51596,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "doctor-determinize",
+          "title": "Change — aai-doctor: replace prose-computed categories with one deterministic script",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0079-doctor-determinize.md",
+          "closed_on": "2026-07-27",
+          "agent_minutes": 128,
+          "token_total": 449075,
+          "spec": "docs/specs/SPEC-0100-spec-doctor-determinize.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "skill-sweep-quick-wins",
+          "title": "Change — skill-sweep batch: three verified quick-win fixes + six findings intakes",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0081-skill-sweep-quick-wins.md",
+          "closed_on": "2026-07-27",
+          "agent_minutes": 18,
+          "token_total": 297443,
+          "spec": null,
+          "validation": null,
+          "review": null
         },
         {
           "ref": "closeout-display-id-match",

@@ -2,11 +2,13 @@
 id: docs-hub-generator
 number: 78
 type: change
-status: draft
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 180
+  commits:
+    - 2ffe4f29ec89cc69e834e3a560fa115edce45682
 ---
 
 # Change — docs-hub: deterministic generate-docs-hub.mjs (catalog is 8/35 skills stale)

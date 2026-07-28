@@ -1,596 +1,403 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AAI Skills Documentation Hub</title>
-    <style>
-        :root {
-            --bg: #f8f9fa;
-            --card-bg: #ffffff;
-            --primary: #4a90e2;
-            --primary-light: #e8f0fe;
-            --success: #5cb85c;
-            --warning: #f0ad4e;
-            --danger: #d9534f;
-            --text: #333333;
-            --text-muted: #6c757d;
-            --border: #dee2e6;
-            --shadow: rgba(0,0,0,0.08);
-            --code-bg: #f1f3f5;
-            --badge-intake: #4a90e2;
-            --badge-dev: #5cb85c;
-            --badge-workflow: #9b59b6;
-            --badge-quality: #f0ad4e;
-            --badge-publishing: #e74c3c;
-            --badge-session: #17a2b8;
-        }
-        .dark-theme {
-            --bg: #1a1a2e;
-            --card-bg: #16213e;
-            --primary: #61afef;
-            --primary-light: #1a2744;
-            --success: #98c379;
-            --warning: #d19a66;
-            --danger: #e06c75;
-            --text: #e0e0e0;
-            --text-muted: #8899aa;
-            --border: #2d3a4a;
-            --shadow: rgba(0,0,0,0.3);
-            --code-bg: #1e2d3d;
-            --badge-intake: #61afef;
-            --badge-dev: #98c379;
-            --badge-workflow: #c678dd;
-            --badge-quality: #d19a66;
-            --badge-publishing: #e06c75;
-            --badge-session: #56b6c2;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.6;
-            transition: background 0.3s, color 0.3s;
-        }
-        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
-        header {
-            text-align: center;
-            padding: 40px 0 24px;
-            position: relative;
-        }
-        header h1 { font-size: 2.2rem; font-weight: 700; margin-bottom: 8px; }
-        header .subtitle { color: var(--text-muted); font-size: 1.1rem; margin-bottom: 16px; }
-        header .stats {
-            display: flex; gap: 24px; justify-content: center; flex-wrap: wrap;
-            margin-top: 16px;
-        }
-        .stat { text-align: center; }
-        .stat-value { font-size: 1.8rem; font-weight: 700; color: var(--primary); }
-        .stat-label { font-size: 0.85rem; color: var(--text-muted); }
-        #theme-toggle {
-            position: absolute; top: 16px; right: 0;
-            background: var(--card-bg); border: 1px solid var(--border);
-            padding: 8px 16px; border-radius: 8px; cursor: pointer;
-            color: var(--text); font-size: 0.9rem;
-            transition: all 0.2s;
-        }
-        #theme-toggle:hover { border-color: var(--primary); }
-        .controls {
-            margin: 24px 0;
-            display: flex; flex-direction: column; gap: 16px; align-items: center;
-        }
-        #search {
-            width: 100%; max-width: 500px;
-            padding: 12px 20px; border-radius: 12px;
-            border: 1px solid var(--border);
-            background: var(--card-bg); color: var(--text);
-            font-size: 1rem;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        #search:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
-        .category-filters {
-            display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
-        }
-        .filter-btn {
-            padding: 6px 16px; border-radius: 20px;
-            border: 1px solid var(--border);
-            background: var(--card-bg); color: var(--text-muted);
-            cursor: pointer; font-size: 0.85rem;
-            transition: all 0.2s;
-        }
-        .filter-btn:hover { border-color: var(--primary); color: var(--primary); }
-        .filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-        .skill-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-            gap: 20px; margin: 24px 0;
-        }
-        .skill-card {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 20px;
-            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-            cursor: pointer;
-        }
-        .skill-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px var(--shadow);
-            border-color: var(--primary);
-        }
-        .skill-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-        .skill-header h3 { font-size: 1.05rem; font-weight: 600; font-family: 'Monaco', 'Consolas', monospace; }
-        .category-badge {
-            font-size: 0.7rem; padding: 3px 10px; border-radius: 12px;
-            font-weight: 600; white-space: nowrap; color: #fff;
-        }
-        .badge-intake { background: var(--badge-intake); }
-        .badge-dev { background: var(--badge-dev); }
-        .badge-workflow { background: var(--badge-workflow); }
-        .badge-quality { background: var(--badge-quality); color: #333; }
-        .badge-publishing { background: var(--badge-publishing); }
-        .badge-session { background: var(--badge-session); }
-        .skill-description { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 12px; }
-        .skill-details { display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
-        .skill-card.expanded .skill-details { display: block; }
-        .skill-details h4 { font-size: 0.85rem; font-weight: 600; margin: 12px 0 6px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-        .skill-details h4:first-child { margin-top: 0; }
-        .skill-details code {
-            display: block; background: var(--code-bg); padding: 8px 12px;
-            border-radius: 6px; font-size: 0.85rem; font-family: 'Monaco', 'Consolas', monospace;
-            overflow-x: auto;
-        }
-        .skill-tags { display: flex; gap: 6px; flex-wrap: wrap; }
-        .tag {
-            background: var(--primary-light); color: var(--primary);
-            padding: 2px 10px; border-radius: 10px; font-size: 0.78rem;
-        }
-        .skill-meta { display: flex; gap: 16px; margin-top: 12px; font-size: 0.82rem; color: var(--text-muted); }
-        .section-title { font-size: 1.4rem; font-weight: 700; margin: 48px 0 16px; text-align: center; }
-        .flowchart {
-            background: var(--card-bg); border: 1px solid var(--border);
-            border-radius: 12px; padding: 32px; margin: 24px 0; overflow-x: auto;
-        }
-        .flow-row { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; margin: 12px 0; }
-        .flow-stage {
-            background: var(--primary-light); border: 2px solid var(--primary);
-            border-radius: 10px; padding: 12px 20px; text-align: center; min-width: 140px;
-        }
-        .flow-stage-title { font-weight: 700; font-size: 0.85rem; color: var(--primary); margin-bottom: 6px; }
-        .flow-stage-skills { font-size: 0.78rem; color: var(--text-muted); }
-        .flow-arrow { font-size: 1.4rem; color: var(--primary); font-weight: bold; }
-        footer {
-            text-align: center; padding: 40px 0 24px;
-            color: var(--text-muted); font-size: 0.85rem;
-        }
-        footer code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 0.82rem; }
-        @media (max-width: 600px) {
-            .skill-grid { grid-template-columns: 1fr; }
-            header h1 { font-size: 1.6rem; }
-            .flow-row { flex-direction: column; }
-            .flow-arrow { transform: rotate(90deg); }
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AAI Skills Catalog</title>
+<style>
+  :root { color-scheme: light dark; --fg: #1c1c1c; --bg: #ffffff; --muted: #6b6b6b; --line: #e3e3e3; --accent: #0b62d6; --card-bg: #fafafa; --note-bg: #fff4e0; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #e8e8e8; --bg: #161616; --muted: #9a9a9a; --line: #333; --accent: #6fb0ff; --card-bg: #1e1e1e; --note-bg: #3a2c10; } }
+  body { margin: 0 auto; max-width: 68rem; padding: 2rem 1.25rem 4rem; font: 16px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg); }
+  h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+  h3 { margin: 0 0 .4rem; font-size: 1.05rem; }
+  .meta { color: var(--muted); font-size: .8rem; }
+  #search { width: 100%; box-sizing: border-box; font: inherit; padding: .6rem .8rem; margin: 1rem 0; border: 1px solid var(--line); border-radius: .5rem; background: var(--bg); color: var(--fg); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: 1rem; }
+  .skill-card { border: 1px solid var(--line); border-radius: .6rem; padding: .9rem 1rem; background: var(--card-bg); }
+  .skill-card.hidden { display: none; }
+  .desc, .goal { font-size: .9rem; margin: .3rem 0; }
+  .badge { font-size: .7rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: .05rem .5rem; margin-left: .4rem; }
+  ul.notes { margin: .4rem 0; padding: .4rem .8rem; background: var(--note-bg); border-radius: .4rem; font-size: .8rem; list-style: none; }
+  ul.notes li { margin: .15rem 0; }
+  footer { margin-top: 2rem; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--line); padding-top: .8rem; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>AAI Skills Documentation Hub</h1>
-            <p class="subtitle">Interactive catalog of all AAI agent skills</p>
-            <button id="theme-toggle">Dark Mode</button>
-            <div class="stats">
-                <div class="stat"><div class="stat-value" id="stat-total">-</div><div class="stat-label">Total Skills</div></div>
-                <div class="stat"><div class="stat-value" id="stat-categories">-</div><div class="stat-label">Categories</div></div>
-                <div class="stat"><div class="stat-value">4</div><div class="stat-label">Agents Supported</div></div>
-            </div>
-        </header>
+<h1>AAI Skills Catalog</h1>
+<p class="meta">Regenerate with <code>node .aai/scripts/generate-docs-hub.mjs</code></p>
+<input id="search" type="text" placeholder="Search skills by name, description, or goal…">
+<div class="grid" id="grid">
+<div class="skill-card" data-search="aai-auto-trigger deprecated — the .claude/triggers.json mechanism this skill configured has no runtime consumer, so triggers wired there never fire (spec-0013 d8). kept for muscle memory; invoking it explains the deprecation and the real alternative (wrapper-description trigger phrases). aai-auto-trigger">
+  <h3>aai-auto-trigger</h3>
+  <p class="desc"><strong>When to use:</strong> DEPRECATED — the .claude/triggers.json mechanism this skill configured has no runtime consumer, so triggers wired there never fire (SPEC-0013 D8). Kept for muscle memory; invoking it explains the deprecation and the real alternative (wrapper-description trigger phrases).</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_AUTO_TRIGGER.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-auto-trigger/SKILL.md · .aai/SKILL_AUTO_TRIGGER.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-bootstrap use when setting up a new aai project or when project-specific test/build/validation commands are missing or outdated. detects project architecture and generates optimized shortcuts. detect project architecture and generate project-specific `aai-*` skills that are:
+- directly visible to claude (`.claude/skills/`)
+- preserved by `aai-sync` (target-only skill folders are not removed)
+- discoverable for codex and gemini via local index files
+- concrete, idempotent, and safe for already configured projects aai-bootstrap">
+  <h3>aai-bootstrap</h3>
+  <p class="desc"><strong>When to use:</strong> Use when setting up a new AAI project or when project-specific test/build/validation commands are missing or outdated. Detects project architecture and generates optimized shortcuts.</p>
+  <p class="goal"><strong>Goal:</strong> Detect project architecture and generate project-specific `aai-*` skills that are:
+- directly visible to Claude (`.claude/skills/`)
+- preserved by `aai-sync` (target-only skill folders are not removed)
+- discoverable for Codex and Gemini via local index files
+- concrete, idempotent, and safe for already configured projects</p>
+  
+  <p class="meta">.claude/skills/aai-bootstrap/SKILL.md · .aai/SKILL_BOOTSTRAP.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-canonicalize use when legacy files exist in unsupported directories, telemetry is still in yaml, or validation evidence is fragmented. canonicalizes aai repository structure. aai-canonicalize">
+  <h3>aai-canonicalize</h3>
+  <p class="desc"><strong>When to use:</strong> Use when legacy files exist in unsupported directories, telemetry is still in YAML, or validation evidence is fragmented. Canonicalizes AAI repository structure.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_CANONICALIZE.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-canonicalize/SKILL.md · .aai/SKILL_CANONICALIZE.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-check-state use when state.yaml may be invalid, after unexpected loop failures, or before starting a new loop. add prefix repair: to auto-fix detected invariant violations. aai-check-state">
+  <h3>aai-check-state<span class="badge">haiku</span></h3>
+  <p class="desc"><strong>When to use:</strong> Use when STATE.yaml may be invalid, after unexpected loop failures, or before starting a new loop. Add prefix REPAIR: to auto-fix detected invariant violations.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_CHECK_STATE.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-check-state/SKILL.md · .aai/SKILL_CHECK_STATE.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-code-review use when reviewing committed or staged code changes. one dual-verdict pass returning spec_compliance (ac-table walk) and code_quality (blocking/non-blocking findings) plus a mandatory cannot_verify list. supports git diffs and github pr review. aai-code-review">
+  <h3>aai-code-review</h3>
+  <p class="desc"><strong>When to use:</strong> Use when reviewing committed or staged code changes. One dual-verdict pass returning spec_compliance (AC-table walk) and code_quality (BLOCKING/NON-BLOCKING findings) plus a mandatory cannot_verify list. Supports git diffs and GitHub PR review.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_CODE_REVIEW.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-code-review/SKILL.md · .aai/SKILL_CODE_REVIEW.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-dashboard use when you want to visualize aai workflow metrics — token usage, tdd cycles, worktree efficiency — as an interactive html dashboard. publishable via /aai-share. turn `docs/ai/metrics.jsonl` into an interactive html dashboard by running the
+real deterministic engine, `.aai/scripts/generate-dashboard.mjs` (377+ lines).
+do not re-implement parsing, aggregation, or html generation by hand and do
+not narrate intermediate steps — run the script and relay its output. aai-dashboard">
+  <h3>aai-dashboard</h3>
+  <p class="desc"><strong>When to use:</strong> Use when you want to visualize AAI workflow metrics — token usage, TDD cycles, worktree efficiency — as an interactive HTML dashboard. Publishable via /aai-share.</p>
+  <p class="goal"><strong>Goal:</strong> Turn `docs/ai/METRICS.jsonl` into an interactive HTML dashboard by running the
+real deterministic engine, `.aai/scripts/generate-dashboard.mjs` (377+ lines).
+Do NOT re-implement parsing, aggregation, or HTML generation by hand and do
+NOT narrate intermediate steps — run the script and relay its output.</p>
+  
+  <p class="meta">.claude/skills/aai-dashboard/SKILL.md · .aai/SKILL_DASHBOARD.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-debug use when fixing any failing test, bug, or validation finding — applies the systematic-debugging root-cause gate: read, reproduce, isolate, then fix-at-cause. no fixes without root cause. stop symptom-patching. no fix is written until the failure is understood at
+its cause. this is the single source of truth for the debugging protocol and
+rationalization table referenced by `.aai/remediation.prompt.md`.
 
-        <div class="controls">
-            <input type="text" id="search" placeholder="Search skills by name or description...">
-            <div class="category-filters">
-                <button class="filter-btn active" data-category="all" id="filter-all">All</button>
-                <button class="filter-btn" data-category="intake">Intake & Planning</button>
-                <button class="filter-btn" data-category="dev">Development</button>
-                <button class="filter-btn" data-category="workflow">Workflow</button>
-                <button class="filter-btn" data-category="quality">Quality</button>
-                <button class="filter-btn" data-category="publishing">Publishing</button>
-                <button class="filter-btn" data-category="session">Session</button>
-            </div>
-        </div>
+source: res-0001 p2 recommendation 7b — superpowers systematic-debugging
+pattern (4-phase root-cause-first protocol). motivating example from this
+repo: the fieldspan finding (issue-0007/spec-0022), where the surface bug
+(list append indent) nearly masked the deeper span bug — only the
+validator's probe forced the root cause out. aai-debug">
+  <h3>aai-debug</h3>
+  <p class="desc"><strong>When to use:</strong> Use when fixing any failing test, bug, or validation finding — applies the systematic-debugging root-cause gate: READ, REPRODUCE, ISOLATE, then FIX-AT-CAUSE. No fixes without root cause.</p>
+  <p class="goal"><strong>Goal:</strong> Stop symptom-patching. No fix is written until the failure is understood at
+its cause. This is the single source of truth for the debugging protocol and
+rationalization table referenced by `.aai/REMEDIATION.prompt.md`.
 
-        <div class="skill-grid" id="skill-grid"></div>
+Source: RES-0001 P2 recommendation 7b — Superpowers systematic-debugging
+pattern (4-phase root-cause-first protocol). Motivating example from this
+repo: the fieldSpan finding (ISSUE-0007/SPEC-0022), where the surface bug
+(list append indent) nearly masked the deeper span bug — only the
+validator's probe forced the root cause out.</p>
+  
+  <p class="meta">.claude/skills/aai-debug/SKILL.md · .aai/SKILL_DEBUG.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-deslop use optionally after implementation and before code review to remove ai slop from the current diff only — obvious comments, defensive try/catch on trusted paths, premature abstraction, unrequested features, annotations on untouched code. behavior must stay unchanged (suite passes after). advisory only — never blocks. remove characteristic ai-generated noise from the current diff before review,
+so reviewers spend attention on behavior, not on narration. strictly
+diff-scoped: only lines this change introduced are candidates — never a
+repo-wide cleanup crusade.
 
-        <h2 class="section-title">Workflow</h2>
-        <div class="flowchart">
-            <div class="flow-row">
-                <div class="flow-stage">
-                    <div class="flow-stage-title">Session Start</div>
-                    <div class="flow-stage-skills">aai-session-journal<br>aai-replay<br>aai-doctor<br>aai-check-state</div>
-                </div>
-                <div class="flow-arrow">&rarr;</div>
-                <div class="flow-stage">
-                    <div class="flow-stage-title">Intake</div>
-                    <div class="flow-stage-skills">aai-intake<br>aai-bootstrap</div>
-                </div>
-                <div class="flow-arrow">&rarr;</div>
-                <div class="flow-stage">
-                    <div class="flow-stage-title">Development</div>
-                    <div class="flow-stage-skills">aai-loop<br>aai-tdd<br>aai-worktree</div>
-                </div>
-                <div class="flow-arrow">&rarr;</div>
-                <div class="flow-stage">
-                    <div class="flow-stage-title">Validation</div>
-                    <div class="flow-stage-skills">aai-validate-report</div>
-                </div>
-                <div class="flow-arrow">&rarr;</div>
-                <div class="flow-stage">
-                    <div class="flow-stage-title">Code Review</div>
-                    <div class="flow-stage-skills">aai-code-review</div>
-                </div>
-                <div class="flow-arrow">&rarr;</div>
-                <div class="flow-stage">
-                    <div class="flow-stage-title">Pull Request</div>
-                    <div class="flow-stage-skills">aai-pr</div>
-                </div>
-                <div class="flow-arrow">&rarr;</div>
-                <div class="flow-stage">
-                    <div class="flow-stage-title">Publish</div>
-                    <div class="flow-stage-skills">aai-share<br>aai-dashboard</div>
-                </div>
-                <div class="flow-arrow">&rarr;</div>
-                <div class="flow-stage">
-                    <div class="flow-stage-title">Session End</div>
-                    <div class="flow-stage-skills">aai-session-journal<br>aai-wrap-up<br>aai-flush</div>
-                </div>
-            </div>
-        </div>
+source: res-0001 p3 recommendation 15 — pro-workflow deslop pass. aai-deslop">
+  <h3>aai-deslop</h3>
+  <p class="desc"><strong>When to use:</strong> Use optionally after implementation and before code review to remove AI slop from the current diff only — obvious comments, defensive try/catch on trusted paths, premature abstraction, unrequested features, annotations on untouched code. Behavior must stay unchanged (suite passes after). Advisory only — never blocks.</p>
+  <p class="goal"><strong>Goal:</strong> Remove characteristic AI-generated noise from the CURRENT DIFF before review,
+so reviewers spend attention on behavior, not on narration. Strictly
+diff-scoped: only lines this change introduced are candidates — never a
+repo-wide cleanup crusade.
 
-        <footer>
-            <p>Generated by <code>/aai-docs-hub</code> &bull; Last updated: <span id="timestamp"></span></p>
-            <p>Source: <a href="https://github.com/rohitg00/pro-workflow" style="color:var(--primary)">pro-workflow</a> patterns integrated</p>
-        </footer>
-    </div>
+Source: RES-0001 P3 recommendation 15 — pro-workflow deslop pass.</p>
+  
+  <p class="meta">.claude/skills/aai-deslop/SKILL.md · .aai/SKILL_DESLOP.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-docs-audit use when docs/ may contain orphan, false-done, false-open (delivered but still draft/implementing/accepted), stale, or duplicate-doc-id documents (two docs sharing one frontmatter id), before a release closeout, for a periodic docs hygiene review, or to verify a doc's acceptance criteria against the actual code (&quot;verify &lt;doc-id&gt;&quot;). reports per-doc classification and drift verdicts; edits docs only in the operator-approved remediation/verify modes. aai-docs-audit">
+  <h3>aai-docs-audit</h3>
+  <p class="desc"><strong>When to use:</strong> Use when docs/ may contain orphan, false-done, false-open (delivered but still draft/implementing/accepted), stale, or duplicate-doc-id documents (two docs sharing one frontmatter id), before a release closeout, for a periodic docs hygiene review, or to verify a doc's acceptance criteria against the actual code (&quot;verify &lt;DOC-ID&gt;&quot;). Reports per-doc classification and drift verdicts; edits docs only in the operator-approved remediation/verify modes.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_DOCS_AUDIT.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-docs-audit/SKILL.md · .aai/SKILL_DOCS_AUDIT.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-docs-canon use when layered project docs have no single &quot;current state&quot; view per feature — to consolidate intake/specs/rfcs into a canonical, function-categorized layer in docs/canonical/ while preserving and back-linking originals in docs/_archive/. two phases — phase 1 analyzes and proposes an ai domain map gated by human approval; phase 2 auto-synthesizes canonical docs, archives originals, and reports drift on re-run. aai-docs-canon">
+  <h3>aai-docs-canon</h3>
+  <p class="desc"><strong>When to use:</strong> Use when layered project docs have no single &quot;current state&quot; view per feature — to consolidate intake/specs/RFCs into a canonical, function-categorized layer in docs/canonical/ while preserving and back-linking originals in docs/_archive/. Two phases — Phase 1 analyzes and proposes an AI domain map gated by human approval; Phase 2 auto-synthesizes canonical docs, archives originals, and reports drift on re-run.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_DOCS_CANON.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-docs-canon/SKILL.md · .aai/SKILL_DOCS_CANON.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-docs-hub use when you need a searchable html catalog of all aai skills with search and per-skill cards (deterministic generator; categorization commentary is an optional llm add-on). publishable via /aai-share. turn `.claude/skills/*/skill.md` + `.aai/skill_*.prompt.md` into a searchable
+html skills catalog by running the real deterministic engine,
+`.aai/scripts/generate-docs-hub.mjs`. do not hand-scan skill files, hand-write
+categories/relationships, or re-derive the catalog by hand — run the script
+and relay its output. publishable via `/aai-share`. aai-docs-hub">
+  <h3>aai-docs-hub</h3>
+  <p class="desc"><strong>When to use:</strong> Use when you need a searchable HTML catalog of all AAI skills with search and per-skill cards (deterministic generator; categorization commentary is an optional LLM add-on). Publishable via /aai-share.</p>
+  <p class="goal"><strong>Goal:</strong> Turn `.claude/skills/*/SKILL.md` + `.aai/SKILL_*.prompt.md` into a searchable
+HTML skills catalog by running the real deterministic engine,
+`.aai/scripts/generate-docs-hub.mjs`. Do NOT hand-scan skill files, hand-write
+categories/relationships, or re-derive the catalog by hand — run the script
+and relay its output. Publishable via `/aai-share`.</p>
+  
+  <p class="meta">.claude/skills/aai-docs-hub/SKILL.md · .aai/SKILL_DOCS_HUB.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-doctor use when the aai environment may be broken, after a fresh install, or to diagnose unexpected failures. reports healthy / degraded / broken with actionable diagnostics. aai-doctor">
+  <h3>aai-doctor</h3>
+  <p class="desc"><strong>When to use:</strong> Use when the AAI environment may be broken, after a fresh install, or to diagnose unexpected failures. Reports HEALTHY / DEGRADED / BROKEN with actionable diagnostics.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_DOCTOR.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-doctor/SKILL.md · .aai/SKILL_DOCTOR.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-flush use when the loop exited without flushing metrics, or after manual validation, to move completed work item data from state.yaml to metrics.jsonl. aai-flush">
+  <h3>aai-flush<span class="badge">haiku</span></h3>
+  <p class="desc"><strong>When to use:</strong> Use when the loop exited without flushing metrics, or after manual validation, to move completed work item data from STATE.yaml to METRICS.jsonl.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_FLUSH.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-flush/SKILL.md · .aai/SKILL_FLUSH.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-hitl use when the autonomous loop pauses with 'human decision required'. surfaces the blocked question from state.yaml, collects your answer, and unblocks the loop. aai-hitl">
+  <h3>aai-hitl</h3>
+  <p class="desc"><strong>When to use:</strong> Use when the autonomous loop pauses with 'Human decision required'. Surfaces the blocked question from STATE.yaml, collects your answer, and unblocks the loop.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_HITL.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-hitl/SKILL.md · .aai/SKILL_HITL.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-intake use when starting any new work — feature, bug, change, rfc, hotfix, techdebt, or release. routes automatically to the correct intake template. includes a secrets preflight (secrets-preflight.mjs) that checks a referenced secret exists/is non-empty without ever reading or echoing its value. aai-intake">
+  <h3>aai-intake<span class="badge">haiku</span></h3>
+  <p class="desc"><strong>When to use:</strong> Use when starting any new work — feature, bug, change, RFC, hotfix, techdebt, or release. Routes automatically to the correct intake template. Includes a secrets preflight (secrets-preflight.mjs) that checks a referenced secret exists/is non-empty without ever reading or echoing its value.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_INTAKE.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-intake/SKILL.md · .aai/SKILL_INTAKE.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-interrogate use optionally at spec freeze (or when a plan feels underdetermined) to walk open decisions one question at a time — every question ships a recommended answer, codebase-resolvable ones are inferred silently, and each decision is appended to docs/ai/decisions.jsonl. advisory only — never blocks. surface the decisions hiding inside a plan or spec before they surface as
+rework — one at a time, each pre-answered, each recorded. the output is a
+decision ledger, not a longer spec.
 
-    <script>
-    const skills = [
-        {
-            name: "aai-intake",
-            description: "Universal intake router. Detects work type from a description (feature, bug, change, research, RFC, hotfix, techdebt, release) and runs the correct INTAKE_*.prompt.md. Accepts input in any language.",
-            category: "intake", badge: "Intake & Planning", badgeClass: "badge-intake",
-            prompt: ".aai/SKILL_INTAKE.prompt.md",
-            usage: '/aai-intake "Add user authentication with JWT"',
-            whenToUse: ["Starting any new work", "Converting requests to structured artifacts"],
-            leadsTo: ["aai-loop", "aai-tdd"], prerequisites: [],
-            tags: ["requirements", "planning", "routing"]
-        },
-        {
-            name: "aai-check-state",
-            description: "STATE.yaml health check. Validates all invariants (enums, locks, evidence, HITL gate, timestamp). Reports HEALTHY / DEGRADED / BROKEN. Add prefix REPAIR: to auto-fix FAIL invariants.",
-            category: "intake", badge: "Intake & Planning", badgeClass: "badge-intake",
-            prompt: ".aai/SKILL_CHECK_STATE.prompt.md",
-            usage: "/aai-check-state",
-            whenToUse: ["Before starting any role", "Debugging state issues", "After interrupted workflows"],
-            leadsTo: [], prerequisites: [],
-            tags: ["state", "validation", "health"]
-        },
-        {
-            name: "aai-bootstrap",
-            description: "Automatically detect project architecture and generate optimized, project-specific skills for testing, building, and validation. Saves tokens by creating tailored shortcuts.",
-            category: "intake", badge: "Intake & Planning", badgeClass: "badge-intake",
-            prompt: ".aai/SKILL_BOOTSTRAP.prompt.md",
-            usage: "/aai-bootstrap",
-            whenToUse: ["First time using AAI", "After adding new tools", "After architecture changes"],
-            leadsTo: ["aai-test-skills"], prerequisites: [],
-            tags: ["setup", "architecture", "skills"]
-        },
-        {
-            name: "aai-tdd",
-            description: "Enforces RED-GREEN-REFACTOR test-driven development cycle with evidence at each phase. Inspired by Superpowers framework.",
-            category: "dev", badge: "Development", badgeClass: "badge-dev",
-            prompt: ".aai/SKILL_TDD.prompt.md",
-            usage: "/aai-tdd",
-            whenToUse: ["Implementing any feature", "Writing tests first", "Ensuring code quality"],
-            leadsTo: ["aai-validate-report"], prerequisites: ["aai-intake"],
-            tags: ["testing", "tdd", "implementation"]
-        },
-        {
-            name: "aai-validate-report",
-            description: "Run validation and generate a chat-friendly report with screenshot evidence in docs/ai/reports.",
-            category: "dev", badge: "Development", badgeClass: "badge-dev",
-            prompt: ".aai/SKILL_VALIDATE_REPORT.prompt.md",
-            usage: "/aai-validate-report",
-            whenToUse: ["End of feature development", "Before sharing results", "Evidence collection"],
-            leadsTo: ["aai-share"], prerequisites: ["aai-tdd"],
-            tags: ["validation", "screenshots", "evidence"]
-        },
-        {
-            name: "aai-code-review",
-            description: "Automated code review for git diffs and GitHub PRs. Checks security, performance, style issues with severity levels. Can post structured review comments to GitHub PRs.",
-            category: "dev", badge: "Development", badgeClass: "badge-dev",
-            prompt: ".aai/SKILL_CODE_REVIEW.prompt.md",
-            usage: "/aai-code-review --pr 42 --post",
-            whenToUse: ["Before committing", "Reviewing PRs", "Security audits"],
-            leadsTo: [], prerequisites: [],
-            tags: ["review", "security", "quality"]
-        },
-        {
-            name: "aai-test-skills",
-            description: "Test all AAI skills to ensure they work correctly. Validates dependencies, runs integration tests, and generates test report.",
-            category: "dev", badge: "Development", badgeClass: "badge-dev",
-            prompt: ".aai/SKILL_TEST_SKILLS.prompt.md",
-            usage: "/aai-test-skills",
-            whenToUse: ["After AAI updates", "Troubleshooting issues", "CI/CD validation"],
-            leadsTo: [], prerequisites: ["aai-bootstrap"],
-            tags: ["testing", "ci", "validation"]
-        },
-        {
-            name: "aai-loop",
-            description: "Run the full autonomous multi-tick AAI loop inside this session. Reads STATE.yaml, dispatches roles via subagents tick by tick, stops on PASS / human-input-required / paused / max-ticks. Supports checkpoint_mode (none/staged/paranoid).",
-            category: "workflow", badge: "Workflow", badgeClass: "badge-workflow",
-            prompt: ".aai/SKILL_LOOP.prompt.md",
-            usage: "/aai-loop\n/aai-loop (with checkpoint_mode=staged)",
-            whenToUse: ["Complex multi-step workflows", "Hands-off automation", "Long-running tasks"],
-            leadsTo: ["aai-hitl", "aai-validate-report"], prerequisites: ["aai-intake"],
-            tags: ["orchestration", "autonomous", "checkpoints"]
-        },
-        {
-            name: "aai-hitl",
-            description: "Human-in-the-loop resolver. Run when the autonomous loop pauses with 'Human decision required'. Surfaces the blocked question from STATE.yaml, collects your answer, saves a decision artifact, and unblocks the loop.",
-            category: "workflow", badge: "Workflow", badgeClass: "badge-workflow",
-            prompt: ".aai/SKILL_HITL.prompt.md",
-            usage: "/aai-hitl",
-            whenToUse: ["When loop pauses", "Answering blocking questions", "Manual decision points"],
-            leadsTo: ["aai-loop"], prerequisites: [],
-            tags: ["decisions", "human", "blocking"]
-        },
-        {
-            name: "aai-worktree",
-            description: "Manage git worktrees for parallel isolated development. Create, switch, and cleanup worktrees for features/tasks. Inspired by Superpowers parallel development pattern.",
-            category: "workflow", badge: "Workflow", badgeClass: "badge-workflow",
-            prompt: ".aai/SKILL_WORKTREE.prompt.md",
-            usage: "/aai-worktree setup login\n/aai-worktree list\n/aai-worktree cleanup login",
-            whenToUse: ["Multiple features simultaneously", "Long-running branches", "Experimental work"],
-            leadsTo: [], prerequisites: [],
-            tags: ["git", "parallel", "isolation"]
-        },
-        {
-            name: "aai-auto-trigger",
-            description: "DEPRECATED — the .claude/triggers.json mechanism has no runtime consumer, so triggers wired there never fire (SPEC-0013 D8 / SPEC-0014). Use wrapper-description trigger phrases instead; invoking it explains the deprecation.",
-            category: "workflow", badge: "Workflow", badgeClass: "badge-workflow",
-            prompt: ".aai/SKILL_AUTO_TRIGGER.prompt.md",
-            usage: "/aai-auto-trigger",
-            whenToUse: ["Understanding why auto-trigger is deprecated", "Finding the wrapper-description trigger-phrase channel"],
-            leadsTo: [], prerequisites: [],
-            tags: ["automation", "triggers", "patterns"]
-        },
-        {
-            name: "aai-canonicalize",
-            description: "Canonicalize AAI repository structure with intake, migration, evidence consolidation, and architecture summary generation. Use when legacy files exist in unsupported directories.",
-            category: "quality", badge: "Quality", badgeClass: "badge-quality",
-            prompt: ".aai/SKILL_CANONICALIZE.prompt.md",
-            usage: "/aai-canonicalize",
-            whenToUse: ["Migrating from old AAI versions", "Cleaning up scattered artifacts"],
-            leadsTo: [], prerequisites: [],
-            tags: ["migration", "cleanup", "structure"]
-        },
-        {
-            name: "aai-flush",
-            description: "Flush completed work item metrics from STATE.yaml to METRICS.jsonl and clean up state. Use when the loop didn't complete the flush or after manual validation.",
-            category: "quality", badge: "Quality", badgeClass: "badge-quality",
-            prompt: ".aai/SKILL_FLUSH.prompt.md",
-            usage: "/aai-flush",
-            whenToUse: ["Manual state cleanup", "After interrupted workflows", "Metrics sync"],
-            leadsTo: [], prerequisites: [],
-            tags: ["metrics", "cleanup", "state"]
-        },
-        {
-            name: "aai-decapod",
-            description: "Decapod integration PoC. Checks if decapod is installed, integrates with intake for advisory checks, and with validate-report for attestation artifacts.",
-            category: "quality", badge: "Quality", badgeClass: "badge-quality",
-            prompt: ".aai/SKILL_DECAPOD.prompt.md",
-            usage: "/aai-decapod",
-            whenToUse: ["Compliance requirements (SOC2, HIPAA, GDPR)", "Governance needs"],
-            leadsTo: [], prerequisites: [],
-            tags: ["compliance", "governance", "attestation"]
-        },
-        {
-            name: "aai-share",
-            description: "Publish reports and documentation to Cloudflare Pages for quick sharing. Supports Markdown with embedded images, generates HTML, and returns shareable URL.",
-            category: "publishing", badge: "Publishing", badgeClass: "badge-publishing",
-            prompt: ".aai/SKILL_SHARE.prompt.md",
-            usage: "/aai-share docs/ai/reports/VALIDATION_REPORT.md",
-            whenToUse: ["Sharing validation reports", "Publishing documentation", "Team collaboration"],
-            leadsTo: [], prerequisites: [],
-            tags: ["cloudflare", "publishing", "sharing"]
-        },
-        {
-            name: "aai-dashboard",
-            description: "Generate interactive HTML dashboard from METRICS.jsonl with charts for token usage, TDD cycles, worktree efficiency, publishing stats, and skill usage frequency.",
-            category: "publishing", badge: "Publishing", badgeClass: "badge-publishing",
-            prompt: ".aai/SKILL_DASHBOARD.prompt.md",
-            usage: "/aai-dashboard --publish",
-            whenToUse: ["Monthly reviews", "Performance analysis", "Team reporting"],
-            leadsTo: ["aai-share"], prerequisites: [],
-            tags: ["metrics", "charts", "analytics"]
-        },
-        {
-            name: "aai-docs-hub",
-            description: "Interactive documentation hub that discovers all AAI skills, generates searchable HTML catalog with categories, filters, and relationships. Publishable via /aai-share.",
-            category: "publishing", badge: "Publishing", badgeClass: "badge-publishing",
-            prompt: ".aai/SKILL_DOCS_HUB.prompt.md",
-            usage: "/aai-docs-hub",
-            whenToUse: ["Learning available skills", "Team onboarding", "Skill discovery"],
-            leadsTo: ["aai-share"], prerequisites: [],
-            tags: ["documentation", "catalog", "onboarding"]
-        },
-        {
-            name: "aai-profile",
-            description: "Performance profiling for AAI workflows. Tracks token usage, execution time, memory usage, cache hit rates per skill. Generates optimization suggestions.",
-            category: "publishing", badge: "Publishing", badgeClass: "badge-publishing",
-            prompt: ".aai/SKILL_PROFILE.prompt.md",
-            usage: "/aai-profile aai-intake\n/aai-profile --workflow",
-            whenToUse: ["Optimizing workflows", "Identifying bottlenecks", "Token usage analysis"],
-            leadsTo: [], prerequisites: [],
-            tags: ["performance", "tokens", "optimization"]
-        },
-        {
-            name: "aai-doctor",
-            description: "AAI environment health check. Validates core files, skills, knowledge, STATE.yaml, git status, and dependencies. Reports HEALTHY / DEGRADED / BROKEN with actionable diagnostics.",
-            category: "session", badge: "Session", badgeClass: "badge-session",
-            prompt: ".aai/SKILL_DOCTOR.prompt.md",
-            usage: "/aai-doctor",
-            whenToUse: ["After AAI sync or setup", "When something seems broken", "Onboarding new team members"],
-            leadsTo: [], prerequisites: [],
-            tags: ["diagnostics", "health", "environment"]
-        },
-        {
-            name: "aai-replay",
-            description: "Surface relevant past learnings for the current work context. Searches LEARNED.md, PATTERNS.md, FACTS.md, and decisions.jsonl. Shows only what matters for the task at hand.",
-            category: "session", badge: "Session", badgeClass: "badge-session",
-            prompt: ".aai/SKILL_REPLAY.prompt.md",
-            usage: '/aai-replay\n/aai-replay "authentication"',
-            whenToUse: ["Starting a new feature", "Before implementation", "Avoiding past mistakes"],
-            leadsTo: ["aai-intake"], prerequisites: [],
-            tags: ["knowledge", "learnings", "context"]
-        },
-        {
-            name: "aai-session-journal",
-            description: "Create or update a named, durable project discussion session in human language. Stores cross-agent rationale, decision trail, and resume context in docs/project-sessions/.",
-            category: "session", badge: "Session", badgeClass: "badge-session",
-            prompt: ".aai/SKILL_SESSION_JOURNAL.prompt.md",
-            usage: '/aai-session-journal "Authentication redesign"',
-            whenToUse: ["Creating a named discussion thread", "Resuming project context across agents", "Keeping rationale in the user's language"],
-            leadsTo: ["aai-intake", "aai-wrap-up"], prerequisites: [],
-            tags: ["journal", "session", "continuity"]
-        },
-        {
-            name: "aai-wrap-up",
-            description: "Session wrap-up ritual. Captures learnings, summarizes accomplishments, proposes LEARNED.md rules, checks uncommitted work, and prepares next session context.",
-            category: "session", badge: "Session", badgeClass: "badge-session",
-            prompt: ".aai/SKILL_WRAP_UP.prompt.md",
-            usage: "/aai-wrap-up",
-            whenToUse: ["End of work session", "Before context gets lost", "After completing a feature"],
-            leadsTo: [], prerequisites: [],
-            tags: ["learnings", "session", "wrap-up"]
-        },
-        {
-            name: "aai-pr",
-            description: "PR ceremony for a validated, review-passed scope. Derives the scope file-list from STATE/spec, stages ONLY in-scope paths, audits staged-vs-scope, commits with project conventions, pushes, and opens the PR via gh pr create. Never merges — merging is an operator action.",
-            category: "workflow", badge: "Workflow", badgeClass: "badge-workflow",
-            prompt: ".aai/SKILL_PR.prompt.md",
-            usage: "/aai-pr",
-            whenToUse: ["After Validation PASS and Code Review PASS", "Turning a finished scope into a pull request"],
-            leadsTo: [], prerequisites: ["aai-code-review"],
-            tags: ["git", "pull-request", "ceremony"]
-        },
-        {
-            name: "aai-docs-audit",
-            description: "Docs hygiene and drift audit (RFC-0002). Classifies governed docs as orphan, false-done, or stale; verifies acceptance criteria against actual code; provides the close gate (--gate) and body lint (--lint-body) used by the pre-commit hook. Reports only — edits docs solely in operator-approved remediation/verify modes.",
-            category: "quality", badge: "Quality", badgeClass: "badge-quality",
-            prompt: ".aai/SKILL_DOCS_AUDIT.prompt.md",
-            usage: "/aai-docs-audit\n/aai-docs-audit verify SPEC-0013",
-            whenToUse: ["Before a release closeout", "Periodic docs hygiene review", "Verifying a doc's claims against code"],
-            leadsTo: ["aai-docs-canon"], prerequisites: [],
-            tags: ["docs", "drift", "audit"]
-        },
-        {
-            name: "aai-docs-canon",
-            description: "Docs canonicalization (RFC-0003). Consolidates layered intake/specs/RFCs into a canonical, function-categorized layer in docs/canonical/, preserving and back-linking originals in docs/_archive/. Phase 1 proposes a domain map gated by human approval; Phase 2 synthesizes canonical docs and reports drift on re-run.",
-            category: "quality", badge: "Quality", badgeClass: "badge-quality",
-            prompt: ".aai/SKILL_DOCS_CANON.prompt.md",
-            usage: "/aai-docs-canon",
-            whenToUse: ["No single current-state doc per feature", "After many layered intakes/specs accumulate"],
-            leadsTo: ["aai-test-canon"], prerequisites: [],
-            tags: ["docs", "canonical", "consolidation"]
-        },
-        {
-            name: "aai-test-canon",
-            description: "Test canonicalization (RFC-0006). Consolidates fragmented per-change tests into a canonical per-domain layer in tests/canonical/ (anchored on the canonical docs domain map), archives originals with back-links, scaffolds RED stubs for uncovered acceptance criteria (handing off to aai-tdd), and reports drift on re-run.",
-            category: "quality", badge: "Quality", badgeClass: "badge-quality",
-            prompt: ".aai/SKILL_TEST_CANON.prompt.md",
-            usage: "/aai-test-canon",
-            whenToUse: ["Tests fragmented per change/issue", "Coverage gaps against canonical docs"],
-            leadsTo: ["aai-tdd"], prerequisites: ["aai-docs-canon"],
-            tags: ["tests", "canonical", "coverage"]
-        },
-        {
-            name: "aai-update",
-            description: "Re-syncs the project's vendored AAI layer from the main branch of the canonical repository. Supports private upstreams, reports sync-conflict advisories, and recommends post-update checks (/aai-bootstrap, /aai-doctor, /aai-test-skills). Supports --dry-run preview.",
-            category: "quality", badge: "Quality", badgeClass: "badge-quality",
-            prompt: ".aai/SKILL_UPDATE.prompt.md",
-            usage: "/aai-update\n/aai-update --dry-run",
-            whenToUse: ["After upstream AAI changes", "Previewing what an update would change"],
-            leadsTo: ["aai-doctor", "aai-test-skills"], prerequisites: [],
-            tags: ["sync", "update", "vendored"]
-        }
-    ];
+source: res-0001 p3 recommendation 15 — pro-workflow plan-interrogate /
+decision-ledger pattern. aai-interrogate">
+  <h3>aai-interrogate</h3>
+  <p class="desc"><strong>When to use:</strong> Use optionally at spec freeze (or when a plan feels underdetermined) to walk open decisions one question at a time — every question ships a recommended answer, codebase-resolvable ones are inferred silently, and each decision is appended to docs/ai/decisions.jsonl. Advisory only — never blocks.</p>
+  <p class="goal"><strong>Goal:</strong> Surface the decisions hiding inside a plan or spec BEFORE they surface as
+rework — one at a time, each pre-answered, each recorded. The output is a
+decision ledger, not a longer spec.
 
-    function renderSkills(filteredSkills) {
-        const grid = document.getElementById('skill-grid');
-        grid.innerHTML = filteredSkills.map(s => `
-            <div class="skill-card" data-category="${s.category}" onclick="this.classList.toggle('expanded')">
-                <div class="skill-header">
-                    <h3>/${s.name}</h3>
-                    <span class="category-badge ${s.badgeClass}">${s.badge}</span>
-                </div>
-                <p class="skill-description">${s.description}</p>
-                <div class="skill-tags">${s.tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>
-                <div class="skill-details">
-                    <h4>Usage</h4>
-                    <code>${s.usage.replace(/\n/g, '<br>')}</code>
-                    <h4>When to Use</h4>
-                    <ul>${s.whenToUse.map(w => `<li>${w}</li>`).join('')}</ul>
-                    ${s.prerequisites.length ? `<h4>Prerequisites</h4><div class="skill-tags">${s.prerequisites.map(p => `<span class="tag">${p}</span>`).join('')}</div>` : ''}
-                    ${s.leadsTo.length ? `<h4>Leads To</h4><div class="skill-tags">${s.leadsTo.map(l => `<span class="tag">&rarr; ${l}</span>`).join('')}</div>` : ''}
-                    <div class="skill-meta">
-                        <span>Prompt: <code style="display:inline;padding:2px 6px">${s.prompt}</code></span>
-                    </div>
-                </div>
-            </div>
-        `).join('');
-    }
+Source: RES-0001 P3 recommendation 15 — pro-workflow plan-interrogate /
+decision-ledger pattern.</p>
+  
+  <p class="meta">.claude/skills/aai-interrogate/SKILL.md · .aai/SKILL_INTERROGATE.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-loop use when starting or resuming the full autonomous aai development loop. runs planning → implementation → validation → remediation cycles automatically until pass or human input is required. ceremony-aware: a spec's ceremony_level 0/1 routes small scopes through a lighter lane (implementation → declared-scope validation → one review), while 2/3 (and any absent/invalid level) run the full pipeline. aai-loop">
+  <h3>aai-loop</h3>
+  <p class="desc"><strong>When to use:</strong> Use when starting or resuming the full autonomous AAI development loop. Runs Planning → Implementation → Validation → Remediation cycles automatically until PASS or human input is required. Ceremony-aware: a spec's ceremony_level 0/1 routes small scopes through a lighter lane (implementation → declared-scope validation → one review), while 2/3 (and any absent/invalid level) run the full pipeline.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_LOOP.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-loop/SKILL.md · .aai/SKILL_LOOP.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-overview use when the user wants a plain-language project overview — what the factory has delivered, what is in progress, and what waits on a human decision — rendered as a self-contained html page with links to specs and evidence. aai-overview">
+  <h3>aai-overview</h3>
+  <p class="desc"><strong>When to use:</strong> Use when the user wants a plain-language project overview — what the factory has delivered, what is in progress, and what waits on a human decision — rendered as a self-contained HTML page with links to specs and evidence.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no .aai/SKILL_*.prompt.md reference found in .claude/skills/aai-overview/SKILL.md (script-first skill — see description)</li></ul>
+  <p class="meta">.claude/skills/aai-overview/SKILL.md</p>
+</div>
+<div class="skill-card" data-search="aai-pr use when a validated, review-passed scope is ready to become a pull request. derives the scope file-list from state/spec, stages only in-scope paths, audits staged-vs-scope, commits with project conventions, pushes, opens the pr via gh pr create, and runs the deterministic close ceremony (close-work-item.mjs — status flip, links, close events, self-verifying audit). never merges — merging is an operator action. aai-pr">
+  <h3>aai-pr</h3>
+  <p class="desc"><strong>When to use:</strong> Use when a validated, review-passed scope is ready to become a pull request. Derives the scope file-list from STATE/spec, stages ONLY in-scope paths, audits staged-vs-scope, commits with project conventions, pushes, opens the PR via gh pr create, and runs the deterministic close ceremony (close-work-item.mjs — status flip, links, close events, self-verifying audit). Never merges — merging is an operator action.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_PR.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-pr/SKILL.md · .aai/SKILL_PR.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-profile use when diagnosing token usage, execution time, or cache inefficiency across aai workflows. generates optimization suggestions and profiling reports. analyze real aai workflow telemetry — token usage, cost, duration, cache
+efficiency — from the data the workflow actually records, identify bottlenecks,
+and produce an actionable markdown report. this skill reads existing telemetry;
+it does not instrument anything and it invents no numbers. aai-profile">
+  <h3>aai-profile</h3>
+  <p class="desc"><strong>When to use:</strong> Use when diagnosing token usage, execution time, or cache inefficiency across AAI workflows. Generates optimization suggestions and profiling reports.</p>
+  <p class="goal"><strong>Goal:</strong> Analyze real AAI workflow telemetry — token usage, cost, duration, cache
+efficiency — from the data the workflow actually records, identify bottlenecks,
+and produce an actionable markdown report. This skill reads existing telemetry;
+it does not instrument anything and it invents no numbers.</p>
+  
+  <p class="meta">.claude/skills/aai-profile/SKILL.md · .aai/SKILL_PROFILE.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-release use when a validated scope is ready to ship a release — rolls changelog.md [unreleased] into a versioned section, commits, tags, publishes a github release, and pushes, behind an operator-gated confirm with a safe default dry-run. roll the current repo's `changelog.md` `[unreleased]` blocks into a versioned
+section, commit, tag, publish a github release, and push — in one
+deterministic, operator-gated run. works identically releasing aai itself or
+a downstream project that has the aai layer deployed (its only inputs are the
+repo root, its `changelog.md`, and its git/`gh` remote). aai-release">
+  <h3>aai-release</h3>
+  <p class="desc"><strong>When to use:</strong> Use when a validated scope is ready to ship a release — rolls CHANGELOG.md [unreleased] into a versioned section, commits, tags, publishes a GitHub release, and pushes, behind an operator-gated confirm with a safe default dry-run.</p>
+  <p class="goal"><strong>Goal:</strong> Roll the current repo's `CHANGELOG.md` `[unreleased]` blocks into a versioned
+section, commit, tag, publish a GitHub release, and push — in one
+deterministic, operator-gated run. Works identically releasing AAI itself or
+a downstream project that has the AAI layer deployed (its only inputs are the
+repo root, its `CHANGELOG.md`, and its git/`gh` remote).</p>
+  
+  <p class="meta">.claude/skills/aai-release/SKILL.md · .aai/SKILL_RELEASE.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-replay use when starting work on a task to surface relevant past learnings, patterns, and decisions from previous sessions. aai-replay">
+  <h3>aai-replay</h3>
+  <p class="desc"><strong>When to use:</strong> Use when starting work on a task to surface relevant past learnings, patterns, and decisions from previous sessions.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_REPLAY.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-replay/SKILL.md · .aai/SKILL_REPLAY.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-scout use optionally before starting implementation to score readiness 0-100 over five dimensions (scope clarity, pattern familiarity, dependency awareness, edge cases, test strategy) with a go/hold advisory at 70. advisory only — never blocks. before implementation starts, measure how ready this agent actually is to
+build the scoped work item — and say so in one honest number. a low score is
+not a stop sign; it is a shopping list of the evidence to gather first.
 
-    function filterSkills() {
-        const search = document.getElementById('search').value.toLowerCase();
-        const activeBtn = document.querySelector('.filter-btn.active');
-        const category = activeBtn ? activeBtn.dataset.category : 'all';
-        const filtered = skills.filter(s => {
-            const matchSearch = !search || s.name.includes(search) || s.description.toLowerCase().includes(search) || s.tags.some(t => t.includes(search));
-            const matchCategory = category === 'all' || s.category === category;
-            return matchSearch && matchCategory;
-        });
-        renderSkills(filtered);
-    }
+source: res-0001 p3 recommendation 15 — pro-workflow scout readiness score. aai-scout">
+  <h3>aai-scout</h3>
+  <p class="desc"><strong>When to use:</strong> Use optionally before starting implementation to score readiness 0-100 over five dimensions (scope clarity, pattern familiarity, dependency awareness, edge cases, test strategy) with a GO/HOLD advisory at 70. Advisory only — never blocks.</p>
+  <p class="goal"><strong>Goal:</strong> Before implementation starts, measure how ready this agent actually is to
+build the scoped work item — and say so in one honest number. A low score is
+not a stop sign; it is a shopping list of the evidence to gather first.
 
-    document.getElementById('search').addEventListener('input', filterSkills);
+Source: RES-0001 P3 recommendation 15 — pro-workflow scout readiness score.</p>
+  
+  <p class="meta">.claude/skills/aai-scout/SKILL.md · .aai/SKILL_SCOUT.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-session-journal create or update a named, durable project discussion session in human language. use for cross-agent continuity, session resumption, decision trail capture, and agent-neutral project journaling outside runtime state. aai-session-journal">
+  <h3>aai-session-journal</h3>
+  <p class="desc"><strong>When to use:</strong> Create or update a named, durable project discussion session in human language. Use for cross-agent continuity, session resumption, decision trail capture, and agent-neutral project journaling outside runtime state.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_SESSION_JOURNAL.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-session-journal/SKILL.md · .aai/SKILL_SESSION_JOURNAL.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-share use when publishing a report, dashboard, or documentation to a shareable cloudflare pages url. convert a markdown document to html and publish it to cloudflare pages. returns a public url. aai-share">
+  <h3>aai-share</h3>
+  <p class="desc"><strong>When to use:</strong> Use when publishing a report, dashboard, or documentation to a shareable Cloudflare Pages URL.</p>
+  <p class="goal"><strong>Goal:</strong> Convert a Markdown document to HTML and publish it to Cloudflare Pages. Returns a public URL.</p>
+  
+  <p class="meta">.claude/skills/aai-share/SKILL.md · .aai/SKILL_SHARE.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-ship use when the user states a need and wants the factory to take it end-to-end autonomously — intake, planning, implementation, validation, review, product docs — pausing only at one ship checkpoint that opens the pr. never merges. aai-ship">
+  <h3>aai-ship</h3>
+  <p class="desc"><strong>When to use:</strong> Use when the user states a need and wants the factory to take it end-to-end autonomously — intake, planning, implementation, validation, review, product docs — pausing only at one ship checkpoint that opens the PR. Never merges.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_SHIP.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-ship/SKILL.md · .aai/SKILL_SHIP.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-tdd use when implementing any feature or fix that should follow test-driven development. enforces red-green-refactor cycle with evidence at each phase. enforce systematic red-green-refactor test-driven development with verifiable evidence at each phase.
+when invoked before the repository is ready for implementation, run the same
+orchestration preflight used by the autonomous loop until a frozen spec with a
+test plan is available or a human decision is required.
 
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            filterSkills();
-        });
+inspired by superpowers framework's mandatory tdd cycles. aai-tdd">
+  <h3>aai-tdd</h3>
+  <p class="desc"><strong>When to use:</strong> Use when implementing any feature or fix that should follow test-driven development. Enforces RED-GREEN-REFACTOR cycle with evidence at each phase.</p>
+  <p class="goal"><strong>Goal:</strong> Enforce systematic RED-GREEN-REFACTOR test-driven development with verifiable evidence at each phase.
+When invoked before the repository is ready for implementation, run the same
+orchestration preflight used by the autonomous loop until a frozen spec with a
+Test Plan is available or a human decision is required.
+
+Inspired by Superpowers framework's mandatory TDD cycles.</p>
+  
+  <p class="meta">.claude/skills/aai-tdd/SKILL.md · .aai/SKILL_TDD.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-test-canon use when tests are fragmented per-change/issue with no single &quot;current state&quot; suite per feature — to consolidate them into a canonical per-domain layer in tests/canonical/ (anchored on the canonical docs domain map) while preserving and back-linking originals in tests/_archive/. two phases — phase 1 builds a traceability matrix + coverage-gap report and proposes a per-domain test map gated by human approval; phase 2 consolidates the tests, archives originals, scaffolds failing/pending red stubs for uncovered acceptance criteria (handing off to aai-tdd), and reports drift on re-run. aai-test-canon">
+  <h3>aai-test-canon</h3>
+  <p class="desc"><strong>When to use:</strong> Use when tests are fragmented per-change/issue with no single &quot;current state&quot; suite per feature — to consolidate them into a canonical per-domain layer in tests/canonical/ (anchored on the canonical docs domain map) while preserving and back-linking originals in tests/_archive/. Two phases — Phase 1 builds a traceability matrix + coverage-gap report and proposes a per-domain test map gated by human approval; Phase 2 consolidates the tests, archives originals, scaffolds failing/pending RED stubs for uncovered acceptance criteria (handing off to aai-tdd), and reports drift on re-run.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_TEST_CANON.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-test-canon/SKILL.md · .aai/SKILL_TEST_CANON.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-test-skills use when verifying all aai skills work correctly after upstream changes, a fresh install, or to diagnose skill failures. discover installed aai skills and run their test suites via the real
+framework, `tests/skills/test-framework.sh`. do not hand-roll a skill count,
+a dependency table, or a report format — the framework computes all of it. aai-test-skills">
+  <h3>aai-test-skills</h3>
+  <p class="desc"><strong>When to use:</strong> Use when verifying all AAI skills work correctly after upstream changes, a fresh install, or to diagnose skill failures.</p>
+  <p class="goal"><strong>Goal:</strong> Discover installed AAI skills and run their test suites via the real
+framework, `tests/skills/test-framework.sh`. Do NOT hand-roll a skill count,
+a dependency table, or a report format — the framework computes all of it.</p>
+  
+  <p class="meta">.claude/skills/aai-test-skills/SKILL.md · .aai/SKILL_TEST_SKILLS.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-update use when aai vendored files need refreshing after upstream changes, or to preview what an update would change in a target project. refresh the current project's vendored aai layer from the canonical repo's `main`,
+then report what changed and the recommended follow-up — in one deterministic run. aai-update">
+  <h3>aai-update</h3>
+  <p class="desc"><strong>When to use:</strong> Use when AAI vendored files need refreshing after upstream changes, or to preview what an update would change in a target project.</p>
+  <p class="goal"><strong>Goal:</strong> Refresh the current project's vendored AAI layer from the canonical repo's `main`,
+then report what changed and the recommended follow-up — in one deterministic run.</p>
+  
+  <p class="meta">.claude/skills/aai-update/SKILL.md · .aai/SKILL_UPDATE.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-validate-report use when validation output needs to be presented as a chat-friendly report with screenshot evidence saved to docs/ai/reports. aai-validate-report">
+  <h3>aai-validate-report<span class="badge">haiku</span></h3>
+  <p class="desc"><strong>When to use:</strong> Use when validation output needs to be presented as a chat-friendly report with screenshot evidence saved to docs/ai/reports.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_VALIDATE_REPORT.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-validate-report/SKILL.md · .aai/SKILL_VALIDATE_REPORT.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-verify use before any completion claim (implementation hand-off, tdd green, validation verdict) to apply the verification-before-completion gate — identify, run, read, verify, then claim. prevent completion claims (implementation hand-off, tdd green, validation
+verdicts) from outrunning the evidence backing them. this is the single
+source of truth for the gate function and rationalization table referenced
+by `.aai/implementation.prompt.md`, `.aai/validation.prompt.md`, and
+`.aai/skill_tdd.prompt.md`.
+
+source: res-0001 p2 recommendation 7a — superpowers
+verification-before-completion pattern (iron law, gate function,
+rationalization table, verify-subagent-reports-via-diff). aai-verify">
+  <h3>aai-verify</h3>
+  <p class="desc"><strong>When to use:</strong> Use before any completion claim (Implementation hand-off, TDD GREEN, Validation verdict) to apply the verification-before-completion gate — IDENTIFY, RUN, READ, VERIFY, then CLAIM.</p>
+  <p class="goal"><strong>Goal:</strong> Prevent completion claims (Implementation hand-off, TDD GREEN, Validation
+verdicts) from outrunning the evidence backing them. This is the single
+source of truth for the gate function and rationalization table referenced
+by `.aai/IMPLEMENTATION.prompt.md`, `.aai/VALIDATION.prompt.md`, and
+`.aai/SKILL_TDD.prompt.md`.
+
+Source: RES-0001 P2 recommendation 7a — Superpowers
+verification-before-completion pattern (Iron Law, gate function,
+rationalization table, verify-subagent-reports-via-diff).</p>
+  
+  <p class="meta">.claude/skills/aai-verify/SKILL.md · .aai/SKILL_VERIFY.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-worktree use when creating or managing isolated git worktrees for parallel feature development or isolated experiments. manage git worktrees for parallel isolated development without branch switching overhead.
+also provide the implementation-preparation gate that recommends worktree usage,
+asks the user before creating one, and records an explicit inline override when
+the user chooses to continue in the current working tree.
+
+inspired by superpowers framework's worktree-based parallel development. aai-worktree">
+  <h3>aai-worktree</h3>
+  <p class="desc"><strong>When to use:</strong> Use when creating or managing isolated git worktrees for parallel feature development or isolated experiments.</p>
+  <p class="goal"><strong>Goal:</strong> Manage git worktrees for parallel isolated development without branch switching overhead.
+Also provide the implementation-preparation gate that recommends worktree usage,
+asks the user before creating one, and records an explicit inline override when
+the user chooses to continue in the current working tree.
+
+Inspired by Superpowers framework's worktree-based parallel development.</p>
+  
+  <p class="meta">.claude/skills/aai-worktree/SKILL.md · .aai/SKILL_WORKTREE.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-wrap-up use when ending a development session to capture learnings, summarize accomplishments, propose learned.md rules, and prepare next session context. trigger phrases: &quot;wrap up&quot;, &quot;end session&quot;, &quot;done for today&quot;, &quot;hotovo&quot;, &quot;konec&quot;, &quot;bye&quot;. aai-wrap-up">
+  <h3>aai-wrap-up</h3>
+  <p class="desc"><strong>When to use:</strong> Use when ending a development session to capture learnings, summarize accomplishments, propose LEARNED.md rules, and prepare next session context. Trigger phrases: &quot;wrap up&quot;, &quot;end session&quot;, &quot;done for today&quot;, &quot;hotovo&quot;, &quot;konec&quot;, &quot;bye&quot;.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_WRAP_UP.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-wrap-up/SKILL.md · .aai/SKILL_WRAP_UP.prompt.md</p>
+</div>
+</div>
+
+<footer>34 skills (19 with extraction notes) · source: .claude/skills/*/SKILL.md + .aai/SKILL_*.prompt.md</footer>
+<script>
+  document.getElementById('search').addEventListener('input', function (e) {
+    var term = e.target.value.trim().toLowerCase();
+    document.querySelectorAll('.skill-card').forEach(function (card) {
+      var hit = term === '' || card.dataset.search.indexOf(term) !== -1;
+      card.classList.toggle('hidden', !hit);
     });
-
-    document.getElementById('theme-toggle').addEventListener('click', () => {
-        document.body.classList.toggle('dark-theme');
-        const isDark = document.body.classList.contains('dark-theme');
-        document.getElementById('theme-toggle').textContent = isDark ? 'Light Mode' : 'Dark Mode';
-        localStorage.setItem('theme', isDark ? 'dark' : 'light');
-    });
-
-    // Init
-    if (localStorage.getItem('theme') === 'dark') {
-        document.body.classList.add('dark-theme');
-        document.getElementById('theme-toggle').textContent = 'Light Mode';
-    }
-    document.getElementById('timestamp').textContent = new Date().toISOString().split('T')[0];
-    // Dynamic stats from skills array
-    document.getElementById('stat-total').textContent = skills.length;
-    document.getElementById('stat-categories').textContent = new Set(skills.map(s => s.category)).size;
-    document.getElementById('filter-all').textContent = 'All (' + skills.length + ')';
-    renderSkills(skills);
-    </script>
+  });
+</script>
 </body>
 </html>

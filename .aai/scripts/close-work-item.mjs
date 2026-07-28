@@ -92,6 +92,7 @@ const APPEND_EVENT = path.join(SCRIPT_DIR, 'append-event.mjs');
 const GENERATE_INDEX = path.join(SCRIPT_DIR, 'generate-docs-index.mjs');
 const GENERATE_OVERVIEW = path.join(SCRIPT_DIR, 'generate-overview.mjs');
 const GENERATE_USERGUIDE_ROLLUP = path.join(SCRIPT_DIR, 'generate-userguide-rollup.mjs');
+const GENERATE_DOCS_HUB = path.join(SCRIPT_DIR, 'generate-docs-hub.mjs');
 
 // D3 — flip-eligible statuses. `done` is handled separately (no-op). Every
 // other status (deferred | rejected | superseded | anything unrecognized) is
@@ -410,6 +411,23 @@ function regenerateUserguideRollupBestEffort() {
   }
 }
 
+// --- skills catalog regen (spec-docs-hub-generator) --------------------------
+//
+// Best-effort regen of the AAI skills catalog, invoked as the STRICTLY LAST
+// step of a successful close, immediately AFTER
+// regenerateUserguideRollupBestEffort() -- reusing that exact pattern
+// verbatim: fs.existsSync guard (the generator is an `extended`-profile file
+// and may be absent in a core-only sync), swallow every failure to an INFO
+// stderr line, never reach rollback, never change the exit code.
+function regenerateDocsHubBestEffort() {
+  try {
+    if (!fs.existsSync(GENERATE_DOCS_HUB)) return;
+    execFileSync('node', [GENERATE_DOCS_HUB], { stdio: 'ignore', cwd: ROOT });
+  } catch (err) {
+    process.stderr.write(`close-work-item: INFO docs-hub regen skipped (best-effort, non-fatal): ${err.message}\n`);
+  }
+}
+
 // For each closed ref, assert the REAL audit classifies it tracked-done /
 // aligned with no missing-close-telemetry entry (Spec-AC-02). The audit
 // engine is the oracle — no heuristic is re-implemented here.
@@ -657,6 +675,7 @@ function main() {
   );
   regenerateOverviewBestEffort();
   regenerateUserguideRollupBestEffort();
+  regenerateDocsHubBestEffort();
   process.exit(0);
 }
 

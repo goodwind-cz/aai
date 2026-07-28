@@ -1318,3 +1318,9 @@
 {"v":1,"ts":"2026-07-28T01:03:29.749Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"dashboard-refit","payload":{"commit":"b695885524506ef91065b5cd2085ea27924b434b"}}
 {"v":1,"ts":"2026-07-28T01:03:29.778Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-dashboard-refit","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-28T01:03:29.809Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-dashboard-refit","payload":{"commit":"b695885524506ef91065b5cd2085ea27924b434b"}}
+{"v":1,"ts":"2026-07-28T02:02:34.814Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"docs-hub-generator","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-28T02:02:34.845Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"docs-hub-generator","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-28T02:02:34.875Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"docs-hub-generator","payload":{"commit":"2ffe4f29ec89cc69e834e3a560fa115edce45682"}}
+{"v":1,"ts":"2026-07-28T02:02:34.906Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-docs-hub-generator","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-28T02:02:34.937Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-docs-hub-generator","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-28T02:02:34.967Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-docs-hub-generator","payload":{"commit":"2ffe4f29ec89cc69e834e3a560fa115edce45682"}}
