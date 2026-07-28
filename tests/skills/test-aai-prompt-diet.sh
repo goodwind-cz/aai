@@ -413,7 +413,7 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# -7254 (true-up: dashboard-refit retired -21565 B via a NEGATIVE RECLAIMED
+# -7254 (true-up: dashboard-refit retired -21517 B (21565 initial minus 48 B review remediation) via a NEGATIVE RECLAIMED
 # entry — rewriting .aai/SKILL_DASHBOARD.prompt.md (19173 B, ~330 of 652 lines
 # a stale duplicate implementation dump of generate-dashboard.mjs, plus an
 # unimplemented --publish flag) down to a 4152 B script-first thin wrapper,
@@ -608,10 +608,15 @@ test_017_dashboard_test_skills_pins() {
       ok=0
     fi
   fi
-  [[ $ok -eq 1 ]] &&   grep -qE "attempts common repairs|auto-fix common issues" .aai/SKILL_TEST_SKILLS.prompt.md \
-    && log_fail "TEST-017: SKILL_TEST_SKILLS must not claim --fix performs repairs (AUTO_FIX is a no-op in test-framework.sh)"
-  log_pass "TEST-017 SKILL_DASHBOARD/SKILL_TEST_SKILLS content pins (CHANGE-0076)" \
-    || log_fail "TEST-017 SKILL_DASHBOARD/SKILL_TEST_SKILLS content pins (CHANGE-0076)"
+  if [[ -f "$t" ]] && grep -qE "attempts common repairs|auto-fix common issues" "$t"; then
+    log_info "TEST-017: $t claims --fix performs repairs (AUTO_FIX is a no-op in test-framework.sh)"
+    ok=0
+  fi
+  if [[ $ok -eq 1 ]]; then
+    log_pass "TEST-017 SKILL_DASHBOARD/SKILL_TEST_SKILLS content pins (CHANGE-0076)"
+  else
+    log_fail "TEST-017 SKILL_DASHBOARD/SKILL_TEST_SKILLS content pins (CHANGE-0076)"
+  fi
 }
 
 main() {

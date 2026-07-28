@@ -55,7 +55,7 @@ in `generate-dashboard.mjs`) — a file may mix both.
 **Tokens are mostly null.** Real `agent_runs[]` entries almost always carry
 `tokens_in: null, tokens_out: null` — harness usage is captured as an
 undecomposed `usage_total_tokens=<N>` note on the run, not split into
-in/out fields (see `SUBAGENT_PROTOCOL.md` "Harness-reported usage capture").
+in/out fields (see `.aai/SUBAGENT_PROTOCOL.md` "Harness-reported usage capture").
 The dashboard's token totals and per-skill token charts will read low or zero
 against real METRICS.jsonl data until that note text is parsed into a
 structured field — this is a known gap, not a bug to chase per-run.
