@@ -1,3 +1,9 @@
+<!-- DEPRECATED (CHANGE-0080, 2026-07-28): the strict session format this
+template scaffolds is retired — the canonical contract is the living
+convention in .aai/SKILL_SESSION_JOURNAL.prompt.md (date-slug files,
+free form, 3-column INDEX). Kept in place per the AGENTS.md scaffolding
+rule (never delete .aai/templates/* merely for being unreferenced). -->
+
 # <Session Title>
 
 - Session ID: `<session-id>`

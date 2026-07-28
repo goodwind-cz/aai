@@ -2,11 +2,13 @@
 id: validate-report-contract
 number: 82
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 182
+  commits:
+    - 40a167ffb41f45b0f70051bcade39ac919fe3e45
 ---
 
 # Change — validate-report: reconcile the promised artifacts with the real validation path

@@ -2,11 +2,13 @@
 id: session-journal-contract
 number: 80
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 182
+  commits:
+    - 40a167ffb41f45b0f70051bcade39ac919fe3e45
 ---
 
 # Change — session-journal: reconcile prompt contract with actual practice

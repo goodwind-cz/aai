@@ -11,6 +11,22 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — chore: journal + validate-report contracts reconciled with practice (CHANGE-0080 + CHANGE-0082) [L1]
+
+- Session journal (operator decision): the LIVING convention is canonical —
+  date-slug files, free form in the discussion's language, 3-column INDEX.
+  The strict format (SESSION-<slug>, 14-element template — used once and
+  deleted the same day as redundant) is retired; PROJECT_SESSION_TEMPLATE
+  pruned. NEW hygiene pin test_091: every journal file must have an INDEX
+  row (RED-first — it caught the real missing universality-proof row).
+- Validate-report (operator decision): stays a STANDALONE, ON-DEMAND
+  presentation skill; prompt now says so explicitly, its artifacts
+  (LATEST.md, screenshots/) are documented as existing only from its own
+  runs, and the report naming unifies with the loop's
+  VALIDATION-<ts>-<slug>.md pattern. TEST-018 pins both contracts.
+- Ledger -2132 RECLAIMED (total -15485); headroom 605/2048 with the +31 B
+  PR #180 slack provenance recorded.
+
 ## [unreleased] — fix: userguide rollup names every excluded product doc (CHANGE-0075) [L1]
 
 - `generate-userguide-rollup.mjs` now prints
