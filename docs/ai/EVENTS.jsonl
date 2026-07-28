@@ -1313,3 +1313,8 @@
 {"v":1,"ts":"2026-07-27T23:58:44.133Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-doctor-determinize","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-27T23:58:44.163Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-doctor-determinize","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-27T23:58:44.192Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-doctor-determinize","payload":{"commit":"8e167599068a3ce15c02cae2bd7d3175200b754e"}}
+{"v":1,"ts":"2026-07-28T01:03:29.691Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"dashboard-refit","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-28T01:03:29.720Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"dashboard-refit","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-28T01:03:29.749Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"dashboard-refit","payload":{"commit":"b695885524506ef91065b5cd2085ea27924b434b"}}
+{"v":1,"ts":"2026-07-28T01:03:29.778Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-dashboard-refit","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-28T01:03:29.809Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-dashboard-refit","payload":{"commit":"b695885524506ef91065b5cd2085ea27924b434b"}}
