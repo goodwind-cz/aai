@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T18:15:42.196Z
+Generated: 2026-07-28T18:16:24.549Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (12)
+## Product (13)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -28,6 +28,7 @@ _None._
 | issues-skill | issues-skill | 1 | docs/product/issues-skill.md |
 | learned-append-gate | learned-append-gate | 1 | docs/product/learned-append-gate.md |
 | platform-portable-pr | platform-portable-pr | 1 | docs/product/platform-portable-pr.md |
+| product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | prompt-hash-telemetry | prompt-hash-telemetry | 1 | docs/product/prompt-hash-telemetry.md |
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |

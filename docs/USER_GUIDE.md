@@ -2117,6 +2117,12 @@ The PR ceremony (`/aai-pr`, `/aai-ship`) now works beyond GitHub. A deterministi
 
 [Product doc](product/platform-portable-pr.md) · [Spec](specs/SPEC-0103-spec-platform-portable-pr.md)
 
+### Product docs (capability-keyed doc family)
+
+Product docs — the user-facing "what shipped" layer — are a first-class doc family: keyed by user capability, scanned by docs-audit, listed in docs/INDEX.md under a Product section, and updated in place as multiple rides extend one capability.
+
+[Product doc](product/product-docs-capability-model.md) · [Spec](specs/SPEC-0105-spec-product-docs-capability-model.md)
+
 ### CI test impact selection
 
 CI used to run the whole `tests/skills/` framework (~50 suites, ~25 minutes) on every single push to a pull request — including review-fix pushes that touch one file. A weekend of iteration on one PR could burn 12+ CI-hours this way.
