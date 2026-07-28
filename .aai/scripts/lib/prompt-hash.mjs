@@ -64,4 +64,27 @@ function shortHash(hash) {
   return typeof hash === 'string' ? hash.slice(0, 12) : hash;
 }
 
-export { computeEffectivePromptHash, shortHash, ABSENT };
+// componentHashes(rolePromptPath, root) — per-component provenance
+// (promptbook adoption 4 / CHANGE session-loose-ends): sha256 of each
+// inherited layer SEPARATELY, so "which CONTRACT/LEARNED version did this
+// role run under" is answerable per component, not only via the aggregate
+// effective hash. Same raw-byte + ABSENT semantics as the aggregate; a
+// missing file yields the literal 'ABSENT' instead of a hex digest. Never
+// throws. Components are BARE-FILE digests BY DESIGN — never add the
+// aggregate's "--- name ---" framing here; they intentionally do not match
+// the aggregate's sections (test-aai-prompt-hash TEST-002 locks this).
+function componentHashes(rolePromptPath, root = process.cwd()) {
+  const roleAbs = path.isAbsolute(rolePromptPath) ? rolePromptPath : path.resolve(root, rolePromptPath);
+  const one = (abs) => {
+    const body = readOrNull(abs);
+    if (body === null) return ABSENT;
+    return crypto.createHash('sha256').update(body).digest('hex');
+  };
+  return {
+    role: one(roleAbs),
+    contract: one(path.resolve(root, CONTRACT_REL)),
+    learned: one(path.resolve(root, LEARNED_REL)),
+  };
+}
+
+export { computeEffectivePromptHash, componentHashes, shortHash, ABSENT };

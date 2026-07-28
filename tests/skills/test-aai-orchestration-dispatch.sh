@@ -1802,6 +1802,30 @@ test_027_prompt_hash_advisory() {  # prompt-hash-telemetry TEST-010 (SEAM-3, int
   log_pass "SEAM-3: --human advisory line carries a real 12-hex prompt hash for the dispatched role (prompt-hash-telemetry TEST-010)"
 }
 
+test_029_inherits_provenance() {  # session-loose-ends AC-001: per-component inheritance provenance
+  log_info "Test: dispatch carries inherits.{role,contract,learned} per-component hashes alongside prompt_hash; ABSENT for missing files; no_action unaffected (session-loose-ends TEST-029)..."
+  local d
+  d="$(mk_root t29)"
+  write_dstate "$d/docs/ai/STATE.yaml"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "dispatch fixture must exit 0 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" '"inherits" in o && typeof o.inherits === "object"'
+  jassert "$OUT" '["role","contract","learned"].every(k => typeof o.inherits[k] === "string")'
+  jassert "$OUT" '[o.inherits.role, o.inherits.contract, o.inherits.learned].every(v => /^([0-9a-f]{64}|ABSENT)$/.test(v))'
+  # human block advisory line (human block prints to stderr, like TEST-027)
+  run_dispatch "$d" --human
+  grep -qE '^Inherits: CONTRACT@([0-9a-f]{12}|ABSENT) LEARNED@([0-9a-f]{12}|ABSENT)' "$ERR" \
+    || log_fail "--human stderr must carry the Inherits: provenance line: $(cat "$ERR")"
+  # no_action: inherits absent, like prompt_hash
+  local d2
+  d2="$(mk_root t29-paused)"
+  write_dstate "$d2/docs/ai/STATE.yaml"
+  sed -i.bak 's/^project_status: active$/project_status: paused/' "$d2/docs/ai/STATE.yaml" && rm -f "$d2/docs/ai/STATE.yaml.bak"
+  run_dispatch "$d2"
+  jassert "$OUT" '!("inherits" in o)'
+  log_pass "inherits per-component provenance additive; ABSENT-safe; no_action unaffected (TEST-029)"
+}
+
 test_028_prompt_hash_json_additive() {  # prompt-hash-telemetry TEST-011 / Spec-AC-05
   log_info "Test: dispatch stdout JSON carries prompt_hash on a dispatch verdict (additive); TEST-002 key-set extended; no-action verdict unaffected (prompt-hash-telemetry TEST-011)..."
   local d
@@ -1855,6 +1879,7 @@ main() {
   test_026_docs_lane_key_contract
   test_027_prompt_hash_advisory
   test_028_prompt_hash_json_additive
+  test_029_inherits_provenance
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

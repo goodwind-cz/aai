@@ -160,7 +160,11 @@ Adoption candidates for AAI (ranked):
 5. Graceful degrade-with-provenance on unresolved cross-references (never
    silent, always a visible structured NOTE in the artifact).
 6. Named composable POSTPROCESSING declared next to the prompt whose output
-   it cleans (contract visible in one place).
+   it cleans (contract visible in one place). DISPOSITION 2026-07-28:
+   WONTFIX (operator-approved) — no real use-case materialized across 31
+   PRs; adopting it would add speculative structure. Items 1-5 delivered
+   (1 #166, 2 #167, 3 #170+#172, 4 session-loose-ends ride, 5 promoted to
+   an AGENTS.md convention in the same ride).
 7. Deliberately NOT adopting: the single-flat-file everything-is-a-keyword
    design (their own repo shows the cost: two incompatible language
    generations, stale blueprint, EXPECT stranded); AAI's separation of

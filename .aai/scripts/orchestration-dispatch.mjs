@@ -44,7 +44,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { splitLines, duplicateKeys, inlineChildConflicts } from './lib/state-core.mjs';
 import { findBlock, readScalar, indentOf, unquoteScalar, agentRunsFor, lastImplementerModel } from './lib/state-engine.mjs';
-import { computeEffectivePromptHash, shortHash } from './lib/prompt-hash.mjs';
+import { computeEffectivePromptHash, componentHashes, shortHash } from './lib/prompt-hash.mjs';
 
 // --- closed sets (mirror state.mjs / check-state semantics) --------------------
 
@@ -804,6 +804,9 @@ function humanBlock(out) {
   }
   if (typeof out.prompt_hash === 'string') {
     lines.push(`Prompt hash: ${shortHash(out.prompt_hash)} (informational — content-addressed identity of the effective instruction stack)`);
+    if (out.inherits) {
+      lines.push(`Inherits: CONTRACT@${shortHash(out.inherits.contract)} LEARNED@${shortHash(out.inherits.learned)} (per-component provenance)`);
+    }
   }
   console.error(lines.join('\n'));
 }
@@ -832,6 +835,9 @@ function main() {
     // (no role, no system_prompt) are untouched.
     if (out.system_prompt) {
       out.prompt_hash = computeEffectivePromptHash(out.system_prompt, root);
+      // Inheritance provenance (promptbook adoption 4): per-component
+      // versions the role inherits, additive alongside the aggregate hash.
+      out.inherits = componentHashes(out.system_prompt, root);
     }
   } catch (err) {
     console.error(`orchestration-dispatch: internal error: ${err && err.stack ? err.stack : err}`);

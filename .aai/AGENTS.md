@@ -282,6 +282,9 @@ Do not use it as a substitute for specs, decisions, facts, or validation evidenc
   docs/rfc/, or docs/**/.gitkeep placeholders only because they are unreferenced.
 - Intake language policy: accept user input in the user's language, but write
   saved repository documents in English.
+- Degrade-with-NOTE convention: any generator/gate that skips, excludes, or
+  degrades an input MUST name it in output (a NOTE/EXCLUDED line with the
+  reason) — silent truncation is a defect, not a default.
 - Markdown documentation style policy: for Markdown documents generated or
   updated through AAI (for example specs, RFCs, requirements, change docs, and
   reports), use plain Markdown headings and body text. Do not add emoji or
