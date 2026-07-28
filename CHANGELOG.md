@@ -11,6 +11,19 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — chore: dashboard + test-skills prompts refit — −21.5 KB corpus, no phantom flags (CHANGE-0076 / SPEC-0101) [L2]
+
+- SKILL_DASHBOARD 19 173 B/652 lines -> 4 152 B/77: dropped the ~330-line
+  stale duplicate dump of generate-dashboard.mjs, documents BOTH real input
+  shapes (work-item ledger primary + legacy flat) and the tokens-null
+  reality; unimplemented --publish removed (publishing = /aai-share).
+- SKILL_TEST_SKILLS 9 218 B/404 lines -> 2 722 B: stale 11-skill example +
+  pytest/cargo snippet out; live fleet discovery in; --fix honestly marked
+  a no-op (review finding — same phantom-flag class as --publish).
+- TEST-017 pins all of it; ledger -21517 RECLAIMED entry — total goes
+  NEGATIVE (-7254), analyzed sound in review (the floor RISES; regrowth
+  trips TEST-010 sooner, not later); headroom exactly 636/2048.
+
 ## [unreleased] — feat: /aai-doctor determinized — 13 categories in one script, prompt −70 % (CHANGE-0079 / SPEC-0100) [L2]
 
 - NEW .aai/scripts/aai-doctor.mjs: all 13 doctor categories computed

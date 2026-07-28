@@ -413,12 +413,20 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# 14263 (true-up: doctor-determinize retired -7534 B via a NEGATIVE RECLAIMED
-# entry — rewriting .aai/SKILL_DOCTOR.prompt.md from a 10697 B prose file (11
-# of 13 health-check categories were hand-computed file-existence/line-count/
-# git-status prose) to a 3163 B thin wrapper around the new deterministic
-# .aai/scripts/aai-doctor.mjs — dropping the total from 21738; before that,
-# decapod-prune retired -9573 B via a NEGATIVE RECLAIMED
+# -7254 (true-up: dashboard-refit retired -21517 B (21565 initial minus 48 B review remediation) via a NEGATIVE RECLAIMED
+# entry — rewriting .aai/SKILL_DASHBOARD.prompt.md (19173 B, ~330 of 652 lines
+# a stale duplicate implementation dump of generate-dashboard.mjs, plus an
+# unimplemented --publish flag) down to a 4152 B script-first thin wrapper,
+# and .aai/SKILL_TEST_SKILLS.prompt.md (9218 B, stale hardcoded 11-skill
+# Example Output + a pytest/cargo CI snippet) down to a 2674 B wrapper around
+# the real tests/skills/test-framework.sh — dropping the total from 14263 (a
+# negative total is expected: the corpus has shrunk enough that no positive
+# credit is owed); before that, doctor-determinize retired -7534 B via a
+# NEGATIVE RECLAIMED entry — rewriting .aai/SKILL_DOCTOR.prompt.md from a
+# 10697 B prose file (11 of 13 health-check categories were hand-computed
+# file-existence/line-count/git-status prose) to a 3163 B thin wrapper around
+# the new deterministic .aai/scripts/aai-doctor.mjs — dropping the total from
+# 21738; before that, decapod-prune retired -9573 B via a NEGATIVE RECLAIMED
 # entry — the deleted SKILL_DECAPOD.prompt.md's 9571 B plus 2 B residual
 # reword slack — dropping the total from 31311; before that,
 # state-bootstrap-template added a +286 B itemized entry for
@@ -451,15 +459,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 14263 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 14263)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -7254 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -7254)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 14263 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -7254 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
@@ -563,6 +571,54 @@ test_016_skill_loop_prompt_hash_pointer() {
     || log_fail "TEST-016 prompt-hash pass-through pointer (SKILL_LOOP + SUBAGENT_PROTOCOL)"
 }
 
+# TEST-017 (dashboard-refit, CHANGE-0076 AC-001/AC-002) — the two rewritten
+# thin-wrapper prompts pin their script-first / stale-content-dropped shape
+# so a future edit cannot silently regress back to a source dump or reinstate
+# unimplemented/unused examples:
+#   - SKILL_DASHBOARD.prompt.md names the real engine (generate-dashboard.mjs)
+#     and never mentions the documented-but-unimplemented --publish flag
+#     (publishing is /aai-share's job, per CHANGE-0076 decision).
+#   - SKILL_TEST_SKILLS.prompt.md never mentions pytest or cargo (the stale
+#     CI snippet this project does not use).
+test_017_dashboard_test_skills_pins() {
+  local ok=1 d=.aai/SKILL_DASHBOARD.prompt.md t=.aai/SKILL_TEST_SKILLS.prompt.md
+  if [[ ! -f "$d" ]]; then
+    log_info "TEST-017: $d does not exist"
+    ok=0
+  else
+    if ! grep -qF "generate-dashboard.mjs" "$d"; then
+      log_info "TEST-017: $d does not name generate-dashboard.mjs"
+      ok=0
+    fi
+    if grep -qF -- "--publish" "$d"; then
+      log_info "TEST-017: $d still mentions --publish (unimplemented; publishing is /aai-share's job)"
+      ok=0
+    fi
+  fi
+  if [[ ! -f "$t" ]]; then
+    log_info "TEST-017: $t does not exist"
+    ok=0
+  else
+    if grep -qi "pytest" "$t"; then
+      log_info "TEST-017: $t still mentions pytest (stale CI snippet)"
+      ok=0
+    fi
+    if grep -qi "cargo" "$t"; then
+      log_info "TEST-017: $t still mentions cargo (stale CI snippet)"
+      ok=0
+    fi
+  fi
+  if [[ -f "$t" ]] && grep -qE "attempts common repairs|auto-fix common issues" "$t"; then
+    log_info "TEST-017: $t claims --fix performs repairs (AUTO_FIX is a no-op in test-framework.sh)"
+    ok=0
+  fi
+  if [[ $ok -eq 1 ]]; then
+    log_pass "TEST-017 SKILL_DASHBOARD/SKILL_TEST_SKILLS content pins (CHANGE-0076)"
+  else
+    log_fail "TEST-017 SKILL_DASHBOARD/SKILL_TEST_SKILLS content pins (CHANGE-0076)"
+  fi
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -585,6 +641,7 @@ main() {
   test_014_breach_suggestion_deficit
   test_015_headroom_cap_still_bites
   test_016_skill_loop_prompt_hash_pointer
+  test_017_dashboard_test_skills_pins
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

@@ -2,11 +2,13 @@
 id: dashboard-refit
 number: 76
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 179
+  commits:
+    - b695885524506ef91065b5cd2085ea27924b434b
 ---
 
 # Change — dashboard + test-skills prompts: drop dead source dump, fix schema docs, decide --publish
