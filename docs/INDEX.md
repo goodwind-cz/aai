@@ -1,24 +1,23 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T02:02:19.513Z
+Generated: 2026-07-28T02:02:48.739Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0102 | specs | implementing | 5 done | docs/specs/SPEC-0102-spec-docs-hub-generator.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Done (226)
+## Done (228)
 
 | ID | Type | Path |
 |---|---|---|
@@ -98,6 +97,7 @@ _None._
 | CHANGE-0074 | issues | docs/issues/CHANGE-0074-state-bootstrap-template.md |
 | CHANGE-0076 | issues | docs/issues/CHANGE-0076-dashboard-refit.md |
 | CHANGE-0077 | issues | docs/issues/CHANGE-0077-decapod-prune.md |
+| CHANGE-0078 | issues | docs/issues/CHANGE-0078-docs-hub-generator.md |
 | CHANGE-0079 | issues | docs/issues/CHANGE-0079-doctor-determinize.md |
 | CHANGE-0081 | issues | docs/issues/CHANGE-0081-skill-sweep-quick-wins.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
@@ -247,14 +247,14 @@ _None._
 | SPEC-0099 | specs | docs/specs/SPEC-0099-spec-state-bootstrap-template.md |
 | SPEC-0100 | specs | docs/specs/SPEC-0100-spec-doctor-determinize.md |
 | SPEC-0101 | specs | docs/specs/SPEC-0101-spec-dashboard-refit.md |
+| SPEC-0102 | specs | docs/specs/SPEC-0102-spec-docs-hub-generator.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (4)
+## Drafts (3)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0075 | issues | docs/issues/CHANGE-0075-rollup-exclusion-visibility.md |
-| CHANGE-0078 | issues | docs/issues/CHANGE-0078-docs-hub-generator.md |
 | CHANGE-0080 | issues | docs/issues/CHANGE-0080-session-journal-contract.md |
 | CHANGE-0082 | issues | docs/issues/CHANGE-0082-validate-report-contract.md |
 

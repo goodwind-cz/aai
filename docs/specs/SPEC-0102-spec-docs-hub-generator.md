@@ -2,13 +2,15 @@
 id: spec-docs-hub-generator
 type: spec
 number: 102
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: CHANGE-0078
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 180
+  commits:
+    - 2ffe4f29ec89cc69e834e3a560fa115edce45682
 ---
 
 ## Links
