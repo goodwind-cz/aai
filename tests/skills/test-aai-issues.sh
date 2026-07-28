@@ -482,9 +482,9 @@ test_020_untrusted_input_sanitized() {  # issues-skill review (BLOCKING fix): ti
   run_issues --remote-url "https://github.com/o/r.git" --input "$fixture"
   local ok=1
   [[ "$RC" -eq 0 ]] || { log_info "TEST-020: exit $RC (want 0)"; ok=0; }
-  # exactly 2 issue lines + 1 summary line = 3 lines total (no forged rows)
-  local lc; lc="$(printf '%s\n' "$OUT" | grep -c .)"
-  [[ "$lc" -eq 3 ]] || { log_info "TEST-020: got $lc output lines (want 3 — forged row leaked?): $OUT"; ok=0; }
+  # exactly 2 header rows: no crafted title/label may forge extra 'ISSUE #' rows
+  local ic; ic="$(printf '%s\n' "$OUT" | grep -cE '^ISSUE #')"
+  [[ "$ic" -eq 2 ]] || { log_info "TEST-020: got $ic ISSUE rows (want 2 — forged row leaked?): $OUT"; ok=0; }
   # no line may START with the forged issue id
   if printf '%s\n' "$OUT" | grep -qE '^ISSUE #999'; then
     log_info "TEST-020: a forged 'ISSUE #999' row leaked as its own line"; ok=0
@@ -494,9 +494,9 @@ test_020_untrusted_input_sanitized() {  # issues-skill review (BLOCKING fix): ti
   [[ "$sc" -eq 1 ]] || { log_info "TEST-020: $sc summary lines (want 1 — forged 'ISSUES 42' leaked?)"; ok=0; }
   printf '%s\n' "$OUT" | grep -qE '^ISSUES 2 platform=github$' || { log_info "TEST-020: genuine summary missing/altered"; ok=0; }
   # no C0/ESC control chars anywhere in stdout (aside from the line feeds grep -c counts)
-  if printf '%s' "$OUT" | LC_ALL=C grep -qP '[\x00-\x08\x0b-\x1f\x7f]' 2>/dev/null; then
-    log_info "TEST-020: control/escape chars survived to stdout"; ok=0
-  fi
+  # portable (no grep -P): strip printable bytes + LF; any residue = a control char
+  local residue; residue="$(printf '%s' "$OUT" | LC_ALL=C tr -d '\011\012\040-\176')"
+  [[ -z "$residue" ]] || { log_info "TEST-020: control/escape chars survived to stdout"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-020 untrusted title/label sanitized (no forged rows, no escapes)" || log_fail "TEST-020 untrusted title/label sanitized"
 }
 

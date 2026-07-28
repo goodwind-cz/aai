@@ -71,4 +71,4 @@ issue's URL.
 
 - Request: docs/issues/CHANGE-0087-issues-skill.md
 - Spec: docs/specs/SPEC-0104-spec-issues-skill.md
-- Validation evidence: docs/ai/tdd/green-20260728T090000Z-aai-issues.log
+- Validation evidence: docs/ai/tdd/green-20260728T143042Z-aai-issues.log

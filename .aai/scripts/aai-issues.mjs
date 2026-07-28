@@ -134,12 +134,12 @@ function parseArgs(argv) {
       usage();
     } else if (tok === '--label') {
       const v = argv[i + 1];
-      if (v === undefined) fail('--label requires a value');
+      if (v === undefined || v.startsWith('--')) fail('--label requires a value');
       args.label = v;
       i += 1;
     } else if (tok === '--limit') {
       const v = argv[i + 1];
-      if (v === undefined) fail('--limit requires a value');
+      if (v === undefined || v.startsWith('--')) fail('--limit requires a value');
       const n = Number(v);
       if (!Number.isInteger(n) || n <= 0) fail(`--limit must be a positive integer, got "${v}"`);
       args.limit = n;
@@ -222,10 +222,12 @@ function normalizeIssues(raw, { label = null, limit = null } = {}) {
   }
   return issues.map((i) => ({
     id: i.number,
-    title: String(i.title ?? ''),
-    labels: labelNames(i.labels),
+    // sanitize at the source so --json is also control/bidi-free, not only
+    // the text table (Copilot review); collapse whitespace for a clean cell.
+    title: sanitizeLine(i.title).replace(/\s+/g, ' ').trim(),
+    labels: labelNames(i.labels).map((l) => sanitizeLine(l).replace(/\s+/g, ' ').trim()),
     excerpt: excerptOf(i.body),
-    url: String(i.url ?? ''),
+    url: sanitizeLine(i.url).replace(/\s+/g, ' ').trim(),
   }));
 }
 
@@ -241,7 +243,9 @@ function buildGhArgs({ label, limit }) {
 // mirrors the INTENT of pr-platform.mjs's sanitize(), which anchors on a
 // bare URL; this masks the same pattern anywhere inside free text).
 function maskCredentials(text) {
-  return String(text ?? '').replace(/(https?:\/\/)[^/\s@]*@/g, '$1');
+  // strip the WHOLE userinfo incl. an @-containing password: greedy up to
+  // the last @ before the first '/' or whitespace (issues-skill review P1)
+  return String(text ?? '').replace(/(https?:\/\/)[^/\s]*@/g, '$1');
 }
 
 function firstNonEmptyLine(text) {
@@ -285,8 +289,11 @@ function printResult({ platform, count, issues, reason }, json) {
     console.log(`ISSUES unavailable reason=${reason}`);
   } else {
     for (const i of issues) {
-      const labels = i.labels.map(sanitizeLine).join(',');
-      console.log(`ISSUE #${i.id} [${labels}] ${sanitizeLine(i.title).replace(/\s+/g, ' ').trim()}`);
+      // title/labels/excerpt/url are already sanitized in normalizeIssues.
+      // Emit the excerpt + url too — the triage agent needs them (review P1).
+      console.log(`ISSUE #${i.id} [${i.labels.join(',')}] ${i.title}`);
+      console.log(`  url: ${i.url}`);
+      if (i.excerpt) console.log(`  excerpt: ${i.excerpt}`);
     }
   }
   console.log(`ISSUES ${count} platform=${platform}`);

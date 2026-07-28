@@ -229,7 +229,7 @@ For each implementation, validation, TDD, and code review artifact, record:
 - command: `bash tests/skills/test-aai-issues.sh`
 - exit code: 0 (GREEN)
 - evidence path: docs/ai/tdd/{red,green}-*-aai-issues.log
-- commit SHA: not yet committed (single-writer Planning/TDD pass; commit is
+- commit SHA: recorded at close ceremony (see frontmatter links.commits) (single-writer Planning/TDD pass; commit is
   the PR ceremony's job)
 
 Notes:
