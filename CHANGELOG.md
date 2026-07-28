@@ -11,6 +11,20 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: skills catalog goes deterministic — 34/34 live, regenerated at every close (CHANGE-0078 / SPEC-0102) [L2]
+
+- NEW .aai/scripts/generate-docs-hub.mjs: parses SKILL.md frontmatter +
+  prompt Goal sections mechanically, emits self-contained searchable
+  docs/SKILL_CATALOG.html + skill-catalog-data.json; byte-idempotent;
+  degrade branches emit visible NOTEs; unknown flag exits 2 writing
+  nothing (review-pinned TEST-008). Replaces a ~70-file LLM fan-out whose
+  hand-authored catalog had drifted to 27/35 skills.
+- close-work-item.mjs regenerates the catalog best-effort at every close
+  (mirrors overview/rollup pattern) — the staleness class is gone.
+- SKILL_DOCS_HUB 9 513 B/328 lines -> 3 409 B/63; ledger -6099 RECLAIMED
+  (total -13353), headroom 636/2048; 8-test suite; wrapper mirror texts
+  aligned across all four agent trees.
+
 ## [unreleased] — chore: dashboard + test-skills prompts refit — −21.5 KB corpus, no phantom flags (CHANGE-0076 / SPEC-0101) [L2]
 
 - SKILL_DASHBOARD 19 173 B/652 lines -> 4 152 B/77: dropped the ~330-line

@@ -175,6 +175,13 @@ suites:
       - .aai/scripts/append-event.mjs
       - .aai/scripts/generate-docs-index.mjs
 
+  aai-docs-hub:
+    globs:
+      - .aai/SKILL_DOCS_HUB.prompt.md
+      - .aai/scripts/generate-docs-hub.mjs
+      - docs/SKILL_CATALOG.html
+      - docs/skill-catalog-data.json
+
   aai-docs-lock:
     globs:
       - .aai/scripts/docs-lock.mjs

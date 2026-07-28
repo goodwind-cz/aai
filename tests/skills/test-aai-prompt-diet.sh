@@ -413,7 +413,12 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# -7254 (true-up: dashboard-refit retired -21517 B (21565 initial minus 48 B review remediation) via a NEGATIVE RECLAIMED
+# -13353 (true-up: docs-hub-generator retired -6099 B via a NEGATIVE RECLAIMED
+# entry — rewriting .aai/SKILL_DOCS_HUB.prompt.md (9513 B, a ~70-file LLM
+# fan-out prompt that hand-authored docs/SKILL_CATALOG.html per run, drifted
+# to 27/35 skills stale) down to a 3409 B script-first thin wrapper around
+# the new deterministic .aai/scripts/generate-docs-hub.mjs — dropping the
+# total from -7254; before that, dashboard-refit retired -21517 B (21565 initial minus 48 B review remediation) via a NEGATIVE RECLAIMED
 # entry — rewriting .aai/SKILL_DASHBOARD.prompt.md (19173 B, ~330 of 652 lines
 # a stale duplicate implementation dump of generate-dashboard.mjs, plus an
 # unimplemented --publish flag) down to a 4152 B script-first thin wrapper,
@@ -459,15 +464,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -7254 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -7254)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -13353 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -13353)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -7254 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -13353 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
