@@ -1,22 +1,22 @@
 {
-  "generatedAt": "2026-07-28T04:57:58.589Z",
+  "generatedAt": "2026-07-28T06:57:33.135Z",
   "project": "aai",
   "counts": {
-    "delivered": 127,
+    "delivered": 128,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 21385667
+    "tokens_total": 21446525
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "validate-report-contract",
+    "ref": "follow-ups-scripts",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "validate-report-contract",
+      "ref": "follow-ups-scripts",
       "type": "intake_change",
-      "phase": null
+      "phase": "implementation"
     },
     "strategy": "tdd",
     "worktree": {
@@ -26,6 +26,13 @@
     "validation_status": "not_run",
     "review_status": "not_run",
     "ticks": [
+      {
+        "tick": 1,
+        "role": "Implementation+Review",
+        "scope": "follow-ups-scripts",
+        "duration_seconds": 1500,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
       {
         "tick": 1,
         "role": "Implementation",
@@ -52,13 +59,6 @@
         "role": "Planning+Implementation",
         "scope": "docs-hub-generator",
         "duration_seconds": 1020,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 2,
-        "role": "Code Review",
-        "scope": "dashboard-refit",
-        "duration_seconds": 300,
         "harness_version": "2.1.218 (Claude Code)"
       }
     ]
@@ -140,6 +140,19 @@
       "closed_on": "2026-07-28",
       "agent_minutes": 15,
       "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "follow-ups-scripts",
+      "title": "Change — recorded follow-ups batch A: single STATE creator, reaper raw-line capture, structured migration verdict",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0083-follow-ups-scripts.md",
+      "closed_on": "2026-07-28",
+      "agent_minutes": 31,
+      "token_total": 60858,
       "spec": null,
       "validation": null,
       "review": null
@@ -1798,6 +1811,19 @@
           "closed_on": "2026-07-28",
           "agent_minutes": 15,
           "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "follow-ups-scripts",
+          "title": "Change — recorded follow-ups batch A: single STATE creator, reaper raw-line capture, structured migration verdict",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0083-follow-ups-scripts.md",
+          "closed_on": "2026-07-28",
+          "agent_minutes": 31,
+          "token_total": 60858,
           "spec": null,
           "validation": null,
           "review": null

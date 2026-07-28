@@ -2,11 +2,13 @@
 id: follow-ups-scripts
 number: 83
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 183
+  commits:
+    - aa89115090f682a866c3e014c5e661581b9d33b5
 ---
 
 # Change — recorded follow-ups batch A: single STATE creator, reaper raw-line capture, structured migration verdict
