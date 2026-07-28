@@ -413,12 +413,12 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# -13353 (true-up: docs-hub-generator retired -6099 B via a NEGATIVE RECLAIMED
+# -15485 (true-up: journal-report-contracts retired -2132 B net (journal relax -2715, report scope-note +583; operator decisions 2026-07-28); before that, docs-hub-generator retired -6099 B via a NEGATIVE RECLAIMED
 # entry — rewriting .aai/SKILL_DOCS_HUB.prompt.md (9513 B, a ~70-file LLM
 # fan-out prompt that hand-authored docs/SKILL_CATALOG.html per run, drifted
 # to 27/35 skills stale) down to a 3409 B script-first thin wrapper around
 # the new deterministic .aai/scripts/generate-docs-hub.mjs — dropping the
-# total from -7254; before that, dashboard-refit retired -21517 B (21565 initial minus 48 B review remediation) via a NEGATIVE RECLAIMED
+# total -7254 -> -13353; before that, dashboard-refit retired -21517 B (21565 initial minus 48 B review remediation) via a NEGATIVE RECLAIMED
 # entry — rewriting .aai/SKILL_DASHBOARD.prompt.md (19173 B, ~330 of 652 lines
 # a stale duplicate implementation dump of generate-dashboard.mjs, plus an
 # unimplemented --publish flag) down to a 4152 B script-first thin wrapper,
@@ -464,15 +464,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -13353 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -13353)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -15485 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -15485)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -13353 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -15485 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
@@ -624,6 +624,22 @@ test_017_dashboard_test_skills_pins() {
   fi
 }
 
+test_018_journal_report_contract_pins() {  # CHANGE-0080/0082 content pins
+  local ok=1 j=.aai/SKILL_SESSION_JOURNAL.prompt.md v=.aai/SKILL_VALIDATE_REPORT.prompt.md
+  grep -qF "<YYYY-MM-DD>-<slug>.md" "$j" || { log_info "TEST-018: $j lacks the date-slug naming contract"; ok=0; }
+  grep -qF "| Date | Session | Focus |" "$j" || { log_info "TEST-018: $j lacks the 3-column INDEX contract"; ok=0; }
+  grep -qF "SESSION-<slug>" "$j" && { log_info "TEST-018: $j still mandates the retired SESSION-<slug> naming"; ok=0; }
+  grep -qF "PROJECT_SESSION_TEMPLATE" "$j" && { log_info "TEST-018: $j still references the pruned template"; ok=0; }
+  grep -qF "STANDALONE, ON-DEMAND" "$v" || { log_info "TEST-018: $v lacks the opt-in scope note"; ok=0; }
+  grep -qF "VALIDATION-<YYYYMMDD-HHMMSSZ>-<slug>.md" "$v" || { log_info "TEST-018: $v lacks the unified report naming"; ok=0; }
+  grep -qE "reports/validation-<" "$v" && { log_info "TEST-018: $v still carries the retired lowercase naming"; ok=0; }
+  if [[ $ok -eq 1 ]]; then
+    log_pass "TEST-018 journal/report contract pins (CHANGE-0080/0082)"
+  else
+    log_fail "TEST-018 journal/report contract pins (CHANGE-0080/0082)"
+  fi
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -647,6 +663,7 @@ main() {
   test_015_headroom_cap_still_bites
   test_016_skill_loop_prompt_hash_pointer
   test_017_dashboard_test_skills_pins
+  test_018_journal_report_contract_pins
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

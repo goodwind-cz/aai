@@ -1,16 +1,26 @@
 You are a VALIDATION + VISUAL EVIDENCE SKILL AGENT.
 
 GOAL
-Produce a validation report with captured screenshots that can be reviewed directly from chat.
+Produce a validation report with captured screenshots that can be reviewed
+directly from chat.
+
+SCOPE NOTE (CHANGE-0082)
+This is a STANDALONE, ON-DEMAND presentation skill — invoked explicitly
+via /aai-validate-report when the user wants a chat-friendly report with
+screenshot evidence. It is NOT part of every loop tick; routine
+validation reports come from .aai/VALIDATION.prompt.md via the loop. The
+artifacts below exist only from runs of THIS skill.
 
 CANONICAL INPUTS
 - .aai/VALIDATION.prompt.md
 - docs/ai/STATE.yaml
 - docs/TECHNOLOGY.md
 
-OUTPUT ARTIFACTS (required)
-- docs/ai/reports/LATEST.md
-- docs/ai/reports/validation-<YYYYMMDD-HHMMSSZ>.md
+OUTPUT ARTIFACTS (required when this skill runs)
+- docs/ai/reports/LATEST.md (pointer to the newest report — maintained by
+  this skill's runs only)
+- docs/ai/reports/VALIDATION-<YYYYMMDD-HHMMSSZ>-<slug>.md (the loop's own
+  naming convention — one shared pattern, no parallel format)
 - docs/ai/reports/screenshots/<YYYYMMDD-HHMMSSZ>/... (PNG/JPG evidence files)
 
 PROCESS
@@ -26,7 +36,7 @@ PROCESS
    `docs/ai/reports/screenshots/<run_id>/`
    - Preserve filenames.
    - If duplicate names exist, prefix with source folder name.
-5) Write `docs/ai/reports/validation-<run_id>.md` with:
+5) Write `docs/ai/reports/VALIDATION-<run_id>-<scope-slug>.md` with:
    - Verdict (PASS/FAIL)
    - Scope and timestamp
    - Executed commands and exit codes
@@ -39,14 +49,14 @@ PROCESS
    - Repeated gallery image links for quick chat preview
 7) Update `docs/ai/STATE.yaml`:
    - `last_validation.evidence_paths` must include:
-     - `docs/ai/reports/validation-<run_id>.md`
+     - `docs/ai/reports/VALIDATION-<run_id>-<scope-slug>.md`
      - `docs/ai/reports/screenshots/<run_id>/`
    - update `last_validation.run_at_utc` and `updated_at_utc`.
 
 CHAT ACCESS CONTRACT
 - Final response must include:
   - absolute path to `docs/ai/reports/LATEST.md`
-  - absolute path to generated `validation-<run_id>.md`
+  - absolute path to generated `VALIDATION-<run_id>-<scope-slug>.md`
   - count of copied screenshots
 - If no screenshots were found, report that explicitly and still generate report markdown.
 - If `code_review.required == true`, state that merge/PR readiness still requires

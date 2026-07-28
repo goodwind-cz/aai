@@ -850,6 +850,23 @@ test_082_dispatch_refs_name_contract() {  # spec-subagent-protocol-slim TEST-003
   log_pass "Dispatch payload refs resolve to SUBAGENT_CONTRACT.md; orchestrator-only refs stay on SUBAGENT_PROTOCOL.md (spec-subagent-protocol-slim TEST-003)"
 }
 
+test_091_session_journal_index_complete() {  # CHANGE-0080: every journal has an INDEX row
+  log_info "test_091: every docs/project-sessions/*.md (except INDEX.md) has a row in INDEX.md..."
+  local idx="docs/project-sessions/INDEX.md"
+  [[ -f "$idx" ]] || { log_fail "test_091: $idx missing"; return 1; }
+  local f base missing=0
+  for f in docs/project-sessions/*.md; do
+    base="$(basename "$f")"
+    [[ "$base" == "INDEX.md" ]] && continue
+    if ! grep -qF "($base)" "$idx"; then
+      log_info "test_091: journal $base has NO row in $idx"
+      missing=1
+    fi
+  done
+  [[ "$missing" -eq 0 ]] || { log_fail "test_091: session-journal INDEX is incomplete (CHANGE-0080 contract)"; return 1; }
+  log_pass "test_091: session-journal INDEX complete"
+}
+
 test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-03
   log_info "Test: every tests/skills/test-aai-*.sh has a tests/skills/suite-map.yaml row (spec-ci-test-impact-selection AC-003)..."
   local map="$PROJECT_ROOT/tests/skills/suite-map.yaml"
@@ -945,6 +962,7 @@ main() {
   test_081_no_rule_duplication
   test_082_dispatch_refs_name_contract
   test_090_suite_map_pin
+  test_091_session_journal_index_complete
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
