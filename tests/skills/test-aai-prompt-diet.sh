@@ -722,6 +722,16 @@ test_019_core_prompt_diet_dedup() {
     esac
   done
 
+  # (b2) VALIDATION has TWO FRICTION HOOK sites (discovery-gate + FAIL-verdict);
+  # the at-least-one check above would miss a regression that drops one of them.
+  # Pin both explicitly.
+  local val_friction_n
+  val_friction_n=$(grep -cF "ROLE_COMMON.md FRICTION HOOK" .aai/VALIDATION.prompt.md)
+  if [[ "$val_friction_n" -lt 2 ]]; then
+    log_info "TEST-019: VALIDATION.prompt.md must carry the FRICTION HOOK pointer at BOTH sites (found $val_friction_n, want >=2)"
+    ok=0
+  fi
+
   # (c) SKILL_TDD dead sections gone; troubleshooting pointer present
   if grep -qF '## Token Optimization' .aai/SKILL_TDD.prompt.md || \
      grep -qF '## Example Complete Cycle' .aai/SKILL_TDD.prompt.md; then

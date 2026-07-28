@@ -31,7 +31,7 @@ failure during discovery, AND a FAIL verdict at step 8), and
 trigger fires, best-effort record it per `.aai/system/FRICTION_PROTOCOL.md`
 "Skill wiring (shadow capture)" -> "Deterministic hook points" (schema v2);
 swallow any capture failure — it must never affect, block, or change the
-calling step's own outcome. Each caller below names only its own trigger and
+calling step's own outcome. Each caller prompt names only its own trigger and
 the specific outcome the capture must never touch.
 
 ## PYTHON MONTY SCRATCHPAD (optional, pre-implementation only)
@@ -45,7 +45,7 @@ prototype small isolated logic before editing production code.
 - Do not use it for project imports, third-party libraries, filesystem/network
   access, framework behavior, database access, secrets, or final validation
   evidence.
-A Monty pass is never completion by itself; each caller below names what
+A Monty pass is never completion by itself; each caller prompt names what
 actually finishes the work.
 
 ## PRE-HANDOFF AC-TABLE RECONCILIATION (SPEC-0012 G4 — self-check, not a verdict)
