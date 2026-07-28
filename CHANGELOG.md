@@ -27,8 +27,6 @@ RFC-0001).
   dispositioned WONTFIX (operator-approved).
 
 
-## [unreleased]
-
 ## [v2026.07.28] — feat: platform-portable PR ceremony — GitHub/Azure/generic with internal-review fallback (CHANGE-0085 / SPEC-0103) [L2]
 
 - NEW .aai/scripts/pr-platform.mjs: deterministic remote classification

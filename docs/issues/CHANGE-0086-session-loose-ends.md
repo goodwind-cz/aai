@@ -33,8 +33,7 @@ links:
       speculative structure).
 
 ## Acceptance Criteria
-- AC-001: dispatch human block + JSON carry component provenance
-  (contract_hash, learned_hash 12-hex; ABSENT for missing files) —
+- AC-001: dispatch human block + JSON carry component provenance (JSON inherits.{role,contract,learned} as full 64-hex bare-file digests, human line CONTRACT@<12hex> LEARNED@<12hex> display; ABSENT for missing files) —
   suite-verified RED-first; prompt_hash behavior unchanged.
 - AC-002: phase-boundary audit report delivered; every finding either
   fixed in this ride or explicitly dispositioned; zero prose-context
