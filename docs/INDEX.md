@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T00:32:13.658Z
+Generated: 2026-07-28T01:03:11.969Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (224)
+## Done (225)
 
 | ID | Type | Path |
 |---|---|---|
@@ -244,6 +244,7 @@ _None._
 | SPEC-0098 | specs | docs/specs/SPEC-0098-spec-prompt-hash-runtime-wiring.md |
 | SPEC-0099 | specs | docs/specs/SPEC-0099-spec-state-bootstrap-template.md |
 | SPEC-0100 | specs | docs/specs/SPEC-0100-spec-doctor-determinize.md |
+| SPEC-0101 | specs | docs/specs/SPEC-0101-spec-dashboard-refit.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (5)
