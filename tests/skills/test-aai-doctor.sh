@@ -302,17 +302,20 @@ EOF
     log_fail "TEST-006 CAT-06 duplicate-key FAIL"
   fi
 
-  # STATE.yaml absent entirely -> WARN, not FAIL (per-dev runtime file).
-  local fixture2 out2
+  # STATE.yaml absent entirely -> WARN everywhere, exit 0: it is a per-dev,
+  # gitignored runtime file (RFC-0001) legitimately missing on fresh
+  # checkouts/CI — CAT-01 must NOT list it as required (PR #178 CI repro),
+  # CAT-06 owns the absence with an init hint.
+  local fixture2 out2 rc2=0
   fixture2="$(new_bare_fixture t006b)"
   add_core_and_role_files "$fixture2"
   rm -f "$fixture2/docs/ai/STATE.yaml"
-  out2="$(node "$DOCTOR" --root "$fixture2" 2>&1)"
-  if echo "$out2" | grep "^CAT-01" | grep -q FAIL && echo "$out2" | grep "^CAT-06" | grep -q "WARN"; then
-    log_pass "TEST-006b CAT-06 missing STATE.yaml -> WARN (CAT-01 owns the FAIL)"
+  out2="$(node "$DOCTOR" --root "$fixture2" 2>&1)" || rc2=$?
+  if echo "$out2" | grep "^CAT-01" | grep -vq FAIL && echo "$out2" | grep "^CAT-06" | grep -q "WARN" && [[ "$rc2" -eq 0 ]]; then
+    log_pass "TEST-006b missing STATE.yaml -> CAT-06 WARN, CAT-01 unaffected, exit 0 (CI-checkout parity)"
   else
-    log_info "TEST-006b: got CAT-01=$(echo "$out2" | grep '^CAT-01') CAT-06=$(echo "$out2" | grep '^CAT-06')"
-    log_fail "TEST-006b CAT-06 missing-state WARN"
+    log_info "TEST-006b: rc=$rc2 CAT-01=$(echo "$out2" | grep '^CAT-01') CAT-06=$(echo "$out2" | grep '^CAT-06')"
+    log_fail "TEST-006b missing-state must be WARN-only with exit 0"
   fi
 }
 

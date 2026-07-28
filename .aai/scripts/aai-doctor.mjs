@@ -94,9 +94,13 @@ function catCoreFiles(root) {
     '.aai/AGENTS.md',
     '.aai/PLAYBOOK.md',
     '.aai/ORCHESTRATION.prompt.md',
-    'docs/ai/STATE.yaml',
     'CLAUDE.md',
   ];
+  // docs/ai/STATE.yaml is deliberately NOT here: it is a per-developer,
+  // gitignored runtime file (RFC-0001) that legitimately does not exist on a
+  // fresh checkout or CI runner — CAT-06 owns its absence (WARN + init hint).
+  // Listing it as required made the doctor report FAIL on every CI checkout
+  // (PR #178 first CI run).
   const optional = ['docs/TECHNOLOGY.md', '.aai/workflow/WORKFLOW.md'];
   const missingRequired = required.filter((f) => !exists(root, f));
   const missingOptional = optional.filter((f) => !exists(root, f));
