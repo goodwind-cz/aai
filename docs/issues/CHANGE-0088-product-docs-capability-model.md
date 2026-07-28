@@ -2,11 +2,13 @@
 id: product-docs-capability-model
 number: 88
 type: change
-status: draft
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 191
+  commits:
+    - a93bdfedc786c8cbd2c92a4ef5aba0ec62c13c22
 ---
 
 # Change — product docs become a capability-keyed, generated/validated projection (fixes #189)

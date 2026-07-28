@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T18:15:04.096Z
+Generated: 2026-07-28T18:15:42.196Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -34,7 +34,7 @@ _None._
 | token-capture-canary | token-capture-canary | 1 | docs/product/token-capture-canary.md |
 | token-economics-end-to-end | token-economics-end-to-end | 1 | docs/product/token-economics-end-to-end.md |
 
-## Done (238)
+## Done (240)
 
 | ID | Type | Path |
 |---|---|---|
@@ -125,6 +125,7 @@ _None._
 | CHANGE-0085 | issues | docs/issues/CHANGE-0085-platform-portable-pr.md |
 | CHANGE-0086 | issues | docs/issues/CHANGE-0086-session-loose-ends.md |
 | CHANGE-0087 | issues | docs/issues/CHANGE-0087-issues-skill.md |
+| CHANGE-0088 | issues | docs/issues/CHANGE-0088-product-docs-capability-model.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -275,14 +276,12 @@ _None._
 | SPEC-0102 | specs | docs/specs/SPEC-0102-spec-docs-hub-generator.md |
 | SPEC-0103 | specs | docs/specs/SPEC-0103-spec-platform-portable-pr.md |
 | SPEC-0104 | specs | docs/specs/SPEC-0104-spec-issues-skill.md |
+| SPEC-0105 | specs | docs/specs/SPEC-0105-spec-product-docs-capability-model.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0088 | issues | docs/issues/CHANGE-0088-product-docs-capability-model.md |
-| SPEC-0105 | specs | docs/specs/SPEC-0105-spec-product-docs-capability-model.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

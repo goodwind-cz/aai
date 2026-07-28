@@ -2,13 +2,15 @@
 id: spec-product-docs-capability-model
 type: spec
 number: 105
-status: draft
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0088-product-docs-capability-model.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 191
+  commits:
+    - a93bdfedc786c8cbd2c92a4ef5aba0ec62c13c22
 ---
 
 # Spec — product docs as a capability-keyed SECOND DOC FAMILY on the shared doc-engine primitives (fixes #189)

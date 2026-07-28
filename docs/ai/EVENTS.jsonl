@@ -1354,3 +1354,9 @@
 {"v":1,"ts":"2026-07-28T14:49:12.291Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-issues-skill","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-28T14:49:12.322Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-issues-skill","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-28T14:49:12.353Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-issues-skill","payload":{"commit":"3dd7ef058102d254ae44adb69e4fec541b9e20f7"}}
+{"v":1,"ts":"2026-07-28T18:15:25.760Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"product-docs-capability-model","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-28T18:15:25.791Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"product-docs-capability-model","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-28T18:15:25.820Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"product-docs-capability-model","payload":{"commit":"a93bdfedc786c8cbd2c92a4ef5aba0ec62c13c22"}}
+{"v":1,"ts":"2026-07-28T18:15:25.852Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-product-docs-capability-model","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-28T18:15:25.881Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-product-docs-capability-model","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-28T18:15:25.910Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-product-docs-capability-model","payload":{"commit":"a93bdfedc786c8cbd2c92a4ef5aba0ec62c13c22"}}
