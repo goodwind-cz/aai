@@ -1,7 +1,10 @@
 ---
 id: friction-capture-default-on
 type: product
+capability: friction-capture-default-on
 status: current
+delivered_by:
+  - friction-capture-default-on
 spec: docs/specs/SPEC-0088-spec-friction-capture-default-on.md
 updated: 2026-07-26
 ---

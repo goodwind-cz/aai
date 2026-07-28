@@ -1,64 +1,64 @@
 {
-  "generatedAt": "2026-07-28T14:49:22.876Z",
+  "generatedAt": "2026-07-28T18:15:36.782Z",
   "project": "aai",
   "counts": {
-    "delivered": 132,
+    "delivered": 133,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 22350104
+    "tokens_total": 23213083
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "issues-skill",
+    "ref": "product-docs-capability-model",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "issues-skill",
+      "ref": "product-docs-capability-model",
       "type": "intake_change",
       "phase": "implementation"
     },
     "strategy": "tdd",
     "worktree": {
-      "recommendation": "not_needed",
+      "recommendation": "recommended",
       "user_decision": "inline"
     },
     "validation_status": "not_run",
     "review_status": "not_run",
     "ticks": [
       {
-        "tick": 2,
-        "role": "Validation+Review",
-        "scope": "issues-skill",
-        "duration_seconds": 360,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 1,
-        "role": "Planning+Implementation",
-        "scope": "issues-skill",
-        "duration_seconds": 3453,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 2,
+        "tick": 4,
         "role": "Code Review",
-        "scope": "session-loose-ends",
-        "duration_seconds": 420,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 1,
-        "role": "Implementation+Audit",
-        "scope": "session-loose-ends",
-        "duration_seconds": 1500,
+        "scope": "product-docs-capability-model",
+        "duration_seconds": 960,
         "harness_version": "2.1.218 (Claude Code)"
       },
       {
         "tick": 3,
-        "role": "Code Review",
-        "scope": "platform-portable-pr",
-        "duration_seconds": 480,
+        "role": "Validation",
+        "scope": "product-docs-capability-model",
+        "duration_seconds": 960,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 2,
+        "role": "TDD Implementation",
+        "scope": "product-docs-capability-model",
+        "duration_seconds": 1714,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 1,
+        "role": "Planning",
+        "scope": "product-docs-capability-model",
+        "duration_seconds": 7401,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 2,
+        "role": "Validation+Review",
+        "scope": "issues-skill",
+        "duration_seconds": 360,
         "harness_version": "2.1.218 (Claude Code)"
       }
     ]
@@ -206,6 +206,19 @@
       "agent_minutes": 101,
       "token_total": 349032,
       "spec": "docs/specs/SPEC-0104-spec-issues-skill.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "product-docs-capability-model",
+      "title": "Change — product docs become a capability-keyed, generated/validated projection (fixes #189)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0088-product-docs-capability-model.md",
+      "closed_on": "2026-07-28",
+      "agent_minutes": 184,
+      "token_total": 862979,
+      "spec": "docs/specs/SPEC-0105-spec-product-docs-capability-model.md",
       "validation": null,
       "review": null
     },
@@ -1929,6 +1942,19 @@
           "agent_minutes": 101,
           "token_total": 349032,
           "spec": "docs/specs/SPEC-0104-spec-issues-skill.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "product-docs-capability-model",
+          "title": "Change — product docs become a capability-keyed, generated/validated projection (fixes #189)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0088-product-docs-capability-model.md",
+          "closed_on": "2026-07-28",
+          "agent_minutes": 184,
+          "token_total": 862979,
+          "spec": "docs/specs/SPEC-0105-spec-product-docs-capability-model.md",
           "validation": null,
           "review": null
         },

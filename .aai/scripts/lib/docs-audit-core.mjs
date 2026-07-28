@@ -9,7 +9,8 @@ import {
   DOC_STATUS_ENUM, TERMINAL_AC, DOC_TYPE_ENUM, DOC_ID_RE,
   DEFAULT_CATEGORY_PREFIXES, extractDocIds, normalizeAcStatus,
   parseFrontmatter, parseAcTable, parseLeanAcTable, parseISODate, parseReviewBy,
-  specFrozenInBody, validateCanonicalFrontmatter, asList, toPosix,
+  specFrozenInBody, validateCanonicalFrontmatter, validateProductFrontmatter,
+  asList, toPosix, slugFamilyForPath,
   detectNearMissAcTable, parseRequirementsSection,
 } from './docs-model.mjs';
 import { guardConfigPresent } from './guard-config.mjs';
@@ -551,12 +552,16 @@ export function scanAuditDocs(root, { scopePath = null, scanExclude = [] } = {})
       // derived from the frontmatter id at parse time.
       // rel is POSIX-normalized (SPEC-0007 WARNING-1), so compare against a
       // POSIX literal — path.join(...)+path.sep would be backslash on Windows
-      // and never match the forward-slash rel, dropping canonical docs there.
-      const inCanonical = rel.startsWith('docs/canonical/');
+      // and never match the forward-slash rel, dropping family docs there.
+      // spec-product-docs-capability-model D1 (SEAM-1, Spec-AC-02): the
+      // hardcoded `inCanonical` literal is generalized into the shared
+      // DOC_FAMILIES registry predicate — canonical AND product (and any
+      // future family) are admitted through this ONE scan-admit branch.
+      const inFamily = !!slugFamilyForPath(rel);
       // CHANGE-0012 D3: DRAFT basenames join the scan set so `--gate <slug>`
       // can resolve them and `--check --strict --path <DRAFT>` is non-vacuous.
       const isDraft = !m && DRAFT_FILE_RE.test(entry.name);
-      if (!m && !isDraft && !inCanonical) continue;
+      if (!m && !isDraft && !inFamily) continue;
       if (scopePath) {
         const scope = toPosix(path.relative(root, path.resolve(root, scopePath)));
         if (rel !== scope && !rel.startsWith(scope.replace(/\/+$/, '') + '/')) continue;
@@ -948,6 +953,22 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
       }
     }
 
+    // product provenance validation (spec-product-docs-capability-model D2,
+    // Spec-AC-01/02): a product doc must carry a valid capability slug and a
+    // non-empty delivered_by list. Hard schema violations (count toward
+    // hardFail under --strict / enforced mode), parallel to the canonical
+    // branch above — audited by construction.
+    // Key on the REGISTERED PATH (same source as admission + placement), not
+    // the type field: a product-PATH doc with a wrong type must still be
+    // product-validated (validateProductFrontmatter flags the type), and a
+    // non-product-path doc with a stray type:product must NOT be (Codex P1).
+    if (slugFamilyForPath(f.rel)?.type === 'product') {
+      const v = validateProductFrontmatter(fm);
+      for (const msg of v.violations) {
+        violations.push({ rel: f.rel, msg: `product frontmatter: ${msg}` });
+      }
+    }
+
     // amendment annotations (CHANGE-0001 D3): recognized sibling fields
     for (const key of ['amendment_note', 'amended_by', 'superseded_by']) {
       if (fm[key]) annotations.push({ id, rel: f.rel, key, value: fm[key] });
@@ -1315,17 +1336,28 @@ export function parentProgressFor(docs) {
 // follow-up). Each scanned doc contributes exactly one docs[] record (one
 // file = one record), so a single doc's slug id vs its own numbered fileId
 // can never self-collide — a duplicate requires >=2 distinct docs[] entries.
+//
+// spec-product-docs-capability-model — a DOC_FAMILIES doc (canonical
+// `domain`, product `capability`) lives on a SEPARATE identity axis from the
+// ride-ref id space every other doc type shares (the architecture's own
+// "axes stay SEPARATE" constraint); a capability slug coinciding with its
+// originating change/issue doc's ref id (the common 1:1 migration case) is
+// BY DESIGN, not an identity collision. Bucket the id space per family (a
+// bare id bucket for every non-family doc) so a cross-axis coincidence is
+// never flagged, while two docs of the SAME family — or two non-family docs
+// — sharing one id is still a genuine collision.
 export function duplicateDocIdsFor(docs) {
   const byId = new Map();
   for (const d of docs) {
     if (!d.id) continue;
-    const key = String(d.id);
+    const fam = slugFamilyForPath(d.rel);
+    const key = `${fam ? fam.type : ''}\u0000${d.id}`;
     if (!byId.has(key)) byId.set(key, []);
     byId.get(key).push(d.rel);
   }
   const out = [];
-  for (const [id, paths] of byId) {
-    if (paths.length > 1) out.push({ id, paths: [...paths].sort() });
+  for (const [key, paths] of byId) {
+    if (paths.length > 1) out.push({ id: key.slice(key.indexOf('\u0000') + 1), paths: [...paths].sort() });
   }
   return out.sort((a, b) => a.id.localeCompare(b.id));
 }

@@ -1,7 +1,10 @@
 ---
-id: <work-item ref_id>
+id: <capability slug>
 type: product
+capability: <capability slug — kebab-case, e.g. issue-intake>
 status: current
+delivered_by:
+  - <work-item ref_id>
 spec: <docs/specs/SPEC-XXXX-....md>
 updated: <YYYY-MM-DD>
 ---
@@ -16,17 +19,23 @@ jargon, no AC ids in prose. Keep every section; write "None." when a
 section genuinely has no content — an empty heading is drift, an explicit
 "None." is a statement. English, plain Markdown, no emoji.
 
-CONVENTION (spec-product-docs-enforced D1-D2): setting `user_visible: true`
-on the primary work-item doc's (change/issue/prd) frontmatter is what makes
-THIS product doc required at close time. The filename slug here must equal
-that primary doc's frontmatter `id` (docs/product/<id>.md) — close-work-item.mjs
-looks this file up by that exact slug. Without a real doc at that path (every
-required section below — "What it does", "Data model", "Interfaces and
-contracts" — filled in, not left as an unfilled `<...>` placeholder), closing
-a `user_visible: true` scope warns loudly by default, or refuses outright
-under `product_doc_gate: enforce` in docs/ai/docs-audit.yaml. A section that
-genuinely has nothing to report still needs the explicit literal "None." —
-that counts as filled; an empty or placeholder-only section does not.
+CONVENTION (spec-product-docs-capability-model D3): setting `user_visible:
+true` on the primary work-item doc's (change/issue/prd) frontmatter is what
+makes THIS product doc required at close time. Product docs are keyed by
+USER-FACING CAPABILITY, not by ride — the filename slug here must equal that
+primary doc's frontmatter `capability` (docs/product/<capability>.md);
+close-work-item.mjs resolves this file by that slug (legacy fallback: a
+primary doc with no `capability` field resolves by its own `id` instead).
+Multiple work items may share one capability — they UPDATE this doc's
+`delivered_by` list (close-work-item.mjs appends the closing ref,
+deduped, and stamps `updated`), never spawn a new file. Without a real doc
+at that path (every required section below — "What it does", "Data model",
+"Interfaces and contracts" — filled in, not left as an unfilled `<...>`
+placeholder), closing a `user_visible: true` scope warns loudly by default,
+or refuses outright under `product_doc_gate: enforce` in
+docs/ai/docs-audit.yaml. A section that genuinely has nothing to report
+still needs the explicit literal "None." — that counts as filled; an empty
+or placeholder-only section does not.
 -->
 
 <!--

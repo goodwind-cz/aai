@@ -1,7 +1,10 @@
 ---
 id: prompt-hash-telemetry
 type: product
+capability: prompt-hash-telemetry
 status: current
+delivered_by:
+  - prompt-hash-telemetry
 spec: docs/specs/SPEC-0096-spec-prompt-hash-telemetry.md
 updated: 2026-07-27
 ---

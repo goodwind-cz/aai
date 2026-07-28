@@ -5235,6 +5235,34 @@ test_spec0057_real_repo_known_collisions() {  # TEST-104 / Spec-AC-04
   log_pass "Real repo has zero duplicate-doc-id collisions post-remediation; CI exit 0 (TEST-104)"
 }
 
+test_pdcm_product_family_repo_wide_clean() {  # spec-product-docs-capability-model TEST-011 / Spec-AC-04
+  log_info "Test: post-migration docs/product/ is scanned and CLEAN; all product docs classify tracked-open/aligned (spec-product-docs-capability-model TEST-011)..."
+  # Scope the CLEAN assertion to docs/product — NOT the whole repo. A repo-wide
+  # --check would transiently include THIS ride's own draft spec as a
+  # probable-false-open (terminal AC table, status:draft) until its close
+  # ceremony flips it to done; that close-timing artifact is unrelated to the
+  # product-docs change and must not make the suite red in the review window
+  # (Code Review finding). docs/product is the surface this AC is actually about.
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event --path docs/product > "$TEST_DIR/pdcm-repo-check.log" 2>&1) \
+    || log_fail "TEST-011: --check --strict --path docs/product must exit 0 with product docs scanned: $(tail -20 "$TEST_DIR/pdcm-repo-check.log")"
+  assert_contains "$TEST_DIR/pdcm-repo-check.log" "Verdict: CLEAN"
+
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --list --no-event --path docs/product > "$TEST_DIR/pdcm-list.log" 2>&1) \
+    || log_fail "TEST-011: --list --path docs/product must exit 0: $(cat "$TEST_DIR/pdcm-list.log")"
+  # Derive the expected count from disk — never hardcode: every new
+  # user_visible capability adds a product doc (this ride's own dogfood doc
+  # made it 13), and a hardcoded pin would break on each addition.
+  local expected
+  expected=$(ls "$PROJECT_ROOT"/docs/product/*.md 2>/dev/null | wc -l | tr -d ' ')
+  assert_contains "$TEST_DIR/pdcm-list.log" "Scanned: $expected docs"
+  local unaligned
+  unaligned=$(grep -c '| tracked-open | current | aligned |' "$TEST_DIR/pdcm-list.log")
+  [[ "$unaligned" == "$expected" ]] \
+    || log_fail "TEST-011: expected all $expected product docs classified tracked-open/current/aligned, got $unaligned: $(cat "$TEST_DIR/pdcm-list.log")"
+
+  log_pass "docs/product CLEAN + scanned; all $expected product docs tracked-open/aligned (spec-product-docs-capability-model TEST-011)"
+}
+
 test_pdci_validation_gate_delegation() {  # prompt-dedup-canonical-includes spec TEST-003 / Spec-AC-02
   log_info "Test: VALIDATION AC gate names docs-audit.mjs --gate for the mechanical checks AND retains Rule 3 (repo-wide overdue) + Rule 4-anti-cheat (14-day-future) prose (TEST-003)..."
   local v="$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
@@ -5435,6 +5463,7 @@ main() {
   setup_dupid_clean_fixture
   test_spec0057_no_false_positive
   test_spec0057_real_repo_known_collisions
+  test_pdcm_product_family_repo_wide_clean
   test_pdci_validation_gate_delegation
   test_pdci_gate_characterization_temporal_gap
   echo ""

@@ -358,6 +358,73 @@ test_011_empty_product_dir() {
   log_pass "Degenerate/empty: zero product docs -> stable marker-contained block, exit 0"
 }
 
+# --- spec-product-docs-capability-model TEST-010 (Spec-AC-04, SEAM-3) -------
+#
+# The rollup is the READ-ONLY reader of docs/product/*.md and does not itself
+# validate `capability`/`delivered_by` — this is a regression proof that
+# adding those two frontmatter fields (the capability-model migration) never
+# breaks parsing: one rendered entry per migrated capability doc, keyed the
+# same way (`fm.id ?? file`), summary/title unaffected.
+
+test_019_capability_migrated_docs_render() {
+  log_info "Test: product docs carrying capability + delivered_by frontmatter still render one rollup entry each, unaffected (spec-product-docs-capability-model TEST-010, SEAM-3)..."
+  local dir; dir=$(new_fixture_dir "t019")
+  cat > "$dir/docs/product/widget-export.md" <<'EOF'
+---
+id: widget-export
+type: product
+capability: widget-export
+status: current
+delivered_by:
+  - CHANGE-0001
+  - CHANGE-0002
+spec: docs/specs/SPEC-9999-spec-widget-export.md
+updated: 2026-07-28
+---
+
+# Widget export
+
+## What it does
+
+Exports widgets to a file. This is the summary paragraph.
+
+## How to use it
+
+Run the export command.
+
+## Data model
+
+None.
+
+## Interfaces and contracts
+
+None.
+
+## Limits and non-goals
+
+None.
+
+## Links
+
+- Request: docs/issues/CHANGE-DRAFT-widget-export.md
+- Spec: docs/specs/SPEC-9999-spec-widget-export.md
+EOF
+
+  local out="$TEST_DIR/t019.out" err="$TEST_DIR/t019.err" code
+  code=$(run_rollup "$dir" "$out" "$err")
+  [[ "$code" == "0" ]] || log_fail "t019: generator exited $code: $(cat "$err")"
+
+  grep -qF 'Widget export' "$dir/docs/USER_GUIDE.md" \
+    || log_fail "t019: a capability-migrated product doc was not rendered"
+  grep -qF 'Exports widgets to a file.' "$dir/docs/USER_GUIDE.md" \
+    || log_fail "t019: the summary paragraph was not rendered for the migrated doc"
+  if grep -qi 'EXCLUDED' "$out"; then
+    log_fail "t019: a real capability-migrated doc must never be excluded: $(cat "$out")"
+  fi
+
+  log_pass "capability/delivered_by frontmatter does not break the rollup: one entry rendered (spec-product-docs-capability-model TEST-010, SEAM-3)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -375,6 +442,7 @@ main() {
   test_010_placeholder_excluded
   test_014_exclusion_named_on_stdout
   test_011_empty_product_dir
+  test_019_capability_migrated_docs_render
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

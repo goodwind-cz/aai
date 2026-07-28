@@ -1,7 +1,10 @@
 ---
 id: token-capture-canary
 type: product
+capability: token-capture-canary
 status: current
+delivered_by:
+  - token-capture-canary
 spec: docs/specs/SPEC-0085-spec-token-capture-canary.md
 updated: 2026-07-26
 ---
