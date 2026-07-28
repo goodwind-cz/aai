@@ -56,12 +56,16 @@ create_state_file() {
   # second, drifted schema source (missing implementation_strategy/
   # code_review/worktree/metrics) — never reintroduce one; fail loud when
   # the checker is unavailable instead of writing a divergent stub.
-  if [[ -f .aai/scripts/check-state.mjs ]] && command -v node >/dev/null 2>&1; then
-    node .aai/scripts/check-state.mjs --repair "$STATE_PATH"
-    return $?
+  if ! command -v node >/dev/null 2>&1; then
+    echo "ERROR: cannot initialize $STATE_PATH — node is not on PATH; install Node.js first." >&2
+    return 1
   fi
-  echo "ERROR: cannot initialize $STATE_PATH — .aai/scripts/check-state.mjs or node unavailable; run /aai-update first." >&2
-  return 1
+  if [[ ! -f .aai/scripts/check-state.mjs ]]; then
+    echo "ERROR: cannot initialize $STATE_PATH — .aai/scripts/check-state.mjs missing; run /aai-update first." >&2
+    return 1
+  fi
+  node .aai/scripts/check-state.mjs --repair "$STATE_PATH"
+  return $?
 }
 
 read_project_status() {

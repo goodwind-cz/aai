@@ -111,47 +111,22 @@ print(json.dumps(out, separators=(",", ":"), ensure_ascii=False))
 }
 
 function New-StateFile {
-  $utc = (Get-Date).ToUniversalTime().ToString("o")
-  @"
-project_status: active
-
-current_focus:
-  type: none
-  ref_id: null
-  primary_path: null
-
-locks:
-  implementation: true
-  implementation_reason: "Implementation is forbidden until scope is explicitly unlocked in state."
-  protected_paths:
-    - .aai/workflow/
-    - .aai/roles/
-    - .aai/
-  protected_paths_edit_allowed: false
-  protected_paths_reason: "Edits are allowed only with explicit scope/HITL approval."
-
-active_work_items:
-  []
-
-last_validation:
-  status: not_run
-  run_at_utc: null
-  validator_ref: .aai/VALIDATION.prompt.md
-  evidence_paths: []
-  notes: "No validation run yet."
-
-human_input:
-  required: false
-  question_ref: null
-  blocking_reason: null
-
-ai_os:
-  pin_path: .aai/system/AAI_PIN.md
-  pin_version: null
-  pin_commit: null
-
-updated_at_utc: "$utc"
-"@ | Set-Content -Path $StatePath -Encoding utf8
+  # Single canonical creator (CHANGE-0074 / CHANGE-0083): delegate to
+  # check-state --repair (creates from .aai/templates/STATE_TEMPLATE.yaml).
+  # Never reintroduce an inline here-string creator — it drifts (the old one
+  # lacked implementation_strategy/code_review/worktree/metrics). Fail loud
+  # with a PRECISE remediation instead of writing a divergent stub.
+  $node = Get-Command node -ErrorAction SilentlyContinue
+  if (-not $node) {
+    Write-Error "cannot initialize ${StatePath}: node is not on PATH — install Node.js first."
+    exit 1
+  }
+  if (-not (Test-Path ".aai/scripts/check-state.mjs")) {
+    Write-Error "cannot initialize ${StatePath}: .aai/scripts/check-state.mjs missing — run /aai-update first."
+    exit 1
+  }
+  & node .aai/scripts/check-state.mjs --repair $StatePath
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
 function Read-State {

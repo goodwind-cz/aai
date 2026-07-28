@@ -863,11 +863,10 @@ test_023() {
   log_info "TEST-023: reaper emits a stable 'reaped raw:' diagnostic header on the no-op path..."
   [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
   local ws out
-  ws="$(mktemp -d "${TMPDIR:-/tmp}/aai-reap-raw.XXXXXX")"
+  ws="$(mktemp -d "$TMP_ROOT/aai-reap-raw.XXXXXX")"
   out="$(AAI_REAP_WORKSPACE="$ws" sh "$REAP_SCRIPT" 2>&1)" || log_fail "TEST-023: reaper exited non-zero on a no-match run: $out"
   printf '%s\n' "$out" | grep -q '^reaped: 0' || log_fail "TEST-023: expected 'reaped: 0' on an empty workspace: $out"
   printf '%s\n' "$out" | grep -q '^reaped raw:' || log_fail "TEST-023: the 'reaped raw:' diagnostic header must be present on EVERY exit path (stable shape): $out"
-  rm -rf "$ws"
   log_pass "reaper 'reaped raw:' diagnostic header stable on the no-op path (TEST-023)"
 }
 

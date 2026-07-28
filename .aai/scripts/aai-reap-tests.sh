@@ -211,7 +211,7 @@ ps axo pid=,etime=,args= > "$SNAP" 2>/dev/null || {
   # the output shape is stable (PR review).
   echo "reaped pids:"
   echo "reaped ages:"
-  echo "reaped raw:"
+  printf '%s\n' "reaped raw:"
   exit 0
 }
 # SNAP_NOW is captured IMMEDIATELY adjacent to the ps snapshot instant above —
@@ -364,5 +364,5 @@ echo "reaped pids:$MATCH_PIDS"
 echo "reaped ages:$MATCH_AGES"
 # Verbatim ps snapshot lines for the reaped pids (SPEC-0083 AC-04 data
 # capture); `|`-separated, empty tail when N=0. Reporting only.
-echo "reaped raw:$MATCH_RAW"
+printf '%s\n' "reaped raw:$MATCH_RAW"
 exit 0
