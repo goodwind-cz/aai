@@ -2,11 +2,13 @@
 id: session-loose-ends
 number: 86
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 188
+  commits:
+    - 1566fe8679efe3669abdef7b36b690bddbf9ab37
 ---
 
 # Change — session loose ends: phase-boundary audit, inheritance provenance, NOTE convention, POSTPROCESSING wontfix

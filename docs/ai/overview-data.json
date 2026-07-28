@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-07-28T08:40:11.954Z",
+  "generatedAt": "2026-07-28T13:48:18.931Z",
   "project": "aai",
   "counts": {
-    "delivered": 130,
+    "delivered": 131,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 21851698
+    "tokens_total": 22001072
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "platform-portable-pr",
+    "ref": "session-loose-ends",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "platform-portable-pr",
+      "ref": "session-loose-ends",
       "type": "intake_change",
       "phase": "implementation"
     },
@@ -26,6 +26,20 @@
     "validation_status": "not_run",
     "review_status": "not_run",
     "ticks": [
+      {
+        "tick": 2,
+        "role": "Code Review",
+        "scope": "session-loose-ends",
+        "duration_seconds": 420,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 1,
+        "role": "Implementation+Audit",
+        "scope": "session-loose-ends",
+        "duration_seconds": 1500,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
       {
         "tick": 3,
         "role": "Code Review",
@@ -45,20 +59,6 @@
         "role": "Planning+Implementation",
         "scope": "platform-portable-pr",
         "duration_seconds": 1178,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 1,
-        "role": "Implementation",
-        "scope": "follow-ups-docs",
-        "duration_seconds": 1200,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 1,
-        "role": "Implementation+Review",
-        "scope": "follow-ups-scripts",
-        "duration_seconds": 1500,
         "harness_version": "2.1.218 (Claude Code)"
       }
     ]
@@ -180,6 +180,19 @@
       "agent_minutes": 55,
       "token_total": 405173,
       "spec": "docs/specs/SPEC-0103-spec-platform-portable-pr.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "session-loose-ends",
+      "title": "Change — session loose ends: phase-boundary audit, inheritance provenance, NOTE convention, POSTPROCESSING wontfix",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0086-session-loose-ends.md",
+      "closed_on": "2026-07-28",
+      "agent_minutes": 52,
+      "token_total": 149374,
+      "spec": null,
       "validation": null,
       "review": null
     },
@@ -1877,6 +1890,19 @@
           "agent_minutes": 55,
           "token_total": 405173,
           "spec": "docs/specs/SPEC-0103-spec-platform-portable-pr.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "session-loose-ends",
+          "title": "Change — session loose ends: phase-boundary audit, inheritance provenance, NOTE convention, POSTPROCESSING wontfix",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0086-session-loose-ends.md",
+          "closed_on": "2026-07-28",
+          "agent_minutes": 52,
+          "token_total": 149374,
+          "spec": null,
           "validation": null,
           "review": null
         },

@@ -1345,3 +1345,6 @@
 {"v":1,"ts":"2026-07-28T08:40:01.765Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-platform-portable-pr","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-28T08:40:01.795Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-platform-portable-pr","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-28T08:40:01.835Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-platform-portable-pr","payload":{"commit":"e411d52865466082f0721160d8bfcfdcba057434"}}
+{"v":1,"ts":"2026-07-28T13:48:08.339Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"session-loose-ends","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-28T13:48:08.372Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"session-loose-ends","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-28T13:48:08.403Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"session-loose-ends","payload":{"commit":"1566fe8679efe3669abdef7b36b690bddbf9ab37"}}
