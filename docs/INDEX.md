@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T10:33:19.195Z
+Generated: 2026-07-28T14:02:58.163Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (235)
+## Done (236)
 
 | ID | Type | Path |
 |---|---|---|
@@ -106,6 +106,7 @@ _None._
 | CHANGE-0083 | issues | docs/issues/CHANGE-0083-follow-ups-scripts.md |
 | CHANGE-0084 | issues | docs/issues/CHANGE-0084-follow-ups-docs.md |
 | CHANGE-0085 | issues | docs/issues/CHANGE-0085-platform-portable-pr.md |
+| CHANGE-0086 | issues | docs/issues/CHANGE-0086-session-loose-ends.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |

@@ -169,11 +169,45 @@ test_001_hash_lib_contract() {  # TEST-001 / Spec-AC-01
   log_pass "Deterministic, input-sensitive (role/CONTRACT/LEARNED), ABSENT marker on missing input, never throws, shortHash = 12 hex (TEST-001)"
 }
 
+test_002_component_hashes() {  # session-loose-ends CQ-1/CQ-2: hex branch + bare-file-vs-framed design lock
+  log_info "Test: componentHashes returns three DISTINCT bare-file sha256 digests (never the aggregate's framed sections); ABSENT on missing (TEST-002)..."
+  local d2="$TEST_DIR/root2"
+  write_fixture_root "$d2"
+  node_eval "
+    import crypto from 'node:crypto';
+    import fs from 'node:fs';
+    import { computeEffectivePromptHash, componentHashes } from '$LIB';
+    const c = componentHashes('.aai/ROLE.prompt.md', '$d2');
+    for (const k of ['role','contract','learned']) {
+      if (!/^[0-9a-f]{64}\$/.test(c[k])) { console.error(k + ' not 64-hex: ' + c[k]); process.exit(1); }
+    }
+    if (new Set([c.role, c.contract, c.learned]).size !== 3) { console.error('component digests must be distinct'); process.exit(1); }
+    // each component == BARE file sha256 (design lock: never framed like the aggregate)
+    const bare = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+    if (c.role !== bare('$d2/.aai/ROLE.prompt.md')) { console.error('role digest is not the bare-file sha256 — do NOT frame components like the aggregate'); process.exit(1); }
+    if (c.contract !== bare('$d2/.aai/SUBAGENT_CONTRACT.md')) { console.error('contract digest is not the bare-file sha256'); process.exit(1); }
+    if (c.learned !== bare('$d2/docs/knowledge/LEARNED.md')) { console.error('learned digest is not the bare-file sha256'); process.exit(1); }
+    // and none equals the aggregate (framed concat) digest
+    const agg = computeEffectivePromptHash('.aai/ROLE.prompt.md', '$d2');
+    if ([c.role, c.contract, c.learned].includes(agg)) { console.error('a component digest equals the aggregate — framing drift'); process.exit(1); }
+  " || log_fail "componentHashes hex branch / bare-file design lock failed"
+  # ABSENT arm on an empty root
+  local d3="$TEST_DIR/root3"
+  mkdir -p "$d3"
+  node_eval "
+    import { componentHashes } from '$LIB';
+    const c = componentHashes('.aai/ROLE.prompt.md', '$d3');
+    if (c.role !== 'ABSENT' || c.contract !== 'ABSENT' || c.learned !== 'ABSENT') { console.error('missing files must yield ABSENT: ' + JSON.stringify(c)); process.exit(1); }
+  " || log_fail "componentHashes must yield ABSENT for missing files"
+  log_pass "componentHashes: 3 distinct bare-file 64-hex digests, != aggregate, ABSENT-safe (TEST-002)"
+}
+
 main() {
   echo "Testing $TEST_NAME (prompt-hash-telemetry TEST-001 / Spec-AC-01)"
   check_deps
   setup_fixture
   test_001_hash_lib_contract
+  test_002_component_hashes
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

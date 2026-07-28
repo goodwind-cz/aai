@@ -11,7 +11,21 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased]
+## [unreleased] — chore: session loose ends — inheritance provenance, NOTE convention, phase-boundary audit CLEAN (CHANGE-0086) [L2]
+
+- Dispatch now stamps per-component inheritance provenance alongside the
+  aggregate prompt_hash: JSON `inherits.{role,contract,learned}` (bare-file
+  sha256; ABSENT-safe) + human line `Inherits: CONTRACT@<12hex>
+  LEARNED@<12hex>` (promptbook adoption 4). TEST-029 + TEST-002 design lock
+  (components are bare-file digests, never the aggregate's framed sections).
+- AGENTS.md: degrade-with-NOTE promoted to a universal convention (any
+  generator/gate that skips/excludes an input MUST name it; +210 B manual
+  ledger credit per outside-glob precedent, total -11998).
+- Phase-boundary compaction audit (roadmap#8, ACE-FCA): 14/14 dispatch
+  surfaces CLEAN — artifact-paths-only handoff is codified everywhere,
+  zero fixes needed. POSTPROCESSING declarations (promptbook#6)
+  dispositioned WONTFIX (operator-approved).
+
 
 ## [v2026.07.28] — feat: platform-portable PR ceremony — GitHub/Azure/generic with internal-review fallback (CHANGE-0085 / SPEC-0103) [L2]
 
