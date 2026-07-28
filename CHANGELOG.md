@@ -11,6 +11,14 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix: userguide rollup names every excluded product doc (CHANGE-0075) [L1]
+
+- `generate-userguide-rollup.mjs` now prints
+  `userguide-rollup: EXCLUDED docs/product/<slug>.md missing=<sections>`
+  for every placeholder-failing doc instead of silently rendering a lower
+  count (universality-proof finding F2; no-silent-truncation principle).
+  Marker-delimited output byte-unchanged; TEST-014 pin RED-first.
+
 ## [unreleased] — feat: skills catalog goes deterministic — 34/34 live, regenerated at every close (CHANGE-0078 / SPEC-0102) [L2]
 
 - NEW .aai/scripts/generate-docs-hub.mjs: parses SKILL.md frontmatter +

@@ -95,7 +95,13 @@ function loadProductDocs(root) {
     const abs = path.join(productDir, file);
     let content;
     try { content = fs.readFileSync(abs, 'utf8'); } catch { continue; }
-    if (missingProductSections(content).length > 0) continue; // D2 — placeholder-rejecting
+    const missing = missingProductSections(content);
+    if (missing.length > 0) {
+      // Named, never silent (CHANGE-0075): the operator must see WHY a doc
+      // was left out of the guide instead of a bare lower count.
+      console.log(`userguide-rollup: EXCLUDED docs/product/${file} missing=${missing.join(',')}`);
+      continue; // D2 — placeholder-rejecting
+    }
     const fm = parseFrontmatter(content);
     const h1 = content.match(/^#[ \t]+(.+)$/m);
     const slug = fm.id ?? file.replace(/\.md$/, '');
