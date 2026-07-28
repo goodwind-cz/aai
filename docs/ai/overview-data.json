@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-07-28T02:02:44.126Z",
+  "generatedAt": "2026-07-28T02:34:39.296Z",
   "project": "aai",
   "counts": {
-    "delivered": 124,
-    "in_progress": 4,
+    "delivered": 125,
+    "in_progress": 3,
     "releases": 1,
     "tokens_total": 21385667
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "docs-hub-generator",
+    "ref": "rollup-exclusion-visibility",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "docs-hub-generator",
+      "ref": "rollup-exclusion-visibility",
       "type": "intake_change",
       "phase": "implementation"
     },
@@ -26,6 +26,13 @@
     "validation_status": "not_run",
     "review_status": "not_run",
     "ticks": [
+      {
+        "tick": 1,
+        "role": "Implementation",
+        "scope": "rollup-exclusion-visibility",
+        "duration_seconds": 300,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
       {
         "tick": 2,
         "role": "Code Review",
@@ -53,30 +60,10 @@
         "scope": "dashboard-refit",
         "duration_seconds": 480,
         "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 2,
-        "role": "Code Review",
-        "scope": "doctor-determinize",
-        "duration_seconds": 360,
-        "harness_version": "2.1.218 (Claude Code)"
       }
     ]
   },
   "in_progress": [
-    {
-      "ref": "rollup-exclusion-visibility",
-      "title": "Change — userguide rollup names every excluded product doc and the missing section",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0075-rollup-exclusion-visibility.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
     {
       "ref": "session-journal-contract",
       "title": "Change — session-journal: reconcile prompt contract with actual practice",
@@ -118,6 +105,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "rollup-exclusion-visibility",
+      "title": "Change — userguide rollup names every excluded product doc and the missing section",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0075-rollup-exclusion-visibility.md",
+      "closed_on": "2026-07-28",
+      "agent_minutes": 5,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "dashboard-refit",
       "title": "Change — dashboard + test-skills prompts: drop dead source dump, fix schema docs, decide --publish",
@@ -1737,6 +1737,19 @@
       "kind": "month",
       "label": "2026-07",
       "items": [
+        {
+          "ref": "rollup-exclusion-visibility",
+          "title": "Change — userguide rollup names every excluded product doc and the missing section",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0075-rollup-exclusion-visibility.md",
+          "closed_on": "2026-07-28",
+          "agent_minutes": 5,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "dashboard-refit",
           "title": "Change — dashboard + test-skills prompts: drop dead source dump, fix schema docs, decide --publish",

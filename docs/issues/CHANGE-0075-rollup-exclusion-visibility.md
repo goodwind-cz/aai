@@ -2,11 +2,13 @@
 id: rollup-exclusion-visibility
 number: 75
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 181
+  commits:
+    - 3d2945b923fe2e625307120e3fa09e0c8a406a10
 ---
 
 # Change — userguide rollup names every excluded product doc and the missing section
