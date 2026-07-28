@@ -2099,6 +2099,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Skills catalog (docs hub)
+
+`docs/SKILL_CATALOG.html` is a searchable, self-contained page listing every AAI skill with its description, model hint and Goal extract. It is generated deterministically from the live `.claude/skills/` tree and regenerated automatically at every work-item close, so it can no longer drift out of date (the old hand-authored catalog was missing 8 of 35 skills).
+
+[Product doc](product/docs-hub-generator.md) · [Spec](specs/SPEC-0102-spec-docs-hub-generator.md)
+
 ### CI test impact selection
 
 CI used to run the whole `tests/skills/` framework (~50 suites, ~25 minutes) on every single push to a pull request — including review-fix pushes that touch one file. A weekend of iteration on one PR could burn 12+ CI-hours this way.
