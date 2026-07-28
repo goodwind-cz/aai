@@ -11,7 +11,9 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat: platform-portable PR ceremony — GitHub/Azure/generic with internal-review fallback (CHANGE-0085 / SPEC-0103) [L2]
+## [unreleased]
+
+## [v2026.07.28] — feat: platform-portable PR ceremony — GitHub/Azure/generic with internal-review fallback (CHANGE-0085 / SPEC-0103) [L2]
 
 - NEW .aai/scripts/pr-platform.mjs: deterministic remote classification
   (github incl. ssh, dev.azure.com + ssh + legacy visualstudio.com,
@@ -30,7 +32,7 @@ RFC-0001).
   2026-08-15; thread publication via az devops invoke pullRequestThreads
   is the concrete item to verify at first adoption).
 
-## [unreleased] — chore: follow-ups batch B — stalled_progress friction class, EARS AC guidance (CHANGE-0084) [L1]
+## [v2026.07.28] — chore: follow-ups batch B — stalled_progress friction class, EARS AC guidance (CHANGE-0084) [L1]
 
 - NEW seventh friction failure_class `stalled_progress` (dead-watcher
   parking, artifact-that-never-comes waits, no-state-change loops) across
@@ -41,7 +43,7 @@ RFC-0001).
   resolved-as-designed (SPEC-0096 conditional grouping preserves report
   additivity; always-on variant stays rejected).
 
-## [unreleased] — chore: follow-ups batch A — single STATE creator, reaper raw capture, structured migration verdict (CHANGE-0083) [L2]
+## [v2026.07.28] — chore: follow-ups batch A — single STATE creator, reaper raw capture, structured migration verdict (CHANGE-0083) [L2]
 
 - autonomous-loop.sh create_state_file() delegates to check-state --repair
   (the canonical template path); the drifted inline heredoc creator is
@@ -55,7 +57,7 @@ RFC-0001).
   on booleans — wording changes can no longer flip verdicts (and the
   refactor fixed a latent false-WARN the string matching had).
 
-## [unreleased] — chore: journal + validate-report contracts reconciled with practice (CHANGE-0080 + CHANGE-0082) [L1]
+## [v2026.07.28] — chore: journal + validate-report contracts reconciled with practice (CHANGE-0080 + CHANGE-0082) [L1]
 
 - Session journal (operator decision): the LIVING convention is canonical —
   date-slug files, free form in the discussion's language, 3-column INDEX.
@@ -71,7 +73,7 @@ RFC-0001).
 - Ledger -2132 RECLAIMED (total -15485); headroom 605/2048 with the +31 B
   PR #180 slack provenance recorded.
 
-## [unreleased] — fix: userguide rollup names every excluded product doc (CHANGE-0075) [L1]
+## [v2026.07.28] — fix: userguide rollup names every excluded product doc (CHANGE-0075) [L1]
 
 - `generate-userguide-rollup.mjs` now prints
   `userguide-rollup: EXCLUDED docs/product/<slug>.md missing=<sections>`
@@ -79,7 +81,7 @@ RFC-0001).
   count (universality-proof finding F2; no-silent-truncation principle).
   Marker-delimited output byte-unchanged; TEST-014 pin RED-first.
 
-## [unreleased] — feat: skills catalog goes deterministic — 34/34 live, regenerated at every close (CHANGE-0078 / SPEC-0102) [L2]
+## [v2026.07.28] — feat: skills catalog goes deterministic — 34/34 live, regenerated at every close (CHANGE-0078 / SPEC-0102) [L2]
 
 - NEW .aai/scripts/generate-docs-hub.mjs: parses SKILL.md frontmatter +
   prompt Goal sections mechanically, emits self-contained searchable
@@ -93,7 +95,7 @@ RFC-0001).
   (total -13353), headroom 636/2048; 8-test suite; wrapper mirror texts
   aligned across all four agent trees.
 
-## [unreleased] — chore: dashboard + test-skills prompts refit — −21.5 KB corpus, no phantom flags (CHANGE-0076 / SPEC-0101) [L2]
+## [v2026.07.28] — chore: dashboard + test-skills prompts refit — −21.5 KB corpus, no phantom flags (CHANGE-0076 / SPEC-0101) [L2]
 
 - SKILL_DASHBOARD 19 173 B/652 lines -> 4 152 B/77: dropped the ~330-line
   stale duplicate dump of generate-dashboard.mjs, documents BOTH real input
@@ -106,7 +108,7 @@ RFC-0001).
   NEGATIVE (-7254), analyzed sound in review (the floor RISES; regrowth
   trips TEST-010 sooner, not later); headroom exactly 636/2048.
 
-## [unreleased] — feat: /aai-doctor determinized — 13 categories in one script, prompt −70 % (CHANGE-0079 / SPEC-0100) [L2]
+## [v2026.07.28] — feat: /aai-doctor determinized — 13 categories in one script, prompt −70 % (CHANGE-0079 / SPEC-0100) [L2]
 
 - NEW .aai/scripts/aai-doctor.mjs: all 13 doctor categories computed
   deterministically (file/hook/telemetry/git checks; CAT-11/13 stay
@@ -120,7 +122,7 @@ RFC-0001).
   TEST-012 pin 21738 -> 14204 RED-first, headroom 636/2048.
 - Companion tests rewired to behavioral asserts (no JS source greps).
 
-## [unreleased] — chore: decapod integration pruned — only true dead code found by the skill-sweep (CHANGE-0077) [L2]
+## [v2026.07.28] — chore: decapod integration pruned — only true dead code found by the skill-sweep (CHANGE-0077) [L2]
 
 - Removed ~55 KB: SKILL_DECAPOD.prompt.md (9571 B file; ledger retires 9573 B incl. 2 B prior reword slack), 3 wrapper dirs,
   DECAPOD_INTEGRATION.md, docs/ai/compliance/*, config example, plus every
@@ -132,7 +134,7 @@ RFC-0001).
   reconciliation), TEST-012 pin 31311 -> 21738 RED-first, headroom back to
   636/2048; layer-profiles 100% invariant holds (186 files).
 
-## [unreleased] — feat: STATE bootstrap template — virgin targets init mechanically (CHANGE-0074 / SPEC-0099) [L2]
+## [v2026.07.28] — feat: STATE bootstrap template — virgin targets init mechanically (CHANGE-0074 / SPEC-0099) [L2]
 
 - Universality-proof F1 closed: `.aai/templates/STATE_TEMPLATE.yaml` is now
   the TRACKED canonical schema source (the live docs/ai/STATE.yaml is
@@ -145,7 +147,7 @@ RFC-0001).
   dead-ending on `state_file_missing`. Ledger +286 B (SKILL_CHECK_STATE
   reword), TEST-012 pin 31311 RED-first.
 
-## [unreleased] — fix: skill-sweep batch — three verified tooling footguns + six findings intakes (CHANGE-0081) [L2]
+## [v2026.07.28] — fix: skill-sweep batch — three verified tooling footguns + six findings intakes (CHANGE-0081) [L2]
 
 - Hands-on sweep of ~20 previously untouched skills (three parallel
   auditors). Fixed with live repros: aai-canonicalize.sh crashed macOS
@@ -161,7 +163,7 @@ RFC-0001).
   session-journal-contract, validate-report-contract). Legacy-prune
   roadmap item resolved with evidence: only decapod is dead.
 
-## [unreleased] — fix: suite-map maps factory doc trees — factory rides actually get selected mode (CHANGE-0073) [L1]
+## [v2026.07.28] — fix: suite-map maps factory doc trees — factory rides actually get selected mode (CHANGE-0073) [L1]
 
 - CI impact selection (CHANGE-0071) fail-opened on every factory PR because
   generated/ledger doc paths (docs/INDEX.md, EVENTS/METRICS ledgers,
@@ -170,7 +172,7 @@ RFC-0001).
   suites (DROPPED 45) instead of a 55-suite full run. Data-file-only;
   fail-open, always-on core, post-merge full gate and nightly unchanged.
 
-## [unreleased] — feat: prompt-hash runtime wiring — the loop records the hash dispatch computes (CHANGE-0072 / SPEC-0098) [L2]
+## [v2026.07.28] — feat: prompt-hash runtime wiring — the loop records the hash dispatch computes (CHANGE-0072 / SPEC-0098) [L2]
 
 - SKILL_LOOP's append-run boilerplate now instructs the orchestrator to pass
   the dispatch's full-hex `prompt_hash` (JSON field, not the truncated
@@ -180,7 +182,7 @@ RFC-0001).
   30894 -> 31025 (RED-first), TEST-016 grep contract; ORCHESTRATION
   untouched at its 40/40-line cap.
 
-## [unreleased] — feat: CI test impact selection — PR pushes run affected suites, full framework moves to merge + nightly (CHANGE-0071 / SPEC-0097) [L2]
+## [v2026.07.28] — feat: CI test impact selection — PR pushes run affected suites, full framework moves to merge + nightly (CHANGE-0071 / SPEC-0097) [L2]
 
 - PR CI now runs only the suites whose watched paths the diff touches
   (declarative `tests/skills/suite-map.yaml`, one row per suite, hygiene-
@@ -199,7 +201,7 @@ RFC-0001).
   pre-split required-check name and fails unless the mode-relevant leaf
   job succeeded (review finding, TEST-018).
 
-## [unreleased] — feat: prompt-hash telemetry — content-addressed identity of role instructions (CHANGE-0070 / SPEC-0096) [L3]
+## [v2026.07.28] — feat: prompt-hash telemetry — content-addressed identity of role instructions (CHANGE-0070 / SPEC-0096) [L3]
 
 - Promptbook-inspired (adoption candidate 3): every orchestrated run can
   record a sha256 of the EFFECTIVE instructions it ran under (role prompt +
@@ -212,7 +214,7 @@ RFC-0001).
   main-vs-branch by the independent validator); bad hex writes nothing.
 
 
-## [unreleased] — feat: learned-append gate — structurally enforced append-only self-learning (CHANGE-0069 / SPEC-0095)
+## [v2026.07.28] — feat: learned-append gate — structurally enforced append-only self-learning (CHANGE-0069 / SPEC-0095)
 
 - Promptbook-inspired (adoption candidate 2): the only sanctioned automated
   path to docs/knowledge/LEARNED.md is .aai/scripts/learned-append.mjs —
@@ -224,7 +226,7 @@ RFC-0001).
   prior rules. Guardrail, not a security boundary (hand edits unaffected).
 
 
-## [unreleased] — feat: role output contracts — deterministic EXPECT validation of subagent results (CHANGE-0068 / SPEC-0094)
+## [v2026.07.28] — feat: role output contracts — deterministic EXPECT validation of subagent results (CHANGE-0068 / SPEC-0094)
 
 - Promptbook-inspired (adoption candidate 1): every dispatched subagent's
   result block is now validated by .aai/scripts/check-role-output.mjs —
@@ -235,7 +237,7 @@ RFC-0001).
   SUBAGENT_CONTRACT carries a one-line EXPECT pointer (60-line cap held).
 
 
-## [unreleased] — feat: dev-progress view — the overview shows what the factory is doing right now (CHANGE-0067 / SPEC-0093)
+## [v2026.07.28] — feat: dev-progress view — the overview shows what the factory is doing right now (CHANGE-0067 / SPEC-0093)
 
 - generate-overview.mjs gains an "In flight now" section: current focus
   (ref/type/phase/strategy/worktree), validation/review verdict chips, and
@@ -246,7 +248,7 @@ RFC-0001).
   are skipped without consuming a display slot.
 
 
-## [unreleased] — feat: product docs enforced at close + generated USER_GUIDE rollup (CHANGE-0066 / SPEC-0092)
+## [v2026.07.28] — feat: product docs enforced at close + generated USER_GUIDE rollup (CHANGE-0066 / SPEC-0092)
 
 - close-work-item.mjs gains a pre-write product-doc gate: a primary
   work-item doc opting in with `user_visible: true` must carry a real
@@ -267,7 +269,7 @@ RFC-0001).
   lib/product-doc.mjs (core, since close-work-item.mjs imports it).
   Refs: CHANGE-0066, SPEC-0092.
 
-## [unreleased] — feat: cheap-model routing in practice — lane-aware role overrides, Haiku for mechanical roles (CHANGE-0065 / SPEC-0091)
+## [v2026.07.28] — feat: cheap-model routing in practice — lane-aware role overrides, Haiku for mechanical roles (CHANGE-0065 / SPEC-0091)
 
 - MODEL_ROUTING roles map now supports the lane-aware key form
   role@lane (resolution: roles[role@lane] then roles[role] then
@@ -280,7 +282,7 @@ RFC-0001).
   Refs: CHANGE-0065, SPEC-0091.
 
 
-## [unreleased] — feat: allocator rewrites DRAFT references in all committed-class trees (CHANGE-0064 / SPEC-0090) [L3]
+## [v2026.07.28] — feat: allocator rewrites DRAFT references in all committed-class trees (CHANGE-0064 / SPEC-0090) [L3]
 
 - allocate-doc-number.mjs now rewrites DRAFT->numbered references across ALL
   committed-class markdown trees (docs/product, docs/ai/reviews,
@@ -294,7 +296,7 @@ RFC-0001).
   Refs: CHANGE-0064, SPEC-0090.
 
 
-## [unreleased] — feat: token economics end-to-end — reports and overview read real usage (CHANGE-0063 / SPEC-0089)
+## [v2026.07.28] — feat: token economics end-to-end — reports and overview read real usage (CHANGE-0063 / SPEC-0089)
 
 - metrics-report now aggregates the canonical usage_total_tokens markers:
   per-item "agent tokens (undecomposed)" column + a Per-Role Token Rollup
@@ -310,7 +312,7 @@ RFC-0001).
   Refs: CHANGE-0063, SPEC-0089.
 
 
-## [unreleased] — feat: friction feedback loop activated — default-on capture + wrap-up triage (CHANGE-0062 / SPEC-0088)
+## [v2026.07.28] — feat: friction feedback loop activated — default-on capture + wrap-up triage (CHANGE-0062 / SPEC-0088)
 
 - The RFC-0012 self-improvement loop had complete infrastructure and ZERO
   data (recall-dependent seam; planning root-caused all four of this
@@ -327,7 +329,7 @@ RFC-0001).
   loop finally has data. Ledger +1881+453 B itemized (pin 30139).
   Refs: CHANGE-0062, SPEC-0088.
 
-## [unreleased] — refactor: subagent contract split — per-dispatch payload slimmed (CHANGE-0061 / SPEC-0087)
+## [v2026.07.28] — refactor: subagent contract split — per-dispatch payload slimmed (CHANGE-0061 / SPEC-0087)
 
 - New `.aai/SUBAGENT_CONTRACT.md` (58 lines): the ONLY per-dispatch payload a
   spawned subagent receives — result block + timing rules, single-writer
@@ -339,7 +341,7 @@ RFC-0001).
   still injecting the full protocol into parallel unit payloads + two
   dangling result-block refs; remediated and permanently pinned by an
   extended hygiene TEST-082. Refs: CHANGE-0061, SPEC-0087.
-## [unreleased] — feat: SKILL_PR step 5d — post-open bot-review sweep before merge-readiness (CHANGE-0060)
+## [v2026.07.28] — feat: SKILL_PR step 5d — post-open bot-review sweep before merge-readiness (CHANGE-0060)
 - Codifies the PR-level review-response discipline as canon: after
   `gh pr create` + CI, poll bot inline comments (they never appear in
   `gh pr checks`), fix legitimate findings on the same branch or rebut them
@@ -349,7 +351,7 @@ RFC-0001).
 - Evidence base: PR #158 (7 real bot findings) and #159 (3 + a fix-of-fix)
   — previously held only by session memory. Ref: CHANGE-0060.
 
-## [unreleased] — refactor: prompt dedup — canonical includes for ceremony rules, AC gate, role boilerplate (CHANGE-0059 / SPEC-0086)
+## [v2026.07.28] — refactor: prompt dedup — canonical includes for ceremony rules, AC gate, role boilerplate (CHANGE-0059 / SPEC-0086)
 
 - Prompt corpus shrinks 4687 B in the TEST-010 glob (net −3021 B): the
   ceremony-level table now lives ONLY in WORKFLOW.md (PLANNING/VALIDATION
@@ -363,7 +365,7 @@ RFC-0001).
   grep-pinned stanzas retargeted to the pointer form. Refs: CHANGE-0059,
   SPEC-0086.
 
-## [unreleased] — feat: token-capture canary — loud telemetry-capture gaps (CHANGE-0058 / SPEC-0085)
+## [v2026.07.28] — feat: token-capture canary — loud telemetry-capture gaps (CHANGE-0058 / SPEC-0085)
 
 - `metrics-flush.mjs` now classifies every agent run three ways — `decomposed`
   (numeric tokens), `undecomposed-note` (`usage_total_tokens=<N>` in the run
