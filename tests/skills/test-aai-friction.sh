@@ -910,8 +910,11 @@ test_020_stalled_progress_class() {
   if AAI_FRICTION_SPOOL_DIR="$sdir" node "$SCRIPT" record --input "$rec.bogus" 2> "$TEST_DIR/t020.err"; then
     log_fail "TEST-020: an unknown class must be rejected"
   fi
-  grep -q "stalled_progress" "$TEST_DIR/t020.err" \
-    || log_fail "TEST-020: the rejection message must name the full enum incl. stalled_progress: $(cat "$TEST_DIR/t020.err")"
+  local cls
+  for cls in contradictory_instructions stalled_progress missing_or_invalid_artifact deterministic_script_failure abstraction_leak_recovery human_corrected_defect contract_violation; do
+    grep -q "$cls" "$TEST_DIR/t020.err" \
+      || log_fail "TEST-020: the rejection message must name the full seven-value enum (missing $cls): $(cat "$TEST_DIR/t020.err")"
+  done
   echo "PASS: TEST-020 stalled_progress accepted + enum rejection names seven values"
 }
 
