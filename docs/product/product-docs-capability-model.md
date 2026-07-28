@@ -4,7 +4,7 @@ type: product
 capability: product-docs-capability-model
 status: current
 delivered_by:
-  - product-docs-capability-model
+  - CHANGE-0088
 spec: docs/specs/SPEC-0105-spec-product-docs-capability-model.md
 updated: 2026-07-28
 ---

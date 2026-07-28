@@ -4,7 +4,7 @@ type: product
 capability: ci-test-impact-selection
 status: current
 delivered_by:
-  - ci-test-impact-selection
+  - CHANGE-0071
 spec: docs/specs/SPEC-0097-spec-ci-test-impact-selection.md
 updated: 2026-07-27
 ---

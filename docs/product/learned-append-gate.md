@@ -4,7 +4,7 @@ type: product
 capability: learned-append-gate
 status: current
 delivered_by:
-  - learned-append-gate
+  - CHANGE-0069
 spec: docs/specs/SPEC-0095-spec-learned-append-gate.md
 updated: 2026-07-27
 ---

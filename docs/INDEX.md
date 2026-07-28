@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T18:16:24.549Z
+Generated: 2026-07-28T20:13:25.357Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (13)
+## Product (11)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -30,10 +30,8 @@ _None._
 | platform-portable-pr | platform-portable-pr | 1 | docs/product/platform-portable-pr.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
-| prompt-hash-telemetry | prompt-hash-telemetry | 1 | docs/product/prompt-hash-telemetry.md |
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
-| token-capture-canary | token-capture-canary | 1 | docs/product/token-capture-canary.md |
-| token-economics-end-to-end | token-economics-end-to-end | 1 | docs/product/token-economics-end-to-end.md |
+| telemetry | telemetry | 3 | docs/product/telemetry.md |
 
 ## Done (240)
 
@@ -280,9 +278,11 @@ _None._
 | SPEC-0105 | specs | docs/specs/SPEC-0105-spec-product-docs-capability-model.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0089 | issues | docs/issues/CHANGE-0089-product-capability-refinements.md |
 
 ## Deferred (whole-doc) (0)
 

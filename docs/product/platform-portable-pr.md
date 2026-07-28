@@ -4,7 +4,7 @@ type: product
 capability: platform-portable-pr
 status: current
 delivered_by:
-  - platform-portable-pr
+  - CHANGE-0085
 spec: docs/specs/SPEC-0103-spec-platform-portable-pr.md
 updated: 2026-07-28
 ---

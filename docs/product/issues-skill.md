@@ -4,7 +4,7 @@ type: product
 capability: issues-skill
 status: current
 delivered_by:
-  - issues-skill
+  - CHANGE-0087
 spec: docs/specs/SPEC-0104-spec-issues-skill.md
 updated: 2026-07-28
 ---

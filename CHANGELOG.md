@@ -11,6 +11,21 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — chore: product capability refinements — delivered_by provenance + telemetry consolidation (CHANGE-0089) [L2]
+
+- delivered_by in the migrated product docs was seeded with the capability
+  slug (tautological with the filename); reseeded each to its real work-item
+  CHANGE ref (frontmatter-only, bodies byte-unchanged).
+- Telemetry consolidation: the three per-ride product docs (token-capture-
+  canary, prompt-hash-telemetry, token-economics-end-to-end) merged into one
+  docs/product/telemetry.md keyed by the "telemetry" capability
+  (delivered_by = CHANGE-0058/0070/0063) — the per-capability-not-per-ride
+  consolidation the CHANGE-0088 model was built for. Content-coverage review
+  caught 3 dropped how-to/contract claims; all restored (no user-facing
+  loss). TEST-012's hardcoded >=12 doc-count floor delinted to per-doc
+  invariants over the live set.
+
+
 ## [unreleased] — feat: product docs become a capability-keyed doc family on shared engine primitives (CHANGE-0088 / SPEC-0105, fixes #189) [L2]
 
 - Product docs were invisible to the doc engines (not in INDEX, not audited)

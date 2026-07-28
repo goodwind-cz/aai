@@ -4,7 +4,7 @@ type: product
 capability: docs-hub-generator
 status: current
 delivered_by:
-  - docs-hub-generator
+  - CHANGE-0078
 spec: docs/specs/SPEC-0102-spec-docs-hub-generator.md
 updated: 2026-07-28
 ---
