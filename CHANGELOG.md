@@ -11,7 +11,9 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — chore: product capability refinements — delivered_by provenance + telemetry consolidation (CHANGE-0089) [L2]
+## [unreleased]
+
+## [v2026.07.28.1] — chore: product capability refinements — delivered_by provenance + telemetry consolidation (CHANGE-0089) [L2]
 
 - delivered_by in the migrated product docs was seeded with the capability
   slug (tautological with the filename); reseeded each to its real work-item
@@ -26,7 +28,7 @@ RFC-0001).
   invariants over the live set.
 
 
-## [unreleased] — feat: product docs become a capability-keyed doc family on shared engine primitives (CHANGE-0088 / SPEC-0105, fixes #189) [L2]
+## [v2026.07.28.1] — feat: product docs become a capability-keyed doc family on shared engine primitives (CHANGE-0088 / SPEC-0105, fixes #189) [L2]
 
 - Product docs were invisible to the doc engines (not in INDEX, not audited)
   and their type:product/status:current weren't enum-valid (GitHub #189 —
@@ -44,7 +46,7 @@ RFC-0001).
   #189 repro (template -> audit -> index) is now clean end-to-end.
 
 
-## [unreleased] — feat: /aai-issues — on-demand platform-portable issue intake skill (CHANGE-0087 / SPEC-0104) [L2]
+## [v2026.07.28.1] — feat: /aai-issues — on-demand platform-portable issue intake skill (CHANGE-0087 / SPEC-0104) [L2]
 
 - NEW /aai-issues: fetches open issues from the project's git host
   (github via gh issue list; azure -> Azure Boards work items, documented
@@ -64,7 +66,7 @@ RFC-0001).
   headroom unchanged.
 
 
-## [unreleased] — chore: session loose ends — inheritance provenance, NOTE convention, phase-boundary audit CLEAN (CHANGE-0086) [L2]
+## [v2026.07.28.1] — chore: session loose ends — inheritance provenance, NOTE convention, phase-boundary audit CLEAN (CHANGE-0086) [L2]
 
 - Dispatch now stamps per-component inheritance provenance alongside the
   aggregate prompt_hash: JSON `inherits.{role,contract,learned}` (bare-file
