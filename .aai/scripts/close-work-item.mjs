@@ -405,7 +405,13 @@ function regenerateOverviewBestEffort() {
 function regenerateUserguideRollupBestEffort() {
   try {
     if (!fs.existsSync(GENERATE_USERGUIDE_ROLLUP)) return;
-    execFileSync('node', [GENERATE_USERGUIDE_ROLLUP], { stdio: 'ignore', cwd: ROOT });
+    // Capture stdout instead of discarding it: the rollup's EXCLUDED
+    // diagnostics (CHANGE-0075) must reach the operator through THIS primary
+    // production path too, not only on manual runs (PR #181 review).
+    const out = execFileSync('node', [GENERATE_USERGUIDE_ROLLUP], { stdio: ['ignore', 'pipe', 'ignore'], cwd: ROOT }).toString();
+    for (const line of out.split('\n')) {
+      if (line.includes('EXCLUDED')) process.stderr.write(`close-work-item: ${line}\n`);
+    }
   } catch (err) {
     process.stderr.write(`close-work-item: INFO userguide rollup regen skipped (best-effort, non-fatal): ${err.message}\n`);
   }
