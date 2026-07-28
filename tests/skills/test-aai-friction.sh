@@ -893,6 +893,31 @@ test_112_summary_enabled_scoped() {
   log_pass "summary_enabled is scoped to the capture block; unrelated sections cannot flip it (TEST-112)"
 }
 
+# --- TEST-020 (CHANGE follow-ups-docs): stalled_progress taxonomy value -------
+test_020_stalled_progress_class() {
+  echo "INFO: TEST-020: stalled_progress is a valid failure_class; unknown classes still name the full seven-value enum..."
+  local rec sdir out
+  rec="$TEST_DIR/t020.json"
+  sdir="$TEST_DIR/t020-spool"
+  mkdir -p "$sdir"
+  write_wellformed "$rec"
+  sed 's/deterministic_script_failure/stalled_progress/' "$rec" > "$rec.stall"
+  out="$(AAI_FRICTION_SPOOL_DIR="$sdir" node "$SCRIPT" record --input "$rec.stall" 2>&1)" \
+    || log_fail "TEST-020: stalled_progress must be accepted: $out"
+  grep -q "stalled_progress" "$sdir/observations.jsonl" \
+    || log_fail "TEST-020: spool must persist the stalled_progress class"
+  sed 's/deterministic_script_failure/bogus_stall/' "$rec" > "$rec.bogus"
+  if AAI_FRICTION_SPOOL_DIR="$sdir" node "$SCRIPT" record --input "$rec.bogus" 2> "$TEST_DIR/t020.err"; then
+    log_fail "TEST-020: an unknown class must be rejected"
+  fi
+  local cls
+  for cls in contradictory_instructions stalled_progress missing_or_invalid_artifact deterministic_script_failure abstraction_leak_recovery human_corrected_defect contract_violation; do
+    grep -q "$cls" "$TEST_DIR/t020.err" \
+      || log_fail "TEST-020: the rejection message must name the full seven-value enum (missing $cls): $(cat "$TEST_DIR/t020.err")"
+  done
+  echo "PASS: TEST-020 stalled_progress accepted + enum rejection names seven values"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -922,6 +947,7 @@ main() {
   test_016_portability
   test_018_concurrent_no_loss
   test_019_oversize_line_rejected
+  test_020_stalled_progress_class
 
   # RFC-0013 Slice A: schema v2 + hard redactor
   test_101_v1_backward_compat

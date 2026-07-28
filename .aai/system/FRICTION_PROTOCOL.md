@@ -23,12 +23,13 @@ re-litigated here; this document operationalizes them.
 ## Failure-class taxonomy
 
 A friction observation is recorded ONLY as evidence of an **AAI-owned**
-failure. The `failure_class` field MUST be exactly one of the closed set
+failure. The `failure_class` field MUST be exactly one of the closed set (seven values)
 below (any other value is a schema violation and is rejected):
 
 | `failure_class` value            | Inclusion (record when...)                                                        |
 |----------------------------------|-----------------------------------------------------------------------------------|
 | `contradictory_instructions`     | AAI instructions are contradictory, ambiguous, or impossible to satisfy.          |
+| `stalled_progress`               | An AAI-directed run stalled: parked on a dead watcher, waited on an artifact no step produces, or looped without state change. |
 | `missing_or_invalid_artifact`    | A missing or invalid AAI-owned file, command, template, or state transition.      |
 | `deterministic_script_failure`   | A deterministic failure of an AAI script or workflow contract.                    |
 | `abstraction_leak_recovery`      | Repeated recovery work caused by an AAI abstraction leak.                          |
@@ -65,7 +66,7 @@ An observation is a single JSON object supplied to
 | `schema_version`    | integer, MUST equal `1`  | the schema/compatibility version tag.                        |
 | `skill_id`          | non-empty string, <= 128 chars | the AAI skill/role that hit the friction (e.g. `SKILL_TDD`). |
 | `skill_phase`       | non-empty string, <= 128 chars | the phase within that skill (e.g. `implementation`).         |
-| `failure_class`     | string, taxonomy enum, <= 128 chars | one of the six closed values above.                  |
+| `failure_class`     | string, taxonomy enum, <= 128 chars | one of the seven closed values above.                  |
 | `expected_behavior` | non-empty string         | what the AAI contract promised (not persisted; feeds fingerprint). |
 | `observed_behavior` | non-empty string         | what actually happened (not persisted; feeds fingerprint).   |
 

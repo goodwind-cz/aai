@@ -209,7 +209,7 @@ const CONFIDENCE = new Set(['low', 'medium', 'high']);
 const WORKAROUND = new Set(['none', 'manual', 'automatic']);
 const OS_FAMILY = new Set(['linux', 'macos', 'windows', 'unknown']);
 const FAILURE_CLASSES = new Set([
-  'contradictory_instructions', 'missing_or_invalid_artifact', 'deterministic_script_failure',
+  'contradictory_instructions', 'stalled_progress', 'missing_or_invalid_artifact', 'deterministic_script_failure',
   'abstraction_leak_recovery', 'human_corrected_defect', 'contract_violation',
 ]);
 const EVIDENCE_REF_RE = /^(?:docs\/[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*|(?:SPEC|CHANGE|ISSUE|RFC|PRD|RES|DEBT)-\d{4})$/;

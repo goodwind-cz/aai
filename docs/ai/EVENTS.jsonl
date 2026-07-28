@@ -1336,3 +1336,6 @@
 {"v":1,"ts":"2026-07-28T06:57:23.870Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"follow-ups-scripts","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-28T06:57:23.900Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"follow-ups-scripts","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-28T06:57:23.930Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"follow-ups-scripts","payload":{"commit":"aa89115090f682a866c3e014c5e661581b9d33b5"}}
+{"v":1,"ts":"2026-07-28T07:52:40.494Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"follow-ups-docs","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-28T07:52:40.525Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"follow-ups-docs","payload":{"validation":"pass","code_review":"waived"}}
+{"v":1,"ts":"2026-07-28T07:52:40.555Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"follow-ups-docs","payload":{"commit":"3b59b08e71df6496d47fe554321bcc0e94d77b2c"}}
