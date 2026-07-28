@@ -1339,3 +1339,9 @@
 {"v":1,"ts":"2026-07-28T07:52:40.494Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"follow-ups-docs","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-28T07:52:40.525Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"follow-ups-docs","payload":{"validation":"pass","code_review":"waived"}}
 {"v":1,"ts":"2026-07-28T07:52:40.555Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"follow-ups-docs","payload":{"commit":"3b59b08e71df6496d47fe554321bcc0e94d77b2c"}}
+{"v":1,"ts":"2026-07-28T08:40:01.669Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"platform-portable-pr","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-28T08:40:01.701Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"platform-portable-pr","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-28T08:40:01.733Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"platform-portable-pr","payload":{"commit":"e411d52865466082f0721160d8bfcfdcba057434"}}
+{"v":1,"ts":"2026-07-28T08:40:01.765Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-platform-portable-pr","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-28T08:40:01.795Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-platform-portable-pr","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-28T08:40:01.835Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-platform-portable-pr","payload":{"commit":"e411d52865466082f0721160d8bfcfdcba057434"}}

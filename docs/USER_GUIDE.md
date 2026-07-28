@@ -2105,6 +2105,12 @@ read its gate warning) to see which section is missing.
 
 [Product doc](product/docs-hub-generator.md) · [Spec](specs/SPEC-0102-spec-docs-hub-generator.md)
 
+### Platform-portable PR ceremony
+
+The PR ceremony (`/aai-pr`, `/aai-ship`) now works beyond GitHub. A deterministic probe classifies the origin remote and the ceremony branches accordingly; where reviewer bots do not exist, the factory's own independent code review takes their place — quality is never silently skipped on any git host.
+
+[Product doc](product/platform-portable-pr.md) · [Spec](specs/SPEC-0103-spec-platform-portable-pr.md)
+
 ### CI test impact selection
 
 CI used to run the whole `tests/skills/` framework (~50 suites, ~25 minutes) on every single push to a pull request — including review-fix pushes that touch one file. A weekend of iteration on one PR could burn 12+ CI-hours this way.

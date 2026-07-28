@@ -124,10 +124,38 @@ PROCESS
    - Reference the ref id (e.g. CHANGE-0007 / SPEC-0013) in the subject or body.
    - Commit only after the step-3 audit passes and the PRECONDITIONS hold.
 
-5. PUSH + PR:
-   - Push the branch: `git push -u origin <branch>`.
-   - Open the PR: `gh pr create --title "<conventional title>" --body <body>`.
-   - PR body template (fill every section):
+5. PLATFORM GATE + PUSH + PR:
+   - Detect the platform FIRST — before ANY push (a `PLATFORM none` repo has
+     no origin to push to; pushing first would error out of the ceremony):
+       node .aai/scripts/pr-platform.mjs
+   - `github`/`azure`/`unknown` with a remote: `git push -u origin <branch>`.
+     `none`: skip the push entirely and go straight to GENERIC MODE below.
+   - Branch on the printed value — NEVER guess:
+       node .aai/scripts/pr-platform.mjs
+     - `github` -> `gh pr create --title "<conventional title>" --body <body>`.
+     - `azure` -> `az repos pr create --title "<title>" --description <body>
+       --source-branch <branch> --target-branch <base>`; add reviewers with
+       `az repos pr reviewer add --id <pr-id> --reviewers <email>`; step 5d's
+       thread polling uses PR-thread REST via `az devops invoke --area git
+       --resource pullRequestThreads` (NOTE: `az repos pr` has no `thread`
+       subgroup — verify the exact invoke form at first Azure adoption,
+       Spec-AC-06 evidence contract). Azure's
+       branch policy (required reviewers + build validation) is its gate job,
+       not a bot layer — see the 5d reviewer-fallback contract.
+     - `unknown` or `none` -> GENERIC MODE: skip platform PR mechanics
+       entirely (no `gh`/`az` PR is opened). Dispatch
+       .aai/SKILL_CODE_REVIEW.prompt.md on the final diff (branch vs base) —
+       MANDATORY, never optional here. The reviewer returns its dual verdict
+       INLINE per its own contract (it writes no files); the ORCHESTRATOR
+       then writes that verdict + findings to a
+       `docs/ai/reports/VALIDATION-<ts>-<slug>.md`-style report and updates
+       the spec's AC dispositions, then STOP the ceremony (steps 5b-6 assume
+       an opened PR and do not apply) with the loud line:
+       "platform PR API unavailable — internal review substituted, merge is yours."
+       Merge stays with the owner's process; the merge boundary (step 6) is
+       unchanged.
+   - PR body template (fill every section; `az repos pr create` maps this to
+     `--description`):
      ```
      ## Summary
      <what and why, 2-4 lines, linking the change doc and spec>
@@ -141,6 +169,8 @@ PROCESS
 
      ## Review status
      Validation: <pass + evidence path> | Code review: <pass/waived + report path>
+     (Azure with no bot layer: also note "internal review substituted for
+     absent bot layer" here per the 5d fallback contract.)
 
      ## Test evidence
      <suite names + real counts + exit codes>
@@ -184,16 +214,32 @@ PROCESS
 5d. POST-OPEN REVIEW SWEEP (CHANGE-0060) — external reviewer bots (Copilot,
    Codex) post INLINE comments that never appear in `gh pr checks`. Before
    ANY merge-readiness claim:
-   - After CI completes, poll once:
-     `gh api repos/<owner>/<repo>/pulls/<n>/comments`
-     plus `gh pr view <n> --json reviews`. Zero findings after a green run
-     -> record "no bot findings" and stop.
+   - After CI completes, poll once (platform from step 5's `PLATFORM` value):
+     GitHub: `gh api repos/<owner>/<repo>/pulls/<n>/comments` plus
+     `gh pr view <n> --json reviews`. Azure: pullRequestThreads via `az devops
+     invoke` (see step 5 note; verify form at first Azure adoption). Zero findings after a green run: ONLY on a platform WITH a bot
+     layer (github) may you record "no bot findings" and stop — on any
+     other platform zero threads is the EXPECTED default and triggers the
+     reviewer-fallback below, never a stop.
    - Any findings: handle them through the canonical EXTERNAL-REVIEW
      RESPONSE flow in .aai/SKILL_CODE_REVIEW.prompt.md (triage each thread
      real/stale/duplicate/disputed, RED-proofed regression per real code
      finding, inline reply per thread citing the fixing commit, push +
      re-review) — never improvise a lighter triage path here. Scope-only
      staging discipline of steps 2-4 is unchanged for remediation commits.
+   - REVIEWER-FALLBACK CONTRACT (no external bots): IF the platform has no
+     external reviewer bots (Azure default; detectable = zero bot-authored
+     threads AND platform != github) THEN dispatching
+     .aai/SKILL_CODE_REVIEW.prompt.md on the FINAL PR diff is
+     REQUIRED before any merge-readiness claim — the empty-sweep shortcut
+     above is only legal on a platform WITH a bot layer. Handle its
+     findings through the SAME EXTERNAL-REVIEW RESPONSE flow, AND publish
+     EACH finding as a PR thread via the platform API (`gh api
+     repos/<owner>/<repo>/pulls/<n>/comments` / Azure pullRequestThreads create via `az devops invoke
+     --id <pr-id>`) with a closing reply citing the fixing commit, so the
+     audit trail on the PR is identical whether the reviewer was a bot or
+     the internal role. Record
+     "internal review substituted for absent bot layer" in the PR description.
    - Wait for the CI re-run and repeat this sweep ONCE for NEW comments
      before declaring merge-ready.
    - FRICTION HOOK (canon-file gate/lint/CI failure handled, default-on): when

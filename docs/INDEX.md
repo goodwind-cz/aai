@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T07:59:34.514Z
+Generated: 2026-07-28T08:57:47.360Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (233)
+## Done (235)
 
 | ID | Type | Path |
 |---|---|---|
@@ -105,6 +105,7 @@ _None._
 | CHANGE-0082 | issues | docs/issues/CHANGE-0082-validate-report-contract.md |
 | CHANGE-0083 | issues | docs/issues/CHANGE-0083-follow-ups-scripts.md |
 | CHANGE-0084 | issues | docs/issues/CHANGE-0084-follow-ups-docs.md |
+| CHANGE-0085 | issues | docs/issues/CHANGE-0085-platform-portable-pr.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -253,6 +254,7 @@ _None._
 | SPEC-0100 | specs | docs/specs/SPEC-0100-spec-doctor-determinize.md |
 | SPEC-0101 | specs | docs/specs/SPEC-0101-spec-dashboard-refit.md |
 | SPEC-0102 | specs | docs/specs/SPEC-0102-spec-docs-hub-generator.md |
+| SPEC-0103 | specs | docs/specs/SPEC-0103-spec-platform-portable-pr.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
@@ -263,7 +265,7 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (7)
+## Deferred items (per-AC, across all specs) (8)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
@@ -273,6 +275,7 @@ _None._
 | SPEC-0094 | Spec-AC-05 | 2026-08-10 | PR CI leg (TEST-015) verifies on push; local legs all green |
 | SPEC-0083 | Spec-AC-04 | 2026-08-15 | CI-authoritative; the flake is CI-load-only and not locally reproducible |
 | SPEC-0086 | Spec-AC-05 | 2026-08-15 | Full-framework TEST-010 confirmation deferred to Validation by design (dispatch constraint), not a real gap in this scope's own edits |
+| SPEC-0103 | Spec-AC-06 | 2026-08-15 | No Azure remote available in this repo/environment; evidence contract = first live Azure adoption round trip logged under docs/ai/reports/ |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)

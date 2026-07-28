@@ -124,6 +124,7 @@ core:
   - .aai/scripts/migrate-state-to-local.sh
   - .aai/scripts/orchestration-dispatch.mjs
   - .aai/scripts/orchestration-mode.mjs
+  - .aai/scripts/pr-platform.mjs
   - .aai/scripts/pre-commit-checks.ps1
   - .aai/scripts/pre-commit-checks.sh
   - .aai/scripts/pre-compact-save.ps1

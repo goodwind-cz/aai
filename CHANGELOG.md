@@ -11,6 +11,25 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: platform-portable PR ceremony — GitHub/Azure/generic with internal-review fallback (CHANGE-0085 / SPEC-0103) [L2]
+
+- NEW .aai/scripts/pr-platform.mjs: deterministic remote classification
+  (github incl. ssh, dev.azure.com + ssh + legacy visualstudio.com,
+  unknown, none); 14 spoof-attack classes defended in validation
+  (subdomain/ssh-alias/userinfo tricks -> unknown, never a false match);
+  --json masks embedded credentials (review-pinned).
+- SKILL_PR: PLATFORM GATE in step 5 (gh vs az repos branch); step 5d
+  reviewer-fallback contract — on a platform without reviewer bots the
+  internal SKILL_CODE_REVIEW dispatch is REQUIRED before merge-readiness,
+  findings are PUBLISHED as PR threads with closing replies, and the PR
+  records "internal review substituted for absent bot layer"; GENERIC
+  MODE for any other git host (mandatory internal review, findings into
+  repo artifacts, loud "merge is yours" handoff). Operator decisions
+  2026-07-28.
+- Azure live command forms deferred honestly (Spec-AC-06, Review-By
+  2026-08-15; thread publication via az devops invoke pullRequestThreads
+  is the concrete item to verify at first adoption).
+
 ## [unreleased] — chore: follow-ups batch B — stalled_progress friction class, EARS AC guidance (CHANGE-0084) [L1]
 
 - NEW seventh friction failure_class `stalled_progress` (dead-watcher
