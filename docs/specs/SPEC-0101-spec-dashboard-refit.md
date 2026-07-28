@@ -96,7 +96,7 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
 |---|---|---|---|---|---|
 | Spec-AC-01 | SKILL_DASHBOARD.prompt.md thin script-first wrapper, --publish removed | done | docs/ai/tdd/green-20260728T005214Z-dashboard-refit.log | — | 19173 B to 4152 B, 652 to 77 lines |
 | Spec-AC-02 | SKILL_TEST_SKILLS.prompt.md trimmed of stale examples | done | docs/ai/tdd/green-20260728T005214Z-dashboard-refit.log | — | 9218 B to 2674 B, 404 to 58 lines |
-| Spec-AC-03 | Prompt-diet ledger true-up, TEST-012 pin bumped RED-first | done | docs/ai/tdd/red-20260728T005204Z-dashboard-refit.log and docs/ai/tdd/green-20260728T005214Z-dashboard-refit.log | — | NEGATIVE entry -21565 B, JUSTIFIED_GROWTH_BYTES 14263 to -7302, headroom 636/2048 |
+| Spec-AC-03 | Prompt-diet ledger true-up, TEST-012 pin bumped RED-first | done | docs/ai/tdd/red-20260728T005204Z-dashboard-refit.log and docs/ai/tdd/green-20260728T005214Z-dashboard-refit.log | — | NEGATIVE entry -21517 B (21565 initial minus 48 B review remediation), JUSTIFIED_GROWTH_BYTES 14263 to -7254, headroom 636/2048 |
 
 ## Implementation plan
 - `.aai/SKILL_DASHBOARD.prompt.md` (rewrite): Goal/Usage/Instructions/Input
@@ -107,11 +107,11 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
   discovery instead of a hardcoded number, exit-code contract including
   exit-42 SKIP, results-dir shape, safety notes.
 - `tests/skills/lib/prompt-diet-ledger.sh`: one new NEGATIVE
-  `JUSTIFIED_ADDITIONS` entry (-21565 B) reclaiming exactly the measured
+  `JUSTIFIED_ADDITIONS` entry (-21517 B) reclaiming exactly the measured
   corpus shrinkage so headroom lands back at 636/2048, mirroring the
   doctor-determinize precedent (CHANGE-0079).
 - `tests/skills/test-aai-prompt-diet.sh`: TEST-012 pinned literal bumped
-  14263 -> -7302 (a negative total is expected and allowed — TEST-013's
+  14263 -> -7254 (a negative total is expected and allowed — TEST-013's
   leading-field regex accepts a `-` sign); new TEST-017 grep-contract pins
   (SKILL_DASHBOARD names generate-dashboard.mjs and never mentions
   --publish; SKILL_TEST_SKILLS never mentions pytest/cargo).
@@ -131,7 +131,7 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
 - `docs/dashboard-template.html` missing (vendored-layer drift): script
   exits 1 naming the missing file; prompt points at /aai-update, does not
   fabricate output.
-- Ledger literal going negative (JUSTIFIED_GROWTH_BYTES -7302): explicitly
+- Ledger literal going negative (JUSTIFIED_GROWTH_BYTES -7254): explicitly
   allowed by TEST-013's regex and documented in the ledger entry's own
   rationale text — it reflects a corpus that has shrunk below any owed
   credit, not an error state.
@@ -144,7 +144,7 @@ For each Spec-AC, enumerate concrete tests:
 | TEST-001 | Spec-AC-01 | unit | tests/skills/test-aai-prompt-diet.sh | SKILL_DASHBOARD names generate-dashboard.mjs, never mentions --publish | green |
 | TEST-002 | Spec-AC-02 | unit | tests/skills/test-aai-prompt-diet.sh | SKILL_TEST_SKILLS never mentions pytest or cargo | green |
 | TEST-003 | Spec-AC-03 | unit | tests/skills/test-aai-prompt-diet.sh | TEST-010 byte floor + headroom cap after the ledger true-up | green |
-| TEST-004 | Spec-AC-03 | unit | tests/skills/test-aai-prompt-diet.sh | TEST-012 JUSTIFIED_GROWTH_BYTES == -7302 == independent re-sum | green |
+| TEST-004 | Spec-AC-03 | unit | tests/skills/test-aai-prompt-diet.sh | TEST-012 JUSTIFIED_GROWTH_BYTES == -7254 == independent re-sum | green |
 | TEST-005 | Spec-AC-01 | e2e | manual smoke | generate-dashboard.mjs runs clean in both positional and named-flag form, --data-only respected | green |
 
 Notes:
