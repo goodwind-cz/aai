@@ -298,7 +298,7 @@ Use it when:
 
 Outputs:
 - `docs/project-sessions/INDEX.md`
-- `docs/project-sessions/SESSION-<slug>.md`
+- `docs/project-sessions/<YYYY-MM-DD>-<slug>.md`
 
 ### aai-wrap-up
 

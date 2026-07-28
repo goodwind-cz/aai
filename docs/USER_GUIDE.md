@@ -1250,7 +1250,7 @@ From Decisions:
 # Output:
 SESSION JOURNAL UPDATED
 - Session: Authentication redesign
-- File: docs/project-sessions/SESSION-authentication-redesign.md
+- File: docs/project-sessions/2026-07-28-authentication-redesign.md
 - Index: docs/project-sessions/INDEX.md
 - Next resume point: Decide whether to split auth UX from token lifecycle work
 ```

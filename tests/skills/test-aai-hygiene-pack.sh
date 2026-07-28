@@ -852,10 +852,10 @@ test_082_dispatch_refs_name_contract() {  # spec-subagent-protocol-slim TEST-003
 
 test_091_session_journal_index_complete() {  # CHANGE-0080: every journal has an INDEX row
   log_info "test_091: every docs/project-sessions/*.md (except INDEX.md) has a row in INDEX.md..."
-  local idx="docs/project-sessions/INDEX.md"
+  local idx="$PROJECT_ROOT/docs/project-sessions/INDEX.md"
   [[ -f "$idx" ]] || { log_fail "test_091: $idx missing"; return 1; }
   local f base missing=0
-  for f in docs/project-sessions/*.md; do
+  for f in "$PROJECT_ROOT"/docs/project-sessions/*.md; do
     base="$(basename "$f")"
     [[ "$base" == "INDEX.md" ]] && continue
     if ! grep -qF "($base)" "$idx"; then

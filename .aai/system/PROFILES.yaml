@@ -151,6 +151,7 @@ core:
   - .aai/templates/ISSUE_TEMPLATE.md
   - .aai/templates/KNOWLEDGE_TEMPLATE.md
   - .aai/templates/PRODUCT_TEMPLATE.md
+  - .aai/templates/PROJECT_SESSION_TEMPLATE.md
   - .aai/templates/RELEASE_TEMPLATE.md
   - .aai/templates/REQUIREMENT_TEMPLATE.md
   - .aai/templates/RESEARCH_TEMPLATE.md
