@@ -11,6 +11,20 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — chore: follow-ups batch A — single STATE creator, reaper raw capture, structured migration verdict (CHANGE-0083) [L2]
+
+- autonomous-loop.sh create_state_file() delegates to check-state --repair
+  (the canonical template path); the drifted inline heredoc creator is
+  gone and grep-pinned against reintroduction; fail-loud when the checker
+  is unavailable (closes the SPEC-0099 residual early).
+- aai-reap-tests.sh emits an additive `reaped raw:` diagnostic — the
+  verbatim ps snapshot line per reaped pid, on both exit paths — so the
+  next CI flake shows which column produced an impossible age (SPEC-0083
+  AC-04 data capture; decision surface verified unchanged, TEST-023).
+- aai-doctor.mjs migrationVerdict() returns {msg, ok}; CAT-10 aggregates
+  on booleans — wording changes can no longer flip verdicts (and the
+  refactor fixed a latent false-WARN the string matching had).
+
 ## [unreleased] — chore: journal + validate-report contracts reconciled with practice (CHANGE-0080 + CHANGE-0082) [L1]
 
 - Session journal (operator decision): the LIVING convention is canonical —

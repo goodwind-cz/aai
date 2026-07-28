@@ -211,6 +211,7 @@ ps axo pid=,etime=,args= > "$SNAP" 2>/dev/null || {
   # the output shape is stable (PR review).
   echo "reaped pids:"
   echo "reaped ages:"
+  echo "reaped raw:"
   exit 0
 }
 # SNAP_NOW is captured IMMEDIATELY adjacent to the ps snapshot instant above —
@@ -250,6 +251,7 @@ case "$_grace_raw" in
 esac
 
 MATCH_PIDS=""
+MATCH_RAW=""
 MATCH_AGES=""   # "<pid>=<snapshot-age-secs>" per matched pid, for authoritative diagnosis
 # `while read < file` runs in the CURRENT shell (no pipe subshell), so the
 # accumulated pid list survives the loop.
@@ -297,6 +299,11 @@ while read -r pid etime rest; do
   fi
   MATCH_PIDS="$MATCH_PIDS $pid"
   MATCH_AGES="$MATCH_AGES $pid=$age"
+  # SPEC-0083 AC-04: keep the VERBATIM snapshot line for this pid — when a
+  # garbled etime produces an impossible age (PR #150: 38109073018720 s), the
+  # raw line shows which column carried it. `|`-separated single line; POSIX sh.
+  _raw_line="$(grep -m1 "^[[:space:]]*${pid}[[:space:]]" "$SNAP" 2>/dev/null || printf '%s' "$pid $etime $rest")"
+  MATCH_RAW="$MATCH_RAW | $_raw_line"
 done < "$SNAP"
 rm -f "$SNAP"
 
@@ -354,4 +361,7 @@ echo "reaped pids:$MATCH_PIDS"
 # process that has since exited. Existing parsers key on `reaped pids:` only and
 # ignore this additional line.
 echo "reaped ages:$MATCH_AGES"
+# Verbatim ps snapshot lines for the reaped pids (SPEC-0083 AC-04 data
+# capture); `|`-separated, empty tail when N=0. Reporting only.
+echo "reaped raw:$MATCH_RAW"
 exit 0

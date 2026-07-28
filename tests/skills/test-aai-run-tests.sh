@@ -852,7 +852,26 @@ test_022() {
   log_pass "etime_to_secs fails safe on non-etime + out-of-range + impossible-age input (sentinel -1 < 0, spared under any MIN_AGE); valid etimes parse exactly, real large ages survive the clamp (TEST-022)"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022"
+# --- TEST-023 — `reaped raw:` diagnostic: verbatim ps snapshot lines ----------
+# SPEC-0083 AC-04 follow-up (PR #150 data: a reaped pid showed age
+# 38109073018720 s — a 14-digit integer that is NOT a plausible ps etime; the
+# next flake must show WHICH COLUMN produced it). The reaper now records the
+# ORIGINAL snapshot line for every reaped pid. Deterministic: drives the
+# reaper with an empty workspace (no matches) and asserts the header is
+# present on the no-op path, keeping the output shape stable for parsers.
+test_023() {
+  log_info "TEST-023: reaper emits a stable 'reaped raw:' diagnostic header on the no-op path..."
+  [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
+  local ws out
+  ws="$(mktemp -d "${TMPDIR:-/tmp}/aai-reap-raw.XXXXXX")"
+  out="$(AAI_REAP_WORKSPACE="$ws" sh "$REAP_SCRIPT" 2>&1)" || log_fail "TEST-023: reaper exited non-zero on a no-match run: $out"
+  printf '%s\n' "$out" | grep -q '^reaped: 0' || log_fail "TEST-023: expected 'reaped: 0' on an empty workspace: $out"
+  printf '%s\n' "$out" | grep -q '^reaped raw:' || log_fail "TEST-023: the 'reaped raw:' diagnostic header must be present on EVERY exit path (stable shape): $out"
+  rm -rf "$ws"
+  log_pass "reaper 'reaped raw:' diagnostic header stable on the no-op path (TEST-023)"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023"
 
 main() {
   echo "Testing $TEST_NAME (process-group wrapper + workspace/etime-scoped reaper + wiring)"

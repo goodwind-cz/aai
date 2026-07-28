@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T05:14:43.775Z
+Generated: 2026-07-28T06:57:09.870Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -253,9 +253,11 @@ _None._
 | SPEC-0102 | specs | docs/specs/SPEC-0102-spec-docs-hub-generator.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0083 | issues | docs/issues/CHANGE-0083-follow-ups-scripts.md |
 
 ## Deferred (whole-doc) (0)
 
