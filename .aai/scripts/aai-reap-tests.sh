@@ -302,7 +302,8 @@ while read -r pid etime rest; do
   # SPEC-0083 AC-04: keep the VERBATIM snapshot line for this pid — when a
   # garbled etime produces an impossible age (PR #150: 38109073018720 s), the
   # raw line shows which column carried it. `|`-separated single line; POSIX sh.
-  _raw_line="$(grep -m1 "^[[:space:]]*${pid}[[:space:]]" "$SNAP" 2>/dev/null || printf '%s' "$pid $etime $rest")"
+  _raw_line="$(awk -v p="$pid" '$1 == p { print; exit }' "$SNAP" 2>/dev/null)"
+  [ -n "$_raw_line" ] || _raw_line="$pid $etime $rest"
   MATCH_RAW="$MATCH_RAW | $_raw_line"
 done < "$SNAP"
 rm -f "$SNAP"
