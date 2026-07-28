@@ -44,6 +44,7 @@ set of wrapper directories in `.claude/skills/`.
 | aai-scout | Optional pre-implementation readiness score 0-100, GO/HOLD advisory at 70 (never blocks) | `/aai-scout` | `--prompt-file .aai/SKILL_SCOUT.prompt.md` |
 | aai-deslop | Optional diff-scoped AI-slop removal pass before review, behavior unchanged (never blocks) | `/aai-deslop` | `--prompt-file .aai/SKILL_DESLOP.prompt.md` |
 | aai-interrogate | Optional plan decision-walk, one pre-answered question at a time, ledger to decisions.jsonl (never blocks) | `/aai-interrogate` | `--prompt-file .aai/SKILL_INTERROGATE.prompt.md` |
+| aai-issues | On-demand: fetch, triage, and (after one approval checkpoint) turn open platform issues into approved intakes | `/aai-issues` | `--prompt-file .aai/SKILL_ISSUES.prompt.md` |
 
 ## Skills in Detail
 

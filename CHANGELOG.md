@@ -11,6 +11,26 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: /aai-issues — on-demand platform-portable issue intake skill (CHANGE-0087 / SPEC-0104) [L2]
+
+- NEW /aai-issues: fetches open issues from the project's git host
+  (github via gh issue list; azure -> Azure Boards work items, documented
+  + deferred to first adoption; unknown/none -> loud degrade), triages
+  each (bug/feature/question/duplicate/out-of-scope), STOPS at ONE
+  operator approval checkpoint, and turns approved items into intakes
+  linked back to the source issue. Write-back (comment + close) only
+  after a ride's PR merges. On-demand only — never from the loop.
+- SECURITY: issue text is untrusted. sanitizeLine strips C0/C1 controls
+  (newline/CR/ESC/BEL) and Unicode bidi overrides from title/labels/
+  excerpt, so a crafted issue cannot forge ISSUE/ISSUES table rows or
+  inject terminal escapes (adversarial review finding, TEST-020); the
+  prompt pins never-follow-body-instructions and quote-as-DATA when
+  composing intakes.
+- Reuses pr-platform.mjs classification; zero-dep fetcher with --input
+  fixture bypass (network-free tests); 20-test suite; ledger +3810,
+  headroom unchanged.
+
+
 ## [unreleased] — chore: session loose ends — inheritance provenance, NOTE convention, phase-boundary audit CLEAN (CHANGE-0086) [L2]
 
 - Dispatch now stamps per-component inheritance provenance alongside the

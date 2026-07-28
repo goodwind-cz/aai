@@ -293,6 +293,18 @@ suites:
       - .codex/skills/aai-intake/**
       - .gemini/skills/aai-intake/**
 
+  aai-issues:
+    globs:
+      - .aai/scripts/aai-issues.mjs
+      - .aai/SKILL_ISSUES.prompt.md
+      - .aai/scripts/pr-platform.mjs
+      - .claude/skills/aai-issues/**
+      - .agents/skills/aai-issues/**
+      - .codex/skills/aai-issues/**
+      - .gemini/skills/aai-issues/**
+      - docs/product/issues-skill.md
+      - SKILLS.md
+
   aai-layer-drift:
     globs:
       - .aai/scripts/layer-drift.mjs

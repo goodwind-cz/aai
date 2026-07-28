@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T14:02:58.163Z
+Generated: 2026-07-28T14:48:51.856Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0104 | specs | implementing | 2 done, 1 deferred | docs/specs/SPEC-0104-spec-issues-skill.md |
 
 ## Canonical layer (0)
 
@@ -258,15 +259,17 @@ _None._
 | SPEC-0103 | specs | docs/specs/SPEC-0103-spec-platform-portable-pr.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0087 | issues | docs/issues/CHANGE-0087-issues-skill.md |
 
 ## Deferred (whole-doc) (0)
 
 _None._
 
-## Deferred items (per-AC, across all specs) (8)
+## Deferred items (per-AC, across all specs) (9)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
@@ -277,6 +280,7 @@ _None._
 | SPEC-0083 | Spec-AC-04 | 2026-08-15 | CI-authoritative; the flake is CI-load-only and not locally reproducible |
 | SPEC-0086 | Spec-AC-05 | 2026-08-15 | Full-framework TEST-010 confirmation deferred to Validation by design (dispatch constraint), not a real gap in this scope's own edits |
 | SPEC-0103 | Spec-AC-06 | 2026-08-15 | No Azure remote available in this repo/environment; evidence contract = first live Azure adoption round trip logged under docs/ai/reports/ |
+| SPEC-0104 | Spec-AC-03 | 2026-08-15 | No Azure remote available in this repo/environment; evidence contract = first live az boards round trip logged under docs/ai/reports/; degrade-line WIRING itself is done and covered by TEST-018..020 |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
