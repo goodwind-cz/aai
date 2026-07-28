@@ -572,6 +572,17 @@ test_create_fail_loud_missing_placeholder() {  # TEST-007 / review pin: template
   log_pass "unstampable template refused (exit 1, placeholder named, nothing created) (TEST-007)"
 }
 
+test_single_state_creator() {  # CHANGE follow-ups-scripts AC-001: no second creator
+  log_info "Test: autonomous-loop.sh delegates STATE creation to check-state --repair and carries NO inline heredoc creator (single-creator pin)..."
+  local al="$PROJECT_ROOT/.aai/scripts/autonomous-loop.sh"
+  [[ -f "$al" ]] || log_fail "missing $al"
+  grep -qF 'check-state.mjs --repair' "$al" \
+    || log_fail "autonomous-loop.sh must delegate to check-state.mjs --repair"
+  grep -qF 'cat > "$STATE_PATH"' "$al" \
+    && log_fail "autonomous-loop.sh must not carry an inline heredoc STATE creator (drifted second schema source)"
+  log_pass "single STATE creator: autonomous-loop delegates to check-state --repair"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (STATE duplicate-key validator)"
   check_deps
@@ -590,6 +601,7 @@ main() {
   test_repair_existing_file_untouched_by_creation_path
   test_create_fail_loud_missing_template
   test_create_fail_loud_missing_placeholder
+  test_single_state_creator
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

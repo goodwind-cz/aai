@@ -50,46 +50,22 @@ build_skill_tick_command() {
 
 create_state_file() {
   mkdir -p docs/ai
-  cat > "$STATE_PATH" <<EOF
-project_status: active
-
-current_focus:
-  type: none
-  ref_id: null
-  primary_path: null
-
-locks:
-  implementation: true
-  implementation_reason: "Implementation is forbidden until scope is explicitly unlocked in state."
-  protected_paths:
-    - .aai/workflow/
-    - .aai/roles/
-    - .aai/
-  protected_paths_edit_allowed: false
-  protected_paths_reason: "Edits are allowed only with explicit scope/HITL approval."
-
-active_work_items:
-  []
-
-last_validation:
-  status: not_run
-  run_at_utc: null
-  validator_ref: .aai/VALIDATION.prompt.md
-  evidence_paths: []
-  notes: "No validation run yet."
-
-human_input:
-  required: false
-  question_ref: null
-  blocking_reason: null
-
-ai_os:
-  pin_path: .aai/system/AAI_PIN.md
-  pin_version: null
-  pin_commit: null
-
-updated_at_utc: "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-EOF
+  # Single canonical creator (CHANGE-0074 / SPEC-0099): delegate to
+  # check-state --repair, which creates the file from
+  # .aai/templates/STATE_TEMPLATE.yaml. The old inline heredoc here was a
+  # second, drifted schema source (missing implementation_strategy/
+  # code_review/worktree/metrics) — never reintroduce one; fail loud when
+  # the checker is unavailable instead of writing a divergent stub.
+  if ! command -v node >/dev/null 2>&1; then
+    echo "ERROR: cannot initialize $STATE_PATH — node is not on PATH; install Node.js first." >&2
+    return 1
+  fi
+  if [[ ! -f .aai/scripts/check-state.mjs ]]; then
+    echo "ERROR: cannot initialize $STATE_PATH — .aai/scripts/check-state.mjs missing; run /aai-update first." >&2
+    return 1
+  fi
+  node .aai/scripts/check-state.mjs --repair "$STATE_PATH"
+  return $?
 }
 
 read_project_status() {

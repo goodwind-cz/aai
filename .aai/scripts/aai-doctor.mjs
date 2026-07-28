@@ -310,15 +310,18 @@ function gitTracked(root, rel) {
   return run('git', ['ls-files', '--error-unmatch', rel], root).ok;
 }
 
+// Returns {msg, ok}: the aggregate verdict keys on the BOOLEAN, never on the
+// message wording — a rewording can no longer silently flip PASS/WARN
+// (PR #178 review techdebt, closed by CHANGE follow-ups-scripts).
 function migrationVerdict(root, rel) {
   const ignored = gitignoreHas(root, rel);
   const tracked = gitTracked(root, rel);
   const onDisk = exists(root, rel);
-  if (ignored && !tracked) return `${rel}: migrated correctly`;
-  if (ignored && tracked) return `${rel}: INCONSISTENT — gitignored but still tracked (run migrate-state-to-local.sh)`;
-  if (!ignored && tracked) return `${rel}: LEGACY — not yet migrated (run /aai-update then migrate-state-to-local.sh)`;
-  if (!ignored && !tracked && onDisk) return `${rel}: LIKELY MISSING — neither gitignored nor tracked`;
-  return `${rel}: ok (per-dev local, not initialized yet)`;
+  if (ignored && !tracked) return { msg: `${rel}: migrated correctly`, ok: true };
+  if (ignored && tracked) return { msg: `${rel}: INCONSISTENT — gitignored but still tracked (run migrate-state-to-local.sh)`, ok: false };
+  if (!ignored && tracked) return { msg: `${rel}: LEGACY — not yet migrated (run /aai-update then migrate-state-to-local.sh)`, ok: false };
+  if (!ignored && !tracked && onDisk) return { msg: `${rel}: LIKELY MISSING — neither gitignored nor tracked`, ok: false };
+  return { msg: `${rel}: ok (per-dev local, not initialized yet)`, ok: true };
 }
 
 function catRfc0001Migration(root) {
@@ -328,16 +331,16 @@ function catRfc0001Migration(root) {
   if (!gitProbe.ok) {
     return cat('CAT-10', 'RFC-0001 Migration', 'WARN', 'migration state unverifiable: git unavailable or not a repository');
   }
-  const parts = [
+  const verdicts = [
     migrationVerdict(root, 'docs/ai/STATE.yaml'),
     migrationVerdict(root, 'docs/ai/LOOP_TICKS.jsonl'),
   ];
   const eventsText = readText(root, 'docs/ai/EVENTS.jsonl');
-  parts.push(eventsText === null
-    ? 'docs/ai/EVENTS.jsonl: not initialized'
-    : `docs/ai/EVENTS.jsonl: present (${countLines(eventsText)} entries)`);
-  const inconsistent = parts.some((p) => p.includes('INCONSISTENT') || p.includes('LEGACY') || p.includes('LIKELY MISSING') || p.includes('not initialized'));
-  return cat('CAT-10', 'RFC-0001 Migration', inconsistent ? 'WARN' : 'PASS', parts.join('; '));
+  verdicts.push(eventsText === null
+    ? { msg: 'docs/ai/EVENTS.jsonl: not initialized', ok: false }
+    : { msg: `docs/ai/EVENTS.jsonl: present (${countLines(eventsText)} entries)`, ok: true });
+  const inconsistent = verdicts.some((v) => !v.ok);
+  return cat('CAT-10', 'RFC-0001 Migration', inconsistent ? 'WARN' : 'PASS', verdicts.map((v) => v.msg).join('; '));
 }
 
 // --- CAT-11 Docs Hygiene (subprocess to docs-audit.mjs) -----------------------

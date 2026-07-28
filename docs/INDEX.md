@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T05:14:43.775Z
+Generated: 2026-07-28T06:57:37.690Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (231)
+## Done (232)
 
 | ID | Type | Path |
 |---|---|---|
@@ -103,6 +103,7 @@ _None._
 | CHANGE-0080 | issues | docs/issues/CHANGE-0080-session-journal-contract.md |
 | CHANGE-0081 | issues | docs/issues/CHANGE-0081-skill-sweep-quick-wins.md |
 | CHANGE-0082 | issues | docs/issues/CHANGE-0082-validate-report-contract.md |
+| CHANGE-0083 | issues | docs/issues/CHANGE-0083-follow-ups-scripts.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
