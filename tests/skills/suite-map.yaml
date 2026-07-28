@@ -372,6 +372,17 @@ suites:
     globs:
       - .aai/system/PRICING.yaml
 
+  aai-product-docs:
+    globs:
+      - .aai/scripts/lib/docs-model.mjs
+      - .aai/scripts/lib/docs-audit-core.mjs
+      - .aai/scripts/generate-docs-index.mjs
+      - .aai/scripts/lib/product-doc.mjs
+      - .aai/scripts/close-work-item.mjs
+      - .aai/templates/PRODUCT_TEMPLATE.md
+      - .aai/SKILL_SHIP.prompt.md
+      - docs/product/**
+
   aai-prompt-diet:
     globs:
       - .aai/*.prompt.md

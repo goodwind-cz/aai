@@ -1,7 +1,7 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T15:07:28.921Z
-Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
+Generated: 2026-07-28T18:15:04.096Z
+Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
@@ -16,6 +16,23 @@ _None._
 ## Canonical layer (0)
 
 _None._
+
+## Product (12)
+
+| ID | Capability | Delivered by | Path |
+|---|---|---|---|
+| ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
+| dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
+| docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
+| friction-capture-default-on | friction-capture-default-on | 1 | docs/product/friction-capture-default-on.md |
+| issues-skill | issues-skill | 1 | docs/product/issues-skill.md |
+| learned-append-gate | learned-append-gate | 1 | docs/product/learned-append-gate.md |
+| platform-portable-pr | platform-portable-pr | 1 | docs/product/platform-portable-pr.md |
+| product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
+| prompt-hash-telemetry | prompt-hash-telemetry | 1 | docs/product/prompt-hash-telemetry.md |
+| role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
+| token-capture-canary | token-capture-canary | 1 | docs/product/token-capture-canary.md |
+| token-economics-end-to-end | token-economics-end-to-end | 1 | docs/product/token-economics-end-to-end.md |
 
 ## Done (238)
 
@@ -260,9 +277,12 @@ _None._
 | SPEC-0104 | specs | docs/specs/SPEC-0104-spec-issues-skill.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0088 | issues | docs/issues/CHANGE-0088-product-docs-capability-model.md |
+| SPEC-0105 | specs | docs/specs/SPEC-0105-spec-product-docs-capability-model.md |
 
 ## Deferred (whole-doc) (0)
 

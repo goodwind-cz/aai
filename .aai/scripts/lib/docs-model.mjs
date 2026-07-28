@@ -23,6 +23,14 @@ export function toPosix(p) {
 export const DOC_STATUS_ENUM = new Set([
   'draft', 'proposed', 'accepted', 'implementing', 'frozen',
   'done', 'deferred', 'rejected', 'superseded', 'legacy',
+  // spec-product-docs-capability-model D2 — `current` is the steady-state
+  // status of a capability-keyed product doc (docs/product/<capability>.md).
+  // Chosen over reusing `done` so a product doc never drags the false-done /
+  // git-mention heuristics designed for specs/changes into its verdict path
+  // (see docs-audit-core.mjs runAudit: `current` falls straight to
+  // verdict=aligned/cls=tracked-open). `superseded` is reused for a retired
+  // capability doc — no new status needed there.
+  'current',
 ]);
 export const AC_STATUS_ENUM = new Set([
   'planned', 'implementing', 'done', 'deferred', 'blocked', 'rejected',
@@ -62,7 +70,35 @@ export const DOC_TYPE_ENUM = new Set([
   'plan', 'release', 'research', 'requirement',
   // RFC-0003 / SPEC-0002: canonicalization layer
   'canonical', 'archived',
+  // spec-product-docs-capability-model D1/D2: the product doc family
+  // (docs/product/<capability>.md), the SECOND doc family on the shared
+  // DOC_FAMILIES scan-admit primitive (see below).
+  'product',
 ]);
+
+// --- spec-product-docs-capability-model D1 (SEAM-1) --------------------------
+//
+// The shared doc-family scan-admit primitive. Both docs-audit-core.mjs
+// (scanAuditDocs) AND generate-docs-index.mjs consume this SAME registry —
+// one config, two consumers, no parallel scan/index/drift code. A doc family
+// is admitted to the scan (slug-named, no numeric ID prefix required) and
+// placed under its own dedicated INDEX section, keyed by directory prefix.
+// `dir` MUST end in '/' and is matched against a toPosix-normalized relative
+// path (rel.startsWith(dir)). Deleting an entry here drops that family from
+// BOTH engines in lockstep (anti-duplication proof, Spec-AC-02).
+export const DOC_FAMILIES = [
+  { type: 'canonical', dir: 'docs/canonical/', indexSection: 'Canonical layer' },
+  { type: 'product', dir: 'docs/product/', indexSection: 'Product' },
+];
+
+// slugFamilyForPath(rel) -> the DOC_FAMILIES entry whose dir prefixes `rel`,
+// or null. `rel` must already be POSIX-normalized (toPosix) — every call
+// site in docs-audit-core.mjs / generate-docs-index.mjs normalizes before
+// calling this.
+export function slugFamilyForPath(rel) {
+  const s = String(rel ?? '');
+  return DOC_FAMILIES.find((f) => s.startsWith(f.dir)) ?? null;
+}
 
 // RFC-0003 / SPEC-0002 — fixed hybrid layer sections, in order. The canonical
 // synthesizer must emit exactly these level-2 headings in this order, and
@@ -733,6 +769,31 @@ export function validateCanonicalFrontmatter(fm) {
   }
   const sources = asList(fm.sources);
   if (sources.length === 0) violations.push('empty sources list');
+  return { ok: violations.length === 0, violations };
+}
+
+// Validate the frontmatter of a `type: product` doc (spec-product-docs-
+// capability-model D2, mirrors validateCanonicalFrontmatter). Returns
+// { ok, violations: [string] }. A product doc requires:
+//   - type === 'product'
+//   - capability: non-empty, matches DOMAIN_SLUG_RE (lowercased slug) — the
+//     SAME slug shape canonical's `domain` uses, on the SEPARATE user-value
+//     axis (D-Architecture-constraint).
+//   - delivered_by: a non-empty list of provenance refs.
+export function validateProductFrontmatter(fm) {
+  const violations = [];
+  if (!fm) return { ok: false, violations: ['no frontmatter'] };
+  if (String(fm.type ?? '').toLowerCase() !== 'product') {
+    violations.push(`type must be "product" (got "${fm.type ?? ''}")`);
+  }
+  const capability = fm.capability == null ? '' : String(fm.capability).trim();
+  if (capability === '') {
+    violations.push('missing capability');
+  } else if (!DOMAIN_SLUG_RE.test(capability)) {
+    violations.push(`bad capability slug "${capability}" (must match ${DOMAIN_SLUG_RE})`);
+  }
+  const deliveredBy = asList(fm.delivered_by);
+  if (deliveredBy.length === 0) violations.push('empty delivered_by list');
   return { ok: violations.length === 0, violations };
 }
 

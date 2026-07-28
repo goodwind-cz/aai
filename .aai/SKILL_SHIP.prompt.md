@@ -31,11 +31,15 @@ RUN
 3. If the loop pauses for a human (HITL block, stagnation, run budget):
    surface the question verbatim and STOP. After the human answers, they
    re-run /aai-ship to resume (state is durable; the loop picks up).
-4. PRODUCT DOCS — when the delivered scope is user-visible, instantiate
-   .aai/templates/PRODUCT_TEMPLATE.md at docs/product/<ref_id>.md (create
-   the folder if absent) from the frozen spec + implementation: functional
-   description, data model deltas, interface/contract deltas. Skip for
-   ceremony L0 and pure-internal scopes; say which branch you took.
+4. PRODUCT DOCS — when the delivered scope is user-visible, resolve the
+   capability (the intake's `capability:` field, falling back to ref_id when
+   absent) and create-else-update .aai/templates/PRODUCT_TEMPLATE.md at
+   docs/product/<capability>.md (create the folder if absent) from the frozen
+   spec + implementation: functional description, data model deltas,
+   interface/contract deltas. A doc already at that path means another work
+   item already delivers this capability — UPDATE its prose in place, never
+   spawn a second file (close-work-item.mjs stamps delivered_by/updated).
+   Skip for ceremony L0 and pure-internal scopes; say which branch you took.
 5. SHIP CHECKPOINT (the one approval surface) — when validation PASS and
    the review gate is satisfied, present exactly:
    - scope: ref_id + one-line outcome

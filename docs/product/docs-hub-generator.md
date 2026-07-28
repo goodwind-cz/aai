@@ -1,7 +1,10 @@
 ---
 id: docs-hub-generator
 type: product
+capability: docs-hub-generator
 status: current
+delivered_by:
+  - docs-hub-generator
 spec: docs/specs/SPEC-0102-spec-docs-hub-generator.md
 updated: 2026-07-28
 ---

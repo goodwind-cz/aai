@@ -1,7 +1,10 @@
 ---
 id: dev-progress-hub
 type: product
+capability: dev-progress-hub
 status: current
+delivered_by:
+  - dev-progress-hub
 spec: docs/specs/SPEC-0093-spec-dev-progress-hub.md
 updated: 2026-07-27
 ---

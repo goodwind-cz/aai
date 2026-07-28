@@ -1,7 +1,10 @@
 ---
 id: token-economics-end-to-end
 type: product
+capability: token-economics-end-to-end
 status: current
+delivered_by:
+  - token-economics-end-to-end
 spec: docs/specs/SPEC-0089-spec-token-economics-end-to-end.md
 updated: 2026-07-26
 ---

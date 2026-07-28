@@ -1,7 +1,10 @@
 ---
 id: product-docs-enforced
 type: product
+capability: product-docs-enforced
 status: current
+delivered_by:
+  - product-docs-enforced
 spec: docs/specs/SPEC-0092-spec-product-docs-enforced.md
 updated: 2026-07-27
 ---

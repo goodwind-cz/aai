@@ -20,7 +20,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  DOC_STATUS_ENUM, walk,
+  DOC_STATUS_ENUM, walk, DOC_FAMILIES, slugFamilyForPath,
   parseFrontmatter, parseAcTable, parseReviewBy, extractReferences, toPosix,
   normalizeAcStatus, detectNearMissAcTable,
 } from './lib/docs-model.mjs';
@@ -32,10 +32,18 @@ const ARGV = process.argv.slice(2);
 // Default (no flag): degrade-and-report — always write a best-effort index.
 // --continue-on-error: retained as a no-op alias (degrade-and-report is now the default).
 const strict = ARGV.includes('--strict') || ARGV.includes('lint-docs');
-// RFC-0003 / SPEC-0002: index the canonical layer alongside the intake dirs.
-// docs/_archive is deliberately NOT scanned here — archived originals are
-// preserved-not-active and must not surface in the Active/Drafts sections.
-const SCAN_DIRS = ['docs/issues', 'docs/rfc', 'docs/specs', 'docs/requirements', 'docs/releases', 'docs/canonical'];
+// RFC-0003 / SPEC-0002 + spec-product-docs-capability-model D1 (SEAM-1,
+// Spec-AC-02): index every DOC_FAMILIES directory (canonical, product, ...)
+// alongside the intake dirs, derived from the SAME shared registry
+// docs-audit-core.mjs's scan-admit predicate consumes — no duplicated family
+// list to drift. docs/_archive is deliberately NOT scanned here — archived
+// originals are preserved-not-active and must not surface in the
+// Active/Drafts sections.
+const FAMILY_DIR_NAMES = DOC_FAMILIES.map((f) => f.dir.replace(/^docs\//, '').replace(/\/$/, ''));
+const SCAN_DIRS = [
+  'docs/issues', 'docs/rfc', 'docs/specs', 'docs/requirements', 'docs/releases',
+  ...DOC_FAMILIES.map((f) => f.dir.replace(/\/$/, '')),
+];
 const OUT_PATH = path.join(ROOT, 'docs/INDEX.md');
 const VIOLATIONS_PATH = path.join(ROOT, 'docs/INDEX.violations.md');
 // SPEC-0010 Group A (ISSUE-0003) — the git-history-dependent audit sections
@@ -336,11 +344,18 @@ function main() {
   deferredItems.sort(sortByReviewBy);
   blockedItems.sort(sortByReviewBy);
 
-  const isCanonical = (d) => String(d.fm?.type ?? d.type ?? '').toLowerCase() === 'canonical';
-  const canonicalDocs = docs.filter(isCanonical);
-  // canonical docs get a dedicated grouping; keep them out of the generic
-  // status sections so they are not double-listed.
-  const byStatus = (st) => docs.filter(d => d.status === st && !isCanonical(d));
+  // spec-product-docs-capability-model D1 (SEAM-1, Spec-AC-02): the hardcoded
+  // isCanonical predicate is generalized to familyOf, driven by the SAME
+  // DOC_FAMILIES registry docs-audit-core.mjs's scan-admit consumes. Every
+  // family doc (canonical, product, ...) gets its own dedicated grouping and
+  // is kept out of the generic status sections so it is never double-listed.
+  const familyOf = (d) => slugFamilyForPath(d.path);
+  const familyMembers = new Map(DOC_FAMILIES.map((f) => [f.type, []]));
+  for (const d of docs) {
+    const fam = familyOf(d);
+    if (fam) familyMembers.get(fam.type).push(d);
+  }
+  const byStatus = (st) => docs.filter(d => d.status === st && !familyOf(d));
   const progressFor = (d) => {
     if (!d.ac.hasGate || d.ac.rows.length === 0) return '—';
     const counts = {};
@@ -363,7 +378,10 @@ function main() {
   const draftMembers = byStatus('draft');
   const deferredMembers = byStatus('deferred');           // Spec-AC-01 whole-doc deferred
   const rejectedMembers = byStatus('rejected').concat(byStatus('superseded'));
-  const placementMembers = [canonicalDocs, activeMembers, doneMembers, draftMembers, deferredMembers, rejectedMembers];
+  const placementMembers = [
+    ...DOC_FAMILIES.map((f) => familyMembers.get(f.type)),
+    activeMembers, doneMembers, draftMembers, deferredMembers, rejectedMembers,
+  ];
 
   // Spec-AC-02/03 — zero-section coverage invariant. A non-legacy doc that lands
   // in NO placement section silently vanished before; surface it. Under --strict
@@ -393,7 +411,7 @@ function main() {
   lines.push(MARKER);
   lines.push('');
   lines.push(`Generated: ${new Date().toISOString()}`);
-  lines.push(`Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md`);
+  lines.push(`Source: docs/{issues,rfc,specs,requirements,releases,${FAMILY_DIR_NAMES.join(',')}}/**/*.md`);
   lines.push('');
 
   const renderSection = (target, title, items, renderRow) => {
@@ -417,19 +435,39 @@ function main() {
     return out;
   });
 
-  // RFC-0003 / SPEC-0002 — canonical layer. Surfaces each canonical doc with
-  // its domain and a count of contributing sources. Archived originals under
-  // docs/_archive/ are preserved-not-active and intentionally not listed.
-  section('Canonical layer', canonicalDocs, items => {
-    const out = ['| ID | Domain | Sources | Path |', '|---|---|---|---|'];
-    for (const d of items) {
-      const domain = d.fm?.domain ?? '—';
-      const srcCount = Array.isArray(d.fm?.sources) ? d.fm.sources.length
-        : (d.fm?.sources ? 1 : 0);
-      out.push(`| ${d.id} | ${domain} | ${srcCount} | ${d.path} |`);
-    }
-    return out;
-  });
+  // spec-product-docs-capability-model D1 — ONE placement section PER
+  // DOC_FAMILIES entry (RFC-0003's "Canonical layer" is now the canonical
+  // instance; "Product" is the product instance of the SAME mechanism). Row
+  // shape is family-specific (canonical: Domain/Sources; product:
+  // Capability/Delivered by); a future family with no special-cased columns
+  // falls back to the generic ID/Type/Status/Path shape.
+  for (const fam of DOC_FAMILIES) {
+    section(fam.indexSection, familyMembers.get(fam.type), items => {
+      if (fam.type === 'canonical') {
+        const out = ['| ID | Domain | Sources | Path |', '|---|---|---|---|'];
+        for (const d of items) {
+          const domain = d.fm?.domain ?? '—';
+          const srcCount = Array.isArray(d.fm?.sources) ? d.fm.sources.length
+            : (d.fm?.sources ? 1 : 0);
+          out.push(`| ${d.id} | ${domain} | ${srcCount} | ${d.path} |`);
+        }
+        return out;
+      }
+      if (fam.type === 'product') {
+        const out = ['| ID | Capability | Delivered by | Path |', '|---|---|---|---|'];
+        for (const d of items) {
+          const capability = d.fm?.capability ?? '—';
+          const deliveredCount = Array.isArray(d.fm?.delivered_by) ? d.fm.delivered_by.length
+            : (d.fm?.delivered_by ? 1 : 0);
+          out.push(`| ${d.id} | ${capability} | ${deliveredCount} | ${d.path} |`);
+        }
+        return out;
+      }
+      const out = ['| ID | Type | Status | Path |', '|---|---|---|---|'];
+      for (const d of items) out.push(`| ${d.id} | ${d.type} | ${d.status} | ${d.path} |`);
+      return out;
+    });
+  }
 
   section('Done', doneMembers, items => {
     const out = ['| ID | Type | Path |', '|---|---|---|'];

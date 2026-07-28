@@ -11,6 +11,24 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: product docs become a capability-keyed doc family on shared engine primitives (CHANGE-0088 / SPEC-0105, fixes #189) [L2]
+
+- Product docs were invisible to the doc engines (not in INDEX, not audited)
+  and their type:product/status:current weren't enum-valid (GitHub #189 —
+  a silent-omission gap). Now product is a SECOND DOC FAMILY on a shared
+  DOC_FAMILIES registry that generalizes the inCanonical scan-admit: one
+  registry both docs-audit and generate-docs-index read, NO parallel engine
+  (deleting the entry drops product from both, pinned TEST-005).
+  DOC_TYPE_ENUM += product, DOC_STATUS_ENUM += current; new INDEX Product section.
+- Keyed by user-facing CAPABILITY, not by ride: rides targeting one
+  capability UPDATE its doc (delivered_by provenance) instead of spawning
+  per-ride orphans. close-work-item re-keys on capability with a
+  transactional delivered_by upsert (authored prose byte-idempotent).
+- Migration: all 12 existing product docs gained capability + delivered_by
+  frontmatter ONLY — body byte-diff 0 each (independently verified). The
+  #189 repro (template -> audit -> index) is now clean end-to-end.
+
+
 ## [unreleased] — feat: /aai-issues — on-demand platform-portable issue intake skill (CHANGE-0087 / SPEC-0104) [L2]
 
 - NEW /aai-issues: fetches open issues from the project's git host

@@ -1,7 +1,10 @@
 ---
 id: role-output-contracts
 type: product
+capability: role-output-contracts
 status: current
+delivered_by:
+  - role-output-contracts
 spec: docs/specs/SPEC-0094-spec-role-output-contracts.md
 updated: 2026-07-27
 ---

@@ -81,7 +81,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { scanAuditDocs, loadConfig, runAudit, readEvents } from './lib/docs-audit-core.mjs';
-import { parseFrontmatter, extractDocIds, DEFAULT_CATEGORY_PREFIXES } from './lib/docs-model.mjs';
+import { parseFrontmatter, extractDocIds, DEFAULT_CATEGORY_PREFIXES, slugFamilyForPath } from './lib/docs-model.mjs';
 import { readGuardConfig } from './lib/guard-config.mjs';
 import { REQUIRED_PRODUCT_SECTIONS, missingProductSections } from './lib/product-doc.mjs';
 
@@ -132,7 +132,16 @@ function parseArgs(argv) {
 
 function resolveDoc(root, slug) {
   const config = loadConfig(root);
-  const files = scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] });
+  // spec-product-docs-capability-model — a product doc (docs/product/
+  // <capability>.md) is a maintained PROJECTION the close ceremony only ever
+  // WRITES to (the delivered_by/updated upsert, keyed by capability path, not
+  // by id) — it is never itself a valid --ref/--spec close TARGET. Excluding
+  // it from the resolution candidate pool here also sidesteps the by-design
+  // cross-axis id coincidence (a capability slug equalling its originating
+  // change doc's ref id, the common 1:1 migration case) that would otherwise
+  // make resolveDoc report a false "ambiguous id".
+  const files = scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] })
+    .filter((f) => slugFamilyForPath(f.rel)?.type !== 'product');
   const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
   const entries = files.map((f) => {
     const abs = path.join(root, f.rel);
@@ -176,15 +185,28 @@ function truthyUserVisible(fm) {
   return String(v).trim().toLowerCase() === 'true';
 }
 
+// spec-product-docs-capability-model D3 (SEAM-2) — the capability the
+// product-doc gate keys on: the primary doc's frontmatter `capability`, or
+// (legacy fallback, back-compat with a doc whose capability equals its own
+// ride slug — i.e. every migrated doc) the primary doc's frontmatter slug id
+// when `capability` is absent/blank.
+function resolveCapability(primaryDoc) {
+  const raw = primaryDoc.fm?.capability;
+  const v = raw == null ? '' : String(raw).trim();
+  return v !== '' ? v : primaryDoc.fmId;
+}
+
 // evaluateProductDocGate(primaryDoc) -> { userVisible, severity, slug?,
 //   productDocPath?, productDocExists?, missingSections?, dial?, reason? }
 // severity is 'none' (not gated, or a real product doc present), 'warn'
 // (report-only dial), or 'refuse' (enforce dial). Read-only — callers decide
 // whether/when to act on the verdict (D3: the refuse branch must run BEFORE
 // any write; --dry-run must never act on it).
+// `slug` here is the resolved CAPABILITY (spec-product-docs-capability-model
+// D3, SEAM-2) — docs/product/<capability>.md, not the closing ref's own id.
 function evaluateProductDocGate(primaryDoc) {
   if (!truthyUserVisible(primaryDoc.fm)) return { userVisible: false, severity: 'none' };
-  const slug = primaryDoc.fmId;
+  const slug = resolveCapability(primaryDoc);
   const productDocPath = `docs/product/${slug}.md`;
   const abs = path.join(ROOT, productDocPath);
   const exists = fs.existsSync(abs);
@@ -317,6 +339,92 @@ function stampStatus(lines, toStatus) {
   const idx = lines.findIndex((l) => /^status:/.test(l));
   if (idx === -1) throw new Error('frontmatter has no top-level "status:" key');
   lines[idx] = `status: ${toStatus}`;
+}
+
+// --- product-doc delivered_by/updated upsert (SEAM-2/SEAM-3, D3) ------------
+//
+// Same line-surgical convention as stampLink/stampStatus, but for a
+// TOP-LEVEL (not links-nested) block-list key — `delivered_by:` on
+// docs/product/<capability>.md (2-space item indent, mirroring RFC-0003's
+// `sources:` convention parseFrontmatter already understands).
+
+function locateTopLevelListField(lines, field) {
+  const fieldRe = new RegExp(`^${field}:\\s*(.*)$`);
+  const idx = lines.findIndex((l) => fieldRe.test(l));
+  if (idx === -1) return { idx: -1 };
+  const inlineVal = lines[idx].match(fieldRe)[1].trim();
+  let itemsEnd = idx + 1;
+  const items = [];
+  while (itemsEnd < lines.length) {
+    const im = lines[itemsEnd].match(/^ {2}-\s*(.*)$/);
+    if (!im) break;
+    items.push(stripQuotes(im[1].trim()));
+    itemsEnd += 1;
+  }
+  if (inlineVal.startsWith('[') && inlineVal.endsWith(']') && inlineVal !== '[]') {
+    for (const raw of inlineVal.slice(1, -1).split(',')) {
+      const v = stripQuotes(raw.trim());
+      if (v) items.push(v);
+    }
+  }
+  return {
+    idx, itemsEnd, items,
+    inlineEmpty: inlineVal === '[]',
+    inlineNonEmpty: inlineVal.startsWith('[') && inlineVal.endsWith(']') && inlineVal !== '[]',
+  };
+}
+
+// stampTopLevelList(lines, field, value) -> true when `value` was newly
+// appended (a real mutation), false when it was already present (no-op —
+// the D6.2/D3 byte-idempotency contract).
+function stampTopLevelList(lines, field, value) {
+  const v = String(value);
+  const loc = locateTopLevelListField(lines, field);
+  if (loc.idx === -1) {
+    // Defensive fallback: a product doc predating the `delivered_by:` key
+    // (should not happen once PRODUCT_TEMPLATE.md carries it) still gets a
+    // well-formed block list appended at EOF of the frontmatter head.
+    lines.push(`${field}:`, `  - ${v}`);
+    return true;
+  }
+  if (loc.items.includes(v)) return false;
+  if (loc.inlineEmpty) {
+    lines.splice(loc.idx, 1, `${field}:`, `  - ${v}`);
+    return true;
+  }
+  if (loc.inlineNonEmpty) {
+    const blockLines = loc.items.map((item) => `  - ${item}`);
+    lines.splice(loc.idx, loc.itemsEnd - loc.idx, `${field}:`, ...blockLines, `  - ${v}`);
+    return true;
+  }
+  lines.splice(loc.itemsEnd, 0, `  - ${v}`);
+  return true;
+}
+
+function stampTopLevelScalar(lines, field, value) {
+  const idx = lines.findIndex((l) => new RegExp(`^${field}:`).test(l));
+  if (idx === -1) { lines.push(`${field}: ${value}`); return; }
+  lines[idx] = `${field}: ${value}`;
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// applyProductDocMutation(content, ref) -> the new content (byte-identical to
+// `content` when `ref` is already in delivered_by — the D3 byte-idempotency
+// contract). Appends `ref` to `delivered_by` (append-if-absent, deduped) and
+// stamps `updated` to today ONLY when a real append happened, so a no-op
+// upsert never touches `updated` either. Authored prose (everything after
+// the frontmatter block) is never touched.
+function applyProductDocMutation(content, ref) {
+  const split = splitFrontmatter(content);
+  if (!split) throw new Error('cannot locate a frontmatter block to mutate (product doc)');
+  const lines = split.head.split(split.eol);
+  const appended = stampTopLevelList(lines, 'delivered_by', ref);
+  if (!appended) return content;
+  stampTopLevelScalar(lines, 'updated', todayISO());
+  return lines.join(split.eol) + split.rest;
 }
 
 // Apply the full D3+D4 mutation to one doc's raw content; returns the new
@@ -587,11 +695,30 @@ function main() {
   }));
   const anyMutation = plan.some((p) => p.needsFlip || p.needsPr || p.needsCommit || p.needsClosedEvent || p.needsAcEvidence);
 
+  // spec-product-docs-capability-model D3 (SEAM-2/SEAM-3) — when the gate did
+  // not refuse and a REAL product doc exists at the resolved capability path
+  // (the ship flow authors it from the template BEFORE close runs), plan the
+  // delivered_by/updated upsert inside the SAME snapshot/rollback transaction
+  // (D6) as the primary/spec doc mutations below. A missing product doc
+  // (warn dial, nothing on disk yet) has nothing to upsert into — the ship
+  // flow's create-else-update step owns creation, not this ceremony.
+  let productDocPlan = null;
+  if (productDocGate.userVisible && productDocGate.productDocExists) {
+    const abs = path.join(ROOT, productDocGate.productDocPath);
+    const content = fs.readFileSync(abs, 'utf8');
+    const mutated = applyProductDocMutation(content, resolved[0].fmId);
+    productDocPlan = { abs, content, mutated, needsUpdate: mutated !== content };
+  }
+  const anyMutationTotal = anyMutation || Boolean(productDocPlan && productDocPlan.needsUpdate);
+
   if (args.dryRun) {
     console.log(JSON.stringify(
       {
-        anyMutation,
+        anyMutation: anyMutationTotal,
         productDocGate,
+        productDocUpdate: productDocPlan
+          ? { path: productDocGate.productDocPath, needsUpdate: productDocPlan.needsUpdate }
+          : null,
         plan: plan.map((p) => ({
           ref: p.fmId,
           rel: p.rel,
@@ -612,7 +739,7 @@ function main() {
 
   const refs = plan.map((p) => p.fmId);
 
-  if (!anyMutation) {
+  if (!anyMutationTotal) {
     // D6.2 — idempotency short-circuit: nothing to write, but still
     // self-verify (nothing to roll back if this somehow fails — no write
     // happened this run).
@@ -626,14 +753,19 @@ function main() {
     process.exit(0);
   }
 
-  // D6.1 — SNAPSHOT before any write.
+  // D6.1 — SNAPSHOT before any write. The product doc (when planned) joins
+  // the SAME snapshot map so a self-verify failure rolls it back too
+  // (spec-product-docs-capability-model D3: "inside the existing snapshot/
+  // rollback transaction").
   const snapshot = new Map(plan.map((p) => [p.abs, p.content]));
+  if (productDocPlan) snapshot.set(productDocPlan.abs, productDocPlan.content);
   const eventsSnapshotLen = fs.existsSync(EVENTS_PATH) ? fs.statSync(EVENTS_PATH).size : 0;
 
   try {
-    // D6.3 — APPLY: every doc's frontmatter first, THEN every doc's events
-    // (status-flip-first ordering — a still-open doc never carries a close
-    // event, so probable-false-open's Arm C can never self-flag mid-close).
+    // D6.3 — APPLY: every doc's frontmatter first, THEN the product-doc
+    // upsert, THEN every doc's events (status-flip-first ordering — a still-
+    // open doc never carries a close event, so probable-false-open's Arm C
+    // can never self-flag mid-close).
     for (const p of plan) {
       const mutated = applyDocMutation(p.content, {
         toStatus: p.needsFlip ? 'done' : null,
@@ -641,6 +773,9 @@ function main() {
         commit: args.commit,
       });
       if (mutated !== p.content) fs.writeFileSync(p.abs, mutated);
+    }
+    if (productDocPlan && productDocPlan.needsUpdate) {
+      fs.writeFileSync(productDocPlan.abs, productDocPlan.mutated);
     }
     for (const p of plan) {
       if (p.needsFlip) emitEvent('doc_lifecycle', p.fmId, ['--from', p.status, '--to', 'done']);

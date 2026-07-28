@@ -436,6 +436,123 @@ write_none_dot_product_doc() {
   write_real_product_doc "$1" "$2"
 }
 
+# --- capability-keyed product-doc-gate fixtures (spec-product-docs-capability-model) --
+#
+# SEAM-2: `capability` on the intake frontmatter is PRODUCED by intake and
+# READ by close-work-item's gate AND its delivered_by upsert.
+
+# write_user_visible_change_doc_with_capability <path> <id> <status> <capability>
+# — same shape as write_user_visible_change_doc, plus a `capability:` field
+# naming the user-facing capability this ref delivers/extends (independent
+# of the ref's own id).
+write_user_visible_change_doc_with_capability() {
+  local path="$1" id="$2" status="$3" cap="$4"
+  cat > "$path" <<EOF
+---
+id: $id
+type: change
+status: $status
+user_visible: true
+capability: $cap
+links:
+  pr: []
+  commits: []
+---
+
+# Change — Fixture $id (user_visible, capability=$cap)
+
+## Summary
+- fixture doc for close-work-item capability-gate tests.
+
+## Motivation / Business Value
+- n/a
+
+## Scope
+- In scope: fixture only.
+- Out of scope: everything else.
+
+## Affected Area
+- test fixture.
+
+## Desired Behavior (To-Be)
+- n/a
+
+## Acceptance Criteria
+- AC-001: fixture.
+
+## Verification
+- n/a
+
+## Constraints / Risks
+- n/a
+
+## Notes
+- ephemeral fixture; never committed to the real repo.
+EOF
+}
+
+# write_capability_product_doc <fixture_dir> <capability> — a REAL product
+# doc at docs/product/<capability>.md carrying `capability:` + an initially
+# EMPTY-ish `delivered_by:` placeholder list (a single throwaway seed ref
+# that no test ref will ever equal, so append-if-absent behavior is exercised
+# honestly for every closing ref used against it).
+write_capability_product_doc() {
+  local dir="$1" cap="$2"
+  mkdir -p "$dir/docs/product"
+  cat > "$dir/docs/product/$cap.md" <<EOF
+---
+id: $cap
+type: product
+capability: $cap
+status: current
+delivered_by:
+  - seed-ref-$cap
+spec: docs/specs/SPEC-9999-spec-$cap.md
+updated: 2026-01-01
+---
+
+# Fixture Feature $cap
+
+## What it does
+
+Functional description for the $cap fixture product doc.
+
+## How to use it
+
+Usage instructions for $cap.
+
+## Data model
+
+None.
+
+## Interfaces and contracts
+
+None.
+
+## Limits and non-goals
+
+None.
+
+## Links
+
+- Request: docs/issues/CHANGE-DRAFT-$cap.md
+- Spec: docs/specs/SPEC-9999-spec-$cap.md
+EOF
+}
+
+# delivered_by_contains <product_doc_path> <ref> -> "1" if present, else "0"
+delivered_by_contains() {
+  local path="$1" ref="$2"
+  node -e '
+    const fs = require("fs");
+    const [file, ref] = process.argv.slice(1);
+    const c = fs.readFileSync(file, "utf8");
+    const m = c.match(/^delivered_by:\s*\n((?:  - .*\n?)*)/m);
+    const items = m ? m[1].split("\n").map((l) => l.replace(/^\s*-\s*/, "").trim()).filter(Boolean) : [];
+    process.stdout.write(items.includes(ref) ? "1" : "0");
+  ' "$path" "$ref"
+}
+
 # --- invocation + assertion helpers ------------------------------------------
 
 # run_close <fixture_dir> <outfile> <errfile> <args...> — echoes the exit code.
@@ -1260,6 +1377,118 @@ PROBE
   log_pass "guard-config product_doc_gate: enforce / report-only / invalid-fail-open / absent-default all correct (product-docs-enforced TEST-014)"
 }
 
+# --- spec-product-docs-capability-model TEST-006 (Spec-AC-03, SEAM-2) -------
+
+test_026_capability_gate_resolves() {
+  log_info "Test: close a user_visible ref carrying capability C -> gate resolves docs/product/C.md (not docs/product/<ref>.md) and passes (spec-product-docs-capability-model TEST-006, SEAM-2)..."
+  local dir; dir=$(new_fixture_repo "t026")
+  write_user_visible_change_doc_with_capability "$dir/docs/issues/CHANGE-0001-t026.md" "t026-slug" "draft" "cap-t026"
+  write_capability_product_doc "$dir" "cap-t026"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t026.out" err="$TEST_DIR/t026.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t026-slug --pr 26 --commit c026c026)
+  assert_exit "capability-keyed gate resolves + passes" 0 "$code"
+  if grep -qi 'product-doc gate' "$err"; then
+    log_fail "t026: a real product doc at the CAPABILITY path must not warn/refuse: $(cat "$err")"
+  fi
+  grep -q '^status: done$' "$dir/docs/issues/CHANGE-0001-t026.md" \
+    || log_fail "t026: close did not proceed"
+  [[ "$(delivered_by_contains "$dir/docs/product/cap-t026.md" "t026-slug")" == "1" ]] \
+    || log_fail "t026: delivered_by must be stamped with the closing ref t026-slug"
+
+  log_pass "Capability-keyed gate resolves docs/product/<capability>.md and passes (spec-product-docs-capability-model TEST-006, SEAM-2)"
+}
+
+# --- spec-product-docs-capability-model TEST-007 (Spec-AC-03) --------------
+
+test_027_capability_shared_two_refs() {
+  log_info "Test: two refs sharing capability C -> ONE docs/product/C.md, delivered_by carries BOTH refs (spec-product-docs-capability-model TEST-007)..."
+  local dir; dir=$(new_fixture_repo "t027")
+  write_user_visible_change_doc_with_capability "$dir/docs/issues/CHANGE-0001-t027a.md" "t027a-slug" "draft" "cap-t027"
+  write_user_visible_change_doc_with_capability "$dir/docs/issues/CHANGE-0002-t027b.md" "t027b-slug" "draft" "cap-t027"
+  write_capability_product_doc "$dir" "cap-t027"
+  commit_fixture_docs "$dir"
+
+  local out_a="$TEST_DIR/t027a.out" err_a="$TEST_DIR/t027a.err" code_a
+  code_a=$(run_close "$dir" "$out_a" "$err_a" --ref t027a-slug --pr 27 --commit a027a027)
+  assert_exit "first close of shared-capability ref A" 0 "$code_a"
+
+  local out_b="$TEST_DIR/t027b.out" err_b="$TEST_DIR/t027b.err" code_b
+  code_b=$(run_close "$dir" "$out_b" "$err_b" --ref t027b-slug --pr 27 --commit b027b027)
+  assert_exit "second close of shared-capability ref B" 0 "$code_b"
+
+  [[ -f "$dir/docs/product/cap-t027.md" ]] \
+    || log_fail "t027: exactly one docs/product/cap-t027.md must exist (no second file spawned)"
+  [[ "$(delivered_by_contains "$dir/docs/product/cap-t027.md" "t027a-slug")" == "1" ]] \
+    || log_fail "t027: delivered_by must carry ref A (t027a-slug)"
+  [[ "$(delivered_by_contains "$dir/docs/product/cap-t027.md" "t027b-slug")" == "1" ]] \
+    || log_fail "t027: delivered_by must carry ref B (t027b-slug)"
+
+  log_pass "Two refs sharing one capability update ONE product doc; delivered_by carries both (spec-product-docs-capability-model TEST-007)"
+}
+
+# --- spec-product-docs-capability-model TEST-008 (Spec-AC-03) --------------
+
+test_028_delivered_by_byte_idempotent() {
+  log_info "Test: delivered_by/updated upsert leaves prose byte-identical; a repeat close of the SAME ref is a no-op (spec-product-docs-capability-model TEST-008)..."
+  local dir; dir=$(new_fixture_repo "t028")
+  write_user_visible_change_doc_with_capability "$dir/docs/issues/CHANGE-0001-t028.md" "t028-slug" "draft" "cap-t028"
+  write_capability_product_doc "$dir" "cap-t028"
+  commit_fixture_docs "$dir"
+  local prose_before; prose_before=$(sed -n '/^# Fixture Feature/,$p' "$dir/docs/product/cap-t028.md")
+
+  local out1="$TEST_DIR/t028-1.out" err1="$TEST_DIR/t028-1.err" code1
+  code1=$(run_close "$dir" "$out1" "$err1" --ref t028-slug --pr 28 --commit d028d028)
+  assert_exit "first close stamps delivered_by" 0 "$code1"
+  [[ "$(delivered_by_contains "$dir/docs/product/cap-t028.md" "t028-slug")" == "1" ]] \
+    || log_fail "t028: the first close must actually append t028-slug to delivered_by (real upsert, not a no-op)"
+  local prose_after1; prose_after1=$(sed -n '/^# Fixture Feature/,$p' "$dir/docs/product/cap-t028.md")
+  [[ "$prose_before" == "$prose_after1" ]] \
+    || log_fail "t028: authored prose (everything from the H1 onward) must be byte-identical after the upsert"
+  local content_after1; content_after1=$(cat "$dir/docs/product/cap-t028.md")
+
+  local out2="$TEST_DIR/t028-2.out" err2="$TEST_DIR/t028-2.err" code2
+  code2=$(run_close "$dir" "$out2" "$err2" --ref t028-slug --pr 28 --commit d028d028)
+  assert_exit "repeat close of the same ref is a no-op" 0 "$code2"
+  grep -qF 'nothing to do' "$out2" \
+    || log_fail "t028: repeat close must report nothing-to-do: $(cat "$out2")"
+  local content_after2; content_after2=$(cat "$dir/docs/product/cap-t028.md")
+  [[ "$content_after1" == "$content_after2" ]] \
+    || log_fail "t028: repeat close must leave the product doc byte-identical (byte-idempotent)"
+
+  log_pass "delivered_by/updated upsert is byte-idempotent; prose untouched; repeat close is a no-op (spec-product-docs-capability-model TEST-008)"
+}
+
+# --- spec-product-docs-capability-model TEST-009 (Spec-AC-03) --------------
+
+test_029_capability_enforce_missing_doc_refuse() {
+  log_info "Test: product_doc_gate enforce + missing docs/product/<capability>.md -> exit 3 refuse, preserved under the capability key (spec-product-docs-capability-model TEST-009)..."
+  local dir; dir=$(new_fixture_repo "t029")
+  set_product_doc_gate_dial "$dir" "enforce"
+  write_user_visible_change_doc_with_capability "$dir/docs/issues/CHANGE-0001-t029.md" "t029-slug" "draft" "cap-t029"
+  # deliberately do NOT create docs/product/cap-t029.md (and never a
+  # docs/product/t029-slug.md either -- the gate must key on the CAPABILITY).
+  commit_fixture_docs "$dir"
+  cp "$dir/docs/issues/CHANGE-0001-t029.md" "$TEST_DIR/t029-before.md"
+  local events_before; events_before=$(file_size "$dir/docs/ai/EVENTS.jsonl")
+
+  local out="$TEST_DIR/t029.out" err="$TEST_DIR/t029.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t029-slug --pr 29 --commit e029e029)
+  assert_exit "capability-keyed enforce gate refuses" 3 "$code"
+  grep -qi 'REFUSED.*product-doc gate' "$err" \
+    || log_fail "t029: expected a product-doc-gate REFUSED line on stderr, got: $(cat "$err")"
+  grep -qF 'cap-t029' "$err" \
+    || log_fail "t029: REFUSED reason must name the CAPABILITY (cap-t029), not the ref: $(cat "$err")"
+
+  diff -q "$TEST_DIR/t029-before.md" "$dir/docs/issues/CHANGE-0001-t029.md" >/dev/null \
+    || log_fail "t029: doc was mutated despite a pre-write refusal"
+  [[ "$(file_size "$dir/docs/ai/EVENTS.jsonl")" == "$events_before" ]] \
+    || log_fail "t029: EVENTS.jsonl grew despite a pre-write refusal"
+
+  log_pass "Capability-keyed enforce gate refuses (exit 3) on a missing capability doc; nothing written (spec-product-docs-capability-model TEST-009)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -1296,6 +1525,10 @@ main() {
   test_023_negative_control_rollup_failure
   test_024_legacy_suite_regression
   test_025_guard_config_product_doc_gate_dial
+  test_026_capability_gate_resolves
+  test_027_capability_shared_two_refs
+  test_028_delivered_by_byte_idempotent
+  test_029_capability_enforce_missing_doc_refuse
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
