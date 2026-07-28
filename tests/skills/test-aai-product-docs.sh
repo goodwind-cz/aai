@@ -444,7 +444,10 @@ import { missingProductSections } from '$PROJECT_ROOT/.aai/scripts/lib/product-d
 const root = '$PROJECT_ROOT';
 const dir = path.join(root, 'docs/product');
 const files = fs.readdirSync(dir).filter((f) => f.endsWith('.md'));
-if (files.length < 12) { console.error('expected >= 12 product docs, found ' + files.length); process.exit(1); }
+if (files.length < 1) { console.error('expected at least one product doc, found ' + files.length); process.exit(1); }
+// No hardcoded count floor: the capability model consolidates (telemetry
+// trio -> one doc, CHANGE product-capability-refinements) and grows over
+// time; assert the per-doc invariants below over whatever the live set is.
 
 const bodyOf = (s) => {
   const parts = String(s).split('---\n');
@@ -463,7 +466,7 @@ for (const f of files) {
   if (missing.length > 0) bad.push(f + ': placeholder section(s) ' + missing.join(','));
   let before;
   try {
-    before = execSync('git show HEAD:docs/product/' + f, { cwd: root, encoding: 'utf8' });
+    before = execSync('git show HEAD:docs/product/' + f, { cwd: root, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
   } catch {
     before = null; // untracked (new file, no HEAD blob yet) -- nothing to diff
   }

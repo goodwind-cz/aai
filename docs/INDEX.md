@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T18:16:24.549Z
+Generated: 2026-07-28T20:13:59.600Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (13)
+## Product (11)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -30,12 +30,10 @@ _None._
 | platform-portable-pr | platform-portable-pr | 1 | docs/product/platform-portable-pr.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
-| prompt-hash-telemetry | prompt-hash-telemetry | 1 | docs/product/prompt-hash-telemetry.md |
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
-| token-capture-canary | token-capture-canary | 1 | docs/product/token-capture-canary.md |
-| token-economics-end-to-end | token-economics-end-to-end | 1 | docs/product/token-economics-end-to-end.md |
+| telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (240)
+## Done (241)
 
 | ID | Type | Path |
 |---|---|---|
@@ -127,6 +125,7 @@ _None._
 | CHANGE-0086 | issues | docs/issues/CHANGE-0086-session-loose-ends.md |
 | CHANGE-0087 | issues | docs/issues/CHANGE-0087-issues-skill.md |
 | CHANGE-0088 | issues | docs/issues/CHANGE-0088-product-docs-capability-model.md |
+| CHANGE-0089 | issues | docs/issues/CHANGE-0089-product-capability-refinements.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |

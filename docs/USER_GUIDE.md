@@ -2123,6 +2123,12 @@ Product docs — the user-facing "what shipped" layer — are a first-class doc 
 
 [Product doc](product/product-docs-capability-model.md) · [Spec](specs/SPEC-0105-spec-product-docs-capability-model.md)
 
+### Usage & cost telemetry
+
+The factory records what each run cost and under which instructions it ran, surfaces those numbers in reports and the stakeholder overview, and makes every capture gap loud instead of silent. Three delivered pieces make up one capability:
+
+[Product doc](product/telemetry.md) · [Spec](specs/SPEC-0089-spec-token-economics-end-to-end.md)
+
 ### CI test impact selection
 
 CI used to run the whole `tests/skills/` framework (~50 suites, ~25 minutes) on every single push to a pull request — including review-fix pushes that touch one file. A weekend of iteration on one PR could burn 12+ CI-hours this way.
@@ -2147,12 +2153,6 @@ Closing a user-facing work item now carries a real check: if the primary request
 
 [Product doc](product/product-docs-enforced.md) · [Spec](specs/SPEC-0092-spec-product-docs-enforced.md)
 
-### Prompt-hash telemetry (content-addressed identity of effective role instructions)
-
-Telemetry knew model, duration, and tokens for a run — but never WHICH VERSION of the role's instructions produced it. Prompt edits are the most common change class in this factory, and until now they were invisible in run history: two runs of the same role, on different days, looked identical even if the role prompt, `SUBAGENT_CONTRACT.md`, or `docs/knowledge/LEARNED.md` had changed underneath them in between.
-
-[Product doc](product/prompt-hash-telemetry.md) · [Spec](specs/SPEC-0096-spec-prompt-hash-telemetry.md)
-
 ### Role output contracts (deterministic EXPECT validation)
 
 Every dispatched subagent must end with a structured result block. Until now, only another model read it — a malformed or incomplete block cost an expensive round of confusion. The factory now validates each returned result block deterministically (no model call): required fields, status enum, ISO-UTC timestamps, duration arithmetic (including the negative-duration corner), and at least one evidence entry with an integer exit code. A violating block is rejected with machine-readable reasons and one re-prompt before anything reaches the shared state.
@@ -2164,17 +2164,5 @@ Every dispatched subagent must end with a structured result block. Until now, on
 The factory's self-improvement loop (RFC-0012) had complete infrastructure and zero data: capturing a friction observation depended on an agent remembering to do it mid-failure. Capture is now the DEFAULT action at four deterministic hook points — a validation FAIL, a remediation dispatch, a canon-file gate/lint/CI failure, and a canon-surface check failure during implementation. Session wrap-up then turns any captured observations into a triage report with proposed intake one-liners, so recurring friction becomes backlog instead of folklore.
 
 [Product doc](product/friction-capture-default-on.md) · [Spec](specs/SPEC-0088-spec-friction-capture-default-on.md)
-
-### Telemetry capture canary (loud gaps in token/duration capture)
-
-The factory's telemetry used to fail silently: a run that observed real token usage but never recorded it looked identical to a run where the runtime exposed nothing, and a loop tick logged with a bogus start time quietly wrote `duration_seconds: 0`. This feature makes every capture gap loud. The metrics flush now tells you which runs honestly could not be costed versus which runs dropped an observable number, and the tick logger warns the moment a caller passes a log-time timestamp or omits the harness version.
-
-[Product doc](product/token-capture-canary.md) · [Spec](specs/SPEC-0085-spec-token-capture-canary.md)
-
-### Token economics, visible end-to-end
-
-Agent runs have been recording real token totals since the token-capture canary, but no report read them. Now the metrics report shows tokens per work item and per role, and the stakeholder overview page shows tokens per delivered feature with a grand total — real numbers from the shared ledger (first live read: 35 items, 15.27M tokens). The overview also groups delivered items by release and regenerates itself automatically whenever a work item closes, so the page can no longer go stale.
-
-[Product doc](product/token-economics-end-to-end.md) · [Spec](specs/SPEC-0089-spec-token-economics-end-to-end.md)
 
 <!-- AAI:USERGUIDE-ROLLUP:END -->
