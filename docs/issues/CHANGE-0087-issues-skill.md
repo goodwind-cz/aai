@@ -2,11 +2,13 @@
 id: issues-skill
 number: 87
 type: change
-status: draft
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 190
+  commits:
+    - 3dd7ef058102d254ae44adb69e4fec541b9e20f7
 ---
 
 # Change — /aai-issues: on-demand, platform-portable issue intake skill

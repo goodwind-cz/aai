@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-28T13:48:18.834Z",
-  "skillsCount": 34,
-  "degradedCount": 19,
+  "generatedAt": "2026-07-28T14:49:22.778Z",
+  "skillsCount": 35,
+  "degradedCount": 20,
   "skills": [
     {
       "dir": "aai-auto-trigger",
@@ -166,6 +166,17 @@
       "promptFile": ".aai/SKILL_INTERROGATE.prompt.md",
       "goal": "Surface the decisions hiding inside a plan or spec BEFORE they surface as\nrework — one at a time, each pre-answered, each recorded. The output is a\ndecision ledger, not a longer spec.\n\nSource: RES-0001 P3 recommendation 15 — pro-workflow plan-interrogate /\ndecision-ledger pattern.",
       "notes": []
+    },
+    {
+      "dir": "aai-issues",
+      "name": "aai-issues",
+      "description": "Use when you want open platform issues fetched, triaged and turned into approved intakes",
+      "model": null,
+      "promptFile": ".aai/SKILL_ISSUES.prompt.md",
+      "goal": null,
+      "notes": [
+        "NOTE: no \"## Goal\" section found in .aai/SKILL_ISSUES.prompt.md"
+      ]
     },
     {
       "dir": "aai-loop",

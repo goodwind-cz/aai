@@ -2,13 +2,15 @@
 id: spec-issues-skill
 type: spec
 number: 104
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0087-issues-skill.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 190
+  commits:
+    - 3dd7ef058102d254ae44adb69e4fec541b9e20f7
 ---
 
 # Spec — /aai-issues: on-demand, platform-portable issue intake skill
