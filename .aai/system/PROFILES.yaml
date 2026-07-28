@@ -182,6 +182,7 @@ extended:
   - .aai/SKILL_FEEDBACK_TRIAGE.prompt.md
   - .aai/SKILL_FEEDBACK_UPSERT.prompt.md
   - .aai/SKILL_INTERROGATE.prompt.md
+  - .aai/SKILL_ISSUES.prompt.md
   - .aai/SKILL_PROFILE.prompt.md
   - .aai/SKILL_SCOUT.prompt.md
   - .aai/SKILL_SESSION_JOURNAL.prompt.md
@@ -198,6 +199,7 @@ extended:
   - .aai/scripts/aai-feedback-triage.mjs
   - .aai/scripts/aai-feedback-upsert.mjs
   - .aai/scripts/aai-friction.mjs
+  - .aai/scripts/aai-issues.mjs
   - .aai/scripts/cloudflare-share.ps1
   - .aai/scripts/cloudflare-share.sh
   - .aai/scripts/docs-canon.mjs

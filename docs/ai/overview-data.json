@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-07-28T13:48:18.931Z",
+  "generatedAt": "2026-07-28T14:49:22.876Z",
   "project": "aai",
   "counts": {
-    "delivered": 131,
+    "delivered": 132,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 22001072
+    "tokens_total": 22350104
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "session-loose-ends",
+    "ref": "issues-skill",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "session-loose-ends",
+      "ref": "issues-skill",
       "type": "intake_change",
       "phase": "implementation"
     },
@@ -26,6 +26,20 @@
     "validation_status": "not_run",
     "review_status": "not_run",
     "ticks": [
+      {
+        "tick": 2,
+        "role": "Validation+Review",
+        "scope": "issues-skill",
+        "duration_seconds": 360,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 1,
+        "role": "Planning+Implementation",
+        "scope": "issues-skill",
+        "duration_seconds": 3453,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
       {
         "tick": 2,
         "role": "Code Review",
@@ -45,20 +59,6 @@
         "role": "Code Review",
         "scope": "platform-portable-pr",
         "duration_seconds": 480,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 2,
-        "role": "Validation",
-        "scope": "platform-portable-pr",
-        "duration_seconds": 780,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 1,
-        "role": "Planning+Implementation",
-        "scope": "platform-portable-pr",
-        "duration_seconds": 1178,
         "harness_version": "2.1.218 (Claude Code)"
       }
     ]
@@ -193,6 +193,19 @@
       "agent_minutes": 52,
       "token_total": 149374,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "issues-skill",
+      "title": "Change — /aai-issues: on-demand, platform-portable issue intake skill",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0087-issues-skill.md",
+      "closed_on": "2026-07-28",
+      "agent_minutes": 101,
+      "token_total": 349032,
+      "spec": "docs/specs/SPEC-0104-spec-issues-skill.md",
       "validation": null,
       "review": null
     },
@@ -1903,6 +1916,19 @@
           "agent_minutes": 52,
           "token_total": 149374,
           "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "issues-skill",
+          "title": "Change — /aai-issues: on-demand, platform-portable issue intake skill",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0087-issues-skill.md",
+          "closed_on": "2026-07-28",
+          "agent_minutes": 101,
+          "token_total": 349032,
+          "spec": "docs/specs/SPEC-0104-spec-issues-skill.md",
           "validation": null,
           "review": null
         },

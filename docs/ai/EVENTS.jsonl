@@ -1348,3 +1348,9 @@
 {"v":1,"ts":"2026-07-28T13:48:08.339Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"session-loose-ends","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-28T13:48:08.372Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"session-loose-ends","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-28T13:48:08.403Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"session-loose-ends","payload":{"commit":"1566fe8679efe3669abdef7b36b690bddbf9ab37"}}
+{"v":1,"ts":"2026-07-28T14:49:12.199Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"issues-skill","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-28T14:49:12.229Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"issues-skill","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-28T14:49:12.259Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"issues-skill","payload":{"commit":"3dd7ef058102d254ae44adb69e4fec541b9e20f7"}}
+{"v":1,"ts":"2026-07-28T14:49:12.291Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-issues-skill","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-28T14:49:12.322Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-issues-skill","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-28T14:49:12.353Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-issues-skill","payload":{"commit":"3dd7ef058102d254ae44adb69e4fec541b9e20f7"}}

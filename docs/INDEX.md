@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T14:02:58.163Z
+Generated: 2026-07-28T15:07:28.921Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (236)
+## Done (238)
 
 | ID | Type | Path |
 |---|---|---|
@@ -107,6 +107,7 @@ _None._
 | CHANGE-0084 | issues | docs/issues/CHANGE-0084-follow-ups-docs.md |
 | CHANGE-0085 | issues | docs/issues/CHANGE-0085-platform-portable-pr.md |
 | CHANGE-0086 | issues | docs/issues/CHANGE-0086-session-loose-ends.md |
+| CHANGE-0087 | issues | docs/issues/CHANGE-0087-issues-skill.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -256,6 +257,7 @@ _None._
 | SPEC-0101 | specs | docs/specs/SPEC-0101-spec-dashboard-refit.md |
 | SPEC-0102 | specs | docs/specs/SPEC-0102-spec-docs-hub-generator.md |
 | SPEC-0103 | specs | docs/specs/SPEC-0103-spec-platform-portable-pr.md |
+| SPEC-0104 | specs | docs/specs/SPEC-0104-spec-issues-skill.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
@@ -266,7 +268,7 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (8)
+## Deferred items (per-AC, across all specs) (9)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
@@ -277,6 +279,7 @@ _None._
 | SPEC-0083 | Spec-AC-04 | 2026-08-15 | CI-authoritative; the flake is CI-load-only and not locally reproducible |
 | SPEC-0086 | Spec-AC-05 | 2026-08-15 | Full-framework TEST-010 confirmation deferred to Validation by design (dispatch constraint), not a real gap in this scope's own edits |
 | SPEC-0103 | Spec-AC-06 | 2026-08-15 | No Azure remote available in this repo/environment; evidence contract = first live Azure adoption round trip logged under docs/ai/reports/ |
+| SPEC-0104 | Spec-AC-03 | 2026-08-15 | No Azure remote available in this repo/environment; evidence contract = first live az boards round trip logged under docs/ai/reports/; degrade-line WIRING itself is done and covered by TEST-018..020 |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
