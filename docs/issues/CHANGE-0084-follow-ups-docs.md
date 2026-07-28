@@ -2,11 +2,13 @@
 id: follow-ups-docs
 number: 84
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 184
+  commits:
+    - 3b59b08e71df6496d47fe554321bcc0e94d77b2c
 ---
 
 # Change — recorded follow-ups batch B: stalled_progress friction class, EARS AC guidance, hash-display disposition

@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-07-28T06:57:33.135Z",
+  "generatedAt": "2026-07-28T07:52:49.928Z",
   "project": "aai",
   "counts": {
-    "delivered": 128,
+    "delivered": 129,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 21446525
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "follow-ups-scripts",
+    "ref": "follow-ups-docs",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "follow-ups-scripts",
+      "ref": "follow-ups-docs",
       "type": "intake_change",
       "phase": "implementation"
     },
@@ -26,6 +26,13 @@
     "validation_status": "not_run",
     "review_status": "not_run",
     "ticks": [
+      {
+        "tick": 1,
+        "role": "Implementation",
+        "scope": "follow-ups-docs",
+        "duration_seconds": 1200,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
       {
         "tick": 1,
         "role": "Implementation+Review",
@@ -52,13 +59,6 @@
         "role": "Code Review",
         "scope": "docs-hub-generator",
         "duration_seconds": 360,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 1,
-        "role": "Planning+Implementation",
-        "scope": "docs-hub-generator",
-        "duration_seconds": 1020,
         "harness_version": "2.1.218 (Claude Code)"
       }
     ]
@@ -153,6 +153,19 @@
       "closed_on": "2026-07-28",
       "agent_minutes": 31,
       "token_total": 60858,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "follow-ups-docs",
+      "title": "Change — recorded follow-ups batch B: stalled_progress friction class, EARS AC guidance, hash-display disposition",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0084-follow-ups-docs.md",
+      "closed_on": "2026-07-28",
+      "agent_minutes": 20,
+      "token_total": null,
       "spec": null,
       "validation": null,
       "review": null
@@ -1824,6 +1837,19 @@
           "closed_on": "2026-07-28",
           "agent_minutes": 31,
           "token_total": 60858,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "follow-ups-docs",
+          "title": "Change — recorded follow-ups batch B: stalled_progress friction class, EARS AC guidance, hash-display disposition",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0084-follow-ups-docs.md",
+          "closed_on": "2026-07-28",
+          "agent_minutes": 20,
+          "token_total": null,
           "spec": null,
           "validation": null,
           "review": null

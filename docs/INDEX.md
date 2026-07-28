@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T07:52:26.823Z
+Generated: 2026-07-28T07:52:54.602Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (232)
+## Done (233)
 
 | ID | Type | Path |
 |---|---|---|
@@ -104,6 +104,7 @@ _None._
 | CHANGE-0081 | issues | docs/issues/CHANGE-0081-skill-sweep-quick-wins.md |
 | CHANGE-0082 | issues | docs/issues/CHANGE-0082-validate-report-contract.md |
 | CHANGE-0083 | issues | docs/issues/CHANGE-0083-follow-ups-scripts.md |
+| CHANGE-0084 | issues | docs/issues/CHANGE-0084-follow-ups-docs.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -254,11 +255,9 @@ _None._
 | SPEC-0102 | specs | docs/specs/SPEC-0102-spec-docs-hub-generator.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0084 | issues | docs/issues/CHANGE-0084-follow-ups-docs.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
