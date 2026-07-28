@@ -958,7 +958,11 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     // non-empty delivered_by list. Hard schema violations (count toward
     // hardFail under --strict / enforced mode), parallel to the canonical
     // branch above — audited by construction.
-    if (String(fm.type ?? '').toLowerCase() === 'product') {
+    // Key on the REGISTERED PATH (same source as admission + placement), not
+    // the type field: a product-PATH doc with a wrong type must still be
+    // product-validated (validateProductFrontmatter flags the type), and a
+    // non-product-path doc with a stray type:product must NOT be (Codex P1).
+    if (slugFamilyForPath(f.rel)?.type === 'product') {
       const v = validateProductFrontmatter(fm);
       for (const msg of v.violations) {
         violations.push({ rel: f.rel, msg: `product frontmatter: ${msg}` });
@@ -1347,13 +1351,13 @@ export function duplicateDocIdsFor(docs) {
   for (const d of docs) {
     if (!d.id) continue;
     const fam = slugFamilyForPath(d.rel);
-    const key = `${fam ? fam.type : ''} ${d.id}`;
+    const key = `${fam ? fam.type : ''}\u0000${d.id}`;
     if (!byId.has(key)) byId.set(key, []);
     byId.get(key).push(d.rel);
   }
   const out = [];
   for (const [key, paths] of byId) {
-    if (paths.length > 1) out.push({ id: key.slice(key.indexOf(' ') + 1), paths: [...paths].sort() });
+    if (paths.length > 1) out.push({ id: key.slice(key.indexOf('\u0000') + 1), paths: [...paths].sort() });
   }
   return out.sort((a, b) => a.id.localeCompare(b.id));
 }

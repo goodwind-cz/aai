@@ -81,7 +81,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { scanAuditDocs, loadConfig, runAudit, readEvents } from './lib/docs-audit-core.mjs';
-import { parseFrontmatter, extractDocIds, DEFAULT_CATEGORY_PREFIXES, slugFamilyForPath } from './lib/docs-model.mjs';
+import { parseFrontmatter, extractDocIds, DEFAULT_CATEGORY_PREFIXES, slugFamilyForPath, DOMAIN_SLUG_RE } from './lib/docs-model.mjs';
 import { readGuardConfig } from './lib/guard-config.mjs';
 import { REQUIRED_PRODUCT_SECTIONS, missingProductSections } from './lib/product-doc.mjs';
 
@@ -207,6 +207,16 @@ function resolveCapability(primaryDoc) {
 function evaluateProductDocGate(primaryDoc) {
   if (!truthyUserVisible(primaryDoc.fm)) return { userVisible: false, severity: 'none' };
   const slug = resolveCapability(primaryDoc);
+  // A checked-out work-item doc controls `capability` — validate the slug
+  // BEFORE joining it into a path, or a value like "../../x" would escape
+  // docs/product (Codex P1). Invalid slug = hard refusal, never a path build.
+  if (!DOMAIN_SLUG_RE.test(slug)) {
+    return {
+      userVisible: true, severity: 'refuse', slug, productDocPath: null,
+      productDocExists: false, missingSections: REQUIRED_PRODUCT_SECTIONS.slice(),
+      reason: `capability "${slug}" is not a valid slug (must match ${DOMAIN_SLUG_RE}) — refusing to resolve a product-doc path from it`,
+    };
+  }
   const productDocPath = `docs/product/${slug}.md`;
   const abs = path.join(ROOT, productDocPath);
   const exists = fs.existsSync(abs);
