@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T20:13:25.357Z
+Generated: 2026-07-28T20:13:59.600Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -33,7 +33,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (240)
+## Done (241)
 
 | ID | Type | Path |
 |---|---|---|
@@ -125,6 +125,7 @@ _None._
 | CHANGE-0086 | issues | docs/issues/CHANGE-0086-session-loose-ends.md |
 | CHANGE-0087 | issues | docs/issues/CHANGE-0087-issues-skill.md |
 | CHANGE-0088 | issues | docs/issues/CHANGE-0088-product-docs-capability-model.md |
+| CHANGE-0089 | issues | docs/issues/CHANGE-0089-product-capability-refinements.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -278,11 +279,9 @@ _None._
 | SPEC-0105 | specs | docs/specs/SPEC-0105-spec-product-docs-capability-model.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0089 | issues | docs/issues/CHANGE-0089-product-capability-refinements.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

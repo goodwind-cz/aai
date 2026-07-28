@@ -1,31 +1,45 @@
 {
-  "generatedAt": "2026-07-28T18:15:36.782Z",
+  "generatedAt": "2026-07-28T20:13:54.095Z",
   "project": "aai",
   "counts": {
-    "delivered": 133,
+    "delivered": 134,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 23213083
+    "tokens_total": 23273206
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "product-docs-capability-model",
+    "ref": "product-capability-refinements",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "product-docs-capability-model",
+      "ref": "product-capability-refinements",
       "type": "intake_change",
       "phase": "implementation"
     },
-    "strategy": "tdd",
+    "strategy": "loop",
     "worktree": {
-      "recommendation": "recommended",
+      "recommendation": "not_needed",
       "user_decision": "inline"
     },
     "validation_status": "not_run",
     "review_status": "not_run",
     "ticks": [
+      {
+        "tick": 2,
+        "role": "Code Review",
+        "scope": "product-capability-refinements",
+        "duration_seconds": 360,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
+      {
+        "tick": 1,
+        "role": "Implementation",
+        "scope": "product-capability-refinements",
+        "duration_seconds": 720,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
       {
         "tick": 4,
         "role": "Code Review",
@@ -45,20 +59,6 @@
         "role": "TDD Implementation",
         "scope": "product-docs-capability-model",
         "duration_seconds": 1714,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 1,
-        "role": "Planning",
-        "scope": "product-docs-capability-model",
-        "duration_seconds": 7401,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 2,
-        "role": "Validation+Review",
-        "scope": "issues-skill",
-        "duration_seconds": 360,
         "harness_version": "2.1.218 (Claude Code)"
       }
     ]
@@ -219,6 +219,19 @@
       "agent_minutes": 184,
       "token_total": 862979,
       "spec": "docs/specs/SPEC-0105-spec-product-docs-capability-model.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "product-capability-refinements",
+      "title": "Change — product capability refinements: delivered_by provenance + telemetry trio consolidation",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0089-product-capability-refinements.md",
+      "closed_on": "2026-07-28",
+      "agent_minutes": 18,
+      "token_total": 60123,
+      "spec": null,
       "validation": null,
       "review": null
     },
@@ -1955,6 +1968,19 @@
           "agent_minutes": 184,
           "token_total": 862979,
           "spec": "docs/specs/SPEC-0105-spec-product-docs-capability-model.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "product-capability-refinements",
+          "title": "Change — product capability refinements: delivered_by provenance + telemetry trio consolidation",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0089-product-capability-refinements.md",
+          "closed_on": "2026-07-28",
+          "agent_minutes": 18,
+          "token_total": 60123,
+          "spec": null,
           "validation": null,
           "review": null
         },

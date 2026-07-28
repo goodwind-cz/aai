@@ -2,11 +2,13 @@
 id: product-capability-refinements
 number: 89
 type: change
-status: draft
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 192
+  commits:
+    - ee85667b36a23ad0ad84f6141797381909c3c324
 ---
 
 # Change — product capability refinements: delivered_by provenance + telemetry trio consolidation

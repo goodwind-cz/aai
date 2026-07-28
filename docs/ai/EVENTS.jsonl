@@ -1360,3 +1360,6 @@
 {"v":1,"ts":"2026-07-28T18:15:25.852Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-product-docs-capability-model","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-28T18:15:25.881Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-product-docs-capability-model","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-28T18:15:25.910Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-product-docs-capability-model","payload":{"commit":"a93bdfedc786c8cbd2c92a4ef5aba0ec62c13c22"}}
+{"v":1,"ts":"2026-07-28T20:13:42.938Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"product-capability-refinements","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-28T20:13:42.970Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"product-capability-refinements","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-28T20:13:42.999Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"product-capability-refinements","payload":{"commit":"ee85667b36a23ad0ad84f6141797381909c3c324"}}
