@@ -1,11 +1,11 @@
 ---
 id: spec-platform-portable-pr
 type: spec
-number: null
+number: 103
 status: implementing
 ceremony_level: 2
 links:
-  requirement: docs/issues/CHANGE-DRAFT-platform-portable-pr.md
+  requirement: docs/issues/CHANGE-0085-platform-portable-pr.md
   rfc: null
   pr: []
   commits: []
@@ -16,7 +16,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-platform-portable-pr.md
+- Requirement: docs/issues/CHANGE-0085-platform-portable-pr.md
 - Decision records: none
 - Technology contract: docs/TECHNOLOGY.md
 
@@ -57,11 +57,11 @@ per the operator's 2026-07-28 direction.
   .aai/system/PROFILES.yaml, tests/skills/test-aai-pr-platform.sh,
   tests/skills/suite-map.yaml, tests/skills/lib/prompt-diet-ledger.sh,
   tests/skills/test-aai-prompt-diet.sh,
-  docs/specs/SPEC-DRAFT-spec-platform-portable-pr.md,
-  docs/issues/CHANGE-DRAFT-platform-portable-pr.md
+  docs/specs/SPEC-0103-spec-platform-portable-pr.md,
+  docs/issues/CHANGE-0085-platform-portable-pr.md
 
 ## Acceptance Criteria Mapping
-- Maps to: CHANGE-DRAFT-platform-portable-pr AC-001
+- Maps to: CHANGE-0085-platform-portable-pr AC-001
 - Spec-AC-01: `.aai/scripts/pr-platform.mjs` reads `git remote get-url
   origin` (overridable via `--remote-url`, cwd-independent) and
   deterministically classifies it github / azure / unknown — github.com
@@ -74,7 +74,7 @@ per the operator's 2026-07-28 direction.
   - Verification: `bash tests/skills/test-aai-pr-platform.sh` TEST-001..014;
     live `node .aai/scripts/pr-platform.mjs` on this repo (expect
     `PLATFORM github`).
-- Maps to: CHANGE-DRAFT-platform-portable-pr AC-002
+- Maps to: CHANGE-0085-platform-portable-pr AC-002
 - Spec-AC-02: `.aai/SKILL_PR.prompt.md` step 5 runs the probe FIRST (a named
   "PLATFORM GATE") and branches: `github` keeps the existing `gh pr create`
   path; `azure` documents the exact `az repos pr create` / `az repos pr
@@ -84,7 +84,7 @@ per the operator's 2026-07-28 direction.
   - Verification: `bash tests/skills/test-aai-pr-platform.sh` TEST-015/016
     (grep-contract pins on the PLATFORM GATE heading, probe invocation, and
     the four `az repos pr ...` command names).
-- Maps to: CHANGE-DRAFT-platform-portable-pr AC-003
+- Maps to: CHANGE-0085-platform-portable-pr AC-003
 - Spec-AC-03: SKILL_PR step 5d's reviewer-fallback contract is pinned —
   whenever the platform has no external reviewer bots (Azure default;
   detectable = zero bot-authored threads AND platform != github), dispatching
@@ -94,7 +94,7 @@ per the operator's 2026-07-28 direction.
   - Verification: `bash tests/skills/test-aai-pr-platform.sh` TEST-017
     (grep-contract pin on the REQUIRED-before-merge-readiness clause and the
     `platform != github` detection condition).
-- Maps to: CHANGE-DRAFT-platform-portable-pr Additional operator requirement 1
+- Maps to: CHANGE-0085-platform-portable-pr Additional operator requirement 1
   (2026-07-28: PR-thread publication of internal findings)
 - Spec-AC-04: internal-review findings from the Spec-AC-03 fallback are
   published as PR THREADS via the platform API (`gh api
@@ -107,7 +107,7 @@ per the operator's 2026-07-28 direction.
     (same grep pass also asserts the closing-reply clause and the PR
     description marker; the PR-body template in step 5 carries the marker
     too).
-- Maps to: CHANGE-DRAFT-platform-portable-pr Additional operator requirement 2
+- Maps to: CHANGE-0085-platform-portable-pr Additional operator requirement 2
   (GENERIC MODE for any other git hosting)
 - Spec-AC-05: for `unknown`/`none` platforms (GitLab, Bitbucket, bare, no
   remote), SKILL_PR skips platform PR mechanics entirely, makes
@@ -120,7 +120,7 @@ per the operator's 2026-07-28 direction.
   - Verification: `bash tests/skills/test-aai-pr-platform.sh` TEST-018
     (grep-contract pin on the verbatim loud line and the report-path
     naming).
-- Maps to: CHANGE-DRAFT-platform-portable-pr Constraints/Risks (Az CLI not
+- Maps to: CHANGE-0085-platform-portable-pr Constraints/Risks (Az CLI not
   live-testable here)
 - Spec-AC-06 (DEFERRED — see Acceptance Criteria Status): the documented
   `az repos pr create` / `az repos pr reviewer add` / `az repos pr thread
@@ -206,7 +206,7 @@ Notes:
 - `bash tests/skills/test-aai-layer-profiles.sh` (PROFILES.yaml classification).
 - `bash tests/skills/test-aai-hygiene-pack.sh` (suite-map.yaml row pin).
 - `bash tests/skills/test-aai-suite-select.sh` (selector still resolves cleanly).
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-platform-portable-pr.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0103-spec-platform-portable-pr.md`
 - `node .aai/scripts/docs-audit.mjs --gate spec-platform-portable-pr --no-event`
 - Evidence artifacts: `docs/ai/tdd/red-20260728T081118Z-pr-platform.log`,
   `docs/ai/tdd/green-20260728T081246Z-pr-platform.log`,

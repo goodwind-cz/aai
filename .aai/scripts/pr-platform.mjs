@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // pr-platform.mjs — deterministic git-host platform probe
-// (CHANGE-DRAFT-platform-portable-pr / SPEC-DRAFT-spec-platform-portable-pr).
+// (CHANGE-0085-platform-portable-pr / SPEC-0103-spec-platform-portable-pr).
 //
 // SKILL_PR's step 5 PLATFORM GATE runs this FIRST, before any PR-mechanics
 // branch. It reads `git remote get-url origin` (or an explicit --remote-url

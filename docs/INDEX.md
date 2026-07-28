@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T08:38:55.890Z
+Generated: 2026-07-28T08:39:46.841Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-platform-portable-pr | specs | implementing | 5 done, 1 deferred | docs/specs/SPEC-DRAFT-spec-platform-portable-pr.md |
+| SPEC-0103 | specs | implementing | 5 done, 1 deferred | docs/specs/SPEC-0103-spec-platform-portable-pr.md |
 
 ## Canonical layer (0)
 
@@ -260,7 +260,7 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| platform-portable-pr (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-platform-portable-pr.md |
+| CHANGE-0085 | issues | docs/issues/CHANGE-0085-platform-portable-pr.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -276,7 +276,7 @@ _None._
 | SPEC-0094 | Spec-AC-05 | 2026-08-10 | PR CI leg (TEST-015) verifies on push; local legs all green |
 | SPEC-0083 | Spec-AC-04 | 2026-08-15 | CI-authoritative; the flake is CI-load-only and not locally reproducible |
 | SPEC-0086 | Spec-AC-05 | 2026-08-15 | Full-framework TEST-010 confirmation deferred to Validation by design (dispatch constraint), not a real gap in this scope's own edits |
-| spec-platform-portable-pr | Spec-AC-06 | 2026-08-15 | No Azure remote available in this repo/environment; evidence contract = first live Azure adoption round trip logged under docs/ai/reports/ |
+| SPEC-0103 | Spec-AC-06 | 2026-08-15 | No Azure remote available in this repo/environment; evidence contract = first live Azure adoption round trip logged under docs/ai/reports/ |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)

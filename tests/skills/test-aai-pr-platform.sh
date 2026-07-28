@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Test: platform-portable PR ceremony probe (CHANGE-DRAFT-platform-portable-pr /
-# SPEC-DRAFT-spec-platform-portable-pr).
+# Test: platform-portable PR ceremony probe (CHANGE-0085-platform-portable-pr /
+# SPEC-0103-spec-platform-portable-pr).
 # Verifies .aai/scripts/pr-platform.mjs — a deterministic, READ-ONLY CLI that
 # classifies the `origin` remote into github | azure | unknown | none — plus
 # grep-contract pins on .aai/SKILL_PR.prompt.md's platform-branched ceremony
