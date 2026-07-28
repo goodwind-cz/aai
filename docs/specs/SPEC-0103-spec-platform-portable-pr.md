@@ -2,13 +2,15 @@
 id: spec-platform-portable-pr
 type: spec
 number: 103
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0085-platform-portable-pr.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 185
+  commits:
+    - e411d52865466082f0721160d8bfcfdcba057434
 ---
 
 # Spec — Platform-portable PR ceremony: GitHub/Azure detection + internal review fallback when no external reviewers exist

@@ -1,24 +1,23 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T08:39:46.841Z
+Generated: 2026-07-28T08:40:17.019Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0103 | specs | implementing | 5 done, 1 deferred | docs/specs/SPEC-0103-spec-platform-portable-pr.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Done (233)
+## Done (235)
 
 | ID | Type | Path |
 |---|---|---|
@@ -106,6 +105,7 @@ _None._
 | CHANGE-0082 | issues | docs/issues/CHANGE-0082-validate-report-contract.md |
 | CHANGE-0083 | issues | docs/issues/CHANGE-0083-follow-ups-scripts.md |
 | CHANGE-0084 | issues | docs/issues/CHANGE-0084-follow-ups-docs.md |
+| CHANGE-0085 | issues | docs/issues/CHANGE-0085-platform-portable-pr.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -254,13 +254,12 @@ _None._
 | SPEC-0100 | specs | docs/specs/SPEC-0100-spec-doctor-determinize.md |
 | SPEC-0101 | specs | docs/specs/SPEC-0101-spec-dashboard-refit.md |
 | SPEC-0102 | specs | docs/specs/SPEC-0102-spec-docs-hub-generator.md |
+| SPEC-0103 | specs | docs/specs/SPEC-0103-spec-platform-portable-pr.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0085 | issues | docs/issues/CHANGE-0085-platform-portable-pr.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

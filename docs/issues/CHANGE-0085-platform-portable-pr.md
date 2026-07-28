@@ -2,11 +2,13 @@
 id: platform-portable-pr
 number: 85
 type: change
-status: draft
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 185
+  commits:
+    - e411d52865466082f0721160d8bfcfdcba057434
 ---
 
 # Change — platform-portable PR ceremony: GitHub/Azure detection + internal review fallback when no external reviewers exist
