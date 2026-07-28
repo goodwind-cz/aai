@@ -267,7 +267,12 @@ function catGitStatus(root) {
   const branchRes = run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], root);
   const branch = branchRes.ok ? branchRes.stdout.trim() : 'UNKNOWN';
   const statusRes = run('git', ['status', '--porcelain'], root);
-  const changed = statusRes.ok ? statusRes.stdout.split('\n').filter((l) => l.trim() !== '') : [];
+  if (!statusRes.ok) {
+    // Never report a clean tree we could not actually observe (PR #178
+    // Copilot finding — git missing/corrupt must not masquerade as PASS).
+    return cat('CAT-08', 'Git Status', 'WARN', `git status unavailable: ${(statusRes.stderr || 'unknown error').trim().split('\n')[0]}`);
+  }
+  const changed = statusRes.stdout.split('\n').filter((l) => l.trim() !== '');
   const parts = [`branch: ${branch}`];
   if (changed.length === 0) parts.push('clean working tree');
   else parts.push(`${changed.length} changed file(s)`);
@@ -317,6 +322,12 @@ function migrationVerdict(root, rel) {
 }
 
 function catRfc0001Migration(root) {
+  // gitTracked() is meaningless without a working git repo — say so instead
+  // of synthesizing a migrated-correctly verdict (PR #178 Copilot finding).
+  const gitProbe = run('git', ['rev-parse', '--is-inside-work-tree'], root);
+  if (!gitProbe.ok) {
+    return cat('CAT-10', 'RFC-0001 Migration', 'WARN', 'migration state unverifiable: git unavailable or not a repository');
+  }
   const parts = [
     migrationVerdict(root, 'docs/ai/STATE.yaml'),
     migrationVerdict(root, 'docs/ai/LOOP_TICKS.jsonl'),
@@ -354,7 +365,15 @@ function catDocsHygiene(root, scriptDir) {
 
 function catIndexRegenHook(root) {
   const installer = exists(root, '.aai/scripts/install-pre-commit-hook.sh');
-  const hookPath = path.join(root, '.git/hooks/pre-commit');
+  // Linked worktrees ship .git as a FILE, so <root>/.git/hooks never exists
+  // there — ask git for the real common dir (PR #178 Codex P2).
+  let gitDir = path.join(root, '.git');
+  const commonRes = run('git', ['rev-parse', '--git-common-dir'], root);
+  if (commonRes.ok && commonRes.stdout.trim() !== '') {
+    const common = commonRes.stdout.trim();
+    gitDir = path.isAbsolute(common) ? common : path.join(root, common);
+  }
+  const hookPath = path.join(gitDir, 'hooks/pre-commit');
   if (!fs.existsSync(hookPath)) {
     return cat('CAT-12', 'Index Regen Hook', 'WARN', installer
       ? 'not installed (optional) — run bash .aai/scripts/install-pre-commit-hook.sh'

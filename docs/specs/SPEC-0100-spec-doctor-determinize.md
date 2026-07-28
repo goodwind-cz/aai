@@ -21,7 +21,7 @@ links:
 ## Summary
 SKILL_DOCTOR.prompt.md was 10.7 KB prose, and only 2 of its 13 health-check
 categories (CAT-11 docs hygiene, CAT-13 vendored layer drift) called a real
-script — the other 11 (~20 file-existence/line-count checks, git-status
+script â the other 11 (~20 file-existence/line-count checks, git-status
 parsing, hook wiring, dynamic-skills presence, template presence, the
 RFC-0001 migration matrix) were prose instructing the LLM to recompute what a
 script computes cheaper and without variance. This spec covers a new
@@ -29,7 +29,7 @@ deterministic, zero-dependency engine (`.aai/scripts/aai-doctor.mjs`)
 covering all 13 categories (CAT-11/CAT-13 as unchanged subprocess calls to
 the existing `docs-audit.mjs`/`layer-drift.mjs`), and slims
 `SKILL_DOCTOR.prompt.md` to a thin wrapper that runs the script and relays
-its output — mirroring the proven CAT-11/CAT-13 pattern.
+its output â mirroring the proven CAT-11/CAT-13 pattern.
 
 ## Implementation strategy
 - Strategy: tdd
@@ -80,7 +80,7 @@ its output — mirroring the proven CAT-11/CAT-13 pattern.
     (byte floor + headroom cap) and TEST-012 (ledger sum); RED/GREEN logs
     under docs/ai/tdd/.
 - Maps to: CHANGE-0079 AC-003
-- Spec-AC-03: no regression — a doctor smoke run against a synthetic
+- Spec-AC-03: no regression â a doctor smoke run against a synthetic
   "fully clean" fixture target project reports `DOCTOR CLEAN` with exit 0,
   and a live smoke run against this real repo completes without crashing
   and without an unexpected CAT-01/CAT-02 FAIL. Companion suites that
@@ -102,9 +102,9 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | aai-doctor.mjs deterministic 13-category engine, CAT-11/13 subprocess-wired | done | docs/ai/tdd/green-20260727T233339Z-doctor-determinize.log | - | tests/skills/test-aai-doctor.sh all 22 TEST- assertions green |
-| Spec-AC-02 | SKILL_DOCTOR.prompt.md thin wrapper + prompt-diet ledger true-up | done | docs/ai/tdd/green-20260727T233657Z-prompt-diet-doctor-determinize.log | - | -7534 B NEGATIVE ledger entry, TEST-012 bumped 21738 to 14204, headroom 636/2048 |
-| Spec-AC-03 | No regression: clean-fixture smoke + real-repo smoke + companion suites | done | tests/skills/test-aai-layer-drift.sh and test-aai-layer-profiles.sh both green after CAT-13 wiring update | - | see Verification commands below |
+| Spec-AC-01 | aai-doctor.mjs deterministic 13-category engine, CAT-11/13 subprocess-wired | done | docs/ai/tdd/green-20260727T233339Z-doctor-determinize.log | — | tests/skills/test-aai-doctor.sh all 22 TEST- assertions green |
+| Spec-AC-02 | SKILL_DOCTOR.prompt.md thin wrapper + prompt-diet ledger true-up | done | docs/ai/tdd/green-20260727T233657Z-prompt-diet-doctor-determinize.log | — | -7534 B NEGATIVE ledger entry, TEST-012 bumped 21738 to 14204, headroom 636/2048 |
+| Spec-AC-03 | No regression: clean-fixture smoke + real-repo smoke + companion suites | done | tests/skills/test-aai-layer-drift.sh and test-aai-layer-profiles.sh both green after CAT-13 wiring update | — | see Verification commands below |
 
 ## Implementation plan
 - `.aai/scripts/aai-doctor.mjs` (new): 13 pure-ish category functions over a
@@ -119,7 +119,7 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
 - `.aai/SKILL_DOCTOR.prompt.md` (rewrite): thin wrapper naming the script,
   relaying its output, and explicitly scoping CAT-06's shallow-check
   design decision (structural duplicate-key check only; full 14-invariant
-  semantic validation stays `/aai-check-state`'s job — the one genuinely
+  semantic validation stays `/aai-check-state`'s job â the one genuinely
   judgmental piece, not force-fit into the script).
 - `.aai/system/PROFILES.yaml`: classify `.aai/scripts/aai-doctor.mjs` as
   `core` (distribution & health category, alongside `layer-drift.mjs` /
@@ -140,7 +140,7 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
   naming the RFC-0001 per-dev nature.
 - Non-git target directory: CAT-08 reports SKIP, not FAIL/WARN.
 - No AAI_PIN.md / running inside the canonical repo itself: CAT-13 exit 4
-  (unverifiable) is tolerated as WARN, never FAIL — this is the NORMAL
+  (unverifiable) is tolerated as WARN, never FAIL â this is the NORMAL
   verdict when running the doctor inside this repo.
 - A universal skill's SKILL.md that names no `.aai/*.prompt.md` at all
   (e.g. aai-overview, which points at a script): healthy by definition,
@@ -183,7 +183,7 @@ For each Spec-AC, enumerate concrete tests:
 
 Notes:
 - Every Spec-AC has at least one TEST-xxx entry.
-- Test IDs are stable — do not renumber after freeze.
+- Test IDs are stable â do not renumber after freeze.
 - TEST-023..026 live in pre-existing companion suites this scope touches;
   numbered here for full traceability even though their file paths are not
   tests/skills/test-aai-doctor.sh.

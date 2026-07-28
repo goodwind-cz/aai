@@ -58,7 +58,8 @@ matrix by hand — run the script and relay its output.
 - Read-only. Never modify any files.
 - Report every category the script printed, even if all pass.
 - Do not invent categories or verdicts the script did not emit.
-- If the script exits non-zero, that means at least one category is FAIL —
-  report BROKEN, do not silently downgrade it to DEGRADED.
+- Exit 1 means at least one category is FAIL — report BROKEN, never
+  downgrade to DEGRADED. Exit 2 is a CLI usage error (bad flag), NOT an
+  environment verdict: fix the invocation and rerun.
 
 BEGIN NOW.
