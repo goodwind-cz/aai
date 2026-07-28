@@ -1,12 +1,14 @@
 ---
 id: core-prompt-diet
-number: null
+number: 90
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 193
+  commits:
+    - 60a97f5eeab58247e70c9bd4c50d12ad87c3f958
 ---
 
 # Change — core-prompt diet: pointer-ize script-restatement + cross-file dedup into ROLE_COMMON
