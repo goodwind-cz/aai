@@ -27,6 +27,7 @@ SYNC_SH="$PROJECT_ROOT/.aai/scripts/aai-sync.sh"
 SYNC_PS1="$PROJECT_ROOT/.aai/scripts/aai-sync.ps1"
 UPDATE_SH="$PROJECT_ROOT/.aai/scripts/aai-update.sh"
 DOCTOR_PROMPT="$PROJECT_ROOT/.aai/SKILL_DOCTOR.prompt.md"
+DOCTOR_SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
 
 TMP_ROOT=""
 CANON=""        # fixture canonical repo (git dir)
@@ -305,19 +306,28 @@ test_ps1_parity() {
 }
 
 # --- TEST-011 — SKILL_DOCTOR CAT-13 wiring (Spec-AC-06) -----------------------
+# CHANGE-0079 / spec-doctor-determinize moved the CAT-13 mechanics (script
+# invocation, /aai-update remedy, informational-never-FAIL posture) out of
+# the prompt prose and into .aai/scripts/aai-doctor.mjs; the prompt is now a
+# thin wrapper that just names the script and relays its CAT-13 line.
 test_doctor_wiring() {
-  log_info "TEST-011: SKILL_DOCTOR.prompt.md wires CAT-13 vendored layer drift..."
+  log_info "TEST-011: SKILL_DOCTOR.prompt.md + aai-doctor.mjs wire CAT-13 vendored layer drift..."
   [[ -f "$DOCTOR_PROMPT" ]] || log_fail "doctor prompt not found: $DOCTOR_PROMPT"
-  grep -q "\[CAT-13\]" "$DOCTOR_PROMPT" || log_fail "no [CAT-13] section in doctor prompt"
-  grep -q "layer-drift.mjs" "$DOCTOR_PROMPT" || log_fail "CAT-13 does not invoke layer-drift.mjs"
-  grep -q "/aai-update" "$DOCTOR_PROMPT" || log_fail "CAT-13 lacks the /aai-update remedy"
-  # informational, never BROKEN (degrade-and-report)
-  awk '/\[CAT-13\]/{f=1} f' "$DOCTOR_PROMPT" | grep -qi "informational" \
-    || log_fail "CAT-13 must be documented informational (never BROKEN)"
-  # OUTPUT FORMAT block must include the category line
-  awk '/^OUTPUT FORMAT/{f=1} f' "$DOCTOR_PROMPT" | grep -q "CAT-13" \
-    || log_fail "OUTPUT FORMAT block lacks the CAT-13 line"
-  log_pass "TEST-011 doctor CAT-13 wiring"
+  [[ -f "$DOCTOR_SCRIPT" ]] || log_fail "doctor script not found: $DOCTOR_SCRIPT"
+  grep -qF "aai-doctor.mjs" "$DOCTOR_PROMPT" || log_fail "SKILL_DOCTOR.prompt.md does not name aai-doctor.mjs"
+  grep -q "CAT-13" "$DOCTOR_PROMPT" || log_fail "SKILL_DOCTOR.prompt.md does not list CAT-13 in the relayed categories"
+  grep -qF "layer-drift.mjs" "$DOCTOR_SCRIPT" || log_fail "aai-doctor.mjs does not invoke layer-drift.mjs"
+  grep -qF "/aai-update" "$DOCTOR_SCRIPT" || log_fail "aai-doctor.mjs CAT-13 lacks the /aai-update remedy"
+  # informational, never BROKEN — asserted BEHAVIORALLY (source greps for
+  # comments/quoted literals were dropped per review PR #178): on this repo
+  # layer-drift exits 4 (unverifiable), and CAT-13 must still be WARN/PASS,
+  # never FAIL, with doctor exit 0 when no other category fails.
+  local cat13_line
+  cat13_line="$(node "$DOCTOR_SCRIPT" 2>&1 | grep '^CAT-13')" \
+    || log_fail "doctor produced no CAT-13 line"
+  echo "$cat13_line" | grep -qE '^CAT-13 (PASS|WARN|SKIP) ' \
+    || log_fail "CAT-13 must never be FAIL (informational only): $cat13_line"
+  log_pass "TEST-011 doctor CAT-13 wiring (prompt -> script -> layer-drift.mjs)"
 }
 
 # --- Spec-AC-04 self-check — no real network schemes in this suite ------------

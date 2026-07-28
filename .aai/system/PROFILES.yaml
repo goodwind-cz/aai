@@ -81,6 +81,7 @@ core:
   - .aai/knowledge/PATTERNS_UNIVERSAL.md
   - .aai/roles/ROLES.md
   - .aai/scripts/aai-bootstrap.sh
+  - .aai/scripts/aai-doctor.mjs
   - .aai/scripts/aai-reap-tests.ps1
   - .aai/scripts/aai-reap-tests.sh
   - .aai/scripts/aai-release.ps1

@@ -413,7 +413,12 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# 21738 (true-up: decapod-prune retired -9573 B via a NEGATIVE RECLAIMED
+# 14263 (true-up: doctor-determinize retired -7534 B via a NEGATIVE RECLAIMED
+# entry — rewriting .aai/SKILL_DOCTOR.prompt.md from a 10697 B prose file (11
+# of 13 health-check categories were hand-computed file-existence/line-count/
+# git-status prose) to a 3163 B thin wrapper around the new deterministic
+# .aai/scripts/aai-doctor.mjs — dropping the total from 21738; before that,
+# decapod-prune retired -9573 B via a NEGATIVE RECLAIMED
 # entry — the deleted SKILL_DECAPOD.prompt.md's 9571 B plus 2 B residual
 # reword slack — dropping the total from 31311; before that,
 # state-bootstrap-template added a +286 B itemized entry for
@@ -446,15 +451,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 21738 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 21738)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 14263 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 14263)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 21738 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 14263 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

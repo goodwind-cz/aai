@@ -29,6 +29,7 @@ MANIFEST="$PROJECT_ROOT/.aai/system/PROFILES.yaml"
 SYNC_SH="$PROJECT_ROOT/.aai/scripts/aai-sync.sh"
 SYNC_PS1="$PROJECT_ROOT/.aai/scripts/aai-sync.ps1"
 DOCTOR_PROMPT="$PROJECT_ROOT/.aai/SKILL_DOCTOR.prompt.md"
+DOCTOR_SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
 PIN_CONTRACT="$PROJECT_ROOT/.aai/system/AAI_PIN.md"
 
 TMP_ROOT=""
@@ -336,15 +337,18 @@ test_pin_stamp_and_sticky() {
 }
 
 # --- TEST-007 — SKILL_DOCTOR CAT-13 displays the profile (Spec-AC-03) ---------
+# CHANGE-0079 / spec-doctor-determinize moved the profile-display mechanics
+# into aai-doctor.mjs (readProfileFromPin + catLayerDrift); the prompt is now
+# a thin wrapper that just relays the script's CAT-13 line verbatim.
 test_doctor_display() {
-  log_info "TEST-007: SKILL_DOCTOR CAT-13 reads and displays the layer profile..."
-  [[ -f "$DOCTOR_PROMPT" ]] || log_fail "doctor prompt not found"
-  local cat13
-  cat13="$(awk '/\[CAT-13\]/{f=1} /^OUTPUT FORMAT/{f=0} f' "$DOCTOR_PROMPT")"
-  echo "$cat13" | grep -q -- '- Profile:' || log_fail "CAT-13 does not read the pin's '- Profile:' line"
-  echo "$cat13" | grep -qi 'extended (implicit)' || log_fail "CAT-13 lacks the absent->extended (implicit) rule"
-  awk '/^OUTPUT FORMAT/{f=1} f' "$DOCTOR_PROMPT" | grep '\[CAT-13\]' | grep -q 'profile' \
-    || log_fail "OUTPUT FORMAT CAT-13 line does not display the profile"
+  log_info "TEST-007: aai-doctor.mjs CAT-13 reads and displays the layer profile..."
+  [[ -f "$DOCTOR_SCRIPT" ]] || log_fail "doctor script not found: $DOCTOR_SCRIPT"
+  grep -q "Profile" "$DOCTOR_SCRIPT" || log_fail "aai-doctor.mjs does not read the pin's '- Profile:' line"
+  grep -qi 'extended (implicit)' "$DOCTOR_SCRIPT" || log_fail "aai-doctor.mjs lacks the absent->extended (implicit) rule"
+  # Behavioral pin only — never grep the JS source for a template literal
+  # (a behavior-preserving refactor must not break this test; review PR #178).
+  node "$DOCTOR_SCRIPT" 2>&1 | grep '^CAT-13' | grep -q 'profile:' \
+    || log_fail "live CAT-13 output line does not contain 'profile:'"
   log_pass "TEST-007 doctor CAT-13 profile display"
 }
 

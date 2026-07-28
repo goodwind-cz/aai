@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-27T22:49:56.601Z
+Generated: 2026-07-28T00:32:13.658Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Done (222)
+## Done (224)
 
 | ID | Type | Path |
 |---|---|---|
@@ -96,6 +96,7 @@ _None._
 | CHANGE-0073 | issues | docs/issues/CHANGE-0073-suite-map-factory-doc-paths.md |
 | CHANGE-0074 | issues | docs/issues/CHANGE-0074-state-bootstrap-template.md |
 | CHANGE-0077 | issues | docs/issues/CHANGE-0077-decapod-prune.md |
+| CHANGE-0079 | issues | docs/issues/CHANGE-0079-doctor-determinize.md |
 | CHANGE-0081 | issues | docs/issues/CHANGE-0081-skill-sweep-quick-wins.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
@@ -242,16 +243,16 @@ _None._
 | SPEC-0097 | specs | docs/specs/SPEC-0097-spec-ci-test-impact-selection.md |
 | SPEC-0098 | specs | docs/specs/SPEC-0098-spec-prompt-hash-runtime-wiring.md |
 | SPEC-0099 | specs | docs/specs/SPEC-0099-spec-state-bootstrap-template.md |
+| SPEC-0100 | specs | docs/specs/SPEC-0100-spec-doctor-determinize.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (6)
+## Drafts (5)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0075 | issues | docs/issues/CHANGE-0075-rollup-exclusion-visibility.md |
 | CHANGE-0076 | issues | docs/issues/CHANGE-0076-dashboard-refit.md |
 | CHANGE-0078 | issues | docs/issues/CHANGE-0078-docs-hub-generator.md |
-| CHANGE-0079 | issues | docs/issues/CHANGE-0079-doctor-determinize.md |
 | CHANGE-0080 | issues | docs/issues/CHANGE-0080-session-journal-contract.md |
 | CHANGE-0082 | issues | docs/issues/CHANGE-0082-validate-report-contract.md |
 
@@ -288,4 +289,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-27 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-28 — counts above use this date for overdue checks.

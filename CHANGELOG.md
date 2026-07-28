@@ -11,6 +11,20 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat: /aai-doctor determinized — 13 categories in one script, prompt −70 % (CHANGE-0079 / SPEC-0100) [L2]
+
+- NEW .aai/scripts/aai-doctor.mjs: all 13 doctor categories computed
+  deterministically (file/hook/telemetry/git checks; CAT-11/13 stay
+  subprocess calls honoring documented exit semantics; CAT-06 delegates
+  structural STATE rules to check-state.mjs and degrades a CRASHING helper
+  to WARN, never a false BROKEN — review finding). One line per category,
+  `--json`, exit 0/1/2 contract, cwd-independent; suite of 22 tests.
+- SKILL_DOCTOR.prompt.md 10 697 B -> 3 163 B thin wrapper; disclosed
+  narrowings only (CAT-01 YAML validity moved to CAT-06; CAT-06 full
+  invariants stay with /aai-check-state). Ledger -7534 RECLAIMED entry,
+  TEST-012 pin 21738 -> 14204 RED-first, headroom 636/2048.
+- Companion tests rewired to behavioral asserts (no JS source greps).
+
 ## [unreleased] — chore: decapod integration pruned — only true dead code found by the skill-sweep (CHANGE-0077) [L2]
 
 - Removed ~55 KB: SKILL_DECAPOD.prompt.md (9571 B file; ledger retires 9573 B incl. 2 B prior reword slack), 3 wrapper dirs,
