@@ -351,6 +351,11 @@ suites:
       - docs/ai/overview.html
       - docs/ai/overview-data.json
 
+  aai-pr-platform:
+    globs:
+      - .aai/scripts/pr-platform.mjs
+      - .aai/SKILL_PR.prompt.md
+
   aai-pricing:
     globs:
       - .aai/system/PRICING.yaml
