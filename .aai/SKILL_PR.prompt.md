@@ -125,11 +125,13 @@ PROCESS
    - Commit only after the step-3 audit passes and the PRECONDITIONS hold.
 
 5. PLATFORM GATE + PUSH + PR:
-   - Push the branch: `git push -u origin <branch>`.
-   - Detect the platform BEFORE opening the PR — NEVER guess:
+   - Detect the platform FIRST — before ANY push (a `PLATFORM none` repo has
+     no origin to push to; pushing first would error out of the ceremony):
        node .aai/scripts/pr-platform.mjs
-     Prints `PLATFORM <github|azure|unknown> remote=<sanitized-url>`, or
-     `PLATFORM none` when no remote is configured. Branch on the value:
+   - `github`/`azure`/`unknown` with a remote: `git push -u origin <branch>`.
+     `none`: skip the push entirely and go straight to GENERIC MODE below.
+   - Branch on the printed value — NEVER guess:
+       node .aai/scripts/pr-platform.mjs
      - `github` -> `gh pr create --title "<conventional title>" --body <body>`.
      - `azure` -> `az repos pr create --title "<title>" --description <body>
        --source-branch <branch> --target-branch <base>`; add reviewers with
@@ -143,8 +145,10 @@ PROCESS
      - `unknown` or `none` -> GENERIC MODE: skip platform PR mechanics
        entirely (no `gh`/`az` PR is opened). Dispatch
        .aai/SKILL_CODE_REVIEW.prompt.md on the final diff (branch vs base) —
-       MANDATORY, never optional here. Write the verdict + findings to a
-       `docs/ai/reports/VALIDATION-<ts>-<slug>.md`-style report and update
+       MANDATORY, never optional here. The reviewer returns its dual verdict
+       INLINE per its own contract (it writes no files); the ORCHESTRATOR
+       then writes that verdict + findings to a
+       `docs/ai/reports/VALIDATION-<ts>-<slug>.md`-style report and updates
        the spec's AC dispositions, then STOP the ceremony (steps 5b-6 assume
        an opened PR and do not apply) with the loud line:
        "platform PR API unavailable — internal review substituted, merge is yours."
@@ -213,9 +217,10 @@ PROCESS
    - After CI completes, poll once (platform from step 5's `PLATFORM` value):
      GitHub: `gh api repos/<owner>/<repo>/pulls/<n>/comments` plus
      `gh pr view <n> --json reviews`. Azure: pullRequestThreads via `az devops
-     invoke` (see step 5 note; verify form at first Azure adoption --id
-     <pr-id>`. Zero findings after a green run -> record "no bot findings"
-     and stop.
+     invoke` (see step 5 note; verify form at first Azure adoption). Zero findings after a green run: ONLY on a platform WITH a bot
+     layer (github) may you record "no bot findings" and stop — on any
+     other platform zero threads is the EXPECTED default and triggers the
+     reviewer-fallback below, never a stop.
    - Any findings: handle them through the canonical EXTERNAL-REVIEW
      RESPONSE flow in .aai/SKILL_CODE_REVIEW.prompt.md (triage each thread
      real/stale/duplicate/disputed, RED-proofed regression per real code

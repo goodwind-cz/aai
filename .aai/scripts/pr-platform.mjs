@@ -127,7 +127,11 @@ function classify(host) {
 // public identity, not a secret).
 function sanitize(remoteUrl) {
   if (!remoteUrl) return null;
-  return remoteUrl.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^@/]*@/, '$1');
+  // Strip the ENTIRE userinfo, including passwords containing unescaped '@'
+  // (https://u:p@ss@host parses; a first-@ regex would leak 'ss@host…' —
+  // PR #185 Codex P1): greedy [^/]*@ consumes through the LAST @ before the
+  // first path slash.
+  return remoteUrl.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^/]*@/, '$1');
 }
 
 function main() {
@@ -136,7 +140,7 @@ function main() {
 
   if (!remoteUrl) {
     if (opts.json) {
-      console.log(JSON.stringify({ platform: 'none', remote: null, sanitizedRemote: null }, null, 2));
+      console.log(JSON.stringify({ platform: 'none', remote: null }, null, 2));
     } else {
       console.log('PLATFORM none');
     }

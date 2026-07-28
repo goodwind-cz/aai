@@ -413,9 +413,9 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# -12632 (true-up: platform-portable-pr SKILL_PR.prompt.md step 5 PLATFORM
+# -12208 (true-up: platform-portable-pr SKILL_PR.prompt.md step 5 PLATFORM
 # GATE (pr-platform.mjs) + az command set + step 5d REVIEWER-FALLBACK
-# CONTRACT + GENERIC MODE loud line added +2853 B (13767 -> 16620), credited
+# CONTRACT + GENERIC MODE loud line added +3277 B (13767 -> 17044), credited
 # 1:1, headroom unchanged at 605/2048 (operator direction 2026-07-28); before
 # that, journal-report-contracts retired -2132 B net (journal relax -2715, report scope-note +583; operator decisions 2026-07-28); before that, docs-hub-generator retired -6099 B via a NEGATIVE RECLAIMED
 # entry — rewriting .aai/SKILL_DOCS_HUB.prompt.md (9513 B, a ~70-file LLM
@@ -468,15 +468,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -12632 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -12632)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -12208 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -12208)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -12632 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -12208 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

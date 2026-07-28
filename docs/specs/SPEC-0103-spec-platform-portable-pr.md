@@ -72,7 +72,7 @@ per the operator's 2026-07-28 direction.
   every other host as unknown (never a guess) — printing `PLATFORM <value>
   remote=<sanitized-url>` and exit 0; no `origin` remote at all prints
   `PLATFORM none` and exit 0; an unknown flag exits 2 and writes nothing to
-  stdout; `--json` emits exactly `{platform, remote, sanitizedRemote}`.
+  stdout; `--json` emits exactly `{platform, remote} (remote always sanitized)`.
   - Verification: `bash tests/skills/test-aai-pr-platform.sh` TEST-001..014;
     live `node .aai/scripts/pr-platform.mjs` on this repo (expect
     `PLATFORM github`).
@@ -80,7 +80,7 @@ per the operator's 2026-07-28 direction.
 - Spec-AC-02: `.aai/SKILL_PR.prompt.md` step 5 runs the probe FIRST (a named
   "PLATFORM GATE") and branches: `github` keeps the existing `gh pr create`
   path; `azure` documents the exact `az repos pr create` / `az repos pr
-  reviewer add` / `az repos pr thread list` command set (step 5d) and notes
+  reviewer add` / `pullRequestThreads via az devops invoke` command set (step 5d) and notes
   Azure's branch-policy gate job; `unknown`/`none` route to GENERIC MODE
   (Spec-AC-05).
   - Verification: `bash tests/skills/test-aai-pr-platform.sh` TEST-015/016
@@ -100,8 +100,7 @@ per the operator's 2026-07-28 direction.
   (2026-07-28: PR-thread publication of internal findings)
 - Spec-AC-04: internal-review findings from the Spec-AC-03 fallback are
   published as PR THREADS via the platform API (`gh api
-  repos/<owner>/<repo>/pulls/<n>/comments` on GitHub, `az repos pr thread
-  create --id <pr-id>` on Azure) with a closing reply citing the fixing
+  repos/<owner>/<repo>/pulls/<n>/comments` on GitHub, `pullRequestThreads via az devops invoke --id <pr-id>` on Azure) with a closing reply citing the fixing
   commit — the same audit trail whether the reviewer was a bot or the
   internal role — and "internal review substituted for absent bot layer" is
   recorded in the PR description.
@@ -125,15 +124,14 @@ per the operator's 2026-07-28 direction.
 - Maps to: CHANGE-0085-platform-portable-pr Constraints/Risks (Az CLI not
   live-testable here)
 - Spec-AC-06 (DEFERRED — see Acceptance Criteria Status): the documented
-  `az repos pr create` / `az repos pr reviewer add` / `az repos pr thread
-  list` / `az repos pr thread create` command forms behave as documented
+  `az repos pr create` / `az repos pr reviewer add` / `pullRequestThreads via az devops invoke` / `pullRequestThreads via az devops invoke` command forms behave as documented
   against a REAL Azure DevOps remote (argument names, exit codes, thread
   JSON shape). Not provable in this repo — no Azure remote exists to probe
   live, and `az` is not installed in this environment. Command forms were
-  verified against the Azure CLI `az repos pr`/`az repos pr thread`
+  verified against the Azure CLI `az repos pr`/the pullRequestThreads REST resource
   reference documentation only.
   - Verification (future): first live Azure adoption — a real `az repos pr
-    create` + `az repos pr thread create`/`thread list` round trip, logged
+    create` + `pullRequestThreads via az devops invoke`/`thread list` round trip, logged
     under `docs/ai/reports/` and linked back to this AC.
 
 ## Constitution deviations
@@ -177,8 +175,8 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
   implicitly per the selector's documented convention).
 - `tests/skills/lib/prompt-diet-ledger.sh` /
   `tests/skills/test-aai-prompt-diet.sh`: one itemized `JUSTIFIED_ADDITIONS`
-  entry (+2555 B, the measured SKILL_PR.prompt.md growth) and the TEST-012
-  pinned literal bumped -15485 -> -12930, landing headroom back at exactly
+  entry (+3277 B, the measured SKILL_PR.prompt.md growth) and the TEST-012
+  pinned literal bumped -15485 -> -12208, landing headroom back at exactly
   605/2048 — the same steady-state as before this scope (RED-first: with the
   growth present but uncredited, TEST-010 breaches the byte floor; GREEN
   after the ledger entry + pin bump).

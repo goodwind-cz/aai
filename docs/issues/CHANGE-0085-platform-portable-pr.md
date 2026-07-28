@@ -54,8 +54,7 @@ links:
 
 ## Additional operator requirements (2026-07-28)
 - Internal-review findings MUST be published as PR THREADS via the
-  platform API (gh api pulls/N/comments on GitHub, az repos pr thread
-  create on Azure) so the audit trail on the PR is identical whether the
+  platform API (gh api pulls/N/comments on GitHub, pullRequestThreads via az devops invoke on Azure) so the audit trail on the PR is identical whether the
   reviewer was a bot or the internal role, and human reviewers see the
   findings where they expect them.
 - GENERIC MODE for any other git hosting (GitLab/Bitbucket/bare/no
