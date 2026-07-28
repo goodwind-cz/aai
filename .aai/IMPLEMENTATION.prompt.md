@@ -85,7 +85,9 @@ PROCESS
 9) Execute verification commands (tests/lint/build) via shell tool, OR delegate to a Verification
    subagent if direct shell access is unavailable. Capture command outputs and exit codes.
 9b) PRE-HANDOFF AC-TABLE RECONCILIATION — see .aai/ROLE_COMMON.md PRE-HANDOFF
-   AC-TABLE RECONCILIATION. "Covered by" here means every Spec-AC covered by
+   AC-TABLE RECONCILIATION: reconcile the spec's `## Acceptance Criteria Status`
+   table, then run `node .aai/scripts/docs-audit.mjs --gate <SPEC-ID>` and fix
+   until exit 0 before reporting complete. "Covered by" here means every Spec-AC covered by
    this implementation scope. A gate-opted spec reaching Validation with
    `planned` rows guarantees a wasted FAIL→Remediation→re-Validation cycle —
    this step prevents that.

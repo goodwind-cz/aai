@@ -298,9 +298,12 @@ No completion claim in this phase without the `.aai/SKILL_VERIFY.prompt.md` gate
    - Update `docs/knowledge/PATTERNS.md` if new pattern emerged
 
 1b. **Pre-Handoff AC-Table Reconciliation** — see .aai/ROLE_COMMON.md
-   PRE-HANDOFF AC-TABLE RECONCILIATION. "Covered by" here means every Spec-AC
-   covered by the completed TDD cycles; Evidence may be a commit SHA, RUN_ID,
-   or the docs/ai/tdd/*.log paths from those cycles.
+   PRE-HANDOFF AC-TABLE RECONCILIATION: reconcile the spec's
+   `## Acceptance Criteria Status` table, then run
+   `node .aai/scripts/docs-audit.mjs --gate <SPEC-ID>` and fix until
+   exit 0 before reporting complete. "Covered by" here
+   means every Spec-AC covered by the completed TDD cycles; Evidence may be a
+   commit SHA, RUN_ID, or the docs/ai/tdd/*.log paths from those cycles.
 
 2. **Run Standard Validation**
    - Execute `.aai/VALIDATION.prompt.md` or dispatch Validation through
