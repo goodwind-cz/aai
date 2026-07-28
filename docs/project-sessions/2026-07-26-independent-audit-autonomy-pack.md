@@ -77,11 +77,15 @@ platform-portable PR ceremony with the internal-review fallback (#185).
 Fourteen PRs merged in the first phase (#157-#170). Everything from the original
 audit roadmap AND the extended original-assignment gap list AND the three
 Promptbook adoptions is delivered except the recorded follow-ups below.
-Follow-ups (tracked, unshipped): metrics-report per-run hash display
-(additivity renegotiation), runtime producer wiring for --prompt-hash,
-stall-hook friction class, EARS AC notation, legacy prune, allocator
-rewrite of script/test headers, universality proof on the fixture project,
-skill-sweep of the ~15 untouched skills, CONTRACT 60-line headroom.
+Follow-ups as of v2026.07.28 — SHIPPED since this list was written:
+prompt-hash runtime wiring (#172), stall-hook friction class (#184,
+`stalled_progress`), EARS AC guidance (#184), legacy prune (#177, decapod
+— the only true dead code), universality proof (#174), skill-sweep
+(#175), hash display resolved-as-designed (#184 disposition). STILL OPEN:
+allocator rewrite of script/test headers (manual sweep each ride),
+CONTRACT 60-line headroom, R1 GitHub-no-bots hardening, Azure live round
+trip (SPEC-0103 AC-06, Review-By 2026-08-15), reaper TEST-018 root-cause
+data (trap armed via `reaped raw:`, waits for the next CI flake).
 
 ## Roadmap execution status (updated 2026-07-26 evening)
 
