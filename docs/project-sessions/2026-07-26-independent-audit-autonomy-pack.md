@@ -59,9 +59,22 @@ weight, zero consumers since March). The roadmap's broader legacy-prune
 item RESOLVED with evidence: autonomous-loop.*, triage.*, claude-hook-gate
 and the migration scripts are all actively wired — only decapod is dead.
 
-## Final run status (2026-07-27, autonomous run complete)
+## Final run status (2026-07-28, release v2026.07.28)
 
-Fourteen PRs merged across the run (#157-#170). Everything from the original
+Twenty-nine PRs merged across the run (#157-#185), released as
+v2026.07.28. Beyond the #157-#170 core (documented below), the second
+phase delivered: CI test-impact selection incl. the factory-doc-paths map
+(#171/#173 — typical PR 2.4 min instead of ~25), prompt-hash runtime
+wiring with the first live non-null METRICS hash (#172), the universality
+proof on a virgin non-AAI project (#174, findings CHANGE-0074/0075), the
+hands-on skill-sweep (#175 — 3 fixed footguns, 6 intakes, decapod = the
+only true dead code), the STATE bootstrap template (#176), decapod prune
+(#177), doctor determinization (#178), dashboard/test-skills refit
+(#179), the deterministic skills catalog (#180), rollup exclusion
+visibility (#181), the journal/validate-report contract reconciliations
+per operator decisions (#182), both follow-up batches (#183/#184) and the
+platform-portable PR ceremony with the internal-review fallback (#185).
+Fourteen PRs merged in the first phase (#157-#170). Everything from the original
 audit roadmap AND the extended original-assignment gap list AND the three
 Promptbook adoptions is delivered except the recorded follow-ups below.
 Follow-ups (tracked, unshipped): metrics-report per-run hash display
