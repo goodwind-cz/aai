@@ -5236,7 +5236,7 @@ test_spec0057_real_repo_known_collisions() {  # TEST-104 / Spec-AC-04
 }
 
 test_pdcm_product_family_repo_wide_clean() {  # spec-product-docs-capability-model TEST-011 / Spec-AC-04
-  log_info "Test: post-migration docs/product/ is scanned and CLEAN; all 12 product docs classify tracked-open/aligned (spec-product-docs-capability-model TEST-011)..."
+  log_info "Test: post-migration docs/product/ is scanned and CLEAN; all product docs classify tracked-open/aligned (spec-product-docs-capability-model TEST-011)..."
   # Scope the CLEAN assertion to docs/product — NOT the whole repo. A repo-wide
   # --check would transiently include THIS ride's own draft spec as a
   # probable-false-open (terminal AC table, status:draft) until its close
@@ -5249,13 +5249,18 @@ test_pdcm_product_family_repo_wide_clean() {  # spec-product-docs-capability-mod
 
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --list --no-event --path docs/product > "$TEST_DIR/pdcm-list.log" 2>&1) \
     || log_fail "TEST-011: --list --path docs/product must exit 0: $(cat "$TEST_DIR/pdcm-list.log")"
-  assert_contains "$TEST_DIR/pdcm-list.log" "Scanned: 12 docs"
+  # Derive the expected count from disk — never hardcode: every new
+  # user_visible capability adds a product doc (this ride's own dogfood doc
+  # made it 13), and a hardcoded pin would break on each addition.
+  local expected
+  expected=$(ls "$PROJECT_ROOT"/docs/product/*.md 2>/dev/null | wc -l | tr -d ' ')
+  assert_contains "$TEST_DIR/pdcm-list.log" "Scanned: $expected docs"
   local unaligned
   unaligned=$(grep -c '| tracked-open | current | aligned |' "$TEST_DIR/pdcm-list.log")
-  [[ "$unaligned" == "12" ]] \
-    || log_fail "TEST-011: expected all 12 product docs classified tracked-open/current/aligned, got $unaligned: $(cat "$TEST_DIR/pdcm-list.log")"
+  [[ "$unaligned" == "$expected" ]] \
+    || log_fail "TEST-011: expected all $expected product docs classified tracked-open/current/aligned, got $unaligned: $(cat "$TEST_DIR/pdcm-list.log")"
 
-  log_pass "Real repo CLEAN with docs/product scanned; all 12 product docs tracked-open/aligned (spec-product-docs-capability-model TEST-011)"
+  log_pass "docs/product CLEAN + scanned; all $expected product docs tracked-open/aligned (spec-product-docs-capability-model TEST-011)"
 }
 
 test_pdci_validation_gate_delegation() {  # prompt-dedup-canonical-includes spec TEST-003 / Spec-AC-02
