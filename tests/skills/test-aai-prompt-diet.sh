@@ -413,7 +413,23 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# -8188 (true-up: issues-skill new .aai/SKILL_ISSUES.prompt.md thin wrapper
+# -11435 (true-up: core-prompt-diet retired -3247 B via a NEGATIVE RECLAIMED
+# entry — folding 4 cross-prompt duplications (FRICTION HOOK, PYTHON MONTY
+# SCRATCHPAD, PRE-HANDOFF AC-TABLE RECONCILIATION, WORKTREE GATE) into
+# .aai/ROLE_COMMON.md as canonical blocks (the 4 FRICTION HOOK sites also
+# keep their own literal FRICTION_PROTOCOL.md + best-effort wording per
+# test-aai-friction-wiring.sh's hostile-mutation pins), deleting SKILL_TDD's
+# 3 dead prose sections, trimming SKILL_LOOP's VALIDATOR INDEPENDENCE
+# rationale tail to a SUBAGENT_PROTOCOL.md pointer (the CONTRACT-naming
+# dispatch-payload sentence stayed verbatim per hygiene-pack TEST-082), and
+# pointing 4 more script-restating sections (SKILL_LOOP POST-TICK REAP,
+# SKILL_CHECK_STATE INV-14, SKILL_PR RECONCILE WORKTREE TELEMETRY, VALIDATION
+# LEAK-SAFE EXECUTION, ORCHESTRATION_PARALLEL SCOPE LOCKING) at their
+# scripts' headers while keeping every operative recipe/gate/exit-code line
+# verbatim — shrank the live .aai/*.prompt.md glob by a measured 6442 B while
+# .aai/ROLE_COMMON.md (already inside TEST-010's extra accounting) grew
+# 3195 B, a net 3247 B reduction, dropping the total from -8188; before that
+# (true-up: issues-skill new .aai/SKILL_ISSUES.prompt.md thin wrapper
 # (3810 B) documenting the on-demand /aai-issues fetch+triage skill, credited
 # at its exact size, headroom back to 815/2048 (CHANGE-0087-issues-skill);
 # before that, platform-portable-pr SKILL_PR.prompt.md step 5 PLATFORM
@@ -471,15 +487,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -8188 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -8188)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -11435 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -11435)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -8188 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -11435 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
@@ -647,6 +663,122 @@ test_018_journal_report_contract_pins() {  # CHANGE-0080/0082 content pins
   fi
 }
 
+# TEST-019 (core-prompt-diet) — the 4 dedup targets now have exactly ONE
+# canonical copy each (in .aai/ROLE_COMMON.md) and every former site is a
+# pointer, not a restatement; and the surviving MEDIUM-RISK recipes/gates
+# survive verbatim (leak-safe exec, scope-lock acquire/exit-code lines,
+# INV-14 pointer + WRITER RULE, RECONCILE WORKTREE TELEMETRY exit codes).
+test_019_core_prompt_diet_dedup() {
+  local ok=1
+
+  # (a) each moved block's distinctive body text appears in ROLE_COMMON.md
+  # exactly once, and NOWHERE else across the live .aai/*.prompt.md glob.
+  local markers=(
+    'Skill wiring (shadow capture)'
+    'Do not use it for project imports, third-party libraries'
+    '--event ac_status --ref <SPEC-ID>/<Spec-AC-ID> --from planned --to done'
+    'Action: dispatch `.aai/SKILL_WORKTREE.prompt.md` operation `recommendation gate`'
+  )
+  local m n_common n_glob
+  for m in "${markers[@]}"; do
+    n_common=$(grep -cF -- "$m" .aai/ROLE_COMMON.md || true)
+    if [[ "$n_common" != "1" ]]; then
+      log_info "TEST-019: marker '$m' appears $n_common times in ROLE_COMMON.md (want 1)"
+      ok=0
+    fi
+    n_glob=$(grep -lF -- "$m" .aai/*.prompt.md 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$n_glob" != "0" ]]; then
+      log_info "TEST-019: marker '$m' still present in $(grep -lF -- "$m" .aai/*.prompt.md | tr '\n' ' ') (want 0 — should be a pointer)"
+      ok=0
+    fi
+  done
+
+  # (b) each former site now carries a pointer to its ROLE_COMMON.md block
+  local pointer_sites=(
+    ".aai/IMPLEMENTATION.prompt.md|FRICTION HOOK"
+    ".aai/VALIDATION.prompt.md|FRICTION HOOK"
+    ".aai/REMEDIATION.prompt.md|FRICTION HOOK"
+    ".aai/IMPLEMENTATION.prompt.md|PYTHON MONTY SCRATCHPAD"
+    ".aai/SKILL_TDD.prompt.md|PYTHON MONTY SCRATCHPAD"
+    ".aai/IMPLEMENTATION.prompt.md|PRE-HANDOFF AC-TABLE RECONCILIATION"
+    ".aai/SKILL_TDD.prompt.md|PRE-HANDOFF AC-TABLE RECONCILIATION"
+    ".aai/ORCHESTRATION_PARALLEL.prompt.md|WORKTREE GATE"
+    ".aai/IMPLEMENTATION.prompt.md|WORKTREE GATE"
+    ".aai/SKILL_TDD.prompt.md|WORKTREE GATE"
+  )
+  local pair f label squashed
+  for pair in "${pointer_sites[@]}"; do
+    f="${pair%%|*}"
+    label="${pair##*|}"
+    # Squash newlines so a pointer phrase wrapped across a line break (prose
+    # word-wrap) still matches a single-line substring check.
+    squashed=$(tr '\n' ' ' < "$f" | tr -s ' ')
+    case "$squashed" in
+      *"ROLE_COMMON.md $label"*) : ;;
+      *)
+        log_info "TEST-019: $f has no pointer to ROLE_COMMON.md $label"
+        ok=0
+        ;;
+    esac
+  done
+
+  # (c) SKILL_TDD dead sections gone; troubleshooting pointer present
+  if grep -qF '## Token Optimization' .aai/SKILL_TDD.prompt.md || \
+     grep -qF '## Example Complete Cycle' .aai/SKILL_TDD.prompt.md; then
+    log_info "TEST-019: SKILL_TDD.prompt.md still carries a dead prose section"
+    ok=0
+  fi
+  if ! grep -qF 'SKILL_DEBUG.prompt.md' .aai/SKILL_TDD.prompt.md; then
+    log_info "TEST-019: SKILL_TDD.prompt.md Troubleshooting has no pointer to SKILL_DEBUG.prompt.md"
+    ok=0
+  fi
+
+  # (d) SKILL_LOOP VALIDATOR INDEPENDENCE points at SUBAGENT_PROTOCOL.md
+  if ! grep -qF 'SUBAGENT_PROTOCOL.md' .aai/SKILL_LOOP.prompt.md; then
+    log_info "TEST-019: SKILL_LOOP.prompt.md VALIDATOR INDEPENDENCE has no SUBAGENT_PROTOCOL.md pointer"
+    ok=0
+  fi
+  if grep -qF 'Prefer a different model_id than the implementer when the platform' .aai/SKILL_LOOP.prompt.md; then
+    log_info "TEST-019: SKILL_LOOP.prompt.md still restates VALIDATOR INDEPENDENCE prose"
+    ok=0
+  fi
+
+  # (e) leak-safe exec recipe (VALIDATION) survives verbatim
+  if ! grep -qF 'AAI_REAP_STEP_START_EPOCH=$(date +%s)' .aai/VALIDATION.prompt.md || \
+     ! grep -qF '.aai/scripts/aai-run-tests.sh <cmd>' .aai/VALIDATION.prompt.md || \
+     ! grep -qF '.aai/scripts/aai-reap-tests.sh' .aai/VALIDATION.prompt.md; then
+    log_info "TEST-019: VALIDATION.prompt.md LEAK-SAFE EXECUTION recipe regressed"
+    ok=0
+  fi
+
+  # (f) scope-lock acquire/exit-code lines (ORCHESTRATION_PARALLEL) survive
+  if ! grep -qF 'docs-lock.mjs acquire <scope> <owner>' .aai/ORCHESTRATION_PARALLEL.prompt.md || \
+     ! grep -qF 'exit 3 => scope is held by a live lock' .aai/ORCHESTRATION_PARALLEL.prompt.md || \
+     ! grep -qF 'docs-lock.mjs release <scope> <owner>' .aai/ORCHESTRATION_PARALLEL.prompt.md || \
+     ! grep -qF 'exit 4 => lock is owned by someone else' .aai/ORCHESTRATION_PARALLEL.prompt.md; then
+    log_info "TEST-019: ORCHESTRATION_PARALLEL.prompt.md SCOPE LOCKING acquire/exit-code lines regressed"
+    ok=0
+  fi
+
+  # (g) INV-14 pointer + WRITER RULE both present (SKILL_CHECK_STATE)
+  if ! grep -qF 'check-state.mjs` header' .aai/SKILL_CHECK_STATE.prompt.md || \
+     ! grep -qF 'WRITER RULE: always append into the EXISTING metrics.work_items.<ref>.agent_runs' .aai/SKILL_CHECK_STATE.prompt.md; then
+    log_info "TEST-019: SKILL_CHECK_STATE.prompt.md INV-14 pointer + WRITER RULE regressed"
+    ok=0
+  fi
+
+  # (h) RECONCILE WORKTREE TELEMETRY exit-code branching + FALLBACK survive
+  if ! grep -qF 'node .aai/scripts/reconcile-telemetry.mjs --ref <ref>' .aai/SKILL_PR.prompt.md || \
+     ! grep -qF 'Exit 0 (carried or no-op)' .aai/SKILL_PR.prompt.md || \
+     ! grep -qF 'Exit 1 (write happened, post-write verify failed)' .aai/SKILL_PR.prompt.md; then
+    log_info "TEST-019: SKILL_PR.prompt.md RECONCILE WORKTREE TELEMETRY recipe regressed"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-019 core-prompt-diet dedup + surviving recipes intact" \
+    || log_fail "TEST-019 core-prompt-diet dedup + surviving recipes"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -671,6 +803,7 @@ main() {
   test_016_skill_loop_prompt_hash_pointer
   test_017_dashboard_test_skills_pins
   test_018_journal_report_contract_pins
+  test_019_core_prompt_diet_dedup
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

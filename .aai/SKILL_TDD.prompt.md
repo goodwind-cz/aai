@@ -63,10 +63,7 @@ Implementation.
      strategy to TDD or to continue with regular loop implementation.
    - If strategy is `undecided`, return to Planning. Do not start RED.
 
-6. **Resolve worktree decision gate**
-   - If `worktree.recommendation` is `recommended` or `required` and
-     `worktree.user_decision` is `undecided`, run `.aai/SKILL_WORKTREE.prompt.md`
-     operation `recommendation gate` and STOP for the user's answer.
+6. **Resolve worktree decision gate** — see .aai/ROLE_COMMON.md WORKTREE GATE.
    - If user selected `inline`, confirm `worktree.inline_review_scope` is explicit.
      If it is missing or ambiguous, STOP and ask for exact paths or diff range.
    - If user selected `worktree`, continue only inside the recorded worktree path.
@@ -176,15 +173,10 @@ product_red-classified.
    - The expert MUST return a result block per `.aai/SUBAGENT_CONTRACT.md`
    - If fetch fails or no match, implement without expert (graceful degradation)
 
-0b. **Python Monty Scratchpad (optional)** — pre-implementation only.
-   - If `.claude/skills/aai-python-monty/SKILL.md` exists and the current TEST-xxx is Python,
-     you may read it and use pydantic-monty to prototype small isolated logic before editing production code.
-   - Use it only for pure functions, data transformations, parser checks, type-hint checks,
-     or agent-generated code that calls explicit narrow host functions.
-   - Do not use it for project imports, third-party libraries, filesystem/network access,
-     framework behavior, database access, secrets, or final validation evidence.
-   - A Monty pass never replaces RED/GREEN evidence. The selected failing test must still be
-     made GREEN through the repository's normal test command.
+0b. **Python Monty Scratchpad (optional)** — see .aai/ROLE_COMMON.md PYTHON
+   MONTY SCRATCHPAD. A Monty pass never replaces RED/GREEN evidence — the
+   selected failing test must still be made GREEN through the repository's
+   normal test command.
 
 1. **Implement Minimal Solution**
    - Write the simplest code that makes the test pass
@@ -305,21 +297,10 @@ No completion claim in this phase without the `.aai/SKILL_VERIFY.prompt.md` gate
    - Update `docs/knowledge/FACTS.md` with learnings
    - Update `docs/knowledge/PATTERNS.md` if new pattern emerged
 
-1b. **Pre-Handoff AC-Table Reconciliation (SPEC-0012 G4 — self-check, not a verdict)**
-   Before handing off to Validation, reconcile the spec's
-   `## Acceptance Criteria Status` table for every Spec-AC covered by the
-   completed TDD cycles:
-   - Set each covered row to a terminal status (done | deferred | blocked |
-     rejected) with concrete Evidence (commit SHA, RUN_ID, or the
-     docs/ai/tdd/*.log paths from the cycles).
-   - A row you truthfully cannot finish gets `deferred`/`blocked` with a FUTURE
-     Review-By date plus Notes — never a fabricated `done`.
-   - Emit `ac_status` events (best-effort):
-     `node .aai/scripts/append-event.mjs --event ac_status --ref <SPEC-ID>/<Spec-AC-ID> --from planned --to done`
-   - Then run the close-gate self-check and fix until exit 0 before reporting complete:
-     `node .aai/scripts/docs-audit.mjs --gate <SPEC-ID>`
-   Validation's AC-STATUS GATE remains the enforcement backstop; this step stops
-   a gate-opted spec from reaching Validation with `planned` rows.
+1b. **Pre-Handoff AC-Table Reconciliation** — see .aai/ROLE_COMMON.md
+   PRE-HANDOFF AC-TABLE RECONCILIATION. "Covered by" here means every Spec-AC
+   covered by the completed TDD cycles; Evidence may be a commit SHA, RUN_ID,
+   or the docs/ai/tdd/*.log paths from those cycles.
 
 2. **Run Standard Validation**
    - Execute `.aai/VALIDATION.prompt.md` or dispatch Validation through
@@ -359,27 +340,6 @@ No completion claim in this phase without the `.aai/SKILL_VERIFY.prompt.md` gate
      - the user explicitly confirms committing
    - If approval is missing, report candidate files and a suggested commit message
      without running `git commit`.
-
-## Token Optimization
-
-### Efficiency Strategies
-
-1. **Incremental Testing**
-   ```bash
-   # Run only the test you're working on
-   npm test -- --testNamePattern="login validation"
-
-   # Run only changed files
-   npm test -- --onlyChanged
-   ```
-
-2. **Cached Results**
-   - Reuse evidence files for similar tasks
-   - Reference previous TDD cycles in FACTS.md
-
-3. **Parallel TDD**
-   - Multiple features can have independent TDD cycles
-   - Use git worktrees for parallel development
 
 ## Integration with AAI Workflow
 
@@ -441,58 +401,9 @@ The difference is discipline: TDD enforces RED→GREEN→REFACTOR per test.
    - Detect if implementation is more complex than needed
    - Suggest simplification
 
-## Example Complete Cycle
-
-```
-User: "Add password strength validation"
-
-1. RED Phase:
-   - Created: tests/auth/password-strength.spec.ts
-   - Test: "should reject weak passwords"
-   - Run: npm test password-strength
-   - Result: FAIL (expected - function doesn't exist)
-   - Evidence: docs/ai/tdd/red-20260302T084900Z.log
-
-2. GREEN Phase:
-   - Created: src/auth/password-validator.ts
-   - Implementation: basic regex check for 8+ chars, 1 number, 1 special
-   - Run: npm test password-strength
-   - Result: PASS
-   - Evidence: docs/ai/tdd/green-20260302T085200Z.log
-
-3. REFACTOR Phase:
-   - Extracted regex to constant
-   - Added descriptive variable names
-   - Added JSDoc comments
-   - Run: npm test
-   - Result: ALL PASS
-   - Evidence: docs/ai/tdd/refactor-20260302T085500Z.log
-   - Decision: docs/ai/decisions.jsonl
-
-4. Commit:
-   git commit -m "feat: add password strength validation
-
-   TDD cycle: RED → GREEN → REFACTOR
-   Evidence: docs/ai/tdd/
-   "
-```
-
 ## Troubleshooting
-
-### Test never fails (can't get RED)
-- Test may be too simple or already implemented
-- Verify test is actually calling new functionality
-- Check test assertions are meaningful
-
-### Can't get GREEN
-- Implementation may be incomplete
-- Check test expectations are realistic
-- Review error messages for hints
-
-### Tests break during REFACTOR
-- Behavior was changed (not just structure)
-- Revert refactoring and try smaller changes
-- Ensure tests are testing behavior, not implementation details
+See `.aai/SKILL_DEBUG.prompt.md` for the systematic-debugging root-cause gate
+(READ → REPRODUCE → ISOLATE → FIX-AT-CAUSE) when RED/GREEN/REFACTOR stalls.
 
 ## Metrics
 

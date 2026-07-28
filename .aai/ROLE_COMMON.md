@@ -22,3 +22,56 @@ metrics.work_items entry — never a second top-level `metrics:` key.
 FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and
 follow it (agent_runs hand-append + write-safety rules).
 Do NOT estimate any timing or token values. Only record measured/platform values.
+
+## FRICTION HOOK (canon-surface failure capture, default-on)
+Applies to every default-on friction-capture point: `.aai/IMPLEMENTATION.prompt.md`
+(canon-surface check failure), `.aai/VALIDATION.prompt.md` (canon-file gate/lint/CI
+failure during discovery, AND a FAIL verdict at step 8), and
+`.aai/REMEDIATION.prompt.md` (a failure categorized as AAI-owned). When the named
+trigger fires, best-effort record it per `.aai/system/FRICTION_PROTOCOL.md`
+"Skill wiring (shadow capture)" -> "Deterministic hook points" (schema v2);
+swallow any capture failure — it must never affect, block, or change the
+calling step's own outcome. Each caller below names only its own trigger and
+the specific outcome the capture must never touch.
+
+## PYTHON MONTY SCRATCHPAD (optional, pre-implementation only)
+Applies to `.aai/IMPLEMENTATION.prompt.md` step 6c and `.aai/SKILL_TDD.prompt.md`
+Phase 2 step 0b. If `.claude/skills/aai-python-monty/SKILL.md` exists and the
+current unit of work is Python, you may read it and use pydantic-monty to
+prototype small isolated logic before editing production code.
+- Use it only for pure functions, data transformations, parser checks,
+  type-hint checks, or agent-generated code that calls explicit narrow host
+  functions.
+- Do not use it for project imports, third-party libraries, filesystem/network
+  access, framework behavior, database access, secrets, or final validation
+  evidence.
+A Monty pass is never completion by itself; each caller below names what
+actually finishes the work.
+
+## PRE-HANDOFF AC-TABLE RECONCILIATION (SPEC-0012 G4 — self-check, not a verdict)
+Applies to `.aai/IMPLEMENTATION.prompt.md` step 9b and `.aai/SKILL_TDD.prompt.md`
+Phase 4 step 1b. Before handing off to Validation, reconcile the spec's
+`## Acceptance Criteria Status` table for every Spec-AC covered by the
+completed work:
+- Set each covered row to a terminal status (done | deferred | blocked |
+  rejected) with concrete Evidence (commit SHA, RUN_ID, or log path).
+- A row you truthfully cannot finish gets `deferred`/`blocked` with a FUTURE
+  Review-By date plus Notes — never a fabricated `done`.
+- Emit `ac_status` events (best-effort):
+    node .aai/scripts/append-event.mjs --event ac_status --ref <SPEC-ID>/<Spec-AC-ID> --from planned --to done
+- Then run the close-gate self-check and fix until exit 0 before reporting
+  complete:
+    node .aai/scripts/docs-audit.mjs --gate <SPEC-ID>
+Validation's AC-STATUS GATE remains the enforcement backstop; this step stops
+a gate-opted spec from reaching Validation with `planned` rows. Each caller
+below names only its own "covered by" scope and its evidence shape.
+
+## WORKTREE GATE (recommendation decision check)
+Applies to `.aai/ORCHESTRATION_PARALLEL.prompt.md`, `.aai/IMPLEMENTATION.prompt.md`
+step 5, and `.aai/SKILL_TDD.prompt.md` Phase 0 step 6.
+Condition: `worktree.recommendation` is `recommended` or `required` AND
+`worktree.user_decision` is `undecided`.
+Action: dispatch `.aai/SKILL_WORKTREE.prompt.md` operation `recommendation gate`
+and STOP until the user answers. Never create a worktree without user
+confirmation. Each caller below adds its own handling for the already-decided
+`worktree`/`inline` cases.

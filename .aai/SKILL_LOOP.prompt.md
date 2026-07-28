@@ -74,12 +74,9 @@ LOOP PARAMETERS (use defaults unless overridden by caller)
     - stagnation: focus_ref_id AND validation_status both unchanged for `stagnation_limit`
       consecutive ticks (no forward progress) → escalate to HITL, do not burn remaining ticks
     - run budget: when max_run_tokens or max_run_cost_usd is > 0 and the cumulative
-      cost recorded in LOOP_TICKS.jsonl (sum of token/est_cost_usd fields, which are
-      best-effort and only present when the runtime exposes real usage) meets or
-      exceeds the limit → escalate to HITL before starting another (bigger, costlier)
-      tick. Rationale: a loop that runs ten times costs ten prompts that each keep
-      getting bigger — bound the run so unattended cost cannot grow unchecked. If no
-      usage data is recorded, this condition never fires (no fabricated estimates).
+      cost recorded in LOOP_TICKS.jsonl meets or exceeds the limit → escalate to
+      HITL before starting another tick. See step 2f (RUN BUDGET) below for the
+      full computation and rationale.
 
 LEAK-SAFE TEST EXECUTION (SPEC-0009 / ISSUE-0002)
 Every externally-spawned test/build process must be in a killable group,
@@ -100,12 +97,9 @@ after a 17-tick run). This is a hard rule for every test-running tick:
   launches), capture the step-start epoch — `AAI_REAP_STEP_START_EPOCH=$(date +%s)`
   — and export it. After any test-running tick, run `.aai/scripts/aai-reap-tests.sh`
   with that same `AAI_REAP_STEP_START_EPOCH` in its environment, to sweep
-  this-workspace survivors. The reaper is workspace-scoped (`$PWD`) and uses that
-  step-start epoch for a deterministic, overhead-independent age guard (a fresh
-  concurrent sibling spawned at/after the step boundary is always spared, a
-  genuine pre-step survivor is always reaped) — NEVER a global `pkill -f vitest`.
-  If the step owner does not capture/pass `AAI_REAP_STEP_START_EPOCH`, the reaper
-  fails safe to its legacy fixed-`AAI_REAP_MIN_AGE_SECS` behavior.
+  this-workspace survivors. See the script's header comment for the safety
+  contract (deterministic step-start-relative age guard, legacy fallback,
+  never a global `pkill -f vitest`).
 - TICK-LOG ACCOUNTING: record `lingering_procs` (post-reap workspace vitest/esbuild
   count) and `free_memory` in the tick log line (step 6), mirroring the existing
   token/cost discipline so a leak is VISIBLE, not silent.
@@ -257,12 +251,9 @@ For each tick (1..max_ticks):
        rubber-stamps. Spawn a DEDICATED validator subagent whose context contains
        ONLY the artifacts (requirement/spec, implementation diff/paths, evidence,
        .aai/SUBAGENT_CONTRACT.md) — never the implementer's accumulated working
-       context. Prefer a different model_id than the implementer when the platform
-       offers one (a different model is less likely to share the implementer's
-       blind spots). If true context isolation is impossible (no subagent support),
-       run validation only after CLEARING/RESETTING context and re-deriving solely
-       from the filesystem + evidence, and record "validator shared context with
-       implementer" as a residual risk that lowers confidence in the PASS.
+       context. See `.aai/SUBAGENT_PROTOCOL.md` "Spawning a validator in a
+       separate agent" for the model-selection rule and the no-isolation
+       fallback (residual-risk recording).
      - Capture role_ended_utc immediately after completion from system clock.
      - Capture harness-reported usage from the completed role's tool result per SUBAGENT_PROTOCOL.md "Harness-reported usage capture" (decomposed -> tokens-in/out flags; undecomposed total -> merge-append note; nothing -> omit). The `usage_total_tokens=<N>` note is MANDATORY at merge time whenever the harness exposed a total — never optional; skipping it is what left METRICS.jsonl with 0 recorded tokens across 255 runs (token-capture-canary).
      - Dispatch printed `Prompt hash: <hex>`? Pass the full hex (JSON `prompt_hash`) as `--prompt-hash` on this role's append-run.

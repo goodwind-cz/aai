@@ -126,14 +126,13 @@ PROCESS
       `AAI_REAP_STEP_START_EPOCH=$(date +%s)` — BEFORE launching the test
       command, then run every discovered test command THROUGH the
       process-group wrapper `.aai/scripts/aai-run-tests.sh <cmd>` — never
-      invoke `vitest`/`tsc`/dev-servers directly — so a suite that leaks open
-      handles cannot orphan a hung tree (a timeout maps to exit 124). After the
-      test step completes, reap this-workspace survivors on the step boundary
-      with the workspace-scoped reaper `.aai/scripts/aai-reap-tests.sh`, passing
-      it that same `AAI_REAP_STEP_START_EPOCH` so its age guard is a
-      deterministic, overhead-independent step-start-relative decision (never a
-      global `pkill -f vitest`; an unset epoch fails safe to the reaper's legacy
-      fixed-`AAI_REAP_MIN_AGE_SECS` behavior).
+      invoke `vitest`/`tsc`/dev-servers directly. After the test step
+      completes, reap this-workspace survivors on the step boundary with the
+      workspace-scoped reaper `.aai/scripts/aai-reap-tests.sh`, passing it that
+      same `AAI_REAP_STEP_START_EPOCH`. See the header comments of both
+      scripts for the full safety contract (group-kill guarantee, timeout
+      exit-124 convention, epoch-vs-legacy age-guard modes, never a global
+      `pkill -f vitest`).
    d) If e2e tests exist (config file or test directory found) but were NOT executed → automatic FAIL.
    e) Record exit code and output for every test command as evidence.
    f) For each seam identified during planning (PLANNING step 6a), confirm an INTEGRATION test actually crosses it and was
@@ -150,19 +149,17 @@ PROCESS
       --red <log>` on the scope's recorded RED log(s); infra_fail or
       unclassified NEW evidence is not RED-proof. Legacy logs (pre-change, no
       RED_CLASS line) keep today's by-eye spot-check.
-   h) FRICTION HOOK (canon-file gate/lint/CI failure, default-on): when a gate,
-      lint, or CI check fails on an AAI-owned canon file during discovery,
-      best-effort record it per `.aai/system/FRICTION_PROTOCOL.md` "Skill
-      wiring (shadow capture)" -> "Deterministic hook points" (schema v2);
-      swallow any capture failure, never let it affect this step's outcome.
+   h) FRICTION HOOK — best-effort record per `.aai/system/FRICTION_PROTOCOL.md`
+      (see .aai/ROLE_COMMON.md FRICTION HOOK for the full capture contract).
+      Trigger: a gate, lint, or CI check fails on an AAI-owned canon file
+      during discovery. Never let it affect this step's outcome.
 6) Build coverage table.
 7) Run AC STATUS GATE (see section above) and record any blocking findings.
 7b) Apply the `.aai/SKILL_VERIFY.prompt.md` gate before producing any verdict.
 8) Produce PASS / FAIL verdict. PASS requires both (a) all test suites green and (b) AC STATUS GATE clear.
-   FRICTION HOOK (validation FAIL recorded, default-on): on a FAIL verdict,
-   best-effort record it per `.aai/system/FRICTION_PROTOCOL.md` "Deterministic
-   hook points" (schema v2); swallow any capture failure, never let it change
-   the verdict.
+   FRICTION HOOK — best-effort record per `.aai/system/FRICTION_PROTOCOL.md`
+   (see .aai/ROLE_COMMON.md FRICTION HOOK for the full capture contract).
+   Trigger: a FAIL verdict was just recorded. Never let it change the verdict.
 8a) For each Spec-AC that moved to `done` during this validation (Evidence column populated), append an `ac_evidence` event to docs/ai/EVENTS.jsonl via:
     node .aai/scripts/append-event.mjs --event ac_evidence --ref SPEC-XXXX/Spec-AC-YY --commit <sha-or-RUN_ID>
     EXCEPTION: if the doc's frontmatter `status` is still open (`draft`/`implementing`) and its only matchable ref is the slug `id` (no numbered `fileId` yet), do NOT emit this event now — the slug ref unconditionally trips the probable-false-open heuristic's Arm A and would self-flag the still-open doc. Record the per-AC evidence in the validation report instead and defer emission to the close ceremony (step 8b), once `status` has flipped to `done`. Numbered docs and already-`done` docs are unaffected.

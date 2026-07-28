@@ -37,10 +37,10 @@ PROCESS
      defects — close one only when the dispatch explicitly asks for it
    Before fixing ANY defect: apply the root-cause gate in
    .aai/SKILL_DEBUG.prompt.md — READ → REPRODUCE → ISOLATE → FIX-AT-CAUSE.
-   FRICTION HOOK (remediation dispatched, default-on): once a failure above is
-   categorized as AAI-owned, best-effort record it per
-   .aai/system/FRICTION_PROTOCOL.md "Deterministic hook points" (schema v2)
-   before applying any fix; swallow any capture failure, never block the fix.
+   FRICTION HOOK — best-effort record per `.aai/system/FRICTION_PROTOCOL.md`
+   (see .aai/ROLE_COMMON.md FRICTION HOOK for the full capture contract).
+   Trigger: a failure above was just categorized as AAI-owned. Record it
+   before applying any fix; never block the fix.
 3) Apply fixes in order:
    a) Spec fixes (mapping, measurability, verification commands)
    b) Evidence fixes (commands, scripts, tests)

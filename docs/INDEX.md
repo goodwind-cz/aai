@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T20:13:59.600Z
+Generated: 2026-07-28T21:29:52.399Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -279,9 +279,11 @@ _None._
 | SPEC-0105 | specs | docs/specs/SPEC-0105-spec-product-docs-capability-model.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| core-prompt-diet (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-core-prompt-diet.md |
 
 ## Deferred (whole-doc) (0)
 
