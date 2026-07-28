@@ -136,6 +136,10 @@ The system SHALL expire an idle authenticated session after 15 minutes.
 ## Acceptance Criteria Status
 
 Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
+Write Description cells in EARS form where a behavior is testable —
+"WHEN <trigger> the system SHALL <response>" (Kiro pattern) — so the AC
+maps 1:1 onto a TEST assertion; plain statements stay fine for structural
+or bookkeeping ACs. Never use pipe characters inside cells.
 
 | Spec-AC    | Description                    | Status      | Evidence       | Review-By   | Notes                          |
 |------------|--------------------------------|-------------|----------------|-------------|--------------------------------|

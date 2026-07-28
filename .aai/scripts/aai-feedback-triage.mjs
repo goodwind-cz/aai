@@ -28,6 +28,7 @@ const REPORT_SCHEMA = 'aai-triage/v1';
 // The FRICTION_PROTOCOL failure-class taxonomy (AAI-ownership gate).
 const FAILURE_CLASSES = new Set([
   'contradictory_instructions',
+  'stalled_progress',
   'missing_or_invalid_artifact',
   'deterministic_script_failure',
   'abstraction_leak_recovery',

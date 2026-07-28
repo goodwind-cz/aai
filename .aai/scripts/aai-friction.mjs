@@ -74,6 +74,7 @@ const MAX_ID_LEN = 128;
 
 const FAILURE_CLASSES = [
   'contradictory_instructions',
+  'stalled_progress',
   'missing_or_invalid_artifact',
   'deterministic_script_failure',
   'abstraction_leak_recovery',

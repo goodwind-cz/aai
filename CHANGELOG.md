@@ -11,6 +11,17 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — chore: follow-ups batch B — stalled_progress friction class, EARS AC guidance (CHANGE-0084) [L1]
+
+- NEW seventh friction failure_class `stalled_progress` (dead-watcher
+  parking, artifact-that-never-comes waits, no-state-change loops) across
+  the taxonomy doc and all three enum sites; TEST-020 pins accept+reject.
+- SPEC_TEMPLATE AC guidance: testable Description cells in EARS form
+  (WHEN trigger the system SHALL response — Kiro pattern).
+- Disposition recorded: metrics-report per-run hash display is
+  resolved-as-designed (SPEC-0096 conditional grouping preserves report
+  additivity; always-on variant stays rejected).
+
 ## [unreleased] — chore: follow-ups batch A — single STATE creator, reaper raw capture, structured migration verdict (CHANGE-0083) [L2]
 
 - autonomous-loop.sh create_state_file() delegates to check-state --repair
