@@ -11,7 +11,7 @@ and relay its output. Publishable via `/aai-share`.
 ```bash
 node .aai/scripts/generate-docs-hub.mjs
 # defaults: reads .claude/skills/*/SKILL.md, writes docs/SKILL_CATALOG.html
-# (also writes docs/skill-catalog-data.json next to the output)
+# (always also writes docs/skill-catalog-data.json at that fixed path, regardless of --output)
 
 node .aai/scripts/generate-docs-hub.mjs --output <path>
 node .aai/scripts/generate-docs-hub.mjs --data-only   # skip HTML, JSON only

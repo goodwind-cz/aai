@@ -129,7 +129,7 @@ exists to close).
   - Verification: `wc -l -c .aai/SKILL_DOCS_HUB.prompt.md`; manual read
     confirming the LLM-categorization language is present and scoped
     "only if asked"; `node .aai/scripts/generate-docs-hub.mjs` live run
-    against the repo, `grep -c 'skill-card' docs/SKILL_CATALOG.html`
+    against the repo, `grep -c '<div class="skill-card"' docs/SKILL_CATALOG.html`
     (== 34).
 
 ## Constitution deviations
@@ -222,7 +222,7 @@ For each Spec-AC, enumerate concrete tests:
 | TEST-010 | Spec-AC-04 | unit | tests/skills/test-aai-prompt-diet.sh | TEST-010 byte floor + headroom cap (636/2048) after the ledger true-up | green |
 | TEST-011 | Spec-AC-04 | unit | tests/skills/test-aai-layer-profiles.sh | 100% .aai classification against the live tree, including the new script | green |
 | TEST-012 | Spec-AC-04 | unit | tests/skills/test-aai-hygiene-pack.sh | Every test-aai-*.sh has a suite-map.yaml row (aai-docs-hub auto-satisfied) | green |
-| TEST-013 | Spec-AC-05 | e2e | manual smoke | node generate-docs-hub.mjs against the live repo: 34 skill-card divs, footer "34 skills" | green |
+| TEST-013 | Spec-AC-05 | e2e | manual smoke | node generate-docs-hub.mjs against the live repo: 34 <div class="skill-card" opens, footer "34 skills" | green |
 
 Notes:
 - Every Spec-AC has at least one TEST-xxx entry.

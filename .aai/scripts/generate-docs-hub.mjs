@@ -242,10 +242,10 @@ function main() {
   const model = buildModel();
   const dataPath = path.join(ROOT, 'docs/skill-catalog-data.json');
   fs.writeFileSync(dataPath, `${JSON.stringify(model, null, 2)}\n`);
+  console.log(`docs-hub: ${model.skillsCount} skills (${model.degradedCount} with extraction notes)`);
   if (!args.dataOnly) {
     const htmlPath = path.resolve(ROOT, args.outputPath);
     fs.writeFileSync(htmlPath, renderHtml(model));
-    console.log(`docs-hub: ${model.skillsCount} skills (${model.degradedCount} with extraction notes)`);
     console.log(`- ${path.relative(ROOT, htmlPath)}`);
   }
   console.log(`- docs/skill-catalog-data.json`);

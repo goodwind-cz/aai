@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-docs-hub — deterministic skills catalog generator
-# (docs/specs/SPEC-0102-spec-docs-hub-generator.md, TEST-001..007).
+# (docs/specs/SPEC-0102-spec-docs-hub-generator.md, TEST-001..008).
 #
 # Verifies .aai/scripts/generate-docs-hub.mjs:
 #   - TEST-001 (Spec-AC-01): every skill directory under a fixture's
@@ -391,7 +391,7 @@ test_008_unknown_flag_exits_2_writes_nothing() {  # review pin (PR #180): docume
 }
 
 main() {
-  echo "Testing $TEST_NAME (spec-docs-hub-generator TEST-001..007)"
+  echo "Testing $TEST_NAME (spec-docs-hub-generator TEST-001..008)"
   check_deps
   setup_fixture
   test_001_all_skills_present_count_pin
