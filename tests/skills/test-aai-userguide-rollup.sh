@@ -322,6 +322,25 @@ test_010_placeholder_excluded() {
   log_pass "Placeholder-doc exclusion: real (None.) doc renders, placeholder doc excluded (TEST-010)"
 }
 
+# --- TEST-014 (CHANGE-0075): exclusions are NAMED, never silent ---------------
+
+test_014_exclusion_named_on_stdout() {
+  log_info "Test: every excluded product doc is named on stdout with its missing sections (TEST-014, CHANGE-0075)..."
+  local dir; dir=$(new_fixture_dir "t014")
+  write_product_doc "$dir" "feature-real" "2026-01-01" "Feature Real" "None."
+  write_placeholder_product_doc "$dir" "feature-placeholder" "2026-01-02" "Feature Placeholder"
+
+  local out="$TEST_DIR/t014.out" err="$TEST_DIR/t014.err" code
+  code=$(run_rollup "$dir" "$out" "$err")
+  [[ "$code" == "0" ]] || log_fail "t014: generator exited $code: $(cat "$err")"
+
+  grep -qE '^userguide-rollup: EXCLUDED docs/product/feature-placeholder\.md missing=' "$out" \
+    || log_fail "t014: excluded doc must be NAMED on stdout with missing= sections (no silent truncation): $(cat "$out")"
+  grep -qF 'EXCLUDED docs/product/feature-real.md' "$out" \
+    && log_fail "t014: a fully-valid doc must never be reported EXCLUDED: $(cat "$out")"
+  log_pass "Exclusions named on stdout with missing sections; valid docs unaffected (TEST-014)"
+}
+
 # --- TEST-011 (fixture diversity: degenerate/empty) --------------------------
 
 test_011_empty_product_dir() {
@@ -354,6 +373,7 @@ main() {
   test_008_byte_idempotent
   test_009_sorted_updated_desc
   test_010_placeholder_excluded
+  test_014_exclusion_named_on_stdout
   test_011_empty_product_dir
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
