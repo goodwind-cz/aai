@@ -85,11 +85,8 @@ INVARIANT CHECKS (run all, report each)
          the first block's work_items and agent_runs on a lenient YAML load
          (last-key-wins), so data is dropped with no error.
     PASS if every top-level key is unique.
-    DETECT: node .aai/scripts/check-state.mjs docs/ai/STATE.yaml (pure text scan,
-         no YAML dependency; exits non-zero naming the duplicated key).
-    REPAIR: node .aai/scripts/check-state.mjs --repair docs/ai/STATE.yaml merges
-         the duplicate `metrics:` blocks into one — union work_items, concatenate
-         agent_runs — with ZERO data loss, then re-validates.
+    DETECT/REPAIR: run `check-state.mjs --repair` — see the
+         `.aai/scripts/check-state.mjs` header for usage, flags, merge semantics.
     WRITER RULE: always append into the EXISTING metrics.work_items.<ref>.agent_runs
          list under the single top-level `metrics:` key (full write-safety rules:
          .aai/STATE_FALLBACK.md).

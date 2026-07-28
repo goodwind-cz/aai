@@ -74,13 +74,8 @@ PROCESS
      bundled into a feature commit).
 
 2b. RECONCILE WORKTREE TELEMETRY (CHANGE-0039 / SPEC-0055) — after staging,
-   BEFORE the step-3 audit: worktree-isolated scopes build in a linked git
-   worktree while STATE/flush run in the MAIN checkout, which strands the
-   scope's committed-class `docs/ai/METRICS.jsonl` ledger record (and any
-   scope-ref `docs/ai/EVENTS.jsonl` lines) as an uncommitted edit in main —
-   lost on branch/worktree cleanup unless carried onto this branch now
-   (observed live on PR #99). Run the deterministic helper from the scope
-   tree:
+   BEFORE the step-3 audit. Rationale: see `.aai/scripts/reconcile-telemetry.mjs`
+   header PURPOSE. Run the deterministic helper from the scope tree:
        node .aai/scripts/reconcile-telemetry.mjs --ref <ref>
    - Detects sibling worktrees via `git worktree list --porcelain` (no STATE
      read); for an INLINE scope (no sibling) or nothing stranded for this

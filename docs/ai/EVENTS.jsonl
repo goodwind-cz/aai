@@ -1363,3 +1363,6 @@
 {"v":1,"ts":"2026-07-28T20:13:42.938Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"product-capability-refinements","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-28T20:13:42.970Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"product-capability-refinements","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-28T20:13:42.999Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"product-capability-refinements","payload":{"commit":"ee85667b36a23ad0ad84f6141797381909c3c324"}}
+{"v":1,"ts":"2026-07-28T21:32:41.184Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"core-prompt-diet","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-28T21:32:41.216Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"core-prompt-diet","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-28T21:32:41.248Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"core-prompt-diet","payload":{"commit":"60a97f5eeab58247e70c9bd4c50d12ad87c3f958"}}

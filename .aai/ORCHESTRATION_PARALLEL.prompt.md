@@ -45,11 +45,12 @@ SCOPE LOCKING (atomic, mechanical — RFC-0004 / SPEC-0004)
   - exit 0 => lock held by you; dispatch the workstream.
   - exit 3 => scope is held by a live lock; DO NOT dispatch — defer the scope.
 - AFTER merging that scope's result into STATE.yaml, RELEASE the lock:
-  `node .aai/scripts/docs-lock.mjs release <scope> <owner>` (exit 0; exit 4 means
-  the lock is owned by someone else — investigate, do not force).
-- `docs-lock list` shows current locks; `docs-lock reap` reclaims expired (dead-
-  owner) locks. A crashed owner's scope self-heals after the TTL (default 1800s);
-  never hand-edit lock files.
+  `node .aai/scripts/docs-lock.mjs release <scope> <owner>`
+  - exit 0 => released.
+  - exit 4 => lock is owned by someone else — investigate, do not force.
+- `docs-lock list` shows current locks; `docs-lock reap` reclaims expired
+  (dead-owner) locks; never hand-edit lock files. See the script's header
+  comment for the full exit-code table and TTL default.
 - DEGRADE-AND-REPORT FALLBACK (SPEC-0004 D8): if `.aai/scripts/docs-lock.mjs` is
   ABSENT (older AAI layer), fall back to advisory `.aai/system/LOCKS.md` and
   default to K=1 (single-agent safe), and report the degraded mode.
@@ -84,10 +85,8 @@ IMPLEMENTATION STRATEGY AND ISOLATION
   dispatch `.aai/SKILL_TDD.prompt.md`, not free-form Implementation.
 - If `implementation_strategy.selected == hybrid`, dispatch only the next explicit
   TDD or loop segment from the spec.
-- If worktree.recommendation is `recommended` or `required` and user_decision is
-  `undecided`, classify as NEEDS_WORKTREE_DECISION and dispatch
-  `.aai/SKILL_WORKTREE.prompt.md` operation `recommendation gate`.
-- Never create a worktree without user confirmation.
+- WORKTREE GATE — see .aai/ROLE_COMMON.md WORKTREE GATE. When the condition
+  holds, classify the scope as NEEDS_WORKTREE_DECISION.
 - Inline scopes can be parallelized only when their file/path review scopes do
   not overlap.
 - Code review can run without a worktree if each scope has a clean explicit diff.

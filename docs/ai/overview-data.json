@@ -1,31 +1,38 @@
 {
-  "generatedAt": "2026-07-28T20:13:54.095Z",
+  "generatedAt": "2026-07-28T22:13:12.656Z",
   "project": "aai",
   "counts": {
-    "delivered": 134,
+    "delivered": 135,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "product-capability-refinements",
+    "ref": "core-prompt-diet",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "product-capability-refinements",
+      "ref": "core-prompt-diet",
       "type": "intake_change",
       "phase": "implementation"
     },
     "strategy": "loop",
     "worktree": {
-      "recommendation": "not_needed",
+      "recommendation": "recommended",
       "user_decision": "inline"
     },
     "validation_status": "not_run",
     "review_status": "not_run",
     "ticks": [
+      {
+        "tick": 2,
+        "role": "Implementation",
+        "scope": "core-prompt-diet",
+        "duration_seconds": 1814,
+        "harness_version": "2.1.218 (Claude Code)"
+      },
       {
         "tick": 2,
         "role": "Code Review",
@@ -52,13 +59,6 @@
         "role": "Validation",
         "scope": "product-docs-capability-model",
         "duration_seconds": 960,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 2,
-        "role": "TDD Implementation",
-        "scope": "product-docs-capability-model",
-        "duration_seconds": 1714,
         "harness_version": "2.1.218 (Claude Code)"
       }
     ]
@@ -231,6 +231,19 @@
       "closed_on": "2026-07-28",
       "agent_minutes": 18,
       "token_total": 60123,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "core-prompt-diet",
+      "title": "Change — core-prompt diet: pointer-ize script-restatement + cross-file dedup into ROLE_COMMON",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0090-core-prompt-diet.md",
+      "closed_on": "2026-07-28",
+      "agent_minutes": null,
+      "token_total": null,
       "spec": null,
       "validation": null,
       "review": null
@@ -1980,6 +1993,19 @@
           "closed_on": "2026-07-28",
           "agent_minutes": 18,
           "token_total": 60123,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "core-prompt-diet",
+          "title": "Change — core-prompt diet: pointer-ize script-restatement + cross-file dedup into ROLE_COMMON",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0090-core-prompt-diet.md",
+          "closed_on": "2026-07-28",
+          "agent_minutes": null,
+          "token_total": null,
           "spec": null,
           "validation": null,
           "review": null
