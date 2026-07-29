@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-07-29T23:24:26.335Z",
+  "generatedAt": "2026-07-29T23:33:52.341Z",
   "project": "aai",
   "counts": {
-    "delivered": 140,
+    "delivered": 141,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -137,6 +137,19 @@
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0095-contract-headroom.md",
+      "closed_on": "2026-07-29",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "github-no-bots-hardening",
+      "title": "Change — R1 GitHub-no-bots hardening: reviewer_bots knob so the PR sweep never waits for bots that will never arrive",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0096-github-no-bots-hardening.md",
       "closed_on": "2026-07-29",
       "agent_minutes": null,
       "token_total": null,
@@ -1964,6 +1977,19 @@
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0095-contract-headroom.md",
+          "closed_on": "2026-07-29",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "github-no-bots-hardening",
+          "title": "Change — R1 GitHub-no-bots hardening: reviewer_bots knob so the PR sweep never waits for bots that will never arrive",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0096-github-no-bots-hardening.md",
           "closed_on": "2026-07-29",
           "agent_minutes": null,
           "token_total": null,

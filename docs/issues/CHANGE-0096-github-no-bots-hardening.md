@@ -1,13 +1,16 @@
 ---
 id: github-no-bots-hardening
+number: 96
 type: change
-status: draft
+status: done
 user_visible: false
 links:
   parent: docs/issues/CHANGE-0085-platform-portable-pr.md
   spec: docs/specs/SPEC-0103-spec-platform-portable-pr.md
-  pr: []
-  commits: []
+  pr:
+    - 199
+  commits:
+    - ca338c9354fd6e080aa0c0cbe73c71d79a922884
 ---
 
 # Change — R1 GitHub-no-bots hardening: reviewer_bots knob so the PR sweep never waits for bots that will never arrive

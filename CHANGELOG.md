@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(pr): reviewer_bots knob so the GitHub PR sweep never waits for absent bots (CHANGE-DRAFT-github-no-bots-hardening) [L2]
+## [unreleased] — feat(pr): reviewer_bots knob so the GitHub PR sweep never waits for absent bots (CHANGE-0096-github-no-bots-hardening) [L2]
 
 - Closes the GITHUB-WITHOUT-BOTS residual from CHANGE-0085/SPEC-0103. The PR
   ceremony's 5d bot-review sweep polls Copilot/Codex inline comments after CI.
