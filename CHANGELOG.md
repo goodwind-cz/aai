@@ -31,9 +31,17 @@ RFC-0001).
   to notify (a typo never auto-syncs); a `throttle_hours` window (default 24h,
   cache in gitignored `.aai/cache/update-check.json`) skips redundant probes,
   and a future-dated or unparseable cache timestamp self-heals (forces a probe
-  instead of throttling forever). New `.aai/scripts/update-check.mjs` (core
-  profile). Suite: `tests/skills/test-aai-update-check.sh` (17 tests, zero real
-  network).
+  instead of throttling forever). Bot-review hardening: auto-sync now runs
+  against the SAME source layer-drift verified (the resolved pin/verdict remote,
+  never a hardcoded default) so a pin naming an alternate canonical can't be
+  overwritten from an unrelated upstream; the detached sync runs to COMPLETION
+  with no watchdog (a slow clone is never SIGKILLed mid-copy into a partial
+  layer); on Windows the check prefers `pwsh` and falls back to `powershell.exe`
+  (PS 5.1) instead of ENOENT; a failed-sync message points at `git status` /
+  `git diff` rather than falsely claiming nothing changed; `throttle_hours` is
+  validated strict digits-only; a future-dated `running` marker no longer wedges
+  the concurrent-sync guard. New `.aai/scripts/update-check.mjs` (core profile).
+  Suite: `tests/skills/test-aai-update-check.sh` (23 tests, zero real network).
 
 ## [v2026.07.28.1] — chore: product capability refinements — delivered_by provenance + telemetry consolidation (CHANGE-0089) [L2]
 

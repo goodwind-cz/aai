@@ -173,22 +173,33 @@ test_notify_behind() {
   local dir="$TMP_ROOT/t001" pin cfg out rc
   mkdir -p "$dir/.aai/system" "$dir/docs/ai"
   git -C "$dir" init -q -b main
+  git -C "$dir" config user.email "test@example.invalid"
+  git -C "$dir" config user.name "AAI Test"
   pin="$dir/.aai/system/AAI_PIN.md"
   cfg="$dir/docs/ai/update-config.yaml"
   write_pin "$pin" "${CANON_SHAS[0]}" "$CANON"
   write_config "$cfg" notify
   echo "keep-me" > "$dir/sentinel.txt"
+  # Finding 4: commit a CLEAN baseline AND gitignore the only permitted write
+  # (.aai/cache/), so porcelain is EMPTY at rest and any UNEXPECTED mutation (a
+  # write OUTSIDE .aai/cache/) shows up. The old uncommitted fixture collapsed
+  # every write under one untracked '?? .aai/' porcelain line, so a stray write
+  # under .aai/ would not have changed the output — a weak no-mutation check.
+  printf '.aai/cache/\n' > "$dir/.gitignore"
+  git -C "$dir" add -A
+  git -C "$dir" commit -qm "clean baseline"
   local before after
-  before="$(cd "$dir" && git status --porcelain 2>/dev/null; ls -1 "$dir")"
+  before="$(cd "$dir" && git status --porcelain)"
+  [[ -z "$before" ]] || log_fail "baseline not clean (bad fixture): [$before]"
   set +e
   out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --force 2>&1)"; rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "notify+behind must exit 0 (got $rc): $out"
   echo "$out" | grep -qi "newer AAI release" || log_fail "expected 'newer AAI release' line, got: $out"
-  after="$(cd "$dir" && git status --porcelain 2>/dev/null; ls -1 "$dir")"
-  [[ "$before" == "$after" ]] || log_fail "notify mode mutated repo files:"$'\n'"before=[$before]"$'\n'"after=[$after]"
+  after="$(cd "$dir" && git status --porcelain)"
+  [[ -z "$after" ]] || log_fail "notify mode mutated repo files (porcelain not empty): [$after]"
   [[ "$(cat "$dir/sentinel.txt")" == "keep-me" ]] || log_fail "notify mode altered a repo file"
-  log_pass "TEST-001 notify surfaces newer-release line, mutates nothing"
+  log_pass "TEST-001 notify surfaces newer-release line, mutates nothing (clean-baseline porcelain)"
 }
 
 # --- TEST-002 — notify + pin equal THEN quiet, no notify, exit 0 --------------
@@ -623,6 +634,159 @@ test_future_dated_cache_probes() {
   log_pass "TEST-017 future-dated throttle cache forces a probe (self-heals)"
 }
 
+# --- TEST-018 — source agreement: sync source derived from the drift verdict ----
+test_source_agreement() {
+  log_info "TEST-018: auto mode + pin naming an ALTERNATE canonical source -> aai-update invoked with that SAME --source (detection and sync agree)..."
+  local dir="$TMP_ROOT/t018" pin cfg outcome recorded out rc
+  mkdir -p "$dir/.aai/scripts" "$dir/.aai/system" "$dir/docs/ai"
+  git -C "$dir" init -q -b main
+  git -C "$dir" config user.email "test@example.invalid"
+  git -C "$dir" config user.name "AAI Test"
+  git -C "$dir" remote add origin "https://example.invalid/some-owner/target.git"
+  # REAL update-check + layer-drift copied in so the detached child's SELF_DIR
+  # resolves to a RECORDING stub aai-update.sh sitting beside them.
+  cp "$CHECK_SCRIPT" "$dir/.aai/scripts/update-check.mjs"
+  cp "$DRIFT_SCRIPT" "$dir/.aai/scripts/layer-drift.mjs"
+  recorded="$dir/.aai/recorded-source.txt"
+  cat > "$dir/.aai/scripts/aai-update.sh" <<STUB
+#!/usr/bin/env bash
+# recording stub: capture the --repo (sync source) it was invoked with.
+repo=""
+while [[ \$# -gt 0 ]]; do case "\$1" in --repo) repo="\$2"; shift 2;; *) shift;; esac; done
+printf '%s\n' "\$repo" > "$recorded"
+echo "stub sync applied"
+exit 0
+STUB
+  chmod +x "$dir/.aai/scripts/aai-update.sh"
+  pin="$dir/.aai/system/AAI_PIN.md"
+  cfg="$dir/docs/ai/update-config.yaml"
+  outcome="$dir/.aai/cache/update-sync-outcome.json"
+  # Pin names the ALTERNATE canonical ($CANON, a local git dir) and is behind it.
+  # NO --source, NO --remote: the source must be DERIVED from the pin/verdict,
+  # NOT default to goodwind-cz/aai (which would overwrite from an unrelated repo).
+  write_pin "$pin" "${CANON_SHAS[0]}" "$CANON"
+  write_config "$cfg" auto
+  set +e
+  out="$(cd "$dir" && node "$dir/.aai/scripts/update-check.mjs" --pin "$pin" --config "$cfg" --outcome "$outcome" --force 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "source-agreement run must exit 0 (got $rc): $out"
+  wait_for_grep "$recorded" "." 20 || log_fail "aai-update stub was never invoked: outcome=$(cat "$outcome" 2>/dev/null)"
+  grep -qF "$CANON" "$recorded" || log_fail "aai-update must sync from the pin-named source '$CANON', got: [$(cat "$recorded")]"
+  log_pass "TEST-018 auto derives the sync --source from the drift verdict (source agreement)"
+}
+
+# --- TEST-019 — detached --run-sync child has NO bounded watchdog ---------------
+test_detached_no_watchdog() {
+  log_info "TEST-019: the detached --run-sync sync runs aai-update with NO bounded watchdog (runs to completion)..."
+  local out rc
+  set +e
+  out="$(node --input-type=module -e "
+import { buildSyncSpawnOptions } from '$CHECK_SCRIPT';
+const detached = buildSyncSpawnOptions(null, '/tmp/x');
+if ('timeout' in detached && detached.timeout !== undefined) { console.error('FAIL: detached sync must be unbounded (no watchdog), got timeout=' + detached.timeout); process.exit(1); }
+const bounded = buildSyncSpawnOptions(5000, '/tmp/x');
+if (bounded.timeout == null) { console.error('FAIL: a bounded call must still set a timeout'); process.exit(1); }
+console.log('ok');
+" 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "detached-no-watchdog assertion failed: $out"
+  log_pass "TEST-019 detached --run-sync sync has no bounded watchdog (runs to completion)"
+}
+
+# --- TEST-020 — future-dated running marker frees the concurrent guard ----------
+test_future_dated_running_marker() {
+  log_info "TEST-020: a running marker with a FUTURE started_utc is NOT treated as in-flight -> a new sync may launch..."
+  local dir="$TMP_ROOT/t020" src="$TMP_ROOT/t020-src" pin cfg outcome out rc
+  build_sync_source "$src"
+  mkdir -p "$dir"
+  git -C "$dir" init -q -b main
+  git -C "$dir" config user.email "test@example.invalid"
+  git -C "$dir" config user.name "AAI Test"
+  git -C "$dir" remote add origin "https://example.invalid/some-owner/target.git"
+  mkdir -p "$dir/.aai/system" "$dir/.aai/cache"
+  pin="$dir/.aai/system/AAI_PIN.md"
+  cfg="$dir/docs/ai/update-config.yaml"
+  outcome="$dir/.aai/cache/update-sync-outcome.json"
+  write_pin "$pin" "${CANON_SHAS[0]}" "$CANON"
+  write_config "$cfg" auto
+  # A running marker dated in the FUTURE: naive (now-started)<=STALE is negative
+  # and wedges the guard forever; it must be treated as never-in-flight (free).
+  printf '{"started_utc":"2099-01-01T00:00:00Z","finished_utc":null,"target_version":null,"result":"running","detail":null,"reported":false}\n' > "$outcome"
+  set +e
+  out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --source "$src" --outcome "$outcome" --now "2026-07-20T11:00:00Z" --force 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "future-dated running marker run must exit 0 (got $rc): $out"
+  echo "$out" | grep -qi "in progress" && log_fail "future-dated running marker must NOT be treated as in-flight, got: $out"
+  echo "$out" | grep -qi "background" || log_fail "a new detached sync must be launched (background), got: $out"
+  wait_for_grep "$outcome" '"result":"applied"' 20 || log_fail "the freshly launched sync outcome not applied: $(cat "$outcome" 2>/dev/null)"
+  log_pass "TEST-020 future-dated running marker frees the concurrent guard (self-heals)"
+}
+
+# --- TEST-021 — throttle_hours strict digits-only validation -------------------
+test_throttle_hours_strict() {
+  log_info "TEST-021: throttle_hours with a non-digit token (24h, 0x10) is rejected -> stderr warning + default 24..."
+  local dir="$TMP_ROOT/t021" pin cfg cache errf out rc bad
+  mkdir -p "$dir/.aai/system" "$dir/.aai/cache"
+  pin="$dir/.aai/system/AAI_PIN.md"
+  cache="$dir/.aai/cache/update-check.json"
+  write_pin "$pin" "${CANON_SHAS[0]}" "$CANON"
+  errf="$TMP_ROOT/t021.err"
+  # Cache 1h before the injected clock: within the DEFAULT 24h window. A run that
+  # correctly rejects the bad token and defaults to 24 STAYS THROTTLED (silent);
+  # a buggy coercion of "0x10" -> 0 would disable throttling and notify.
+  for bad in "24h" "0x10"; do
+    cfg="$dir/config-$bad.yaml"
+    write_config "$cfg" notify "$bad"
+    printf '{"last_check_utc":"2026-07-20T10:00:00Z"}' > "$cache"
+    set +e
+    out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --cache "$cache" --now "2026-07-20T11:00:00Z" 2>"$errf")"; rc=$?
+    set -e
+    [[ "$rc" -eq 0 ]] || log_fail "throttle_hours '$bad' run must exit 0 (got $rc): $out"
+    grep -qi "throttle_hours" "$errf" || log_fail "throttle_hours '$bad' must warn on stderr, got: [$(cat "$errf")]"
+    grep -qi "not a non-negative integer" "$errf" || log_fail "throttle_hours '$bad' warning must name the contract, got: [$(cat "$errf")]"
+    echo "$out" | grep -qi "newer AAI release" && log_fail "throttle_hours '$bad' must default to 24 (stay throttled within 24h), but it probed/notified: $out"
+  done
+  log_pass "TEST-021 throttle_hours non-digit token rejected -> stderr warning + default 24"
+}
+
+# --- TEST-022 — failed outcome message makes no false cleanliness claim --------
+test_failed_outcome_message() {
+  log_info "TEST-022: a failed detached-sync outcome advises git status/diff + rerun and makes NO false 'no changes forced' claim..."
+  local dir="$TMP_ROOT/t022" pin cfg outcome out rc
+  mkdir -p "$dir/.aai/system" "$dir/.aai/cache"
+  pin="$dir/.aai/system/AAI_PIN.md"
+  cfg="$dir/update-config.yaml"
+  outcome="$dir/.aai/cache/update-sync-outcome.json"
+  write_pin "$pin" "${CANON_SHAS[2]}" "$CANON"   # pin EQUAL -> no new sync; only surfacing
+  write_config "$cfg" notify
+  printf '{"started_utc":"2026-07-20T09:00:00Z","finished_utc":"2026-07-20T09:00:30Z","target_version":"abc1234","result":"failed","detail":"clone failed","reported":false}\n' > "$outcome"
+  set +e
+  out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --outcome "$outcome" --force 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "failed-outcome surfacing run must exit 0 (got $rc): $out"
+  echo "$out" | grep -qi "auto-update failed" || log_fail "a failed outcome must be surfaced, got: $out"
+  echo "$out" | grep -qiE "git status|git diff" || log_fail "failed message must point at git status/diff, got: $out"
+  echo "$out" | grep -qi "No changes were forced" && log_fail "failed message must NOT falsely claim cleanliness, got: $out"
+  log_pass "TEST-022 failed outcome message advises git status/diff, no false cleanliness claim"
+}
+
+# --- TEST-023 — PowerShell host selection (pwsh, else powershell.exe) ----------
+test_resolve_pwsh() {
+  log_info "TEST-023: resolvePwsh selects pwsh when available, else falls back to powershell.exe (Windows PS 5.1)..."
+  local out rc
+  set +e
+  out="$(node --input-type=module -e "
+import { resolvePwsh } from '$CHECK_SCRIPT';
+if (resolvePwsh(() => true) !== 'pwsh') { console.error('FAIL: available -> pwsh'); process.exit(1); }
+if (resolvePwsh(() => false) !== 'powershell.exe') { console.error('FAIL: unavailable -> powershell.exe'); process.exit(1); }
+if (resolvePwsh((e) => e === 'powershell.exe') !== 'powershell.exe') { console.error('FAIL: only 5.1 present -> powershell.exe'); process.exit(1); }
+console.log('ok');
+" 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "resolvePwsh selection assertion failed: $out"
+  log_pass "TEST-023 resolvePwsh: pwsh if available else powershell.exe"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -644,6 +808,12 @@ main() {
   test_report_next_session
   test_concurrent_sync_guard
   test_future_dated_cache_probes
+  test_source_agreement
+  test_detached_no_watchdog
+  test_future_dated_running_marker
+  test_throttle_hours_strict
+  test_failed_outcome_message
+  test_resolve_pwsh
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="
 }
 

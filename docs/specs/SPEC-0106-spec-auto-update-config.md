@@ -18,7 +18,10 @@ links:
 SPEC-FROZEN: true
 <!-- Re-affirmed 2026-07-29 after the owner-authoritative amendment (Design
      decisions D1 detached+report-next-session, D2 future-dated-cache guard,
-     D3 ps1 nits; Spec-AC-02 refined, Spec-AC-06 extended, Spec-AC-09 added). -->
+     D3 ps1 nits; Spec-AC-02 refined, Spec-AC-06 extended, Spec-AC-09 added).
+     Re-affirmed 2026-07-29 after the bot-review sweep (D4 source agreement, D5
+     detached-to-completion + pwsh fallback; Spec-AC-02/06/09 refined; TEST-018..
+     TEST-023 added). Status stays done — AC evidence rows updated in place. -->
 
 ## Links
 - Requirement: docs/issues/CHANGE-0091-auto-update-config.md
@@ -99,10 +102,18 @@ Allowed user decision values: undecided | worktree | inline | waived
     return immediately, and the detached child SHALL record the outcome
     (`applied` / `failed` / `refused` with started/finished timestamps + target
     version) in a persistent outcome log under `.aai/cache/`. The availability
-    line SHALL still surface. Exiting non-failing.
+    line SHALL still surface. Exiting non-failing. SOURCE AGREEMENT: the sync
+    SHALL run against the SAME source layer-drift verified (the resolved
+    pin/verdict `remote`, or an explicit `--source`), never a hardcoded default,
+    so detection and sync agree on one source of truth (D4). The detached child
+    SHALL run to COMPLETION with NO watchdog timeout (D5). On Windows the check
+    SHALL select `pwsh` when present, else fall back to `powershell.exe` (the
+    5.1-compatible `aai-update.ps1` still runs), never ENOENT.
   - Verification: `tests/skills/test-aai-update-check.sh` TEST-003 (detached
-    outcome eventually applied) and TEST-014 (REAL hook exits fast, sync
-    detached, outcome eventually written).
+    outcome eventually applied), TEST-014 (REAL hook exits fast, sync detached,
+    outcome eventually written), TEST-018 (source derived from the drift
+    verdict), TEST-019 (detached sync unbounded — no watchdog), TEST-023
+    (PowerShell host selection).
 
 - Maps to: CHANGE AC-002 (canonical guard)
   - Spec-AC-03: WHEN `mode` is `auto` and the current project is the canonical
@@ -131,9 +142,12 @@ Allowed user decision values: undecided | worktree | inline | waived
     outside the window or invoked with `--force` it SHALL probe; AND a
     FUTURE-DATED or unparseable cache timestamp SHALL be treated as
     never-checked (force a probe) so a bad timestamp never throttles notify AND
-    updates forever (self-heals by re-stamping the cache on the next probe).
+    updates forever (self-heals by re-stamping the cache on the next probe). The
+    `throttle_hours` value SHALL be validated strict digits-only (mirroring the
+    guard-config full-token discipline): a non-digit token (e.g. `24h`, `0x10`)
+    SHALL be REJECTED with a stderr warning and default 24, never coerced.
   - Verification: `tests/skills/test-aai-update-check.sh` TEST-009, TEST-010,
-    TEST-017.
+    TEST-017, TEST-021 (strict throttle_hours).
 
 - Maps to: CHANGE (TRIGGER — primary usage-moment)
   - Spec-AC-07: The SessionStart hook (`hooks/session-start.sh` and `.ps1`,
@@ -157,9 +171,16 @@ Allowed user decision values: undecided | worktree | inline | waived
     with a review-the-diff hint, `failed` with detail, or `refused (canonical
     repo)`) and then mark it reported so it shows once; AND WHILE a detached
     sync is in flight (a non-stale `running` marker), a subsequent run SHALL NOT
-    launch a duplicate sync (concurrent-sync guard). Exiting non-failing.
+    launch a duplicate sync (concurrent-sync guard). A FUTURE-DATED `running`
+    marker SHALL be treated as NOT in flight (free to launch), mirroring the
+    throttle-cache guard, so the concurrent guard never wedges. The `failed`
+    surface message SHALL NOT claim cleanliness (aai-update can change files
+    before failing mid-copy) — it SHALL point at `git status` / `git diff` and a
+    manual rerun. Exiting non-failing.
   - Verification: `tests/skills/test-aai-update-check.sh` TEST-015
-    (report-next-session, shown once) and TEST-016 (concurrent-sync guard).
+    (report-next-session, shown once), TEST-016 (concurrent-sync guard),
+    TEST-020 (future-dated running marker frees the guard), TEST-022 (failed
+    message makes no false cleanliness claim).
 
 ## Design decisions
 
@@ -192,6 +213,20 @@ Allowed user decision values: undecided | worktree | inline | waived
   stderr async (a full stderr pipe stalls the child just as a full stdout one
   does) and is reaped in a `finally` (`Kill()` then `WaitForExit()`, then
   `Dispose()`).
+- D4 (from bot-review sweep, source agreement): the auto path derives the
+  aai-update `--source` from the drift verdict's resolved `remote` (or an
+  explicit `--source`), never letting aai-update fall back to its hardcoded
+  `goodwind-cz/aai` default. Otherwise a pin naming an ALTERNATE canonical would
+  be checked against that alternate by layer-drift but SYNCED from an unrelated
+  upstream — a `behind` verdict overwriting the layer from the wrong repo.
+- D5 (from bot-review sweep, detached-to-completion): the detached `--run-sync`
+  child invokes aai-update with NO timeout so a clone/sync runs to completion. A
+  bounded watchdog on the detached child (the old `timeoutMs+30s`) could SIGKILL
+  a slow sync mid-copy, leaving a partial layer + a bogus generic failure
+  outcome — contradicting the detached-to-completion guarantee. The short
+  bounded watchdog stays ONLY on the hook's fast DETECTION path, never the sync.
+  Windows host selection prefers `pwsh`, falling back to `powershell.exe` so a
+  PS7-less 5.1 host runs the 5.1-compatible `aai-update.ps1` instead of ENOENT.
 
 ## Constitution deviations
 
@@ -202,14 +237,14 @@ None.
 | Spec-AC    | Description                                                                                                  | Status | Evidence | Review-By | Notes |
 |------------|--------------------------------------------------------------------------------------------------------------|--------|----------|-----------|-------|
 | Spec-AC-01 | WHEN mode notify (or config absent) and pin behind THEN print newer-release line and mutate no repo files    | done   | TEST-001, TEST-002 green (green-update-check-detached-20260728T234923Z.log) | —         | throttle cache is the only permitted write; notify branch asserts no repo mutation |
-| Spec-AC-02 | WHEN mode auto and pin behind THEN spawn aai-update DETACHED (non-blocking), record outcome in .aai/cache log | done   | TEST-003, TEST-014 green (green-update-check-detached-20260728T234923Z.log) | —         | detached node spawn (own session or process group); real hook exits fast, outcome eventually applied; no parallel engine |
+| Spec-AC-02 | WHEN mode auto and pin behind THEN spawn aai-update DETACHED (non-blocking), sync from the SAME source layer-drift verified, run to completion, record outcome in .aai/cache log | done   | TEST-003, TEST-014, TEST-018, TEST-019, TEST-023 green (green-update-check-botfix-20260729T004656Z.log) | —         | detached node spawn (own session or process group); source agreement (D4) + detached-to-completion no watchdog (D5) + pwsh else powershell.exe; no parallel engine |
 | Spec-AC-03 | WHEN mode auto and project is canonical repo THEN no layer mutation and a refused outcome (surfaced next run) | done   | TEST-004 green (green-update-check-detached-20260728T234923Z.log) | —         | reuses aai-update origin-slug guard (exit 2 / REFUSED); detached child records result refused; no mutation asserted |
 | Spec-AC-04 | WHEN canonical source unreachable THEN could-not-check note and non-failing exit in both modes, no sync      | done   | TEST-005, TEST-006 green (green-update-check-detached-20260728T234923Z.log) | —         | maps layer-drift unverifiable verdict; auto never spawns unless behind |
 | Spec-AC-05 | WHEN config absent THEN default notify AND WHEN mode unknown THEN stderr error and notify fallback           | done   | TEST-007, TEST-008 green (green-update-check-detached-20260728T234923Z.log) | —         | fail-safe: typo never auto-syncs; column-0 line parser |
-| Spec-AC-06 | WHEN checked within throttle window THEN skip probe ELSE probe (24h or --force); future-dated cache re-probes | done   | TEST-009, TEST-010, TEST-017 green (green-update-check-detached-20260728T234923Z.log) | —         | throttle state in .aai/cache/update-check.json; future-dated or NaN treated as never-checked (self-heal); --now injects clock |
+| Spec-AC-06 | WHEN checked within throttle window THEN skip probe ELSE probe (24h or --force); future-dated cache re-probes; throttle_hours strict digits-only | done   | TEST-009, TEST-010, TEST-017, TEST-021 green (green-update-check-botfix-20260729T004656Z.log) | —         | throttle state in .aai/cache/update-check.json; future-dated or NaN treated as never-checked (self-heal); non-digit throttle_hours rejected with warning; --now injects clock |
 | Spec-AC-07 | SessionStart hook invokes check best-effort AND a failure or slow network never breaks or blocks the session | done   | TEST-011 (fail+hang, marker-proven), TEST-012 (static parity) green; sh + ps1 non-blocking verified live (rc 0 fast) | — | meta-skill context still emitted; hook exit 0; self-contained watchdog (no `timeout` binary); ps1 drains both pipes and reaps |
 | Spec-AC-08 | New .aai/scripts/update-check.mjs classified in PROFILES.yaml so profile union equals the vendored tree       | done   | TEST-013 green + test-aai-layer-profiles.sh TEST-001 green (union == live tree) | —         | companion obligation (new .aai file) satisfied; outcome log lives under excluded .aai/cache |
-| Spec-AC-09 | WHEN a completed detached-sync outcome exists THEN surface it once AND no duplicate sync while one in flight  | done   | TEST-015 (surfaced once, marked reported), TEST-016 (concurrent guard, one invocation) green (green-update-check-detached-20260728T234923Z.log) | — | report-next-session; synchronous running marker guards concurrency; stale 30 min marker never wedges |
+| Spec-AC-09 | WHEN a completed detached-sync outcome exists THEN surface it once AND no duplicate sync while one in flight; future-dated running marker frees the guard; failed message claims no cleanliness | done   | TEST-015, TEST-016, TEST-020, TEST-022 green (green-update-check-botfix-20260729T004656Z.log) | — | report-next-session; synchronous running marker guards concurrency; stale 30 min OR future-dated marker never wedges; failed message points at git status/diff |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 
@@ -307,6 +342,12 @@ meta-skill CONTENT -> emitted to the agent.
 | TEST-015 | Spec-AC-09 | integration | tests/skills/test-aai-update-check.sh      | a completed-but-unreported outcome is surfaced once on the next run then marked reported             | green   |
 | TEST-016 | Spec-AC-09 | integration | tests/skills/test-aai-update-check.sh      | a second run while a detached sync is in flight does not launch a duplicate (one invocation)         | green   |
 | TEST-017 | Spec-AC-06 | integration | tests/skills/test-aai-update-check.sh      | future-dated throttle cache treated as never-checked THEN probe runs (throttled false), self-heals   | green   |
+| TEST-018 | Spec-AC-02 | integration | tests/skills/test-aai-update-check.sh      | auto + pin naming an alternate canonical source THEN aai-update invoked with that SAME --source (source agreement) | green   |
+| TEST-019 | Spec-AC-02 | unit        | tests/skills/test-aai-update-check.sh      | the detached --run-sync sync options carry NO bounded watchdog timeout (runs to completion)          | green   |
+| TEST-020 | Spec-AC-09 | integration | tests/skills/test-aai-update-check.sh      | a future-dated running marker is NOT treated as in-flight THEN a fresh detached sync may launch      | green   |
+| TEST-021 | Spec-AC-06 | integration | tests/skills/test-aai-update-check.sh      | throttle_hours non-digit token (24h, 0x10) rejected THEN stderr warning + default 24 (never coerced) | green   |
+| TEST-022 | Spec-AC-09 | integration | tests/skills/test-aai-update-check.sh      | a failed detached-sync outcome message points at git status/diff + rerun, no false cleanliness claim | green   |
+| TEST-023 | Spec-AC-02 | unit        | tests/skills/test-aai-update-check.sh      | resolvePwsh selects pwsh when available else falls back to powershell.exe (Windows PS 5.1)           | green   |
 
 Test status values: pending -> red -> green
 Notes: every Spec-AC has at least one TEST-xxx. Test IDs are stable after freeze.

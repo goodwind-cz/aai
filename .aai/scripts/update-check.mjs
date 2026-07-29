@@ -46,7 +46,9 @@
 //     [--source <slug|path>] [--cache <path>] [--outcome <path>] [--now <iso>]
 //     [--force] [--timeout-ms <n>] [--json]
 //   --remote  overrides the canonical remote passed to layer-drift (tests/CI).
-//   --source  overrides the aai-update sync source (--repo) in auto mode.
+//   --source  overrides the aai-update sync source (--repo) in auto mode; when
+//             omitted the source is DERIVED from the drift verdict's resolved
+//             `remote` so detection and sync agree on one source of truth.
 //   --now     injects a deterministic clock (ISO 8601) for throttle tests.
 //   --cache   overrides the throttle cache path (default .aai/cache/update-check.json).
 //   --outcome overrides the detached-sync outcome log path
@@ -151,9 +153,13 @@ export function resolveConfig(cfgPath, warn = (m) => console.error(m)) {
         out.mode = 'notify';
       }
     } else if (m[1] === 'throttle_hours') {
-      const n = Number.parseInt(m[2], 10);
-      if (Number.isInteger(n) && n >= 0) {
-        out.throttle_hours = n;
+      // Strict digits-only (mirror guard-config.mjs full-token discipline):
+      // Number.parseInt would coerce "24h" -> 24 and "0x10" -> 0, silently
+      // accepting a malformed dial despite the "non-negative integer" contract.
+      // A non-digit token is REJECTED (warn on stderr + default 24), never
+      // coerced — a typo can never quietly change the throttle window.
+      if (/^\d+$/.test(m[2])) {
+        out.throttle_hours = Number.parseInt(m[2], 10);
       } else {
         warn(`update-check: WARNING throttle_hours value "${m[2]}" in ${cfgPath} `
           + 'is not a non-negative integer — using default 24');
@@ -220,12 +226,48 @@ function runLayerDrift({ pin, remote, timeoutMs }) {
 }
 
 // --- Auto sync (REUSE aai-update.{sh,ps1}; its canonical guard is authoritative)
+
+// Pick the PowerShell host on Windows (Finding 7): pwsh (PowerShell 7+) if it is
+// available, else fall back to powershell.exe (Windows PowerShell 5.1). Before
+// this, `pwsh` was looked up unconditionally, so a 5.1-only host ENOENTs and
+// EVERY auto-update records failure instead of running the 5.1-compatible
+// aai-update.ps1. Mirrors resolveRunner(['pwsh','powershell']) in
+// lib/test-canon-core.mjs. `isAvailable` is injectable for a focused unit test.
+export function resolvePwsh(isAvailable = pwshAvailable) {
+  return isAvailable('pwsh') ? 'pwsh' : 'powershell.exe';
+}
+
+function pwshAvailable(exe) {
+  try {
+    const r = spawnSync(exe, ['-NoProfile', '-Command', 'exit 0'], {
+      stdio: 'ignore',
+      timeout: 5_000,
+    });
+    return !r.error && r.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+// Build the spawnSync options for an aai-update sync. A bounded timeout here is a
+// WATCHDOG: the DETACHED --run-sync child passes timeoutMs=null so the sync runs
+// to COMPLETION (Finding 6) — a clone+copy can outlast any fixed bound, and a
+// SIGKILL mid-copy leaves a partial layer plus a bogus generic failure outcome,
+// contradicting the detached-to-completion guarantee. The short bounded watchdog
+// stays ONLY on the hook's fast DETECTION path (runLayerDrift), never on the
+// sync itself. Exported for a focused unit test of the selection.
+export function buildSyncSpawnOptions(timeoutMs, cwd) {
+  const opts = { encoding: 'utf8', cwd };
+  if (timeoutMs != null) opts.timeout = timeoutMs + 30_000; // a sync clones/copies
+  return opts;
+}
+
 function runAaiUpdate({ source, timeoutMs, cwd }) {
   const isWin = process.platform === 'win32';
   const script = path.join(SELF_DIR, isWin ? 'aai-update.ps1' : 'aai-update.sh');
   let cmd, cmdArgs;
   if (isWin) {
-    cmd = 'pwsh';
+    cmd = resolvePwsh();
     cmdArgs = ['-NoProfile', '-File', script];
     if (source) cmdArgs.push('-Repo', source);
   } else {
@@ -233,11 +275,7 @@ function runAaiUpdate({ source, timeoutMs, cwd }) {
     cmdArgs = [script];
     if (source) cmdArgs.push('--repo', source);
   }
-  const res = spawnSync(cmd, cmdArgs, {
-    encoding: 'utf8',
-    cwd,
-    timeout: timeoutMs + 30_000, // a sync clones/copies; give it more headroom
-  });
+  const res = spawnSync(cmd, cmdArgs, buildSyncSpawnOptions(timeoutMs, cwd));
   const stdout = res.stdout || '';
   const stderr = res.stderr || '';
   // aai-update refuses on the canonical repo with exit 2 + a REFUSED note.
@@ -278,6 +316,11 @@ function syncInFlight(outcome, nowMs) {
   if (!outcome || outcome.result !== 'running') return false;
   const started = Date.parse(outcome.started_utc);
   if (Number.isNaN(started)) return false;          // malformed -> treat as free
+  if (started > nowMs) return false;                // future-dated started_utc:
+  // (now - started) is NEGATIVE and <= SYNC_STALE_MS, which would WEDGE the guard
+  // (auto mode stuck reporting "in progress") until wall-clock catches up. Treat
+  // it as NOT in flight (free to launch), mirroring the future-dated
+  // throttle-cache guard in withinThrottle.
   return (nowMs - started) <= SYNC_STALE_MS;         // stale -> allow a fresh sync
 }
 
@@ -323,7 +366,10 @@ function runSyncMode(args) {
     existing && existing.result === 'running' && existing.started_utc
       ? existing.started_utc
       : new Date().toISOString();
-  const sync = runAaiUpdate({ source: args.source, timeoutMs: args.timeoutMs, cwd: process.cwd() });
+  // timeoutMs=null: run to COMPLETION with NO watchdog (Finding 6). This is the
+  // detached child; a bounded timeout would SIGKILL a slow clone/sync mid-copy,
+  // leaving a partial layer + a bogus failure outcome.
+  const sync = runAaiUpdate({ source: args.source, timeoutMs: null, cwd: process.cwd() });
   let result;
   let detail;
   if (sync.refused) {
@@ -361,8 +407,12 @@ function surfaceOutcome(outcomePath, emit, result) {
     emit.push('AAI auto-update refused (canonical repo) — nothing changed. '
       + 'This project is the update source; use normal git here.');
   } else {
+    // aai-update.sh can modify files before failing mid-copy, so a "No changes
+    // were forced" claim would be misleading (Finding 3). Point at git status /
+    // git diff and a manual rerun instead of asserting cleanliness.
     emit.push(`AAI auto-update failed${oc.detail ? `: ${oc.detail}` : ''} — `
-      + 'run /aai-update manually to finish. (No changes were forced.)');
+      + 'inspect `git status` / `git diff` (the sync may have changed files '
+      + 'before failing) and rerun /aai-update if needed.');
   }
   result.reported_outcome = oc.result;
   writeOutcome(outcomePath, { ...oc, reported: true }); // show once
@@ -409,6 +459,13 @@ function main() {
     if (cfg.mode === 'auto') {
       emit.push(`AAI: a newer AAI release is available${detail}.`);
       const targetVersion = (verdict.canonical_head || '').slice(0, 7) || null;
+      // Source agreement (Finding 5): sync from the SAME source layer-drift just
+      // verified. aai-update defaults to goodwind-cz/aai, but layer-drift may
+      // have checked an ALTERNATE canonical named in AAI_PIN.md (its resolved
+      // `remote`); syncing from the default would overwrite the layer from an
+      // UNRELATED upstream on a `behind` verdict. Detection and sync must agree
+      // on ONE source of truth. A hand-passed --source still wins.
+      const syncSource = args.source || verdict.remote || null;
       if (syncInFlight(readOutcome(args.outcome), nowMs)) {
         // Concurrent-sync guard: a detached sync is already running.
         result.action = 'sync_in_flight';
@@ -422,7 +479,7 @@ function main() {
           result: 'running', detail: null, reported: false,
         });
         const launched = spawnDetachedSync({
-          source: args.source, outcome: args.outcome, targetVersion,
+          source: syncSource, outcome: args.outcome, targetVersion,
           timeoutMs: args.timeoutMs, cwd: process.cwd(),
         });
         if (launched) {
