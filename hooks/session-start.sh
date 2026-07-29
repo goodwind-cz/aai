@@ -16,6 +16,39 @@ if [[ ! -f "$META_SKILL" ]]; then
 fi
 
 CONTENT="$(cat "$META_SKILL")"
+
+# Best-effort new-release check (spec-auto-update-config). Runs update-check.mjs
+# and appends its notify/degrade/sync line onto CONTENT so it rides the existing
+# emit path. This is RUNTIME-CRITICAL: a check failure, timeout, or slow network
+# must NEVER break, block, or delay session start — every path below is guarded
+# and the whole thing is bounded by a self-contained watchdog (no dependency on
+# a `timeout` binary, which macOS lacks). Errors are swallowed; on any problem
+# CONTENT is emitted unchanged, exactly as before this hook existed.
+UPDATE_CHECK="$PROJECT_ROOT/.aai/scripts/update-check.mjs"
+if [[ -f "$UPDATE_CHECK" ]] && command -v node >/dev/null 2>&1; then
+  _uc_timeout="${AAI_UPDATE_CHECK_TIMEOUT_S:-15}"
+  [[ "$_uc_timeout" =~ ^[0-9]+$ ]] || _uc_timeout=15
+  _uc_out="$(mktemp "${TMPDIR:-/tmp}/aai-update-check.XXXXXX" 2>/dev/null || true)"
+  if [[ -n "$_uc_out" ]]; then
+    # exec replaces the backgrounded subshell with node, so $! is node's own PID
+    # and the watchdog's kill actually reaches it.
+    { cd "$PROJECT_ROOT" && exec node "$UPDATE_CHECK"; } >"$_uc_out" 2>/dev/null &
+    _uc_pid=$!
+    { sleep "$_uc_timeout"; kill -9 "$_uc_pid"; } >/dev/null 2>&1 &
+    _uc_watch=$!
+    wait "$_uc_pid" 2>/dev/null || true
+    kill "$_uc_watch" 2>/dev/null || true
+    wait "$_uc_watch" 2>/dev/null || true
+    _uc_note="$(cat "$_uc_out" 2>/dev/null || true)"
+    rm -f "$_uc_out" 2>/dev/null || true
+    if [[ -n "$_uc_note" ]]; then
+      CONTENT="$CONTENT
+
+$_uc_note"
+    fi
+  fi
+fi
+
 ESCAPED="$(printf '%s' "$CONTENT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
 
 # Detect platform and emit in the correct format

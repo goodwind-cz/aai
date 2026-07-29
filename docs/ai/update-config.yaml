@@ -1,0 +1,30 @@
+# AAI update-check policy (CHANGE auto-update-config / spec-auto-update-config).
+# Committed, project-owned — sibling of docs/ai/docs-audit.yaml so the team
+# shares ONE notify/auto policy. Read by .aai/scripts/update-check.mjs, which
+# the SessionStart hook runs best-effort at every session start.
+#
+# Parsed by a COLUMN-0 line scan (same discipline as docs-audit.yaml /
+# guard-config.mjs) — NOT a general YAML file. Keep keys at column 0.
+#
+# ABSENT FILE == notify (back-compat: a project that never adopts this file
+# behaves exactly as it did before — a newer-release line, applying nothing).
+#
+# Keys:
+#   mode:            notify | auto   (default: notify)
+#     notify (default, safe) — when a newer AAI release exists, surface a
+#            "newer AAI release available" line during normal use; change
+#            nothing. The operator runs /aai-update when ready.
+#     auto   (opt-in)        — the same trigger performs the aai-update layer
+#            sync automatically, DETACHED so it never blocks session start: the
+#            sync runs in the background and its outcome (applied / failed /
+#            refused) is reported on the NEXT session start ("auto-update
+#            applied … — review the diff"). Never runs on the canonical AAI repo
+#            itself (the reused aai-update origin-slug guard refuses). An unknown
+#            value here is REJECTED (stderr error) and falls back to notify —
+#            a typo never silently auto-syncs.
+#   throttle_hours:  integer          (default: 24)
+#     Skip the network probe if a check completed within this many hours
+#     (state in .aai/cache/update-check.json, gitignored). 0 = probe every
+#     session (escape hatch). Override a single run with --force.
+mode: notify
+throttle_hours: 24

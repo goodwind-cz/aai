@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-28T22:17:04.454Z
+Generated: 2026-07-29T00:16:50.241Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-auto-update-config | specs | implementing | 9 done | docs/specs/SPEC-DRAFT-spec-auto-update-config.md |
 
 ## Canonical layer (0)
 
@@ -280,9 +281,11 @@ _None._
 | SPEC-0105 | specs | docs/specs/SPEC-0105-spec-product-docs-capability-model.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| auto-update-config (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-auto-update-config.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -319,4 +322,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-28 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-29 — counts above use this date for overdue checks.

@@ -323,6 +323,18 @@ suites:
       - .aai/SKILL_DOCTOR.prompt.md
       - .aai/system/AAI_PIN.md
 
+  aai-update-check:
+    globs:
+      - .aai/scripts/update-check.mjs
+      - .aai/scripts/layer-drift.mjs
+      - .aai/scripts/aai-update.sh
+      - .aai/scripts/aai-update.ps1
+      - docs/ai/update-config.yaml
+      - hooks/session-start.sh
+      - hooks/session-start.ps1
+      - hooks/hooks.json
+      - .aai/system/PROFILES.yaml
+
   aai-learned-append:
     globs:
       - .aai/scripts/learned-append.mjs
