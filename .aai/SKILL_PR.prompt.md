@@ -213,21 +213,26 @@ PROCESS
 5d. POST-OPEN REVIEW SWEEP (CHANGE-0060) — external reviewer bots (Copilot,
    Codex) post INLINE comments that never appear in `gh pr checks`. Before
    ANY merge-readiness claim:
-   - After CI completes, poll once (platform + `reviewer_bots=` from step 5's
-     probe line): GitHub: `gh api repos/<owner>/<repo>/pulls/<n>/comments` plus
+   - After CI completes, poll (platform + `reviewer_bots=` from step 5's
+     probe line; within the bounded window below, re-poll — not a single shot):
+     GitHub: `gh api repos/<owner>/<repo>/pulls/<n>/comments` plus
      `gh pr view <n> --json reviews`. Azure: pullRequestThreads via `az devops
      invoke` (see step 5 note; verify form at first Azure adoption). Zero
      findings after a green run: the "no bot findings" stop is legal ONLY when
-     `reviewer_bots == expected` (a declared bot layer) — otherwise
-     (`reviewer_bots != expected`: Azure default, GitHub with no bots
-     installed, or an unknown/absent knob) zero threads is the EXPECTED default
-     and triggers the reviewer-fallback below, never a stop.
+     `reviewer_bots == expected` AND the bot layer DEMONSTRABLY reviewED (a
+     bot-authored review/thread exists with zero remaining findings) — zero
+     bot activity is NEVER a stop by itself: with `reviewer_bots != expected`
+     (Azure default, GitHub with no bots installed, unknown/absent knob) it
+     triggers the reviewer-fallback below immediately; with `expected` it means
+     you are still inside the bounded window (keep polling) or the window
+     expired (fall back). Never record "no bot findings" while the window is
+     still open and no bot has posted.
    - BOUNDED-WAIT (R1 hardening): even when `reviewer_bots == expected`, do NOT
-     wait indefinitely for bot comments. After CI turns green, wait a bounded
-     window (default 10 minutes) for the sweep; if zero bot threads have
-     appeared by then, fall through to the REVIEWER-FALLBACK CONTRACT below and
-     treat this repo as `reviewer_bots != expected` for this run. The sweep
-     never waits forever for comments that may never arrive.
+     wait indefinitely for bot comments. After CI turns green, re-poll within a
+     bounded window (default 10 minutes); if zero bot-authored reviews/threads
+     have appeared by its expiry, fall through to the REVIEWER-FALLBACK
+     CONTRACT below and treat this repo as `reviewer_bots != expected` for this
+     run. The sweep never waits forever for comments that may never arrive.
    - Any findings: handle them through the canonical EXTERNAL-REVIEW
      RESPONSE flow in .aai/SKILL_CODE_REVIEW.prompt.md (triage each thread
      real/stale/duplicate/disputed, RED-proofed regression per real code
@@ -241,8 +246,8 @@ PROCESS
      `reviewer_bots` knob is `none`/`unknown`/absent has no bot layer either)
      THEN dispatching .aai/SKILL_CODE_REVIEW.prompt.md on the FINAL PR diff is
      REQUIRED before any merge-readiness claim — the empty-sweep shortcut
-     above is only legal when `reviewer_bots == expected` (a declared bot
-     layer that actually posted, or is still within the bounded wait). Handle its
+     above is only legal when `reviewer_bots == expected` AND a bot actually
+     posted a review (never merely because the bounded wait is still open). Handle its
      findings through the SAME EXTERNAL-REVIEW RESPONSE flow, AND publish
      EACH finding as a PR thread via the platform API (`gh api
      repos/<owner>/<repo>/pulls/<n>/comments` / Azure pullRequestThreads create via `az devops invoke

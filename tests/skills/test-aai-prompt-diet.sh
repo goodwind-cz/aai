@@ -413,7 +413,7 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# -10288 (true-up: github-no-bots-hardening added a +1147 B itemized entry for
+# -10006 (true-up: github-no-bots-hardening +1147 B, then +282 B bot-sweep P1 reword; itemized entries for
 # the SKILL_PR.prompt.md step 5/5d reviewer_bots-gated bot sweep + bounded-wait
 # rule, 16740 -> 17887 B, credited 1:1 so headroom stays 106/2048, over the
 # prior -11435 total; before that core-prompt-diet retired -3247 B via a NEGATIVE RECLAIMED
@@ -490,8 +490,8 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -10288 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -10288)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -10006 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -10006)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then

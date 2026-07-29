@@ -140,7 +140,7 @@ test_010_no_remote_real_fixture() {
 
 # --- TEST-011 — --json shape: exact key set, both a classified and a none case
 test_011_json_shape() {
-  log_info "TEST-011: --json emits exactly platform/remote — remote SANITIZED, never the raw url (credential-leak review pin)..."
+  log_info "TEST-011: --json emits exactly platform/remote/reviewer_bots — remote SANITIZED, never the raw url (credential-leak review pin)..."
   local ok=1 keys
   keys=$(node "$PROBE" --remote-url "https://github.com/o/r.git" --json 2>/dev/null | node -e '
     let d = ""; process.stdin.on("data", c => d += c);
@@ -370,7 +370,19 @@ test_021_reviewer_bots_json() {
   if [[ "$rb" != "none" ]]; then
     log_info "TEST-021: --json reviewer_bots='$rb' (want none)"; ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-021 --json reviewer_bots value" || log_fail "TEST-021 --json reviewer_bots value"
+  # Trailing tokens must NOT silently enable the bot-only path: the value is
+  # the entire rest of the line and must EXACTLY equal a closed-set token
+  # ("expected extra" -> unknown + warning, bot-review P2 hardening).
+  local trailcfg="$TMP_ROOT/pr-config-t021-trail.yaml"
+  printf 'reviewer_bots: expected extra\n' >"$trailcfg"
+  rb=$(node "$PROBE" --remote-url "https://github.com/o/r.git" --pr-config "$trailcfg" --json 2>/dev/null | node -e '
+    let d = ""; process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => { console.log(JSON.parse(d).reviewer_bots); });
+  ')
+  if [[ "$rb" != "unknown" ]]; then
+    log_info "TEST-021: trailing-token value gave reviewer_bots='$rb' (want unknown)"; ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-021 --json reviewer_bots value (+trailing-token -> unknown)" || log_fail "TEST-021 --json reviewer_bots value"
 }
 
 # --- TEST-022 — grep-contract: SKILL_PR 5d GitHub-no-bots hardening

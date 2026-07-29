@@ -142,14 +142,17 @@ function readReviewerBots(cfgPath, warn = (m) => console.error(m)) {
     return 'none'; // absent file: assume-none, silently
   }
   for (const line of raw.split(/\r?\n/)) {
-    // column-0 key only (an indented or commented key is never a dial); value
-    // is the full non-whitespace token (a glued comment yields e.g. "none#",
-    // which fails the closed-set check and falls open to unknown WITH a warning)
-    const m = line.match(/^reviewer_bots:\s*(\S+)/);
+    // column-0 key only (an indented or commented key is never a dial); the
+    // value is the ENTIRE rest of the line, trimmed, and must EXACTLY equal a
+    // closed-set token — trailing garbage ("expected extra", a glued or
+    // trailing comment) must NOT silently enable the bot-only path, so any
+    // non-exact value falls open to unknown WITH a warning (internal review).
+    const m = line.match(/^reviewer_bots:(.*)$/);
     if (!m) continue;
-    if (m[1] === 'expected') return 'expected';
-    if (m[1] === 'none') return 'none';
-    warn(`pr-platform: WARNING reviewer_bots value "${m[1]}" in ${cfgPath} is `
+    const v = m[1].trim();
+    if (v === 'expected') return 'expected';
+    if (v === 'none') return 'none';
+    warn(`pr-platform: WARNING reviewer_bots value "${v}" in ${cfgPath} is `
       + 'not "expected" or "none" — treating as unknown (fail-open: internal '
       + 'review substituted, sweep never waits for bots)');
     return 'unknown';
