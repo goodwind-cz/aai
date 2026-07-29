@@ -1,12 +1,14 @@
 ---
 id: auto-update-config
-number: null
+number: 91
 type: change
-status: draft
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 194
+  commits:
+    - 9c4d17156d9548427e2c5bb3fced854dcea9df27
 ---
 
 # Change — auto-update: local config for new-release notification + opt-in automatic update

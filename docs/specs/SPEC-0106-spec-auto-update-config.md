@@ -1,14 +1,16 @@
 ---
 id: spec-auto-update-config
 type: spec
-number: null
-status: implementing
+number: 106
+status: done
 ceremony_level: 2
 links:
-  requirement: docs/issues/CHANGE-DRAFT-auto-update-config.md
+  requirement: docs/issues/CHANGE-0091-auto-update-config.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 194
+  commits:
+    - 9c4d17156d9548427e2c5bb3fced854dcea9df27
 ---
 
 # Implementation Spec — auto-update: config-driven new-release notify + opt-in auto-sync
@@ -19,7 +21,7 @@ SPEC-FROZEN: true
      D3 ps1 nits; Spec-AC-02 refined, Spec-AC-06 extended, Spec-AC-09 added). -->
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-auto-update-config.md
+- Requirement: docs/issues/CHANGE-0091-auto-update-config.md
 - Decision records: none
 - Technology contract: docs/TECHNOLOGY.md
 - Builds on: SPEC-0020 (spec-doctor-vendored-layer-drift, `.aai/scripts/layer-drift.mjs`), SPEC-0052 (aai-update TOCTOU, `.aai/scripts/aai-update.sh`/`.ps1`), `.aai/system/AAI_PIN.md`, `hooks/session-start.sh`/`.ps1` + `hooks/hooks.json`
@@ -339,7 +341,7 @@ target-project adoption is the real-world confirmation. Recorded as RR-1.
   path for the offline tier; see `tests/skills/test-aai-layer-drift.sh:80-97`).
 - Command: `bash tests/skills/test-aai-layer-profiles.sh` (TEST-001 confirms the
   PROFILES union still equals the live tree after the new script is added).
-- Advisory: `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-auto-update-config.md`.
+- Advisory: `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0106-spec-auto-update-config.md`.
 - PASS criteria: all TEST-xxx green AND all Spec-AC in a terminal status with
   non-empty Evidence.
 

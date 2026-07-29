@@ -1,27 +1,27 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-29T00:16:50.241Z
+Generated: 2026-07-29T00:20:34.584Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-auto-update-config | specs | implementing | 9 done | docs/specs/SPEC-DRAFT-spec-auto-update-config.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Product (11)
+## Product (12)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
+| auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
@@ -34,7 +34,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (242)
+## Done (244)
 
 | ID | Type | Path |
 |---|---|---|
@@ -128,6 +128,7 @@ _None._
 | CHANGE-0088 | issues | docs/issues/CHANGE-0088-product-docs-capability-model.md |
 | CHANGE-0089 | issues | docs/issues/CHANGE-0089-product-capability-refinements.md |
 | CHANGE-0090 | issues | docs/issues/CHANGE-0090-core-prompt-diet.md |
+| CHANGE-0091 | issues | docs/issues/CHANGE-0091-auto-update-config.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -279,13 +280,12 @@ _None._
 | SPEC-0103 | specs | docs/specs/SPEC-0103-spec-platform-portable-pr.md |
 | SPEC-0104 | specs | docs/specs/SPEC-0104-spec-issues-skill.md |
 | SPEC-0105 | specs | docs/specs/SPEC-0105-spec-product-docs-capability-model.md |
+| SPEC-0106 | specs | docs/specs/SPEC-0106-spec-auto-update-config.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| auto-update-config (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-auto-update-config.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
