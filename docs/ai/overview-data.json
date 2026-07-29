@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-07-29T18:50:27.482Z",
+  "generatedAt": "2026-07-29T23:24:26.335Z",
   "project": "aai",
   "counts": {
-    "delivered": 139,
+    "delivered": 140,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -24,7 +24,7 @@
       "user_decision": "inline"
     },
     "validation_status": "not_run",
-    "review_status": "not_run",
+    "review_status": "pass",
     "ticks": [
       {
         "tick": 2,
@@ -124,6 +124,19 @@
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0094-seed-update-config.md",
+      "closed_on": "2026-07-29",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "contract-headroom",
+      "title": "Change — SUBAGENT_CONTRACT 60-line headroom",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0095-contract-headroom.md",
       "closed_on": "2026-07-29",
       "agent_minutes": null,
       "token_total": null,
@@ -1938,6 +1951,19 @@
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0094-seed-update-config.md",
+          "closed_on": "2026-07-29",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "contract-headroom",
+          "title": "Change — SUBAGENT_CONTRACT 60-line headroom",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0095-contract-headroom.md",
           "closed_on": "2026-07-29",
           "agent_minutes": null,
           "token_total": null,

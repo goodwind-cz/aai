@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — chore(prompts): SUBAGENT_CONTRACT headroom — trim to 53 lines under the 60-line cap (CHANGE-DRAFT-contract-headroom) [L1]
+## [unreleased] — chore(prompts): SUBAGENT_CONTRACT headroom — trim to 53 lines under the 60-line cap (CHANGE-0095-contract-headroom) [L1]
 
 - `.aai/SUBAGENT_CONTRACT.md` sat at exactly 60/60 lines against SPEC-0094's
   hard `<=60`-line cap (enforced by test-aai-role-output.sh TEST-010 and

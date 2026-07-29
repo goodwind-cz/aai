@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-29T23:21:30.970Z
+Generated: 2026-07-29T23:24:56.670Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -34,7 +34,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (247)
+## Done (248)
 
 | ID | Type | Path |
 |---|---|---|
@@ -132,6 +132,7 @@ _None._
 | CHANGE-0092 | issues | docs/issues/CHANGE-0092-ps1-sync-nonexistent-dest.md |
 | CHANGE-0093 | issues | docs/issues/CHANGE-0093-update-sync-atomic-lock.md |
 | CHANGE-0094 | issues | docs/issues/CHANGE-0094-seed-update-config.md |
+| CHANGE-0095 | issues | docs/issues/CHANGE-0095-contract-headroom.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -286,11 +287,9 @@ _None._
 | SPEC-0106 | specs | docs/specs/SPEC-0106-spec-auto-update-config.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| contract-headroom (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-contract-headroom.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

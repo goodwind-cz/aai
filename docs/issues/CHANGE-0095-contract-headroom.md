@@ -1,11 +1,14 @@
 ---
 id: contract-headroom
+number: 95
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 198
+  commits:
+    - f1ff21b0487ee9e775bd9fe88884de95fcdfd8a1
 ---
 
 # Change — SUBAGENT_CONTRACT 60-line headroom
