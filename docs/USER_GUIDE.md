@@ -2099,6 +2099,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Staying current with AAI releases
+
+A project built on AAI finds out that a newer AAI release exists **as a side effect of normal use** — nobody has to remember to run an update command. The existing SessionStart hook runs a best-effort, non-blocking check every time a session opens (throttled so it is not a network hit every time). A local config decides what happens:
+
+[Product doc](product/auto-update-config.md) · [Spec](specs/SPEC-0106-spec-auto-update-config.md)
+
 ### Skills catalog (docs hub)
 
 `docs/SKILL_CATALOG.html` is a searchable, self-contained page listing every AAI skill with its description, model hint and Goal extract. It is generated deterministically from the live `.claude/skills/` tree and regenerated automatically at every work-item close, so it can no longer drift out of date (the old hand-authored catalog was missing 8 of 35 skills).

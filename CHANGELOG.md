@@ -11,7 +11,37 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased]
+- feat(auto-update): config-driven new-release notify + opt-in auto-sync
+  (CHANGE auto-update-config / spec-auto-update-config) [L2]. A target project
+  now learns a newer AAI release exists as a SIDE EFFECT OF NORMAL USE: the
+  existing SessionStart hook runs a best-effort, provably non-blocking check.
+  Governed by a committed local config `docs/ai/update-config.yaml` (absent ==
+  notify default, back-compat): `mode: notify` (default, safe) surfaces a
+  "newer AAI release available" line and changes nothing; `mode: auto`
+  (opt-in) applies the `aai-update` sync DETACHED so it NEVER blocks session
+  start and NEVER loses the outcome — the sync runs in its own session/process
+  group and its result (applied / failed / refused) is REPORTED ON THE NEXT
+  session start ("auto-update applied … — review the diff"), recorded in a
+  persistent outcome log under gitignored `.aai/cache/`; a synchronous
+  `running` marker guards against a duplicate concurrent sync. Detection and
+  sync are REUSED verbatim — `layer-drift.mjs` for the verdict,
+  `aai-update.{sh,ps1}` for the sync incl. its canonical-repo guard (never
+  auto-syncs the source of truth); no parallel engine. Offline degrades to a
+  "could not check" note; an unknown mode is rejected on stderr and falls back
+  to notify (a typo never auto-syncs); a `throttle_hours` window (default 24h,
+  cache in gitignored `.aai/cache/update-check.json`) skips redundant probes,
+  and a future-dated or unparseable cache timestamp self-heals (forces a probe
+  instead of throttling forever). Bot-review hardening: auto-sync now runs
+  against the SAME source layer-drift verified (the resolved pin/verdict remote,
+  never a hardcoded default) so a pin naming an alternate canonical can't be
+  overwritten from an unrelated upstream; the detached sync runs to COMPLETION
+  with no watchdog (a slow clone is never SIGKILLed mid-copy into a partial
+  layer); on Windows the check prefers `pwsh` and falls back to `powershell.exe`
+  (PS 5.1) instead of ENOENT; a failed-sync message points at `git status` /
+  `git diff` rather than falsely claiming nothing changed; `throttle_hours` is
+  validated strict digits-only; a future-dated `running` marker no longer wedges
+  the concurrent-sync guard. New `.aai/scripts/update-check.mjs` (core profile).
+  Suite: `tests/skills/test-aai-update-check.sh` (23 tests, zero real network).
 
 ## [v2026.07.28.1] — chore: product capability refinements — delivered_by provenance + telemetry consolidation (CHANGE-0089) [L2]
 
