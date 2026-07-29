@@ -25,7 +25,7 @@
 #     explicitly (exit 2, no repo-wide sweep); test-aai-tdd.sh regression;
 #     .aai/scripts/state.mjs diff is authorized by a frozen ceremony_level:3
 #     spec in the same diff/tree when non-empty (reframed by token-capture-
-#     canary, docs/specs/SPEC-DRAFT-spec-token-capture-canary.md — mirrors
+#     canary, docs/specs/SPEC-0085-spec-token-capture-canary.md — mirrors
 #     the tests/skills/test-aai-hitl-propagation.sh TEST-014 reframe: the
 #     original "state.mjs has zero diff, ever" assertion was a one-time
 #     delivery constraint of THIS scope, not a permanent repo invariant, so

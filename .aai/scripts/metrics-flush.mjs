@@ -24,7 +24,7 @@
 //   - ledger entries are built exclusively from strings/numbers/nulls read off
 //     lines — no Date object can ever reach the ledger (closes mistake #2);
 //     a guard asserts JSON.parse(JSON.stringify(entry)) deep-equals entry;
-//   - truth-scoring (SPEC-DRAFT-truth-scoring / RES-0001 P3): every new entry
+//   - truth-scoring (SPEC-0032-spec-truth-scoring / RES-0001 P3): every new entry
 //     carries `strategy` (implementation_strategy.selected off STATE; null
 //     when undecided/absent) and `reliability{validation_fails, review_fails,
 //     remediation_runs, first_pass_clean}` derived ONLY from the recorded
@@ -53,7 +53,7 @@
 // Flags: --state/--metrics/--ticks/--pricing <path> (fixture injection),
 // --events <path> (SPEC-0054/CHANGE-0038: flush never EMITS close-lifecycle
 // events — close-work-item.mjs owns doc_lifecycle/work_item_closed — but
-// metrics-flush-strands-completed-refs/SPEC-DRAFT-spec-metrics-flush-sweep
+// metrics-flush-strands-completed-refs/SPEC-0068-spec-metrics-flush-sweep
 // READS this path under --sweep, and --retire both READS and APPENDS to it),
 // --ref <id> (restrict),
 // --dry-run (print the full plan JSON, write nothing), --sweep (OPT-IN:
@@ -64,7 +64,7 @@
 // spec), --now <ISO> (test-only clock pin; env AAI_FLUSH_NOW equivalent).
 // AAI_FLUSH_INJECT_CRASH=after-ledger is a test-only fault hook.
 //
-// --retire <ref> [--reason "<text>"] (SPEC-DRAFT-spec-retire-stranded-
+// --retire <ref> [--reason "<text>"] (SPEC-0075-spec-retire-stranded-
 // nonworkitem-metric): the sanctioned exit for a metrics.work_items entry that
 // is legitimately NOT a work item and would otherwise SKIP forever (satisfies
 // neither flushability predicate). Structurally DISJOINT from the flush loop —
@@ -398,7 +398,7 @@ function trustedDuration(run, nowMs) {
   return run.duration_seconds;
 }
 
-// Truth-scoring reliability (SPEC-DRAFT-truth-scoring rules R1-R6): counts of
+// Truth-scoring reliability (SPEC-0032-spec-truth-scoring rules R1-R6): counts of
 // what was RECORDED, never a reconstruction. A fail cycle whose run note is
 // null or lacks the verdict marker is invisible to the fail counters —
 // remediation_runs stays the structural witness (a Remediation run is only
@@ -646,7 +646,7 @@ function cleanupEphemeral(stateDir, ticksPath, nowMs, report) {
   }
 }
 
-// --- retire (SPEC-DRAFT-spec-retire-stranded-nonworkitem-metric) --------------------------
+// --- retire (SPEC-0075-spec-retire-stranded-nonworkitem-metric) --------------------------
 // The sanctioned exit for a stranded, legitimately-not-a-work-item entry. A
 // FAIL-CLOSED branch reached ONLY when opts.retire is set (structurally
 // disjoint from the flush loop). It REUSES the two existing flushability
@@ -801,7 +801,7 @@ function main() {
   const stratSel = scalarOrNull(readScalar(origLines, 'implementation_strategy', 'selected'));
   const strategy = stratSel !== null && stratSel !== 'undecided' ? stratSel : null;
 
-  // --retire (SPEC-DRAFT-spec-retire-stranded-nonworkitem-metric): a
+  // --retire (SPEC-0075-spec-retire-stranded-nonworkitem-metric): a
   // structurally-disjoint branch that NEVER reaches the default flush loop —
   // this is what keeps the no---retire behavior byte-unchanged by construction.
   if (opts.retire !== null) {

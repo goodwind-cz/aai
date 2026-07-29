@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: RFC-0012 Phase 1 — local shadow-mode friction capture WIRING
-# (docs/specs/SPEC-DRAFT-spec-friction-shadow-capture-wiring.md, TEST-001..007).
+# (docs/specs/SPEC-0079-spec-friction-shadow-capture-wiring.md, TEST-001..007).
 #
 # Phase 0 shipped the protocol + offline CLI. Phase 1 wires them into the skill
 # surface as ONE canonical seam, inherited by every universal skill via the

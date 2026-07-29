@@ -16,7 +16,7 @@
 #   - transactionality: ledger-before-reset, crash resume, --dry-run (TEST-013)
 #   - report golden: byte-deterministic markdown (TEST-014)
 #
-# Truth-scoring (SPEC-DRAFT-truth-scoring, RES-0001 P3) — TEST-006/TEST-014
+# Truth-scoring (SPEC-0032-spec-truth-scoring, RES-0001 P3) — TEST-006/TEST-014
 # goldens extended (strategy + reliability fields / Per-Strategy Reliability
 # section), plus:
 #   - reliability derivation matrix per spec rules R1-R6 (TEST-017)
@@ -1052,7 +1052,7 @@ test_016_zero_relative_full_reset() {  # ISSUE-0007 TEST-009 / Spec-AC-06 (remed
   log_pass "Full reset over 0-relative lists: whole spans consumed, no orphans, PyYAML + check-state clean (ISSUE-0007 TEST-009)"
 }
 
-# --- TEST-017: reliability derivation matrix (SPEC-DRAFT-truth-scoring R1-R6) --------
+# --- TEST-017: reliability derivation matrix (SPEC-0032-spec-truth-scoring R1-R6) --------
 
 test_017_reliability_derivation() {
   log_info "Test: reliability derived ONLY from recorded runs — FAIL markers counted, PASS/null notes not; suffixed remediation roles counted; undecided strategy -> null (TEST-017)..."
@@ -1291,7 +1291,7 @@ test_023_ledger_shape_unchanged() {  # TEST-005 (Spec-AC-04, regression control)
 }
 
 # --- metrics-flush-strands-completed-refs: --sweep (TEST-101..109) -------------
-# SPEC-DRAFT-spec-metrics-flush-sweep.md D1-D5. Every fixture is a scratch
+# SPEC-0068-spec-metrics-flush-sweep.md D1-D5. Every fixture is a scratch
 # temp-dir repo; the real docs/ai/{STATE.yaml,METRICS.jsonl,EVENTS.jsonl} are
 # NEVER touched by these tests.
 
@@ -1555,7 +1555,7 @@ test_109_sweep_seam_close_then_sweep() {
 }
 
 # --- retire-stranded-nonworkitem-metric: --retire (TEST-001..008) -------------
-# SPEC-DRAFT-spec-retire-stranded-nonworkitem-metric. Every fixture is a
+# SPEC-0075-spec-retire-stranded-nonworkitem-metric. Every fixture is a
 # scratch temp-dir repo; the real docs/ai/{STATE.yaml,EVENTS.jsonl} are NEVER
 # touched. None of these depend on the real pr-67-post-merge-review entry.
 
@@ -1722,7 +1722,7 @@ test_116_retire_documented_not_in_prompt() {  # TEST-008 (Spec-AC-08)
 }
 
 # --- token-capture-canary: 3-way per-run classification (spec TEST-001..003) ---
-# SPEC-DRAFT-spec-token-capture-canary.md Spec-AC-01. buildEntry() classifies
+# SPEC-0085-spec-token-capture-canary.md Spec-AC-01. buildEntry() classifies
 # every agent_run into exactly one of decomposed | undecomposed-note |
 # capture-missing; decomposed emits neither line, undecomposed-note emits one
 # INFO line (naming ref/role/N), capture-missing emits one WARNING (naming
@@ -1791,7 +1791,7 @@ test_119_classify_capture_missing() {
 }
 
 # --- token-economics-end-to-end TEST-001..004 --------------------------------
-# (SPEC-DRAFT-spec-token-economics-end-to-end). TEST-003/TEST-004 are the
+# (SPEC-0089-spec-token-economics-end-to-end). TEST-003/TEST-004 are the
 # integrity-critical rows (RED-proof obligation).
 
 # write_ledger_line <file> <ref> <title> <notes-json...> — appends one raw

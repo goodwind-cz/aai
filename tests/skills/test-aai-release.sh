@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-release.sh — deterministic release-cut engine (aai-release-skill /
-# SPEC-DRAFT-spec-aai-release-skill, TEST-001..021).
+# SPEC-0063-spec-aai-release-skill, TEST-001..021).
 #
 # Covers the CHANGELOG [unreleased] rollup transform (D1), release-notes
 # extraction (D2, SEAM-1), version resolution (D3), the operator gate (D4),

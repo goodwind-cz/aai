@@ -110,6 +110,37 @@ export const EXCLUDED_TREES = [
   '.aai/cache',
 ];
 
+// Committed-class SCRIPT/TEST roots scanned by the reference-rewrite pass
+// (allocator-header-rewrite). The SAME verbatim DRAFT-basename ->
+// numbered-basename substitution as the markdown pass, applied to shell /
+// PowerShell / Node sources, so numbering a draft leaves no dangling DRAFT
+// slug in a test/script header comment or fixture path constant — the manual
+// per-ride sed sweep this eliminates. Walked recursively for REWRITE_CODE_EXTS.
+export const REWRITE_CODE_TREES = ['tests', '.aai/scripts'];
+
+// Source extensions the code-tree pass touches (never data files / binaries).
+export const REWRITE_CODE_EXTS = ['.sh', '.ps1', '.mjs'];
+
+// Files/dirs under REWRITE_CODE_TREES that MUST NOT be rewritten because they
+// TEACH the DRAFT convention or assert on DRAFT literals as test data — the
+// code-pass mirror of EXCLUDED_TREES: the allocator's own source, its two
+// suites (doc-numbering + reservation), the spec-lint / docs-audit / state
+// suites (each creates DRAFT fixtures and asserts on the DRAFT basename
+// verbatim), the historical prompt-diet byte-accounting ledger (its
+// point-in-time rationale entries are a deliberately frozen audit trail), and
+// the shared fixtures tree. Prefix match (exact file or a path-segment
+// boundary), same semantics as isExcludedTree.
+export const EXCLUDED_CODE_PATHS = [
+  '.aai/scripts/allocate-doc-number.mjs',
+  'tests/fixtures',
+  'tests/skills/test-aai-doc-numbering.sh',
+  'tests/skills/test-aai-doc-number-reservation.sh',
+  'tests/skills/test-aai-spec-lint.sh',
+  'tests/skills/test-aai-docs-audit.sh',
+  'tests/skills/test-aai-state.sh',
+  'tests/skills/lib/prompt-diet-ledger.sh',
+];
+
 // --- pure helpers (unit-testable without git) --------------------------------
 
 // Slug = kebab-case of the topic (SPEC-0015 D1). lowercase; transliterate to
@@ -595,6 +626,13 @@ export function isExcludedTree(rel) {
   return EXCLUDED_TREES.some((ex) => rel === ex || rel.startsWith(`${ex}/`));
 }
 
+// True when repo-relative `rel` is an EXCLUDED_CODE_PATHS entry (exact file or
+// under one as a path-segment prefix) — the code-pass analogue of
+// isExcludedTree. Exported to anchor the byte-identity exclusion tests.
+export function isExcludedCodePath(rel) {
+  return EXCLUDED_CODE_PATHS.some((ex) => rel === ex || rel.startsWith(`${ex}/`));
+}
+
 // Recursive *.md collector for one REWRITE_TREES directory root. Skips any
 // path under an EXCLUDED_TREES prefix; an unreadable subdirectory is
 // silently skipped (not fatal, no report — allocation must not fail on a
@@ -649,11 +687,61 @@ function collectRewriteFiles(root) {
   return out;
 }
 
-// The REWRITE_TREES entry a collected file belongs to (longest-prefix
-// match) — used only to group the dry-run report by tree.
+// Recursive source-file collector for one REWRITE_CODE_TREES root
+// (allocator-header-rewrite). Skips any path under an EXCLUDED_CODE_PATHS
+// prefix and only admits REWRITE_CODE_EXTS files. Dirents reflect lstat, so a
+// symlink is neither isFile()/isDirectory() -> never followed (byte-safe); an
+// unreadable subdirectory is silently skipped (same degrade-and-report
+// discipline as walkMarkdown).
+function walkCode(absDir, relDir, out) {
+  let entries;
+  try {
+    entries = fs.readdirSync(absDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const rel = `${relDir}/${entry.name}`;
+    if (isExcludedCodePath(rel)) continue;
+    const abs = path.join(absDir, entry.name);
+    if (entry.isDirectory()) {
+      walkCode(abs, rel, out);
+    } else if (entry.isFile() && REWRITE_CODE_EXTS.includes(path.extname(entry.name))) {
+      out.push(rel);
+    }
+  }
+}
+
+// Deduplicated repo-relative source paths across REWRITE_CODE_TREES, skipping
+// missing roots and any EXCLUDED_CODE_PATHS prefix; symlinked roots are
+// rejected with a WARNING (never followed — same guard as collectRewriteFiles).
+function collectRewriteCodeFiles(root) {
+  const seen = new Set();
+  const out = [];
+  for (const treeRoot of REWRITE_CODE_TREES) {
+    if (isExcludedCodePath(treeRoot)) continue; // defensive; not expected
+    const abs = path.join(root, treeRoot);
+    if (!fs.existsSync(abs)) continue;
+    if (fs.lstatSync(abs).isSymbolicLink()) {
+      process.stderr.write(`allocate-doc-number: WARNING code rewrite root ${treeRoot} is a symlink — skipped (never followed)\n`);
+      continue;
+    }
+    if (fs.statSync(abs).isDirectory()) {
+      const files = [];
+      walkCode(abs, treeRoot, files);
+      for (const f of files) {
+        if (!seen.has(f)) { seen.add(f); out.push(f); }
+      }
+    }
+  }
+  return out;
+}
+
+// The REWRITE_TREES / REWRITE_CODE_TREES entry a collected file belongs to
+// (longest-prefix match) — used only to group the dry-run report by tree.
 function ownerTreeFor(rel) {
   let best = null;
-  for (const treeRoot of REWRITE_TREES) {
+  for (const treeRoot of [...REWRITE_TREES, ...REWRITE_CODE_TREES]) {
     if ((rel === treeRoot || rel.startsWith(`${treeRoot}/`)) && (!best || treeRoot.length > best.length)) {
       best = treeRoot;
     }
@@ -670,7 +758,10 @@ function ownerTreeFor(rel) {
 // per-tree change set WITHOUT writing anything (Spec-AC-04).
 function rewriteReferences(root, oldBase, newBase, { dryRun = false } = {}) {
   const report = new Map(); // tree root -> changed file[]
-  for (const rel of collectRewriteFiles(root)) {
+  // Markdown committed-class trees (CHANGE-0064) + script/test source trees
+  // (allocator-header-rewrite) share the exact same verbatim substring
+  // substitution, guard, and write-only-if-changed idempotence.
+  for (const rel of [...collectRewriteFiles(root), ...collectRewriteCodeFiles(root)]) {
     const p = path.join(root, rel);
     const content = fs.readFileSync(p, 'utf8');
     if (!content.includes(oldBase)) continue;

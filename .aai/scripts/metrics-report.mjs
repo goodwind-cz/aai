@@ -5,7 +5,7 @@
 // token counts are known — the SAME lookup_rules resolver flush uses, from
 // lib/pricing.mjs) and writes the exact METRICS_REPORT.prompt.md markdown
 // (Per Work Item / Totals / Per Model Breakdown / Per-Strategy Reliability)
-// to stdout. The reliability section (SPEC-DRAFT-truth-scoring) groups entries
+// to stdout. The reliability section (SPEC-0032-spec-truth-scoring) groups entries
 // by their flush-recorded `strategy` (lexicographic; no string -> 'n/a') and
 // aggregates the `reliability` object; ledger lines predating the field
 // contribute 'n/a' stats — old lines are never reinterpreted.

@@ -7,7 +7,7 @@
 # byte floor, repo-wide strict docs audit).
 #
 # Covers TEST-001..008 from
-# docs/specs/SPEC-DRAFT-verification-before-completion.md.
+# docs/specs/SPEC-0025-spec-verification-before-completion.md.
 #
 # Exit codes:
 #   0  - All tests passed
@@ -25,7 +25,7 @@ GATE_FILE=".aai/SKILL_VERIFY.prompt.md"
 
 # Diet-floor constants, JUSTIFIED_ADDITIONS ledger, and the two pure helpers
 # are single-sourced from the shared library (prompt-diet-floor-credit-drift /
-# SPEC-DRAFT-spec-prompt-diet-floor-credit-drift.md) — the SAME source
+# SPEC-0060-spec-prompt-diet-floor-credit-drift.md) — the SAME source
 # tests/skills/test-aai-prompt-diet.sh TEST-010 reads, so the two floors can
 # no longer drift (Seam S1). Sourced at top level, after SCRIPT_DIR is
 # computed, so the absolute path resolves regardless of the later `cd`.

@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-29T23:34:11.103Z
+Generated: 2026-07-29T23:58:44.333Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-allocator-header-rewrite | specs | implementing | 6 done | docs/specs/SPEC-DRAFT-spec-allocator-header-rewrite.md |
 
 ## Canonical layer (0)
 
@@ -288,9 +289,11 @@ _None._
 | SPEC-0106 | specs | docs/specs/SPEC-0106-spec-auto-update-config.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| allocator-header-rewrite (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-allocator-header-rewrite.md |
 
 ## Deferred (whole-doc) (0)
 

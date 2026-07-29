@@ -934,6 +934,87 @@ MD
   log_pass "TEST-018 enforce flip: numbered staged tree passes, untracked draft ignored, staged DRAFT blocks loud"
 }
 
+# --- TEST-019: allocator rewrites DRAFT refs in SCRIPT/TEST trees ------------
+# allocator-header-rewrite: numbering a draft rewrites the DRAFT basename ->
+# numbered basename in tests/**/*.{sh,ps1,mjs} and .aai/scripts/**/*.{mjs,sh,ps1}
+# too (not just docs/*.md), while LEAVING byte-identical (a) the meta-test
+# suites that teach the DRAFT convention / assert on DRAFT literals, and
+# (b) non-source file extensions. Idempotent: a second, unrelated allocation
+# does not re-touch an already-rewritten file.
+test_019_code_tree_rewrite() {
+  log_info "TEST-019: allocator rewrites DRAFT refs in script/test trees; exclusions + non-source exts untouched..."
+  local d; d="$(setup_iso_repo t019)"
+  seed_rfcs "$d" 6
+  (cd "$d" && git checkout -q -b feature/hdr)
+  write_draft "$d" rfc RFC header-demo
+  # Consumer SOURCE files that reference the DRAFT basename (must be rewritten).
+  mkdir -p "$d/tests/skills" "$d/tests/fixtures" "$d/tests/data" "$d/.aai/scripts"
+  cat > "$d/tests/skills/consumer.sh" <<'SH'
+#!/usr/bin/env bash
+# Covers X from docs/rfc/RFC-DRAFT-header-demo.md (RFC-DRAFT-header-demo).
+SH
+  cat > "$d/.aai/scripts/consumer.mjs" <<'MJS'
+// ref: docs/rfc/RFC-DRAFT-header-demo.md (RFC-DRAFT-header-demo)
+MJS
+  cat > "$d/tests/skills/consumer.ps1" <<'PS1'
+# ref RFC-DRAFT-header-demo (docs/rfc/RFC-DRAFT-header-demo.md)
+PS1
+  # EXCLUDED: the allocator's own suite teaches the convention — never rewritten.
+  cat > "$d/tests/skills/test-aai-doc-numbering.sh" <<'EXC'
+# teaches: RFC-DRAFT-header-demo must stay verbatim in this meta-test.
+EXC
+  # EXCLUDED tree: tests/fixtures — fixture inputs teaching the DRAFT shape.
+  cat > "$d/tests/fixtures/note.sh" <<'FIX'
+# fixture: RFC-DRAFT-header-demo stays as-is.
+FIX
+  # Non-source extension — byte-safety: the pass only touches .sh/.ps1/.mjs.
+  cat > "$d/tests/data/note.txt" <<'TXT'
+plain data mentioning RFC-DRAFT-header-demo verbatim.
+TXT
+  (cd "$d" && git add docs tests .aai && git commit -qm "docs+code: draft + consumers" >/dev/null)
+
+  # Dry-run must PLAN the code-tree rewrites without writing.
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/rfc/RFC-DRAFT-header-demo.md --base-ref main --dry-run \
+      > dry.log 2>&1) || log_fail "dry-run must exit 0: $(cat "$d/dry.log")"
+  assert_contains "$d/dry.log" "tests/skills/consumer.sh"
+  assert_contains "$d/dry.log" ".aai/scripts/consumer.mjs"
+  assert_contains "$d/tests/skills/consumer.sh" "RFC-DRAFT-header-demo"  # dry-run wrote nothing
+
+  # Real allocation.
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/rfc/RFC-DRAFT-header-demo.md --base-ref main \
+      > alloc.log 2>&1) || log_fail "allocator must exit 0: $(cat "$d/alloc.log")"
+
+  # (a) source consumers rewritten to the numbered basename
+  assert_contains "$d/tests/skills/consumer.sh" "RFC-0007-header-demo"
+  assert_not_contains "$d/tests/skills/consumer.sh" "RFC-DRAFT-header-demo"
+  assert_contains "$d/.aai/scripts/consumer.mjs" "RFC-0007-header-demo"
+  assert_not_contains "$d/.aai/scripts/consumer.mjs" "RFC-DRAFT-header-demo"
+  assert_contains "$d/tests/skills/consumer.ps1" "RFC-0007-header-demo"
+  assert_not_contains "$d/tests/skills/consumer.ps1" "RFC-DRAFT-header-demo"
+  # (b) excluded meta-test + fixtures tree stay byte-identical
+  assert_contains "$d/tests/skills/test-aai-doc-numbering.sh" "RFC-DRAFT-header-demo"
+  assert_contains "$d/tests/fixtures/note.sh" "RFC-DRAFT-header-demo"
+  # (c) non-source extension untouched (byte-safety)
+  assert_contains "$d/tests/data/note.txt" "RFC-DRAFT-header-demo"
+
+  # Idempotence / byte-safety-elsewhere: a SECOND, unrelated allocation must
+  # not re-touch the already-rewritten consumer file.
+  local sha_before; sha_before="$(shasum "$d/tests/skills/consumer.sh" | awk '{print $1}')"
+  write_draft "$d" rfc RFC second-demo
+  (cd "$d" && git add docs && git commit -qm "docs: second draft" >/dev/null)
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/rfc/RFC-DRAFT-second-demo.md --base-ref main \
+      > alloc2.log 2>&1) || log_fail "second allocation must exit 0: $(cat "$d/alloc2.log")"
+  local sha_after; sha_after="$(shasum "$d/tests/skills/consumer.sh" | awk '{print $1}')"
+  [[ "$sha_before" == "$sha_after" ]] \
+    || log_fail "idempotence: an unrelated allocation must not re-touch consumer.sh"
+
+  rm -rf "$d"
+  log_pass "TEST-019 code-tree rewrite: sources rewritten, meta-test/fixtures/non-source untouched, idempotent"
+}
+
 main() {
   echo ""
   echo "AAI Doc-Numbering Test Suite (SPEC-0015 / RFC-0007)"
@@ -960,6 +1041,7 @@ main() {
   test_016_per_type_digit_width
   test_017_project_dominant_width
   test_018_enforce_flip
+  test_019_code_tree_rewrite
 
   echo ""
   echo "All doc-numbering tests passed."

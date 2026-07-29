@@ -8,7 +8,7 @@
 # --with-claude-hooks opt-in merge, and the SKILL_PR AAI_OPERATOR_MERGE
 # marker documentation (constitution article 7, strict).
 #
-# Covers TEST-001..015 from docs/specs/SPEC-DRAFT-hook-enforced-gates.md.
+# Covers TEST-001..015 from docs/specs/SPEC-0029-spec-hook-enforced-gates.md.
 #
 # NOTE: this repo itself keeps the overlay UNINSTALLED (opt-in means opt-in);
 # these tests exercise the template and adapter directly in fixtures

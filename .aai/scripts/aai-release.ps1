@@ -38,7 +38,7 @@ param(
 
 function Invoke-NativeChecked {
   # Diagnostics-preserving checked-invoke (ps1-native-stderr-guard /
-  # SPEC-DRAFT-spec-ps1-native-stderr-guard, Spec-AC-01). A native command's
+  # SPEC-0067-spec-ps1-native-stderr-guard, Spec-AC-01). A native command's
   # SUCCESS-stderr (e.g. `git push`'s "To <remote>..." progress line) must
   # NEVER be promoted to a terminating error under this script's outer
   # `$ErrorActionPreference = 'Stop'` (that promotion is Windows PowerShell

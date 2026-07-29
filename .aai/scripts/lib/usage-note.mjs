@@ -1,5 +1,5 @@
 // usage-note.mjs — canonical usage_total_tokens=<N> note-marker grammar
-// (SPEC-DRAFT-spec-token-economics-end-to-end, Spec-AC-01: SINGLE SOURCE).
+// (SPEC-0089-spec-token-economics-end-to-end, Spec-AC-01: SINGLE SOURCE).
 //
 // metrics-flush.mjs (INFO/WARNING classification of undecomposed-note vs
 // capture-missing runs), metrics-report.mjs (per-item + per-role token

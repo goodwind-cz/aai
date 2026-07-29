@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // branch-guard.mjs — deterministic branch-per-work-item hygiene guard
-// (SPEC-DRAFT-spec-branch-per-work-item-hygiene).
+// (SPEC-0070-spec-branch-per-work-item-hygiene).
 //
 // Fails CLOSED before a PR push when the current git branch does not correspond
 // to the current work item (current_focus.ref_id). The inline (L0-L2) path never
