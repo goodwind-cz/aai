@@ -1376,3 +1376,6 @@
 {"v":1,"ts":"2026-07-29T09:39:37.869Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"ps1-sync-nonexistent-dest","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-29T09:39:37.902Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"ps1-sync-nonexistent-dest","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-29T09:39:37.935Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"ps1-sync-nonexistent-dest","payload":{"commit":"7c02e5bd9333d47613c8c045a3da4924e4324b73"}}
+{"v":1,"ts":"2026-07-29T15:52:14.537Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"update-sync-atomic-lock","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-29T15:52:14.593Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"update-sync-atomic-lock","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-29T15:52:14.653Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"update-sync-atomic-lock","payload":{"commit":"9c499d97f668742c7e77cee432351502ecfec3e6"}}

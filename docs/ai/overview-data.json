@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-07-29T09:39:49.678Z",
+  "generatedAt": "2026-07-29T15:52:40.034Z",
   "project": "aai",
   "counts": {
-    "delivered": 137,
+    "delivered": 138,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -24,7 +24,7 @@
       "user_decision": "inline"
     },
     "validation_status": "not_run",
-    "review_status": "pass",
+    "review_status": "not_run",
     "ticks": [
       {
         "tick": 2,
@@ -98,6 +98,19 @@
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0092-ps1-sync-nonexistent-dest.md",
+      "closed_on": "2026-07-29",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "update-sync-atomic-lock",
+      "title": "Change — auto-update: atomic O_EXCL claim closes the concurrent-sync race (RR-1/RR-2)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0093-update-sync-atomic-lock.md",
       "closed_on": "2026-07-29",
       "agent_minutes": null,
       "token_total": null,
@@ -1886,6 +1899,19 @@
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0092-ps1-sync-nonexistent-dest.md",
+          "closed_on": "2026-07-29",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "update-sync-atomic-lock",
+          "title": "Change — auto-update: atomic O_EXCL claim closes the concurrent-sync race (RR-1/RR-2)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0093-update-sync-atomic-lock.md",
           "closed_on": "2026-07-29",
           "agent_minutes": null,
           "token_total": null,
