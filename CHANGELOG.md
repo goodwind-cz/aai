@@ -89,6 +89,28 @@ RFC-0001).
   the concurrent-sync guard. New `.aai/scripts/update-check.mjs` (core profile).
   Suite: `tests/skills/test-aai-update-check.sh` (23 tests, zero real network).
 
+- fix(install): Windows PowerShell 5.1 sync fails copying .codex/.gemini skills
+  (CHANGE-0092) [L2]. A field install via `irm install.ps1 | iex` on Windows
+  PowerShell 5.1 aborted with `Copy-Item ... DirectoryNotFoundException` on
+  `.codex\skills`: 5.1's `Copy-Item -Recurse <dir> <nonexistent-dst>` does not
+  create the destination root before copying a top-level file into it, and
+  `.codex/skills` + `.gemini/skills` carry a top-level `README.md` alongside
+  skill subfolders (PowerShell 7 and the bash installer are unaffected, so Linux
+  CI and the 5.1 parse-check never caught it). `Copy-Replace` now creates the
+  destination root first, then copies contents (version-safe on 5.1 and 7). The
+  `ps1-quality` windows-5.1 CI job gained a FUNCTIONAL `aai-sync.ps1` smoke into
+  a fresh target (a parse-check could not catch a runtime copy behavior).
+
+- refactor(prompts): core-prompt diet — dedup into ROLE_COMMON + drop dead
+  SKILL_TDD prose (CHANGE-0090) [L2]. Folded four cross-prompt duplications
+  (FRICTION HOOK, PYTHON MONTY SCRATCHPAD, PRE-HANDOFF AC-TABLE RECONCILIATION,
+  WORKTREE GATE) into `.aai/ROLE_COMMON.md` as canonical blocks, pointer-ized
+  the owning prompts, and deleted three dead SKILL_TDD prose sections — a net
+  −3247 B corpus reduction with headroom held in-cap. New TEST-019 grep-contract
+  pins dedup-once + surviving recipes; anti-dedup hostile pins (check-state
+  INV-14, implementer AC-table literals) kept verbatim. Behaviour-preserving:
+  no contract, fail-closed rule, exit-code branch, or CLI recipe lost.
+
 ## [v2026.07.28.1] — chore: product capability refinements — delivered_by provenance + telemetry consolidation (CHANGE-0089) [L2]
 
 - delivered_by in the migrated product docs was seeded with the capability
