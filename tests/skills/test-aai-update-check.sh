@@ -988,12 +988,15 @@ import os from 'node:os';
 import path from 'node:path';
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'surf-restore-'));
 const oc = path.join(dir, 'update-sync-outcome.json');
-const claim = oc + '.surfacing';
 fs.writeFileSync(oc, JSON.stringify({started_utc:'2026-07-20T09:00:00Z',finished_utc:'2026-07-20T09:00:30Z',target_version:'abc1234',result:'applied',detail:'synced',reported:false}) + '\n');
 const emit = []; const result = { reported_outcome: null };
 // Injected fault: the read AFTER the claim rename throws (torn write observed).
 surfaceOutcome(oc, emit, result, () => { throw new Error('torn read after claim'); });
-if (fs.existsSync(claim)) { console.error('FAIL: outcome orphaned at .surfacing'); process.exit(1); }
+// The claim path is PER-PID (\${oc}.surfacing.<pid>.<seq>); assert on the glob so
+// a per-pid orphan regression is actually caught (the old shared '.surfacing'
+// path could never match the real code).
+const orphans = fs.readdirSync(dir).filter((n) => n.startsWith(path.basename(oc) + '.surfacing.'));
+if (orphans.length) { console.error('FAIL: outcome orphaned at ' + orphans.join(',')); process.exit(1); }
 if (!fs.existsSync(oc)) { console.error('FAIL: outcome lost (not restored to the outcome path)'); process.exit(1); }
 if (emit.length) { console.error('FAIL: nothing must surface on a torn read, got: ' + emit.join(' | ')); process.exit(1); }
 if (JSON.parse(fs.readFileSync(oc, 'utf8')).reported) { console.error('FAIL: restored outcome must stay unreported (surface next run)'); process.exit(1); }
@@ -1006,6 +1009,149 @@ console.log('ok');
   set -e
   [[ "$rc" -eq 0 ]] || log_fail "surface-restore-on-read-failure assertion failed: $out"
   log_pass "TEST-028 surfaceOutcome restores the outcome on a post-claim read failure (no orphan; surfaces once later)"
+}
+
+# --- TEST-029 — linkSync-unsupported claim falls back to wx; genuine error is loud
+# (Finding A) claimLockFile hard-links a per-pid temp into place; on a filesystem
+# that disallows hard links (EPERM/ENOSYS/EOPNOTSUPP/EMLINK) it must FALL BACK to
+# an atomic openSync(..,'wx') create so the claim still succeeds and auto-update
+# actually runs. A GENUINE claim error (e.g. EACCES) must NOT masquerade as "a
+# sync is already in progress" (silent no-op); it must be a loud, non-fatal skip.
+# Injected via a NODE_OPTIONS preload that forces fs.linkSync to throw.
+test_linksync_fallback_and_error() {
+  log_info "TEST-029: linkSync-unsupported -> wx fallback (sync spawns); genuine error -> loud warning, not a silent 'in progress'..."
+  local dir="$TMP_ROOT/t029" src="$TMP_ROOT/t029-src" pin cfg outcome preload out err rc
+  build_sync_source "$src"
+  mkdir -p "$dir"
+  git -C "$dir" init -q -b main
+  git -C "$dir" config user.email "test@example.invalid"; git -C "$dir" config user.name "AAI Test"
+  git -C "$dir" remote add origin "https://example.invalid/some-owner/target.git"
+  mkdir -p "$dir/.aai/system"
+  pin="$dir/.aai/system/AAI_PIN.md"; cfg="$dir/docs/ai/update-config.yaml"
+  outcome="$dir/.aai/cache/update-sync-outcome.json"
+  write_pin "$pin" "${CANON_SHAS[0]}" "$CANON"; write_config "$cfg" auto
+  # Preload that forces fs.linkSync to throw a code chosen by an env var. Shared
+  # fs default object -> update-check's linkSync is overridden in-process.
+  preload="$TMP_ROOT/t029-linkfail.mjs"
+  cat > "$preload" <<'PRE'
+import fs from 'node:fs';
+const code = process.env.AAI_TEST_LINK_FAIL || 'ENOSYS';
+fs.linkSync = () => { const e = new Error('injected link failure'); e.code = code; throw e; };
+PRE
+  # (a) ENOSYS (hard links unsupported) -> wx fallback -> the claim succeeds and
+  # the detached sync spawns + eventually applies.
+  set +e
+  out="$(cd "$dir" && AAI_TEST_LINK_FAIL=ENOSYS NODE_OPTIONS="--import file://$preload" \
+    node "$CHECK_SCRIPT" --pin "$pin" --config "$cfg" --remote "$CANON" --source "$src" --outcome "$outcome" --force 2>/dev/null)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "linkSync-ENOSYS run must exit 0 (got $rc): $out"
+  echo "$out" | grep -qi "detached" || log_fail "linkSync-unsupported must fall back to wx and SPAWN the sync (detached), got: $out"
+  echo "$out" | grep -qi "in progress" && log_fail "linkSync-unsupported must NOT report a bogus in-progress sync, got: $out"
+  wait_for_grep "$outcome" '"result":"applied"' 20 || log_fail "wx-fallback sync outcome not applied: $(cat "$outcome" 2>/dev/null)"
+  [[ -f "$dir/.aai/system-marker.txt" ]] || log_fail "wx-fallback sync did not materialize the synced marker"
+
+  # (b) EACCES (genuine claim error) -> loud stderr WARNING, NO spawn, and NOT the
+  # silent "in progress" no-op that pre-fix masqueraded a genuine failure as.
+  local d2="$TMP_ROOT/t029b" s2="$TMP_ROOT/t029b-src" p2 c2 o2
+  build_sync_source "$s2"
+  mkdir -p "$d2"
+  git -C "$d2" init -q -b main
+  git -C "$d2" config user.email "test@example.invalid"; git -C "$d2" config user.name "AAI Test"
+  git -C "$d2" remote add origin "https://example.invalid/some-owner/target.git"
+  mkdir -p "$d2/.aai/system"
+  p2="$d2/.aai/system/AAI_PIN.md"; c2="$d2/docs/ai/update-config.yaml"
+  o2="$d2/.aai/cache/update-sync-outcome.json"
+  write_pin "$p2" "${CANON_SHAS[0]}" "$CANON"; write_config "$c2" auto
+  err="$TMP_ROOT/t029b.err"
+  set +e
+  out="$(cd "$d2" && AAI_TEST_LINK_FAIL=EACCES NODE_OPTIONS="--import file://$preload" \
+    node "$CHECK_SCRIPT" --pin "$p2" --config "$c2" --remote "$CANON" --source "$s2" --outcome "$o2" --force 2>"$err")"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "genuine-error run must still exit 0 non-fatally (got $rc): $out / $(cat "$err")"
+  grep -qi "WARNING" "$err" || log_fail "a genuine claim error must emit a loud stderr WARNING, got stderr: [$(cat "$err")]"
+  grep -qi "lock" "$err" || log_fail "the genuine-error warning must name the lock, got stderr: [$(cat "$err")]"
+  echo "$out" | grep -qi "in progress" && log_fail "a genuine claim error must NOT masquerade as 'in progress', got: $out"
+  sleep 1
+  [[ ! -f "$d2/.aai/system-marker.txt" ]] || log_fail "a genuine claim error must NOT spawn a sync"
+  log_pass "TEST-029 linkSync-unsupported falls back to wx (sync spawns); genuine error is a loud non-silent skip"
+}
+
+# --- TEST-030 — releaseSyncLock only deletes the lock THIS sync owns ------------
+# (Finding B) If a sync outlives the 30min stale window, a second run reclaims
+# (installs a NEW lock with a new owner token). The first sync's release must NOT
+# delete the reclaimer's lock (deleting by path would let a THIRD sync start).
+# Release only when the recorded owner token matches.
+test_owner_scoped_release() {
+  log_info "TEST-030: releaseSyncLock leaves a lock owned by a DIFFERENT token; deletes only the owner's own lock..."
+  local out rc
+  set +e
+  out="$(node --input-type=module -e "
+import { releaseSyncLock } from '$CHECK_SCRIPT';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'owner-rel-'));
+const lock = path.join(dir, 'update-sync.lock');
+fs.writeFileSync(lock, JSON.stringify({pid:111, started_utc:'2026-07-20T09:00:00Z', token:'OWNER-A'}) + '\n');
+// A DIFFERENT owner token (a reclaimer's lock) must NOT be deleted.
+releaseSyncLock(lock, 'OWNER-B');
+if (!fs.existsSync(lock)) { console.error('FAIL: released a lock owned by a different token'); process.exit(1); }
+// The owner's OWN token deletes it.
+releaseSyncLock(lock, 'OWNER-A');
+if (fs.existsSync(lock)) { console.error('FAIL: owner did not delete its own lock'); process.exit(1); }
+console.log('ok');
+" 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "owner-scoped-release assertion failed: $out"
+  log_pass "TEST-030 releaseSyncLock is owner-scoped (mismatched token kept, own token deleted)"
+}
+
+# --- TEST-031 — surfaceOutcome recovers a STALE orphaned .surfacing.* claim -----
+# (Finding C) If a reporter is killed after the atomic claim rename (outcome ->
+# .surfacing.PID.SEQ) but before restore/recreate, the sole outcome copy is
+# orphaned at the per-pid claim path with the real outcome gone -> it never
+# surfaces. A later run must recover the newest mtime-STALE orphan (never a fresh
+# one from a live reporter) and surface it exactly once.
+test_surface_orphan_recovery() {
+  log_info "TEST-031: a STALE orphaned .surfacing.* with no outcome file is recovered and surfaced once; a FRESH orphan is left untouched..."
+  local out rc
+  set +e
+  out="$(node --input-type=module -e "
+import { surfaceOutcome } from '$CHECK_SCRIPT';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'surf-orphan-'));
+const oc = path.join(dir, 'update-sync-outcome.json');
+const body = JSON.stringify({started_utc:'2026-07-20T09:00:00Z',finished_utc:'2026-07-20T09:00:30Z',target_version:'abc1234',result:'applied',detail:'synced',reported:false}) + '\n';
+// (a) FRESH orphan (mtime now), no outcome -> NOT resurrected (a live reporter).
+const fresh = oc + '.surfacing.4242.0';
+fs.writeFileSync(fresh, body);
+let emit = []; const result = { reported_outcome: null };
+surfaceOutcome(oc, emit, result);
+if (emit.length) { console.error('FAIL: a FRESH orphan must NOT be recovered mid-flight, got: ' + emit.join(' | ')); process.exit(1); }
+if (!fs.existsSync(fresh)) { console.error('FAIL: a fresh orphan (live reporter) must be left in place'); process.exit(1); }
+fs.rmSync(fresh, { force: true });
+// (b) STALE orphan (mtime > 30min old), no outcome -> recovered + surfaced once.
+const stale = oc + '.surfacing.99999.0';
+fs.writeFileSync(stale, body);
+const old = (Date.now() - 40 * 60 * 1000) / 1000;
+fs.utimesSync(stale, old, old);
+emit = [];
+surfaceOutcome(oc, emit, result);
+if (!emit.some((l) => /auto-update applied/i.test(l))) { console.error('FAIL: a stale orphan must be recovered and surfaced'); process.exit(1); }
+if (fs.existsSync(stale)) { console.error('FAIL: recovered orphan claim not consumed'); process.exit(1); }
+if (!fs.existsSync(oc)) { console.error('FAIL: recovered outcome not written back to the outcome path'); process.exit(1); }
+if (!JSON.parse(fs.readFileSync(oc, 'utf8')).reported) { console.error('FAIL: recovered+surfaced outcome must be marked reported'); process.exit(1); }
+// (c) a subsequent run does NOT surface it again (once-only preserved).
+const emit2 = [];
+surfaceOutcome(oc, emit2, result);
+if (emit2.length) { console.error('FAIL: a recovered outcome must surface only once, got: ' + emit2.join(' | ')); process.exit(1); }
+console.log('ok');
+" 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "surface-orphan-recovery assertion failed: $out"
+  log_pass "TEST-031 surfaceOutcome recovers a stale orphaned claim once; leaves a fresh (live) orphan untouched"
 }
 
 main() {
@@ -1040,6 +1186,9 @@ main() {
   test_concurrent_surface_once
   test_concurrent_stale_reclaim
   test_surface_restore_on_read_failure
+  test_linksync_fallback_and_error
+  test_owner_scoped_release
+  test_surface_orphan_recovery
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="
 }
 

@@ -20,10 +20,18 @@ RFC-0001).
   sync (empirically 5 parallel -> up to 5 syncs); RR-2 — once-only outcome
   surfacing could print the "applied" line more than once under the same
   window. RR-1 is fixed with a genuinely atomic claim: before spawning, the
-  auto path does `fs.openSync('.aai/cache/update-sync.lock', 'wx')`
-  (O_CREAT|O_EXCL, a SEPARATE file from the pre-existing outcome log) — exactly
+  auto path creates `.aai/cache/update-sync.lock` (a SEPARATE file from the
+  pre-existing outcome log) by writing a per-pid temp with the full owner token
+  then `fs.linkSync`ing it into place — O_EXCL-equivalent (EEXIST if the target
+  exists) with full content the instant it appears (no torn window); on a
+  filesystem that disallows hard links it FALLS BACK to
+  `fs.openSync(..., 'wx')` (O_CREAT|O_EXCL) so the claim still works. Exactly
   one caller creates the lock and spawns; the losers get EEXIST and back off to
-  the existing "in progress" path (no duplicate spawn). RR-1 is closed for BOTH
+  the existing "in progress" path (no duplicate spawn). A GENUINE claim error
+  (e.g. EACCES) is surfaced as a loud, non-fatal skip — never a silent no-op
+  masquerading as "in progress". The detached child releases the lock by OWNER
+  TOKEN, so a sync that outlived the stale window never deletes a reclaimer's
+  fresh lock. RR-1 is closed for BOTH
   cold start AND concurrent STALE-lock RECLAIM: reclaim (which must remove the
   existing lock before re-claiming, so a lone O_EXCL create cannot arbitrate it)
   is serialized behind a short-lived exclusive reclaim lock whose holder
@@ -42,10 +50,12 @@ RFC-0001).
   completion, report-next-session, source agreement, notify default, canonical
   refuse, offline degrade, throttle + self-heal, future-date guards). The lock
   lives in gitignored, PROFILES-excluded `.aai/cache/`. Suite:
-  `tests/skills/test-aai-update-check.sh` (+5 tests, now 28; true-parallel
+  `tests/skills/test-aai-update-check.sh` (+8 tests, now 31; true-parallel
   single-invocation, lock-reclaim, concurrent-surfacing, an amplified
-  CONCURRENT stale-lock reclaim case, and a surface-restore-on-read-failure
-  unit check; deterministic, zero real network).
+  CONCURRENT stale-lock reclaim case, a surface-restore-on-read-failure unit
+  check, plus a bot-sweep fix set: linkSync-unsupported wx fallback with a
+  genuine-error loud-skip, owner-scoped lock release, and stale orphaned-claim
+  recovery; deterministic, zero real network).
 
 - feat(auto-update): config-driven new-release notify + opt-in auto-sync
   (CHANGE auto-update-config / spec-auto-update-config) [L2]. A target project

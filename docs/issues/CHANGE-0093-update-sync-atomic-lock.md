@@ -62,6 +62,19 @@ links:
   claim rename fails (a torn write observed mid-write), the outcome is restored
   to its path (best-effort) and surfaces on a later run exactly once; the
   once-only guarantee holds.
+- AC-007: the lock claim is portable. On a filesystem that disallows hard links
+  (linkSync throws EPERM/ENOSYS/EOPNOTSUPP/EMLINK) claimLockFile falls back to an
+  atomic openSync wx create so the claim still succeeds and auto-update runs; a
+  GENUINE claim error (e.g. EACCES) is surfaced as a loud, non-fatal skip and is
+  never a silent no-op masquerading as "in progress".
+- AC-008: releaseSyncLock is owner-scoped. The detached child removes the lock
+  only when it still carries the owner token this sync wrote at claim time; a
+  reclaimer's differently-tokened lock is left intact, so a long sync can never
+  delete a fresh lock and let a third sync start.
+- AC-009: surfaceOutcome recovers a stale orphaned claim. When the outcome file
+  is absent but a mtime-stale ".surfacing.*" per-pid orphan exists (a reporter
+  killed mid-claim), the newest stale orphan is recovered and surfaced once; a
+  fresh orphan from a live reporter is never resurrected.
 
 ## Acceptance Criteria Status
 
@@ -73,6 +86,9 @@ links:
 | Spec-AC-04 | No regression across the existing auto-update suite (TEST-001..023)     | done   | docs/ai/tdd/green-20260729T144345Z-update-sync-atomic-reclaim-full-suite.log | —         | AC-004 full suite exit 0, 28 tests now; re-run 3x deterministic                 |
 | Spec-AC-05 | N true-parallel racers reclaiming ONE pre-existing STALE lock spawn exactly ONE sync (concurrent reclaim atomic) | done | docs/ai/tdd/green-20260729T144345Z-update-sync-atomic-reclaim-full-suite.log | — | AC-005 TEST-027; serialized reclaim + atomic linkSync lock create; RED red-20260729T141859Z got 14 spawns for 10 rounds; post-fix 30x isolated deterministic |
 | Spec-AC-06 | surfaceOutcome restores the outcome on a post-claim read failure (no .surfacing orphan); surfaces once later | done | docs/ai/tdd/green-20260729T144345Z-update-sync-atomic-reclaim-full-suite.log | — | AC-006 TEST-028; injected-read-fault unit check; RED contract absent pre-fix (not exported) |
+| Spec-AC-07 | Lock claim portable: linkSync-unsupported falls back to wx (sync spawns); a genuine claim error is a loud non-silent skip | done | docs/ai/tdd/green-20260729T162137Z-update-sync-botfix.log | — | AC-007 TEST-029 (Finding A); NODE_OPTIONS preload forces ENOSYS then EACCES; RED red-20260729T161802Z reported bogus "in progress" |
+| Spec-AC-08 | releaseSyncLock deletes only the lock this sync owns (owner token); a reclaimer's lock is left intact | done | docs/ai/tdd/green-20260729T162137Z-update-sync-botfix.log | — | AC-008 TEST-030 (Finding B); RED releaseSyncLock not exported + deleted by path |
+| Spec-AC-09 | surfaceOutcome recovers a stale orphaned .surfacing.* claim once; a fresh orphan is untouched | done | docs/ai/tdd/green-20260729T162137Z-update-sync-botfix.log | — | AC-009 TEST-031 (Finding C); RED emit empty + stale orphan left in place |
 
 ## Verification
 - extend tests/skills/test-aai-update-check.sh: a TRUE-parallel fixture (launch

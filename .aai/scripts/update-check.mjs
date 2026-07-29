@@ -93,6 +93,7 @@ function parseArgs(argv) {
     force: false,
     runSync: false,
     targetVersion: null,
+    lockToken: null,
     timeoutMs: DEFAULT_TIMEOUT_MS,
     json: false,
   };
@@ -116,6 +117,7 @@ function parseArgs(argv) {
     // private contract (spawned by this same script; not for hand use).
     else if (tok === '--run-sync') args.runSync = true;
     else if (tok === '--target-version') args.targetVersion = need('--target-version');
+    else if (tok === '--lock-token') args.lockToken = need('--lock-token');
     else if (tok === '--timeout-ms') {
       const n = Number.parseInt(need('--timeout-ms'), 10);
       if (!Number.isInteger(n) || n <= 0) fail('--timeout-ms must be a positive integer');
@@ -330,8 +332,12 @@ function syncInFlight(outcome, nowMs) {
 // starts each spawn a detached aai-update sync (probe: 5 parallel -> 5 syncs).
 // The fix is an ATOMIC claim on a SEPARATE lock file (the outcome log
 // legitimately pre-exists, so an O_EXCL create there would wrongly fail).
-// fs.openSync(..., 'wx') is O_CREAT|O_EXCL: exactly one caller creates the file;
-// the rest get EEXIST and back off to the existing "in progress" path.
+// The claim is made by claimLockFile: a per-pid temp is written with the full
+// content then hard-linked into place (linkSync is O_EXCL-equivalent: EEXIST if
+// the target exists), so the lock has full content the instant it appears (no
+// torn window). On a filesystem that disallows hard links it FALLS BACK to
+// fs.openSync(..., 'wx') (O_CREAT|O_EXCL). Either way exactly one caller creates
+// the file; the rest get EEXIST and back off to the existing "in progress" path.
 
 // The lock lives beside the outcome log (gitignored .aai/cache/, PROFILES-
 // excluded), a SEPARATE file so the O_EXCL create is a true claim.
@@ -400,13 +406,27 @@ let lockSeq = 0;
 // Instead we write a per-pid temp with the content FIRST, then hard-link it into
 // place: linkSync throws EEXIST if the target exists (the same exclusive-create
 // guarantee as O_EXCL), and the target has full content from its first instant.
-// Throws an EEXIST-coded error when the target already exists; the temp is always
+// PORTABILITY (Finding A): some filesystems (network / FUSE / exotic) disallow
+// hard links and make linkSync throw EPERM/ENOSYS/EOPNOTSUPP/EMLINK. There we
+// FALL BACK to an atomic openSync(targetPath, 'wx')+writeSync (O_CREAT|O_EXCL) —
+// still exclusive, accepting only on this fallback path the tiny documented
+// created-but-empty torn window. EEXIST on EITHER path means "target already
+// held" and propagates as the exclusive-collision signal; any OTHER errno (e.g.
+// EACCES) is a GENUINE claim error and propagates so the caller can surface it
+// LOUDLY rather than silently treating it as "in progress". The temp is always
 // cleaned up.
+const HARDLINK_UNSUPPORTED = new Set(['EPERM', 'ENOSYS', 'EOPNOTSUPP', 'EMLINK']);
 function claimLockFile(targetPath, body) {
   const tmp = `${targetPath}.tmp.${process.pid}.${lockSeq++}`;
   fs.writeFileSync(tmp, body);
   try {
     fs.linkSync(tmp, targetPath); // exclusive create; EEXIST if targetPath exists
+  } catch (e) {
+    if (e.code === 'EEXIST') throw e;               // target already held
+    if (!HARDLINK_UNSUPPORTED.has(e.code)) throw e; // genuine error -> propagate
+    // Hard links unsupported here: fall back to an O_EXCL open+write.
+    const fd = fs.openSync(targetPath, 'wx');       // EEXIST if held; else genuine
+    try { fs.writeSync(fd, body); } finally { fs.closeSync(fd); }
   } finally {
     try { fs.rmSync(tmp, { force: true }); } catch { /* best-effort temp cleanup */ }
   }
@@ -430,19 +450,23 @@ function reclaimLockPathFor(lockPath) {
 // lock ages out (SYNC_STALE_MS) and is recovered via a rename arbiter — a
 // genuinely fresh reclaim lock (held ~microseconds) is never 30-min stale, so
 // recovery never fires against a live holder.
+// Returns 'claimed' (this process holds the reclaim right), 'held' (another
+// reclaimer is active — back off), or 'error' (a genuine claim failure — the
+// caller must NOT silently treat it as in-progress).
 function acquireReclaimLock(rlPath, nowMs, body) {
   try {
     claimLockFile(rlPath, body);
-    return true;
+    return 'claimed';
   } catch (e) {
-    if (e.code !== 'EEXIST') return false;
-    if (!lockIsStale(rlPath, nowMs)) return false; // another reclaimer is active
+    if (e.code !== 'EEXIST') return 'error';
+    if (!lockIsStale(rlPath, nowMs)) return 'held'; // another reclaimer is active
     // Crashed holder's abandoned reclaim lock (>30min): recover via a rename
     // arbiter — exactly one racer moves it aside; the losers ENOENT and back off.
     const aside = `${rlPath}.rec.${process.pid}.${lockSeq++}`;
-    try { fs.renameSync(rlPath, aside); } catch { return false; }
+    try { fs.renameSync(rlPath, aside); } catch { return 'held'; }
     try { fs.rmSync(aside, { force: true }); } catch { /* best-effort */ }
-    try { claimLockFile(rlPath, body); return true; } catch { return false; }
+    try { claimLockFile(rlPath, body); return 'claimed'; }
+    catch (e2) { return e2.code === 'EEXIST' ? 'held' : 'error'; }
   }
 }
 
@@ -458,43 +482,63 @@ function releaseReclaimLock(rlPath) {
 // process holds the claim. Cold start is arbitrated by the exclusive create; a
 // STALE lock is reclaimed under the exclusive reclaim lock so exactly one racer
 // ever wins — and a crashed sync never wedges auto mode.
-function acquireSyncLock(lockPath, nowMs, nowIso) {
+// Returns one of: 'claimed' (this process holds the claim -> spawn), 'held'
+// (a live sync or another racer holds it -> back off, report in-progress), or
+// 'error' (a GENUINE claim failure, e.g. EACCES or hard-links AND wx both
+// unavailable — the caller must skip LOUDLY, never masquerade as in-progress).
+// `token` is the unique owner token written into the lock so releaseSyncLock can
+// remove only the lock THIS sync owns (Finding B).
+function acquireSyncLock(lockPath, nowMs, nowIso, token) {
   try {
     fs.mkdirSync(path.dirname(lockPath), { recursive: true });
   } catch {
     // best-effort: an unwritable cache dir must never break the check
   }
-  const body = JSON.stringify({ pid: process.pid, started_utc: nowIso }) + '\n';
+  const body = JSON.stringify({ pid: process.pid, started_utc: nowIso, token }) + '\n';
   try {
     claimLockFile(lockPath, body);
-    return true;                             // cold-start: exactly one exclusive winner
+    return 'claimed';                        // cold-start: exactly one exclusive winner
   } catch (e) {
-    if (e.code !== 'EEXIST') return false;   // unexpected error -> do NOT spawn
-    if (!lockIsStale(lockPath, nowMs)) return false; // a live sync holds it
+    if (e.code !== 'EEXIST') return 'error'; // genuine claim failure -> loud skip
+    if (!lockIsStale(lockPath, nowMs)) return 'held'; // a live sync holds it
     // Stale lock: reclaim under the EXCLUSIVE reclaim lock so exactly one racer
     // performs the swap (concurrent stale-reclaim atomicity — RR-1 full closure).
     const rlPath = reclaimLockPathFor(lockPath);
-    if (!acquireReclaimLock(rlPath, nowMs, body)) return false; // another reclaimer -> back off
+    const rl = acquireReclaimLock(rlPath, nowMs, body);
+    if (rl === 'error') return 'error';      // genuine reclaim-lock failure -> loud
+    if (rl !== 'claimed') return 'held';     // another reclaimer -> back off
     try {
       // Exclusive now. RE-CHECK: a prior holder may already have reclaimed and
       // installed a fresh lock — if so it is no longer stale and we back off,
       // never stealing it.
-      if (!lockIsStale(lockPath, nowMs)) return false;
+      if (!lockIsStale(lockPath, nowMs)) return 'held';
       try { fs.rmSync(lockPath, { force: true }); } catch { /* a racer may have */ }
       // The exclusive create is the final single-winner arbiter for the brief
       // window in which we hold exclusivity: normally we win; if a late
       // cold-start racer's own create slipped into the emptied path first, we
       // lose it and back off (still exactly one spawner).
-      try { claimLockFile(lockPath, body); return true; }
-      catch { return false; }
+      try { claimLockFile(lockPath, body); return 'claimed'; }
+      catch (e2) { return e2.code === 'EEXIST' ? 'held' : 'error'; }
     } finally {
       releaseReclaimLock(rlPath);
     }
   }
 }
 
-function releaseSyncLock(lockPath) {
+// Owner-scoped release (Finding B): remove the lock ONLY if it still carries the
+// owner token this sync wrote at claim time. If a >30min stale-reclaim installed
+// a NEW lock (different token) while this sync ran long, deleting by path would
+// remove the RECLAIMER's live lock and let a THIRD sync start concurrently. A
+// mismatched (or vanished/corrupt) token is left untouched. Passing no token
+// (legacy/best-effort) falls back to an unconditional remove.
+export function releaseSyncLock(lockPath, ownerToken) {
   try {
+    if (ownerToken != null) {
+      let cur;
+      try { cur = JSON.parse(fs.readFileSync(lockPath, 'utf8')); }
+      catch { return; }                        // gone/corrupt -> nothing of ours
+      if (!cur || cur.token !== ownerToken) return; // someone else reclaimed it
+    }
     fs.rmSync(lockPath, { force: true });
   } catch {
     // best-effort: a crash leaves a stale lock the >30min rule reclaims
@@ -504,11 +548,14 @@ function releaseSyncLock(lockPath) {
 // Spawn `node <self> --run-sync ...` fully detached, with its own stdio (never
 // inherits the parent's — so it can't hold the SessionStart hook's pipe open).
 // Returns true if the child was launched.
-function spawnDetachedSync({ source, outcome, targetVersion, timeoutMs, cwd }) {
+function spawnDetachedSync({ source, outcome, targetVersion, timeoutMs, cwd, lockToken }) {
   const selfPath = fileURLToPath(import.meta.url);
   const argv = [selfPath, '--run-sync', '--outcome', outcome, '--timeout-ms', String(timeoutMs)];
   if (source) argv.push('--source', source);
   if (targetVersion) argv.push('--target-version', targetVersion);
+  // The child releases the lock by OWNER TOKEN (Finding B), so it only removes
+  // the lock this claim installed — never a reclaimer's fresh lock.
+  if (lockToken) argv.push('--lock-token', lockToken);
   // Redirect the child's own stdout/stderr to a persistent log (a last-resort
   // record if the child dies before writing structured JSON). Fall back to
   // 'ignore' if the log can't be opened; NEVER inherit the parent's stdio.
@@ -569,9 +616,40 @@ function runSyncMode(args) {
     reported: false,
   });
   // Release the atomic claim (success OR failure) so the next eligible run may
-  // claim. A crash before here leaves a stale lock the >30min rule reclaims.
-  releaseSyncLock(syncLockPath(args.outcome));
+  // claim — but ONLY the lock THIS sync owns (Finding B): if the sync outlived
+  // the stale window and a second run reclaimed, releasing by path would delete
+  // the reclaimer's live lock. A crash before here leaves a stale lock the
+  // >30min rule reclaims.
+  releaseSyncLock(syncLockPath(args.outcome), args.lockToken);
   process.exit(0);
+}
+
+// Recover an orphaned surfacing claim (Finding C). Called only when the real
+// outcome file is ABSENT: a reporter killed after the atomic claim rename
+// (outcome -> `${outcomePath}.surfacing.PID.SEQ`) but before restore/recreate
+// leaves the SOLE outcome copy orphaned there. Rename the newest mtime-STALE
+// orphan back to the outcome path so a later run surfaces it once; clean up any
+// older stale orphans. A FRESH orphan (mtime within SYNC_STALE_MS) belongs to a
+// live reporter mid-flight and is NEVER resurrected — that would double-surface.
+function recoverOrphanedSurfacingClaim(outcomePath, nowMs) {
+  const dir = path.dirname(outcomePath);
+  const prefix = path.basename(outcomePath) + '.surfacing.';
+  let entries;
+  try { entries = fs.readdirSync(dir); } catch { return; }
+  const orphans = [];
+  for (const name of entries) {
+    if (!name.startsWith(prefix)) continue;
+    const p = path.join(dir, name);
+    const m = lockMtimeMs(p);
+    if (Number.isNaN(m)) continue;
+    if (Math.abs(nowMs - m) <= SYNC_STALE_MS) continue; // fresh -> live reporter
+    orphans.push({ p, m });
+  }
+  if (!orphans.length) return;
+  orphans.sort((a, b) => b.m - a.m);          // newest first
+  const [newest, ...rest] = orphans;
+  try { fs.renameSync(newest.p, outcomePath); } catch { return; }
+  for (const o of rest) { try { fs.rmSync(o.p, { force: true }); } catch { /* best-effort */ } }
 }
 
 // Surface a completed-but-unreported detached-sync outcome ONCE, then mark it
@@ -590,8 +668,17 @@ function runSyncMode(args) {
 // post-claim read to throw (a torn read is not otherwise deterministically
 // reproducible after a same-process rename); production always uses the default.
 export function surfaceOutcome(outcomePath, emit, result,
-  readClaim = (p) => JSON.parse(fs.readFileSync(p, 'utf8'))) {
-  const peek = readOutcome(outcomePath);
+  readClaim = (p) => JSON.parse(fs.readFileSync(p, 'utf8')), nowMs = Date.now()) {
+  let peek = readOutcome(outcomePath);
+  // Orphan recovery (Finding C): the outcome is ABSENT — a reporter may have been
+  // killed after the atomic claim rename (outcome -> .surfacing.PID.SEQ) but
+  // before restore/recreate, leaving the sole copy orphaned. Recover the newest
+  // mtime-STALE orphan back to the outcome path so it surfaces once (a FRESH
+  // orphan belongs to a live reporter and is never resurrected).
+  if (!peek) {
+    recoverOrphanedSurfacingClaim(outcomePath, nowMs);
+    peek = readOutcome(outcomePath);
+  }
   if (!peek || peek.reported || peek.result === 'running' || !peek.finished_utc) return;
   // PER-PID claim path (not a shared '.surfacing'): the SOURCE outcomePath can be
   // renamed only once, so exactly one racer still wins the capture — but a unique
@@ -699,9 +786,21 @@ function main() {
       // spawns; the losers back off. A stale/future/torn lock is reclaimed so a
       // crashed sync never wedges auto mode.
       const lockPath = syncLockPath(args.outcome);
+      // Unique owner token for this claim so the detached child releases ONLY the
+      // lock it installed (Finding B). pid + clock + a per-process counter keeps
+      // it unique across truly-simultaneous starts.
+      const ownerToken = `${process.pid}.${nowIso}.${lockSeq++}.${Math.random().toString(36).slice(2)}`;
       const inFlight = syncInFlight(readOutcome(args.outcome), nowMs);
-      const claimed = inFlight ? false : acquireSyncLock(lockPath, nowMs, nowIso);
-      if (inFlight || !claimed) {
+      const claim = inFlight ? 'held' : acquireSyncLock(lockPath, nowMs, nowIso, ownerToken);
+      if (claim === 'error') {
+        // GENUINE claim failure (e.g. EACCES, or hard-links AND wx both
+        // unavailable). This must be a LOUD, non-fatal skip — NEVER a silent
+        // no-op masquerading as "in progress" (Finding A): that would make
+        // auto-update quietly never run on such a host.
+        result.action = 'sync_lock_error';
+        console.error('update-check: WARNING could not acquire the auto-sync lock '
+          + `(${lockPath}) — skipping this auto-update. Run /aai-update manually.`);
+      } else if (claim !== 'claimed') { // 'held' (a live sync / in-flight)
         result.action = 'sync_in_flight';
         emit.push('AAI auto-update: a background sync is already in progress — '
           + 'its outcome will be reported next session.');
@@ -714,7 +813,7 @@ function main() {
         });
         const launched = spawnDetachedSync({
           source: syncSource, outcome: args.outcome, targetVersion,
-          timeoutMs: args.timeoutMs, cwd: process.cwd(),
+          timeoutMs: args.timeoutMs, cwd: process.cwd(), lockToken: ownerToken,
         });
         if (launched) {
           result.action = 'sync_spawned';
@@ -723,7 +822,7 @@ function main() {
         } else {
           // Could not launch — release the claim + clear the running marker so a
           // later run retries.
-          releaseSyncLock(lockPath);
+          releaseSyncLock(lockPath, ownerToken);
           result.action = 'sync_launch_failed';
           writeOutcome(args.outcome, {
             started_utc: nowIso, finished_utc: new Date().toISOString(),
