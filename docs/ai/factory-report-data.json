@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-29T23:33:37.974Z",
+  "generatedAt": "2026-07-29T23:54:38.505Z",
   "project": "agent-a1b3c1b945967bfff",
   "empty": false,
   "empty_reason": null,
@@ -11,6 +11,7 @@
     "review_events": 26
   },
   "throughput": {
+    "note": "\"delivered\" counts every work_item_closed event (254 closes vs 104 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
     "delivered_total": 254,
     "delivered_per_week_avg": 50.8,
     "delivered_by_week": {
@@ -1351,132 +1352,132 @@
       {
         "ref": "DEBT-0001",
         "busy_seconds": 2192,
-        "remediation_runs": 1
+        "remediation_runs": null
       },
       {
         "ref": "ISSUE-0001",
         "busy_seconds": 1939,
-        "remediation_runs": 1
+        "remediation_runs": null
       },
       {
         "ref": "RFC-0006",
         "busy_seconds": 8185,
-        "remediation_runs": 1
+        "remediation_runs": null
       },
       {
         "ref": "ISSUE-0002",
         "busy_seconds": 6114,
-        "remediation_runs": 3
+        "remediation_runs": null
       },
       {
         "ref": "ISSUE-0003",
         "busy_seconds": 2809,
-        "remediation_runs": 2
+        "remediation_runs": null
       },
       {
         "ref": "ISSUE-0004",
         "busy_seconds": null,
-        "remediation_runs": 0
+        "remediation_runs": null
       },
       {
         "ref": "ISSUE-0005",
         "busy_seconds": null,
-        "remediation_runs": 0
+        "remediation_runs": null
       },
       {
         "ref": "CHANGE-0005",
         "busy_seconds": 3418,
-        "remediation_runs": 2
+        "remediation_runs": null
       },
       {
         "ref": "CHANGE-0006",
         "busy_seconds": 2783,
-        "remediation_runs": 1
+        "remediation_runs": null
       },
       {
         "ref": "CHANGE-0007",
         "busy_seconds": 3605,
-        "remediation_runs": 1
+        "remediation_runs": null
       },
       {
         "ref": "CHANGE-0008",
         "busy_seconds": 2626,
-        "remediation_runs": 1
+        "remediation_runs": null
       },
       {
         "ref": "RFC-0003",
         "busy_seconds": 2633,
-        "remediation_runs": 2
+        "remediation_runs": null
       },
       {
         "ref": "RFC-0004",
         "busy_seconds": 1651,
-        "remediation_runs": 1
+        "remediation_runs": null
       },
       {
         "ref": "RFC-0005",
         "busy_seconds": 1654,
-        "remediation_runs": 1
+        "remediation_runs": null
       },
       {
         "ref": "CHANGE-0004",
         "busy_seconds": 924,
-        "remediation_runs": 1
+        "remediation_runs": null
       },
       {
         "ref": "RFC-0007",
         "busy_seconds": 1590,
-        "remediation_runs": 0
+        "remediation_runs": null
       },
       {
         "ref": "CHANGE-0012",
         "busy_seconds": 1795,
-        "remediation_runs": 0
+        "remediation_runs": null
       },
       {
         "ref": "CHANGE-0010",
         "busy_seconds": 1268,
-        "remediation_runs": 0
+        "remediation_runs": null
       },
       {
         "ref": "CHANGE-0011",
         "busy_seconds": 2151,
-        "remediation_runs": 0
+        "remediation_runs": null
       },
       {
         "ref": "CHANGE-0009",
         "busy_seconds": 5507,
-        "remediation_runs": 0
+        "remediation_runs": null
       },
       {
         "ref": "doctor-vendored-layer-drift",
         "busy_seconds": 786,
-        "remediation_runs": 0
+        "remediation_runs": null
       },
       {
         "ref": "single-dual-verdict-review",
         "busy_seconds": 1318,
-        "remediation_runs": 0
+        "remediation_runs": null
       },
       {
         "ref": "ISSUE-0007",
         "busy_seconds": 4792,
-        "remediation_runs": 1
+        "remediation_runs": null
       },
       {
         "ref": "verification-before-completion",
         "busy_seconds": 1365,
-        "remediation_runs": 0
+        "remediation_runs": null
       },
       {
         "ref": "learned-to-layer-promotion",
         "busy_seconds": 401,
-        "remediation_runs": 0
+        "remediation_runs": null
       },
       {
         "ref": "CHANGE-0014",
         "busy_seconds": 1453,
-        "remediation_runs": 0
+        "remediation_runs": null
       },
       {
         "ref": "CHANGE-0027",
@@ -1916,10 +1917,10 @@
     },
     "na_reliability": 26,
     "remediation_distribution": {
-      "0": 81,
-      "1": 16,
-      "2": 6,
-      "3": 1
+      "0": 69,
+      "1": 6,
+      "2": 3,
+      "n/a": 26
     },
     "avg_validation_fails": 0,
     "avg_review_fails": 0,

@@ -280,9 +280,10 @@ function buildModel(args) {
       }
     }
     const rel = m.reliability && typeof m.reliability === 'object' && !Array.isArray(m.reliability) ? m.reliability : null;
-    const remediation = rel && typeof rel.remediation_runs === 'number'
-      ? rel.remediation_runs
-      : (m.agent_runs ?? []).filter((r) => normalizeRole(r.role) === 'Remediation').length;
+    // Remediation count is reliability-only (Spec-AC-05): a ride predating the
+    // reliability block is null, NOT a role-prefix guess — so pre-field rides
+    // land in the explicit n/a bucket below and never inflate a numeric one.
+    const remediation = rel && typeof rel.remediation_runs === 'number' ? rel.remediation_runs : null;
     perRide.push({
       ref: m.ref_id,
       date_utc: m.date_utc ?? null,
@@ -309,9 +310,11 @@ function buildModel(args) {
   const flagged = perRide.filter((r) => r.first_pass_clean !== null);
   const clean = flagged.filter((r) => r.first_pass_clean === true).length;
   const naReliability = perRide.length - flagged.length;
+  // Distribution over reliability-flagged rides only; pre-field rides go to an
+  // explicit 'n/a' bucket (mirrors first_pass_clean's treatment, Spec-AC-05).
   const remediationDist = {};
   for (const r of perRide) {
-    const k = String(r.remediation_runs);
+    const k = r.remediation_runs === null ? 'n/a' : String(r.remediation_runs);
     remediationDist[k] = (remediationDist[k] ?? 0) + 1;
   }
   const verdictMix = {};
@@ -369,6 +372,7 @@ function buildModel(args) {
       review_events: reviewEvents,
     },
     throughput: {
+      note: `"delivered" counts every work_item_closed event (${deliveredRefs.length} closes vs ${rides.length} recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides`,
       delivered_total: deliveredRefs.length,
       delivered_per_week_avg: activeWeeks ? Math.round((deliveredRefs.length / activeWeeks) * 10) / 10 : null,
       delivered_by_week: Object.fromEntries(deliveredByWeek),
@@ -502,6 +506,7 @@ function renderHtml(m) {
 </div>
 <div class="scroll">${barSeries(m.trend, 'delivered', (v) => `${v} delivered`)}</div>
 <p class="meta">Delivered per ISO week (zero-delivery weeks shown as empty bars).</p>
+<p class="meta">${esc(m.throughput.note)}.</p>
 <div class="scroll"><table><thead><tr><th>Release / month</th><th>Kind</th><th>Delivered</th></tr></thead><tbody>${groupRows}</tbody></table></div>
 </section>
 

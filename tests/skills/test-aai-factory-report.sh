@@ -288,7 +288,20 @@ JSONL
   [[ "$(node_get "$DJ" 'm.quality.first_pass_clean.rate_pct')" == "50" ]] || log_fail "rate must be 50%"
   [[ "$(node_get "$DJ" 'm.quality.na_reliability')" == "1" ]] || log_fail "na_reliability must be 1 (ride C)"
   [[ "$(node_get "$DJ" 'm.quality.remediation_distribution["2"]')" == "1" ]] || log_fail "one ride has 2 remediation runs"
-  log_pass "Quality rates derive from the reliability block; pre-field ride -> n/a bucket (TEST-007)"
+  # DEFECT-1 guard: the distribution is reliability-only. Ride A (rem=0) is the
+  # ONLY numeric-0 ride; the pre-reliability ride C must land in the explicit
+  # n/a bucket and NEVER inflate a numeric bucket (the assertion gap that let
+  # the double-counting defect through).
+  [[ "$(node_get "$DJ" 'm.quality.remediation_distribution["0"]')" == "1" ]] || log_fail "bucket 0 must hold only ride A (reliability rem=0); pre-reliability ride C must not fall into it"
+  [[ "$(node_get "$DJ" 'm.quality.remediation_distribution["n/a"]')" == "1" ]] || log_fail "pre-reliability ride C must land in the explicit remediation n/a bucket"
+  local distsum
+  distsum="$(node_get "$DJ" 'Object.values(m.quality.remediation_distribution).reduce((a,v)=>a+v,0)')"
+  [[ "$distsum" == "3" ]] || log_fail "distribution (incl n/a) must total all 3 rides exactly once each, got $distsum"
+  local numericsum
+  numericsum="$(node_get "$DJ" 'Object.keys(m.quality.remediation_distribution).filter(k=>k!=="n/a").reduce((a,k)=>a+m.quality.remediation_distribution[k],0)')"
+  [[ "$numericsum" == "2" ]] || log_fail "numeric buckets must sum to the 2 reliability-flagged rides only, got $numericsum"
+  [[ "$(node_get "$DJ" '(m.speed.per_ride.find(x=>x.ref==="C")||{}).remediation_runs')" == "null" ]] || log_fail "ride C without reliability must have null remediation_runs (no role-prefix fallback)"
+  log_pass "Quality rates + remediation distribution derive from the reliability block; pre-field ride -> n/a bucket (TEST-007)"
 }
 
 # ============================ TEST-008 (Spec-AC-06) ==========================
