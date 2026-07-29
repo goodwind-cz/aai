@@ -164,6 +164,7 @@ core:
   - .aai/templates/TECHDEBT_TEMPLATE.md
   - .aai/templates/TECHNOLOGY_TEMPLATE.md
   - .aai/templates/WORKFLOW_TEMPLATE.md
+  - .aai/templates/update-config.template.yaml
   - .aai/templates/hooks/settings-hooks.json
   - .aai/workflow/WORKFLOW.md
 

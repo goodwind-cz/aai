@@ -323,6 +323,13 @@ suites:
       - .aai/SKILL_DOCTOR.prompt.md
       - .aai/system/AAI_PIN.md
 
+  aai-sync-seed:
+    globs:
+      - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-sync.ps1
+      - .aai/templates/update-config.template.yaml
+      - .aai/system/PROFILES.yaml
+
   aai-update-check:
     globs:
       - .aai/scripts/update-check.mjs

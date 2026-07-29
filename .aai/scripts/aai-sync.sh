@@ -266,6 +266,8 @@ fi
 
 TECHNOLOGY_TEMPLATE_PATH="$SRC_ROOT/.aai/templates/TECHNOLOGY_TEMPLATE.md"
 TARGET_TECHNOLOGY_PATH="$DST_ROOT/docs/TECHNOLOGY.md"
+UPDATE_CONFIG_TEMPLATE_PATH="$SRC_ROOT/.aai/templates/update-config.template.yaml"
+TARGET_UPDATE_CONFIG_PATH="$DST_ROOT/docs/ai/update-config.yaml"
 
 # ── Copy AAI canonical layer (.aai/ is the single source of truth) ──────
 # Entry-by-entry so we can merge scripts/ and preserve target-only scripts.
@@ -387,6 +389,15 @@ fi
 if [[ -f "$TECHNOLOGY_TEMPLATE_PATH" && ! -f "$TARGET_TECHNOLOGY_PATH" ]]; then
   cp -a "$TECHNOLOGY_TEMPLATE_PATH" "$TARGET_TECHNOLOGY_PATH"
   echo "  SEED docs/TECHNOLOGY.md from .aai/templates/TECHNOLOGY_TEMPLATE.md"
+fi
+
+# docs/ai/update-config.yaml: seed from template only when missing.
+# Project-owned auto-update policy — never overwrite an operator's copy (same
+# seed-when-missing discipline as docs/TECHNOLOGY.md above).
+if [[ -f "$UPDATE_CONFIG_TEMPLATE_PATH" && ! -f "$TARGET_UPDATE_CONFIG_PATH" ]]; then
+  mkdir -p "$DST_ROOT/docs/ai"
+  cp -a "$UPDATE_CONFIG_TEMPLATE_PATH" "$TARGET_UPDATE_CONFIG_PATH"
+  echo "  SEED docs/ai/update-config.yaml from .aai/templates/update-config.template.yaml"
 fi
 
 # docs/ai: preserve existing runtime data, but sync template files.

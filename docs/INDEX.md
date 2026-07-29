@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-29T16:31:32.913Z
+Generated: 2026-07-29T18:49:14.179Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -285,9 +285,11 @@ _None._
 | SPEC-0106 | specs | docs/specs/SPEC-0106-spec-auto-update-config.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| seed-update-config (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-seed-update-config.md |
 
 ## Deferred (whole-doc) (0)
 

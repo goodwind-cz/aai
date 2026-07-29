@@ -254,6 +254,8 @@ if ($legacyCleaned) {
 
 $technologyTemplatePath = Join-Path $SrcRoot ".aai/templates/TECHNOLOGY_TEMPLATE.md"
 $targetTechnologyPath = Join-Path $TargetRoot "docs/TECHNOLOGY.md"
+$updateConfigTemplatePath = Join-Path $SrcRoot ".aai/templates/update-config.template.yaml"
+$targetUpdateConfigPath = Join-Path $TargetRoot "docs/ai/update-config.yaml"
 
 # -- Copy AAI canonical layer (.aai/ is the single source of truth) -------
 # Entry-by-entry so we can merge scripts/ and preserve target-only scripts.
@@ -385,6 +387,15 @@ if (Test-Path $know) {
 if ((Test-Path $technologyTemplatePath) -and !(Test-Path $targetTechnologyPath)) {
   Copy-Item $technologyTemplatePath $targetTechnologyPath -Force
   Write-Host "  SEED docs/TECHNOLOGY.md from .aai/templates/TECHNOLOGY_TEMPLATE.md"
+}
+
+# docs/ai/update-config.yaml: seed from template only when missing.
+# Project-owned auto-update policy - never overwrite an operator's copy (same
+# seed-when-missing discipline as docs/TECHNOLOGY.md above).
+if ((Test-Path $updateConfigTemplatePath) -and !(Test-Path $targetUpdateConfigPath)) {
+  New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot "docs/ai") | Out-Null
+  Copy-Item $updateConfigTemplatePath $targetUpdateConfigPath -Force
+  Write-Host "  SEED docs/ai/update-config.yaml from .aai/templates/update-config.template.yaml"
 }
 
 # docs/ai: preserve existing runtime data - system docs are now in .aai/system/
