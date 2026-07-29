@@ -1,12 +1,14 @@
 ---
 id: seed-update-config
-number: null
+number: 94
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 197
+  commits:
+    - 5546b7954ae654df6928a8fb1dea6b0e61a7dfba
 ---
 
 # Change — install/sync seeds docs/ai/update-config.yaml when missing
