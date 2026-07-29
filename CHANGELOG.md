@@ -13,7 +13,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(install): seed docs/ai/update-config.yaml when missing (CHANGE seed-update-config) [L2]
+## [unreleased] — fix(install): seed docs/ai/update-config.yaml when missing (CHANGE-0094) [L2]
 
 - Completes the auto-update feature's discoverability. The auto-update ride
   shipped `.aai/scripts/update-check.mjs` and the SessionStart hook, but the
