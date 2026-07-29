@@ -11,8 +11,9 @@ RFC-0001).
 
 ## [unreleased]
 
-- fix(auto-update): atomic O_EXCL claim closes the concurrent-sync races
-  (CHANGE update-sync-atomic-lock) [L2]. Fast-follow to the auto-update ride
+## [unreleased] — fix(auto-update): atomic O_EXCL sync-lock + stale-reclaim closes RR-1/RR-2 (CHANGE-0093) [L2]
+
+- Fast-follow to the auto-update ride
   that CLOSES the two cross-process TOCTOU races accepted as documented
   residuals in `docs/ai/decisions.jsonl` (2026-07-29): RR-1 — the
   `running`-marker concurrent-sync guard had no OS-level lock, so N truly-
@@ -57,8 +58,9 @@ RFC-0001).
   genuine-error loud-skip, owner-scoped lock release, and stale orphaned-claim
   recovery; deterministic, zero real network).
 
-- feat(auto-update): config-driven new-release notify + opt-in auto-sync
-  (CHANGE auto-update-config / spec-auto-update-config) [L2]. A target project
+## [unreleased] — feat(auto-update): config-driven new-release notify + opt-in detached auto-sync (CHANGE-0091 / SPEC-0106) [L2]
+
+- A target project
   now learns a newer AAI release exists as a SIDE EFFECT OF NORMAL USE: the
   existing SessionStart hook runs a best-effort, provably non-blocking check.
   Governed by a committed local config `docs/ai/update-config.yaml` (absent ==
@@ -89,8 +91,9 @@ RFC-0001).
   the concurrent-sync guard. New `.aai/scripts/update-check.mjs` (core profile).
   Suite: `tests/skills/test-aai-update-check.sh` (23 tests, zero real network).
 
-- fix(install): Windows PowerShell 5.1 sync fails copying .codex/.gemini skills
-  (CHANGE-0092) [L2]. A field install via `irm install.ps1 | iex` on Windows
+## [unreleased] — fix(install): Windows PowerShell 5.1 sync fails copying .codex/.gemini skills (CHANGE-0092) [L2]
+
+- A field install via `irm install.ps1 | iex` on Windows
   PowerShell 5.1 aborted with `Copy-Item ... DirectoryNotFoundException` on
   `.codex\skills`: 5.1's `Copy-Item -Recurse <dir> <nonexistent-dst>` does not
   create the destination root before copying a top-level file into it, and
@@ -101,8 +104,9 @@ RFC-0001).
   `ps1-quality` windows-5.1 CI job gained a FUNCTIONAL `aai-sync.ps1` smoke into
   a fresh target (a parse-check could not catch a runtime copy behavior).
 
-- refactor(prompts): core-prompt diet — dedup into ROLE_COMMON + drop dead
-  SKILL_TDD prose (CHANGE-0090) [L2]. Folded four cross-prompt duplications
+## [unreleased] — refactor(prompts): core-prompt diet — dedup into ROLE_COMMON + drop dead SKILL_TDD prose (CHANGE-0090) [L2]
+
+- Folded four cross-prompt duplications
   (FRICTION HOOK, PYTHON MONTY SCRATCHPAD, PRE-HANDOFF AC-TABLE RECONCILIATION,
   WORKTREE GATE) into `.aai/ROLE_COMMON.md` as canonical blocks, pointer-ized
   the owning prompts, and deleted three dead SKILL_TDD prose sections — a net
