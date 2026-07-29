@@ -787,6 +787,227 @@ console.log('ok');
   log_pass "TEST-023 resolvePwsh: pwsh if available else powershell.exe"
 }
 
+# --- TEST-024 — atomic O_EXCL claim: N true-parallel runs -> exactly ONE sync --
+# (RR-1) The `running`-marker guard is a cross-process TOCTOU: N truly-
+# simultaneous same-repo starts each read "no sync in flight", each decide to
+# spawn, each write the marker, each launch a detached aai-update (probe: 5->5).
+# The atomic O_EXCL claim on .aai/cache/update-sync.lock makes exactly one win.
+test_atomic_claim_single_invocation() {
+  log_info "TEST-024: 5 TRUE-parallel auto+behind runs -> EXACTLY ONE detached sync invocation (atomic O_EXCL claim; the rest back off 'in progress')..."
+  local dir="$TMP_ROOT/t024" src="$TMP_ROOT/t024-src" pin cfg outcome n bg inflight i
+  build_slow_sync_source "$src" 3
+  mkdir -p "$dir"
+  git -C "$dir" init -q -b main
+  git -C "$dir" config user.email "test@example.invalid"
+  git -C "$dir" config user.name "AAI Test"
+  git -C "$dir" remote add origin "https://example.invalid/some-owner/target.git"
+  mkdir -p "$dir/.aai/system"
+  pin="$dir/.aai/system/AAI_PIN.md"
+  cfg="$dir/docs/ai/update-config.yaml"
+  outcome="$dir/.aai/cache/update-sync-outcome.json"
+  write_pin "$pin" "${CANON_SHAS[0]}" "$CANON"
+  write_config "$cfg" auto
+  # Launch 5 full update-check parents as close to simultaneously as possible;
+  # pre-fix each independently spawns a detached sync (TOCTOU), so the invocation
+  # counter would read 5. Post-fix exactly one wins the atomic claim.
+  for i in 1 2 3 4 5; do
+    ( cd "$dir" && node "$CHECK_SCRIPT" --pin "$pin" --config "$cfg" --remote "$CANON" --source "$src" --outcome "$outcome" --force >"$dir/run-$i.out" 2>&1 ) &
+  done
+  wait
+  # NB: "detached" uniquely marks the SPAWNER line; the back-off line ("a
+  # background sync is already in progress") also contains "background", so a
+  # "background" grep would match every run — discriminate on "detached".
+  bg="$({ grep -l -i "detached" "$dir"/run-*.out 2>/dev/null || true; } | wc -l | tr -d ' ')"
+  inflight="$({ grep -l -i "in progress" "$dir"/run-*.out 2>/dev/null || true; } | wc -l | tr -d ' ')"
+  [[ "$bg" == "1" ]] || log_fail "expected exactly 1 run to spawn the sync (background), got $bg (outputs: $(cat "$dir"/run-*.out))"
+  [[ "$inflight" == "4" ]] || log_fail "expected 4 runs to back off 'in progress', got $inflight (outputs: $(cat "$dir"/run-*.out))"
+  wait_for_grep "$outcome" '"result":"applied"' 25 || log_fail "detached sync outcome not applied within timeout: $(cat "$outcome" 2>/dev/null)"
+  n="$(wc -l < "$dir/.aai/sync-invocations" 2>/dev/null | tr -d ' ')"
+  [[ "$n" == "1" ]] || log_fail "atomic claim failed: expected exactly 1 sync invocation across 5 TRUE-parallel runs, got $n"
+  log_pass "TEST-024 atomic O_EXCL claim -> exactly one sync across 5 true-parallel runs"
+}
+
+# --- TEST-025 — lock lifecycle: fresh blocks, stale + future reclaim (no wedge) -
+# (RR-1 safety valve) A FRESH lock backs a racer off (in progress, no duplicate
+# spawn). A STALE (>30min) or FUTURE-dated lock is a crashed/abandoned sync and
+# is reclaimed so auto mode NEVER wedges. Reuses the SYNC_STALE_MS window.
+test_lock_reclaim_and_block() {
+  log_info "TEST-025: a FRESH lock blocks a duplicate spawn (in progress); a STALE or FUTURE lock is reclaimed (fresh sync spawns) -> never wedges..."
+  # (a) FRESH lock -> back off, NO spawn, NO invocation.
+  local dir="$TMP_ROOT/t025a" src="$TMP_ROOT/t025a-src" pin cfg outcome lock out rc
+  build_sync_source "$src"
+  mkdir -p "$dir"
+  git -C "$dir" init -q -b main
+  git -C "$dir" config user.email "test@example.invalid"; git -C "$dir" config user.name "AAI Test"
+  git -C "$dir" remote add origin "https://example.invalid/some-owner/target.git"
+  mkdir -p "$dir/.aai/system" "$dir/.aai/cache"
+  pin="$dir/.aai/system/AAI_PIN.md"; cfg="$dir/docs/ai/update-config.yaml"
+  outcome="$dir/.aai/cache/update-sync-outcome.json"; lock="$dir/.aai/cache/update-sync.lock"
+  write_pin "$pin" "${CANON_SHAS[0]}" "$CANON"; write_config "$cfg" auto
+  printf '{"pid":424242,"started_utc":"2026-07-20T10:59:00Z"}\n' > "$lock"   # 1 min old -> fresh
+  set +e
+  out="$(cd "$dir" && runcheck --pin "$pin" --config "$cfg" --remote "$CANON" --source "$src" --outcome "$outcome" --now "2026-07-20T11:00:00Z" --force 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "fresh-lock run must exit 0 (got $rc): $out"
+  echo "$out" | grep -qi "in progress" || log_fail "a FRESH lock must make the run back off 'in progress', got: $out"
+  echo "$out" | grep -qi "detached" && log_fail "a FRESH lock must NOT spawn a duplicate sync (detached), got: $out"
+  sleep 1
+  [[ ! -f "$dir/.aai/sync-invocations" ]] || log_fail "a FRESH lock must prevent any sync invocation, got: $(cat "$dir/.aai/sync-invocations")"
+
+  # (b) STALE lock (2h old, > 30min window) -> reclaimed, a fresh sync spawns.
+  local d2="$TMP_ROOT/t025b" s2="$TMP_ROOT/t025b-src" p2 c2 o2 l2
+  build_sync_source "$s2"
+  mkdir -p "$d2"
+  git -C "$d2" init -q -b main
+  git -C "$d2" config user.email "test@example.invalid"; git -C "$d2" config user.name "AAI Test"
+  git -C "$d2" remote add origin "https://example.invalid/some-owner/target.git"
+  mkdir -p "$d2/.aai/system" "$d2/.aai/cache"
+  p2="$d2/.aai/system/AAI_PIN.md"; c2="$d2/docs/ai/update-config.yaml"
+  o2="$d2/.aai/cache/update-sync-outcome.json"; l2="$d2/.aai/cache/update-sync.lock"
+  write_pin "$p2" "${CANON_SHAS[0]}" "$CANON"; write_config "$c2" auto
+  printf '{"pid":424242,"started_utc":"2026-07-20T09:00:00Z"}\n' > "$l2"   # 2h old -> stale
+  set +e
+  out="$(cd "$d2" && runcheck --pin "$p2" --config "$c2" --remote "$CANON" --source "$s2" --outcome "$o2" --now "2026-07-20T11:00:00Z" --force 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "stale-lock run must exit 0 (got $rc): $out"
+  echo "$out" | grep -qi "detached" || log_fail "a STALE lock must be reclaimed and a fresh sync spawned (detached), got: $out"
+  wait_for_grep "$o2" '"result":"applied"' 20 || log_fail "reclaimed stale-lock sync outcome not applied: $(cat "$o2" 2>/dev/null)"
+
+  # (c) FUTURE-dated lock -> reclaimed (mirror the future-date guards).
+  local d3="$TMP_ROOT/t025c" s3="$TMP_ROOT/t025c-src" p3 c3 o3 l3
+  build_sync_source "$s3"
+  mkdir -p "$d3"
+  git -C "$d3" init -q -b main
+  git -C "$d3" config user.email "test@example.invalid"; git -C "$d3" config user.name "AAI Test"
+  git -C "$d3" remote add origin "https://example.invalid/some-owner/target.git"
+  mkdir -p "$d3/.aai/system" "$d3/.aai/cache"
+  p3="$d3/.aai/system/AAI_PIN.md"; c3="$d3/docs/ai/update-config.yaml"
+  o3="$d3/.aai/cache/update-sync-outcome.json"; l3="$d3/.aai/cache/update-sync.lock"
+  write_pin "$p3" "${CANON_SHAS[0]}" "$CANON"; write_config "$c3" auto
+  printf '{"pid":424242,"started_utc":"2099-01-01T00:00:00Z"}\n' > "$l3"   # future -> reclaimable
+  set +e
+  out="$(cd "$d3" && runcheck --pin "$p3" --config "$c3" --remote "$CANON" --source "$s3" --outcome "$o3" --now "2026-07-20T11:00:00Z" --force 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "future-lock run must exit 0 (got $rc): $out"
+  echo "$out" | grep -qi "detached" || log_fail "a FUTURE-dated lock must be reclaimed (detached), got: $out"
+  wait_for_grep "$o3" '"result":"applied"' 20 || log_fail "reclaimed future-lock sync outcome not applied: $(cat "$o3" 2>/dev/null)"
+  log_pass "TEST-025 fresh lock blocks; stale + future locks reclaimed (never wedges)"
+}
+
+# --- TEST-026 — concurrent surfacing: a finished outcome surfaces at most once --
+# (RR-2) once-only surfacing is a read->print->flip-reported TOCTOU: N
+# simultaneous runs can each print the "applied" line. An atomic surfacing claim
+# makes exactly one print. Sequential surfacing (TEST-015) stays unchanged.
+test_concurrent_surface_once() {
+  log_info "TEST-026: 8 TRUE-parallel runs surface a completed outcome AT MOST ONCE (atomic surfacing claim)..."
+  local dir="$TMP_ROOT/t026" pin cfg outcome i printed
+  mkdir -p "$dir/.aai/system" "$dir/.aai/cache"
+  pin="$dir/.aai/system/AAI_PIN.md"; cfg="$dir/update-config.yaml"
+  outcome="$dir/.aai/cache/update-sync-outcome.json"
+  write_pin "$pin" "${CANON_SHAS[2]}" "$CANON"   # pin EQUAL -> up-to-date, no new sync
+  write_config "$cfg" notify
+  printf '{"started_utc":"2026-07-20T09:00:00Z","finished_utc":"2026-07-20T09:00:30Z","target_version":"abc1234","result":"applied","detail":"synced","reported":false}\n' > "$outcome"
+  # Launch 8 runs simultaneously; pre-fix each reads reported:false and prints.
+  for i in 1 2 3 4 5 6 7 8; do
+    ( cd "$dir" && node "$CHECK_SCRIPT" --pin "$pin" --config "$cfg" --remote "$CANON" --outcome "$outcome" --force >"$dir/surf-$i.out" 2>&1 ) &
+  done
+  wait
+  printed="$({ grep -l -i "auto-update applied" "$dir"/surf-*.out 2>/dev/null || true; } | wc -l | tr -d ' ')"
+  [[ "$printed" == "1" ]] || log_fail "a completed outcome must surface AT MOST ONCE under concurrency, but $printed runs printed it (outputs: $(cat "$dir"/surf-*.out))"
+  grep -q '"reported":true' "$outcome" || log_fail "surfaced outcome must end marked reported, cache: $(cat "$outcome")"
+  log_pass "TEST-026 concurrent surfacing prints the applied line exactly once"
+}
+
+# --- TEST-027 — CONCURRENT stale-lock RECLAIM is atomic: exactly ONE sync -------
+# (RR-1 full closure) TEST-024 covers a COLD start (no lock) and TEST-025 covers
+# a SEQUENTIAL reclaim (one run vs a stale lock). Neither covers N racers
+# reclaiming the SAME pre-existing stale lock at once. The pre-remediation
+# read->rm->create reclaim was NOT atomic: two racers could both pass the
+# staleness read, then the loser's rmSync would delete the WINNER's FRESH lock
+# and its create would succeed -> TWO detached spawns for one stale lock. The
+# atomic reclaim makes EXACTLY ONE racer win per stale lock. Amplified over
+# several rounds so the pre-fix race reproduces near-certainly, while the fixed
+# code is deterministic (exactly one spawn per round -> total == rounds).
+test_concurrent_stale_reclaim() {
+  log_info "TEST-027: N TRUE-parallel runs reclaiming a PRE-EXISTING stale lock -> EXACTLY ONE detached sync per round (atomic reclaim; amplified)..."
+  local base="$TMP_ROOT/t027" src="$TMP_ROOT/t027-src" rounds=10 par=8 r i s
+  local total_spawns=0 last_dir="" pin cfg outcome lock now="2026-07-20T11:00:00Z"
+  build_slow_sync_source "$src" 3
+  for r in $(seq 1 "$rounds"); do
+    local dir="$base/r$r"
+    mkdir -p "$dir/.aai/system" "$dir/.aai/cache" "$dir/docs/ai"
+    git -C "$dir" init -q -b main
+    git -C "$dir" config user.email "test@example.invalid"; git -C "$dir" config user.name "AAI Test"
+    git -C "$dir" remote add origin "https://example.invalid/some-owner/target.git"
+    pin="$dir/.aai/system/AAI_PIN.md"; cfg="$dir/docs/ai/update-config.yaml"
+    outcome="$dir/.aai/cache/update-sync-outcome.json"; lock="$dir/.aai/cache/update-sync.lock"
+    write_pin "$pin" "${CANON_SHAS[0]}" "$CANON"; write_config "$cfg" auto
+    # A PRE-EXISTING 2h-old stale lock (> SYNC_STALE_MS) all racers must reclaim.
+    printf '{"pid":424242,"started_utc":"2026-07-20T09:00:00Z"}\n' > "$lock"
+    for i in $(seq 1 "$par"); do
+      ( cd "$dir" && node "$CHECK_SCRIPT" --pin "$pin" --config "$cfg" --remote "$CANON" \
+          --source "$src" --outcome "$outcome" --now "$now" --force >"$dir/run-$i.out" 2>&1 ) &
+    done
+    wait
+    # "detached" uniquely marks the SPAWNER line (the back-off line says "in
+    # progress"), so it counts reclaim winners for this round.
+    s="$({ grep -l -i "detached" "$dir"/run-*.out 2>/dev/null || true; } | wc -l | tr -d ' ')"
+    total_spawns=$((total_spawns + s))
+    last_dir="$dir"
+  done
+  # Deterministic post-fix: exactly one reclaim winner per round. Pre-fix the
+  # non-atomic reclaim double-spawns in one or more rounds -> total > rounds.
+  [[ "$total_spawns" == "$rounds" ]] \
+    || log_fail "concurrent reclaim not atomic: expected exactly $rounds detached spawns ($par parallel x $rounds rounds, one winner each), got $total_spawns"
+  # Harm fidelity: the last round's SINGLE winner produced exactly ONE real sync
+  # invocation (not merely one 'detached' line).
+  wait_for_grep "$last_dir/.aai/cache/update-sync-outcome.json" '"result":"applied"' 25 \
+    || log_fail "reclaimed-lock sync outcome not applied: $(cat "$last_dir/.aai/cache/update-sync-outcome.json" 2>/dev/null)"
+  local n
+  n="$(wc -l < "$last_dir/.aai/sync-invocations" 2>/dev/null | tr -d ' ')"
+  [[ "$n" == "1" ]] || log_fail "atomic reclaim failed: expected exactly 1 sync invocation in the last round, got $n"
+  log_pass "TEST-027 concurrent stale-lock reclaim is atomic (exactly one spawn/invocation per round across $rounds rounds x $par parallel)"
+}
+
+# --- TEST-028 — surfaceOutcome restores the outcome on a post-claim read fail ---
+# (Defect 2) After the atomic claim rename (outcome -> .surfacing) succeeds, a
+# torn/failed read of the .surfacing file must NOT orphan the outcome there with
+# the real path gone (it would then never surface). The fix renames .surfacing
+# back to the outcome path (best-effort) and surfaces nothing; a later run then
+# surfaces it exactly once. Verified via an injected read fault (targeted unit
+# check) since a torn read after a same-process rename is not otherwise
+# deterministically reproducible in a black-box run.
+test_surface_restore_on_read_failure() {
+  log_info "TEST-028: surfaceOutcome restores the outcome (no .surfacing orphan) when the post-claim read throws, and a later run surfaces it once..."
+  local out rc
+  set +e
+  out="$(node --input-type=module -e "
+import { surfaceOutcome } from '$CHECK_SCRIPT';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'surf-restore-'));
+const oc = path.join(dir, 'update-sync-outcome.json');
+const claim = oc + '.surfacing';
+fs.writeFileSync(oc, JSON.stringify({started_utc:'2026-07-20T09:00:00Z',finished_utc:'2026-07-20T09:00:30Z',target_version:'abc1234',result:'applied',detail:'synced',reported:false}) + '\n');
+const emit = []; const result = { reported_outcome: null };
+// Injected fault: the read AFTER the claim rename throws (torn write observed).
+surfaceOutcome(oc, emit, result, () => { throw new Error('torn read after claim'); });
+if (fs.existsSync(claim)) { console.error('FAIL: outcome orphaned at .surfacing'); process.exit(1); }
+if (!fs.existsSync(oc)) { console.error('FAIL: outcome lost (not restored to the outcome path)'); process.exit(1); }
+if (emit.length) { console.error('FAIL: nothing must surface on a torn read, got: ' + emit.join(' | ')); process.exit(1); }
+if (JSON.parse(fs.readFileSync(oc, 'utf8')).reported) { console.error('FAIL: restored outcome must stay unreported (surface next run)'); process.exit(1); }
+// A subsequent NORMAL run (default reader) surfaces the recovered outcome ONCE.
+surfaceOutcome(oc, emit, result);
+if (!emit.some((l) => /auto-update applied/i.test(l))) { console.error('FAIL: recovered outcome must surface once on the next run'); process.exit(1); }
+if (!JSON.parse(fs.readFileSync(oc, 'utf8')).reported) { console.error('FAIL: surfaced outcome must be marked reported'); process.exit(1); }
+console.log('ok');
+" 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "surface-restore-on-read-failure assertion failed: $out"
+  log_pass "TEST-028 surfaceOutcome restores the outcome on a post-claim read failure (no orphan; surfaces once later)"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -814,6 +1035,11 @@ main() {
   test_throttle_hours_strict
   test_failed_outcome_message
   test_resolve_pwsh
+  test_atomic_claim_single_invocation
+  test_lock_reclaim_and_block
+  test_concurrent_surface_once
+  test_concurrent_stale_reclaim
+  test_surface_restore_on_read_failure
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="
 }
 

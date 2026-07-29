@@ -324,6 +324,183 @@ function syncInFlight(outcome, nowMs) {
   return (nowMs - started) <= SYNC_STALE_MS;         // stale -> allow a fresh sync
 }
 
+// --- Atomic concurrent-sync claim (RR-1) --------------------------------------
+// The `running` marker is a cross-process TOCTOU: read-marker -> decide ->
+// spawn -> write-marker has no OS-level lock, so N truly-simultaneous session
+// starts each spawn a detached aai-update sync (probe: 5 parallel -> 5 syncs).
+// The fix is an ATOMIC claim on a SEPARATE lock file (the outcome log
+// legitimately pre-exists, so an O_EXCL create there would wrongly fail).
+// fs.openSync(..., 'wx') is O_CREAT|O_EXCL: exactly one caller creates the file;
+// the rest get EEXIST and back off to the existing "in progress" path.
+
+// The lock lives beside the outcome log (gitignored .aai/cache/, PROFILES-
+// excluded), a SEPARATE file so the O_EXCL create is a true claim.
+function syncLockPath(outcomePath) {
+  return path.join(path.dirname(outcomePath), 'update-sync.lock');
+}
+
+function lockMtimeMs(lockPath) {
+  try {
+    return fs.statSync(lockPath).mtimeMs;
+  } catch {
+    return NaN;
+  }
+}
+
+// Is an existing lock reclaimable (a crashed/abandoned sync)? Reuses the SAME
+// >30min window as the running marker so auto mode NEVER wedges. The staleness
+// test is SYMMETRIC — reclaimable iff |now - started| > SYNC_STALE_MS — for a
+// deliberate reason: a genuinely future-dated / clock-skewed / corrupt lock
+// (e.g. started_utc in 2099) is far in the future and IS reclaimed (mirrors the
+// existing future-date guards, never wedges), BUT a lock a live racer wrote
+// microseconds ago can read as slightly "future" relative to THIS process's
+// own clock snapshot (each process reads its own `now`), and that near-future
+// lock must NOT be reclaimed — reclaiming it is exactly the duplicate-spawn race
+// (RR-1) this fix closes. A small (< 30min) skew in either direction means the
+// sync is live. A PARSEABLE lock is aged by its started_utc; a NaN timestamp is
+// reclaimable. A TORN/empty/corrupt lock (the O_EXCL create is visible before
+// the winner's content write lands) is aged by its FILE mtime instead, same
+// symmetric window, so a racer mid-write is NOT reclaimed while a genuinely
+// abandoned corrupt lock (old mtime) still ages out.
+function lockIsStale(lockPath, nowMs) {
+  let raw;
+  try {
+    raw = fs.readFileSync(lockPath, 'utf8');
+  } catch {
+    return true; // vanished between EEXIST and read -> free to (re)claim
+  }
+  let parsed = null;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = null;
+  }
+  if (parsed) {
+    const started = Date.parse(parsed.started_utc);
+    if (Number.isNaN(started)) return true; // NaN timestamp -> reclaimable
+    return Math.abs(nowMs - started) > SYNC_STALE_MS;
+  }
+  // torn/empty/corrupt content: age by mtime (same symmetric window).
+  const m = lockMtimeMs(lockPath);
+  if (Number.isNaN(m)) return true;          // vanished -> reclaimable
+  return Math.abs(nowMs - m) > SYNC_STALE_MS;
+}
+
+// A monotonic per-process counter makes each temp/aside path unique even for
+// rapid successive claims from the same pid.
+let lockSeq = 0;
+
+// Atomically create a lock file that carries its FULL content the instant it
+// becomes visible — no torn window. openSync(..., 'wx')+writeSync is O_EXCL but
+// leaves a window in which the file EXISTS yet is EMPTY (created, not-yet-
+// written); a concurrent reader then sees empty content and falls back to
+// mtime-aging, which is WRONG whenever the caller's clock (e.g. an injected
+// --now) differs from the file's real wall-clock mtime — a fresh-but-torn lock
+// reads as "stale" and gets falsely reclaimed (a real duplicate-spawn path).
+// Instead we write a per-pid temp with the content FIRST, then hard-link it into
+// place: linkSync throws EEXIST if the target exists (the same exclusive-create
+// guarantee as O_EXCL), and the target has full content from its first instant.
+// Throws an EEXIST-coded error when the target already exists; the temp is always
+// cleaned up.
+function claimLockFile(targetPath, body) {
+  const tmp = `${targetPath}.tmp.${process.pid}.${lockSeq++}`;
+  fs.writeFileSync(tmp, body);
+  try {
+    fs.linkSync(tmp, targetPath); // exclusive create; EEXIST if targetPath exists
+  } finally {
+    try { fs.rmSync(tmp, { force: true }); } catch { /* best-effort temp cleanup */ }
+  }
+}
+
+// The reclaim lock lives beside the main lock; it serializes stale-lock reclaim.
+function reclaimLockPathFor(lockPath) {
+  return lockPath + '.reclaim';
+}
+
+// Acquire the short-lived, EXCLUSIVE right to reclaim a stale main lock. Returns
+// true iff THIS process may proceed to swap the stale lock. Serializing the
+// reclaim is what makes it atomic: a plain read-stale -> rm -> create (or a
+// rename+verify) reclaim CANNOT be made atomic on its own, because a racer that
+// decided "stale" from the OLD lock can still act on a FRESH lock a prior
+// reclaimer just installed (deleting/stealing it -> a SECOND spawn: the RR-1
+// residual). Under this exclusive lock, only the holder does
+// check-stale-then-swap, and it RE-CHECKS staleness after gaining exclusivity,
+// so a stale decision can never be acted on against a fresh lock. The reclaim
+// lock is held only for the microseconds of the swap; a crashed holder's reclaim
+// lock ages out (SYNC_STALE_MS) and is recovered via a rename arbiter — a
+// genuinely fresh reclaim lock (held ~microseconds) is never 30-min stale, so
+// recovery never fires against a live holder.
+function acquireReclaimLock(rlPath, nowMs, body) {
+  try {
+    claimLockFile(rlPath, body);
+    return true;
+  } catch (e) {
+    if (e.code !== 'EEXIST') return false;
+    if (!lockIsStale(rlPath, nowMs)) return false; // another reclaimer is active
+    // Crashed holder's abandoned reclaim lock (>30min): recover via a rename
+    // arbiter — exactly one racer moves it aside; the losers ENOENT and back off.
+    const aside = `${rlPath}.rec.${process.pid}.${lockSeq++}`;
+    try { fs.renameSync(rlPath, aside); } catch { return false; }
+    try { fs.rmSync(aside, { force: true }); } catch { /* best-effort */ }
+    try { claimLockFile(rlPath, body); return true; } catch { return false; }
+  }
+}
+
+function releaseReclaimLock(rlPath) {
+  try {
+    fs.rmSync(rlPath, { force: true });
+  } catch {
+    // best-effort: a crash leaves a stale reclaim lock the >30min rule reclaims
+  }
+}
+
+// Atomically claim the right to spawn the detached sync. Returns true iff THIS
+// process holds the claim. Cold start is arbitrated by the exclusive create; a
+// STALE lock is reclaimed under the exclusive reclaim lock so exactly one racer
+// ever wins — and a crashed sync never wedges auto mode.
+function acquireSyncLock(lockPath, nowMs, nowIso) {
+  try {
+    fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+  } catch {
+    // best-effort: an unwritable cache dir must never break the check
+  }
+  const body = JSON.stringify({ pid: process.pid, started_utc: nowIso }) + '\n';
+  try {
+    claimLockFile(lockPath, body);
+    return true;                             // cold-start: exactly one exclusive winner
+  } catch (e) {
+    if (e.code !== 'EEXIST') return false;   // unexpected error -> do NOT spawn
+    if (!lockIsStale(lockPath, nowMs)) return false; // a live sync holds it
+    // Stale lock: reclaim under the EXCLUSIVE reclaim lock so exactly one racer
+    // performs the swap (concurrent stale-reclaim atomicity — RR-1 full closure).
+    const rlPath = reclaimLockPathFor(lockPath);
+    if (!acquireReclaimLock(rlPath, nowMs, body)) return false; // another reclaimer -> back off
+    try {
+      // Exclusive now. RE-CHECK: a prior holder may already have reclaimed and
+      // installed a fresh lock — if so it is no longer stale and we back off,
+      // never stealing it.
+      if (!lockIsStale(lockPath, nowMs)) return false;
+      try { fs.rmSync(lockPath, { force: true }); } catch { /* a racer may have */ }
+      // The exclusive create is the final single-winner arbiter for the brief
+      // window in which we hold exclusivity: normally we win; if a late
+      // cold-start racer's own create slipped into the emptied path first, we
+      // lose it and back off (still exactly one spawner).
+      try { claimLockFile(lockPath, body); return true; }
+      catch { return false; }
+    } finally {
+      releaseReclaimLock(rlPath);
+    }
+  }
+}
+
+function releaseSyncLock(lockPath) {
+  try {
+    fs.rmSync(lockPath, { force: true });
+  } catch {
+    // best-effort: a crash leaves a stale lock the >30min rule reclaims
+  }
+}
+
 // Spawn `node <self> --run-sync ...` fully detached, with its own stdio (never
 // inherits the parent's — so it can't hold the SessionStart hook's pipe open).
 // Returns true if the child was launched.
@@ -391,15 +568,64 @@ function runSyncMode(args) {
     detail,
     reported: false,
   });
+  // Release the atomic claim (success OR failure) so the next eligible run may
+  // claim. A crash before here leaves a stale lock the >30min rule reclaims.
+  releaseSyncLock(syncLockPath(args.outcome));
   process.exit(0);
 }
 
 // Surface a completed-but-unreported detached-sync outcome ONCE, then mark it
 // reported. Runs BEFORE the throttle fast path so an outcome is never withheld
 // just because the network probe is throttled this session.
-function surfaceOutcome(outcomePath, emit, result) {
-  const oc = readOutcome(outcomePath);
-  if (!oc || oc.reported || oc.result === 'running' || !oc.finished_utc) return;
+//
+// Once-only under TRUE concurrency (RR-2): read->print->flip-reported is a
+// cross-process TOCTOU, so N simultaneous sessions could each print the line.
+// The guard is an ATOMIC rename claim: fs.renameSync moves the whole outcome
+// file (content is never torn, unlike an O_EXCL create), so at most one
+// simultaneous run captures it; the losers' rename fails (source already moved)
+// and they surface nothing. The winner re-checks the CAPTURED content (a racer
+// may have flipped reported:true and recreated the file between our peek and our
+// rename) before printing. Sequential behavior is unchanged (surface once).
+// `readClaim` is injectable purely so a focused unit test can force the
+// post-claim read to throw (a torn read is not otherwise deterministically
+// reproducible after a same-process rename); production always uses the default.
+export function surfaceOutcome(outcomePath, emit, result,
+  readClaim = (p) => JSON.parse(fs.readFileSync(p, 'utf8'))) {
+  const peek = readOutcome(outcomePath);
+  if (!peek || peek.reported || peek.result === 'running' || !peek.finished_utc) return;
+  // PER-PID claim path (not a shared '.surfacing'): the SOURCE outcomePath can be
+  // renamed only once, so exactly one racer still wins the capture — but a unique
+  // destination means no racer ever rmSync's ANOTHER racer's claim. With a shared
+  // path, a loser (peeked reported:false) could rename the winner's just-recreated
+  // reported:true outcome onto the same '.surfacing' and the winner's rmSync would
+  // then delete it -> the outcome file is LOST (benign already-surfaced tombstone,
+  // but it made TEST-026 flaky under load). Same fix class as claimLockFile.
+  const claimPath = `${outcomePath}.surfacing.${process.pid}.${lockSeq++}`;
+  try {
+    fs.renameSync(outcomePath, claimPath); // atomic claim; exactly one racer wins
+  } catch {
+    return; // a concurrent run already claimed the outcome (or it vanished)
+  }
+  // The claim rename succeeded: the ONLY copy of the outcome now lives at
+  // claimPath. If the read/parse throws (a torn write observed mid-write, or a
+  // transient fs error), returning here would ORPHAN the outcome at .surfacing
+  // with the real path gone -> it would never surface. RESTORE it (best-effort)
+  // so a later run surfaces it; print nothing (once-only preserved).
+  let oc;
+  try {
+    oc = readClaim(claimPath);
+  } catch {
+    try { fs.renameSync(claimPath, outcomePath); } catch { /* best-effort restore */ }
+    return;
+  }
+  // Re-check the captured content: a racer may have already surfaced + recreated
+  // the file as reported:true between our peek and our rename. If so, restore
+  // the authoritative state and surface nothing.
+  if (!oc || oc.reported || oc.result === 'running' || !oc.finished_utc) {
+    writeOutcome(outcomePath, oc);
+    try { fs.rmSync(claimPath, { force: true }); } catch { /* best-effort */ }
+    return;
+  }
   const ver = oc.target_version ? ` ${oc.target_version}` : '';
   if (oc.result === 'applied') {
     emit.push(`AAI auto-update applied${ver} — review the diff (git diff) before committing.`);
@@ -415,7 +641,8 @@ function surfaceOutcome(outcomePath, emit, result) {
       + 'before failing) and rerun /aai-update if needed.');
   }
   result.reported_outcome = oc.result;
-  writeOutcome(outcomePath, { ...oc, reported: true }); // show once
+  writeOutcome(outcomePath, { ...oc, reported: true }); // recreate, reported once
+  try { fs.rmSync(claimPath, { force: true }); } catch { /* best-effort */ }
 }
 
 // --- Orchestration (pure over injected effects, testable) ---------------------
@@ -466,14 +693,21 @@ function main() {
       // UNRELATED upstream on a `behind` verdict. Detection and sync must agree
       // on ONE source of truth. A hand-passed --source still wins.
       const syncSource = args.source || verdict.remote || null;
-      if (syncInFlight(readOutcome(args.outcome), nowMs)) {
-        // Concurrent-sync guard: a detached sync is already running.
+      // Concurrent-sync guard. The `running` marker is a fast early-out, but the
+      // AUTHORITATIVE guard against N truly-simultaneous starts is the ATOMIC
+      // O_EXCL claim (RR-1): exactly one caller creates update-sync.lock and
+      // spawns; the losers back off. A stale/future/torn lock is reclaimed so a
+      // crashed sync never wedges auto mode.
+      const lockPath = syncLockPath(args.outcome);
+      const inFlight = syncInFlight(readOutcome(args.outcome), nowMs);
+      const claimed = inFlight ? false : acquireSyncLock(lockPath, nowMs, nowIso);
+      if (inFlight || !claimed) {
         result.action = 'sync_in_flight';
         emit.push('AAI auto-update: a background sync is already in progress — '
           + 'its outcome will be reported next session.');
       } else {
-        // Write the `running` marker SYNCHRONOUSLY (the concurrent guard) then
-        // spawn the sync DETACHED so it survives past this fast, non-blocking run.
+        // Claim held. Write the `running` marker then spawn the sync DETACHED so
+        // it survives past this fast, non-blocking run.
         writeOutcome(args.outcome, {
           started_utc: nowIso, finished_utc: null, target_version: targetVersion,
           result: 'running', detail: null, reported: false,
@@ -487,7 +721,9 @@ function main() {
           emit.push('AAI auto-update: applying the update in the background (detached) — '
             + 'the outcome will be reported next session.');
         } else {
-          // Could not launch — clear the running marker so a later run retries.
+          // Could not launch — release the claim + clear the running marker so a
+          // later run retries.
+          releaseSyncLock(lockPath);
           result.action = 'sync_launch_failed';
           writeOutcome(args.outcome, {
             started_utc: nowIso, finished_utc: new Date().toISOString(),

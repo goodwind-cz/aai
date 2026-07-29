@@ -11,6 +11,42 @@ RFC-0001).
 
 ## [unreleased]
 
+- fix(auto-update): atomic O_EXCL claim closes the concurrent-sync races
+  (CHANGE update-sync-atomic-lock) [L2]. Fast-follow to the auto-update ride
+  that CLOSES the two cross-process TOCTOU races accepted as documented
+  residuals in `docs/ai/decisions.jsonl` (2026-07-29): RR-1 — the
+  `running`-marker concurrent-sync guard had no OS-level lock, so N truly-
+  simultaneous same-repo session starts each spawned a detached `aai-update`
+  sync (empirically 5 parallel -> up to 5 syncs); RR-2 — once-only outcome
+  surfacing could print the "applied" line more than once under the same
+  window. RR-1 is fixed with a genuinely atomic claim: before spawning, the
+  auto path does `fs.openSync('.aai/cache/update-sync.lock', 'wx')`
+  (O_CREAT|O_EXCL, a SEPARATE file from the pre-existing outcome log) — exactly
+  one caller creates the lock and spawns; the losers get EEXIST and back off to
+  the existing "in progress" path (no duplicate spawn). RR-1 is closed for BOTH
+  cold start AND concurrent STALE-lock RECLAIM: reclaim (which must remove the
+  existing lock before re-claiming, so a lone O_EXCL create cannot arbitrate it)
+  is serialized behind a short-lived exclusive reclaim lock whose holder
+  re-checks staleness after gaining exclusivity, so N racers reclaiming one
+  stale lock spawn exactly one sync; and locks are created with FULL content
+  atomically (a per-pid temp written then `linkSync`ed into place) instead of
+  `openSync('wx')`+`writeSync`, eliminating the torn (created-but-empty) window
+  in which a concurrent reader would mis-age a live lock. The detached child
+  removes the lock when the sync finishes (success or failure); a crashed sync
+  leaves a stale lock that the SAME >30min `SYNC_STALE_MS` window reclaims
+  (future-dated / clock-skewed locks reclaim too, via a symmetric staleness
+  window that never falsely reclaims a live racer), so auto mode NEVER wedges.
+  RR-2 is fixed with an atomic rename claim around outcome
+  surfacing so simultaneous sessions surface a finished outcome at most once;
+  sequential behavior is unchanged. All prior semantics intact (detached-to-
+  completion, report-next-session, source agreement, notify default, canonical
+  refuse, offline degrade, throttle + self-heal, future-date guards). The lock
+  lives in gitignored, PROFILES-excluded `.aai/cache/`. Suite:
+  `tests/skills/test-aai-update-check.sh` (+5 tests, now 28; true-parallel
+  single-invocation, lock-reclaim, concurrent-surfacing, an amplified
+  CONCURRENT stale-lock reclaim case, and a surface-restore-on-read-failure
+  unit check; deterministic, zero real network).
+
 - feat(auto-update): config-driven new-release notify + opt-in auto-sync
   (CHANGE auto-update-config / spec-auto-update-config) [L2]. A target project
   now learns a newer AAI release exists as a SIDE EFFECT OF NORMAL USE: the
