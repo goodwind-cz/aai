@@ -140,14 +140,14 @@ test_010_no_remote_real_fixture() {
 
 # --- TEST-011 — --json shape: exact key set, both a classified and a none case
 test_011_json_shape() {
-  log_info "TEST-011: --json emits exactly platform/remote — remote SANITIZED, never the raw url (credential-leak review pin)..."
+  log_info "TEST-011: --json emits exactly platform/remote/reviewer_bots — remote SANITIZED, never the raw url (credential-leak review pin)..."
   local ok=1 keys
   keys=$(node "$PROBE" --remote-url "https://github.com/o/r.git" --json 2>/dev/null | node -e '
     let d = ""; process.stdin.on("data", c => d += c);
     process.stdin.on("end", () => { console.log(Object.keys(JSON.parse(d)).sort().join(",")); });
   ')
-  if [[ "$keys" != "platform,remote" ]]; then
-    log_info "TEST-011: classified-case keys='$keys' (want platform,remote)"
+  if [[ "$keys" != "platform,remote,reviewer_bots" ]]; then
+    log_info "TEST-011: classified-case keys='$keys' (want platform,remote,reviewer_bots)"
     ok=0
   fi
   # credential masking in --json (PR #185 review): raw token must never appear
@@ -291,6 +291,123 @@ test_018_skill_pr_generic_mode_loud_line() {
   [[ $ok -eq 1 ]] && log_pass "TEST-018 GENERIC MODE loud line pinned" || log_fail "TEST-018 GENERIC MODE loud line pinned"
 }
 
+# --- TEST-019 — reviewer_bots knob classification (R1 GitHub-no-bots hardening,
+# CHANGE-DRAFT-github-no-bots-hardening) — deterministic tri-state read of the
+# repo-local docs/ai/pr-config.yaml `reviewer_bots:` knob via --pr-config
+# override: absent file/key -> none (assume-none, safest default -> internal
+# review, never wait for bots that may never arrive); `expected` -> expected;
+# `none` -> none; any other value -> unknown (+ stderr warn, behaves as none) --
+test_019_reviewer_bots_knob() {
+  log_info "TEST-019: reviewer_bots knob none(default)/expected/none/unknown..."
+  local ok=1
+  local ghurl="https://github.com/owner/repo.git"
+  # absent config file -> none (assume-none)
+  local missing="$TMP_ROOT/pr-config-absent.yaml"  # never created
+  run_probe "$ghurl" --pr-config "$missing"
+  if [[ "$OUT" != *"reviewer_bots=none"* ]]; then
+    log_info "TEST-019: absent config got '$OUT' (want reviewer_bots=none)"; ok=0
+  fi
+  # explicit expected
+  local expcfg="$TMP_ROOT/pr-config-expected.yaml"
+  printf 'reviewer_bots: expected\n' >"$expcfg"
+  run_probe "$ghurl" --pr-config "$expcfg"
+  if [[ "$OUT" != *"reviewer_bots=expected"* ]]; then
+    log_info "TEST-019: expected config got '$OUT' (want reviewer_bots=expected)"; ok=0
+  fi
+  # explicit none
+  local nonecfg="$TMP_ROOT/pr-config-none.yaml"
+  printf 'reviewer_bots: none\n' >"$nonecfg"
+  run_probe "$ghurl" --pr-config "$nonecfg"
+  if [[ "$OUT" != *"reviewer_bots=none"* ]]; then
+    log_info "TEST-019: none config got '$OUT' (want reviewer_bots=none)"; ok=0
+  fi
+  # invalid value -> unknown + stderr warn, exit still 0 (read-only, fail-open)
+  local badcfg="$TMP_ROOT/pr-config-bad.yaml"
+  printf 'reviewer_bots: yesplease\n' >"$badcfg"
+  run_probe "$ghurl" --pr-config "$badcfg"
+  if [[ "$RC" -ne 0 ]]; then
+    log_info "TEST-019: invalid value exited $RC (want 0, fail-open)"; ok=0
+  fi
+  if [[ "$OUT" != *"reviewer_bots=unknown"* ]]; then
+    log_info "TEST-019: invalid value got '$OUT' (want reviewer_bots=unknown)"; ok=0
+  fi
+  if [[ -z "$ERR" ]]; then
+    log_info "TEST-019: invalid value printed no stderr warning (want a fail-open notice)"; ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-019 reviewer_bots knob (none-default/expected/none/unknown)" \
+    || log_fail "TEST-019 reviewer_bots knob"
+}
+
+# --- TEST-020 — text output carries reviewer_bots for a remote; the bare
+# no-remote `PLATFORM none` line stays bare (GENERIC MODE, no PR ceremony) -----
+test_020_reviewer_bots_text_shape() {
+  log_info "TEST-020: text line appends reviewer_bots= for a remote, bare PLATFORM none unchanged..."
+  local ok=1
+  local expcfg="$TMP_ROOT/pr-config-t020.yaml"
+  printf 'reviewer_bots: expected\n' >"$expcfg"
+  run_probe "https://github.com/o/r.git" --pr-config "$expcfg"
+  if [[ "$OUT" != "PLATFORM github remote="*" reviewer_bots=expected" ]]; then
+    log_info "TEST-020: remote line got '$OUT' (want 'PLATFORM github remote=... reviewer_bots=expected')"; ok=0
+  fi
+  run_probe "" --pr-config "$expcfg"
+  if [[ "$OUT" != "PLATFORM none" ]]; then
+    log_info "TEST-020: no-remote line got '$OUT' (want bare 'PLATFORM none')"; ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-020 reviewer_bots text shape (appended on remote, bare none)" \
+    || log_fail "TEST-020 reviewer_bots text shape"
+}
+
+# --- TEST-021 — --json carries the reviewer_bots value -----------------------
+test_021_reviewer_bots_json() {
+  log_info "TEST-021: --json reviewer_bots value tracks the knob..."
+  local ok=1 rb
+  local nonecfg="$TMP_ROOT/pr-config-t021.yaml"
+  printf 'reviewer_bots: none\n' >"$nonecfg"
+  rb=$(node "$PROBE" --remote-url "https://github.com/o/r.git" --pr-config "$nonecfg" --json 2>/dev/null | node -e '
+    let d = ""; process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => { console.log(JSON.parse(d).reviewer_bots); });
+  ')
+  if [[ "$rb" != "none" ]]; then
+    log_info "TEST-021: --json reviewer_bots='$rb' (want none)"; ok=0
+  fi
+  # Trailing tokens must NOT silently enable the bot-only path: the value is
+  # the entire rest of the line and must EXACTLY equal a closed-set token
+  # ("expected extra" -> unknown + warning, bot-review P2 hardening).
+  local trailcfg="$TMP_ROOT/pr-config-t021-trail.yaml"
+  printf 'reviewer_bots: expected extra\n' >"$trailcfg"
+  rb=$(node "$PROBE" --remote-url "https://github.com/o/r.git" --pr-config "$trailcfg" --json 2>/dev/null | node -e '
+    let d = ""; process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => { console.log(JSON.parse(d).reviewer_bots); });
+  ')
+  if [[ "$rb" != "unknown" ]]; then
+    log_info "TEST-021: trailing-token value gave reviewer_bots='$rb' (want unknown)"; ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-021 --json reviewer_bots value (+trailing-token -> unknown)" || log_fail "TEST-021 --json reviewer_bots value"
+}
+
+# --- TEST-022 — grep-contract: SKILL_PR 5d GitHub-no-bots hardening
+# (CHANGE-DRAFT-github-no-bots-hardening) — the empty-sweep shortcut is legal
+# ONLY when reviewer_bots == expected (a github repo with reviewer_bots !=
+# expected takes the internal-review fallback), plus the bounded-wait rule so
+# the sweep never waits forever for comments that never arrive ----------------
+test_022_skill_pr_no_bots_hardening() {
+  log_info "TEST-022: SKILL_PR 5d reviewer_bots-gated shortcut + bounded-wait rule..."
+  local ok=1
+  [[ -f "$SKILL_PR_DOC" ]] || { log_fail "TEST-022: $SKILL_PR_DOC missing"; return; }
+  grep -qF "reviewer_bots=" "$SKILL_PR_DOC" \
+    || { log_info "TEST-022: probe reviewer_bots= field not referenced in 5d"; ok=0; }
+  grep -qF "reviewer_bots == expected" "$SKILL_PR_DOC" \
+    || { log_info "TEST-022: empty-sweep shortcut not gated on reviewer_bots == expected"; ok=0; }
+  grep -qF "reviewer_bots != expected" "$SKILL_PR_DOC" \
+    || { log_info "TEST-022: github-without-bots fallback trigger (reviewer_bots != expected) missing"; ok=0; }
+  grep -qiF "bounded wait" "$SKILL_PR_DOC" \
+    || { log_info "TEST-022: bounded-wait rule missing"; ok=0; }
+  grep -qiF "never wait" "$SKILL_PR_DOC" \
+    || { log_info "TEST-022: never-wait-forever guarantee missing"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-022 SKILL_PR 5d GitHub-no-bots hardening pinned" \
+    || log_fail "TEST-022 SKILL_PR 5d GitHub-no-bots hardening"
+}
+
 ALL_TESTS=(
   test_001_github_https
   test_002_github_ssh_scp
@@ -310,6 +427,10 @@ ALL_TESTS=(
   test_016_skill_pr_az_commands
   test_017_skill_pr_fallback_contract
   test_018_skill_pr_generic_mode_loud_line
+  test_019_reviewer_bots_knob
+  test_020_reviewer_bots_text_shape
+  test_021_reviewer_bots_json
+  test_022_skill_pr_no_bots_hardening
 )
 
 main() {

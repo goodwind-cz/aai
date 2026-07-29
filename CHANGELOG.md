@@ -11,6 +11,28 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(pr): reviewer_bots knob so the GitHub PR sweep never waits for absent bots (CHANGE-0096-github-no-bots-hardening) [L2]
+
+- Closes the GITHUB-WITHOUT-BOTS residual from CHANGE-0085/SPEC-0103. The PR
+  ceremony's 5d bot-review sweep polls Copilot/Codex inline comments after CI.
+  On a GitHub repo where NO reviewer bots are installed, GitHub is still
+  detected, so the bot path was taken and could wait for comments that will
+  never arrive, while the empty-sweep shortcut silently skipped review.
+- `pr-platform.mjs` now reads a repo-local `reviewer_bots` knob
+  (`docs/ai/pr-config.yaml`, column-0 line scan) and prints
+  `reviewer_bots=<expected|none|unknown>` in both text and `--json`. Absent
+  file/key == `none` (assume-none, the safest default); an invalid value ==
+  `unknown` with a stderr warning (fail-open).
+- `SKILL_PR` step 5d gates the "no bot findings" empty-sweep shortcut on
+  `reviewer_bots == expected`; a GitHub repo with `reviewer_bots`
+  none/unknown/absent now takes the internal `SKILL_CODE_REVIEW` fallback
+  exactly like Azure. A BOUNDED-WAIT rule (default 10 minutes after CI green)
+  guarantees the sweep never waits forever.
+- This repo declares `reviewer_bots: expected` (it has Copilot + Codex),
+  preserving its existing bot-sweep behavior. Prompt-diet ledger true-up
+  (+1147 B credited 1:1, TEST-012 pin -11435 -> -10288); new tests
+  TEST-019..022 plus an updated TEST-011 in test-aai-pr-platform.sh.
+
 ## [unreleased] — chore(prompts): SUBAGENT_CONTRACT headroom — trim to 53 lines under the 60-line cap (CHANGE-0095-contract-headroom) [L1]
 
 - `.aai/SUBAGENT_CONTRACT.md` sat at exactly 60/60 lines against SPEC-0094's

@@ -1,0 +1,31 @@
+# AAI PR-ceremony policy (CHANGE-DRAFT-github-no-bots-hardening, follow-up to
+# CHANGE-0085/SPEC-0103). Committed, project-owned — sibling of
+# docs/ai/docs-audit.yaml and docs/ai/update-config.yaml so the team shares ONE
+# PR-ceremony policy. Read by .aai/scripts/pr-platform.mjs, whose PLATFORM GATE
+# SKILL_PR step 5 runs before opening a PR.
+#
+# Parsed by a COLUMN-0 line scan (same discipline as docs-audit.yaml /
+# update-config.yaml) — NOT a general YAML file. Keep keys at column 0.
+#
+# ABSENT FILE / ABSENT KEY == none (assume-none): the SAFEST default. When the
+# platform is GitHub but no reviewer bots are installed, the 5d bot-review sweep
+# would otherwise wait for Copilot/Codex comments that will NEVER arrive.
+# assume-none makes SKILL_PR substitute the internal SKILL_CODE_REVIEW instead
+# of blocking on bots that do not exist. Review still happens — it is never
+# silently skipped.
+#
+# Keys:
+#   reviewer_bots:  expected | none   (default when absent: none)
+#     expected — this repo has an external reviewer-bot layer (Copilot / Codex
+#                auto-review). SKILL_PR step 5d runs the bot-review sweep and may
+#                record "no bot findings" and stop after a green run — but only
+#                within a BOUNDED wait (default 10 min); it never waits forever.
+#     none     — no reviewer bots. SKILL_PR step 5d REQUIRES the internal
+#                SKILL_CODE_REVIEW on the final diff before any merge-readiness
+#                claim, publishing findings back as PR threads exactly like a
+#                bot would. An unrecognized value is treated as unknown (a
+#                stderr warning is printed) and behaves like none.
+#
+# This AAI repo has Copilot + Codex reviewer bots installed, so it declares
+# `expected` to keep the existing GitHub bot-sweep behavior.
+reviewer_bots: expected
