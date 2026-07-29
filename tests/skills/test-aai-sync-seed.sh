@@ -93,12 +93,12 @@ mode: auto
 throttle_hours: 6
 CFG
   cp "$custom" "$cfg"
-  before="$(sha256sum "$cfg" | awk '{print $1}')"
+  before="$({ sha256sum "$cfg" 2>/dev/null || shasum -a 256 "$cfg"; } | awk '{print $1}')"
 
   bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "re-sync failed"
 
   [[ -f "$cfg" ]] || log_fail "re-sync removed the existing config"
-  after="$(sha256sum "$cfg" | awk '{print $1}')"
+  after="$({ sha256sum "$cfg" 2>/dev/null || shasum -a 256 "$cfg"; } | awk '{print $1}')"
   [[ "$before" == "$after" ]] || log_fail "re-sync OVERWROTE the operator's config (hash changed): $(cat "$cfg")"
   cmp -s "$custom" "$cfg" || log_fail "re-sync did not preserve the operator's config byte-for-byte"
   grep -q '^mode: auto$' "$cfg" || log_fail "operator's 'mode: auto' was lost, got: $(cat "$cfg")"
@@ -123,6 +123,7 @@ test_template_and_parity() {
   grep -qF "docs/ai/update-config.yaml" "$SYNC_SH" || log_fail "aai-sync.sh does not reference the seed target"
   if [[ -f "$SYNC_PS1" ]]; then
     grep -qF "update-config.template.yaml" "$SYNC_PS1" || log_fail "aai-sync.ps1 does not seed from the template (parity)"
+    grep -qF "docs/ai/update-config.yaml" "$SYNC_PS1" || log_fail "aai-sync.ps1 does not reference the seed target (parity)"
   fi
   log_pass "TEST-003 template classified in core + both scripts seed it (parity)"
 }

@@ -11,8 +11,6 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased]
-
 ## [unreleased] — fix(install): seed docs/ai/update-config.yaml when missing (CHANGE-0094) [L2]
 
 - Completes the auto-update feature's discoverability. The auto-update ride
