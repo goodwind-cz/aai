@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-07-29T15:52:40.034Z",
+  "generatedAt": "2026-07-29T18:50:27.482Z",
   "project": "aai",
   "counts": {
-    "delivered": 138,
+    "delivered": 139,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -111,6 +111,19 @@
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0093-update-sync-atomic-lock.md",
+      "closed_on": "2026-07-29",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "seed-update-config",
+      "title": "Change — install/sync seeds docs/ai/update-config.yaml when missing",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0094-seed-update-config.md",
       "closed_on": "2026-07-29",
       "agent_minutes": null,
       "token_total": null,
@@ -1912,6 +1925,19 @@
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0093-update-sync-atomic-lock.md",
+          "closed_on": "2026-07-29",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "seed-update-config",
+          "title": "Change — install/sync seeds docs/ai/update-config.yaml when missing",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0094-seed-update-config.md",
           "closed_on": "2026-07-29",
           "agent_minutes": null,
           "token_total": null,

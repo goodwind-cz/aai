@@ -11,7 +11,21 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased]
+## [unreleased] — fix(install): seed docs/ai/update-config.yaml when missing (CHANGE-0094) [L2]
+
+- Completes the auto-update feature's discoverability. The auto-update ride
+  shipped `.aai/scripts/update-check.mjs` and the SessionStart hook, but the
+  LOCAL policy file `docs/ai/update-config.yaml` was never installed by
+  `aai-sync` — `docs/ai/` was only PRESERVED, so the `auto` opt-in knob stayed
+  hidden. Both sync engines (`aai-sync.sh` and `aai-sync.ps1`) now SEED
+  `docs/ai/update-config.yaml` from the new
+  `.aai/templates/update-config.template.yaml` (documented default:
+  `mode: notify`, `throttle_hours: 24`, with the full key comments) ONLY when
+  the target's copy is MISSING — an operator's edited policy is preserved
+  byte-for-byte, mirroring the `docs/TECHNOLOGY.md` seed-when-missing pattern.
+  The template is classified in PROFILES core (layer-profiles union intact),
+  and the ps1-quality Windows PowerShell 5.1 functional smoke asserts the seed
+  lands on a fresh target.
 
 ## [v2026.07.29] — fix(auto-update): atomic O_EXCL sync-lock + stale-reclaim closes RR-1/RR-2 (CHANGE-0093) [L2]
 

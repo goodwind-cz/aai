@@ -98,6 +98,17 @@ jobs:
           foreach ($p in @(".codex/skills/README.md", ".gemini/skills/README.md")) {
             if (-not (Test-Path (Join-Path $target $p))) { Write-Host "MISSING $p"; $fail++ }
           }
+          # CHANGE seed-update-config: a fresh sync must SEED the auto-update
+          # policy file so the `auto` opt-in knob is discoverable (parity with
+          # the aai-sync.sh seed; authoritative Windows PowerShell 5.1 check).
+          $seededCfg = Join-Path $target "docs/ai/update-config.yaml"
+          if (-not (Test-Path $seededCfg)) {
+            Write-Host "MISSING docs/ai/update-config.yaml (not seeded)"; $fail++
+          } elseif (-not (Select-String -Path $seededCfg -Pattern '^mode: notify$' -Quiet)) {
+            Write-Host "docs/ai/update-config.yaml seeded without 'mode: notify'"; $fail++
+          } else {
+            Write-Host "SEEDED docs/ai/update-config.yaml (mode: notify)"
+          }
           # Assert nested per-skill SKILL.md copied for BOTH mixed-content dirs
           # (top-level README alongside subfolders) — the exact shape that broke.
           foreach ($d in @(".codex/skills", ".gemini/skills")) {
