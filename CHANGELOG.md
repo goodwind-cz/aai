@@ -11,6 +11,20 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — chore(prompts): SUBAGENT_CONTRACT headroom — trim to 53 lines under the 60-line cap (CHANGE-0095-contract-headroom) [L1]
+
+- `.aai/SUBAGENT_CONTRACT.md` sat at exactly 60/60 lines against SPEC-0094's
+  hard `<=60`-line cap (enforced by test-aai-role-output.sh TEST-010 and
+  test-aai-hygiene-pack.sh TEST-001), so the next clause addition would silently
+  breach it. Compressed only prose (intro pointer, timing bullets, usage-note,
+  single-writer rationale) from 60 to 53 lines — no pinned or load-bearing
+  clause lost. The frozen `subagent_result:` YAML skeleton stays byte-identical
+  to `.aai/templates/BRIEF_TEMPLATE.md` (hygiene-pack TEST-002), and every
+  spot-grepped token (STATE single-writer rule, `duration_seconds` match,
+  `docs/ai/tdd/`, `append-event.mjs`, `check-role-output.mjs`, EXPECT pointer,
+  rationalization table) survives verbatim. Added TEST-020 headroom guard
+  (`<=54` lines, `>=6` below the cap) alongside the untouched `<=60` cap tests.
+
 ## [unreleased] — fix(install): seed docs/ai/update-config.yaml when missing (CHANGE-0094) [L2]
 
 - Completes the auto-update feature's discoverability. The auto-update ride

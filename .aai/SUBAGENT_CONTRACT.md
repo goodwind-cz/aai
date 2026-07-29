@@ -1,11 +1,9 @@
 # Subagent Contract
 
 The per-dispatch payload every spawned subagent (Implementation, Validation,
-Planning, Research) receives. Orchestrator-only material — decomposition
-criteria, the MODEL contract table, review anti-gaming rules, validator
-spawning, harness-reported usage capture, merge protocol, delivery gate,
-platform fallback — stays in `.aai/SUBAGENT_PROTOCOL.md`; a dispatched unit
-does not need it.
+Planning, Research) receives. Orchestrator-only material (decomposition, MODEL
+contract table, review anti-gaming, validator spawning, usage capture, merge
+protocol, delivery gate, platform fallback) stays in `.aai/SUBAGENT_PROTOCOL.md`.
 
 ## Result block (mandatory subagent output)
 
@@ -30,25 +28,20 @@ subagent_result:
 ```
 
 Timing capture rules:
-- Capture `started_utc` and `ended_utc` from the runtime system clock (`date -u` / `Get-Date ...ToUniversalTime()`), never from model estimation.
-- Use UTC ISO-8601 with explicit `Z` or `+00:00`.
+- Capture `started_utc`/`ended_utc` from the system clock (`date -u` /
+  `Get-Date ...ToUniversalTime()`), never model estimation; UTC ISO-8601, `Z`/`+00:00`.
 - `duration_seconds` MUST match `ended_utc - started_utc` (tolerance +/-1s).
 
-Usage-note honesty: a subagent MUST NOT self-report token usage figures — it
-cannot observe its own usage, so any figure it produced would be fabricated.
-The orchestrator captures usage from the harness-level result at merge time.
+Usage-note honesty: a subagent MUST NOT self-report token usage — it cannot
+observe its own; the orchestrator captures usage from the harness at merge time.
 
 ## Single-writer rule (HARD — RFC-0004 / SPEC-0004 D7)
 
-A dispatched subagent **MUST NOT write `docs/ai/STATE.yaml`**. The orchestrator
-is the **SOLE STATE writer**. A subagent returns its result block (above) and
-nothing more; the orchestrator merges that block and performs every mutation of
-`docs/ai/STATE.yaml`.
-
-What a subagent MAY write: its own scoped source/test files, append-only
-evidence under `docs/ai/tdd/`, and `docs/ai/EVENTS.jsonl` via
-`append-event.mjs` (the append-only, commutative audit log). What it MUST NOT
-write: `docs/ai/STATE.yaml` (orchestrator-only).
+A dispatched subagent **MUST NOT write `docs/ai/STATE.yaml`**; the orchestrator
+is the **SOLE STATE writer** that merges each returned result block and performs
+every STATE mutation. What a subagent MAY write: its own scoped source/test
+files, append-only evidence under `docs/ai/tdd/`, and `docs/ai/EVENTS.jsonl` via
+`append-event.mjs` (the append-only, commutative audit log).
 
 ### Single-writer rationalization table (stop and correct any of these)
 

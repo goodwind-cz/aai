@@ -441,6 +441,20 @@ test_010_canon_wiring() {
   log_pass "TEST-010 canon wiring: CONTRACT $n lines + EXPECT pointer; PROTOCOL step 1 mandatory invocation"
 }
 
+# --- TEST-020 — CONTRACT headroom guard (<=54 lines, >=6 below the 60 cap) ----
+# Guards against the zero-headroom trap where the CONTRACT sits exactly at the
+# SPEC-0094 hard <=60-line cap and the next clause addition silently breaches
+# it. This is a stricter sibling of TEST-010's <=60 cap (which stays intact).
+test_020_contract_headroom() {
+  log_info "TEST-020: CONTRACT <=54 lines (>=6-line headroom below the 60 cap)..."
+  [[ -f "$CONTRACT_DOC" ]] || log_fail "missing .aai/SUBAGENT_CONTRACT.md"
+  local n
+  n="$(wc -l < "$CONTRACT_DOC" | tr -d ' ')"
+  [[ "$n" -le 54 ]] \
+    || log_fail "SUBAGENT_CONTRACT.md must stay <=54 lines for >=6-line headroom below the 60 cap (got $n)"
+  log_pass "TEST-020 CONTRACT headroom: $n lines (<=54, >=6 below the 60 cap)"
+}
+
 # --- TEST-013 — started_utc >300s ahead of --now -> E-FUTURE-STARTED ---------
 test_013_future_started() {
   log_info "TEST-013: started_utc >300s ahead of --now -> E-FUTURE-STARTED; PROTOCOL still documents 300s (SEAM-2)..."
@@ -556,6 +570,7 @@ main() {
   test_008_bad_timestamp
   test_009_field_bundle
   test_010_canon_wiring
+  test_020_contract_headroom
   test_013_future_started
   test_014_seam1_contract_skeleton
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="
