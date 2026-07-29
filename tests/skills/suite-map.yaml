@@ -195,6 +195,14 @@ suites:
       - .aai/scripts/aai-doctor.mjs
       - .aai/SKILL_DOCTOR.prompt.md
 
+  aai-factory-report:
+    globs:
+      - .aai/scripts/generate-factory-report.mjs
+      - .aai/scripts/close-work-item.mjs
+      - .claude/skills/aai-factory-report/**
+      - docs/ai/factory-report.html
+      - docs/ai/factory-report-data.json
+
   aai-feedback-status:
     globs:
       - .aai/scripts/aai-feedback-status.mjs
