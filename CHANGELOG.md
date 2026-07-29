@@ -11,7 +11,9 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(auto-update): atomic O_EXCL sync-lock + stale-reclaim closes RR-1/RR-2 (CHANGE-0093) [L2]
+## [unreleased]
+
+## [v2026.07.29] — fix(auto-update): atomic O_EXCL sync-lock + stale-reclaim closes RR-1/RR-2 (CHANGE-0093) [L2]
 
 - Fast-follow to the auto-update ride
   that CLOSES the two cross-process TOCTOU races accepted as documented
@@ -58,7 +60,7 @@ RFC-0001).
   genuine-error loud-skip, owner-scoped lock release, and stale orphaned-claim
   recovery; deterministic, zero real network).
 
-## [unreleased] — feat(auto-update): config-driven new-release notify + opt-in detached auto-sync (CHANGE-0091 / SPEC-0106) [L2]
+## [v2026.07.29] — feat(auto-update): config-driven new-release notify + opt-in detached auto-sync (CHANGE-0091 / SPEC-0106) [L2]
 
 - A target project
   now learns a newer AAI release exists as a SIDE EFFECT OF NORMAL USE: the
@@ -91,7 +93,7 @@ RFC-0001).
   the concurrent-sync guard. New `.aai/scripts/update-check.mjs` (core profile).
   Suite: `tests/skills/test-aai-update-check.sh` (23 tests, zero real network).
 
-## [unreleased] — fix(install): Windows PowerShell 5.1 sync fails copying .codex/.gemini skills (CHANGE-0092) [L2]
+## [v2026.07.29] — fix(install): Windows PowerShell 5.1 sync fails copying .codex/.gemini skills (CHANGE-0092) [L2]
 
 - A field install via `irm install.ps1 | iex` on Windows
   PowerShell 5.1 aborted with `Copy-Item ... DirectoryNotFoundException` on
@@ -104,7 +106,7 @@ RFC-0001).
   `ps1-quality` windows-5.1 CI job gained a FUNCTIONAL `aai-sync.ps1` smoke into
   a fresh target (a parse-check could not catch a runtime copy behavior).
 
-## [unreleased] — refactor(prompts): core-prompt diet — dedup into ROLE_COMMON + drop dead SKILL_TDD prose (CHANGE-0090) [L2]
+## [v2026.07.29] — refactor(prompts): core-prompt diet — dedup into ROLE_COMMON + drop dead SKILL_TDD prose (CHANGE-0090) [L2]
 
 - Folded four cross-prompt duplications
   (FRICTION HOOK, PYTHON MONTY SCRATCHPAD, PRE-HANDOFF AC-TABLE RECONCILIATION,
