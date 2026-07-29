@@ -1,12 +1,14 @@
 ---
 id: ps1-sync-nonexistent-dest
-number: null
+number: 92
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 195
+  commits:
+    - 7c02e5bd9333d47613c8c045a3da4924e4324b73
 ---
 
 # Change — fix: Windows PowerShell 5.1 install fails copying .codex/.gemini skills

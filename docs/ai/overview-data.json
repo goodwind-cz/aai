@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-07-29T00:19:29.908Z",
+  "generatedAt": "2026-07-29T09:39:49.678Z",
   "project": "aai",
   "counts": {
-    "delivered": 136,
+    "delivered": 137,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -89,6 +89,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0106-spec-auto-update-config.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "ps1-sync-nonexistent-dest",
+      "title": "Change — fix: Windows PowerShell 5.1 install fails copying .codex/.gemini skills",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0092-ps1-sync-nonexistent-dest.md",
+      "closed_on": "2026-07-29",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
       "validation": null,
       "review": null
     },
@@ -1864,6 +1877,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0106-spec-auto-update-config.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "ps1-sync-nonexistent-dest",
+          "title": "Change — fix: Windows PowerShell 5.1 install fails copying .codex/.gemini skills",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0092-ps1-sync-nonexistent-dest.md",
+          "closed_on": "2026-07-29",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
           "validation": null,
           "review": null
         },

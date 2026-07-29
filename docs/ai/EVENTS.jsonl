@@ -1373,3 +1373,6 @@
 {"v":1,"ts":"2026-07-29T00:19:18.143Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-auto-update-config","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-29T00:19:18.173Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-auto-update-config","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-29T00:19:18.205Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-auto-update-config","payload":{"commit":"9c4d17156d9548427e2c5bb3fced854dcea9df27"}}
+{"v":1,"ts":"2026-07-29T09:39:37.869Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"ps1-sync-nonexistent-dest","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-29T09:39:37.902Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"ps1-sync-nonexistent-dest","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-29T09:39:37.935Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"ps1-sync-nonexistent-dest","payload":{"commit":"7c02e5bd9333d47613c8c045a3da4924e4324b73"}}
