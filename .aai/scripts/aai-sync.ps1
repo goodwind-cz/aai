@@ -37,7 +37,22 @@ function Copy-Replace {
   )
   # Git is the backup - no .bak files needed.
   if (Test-Path $Dst) { Remove-Item $Dst -Recurse -Force }
-  Copy-Item $Src $Dst -Recurse -Force
+  if (Test-Path $Src -PathType Container) {
+    # Create the destination root FIRST, then copy CONTENTS into it. Windows
+    # PowerShell 5.1's `Copy-Item -Recurse <dir> <nonexistent-dst>` does not
+    # reliably create the destination root before copying a top-level file into
+    # it, throwing DirectoryNotFoundException ("part of the path ... was not
+    # found") on dirs that mix loose files with subdirs (e.g. .codex/skills and
+    # .gemini/skills, which carry a top-level README.md alongside skill folders).
+    # PS7 and `cp -a` are unaffected; creating $Dst up front is version-safe.
+    New-Item -ItemType Directory -Force -Path $Dst | Out-Null
+    $kids = @(Get-ChildItem -LiteralPath $Src -Force)
+    if ($kids.Count -gt 0) {
+      Copy-Item -LiteralPath $kids.FullName -Destination $Dst -Recurse -Force
+    }
+  } else {
+    Copy-Item -LiteralPath $Src -Destination $Dst -Force
+  }
 }
 
 function Test-FileContentDifferent {

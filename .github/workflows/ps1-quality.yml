@@ -6,7 +6,10 @@ name: ps1-quality
 #   - gate:          the full bash quality gate on Linux (parse-check + PSScript-
 #                    Analyzer 5.1/7.0 syntax compat + Pester smoke tests) under pwsh 7.
 #   - windows-5_1:   parse-check every .ps1 under REAL Windows PowerShell 5.1 —
-#                    the actual environment that broke — plus pwsh 7.
+#                    the actual environment that broke — plus pwsh 7, AND a
+#                    functional aai-sync.ps1 smoke into a fresh target (catches
+#                    runtime copy behavior a parse check cannot, e.g. the
+#                    Copy-Item DirectoryNotFoundException on .codex/skills).
 
 on:
   push:
@@ -71,10 +74,34 @@ jobs:
           exit "$rc"
 
   windows-5_1:
-    name: parse-check under Windows PowerShell 5.1
+    name: parse-check + functional sync smoke under Windows PowerShell 5.1
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Functional sync smoke under Windows PowerShell 5.1 (fresh target)
+        # Runs the REAL aai-sync.ps1 into a fresh target on Windows PowerShell 5.1
+        # — the exact environment + operation that broke a field install with
+        # "Copy-Item ... DirectoryNotFoundException" on .codex/skills. A parse
+        # check cannot catch a runtime copy behavior; this can. Asserts the
+        # agent-skill dirs that mix a top-level README with subfolders are fully
+        # populated (they exercise Copy-Replace's create-dest-then-copy path).
+        shell: powershell   # Windows PowerShell 5.1 (the field environment)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $target = Join-Path $env:RUNNER_TEMP "aai-sync-smoke"
+          if (Test-Path $target) { Remove-Item $target -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $target | Out-Null
+          git init -q $target
+          & .\.aai\scripts\aai-sync.ps1 -TargetRoot $target -Profile extended
+          $fail = 0
+          foreach ($p in @(".codex/skills/README.md", ".gemini/skills/README.md")) {
+            if (-not (Test-Path (Join-Path $target $p))) { Write-Host "MISSING $p"; $fail++ }
+          }
+          $codexNested = @(Get-ChildItem -Path (Join-Path $target ".codex/skills") -Recurse -Filter "SKILL.md" -ErrorAction SilentlyContinue).Count
+          if ($codexNested -lt 20) { Write-Host "codex nested SKILL.md too few: $codexNested"; $fail++ }
+          if ($fail -gt 0) { Write-Error "functional sync smoke failed ($fail check(s))"; exit 1 }
+          Write-Host "SYNC SMOKE OK (.codex/.gemini skills populated; $codexNested codex SKILL.md files)"
 
       - name: Parse-check every .ps1 under Windows PowerShell 5.1
         shell: powershell   # Windows PowerShell 5.1 (the field environment)

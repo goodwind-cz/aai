@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-29T00:53:55.529Z
+Generated: 2026-07-29T09:38:46.523Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -283,9 +283,11 @@ _None._
 | SPEC-0106 | specs | docs/specs/SPEC-0106-spec-auto-update-config.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| ps1-sync-nonexistent-dest (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-ps1-sync-nonexistent-dest.md |
 
 ## Deferred (whole-doc) (0)
 
