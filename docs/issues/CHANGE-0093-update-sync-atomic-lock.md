@@ -1,12 +1,14 @@
 ---
 id: update-sync-atomic-lock
-number: null
+number: 93
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 196
+  commits:
+    - 9c499d97f668742c7e77cee432351502ecfec3e6
 ---
 
 # Change — auto-update: atomic O_EXCL claim closes the concurrent-sync race (RR-1/RR-2)
