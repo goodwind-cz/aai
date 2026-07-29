@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-29T00:53:55.529Z
+Generated: 2026-07-29T09:40:06.878Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -34,7 +34,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (244)
+## Done (245)
 
 | ID | Type | Path |
 |---|---|---|
@@ -129,6 +129,7 @@ _None._
 | CHANGE-0089 | issues | docs/issues/CHANGE-0089-product-capability-refinements.md |
 | CHANGE-0090 | issues | docs/issues/CHANGE-0090-core-prompt-diet.md |
 | CHANGE-0091 | issues | docs/issues/CHANGE-0091-auto-update-config.md |
+| CHANGE-0092 | issues | docs/issues/CHANGE-0092-ps1-sync-nonexistent-dest.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
