@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-29T23:24:56.670Z
+Generated: 2026-07-29T23:30:04.469Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -287,9 +287,11 @@ _None._
 | SPEC-0106 | specs | docs/specs/SPEC-0106-spec-auto-update-config.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| github-no-bots-hardening (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-github-no-bots-hardening.md |
 
 ## Deferred (whole-doc) (0)
 

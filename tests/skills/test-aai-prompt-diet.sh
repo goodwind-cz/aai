@@ -413,7 +413,10 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# -11435 (true-up: core-prompt-diet retired -3247 B via a NEGATIVE RECLAIMED
+# -10288 (true-up: github-no-bots-hardening added a +1147 B itemized entry for
+# the SKILL_PR.prompt.md step 5/5d reviewer_bots-gated bot sweep + bounded-wait
+# rule, 16740 -> 17887 B, credited 1:1 so headroom stays 106/2048, over the
+# prior -11435 total; before that core-prompt-diet retired -3247 B via a NEGATIVE RECLAIMED
 # entry — folding 4 cross-prompt duplications (FRICTION HOOK, PYTHON MONTY
 # SCRATCHPAD, PRE-HANDOFF AC-TABLE RECONCILIATION, WORKTREE GATE) into
 # .aai/ROLE_COMMON.md as canonical blocks (the 4 FRICTION HOOK sites also
@@ -487,15 +490,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -11435 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -11435)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -10288 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -10288)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -11435 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -10288 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
