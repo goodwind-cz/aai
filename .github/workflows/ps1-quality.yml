@@ -98,10 +98,15 @@ jobs:
           foreach ($p in @(".codex/skills/README.md", ".gemini/skills/README.md")) {
             if (-not (Test-Path (Join-Path $target $p))) { Write-Host "MISSING $p"; $fail++ }
           }
-          $codexNested = @(Get-ChildItem -Path (Join-Path $target ".codex/skills") -Recurse -Filter "SKILL.md" -ErrorAction SilentlyContinue).Count
-          if ($codexNested -lt 20) { Write-Host "codex nested SKILL.md too few: $codexNested"; $fail++ }
+          # Assert nested per-skill SKILL.md copied for BOTH mixed-content dirs
+          # (top-level README alongside subfolders) — the exact shape that broke.
+          foreach ($d in @(".codex/skills", ".gemini/skills")) {
+            $nested = @(Get-ChildItem -Path (Join-Path $target $d) -Recurse -Filter "SKILL.md" -ErrorAction SilentlyContinue).Count
+            if ($nested -lt 20) { Write-Host "$d nested SKILL.md too few: $nested"; $fail++ }
+            else { Write-Host "$d nested SKILL.md: $nested" }
+          }
           if ($fail -gt 0) { Write-Error "functional sync smoke failed ($fail check(s))"; exit 1 }
-          Write-Host "SYNC SMOKE OK (.codex/.gemini skills populated; $codexNested codex SKILL.md files)"
+          Write-Host "SYNC SMOKE OK (.codex + .gemini skills fully populated)"
 
       - name: Parse-check every .ps1 under Windows PowerShell 5.1
         shell: powershell   # Windows PowerShell 5.1 (the field environment)
