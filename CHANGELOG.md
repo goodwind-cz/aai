@@ -11,7 +11,9 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(feedback): deterministic friction capture points (CHANGE-0099) [L2]
+## [unreleased]
+
+## [v2026.07.30] — feat(feedback): deterministic friction capture points (CHANGE-0099) [L2]
 
 - RFC-0012 Phase 2 was stalled on ZERO data — `docs/ai/friction/observations.jsonl`
   never got written because the only capture path was recall-dependent PROSE in
@@ -44,7 +46,7 @@ RFC-0001).
   incl. never-mask negative controls with an unwritable spool and fixture-isolation
   pins). RFC-0012 phase-table row 2 updated.
 
-## [unreleased] — feat(reporting): factory performance report — continuous efficiency overview (CHANGE-0098 / SPEC-0108) [L2]
+## [v2026.07.30] — feat(reporting): factory performance report — continuous efficiency overview (CHANGE-0098 / SPEC-0108) [L2]
 
 - New deterministic generator `.aai/scripts/generate-factory-report.mjs` reads
   the existing `docs/ai/METRICS.jsonl` + `docs/ai/EVENTS.jsonl` (+ release-doc
@@ -79,7 +81,7 @@ RFC-0001).
   rendered trend); and the remediation table sorts numeric buckets ascending
   with `n/a` last deterministically.
 
-## [unreleased] — feat(auto-update): allocator rewrites DRAFT refs in script/test trees (CHANGE-0097-allocator-header-rewrite) [L3]
+## [v2026.07.30] — feat(auto-update): allocator rewrites DRAFT refs in script/test trees (CHANGE-0097-allocator-header-rewrite) [L3]
 
 - Closes the last dangling-DRAFT-reference class after CHANGE-0064. The
   merge-time doc-number allocator (`allocate-doc-number.mjs`) already rewrote
@@ -96,7 +98,7 @@ RFC-0001).
   change) and byte-safe (source extensions only). A one-time backfill cleaned
   the DRAFT refs already in-tree so the pointer invariant starts clean.
 
-## [unreleased] — feat(pr): reviewer_bots knob so the GitHub PR sweep never waits for absent bots (CHANGE-0096-github-no-bots-hardening) [L2]
+## [v2026.07.30] — feat(pr): reviewer_bots knob so the GitHub PR sweep never waits for absent bots (CHANGE-0096-github-no-bots-hardening) [L2]
 
 - Closes the GITHUB-WITHOUT-BOTS residual from CHANGE-0085/SPEC-0103. The PR
   ceremony's 5d bot-review sweep polls Copilot/Codex inline comments after CI.
@@ -118,7 +120,7 @@ RFC-0001).
   (+1147 B credited 1:1, TEST-012 pin -11435 -> -10288); new tests
   TEST-019..022 plus an updated TEST-011 in test-aai-pr-platform.sh.
 
-## [unreleased] — chore(prompts): SUBAGENT_CONTRACT headroom — trim to 53 lines under the 60-line cap (CHANGE-0095-contract-headroom) [L1]
+## [v2026.07.30] — chore(prompts): SUBAGENT_CONTRACT headroom — trim to 53 lines under the 60-line cap (CHANGE-0095-contract-headroom) [L1]
 
 - `.aai/SUBAGENT_CONTRACT.md` sat at exactly 60/60 lines against SPEC-0094's
   hard `<=60`-line cap (enforced by test-aai-role-output.sh TEST-010 and
@@ -132,7 +134,7 @@ RFC-0001).
   rationalization table) survives verbatim. Added TEST-020 headroom guard
   (`<=54` lines, `>=6` below the cap) alongside the untouched `<=60` cap tests.
 
-## [unreleased] — fix(install): seed docs/ai/update-config.yaml when missing (CHANGE-0094) [L2]
+## [v2026.07.30] — fix(install): seed docs/ai/update-config.yaml when missing (CHANGE-0094) [L2]
 
 - Completes the auto-update feature's discoverability. The auto-update ride
   shipped `.aai/scripts/update-check.mjs` and the SessionStart hook, but the
