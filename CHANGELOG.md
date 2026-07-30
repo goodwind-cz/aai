@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(auto-update): allocator rewrites DRAFT refs in script/test trees (CHANGE-DRAFT-allocator-header-rewrite) [L2]
+## [unreleased] — feat(auto-update): allocator rewrites DRAFT refs in script/test trees (CHANGE-DRAFT-allocator-header-rewrite) [L3]
 
 - Closes the last dangling-DRAFT-reference class after CHANGE-0064. The
   merge-time doc-number allocator (`allocate-doc-number.mjs`) already rewrote

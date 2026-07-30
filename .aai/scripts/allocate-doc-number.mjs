@@ -139,6 +139,11 @@ export const EXCLUDED_CODE_PATHS = [
   'tests/skills/test-aai-docs-audit.sh',
   'tests/skills/test-aai-state.sh',
   'tests/skills/lib/prompt-diet-ledger.sh',
+  // These two embed a STATIC synthetic DRAFT basename in LOGIC (E2E_DRAFT=...);
+  // a future real draft whose slug prefixes those literals must never rewrite
+  // them mid-logic (L3 review finding, RR-1 class — loud break, excluded).
+  'tests/skills/test-aai-prompt-diet.sh',
+  'tests/skills/test-aai-secrets-preflight.sh',
 ];
 
 // --- pure helpers (unit-testable without git) --------------------------------
