@@ -35,6 +35,14 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RUN_TESTS_SCRIPT="${AAI_RUN_TESTS_SCRIPT:-$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh}"
 REAP_SCRIPT="${AAI_REAP_SCRIPT:-$PROJECT_ROOT/.aai/scripts/aai-reap-tests.sh}"
 
+# This suite drives the REAL wrapper with deliberately-failing / timing-out
+# commands from the repo-root cwd (where docs/ai/friction exists), so the
+# wrapper's CAPTURE POINT 1 (CHANGE deterministic-friction-capture) would
+# otherwise append junk observations to the real spool on every run. Switch
+# capture off for the whole suite — the capture point's own behavior is pinned
+# by tests/skills/test-aai-friction-capture-points.sh.
+export AAI_FRICTION_CAPTURE=0
+
 # Wiring targets (grep asserts).
 SKILL_LOOP_DOC="$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md"
 VALIDATION_DOC="$PROJECT_ROOT/.aai/VALIDATION.prompt.md"

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-30T09:17:57.944Z
+Generated: 2026-07-30T12:51:46.907Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -293,9 +293,11 @@ _None._
 | SPEC-0108 | specs | docs/specs/SPEC-0108-spec-factory-performance-report.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| deterministic-friction-capture (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-deterministic-friction-capture.md |
 
 ## Deferred (whole-doc) (0)
 

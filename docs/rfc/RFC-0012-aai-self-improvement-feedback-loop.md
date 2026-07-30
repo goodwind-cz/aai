@@ -220,7 +220,7 @@ audit cannot see).
 |-------|-------------|--------|--------------|
 | 0 | Taxonomy, schema, privacy policy, fixtures | done | CHANGE-0045/SPEC-0078 (capture foundation) + RFC-0013 |
 | 1 | Local shadow mode | done | CHANGE-0046/SPEC-0079 (shadow-capture wiring) |
-| 2 | Review mode in AAI + threshold calibration | in progress | CHANGE-0047/SPEC-0080 (schema v2), CHANGE-0048/SPEC-0081 (triage), CHANGE-0049/SPEC-0082 (upsert), CHANGE-0051/SPEC-0084 (discovery); remaining: auto-gate (D8), fix-PR scaffolding |
+| 2 | Review mode in AAI + threshold calibration | in progress | CHANGE-0047/SPEC-0080 (schema v2), CHANGE-0048/SPEC-0081 (triage), CHANGE-0049/SPEC-0082 (upsert), CHANGE-0051/SPEC-0084 (discovery), CHANGE deterministic-friction-capture (deterministic capture points — spool now fed by aai-run-tests.sh + close-work-item.mjs, not recall-dependent prose); remaining: auto-gate (D8), fix-PR scaffolding |
 | 3 | Review mode in selected downstream projects | not started | — |
 | 4 | Explicit auto opt-in for proven categories | not started | — |
 | 5 | Automatic fix-PR preparation (human merge always) | not started | — |
