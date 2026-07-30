@@ -29,9 +29,54 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { extractUsageTotal } from './lib/usage-note.mjs';
 
 const ROOT = process.cwd();
+
+// readOriginUrl() -> the `origin` remote URL, or null on any failure (not a git
+// repo, no origin, git missing). Mirrors pr-platform.mjs (uses the same
+// execFileSync/stdio contract), read as `git config --get remote.origin.url`.
+function readOriginUrl() {
+  try {
+    const out = execFileSync('git', ['config', '--get', 'remote.origin.url'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    return out === '' ? null : out;
+  } catch {
+    return null;
+  }
+}
+
+// remoteSlug(url) -> 'owner/repo' from a git remote URL, or null when it cannot
+// be parsed. Parsing style follows pr-platform.mjs: strip HTTPS basic-auth
+// userinfo, then take the last two path segments of either an scheme:// URL or an
+// scp-like `git@host:owner/repo(.git)` form, dropping a trailing `.git`.
+function remoteSlug(remoteUrl) {
+  if (!remoteUrl) return null;
+  const clean = remoteUrl.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^/]*@/, '$1');
+  const hasScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(clean);
+  let pathPart;
+  if (hasScheme) {
+    try { pathPart = new URL(clean).pathname; } catch { return null; }
+  } else {
+    const m = clean.match(/^(?:[^@/:]+@)?[^:/]+:(.+)$/);
+    if (!m) return null;
+    pathPart = m[1];
+  }
+  const parts = pathPart.replace(/\.git$/, '').split('/').filter(Boolean);
+  if (parts.length < 2) return null;
+  return parts.slice(-2).join('/');
+}
+
+// projectLabel() -> a STABLE report identity. Derived from the origin remote
+// slug (owner/repo) so the committed artifact does not embed the throwaway
+// working-directory basename (a git worktree is named e.g. agent-a1b…). Falls
+// back to the cwd basename only when no remote slug is resolvable.
+function projectLabel() {
+  return remoteSlug(readOriginUrl()) ?? path.basename(ROOT);
+}
 
 // The six canonical roles, longest-first so a longest-prefix match assigns
 // recorded variants ("Remediation (E1 over-kill)", "Code Review (re-review)",
@@ -200,13 +245,26 @@ function buildModel(args) {
   // work_item_closed signal only — a work item the factory actually closed.
   // doc_lifecycle->done status flips are NOT counted as separate deliveries
   // (many fire per work item; counting them would inflate throughput).
+  // A ref may be closed MORE THAN ONCE (reopened, then re-delivered). Decision:
+  // delivered_total stays DISTINCT refs (a re-close is not a second delivery),
+  // and the delivery moment is the LATEST close — a re-delivery after reopen
+  // supersedes the earlier close. So keep the max timestamp (NOT last-write-wins
+  // by ledger order, which would silently honor whichever line came last), and
+  // count re-closed refs for an honesty note below (Codex P2 :208).
   const closedAt = new Map();
+  const closeCounts = new Map();
   let reviewEvents = 0;
   for (const e of events) {
     if (!e) continue;
     if (e.event === 'code_review_completed') { reviewEvents += 1; continue; }
-    if (e.event === 'work_item_closed' && e.ref && e.ts) closedAt.set(e.ref, e.ts);
+    if (e.event === 'work_item_closed' && e.ref && e.ts) {
+      closeCounts.set(e.ref, (closeCounts.get(e.ref) ?? 0) + 1);
+      const prev = closedAt.get(e.ref);
+      // ISO-8601 timestamps compare lexicographically -> latest close wins.
+      if (prev === undefined || e.ts > prev) closedAt.set(e.ref, e.ts);
+    }
   }
+  const reClosedRefs = [...closeCounts.values()].filter((n) => n > 1).length;
 
   // --- earliest agent-run start per ref (for lead time).
   const earliestStart = new Map();
@@ -257,7 +315,6 @@ function buildModel(args) {
     leadTimes.push({ ref, lead_time_seconds: lead });
   }
   const leadVals = leadTimes.map((x) => x.lead_time_seconds).filter((v) => v !== null);
-  const activeWeeks = [...deliveredByWeek.keys()].length;
 
   // ============================ SPEED ============================
   const perRide = [];
@@ -329,6 +386,10 @@ function buildModel(args) {
   const weekSet = new Set([...deliveredByWeek.keys()]);
   for (const r of perRide) if (r.week) weekSet.add(r.week);
   const weeks = [...weekSet].sort();
+  // active_weeks = the UNION of delivery weeks and ride weeks, so the headline
+  // count matches the rendered trend series exactly (Copilot :262). A ride-only
+  // week (activity but no close that week) still counts as an active week.
+  const activeWeeks = weeks.length;
   const trend = weeks.map((wk) => {
     const wkRides = perRide.filter((r) => r.week === wk);
     const wkLead = leadTimes
@@ -349,6 +410,7 @@ function buildModel(args) {
   });
 
   // ============================ NOTES (degrade-with-NOTE) ============================
+  if (reClosedRefs) notes.push(`NOTE ${reClosedRefs} ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)`);
   if (droppedMetrics) notes.push(`EXCLUDED ${droppedMetrics} malformed METRICS.jsonl line(s) (unparseable JSON, skipped)`);
   if (droppedEvents) notes.push(`EXCLUDED ${droppedEvents} malformed EVENTS.jsonl line(s) (unparseable JSON, skipped)`);
   if (unnormalizedRoleRuns) notes.push(`NOTE ${unnormalizedRoleRuns} agent_run(s) had a role that matched no canonical role — bucketed as Other`);
@@ -361,7 +423,7 @@ function buildModel(args) {
 
   return {
     generatedAt: new Date().toISOString(),
-    project: path.basename(ROOT),
+    project: projectLabel(),
     empty,
     empty_reason: empty ? 'no metrics recorded yet' : null,
     counts: {
@@ -457,7 +519,18 @@ function renderHtml(m) {
     .map((g) => `<tr><td>${esc(g.label)}</td><td>${esc(g.kind)}</td><td>${g.count}</td></tr>`).join('');
   const roleRows = m.speed.role_split
     .map((r) => `<tr><td>${esc(r.role)}</td><td>${fmtDur(r.duration_seconds)}</td><td>${na(r.tokens)}</td></tr>`).join('');
-  const remRows = Object.keys(m.quality.remediation_distribution).sort((a, b) => Number(a) - Number(b))
+  // Deterministic order: numeric remediation-count buckets ascending, then the
+  // non-numeric 'n/a' bucket LAST explicitly (Number('n/a') is NaN, whose
+  // comparisons are undefined — never let it decide the order — Copilot :462).
+  const remRows = Object.keys(m.quality.remediation_distribution)
+    .sort((a, b) => {
+      const na = Number(a); const nb = Number(b);
+      const aNum = Number.isFinite(na); const bNum = Number.isFinite(nb);
+      if (aNum && bNum) return na - nb;
+      if (aNum) return -1;
+      if (bNum) return 1;
+      return a.localeCompare(b);
+    })
     .map((k) => `<tr><td>${esc(k)}</td><td>${m.quality.remediation_distribution[k]}</td></tr>`).join('');
   const verdictRows = Object.keys(m.quality.verdict_mix).sort()
     .map((k) => `<tr><td>${esc(k)}</td><td>${m.quality.verdict_mix[k]}</td></tr>`).join('');

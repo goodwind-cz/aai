@@ -38,6 +38,13 @@ RFC-0001).
   `tests/skills/test-aai-factory-report.sh` (TEST-001..014, incl. two cross-
   generator SEAM tests against metrics-report.mjs and generate-overview.mjs,
   and a real-close-entrypoint negative control).
+- Bot-sweep hardening (TEST-017..019): the project label now derives from the
+  origin remote `owner/repo` slug (basename fallback) so committed artifacts no
+  longer embed a throwaway worktree directory name; a ref closed more than once
+  counts once and buckets at its LATEST close with an honesty note;
+  `counts.active_weeks` is the union of delivery and ride weeks (matching the
+  rendered trend); and the remediation table sorts numeric buckets ascending
+  with `n/a` last deterministically.
 
 ## [unreleased] — feat(auto-update): allocator rewrites DRAFT refs in script/test trees (CHANGE-0097-allocator-header-rewrite) [L3]
 

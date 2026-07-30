@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>aai — Factory Performance Report</title>
+<title>goodwind-cz/aai — Factory Performance Report</title>
 <style>
   :root { color-scheme: light dark; --fg:#1c1c1c; --bg:#fff; --muted:#6b6b6b; --line:#e3e3e3; --accent:#0b62d6; --bar:#0b62d6; --barnull:#c9c9c9; --card:#f7f7f8; }
   @media (prefers-color-scheme: dark) { :root { --fg:#e8e8e8; --bg:#161616; --muted:#9a9a9a; --line:#333; --accent:#6fb0ff; --bar:#6fb0ff; --barnull:#444; --card:#1f1f1f; } }
@@ -28,8 +28,8 @@
 </style>
 </head>
 <body>
-<h1>aai — Factory Performance Report</h1>
-<p class="meta">Generated 2026-07-30T00:11:47.169Z · 104 rides · 258 delivered · 5 active weeks · regenerate with <code>node .aai/scripts/generate-factory-report.mjs</code></p>
+<h1>goodwind-cz/aai — Factory Performance Report</h1>
+<p class="meta">Generated 2026-07-30T00:44:24.173Z · 104 rides · 258 delivered · 5 active weeks · regenerate with <code>node .aai/scripts/generate-factory-report.mjs</code></p>
 
 <section>
 <h2>Throughput — what the factory delivers</h2>
@@ -81,6 +81,6 @@
 <div class="scroll"><table><thead><tr><th>Ride verdict</th><th>Rides</th></tr></thead><tbody><tr><td>PASS</td><td>91</td></tr><tr><td>null</td><td>13</td></tr></tbody></table></div>
 </section>
 
-<section><h2>Data honesty notes</h2><ul class="notes"><li>NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)</li><li>NOTE 48 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)</li></ul></section>
+<section><h2>Data honesty notes</h2><ul class="notes"><li>NOTE 6 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)</li><li>NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)</li><li>NOTE 48 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)</li></ul></section>
 </body>
 </html>

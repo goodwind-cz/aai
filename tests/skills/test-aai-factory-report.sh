@@ -141,7 +141,9 @@ close_gate: report-only
 doc_number_guard: report-only
 protected_paths_l3: []
 YAML
-  git init -q "$d"
+  # Explicit default branch for reproducibility across git versions (finding 4):
+  # modern git honors -b main; older git (pre-2.28) falls back to the config form.
+  git init -q -b main "$d" 2>/dev/null || git -c init.defaultBranch=main init -q "$d"
   git -C "$d" config user.email test@example.com
   git -C "$d" config user.name test
   git -C "$d" add -A
@@ -343,7 +345,12 @@ JSONL
   [[ "$present" == "true" ]] || log_fail "trend must include the ride-only week 2026-W27"
   [[ "$zero" == "0" ]] || log_fail "zero-delivery week must show delivered=0 not omitted, got $zero"
   [[ "$(node_get "$DJ" '(m.trend.find(w=>w.week==="2026-W28")||{}).delivered')" == "1" ]] || log_fail "W28 must show 1 delivery"
-  log_pass "Weekly trend series present; zero-delivery week rendered as 0 (TEST-009)"
+  # Finding 5: counts.active_weeks is the UNION of delivery weeks and ride weeks
+  # (W27 ride-only + W28 delivery = 2), consistent with the rendered trend — not
+  # the delivery-only count of 1.
+  [[ "$(node_get "$DJ" 'm.counts.active_weeks')" == "2" ]] || log_fail "active_weeks must be the union of ride+delivery weeks (2), got $(node_get "$DJ" 'm.counts.active_weeks')"
+  [[ "$(node_get "$DJ" 'm.trend.length')" == "2" ]] || log_fail "trend must span the same 2 union weeks as active_weeks"
+  log_pass "Weekly trend series present; zero-delivery week rendered as 0; active_weeks = union (TEST-009 + finding 5)"
 }
 
 # ============================ TEST-010 (Spec-AC-08) ==========================
@@ -456,8 +463,87 @@ test_014_empty_ledger() {
   log_pass "Absent and comment-only ledgers exit 0 with an empty model + marker (TEST-014)"
 }
 
+# ============================ TEST-017 (bot finding 1) ========================
+test_017_reclosed_ref_latest_close() {
+  log_info "Test: a ref closed more than once counts ONCE (distinct), buckets at the LATEST close, and an honesty note names the re-close (finding 1)..."
+  local d; d="$(mk_repo t017)"
+  # REF closed twice: a later (re-)close in W30 written FIRST, then an earlier
+  # close in W28 — proving the LATEST timestamp wins, not the last ledger line.
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" "REF" "2026-07-20T00:00:00Z"   # W30 (later)
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" "REF" "2026-07-06T00:00:00Z"   # W28 (earlier)
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" "ONCE" "2026-07-06T00:00:00Z"  # W28, closed once
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  # delivered_total counts DISTINCT refs (REF + ONCE = 2), never close events (3).
+  [[ "$(node_get "$DJ" 'm.throughput.delivered_total')" == "2" ]] || log_fail "delivered_total must count distinct refs (2), not close events"
+  # Latest close wins: REF lands in W30; W28 holds only ONCE.
+  [[ "$(node_get "$DJ" 'm.throughput.delivered_by_week["2026-W30"]')" == "1" ]] || log_fail "REF must bucket at its LATEST close (W30)"
+  [[ "$(node_get "$DJ" 'm.throughput.delivered_by_week["2026-W28"]')" == "1" ]] || log_fail "W28 must hold only ONCE (REF's earlier close superseded)"
+  # Honesty note names the re-closed ref count.
+  [[ "$(node_get "$DJ" 'm.notes.some(n=>/closed more than once/.test(n))')" == "true" ]] || log_fail "notes must name the re-closed ref(s)"
+  [[ "$(node_get "$DJ" 'm.notes.some(n=>/^NOTE 1 ref/.test(n))')" == "true" ]] || log_fail "note must count exactly 1 re-closed ref"
+  log_pass "Re-closed ref counts once, buckets at latest close, honesty note present (finding 1, TEST-017)"
+}
+
+# ============================ TEST-018 (bot finding 3) ========================
+test_018_project_label_from_remote_slug() {
+  log_info "Test: project label derives from the origin remote owner/repo slug, falling back to the cwd basename with no remote (finding 3)..."
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  # (a) with a remote -> slug wins over the (throwaway) directory basename.
+  local d; d="$(mk_repo t018)"
+  git init -q -b main "$d" 2>/dev/null || git -c init.defaultBranch=main init -q "$d"
+  git -C "$d" remote add origin https://github.com/acme/widgets.git
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-01","ref_id":"A","agent_runs":[{"role":"Planning","duration_seconds":10}],"verdict":"PASS"}
+JSONL
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  local got; got="$(node_get "$d/docs/ai/factory-report-data.json" 'm.project')"
+  [[ "$got" == "acme/widgets" ]] || log_fail "project must equal the remote slug acme/widgets, got $got"
+  # (b) no remote -> basename fallback (fixture dir is not a git repo).
+  local db; db="$(mk_repo t018b)"
+  cat > "$db/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-01","ref_id":"A","agent_runs":[{"role":"Planning","duration_seconds":10}],"verdict":"PASS"}
+JSONL
+  run_report "$db" --data-only
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  local gotb; gotb="$(node_get "$db/docs/ai/factory-report-data.json" 'm.project')"
+  [[ "$gotb" == "t018b" ]] || log_fail "no-remote project must fall back to basename t018b, got $gotb"
+  log_pass "Project label = remote slug with a remote, basename without (finding 3, TEST-018)"
+}
+
+# ============================ TEST-019 (bot finding 6) ========================
+test_019_remediation_sort_na_last() {
+  log_info "Test: the rendered remediation table sorts numeric keys ascending with the n/a bucket LAST, deterministically (finding 6)..."
+  local d; d="$(mk_repo t019)"
+  # Ordered so the distribution's INSERTION order is n/a, 2, 0 — under the old
+  # Number('n/a')=NaN comparator NaN comparisons leave n/a stranded first (wrong);
+  # the deterministic fix must still render 0, 2, n/a.
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-01","ref_id":"C","agent_runs":[{"role":"Planning","duration_seconds":10}],"verdict":"PASS"}
+{"date_utc":"2026-07-01","ref_id":"A","agent_runs":[{"role":"Planning","duration_seconds":10}],"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":2,"first_pass_clean":false},"verdict":"PASS"}
+{"date_utc":"2026-07-01","ref_id":"B","agent_runs":[{"role":"Planning","duration_seconds":10}],"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true},"verdict":"PASS"}
+JSONL
+  run_report "$d"
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  local html="$d/docs/ai/factory-report.html"
+  # Isolate the remediation table (between its header and the verdict table) and
+  # read the first-column keys in render order — must be 0, 2, then n/a LAST.
+  local order
+  order="$(node -e '
+    const fs=require("fs");const h=fs.readFileSync(process.argv[1],"utf8");
+    const s=h.indexOf("Remediation runs");const e=h.indexOf("Ride verdict");
+    const sec=h.slice(s, e>s?e:h.length);
+    const cells=[...sec.matchAll(/<tr><td>([^<]*)<\/td><td>\d+<\/td><\/tr>/g)].map(m=>m[1]);
+    process.stdout.write(cells.join(","));
+  ' "$html")"
+  [[ "$order" == "0,2,n/a" ]] || log_fail "remediation rows must be numeric-ascending then n/a last, got: $order"
+  log_pass "Remediation table sorts numeric ascending, n/a last (finding 6, TEST-019)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014)"
+  echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014, +017..019)"
   check_deps
   setup_fixture
   test_001_data_only_blocks_present
@@ -474,6 +560,9 @@ main() {
   test_012_seam_release_grouping_matches_overview
   test_013_close_regen_negative_control
   test_014_empty_ledger
+  test_017_reclosed_ref_latest_close
+  test_018_project_label_from_remote_slug
+  test_019_remediation_sort_na_last
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
