@@ -695,14 +695,20 @@ function collectRewriteFiles(root) {
 // Recursive source-file collector for one REWRITE_CODE_TREES root
 // (allocator-header-rewrite). Skips any path under an EXCLUDED_CODE_PATHS
 // prefix and only admits REWRITE_CODE_EXTS files. Dirents reflect lstat, so a
-// symlink is neither isFile()/isDirectory() -> never followed (byte-safe); an
-// unreadable subdirectory is silently skipped (same degrade-and-report
-// discipline as walkMarkdown).
+// symlink is neither isFile()/isDirectory() -> never followed (byte-safe).
+// An unreadable subdirectory is skipped LOUDLY (bot-review P1): a silent skip
+// would let allocation report success while stale DRAFT refs linger in the
+// unreadable subtree — every skip is surfaced as a WARNING naming the path
+// (no-silent-truncation discipline), without failing the allocation itself
+// (numbering has already happened; the warning makes the gap actionable).
 function walkCode(absDir, relDir, out) {
   let entries;
   try {
     entries = fs.readdirSync(absDir, { withFileTypes: true });
-  } catch {
+  } catch (e) {
+    console.warn(`WARNING: rewrite pass skipped unreadable code subtree ${relDir} `
+      + `(${e && e.code ? e.code : 'unreadable'}) — DRAFT refs inside it were NOT rewritten; `
+      + 'fix permissions and re-run the allocator to complete the rewrite');
     return;
   }
   for (const entry of entries) {
