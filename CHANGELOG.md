@@ -44,7 +44,7 @@ RFC-0001).
   incl. never-mask negative controls with an unwritable spool and fixture-isolation
   pins). RFC-0012 phase-table row 2 updated.
 
-## [unreleased] — feat(reporting): factory performance report — continuous efficiency overview (CHANGE factory-performance-report) [L2]
+## [unreleased] — feat(reporting): factory performance report — continuous efficiency overview (CHANGE-0098 / SPEC-0108) [L2]
 
 - New deterministic generator `.aai/scripts/generate-factory-report.mjs` reads
   the existing `docs/ai/METRICS.jsonl` + `docs/ai/EVENTS.jsonl` (+ release-doc
