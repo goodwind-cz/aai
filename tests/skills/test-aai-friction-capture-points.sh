@@ -105,7 +105,7 @@ setup_fixture() {
 
 # spool_count <spool-file> -> number of non-empty JSONL lines (0 if absent).
 spool_count() {
-  node -e 'const fs=require("fs");let n=0;try{n=fs.readFileSync(process.argv[1],"utf8").split("\n").filter(l=>l.trim()).length;}catch{}process.stdout.write(String(n))' "$1"
+  node -e 'const fs=require("fs");let n=0;try{n=fs.readFileSync(process.argv[1],"utf8").split("\n").filter(l=>l.trim()).length;}catch(e){}process.stdout.write(String(n))' "$1"
 }
 
 # line_get <spool-file> <key> [idx] -> String(value) of the key on line idx
@@ -114,9 +114,9 @@ line_get() {
   node -e '
     const fs=require("fs");
     const [file,key,idx]=process.argv.slice(1);
-    let lines=[];try{lines=fs.readFileSync(file,"utf8").split("\n").filter(l=>l.trim());}catch{}
+    let lines=[];try{lines=fs.readFileSync(file,"utf8").split("\n").filter(l=>l.trim());}catch(e){}
     const i=(idx===undefined||idx==="")?lines.length-1:Number(idx);
-    let v;try{v=JSON.parse(lines[i])[key];}catch{}
+    let v;try{v=JSON.parse(lines[i])[key];}catch(e){}
     process.stdout.write(v===undefined?"__UNDEF__":String(v));
   ' "$1" "$2" "${3:-}"
 }
@@ -287,7 +287,7 @@ updated_at_utc: 2026-01-01T00:00:00Z
 EOF
   fi
   [ "$friction_dir" = "1" ] && mkdir -p "$dir/docs/ai/friction"
-  git init -q "$dir"
+  git init -q -b main "$dir" 2>/dev/null || git -c init.defaultBranch=main init -q "$dir"
   git -C "$dir" config user.email test@example.com
   git -C "$dir" config user.name test
   git -C "$dir" add -A

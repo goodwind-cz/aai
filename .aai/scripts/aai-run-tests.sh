@@ -106,7 +106,7 @@ aai_capture_friction() {
   # $1 = exit code (integer), $2 = failure_class (taxonomy enum)
   [ "${AAI_FRICTION_CAPTURE:-1}" != "0" ] || return 0
   command -v node >/dev/null 2>&1 || return 0
-  fc_scriptdir=$(cd -- "$(dirname -- "$0")" 2>/dev/null && pwd) || return 0
+  fc_scriptdir=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || return 0
   [ -n "$fc_scriptdir" ] || return 0
   fc_cli="$fc_scriptdir/aai-friction.mjs"
   [ -f "$fc_cli" ] || return 0
