@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-hitl-propagation (hitl-decision-propagation /
-# SPEC-DRAFT-spec-hitl-decision-propagation.md, TEST-001..015).
+# SPEC-0066-spec-hitl-decision-propagation.md, TEST-001..015).
 #
 # Verifies the fix that lets resolving a HITL block actually reach the STATE
 # field the loop's dispatch reads:
@@ -22,7 +22,7 @@
 #     and is not duplicated here.
 #   - TEST-014/015: a touched protected_paths_l3 path is authorized by a
 #     frozen ceremony_level:3 spec present in the same diff/tree (reframed by
-#     token-capture-canary, docs/specs/SPEC-DRAFT-spec-token-capture-canary.md
+#     token-capture-canary, docs/specs/SPEC-0085-spec-token-capture-canary.md
 #     -- the original one-time delivery constraint of THIS scope, "MY branch
 #     touches no L3 path", made every future legitimate L3 change fail the
 #     suite forever; the real WORKFLOW invariant is "an L3 touch MUST be
@@ -398,7 +398,7 @@ test_012_seam_command_flips_gate() {
 
 # --- TEST-014 (Spec-AC-07): a touched protected_paths_l3 path is declared L3 ---
 #
-# Reframed by token-capture-canary (docs/specs/SPEC-DRAFT-spec-token-capture-
+# Reframed by token-capture-canary (docs/specs/SPEC-0085-spec-token-capture-
 # canary.md): the original assertion ("this branch touches NO L3 path") was a
 # one-time delivery constraint of the hitl-decision-propagation scope, encoded
 # as a permanent repo-wide invariant -- every future LEGITIMATE L3 change

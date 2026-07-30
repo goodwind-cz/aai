@@ -7,7 +7,7 @@
 # invariant (no gate/dispatch/workflow surface may reference them), and the two
 # survival invariants (prompt-diet byte floor, repo-wide strict docs audit).
 #
-# Covers TEST-001..014 from docs/specs/SPEC-DRAFT-advisory-skills.md.
+# Covers TEST-001..014 from docs/specs/SPEC-0031-spec-advisory-skills.md.
 #
 # Exit codes:
 #   0  - All tests passed

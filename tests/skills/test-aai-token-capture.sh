@@ -18,7 +18,7 @@
 #   - TEST-004 (Spec-AC-04): SKILL_LOOP stop condition f's run-budget tally
 #     counts observed undecomposed totals; the never-fabricate no-op clause
 #     is retained verbatim.
-#   - TEST-005 (Spec-AC-02, seam / SPEC-DRAFT-spec-token-capture-canary spec
+#   - TEST-005 (Spec-AC-02, seam / SPEC-0085-spec-token-capture-canary spec
 #     TEST-004): append-run --note "usage_total_tokens=..." (no token flags)
 #     round-trips verbatim through STATE.yaml into a flushed METRICS.jsonl
 #     line, tokens stay null, and the run now gets an INFO line (reclassified
@@ -27,7 +27,7 @@
 #     WARNING (never silenced, never conflated with the honest undecomposed
 #     case).
 #
-# token-capture-canary (SPEC-DRAFT-spec-token-capture-canary.md) adds:
+# token-capture-canary (SPEC-0085-spec-token-capture-canary.md) adds:
 #   - test_006_log_tick_duration_warning (spec TEST-005, Spec-AC-02):
 #     state.mjs log-tick with started==ended (duration 0) emits a stderr
 #     WARNING containing "duration"; exit 0; tick line still appended.

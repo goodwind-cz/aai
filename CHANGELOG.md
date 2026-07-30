@@ -11,6 +11,23 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(auto-update): allocator rewrites DRAFT refs in script/test trees (CHANGE-0097-allocator-header-rewrite) [L3]
+
+- Closes the last dangling-DRAFT-reference class after CHANGE-0064. The
+  merge-time doc-number allocator (`allocate-doc-number.mjs`) already rewrote
+  `TYPE-DRAFT-<slug>` -> `TYPE-NNNN-<slug>` across committed-class MARKDOWN
+  trees; it now applies the SAME verbatim substitution to SCRIPT/TEST sources
+  (`tests/**/*.{sh,ps1,mjs}` and `.aai/scripts/**/*.{mjs,sh,ps1}`) via new
+  `REWRITE_CODE_TREES` / `REWRITE_CODE_EXTS` constants, so a numbered doc
+  leaves no stale DRAFT slug in a header comment or fixture path constant —
+  retiring the manual per-ride sed sweep. An `EXCLUDED_CODE_PATHS` list mirrors
+  `EXCLUDED_TREES` to hold byte-identical the meta-test suites that TEACH the
+  DRAFT convention (doc-numbering, reservation, spec-lint, docs-audit, state),
+  the shared `tests/fixtures` tree, the allocator's own source, and the frozen
+  prompt-diet byte-accounting ledger. The pass stays idempotent (write only on
+  change) and byte-safe (source extensions only). A one-time backfill cleaned
+  the DRAFT refs already in-tree so the pointer invariant starts clean.
+
 ## [unreleased] — feat(pr): reviewer_bots knob so the GitHub PR sweep never waits for absent bots (CHANGE-0096-github-no-bots-hardening) [L2]
 
 - Closes the GITHUB-WITHOUT-BOTS residual from CHANGE-0085/SPEC-0103. The PR

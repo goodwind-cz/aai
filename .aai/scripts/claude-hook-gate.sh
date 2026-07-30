@@ -31,7 +31,7 @@
 #
 # Payload contract (Claude Code 2.x hooks): stdin JSON with the invoked Bash
 # command at .tool_input.command; $CLAUDE_PROJECT_DIR points at the project
-# root (fallback: cwd). See docs/specs/SPEC-DRAFT-hook-enforced-gates.md D6
+# root (fallback: cwd). See docs/specs/SPEC-0029-spec-hook-enforced-gates.md D6
 # for the assumption ledger.
 
 set -u  # deliberately NOT -e: unexpected failures must fall through to exit 0

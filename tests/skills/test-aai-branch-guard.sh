@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Test: branch-per-work-item hygiene guard (SPEC-DRAFT-spec-branch-per-work-item-hygiene)
+# Test: branch-per-work-item hygiene guard (SPEC-0070-spec-branch-per-work-item-hygiene)
 # Verifies .aai/scripts/branch-guard.mjs — a deterministic, READ-ONLY guard that
 # fails closed when the current git branch does not correspond to
 # current_focus.ref_id. Implements TEST-001..008 from the frozen spec.

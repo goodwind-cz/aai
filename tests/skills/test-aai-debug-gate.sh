@@ -6,7 +6,7 @@
 # lost), its three agent-tree wrappers, and the two survival invariants it
 # must not break (prompt-diet byte floor, repo-wide strict docs audit).
 #
-# Covers TEST-001..008 from docs/specs/SPEC-DRAFT-systematic-debugging.md.
+# Covers TEST-001..008 from docs/specs/SPEC-0027-spec-systematic-debugging.md.
 #
 # Shared-baseline caveat: the prompt-diet byte baseline constants live in
 # tests/skills/test-aai-prompt-diet.sh (TEST-010) and are deliberately NOT

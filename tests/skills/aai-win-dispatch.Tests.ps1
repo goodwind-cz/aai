@@ -216,7 +216,7 @@ Describe 'aai-run-tests.ps1' {
 }
 
 Describe 'aai-release.ps1' {
-    # ps1-native-stderr-guard (SPEC-DRAFT-spec-ps1-native-stderr-guard,
+    # ps1-native-stderr-guard (SPEC-0067-spec-ps1-native-stderr-guard,
     # TEST-001..004, 006, 007). Dot-sourcing aai-release.ps1 defines
     # Invoke-NativeChecked WITHOUT performing a release — the
     # `$MyInvocation.InvocationName -ne '.'` guard around the executable body

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: RFC-0012 Phase 0 friction capture foundation
-# (docs/specs/SPEC-DRAFT-spec-friction-capture-foundation.md, TEST-001..017).
+# (docs/specs/SPEC-0078-spec-friction-capture-foundation.md, TEST-001..017).
 #
 # Covers the offline capture foundation:
 #   .aai/system/FRICTION_PROTOCOL.md  — canonical taxonomy + schema v1 + D6

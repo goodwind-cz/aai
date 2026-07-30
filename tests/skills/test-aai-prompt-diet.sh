@@ -4,7 +4,7 @@
 # Grep-wiring suite for the shared intake include, SKILL_PROFILE de-fiction,
 # STATE fallback dedup, and SKILL_LOOP caching/digest fixes.
 #
-# Covers TEST-001..010 from docs/specs/SPEC-DRAFT-prompt-layer-diet-phase-1.md.
+# Covers TEST-001..010 from docs/specs/SPEC-0017-spec-prompt-layer-diet-phase-1.md.
 # TEST-004 is a real e2e dry-run (constructs a DRAFT artifact per the moved
 # instructions and audits it). TEST-010 asserts the repo-wide strict audit and
 # the measured byte reduction; the "existing suites green" half of TEST-010 is
@@ -24,7 +24,7 @@ cd "$PROJECT_ROOT"
 
 # Diet-floor constants, JUSTIFIED_ADDITIONS ledger, and the two pure helpers
 # are single-sourced from the shared library (prompt-diet-floor-credit-drift /
-# SPEC-DRAFT-spec-prompt-diet-floor-credit-drift.md) so this suite and
+# SPEC-0060-spec-prompt-diet-floor-credit-drift.md) so this suite and
 # tests/skills/test-aai-verify-gate.sh can never drift from each other again
 # (DEBT-0002 "two copies of one gate" pattern). Sourced at top level (not
 # inside a function) so JUSTIFIED_ADDITIONS stays a global visible to

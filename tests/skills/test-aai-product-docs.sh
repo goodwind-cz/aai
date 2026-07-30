@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: product docs as a capability-keyed SECOND DOC FAMILY on the shared
-# doc-engine primitives (fixes #189) — CHANGE-DRAFT-product-docs-capability-
+# doc-engine primitives (fixes #189) — CHANGE-0088-product-docs-capability-
 # model / SPEC-0105-spec-product-docs-capability-model.md, TEST-001..005,
 # TEST-012, TEST-013.
 #
