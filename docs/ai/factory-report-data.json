@@ -1,0 +1,2011 @@
+{
+  "generatedAt": "2026-07-30T09:17:57.756Z",
+  "project": "goodwind-cz/aai",
+  "empty": false,
+  "empty_reason": null,
+  "counts": {
+    "rides": 104,
+    "delivered": 260,
+    "active_weeks": 5,
+    "releases": 0,
+    "review_events": 26
+  },
+  "throughput": {
+    "note": "\"delivered\" counts every work_item_closed event (260 closes vs 104 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 260,
+    "delivered_per_week_avg": 52,
+    "delivered_by_week": {
+      "2026-W27": 7,
+      "2026-W28": 2,
+      "2026-W29": 135,
+      "2026-W30": 64,
+      "2026-W31": 52
+    },
+    "delivered_groups": [
+      {
+        "key": "month:2026-07",
+        "kind": "month",
+        "label": "2026-07",
+        "count": 260,
+        "refs": [
+          "SPEC-0011",
+          "CHANGE-0005",
+          "SPEC-0012",
+          "CHANGE-0006",
+          "SPEC-0013",
+          "CHANGE-0007",
+          "REL-0001",
+          "SPEC-0014",
+          "CHANGE-0008",
+          "RFC-0007",
+          "CHANGE-0012",
+          "CHANGE-0009",
+          "CHANGE-0010",
+          "CHANGE-0011",
+          "ISSUE-0006",
+          "CHANGE-0001",
+          "doctor-vendored-layer-drift",
+          "single-dual-verdict-review",
+          "ISSUE-0007",
+          "verification-before-completion",
+          "SPEC-0015",
+          "spec-slug-refs-across-tooling",
+          "spec-prompt-layer-diet-phase-1",
+          "spec-model-tiering-with-teeth",
+          "spec-mechanize-deterministic-ticks",
+          "spec-doctor-vendored-layer-drift",
+          "spec-single-dual-verdict-review",
+          "spec-state-list-append-indent",
+          "spec-learned-to-layer-promotion",
+          "spec-review-taxonomy-alignment",
+          "spec-verification-before-completion",
+          "spec-work-item-brief",
+          "spec-systematic-debugging",
+          "spec-constitution",
+          "spec-hook-enforced-gates",
+          "spec-scale-adaptive-ceremony",
+          "spec-advisory-skills",
+          "spec-truth-scoring",
+          "spec-spec-lint",
+          "spec-delta-stage-1",
+          "spec-layer-profiles",
+          "spec-l1-close-gate",
+          "spec-delta-stage-2",
+          "spec-delta-stage-3",
+          "mechanize-deterministic-ticks",
+          "model-tiering-with-teeth",
+          "prompt-layer-diet-phase-1",
+          "slug-refs-across-tooling",
+          "review-taxonomy-alignment",
+          "work-item-brief",
+          "systematic-debugging",
+          "constitution",
+          "advisory-skills",
+          "truth-scoring",
+          "spec-lint",
+          "layer-profiles",
+          "l1-close-gate",
+          "delta-stage-2",
+          "delta-stage-3",
+          "state-list-append-indent",
+          "project-dominant-width",
+          "scale-adaptive-ceremony",
+          "hook-enforced-gates",
+          "delta-spec-lifecycle",
+          "learned-to-layer-promotion",
+          "CHANGE-0002",
+          "CHANGE-0003",
+          "CHANGE-0004",
+          "DEBT-0001",
+          "ISSUE-0001",
+          "ISSUE-0002",
+          "ISSUE-0003",
+          "ISSUE-0004",
+          "ISSUE-0005",
+          "per-type-digit-width",
+          "RFC-0001",
+          "RFC-0002",
+          "RFC-0003",
+          "RFC-0004",
+          "RFC-0005",
+          "RFC-0006",
+          "aai-competitive-gap-and-model-efficiency",
+          "SPEC-0001",
+          "SPEC-0002",
+          "SPEC-0003",
+          "SPEC-0004",
+          "SPEC-0005",
+          "SPEC-0006",
+          "SPEC-0007",
+          "SPEC-0008",
+          "SPEC-0009",
+          "SPEC-0010",
+          "CHANGE-0027",
+          "spec-false-open-drift-heuristic",
+          "false-open-drift-heuristic",
+          "docs-audit-d2-evidence-hardening",
+          "spec-docs-audit-d2-evidence-hardening",
+          "validation-ac-evidence-close-time",
+          "loop-ceremony-aware-dispatch",
+          "spec-loop-ceremony-aware-dispatch",
+          "dispatch-new-intake-after-completed-scope",
+          "spec-dispatch-new-intake-after-completed-scope",
+          "loop-token-usage-capture",
+          "spec-loop-token-usage-capture",
+          "tdd-red-evidence-classification",
+          "spec-tdd-red-evidence-classification",
+          "intake-secrets-preflight",
+          "spec-intake-secrets-preflight",
+          "spec-doc-number-origin-reservation",
+          "doc-number-origin-reservation",
+          "test-wrapper-windows-fallback",
+          "spec-test-wrapper-windows-fallback",
+          "prompt-diet-byte-budget-true-up",
+          "secrets-preflight-env-multiline",
+          "dispatch-4a-fail-verdict-precedence",
+          "spec-dispatch-4a-fail-verdict-precedence",
+          "spec-lint-duplicate-ac-id",
+          "aai-update-temp-toctou",
+          "deterministic-close-ceremony",
+          "spec-deterministic-close-ceremony",
+          "flush-close-event-alignment",
+          "spec-flush-close-event-alignment",
+          "worktree-telemetry-reconciliation",
+          "spec-worktree-telemetry-reconciliation",
+          "spec-aai-update-temp-toctou",
+          "secrets-preflight-unterminated-quote-safe-direction",
+          "spec-secrets-preflight-unterminated-quote-safe-direction",
+          "docs-audit-duplicate-doc-id",
+          "spec-docs-audit-duplicate-doc-id",
+          "spec-prompt-diet-byte-budget-true-up",
+          "spec-secrets-preflight-env-multiline",
+          "spec-spec-lint-duplicate-ac-id",
+          "remediate-spec-id-collisions",
+          "spec-lint-enforce-spec-id-prefix",
+          "spec-spec-lint-enforce-spec-id-prefix",
+          "prompt-diet-itemized-growth-ledger",
+          "spec-prompt-diet-itemized-growth-ledger",
+          "user-docs-workflow-hardening",
+          "prompt-diet-floor-credit-drift",
+          "spec-prompt-diet-floor-credit-drift",
+          "test-infra-reds-and-ci-gate",
+          "spec-test-infra-reds-and-ci-gate",
+          "skill-suite-linux-ci-portability",
+          "spec-skill-suite-linux-ci-portability",
+          "aai-release-skill",
+          "spec-aai-release-skill",
+          "reaper-deterministic-age-guard",
+          "spec-reaper-deterministic-age-guard",
+          "test-canon-stat-portability",
+          "spec-test-canon-stat-portability",
+          "hitl-decision-propagation",
+          "spec-hitl-decision-propagation",
+          "ps1-native-stderr-guard",
+          "spec-ps1-native-stderr-guard",
+          "metrics-flush-strands-completed-refs",
+          "spec-metrics-flush-sweep",
+          "test-018-workspace-isolation",
+          "spec-test-018-workspace-isolation",
+          "branch-per-work-item-hygiene",
+          "spec-branch-per-work-item-hygiene",
+          "planning-companion-obligations",
+          "spec-planning-companion-obligations",
+          "reaper-epoch-survivor-robustness",
+          "spec-reaper-epoch-survivor-robustness",
+          "false-open-metrics-and-supersession",
+          "spec-false-open-metrics-and-supersession",
+          "branch-guard-no-work-item",
+          "spec-branch-guard-no-work-item",
+          "retire-stranded-nonworkitem-metric",
+          "spec-retire-stranded-nonworkitem-metric",
+          "test-018-legacy-spare-attribution",
+          "spec-test-018-legacy-spare-attribution",
+          "test-canon-drift-detection",
+          "spec-test-canon-drift-detection",
+          "friction-capture-foundation",
+          "spec-friction-capture-foundation",
+          "friction-shadow-capture-wiring",
+          "spec-friction-shadow-capture-wiring",
+          "friction-schema-v2-capture",
+          "spec-friction-schema-v2-capture",
+          "feedback-triage-offline",
+          "spec-feedback-triage-offline",
+          "feedback-upsert-review",
+          "spec-feedback-upsert-review",
+          "reaper-test-018-etime-shape-guard",
+          "spec-reaper-test-018-etime-shape-guard",
+          "close-work-item-brief-cleanup",
+          "friction-feedback-discovery",
+          "spec-friction-feedback-discovery",
+          "reaper-etime-impossible-age-clamp",
+          "prune-stale-briefs",
+          "umbrella-progress-rollup",
+          "closeout-display-id-match",
+          "friction-record-v2-redaction",
+          "docs-rollup-userguide",
+          "token-capture-canary",
+          "spec-token-capture-canary",
+          "prompt-dedup-canonical-includes",
+          "spec-prompt-dedup-canonical-includes",
+          "pr-post-open-review-sweep",
+          "subagent-protocol-slim",
+          "spec-subagent-protocol-slim",
+          "friction-capture-default-on",
+          "spec-friction-capture-default-on",
+          "token-economics-end-to-end",
+          "spec-token-economics-end-to-end",
+          "allocator-rewrite-all-trees",
+          "spec-allocator-rewrite-all-trees",
+          "cheap-model-in-practice",
+          "spec-cheap-model-in-practice",
+          "product-docs-enforced",
+          "spec-product-docs-enforced",
+          "dev-progress-hub",
+          "spec-dev-progress-hub",
+          "role-output-contracts",
+          "spec-role-output-contracts",
+          "learned-append-gate",
+          "spec-learned-append-gate",
+          "prompt-hash-telemetry",
+          "spec-prompt-hash-telemetry",
+          "ci-test-impact-selection",
+          "spec-ci-test-impact-selection",
+          "prompt-hash-runtime-wiring",
+          "spec-prompt-hash-runtime-wiring",
+          "suite-map-factory-doc-paths",
+          "skill-sweep-quick-wins",
+          "state-bootstrap-template",
+          "spec-state-bootstrap-template",
+          "decapod-prune",
+          "doctor-determinize",
+          "spec-doctor-determinize",
+          "dashboard-refit",
+          "spec-dashboard-refit",
+          "docs-hub-generator",
+          "spec-docs-hub-generator",
+          "rollup-exclusion-visibility",
+          "session-journal-contract",
+          "validate-report-contract",
+          "follow-ups-scripts",
+          "follow-ups-docs",
+          "platform-portable-pr",
+          "spec-platform-portable-pr",
+          "session-loose-ends",
+          "issues-skill",
+          "spec-issues-skill",
+          "product-docs-capability-model",
+          "spec-product-docs-capability-model",
+          "product-capability-refinements",
+          "core-prompt-diet",
+          "auto-update-config",
+          "spec-auto-update-config",
+          "ps1-sync-nonexistent-dest",
+          "update-sync-atomic-lock",
+          "seed-update-config",
+          "contract-headroom",
+          "github-no-bots-hardening",
+          "allocator-header-rewrite",
+          "spec-allocator-header-rewrite",
+          "factory-performance-report",
+          "spec-factory-performance-report"
+        ]
+      }
+    ],
+    "lead_time": {
+      "per_item": [
+        {
+          "ref": "SPEC-0011",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "CHANGE-0005",
+          "lead_time_seconds": 44150
+        },
+        {
+          "ref": "SPEC-0012",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "CHANGE-0006",
+          "lead_time_seconds": 7213
+        },
+        {
+          "ref": "SPEC-0013",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "CHANGE-0007",
+          "lead_time_seconds": 5279
+        },
+        {
+          "ref": "REL-0001",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "SPEC-0014",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "CHANGE-0008",
+          "lead_time_seconds": 28900
+        },
+        {
+          "ref": "RFC-0007",
+          "lead_time_seconds": 119860
+        },
+        {
+          "ref": "CHANGE-0012",
+          "lead_time_seconds": 3527
+        },
+        {
+          "ref": "CHANGE-0009",
+          "lead_time_seconds": 6892
+        },
+        {
+          "ref": "CHANGE-0010",
+          "lead_time_seconds": 8800
+        },
+        {
+          "ref": "CHANGE-0011",
+          "lead_time_seconds": 8688
+        },
+        {
+          "ref": "ISSUE-0006",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "CHANGE-0001",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "doctor-vendored-layer-drift",
+          "lead_time_seconds": 3651
+        },
+        {
+          "ref": "single-dual-verdict-review",
+          "lead_time_seconds": 83308
+        },
+        {
+          "ref": "ISSUE-0007",
+          "lead_time_seconds": 4503
+        },
+        {
+          "ref": "verification-before-completion",
+          "lead_time_seconds": 1874
+        },
+        {
+          "ref": "SPEC-0015",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-slug-refs-across-tooling",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-prompt-layer-diet-phase-1",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-model-tiering-with-teeth",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-mechanize-deterministic-ticks",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-doctor-vendored-layer-drift",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-single-dual-verdict-review",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-state-list-append-indent",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-learned-to-layer-promotion",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-review-taxonomy-alignment",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-verification-before-completion",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-work-item-brief",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-systematic-debugging",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-constitution",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-hook-enforced-gates",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-scale-adaptive-ceremony",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-advisory-skills",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-truth-scoring",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-spec-lint",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-delta-stage-1",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-layer-profiles",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-l1-close-gate",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-delta-stage-2",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-delta-stage-3",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "mechanize-deterministic-ticks",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "model-tiering-with-teeth",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "prompt-layer-diet-phase-1",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "slug-refs-across-tooling",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "review-taxonomy-alignment",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "work-item-brief",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "systematic-debugging",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "constitution",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "advisory-skills",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "truth-scoring",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-lint",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "layer-profiles",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "l1-close-gate",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "delta-stage-2",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "delta-stage-3",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "state-list-append-indent",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "project-dominant-width",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "scale-adaptive-ceremony",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "hook-enforced-gates",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "delta-spec-lifecycle",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "learned-to-layer-promotion",
+          "lead_time_seconds": 44273
+        },
+        {
+          "ref": "CHANGE-0002",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "CHANGE-0003",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "CHANGE-0004",
+          "lead_time_seconds": 1821258
+        },
+        {
+          "ref": "DEBT-0001",
+          "lead_time_seconds": 1427769
+        },
+        {
+          "ref": "ISSUE-0001",
+          "lead_time_seconds": 1407947
+        },
+        {
+          "ref": "ISSUE-0002",
+          "lead_time_seconds": 1342527
+        },
+        {
+          "ref": "ISSUE-0003",
+          "lead_time_seconds": 1330386
+        },
+        {
+          "ref": "ISSUE-0004",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "ISSUE-0005",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "per-type-digit-width",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "RFC-0001",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "RFC-0002",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "RFC-0003",
+          "lead_time_seconds": 1853441
+        },
+        {
+          "ref": "RFC-0004",
+          "lead_time_seconds": 1745736
+        },
+        {
+          "ref": "RFC-0005",
+          "lead_time_seconds": 1740537
+        },
+        {
+          "ref": "RFC-0006",
+          "lead_time_seconds": 1397264
+        },
+        {
+          "ref": "aai-competitive-gap-and-model-efficiency",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "SPEC-0001",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "SPEC-0002",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "SPEC-0003",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "SPEC-0004",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "SPEC-0005",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "SPEC-0006",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "SPEC-0007",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "SPEC-0008",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "SPEC-0009",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "SPEC-0010",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "CHANGE-0027",
+          "lead_time_seconds": 3687
+        },
+        {
+          "ref": "spec-false-open-drift-heuristic",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "false-open-drift-heuristic",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "docs-audit-d2-evidence-hardening",
+          "lead_time_seconds": 2961
+        },
+        {
+          "ref": "spec-docs-audit-d2-evidence-hardening",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "validation-ac-evidence-close-time",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "loop-ceremony-aware-dispatch",
+          "lead_time_seconds": 2729
+        },
+        {
+          "ref": "spec-loop-ceremony-aware-dispatch",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "dispatch-new-intake-after-completed-scope",
+          "lead_time_seconds": 2438
+        },
+        {
+          "ref": "spec-dispatch-new-intake-after-completed-scope",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "loop-token-usage-capture",
+          "lead_time_seconds": 2780
+        },
+        {
+          "ref": "spec-loop-token-usage-capture",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "tdd-red-evidence-classification",
+          "lead_time_seconds": 1529
+        },
+        {
+          "ref": "spec-tdd-red-evidence-classification",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "intake-secrets-preflight",
+          "lead_time_seconds": 2000
+        },
+        {
+          "ref": "spec-intake-secrets-preflight",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-doc-number-origin-reservation",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "doc-number-origin-reservation",
+          "lead_time_seconds": 4970
+        },
+        {
+          "ref": "test-wrapper-windows-fallback",
+          "lead_time_seconds": 3591
+        },
+        {
+          "ref": "spec-test-wrapper-windows-fallback",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "prompt-diet-byte-budget-true-up",
+          "lead_time_seconds": 2398
+        },
+        {
+          "ref": "secrets-preflight-env-multiline",
+          "lead_time_seconds": 1932
+        },
+        {
+          "ref": "dispatch-4a-fail-verdict-precedence",
+          "lead_time_seconds": 2204
+        },
+        {
+          "ref": "spec-dispatch-4a-fail-verdict-precedence",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-lint-duplicate-ac-id",
+          "lead_time_seconds": 1935
+        },
+        {
+          "ref": "aai-update-temp-toctou",
+          "lead_time_seconds": 2050
+        },
+        {
+          "ref": "deterministic-close-ceremony",
+          "lead_time_seconds": 4702
+        },
+        {
+          "ref": "spec-deterministic-close-ceremony",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "flush-close-event-alignment",
+          "lead_time_seconds": 2941
+        },
+        {
+          "ref": "spec-flush-close-event-alignment",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "worktree-telemetry-reconciliation",
+          "lead_time_seconds": 2449
+        },
+        {
+          "ref": "spec-worktree-telemetry-reconciliation",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-aai-update-temp-toctou",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "secrets-preflight-unterminated-quote-safe-direction",
+          "lead_time_seconds": 1753
+        },
+        {
+          "ref": "spec-secrets-preflight-unterminated-quote-safe-direction",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "docs-audit-duplicate-doc-id",
+          "lead_time_seconds": 3191
+        },
+        {
+          "ref": "spec-docs-audit-duplicate-doc-id",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-prompt-diet-byte-budget-true-up",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-secrets-preflight-env-multiline",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-spec-lint-duplicate-ac-id",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "remediate-spec-id-collisions",
+          "lead_time_seconds": 1112
+        },
+        {
+          "ref": "spec-lint-enforce-spec-id-prefix",
+          "lead_time_seconds": 2168
+        },
+        {
+          "ref": "spec-spec-lint-enforce-spec-id-prefix",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "prompt-diet-itemized-growth-ledger",
+          "lead_time_seconds": 15641
+        },
+        {
+          "ref": "spec-prompt-diet-itemized-growth-ledger",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "user-docs-workflow-hardening",
+          "lead_time_seconds": 1195
+        },
+        {
+          "ref": "prompt-diet-floor-credit-drift",
+          "lead_time_seconds": 1825
+        },
+        {
+          "ref": "spec-prompt-diet-floor-credit-drift",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "test-infra-reds-and-ci-gate",
+          "lead_time_seconds": 2587
+        },
+        {
+          "ref": "spec-test-infra-reds-and-ci-gate",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "skill-suite-linux-ci-portability",
+          "lead_time_seconds": 3908
+        },
+        {
+          "ref": "spec-skill-suite-linux-ci-portability",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "aai-release-skill",
+          "lead_time_seconds": 4539
+        },
+        {
+          "ref": "spec-aai-release-skill",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "reaper-deterministic-age-guard",
+          "lead_time_seconds": 5425
+        },
+        {
+          "ref": "spec-reaper-deterministic-age-guard",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "test-canon-stat-portability",
+          "lead_time_seconds": 956
+        },
+        {
+          "ref": "spec-test-canon-stat-portability",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "hitl-decision-propagation",
+          "lead_time_seconds": 6038
+        },
+        {
+          "ref": "spec-hitl-decision-propagation",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "ps1-native-stderr-guard",
+          "lead_time_seconds": 2205
+        },
+        {
+          "ref": "spec-ps1-native-stderr-guard",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "metrics-flush-strands-completed-refs",
+          "lead_time_seconds": 3945
+        },
+        {
+          "ref": "spec-metrics-flush-sweep",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "test-018-workspace-isolation",
+          "lead_time_seconds": 2662
+        },
+        {
+          "ref": "spec-test-018-workspace-isolation",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "branch-per-work-item-hygiene",
+          "lead_time_seconds": 1299
+        },
+        {
+          "ref": "spec-branch-per-work-item-hygiene",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "planning-companion-obligations",
+          "lead_time_seconds": 1130
+        },
+        {
+          "ref": "spec-planning-companion-obligations",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "reaper-epoch-survivor-robustness",
+          "lead_time_seconds": 3894
+        },
+        {
+          "ref": "spec-reaper-epoch-survivor-robustness",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "false-open-metrics-and-supersession",
+          "lead_time_seconds": 5207
+        },
+        {
+          "ref": "spec-false-open-metrics-and-supersession",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "branch-guard-no-work-item",
+          "lead_time_seconds": 2150
+        },
+        {
+          "ref": "spec-branch-guard-no-work-item",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "retire-stranded-nonworkitem-metric",
+          "lead_time_seconds": 3587
+        },
+        {
+          "ref": "spec-retire-stranded-nonworkitem-metric",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "test-018-legacy-spare-attribution",
+          "lead_time_seconds": 5203
+        },
+        {
+          "ref": "spec-test-018-legacy-spare-attribution",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "test-canon-drift-detection",
+          "lead_time_seconds": 2341
+        },
+        {
+          "ref": "spec-test-canon-drift-detection",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "friction-capture-foundation",
+          "lead_time_seconds": 4860
+        },
+        {
+          "ref": "spec-friction-capture-foundation",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "friction-shadow-capture-wiring",
+          "lead_time_seconds": 1626
+        },
+        {
+          "ref": "spec-friction-shadow-capture-wiring",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "friction-schema-v2-capture",
+          "lead_time_seconds": 3549
+        },
+        {
+          "ref": "spec-friction-schema-v2-capture",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "feedback-triage-offline",
+          "lead_time_seconds": 17472
+        },
+        {
+          "ref": "spec-feedback-triage-offline",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "feedback-upsert-review",
+          "lead_time_seconds": 2413
+        },
+        {
+          "ref": "spec-feedback-upsert-review",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "reaper-test-018-etime-shape-guard",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-reaper-test-018-etime-shape-guard",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "close-work-item-brief-cleanup",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "friction-feedback-discovery",
+          "lead_time_seconds": 75
+        },
+        {
+          "ref": "spec-friction-feedback-discovery",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "reaper-etime-impossible-age-clamp",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "prune-stale-briefs",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "umbrella-progress-rollup",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "closeout-display-id-match",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "friction-record-v2-redaction",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "docs-rollup-userguide",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "token-capture-canary",
+          "lead_time_seconds": 14983
+        },
+        {
+          "ref": "spec-token-capture-canary",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "prompt-dedup-canonical-includes",
+          "lead_time_seconds": 8439
+        },
+        {
+          "ref": "spec-prompt-dedup-canonical-includes",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "pr-post-open-review-sweep",
+          "lead_time_seconds": 1026
+        },
+        {
+          "ref": "subagent-protocol-slim",
+          "lead_time_seconds": 3889
+        },
+        {
+          "ref": "spec-subagent-protocol-slim",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "friction-capture-default-on",
+          "lead_time_seconds": 6198
+        },
+        {
+          "ref": "spec-friction-capture-default-on",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "token-economics-end-to-end",
+          "lead_time_seconds": 2408
+        },
+        {
+          "ref": "spec-token-economics-end-to-end",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "allocator-rewrite-all-trees",
+          "lead_time_seconds": 4103
+        },
+        {
+          "ref": "spec-allocator-rewrite-all-trees",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "cheap-model-in-practice",
+          "lead_time_seconds": 1751
+        },
+        {
+          "ref": "spec-cheap-model-in-practice",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "product-docs-enforced",
+          "lead_time_seconds": 2710
+        },
+        {
+          "ref": "spec-product-docs-enforced",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "dev-progress-hub",
+          "lead_time_seconds": 1337
+        },
+        {
+          "ref": "spec-dev-progress-hub",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "role-output-contracts",
+          "lead_time_seconds": 2218
+        },
+        {
+          "ref": "spec-role-output-contracts",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "learned-append-gate",
+          "lead_time_seconds": 1912
+        },
+        {
+          "ref": "spec-learned-append-gate",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "prompt-hash-telemetry",
+          "lead_time_seconds": 3072
+        },
+        {
+          "ref": "spec-prompt-hash-telemetry",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "ci-test-impact-selection",
+          "lead_time_seconds": 3008
+        },
+        {
+          "ref": "spec-ci-test-impact-selection",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "prompt-hash-runtime-wiring",
+          "lead_time_seconds": 1124
+        },
+        {
+          "ref": "spec-prompt-hash-runtime-wiring",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "suite-map-factory-doc-paths",
+          "lead_time_seconds": 696
+        },
+        {
+          "ref": "skill-sweep-quick-wins",
+          "lead_time_seconds": 3188
+        },
+        {
+          "ref": "state-bootstrap-template",
+          "lead_time_seconds": 3214
+        },
+        {
+          "ref": "spec-state-bootstrap-template",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "decapod-prune",
+          "lead_time_seconds": 947
+        },
+        {
+          "ref": "doctor-determinize",
+          "lead_time_seconds": 4424
+        },
+        {
+          "ref": "spec-doctor-determinize",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "dashboard-refit",
+          "lead_time_seconds": 952
+        },
+        {
+          "ref": "spec-dashboard-refit",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "docs-hub-generator",
+          "lead_time_seconds": 1521
+        },
+        {
+          "ref": "spec-docs-hub-generator",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "rollup-exclusion-visibility",
+          "lead_time_seconds": 334
+        },
+        {
+          "ref": "session-journal-contract",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "validate-report-contract",
+          "lead_time_seconds": 900
+        },
+        {
+          "ref": "follow-ups-scripts",
+          "lead_time_seconds": 1553
+        },
+        {
+          "ref": "follow-ups-docs",
+          "lead_time_seconds": 1246
+        },
+        {
+          "ref": "platform-portable-pr",
+          "lead_time_seconds": 2402
+        },
+        {
+          "ref": "spec-platform-portable-pr",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "session-loose-ends",
+          "lead_time_seconds": 1873
+        },
+        {
+          "ref": "issues-skill",
+          "lead_time_seconds": 4152
+        },
+        {
+          "ref": "spec-issues-skill",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "product-docs-capability-model",
+          "lead_time_seconds": 11726
+        },
+        {
+          "ref": "spec-product-docs-capability-model",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "product-capability-refinements",
+          "lead_time_seconds": 1190
+        },
+        {
+          "ref": "core-prompt-diet",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "auto-update-config",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-auto-update-config",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "ps1-sync-nonexistent-dest",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "update-sync-atomic-lock",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "seed-update-config",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "contract-headroom",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "github-no-bots-hardening",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "allocator-header-rewrite",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-allocator-header-rewrite",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "factory-performance-report",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-factory-performance-report",
+          "lead_time_seconds": null
+        }
+      ],
+      "median_seconds": 3072,
+      "mean_seconds": 145520.1,
+      "measured": 101,
+      "unmeasurable": 159
+    }
+  },
+  "speed": {
+    "ride_busy_seconds": {
+      "median": 2021,
+      "mean": 2684.8,
+      "measured": 102
+    },
+    "role_split": [
+      {
+        "role": "TDD Implementation",
+        "duration_seconds": 91635,
+        "tokens": 8675060
+      },
+      {
+        "role": "Implementation",
+        "duration_seconds": 28239,
+        "tokens": 961354
+      },
+      {
+        "role": "Code Review",
+        "duration_seconds": 33748,
+        "tokens": 4177222
+      },
+      {
+        "role": "Remediation",
+        "duration_seconds": 14057,
+        "tokens": 620204
+      },
+      {
+        "role": "Validation",
+        "duration_seconds": 54640,
+        "tokens": 4378881
+      },
+      {
+        "role": "Planning",
+        "duration_seconds": 51530,
+        "tokens": 4460485
+      }
+    ],
+    "per_ride": [
+      {
+        "ref": "DEBT-0001",
+        "busy_seconds": 2192,
+        "remediation_runs": null
+      },
+      {
+        "ref": "ISSUE-0001",
+        "busy_seconds": 1939,
+        "remediation_runs": null
+      },
+      {
+        "ref": "RFC-0006",
+        "busy_seconds": 8185,
+        "remediation_runs": null
+      },
+      {
+        "ref": "ISSUE-0002",
+        "busy_seconds": 6114,
+        "remediation_runs": null
+      },
+      {
+        "ref": "ISSUE-0003",
+        "busy_seconds": 2809,
+        "remediation_runs": null
+      },
+      {
+        "ref": "ISSUE-0004",
+        "busy_seconds": null,
+        "remediation_runs": null
+      },
+      {
+        "ref": "ISSUE-0005",
+        "busy_seconds": null,
+        "remediation_runs": null
+      },
+      {
+        "ref": "CHANGE-0005",
+        "busy_seconds": 3418,
+        "remediation_runs": null
+      },
+      {
+        "ref": "CHANGE-0006",
+        "busy_seconds": 2783,
+        "remediation_runs": null
+      },
+      {
+        "ref": "CHANGE-0007",
+        "busy_seconds": 3605,
+        "remediation_runs": null
+      },
+      {
+        "ref": "CHANGE-0008",
+        "busy_seconds": 2626,
+        "remediation_runs": null
+      },
+      {
+        "ref": "RFC-0003",
+        "busy_seconds": 2633,
+        "remediation_runs": null
+      },
+      {
+        "ref": "RFC-0004",
+        "busy_seconds": 1651,
+        "remediation_runs": null
+      },
+      {
+        "ref": "RFC-0005",
+        "busy_seconds": 1654,
+        "remediation_runs": null
+      },
+      {
+        "ref": "CHANGE-0004",
+        "busy_seconds": 924,
+        "remediation_runs": null
+      },
+      {
+        "ref": "RFC-0007",
+        "busy_seconds": 1590,
+        "remediation_runs": null
+      },
+      {
+        "ref": "CHANGE-0012",
+        "busy_seconds": 1795,
+        "remediation_runs": null
+      },
+      {
+        "ref": "CHANGE-0010",
+        "busy_seconds": 1268,
+        "remediation_runs": null
+      },
+      {
+        "ref": "CHANGE-0011",
+        "busy_seconds": 2151,
+        "remediation_runs": null
+      },
+      {
+        "ref": "CHANGE-0009",
+        "busy_seconds": 5507,
+        "remediation_runs": null
+      },
+      {
+        "ref": "doctor-vendored-layer-drift",
+        "busy_seconds": 786,
+        "remediation_runs": null
+      },
+      {
+        "ref": "single-dual-verdict-review",
+        "busy_seconds": 1318,
+        "remediation_runs": null
+      },
+      {
+        "ref": "ISSUE-0007",
+        "busy_seconds": 4792,
+        "remediation_runs": null
+      },
+      {
+        "ref": "verification-before-completion",
+        "busy_seconds": 1365,
+        "remediation_runs": null
+      },
+      {
+        "ref": "learned-to-layer-promotion",
+        "busy_seconds": 401,
+        "remediation_runs": null
+      },
+      {
+        "ref": "CHANGE-0014",
+        "busy_seconds": 1453,
+        "remediation_runs": null
+      },
+      {
+        "ref": "CHANGE-0027",
+        "busy_seconds": 1445,
+        "remediation_runs": 1
+      },
+      {
+        "ref": "docs-audit-d2-evidence-hardening",
+        "busy_seconds": 2339,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "loop-ceremony-aware-dispatch",
+        "busy_seconds": 2355,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "dispatch-new-intake-after-completed-scope",
+        "busy_seconds": 1735,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "loop-token-usage-capture",
+        "busy_seconds": 2225,
+        "remediation_runs": 1
+      },
+      {
+        "ref": "tdd-red-evidence-classification",
+        "busy_seconds": 1528,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "intake-secrets-preflight",
+        "busy_seconds": 2000,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "doc-number-origin-reservation",
+        "busy_seconds": 4905,
+        "remediation_runs": 1
+      },
+      {
+        "ref": "test-wrapper-windows-fallback",
+        "busy_seconds": 3075,
+        "remediation_runs": 1
+      },
+      {
+        "ref": "prompt-diet-byte-budget-true-up",
+        "busy_seconds": 2777,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "secrets-preflight-env-multiline",
+        "busy_seconds": 1744,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "dispatch-4a-fail-verdict-precedence",
+        "busy_seconds": 2203,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "spec-lint-duplicate-ac-id",
+        "busy_seconds": 1905,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "aai-update-temp-toctou",
+        "busy_seconds": 2020,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "deterministic-close-ceremony",
+        "busy_seconds": 4702,
+        "remediation_runs": 2
+      },
+      {
+        "ref": "flush-close-event-alignment",
+        "busy_seconds": 2912,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "worktree-telemetry-reconciliation",
+        "busy_seconds": 2747,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "secrets-preflight-unterminated-quote-safe-direction",
+        "busy_seconds": 1609,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "docs-audit-duplicate-doc-id",
+        "busy_seconds": 3121,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "remediate-spec-id-collisions",
+        "busy_seconds": 1081,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "spec-lint-enforce-spec-id-prefix",
+        "busy_seconds": 2115,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "prompt-diet-itemized-growth-ledger",
+        "busy_seconds": 16725,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "user-docs-workflow-hardening",
+        "busy_seconds": 1414,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "prompt-diet-floor-credit-drift",
+        "busy_seconds": 1103,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "test-infra-reds-and-ci-gate",
+        "busy_seconds": 2359,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "skill-suite-linux-ci-portability",
+        "busy_seconds": 3283,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "aai-release-skill",
+        "busy_seconds": 3810,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "reaper-deterministic-age-guard",
+        "busy_seconds": 3950,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "test-canon-stat-portability",
+        "busy_seconds": 888,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "hitl-decision-propagation",
+        "busy_seconds": 5376,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "ps1-native-stderr-guard",
+        "busy_seconds": 2021,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "metrics-flush-strands-completed-refs",
+        "busy_seconds": 3652,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "test-018-workspace-isolation",
+        "busy_seconds": 503,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "branch-per-work-item-hygiene",
+        "busy_seconds": 671,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "planning-companion-obligations",
+        "busy_seconds": 555,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "reaper-epoch-survivor-robustness",
+        "busy_seconds": 3330,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "false-open-metrics-and-supersession",
+        "busy_seconds": 5675,
+        "remediation_runs": 2
+      },
+      {
+        "ref": "branch-guard-no-work-item",
+        "busy_seconds": 703,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "retire-stranded-nonworkitem-metric",
+        "busy_seconds": 3216,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "test-018-legacy-spare-attribution",
+        "busy_seconds": 4891,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "test-canon-drift-detection",
+        "busy_seconds": 1905,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "friction-capture-foundation",
+        "busy_seconds": 4435,
+        "remediation_runs": 2
+      },
+      {
+        "ref": "friction-shadow-capture-wiring",
+        "busy_seconds": 0,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "friction-schema-v2-capture",
+        "busy_seconds": 0,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "feedback-triage-offline",
+        "busy_seconds": 0,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "feedback-upsert-review",
+        "busy_seconds": 0,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "friction-feedback-discovery",
+        "busy_seconds": 0,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "token-capture-canary",
+        "busy_seconds": 8700,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "prompt-dedup-canonical-includes",
+        "busy_seconds": 8080,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "pr-post-open-review-sweep",
+        "busy_seconds": 1086,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "subagent-protocol-slim",
+        "busy_seconds": 1739,
+        "remediation_runs": 1
+      },
+      {
+        "ref": "friction-capture-default-on",
+        "busy_seconds": 1713,
+        "remediation_runs": 1
+      },
+      {
+        "ref": "token-economics-end-to-end",
+        "busy_seconds": 1867,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "allocator-rewrite-all-trees",
+        "busy_seconds": 5199,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "cheap-model-in-practice",
+        "busy_seconds": 1192,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "product-docs-enforced",
+        "busy_seconds": 1812,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "dev-progress-hub",
+        "busy_seconds": 1292,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "role-output-contracts",
+        "busy_seconds": 2819,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "learned-append-gate",
+        "busy_seconds": 2330,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "prompt-hash-telemetry",
+        "busy_seconds": 2319,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "ci-test-impact-selection",
+        "busy_seconds": 2849,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "prompt-hash-runtime-wiring",
+        "busy_seconds": 1440,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "suite-map-factory-doc-paths",
+        "busy_seconds": 300,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "skill-sweep-quick-wins",
+        "busy_seconds": 1080,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "state-bootstrap-template",
+        "busy_seconds": 2822,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "decapod-prune",
+        "busy_seconds": 1200,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "doctor-determinize",
+        "busy_seconds": 7686,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "dashboard-refit",
+        "busy_seconds": 1200,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "docs-hub-generator",
+        "busy_seconds": 2280,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "rollup-exclusion-visibility",
+        "busy_seconds": 300,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "validate-report-contract",
+        "busy_seconds": 900,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "follow-ups-scripts",
+        "busy_seconds": 1860,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "follow-ups-docs",
+        "busy_seconds": 1200,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "platform-portable-pr",
+        "busy_seconds": 3316,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "session-loose-ends",
+        "busy_seconds": 3120,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "issues-skill",
+        "busy_seconds": 6066,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "product-docs-capability-model",
+        "busy_seconds": 11035,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "product-capability-refinements",
+        "busy_seconds": 1080,
+        "remediation_runs": 0
+      }
+    ],
+    "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
+  },
+  "cost": {
+    "tokens_only": true,
+    "usd": null,
+    "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
+    "tokens_per_ride": {
+      "median": 427748,
+      "mean": 415593,
+      "measured": 56
+    },
+    "tokens_total": 23273206,
+    "by_role": [
+      {
+        "role": "TDD Implementation",
+        "tokens": 8675060
+      },
+      {
+        "role": "Implementation",
+        "tokens": 961354
+      },
+      {
+        "role": "Code Review",
+        "tokens": 4177222
+      },
+      {
+        "role": "Remediation",
+        "tokens": 620204
+      },
+      {
+        "role": "Validation",
+        "tokens": 4378881
+      },
+      {
+        "role": "Planning",
+        "tokens": 4460485
+      }
+    ]
+  },
+  "quality": {
+    "first_pass_clean": {
+      "clean": 69,
+      "flagged": 78,
+      "rate_pct": 88
+    },
+    "na_reliability": 26,
+    "remediation_distribution": {
+      "0": 69,
+      "1": 6,
+      "2": 3,
+      "n/a": 26
+    },
+    "avg_validation_fails": 0,
+    "avg_review_fails": 0,
+    "verdict_mix": {
+      "PASS": 91,
+      "null": 13
+    },
+    "review_events": 26,
+    "review_verdict_note": "per-review pass/fail lives only in prose run notes and is not mechanically derived; only ride verdict + code_review_completed count are shown"
+  },
+  "trend": [
+    {
+      "week": "2026-W27",
+      "delivered": 7,
+      "median_lead_time_seconds": 7213,
+      "busy_seconds": 31045,
+      "tokens": null,
+      "first_pass_rate": null
+    },
+    {
+      "week": "2026-W28",
+      "delivered": 2,
+      "median_lead_time_seconds": 28900,
+      "busy_seconds": 2626,
+      "tokens": null,
+      "first_pass_rate": null
+    },
+    {
+      "week": "2026-W29",
+      "delivered": 135,
+      "median_lead_time_seconds": 3591,
+      "busy_seconds": 104715,
+      "tokens": 10290448,
+      "first_pass_rate": 81
+    },
+    {
+      "week": "2026-W30",
+      "delivered": 64,
+      "median_lead_time_seconds": 3738,
+      "busy_seconds": 73965,
+      "tokens": 5963280,
+      "first_pass_rate": 86
+    },
+    {
+      "week": "2026-W31",
+      "delivered": 52,
+      "median_lead_time_seconds": 1812,
+      "busy_seconds": 61498,
+      "tokens": 7019478,
+      "first_pass_rate": 100
+    }
+  ],
+  "notes": [
+    "NOTE 6 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)",
+    "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
+    "NOTE 48 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)"
+  ]
+}

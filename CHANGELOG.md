@@ -11,6 +11,41 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(reporting): factory performance report — continuous efficiency overview (CHANGE factory-performance-report) [L2]
+
+- New deterministic generator `.aai/scripts/generate-factory-report.mjs` reads
+  the existing `docs/ai/METRICS.jsonl` + `docs/ai/EVENTS.jsonl` (+ release-doc
+  `links.members`) and renders a self-contained `docs/ai/factory-report.html`
+  (+ `factory-report-data.json`) answering the owner ask "how efficiently is
+  the factory running — what does it deliver, how fast, at what token cost, at
+  what quality — over time". Four dimensions, each with an overall value AND a
+  per-ISO-week trend series: THROUGHPUT (work_item_closed per week / per
+  release, lead time = close minus earliest agent-run start), SPEED (per-ride
+  agent busy-seconds, per-canonical-role split with role-variant
+  normalization), COST (undecomposed tokens via the shared
+  `lib/usage-note.mjs` grammar — tokens only, never a fabricated USD figure),
+  QUALITY (first-pass-clean rate, remediation distribution, verdict mix from
+  the recorded `reliability` block only). Node stdlib, zero network. Honesty
+  rules are load-bearing: values not mechanically derivable render `n/a`, never
+  imputed; malformed JSONL lines are skipped and named (degrade-with-NOTE).
+- Auto-regenerates best-effort at every successful close (additive, strictly-
+  last hook in `close-work-item.mjs` after the docs-hub regen — a generator
+  failure never reaches rollback and never changes the close exit code,
+  negative-control tested).
+- Exposed via the thin `/aai-factory-report` skill wrapper (mirrors
+  `aai-overview` — no new `.aai` prompt-corpus file). Classified in PROFILES
+  `extended` and mapped in `tests/skills/suite-map.yaml`. Covered by
+  `tests/skills/test-aai-factory-report.sh` (TEST-001..014, incl. two cross-
+  generator SEAM tests against metrics-report.mjs and generate-overview.mjs,
+  and a real-close-entrypoint negative control).
+- Bot-sweep hardening (TEST-017..019): the project label now derives from the
+  origin remote `owner/repo` slug (basename fallback) so committed artifacts no
+  longer embed a throwaway worktree directory name; a ref closed more than once
+  counts once and buckets at its LATEST close with an honesty note;
+  `counts.active_weeks` is the union of delivery and ride weeks (matching the
+  rendered trend); and the remediation table sorts numeric buckets ascending
+  with `n/a` last deterministically.
+
 ## [unreleased] — feat(auto-update): allocator rewrites DRAFT refs in script/test trees (CHANGE-0097-allocator-header-rewrite) [L3]
 
 - Closes the last dangling-DRAFT-reference class after CHANGE-0064. The

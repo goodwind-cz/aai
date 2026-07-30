@@ -209,6 +209,7 @@ extended:
   - .aai/scripts/expert-fetch.sh
   - .aai/scripts/generate-dashboard.mjs
   - .aai/scripts/generate-docs-hub.mjs
+  - .aai/scripts/generate-factory-report.mjs
   - .aai/scripts/generate-overview.mjs
   - .aai/scripts/generate-userguide-rollup.mjs
   - .aai/scripts/lib/aai-redact.mjs

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>goodwind-cz/aai — Factory Performance Report</title>
+<style>
+  :root { color-scheme: light dark; --fg:#1c1c1c; --bg:#fff; --muted:#6b6b6b; --line:#e3e3e3; --accent:#0b62d6; --bar:#0b62d6; --barnull:#c9c9c9; --card:#f7f7f8; }
+  @media (prefers-color-scheme: dark) { :root { --fg:#e8e8e8; --bg:#161616; --muted:#9a9a9a; --line:#333; --accent:#6fb0ff; --bar:#6fb0ff; --barnull:#444; --card:#1f1f1f; } }
+  :root[data-theme="dark"] { --fg:#e8e8e8; --bg:#161616; --muted:#9a9a9a; --line:#333; --accent:#6fb0ff; --bar:#6fb0ff; --barnull:#444; --card:#1f1f1f; }
+  :root[data-theme="light"] { --fg:#1c1c1c; --bg:#fff; --muted:#6b6b6b; --line:#e3e3e3; --accent:#0b62d6; --bar:#0b62d6; --barnull:#c9c9c9; --card:#f7f7f8; }
+  body { margin:0 auto; max-width:64rem; padding:2rem 1.25rem 4rem; font:16px/1.55 system-ui, sans-serif; color:var(--fg); background:var(--bg); }
+  h1 { font-size:1.6rem; margin-bottom:.25rem; }
+  h2 { font-size:1.15rem; border-bottom:1px solid var(--line); padding-bottom:.3rem; margin-top:2.2rem; }
+  .meta { color:var(--muted); font-size:.85rem; }
+  .kpis { display:flex; gap:1rem; flex-wrap:wrap; margin:1rem 0; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:.6rem; padding:.7rem 1.1rem; min-width:8rem; }
+  .kpi b { font-size:1.5rem; display:block; }
+  .kpi span { color:var(--muted); font-size:.8rem; }
+  table { border-collapse:collapse; width:100%; font-size:.9rem; margin:.4rem 0; }
+  th, td { border-bottom:1px solid var(--line); padding:.35rem .5rem; text-align:left; }
+  .scroll { overflow-x:auto; }
+  .spark { max-width:100%; height:auto; display:block; margin:.5rem 0; }
+  .bar { fill:var(--bar); }
+  .bar-null { fill:var(--barnull); }
+  .xlab { fill:var(--muted); font-size:9px; text-anchor:middle; }
+  .notes li { color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<h1>goodwind-cz/aai — Factory Performance Report</h1>
+<p class="meta">Generated 2026-07-30T09:17:57.756Z · 104 rides · 260 delivered · 5 active weeks · regenerate with <code>node .aai/scripts/generate-factory-report.mjs</code></p>
+
+<section>
+<h2>Throughput — what the factory delivers</h2>
+<div class="kpis">
+  <div class="kpi"><b>260</b><span>delivered (total)</span></div>
+  <div class="kpi"><b>52</b><span>delivered / week (avg)</span></div>
+  <div class="kpi"><b>51m</b><span>median lead time</span></div>
+  <div class="kpi"><b>101/260</b><span>lead time measurable</span></div>
+</div>
+<div class="scroll"><svg viewBox="0 0 208 90" class="spark" role="img" preserveAspectRatio="xMinYMid meet"><rect x="18" y="72" width="30" height="4" class="bar"><title>2026-W27: 7 delivered</title></rect><text x="33" y="86" class="xlab">W27</text><rect x="56" y="75" width="30" height="1" class="bar"><title>2026-W28: 2 delivered</title></rect><text x="71" y="86" class="xlab">W28</text><rect x="94" y="4" width="30" height="72" class="bar"><title>2026-W29: 135 delivered</title></rect><text x="109" y="86" class="xlab">W29</text><rect x="132" y="42" width="30" height="34" class="bar"><title>2026-W30: 64 delivered</title></rect><text x="147" y="86" class="xlab">W30</text><rect x="170" y="48" width="30" height="28" class="bar"><title>2026-W31: 52 delivered</title></rect><text x="185" y="86" class="xlab">W31</text></svg></div>
+<p class="meta">Delivered per ISO week (zero-delivery weeks shown as empty bars).</p>
+<p class="meta">&quot;delivered&quot; counts every work_item_closed event (260 closes vs 104 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides.</p>
+<div class="scroll"><table><thead><tr><th>Release / month</th><th>Kind</th><th>Delivered</th></tr></thead><tbody><tr><td>2026-07</td><td>month</td><td>260</td></tr></tbody></table></div>
+</section>
+
+<section>
+<h2>Speed — how fast</h2>
+<div class="kpis">
+  <div class="kpi"><b>34m</b><span>median ride busy time</span></div>
+  <div class="kpi"><b>45m</b><span>mean ride busy time</span></div>
+</div>
+<div class="scroll"><svg viewBox="0 0 208 90" class="spark" role="img" preserveAspectRatio="xMinYMid meet"><rect x="18" y="55" width="30" height="21" class="bar"><title>2026-W27: 8.6h</title></rect><text x="33" y="86" class="xlab">W27</text><rect x="56" y="74" width="30" height="2" class="bar"><title>2026-W28: 44m</title></rect><text x="71" y="86" class="xlab">W28</text><rect x="94" y="4" width="30" height="72" class="bar"><title>2026-W29: 29.1h</title></rect><text x="109" y="86" class="xlab">W29</text><rect x="132" y="25" width="30" height="51" class="bar"><title>2026-W30: 20.5h</title></rect><text x="147" y="86" class="xlab">W30</text><rect x="170" y="34" width="30" height="42" class="bar"><title>2026-W31: 17.1h</title></rect><text x="185" y="86" class="xlab">W31</text></svg></div>
+<p class="meta">busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock.</p>
+<div class="scroll"><table><thead><tr><th>Role</th><th>Total busy time</th><th>Tokens (undecomposed)</th></tr></thead><tbody><tr><td>TDD Implementation</td><td>25.5h</td><td>8675060</td></tr><tr><td>Implementation</td><td>7.8h</td><td>961354</td></tr><tr><td>Code Review</td><td>9.4h</td><td>4177222</td></tr><tr><td>Remediation</td><td>3.9h</td><td>620204</td></tr><tr><td>Validation</td><td>15.2h</td><td>4378881</td></tr><tr><td>Planning</td><td>14.3h</td><td>4460485</td></tr></tbody></table></div>
+</section>
+
+<section>
+<h2>Cost — at what token price</h2>
+<div class="kpis">
+  <div class="kpi"><b>23273206</b><span>tokens total (undecomposed)</span></div>
+  <div class="kpi"><b>427748</b><span>median tokens / ride</span></div>
+  <div class="kpi"><b>56/104</b><span>rides with token data</span></div>
+</div>
+<div class="scroll"><svg viewBox="0 0 208 90" class="spark" role="img" preserveAspectRatio="xMinYMid meet"><rect x="18" y="76" width="30" height="1" class="bar bar-null"><title>2026-W27: n/a</title></rect><text x="33" y="86" class="xlab">W27</text><rect x="56" y="76" width="30" height="1" class="bar bar-null"><title>2026-W28: n/a</title></rect><text x="71" y="86" class="xlab">W28</text><rect x="94" y="4" width="30" height="72" class="bar"><title>2026-W29: 10290448 tokens</title></rect><text x="109" y="86" class="xlab">W29</text><rect x="132" y="34" width="30" height="42" class="bar"><title>2026-W30: 5963280 tokens</title></rect><text x="147" y="86" class="xlab">W30</text><rect x="170" y="27" width="30" height="49" class="bar"><title>2026-W31: 7019478 tokens</title></rect><text x="185" y="86" class="xlab">W31</text></svg></div>
+<p class="meta">Tokens only — no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price.</p>
+</section>
+
+<section>
+<h2>Quality — at what quality</h2>
+<div class="kpis">
+  <div class="kpi"><b>88%</b><span>first-pass clean (69/78)</span></div>
+  <div class="kpi"><b>0</b><span>avg validation fails</span></div>
+  <div class="kpi"><b>0</b><span>avg review fails</span></div>
+  <div class="kpi"><b>26</b><span>code reviews recorded</span></div>
+</div>
+<div class="scroll"><svg viewBox="0 0 208 90" class="spark" role="img" preserveAspectRatio="xMinYMid meet"><rect x="18" y="76" width="30" height="1" class="bar bar-null"><title>2026-W27: n/a</title></rect><text x="33" y="86" class="xlab">W27</text><rect x="56" y="76" width="30" height="1" class="bar bar-null"><title>2026-W28: n/a</title></rect><text x="71" y="86" class="xlab">W28</text><rect x="94" y="18" width="30" height="58" class="bar"><title>2026-W29: 81%</title></rect><text x="109" y="86" class="xlab">W29</text><rect x="132" y="14" width="30" height="62" class="bar"><title>2026-W30: 86%</title></rect><text x="147" y="86" class="xlab">W30</text><rect x="170" y="4" width="30" height="72" class="bar"><title>2026-W31: 100%</title></rect><text x="185" y="86" class="xlab">W31</text></svg></div>
+<p class="meta">First-pass-clean rate per ISO week (weeks with no reliability data show empty bars). per-review pass/fail lives only in prose run notes and is not mechanically derived; only ride verdict + code_review_completed count are shown.</p>
+<div class="scroll"><table><thead><tr><th>Remediation runs</th><th>Rides</th></tr></thead><tbody><tr><td>0</td><td>69</td></tr><tr><td>1</td><td>6</td></tr><tr><td>2</td><td>3</td></tr><tr><td>n/a</td><td>26</td></tr></tbody></table></div>
+<div class="scroll"><table><thead><tr><th>Ride verdict</th><th>Rides</th></tr></thead><tbody><tr><td>PASS</td><td>91</td></tr><tr><td>null</td><td>13</td></tr></tbody></table></div>
+</section>
+
+<section><h2>Data honesty notes</h2><ul class="notes"><li>NOTE 6 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)</li><li>NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)</li><li>NOTE 48 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)</li></ul></section>
+</body>
+</html>
