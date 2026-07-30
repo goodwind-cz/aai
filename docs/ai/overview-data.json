@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-07-30T00:06:23.896Z",
+  "generatedAt": "2026-07-30T12:57:06.312Z",
   "project": "aai",
   "counts": {
-    "delivered": 142,
+    "delivered": 144,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -89,6 +89,32 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0107-spec-allocator-header-rewrite.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "factory-performance-report",
+      "title": "Change — Factory Performance Report (continuous efficiency overview)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0098-factory-performance-report.md",
+      "closed_on": "2026-07-30",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0108-spec-factory-performance-report.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "deterministic-friction-capture",
+      "title": "Change — deterministic friction capture points",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0099-deterministic-friction-capture.md",
+      "closed_on": "2026-07-30",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
       "validation": null,
       "review": null
     },
@@ -1942,6 +1968,32 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0107-spec-allocator-header-rewrite.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "factory-performance-report",
+          "title": "Change — Factory Performance Report (continuous efficiency overview)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0098-factory-performance-report.md",
+          "closed_on": "2026-07-30",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0108-spec-factory-performance-report.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "deterministic-friction-capture",
+          "title": "Change — deterministic friction capture points",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0099-deterministic-friction-capture.md",
+          "closed_on": "2026-07-30",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
           "validation": null,
           "review": null
         },

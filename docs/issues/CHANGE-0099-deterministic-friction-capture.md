@@ -1,11 +1,14 @@
 ---
 id: deterministic-friction-capture
+number: 99
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 202
+  commits:
+    - e3ae4ac981b0d78a96dc11100f03ea00c8b0c658
 ---
 
 # Change — deterministic friction capture points

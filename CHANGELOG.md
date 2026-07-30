@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(feedback): deterministic friction capture points (CHANGE deterministic-friction-capture) [L2]
+## [unreleased] — feat(feedback): deterministic friction capture points (CHANGE-0099) [L2]
 
 - RFC-0012 Phase 2 was stalled on ZERO data — `docs/ai/friction/observations.jsonl`
   never got written because the only capture path was recall-dependent PROSE in

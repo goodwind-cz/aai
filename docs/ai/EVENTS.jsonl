@@ -1402,3 +1402,6 @@
 {"v":1,"ts":"2026-07-30T00:11:22.460Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-factory-performance-report","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-30T00:11:22.519Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-factory-performance-report","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-30T00:11:22.576Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-factory-performance-report","payload":{"commit":"ca08b97f3c998eb0632a8148811b406b44e5c26e"}}
+{"v":1,"ts":"2026-07-30T12:56:39.454Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"deterministic-friction-capture","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-30T12:56:39.515Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"deterministic-friction-capture","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-30T12:56:39.581Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"deterministic-friction-capture","payload":{"commit":"e3ae4ac981b0d78a96dc11100f03ea00c8b0c658"}}

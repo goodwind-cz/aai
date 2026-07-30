@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-30T12:51:46.907Z
+Generated: 2026-07-30T13:02:25.213Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -35,7 +35,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (253)
+## Done (254)
 
 | ID | Type | Path |
 |---|---|---|
@@ -137,6 +137,7 @@ _None._
 | CHANGE-0096 | issues | docs/issues/CHANGE-0096-github-no-bots-hardening.md |
 | CHANGE-0097 | issues | docs/issues/CHANGE-0097-allocator-header-rewrite.md |
 | CHANGE-0098 | issues | docs/issues/CHANGE-0098-factory-performance-report.md |
+| CHANGE-0099 | issues | docs/issues/CHANGE-0099-deterministic-friction-capture.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -293,11 +294,9 @@ _None._
 | SPEC-0108 | specs | docs/specs/SPEC-0108-spec-factory-performance-report.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| deterministic-friction-capture (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-deterministic-friction-capture.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
