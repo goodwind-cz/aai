@@ -571,6 +571,99 @@ function regenerateFactoryReportBestEffort() {
   }
 }
 
+// --- CAPTURE POINT 2 — deterministic remediation-at-close friction ----------
+// (CHANGE deterministic-friction-capture) When the closing ride carried
+// remediation runs, append ONE raw schema-v2 observation summarizing that a
+// completed ride reached close carrying recovery work. RAW only — no ownership
+// judgment here (confidence `low`); triage stays review-mode. Same discipline
+// as the report/docs-hub regen hooks: best-effort, STRICTLY LAST, never changes
+// the close exit code, never reaches rollback.
+
+// countRemediationRuns(ref) -> the number of `role: Remediation` agent_runs
+// recorded for `ref` in docs/ai/STATE.yaml (0 if the file/block is absent).
+// A minimal indentation-scoped line reader (Node stdlib only, no YAML dep,
+// mirroring aai-friction.mjs's feedback.yaml discipline): metrics: (col 0) ->
+// work_items: (2) -> <ref>: (4) -> count `role: Remediation` strictly inside
+// that ref's block (indent > 4). Other refs' remediation runs are never counted.
+function countRemediationRuns(ref) {
+  let text;
+  try {
+    text = fs.readFileSync(path.join(ROOT, 'docs/ai/STATE.yaml'), 'utf8');
+  } catch {
+    return 0;
+  }
+  let inMetrics = false;
+  let inWorkItems = false;
+  let inRef = false;
+  let count = 0;
+  for (const raw of text.split('\n')) {
+    if (!raw.trim()) continue;
+    const indent = raw.length - raw.trimStart().length;
+    const line = raw.trim();
+    if (!inMetrics) {
+      if (indent === 0 && /^metrics\s*:/.test(line)) inMetrics = true;
+      continue;
+    }
+    if (indent === 0) break; // metrics block ended
+    if (!inWorkItems) {
+      if (indent === 2 && /^work_items\s*:/.test(line)) inWorkItems = true;
+      continue;
+    }
+    if (indent === 2) break; // work_items ended (sibling metrics key)
+    if (!inRef) {
+      if (indent === 4 && line === `${ref}:`) inRef = true;
+      continue;
+    }
+    if (indent <= 4) break; // this ref's block ended (next ref or dedent)
+    if (/^-?\s*role\s*:\s*Remediation\b/.test(line)) count += 1;
+  }
+  return count;
+}
+
+// Best-effort remediation-friction capture. Fires ONLY on a real close (called
+// once from the main() success path). Isolation mirrors the wrapper's capture
+// point: honors the AAI_FRICTION_CAPTURE off-switch, and writes only when the
+// resolved spool DIR already exists (a fixture repo lacking docs/ai/friction can
+// never be polluted). Every failure is swallowed — the close outcome is the sole
+// contract.
+function captureRemediationFriction(ref) {
+  try {
+    if (process.env.AAI_FRICTION_CAPTURE === '0') return;
+    const n = countRemediationRuns(ref);
+    if (n <= 0) return;
+    const spoolDir = process.env.AAI_FRICTION_SPOOL_DIR || path.join(ROOT, 'docs', 'ai', 'friction');
+    if (!fs.existsSync(spoolDir) || !fs.statSync(spoolDir).isDirectory()) return;
+    const cli = path.join(SCRIPT_DIR, 'aai-friction.mjs');
+    if (!fs.existsSync(cli)) return;
+    // observed_behavior is deliberately GENERIC (no ref/count) so recurring
+    // remediation load clusters to ONE fingerprint; the ref+count go to the
+    // operator-visible INFO line, never to the persisted (leak-free) record.
+    const obs = {
+      schema_version: 2,
+      skill_id: 'close-work-item',
+      skill_phase: 'close',
+      failure_class: 'abstraction_leak_recovery',
+      expected_behavior: 'a ride reaches close-work-item with no remediation rounds',
+      observed_behavior: 'a completed ride reached close carrying one or more remediation runs',
+      impact: 'low',
+      confidence: 'low',
+    };
+    execFileSync('node', [cli, 'record', '--input', '-'], {
+      input: JSON.stringify(obs),
+      stdio: ['pipe', 'ignore', 'ignore'],
+      cwd: ROOT,
+      env: { ...process.env, AAI_FRICTION_SPOOL_DIR: spoolDir },
+    });
+    process.stderr.write(
+      `close-work-item: INFO friction observation recorded (${ref} carried ${n} remediation run(s))\n`
+    );
+  } catch (err) {
+    process.stderr.write(
+      `close-work-item: INFO friction capture skipped (best-effort, non-fatal): ${err.message}\n`
+    );
+  }
+}
+
 // For each closed ref, assert the REAL audit classifies it tracked-done /
 // aligned with no missing-close-telemetry entry (Spec-AC-02). The audit
 // engine is the oracle — no heuristic is re-implemented here.
@@ -847,6 +940,10 @@ function main() {
   regenerateUserguideRollupBestEffort();
   regenerateDocsHubBestEffort();
   regenerateFactoryReportBestEffort();
+  // CAPTURE POINT 2 (deterministic friction): strictly last, best-effort — a
+  // capture failure never changes the exit code and never reaches rollback. Only
+  // the primary --ref ride's remediation load is summarized (the anchor doc).
+  captureRemediationFriction(resolved[0].fmId);
   process.exit(0);
 }
 

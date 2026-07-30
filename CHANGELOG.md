@@ -11,6 +11,39 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(feedback): deterministic friction capture points (CHANGE-0099) [L2]
+
+- RFC-0012 Phase 2 was stalled on ZERO data — `docs/ai/friction/observations.jsonl`
+  never got written because the only capture path was recall-dependent PROSE in
+  role prompts (the ROLE_COMMON FRICTION HOOK / FRICTION_PROTOCOL.md shadow-capture
+  seam), which demonstrably never fired during real work. This ride wires two
+  DETERMINISTIC capture points into the scripts where friction provably flows (same
+  philosophy as deterministic dispatch: prompt prose does not fire, scripts always
+  do). Raw observation only — no LLM ownership judgment at write time
+  (`confidence: low`), triage stays review-mode.
+- CAPTURE POINT 1 — `.aai/scripts/aai-run-tests.sh`: on a non-zero wrapped-command
+  exit it appends ONE schema-v2 observation via the existing `aai-friction.mjs
+  record` CLI (a 124 timeout -> `stalled_progress`, any other non-zero ->
+  `deterministic_script_failure`; `skill_id: aai-run-tests`). Best-effort and
+  never-mask-the-caller: any capture failure is swallowed and the wrapper's real
+  exit code is never changed.
+- CAPTURE POINT 2 — `.aai/scripts/close-work-item.mjs`: at a successful close it
+  reads `docs/ai/STATE.yaml` and, when the closing ride carried `role: Remediation`
+  agent_runs, appends ONE observation summarizing the recovery work
+  (`skill_id: close-work-item`, `failure_class: abstraction_leak_recovery`). Same
+  strictly-last, best-effort discipline as the report/docs-hub regen hooks — never
+  reaches rollback, never changes the close exit code.
+- ISOLATION (deterministic, pinned): capture fires only when
+  `AAI_FRICTION_CAPTURE` is not `0` AND the resolved `docs/ai/friction` spool DIR
+  already exists, so fixture repos never pollute the real spool; the wrapper's own
+  regression suite sets `AAI_FRICTION_CAPTURE=0`. No schema change (the frozen v2
+  `record` contract is reused verbatim — identity fields stay excluded by
+  construction). No `.aai` prompt bytes and no new `.aai` file added; the only
+  companion obligation is the new `suite-map.yaml` row.
+- Covered by `tests/skills/test-aai-friction-capture-points.sh` (TEST-001..009,
+  incl. never-mask negative controls with an unwritable spool and fixture-isolation
+  pins). RFC-0012 phase-table row 2 updated.
+
 ## [unreleased] — feat(reporting): factory performance report — continuous efficiency overview (CHANGE factory-performance-report) [L2]
 
 - New deterministic generator `.aai/scripts/generate-factory-report.mjs` reads

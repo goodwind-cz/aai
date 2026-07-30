@@ -1,32 +1,32 @@
 {
-  "generatedAt": "2026-07-30T09:17:57.756Z",
+  "generatedAt": "2026-07-30T12:57:06.446Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 104,
-    "delivered": 260,
+    "delivered": 261,
     "active_weeks": 5,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (260 closes vs 104 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 260,
-    "delivered_per_week_avg": 52,
+    "note": "\"delivered\" counts every work_item_closed event (261 closes vs 104 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 261,
+    "delivered_per_week_avg": 52.2,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
       "2026-W29": 135,
       "2026-W30": 64,
-      "2026-W31": 52
+      "2026-W31": 53
     },
     "delivered_groups": [
       {
         "key": "month:2026-07",
         "kind": "month",
         "label": "2026-07",
-        "count": 260,
+        "count": 261,
         "refs": [
           "SPEC-0011",
           "CHANGE-0005",
@@ -287,7 +287,8 @@
           "allocator-header-rewrite",
           "spec-allocator-header-rewrite",
           "factory-performance-report",
-          "spec-factory-performance-report"
+          "spec-factory-performance-report",
+          "deterministic-friction-capture"
         ]
       }
     ],
@@ -1332,12 +1333,16 @@
         {
           "ref": "spec-factory-performance-report",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "deterministic-friction-capture",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3072,
       "mean_seconds": 145520.1,
       "measured": 101,
-      "unmeasurable": 159
+      "unmeasurable": 160
     }
   },
   "speed": {
@@ -1996,7 +2001,7 @@
     },
     {
       "week": "2026-W31",
-      "delivered": 52,
+      "delivered": 53,
       "median_lead_time_seconds": 1812,
       "busy_seconds": 61498,
       "tokens": 7019478,

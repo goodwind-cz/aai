@@ -76,6 +76,55 @@ if [ "$#" -eq 0 ]; then
   exit 2
 fi
 
+# Snapshot the wrapped command for the friction observation below (feeds only
+# the fingerprint — never persisted). Captured now, at script scope, because
+# the capture helper runs after `wait` where a function body's own $@ would
+# shadow the wrapper's positional parameters.
+AAI_CMD_DESC="$*"
+
+# --- CAPTURE POINT 1 — deterministic friction capture (CHANGE deterministic-
+# friction-capture) ----------------------------------------------------------
+# When the wrapped command fails, append ONE raw schema-v2 observation to the
+# offline spool via the existing aai-friction.mjs `record` CLI, so the friction
+# loop gathers deterministic evidence no prose hook depends on. RAW only — no
+# ownership judgment here; confidence is `low` and triage stays review-mode.
+#
+# NEVER-MASK-THE-CALLER: this helper is best-effort and ALWAYS returns 0; every
+# failure (absent CLI/node, unwritable spool, rejected input) is swallowed so
+# the wrapper's own exit code is the sole contract (FRICTION_PROTOCOL.md
+# "Capture never masks the caller").
+#
+# ISOLATION (pinned by tests/skills/test-aai-friction-capture-points.sh):
+#   - off-switch: AAI_FRICTION_CAPTURE=0 disables capture entirely (the wrapper
+#     regression suite sets it so its deliberately-failing commands never
+#     pollute the real spool);
+#   - existence gate: capture fires only when the resolved spool DIR already
+#     exists. A fixture repo has no docs/ai/friction, so it can never create or
+#     write a spool. The spool dir is AAI_FRICTION_SPOOL_DIR when set, else this
+#     script's own repo-root docs/ai/friction.
+aai_capture_friction() {
+  # $1 = exit code (integer), $2 = failure_class (taxonomy enum)
+  [ "${AAI_FRICTION_CAPTURE:-1}" != "0" ] || return 0
+  command -v node >/dev/null 2>&1 || return 0
+  fc_scriptdir=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || return 0
+  [ -n "$fc_scriptdir" ] || return 0
+  fc_cli="$fc_scriptdir/aai-friction.mjs"
+  [ -f "$fc_cli" ] || return 0
+  if [ -n "${AAI_FRICTION_SPOOL_DIR:-}" ]; then
+    fc_dir="$AAI_FRICTION_SPOOL_DIR"
+  else
+    fc_dir="$fc_scriptdir/../../docs/ai/friction"
+  fi
+  [ -d "$fc_dir" ] || return 0
+  # Sanitize the command for the (non-persisted) fingerprint: drop the only
+  # JSON-hostile characters (double-quote, backslash, control chars) and cap the
+  # length, so a command with odd characters can never produce invalid JSON.
+  fc_cmd=$(printf '%s' "$AAI_CMD_DESC" | tr -d '"\\' | tr -d '[:cntrl:]' | cut -c1-180)
+  fc_json=$(printf '{"schema_version":2,"skill_id":"aai-run-tests","skill_phase":"test-execution","failure_class":"%s","expected_behavior":"the wrapped command exits 0 under aai-run-tests","observed_behavior":"wrapped command exited %s: %s","confidence":"low"}' "$2" "$1" "$fc_cmd")
+  printf '%s' "$fc_json" | AAI_FRICTION_SPOOL_DIR="$fc_dir" node "$fc_cli" record --input - >/dev/null 2>&1 || true
+  return 0
+}
+
 # Launch the command as the leader of a NEW session / process group so that even
 # descendants it REPARENTS away (double-fork, `( ... ) & exit 0`) stay inside one
 # killable group (its pgid == its pid) and a single `kill -<sig> -<pgid>` reaps the
@@ -167,6 +216,10 @@ else
 fi
 
 if [ "$TIMED_OUT" -eq 1 ]; then
+  aai_capture_friction 124 stalled_progress
   exit 124
+fi
+if [ "$STATUS" -ne 0 ]; then
+  aai_capture_friction "$STATUS" deterministic_script_failure
 fi
 exit "$STATUS"

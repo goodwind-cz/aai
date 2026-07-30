@@ -216,6 +216,12 @@ suites:
     globs:
       - .aai/scripts/aai-feedback-upsert.mjs
 
+  aai-friction-capture-points:
+    globs:
+      - .aai/scripts/aai-run-tests.sh
+      - .aai/scripts/close-work-item.mjs
+      - .aai/scripts/aai-friction.mjs
+
   aai-friction-wiring:
     globs:
       - .aai/AGENTS.md
