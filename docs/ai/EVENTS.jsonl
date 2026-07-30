@@ -1396,3 +1396,9 @@
 {"v":1,"ts":"2026-07-30T00:05:58.743Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-allocator-header-rewrite","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-07-30T00:05:58.802Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-allocator-header-rewrite","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-30T00:05:58.859Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-allocator-header-rewrite","payload":{"commit":"ffec0e68ad290684d87b84efea8ca301d4cb40f0"}}
+{"v":1,"ts":"2026-07-30T00:11:22.281Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"factory-performance-report","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-30T00:11:22.334Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"factory-performance-report","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-30T00:11:22.392Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"factory-performance-report","payload":{"commit":"ca08b97f3c998eb0632a8148811b406b44e5c26e"}}
+{"v":1,"ts":"2026-07-30T00:11:22.460Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-factory-performance-report","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-07-30T00:11:22.519Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-factory-performance-report","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-30T00:11:22.576Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-factory-performance-report","payload":{"commit":"ca08b97f3c998eb0632a8148811b406b44e5c26e"}}

@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-30T00:06:23.983Z",
-  "skillsCount": 35,
-  "degradedCount": 20,
+  "generatedAt": "2026-07-30T00:11:47.129Z",
+  "skillsCount": 36,
+  "degradedCount": 21,
   "skills": [
     {
       "dir": "aai-auto-trigger",
@@ -123,6 +123,17 @@
       "goal": null,
       "notes": [
         "NOTE: no \"## Goal\" section found in .aai/SKILL_DOCTOR.prompt.md"
+      ]
+    },
+    {
+      "dir": "aai-factory-report",
+      "name": "aai-factory-report",
+      "description": "Use when the user wants a continuous factory-efficiency overview — what the AAI factory delivers, how fast, at what token cost, and at what quality, trended over time — rendered as a self-contained HTML page from the METRICS and EVENTS ledgers.",
+      "model": null,
+      "promptFile": null,
+      "goal": null,
+      "notes": [
+        "NOTE: no .aai/SKILL_*.prompt.md reference found in .claude/skills/aai-factory-report/SKILL.md (script-first skill — see description)"
       ]
     },
     {

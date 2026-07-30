@@ -1,20 +1,22 @@
 ---
 id: spec-factory-performance-report
 type: spec
-number: null
-status: implementing
+number: 108
+status: done
 ceremony_level: 2
 links:
   requirement: factory-performance-report
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 201
+  commits:
+    - ca08b97f3c998eb0632a8148811b406b44e5c26e
 ---
 
 # Implementation Spec — Factory Performance Report
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-factory-performance-report.md
+- Requirement: docs/issues/CHANGE-0098-factory-performance-report.md
 - Decision records: none
 - Technology contract: docs/TECHNOLOGY.md
 - Sibling generators (reuse, do not fork): .aai/scripts/generate-overview.mjs,

@@ -1,32 +1,32 @@
 {
-  "generatedAt": "2026-07-29T23:54:38.505Z",
-  "project": "agent-a1b3c1b945967bfff",
+  "generatedAt": "2026-07-30T00:11:47.169Z",
+  "project": "aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 104,
-    "delivered": 254,
+    "delivered": 258,
     "active_weeks": 5,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (254 closes vs 104 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 254,
-    "delivered_per_week_avg": 50.8,
+    "note": "\"delivered\" counts every work_item_closed event (258 closes vs 104 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 258,
+    "delivered_per_week_avg": 51.6,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
       "2026-W29": 135,
       "2026-W30": 64,
-      "2026-W31": 46
+      "2026-W31": 50
     },
     "delivered_groups": [
       {
         "key": "month:2026-07",
         "kind": "month",
         "label": "2026-07",
-        "count": 254,
+        "count": 258,
         "refs": [
           "SPEC-0011",
           "CHANGE-0005",
@@ -281,7 +281,11 @@
           "spec-auto-update-config",
           "ps1-sync-nonexistent-dest",
           "update-sync-atomic-lock",
-          "seed-update-config"
+          "seed-update-config",
+          "contract-headroom",
+          "github-no-bots-hardening",
+          "factory-performance-report",
+          "spec-factory-performance-report"
         ]
       }
     ],
@@ -1302,12 +1306,28 @@
         {
           "ref": "seed-update-config",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "contract-headroom",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "github-no-bots-hardening",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "factory-performance-report",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-factory-performance-report",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3072,
       "mean_seconds": 145520.1,
       "measured": 101,
-      "unmeasurable": 153
+      "unmeasurable": 157
     }
   },
   "speed": {
@@ -1966,7 +1986,7 @@
     },
     {
       "week": "2026-W31",
-      "delivered": 46,
+      "delivered": 50,
       "median_lead_time_seconds": 1812,
       "busy_seconds": 61498,
       "tokens": 7019478,

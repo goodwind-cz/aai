@@ -2099,6 +2099,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Factory performance report
+
+Answers "how efficiently is the factory running" in one self-contained page: **what it delivers** (throughput), **how fast** (speed), **at what cost** (tokens), and **at what quality** — each as an overall rollup plus a per-ISO-week trend, computed deterministically from the local ledgers (METRICS.jsonl + EVENTS.jsonl, zero network). The page refreshes itself at every work-item close, so it is a continuous overview, not a one-off snapshot.
+
+[Product doc](product/factory-performance-report.md) · [Spec](specs/SPEC-0108-spec-factory-performance-report.md)
+
 ### Staying current with AAI releases
 
 A project built on AAI finds out that a newer AAI release exists **as a side effect of normal use** — nobody has to remember to run an update command. The existing SessionStart hook runs a best-effort, non-blocking check every time a session opens (throttled so it is not a network hit every time). A local config decides what happens:

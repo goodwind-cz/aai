@@ -1,12 +1,14 @@
 ---
 id: factory-performance-report
-number: null
+number: 98
 type: change
-status: draft
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 201
+  commits:
+    - ca08b97f3c998eb0632a8148811b406b44e5c26e
 ---
 
 # Change — Factory Performance Report (continuous efficiency overview)
