@@ -1,14 +1,16 @@
 ---
 id: spec-allocator-header-rewrite
 type: spec
-number: null
-status: implementing
+number: 107
+status: done
 ceremony_level: 3
 links:
-  requirement: docs/issues/CHANGE-DRAFT-allocator-header-rewrite.md
+  requirement: docs/issues/CHANGE-0097-allocator-header-rewrite.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 200
+  commits:
+    - ffec0e68ad290684d87b84efea8ca301d4cb40f0
 ---
 
 # Implementation Spec — allocator-header-rewrite
@@ -35,7 +37,7 @@ it to L3 because the target file is protected. L3 consequences carried:
   scales artifact weight and review, never the evidence bar.
 
 ## Links
-- Requirement / intake: docs/issues/CHANGE-DRAFT-allocator-header-rewrite.md
+- Requirement / intake: docs/issues/CHANGE-0097-allocator-header-rewrite.md
 - Prior allocator specs (context, not modified): docs/specs/SPEC-0015 (RFC-0007
   parallel-safe doc numbering), docs/specs/SPEC-0047 (CHANGE-0035 origin
   reservation), docs/specs/SPEC-0090 (CHANGE-0064 rewrite-all-markdown-trees —
@@ -151,8 +153,8 @@ Neither companion obligation applies:
 - Inline review scope (if inline is recorded):
   .aai/scripts/allocate-doc-number.mjs,
   tests/skills/test-aai-doc-numbering.sh,
-  docs/specs/SPEC-DRAFT-spec-allocator-header-rewrite.md,
-  docs/issues/CHANGE-DRAFT-allocator-header-rewrite.md
+  docs/specs/SPEC-0107-spec-allocator-header-rewrite.md,
+  docs/issues/CHANGE-0097-allocator-header-rewrite.md
 
 ## Acceptance Criteria Mapping
 - Maps to: intake AC-001
@@ -247,7 +249,7 @@ set omits the code-tree consumers) before GREEN
 - Commands:
   - bash tests/skills/test-aai-doc-numbering.sh
   - bash tests/skills/test-aai-doc-number-reservation.sh
-  - node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-allocator-header-rewrite.md
+  - node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0107-spec-allocator-header-rewrite.md
   - node .aai/scripts/docs-audit.mjs --check --strict --no-event
 - Evidence artifacts: suite stdout (exit 0), RED/GREEN logs for TEST-019.
 - PASS criteria: all TEST green AND all Spec-AC terminal AND PR CI full

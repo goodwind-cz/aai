@@ -1,12 +1,14 @@
 ---
 id: allocator-header-rewrite
-number: null
+number: 97
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 200
+  commits:
+    - ffec0e68ad290684d87b84efea8ca301d4cb40f0
 ---
 
 # Change — Allocator rewrites DRAFT references in SCRIPT and TEST trees
@@ -79,7 +81,7 @@ links:
   `.aai/scripts/allocate-doc-number.mjs` is on `protected_paths_l3`
   (docs/ai/docs-audit.yaml), so the scope MUST declare level 3 — same basis as
   the predecessor CHANGE-0064/SPEC-0090. Authorized by the frozen
-  `ceremony_level: 3` spec docs/specs/SPEC-DRAFT-spec-allocator-header-rewrite.md.
+  `ceremony_level: 3` spec docs/specs/SPEC-0107-spec-allocator-header-rewrite.md.
   Consequences: mandatory code review on the most capable tier + an operator
   PR checkpoint before merge.
 - Residual risk: a future draft slug colliding verbatim with a DRAFT-fixture
