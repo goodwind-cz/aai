@@ -66,9 +66,16 @@ test_002_skill_intake_wiring() {
   local ok=1
   [[ -f "$SKILL_INTAKE" ]] || { log_fail "TEST-002 $SKILL_INTAKE missing"; return; }
   grep -qF "IMPLEMENTATION MODE CHOICE" "$SKILL_INTAKE" || { log_info "TEST-002: SKILL_INTAKE does not apply the choice block"; ok=0; }
-  grep -qiF "end of flow" "$SKILL_INTAKE" || { log_info "TEST-002: choice must be surfaced at end of flow"; ok=0; }
+  # Bot-review ordering contract: the choice is asked BEFORE the INTAKE COMPLETE
+  # output (asking after reads as done and gets skipped) — pin the step comes
+  # before the confirm block in file order.
+  local choice_ln confirm_ln
+  choice_ln=$(grep -n "IMPLEMENTATION MODE CHOICE" "$SKILL_INTAKE" | head -1 | cut -d: -f1)
+  confirm_ln=$(grep -n "INTAKE COMPLETE" "$SKILL_INTAKE" | head -1 | cut -d: -f1)
+  { [[ -n "$choice_ln" && -n "$confirm_ln" && "$choice_ln" -lt "$confirm_ln" ]]; } \
+    || { log_info "TEST-002: choice step must precede the INTAKE COMPLETE output (choice=$choice_ln confirm=$confirm_ln)"; ok=0; }
   grep -qF "five blocks" "$SKILL_INTAKE" || { log_info "TEST-002: SHARED POLICY must name five blocks"; ok=0; }
-  [[ $ok -eq 1 ]] && log_pass "TEST-002 SKILL_INTAKE surfaces the choice at end of flow" || log_fail "TEST-002 SKILL_INTAKE wiring"
+  [[ $ok -eq 1 ]] && log_pass "TEST-002 SKILL_INTAKE surfaces the choice before the completion output" || log_fail "TEST-002 SKILL_INTAKE wiring"
 }
 
 # TEST-003 — PLANNING respects a pre-recorded intake choice + enum extended.

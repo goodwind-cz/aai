@@ -91,7 +91,7 @@ const RULES = [
   { id: '8', when: 'worktree.recommendation in {recommended, required} AND user_decision == undecided; ceremony L3 (RFC-0009): undecided gates for ANY recommendation (worktree mandatory)', then: 'dispatch Implementation Preparation / Worktree decision (.aai/SKILL_WORKTREE.prompt.md)' },
   { id: '9a', when: 'phase in {planning done, preparation} AND strategy == tdd', then: 'dispatch TDD Implementation (.aai/SKILL_TDD.prompt.md)' },
   { id: '9b', when: 'phase in {planning done, preparation} AND strategy == hybrid', then: 'dispatch TDD Implementation (the role reads the spec TEST-xxx ordering)' },
-  { id: '9c', when: 'phase in {planning done, preparation} AND strategy == loop', then: 'dispatch Implementation (.aai/IMPLEMENTATION.prompt.md)' },
+  { id: '9c', when: 'phase in {planning done, preparation} AND strategy in {loop, direct, untested} (direct/untested: spec-implementation-mode-choice non-TDD lanes)', then: 'dispatch Implementation (.aai/IMPLEMENTATION.prompt.md)' },
   { id: '10', when: 'last_validation.status == fail', then: 'dispatch Remediation (.aai/REMEDIATION.prompt.md); fail + last run already Remediation -> needs_llm possible_missing_remediation_reset' },
   { id: '11', when: 'last_validation.status == not_run AND phase in {implementation, validation, remediation, code_review}; ceremony L0/L1 (spec-loop-ceremony-aware-dispatch): lightweight lane adds reason lightweight_lane_declared_scope (lane.validation_depth == declared_scope)', then: 'dispatch Validation (.aai/VALIDATION.prompt.md) with validator_independence' },
   { id: '12', when: 'code_review.status == fail', then: 'dispatch Remediation (.aai/REMEDIATION.prompt.md)' },

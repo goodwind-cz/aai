@@ -139,7 +139,10 @@ PROCESS
       node .aai/scripts/state.mjs set-phase --ref <REF-ID> --phase planning --status in_progress --spec-path <spec_path>
       node .aai/scripts/state.mjs set-strategy --selected <loop|tdd|hybrid|direct|untested> --source <spec_path> --rationale "<why>"
       (skip this call when STATE already holds an intake-sourced choice you are
-      respecting; `untested` always needs a non-empty --rationale)
+      respecting; if the intake artifact's `## Notes` carries an
+      `Implementation mode (user choice):` line and STATE has none, record THAT
+      choice first with --source intake and the note's rationale;
+      `untested` always needs a non-empty --rationale)
       node .aai/scripts/state.mjs set-worktree --recommendation <not_needed|optional|recommended|required> --base-ref <ref> --rationale "<why>"
       node .aai/scripts/state.mjs set-code-review --required <true|false> --status not_run --scope "<explicit paths or diff range>" --base-ref <ref>
     Each command validates its enums, writes atomically, and bumps the real

@@ -63,6 +63,11 @@ If the user CHOOSES, record it before planning:
   node .aai/scripts/state.mjs set-strategy --selected <tdd|direct|untested> \
     --source intake --rationale "<the user's own words>"
   (`untested` REQUIRES a non-empty --rationale or the CLI exits 2.)
+  FRESH CHECKOUT: if docs/ai/STATE.yaml does not exist yet (orchestration
+  initializes it later), do NOT run set-strategy — record the choice verbatim
+  in the saved intake artifact under `## Notes` as
+  `Implementation mode (user choice): <tdd|direct|untested> — <rationale>`;
+  Planning treats that note exactly like an intake-sourced record.
 If the user does NOT choose, do nothing here — behavior is UNCHANGED: Planning
 decides the strategy (back-compat). Never silently downgrade rigor: the cheap
 lane must be the user's explicit choice or an explicit recommendation they accept.

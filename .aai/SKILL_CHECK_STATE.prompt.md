@@ -61,7 +61,7 @@ INVARIANT CHECKS (run all, report each)
     FAIL otherwise
 
   [INV-11] implementation_strategy.selected
-    PASS if value is one of: loop, tdd, hybrid, undecided
+    PASS if value is one of: loop, tdd, hybrid, direct, untested, undecided
     FAIL otherwise
     WARN if an active_work_item is in phase == implementation AND value == undecided
 
