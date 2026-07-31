@@ -75,6 +75,14 @@ PROCESS
     two unit tests that each mock the boundary. If a seam cannot be covered by an
     automated test, record it as an explicit residual risk in the spec.
 7) Recommend implementation strategy in the spec:
+   - RESPECT A PRE-RECORDED INTAKE CHOICE (spec-implementation-mode-choice):
+     if `implementation_strategy.selected` in STATE is already `direct`,
+     `untested`, or `tdd` with `source: intake`, the user chose it at intake —
+     keep it. Do NOT override it without telling the user why (a re-plan that
+     silently overrides the user's mode is exactly the reported friction).
+   - `direct` = direct implementation + targeted regression tests (no RED-first
+     ceremony); `untested` = direct implementation, NO tests (e.g. a tuning
+     script) — allowed ONLY with a recorded rationale (the CLI enforces it).
    - `tdd` when behavior is new or risky, a bug fix needs regression proof, core
      domain logic is touched, security/privacy/data integrity is involved, or the
      user requested disciplined TDD.
@@ -129,7 +137,12 @@ PROCESS
 12) Update docs/ai/STATE.yaml — PRIMARY PATH (transactional CLI, SPEC-0012):
       node .aai/scripts/state.mjs set-focus --type <type> --ref <REF-ID> --path <primary_path>
       node .aai/scripts/state.mjs set-phase --ref <REF-ID> --phase planning --status in_progress --spec-path <spec_path>
-      node .aai/scripts/state.mjs set-strategy --selected <loop|tdd|hybrid> --source <spec_path> --rationale "<why>"
+      node .aai/scripts/state.mjs set-strategy --selected <loop|tdd|hybrid|direct|untested> --source <spec_path> --rationale "<why>"
+      (skip this call when STATE already holds an intake-sourced choice you are
+      respecting; if the intake artifact's `## Notes` carries an
+      `Implementation mode (user choice):` line and STATE has none, record THAT
+      choice first with --source intake and the note's rationale;
+      `untested` always needs a non-empty --rationale)
       node .aai/scripts/state.mjs set-worktree --recommendation <not_needed|optional|recommended|required> --base-ref <ref> --rationale "<why>"
       node .aai/scripts/state.mjs set-code-review --required <true|false> --status not_run --scope "<explicit paths or diff range>" --base-ref <ref>
     Each command validates its enums, writes atomically, and bumps the real

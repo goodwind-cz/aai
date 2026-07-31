@@ -2474,6 +2474,60 @@ EOF
   log_pass "Absent --prompt-hash omits the field entirely; goldens byte-identical with and without tdd_tests (prompt-hash-telemetry TEST-004)"
 }
 
+# --- implementation-mode-choice (SPEC spec-implementation-mode-choice) --------
+# The strategy enum gains two cheap lanes: `direct` (implement + targeted
+# regression tests, no RED/GREEN ceremony) and `untested` (implement only, NO
+# tests). `untested` is the owner's tuning-script case and MUST record a
+# rationale so the cheap lane is a deliberate choice, never a silent downgrade.
+
+test_060_strategy_direct_untested_accept() {  # impl-mode TEST-001 / Spec-AC-01
+  log_info "Test: set-strategy accepts direct + untested (with rationale); existing values still work (impl-mode TEST-001)..."
+  local s="$TEST_DIR/t60-state.yaml"
+  write_state_fixture "$s"
+
+  st "$s" "$TEST_DIR/t60-1.log" set-strategy --selected direct --source intake --rationale "small single-surface change; targeted tests only" \
+    || log_fail "set-strategy --selected direct must exit 0: $(cat "$TEST_DIR/t60-1.log")"
+  grep -qE '^  selected: direct$' "$s" || log_fail "implementation_strategy.selected must be direct"
+  ck "$s" "$TEST_DIR/t60-1c.log" || log_fail "check-state after set-strategy direct: $(cat "$TEST_DIR/t60-1c.log")"
+
+  st "$s" "$TEST_DIR/t60-2.log" set-strategy --selected untested --source intake --rationale "tuning script; no tests needed" \
+    || log_fail "set-strategy --selected untested (with rationale) must exit 0: $(cat "$TEST_DIR/t60-2.log")"
+  grep -qE '^  selected: untested$' "$s" || log_fail "implementation_strategy.selected must be untested"
+  ck "$s" "$TEST_DIR/t60-2c.log" || log_fail "check-state after set-strategy untested: $(cat "$TEST_DIR/t60-2c.log")"
+
+  # Back-compat: every legacy value still accepted.
+  local v
+  for v in loop tdd hybrid undecided; do
+    st "$s" "$TEST_DIR/t60-3.log" set-strategy --selected "$v" \
+      || log_fail "legacy set-strategy --selected $v must still exit 0: $(cat "$TEST_DIR/t60-3.log")"
+    grep -qE "^  selected: $v\$" "$s" || log_fail "implementation_strategy.selected must be $v"
+  done
+  log_pass "set-strategy accepts direct/untested + all legacy values, check-state clean (impl-mode TEST-001)"
+}
+
+test_061_untested_requires_rationale() {  # impl-mode TEST-002 / Spec-AC-02
+  log_info "Test: set-strategy --selected untested WITHOUT a rationale exits 2 and writes nothing (impl-mode TEST-002)..."
+  local s="$TEST_DIR/t61-state.yaml"
+  write_state_fixture "$s"
+  cp "$s" "$TEST_DIR/t61-snapshot.yaml"
+
+  local ec=0
+  st "$s" "$TEST_DIR/t61-1.log" set-strategy --selected untested --source intake || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "untested without --rationale must exit 2 (got $ec): $(cat "$TEST_DIR/t61-1.log")"
+  cmp -s "$s" "$TEST_DIR/t61-snapshot.yaml" || log_fail "fixture must stay byte-identical after rejected untested (no rationale)"
+
+  # A blank/whitespace-only rationale is also rejected (not a real reason).
+  ec=0
+  st "$s" "$TEST_DIR/t61-2.log" set-strategy --selected untested --rationale "   " || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "untested with blank --rationale must exit 2 (got $ec): $(cat "$TEST_DIR/t61-2.log")"
+  cmp -s "$s" "$TEST_DIR/t61-snapshot.yaml" || log_fail "fixture must stay byte-identical after rejected untested (blank rationale)"
+
+  # `direct` does NOT require a rationale (targeted tests still prove behavior).
+  st "$s" "$TEST_DIR/t61-3.log" set-strategy --selected direct \
+    || log_fail "direct without --rationale must still exit 0: $(cat "$TEST_DIR/t61-3.log")"
+  log_pass "untested demands a non-empty rationale (exit 2, no write); direct does not (impl-mode TEST-002)"
+}
+
 main() {
   echo "Testing $TEST_NAME (transactional STATE CLI — SPEC-0012 TEST-001..025 + SPEC-0014 additions)"
   check_deps
@@ -2537,6 +2591,8 @@ main() {
   test_057_prompt_hash_valid
   test_058_prompt_hash_invalid
   test_059_prompt_hash_absent_goldens
+  test_060_strategy_direct_untested_accept
+  test_061_untested_requires_rationale
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

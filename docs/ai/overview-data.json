@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-07-30T12:57:06.312Z",
+  "generatedAt": "2026-07-31T08:50:01.942Z",
   "project": "aai",
   "counts": {
-    "delivered": 144,
+    "delivered": 145,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -79,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "implementation-mode-choice",
+      "title": "Change — surface an implementation-mode choice at intake (TDD / direct+tests / no-tests)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0100-implementation-mode-choice.md",
+      "closed_on": "2026-07-31",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0109-spec-implementation-mode-choice.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "allocator-header-rewrite",
       "title": "Change — Allocator rewrites DRAFT references in SCRIPT and TEST trees",
@@ -1958,6 +1971,19 @@
       "kind": "month",
       "label": "2026-07",
       "items": [
+        {
+          "ref": "implementation-mode-choice",
+          "title": "Change — surface an implementation-mode choice at intake (TDD / direct+tests / no-tests)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0100-implementation-mode-choice.md",
+          "closed_on": "2026-07-31",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0109-spec-implementation-mode-choice.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "allocator-header-rewrite",
           "title": "Change — Allocator rewrites DRAFT references in SCRIPT and TEST trees",

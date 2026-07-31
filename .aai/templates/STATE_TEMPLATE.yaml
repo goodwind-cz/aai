@@ -8,7 +8,7 @@
 #   active_work_items[].status: planned | in_progress | blocked | done
 #   active_work_items[].phase:  planning | preparation | implementation | validation |
 #                              code_review | remediation
-#   implementation_strategy.selected: loop | tdd | hybrid | undecided
+#   implementation_strategy.selected: loop | tdd | hybrid | direct | untested | undecided
 #   worktree.recommendation:   not_needed | optional | recommended | required
 #   worktree.user_decision:    undecided | worktree | inline | waived
 #   code_review.status:        not_run | pass | fail | waived

@@ -61,6 +61,14 @@ path for the intake flow. The opt-in pre-commit hook
 safety net for any docs/ commit made outside intake. CI should gate with
 `node .aai/scripts/generate-docs-index.mjs --strict` (non-zero on violations).
 
+STEP 2.7 — IMPLEMENTATION MODE CHOICE (before the completion output —
+asking after "INTAKE COMPLETE" reads as done and gets skipped)
+Apply the "IMPLEMENTATION MODE CHOICE (end of intake, spec-implementation-mode-choice)"
+block from .aai/INTAKE_COMMON.md exactly: present the 3-way choice with a
+signal-derived recommendation and, only if the user chooses, record it via
+`state.mjs set-strategy --source intake`. If the user does not choose, do nothing
+(Planning decides — back-compat).
+
 STEP 3 — CONFIRM ARTIFACT
 After the intake artifact is saved, output:
 
@@ -73,7 +81,7 @@ Index:     docs/INDEX.md regenerated
 Next step: Run .aai/ORCHESTRATION.prompt.md to dispatch the next role.
 ---
 
-SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its four blocks (language policy, durable doc identity, post-save check, metrics question) exactly.
+SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its five blocks (language policy, durable doc identity, post-save check, metrics question, implementation mode choice) exactly.
 
 EFFICIENCY RULES
 - Ask only for missing high-impact fields.

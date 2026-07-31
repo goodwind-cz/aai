@@ -2099,6 +2099,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Choosing how much rigor an implementation gets
+
+At the end of every intake, AAI now **asks you how to implement** — with a recommendation — instead of silently defaulting to the full TDD loop:
+
+[Product doc](product/implementation-mode-choice.md) · [Spec](specs/SPEC-0109-spec-implementation-mode-choice.md)
+
 ### Factory performance report
 
 Answers "how efficiently is the factory running" in one self-contained page: **what it delivers** (throughput), **how fast** (speed), **at what cost** (tokens), and **at what quality** — each as an overall rollup plus a per-ISO-week trend, computed deterministically from the local ledgers (METRICS.jsonl + EVENTS.jsonl, zero network). The page refreshes itself at every work-item close, so it is a continuous overview, not a one-off snapshot.

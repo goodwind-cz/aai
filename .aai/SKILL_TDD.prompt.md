@@ -61,6 +61,10 @@ Implementation.
    - TDD may proceed for the TDD-marked portion of a `hybrid` strategy.
    - If strategy is `loop`, STOP and ask whether to return to Planning to switch
      strategy to TDD or to continue with regular loop implementation.
+   - If strategy is `direct` or `untested` (spec-implementation-mode-choice), the
+     user chose a non-TDD lane at intake: do NOT start RED. Hand off to
+     `.aai/IMPLEMENTATION.prompt.md` (direct = implement then targeted tests;
+     untested = implement only, no tests).
    - If strategy is `undecided`, return to Planning. Do not start RED.
 
 6. **Resolve worktree decision gate** — see .aai/ROLE_COMMON.md WORKTREE GATE.

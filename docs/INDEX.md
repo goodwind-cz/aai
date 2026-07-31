@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-30T13:02:25.213Z
+Generated: 2026-07-31T09:19:51.889Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (13)
+## Product (14)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -27,6 +27,7 @@ _None._
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
 | factory-performance-report | factory-performance-report | 1 | docs/product/factory-performance-report.md |
 | friction-capture-default-on | friction-capture-default-on | 1 | docs/product/friction-capture-default-on.md |
+| implementation-mode-choice | implementation-mode-choice | 1 | docs/product/implementation-mode-choice.md |
 | issues-skill | issues-skill | 1 | docs/product/issues-skill.md |
 | learned-append-gate | learned-append-gate | 1 | docs/product/learned-append-gate.md |
 | platform-portable-pr | platform-portable-pr | 1 | docs/product/platform-portable-pr.md |
@@ -35,7 +36,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (254)
+## Done (256)
 
 | ID | Type | Path |
 |---|---|---|
@@ -138,6 +139,7 @@ _None._
 | CHANGE-0097 | issues | docs/issues/CHANGE-0097-allocator-header-rewrite.md |
 | CHANGE-0098 | issues | docs/issues/CHANGE-0098-factory-performance-report.md |
 | CHANGE-0099 | issues | docs/issues/CHANGE-0099-deterministic-friction-capture.md |
+| CHANGE-0100 | issues | docs/issues/CHANGE-0100-implementation-mode-choice.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -292,6 +294,7 @@ _None._
 | SPEC-0106 | specs | docs/specs/SPEC-0106-spec-auto-update-config.md |
 | SPEC-0107 | specs | docs/specs/SPEC-0107-spec-allocator-header-rewrite.md |
 | SPEC-0108 | specs | docs/specs/SPEC-0108-spec-factory-performance-report.md |
+| SPEC-0109 | specs | docs/specs/SPEC-0109-spec-implementation-mode-choice.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
@@ -333,4 +336,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-30 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-31 — counts above use this date for overdue checks.
