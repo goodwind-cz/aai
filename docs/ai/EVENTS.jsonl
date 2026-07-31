@@ -1405,3 +1405,9 @@
 {"v":1,"ts":"2026-07-30T12:56:39.454Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"deterministic-friction-capture","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-07-30T12:56:39.515Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"deterministic-friction-capture","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-07-30T12:56:39.581Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"deterministic-friction-capture","payload":{"commit":"e3ae4ac981b0d78a96dc11100f03ea00c8b0c658"}}
+{"v":1,"ts":"2026-07-31T08:49:35.003Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"implementation-mode-choice","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-31T08:49:35.069Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"implementation-mode-choice","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-31T08:49:35.154Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"implementation-mode-choice","payload":{"commit":"89dc08a24e668b0fd9b8685cfb51269e0043cd8b"}}
+{"v":1,"ts":"2026-07-31T08:49:35.222Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-implementation-mode-choice","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-07-31T08:49:35.285Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-implementation-mode-choice","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-07-31T08:49:35.345Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-implementation-mode-choice","payload":{"commit":"89dc08a24e668b0fd9b8685cfb51269e0043cd8b"}}

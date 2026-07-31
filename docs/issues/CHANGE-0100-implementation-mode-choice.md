@@ -1,12 +1,14 @@
 ---
 id: implementation-mode-choice
 type: change
-number: null
-status: draft
+number: 100
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 203
+  commits:
+    - 89dc08a24e668b0fd9b8685cfb51269e0043cd8b
 ---
 
 # Change — surface an implementation-mode choice at intake (TDD / direct+tests / no-tests)

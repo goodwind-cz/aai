@@ -1,14 +1,16 @@
 ---
 id: spec-implementation-mode-choice
 type: spec
-number: null
-status: draft
+number: 109
+status: done
 ceremony_level: 3
 links:
-  requirement: docs/issues/CHANGE-DRAFT-implementation-mode-choice.md
+  requirement: docs/issues/CHANGE-0100-implementation-mode-choice.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 203
+  commits:
+    - 89dc08a24e668b0fd9b8685cfb51269e0043cd8b
 ---
 
 # Implementation Spec — implementation-mode-choice
@@ -34,7 +36,7 @@ carried:
   scales artifact weight and review, never the evidence bar.
 
 ## Links
-- Requirement / intake: docs/issues/CHANGE-DRAFT-implementation-mode-choice.md
+- Requirement / intake: docs/issues/CHANGE-0100-implementation-mode-choice.md
 - Precedent (L3 protected-surface spec, context only): docs/specs/SPEC-0107-spec-allocator-header-rewrite.md
 - Prior strategy/dispatch specs (context, not modified): SPEC-0012 (state CLI),
   SPEC-0041 (loop ceremony-aware dispatch)
@@ -139,8 +141,8 @@ recorded rationale.
   tests/skills/test-aai-state.sh, tests/skills/test-aai-implementation-mode.sh,
   tests/skills/lib/prompt-diet-ledger.sh, tests/skills/test-aai-prompt-diet.sh,
   tests/skills/suite-map.yaml,
-  docs/specs/SPEC-DRAFT-spec-implementation-mode-choice.md,
-  docs/issues/CHANGE-DRAFT-implementation-mode-choice.md, CHANGELOG.md
+  docs/specs/SPEC-0109-spec-implementation-mode-choice.md,
+  docs/issues/CHANGE-0100-implementation-mode-choice.md, CHANGELOG.md
 
 ## Acceptance Criteria Mapping
 - Maps to: intake AC-001
@@ -247,7 +249,7 @@ before GREEN; the prompt-wiring pins were observed absent at HEAD
   - bash tests/skills/test-aai-hygiene-pack.sh
   - bash tests/skills/test-aai-layer-profiles.sh
   - node .aai/scripts/docs-audit.mjs --check --strict --no-event
-  - node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-implementation-mode-choice.md
+  - node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0109-spec-implementation-mode-choice.md
 - Evidence artifacts: suite stdout (exit 0), RED/GREEN logs under docs/ai/tdd/.
 - PASS criteria: all TEST green AND all Spec-AC terminal AND full framework green.
 

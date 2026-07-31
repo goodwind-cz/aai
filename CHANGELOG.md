@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(intake): user-facing implementation-mode choice (TDD / direct+tests / no-tests) (SPEC spec-implementation-mode-choice) [L3]
+## [unreleased] — feat(intake): user-facing implementation-mode choice (TDD / direct+tests / no-tests) (CHANGE-0100 / SPEC-0109) [L3]
 
 - After a full intake AAI silently routed small changes through the full TDD loop
   (~3-5% of a weekly token limit for a comparable small change), forcing the owner

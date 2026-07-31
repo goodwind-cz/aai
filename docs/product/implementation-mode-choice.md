@@ -4,8 +4,8 @@ type: product
 capability: implementation-mode-choice
 status: current
 delivered_by:
-  - CHANGE-DRAFT-implementation-mode-choice
-spec: docs/specs/SPEC-DRAFT-spec-implementation-mode-choice.md
+  - CHANGE-0100
+spec: docs/specs/SPEC-0109-spec-implementation-mode-choice.md
 updated: 2026-07-31
 ---
 
@@ -67,5 +67,5 @@ planner decides exactly as before.
 
 ## Links
 
-- Request: docs/issues/CHANGE-DRAFT-implementation-mode-choice.md
-- Spec: docs/specs/SPEC-DRAFT-spec-implementation-mode-choice.md
+- Request: docs/issues/CHANGE-0100-implementation-mode-choice.md
+- Spec: docs/specs/SPEC-0109-spec-implementation-mode-choice.md
