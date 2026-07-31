@@ -41,7 +41,7 @@ check_deps() {
   [[ -d .aai ]] || log_skip ".aai directory not found"
 }
 
-# TEST-001 — intake choice block: single-sourced in INTAKE_COMMON.md, 3 options,
+# TEST-001 — intake choice block: single-sourced in INTAKE_COMMON.md, 4 options,
 # set-strategy --source intake recording, and the back-compat no-choice path.
 test_001_intake_block() {
   local ok=1
@@ -52,12 +52,13 @@ test_001_intake_block() {
   grep -qiF "Full TDD loop" "$INTAKE_COMMON" || { log_info "TEST-001: missing option 1 (full TDD loop)"; ok=0; }
   grep -qiF "Direct + targeted tests" "$INTAKE_COMMON" || { log_info "TEST-001: missing option 2 (direct + targeted tests)"; ok=0; }
   grep -qiF "Direct without tests" "$INTAKE_COMMON" || { log_info "TEST-001: missing option 3 (direct without tests)"; ok=0; }
+  grep -qiF "Let Planning decide" "$INTAKE_COMMON" || { log_info "TEST-001: missing explicit option 4 (let Planning decide — never rely on detecting silence)"; ok=0; }
   grep -qF "set-strategy --selected <tdd|direct|untested>" "$INTAKE_COMMON" \
     || { log_info "TEST-001: missing set-strategy recording line"; ok=0; }
   grep -qF -- "--source intake" "$INTAKE_COMMON" || { log_info "TEST-001: choice must be recorded with --source intake"; ok=0; }
   grep -qiF "recommend" "$INTAKE_COMMON" || { log_info "TEST-001: block must carry a recommendation"; ok=0; }
   grep -qiF "does NOT choose" "$INTAKE_COMMON" || { log_info "TEST-001: back-compat no-choice path missing"; ok=0; }
-  [[ $ok -eq 1 ]] && log_pass "TEST-001 intake choice block single-sourced with 3 options + recommendation + back-compat" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-001 intake choice block single-sourced with 4 options + recommendation + back-compat" \
     || log_fail "TEST-001 intake choice block"
 }
 

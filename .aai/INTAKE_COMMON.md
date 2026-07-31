@@ -47,12 +47,15 @@ If the user provides a number N, append or update in docs/ai/STATE.yaml:
 If the user skips or ref_id is not yet known, leave intake: null.
 
 ## IMPLEMENTATION MODE CHOICE (end of intake, spec-implementation-mode-choice)
-After the artifact is saved (the LAST step of intake), PRESENT the user a 3-way
+After the artifact is saved (the LAST step of intake), PRESENT the user a 4-way
 implementation-mode choice WITH a recommendation, in their language:
 1. Full TDD loop — RED-GREEN-REFACTOR per test (highest rigor, highest token cost).
 2. Direct + targeted tests — implement first, then targeted regression tests
    (no RED-first ceremony).
 3. Direct without tests — implement only, NO tests (e.g. a tuning/run script).
+4. Let Planning decide — the default; record nothing. ALWAYS list this as an
+   explicit numbered option (never rely on detecting silence/enter); an empty
+   or ambiguous reply is treated as option 4.
 RECOMMENDATION (derive from deterministic signals, state which fired):
 - script-only / tuning / config-only / docs-only scope -> recommend option 3
   (direct without tests);
