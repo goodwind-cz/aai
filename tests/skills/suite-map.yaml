@@ -289,6 +289,17 @@ suites:
       - hooks/session-start.ps1
       - hooks/hooks.json
 
+  aai-implementation-mode:
+    globs:
+      - .aai/INTAKE_COMMON.md
+      - .aai/SKILL_INTAKE.prompt.md
+      - .aai/PLANNING.prompt.md
+      - .aai/IMPLEMENTATION.prompt.md
+      - .aai/SKILL_TDD.prompt.md
+      - .aai/VALIDATION.prompt.md
+      - .aai/scripts/state.mjs
+      - .aai/scripts/orchestration-dispatch.mjs
+
   aai-intake:
     globs:
       - .aai/SKILL_INTAKE.prompt.md

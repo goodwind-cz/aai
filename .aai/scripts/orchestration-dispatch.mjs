@@ -53,7 +53,10 @@ const VALIDATION_STATUSES = ['pass', 'fail', 'not_run'];
 const REVIEW_STATUSES = ['not_run', 'pass', 'fail', 'waived'];
 const PHASES = ['planning', 'preparation', 'implementation', 'validation', 'code_review', 'remediation'];
 const ITEM_STATUSES = ['planned', 'in_progress', 'blocked', 'done'];
-const STRATEGIES = ['loop', 'tdd', 'hybrid', 'undecided'];
+// implementation-mode-choice: `direct` and `untested` are cheap non-TDD lanes.
+// They are NOT undecided (so rule 7 never re-plans them) and NOT tdd/hybrid (so
+// rule 9c dispatches the regular Implementation agent, which honors the lane).
+const STRATEGIES = ['loop', 'tdd', 'hybrid', 'direct', 'untested', 'undecided'];
 const RECOMMENDATIONS = ['not_needed', 'optional', 'recommended', 'required'];
 const USER_DECISIONS = ['undecided', 'worktree', 'inline', 'waived'];
 const BOOLS = ['true', 'false'];
@@ -390,6 +393,8 @@ export function decide(snapshot) {
   if ((phase === 'planning' && s.work_item.status === 'done') || phase === 'preparation') {
     if (s.strategy_selected === 'tdd') return dispatchFor('TDD Implementation', s, '9a');
     if (s.strategy_selected === 'hybrid') return dispatchFor('TDD Implementation', s, '9b');
+    // loop | direct | untested all run the regular Implementation agent (9c),
+    // which reads implementation_strategy.selected and honors the chosen lane.
     return dispatchFor('Implementation', s, '9c');
   }
   const vstatus = s.validation ? s.validation.status : null;

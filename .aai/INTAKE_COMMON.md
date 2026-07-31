@@ -46,6 +46,27 @@ If the user provides a number N, append or update in docs/ai/STATE.yaml:
           intake: N
 If the user skips or ref_id is not yet known, leave intake: null.
 
+## IMPLEMENTATION MODE CHOICE (end of intake, spec-implementation-mode-choice)
+After the artifact is saved (the LAST step of intake), PRESENT the user a 3-way
+implementation-mode choice WITH a recommendation, in their language:
+1. Full TDD loop — RED-GREEN-REFACTOR per test (highest rigor, highest token cost).
+2. Direct + targeted tests — implement first, then targeted regression tests
+   (no RED-first ceremony).
+3. Direct without tests — implement only, NO tests (e.g. a tuning/run script).
+RECOMMENDATION (derive from deterministic signals, state which fired):
+- script-only / tuning / config-only / docs-only scope -> recommend option 3
+  (direct without tests);
+- small single-surface change, low risk -> recommend option 2 (direct + tests);
+- behavioral, multi-surface, core/state/security/data-integrity, or a declared
+  ceremony_level 2/3 -> recommend option 1 (full TDD).
+If the user CHOOSES, record it before planning:
+  node .aai/scripts/state.mjs set-strategy --selected <tdd|direct|untested> \
+    --source intake --rationale "<the user's own words>"
+  (`untested` REQUIRES a non-empty --rationale or the CLI exits 2.)
+If the user does NOT choose, do nothing here — behavior is UNCHANGED: Planning
+decides the strategy (back-compat). Never silently downgrade rigor: the cheap
+lane must be the user's explicit choice or an explicit recommendation they accept.
+
 ## SECRETS PREFLIGHT (CHANGE-0034)
 If the scope references a local secret (an env var or a config key holding a
 credential), never print, cat, or echo it. For each reference, run

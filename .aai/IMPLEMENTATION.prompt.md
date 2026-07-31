@@ -50,6 +50,14 @@ PROCESS
    - If strategy is `hybrid`, implement only the non-TDD TEST-xxx entries that
      are explicitly assigned to loop/free-form implementation. Leave TDD-marked
      entries to `.aai/SKILL_TDD.prompt.md`.
+   - If strategy is `direct` (spec-implementation-mode-choice): implement the
+     scope FIRST, then add targeted regression tests for the changed behavior.
+     No RED-first ceremony and no docs/ai/tdd/*.log are demanded; the targeted
+     tests must still run and pass (exit codes are the evidence).
+   - If strategy is `untested`: implement the scope ONLY — write NO test files
+     (this is the owner's tuning/run-script case). Name the recorded
+     `implementation_strategy.rationale` in your hand-off so the no-tests choice
+     is visible, and state the declared verification (e.g. a smoke run) you ran.
    - If strategy is `undecided`, STOP and return to Planning.
 5) Enforce worktree decision gate — see .aai/ROLE_COMMON.md WORKTREE GATE:
    - If user_decision is `worktree`, confirm the current working directory is

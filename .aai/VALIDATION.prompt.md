@@ -111,6 +111,22 @@ CEREMONY LANE (spec-loop-ceremony-aware-dispatch)
 - When `lane.selected == "full"` (ceremony_level 2/3, or any fail-closed
   case above), run the full discovery/execution sweep exactly as today.
 
+STRATEGY-CONDITIONAL EVIDENCE (spec-implementation-mode-choice)
+The RED-proof / TDD-evidence demand of step 5g is CONDITIONAL on
+`implementation_strategy.selected`; the strategy NEVER weakens the test-suite
+execution or the AC STATUS GATE:
+- `tdd` / `hybrid` -> UNCHANGED: step 5g applies in full (RED-proof, RED_CLASS,
+  tdd-evidence-check.mjs, infra_fail rejection, Legacy carve-out).
+- `direct` -> require TARGETED-TEST evidence only: the scope's regression tests
+  ran and passed (suite exit codes). No RED-proof and no docs/ai/tdd RED log is
+  demanded (there was no RED-first ceremony).
+- `untested` -> require DECLARED-VERIFICATION evidence only: the smoke run or
+  manual check named at intake/implementation, PLUS the recorded
+  `implementation_strategy.rationale`. No test suites are demanded for the scope
+  itself; any OTHER discovered suites still run and still gate as usual.
+This conditionality applies ONLY to the RED-proof obligation. Never soften
+tdd/hybrid, the independence rule, adversarial stance, or the AC STATUS GATE.
+
 PROCESS
 1) Read docs/ai/STATE.yaml and verify validation is allowed (not paused, not blocked by human_input).
    Advisory: run `node .aai/scripts/spec-lint.mjs --path <spec_path>` and record its structural
@@ -139,7 +155,10 @@ PROCESS
       executed (real produce-then-assert across the boundary, not two mocked unit
       tests). A seam with no crossing test that ran is a coverage gap → FAIL,
       unless the spec records it as an explicitly accepted residual risk.
-   g) RED-proof check (anti-tautology): for each test that gates a Spec-AC, confirm
+   g) RED-proof check (anti-tautology) — see STRATEGY-CONDITIONAL EVIDENCE above:
+      this obligation applies in full to `tdd`/`hybrid`; `direct` needs
+      targeted-test exit codes (no RED-proof) and `untested` needs the declared
+      verification + recorded rationale. For each test that gates a Spec-AC, confirm
       it has been observed FAILING without the change (TDD red log, or a documented
       failing run on the pre-change tree). A green-only test that was never seen
       failing may be tautological and self-validating → record as a residual risk;

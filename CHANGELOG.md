@@ -11,7 +11,34 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased]
+## [unreleased] — feat(intake): user-facing implementation-mode choice (TDD / direct+tests / no-tests) (SPEC spec-implementation-mode-choice) [L3]
+
+- After a full intake AAI silently routed small changes through the full TDD loop
+  (~3-5% of a weekly token limit for a comparable small change), forcing the owner
+  to manually steer to direct implementation each time, and it wrote tests even for
+  tuning/run scripts unless explicitly told not to. This ride surfaces the
+  implementation mode to the user at the END of intake as an explicit 3-way choice
+  WITH a recommendation, and honors the chosen lane end to end.
+- STRATEGY ENUM (`.aai/scripts/state.mjs`, protected L3): `direct` (implement +
+  targeted regression tests, no RED/GREEN ceremony) and `untested` (implement only,
+  NO tests) join `loop`/`tdd`/`hybrid`/`undecided` (back-compat). `set-strategy`
+  REJECTS `untested` without a non-empty `--rationale` (exit 2, nothing written) so
+  the no-tests lane is always a deliberate, audited choice. The enum is mirrored in
+  `orchestration-dispatch.mjs` so a recorded lane is never rejected by the dispatcher.
+- INTAKE SURFACES THE CHOICE: single-sourced "IMPLEMENTATION MODE CHOICE" block in
+  `.aai/INTAKE_COMMON.md`, applied at end of flow from `.aai/SKILL_INTAKE.prompt.md`
+  (STEP 3.5). The recommendation is derived from deterministic signals
+  (script/tuning-only -> no-tests; small single-surface -> direct+tests;
+  behavioral/multi-surface/L2-L3 -> full TDD). No choice -> unchanged (Planning
+  decides).
+- DOWNSTREAM HONOR: PLANNING respects a pre-recorded intake choice (never silently
+  overrides); IMPLEMENTATION/SKILL_TDD run the `direct`/`untested` lanes; VALIDATION
+  makes the RED-proof / TDD-evidence demand strategy-conditional (`direct` ->
+  targeted-test exit codes, `untested` -> declared verification + rationale) and
+  NEVER weakens the tdd/hybrid lanes, independence, or the AC STATUS GATE.
+- Governance: prompt-diet ledger true-up (+4774 B, headroom 0/2048) + TEST-012 pin;
+  new grep-contract suite `tests/skills/test-aai-implementation-mode.sh` + suite-map
+  row; frozen ceremony_level:3 spec authorizes the state.mjs touch (TEST-014).
 
 ## [v2026.07.30] — feat(feedback): deterministic friction capture points (CHANGE-0099) [L2]
 

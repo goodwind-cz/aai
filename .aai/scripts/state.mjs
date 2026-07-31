@@ -28,6 +28,9 @@
 //   set-code-review [--status <s>] [--required <b>] [--scope <t>] [--base-ref <r>]
 //                   [--head-ref <r>] [--report <p>]... [--notes <t>] [--clear <f,f>] (>=1 flag)
 //   set-strategy --selected <s> [--source <p>] [--rationale <t>]
+//                  <s> = loop | tdd | hybrid | direct | untested | undecided.
+//                  `untested` (no-tests lane) REQUIRES a non-empty --rationale
+//                  or the command exits 2 pre-write (nothing written).
 //   set-worktree [--recommendation <r>] [--user-decision <d>] [--base-ref <r>]
 //                [--branch <b>] [--path <p>] [--inline-scope <t>] [--rationale <t>]
 //                [--clear <f,f>] (>=1 flag)
@@ -124,7 +127,12 @@ const PHASES = ['planning', 'preparation', 'implementation', 'validation', 'code
 const ITEM_STATUSES = ['planned', 'in_progress', 'blocked', 'done'];
 const VALIDATION_STATUSES = ['pass', 'fail', 'not_run'];
 const REVIEW_STATUSES = ['not_run', 'pass', 'fail', 'waived'];
-const STRATEGIES = ['loop', 'tdd', 'hybrid', 'undecided'];
+// implementation-mode-choice: `direct` (implement + targeted regression tests,
+// no RED/GREEN ceremony) and `untested` (implement only, NO tests) are the two
+// cheap lanes surfaced to the user at intake. `untested` REQUIRES a --rationale
+// (enforced in cmdSetStrategy) so the no-tests lane is always a deliberate,
+// audited choice — never a silent downgrade of rigor. Legacy values unchanged.
+const STRATEGIES = ['loop', 'tdd', 'hybrid', 'direct', 'untested', 'undecided'];
 const RECOMMENDATIONS = ['not_needed', 'optional', 'recommended', 'required'];
 const USER_DECISIONS = ['undecided', 'worktree', 'inline', 'waived'];
 const TDD_STATUSES = ['IDLE', 'RED', 'GREEN', 'REFACTOR_COMPLETE'];
@@ -600,6 +608,11 @@ function cmdSetStrategy(state, flags) {
   const selected = enumFlag(flags, 'selected', STRATEGIES, 'set-strategy', { required: true });
   const source = strFlag(flags, 'source', 'set-strategy');
   const rationale = strFlag(flags, 'rationale', 'set-strategy');
+  // implementation-mode-choice: the no-tests lane must record WHY (audit trail;
+  // never a silent rigor downgrade). Reject pre-write so nothing is written.
+  if (selected === 'untested' && (rationale === undefined || rationale.trim() === '')) {
+    fail('set-strategy: --selected untested requires a non-empty --rationale (the no-tests lane must record why tests are skipped)');
+  }
   editBlock(state.lines, 'implementation_strategy', bl => {
     setField(bl, 2, 'selected', [scalarLine(2, 'selected', selected)]);
     if (source !== undefined) setField(bl, 2, 'source', [scalarLine(2, 'source', yq(source))]);

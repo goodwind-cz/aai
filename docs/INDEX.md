@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-30T13:02:25.213Z
+Generated: 2026-07-31T08:27:17.062Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -294,9 +294,12 @@ _None._
 | SPEC-0108 | specs | docs/specs/SPEC-0108-spec-factory-performance-report.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| implementation-mode-choice (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-implementation-mode-choice.md |
+| spec-implementation-mode-choice (unnumbered draft) | specs | docs/specs/SPEC-DRAFT-spec-implementation-mode-choice.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -333,4 +336,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-30 — counts above use this date for overdue checks.
+Today (UTC): 2026-07-31 — counts above use this date for overdue checks.
