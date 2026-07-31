@@ -49,19 +49,19 @@ If the user skips or ref_id is not yet known, leave intake: null.
 ## IMPLEMENTATION MODE CHOICE (end of intake, spec-implementation-mode-choice)
 After the artifact is saved (the LAST step of intake), PRESENT the user a 4-way
 implementation-mode choice WITH a recommendation, in their language:
-1. Full TDD loop — RED-GREEN-REFACTOR per test (highest rigor, highest token cost).
-2. Direct + targeted tests — implement first, then targeted regression tests
-   (no RED-first ceremony).
-3. Direct without tests — implement only, NO tests (e.g. a tuning/run script).
-4. Let Planning decide — the default; record nothing. ALWAYS list this as an
+1. Let Planning decide — the DEFAULT, listed FIRST; record nothing. ALWAYS an
    explicit numbered option (never rely on detecting silence/enter); an empty
-   or ambiguous reply is treated as option 4.
+   or ambiguous reply is treated as option 1.
+2. Full TDD loop — RED-GREEN-REFACTOR per test (highest rigor, highest token cost).
+3. Direct + targeted tests — implement first, then targeted regression tests
+   (no RED-first ceremony).
+4. Direct without tests — implement only, NO tests (e.g. a tuning/run script).
 RECOMMENDATION (derive from deterministic signals, state which fired):
-- script-only / tuning / config-only / docs-only scope -> recommend option 3
+- script-only / tuning / config-only / docs-only scope -> recommend option 4
   (direct without tests);
-- small single-surface change, low risk -> recommend option 2 (direct + tests);
+- small single-surface change, low risk -> recommend option 3 (direct + tests);
 - behavioral, multi-surface, core/state/security/data-integrity, or a declared
-  ceremony_level 2/3 -> recommend option 1 (full TDD).
+  ceremony_level 2/3 -> recommend option 2 (full TDD).
 If the user CHOOSES, record it before planning:
   node .aai/scripts/state.mjs set-strategy --selected <tdd|direct|untested> \
     --source intake --rationale "<the user's own words>"
