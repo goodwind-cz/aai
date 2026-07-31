@@ -188,6 +188,15 @@ Residual risks (accepted):
 - RR-2: `untested` skips scope tests by design; the rationale guard + visible
   hand-off + VALIDATION declared-verification requirement are the compensating
   controls (never a silent downgrade).
+- RR-3 (L3 review): this change RAISES THE PAYOFF of the pre-existing accepted
+  residual R-GUARD (SUBAGENT_PROTOCOL.md — no runtime git-diff guard on STATE
+  writes): an out-of-contract subagent `set-strategy` write used to mean a lost
+  update; it can now mean a rigor downgrade (tdd -> untested escapes RED-proof).
+  Mitigations: the single-writer prohibition (SUBAGENT_CONTRACT.md) still bans
+  the write as a process rule, VALIDATION keys off the RECORDED strategy (a lazy
+  implementer who skips RED while STATE says tdd still FAILS 5g), and `untested`
+  cannot be recorded without a rationale. If R-GUARD is ever built, strategy
+  flips should be among its watched mutations.
 
 ## Acceptance Criteria Status
 

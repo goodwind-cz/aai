@@ -109,9 +109,18 @@ test_006_validation_conditional() {
   local ok=1
   [[ -f "$VALIDATION" ]] || { log_fail "TEST-006 $VALIDATION missing"; return; }
   grep -qF "STRATEGY-CONDITIONAL EVIDENCE" "$VALIDATION" || { log_info "TEST-006: missing strategy-conditional block"; ok=0; }
-  grep -qiF "UNCHANGED" "$VALIDATION" || { log_info "TEST-006: tdd/hybrid lane must stay UNCHANGED"; ok=0; }
+  # L3-review hardening: pin the tdd/hybrid clause by its FULL literal line —
+  # a bare "UNCHANGED" grep was rescued by an unrelated pre-existing line
+  # (mutation-proven), so a targeted weakening of THIS clause escaped. The full
+  # phrase can only be satisfied by the clause itself.
+  grep -qF 'tdd` / `hybrid` -> UNCHANGED: step 5g applies in full (RED-proof, RED_CLASS,' "$VALIDATION" \
+    || { log_info "TEST-006: tdd/hybrid clause must state UNCHANGED step 5g in full (literal pin)"; ok=0; }
   grep -qiF "TARGETED-TEST evidence" "$VALIDATION" || { log_info "TEST-006: direct lane needs targeted-test evidence"; ok=0; }
   grep -qiF "DECLARED-VERIFICATION evidence" "$VALIDATION" || { log_info "TEST-006: untested lane needs declared-verification evidence"; ok=0; }
+  # The conditionality must key off the RECORDED strategy in STATE, not a claim
+  # (anti-gaming anchor from the L3 review).
+  grep -qF 'implementation_strategy.selected' "$VALIDATION" \
+    || { log_info "TEST-006: conditionality must key off implementation_strategy.selected"; ok=0; }
   # 5g's existing tdd-evidence contract must survive verbatim (Seam with tdd-evidence suite)
   grep -qF "tdd-evidence-check.mjs" "$VALIDATION" || { log_info "TEST-006: step 5g tdd-evidence-check.mjs contract regressed"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-006 VALIDATION evidence is strategy-conditional, tdd/hybrid intact" || log_fail "TEST-006 VALIDATION conditionality"

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-31T08:27:17.062Z
+Generated: 2026-07-31T08:48:22.034Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (13)
+## Product (14)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -27,6 +27,7 @@ _None._
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
 | factory-performance-report | factory-performance-report | 1 | docs/product/factory-performance-report.md |
 | friction-capture-default-on | friction-capture-default-on | 1 | docs/product/friction-capture-default-on.md |
+| implementation-mode-choice | implementation-mode-choice | 1 | docs/product/implementation-mode-choice.md |
 | issues-skill | issues-skill | 1 | docs/product/issues-skill.md |
 | learned-append-gate | learned-append-gate | 1 | docs/product/learned-append-gate.md |
 | platform-portable-pr | platform-portable-pr | 1 | docs/product/platform-portable-pr.md |
