@@ -2,7 +2,7 @@
 id: cache-friendly-dispatch
 number: null
 type: change
-status: draft
+status: implementing
 user_visible: false
 links:
   pr: []
@@ -80,6 +80,18 @@ links:
 - The audit may find ZERO reorder fixes (surfaces already ordered) — that is
   a legitimate outcome; AC-001 then documents the audit as evidence and
   AC-002 pins the invariant so it cannot regress.
+
+## Acceptance Criteria Status
+
+Reconciled at implementation hand-off. Spec: docs/specs/SPEC-DRAFT-spec-cache-friendly-dispatch.md.
+
+| Spec-AC | Description | Status | Evidence | Review-By | Notes |
+|---------|-------------|--------|----------|-----------|-------|
+| AC-001 | Every audited dispatch surface orders stable content before variable; audit recorded; any fix keeps byte-identical semantics | done | audit table in SPEC-DRAFT-spec-cache-friendly-dispatch; hygiene-pack + friction-wiring green | — | zero reorders needed (legitimate outcome) |
+| AC-002 | Stable prefix byte-identical across two consecutive same-role dispatches | done | test-aai-orchestration-dispatch TEST-033 pass | — | reuses SPEC-0096 prompt-hash machinery |
+| AC-003 | MODEL_ROUTING.yaml carries suggested_effort per role; dispatch emits text plus --json; absent file or field degrades to null | done | TEST-030, TEST-031, TEST-032 pass | — | mirrors suggested_model contract |
+| AC-004 | No-mid-session-flip rule present and grep-pinned; documentation-only | done | TEST-034 pass | — | pin in MODEL_ROUTING.yaml header |
+| AC-005 | No prompt-corpus regression within cap | done | test-aai-prompt-diet TEST-010 headroom 0/2048; TEST-012 == -4378 | — | zero corpus bytes added (all growth in scripts/system/tests) |
 
 ## Notes
 - Deliberately NOT adopted from the source article: Graphiti/Neo4j knowledge

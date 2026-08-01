@@ -738,11 +738,12 @@ function printRules() {
 // Absent file => suggested_model stays null and the orchestrator falls back to
 // interpreting suggested_tier itself (pre-binding behavior, fully back-compat).
 // Line-based parse mirroring the PROFILES.yaml discipline: two-space-indented
-// `  <key>: <value>` rows under `tiers:` / `roles:` sections only.
+// `  <key>: <value>` rows under `tiers:` / `roles:` (and the cache-friendly-
+// dispatch `effort_tiers:` / `effort_roles:`) sections only.
 function loadModelRouting(root) {
   const p = path.resolve(root, '.aai/system/MODEL_ROUTING.yaml');
   if (!fs.existsSync(p)) return null;
-  const routing = { tiers: {}, roles: {}, validation_alternate: null };
+  const routing = { tiers: {}, roles: {}, effort_tiers: {}, effort_roles: {}, validation_alternate: null };
   let section = null;
   let raw;
   try {
@@ -754,6 +755,11 @@ function loadModelRouting(root) {
     if (line.trim() === '' || line.trim().startsWith('#')) continue;
     if (/^tiers:\s*$/.test(line)) { section = 'tiers'; continue; }
     if (/^roles:\s*$/.test(line)) { section = 'roles'; continue; }
+    // cache-friendly-dispatch: advisory reasoning-effort routing sections,
+    // parsed exactly like tiers:/roles: (absent sections stay empty maps -> a
+    // pre-effort MODEL_ROUTING.yaml resolves suggested_effort to null, back-compat).
+    if (/^effort_tiers:\s*$/.test(line)) { section = 'effort_tiers'; continue; }
+    if (/^effort_roles:\s*$/.test(line)) { section = 'effort_roles'; continue; }
     const top = line.match(/^validation_alternate:\s*(\S+)\s*$/);
     if (top) { routing.validation_alternate = top[1] === 'null' ? null : top[1]; section = null; continue; }
     if (/^\S/.test(line)) { section = null; continue; }
@@ -791,6 +797,24 @@ export function suggestModel(out, routing) {
   return model;
 }
 
+// suggested_effort resolution (cache-friendly-dispatch): advisory reasoning-
+// effort hint per role, MIRRORING suggestModel's config-driven contract.
+// Resolution order: per-role override (effort_roles[role]) then tier default
+// (effort_tiers[tier]) then null. Effort is a SEPARATE axis from the model
+// tier (a standard-tier Validation is high-effort; a premium-tier Planning is
+// default-effort), so it is per-role, never derived from suggested_tier alone.
+// Absent file (routing null), absent sections, or a no-match all resolve to
+// null -> today's output (the field simply carries null, advisory/never
+// binding, exactly like suggested_model at introduction). No lane scoping:
+// effort does not vary by ceremony lane. NEVER flip effort mid-session — the
+// harness caches on it (see MODEL_ROUTING.yaml header pin).
+export function suggestEffort(out, routing) {
+  if (!routing || out.verdict !== 'dispatch') return null;
+  return (out.role && routing.effort_roles[out.role])
+    ?? (out.suggested_tier ? routing.effort_tiers[out.suggested_tier] : null)
+    ?? null;
+}
+
 function humanBlock(out) {
   const lines = [
     '=== ORCHESTRATION DISPATCH (deterministic tick) ===',
@@ -803,6 +827,7 @@ function humanBlock(out) {
     `Stop condition: ${out.stop_condition}`,
     `Suggested model tier: ${out.suggested_tier ?? '(n/a)'}`,
     `Suggested model id: ${out.suggested_model ?? '(unbound — no .aai/system/MODEL_ROUTING.yaml)'}`,
+    `Suggested effort: ${out.suggested_effort ?? '(unset — no effort_roles/effort_tiers in MODEL_ROUTING.yaml)'}`,
   ];
   if (out.validator_independence) {
     lines.push(`Validator independence: implementer_model=${out.validator_independence.implementer_model ?? 'null'} (validator model must differ)`);
@@ -834,7 +859,11 @@ function main() {
       out = decide(snapshot);
       out.state_summary = snapshot;
     }
-    out.suggested_model = suggestModel(out, loadModelRouting(root));
+    const routing = loadModelRouting(root);
+    out.suggested_model = suggestModel(out, routing);
+    // Advisory reasoning-effort hint (cache-friendly-dispatch), resolved from
+    // the SAME routing load; null when the file/field is absent (back-compat).
+    out.suggested_effort = suggestEffort(out, routing);
     // prompt-hash-telemetry Spec-AC-05: additive-only — only a real dispatch
     // (system_prompt present) gets a prompt_hash; no_action/needs_llm verdicts
     // (no role, no system_prompt) are untouched.

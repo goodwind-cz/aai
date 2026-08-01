@@ -319,7 +319,7 @@ test_002_cli_contract() {
   [[ "$EC" == 0 ]] || log_fail "dispatch fixture must exit 0 (got $EC): $(cat "$OUT" "$ERR")"
   # stdout is EXACTLY ONE JSON object with the full D3 key set.
   jassert "$OUT" 'o.verdict === "dispatch" && o.rule === "11" && o.role === "Validation"'
-  jassert "$OUT" '["verdict","rule","role","ref_id","system_prompt","inputs","expected_outputs","stop_condition","suggested_tier","validator_independence","reasons","state_summary","prompt_hash"].every(k => k in o)'
+  jassert "$OUT" '["verdict","rule","role","ref_id","system_prompt","inputs","expected_outputs","stop_condition","suggested_tier","suggested_effort","validator_independence","reasons","state_summary","prompt_hash"].every(k => k in o)'
   jassert "$OUT" 'o.ref_id === "CHANGE-0001" && Array.isArray(o.inputs) && Array.isArray(o.expected_outputs) && Array.isArray(o.reasons)'
   jassert "$OUT" 'typeof o.stop_condition === "string" && o.stop_condition.length > 0'
   jassert "$OUT" 'o.system_prompt === ".aai/VALIDATION.prompt.md"'
@@ -1789,6 +1789,187 @@ test_026_docs_lane_key_contract() {
   log_pass "MODEL_ROUTING role@lane contract + user-facing routing note documented (TEST-026)"
 }
 
+## ==========================================================================
+## cache-friendly-dispatch (CHANGE cache-friendly-dispatch)
+## TEST-030..034: advisory suggested_effort routing (AC-003), stable-segment
+## byte-identity across two same-role dispatches (AC-002), and the
+## no-mid-session-flip pin (AC-004). New fixtures live ONLY here.
+## ==========================================================================
+
+# --- TEST-030 (Spec-AC-03): pure suggestEffort() resolution order -------------
+
+test_030_pure_effort_precedence() {
+  log_info "Test: pure suggestEffort() resolution effort_roles[role] ?? effort_tiers[tier] ?? null, incl. non-dispatch/absent-routing degenerate fixtures (TEST-030)..."
+  cat > "$TEST_DIR/t30.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { suggestEffort } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const out = (role, tier) => ({ verdict: 'dispatch', role, suggested_tier: tier });
+
+// (1) per-role override beats the tier default.
+let routing = { tiers: {}, roles: {}, effort_tiers: { standard: 'default' }, effort_roles: { Validation: 'high' }, validation_alternate: null };
+assert.strictEqual(suggestEffort(out('Validation', 'standard'), routing), 'high', 'role override must win over the tier default');
+
+// (2) no role row -> falls through to the tier default.
+assert.strictEqual(suggestEffort(out('Implementation', 'standard'), routing), 'default', 'no role row must resolve the tier default');
+
+// (3) no role row AND no matching tier row -> null.
+routing = { tiers: {}, roles: {}, effort_tiers: {}, effort_roles: {}, validation_alternate: null };
+assert.strictEqual(suggestEffort(out('Planning', 'premium'), routing), null, 'empty effort tables resolve to null');
+
+// (4) non-dispatch verdict -> null (never advises effort for no_action/needs_llm).
+routing = { tiers: {}, roles: {}, effort_tiers: { mechanical: 'low' }, effort_roles: {}, validation_alternate: null };
+assert.strictEqual(suggestEffort({ verdict: 'no_action', role: null, suggested_tier: null }, routing), null, 'non-dispatch verdict resolves to null');
+
+// (5) absent routing (no MODEL_ROUTING.yaml) -> null, never throws.
+assert.strictEqual(suggestEffort(out('Validation', 'standard'), null), null, 'absent routing resolves to null');
+
+// (6) a DIFFERENT role's row must never leak onto this role.
+routing = { tiers: {}, roles: {}, effort_tiers: { standard: 'default' }, effort_roles: { 'Code Review': 'high' }, validation_alternate: null };
+assert.strictEqual(suggestEffort(out('Validation', 'standard'), routing), 'default', "another role's effort_roles row must not satisfy this role");
+
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t30.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t30.log" 2>&1 \
+    || log_fail "pure suggestEffort precedence failed: $(cat "$TEST_DIR/t30.log")"
+  log_pass "Pure suggestEffort resolution order (TEST-030)"
+}
+
+# --- TEST-031 (Spec-AC-03): CLI end-to-end suggested_effort (text + --json) ----
+
+test_031_cli_effort_emission() {
+  log_info "Test: CLI emits suggested_effort in JSON + the --human block, resolved from the shipped effort map (Validation -> high, Metrics Flush -> low) (TEST-031)..."
+  local d
+  # (a) rule-11 Validation dispatch: suggested_effort high in JSON + --human.
+  d="$(mk_root t31a)"
+  write_dstate "$d/docs/ai/STATE.yaml"   # not_run + implementation -> rule 11 Validation
+  mkdir -p "$d/.aai/system"
+  cat > "$d/.aai/system/MODEL_ROUTING.yaml" <<YAML
+tiers:
+  mechanical: claude-haiku-4-5
+  standard: claude-sonnet-5
+  premium: claude-opus-4-8
+effort_tiers:
+  mechanical: low
+  standard: default
+  premium: default
+effort_roles:
+  Validation: high
+  Code Review: high
+YAML
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-031(a) fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "11" && o.role === "Validation"'
+  jassert "$OUT" 'o.suggested_effort === "high"'
+  run_dispatch "$d" --human
+  grep -qE '^Suggested effort: high' "$ERR" \
+    || log_fail "TEST-031(a) --human stderr must carry 'Suggested effort: high': $(cat "$ERR")"
+
+  # (b) mechanical role via the tier default: rule-14 Metrics Flush -> low.
+  d="$(mk_root t31b)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass pass implementation in_progress
+  printf '# ledger comment\n' > "$d/docs/ai/METRICS.jsonl"
+  mkdir -p "$d/.aai/system"
+  cat > "$d/.aai/system/MODEL_ROUTING.yaml" <<YAML
+effort_tiers:
+  mechanical: low
+  standard: default
+  premium: default
+effort_roles:
+  Validation: high
+  Code Review: high
+YAML
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-031(b) fixture must dispatch Metrics Flush (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "14" && o.role === "Metrics Flush" && o.suggested_effort === "low"'
+  log_pass "CLI suggested_effort emission: Validation->high (role override) + Metrics Flush->low (tier default), JSON + --human (TEST-031)"
+}
+
+# --- TEST-032 (Spec-AC-03): absent-file/field back-compat ---------------------
+
+test_032_effort_backcompat() {
+  log_info "Test: absent MODEL_ROUTING.yaml AND a routing file with NO effort sections both yield suggested_effort null (key present), leaving suggested_model resolution unchanged (TEST-032)..."
+  local d
+  # (a) no MODEL_ROUTING.yaml at all -> suggested_effort null, key present.
+  d="$(mk_root t32a)"
+  write_dstate "$d/docs/ai/STATE.yaml"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-032(a) fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" '"suggested_effort" in o && o.suggested_effort === null && o.suggested_model === null'
+
+  # (b) MODEL_ROUTING.yaml present with ONLY the model sections (pre-effort
+  # shape) -> suggested_effort null while suggested_model still resolves
+  # (the effort addition never perturbs the model path).
+  d="$(mk_root t32b)"
+  write_dstate "$d/docs/ai/STATE.yaml"
+  mkdir -p "$d/.aai/system"
+  cat > "$d/.aai/system/MODEL_ROUTING.yaml" <<YAML
+tiers:
+  standard: tier-sentinel-032
+roles:
+  Validation: role-sentinel-032
+YAML
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-032(b) fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.role === "Validation" && o.suggested_model === "role-sentinel-032" && o.suggested_effort === null'
+  log_pass "Absent file + absent effort sections both degrade suggested_effort to null; model path unchanged (TEST-032)"
+}
+
+# --- TEST-033 (Spec-AC-02): stable-segment byte-identity across two dispatches -
+
+test_033_stable_segment_byte_identity() {
+  log_info "Test: two consecutive same-role dispatches on the SAME repo state carry a byte-identical stable prefix -- equal prompt_hash + inherits (role prompt + SUBAGENT_CONTRACT + LEARNED), the SPEC-0096 identity machinery (TEST-033/AC-002)..."
+  local d
+  d="$(mk_root t33)"
+  write_dstate "$d/docs/ai/STATE.yaml"   # -> rule 11 Validation both runs
+  # The stable prefix a dispatched role runs under = role prompt file +
+  # .aai/SUBAGENT_CONTRACT.md + docs/knowledge/LEARNED.md, hashed by
+  # lib/prompt-hash.mjs. Byte-identical prefix <=> identical digest, so two
+  # runs on the same repo state MUST produce the same prompt_hash + inherits.
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-033 first dispatch must exit 0 (got $EC): $(cat "$OUT" "$ERR")"
+  cp "$OUT" "$d/first.json"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-033 second dispatch must exit 0 (got $EC): $(cat "$OUT" "$ERR")"
+  cp "$OUT" "$d/second.json"
+  node -e '
+    const fs = require("fs");
+    const a = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const b = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+    const fail = (m) => { console.error("assert failed: " + m); process.exit(1); };
+    if (a.role !== "Validation" || b.role !== "Validation") fail("both dispatches must be the SAME role (Validation)");
+    if (!/^[0-9a-f]{64}$/.test(a.prompt_hash)) fail("first prompt_hash not a 64-hex digest: " + a.prompt_hash);
+    if (a.prompt_hash !== b.prompt_hash) fail("stable prefix drifted: prompt_hash " + a.prompt_hash + " != " + b.prompt_hash);
+    if (JSON.stringify(a.inherits) !== JSON.stringify(b.inherits)) fail("inherits provenance drifted across two same-role dispatches");
+  ' "$d/first.json" "$d/second.json" || log_fail "TEST-033 stable-segment byte-identity assertion failed"
+  log_pass "Stable prefix byte-identical across two same-role dispatches (equal prompt_hash + inherits) (TEST-033/AC-002)"
+}
+
+# --- TEST-034 (Spec-AC-04): no-mid-session-flip pin + shipped effort rows ------
+
+test_034_flip_pin_and_effort_rows() {
+  log_info "Test: MODEL_ROUTING.yaml carries the grep-pinned no-mid-session-flip rule + documents suggested_effort + ships the effort_tiers/effort_roles rows (TEST-034/AC-004)..."
+  local routing_file="$PROJECT_ROOT/.aai/system/MODEL_ROUTING.yaml"
+  grep -qE 'NO MID.SESSION FLIP' "$routing_file" \
+    || log_fail "TEST-034: MODEL_ROUTING.yaml must carry the grep-pinned 'NO MID-SESSION FLIP' rule"
+  grep -qiE 'effort .*(part of|invalidates).*cache|cache key' "$routing_file" \
+    || log_fail "TEST-034: the flip pin must state effort/model is part of the cache key (why the flip forfeits cache savings)"
+  grep -qE 'suggested_effort' "$routing_file" \
+    || log_fail "TEST-034: MODEL_ROUTING.yaml must document the suggested_effort field"
+  grep -qE '^effort_tiers:[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-034: MODEL_ROUTING.yaml must ship an effort_tiers: section"
+  grep -qE '^effort_roles:[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-034: MODEL_ROUTING.yaml must ship an effort_roles: section"
+  grep -qE '^  Validation:[[:space:]]*high[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-034: MODEL_ROUTING.yaml must carry the 'Validation: high' effort row"
+  grep -qE '^  Code Review:[[:space:]]*high[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-034: MODEL_ROUTING.yaml must carry the 'Code Review: high' effort row"
+  log_pass "No-mid-session-flip rule grep-pinned + suggested_effort documented + effort rows shipped (TEST-034/AC-004)"
+}
+
 test_027_prompt_hash_advisory() {  # prompt-hash-telemetry TEST-010 (SEAM-3, integration)
   log_info "Test: SEAM-3 — dispatch --human prints an advisory prompt-hash line for the dispatched role, computed via the real lib (prompt-hash-telemetry TEST-010)..."
   local d
@@ -1877,6 +2058,11 @@ main() {
   test_023_absent_routing_null_on_lightweight_lane
   test_024_pure_independence_swap_over_lane
   test_026_docs_lane_key_contract
+  test_030_pure_effort_precedence
+  test_031_cli_effort_emission
+  test_032_effort_backcompat
+  test_033_stable_segment_byte_identity
+  test_034_flip_pin_and_effort_rows
   test_027_prompt_hash_advisory
   test_028_prompt_hash_json_additive
   test_029_inherits_provenance

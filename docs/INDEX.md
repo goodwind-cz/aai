@@ -1,16 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-01T08:06:30.455Z
+Generated: 2026-08-01T08:44:05.631Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
+| cache-friendly-dispatch | issues | implementing | 5 done | docs/issues/CHANGE-DRAFT-cache-friendly-dispatch.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 
 ## Canonical layer (0)
@@ -301,7 +302,7 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| cache-friendly-dispatch (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-cache-friendly-dispatch.md |
+| spec-cache-friendly-dispatch (unnumbered draft) | specs | docs/specs/SPEC-DRAFT-spec-cache-friendly-dispatch.md |
 
 ## Deferred (whole-doc) (0)
 
