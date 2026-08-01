@@ -11,7 +11,9 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(hitl): async HITL via platform comments — park a ride, answer from anywhere (CHANGE-0102 / SPEC-0111) [L2]
+## [unreleased]
+
+## [v2026.08.01] — feat(hitl): async HITL via platform comments — park a ride, answer from anywhere (CHANGE-0102 / SPEC-0111) [L2]
 
 - A ride that needs a human decision no longer has to block the terminal: when
   the scope has a linked GitHub issue/PR, the blocking `[HITL-<n>]` question +
@@ -33,7 +35,7 @@ RFC-0001).
   (missing resolve lifecycle) fixed in-ride. Split to follow-ups: milestone
   comments, PR visual evidence, session-start nudge, Azure comment channel.
 
-## [unreleased] — feat(dispatch): token-economics cache-friendly dispatch ordering audit + advisory effort routing (CHANGE-0101 / SPEC-0110) [L2]
+## [v2026.08.01] — feat(dispatch): token-economics cache-friendly dispatch ordering audit + advisory effort routing (CHANGE-0101 / SPEC-0110) [L2]
 
 - Prompt caching bills a repeated stable prefix at ~10% of base rate, but only
   while that prefix is byte-identical across calls and the effort/model cache key
@@ -66,7 +68,7 @@ RFC-0001).
   (no ledger cost); prompt-diet headroom stays 0/2048 and TEST-012 unchanged.
   Tests: test-aai-orchestration-dispatch.sh TEST-030..034.
 
-## [unreleased] — feat(intake): user-facing implementation-mode choice (TDD / direct+tests / no-tests) (CHANGE-0100 / SPEC-0109) [L3]
+## [v2026.08.01] — feat(intake): user-facing implementation-mode choice (TDD / direct+tests / no-tests) (CHANGE-0100 / SPEC-0109) [L3]
 
 - After a full intake AAI silently routed small changes through the full TDD loop
   (~3-5% of a weekly token limit for a comparable small change), forcing the owner
