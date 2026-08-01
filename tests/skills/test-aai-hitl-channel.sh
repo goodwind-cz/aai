@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-hitl-channel (async-hitl-platform-comments /
-# SPEC-DRAFT-spec-async-hitl-platform-comments.md, TEST-001..014).
+# SPEC-0111-spec-async-hitl-platform-comments.md, TEST-001..014).
 #
 # Verifies .aai/scripts/hitl-channel.mjs — the deterministic post/poll channel
 # that turns a terminal [HITL-<n>] block into an asynchronous platform comment

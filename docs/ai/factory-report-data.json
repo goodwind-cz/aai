@@ -1,25 +1,25 @@
 {
-  "generatedAt": "2026-08-01T08:47:13.903Z",
+  "generatedAt": "2026-08-01T15:32:01.941Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 104,
-    "delivered": 265,
+    "delivered": 267,
     "active_weeks": 5,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (265 closes vs 104 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 265,
-    "delivered_per_week_avg": 53,
+    "note": "\"delivered\" counts every work_item_closed event (267 closes vs 104 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 267,
+    "delivered_per_week_avg": 53.4,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
       "2026-W29": 135,
       "2026-W30": 64,
-      "2026-W31": 57
+      "2026-W31": 59
     },
     "delivered_groups": [
       {
@@ -297,10 +297,12 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 2,
+        "count": 4,
         "refs": [
           "cache-friendly-dispatch",
-          "spec-cache-friendly-dispatch"
+          "spec-cache-friendly-dispatch",
+          "async-hitl-platform-comments",
+          "spec-async-hitl-platform-comments"
         ]
       }
     ],
@@ -1365,12 +1367,20 @@
         {
           "ref": "spec-cache-friendly-dispatch",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "async-hitl-platform-comments",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-async-hitl-platform-comments",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3072,
       "mean_seconds": 145520.1,
       "measured": 101,
-      "unmeasurable": 164
+      "unmeasurable": 166
     }
   },
   "speed": {
@@ -2029,7 +2039,7 @@
     },
     {
       "week": "2026-W31",
-      "delivered": 57,
+      "delivered": 59,
       "median_lead_time_seconds": 1812,
       "busy_seconds": 61498,
       "tokens": 7019478,

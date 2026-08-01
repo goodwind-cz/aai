@@ -1418,3 +1418,9 @@
 {"v":1,"ts":"2026-08-01T08:46:47.221Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-cache-friendly-dispatch","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-08-01T08:46:47.276Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-cache-friendly-dispatch","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-01T08:46:47.335Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-cache-friendly-dispatch","payload":{"commit":"c73720a1401fa25e7a501393dd37475dca4bb9dc"}}
+{"v":1,"ts":"2026-08-01T15:31:34.635Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"async-hitl-platform-comments","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-01T15:31:34.741Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"async-hitl-platform-comments","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-01T15:31:34.803Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"async-hitl-platform-comments","payload":{"commit":"c11cd931f1723b2759f1832e3ccd3eb599a076f3"}}
+{"v":1,"ts":"2026-08-01T15:31:34.862Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-async-hitl-platform-comments","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-01T15:31:34.912Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-async-hitl-platform-comments","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-01T15:31:34.972Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-async-hitl-platform-comments","payload":{"commit":"c11cd931f1723b2759f1832e3ccd3eb599a076f3"}}

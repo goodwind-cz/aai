@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // hitl-channel.mjs — async-HITL platform channel (async-hitl-platform-comments /
-// SPEC-DRAFT-spec-async-hitl-platform-comments.md). Node stdlib only, zero deps.
+// SPEC-0111-spec-async-hitl-platform-comments.md). Node stdlib only, zero deps.
 //
 // Turns a terminal [HITL-<n>] block into an ASYNCHRONOUS platform comment: post
 // the question to a linked GitHub thread (issue or PR), PARK the ride, and later

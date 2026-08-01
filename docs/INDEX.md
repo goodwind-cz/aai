@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-01T15:27:02.527Z
+Generated: 2026-08-01T15:32:47.517Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,10 +17,11 @@ _None._
 
 _None._
 
-## Product (14)
+## Product (15)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
+| async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
 | auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
@@ -36,7 +37,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (258)
+## Done (260)
 
 | ID | Type | Path |
 |---|---|---|
@@ -141,6 +142,7 @@ _None._
 | CHANGE-0099 | issues | docs/issues/CHANGE-0099-deterministic-friction-capture.md |
 | CHANGE-0100 | issues | docs/issues/CHANGE-0100-implementation-mode-choice.md |
 | CHANGE-0101 | issues | docs/issues/CHANGE-0101-cache-friendly-dispatch.md |
+| CHANGE-0102 | issues | docs/issues/CHANGE-0102-async-hitl-platform-comments.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -297,14 +299,12 @@ _None._
 | SPEC-0108 | specs | docs/specs/SPEC-0108-spec-factory-performance-report.md |
 | SPEC-0109 | specs | docs/specs/SPEC-0109-spec-implementation-mode-choice.md |
 | SPEC-0110 | specs | docs/specs/SPEC-0110-spec-cache-friendly-dispatch.md |
+| SPEC-0111 | specs | docs/specs/SPEC-0111-spec-async-hitl-platform-comments.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| async-hitl-platform-comments (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-async-hitl-platform-comments.md |
-| spec-async-hitl-platform-comments (unnumbered draft) | specs | docs/specs/SPEC-DRAFT-spec-async-hitl-platform-comments.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

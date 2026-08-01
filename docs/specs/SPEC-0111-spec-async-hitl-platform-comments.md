@@ -1,14 +1,16 @@
 ---
 id: spec-async-hitl-platform-comments
 type: spec
-number: null
-status: draft
+number: 111
+status: done
 ceremony_level: 2
 links:
   requirement: async-hitl-platform-comments
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 205
+  commits:
+    - c11cd931f1723b2759f1832e3ccd3eb599a076f3
 ---
 
 # Implementation Spec — async HITL via platform comments
@@ -22,7 +24,7 @@ governance true-ups — and touches NO `protected_paths_l3` surface. See
 Constitution deviations and the protected-path analysis below.
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-async-hitl-platform-comments.md
+- Requirement: docs/issues/CHANGE-0102-async-hitl-platform-comments.md
 - Decision records: none
 - Technology contract: docs/TECHNOLOGY.md
 
@@ -237,7 +239,7 @@ Companion obligations (PLANNING step 3a):
   tests/skills/test-aai-prompt-diet.sh; bash tests/skills/test-aai-hygiene-pack.sh;
   bash tests/skills/test-aai-layer-profiles.sh; node .aai/scripts/docs-audit.mjs
   --check --strict --no-event; node .aai/scripts/spec-lint.mjs --path
-  docs/specs/SPEC-DRAFT-spec-async-hitl-platform-comments.md
+  docs/specs/SPEC-0111-spec-async-hitl-platform-comments.md
 - Evidence artifacts: docs/ai/tdd/*.log (RED + GREEN captures)
 - PASS criteria: all TEST-xxx green AND all Spec-AC in a terminal status
 

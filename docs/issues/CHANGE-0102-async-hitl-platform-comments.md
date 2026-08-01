@@ -1,12 +1,14 @@
 ---
 id: async-hitl-platform-comments
-number: null
+number: 102
 type: change
-status: draft
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 205
+  commits:
+    - c11cd931f1723b2759f1832e3ccd3eb599a076f3
 ---
 
 # Change — async HITL: park a ride on a platform comment, resume on the reply
