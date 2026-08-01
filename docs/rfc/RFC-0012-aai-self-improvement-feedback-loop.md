@@ -3,6 +3,7 @@ id: aai-self-improvement-feedback-loop
 type: rfc
 number: 12
 status: implementing
+umbrella: true
 links:
   spec: null
   pr: []

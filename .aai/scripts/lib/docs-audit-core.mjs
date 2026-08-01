@@ -983,12 +983,28 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     // probable-false-open). Skipped entirely in --quick (D7 — no git/EVENTS
     // probes). A doc without delivery evidence falls through unchanged.
     if (FALSE_OPEN_STATUSES.has(status) && !quick) {
+      // UMBRELLA MARKER (fix/umbrella-false-open): a deliberately-open
+      // multi-phase parent (frontmatter `umbrella: true`, e.g. a phased RFC)
+      // accumulates child-phase delivery commits that mention its ref, so the
+      // heuristic re-flags it after EVERY child delivery and the operator had
+      // to re-suppress with a fresh doc_lifecycle event each time (recorded
+      // recurring toil). The marker declares the open state intentional:
+      // the false-open probe is skipped ENTIRELY while the doc stays open,
+      // and the doc is VISIBLY reported (reason line + umbrella count in the
+      // summary) — suppressed noise, never hidden state. Abuse guard: the
+      // marker only affects this one heuristic; stale-open, AC-table gates,
+      // orphan and every other audit class still apply unchanged.
+      if (String(doc.fm?.umbrella ?? '').toLowerCase() === 'true') {
+        doc.reasons.push('umbrella: deliberately-open multi-phase parent (false-open heuristic suppressed)');
+        doc.umbrellaOpen = true;
+      } else {
       const fo = falseOpenEvidence(root, doc, events);
       if (fo.evidenced) {
         doc.verdict = 'probable-false-open';
         doc.reasons.push(...fo.reasons);
         doc.cls = 'drifted';
         continue;
+      }
       }
     }
 
@@ -1160,6 +1176,7 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     drifted: drift.length,
     stale: drift.filter(d => d.verdict === 'probable-stale-open').length,
     falseOpen: drift.filter(d => d.verdict === 'probable-false-open').length,
+    umbrellaOpen: docs.filter(d => d.umbrellaOpen).length,
     obsolete: docs.filter(d => d.cls === 'obsolete').length,
     trackedOpen: docs.filter(d => d.cls === 'tracked-open').length,
     trackedDone: docs.filter(d => d.cls === 'tracked-done').length,
