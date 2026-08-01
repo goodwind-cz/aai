@@ -5321,14 +5321,14 @@ MD
 }
 
 
-# --- TEST-015 (fix/umbrella-false-open) — umbrella marker suppresses the probe,
+# --- TEST-U01 (fix/umbrella-false-open) — umbrella marker suppresses the probe,
 # visibly. A deliberately-open multi-phase parent (frontmatter umbrella: true)
 # with child-delivery commits mentioning its ref must NOT be flagged
-# probable-false-open (was recurring operator toil: re-suppress after every
+# probable-false-open, TEST-U01 (was recurring operator toil: re-suppress after every
 # child delivery), the summary must carry the umbrella count, and the SAME doc
 # WITHOUT the marker stays flagged (the heuristic itself is untouched).
 test_umbrella_marker_suppresses_visibly() {
-  log_info "Test: umbrella: true suppresses false-open visibly; unmarked control still flagged (TEST-015)..."
+  log_info "Test: umbrella: true suppresses false-open visibly; unmarked control still flagged (TEST-U01)..."
   local d; d="$(setup_fo_repo umbrella-marker)"
   mkdir -p "$d/docs/rfc"
   cat > "$d/docs/rfc/RFC-9002-umbrella-parent.md" <<'MD'
@@ -5348,14 +5348,14 @@ MD
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > umb.log 2>&1) || true
   # umbrella parent NOT flagged
   if grep -F "RFC-9002" "$d/umb.log" | grep -qF "probable-false-open"; then
-    log_fail "TEST-015: umbrella-marked parent must not be flagged probable-false-open"
+    log_fail "TEST-U01: umbrella-marked parent must not be flagged probable-false-open"
   fi
   # suppression is VISIBLE, not hidden
   grep -qF "Umbrella (deliberately open" "$d/umb.log" \
-    || log_fail "TEST-015: summary must report the umbrella count (visible suppression)"
+    || log_fail "TEST-U01: summary must report the umbrella count (visible suppression)"
   # unmarked control in the SAME repo stays flagged (heuristic untouched)
   assert_fo_control_flagged "$d/umb.log"
-  log_pass "Umbrella marker suppresses visibly; unmarked control still flagged (TEST-015)"
+  log_pass "Umbrella marker suppresses visibly; unmarked control still flagged (TEST-U01)"
 }
 
 main() {
