@@ -1,12 +1,14 @@
 ---
 id: cache-friendly-dispatch
-number: null
+number: 101
 type: change
-status: implementing
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 204
+  commits:
+    - c73720a1401fa25e7a501393dd37475dca4bb9dc
 ---
 
 # Change — token economics: cache-friendly dispatch ordering + effort routing
@@ -83,11 +85,11 @@ links:
 
 ## Acceptance Criteria Status
 
-Reconciled at implementation hand-off. Spec: docs/specs/SPEC-DRAFT-spec-cache-friendly-dispatch.md.
+Reconciled at implementation hand-off. Spec: docs/specs/SPEC-0110-spec-cache-friendly-dispatch.md.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---------|-------------|--------|----------|-----------|-------|
-| AC-001 | Every audited dispatch surface orders stable content before variable; audit recorded; any fix keeps byte-identical semantics | done | audit table in SPEC-DRAFT-spec-cache-friendly-dispatch; hygiene-pack + friction-wiring green | — | zero reorders needed (legitimate outcome) |
+| AC-001 | Every audited dispatch surface orders stable content before variable; audit recorded; any fix keeps byte-identical semantics | done | audit table in SPEC-0110-spec-cache-friendly-dispatch; hygiene-pack + friction-wiring green | — | zero reorders needed (legitimate outcome) |
 | AC-002 | Stable prefix byte-identical across two consecutive same-role dispatches | done | test-aai-orchestration-dispatch TEST-033 pass | — | reuses SPEC-0096 prompt-hash machinery |
 | AC-003 | MODEL_ROUTING.yaml carries suggested_effort per role; dispatch emits text plus --json; absent file or field degrades to null | done | TEST-030, TEST-031, TEST-032 pass | — | mirrors suggested_model contract |
 | AC-004 | No-mid-session-flip rule present and grep-pinned; documentation-only | done | TEST-034 pass | — | pin in MODEL_ROUTING.yaml header |

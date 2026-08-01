@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(dispatch): token-economics cache-friendly dispatch ordering audit + advisory effort routing (cache-friendly-dispatch) [L2]
+## [unreleased] — feat(dispatch): token-economics cache-friendly dispatch ordering audit + advisory effort routing (CHANGE-0101 / SPEC-0110) [L2]
 
 - Prompt caching bills a repeated stable prefix at ~10% of base rate, but only
   while that prefix is byte-identical across calls and the effort/model cache key

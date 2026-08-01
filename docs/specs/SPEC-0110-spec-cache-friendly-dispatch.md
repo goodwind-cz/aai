@@ -1,14 +1,16 @@
 ---
 id: spec-cache-friendly-dispatch
 type: spec
-number: null
-status: draft
+number: 110
+status: done
 ceremony_level: 2
 links:
-  requirement: docs/issues/CHANGE-DRAFT-cache-friendly-dispatch.md
+  requirement: docs/issues/CHANGE-0101-cache-friendly-dispatch.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 204
+  commits:
+    - c73720a1401fa25e7a501393dd37475dca4bb9dc
 ---
 
 # Implementation Spec — token economics: cache-friendly dispatch ordering + effort routing
@@ -28,7 +30,7 @@ repeated stable prefix at ~10% of base rate, but only while that prefix is
 byte-identical across calls and the effort/model cache key is unchanged.
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-cache-friendly-dispatch.md
+- Requirement: docs/issues/CHANGE-0101-cache-friendly-dispatch.md
 - Technology contract: docs/TECHNOLOGY.md
 - Reuses: docs/specs/SPEC-0096 (prompt-hash telemetry, byte-identity machinery)
 
@@ -145,7 +147,7 @@ Notes:
 - bash tests/skills/test-aai-prompt-diet.sh (TEST-010 headroom 0/2048, TEST-012 == -4378)
 - bash tests/skills/test-aai-hygiene-pack.sh; test-aai-friction-wiring.sh; test-aai-implementation-mode.sh; test-aai-layer-profiles.sh
 - node .aai/scripts/docs-audit.mjs --check --strict --no-event
-- node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-cache-friendly-dispatch.md
+- node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0110-spec-cache-friendly-dispatch.md
 - PASS criteria: all TEST-xxx green AND all Spec-AC in a terminal status.
 
 ## Evidence contract

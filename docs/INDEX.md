@@ -1,17 +1,16 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-01T08:44:05.631Z
+Generated: 2026-08-01T08:47:34.043Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
-| cache-friendly-dispatch | issues | implementing | 5 done | docs/issues/CHANGE-DRAFT-cache-friendly-dispatch.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 
 ## Canonical layer (0)
@@ -37,7 +36,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (256)
+## Done (258)
 
 | ID | Type | Path |
 |---|---|---|
@@ -141,6 +140,7 @@ _None._
 | CHANGE-0098 | issues | docs/issues/CHANGE-0098-factory-performance-report.md |
 | CHANGE-0099 | issues | docs/issues/CHANGE-0099-deterministic-friction-capture.md |
 | CHANGE-0100 | issues | docs/issues/CHANGE-0100-implementation-mode-choice.md |
+| CHANGE-0101 | issues | docs/issues/CHANGE-0101-cache-friendly-dispatch.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -296,13 +296,12 @@ _None._
 | SPEC-0107 | specs | docs/specs/SPEC-0107-spec-allocator-header-rewrite.md |
 | SPEC-0108 | specs | docs/specs/SPEC-0108-spec-factory-performance-report.md |
 | SPEC-0109 | specs | docs/specs/SPEC-0109-spec-implementation-mode-choice.md |
+| SPEC-0110 | specs | docs/specs/SPEC-0110-spec-cache-friendly-dispatch.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| spec-cache-friendly-dispatch (unnumbered draft) | specs | docs/specs/SPEC-DRAFT-spec-cache-friendly-dispatch.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
