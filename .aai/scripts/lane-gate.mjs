@@ -145,7 +145,11 @@ function getChangedFiles(opts) {
   }
   if (!opts.baseRef) return null;
   try {
-    const out = execFileSync('git', ['diff', '--name-only', `${opts.baseRef}...HEAD`], {
+    // --no-renames (validation RR-rename-blindness): rename detection reports
+    // only the DESTINATION path, hiding a protected source renamed to a benign
+    // docs/prose path; disabling it surfaces delete+add so the old path always
+    // reaches the predicates (fail-closed).
+    const out = execFileSync('git', ['diff', '--name-only', '--no-renames', `${opts.baseRef}...HEAD`], {
       cwd: opts.repoRoot,
       encoding: 'utf8',
     });
@@ -180,7 +184,8 @@ function runSelectSuites(opts, changed) {
 // ---- predicate 4: changed-file count + diff surface classes ----
 // Classify each path into exactly one of {docs, prose, test, script}. A path
 // that classifies into NONE (e.g. a workflow yaml, a config file), or a diff
-// with >1 test file, >1 script file, or count >= N, is NOT fast-eligible.
+// with >1 test file, >1 script file, >1 prose (prompt-corpus) file, or
+// count >= N, is NOT fast-eligible.
 function classifyPath(p) {
   if (p.startsWith('tests/')) return 'test';
   if (p.startsWith('.aai/scripts/')) return 'script';
@@ -197,12 +202,14 @@ function evaluateDiffSurface(changed, maxFiles) {
   const classes = [];
   let tests = 0;
   let scripts = 0;
+  let prose = 0;
   let unclassified = null;
   for (const p of changed) {
     const c = classifyPath(p);
     if (c === null) { if (unclassified === null) unclassified = p; continue; }
     if (c === 'test') tests += 1;
     if (c === 'script') scripts += 1;
+    if (c === 'prose') prose += 1;
     if (!classes.includes(c)) classes.push(c);
   }
   const count = changed.length;
@@ -212,6 +219,10 @@ function evaluateDiffSurface(changed, maxFiles) {
   else if (unclassified !== null) { ok = false; detail = `unclassified path ${unclassified}`; }
   else if (tests > 1) { ok = false; detail = `${tests} test files (max 1)`; }
   else if (scripts > 1) { ok = false; detail = `${scripts} script files (max 1)`; }
+  // prose (prompt corpus) capped at 1 (validation RR-prose-uncapped): a
+  // multi-prompt ride is exactly the surface where the external sweep has
+  // historically earned its keep — it stays on the heavy lane.
+  else if (prose > 1) { ok = false; detail = `${prose} prompt-corpus files (max 1)`; }
   return { ok, count, classes, detail };
 }
 

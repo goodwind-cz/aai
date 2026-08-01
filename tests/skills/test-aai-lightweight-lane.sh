@@ -312,6 +312,35 @@ test_018_skill_pr_fast_lane_contract() {  # Spec-AC-03/AC-07 (grep-contract)
     || log_fail "TEST-018 SKILL_PR fast-lane contract"
 }
 
+# --- TEST-019 — rename-blindness closed: a renamed protected file -> heavy ----
+# (validation RR-rename-blindness) --no-renames surfaces delete+add, so the
+# protected SOURCE path reaches the predicates even when git would report R100.
+test_019_rename_blindness() {
+  log_info "Test: renamed protected file (delete+add via --no-renames) -> heavy (TEST-019)..."
+  mk; fixture "$TEST_DIR" 1 direct
+  run_gate "$TEST_DIR" ".aai/scripts/state.mjs" "docs/renamed-state.md"
+  [[ "$CODE" -eq 0 ]] || log_fail "exit must be 0, got $CODE: $OUT"
+  echo "$OUT" | grep -qE '^LANE heavy' || log_fail "TEST-019: protected rename slipped through: $OUT"
+  # both diff readers must pass --no-renames so the source path stays visible
+  grep -qF -- "--no-renames" "$GATE" || log_fail "TEST-019: lane-gate diff reader missing --no-renames"
+  grep -qF -- "--no-renames" "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" \
+    || log_fail "TEST-019: select-suites diff reader missing --no-renames"
+  log_pass "Renamed protected source stays visible -> heavy (TEST-019)"
+}
+
+# --- TEST-020 — prose (prompt corpus) capped at 1 -----------------------------
+# (validation RR-prose-uncapped) a multi-prompt ride keeps the external sweep.
+test_020_prose_cap() {
+  log_info "Test: 2 prompt-corpus files -> heavy (prose max 1); 1 -> fast (TEST-020)..."
+  mk; fixture "$TEST_DIR" 1 direct
+  run_gate "$TEST_DIR" ".aai/SKILL_DEBUG.prompt.md" ".aai/SKILL_SCOUT.prompt.md"
+  echo "$OUT" | grep -qE '^LANE heavy reason=diff_surface' || log_fail "TEST-020: 2 prompts must be heavy: $OUT"
+  mk; fixture "$TEST_DIR" 1 direct
+  run_gate "$TEST_DIR" ".aai/SKILL_DEBUG.prompt.md"
+  echo "$OUT" | grep -qE '^LANE fast$' || log_fail "TEST-020: single prompt unexpectedly heavy: $OUT"
+  log_pass "Prose cap: 2 prompts heavy, 1 prompt fast (TEST-020)"
+}
+
 main() {
   echo "Testing $TEST_NAME (lightweight-e2e-lane / spec-lightweight-e2e-lane)"
   check_deps
@@ -333,6 +362,8 @@ main() {
   test_016_empty_diff_fast
   test_017_docs_only_close_diff_never_full
   test_018_skill_pr_fast_lane_contract
+  test_019_rename_blindness
+  test_020_prose_cap
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

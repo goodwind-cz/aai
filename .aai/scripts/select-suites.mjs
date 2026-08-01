@@ -199,13 +199,17 @@ function getChangedFiles(opts) {
     return [];
   }
   try {
-    const out = execFileSync('git', ['diff', '--name-only', `${opts.baseRef}...HEAD`], {
+    // --no-renames (lane-gate validation RR-rename-blindness): rename detection
+    // hides the source path (R100 shows only the destination), letting a
+    // protected-file rename read as a benign path; delete+add keeps the old
+    // path visible so protected/lib/unmapped triads still trip FULL_RUN.
+    const out = execFileSync('git', ['diff', '--name-only', '--no-renames', `${opts.baseRef}...HEAD`], {
       cwd: opts.repoRoot,
       encoding: 'utf8',
     });
     return out.split('\n').map((s) => s.trim()).filter(Boolean);
   } catch (err) {
-    fullRun('internal-error', `git diff --name-only ${opts.baseRef}...HEAD failed: ${String(err.message || err).slice(0, 160)}`);
+    fullRun('internal-error', `git diff --name-only --no-renames ${opts.baseRef}...HEAD failed: ${String(err.message || err).slice(0, 160)}`);
     return [];
   }
 }
