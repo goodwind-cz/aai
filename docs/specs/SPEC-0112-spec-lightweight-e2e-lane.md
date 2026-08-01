@@ -2,13 +2,15 @@
 id: spec-lightweight-e2e-lane
 type: spec
 number: 112
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0103-lightweight-e2e-lane.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 206
+  commits:
+    - 87911f324576239b39de9f24728a29fe66271b39
 ---
 
 # Implementation Spec — Lightweight end-to-end lane (deterministic PR fast-path)

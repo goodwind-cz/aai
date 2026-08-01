@@ -186,9 +186,38 @@ function runSelectSuites(opts, changed) {
 // that classifies into NONE (e.g. a workflow yaml, a config file), or a diff
 // with >1 test file, >1 script file, >1 prose (prompt-corpus) file, or
 // count >= N, is NOT fast-eligible.
-function classifyPath(p) {
+// PROFILES core list (workflow engine files). A core-classified script is a
+// WORKFLOW ENGINE (close-work-item, dispatch, state tooling...) — never
+// fast-eligible even when mapped and unprotected (bot-review P1). Unreadable
+// PROFILES -> null -> every script classifies unknown -> heavy (fail-closed).
+let PROFILES_CORE = undefined;
+function profilesCore(repoRoot) {
+  if (PROFILES_CORE !== undefined) return PROFILES_CORE;
+  try {
+    const raw = readFileSync(resolve(repoRoot, '.aai/system/PROFILES.yaml'), 'utf8');
+    const set = new Set();
+    let inCore = false;
+    for (const line of raw.split(/\r?\n/)) {
+      if (/^core:\s*$/.test(line)) { inCore = true; continue; }
+      if (/^\S/.test(line)) { inCore = false; continue; }
+      const m = inCore ? line.match(/^  - (.+)$/) : null;
+      if (m) set.add(m[1].trim());
+    }
+    PROFILES_CORE = set.size > 0 ? set : null;
+  } catch {
+    PROFILES_CORE = null;
+  }
+  return PROFILES_CORE;
+}
+
+function classifyPath(p, repoRoot) {
   if (p.startsWith('tests/')) return 'test';
-  if (p.startsWith('.aai/scripts/')) return 'script';
+  if (p.startsWith('.aai/scripts/')) {
+    const core = profilesCore(repoRoot);
+    if (core === null) return null;          // PROFILES unreadable -> heavy
+    if (core.has(p)) return null;            // core workflow engine -> heavy
+    return 'script';
+  }
   // prose: prompt corpus / any .aai markdown.
   if (p.startsWith('.aai/') && p.endsWith('.md')) return 'prose';
   // docs: everything under docs/, or a top-level markdown file (README,
@@ -198,14 +227,14 @@ function classifyPath(p) {
   return null;
 }
 
-function evaluateDiffSurface(changed, maxFiles) {
+function evaluateDiffSurface(changed, maxFiles, repoRoot) {
   const classes = [];
   let tests = 0;
   let scripts = 0;
   let prose = 0;
   let unclassified = null;
   for (const p of changed) {
-    const c = classifyPath(p);
+    const c = classifyPath(p, repoRoot);
     if (c === null) { if (unclassified === null) unclassified = p; continue; }
     if (c === 'test') tests += 1;
     if (c === 'script') scripts += 1;
@@ -234,26 +263,39 @@ function main() {
   const strategy = readStrategy(opts.state ? resolve(opts.state) : null);
   const changed = getChangedFiles(opts);
 
+  // Fail closed when the protected-path configuration itself is missing:
+  // select-suites cannot apply the protected-l3 triad without it, and its
+  // silence would otherwise read as "no FULL_RUN" (bot-review P2).
+  let protectedCfgOk = true;
+  try {
+    readFileSync(resolve(opts.repoRoot, 'docs/ai/docs-audit.yaml'), 'utf8');
+  } catch {
+    protectedCfgOk = false;
+  }
+
   // Predicate lines (AC-007 auditability) — always emitted, fast or heavy.
   const lines = [];
   lines.push(`ceremony_level=${ceremony.value ?? 'absent'} ${ceremony.ok ? 'ok' : 'need=0|1'}`);
   lines.push(`strategy=${strategy.value ?? 'absent'} ${strategy.ok ? 'ok' : 'need=direct|untested|loop'}`);
+  lines.push(`protected_config=${protectedCfgOk ? 'present ok' : 'MISSING (docs/ai/docs-audit.yaml) fail-closed'}`);
 
   // Fail-closed if the diff itself is unreadable.
   let suite = { mode: 'full', detail: 'no diff source' };
   let surface = { ok: false, count: 0, classes: [], detail: 'no diff source' };
   if (changed !== null) {
     suite = runSelectSuites(opts, changed);
-    surface = evaluateDiffSurface(changed, opts.maxFiles);
+    surface = evaluateDiffSurface(changed, opts.maxFiles, opts.repoRoot);
   }
   lines.push(`suite_selection=${suite.mode} ${suite.mode === 'full' ? `full_run=${suite.detail}` : 'ok'}`);
   lines.push(`changed_files=${surface.count} max=${opts.maxFiles} ${surface.count >= opts.maxFiles ? 'over' : 'ok'}`);
   lines.push(`diff_classes=${surface.classes.join(',') || 'none'} ${surface.ok ? 'ok' : `blocked=${surface.detail}`}`);
 
-  // Deterministic reason priority: ceremony -> strategy -> full_run -> diff_surface.
+  // Deterministic reason priority: ceremony -> strategy -> protected_config
+  // -> full_run -> diff_surface.
   let reason = null;
   if (!ceremony.ok) reason = 'ceremony_level';
   else if (!strategy.ok) reason = 'strategy';
+  else if (!protectedCfgOk) reason = 'protected_config_missing';
   else if (suite.mode === 'full') reason = 'full_run';
   else if (!surface.ok) reason = 'diff_surface';
 
@@ -266,6 +308,7 @@ function main() {
       predicates: {
         ceremony_level: { value: ceremony.value, ok: ceremony.ok },
         strategy: { value: strategy.value, ok: strategy.ok },
+        protected_config: { ok: protectedCfgOk },
         suite_selection: { mode: suite.mode, detail: suite.detail },
         diff_surface: { count: surface.count, classes: surface.classes, ok: surface.ok, detail: surface.detail },
       },

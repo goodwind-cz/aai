@@ -128,9 +128,13 @@ PROCESS
      Step 5d branches on it so a GitHub repo with NO reviewer bots never waits
      for Copilot/Codex comments that will never arrive.
    - LANE (CHANGE lightweight-e2e-lane) — once the branch is pushed and the
-     final diff is known, classify the ride ONCE with the deterministic gate
+     final diff is known, classify the ride with the deterministic gate
      (NO agent judgment — a bad or inflated declaration can only ever pick the
-     HEAVY lane, fail-closed):
+     HEAVY lane, fail-closed). RECOMPUTE after ANY later commit lands on the
+     branch (the close-ceremony commit of step 5c included): the lane verdict
+     that governs steps 5c/5d is the one computed over the FINAL branch diff —
+     if the recomputed lane is heavy, the ride reverts to the full envelope
+     (a fast verdict can be lost by growth, never regained by trimming):
        node .aai/scripts/lane-gate.mjs --spec <frozen spec path> \
          --state docs/ai/STATE.yaml --base-ref origin/<base>
      It prints `LANE fast` ONLY when ALL four predicates hold (ceremony_level

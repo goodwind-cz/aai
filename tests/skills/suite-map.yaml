@@ -340,6 +340,7 @@ suites:
   aai-lightweight-lane:
     globs:
       - .aai/scripts/lane-gate.mjs
+      - .aai/scripts/select-suites.mjs
       - .aai/SKILL_PR.prompt.md
 
   aai-layer-drift:

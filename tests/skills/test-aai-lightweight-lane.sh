@@ -84,6 +84,15 @@ protected_paths_l3:
   - .aai/scripts/state.mjs
   - docs/CONSTITUTION.md
 YAML
+  # minimal PROFILES: close-work-item is a CORE workflow engine (never fast);
+  # any other .aai/scripts path is non-core -> script class fast-eligible.
+  mkdir -p "$dir/.aai/system"
+  cat > "$dir/.aai/system/PROFILES.yaml" <<'YAML'
+core:
+  - .aai/scripts/close-work-item.mjs
+extended:
+  - .aai/scripts/one.mjs
+YAML
   if [[ "$level" != "-" ]]; then
     printf -- '---\nid: fx\nstatus: implementing\nceremony_level: %s\n---\n\nbody\n' "$level" \
       > "$dir/docs/specs/SPEC-DRAFT-fx.md"
@@ -341,6 +350,30 @@ test_020_prose_cap() {
   log_pass "Prose cap: 2 prompts heavy, 1 prompt fast (TEST-020)"
 }
 
+# --- TEST-021 — core workflow script never fast (bot P1) ----------------------
+test_021_core_script_heavy() {
+  log_info "Test: PROFILES-core workflow script (close-work-item.mjs) -> heavy (TEST-021)..."
+  mk; fixture "$TEST_DIR" 1 direct
+  run_gate "$TEST_DIR" ".aai/scripts/close-work-item.mjs"
+  echo "$OUT" | grep -qE '^LANE heavy' || log_fail "TEST-021: core engine slipped into fast lane: $OUT"
+  # a genuinely non-core script stays fast-eligible (negative control)
+  mk; fixture "$TEST_DIR" 1 direct
+  run_gate "$TEST_DIR" "docs/x.md"
+  echo "$OUT" | grep -qE '^LANE fast$' || log_fail "TEST-021: docs-only control unexpectedly heavy: $OUT"
+  log_pass "Core workflow engine -> heavy; control fast (TEST-021)"
+}
+
+# --- TEST-022 — missing protected-path config -> heavy (bot P2) ----------------
+test_022_missing_protected_config_heavy() {
+  log_info "Test: absent docs/ai/docs-audit.yaml -> heavy reason=protected_config_missing (TEST-022)..."
+  mk; fixture "$TEST_DIR" 1 direct
+  rm -f "$TEST_DIR/docs/ai/docs-audit.yaml"
+  run_gate "$TEST_DIR" "docs/x.md"
+  echo "$OUT" | grep -qE '^LANE heavy reason=protected_config_missing' \
+    || log_fail "TEST-022: missing protected config must fail closed: $OUT"
+  log_pass "Missing protected-path config -> heavy fail-closed (TEST-022)"
+}
+
 main() {
   echo "Testing $TEST_NAME (lightweight-e2e-lane / spec-lightweight-e2e-lane)"
   check_deps
@@ -364,6 +397,8 @@ main() {
   test_018_skill_pr_fast_lane_contract
   test_019_rename_blindness
   test_020_prose_cap
+  test_021_core_script_heavy
+  test_022_missing_protected_config_heavy
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
