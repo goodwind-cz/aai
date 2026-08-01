@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-01T19:31:03.281Z",
+  "generatedAt": "2026-08-01T22:58:25.682Z",
   "project": "aai",
   "counts": {
-    "delivered": 149,
+    "delivered": 150,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -124,6 +124,19 @@
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0104-umbrella-false-open-marker.md",
+      "closed_on": "2026-08-01",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "telemetry-completeness",
+      "title": "Change — Telemetry completeness: close the capture gaps behind the factory-performance report",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0105-telemetry-completeness.md",
       "closed_on": "2026-08-01",
       "agent_minutes": null,
       "token_total": null,
@@ -2068,6 +2081,19 @@
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0104-umbrella-false-open-marker.md",
+          "closed_on": "2026-08-01",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "telemetry-completeness",
+          "title": "Change — Telemetry completeness: close the capture gaps behind the factory-performance report",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0105-telemetry-completeness.md",
           "closed_on": "2026-08-01",
           "agent_minutes": null,
           "token_total": null,

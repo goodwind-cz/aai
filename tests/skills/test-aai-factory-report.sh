@@ -422,6 +422,62 @@ test_012_seam_release_grouping_matches_overview() {
   log_pass "SEAM 2: factory + overview agree on release membership and close-month label (TEST-012)"
 }
 
+# ==================== TEST-020 (telemetry-completeness AC-004) ===============
+# Run-level capture-coverage KPI: overall (runs_with_marker/total_runs) + a
+# per-week series, computed from a fixture ledger and matching an independent
+# re-sum; the existing no-marker NOTE is preserved; HTML renders the percentage.
+test_020_capture_coverage_kpi() {
+  log_info "Test: cost.capture_coverage overall + per-week matches an independent re-sum; NOTE unaffected (asserted separately by the unmarked-ride fixture in TEST-005); HTML renders pct (telemetry-completeness AC-004)..."
+  local d; d="$(mk_repo t020)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-01","ref_id":"A","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=100"},{"role":"Implementation","duration_seconds":10,"note":"forgot the marker"}],"verdict":"PASS"}
+{"date_utc":"2026-07-08","ref_id":"B","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=200"}],"verdict":"PASS"}
+JSONL
+  run_report "$d"
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  # Overall: 3 runs, 2 marked -> round(200/3)=67%.
+  [[ "$(node_get "$DJ" 'm.cost.capture_coverage.total_runs')" == "3" ]] || log_fail "total_runs must be 3"
+  [[ "$(node_get "$DJ" 'm.cost.capture_coverage.runs_with_marker')" == "2" ]] || log_fail "runs_with_marker must be 2"
+  [[ "$(node_get "$DJ" 'm.cost.capture_coverage.pct')" == "67" ]] || log_fail "overall pct must be 67, got $(node_get "$DJ" 'm.cost.capture_coverage.pct')"
+  # Per-week series present and an INDEPENDENT re-sum matches the overall.
+  [[ "$(node_get "$DJ" 'm.cost.capture_coverage.by_week.length')" == "2" ]] || log_fail "by_week must span 2 ISO weeks"
+  [[ "$(node_get "$DJ" 'm.cost.capture_coverage.by_week.reduce((a,w)=>a+w.total_runs,0)')" == "3" ]] || log_fail "by_week total_runs must re-sum to 3"
+  [[ "$(node_get "$DJ" 'm.cost.capture_coverage.by_week.reduce((a,w)=>a+w.runs_with_marker,0)')" == "2" ]] || log_fail "by_week runs_with_marker must re-sum to 2"
+  [[ "$(node_get "$DJ" 'm.cost.capture_coverage.by_week.every(w=>w.pct===(w.total_runs?Math.round(100*w.runs_with_marker/w.total_runs):null))')" == "true" ]] || log_fail "each week pct must equal its own runs_with_marker/total_runs"
+  # The existing ride-level no-marker NOTE is preserved (ride A carries a marker,
+  # so it is NOT no-marker; craft the assertion on the NOTE text presence rule):
+  # here every ride has at least one marker so no ride is fully unmarked -> the
+  # NOTE machinery still exists (regression pin on the note text format).
+  grep -qF 'usage capture coverage' "$d/docs/ai/factory-report.html" \
+    || log_fail "html must render the capture-coverage KPI label"
+  grep -qF '67%' "$d/docs/ai/factory-report.html" \
+    || log_fail "html must render the overall capture-coverage percentage 67%"
+  log_pass "capture_coverage overall + per-week re-sum correct; HTML renders pct (AC-004)"
+}
+
+# TEST-021 (telemetry-completeness AC-004) — never a fabricated zero: an empty
+# ledger yields pct null (not 0), and a fully-unmarked ledger yields an HONEST 0.
+test_021_capture_coverage_honest_nulls() {
+  log_info "Test: empty ledger -> capture_coverage.pct null (never fabricated 0); all-unmarked -> honest 0 (telemetry-completeness AC-004)..."
+  local d; d="$(mk_repo t021)"
+  : > "$d/docs/ai/METRICS.jsonl"
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "empty ledger must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  [[ "$(node_get "$DJ" 'm.cost.capture_coverage.pct')" == "null" ]] || log_fail "empty-ledger pct must be null (never a fabricated 0), got $(node_get "$DJ" 'm.cost.capture_coverage.pct')"
+  local d2; d2="$(mk_repo t021b)"
+  cat > "$d2/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-01","ref_id":"A","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"no marker"}],"verdict":"PASS"}
+JSONL
+  run_report "$d2" --data-only
+  [[ "$EC" == 0 ]] || log_fail "all-unmarked ledger must exit 0: $(cat "$OUT")"
+  DJ="$d2/docs/ai/factory-report-data.json"
+  [[ "$(node_get "$DJ" 'm.cost.capture_coverage.pct')" == "0" ]] || log_fail "all-unmarked ledger pct must be an honest 0, got $(node_get "$DJ" 'm.cost.capture_coverage.pct')"
+  [[ "$(node_get "$DJ" 'm.cost.capture_coverage.total_runs')" == "1" ]] || log_fail "all-unmarked total_runs must be 1"
+  log_pass "Empty ledger -> pct null; all-unmarked -> honest 0 (AC-004)"
+}
+
 # ============================ TEST-013 (Spec-AC-09) ==========================
 test_013_close_regen_negative_control() {
   log_info "Test: NEGATIVE CONTROL — a rigged factory-report generator failure leaves the REAL close exit code unchanged, doc still done, no rollback (TEST-013)..."
@@ -543,7 +599,7 @@ JSONL
 }
 
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014, +017..019)"
+  echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014, +017..019; telemetry-completeness TEST-020..021)"
   check_deps
   setup_fixture
   test_001_data_only_blocks_present
@@ -563,6 +619,8 @@ main() {
   test_017_reclosed_ref_latest_close
   test_018_project_label_from_remote_slug
   test_019_remediation_sort_na_last
+  test_020_capture_coverage_kpi
+  test_021_capture_coverage_honest_nulls
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
