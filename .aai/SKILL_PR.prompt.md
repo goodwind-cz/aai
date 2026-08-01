@@ -127,6 +127,21 @@ PROCESS
      repo-local `docs/ai/pr-config.yaml` knob; absent == `none`, assume-none).
      Step 5d branches on it so a GitHub repo with NO reviewer bots never waits
      for Copilot/Codex comments that will never arrive.
+   - LANE (CHANGE lightweight-e2e-lane) — once the branch is pushed and the
+     final diff is known, classify the ride ONCE with the deterministic gate
+     (NO agent judgment — a bad or inflated declaration can only ever pick the
+     HEAVY lane, fail-closed):
+       node .aai/scripts/lane-gate.mjs --spec <frozen spec path> \
+         --state docs/ai/STATE.yaml --base-ref origin/<base>
+     It prints `LANE fast` ONLY when ALL four predicates hold (ceremony_level
+     in {0,1}; implementation_strategy in {direct,untested,loop}; select-
+     suites.mjs != FULL_RUN; changed-file count < 5 AND diff classes subset of
+     {docs, prose, a single test file, a single non-core script}); ANY other
+     outcome is `LANE heavy` — the byte-for-byte unchanged full envelope.
+     Record the verdict + its predicate lines in the PR body `## Lane` section
+     so a reviewer can SEE why a ride went light (never a hidden decision). The
+     fast lane only REMOVES ceremony from a deterministically-small ride; it
+     can never add risk to a large one. Steps 5c/5d branch on this verdict.
    - `github`/`azure`/`unknown` with a remote: `git push -u origin <branch>`.
      `none`: skip the push entirely and go straight to GENERIC MODE below.
    - Branch on the printed value — NEVER guess:
@@ -171,6 +186,9 @@ PROCESS
      (Azure with no bot layer: also note "internal review substituted for
      absent bot layer" here per the 5d fallback contract.)
 
+     ## Lane
+     <LANE fast|heavy + the predicate lines printed by lane-gate.mjs>
+
      ## Test evidence
      <suite names + real counts + exit codes>
 
@@ -208,11 +226,29 @@ PROCESS
    - Stage and push the mutated doc(s) + docs/ai/EVENTS.jsonl as a follow-up
      `chore(close): <ref> close ceremony` commit on the SAME branch (same
      scope-only staging discipline as steps 2-4), updating the open PR.
+   - FAST LANE (lightweight-e2e-lane): on `LANE fast`, this close commit's diff
+     is docs frontmatter + docs/ai/EVENTS.jsonl + docs/INDEX.md only, which
+     select-suites.mjs routes to the CORE suites (docs-audit, check-state,
+     spec-lint), NEVER FULL_RUN — one narrowed feature round + one CORE-only
+     close round instead of two full-framework rounds. The post-merge push-to-
+     main + nightly FULL run (SPEC-0097) remain the backstop. close-work-item
+     ordering is unchanged (it still runs after PR open, needing --pr N); only
+     the CI cost of the round narrows. Heavy lane unchanged.
    - Merge boundary unchanged: this step never merges.
 
 5d. POST-OPEN REVIEW SWEEP (CHANGE-0060) — external reviewer bots (Copilot,
    Codex) post INLINE comments that never appear in `gh pr checks`. Before
    ANY merge-readiness claim:
+   - FAST LANE (lightweight-e2e-lane) — when `LANE fast` was recorded in step 5,
+     this external-bot sweep is OPTIONAL-on-demand: record "sweep skipped (fast
+     lane, internal dual-verdict review holds)" and proceed. The MANDATORY
+     internal dual-verdict code review (WORKFLOW rule 13) already ran on this
+     exact diff and its PASS stays a merge-readiness precondition — that is the
+     compensating control, not a lightened one; the sweep was only ever the
+     second, redundant pass. Any reviewer or bot may RE-ARM this sweep by
+     commenting, and a review may reclassify the ride upward (RFC-0009), after
+     which the mandatory flow below runs in full. On the HEAVY lane the sweep
+     below is UNCHANGED (mandatory) — proceed with it.
    - After CI completes, poll (platform + `reviewer_bots=` from step 5's
      probe line; within the bounded window below, re-poll — not a single shot):
      GitHub: `gh api repos/<owner>/<repo>/pulls/<n>/comments` plus

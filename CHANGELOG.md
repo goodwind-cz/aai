@@ -9,6 +9,33 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat(pr): deterministic PR fast-lane for small, safe rides (CHANGE lightweight-e2e-lane / SPEC spec-lightweight-e2e-lane) [L2]
+
+- Cuts the flat ~42-min ceremony floor for provably-small rides without
+  weakening the heavy lane. A new deterministic gate
+  (`.aai/scripts/lane-gate.mjs`) prints `LANE fast` ONLY when all four
+  machine-read predicates hold: ceremony_level in {0,1}, implementation
+  strategy in {direct,untested,loop}, `select-suites.mjs` returns no FULL_RUN
+  (protected-l3 / `.aai/scripts/lib/**` / unmapped), and changed-files < 5 with
+  diff classes ⊆ {docs, prose, single test, single non-core script}. ANY other
+  input — including every mis-declaration — resolves to the byte-for-byte
+  unchanged HEAVY lane (fail-closed, anti-gaming; no agent judgment anywhere).
+- On `LANE fast`, SKILL_PR: the external bot sweep (step 5d) becomes
+  optional-on-demand while the MANDATORY internal dual-verdict code review stays
+  the compensating control (re-armable by any reviewer/bot; a review may
+  reclassify upward); the close-ceremony commit's docs-only diff routes to the
+  CORE suites via SPEC-0097 (one narrowed feature round + one CORE-only close
+  round instead of two full-framework rounds — the post-merge/nightly FULL run
+  stays the backstop). The chosen lane + its predicate values are recorded in a
+  PR body `## Lane` section (auditable — never a hidden decision).
+- No protected surface changed: `close-work-item.mjs`, `allocate-doc-number.mjs`,
+  the state engine, pre-commit guards, and `WORKFLOW.md` are untouched. A literal
+  single-commit ride is not attempted — `close-work-item.mjs` mandates `--pr N`
+  — so the second CI round is narrowed, not eliminated, exactly per the intake's
+  Option A. New table-driven suite `tests/skills/test-aai-lightweight-lane.sh`
+  (TEST-001..018) pins the predicate matrix, the fail-closed negatives, and the
+  docs-only-close-diff routing.
+
 ## [unreleased]
 
 ## [unreleased]
