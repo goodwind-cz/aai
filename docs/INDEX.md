@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-01T23:57:58.038Z
+Generated: 2026-08-02T00:56:52.938Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -308,9 +308,11 @@ _None._
 | SPEC-0112 | specs | docs/specs/SPEC-0112-spec-lightweight-e2e-lane.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| r-guard-runtime-enforcement (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-r-guard-runtime-enforcement.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -347,4 +349,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-01 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-02 — counts above use this date for overdue checks.
