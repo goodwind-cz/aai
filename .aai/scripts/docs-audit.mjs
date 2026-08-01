@@ -181,6 +181,10 @@ function main() {
   lines.push('');
   lines.push(`- Mode: ${mode}${args.path ? ` | Scope: ${args.path}` : ''}`);
   lines.push(`- Scanned: ${counts.total} docs | Orphans: ${counts.orphans} (${counts.orphans - counts.orphansNew} legacy soft) | Drifted: ${counts.drifted} | Stale: ${counts.stale} | False-open: ${counts.falseOpen} | Obsolete: ${counts.obsolete}`);
+  // umbrella visibility (fix/umbrella-false-open): suppressed noise is still
+  // reported — line appears only when at least one umbrella doc exists, so
+  // repos without umbrellas keep byte-identical output.
+  if (counts.umbrellaOpen > 0) lines.push(`- Umbrella (deliberately open, false-open heuristic suppressed): ${counts.umbrellaOpen} (${(counts.umbrellaIds || []).join(', ')})`);
   lines.push(`- Tracked: ${counts.trackedOpen} open, ${counts.trackedDone} done, ${counts.superseded} superseded/rejected`);
   // Rollout progress (always-shown): an in-flight rfc/prd umbrella's `status` enum
   // never shows how far along it is — this rolls up its done/total child docs so

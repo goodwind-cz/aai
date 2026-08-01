@@ -5320,6 +5320,55 @@ MD
   log_pass "Characterization guard: --gate does not enforce the temporal rules; VALIDATION prose retention for Rules 3/4-anti-cheat is justified (TEST-004)"
 }
 
+
+# --- TEST-U01 (fix/umbrella-false-open) — umbrella marker suppresses the probe,
+# visibly. A deliberately-open multi-phase parent (frontmatter umbrella: true)
+# with child-delivery commits mentioning its ref must NOT be flagged
+# probable-false-open, TEST-U01 (was recurring operator toil: re-suppress after every
+# child delivery), the summary must carry the umbrella count, and the SAME doc
+# WITHOUT the marker stays flagged (the heuristic itself is untouched).
+test_umbrella_marker_suppresses_visibly() {
+  log_info "Test: umbrella: true suppresses false-open visibly; unmarked control still flagged (TEST-U01)..."
+  local d; d="$(setup_fo_repo umbrella-marker)"
+  mkdir -p "$d/docs/rfc"
+  cat > "$d/docs/rfc/RFC-9002-umbrella-parent.md" <<'MD'
+---
+id: RFC-9002
+type: rfc
+status: implementing
+umbrella: true
+links:
+  pr: []
+---
+# Multi-phase parent: phases deliver over months, deliberately open
+MD
+  (cd "$d" && git add docs/rfc && git commit -qm "docs: intake RFC-9002")
+  echo phase1 > "$d/PHASE1.md"
+  (cd "$d" && git add PHASE1.md && git commit -qm "feat: deliver RFC-9002 phase 1")
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > umb.log 2>&1) || true
+  # umbrella parent NOT flagged
+  if grep -F "RFC-9002" "$d/umb.log" | grep -qF "probable-false-open"; then
+    log_fail "TEST-U01: umbrella-marked parent must not be flagged probable-false-open"
+  fi
+  # suppression is VISIBLE and NAMES the doc, not just a count
+  grep -F "Umbrella (deliberately open" "$d/umb.log" | grep -qF "RFC-9002" \
+    || log_fail "TEST-U01: summary must NAME the suppressed umbrella (visible suppression)"
+  # unmarked control in the SAME repo stays flagged (heuristic untouched)
+  assert_fo_control_flagged "$d/umb.log"
+  # --quick recognizes the marker too (bot review: quick counts must match)
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --quick --no-event > umb-quick.log 2>&1) || true
+  grep -qF "Umbrella (deliberately open" "$d/umb-quick.log" \
+    || log_fail "TEST-U01: --quick must recognize the umbrella marker"
+  # AC-003: a repo WITHOUT umbrella docs emits NO umbrella line (byte-compat)
+  local d2; d2="$(setup_fo_repo umbrella-none)"
+  (cd "$d2" && node .aai/scripts/docs-audit.mjs --no-event > none.log 2>&1) || true
+  if grep -qF "Umbrella (deliberately open" "$d2/none.log"; then
+    log_fail "TEST-U01: umbrella-free repo must not emit the umbrella line"
+  fi
+  rm -rf "$d" "$d2"
+  log_pass "Umbrella marker suppresses visibly + named + quick-aware; control flagged; none-line clean (TEST-U01)"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -5444,6 +5493,7 @@ main() {
   test_change0027_index_seam
   test_change0027_quick_mode_skips_probe
   test_change0027_doc_surfaces_mention_false_open
+  test_umbrella_marker_suppresses_visibly
   test_change0028_mixed_cell_git_hash_flags
   test_change0028_mixed_cell_pr_ref_flags
   test_change0028_mixed_cell_prose_not_flagged

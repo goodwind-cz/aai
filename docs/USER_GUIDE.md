@@ -2105,6 +2105,12 @@ When a ride hits a decision only you can make, the factory no longer has to sit 
 
 [Product doc](product/async-hitl-platform-comments.md) · [Spec](specs/SPEC-0111-spec-async-hitl-platform-comments.md)
 
+### Small changes stop paying the full ceremony price
+
+Every ride used to pay a flat ~42-minute pipeline floor (two full CI rounds plus a 10-minute external-review window) no matter how small the change. Now a **deterministic gate** (`lane-gate.mjs`) checks four machine-readable predicates and, when ALL hold, the ride takes a **fast lane**:
+
+[Product doc](product/lightweight-e2e-lane.md) · [Spec](specs/SPEC-0112-spec-lightweight-e2e-lane.md)
+
 ### Choosing how much rigor an implementation gets
 
 At the end of every intake, AAI now **asks you how to implement** — with a recommendation — instead of silently defaulting to the full TDD loop:

@@ -982,7 +982,23 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     // and delivery-evidenced upgrades to the more actionable
     // probable-false-open). Skipped entirely in --quick (D7 — no git/EVENTS
     // probes). A doc without delivery evidence falls through unchanged.
-    if (FALSE_OPEN_STATUSES.has(status) && !quick) {
+    // UMBRELLA MARKER (fix/umbrella-false-open): a deliberately-open
+    // multi-phase parent (frontmatter `umbrella: true`, e.g. a phased RFC)
+    // accumulates child-phase delivery commits that mention its ref, so the
+    // heuristic re-flagged it after EVERY child delivery and the operator had
+    // to re-suppress with a fresh doc_lifecycle event each time (recorded
+    // recurring toil). The marker declares the open state intentional: the
+    // false-open probe is skipped for the doc while it stays open, and every
+    // suppressed umbrella is NAMED in the summary line — suppressed noise,
+    // never hidden state. Recognition is frontmatter-only (no git/EVENTS
+    // probes), so it runs in --quick too (bot review: quick counts must not
+    // silently differ). Abuse guard: the marker affects ONLY this heuristic;
+    // stale-open, AC-table gates, orphan and every other class unchanged.
+    const isUmbrella = FALSE_OPEN_STATUSES.has(status)
+      && String(doc.fm?.umbrella ?? '').toLowerCase() === 'true';
+    if (isUmbrella) doc.umbrellaOpen = true;
+
+    if (FALSE_OPEN_STATUSES.has(status) && !quick && !isUmbrella) {
       const fo = falseOpenEvidence(root, doc, events);
       if (fo.evidenced) {
         doc.verdict = 'probable-false-open';
@@ -1160,6 +1176,8 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     drifted: drift.length,
     stale: drift.filter(d => d.verdict === 'probable-stale-open').length,
     falseOpen: drift.filter(d => d.verdict === 'probable-false-open').length,
+    umbrellaOpen: docs.filter(d => d.umbrellaOpen).length,
+    umbrellaIds: docs.filter(d => d.umbrellaOpen).map(d => d.id || d.fileId).filter(Boolean),
     obsolete: docs.filter(d => d.cls === 'obsolete').length,
     trackedOpen: docs.filter(d => d.cls === 'tracked-open').length,
     trackedDone: docs.filter(d => d.cls === 'tracked-done').length,
