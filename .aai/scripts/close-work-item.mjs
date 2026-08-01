@@ -739,7 +739,10 @@ function scanAgentRuns(ref) {
 // Mirrors the metrics-flush 3-way classifier (decomposed | undecomposed-note |
 // capture-missing) plus the sentinel — never a re-declared regex.
 function usageCaptured(run) {
-  if (run.tokensIn !== null && run.tokensOut !== null) return true;
+  // decomposed arm: BOTH counts present AND non-negative (bot review: state.mjs
+  // currently accepts negative ints; a -1/-1 pair is not honest capture).
+  if (run.tokensIn !== null && run.tokensOut !== null
+    && run.tokensIn >= 0 && run.tokensOut >= 0) return true;
   if (extractUsageTotal(run.note) !== null) return true;
   if (hasUsageSentinel(run.note)) return true;
   return false;

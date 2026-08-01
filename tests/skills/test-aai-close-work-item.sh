@@ -1631,6 +1631,17 @@ test_033_usage_gate_captured_and_metarole_pass() {
   fi
   grep -q '^status: done$' "$dir/docs/issues/CHANGE-0001-t033.md" \
     || log_fail "t033: close did not proceed for a fully-captured ride"
+  # negative decomposed counts are NOT capture (bot P2): -1/-1 must trip the
+  # gate under enforce — a fresh fixture so the earlier clean close cannot mask it.
+  local dir2; dir2=$(new_fixture_repo "t033n")
+  set_usage_capture_gate_dial "$dir2" "enforce"
+  write_change_doc "$dir2/docs/issues/CHANGE-0001-t033n.md" "t033n-slug" "draft"
+  commit_fixture_docs "$dir2"
+  state_begin "$dir2" "t033n-slug"
+  state_add_run "$dir2" "Implementation" "negative counts" "-1" "-1"
+  local out2="$TEST_DIR/t033n.out" err2="$TEST_DIR/t033n.err" code2
+  code2=$(run_close "$dir2" "$out2" "$err2" --ref t033n-slug --pr 33 --commit f033f033)
+  assert_exit "negative tokens_in/out must not count as captured" 4 "$code2"
   log_pass "Marker OR decomposed tokens never trip the gate; meta-roles never gated (AC-002)"
 }
 

@@ -427,7 +427,7 @@ test_012_seam_release_grouping_matches_overview() {
 # per-week series, computed from a fixture ledger and matching an independent
 # re-sum; the existing no-marker NOTE is preserved; HTML renders the percentage.
 test_020_capture_coverage_kpi() {
-  log_info "Test: cost.capture_coverage overall + per-week matches an independent re-sum; NOTE preserved; HTML renders pct (telemetry-completeness AC-004)..."
+  log_info "Test: cost.capture_coverage overall + per-week matches an independent re-sum; NOTE unaffected (asserted separately by the unmarked-ride fixture in TEST-005); HTML renders pct (telemetry-completeness AC-004)..."
   local d; d="$(mk_repo t020)"
   cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
 {"date_utc":"2026-07-01","ref_id":"A","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=100"},{"role":"Implementation","duration_seconds":10,"note":"forgot the marker"}],"verdict":"PASS"}
