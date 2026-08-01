@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-01T18:47:23.822Z",
+  "generatedAt": "2026-08-01T19:31:03.281Z",
   "project": "aai",
   "counts": {
-    "delivered": 148,
+    "delivered": 149,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -115,6 +115,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0112-spec-lightweight-e2e-lane.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "umbrella-false-open-marker",
+      "title": "Change — umbrella marker: deliberately-open multi-phase parents stop re-tripping the false-open heuristic",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0104-umbrella-false-open-marker.md",
+      "closed_on": "2026-08-01",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
       "validation": null,
       "review": null
     },
@@ -2046,6 +2059,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0112-spec-lightweight-e2e-lane.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "umbrella-false-open-marker",
+          "title": "Change — umbrella marker: deliberately-open multi-phase parents stop re-tripping the false-open heuristic",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0104-umbrella-false-open-marker.md",
+          "closed_on": "2026-08-01",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
           "validation": null,
           "review": null
         }

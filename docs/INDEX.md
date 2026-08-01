@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-01T19:17:44.634Z
+Generated: 2026-08-01T19:31:24.112Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -38,7 +38,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (262)
+## Done (263)
 
 | ID | Type | Path |
 |---|---|---|
@@ -145,6 +145,7 @@ _None._
 | CHANGE-0101 | issues | docs/issues/CHANGE-0101-cache-friendly-dispatch.md |
 | CHANGE-0102 | issues | docs/issues/CHANGE-0102-async-hitl-platform-comments.md |
 | CHANGE-0103 | issues | docs/issues/CHANGE-0103-lightweight-e2e-lane.md |
+| CHANGE-0104 | issues | docs/issues/CHANGE-0104-umbrella-false-open-marker.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -305,11 +306,9 @@ _None._
 | SPEC-0112 | specs | docs/specs/SPEC-0112-spec-lightweight-e2e-lane.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| umbrella-false-open-marker (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-umbrella-false-open-marker.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
