@@ -11,6 +11,39 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(dispatch): token-economics cache-friendly dispatch ordering audit + advisory effort routing (CHANGE-0101 / SPEC-0110) [L2]
+
+- Prompt caching bills a repeated stable prefix at ~10% of base rate, but only
+  while that prefix is byte-identical across calls and the effort/model cache key
+  is unchanged. The factory dispatches large role prompts thousands of times, so a
+  regression in stable-first/variable-last ordering, or a mid-session effort/model
+  flip, silently forfeits the discount on every dispatch. This ride audits the
+  ordering, adds an advisory per-role effort hint, and pins the invariants.
+- CACHE-ORDERING AUDIT (AC-001): every dispatch-assembled prompt surface
+  (orchestration-dispatch.mjs JSON + --human block, SUBAGENT_PROTOCOL dispatch
+  contract, SKILL_LOOP step 4 + CACHING DISCIPLINE, ORCHESTRATION_PARALLEL SUBAGENT
+  EXECUTION, BRIEF_TEMPLATE, ROLE_COMMON) was classified stable vs variable and its
+  order recorded in the spec. Finding: ZERO reorders needed — every real
+  prompt-assembly surface already leads with the stable role prompt/canon and
+  places variable scope/STATE last, and SKILL_LOOP already pins it. AC-002 locks
+  the invariant: a suite check asserts the stable prefix (role prompt +
+  SUBAGENT_CONTRACT + LEARNED, via the SPEC-0096 prompt-hash machinery) is
+  byte-identical across two consecutive same-role dispatches.
+- ADVISORY EFFORT ROUTING (AC-003): `.aai/system/MODEL_ROUTING.yaml` gains optional
+  `effort_tiers:`/`effort_roles:` sections; `orchestration-dispatch.mjs` surfaces
+  `suggested_effort` on every dispatch (JSON + --human) resolved as
+  effort_roles[role] ?? effort_tiers[tier] ?? null, mirroring `suggested_model`.
+  Shipped map: mechanical roles low, Planning/Implementation default, Validation +
+  Code Review high. Advisory only (the harness owns real API params); an absent
+  file or absent field degrades `suggested_effort` to null (back-compat).
+- NO-MID-SESSION-FLIP PIN (AC-004): a grep-pinned rule in the MODEL_ROUTING.yaml
+  header forbids flipping a role's effort/model inside one running session (the key
+  is part of the cache key) — separate dispatches per tier, the factory's existing
+  shape. Documentation-only; no behavioral surface changed.
+- Zero prompt-corpus growth (AC-005): all changes land in scripts/system/tests
+  (no ledger cost); prompt-diet headroom stays 0/2048 and TEST-012 unchanged.
+  Tests: test-aai-orchestration-dispatch.sh TEST-030..034.
+
 ## [unreleased] — feat(intake): user-facing implementation-mode choice (TDD / direct+tests / no-tests) (CHANGE-0100 / SPEC-0109) [L3]
 
 - After a full intake AAI silently routed small changes through the full TDD loop

@@ -15,6 +15,22 @@
 # - WHY: routing ~70% of mechanical/standard calls away from frontier models is
 #   the single largest lever on autonomous-run cost. Binding the map here makes
 #   the choice deterministic and auditable instead of a per-tick LLM judgment.
+# - ADVISORY EFFORT (cache-friendly-dispatch): the optional `effort_tiers:` /
+#   `effort_roles:` sections below bind a reasoning-effort hint per role, surfaced
+#   as `suggested_effort` on every dispatch (resolution: effort_roles[role] ??
+#   effort_tiers[tier] ?? null). Effort is advisory — the harness, not the
+#   factory, owns actual API params — and a separate axis from the model tier
+#   (a standard-tier Validation is high-effort; a premium-tier Planning is
+#   default). Absent sections/file => suggested_effort null (today's output).
+# - NO MID-SESSION FLIP (cache-friendly-dispatch, HARD): NEVER flip a role's
+#   effort OR model inside one running session/context. Prompt-cache read pricing
+#   (~10% of base) applies only while the stable prefix stays byte-identical AND
+#   the effort/model key is unchanged — effort and model are part of the cache
+#   key, so a mid-session flip invalidates the cache and forfeits the savings on
+#   the NEXT call. Right-size per role via SEPARATE dispatches (one tier per
+#   dispatch, the factory's existing shape); this file is the single place the
+#   per-role choice is bound. A future edit MUST NOT introduce a mid-session
+#   effort/model switch.
 # - LANE-SCOPED ROLE KEYS: a role row may carry an `@lane` suffix, e.g.
 #   `Validation@lightweight`. Resolution order in suggestModel() is
 #   roles[role@lane.selected] ?? roles[role] ?? tiers[tier] ?? null, where
@@ -58,3 +74,20 @@ roles:
 # dispatch swaps Validation to this model instead (SUBAGENT_PROTOCOL.md
 # "Spawning a validator" rule, CHANGE-0010 D1).
 validation_alternate: claude-opus-4-8
+
+# Advisory reasoning-effort tier per dispatch (cache-friendly-dispatch).
+# Surfaced as `suggested_effort`; resolution effort_roles[role] ??
+# effort_tiers[tier] ?? null. Same no-inline-comment rule as the model rows.
+# Tier defaults: mechanical work is low-effort; standard/premium default.
+effort_tiers:
+  mechanical: low
+  standard: default
+  premium: default
+
+# Per-role effort overrides (beat the tier default). Verification-class roles
+# reason hard about correctness -> high; Planning/Implementation stay default
+# (premium/standard tier default already resolves them); mechanical roles stay
+# low via the tier default. A role with no row falls through to its tier.
+effort_roles:
+  Validation: high
+  Code Review: high

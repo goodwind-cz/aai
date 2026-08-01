@@ -133,7 +133,8 @@ When the platform supports concurrent subagent spawning:
    - Model: per MODEL SELECTION above (explicit id or mechanical | standard |
      premium tier); for Validation, a model DIFFERENT from the implementer's
      recorded model (VALIDATOR INDEPENDENCE)
-   - Context: scope, inputs, and a copy of .aai/SUBAGENT_CONTRACT.md
+   - Context: a copy of .aai/SUBAGENT_CONTRACT.md (stable, first), then
+     scope and inputs (variable, last — keeps the prefix cacheable)
    Remind the subagent it MUST NOT write docs/ai/STATE.yaml (single-writer rule).
 2. Each subagent MUST return a result block as defined in .aai/SUBAGENT_CONTRACT.md.
 3. DO NOT report to the user until ALL subagent result blocks are collected.

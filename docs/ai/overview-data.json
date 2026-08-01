@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-07-31T08:50:01.942Z",
+  "generatedAt": "2026-08-01T08:47:13.763Z",
   "project": "aai",
   "counts": {
-    "delivered": 145,
+    "delivered": 146,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -79,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "cache-friendly-dispatch",
+      "title": "Change — token economics: cache-friendly dispatch ordering + effort routing",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0101-cache-friendly-dispatch.md",
+      "closed_on": "2026-08-01",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0110-spec-cache-friendly-dispatch.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "implementation-mode-choice",
       "title": "Change — surface an implementation-mode choice at intake (TDD / direct+tests / no-tests)",
@@ -1966,6 +1979,26 @@
     }
   ],
   "delivered_groups": [
+    {
+      "key": "month:2026-08",
+      "kind": "month",
+      "label": "2026-08",
+      "items": [
+        {
+          "ref": "cache-friendly-dispatch",
+          "title": "Change — token economics: cache-friendly dispatch ordering + effort routing",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0101-cache-friendly-dispatch.md",
+          "closed_on": "2026-08-01",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0110-spec-cache-friendly-dispatch.md",
+          "validation": null,
+          "review": null
+        }
+      ]
+    },
     {
       "key": "month:2026-07",
       "kind": "month",
