@@ -249,6 +249,57 @@ sidecar correct by construction.
 - AC-012: zero new runtime dependencies (Node stdlib only); the lib imports
   nothing outside `node:*`.
 
+## Implementation status (close-ready)
+Per-AC reconcile recorded as a BULLET list (not a terminal AC-Status table): the
+doc stays `status: draft` until the close ceremony flips it, so an all-DONE
+terminal table would trip the docs-audit false-open heuristic (delivered-but-
+draft) before close. Left close-ready per the C-ride precedent. This ride
+delivers intake Stages 1-3; Stage 4 (update-check / docs-lock migration + the
+append helper) is deliberately FROZEN.
+
+- AC-001 loadOrDegrade absent/corrupt/wrong-shape/ok — DONE (runtime-file.mjs
+  loadOrDegrade; test-aai-runtime-file.sh TEST-001..004; RED control confirmed a
+  corrupt-as-empty variant fails TEST-002/003).
+- AC-002 atomicWrite crash-safety + concurrent whole-file — DONE (atomicWrite
+  temp+rename; TEST-005..007, incl. a true-parallel two-writer case).
+- AC-003 claimExclusive exclusive + wx fallback + loud error — DONE
+  (claimExclusive; TEST-008 8-way true-parallel single-winner, TEST-009
+  hard-link-hostile fallback, TEST-010 genuine error returns error not held).
+- AC-004 isStale symmetric + injectable clock — DONE (isStale abs(now-ts) over
+  window, NaN/future -> stale; TEST-011, TEST-012 determinism).
+- AC-005 reapAsides GCs only aged orphans; missing dir no-op — DONE (reapAsides;
+  TEST-013, TEST-014).
+- AC-006 appendLine (append-ledger primitive) — DEFERRED to Stage 4. The intake
+  Design (a) marks appendLine "(documented, separate)" and Staged plan point 4
+  defers the friction append helper to "only when a real reason next touches
+  them"; append vs rewrite are different atomicity models and no sidecar in this
+  ride's scope needs it. Not built; documented as the separate append primitive
+  in the runtime-file.mjs header.
+- AC-007 hitl-channel migrated byte-identically — DONE. loadSidecar ->
+  loadOrDegrade, saveSidecar -> atomicWrite; serialized bytes unchanged; the 19
+  test-aai-hitl-channel tests stay green with NO fixture/assertion edits; the
+  crash-safe write guarantee is newly added (asserted generically by
+  runtime-file.mjs TEST-006).
+- AC-008 convention pinned + review checklist — DONE (runtime-file.mjs header
+  CONVENTION PIN + .aai/SKILL_CODE_REVIEW.prompt.md Verdict 2 BLOCKING-finding
+  line; prompt-diet ledger true-up +196 B, TEST-012 bumped 682 -> 878).
+- AC-009 PROFILES core classification; layer-profiles green — DONE
+  (.aai/scripts/lib/runtime-file.mjs added to PROFILES core; test-aai-layer-
+  profiles green; suite-map row aai-runtime-file added, hygiene-pack green;
+  SPEC-0097 shared-lib FULL_RUN trigger applies — heavy CI lane expected).
+- AC-010 .gitignore runtime-sidecar consolidation — PARTIAL / DEFERRED. The
+  safety half is MET and verified: `git check-ignore` confirms every sidecar
+  path (hitl-channel.json, STATE.yaml, briefs, update-sync.lock, friction
+  observations) is correctly ignored, and no path was added or removed. The
+  purely-cosmetic reordering of the scattered blocks into one header is deferred:
+  it is outside this ride's five deliverables and risks the interleaved
+  glob+negation ordering semantics — contrary to the change's own don't-churn-
+  working-code discipline. No behavior change either way.
+- AC-011 no regression in untouched sidecars — DONE (update-check 31, docs-lock,
+  friction suites all green).
+- AC-012 zero runtime deps (node:* only) — DONE (TEST-016; imports node:fs +
+  node:path only).
+
 ## Verification
 - New: `tests/skills/test-aai-runtime-file.sh` — the negative-control suite for
   AC-001..006, RED-before-GREEN, zero real network.
