@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-01T19:31:24.112Z
+Generated: 2026-08-01T22:28:04.848Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -306,9 +306,11 @@ _None._
 | SPEC-0112 | specs | docs/specs/SPEC-0112-spec-lightweight-e2e-lane.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| telemetry-completeness (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-telemetry-completeness.md |
 
 ## Deferred (whole-doc) (0)
 
