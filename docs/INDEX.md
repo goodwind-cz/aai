@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-07-31T09:19:51.889Z
+Generated: 2026-08-01T08:06:30.455Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -297,9 +297,11 @@ _None._
 | SPEC-0109 | specs | docs/specs/SPEC-0109-spec-implementation-mode-choice.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| cache-friendly-dispatch (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-cache-friendly-dispatch.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -336,4 +338,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-07-31 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-01 — counts above use this date for overdue checks.
