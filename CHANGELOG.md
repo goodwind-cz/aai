@@ -9,7 +9,7 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — feat(telemetry): close-time usage-capture gate + run-level coverage KPI (CHANGE telemetry-completeness) [L2]
+## [unreleased] — feat(telemetry): close-time usage-capture gate + run-level coverage KPI (CHANGE-0105) [L2]
 
 - Closes the *ongoing* usage-marker leak the factory-performance report exposed:
   53.8% of agent runs carried no `usage_total_tokens` marker because the marker

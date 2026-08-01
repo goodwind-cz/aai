@@ -1434,3 +1434,6 @@
 {"v":1,"ts":"2026-08-01T19:30:36.016Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"umbrella-false-open-marker","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-08-01T19:30:36.069Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"umbrella-false-open-marker","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-01T19:30:36.124Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"umbrella-false-open-marker","payload":{"commit":"5bc44d1563d62b2d564509635bbe8d873df3e5ec"}}
+{"v":1,"ts":"2026-08-01T22:57:58.290Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"telemetry-completeness","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-01T22:57:58.350Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"telemetry-completeness","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-01T22:57:58.410Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"telemetry-completeness","payload":{"commit":"633ef3675505ff487d64ae9514d3f3172c814c0c"}}

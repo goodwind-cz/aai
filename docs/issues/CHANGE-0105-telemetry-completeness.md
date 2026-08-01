@@ -1,11 +1,14 @@
 ---
 id: telemetry-completeness
+number: 105
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 208
+  commits:
+    - 633ef3675505ff487d64ae9514d3f3172c814c0c
 ---
 
 # Change — Telemetry completeness: close the capture gaps behind the factory-performance report
