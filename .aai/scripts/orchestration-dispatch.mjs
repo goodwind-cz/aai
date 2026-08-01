@@ -827,7 +827,7 @@ function humanBlock(out) {
     `Stop condition: ${out.stop_condition}`,
     `Suggested model tier: ${out.suggested_tier ?? '(n/a)'}`,
     `Suggested model id: ${out.suggested_model ?? '(unbound — no .aai/system/MODEL_ROUTING.yaml)'}`,
-    `Suggested effort: ${out.suggested_effort ?? '(unset — no effort_roles/effort_tiers in MODEL_ROUTING.yaml)'}`,
+    `Suggested effort: ${out.suggested_effort ?? '(unset — no matching effort routing)'}`,
   ];
   if (out.validator_independence) {
     lines.push(`Validator independence: implementer_model=${out.validator_independence.implementer_model ?? 'null'} (validator model must differ)`);

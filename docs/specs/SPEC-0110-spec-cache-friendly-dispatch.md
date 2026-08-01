@@ -49,12 +49,12 @@ orchestrator/human read, not cached subagent-prompt prefixes.
 | Human dispatch block | orchestration-dispatch.mjs humanBlock() | stderr human diagnostic; state_summary (volatile) leads by design; not a cached prompt prefix | ok |
 | Subagent call contract | SUBAGENT_PROTOCOL.md "Subagent call contract" table | static canon listing REQUIRED fields (ROLE, SCOPE, MODEL, INPUT, EXPECTED_OUTPUT, SYSTEM_PROMPT); a spec of fields, not the literal assembly order | ok |
 | Dispatched-role assembly (single) | SKILL_LOOP.prompt.md step 4 RUN DISPATCHED ROLE + CACHING DISCIPLINE | role prompt (stable) FIRST, then dispatch block plus STATE (variable) LAST; the invariant is already pinned in the CACHING DISCIPLINE section | ok |
-| Dispatched-role assembly (parallel) | ORCHESTRATION_PARALLEL.prompt.md SUBAGENT EXECUTION | canonical role prompt (stable) first, then Model, then scope plus inputs plus SUBAGENT_CONTRACT (variable then fixed canon) | ok |
+| Dispatched-role assembly (parallel) | ORCHESTRATION_PARALLEL.prompt.md SUBAGENT EXECUTION | role prompt (stable) first, then Model; Context ORIGINALLY put variable scope+inputs before the stable SUBAGENT_CONTRACT copy | reordered (bot-review finding: CONTRACT now precedes scope+inputs) |
 | Work-item brief handoff | BRIEF_TEMPLATE.md + PLANNING step 11 | brief is entirely per-scope variable INPUT by design; canon is POINTERS only (no bodies); appended after the stable role prompt | ok |
 | Shared role blocks | ROLE_COMMON.md | canonical stable blocks referenced by role prompts; no variable content | ok |
 
 Finding: ZERO reorders required. Every surface that assembles a real dispatched
-prompt (SKILL_LOOP step 4, ORCHESTRATION_PARALLEL SUBAGENT EXECUTION) already
+prompt (SKILL_LOOP step 4; ORCHESTRATION_PARALLEL after the one Context reorder) already
 orders the stable role prompt and canon FIRST and variable scope/STATE LAST,
 and SKILL_LOOP's CACHING DISCIPLINE section already pins the invariant. This is
 a legitimate AC-001 outcome (the intake anticipated it): AC-001 documents the

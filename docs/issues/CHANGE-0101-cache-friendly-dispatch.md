@@ -58,7 +58,7 @@ links:
   byte-compare of the assembled stable segment).
 - AC-003: MODEL_ROUTING.yaml carries suggested_effort per role; dispatch
   emits it (text + --json) alongside suggested_model; absent file or field
-  degrades to today's output byte-for-byte (back-compat, suite-verified).
+  adds only the additive `suggested_effort: null` field (mirroring how suggested_model was introduced); all other output bytes unchanged (back-compat, suite-verified).
 - AC-004: the no-mid-session-flip rule is present and grep-pinned; no
   behavioral surface changed by it (documentation pin only).
 - AC-005: no prompt-corpus regression — headroom stays within cap; any byte
