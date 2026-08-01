@@ -107,17 +107,20 @@ core, BOTH add-ons are SPLIT OUT to follow-ups:
     SKILL_HITL resolution; a bot-authored or self-authored reply SHALL be ignored;
     a re-raised follow-up comment SHALL NOT double-post.
   - Verification: test-aai-hitl-channel.sh (TEST-005, TEST-006, TEST-010, TEST-012,
-    TEST-014).
+    TEST-014, TEST-017 follow-up supersedes the question, TEST-018 live-gh poll
+    paginates so a busy thread never yields a false status:none).
 - Maps to: AC-003 (reply trust: write-permission gate; body is inert data)
   - Spec-AC-03: WHEN a reply author lacks repo write permission the system SHALL
     ignore the reply; the reply body SHALL be treated as data only (control and
     bidi characters stripped, never executed as instructions).
-  - Verification: test-aai-hitl-channel.sh (TEST-007, TEST-008).
+  - Verification: test-aai-hitl-channel.sh (TEST-007, TEST-008, TEST-016 token+ref
+    match — a recurring token cannot pick up an OLD ride's reply on poll/resolve).
 - Maps to: AC-004 (degrade; idempotent post)
   - Spec-AC-04: WHEN the platform is absent, the remote is offline, or the gh API
     errors the system SHALL degrade to terminal HITL without blocking or crashing
     (exit 0, loud note); a re-raised HITL SHALL NOT post a duplicate comment.
-  - Verification: test-aai-hitl-channel.sh (TEST-002, TEST-004, TEST-009).
+  - Verification: test-aai-hitl-channel.sh (TEST-002, TEST-004, TEST-009, TEST-019
+    corrupt sidecar fails closed to status degraded rather than a silent empty).
 
 ## Constitution deviations
 
@@ -213,6 +216,10 @@ Edge cases:
 | TEST-012 | Spec-AC-02 | unit | tests/skills/test-aai-hitl-channel.sh | SKILL_HITL STEP 0 names hitl-channel.mjs poll, the UNTRUSTED-DATA rule and the follow-up on ambiguity | green   |
 | TEST-013 | Spec-AC-01 | integration | tests/skills/test-aai-hitl-channel.sh | the ORCHESTRATION_HITL-declared post command runs against a fixture and records the sidecar (prompt to CLI to sidecar seam) | green   |
 | TEST-014 | Spec-AC-02 | integration | tests/skills/test-aai-hitl-channel.sh | end-to-end post records the sidecar, then poll reads that same sidecar and surfaces a fixture reply (post to poll seam) | green   |
+| TEST-016 | Spec-AC-03 | unit | tests/skills/test-aai-hitl-channel.sh | two entries share one token but differ by ref; poll --ref and resolve --ref narrow to the matching ref only so a recurring token cannot pick up an old ride's reply (Codex P1 token-reuse trust guard) | green   |
+| TEST-017 | Spec-AC-02 | unit | tests/skills/test-aai-hitl-channel.sh | a follow-up post supersedes the original question entry so poll surfaces one result via the follow-up entry, never the stale question (Codex P2) | green   |
+| TEST-018 | Spec-AC-02 | unit | tests/skills/test-aai-hitl-channel.sh | live-gh poll follows pagination (per_page 100) and finds a reply on page 2 instead of a false status none on a busy thread (Codex P2) | green   |
+| TEST-019 | Spec-AC-04 | unit | tests/skills/test-aai-hitl-channel.sh | a corrupt sidecar degrades loudly to status degraded with reason sidecar_corrupt and exit 0, never read as an empty ledger (Codex P2 fail-closed) | green   |
 
 Seam analysis (step 6a):
 - Seam 1 (sidecar file, produced by post, consumed by poll): TEST-014 crosses it

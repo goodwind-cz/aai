@@ -45,10 +45,11 @@ STATE WRITEBACK (MANDATORY)
 - ASYNC CHANNEL (best-effort): after stamping the token, if the scope has a
   linked GitHub thread (frontmatter `links.pr` or an /aai-issues issue ref),
   post the question + options ONCE, then PARK, via
-  `node .aai/scripts/hitl-channel.mjs post --token [HITL-<n>] --thread <ref> --body-file <question>`.
-  It is idempotent; no thread / no GitHub / gh error degrades to the terminal
-  HITL block, byte-for-byte unchanged. A post failure must NEVER block or crash
-  the raising role.
+  `node .aai/scripts/hitl-channel.mjs post --token HITL-<n> --ref <focus ref> --thread <issue/PR number> --body-file <path to the question text>`.
+  Pass the token in its BARE form `HITL-<n>` — the bracketed `[HITL-<n>]` is only
+  the prompt-display form. It is idempotent; no thread / no GitHub / gh error
+  degrades to the terminal HITL block, byte-for-byte unchanged. A post failure
+  must NEVER block or crash the raising role.
 
 OUTPUT: ONE OF
 A) DISPATCH (continue): Role, Scope, Inputs, Outputs, Stop condition

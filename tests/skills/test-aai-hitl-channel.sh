@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-hitl-channel (async-hitl-platform-comments /
-# SPEC-0111-spec-async-hitl-platform-comments.md, TEST-001..014).
+# SPEC-0111-spec-async-hitl-platform-comments.md, TEST-001..019).
 #
 # Verifies .aai/scripts/hitl-channel.mjs — the deterministic post/poll channel
 # that turns a terminal [HITL-<n>] block into an asynchronous platform comment
@@ -463,6 +463,178 @@ test_015_resolve_lifecycle() {
   log_pass "TEST-015: resolve lifecycle — consumed token never re-surfaces, others live, idempotent, prompt pinned"
 }
 
+# write_sidecar2 <path> <tok1> <ref1> <thr1> <cid1> <tok2> <ref2> <thr2> <cid2>
+# Two question entries (posted_utc fixed old) so ref-match / supersede can bite.
+write_sidecar2() {
+  cat > "$1" <<JSON
+{
+  "entries": [
+    { "hitl_token": "$2", "ref": "$3", "platform": "github", "thread_ref": "$4",
+      "comment_id": "$5", "kind": "question", "posted_utc": "2026-08-01T10:00:00Z", "resolved": false },
+    { "hitl_token": "$6", "ref": "$7", "platform": "github", "thread_ref": "$8",
+      "comment_id": "$9", "kind": "question", "posted_utc": "2026-08-01T10:00:00Z", "resolved": false }
+  ]
+}
+JSON
+}
+
+# ---------------- TEST-016 (Codex P1 TRUST): token+ref match on poll/resolve --
+# Two sidecar entries share one token (HITL-7) but carry DIFFERENT refs — the
+# recurring-token trust boundary. poll --ref must surface ONLY the entry for
+# that ref; resolve --ref must consume ONLY that ref's entry, leaving the
+# other ride's same-token entry live.
+test_016_ref_match() {
+  log_info "TEST-016 [TRUST]: poll --ref / resolve --ref narrow a recurring token to the matching ref only..."
+  local d="$TEST_DIR/t016"; mkdir -p "$d"
+  local sc="$d/sidecar.json" comments="$d/comments.json" perms="$d/perms.json"
+  # Same token HITL-7, refs CHANGE-0001 (thread 42) and CHANGE-0002 (thread 43).
+  write_sidecar2 "$sc" HITL-7 CHANGE-0001 42 555160 HITL-7 CHANGE-0002 43 555161
+  node -e '
+    const fs=require("fs");
+    fs.writeFileSync(process.argv[1], JSON.stringify([
+      {id:960,user:{login:"operator",type:"User"},body:"answer for this ride",created_at:"2099-01-01T00:00:00Z"}
+    ]));
+  ' "$comments"
+  printf '{"operator":"write"}\n' > "$perms"
+  # poll --ref CHANGE-0002 -> exactly one result, for ref CHANGE-0002 / thread 43.
+  run_channel poll --sidecar "$sc" --ref CHANGE-0002 --self aai-bot --input "$comments" --perm-input "$perms" --json
+  [[ "$EC" == 0 ]] || { log_fail "TEST-016: poll --ref exited $EC: $(cat "$ERR")"; return; }
+  local count ref0 thr0
+  count="$(jfield "$OUT" 'Array.isArray(o)?o.length:1')"
+  ref0="$(jfield "$OUT" 'Array.isArray(o)?o[0].ref:o.ref')"
+  thr0="$(jfield "$OUT" 'Array.isArray(o)?o[0].thread_ref:o.thread_ref')"
+  if [[ "$count" != 1 || "$ref0" != "CHANGE-0002" || "$thr0" != "43" ]]; then
+    log_fail "TEST-016: poll --ref surfaced count=$count ref=$ref0 thr=$thr0 (want 1/CHANGE-0002/43)"; return
+  fi
+  # resolve --ref CHANGE-0001 -> resolves only that entry; CHANGE-0002 stays live.
+  run_channel resolve --token HITL-7 --ref CHANGE-0001 --sidecar "$sc" --json
+  [[ "$EC" == 0 ]] || { log_fail "TEST-016: resolve --ref exited $EC"; return; }
+  local n; n="$(jfield "$OUT" 'o.entries_resolved')"
+  [[ "$n" == 1 ]] || { log_fail "TEST-016: resolve --ref resolved $n entries (want 1)"; return; }
+  # Unresolved remainder must be exactly the CHANGE-0002 entry.
+  local live_ref
+  live_ref="$(jfield "$sc" 'o.entries.filter(e=>!e.resolved).map(e=>e.ref).join(",")')"
+  [[ "$live_ref" == "CHANGE-0002" ]] || { log_fail "TEST-016: after resolve --ref the live entries are ref=$live_ref (want only CHANGE-0002)"; return; }
+  # Prompt pin: SKILL_HITL STEP 0 must instruct polling WITH --ref (trust guard).
+  if grep -qF -- '--ref' "$SKILL_HITL"; then
+    log_pass "TEST-016: token+ref match — poll/resolve narrow a recurring token to the matching ref only; SKILL_HITL STEP 0 pins --ref"
+  else
+    log_fail "TEST-016: SKILL_HITL STEP 0 missing the --ref poll instruction (trust-boundary pin)"
+  fi
+}
+
+# ---------------- TEST-017 (Codex P2): follow-up retires the question ---------
+# Posting kind=followup for a (token,thread) marks the original question entry
+# resolved (superseded); poll then surfaces the reply via the follow-up entry
+# ONLY (a single result), never the stale question entry.
+test_017_followup_supersedes() {
+  log_info "TEST-017: a follow-up post retires the original question entry (poll surfaces one, via the follow-up)..."
+  local d="$TEST_DIR/t017"; mkdir -p "$d"
+  local sc="$d/sidecar.json" body="$d/body.md" comments="$d/comments.json" perms="$d/perms.json"
+  local stubq="$d/ghq" logq="$d/ghq.log" stubf="$d/ghf" logf="$d/ghf.log"
+  make_gh_stub "$stubq" "$logq" "570700" 0   # question comment id
+  make_gh_stub "$stubf" "$logf" "570701" 0   # follow-up comment id
+  printf 'original question\n' > "$body"
+  run_channel post --token HITL-3 --ref CHANGE-0001 --thread 42 --platform github \
+    --body-file "$body" --sidecar "$sc" --gh-bin "$stubq"
+  [[ "$EC" == 0 ]] || { log_fail "TEST-017: question post exited $EC"; return; }
+  run_channel post --token HITL-3 --ref CHANGE-0001 --thread 42 --platform github \
+    --body-file "$body" --sidecar "$sc" --gh-bin "$stubf" --kind followup
+  [[ "$EC" == 0 ]] || { log_fail "TEST-017: followup post exited $EC"; return; }
+  # The original question entry must be marked resolved (superseded).
+  local qresolved
+  qresolved="$(jfield "$sc" 'String((o.entries.find(e=>e.comment_id=="570700")||{}).resolved)')"
+  [[ "$qresolved" == "true" ]] || { log_fail "TEST-017: question entry not superseded (resolved=$qresolved)"; return; }
+  node -e '
+    const fs=require("fs");
+    fs.writeFileSync(process.argv[1], JSON.stringify([
+      {id:961,user:{login:"operator",type:"User"},body:"clarified answer",created_at:"2099-01-01T00:00:00Z"}
+    ]));
+  ' "$comments"
+  printf '{"operator":"write"}\n' > "$perms"
+  run_channel poll --sidecar "$sc" --self aai-bot --input "$comments" --perm-input "$perms" --json
+  [[ "$EC" == 0 ]] || { log_fail "TEST-017: poll exited $EC"; return; }
+  local count cid0
+  count="$(jfield "$OUT" 'Array.isArray(o)?o.length:1')"
+  cid0="$(jfield "$OUT" 'Array.isArray(o)?o[0].comment_id:o.comment_id')"
+  if [[ "$count" == 1 && "$cid0" == "570701" ]]; then
+    log_pass "TEST-017: follow-up superseded the question — poll surfaces one result via the follow-up entry"
+  else
+    log_fail "TEST-017: expected 1 result via comment 570701, got count=$count cid=$cid0"
+  fi
+}
+
+# ---------------- TEST-018 (Codex P2): live-gh poll paginates ----------------
+# A busy thread returns a FULL first page (100) then the reply on page 2. The
+# live-gh path must follow pages (not stop at the default 30/first page) so the
+# later reply is found instead of a false status:none.
+test_018_pagination() {
+  log_info "TEST-018: live-gh poll follows pagination and finds a reply on page 2..."
+  local d="$TEST_DIR/t018"; mkdir -p "$d"
+  local sc="$d/sidecar.json" stub="$d/gh" p1="$d/page1.json" p2="$d/page2.json"
+  write_sidecar "$sc" HITL-3 42 github 555018 question 2026-08-01T10:00:00Z
+  # page1 = 100 self-authored (ignored) comments -> forces a second page fetch.
+  node -e '
+    const fs=require("fs");
+    const a=[]; for(let i=0;i<100;i++) a.push({id:1000+i,user:{login:"aai-bot",type:"User"},body:"noise",created_at:"2026-08-01T11:00:00Z"});
+    fs.writeFileSync(process.argv[1], JSON.stringify(a));
+  ' "$p1"
+  # page2 = one qualifying operator reply.
+  node -e '
+    const fs=require("fs");
+    fs.writeFileSync(process.argv[1], JSON.stringify([
+      {id:2000,user:{login:"operator",type:"User"},body:"page-two answer",created_at:"2026-08-01T12:00:00Z"}
+    ]));
+  ' "$p2"
+  # A stub that serves page1 for the collaborators/permission call AND the first
+  # comments page, page2 for the second comments page. Permission is echoed as a
+  # bare string when the path is a permission endpoint.
+  cat > "$stub" <<EOF
+#!/usr/bin/env bash
+args="\$*"
+case "\$args" in
+  *collaborators*permission*) printf 'write\n'; exit 0 ;;
+  *comments*page=2*)          cat "$p2"; exit 0 ;;
+  *comments*)                 cat "$p1"; exit 0 ;;
+esac
+printf '[]\n'; exit 0
+EOF
+  chmod +x "$stub"
+  run_channel poll --sidecar "$sc" --self aai-bot --gh-bin "$stub" --json
+  [[ "$EC" == 0 ]] || { log_fail "TEST-018: poll exited $EC: $(cat "$ERR")"; return; }
+  local status body author
+  status="$(jfield "$OUT" 'Array.isArray(o)?o[0].status:o.status')"
+  body="$(jfield "$OUT" 'Array.isArray(o)?o[0].body:o.body')"
+  author="$(jfield "$OUT" 'Array.isArray(o)?o[0].author:o.author')"
+  if [[ "$status" == "reply" && "$body" == *"page-two answer"* && "$author" == "operator" ]]; then
+    log_pass "TEST-018: paginated poll found the page-2 reply (no false status:none on a busy thread)"
+  else
+    log_fail "TEST-018: expected reply from page 2, got status=$status author=$author body=$body"
+  fi
+}
+
+# ---------------- TEST-019 (Codex P2): corrupt sidecar fails closed ----------
+# A garbage (unparseable) sidecar must NOT be treated as an empty ledger — poll
+# emits a loud degraded note (reason=sidecar_corrupt) and exits 0 with status
+# degraded, so an operator never mistakes a damaged ledger for "nothing parked".
+test_019_corrupt_sidecar_failclosed() {
+  log_info "TEST-019: a corrupt sidecar degrades loudly (never a silent empty ledger)..."
+  local d="$TEST_DIR/t019"; mkdir -p "$d"
+  local sc="$d/sidecar.json"
+  printf '{ this is not valid json ]]]\n' > "$sc"
+  run_channel poll --sidecar "$sc" --self aai-bot --json
+  [[ "$EC" == 0 ]] || { log_fail "TEST-019: corrupt-sidecar poll must exit 0, got $EC"; return; }
+  local status; status="$(jfield "$OUT" 'Array.isArray(o)?(o[0]||{}).status:o.status')"
+  if [[ "$status" != "degraded" ]]; then
+    log_fail "TEST-019: expected status=degraded, got '$status' ($(cat "$OUT"))"; return
+  fi
+  if grep -qi 'sidecar_corrupt' "$ERR"; then
+    log_pass "TEST-019: corrupt sidecar failed closed (degraded note reason=sidecar_corrupt, exit 0)"
+  else
+    log_fail "TEST-019: no loud sidecar_corrupt degrade note on stderr ($(cat "$ERR"))"
+  fi
+}
+
 # --- run ----------------------------------------------------------------------
 check_deps
 test_001_post_once
@@ -480,9 +652,13 @@ test_012_skill_prompt_contract
 test_013_seam_prompt_command
 test_014_seam_post_then_poll
 test_015_resolve_lifecycle
+test_016_ref_match
+test_017_followup_supersedes
+test_018_pagination
+test_019_corrupt_sidecar_failclosed
 
 if [[ "$FAILED" == 0 ]]; then
-  echo "PASS: all aai-hitl-channel tests (TEST-001..014)"
+  echo "PASS: all aai-hitl-channel tests (TEST-001..019)"
   exit 0
 else
   echo "FAIL: aai-hitl-channel suite had failures" >&2

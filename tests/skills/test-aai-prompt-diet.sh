@@ -413,7 +413,13 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# -2835 (true-up: async-hitl-platform-comments added a +1281 B itemized entry
+# -2211. NOTE: this branch (feat/async-hitl-platform-comments) carries THREE
+# async-HITL ledger true-ups — async-hitl-platform-comments +1281, async-hitl-
+# resolve-lifecycle +262, and the PR #205 5d bot-sweep async-hitl-botfix +551
+# (--ref token-reuse trust guard + bracket/bare token-form clarifier); the
+# earlier -2835 figure was a transplant artifact from before the resolve-
+# lifecycle/botfix true-ups landed on this branch.
+# Prior lineage (true-up: async-hitl-platform-comments added a +1281 B itemized entry
 # for the ORCHESTRATION_HITL ASYNC CHANNEL post bullet + SKILL_HITL STEP 0
 # RESUME FROM PLATFORM poll block, credited 1:1 so headroom stays 0/2048, over
 # the prior -4378 total after implementation-mode-choice +854/+4774; before
@@ -494,15 +500,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -2762 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -2762)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -2211 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -2211)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -2762 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -2211 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

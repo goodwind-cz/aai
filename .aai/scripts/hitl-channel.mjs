@@ -18,16 +18,24 @@
 //           sidecar. Degrade (no github platform, no thread, gh missing/error) to
 //           a loud note + exit 0 so the caller falls back to terminal HITL. Never
 //           crashes or blocks the raising role.
-//   resolve — mark every sidecar entry for a token resolved (consumption half
-//           of the lifecycle; run AFTER the answer is applied so poll never
-//           re-surfaces an already-answered reply). Idempotent, exit 0.
+//           A followup post SUPERSEDES the original question entry for that
+//           (token, thread) — the question is marked resolved so poll stops
+//           re-hitting the stale entry and the followup becomes the live one.
+//   resolve — mark sidecar entries for a token resolved (consumption half of
+//           the lifecycle; run AFTER the answer is applied so poll never
+//           re-surfaces an already-answered reply). An optional --ref narrows
+//           to token+ref (trust guard for recurring tokens). Idempotent, exit 0.
 //   poll  — read the sidecar, fetch replies to each unresolved thread, and
 //           surface the FIRST QUALIFYING human reply as UNTRUSTED DATA for
 //           SKILL_HITL. A qualifying reply is: created AFTER our posted_utc,
 //           author NOT in --self and user.type != "Bot", and author has repo
 //           write permission (admin|write|maintain). The reply body is DATA —
-//           control/bidi chars are stripped and it is NEVER executed. Degrade on
-//           gh missing/error to status=degraded + exit 0.
+//           control/bidi chars are stripped and it is NEVER executed. An
+//           optional --ref narrows the poll to entries for exactly that focus
+//           ref (token-reuse trust guard). The live-gh fetch PAGINATES
+//           (per_page=100, follow pages) so a busy thread never hides a reply.
+//           Degrade on gh missing/error to status=degraded + exit 0. A CORRUPT
+//           sidecar degrades (reason=sidecar_corrupt) — never read as empty.
 //
 // CLI
 //   node hitl-channel.mjs post --token <HITL-n> --ref <REF> --thread <n>
@@ -35,7 +43,8 @@
 //        [--kind question|followup] [--sidecar <path>] [--gh-bin <path>]
 //        [--json] [--dry-run]
 //   node hitl-channel.mjs poll [--sidecar <path>] [--self <login[,login...]>]
-//   node hitl-channel.mjs resolve --token <HITL-n> [--sidecar <path>] [--json]
+//        [--ref <REF>]
+//   node hitl-channel.mjs resolve --token <HITL-n> [--ref <REF>] [--sidecar <path>] [--json]
 //        [--gh-bin <path>] [--input <comments.json>] [--perm-input <perms.json>]
 //        [--json]
 //
@@ -112,14 +121,37 @@ function detectPlatform(explicit) {
   return classify(extractHost(url));
 }
 
+// FAIL-CLOSED sidecar load. ABSENT -> a normal empty ledger. PRESENT but
+// unparseable / wrong-shape -> { corrupt:true }: a DAMAGED ledger must never be
+// silently read as "no entries parked" (an operator could think nothing is
+// waiting when the record is actually broken). Callers route corrupt through
+// loadSidecarOrDegrade (loud note + exit 0 status=degraded).
 function loadSidecar(p) {
+  let raw;
   try {
-    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
-    if (raw && Array.isArray(raw.entries)) return raw;
-    return { entries: [] };
+    raw = fs.readFileSync(p, 'utf8');
   } catch {
-    return { entries: [] }; // absent or corrupt -> fresh
+    return { entries: [] }; // absent -> normal empty
   }
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.entries)) return parsed;
+  } catch {
+    return { corrupt: true }; // present but unparseable -> damaged
+  }
+  return { corrupt: true }; // present but wrong shape -> damaged
+}
+
+// Load the sidecar, or DEGRADE loudly on a corrupt ledger (never proceed as if
+// empty). Emits reason=sidecar_corrupt and exits 0 (best-effort contract).
+function loadSidecarOrDegrade(opts, p) {
+  const sc = loadSidecar(p);
+  if (sc && sc.corrupt) {
+    console.error('HITL-CHANNEL degraded reason=sidecar_corrupt (ledger damaged — not proceeding as empty)');
+    if (opts.json) console.log(JSON.stringify({ status: 'degraded', reason: 'sidecar_corrupt' }));
+    process.exit(0);
+  }
+  return sc;
 }
 
 function saveSidecar(p, data) {
@@ -158,7 +190,7 @@ function cmdPost(opts) {
   if (!thread) return degradePost(opts, 'no-thread-ref');
 
   // Idempotence: a recorded, unresolved (token, thread, kind) never re-posts.
-  const sidecar = loadSidecar(sidecarPath);
+  const sidecar = loadSidecarOrDegrade(opts, sidecarPath);
   const existing = sidecar.entries.find(
     (e) => e.hitl_token === token && e.thread_ref === thread
       && (e.kind || 'question') === kind && e.comment_id && !e.resolved,
@@ -213,6 +245,21 @@ function cmdPost(opts) {
     resolved: false,
   };
   sidecar.entries.push(entry);
+
+  // FOLLOW-UP RETIRES THE QUESTION: a followup for a (token, thread) supersedes
+  // the original question entry — mark it resolved so earliest-first poll stops
+  // re-hitting the stale question and the followup becomes the live entry.
+  if (kind === 'followup') {
+    for (const e of sidecar.entries) {
+      if (e !== entry && e.hitl_token === token && e.thread_ref === thread
+        && (e.kind || 'question') === 'question' && !e.resolved) {
+        e.resolved = true;
+        e.resolved_utc = nowUtc();
+        e.superseded_by = commentId;
+      }
+    }
+  }
+
   saveSidecar(sidecarPath, sidecar);
 
   console.error(`HITL-CHANNEL posted token=${token} thread=${thread} kind=${kind} comment_id=${commentId}`);
@@ -236,15 +283,32 @@ function fetchComments(opts, thread) {
       return { ok: false };
     }
   }
-  try {
-    const out = execFileSync(ghBinOf(opts), [
-      'api', `repos/{owner}/{repo}/issues/${thread}/comments`,
-    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-    const raw = JSON.parse(out);
-    return { ok: true, comments: Array.isArray(raw) ? raw : [] };
-  } catch {
-    return { ok: false };
+  // PAGINATE the live-gh path: the comments API returns 30/page by default, so
+  // a busy thread would hide a later reply -> false status:none. Fetch
+  // per_page=100 and follow pages until a short page (or a page cap guard).
+  const PER_PAGE = 100;
+  const MAX_PAGES = 50;
+  let all = [];
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    let out;
+    try {
+      out = execFileSync(ghBinOf(opts), [
+        'api', `repos/{owner}/{repo}/issues/${thread}/comments?per_page=${PER_PAGE}&page=${page}`,
+      ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch {
+      return { ok: false };
+    }
+    let raw;
+    try {
+      raw = JSON.parse(out);
+    } catch {
+      return { ok: false };
+    }
+    if (!Array.isArray(raw)) return { ok: true, comments: all };
+    all = all.concat(raw);
+    if (raw.length < PER_PAGE) break; // short page -> last page
   }
+  return { ok: true, comments: all };
 }
 
 // Resolve an author's repo permission — from --perm-input map or live gh.
@@ -278,7 +342,7 @@ function afterPosted(createdAt, postedUtc) {
 
 function pollEntry(opts, entry, self) {
   const thread = entry.thread_ref;
-  const base = { token: entry.hitl_token, thread_ref: thread, comment_id: entry.comment_id };
+  const base = { token: entry.hitl_token, ref: entry.ref ?? null, thread_ref: thread, comment_id: entry.comment_id };
   const fetched = fetchComments(opts, thread);
   if (!fetched.ok) return { status: 'degraded', ...base };
 
@@ -309,8 +373,13 @@ function pollEntry(opts, entry, self) {
 function cmdPoll(opts) {
   const sidecarPath = opts.sidecar || DEFAULT_SIDECAR;
   const self = selfSet(opts);
-  const sidecar = loadSidecar(sidecarPath);
-  const unresolved = sidecar.entries.filter((e) => !e.resolved);
+  const sidecar = loadSidecarOrDegrade(opts, sidecarPath);
+  // TOKEN-REUSE TRUST GUARD: an optional --ref narrows the poll to entries for
+  // exactly that focus ref, so a reply meant for an OLD ride's [HITL-<n>] can
+  // never resolve a NEW ride's recurring same-numbered token.
+  const unresolved = sidecar.entries
+    .filter((e) => !e.resolved)
+    .filter((e) => !opts.ref || e.ref === opts.ref);
 
   const results = unresolved.map((e) => pollEntry(opts, e, self));
 
@@ -336,10 +405,14 @@ function cmdResolve(opts) {
   const token = opts.token;
   if (!token) usage('resolve requires --token');
   const sidecarPath = opts.sidecar || DEFAULT_SIDECAR;
-  const sidecar = loadSidecar(sidecarPath);
+  const sidecar = loadSidecarOrDegrade(opts, sidecarPath);
   let n = 0;
+  // Optional --ref narrows resolution to token+ref (same trust guard as poll):
+  // consuming an OLD ride's HITL-<n> must not resolve a NEW ride's same token.
   for (const e of sidecar.entries) {
-    if (e.hitl_token === token && !e.resolved) { e.resolved = true; e.resolved_utc = nowUtc(); n += 1; }
+    if (e.hitl_token === token && (!opts.ref || e.ref === opts.ref) && !e.resolved) {
+      e.resolved = true; e.resolved_utc = nowUtc(); n += 1;
+    }
   }
   if (n > 0) saveSidecar(sidecarPath, sidecar);
   const out = { status: n > 0 ? 'resolved' : 'noop', token, entries_resolved: n };
