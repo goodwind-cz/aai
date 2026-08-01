@@ -337,6 +337,12 @@ suites:
       - docs/product/issues-skill.md
       - SKILLS.md
 
+  aai-lightweight-lane:
+    globs:
+      - .aai/scripts/lane-gate.mjs
+      - .aai/scripts/select-suites.mjs
+      - .aai/SKILL_PR.prompt.md
+
   aai-layer-drift:
     globs:
       - .aai/scripts/layer-drift.mjs

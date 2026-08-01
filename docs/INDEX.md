@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-01T16:21:31.925Z
+Generated: 2026-08-01T18:52:30.640Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (15)
+## Product (16)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -31,13 +31,14 @@ _None._
 | implementation-mode-choice | implementation-mode-choice | 1 | docs/product/implementation-mode-choice.md |
 | issues-skill | issues-skill | 1 | docs/product/issues-skill.md |
 | learned-append-gate | learned-append-gate | 1 | docs/product/learned-append-gate.md |
+| lightweight-e2e-lane | lightweight-e2e-lane | 1 | docs/product/lightweight-e2e-lane.md |
 | platform-portable-pr | platform-portable-pr | 1 | docs/product/platform-portable-pr.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (260)
+## Done (262)
 
 | ID | Type | Path |
 |---|---|---|
@@ -143,6 +144,7 @@ _None._
 | CHANGE-0100 | issues | docs/issues/CHANGE-0100-implementation-mode-choice.md |
 | CHANGE-0101 | issues | docs/issues/CHANGE-0101-cache-friendly-dispatch.md |
 | CHANGE-0102 | issues | docs/issues/CHANGE-0102-async-hitl-platform-comments.md |
+| CHANGE-0103 | issues | docs/issues/CHANGE-0103-lightweight-e2e-lane.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -300,6 +302,7 @@ _None._
 | SPEC-0109 | specs | docs/specs/SPEC-0109-spec-implementation-mode-choice.md |
 | SPEC-0110 | specs | docs/specs/SPEC-0110-spec-cache-friendly-dispatch.md |
 | SPEC-0111 | specs | docs/specs/SPEC-0111-spec-async-hitl-platform-comments.md |
+| SPEC-0112 | specs | docs/specs/SPEC-0112-spec-lightweight-e2e-lane.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)

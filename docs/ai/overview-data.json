@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-01T15:32:01.807Z",
+  "generatedAt": "2026-08-01T18:47:23.822Z",
   "project": "aai",
   "counts": {
-    "delivered": 147,
+    "delivered": 148,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -102,6 +102,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0111-spec-async-hitl-platform-comments.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "lightweight-e2e-lane",
+      "title": "Change — Lightweight end-to-end lane: cut the flat ceremony tax on small, safe rides",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0103-lightweight-e2e-lane.md",
+      "closed_on": "2026-08-01",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0112-spec-lightweight-e2e-lane.md",
       "validation": null,
       "review": null
     },
@@ -2020,6 +2033,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0111-spec-async-hitl-platform-comments.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "lightweight-e2e-lane",
+          "title": "Change — Lightweight end-to-end lane: cut the flat ceremony tax on small, safe rides",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0103-lightweight-e2e-lane.md",
+          "closed_on": "2026-08-01",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0112-spec-lightweight-e2e-lane.md",
           "validation": null,
           "review": null
         }
