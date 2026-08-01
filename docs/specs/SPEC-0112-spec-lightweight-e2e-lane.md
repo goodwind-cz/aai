@@ -1,11 +1,11 @@
 ---
 id: spec-lightweight-e2e-lane
 type: spec
-number: null
+number: 112
 status: implementing
 ceremony_level: 2
 links:
-  requirement: docs/issues/CHANGE-DRAFT-lightweight-e2e-lane.md
+  requirement: docs/issues/CHANGE-0103-lightweight-e2e-lane.md
   rfc: null
   pr: []
   commits: []
@@ -16,7 +16,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-lightweight-e2e-lane.md (Option A)
+- Requirement: docs/issues/CHANGE-0103-lightweight-e2e-lane.md (Option A)
 - Related: docs/specs/SPEC-0041-spec-loop-ceremony-aware-dispatch.md
   (validation-depth lane), docs/specs/SPEC-0097-spec-ci-test-impact-selection.md
   (CI suite selection + FULL_RUN triad), docs/rfc/RFC-0009-scale-adaptive-ceremony.md
@@ -71,12 +71,12 @@ Three effects, each gated on `LANE fast`:
 - Inline review scope: .aai/scripts/lane-gate.mjs, .aai/SKILL_PR.prompt.md,
   tests/skills/test-aai-lightweight-lane.sh, tests/skills/suite-map.yaml,
   .aai/system/PROFILES.yaml, tests/skills/lib/prompt-diet-ledger.sh,
-  tests/skills/test-aai-prompt-diet.sh, docs/specs/SPEC-DRAFT-spec-lightweight-e2e-lane.md,
+  tests/skills/test-aai-prompt-diet.sh, docs/specs/SPEC-0112-spec-lightweight-e2e-lane.md,
   CHANGELOG.md
 
 ## Acceptance Criteria Mapping
 For each requirement AC:
-- Maps to: CHANGE-DRAFT-lightweight-e2e-lane AC-001..AC-007
+- Maps to: CHANGE-0103-lightweight-e2e-lane AC-001..AC-007
 - Spec-AC-01..07 below map 1:1 onto the intake's AC-001..007.
 - Verification: see the Verification section and the Test Plan.
 
@@ -88,13 +88,13 @@ None.
 
 | Spec-AC    | Description                                                                                                                                                     | Status | Evidence                          | Review-By | Notes |
 |------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|--------|-----------------------------------|-----------|-------|
-| Spec-AC-01 | WHEN all four predicates hold (ceremony_level in 0 or 1; strategy in direct/untested/loop; select-suites not FULL_RUN; changed-files under N and classes allowed) the gate SHALL print LANE fast              | implementing | TEST-001, TEST-013, TEST-015, TEST-016 | —         | four-predicate conjunction |
-| Spec-AC-02 | WHEN any single predicate is false, absent, garbage, or degenerate the gate SHALL print LANE heavy naming the first failing predicate (fail-closed, anti-gaming) | implementing | TEST-002..TEST-012, TEST-014      | —         | each predicate flipped independently |
-| Spec-AC-03 | WHEN LANE fast fires SKILL_PR step 5d SHALL make the external bot sweep optional-on-demand while the internal dual-verdict review stays a mandatory merge-readiness precondition and any reviewer/bot may re-arm the sweep | implementing | TEST-018                          | —         | compensating control pinned by grep-contract |
-| Spec-AC-04 | WHEN the close-ceremony commit diff is docs frontmatter plus EVENTS.jsonl plus INDEX.md select-suites SHALL route it to the CORE suites and never FULL_RUN       | implementing | TEST-017                          | —         | second FULL round removed |
-| Spec-AC-05 | WHEN ceremony_level is 2 or more or any FULL_RUN triad path is present or the file count exceeds N the ride SHALL take the unchanged HEAVY lane                   | implementing | TEST-002, TEST-006, TEST-008      | —         | heavy is the default |
-| Spec-AC-06 | The docs-audit close gate, doc-number allocator, state engine, pre-commit guards, WORKFLOW.md, and operator-only merge SHALL be untouched by this scope          | implementing | git diff empty over protected surfaces; docs-audit --check --strict --no-event exit 0 | — | no protected_paths_l3 change |
-| Spec-AC-07 | The gate SHALL emit the selected lane and the predicate values that chose it so a reviewer can see WHY a ride went light                                          | implementing | TEST-013; SKILL_PR PR body Lane section (TEST-018) | — | never a hidden decision |
+| Spec-AC-01 | WHEN all four predicates hold (ceremony_level in 0 or 1; strategy in direct/untested/loop; select-suites not FULL_RUN; changed-files under N and classes allowed) the gate SHALL print LANE fast              | done | TEST-001, TEST-013, TEST-015, TEST-016 | —         | four-predicate conjunction |
+| Spec-AC-02 | WHEN any single predicate is false, absent, garbage, or degenerate the gate SHALL print LANE heavy naming the first failing predicate (fail-closed, anti-gaming) | done | TEST-002..TEST-012, TEST-014      | —         | each predicate flipped independently |
+| Spec-AC-03 | WHEN LANE fast fires SKILL_PR step 5d SHALL make the external bot sweep optional-on-demand while the internal dual-verdict review stays a mandatory merge-readiness precondition and any reviewer/bot may re-arm the sweep | done | TEST-018                          | —         | compensating control pinned by grep-contract |
+| Spec-AC-04 | WHEN the close-ceremony commit diff is docs frontmatter plus EVENTS.jsonl plus INDEX.md select-suites SHALL route it to the CORE suites and never FULL_RUN       | done | TEST-017                          | —         | second FULL round removed |
+| Spec-AC-05 | WHEN ceremony_level is 2 or more or any FULL_RUN triad path is present or the file count exceeds N the ride SHALL take the unchanged HEAVY lane                   | done | TEST-002, TEST-006, TEST-008      | —         | heavy is the default |
+| Spec-AC-06 | The docs-audit close gate, doc-number allocator, state engine, pre-commit guards, WORKFLOW.md, and operator-only merge SHALL be untouched by this scope          | done | git diff empty over protected surfaces; docs-audit --check --strict --no-event exit 0 | — | no protected_paths_l3 change |
+| Spec-AC-07 | The gate SHALL emit the selected lane and the predicate values that chose it so a reviewer can see WHY a ride went light                                          | done | TEST-013; SKILL_PR PR body Lane section (TEST-018) | — | never a hidden decision |
 
 Status values: planned, implementing, done, deferred, blocked, rejected.
 
@@ -161,7 +161,7 @@ Test status values: pending, red, green.
 - `bash tests/skills/test-aai-suite-select.sh` exits 0 (suite-map still valid).
 - `bash tests/skills/test-aai-pr-platform.sh` exits 0 (SKILL_PR 5d TEST-022 intact).
 - `bash tests/skills/test-aai-orchestration-dispatch.sh` exits 0 (unchanged lane concept).
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-lightweight-e2e-lane.md` (report-only).
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0112-spec-lightweight-e2e-lane.md` (report-only).
 - `node .aai/scripts/docs-audit.mjs --check --strict --no-event` exits 0.
 - AC-006: `git diff` over close-work-item.mjs / allocate-doc-number.mjs / state
   engine / pre-commit-checks / WORKFLOW.md / CONSTITUTION.md is empty.

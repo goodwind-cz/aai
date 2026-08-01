@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-01T18:22:51.511Z
+Generated: 2026-08-01T18:26:03.723Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-lightweight-e2e-lane | specs | implementing | 7 implementing | docs/specs/SPEC-DRAFT-spec-lightweight-e2e-lane.md |
+| SPEC-0112 | specs | implementing | 7 done | docs/specs/SPEC-0112-spec-lightweight-e2e-lane.md |
 
 ## Canonical layer (0)
 
@@ -307,7 +307,7 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| lightweight-e2e-lane (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-lightweight-e2e-lane.md |
+| CHANGE-0103 | issues | docs/issues/CHANGE-0103-lightweight-e2e-lane.md |
 
 ## Deferred (whole-doc) (0)
 
