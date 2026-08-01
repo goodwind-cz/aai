@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-01T15:25:27.710Z
+Generated: 2026-08-01T15:26:16.912Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -299,11 +299,12 @@ _None._
 | SPEC-0110 | specs | docs/specs/SPEC-0110-spec-cache-friendly-dispatch.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (2)
 
 | ID | Type | Path |
 |---|---|---|
 | async-hitl-platform-comments (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-async-hitl-platform-comments.md |
+| spec-async-hitl-platform-comments (unnumbered draft) | specs | docs/specs/SPEC-DRAFT-spec-async-hitl-platform-comments.md |
 
 ## Deferred (whole-doc) (0)
 

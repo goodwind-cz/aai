@@ -242,6 +242,13 @@ suites:
       - .aai/system/PROFILES.yaml
       - docs/ai/friction/**
 
+  aai-hitl-channel:
+    globs:
+      - .aai/scripts/hitl-channel.mjs
+      - .aai/scripts/pr-platform.mjs
+      - .aai/ORCHESTRATION_HITL.prompt.md
+      - .aai/SKILL_HITL.prompt.md
+
   aai-hitl-propagation:
     globs:
       - .aai/ORCHESTRATION_HITL.prompt.md

@@ -413,7 +413,11 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# -10006 (true-up: github-no-bots-hardening +1147 B, then +282 B bot-sweep P1 reword; itemized entries for
+# -3097 (true-up: async-hitl-platform-comments added a +1281 B itemized entry
+# for the ORCHESTRATION_HITL ASYNC CHANNEL post bullet + SKILL_HITL STEP 0
+# RESUME FROM PLATFORM poll block, credited 1:1 so headroom stays 0/2048, over
+# the prior -4378 total after implementation-mode-choice +854/+4774; before
+# that -10006 (true-up: github-no-bots-hardening +1147 B, then +282 B bot-sweep P1 reword; itemized entries for
 # the SKILL_PR.prompt.md step 5/5d reviewer_bots-gated bot sweep + bounded-wait
 # rule, 16740 -> 17887 B, credited 1:1 so headroom stays 106/2048, over the
 # prior -11435 total; before that core-prompt-diet retired -3247 B via a NEGATIVE RECLAIMED
@@ -490,15 +494,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -4305 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -4305)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -3024 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -3024)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -4305 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -3024 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

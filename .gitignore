@@ -71,6 +71,11 @@ docs/INDEX.audit.md
 docs/ai/STATE.yaml
 docs/ai/LOOP_TICKS.jsonl
 
+# Async-HITL platform channel sidecar (async-hitl-platform-comments): the
+# comment-id + thread-ref record owned by .aai/scripts/hitl-channel.mjs. Per-dev
+# runtime like STATE, kept OUT of state.mjs (a protected_paths_l3 surface).
+docs/ai/hitl-channel.json
+
 # Atomic scope locks (RFC-0004 / SPEC-0004): per-agent-local lease files created
 # on demand by .aai/scripts/docs-lock.mjs. They coordinate K parallel subagents
 # within ONE orchestrator process tree only, never across machines, so they are
