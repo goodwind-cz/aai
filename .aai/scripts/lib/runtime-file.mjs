@@ -1,5 +1,5 @@
 // runtime-file.mjs — shared runtime-SIDECAR lifecycle primitives
-// (CHANGE runtime-state-consolidation, docs/issues/CHANGE-DRAFT-runtime-state-consolidation.md).
+// (CHANGE runtime-state-consolidation, docs/issues/CHANGE-0106-runtime-state-consolidation.md).
 //
 // Node stdlib only, zero deps (node:fs + node:path). Stateless helpers over MANY
 // files — NOT one shared ledger (the unified-ledger design was rejected: it would

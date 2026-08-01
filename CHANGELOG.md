@@ -9,7 +9,7 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — feat(runtime): shared runtime-sidecar lifecycle lib + convention pin (CHANGE runtime-state-consolidation) [L2]
+## [unreleased] — feat(runtime): shared runtime-sidecar lifecycle lib + convention pin (CHANGE-0106) [L2]
 
 - Consolidates the hand-rolled lifecycle logic that every recent feature
   re-derived for its own gitignored runtime SIDECAR — the re-derivation that

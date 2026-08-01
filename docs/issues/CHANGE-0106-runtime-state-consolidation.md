@@ -1,12 +1,14 @@
 ---
 id: runtime-state-consolidation
-number: null
+number: 106
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 209
+  commits:
+    - 1280e569cf57f63795848146835e67a70e9723f0
 ---
 
 # Change — consolidate runtime-sidecar lifecycles onto a shared primitive library
