@@ -5350,12 +5350,23 @@ MD
   if grep -F "RFC-9002" "$d/umb.log" | grep -qF "probable-false-open"; then
     log_fail "TEST-U01: umbrella-marked parent must not be flagged probable-false-open"
   fi
-  # suppression is VISIBLE, not hidden
-  grep -qF "Umbrella (deliberately open" "$d/umb.log" \
-    || log_fail "TEST-U01: summary must report the umbrella count (visible suppression)"
+  # suppression is VISIBLE and NAMES the doc, not just a count
+  grep -F "Umbrella (deliberately open" "$d/umb.log" | grep -qF "RFC-9002" \
+    || log_fail "TEST-U01: summary must NAME the suppressed umbrella (visible suppression)"
   # unmarked control in the SAME repo stays flagged (heuristic untouched)
   assert_fo_control_flagged "$d/umb.log"
-  log_pass "Umbrella marker suppresses visibly; unmarked control still flagged (TEST-U01)"
+  # --quick recognizes the marker too (bot review: quick counts must match)
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --quick --no-event > umb-quick.log 2>&1) || true
+  grep -qF "Umbrella (deliberately open" "$d/umb-quick.log" \
+    || log_fail "TEST-U01: --quick must recognize the umbrella marker"
+  # AC-003: a repo WITHOUT umbrella docs emits NO umbrella line (byte-compat)
+  local d2; d2="$(setup_fo_repo umbrella-none)"
+  (cd "$d2" && node .aai/scripts/docs-audit.mjs --no-event > none.log 2>&1) || true
+  if grep -qF "Umbrella (deliberately open" "$d2/none.log"; then
+    log_fail "TEST-U01: umbrella-free repo must not emit the umbrella line"
+  fi
+  rm -rf "$d" "$d2"
+  log_pass "Umbrella marker suppresses visibly + named + quick-aware; control flagged; none-line clean (TEST-U01)"
 }
 
 main() {

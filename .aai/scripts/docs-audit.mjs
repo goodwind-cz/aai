@@ -184,7 +184,7 @@ function main() {
   // umbrella visibility (fix/umbrella-false-open): suppressed noise is still
   // reported — line appears only when at least one umbrella doc exists, so
   // repos without umbrellas keep byte-identical output.
-  if (counts.umbrellaOpen > 0) lines.push(`- Umbrella (deliberately open, false-open heuristic suppressed): ${counts.umbrellaOpen}`);
+  if (counts.umbrellaOpen > 0) lines.push(`- Umbrella (deliberately open, false-open heuristic suppressed): ${counts.umbrellaOpen} (${(counts.umbrellaIds || []).join(', ')})`);
   lines.push(`- Tracked: ${counts.trackedOpen} open, ${counts.trackedDone} done, ${counts.superseded} superseded/rejected`);
   // Rollout progress (always-shown): an in-flight rfc/prd umbrella's `status` enum
   // never shows how far along it is — this rolls up its done/total child docs so
