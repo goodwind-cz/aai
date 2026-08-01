@@ -294,6 +294,51 @@ set_product_doc_gate_dial() {
   printf 'product_doc_gate: %s\n' "$value" >> "$dir/docs/ai/docs-audit.yaml"
 }
 
+# --- usage-capture-gate fixture builders (spec-telemetry-completeness) -------
+
+# set_usage_capture_gate_dial <fixture_dir> <enforce|report-only|bogus> —
+# appends the dial to the fixture's docs-audit.yaml (first occurrence wins in
+# guard-config.mjs's column-0 scan; the base fixture has no such line).
+set_usage_capture_gate_dial() {
+  local dir="$1" value="$2"
+  printf 'usage_capture_gate: %s\n' "$value" >> "$dir/docs/ai/docs-audit.yaml"
+}
+
+# state_begin <fixture_dir> <ref> — start a docs/ai/STATE.yaml carrying the
+# metrics.work_items.<ref>.agent_runs block (append runs with state_add_run).
+state_begin() {
+  local dir="$1" ref="$2"
+  mkdir -p "$dir/docs/ai"
+  cat > "$dir/docs/ai/STATE.yaml" <<EOF
+metrics:
+  work_items:
+    $ref:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+EOF
+}
+
+# state_add_run <fixture_dir> <role> <note> [tokens_in] [tokens_out] — append
+# one agent_run (folded `note: >-` scalar, matching state.mjs append-run's
+# on-disk shape) to the STATE.yaml opened by state_begin.
+state_add_run() {
+  local dir="$1" role="$2" note="$3" ti="${4:-null}" to="${5:-null}"
+  cat >> "$dir/docs/ai/STATE.yaml" <<EOF
+        - role: $role
+          model_id: "test-model"
+          note: >-
+            $note
+          started_utc: 2026-07-01T00:00:00Z
+          ended_utc: 2026-07-01T00:01:00Z
+          duration_seconds: 60
+          tokens_in: $ti
+          tokens_out: $to
+          cost_usd: null
+EOF
+}
+
 # write_real_product_doc <fixture_dir> <slug> — a REAL (non-placeholder)
 # product doc at docs/product/<slug>.md: every required section filled
 # ("None." for Data model/Interfaces, matching PRODUCT_TEMPLATE's explicit
@@ -1489,6 +1534,158 @@ test_029_capability_enforce_missing_doc_refuse() {
   log_pass "Capability-keyed enforce gate refuses (exit 3) on a missing capability doc; nothing written (spec-product-docs-capability-model TEST-009)"
 }
 
+# ===== usage-capture gate (spec-telemetry-completeness, Enforcement design A) =
+
+# TEST-030 (AC-001) — absent dial defaults to report-only: an unmarked
+# harness-dispatched run WARNS (naming ref + role) but the close still proceeds.
+test_030_usage_gate_report_only_warns() {
+  log_info "Test: unmarked harness-role run + absent dial -> report-only WARNING, close proceeds (telemetry-completeness AC-001)..."
+  local dir; dir=$(new_fixture_repo "t030")
+  # NB: no usage_capture_gate line in docs-audit.yaml -> fail-open report-only.
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t030.md" "t030-slug" "draft"
+  commit_fixture_docs "$dir"
+  state_begin "$dir" "t030-slug"
+  state_add_run "$dir" "Implementation" "did the work, forgot the marker"
+
+  local out="$TEST_DIR/t030.out" err="$TEST_DIR/t030.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t030-slug --pr 30 --commit a030a030)
+  assert_exit "report-only default proceeds" 0 "$code"
+  grep -qi 'WARNING (usage-capture gate)' "$err" \
+    || log_fail "t030: expected a usage-capture-gate WARNING on stderr, got: $(cat "$err")"
+  grep -qF 'Implementation' "$err" || log_fail "t030: WARNING must name the unmarked role"
+  grep -qF 't030-slug' "$err" || log_fail "t030: WARNING must name the ride ref"
+  grep -q '^status: done$' "$dir/docs/issues/CHANGE-0001-t030.md" \
+    || log_fail "t030: report-only close must still proceed to done"
+  log_pass "Absent dial = report-only: WARNS naming ref+role, close proceeds (AC-001)"
+}
+
+# TEST-031 (AC-001) — enforce dial refuses BEFORE any write (exit 4); doc bytes,
+# EVENTS length, and docs/INDEX.md are all untouched.
+test_031_usage_gate_enforce_refuses_pre_write() {
+  log_info "Test: unmarked harness-role run + enforce dial -> exit 4 refuse, nothing written (telemetry-completeness AC-001)..."
+  local dir; dir=$(new_fixture_repo "t031")
+  set_usage_capture_gate_dial "$dir" "enforce"
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t031.md" "t031-slug" "draft"
+  commit_fixture_docs "$dir"
+  state_begin "$dir" "t031-slug"
+  state_add_run "$dir" "Validation" "verdict PASS, no usage recorded"
+  cp "$dir/docs/issues/CHANGE-0001-t031.md" "$TEST_DIR/t031-before.md"
+  local events_before; events_before=$(file_size "$dir/docs/ai/EVENTS.jsonl")
+
+  local out="$TEST_DIR/t031.out" err="$TEST_DIR/t031.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t031-slug --pr 31 --commit b031b031)
+  assert_exit "enforce gate refuses" 4 "$code"
+  grep -qi 'REFUSED (usage-capture gate)' "$err" \
+    || log_fail "t031: expected a usage-capture-gate REFUSED line, got: $(cat "$err")"
+  grep -qF 'Validation' "$err" || log_fail "t031: REFUSED reason must name the unmarked role"
+  diff -q "$TEST_DIR/t031-before.md" "$dir/docs/issues/CHANGE-0001-t031.md" >/dev/null \
+    || log_fail "t031: doc mutated despite a pre-write refusal"
+  [[ "$(file_size "$dir/docs/ai/EVENTS.jsonl")" == "$events_before" ]] \
+    || log_fail "t031: EVENTS.jsonl grew despite a pre-write refusal"
+  [[ ! -e "$dir/docs/INDEX.md" ]] \
+    || log_fail "t031: docs/INDEX.md created despite a pre-write refusal (gate must fire before ANY write)"
+  log_pass "Enforce gate: exit 4 refuse, nothing written (doc + EVENTS + INDEX untouched) (AC-001)"
+}
+
+# TEST-032 (Constraints escape hatch) — a run recording the honest-gap sentinel
+# usage_capture=none passes even under enforce.
+test_032_usage_gate_sentinel_passes_enforce() {
+  log_info "Test: usage_capture=none sentinel passes under enforce (honest-gap escape hatch)..."
+  local dir; dir=$(new_fixture_repo "t032")
+  set_usage_capture_gate_dial "$dir" "enforce"
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t032.md" "t032-slug" "draft"
+  commit_fixture_docs "$dir"
+  state_begin "$dir" "t032-slug"
+  state_add_run "$dir" "Planning" "harness exposed no usage this run usage_capture=none"
+
+  local out="$TEST_DIR/t032.out" err="$TEST_DIR/t032.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t032-slug --pr 32 --commit c032c032)
+  assert_exit "sentinel passes under enforce" 0 "$code"
+  if grep -qi 'usage-capture gate' "$err"; then
+    log_fail "t032: a usage_capture=none run must not warn/refuse, got: $(cat "$err")"
+  fi
+  grep -q '^status: done$' "$dir/docs/issues/CHANGE-0001-t032.md" \
+    || log_fail "t032: close did not proceed despite an honest-gap sentinel"
+  log_pass "Sentinel usage_capture=none passes even under enforce (escape hatch)"
+}
+
+# TEST-033 (AC-002) — negative control: a valid marker, decomposed tokens, and a
+# meta-role (Orchestration) unmarked run all pass clean under enforce.
+test_033_usage_gate_captured_and_metarole_pass() {
+  log_info "Test: marked + decomposed + meta-role runs pass clean under enforce (telemetry-completeness AC-002)..."
+  local dir; dir=$(new_fixture_repo "t033")
+  set_usage_capture_gate_dial "$dir" "enforce"
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t033.md" "t033-slug" "draft"
+  commit_fixture_docs "$dir"
+  state_begin "$dir" "t033-slug"
+  state_add_run "$dir" "Planning" "planned it usage_total_tokens=1234"
+  state_add_run "$dir" "TDD Implementation" "decomposed run" "500" "700"
+  # Orchestration is a meta-role -> never gated even with no marker.
+  state_add_run "$dir" "Orchestration" "dispatched next role, no usage"
+
+  local out="$TEST_DIR/t033.out" err="$TEST_DIR/t033.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t033-slug --pr 33 --commit d033d033)
+  assert_exit "captured + meta-role runs pass under enforce" 0 "$code"
+  if grep -qi 'usage-capture gate' "$err"; then
+    log_fail "t033: marked/decomposed/meta-role runs must NOT trip the gate, got: $(cat "$err")"
+  fi
+  grep -q '^status: done$' "$dir/docs/issues/CHANGE-0001-t033.md" \
+    || log_fail "t033: close did not proceed for a fully-captured ride"
+  log_pass "Marker OR decomposed tokens never trip the gate; meta-roles never gated (AC-002)"
+}
+
+# TEST-034 (AC-003) — --dry-run never acts on the gate: no refusal, no write,
+# and the verdict is reported informationally in the JSON.
+test_034_usage_gate_dry_run_noop() {
+  log_info "Test: --dry-run reports the usage-capture verdict but never refuses/writes (telemetry-completeness AC-003)..."
+  local dir; dir=$(new_fixture_repo "t034")
+  set_usage_capture_gate_dial "$dir" "enforce"
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t034.md" "t034-slug" "draft"
+  commit_fixture_docs "$dir"
+  state_begin "$dir" "t034-slug"
+  state_add_run "$dir" "Implementation" "no marker here"
+  cp "$dir/docs/issues/CHANGE-0001-t034.md" "$TEST_DIR/t034-before.md"
+
+  local out="$TEST_DIR/t034.out" err="$TEST_DIR/t034.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t034-slug --pr 34 --commit e034e034 --dry-run)
+  assert_exit "dry-run never refuses" 0 "$code"
+  grep -qF 'usageCaptureGate' "$out" \
+    || log_fail "t034: dry-run JSON must carry the usageCaptureGate verdict, got: $(cat "$out")"
+  node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if(j.usageCaptureGate.severity!=="refuse"){console.error("expected severity refuse in dry-run JSON, got "+j.usageCaptureGate.severity);process.exit(1)}' "$out" \
+    || log_fail "t034: dry-run must report the would-be refuse verdict"
+  diff -q "$TEST_DIR/t034-before.md" "$dir/docs/issues/CHANGE-0001-t034.md" >/dev/null \
+    || log_fail "t034: --dry-run mutated the doc"
+  [[ ! -e "$dir/docs/INDEX.md" ]] || log_fail "t034: --dry-run wrote docs/INDEX.md"
+  log_pass "--dry-run reports the verdict, never refuses/writes (AC-003)"
+}
+
+# TEST-035 (AC-006) — guard-config unit: usage_capture_gate enforce /
+# report-only / invalid-fail-open (with a stderr notice) / absent-default.
+test_035_guard_config_usage_capture_gate_dial() {
+  log_info "Test: guard-config readGuardConfig returns usage_capture_gate for enforce/report-only/invalid-fail-open/absent (telemetry-completeness AC-006)..."
+  node --input-type=module > "$TEST_DIR/t035.out" 2>&1 <<NODE || log_fail "telemetry-completeness AC-006: guard-config usage_capture_gate checks failed: $(cat "$TEST_DIR/t035.out")"
+import { readGuardConfig, GUARD_DIALS } from '${GUARD_CONFIG_LIB}';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+if (!GUARD_DIALS.includes('usage_capture_gate')) { console.error('GUARD_DIALS must list usage_capture_gate'); process.exit(1); }
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ucg-'));
+fs.writeFileSync(path.join(dir, 'docs-audit.yaml'), 'usage_capture_gate: enforce\n');
+if (readGuardConfig(dir).usage_capture_gate !== 'enforce') { console.error('expected enforce'); process.exit(1); }
+fs.writeFileSync(path.join(dir, 'docs-audit.yaml'), 'usage_capture_gate: report-only\n');
+if (readGuardConfig(dir).usage_capture_gate !== 'report-only') { console.error('expected report-only'); process.exit(1); }
+let warned = false;
+fs.writeFileSync(path.join(dir, 'docs-audit.yaml'), 'usage_capture_gate: enforced\n');
+if (readGuardConfig(dir, { warn: () => { warned = true; } }).usage_capture_gate !== 'report-only') { console.error('expected fail-open report-only for invalid value'); process.exit(1); }
+if (!warned) { console.error('expected a stderr notice on an invalid value'); process.exit(1); }
+fs.writeFileSync(path.join(dir, 'docs-audit.yaml'), 'legacy_until_date: 2020-01-01\n');
+if (readGuardConfig(dir).usage_capture_gate !== 'report-only') { console.error('expected default report-only when the key is absent'); process.exit(1); }
+console.log('ok');
+NODE
+  grep -qF 'ok' "$TEST_DIR/t035.out" || log_fail "t035: guard-config usage_capture_gate assertions did not all pass: $(cat "$TEST_DIR/t035.out")"
+  log_pass "guard-config usage_capture_gate: enforce/report-only/invalid-fail-open/absent-default all correct (AC-006)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -1529,6 +1726,12 @@ main() {
   test_027_capability_shared_two_refs
   test_028_delivered_by_byte_idempotent
   test_029_capability_enforce_missing_doc_refuse
+  test_030_usage_gate_report_only_warns
+  test_031_usage_gate_enforce_refuses_pre_write
+  test_032_usage_gate_sentinel_passes_enforce
+  test_033_usage_gate_captured_and_metarole_pass
+  test_034_usage_gate_dry_run_noop
+  test_035_guard_config_usage_capture_gate_dial
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

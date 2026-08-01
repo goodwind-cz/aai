@@ -30,7 +30,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { extractUsageTotal } from './lib/usage-note.mjs';
+import { extractUsageTotal, CANONICAL_ROLES, normalizeRole } from './lib/usage-note.mjs';
 
 const ROOT = process.cwd();
 
@@ -78,18 +78,9 @@ function projectLabel() {
   return remoteSlug(readOriginUrl()) ?? path.basename(ROOT);
 }
 
-// The six canonical roles, longest-first so a longest-prefix match assigns
-// recorded variants ("Remediation (E1 over-kill)", "Code Review (re-review)",
-// "Implementation (loop)") to their canonical bucket. "TDD Implementation"
-// starts with "TDD", never with "Implementation", so the two never collide.
-const CANONICAL_ROLES = [
-  'TDD Implementation',
-  'Code Review',
-  'Implementation',
-  'Remediation',
-  'Validation',
-  'Planning',
-].sort((a, b) => b.length - a.length);
+// CANONICAL_ROLES + normalizeRole now live in lib/usage-note.mjs (the single
+// source shared with the close-time usage-capture gate, so a new role variant
+// is never silently un-gated OR mis-bucketed — spec-telemetry-completeness).
 
 function parseArgs(argv) {
   const args = {
@@ -127,20 +118,6 @@ function readJsonl(absPath) {
     try { rows.push(JSON.parse(t)); } catch { dropped += 1; }
   }
   return { rows, dropped };
-}
-
-// normalizeRole(raw) -> one of CANONICAL_ROLES by longest-prefix match, or
-// null when nothing matches (caller records 'Other' + a note — Spec-AC-03/08).
-function normalizeRole(raw) {
-  if (typeof raw !== 'string' || raw === '') return null;
-  for (const c of CANONICAL_ROLES) {
-    if (raw === c || raw.startsWith(`${c} `) || raw.startsWith(`${c}(`)) return c;
-  }
-  // Fall back to a plain prefix for any spacing the two forms above miss.
-  for (const c of CANONICAL_ROLES) {
-    if (raw.startsWith(c)) return c;
-  }
-  return null;
 }
 
 // isoWeek(dateStr 'YYYY-MM-DD' | ISO ts) -> 'YYYY-Www' (ISO-8601), computed
@@ -321,9 +298,17 @@ function buildModel(args) {
   const roleDurations = new Map();     // canonical role -> total seconds
   const roleTokens = new Map();        // canonical role -> total tokens (null-safe)
   let unnormalizedRoleRuns = 0;
+  // Run-level usage-capture coverage (spec-telemetry-completeness B): the
+  // first-class KPI the close-time gate exists to drive upward — runs carrying
+  // a valid usage_total_tokens marker / ALL agent runs, overall + per ISO week
+  // (keyed on the ride's date_utc, the same week bucket the trend series uses).
+  let totalRuns = 0;
+  let runsWithMarker = 0;
+  const coverageByWeek = new Map();    // week -> { total, with }
   for (const m of rides) {
     let busy = 0; let hasBusy = false;
     let tok = 0; let hasTok = false;
+    const rideWeek = isoWeek(m.date_utc);
     for (const r of m.agent_runs ?? []) {
       if (typeof r.duration_seconds === 'number') { busy += r.duration_seconds; hasBusy = true; }
       const role = normalizeRole(r.role);
@@ -331,9 +316,17 @@ function buildModel(args) {
       const roleKey = role ?? 'Other';
       if (typeof r.duration_seconds === 'number') roleDurations.set(roleKey, (roleDurations.get(roleKey) ?? 0) + r.duration_seconds);
       const t = extractUsageTotal(r.note);
+      totalRuns += 1;
       if (t !== null) {
         tok += t; hasTok = true;
         roleTokens.set(roleKey, (roleTokens.get(roleKey) ?? 0) + t);
+        runsWithMarker += 1;
+      }
+      if (rideWeek) {
+        const c = coverageByWeek.get(rideWeek) ?? { total: 0, with: 0 };
+        c.total += 1;
+        if (t !== null) c.with += 1;
+        coverageByWeek.set(rideWeek, c);
       }
     }
     const rel = m.reliability && typeof m.reliability === 'object' && !Array.isArray(m.reliability) ? m.reliability : null;
@@ -421,6 +414,21 @@ function buildModel(args) {
   const rideTokenVals = perRide.map((r) => r.tokens).filter((v) => v !== null);
   const rideBusyVals = perRide.map((r) => r.busy_seconds).filter((v) => v !== null);
 
+  // Run-level capture-coverage KPI (spec-telemetry-completeness B): overall +
+  // per-week series, an explicit percentage — pct is null (never a fabricated
+  // zero) only when there are NO runs at all; a real 0% (runs present, none
+  // marked) is reported honestly.
+  const captureByWeek = [...coverageByWeek.keys()].sort().map((wk) => {
+    const c = coverageByWeek.get(wk);
+    return { week: wk, runs_with_marker: c.with, total_runs: c.total, pct: c.total ? Math.round((100 * c.with) / c.total) : null };
+  });
+  const captureCoverage = {
+    runs_with_marker: runsWithMarker,
+    total_runs: totalRuns,
+    pct: totalRuns ? Math.round((100 * runsWithMarker) / totalRuns) : null,
+    by_week: captureByWeek,
+  };
+
   return {
     generatedAt: new Date().toISOString(),
     project: projectLabel(),
@@ -460,6 +468,7 @@ function buildModel(args) {
       tokens_per_ride: { median: median(rideTokenVals), mean: mean1(rideTokenVals), measured: rideTokenVals.length },
       tokens_total: rideTokenVals.length ? rideTokenVals.reduce((a, v) => a + v, 0) : null,
       by_role: roleSplit.map((x) => ({ role: x.role, tokens: x.tokens })),
+      capture_coverage: captureCoverage,
     },
     quality: {
       first_pass_clean: flagged.length ? { clean, flagged: flagged.length, rate_pct: Math.round((100 * clean) / flagged.length) } : { clean: 0, flagged: 0, rate_pct: null },
@@ -600,9 +609,12 @@ function renderHtml(m) {
   <div class="kpi"><b>${na(m.cost.tokens_total)}</b><span>tokens total (undecomposed)</span></div>
   <div class="kpi"><b>${na(m.cost.tokens_per_ride.median)}</b><span>median tokens / ride</span></div>
   <div class="kpi"><b>${m.cost.tokens_per_ride.measured}/${m.counts.rides}</b><span>rides with token data</span></div>
+  <div class="kpi"><b>${m.cost.capture_coverage.pct === null ? 'n/a' : `${m.cost.capture_coverage.pct}%`}</b><span>usage capture coverage (${m.cost.capture_coverage.runs_with_marker}/${m.cost.capture_coverage.total_runs} runs)</span></div>
 </div>
 <div class="scroll">${barSeries(m.trend, 'tokens', (v) => `${v} tokens`)}</div>
 <p class="meta">Tokens only — ${esc(m.cost.usd_note)}.</p>
+<div class="scroll">${barSeries(m.cost.capture_coverage.by_week, 'pct', (v) => `${v}%`)}</div>
+<p class="meta">Run-level usage-capture coverage per ISO week — runs carrying a usage_total_tokens marker / total runs (${m.cost.capture_coverage.runs_with_marker}/${m.cost.capture_coverage.total_runs} overall). A close-time gate (usage_capture_gate) drives this upward.</p>
 </section>
 
 <section>

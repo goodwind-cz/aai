@@ -28,3 +28,69 @@ export function extractUsageTotal(note) {
   const m = note.match(USAGE_NOTE_RE);
   return m ? Number(m[1]) : null;
 }
+
+// --- honest-gap SENTINEL grammar (spec-telemetry-completeness) ---------------
+// The close-time usage-capture gate's escape hatch: a missing marker cannot,
+// by itself, distinguish "orchestrator forgot to record usage" from "the
+// harness genuinely exposed no usage" — both look like a dropped marker. So a
+// run that honestly had NO usage to record says so explicitly with this
+// sentinel, which counts as captured and passes even under an `enforce` dial
+// (enforce must not punish an honest gap — intake Constraints).
+//
+// GRAMMAR: the complete canonical token `usage_capture=none`, delimited on
+// BOTH sides with the SAME boundary discipline as USAGE_NOTE_RE — a prefixed
+// key (not_usage_capture=none) or a different value (usage_capture=partial)
+// never matches, on purpose (only an explicit "none" is an honest absence).
+export const USAGE_SENTINEL_RE = /(?:^|[\s"'(\[])usage_capture=none(?=$|[\s"'),\].;])/;
+
+// hasUsageSentinel(note) -> true when `note` carries the canonical
+// usage_capture=none sentinel. Never throws; a non-string is false.
+export function hasUsageSentinel(note) {
+  return typeof note === 'string' && USAGE_SENTINEL_RE.test(note);
+}
+
+// --- canonical harness-dispatched role vocabulary (SINGLE SOURCE) ------------
+// The six roles the harness dispatches per ride — state.mjs ROLES minus the
+// meta-roles Orchestration / Metrics Flush, which may legitimately run with no
+// usage marker and are therefore never gated. Both the close-time usage-capture
+// gate (close-work-item.mjs) and the factory-report run-coverage KPI + role
+// split (generate-factory-report.mjs) import this list + normalizeRole so a new
+// role variant is never silently un-gated or mis-bucketed (drift risk, intake
+// Constraints). Longest-first so a longest-prefix match assigns recorded
+// variants ("Remediation (E1 over-kill)", "Code Review (re-review)",
+// "Implementation (loop)") to their canonical bucket; "TDD Implementation"
+// starts with "TDD", never with "Implementation", so the two never collide.
+export const CANONICAL_ROLES = [
+  'TDD Implementation',
+  'Code Review',
+  'Implementation',
+  'Remediation',
+  'Validation',
+  'Planning',
+].sort((a, b) => b.length - a.length);
+
+// The gate's "expected to carry usage telemetry" set is exactly the canonical
+// harness-dispatched roles (an alias, for call-site readability).
+export const HARNESS_DISPATCHED_ROLES = CANONICAL_ROLES;
+
+// normalizeRole(raw) -> one of CANONICAL_ROLES by longest-prefix match, or null
+// when nothing matches (the report records 'Other'; the gate leaves it
+// un-gated). Match semantics are byte-identical to the form previously inlined
+// in generate-factory-report.mjs (moved here as the single source).
+export function normalizeRole(raw) {
+  if (typeof raw !== 'string' || raw === '') return null;
+  for (const c of CANONICAL_ROLES) {
+    if (raw === c || raw.startsWith(`${c} `) || raw.startsWith(`${c}(`)) return c;
+  }
+  // Fall back to a plain prefix for any spacing the two forms above miss.
+  for (const c of CANONICAL_ROLES) {
+    if (raw.startsWith(c)) return c;
+  }
+  return null;
+}
+
+// isHarnessDispatchedRole(raw) -> true when `raw` normalizes to a canonical
+// harness-dispatched role (the only runs the usage-capture gate ever inspects).
+export function isHarnessDispatchedRole(raw) {
+  return normalizeRole(raw) !== null;
+}

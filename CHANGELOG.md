@@ -9,6 +9,39 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat(telemetry): close-time usage-capture gate + run-level coverage KPI (CHANGE telemetry-completeness) [L2]
+
+- Closes the *ongoing* usage-marker leak the factory-performance report exposed:
+  53.8% of agent runs carried no `usage_total_tokens` marker because the marker
+  was guarded only by prose ("MANDATORY") with no runtime teeth. Adds a
+  deterministic close-time gate (`close-work-item.mjs`) — the per-ride
+  transition that already reads STATE `agent_runs` and already owns a fail-open
+  guard-config dial — that scans the closing ride's runs and, for any
+  harness-dispatched-role run (Planning, Implementation, TDD Implementation,
+  Validation, Code Review, Remediation) missing BOTH a valid marker AND
+  decomposed `tokens_in/out`, WARNs (report-only, shipped default) or REFUSEs
+  before any write (exit 4, `usage_capture_gate: enforce` opt-in). Meta-roles
+  (Orchestration, Metrics Flush) and unrecognized roles are never gated.
+- Honest-gap escape hatch: a run whose harness genuinely exposed no usage
+  records the sentinel note `usage_capture=none`, which counts as captured and
+  passes even under `enforce` — enforce never punishes an honest absence. The
+  new dial (`docs/ai/docs-audit.yaml`, `lib/guard-config.mjs GUARD_DIALS`)
+  mirrors `product_doc_gate`: values `enforce | report-only`, absent/invalid →
+  report-only fail-open with a stderr notice. AAI core ships it report-only.
+- Promotes the factory-report's no-marker footnote to a first-class run-level
+  `cost.capture_coverage` KPI (`runs_with_marker / total_runs`, overall + a
+  per-ISO-week series, rendered as a KPI tile + weekly bar). Honest nulls
+  preserved: an empty ledger reports `pct: null` (never a fabricated zero), a
+  real all-unmarked ledger reports an honest `0%`.
+- Single-source, no drift: the marker grammar, the `usage_capture=none` sentinel
+  grammar, and the canonical harness-role vocabulary all live in
+  `lib/usage-note.mjs`; both the close gate and the report import them (the
+  report's local `CANONICAL_ROLES`/`normalizeRole` were folded into the lib).
+  Non-goals honored mechanically: no historical backfill, `tokens_in/out` fields
+  retained, `metrics-flush` stays warn-never-block. Tests extend
+  `test-aai-close-work-item.sh` (TEST-030..035) and `test-aai-factory-report.sh`
+  (TEST-020..021). Script-only: zero prompt-corpus bytes, no new `.aai/**` file.
+
 ## [unreleased] — feat(pr): deterministic PR fast-lane for small, safe rides (CHANGE lightweight-e2e-lane / SPEC spec-lightweight-e2e-lane) [L2]
 
 - Cuts the flat ~42-min ceremony floor for provably-small rides without

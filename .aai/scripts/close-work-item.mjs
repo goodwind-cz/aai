@@ -71,6 +71,14 @@
 //      `product_doc_gate: enforce` dial. Evaluated BEFORE any write (never a
 //      rollback path) — nothing written. --dry-run never returns 3 (the
 //      verdict is reported informationally in its JSON instead).
+//   4  usage-capture gate REFUSED (spec-telemetry-completeness, Enforcement
+//      design A): the closing ride's STATE agent_runs include a
+//      harness-dispatched-role run (Planning, Implementation, TDD
+//      Implementation, Validation, Code Review, Remediation) with no
+//      usage_total_tokens marker, no decomposed tokens_in/out, and no
+//      usage_capture=none sentinel, under a `usage_capture_gate: enforce` dial.
+//      Evaluated BEFORE any write (never a rollback path) — nothing written.
+//      --dry-run never returns 4 (verdict reported informationally in its JSON).
 //
 // Node stdlib only (docs/TECHNOLOGY.md). Reuses append-event.mjs verbatim
 // (no forked event schema) and the shared docs-audit engine (no re-implemented
@@ -84,6 +92,7 @@ import { scanAuditDocs, loadConfig, runAudit, readEvents } from './lib/docs-audi
 import { parseFrontmatter, extractDocIds, DEFAULT_CATEGORY_PREFIXES, slugFamilyForPath, DOMAIN_SLUG_RE } from './lib/docs-model.mjs';
 import { readGuardConfig } from './lib/guard-config.mjs';
 import { REQUIRED_PRODUCT_SECTIONS, missingProductSections } from './lib/product-doc.mjs';
+import { extractUsageTotal, hasUsageSentinel, isHarnessDispatchedRole } from './lib/usage-note.mjs';
 
 const ROOT = process.cwd();
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -620,6 +629,140 @@ function countRemediationRuns(ref) {
   return count;
 }
 
+// --- CLOSE-TIME usage-capture gate (spec-telemetry-completeness, design A) ---
+//
+// The per-ride deterministic checkpoint the intake's leak analysis names as
+// "the empty seat": close-work-item runs while the ride's agent_runs are STILL
+// in STATE.yaml (before flush strands them), it already reads that block
+// (countRemediationRuns), and it already owns a fail-open guard-config dial
+// pattern (the product-doc gate). This gate scans those runs for a
+// harness-dispatched-role run that dropped its usage capture and, mirroring
+// product_doc_gate, WARNs (report-only, shipped default) or REFUSEs pre-write
+// (enforce, opt-in). Reuses lib/usage-note.mjs for the marker grammar
+// (extractUsageTotal), the honest-gap sentinel (hasUsageSentinel), and the
+// canonical harness-role vocabulary (isHarnessDispatchedRole) — no re-declared
+// regex, no forked role list.
+
+// scanAgentRuns(ref) -> [{ role, note, tokensIn, tokensOut }] for every
+// agent_run recorded under metrics.work_items.<ref> in docs/ai/STATE.yaml, or
+// [] when the file/block is absent (a fixture repo with no STATE.yaml is never
+// gated — the close suite's non-regression property). Same indentation-scoped
+// line reader as countRemediationRuns (Node stdlib only, no YAML dep):
+// metrics: (col 0) -> work_items: (2) -> <ref>: (4), then split the ref block
+// (indent > 4) into runs on each `        - role:` line (indent 8). The folded
+// (`note: >-`) scalar is re-joined with single spaces so the marker/sentinel
+// grammar (delimited on both sides) matches across continuation lines.
+function scanAgentRuns(ref) {
+  let text;
+  try {
+    text = fs.readFileSync(path.join(ROOT, 'docs/ai/STATE.yaml'), 'utf8');
+  } catch {
+    return [];
+  }
+  // Phase 1 — collect the raw lines strictly inside this ref's block (indent > 4).
+  const blockLines = [];
+  let inMetrics = false;
+  let inWorkItems = false;
+  let inRef = false;
+  for (const raw of text.split('\n')) {
+    if (!raw.trim()) continue;
+    const indent = raw.length - raw.trimStart().length;
+    const line = raw.trim();
+    if (!inMetrics) {
+      if (indent === 0 && /^metrics\s*:/.test(line)) inMetrics = true;
+      continue;
+    }
+    if (indent === 0) break;
+    if (!inWorkItems) {
+      if (indent === 2 && /^work_items\s*:/.test(line)) inWorkItems = true;
+      continue;
+    }
+    if (indent === 2) break;
+    if (!inRef) {
+      if (indent === 4 && line === `${ref}:`) inRef = true;
+      continue;
+    }
+    if (indent <= 4) break;
+    blockLines.push(raw);
+  }
+  // Phase 2 — split into runs on `- role:` (indent 8); parse note + tokens.
+  const parseTok = (v) => {
+    const t = String(v).trim();
+    if (t === '' || t === 'null' || t === '~') return null;
+    return /^-?\d+$/.test(t) ? Number(t) : null;
+  };
+  const runs = [];
+  let cur = null;
+  let inNote = false;
+  for (const raw of blockLines) {
+    const indent = raw.length - raw.trimStart().length;
+    const body = raw.trimStart();
+    const roleM = indent === 8 ? body.match(/^-\s*role:\s*(.+?)\s*$/) : null;
+    if (roleM) {
+      if (cur) runs.push(cur);
+      cur = { role: stripQuotes(roleM[1].trim()), noteParts: [], tokensIn: null, tokensOut: null };
+      inNote = false;
+      continue;
+    }
+    if (!cur) continue;
+    if (indent === 10) {
+      const noteM = body.match(/^note:\s*(.*)$/);
+      if (noteM) {
+        inNote = true;
+        const v = noteM[1].trim();
+        // Skip a bare block-scalar indicator (>-, >, |, |-, |+ ...); keep an
+        // inline `note: text` value.
+        if (v && !/^[>|][+-]?$/.test(v)) cur.noteParts.push(stripQuotes(v));
+        continue;
+      }
+      const tiM = body.match(/^tokens_in:\s*(.+?)\s*$/);
+      if (tiM) { inNote = false; cur.tokensIn = parseTok(tiM[1]); continue; }
+      const toM = body.match(/^tokens_out:\s*(.+?)\s*$/);
+      if (toM) { inNote = false; cur.tokensOut = parseTok(toM[1]); continue; }
+      inNote = false; // any other indent-10 field ends the note block
+      continue;
+    }
+    if (indent >= 12 && inNote) { cur.noteParts.push(body.trim()); continue; }
+  }
+  if (cur) runs.push(cur);
+  return runs.map((r) => ({
+    role: r.role,
+    note: r.noteParts.join(' '),
+    tokensIn: r.tokensIn,
+    tokensOut: r.tokensOut,
+  }));
+}
+
+// usageCaptured(run) -> true when the run carries ANY honest usage signal:
+// decomposed tokens (both in AND out present), a valid usage_total_tokens
+// marker, or the usage_capture=none sentinel (the honest-gap escape hatch).
+// Mirrors the metrics-flush 3-way classifier (decomposed | undecomposed-note |
+// capture-missing) plus the sentinel — never a re-declared regex.
+function usageCaptured(run) {
+  if (run.tokensIn !== null && run.tokensOut !== null) return true;
+  if (extractUsageTotal(run.note) !== null) return true;
+  if (hasUsageSentinel(run.note)) return true;
+  return false;
+}
+
+// evaluateUsageCaptureGate(ref) -> { severity, dial?, roles?, reason? }.
+// severity 'none' (no gateable gap), 'warn' (report-only dial), or 'refuse'
+// (enforce dial). Read-only — the caller decides WARN vs REFUSE-before-write
+// (product-doc-gate discipline). Only KNOWN harness-dispatched roles are gated;
+// meta-roles (Orchestration, Metrics Flush) and any unrecognized role are never
+// gated (conservative — intake Constraints).
+function evaluateUsageCaptureGate(ref) {
+  const runs = scanAgentRuns(ref);
+  const unmarked = runs.filter((r) => isHarnessDispatchedRole(r.role) && !usageCaptured(r));
+  if (unmarked.length === 0) return { severity: 'none', roles: [] };
+  const dial = readGuardConfig(path.join(ROOT, 'docs/ai')).usage_capture_gate;
+  const roles = unmarked.map((r) => r.role);
+  const reason =
+    `ride "${ref}" carries ${unmarked.length} harness-dispatched run(s) with no usage capture ` +
+    `(no usage_total_tokens marker, no decomposed tokens_in/out, no usage_capture=none sentinel): ${roles.join(', ')}`;
+  return { severity: dial === 'enforce' ? 'refuse' : 'warn', dial, roles, reason };
+}
+
 // Best-effort remediation-friction capture. Fires ONLY on a real close (called
 // once from the main() success path). Isolation mirrors the wrapper's capture
 // point: honors the AAI_FRICTION_CAPTURE off-switch, and writes only when the
@@ -806,6 +949,21 @@ function main() {
     process.stderr.write(`close-work-item: WARNING (product-doc gate) — ${productDocGate.reason}\n`);
   }
 
+  // spec-telemetry-completeness (Enforcement design A) — close-time
+  // usage-capture gate for the PRIMARY ride (resolved[0].fmId, the STATE
+  // work_items key). Same pre-write discipline as the product-doc gate above:
+  // evaluated BEFORE anything that could write (including the idempotency
+  // short-circuit's INDEX regen); --dry-run reports the verdict in its JSON
+  // below and never acts on it.
+  const usageGate = evaluateUsageCaptureGate(resolved[0].fmId);
+  if (!args.dryRun && usageGate.severity === 'refuse') {
+    process.stderr.write(`close-work-item: REFUSED (usage-capture gate) — ${usageGate.reason}\n`);
+    process.exit(4);
+  }
+  if (!args.dryRun && usageGate.severity === 'warn') {
+    process.stderr.write(`close-work-item: WARNING (usage-capture gate) — ${usageGate.reason}\n`);
+  }
+
   const events = readEvents(ROOT);
   const plan = resolved.map((d) => ({
     ...d,
@@ -838,6 +996,7 @@ function main() {
       {
         anyMutation: anyMutationTotal,
         productDocGate,
+        usageCaptureGate: usageGate,
         productDocUpdate: productDocPlan
           ? { path: productDocGate.productDocPath, needsUpdate: productDocPlan.needsUpdate }
           : null,

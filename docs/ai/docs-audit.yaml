@@ -29,6 +29,23 @@ doc_number_guard: enforce
 # report-only, fail-open — a missing/placeholder product doc warns loudly on
 # stderr but never blocks the close. AAI core ships this key report-only.
 product_doc_gate: report-only
+# spec-telemetry-completeness (Enforcement design A) — close-time usage-capture
+# gate (opt-in). Consulted ONLY by close-work-item.mjs to choose warn-vs-refuse
+# when a closing ride's STATE agent_runs include a harness-dispatched-role run
+# (Planning, Implementation, TDD Implementation, Validation, Code Review,
+# Remediation) with no usage_total_tokens marker, no decomposed tokens_in/out,
+# and no usage_capture=none sentinel. Values: enforce | report-only. Default
+# (key or file absent, or an invalid value) is report-only, fail-open — an
+# unmarked run WARNS loudly on stderr (naming ref + role) but never blocks the
+# close. AAI core ships this key report-only.
+#
+# ENFORCE ESCAPE HATCH (intake Constraints): a missing marker cannot, by
+# itself, distinguish "orchestrator forgot to record usage" from "the harness
+# genuinely exposed no usage". A run that honestly had no usage records the
+# sentinel note `usage_capture=none`, which counts as captured and passes even
+# under enforce — enforce must not punish an honest gap. Meta-roles
+# (Orchestration, Metrics Flush) and any unrecognized role are never gated.
+usage_capture_gate: report-only
 # RFC-0009 / spec-scale-adaptive-ceremony — L3 protected surfaces (project-owned
 # config; the POLICY and these canonical defaults live in
 # .aai/workflow/WORKFLOW.md "Ceremony levels"). A spec whose scope touches any
