@@ -105,6 +105,7 @@ core:
   - .aai/scripts/docs-audit.mjs
   - .aai/scripts/docs-lock.mjs
   - .aai/scripts/generate-docs-index.mjs
+  - .aai/scripts/hitl-channel.mjs
   - .aai/scripts/install-pre-commit-hook.ps1
   - .aai/scripts/install-pre-commit-hook.sh
   - .aai/scripts/layer-drift.mjs

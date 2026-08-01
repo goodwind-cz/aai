@@ -11,6 +11,28 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(hitl): async HITL via platform comments — park a ride, answer from anywhere (CHANGE-0102 / SPEC-0111) [L2]
+
+- A ride that needs a human decision no longer has to block the terminal: when
+  the scope has a linked GitHub issue/PR, the blocking `[HITL-<n>]` question +
+  enumerated options are posted as ONE platform comment (idempotent per
+  token+thread+kind), the ride parks, and a later session resumes by feeding
+  the reply into the existing fail-closed SKILL_HITL resolution. New
+  `.aai/scripts/hitl-channel.mjs` (post / poll / resolve; Node stdlib; sidecar
+  `docs/ai/hitl-channel.json`, gitignored) — state.mjs untouched (L2, no
+  protected path). Trust boundary: a reply resolves a decision only from an
+  author with repo write permission (permission-API error fails CLOSED), bots
+  and self filtered, only comments after our post count; the body is untrusted
+  data (C0/C1/bidi stripped, never executed or shell-interpolated); ambiguous
+  replies fail closed with ONE idempotent follow-up; applied answers are
+  consumed (`resolve`) so they never re-surface and a stale reply for a
+  different token is ignored. No platform / API error degrades to terminal
+  HITL byte-for-byte. Suite `tests/skills/test-aai-hitl-channel.sh` (15 tests,
+  zero real network); adversarial validation PASS (permission/bot/injection
+  probes fail-closed, both test-quality mutants bit); its HIGH residual
+  (missing resolve lifecycle) fixed in-ride. Split to follow-ups: milestone
+  comments, PR visual evidence, session-start nudge, Azure comment channel.
+
 ## [unreleased] — feat(dispatch): token-economics cache-friendly dispatch ordering audit + advisory effort routing (CHANGE-0101 / SPEC-0110) [L2]
 
 - Prompt caching bills a repeated stable prefix at ~10% of base rate, but only

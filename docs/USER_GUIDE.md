@@ -2099,6 +2099,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Answering the factory from anywhere
+
+When a ride hits a decision only you can make, the factory no longer has to sit blocked at a terminal waiting for you. If the scope has a linked GitHub issue or PR, the blocking question — with its `[HITL-<n>]` token and the enumerated answer options — is posted as **one comment on that thread**, the ride parks, and whichever session runs next picks up your reply and continues. You answer from a phone, hours later; the factory resumes on its own.
+
+[Product doc](product/async-hitl-platform-comments.md) · [Spec](specs/SPEC-0111-spec-async-hitl-platform-comments.md)
+
 ### Choosing how much rigor an implementation gets
 
 At the end of every intake, AAI now **asks you how to implement** — with a recommendation — instead of silently defaulting to the full TDD loop:

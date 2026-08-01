@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-01T08:47:13.763Z",
+  "generatedAt": "2026-08-01T15:32:01.807Z",
   "project": "aai",
   "counts": {
-    "delivered": 146,
+    "delivered": 147,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -89,6 +89,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0110-spec-cache-friendly-dispatch.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "async-hitl-platform-comments",
+      "title": "Change — async HITL: park a ride on a platform comment, resume on the reply",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0102-async-hitl-platform-comments.md",
+      "closed_on": "2026-08-01",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0111-spec-async-hitl-platform-comments.md",
       "validation": null,
       "review": null
     },
@@ -1994,6 +2007,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0110-spec-cache-friendly-dispatch.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "async-hitl-platform-comments",
+          "title": "Change — async HITL: park a ride on a platform comment, resume on the reply",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0102-async-hitl-platform-comments.md",
+          "closed_on": "2026-08-01",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0111-spec-async-hitl-platform-comments.md",
           "validation": null,
           "review": null
         }
