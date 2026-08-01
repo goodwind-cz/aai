@@ -18,6 +18,9 @@
 //           sidecar. Degrade (no github platform, no thread, gh missing/error) to
 //           a loud note + exit 0 so the caller falls back to terminal HITL. Never
 //           crashes or blocks the raising role.
+//   resolve — mark every sidecar entry for a token resolved (consumption half
+//           of the lifecycle; run AFTER the answer is applied so poll never
+//           re-surfaces an already-answered reply). Idempotent, exit 0.
 //   poll  — read the sidecar, fetch replies to each unresolved thread, and
 //           surface the FIRST QUALIFYING human reply as UNTRUSTED DATA for
 //           SKILL_HITL. A qualifying reply is: created AFTER our posted_utc,
@@ -32,6 +35,7 @@
 //        [--kind question|followup] [--sidecar <path>] [--gh-bin <path>]
 //        [--json] [--dry-run]
 //   node hitl-channel.mjs poll [--sidecar <path>] [--self <login[,login...]>]
+//   node hitl-channel.mjs resolve --token <HITL-n> [--sidecar <path>] [--json]
 //        [--gh-bin <path>] [--input <comments.json>] [--perm-input <perms.json>]
 //        [--json]
 //
@@ -323,16 +327,38 @@ function cmdPoll(opts) {
   process.exit(0);
 }
 
+// resolve — the CONSUMPTION half of the lifecycle (validation RR-resume-no-
+// resolution-lifecycle): after SKILL_HITL applies an answer, mark every entry
+// for that token resolved so poll never re-surfaces it (question AND its
+// followups). Idempotent: resolving an already-resolved/unknown token is a
+// no-op with a note, exit 0 (best-effort discipline, matches post/poll).
+function cmdResolve(opts) {
+  const token = opts.token;
+  if (!token) usage('resolve requires --token');
+  const sidecarPath = opts.sidecar || DEFAULT_SIDECAR;
+  const sidecar = loadSidecar(sidecarPath);
+  let n = 0;
+  for (const e of sidecar.entries) {
+    if (e.hitl_token === token && !e.resolved) { e.resolved = true; e.resolved_utc = nowUtc(); n += 1; }
+  }
+  if (n > 0) saveSidecar(sidecarPath, sidecar);
+  const out = { status: n > 0 ? 'resolved' : 'noop', token, entries_resolved: n };
+  if (opts.json) console.log(JSON.stringify(out));
+  else console.log(`HITL-CHANNEL resolve token=${token} entries_resolved=${n}`);
+  process.exit(0);
+}
+
 function main() {
   const opts = parseArgs(process.argv);
   const sub = opts._[0];
   if (sub === '--help' || !sub) {
-    console.log('Usage: node hitl-channel.mjs <post|poll> [flags] (see file header)');
+    console.log('Usage: node hitl-channel.mjs <post|poll|resolve> [flags] (see file header)');
     process.exit(sub ? 0 : 2);
   }
   if (sub === 'post') return cmdPost(opts);
   if (sub === 'poll') return cmdPoll(opts);
-  return usage(`unknown subcommand "${sub}" (expected post | poll)`);
+  if (sub === 'resolve') return cmdResolve(opts);
+  return usage(`unknown subcommand "${sub}" (expected post | poll | resolve)`);
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

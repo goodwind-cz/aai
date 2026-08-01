@@ -411,6 +411,58 @@ test_014_seam_post_then_poll() {
   fi
 }
 
+
+# ---------------- TEST-015 (validation RR fix): resolve lifecycle ------------
+# The consumption half: after the answer is applied, `resolve --token` marks
+# every entry for that token resolved so poll NEVER re-surfaces the answered
+# reply; other tokens stay live; resolving again (or an unknown token) is an
+# idempotent no-op exit 0. Also pins the SKILL_HITL STEP 0 token-match +
+# resolve instruction (stale-answer bleed guard).
+test_015_resolve_lifecycle() {
+  log_info "TEST-015: resolve marks the token consumed; poll stops re-surfacing it; idempotent..."
+  local d="$TEST_DIR/t015"; mkdir -p "$d"
+  local stub="$d/gh" log="$d/gh.log" sc="$d/sidecar.json" body="$d/body.md"
+  local comments="$d/comments.json" perms="$d/perms.json"
+  make_gh_stub "$stub" "$log" "555015" 0
+  printf 'q1\n' > "$body"
+  run_channel post --token HITL-7 --ref CHANGE-0001 --thread 91 --platform github \
+    --body-file "$body" --sidecar "$sc" --gh-bin "$stub"
+  run_channel post --token HITL-8 --ref CHANGE-0001 --thread 91 --platform github \
+    --body-file "$body" --sidecar "$sc" --gh-bin "$stub"
+  node -e '
+    const fs=require("fs");
+    fs.writeFileSync(process.argv[1], JSON.stringify([
+      {id:906,user:{login:"operator",type:"User"},body:"answer A",created_at:"2099-01-01T00:00:00Z"}
+    ]));
+  ' "$comments"
+  printf '{"operator":"write"}\n' > "$perms"
+  # resolve HITL-7 -> only HITL-8 may surface afterwards
+  run_channel resolve --token HITL-7 --sidecar "$sc" --json
+  [[ "$EC" == 0 ]] || { log_fail "TEST-015: resolve exited $EC"; return; }
+  local st n
+  st="$(jfield "$OUT" 'o.status')"; n="$(jfield "$OUT" 'o.entries_resolved')"
+  [[ "$st" == "resolved" && "$n" == "1" ]] || { log_fail "TEST-015: resolve reported st=$st n=$n"; return; }
+  run_channel poll --sidecar "$sc" --self aai-bot --input "$comments" --perm-input "$perms" --json
+  local tokens
+  tokens="$(jfield "$OUT" 'Array.isArray(o)?o.map(r=>r.token).join(","):o.token')"
+  if [[ "$tokens" == *HITL-7* ]]; then
+    log_fail "TEST-015: resolved HITL-7 still re-surfaced by poll (tokens=$tokens)"; return
+  fi
+  [[ "$tokens" == *HITL-8* ]] || { log_fail "TEST-015: live HITL-8 vanished (tokens=$tokens)"; return; }
+  # idempotence: resolving again + unknown token are no-ops exit 0
+  run_channel resolve --token HITL-7 --sidecar "$sc" --json
+  st="$(jfield "$OUT" 'o.status')"
+  [[ "$EC" == 0 && "$st" == "noop" ]] || { log_fail "TEST-015: re-resolve not a noop (ec=$EC st=$st)"; return; }
+  run_channel resolve --token HITL-99 --sidecar "$sc" --json
+  [[ "$EC" == 0 ]] || { log_fail "TEST-015: unknown-token resolve exited $EC"; return; }
+  # prompt contract: STEP 0 instructs token-match + resolve consumption
+  grep -qF "resolve --token" "$PROJECT_ROOT/.aai/SKILL_HITL.prompt.md" \
+    || { log_fail "TEST-015: SKILL_HITL STEP 0 missing the resolve consumption instruction"; return; }
+  grep -qiF "different token is stale" "$PROJECT_ROOT/.aai/SKILL_HITL.prompt.md" \
+    || { log_fail "TEST-015: SKILL_HITL STEP 0 missing the stale-token guard"; return; }
+  log_pass "TEST-015: resolve lifecycle — consumed token never re-surfaces, others live, idempotent, prompt pinned"
+}
+
 # --- run ----------------------------------------------------------------------
 check_deps
 test_001_post_once
@@ -427,6 +479,7 @@ test_011_orch_prompt_contract
 test_012_skill_prompt_contract
 test_013_seam_prompt_command
 test_014_seam_post_then_poll
+test_015_resolve_lifecycle
 
 if [[ "$FAILED" == 0 ]]; then
   echo "PASS: all aai-hitl-channel tests (TEST-001..014)"
