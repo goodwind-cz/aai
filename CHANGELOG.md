@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(pr): fast lane opens to spec-less rides — intake frontmatter as the ceremony source (CHANGE lane-intake-ceremony) [L1]
+## [unreleased] — feat(pr): fast lane opens to spec-less rides — intake frontmatter as the ceremony source (CHANGE-0112) [L1]
 
 - Measured 2026-08-02: 8 rides, 0 fast — the lane's exact target class
   (small test+docs rides on an intake with no spec) could never qualify,

@@ -1,13 +1,15 @@
 ---
 id: lane-intake-ceremony
-number: null
+number: 112
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
 links:
-  pr: []
-  commits: []
+  pr:
+    - 216
+  commits:
+    - 30ad4b595ace2f014a3b886eac1a23e3b268acba
 ---
 
 # Change — fast lane opens to spec-less rides: intake frontmatter as the ceremony source

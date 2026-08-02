@@ -2099,6 +2099,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Small changes stop paying the full ceremony price
+
+Every ride used to pay a flat ~42-minute pipeline floor (two full CI rounds plus a 10-minute external-review window) no matter how small the change. Now a **deterministic gate** (`lane-gate.mjs`) checks four machine-readable predicates and, when ALL hold, the ride takes a **fast lane**:
+
+[Product doc](product/lightweight-e2e-lane.md) · [Spec](specs/SPEC-0112-spec-lightweight-e2e-lane.md)
+
 ### Leaked runaway shells die at the next session start
 
 Agent sessions can leak detached processes: a load test or background job whose cleanup lived AFTER the workload dies with its timed-out parent shell, and the leftover process spins on CPU unowned, invisibly, for days (the motivating incident: 37 busy-loops, ~15 cores, ~4 days).
@@ -2110,12 +2116,6 @@ Agent sessions can leak detached processes: a load test or background job whose 
 When a ride hits a decision only you can make, the factory no longer has to sit blocked at a terminal waiting for you. If the scope has a linked GitHub issue or PR, the blocking question — with its `[HITL-<n>]` token and the enumerated answer options — is posted as **one comment on that thread**, the ride parks, and whichever session runs next picks up your reply and continues. You answer from a phone, hours later; the factory resumes on its own.
 
 [Product doc](product/async-hitl-platform-comments.md) · [Spec](specs/SPEC-0111-spec-async-hitl-platform-comments.md)
-
-### Small changes stop paying the full ceremony price
-
-Every ride used to pay a flat ~42-minute pipeline floor (two full CI rounds plus a 10-minute external-review window) no matter how small the change. Now a **deterministic gate** (`lane-gate.mjs`) checks four machine-readable predicates and, when ALL hold, the ride takes a **fast lane**:
-
-[Product doc](product/lightweight-e2e-lane.md) · [Spec](specs/SPEC-0112-spec-lightweight-e2e-lane.md)
 
 ### Choosing how much rigor an implementation gets
 
