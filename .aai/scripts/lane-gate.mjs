@@ -84,8 +84,10 @@ function parseArgs(argv) {
 }
 
 // ---- predicate 1: ceremony_level from spec frontmatter, with an intake ----
-// fallback. Mirrors orchestration-dispatch.mjs's reader exactly (fail-closed
-// to a non-fast value on absent file/field/garbage token).
+// fallback. Same TOKEN GRAMMAR as orchestration-dispatch.mjs's reader, but a
+// deliberately different fail-close direction: dispatch defaults an absent/
+// garbage level to ceremony 2 (run MORE process); this gate returns ok=false
+// (take the HEAVY lane). Both err toward more rigor; neither trusts garbage.
 //
 // INTAKE FALLBACK (CHANGE lane-intake-ceremony): the lane's exact target
 // class — small L0/L1 rides that ship on an intake CHANGE doc with NO spec —
@@ -99,7 +101,15 @@ function parseArgs(argv) {
 // fails closed to heavy. A spec, when present, always WINS — declaring a
 // lower level in the intake of a spec'd ride cannot downgrade the lane.
 function readCeremonyLevel(specPath, intakePath) {
-  const primary = specPath && existsSync(specPath) ? specPath : null;
+  // An EXPLICITLY provided --spec that does not exist is a broken reference
+  // (stale/misspelled path), NOT a spec-less ride — falling back to the
+  // intake there could silently downgrade a spec'd ride (bot review P2).
+  // Fail closed instead; the intake fallback applies only when no --spec
+  // was passed at all.
+  if (specPath && !existsSync(specPath)) {
+    return { value: null, ok: false, source: 'spec-missing' };
+  }
+  const primary = specPath ?? null;
   const fallback = !primary && intakePath && existsSync(intakePath) ? intakePath : null;
   const source = primary ?? fallback;
   return { ...readCeremonyFrom(source), source: source === null ? null : (primary ? 'spec' : 'intake') };

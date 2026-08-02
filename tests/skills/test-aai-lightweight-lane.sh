@@ -393,6 +393,16 @@ test_023_intake_ceremony_fallback() {  # CHANGE lane-intake-ceremony
     --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"
   echo "$OUT" | grep -qE '^LANE heavy reason=ceremony_level$' \
     || log_fail "TEST-023: garbage intake level must stay fail-closed heavy: $OUT"
+  # EXPLICIT --spec pointing at a missing file -> heavy, NO intake fallback
+  # (bot P2: a stale/misspelled spec path must not silently downgrade)
+  printf -- '---\nid: fx\nceremony_level: 1\n---\n' > "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md"
+  OUT="$(node "$GATE" --repo-root "$TEST_DIR" --spec "$TEST_DIR/docs/specs/NO-SUCH-SPEC.md" \
+    --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md" \
+    --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"
+  echo "$OUT" | grep -qE '^LANE heavy reason=ceremony_level$' \
+    || log_fail "TEST-023: explicit missing --spec must fail closed, not fall back to intake: $OUT"
+  echo "$OUT" | grep -q 'source=spec-missing' \
+    || log_fail "TEST-023: predicate line must label source=spec-missing: $OUT"
   # both absent -> heavy (today's default preserved)
   rm -f "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md"
   OUT="$(node "$GATE" --repo-root "$TEST_DIR" --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md" \
