@@ -1449,3 +1449,6 @@
 {"v":1,"ts":"2026-08-02T12:05:21.868Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"orphan-sweep-session-hook","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-08-02T12:05:21.901Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"orphan-sweep-session-hook","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-02T12:05:21.931Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"orphan-sweep-session-hook","payload":{"commit":"960297c61313d9db5cec78c8d903700e8c3b9e9b"}}
+{"v":1,"ts":"2026-08-02T12:41:55.231Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"phantom-api-pin","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-02T12:41:55.261Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"phantom-api-pin","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-02T12:41:55.293Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"phantom-api-pin","payload":{"commit":"d2c9e7ef503c08034ac31ac7711864df92ad7834"}}

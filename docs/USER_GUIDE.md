@@ -2099,6 +2099,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Leaked runaway shells die at the next session start
+
+Agent sessions can leak detached processes: a load test or background job whose cleanup lived AFTER the workload dies with its timed-out parent shell, and the leftover process spins on CPU unowned, invisibly, for days (the motivating incident: 37 busy-loops, ~15 cores, ~4 days).
+
+[Product doc](product/orphan-sweep.md)
+
 ### Answering the factory from anywhere
 
 When a ride hits a decision only you can make, the factory no longer has to sit blocked at a terminal waiting for you. If the scope has a linked GitHub issue or PR, the blocking question — with its `[HITL-<n>]` token and the enumerated answer options — is posted as **one comment on that thread**, the ride parks, and whichever session runs next picks up your reply and continues. You answer from a phone, hours later; the factory resumes on its own.

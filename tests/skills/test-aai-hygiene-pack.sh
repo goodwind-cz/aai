@@ -850,6 +850,32 @@ test_082_dispatch_refs_name_contract() {  # spec-subagent-protocol-slim TEST-003
   log_pass "Dispatch payload refs resolve to SUBAGENT_CONTRACT.md; orchestrator-only refs stay on SUBAGENT_PROTOCOL.md (spec-subagent-protocol-slim TEST-003)"
 }
 
+test_092_no_phantom_node_apis() {  # CHANGE phantom-api-pin: APIs that LOOK real but do not exist
+  log_info "test_092: no .mjs script calls a known-phantom Node API (bit us live: process.getpgrp)..."
+  # Each entry is an API that plausibly exists (POSIX cousin, docs folklore)
+  # but is NOT in Node's runtime — a call site compiles, reviews clean, and
+  # only fails (or silently misbehaves inside try/catch) in production.
+  # process.getpgrp: shipped in orphan-sweep's self-guard, caught by a PR bot,
+  # not by author or internal review (CHANGE-0108 sweep, 2026-08-02).
+  local phantoms='process\.getpgrp|process\.getpgid|process\.setpgrp|fs\.exists\(|require\.main\.filename'
+  # exit-code contract: 0=hits, 1=clean, 2=scan error. A scan error must FAIL
+  # loudly (bot review: masking it makes the denylist silently ineffective).
+  # set -e safe: capture rc via && / || (a bare rc=$? after the substitution
+  # aborts the whole suite on grep's exit 1 = clean tree — bit us on CI).
+  local hits rc
+  hits="$(grep -rnE "$phantoms" "$PROJECT_ROOT/.aai/scripts" --include='*.mjs' 2>&1)" && rc=0 || rc=$?
+  if [[ "$rc" -ge 2 ]]; then
+    log_fail "test_092: phantom-API scan itself failed (grep exit $rc): $hits"
+    return 1
+  fi
+  if [[ "$rc" -eq 0 && -n "$hits" ]]; then
+    log_info "test_092: phantom/deprecated API call site(s):"
+    printf '%s\n' "$hits" | head -5
+    log_fail "test_092: phantom Node API in .aai/scripts (verify against the runtime: node -e 'console.log(typeof <api>)')"
+    return 1
+  fi
+  log_pass "test_092: no phantom Node APIs in .aai/scripts"
+}
 test_091_session_journal_index_complete() {  # CHANGE-0080: every journal has an INDEX row
   log_info "test_091: every docs/project-sessions/*.md (except INDEX.md) has a row in INDEX.md..."
   local idx="$PROJECT_ROOT/docs/project-sessions/INDEX.md"
@@ -963,6 +989,7 @@ main() {
   test_082_dispatch_refs_name_contract
   test_090_suite_map_pin
   test_091_session_journal_index_complete
+  test_092_no_phantom_node_apis
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
