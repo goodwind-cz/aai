@@ -192,3 +192,11 @@
   CI run is the RED->GREEN evidence, Validation verifies `gh run` conclusion +
   headSha-matches-HEAD + local non-regression. (Source: CHANGE-0043 loop.)
 - [2026-07-27] Bash 3.2 (macOS default): never cross-reference variables inside ONE local statement (local name="$1" d="$ROOT/$name" leaves d empty under set -u) — split into two local lines; and every git-fixture helper must refuse to run when its target dir is empty or non-absolute (guard [[ -n "$d" && "$d" = /* ]] before any git -C "$d"), otherwise a broken fixture silently operates on the REAL repository. (source: doctor-determinize ride 2026-07-28: fixture helper bug executed git -C '' against the real repo (self-corrected; forensically verified))
+- [2026-08-02] Node has NO `process.getpgrp()` (nor getpgid/setpgrp) — the
+  POSIX cousins make it read as obviously-real, it survives author + internal
+  L3-style review, and a `try/catch` fallback hides the failure at runtime
+  (orphan-sweep's self-kill guard silently guarded nothing; a PR bot caught
+  it, humans did not). Rule: any NEWLY-CALLED runtime API in a diff gets a
+  10-second existence probe (`node -e 'console.log(typeof <api>)'`) before
+  review sign-off; known phantoms are pinned by hygiene-pack test_092.
+  (Source: CHANGE-0108 bot sweep.)

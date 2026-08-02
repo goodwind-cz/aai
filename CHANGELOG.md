@@ -145,6 +145,13 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — chore(quality): phantom-API pin — nonexistent-but-plausible runtime APIs stop surviving review (CHANGE phantom-api-pin) [L1]
+
+- hygiene-pack test_092 pins known-phantom Node APIs (process.getpgrp cousins,
+  callback fs.exists, ESM require.main) across .aai scripts; LEARNED.md adds
+  the 10-second existence-probe rule. Driven by the live CHANGE-0108 case: a
+  phantom API survived author + internal review, caught only by a PR bot.
+
 ## [v2026.08.01] — feat(hitl): async HITL via platform comments — park a ride, answer from anywhere (CHANGE-0102 / SPEC-0111) [L2]
 
 - A ride that needs a human decision no longer has to block the terminal: when
