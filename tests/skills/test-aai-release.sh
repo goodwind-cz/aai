@@ -641,8 +641,11 @@ test_022_live_changelog_scaffold_invariants() {
     log_fail "TEST-022: expected exactly 1 bare '## [unreleased]' scaffold, found $bare_count (lines: $(grep -n '^## \[unreleased\]$' "$cl" | cut -d: -f1 | tr '\n' ' '))"
     return 1
   fi
-  first_bare="$(grep -n '^## \[unreleased\]$' "$cl" | head -1 | cut -d: -f1)"
-  first_versioned="$(grep -n '^## \[v' "$cl" | head -1 | cut -d: -f1)"
+  # single-process awk, no pipelines: grep|head|cut under set -o pipefail dies
+  # on SIGPIPE (many matches) or exit 1 (zero matches) — bot-caught, and the
+  # same class as the test_092 set -e incident the same day.
+  first_bare="$(awk '/^## \[unreleased\]$/{print NR; exit}' "$cl")"
+  first_versioned="$(awk '/^## \[v/{print NR; exit}' "$cl")"
   if [[ -n "$first_versioned" && "$first_bare" -gt "$first_versioned" ]]; then
     log_fail "TEST-022: bare scaffold (line $first_bare) sits BELOW the first versioned heading (line $first_versioned)"
     return 1
