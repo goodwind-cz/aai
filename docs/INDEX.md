@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-02T00:59:41.186Z
+Generated: 2026-08-02T01:02:00.480Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -313,7 +313,7 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| r-guard-runtime-enforcement (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-r-guard-runtime-enforcement.md |
+| CHANGE-0107 | issues | docs/issues/CHANGE-0107-r-guard-runtime-enforcement.md |
 
 ## Deferred (whole-doc) (0)
 

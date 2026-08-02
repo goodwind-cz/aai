@@ -5,7 +5,7 @@ number: 113
 status: implementing
 ceremony_level: 3
 links:
-  requirement: docs/issues/CHANGE-DRAFT-r-guard-runtime-enforcement.md
+  requirement: docs/issues/CHANGE-0107-r-guard-runtime-enforcement.md
   rfc: null
   pr: []
   commits: []
@@ -40,7 +40,7 @@ one additive guard clause. `lib/state-engine.mjs` and `lib/state-core.mjs`
 
 ## Links
 - Requirement / intake (AUTHORITATIVE analysis, rule inventory, staged plan):
-  docs/issues/CHANGE-DRAFT-r-guard-runtime-enforcement.md
+  docs/issues/CHANGE-0107-r-guard-runtime-enforcement.md
 - Precedents (L3 protected-surface specs, context only):
   docs/specs/SPEC-0107-spec-allocator-header-rewrite.md,
   docs/specs/SPEC-0109-spec-implementation-mode-choice.md
@@ -208,7 +208,7 @@ Stage 2 implements the honestly-detectable subset:
   tests/skills/test-aai-r-guard.sh, tests/skills/suite-map.yaml,
   tests/skills/lib/prompt-diet-ledger.sh,
   docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md,
-  docs/issues/CHANGE-DRAFT-r-guard-runtime-enforcement.md, CHANGELOG.md
+  docs/issues/CHANGE-0107-r-guard-runtime-enforcement.md, CHANGELOG.md
 
 ## Acceptance Criteria Mapping
 - Maps to: intake AC-001 (negative control, Stage 1)
