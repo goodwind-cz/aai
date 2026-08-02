@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-02T12:42:20.800Z
+Generated: 2026-08-02T13:31:04.089Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -39,7 +39,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (269)
+## Done (270)
 
 | ID | Type | Path |
 |---|---|---|
@@ -152,6 +152,7 @@ _None._
 | CHANGE-0107 | issues | docs/issues/CHANGE-0107-r-guard-runtime-enforcement.md |
 | CHANGE-0108 | issues | docs/issues/CHANGE-0108-orphan-sweep-session-hook.md |
 | CHANGE-0109 | issues | docs/issues/CHANGE-0109-phantom-api-pin.md |
+| CHANGE-0110 | issues | docs/issues/CHANGE-0110-prompt-diet-2026-08.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |

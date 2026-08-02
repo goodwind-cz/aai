@@ -148,8 +148,7 @@ PROCESS
      can never add risk to a large one. Steps 5c/5d branch on this verdict.
    - `github`/`azure`/`unknown` with a remote: `git push -u origin <branch>`.
      `none`: skip the push entirely and go straight to GENERIC MODE below.
-   - Branch on the printed value — NEVER guess:
-       node .aai/scripts/pr-platform.mjs
+   - Branch on the value the step-5 probe printed — NEVER guess:
      - `github` -> `gh pr create --title "<conventional title>" --body <body>`.
      - `azure` -> `az repos pr create --title "<title>" --description <body>
        --source-branch <branch> --target-branch <base>`; add reviewers with

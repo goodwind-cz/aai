@@ -9,6 +9,30 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — chore(diet): buy back prompt-budget headroom so the corpus stops running a zero-headroom treadmill (CHANGE-0110) [L1]
+
+- The prompt-diet floor (`tests/skills/test-aai-prompt-diet.sh` TEST-010) had
+  been pinned at `headroom 0/2048` since CHANGE-0090. At zero headroom every
+  prompt byte any ride adds breaches the floor on the spot and forces a ledger
+  true-up in the same commit — six of them in the week of 2026-07-27 (196, 238,
+  551, 262, 349 and 73 B entries), none of which were about whether the growth
+  was justified.
+- Trimmed 1530 B of genuinely dead weight out of the three largest corpus
+  prompts, moving headroom 0 -> 1530: `.aai/SKILL_LOOP.prompt.md` -1297 (six
+  full-width U+2500 box-drawing rules in the CHECKPOINT GATE templates replaced
+  by the `---` separator the same file already uses for its HITL block — `─` is
+  3 bytes each; plus the `LOOP PARAMETERS` `stop_conditions:` list, a verbatim
+  second copy of step 2 a-f, collapsed to a pointer at that single definition),
+  `.aai/VALIDATION.prompt.md` -209 (the AC STATUS GATE paragraph and the
+  `Detection:` bullets stated the same `Review-By` opt-in rule twice — merged),
+  `.aai/SKILL_PR.prompt.md` -24 (step 5 re-invoked `pr-platform.mjs` a second
+  time after the PLATFORM GATE had already run it).
+- Zero semantic rule loss and no credit change: `JUSTIFIED_GROWTH_BYTES` stays
+  1116 (TEST-012 pin untouched) because the ledger only lowers credit when a
+  shrink would push headroom ABOVE the 2048 cap. 23 grep-pin suites covering the
+  three files — every suite `grep -l` finds for them — plus layer-profiles and
+  a strict docs audit are green.
+
 ## [unreleased] — feat(r-guard): runtime single-writer guard + flush-time forensic backstop (SPEC-0113) [L3]
 
 - Closes the highest-blast-radius gap between "the prompt says so" and "the

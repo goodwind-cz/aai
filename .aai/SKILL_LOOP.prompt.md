@@ -65,18 +65,8 @@ LOOP PARAMETERS (use defaults unless overridden by caller)
     - staged:   pause for user approval when role category changes (Planning→Implementation, Implementation→Validation)
     - paranoid: pause for user approval after every tick
     Enable via caller argument: e.g. "Run loop with checkpoint_mode=staged"
-- stop_conditions:
-    - docs/ai/STATE.yaml: project_status == paused
-    - docs/ai/STATE.yaml: human_input.required == true
-    - docs/ai/STATE.yaml: last_validation.status == pass  AND  no open active_work_items
-      AND (code_review.required != true OR code_review.status in [pass, waived])
-    - tick_count >= max_ticks
-    - stagnation: focus_ref_id AND validation_status both unchanged for `stagnation_limit`
-      consecutive ticks (no forward progress) → escalate to HITL, do not burn remaining ticks
-    - run budget: when max_run_tokens or max_run_cost_usd is > 0 and the cumulative
-      cost recorded in LOOP_TICKS.jsonl meets or exceeds the limit → escalate to
-      HITL before starting another tick. See step 2f (RUN BUDGET) below for the
-      full computation and rationale.
+- stop_conditions: defined once, in step 2 (a-f) below — paused, human input,
+  validation pass + review gate, max_ticks, stagnation, run budget.
 
 LEAK-SAFE TEST EXECUTION (SPEC-0009 / ISSUE-0002)
 Every externally-spawned test/build process must be in a killable group,
@@ -274,9 +264,9 @@ For each tick (1..max_ticks):
        - If the role category CHANGED from previous tick (e.g., Planning→Implementation):
          → Output a checkpoint block and WAIT for user approval:
 
-         ─────────────────────────────────────
+         ---
          CHECKPOINT: <Previous Category> → <New Category>
-         ─────────────────────────────────────
+         ---
 
          Completed (<Previous Category>):
          • <key artifact or outcome from previous phase>
@@ -287,7 +277,7 @@ For each tick (1..max_ticks):
          • <estimated scope if known>
 
          Continue? [y] Yes, proceed  [n] No, revise  [p] Pause loop
-         ─────────────────────────────────────
+         ---
 
          - If user answers [n]: LOG the tick (step 6), then set human_input.required = true with blocking_reason = "User requested plan revision at checkpoint" and EXIT.
          - If user answers [p]: LOG the tick (step 6), then set project_status = paused and EXIT.
@@ -296,14 +286,14 @@ For each tick (1..max_ticks):
      If checkpoint_mode == "paranoid":
        - After EVERY tick, output:
 
-         ─────────────────────────────────────
+         ---
          TICK <N> COMPLETE: <role dispatched>
-         ─────────────────────────────────────
+         ---
          Result: <one-line summary of what the tick accomplished>
          State:  <project_status> / <last_validation.status>
 
          Continue? [y/n/p]
-         ─────────────────────────────────────
+         ---
 
          - Same [y/n/p] handling as staged mode (always log the tick before EXIT).
 
