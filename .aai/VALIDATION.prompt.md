@@ -46,16 +46,11 @@ INVARIANT RULES
 
 AC STATUS GATE
 Per-Spec-AC tracking gate that prevents silent partial implementations,
-unsubstantiated done claims, and forgotten deferrals. Applies to specs
-that opt in by including a `Review-By` column in their Acceptance Criteria
-Status table (see .aai/templates/SPEC_TEMPLATE.md). Legacy specs without
-the column are skipped — they continue to behave exactly as before.
-
-Detection:
-- A spec opts into the gate when its "Acceptance Criteria Status" section
-  contains a markdown table whose header row includes the literal column
-  `Review-By` (case-sensitive).
-- All other specs are treated as legacy and bypass the gate entirely.
+unsubstantiated done claims, and forgotten deferrals. A spec opts in when
+its "Acceptance Criteria Status" section contains a markdown table whose
+header row includes the literal column `Review-By` (case-sensitive; see
+.aai/templates/SPEC_TEMPLATE.md). All other specs are legacy: they bypass
+the gate entirely and behave exactly as before.
 
 MECHANICAL CHECKS (delegated to the script — no LLM re-derivation): before
 producing any PASS verdict on an opted-in spec, run

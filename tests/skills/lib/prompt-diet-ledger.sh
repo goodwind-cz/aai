@@ -30,6 +30,17 @@ REQUIRED_REDUCTION_BYTES=28672   # 28 KB
 # Adding a new legitimate prompt addition is a one-line array append with its
 # own audit trail, not a recomputed constant (source: DEBT-0002 root cause,
 # docs/knowledge/LEARNED.md 2026-07-17; true-up history: ISSUE-0016).
+# DIET 2026-08-02 (CHANGE-DRAFT-prompt-diet-2026-08): trimmed 1530 B of dead
+# weight out of the three largest corpus prompts — SKILL_LOOP -1297 (six
+# U+2500 box rules -> `---`; the LOOP PARAMETERS stop_conditions copy -> a
+# pointer at its single definition in step 2), VALIDATION -209 (AC STATUS GATE
+# paragraph + `Detection:` list said the opt-in rule twice, merged), SKILL_PR
+# -24 (duplicate pr-platform.mjs re-invocation in step 5). NO ledger entry and
+# NO credit change: per TEST-010's remediation rule the credit is lowered only
+# when a shrink would push headroom ABOVE HEADROOM_CAP. 1530 < 2048, so the
+# trim is absorbed as headroom (0 -> 1530) and JUSTIFIED_GROWTH_BYTES stays
+# 1116 (TEST-012 pin unchanged). This slack exists to be spent by the next
+# justified additions — not to be re-padded.
 JUSTIFIED_ADDITIONS=(
   "6144 DEBT-0002 dual-verdict code-review taxonomy + VALIDATION 8a exception + CEREMONY LANE block (SPEC-0041) + RED_CLASS discipline (SPEC-0044) + SECRETS PREFLIGHT (SPEC-0045) + doc-number origin reservation (SPEC-0047) + ceremony-lane declaration surfaces (SPEC_TEMPLATE/PLANNING/WORKFLOW); measured deficit 5122 B, credit chosen 6144 B for 1022 B headroom"
   "1309 CHANGE-0037 deterministic close-ceremony wiring prose: SKILL_PR.prompt.md step 5c close-work-item.mjs invocation (+1144 B) + VALIDATION 8b hand-flip/hand-emit removal replaced by close-ceremony pointer (+165 B)"
