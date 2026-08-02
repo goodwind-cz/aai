@@ -134,7 +134,14 @@ RFC-0001).
   (TEST-001..018) pins the predicate matrix, the fail-closed negatives, and the
   docs-only-close-diff routing.
 
-## [unreleased]
+## [unreleased] — fix(ops): orphan-sweep — leaked runaway shells die at the next session start (CHANGE-0108) [L1]
+
+- Incident-driven (37 orphaned busy-loops, ~15 cores, ~4 days, found by the
+  operator): session-start hook now runs a bounded, best-effort orphan sweep
+  killing launchd-adopted agent-shell wrappers that are old (>=2 h) AND hot
+  (>=20 % CPU), by process group. Own-PGID + mixed-group + fail-safe guards;
+  silent no-op contract; one-line kill report rides the hook context.
+  Real-kill test + 7 fixture tests.
 
 ## [unreleased]
 

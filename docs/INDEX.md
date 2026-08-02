@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-02T01:26:31.825Z
+Generated: 2026-08-02T12:29:27.588Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (16)
+## Product (17)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -32,13 +32,14 @@ _None._
 | issues-skill | issues-skill | 1 | docs/product/issues-skill.md |
 | learned-append-gate | learned-append-gate | 1 | docs/product/learned-append-gate.md |
 | lightweight-e2e-lane | lightweight-e2e-lane | 1 | docs/product/lightweight-e2e-lane.md |
+| orphan-sweep | orphan-sweep | 1 | docs/product/orphan-sweep.md |
 | platform-portable-pr | platform-portable-pr | 1 | docs/product/platform-portable-pr.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (267)
+## Done (268)
 
 | ID | Type | Path |
 |---|---|---|
@@ -149,6 +150,7 @@ _None._
 | CHANGE-0105 | issues | docs/issues/CHANGE-0105-telemetry-completeness.md |
 | CHANGE-0106 | issues | docs/issues/CHANGE-0106-runtime-state-consolidation.md |
 | CHANGE-0107 | issues | docs/issues/CHANGE-0107-r-guard-runtime-enforcement.md |
+| CHANGE-0108 | issues | docs/issues/CHANGE-0108-orphan-sweep-session-hook.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |

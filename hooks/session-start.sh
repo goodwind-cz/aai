@@ -49,6 +49,37 @@ $_uc_note"
   fi
 fi
 
+# Best-effort orphaned-runaway sweep (CHANGE orphan-sweep-session-hook). Kills
+# launchd-adopted agent-shell wrappers that have burned >=20% CPU for >=2h —
+# the 2026-07-29 busy-loop leak class (37 procs, ~15 cores, 4 days). Same
+# never-block contract as update-check above: bounded by a watchdog, all
+# errors swallowed, CONTENT emitted unchanged on any problem. Its one-line
+# kill report (silent when nothing found) rides the same emit path so the
+# session SEES what was reaped. macOS/Linux only by construction (the script
+# no-ops without `ps`).
+ORPHAN_SWEEP="$PROJECT_ROOT/.aai/scripts/orphan-sweep.mjs"
+if [[ -f "$ORPHAN_SWEEP" ]] && command -v node >/dev/null 2>&1; then
+  _os_timeout="${AAI_ORPHAN_SWEEP_TIMEOUT_S:-10}"
+  [[ "$_os_timeout" =~ ^[0-9]+$ ]] || _os_timeout=10
+  _os_out="$(mktemp "${TMPDIR:-/tmp}/aai-orphan-sweep.XXXXXX" 2>/dev/null || true)"
+  if [[ -n "$_os_out" ]]; then
+    { cd "$PROJECT_ROOT" && exec node "$ORPHAN_SWEEP"; } >"$_os_out" 2>/dev/null &
+    _os_pid=$!
+    { sleep "$_os_timeout"; kill -9 "$_os_pid"; } >/dev/null 2>&1 &
+    _os_watch=$!
+    wait "$_os_pid" 2>/dev/null || true
+    kill "$_os_watch" 2>/dev/null || true
+    wait "$_os_watch" 2>/dev/null || true
+    _os_note="$(cat "$_os_out" 2>/dev/null || true)"
+    rm -f "$_os_out" 2>/dev/null || true
+    if [[ -n "$_os_note" ]]; then
+      CONTENT="$CONTENT
+
+$_os_note"
+    fi
+  fi
+fi
+
 ESCAPED="$(printf '%s' "$CONTENT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
 
 # Detect platform and emit in the correct format

@@ -1446,3 +1446,6 @@
 {"v":1,"ts":"2026-08-02T01:02:29.376Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-r-guard-runtime-enforcement","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-02T01:02:29.431Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-r-guard-runtime-enforcement","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-02T01:02:29.486Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-r-guard-runtime-enforcement","payload":{"commit":"edf12f837f670b3aee13cd905256b87bba17a364"}}
+{"v":1,"ts":"2026-08-02T12:05:21.868Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"orphan-sweep-session-hook","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-02T12:05:21.901Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"orphan-sweep-session-hook","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-02T12:05:21.931Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"orphan-sweep-session-hook","payload":{"commit":"960297c61313d9db5cec78c8d903700e8c3b9e9b"}}
