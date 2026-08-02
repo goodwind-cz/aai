@@ -6,7 +6,7 @@ status: current
 delivered_by:
   - CHANGE-0103
 spec: docs/specs/SPEC-0112-spec-lightweight-e2e-lane.md
-updated: 2026-08-01
+updated: 2026-08-02
 ---
 
 # Small changes stop paying the full ceremony price
@@ -33,8 +33,11 @@ with its predicate values into the PR body (`## Lane`). To qualify, a ride
 must have: ceremony level 0 or 1, implementation mode `direct`, `untested`
 or `loop`, a diff under 5 files within safe classes (docs, at most one
 prompt file, one test, one non-core script), and no protected/shared-lib
-surface. Any reviewer or bot can re-arm the full sweep by commenting;
-a review may reclassify the ride upward at any time.
+surface. Spec-less rides (the common L0/L1 shape) declare the level in the
+intake CHANGE doc's frontmatter (`ceremony_level: 1`) — the gate reads it as
+a fallback and labels the source; a present spec always wins, so an intake
+can never downgrade a spec'd ride. Any reviewer or bot can re-arm the full
+sweep by commenting; a review may reclassify the ride upward at any time.
 
 ## Data model
 

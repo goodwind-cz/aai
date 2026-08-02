@@ -59,13 +59,14 @@ const DEFAULT_MAX_FILES = 5;
 
 function parseArgs(argv) {
   const out = {
-    spec: null, state: null, baseRef: null, filesFrom: null, repoRoot: null,
+    spec: null, intake: null, state: null, baseRef: null, filesFrom: null, repoRoot: null,
     maxFiles: DEFAULT_MAX_FILES, selectSuites: null, mapPath: null,
     auditPath: null, json: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--spec') out.spec = argv[++i];
+    else if (a === '--intake') out.intake = argv[++i];
     else if (a === '--state') out.state = argv[++i];
     else if (a === '--base-ref') out.baseRef = argv[++i];
     else if (a === '--files-from') out.filesFrom = argv[++i];
@@ -82,10 +83,39 @@ function parseArgs(argv) {
   return out;
 }
 
-// ---- predicate 1: ceremony_level from frozen spec frontmatter ----
-// Mirrors orchestration-dispatch.mjs's reader exactly (fail-closed to a
-// non-fast value on absent file/field/garbage token).
-function readCeremonyLevel(specPath) {
+// ---- predicate 1: ceremony_level from spec frontmatter, with an intake ----
+// fallback. Same TOKEN GRAMMAR as orchestration-dispatch.mjs's reader, but a
+// deliberately different fail-close direction: dispatch defaults an absent/
+// garbage level to ceremony 2 (run MORE process); this gate returns ok=false
+// (take the HEAVY lane). Both err toward more rigor; neither trusts garbage.
+//
+// INTAKE FALLBACK (CHANGE lane-intake-ceremony): the lane's exact target
+// class — small L0/L1 rides that ship on an intake CHANGE doc with NO spec —
+// could never qualify, because this predicate only read spec frontmatter
+// (measured on 2026-08-02: two 4-5-file test+docs rides, both forced heavy
+// solely by ceremony_level=absent). When NO spec path is given (or the file
+// does not exist), the same parser now reads `ceremony_level:` from the
+// intake doc's frontmatter. Trust model is unchanged: an L0/L1 level is
+// self-declared-and-reviewed in a spec too (freezing is an L3 concern), the
+// intake sits in the same reviewed diff, and every degenerate input still
+// fails closed to heavy. A spec, when present, always WINS — declaring a
+// lower level in the intake of a spec'd ride cannot downgrade the lane.
+function readCeremonyLevel(specPath, intakePath) {
+  // An EXPLICITLY provided --spec that does not exist is a broken reference
+  // (stale/misspelled path), NOT a spec-less ride — falling back to the
+  // intake there could silently downgrade a spec'd ride (bot review P2).
+  // Fail closed instead; the intake fallback applies only when no --spec
+  // was passed at all.
+  if (specPath && !existsSync(specPath)) {
+    return { value: null, ok: false, source: 'spec-missing' };
+  }
+  const primary = specPath ?? null;
+  const fallback = !primary && intakePath && existsSync(intakePath) ? intakePath : null;
+  const source = primary ?? fallback;
+  return { ...readCeremonyFrom(source), source: source === null ? null : (primary ? 'spec' : 'intake') };
+}
+
+function readCeremonyFrom(specPath) {
   if (!specPath || !existsSync(specPath)) return { value: null, ok: false };
   let body;
   try {
@@ -259,7 +289,8 @@ function main() {
   const opts = parseArgs(process.argv.slice(2));
   opts.repoRoot = resolve(opts.repoRoot || DEFAULT_REPO_ROOT);
 
-  const ceremony = readCeremonyLevel(opts.spec ? resolve(opts.spec) : null);
+  const ceremony = readCeremonyLevel(opts.spec ? resolve(opts.spec) : null,
+    opts.intake ? resolve(opts.intake) : null);
   const strategy = readStrategy(opts.state ? resolve(opts.state) : null);
   const changed = getChangedFiles(opts);
 
@@ -275,7 +306,7 @@ function main() {
 
   // Predicate lines (AC-007 auditability) — always emitted, fast or heavy.
   const lines = [];
-  lines.push(`ceremony_level=${ceremony.value ?? 'absent'} ${ceremony.ok ? 'ok' : 'need=0|1'}`);
+  lines.push(`ceremony_level=${ceremony.value ?? 'absent'}${ceremony.source ? ` source=${ceremony.source}` : ''} ${ceremony.ok ? 'ok' : 'need=0|1'}`);
   lines.push(`strategy=${strategy.value ?? 'absent'} ${strategy.ok ? 'ok' : 'need=direct|untested|loop'}`);
   lines.push(`protected_config=${protectedCfgOk ? 'present ok' : 'MISSING (docs/ai/docs-audit.yaml) fail-closed'}`);
 
@@ -306,7 +337,7 @@ function main() {
       lane: fast ? 'fast' : 'heavy',
       reason,
       predicates: {
-        ceremony_level: { value: ceremony.value, ok: ceremony.ok },
+        ceremony_level: { value: ceremony.value, ok: ceremony.ok, source: ceremony.source ?? null },
         strategy: { value: strategy.value, ok: strategy.ok },
         protected_config: { ok: protectedCfgOk },
         suite_selection: { mode: suite.mode, detail: suite.detail },

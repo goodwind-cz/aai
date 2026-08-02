@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-02T14:07:40.482Z",
+  "generatedAt": "2026-08-02T15:17:17.214Z",
   "project": "aai",
   "counts": {
-    "delivered": 156,
+    "delivered": 157,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -137,6 +137,19 @@
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0111-changelog-scaffold-guard.md",
+      "closed_on": "2026-08-02",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "lane-intake-ceremony",
+      "title": "Change — fast lane opens to spec-less rides: intake frontmatter as the ceremony source",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0112-lane-intake-ceremony.md",
       "closed_on": "2026-08-02",
       "agent_minutes": null,
       "token_total": null,
@@ -2172,6 +2185,19 @@
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0111-changelog-scaffold-guard.md",
+          "closed_on": "2026-08-02",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "lane-intake-ceremony",
+          "title": "Change — fast lane opens to spec-less rides: intake frontmatter as the ceremony source",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0112-lane-intake-ceremony.md",
           "closed_on": "2026-08-02",
           "agent_minutes": null,
           "token_total": null,
