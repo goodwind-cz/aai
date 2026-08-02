@@ -858,9 +858,15 @@ test_092_no_phantom_node_apis() {  # CHANGE phantom-api-pin: APIs that LOOK real
   # process.getpgrp: shipped in orphan-sweep's self-guard, caught by a PR bot,
   # not by author or internal review (CHANGE-0108 sweep, 2026-08-02).
   local phantoms='process\.getpgrp|process\.getpgid|process\.setpgrp|fs\.exists\(|require\.main\.filename'
-  local hits
-  hits="$(grep -rnE "$phantoms" "$PROJECT_ROOT/.aai/scripts" --include='*.mjs' 2>/dev/null || true)"
-  if [[ -n "$hits" ]]; then
+  # exit-code contract: 0=hits, 1=clean, 2=scan error. A scan error must FAIL
+  # loudly (bot review: masking it makes the denylist silently ineffective).
+  local hits rc
+  hits="$(grep -rnE "$phantoms" "$PROJECT_ROOT/.aai/scripts" --include='*.mjs' 2>&1)"; rc=$?
+  if [[ "$rc" -ge 2 ]]; then
+    log_fail "test_092: phantom-API scan itself failed (grep exit $rc): $hits"
+    return 1
+  fi
+  if [[ "$rc" -eq 0 && -n "$hits" ]]; then
     log_info "test_092: phantom/deprecated API call site(s):"
     printf '%s\n' "$hits" | head -5
     log_fail "test_092: phantom Node API in .aai/scripts (verify against the runtime: node -e 'console.log(typeof <api>)')"
