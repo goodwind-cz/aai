@@ -381,7 +381,9 @@ test_023_intake_ceremony_fallback() {  # CHANGE lane-intake-ceremony
   mkdir -p "$TEST_DIR/docs/issues"
   printf -- '---\nid: fx\nceremony_level: 1\n---\n' > "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md"
   local list="$TEST_DIR/files.txt"; printf 'docs/x.md\n' > "$list"
-  OUT="$(node "$GATE" --repo-root "$TEST_DIR" --spec "$TEST_DIR/docs/specs/SPEC-DRAFT-fx.md" \
+  # spec-less invocation = NO --spec flag at all (SKILL_PR passes --spec only
+  # when a spec exists; an explicit-but-missing path is the TEST-023d arm)
+  OUT="$(node "$GATE" --repo-root "$TEST_DIR" \
     --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md" \
     --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"; CODE=$?
   [[ "$CODE" -eq 0 ]] || log_fail "TEST-023: exit must be 0, got $CODE: $OUT"
