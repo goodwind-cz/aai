@@ -499,6 +499,11 @@ suites:
       - .aai/VALIDATION.prompt.md
       - .aai/system/DYNAMIC_SKILLS.md
 
+  aai-runtime-file:
+    globs:
+      - .aai/scripts/lib/runtime-file.mjs
+      - .aai/scripts/hitl-channel.mjs
+
   aai-secrets-preflight:
     globs:
       - .aai/scripts/secrets-preflight.mjs

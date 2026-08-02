@@ -61,6 +61,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classify, extractHost } from './pr-platform.mjs';
+import { loadOrDegrade, atomicWrite } from './lib/runtime-file.mjs';
 
 const DEFAULT_SIDECAR = 'docs/ai/hitl-channel.json';
 const WRITE_PERMS = ['admin', 'write', 'maintain'];
@@ -126,20 +127,22 @@ function detectPlatform(explicit) {
 // silently read as "no entries parked" (an operator could think nothing is
 // waiting when the record is actually broken). Callers route corrupt through
 // loadSidecarOrDegrade (loud note + exit 0 status=degraded).
+//
+// Delegates the absent-vs-corrupt-vs-ok distinction to the shared
+// lib/runtime-file.mjs loadOrDegrade (class-B primitive) — this is the ledger
+// whose corrupt-as-empty read the primitive was distilled from. The
+// {entries:[]} / {corrupt:true} RETURN SHAPE is preserved, and the 19-test gate
+// is unchanged. One DELIBERATE behavior change: the old hand-rolled read caught
+// ANY read error (including a present-but-unreadable file, e.g. EACCES/EISDIR)
+// and returned empty; loadOrDegrade instead classifies present-but-unreadable as
+// `corrupt`, so such a ledger now degrades LOUDLY rather than silently reading as
+// "nothing parked". That is the intended, safer direction (a class-B fix, not a
+// regression) — only the ABSENT (ENOENT) case still maps to an empty ledger.
 function loadSidecar(p) {
-  let raw;
-  try {
-    raw = fs.readFileSync(p, 'utf8');
-  } catch {
-    return { entries: [] }; // absent -> normal empty
-  }
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && Array.isArray(parsed.entries)) return parsed;
-  } catch {
-    return { corrupt: true }; // present but unparseable -> damaged
-  }
-  return { corrupt: true }; // present but wrong shape -> damaged
+  const res = loadOrDegrade(p, { isShape: (d) => d && Array.isArray(d.entries) });
+  if (res.status === 'absent') return { entries: [] };   // absent -> normal empty
+  if (res.status === 'corrupt') return { corrupt: true }; // unparseable/wrong-shape -> damaged
+  return res.data;                                        // ok -> the parsed ledger
 }
 
 // Load the sidecar, or DEGRADE loudly on a corrupt ledger (never proceed as if
@@ -154,9 +157,14 @@ function loadSidecarOrDegrade(opts, p) {
   return sc;
 }
 
+// Persist the ledger via the shared lib/runtime-file.mjs atomicWrite (class-E
+// primitive: temp + rename, the rename the sole commit point) instead of the
+// prior plain writeFileSync. The SERIALIZED bytes are IDENTICAL
+// (`${JSON.stringify(data, null, 2)}\n`), so reads and the 19-test gate are
+// unchanged; atomicWrite ADDS the previously-missing crash-safety guarantee (a
+// crash mid-save leaves the prior ledger intact, never a torn file).
 function saveSidecar(p, data) {
-  fs.mkdirSync(path.dirname(path.resolve(p)), { recursive: true });
-  fs.writeFileSync(p, `${JSON.stringify(data, null, 2)}\n`);
+  atomicWrite(p, `${JSON.stringify(data, null, 2)}\n`);
 }
 
 function nowUtc() {

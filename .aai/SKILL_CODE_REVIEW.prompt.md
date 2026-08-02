@@ -87,6 +87,9 @@ Every finding cites file:line AND a concrete failure scenario — the input,
 sequence, or state that makes the defect bite. No failure scenario, no
 finding: style preferences without a failure mode are INFO at most and
 never gate.
+- SIDECAR LIFECYCLE: a NEW gitignored runtime sidecar that hand-rolls
+  load/write/stale/claim/GC instead of `.aai/scripts/lib/runtime-file.mjs`
+  is a BLOCKING finding (reopens bug classes A-F).
 
 ### Verdict 3 — cannot_verify: [...] — MANDATORY section, empty list allowed
 Claims the diff alone cannot substantiate: runtime behavior no test covers,

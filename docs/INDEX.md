@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-01T22:58:46.386Z
+Generated: 2026-08-01T23:57:58.038Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -38,7 +38,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (264)
+## Done (265)
 
 | ID | Type | Path |
 |---|---|---|
@@ -147,6 +147,7 @@ _None._
 | CHANGE-0103 | issues | docs/issues/CHANGE-0103-lightweight-e2e-lane.md |
 | CHANGE-0104 | issues | docs/issues/CHANGE-0104-umbrella-false-open-marker.md |
 | CHANGE-0105 | issues | docs/issues/CHANGE-0105-telemetry-completeness.md |
+| CHANGE-0106 | issues | docs/issues/CHANGE-0106-runtime-state-consolidation.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |

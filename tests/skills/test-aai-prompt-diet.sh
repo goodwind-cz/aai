@@ -413,7 +413,12 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# -2211. NOTE: this branch (feat/async-hitl-platform-comments) carries THREE
+# 878 (true-up: runtime-state-consolidation added a +196 B itemized entry for
+# the SKILL_CODE_REVIEW.prompt.md Verdict 2 SIDECAR LIFECYCLE convention pin —
+# the CONVENTION half of the shared runtime-file.mjs sidecar-lib change; the lib
+# + its negative-control suite + the hitl-channel.mjs migration are script/test
+# only, no ledger cost — over the prior 682 B total).
+# NOTE: this branch (feat/async-hitl-platform-comments) carries THREE
 # async-HITL ledger true-ups — async-hitl-platform-comments +1281, async-hitl-
 # resolve-lifecycle +262, and the PR #205 5d bot-sweep async-hitl-botfix +551
 # (--ref token-reuse trust guard + bracket/bare token-form clarifier); the
@@ -500,15 +505,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 682 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 682)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 878 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 878)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 682 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 878 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

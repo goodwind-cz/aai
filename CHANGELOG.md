@@ -9,6 +9,35 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat(runtime): shared runtime-sidecar lifecycle lib + convention pin (CHANGE-0106) [L2]
+
+- Consolidates the hand-rolled lifecycle logic that every recent feature
+  re-derived for its own gitignored runtime SIDECAR — the re-derivation that
+  shipped ~23 lifecycle defects across four sidecar families in ~2 weeks (~74%
+  first caught by external review bots). New zero-dep `.aai/scripts/lib/`
+  `runtime-file.mjs` exposes the five proven primitives, each annotated with the
+  historical bug CLASS it kills: `loadOrDegrade` (absent vs corrupt vs ok — a
+  damaged ledger is never read as empty, class B), `atomicWrite` (temp+rename,
+  the rename the sole commit point — no torn write, class E), `claimExclusive`
+  (per-pid temp + linkSync with an O_EXCL `wx` fallback, returning
+  claimed/held/error so a genuine failure is loud — class A), `isStale`
+  (symmetric `|now-ts|>window` with an injectable clock; future-dated / NaN ->
+  stale, never wedges — classes C+F), and `reapAsides` (bounded GC of aged
+  orphan/aside files, missing-dir is a no-op — class D).
+- New negative-control suite `tests/skills/test-aai-runtime-file.sh`
+  (TEST-001..016) drives the exact failure input each bespoke sidecar got wrong
+  (corrupt / absent / true-parallel race / future-dated / torn-write /
+  orphan-reap + determinism x2 + zero-dep) — moving that discovery LEFT, once,
+  instead of re-paying it per sidecar per target project.
+- Migrates ONE sidecar as a byte-identical proof: `hitl-channel.mjs`
+  `loadSidecar` -> `loadOrDegrade` and `saveSidecar` -> `atomicWrite`. The
+  serialized bytes are unchanged, so the 19-test hitl-channel suite stays green
+  UNCHANGED; the migration ADDS the previously-missing crash-safety guarantee.
+  A CONVENTION is pinned (`runtime-file.mjs` header + a
+  `.aai/SKILL_CODE_REVIEW.prompt.md` Verdict-2 BLOCKING-finding line): any NEW
+  gitignored runtime sidecar MUST use the lib. The hardened `update-check.mjs`
+  lock and the SPEC-0004 `docs-lock.mjs` lease are deliberately left frozen.
+
 ## [unreleased] — feat(telemetry): close-time usage-capture gate + run-level coverage KPI (CHANGE-0105) [L2]
 
 - Closes the *ongoing* usage-marker leak the factory-performance report exposed:
