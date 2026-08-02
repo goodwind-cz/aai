@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-02T13:31:04.089Z
+Generated: 2026-08-02T14:06:39.122Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -314,9 +314,11 @@ _None._
 | SPEC-0113 | specs | docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| changelog-scaffold-guard (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-changelog-scaffold-guard.md |
 
 ## Deferred (whole-doc) (0)
 

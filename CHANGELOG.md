@@ -11,6 +11,13 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — chore(quality): CHANGELOG scaffold invariants get a PR-time guard (CHANGE changelog-scaffold-guard) [L1]
+
+- 3rd recurrence of the duplicate-bare-scaffold class this week (bot-caught on
+  #211, rolled into the released section, cleaned by #214): aai-release
+  TEST-022 now asserts on the live file — exactly one bare scaffold, above all
+  versioned sections — at PR time, not just at release-cut time.
+
 ## [v2026.08.02] — chore(diet): buy back prompt-budget headroom so the corpus stops running a zero-headroom treadmill (CHANGE-0110) [L1]
 
 - The prompt-diet floor (`tests/skills/test-aai-prompt-diet.sh` TEST-010) had
