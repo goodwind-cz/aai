@@ -136,7 +136,10 @@ PROCESS
      if the recomputed lane is heavy, the ride reverts to the full envelope
      (a fast verdict can be lost by growth, never regained by trimming):
        node .aai/scripts/lane-gate.mjs --spec <frozen spec path> \
+         --intake <intake CHANGE doc path> \
          --state docs/ai/STATE.yaml --base-ref origin/<base>
+     Spec-less L0/L1 rides: pass the intake doc — its frontmatter
+     `ceremony_level:` is the fallback source (a present spec always wins).
      It prints `LANE fast` ONLY when ALL four predicates hold (ceremony_level
      in {0,1}; implementation_strategy in {direct,untested,loop}; select-
      suites.mjs != FULL_RUN; changed-file count < 5 AND diff classes subset of

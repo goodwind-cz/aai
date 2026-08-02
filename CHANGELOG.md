@@ -11,6 +11,15 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(pr): fast lane opens to spec-less rides — intake frontmatter as the ceremony source (CHANGE lane-intake-ceremony) [L1]
+
+- Measured 2026-08-02: 8 rides, 0 fast — the lane's exact target class
+  (small test+docs rides on an intake with no spec) could never qualify,
+  because ceremony_level was read only from spec frontmatter. lane-gate
+  --intake now reads the intake doc as a fail-closed fallback (source
+  labeled; a present spec always wins — no downgrade shopping). SKILL_PR
+  documents the flag; +189 B ledger-credited.
+
 ## [unreleased] — chore(quality): CHANGELOG scaffold invariants get a PR-time guard (CHANGE-0111) [L1]
 
 - 3rd recurrence of the duplicate-bare-scaffold class this week (bot-caught on

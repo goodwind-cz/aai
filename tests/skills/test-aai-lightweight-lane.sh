@@ -374,6 +374,49 @@ test_022_missing_protected_config_heavy() {
   log_pass "Missing protected-path config -> heavy fail-closed (TEST-022)"
 }
 
+test_023_intake_ceremony_fallback() {  # CHANGE lane-intake-ceremony
+  log_info "Test: spec-less ride reads ceremony from intake frontmatter; source labeled (TEST-023)..."
+  mk; fixture "$TEST_DIR" 1 direct
+  rm -f "$TEST_DIR/docs/specs/SPEC-DRAFT-fx.md"
+  mkdir -p "$TEST_DIR/docs/issues"
+  printf -- '---\nid: fx\nceremony_level: 1\n---\n' > "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md"
+  local list="$TEST_DIR/files.txt"; printf 'docs/x.md\n' > "$list"
+  OUT="$(node "$GATE" --repo-root "$TEST_DIR" --spec "$TEST_DIR/docs/specs/SPEC-DRAFT-fx.md" \
+    --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md" \
+    --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"; CODE=$?
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-023: exit must be 0, got $CODE: $OUT"
+  echo "$OUT" | grep -qE '^LANE fast$' || log_fail "TEST-023: spec-less + intake L1 must be fast: $OUT"
+  echo "$OUT" | grep -q 'source=intake' || log_fail "TEST-023: predicate line must label source=intake: $OUT"
+  # garbage intake level -> heavy (fail-closed unchanged)
+  printf -- '---\nid: fx\nceremony_level: banana\n---\n' > "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md"
+  OUT="$(node "$GATE" --repo-root "$TEST_DIR" --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md" \
+    --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"
+  echo "$OUT" | grep -qE '^LANE heavy reason=ceremony_level$' \
+    || log_fail "TEST-023: garbage intake level must stay fail-closed heavy: $OUT"
+  # both absent -> heavy (today's default preserved)
+  rm -f "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md"
+  OUT="$(node "$GATE" --repo-root "$TEST_DIR" --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md" \
+    --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"
+  echo "$OUT" | grep -qE '^LANE heavy reason=ceremony_level$' \
+    || log_fail "TEST-023: no spec + no intake must stay heavy: $OUT"
+  log_pass "Intake-frontmatter ceremony fallback: fast when L0/1, fail-closed otherwise (TEST-023)"
+}
+
+test_024_spec_wins_over_intake() {  # CHANGE lane-intake-ceremony (anti-downgrade)
+  log_info "Test: a present spec ALWAYS wins — intake cannot downgrade a spec'd ride (TEST-024)..."
+  mk; fixture "$TEST_DIR" 2 direct
+  mkdir -p "$TEST_DIR/docs/issues"
+  printf -- '---\nid: fx\nceremony_level: 1\n---\n' > "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md"
+  local list="$TEST_DIR/files.txt"; printf 'docs/x.md\n' > "$list"
+  OUT="$(node "$GATE" --repo-root "$TEST_DIR" --spec "$TEST_DIR/docs/specs/SPEC-DRAFT-fx.md" \
+    --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-fx.md" \
+    --state "$TEST_DIR/docs/ai/STATE.yaml" --files-from "$list" --max-files 5 2>&1)"
+  echo "$OUT" | grep -qE '^LANE heavy reason=ceremony_level$' \
+    || log_fail "TEST-024: spec L2 must beat intake L1 (no downgrade shopping): $OUT"
+  echo "$OUT" | grep -q 'source=spec' || log_fail "TEST-024: source must be spec: $OUT"
+  log_pass "Spec precedence pinned — intake can never downgrade (TEST-024)"
+}
+
 main() {
   echo "Testing $TEST_NAME (lightweight-e2e-lane / spec-lightweight-e2e-lane)"
   check_deps
@@ -399,6 +442,8 @@ main() {
   test_020_prose_cap
   test_021_core_script_heavy
   test_022_missing_protected_config_heavy
+  test_023_intake_ceremony_fallback
+  test_024_spec_wins_over_intake
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
