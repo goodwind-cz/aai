@@ -11,6 +11,20 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — chore(diet): the role prompts stop shipping a git tutorial and 26 rows of self-argument (CHANGE prompt-diet-2-safe-wins) [L1]
+
+- Executed the zero-pin "safe immediate wins" of the Phase 0 unhobbling audit
+  (docs/analysis/unhobbling-audit.md, CHANGE-0113): -12,873 B measured across
+  SKILL_WORKTREE (-6019), VALIDATION (-2098), SKILL_TDD (-1860), PLANNING
+  (-1699) and SKILL_LOOP (-1197). Deleted content was derivable from a script
+  or `git --help`, a verbatim second copy of a rule that lives elsewhere, or a
+  checklist restating the numbered steps above it — including the drifted
+  inline STATE.yaml heredoc (now seeded from STATE_TEMPLATE.yaml) and the
+  VALIDATION/PLANNING rationalization tables, 19 rows of pre-emptive rebuttals
+  a current-gen model does not need. Every `needs-gate-first` rule and every
+  pinned sentence survives verbatim; the ledger retires the freed credit
+  (TEST-012 pin 1305 -> -11568), headroom unchanged at 1530/2048.
+
 ## [unreleased] — feat(pr): fast lane opens to spec-less rides — intake frontmatter as the ceremony source (CHANGE-0112) [L1]
 
 - Measured 2026-08-02: 8 rides, 0 fast — the lane's exact target class

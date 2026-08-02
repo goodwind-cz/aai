@@ -149,22 +149,7 @@ PROCESS
     `updated_at_utc` itself — never hand-edit these fields when the CLI exists.
     FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and follow it.
 
-RATIONALIZATION TABLE (stop and correct any of these)
-| Rationalization                                        | Reality                                                      |
-|--------------------------------------------------------|--------------------------------------------------------------|
-| "Requirements are clear enough, no formal spec needed" | No spec = no frozen AC = Implementation has no target. Stop. |
-| "I'll make this AC measurable later"                   | Unmeasurable AC cannot be verified. Freeze is blocked.       |
-| "This AC is obvious, no test needed"                   | Every AC requires at least one TEST-xxx entry. No exceptions. |
-| "Each side is unit-tested, so the seam is fine"         | Unit tests pass on islands; bugs live in the doorway between them. Add one integration test that crosses the seam. |
-| "It's loop strategy, no need to see the test fail first" | A test never seen failing proves nothing — it may be tautological. RED-proof (observed failing without the change) is required for AC-gating tests regardless of strategy. |
-| "The e2e test can be added during implementation"      | Test Plan is part of the spec. Define it now or don't freeze. |
-| "I'll infer the AC from the code"                      | Requirements drive specs, not the reverse. Read intake first. |
-| "Worktree is obviously needed, I'll create it now"     | Planning recommends. The user decides before implementation.  |
-| "Review can figure out scope later"                    | Inline review needs explicit paths or a diff range.           |
-
 STRICT RULES
-- Stop and request human decision if requirements conflict or AC is ambiguous/unmeasurable.
-- Do not implement product changes.
 - Do not use unverifiable language without numeric thresholds.
 
 FINAL OUTPUT REQUIRED

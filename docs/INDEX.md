@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-02T19:37:34.799Z
+Generated: 2026-08-02T21:15:27.758Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -316,11 +316,12 @@ _None._
 | SPEC-0113 | specs | docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (2)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0113 | issues | docs/issues/CHANGE-0113-altitude-prompt-experiment.md |
+| prompt-diet-2-safe-wins (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-prompt-diet-2-safe-wins.md |
 
 ## Deferred (whole-doc) (0)
 
