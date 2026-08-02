@@ -1,12 +1,14 @@
 ---
 id: phantom-api-pin
-number: null
+number: 109
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 212
+  commits:
+    - d2c9e7ef503c08034ac31ac7711864df92ad7834
 ---
 
 # Change — phantom-API pin: plausible-but-nonexistent runtime APIs stop surviving review

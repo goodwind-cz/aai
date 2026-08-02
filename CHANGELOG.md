@@ -145,7 +145,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — chore(quality): phantom-API pin — nonexistent-but-plausible runtime APIs stop surviving review (CHANGE phantom-api-pin) [L1]
+## [unreleased] — chore(quality): phantom-API pin — nonexistent-but-plausible runtime APIs stop surviving review (CHANGE-0109) [L1]
 
 - hygiene-pack test_092 pins known-phantom Node APIs (process.getpgrp cousins,
   callback fs.exists, ESM require.main) across .aai scripts; LEARNED.md adds
