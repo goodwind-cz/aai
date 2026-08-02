@@ -152,21 +152,25 @@ Create a new worktree for a feature/task.
 
 4. **Initialize AAI State in Worktree**
 
-   Seed from the canonical schema — never hand-roll a second copy of it.
-   `.aai/templates/STATE_TEMPLATE.yaml` is the tracked source of truth (pinned
-   by `.aai/SKILL_CHECK_STATE.prompt.md`); an inline copy here silently drifts.
+   Seed via the CANONICAL INITIALIZER — never `cp` the template by hand (a raw
+   copy ships `updated_at_utc: TEMPLATE_PLACEHOLDER` and an empty work item —
+   an invalid STATE that only fails later, at first dispatch).
    ```bash
    cd "$worktree_path"
    mkdir -p docs/ai
-   # Preserve checked-out runtime state before overwriting it.
-   [ -f docs/ai/STATE.yaml ] && cp docs/ai/STATE.yaml docs/ai/STATE.yaml.template
-   cp .aai/templates/STATE_TEMPLATE.yaml docs/ai/STATE.yaml
+   # Preserve any checked-out runtime state, then let check-state CREATE a
+   # fresh STATE from .aai/templates/STATE_TEMPLATE.yaml with a REAL timestamp:
+   [ -f docs/ai/STATE.yaml ] && mv docs/ai/STATE.yaml docs/ai/STATE.yaml.pre-worktree
+   node .aai/scripts/check-state.mjs --repair   # prints CREATED: ... stamped
+   # Worktree-specific fields via the canonical mutators (single-writer path):
+   node .aai/scripts/state.mjs set-focus --type <type> --ref "$ref_id" --path "docs/issues/<intake>.md"
+   node .aai/scripts/state.mjs set-worktree --user-decision worktree \
+     --base-ref "$base_branch" --branch "$task_name" --path "$worktree_path"
+   node .aai/scripts/check-state.mjs        # MUST pass before first dispatch
    ```
-   Then set ONLY the worktree-specific fields, leaving every other field at the
-   template's default: `current_focus.ref_id`, the single `active_work_items`
-   entry (`ref_id`/`branch`/`worktree_path`), `worktree.recommendation`,
-   `worktree.user_decision: worktree`, `worktree.base_ref`, `worktree.branch`,
-   `worktree.path`, and `updated_at_utc`.
+   The final `check-state` is the gate: an incomplete init fails LOUDLY here,
+   not silently at dispatch time. Set any field it still reports via the
+   matching `state.mjs` mutator — never by hand-editing the file.
 
 5. **Update Worktree Registry**
    - Create/update `.git/worktrees-registry.jsonl` in main repo
