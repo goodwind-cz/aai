@@ -79,6 +79,14 @@ ck() {
   (cd "$PROJECT_ROOT" && node .aai/scripts/check-state.mjs "$1" > "$2" 2>&1)
 }
 
+# st_sub <state-file> <logfile> <cli-args...> — run state.mjs with the R-GUARD
+# subagent marker set (AAI_ROLE=subagent). Mirrors st() exactly otherwise.
+st_sub() {
+  local s="$1" lg="$2"
+  shift 2
+  (cd "$PROJECT_ROOT" && AAI_ROLE=subagent node .aai/scripts/state.mjs --state "$s" "$@" > "$lg" 2>&1)
+}
+
 # Canonical full fixture STATE mirroring the real schema (incl. the commented
 # schema header whose `#   updated_at_utc:` line is the CHANGE-0005 regex trap).
 # Args: $1 = path, $2 = last_validation.status (default not_run),
@@ -2528,6 +2536,80 @@ test_061_untested_requires_rationale() {  # impl-mode TEST-002 / Spec-AC-02
   log_pass "untested demands a non-empty rationale (exit 2, no write); direct does not (impl-mode TEST-002)"
 }
 
+# --- R-GUARD Stage 1: env-marker single-writer refusal (SPEC-0113) ------------
+
+test_062_rguard_subagent_refuses_mutators() {  # r-guard TEST-RG-STATE-01/03/04 / Spec-AC-01/03/04
+  log_info "Test: AAI_ROLE=subagent refuses every STATE mutator (exit 3, no write); log-tick + append-event stay allowed (r-guard Spec-AC-01/03/04)..."
+  local s="$TEST_DIR/t62-state.yaml"
+  write_state_fixture "$s"
+  cp "$s" "$TEST_DIR/t62-snapshot.yaml"
+
+  # AC-001: all ten STATE-mutating subcommands refuse with exit 3 and write
+  # NOTHING (byte-identical fixture). Minimal/no flags are enough — the guard
+  # fires after rejectUnknownFlags and before any load/dispatch.
+  local cmd ec
+  for cmd in set-focus set-phase set-validation set-code-review set-strategy \
+             set-worktree set-tdd-cycle set-human-input append-run reset-block; do
+    ec=0
+    st_sub "$s" "$TEST_DIR/t62-$cmd.log" "$cmd" || ec=$?
+    [[ "$ec" == 3 ]] || log_fail "AC-001: $cmd under AAI_ROLE=subagent must exit 3 (got $ec): $(cat "$TEST_DIR/t62-$cmd.log")"
+    cmp -s "$s" "$TEST_DIR/t62-snapshot.yaml" || log_fail "AC-001: $cmd refusal must leave STATE byte-identical (write count 0)"
+  done
+
+  # AC-004: the refusal message names the single-writer rule + SUBAGENT_CONTRACT.md
+  # + the append-event escape.
+  grep -qi 'single-writer' "$TEST_DIR/t62-set-focus.log" || log_fail "AC-004: refusal must name the single-writer rule: $(cat "$TEST_DIR/t62-set-focus.log")"
+  grep -qF 'SUBAGENT_CONTRACT.md' "$TEST_DIR/t62-set-focus.log" || log_fail "AC-004: refusal must name .aai/SUBAGENT_CONTRACT.md"
+  grep -qF 'append-event.mjs' "$TEST_DIR/t62-set-focus.log" || log_fail "AC-004: refusal must name the append-event.mjs escape"
+
+  # AC-004 ordering: an unknown-flag typo still fails LOUD (exit 2) BEFORE the
+  # marker check — even under the marker.
+  ec=0
+  st_sub "$s" "$TEST_DIR/t62-typo.log" set-focus --typexxx foo || ec=$?
+  [[ "$ec" == 2 ]] || log_fail "AC-004: a typo flag must exit 2 (before the marker check), got $ec: $(cat "$TEST_DIR/t62-typo.log")"
+  cmp -s "$s" "$TEST_DIR/t62-snapshot.yaml" || log_fail "AC-004: typo refusal must leave STATE byte-identical"
+
+  # AC-003: log-tick (LOOP_TICKS, not STATE) STILL succeeds under the marker.
+  capture_now
+  ec=0
+  st_sub "$s" "$TEST_DIR/t62-tick.log" --ticks "$TEST_DIR/t62-ticks.jsonl" \
+    log-tick --tick 1 --role Implementation --scope CHANGE-0001 --started "$NOW_UTC" || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "AC-003: log-tick under AAI_ROLE=subagent must still exit 0 (got $ec): $(cat "$TEST_DIR/t62-tick.log")"
+  [[ -f "$TEST_DIR/t62-ticks.jsonl" ]] || log_fail "AC-003: log-tick must still append to LOOP_TICKS under the marker"
+
+  # AC-003: append-event.mjs (the sanctioned subagent append path, a SEPARATE
+  # script) is unaffected by the marker. Run from a temp cwd so the real
+  # docs/ai/EVENTS.jsonl is never touched.
+  mkdir -p "$TEST_DIR/ae/docs/ai"
+  ec=0
+  (cd "$TEST_DIR/ae" && AAI_ROLE=subagent node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" \
+    --event doc_lifecycle --ref TEST-0001 --from draft --to implementing > "$TEST_DIR/t62-ae.log" 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "AC-003: append-event.mjs under AAI_ROLE=subagent must exit 0 (got $ec): $(cat "$TEST_DIR/t62-ae.log")"
+  [[ -s "$TEST_DIR/ae/docs/ai/EVENTS.jsonl" ]] || log_fail "AC-003: append-event.mjs must still append under the marker"
+
+  log_pass "R-GUARD Stage 1: subagent marker refuses all 10 mutators (exit 3, no write); log-tick + append-event allowed (Spec-AC-01/03/04)"
+}
+
+test_063_rguard_marker_absent_bytewise() {  # r-guard TEST-RG-STATE-02 / Spec-AC-02
+  log_info "Test: with AAI_ROLE unset or != subagent, mutators write exactly as today (r-guard Spec-AC-02)..."
+  local base="$TEST_DIR/t63-base.yaml" other="$TEST_DIR/t63-other.yaml"
+  write_state_fixture "$base"
+  cp "$base" "$other"
+
+  # No marker at all: baseline write.
+  st "$base" "$TEST_DIR/t63-base.log" set-strategy --selected tdd --source docs/specs/SPEC-0001-fx.md \
+    || log_fail "Spec-AC-02: no-marker set-strategy must exit 0: $(cat "$TEST_DIR/t63-base.log")"
+
+  # Marker present but a NON-subagent value: must behave exactly like no marker.
+  ( cd "$PROJECT_ROOT" && AAI_ROLE=orchestrator node .aai/scripts/state.mjs --state "$other" \
+      set-strategy --selected tdd --source docs/specs/SPEC-0001-fx.md > "$TEST_DIR/t63-other.log" 2>&1 ) \
+    || log_fail "Spec-AC-02: AAI_ROLE=orchestrator set-strategy must exit 0: $(cat "$TEST_DIR/t63-other.log")"
+
+  cmp -s "$base" "$other" || log_fail "Spec-AC-02: AAI_ROLE!=subagent must produce a byte-identical write to the no-marker baseline"
+  ck "$base" "$TEST_DIR/t63-basec.log" || log_fail "Spec-AC-02: check-state after no-marker write: $(cat "$TEST_DIR/t63-basec.log")"
+  log_pass "R-GUARD Stage 1: marker absent/other -> byte-identical write to baseline (Spec-AC-02)"
+}
+
 main() {
   echo "Testing $TEST_NAME (transactional STATE CLI — SPEC-0012 TEST-001..025 + SPEC-0014 additions)"
   check_deps
@@ -2593,6 +2675,8 @@ main() {
   test_059_prompt_hash_absent_goldens
   test_060_strategy_direct_untested_accept
   test_061_untested_requires_rationale
+  test_062_rguard_subagent_refuses_mutators
+  test_063_rguard_marker_absent_bytewise
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

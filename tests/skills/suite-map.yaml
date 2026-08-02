@@ -463,6 +463,14 @@ suites:
       - .aai/PLANNING.prompt.md
       - docs/ai/briefs/**
 
+  aai-r-guard:
+    globs:
+      - .aai/scripts/state.mjs
+      - .aai/scripts/metrics-flush.mjs
+      - .aai/SUBAGENT_PROTOCOL.md
+      - .aai/ORCHESTRATION_PARALLEL.prompt.md
+      - docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md
+
   aai-reconcile-telemetry:
     globs:
       - .aai/scripts/reconcile-telemetry.mjs

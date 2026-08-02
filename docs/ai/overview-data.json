@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-01T23:57:37.169Z",
+  "generatedAt": "2026-08-02T01:26:11.907Z",
   "project": "aai",
   "counts": {
-    "delivered": 151,
+    "delivered": 152,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -79,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "r-guard-runtime-enforcement",
+      "title": "Change — R-GUARD: runtime enforcement for the prose-pinned safety class",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0107-r-guard-runtime-enforcement.md",
+      "closed_on": "2026-08-02",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "cache-friendly-dispatch",
       "title": "Change — token economics: cache-friendly dispatch ordering + effort routing",
@@ -2049,6 +2062,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "r-guard-runtime-enforcement",
+          "title": "Change — R-GUARD: runtime enforcement for the prose-pinned safety class",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0107-r-guard-runtime-enforcement.md",
+          "closed_on": "2026-08-02",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "cache-friendly-dispatch",
           "title": "Change — token economics: cache-friendly dispatch ordering + effort routing",

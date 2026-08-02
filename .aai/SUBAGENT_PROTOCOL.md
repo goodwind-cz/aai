@@ -32,6 +32,7 @@ Each subagent call MUST specify all of the following:
 | `INPUT` | All context the subagent needs — do NOT rely on inherited ambient state |
 | `EXPECTED_OUTPUT` | A result block (see `.aai/SUBAGENT_CONTRACT.md`) |
 | `SYSTEM_PROMPT` | The canonical role prompt from `ai/<ROLE>.prompt.md` |
+| `ENV` | The subagent MUST run with `AAI_ROLE=subagent` exported in its environment/instructions (R-GUARD S1, SPEC-0113). This makes any `state.mjs` STATE mutation it attempts refuse with exit 3 — the single-writer rule enforced at the CLI chokepoint, not merely in prose. The orchestrator MUST NOT carry this marker for its OWN STATE writes: keep it unset (or set to a non-`subagent` value) in orchestrator context, or the merge writes are blocked. `log-tick` (LOOP_TICKS) and `append-event.mjs` (EVENTS.jsonl) stay allowed under the marker. HONESTY: this is a guardrail against the honest/accidental subagent write, NOT a security boundary — an agent that unsets the marker defeats it; the flush-time forensic check (metrics-flush.mjs S2) is the after-the-fact backstop. |
 
 ### Work-item brief handoff (default INPUT)
 
@@ -155,9 +156,16 @@ LOCKING") so two orchestrators cannot drive the same scope concurrently.
 
 Honesty note: this is a protocol rule binding an LLM subagent, so it is partly
 process, not a hard runtime guard. The mechanically enforced core is (a) the
-`docs-lock.mjs` acquire/release exit-code contract the orchestrator branches on
-and (b) the merge protocol. A runtime `git diff`-based STATE-mutation guard is a
-recommended follow-up (residual risk R-GUARD), not yet built.
+`docs-lock.mjs` acquire/release exit-code contract the orchestrator branches on,
+(b) the merge protocol, and (c) R-GUARD S1 (SPEC-0113): `state.mjs` refuses
+every STATE mutation with exit 3 when `AAI_ROLE=subagent` is set (see the `ENV`
+row in the call contract above). S1 is a guardrail against the honest/
+accidental subagent write, NOT a security boundary — an agent that unsets or
+never inherits the marker defeats it. The after-the-fact backstop is the
+flush-time forensic check (`metrics-flush.mjs` S2/3): a WARN on a strategy
+whose provenance is not intake/spec-path, plus an EVENTS.jsonl append-only
+predicate. A git-diff post-subagent STATE guard remains an optional
+defence-in-depth follow-up (R-GUARD option (a)), not yet built.
 
 ### Orchestrator lock-serialization rationalization table (stop and correct any of these)
 
