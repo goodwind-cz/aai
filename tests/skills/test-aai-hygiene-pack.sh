@@ -860,8 +860,10 @@ test_092_no_phantom_node_apis() {  # CHANGE phantom-api-pin: APIs that LOOK real
   local phantoms='process\.getpgrp|process\.getpgid|process\.setpgrp|fs\.exists\(|require\.main\.filename'
   # exit-code contract: 0=hits, 1=clean, 2=scan error. A scan error must FAIL
   # loudly (bot review: masking it makes the denylist silently ineffective).
+  # set -e safe: capture rc via && / || (a bare rc=$? after the substitution
+  # aborts the whole suite on grep's exit 1 = clean tree — bit us on CI).
   local hits rc
-  hits="$(grep -rnE "$phantoms" "$PROJECT_ROOT/.aai/scripts" --include='*.mjs' 2>&1)"; rc=$?
+  hits="$(grep -rnE "$phantoms" "$PROJECT_ROOT/.aai/scripts" --include='*.mjs' 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ge 2 ]]; then
     log_fail "test_092: phantom-API scan itself failed (grep exit $rc): $hits"
     return 1
