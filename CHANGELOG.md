@@ -136,6 +136,15 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(ops): orphan-sweep — leaked runaway shells die at the next session start (CHANGE orphan-sweep-session-hook) [L1]
+
+- Incident-driven (37 orphaned busy-loops, ~15 cores, ~4 days, found by the
+  operator): session-start hook now runs a bounded, best-effort orphan sweep
+  killing launchd-adopted agent-shell wrappers that are old (>=2 h) AND hot
+  (>=20 % CPU), by process group. Own-PGID + mixed-group + fail-safe guards;
+  silent no-op contract; one-line kill report rides the hook context.
+  Real-kill test + 7 fixture tests.
+
 ## [unreleased]
 
 ## [v2026.08.01] — feat(hitl): async HITL via platform comments — park a ride, answer from anywhere (CHANGE-0102 / SPEC-0111) [L2]

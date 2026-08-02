@@ -507,6 +507,11 @@ suites:
       - .aai/VALIDATION.prompt.md
       - .aai/system/DYNAMIC_SKILLS.md
 
+  aai-orphan-sweep:
+    globs:
+      - .aai/scripts/orphan-sweep.mjs
+      - hooks/session-start.sh
+
   aai-runtime-file:
     globs:
       - .aai/scripts/lib/runtime-file.mjs

@@ -123,6 +123,7 @@ core:
   - .aai/scripts/lib/usage-note.mjs
   - .aai/scripts/loop-digest.mjs
   - .aai/scripts/metrics-flush.mjs
+  - .aai/scripts/orphan-sweep.mjs
   - .aai/scripts/migrate-state-to-local.ps1
   - .aai/scripts/migrate-state-to-local.sh
   - .aai/scripts/orchestration-dispatch.mjs
