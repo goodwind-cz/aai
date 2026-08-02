@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-02T13:30:54.393Z",
+  "generatedAt": "2026-08-02T14:07:40.482Z",
   "project": "aai",
   "counts": {
-    "delivered": 155,
+    "delivered": 156,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -124,6 +124,19 @@
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0110-prompt-diet-2026-08.md",
+      "closed_on": "2026-08-02",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "changelog-scaffold-guard",
+      "title": "Change — CHANGELOG scaffold invariants get a PR-time guard",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0111-changelog-scaffold-guard.md",
       "closed_on": "2026-08-02",
       "agent_minutes": null,
       "token_total": null,
@@ -2146,6 +2159,19 @@
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0110-prompt-diet-2026-08.md",
+          "closed_on": "2026-08-02",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "changelog-scaffold-guard",
+          "title": "Change — CHANGELOG scaffold invariants get a PR-time guard",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0111-changelog-scaffold-guard.md",
           "closed_on": "2026-08-02",
           "agent_minutes": null,
           "token_total": null,

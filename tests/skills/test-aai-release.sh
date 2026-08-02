@@ -624,6 +624,35 @@ test_021_docs_document_release() {
   log_pass "TEST-021 docs document /aai-release"
 }
 
+test_022_live_changelog_scaffold_invariants() {
+  # Recurring class (3x: #211 bot finding, re-created, cleaned by #214):
+  # automated CHANGELOG inserts leave a SECOND bare "## [unreleased]" scaffold,
+  # which release-cut then rolls INTO the versioned section where it corrupts
+  # the next cut's block parsing. Enforce the invariants deterministically at
+  # PR time on the LIVE file (release-cut checks only fire at cut time):
+  #   1. exactly ONE bare scaffold line;
+  #   2. it precedes every versioned "## [vX]" heading;
+  #   3. no bare scaffold anywhere below the first versioned heading.
+  log_info "TEST-022: live CHANGELOG has exactly one bare [unreleased] scaffold, above all versioned sections..."
+  local cl="$PROJECT_ROOT/CHANGELOG.md"
+  local bare_count first_bare first_versioned
+  bare_count="$(grep -c '^## \[unreleased\]$' "$cl")" || true
+  if [[ "$bare_count" -ne 1 ]]; then
+    log_fail "TEST-022: expected exactly 1 bare '## [unreleased]' scaffold, found $bare_count (lines: $(grep -n '^## \[unreleased\]$' "$cl" | cut -d: -f1 | tr '\n' ' '))"
+    return 1
+  fi
+  # single-process awk, no pipelines: grep|head|cut under set -o pipefail dies
+  # on SIGPIPE (many matches) or exit 1 (zero matches) — bot-caught, and the
+  # same class as the test_092 set -e incident the same day.
+  first_bare="$(awk '/^## \[unreleased\]$/{print NR; exit}' "$cl")"
+  first_versioned="$(awk '/^## \[v/{print NR; exit}' "$cl")"
+  if [[ -n "$first_versioned" && "$first_bare" -gt "$first_versioned" ]]; then
+    log_fail "TEST-022: bare scaffold (line $first_bare) sits BELOW the first versioned heading (line $first_versioned)"
+    return 1
+  fi
+  log_pass "TEST-022 live CHANGELOG scaffold invariants hold (1 scaffold, above all versioned sections)"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -655,6 +684,7 @@ main() {
   test_019_ps1_flag_parity
   test_020_seam2_layer_profiles
   test_021_docs_document_release
+  test_022_live_changelog_scaffold_invariants
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
