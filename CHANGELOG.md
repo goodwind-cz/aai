@@ -9,7 +9,7 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — chore(diet): buy back prompt-budget headroom so the corpus stops running a zero-headroom treadmill (CHANGE prompt-diet-2026-08) [L1]
+## [unreleased] — chore(diet): buy back prompt-budget headroom so the corpus stops running a zero-headroom treadmill (CHANGE-0110) [L1]
 
 - The prompt-diet floor (`tests/skills/test-aai-prompt-diet.sh` TEST-010) had
   been pinned at `headroom 0/2048` since CHANGE-0090. At zero headroom every

@@ -1,11 +1,14 @@
 ---
 id: prompt-diet-2026-08
+number: 110
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 213
+  commits:
+    - af1059abb2a1d8e22f497940439f47381e2b7b70
 ---
 
 # Change — prompt diet 2026-08: buy back TEST-010 headroom so the corpus stops running a zero-headroom treadmill
