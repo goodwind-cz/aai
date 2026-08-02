@@ -135,6 +135,9 @@ When the platform supports concurrent subagent spawning:
      recorded model (VALIDATOR INDEPENDENCE)
    - Context: a copy of .aai/SUBAGENT_CONTRACT.md (stable, first), then
      scope and inputs (variable, last — keeps the prefix cacheable)
+   - Env: export `AAI_ROLE=subagent` in the subagent's environment/instructions
+     (R-GUARD S1, SPEC-0113 — its `state.mjs` STATE mutations then refuse
+     with exit 3); keep it UNSET for YOUR own writes, or your merges are blocked.
    Remind the subagent it MUST NOT write docs/ai/STATE.yaml (single-writer rule).
 2. Each subagent MUST return a result block as defined in .aai/SUBAGENT_CONTRACT.md.
 3. DO NOT report to the user until ALL subagent result blocks are collected.

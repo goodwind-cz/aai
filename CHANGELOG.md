@@ -9,6 +9,42 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased] — feat(r-guard): runtime single-writer guard + flush-time forensic backstop (SPEC-0113) [L3]
+
+- Closes the highest-blast-radius gap between "the prompt says so" and "the
+  machine ensures so": the single-writer rule (a subagent MUST NOT write
+  `docs/ai/STATE.yaml`; the orchestrator is the sole writer — Constitution
+  Art. 6) was prose pinned only by grep. Stage 1 adds ONE additive guard clause
+  to the protected `.aai/scripts/state.mjs` (L3): when `AAI_ROLE=subagent` is
+  set, every STATE-mutating subcommand (the nine mutators plus `reset-block`)
+  refuses with a NEW dedicated exit code 3 and writes NOTHING — the file is
+  never opened. `log-tick` (LOOP_TICKS) and the separate `append-event.mjs`
+  (EVENTS.jsonl) stay allowed. Purely additive: byte-for-byte identical when the
+  marker is absent (the full existing state suite passes unchanged).
+- Orchestrator wiring: `.aai/SUBAGENT_PROTOCOL.md` (dispatch call contract ENV
+  row + updated R-GUARD residual note) and `.aai/ORCHESTRATION_PARALLEL.prompt.md`
+  instruct exporting `AAI_ROLE=subagent` for each spawned subagent and keeping it
+  UNSET for the orchestrator's own writes.
+- Stage 2/3 (WARN-only, `.aai/scripts/metrics-flush.mjs`, not protected): a
+  flush-time forensic backstop for the case Stage 1 cannot stop (an agent that
+  unset the marker). It flags a flushed ride whose `implementation_strategy.source`
+  is neither `intake` nor a spec-path (Stage 2 provenance), escalates a
+  rigor-downgrade lane (`untested`/`direct`) with a non-sanctioned source
+  (Stage 3, SPEC-0109 RR-3), and flags a `docs/ai/EVENTS.jsonl` that shrank vs
+  `git show HEAD:` (Stage 3 append-only predicate). Never blocks.
+- HONESTY (rides the code + spec, never softened): Stage 1 is a guardrail against
+  the honest/accidental subagent write, NOT a security boundary — an agent that
+  unsets the marker defeats it. STATE is gitignored, so the intake's original
+  git-timeline cross-check is NOT implementable; Stage 2 is a provenance
+  heuristic, not proof. R-GUARD raises the floor from "prose only" to "prose + a
+  guardrail that stops the honest mistake + a forensic detector for the dishonest
+  one." It does not make a rogue subagent STATE write impossible.
+- Tests: `tests/skills/test-aai-state.sh` (Stage 1 refusal, byte-identity,
+  allowed paths, exit-code ordering), `tests/skills/test-aai-metrics.sh`
+  (Stage 2/3 WARNs), new pin suite `tests/skills/test-aai-r-guard.sh` (wiring +
+  live seam) with its `suite-map.yaml` row; prompt-diet ledger trued up (+243 B
+  in-glob, credited 1:1, headroom 0/2048; TEST-012 pin 682 -> 925).
+
 ## [unreleased] — feat(runtime): shared runtime-sidecar lifecycle lib + convention pin (CHANGE-0106) [L2]
 
 - Consolidates the hand-rolled lifecycle logic that every recent feature

@@ -287,6 +287,33 @@ implies otherwise is a defect.
   gate — Stage 3 template), the enforce/report-only dial via
   `docs/ai/docs-audit.yaml` + `lib/guard-config.mjs` (graduated rollout).
 
+## Delivery / reconcile (SPEC-0113)
+
+The staged plan is implemented under the frozen L3 spec
+`docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md` (ceremony_level: 3).
+Reconciled against this intake:
+
+- Stage 1 (L3): the one additive env-marker refusal clause landed in
+  `.aai/scripts/state.mjs` `main()` (exit code 3 added to the closed contract);
+  `lib/state-engine.mjs` / `lib/state-core.mjs` untouched. Orchestrator wiring in
+  `.aai/SUBAGENT_PROTOCOL.md` + `.aai/ORCHESTRATION_PARALLEL.prompt.md`.
+- Stage 2/3 (not L3): implemented in `.aai/scripts/metrics-flush.mjs` as WARN-only
+  forensic checks. HONEST-SCOPE CORRECTION to this intake's design-option (d):
+  `docs/ai/STATE.yaml` is GITIGNORED, so the "git log --follow on STATE crossing
+  agent_runs windows" timeline check is NOT honestly implementable (a STATE write
+  leaves no durable, independent timestamp). Stage 2 was therefore scoped to the
+  detectable subset — strategy PROVENANCE (source not intake/spec-path) — plus the
+  Stage-3 rigor-downgrade narrowing (SPEC-0109 RR-3) and the EVENTS.jsonl
+  append-only predicate (EVENTS *is* committed). This gap is documented in
+  SPEC-0113 RR-2; the intake's higher-ambition timeline sketch is deferred as not
+  honestly buildable while STATE stays gitignored.
+- AC coverage: intake AC-001..004 -> Spec-AC-01..04 (test-aai-state.sh);
+  AC-005/006/007 -> Spec-AC-05/06/07 (test-aai-metrics.sh); orchestrator wiring +
+  L3 governance -> Spec-AC-08 (test-aai-r-guard.sh + TEST-014 + prompt-diet).
+- Anti-evasion honesty rode the code, the spec, and the CHANGELOG verbatim-style
+  (RR-1): Stage 1 is a guardrail, not a security boundary; Stage 2 is a forensic
+  detector, not proof.
+
 ## Notes
 - Guard-sprawl discipline: this design deliberately guards only 2 of 8 inventoried
   rules at Stage 1-2 (single-writer + strategy-flip), adds 1 cheap Stage-3

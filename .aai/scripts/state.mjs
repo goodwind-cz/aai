@@ -59,7 +59,8 @@
 // Global flags: --state <path> (default docs/ai/STATE.yaml)
 //               --ticks <path> (default docs/ai/LOOP_TICKS.jsonl)
 //
-// Exit codes (closed contract, mirrors append-event.mjs / check-state.mjs):
+// Exit codes (closed contract; 0/1/2 mirror append-event.mjs / check-state.mjs,
+// 3 is state.mjs-specific — the R-GUARD single-writer refusal, SPEC-0113):
 //   0 — success, incl. idempotent no-ops (resetting an already-not_run block)
 //   1 — integrity refusal: STATE already corrupt (duplicate top-level key), the
 //       mutation would create one, the target block header carries an inline
@@ -72,6 +73,15 @@
 //       FLAG for the subcommand, invalid enum, unknown block, bad --ref shape,
 //       missing flag, malformed or >300s-future timestamp, missing STATE file,
 //       newline in a plain-scalar value).
+//   3 — R-GUARD single-writer refusal (SPEC-0113): a STATE-mutating subcommand
+//       was invoked with the subagent marker `AAI_ROLE=subagent` set. The
+//       orchestrator is the SOLE STATE writer (.aai/SUBAGENT_CONTRACT.md;
+//       Constitution Art. 6); nothing is read or written. log-tick (LOOP_TICKS)
+//       and the SEPARATE append-event.mjs (EVENTS.jsonl) stay allowed. HONESTY:
+//       this is a guardrail against the honest/accidental subagent write ("my
+//       update is tiny"), NOT a security boundary — an agent that unsets or
+//       never inherits the marker defeats it; the flush-time forensic check
+//       (metrics-flush.mjs S2, SPEC-0113) is the after-the-fact backstop.
 //
 // Atomic write (D3): duplicate-key scan on CURRENT file -> mutate in memory ->
 // duplicate-key + inline-header-conflict scan on MUTATED content -> write
@@ -985,6 +995,33 @@ function main() {
     'set-human-input': cmdSetHumanInput,
     'append-run': cmdAppendRun,
   };
+
+  // --- R-GUARD S1: env-marker single-writer refusal (SPEC-0113) ----------
+  // AFTER rejectUnknownFlags (a typo still fails LOUD exit 2 first) and BEFORE
+  // any load/dispatch: if a STATE-mutating subcommand (the MUTATORS keys plus
+  // reset-block, which also writes STATE) is invoked with AAI_ROLE=subagent,
+  // refuse with exit 3 and write NOTHING — the file is never even opened.
+  // Additive-only: with the marker absent this branch is inert and behavior is
+  // byte-for-byte identical to before. log-tick (LOOP_TICKS, not STATE) is not
+  // in the set, so it stays allowed; the SEPARATE append-event.mjs (the
+  // sanctioned subagent append path) never reads AAI_ROLE and is untouched.
+  //
+  // HONESTY (verbatim posture from the intake, SPEC-0113 RR-1 — MUST NOT be
+  // softened): this is a guardrail against the honest/accidental path — the
+  // well-intentioned "my update to STATE is tiny" rationalization row in
+  // .aai/SUBAGENT_CONTRACT.md — NOT a security boundary. An agent that unsets or
+  // never inherits the marker defeats it; metrics-flush.mjs S2 catches that
+  // case after the fact via durable git history. This mirrors the merge marker's
+  // posture in SKILL_PR.prompt.md ("a guardrail against habit, not a security
+  // boundary"). It does NOT make a rogue subagent STATE write impossible.
+  const STATE_MUTATORS = new Set([...Object.keys(MUTATORS), 'reset-block']);
+  if (STATE_MUTATORS.has(cmd) && process.env.AAI_ROLE === 'subagent') {
+    fail('single-writer rule refusal (AAI_ROLE=subagent): the orchestrator is the SOLE writer of '
+      + 'docs/ai/STATE.yaml (.aai/SUBAGENT_CONTRACT.md; Constitution Art. 6). A dispatched subagent '
+      + 'MUST return a result block, never mutate STATE. Sanctioned subagent append paths stay open: '
+      + 'append-event.mjs (docs/ai/EVENTS.jsonl) and state.mjs log-tick (LOOP_TICKS). Nothing was written.',
+    3);
+  }
 
   if (cmd === 'log-tick') {
     // Reads STATE for defaults; never mutates it (no updated_at_utc bump).

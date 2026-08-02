@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-02T00:56:52.938Z
+Generated: 2026-08-02T00:57:03.661Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0113 | specs | implementing | 8 implementing | docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md |
 
 ## Canonical layer (0)
 

@@ -2027,6 +2027,123 @@ JSONL
   log_pass "Single hash per role -> no Prompt versions section; report output otherwise unchanged (prompt-hash-telemetry TEST-009)"
 }
 
+# --- R-GUARD Stage 2/3: flush-time forensic WARNs (SPEC-0113) -----------------
+
+# rewrite implementation_strategy.{selected,source} on a fixture via the real
+# writer (state.mjs set-strategy) — the sanctioned provenance path.
+set_strategy_source() {  # <state-file> <selected> <source> [rationale]
+  local f="$1" sel="$2" src="$3" rat="${4:-}"
+  local args=(set-strategy --selected "$sel" --source "$src")
+  [[ -n "$rat" ]] && args+=(--rationale "$rat")
+  (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$f" "${args[@]}") >/dev/null 2>&1
+}
+
+test_130_rguard_flush_provenance_warn() {  # r-guard TEST-RG-FLUSH-05 / Spec-AC-05
+  log_info "Test: flush WARNs when implementation_strategy.source is not intake/spec-path; silent when sanctioned (r-guard Spec-AC-05)..."
+  local d n
+  # (a) SANCTIONED source (a spec .md path, the default fixture) -> SILENT.
+  d="$(mk_repo t130a)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  write_golden_doc "$d"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) flush must exit 0 (got $EC): $(cat "$OUT")"
+  n="$(grep -c 'strategy provenance' "$OUT" || true)"
+  [[ "$n" == 0 ]] || log_fail "(a) sanctioned source must emit NO provenance WARN (got $n): $(cat "$OUT")"
+
+  # (b) NON-sanctioned source with a normal (non-downgrade) lane -> exactly one
+  #     provenance WARNING naming the flushed ref. Still flushes (verdict PASS).
+  d="$(mk_repo t130b)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  write_golden_doc "$d"
+  set_strategy_source "$d/docs/ai/STATE.yaml" tdd subagent-injected
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "(b) flush must still exit 0 (WARN never blocks) (got $EC): $(cat "$OUT")"
+  n="$(grep -c 'strategy provenance' "$OUT" || true)"
+  [[ "$n" == 1 ]] || log_fail "(b) exactly one provenance WARNING expected (got $n): $(cat "$OUT")"
+  grep -qF 'CHANGE-0001' "$OUT" || log_fail "(b) provenance WARN must name the flushed ref: $(cat "$OUT")"
+  grep -qF 'subagent-injected' "$OUT" || log_fail "(b) provenance WARN must quote the suspicious source: $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "(b) WARN-only: the ride must still flush one ledger line"
+  log_pass "R-GUARD Stage 2: flush WARNs on non-sanctioned strategy source; silent on a spec-path source (Spec-AC-05)"
+}
+
+test_131_rguard_flush_rigor_downgrade() {  # r-guard TEST-RG-FLUSH-06 / Spec-AC-06
+  log_info "Test: a downgrade lane (untested) with a non-sanctioned source is flagged as a rigor-downgrade risk; a sanctioned one is not (r-guard Spec-AC-06)..."
+  local d n
+  # (a) untested + NON-sanctioned source -> rigor-downgrade WARNING (SPEC-0109 RR-3).
+  d="$(mk_repo t131a)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  write_golden_doc "$d"
+  set_strategy_source "$d/docs/ai/STATE.yaml" untested leaked-by-subagent "no reason (injected)"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) flush must exit 0 (got $EC): $(cat "$OUT")"
+  n="$(grep -c 'rigor-downgrade' "$OUT" || true)"
+  [[ "$n" == 1 ]] || log_fail "(a) exactly one rigor-downgrade WARNING expected (got $n): $(cat "$OUT")"
+  grep -qF 'CHANGE-0001' "$OUT" || log_fail "(a) rigor-downgrade WARN must name the flushed ref: $(cat "$OUT")"
+
+  # (b) untested + SANCTIONED source (intake) -> NOT flagged as a downgrade risk.
+  d="$(mk_repo t131b)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  write_golden_doc "$d"
+  set_strategy_source "$d/docs/ai/STATE.yaml" untested intake "operator chose the no-tests lane at intake"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "(b) flush must exit 0 (got $EC): $(cat "$OUT")"
+  n="$(grep -c 'rigor-downgrade' "$OUT" || true)"
+  [[ "$n" == 0 ]] || log_fail "(b) a sanctioned-source untested lane must NOT be flagged (got $n): $(cat "$OUT")"
+  log_pass "R-GUARD Stage 3: downgrade lane + bad source flagged as rigor-downgrade risk; sanctioned lane silent (Spec-AC-06)"
+}
+
+test_132_rguard_events_appendonly() {  # r-guard TEST-RG-FLUSH-07 / Spec-AC-07
+  log_info "Test: flush flags a docs/ai/EVENTS.jsonl that shrank vs HEAD; append-only + non-git are silent (r-guard Spec-AC-07)..."
+  local d n
+  # (a) committed EVENTS with 3 lines, working tree truncated to 1 -> WARN.
+  d="$(mk_repo t132a)"
+  git init -q "$d"
+  git -C "$d" config user.email test@example.com
+  git -C "$d" config user.name "AAI Test"
+  printf 'a\nb\nc\n' > "$d/docs/ai/EVENTS.jsonl"
+  git -C "$d" add docs/ai/EVENTS.jsonl >/dev/null 2>&1
+  git -C "$d" commit -q -m "seed events" >/dev/null 2>&1
+  printf 'a\n' > "$d/docs/ai/EVENTS.jsonl"   # truncation (append-only violation)
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  write_golden_doc "$d"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a) flush must exit 0 (WARN never blocks) (got $EC): $(cat "$OUT")"
+  n="$(grep -c 'EVENTS append-only' "$OUT" || true)"
+  [[ "$n" == 1 ]] || log_fail "(a) exactly one EVENTS append-only WARNING expected on a shrink (got $n): $(cat "$OUT")"
+
+  # (b) append-only working tree (>= HEAD) -> SILENT.
+  d="$(mk_repo t132b)"
+  git init -q "$d"
+  git -C "$d" config user.email test@example.com
+  git -C "$d" config user.name "AAI Test"
+  printf 'a\nb\n' > "$d/docs/ai/EVENTS.jsonl"
+  git -C "$d" add docs/ai/EVENTS.jsonl >/dev/null 2>&1
+  git -C "$d" commit -q -m "seed events" >/dev/null 2>&1
+  printf 'a\nb\nc\n' > "$d/docs/ai/EVENTS.jsonl"   # append (allowed)
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  write_golden_doc "$d"
+  run_flush "$d"
+  n="$(grep -c 'EVENTS append-only' "$OUT" || true)"
+  [[ "$n" == 0 ]] || log_fail "(b) an append-only EVENTS tree must NOT warn (got $n): $(cat "$OUT")"
+
+  # (c) non-git fixture -> degrade SILENT (no false WARN, no hard git dependency).
+  d="$(mk_repo t132c)"
+  printf 'a\nb\n' > "$d/docs/ai/EVENTS.jsonl"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  write_golden_doc "$d"
+  run_flush "$d"
+  n="$(grep -c 'EVENTS append-only' "$OUT" || true)"
+  [[ "$n" == 0 ]] || log_fail "(c) a non-git fixture must degrade silently (got $n): $(cat "$OUT")"
+  log_pass "R-GUARD Stage 3: EVENTS.jsonl shrink vs HEAD flagged; append-only + non-git silent (Spec-AC-07)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003 + token-economics-end-to-end TEST-001..004,011)"
   check_deps
@@ -2075,6 +2192,9 @@ main() {
   test_125_flush_seam1_append_run_prompt_hash
   test_126_report_prompt_versions_multi_hash
   test_127_report_no_prompt_versions_single_hash
+  test_130_rguard_flush_provenance_warn
+  test_131_rguard_flush_rigor_downgrade
+  test_132_rguard_events_appendonly
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

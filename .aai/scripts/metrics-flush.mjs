@@ -749,6 +749,91 @@ function handleRetire(ctx) {
   process.exit(0);
 }
 
+// --- R-GUARD flush-time forensic backstop (S2/3, SPEC-0113) ----------------------------
+//
+// WARN-only, never blocks (mirrors the token-capture warn-don't-block posture).
+// HONEST SCOPE (verbatim from SPEC-0113 RR-2, MUST NOT be softened):
+// docs/ai/STATE.yaml is GITIGNORED, so there is NO git history of STATE writes —
+// the intake's original design-option (d) sketch ("git log --follow on STATE,
+// cross each mutation timestamp against the recorded agent_runs windows") is NOT
+// honestly implementable: a per-field STATE write leaves no durable, independent
+// timestamp to place inside or outside a subagent window. Rather than fake a
+// timeline, this implements the honestly-detectable subset:
+//   S2  — strategy PROVENANCE: the sanctioned writers always stamp a
+//              recognizable source (SKILL_INTAKE -> `intake`; PLANNING -> a
+//              `docs/**.md` spec path). A flushed ride whose recorded strategy
+//              has any other / absent source is flagged.
+//   S3a — the same check narrowed to a rigor-DOWNGRADE lane (untested |
+//              direct), the exact class SPEC-0109 RR-3 asked R-GUARD to watch.
+//   S3b — EVENTS.jsonl append-only predicate: EVENTS *is* committed, so a
+//              working-tree line count below `git show HEAD:` = a truncation/
+//              rewrite (append-only violation). Degrades silently outside git.
+// None of this makes a rogue subagent write impossible; it is a forensic
+// detector for the case S1's env-marker guard (state.mjs) cannot stop
+// (an agent that unset the marker). Not proof — a signal.
+
+function nlCount(s) {
+  let c = 0;
+  for (let i = 0; i < s.length; i += 1) if (s[i] === '\n') c += 1;
+  return c;
+}
+
+// EVENTS.jsonl append-only predicate: working-tree line count vs HEAD. Returns a
+// WARNING string on a shrink, else null. Best-effort — any git error / untracked
+// file / non-repo degrades to null (no false WARN, no hard git dependency).
+function eventsAppendOnlyWarning(eventsPath) {
+  try {
+    if (!fs.existsSync(eventsPath)) return null;
+    const dir = path.dirname(eventsPath);
+    const root = spawnSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
+    if (root.status !== 0 || !root.stdout) return null;
+    const top = root.stdout.trim();
+    // git returns the canonical (realpath) toplevel; resolve eventsPath the same
+    // way so path.relative is not defeated by a symlinked tmp dir (macOS
+    // /tmp -> /private/tmp, /var -> /private/var).
+    const rel = path.relative(top, fs.realpathSync(eventsPath));
+    if (rel.startsWith('..') || path.isAbsolute(rel)) return null;   // outside this repo
+    const head = spawnSync('git', ['-C', top, 'show', `HEAD:${rel}`], { encoding: 'utf8' });
+    if (head.status !== 0) return null;   // untracked, no HEAD, or not in this tree
+    const headLines = nlCount(head.stdout);
+    const workLines = nlCount(fs.readFileSync(eventsPath, 'utf8'));
+    if (workLines < headLines) {
+      return `WARNING R-GUARD EVENTS append-only — docs/ai/EVENTS.jsonl has ${workLines} line(s) but HEAD has `
+        + `${headLines} (a shrink = truncation/rewrite; EVENTS is append-only per RFC-0001 — restore from git `
+        + 'before continuing; SPEC-0113 S3, forensic not proof)';
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Assemble the forensic WARNs for the refs actually flushed under the recorded
+// strategy. `strategySel`/`strategySrc` are the singleton STATE values.
+function rGuardForensicWarnings(flushedRefs, strategySel, strategySrc, eventsPath) {
+  const warnings = [];
+  if (flushedRefs.length > 0 && strategySel !== null && strategySel !== 'undecided') {
+    const src = strategySrc;
+    const sanctioned = src === 'intake' || (typeof src === 'string' && /\.md$/i.test(src));
+    if (!sanctioned) {
+      const refs = flushedRefs.join(', ');
+      const srcShown = src === null ? 'null' : `"${src}"`;
+      if (strategySel === 'untested' || strategySel === 'direct') {
+        warnings.push(`WARNING ${refs}: R-GUARD rigor-downgrade risk — implementation_strategy "${strategySel}" `
+          + `(a no/low-test lane) recorded with a non-sanctioned source ${srcShown} (SPEC-0109 RR-3): a subagent `
+          + 'strategy-flip can silently downgrade rigor — verify provenance (forensic not proof; SPEC-0113 S3)');
+      } else {
+        warnings.push(`WARNING ${refs}: R-GUARD strategy provenance — implementation_strategy.source ${srcShown} `
+          + 'is neither "intake" nor a spec-path (docs/**.md); a sanctioned set-strategy always stamps one, so this '
+          + 'may be an out-of-contract STATE write (forensic not proof; SPEC-0113 S2)');
+      }
+    }
+  }
+  const evWarn = eventsAppendOnlyWarning(eventsPath);
+  if (evWarn) warnings.push(evWarn);
+  return warnings;
+}
+
 // --- main -----------------------------------------------------------------------------------
 
 function main() {
@@ -800,6 +885,9 @@ function main() {
   // absent block records null, never a guess.
   const stratSel = scalarOrNull(readScalar(origLines, 'implementation_strategy', 'selected'));
   const strategy = stratSel !== null && stratSel !== 'undecided' ? stratSel : null;
+  // R-GUARD S2/3 (SPEC-0113): the strategy's recorded provenance — read for
+  // the flush-time forensic backstop below (never affects the ledger entry).
+  const stratSrc = scalarOrNull(readScalar(origLines, 'implementation_strategy', 'source'));
 
   // --retire (SPEC-0075-spec-retire-stranded-nonworkitem-metric): a
   // structurally-disjoint branch that NEVER reaches the default flush loop —
@@ -900,6 +988,11 @@ function main() {
       + '— nothing written, original preserved', 1);
   }
 
+  // R-GUARD S2/3 forensic backstop (SPEC-0113): computed off the refs
+  // actually flushed under the recorded strategy + the committed EVENTS history.
+  const forensicWarnings = rGuardForensicWarnings(
+    toFlush.map(e => e.ref), strategy, stratSrc, eventsPath);
+
   const report = [];
   if (opts.dryRun) {
     const plan = {
@@ -910,6 +1003,7 @@ function main() {
       skipped,
       entries: built.map(b => b.ledgerEntry),
       warnings: built.flatMap(b => b.warnings),
+      forensic_warnings: forensicWarnings,
       partial_reset: partialRefs,
       full_reset: fullReset,
       cleanup_planned: fullReset,
@@ -952,6 +1046,8 @@ function main() {
   // Report.
   for (const b of built) console.log(`Flushed: ${b.ledgerEntry.ref_id} -> ${path.relative(process.cwd(), metricsPath)}`);
   for (const b of built) for (const w of b.warnings) console.log(w);
+  // R-GUARD forensic WARNs (S2/3, SPEC-0113): visible, never blocking.
+  for (const w of forensicWarnings) console.log(w);
   for (const e of toResume) console.log(`RESUME ${e.ref}: already in ledger — cleanup-only pass (interrupted flush resume, no duplicate line)`);
   for (const [ref, why] of Object.entries(skipped)) console.log(`SKIP ${ref}: ${why}`);
   if (partialRefs.length > 0) console.log(`Partial-flush reset applied (SPEC-0013 H5) for: ${partialRefs.join(', ')} — verdict blocks reset with flush provenance`);
