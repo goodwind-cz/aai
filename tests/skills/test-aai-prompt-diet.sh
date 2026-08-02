@@ -413,6 +413,13 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# -11568 (true-up: prompt-diet-2-safe-wins appended a -12873 B NEGATIVE
+# RECLAIMED entry executing the zero-pin "safe immediate wins" rows of
+# docs/analysis/unhobbling-audit.md — SKILL_WORKTREE -6019, VALIDATION -2098,
+# SKILL_TDD -1860, PLANNING -1699, SKILL_LOOP -1197, no new .aai/** file and no
+# extra-accounting growth — dropping the total from 1305; headroom stays
+# 1530/2048. Prior lineage: 1305 after lane-intake-ceremony +189 over
+# 1116; before that
 # 878 (true-up: runtime-state-consolidation added a +196 B itemized entry for
 # the SKILL_CODE_REVIEW.prompt.md Verdict 2 SIDECAR LIFECYCLE convention pin —
 # the CONVENTION half of the shared runtime-file.mjs sidecar-lib change; the lib
@@ -505,15 +512,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 1305 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 1305)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -11568 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -11568)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 1305 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -11568 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

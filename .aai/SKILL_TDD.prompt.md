@@ -6,55 +6,31 @@ When invoked before the repository is ready for implementation, run the same
 orchestration preflight used by the autonomous loop until a frozen spec with a
 Test Plan is available or a human decision is required.
 
-Inspired by Superpowers framework's mandatory TDD cycles.
-
 ## Instructions
 
 ### Phase 0: Orchestration Preflight
 
 **Objective:** Reach a TDD-ready scope without manual STATE.yaml edits.
 
-This phase mirrors the setup discipline of `/aai-loop`, but it stops before any
-free-form implementation. It may run intake, technology extraction, bootstrap,
-planning, and the worktree recommendation gate. It must not run regular
-Implementation.
+Do not re-derive a setup loop here — drive the real one. Capture `started_utc`
+from the system clock for metrics, then repeat `.aai/ORCHESTRATION.prompt.md`
+(which runs `.aai/scripts/orchestration-dispatch.mjs`, the authority on what to
+dispatch next) until the scope has a frozen spec with a `## Test Plan` and a
+TDD-capable strategy. Bail out of the repeat when it stops converging and
+report the last dispatch and blocker. Three stop rules bind this phase:
 
-1. **Capture `started_utc`**
-   - Capture from system clock (`date -u +%Y-%m-%dT%H:%M:%SZ` or platform equivalent).
-   - Store it for metrics.
+- If `docs/ai/STATE.yaml` is missing or unhealthy per
+  `.aai/SKILL_CHECK_STATE.prompt.md`, let orchestration repair it; if state is
+  BROKEN and cannot be safely repaired, STOP with the health report.
+- If `human_input.required == true`, STOP and output the same HITL block as
+  `.aai/SKILL_LOOP.prompt.md`.
+- Execute ONLY setup dispatches (technology extraction, bootstrap, intake,
+  planning, worktree decision). Never run regular Implementation, TDD
+  Implementation, Validation, Code Review, Remediation, or Metrics Flush inside
+  this phase. When no scope exists and the caller gave no work description, ask
+  one concise question for it and STOP until answered.
 
-2. **Check state health**
-   - Validate `docs/ai/STATE.yaml` using `.aai/SKILL_CHECK_STATE.prompt.md`
-     semantics.
-   - If state is missing or incomplete, run `.aai/ORCHESTRATION.prompt.md` to
-     auto-create or repair it.
-   - If state is BROKEN and cannot be safely repaired, STOP with the health report.
-
-3. **Ensure a current scope exists**
-   - If `current_focus` or `active_work_items` is missing:
-     - If the caller supplied a work description, run `.aai/SKILL_INTAKE.prompt.md`
-       with that description.
-     - If no description was supplied, ask one concise question for the work
-       description and STOP until answered.
-   - After intake, run `.aai/ORCHESTRATION.prompt.md`.
-
-4. **Run setup orchestration ticks, max 5**
-   - Repeat:
-     - Read `docs/ai/STATE.yaml`.
-     - If `human_input.required == true`, STOP and output the same HITL block as
-       `.aai/SKILL_LOOP.prompt.md`.
-     - Run `.aai/ORCHESTRATION.prompt.md`.
-     - Execute only setup dispatches:
-       - Technology extraction/update
-       - Bootstrap
-       - Planning
-       - Implementation Preparation / Worktree decision
-     - Do not execute regular Implementation, TDD Implementation, Validation,
-       Code Review, Remediation, or Metrics Flush inside this setup loop.
-     - Stop when the current scope has a frozen spec, a `## Test Plan`, and an
-       implementation strategy that allows TDD.
-   - If the scope is not TDD-ready after 5 setup ticks, STOP and report the last
-     dispatch and blocker.
+Two gates below are TDD's own — the dispatcher does not enforce them.
 
 5. **Verify implementation strategy**
    - TDD may proceed when `implementation_strategy.selected` is `tdd`.
@@ -72,9 +48,8 @@ Implementation.
      If it is missing or ambiguous, STOP and ask for exact paths or diff range.
    - If user selected `worktree`, continue only inside the recorded worktree path.
 
-7. **Replay relevant learnings**
-   - Run `.aai/SKILL_REPLAY.prompt.md` semantics for the current scope.
-   - Apply only relevant facts, patterns, and learned rules.
+7. **Replay relevant learnings** — `.aai/SKILL_REPLAY.prompt.md` semantics for
+   the current scope.
 
 ### Prerequisites Check
 
@@ -145,18 +120,6 @@ Before starting TDD cycle:
 
 RED-proof rule extension: ask "would this suite stay green if the happy path were the only path implemented?" — if yes, the suite is not evidence; add the missing shapes.
 
-**RED Phase Checklist:**
-- [ ] TEST-xxx selected from spec Test Plan
-- [ ] Test file created/updated at expected path
-- [ ] Test matches TEST-xxx description from spec
-- [ ] Fixture diversity checklist satisfied (or the gap justified in the spec)
-- [ ] Test FAILS when run (verified)
-- [ ] Failure is for the right reason (not syntax error)
-- [ ] RED_CLASS header written and `tdd-evidence-check.mjs` exits 0
-- [ ] Evidence saved to docs/ai/tdd/
-- [ ] Spec Test Plan status updated to `red`
-- [ ] STATE.yaml updated
-
 **BLOCK:** Cannot proceed to GREEN until RED evidence exists and is
 product_red-classified.
 
@@ -210,15 +173,6 @@ product_red-classified.
    ```
    FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md
    and follow its TDD-cycle hand-edit rule (status GREEN + green evidence path).
-
-**GREEN Phase Checklist:**
-- [ ] Implementation added to source code
-- [ ] New test PASSES (verified)
-- [ ] All existing tests still PASS
-- [ ] No over-engineering (minimal code)
-- [ ] Evidence saved to docs/ai/tdd/
-- [ ] Spec Test Plan status updated to `green`
-- [ ] STATE.yaml updated
 
 **BLOCK:** Cannot proceed to REFACTOR until GREEN evidence exists.
 
@@ -275,15 +229,6 @@ product_red-classified.
    - Append decision entries to `docs/ai/decisions.jsonl`
    - Document what was refactored and why
    - Link to TDD evidence
-
-**REFACTOR Phase Checklist:**
-- [ ] Refactoring completed
-- [ ] All tests still PASS (verified)
-- [ ] No behavior changes
-- [ ] Code quality improved
-- [ ] Evidence saved to docs/ai/tdd/
-- [ ] Decision documented
-- [ ] STATE.yaml updated
 
 ### Cycle Continuation
 

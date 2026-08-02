@@ -250,52 +250,22 @@ For each tick (1..max_ticks):
      - Also capture this role_started_utc and the loop-start harness_version here for step 6's log-tick call — passing both prevents the log-tick duration/harness WARNINGs.
      - Expected result: role work completed and STATE.yaml updated with results.
 
-  5. CHECKPOINT GATE (if checkpoint_mode != none):
-     After the dispatched role completes, determine the PREVIOUS role category and CURRENT role category.
-     Role categories:
-       - Planning:       PLANNING.prompt.md, INTAKE_*.prompt.md, ORCHESTRATION*.prompt.md
-       - Preparation:    SKILL_WORKTREE recommendation gate
-       - Implementation: IMPLEMENTATION.prompt.md, TDD cycles, SKILL_TDD.prompt.md
-       - Validation:     VALIDATION.prompt.md, VALIDATE_REPORT
-       - Code Review:    SKILL_CODE_REVIEW.prompt.md
-       - Remediation:    REMEDIATION.prompt.md
-
-     If checkpoint_mode == "staged":
-       - If the role category CHANGED from previous tick (e.g., Planning→Implementation):
-         → Output a checkpoint block and WAIT for user approval:
-
-         ---
-         CHECKPOINT: <Previous Category> → <New Category>
-         ---
-
-         Completed (<Previous Category>):
-         • <key artifact or outcome from previous phase>
-         • <second outcome if applicable>
-
-         Next (<New Category>):
-         • <what will happen in the next phase>
-         • <estimated scope if known>
-
-         Continue? [y] Yes, proceed  [n] No, revise  [p] Pause loop
-         ---
-
-         - If user answers [n]: LOG the tick (step 6), then set human_input.required = true with blocking_reason = "User requested plan revision at checkpoint" and EXIT.
-         - If user answers [p]: LOG the tick (step 6), then set project_status = paused and EXIT.
-         - If user answers [y] or confirms: continue to step 6.
-
-     If checkpoint_mode == "paranoid":
-       - After EVERY tick, output:
-
-         ---
-         TICK <N> COMPLETE: <role dispatched>
-         ---
-         Result: <one-line summary of what the tick accomplished>
-         State:  <project_status> / <last_validation.status>
-
-         Continue? [y/n/p]
-         ---
-
-         - Same [y/n/p] handling as staged mode (always log the tick before EXIT).
+  5. CHECKPOINT GATE (skip entirely when checkpoint_mode == none, the default):
+     Role categories are the dispatched prompt's phase: Planning (PLANNING,
+     INTAKE_*, ORCHESTRATION*), Preparation (worktree recommendation gate),
+     Implementation (IMPLEMENTATION, SKILL_TDD, TDD cycles), Validation
+     (VALIDATION, VALIDATE_REPORT), Code Review (SKILL_CODE_REVIEW),
+     Remediation (REMEDIATION).
+     - staged: gate ONLY on a category change from the previous tick. Show what
+       the finished category produced, what the new one will do, and ask
+       `Continue? [y] proceed [n] revise [p] pause`.
+     - paranoid: ask the same question after EVERY tick, with the tick number,
+       role, a one-line result and `<project_status>/<last_validation.status>`.
+     - Answer handling (both modes): [y] continue to step 6. [n] LOG the tick
+       (step 6) FIRST, then set human_input.required = true with
+       blocking_reason = "User requested plan revision at checkpoint" and EXIT.
+       [p] LOG the tick (step 6) FIRST, then set project_status = paused and
+       EXIT. Never EXIT without logging the tick.
 
   6. LOG the tick:
      Tick <N>: [role dispatched] → scope=<ref_id> → state=<project_status>/<last_validation.status>
@@ -391,13 +361,8 @@ set-human-input` as the primary path.
 FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and follow it.
 
 STRICT RULES
-- Do NOT improvise role logic. Execute canonical role prompts exactly
-  (either via subagent delegation or direct in-session execution).
-- Do NOT estimate any runtime timing in LOOP_TICKS.jsonl.
-- Use only system clock timestamps (`date -u` / `Get-Date ...ToUniversalTime()`), never LLM-generated time.
-- Do NOT skip STATE.yaml read between ticks. State evolves every tick.
-- Do NOT exceed max_ticks without stopping and reporting.
-- Do NOT continue when human_input.required == true.
+- Timestamps come from the system clock (`date -u` /
+  `Get-Date ...ToUniversalTime()`), never from the model.
 - Always write the tick log even if the loop exits on tick 1.
 
 BEGIN NOW.

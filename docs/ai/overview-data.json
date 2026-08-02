@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-08-02T15:17:17.214Z",
+  "generatedAt": "2026-08-02T21:20:25.898Z",
   "project": "aai",
   "counts": {
-    "delivered": 157,
-    "in_progress": 1,
+    "delivered": 158,
+    "in_progress": 2,
     "releases": 1,
     "tokens_total": 23273206
   },
@@ -64,6 +64,19 @@
     ]
   },
   "in_progress": [
+    {
+      "ref": "altitude-prompt-experiment",
+      "title": "Change — altitude-prompt experiment: rules-as-prose vs canonical examples, decided by paired measurement",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0113-altitude-prompt-experiment.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
@@ -150,6 +163,19 @@
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0112-lane-intake-ceremony.md",
+      "closed_on": "2026-08-02",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "prompt-diet-2-safe-wins",
+      "title": "Change — diet ride 2: execute the zero-pin safe immediate wins from the unhobbling audit",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0114-prompt-diet-2-safe-wins.md",
       "closed_on": "2026-08-02",
       "agent_minutes": null,
       "token_total": null,
@@ -2198,6 +2224,19 @@
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0112-lane-intake-ceremony.md",
+          "closed_on": "2026-08-02",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "prompt-diet-2-safe-wins",
+          "title": "Change — diet ride 2: execute the zero-pin safe immediate wins from the unhobbling audit",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0114-prompt-diet-2-safe-wins.md",
           "closed_on": "2026-08-02",
           "agent_minutes": null,
           "token_total": null,

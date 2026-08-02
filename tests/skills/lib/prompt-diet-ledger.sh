@@ -90,6 +90,37 @@ JUSTIFIED_ADDITIONS=(
   "238 r-guard-runtime-enforcement ORCHESTRATION_PARALLEL.prompt.md SUBAGENT EXECUTION Env clause (R-GUARD Stage 1 / SPEC-0113): export AAI_ROLE=subagent in the spawned subagent's environment so its state.mjs STATE mutations refuse with exit 3, keep it UNSET for the orchestrator's own writes; the state.mjs guard clause + metrics-flush.mjs Stage-2/3 forensic checks live in .aai/scripts/ (no ledger cost), and the fuller ENV-row wiring + updated R-GUARD residual note land in .aai/SUBAGENT_PROTOCOL.md which sits OUTSIDE TEST-010's live .aai/*.prompt.md glob AND its extra accounting (INTAKE_COMMON/STATE_FALLBACK/ROLE_COMMON only) — the same out-of-glob treatment CHANGE-0061 subagent-protocol-slim applied, so it carries no measured deficit; the ONE in-glob edit is inside TEST-010's live glob, measured deficit 238 B at zero headroom, credited 1:1 so headroom stays 0 within the 2048 cap"
 )
 JUSTIFIED_ADDITIONS+=( "189 lane-intake-ceremony SKILL_PR --intake fallback doc for spec-less L0/L1 rides (measured deficit 189 B, 2026-08-02)" )
+# DIET RIDE 2 2026-08-02 (CHANGE-DRAFT-prompt-diet-2-safe-wins): executed the
+# zero-pin "safe immediate wins" rows of docs/analysis/unhobbling-audit.md
+# (Phase 0 of CHANGE-0113). Measured shrink 12873 B across 5 files, live
+# .aai/*.prompt.md glob 313505 -> 300632, NO new .aai/** file and NO growth in
+# TEST-010's extra accounting (INTAKE_COMMON/STATE_FALLBACK/ROLE_COMMON
+# untouched), so the whole 12873 B is genuine reduction:
+#   SKILL_WORKTREE  -6019 (15245 -> 9226): git-tutorial intro, the drifted
+#     inline STATE.yaml heredoc -> seed from .aai/templates/STATE_TEMPLATE.yaml,
+#     Switch/List/Sync command sections -> their git one-liners, the two
+#     invented-path walkthroughs, Best Practices -> pointer at PLANNING step 8,
+#     the re-implemented git safety checks, Troubleshooting, METRICS example
+#     and Example Session. Recommendation Gate, Setup recipe and the
+#     archive-STATE-BEFORE-remove Cleanup ordering kept verbatim.
+#   VALIDATION      -2098 (19220 -> 17122): RATIONALIZATION TABLE + 6 of 7
+#     STRICT RULES (each already imperative in PROCESS 5a-5g / INVARIANT
+#     RULES); the SUBAGENT_PROTOCOL merge line is pinned and stays.
+#   SKILL_TDD       -1860 (17870 -> 16010): Phase 0 steps 1-4/7 -> pointer at
+#     ORCHESTRATION.prompt.md + orchestration-dispatch.mjs (steps 5/6 verbatim
+#     -- implementation-mode TEST-005 and ROLE_COMMON's "Phase 0 step 6"
+#     reference pin them), the three phase checklists, Superpowers attribution.
+#   PLANNING        -1699 (12772 -> 11073): RATIONALIZATION TABLE + 2 of 3
+#     STRICT RULES (INVARIANT RULES L14/L16, step 10 freeze, HITL-1).
+#   SKILL_LOOP      -1197 (24833 -> 23636): CHECKPOINT GATE literal terminal
+#     templates -> the gate's rules (mode default is `none`; kept in-file
+#     rather than the audit's new .aai/system/ file to avoid a PROFILES
+#     companion obligation), 5 of 7 STRICT RULES.
+# Per TEST-010's remediation rule the credit is LOWERED, not padded: without
+# reconciliation headroom jumps 1530 -> 14403, breaching HEADROOM_CAP=2048.
+# This entry retires exactly 12873 B so headroom lands back at 1530/2048 and
+# the TEST-012 pin moves 1305 -> -11568.
+JUSTIFIED_ADDITIONS+=( "-12873 prompt-diet-2-safe-wins RECLAIMED credit (NEGATIVE entry, CHANGE-DRAFT-prompt-diet-2-safe-wins): see the DIET RIDE 2 block above for the per-file breakdown and the surviving-home evidence; every deleted row was re-grepped against tests/**/*.sh, *.mjs and *.Tests.ps1 for pin coupling before the cut, and no pinned sentence was touched" )
 JUSTIFIED_GROWTH_BYTES=0
 for _entry in "${JUSTIFIED_ADDITIONS[@]}"; do
   JUSTIFIED_GROWTH_BYTES=$(( JUSTIFIED_GROWTH_BYTES + ${_entry%% *} ))

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-02T15:17:17.273Z",
+  "generatedAt": "2026-08-02T21:20:25.962Z",
   "skillsCount": 36,
   "degradedCount": 21,
   "skills": [
@@ -297,7 +297,7 @@
       "description": "Use when implementing any feature or fix that should follow test-driven development. Enforces RED-GREEN-REFACTOR cycle with evidence at each phase.",
       "model": null,
       "promptFile": ".aai/SKILL_TDD.prompt.md",
-      "goal": "Enforce systematic RED-GREEN-REFACTOR test-driven development with verifiable evidence at each phase.\nWhen invoked before the repository is ready for implementation, run the same\norchestration preflight used by the autonomous loop until a frozen spec with a\nTest Plan is available or a human decision is required.\n\nInspired by Superpowers framework's mandatory TDD cycles.",
+      "goal": "Enforce systematic RED-GREEN-REFACTOR test-driven development with verifiable evidence at each phase.\nWhen invoked before the repository is ready for implementation, run the same\norchestration preflight used by the autonomous loop until a frozen spec with a\nTest Plan is available or a human decision is required.",
       "notes": []
     },
     {
@@ -355,7 +355,7 @@
       "description": "Use when creating or managing isolated git worktrees for parallel feature development or isolated experiments.",
       "model": null,
       "promptFile": ".aai/SKILL_WORKTREE.prompt.md",
-      "goal": "Manage git worktrees for parallel isolated development without branch switching overhead.\nAlso provide the implementation-preparation gate that recommends worktree usage,\nasks the user before creating one, and records an explicit inline override when\nthe user chooses to continue in the current working tree.\n\nInspired by Superpowers framework's worktree-based parallel development.",
+      "goal": "Manage git worktrees for parallel isolated development without branch switching overhead.\nAlso provide the implementation-preparation gate that recommends worktree usage,\nasks the user before creating one, and records an explicit inline override when\nthe user chooses to continue in the current working tree.",
       "notes": []
     },
     {
