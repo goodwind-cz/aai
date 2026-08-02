@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-02T19:09:54.808Z
+Generated: 2026-08-02T19:13:43.592Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -320,7 +320,7 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| altitude-prompt-experiment (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-altitude-prompt-experiment.md |
+| CHANGE-0113 | issues | docs/issues/CHANGE-0113-altitude-prompt-experiment.md |
 
 ## Deferred (whole-doc) (0)
 
