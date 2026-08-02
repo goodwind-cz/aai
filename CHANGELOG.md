@@ -9,7 +9,9 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased] — chore(diet): buy back prompt-budget headroom so the corpus stops running a zero-headroom treadmill (CHANGE-0110) [L1]
+## [unreleased]
+
+## [v2026.08.02] — chore(diet): buy back prompt-budget headroom so the corpus stops running a zero-headroom treadmill (CHANGE-0110) [L1]
 
 - The prompt-diet floor (`tests/skills/test-aai-prompt-diet.sh` TEST-010) had
   been pinned at `headroom 0/2048` since CHANGE-0090. At zero headroom every
@@ -33,7 +35,7 @@ RFC-0001).
   three files — every suite `grep -l` finds for them — plus layer-profiles and
   a strict docs audit are green.
 
-## [unreleased] — feat(r-guard): runtime single-writer guard + flush-time forensic backstop (SPEC-0113) [L3]
+## [v2026.08.02] — feat(r-guard): runtime single-writer guard + flush-time forensic backstop (SPEC-0113) [L3]
 
 - Closes the highest-blast-radius gap between "the prompt says so" and "the
   machine ensures so": the single-writer rule (a subagent MUST NOT write
@@ -69,7 +71,7 @@ RFC-0001).
   live seam) with its `suite-map.yaml` row; prompt-diet ledger trued up (+238 B
   in-glob, credited 1:1, headroom 0/2048; TEST-012 pin trued to the merge-base sum (+238)).
 
-## [unreleased] — feat(runtime): shared runtime-sidecar lifecycle lib + convention pin (CHANGE-0106) [L2]
+## [v2026.08.02] — feat(runtime): shared runtime-sidecar lifecycle lib + convention pin (CHANGE-0106) [L2]
 
 - Consolidates the hand-rolled lifecycle logic that every recent feature
   re-derived for its own gitignored runtime SIDECAR — the re-derivation that
@@ -98,7 +100,7 @@ RFC-0001).
   gitignored runtime sidecar MUST use the lib. The hardened `update-check.mjs`
   lock and the SPEC-0004 `docs-lock.mjs` lease are deliberately left frozen.
 
-## [unreleased] — feat(telemetry): close-time usage-capture gate + run-level coverage KPI (CHANGE-0105) [L2]
+## [v2026.08.02] — feat(telemetry): close-time usage-capture gate + run-level coverage KPI (CHANGE-0105) [L2]
 
 - Closes the *ongoing* usage-marker leak the factory-performance report exposed:
   53.8% of agent runs carried no `usage_total_tokens` marker because the marker
@@ -131,7 +133,7 @@ RFC-0001).
   `test-aai-close-work-item.sh` (TEST-030..035) and `test-aai-factory-report.sh`
   (TEST-020..021). Script-only: zero prompt-corpus bytes, no new `.aai/**` file.
 
-## [unreleased] — feat(pr): deterministic PR fast-lane for small, safe rides (CHANGE lightweight-e2e-lane / SPEC spec-lightweight-e2e-lane) [L2]
+## [v2026.08.02] — feat(pr): deterministic PR fast-lane for small, safe rides (CHANGE lightweight-e2e-lane / SPEC spec-lightweight-e2e-lane) [L2]
 
 - Cuts the flat ~42-min ceremony floor for provably-small rides without
   weakening the heavy lane. A new deterministic gate
@@ -158,7 +160,7 @@ RFC-0001).
   (TEST-001..018) pins the predicate matrix, the fail-closed negatives, and the
   docs-only-close-diff routing.
 
-## [unreleased] — fix(ops): orphan-sweep — leaked runaway shells die at the next session start (CHANGE-0108) [L1]
+## [v2026.08.02] — fix(ops): orphan-sweep — leaked runaway shells die at the next session start (CHANGE-0108) [L1]
 
 - Incident-driven (37 orphaned busy-loops, ~15 cores, ~4 days, found by the
   operator): session-start hook now runs a bounded, best-effort orphan sweep
@@ -169,7 +171,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — chore(quality): phantom-API pin — nonexistent-but-plausible runtime APIs stop surviving review (CHANGE-0109) [L1]
+## [v2026.08.02] — chore(quality): phantom-API pin — nonexistent-but-plausible runtime APIs stop surviving review (CHANGE-0109) [L1]
 
 - hygiene-pack test_092 pins known-phantom Node APIs (process.getpgrp cousins,
   callback fs.exists, ESM require.main) across .aai scripts; LEARNED.md adds
