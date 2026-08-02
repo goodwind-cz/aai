@@ -1455,3 +1455,6 @@
 {"v":1,"ts":"2026-08-02T13:30:40.213Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"prompt-diet-2026-08","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-08-02T13:30:40.246Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"prompt-diet-2026-08","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-02T13:30:40.281Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"prompt-diet-2026-08","payload":{"commit":"af1059abb2a1d8e22f497940439f47381e2b7b70"}}
+{"v":1,"ts":"2026-08-02T14:07:21.860Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"changelog-scaffold-guard","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-02T14:07:21.894Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"changelog-scaffold-guard","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-02T14:07:21.934Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"changelog-scaffold-guard","payload":{"commit":"b4bb8694159f8dda2d6709b12db08e3c9ec49606"}}

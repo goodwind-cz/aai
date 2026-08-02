@@ -1,12 +1,14 @@
 ---
 id: changelog-scaffold-guard
-number: null
+number: 111
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 215
+  commits:
+    - b4bb8694159f8dda2d6709b12db08e3c9ec49606
 ---
 
 # Change — CHANGELOG scaffold invariants get a PR-time guard

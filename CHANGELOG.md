@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — chore(quality): CHANGELOG scaffold invariants get a PR-time guard (CHANGE changelog-scaffold-guard) [L1]
+## [unreleased] — chore(quality): CHANGELOG scaffold invariants get a PR-time guard (CHANGE-0111) [L1]
 
 - 3rd recurrence of the duplicate-bare-scaffold class this week (bot-caught on
   #211, rolled into the released section, cleaned by #214): aai-release
