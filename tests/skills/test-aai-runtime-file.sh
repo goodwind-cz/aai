@@ -71,6 +71,20 @@ if (op === 'load') {
   process.stdout.write(lib.claimExclusive(a[0], a[1]).status);
 } else if (op === 'claim-json') {
   process.stdout.write(JSON.stringify(lib.claimExclusive(a[0], a[1])));
+} else if (op === 'claim-wxfail') {
+  // Finding-2 injection: force the O_EXCL 'wx' fallback (NO_HARDLINK), then make
+  // the POST-open writeSync throw (simulating ENOSPC/EIO). node:fs is a shared
+  // singleton, so patching fs.writeSync here mutates the copy the lib imported.
+  // writeFileSync (used to stage the temp) is a distinct binding and is unaffected,
+  // so the temp still stages and the 'wx' open still publishes the target — exactly
+  // the torn-claim window. Assert claimExclusive undoes it (unlinks the target).
+  const fs = (await import('node:fs')).default;
+  process.env.AAI_RUNTIME_FILE_NO_HARDLINK = '1';
+  const realWrite = fs.writeSync;
+  fs.writeSync = () => { throw Object.assign(new Error('injected ENOSPC'), { code: 'ENOSPC' }); };
+  let r;
+  try { r = lib.claimExclusive(a[0], a[1]); } finally { fs.writeSync = realWrite; }
+  process.stdout.write(JSON.stringify(r));
 } else if (op === 'stale') {
   const ts = a[0] === 'NaN' ? NaN : Number(a[0]);
   process.stdout.write(String(lib.isStale(ts, Number(a[1]), Number(a[2]))));
@@ -342,10 +356,65 @@ test_015_load_determinism() {
   fi
 }
 
+# ---------------- TEST-017 (class E, Codex :96): atomicWrite preserves mode ----
+test_017_atomic_write_preserves_mode() {
+  log_info "TEST-017: atomicWrite PRESERVES an existing target's restrictive mode (0600), never widening it via the temp's default..."
+  local f="$TEST_DIR/secret.json"
+  printf 'OLD\n' > "$f"
+  chmod 600 "$f"
+  drv write "$f" 'NEW-SECRET'
+  [[ "$EC" == 0 ]] || { log_fail "TEST-017: write exited $EC ($(cat "$TEST_DIR/drv.err"))"; return; }
+  local got mode; got="$(cat "$f" 2>/dev/null)"
+  mode="$(node -e 'const fs=require("fs");process.stdout.write((fs.statSync(process.argv[1]).mode & 0o777).toString(8))' "$f")"
+  if [[ "$got" == "NEW-SECRET" && "$mode" == "600" ]]; then
+    log_pass "TEST-017: rewrite kept mode 0600 (rename did not clobber the restrictive target to 0644/0664)"
+  else
+    log_fail "TEST-017: got='$got' mode=$mode (want NEW-SECRET / 600)"
+  fi
+}
+
+# ---------------- TEST-018 (class A, Codex :142 + Copilot :146): no torn claim --
+test_018_wx_write_failure_no_torn_claim() {
+  log_info "TEST-018: a wx-fallback write failure (injected ENOSPC) leaves NO torn lock behind and returns status=error (never a wedge later read as held)..."
+  local lock="$TEST_DIR/torn.lock"
+  drv claim-wxfail "$lock" body
+  [[ "$EC" == 0 ]] || { log_fail "TEST-018: driver crashed instead of returning a status ($EC) ($(cat "$TEST_DIR/drv.err"))"; return; }
+  local st; st="$(jval "$OUT" 'o.status')"
+  if [[ "$st" == "error" && ! -e "$lock" ]]; then
+    log_pass "TEST-018: post-open write failure -> status=error AND target unlinked (torn claim undone)"
+  else
+    log_fail "TEST-018: status=$st lock-exists=$( [[ -e "$lock" ]] && echo y || echo n ) (want error / absent) ($OUT)"
+  fi
+}
+
+# ---------------- TEST-019 (class D, Codex :179 + Copilot :180): loud readdir ---
+test_019_reap_unreadable_dir_loud() {
+  log_info "TEST-019: reapAsides on an UNREADABLE dir surfaces a loud error field (non-ENOENT readdir failure is never a silent no-op)..."
+  local dir="$TEST_DIR/unreadable"; mkdir -p "$dir"
+  printf 'x\n' > "$dir/pfx.aside"
+  chmod 000 "$dir"
+  # Probe: root (and some CI) bypass mode bits, so readdir would still succeed and
+  # there would be no error to assert. Skip the assertion in that case.
+  if node -e 'require("fs").readdirSync(process.argv[1])' "$dir" >/dev/null 2>&1; then
+    chmod 755 "$dir" 2>/dev/null || true
+    log_info "TEST-019: chmod 000 not honored here (root/CI perm bypass) — skipping loud-error assertion"
+    return
+  fi
+  drv reap "$dir" "pfx." 1000 1000
+  chmod 755 "$dir" 2>/dev/null || true   # restore so cleanup can rm -rf
+  [[ "$EC" == 0 ]] || { log_fail "TEST-019: reap threw / exited $EC ($(cat "$TEST_DIR/drv.err"))"; return; }
+  local err reaped; err="$(jval "$OUT" 'o.error')"; reaped="$(jval "$OUT" 'o.reaped')"
+  if [[ -n "$err" && "$reaped" == 0 ]]; then
+    log_pass "TEST-019: unreadable dir -> {reaped:0,kept:0,error:'$err'} (loud, not a silent no-op)"
+  else
+    log_fail "TEST-019: expected an error field, got error='$err' reaped=$reaped ($OUT)"
+  fi
+}
+
 # ---------------- TEST-016 (AC-012): zero runtime dependencies ----------------
 test_016_zero_dep() {
   log_info "TEST-016: the lib imports NOTHING outside node:* (zero runtime deps)..."
-  local bad; bad="$(grep -nE "^import|^const .*=.*require\(" "$LIB" | grep -vE "from 'node:|require\('node:" || true)"
+  local bad; bad="$(grep -nE "^import|^const .*=.*require\(" "$LIB" | grep -vE "from ['\"]node:|require\(['\"]node:" || true)"
   if [[ -z "$bad" ]]; then
     log_pass "TEST-016: zero-dep — only node:* imports"
   else
@@ -370,10 +439,13 @@ test_012_stale_determinism
 test_013_reap_aged_keep_fresh
 test_014_reap_missing_dir
 test_015_load_determinism
+test_017_atomic_write_preserves_mode
+test_018_wx_write_failure_no_torn_claim
+test_019_reap_unreadable_dir_loud
 test_016_zero_dep
 
 if [[ "$FAILED" == 0 ]]; then
-  echo "=== ALL TESTS PASSED: $TEST_NAME (TEST-001..016) ==="
+  echo "=== ALL TESTS PASSED: $TEST_NAME (TEST-001..019) ==="
   exit 0
 else
   echo "=== FAIL: $TEST_NAME suite had failures ===" >&2

@@ -131,8 +131,13 @@ function detectPlatform(explicit) {
 // Delegates the absent-vs-corrupt-vs-ok distinction to the shared
 // lib/runtime-file.mjs loadOrDegrade (class-B primitive) — this is the ledger
 // whose corrupt-as-empty read the primitive was distilled from. The
-// {entries:[]} / {corrupt:true} return shape is preserved BYTE-for-BYTE so
-// callers and the 19-test gate are unchanged.
+// {entries:[]} / {corrupt:true} RETURN SHAPE is preserved, and the 19-test gate
+// is unchanged. One DELIBERATE behavior change: the old hand-rolled read caught
+// ANY read error (including a present-but-unreadable file, e.g. EACCES/EISDIR)
+// and returned empty; loadOrDegrade instead classifies present-but-unreadable as
+// `corrupt`, so such a ledger now degrades LOUDLY rather than silently reading as
+// "nothing parked". That is the intended, safer direction (a class-B fix, not a
+// regression) — only the ABSENT (ENOENT) case still maps to an empty ledger.
 function loadSidecar(p) {
   const res = loadOrDegrade(p, { isShape: (d) => d && Array.isArray(d.entries) });
   if (res.status === 'absent') return { entries: [] };   // absent -> normal empty

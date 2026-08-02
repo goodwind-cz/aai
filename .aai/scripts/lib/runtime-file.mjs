@@ -88,11 +88,24 @@ export function loadOrDegrade(filePath, opts = {}) {
 // (last rename wins; no interleaved bytes). This is the lib/state-engine.mjs
 // discipline (SPEC-0012 D3), generalized so no sidecar ships a plain writeFileSync
 // again (it is exactly the latent gap in hitl-channel's saveSidecar this closes).
+// PERMISSION PRESERVATION: the temp is created with the process default mode
+// (umask-dependent, typically 0644/0664). A rename then CLOBBERS the existing
+// target's inode, so a deliberately-restrictive sidecar (e.g. a 0600 secret) would
+// silently widen to the default on every rewrite. Guard it: if the target already
+// exists, chmod the temp to the target's current mode BEFORE the rename so the
+// committed file keeps its intended permissions. Absent target -> default mode
+// (nothing to preserve). chmod best-effort: a host that can't chmod (rare) must
+// not fail the write — a wider mode is a lesser evil than a lost update.
 export function atomicWrite(filePath, contents) {
   fs.mkdirSync(path.dirname(path.resolve(filePath)), { recursive: true });
   const tmp = `${filePath}.tmp.${process.pid}.${seq++}`;
   fs.writeFileSync(tmp, contents);
   try {
+    let priorMode;
+    try { priorMode = fs.statSync(filePath).mode; } catch { /* absent -> default mode */ }
+    if (priorMode !== undefined) {
+      try { fs.chmodSync(tmp, priorMode); } catch { /* best-effort: keep wider mode over a failed write */ }
+    }
     fs.renameSync(tmp, filePath); // atomic on same-filesystem POSIX
   } catch (e) {
     try { fs.rmSync(tmp, { force: true }); } catch { /* best-effort temp cleanup */ }
@@ -135,14 +148,27 @@ export function claimExclusive(filePath, body) {
   } catch (e) {
     if (e.code === 'EEXIST') return { status: 'held' };               // target already held
     if (!HARDLINK_UNSUPPORTED.has(e.code)) return { status: 'error', code: e.code }; // genuine
-    // Hard links unsupported here: fall back to an O_EXCL open+write.
+    // Hard links unsupported here: fall back to an O_EXCL open+write. The 'wx'
+    // open PUBLISHES the target (empty) BEFORE writeSync fills it, so a write
+    // failure (ENOSPC/EIO) would leave a created-but-empty lock a later caller
+    // reads as EEXIST=held — a wedge until staleness. So on ANY failure AFTER a
+    // successful open, unlink the torn target best-effort before returning error:
+    // never leave a partial claim behind (the wx branch's own class-A hardening).
+    let fd;
     try {
-      const fd = fs.openSync(filePath, 'wx');   // EEXIST if held; else genuine
-      try { fs.writeSync(fd, body); } finally { fs.closeSync(fd); }
-      return { status: 'claimed' };
+      fd = fs.openSync(filePath, 'wx');   // EEXIST if held; else genuine
     } catch (e2) {
       if (e2.code === 'EEXIST') return { status: 'held' };
-      return { status: 'error', code: e2.code };
+      return { status: 'error', code: e2.code };   // never created -> nothing to unlink
+    }
+    try {
+      fs.writeSync(fd, body);
+      fs.closeSync(fd);
+      return { status: 'claimed' };
+    } catch (e2) {
+      try { fs.closeSync(fd); } catch { /* fd may already be closed */ }
+      try { fs.unlinkSync(filePath); } catch { /* best-effort: undo the torn claim */ }
+      return { status: 'error', code: e2 && e2.code };
     }
   } finally {
     try { fs.rmSync(tmp, { force: true }); } catch { /* best-effort temp cleanup */ }
@@ -168,15 +194,21 @@ export function isStale(ts, nowMs, windowMs) {
 // Bounded GC of orphan/aside files: remove every entry in `dir` whose name starts
 // with `prefix` and whose mtime is stale (isStale over the same symmetric window),
 // keeping any FRESH one (a live producer mid-flight is never swept — that would be
-// the double-surface / stolen-lock bug this guards). A missing directory is a
-// no-op, NEVER a throw. This generalizes update-check's .surfacing/.reclaim/
-// sentinel sweeps. Returns { reaped, kept } for a loud, auditable outcome.
+// the double-surface / stolen-lock bug this guards). A MISSING directory (ENOENT)
+// is a silent no-op, NEVER a throw (an absent aside dir is normal). But any OTHER
+// readdir failure (EACCES, ENOTDIR, EIO…) is NOT normal: it is surfaced LOUDLY as
+// an `error` field on the result so the caller sees GC actually failed instead of
+// mistaking an unreadable dir for "nothing to sweep" (the class-B silent-empty
+// failure applied to GC). This generalizes update-check's .surfacing/.reclaim/
+// sentinel sweeps. Returns { reaped, kept } (+ `error` on a non-ENOENT readdir
+// failure) for a loud, auditable outcome.
 export function reapAsides(dir, prefix, nowMs, windowMs) {
   let names;
   try {
     names = fs.readdirSync(dir);
-  } catch {
-    return { reaped: 0, kept: 0 }; // missing dir -> no-op, never throws
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return { reaped: 0, kept: 0 }; // missing dir -> silent no-op
+    return { reaped: 0, kept: 0, error: (e && e.code) || 'EUNKNOWN' }; // loud: GC could not run
   }
   let reaped = 0;
   let kept = 0;
@@ -190,6 +222,21 @@ export function reapAsides(dir, prefix, nowMs, windowMs) {
       continue; // vanished between readdir and stat -> skip
     }
     if (isStale(m, nowMs, windowMs)) {
+      // TOCTOU guard: between the stat above and the unlink below a LIVE producer
+      // could rewrite this aside, making a "stale" verdict describe a now-fresh
+      // file we would then wrongly delete. Re-stat immediately before unlink and
+      // skip if the mtime moved. A sub-ms window still remains theoretically
+      // (re-stat -> rewrite -> unlink), but it is ACCEPTABLE here: asides are
+      // per-pid named (x.<pid>.…) and producers never reuse a name, so the only
+      // writer that could touch this exact path is its original owner, whose
+      // fresh write the re-stat catches; a different pid writes a different path.
+      let m2;
+      try {
+        m2 = fs.statSync(p).mtimeMs;
+      } catch {
+        continue; // vanished between the two stats -> nothing to reap
+      }
+      if (m2 !== m) { kept += 1; continue; } // rewritten under us -> now fresh, keep
       try { fs.rmSync(p, { force: true }); reaped += 1; } catch { /* best-effort */ }
     } else {
       kept += 1; // fresh -> a live producer may own it; never sweep
