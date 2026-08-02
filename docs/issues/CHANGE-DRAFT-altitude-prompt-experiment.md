@@ -13,10 +13,18 @@ links:
 # Change — altitude-prompt experiment: rules-as-prose vs canonical examples, decided by paired measurement
 
 ## Context (source + why now)
-Anthropic's context-engineering guidance ("right-altitude prompting": delete
-rule laundry-lists, show diverse canonical examples, let context stay scarce)
-reached the operator via a viral rehash ("deleted 80% of instructions,
-nothing broke"). AAI already implements 6 of its 8 recommendations with
+PRIMARY SOURCE (corrected 2026-08-02 after tracing the viral rehash): the
+July 2026 Anthropic post (Thariq Shihipar) — 80% of Claude Code's system
+prompt DELETED for the Claude 5 generation with no eval loss. Core thesis is
+"UNHOBBLING": most prompt bulk is not knowledge but guardrails written
+against failure modes of OLDER models; the new generation does not produce
+those failures, so the guardrails now conflict, mis-fire on edge cases, and
+crowd out model judgment. Four deletion classes (verification instructions,
+review severity filters, subagent rules, derivable-content bloat) + six
+shifts (rules->judgment, in-prompt examples->better TOOL design,
+upfront->progressive disclosure, repeated rules->tool descriptions, manual
+memory->auto-memory, prose specs->code/test references) + the /doctor
+automation precedent. AAI already implements 6 of its 8 recommendations with
 DETERMINISTIC enforcement (diet budget, JIT skill loading, ledger memory,
 condensed subagent results, cache-aware dispatch, minimal-start economics).
 The one genuinely open idea is the STYLE of the role prompts themselves:
@@ -57,13 +65,27 @@ round saves a full CI cycle (~18 min + re-review).
   replaced by a script gate or behavioral probe shows ZERO compliance
   regressions on the probe suite.
 
+## Phase 0 — doctor-style unhobbling audit (run FIRST, cheap, standalone value)
+One read-only pass over the 10 largest .aai role prompts against the
+six-shift rubric, emitting docs/analysis/unhobbling-audit.md: per prompt, a
+table of deletion candidates classed as {obsolete-guardrail (older-model
+failure mode), derivable-from-code, repeated-rule (belongs in tool/script
+description), verification-instruction, severity-filter, keep (principle |
+gotcha | governance-pin)} with the pin-test coupling noted per row. This is
+the /doctor idea applied to the role-prompt corpus. Output feeds BOTH the
+experiment (sharper V2) and ordinary diet rides (immediate targets).
+Costs one agent run; changes NOTHING.
+
 ## Design — three variants, paired replay, blind judging
 
 Variants of ONE pilot prompt:
 - V0 = status quo (rule list, current bytes)
 - V1 = compression control (same rule style, deduped, target -40% bytes)
-- V2 = altitude (3-5 principles + one complete canonical worked example +
-  enforcement moved to gates/probes; target -40% bytes, SAME budget as V1)
+- V2 = altitude/unhobbled (3-5 principles + enforcement moved to gates/
+  probes + procedure detail moved into SCRIPT INTERFACES per the
+  examples->better-tools shift: clearer --help, self-explanatory errors,
+  one-line tool descriptions instead of repeated prompt rules; at most ONE
+  compact worked example; target -40% bytes, SAME budget as V1)
 
 PILOT PROMPT = SKILL_CODE_REVIEW. Selection is data-driven, not taste:
 highest dispatch frequency (98 runs — largest sample accrues fastest),
