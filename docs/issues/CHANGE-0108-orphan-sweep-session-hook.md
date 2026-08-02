@@ -1,12 +1,14 @@
 ---
 id: orphan-sweep-session-hook
-number: null
+number: 108
 type: change
-status: draft
+status: done
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr:
+    - 211
+  commits:
+    - 960297c61313d9db5cec78c8d903700e8c3b9e9b
 ---
 
 # Change — orphan-sweep: leaked runaway shells die at the next session start

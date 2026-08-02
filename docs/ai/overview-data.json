@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-02T01:26:11.907Z",
+  "generatedAt": "2026-08-02T12:05:35.771Z",
   "project": "aai",
   "counts": {
-    "delivered": 152,
+    "delivered": 153,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
@@ -89,6 +89,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "orphan-sweep-session-hook",
+      "title": "Change — orphan-sweep: leaked runaway shells die at the next session start",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0108-orphan-sweep-session-hook.md",
+      "closed_on": "2026-08-02",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
       "validation": null,
       "review": null
     },
@@ -2072,6 +2085,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "orphan-sweep-session-hook",
+          "title": "Change — orphan-sweep: leaked runaway shells die at the next session start",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0108-orphan-sweep-session-hook.md",
+          "closed_on": "2026-08-02",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
           "validation": null,
           "review": null
         },

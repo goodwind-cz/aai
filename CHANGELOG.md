@@ -136,7 +136,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(ops): orphan-sweep — leaked runaway shells die at the next session start (CHANGE orphan-sweep-session-hook) [L1]
+## [unreleased] — fix(ops): orphan-sweep — leaked runaway shells die at the next session start (CHANGE-0108) [L1]
 
 - Incident-driven (37 orphaned busy-loops, ~15 cores, ~4 days, found by the
   operator): session-start hook now runs a bounded, best-effort orphan sweep
