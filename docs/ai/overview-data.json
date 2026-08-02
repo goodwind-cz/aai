@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-08-02T00:59:26.742Z",
+  "generatedAt": "2026-08-02T01:02:57.454Z",
   "project": "aai",
   "counts": {
-    "delivered": 151,
-    "in_progress": 2,
+    "delivered": 152,
+    "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
   },
@@ -65,19 +65,6 @@
   },
   "in_progress": [
     {
-      "ref": "r-guard-runtime-enforcement",
-      "title": "Change — R-GUARD: runtime enforcement for the prose-pinned safety class",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-DRAFT-r-guard-runtime-enforcement.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md",
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -92,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "r-guard-runtime-enforcement",
+      "title": "Change — R-GUARD: runtime enforcement for the prose-pinned safety class",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0107-r-guard-runtime-enforcement.md",
+      "closed_on": "2026-08-02",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "cache-friendly-dispatch",
       "title": "Change — token economics: cache-friendly dispatch ordering + effort routing",
@@ -2062,6 +2062,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "r-guard-runtime-enforcement",
+          "title": "Change — R-GUARD: runtime enforcement for the prose-pinned safety class",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0107-r-guard-runtime-enforcement.md",
+          "closed_on": "2026-08-02",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "cache-friendly-dispatch",
           "title": "Change — token economics: cache-friendly dispatch ordering + effort routing",

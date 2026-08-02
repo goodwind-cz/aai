@@ -2,11 +2,13 @@
 id: r-guard-runtime-enforcement
 number: 107
 type: change
-status: draft
+status: done
 user_visible: false
 links:
-  pr: []
-  commits: []
+  pr:
+    - 210
+  commits:
+    - edf12f837f670b3aee13cd905256b87bba17a364
 ---
 
 # Change — R-GUARD: runtime enforcement for the prose-pinned safety class

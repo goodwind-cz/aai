@@ -2,13 +2,15 @@
 id: spec-r-guard-runtime-enforcement
 type: spec
 number: 113
-status: implementing
+status: done
 ceremony_level: 3
 links:
   requirement: docs/issues/CHANGE-0107-r-guard-runtime-enforcement.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 210
+  commits:
+    - edf12f837f670b3aee13cd905256b87bba17a364
 ---
 
 # Implementation Spec — r-guard-runtime-enforcement
@@ -287,14 +289,14 @@ None.
 
 | Spec-AC    | Description                                                          | Status | Evidence | Review-By | Notes |
 |------------|---------------------------------------------------------------------|--------|----------|-----------|-------|
-| Spec-AC-01 | AAI_ROLE=subagent refuses every STATE mutator (exit 3, no write)    | implementing | tests/skills/test-aai-state.sh R-GUARD refusal | — | — |
-| Spec-AC-02 | marker absent/other -> mutators write byte-identically; suite green | implementing | tests/skills/test-aai-state.sh | — | — |
-| Spec-AC-03 | under the marker, log-tick allowed + append-event.mjs unaffected    | implementing | tests/skills/test-aai-state.sh | — | — |
-| Spec-AC-04 | exit code 3 documented; message names the rule; typo fails 2 first  | implementing | tests/skills/test-aai-state.sh | — | — |
-| Spec-AC-05 | flush WARNs on non-sanctioned strategy source; silent otherwise     | implementing | tests/skills/test-aai-metrics.sh | — | — |
-| Spec-AC-06 | downgrade-lane + bad source flagged as rigor-downgrade risk         | implementing | tests/skills/test-aai-metrics.sh | — | — |
-| Spec-AC-07 | EVENTS.jsonl shrink vs HEAD flagged; append-only passes; non-git ok | implementing | tests/skills/test-aai-metrics.sh | — | — |
-| Spec-AC-08 | orchestrator wiring pinned; L3 authorized by this spec; ledger true | implementing | tests/skills/test-aai-r-guard.sh; test-aai-hitl-propagation.sh TEST-014; test-aai-prompt-diet.sh | — | — |
+| Spec-AC-01 | AAI_ROLE=subagent refuses every STATE mutator (exit 3, no write)    | done | tests/skills/test-aai-state.sh R-GUARD refusal | — | — |
+| Spec-AC-02 | marker absent/other -> mutators write byte-identically; suite green | done | tests/skills/test-aai-state.sh | — | — |
+| Spec-AC-03 | under the marker, log-tick allowed + append-event.mjs unaffected    | done | tests/skills/test-aai-state.sh | — | — |
+| Spec-AC-04 | exit code 3 documented; message names the rule; typo fails 2 first  | done | tests/skills/test-aai-state.sh | — | — |
+| Spec-AC-05 | flush WARNs on non-sanctioned strategy source; silent otherwise     | done | tests/skills/test-aai-metrics.sh | — | — |
+| Spec-AC-06 | downgrade-lane + bad source flagged as rigor-downgrade risk         | done | tests/skills/test-aai-metrics.sh | — | — |
+| Spec-AC-07 | EVENTS.jsonl shrink vs HEAD flagged; append-only passes; non-git ok | done | tests/skills/test-aai-metrics.sh | — | — |
+| Spec-AC-08 | orchestrator wiring pinned; L3 authorized by this spec; ledger true | done | tests/skills/test-aai-r-guard.sh; test-aai-hitl-propagation.sh TEST-014; test-aai-prompt-diet.sh | — | — |
 
 ## Implementation plan
 - Components/modules affected: .aai/scripts/state.mjs (one guard clause + exit
