@@ -75,7 +75,31 @@ EOF
     if (j.plan.some(p => p.pgid === 2047)) { console.error("mixed group 2047 must be dropped"); process.exit(1); }
     if (!j.plan.some(p => p.pgid === 7000)) { console.error("clean group 7000 must remain"); process.exit(1); }
   ' || log_fail "TEST-003: group 2047 (mixed) must be dropped, 7000 kept"
-  log_pass "Mixed PGID (live foreign member) is never killed (TEST-003)"
+
+  # (bot sweep, both reviewers) the INCIDENT shape: an orphaned+old
+  # NON-matching child in the wrapper group (busy-loop subshells often lack
+  # the marker in args) must NOT protect the group...
+  fixture
+  cat >> "$TEST_DIR/ps.txt" <<'FIX'
+ 2098  2047     1  44.0 03-20:46:41 /bin/zsh busyloop-child-no-marker
+FIX
+  out="$(node "$SWEEP" --dry-run --json --ps-file "$TEST_DIR/ps.txt" --self-pgid 777)"
+  echo "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    if (!j.plan.some(p => p.pgid === 2047)) { console.error("orphaned old non-matching child must NOT protect group 2047"); process.exit(1); }
+  ' || log_fail "TEST-003b: wrapper group with orphaned non-matching child must still be swept"
+
+  # ...while ANY young member (fresh activity) drops the whole group.
+  fixture
+  cat >> "$TEST_DIR/ps.txt" <<'FIX'
+ 2098  2047     1  44.0       01:00 /bin/zsh young-member
+FIX
+  out="$(node "$SWEEP" --dry-run --json --ps-file "$TEST_DIR/ps.txt" --self-pgid 777)"
+  echo "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    if (j.plan.some(p => p.pgid === 2047)) { console.error("young member must protect group 2047"); process.exit(1); }
+  ' || log_fail "TEST-003c: a young group member must drop the whole group"
+  log_pass "Mixed-group semantics: live-foreign + young protect; orphaned old child does not (TEST-003)"
 }
 
 # TEST-004 — etime parsing: mm:ss / hh:mm:ss / dd-hh:mm:ss / garbage->null.
@@ -148,8 +172,11 @@ test_006_real_kill() {
   node "$SWEEP" --ps-file "$TEST_DIR/real.txt" --pattern "$marker" \
     --min-age-s 0 --min-cpu 0 --self-pgid 999999 > "$TEST_DIR/kill.out" 2>&1
   sleep 1
-  if kill -0 "$opid" 2>/dev/null; then
-    log_fail "TEST-006: orphan $opid survived the sweep"
+  # a SIGKILLed orphan may linger as a zombie where PID 1 reaps lazily
+  # (containers) — state Z counts as killed (bot review).
+  local ostate; ostate="$(ps -o state= -p "$opid" 2>/dev/null | tr -d ' ' | head -c1)"
+  if kill -0 "$opid" 2>/dev/null && [[ "$ostate" != "Z" ]]; then
+    log_fail "TEST-006: orphan $opid survived the sweep (state=$ostate)"
     kill -9 "$opid" 2>/dev/null
   else
     grep -q "killed 1 orphaned process group" "$TEST_DIR/kill.out" \

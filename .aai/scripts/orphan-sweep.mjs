@@ -93,14 +93,17 @@ export function selectVictimGroups(rows, opts) {
     if (!groups.has(r.pgid)) groups.set(r.pgid, []);
     groups.get(r.pgid).push(r);
   }
-  // exclusion: any process IN the group (matching or not) that is younger
-  // than the age floor or lacks the pattern in a way that suggests the pgid
-  // is shared with live work -> drop the whole group.
+  // Group-level protection — the whole group is dropped when it contains:
+  //   (a) a LIVE-PARENTED non-matching member (pgid shared with live work), or
+  //   (b) ANY member younger than the age floor (fresh activity in the group).
+  // A non-matching but ORPHANED-and-old member does NOT protect the group: by
+  // process-group construction it is the leak's own child (busy-loop subshells
+  // routinely lack the marker in their args), and killing it is the point.
   for (const [pgid, members] of [...groups]) {
     const all = rows.filter((r) => r.pgid === pgid);
-    const foreign = all.some((r) => !r.args.includes(pattern) && r.ppid !== 1);
-    if (foreign) groups.delete(pgid);
-    else if (members.length === 0) groups.delete(pgid);
+    const liveForeign = all.some((r) => !r.args.includes(pattern) && r.ppid !== 1);
+    const youngMember = all.some((r) => r.etimeS === null || r.etimeS < minAgeS);
+    if (liveForeign || youngMember || members.length === 0) groups.delete(pgid);
   }
   return groups;
 }
@@ -143,7 +146,17 @@ function main() {
 
   let selfPgid = opts.selfPgid;
   if (selfPgid === null) {
-    try { selfPgid = process.getpgrp(); } catch { selfPgid = process.pid; }
+    // Node exposes no getpgrp() (bot review, verified: undefined on Node 24).
+    // Resolve our real PGID via ps; if THAT fails, fail SAFE by refusing to
+    // kill anything this run (a sweep that cannot identify its own group must
+    // not guess — the guess was the self-kill class this guard exists for).
+    try {
+      selfPgid = Number(execFileSync('ps', ['-o', 'pgid=', '-p', String(process.pid)],
+        { encoding: 'utf8' }).trim());
+      if (!Number.isFinite(selfPgid) || selfPgid <= 0) throw new Error('bad pgid');
+    } catch {
+      process.exit(0);
+    }
   }
 
   const rows = parsePsTable(psText);

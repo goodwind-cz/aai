@@ -34,6 +34,13 @@ it can never block or delay a session. Manual run / inspection:
 Tunables (flags): `--min-age-s` (default 7200), `--min-cpu` (default 20),
 `--pattern` (default the agent shell-snapshot marker).
 
+## Data model
+
+- No persistent state. Each sweep reads the live process table
+  (`ps axo pid,pgid,ppid,pcpu,etime,args`), decides, kills, reports, exits.
+  Nothing is written to disk; repeated sweeps are independently idempotent
+  (an already-reaped group simply no longer appears).
+
 ## Interfaces and contracts
 
 - Selection is conservative by construction: any process still parented to

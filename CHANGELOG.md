@@ -134,8 +134,6 @@ RFC-0001).
   (TEST-001..018) pins the predicate matrix, the fail-closed negatives, and the
   docs-only-close-diff routing.
 
-## [unreleased]
-
 ## [unreleased] — fix(ops): orphan-sweep — leaked runaway shells die at the next session start (CHANGE-0108) [L1]
 
 - Incident-driven (37 orphaned busy-loops, ~15 cores, ~4 days, found by the
