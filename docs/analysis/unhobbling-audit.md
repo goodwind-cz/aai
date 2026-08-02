@@ -15,7 +15,7 @@ July 2026 Anthropic unhobbling rubric (rules→judgment, in-prompt
 examples→better tool design, upfront→progressive disclosure, repeated
 rules→tool descriptions, manual memory→auto-memory, prose specs→code/test
 references). Executes Phase 0 of
-`docs/issues/CHANGE-DRAFT-altitude-prompt-experiment.md`. **Changes nothing.**
+`docs/issues/CHANGE-0113-altitude-prompt-experiment.md`. **Changes nothing.**
 
 ## Method and conventions
 
