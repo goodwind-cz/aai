@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — chore(diet): the role prompts stop shipping a git tutorial and 26 rows of self-argument (CHANGE prompt-diet-2-safe-wins) [L1]
+## [unreleased] — chore(diet): the role prompts stop shipping a git tutorial and 26 rows of self-argument (CHANGE-0110) [L1]
 
 - Executed the zero-pin "safe immediate wins" of the Phase 0 unhobbling audit
   (docs/analysis/unhobbling-audit.md, CHANGE-0113): -12,873 B measured across

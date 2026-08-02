@@ -1,13 +1,15 @@
 ---
 id: prompt-diet-2-safe-wins
-number: null
+number: 114
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 links:
-  pr: []
-  commits: []
+  pr:
+    - 218
+  commits:
+    - e7de20ea425ec0990b648cf4d53bf70b0b9ebb96
 ---
 
 # Change — diet ride 2: execute the zero-pin safe immediate wins from the unhobbling audit
