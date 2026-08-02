@@ -42,8 +42,8 @@ RFC-0001).
 - Tests: `tests/skills/test-aai-state.sh` (Stage 1 refusal, byte-identity,
   allowed paths, exit-code ordering), `tests/skills/test-aai-metrics.sh`
   (Stage 2/3 WARNs), new pin suite `tests/skills/test-aai-r-guard.sh` (wiring +
-  live seam) with its `suite-map.yaml` row; prompt-diet ledger trued up (+243 B
-  in-glob, credited 1:1, headroom 0/2048; TEST-012 pin 682 -> 925).
+  live seam) with its `suite-map.yaml` row; prompt-diet ledger trued up (+238 B
+  in-glob, credited 1:1, headroom 0/2048; TEST-012 pin trued to the merge-base sum (+238)).
 
 ## [unreleased] — feat(runtime): shared runtime-sidecar lifecycle lib + convention pin (CHANGE-0106) [L2]
 
