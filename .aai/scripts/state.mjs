@@ -1010,8 +1010,11 @@ function main() {
   // softened): this is a guardrail against the honest/accidental path — the
   // well-intentioned "my update to STATE is tiny" rationalization row in
   // .aai/SUBAGENT_CONTRACT.md — NOT a security boundary. An agent that unsets or
-  // never inherits the marker defeats it; metrics-flush.mjs S2 catches that
-  // case after the fact via durable git history. This mirrors the merge marker's
+  // never inherits the marker defeats it; metrics-flush.mjs S2 may flag such a
+  // write after the fact via the strategy-provenance HEURISTIC (and S3 via the
+  // committed EVENTS history) — STATE itself is gitignored, so there is NO
+  // durable git timeline of STATE writes and S2 is detection-best-effort, not
+  // proof (SPEC-0113 RR-2). This mirrors the merge marker's
   // posture in SKILL_PR.prompt.md ("a guardrail against habit, not a security
   // boundary"). It does NOT make a rogue subagent STATE write impossible.
   const STATE_MUTATORS = new Set([...Object.keys(MUTATORS), 'reset-block']);

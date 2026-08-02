@@ -990,8 +990,12 @@ function main() {
 
   // R-GUARD S2/3 forensic backstop (SPEC-0113): computed off the refs
   // actually flushed under the recorded strategy + the committed EVENTS history.
+  // Include RESUMED refs (bot review P2): a flush that crashed after appending
+  // the ledger but before reporting resumes those refs on the next run — they
+  // were flushed under the same recorded strategy and deserve the same
+  // provenance check (skipping them would let a crash window mask a WARN).
   const forensicWarnings = rGuardForensicWarnings(
-    toFlush.map(e => e.ref), strategy, stratSrc, eventsPath);
+    [...toFlush.map(e => e.ref), ...toResume.map(e => e.ref)], strategy, stratSrc, eventsPath);
 
   const report = [];
   if (opts.dryRun) {
