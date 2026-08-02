@@ -169,8 +169,6 @@ RFC-0001).
   silent no-op contract; one-line kill report rides the hook context.
   Real-kill test + 7 fixture tests.
 
-## [unreleased]
-
 ## [v2026.08.02] — chore(quality): phantom-API pin — nonexistent-but-plausible runtime APIs stop surviving review (CHANGE-0109) [L1]
 
 - hygiene-pack test_092 pins known-phantom Node APIs (process.getpgrp cousins,
@@ -517,7 +515,6 @@ RFC-0001).
   loss). TEST-012's hardcoded >=12 doc-count floor delinted to per-doc
   invariants over the live set.
 
-
 ## [v2026.07.28.1] — feat: product docs become a capability-keyed doc family on shared engine primitives (CHANGE-0088 / SPEC-0105, fixes #189) [L2]
 
 - Product docs were invisible to the doc engines (not in INDEX, not audited)
@@ -534,7 +531,6 @@ RFC-0001).
 - Migration: all 12 existing product docs gained capability + delivered_by
   frontmatter ONLY — body byte-diff 0 each (independently verified). The
   #189 repro (template -> audit -> index) is now clean end-to-end.
-
 
 ## [v2026.07.28.1] — feat: /aai-issues — on-demand platform-portable issue intake skill (CHANGE-0087 / SPEC-0104) [L2]
 
@@ -555,7 +551,6 @@ RFC-0001).
   fixture bypass (network-free tests); 20-test suite; ledger +3810,
   headroom unchanged.
 
-
 ## [v2026.07.28.1] — chore: session loose ends — inheritance provenance, NOTE convention, phase-boundary audit CLEAN (CHANGE-0086) [L2]
 
 - Dispatch now stamps per-component inheritance provenance alongside the
@@ -570,7 +565,6 @@ RFC-0001).
   surfaces CLEAN — artifact-paths-only handoff is codified everywhere,
   zero fixes needed. POSTPROCESSING declarations (promptbook#6)
   dispositioned WONTFIX (operator-approved).
-
 
 ## [v2026.07.28] — feat: platform-portable PR ceremony — GitHub/Azure/generic with internal-review fallback (CHANGE-0085 / SPEC-0103) [L2]
 
@@ -772,7 +766,6 @@ RFC-0001).
 - L3 discipline: append-run byte-identical when the flag is absent (proven
   main-vs-branch by the independent validator); bad hex writes nothing.
 
-
 ## [v2026.07.28] — feat: learned-append gate — structurally enforced append-only self-learning (CHANGE-0069 / SPEC-0095)
 
 - Promptbook-inspired (adoption candidate 2): the only sanctioned automated
@@ -784,7 +777,6 @@ RFC-0001).
   (ordering test-pinned); no self-improvement step can silently rewrite
   prior rules. Guardrail, not a security boundary (hand edits unaffected).
 
-
 ## [v2026.07.28] — feat: role output contracts — deterministic EXPECT validation of subagent results (CHANGE-0068 / SPEC-0094)
 
 - Promptbook-inspired (adoption candidate 1): every dispatched subagent's
@@ -795,7 +787,6 @@ RFC-0001).
 - EXAMPLE fixtures per role class run in CI (new test-aai-role-output.sh);
   SUBAGENT_CONTRACT carries a one-line EXPECT pointer (60-line cap held).
 
-
 ## [v2026.07.28] — feat: dev-progress view — the overview shows what the factory is doing right now (CHANGE-0067 / SPEC-0093)
 
 - generate-overview.mjs gains an "In flight now" section: current focus
@@ -805,7 +796,6 @@ RFC-0001).
 - Adversarially leak-tested: STATE free-text fields (notes, rationale,
   questions) never render; only enum/known scalars. Malformed tick lines
   are skipped without consuming a display slot.
-
 
 ## [v2026.07.28] — feat: product docs enforced at close + generated USER_GUIDE rollup (CHANGE-0066 / SPEC-0092)
 
@@ -840,7 +830,6 @@ RFC-0001).
 - decide()/RULES/deriveLane byte-identical to main (validator-verified).
   Refs: CHANGE-0065, SPEC-0091.
 
-
 ## [v2026.07.28] — feat: allocator rewrites DRAFT references in all committed-class trees (CHANGE-0064 / SPEC-0090) [L3]
 
 - allocate-doc-number.mjs now rewrites DRAFT->numbered references across ALL
@@ -853,7 +842,6 @@ RFC-0001).
   symlink no-escape, dry-run per-tree report, idempotence proven. First live
   run rewrote this very scope's own references with zero manual fixes.
   Refs: CHANGE-0064, SPEC-0090.
-
 
 ## [v2026.07.28] — feat: token economics end-to-end — reports and overview read real usage (CHANGE-0063 / SPEC-0089)
 
@@ -869,7 +857,6 @@ RFC-0001).
 - New single-source marker helper .aai/scripts/lib/usage-note.mjs (flush,
   report, overview all import it; grep-contract forbids literal reappearing).
   Refs: CHANGE-0063, SPEC-0089.
-
 
 ## [v2026.07.28] — feat: friction feedback loop activated — default-on capture + wrap-up triage (CHANGE-0062 / SPEC-0088)
 
