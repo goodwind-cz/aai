@@ -749,7 +749,7 @@ ensure_gitignore() {
   }
 
   for pattern in ".claude/skills/.cache" ".codex/skills.local/.cache" ".gemini/skills.local/.cache"; do
-    if ! grep -qF "$pattern" "$path" 2>/dev/null; then
+    if ! grep -qxF "$pattern" "$path" 2>/dev/null; then
       if [[ "$DRY_RUN" -eq 1 ]]; then
         WRITTEN+=("[dry-run] $path add $pattern")
       else
@@ -780,6 +780,7 @@ ensure_gitignore() {
     "docs/ai/friction/**"
     "docs/ai/archive/**"
     "docs/ai/loop/"
+    "docs/ai/locks/"
     "docs/ai/.session-context.md"
     "docs/ai/.pre-compact-state-backup.yaml"
     "docs/INDEX.audit.md"
@@ -787,7 +788,7 @@ ensure_gitignore() {
   local marker="# AAI runtime sidecars (seeded by aai-bootstrap; per-dev, never commit)"
   local missing=()
   for pattern in "${runtime_patterns[@]}"; do
-    grep -qF "$pattern" "$path" 2>/dev/null || missing+=("$pattern")
+    grep -qxF "$pattern" "$path" 2>/dev/null || missing+=("$pattern")
   done
   if [[ ${#missing[@]} -gt 0 ]]; then
     if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -796,8 +797,7 @@ ensure_gitignore() {
       {
         echo
         grep -qF "$marker" "$path" 2>/dev/null || echo "$marker"
-        printf '%s
-' "${missing[@]}"
+        printf '%s\n' "${missing[@]}"
       } >> "$path"
       WRITTEN+=("$path add ${#missing[@]} AAI runtime sidecar pattern(s)")
     fi

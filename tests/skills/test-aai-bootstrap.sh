@@ -205,7 +205,8 @@ test_gitignore_seed_idempotent_and_respectful() {
   log_info "Test: runtime-sidecar gitignore seed — idempotent re-run, pre-existing entries respected, dashboards NOT ignored (gitignore-seed)..."
   setup_fixture
   # pre-existing user entry for one of our patterns must not be duplicated
-  printf 'node_modules/\ndocs/ai/STATE.yaml\n' > "$TEST_DIR/.gitignore"
+  # a COMMENT mentioning a path must not suppress its seed (bot review)
+  printf 'node_modules/\ndocs/ai/STATE.yaml\n# see docs/ai/briefs/** for handoffs\n' > "$TEST_DIR/.gitignore"
   bash "$BOOTSTRAP_SCRIPT" "$TEST_DIR" > "$TEST_DIR/seed1.log"
   bash "$BOOTSTRAP_SCRIPT" "$TEST_DIR" --force > "$TEST_DIR/seed2.log"  # re-run = idempotency probe
   local n_state n_marker
@@ -214,7 +215,9 @@ test_gitignore_seed_idempotent_and_respectful() {
   n_marker="$(grep -cF 'AAI runtime sidecars' "$TEST_DIR/.gitignore")"
   [[ "$n_marker" -eq 1 ]] || log_fail "gitignore-seed: marker comment must appear exactly once ($n_marker)"
   grep -qF 'node_modules/' "$TEST_DIR/.gitignore" || log_fail "gitignore-seed: pre-existing user entries must survive"
+  grep -qxF 'docs/ai/briefs/**' "$TEST_DIR/.gitignore" || log_fail "gitignore-seed: comment mention must not suppress the real briefs seed"
   grep -qF 'docs/ai/hitl-channel.json' "$TEST_DIR/.gitignore" || log_fail "gitignore-seed: missing patterns must still be added"
+  grep -qxF 'docs/ai/locks/' "$TEST_DIR/.gitignore" || log_fail "gitignore-seed: locks pattern must be seeded"
   # committed artifacts must NOT be ignored
   if grep -qE 'factory-report|overview\.html|dashboard\.html' "$TEST_DIR/.gitignore"; then
     log_fail "gitignore-seed: dashboard/report artifacts are committed files and must NOT be seeded as ignored"
