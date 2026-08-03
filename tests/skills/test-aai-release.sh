@@ -83,7 +83,7 @@ commit_all() {
   git -C "$dir" commit -q -m "$msg"
 }
 
-# kind: two_entries | scaffold_only | absent | malformed
+# kind: two_entries | scaffold_plus_entries | scaffold_only | absent | malformed
 seed_changelog() {
   local dir="$1" kind="$2"
   case "$kind" in
