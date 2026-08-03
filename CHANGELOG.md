@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(install): bootstrap seeds runtime-sidecar gitignore block into target projects (CHANGE gitignore-seed) [L1]
+## [unreleased] — fix(install): bootstrap seeds runtime-sidecar gitignore block into target projects (CHANGE-0115) [L1]
 
 - Operator-found pre-deployment gap: target projects got no ignore entries
   for AAI runtime sidecars — a git add -A could commit docs/ai/STATE.yaml
