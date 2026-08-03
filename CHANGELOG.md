@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(release): downstream pins stop saying UNKNOWN — releases stamp AAI_VERSION.md (CHANGE aai-version-file) [L1]
+## [unreleased] — fix(release): downstream pins stop saying UNKNOWN — releases stamp AAI_VERSION.md (CHANGE-0117) [L1]
 
 - aai-sync reads docs/ai/AAI_VERSION.md from the source, but the file never
   existed and no cut wrote it — every downstream AAI_PIN said Template

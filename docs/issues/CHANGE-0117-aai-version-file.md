@@ -1,13 +1,15 @@
 ---
 id: aai-version-file
-number: null
+number: 117
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
 links:
-  pr: []
-  commits: []
+  pr:
+    - 222
+  commits:
+    - c0a4cbd66c7fd9cd2ed87631bfaf14bc74c19636
 ---
 
 # Change — downstream pins stop saying UNKNOWN: releases stamp AAI_VERSION.md

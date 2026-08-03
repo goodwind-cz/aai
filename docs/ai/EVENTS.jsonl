@@ -1470,3 +1470,6 @@
 {"v":1,"ts":"2026-08-03T01:43:22.659Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"release-roll-scaffold","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-08-03T01:43:22.693Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"release-roll-scaffold","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-03T01:43:22.731Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"release-roll-scaffold","payload":{"commit":"12dc8c9f448f4c4e1e1b11b74813ac64aa7cc9b2"}}
+{"v":1,"ts":"2026-08-03T06:42:52.022Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"aai-version-file","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-03T06:42:52.060Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"aai-version-file","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-03T06:42:52.095Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"aai-version-file","payload":{"commit":"c0a4cbd66c7fd9cd2ed87631bfaf14bc74c19636"}}
