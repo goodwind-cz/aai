@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(release): the roll consumes the pre-existing scaffold — duplicate-heading class fixed at its root (CHANGE release-roll-scaffold) [L1]
+## [unreleased] — fix(release): the roll consumes the pre-existing scaffold — duplicate-heading class fixed at its root (CHANGE-0116) [L1]
 
 - 4th occurrence traced to the engine itself: every cut copied the old bare
   scaffold into the versioned region while inserting a fresh one. The roll

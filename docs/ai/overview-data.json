@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-03T00:30:00.067Z",
+  "generatedAt": "2026-08-03T01:43:43.092Z",
   "project": "aai",
   "counts": {
-    "delivered": 159,
+    "delivered": 160,
     "in_progress": 2,
     "releases": 1,
     "tokens_total": 23273206
@@ -98,6 +98,19 @@
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0115-gitignore-seed.md",
+      "closed_on": "2026-08-03",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "release-roll-scaffold",
+      "title": "Change — release roll consumes the pre-existing scaffold (root cause of the duplicate class)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0116-release-roll-scaffold.md",
       "closed_on": "2026-08-03",
       "agent_minutes": null,
       "token_total": null,
@@ -2172,6 +2185,19 @@
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0115-gitignore-seed.md",
+          "closed_on": "2026-08-03",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "release-roll-scaffold",
+          "title": "Change — release roll consumes the pre-existing scaffold (root cause of the duplicate class)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0116-release-roll-scaffold.md",
           "closed_on": "2026-08-03",
           "agent_minutes": null,
           "token_total": null,

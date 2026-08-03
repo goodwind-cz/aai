@@ -1,13 +1,15 @@
 ---
 id: release-roll-scaffold
-number: null
+number: 116
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 links:
-  pr: []
-  commits: []
+  pr:
+    - 221
+  commits:
+    - 12dc8c9f448f4c4e1e1b11b74813ac64aa7cc9b2
 ---
 
 # Change — release roll consumes the pre-existing scaffold (root cause of the duplicate class)
