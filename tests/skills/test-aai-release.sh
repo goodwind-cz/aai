@@ -260,7 +260,7 @@ test_003_cut_rolls_changelog() {
 # --- TEST-004 (Spec-AC-02): commit message + staged path -------------------
 
 test_004_commit_message_and_staged_path() {
-  log_info "TEST-004: commit is 'chore(release): vX' staging ONLY CHANGELOG.md..."
+  log_info "TEST-004: commit is 'chore(release): vX' staging ONLY CHANGELOG.md + AAI_VERSION.md..."
   local repo="$TMP_ROOT/t004" rc msg stat_lines
   build_repo "$repo" two_entries
   rc=0
@@ -270,10 +270,13 @@ test_004_commit_message_and_staged_path() {
   msg="$(git -C "$repo" log -1 --format=%s)"
   [[ "$msg" == "chore(release): v9.0.1" ]] || log_fail "TEST-004: commit message is '$msg', expected 'chore(release): v9.0.1'"
 
+  # aai-version-file: the cut commit stages exactly TWO paths — the rolled
+  # CHANGELOG and the version stamp aai-sync reads (nothing else may ride in).
   stat_lines="$(git -C "$repo" show --stat --format= HEAD | grep -c '|' || true)"
-  [[ "$stat_lines" == "1" ]] || log_fail "TEST-004: commit touches $stat_lines files, expected exactly 1"
-  git -C "$repo" show --stat --format= HEAD | grep -q 'CHANGELOG.md' || log_fail "TEST-004: the one changed file is not CHANGELOG.md"
-  log_pass "TEST-004 commit message + single-path staging correct"
+  [[ "$stat_lines" == "2" ]] || log_fail "TEST-004: commit touches $stat_lines files, expected exactly 2 (CHANGELOG.md + AAI_VERSION.md)"
+  git -C "$repo" show --stat --format= HEAD | grep -q 'CHANGELOG.md' || log_fail "TEST-004: CHANGELOG.md missing from the cut commit"
+  git -C "$repo" show --stat --format= HEAD | grep -q 'AAI_VERSION.md' || log_fail "TEST-004: AAI_VERSION.md missing from the cut commit"
+  log_pass "TEST-004 commit message + exact two-path staging correct"
 }
 
 # --- TEST-005 (Spec-AC-02): annotated tag -----------------------------------
