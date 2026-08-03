@@ -191,8 +191,38 @@ test_generate_dynamic_skills() {
   assert_contains "$TEST_DIR/.gitignore" ".claude/skills/.cache"
   assert_contains "$TEST_DIR/.gitignore" ".codex/skills.local/.cache"
   assert_contains "$TEST_DIR/.gitignore" ".gemini/skills.local/.cache"
+  # AAI runtime sidecars seeded (gitignore-seed): committed STATE breaks the
+  # per-dev single-writer model in a target project
+  assert_contains "$TEST_DIR/.gitignore" "docs/ai/STATE.yaml"
+  assert_contains "$TEST_DIR/.gitignore" "docs/ai/hitl-channel.json"
+  assert_contains "$TEST_DIR/.gitignore" "docs/ai/briefs/**"
+  assert_contains "$TEST_DIR/.gitignore" "AAI runtime sidecars (seeded by aai-bootstrap"
 
   log_pass "Dynamic skills generated from fixture"
+}
+
+test_gitignore_seed_idempotent_and_respectful() {
+  log_info "Test: runtime-sidecar gitignore seed — idempotent re-run, pre-existing entries respected, dashboards NOT ignored (gitignore-seed)..."
+  setup_fixture
+  # pre-existing user entry for one of our patterns must not be duplicated
+  # a COMMENT mentioning a path must not suppress its seed (bot review)
+  printf 'node_modules/\ndocs/ai/STATE.yaml\n# see docs/ai/briefs/** for handoffs\n' > "$TEST_DIR/.gitignore"
+  bash "$BOOTSTRAP_SCRIPT" "$TEST_DIR" > "$TEST_DIR/seed1.log"
+  bash "$BOOTSTRAP_SCRIPT" "$TEST_DIR" --force > "$TEST_DIR/seed2.log"  # re-run = idempotency probe
+  local n_state n_marker
+  n_state="$(grep -cF 'docs/ai/STATE.yaml' "$TEST_DIR/.gitignore")"
+  [[ "$n_state" -eq 1 ]] || log_fail "gitignore-seed: docs/ai/STATE.yaml duplicated ($n_state occurrences)"
+  n_marker="$(grep -cF 'AAI runtime sidecars' "$TEST_DIR/.gitignore")"
+  [[ "$n_marker" -eq 1 ]] || log_fail "gitignore-seed: marker comment must appear exactly once ($n_marker)"
+  grep -qF 'node_modules/' "$TEST_DIR/.gitignore" || log_fail "gitignore-seed: pre-existing user entries must survive"
+  grep -qxF 'docs/ai/briefs/**' "$TEST_DIR/.gitignore" || log_fail "gitignore-seed: comment mention must not suppress the real briefs seed"
+  grep -qF 'docs/ai/hitl-channel.json' "$TEST_DIR/.gitignore" || log_fail "gitignore-seed: missing patterns must still be added"
+  grep -qxF 'docs/ai/locks/' "$TEST_DIR/.gitignore" || log_fail "gitignore-seed: locks pattern must be seeded"
+  # committed artifacts must NOT be ignored
+  if grep -qE 'factory-report|overview\.html|dashboard\.html' "$TEST_DIR/.gitignore"; then
+    log_fail "gitignore-seed: dashboard/report artifacts are committed files and must NOT be seeded as ignored"
+  fi
+  log_pass "gitignore seed idempotent, respectful of user entries, dashboards stay tracked"
 }
 
 test_managed_skill_is_stable() {
@@ -256,6 +286,7 @@ main() {
   setup_fixture
   test_dry_run_has_no_writes
   test_generate_dynamic_skills
+  test_gitignore_seed_idempotent_and_respectful
   test_managed_skill_is_stable
   test_no_overwrite_without_force
   test_force_is_explicit_overwrite

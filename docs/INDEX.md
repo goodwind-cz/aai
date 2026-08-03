@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-02T21:20:39.224Z
+Generated: 2026-08-03T00:30:13.350Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -39,7 +39,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (273)
+## Done (274)
 
 | ID | Type | Path |
 |---|---|---|
@@ -156,6 +156,7 @@ _None._
 | CHANGE-0111 | issues | docs/issues/CHANGE-0111-changelog-scaffold-guard.md |
 | CHANGE-0112 | issues | docs/issues/CHANGE-0112-lane-intake-ceremony.md |
 | CHANGE-0114 | issues | docs/issues/CHANGE-0114-prompt-diet-2-safe-wins.md |
+| CHANGE-0115 | issues | docs/issues/CHANGE-0115-gitignore-seed.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -358,4 +359,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-02 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-03 — counts above use this date for overdue checks.
