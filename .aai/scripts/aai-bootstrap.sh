@@ -770,21 +770,19 @@ ensure_gitignore() {
   # ignored: factory-report/overview/dashboard HTML+JSON (committed artifacts,
   # regenerated at close). Idempotent: grep-before-append per pattern; written
   # under one marker comment on first need.
-  local runtime_patterns=(
-    "docs/ai/STATE.yaml"
-    "docs/ai/LOOP_TICKS.jsonl"
-    "docs/ai/hitl-channel.json"
-    "docs/ai/briefs/**"
-    "docs/ai/reports/**"
-    "docs/ai/tdd/**"
-    "docs/ai/friction/**"
-    "docs/ai/archive/**"
-    "docs/ai/loop/"
-    "docs/ai/locks/"
-    "docs/ai/.session-context.md"
-    "docs/ai/.pre-compact-state-backup.yaml"
-    "docs/INDEX.audit.md"
-  )
+  # Patterns come from the SINGLE SOURCE list (bot review: three inline
+  # copies would drift). Missing list file -> skip with a note, never fail.
+  local runtime_list
+  runtime_list="$(cd "$(dirname "${BASH_SOURCE[0]}")/../system" 2>/dev/null && pwd)/RUNTIME_IGNORE.list"
+  local runtime_patterns=()
+  if [[ -f "$runtime_list" ]]; then
+    while IFS= read -r pattern; do
+      [[ -z "$pattern" || "$pattern" == \#* ]] && continue
+      runtime_patterns+=("$pattern")
+    done < "$runtime_list"
+  else
+    WRITTEN+=("skipped runtime-sidecar gitignore seed: $runtime_list missing")
+  fi
   local marker="# AAI runtime sidecars (seeded by aai-bootstrap; per-dev, never commit)"
   local missing=()
   for pattern in "${runtime_patterns[@]}"; do

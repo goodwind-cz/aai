@@ -11,6 +11,15 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(install): docs/ai/validation joins the runtime-ignore class (CHANGE-0118) [L1]
+
+- Downstream Validation runs leaked logs as untracked noise via a
+  self-invented docs/ai/validation/ (no canonical ignored home existed).
+  The dir is now canonicalized-and-ignored like tdd/**, across AAI
+  .gitignore, the bootstrap seed and the ps1 migrate parity. Verdicts stay
+  committed (EVENTS/AC tables); curated reviews stay committed (H4); raw
+  run output never does.
+
 ## [v2026.08.03.2] — fix(release): downstream pins stop saying UNKNOWN — releases stamp AAI_VERSION.md (CHANGE-0117) [L1]
 
 - aai-sync reads docs/ai/AAI_VERSION.md from the source, but the file never

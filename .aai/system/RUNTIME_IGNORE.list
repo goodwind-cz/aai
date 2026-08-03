@@ -1,0 +1,31 @@
+# AAI runtime-sidecar gitignore patterns — SINGLE SOURCE OF TRUTH.
+# Consumed by: aai-bootstrap.sh ensure_gitignore (fresh installs),
+# aai-sync.sh gitignore section (every update), migrate-state-to-local.ps1
+# (Windows migration). One pattern per line; '#' comments ignored; '!'
+# negation lines keep the .gitkeep placeholders tracked.
+docs/ai/STATE.yaml
+docs/ai/LOOP_TICKS.jsonl
+docs/ai/hitl-channel.json
+docs/ai/briefs/**
+!docs/ai/briefs/
+!docs/ai/briefs/.gitkeep
+docs/ai/reports/**
+!docs/ai/reports/
+!docs/ai/reports/.gitkeep
+docs/ai/tdd/**
+!docs/ai/tdd/
+!docs/ai/tdd/.gitkeep
+docs/ai/friction/**
+!docs/ai/friction/
+!docs/ai/friction/.gitkeep
+docs/ai/archive/**
+!docs/ai/archive/
+!docs/ai/archive/.gitkeep
+docs/ai/validation/**
+!docs/ai/validation/
+!docs/ai/validation/.gitkeep
+docs/ai/loop/
+docs/ai/locks/
+docs/ai/.session-context.md
+docs/ai/.pre-compact-state-backup.yaml
+docs/INDEX.audit.md

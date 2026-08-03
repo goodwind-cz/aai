@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-03T06:43:12.906Z",
+  "generatedAt": "2026-08-03T09:17:52.293Z",
   "project": "aai",
   "counts": {
-    "delivered": 161,
+    "delivered": 162,
     "in_progress": 2,
     "releases": 1,
     "tokens_total": 23273206
@@ -124,6 +124,19 @@
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0117-aai-version-file.md",
+      "closed_on": "2026-08-03",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "validation-runtime-ignore",
+      "title": "Change — validation run evidence is per-dev runtime: docs/ai/validation ignored + canonicalized",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0118-validation-runtime-ignore.md",
       "closed_on": "2026-08-03",
       "agent_minutes": null,
       "token_total": null,
@@ -2224,6 +2237,19 @@
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0117-aai-version-file.md",
+          "closed_on": "2026-08-03",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "validation-runtime-ignore",
+          "title": "Change — validation run evidence is per-dev runtime: docs/ai/validation ignored + canonicalized",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0118-validation-runtime-ignore.md",
           "closed_on": "2026-08-03",
           "agent_minutes": null,
           "token_total": null,

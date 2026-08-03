@@ -148,6 +148,7 @@ core:
   - .aai/system/LOCKS.md
   - .aai/system/MODEL_ROUTING.yaml
   - .aai/system/PRICING.yaml
+  - .aai/system/RUNTIME_IGNORE.list
   - .aai/system/PROFILES.yaml
   - .aai/templates/BRIEF_TEMPLATE.md
   - .aai/templates/CANONICAL_TEMPLATE.md
