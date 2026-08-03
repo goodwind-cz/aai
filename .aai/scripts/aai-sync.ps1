@@ -728,6 +728,15 @@ if (Test-Path $versionFile) {
     }
   } catch {}
 }
+# Fallback parity with aai-sync.sh (aai-version-file): a source checkout that
+# predates the release-written AAI_VERSION.md still gets a real version from
+# the newest reachable release tag instead of UNKNOWN.
+if ($templateVersion -eq "UNKNOWN") {
+  try {
+    $tag = (git -C $SrcRoot describe --tags --abbrev=0) 2>$null
+    if (-not [string]::IsNullOrWhiteSpace($tag)) { $templateVersion = "$($tag.Trim()) (tag)" }
+  } catch {}
+}
 
 $pinPath = Join-Path $TargetRoot ".aai/system/AAI_PIN.md"
 $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $pinPath)

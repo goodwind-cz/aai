@@ -239,6 +239,9 @@ test_003_cut_rolls_changelog() {
   [[ "$rc" == "0" ]] || log_fail "TEST-003: expected exit 0, got $rc: $(cat "$TMP_ROOT/t003.out")"
 
   grep -qF "## [v9.0.0] — feat: first entry (REF-1)" "$repo/CHANGELOG.md" || log_fail "TEST-003: first entry not rolled"
+  # aai-version-file: every cut stamps the version file aai-sync reads
+  grep -qxF -- "- Version: v9.0.0" "$repo/docs/ai/AAI_VERSION.md" 2>/dev/null \
+    || log_fail "TEST-003: cut must write docs/ai/AAI_VERSION.md with '- Version: v9.0.0' (downstream pins said UNKNOWN without it)"
   grep -qF "## [v9.0.0] — fix: second entry (REF-2)" "$repo/CHANGELOG.md" || log_fail "TEST-003: second entry not rolled"
   grep -qF "## [v2026.01.01] — feat: old release (REF-0)" "$repo/CHANGELOG.md" || log_fail "TEST-003: pre-existing released heading was touched"
 
@@ -257,7 +260,7 @@ test_003_cut_rolls_changelog() {
 # --- TEST-004 (Spec-AC-02): commit message + staged path -------------------
 
 test_004_commit_message_and_staged_path() {
-  log_info "TEST-004: commit is 'chore(release): vX' staging ONLY CHANGELOG.md..."
+  log_info "TEST-004: commit is 'chore(release): vX' staging ONLY CHANGELOG.md + AAI_VERSION.md..."
   local repo="$TMP_ROOT/t004" rc msg stat_lines
   build_repo "$repo" two_entries
   rc=0
@@ -267,10 +270,13 @@ test_004_commit_message_and_staged_path() {
   msg="$(git -C "$repo" log -1 --format=%s)"
   [[ "$msg" == "chore(release): v9.0.1" ]] || log_fail "TEST-004: commit message is '$msg', expected 'chore(release): v9.0.1'"
 
+  # aai-version-file: the cut commit stages exactly TWO paths — the rolled
+  # CHANGELOG and the version stamp aai-sync reads (nothing else may ride in).
   stat_lines="$(git -C "$repo" show --stat --format= HEAD | grep -c '|' || true)"
-  [[ "$stat_lines" == "1" ]] || log_fail "TEST-004: commit touches $stat_lines files, expected exactly 1"
-  git -C "$repo" show --stat --format= HEAD | grep -q 'CHANGELOG.md' || log_fail "TEST-004: the one changed file is not CHANGELOG.md"
-  log_pass "TEST-004 commit message + single-path staging correct"
+  [[ "$stat_lines" == "2" ]] || log_fail "TEST-004: commit touches $stat_lines files, expected exactly 2 (CHANGELOG.md + AAI_VERSION.md)"
+  git -C "$repo" show --stat --format= HEAD | grep -q 'CHANGELOG.md' || log_fail "TEST-004: CHANGELOG.md missing from the cut commit"
+  git -C "$repo" show --stat --format= HEAD | grep -q 'AAI_VERSION.md' || log_fail "TEST-004: AAI_VERSION.md missing from the cut commit"
+  log_pass "TEST-004 commit message + exact two-path staging correct"
 }
 
 # --- TEST-005 (Spec-AC-02): annotated tag -----------------------------------

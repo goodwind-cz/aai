@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-03T01:43:56.856Z
+Generated: 2026-08-03T07:07:55.986Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -39,7 +39,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (275)
+## Done (276)
 
 | ID | Type | Path |
 |---|---|---|
@@ -158,6 +158,7 @@ _None._
 | CHANGE-0114 | issues | docs/issues/CHANGE-0114-prompt-diet-2-safe-wins.md |
 | CHANGE-0115 | issues | docs/issues/CHANGE-0115-gitignore-seed.md |
 | CHANGE-0116 | issues | docs/issues/CHANGE-0116-release-roll-scaffold.md |
+| CHANGE-0117 | issues | docs/issues/CHANGE-0117-aai-version-file.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
