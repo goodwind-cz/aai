@@ -239,6 +239,9 @@ test_003_cut_rolls_changelog() {
   [[ "$rc" == "0" ]] || log_fail "TEST-003: expected exit 0, got $rc: $(cat "$TMP_ROOT/t003.out")"
 
   grep -qF "## [v9.0.0] — feat: first entry (REF-1)" "$repo/CHANGELOG.md" || log_fail "TEST-003: first entry not rolled"
+  # aai-version-file: every cut stamps the version file aai-sync reads
+  grep -qxF "- Version: v9.0.0" "$repo/docs/ai/AAI_VERSION.md" 2>/dev/null \
+    || log_fail "TEST-003: cut must write docs/ai/AAI_VERSION.md with '- Version: v9.0.0' (downstream pins said UNKNOWN without it)"
   grep -qF "## [v9.0.0] — fix: second entry (REF-2)" "$repo/CHANGELOG.md" || log_fail "TEST-003: second entry not rolled"
   grep -qF "## [v2026.01.01] — feat: old release (REF-0)" "$repo/CHANGELOG.md" || log_fail "TEST-003: pre-existing released heading was touched"
 

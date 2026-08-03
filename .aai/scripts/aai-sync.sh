@@ -684,6 +684,13 @@ if [[ -f "$SRC_ROOT/docs/ai/AAI_VERSION.md" ]]; then
   TEMPLATE_VERSION="$(grep -E '^-? *Version:' "$SRC_ROOT/docs/ai/AAI_VERSION.md" 2>/dev/null | head -n1 | sed -E 's/.*Version:\s*//')"
   [[ -z "$TEMPLATE_VERSION" ]] && TEMPLATE_VERSION="UNKNOWN"
 fi
+# Fallback (aai-version-file): sources synced from a git checkout that predates
+# the release-written AAI_VERSION.md still get a real version from the newest
+# reachable release tag instead of UNKNOWN.
+if [[ "$TEMPLATE_VERSION" == "UNKNOWN" ]]; then
+  _tag="$(git -C "$SRC_ROOT" describe --tags --abbrev=0 2>/dev/null || true)"
+  [[ -n "$_tag" ]] && TEMPLATE_VERSION="$_tag (tag)"
+fi
 
 mkdir -p "$DST_ROOT/.aai/system"
 cat > "$DST_ROOT/.aai/system/AAI_PIN.md" <<EOPIN

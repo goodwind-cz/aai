@@ -270,7 +270,20 @@ fi
 mv -f "$OUT" "$CHANGELOG"
 OUT=""
 
-git -C "$ROOT" add -- CHANGELOG.md
+# AAI_VERSION.md: the version stamp aai-sync reads to fill `Template version:`
+# in a target project's AAI_PIN.md. Without it every downstream pin said
+# UNKNOWN (operator-found after the v2026.08.03 deployment check).
+{
+  echo "# AAI Version"
+  echo
+  echo "- Version: $VERSION"
+  echo
+  echo "Notes:"
+  echo "- Written by \`.aai/scripts/aai-release.sh --confirm\` at each release cut;"
+  echo "  consumed by \`.aai/scripts/aai-sync.*\` to stamp \`Template version:\` into the"
+  echo "  target project's \`.aai/system/AAI_PIN.md\`. Do not edit by hand."
+} > "$ROOT/docs/ai/AAI_VERSION.md"
+git -C "$ROOT" add -- CHANGELOG.md docs/ai/AAI_VERSION.md
 git -C "$ROOT" commit -q -m "chore(release): $VERSION"
 git -C "$ROOT" tag -a "$VERSION" -m "$VERSION"
 

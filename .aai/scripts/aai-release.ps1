@@ -287,7 +287,18 @@ try {
   Move-Item -Force -LiteralPath $OutFile -Destination $Changelog
   $OutFile = $null
 
-  Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'add', '--', 'CHANGELOG.md') | Out-Null
+  # AAI_VERSION.md parity with the bash engine: the version stamp aai-sync
+  # reads to fill `Template version:` in a target's AAI_PIN.md.
+  $versionDoc = @(
+    '# AAI Version', '',
+    "- Version: $Version", '',
+    'Notes:',
+    '- Written by `.aai/scripts/aai-release.sh --confirm` at each release cut;',
+    '  consumed by `.aai/scripts/aai-sync.*` to stamp `Template version:` into the',
+    '  target project''s `.aai/system/AAI_PIN.md`. Do not edit by hand.'
+  )
+  Set-Content -LiteralPath (Join-Path $Root 'docs/ai/AAI_VERSION.md') -Value ($versionDoc -join "`n") -NoNewline:$false
+  Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'add', '--', 'CHANGELOG.md', 'docs/ai/AAI_VERSION.md') | Out-Null
   Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'commit', '-q', '-m', "chore(release): $Version") | Out-Null
   Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'tag', '-a', $Version, '-m', $Version) | Out-Null
 
