@@ -273,6 +273,7 @@ OUT=""
 # AAI_VERSION.md: the version stamp aai-sync reads to fill `Template version:`
 # in a target project's AAI_PIN.md. Without it every downstream pin said
 # UNKNOWN (operator-found after the v2026.08.03 deployment check).
+mkdir -p "$ROOT/docs/ai"
 {
   echo "# AAI Version"
   echo
