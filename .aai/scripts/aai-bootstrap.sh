@@ -761,6 +761,47 @@ ensure_gitignore() {
       fi
     fi
   done
+
+  # AAI runtime sidecars (gitignore-seed): per-developer runtime files the AAI
+  # layer creates at run time in the TARGET project. Without these seeds they
+  # sit as untracked noise and a `git add -A` commits them — a committed
+  # STATE.yaml breaks the per-developer single-writer model outright (RFC-0001).
+  # Mirrors the AAI repo's own .gitignore runtime block. Deliberately NOT
+  # ignored: factory-report/overview/dashboard HTML+JSON (committed artifacts,
+  # regenerated at close). Idempotent: grep-before-append per pattern; written
+  # under one marker comment on first need.
+  local runtime_patterns=(
+    "docs/ai/STATE.yaml"
+    "docs/ai/LOOP_TICKS.jsonl"
+    "docs/ai/hitl-channel.json"
+    "docs/ai/briefs/**"
+    "docs/ai/reports/**"
+    "docs/ai/tdd/**"
+    "docs/ai/friction/**"
+    "docs/ai/archive/**"
+    "docs/ai/loop/"
+    "docs/ai/.session-context.md"
+    "docs/ai/.pre-compact-state-backup.yaml"
+    "docs/INDEX.audit.md"
+  )
+  local marker="# AAI runtime sidecars (seeded by aai-bootstrap; per-dev, never commit)"
+  local missing=()
+  for pattern in "${runtime_patterns[@]}"; do
+    grep -qF "$pattern" "$path" 2>/dev/null || missing+=("$pattern")
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      WRITTEN+=("[dry-run] $path add ${#missing[@]} AAI runtime sidecar pattern(s)")
+    else
+      {
+        echo
+        grep -qF "$marker" "$path" 2>/dev/null || echo "$marker"
+        printf '%s
+' "${missing[@]}"
+      } >> "$path"
+      WRITTEN+=("$path add ${#missing[@]} AAI runtime sidecar pattern(s)")
+    fi
+  fi
 }
 
 render_skill() {

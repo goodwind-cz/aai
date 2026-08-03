@@ -11,6 +11,14 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(install): bootstrap seeds runtime-sidecar gitignore block into target projects (CHANGE gitignore-seed) [L1]
+
+- Operator-found pre-deployment gap: target projects got no ignore entries
+  for AAI runtime sidecars — a git add -A could commit docs/ai/STATE.yaml
+  and break the per-dev single-writer model. ensure_gitignore now seeds the
+  full runtime block (idempotent, marker-commented, user entries respected);
+  dashboards/reports stay tracked by design.
+
 ## [unreleased] — chore(diet): the role prompts stop shipping a git tutorial and 26 rows of self-argument (CHANGE-0110) [L1]
 
 - Executed the zero-pin "safe immediate wins" of the Phase 0 unhobbling audit
