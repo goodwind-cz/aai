@@ -777,6 +777,7 @@ ensure_gitignore() {
     "docs/ai/briefs/**"
     "docs/ai/reports/**"
     "docs/ai/tdd/**"
+    "docs/ai/validation/**"
     "docs/ai/friction/**"
     "docs/ai/archive/**"
     "docs/ai/loop/"

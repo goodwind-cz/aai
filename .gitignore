@@ -36,6 +36,14 @@ docs/ai/tdd/**
 !docs/ai/tdd/
 !docs/ai/tdd/.gitkeep
 
+# Validation run evidence (logs/transcripts a Validation role emits): per-dev
+# runtime like tdd/** — verdicts live in EVENTS + spec AC tables (committed);
+# raw run output never does. Canonicalized after a downstream agent invented
+# the dir ad hoc and the files leaked as untracked noise.
+docs/ai/validation/**
+!docs/ai/validation/
+!docs/ai/validation/.gitkeep
+
 # Friction capture spool (RFC-0012 Phase 0): untracked, project-local JSONL
 # observations written by .aai/scripts/aai-friction.mjs. Offline capture only;
 # never committed. Only the directory placeholder is kept.
