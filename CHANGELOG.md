@@ -19,7 +19,7 @@ RFC-0001).
   full runtime block (idempotent, marker-commented, user entries respected);
   dashboards/reports stay tracked by design.
 
-## [unreleased] — chore(diet): the role prompts stop shipping a git tutorial and 26 rows of self-argument (CHANGE-0110) [L1]
+## [unreleased] — chore(diet): the role prompts stop shipping a git tutorial and 26 rows of self-argument (CHANGE-0114) [L1]
 
 - Executed the zero-pin "safe immediate wins" of the Phase 0 unhobbling audit
   (docs/analysis/unhobbling-audit.md, CHANGE-0113): -12,873 B measured across
