@@ -219,6 +219,7 @@ test_gitignore_seed_idempotent_and_respectful() {
   grep -qF 'docs/ai/hitl-channel.json' "$TEST_DIR/.gitignore" || log_fail "gitignore-seed: missing patterns must still be added"
   grep -qxF 'docs/ai/locks/' "$TEST_DIR/.gitignore" || log_fail "gitignore-seed: locks pattern must be seeded"
   grep -qxF 'docs/ai/validation/**' "$TEST_DIR/.gitignore" || log_fail "gitignore-seed: validation runtime pattern must be seeded"
+  grep -qxF '!docs/ai/validation/.gitkeep' "$TEST_DIR/.gitignore" || log_fail "gitignore-seed: negation lines must ride along (gitkeep stays tracked)"
   # committed artifacts must NOT be ignored
   if grep -qE 'factory-report|overview\.html|dashboard\.html' "$TEST_DIR/.gitignore"; then
     log_fail "gitignore-seed: dashboard/report artifacts are committed files and must NOT be seeded as ignored"

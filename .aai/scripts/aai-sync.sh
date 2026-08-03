@@ -504,6 +504,30 @@ if ! grep -q '^\.aai/' "$DST_ROOT/.gitignore" 2>/dev/null; then
   echo "  Added .aai/ to $DST_ROOT/.gitignore"
 fi
 
+# Runtime-sidecar patterns (validation-runtime-ignore): seeded on EVERY sync
+# so EXISTING installations pick up new patterns without a manual bootstrap
+# (bot review — bootstrap alone only covers fresh installs). Single source:
+# .aai/system/RUNTIME_IGNORE.list (synced with the layer). Exact-line match;
+# a comment mentioning a path never suppresses a seed; missing list -> skip.
+_runtime_list="$SRC_ROOT/.aai/system/RUNTIME_IGNORE.list"
+[[ -f "$_runtime_list" ]] || _runtime_list="$DST_ROOT/.aai/system/RUNTIME_IGNORE.list"
+if [[ -f "$_runtime_list" ]]; then
+  _added=0
+  _marker="# AAI runtime sidecars (seeded from .aai/system/RUNTIME_IGNORE.list; per-dev, never commit)"
+  while IFS= read -r _pattern; do
+    [[ -z "$_pattern" || "$_pattern" == \#* ]] && continue
+    if ! grep -qxF "$_pattern" "$DST_ROOT/.gitignore" 2>/dev/null; then
+      if [[ "$_added" -eq 0 ]] && ! grep -qxF "$_marker" "$DST_ROOT/.gitignore" 2>/dev/null; then
+        printf '\n%s\n' "$_marker" >> "$DST_ROOT/.gitignore"
+      fi
+      printf '%s\n' "$_pattern" >> "$DST_ROOT/.gitignore"
+      _added=$((_added + 1))
+    fi
+  done < "$_runtime_list"
+  [[ "$_added" -gt 0 ]] && echo "  Added $_added AAI runtime-sidecar pattern(s) to $DST_ROOT/.gitignore"
+fi
+unset _runtime_list _pattern _added _marker
+
 # Ensure .cloudflare-publish* and .wrangler/ are gitignored (aai-share temp dirs)
 for pattern in '.cloudflare-publish*' '.wrangler/'; do
   if ! grep -qF "$pattern" "$DST_ROOT/.gitignore" 2>/dev/null; then
