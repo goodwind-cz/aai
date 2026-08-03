@@ -103,7 +103,14 @@ try {
   }
 
   $headerWritten = $false
-  foreach ($pattern in @($stateFile, $ticksFile, 'docs/ai/tdd/**', '!docs/ai/tdd/', '!docs/ai/tdd/.gitkeep', 'docs/ai/loop/')) {
+  # gitignore-seed parity: the full runtime-sidecar set, matching bash
+  # aai-bootstrap ensure_gitignore (a git add -A in a target project must not
+  # be able to commit ANY per-dev runtime file on Windows either).
+  foreach ($pattern in @($stateFile, $ticksFile, 'docs/ai/tdd/**', '!docs/ai/tdd/', '!docs/ai/tdd/.gitkeep', 'docs/ai/loop/',
+      'docs/ai/hitl-channel.json', 'docs/ai/briefs/**', 'docs/ai/reports/**',
+      'docs/ai/friction/**', 'docs/ai/archive/**',
+      'docs/ai/.session-context.md', 'docs/ai/.pre-compact-state-backup.yaml',
+      'docs/INDEX.audit.md')) {
     # \r? before $: CRLF gitignores leave \r on the line in multiline mode
     $exists = $giContent -match ("(?m)^" + [regex]::Escape($pattern) + "\r?$")
     if (-not $exists) {
