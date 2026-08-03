@@ -11,7 +11,9 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(install): bootstrap seeds runtime-sidecar gitignore block into target projects (CHANGE-0115) [L1]
+## [unreleased]
+
+## [v2026.08.03] — fix(install): bootstrap seeds runtime-sidecar gitignore block into target projects (CHANGE-0115) [L1]
 
 - Operator-found pre-deployment gap: target projects got no ignore entries
   for AAI runtime sidecars — a git add -A could commit docs/ai/STATE.yaml
@@ -19,7 +21,7 @@ RFC-0001).
   full runtime block (idempotent, marker-commented, user entries respected);
   dashboards/reports stay tracked by design.
 
-## [unreleased] — chore(diet): the role prompts stop shipping a git tutorial and 26 rows of self-argument (CHANGE-0114) [L1]
+## [v2026.08.03] — chore(diet): the role prompts stop shipping a git tutorial and 26 rows of self-argument (CHANGE-0114) [L1]
 
 - Executed the zero-pin "safe immediate wins" of the Phase 0 unhobbling audit
   (docs/analysis/unhobbling-audit.md, CHANGE-0113): -12,873 B measured across
@@ -33,7 +35,7 @@ RFC-0001).
   pinned sentence survives verbatim; the ledger retires the freed credit
   (TEST-012 pin 1305 -> -11568), headroom unchanged at 1530/2048.
 
-## [unreleased] — feat(pr): fast lane opens to spec-less rides — intake frontmatter as the ceremony source (CHANGE-0112) [L1]
+## [v2026.08.03] — feat(pr): fast lane opens to spec-less rides — intake frontmatter as the ceremony source (CHANGE-0112) [L1]
 
 - Measured 2026-08-02: 8 rides, 0 fast — the lane's exact target class
   (small test+docs rides on an intake with no spec) could never qualify,
@@ -42,7 +44,7 @@ RFC-0001).
   labeled; a present spec always wins — no downgrade shopping). SKILL_PR
   documents the flag; +189 B ledger-credited.
 
-## [unreleased] — chore(quality): CHANGELOG scaffold invariants get a PR-time guard (CHANGE-0111) [L1]
+## [v2026.08.03] — chore(quality): CHANGELOG scaffold invariants get a PR-time guard (CHANGE-0111) [L1]
 
 - 3rd recurrence of the duplicate-bare-scaffold class this week (bot-caught on
   #211, rolled into the released section, cleaned by #214): aai-release
