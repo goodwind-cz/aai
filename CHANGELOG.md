@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(release): downstream pins stop saying UNKNOWN — releases stamp AAI_VERSION.md (CHANGE-0117) [L1]
+## [v2026.08.03.2] — fix(release): downstream pins stop saying UNKNOWN — releases stamp AAI_VERSION.md (CHANGE-0117) [L1]
 
 - aai-sync reads docs/ai/AAI_VERSION.md from the source, but the file never
   existed and no cut wrote it — every downstream AAI_PIN said Template
@@ -19,7 +19,7 @@ RFC-0001).
   the release commit; the file is seeded at v2026.08.03; sync falls back to
   the newest release tag for older checkouts.
 
-## [unreleased] — fix(release): the roll consumes the pre-existing scaffold — duplicate-heading class fixed at its root (CHANGE-0116) [L1]
+## [v2026.08.03.2] — fix(release): the roll consumes the pre-existing scaffold — duplicate-heading class fixed at its root (CHANGE-0116) [L1]
 
 - 4th occurrence traced to the engine itself: every cut copied the old bare
   scaffold into the versioned region while inserting a fresh one. The roll
