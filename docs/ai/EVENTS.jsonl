@@ -1473,3 +1473,6 @@
 {"v":1,"ts":"2026-08-03T06:42:52.022Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"aai-version-file","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-08-03T06:42:52.060Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"aai-version-file","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-03T06:42:52.095Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"aai-version-file","payload":{"commit":"c0a4cbd66c7fd9cd2ed87631bfaf14bc74c19636"}}
+{"v":1,"ts":"2026-08-03T09:17:36.280Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"validation-runtime-ignore","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-03T09:17:36.312Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"validation-runtime-ignore","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-03T09:17:36.346Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"validation-runtime-ignore","payload":{"commit":"7f8c88f1f67e59e752b93f60779fc05e9747bcaa"}}

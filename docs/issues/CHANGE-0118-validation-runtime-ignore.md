@@ -1,13 +1,15 @@
 ---
 id: validation-runtime-ignore
-number: null
+number: 118
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
 links:
-  pr: []
-  commits: []
+  pr:
+    - 223
+  commits:
+    - 7f8c88f1f67e59e752b93f60779fc05e9747bcaa
 ---
 
 # Change — validation run evidence is per-dev runtime: docs/ai/validation ignored + canonicalized
