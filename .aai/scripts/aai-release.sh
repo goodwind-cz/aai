@@ -163,6 +163,13 @@ END {
       newline = substr(line, 1, pos - 1) "[" version "]" substr(line, pos + length("[unreleased]"))
       print newline > outfile
       nc++; NL[nc] = newline
+    } else if (type[k] == "SCAFFOLD") {
+      # Pre-existing bare scaffolds are CONSUMED, not copied: the roll inserts
+      # exactly one fresh scaffold above the rolled section, and copying the
+      # old one through produced a duplicate bare heading INSIDE the versioned
+      # region on every cut (the recurring class TEST-022 pins at PR time —
+      # but this engine writes directly to main, so it must not plant it).
+      continue
     } else {
       print L[hi] > outfile
     }

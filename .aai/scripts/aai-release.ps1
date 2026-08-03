@@ -191,6 +191,11 @@ try {
       $newline = $line.Substring(0, $pos) + "[" + $Version + "]" + $line.Substring($pos + "[unreleased]".Length)
       $newLines.Add($newline)
       $notesLines.Add($newline)
+    } elseif ($type[$k] -eq "SCAFFOLD") {
+      # Pre-existing bare scaffolds are CONSUMED, not copied (parity with the
+      # bash engine): copying them through duplicated the bare heading inside
+      # the versioned region on every cut.
+      continue
     } else {
       $newLines.Add($lines[$hi])
     }

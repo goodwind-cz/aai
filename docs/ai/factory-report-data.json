@@ -1,26 +1,26 @@
 {
-  "generatedAt": "2026-08-03T00:30:00.165Z",
+  "generatedAt": "2026-08-03T01:43:43.194Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 104,
-    "delivered": 281,
+    "delivered": 282,
     "active_weeks": 6,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (281 closes vs 104 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 281,
-    "delivered_per_week_avg": 46.8,
+    "note": "\"delivered\" counts every work_item_closed event (282 closes vs 104 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 282,
+    "delivered_per_week_avg": 47,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
       "2026-W29": 135,
       "2026-W30": 64,
       "2026-W31": 72,
-      "2026-W32": 1
+      "2026-W32": 2
     },
     "delivered_groups": [
       {
@@ -298,7 +298,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 18,
+        "count": 19,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -317,7 +317,8 @@
           "changelog-scaffold-guard",
           "lane-intake-ceremony",
           "prompt-diet-2-safe-wins",
-          "gitignore-seed"
+          "gitignore-seed",
+          "release-roll-scaffold"
         ]
       }
     ],
@@ -1446,12 +1447,16 @@
         {
           "ref": "gitignore-seed",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "release-roll-scaffold",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3072,
       "mean_seconds": 145520.1,
       "measured": 101,
-      "unmeasurable": 180
+      "unmeasurable": 181
     }
   },
   "speed": {
@@ -2155,7 +2160,7 @@
     },
     {
       "week": "2026-W32",
-      "delivered": 1,
+      "delivered": 2,
       "median_lead_time_seconds": null,
       "busy_seconds": null,
       "tokens": null,

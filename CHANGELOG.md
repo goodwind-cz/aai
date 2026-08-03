@@ -11,7 +11,13 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased]
+## [unreleased] — fix(release): the roll consumes the pre-existing scaffold — duplicate-heading class fixed at its root (CHANGE-0116) [L1]
+
+- 4th occurrence traced to the engine itself: every cut copied the old bare
+  scaffold into the versioned region while inserting a fresh one. The roll
+  now consumes pre-existing scaffolds (TEST-023, RED-proven: pre-fix engine
+  leaves 2); the fixture gap (no scaffold+entries kind) is closed; the live
+  duplicate from the v2026.08.03 cut is cleaned in the same diff.
 
 ## [v2026.08.03] — fix(install): bootstrap seeds runtime-sidecar gitignore block into target projects (CHANGE-0115) [L1]
 

@@ -83,12 +83,15 @@ commit_all() {
   git -C "$dir" commit -q -m "$msg"
 }
 
-# kind: two_entries | scaffold_only | absent | malformed
+# kind: two_entries | scaffold_plus_entries | scaffold_only | absent | malformed
 seed_changelog() {
   local dir="$1" kind="$2"
   case "$kind" in
     two_entries)
       printf '# Changelog\n\nSome preamble text.\n\n## [unreleased] — feat: first entry (REF-1)\n\n- line one\n- line two\n\n## [unreleased] — fix: second entry (REF-2)\n\n- fix line\n\n## [v2026.01.01] — feat: old release (REF-0)\n\n- old content\n' > "$dir/CHANGELOG.md"
+      ;;
+    scaffold_plus_entries)
+      printf '# Changelog\n\n## [unreleased]\n\n## [unreleased] — feat: first entry (REF-1)\n\n- line one\n\n## [v2026.01.01] — feat: old release (REF-0)\n\n- old content\n' > "$dir/CHANGELOG.md"
       ;;
     scaffold_only)
       printf '# Changelog\n\n## [unreleased]\n\n## [v2026.01.01] — feat: old release (REF-0)\n\n- old content\n' > "$dir/CHANGELOG.md"
@@ -653,6 +656,24 @@ test_022_live_changelog_scaffold_invariants() {
   log_pass "TEST-022 live CHANGELOG scaffold invariants hold (1 scaffold, above all versioned sections)"
 }
 
+test_023_cut_consumes_existing_scaffold() {
+  # Root cause of the recurring duplicate-scaffold class (planted by BOTH the
+  # v2026.08.02 and v2026.08.03 cuts on the real repo): the roll inserted a
+  # fresh scaffold AND copied the pre-existing one through into the versioned
+  # region. The real CHANGELOG always has scaffold+entries; the two_entries
+  # fixture never did, so TEST-003 could not see it.
+  log_info "TEST-023: a cut over scaffold+entries leaves EXACTLY ONE bare scaffold..."
+  local repo="$TMP_ROOT/t023" rc n
+  build_repo "$repo" scaffold_plus_entries
+  rc=0
+  ( cd "$repo" && bash "$RELEASE_SH" --version v9.1.0 --confirm --no-remote ) >"$TMP_ROOT/t023.out" 2>&1 || rc=$?
+  [[ "$rc" == "0" ]] || log_fail "TEST-023: expected exit 0, got $rc: $(cat "$TMP_ROOT/t023.out")"
+  n="$(grep -c '^## \[unreleased\]$' "$repo/CHANGELOG.md")" || true
+  [[ "$n" -eq 1 ]] || log_fail "TEST-023: expected exactly 1 bare scaffold after cut, found $n"
+  grep -qF "## [v9.1.0] — feat: first entry (REF-1)" "$repo/CHANGELOG.md" || log_fail "TEST-023: entry not rolled"
+  log_pass "TEST-023 cut consumes the pre-existing scaffold (exactly one remains)"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -685,6 +706,7 @@ main() {
   test_020_seam2_layer_profiles
   test_021_docs_document_release
   test_022_live_changelog_scaffold_invariants
+  test_023_cut_consumes_existing_scaffold
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
