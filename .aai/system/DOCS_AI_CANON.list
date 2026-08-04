@@ -51,3 +51,8 @@ pr-config.yaml
 update-config.yaml
 .pre-compact-state-backup.yaml
 .session-context.md
+# Built-in workflow outputs (bot review: aai-docs-canon / aai-test-canon /
+# aai-share create these on their first run):
+docs-canon
+test-canon
+published

@@ -194,7 +194,14 @@ export function loadDocsAiCanon(root) {
   let raw;
   try {
     raw = fs.readFileSync(path.join(root, DOCS_AI_CANON_PATH), 'utf8');
-  } catch {
+  } catch (err) {
+    // ENOENT = unsynced/older layer -> class disabled by design (silent).
+    // Anything else (EACCES, broken symlink, EIO) is a REAL failure: say so
+    // loudly instead of silently disabling the guard (runtime-file EACCES
+    // lesson — an unreadable registry must not masquerade as an absent one).
+    if (err && err.code !== 'ENOENT') {
+      console.error(`docs-audit: WARNING — docs/ai canon registry unreadable (${err.code || err.message}); docs_ai_noncanon class disabled this run`);
+    }
     return null;
   }
   const names = new Set();
@@ -206,10 +213,18 @@ export function loadDocsAiCanon(root) {
 }
 
 // Project-owned extras, sanitized. Only a plain basename can ever BE a direct
-// child of docs/ai/, so a path-shaped or dot entry is dropped rather than
-// silently widening the allow-set (fail-safe = stricter).
+// child of docs/ai/, so entries with path separators or the special names
+// '.'/'..' are dropped rather than silently widening the allow-set
+// (fail-safe = stricter). Dotfiles (.session-context.md) remain valid names.
 function docsAiCanonExtra(config) {
   const raw = config?.docs_ai_canon_extra;
+  if (raw !== undefined && raw !== null && !Array.isArray(raw)) {
+    // A scalar (docs_ai_canon_extra: scratch.md) is a config mistake; the
+    // fail-safe direction (treat as empty = stricter) stands, but silently
+    // ignoring the operator's intent hides the mistake — say so (bot P2).
+    console.error('docs-audit: WARNING — docs_ai_canon_extra must be a YAML list; scalar value ignored (treated as empty)');
+    return [];
+  }
   if (!Array.isArray(raw)) return [];
   return raw.filter(n => typeof n === 'string'
     && n.trim() !== '' && n === n.trim()
