@@ -195,6 +195,15 @@ function main() {
       .join(' · ');
     lines.push(`- Rollout: ${seg}`);
   }
+  // docs/ai canon (CHANGE docs-ai-canon): a DIRECT child of docs/ai/ that is in
+  // neither .aai/system/DOCS_AI_CANON.list nor the project's
+  // docs_ai_canon_extra. Emitted ONLY when N>0, so clean repos keep
+  // byte-identical output (the umbrella-count precedent), and outside the
+  // !--quick block so the pure-fs class is visible in quick mode too.
+  // Report-only: never flips the verdict.
+  if (counts.docsAiNonCanon > 0) {
+    lines.push(`- docs/ai non-canonical: ${counts.docsAiNonCanon} (${counts.docsAiNonCanonNames.join(', ')})`);
+  }
   lines.push('');
 
   if (mode === 'report-only') {
@@ -380,6 +389,19 @@ function main() {
         result.provenanceDrift.map(p => [p.id, p.reqId, p.kind, p.detail, p.rel])));
     }
     lines.push('');
+    // CHANGE docs-ai-canon — non-canonical docs/ai children, one row per entry
+    // with a shape-derived remediation hint. Section emitted ONLY when there is
+    // something to say (byte-compat for clean repos, mirroring the summary line
+    // and the Schema-violations section).
+    if (result.docsAiNonCanon.length) {
+      lines.push(`### docs/ai non-canonical entries: ${result.docsAiNonCanon.length}`);
+      lines.push('');
+      lines.push(...table(['Entry', 'Kind', 'Remediation hint'],
+        result.docsAiNonCanon.map(e => [`docs/ai/${e.name}`, e.kind, e.hint])));
+      lines.push('');
+      lines.push('Report-only: the canonical inventory is `.aai/system/DOCS_AI_CANON.list`; project-specific additions belong in `docs/ai/docs-audit.yaml` under `docs_ai_canon_extra:`. Straighten the entry (move it to its canonical home) or register it — do not leave it to be found by hand.');
+      lines.push('');
+    }
     if (result.pendingCommit.length) {
       lines.push(`### Pending commit (verdicts reflect the working tree)`);
       lines.push('');

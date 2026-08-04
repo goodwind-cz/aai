@@ -825,7 +825,22 @@ close_gate: report-only         # report-only | enforce — pre-commit hook
                                 # fails --gate-file: warn vs abort commit
 body_lint: report-only          # report-only | enforce — same for staged
                                 # governed docs failing --lint-body-file
+docs_ai_canon_extra: []         # extra names allowed as DIRECT children of
+                                # docs/ai/, on top of the vendored
+                                # .aai/system/DOCS_AI_CANON.list
 ```
+
+**docs/ai canon.** The audit enumerates the direct children of `docs/ai/`
+against `.aai/system/DOCS_AI_CANON.list` (the vendored inventory of allowed
+dirs and files). Anything else is reported as a non-canonical entry with a
+remediation hint — an invented `docs/ai/hitl/` is told that HITL decisions
+belong in `docs/decisions/DECISION-*.md`, a run-output dir is told to move
+under `tdd/`, `validation/` or `reports/`. The class is **report-only**: it
+adds a `- docs/ai non-canonical: N (…)` summary line and a detail section
+(both only when N > 0, so clean repos are byte-identical), and never changes
+the verdict or the exit code. It runs under `--quick` too. Register a
+legitimate project-specific entry in `docs_ai_canon_extra:` rather than
+editing the vendored list, which `/aai-update` overwrites.
 
 The two gate keys are consulted by the **callers** (the AAI pre-commit hook
 and the closeout skills), not by the script — `--gate`/`--lint-body-file`

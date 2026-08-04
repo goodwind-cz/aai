@@ -1,16 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-03T09:18:02.907Z
+Generated: 2026-08-04T08:01:53.052Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
+| docs-ai-canon | issues | implementing | — | docs/issues/CHANGE-DRAFT-docs-ai-canon.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 
 ## Canonical layer (0)
@@ -362,4 +363,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-03 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-04 — counts above use this date for overdue checks.

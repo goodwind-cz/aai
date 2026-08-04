@@ -61,3 +61,12 @@ protected_paths_l3:
   - .aai/scripts/pre-commit-checks.ps1
   - .aai/workflow/WORKFLOW.md
   - docs/CONSTITUTION.md
+# CHANGE docs-ai-canon — project-owned ADDITIONS to the vendored inventory of
+# allowed DIRECT children of docs/ai/ (.aai/system/DOCS_AI_CANON.list). Plain
+# basenames only (a path-shaped entry is ignored). Anything under docs/ai/ that
+# is in neither list is reported by docs-audit as `docs/ai non-canonical` with a
+# remediation hint — report-only: it never flips the verdict or an exit code.
+# Kept here, not in the vendored list, so an /aai-update never clobbers a target
+# project's legitimate extra entry. AAI core needs no extras — its whole docs/ai
+# inventory is canonical.
+docs_ai_canon_extra: []

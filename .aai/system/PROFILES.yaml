@@ -144,6 +144,7 @@ core:
   - .aai/scripts/update-check.mjs
   - .aai/system/AAI_PIN.md
   - .aai/system/AUTONOMOUS_LOOP.md
+  - .aai/system/DOCS_AI_CANON.list
   - .aai/system/DYNAMIC_SKILLS.md
   - .aai/system/LOCKS.md
   - .aai/system/MODEL_ROUTING.yaml

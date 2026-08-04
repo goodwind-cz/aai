@@ -145,6 +145,8 @@ suites:
   aai-docs-audit:
     globs:
       - .aai/scripts/docs-audit.mjs
+      - .aai/scripts/lib/docs-audit-core.mjs
+      - .aai/system/DOCS_AI_CANON.list
       - .aai/METRICS_FLUSH.prompt.md
       - .aai/SKILL_DOCS_AUDIT.prompt.md
       - .aai/SKILL_INTAKE.prompt.md
