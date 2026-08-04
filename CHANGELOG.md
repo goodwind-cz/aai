@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(docs-audit): docs/ai gets a canon registry — invented dirs are detected, not found by hand (CHANGE docs-ai-canon) [L1]
+## [unreleased] — feat(docs-audit): docs/ai gets a canon registry — invented dirs are detected, not found by hand (CHANGE-0119) [L1]
 
 - Downstream agents invented two ad-hoc dirs under docs/ai/ in two days
   (validation/, since canonicalized; hitl/, which is not canonical — HITL

@@ -1,13 +1,15 @@
 ---
 id: docs-ai-canon
-number: null
+number: 119
 type: change
-status: implementing
+status: done
 user_visible: true
 ceremony_level: 1
 links:
-  pr: []
-  commits: []
+  pr:
+    - 224
+  commits:
+    - b8e466fd6a272be9162790a4474d3da9999c6865
 ---
 
 # Change — docs/ai gets a canon registry: invented dirs are detected, not found by hand
