@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(docs-audit): docs/ai gets a canon registry — invented dirs are detected, not found by hand (CHANGE-0119) [L1]
+## [v2026.08.04] — feat(docs-audit): docs/ai gets a canon registry — invented dirs are detected, not found by hand (CHANGE-0119) [L1]
 
 - Downstream agents invented two ad-hoc dirs under docs/ai/ in two days
   (validation/, since canonicalized; hitl/, which is not canonical — HITL
@@ -26,7 +26,7 @@ RFC-0001).
   byte-identical), the verdict and exit codes are untouched, and --quick
   detects it too (pure fs).
 
-## [unreleased] — fix(install): docs/ai/validation joins the runtime-ignore class (CHANGE-0118) [L1]
+## [v2026.08.04] — fix(install): docs/ai/validation joins the runtime-ignore class (CHANGE-0118) [L1]
 
 - Downstream Validation runs leaked logs as untracked noise via a
   self-invented docs/ai/validation/ (no canonical ignored home existed).
