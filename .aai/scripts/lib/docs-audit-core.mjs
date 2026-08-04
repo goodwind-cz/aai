@@ -22,6 +22,13 @@ import { guardConfigPresent } from './guard-config.mjs';
 // pre-commit hooks, so the coupling is documented at one import site.
 export const CONFIG_PATH = 'docs/ai/docs-audit.yaml';
 export const EVENTS_PATH = 'docs/ai/EVENTS.jsonl';
+// CHANGE docs-ai-canon — the vendored inventory of allowed DIRECT children of
+// docs/ai/, and the runtime dir it governs. Read root-relative (the same
+// discipline as CONFIG_PATH): the audited project's OWN synced copy is the
+// authority, so a project pinned to an older layer is judged by the canon it
+// actually has.
+export const DOCS_AI_DIR = 'docs/ai';
+export const DOCS_AI_CANON_PATH = '.aai/system/DOCS_AI_CANON.list';
 // #133 — the flush ledger (metrics-flush.mjs writes one compact JSON object per
 // line, keyed by ref_id, behind a `#`-comment preamble). Same path convention
 // as EVENTS_PATH; read-only consumption by falseOpenEvidence's Arm D.
@@ -123,8 +130,16 @@ export function loadConfig(root) {
     // Planning (a spec touching a listed path must declare ceremony_level: 3)
     // and review upward re-classification; no mechanical diff enforcement yet.
     protected_paths_l3: [],
+    // CHANGE docs-ai-canon — project-owned ADDITIONS to the vendored
+    // .aai/system/DOCS_AI_CANON.list (allowed direct children of docs/ai/).
+    // Lives here, not in the vendored list, so an /aai-update never clobbers a
+    // target project's legitimate extra dir. Absent key / absent file / a
+    // malformed value all yield [] — the fail-safe direction is STRICTER
+    // (more entries reported), and the class is WARN-only, so an over-report
+    // costs the operator a glance, never a blocked commit.
+    docs_ai_canon_extra: [],
   };
-  const LIST_KEYS = new Set(['scan_exclude', 'backlog_globs', 'review_by_methods', 'category_prefixes', 'protected_paths_l3']);
+  const LIST_KEYS = new Set(['scan_exclude', 'backlog_globs', 'review_by_methods', 'category_prefixes', 'protected_paths_l3', 'docs_ai_canon_extra']);
   let listKey = null;
   for (const raw of fs.readFileSync(p, 'utf8').split('\n')) {
     const line = raw.replace(/#.*$/, '').trimEnd();
@@ -156,6 +171,121 @@ export function loadConfig(root) {
     else if (key === 'body_lint') cfg.body_lint = (val === 'enforce') ? 'enforce' : 'report-only';
   }
   return cfg;
+}
+
+// --- docs/ai canon (CHANGE docs-ai-canon) ------------------------------------
+// Downstream agents invented TWO ad-hoc dirs under docs/ai/ in two days
+// (docs/ai/validation/, since canonicalized as CHANGE-0118, and docs/ai/hitl/,
+// which is NOT canonical — HITL decisions belong in docs/decisions/DECISION-*.md
+// per SKILL_HITL step 4a, channel state in docs/ai/hitl-channel.json). Both
+// leaked as untracked noise / mislocated evidence and were found only by the
+// operator, by hand. Prose does not fire; a deterministic inventory does.
+//
+// Pure fs — no git, no EVENTS — so the class runs identically under --quick
+// (the umbrella --quick lesson: a summary signal that vanishes in quick mode is
+// a signal nobody trusts). REPORT-ONLY (WARN): never feeds hardFail or
+// needsTriage. A future dial could escalate it; deliberately not built here.
+
+// The vendored inventory as a Set of exact names, or null when the file is
+// absent/empty — which DISABLES the class. Judging a repo that never synced the
+// list would flag every child of docs/ai at once; silence is the only safe
+// reading of "no canon".
+export function loadDocsAiCanon(root) {
+  let raw;
+  try {
+    raw = fs.readFileSync(path.join(root, DOCS_AI_CANON_PATH), 'utf8');
+  } catch (err) {
+    // ENOENT = unsynced/older layer -> class disabled by design (silent).
+    // Anything else (EACCES, broken symlink, EIO) is a REAL failure: say so
+    // loudly instead of silently disabling the guard (runtime-file EACCES
+    // lesson — an unreadable registry must not masquerade as an absent one).
+    if (err && err.code !== 'ENOENT') {
+      console.error(`docs-audit: WARNING — docs/ai canon registry unreadable (${err.code || err.message}); docs_ai_noncanon class disabled this run`);
+    }
+    return null;
+  }
+  const names = new Set();
+  for (const line of raw.split('\n')) {
+    const name = line.replace(/#.*$/, '').trim();
+    if (name) names.add(name);
+  }
+  return names.size ? names : null;
+}
+
+// Project-owned extras, sanitized. Only a plain basename can ever BE a direct
+// child of docs/ai/, so entries with path separators or the special names
+// '.'/'..' are dropped rather than silently widening the allow-set
+// (fail-safe = stricter). Dotfiles (.session-context.md) remain valid names.
+function docsAiCanonExtra(config) {
+  const raw = config?.docs_ai_canon_extra;
+  if (raw !== undefined && raw !== null && !Array.isArray(raw)) {
+    // A scalar (docs_ai_canon_extra: scratch.md) is a config mistake; the
+    // fail-safe direction (treat as empty = stricter) stands, but silently
+    // ignoring the operator's intent hides the mistake — say so (bot P2).
+    console.error('docs-audit: WARNING — docs_ai_canon_extra must be a YAML list; scalar value ignored (treated as empty)');
+    return [];
+  }
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(n => typeof n === 'string'
+    && n.trim() !== '' && n === n.trim()
+    && !n.includes('/') && !n.includes('\\')
+    && n !== '.' && n !== '..');
+}
+
+// A directory whose contents are nothing but run output (*.log / *.txt / *.md
+// files, no subdirs) — the shape both live incidents took. `.gitkeep` is
+// ignored (a placeholder, not content); an EMPTY dir is not claimed as run
+// output (no evidence either way -> generic hint).
+const RUN_OUTPUT_FILE_RE = /\.(?:log|txt|md)$/i;
+function isRunOutputDir(abs) {
+  let kids;
+  try {
+    kids = fs.readdirSync(abs, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  if (kids.some(k => k.isDirectory())) return false;
+  const files = kids.filter(k => k.name !== '.gitkeep');
+  return files.length > 0 && files.every(k => RUN_OUTPUT_FILE_RE.test(k.name));
+}
+
+// One deterministic hint per entry, chosen by SHAPE (never by guesswork), so
+// the report tells the operator where the thing actually belongs.
+function docsAiRemediationHint(abs, name, isDir) {
+  if (/^hitl/.test(name)) {
+    return 'HITL decisions belong in docs/decisions/DECISION-*.md; channel state is docs/ai/hitl-channel.json';
+  }
+  if (isDir && isRunOutputDir(abs)) {
+    return 'runtime run output: move under a canonical ignored dir (tdd/validation/reports) or delete';
+  }
+  return 'not a canonical docs/ai entry — see .aai/system/DOCS_AI_CANON.list; project-specific additions go in docs-audit.yaml docs_ai_canon_extra';
+}
+
+// Every DIRECT child of docs/ai/ that is in neither the vendored canon nor the
+// project extension. Returns [{ name, kind, hint }] sorted by name; an absent
+// canon list or an absent docs/ai/ yields [] (both skip, never throw).
+export function docsAiNonCanonFor(root, config) {
+  const canon = loadDocsAiCanon(root);
+  if (!canon) return [];
+  const allowed = new Set([...canon, ...docsAiCanonExtra(config)]);
+  const dir = path.join(root, DOCS_AI_DIR);
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const entry of entries) {
+    if (allowed.has(entry.name)) continue;
+    const isDir = entry.isDirectory();
+    out.push({
+      name: entry.name,
+      kind: isDir ? 'dir' : 'file',
+      hint: docsAiRemediationHint(path.join(dir, entry.name), entry.name, isDir),
+    });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // --- git probes (skipped in quick mode) --------------------------------------
@@ -1130,6 +1260,11 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   // read, so it runs identically in --quick.
   const duplicateDocIds = duplicateDocIdsFor(docs);
 
+  // docs/ai canon (CHANGE docs-ai-canon): READ-ONLY, pure fs (no git/EVENTS),
+  // so it runs identically in --quick. Report-only WARN class — deliberately
+  // absent from hardFail AND from needsTriage.
+  const docsAiNonCanon = docsAiNonCanonFor(root, config);
+
   // pending-commit notice (CHANGE-0001 D6): the verdict already reflects the
   // working tree; this only tells the operator which scanned docs differ from git
   let pendingCommit = [];
@@ -1192,6 +1327,8 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     missingCloseTelemetry: missingCloseTelemetry.length,
     bodyLint: bodyLint.length,
     provenanceDrift: provenanceDrift.length,
+    docsAiNonCanon: docsAiNonCanon.length,
+    docsAiNonCanonNames: docsAiNonCanon.map(e => e.name),
   };
   // SPEC-0011 G2/G3/G4 signals (nearMissWarnings, reviewClaimUnbacked,
   // missingCloseTelemetry) are deliberately ABSENT from hardFail AND from the
@@ -1212,8 +1349,8 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     mode, config, docs, orphansNew, orphansLegacy, drift, violations,
     typeWarnings, annotations, pendingCommit, planLenient, closeoutCandidates,
     parentProgress, duplicateDocIds, openDecisionDoneDocs, nearMissWarnings,
-    reviewClaimUnbacked, missingCloseTelemetry, bodyLint, provenanceDrift, counts,
-    hardFail,
+    reviewClaimUnbacked, missingCloseTelemetry, bodyLint, provenanceDrift,
+    docsAiNonCanon, counts, hardFail,
   };
 }
 

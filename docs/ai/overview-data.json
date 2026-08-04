@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-03T09:17:52.293Z",
+  "generatedAt": "2026-08-04T08:11:09.962Z",
   "project": "aai",
   "counts": {
-    "delivered": 162,
+    "delivered": 163,
     "in_progress": 2,
     "releases": 1,
     "tokens_total": 23273206
@@ -92,6 +92,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "docs-ai-canon",
+      "title": "Change — docs/ai gets a canon registry: invented dirs are detected, not found by hand",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0119-docs-ai-canon.md",
+      "closed_on": "2026-08-04",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "gitignore-seed",
       "title": "Change — bootstrap seeds the runtime-sidecar gitignore block into target projects",
@@ -2205,6 +2218,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "docs-ai-canon",
+          "title": "Change — docs/ai gets a canon registry: invented dirs are detected, not found by hand",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0119-docs-ai-canon.md",
+          "closed_on": "2026-08-04",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "gitignore-seed",
           "title": "Change — bootstrap seeds the runtime-sidecar gitignore block into target projects",

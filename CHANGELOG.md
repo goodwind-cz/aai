@@ -11,6 +11,21 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(docs-audit): docs/ai gets a canon registry — invented dirs are detected, not found by hand (CHANGE-0119) [L1]
+
+- Downstream agents invented two ad-hoc dirs under docs/ai/ in two days
+  (validation/, since canonicalized; hitl/, which is not canonical — HITL
+  decisions belong in docs/decisions/). Both leaked as untracked noise and
+  were found only by the operator, by hand. A vendored inventory
+  .aai/system/DOCS_AI_CANON.list now names the allowed direct children of
+  docs/ai/, projects extend it via docs_ai_canon_extra: in docs-audit.yaml,
+  and docs-audit enumerates the real directory against both — naming every
+  stray with a shape-derived remediation hint (hitl -> docs/decisions;
+  run-output dir -> tdd/validation/reports). Report-only WARN: the summary
+  line and detail section appear only when N > 0 (clean repos stay
+  byte-identical), the verdict and exit codes are untouched, and --quick
+  detects it too (pure fs).
+
 ## [unreleased] — fix(install): docs/ai/validation joins the runtime-ignore class (CHANGE-0118) [L1]
 
 - Downstream Validation runs leaked logs as untracked noise via a

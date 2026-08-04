@@ -5369,6 +5369,91 @@ MD
   log_pass "Umbrella marker suppresses visibly + named + quick-aware; control flagged; none-line clean (TEST-U01)"
 }
 
+# --- TEST-U02 (CHANGE docs-ai-canon) — non-canonical DIRECT children of docs/ai/
+# are enumerated against the vendored .aai/system/DOCS_AI_CANON.list and surfaced
+# with a deterministic per-item remediation hint. Two live incidents in two days
+# drove this: an invented docs/ai/validation/ (since canonicalized, CHANGE-0118)
+# and an invented docs/ai/hitl/ (HITL decisions belong in docs/decisions/). Both
+# leaked as untracked noise and were found only by the operator, by hand.
+# REPORT-ONLY: the class never flips the verdict or the exit code — detection is
+# the prevention, not a new gate.
+setup_canon_repo() {
+  local name="$1"
+  local d; d="$(setup_iso_repo "$name")"
+  mkdir -p "$d/.aai/system"
+  cp "$PROJECT_ROOT/.aai/system/DOCS_AI_CANON.list" "$d/.aai/system/DOCS_AI_CANON.list"
+  printf '%s' "$d"
+}
+
+test_docsaicanon_classes() {  # TEST-U02
+  log_info "Test: rogue docs/ai children flagged with hints; extra-list allows; clean/absent quiet; --quick sees it (TEST-U02)..."
+  local d; d="$(setup_canon_repo canon-rogue)"
+  mkdir -p "$d/docs/ai/tdd" "$d/docs/ai/hitl"
+  echo "RED/GREEN" > "$d/docs/ai/tdd/run.log"
+  echo "# decision: ship it" > "$d/docs/ai/hitl/decision-1.md"
+  echo "scratch notes" > "$d/docs/ai/scratch.md"
+
+  # Arm 1 — both rogues named in the summary, canonical tdd/ untouched.
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event > canon.log 2>&1) \
+    || log_fail "TEST-U02: report-only WARN class must not change the --check exit code: $(cat "$d/canon.log")"
+  grep -qF -- "- docs/ai non-canonical: 2 (hitl, scratch.md)" "$d/canon.log" \
+    || log_fail "TEST-U02: summary must count AND name every non-canonical entry: $(cat "$d/canon.log")"
+  grep -qF "docs/ai/hitl" "$d/canon.log" \
+    || log_fail "TEST-U02: the detail section must list the rogue entry"
+  grep -qF "HITL decisions belong in docs/decisions/DECISION-*.md" "$d/canon.log" \
+    || log_fail "TEST-U02: an entry matching /^hitl/ must carry the HITL remediation hint"
+  grep -qF "not a canonical docs/ai entry" "$d/canon.log" \
+    || log_fail "TEST-U02: a shapeless rogue must carry the generic remediation hint"
+  grep -qF "### Verdict: CLEAN" "$d/canon.log" \
+    || log_fail "TEST-U02: report-only — the class must NOT flip the CLEAN verdict: $(cat "$d/canon.log")"
+
+  # Arm 2 — --quick detects the same (pure fs, no git; the umbrella --quick lesson).
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --quick --no-event > canon-quick.log 2>&1) \
+    || log_fail "TEST-U02: --quick must not fail: $(cat "$d/canon-quick.log")"
+  grep -qF -- "- docs/ai non-canonical: 2 (hitl, scratch.md)" "$d/canon-quick.log" \
+    || log_fail "TEST-U02: --quick must detect the class too: $(cat "$d/canon-quick.log")"
+
+  # Arm 3 — the project-owned extension allows scratch.md; hitl stays flagged.
+  cat > "$d/docs/ai/docs-audit.yaml" <<'YAML'
+legacy_until_date: 2026-06-12
+docs_ai_canon_extra:
+  - scratch.md
+YAML
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event > canon-extra.log 2>&1) \
+    || log_fail "TEST-U02: extension arm must not change the exit code: $(cat "$d/canon-extra.log")"
+  grep -qF -- "- docs/ai non-canonical: 1 (hitl)" "$d/canon-extra.log" \
+    || log_fail "TEST-U02: docs_ai_canon_extra must allow the named entry, and ONLY it: $(cat "$d/canon-extra.log")"
+
+  # Arm 4 — a canonical-only docs/ai emits NO new line (byte-compat for clean repos).
+  local d2; d2="$(setup_canon_repo canon-clean)"
+  mkdir -p "$d2/docs/ai/tdd" "$d2/docs/ai/reports"
+  (cd "$d2" && node .aai/scripts/docs-audit.mjs --no-event > clean.log 2>&1) || true
+  assert_not_contains "$d2/clean.log" "docs/ai non-canonical"
+
+  # Arm 5 — canon list ABSENT: the class is disabled entirely, so a repo that has
+  # not synced the inventory is never flagged (fail-safe, not fail-loud).
+  local d3; d3="$(setup_iso_repo canon-absent)"
+  mkdir -p "$d3/docs/ai/hitl"
+  echo "x" > "$d3/docs/ai/hitl/d.md"
+  (cd "$d3" && node .aai/scripts/docs-audit.mjs --no-event > absent.log 2>&1) || true
+  assert_not_contains "$d3/absent.log" "docs/ai non-canonical"
+
+  rm -rf "$d" "$d2" "$d3"
+  log_pass "docs/ai non-canon: named + hinted + quick-aware + extensible; clean and canon-less repos quiet; verdict untouched (TEST-U02)"
+}
+
+test_docsaicanon_real_repo_clean() {  # TEST-U02
+  log_info "Test: the REAL repo's docs/ai is fully canonical (docs/ai/tests included) (TEST-U02)..."
+  local list="$PROJECT_ROOT/.aai/system/DOCS_AI_CANON.list"
+  assert_file "$list"
+  grep -qx "tests" "$list" \
+    || log_fail "TEST-U02: docs/ai/tests exists in this repo and MUST be in the canon list"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --quick --no-event > "$TEST_DIR/real-canon.log" 2>&1) \
+    || log_fail "TEST-U02: real-repo --quick audit failed: $(cat "$TEST_DIR/real-canon.log")"
+  assert_not_contains "$TEST_DIR/real-canon.log" "docs/ai non-canonical"
+  log_pass "Real repo docs/ai is fully canonical; docs/ai/tests is registered (TEST-U02)"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -5494,6 +5579,8 @@ main() {
   test_change0027_quick_mode_skips_probe
   test_change0027_doc_surfaces_mention_false_open
   test_umbrella_marker_suppresses_visibly
+  test_docsaicanon_classes
+  test_docsaicanon_real_repo_clean
   test_change0028_mixed_cell_git_hash_flags
   test_change0028_mixed_cell_pr_ref_flags
   test_change0028_mixed_cell_prose_not_flagged

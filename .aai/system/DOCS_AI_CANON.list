@@ -1,0 +1,58 @@
+# AAI canonical `docs/ai/` inventory — SINGLE SOURCE OF TRUTH for the
+# docs-audit `docs_ai_noncanon` class (CHANGE docs-ai-canon).
+#
+# CONTRACT
+# - One entry per line: an allowed DIRECT child of `docs/ai/` (a directory or a
+#   file). Blank lines and `#` comments are ignored. Read by
+#   .aai/scripts/lib/docs-audit-core.mjs (loadDocsAiCanon); an ABSENT or empty
+#   list disables the class entirely — a repo that has not synced this file is
+#   never flagged.
+# - EXACT names only — no globs, no patterns. Temp/aside/scratch files have no
+#   canonical home under docs/ai (they belong in a real scratch dir outside the
+#   governed tree), so there is deliberately no dot-tempfile escape hatch.
+# - Vendored and resynced: never add a project-specific name here. A target
+#   project extends the set via `docs_ai_canon_extra:` in
+#   docs/ai/docs-audit.yaml (project-owned, survives an /aai-update).
+# - WHY THIS EXISTS: downstream agents invented `docs/ai/validation/` and
+#   `docs/ai/hitl/` in two days. Both leaked as untracked noise / mislocated
+#   evidence and were found only by hand. Prose did not prevent it; a
+#   deterministic inventory the audit enumerates against does.
+# - Report-only (WARN class): a non-canonical entry never flips the audit
+#   verdict or an exit code.
+
+# --- directories -------------------------------------------------------------
+archive
+briefs
+friction
+locks
+loop
+reports
+reviews
+tdd
+tests
+validation
+
+# --- files -------------------------------------------------------------------
+AAI_VERSION.md
+EVENTS.jsonl
+LOOP_TICKS.jsonl
+METRICS.jsonl
+STATE.yaml
+dashboard-data.json
+dashboard.html
+decisions.jsonl
+docs-audit.yaml
+factory-report-data.json
+factory-report.html
+hitl-channel.json
+overview-data.json
+overview.html
+pr-config.yaml
+update-config.yaml
+.pre-compact-state-backup.yaml
+.session-context.md
+# Built-in workflow outputs (bot review: aai-docs-canon / aai-test-canon /
+# aai-share create these on their first run):
+docs-canon
+test-canon
+published
