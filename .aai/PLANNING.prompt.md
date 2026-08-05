@@ -109,7 +109,10 @@ PROCESS
      where no merge/PR-ready claim will be made.
    - Inline review scope must be explicit paths or a diff range if inline mode is
      later selected.
-10) Set SPEC-FROZEN: true only when all Spec-AC items are measurable, verifiable,
+10) Set SPEC-FROZEN: true ONLY via `node .aai/scripts/spec-freeze.mjs --path
+   <spec_path>`, never by hand — freeze is ATOMIC (the marker AND frontmatter
+   `status: implementing` together); writing either half alone is a
+   `half-frozen` lint finding. Freeze only when all Spec-AC items are measurable, verifiable,
    AND every Spec-AC has at least one TEST-xxx entry in the Test Plan.
    AND implementation strategy is not `undecided`.
    Constitution check (docs/CONSTITUTION.md, if present): check each article

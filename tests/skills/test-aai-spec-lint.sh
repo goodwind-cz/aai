@@ -1040,12 +1040,99 @@ test_stratev_template_no_selfflag() {
   local d; d="$(mktemp -d "${TMPDIR:-/tmp}/sl-t8.XXXXXX")"
   cp "$PROJECT_ROOT/.aai/templates/SPEC_TEMPLATE.md" "$d/SPEC-0001-spec-t8.md"
   perl -0pi -e 's/^- Strategy: .*/- Strategy: direct/m' "$d/SPEC-0001-spec-t8.md" 2>/dev/null     || sed -i.bak -E 's/^- Strategy: .*/- Strategy: direct/' "$d/SPEC-0001-spec-t8.md"
-  local out; out="$(node "$SPEC_LINT" --path "$d/SPEC-0001-spec-t8.md" 2>&1)" || true
+  # CHANGE-0120: was "$SPEC_LINT" — an undefined name, so under this suite's
+  # `set -u` the lint NEVER ran and the assertion below was vacuously true.
+  # The suite's script variable is $LINT.
+  local out; out="$(node "$LINT" --path "$d/SPEC-0001-spec-t8.md" 2>&1)" || true
   if printf '%s' "$out" | grep -q 'strategy-evidence-mismatch'; then
     log_fail "TEST-008(stratev): template guidance self-flagged: $out"
   fi
   rm -rf "$d"
   log_pass "TEST-008(stratev): template-derived direct spec clean"
+}
+
+# --- CHANGE-0120 half-frozen -------------------------------------------------
+#
+# Freeze is a TWO-PART state: the `SPEC-FROZEN: true` body marker AND
+# frontmatter `status: implementing`. Writing one without the other is the
+# paperwork half-state that bounced a live ride back to Planning. spec-lint
+# flags it at WRITE time so the mismatch cannot survive to dispatch;
+# spec-freeze.mjs is the tool that cannot produce it.
+
+# half_frozen_body <frontmatter-status> <marker true|false>
+half_frozen_body() {
+  local status="$1" marker="$2"
+  clean_spec_body \
+    | sed "s/^status: implementing$/status: $status/" \
+    | { if [[ "$marker" == "true" ]]; then cat; else grep -v '^SPEC-FROZEN: true$'; fi; }
+}
+
+test_halffrozen_001_marker_without_status() {
+  local out rc ok=1 s
+  # draft / proposed / accepted + marker == half-frozen (the live incident).
+  for s in draft proposed accepted; do
+    new_fixture_root
+    half_frozen_body "$s" true > "$FIX/docs/specs/SPEC-DRAFT-hf-$s.md"
+    out="$(runlint "$FIX" 2>&1)"; rc=$?
+    expect_exit 1 "$rc" "TEST-001(halffrozen) $s" || ok=0
+    echo "$out" | grep -q "half-frozen" \
+      || { log_info "TEST-001(halffrozen): marker + status $s not flagged: $out"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-001(halffrozen) SPEC-FROZEN marker without status implementing is a finding" \
+    || log_fail "TEST-001(halffrozen) marker-without-status"
+}
+
+test_halffrozen_002_status_without_marker() {
+  local out rc ok=1
+  new_fixture_root
+  half_frozen_body implementing false > "$FIX/docs/specs/SPEC-DRAFT-hf-nomarker.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-002(halffrozen)" || ok=0
+  echo "$out" | grep -q "half-frozen" \
+    || { log_info "TEST-002(halffrozen): status implementing without the marker not flagged: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-002(halffrozen) status implementing without the SPEC-FROZEN marker is a finding" \
+    || log_fail "TEST-002(halffrozen) status-without-marker"
+}
+
+test_halffrozen_003_negative_controls() {
+  local out rc ok=1
+  # (a) the canonical BOTH-halves state is clean.
+  new_fixture_root
+  half_frozen_body implementing true > "$FIX/docs/specs/SPEC-DRAFT-hf-ok.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-003(halffrozen) both halves" || ok=0
+  echo "$out" | grep -q "half-frozen" \
+    && { log_info "TEST-003(halffrozen): a correctly frozen spec was flagged: $out"; ok=0; }
+
+  # (b) NEITHER half (an unfrozen draft) is clean — this rule is about the
+  # MIXED state only, never about un-frozen planning drafts.
+  new_fixture_root
+  half_frozen_body draft false > "$FIX/docs/specs/SPEC-DRAFT-hf-neither.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-003(halffrozen) neither half" || ok=0
+  echo "$out" | grep -q "half-frozen" \
+    && { log_info "TEST-003(halffrozen): an unfrozen draft was flagged: $out"; ok=0; }
+
+  # (c) a `done` spec with no marker is HISTORY, not a half-freeze: the rule's
+  # status arm is scoped to `implementing` so the legacy corpus stays clean.
+  new_fixture_root
+  half_frozen_body done false > "$FIX/docs/specs/SPEC-DRAFT-hf-done.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-003(halffrozen) done without marker" || ok=0
+  echo "$out" | grep -q "half-frozen" \
+    && { log_info "TEST-003(halffrozen): a done spec without the marker was flagged: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-003(halffrozen) negative controls: both halves / neither half / legacy done stay clean" \
+    || log_fail "TEST-003(halffrozen) negative controls"
+}
+
+test_halffrozen_004_real_corpus() {
+  local out rc ok=1
+  out="$(cd "$PROJECT_ROOT" && node "$LINT" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-004(halffrozen) real corpus" || ok=0
+  echo "$out" | grep -q "half-frozen" \
+    && { log_info "TEST-004(halffrozen): real corpus produced a half-frozen finding: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-004(halffrozen) real corpus zero half-frozen findings" \
+    || log_fail "TEST-004(halffrozen) real corpus"
 }
 
 main() {
@@ -1082,6 +1169,10 @@ main() {
   test_stratev_006_template_and_prompt
   test_stratev_007_real_corpus
   test_stratev_template_no_selfflag
+  test_halffrozen_001_marker_without_status
+  test_halffrozen_002_status_without_marker
+  test_halffrozen_003_negative_controls
+  test_halffrozen_004_real_corpus
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

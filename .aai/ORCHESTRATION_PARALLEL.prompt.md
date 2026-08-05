@@ -90,6 +90,12 @@ IMPLEMENTATION STRATEGY AND ISOLATION
 - Inline scopes can be parallelized only when their file/path review scopes do
   not overlap.
 - Code review can run without a worktree if each scope has a clean explicit diff.
+- REVIEW-SCOPE EDITS ARE NOT A PLANNING DISPATCH. To include/exclude ONE path in
+  a frozen spec's review-scope list (typically a user side-change the ride never
+  touched), run `node .aai/scripts/spec-scope-edit.mjs --spec <spec> --exclude
+  <path> --base-ref <base>`. It REFUSES (exit 3) any path in the ride's own diff
+  — that is a content decision, so re-plan. Never hand-edit the list; never spawn
+  Planning for it. `--help` carries the full exit contract.
 
 MODEL SELECTION (include in every workstream dispatch when subagent spawning is supported)
 Right-size the model to task complexity — do not default to the most capable
