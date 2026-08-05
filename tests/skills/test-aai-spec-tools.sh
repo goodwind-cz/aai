@@ -364,6 +364,255 @@ test_freeze_003_repairs_half_frozen() {
     || log_fail "TEST-008(freeze) half-frozen repair"
 }
 
+# --- AC-003 TEST-009 — freeze a spec with NO H1 ------------------------------
+# The real corpus shape (SPEC-0100/0101/0102 and every doc-generator spec carry
+# frontmatter and go straight to `## Links` — no `# ` title). The marker then
+# goes after the frontmatter, and its offset MUST be re-derived from the
+# already-status-rewritten document: reusing the pre-rewrite match index splices
+# the marker INSIDE the frontmatter and pushes the bytes it overran out behind
+# it. The signature of that bug is `status: implement` + `SPEC-FROZEN: trueing`.
+test_freeze_004_no_h1() {
+  local out rc ok=1 spec
+  new_repo || { log_fail "TEST-009(freeze) fixture setup failed"; return; }
+  spec="$REPO/docs/specs/SPEC-0100-noh1.md"
+
+  # (a) the corpus shape: a long frontmatter whose LAST value is the byte range
+  # a stale offset would truncate.
+  cat > "$spec" <<'EOF'
+---
+id: spec-no-h1
+type: spec
+number: 100
+status: draft
+links:
+  pr:
+    - 178
+  commits:
+    - 8e167599068a3ce15c02cae2bd7d3175200b754e
+---
+
+## Links
+- Requirement: docs/issues/CHANGE-0079-fx.md
+
+## Isolation and review
+- Inline review scope: src/touched.mjs
+EOF
+  cp "$spec" "$spec.orig"
+  out="$(runfreeze --path docs/specs/SPEC-0100-noh1.md --no-event 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-009(freeze) no-H1 freeze" || ok=0
+
+  # The commit SHA is the canary: a stale-offset splice truncates it.
+  grep -q '^    - 8e167599068a3ce15c02cae2bd7d3175200b754e$' "$spec" \
+    || { log_info "TEST-009(freeze): frontmatter content was TRUNCATED: $(sed -n '1,16p' "$spec")"; ok=0; }
+  # The two corruption signatures must not exist anywhere in the result.
+  grep -q 'SPEC-FROZEN: trueing' "$spec" \
+    && { log_info "TEST-009(freeze): the marker was spliced INSIDE the frontmatter"; ok=0; }
+  grep -q '^status: implement$' "$spec" \
+    && { log_info "TEST-009(freeze): the status line was truncated to 'implement'"; ok=0; }
+  grep -q '^status: implementing$' "$spec" \
+    || { log_info "TEST-009(freeze): status not flipped: $(sed -n '1,12p' "$spec")"; ok=0; }
+  # The marker lives in the BODY, after the closing `---`.
+  node -e '
+    const fs = require("fs");
+    const c = fs.readFileSync(process.argv[1], "utf8");
+    const fm = c.match(/^---\n([\s\S]*?)\n---/);
+    if (!fm) throw new Error("frontmatter no longer parses");
+    if (/^SPEC-FROZEN:/m.test(fm[1])) throw new Error("marker INSIDE frontmatter");
+    const body = c.slice(fm.index + fm[0].length);
+    const n = (body.match(/^SPEC-FROZEN:[ \t]*\S*[ \t]*$/gm) || []);
+    if (n.length !== 1) throw new Error("body markers: " + n.length);
+    if (n[0].trim() !== "SPEC-FROZEN: true") throw new Error("marker value: " + n[0]);
+  ' "$spec" 2>&1 | grep -q . \
+    && { log_info "TEST-009(freeze): post-freeze shape wrong: $(node -e 'const fs=require("fs");process.stdout.write(fs.readFileSync(process.argv[1],"utf8").slice(0,400))' "$spec")"; ok=0; }
+  # BYTE-CORRECT: exactly two changes vs the original — the status line and the
+  # inserted marker (plus its blank line). Nothing else moved.
+  local dl
+  dl="$(diff "$spec.orig" "$spec" | grep -c '^[<>]' || true)"
+  [[ "$dl" == 4 ]] \
+    || { log_info "TEST-009(freeze): expected exactly 4 diff lines (status flip + marker + blank), got $dl: $(diff "$spec.orig" "$spec")"; ok=0; }
+
+  # (b) the MINIMAL shape that produced `status: implement` + `trueing`.
+  printf -- '---\nid: x\ntype: spec\nstatus: draft\n---\n\n## Summary\nbody text\n' \
+    > "$REPO/docs/specs/SPEC-0101-min.md"
+  out="$(runfreeze --path docs/specs/SPEC-0101-min.md --no-event 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-009(freeze) minimal no-H1" || ok=0
+  local want
+  want="$(printf -- '---\nid: x\ntype: spec\nstatus: implementing\n---\n\nSPEC-FROZEN: true\n\n## Summary\nbody text\n')"
+  [[ "$(cat "$REPO/docs/specs/SPEC-0101-min.md")" == "$want" ]] \
+    || { log_info "TEST-009(freeze): minimal output not byte-correct: $(cat "$REPO/docs/specs/SPEC-0101-min.md")"; ok=0; }
+  # idempotent on the no-H1 shape too
+  local before
+  before="$(cksum "$REPO/docs/specs/SPEC-0101-min.md")"
+  runfreeze --path docs/specs/SPEC-0101-min.md --no-event >/dev/null 2>&1; rc=$?
+  expect_exit 0 "$rc" "TEST-009(freeze) no-H1 re-freeze" || ok=0
+  [[ "$before" == "$(cksum "$REPO/docs/specs/SPEC-0101-min.md")" ]] \
+    || { log_info "TEST-009(freeze): a no-H1 re-freeze rewrote the file"; ok=0; }
+
+  # (c) POST-TRANSFORM ASSERTION: a doc the transform cannot leave in a provably
+  # frozen shape (two SPEC-FROZEN lines) exits 1 with NOTHING written.
+  printf -- '---\nid: y\ntype: spec\nstatus: draft\n---\n\n# T\n\nSPEC-FROZEN: false\n\n## X\nSPEC-FROZEN: false\n' \
+    > "$REPO/docs/specs/SPEC-0102-dual.md"
+  before="$(cksum "$REPO/docs/specs/SPEC-0102-dual.md")"
+  out="$(runfreeze --path docs/specs/SPEC-0102-dual.md --no-event 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-009(freeze) post-transform assertion" || ok=0
+  echo "$out" | grep -qi "post-transform assertion" \
+    || { log_info "TEST-009(freeze): the assertion did not name itself: $out"; ok=0; }
+  [[ "$before" == "$(cksum "$REPO/docs/specs/SPEC-0102-dual.md")" ]] \
+    || { log_info "TEST-009(freeze): a failed assertion still wrote the file"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-009(freeze) no-H1 specs freeze byte-correctly (no truncation, marker outside frontmatter); a failed post-transform assertion exits 1 writing nothing" \
+    || log_fail "TEST-009(freeze) no-H1 freeze"
+}
+
+# --- AC-002 TEST-010 — path SPELLING cannot launder a ride-touched path -------
+# The diff refusal compared raw strings, so './committed.js' was a different
+# path from 'committed.js' and walked straight past the gate.
+test_scope_006_path_normalization() {
+  local out rc ok=1 spelling
+  new_repo || { log_fail "TEST-010(scope) fixture setup failed"; return; }
+
+  # src/touched.mjs IS in the ride diff. Every spelling of it must be refused.
+  for spelling in './src/touched.mjs' 'src/../src/touched.mjs' './/src/touched.mjs' 'src/./touched.mjs'; do
+    out="$(runscope --spec docs/specs/SPEC-0001-fx.md --exclude "$spelling" --base-ref main 2>&1)"; rc=$?
+    expect_exit 3 "$rc" "TEST-010(scope) exclude $spelling" || ok=0
+  done
+  # ABSOLUTE spelling of the same file
+  out="$(runscope --spec docs/specs/SPEC-0001-fx.md --exclude "$REPO/src/touched.mjs" --base-ref main 2>&1)"; rc=$?
+  expect_exit 3 "$rc" "TEST-010(scope) exclude absolute" || ok=0
+
+  # --include is the sharper hole: it WROTE the laundered spelling into the
+  # review scope while the plain spelling was refused.
+  local before
+  before="$(cksum "$SPEC")"
+  out="$(runscope --spec docs/specs/SPEC-0001-fx.md --include './src/touched.mjs' --base-ref main 2>&1)"; rc=$?
+  expect_exit 3 "$rc" "TEST-010(scope) include laundered spelling" || ok=0
+  [[ "$before" == "$(cksum "$SPEC")" ]] \
+    || { log_info "TEST-010(scope): a laundered --include still wrote the spec"; ok=0; }
+
+  # CONTROL: an UNTOUCHED path still applies, and a laundered spelling of it
+  # resolves to the same entry (no duplicate, no './' prefix in the file).
+  out="$(runscope --spec docs/specs/SPEC-0001-fx.md --exclude './requirements.txt' --base-ref main 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-010(scope) untouched laundered spelling applies" || ok=0
+  scope_list | grep -q "requirements.txt" \
+    && { log_info "TEST-010(scope): './requirements.txt' did not match 'requirements.txt': $(scope_list)"; ok=0; }
+  grep -q '\./' "$SPEC" \
+    && { log_info "TEST-010(scope): a laundered spelling leaked into the spec: $(scope_list)"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-010(scope) './x', 'a/../x', './/x' and absolute spellings all resolve to one path — none launders a ride-touched file past the refusal" \
+    || log_fail "TEST-010(scope) path normalization"
+}
+
+# --- AC-002 TEST-011 — the NESTED and BACKTICKED corpus shapes ----------------
+# 30 corpus specs write the scope as an indented child list and 24 backtick
+# their entries. Both parsed as EMPTY: --exclude exited 0 "already out of scope"
+# without editing or auditing, and --include wrote onto the LABEL line and left
+# the child list dangling. Fixtures mirror SPEC-0026 (nested) and SPEC-0074
+# (backticked).
+test_scope_007_nested_and_backticked() {
+  local out rc ok=1 nested btick
+  new_repo || { log_fail "TEST-011(scope) fixture setup failed"; return; }
+  nested="$REPO/docs/specs/SPEC-0026-nested.md"
+  btick="$REPO/docs/specs/SPEC-0074-btick.md"
+
+  write_nested() {
+    cat > "$nested" <<'EOF'
+---
+id: spec-nested
+type: spec
+status: implementing
+---
+
+# Nested fixture
+
+SPEC-FROZEN: true
+
+## Isolation and review
+- Worktree recommendation: optional
+- User decision: inline
+- Base ref: main
+- Inline review scope (explicit paths):
+  - .aai/templates/BRIEF_TEMPLATE.md (new)
+  - .aai/PLANNING.prompt.md
+  - requirements.txt
+  - tests/skills/test-aai-hygiene-pack.sh
+
+## Design decisions
+EOF
+  }
+  write_nested
+  cat > "$btick" <<'EOF'
+---
+id: spec-btick
+type: spec
+status: implementing
+---
+
+# Backticked fixture
+
+SPEC-FROZEN: true
+
+## Isolation and review
+- Inline review scope: `requirements.txt`,
+  `tests/skills/test-aai-branch-guard.sh`
+
+## Companion obligations
+EOF
+
+  # (a) NESTED --exclude actually edits, and is AUDITED.
+  out="$(runscope --spec docs/specs/SPEC-0026-nested.md --exclude requirements.txt --base-ref main 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-011(scope) nested exclude" || ok=0
+  grep -q '^  - requirements.txt$' "$nested" \
+    && { log_info "TEST-011(scope): nested exclude did not remove the child: $(sed -n '15,21p' "$nested")"; ok=0; }
+  grep -q '^  - .aai/PLANNING.prompt.md$' "$nested" \
+    || { log_info "TEST-011(scope): nested exclude dropped a sibling: $(sed -n '15,21p' "$nested")"; ok=0; }
+  # the trailing `(new)` annotation survives
+  grep -q '^  - .aai/templates/BRIEF_TEMPLATE.md (new)$' "$nested" \
+    || { log_info "TEST-011(scope): the entry annotation was lost: $(sed -n '15,21p' "$nested")"; ok=0; }
+  # the LABEL line is untouched — never written onto
+  grep -q '^- Inline review scope (explicit paths):$' "$nested" \
+    || { log_info "TEST-011(scope): the label line was corrupted: $(sed -n '15,16p' "$nested")"; ok=0; }
+  grep -q '"event":"spec_scope_edited"' "$REPO/docs/ai/EVENTS.jsonl" 2>/dev/null \
+    || { log_info "TEST-011(scope): a nested edit was not audited"; ok=0; }
+
+  # (b) BACKTICKED --exclude matches the bare path and PRESERVES the spelling of
+  # the entries it keeps.
+  out="$(runscope --spec docs/specs/SPEC-0074-btick.md --exclude requirements.txt --base-ref main 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-011(scope) backticked exclude" || ok=0
+  grep -q 'requirements.txt' "$btick" \
+    && { log_info "TEST-011(scope): backticked exclude did not remove the entry: $(grep -A2 'review scope' "$btick")"; ok=0; }
+  grep -q '`tests/skills/test-aai-branch-guard.sh`' "$btick" \
+    || { log_info "TEST-011(scope): the surviving entry lost its backticks: $(grep -A2 'review scope' "$btick")"; ok=0; }
+
+  # (c) NESTED --include appends a CHILD, never text on the label line.
+  write_nested
+  out="$(runscope --spec docs/specs/SPEC-0026-nested.md --include .gitattributes --base-ref main 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-011(scope) nested include" || ok=0
+  grep -q '^- Inline review scope (explicit paths):$' "$nested" \
+    || { log_info "TEST-011(scope): include wrote onto the label line: $(sed -n '15,22p' "$nested")"; ok=0; }
+  grep -q '^  - .gitattributes$' "$nested" \
+    || { log_info "TEST-011(scope): include did not append a child bullet: $(sed -n '15,22p' "$nested")"; ok=0; }
+  grep -q '^  - requirements.txt$' "$nested" \
+    || { log_info "TEST-011(scope): include dropped an existing child: $(sed -n '15,22p' "$nested")"; ok=0; }
+  grep -q '^## Design decisions$' "$nested" \
+    || { log_info "TEST-011(scope): include ate the following section"; ok=0; }
+
+  # (d) a bullet that yields NO parsable entry is REFUSED (exit 4), never
+  # reported as a no-op success.
+  printf -- '---\nid: z\ntype: spec\nstatus: implementing\n---\n\n# Z\n\n## Isolation and review\n- Inline review scope: <paths>\n\n## Next\n' \
+    > "$REPO/docs/specs/SPEC-0008-zero.md"
+  local before
+  before="$(cksum "$REPO/docs/specs/SPEC-0008-zero.md")"
+  out="$(runscope --spec docs/specs/SPEC-0008-zero.md --exclude requirements.txt --base-ref main 2>&1)"; rc=$?
+  expect_exit 4 "$rc" "TEST-011(scope) zero parsable entries" || ok=0
+  echo "$out" | grep -qi "no parsable path entries" \
+    || { log_info "TEST-011(scope): the refusal did not explain itself: $out"; ok=0; }
+  [[ "$before" == "$(cksum "$REPO/docs/specs/SPEC-0008-zero.md")" ]] \
+    || { log_info "TEST-011(scope): a refused zero-parsable edit still wrote"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-011(scope) nested child lists and backticked entries are first-class (edited, audited, spelling preserved, label line intact); an unparsable list refuses exit 4" \
+    || log_fail "TEST-011(scope) nested/backticked shapes"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -372,9 +621,12 @@ main() {
   test_scope_003_events_audit
   test_scope_004_idempotent
   test_scope_005_fail_closed
+  test_scope_006_path_normalization
+  test_scope_007_nested_and_backticked
   test_freeze_001_atomic
   test_freeze_002_half_state_refusal
   test_freeze_003_repairs_half_frozen
+  test_freeze_004_no_h1
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

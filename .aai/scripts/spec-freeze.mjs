@@ -32,7 +32,12 @@
 //     unreadable path, no frontmatter, no `status:` key in the frontmatter, or
 //     a current status outside {draft, proposed, accepted, implementing}
 //     (a terminal doc is never re-frozen)
-//   1 internal error (unexpected exception; nothing was written)
+//   1 internal error (unexpected exception; nothing was written) — INCLUDING a
+//     failed post-transform assertion: before writing, the RESULT is re-parsed
+//     and must satisfy the full frozen contract (frontmatter parses, status is
+//     `implementing`, exactly one body `SPEC-FROZEN: true` and none inside the
+//     frontmatter). A transform that cannot prove its own output is correct
+//     writes nothing.
 //
 // The refusal codes are the whole point: this tool would rather leave a spec
 // untouched than leave it half-frozen.
@@ -128,13 +133,52 @@ export function freezeContent(norm) {
       const at = h1.index + h1[0].length;
       out = `${out.slice(0, at)}\n\nSPEC-FROZEN: true${out.slice(at)}`;
     } else {
-      // No H1: place it immediately after the frontmatter block so the marker
-      // is still where every reader (dispatch rule 6, spec-lint) looks.
-      const end = fmMatch.index + fmMatch[0].length;
+      // No H1 (SPEC-0100/0101/0102 and every doc-generator spec): place the
+      // marker immediately after the frontmatter block so it is still where
+      // every reader (dispatch rule 6, spec-lint) looks.
+      //
+      // The offset MUST be re-derived from `out`. `fmMatch` was matched against
+      // `norm`, but the status rewrite above already changed the document's
+      // length (draft -> implementing is +7 bytes), so reusing fmMatch's index
+      // splices the marker INSIDE the frontmatter and pushes the bytes it
+      // overran out behind it — the exact corruption signature
+      // `status: implement` + `SPEC-FROZEN: trueing`.
+      const outFm = out.match(/^---\n[\s\S]*?\n---/);
+      if (!outFm) throw new Error('post-transform: the rewritten frontmatter no longer parses — refusing to write');
+      const end = outFm.index + outFm[0].length;
       out = `${out.slice(0, end)}\n\nSPEC-FROZEN: true${out.slice(end)}`;
     }
   }
+
+  // POST-TRANSFORM ASSERTION — the last line of defense, and the reason an
+  // offset bug can never again reach the disk. The RESULT is re-parsed from
+  // scratch (not trusted from the transform's own bookkeeping) and must satisfy
+  // the full frozen contract. A violation is an internal error: throw, so main
+  // exits 1 with NOTHING written.
+  const bad = assertFrozen(out);
+  if (bad) throw new Error(`post-transform assertion failed: ${bad} — refusing to write a corrupted spec`);
+
   return { content: out, from };
+}
+
+// assertFrozen(out) -> null when the transformed document satisfies the frozen
+// contract, otherwise a human reason. Re-parses `out` independently:
+//   1. it still opens with a parseable YAML frontmatter block
+//   2. that frontmatter carries `status: implementing`
+//   3. NO SPEC-FROZEN line lives inside the frontmatter block
+//   4. the BODY carries EXACTLY ONE SPEC-FROZEN line, and its value is `true`
+export function assertFrozen(out) {
+  const fm = out.match(/^---\n([\s\S]*?)\n---/);
+  if (!fm) return 'the result carries no parseable frontmatter block';
+  const st = fm[1].match(/^status:[ \t]*(\S*)[ \t]*$/m);
+  const got = st ? st[1].trim().toLowerCase() : null;
+  if (got !== FROZEN_STATUS) return `the result's frontmatter status is "${got ?? '(absent)'}" (expected "${FROZEN_STATUS}")`;
+  if (/^SPEC-FROZEN:/m.test(fm[1])) return 'the freeze marker landed INSIDE the frontmatter block';
+  const body = out.slice(fm.index + fm[0].length);
+  const markers = body.match(/^SPEC-FROZEN:[ \t]*\S*[ \t]*$/gm) ?? [];
+  if (markers.length !== 1) return `the result's body carries ${markers.length} SPEC-FROZEN line(s) (expected exactly 1)`;
+  if (!/^SPEC-FROZEN:[ \t]*true[ \t]*$/.test(markers[0])) return `the body marker reads "${markers[0].trim()}" (expected "SPEC-FROZEN: true")`;
+  return null;
 }
 
 function main() {

@@ -2319,6 +2319,58 @@ test_037_confirm_delta_control() {
   log_pass "delta control: prose-only re-plan confirms; a real AC delta dispatches 9a and records nothing (CHANGE-0120 TEST-037)"
 }
 
+test_038_confirm_record_failure_falls_back() {
+  log_info "Test: CLI rule 9x -- a confirmation that CANNOT be recorded falls back to a real dispatch (CHANGE-0120 TEST-038)..."
+  if [[ "$(id -u)" == "0" ]]; then
+    log_info "SKIP TEST-038: running as root, a read-only ledger would still be writable"
+    return
+  fi
+  local d
+  d="$(mk_root t38)"
+  write_ac_spec "$d/docs/specs/SPEC-0001-fx.md" done
+  write_dstate "$d/docs/ai/STATE.yaml" not_run not_run planning done tdd optional inline CHANGE-0001
+  append_impl_run "$d/docs/ai/STATE.yaml" CHANGE-0001
+
+  # Sabotage ONLY the append: the ledger stays readable (so the snapshot still
+  # builds) but unwritable, so the append-event child fails.
+  : > "$d/docs/ai/EVENTS.jsonl"
+  chmod 0444 "$d/docs/ai/EVENTS.jsonl"
+  run_dispatch "$d" --confirm
+  chmod 0644 "$d/docs/ai/EVENTS.jsonl"
+
+  # FAIL CLOSED: no snapshot on the ledger -> no confirmation. Reporting a clean
+  # no_action here is a permanent silent stall: the next tick reads the same
+  # state, confirms again, and the phase never advances.
+  [[ "$EC" == 0 ]] || log_fail "an unrecordable confirm must fall back to a DISPATCH exit 0 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "dispatch" && o.rule === "9a" && o.role === "TDD Implementation"'
+  jassert "$OUT" 'o.confirm_recorded === false'
+  jassert "$OUT" 'o.reasons.indexOf("confirm_record_failed_fallback_dispatch") >= 0'
+  jassert "$OUT" '!("confirm_event" in o) || o.confirm_event == null'
+  # The fallback is a FULL dispatch: routing and prompt hash are resolved like
+  # any other, not left half-built by the arm it replaced.
+  jassert "$OUT" 'typeof o.system_prompt === "string" && o.system_prompt.length > 0'
+  jassert "$OUT" 'typeof o.prompt_hash === "string"'
+  grep -qi "could not record" "$ERR" \
+    || log_fail "the fallback must say WHY on stderr: $(cat "$ERR")"
+  [[ ! -s "$d/docs/ai/EVENTS.jsonl" ]] \
+    || log_fail "nothing may reach the ledger when the append failed: $(cat "$d/docs/ai/EVENTS.jsonl")"
+
+  # CONTROL: with the ledger writable the SAME state confirms as before, and the
+  # idempotent re-tick still reports confirm_recorded=false WITHOUT falling back
+  # (a skipped append is not a failed one).
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 3 ]] || log_fail "a recordable confirm must still exit 3 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "9x" && o.verdict === "no_action" && o.confirm_recorded === true'
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 3 ]] || log_fail "an idempotent re-tick must stay no_action (got $EC): $(cat "$OUT")"
+  jassert "$OUT" 'o.rule === "9x" && o.confirm_recorded === false'
+  jassert "$OUT" 'o.reasons.indexOf("confirm_record_failed_fallback_dispatch") < 0'
+  local n
+  n="$(grep -c '"event":"phase_confirmed"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 1 ]] || log_fail "exactly one confirmation must be on the ledger (got $n)"
+  log_pass "an unrecordable --confirm falls back to a real dispatch with a stderr note; a SKIPPED (idempotent) append does not (CHANGE-0120 TEST-038)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026; TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
   check_deps
@@ -2359,6 +2411,7 @@ main() {
   test_035_confirm_pure_arms
   test_036_confirm_cli_event
   test_037_confirm_delta_control
+  test_038_confirm_record_failure_falls_back
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

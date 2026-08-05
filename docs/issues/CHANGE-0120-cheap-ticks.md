@@ -91,6 +91,25 @@ links:
   ride with full validation.
 - Honesty: confirm-by-script must compare against the FROZEN spec content,
   not trust the re-plan's self-report.
+- CORPUS SHAPES (found by independent validation, now FIXED): the two
+  deterministic editors were written against the SPEC_TEMPLATE shape and met a
+  corpus that does not match it. `spec-freeze` corrupted every spec with NO `# `
+  H1 (SPEC-0100/0101/0102 and all doc-generator specs) — the marker was spliced
+  INSIDE the frontmatter at a stale offset and truncated adjacent content, at
+  exit 0. `spec-scope-edit` read only the flat comma list, so the 30 nested and
+  24 backticked corpus specs (54 of 114) parsed as EMPTY: `--exclude` reported
+  "already out of scope" without editing or auditing, and `--include` wrote onto
+  the label line. Both are fixed and covered (spec-tools TEST-009/010/011); the
+  freeze now re-parses its own OUTPUT before writing and refuses (exit 1,
+  nothing written) if it cannot prove the result is correctly frozen, and the
+  scope editor refuses (exit 4) any scope bullet it cannot parse rather than
+  reporting a no-op success.
+- PATH SPELLING (found by independent validation, now FIXED): the scope
+  editor's diff refusal compared raw strings, so `./committed.js`,
+  `src/../committed.js`, `.//committed.js` and an absolute in-repo path all
+  bypassed the gate — `--include` would launder a ride-touched path into the
+  review scope at exit 0. Target and diff entries are now compared through one
+  normalized repo-relative key (symlinked repo prefixes included).
 
 ## Residual risks (as delivered)
 
@@ -115,4 +134,12 @@ links:
 - CONFIRM WRITE MODE: `--confirm` is opt-in and only `.aai/ORCHESTRATION.prompt.md`
   passes it today. An orchestrator that omits it still gets the zero-dispatch
   saving, but records no snapshot — so every tick re-derives from the bootstrap
-  evidence rather than the stronger hash comparison.
+  evidence rather than the stronger hash comparison. When `--confirm` IS passed
+  and the recording FAILS, the tick now falls back to a real dispatch with a
+  stderr note (an unrecorded confirmation is invisible to the next tick and
+  would otherwise repeat forever) — dispatch TEST-038.
+- ANNOTATION FIDELITY (scope editor): a nested child bullet that names SEVERAL
+  comma-separated paths under one shared trailing `(note)` is rewritten as one
+  child per path, so the shared note stays with the LAST path only. No path is
+  ever lost (verified across all 114 corpus specs), and this only happens on an
+  actual edit — but the prose of such a shared annotation can degrade.

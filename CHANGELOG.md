@@ -44,6 +44,26 @@ RFC-0001).
 - Also fixes a false-green in the CHANGE-0122 suite: `test-aai-spec-lint.sh`
   called `$SPEC_LINT`, an undefined name, so under `set -u` the lint never ran
   and the template-self-flag assertion was vacuously true.
+- CORPUS-SHAPE HARDENING (independent validation, pre-merge): both editors were
+  written against the SPEC_TEMPLATE shape and met a corpus that does not match
+  it. `spec-freeze` corrupted every spec with no `# ` H1 — the marker was
+  spliced INSIDE the frontmatter at a stale offset and truncated adjacent
+  content, reporting success. It now re-derives the insertion point from the
+  rewritten document and, before writing anything, re-parses its own OUTPUT and
+  refuses (exit 1, nothing written) unless the result is provably frozen.
+  `spec-scope-edit` read only the flat comma list, so the 30 nested and 24
+  backticked corpus specs parsed as EMPTY — `--exclude` reported "already out
+  of scope" without editing or auditing, `--include` wrote onto the label line.
+  Nested child lists, backticked entries, `(annotation)` suffixes and wrapped
+  child lines are now first-class, original spelling is preserved on rewrite,
+  and a scope bullet that yields no parsable path REFUSES (exit 4) instead of
+  reporting a no-op success. Path spellings (`./x`, `a/../x`, `.//x`, absolute,
+  symlinked repo prefixes) now normalize to one key, closing a hole where a
+  laundered spelling walked a ride-touched path past the exit-3 refusal.
+- FAIL-CLOSED CONFIRM: when `--confirm` is requested and the `phase_confirmed`
+  event cannot be recorded, the tick falls back to a real dispatch with a
+  stderr note instead of reporting a clean no-action — an unrecorded
+  confirmation is invisible to the next tick and would repeat forever.
 
 ## [unreleased] — feat(spec-lint): evidence requirements scale with the recorded strategy — direct rides stop paying TDD ceremony (CHANGE-0122) [L1]
 

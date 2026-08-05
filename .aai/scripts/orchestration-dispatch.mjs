@@ -308,10 +308,14 @@ function dispatchRetarget(candidate, snapshot, fromRef) {
   };
 }
 
-// decide(snapshot) — PURE first-match evaluation of the rule table. The
+// decide(snapshot, opts) — PURE first-match evaluation of the rule table. The
 // snapshot shape is documented by buildSnapshot() below; decide never touches
 // a clock, the filesystem, or its input.
-export function decide(snapshot) {
+// `opts.skipConfirm` disables the rule-9x confirm arm so the caller can ask
+// "what would this tick do if confirming were not an option?" — used ONLY by
+// the --confirm fail-closed fallback, when the confirmation could not be
+// recorded and therefore does not exist as far as the next tick is concerned.
+export function decide(snapshot, opts = {}) {
   const s = snapshot;
   // Rule 1 — paused.
   if (s.project_status === 'paused') return noAction('1', s, ['project_status_paused']);
@@ -418,7 +422,7 @@ export function decide(snapshot) {
     // proof of prior green all fall through to 9a/9b/9c unchanged.
     const hash = s.spec.content_hash ?? null;
     const prior = s.last_phase_confirm ?? null;
-    if (s.spec.ac_green === true && hash !== null
+    if (!opts.skipConfirm && s.spec.ac_green === true && hash !== null
       && (prior ? prior.hash === hash : s.prior_implementer_run === true)) {
       const out = noAction('9x', s, ['phase_confirmed_no_delta', 'advance_phase_to_implementation']);
       out.confirm_event = { event: 'phase_confirmed', ref: s.focus.ref_id, phase, hash };
@@ -880,19 +884,28 @@ export function suggestEffort(out, routing) {
 // scope never grows the ledger. Delegates to the sibling append-event.mjs so
 // the EVENTS schema (v / ts / actor) keeps exactly ONE writer; `root` is the
 // child's cwd, which is what decides where docs/ai/EVENTS.jsonl lands.
-// Returns true when a line was appended, false otherwise (including any child
-// failure — a confirm that could not be recorded is reported, never masked).
+//
+// Returns a TRI-STATE, because the two ways of NOT appending are opposites:
+//   'appended' — a line was written
+//   'skipped'  — the SAME confirmation is already on the ledger (idempotence:
+//                the confirmation EXISTS, so the next tick will see it)
+//   'failed'   — the child could not write it, so the confirmation does NOT
+//                exist and never will; the caller must fail closed
+// Collapsing the last two into one `false` is what let a failed recording read
+// as a clean no_action: the tick reported a confirmation, the ledger stayed
+// empty, and the NEXT tick re-derived the same confirm from the same state —
+// forever, never advancing the phase and never saying why.
 function recordConfirm(ev, root, snapshot) {
   const prior = snapshot && snapshot.last_phase_confirm;
-  if (prior && prior.hash === ev.hash && prior.phase === ev.phase) return false;
+  if (prior && prior.hash === ev.hash && prior.phase === ev.phase) return 'skipped';
   const appender = path.join(path.dirname(fileURLToPath(import.meta.url)), 'append-event.mjs');
   try {
     execFileSync(process.execPath, [appender,
       '--event', 'phase_confirmed', '--ref', ev.ref,
       '--phase', String(ev.phase), '--hash', ev.hash], { cwd: root, stdio: 'ignore' });
-    return true;
+    return 'appended';
   } catch {
-    return false;
+    return 'failed';
   }
 }
 
@@ -940,6 +953,26 @@ function main() {
       out = decide(snapshot);
       out.state_summary = snapshot;
     }
+    // CHANGE-0120: --confirm records the rule-9x confirmation. Only that arm
+    // ever sets confirm_event, so no other verdict can reach the writer.
+    // Resolved BEFORE routing/prompt-hash so the fail-closed fallback below
+    // gets its model tier, effort and prompt hash computed like any dispatch.
+    if (opts.confirm && out.confirm_event) {
+      const rec = recordConfirm(out.confirm_event, root, out.state_summary);
+      out.confirm_recorded = rec === 'appended';
+      if (rec === 'failed') {
+        // FAIL CLOSED. A confirmation that could not be written does not exist:
+        // the next tick reads the same state, re-confirms, and the phase never
+        // advances — a silent permanent stall. Take the dispatch that rule 9x
+        // suppressed instead, and say so on stderr.
+        console.error('orchestration-dispatch: NOTE — --confirm could not record the phase_confirmed event; falling back to a real dispatch (an unrecorded confirmation is invisible to the next tick and would repeat forever)');
+        const fallback = decide(snapshot, { skipConfirm: true });
+        fallback.state_summary = snapshot;
+        fallback.confirm_recorded = false;
+        fallback.reasons = [...fallback.reasons, 'confirm_record_failed_fallback_dispatch'];
+        out = fallback;
+      }
+    }
     const routing = loadModelRouting(root);
     out.suggested_model = suggestModel(out, routing);
     // Advisory reasoning-effort hint (cache-friendly-dispatch), resolved from
@@ -948,11 +981,6 @@ function main() {
     // prompt-hash-telemetry Spec-AC-05: additive-only — only a real dispatch
     // (system_prompt present) gets a prompt_hash; no_action/needs_llm verdicts
     // (no role, no system_prompt) are untouched.
-    // CHANGE-0120: --confirm records the rule-9x confirmation. Only this arm
-    // ever sets confirm_event, so no other verdict can reach the writer.
-    if (opts.confirm && out.confirm_event) {
-      out.confirm_recorded = recordConfirm(out.confirm_event, root, out.state_summary);
-    }
     if (out.system_prompt) {
       out.prompt_hash = computeEffectivePromptHash(out.system_prompt, root);
       // Inheritance provenance (promptbook adoption 4): per-component
