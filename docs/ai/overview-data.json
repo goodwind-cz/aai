@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-08-05T10:55:22.942Z",
+  "generatedAt": "2026-08-05T11:29:01.354Z",
   "project": "aai",
   "counts": {
-    "delivered": 164,
-    "in_progress": 4,
+    "delivered": 165,
+    "in_progress": 3,
     "releases": 1,
     "tokens_total": 23273206
   },
@@ -91,19 +91,6 @@
       "review": null
     },
     {
-      "ref": "strategy-scaled-evidence",
-      "title": "Change — evidence requirements scale with the recorded strategy (direct rides stop paying TDD ceremony)",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0122-strategy-scaled-evidence.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -124,6 +111,19 @@
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0121-downstream-lane-seed.md",
+      "closed_on": "2026-08-05",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "strategy-scaled-evidence",
+      "title": "Change — evidence requirements scale with the recorded strategy (direct rides stop paying TDD ceremony)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0122-strategy-scaled-evidence.md",
       "closed_on": "2026-08-05",
       "agent_minutes": null,
       "token_total": null,
@@ -2263,6 +2263,19 @@
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0121-downstream-lane-seed.md",
+          "closed_on": "2026-08-05",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "strategy-scaled-evidence",
+          "title": "Change — evidence requirements scale with the recorded strategy (direct rides stop paying TDD ceremony)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0122-strategy-scaled-evidence.md",
           "closed_on": "2026-08-05",
           "agent_minutes": null,
           "token_total": null,

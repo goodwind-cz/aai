@@ -1482,3 +1482,6 @@
 {"v":1,"ts":"2026-08-05T10:55:03.515Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"downstream-lane-seed","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-08-05T10:55:03.550Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"downstream-lane-seed","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-05T10:55:03.585Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"downstream-lane-seed","payload":{"commit":"fa430c7d2b817c7f1de1dcac9b70ec370f63432c"}}
+{"v":1,"ts":"2026-08-05T11:28:43.674Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"strategy-scaled-evidence","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-05T11:28:43.706Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"strategy-scaled-evidence","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-05T11:28:43.738Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"strategy-scaled-evidence","payload":{"commit":"85fdb3a75e650e6acfb1466af197ef7c47453ef5"}}

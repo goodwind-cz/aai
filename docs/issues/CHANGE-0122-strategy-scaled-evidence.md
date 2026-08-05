@@ -2,12 +2,14 @@
 id: strategy-scaled-evidence
 number: 122
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
 links:
-  pr: []
-  commits: []
+  pr:
+    - 228
+  commits:
+    - 85fdb3a75e650e6acfb1466af197ef7c47453ef5
 ---
 
 # Change — evidence requirements scale with the recorded strategy (direct rides stop paying TDD ceremony)
