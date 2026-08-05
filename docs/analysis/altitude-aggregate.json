@@ -1,0 +1,236 @@
+{
+ "T1": {
+  "V1": {
+   "ac_measurability": 5,
+   "scope_fidelity": 3,
+   "evidence_fit": 4,
+   "overreach": 4,
+   "underreach": 0,
+   "hallucinated": 3
+  },
+  "V2": {
+   "ac_measurability": 5,
+   "scope_fidelity": 3,
+   "evidence_fit": 5,
+   "overreach": 3,
+   "underreach": 0,
+   "hallucinated": 3
+  },
+  "V0": {
+   "ac_measurability": 4,
+   "scope_fidelity": 4,
+   "evidence_fit": 4,
+   "overreach": 2,
+   "underreach": 0,
+   "hallucinated": 2
+  }
+ },
+ "T2": {
+  "V1": {
+   "ac_measurability": 4,
+   "scope_fidelity": 3,
+   "evidence_fit": 4,
+   "overreach": 1,
+   "underreach": 3,
+   "hallucinated": 4
+  },
+  "V0": {
+   "ac_measurability": 4,
+   "scope_fidelity": 3,
+   "evidence_fit": 4,
+   "overreach": 1,
+   "underreach": 2,
+   "hallucinated": 6
+  },
+  "V2": {
+   "ac_measurability": 5,
+   "scope_fidelity": 3,
+   "evidence_fit": 5,
+   "overreach": 2,
+   "underreach": 2,
+   "hallucinated": 4
+  }
+ },
+ "T3": {
+  "V0": {
+   "ac_measurability": 5,
+   "scope_fidelity": 2,
+   "evidence_fit": 5,
+   "overreach": 2,
+   "underreach": 0,
+   "hallucinated": 3
+  },
+  "V1": {
+   "ac_measurability": 4,
+   "scope_fidelity": 2,
+   "evidence_fit": 5,
+   "overreach": 3,
+   "underreach": 1,
+   "hallucinated": 3
+  },
+  "V2": {
+   "ac_measurability": 3,
+   "scope_fidelity": 2,
+   "evidence_fit": 4,
+   "overreach": 3,
+   "underreach": 1,
+   "hallucinated": 1
+  }
+ },
+ "T4": {
+  "V1": {
+   "ac_measurability": 4,
+   "scope_fidelity": 2,
+   "evidence_fit": 5,
+   "overreach": 3,
+   "underreach": 3,
+   "hallucinated": 3
+  },
+  "V2": {
+   "ac_measurability": 5,
+   "scope_fidelity": 3,
+   "evidence_fit": 5,
+   "overreach": 2,
+   "underreach": 3,
+   "hallucinated": 2
+  },
+  "V0": {
+   "ac_measurability": 4,
+   "scope_fidelity": 2,
+   "evidence_fit": 4,
+   "overreach": 4,
+   "underreach": 3,
+   "hallucinated": 4
+  }
+ },
+ "T5": {
+  "V0": {
+   "ac_measurability": 4,
+   "scope_fidelity": 5,
+   "evidence_fit": 5,
+   "overreach": 1,
+   "underreach": 0,
+   "hallucinated": 4
+  },
+  "V2": {
+   "ac_measurability": 5,
+   "scope_fidelity": 4,
+   "evidence_fit": 5,
+   "overreach": 2,
+   "underreach": 0,
+   "hallucinated": 2
+  },
+  "V1": {
+   "ac_measurability": 4,
+   "scope_fidelity": 4,
+   "evidence_fit": 5,
+   "overreach": 1,
+   "underreach": 1,
+   "hallucinated": 4
+  }
+ },
+ "T6": {
+  "V0": {
+   "ac_measurability": 4,
+   "scope_fidelity": 4,
+   "evidence_fit": 4,
+   "overreach": 1,
+   "underreach": 0,
+   "hallucinated": 3
+  },
+  "V2": {
+   "ac_measurability": 4,
+   "scope_fidelity": 3,
+   "evidence_fit": 2,
+   "overreach": 2,
+   "underreach": 0,
+   "hallucinated": 3
+  },
+  "V1": {
+   "ac_measurability": 5,
+   "scope_fidelity": 3,
+   "evidence_fit": 5,
+   "overreach": 3,
+   "underreach": 0,
+   "hallucinated": 5
+  }
+ },
+ "T7": {
+  "V2": {
+   "ac_measurability": 5,
+   "scope_fidelity": 3,
+   "evidence_fit": 5,
+   "overreach": 1,
+   "underreach": 2,
+   "hallucinated": 2
+  },
+  "V0": {
+   "ac_measurability": 4,
+   "scope_fidelity": 3,
+   "evidence_fit": 4,
+   "overreach": 1,
+   "underreach": 3,
+   "hallucinated": 3
+  },
+  "V1": {
+   "ac_measurability": 4,
+   "scope_fidelity": 3,
+   "evidence_fit": 5,
+   "overreach": 2,
+   "underreach": 3,
+   "hallucinated": 3
+  }
+ },
+ "T8": {
+  "V2": {
+   "ac_measurability": 5,
+   "scope_fidelity": 4,
+   "evidence_fit": 4,
+   "overreach": 4,
+   "underreach": 0,
+   "hallucinated": 4
+  },
+  "V1": {
+   "ac_measurability": 5,
+   "scope_fidelity": 3,
+   "evidence_fit": 5,
+   "overreach": 5,
+   "underreach": 0,
+   "hallucinated": 7
+  },
+  "V0": {
+   "ac_measurability": 4,
+   "scope_fidelity": 2,
+   "evidence_fit": 4,
+   "overreach": 3,
+   "underreach": 1,
+   "hallucinated": 8
+  }
+ },
+ "T9": {
+  "V1": {
+   "ac_measurability": 4,
+   "scope_fidelity": 3,
+   "evidence_fit": 5,
+   "overreach": 1,
+   "underreach": 1,
+   "hallucinated": 5
+  },
+  "V2": {
+   "ac_measurability": 5,
+   "scope_fidelity": 3,
+   "evidence_fit": 5,
+   "overreach": 2,
+   "underreach": 2,
+   "hallucinated": 3
+  },
+  "V0": {
+   "ac_measurability": 3,
+   "scope_fidelity": 3,
+   "evidence_fit": 3,
+   "overreach": 0,
+   "underreach": 1,
+   "hallucinated": 2
+  }
+ }
+}

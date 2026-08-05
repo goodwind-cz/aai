@@ -1,0 +1,198 @@
+task: T2
+intake: token-capture-canary (change #58)
+judged_utc: 2026-08-05
+
+harness_notes:
+  reference_not_supplied: >
+    judge-in/ contained only T2-A.md, T2-B.md and T2-C.md. The rubric's REFERENCE
+    (the ground-truth frozen spec) was NOT supplied. I located it in the repo at
+    docs/specs/SPEC-0085-spec-token-capture-canary.md (shipped by commit b2d8041,
+    PR 158) and used it as REFERENCE for M2/M5 only. It was never treated as a
+    candidate. No variant names, prompt texts, byte counts or the blinding key
+    were read.
+  base_ref_used: d1e4c99 (b2d8041^ — the tree immediately before the ride landed)
+  m6_method: >
+    Every named path, script, flag and convention was checked with
+    `git cat-file -e <base_ref>:<path>` or by reading the argument parser at
+    base_ref. Counting rule applied uniformly: an item asserted as fact is
+    COUNTED; an item carrying an explicit hedge plus a named reconciliation step
+    is LISTED but NOT counted.
+
+ground_truth_deliverables:
+  - D1 metrics-flush 3-way classification (decomposed | undecomposed-note | capture-missing) with per-run INFO/WARNING
+  - D2 state.mjs cmdLogTick duration-0 and missing-harness stderr WARNINGs, warn-not-block
+  - D3 SUBAGENT_PROTOCOL merge protocol + SKILL_LOOP step 4 MANDATORY usage-note wording
+  - D4 SUBAGENT_PROTOCOL D3 prose reclassification (the prose asserting the flush WARNING fires for an undecomposed total must be corrected to INFO)
+  - D5 reconciliation of the two EXISTING stanzas that pin the old single-warning behavior (test-aai-token-capture.sh TEST-005, test-aai-metrics.sh TEST-009)
+  - D6 prompt-diet ledger true-up (JUSTIFIED_ADDITIONS) + TEST-012 pinned-total bump in tests/skills/test-aai-prompt-diet.sh
+  - D7 full-suite regression gate
+  - "plan attributes: strategy hybrid; worktree recommended; user_decision REQUIRED (ceremony_level 3, WORKFLOW rule 8)"
+
+candidates:
+
+  - label: A
+    ac_measurability: 4
+    scope_fidelity: 3
+    evidence_fit: 4
+    overreach: 1
+    underreach: 3
+    hallucinated: 4
+    composite_Q: 11
+
+    ac_measurability_note: >
+      13 Spec-ACs, all falsifiable, most with hard numeric thresholds (exactly one
+      classification line per run, counts 1/1/1 and total 3, exactly 2 WARNING lines
+      for 2 fixtures, line count grows by exactly 1, exit 0). One AC is fuzzy:
+      AC-009 requires the literal to "sit next to a mandatory-modality word", an
+      undefined proximity unit. Commands are not bound into the AC rows themselves;
+      they live in the Test Plan and mapping table. Band 4 on the one-implicit-
+      observable rule. Minor internal defect: the type tally says "unit: 6" while
+      listing 7 and concluding 7.
+    scope_fidelity_note: >
+      D1, D2, D3, D6, D7 all present and crisply scoped. Misses D4 and D5. Names 6
+      of the 8 shipped surfaces; hedges the token-capture suite as an alternative
+      ("test-aai-state.sh or the token-capture suite") rather than naming it. One
+      non-load-bearing addition (schema/no-fabrication guard tests). Concrete
+      consequence of the D5 miss: AC-002 mandates the literal `token-capture` in
+      the capture-missing WARNING, which would break the existing
+      test-aai-metrics.sh TEST-009 stanza that pins `cost unattributable — tokens
+      not recorded`; the shipped spec preserved that substring precisely to avoid
+      this. A's own AC-011 would then fail with no plan for it.
+    evidence_fit_note: >
+      Strategy decided (tdd); the demanded evidence (stored RED per AC-gating test,
+      GREEN logs, full-suite log, stderr transcripts, key baseline, ledger diff)
+      matches the tdd row. Over-demands: the blanket "every AC-gating test must be
+      observed FAILING" is applied to TEST-058-012 (the full-framework regression
+      gate, green pre-change by definition), TEST-058-004 (a decomposed run emits
+      no diagnostics — already true pre-change) and TEST-058-008/-013 (pre-change
+      invariants). The contract is unsatisfiable as written for those rows. Correct
+      about log-tick semantics: models `ended` as self-stamped, no phantom flag.
+    overreach_items:
+      - "AC-012 + AC-013 schema-key-baseline and null-preservation guard tests (one deliverable): sensible and intake-adjacent (the intake lists 'no new schema fields' as out-of-scope), but the ride shipped no key-set baseline artifact or test."
+    underreach_items:
+      - "D4 — SUBAGENT_PROTOCOL D3 prose reclassification. The intake's file:line index points at SUBAGENT_PROTOCOL.md 132-154, which is exactly where the stale 'WARNING fires for an undecomposed total' claim lives; A edits the merge protocol wording but never corrects the prose that now contradicts the new INFO behavior."
+      - "D5 — reconciliation of the two existing stanzas pinning the old single-warning behavior. Traceable via the intake's AC-004 and its metrics-flush.mjs 416-422 pointer."
+      - "user_decision gate. The intake requires 'the worktree/review gates that come with' ceremony_level 3; the shipped spec records 'User decision required: YES' per WORKFLOW rule 8. A records 'User decision required: NO', which would let implementation start without the mandated human decision."
+    hallucinated_items:
+      - "`.aai/scripts/spec-freeze.mjs` — asserted as the tool that performed the atomic freeze ('Freeze ... was performed via node .aai/scripts/spec-freeze.mjs'). Does not exist at base_ref; first added much later by CHANGE-0120."
+      - "`bash tests/skills/lib/prompt-diet-ledger.sh` as a runnable check that 'exits 0' (AC-010 and TEST-058-011's command). The file's own header states it is 'a PURE library: no set -u, no cd, no test execution. It is only ever sourced, never run directly.' Running it asserts nothing and trivially exits 0 — an unfalsifiable AC."
+      - "`docs/specs/SPEC-0058.md` — asserted as the spec path in frontmatter, in all five state.mjs commands and in the return record. Two defects at base_ref: (a) zero specs use a bare SPEC-nnnn.md name, all use SPEC-nnnn-slug.md; (b) SPEC-0058 is already taken by SPEC-0058-spec-spec-lint-enforce-spec-id-prefix.md — the next free number was 0085, which is what shipped."
+      - "The `untested` strategy value and the 'SPEC_TEMPLATE.md ### Evidence by strategy' section it tabulates. SPEC_TEMPLATE.md at base_ref allows only loop | tdd | hybrid | undecided and contains no such section."
+    hallucinated_listed_not_counted:
+      - "`tests/skills/test-aai-prompts.sh` (TEST-058-010) does not exist at base_ref, but A hedges it as 'or the token-capture suite' — the correct suite is inside the hedge."
+    verified_correct:
+      - "state.mjs subcommands set-focus / set-phase / set-strategy / set-worktree / set-code-review all exist at base_ref with the flags used."
+      - "log-tick semantics: A correctly treats `ended` as write-time (self-stamped) and never invents an --ended flag."
+
+  - label: B
+    ac_measurability: 4
+    scope_fidelity: 3
+    evidence_fit: 4
+    overreach: 1
+    underreach: 2
+    hallucinated: 6
+    composite_Q: 11
+
+    ac_measurability_note: >
+      10 Spec-ACs, every one carrying its own numeric or literal threshold (exactly
+      1 WARNING and 1 INFO over a 3-class fixture, class-count sum equals record
+      count, exit code 0, byte/line-count equality against a pre-change run, 0
+      failing cases). SAC-001's pinned INFO substring `undecomposed total` matches
+      the wording that actually shipped. One fuzzy observable: SAC-008's "sits in a
+      sentence containing the literal MANDATORY" (sentence boundaries are not a
+      mechanical unit). Commands live in the §5 mapping and §6 test plan, not in the
+      AC rows. Band 4.
+    scope_fidelity_note: >
+      D1, D2, D3, D6, D7 present; the classification rule is stated precisely and
+      correctly. Misses D4 and D5. Surface fidelity is the weakest of the three: it
+      never names tests/skills/test-aai-token-capture.sh (the suite that actually
+      received TEST-004..009) or tests/skills/test-aai-prompt-diet.sh, and instead
+      routes two test rows, the §5 verification command, the §9 evidence contract
+      and the §11 review scope to tests/skills/test-aai-prompts.sh, which does not
+      exist. One non-load-bearing addition (SAC-007 line/byte-count equality guard).
+      Held at 3 rather than 2 because deliverable coverage genuinely equals A's —
+      the surface error is charged under M6.
+    evidence_fit_note: >
+      Strategy decided (tdd); evidence contract is the best-structured of the three
+      as a document — five named artifact paths, per-suite RED/GREEN split, and an
+      explicit claim rule ("exit codes must be read, not inferred"). Correctly
+      exempts two rows from RED with reasons (TEST-008 no-false-positive control,
+      TEST-014 regression gate) — a real understanding of what a RED can prove. One
+      harmless over-demand: TEST-005 (exit 0 + ledger line-count equality) is listed
+      as must-fail-pre-change, but it passes pre-change by construction. Band 4.
+    overreach_items:
+      - "SAC-007 pre-change byte/line-count equality baseline (one deliverable): the same schema-guard family as A's AC-012; sensible, but the ride shipped no such baseline capture."
+    underreach_items:
+      - "D4 — SUBAGENT_PROTOCOL D3 prose reclassification. B rewrites the merge protocol to make the note mandatory but leaves the adjacent prose asserting the old WARNING behavior, which its own SAC-003 contradicts."
+      - "D5 — reconciliation of the two existing stanzas pinning the old single-warning behavior; SAC-010 ('full framework exits 0') would fail against them with no plan recorded."
+    hallucinated_items:
+      - "`tests/skills/test-aai-prompts.sh` — asserted without hedge as the target file for TEST-009 and TEST-010, as the §5 verification command, in the §9 evidence contract, and in the §11 review scope. No such file exists at base_ref. The corpus-contract deliverable is therefore bound to a file Implementation must invent."
+      - "`.aai/scripts/spec-freeze.mjs` — asserted as having written the freeze marker and status flip together. Does not exist at base_ref."
+      - "`tests/skills/lib/prompt-diet-ledger.sh` as a test target whose 'own checkpoint assertion passes' (SAC-009, TEST-011). The file is a pure sourced library containing constants and two helpers; it has no assertions and is never executed."
+      - "The convention that 'TEST-012 ... belongs to the prompt-diet ledger's own external id namespace (tests/skills/lib/prompt-diet-ledger.sh)'. Asserted emphatically ('Do not conflate them'). False at base_ref: TEST-012 is a stanza in tests/skills/test-aai-prompt-diet.sh, which B never names. The disclaimer actively steers Implementation away from the file that owns the pinned total."
+      - "The `direct` and `untested` strategy values, and the 'per SPEC_TEMPLATE `### Evidence by strategy`' citation used to justify the RED obligation. SPEC_TEMPLATE.md at base_ref allows only loop | tdd | hybrid | undecided and has no such section."
+      - "`docs/specs/SPEC-0058.md` / `id: SPEC-0058` — same collision and same nonconforming filename as A: SPEC-0058 is taken at base_ref and no spec uses a bare SPEC-nnnn.md name."
+    verified_correct:
+      - "log-tick semantics: correctly models `ended` as write-time in both SAC-004 and SAC-006; no phantom flag."
+      - "Explicitly considers and rejects hybrid with a stated reason (the strategy the ride actually chose) — a reasoned disagreement, not an oversight."
+
+  - label: C
+    ac_measurability: 5
+    scope_fidelity: 3
+    evidence_fit: 5
+    overreach: 2
+    underreach: 2
+    hallucinated: 4
+    composite_Q: 13
+
+    ac_measurability_note: >
+      The only candidate that binds a Verify command, an Observable and an Evidence
+      artifact into every single AC row, which is exactly what the 5-band describes.
+      Observables are grep counts with numeric thresholds (`grep -c WARNING` == 1 on
+      the mixed fixture and == 0 on the clean one; exactly 3 classification lines;
+      each class token exactly once; line count grew by exactly 1; sorted-key diff
+      empty). Carries the same single fuzzy observable as A and B (Spec-AC-05's
+      "within the same section"), but bounds it with two concrete greps. Spec-AC-06
+      is the sharpest criterion in the whole set. Minor count error: says "4
+      unit/contract-local" where the table has 5.
+    scope_fidelity_note: >
+      D1, D2, D3, D6, D7 present. Misses D4 and D5 — though C is the only candidate
+      showing awareness that the old behavior is currently pinned: TEST-002's
+      expected-RED is "generic warning still fires (count 1)". Best surface fidelity
+      of the three: it is the only one to name tests/skills/test-aai-token-capture.sh
+      (correct — that is where TEST-004..009 shipped) and it supplies a fallback
+      rule if the file is absent. Still misses tests/skills/test-aai-prompt-diet.sh.
+      Held at 3 by the substantial addition (Spec-AC-06), per the band definition.
+    evidence_fit_note: >
+      Strategy decided (tdd) and the contract is the most exact match to the tdd row
+      of any candidate: it partitions all 11 rows into 7 that owe a stored RED
+      (001, 002, 004, 005, 008, 009, 010) and 4 regression guards that owe a
+      pre-change GREEN capture instead (003, 006, 007, 011, as PRE-<id>.log), and
+      states "a row with no RED capture does not count as evidence for its AC".
+      Nothing over-demands, nothing is waived. Adds seam evidence (the extracted
+      note literal, the two key-set diffs) and closes with "Validation reads this
+      list and nothing else. No PASS is claimed here."
+    overreach_items:
+      - "Spec-AC-06 / TEST-009 — 'the documented note grammar is the grammar the flush parses', tested by extracting the literal out of SUBAGENT_PROTOCOL.md at runtime. Not delivered by the ride and not implied by the intake; the shipped spec explicitly declines it (SEAM-3 is grep-verified, and grammar drift is recorded as accepted residual risk RR-1). Note for the record: this is the high-value kind of overreach — it targets precisely the risk the ride chose to accept."
+      - "Spec-AC-07 key-set diff baseline (one deliverable): the same schema-guard family as A's AC-012 and B's SAC-007; sensible, not delivered."
+    underreach_items:
+      - "D4 — SUBAGENT_PROTOCOL D3 prose reclassification. C's Deltas table changes the merge protocol mandate but never corrects the prose describing the old flush WARNING."
+      - "D5 — reconciliation of the two existing old-behavior stanzas. Closest of the three (TEST-002's expected-RED records that the generic warning currently fires) but it is never turned into a deliverable, and Spec-AC-08's full-suite gate would fail on it."
+    hallucinated_items:
+      - "`--ended` flag on `state.mjs log-tick`. Asserted in the Verify commands of BOTH Spec-AC-03 (`log-tick --started <T> --ended <T> --harness \"x\"`) and Spec-AC-04. No such flag exists: cmdLogTick self-stamps `const ended = nowIso()`. Worse, both commands omit --tick, --role and --scope, all of which are `required: true` — as written, the two central verification commands abort on a flag error and never reach the duration-0 or missing-harness path. A and B both modeled this correctly."
+      - "`.aai/scripts/spec-freeze.mjs` — asserted to exist and to own the freeze marker ('must be applied by running it against this file'). Does not exist at base_ref, though C does flag that it was not run."
+      - "`bash tests/skills/lib/prompt-diet-ledger.sh` as a runnable check exiting 0 (Spec-AC-08's Verify line, TEST-010's target). Pure sourced library; never executed."
+      - "`intake: docs/ai/intake/58-token-capture-canary.md` — asserted unhedged in frontmatter. Neither the directory nor the file exists at base_ref; the real path is docs/issues/CHANGE-0058-token-capture-canary.md."
+    hallucinated_listed_not_counted:
+      - "`docs/ai/evidence/SPEC-0058/RED-<id>.log` — docs/ai/evidence/ does not exist (the repo stores RED/GREEN logs in docs/ai/tdd/), but C hedges it: 'confirm the evidence-directory convention at Implementation Preparation; fall back to docs/ai/reports/'."
+      - "`id: SPEC-0058` — the number is taken at base_ref, but C raises it as an explicit blocking question with a named reconciliation step ('Reconcile against docs/specs/ before the freeze script runs'). A and B assert the same wrong id as fact."
+    verified_correct:
+      - "`--state <fixture-state> --dry-run` on metrics-flush.mjs — both flags are real at base_ref (valueFlags includes --state; --dry-run prints the plan and writes nothing)."
+      - "`protected_paths_l3` — a real key, documented in .aai/workflow/WORKFLOW.md as the docs-audit.yaml override list for L3 surfaces."
+      - "tests/skills/test-aai-token-capture.sh — exists; the only candidate to name the suite the ride actually used."
+
+cross_candidate_observations:
+  - "M2 did not separate the three on this task. All three cover D1, D2, D3, D6 and D7 and all three miss the same two ground-truth deliverables (D4 the D3-prose reclassification, D5 the reconciliation of the two stanzas pinning the old single-warning behavior). Both misses trace to the same root: none of the three planned for the fact that the change EVOLVES an existing documented-and-tested contract rather than adding a new one."
+  - "All three chose tdd; the ride shipped hybrid. Only B considered hybrid and rejected it with a stated reason. M3 scores the contract against each candidate's own declared strategy, so no candidate is penalised for the divergence."
+  - "One hallucination is common to all three (`.aai/scripts/spec-freeze.mjs`) and a second is common to all three (treating tests/skills/lib/prompt-diet-ledger.sh, a pure sourced library, as a runnable check). Neither differentiates; both were counted uniformly."
+  - "No candidate located the file that actually owns the TEST-012 pinned total (tests/skills/test-aai-prompt-diet.sh); B additionally asserts a false claim about where it lives."

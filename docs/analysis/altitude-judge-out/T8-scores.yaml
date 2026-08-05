@@ -1,0 +1,236 @@
+---
+task: T8
+intake: dashboard-refit (CHANGE-0076) — dashboard + test-skills prompts
+judged_by: blind judge (single pass)
+judging_notes:
+  reference_source: >-
+    No REFERENCE artifact was supplied in judge-in/. The rubric requires a
+    ground-truth spec for M2/M3 and a base_ref for M6, so the shipped spec
+    docs/specs/SPEC-0101-spec-dashboard-refit.md (status done, PR 179, commit
+    b695885) was used as REFERENCE, and its parent commit
+    ddb7eca29ca0f8a7413d9b0cea838341c42060f3 as base_ref for all existence
+    checks. Candidate labels were not decoded; no variant inference was made.
+  ground_truth_deliverables:
+    - .aai/SKILL_DASHBOARD.prompt.md rewritten as a thin script-first wrapper
+      (both ledger shapes, no --publish, /aai-share named)
+    - .aai/SKILL_TEST_SKILLS.prompt.md trimmed; hardcoded 11-skill block and
+      pytest/cargo snippet replaced by live fleet discovery, real harness
+      contracts kept
+    - tests/skills/lib/prompt-diet-ledger.sh — one NEGATIVE reclaimed
+      JUSTIFIED_ADDITIONS entry, headroom back to 636/2048
+    - tests/skills/test-aai-prompt-diet.sh — TEST-012 pin bumped RED-first,
+      new TEST-017 grep contracts
+    - no new files, no new suites, no fixtures
+  base_ref_facts_used:
+    - tests/skills/lib/prompt-diet-ledger.sh exists but is a PURE sourced
+      library ("no test execution ... only ever sourced, never run directly");
+      it contains zero occurrences of TEST-012
+    - the TEST-010/TEST-012 prompt-diet checkpoints live in
+      tests/skills/test-aai-prompt-diet.sh
+    - the ledger holds credit entries of the form "<bytes> <ref> <rationale>"
+      in a JUSTIFIED_ADDITIONS array (negative entries allowed); it holds no
+      per-prompt-file before/after byte figures and no JUSTIFIED_REDUCTIONS
+    - tests/skills/run-all.sh does not exist (the runner is
+      .aai/scripts/aai-run-tests.sh)
+    - .aai/scripts/spec-freeze.mjs does not exist
+    - SPEC_TEMPLATE.md allows strategies loop|tdd|hybrid|undecided and has no
+      "### Evidence by strategy" section; direct/untested do not exist
+    - generate-dashboard.mjs accepts --metrics --output --from --to --skill
+      --data-only (no --publish, no --out)
+    - "--publish" occurs at base in .aai/SKILL_FEEDBACK_UPSERT.prompt.md,
+      .aai/feedback.yaml, .aai/scripts/aai-feedback-status.mjs and
+      .aai/scripts/aai-feedback-upsert.mjs for an unrelated engine
+    - the intake lives at docs/issues/CHANGE-0076-dashboard-refit.md
+
+candidates:
+
+  A:
+    ac_measurability: 5
+    scope_fidelity: 4
+    evidence_fit: 4
+    composite_Q: 13
+    overreach: 4
+    underreach: 0
+    hallucinated: 4
+    ac_measurability_note: >-
+      All nine Spec-ACs carry a named command, a named artifact and a numeric
+      or count observable in one table row (<=120 lines, <=6000 bytes, grep
+      counts ==0, "byte figure equals wc -c exactly, no tolerance window").
+      Rows whose decider is a test case still spell out the underlying
+      assertion and the failure message. No adjectives.
+    scope_fidelity_note: >-
+      Same surfaces and same deliverables as the reference: both prompts,
+      --publish resolved by REMOVAL with /aai-share named (matches the shipped
+      D1), ledger true-up, TEST-012 bump; generator and METRICS writers
+      explicitly out of scope, matching the reference. Loses one point for
+      relocating the pins into two new dedicated suites plus a fixture
+      directory where the ride added grep pins to the existing prompt-diet
+      suite — an added deliverable, but placement rather than scope drift.
+    evidence_fit_note: >-
+      Strategy tdd (same as the reference), decided, with a per-AC evidence
+      contract (RED report, GREEN report, fixtures, diffs) and an unusually
+      honest treatment of the two rows whose RED can only be produced BY the
+      change. One harmless internal over-demand: "Every row is RED-first" is
+      stated globally, then TEST-010 is defined as green before and after.
+    overreach_items:
+      - New dedicated suites tests/skills/test-aai-dashboard.sh and
+        tests/skills/test-aai-test-skills.sh (the ride pinned inside the
+        existing prompt-diet suite)
+      - tests/fixtures/dashboard/ — two captured ledger fixtures plus retained
+        generated HTML as evidence
+      - Spec-AC-05 / TEST-004 "usage-executes": a harness that extracts every
+        command from the prompt's Usage block and runs it in a temp working
+        dir (novel machinery; also brittle, since the generator needs a
+        METRICS path and docs/dashboard-template.html to exit 0)
+      - Spec-AC-03 / TEST-002: a documented-key extractor that cross-checks
+        every schema key in the prompt against the generator's reads
+    underreach_items: []
+    hallucinated_items:
+      - "Spec-AC-08/09 + TEST-008/009: `bash tests/skills/lib/prompt-diet-ledger.sh`
+        run as a suite, with a \"TEST-012 corpus checkpoint case\" inside it.
+        The file is a pure sourced library with no cases; TEST-012 lives in
+        tests/skills/test-aai-prompt-diet.sh."
+      - "Spec-AC-08: \"for each of the two prompts the byte figure in the ledger
+        equals wc -c of that file exactly\" — the ledger has no per-file byte
+        figures; entries are credit-byte + rationale strings."
+      - ".aai/scripts/spec-freeze.mjs (named under \"What Planning did not
+        verify\") does not exist at base_ref."
+      - "Frontmatter intake: docs/ai/intake/76-dashboard-refit.md — real path is
+        docs/issues/CHANGE-0076-dashboard-refit.md."
+
+  B:
+    ac_measurability: 5
+    scope_fidelity: 3
+    evidence_fit: 5
+    composite_Q: 13
+    overreach: 5
+    underreach: 0
+    hallucinated: 7
+    ac_measurability_note: >-
+      All ten ACs are numeric thresholds or equality/count assertions
+      (symmetric difference size 0, documented-but-unread field count 0, delta
+      0 bytes, byte-identical output, pass count >= baseline). Commands sit in
+      the Test Plan rather than in the AC table, but every AC maps to a TEST
+      row that names one.
+    scope_fidelity_note: >-
+      Core deliverables and the --publish removal match, and the companion
+      obligations are resolved exactly as the reference did (ledger true-up
+      applies, PROFILES.yaml does not). Marked down for several substantial
+      additions the ride never made: new dedicated suites, a byte-identical
+      HTML baseline regression (AC-009), flag-parity extraction over the
+      generator's argv parser (AC-004), and a canonical Deltas declaration
+      block. AC-004 as written also obliges the thin prompt to document all
+      six real flags to reach parity.
+    evidence_fit_note: >-
+      Strategy hybrid, decided, with an explicit RED-proof obligation
+      (TEST-001..008 owe stored RED; TEST-009/010 are the regression net and
+      are exempt, with the reason stated) and a complete per-AC evidence
+      table. The contract matches the declared strategy row-for-row; the
+      false citation of the template section is scored under hallucinated,
+      not here.
+    overreach_items:
+      - New dedicated suites tests/skills/test-skill-dashboard.sh and
+        tests/skills/test-skill-test-skills.sh
+      - AC-009 / TEST-009: fixture ledger plus a byte-identical HTML baseline
+        comparison before and after
+      - AC-004 / TEST-004: flag-parity machinery extracting accepted flags
+        from the generator's argv parsing and asserting an empty symmetric
+        difference
+      - AC-003 / TEST-003: documented-field extractor cross-checked against
+        the generator's reads
+      - "## Deltas — REQ-DASHBOARD-001/002 and REQ-SKILLS-TESTING-001 canonical
+        requirement declarations for a close-time merge"
+    underreach_items: []
+    hallucinated_items:
+      - ".aai/scripts/spec-freeze.mjs, made the mandatory atomic freeze
+        mechanism (\"never by hand\") plus a \"half-frozen lint finding\" — the
+        script does not exist at base_ref."
+      - "tests/skills/run-all.sh (TEST-010 target and command) does not exist;
+        the runner is .aai/scripts/aai-run-tests.sh. Partially mitigated: the
+        Blocking questions section flags the name as inferred."
+      - "TEST-009 command `--out <tmp>` — the generator accepts --output; an
+        unknown token hits its usage-error path."
+      - "\"the `### Evidence by strategy` row for `hybrid` ... only `direct` and
+        `untested` owe none\" — SPEC_TEMPLATE.md has no such section and the
+        strategy enum at base is loop|tdd|hybrid|undecided."
+      - "TEST-007/008 executed as `bash tests/skills/lib/prompt-diet-ledger.sh`
+        with the TEST-012 checkpoint located in that file — it is a sourced
+        library and TEST-012 lives in tests/skills/test-aai-prompt-diet.sh."
+      - "AC-007: one ledger true-up entry per edited prompt file recording
+        before and after byte counts — not the ledger's shape."
+      - "Frontmatter intake: docs/intake/76-dashboard-refit.md — real path is
+        docs/issues/CHANGE-0076-dashboard-refit.md."
+
+  C:
+    ac_measurability: 4
+    scope_fidelity: 2
+    evidence_fit: 4
+    composite_Q: 10
+    overreach: 3
+    underreach: 1
+    hallucinated: 8
+    ac_measurability_note: >-
+      Most ACs are numeric (<=110 lines, <=4096 bytes, <=5120 bytes, zero
+      occurrences, exactly one pointer line) and the Verification column names
+      the asserting test. Two rows lean on a reader's judgement: AC-004
+      ("naming the required keys of each" — the required set is never
+      enumerated) and AC-003's list of things the prompt must "state".
+    scope_fidelity_note: >-
+      Two load-bearing mismatches. (1) AC-006 demands "the string --publish
+      appears in zero files under .aai/", which at base_ref is unsatisfiable
+      without editing four unrelated feedback-engine files — and C's own Out
+      of scope section forbids exactly that, so the spec contradicts itself
+      and TEST-005 is permanently red. (2) AC-007 reduces the test-skills
+      prompt to thresholds and marker greps only, dropping the replacement the
+      ride actually shipped (live fleet discovery in place of the hardcoded
+      count). On top of that, four new test files, a fixtures directory and a
+      Deltas block are added.
+    evidence_fit_note: >-
+      Strategy hybrid, decided, and stored RED artifacts are owed. But the
+      RED-proof obligation says every row must be red "regardless of the
+      per-row lane" and the evidence contract owes stored RED for
+      TEST-001..008, while the strategy section defines the TDD lane as only
+      TEST-005/007/008 — the lane split is announced and then ignored, so the
+      hybrid selection is ceremonial. One harmless over-demand.
+    overreach_items:
+      - Four new test files (test-skill-dashboard-prompt.sh,
+        test-skill-test-skills-prompt.sh, test-dashboard-schema-contract.sh,
+        test-dashboard-publish-removed.sh)
+      - tests/skills/fixtures/metrics/ plus the TEST-004 schema round-trip
+        contract and retained HTML output
+      - "## Deltas — REQ-DASHBOARD-001/002 canonical requirement declarations"
+    underreach_items:
+      - The test-skills prompt's replacement content is never required: no
+        live fleet discovery to displace the hardcoded count, and no
+        requirement that the surviving harness contracts stay accurate. AC-007
+        is satisfied by deletion alone, and RISK-3's over-trimming mitigation
+        (AC-003) covers the dashboard prompt only.
+    hallucinated_items:
+      - "AC-006 / TEST-005: \"the string `--publish` appears in zero files under
+        `.aai/`\". False at base_ref — .aai/SKILL_FEEDBACK_UPSERT.prompt.md,
+        .aai/feedback.yaml, .aai/scripts/aai-feedback-status.mjs and
+        .aai/scripts/aai-feedback-upsert.mjs all document a real --publish flag
+        for the feedback-upsert engine. The AC is unsatisfiable in scope."
+      - "tests/skills/run-all.sh, asserted as pre-existing (\"a pre-existing
+        regression guard, not new work\") — it does not exist."
+      - ".aai/scripts/spec-freeze.mjs — does not exist at base_ref."
+      - "JUSTIFIED_REDUCTIONS entries in tests/skills/lib/prompt-diet-ledger.sh
+        — the array is JUSTIFIED_ADDITIONS, which carries negative entries."
+      - "TEST-007/008 executed as `bash tests/skills/lib/prompt-diet-ledger.sh`
+        with the TEST-012 pin located in that file — sourced library, and
+        TEST-012 lives in tests/skills/test-aai-prompt-diet.sh."
+      - "AC-008: one reduction entry per touched prompt recording measured
+        before and after byte counts — not the ledger's shape."
+      - "\"`untested` and `direct` are rejected\" — neither value exists in the
+        base_ref strategy enum (loop|tdd|hybrid|undecided)."
+      - "Frontmatter intake: docs/intake/CHG-076-dashboard-refit.md — real path
+        is docs/issues/CHANGE-0076-dashboard-refit.md."
+
+per_metric_summary:
+  ac_measurability: {A: 5, B: 5, C: 4}
+  scope_fidelity: {A: 4, B: 3, C: 2}
+  evidence_fit: {A: 4, B: 5, C: 4}
+  composite_Q: {A: 13, B: 13, C: 10}
+  overreach: {A: 4, B: 5, C: 3}
+  underreach: {A: 0, B: 0, C: 1}
+  hallucinated: {A: 4, B: 7, C: 8}

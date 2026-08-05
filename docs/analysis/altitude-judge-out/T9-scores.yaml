@@ -1,0 +1,260 @@
+task: T9
+intake: doctor-determinize (change #79) — replace aai-doctor prose-computed categories with one deterministic script
+
+judging_notes:
+  reference_provenance: >-
+    No REFERENCE ground-truth spec was supplied in the judge packet, and M2/M5 are
+    defined as comparisons against it. Ground truth was resolved from the repository:
+    docs/specs/SPEC-0100-spec-doctor-determinize.md (status done, PR 178, commit
+    8e16759). Ground-truth deliverables read off it: (1) .aai/scripts/aai-doctor.mjs
+    covering ALL 13 categories with CAT-11/CAT-13 as subprocess calls to
+    docs-audit.mjs / layer-drift.mjs, --json, exit contract 0 = clean-or-warnings-only,
+    1 = any FAIL, 2 = usage error; (2) .aai/SKILL_DOCTOR.prompt.md thin wrapper;
+    (3) .aai/system/PROFILES.yaml classification; (4) tests/skills/suite-map.yaml
+    aai-doctor row; (5) tests/skills/test-aai-doctor.sh (new suite); (6) companion
+    suites tests/skills/test-aai-layer-drift.sh and test-aai-layer-profiles.sh updated
+    off the retired CAT-13 prose; (7) prompt-diet ledger NEGATIVE entry +
+    test-aai-prompt-diet.sh TEST-012 pin bumped RED-first; (8) clean-fixture target
+    smoke + real-repo smoke.
+  base_ref: 19a9675a1cb561d8a99d976406d9af9b9ffb4409 (8e16759^) — M6 existence checks
+    were run against this tree with `git cat-file -e` and `git show`.
+  measured_facts:
+    - .aai/SKILL_DOCTOR.prompt.md at base_ref = 10697 bytes; after the ride = 3163 bytes
+      (64 lines). Ground-truth wrapper AC was line-based (<=100 lines), not byte-based.
+    - tests/skills/lib/prompt-diet-ledger.sh is mode 100644 and self-documents as
+      "a PURE library ... only ever sourced, never run directly"; its consumers are
+      test-aai-prompt-diet.sh, test-aai-verify-gate.sh, test-aai-hygiene-pack.sh.
+    - .aai/scripts/spec-freeze.mjs does NOT exist at base_ref (it exists only at HEAD).
+    - There is no tests/run-tests.sh; the runner is .aai/scripts/aai-run-tests.sh.
+    - There is no separate installer manifest: .aai/system/PROFILES.yaml IS the
+      manifest that aai-sync.sh --profile core reads.
+    - docs/ai/validation/ does not exist at base_ref; RED/GREEN logs live in docs/ai/tdd/.
+  shared_by_all_three: >-
+    None of A, B, C names the tests/skills/suite-map.yaml row or the two companion
+    suites the ride had to update — the same omission set, so it does not discriminate
+    on M2. All three also carry a wrong intake path in frontmatter (A:
+    docs/intake/doctor-determinize.md; B and C: docs/ai/intake/79-doctor-determinize.md;
+    actual: docs/issues/CHANGE-0079-doctor-determinize.md). Not counted under M6 —
+    a frontmatter link is not a requirement — but recorded.
+
+candidates:
+
+  - label: A
+    ac_measurability: 4
+    ac_measurability_note: >-
+      Eleven ACs, each naming a command, an artifact and a numeric observable
+      (13 category records, 0 diff bytes, <=3072 B / >=70 %, exit codes 0/1/2, 60 s,
+      0 new failures), plus an explicit unverifiable-language self-check. Held at 4,
+      not 5: SPEC-AC-006's "contains no file-existence, line-count or git-status
+      computation instructions" and SPEC-AC-004's "never re-implements them" leave the
+      deciding observable inside an unspecified suite case rather than in the AC — B
+      spells the same two out as grep expressions with expected counts. Also note the
+      <=3072 B ceiling is below what actually shipped (3163 B), so the threshold as
+      written would have been unmeetable without extra trimming.
+    scope_fidelity: 3
+    scope_fidelity_note: >-
+      Correctly anticipates the shipped shape on the primary deliverable — 13 category
+      records (11 mechanical + 2 delegated merged), which is what the ride built and
+      more than the intake's literal "mechanical 11". Prompt wrapper, PROFILES entry,
+      ledger + TEST-012 RED-first pin, fixtures and smoke are all present. Held to 3
+      by one load-bearing omission (the companion suites asserting on the retired CAT-13
+      prose) plus one invented deliverable. Separately, the exit-code contract is
+      semantically wrong against ground truth: A defines 0 HEALTHY / 1 DEGRADED /
+      2 BROKEN, so a warnings-only repo exits 1 — the exact parity the ride had to
+      hotfix afterwards (10c36e4 pinned WARN-only -> exit 0).
+    evidence_fit: 5
+    evidence_fit_note: >-
+      Strategy is decided (tdd) and the contract is the tdd contract throughout —
+      stored RED transcript per AC-gating TEST-xxx, then GREEN, then the full-suite
+      regression, plus wc -c before/after, fixture JSON and smoke timing. Nothing
+      over- or under-demands relative to the declared strategy. (The false claim about
+      what enforces the RED artifact is scored under M6, not here.) Weak point that did
+      not cost a point: the evidence landing zone is only "validation evidence
+      directory for CHANGE-079", never a concrete path.
+    overreach: 1
+    overreach_items:
+      - >-
+        A dedicated new suite tests/skills/test-profiles-classification.sh as its own
+        deliverable (SPEC-AC-009 / TEST-009). The ride added no such suite; PROFILES
+        classification is already covered by the existing layer-profiles suite.
+    underreach: 1
+    underreach_items:
+      - >-
+        No update to the companion suites that assert on the retired CAT-13 prose
+        (tests/skills/test-aai-layer-drift.sh, tests/skills/test-aai-layer-profiles.sh).
+        Traceable to the intake's AC-003 "no regression"; ground truth carries it as
+        Spec-AC-03. Without it those suites break silently on the prose removal.
+      - >-
+        (recorded, not counted) tests/skills/suite-map.yaml aai-doctor row — a
+        ground-truth deliverable but repo convention, not traceable to the intake.
+    hallucinated: 5
+    hallucinated_items:
+      - >-
+        .aai/scripts/spec-freeze.mjs — cited as the freeze mechanism ("Frozen via
+        node .aai/scripts/spec-freeze.mjs --path ..."). Does not exist at base_ref.
+      - >-
+        tests/run-tests.sh — SPEC-AC-011 / TEST-011 verification command. No such file;
+        the suite runner is .aai/scripts/aai-run-tests.sh.
+      - >-
+        tests/skills/test-prompt-diet.sh — SPEC-AC-008 / TEST-012 target. The real file
+        is tests/skills/test-aai-prompt-diet.sh.
+      - >-
+        `bash tests/skills/lib/prompt-diet-ledger.sh --verify` (SPEC-AC-007). The file
+        is a non-executable pure library that is only ever sourced, and it has no
+        --verify flag.
+      - >-
+        "spec-lint flags a missing RED artifact at freeze for this strategy row" —
+        .aai/scripts/spec-lint.mjs has no RED-artifact check; that is the separate
+        tdd-evidence-check.mjs, which takes an explicit --red path.
+
+  - label: B
+    ac_measurability: 5
+    ac_measurability_note: >-
+      The sharpest AC set of the three. Every AC carries an explicit "Verify" command
+      and an "Observable" line reduced to an exact comparison — categories.length == 11,
+      both cmp exits 0, empty diff, `wc -c` <= 3000, grep count == 1, grep count == 0,
+      exactly one PROFILES hit, healthy -> exit 0 and overall != BROKEN, broken ->
+      overall == BROKEN with >= 1 FAIL category. The one judgement-flavoured clause
+      (AC-08 "no duplicated rule logic") is backed by a grep count plus TEST-010's
+      stub-invocation assertion, so it still has a mechanical decider. It also names
+      what it did not verify rather than asserting it.
+    scope_fidelity: 3
+    scope_fidelity_note: >-
+      Same surfaces as the ride on the core: script, wrapper prompt, PROFILES entry,
+      ledger + TEST-012 pin, doctor suite, fixture-target install. Three deductions,
+      all inside the same band as A: the same load-bearing companion-suite omission;
+      one substantial addition (an installer-manifest hunk, its own S3 seam and its own
+      review-scope line); and a primary-deliverable shape mismatch — AC-01 fixes
+      categories at 11 and AC-08 explicitly permits the script to "omit the category
+      entirely" for the two delegated ones, whereas the shipped --json reports all 13
+      with CAT-11/13 wired as subprocess calls. The <= 3000 B ceiling is also below the
+      3163 B that shipped. Credit where due: B is the only candidate that spots the
+      downstream-shipping risk at all, even though it attributes it to the wrong artifact.
+    evidence_fit: 5
+    evidence_fit_note: >-
+      Strategy decided (tdd) and the contract is the strictest correct rendering of it —
+      per-TEST red/ and green/ stdout with command line and non-zero exit, plus a
+      per-AC artifact list (determinism hashes, parity diff, prompt bytes, checkpoint
+      run, target-fixture runs), closed by "a claim without its matching red/ file is
+      not evidence" and an explicit refusal to assert a PASS verdict from Planning.
+      Nothing over- or under-demands against tdd. The invented directory the artifacts
+      land in is scored under M6.
+    overreach: 2
+    overreach_items:
+      - >-
+        "installer manifest entry so the new script ships to target projects" as a
+        distinct in-scope deliverable (In scope list, seam S3, review scope). The ride
+        shipped no such change.
+      - >-
+        tests/fixtures/doctor/parity-baseline.json "captured from the prompt-driven
+        run" — requires an extra LLM run of the old prose doctor to record a baseline.
+        The ride used checked-in fixture-expected verdicts, not a captured prose baseline.
+    underreach: 2
+    underreach_items:
+      - >-
+        No update to the companion suites asserting on the retired CAT-13 prose
+        (test-aai-layer-drift.sh, test-aai-layer-profiles.sh) — same intake-traceable
+        no-regression obligation as A and C miss.
+      - >-
+        The two delegated categories may be dropped from the report entirely
+        (AC-08: "it either shells out to the owning script or omits the category
+        entirely"; AC-01 pins categories.length == 11). Ground truth reports all 13,
+        so a doctor built to this spec can legally stop reporting docs-hygiene and
+        layer-drift health.
+      - >-
+        (recorded, not counted) tests/skills/suite-map.yaml aai-doctor row.
+    hallucinated: 3
+    hallucinated_items:
+      - >-
+        .aai/scripts/spec-freeze.mjs — required to "be run against this file in the
+        repository before Implementation begins". Does not exist at base_ref.
+        (B does hedge that it could not execute it; the requirement still names a
+        nonexistent script.)
+      - >-
+        A separate "installer manifest" that a new .aai/scripts file must be added to.
+        No such artifact exists at base_ref — .aai/system/PROFILES.yaml is the manifest,
+        read by .aai/scripts/aai-sync.sh --profile core, and B already lists that entry
+        separately as AC-06.
+      - >-
+        The evidence tree docs/ai/validation/SPEC-0079/ with red/ and green/
+        subdirectories. docs/ai/validation/ does not exist at base_ref; the repo's
+        RED/GREEN convention is flat timestamped logs under docs/ai/tdd/.
+      - >-
+        (recorded, not counted) "~10,957 bytes" as the current prompt size — fabricated
+        precision; the measured value at base_ref is 10,697. B flags it as unmeasured
+        and asks for re-anchoring, and it is a wrong number rather than a nonexistent
+        file, so it is not counted under M6.
+
+  - label: C
+    ac_measurability: 3
+    ac_measurability_note: >-
+      Thresholds are numeric throughout (0 differing categories, 3 byte-identical runs,
+      <= 3500 B, exactly one invocation, exactly one PROFILES entry, 0 unclassified
+      .aai files, exit 1 vs 0), and AC-007 is the single best-specified criterion in the
+      whole set — it pins exit 1 on any BROKEN category and exit 0 on HEALTHY/DEGRADED,
+      which is precisely the contract that shipped and precisely the parity the ride
+      later had to hotfix. Held to 3 because two criteria rest on a reader's judgement
+      with no named decider: AC-003's "contains no residual per-category computation
+      prose for the 11 migrated categories" (TEST-006 asserts bytes, reference and
+      retained invocations, never the residual-prose clause) and AC-005's "in the same
+      class used by the sibling .aai/scripts/*.mjs deterministic helpers". Structurally,
+      the verification commands also sit in a separate mapping table rather than on each
+      AC, so two ACs carry no command of their own.
+    scope_fidelity: 3
+    scope_fidelity_note: >-
+      The tightest scope of the three and the only one with zero additions: script,
+      wrapper, PROFILES, ledger + RED-first TEST-012 pin, fixture smoke, and an
+      explicit closed-list companion-obligations table. Its numbers are also the only
+      ones the ride could actually have met — the <= 3500 B ceiling accommodates the
+      3163 B that shipped (A: 3072, B: 3000), and the exit contract matches. Held to 3
+      by the same load-bearing omission as A and B (companion suites), and by one
+      structural divergence: AC-003 leaves the two already-scripted categories invoked
+      from the prompt ("keep their existing invocations") rather than moved into the
+      script, so the wrapper is not as thin as the ride's, even though S2/TEST-010 does
+      preserve 13-category aggregation.
+    evidence_fit: 3
+    evidence_fit_note: >-
+      Strategy is decided (hybrid, a legal value in SPEC_TEMPLATE) and the lane split is
+      argued row by row — but the evidence contract then negates it: "a stored RED log
+      per TEST-xxx ... is required regardless of lane", applied to TEST-006, TEST-009
+      and TEST-010, the three rows assigned to the loop lane. Under hybrid, the loop
+      lane's defining property is that it does not owe a per-test RED; demanding one on
+      every row makes the declared strategy decorative and over-demands on three rows,
+      well past "one AC over-demands harmlessly". The artifacts themselves are concrete
+      and correct (per-test RED/GREEN, --json output plus fixture diff, three-run
+      stability transcript, before/after wc -c for file and corpus, smoke transcript,
+      advisory spec-lint), which is why this is a 3 and not a 2.
+    overreach: 0
+    overreach_items: []
+    underreach: 1
+    underreach_items:
+      - >-
+        No update to the companion suites asserting on the retired CAT-13 prose
+        (test-aai-layer-drift.sh, test-aai-layer-profiles.sh) — the intake-traceable
+        no-regression obligation, carried by ground truth as Spec-AC-03.
+      - >-
+        (recorded, not counted) tests/skills/suite-map.yaml aai-doctor row.
+    hallucinated: 2
+    hallucinated_items:
+      - >-
+        tests/skills/lib/prompt-diet-ledger.sh treated as a runnable suite — AC-004
+        asserts `bash tests/skills/lib/prompt-diet-ledger.sh` "exits 0", and TEST-007,
+        TEST-008 and TEST-009 name it as their target file. The file is mode 100644 and
+        self-documents as a pure library that is "only ever sourced, never run
+        directly"; running it executes no assertions.
+      - >-
+        A "PROFILES classification check" hosted inside
+        tests/skills/lib/prompt-diet-ledger.sh (TEST-009). The ledger library contains
+        no such check — it only mentions the PROFILES rule inside a ledger entry
+        string; classification is asserted by the layer-profiles suite.
+
+composite_Q:
+  formula: M1 + M2 + M3
+  A: 12
+  B: 13
+  C: 9
+
+counted_totals:
+  A: {overreach: 1, underreach: 1, hallucinated: 5}
+  B: {overreach: 2, underreach: 2, hallucinated: 3}
+  C: {overreach: 0, underreach: 1, hallucinated: 2}

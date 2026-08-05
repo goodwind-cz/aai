@@ -1,0 +1,236 @@
+task: T5
+judge_notes:
+  reference_source: >-
+    judge-in/ contained no REFERENCE artifact for T5. M2 (reference-required)
+    was scored against the spec this task actually shipped, located in the repo
+    at docs/specs/SPEC-0091-spec-cheap-model-in-practice.md (links.pr 165,
+    commit cd140d6). base_ref for M6 checks =
+    b862070e9333d40460405337ea4ac7c124aff1d8 (parent of cd140d6).
+  m6_method: >-
+    Each named path/script/key was checked mechanically with
+    `git cat-file -e <base_ref>:<path>` or a grep of the parser/argument
+    handling at base_ref.
+  shared_anachronism: >-
+    All three candidates invoke `node .aai/scripts/spec-freeze.mjs`. That script
+    does NOT exist at base_ref (freezing there is a manual SPEC-FROZEN marker);
+    it exists at repo HEAD and is named by the currently shipped planning
+    instruction, so all three almost certainly inherited it from their supplied
+    prompt text. Counted uniformly (+1 each) for rubric fidelity; it does not
+    differentiate the candidates.
+
+candidates:
+  - label: A
+    ac_measurability: 4
+    ac_measurability_note: >-
+      Seven Spec-ACs, each naming a suite command, an artifact and an exact
+      observable (exact model strings, `grep -c` counts >= 1, "0 failed" tail).
+      Docked one: Spec-AC-002 demands the full-lane value be "byte-identical to
+      the pre-change output" without naming where that pre-change baseline is
+      captured or stored — the observable is implicit though unambiguous. The
+      Evidence Contract's scope check ("`git diff --name-only main` set equals
+      the four review-scope paths; any fifth path blocks") is also brittle as
+      written, since the spec file itself is a fifth path.
+    scope_fidelity: 5
+    scope_fidelity_note: >-
+      Same surfaces and same deliverables as the shipped spec: MODEL_ROUTING
+      role rows plus a ceremony-micro-task comment block, a lane-aware lookup
+      confined to suggestModel(), suite stanzas, USER_GUIDE routing note.
+      decide() correctly fenced out. Differences from the reference are wording
+      and verification depth, not scope. Strategy differs (hybrid vs the ride's
+      tdd) but that is not a scope surface.
+    evidence_fit: 5
+    evidence_fit_note: >-
+      Strategy is decided (`hybrid`) and the contract matches it row-for-row: a
+      stored RED artifact IS required for the TDD-lane tests (TEST-001..007),
+      the config/doc lane is loop-side with a grep assertion, and the regression
+      aggregate is explicitly exempted from RED. RED artifacts are placed under
+      `docs/ai/reports/`, which is the repo's actual convention at base_ref.
+      "Unverifiable claims are rejected" is spelled out with examples.
+    overreach: 1
+    overreach_items:
+      - >-
+        Spec-AC-005 / TEST-006 / TEST-007 demand that MODEL_ROUTING parsing
+        accept the `<Role>@<lane>` key form and that unknown suffixes fall back.
+        The shipped spec established that the existing line parser already
+        accepts `@` in a role key, so no parser work or parse test was part of
+        what the ride delivered, and the intake does not imply it.
+    underreach: 0
+    underreach_items: []
+    hallucinated: 4
+    hallucinated_items:
+      - >-
+        `.aai/scripts/spec-freeze.mjs` — absent at base_ref (shared
+        prompt-inherited anachronism; see judge_notes.shared_anachronism).
+      - >-
+        `docs/intake/CHANGE-0065-cheap-model-in-practice.md` (frontmatter
+        links.intake) — `docs/intake/` does not exist at base_ref or at HEAD;
+        the repo's intake directory is `docs/issues/`.
+      - >-
+        New suite stanzas are numbered TEST-001..TEST-009 in
+        `tests/skills/test-aai-orchestration-dispatch.sh`, but TEST-001 through
+        TEST-019 already exist in that file at base_ref with unrelated
+        meanings. Every AC's evidence line ("Suite stanza TEST-001 PASS line")
+        therefore points at a pre-existing, different stanza. The spec is also
+        internally inconsistent, since it separately relies on "the existing
+        TEST-019 arm".
+      - >-
+        `## Deltas` cites REQ-ROUTING-002 as an EXISTING canonical requirement
+        being MODIFIED and adds REQ-ROUTING-003; no REQ-ROUTING id and no
+        canonical layer exists at base_ref (only REQ-AUTH / REQ-DELTA appear,
+        inside template and RFC examples). The block also violates the
+        documented Deltas shape that spec-lint validates: it is prose, not the
+        required `### ADDED REQ-<DOMAIN> — <title>` level-3 blocks with one
+        SHALL line, and an ADDED entry must carry NO `-NNN` number.
+
+  - label: B
+    ac_measurability: 5
+    ac_measurability_note: >-
+      Strongest of the three. Every one of ten Spec-ACs names a command, an
+      artifact and an exact observable, and the spec supplies a `read_model()`
+      one-liner so the observable is read the same way everywhere. It
+      distinguishes JSON `null` from the string "null" and from an omitted
+      field (Spec-AC-05), pins the emitted field's TYPE (Spec-AC-07), and makes
+      the full-lane comparison a string equality against a captured baseline
+      file rather than a hand-written expectation (Spec-AC-04). Spec-AC-08's
+      observable is `diff` exit status 0. Numeric thresholds throughout ("count
+      of type violations == 0", "0 failing stanzas").
+    scope_fidelity: 4
+    scope_fidelity_note: >-
+      Same four surfaces as the shipped spec (MODEL_ROUTING rows plus comment
+      block, suggestModel lane lookup, dispatch suite, USER_GUIDE), decide()
+      correctly fenced out, and the three extra mechanical roles it verifies are
+      named in the intake's own Scope. Docked one for a non-load-bearing
+      addition: two committed baseline artifacts
+      (`docs/ai/evidence/SPEC-0090/decide-baseline.json` / `decide-after.json`)
+      and a new fixture tree `tests/skills/fixtures/model-routing/**` enter the
+      review scope; the ride reused the suite's existing fixture helpers and
+      committed no baseline JSON.
+    evidence_fit: 5
+    evidence_fit_note: >-
+      Strategy decided (`tdd`) and the contract matches: RED is mandatory and
+      enumerated per stanza with "the observed wrong value", GREEN transcripts
+      are separate, and "a GREEN-only submission fails this contract regardless
+      of suite colour" is stated explicitly. The two regression rows are
+      sensibly and explicitly carved out of the RED obligation rather than
+      silently waived. Every AC's evidence item is named as a concrete file.
+    overreach: 2
+    overreach_items:
+      - >-
+        Spec-AC-07 / TEST-007 — a type contract over `suggested_model` across
+        every arm. Sensible, but not part of what the ride delivered and not
+        implied by the intake.
+      - >-
+        Spec-AC-08 / TEST-010 — rule-id and next_role invariance proven by
+        capturing and committing `decide-baseline.json` / `decide-after.json`
+        and diffing them. The ride asserted decide() was untouched by scoping
+        the diff, not by a captured-baseline deliverable.
+    underreach: 0
+    underreach_items: []
+    hallucinated: 2
+    hallucinated_items:
+      - >-
+        `.aai/scripts/spec-freeze.mjs` (frontmatter `frozen_by`, section 12) —
+        absent at base_ref (shared prompt-inherited anachronism).
+      - >-
+        New stanzas numbered TEST-001..TEST-010 in
+        `tests/skills/test-aai-orchestration-dispatch.sh`, which already
+        contains TEST-001..TEST-019 at base_ref. Same id collision as A, and the
+        spec simultaneously names "the pre-existing TEST-019 arm" as TEST-009.
+    not_counted_notes:
+      - >-
+        `docs/ai/evidence/SPEC-0090/` does not exist at base_ref (the repo's
+        evidence dirs are `docs/ai/reports/` and `docs/ai/tdd/`), but it is an
+        output directory this work would create, so it is recorded as a
+        convention deviation rather than counted as a phantom reference.
+      - >-
+        Section 11 asserts "The envelope for this planning pass forbade
+        repository inspection". Nothing in the task framing states that, and the
+        assertion is used to justify name-level guesses. The hedging itself is
+        good practice — every guessed name is flagged and marked for
+        reconciliation, including the spec-number collision — but the premise
+        is invented.
+
+  - label: C
+    ac_measurability: 4
+    ac_measurability_note: >-
+      Eight Spec-ACs in a table, each with an exact-string threshold, an
+      executable command, a named TEST row and a named evidence log path.
+      Docked one on two counts: SPEC-AC-005's "falls back to the bare role key
+      (no throw, no null)" leans on a reader's reading of "no throw", and
+      SPEC-AC-008 is compound — it bundles local suite exit 0, PR CI green, and
+      "rule ids and next-role selections identical to pre-change" while naming
+      no capture command for that third half (the baseline exists only as an
+      evidence-table row, `decide-invariance.log`).
+    scope_fidelity: 4
+    scope_fidelity_note: >-
+      Surfaces match the shipped spec (MODEL_ROUTING rows plus convention
+      block, suggestModel lane lookup, suite stanzas TEST-020+, USER_GUIDE
+      note), decide() correctly fenced out, and — uniquely among the three —
+      the new stanza ids continue the suite's real sequence. Docked one for a
+      non-load-bearing addition (rule-table invariance TEST-027) and because
+      the in-scope documentation deliverable carries no acceptance criterion at
+      all (see underreach).
+    evidence_fit: 5
+    evidence_fit_note: >-
+      Strategy decided (`tdd`) with a dedicated "Evidence by strategy (tdd
+      row)" subsection: each AC-gating row observed FAILING with the failing
+      output stored, GREEN per row, plus a full-suite log and the CI check-run
+      URL; the pre-existing TEST-019 pin is explicitly exempt from a new RED.
+      The reasoning that rules out the weaker strategies is stated rather than
+      asserted. Contract matches the declared strategy throughout.
+    overreach: 1
+    overreach_items:
+      - >-
+        TEST-027 plus the `decide-invariance.log` artifact in SPEC-AC-008 —
+        byte-identical rule ids and next-role selections for all pre-existing
+        stanzas. Real and sensible, but not delivered by the ride and not
+        implied by the intake beyond "decide() untouched".
+    underreach: 1
+    underreach_items:
+      - >-
+        The documentation deliverable is in the Scope Summary (item 3) and in
+        Affected Area, but NO Spec-AC and no TEST row covers it. The shipped
+        spec verifies it (Spec-AC-06, TEST-026 grepping the MODEL_ROUTING
+        header block and the user-facing routing note), as do both other
+        candidates. Nothing in C's frozen contract obliges the convention block
+        or the USER_GUIDE note to exist, which makes C's own freeze statement
+        ("every Spec-AC has a TEST-xxx row") true but insufficient.
+    hallucinated: 4
+    hallucinated_items:
+      - >-
+        `.aai/scripts/spec-freeze.mjs` (freeze provenance block) — absent at
+        base_ref (shared prompt-inherited anachronism).
+      - >-
+        `docs/intake/CHANGE-0065-cheap-model-in-practice.md` (frontmatter
+        links.intake) — `docs/intake/` does not exist at base_ref or at HEAD;
+        the repo's intake directory is `docs/issues/`.
+      - >-
+        The `## Deltas` table "MODIFIES REQ-ROUTING" / "ADDS REQ-ROUTING", said
+        to be "merged into `docs/canonical/` at close". No REQ-ROUTING
+        requirement and no `docs/canonical/` directory exists at base_ref (nor
+        at HEAD — RFC-0011 only assumes one). The block also violates the
+        documented Deltas shape that spec-lint validates: it is a markdown
+        table, not `### ADDED|MODIFIED|REMOVED REQ-<DOMAIN>[-NNN] — <title>`
+        level-3 blocks with one SHALL line each, and MODIFIED requires a `-NNN`
+        that is absent.
+      - >-
+        "Stored RED artifact: REQUIRED ... Absence is a spec-lint mismatch at
+        freeze". `spec-lint.mjs` at base_ref has no strategy-evidence check —
+        its only strategy rule is `frozen-without-strategy`. The claimed
+        enforcement does not exist.
+    not_counted_notes:
+      - >-
+        Evidence paths under `docs/ai/validation/CHANGE-0065/` — that directory
+        does not exist at base_ref (it does at HEAD), but it is an output
+        directory this work would create, so it is recorded as a convention
+        deviation rather than counted.
+      - >-
+        The rejection of `direct` / `untested` as strategies is not counted:
+        those values do not exist in SPEC_TEMPLATE at base_ref, but they do at
+        HEAD and are named by the currently shipped planning instruction, so
+        the vocabulary is prompt-supplied like spec-freeze.mjs.
+
+composite_Q:
+  A: 14
+  B: 14
+  C: 13

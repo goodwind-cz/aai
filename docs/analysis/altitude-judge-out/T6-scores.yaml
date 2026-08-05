@@ -1,0 +1,142 @@
+task: T6
+intake: CHANGE-0072 prompt-hash runtime wiring
+reference_used: docs/specs/SPEC-0098-spec-prompt-hash-runtime-wiring.md (ground-truth frozen spec, status done, PR 172, commit f3015f6b)
+base_ref: c9059af03d6b40a8f74fce95b23de1e684839ced (parent of the delivery commit)
+judge_notes_global:
+  - "Ground-truth deliverables (4): SKILL_LOOP pointer sentence (131 B) in the step-4 append-run boilerplate; a JUSTIFIED_ADDITIONS ledger entry for the exact bytes; TEST-012 pin bump 30894 -> 31025; one new grep-contract case (TEST-016) inside the existing tests/skills/test-aai-prompt-diet.sh. Plus the no-regression run and the companion-obligations check."
+  - "Ground truth explicitly parks the runtime seam (METRICS rows actually gaining non-null prompt_hash) as a residual risk outside the evidence window; it is not a deliverable of this ride."
+  - "M6 checked mechanically against base_ref. Absent at base AND at HEAD: docs/intake/, docs/ai/intake/, docs/canonical/, docs/ai/evidence/, bare docs/specs/SPEC-NNNN.md filenames (repo convention is SPEC-NNNN-spec-<slug>.md), strategy value `tested` (allowed values at base: loop|tdd|hybrid|undecided). Absent at base but present at HEAD: .aai/scripts/spec-freeze.mjs — counted per the rubric's base_ref rule, but flagged as a probable replay artifact of running today's prompt corpus against an old intake; drop it uniformly if the aggregator prefers HEAD-relative checking (affects A -1 and C -1 only)."
+  - "tests/skills/test-aai-verify-gate.sh appears in the ground truth's no-regression set but is NOT traceable to the intake's Verification section, so its absence is not scored as underreach for any candidate."
+
+candidates:
+
+  A:
+    ac_measurability: 4
+    scope_fidelity: 4
+    evidence_fit: 4
+    overreach: 1
+    underreach: 0
+    hallucinated: 3
+    composite_Q: 12
+    ac_measurability_note: >-
+      Four ACs, each naming a command, an artifact and a binary observable with
+      numeric tolerances (exact byte equality tolerance 0, exact file list,
+      wc -l at most 40, exit 0). Docked one point: AC-003's observable is
+      "no findings attributable to this scope", which needs a reader's
+      judgement about attribution, and the AC-001/AC-003 verification command
+      is written as "or the resolved SKILL_LOOP suite", so the command is not
+      fixed at freeze time.
+    scope_fidelity_note: >-
+      Same surfaces and same four deliverables as the reference, and it
+      correctly excludes state.mjs and ORCHESTRATION. One non-load-bearing
+      addition (the AC-004 footprint-guard test). No omissions.
+    evidence_fit_note: >-
+      Strategy `hybrid` is decided and legal; the demanded evidence is a stored
+      RED artifact per AC-gating test, which is exactly the tdd/hybrid row.
+      Docked one point for a single harmless over-demand: RED-004 is
+      manufactured by a scratch mutation of .aai/ORCHESTRATION.prompt.md, i.e.
+      by temporarily editing the file the same spec declares out of scope.
+      Storage in docs/ai/reports/ rather than the template's docs/ai/tdd/ is a
+      convention drift, not a row mismatch (docs/ai/reports/ exists).
+    overreach_items:
+      - "AC-004 / TEST-004 footprint-guard test (ORCHESTRATION line cap + no-second-pointer assertion) with its scratch-mutation RED ceremony — a test deliverable the ride never built and the intake never asks for."
+    underreach_items: []
+    hallucinated_items:
+      - "links.intake: docs/intake/CHANGE-0072-prompt-hash-runtime-wiring.md — no docs/intake/ tree exists at base_ref or HEAD; the intake lives at docs/issues/CHANGE-0072-prompt-hash-runtime-wiring.md."
+      - "Bare spec-path naming: links.predecessor_spec docs/specs/SPEC-0096.md and the freeze/lint commands on docs/specs/SPEC-0097.md — no such filenames exist; the repo names specs SPEC-NNNN-spec-<slug>.md. (SPEC-0097 is also already taken by ci-test-impact-selection, the ride the intake itself names as merged.)"
+      - "node .aai/scripts/spec-freeze.mjs — absent at base_ref (see judge_notes_global; present at HEAD). The whole 'Freeze procedure' section and its half-frozen lint claim rest on it."
+    not_counted:
+      - "tests/skills/test-aai-loop.sh does not exist at base_ref, but A names it only inside an explicitly conditional resolution rule ('if a dedicated suite already exists, e.g. ...') and flags the whole path question as an open inference. Responsible hedging, not a phantom requirement."
+
+  B:
+    ac_measurability: 4
+    scope_fidelity: 3
+    evidence_fit: 2
+    overreach: 2
+    underreach: 0
+    hallucinated: 3
+    composite_Q: 9
+    ac_measurability_note: >-
+      Six ACs in a disciplined Verify / Observable / Evidence / Covered-by
+      shape, and the observables are crisp (grep counts >= 1, exact byte
+      equality with no rounding or range, row.prompt_hash === "<hex>" with a
+      null control that proves the assertion discriminates, empty diff, exactly
+      40 lines). Docked one point for two mechanical defects rather than vague
+      language: the Spec-AC-02 verify command is malformed and unrunnable as
+      written ('git show HEAD:.aai/SKILL_LOOP.prompt.md . wc -c'), and
+      Spec-AC-01's observable delegates to "the suite's existing block
+      extractor", a facility the suite does not have.
+    scope_fidelity_note: >-
+      Core four deliverables all present and the surfaces are right. One
+      substantial addition — Spec-AC-04 / TEST-005 asserts the whole
+      append-run -> METRICS column crossing, which is SPEC-0096's already-shipped
+      producer contract and which the reference deliberately parks as an
+      unprovable residual risk — plus one non-load-bearing guard (Spec-AC-06 /
+      TEST-007).
+    evidence_fit_note: >-
+      implementation_strategy.selected is `tested`, which is not a value the
+      strategy enum defines (base_ref allows loop | tdd | hybrid | undecided;
+      HEAD adds direct | untested — never `tested`). No row of "Evidence by
+      strategy" can therefore be matched, so the contract cannot be verified
+      against the strategy it declares. The contract itself is also internally
+      uneven: the test plan carries a "red observation" for TEST-001, TEST-002,
+      TEST-003 and TEST-005, but the evidence contract stores a RED transcript
+      only for TEST-003, and no evidence path is named anywhere (only "the
+      work-item evidence dir"). Not scored 0 — a contract does exist and is
+      RED-first in intent.
+    overreach_items:
+      - "Spec-AC-04 / TEST-005 — real append-run invocation plus null control proving state.mjs writes prompt_hash into the METRICS row. Belongs to SPEC-0096 (already delivered, PR #170); the reference records this crossing as out of the evidence window."
+      - "Spec-AC-06 / TEST-007 — ORCHESTRATION.prompt.md byte-identical + 40-line guard test."
+    underreach_items: []
+    hallucinated_items:
+      - "links.intake: docs/ai/intake/CHANGE-0072.md — no docs/ai/intake/ tree at base_ref or HEAD; the intake is docs/issues/CHANGE-0072-prompt-hash-runtime-wiring.md."
+      - "implementation_strategy.selected: tested — not an allowed strategy value at base_ref (loop | tdd | hybrid | undecided) nor at HEAD."
+      - "\"the append-run block located by the suite's existing block extractor\" — tests/skills/test-aai-prompt-diet.sh has test_001..test_015 at base_ref and no append-run block extractor; the nearest facility, test_002_common_blocks, checks common include blocks, not SKILL_LOOP regions."
+    not_counted:
+      - "Frontmatter id SPEC-0097 collides with the existing ci-test-impact-selection spec (the merged ride the intake names). A collision with a real doc, not a reference to a nonexistent one — noted, not counted."
+
+  C:
+    ac_measurability: 5
+    scope_fidelity: 3
+    evidence_fit: 5
+    overreach: 3
+    underreach: 0
+    hallucinated: 5
+    composite_Q: 13
+    ac_measurability_note: >-
+      Seven ACs, every one binary with a numeric threshold and a named command
+      via the Requirement -> Spec -> Verification mapping table: grep match
+      located between two named headings, literal conditional markers
+      (when | if | only), exactly 1 ledger entry, tolerance 0 bytes on both the
+      delta and the corpus total, a 64-hex value compared byte-for-byte, 0-byte
+      diff, exit 0. No unquantified language anywhere; nothing is left to a
+      reader's judgement.
+    scope_fidelity_note: >-
+      Core four deliverables all present, surfaces exactly right, and the
+      out-of-scope list is the sharpest of the three (it also excludes
+      backfilling historical METRICS rows). One substantial addition —
+      SPEC-AC-003 / TEST-003, the same already-delivered append-run -> METRICS
+      crossing the reference parks as residual risk — plus a non-load-bearing
+      budget guard carrying an invented 400-byte cap.
+    evidence_fit_note: >-
+      Strategy `tdd` is decided and legal, the spec quotes its own "Evidence by
+      strategy (tdd row)", and it demands exactly what that row demands: a
+      stored RED per AC-gating test (TEST-001..TEST-006), a matching GREEN per
+      the same ids, and an explicit statement that a GREEN without a matching
+      RED is not evidence. It correctly exempts TEST-007 as a regression guard
+      rather than an AC-gating behavior test. Every AC's evidence matches its
+      row. The storage tree it names does not exist — scored under M6, not
+      here, since the demands themselves are exact.
+    overreach_items:
+      - "SPEC-AC-003 / TEST-003 — end-to-end append-run -> METRICS.jsonl assertion on a 64-hex value. SPEC-0096 already shipped and proved the flag; the reference records this as outside the evidence window."
+      - "SPEC-AC-006 / TEST-006 — 400-byte cap on the SKILL_LOOP addition (a threshold the intake never sets; the ride's actual growth was 131 B) bundled with the ORCHESTRATION unchanged/40-line guard."
+      - "Deltas section — declaring an ADDED REQ-METRICS and a MODIFIED REQ-ORCHESTRATION creates a close-time canonical-merge obligation the ride never incurred (the reference has no Deltas at all)."
+    underreach_items: []
+    hallucinated_items:
+      - "intake: docs/intake/CHANGE-0072-prompt-hash-runtime-wiring.md — no docs/intake/ tree at base_ref or HEAD."
+      - "docs/ai/evidence/SPEC-0098/{red,green}/ — the tree does not exist at base_ref or HEAD, and it contradicts the repo's actual RED/GREEN convention docs/ai/tdd/ (which the reference uses). Seven evidence rows plus the strategy row all point there."
+      - "docs/canonical/ as the delta merge target, plus MODIFIED REQ-ORCHESTRATION — docs/canonical/ does not exist at base_ref or HEAD, docs/requirements/ holds only .gitkeep, so no REQ-* id space exists; a MODIFIED op moreover requires an existing REQ-<DOMAIN>-NNN id, which is neither supplied nor extant. (The unnumbered ADDED REQ-METRICS form is itself template-legal.)"
+      - "node .aai/scripts/spec-freeze.mjs — absent at base_ref (see judge_notes_global; present at HEAD); the Freeze Status section and its half-frozen lint claim rest on it."
+      - "Bare spec-path naming docs/specs/SPEC-0098.md in the freeze and spec-lint commands — the file is docs/specs/SPEC-0098-spec-prompt-hash-runtime-wiring.md."
+    not_counted:
+      - "SPEC-AC-007 demands docs-audit --check with 0 findings; the reference records that this scope's own pre-close self-reference keeps one item open until the close ceremony, so the criterion is over-strict in practice. It is still binary and mechanically checkable, so it does not cost an M1 point."

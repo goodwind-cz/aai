@@ -1,0 +1,67 @@
+task: T1
+reference_used: docs/specs/SPEC-0083-spec-reaper-test-018-etime-shape-guard.md
+reference_note: >-
+  Ground truth deliverables: (1) etime_to_secs shape guard, (2) `reaped ages:`
+  diagnostic line, (3) one deterministic unit test TEST-022 registered in
+  ALL_TESTS, (4) TEST-018 DIAG dumps the reaper ages line, (5) Spec-AC-04
+  (CI-load recurrence) recorded as deferred / review-by. Strategy tdd,
+  ceremony_level 2, inline review over the two paths, worktree not_needed.
+  M6 checks were run mechanically against the repo at HEAD.
+
+per_candidate:
+
+  A:
+    ac_measurability: 5
+    scope_fidelity: 3
+    evidence_fit: 4
+    overreach: 4
+    underreach: 0
+    hallucinated: 3
+    hallucinated_items:
+      - "docs/ai/evidence/SPEC-0077/ — no such directory and not a repo convention; the canonical stored-RED location per .aai/templates/SPEC_TEMPLATE.md `### Evidence by strategy` is docs/ai/tdd/ (exists), and every other spec writes under docs/ai/reports/"
+      - "docs/specs/SPEC-0077.md — not the file-naming convention; specs are created as SPEC-DRAFT-<slug>.md and renamed to SPEC-000N-<slug>.md by .aai/scripts/allocate-doc-number.mjs at merge (the candidate does flag id-freeness as a follow-up, but still names the wrong path form)"
+      - "docs/ai/intake/reaper-test-018-etime-shape-guard.md — docs/ai/intake/ does not exist; intakes live at docs/issues/CHANGE-NNNN-<slug>.md"
+    note: |
+      ac_measurability 5: every Spec-AC carries an explicit numeric threshold column ("6 of 6 fixtures", "20 of 20 repetitions", "0 parser diffs", "exactly once") and the mapping table names a command and an evidence artifact per row.
+      scope_fidelity 3: same two surfaces as the ride, but one substantial addition — a five-test program (TEST-022..026) including a 20-iteration induced-load soak harness, where the ride shipped one unit test.
+      evidence_fit 4: strategy is decided (tdd) and stored RED artifacts are demanded per AC-gating test, matching the tdd row, but it over-demands a RED for TEST-026 (a registration meta-test that cannot meaningfully fail first); the TEST-024 fallback clause is handled honestly, so the over-demand is harmless.
+      overreach 4: TEST-023 (ages-line integration), TEST-024 (parser-baseline compat), TEST-025 (20-iteration load soak), TEST-026 (ALL_TESTS registration meta-test) — four deliverables neither shipped nor implied by the intake.
+      underreach 0: guard, ages line, TEST-022 + ALL_TESTS registration, TEST-018 DIAG rewiring, companion-obligations check and review scope are all present.
+      hallucinated 3: see hallucinated_items — an invented evidence directory plus two path/naming conventions that do not exist at base_ref.
+
+  B:
+    ac_measurability: 5
+    scope_fidelity: 3
+    evidence_fit: 5
+    overreach: 3
+    underreach: 0
+    hallucinated: 3
+    hallucinated_items:
+      - "`<!-- SPEC-FREEZE-MARKER -->` — the freeze marker written by .aai/scripts/spec-freeze.mjs is the literal body line `SPEC-FROZEN: true` (markerRe = /^SPEC-FROZEN:[ \\t]*\\S+[ \\t]*$/m); this spec carries the HTML comment instead and no SPEC-FROZEN line at all, so by its own tooling it is half-frozen"
+      - "docs/specs/SPEC-0077.md plus frontmatter `number: 77` — wrong naming form, and the sequential number is assigned at merge by allocate-doc-number.mjs, never pre-set at freeze"
+      - "docs/ai/intake/50-reaper-test-018-etime-shape-guard.md — docs/ai/intake/ does not exist; intakes live at docs/issues/CHANGE-NNNN-<slug>.md"
+    note: |
+      ac_measurability 5: each Spec-AC states Verify (one command), Observable (exit status plus an exact grep/equality, e.g. "grep -c '^reaped ages:' equals 1", "ALL_TESTS count exactly 4 greater") and Evidence; no adjective is load-bearing.
+      scope_fidelity 3: same two surfaces, but one substantial addition — three extra integration tests plus a committed ps-snapshot fixture set and a PATH-shadowed `ps` assumption (A1) that it concedes may force a spec amendment.
+      evidence_fit 5: strategy decided (tdd), every AC's evidence matches its row, RED is pinned to a recorded pre-change SHA, TEST-024 is explicitly labelled a tripwire that passes before the change and is NOT counted as evidence for it, and the CI AC is recorded as `deferred (review-by)` with an explicit no-PASS rule.
+      overreach 3: TEST-023 + committed ps snapshot fixtures, TEST-024 (reap-old tripwire), TEST-025 (ages-line / parser compat) — three deliverables beyond what the ride shipped.
+      underreach 0: guard, ages line, TEST-022 + ALL_TESTS, TEST-018 DIAG extension, companion-obligations check and explicit review scope are all present.
+      hallucinated 3: see hallucinated_items — the freeze-marker one is the load-bearing miss, since it would make the "frozen" spec fail the repo's own freeze/lint contract.
+
+  C:
+    ac_measurability: 4
+    scope_fidelity: 4
+    evidence_fit: 4
+    overreach: 2
+    underreach: 0
+    hallucinated: 2
+    hallucinated_items:
+      - "docs/specs/SPEC-0077.md — not the file-naming convention; specs are SPEC-DRAFT-<slug>.md at intake, renamed to SPEC-000N-<slug>.md by allocate-doc-number.mjs at merge"
+      - "docs/ai/intake/50-reaper-test-018-etime-shape-guard.md — docs/ai/intake/ does not exist; intakes live at docs/issues/CHANGE-NNNN-<slug>.md"
+    note: |
+      ac_measurability 4: four of five Spec-AC rows are literal input->output or exit-code assertions with commands in the mapping table, but Spec-AC-05 ("spared in 100% of runs — TEST-018 ... no longer flakes across subsequent unrelated PRs on CI") states no observation window or count in the AC itself, leaving one observable soft at merge time.
+      scope_fidelity 4: closest match to what the ride shipped — same two surfaces, same core deliverables, and it explicitly allows TEST-023/024 to be extra assertions inside the existing harness rather than new cases, so the additions are non-load-bearing.
+      evidence_fit 4: strategy decided (tdd), stored RED per AC-gating test with a correct TEST-018 exemption and an explicit citation of the SPEC_TEMPLATE strategy row; docked one for a contrived RED procedure for TEST-024 ("run with a deliberately malformed extra line to prove the assertion can fail") and for asserting stored RED would also be mandatory under `loop`, which contradicts the template row (loop: storage optional).
+      overreach 2: TEST-023 (ages-line integration) and TEST-024 (parser-regression) — TEST-025 is just the full-suite run the intake already demands, so it does not count.
+      underreach 0: guard, ages line, TEST-022 + ALL_TESTS, TEST-018 DIAG, companion-obligations check, Deltas and review scope are all present.
+      hallucinated 2: see hallucinated_items — both are the doc-identity/intake-path conventions, shared with the other two candidates; no invented evidence directory or freeze mechanism.

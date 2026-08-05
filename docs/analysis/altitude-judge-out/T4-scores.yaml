@@ -1,0 +1,192 @@
+task: T4
+judge_notes:
+  reference_provenance: >
+    The judge-in bundle contained no REFERENCE spec (only the intake and the three
+    candidates). Ground truth for M2/M5 was taken from the repository at
+    docs/specs/SPEC-0087-spec-subagent-protocol-slim.md (status done, PR 161,
+    commit 52cdc55) — the frozen spec this intake actually produced. M6 was checked
+    mechanically against the working tree (HEAD used as a base_ref proxy; the
+    delivered .aai/SUBAGENT_CONTRACT.md is present at HEAD, which does not affect
+    any of the counted items).
+  ground_truth_facts_used:
+    - Only protocol sections 7 (result block + timing) and 9 (single-writer core)
+      move to the contract; review anti-gaming stays in SUBAGENT_PROTOCOL.md.
+    - The intake's "usage-note duty" was CORRECTED at planning — a subagent has no
+      usage-reporting duty; the contract carries only a "do NOT self-report token
+      usage" prohibition.
+    - Exactly two grep pins retarget — docs-lock TEST-010 (single-writer) and
+      hygiene-pack TEST-002 (result-block byte-diff). token-capture explicitly does
+      NOT retarget.
+    - No prompt-diet ledger true-up was needed (the reference renames are
+      byte-neutral, 17 chars for 17).
+    - No `## Deltas` section (pure relocation adds/modifies no canonical requirement).
+    - New AC tests landed inside tests/skills/test-aai-hygiene-pack.sh, not in a new suite.
+    - ceremony_level 2; strategy loop; worktree not_needed.
+  shared_misses: >
+    All three candidates independently repeat four ground-truth divergences, so
+    these do not separate them: the token-capture pin is named as the retarget
+    (wrong pin) while docs-lock and hygiene-pack are never mentioned; the
+    "usage-note duty" is carried into the contract uncorrected; the anti-gaming
+    rows are routed into the contract; and the section-classification plus
+    grep-pin enumeration that the intake asks for "at planning" are deferred to
+    implementation. The BRIEF_TEMPLATE Return-Record / result-block byte-identity
+    seam is missed by all three but is not derivable from the intake text, so it is
+    not counted in M5.
+
+candidates:
+
+  - label: A
+    ac_measurability: 4
+    ac_measurability_note: >
+      Ten Spec-ACs, nearly all with hard numeric thresholds (wc -l <= 60; combined
+      grep count exactly 1 per probe, total exactly 5; residual protocol references
+      exactly 0; missing-anchor count exactly 0; exactly 1 PROFILES entry; suite exit
+      codes). Not a 5 because Spec-AC-005 folds in two clauses no command decides —
+      "a WHO-IT-BINDS classification table is present in the PR body" and "every
+      section classified `both` has its text in the contract" — after the section
+      opens by promising every criterion is command-decidable. The five contract
+      anchors and five dedup probes are named in prose with literals deferred to
+      implementation (same as B and C).
+    scope_fidelity: 2
+    scope_fidelity_note: >
+      Correct file surfaces (contract, protocol, three prompts, BRIEF_TEMPLATE,
+      PROFILES). Two load-bearing mismatches plus one invention: the pin retarget is
+      aimed at token-capture, which in the shipped ride must NOT move, while the two
+      pins that do move go unnamed; a prompt-diet JUSTIFIED_ADDITIONS entry plus
+      checkpoint bump is made an unconditional AC, where the ride verified none was
+      owed; and Spec-AC-005 hard-requires every `both`-classified section to land in
+      the contract, which contradicts the shipped split and would fight the 60-line
+      cap. ceremony_level 2 matches the ride exactly (the only candidate that does);
+      worktree `required` is heavier than the shipped `not_needed`.
+    evidence_fit: 5
+    evidence_fit_note: >
+      Strategy `hybrid` is decided and rationalised. SPEC_TEMPLATE's row for
+      tdd/hybrid is "stored RED artifact per AC-gating test plus the full
+      verification matrix"; A demands exactly that, per-test, and is explicit that
+      the RED obligation binds hybrid as it binds tdd. It also states which tests
+      owe no RED (the CI regression gate) and how RED is staged for the pre-existing
+      suites. The wrong storage directory is counted under M6, not here.
+    overreach: 3
+    overreach_items:
+      - "`## Deltas` block MODIFYING REQ-SUBAGENT-001 — the ride recorded no Deltas section at all, because a pure relocation touches no canonical requirement. Hedged with an explicit drop-rule, but still emitted."
+      - "Mandatory prompt-diet ledger true-up: `tests/skills/lib/prompt-diet-ledger.sh` gains exactly 1 new JUSTIFIED_ADDITIONS entry with a bumped checkpoint. The ride verified the corpus edits were byte-neutral and no true-up was owed."
+      - "New standalone suite `tests/skills/test-aai-subagent-contract.sh` (8 of 11 TEST rows target it). The ride added its AC tests to the existing hygiene-pack suite; the intake's own Verification list names only existing suites."
+    underreach: 3
+    underreach_items:
+      - "The section-to-destination classification table as a PLANNING deliverable. The intake says planning must classify each protocol section by who it binds; the ride's spec carries the full 12-row table. A defers it to implementation and the PR body."
+      - "The grep-pinned test-contract inventory at planning. The intake says \"enumerate at planning\"; the ride's spec carries the seven-line pin inventory before freeze. A pushes it into risk R2 as an implementation-time repo-wide grep."
+      - "The two retargets that actually exist — docs-lock TEST-010 (single-writer greps) and hygiene-pack TEST-002 (result-block byte-diff). Neither suite is named anywhere in the candidate."
+    hallucinated: 3
+    hallucinated_items:
+      - "`docs/ai/evidence/CHANGE-061/` — the entire Evidence Contract is anchored on this directory and convention. No `docs/ai/evidence/` exists and the string appears nowhere in `.aai/` or `docs/`; the repo's RED convention is `docs/ai/tdd/red-<timestamp>.log` (SKILL_TDD.prompt.md), reports go to `docs/ai/reports/`."
+      - "`REQ-SUBAGENT-001` described as \"the canonical subagent-protocol requirement block\", to be reconciled against `docs/canonical/`. No REQ- id exists anywhere in `docs/`, and `docs/canonical/` does not exist. Hedged with a reconciliation note."
+      - "Doc-id conventions: `source_intake: docs/ai/intake/61-subagent-protocol-slim.md` (no such directory; intakes live in `docs/issues/` as `CHANGE-0061-<slug>.md`), `ref_id: CHANGE-061` (repo uses 4-digit CHANGE-0061), and `docs/specs/SPEC-0061.md` (repo convention is `SPEC-00NN-<slug>.md`, and the real doc is SPEC-0087)."
+
+  - label: B
+    ac_measurability: 5
+    ac_measurability_note: >
+      The only candidate whose ACs are written as an explicit
+      artifact / verify / observable / evidence quadruple, with literal command
+      strings rather than descriptions: `grep -c '^```yaml'`, `head -n 10 | grep -c
+      'SUBAGENT_CONTRACT.md'`, `grep -l '<phrase>' <both files> | wc -l` with the
+      observable "== 1", `comm -23` with "wc -l == 0", CI conclusion `success`.
+      AC-03 goes further than the others by fixing which side each probe must land
+      on, so the AC can fail a split that is complete but backwards. Two soft edges
+      (AC-06's discretionary reworded-sentence allowlist, AC-07's "the recorded
+      delta must be the measured delta" honesty clause) are bounded and each still
+      resolves to a command; they do not drop it a band.
+    scope_fidelity: 3
+    scope_fidelity_note: >
+      Same correct surfaces, and the closest read of what actually moves: AC-03
+      names exactly three subagent-binding phrases for the contract — single-writer
+      rule, result block, usage-note — which is the shipped sections 7 + 9 pair
+      (modulo the usage-note item the ride corrected away). Deltas recorded as
+      "None. This spec is the first freeze for intake #61", matching the ride's
+      no-Deltas decision, and worktree `recommended` is the closest of the three to
+      the shipped `not_needed`. Held to 3 by the same wrong-pin miss as the others
+      plus the unconditional ledger true-up; the sentence-set conservation machinery
+      is heavier than the ride's 5-phrase spot-grep but serves an intake-stated
+      behaviour. ceremony_level 3 vs the shipped 2 is inflation, but is raised as
+      OQ-3 with a stated correction path rather than asserted.
+    evidence_fit: 5
+    evidence_fit_note: >
+      Strategy `tdd` is decided with a rationale tied to the observable shape (every
+      AC is a grep/wc over text, so RED is cheap). It names SPEC_TEMPLATE's
+      "### Evidence by strategy" as the authority rather than re-deriving it, and
+      demands per-test RED and GREEN logs — exactly the tdd/hybrid row. It also
+      handles the one test whose RED cannot occur naturally (TEST-006, conservation)
+      by requiring a truncated-fixture RED, and refuses to count a conservation test
+      never seen rejecting a loss.
+    overreach: 2
+    overreach_items:
+      - "Mandatory prompt-diet ledger true-up: a new JUSTIFIED_ADDITIONS entry naming SPEC-0061 plus a bumped PD-TEST-012 checkpoint, as an unconditional AC observable. The ride verified the edits were byte-neutral and owed nothing."
+      - "New standalone suite `tests/skills/test-aai-subagent-contract.sh`. The ride put its AC tests in the existing hygiene-pack suite."
+    underreach: 3
+    underreach_items:
+      - "The section-to-destination classification table as a planning deliverable. The intake requires planning to classify each section by who it binds; the ride's spec carries the 12-row table. B defers it to the PR body under RR-02."
+      - "The grep-pin inventory at planning. The intake says \"enumerate at planning\"; B makes it AC-09 evidence produced \"at implementation start\"."
+      - "The two real retargets — docs-lock TEST-010 and hygiene-pack TEST-002. Neither suite is named; token-capture is named instead."
+    hallucinated: 2
+    hallucinated_items:
+      - "`docs/ai/reports/SPEC-0061/red/` and `/green/` as the RED/GREEN log convention. The repo's convention is `docs/ai/tdd/red-<timestamp>.log`. B flags this itself as inferred and instructs Implementation to substitute the repo's real directory and record the substitution — the only candidate that does."
+      - "Doc-id conventions: `docs/ai/intake/61-subagent-protocol-slim.md` (intakes live in `docs/issues/` as `CHANGE-0061-<slug>.md`) and `docs/specs/SPEC-0061.md` (repo convention `SPEC-00NN-<slug>.md`; the real doc is SPEC-0087). B does pre-empt the number collision by instructing that a spec-freeze refusal be read rather than hand-edited around."
+    not_counted:
+      - "`protected_paths_l3` in `docs/ai/docs-audit.yaml` — the key is real. B's guess that `.aai/**` sits inside it is wrong (the list is the state engine, allocate-doc-number, pre-commit-checks, WORKFLOW.md, CONSTITUTION.md), but it is raised as OQ-3 with an explicit re-plan path, so it is an inflated inference, not a hallucinated reference."
+      - "`.aai/templates/SPEC_TEMPLATE.md` `### Evidence by strategy` — verified present at line 205."
+
+  - label: C
+    ac_measurability: 4
+    ac_measurability_note: >
+      Eight Spec-ACs with real thresholds (wc -l in 1..60, combined grep count
+      exactly 1 per phrase, residual protocol references exactly 0, exactly 1
+      PROFILES entry, three suites exit 0). Below a 5 on three counts: SPEC-AC-003
+      (head pointer) states an observable but names no command; SPEC-AC-004's
+      "dispatch-payload or input-list lines" requires a human to decide which lines
+      are payload lines before the count means anything; and TEST-009's observable —
+      anti-gaming rows "reachable from the contract" — is not a decidable predicate.
+      Both the five duty tokens and the five canonical phrases are deferred to
+      implementation, as in A and B.
+    scope_fidelity: 2
+    scope_fidelity_note: >
+      Correct file surfaces, but the most divergence from what shipped. The same two
+      load-bearing misses as A and B (token-capture named as the retarget while the
+      two real pins go unnamed; unconditional ledger true-up), plus two inventions:
+      a Deltas section that MODIFIES one requirement id and ADDS a second, where the
+      ride deliberately recorded no Deltas at all for a pure relocation; and TEST-009
+      plus a seam row built on routing the anti-gaming rows into the contract, which
+      is the opposite of the shipped classification. ceremony_level 3 against the
+      shipped 2, asserted as a mandatory protected-surface case that "review may not
+      classify downward".
+    evidence_fit: 4
+    evidence_fit_note: >
+      Strategy `hybrid` is decided, cites SPEC_TEMPLATE's "### Evidence by strategy"
+      by name, and correctly scopes stored RED to the test-first subset while still
+      requiring the pre-existing suites be observed failing first. One harmless
+      under-demand keeps it off 5: the row calls for "a stored RED artifact per
+      AC-gating test", and the Evidence contract collapses all of them into a single
+      `docs/ai/reports/SPEC-0061-red.log` (and one green log), so no per-test
+      artifact is actually owed.
+    overreach: 4
+    overreach_items:
+      - "`## Deltas (RFC-0011)` MODIFYING REQ-SUBAGENT-001 and ADDING REQ-SUBAGENT-002 (\"contract budget and single-home rule\"). The ride recorded no Deltas section, on the explicit ground that a relocation of already-canonical prose adds no canonical requirement. Marked provisional, but the ADDED block is a new requirement invented for a pure move."
+      - "Mandatory prompt-diet ledger true-up: exactly 1 new JUSTIFIED_ADDITIONS entry plus a checkpoint bumped by the real byte delta. The ride verified the edits were byte-neutral and owed nothing."
+      - "New standalone suite `tests/skills/test-aai-subagent-contract.sh` (6 of 10 TEST rows). The ride extended the existing hygiene-pack suite."
+      - "TEST-009 plus the \"Dual-binding rules\" seam row, asserting the reviewer-binding anti-gaming rows are reachable from the contract. The ride classified those rows as staying in SUBAGENT_PROTOCOL.md with the reviewer reaching them through SKILL_CODE_REVIEW, so this test encodes a deliverable that was not built."
+    underreach: 3
+    underreach_items:
+      - "The section-to-destination classification table as a planning deliverable. C names it \"mandatory pre-work\" and step 1 of the implementation order, but produces none — the ride's spec carries the finished 12-row table with per-section grep-pin verdicts."
+      - "The grep-pin inventory at planning. The intake says \"enumerate at planning\"; C reduces it to \"any grep-pinned test stanza whose anchor text moves\" and never schedules an enumeration."
+      - "The two real retargets — docs-lock TEST-010 and hygiene-pack TEST-002. Neither suite appears anywhere in the candidate."
+    hallucinated: 4
+    hallucinated_items:
+      - "\"the MANDATORY-L3 protected-surface case\" for the `.aai` workflow prompt surface. WORKFLOW.md's L3 protected surfaces are the state engine (`state.mjs`, `state-engine.mjs`, `state-core.mjs`), `allocate-doc-number.mjs`, `pre-commit-checks.*`, `.aai/workflow/WORKFLOW.md` and `docs/CONSTITUTION.md` — and `protected_paths_l3` in `docs/ai/docs-audit.yaml` confirms that list. The prompt corpus is not in it. Asserted flatly, with no open question, unlike B."
+      - "\"Review may not classify downward\" as a stated rule. WORKFLOW.md says review may re-classify a level UPWARD; there is no rule forbidding downward re-classification, and the sentence reads as a derived constraint on the reviewer."
+      - "`REQ-SUBAGENT-001` and `REQ-SUBAGENT-002`, to be reconciled against `docs/canonical/` at close. No REQ- id exists anywhere in `docs/`, and `docs/canonical/` does not exist."
+      - "Doc-id conventions: `intake: docs/intake/61-subagent-protocol-slim.md` (no such directory; intakes are `docs/issues/CHANGE-0061-<slug>.md`), `docs/specs/SPEC-0061.md` (repo convention `SPEC-00NN-<slug>.md`; real doc SPEC-0087), and `docs/ai/reports/SPEC-0061-red.log` for RED (repo convention is `docs/ai/tdd/red-<timestamp>.log`)."
+    not_counted:
+      - "`RFC-0011` cited as the Deltas authority — verified real: `docs/rfc/RFC-0011-delta-spec-lifecycle.md`. The citation is accurate; only its application to a relocation is wrong."
+
+composite_Q:
+  A: 11
+  B: 13
+  C: 10

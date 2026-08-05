@@ -1,0 +1,262 @@
+task: T3
+intake_id: prompt-dedup-canonical-includes
+judged_at_utc: "2026-08-05"
+reference_used: docs/specs/SPEC-0086-spec-prompt-dedup-canonical-includes.md
+base_ref: ec048b3c890e46fe9e924aba3adf7ed9f607fe83
+
+judging_conditions:
+  # Recorded because it calibrates M6 for every candidate equally.
+  replay_constraint: >-
+    The replay envelope forbids browsing a repository ("base the spec ONLY on the
+    intake's content ... infer repo-derived details from the intake's own
+    references; do not invent unrelated systems"). M6 is therefore scored as
+    "asserted as existing, not present at base_ref, and not derivable from the
+    intake or the role instruction". Items that the role instruction itself names
+    are listed as prompt_induced and NOT counted, identically for all candidates.
+  prompt_induced_not_counted:
+    - path: .aai/scripts/spec-freeze.mjs
+      status_at_base: absent
+      note: named by the role instruction; cited by A, B and C. Common-mode, excluded from all three counts.
+    - path: .aai/ROLE_COMMON.md
+      status_at_base: absent
+      note: named by the role instruction; only C reacts to it (see C notes).
+
+  # Facts checked mechanically at base_ref, applied identically to A, B and C.
+  ground_facts:
+    - "The D5 carve-out body exists in FIVE prompts at base_ref (PLANNING, IMPLEMENTATION, VALIDATION, REMEDIATION, SKILL_TDD) — the intake names only four."
+    - "`docs/intake/` does not exist at base_ref; the intake lives under `docs/issues/`."
+    - "`docs/ai/evidence/` does not exist at base_ref; the evidence dirs are `docs/ai/tdd/`, `docs/ai/reports/`, `docs/ai/reviews/`."
+    - "`docs/specs/SPEC-0059-spec-prompt-diet-itemized-growth-ledger.md` already occupies doc id SPEC-0059 at base_ref; the filename convention is `SPEC-NNNN-<slug>.md`."
+    - "`CHG-` is not a ref prefix used anywhere in the repo (state.mjs and docs use `CHANGE-`); state.mjs REF_RE would nonetheless accept it."
+    - "docs-audit.mjs `--gate` exists; it does NOT compute the repo-wide overdue-Review-By interrupt nor the 14-day-future anti-cheat window (the reference spec's Critical Finding). No candidate discovered this."
+
+candidates:
+
+  A:
+    ac_measurability:
+      score: 5
+      note: >-
+        All 7 ACs carry a named verification command, an expected-evidence column
+        and a numeric/binary threshold (occurrence counts, `wc -c` comparisons,
+        exit codes, `git diff --quiet` exit 0). AC-003 goes further than counting
+        and demands path RESOLUTION of the pointer target. Single soft edge:
+        AC-002's "outside the gate-invocation contract block" boundary and the
+        unspecified "exit-code contract phrase" leave one observable to a reader,
+        but the enumerated literals (`14-day`, `14 day`, `Review-By`) keep it
+        unambiguous. Nothing here is unfalsifiable as written.
+    scope_fidelity:
+      score: 2
+      note: >-
+        Same three surfaces and the same deliverable list as the reference, but
+        three load-bearing mismatches. (1) AC-002 demands ZERO date-math prose in
+        VALIDATION; the reference proved `--gate` does not compute the temporal
+        rules and RETAINED that prose deliberately — A's contract would regress
+        enforcement. (2) AC-004 pins the prompt-diet ledger constants as
+        byte-identical; the reference required a reconciling NEGATIVE
+        `JUSTIFIED_ADDITIONS` entry plus adding the new file to TEST-010's `extra`
+        accounting, so A's AC forbids the work the ride actually needed. A does
+        carry a conditional ledger escape hatch, but it fires only on
+        non-negative byte delta, which is not the failure mode. (3) Four role
+        prompts, not five — SKILL_TDD.prompt.md carries a fifth copy at base_ref,
+        so A's own AC-003 ("exists in exactly 1 file") is unsatisfiable by A's own
+        scope. Surfaces/deliverables are otherwise a match, including the PROFILES
+        companion obligation (AC-006), which A reaches through an explicit
+        closed-list companion check.
+    evidence_fit:
+      score: 5
+      note: >-
+        Strategy is decided (`hybrid`) and the evidence contract is written
+        against that row explicitly ("`hybrid` owes stored RED artifacts for its
+        AC-gating tests (unlike `direct`/`untested`, which owe none)"). Per-group
+        RED recipes are given, including the hard case: the three naturally-green
+        invariance guards get a forced-RED procedure (mutate, observe, revert,
+        store the transcript) instead of being waived. Every demanded artifact
+        (RED, GREEN, byte table, gate exit codes, zero-hit greps, three
+        `git diff --quiet` results, D5 divergence notes) maps to a named AC. No
+        over- or under-demand found.
+    overreach:
+      count: 2
+      items:
+        - "AC-007 / TEST-014 — a dispatch-behavior invariance deliverable (lane-selection assertions for ceremony levels 0,1,2,3 plus byte-identity of orchestration-dispatch.mjs). Sensible, but the ride delivered no such guard and the intake only declares the file out of scope."
+        - "New suite `tests/skills/test-aai-prompt-dedup.sh` (9 of 14 TEST rows target it). The intake asks to 'update affected test stanzas'; the ride extended the existing suites (ceremony-levels, docs-audit, token-capture, prompt-diet, layer-profiles) rather than creating a new file."
+    underreach:
+      count: 0
+      items: []
+      note: >-
+        Every intake-traceable deliverable is present, including the one most
+        easily dropped: the intake's "plus the one-line role-specific consequence
+        each needs" survives in A's scope text and in AC-001's "exactly 1 pointer
+        line" framing. The reference's fifth D5 copy and its ledger reconciliation
+        are NOT counted here — neither is traceable to the intake (the intake
+        names four prompts and asserts no ledger work is owed); both are recorded
+        against scope_fidelity instead.
+    hallucinated:
+      count: 3
+      items:
+        - "`docs/intake/59-prompt-dedup-canonical-includes.md` (frontmatter `links.intake`) — `docs/intake/` does not exist at base_ref and no path appears in the intake."
+        - "`CHG-0059` as the work-item ref — used in frontmatter `ref:`, in all five `state.mjs` commands, and in the brief filename `docs/ai/briefs/CHG-0059.md`. The `CHG-` prefix exists nowhere in the repo (the convention is `CHANGE-`)."
+        - "`docs/specs/SPEC-0059.md` — the bare `SPEC-NNNN.md` filename is not the repo convention (`SPEC-NNNN-<slug>.md`), and doc id SPEC-0059 is already taken at base_ref by an unrelated spec, so freezing under this id would collide."
+
+  B:
+    ac_measurability:
+      score: 4
+      note: >-
+        7 ACs, each with a verification command AND a named evidence artifact
+        path, and B states the intent outright ("No AC uses unverifiable
+        language"). Counts, byte comparisons and exit codes throughout; AC-005's
+        "removed-pin count equals re-pointed-pin count" is a genuinely mechanical
+        accounting rule. Marked down one band because the observable is left
+        implicit in more than the wording: AC-002's markers are given partly as
+        prose descriptors ("`Review-By` comparison prose", "ISO date arithmetic")
+        rather than literals, and three ACs are verified via named cases inside
+        `test-framework.sh` ("case: profiles-classification") whose existence and
+        naming are asserted, not defined. Unambiguous in intent, but one AC's
+        decider is a reader's call.
+    scope_fidelity:
+      score: 2
+      note: >-
+        Same surfaces and essentially the same deliverable list as the reference,
+        with the same three load-bearing mismatches as the other candidates:
+        (1) AC-002 demands 0 date-math occurrences, the opposite of the
+        reference's deliberate retention of the two rules `--gate` does not
+        compute; (2) AC-004 requires ledger constants byte-identical to HEAD and
+        the companion check states outright that "a diff to them is a review
+        finding" — the ride required exactly such a diff (a negative reconciling
+        entry) to keep headroom in [0, HEADROOM_CAP]; (3) four role prompts, not
+        the five that carry the carve-out at base_ref, so AC-003's "exactly 1
+        file" is unreachable from B's own scope. One credit the others do not
+        share: B instructs "if a `ROLE_COMMON.md` already exists elsewhere in
+        `.aai/`, Implementation MUST reuse it in place rather than create a
+        second one" — which is where the ride actually landed
+        (`.aai/ROLE_COMMON.md`). Offsetting it, B adds a whole seam (S5) and test
+        (TEST-108) for installer/vendor-manifest coverage that the ride never
+        touched.
+    evidence_fit:
+      score: 5
+      note: >-
+        Strategy `hybrid` is decided, and B is the only candidate with an
+        explicit "### Evidence by strategy" subsection that splits the demand by
+        lane: TDD-lane rows (7 named test ids) owe a stored RED before their
+        GREEN counts; loop-lane rows owe passing suite output plus the byte
+        record, "no separate stored RED artifact for the pre-existing cases, only
+        for the newly added assertions inside them"; and it closes the row set by
+        stating `direct`/`untested` do not apply. That is the template's hybrid
+        row reproduced exactly, per-AC, with an evidence root, a raw-output rule
+        ("a summary sentence is not evidence") and an empty-Evidence blocking
+        clause. No AC over- or under-demands.
+    overreach:
+      count: 3
+      items:
+        - "Seam S5 + TEST-108 — installer/vendor-manifest coverage for the new `.aai/**` file. Not implied by the intake and not part of the ride; B does hedge it into a residual risk if no manifest test exists, but it is still scoped as a deliverable under AC-006."
+        - "AC-007 / TEST-109 — an out-of-scope diffstat guard (0 changed lines in WORKFLOW.md, orchestration-dispatch.mjs, docs-audit.mjs) plus a deliberate-scratch-edit RED procedure for it. Sensible; not delivered by the ride."
+        - "New suite `tests/skills/test-aai-prompt-dedup.sh` (5 of 10 TEST rows) where the ride extended existing suites."
+    underreach:
+      count: 1
+      items:
+        - "The intake's ceremony deliverable is 'a pointer to the WORKFLOW.md table PLUS the one-line role-specific consequence each role needs'. B's Scope Summary reduces the restatements to 'pointer lines' and AC-001 demands 'exactly 1 line naming .aai/workflow/WORKFLOW.md ... and 0 table rows' with no requirement that the role-specific residue survive. The reference treats that residue as load-bearing (existing pins require the `ceremony_level` / `Ceremony justification:` / dispatch-lane / L0-L1 tokens); B's Review-Plan residue check covers VALIDATION's judgment prose only, not PLANNING's ceremony residue."
+    hallucinated:
+      count: 3
+      items:
+        - "`docs/intake/59-prompt-dedup-canonical-includes.md` — asserted twice (frontmatter `intake_path` and `links.requirements`). `docs/intake/` does not exist at base_ref."
+        - "`docs/ai/evidence/SPEC-0059/` as the evidence root, with seven named artifact paths under it (`ac-001-ceremony-grep.txt`, `red/`, `green/`, `bytes.txt`, ...). `docs/ai/evidence/` does not exist at base_ref; the repo's evidence convention is `docs/ai/tdd/` + `docs/ai/reports/`."
+        - "`docs/specs/SPEC-0059.md` (named in the freeze command and the state.mjs `--path`/`--ref` lines) — not the repo's `SPEC-NNNN-<slug>.md` filename form, and doc id SPEC-0059 is already occupied at base_ref."
+
+  C:
+    ac_measurability:
+      score: 3
+      note: >-
+        Structurally the strongest form of the three — a dedicated
+        "observable (decides it)" column and literal inline commands rather than
+        delegation to an unwritten suite, and Spec-AC-08 ("violating == the
+        non-zero code literally named in VALIDATION.prompt.md") is the sharpest
+        single AC in the set. But three of the ten verification commands do not
+        do what they claim, and two of those make their AC unfalsifiable:
+        (a) Spec-AC-01's `grep -cE '^\|[^\|]*(ceremony\|L0\|L1\|L2\|L3)'` escapes
+        the alternation pipes inside an ERE, so it matches a literal string and
+        can never fire — the "both counts == 0" observable passes vacuously;
+        (b) Spec-AC-02's `grep -nE '14-day\|14 day\|Review-By\|review_by\|ISO date'`
+        has the identical defect, so "zero matching lines" is satisfied by any
+        tree including an unedited one; (c) Spec-AC-04's `grep -lc` combines two
+        mutually exclusive flags. Seven rows are crisp and numeric; two are
+        measurable only by accident.
+    scope_fidelity:
+      score: 2
+      note: >-
+        Correct surfaces and deliverables, with the same three load-bearing
+        mismatches, one of them in its most aggressive form. (1) Spec-AC-02
+        demands zero matches for `14-day`/`Review-By`/`review_by`/`ISO date`
+        across the WHOLE of VALIDATION.prompt.md, with no "outside the gate
+        block" carve-out at all — the reference retained precisely that prose
+        because `--gate` does not compute the repo-wide overdue interrupt or the
+        14-day-future anti-cheat window, so C's contract is the furthest of the
+        three from what the ride needed. (2) Spec-AC-06 requires the ledger diff
+        line count to be 0, forbidding the reconciling entry the ride required.
+        (3) Four role prompts, not five, while Spec-AC-04 demands the carve-out
+        resolve to exactly one path. Two real credits: Q1 flags that a
+        `ROLE_COMMON.md` may already exist and instructs reuse-in-place, which is
+        the path the ride actually used; and Spec-AC-08's clean/violating fixture
+        exit-code pairing is the closest any candidate comes to the reference's
+        characterization guard, even though C draws the opposite conclusion from
+        it.
+    evidence_fit:
+      score: 4
+      note: >-
+        Strategy is decided (`tdd`) and the contract matches that row: a stored
+        RED transcript per TEST row before any edit, GREEN for the same rows,
+        full stdout+exit for both suites, a before/after byte table against
+        `$BASE`, the gate fixture exit codes, and an explicit "a green without a
+        recorded RED for the same row is not evidence". Each AC names a command
+        whose output is one of the seven listed artifacts. One row
+        under-delivers: the RED protocol states every row is observed failing on
+        the PRE-CHANGE tree, but TEST-009's recorded RED expectation is "FAILS
+        mid-change", which is not a pre-change RED — one harmless internal
+        inconsistency in an otherwise exact fit.
+    overreach:
+      count: 3
+      items:
+        - "Spec-AC-08 / TEST-006 — requires VALIDATION.prompt.md to literally NAME the script's non-zero exit code and asserts fixture runs match that literal. The intake asks only that the prompt honor the exit code; the ride demanded no literal code in the prose."
+        - "Spec-AC-07 / TEST-008 — out-of-scope diffstat guard over WORKFLOW.md, orchestration-dispatch.mjs and docs-audit.mjs, with a dirtied-fixture-branch RED. Not delivered by the ride."
+        - "New suite `tests/skills/test-aai-prompt-dedup.sh` (6 of 9 TEST rows) where the ride extended existing suites. C is the only candidate that hedges this ('if the suite convention places these stanzas inside an existing file, use that file and keep the TEST ids')."
+    underreach:
+      count: 1
+      items:
+        - "Same omission as B on the intake's ceremony deliverable: the intake requires the WORKFLOW.md pointer PLUS the one-line role-specific consequence each role needs, and Spec-AC-01 reduces the contract to 'table-row count == 0, pointer count >= 1'. Nothing in C's scope or ACs preserves the role-specific residue the reference treats as pin-critical."
+    hallucinated:
+      count: 1
+      items:
+        - "`docs/ai/briefs/CHANGE-059.md` — the briefs directory exists, but `CHANGE-059` is not a valid ref form in this repo (refs are 4-digit, `CHANGE-0059`); the id is invented with the wrong digit width."
+      note: >-
+        Notably clean on this metric. C is the only candidate that invents no
+        intake path, no spec-file path and no evidence-root convention, and it
+        closes with an explicit "Not verified in this run" paragraph enumerating
+        what was inferred rather than checked (spec-lint/spec-freeze/state.mjs not
+        run, STATE not read, `docs/CONSTITUTION.md` existence unchecked, file
+        paths inferred from the intake's own references). Its `.aai/ROLE_COMMON.md`
+        remark is prompt-induced and hedged into an open question rather than
+        asserted, so it is not counted.
+
+composite:
+  formula: "Q = ac_measurability + scope_fidelity + evidence_fit"
+  A: 12
+  B: 11
+  C: 9
+
+cross_candidate_notes:
+  - >-
+    All three missed the reference's central discovery — that
+    `docs-audit.mjs --gate` does NOT compute the repo-wide overdue-Review-By
+    interrupt or the 14-day anti-cheat window — and all three therefore wrote an
+    AC demanding the deletion of prose whose removal would regress the unattended
+    pipeline. The finding required a source read the replay envelope forbids, so
+    it penalises scope_fidelity uniformly and discriminates between none of them.
+  - >-
+    All three inherited the intake's false premise that the D5 carve-out lives in
+    four prompts (it is in five at base_ref, SKILL_TDD.prompt.md being the
+    fifth), and all three then wrote an "exists in exactly one file" AC that
+    their own four-file scope cannot satisfy.
+  - >-
+    All three explicitly forbade the prompt-diet ledger change the ride required,
+    following the intake's assertion that no ledger work is owed.
+  - >-
+    No ranking is expressed and no inference is offered about how any candidate
+    was produced.

@@ -1,0 +1,268 @@
+---
+task: T7
+intake: 74-state-bootstrap-template
+reference_spec: docs/specs/SPEC-0099-spec-state-bootstrap-template.md
+base_ref: 6df1e2a2599b11a4314874e10cfd728cd003e2f3
+delivery_commit: 9122b495dc3f530ac8f573ffd9fec29c3c217724
+judged_blind: true
+
+shared_observations:
+  # Recorded once; identical across A, B and C, so they cannot discriminate.
+  # Excluded from every M6 count to avoid triple-charging a replay artifact.
+  - id: SH1
+    text: >-
+      All three prescribe `node .aai/scripts/spec-freeze.mjs --path ...` as the
+      authoritative freeze mechanism. That script does NOT exist at base_ref
+      (git cat-file -e <base>:.aai/scripts/spec-freeze.mjs fails; it was added
+      later by an unrelated orchestration change). It IS named by the shipped
+      role prompt, so this is a replay anachronism rather than candidate
+      invention. NOT counted in M6 for any candidate.
+  - id: SH2
+    text: >-
+      B and C cite `SPEC_TEMPLATE.md ### Evidence by strategy`. That subsection
+      does not exist in .aai/templates/SPEC_TEMPLATE.md at base_ref (grep over
+      the whole tree returns nothing), but the shipped role prompt names it.
+      Same class as SH1. NOT counted in M6.
+  - id: SH3
+    text: >-
+      All three demand the created STATE be byte-equal to the template. The
+      ground truth deviated: the create branch stamps a real ISO-8601
+      `updated_at_utc` over a `TEMPLATE_PLACEHOLDER` sentinel, so the produced
+      file is deliberately NOT byte-equal. The intake itself said "byte-equal",
+      so this is a design conflict the ride discovered at implementation, not a
+      candidate fault. Not scored against anyone.
+  - id: SH4
+    text: >-
+      All three pin the template header against the repo's live
+      `docs/ai/STATE.yaml`. That file is gitignored/per-dev, so on a fresh
+      checkout the pin has nothing to compare against. The ground truth handled
+      this by making the parity test skip cleanly when the live file is absent
+      — which is exactly the virgin-project scenario this scope fixes. No
+      candidate anticipated it. Not scored (uniform miss).
+  - id: SH5
+    text: >-
+      `tests/skills/test-aai-check-state.sh` already owns TEST-002/004/005/006/
+      008/010/011 at base_ref. A and B assign new rows TEST-001..009 into that
+      same file and collide with five existing ids; C namespaces as
+      TEST-074-NNN and does not collide. The reference spec collided too, so
+      this is noted, not scored.
+  - id: SH6
+    text: >-
+      All three place the spec at `docs/specs/SPEC-0074.md`, reusing the intake
+      number and dropping the slug. Repo convention is
+      `SPEC-NNNN-<slug>.md` with an independently allocated number; the ride
+      actually produced SPEC-0099. Uniform, not scored.
+
+candidates:
+
+  - label: A
+    ac_measurability: 5
+    scope_fidelity: 3
+    evidence_fit: 5
+    composite_Q: 13
+    overreach: 1
+    underreach: 2
+    hallucinated: 2
+
+    ac_measurability_note: >-
+      Nine ACs, each with a dedicated "verify (one command, one observable)"
+      column that names the literal invocation and a decidable observable with a
+      numeric or exit-code threshold (`cmp` exit 0; `grep -c 'no_focus_ref'`
+      == 1 and `grep -c 'state_file_missing'` == 0; two sha256 digests equal;
+      `test -f` exit 0; failure counter reads 0). The only soft spot is
+      Spec-AC-07, whose command is "the repo's install/sync entrypoint" rather
+      than a named script — but its observable stays explicit. Separate defect
+      recorded under notes: Spec-AC-05's command
+      `state.mjs set-focus --ref SPEC-0074` omits the `--type` and `--path`
+      flags that `cmdSetFocus` marks required, so it exits non-zero as written;
+      the observable is still well-formed, so it does not pull the score to 4.
+
+    scope_fidelity_note: >-
+      Matches the reference on template, the check-state missing-file branch,
+      the PROFILES classification row and the extended check-state suite. Misses
+      the reference's prompt-corpus cluster (`.aai/SKILL_CHECK_STATE.prompt.md`
+      AUTHORITATIVE-SCHEMA rewording, prompt-diet ledger entry, TEST-012 total
+      bump) and the `tests/skills/suite-map.yaml` glob row. Adds an install/sync
+      deliverable, which the intake summary explicitly asks for ("also covering
+      aai-sync/install targets"), so that is not a mismatch even though the ride
+      delivered it via PROFILES classification instead. One load-bearing miss
+      plus one non-load-bearing miss => 3. Mitigating and worth recording:
+      A's out-of-scope section names the re-arm condition precisely — "if
+      Implementation finds it must add bytes to `.aai/*.prompt.md` or
+      `.aai/AGENTS.md`, that is a scope change and the ledger true-up must be
+      folded in before review" — and `.aai/SKILL_CHECK_STATE.prompt.md` is
+      inside that glob, so A's own escape hatch would have caught the real
+      outcome. Also the only candidate whose worktree call (`recommended`) sits
+      near the reference's (`not_needed`); all three overshoot ceremony (3 vs 2).
+
+    evidence_fit_note: >-
+      Strategy decided (`tdd`, source: intake) and the contract matches the tdd
+      row throughout: per-test RED stdout on the pre-change tree plus the
+      commit-ish, GREEN, full-suite run with exit code and failure counter, the
+      concrete artifacts per AC, and the scope-restricted diff. Two marks of
+      real rigour: it separates drivers from pins (TEST-006 "is a pin, not a
+      driver ... its baseline digest capture is itself the evidence") instead of
+      faking a RED for an untouched path, and it qualifies which RED shapes
+      count ("missing-file failure is an acceptable RED only if the assertion
+      message names the expected path — otherwise the test cannot distinguish
+      'not shipped' from 'typo in the test'"). No AC over- or under-demands.
+
+    overreach_items:
+      - "Spec-AC-05 — `state.mjs` mutation seam (set-focus on the bootstrapped file, then re-validate). Real and sensible, but not a deliverable of the ride and not implied by the intake, whose only seam is dispatch."
+
+    underreach_items:
+      - "Prompt-corpus companion cluster: `.aai/SKILL_CHECK_STATE.prompt.md` AUTHORITATIVE-SCHEMA rewording naming the template as canonical, the `tests/skills/lib/prompt-diet-ledger.sh` JUSTIFIED_ADDITIONS entry, and the TEST-012 expected-total bump (31025 -> 31311). Traceable to intake AC-002's 'single source' clause; A rules it out explicitly, though with a correct re-arm clause."
+      - "`tests/skills/suite-map.yaml` — the new template path is never added to the `aai-check-state` suite globs; the reference folds this into its AC-003."
+
+    hallucinated_items:
+      - "`docs/ai/intake/74-state-bootstrap-template.md` (frontmatter `intake:`) — no such path and no `docs/ai/intake/` directory at base_ref; the intake actually sits at `docs/issues/CHANGE-0074-state-bootstrap-template.md`, which was present in the worktree."
+      - "Ceremony justification asserts `check-state.mjs` and the install/sync surface are 'protected surfaces under `protected_paths_l3` in `docs/ai/docs-audit.yaml`'. The key exists and lists exactly `.aai/scripts/state.mjs`, `lib/state-engine.mjs`, `lib/state-core.mjs`, `allocate-doc-number.mjs`, `pre-commit-checks.{sh,ps1}`, `.aai/workflow/WORKFLOW.md`, `docs/CONSTITUTION.md` — neither claimed member exists in it. A does hedge this in R1 and cannot_verify, but the ceremony section states it as fact."
+
+    other_notes:
+      - "Spec-AC-05's verification command `node .aai/scripts/state.mjs set-focus --ref SPEC-0074` is unrunnable: `cmdSetFocus` requires `--type` and, for any non-`none` type, `--ref` and `--path`. Flag misuse rather than a nonexistent flag, so not charged to M6."
+      - "Alone among the three, A names the install verification as 'run the repo's install/sync entrypoint ... then `test -f` in the target' and asserts arrival in a real target rather than trusting a manifest — which is the correct check given that `aai-sync.sh` reads `.aai/system/PROFILES.yaml` as its manifest. A therefore avoids inventing a second manifest artifact, though its review-scope line still gestures at one and defers the path to cannot_verify."
+      - "Residual-risk section (R1-R3) and the cannot_verify list are the most calibrated of the three: it flags the unverified `protected_paths_l3` membership, the unverified CLI argument form, and the undefined empty/truncated-STATE behaviour rather than silently widening scope."
+
+  - label: B
+    ac_measurability: 4
+    scope_fidelity: 3
+    evidence_fit: 4
+    composite_Q: 11
+    overreach: 1
+    underreach: 3
+    hallucinated: 3
+
+    ac_measurability_note: >-
+      Criterion statements are numeric and falsifiable (0 missing / 0 extra
+      top-level keys, 0 occurrences of `state_file_missing`, exactly 1 PROFILES
+      entry, 0 suite failures, 0 invariant violations). What costs a point is
+      the verification column: nearly every row reduces to
+      `bash tests/skills/test-aai-check-state.sh (case: <name>)`, so the AC is
+      decided by a named test case rather than by a command that produces the
+      observable directly, and AC-001's expected evidence bottoms out at "suite
+      line PASS" — an implicit but unambiguous observable, which is the textbook
+      4. AC-005 is also compound (valid fixture AND known-broken fixture AND
+      exit codes) in one row. AC-007 is the strongest row: it spells out the
+      full `state.mjs set-focus --type change --ref REF-TEST --path ...`
+      invocation, and every one of those flags exists at base_ref.
+
+    scope_fidelity_note: >-
+      Same four core surfaces as the reference (template, check-state repair
+      branch, PROFILES row, extended check-state suite), same two misses
+      (prompt-corpus cluster, suite-map row), same intake-implied install/sync
+      addition. One load-bearing miss plus one minor miss => 3. B is the
+      weakest of the three on the miss that matters, though, and it is worth
+      recording under the score: its "Companion obligations check" section
+      declares the prompt corpus "NOT triggered — this scope adds a template and
+      script logic, no prompt bytes. No prompt-diet ledger true-up, no TEST-012
+      checkpoint bump", with no re-arm clause anywhere. The ride's actual
+      outcome was the exact opposite: `.aai/SKILL_CHECK_STATE.prompt.md` grew
+      286 bytes, a JUSTIFIED_ADDITIONS entry was added and TEST-012's expected
+      total was bumped, each with its own RED/GREEN log. B pre-emptively
+      forecloses the true path; A and C leave it open.
+
+    evidence_fit_note: >-
+      Strategy decided (`tdd`) and the contract is genuinely tdd-shaped: RED
+      before GREEN for every AC-gating test, with per-test RED shapes
+      enumerated. Two harmless over-demands drop it to 4. First, it requires the
+      regression guards TEST-005/006 to be "shown RED under a deliberate
+      mutation of the existing-file repair path (mutation proof recorded once)"
+      — mutation testing is more than the tdd row asks of a pin, and the
+      reference explicitly declined it, recording TEST-005 as "a
+      tautological-by-design regression pin ... it has no observed-failing RED
+      and claims none". Second, it files the RED log under `docs/ai/reports/`;
+      that directory exists at base_ref but TDD RED/GREEN artifacts in this repo
+      live in `docs/ai/tdd/` (as the reference's own evidence paths show). Both
+      are harmless misfits, not contract failures.
+
+    overreach_items:
+      - "AC-007 — `state.mjs set-focus` seam on the bootstrapped file. Same item as A's Spec-AC-05: sensible, but neither a ride deliverable nor implied by the intake."
+
+    underreach_items:
+      - "Prompt-corpus companion cluster (SKILL_CHECK_STATE rewording + prompt-diet ledger entry + TEST-012 bump). Omitted and, uniquely, foreclosed: 'No prompt-diet ledger true-up, no TEST-012 checkpoint bump', with no re-arm condition."
+      - "`tests/skills/suite-map.yaml` glob row for the new template path."
+      - "Parent-directory creation. The virgin case has no `docs/ai/` at all, so `mkdir -p` of the parent is load-bearing; the reference's Spec-AC-01 demands it explicitly. B's AC-002 only requires that repair 'creates the file byte-equal to the template'. A requires parent creation; B and C do not."
+
+    hallucinated_items:
+      - "`docs/intake/74-state-bootstrap-template.md` (frontmatter `intake:`) — neither the file nor the `docs/intake/` directory exists at base_ref. Worse than A's and C's variant of this error, which at least name a directory the repo could plausibly own."
+      - "'Installer/sync manifest' as a distinct in-scope path and a distinct review artifact ('reviewer must inspect the manifest diff directly'). No such second artifact exists: `.aai/scripts/aai-sync.sh` treats `.aai/system/PROFILES.yaml` AS the manifest (`PROFILES_MANIFEST=\"$SRC_ROOT/.aai/system/PROFILES.yaml\"`), and B already lists PROFILES.yaml separately."
+      - "Ceremony section asserts 'protected-surface MANDATORY-L3 per the WORKFLOW.md \"Ceremony levels\" table' for `check-state.mjs`. The table exists (WORKFLOW.md line 45) and points at `protected_paths_l3` in `docs/ai/docs-audit.yaml` (line 69), but `check-state.mjs` is not in that list, so the asserted membership does not exist. B states it as a determination, hedging it only as something Implementation Preparation might overturn."
+
+    other_notes:
+      - "Frontmatter uses flattened keys (`implementation_strategy: tdd`, `worktree_recommendation: required`, `code_review_required: true`) where this repo's specs and STATE use nested blocks (`implementation_strategy.selected/source/rationale`, `worktree.recommendation`, `code_review.required/scope/paths`). A schema-shape mismatch, not a nonexistent key; not charged to M6."
+      - "Worktree `required` versus the reference's `not_needed` — the largest ceremony overshoot of the three, on a change the ride judged 'small, single-surface'."
+      - "The Deltas section (ADDED REQ-STATE-010/011, MODIFIED REQ-ORCH-004) invents requirement ids but flags them as 'provisional against the canonical index', which is the honest framing; `docs/canonical/` exists (empty) at base_ref, so the deferral target is real."
+      - "Seam table is the most complete of the three (six seams, each with a covering test and an automatability column) and it names the one genuinely non-automatable residual (a simulated target directory cannot catch a real packaging escape)."
+
+  - label: C
+    ac_measurability: 4
+    scope_fidelity: 3
+    evidence_fit: 5
+    composite_Q: 12
+    overreach: 2
+    underreach: 3
+    hallucinated: 3
+
+    ac_measurability_note: >-
+      Ten ACs, all stated as counts, exit codes or byte-equality, and the
+      document audits itself on it ("No AC uses unbounded language; every row
+      states a count, an exit code or a byte-equality test") — a claim that
+      holds when checked row by row. What holds it at 4 is the verification
+      column on two rows where the named command does not resolve to anything
+      runnable: SPEC-AC-009's "Install/sync suite run over a temp target" (no
+      install/sync suite exists at base_ref) and SPEC-AC-010's
+      "Profiles/classification coverage check" (the capability exists inside
+      `tests/skills/test-aai-layer-profiles.sh`, but C never names it). The
+      remaining eight rows are as tight as A's, and SPEC-AC-004 is the only AC
+      in any candidate that names a bare
+      `node .aai/scripts/check-state.mjs docs/ai/STATE.yaml` as its own command
+      rather than deferring to the suite.
+
+    scope_fidelity_note: >-
+      Same four core surfaces as the reference and the same two misses
+      (prompt-corpus cluster, suite-map row); one load-bearing miss plus one
+      minor => 3. Two small credits that do not move the integer: C is the only
+      candidate to fold the `CHANGELOG.md` unreleased entry into scope, which
+      the intake's `user_visible: true` makes a real repo obligation, and its
+      out-of-scope reasoning carries a correct re-arm ("if implementation finds
+      it must touch the corpus after all, that obligation re-arms and the spec
+      must be amended before merge") covering `.aai/*.prompt.md`, the glob the
+      ride actually landed in. Against that, C carries the most scope not in the
+      ride (idempotency, the state.mjs seam) and, like B, overshoots ceremony to
+      3 and worktree to `required` where the ride ran at 2 / `not_needed`.
+
+    evidence_fit_note: >-
+      Strategy decided (`tdd`) and every AC's evidence matches the tdd row. It
+      states the row it is applying and expressly excludes the others ("Evidence
+      by strategy (`tdd` row): stored RED artifact REQUIRED per AC-gating test,
+      then GREEN log, then refactor pass with the suite still green.
+      `direct`/`untested` rows do not apply here"), and — like A and unlike B —
+      it declines to fake a RED for regression pins, defining their RED proof as
+      "the recorded pre-change baseline they compare against, captured before
+      the repair branch lands". The eight-item artifact list is per-AC concrete
+      (cmp output, captured dispatch output, install log, classification
+      coverage output, post-freeze spec-lint findings). The one blemish is
+      storage location — "stored under the scope's evidence directory" names no
+      path, where A gives the artifact list and the reference used
+      `docs/ai/tdd/` — which is vaguer than A but does not over- or
+      under-demand, so it stays at 5.
+
+    overreach_items:
+      - "SPEC-AC-007 — repair idempotency (a second `--repair` run exits 0, produces 0 content changes, and emits no create-branch message). Sensible hardening, but no ride deliverable and nothing in the intake implies it."
+      - "SPEC-AC-008 — `state.mjs set-focus` seam on the bootstrapped file. Same item as A's Spec-AC-05 and B's AC-007."
+
+    underreach_items:
+      - "Prompt-corpus companion cluster (SKILL_CHECK_STATE AUTHORITATIVE-SCHEMA rewording + prompt-diet ledger JUSTIFIED_ADDITIONS entry + TEST-012 total bump). Ruled out, but with a re-arm clause that names the right glob."
+      - "`tests/skills/suite-map.yaml` glob row for the new template path."
+      - "Parent-directory creation on the virgin tree. SPEC-AC-001 requires only that repair 'creates the file byte-equal to `.aai/templates/STATE_TEMPLATE.yaml`'; the reference's Spec-AC-01 requires creating parent directories, which the no-`docs/ai/` scenario needs."
+
+    hallucinated_items:
+      - "`docs/ai/intake/74-state-bootstrap-template.md` (frontmatter `source_intake:`) — no such path or directory at base_ref; the intake was present at `docs/issues/CHANGE-0074-state-bootstrap-template.md`."
+      - "An install/sync test suite. TEST-074-008's target file is 'install/sync suite named by the intake's aai-sync/install target' and SPEC-AC-009's command is 'Install/sync suite run over a temp target'. No such suite exists at base_ref — `tests/skills/` contains only `test-aai-layer-profiles.sh` on that surface — and the intake names no suite at all. C flags the uncertainty in R3, but the TEST row and the AC command both name the phantom."
+      - "'install/sync manifest entry for `.aai/templates/STATE_TEMPLATE.yaml`' listed as an in-scope path distinct from `.aai/system/PROFILES.yaml`. Same phantom as B's: `aai-sync.sh` uses PROFILES.yaml itself as the manifest, and C lists PROFILES.yaml separately one line above."
+
+    other_notes:
+      - "C's `## STATE updates (transactional CLI)` block is the most factually accurate artifact in the three specs: `set-focus`, `set-phase`, `set-strategy`, `set-worktree` and `set-code-review` are all real subcommands at base_ref, and every flag used (`--type --ref --path --phase --status --spec-path --selected --source --rationale --recommendation --base-ref --required --scope`) is in `state.mjs`'s parser. A's single state.mjs invocation, by contrast, is malformed."
+      - "Other cross-checks that came back clean: `RFC-0011` is real (`docs/rfc/RFC-0011-delta-spec-lifecycle.md`) and is the correct RFC for a Deltas section; `.aai/STATE_FALLBACK.md`, `.aai/templates/BRIEF_TEMPLATE.md` and `docs/ai/briefs/` all exist, and the claim that briefs are gitignored runtime artifacts matches `.gitignore` lines 25-30."
+      - "Ceremony section attributes `protected_paths_l3` to `.aai/workflow/WORKFLOW.md`; the key actually lives in `docs/ai/docs-audit.yaml` and WORKFLOW.md only points at it. Unlike A and B, C does not assert membership — it says the level 'stays 3 anyway on the schema-surface ground' — so this is a misattribution, not a fabricated fact, and is not counted."
+      - "The claim 'No seam is left untested; there is no untestable-seam residual risk in this scope' is contradicted by C's own R2/R3 and by the reference, which recorded a real residual: `autonomous-loop.sh`'s pre-existing `create_state_file()` builds a second, differently-shaped STATE stub that no test here exercises. No candidate found that second creator."
