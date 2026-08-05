@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-05T11:54:49.580Z
+Generated: 2026-08-05T15:09:59.771Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -39,7 +39,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (280)
+## Done (281)
 
 | ID | Type | Path |
 |---|---|---|
@@ -161,6 +161,7 @@ _None._
 | CHANGE-0117 | issues | docs/issues/CHANGE-0117-aai-version-file.md |
 | CHANGE-0118 | issues | docs/issues/CHANGE-0118-validation-runtime-ignore.md |
 | CHANGE-0119 | issues | docs/issues/CHANGE-0119-docs-ai-canon.md |
+| CHANGE-0120 | issues | docs/issues/CHANGE-0120-cheap-ticks.md |
 | CHANGE-0121 | issues | docs/issues/CHANGE-0121-downstream-lane-seed.md |
 | CHANGE-0122 | issues | docs/issues/CHANGE-0122-strategy-scaled-evidence.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
@@ -324,12 +325,11 @@ _None._
 | SPEC-0113 | specs | docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (1)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0113 | issues | docs/issues/CHANGE-0113-altitude-prompt-experiment.md |
-| CHANGE-0120 | issues | docs/issues/CHANGE-0120-cheap-ticks.md |
 
 ## Deferred (whole-doc) (0)
 

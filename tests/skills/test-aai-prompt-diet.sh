@@ -413,6 +413,14 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# -10449 (true-up: CHANGE-0120-cheap-ticks added an +889 B itemized entry for
+# the three deterministic-tick wirings — ORCHESTRATION --confirm + the rule-9x
+# advance exception (+186, file held at 40 lines), PLANNING step 10 routed
+# through spec-freeze.mjs (+237), ORCHESTRATION_PARALLEL's spec-scope-edit.mjs
+# pointer (+466); the rule-9x engine, both new scripts, the docs-model content-
+# hash helpers and the spec-lint half-frozen rule all live in .aai/scripts/,
+# outside the live glob, so they carry no ledger cost; credited 1:1 so headroom
+# stays 1150/2048, over the prior
 # -11352 (true-up: CHANGE-0122-strategy-scaled-evidence added a +216 B itemized
 # entry for the PLANNING step 7 evidence-by-strategy pointer, 11073 -> 11289;
 # the per-strategy evidence TABLE lives in .aai/templates/SPEC_TEMPLATE.md,
@@ -517,15 +525,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -11352 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -11352)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -10449 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -10449)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -11352 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -10449 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

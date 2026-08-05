@@ -2029,6 +2029,360 @@ test_028_prompt_hash_json_additive() {  # prompt-hash-telemetry TEST-011 / Spec-
   log_pass "prompt_hash additive on dispatch JSON (real 64-hex); TEST-002 key-set extended; no_action unaffected (prompt-hash-telemetry TEST-011)"
 }
 
+# --- CHANGE-0120 confirm-by-script (rule 9x) ----------------------------------
+#
+# A re-plan that changes NOTHING in the frozen spec's AC/test contract must not
+# respawn an implementer to re-confirm an already-green phase (the live Codex
+# log's tick 1). TEST-035 drives the PURE decide() arms; TEST-036 drives the CLI
+# + the recorded EVENTS line + --confirm idempotence; TEST-037 is the delta
+# CONTROL (a real AC change still dispatches).
+
+# write_ac_spec <path> <status-of-Spec-AC-02> [extra-test-row]
+# A frozen implementing spec with a canonical AC gate table and a Test Plan.
+write_ac_spec() {
+  local p="$1" ac2="${2:-done}" extra="${3:-}"
+  cat > "$p" <<MD
+---
+id: spec-fixture-confirm
+type: spec
+number: 1
+status: implementing
+links:
+  pr: []
+---
+
+# Fixture spec — confirm
+
+SPEC-FROZEN: true
+
+## Implementation strategy
+- Strategy: tdd
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence   | Review-By | Notes |
+|------------|-------------|--------|------------|-----------|-------|
+| Spec-AC-01 | first       | done   | tests/a.sh | —         | —     |
+| Spec-AC-02 | second      | $ac2   | tests/b.sh | —         | —     |
+
+## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
+|----------|------------|------|----------------------|-------------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/a.sh           | a           | green  |
+| TEST-002 | Spec-AC-02 | unit | tests/b.sh           | b           | green  |
+$extra
+MD
+}
+
+# append_impl_run <state-file> <ref> — one recorded implementer agent_run.
+append_impl_run() {
+  append_metrics_block "$1" "$2" \
+    "        - role: TDD Implementation" \
+    "          model_id: claude-impl-x" \
+    "          started_utc: 2026-07-01T00:00:00Z" \
+    "          ended_utc: 2026-07-01T00:01:00Z" \
+    "          duration_seconds: 60" \
+    "          tokens_in: null" \
+    "          tokens_out: null" \
+    "          cost_usd: null"
+}
+
+test_035_confirm_pure_arms() {
+  log_info "Test: pure decide() rule 9x -- no-delta confirms, AC delta dispatches, missing prior green dispatches (CHANGE-0120 TEST-035)..."
+  cat > "$TEST_DIR/t35.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const H = 'a'.repeat(64);
+const base = () => ({
+  project_status: 'active',
+  human_input_required: false,
+  technology_present: true,
+  workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0001' },
+  work_item: { phase: 'planning', status: 'done' },
+  spec: {
+    path: 'docs/specs/SPEC-0001-fx.md', present: true, frozen: true,
+    frontmatter_status: 'implementing', ceremony_level: 2,
+    content_hash: H, ac_green: true,
+  },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'not_run', ref_id: null },
+  review: { required: true, status: 'not_run' },
+  flushed: false,
+  close_event_present: false,
+  open_intakes: [],
+  implementer_model: null,
+  last_run_role: 'Planning',
+  prior_implementer_run: true,
+  last_phase_confirm: null,
+});
+
+// (1) BOOTSTRAP no-delta: green AC table + a recorded implementer run and no
+// prior confirmation -> rule 9x confirms, ZERO dispatch, event payload carries
+// the hash the NEXT tick compares against.
+{
+  const d = decide(base());
+  assert.strictEqual(d.verdict, 'no_action', JSON.stringify(d));
+  assert.strictEqual(d.rule, '9x', JSON.stringify(d));
+  assert.strictEqual(d.role, null, 'a confirm must never name a role');
+  assert.strictEqual(d.system_prompt, null, 'a confirm must never carry a system prompt');
+  assert.ok(d.reasons.includes('phase_confirmed_no_delta'), JSON.stringify(d.reasons));
+  assert.ok(d.confirm_event, 'confirm arm must carry the event to record');
+  assert.strictEqual(d.confirm_event.event, 'phase_confirmed');
+  assert.strictEqual(d.confirm_event.hash, H);
+  assert.strictEqual(d.confirm_event.ref, 'CHANGE-0001');
+  assert.strictEqual(d.confirm_event.phase, 'planning');
+}
+
+// (2) REPEAT no-delta: a prior phase_confirmed event with the SAME hash
+// confirms again (idempotent decision, still zero dispatch).
+{
+  const s = base();
+  s.prior_implementer_run = false;
+  s.last_phase_confirm = { phase: 'planning', hash: H };
+  const d = decide(s);
+  assert.strictEqual(d.rule, '9x', JSON.stringify(d));
+  assert.strictEqual(d.verdict, 'no_action', JSON.stringify(d));
+}
+
+// (3) DELTA control: a prior confirmation whose hash DIFFERS from the current
+// spec content -> normal 9a dispatch (the re-plan changed the contract).
+{
+  const s = base();
+  s.last_phase_confirm = { phase: 'planning', hash: 'b'.repeat(64) };
+  const d = decide(s);
+  assert.strictEqual(d.verdict, 'dispatch', JSON.stringify(d));
+  assert.strictEqual(d.rule, '9a', JSON.stringify(d));
+  assert.strictEqual(d.role, 'TDD Implementation', JSON.stringify(d));
+  assert.ok(!('confirm_event' in d) || d.confirm_event == null, 'a dispatch must not carry a confirm event');
+}
+
+// (4) MISSING prior green: no prior confirmation AND no implementer run ->
+// dispatch (never confirm work that was never done).
+{
+  const s = base();
+  s.prior_implementer_run = false;
+  const d = decide(s);
+  assert.strictEqual(d.verdict, 'dispatch', JSON.stringify(d));
+  assert.strictEqual(d.rule, '9a', JSON.stringify(d));
+}
+
+// (5) NOT green: an open AC row -> dispatch even with a matching prior hash.
+{
+  const s = base();
+  s.spec.ac_green = false;
+  s.last_phase_confirm = { phase: 'planning', hash: H };
+  const d = decide(s);
+  assert.strictEqual(d.verdict, 'dispatch', JSON.stringify(d));
+  assert.strictEqual(d.rule, '9a', JSON.stringify(d));
+}
+
+// (6) FAIL-CLOSED on legacy snapshots: the pre-CHANGE-0120 snapshot shape (no
+// content_hash / ac_green / prior_implementer_run fields at all) dispatches
+// exactly as before — 9a/9b/9c are byte-unchanged for every old caller.
+{
+  const s = base();
+  delete s.spec.content_hash;
+  delete s.spec.ac_green;
+  delete s.prior_implementer_run;
+  delete s.last_phase_confirm;
+  assert.strictEqual(decide(s).rule, '9a', 'legacy snapshot must dispatch');
+  const h = base(); h.strategy_selected = 'hybrid'; h.prior_implementer_run = false;
+  assert.strictEqual(decide(h).rule, '9b', 'hybrid control');
+  const l = base(); l.strategy_selected = 'loop'; l.prior_implementer_run = false;
+  assert.strictEqual(decide(l).rule, '9c', 'loop control');
+}
+
+// (7) The confirm arm is CONFINED to the rule-9 phases: an implementation-phase
+// snapshot with every confirm precondition satisfied still routes to rule 11.
+{
+  const s = base();
+  s.work_item = { phase: 'implementation', status: 'in_progress' };
+  s.last_phase_confirm = { phase: 'planning', hash: H };
+  const d = decide(s);
+  assert.strictEqual(d.rule, '11', JSON.stringify(d));
+}
+
+// (8) decide() stays PURE on confirm snapshots.
+{
+  const s = base();
+  const frozen = JSON.stringify(s);
+  const a = decide(s);
+  const b = decide(JSON.parse(frozen));
+  assert.strictEqual(JSON.stringify(a), JSON.stringify(b), 'confirm decision must be deterministic');
+  assert.strictEqual(JSON.stringify(s), frozen, 'confirm arm must not mutate its input');
+}
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t35.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t35.log" 2>&1 \
+    || log_fail "rule 9x pure arms failed: $(cat "$TEST_DIR/t35.log")"
+  log_pass "rule 9x pure arms: no-delta confirms; delta / missing-prior-green / not-green / legacy dispatch (CHANGE-0120 TEST-035)"
+}
+
+test_036_confirm_cli_event() {
+  log_info "Test: CLI rule 9x -- exit 3, zero dispatch, --confirm records ONE phase_confirmed event, idempotent, default stays read-only (CHANGE-0120 TEST-036)..."
+  local d
+  d="$(mk_root t36)"
+  write_ac_spec "$d/docs/specs/SPEC-0001-fx.md" done
+  write_dstate "$d/docs/ai/STATE.yaml" not_run not_run planning done tdd optional inline CHANGE-0001
+  append_impl_run "$d/docs/ai/STATE.yaml" CHANGE-0001
+
+  # Default invocation: PURE. Confirms, exits 3, writes NOTHING.
+  run_dispatch "$d"
+  [[ "$EC" == 3 ]] || log_fail "confirm arm must exit 3 no_action (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "no_action" && o.rule === "9x" && o.role === null'
+  jassert "$OUT" 'o.reasons.indexOf("phase_confirmed_no_delta") >= 0'
+  jassert "$OUT" 'o.confirm_event && /^[0-9a-f]{64}$/.test(o.confirm_event.hash)'
+  jassert "$OUT" '!("prompt_hash" in o)'
+  [[ ! -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "default (no --confirm) run must NOT write EVENTS.jsonl"
+
+  # --confirm: records EXACTLY ONE phase_confirmed event for the ref.
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 3 ]] || log_fail "--confirm must keep exit 3 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.confirm_recorded === true'
+  [[ -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "--confirm must append the phase_confirmed event"
+  local n
+  n="$(grep -c '"event":"phase_confirmed"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 1 ]] || log_fail "--confirm must append exactly ONE event (got $n): $(cat "$d/docs/ai/EVENTS.jsonl")"
+  node -e '
+    const fs=require("fs");
+    const e=JSON.parse(fs.readFileSync(process.argv[1],"utf8").trim().split("\n").pop());
+    if (e.event!=="phase_confirmed") throw new Error("event type: "+e.event);
+    if (e.ref!=="CHANGE-0001") throw new Error("ref: "+e.ref);
+    if (!/^[0-9a-f]{64}$/.test(e.payload.hash)) throw new Error("hash: "+JSON.stringify(e.payload));
+    if (e.payload.phase!=="planning") throw new Error("phase: "+e.payload.phase);
+    if (e.v!==1 || !e.ts || !e.actor) throw new Error("schema fields missing: "+JSON.stringify(e));
+  ' "$d/docs/ai/EVENTS.jsonl" || log_fail "phase_confirmed payload/schema wrong"
+
+  # IDEMPOTENT: re-ticking with --confirm on an unchanged spec must NOT grow
+  # the ledger (the recorded hash already matches).
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 3 ]] || log_fail "second --confirm tick must still exit 3 (got $EC)"
+  jassert "$OUT" 'o.rule === "9x" && o.confirm_recorded === false'
+  n="$(grep -c '"event":"phase_confirmed"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 1 ]] || log_fail "re-tick must not append a duplicate event (got $n)"
+
+  # The confirm arm never touches STATE or the spec.
+  local before after sbefore safter
+  before="$(cksum "$d/docs/ai/STATE.yaml")"
+  sbefore="$(cksum "$d/docs/specs/SPEC-0001-fx.md")"
+  run_dispatch "$d" --confirm
+  after="$(cksum "$d/docs/ai/STATE.yaml")"
+  safter="$(cksum "$d/docs/specs/SPEC-0001-fx.md")"
+  [[ "$before" == "$after" ]] || log_fail "the confirm arm must NEVER write STATE"
+  [[ "$sbefore" == "$safter" ]] || log_fail "the confirm arm must NEVER write the spec"
+
+  # --rules lists the new arm from the SAME rule objects.
+  local rl="$TEST_DIR/rules9x.log"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/orchestration-dispatch.mjs --rules > "$rl" 2>&1) \
+    || log_fail "--rules must exit 0"
+  grep -qE "(^| )9x[ :|.)]" "$rl" || log_fail "--rules must list rule 9x: $(cat "$rl")"
+  log_pass "CLI rule 9x: exit 3, zero dispatch, one recorded event, idempotent, default read-only (CHANGE-0120 TEST-036)"
+}
+
+test_037_confirm_delta_control() {
+  log_info "Test: CLI delta CONTROL -- an AC/test change after a recorded confirmation dispatches normally (CHANGE-0120 TEST-037)..."
+  local d
+  d="$(mk_root t37)"
+  write_ac_spec "$d/docs/specs/SPEC-0001-fx.md" done
+  write_dstate "$d/docs/ai/STATE.yaml" not_run not_run planning done tdd optional inline CHANGE-0001
+  append_impl_run "$d/docs/ai/STATE.yaml" CHANGE-0001
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 3 ]] || log_fail "baseline confirm must exit 3 (got $EC): $(cat "$OUT" "$ERR")"
+
+  # (a) WHITESPACE / prose delta ONLY: the hash is content-addressed over the
+  # parsed AC ids+status + test ids, so re-wording never re-dispatches.
+  printf '\n\nSome re-planned prose that changes no AC and no test.\n' >> "$d/docs/specs/SPEC-0001-fx.md"
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 3 ]] || log_fail "(a) a prose-only re-plan must still confirm (got $EC): $(cat "$OUT")"
+  jassert "$OUT" 'o.rule === "9x" && o.confirm_recorded === false'
+
+  # (b) REAL delta: a NEW planned AC row + its test -> dispatch (control).
+  write_ac_spec "$d/docs/specs/SPEC-0001-fx.md" done \
+    '| TEST-003 | Spec-AC-03 | unit | tests/c.sh           | c           | pending |'
+  sed -i.bak 's#^| Spec-AC-02 | second      | done   | tests/b.sh | —         | —     |#| Spec-AC-02 | second      | done   | tests/b.sh | —         | —     |\n| Spec-AC-03 | third       | planned | —        | —         | —     |#' \
+    "$d/docs/specs/SPEC-0001-fx.md" && rm -f "$d/docs/specs/SPEC-0001-fx.md.bak"
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 0 ]] || log_fail "(b) a real AC delta must dispatch (got $EC): $(cat "$OUT")"
+  jassert "$OUT" 'o.verdict === "dispatch" && o.rule === "9a" && o.role === "TDD Implementation"'
+  jassert "$OUT" '!("confirm_event" in o) || o.confirm_event == null'
+  local n
+  n="$(grep -c '"event":"phase_confirmed"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 1 ]] || log_fail "a dispatching tick must not record a confirmation (got $n)"
+  # (c) R3: retargeting a test's FILE PATH (AC mapping unchanged) is a delta.
+  local d2
+  d2="$(mk_root t37c)"
+  write_ac_spec "$d2/docs/specs/SPEC-0001-fx.md" done
+  write_dstate "$d2/docs/ai/STATE.yaml" not_run not_run planning done tdd optional inline CHANGE-0001
+  append_impl_run "$d2/docs/ai/STATE.yaml" CHANGE-0001
+  run_dispatch "$d2" --confirm
+  [[ "$EC" == 3 ]] || log_fail "(c) baseline confirm must exit 3 (got $EC)"
+  sed -i.bak 's#tests/b.sh#tests/ENTIRELY-OTHER.sh#' "$d2/docs/specs/SPEC-0001-fx.md" && rm -f "$d2/docs/specs/SPEC-0001-fx.md.bak"
+  run_dispatch "$d2" --confirm
+  [[ "$EC" == 0 ]] || log_fail "(c) a test file-path retarget must dispatch (re-validation R3; got $EC): $(cat "$OUT")"
+  jassert "$OUT" 'o.verdict === "dispatch"'
+  log_pass "delta control: prose-only re-plan confirms; AC delta AND test file-retarget dispatch 9a (CHANGE-0120 TEST-037)"
+}
+
+test_038_confirm_record_failure_falls_back() {
+  log_info "Test: CLI rule 9x -- a confirmation that CANNOT be recorded falls back to a real dispatch (CHANGE-0120 TEST-038)..."
+  if [[ "$(id -u)" == "0" ]]; then
+    log_info "SKIP TEST-038: running as root, a read-only ledger would still be writable"
+    return
+  fi
+  local d
+  d="$(mk_root t38)"
+  write_ac_spec "$d/docs/specs/SPEC-0001-fx.md" done
+  write_dstate "$d/docs/ai/STATE.yaml" not_run not_run planning done tdd optional inline CHANGE-0001
+  append_impl_run "$d/docs/ai/STATE.yaml" CHANGE-0001
+
+  # Sabotage ONLY the append: the ledger stays readable (so the snapshot still
+  # builds) but unwritable, so the append-event child fails.
+  : > "$d/docs/ai/EVENTS.jsonl"
+  chmod 0444 "$d/docs/ai/EVENTS.jsonl"
+  run_dispatch "$d" --confirm
+  chmod 0644 "$d/docs/ai/EVENTS.jsonl"
+
+  # FAIL CLOSED: no snapshot on the ledger -> no confirmation. Reporting a clean
+  # no_action here is a permanent silent stall: the next tick reads the same
+  # state, confirms again, and the phase never advances.
+  [[ "$EC" == 0 ]] || log_fail "an unrecordable confirm must fall back to a DISPATCH exit 0 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.verdict === "dispatch" && o.rule === "9a" && o.role === "TDD Implementation"'
+  jassert "$OUT" 'o.confirm_recorded === false'
+  jassert "$OUT" 'o.reasons.indexOf("confirm_record_failed_fallback_dispatch") >= 0'
+  jassert "$OUT" '!("confirm_event" in o) || o.confirm_event == null'
+  # The fallback is a FULL dispatch: routing and prompt hash are resolved like
+  # any other, not left half-built by the arm it replaced.
+  jassert "$OUT" 'typeof o.system_prompt === "string" && o.system_prompt.length > 0'
+  jassert "$OUT" 'typeof o.prompt_hash === "string"'
+  grep -qi "could not record" "$ERR" \
+    || log_fail "the fallback must say WHY on stderr: $(cat "$ERR")"
+  [[ ! -s "$d/docs/ai/EVENTS.jsonl" ]] \
+    || log_fail "nothing may reach the ledger when the append failed: $(cat "$d/docs/ai/EVENTS.jsonl")"
+
+  # CONTROL: with the ledger writable the SAME state confirms as before, and the
+  # idempotent re-tick still reports confirm_recorded=false WITHOUT falling back
+  # (a skipped append is not a failed one).
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 3 ]] || log_fail "a recordable confirm must still exit 3 (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "9x" && o.verdict === "no_action" && o.confirm_recorded === true'
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 3 ]] || log_fail "an idempotent re-tick must stay no_action (got $EC): $(cat "$OUT")"
+  jassert "$OUT" 'o.rule === "9x" && o.confirm_recorded === false'
+  jassert "$OUT" 'o.reasons.indexOf("confirm_record_failed_fallback_dispatch") < 0'
+  local n
+  n="$(grep -c '"event":"phase_confirmed"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 1 ]] || log_fail "exactly one confirmation must be on the ledger (got $n)"
+  log_pass "an unrecordable --confirm falls back to a real dispatch with a stderr note; a SKIPPED (idempotent) append does not (CHANGE-0120 TEST-038)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026; TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
   check_deps
@@ -2066,6 +2420,10 @@ main() {
   test_027_prompt_hash_advisory
   test_028_prompt_hash_json_additive
   test_029_inherits_provenance
+  test_035_confirm_pure_arms
+  test_036_confirm_cli_event
+  test_037_confirm_delta_control
+  test_038_confirm_record_failure_falls_back
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

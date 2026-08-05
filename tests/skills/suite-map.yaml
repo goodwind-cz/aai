@@ -405,8 +405,10 @@ suites:
   aai-orchestration-dispatch:
     globs:
       - .aai/scripts/orchestration-dispatch.mjs
+      - .aai/scripts/append-event.mjs
       - .aai/system/MODEL_ROUTING.yaml
       - .aai/workflow/WORKFLOW.md
+      - .aai/ORCHESTRATION.prompt.md
 
   aai-orchestration-mode:
     globs:
@@ -541,10 +543,20 @@ suites:
   aai-spec-lint:
     globs:
       - .aai/scripts/spec-lint.mjs
+      - .aai/scripts/spec-freeze.mjs
       - .aai/PLANNING.prompt.md
       - .aai/VALIDATION.prompt.md
       - .aai/templates/SPEC_TEMPLATE.md
       - docs/specs/**
+
+  aai-spec-tools:
+    globs:
+      - .aai/scripts/spec-scope-edit.mjs
+      - .aai/scripts/spec-freeze.mjs
+      - .aai/scripts/append-event.mjs
+      - .aai/PLANNING.prompt.md
+      - .aai/ORCHESTRATION_PARALLEL.prompt.md
+      - .aai/templates/SPEC_TEMPLATE.md
 
   aai-state:
     globs:

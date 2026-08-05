@@ -11,6 +11,60 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(orchestration): mechanical ticks stop respawning agents — confirm-by-script, scope edits without a re-plan, atomic freeze (CHANGE-0120) [L2]
+
+- Live cost forensics on a one-line downstream fix found ~4 of 11 agent runs
+  were process self-repair that needed no model judgment. Three deterministic
+  fixes remove that class:
+- CONFIRM-BY-SCRIPT (`orchestration-dispatch.mjs` rule 9x): when a re-plan
+  bounces a scope back to the implementation phases but changes NOTHING in the
+  frozen spec's AC/test contract, the tick confirms the phase and dispatches
+  NO agent. The comparison is content-addressed over the FROZEN SPEC itself —
+  parsed AC ids + statuses and Test Plan ids + AC mapping — so re-wording and
+  whitespace are invisible while any real contract move still dispatches
+  normally. Fail-closed throughout: a non-green AC table, a hash delta, or no
+  proof of prior green all fall through to the unchanged 9a/9b/9c dispatch.
+  The comparison snapshot is stored in the append-only `docs/ai/EVENTS.jsonl`
+  ledger as a new `phase_confirmed` event (written only under the new opt-in
+  `--confirm` flag, idempotently) — no new STATE field, and `state.mjs` is not
+  touched.
+- SCOPE EDITS ARE NOT A PLANNING DISPATCH (`.aai/scripts/spec-scope-edit.mjs`,
+  new): includes/excludes ONE path in a frozen spec's review-scope list and
+  REFUSES (exit 3) any path in the ride's own diff — committed, staged,
+  unstaged or untracked — because moving a path the ride actually changed is a
+  content decision, not bookkeeping. Edits only the review-scope bullet,
+  appends a `spec_scope_edited` audit line, and is idempotent down to the
+  ledger. A failed diff probe refuses rather than falling open.
+- ATOMIC FREEZE (`.aai/scripts/spec-freeze.mjs`, new): writes `SPEC-FROZEN:
+  true` AND frontmatter `status: implementing` in one write+rename, or writes
+  nothing — the half-frozen paperwork state that bounced a live ride back to
+  Planning now has no producer. spec-lint gains the matching `half-frozen`
+  rule for half-states arriving by hand; PLANNING step 10 routes freeze
+  through the tool.
+- Also fixes a false-green in the CHANGE-0122 suite: `test-aai-spec-lint.sh`
+  called `$SPEC_LINT`, an undefined name, so under `set -u` the lint never ran
+  and the template-self-flag assertion was vacuously true.
+- CORPUS-SHAPE HARDENING (independent validation, pre-merge): both editors were
+  written against the SPEC_TEMPLATE shape and met a corpus that does not match
+  it. `spec-freeze` corrupted every spec with no `# ` H1 — the marker was
+  spliced INSIDE the frontmatter at a stale offset and truncated adjacent
+  content, reporting success. It now re-derives the insertion point from the
+  rewritten document and, before writing anything, re-parses its own OUTPUT and
+  refuses (exit 1, nothing written) unless the result is provably frozen.
+  `spec-scope-edit` read only the flat comma list, so the 30 nested and 24
+  backticked corpus specs parsed as EMPTY — `--exclude` reported "already out
+  of scope" without editing or auditing, `--include` wrote onto the label line.
+  Nested child lists, backticked entries, `(annotation)` suffixes and wrapped
+  child lines are now first-class, original spelling is preserved on rewrite,
+  and a scope bullet that yields no parsable path REFUSES (exit 4) instead of
+  reporting a no-op success. Path spellings (`./x`, `a/../x`, `.//x`, absolute,
+  symlinked repo prefixes) now normalize to one key, closing a hole where a
+  laundered spelling walked a ride-touched path past the exit-3 refusal.
+- FAIL-CLOSED CONFIRM: when `--confirm` is requested and the `phase_confirmed`
+  event cannot be recorded, the tick falls back to a real dispatch with a
+  stderr note instead of reporting a clean no-action — an unrecorded
+  confirmation is invisible to the next tick and would repeat forever.
+
 ## [unreleased] — feat(spec-lint): evidence requirements scale with the recorded strategy — direct rides stop paying TDD ceremony (CHANGE-0122) [L1]
 
 - A one-line downstream fix taken under the `direct` strategy still shipped a

@@ -15,6 +15,18 @@
 // wrapper (.aai/ORCHESTRATION.prompt.md via check-state.mjs --repair); those
 // states are flagged as needs_llm edges with named, machine-greppable reasons.
 //
+// ONE opt-in write exists (CHANGE-0120 confirm-by-script, rule 9x): with
+// --confirm, a tick that proves the frozen spec's AC/test contract is green
+// and UNCHANGED since the last recorded confirmation appends a phase_confirmed
+// line to docs/ai/EVENTS.jsonl instead of dispatching an implementer agent.
+// That line is also the comparison snapshot the NEXT tick reads back — which
+// is why the storage is the append-only committed ledger and not a new STATE
+// field (STATE is gitignored runtime state, and state.mjs is a protected L3
+// surface this arm deliberately does not touch). Without --confirm the arm
+// still fires but writes nothing. Any delta, a non-green AC table, or no proof
+// of prior green falls through to the normal 9a/9b/9c dispatch: fail-closed to
+// dispatching, always.
+//
 // Mechanical proxies vs judgment residues (D2): anything not mechanically
 // decidable is FLAGGED, never guessed —
 //   - validation_staleness_unknown: last_validation.status is `pass` but its
@@ -41,7 +53,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { specContentHash, acTableGreen } from './lib/docs-model.mjs';
 import { splitLines, duplicateKeys, inlineChildConflicts } from './lib/state-core.mjs';
 import { findBlock, readScalar, indentOf, unquoteScalar, agentRunsFor, lastImplementerModel } from './lib/state-engine.mjs';
 import { computeEffectivePromptHash, componentHashes, shortHash } from './lib/prompt-hash.mjs';
@@ -89,6 +103,7 @@ const RULES = [
   { id: '6', when: 'spec not frozen (no SPEC-FROZEN: true) or frontmatter status not draft/implementing; ceremony L0 (RFC-0009) prunes the status arm (tech-note doc), never the marker arm', then: 'dispatch Planning' },
   { id: '7', when: 'implementation_strategy.selected missing or undecided', then: 'dispatch Planning' },
   { id: '8', when: 'worktree.recommendation in {recommended, required} AND user_decision == undecided; ceremony L3 (RFC-0009): undecided gates for ANY recommendation (worktree mandatory)', then: 'dispatch Implementation Preparation / Worktree decision (.aai/SKILL_WORKTREE.prompt.md)' },
+  { id: '9x', when: 'phase in {planning done, preparation} AND the frozen spec\'s AC table is fully green AND its AC/test content hash matches the last recorded phase_confirmed event for the ref (or, with no prior confirmation, an implementer agent_run for the ref exists); CHANGE-0120 confirm-by-script', then: 'no action required (phase confirmed by script — NO agent dispatched); with --confirm the tick records a phase_confirmed EVENTS line carrying the hash the next tick compares against. ANY delta, a non-green AC table, or missing prior green falls through to 9a/9b/9c' },
   { id: '9a', when: 'phase in {planning done, preparation} AND strategy == tdd', then: 'dispatch TDD Implementation (.aai/SKILL_TDD.prompt.md)' },
   { id: '9b', when: 'phase in {planning done, preparation} AND strategy == hybrid', then: 'dispatch TDD Implementation (the role reads the spec TEST-xxx ordering)' },
   { id: '9c', when: 'phase in {planning done, preparation} AND strategy in {loop, direct, untested} (direct/untested: spec-implementation-mode-choice non-TDD lanes)', then: 'dispatch Implementation (.aai/IMPLEMENTATION.prompt.md)' },
@@ -293,10 +308,14 @@ function dispatchRetarget(candidate, snapshot, fromRef) {
   };
 }
 
-// decide(snapshot) — PURE first-match evaluation of the rule table. The
+// decide(snapshot, opts) — PURE first-match evaluation of the rule table. The
 // snapshot shape is documented by buildSnapshot() below; decide never touches
 // a clock, the filesystem, or its input.
-export function decide(snapshot) {
+// `opts.skipConfirm` disables the rule-9x confirm arm so the caller can ask
+// "what would this tick do if confirming were not an option?" — used ONLY by
+// the --confirm fail-closed fallback, when the confirmation could not be
+// recorded and therefore does not exist as far as the next tick is concerned.
+export function decide(snapshot, opts = {}) {
   const s = snapshot;
   // Rule 1 — paused.
   if (s.project_status === 'paused') return noAction('1', s, ['project_status_paused']);
@@ -391,6 +410,24 @@ export function decide(snapshot) {
   const phase = s.work_item.phase;
   // Rule 9 — implementation/tests missing: planning done or preparation phase.
   if ((phase === 'planning' && s.work_item.status === 'done') || phase === 'preparation') {
+    // Rule 9x (CHANGE-0120 confirm-by-script) — a re-plan that moved NOTHING in
+    // the spec's AC/test contract must not respawn a full implementer just to
+    // re-confirm an already-green phase (the live Codex log's tick 1). The
+    // comparison is against the FROZEN SPEC's own content, never against the
+    // re-plan's self-report: `content_hash` is computed from the parsed AC ids
+    // + statuses and Test Plan ids + AC mapping (docs-model specContentHash),
+    // so whitespace and prose edits are invisible while any real contract move
+    // is not. FAIL-CLOSED to dispatching on every unknown: a null hash, a
+    // non-green AC table, a snapshot predating these fields (undefined), or no
+    // proof of prior green all fall through to 9a/9b/9c unchanged.
+    const hash = s.spec.content_hash ?? null;
+    const prior = s.last_phase_confirm ?? null;
+    if (!opts.skipConfirm && s.spec.ac_green === true && hash !== null
+      && (prior ? prior.hash === hash : s.prior_implementer_run === true)) {
+      const out = noAction('9x', s, ['phase_confirmed_no_delta', 'advance_phase_to_implementation']);
+      out.confirm_event = { event: 'phase_confirmed', ref: s.focus.ref_id, phase, hash };
+      return out;
+    }
     if (s.strategy_selected === 'tdd') return dispatchFor('TDD Implementation', s, '9a');
     if (s.strategy_selected === 'hybrid') return dispatchFor('TDD Implementation', s, '9b');
     // loop | direct | untested all run the regular Implementation agent (9c),
@@ -601,13 +638,18 @@ export function buildSnapshot(statePath, root) {
   // ceremony_level (RFC-0009): read from the spec_path file's frontmatter,
   // FAIL-CLOSED to 2 (full ceremony) on absent field, missing file, missing
   // frontmatter, yaml null, or any token outside the literal enum 0|1|2|3.
-  const spec = { path: specPath ?? null, present: false, frozen: false, frontmatter_status: null, ceremony_level: 2 };
+  // content_hash / ac_green (CHANGE-0120) are the rule-9x confirm inputs; both
+  // stay at their fail-closed defaults (null / false) whenever the spec is
+  // absent or carries no AC or Test Plan table.
+  const spec = { path: specPath ?? null, present: false, frozen: false, frontmatter_status: null, ceremony_level: 2, content_hash: null, ac_green: false };
   if (specPath) {
     const abs = path.resolve(root, specPath);
     if (fs.existsSync(abs)) {
       spec.present = true;
       const body = fs.readFileSync(abs, 'utf8').replace(/\r\n?/g, '\n');
       spec.frozen = /^SPEC-FROZEN: true$/m.test(body);
+      spec.content_hash = specContentHash(body);
+      spec.ac_green = acTableGreen(body).green;
       const fm = body.match(/^---\n([\s\S]*?)\n---/);
       if (fm) {
         const st = fm[1].match(/^status:\s*(\S+)/m);
@@ -649,7 +691,14 @@ export function buildSnapshot(statePath, root) {
   // clone whose local STATE verdicts never traveled). Best-effort scan of the
   // shared append-only audit log; any read/parse failure leaves the flag
   // false, which preserves pre-4b behavior exactly.
+  // The SAME scan also carries the rule-9x comparison snapshot (CHANGE-0120):
+  // the LAST phase_confirmed event for the focus ref. EVENTS.jsonl is the
+  // storage on purpose — append-only, committed, and readable by any clone,
+  // so the confirm arm needs no new STATE field (docs/ai/STATE.yaml is
+  // gitignored per-dev runtime state, and state.mjs is a protected L3 surface
+  // this change deliberately does not touch).
   let closeEventPresent = false;
+  let lastPhaseConfirm = null;
   const eventsPath = path.resolve(root, 'docs/ai/EVENTS.jsonl');
   if (focusRef && fs.existsSync(eventsPath)) {
     for (const line of fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/)) {
@@ -657,9 +706,10 @@ export function buildSnapshot(statePath, root) {
       if (t === '' || t.startsWith('#')) continue;
       try {
         const e = JSON.parse(t);
-        if (e.event === 'work_item_closed' && refMatches(e.ref, focusRef)) {
-          closeEventPresent = true;
-          break;
+        if (!refMatches(e.ref, focusRef)) continue;
+        if (e.event === 'work_item_closed') closeEventPresent = true;
+        else if (e.event === 'phase_confirmed' && e.payload) {
+          lastPhaseConfirm = { phase: e.payload.phase ?? null, hash: e.payload.hash ?? null };
         }
       } catch { /* unparseable event line: best-effort probe, skip */ }
     }
@@ -681,6 +731,12 @@ export function buildSnapshot(statePath, root) {
     review,
     flushed,
     close_event_present: closeEventPresent,
+    last_phase_confirm: lastPhaseConfirm,
+    // Rule 9x prior-green bootstrap: an implementer actually ran for this ref
+    // at some point. Paired with a fully green AC table it is the committed
+    // proof that the phase WAS green before the re-plan bounced it back; on
+    // its own it confirms nothing.
+    prior_implementer_run: runs.some(r => IMPLEMENTER_ROLES.includes(r.role)),
     open_intakes: openIntakes,
     implementer_model: focusRef ? lastImplementerModel(lines, focusRef) : null,
     last_run_role: runs.length ? runs[runs.length - 1].role : null,
@@ -692,15 +748,19 @@ export function buildSnapshot(statePath, root) {
 
 function usage() {
   console.error(
-    'Usage: orchestration-dispatch [--state <path>] [--root <dir>] [--human] [--rules]\n'
+    'Usage: orchestration-dispatch [--state <path>] [--root <dir>] [--human] [--rules] [--confirm]\n'
     + '  Deterministic orchestration tick: reads STATE + repo probes, prints ONE\n'
     + '  dispatch JSON on stdout. Exit: 0 dispatch, 3 no action, 4 LLM must take\n'
-    + '  over (named reasons in JSON), 2 usage, 1 internal error. Never writes.',
+    + '  over (named reasons in JSON), 2 usage, 1 internal error.\n'
+    + '  Reads only, with ONE opt-in exception: --confirm lets the rule-9x arm\n'
+    + '  append its phase_confirmed line to docs/ai/EVENTS.jsonl (idempotent —\n'
+    + '  skipped when the last recorded confirmation already matches). STATE and\n'
+    + '  the spec are NEVER written, with or without the flag.',
   );
 }
 
 function parseArgs(argv) {
-  const opts = { state: 'docs/ai/STATE.yaml', root: process.cwd(), human: false, rules: false };
+  const opts = { state: 'docs/ai/STATE.yaml', root: process.cwd(), human: false, rules: false, confirm: false };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--state' || tok === '--root') {
@@ -712,6 +772,8 @@ function parseArgs(argv) {
       opts.human = true;
     } else if (tok === '--rules') {
       opts.rules = true;
+    } else if (tok === '--confirm') {
+      opts.confirm = true;
     } else if (tok === '-h' || tok === '--help') {
       usage();
       process.exit(2);
@@ -815,6 +877,38 @@ export function suggestEffort(out, routing) {
     ?? null;
 }
 
+// recordConfirm (CHANGE-0120) — the ONLY write this script can perform, gated
+// behind --confirm and reachable ONLY from the rule-9x arm. Idempotent by
+// construction: the append is skipped when the LAST recorded confirmation for
+// the ref already carries the same phase+hash, so re-ticking an unchanged
+// scope never grows the ledger. Delegates to the sibling append-event.mjs so
+// the EVENTS schema (v / ts / actor) keeps exactly ONE writer; `root` is the
+// child's cwd, which is what decides where docs/ai/EVENTS.jsonl lands.
+//
+// Returns a TRI-STATE, because the two ways of NOT appending are opposites:
+//   'appended' — a line was written
+//   'skipped'  — the SAME confirmation is already on the ledger (idempotence:
+//                the confirmation EXISTS, so the next tick will see it)
+//   'failed'   — the child could not write it, so the confirmation does NOT
+//                exist and never will; the caller must fail closed
+// Collapsing the last two into one `false` is what let a failed recording read
+// as a clean no_action: the tick reported a confirmation, the ledger stayed
+// empty, and the NEXT tick re-derived the same confirm from the same state —
+// forever, never advancing the phase and never saying why.
+function recordConfirm(ev, root, snapshot) {
+  const prior = snapshot && snapshot.last_phase_confirm;
+  if (prior && prior.hash === ev.hash && prior.phase === ev.phase) return 'skipped';
+  const appender = path.join(path.dirname(fileURLToPath(import.meta.url)), 'append-event.mjs');
+  try {
+    execFileSync(process.execPath, [appender,
+      '--event', 'phase_confirmed', '--ref', ev.ref,
+      '--phase', String(ev.phase), '--hash', ev.hash], { cwd: root, stdio: 'ignore' });
+    return 'appended';
+  } catch {
+    return 'failed';
+  }
+}
+
 function humanBlock(out) {
   const lines = [
     '=== ORCHESTRATION DISPATCH (deterministic tick) ===',
@@ -858,6 +952,26 @@ function main() {
     } else {
       out = decide(snapshot);
       out.state_summary = snapshot;
+    }
+    // CHANGE-0120: --confirm records the rule-9x confirmation. Only that arm
+    // ever sets confirm_event, so no other verdict can reach the writer.
+    // Resolved BEFORE routing/prompt-hash so the fail-closed fallback below
+    // gets its model tier, effort and prompt hash computed like any dispatch.
+    if (opts.confirm && out.confirm_event) {
+      const rec = recordConfirm(out.confirm_event, root, out.state_summary);
+      out.confirm_recorded = rec === 'appended';
+      if (rec === 'failed') {
+        // FAIL CLOSED. A confirmation that could not be written does not exist:
+        // the next tick reads the same state, re-confirms, and the phase never
+        // advances — a silent permanent stall. Take the dispatch that rule 9x
+        // suppressed instead, and say so on stderr.
+        console.error('orchestration-dispatch: NOTE — --confirm could not record the phase_confirmed event; falling back to a real dispatch (an unrecorded confirmation is invisible to the next tick and would repeat forever)');
+        const fallback = decide(snapshot, { skipConfirm: true });
+        fallback.state_summary = snapshot;
+        fallback.confirm_recorded = false;
+        fallback.reasons = [...fallback.reasons, 'confirm_record_failed_fallback_dispatch'];
+        out = fallback;
+      }
     }
     const routing = loadModelRouting(root);
     out.suggested_model = suggestModel(out, routing);

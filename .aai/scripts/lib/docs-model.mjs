@@ -3,6 +3,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 // ISSUE-0001 / SPEC-0007 — normalize line endings ONCE at parser entry so every
 // `\n`-splitting parser behaves identically for LF, CRLF (Windows / core.autocrlf),
@@ -662,6 +663,104 @@ export function parseLeanAcTable(content) {
     rows.push(row);
   }
   return { hasLean: true, rows, declaredIds };
+}
+
+// --- Test Plan table + spec content identity (CHANGE-0120) --------------------
+
+// Split a markdown table line into cells, honoring escaped pipes (`\|`).
+// Owned here because BOTH spec-lint's Test Plan reader and the content-hash
+// below must agree on what a cell IS (a divergence would make the dispatcher's
+// no-delta verdict disagree with the lint the same table just passed).
+export function splitTableCells(line) {
+  const parts = String(line).split(/(?<!\\)\|/).map((c) => c.trim());
+  return parts.slice(1, parts.length - 1);
+}
+
+// 1-based line number of a character offset in normalized content.
+function lineNumberAt(norm, offset) {
+  return norm.slice(0, offset).split('\n').length;
+}
+
+// Parse the `## Test Plan` table: rows whose first cell is TEST-xxx.
+// Returns { present, rows: [{ testId, acCell, line }] }. `line` is 1-based in
+// the NORMALIZED content, matching every other parser in this module.
+export function parseTestPlanTable(content) {
+  const norm = normalizeNewlines(content);
+  const m = norm.match(/(?:^|\n)##\s+Test Plan\b[^\n]*\n([\s\S]+?)(?=\n##\s|\n*$)/i);
+  if (!m) return { present: false, rows: [] };
+  const sectionStart = m.index + m[0].indexOf(m[1]);
+  const rows = [];
+  let offset = 0;
+  for (const line of m[1].split('\n')) {
+    const lineNo = lineNumberAt(norm, sectionStart + offset);
+    offset += line.length + 1;
+    if (!line.trim().startsWith('|')) continue;
+    const cells = splitTableCells(line);
+    if (!cells.length || !/^TEST-\d+$/.test(cells[0])) continue;
+    // typeCell/fileCell: template columns 3-4 (Type, File path). Captured for
+    // the confirm hash (re-validation R3: a re-plan retargeting a test's file
+    // or type must count as a delta); absent columns hash as ''.
+    rows.push({ testId: cells[0], acCell: cells[1] ?? '', typeCell: cells[2] ?? '', fileCell: cells[3] ?? '', line: lineNo });
+  }
+  return { present: true, rows };
+}
+
+// specContentHash(content) -> a content-addressed identity of what a spec
+// MEANS to the implementation contract (CHANGE-0120 confirm-by-script): the
+// AC table's ids + normalized statuses and the Test Plan's ids + AC mapping,
+// and NOTHING else.
+//
+// Deliberately blind to: prose, whitespace, table re-formatting, evidence-cell
+// edits, section reordering, added narrative. Deliberately sensitive to:
+// adding/removing/renaming an AC or a TEST, flipping an AC status, re-mapping
+// a test to a different AC. That asymmetry is the whole point — a re-plan that
+// only rewords must not respawn an implementer, and a re-plan that moves the
+// contract always must.
+//
+// Returns null when the doc carries NEITHER table: there is nothing to compare,
+// and every caller must fail closed on null rather than treat "no content" as
+// "no delta".
+export function specContentHash(content) {
+  const norm = normalizeNewlines(content);
+  const ac = parseAcTable(norm);
+  const acRows = ac.hasGate ? ac.rows : parseLeanAcTable(norm).rows;
+  const tp = parseTestPlanTable(norm);
+  if (acRows.length === 0 && tp.rows.length === 0) return null;
+  const parts = [];
+  for (const r of [...acRows].sort((a, b) => String(a['Spec-AC']).localeCompare(String(b['Spec-AC'])))) {
+    parts.push(`ac\t${r['Spec-AC']}\t${normalizeAcStatus(r['Status'] ?? '').status}`);
+  }
+  // Hash covers AC-mapping + Type + File path (R3). Test STATUS stays
+  // excluded BY DESIGN: status is updated by RUNNING tests, not by a re-plan,
+  // and hashing it would force a dispatch after every legitimate green flip.
+  for (const r of [...tp.rows].sort((a, b) => a.testId.localeCompare(b.testId))) {
+    const c = (v) => String(v).replace(/\s+/g, ' ').trim();
+    parts.push(`test\t${r.testId}\t${c(r.acCell)}\t${c(r.typeCell)}\t${c(r.fileCell)}`);
+  }
+  return createHash('sha256').update(parts.join('\n')).digest('hex');
+}
+
+// acTableGreen(content) -> { green, total, open: [ids] }
+// GREEN means EVERY AC row is `done`, and — when the canonical gate table is
+// present — carries evidence (the same empty-evidence rule spec-lint and
+// docs-audit-core use). Zero rows is never green, and a terminal-but-not-done
+// status (deferred / blocked / rejected) is never green either: the confirm
+// arm may only skip work that is provably finished, so anything else falls
+// through to a normal dispatch.
+export function acTableGreen(content) {
+  const norm = normalizeNewlines(content);
+  const ac = parseAcTable(norm);
+  const gate = ac.hasGate;
+  const rows = gate ? ac.rows : parseLeanAcTable(norm).rows;
+  const open = [];
+  for (const r of rows) {
+    const ev = String(r['Evidence'] ?? '').trim();
+    const emptyEvidence = ev === '' || ev === '—' || ev === '-';
+    if (normalizeAcStatus(r['Status'] ?? '').status !== 'done' || (gate && emptyEvidence)) {
+      open.push(r['Spec-AC']);
+    }
+  }
+  return { green: rows.length > 0 && open.length === 0, total: rows.length, open };
 }
 
 // SPEC-0011 G4 — near-miss AC-table detection. Returns { warnings: [{kind, detail}] }.

@@ -4,8 +4,9 @@
 //
 // BOUNDARY (SPEC spec-spec-lint D1): this tool owns INTRA-SPEC STRUCTURE —
 // AC ids unique/sequential, AC status tokens, done-needs-evidence, Test Plan
-// row -> Spec-AC mapping, SPEC-FROZEN vs strategy/AC-table consistency,
-// ceremony_level enum, and AC rows the shared parser silently drops.
+// row -> Spec-AC mapping, SPEC-FROZEN vs strategy/AC-table/frontmatter-status
+// consistency, ceremony_level enum, and AC rows the shared parser silently
+// drops.
 // docs-audit owns LIFECYCLE/DRIFT (orphans, frontmatter schema, staleness,
 // false-done, close gate, telemetry, body lint). Shared token rules come from
 // lib/docs-model.mjs so the engines cannot diverge on what a valid cell IS.
@@ -56,6 +57,7 @@ import path from 'node:path';
 import {
   normalizeNewlines, parseFrontmatter, parseAcTable, normalizeAcStatus,
   specFrozenInBody, walk, toPosix, parseLeanAcTable, parseDeltasSection,
+  parseTestPlanTable, splitTableCells,
 } from './lib/docs-model.mjs';
 
 const ROOT = process.cwd();
@@ -192,31 +194,13 @@ const rowHasEvidence = (row) => {
   return e !== '' && e !== '—' && e !== '-';
 };
 
-// Split a markdown table line into cells, honoring escaped pipes (\|).
-// NEW parser — nothing else in the repo reads the Test Plan table (SPEC D2).
-function splitCells(line) {
-  const parts = line.split(/(?<!\\)\|/).map((c) => c.trim());
-  return parts.slice(1, parts.length - 1);
-}
-
-// Parse the "## Test Plan" table: rows whose first cell is TEST-xxx.
-// Returns { present, rows: [{ testId, acCell, line }] }.
-function parseTestPlan(norm) {
-  const m = norm.match(/(?:^|\n)##\s+Test Plan\b[^\n]*\n([\s\S]+?)(?=\n##\s|\n*$)/i);
-  if (!m) return { present: false, rows: [] };
-  const sectionStart = m.index + m[0].indexOf(m[1]);
-  const rows = [];
-  let offset = 0;
-  for (const line of m[1].split('\n')) {
-    const lineNo = lineAt(norm, sectionStart + offset);
-    offset += line.length + 1;
-    if (!line.trim().startsWith('|')) continue;
-    const cells = splitCells(line);
-    if (!cells.length || !/^TEST-\d+$/.test(cells[0])) continue;
-    rows.push({ testId: cells[0], acCell: cells[1] ?? '', line: lineNo });
-  }
-  return { present: true, rows };
-}
+// The Test Plan reader moved to lib/docs-model.mjs (CHANGE-0120) so this lint
+// and orchestration-dispatch's confirm-by-script content hash cannot drift on
+// what a Test Plan row IS. `splitCells` stays a local alias because
+// isStrategyGuidanceRow() below reads ordinary table rows with the same cell
+// grammar.
+const splitCells = splitTableCells;
+const parseTestPlan = parseTestPlanTable;
 
 // Expand a Test Plan Spec-AC cell into { ids, malformed } token lists.
 // Grammar: comma/space-separated tokens, each `Spec-AC-NN` or `Spec-AC-NN..MM`.
@@ -517,7 +501,28 @@ export function lintContent(content, opts = {}) {
   const declaredLc = declared ? String(declared).toLowerCase() : null;
   const strategy = STRATEGY_ENUM.includes(declaredLc) && declaredLc !== 'undecided' ? declaredLc : null;
 
-  if (specFrozenInBody(norm)) {
+  // half-frozen (CHANGE-0120) — freeze is a TWO-PART state: the
+  // `SPEC-FROZEN: true` body marker AND frontmatter `status: implementing`.
+  // Writing one half without the other is paperwork the dispatcher cannot
+  // interpret, and a live ride burned a full re-Planning agent fixing exactly
+  // that. Flagged HERE, at freeze time, so the mismatch cannot survive to
+  // dispatch; `.aai/scripts/spec-freeze.mjs` is the tool that writes both
+  // halves in one atomic write and therefore cannot produce this state.
+  //   Marker arm: the marker with a PRE-implementation status (draft /
+  //   proposed / accepted) — the exact incident shape.
+  //   Status arm: `implementing` with no marker — the mirror image.
+  // `done` is deliberately OUTSIDE the status arm: a completed spec is past
+  // the freeze gate, and the pre-marker-convention specs still in the corpus
+  // are history, not half-freezes.
+  const frozenMarker = specFrozenInBody(norm);
+  const fmStatus = String(fm.status ?? '').trim().toLowerCase();
+  if (frozenMarker && ['draft', 'proposed', 'accepted'].includes(fmStatus)) {
+    add('half-frozen', `SPEC-FROZEN is true but frontmatter status is "${fmStatus}" — freeze is atomic (marker + status: implementing); run node .aai/scripts/spec-freeze.mjs --path <spec> instead of writing either half by hand`);
+  } else if (!frozenMarker && fmStatus === 'implementing') {
+    add('half-frozen', 'frontmatter status is "implementing" but the SPEC-FROZEN marker is absent — freeze is atomic (marker + status: implementing); run node .aai/scripts/spec-freeze.mjs --path <spec> instead of writing either half by hand');
+  }
+
+  if (frozenMarker) {
     if (level >= 2) {
       const bodyLc = bodyStrategy ? bodyStrategy[1].toLowerCase() : null;
       if (!bodyLc || bodyLc === 'undecided') {

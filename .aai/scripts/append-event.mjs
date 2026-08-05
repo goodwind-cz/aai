@@ -2,7 +2,8 @@
 // Append a single audit event to docs/ai/EVENTS.jsonl (RFC-0001 layer 5).
 //
 // Event types (closed set): ac_status, ac_evidence, defer_extended, doc_lifecycle,
-//   docs_audit, work_item_closed, code_review_completed (SPEC-0011 G2).
+//   docs_audit, work_item_closed, code_review_completed (SPEC-0011 G2),
+//   phase_confirmed, spec_scope_edited (CHANGE-0120).
 // Required: --event, --ref. Auto-filled: v=1, ts (ISO UTC), actor (git slug).
 //
 // Examples:
@@ -23,7 +24,7 @@ import { execSync } from 'node:child_process';
 
 const EVENTS_PATH = path.join(process.cwd(), 'docs/ai/EVENTS.jsonl');
 const SCHEMA_VERSION = 1;
-const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed']);
+const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed', 'phase_confirmed', 'spec_scope_edited']);
 
 function parseArgs(argv) {
   const args = {};
@@ -113,6 +114,29 @@ function main() {
       if (!args.verdict) fail('code_review_completed requires --verdict');
       entry.payload = { verdict: args.verdict };
       if (args.report) entry.payload.report = args.report;
+      if (args.notes) entry.payload.notes = args.notes;
+      break;
+    case 'phase_confirmed':
+      // CHANGE-0120 confirm-by-script — orchestration-dispatch.mjs rule 9x
+      // proved the frozen spec's AC/test contract green and UNCHANGED, so no
+      // implementer was dispatched. `hash` is the spec content hash
+      // (docs-model specContentHash) that the NEXT tick compares against, and
+      // `phase` is the work item's phase at the moment of confirmation. This
+      // line IS the comparison snapshot — never hand-write one.
+      if (!args.phase || !args.hash) fail('phase_confirmed requires --phase and --hash');
+      entry.payload = { phase: args.phase, hash: args.hash };
+      if (args.notes) entry.payload.notes = args.notes;
+      break;
+    case 'spec_scope_edited':
+      // CHANGE-0120 — spec-scope-edit.mjs moved ONE path in/out of a frozen
+      // spec's review-scope list without a Planning dispatch. `target` is the
+      // path, `op` is include|exclude, `base_ref` records which diff the
+      // no-ride-touch refusal was evaluated against (the audit is worthless
+      // without it).
+      if (!args.op || !args.target) fail('spec_scope_edited requires --op and --target');
+      entry.payload = { op: args.op, target: args.target };
+      if (args.base_ref) entry.payload.base_ref = args.base_ref;
+      if (args.spec) entry.payload.spec = args.spec;
       if (args.notes) entry.payload.notes = args.notes;
       break;
   }

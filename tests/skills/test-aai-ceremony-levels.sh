@@ -218,7 +218,11 @@ write_lean_spec() {
 id: spec-fixture-lean-doc
 type: spec
 number: null
-status: draft
+# CHANGE-0120: a FROZEN fixture carries the canonical frozen status. It was
+# `draft`, which is the half-frozen state spec-lint now flags — incidental to
+# what these arms assert (lean AC-table presence + the ceremony-justification
+# gate), so the fixture moves to the state a real frozen spec is in.
+status: implementing
 ceremony_level: $cl
 links:
   pr: []
