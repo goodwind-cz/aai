@@ -158,3 +158,13 @@ links:
 - R4 (DISCLOSED, latent, zero corpus reach): a spec with no real H1 whose
   first `# ` line sits inside a fenced code block would receive the freeze
   marker inside the fence; no such spec exists (verified across 114).
+- Review round (3 BLOCKING fixed): decorated scope entries (`path` (new))
+  now key correctly — iterative strip until stable (TEST-013); the R1
+  regression pin test_012 is registered and RUNS; ORCHESTRATION rule-9x
+  exception uses the flag form of set-phase (+14 B credited).
+- Review NON-BLOCKING dispositions: test-STATUS exclusion from the confirm
+  hash survives beyond the bootstrap tick (a re-plan flipping green->pending
+  with a stale-done AC confirms) — accepted trade-off, follow-up candidate;
+  valueless `SPEC-FROZEN:` line exits 1 not 3 (zero corpus reach, noted);
+  --include of an out-of-repo ../path is accepted (advisory scope, follow-up
+  candidate).

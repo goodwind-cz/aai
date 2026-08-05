@@ -626,6 +626,26 @@ test_012_scope_nonascii_refusal() {
   log_pass "TEST-012(scope): quotePath laundering closed (exit 3, spec untouched)"
 }
 
+test_013_scope_backtick_annotation_key() {
+  # review BLOCKING 1: `` `p` (new) `` must key as p — one-pass stripping left
+  # a stray backtick and reopened the silent-no-op class on 13 corpus specs.
+  log_info "TEST-013(scope): backticked entry WITH trailing annotation is matchable..."
+  local d; d="$(mktemp -d "${TMPDIR:-/tmp}/st13.XXXXXX")"
+  ( cd "$d" && git init -q -b main .     && printf -- '---\nid: s\n---\n# S\n\n- Inline review scope (explicit paths): `src/lib.mjs` (new), `other.sh`\n' > SPEC-0001-spec-s.md     && printf x > other.sh && mkdir -p src && printf y > src/lib.mjs     && git add -A && git -c user.email=t@t -c user.name=t commit -qm base )
+  local out rc=0
+  out="$(cd "$d" && node "$SCOPE_EDIT" --spec SPEC-0001-spec-s.md --exclude src/lib.mjs --base-ref HEAD 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-013(scope): exclude of a backtick+annotation entry must succeed (got $rc): $out"
+  grep -qF 'src/lib.mjs' "$d/SPEC-0001-spec-s.md" && log_fail "TEST-013(scope): entry must be REMOVED from the scope"
+  grep -qF '`other.sh`' "$d/SPEC-0001-spec-s.md" || log_fail "TEST-013(scope): sibling entry must survive with backticks"
+  [[ -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "TEST-013(scope): the edit must be audited"
+  # include must NOT duplicate an entry present under a decorated spelling
+  out="$(cd "$d" && node "$SCOPE_EDIT" --spec SPEC-0001-spec-s.md --include other.sh --base-ref HEAD 2>&1)" || rc=$?
+  n="$(grep -o 'other.sh' "$d/SPEC-0001-spec-s.md" | wc -l | tr -d ' ')"
+  [[ "$n" == 1 ]] || log_fail "TEST-013(scope): include must not duplicate a decorated entry (count $n)"
+  rm -rf "$d"
+  log_pass "TEST-013(scope): decorated entries matchable; no silent no-op, no duplicate"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -636,6 +656,8 @@ main() {
   test_scope_005_fail_closed
   test_scope_006_path_normalization
   test_scope_007_nested_and_backticked
+  test_012_scope_nonascii_refusal
+  test_013_scope_backtick_annotation_key
   test_freeze_001_atomic
   test_freeze_002_half_state_refusal
   test_freeze_003_repairs_half_frozen

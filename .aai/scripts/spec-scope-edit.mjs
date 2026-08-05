@@ -293,8 +293,17 @@ export function findScopeBlock(norm) {
 //   ./path        -> path   (via normalizeRelPath — same laundering as F2)
 export function scopeItemKey(text, root = ROOT) {
   let t = String(text).replace(/\s+/g, ' ').trim();
-  t = t.replace(/^`+|`+$/g, '').trim();
-  t = t.replace(/\s*\([^()]*\)$/, '').trim();
+  // Strip surrounding backticks, a trailing `(annotation)` and trailing
+  // punctuation ITERATIVELY until stable: `` `p` (new) `` must key as `p`,
+  // not `p\`` (review finding — stripping in one fixed order left a stray
+  // backtick and reopened the silent-no-op class on 13 corpus specs).
+  for (;;) {
+    const before = t;
+    t = t.replace(/^`+|`+$/g, '').trim();
+    t = t.replace(/\s*\([^()]*\)$/, '').trim();
+    t = t.replace(/[.,;]+$/, '').trim();
+    if (t === before) break;
+  }
   return normalizeRelPath(t, root);
 }
 

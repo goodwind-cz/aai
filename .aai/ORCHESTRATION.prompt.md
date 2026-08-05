@@ -8,7 +8,7 @@ RUN THE TICK
    .aai/SUBAGENT_PROTOCOL.md (system_prompt, inputs, expected outputs, stop
    condition), honoring suggested_tier and validator_independence. After the
    role completes, append its run via state.mjs append-run with harness-reported usage per SUBAGENT_PROTOCOL.md. Then step 5.
-3. Exit 3 (no_action): report "No action required" + the JSON reasons; STOP. EXCEPTION — reasons advance_phase_to_implementation (rule 9x confirmed the phase by script; no agent needed): run state.mjs set-phase <ref> implementation, then step 1 ONCE.
+3. Exit 3 (no_action): report "No action required" + the JSON reasons; STOP. EXCEPTION — reasons advance_phase_to_implementation (rule 9x confirmed the phase by script; no agent needed): run state.mjs set-phase --ref <ref> --phase implementation, then step 1 ONCE.
 4. Exit 4 (needs_llm): handle ONLY the named reasons, nothing else:
    - state_file_missing / duplicate_top_level_key / missing_required_block /
      unknown_enum_value / inline_child_conflict: auto-init or repair via
