@@ -1,0 +1,72 @@
+# AAI docs/guard policy — SEED (CHANGE-0121 downstream-lane-seed).
+# Copied to docs/ai/docs-audit.yaml by aai-sync ONLY when that file is absent;
+# an existing file is NEVER overwritten. Once seeded it is PROJECT-OWNED: edit
+# it freely, an /aai-update will not touch it again.
+#
+# WHY IT IS SEEDED AT ALL: several guards fail CLOSED when this file is
+# missing. The PR fast lane (lane-gate.mjs) is the loudest — with no config it
+# reports `protected_config_missing` and every ride, however small, takes the
+# heavy lane. Seeding the file is what makes the fast lane reachable at all.
+#
+# Parsed by a COLUMN-0 line scan (guard-config.mjs / docs-audit-core.mjs) —
+# NOT a general YAML file. Keep keys at column 0 and list items at two spaces.
+#
+# NOTE ON MODE: docs-audit runs in REPORT-ONLY mode while this file is absent
+# and in ENFORCED mode once it exists — `docs-audit.mjs --check` starts
+# hard-failing on new orphans and violations. Nothing else changes (the
+# pre-commit hook only reads the dials below, all seeded report-only). If an
+# adopting project has pre-existing docs it does not want gated yet, set
+# `legacy_until_date:` to the adoption date — docs first committed before it
+# soft-warn instead of failing.
+
+# Docs first committed before this date soft-warn instead of hard-failing
+# --check. Unset here (a template cannot know your adoption date); set it to
+# YYYY-MM-DD when adopting AAI into a repo that already has docs.
+# legacy_until_date: 2026-01-01
+stale_after_days: 90
+scan_exclude: []
+backlog_globs: []
+
+# ── Enforcement dials (enforce | report-only) ────────────────────────────────
+# All seeded REPORT-ONLY: adopting this file must not silently start blocking
+# commits or closes. Flip one at a time once the corresponding class is clean.
+#
+# close_gate         — SPEC-0011 G5: close-time gate, consulted by the
+#                      INDEX-AUTOGEN pre-commit hook and the closeout skills.
+# doc_number_guard   — SPEC-0015 / RFC-0007: no-DRAFT-at-merge + duplicate
+#                      doc-number guards. AAI core itself runs this ENFORCE and
+#                      recommends it once your numbering is clean.
+# product_doc_gate   — close-time product-doc gate for `user_visible: true`
+#                      work items (close-work-item.mjs).
+# usage_capture_gate — close-time telemetry gate for unmarked agent runs
+#                      (close-work-item.mjs); an honest gap records the
+#                      `usage_capture=none` sentinel and passes either way.
+close_gate: report-only
+doc_number_guard: report-only
+product_doc_gate: report-only
+usage_capture_gate: report-only
+
+# ── L3 protected surfaces (RFC-0009 / spec-scale-adaptive-ceremony) ──────────
+# A spec whose scope touches any listed path MUST declare `ceremony_level: 3`;
+# select-suites/lane-gate escalate a touched path to a FULL_RUN heavy lane.
+# The entries below are the VENDORED AAI defaults (policy + canonical list:
+# .aai/workflow/WORKFLOW.md "Ceremony levels"), kept in lockstep with the AAI
+# repo's own docs/ai/docs-audit.yaml by tests/skills/test-aai-sync-seed.sh
+# TEST-006 — do not hand-edit them here.
+# APPEND your own protected surfaces (payment ledgers, auth, migrations, …):
+# this file is project-owned, so additions survive every update.
+protected_paths_l3:
+  - .aai/scripts/state.mjs
+  - .aai/scripts/lib/state-engine.mjs
+  - .aai/scripts/lib/state-core.mjs
+  - .aai/scripts/allocate-doc-number.mjs
+  - .aai/scripts/pre-commit-checks.sh
+  - .aai/scripts/pre-commit-checks.ps1
+  - .aai/workflow/WORKFLOW.md
+  - docs/CONSTITUTION.md
+
+# Project-owned ADDITIONS to the vendored inventory of allowed direct children
+# of docs/ai/ (.aai/system/DOCS_AI_CANON.list). Plain basenames only. Kept here
+# so an /aai-update never clobbers a legitimate project-specific entry.
+# Report-only: a non-canonical entry is named, never a verdict or exit code.
+docs_ai_canon_extra: []

@@ -256,6 +256,8 @@ $technologyTemplatePath = Join-Path $SrcRoot ".aai/templates/TECHNOLOGY_TEMPLATE
 $targetTechnologyPath = Join-Path $TargetRoot "docs/TECHNOLOGY.md"
 $updateConfigTemplatePath = Join-Path $SrcRoot ".aai/templates/update-config.template.yaml"
 $targetUpdateConfigPath = Join-Path $TargetRoot "docs/ai/update-config.yaml"
+$docsAuditTemplatePath = Join-Path $SrcRoot ".aai/templates/docs-audit.template.yaml"
+$targetDocsAuditPath = Join-Path $TargetRoot "docs/ai/docs-audit.yaml"
 
 # -- Copy AAI canonical layer (.aai/ is the single source of truth) -------
 # Entry-by-entry so we can merge scripts/ and preserve target-only scripts.
@@ -396,6 +398,16 @@ if ((Test-Path $updateConfigTemplatePath) -and !(Test-Path $targetUpdateConfigPa
   New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot "docs/ai") | Out-Null
   Copy-Item $updateConfigTemplatePath $targetUpdateConfigPath -Force
   Write-Host "  SEED docs/ai/update-config.yaml from .aai/templates/update-config.template.yaml"
+}
+
+# docs/ai/docs-audit.yaml: seed from template only when missing (CHANGE-0121).
+# Without it every guard that reads it fails CLOSED - most visibly lane-gate,
+# which reports protected_config_missing and pins every downstream ride to the
+# heavy lane. Project-owned once seeded; same never-overwrite discipline.
+if ((Test-Path $docsAuditTemplatePath) -and !(Test-Path $targetDocsAuditPath)) {
+  New-Item -ItemType Directory -Force -Path (Join-Path $TargetRoot "docs/ai") | Out-Null
+  Copy-Item $docsAuditTemplatePath $targetDocsAuditPath -Force
+  Write-Host "  SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml (dials report-only; docs-audit --check now runs enforced)"
 }
 
 # docs/ai: preserve existing runtime data - system docs are now in .aai/system/

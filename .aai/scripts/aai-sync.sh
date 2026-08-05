@@ -268,6 +268,8 @@ TECHNOLOGY_TEMPLATE_PATH="$SRC_ROOT/.aai/templates/TECHNOLOGY_TEMPLATE.md"
 TARGET_TECHNOLOGY_PATH="$DST_ROOT/docs/TECHNOLOGY.md"
 UPDATE_CONFIG_TEMPLATE_PATH="$SRC_ROOT/.aai/templates/update-config.template.yaml"
 TARGET_UPDATE_CONFIG_PATH="$DST_ROOT/docs/ai/update-config.yaml"
+DOCS_AUDIT_TEMPLATE_PATH="$SRC_ROOT/.aai/templates/docs-audit.template.yaml"
+TARGET_DOCS_AUDIT_PATH="$DST_ROOT/docs/ai/docs-audit.yaml"
 
 # ── Copy AAI canonical layer (.aai/ is the single source of truth) ──────
 # Entry-by-entry so we can merge scripts/ and preserve target-only scripts.
@@ -398,6 +400,16 @@ if [[ -f "$UPDATE_CONFIG_TEMPLATE_PATH" && ! -f "$TARGET_UPDATE_CONFIG_PATH" ]];
   mkdir -p "$DST_ROOT/docs/ai"
   cp -a "$UPDATE_CONFIG_TEMPLATE_PATH" "$TARGET_UPDATE_CONFIG_PATH"
   echo "  SEED docs/ai/update-config.yaml from .aai/templates/update-config.template.yaml"
+fi
+
+# docs/ai/docs-audit.yaml: seed from template only when missing (CHANGE-0121).
+# Without it every guard that reads it fails CLOSED — most visibly lane-gate,
+# which reports protected_config_missing and pins every downstream ride to the
+# heavy lane. Project-owned once seeded; same never-overwrite discipline.
+if [[ -f "$DOCS_AUDIT_TEMPLATE_PATH" && ! -f "$TARGET_DOCS_AUDIT_PATH" ]]; then
+  mkdir -p "$DST_ROOT/docs/ai"
+  cp -a "$DOCS_AUDIT_TEMPLATE_PATH" "$TARGET_DOCS_AUDIT_PATH"
+  echo "  SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml (dials report-only; docs-audit --check now runs enforced)"
 fi
 
 # docs/ai: preserve existing runtime data, but sync template files.
