@@ -2,12 +2,14 @@
 id: cheap-ticks
 number: 120
 type: change
-status: implementing
+status: done
 user_visible: true
 ceremony_level: 2
 links:
-  pr: []
-  commits: []
+  pr:
+    - 229
+  commits:
+    - 84ded3a4f24f45e7b5e6b00e62fd18135233eb5e
 ---
 
 # Change — mechanical ticks stop respawning agents: confirm-by-script, scope edits by orchestrator, atomic freeze

@@ -1,17 +1,16 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-05T15:06:45.286Z
+Generated: 2026-08-05T15:09:59.771Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
-| CHANGE-0120 | issues | implementing | — | docs/issues/CHANGE-0120-cheap-ticks.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 
 ## Canonical layer (0)
@@ -40,7 +39,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (280)
+## Done (281)
 
 | ID | Type | Path |
 |---|---|---|
@@ -162,6 +161,7 @@ _None._
 | CHANGE-0117 | issues | docs/issues/CHANGE-0117-aai-version-file.md |
 | CHANGE-0118 | issues | docs/issues/CHANGE-0118-validation-runtime-ignore.md |
 | CHANGE-0119 | issues | docs/issues/CHANGE-0119-docs-ai-canon.md |
+| CHANGE-0120 | issues | docs/issues/CHANGE-0120-cheap-ticks.md |
 | CHANGE-0121 | issues | docs/issues/CHANGE-0121-downstream-lane-seed.md |
 | CHANGE-0122 | issues | docs/issues/CHANGE-0122-strategy-scaled-evidence.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
