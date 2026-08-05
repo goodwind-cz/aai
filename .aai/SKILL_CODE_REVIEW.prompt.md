@@ -89,7 +89,10 @@ finding: style preferences without a failure mode are INFO at most and
 never gate.
 - SIDECAR LIFECYCLE: a NEW gitignored runtime sidecar that hand-rolls
   load/write/stale/claim/GC instead of `.aai/scripts/lib/runtime-file.mjs`
-  is a BLOCKING finding (reopens bug classes A-F).
+  is a BLOCKING finding (reopens bug classes A-F). A test whose NAME claims
+  a universal negative ("cannot produce X", "never Y") while asserting only
+  a subset of paths is likewise BLOCKING — rename it or prove the negative
+  (corpus sweep / mutation).
 
 ### Verdict 3 — cannot_verify: [...] — MANDATORY section, empty list allowed
 Claims the diff alone cannot substantiate: runtime behavior no test covers,
