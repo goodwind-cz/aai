@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(quality): tests that lie get caught — registration guard, corpus-sweep rule, honest names (CHANGE test-registration-guard) [L1]
+## [unreleased] — fix(quality): tests that lie get caught — registration guard, corpus-sweep rule, honest names (CHANGE-0123) [L1]
 
 - From the CHANGE-0120 retrospective: three shapes of misleading-but-green
   tests now have deterministic teeth — hygiene test_093 catches

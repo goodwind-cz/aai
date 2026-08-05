@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-05T15:09:47.543Z",
+  "generatedAt": "2026-08-05T18:13:32.817Z",
   "project": "aai",
   "counts": {
-    "delivered": 166,
+    "delivered": 167,
     "in_progress": 2,
     "releases": 1,
     "tokens_total": 23273206
@@ -124,6 +124,19 @@
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0122-strategy-scaled-evidence.md",
+      "closed_on": "2026-08-05",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "test-registration-guard",
+      "title": "Change — tests that lie get caught: registration guard, corpus-sweep rule, honest test names",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0123-test-registration-guard.md",
       "closed_on": "2026-08-05",
       "agent_minutes": null,
       "token_total": null,
@@ -2289,6 +2302,19 @@
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0122-strategy-scaled-evidence.md",
+          "closed_on": "2026-08-05",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "test-registration-guard",
+          "title": "Change — tests that lie get caught: registration guard, corpus-sweep rule, honest test names",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0123-test-registration-guard.md",
           "closed_on": "2026-08-05",
           "agent_minutes": null,
           "token_total": null,

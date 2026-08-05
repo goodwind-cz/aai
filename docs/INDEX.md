@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-05T18:12:40.139Z
+Generated: 2026-08-05T18:13:45.117Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -39,7 +39,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (281)
+## Done (282)
 
 | ID | Type | Path |
 |---|---|---|
@@ -164,6 +164,7 @@ _None._
 | CHANGE-0120 | issues | docs/issues/CHANGE-0120-cheap-ticks.md |
 | CHANGE-0121 | issues | docs/issues/CHANGE-0121-downstream-lane-seed.md |
 | CHANGE-0122 | issues | docs/issues/CHANGE-0122-strategy-scaled-evidence.md |
+| CHANGE-0123 | issues | docs/issues/CHANGE-0123-test-registration-guard.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -325,12 +326,11 @@ _None._
 | SPEC-0113 | specs | docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (2)
+## Drafts (1)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0113 | issues | docs/issues/CHANGE-0113-altitude-prompt-experiment.md |
-| test-registration-guard (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-test-registration-guard.md |
 
 ## Deferred (whole-doc) (0)
 

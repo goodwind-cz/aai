@@ -1,13 +1,15 @@
 ---
 id: test-registration-guard
-number: null
+number: 123
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
 links:
-  pr: []
-  commits: []
+  pr:
+    - 230
+  commits:
+    - 8f1b22c2ba729e4928b1adfb7f395d57def458cb
 ---
 
 # Change — tests that lie get caught: registration guard, corpus-sweep rule, honest test names
