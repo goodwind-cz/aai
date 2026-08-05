@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(orchestration): mechanical ticks stop respawning agents — confirm-by-script, scope edits without a re-plan, atomic freeze (CHANGE-0120) [L2]
+## [v2026.08.05] — feat(orchestration): mechanical ticks stop respawning agents — confirm-by-script, scope edits without a re-plan, atomic freeze (CHANGE-0120) [L2]
 
 - Live cost forensics on a one-line downstream fix found ~4 of 11 agent runs
   were process self-repair that needed no model judgment. Three deterministic
@@ -65,7 +65,7 @@ RFC-0001).
   stderr note instead of reporting a clean no-action — an unrecorded
   confirmation is invisible to the next tick and would repeat forever.
 
-## [unreleased] — feat(spec-lint): evidence requirements scale with the recorded strategy — direct rides stop paying TDD ceremony (CHANGE-0122) [L1]
+## [v2026.08.05] — feat(spec-lint): evidence requirements scale with the recorded strategy — direct rides stop paying TDD ceremony (CHANGE-0122) [L1]
 
 - A one-line downstream fix taken under the `direct` strategy still shipped a
   spec demanding a STORED pre-fix RED artifact; review refused without it and
@@ -85,7 +85,7 @@ RFC-0001).
   direct/untested among the allowed strategy values; PLANNING step 7 points
   at it in three lines.
 
-## [unreleased] — fix(install): the fast lane stops being structurally dead downstream — the guard config is seeded (CHANGE-0121) [L1]
+## [v2026.08.05] — fix(install): the fast lane stops being structurally dead downstream — the guard config is seeded (CHANGE-0121) [L1]
 
 - Live cost forensics found the lightweight lane's exact target ride (1-line
   fix, direct strategy) computing `LANE heavy` downstream for one reason:
