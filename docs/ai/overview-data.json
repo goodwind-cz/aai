@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-08-04T08:11:09.962Z",
+  "generatedAt": "2026-08-05T10:55:22.942Z",
   "project": "aai",
   "counts": {
-    "delivered": 163,
-    "in_progress": 2,
+    "delivered": 164,
+    "in_progress": 4,
     "releases": 1,
     "tokens_total": 23273206
   },
@@ -18,7 +18,7 @@
       "type": "intake_change",
       "phase": "validation"
     },
-    "strategy": "tdd",
+    "strategy": "direct",
     "worktree": {
       "recommendation": "recommended",
       "user_decision": "inline"
@@ -78,6 +78,32 @@
       "review": null
     },
     {
+      "ref": "cheap-ticks",
+      "title": "Change — mechanical ticks stop respawning agents: confirm-by-script, scope edits by orchestrator, atomic freeze",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0120-cheap-ticks.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "strategy-scaled-evidence",
+      "title": "Change — evidence requirements scale with the recorded strategy (direct rides stop paying TDD ceremony)",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0122-strategy-scaled-evidence.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -92,6 +118,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "downstream-lane-seed",
+      "title": "Change — fast lane stops being structurally dead downstream: seed the guard config",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0121-downstream-lane-seed.md",
+      "closed_on": "2026-08-05",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "docs-ai-canon",
       "title": "Change — docs/ai gets a canon registry: invented dirs are detected, not found by hand",
@@ -2218,6 +2257,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "downstream-lane-seed",
+          "title": "Change — fast lane stops being structurally dead downstream: seed the guard config",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0121-downstream-lane-seed.md",
+          "closed_on": "2026-08-05",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "docs-ai-canon",
           "title": "Change — docs/ai gets a canon registry: invented dirs are detected, not found by hand",

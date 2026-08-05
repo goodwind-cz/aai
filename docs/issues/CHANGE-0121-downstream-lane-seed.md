@@ -2,12 +2,14 @@
 id: downstream-lane-seed
 number: 121
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
 links:
-  pr: []
-  commits: []
+  pr:
+    - 227
+  commits:
+    - fa430c7d2b817c7f1de1dcac9b70ec370f63432c
 ---
 
 # Change — fast lane stops being structurally dead downstream: seed the guard config
