@@ -130,6 +130,13 @@ Status values: planned, implementing, done, deferred, blocked, rejected.
   ride (SPEC-0041 precedent) — recorded as a residual risk, not automatable
   here without a network CI round.
 
+  CAPTURED (2026-08-05, PR #225 — first live fast ride, docs-only intake
+  parking, 4 files, ceremony source=intake per CHANGE-0112): PR opened
+  10:22:38Z, merged 10:26:07Z — **3.5 minutes wall-clock** vs the measured
+  ~42+ min heavy floor (2 full CI rounds + 10-min sweep window). All four
+  predicates green; external sweep skipped per contract (re-armable);
+  internal dual-verdict review performed on the final diff.
+
 ## Test Plan
 
 | Test ID  | Spec-AC    | Type | File path                                   | Description                                                        | Status |
