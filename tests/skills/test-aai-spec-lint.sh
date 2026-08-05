@@ -851,6 +851,187 @@ test_specidshape_005_fixture_alignment_regression() {
   fi
 }
 
+# --- CHANGE-0122 strategy-scaled evidence (TEST-001..TEST-007) -----------------
+# Evidence requirements scale with the RECORDED implementation strategy: a spec
+# whose strategy is direct/untested but whose evidence-bearing sections demand a
+# STORED RED artifact / TDD-cycle evidence is a mismatch the planner must fix at
+# freeze (the ride that motivated CHANGE-0122 paid two extra agent runs for
+# evidence its own strategy never promised).
+
+# Spec body = clean body + a `## Verification` section DEMANDING a stored RED
+# artifact. Args: <strategy> — the literal `none` omits the `- Strategy:` line
+# and declares ceremony_level 1 (strategy is exempt there, so the fixture stays
+# otherwise clean and proves the fail-open path).
+red_demanding_body() {
+  local strategy="$1"
+  if [[ "$strategy" == "none" ]]; then
+    clean_spec_body \
+      | grep -v '^- Strategy: ' \
+      | awk '{print} /^status: implementing/{print "ceremony_level: 1"}' \
+      | awk '{print} /^SPEC-FROZEN: true/{print ""; print "Ceremony justification: single-surface fixture fix."}'
+  else
+    clean_spec_body | sed "s/^- Strategy: loop/- Strategy: $strategy/"
+  fi
+  cat <<'EOF'
+
+## Verification
+- Commands to run: bash tests/skills/test-x.sh
+- Evidence artifacts: a stored RED log under docs/ai/tdd/ is required for every
+  AC-gating test before its green run may count.
+EOF
+}
+
+# --- CHANGE-0122 TEST-001 — direct strategy + RED demand is a finding -----------
+test_stratev_001_direct_demanding_red() {
+  new_fixture_root
+  red_demanding_body direct > "$FIX/docs/specs/SPEC-DRAFT-direct-red.md"
+  local out rc ok=1 n
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-001(stratev)" || ok=0
+  n=$(echo "$out" | grep -c "\[strategy-evidence-mismatch\]")
+  [[ "$n" -ge 1 ]] || { log_info "TEST-001(stratev): no strategy-evidence-mismatch finding: $out"; ok=0; }
+  echo "$out" | grep -q "direct" || { log_info "TEST-001(stratev): recorded strategy not named"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-001(stratev) direct-strategy spec demanding a stored RED artifact is flagged" \
+    || log_fail "TEST-001(stratev) direct-strategy RED demand"
+}
+
+# --- CHANGE-0122 TEST-002 — the SAME text under tdd/hybrid is clean -------------
+test_stratev_002_tdd_hybrid_unchanged() {
+  local out rc ok=1 s
+  for s in tdd hybrid; do
+    new_fixture_root
+    red_demanding_body "$s" > "$FIX/docs/specs/SPEC-DRAFT-$s-red.md"
+    out="$(runlint "$FIX" 2>&1)"; rc=$?
+    expect_exit 0 "$rc" "TEST-002(stratev) $s" || ok=0
+    echo "$out" | grep -q "strategy-evidence-mismatch" \
+      && { log_info "TEST-002(stratev): $s strategy falsely flagged: $out"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-002(stratev) identical RED demand under tdd/hybrid stays clean" \
+    || log_fail "TEST-002(stratev) tdd/hybrid non-regression"
+}
+
+# --- CHANGE-0122 TEST-003 — untested fires; unknown strategy fails OPEN ---------
+test_stratev_003_untested_and_unknown() {
+  local out rc ok=1
+  new_fixture_root
+  red_demanding_body untested > "$FIX/docs/specs/SPEC-DRAFT-untested-red.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-003(stratev) untested" || ok=0
+  echo "$out" | grep -q "strategy-evidence-mismatch" \
+    || { log_info "TEST-003(stratev): untested not flagged: $out"; ok=0; }
+
+  # unknown strategy (no recorded value anywhere) -> NO finding, exit 0
+  new_fixture_root
+  red_demanding_body none > "$FIX/docs/specs/SPEC-DRAFT-nostrategy-red.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-003(stratev) unknown" || ok=0
+  echo "$out" | grep -q "strategy-evidence-mismatch" \
+    && { log_info "TEST-003(stratev): unknown strategy produced a finding (must fail open): $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-003(stratev) untested flagged; unknown strategy fails open" \
+    || log_fail "TEST-003(stratev) untested + fail-open"
+}
+
+# --- CHANGE-0122 TEST-004 — negative controls (no false findings) ---------------
+# (a) a direct spec that EXPLICITLY waives the stored RED artifact;
+# (b) a direct spec whose Implementation-strategy RATIONALE discusses RED-first
+#     TDD (the real SPEC-0110 shape — rationale prose is not a demand).
+test_stratev_004_negative_controls() {
+  local out rc ok=1
+  new_fixture_root
+  clean_spec_body | sed 's/^- Strategy: loop/- Strategy: direct/' \
+    > "$FIX/docs/specs/SPEC-DRAFT-direct-waived.md"
+  cat >> "$FIX/docs/specs/SPEC-DRAFT-direct-waived.md" <<'EOF'
+
+## Verification
+- Commands to run: bash tests/skills/test-x.sh
+- Evidence artifacts: targeted regression tests green plus the scoped diff. No
+  stored RED log is required on this direct ride.
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-004(stratev) waiver" || ok=0
+  echo "$out" | grep -q "strategy-evidence-mismatch" \
+    && { log_info "TEST-004(stratev): explicit waiver falsely flagged: $out"; ok=0; }
+
+  new_fixture_root
+  clean_spec_body \
+    | sed 's/^- Strategy: loop/- Strategy: direct/' \
+    | sed 's/^- Rationale: fixture/- Rationale: RED-first TDD ceremony would outweigh a one-line fix; a stored RED log proves nothing here./' \
+    > "$FIX/docs/specs/SPEC-DRAFT-direct-rationale.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-004(stratev) rationale" || ok=0
+  echo "$out" | grep -q "strategy-evidence-mismatch" \
+    && { log_info "TEST-004(stratev): strategy-rationale prose falsely flagged: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-004(stratev) negative controls (explicit waiver, rationale prose)" \
+    || log_fail "TEST-004(stratev) negative controls"
+}
+
+# --- CHANGE-0122 TEST-005 — --strategy supplies the value the spec omits --------
+# Orchestration/dispatch knows STATE's recorded strategy even when a lean spec
+# records none; the flag makes that value explicit and wins over the spec line.
+test_stratev_005_strategy_flag() {
+  local out rc ok=1
+  new_fixture_root
+  red_demanding_body none > "$FIX/docs/specs/SPEC-DRAFT-flag.md"
+  local p=docs/specs/SPEC-DRAFT-flag.md
+  out="$(runlint "$FIX" --path "$p" --strategy direct 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-005(stratev) flag direct" || ok=0
+  echo "$out" | grep -q "strategy-evidence-mismatch" \
+    || { log_info "TEST-005(stratev): --strategy direct did not supply the strategy: $out"; ok=0; }
+
+  out="$(runlint "$FIX" --path "$p" --strategy tdd 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-005(stratev) flag tdd" || ok=0
+  echo "$out" | grep -q "strategy-evidence-mismatch" \
+    && { log_info "TEST-005(stratev): --strategy tdd still flagged: $out"; ok=0; }
+
+  # the flag OUTRANKS the spec's own record (STATE is the authority the caller has)
+  new_fixture_root
+  red_demanding_body direct > "$FIX/docs/specs/SPEC-DRAFT-override.md"
+  out="$(runlint "$FIX" --path docs/specs/SPEC-DRAFT-override.md --strategy tdd 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-005(stratev) flag outranks body" || ok=0
+
+  runlint "$FIX" --path "$p" --strategy >/dev/null 2>&1; rc=$?
+  expect_exit 2 "$rc" "TEST-005(stratev) flag needs a value" || ok=0
+  runlint "$FIX" --path "$p" --strategy banana >/dev/null 2>&1; rc=$?
+  expect_exit 2 "$rc" "TEST-005(stratev) flag enum" || ok=0
+  # a corpus-wide scan must NOT accept a single ride's strategy
+  runlint "$FIX" --strategy direct >/dev/null 2>&1; rc=$?
+  expect_exit 2 "$rc" "TEST-005(stratev) flag requires --path" || ok=0
+  [[ $ok -eq 1 ]] && log_pass "TEST-005(stratev) --strategy override (supplies value, outranks body, enum-guarded, --path-scoped)" \
+    || log_fail "TEST-005(stratev) --strategy override"
+}
+
+# --- CHANGE-0122 TEST-006 — template + PLANNING carry the evidence contract -----
+test_stratev_006_template_and_prompt() {
+  local ok=1 tpl="$PROJECT_ROOT/.aai/templates/SPEC_TEMPLATE.md"
+  local plan="$PROJECT_ROOT/.aai/PLANNING.prompt.md"
+  grep -qi "Evidence by strategy" "$tpl" \
+    || { log_info "TEST-006(stratev): SPEC_TEMPLATE has no per-strategy evidence table heading"; ok=0; }
+  local s
+  for s in "tdd / hybrid" "direct" "untested"; do
+    grep -q "^| $s " "$tpl" \
+      || { log_info "TEST-006(stratev): SPEC_TEMPLATE evidence table has no '$s' row"; ok=0; }
+  done
+  grep -qi "^| direct .*no stored RED" "$tpl" \
+    || { log_info "TEST-006(stratev): direct row does not state NO stored RED artifact"; ok=0; }
+  grep -q "^| tdd / hybrid .*RED artifact" "$tpl" \
+    || { log_info "TEST-006(stratev): tdd/hybrid row does not keep the RED artifact requirement"; ok=0; }
+  grep -qi "evidence.*strategy\|strategy.*evidence" "$plan" \
+    || { log_info "TEST-006(stratev): PLANNING has no strategy-scaled evidence pointer"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-006(stratev) SPEC_TEMPLATE evidence table + PLANNING pointer" \
+    || log_fail "TEST-006(stratev) template + prompt wiring"
+}
+
+# --- CHANGE-0122 TEST-007 — real corpus: zero strategy-evidence-mismatch --------
+test_stratev_007_real_corpus() {
+  local out rc ok=1
+  out="$(runlint "$PROJECT_ROOT" 2>&1)"; rc=$?
+  [[ $rc -eq 2 ]] && { log_info "TEST-007(stratev): real-corpus scan errored: $out"; ok=0; }
+  echo "$out" | grep -q "strategy-evidence-mismatch" \
+    && { log_info "TEST-007(stratev): real corpus produced a strategy-evidence-mismatch: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-007(stratev) real corpus: zero strategy-evidence-mismatch findings" \
+    || log_fail "TEST-007(stratev) real corpus"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -877,6 +1058,13 @@ main() {
   test_specidshape_003_type_guard
   test_specidshape_004_real_corpus_loop
   test_specidshape_005_fixture_alignment_regression
+  test_stratev_001_direct_demanding_red
+  test_stratev_002_tdd_hybrid_unchanged
+  test_stratev_003_untested_and_unknown
+  test_stratev_004_negative_controls
+  test_stratev_005_strategy_flag
+  test_stratev_006_template_and_prompt
+  test_stratev_007_real_corpus
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

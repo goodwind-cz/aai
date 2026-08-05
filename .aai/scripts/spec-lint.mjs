@@ -15,6 +15,7 @@
 //   node .aai/scripts/spec-lint.mjs --path <p>   # exactly one file, any type
 //   node .aai/scripts/spec-lint.mjs --json       # machine-readable result
 //   node .aai/scripts/spec-lint.mjs --slug-handles  # CHANGE-0035 D6, see below
+//   node .aai/scripts/spec-lint.mjs --strategy <v>  # CHANGE-0122, see below
 //
 // Exit codes: 0 clean / 1 findings / 2 usage error or unreadable --path.
 // REPORT-ONLY: never writes any file, never emits events, never a hard gate
@@ -29,6 +30,26 @@
 // anywhere in the local tree -> WARN (the number was baked into an artifact
 // before it was confirmed reserved). Same report-only exit contract (0 clean
 // / 1 findings); never blocks.
+//
+// STRATEGY-SCALED EVIDENCE (CHANGE-0122): the evidence a spec may demand is a
+// function of its RECORDED implementation strategy (CHANGE-0100). A spec whose
+// strategy is `direct`/`untested` but whose evidence-bearing sections demand a
+// STORED RED artifact / TDD-cycle evidence is a `strategy-evidence-mismatch`
+// finding — the mismatch is cheap to fix at freeze and expensive at review
+// (the motivating ride paid two extra agent runs for evidence its own strategy
+// never promised). `tdd`/`hybrid` are byte-unchanged by this rule.
+//   Strategy source, in precedence order (spec-lint reads NO state file — it is
+//   pure over the document):
+//     1. `--strategy <loop|tdd|hybrid|direct|untested|undecided>` (with
+//        `--path`) — the caller (orchestration/dispatch, VALIDATION) passing
+//        STATE's recorded `implementation_strategy.selected`, which this tool
+//        cannot read;
+//     2. frontmatter `strategy:`, when a project records it there;
+//     3. the `- Strategy: <v>` body line SPEC_TEMPLATE writes under
+//        `## Implementation strategy` (already the source of truth for the
+//        frozen-without-strategy check).
+//   Anything else — absent, `undecided`, unrecognized — FAILS OPEN: the rule
+//   emits nothing rather than guessing.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -41,14 +62,18 @@ const ROOT = process.cwd();
 const CEREMONY_ENUM = ['0', '1', '2', '3'];
 const AC_ID_RE = /^Spec-AC-(\d{2})$/;
 const AC_RANGE_RE = /^Spec-AC-(\d{2})\.\.(\d{2})$/;
+const STRATEGY_ENUM = ['loop', 'tdd', 'hybrid', 'direct', 'untested', 'undecided'];
 
 function usage() {
   console.error(
-    'Usage: spec-lint [--path <file>] [--json] [--slug-handles]\n' +
+    'Usage: spec-lint [--path <file>] [--json] [--slug-handles] [--strategy <v>]\n' +
     '  Lints spec documents for intra-spec structure (report-only).\n' +
     '  Default scope: docs/specs/**/*.md with frontmatter type: spec.\n' +
     '  --slug-handles: separate opt-in scan (CHANGE-0035 D6) over session-\n' +
     '  artifact filenames for unconfirmed TYPE-NNN(N) handles.\n' +
+    `  --strategy: STATE's recorded implementation strategy (${STRATEGY_ENUM.join(' | ')})\n` +
+    '  for the strategy-scaled evidence rule; requires --path, and omitting it\n' +
+    '  reads the strategy from the spec itself.\n' +
     '  Exit: 0 clean | 1 findings | 2 usage error / unreadable --path.',
   );
 }
@@ -60,7 +85,7 @@ function fail(msg) {
 }
 
 function parseArgs(argv) {
-  const args = { path: null, json: false, slugHandles: false };
+  const args = { path: null, json: false, slugHandles: false, strategy: null };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--json') args.json = true;
@@ -68,8 +93,18 @@ function parseArgs(argv) {
     else if (tok === '--path') {
       args.path = argv[++i];
       if (args.path === undefined || args.path.startsWith('--')) fail('--path needs a value');
+    } else if (tok === '--strategy') {
+      const v = argv[++i];
+      if (v === undefined || v.startsWith('--')) fail('--strategy needs a value');
+      args.strategy = v.toLowerCase();
+      if (!STRATEGY_ENUM.includes(args.strategy)) {
+        fail(`--strategy "${v}" is not one of ${STRATEGY_ENUM.join(' | ')}`);
+      }
     } else fail(`unknown flag: ${tok}`);
   }
+  // --strategy names ONE ride's strategy; stamping it over a whole-corpus scan
+  // would mislabel every other spec, so it is only accepted with --path.
+  if (args.strategy && !args.path) fail('--strategy requires --path (it names one spec\'s recorded strategy)');
   return args;
 }
 
@@ -207,9 +242,110 @@ function expandAcRefs(cell) {
   return { ids, malformed };
 }
 
+// --- strategy-scaled evidence contract (CHANGE-0122) --------------------------
+
+// Strategies whose contract does NOT include a stored RED artifact.
+const LEAN_EVIDENCE_STRATEGIES = new Set(['direct', 'untested']);
+
+// Sections that state what evidence the spec DEMANDS. Deliberately excludes
+// `## Implementation strategy` (its Rationale legitimately argues ABOUT
+// RED-first TDD — SPEC-0110's real shape) and every narrative section.
+const EVIDENCE_SECTIONS = [
+  'acceptance criteria status',
+  'acceptance criteria mapping',
+  'test plan',
+  'verification',
+  'evidence contract',
+];
+
+// A demand for STORED RED / TDD-cycle evidence: the artifact nouns, the stored
+// RED log directory, and the RED-classification checker. Bare "RED phase" /
+// "red" status tokens are NOT demands (the template's own Test Plan legend says
+// "red: test written and verified failing" for every strategy).
+const RED_DEMAND_RE = /\bred[-_ ]?(?:logs?|artifacts?|proofs?|evidence)\b|\bdocs\/ai\/tdd\/|\btdd-evidence-check\b|\btdd[- ]cycle\s+evidence\b|\bred[- ]green[- ]refactor\b/i;
+
+// The same sentence WAIVING that evidence is the opposite of a demand.
+const RED_WAIVED_RE = /\b(?:no|not|never|without|waived?|waiver|exempt|optional|n\/a)\b[^\n]{0,80}?\b(?:red|tdd)\b|\b(?:red|tdd)\b[^\n]{0,80}?\b(?:not required|never required|no longer required|optional|waived|exempt|n\/a)\b/i;
+
+// Level-2 sections of `norm`, filtered to `titles` (lowercased, exact).
+// Returns [{ title, body, start }] where start is body's offset in norm.
+function sectionsByTitle(norm, titles) {
+  const out = [];
+  const re = /(?:^|\n)##\s+([^\n]+)\n([\s\S]*?)(?=\n##\s|$)/g;
+  let m;
+  while ((m = re.exec(norm))) {
+    if (!titles.includes(m[1].trim().toLowerCase())) continue;
+    out.push({ title: m[1].trim(), body: m[2], start: m.index + m[0].length - m[2].length });
+  }
+  return out;
+}
+
+// A per-strategy GUIDANCE row (first cell is only strategy tokens, e.g.
+// `| tdd / hybrid | RED artifact ... |`) states what EACH strategy owes — it is
+// never this spec's own demand, so the evidence table SPEC_TEMPLATE ships is
+// not self-flagging.
+function isStrategyGuidanceRow(text) {
+  if (!text.startsWith('|')) return false;
+  const first = (splitCells(text)[0] ?? '').trim().toLowerCase();
+  if (first === '') return false;
+  const tokens = first.split(/[\s/,+]+/).filter(Boolean);
+  return tokens.length > 0 && tokens.every((t) => STRATEGY_ENUM.includes(t));
+}
+
+// Split a section body into assertion units: each table row is its own unit,
+// each bullet/paragraph is joined across its wrapped lines and then split into
+// sentences, so a demand and a waiver never merge into one unit and a wrapped
+// demand never splits across two. Each unit carries its 1-based start line.
+function assertionUnits(body, start, norm) {
+  const units = [];
+  let para = [];
+  let paraOffset = 0;
+  let offset = 0;
+  const flush = () => {
+    if (!para.length) return;
+    const line = lineAt(norm, start + paraOffset);
+    const joined = para.join(' ').replace(/\s+/g, ' ').trim();
+    for (const s of joined.split(/(?<=[.;])\s+/)) {
+      if (s.trim()) units.push({ text: s.trim(), line });
+    }
+    para = [];
+  };
+  for (const raw of body.split('\n')) {
+    const t = raw.trim();
+    if (t === '' || t.startsWith('|') || /^[-*]\s/.test(t)) flush();
+    if (t === '') { /* separator only */ } else if (t.startsWith('|')) {
+      units.push({ text: t, line: lineAt(norm, start + offset) });
+    } else {
+      if (!para.length) paraOffset = offset;
+      para.push(t);
+    }
+    offset += raw.length + 1;
+  }
+  flush();
+  return units;
+}
+
+// Every unit in an evidence-bearing section that demands stored RED / TDD-cycle
+// evidence. Pure over the document. Returns [{ section, excerpt, line }].
+export function redEvidenceDemands(norm) {
+  const hits = [];
+  for (const sec of sectionsByTitle(norm, EVIDENCE_SECTIONS)) {
+    for (const unit of assertionUnits(sec.body, sec.start, norm)) {
+      if (isStrategyGuidanceRow(unit.text)) continue;
+      if (!RED_DEMAND_RE.test(unit.text)) continue;
+      if (RED_WAIVED_RE.test(unit.text)) continue;
+      const excerpt = unit.text.length > 90 ? `${unit.text.slice(0, 87)}...` : unit.text;
+      hits.push({ section: sec.title, excerpt, line: unit.line });
+    }
+  }
+  return hits;
+}
+
 // Lint one document's content. Pure: no filesystem, no git. Returns findings
 // [{ rule, detail, line }] — rel/id are attached by the caller.
-export function lintContent(content) {
+// opts.strategy: STATE's recorded implementation strategy when the CALLER knows
+// it (--strategy); it outranks the document's own record. See the header.
+export function lintContent(content, opts = {}) {
   const findings = [];
   const add = (rule, detail, line = null) => findings.push({ rule, detail, line });
   const norm = normalizeNewlines(content);
@@ -360,12 +496,22 @@ export function lintContent(content) {
   // (CHANGE l1-close-gate); L2+ require the canonical gate table. Reporting a
   // frozen-without-ac-table on an L1 lean spec that the gate passes CLEAN was
   // a real tool-disagreement (validation F1).
+  // The recorded strategy, caller-supplied value first (header precedence
+  // note). Read once: the frozen check below uses the DOCUMENT's own line
+  // (a caller's flag cannot make a spec self-consistent), the CHANGE-0122
+  // evidence rule uses the resolved value, and unknown/`undecided` stays null
+  // so the evidence rule fails open.
+  const bodyStrategy = norm.match(/^-\s*Strategy:\s*(\S+)/m);
+  const fmStrategy = fm.strategy === undefined || fm.strategy === null ? null : String(fm.strategy);
+  const declared = (opts.strategy ?? fmStrategy ?? (bodyStrategy ? bodyStrategy[1] : null));
+  const declaredLc = declared ? String(declared).toLowerCase() : null;
+  const strategy = STRATEGY_ENUM.includes(declaredLc) && declaredLc !== 'undecided' ? declaredLc : null;
+
   if (specFrozenInBody(norm)) {
     if (level >= 2) {
-      const strat = norm.match(/^-\s*Strategy:\s*(\S+)/m);
-      const strategy = strat ? strat[1].toLowerCase() : null;
-      if (!strategy || strategy === 'undecided') {
-        add('frozen-without-strategy', `SPEC-FROZEN is true but implementation strategy is ${strategy ? `"${strategy}"` : 'missing'}`);
+      const bodyLc = bodyStrategy ? bodyStrategy[1].toLowerCase() : null;
+      if (!bodyLc || bodyLc === 'undecided') {
+        add('frozen-without-strategy', `SPEC-FROZEN is true but implementation strategy is ${bodyLc ? `"${bodyLc}"` : 'missing'}`);
       }
     }
     if (level >= 2 && !ac.hasGate) {
@@ -378,10 +524,27 @@ export function lintContent(content) {
     }
   }
 
+  // --- strategy-scaled evidence contract (CHANGE-0122) ----------------------
+  // Only direct/untested can mismatch; tdd/hybrid and unknown emit nothing.
+  if (LEAN_EVIDENCE_STRATEGIES.has(strategy)) {
+    const demands = redEvidenceDemands(norm);
+    if (demands.length) {
+      const owed = strategy === 'direct'
+        ? 'targeted regression tests green + the scoped diff'
+        : 'the recorded strategy rationale + the scoped diff';
+      const more = demands.length > 1 ? ` (+${demands.length - 1} more)` : '';
+      add(
+        'strategy-evidence-mismatch',
+        `implementation strategy is "${strategy}" but "## ${demands[0].section}" demands stored RED / TDD-cycle evidence: "${demands[0].excerpt}"${more} — a ${strategy} ride owes ${owed}, not a stored RED artifact; scale the demand to the strategy or re-record the strategy (CHANGE-0122)`,
+        demands[0].line,
+      );
+    }
+  }
+
   return findings;
 }
 
-function lintFileAt(absPath, rel) {
+function lintFileAt(absPath, rel, opts = {}) {
   let content;
   try {
     content = fs.readFileSync(absPath, 'utf8');
@@ -390,7 +553,7 @@ function lintFileAt(absPath, rel) {
   }
   const fm = parseFrontmatter(normalizeNewlines(content));
   const id = fm?.id ?? null;
-  return { id, findings: lintContent(content).map((f) => ({ rel, id, ...f })) };
+  return { id, findings: lintContent(content, opts).map((f) => ({ rel, id, ...f })) };
 }
 
 function main() {
@@ -423,7 +586,7 @@ function main() {
   if (args.path) {
     const abs = path.isAbsolute(args.path) ? args.path : path.join(ROOT, args.path);
     if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) fail(`file not found or unreadable: "${args.path}"`);
-    const res = lintFileAt(abs, toPosix(path.relative(ROOT, abs)));
+    const res = lintFileAt(abs, toPosix(path.relative(ROOT, abs)), { strategy: args.strategy });
     if (!res) fail(`file not found or unreadable: "${args.path}"`);
     scanned = 1;
     findings.push(...res.findings);
@@ -440,6 +603,8 @@ function main() {
       const fm = parseFrontmatter(normalizeNewlines(content));
       if (String(fm?.type ?? '').toLowerCase() !== 'spec') { skipped += 1; continue; }
       scanned += 1;
+      // No opts: --strategy is --path-scoped (parseArgs enforces it), so a
+      // corpus scan always reads each spec's own recorded strategy.
       findings.push(...lintContent(content).map((f) => ({ rel, id: fm?.id ?? null, ...f })));
     }
   }

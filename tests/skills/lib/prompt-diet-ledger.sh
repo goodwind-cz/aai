@@ -121,6 +121,7 @@ JUSTIFIED_ADDITIONS+=( "189 lane-intake-ceremony SKILL_PR --intake fallback doc 
 # This entry retires exactly 12873 B so headroom lands back at 1530/2048 and
 # the TEST-012 pin moves 1305 -> -11568.
 JUSTIFIED_ADDITIONS+=( "-12873 prompt-diet-2-safe-wins RECLAIMED credit (NEGATIVE entry, CHANGE-DRAFT-prompt-diet-2-safe-wins): see the DIET RIDE 2 block above for the per-file breakdown and the surviving-home evidence; every deleted row was re-grepped against tests/**/*.sh, *.mjs and *.Tests.ps1 for pin coupling before the cut, and no pinned sentence was touched" )
+JUSTIFIED_ADDITIONS+=( "216 CHANGE-0122-strategy-scaled-evidence PLANNING.prompt.md step 7 pointer (write the spec's AC/Verification demands from the recorded strategy's row in SPEC_TEMPLATE '### Evidence by strategy'; direct/untested owe NO stored RED artifact, spec-lint flags the mismatch at freeze) — the evidence TABLE itself lives in .aai/templates/SPEC_TEMPLATE.md, outside TEST-010's live .aai/*.prompt.md glob and its extra accounting, so it carries no ledger cost; measured growth 216 B (11073 -> 11289), credited 1:1 so headroom stays unchanged at 1150 within the 2048 cap" )
 JUSTIFIED_GROWTH_BYTES=0
 for _entry in "${JUSTIFIED_ADDITIONS[@]}"; do
   JUSTIFIED_GROWTH_BYTES=$(( JUSTIFIED_GROWTH_BYTES + ${_entry%% *} ))

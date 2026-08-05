@@ -979,6 +979,31 @@ produces:
 ```
 (An empty/missing id is docs-audit's boundary, not this check's.)
 
+**The `strategy-evidence-mismatch` finding — evidence scales with the strategy
+(CHANGE-0122):** what a spec may DEMAND follows the implementation strategy it
+recorded. `tdd`/`hybrid` owe a stored RED artifact plus the full matrix
+(unchanged); `direct` owes targeted regression tests green plus the scoped
+diff — **no stored RED artifact**; `untested` owes the recorded rationale plus
+the scoped diff. When a `direct`/`untested` spec's evidence-bearing sections
+(AC Status, AC Mapping, Test Plan, Verification, Evidence contract) still
+demand a RED log/artifact/proof, a `docs/ai/tdd/` path, `tdd-evidence-check`,
+or a TDD cycle, spec-lint says so at freeze instead of review discovering it
+three agents later:
+```
+[strategy-evidence-mismatch] implementation strategy is "direct" but
+  "## Verification" demands stored RED / TDD-cycle evidence: "..." — a direct
+  ride owes targeted regression tests green + the scoped diff, not a stored
+  RED artifact
+```
+The strategy is read from the spec's own `- Strategy:` line (or frontmatter
+`strategy:`); a caller that knows STATE's value can pass it explicitly:
+```bash
+node .aai/scripts/spec-lint.mjs --path <spec> --strategy direct
+```
+Per-strategy guidance rows (the `### Evidence by strategy` table
+SPEC_TEMPLATE ships) and sentences that explicitly waive the artifact never
+fire it, and an unknown or `undecided` strategy fails **open** — no finding.
+
 ---
 
 #### `/aai-docs-canon`

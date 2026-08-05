@@ -413,6 +413,11 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# -11352 (true-up: CHANGE-0122-strategy-scaled-evidence added a +216 B itemized
+# entry for the PLANNING step 7 evidence-by-strategy pointer, 11073 -> 11289;
+# the per-strategy evidence TABLE lives in .aai/templates/SPEC_TEMPLATE.md,
+# outside the live glob and the extra accounting, so it carries no ledger cost;
+# credited 1:1 so headroom stays 1150/2048, over the prior
 # -11568 (true-up: prompt-diet-2-safe-wins appended a -12873 B NEGATIVE
 # RECLAIMED entry executing the zero-pin "safe immediate wins" rows of
 # docs/analysis/unhobbling-audit.md — SKILL_WORKTREE -6019, VALIDATION -2098,
@@ -512,15 +517,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -11568 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -11568)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -11352 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -11352)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -11568 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -11352 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
