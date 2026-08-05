@@ -90,6 +90,9 @@ PROCESS
      mechanical implementation where RED-GREEN-REFACTOR adds little signal.
    - `hybrid` when some TEST-xxx entries deserve TDD and others are simple wiring.
    - Never leave `undecided` on a frozen spec.
+   - Write the spec's AC/Verification demands from the recorded value's row in
+     SPEC_TEMPLATE `### Evidence by strategy`: direct/untested owe NO stored RED
+     artifact (spec-lint flags the mismatch at freeze).
 8) Recommend worktree isolation in the spec:
    - `required` for protected AAI workflow/state/schema changes, irreversible
      migrations, risky cross-cutting refactors, or changes likely to destabilize

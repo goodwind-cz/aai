@@ -11,6 +11,26 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(spec-lint): evidence requirements scale with the recorded strategy — direct rides stop paying TDD ceremony (CHANGE-0122) [L1]
+
+- A one-line downstream fix taken under the `direct` strategy still shipped a
+  spec demanding a STORED pre-fix RED artifact; review refused without it and
+  the ride paid two extra agent runs for evidence its own strategy never
+  promised. spec-lint now emits `strategy-evidence-mismatch` when a
+  direct/untested spec's evidence-bearing sections (AC Status, AC Mapping,
+  Test Plan, Verification, Evidence contract) demand a stored RED artifact or
+  TDD-cycle evidence. tdd/hybrid are byte-unchanged, per-strategy guidance
+  rows and explicit waivers never fire, and an unknown or `undecided`
+  strategy fails OPEN. The strategy is read from the document itself (the
+  `- Strategy:` line SPEC_TEMPLATE writes) or supplied by a caller that knows
+  STATE's value via the new enum-guarded `--strategy <v>` flag.
+- SPEC_TEMPLATE gains an `### Evidence by strategy` table (tdd/hybrid: RED
+  artifact + full matrix; loop: green runs, storage optional; direct:
+  targeted regression green + scoped diff, no stored RED, no matrix beyond
+  declared versions; untested: rationale + scoped diff) and lists
+  direct/untested among the allowed strategy values; PLANNING step 7 points
+  at it in three lines.
+
 ## [unreleased] — fix(install): the fast lane stops being structurally dead downstream — the guard config is seeded (CHANGE-0121) [L1]
 
 - Live cost forensics found the lightweight lane's exact target ride (1-line

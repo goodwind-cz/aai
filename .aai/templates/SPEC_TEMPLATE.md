@@ -60,7 +60,12 @@ Allowed strategy values:
 - loop: implementation agent covers all TEST-xxx entries in one focused pass
 - tdd: RED-GREEN-REFACTOR is required per TEST-xxx
 - hybrid: TDD for risky/core behavior, loop implementation for low-risk glue or docs
+- direct: direct implementation plus targeted regression tests, no RED-first ceremony
+- untested: direct implementation with NO tests; allowed only with a recorded rationale
 - undecided: planning is incomplete and implementation must not start
+
+The recorded value also fixes the evidence contract — see `### Evidence by
+strategy` under `## Evidence contract` below.
 
 ## Isolation and review
 - Worktree recommendation: not_needed
@@ -196,6 +201,20 @@ For each implementation, validation, TDD, and code review artifact, record:
 - exit code or review verdict
 - evidence path
 - commit SHA or diff range when available
+
+### Evidence by strategy
+
+What this spec may DEMAND scales with the `## Implementation strategy` value
+recorded above (CHANGE-0122). Write the AC / Verification text from the row
+that matches; spec-lint emits `strategy-evidence-mismatch` when a
+`direct`/`untested` spec still demands a stored RED artifact.
+
+| Strategy     | Evidence this spec may demand                                   |
+|--------------|-----------------------------------------------------------------|
+| tdd / hybrid | stored RED artifact per AC-gating test (docs/ai/tdd/) plus the full verification matrix — unchanged |
+| loop         | per-TEST-xxx green runs; RED-proof observed, storage optional    |
+| direct       | targeted regression tests green (exit codes) plus the scoped diff — NO stored RED artifact, NO matrix beyond the declared versions |
+| untested     | the recorded strategy rationale plus the scoped diff — no test suites demanded for the scope itself |
 
 Notes:
 This document defines HOW, not WHAT/WHY.
