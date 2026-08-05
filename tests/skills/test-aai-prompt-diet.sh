@@ -413,7 +413,7 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# -10463 (true-up: CHANGE-0120-cheap-ticks added an +889 B itemized entry for
+# -10449 (true-up: CHANGE-0120-cheap-ticks added an +889 B itemized entry for
 # the three deterministic-tick wirings — ORCHESTRATION --confirm + the rule-9x
 # advance exception (+186, file held at 40 lines), PLANNING step 10 routed
 # through spec-freeze.mjs (+237), ORCHESTRATION_PARALLEL's spec-scope-edit.mjs

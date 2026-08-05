@@ -107,7 +107,7 @@ new_repo() {
   mkdir -p "$REPO/docs/specs" "$REPO/docs/ai" "$REPO/src"
   (
     cd "$REPO" || exit 1
-    git init -q -b main .
+    git -c init.defaultBranch=main init -q .
     git config user.email "fixture@example.com"
     git config user.name "fixture"
     echo "baseline" > src/touched.mjs
@@ -617,7 +617,7 @@ test_012_scope_nonascii_refusal() {
   # re-validation R1: git C-quoting must not launder a non-ASCII ride-touched path
   log_info "TEST-012(scope): non-ASCII ride-touched path refused (quotePath laundering)..."
   local d; d="$(mktemp -d "${TMPDIR:-/tmp}/st12.XXXXXX")"
-  ( cd "$d" && git init -q -b main .     && printf -- '---\nid: s\n---\n# S\n\n- Inline review scope (explicit paths): p\xc5\x99\xc3\xadloha.js, other.txt\n' > SPEC-0001-spec-s.md     && printf x > "příloha.js" && printf y > other.txt     && git add -A && git -c user.email=t@t -c user.name=t commit -qm base     && printf xx > "příloha.js" && git add "příloha.js"     && git -c user.email=t@t -c user.name=t commit -qm touch )
+  ( cd "$d" && git -c init.defaultBranch=main init -q .     && printf -- '---\nid: s\n---\n# S\n\n- Inline review scope (explicit paths): p\xc5\x99\xc3\xadloha.js, other.txt\n' > SPEC-0001-spec-s.md     && printf x > "příloha.js" && printf y > other.txt     && git add -A && git -c user.email=t@t -c user.name=t commit -qm base     && printf xx > "příloha.js" && git add "příloha.js"     && git -c user.email=t@t -c user.name=t commit -qm touch )
   local out rc=0
   out="$(cd "$d" && node "$SCOPE_EDIT" --spec SPEC-0001-spec-s.md --exclude 'příloha.js' --base-ref HEAD~1 2>&1)" || rc=$?
   [[ "$rc" -eq 3 ]] || log_fail "TEST-012(scope): non-ASCII touched path must exit 3 (got $rc): $out"
@@ -631,7 +631,7 @@ test_013_scope_backtick_annotation_key() {
   # a stray backtick and reopened the silent-no-op class on 13 corpus specs.
   log_info "TEST-013(scope): backticked entry WITH trailing annotation is matchable..."
   local d; d="$(mktemp -d "${TMPDIR:-/tmp}/st13.XXXXXX")"
-  ( cd "$d" && git init -q -b main .     && printf -- '---\nid: s\n---\n# S\n\n- Inline review scope (explicit paths): `src/lib.mjs` (new), `other.sh`\n' > SPEC-0001-spec-s.md     && printf x > other.sh && mkdir -p src && printf y > src/lib.mjs     && git add -A && git -c user.email=t@t -c user.name=t commit -qm base )
+  ( cd "$d" && git -c init.defaultBranch=main init -q .     && printf -- '---\nid: s\n---\n# S\n\n- Inline review scope (explicit paths): `src/lib.mjs` (new), `other.sh`\n' > SPEC-0001-spec-s.md     && printf x > other.sh && mkdir -p src && printf y > src/lib.mjs     && git add -A && git -c user.email=t@t -c user.name=t commit -qm base )
   local out rc=0
   out="$(cd "$d" && node "$SCOPE_EDIT" --spec SPEC-0001-spec-s.md --exclude src/lib.mjs --base-ref HEAD 2>&1)" || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "TEST-013(scope): exclude of a backtick+annotation entry must succeed (got $rc): $out"
