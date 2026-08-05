@@ -137,12 +137,14 @@ test_template_and_parity() {
 # ── CHANGE-0121 — docs/ai/docs-audit.yaml seed (fast lane reachable downstream) ─
 
 # extract_l3 <yaml> — the protected_paths_l3 block items, one per line, in
-# order. Deliberately a thin column-0 scan (same discipline as the
-# guard-config reader): the block ends at the next column-0 key.
+# order. Termination matches the PRODUCTION readers (select-suites.mjs et al —
+# bot review): the block ends at the FIRST line that is neither a list item
+# nor blank/comment, not merely at the next column-0 key — so the drift guard
+# (TEST-006) reads the file the same way production does.
 extract_l3() {
   awk '
     /^protected_paths_l3:[[:space:]]*$/ { f = 1; next }
-    f && /^[A-Za-z_]/                   { f = 0 }
+    f && !/^[[:space:]]*-[[:space:]]/ && !/^[[:space:]]*(#|$)/ { f = 0 }
     f && /^[[:space:]]*-[[:space:]]/    { sub(/^[[:space:]]*-[[:space:]]*/, ""); sub(/[[:space:]]+$/, ""); print }
   ' "$1"
 }
