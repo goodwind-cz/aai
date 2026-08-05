@@ -330,8 +330,18 @@ function assertionUnits(body, start, norm) {
 export function redEvidenceDemands(norm) {
   const hits = [];
   for (const sec of sectionsByTitle(norm, EVIDENCE_SECTIONS)) {
-    for (const unit of assertionUnits(sec.body, sec.start, norm)) {
+    // The template's own "### Evidence by strategy" subsection is per-strategy
+    // GUIDANCE by definition (it describes what tdd owes so it necessarily
+    // names RED artifacts) — a direct spec derived from SPEC_TEMPLATE was
+    // self-flagging on it (bot P2). Strip that subsection before scanning:
+    // from its ### heading to the next heading of any level.
+    const body = sec.body.replace(
+      /^###\s+Evidence by strategy[^\n]*\n[\s\S]*?(?=^#{1,4}\s|(?![\s\S]))/m, '');
+    for (const unit of assertionUnits(body, sec.start, norm)) {
       if (isStrategyGuidanceRow(unit.text)) continue;
+      // Self-reference: a sentence ABOUT the lint rule is documentation,
+      // not a demand.
+      if (unit.text.includes('strategy-evidence-mismatch')) continue;
       if (!RED_DEMAND_RE.test(unit.text)) continue;
       if (RED_WAIVED_RE.test(unit.text)) continue;
       const excerpt = unit.text.length > 90 ? `${unit.text.slice(0, 87)}...` : unit.text;

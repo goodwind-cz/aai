@@ -1032,6 +1032,22 @@ test_stratev_007_real_corpus() {
     || log_fail "TEST-007(stratev) real corpus"
 }
 
+test_stratev_template_no_selfflag() {
+  # bot P2 (#228): a direct spec derived from SPEC_TEMPLATE must NOT self-flag
+  # on the template's own "### Evidence by strategy" guidance or on sentences
+  # documenting the rule itself.
+  log_info "TEST-008(stratev): template-derived direct spec lints clean..."
+  local d; d="$(mktemp -d "${TMPDIR:-/tmp}/sl-t8.XXXXXX")"
+  cp "$PROJECT_ROOT/.aai/templates/SPEC_TEMPLATE.md" "$d/SPEC-0001-spec-t8.md"
+  perl -0pi -e 's/^- Strategy: .*/- Strategy: direct/m' "$d/SPEC-0001-spec-t8.md" 2>/dev/null     || sed -i.bak -E 's/^- Strategy: .*/- Strategy: direct/' "$d/SPEC-0001-spec-t8.md"
+  local out; out="$(node "$SPEC_LINT" --path "$d/SPEC-0001-spec-t8.md" 2>&1)" || true
+  if printf '%s' "$out" | grep -q 'strategy-evidence-mismatch'; then
+    log_fail "TEST-008(stratev): template guidance self-flagged: $out"
+  fi
+  rm -rf "$d"
+  log_pass "TEST-008(stratev): template-derived direct spec clean"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -1065,6 +1081,7 @@ main() {
   test_stratev_005_strategy_flag
   test_stratev_006_template_and_prompt
   test_stratev_007_real_corpus
+  test_stratev_template_no_selfflag
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then
