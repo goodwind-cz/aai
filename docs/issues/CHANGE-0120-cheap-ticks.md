@@ -143,3 +143,18 @@ links:
   child per path, so the shared note stays with the LAST path only. No path is
   ever lost (verified across all 114 corpus specs), and this only happens on an
   actual edit — but the prose of such a shared annotation can degrade.
+
+## Post-validation disclosures (re-validation round)
+- R1 (FIXED): git's default core.quotePath C-quoted non-ASCII paths, letting a
+  ride-touched file slip past the scope-edit refusal; all four git probes now
+  run with -c core.quotePath=false (TEST-012 scope, non-ASCII fixture).
+- R3 (FIXED): the confirm hash now covers each test's Type and File-path
+  columns — a re-plan retargeting a test dispatches (TEST-037c). Test STATUS
+  remains excluded by design.
+- R2 (DISCLOSED, not fixed): 9 legacy specs carry prose/space-separated scope
+  bullets that parse as one blob; --exclude there reports a no-op success
+  instead of refusing (the exit-4 refusal fires only on zero parsable items).
+  Legacy prose shapes; fixing means guessing intent — out of scope.
+- R4 (DISCLOSED, latent, zero corpus reach): a spec with no real H1 whose
+  first `# ` line sits inside a fenced code block would receive the freeze
+  marker inside the fence; no such spec exists (verified across 114).

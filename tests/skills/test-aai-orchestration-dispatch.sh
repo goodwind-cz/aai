@@ -2316,7 +2316,19 @@ test_037_confirm_delta_control() {
   local n
   n="$(grep -c '"event":"phase_confirmed"' "$d/docs/ai/EVENTS.jsonl" || true)"
   [[ "$n" == 1 ]] || log_fail "a dispatching tick must not record a confirmation (got $n)"
-  log_pass "delta control: prose-only re-plan confirms; a real AC delta dispatches 9a and records nothing (CHANGE-0120 TEST-037)"
+  # (c) R3: retargeting a test's FILE PATH (AC mapping unchanged) is a delta.
+  local d2
+  d2="$(mk_root t37c)"
+  write_ac_spec "$d2/docs/specs/SPEC-0001-fx.md" done
+  write_dstate "$d2/docs/ai/STATE.yaml" not_run not_run planning done tdd optional inline CHANGE-0001
+  append_impl_run "$d2/docs/ai/STATE.yaml" CHANGE-0001
+  run_dispatch "$d2" --confirm
+  [[ "$EC" == 3 ]] || log_fail "(c) baseline confirm must exit 3 (got $EC)"
+  sed -i.bak 's#tests/b.sh#tests/ENTIRELY-OTHER.sh#' "$d2/docs/specs/SPEC-0001-fx.md" && rm -f "$d2/docs/specs/SPEC-0001-fx.md.bak"
+  run_dispatch "$d2" --confirm
+  [[ "$EC" == 0 ]] || log_fail "(c) a test file-path retarget must dispatch (re-validation R3; got $EC): $(cat "$OUT")"
+  jassert "$OUT" 'o.verdict === "dispatch"'
+  log_pass "delta control: prose-only re-plan confirms; AC delta AND test file-retarget dispatch 9a (CHANGE-0120 TEST-037)"
 }
 
 test_038_confirm_record_failure_falls_back() {

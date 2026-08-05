@@ -697,7 +697,10 @@ export function parseTestPlanTable(content) {
     if (!line.trim().startsWith('|')) continue;
     const cells = splitTableCells(line);
     if (!cells.length || !/^TEST-\d+$/.test(cells[0])) continue;
-    rows.push({ testId: cells[0], acCell: cells[1] ?? '', line: lineNo });
+    // typeCell/fileCell: template columns 3-4 (Type, File path). Captured for
+    // the confirm hash (re-validation R3: a re-plan retargeting a test's file
+    // or type must count as a delta); absent columns hash as ''.
+    rows.push({ testId: cells[0], acCell: cells[1] ?? '', typeCell: cells[2] ?? '', fileCell: cells[3] ?? '', line: lineNo });
   }
   return { present: true, rows };
 }
@@ -727,8 +730,12 @@ export function specContentHash(content) {
   for (const r of [...acRows].sort((a, b) => String(a['Spec-AC']).localeCompare(String(b['Spec-AC'])))) {
     parts.push(`ac\t${r['Spec-AC']}\t${normalizeAcStatus(r['Status'] ?? '').status}`);
   }
+  // Hash covers AC-mapping + Type + File path (R3). Test STATUS stays
+  // excluded BY DESIGN: status is updated by RUNNING tests, not by a re-plan,
+  // and hashing it would force a dispatch after every legitimate green flip.
   for (const r of [...tp.rows].sort((a, b) => a.testId.localeCompare(b.testId))) {
-    parts.push(`test\t${r.testId}\t${String(r.acCell).replace(/\s+/g, ' ').trim()}`);
+    const c = (v) => String(v).replace(/\s+/g, ' ').trim();
+    parts.push(`test\t${r.testId}\t${c(r.acCell)}\t${c(r.typeCell)}\t${c(r.fileCell)}`);
   }
   return createHash('sha256').update(parts.join('\n')).digest('hex');
 }

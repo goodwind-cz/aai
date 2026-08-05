@@ -613,6 +613,19 @@ EOF
     || log_fail "TEST-011(scope) nested/backticked shapes"
 }
 
+test_012_scope_nonascii_refusal() {
+  # re-validation R1: git C-quoting must not launder a non-ASCII ride-touched path
+  log_info "TEST-012(scope): non-ASCII ride-touched path refused (quotePath laundering)..."
+  local d; d="$(mktemp -d "${TMPDIR:-/tmp}/st12.XXXXXX")"
+  ( cd "$d" && git init -q -b main .     && printf -- '---\nid: s\n---\n# S\n\n- Inline review scope (explicit paths): p\xc5\x99\xc3\xadloha.js, other.txt\n' > SPEC-0001-spec-s.md     && printf x > "příloha.js" && printf y > other.txt     && git add -A && git -c user.email=t@t -c user.name=t commit -qm base     && printf xx > "příloha.js" && git add "příloha.js"     && git -c user.email=t@t -c user.name=t commit -qm touch )
+  local out rc=0
+  out="$(cd "$d" && node "$SCOPE_EDIT" --spec SPEC-0001-spec-s.md --exclude 'příloha.js' --base-ref HEAD~1 2>&1)" || rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "TEST-012(scope): non-ASCII touched path must exit 3 (got $rc): $out"
+  grep -qF 'příloha.js, other.txt' "$d/SPEC-0001-spec-s.md"     || log_fail "TEST-012(scope): spec must be unmodified after the refusal"
+  rm -rf "$d"
+  log_pass "TEST-012(scope): quotePath laundering closed (exit 3, spec untouched)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps

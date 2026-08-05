@@ -119,7 +119,12 @@ function parseArgs(argv) {
 // git invocation failing makes the WHOLE probe fail: a partial diff would
 // under-report and turn a refusal into a permitted edit.
 export function rideDiffPaths(baseRef, cwd = ROOT) {
-  const run = (argv) => execFileSync('git', argv, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  // -c core.quotePath=false on EVERY probe: with git's default quoting a
+  // non-ASCII path comes back C-quoted ("p\305\231..."), never matches the
+  // normalized target, and a ride-touched file slips past the exit-3 gate
+  // (re-validation finding R1 — the exact laundering class this tool exists
+  // to refuse).
+  const run = (argv) => execFileSync('git', ['-c', 'core.quotePath=false', ...argv], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   const out = new Set();
   try {
     // Fail fast on an unusable base ref rather than letting `git diff` fall
