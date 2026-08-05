@@ -11,6 +11,25 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(install): the fast lane stops being structurally dead downstream — the guard config is seeded (CHANGE-0121) [L1]
+
+- Live cost forensics found the lightweight lane's exact target ride (1-line
+  fix, direct strategy) computing `LANE heavy` downstream for one reason:
+  `docs/ai/docs-audit.yaml` does not exist in target projects, so lane-gate
+  fails closed on `protected_config_missing`. No downstream project could
+  ever ride fast until someone hand-wrote the config.
+- aai-sync (.sh + .ps1) now seeds a minimal `docs/ai/docs-audit.yaml` from a
+  new vendored `.aai/templates/docs-audit.template.yaml` when — and only
+  when — the file is missing, alongside the existing update-config and
+  TECHNOLOGY seeds. An existing file is never overwritten (byte-identical
+  across a re-sync) and the seed prints one operator-facing note.
+- The seeded `protected_paths_l3` is the canonical vendored set, not a hand
+  copy: test-aai-sync-seed TEST-006 pins the template's list to the AAI
+  repo's own docs-audit.yaml, so editing one without the other turns the
+  suite RED. Dials ship report-only (adoption never starts blocking commits
+  or closes) and `docs_ai_canon_extra: []`. Fail-closed semantics are
+  untouched — the config simply exists now.
+
 ## [v2026.08.04] — feat(docs-audit): docs/ai gets a canon registry — invented dirs are detected, not found by hand (CHANGE-0119) [L1]
 
 - Downstream agents invented two ad-hoc dirs under docs/ai/ in two days
