@@ -851,12 +851,12 @@ test_082_dispatch_refs_name_contract() {  # spec-subagent-protocol-slim TEST-003
 }
 
 test_093_test_registration() {  # CHANGE test-registration-guard
-  log_info "test_093: every defined test_* function in every suite is actually invoked..."
+  log_info "test_093: every defined test_* function in every suite is referenced beyond its definition (registered)..."
   local out rc=0
   out="$(node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" 2>&1)" || rc=$?
   if [[ "$rc" -ne 0 ]]; then
     printf '%s\n' "$out" | head -10
-    log_fail "test_093: orphan (defined-but-never-invoked) test function(s) — a green suite with an unwired pin is not coverage (the #229 class)"
+    log_fail "test_093: orphan (defined-but-unreferenced) test function(s) — a green suite with an unwired pin is not coverage (the #229 class)"
     return 1
   fi
   log_pass "test_093: no orphan test functions"
