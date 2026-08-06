@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(planning): CHANGE-0113's D2 gate closes with five behavioral probes, and the altitude PLANNING prompt is adopted (CHANGE-DRAFT-adopt-v2-planning) [L2]
+## [unreleased] — feat(planning): CHANGE-0113's D2 gate closes with five behavioral probes, and the altitude PLANNING prompt is adopted (CHANGE-0125-adopt-v2-planning) [L2]
 
 - The altitude experiment's pre-registered decision rule had three of four
   conditions satisfied on 2026-08-05 (D1 quality non-regression: V2 beat the

@@ -1,13 +1,15 @@
 ---
 id: adopt-v2-planning
-number: null
+number: 125
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 2
 links:
-  pr: []
-  commits: []
+  pr:
+    - 232
+  commits:
+    - 34c5db525a8e8835ec2231b453b9443215ef989b
 ---
 
 # Change — close CHANGE-0113's D2 gate with five behavioral probes, then adopt the altitude PLANNING prompt

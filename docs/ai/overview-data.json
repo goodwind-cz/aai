@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-06T09:39:47.258Z",
+  "generatedAt": "2026-08-06T15:15:54.417Z",
   "project": "aai",
   "counts": {
-    "delivered": 168,
+    "delivered": 169,
     "in_progress": 2,
     "releases": 1,
     "tokens_total": 23273206
@@ -98,6 +98,19 @@
       "type": "change",
       "status": "done",
       "path": "docs/issues/CHANGE-0124-state-flake-rootcause.md",
+      "closed_on": "2026-08-06",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "adopt-v2-planning",
+      "title": "Change — close CHANGE-0113's D2 gate with five behavioral probes, then adopt the altitude PLANNING prompt",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0125-adopt-v2-planning.md",
       "closed_on": "2026-08-06",
       "agent_minutes": null,
       "token_total": null,
@@ -2289,6 +2302,19 @@
           "type": "change",
           "status": "done",
           "path": "docs/issues/CHANGE-0124-state-flake-rootcause.md",
+          "closed_on": "2026-08-06",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "adopt-v2-planning",
+          "title": "Change — close CHANGE-0113's D2 gate with five behavioral probes, then adopt the altitude PLANNING prompt",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0125-adopt-v2-planning.md",
           "closed_on": "2026-08-06",
           "agent_minutes": null,
           "token_total": null,
