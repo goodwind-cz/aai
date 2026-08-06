@@ -834,7 +834,7 @@ status: draft
 SPEC
   local before after rc=0 out
   before="$(cksum "$d/SPEC-0001-spec-x.md")"
-  out="$(node "$SPEC_FREEZE" --path "$d/SPEC-0001-spec-x.md" --no-event 2>&1)" || rc=$?
+  out="$(node "$FREEZE" --path "$d/SPEC-0001-spec-x.md" --no-event 2>&1)" || rc=$?
   [[ "$rc" -eq 3 ]] || log_fail "TEST-024(freeze): must refuse exit 3 (got $rc): $out"
   printf '%s' "$out" | grep -q 'ac-row-unparsed' || log_fail "TEST-024(freeze): reason must name ac-row-unparsed: $out"
   after="$(cksum "$d/SPEC-0001-spec-x.md")"

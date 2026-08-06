@@ -65,7 +65,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { normalizeNewlines, parseFrontmatter, parseAcTable } from './lib/docs-model.mjs';
+import { normalizeNewlines, parseFrontmatter, parseAcTable, parseLeanAcTable } from './lib/docs-model.mjs';
 import { lintContent } from './spec-lint.mjs';
 
 const ROOT = process.cwd();
@@ -226,8 +226,12 @@ export function freezePreconditions(frozenContent) {
   // rule ever saw. Any line that LOOKS like an AC row but did not parse is a
   // refusal of its own.
   const norm = normalizeNewlines(frozenContent);
-  const rawAcLines = norm.split('\n').filter((l) => /^\|\s*Spec-AC-\d/.test(l.trim().startsWith('|') ? l.trim() : '')).length;
-  const parsedAc = parseAcTable(norm).rows.length;
+  const rawAcLines = norm.split('\n').filter((l) => /^\|\s*Spec-AC-\d/.test(l.trim())).length;
+  // A lean L1 table's rows also LOOK like AC rows — count whichever parser
+  // actually owns this document (gate wins when present, else lean), so a
+  // fully-parsed lean spec is not falsely refused (TEST-022 control).
+  const gate = parseAcTable(norm);
+  const parsedAc = gate.hasGate ? gate.rows.length : parseLeanAcTable(norm).rows.length;
   if (rawAcLines > parsedAc) {
     hits.push({ rule: 'ac-row-unparsed', detail: `${rawAcLines - parsedAc} AC-looking table row(s) were dropped by the parser (malformed cells?) — an unparsed AC cannot be checked, so it cannot be frozen` });
   }
