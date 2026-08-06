@@ -2605,9 +2605,41 @@ test_063_rguard_marker_absent_bytewise() {  # r-guard TEST-RG-STATE-02 / Spec-AC
       set-strategy --selected tdd --source docs/specs/SPEC-0001-fx.md > "$TEST_DIR/t63-other.log" 2>&1 ) \
     || log_fail "Spec-AC-02: AAI_ROLE=orchestrator set-strategy must exit 0: $(cat "$TEST_DIR/t63-other.log")"
 
-  cmp -s "$base" "$other" || log_fail "Spec-AC-02: AAI_ROLE!=subagent must produce a byte-identical write to the no-marker baseline"
+  # The two writes come from two SEPARATE state.mjs invocations, and every
+  # mutator self-stamps `updated_at_utc` from the wall clock at 1s resolution
+  # (lib/state-engine.mjs nowIso() -> bumpUpdatedAt). When the pair straddles a
+  # second boundary the stamps legitimately differ by one digit — that is the
+  # mutator working as designed, NOT an AAI_ROLE effect, and it made a raw
+  # `cmp` flaky (~1/30 locally, far worse under CI load, where the second cold
+  # `node` start is pushed across the boundary). Normalize exactly that one
+  # volatile field and nothing else, so any real marker-induced byte
+  # difference still fails. Elsewhere the suite EXCLUDES the line for
+  # cross-invocation comparisons (SPEC-0014 TEST-005/006, ISSUE-0007
+  # TEST-003); normalizing in place is strictly stronger — the line's presence
+  # and position stay under comparison, and sed rewrites ONLY a
+  # well-formed stamp, so a malformed/missing one still surfaces in the diff,
+  # and the assertions below independently prove both runs really bumped it
+  # (the normalization therefore cannot mask a suppressed-bump regression).
+  local stamp_re='^(updated_at_utc: )[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+  sed -E "s/$stamp_re/\\1<STAMP>/" "$base" > "$TEST_DIR/t63-base-norm.yaml"
+  sed -E "s/$stamp_re/\\1<STAMP>/" "$other" > "$TEST_DIR/t63-other-norm.yaml"
+  cmp -s "$TEST_DIR/t63-base-norm.yaml" "$TEST_DIR/t63-other-norm.yaml" \
+    || log_fail "Spec-AC-02: AAI_ROLE!=subagent must produce a byte-identical write to the no-marker baseline (modulo the self-stamped updated_at_utc): $(diff "$TEST_DIR/t63-base-norm.yaml" "$TEST_DIR/t63-other-norm.yaml" | head -5)"
+
+  # Both writes must carry exactly ONE real stamp and must have bumped it off
+  # the frozen fixture value — the marker may not suppress the bump either.
+  local f
+  for f in "$base" "$other"; do
+    grep -cE '^updated_at_utc: ' "$f" | grep -qx '1' \
+      || log_fail "Spec-AC-02: exactly one real updated_at_utc line expected in $f"
+    grep -qE '^updated_at_utc: 2026-07-01T00:00:00Z$' "$f" \
+      && log_fail "Spec-AC-02: both writes must bump updated_at_utc off the fixture value ($f)"
+    grep -qE "$stamp_re" "$f" \
+      || log_fail "Spec-AC-02: updated_at_utc must be a well-formed ISO-8601 UTC stamp in $f: $(grep '^updated_at_utc:' "$f")"
+  done
+
   ck "$base" "$TEST_DIR/t63-basec.log" || log_fail "Spec-AC-02: check-state after no-marker write: $(cat "$TEST_DIR/t63-basec.log")"
-  log_pass "R-GUARD Stage 1: marker absent/other -> byte-identical write to baseline (Spec-AC-02)"
+  log_pass "R-GUARD Stage 1: marker absent/other -> byte-identical write to baseline modulo the self-stamped updated_at_utc, which BOTH runs bumped (Spec-AC-02)"
 }
 
 main() {
