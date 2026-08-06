@@ -2624,7 +2624,7 @@ test_063_rguard_marker_absent_bytewise() {  # r-guard TEST-RG-STATE-02 / Spec-AC
   sed -E "s/$stamp_re/\\1<STAMP>/" "$base" > "$TEST_DIR/t63-base-norm.yaml"
   sed -E "s/$stamp_re/\\1<STAMP>/" "$other" > "$TEST_DIR/t63-other-norm.yaml"
   cmp -s "$TEST_DIR/t63-base-norm.yaml" "$TEST_DIR/t63-other-norm.yaml" \
-    || log_fail "Spec-AC-02: AAI_ROLE!=subagent must produce a byte-identical write to the no-marker baseline (modulo the self-stamped updated_at_utc): $(diff "$TEST_DIR/t63-base-norm.yaml" "$TEST_DIR/t63-other-norm.yaml" | head -5)"
+    || log_fail "Spec-AC-02: AAI_ROLE!=subagent must produce a byte-identical write to the no-marker baseline (modulo the self-stamped updated_at_utc): $(diff "$TEST_DIR/t63-base-norm.yaml" "$TEST_DIR/t63-other-norm.yaml" | head -5 || true)"
 
   # Both writes must carry exactly ONE real stamp and must have bumped it off
   # the frozen fixture value — the marker may not suppress the bump either.
