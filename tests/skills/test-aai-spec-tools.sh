@@ -804,6 +804,45 @@ test_freeze_023_help_documents_preconditions() {
     || log_fail "TEST-023(freeze) precondition documentation"
 }
 
+test_024_freeze_unparsed_ac_row() {
+  # bot P2 (#232): an AC-looking row the parser drops must refuse the freeze
+  log_info "TEST-024(freeze): parser-dropped AC row refuses (ac-row-unparsed)..."
+  local d; d="$(mktemp -d "${TMPDIR:-/tmp}/sf24.XXXXXX")"
+  cat > "$d/SPEC-0001-spec-x.md" <<'SPEC'
+---
+id: spec-x
+type: spec
+number: 1
+status: draft
+---
+# S
+
+- Strategy: direct
+
+## Acceptance Criteria Status
+
+| Spec-AC | Description | Status | Test | Evidence | Review-By |
+|---|---|---|---|---|---|
+| Spec-AC-01 | a | planned | tests/a.sh | — | — |
+| Spec-AC-02 broken row no pipes
+
+## Test Plan
+
+| Test ID | Spec-AC | Type | File path (expected) | Description | Status |
+|---|---|---|---|---|---|
+| TEST-001 | Spec-AC-01 | unit | tests/a.sh | a | pending |
+SPEC
+  local before after rc=0 out
+  before="$(cksum "$d/SPEC-0001-spec-x.md")"
+  out="$(node "$SPEC_FREEZE" --path "$d/SPEC-0001-spec-x.md" --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "TEST-024(freeze): must refuse exit 3 (got $rc): $out"
+  printf '%s' "$out" | grep -q 'ac-row-unparsed' || log_fail "TEST-024(freeze): reason must name ac-row-unparsed: $out"
+  after="$(cksum "$d/SPEC-0001-spec-x.md")"
+  [[ "$before" == "$after" ]] || log_fail "TEST-024(freeze): refusal must write nothing"
+  rm -rf "$d"
+  log_pass "TEST-024(freeze): unparsed AC row refuses, nothing written"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -824,6 +863,7 @@ main() {
   test_freeze_021_precondition_strategy
   test_freeze_022_precondition_controls
   test_freeze_023_help_documents_preconditions
+  test_024_freeze_unparsed_ac_row
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

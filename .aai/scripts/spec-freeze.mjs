@@ -65,7 +65,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { normalizeNewlines, parseFrontmatter } from './lib/docs-model.mjs';
+import { normalizeNewlines, parseFrontmatter, parseAcTable } from './lib/docs-model.mjs';
 import { lintContent } from './spec-lint.mjs';
 
 const ROOT = process.cwd();
@@ -221,6 +221,16 @@ export function assertFrozen(out) {
 // write be a lint violation?" — with spec-lint as the only judge.
 export function freezePreconditions(frozenContent) {
   const hits = lintContent(frozenContent).filter((f) => PRECONDITION_RULES.includes(f.rule));
+  // PARSER-DROPPED ROWS (bot P2): a malformed AC row the shared parser skips
+  // is INVISIBLE to ac-without-test — the spec would freeze with an AC no
+  // rule ever saw. Any line that LOOKS like an AC row but did not parse is a
+  // refusal of its own.
+  const norm = normalizeNewlines(frozenContent);
+  const rawAcLines = norm.split('\n').filter((l) => /^\|\s*Spec-AC-\d/.test(l.trim().startsWith('|') ? l.trim() : '')).length;
+  const parsedAc = parseAcTable(norm).rows.length;
+  if (rawAcLines > parsedAc) {
+    hits.push({ rule: 'ac-row-unparsed', detail: `${rawAcLines - parsedAc} AC-looking table row(s) were dropped by the parser (malformed cells?) — an unparsed AC cannot be checked, so it cannot be frozen` });
+  }
   if (hits.length === 0) return null;
   const detail = hits.map((f) => `[${f.rule}] ${f.detail}`).join('; ');
   return `freeze preconditions not met — ${detail}. Fix the spec (add the missing Test Plan row(s) / record the strategy) and re-run; nothing was written`;

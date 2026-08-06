@@ -391,6 +391,7 @@ export function lintContent(content, opts = {}) {
     const nums = [];
     for (const row of ac.rows) {
       const id = row['Spec-AC'];
+
       if (knownIds.has(id)) add('ac-id-duplicate', `${id} appears more than once in the AC Status table`);
       knownIds.add(id);
       const m = id.match(AC_ID_RE);
@@ -507,7 +508,10 @@ export function lintContent(content, opts = {}) {
       // Malformed ids are owned by `ac-id-malformed`; do not double-report.
       if (!AC_ID_RE.test(id)) continue;
       if (coveredAcIds.has(id)) continue;
-      add('ac-without-test', `${id} has no Test Plan row claiming it — every Spec-AC needs at least one TEST-xxx entry naming a runnable command before the spec is frozen`);
+      // parseAcTable rows carry no line field — locate the id's own table
+      // row (first `| <id>` line) so the finding is jump-to-able (bot review).
+      const acLineIdx = norm.split('\n').findIndex(l => l.trim().startsWith('|') && l.includes(id));
+      add('ac-without-test', `${id} has no Test Plan row claiming it — every Spec-AC needs at least one TEST-xxx entry naming a runnable command before the spec is frozen`, acLineIdx >= 0 ? acLineIdx + 1 : null);
     }
   }
 
