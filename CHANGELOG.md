@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(tests): the state-suite "byte-identical write" flake was a second-boundary race, not CI load (CHANGE-DRAFT-state-flake-rootcause) [L1]
+## [unreleased] — fix(tests): the state-suite "byte-identical write" flake was a second-boundary race, not CI load (CHANGE-0124-state-flake-rootcause) [L1]
 
 - `test_063_rguard_marker_absent_bytewise` compared the files written by two
   separate `state.mjs` invocations with a raw `cmp` — including the

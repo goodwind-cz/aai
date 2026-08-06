@@ -1,17 +1,16 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-06T09:37:02.239Z
+Generated: 2026-08-06T09:39:56.508Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
-| state-flake-rootcause | issues | implementing | — | docs/issues/CHANGE-DRAFT-state-flake-rootcause.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 
 ## Canonical layer (0)
@@ -40,7 +39,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (282)
+## Done (283)
 
 | ID | Type | Path |
 |---|---|---|
@@ -166,6 +165,7 @@ _None._
 | CHANGE-0121 | issues | docs/issues/CHANGE-0121-downstream-lane-seed.md |
 | CHANGE-0122 | issues | docs/issues/CHANGE-0122-strategy-scaled-evidence.md |
 | CHANGE-0123 | issues | docs/issues/CHANGE-0123-test-registration-guard.md |
+| CHANGE-0124 | issues | docs/issues/CHANGE-0124-state-flake-rootcause.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |

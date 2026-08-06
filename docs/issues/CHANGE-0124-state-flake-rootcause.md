@@ -1,13 +1,15 @@
 ---
 id: state-flake-rootcause
-number: null
+number: 124
 type: change
-status: implementing
+status: done
 user_visible: false
 ceremony_level: 1
 links:
-  pr: []
-  commits: []
+  pr:
+    - 231
+  commits:
+    - fec69d5f7011daf22cd161e9927e2fb6b8d2b5ad
 ---
 
 # Change — the state-suite "byte-identical write" flake was a second-boundary race, not CI load
