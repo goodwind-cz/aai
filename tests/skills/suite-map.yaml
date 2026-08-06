@@ -266,6 +266,7 @@ suites:
 
   aai-hygiene-pack:
     globs:
+      - .aai/scripts/check-test-registration.mjs
       - .aai/AGENTS.md
       - .aai/IMPLEMENTATION.prompt.md
       - .aai/INTAKE_COMMON.md

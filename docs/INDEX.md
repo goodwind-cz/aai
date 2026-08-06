@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-05T15:56:35.314Z
+Generated: 2026-08-05T18:13:45.117Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -39,7 +39,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (281)
+## Done (282)
 
 | ID | Type | Path |
 |---|---|---|
@@ -164,6 +164,7 @@ _None._
 | CHANGE-0120 | issues | docs/issues/CHANGE-0120-cheap-ticks.md |
 | CHANGE-0121 | issues | docs/issues/CHANGE-0121-downstream-lane-seed.md |
 | CHANGE-0122 | issues | docs/issues/CHANGE-0122-strategy-scaled-evidence.md |
+| CHANGE-0123 | issues | docs/issues/CHANGE-0123-test-registration-guard.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |

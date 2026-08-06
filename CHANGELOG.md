@@ -11,6 +11,16 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(quality): tests that lie get caught — registration guard, corpus-sweep rule, honest names (CHANGE-0123) [L1]
+
+- From the CHANGE-0120 retrospective: three shapes of misleading-but-green
+  tests now have deterministic teeth — hygiene test_093 catches
+  defined-but-never-invoked test functions (check-test-registration.mjs,
+  RED-proven; the exact #229 class), VALIDATION gains the corpus-sweep rule
+  (parsers must sweep all real instances, not fixtures), and review treats
+  universal-negative test names as BLOCKING unless proven. LEARNED.md
+  records the correlated-blind-spots lesson.
+
 ## [v2026.08.05] — feat(orchestration): mechanical ticks stop respawning agents — confirm-by-script, scope edits without a re-plan, atomic freeze (CHANGE-0120) [L2]
 
 - Live cost forensics on a one-line downstream fix found ~4 of 11 agent runs

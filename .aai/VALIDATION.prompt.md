@@ -24,6 +24,11 @@ INDEPENDENCE REQUIREMENT (run this BEFORE anything else)
   possible, record "validator shared context with implementer" as a residual risk
   that lowers confidence — never silently self-validate.
 
+CORPUS-SWEEP RULE: when the validated change PARSES repo-corpus files
+(specs, intakes, CHANGELOG, docs/ai ledgers), fixture-only evidence is
+INSUFFICIENT — run the parser across ALL real instances and report sweep
+count + failures. Fixtures prove intent; the corpus proves reality.
+
 INVARIANT RULES
 - Adversarial stance (anti self-evaluation): default to FAIL and actively try to
   REFUTE each "done" claim, not confirm it. Self-evaluation is a trap — an agent

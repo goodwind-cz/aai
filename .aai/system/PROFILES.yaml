@@ -99,6 +99,7 @@ core:
   - .aai/scripts/branch-guard.mjs
   - .aai/scripts/check-role-output.mjs
   - .aai/scripts/check-state.mjs
+  - .aai/scripts/check-test-registration.mjs
   - .aai/scripts/claude-hook-gate.sh
   - .aai/scripts/close-work-item.mjs
   - .aai/scripts/delta-merge.mjs

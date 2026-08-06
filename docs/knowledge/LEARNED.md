@@ -200,3 +200,15 @@
   10-second existence probe (`node -e 'console.log(typeof <api>)'`) before
   review sign-off; known phantoms are pinned by hygiene-pack test_092.
   (Source: CHANGE-0108 bot sweep.)
+- [2026-08-05] LLM-written tests share the author's blind spots (same model
+  writes code AND tests): three concrete failure shapes shipped green suites
+  around real defects — (1) a test whose NAME claims a universal negative
+  while asserting only refusal paths, (2) fixtures idealized vs the messy
+  real corpus (30 nested + 24 backticked + 3 no-H1 specs the fixtures never
+  had), (3) a test defined but never wired into main(). What caught the
+  defects was never more author tests: it was corpus sweeps (all 114 specs)
+  and independent adversarial eyes. Rules now enforced: hygiene test_093
+  (check-test-registration.mjs — orphan test functions), VALIDATION
+  corpus-sweep rule (parsers must sweep all real instances), review pin on
+  overpromising test names. Author tests catch regressions; foreign eyes
+  catch illusions. (Source: CHANGE-0120 L2 saga, PR #229.)

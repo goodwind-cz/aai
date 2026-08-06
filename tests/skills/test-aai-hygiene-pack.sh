@@ -850,6 +850,18 @@ test_082_dispatch_refs_name_contract() {  # spec-subagent-protocol-slim TEST-003
   log_pass "Dispatch payload refs resolve to SUBAGENT_CONTRACT.md; orchestrator-only refs stay on SUBAGENT_PROTOCOL.md (spec-subagent-protocol-slim TEST-003)"
 }
 
+test_093_test_registration() {  # CHANGE test-registration-guard
+  log_info "test_093: every defined test_* function in every suite is referenced beyond its definition (registered)..."
+  local out rc=0
+  out="$(node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" 2>&1)" || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    printf '%s\n' "$out" | head -10
+    log_fail "test_093: orphan (defined-but-unreferenced) test function(s) — a green suite with an unwired pin is not coverage (the #229 class)"
+    return 1
+  fi
+  log_pass "test_093: no orphan test functions"
+}
+
 test_092_no_phantom_node_apis() {  # CHANGE phantom-api-pin: APIs that LOOK real but do not exist
   log_info "test_092: no .mjs script calls a known-phantom Node API (bit us live: process.getpgrp)..."
   # Each entry is an API that plausibly exists (POSIX cousin, docs folklore)
@@ -990,6 +1002,7 @@ main() {
   test_090_suite_map_pin
   test_091_session_journal_index_complete
   test_092_no_phantom_node_apis
+  test_093_test_registration
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

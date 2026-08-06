@@ -1489,3 +1489,6 @@
 {"v":1,"ts":"2026-08-05T15:09:29.488Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"cheap-ticks","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-05T15:09:29.521Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"cheap-ticks","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-05T15:09:29.553Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"cheap-ticks","payload":{"commit":"84ded3a4f24f45e7b5e6b00e62fd18135233eb5e"}}
+{"v":1,"ts":"2026-08-05T18:13:14.868Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"test-registration-guard","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-05T18:13:14.900Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"test-registration-guard","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-05T18:13:14.930Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"test-registration-guard","payload":{"commit":"8f1b22c2ba729e4928b1adfb7f395d57def458cb"}}
