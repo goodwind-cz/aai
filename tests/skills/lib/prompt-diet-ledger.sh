@@ -125,6 +125,31 @@ JUSTIFIED_ADDITIONS+=( "216 CHANGE-0122-strategy-scaled-evidence PLANNING.prompt
 JUSTIFIED_ADDITIONS+=( "889 CHANGE-0120-cheap-ticks the three deterministic-tick wirings that let a mechanical tick stop respawning agents: ORCHESTRATION.prompt.md step 1 gains --confirm and step 3 gains the rule-9x advance_phase_to_implementation exception (+186 B, file HELD at exactly 40 lines — the historical SPEC-0017 cap, well under TEST-011's enforced 45), PLANNING.prompt.md step 10 routes freeze through the new atomic node .aai/scripts/spec-freeze.mjs instead of hand-writing either half (+237 B), ORCHESTRATION_PARALLEL.prompt.md IMPLEMENTATION STRATEGY AND ISOLATION gains the REVIEW-SCOPE EDITS ARE NOT A PLANNING DISPATCH pointer at node .aai/scripts/spec-scope-edit.mjs (+466 B); the three engines (orchestration-dispatch.mjs rule 9x, spec-scope-edit.mjs, spec-freeze.mjs), the docs-model.mjs content-hash helpers and the spec-lint half-frozen rule all live in .aai/scripts/ and carry NO ledger cost; measured deficit 889 B (headroom 1150 -> 261), credited 1:1 at the true growth so headroom returns to 1150 within the 2048 cap and the TEST-012 pin moves -11352 -> -10463" )
 JUSTIFIED_ADDITIONS+=( "14 cheap-ticks-review set-phase flag form in ORCHESTRATION rule-9x exception (review BLOCKING 3; measured deficit 14 B, 2026-08-05)" )
 JUSTIFIED_ADDITIONS+=( "492 test-registration-guard corpus-sweep VALIDATION rule + overpromising-test-name review pin (measured deficit 492 B, 2026-08-05)" )
+# ALTITUDE ADOPTION 2026-08-06 (CHANGE-DRAFT-adopt-v2-planning, closing
+# CHANGE-0113): .aai/PLANNING.prompt.md replaced by the experiment-winning V2
+# ALTITUDE variant (docs/analysis/altitude-variants/V2-PLANNING.md) —
+# 4 principles + one worked example + a "what already decides what" authority
+# table, in place of 12 numbered steps restating what spec-lint / spec-freeze /
+# state.mjs / the templates already enforce. Replay evidence:
+# docs/analysis/altitude-replay.md (median Q 13 vs V0's 11, hallucinations
+# -31%, D1/D3/D4 pass); D2 was satisfied first by the five behavioral probes
+# (R04/R05/R09/R21/R31) shipped in the same ride.
+#   MEASURED: 11526 -> 10227 B, a 1299 B reduction — NOT the variant's raw
+#   -3685 B. The difference is deliberate and is the price of NOT turning an
+#   adoption into a pin migration: V2's prose dropped the numbered spine, but
+#   `^11) Emit the work-item brief` and `^12) Update docs/ai/STATE.yaml` are
+#   pinned FOUR times each (ceremony x2, constitution, spec-lint) and the
+#   hygiene ordering anchors need the literals `Set SPEC-FROZEN: true`,
+#   `docs/ai/briefs/` and `Update docs/ai/STATE.yaml — PRIMARY PATH` in that
+#   line order. Steps 10-12 therefore survive as V2's mechanical tail, carrying
+#   the freeze/constitution/ceremony/brief/STATE literals verbatim; everything
+#   above them is V2 text. Six suites stayed green with zero assertion edits.
+#   No new .aai/** file, no growth in TEST-010's extra accounting.
+# Per TEST-010's own remediation rule the credit is LOWERED, not padded:
+# without reconciliation headroom jumps 1150 -> 2449, breaching
+# HEADROOM_CAP=2048. This entry retires exactly 1299 B so headroom lands back
+# at 1150/2048 and the TEST-012 pin moves -9957 -> -11256.
+JUSTIFIED_ADDITIONS+=( "-1299 adopt-v2-planning RECLAIMED credit (NEGATIVE entry, CHANGE-0113 adoption): see the ALTITUDE ADOPTION block above for the variant, the replay evidence and the pin-reconciliation that explains why the measured shrink is 1299 B rather than the variant's raw 3685 B" )
 JUSTIFIED_GROWTH_BYTES=0
 for _entry in "${JUSTIFIED_ADDITIONS[@]}"; do
   JUSTIFIED_GROWTH_BYTES=$(( JUSTIFIED_GROWTH_BYTES + ${_entry%% *} ))

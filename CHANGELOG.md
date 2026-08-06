@@ -11,6 +11,62 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(planning): CHANGE-0113's D2 gate closes with five behavioral probes, and the altitude PLANNING prompt is adopted (CHANGE-DRAFT-adopt-v2-planning) [L2]
+
+- The altitude experiment's pre-registered decision rule had three of four
+  conditions satisfied on 2026-08-05 (D1 quality non-regression: V2 beat the
+  shipped prompt 6-2-1 on paired sign test, median Q 13 vs 11; D3 noise; D4
+  cost, -32% bytes) and one **unmet by construction**: D2 asked whether
+  compliance survives deletion, and the five prose rules the rewrite deletes had
+  **no detector at all**. This ride builds the five detectors first, then adopts
+  the prompt.
+- **spec-lint** gains `ac-without-test` — the reverse of the existing
+  TEST-to-AC check: a Spec-AC that no Test Plan row claims. Both AC-table shapes
+  (canonical gate and L0/L1 lean) feed it. Scoped to in-flight specs
+  (draft/proposed/accepted/implementing) because a `done` spec's Test Plan is
+  history: twelve corpus specs are in that shape and flagging them would produce
+  noise, not action. This is the exact hole the replay's worst task fell into —
+  well-formed acceptance criteria whose test commands did not run.
+- **spec-freeze** gains PRECONDITIONS. It checked frontmatter parse and status
+  transition only; a spec with untested ACs or an undecided strategy froze
+  happily while the prompt said it must not. It now refuses (exit 3, named
+  reason, nothing written, `--dry-run` and `--json` included) when the
+  would-be-frozen document carries `ac-without-test` or
+  `frozen-without-strategy`. Both are read off spec-lint's own rules applied to
+  the transform's RESULT, so the freeze and the lint cannot disagree about what
+  a violation is — there is no second parser. AC MEASURABILITY is deliberately
+  not claimed: no parser can decide it, and the header and `--help` say so
+  instead of implying a complete gate.
+- **check-role-output** gains `E-PLANNING-VERDICT` plus two opt-in Planning
+  gates. The disposition's "do not claim PASS" is unimplementable as written —
+  `status: PASS` is the CONTRACT's role-run outcome and every real Planning
+  block uses it — so the checkable rule is the one the prose was written
+  against: Planning may not record a VALIDATION verdict field. Separately,
+  `--base-ref` catches a Planning run writing outside docs/specs/**,
+  docs/ai/** and docs/INDEX.md (untracked files included) and
+  `--worktree-baseline` / `--worktree-guard` catch a worktree created during
+  one. Merge-protocol step 1 does not pass those two flags (it holds neither a
+  base ref nor a pre-dispatch worktree capture), so the new
+  `tests/skills/test-aai-planning-probes.sh` suite is what proves they bite —
+  scripted fake-Planning runs that commit each violation on purpose. That
+  wiring gap is written into `.aai/SUBAGENT_PROTOCOL.md` rather than assumed
+  away.
+- **`.aai/PLANNING.prompt.md` becomes the V2 altitude text**: four principles,
+  one worked example and a "what already decides what" authority table, in place
+  of twelve numbered steps restating what the scripts and templates already
+  enforce. Steps 10-12 survive as the mechanical tail — six suites pin
+  `^11) Emit the work-item brief`, `^12) Update docs/ai/STATE.yaml` and the
+  freeze/brief/STATE line ORDER, and turning an adoption into a pin migration
+  would destroy the very "nothing broke" oracle the experiment rests on. Every
+  PLANNING pin suite is green with **zero assertion edits**. Measured 11526 ->
+  10227 B; the 1299 B (not 3685 B) shrink and its reason are recorded in the
+  diet ledger, TEST-012 pin -9957 -> -11256, headroom back at 1150/2048.
+- Four lean/minimal test fixtures gained a Test Plan row or a strategy line.
+  That is the probe working, not collateral: each had frozen a spec whose ACs
+  had no tests. Not gated, and on the watchlist: the replay's recorded overreach
+  regression (median 2 vs 1), and the fact that a Test Plan row naming an AC
+  still does not prove its command runs.
+
 ## [unreleased] — fix(tests): the state-suite "byte-identical write" flake was a second-boundary race, not CI load (CHANGE-0124-state-flake-rootcause) [L1]
 
 - `test_063_rguard_marker_absent_bytewise` compared the files written by two
