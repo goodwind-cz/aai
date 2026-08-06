@@ -2,12 +2,14 @@
 id: altitude-prompt-experiment
 number: 113
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 2
 links:
-  pr: []
-  commits: []
+  pr:
+    - 232
+  commits:
+    - 4fcda307d2f7f920d61aa5db09dcd060868d6927
 ---
 
 # Change — altitude-prompt experiment: rules-as-prose vs canonical examples, decided by paired measurement
