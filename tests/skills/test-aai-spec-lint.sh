@@ -234,6 +234,12 @@ Ceremony justification: single-surface fixture fix.
 | Spec-AC    | Description | Status  | Evidence | Review-By | Notes |
 |------------|-------------|---------|----------|-----------|-------|
 | Spec-AC-01 | only        | planned | —        | —         | —     |
+
+## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
+|----------|------------|------|----------------------|-------------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/x.sh           | a           | pending |
 EOF
   runlint "$FIX" >/dev/null 2>&1; rc=$?
   expect_exit 0 "$rc" "TEST-005 lean L1 control" || ok=0
@@ -741,6 +747,12 @@ Ceremony justification: single-surface fixture fix.
 | Spec-AC    | Status  |
 |------------|---------|
 | Spec-AC-01 | planned |
+
+## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
+|----------|------------|------|----------------------|-------------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/x.sh           | a           | pending |
 EOF
   out="$(runlint "$FIX" 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-004(dupac) lean L1" || ok=0
@@ -1135,6 +1147,134 @@ test_halffrozen_004_real_corpus() {
     || log_fail "TEST-004(halffrozen) real corpus"
 }
 
+# === R21 (CHANGE-0113 D2 probe) — AC -> TEST reverse coverage =================
+# spec-lint has always checked TEST->AC (`test-ac-unknown`); the REVERSE
+# direction — a Spec-AC no Test Plan row claims — had NO detector, and the
+# altitude replay (docs/analysis/altitude-replay.md, task T3) showed it is
+# exactly the shape a shorter Planning prompt regresses to.
+
+# --- TEST-001(actest) — a freezable spec with an untested AC is flagged --------
+test_actest_001_untested_ac() {
+  new_fixture_root
+  # Drop the Test Plan row that covers Spec-AC-02: the AC survives, its test
+  # does not. `test-ac-unknown` cannot see this — the reverse rule must.
+  clean_spec_body | grep -v '^| TEST-002 ' > "$FIX/docs/specs/SPEC-DRAFT-untested.md"
+  local out rc ok=1
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-001(actest)" || ok=0
+  echo "$out" | grep -q "ac-without-test" || { log_info "TEST-001(actest): no ac-without-test finding: $out"; ok=0; }
+  echo "$out" | grep -q "Spec-AC-02" || { log_info "TEST-001(actest): untested id not named: $out"; ok=0; }
+  echo "$out" | grep -q "ac-without-test.*Spec-AC-01" \
+    && { log_info "TEST-001(actest): the COVERED AC was flagged too: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-001(actest) untested Spec-AC flagged, covered one is not" \
+    || log_fail "TEST-001(actest) untested Spec-AC"
+}
+
+# --- TEST-002(actest) — negative controls: covered ACs, ranges, lists ----------
+test_actest_002_negative_controls() {
+  local rc ok=1
+  # a) the canonical clean fixture (1 row per AC) stays clean
+  new_fixture_root
+  clean_spec_body > "$FIX/docs/specs/SPEC-DRAFT-clean.md"
+  runlint "$FIX" >/dev/null 2>&1; rc=$?
+  expect_exit 0 "$rc" "TEST-002(actest) clean control" || ok=0
+
+  # b) ONE row covering BOTH ACs via a comma list is full coverage
+  new_fixture_root
+  clean_spec_body | grep -v '^| TEST-002 ' \
+    | sed 's/| TEST-001 | Spec-AC-01 |/| TEST-001 | Spec-AC-01, Spec-AC-02 |/' \
+    > "$FIX/docs/specs/SPEC-DRAFT-listcover.md"
+  runlint "$FIX" >/dev/null 2>&1; rc=$?
+  expect_exit 0 "$rc" "TEST-002(actest) comma-list coverage control" || ok=0
+
+  # c) the NN..MM range form is coverage too
+  new_fixture_root
+  clean_spec_body | grep -v '^| TEST-002 ' \
+    | sed 's/| TEST-001 | Spec-AC-01 |/| TEST-001 | Spec-AC-01..02 |/' \
+    > "$FIX/docs/specs/SPEC-DRAFT-rangecover.md"
+  runlint "$FIX" >/dev/null 2>&1; rc=$?
+  expect_exit 0 "$rc" "TEST-002(actest) range coverage control" || ok=0
+  [[ $ok -eq 1 ]] && log_pass "TEST-002(actest) covered ACs (row / list / range) produce no finding" \
+    || log_fail "TEST-002(actest) coverage negative controls"
+}
+
+# --- TEST-003(actest) — lean L0/L1 tables use the SAME reverse rule ------------
+test_actest_003_lean_table() {
+  local out rc ok=1
+  new_fixture_root
+  write_spec "$FIX/docs/specs/SPEC-DRAFT-leanuntested.md" <<'EOF'
+---
+id: spec-fixture-lean-untested
+type: spec
+number: null
+status: accepted
+ceremony_level: 1
+links:
+  pr: []
+---
+
+# Fixture — lean L1, one AC untested
+
+Ceremony justification: single-surface fixture fix.
+
+## Acceptance Criteria
+
+| Spec-AC    | Description | Status  |
+|------------|-------------|---------|
+| Spec-AC-01 | covered     | planned |
+| Spec-AC-02 | untested    | planned |
+
+## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
+|----------|------------|------|----------------------|-------------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/x.sh           | a           | pending |
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-003(actest) lean untested" || ok=0
+  echo "$out" | grep -q "ac-without-test" || { log_info "TEST-003(actest): lean table AC not checked: $out"; ok=0; }
+  echo "$out" | grep -q "Spec-AC-02" || { log_info "TEST-003(actest): lean untested id not named: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-003(actest) lean L1 AC table gets the same reverse check" \
+    || log_fail "TEST-003(actest) lean table reverse check"
+}
+
+# --- TEST-004(actest) — a TERMINAL spec is history, not a finding --------------
+# The rule is a freeze-boundary obligation. A `done` spec's Test Plan is
+# history (suites get renamed, folded, archived); re-litigating it produces
+# noise, not action — and the 12 real corpus specs in that shape are exactly
+# why the scope is the FREEZABLE statuses.
+test_actest_004_terminal_scope() {
+  local out rc ok=1
+  new_fixture_root
+  clean_spec_body | grep -v '^| TEST-002 ' | sed 's/^status: implementing$/status: done/' \
+    > "$FIX/docs/specs/SPEC-DRAFT-doneuntested.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  echo "$out" | grep -q "ac-without-test" \
+    && { log_info "TEST-004(actest): a done spec was flagged: $out"; ok=0; }
+
+  # and the mirror: the SAME body at an in-flight status IS flagged
+  new_fixture_root
+  clean_spec_body | grep -v '^| TEST-002 ' | sed 's/^status: implementing$/status: draft/' \
+    | sed '/^SPEC-FROZEN: true$/d' > "$FIX/docs/specs/SPEC-DRAFT-draftuntested.md"
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-004(actest) draft arm" || ok=0
+  echo "$out" | grep -q "ac-without-test" \
+    || { log_info "TEST-004(actest): a draft spec was NOT flagged: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-004(actest) terminal specs exempt, in-flight specs checked" \
+    || log_fail "TEST-004(actest) terminal-status scope"
+}
+
+# --- TEST-005(actest) — the real corpus stays CLEAN ----------------------------
+test_actest_005_real_corpus() {
+  local out rc ok=1
+  out="$(cd "$PROJECT_ROOT" && node "$LINT" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-005(actest) real corpus" || ok=0
+  echo "$out" | grep -q "ac-without-test" \
+    && { log_info "TEST-005(actest): real corpus produced an ac-without-test finding: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-005(actest) real corpus zero ac-without-test findings" \
+    || log_fail "TEST-005(actest) real corpus"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -1173,6 +1313,11 @@ main() {
   test_halffrozen_002_status_without_marker
   test_halffrozen_003_negative_controls
   test_halffrozen_004_real_corpus
+  test_actest_001_untested_ac
+  test_actest_002_negative_controls
+  test_actest_003_lean_table
+  test_actest_004_terminal_scope
+  test_actest_005_real_corpus
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

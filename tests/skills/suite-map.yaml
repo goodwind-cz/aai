@@ -426,6 +426,12 @@ suites:
       - docs/ai/overview.html
       - docs/ai/overview-data.json
 
+  aai-planning-probes:
+    globs:
+      - .aai/scripts/check-role-output.mjs
+      - .aai/PLANNING.prompt.md
+      - .aai/SUBAGENT_PROTOCOL.md
+
   aai-pr-platform:
     globs:
       - .aai/scripts/pr-platform.mjs

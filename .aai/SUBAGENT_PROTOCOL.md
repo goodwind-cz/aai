@@ -189,6 +189,14 @@ After all subagents complete, the orchestrator MUST:
    BLOCKED result for step 2 below. If `.aai/scripts/check-role-output.mjs`
    is absent, degrade-and-report (prose) rather than hard-crash — never
    block the merge on missing tooling.
+   OPT-IN PLANNING GATES (CHANGE-0113 probes R04/R09): the same checker also
+   accepts `--base-ref <ref>` (a Planning run may write only docs/specs/**,
+   docs/ai/** and docs/INDEX.md) and `--worktree-baseline <path>` /
+   `--worktree-guard` (a Planning run may create no git worktree). Step 1 does
+   NOT pass them by default — they need a base ref and a pre-dispatch
+   `git worktree list --porcelain` capture the merge step does not hold — so a
+   live ride is gated only when the operator adds them. The gates themselves
+   are proven by tests/skills/test-aai-planning-probes.sh.
 2. Evaluate overall status:
    - `PASS` only if every subagent returned `PASS`
    - `FAIL` if any subagent returned `FAIL` — trigger Remediation for that scope only

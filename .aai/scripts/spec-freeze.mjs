@@ -25,13 +25,32 @@
 //     changed, so a re-freeze never grows the ledger. `--no-event` skips it.
 //   - Preserves the file's original line endings (a CRLF checkout stays CRLF).
 //
+// FREEZE PRECONDITIONS (CHANGE-0113 D2 probe R31)
+//   Atomicity was never the only thing that makes a freeze safe. The Planning
+//   prompt has always demanded that, at freeze, every Spec-AC be measurable,
+//   every Spec-AC carry at least one TEST-xxx row, and the strategy be
+//   decided — and NOTHING enforced any of it. Two of those three are decidable
+//   by a parser, so they are now hard preconditions checked BEFORE any write:
+//     - `ac-without-test`         — a Spec-AC no Test Plan row claims
+//     - `frozen-without-strategy` — strategy `undecided`/absent (L2+ only;
+//                                   L0/L1 lean specs stay exempt per RFC-0009)
+//   Both are read off spec-lint's OWN rules, evaluated against the would-be
+//   frozen document (lintContent on the transform's result), so this tool and
+//   the lint can never disagree about what a violation IS — there is no second
+//   parser here.
+//   NOT ENFORCED, deliberately: whether an AC is MEASURABLE, and whether a
+//   Test Plan row's command actually runs. No parser can decide either; they
+//   stay Planning's judgment and Validation's evidence. Say so rather than
+//   implying the gate is complete.
+//
 // Exit codes (closed contract):
 //   0 frozen, or already frozen (idempotent no-op)
 //   2 usage error (missing/unknown flag, missing value)
-//   3 REFUSED — the doc cannot be frozen atomically, and NOTHING was written:
-//     unreadable path, no frontmatter, no `status:` key in the frontmatter, or
-//     a current status outside {draft, proposed, accepted, implementing}
-//     (a terminal doc is never re-frozen)
+//   3 REFUSED — the doc cannot be frozen atomically OR fails a freeze
+//     precondition, and NOTHING was written: unreadable path, no frontmatter,
+//     no `status:` key in the frontmatter, a current status outside
+//     {draft, proposed, accepted, implementing} (a terminal doc is never
+//     re-frozen), an untested Spec-AC, or an undecided/absent strategy
 //   1 internal error (unexpected exception; nothing was written) — INCLUDING a
 //     failed post-transform assertion: before writing, the RESULT is re-parsed
 //     and must satisfy the full frozen contract (frontmatter parses, status is
@@ -47,9 +66,13 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { normalizeNewlines, parseFrontmatter } from './lib/docs-model.mjs';
+import { lintContent } from './spec-lint.mjs';
 
 const ROOT = process.cwd();
 const FROZEN_STATUS = 'implementing';
+// spec-lint rules that are FREEZE PRECONDITIONS, not merely advisories (see
+// the header). Everything else spec-lint reports stays report-only.
+const PRECONDITION_RULES = ['ac-without-test', 'frozen-without-strategy'];
 // Statuses a spec may be frozen FROM. Anything else (done, superseded,
 // rejected, deferred, legacy, an unknown token) is refused rather than
 // silently reopened.
@@ -60,11 +83,17 @@ function usage() {
     'Usage: spec-freeze --path <spec> [--json] [--dry-run] [--no-event]\n'
     + '  Writes frontmatter `status: implementing` AND the `SPEC-FROZEN: true`\n'
     + '  body marker in ONE atomic write, or writes nothing at all.\n'
+    + '  PRECONDITIONS (refused, nothing written): every Spec-AC must be claimed\n'
+    + '  by a Test Plan row (spec-lint `ac-without-test`) and the implementation\n'
+    + '  strategy must be decided (`frozen-without-strategy`, L2+ only).\n'
+    + '  AC MEASURABILITY is NOT checked here - no parser can decide it; it stays\n'
+    + '  Planning judgment.\n'
     + '  Exit codes:\n'
     + '  0 frozen, or already frozen (idempotent no-op)\n'
     + '  2 usage error\n'
-    + '  3 REFUSED - cannot freeze atomically; nothing written (no frontmatter,\n'
-    + '    no status key, unreadable path, or a non-freezable current status)\n'
+    + '  3 REFUSED - cannot freeze atomically or a precondition failed; nothing\n'
+    + '    written (no frontmatter, no status key, unreadable path, a\n'
+    + '    non-freezable current status, an untested Spec-AC, or no strategy)\n'
     + '  1 internal error',
   );
 }
@@ -181,6 +210,22 @@ export function assertFrozen(out) {
   return null;
 }
 
+// freezePreconditions(frozenContent) -> null when the would-be-frozen document
+// satisfies both machine-decidable preconditions, otherwise a human reason
+// naming the rule id(s) and the offending Spec-AC(s).
+//
+// The argument is the TRANSFORM'S RESULT, not the input: the strategy rule
+// (`frozen-without-strategy`) is by definition about a FROZEN spec, so linting
+// the pre-freeze text would silently never fire it. Linting the output means
+// this gate asks exactly one question — "would the document I am about to
+// write be a lint violation?" — with spec-lint as the only judge.
+export function freezePreconditions(frozenContent) {
+  const hits = lintContent(frozenContent).filter((f) => PRECONDITION_RULES.includes(f.rule));
+  if (hits.length === 0) return null;
+  const detail = hits.map((f) => `[${f.rule}] ${f.detail}`).join('; ');
+  return `freeze preconditions not met — ${detail}. Fix the spec (add the missing Test Plan row(s) / record the strategy) and re-run; nothing was written`;
+}
+
 function main() {
   const args = parseArgs(process.argv);
   const abs = path.isAbsolute(args.path) ? args.path : path.join(ROOT, args.path);
@@ -198,6 +243,16 @@ function main() {
 
   const changed = res.content !== norm;
   const statusChanged = res.from !== FROZEN_STATUS;
+
+  // PRECONDITION GATE (R31) — only on a real transition. An already-frozen
+  // spec is a documented idempotent no-op that writes nothing, so there is no
+  // freeze to gate; re-litigating it would turn a safe re-run into a failure
+  // and break every caller that re-runs the tool defensively. `--dry-run` IS
+  // gated: it answers "would this freeze?", and the honest answer is no.
+  if (changed) {
+    const bad = freezePreconditions(res.content);
+    if (bad) refuse(bad, args.json);
+  }
   const report = {
     ok: true,
     spec: args.path,

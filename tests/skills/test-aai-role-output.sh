@@ -557,6 +557,123 @@ test_014_seam1_contract_skeleton() {
   log_pass "TEST-014 SEAM-1: filled CONTRACT skeleton passes the checker"
 }
 
+# === R05 (CHANGE-0113 D2 probe) — Planning may not claim a VALIDATION verdict ==
+#
+# The disposition row R05 reads "Do not claim PASS." Taken literally that is
+# unimplementable: `status: PASS` is the CONTRACT's own role-run outcome and
+# every Planning block in this repo (see planning-valid.md) legitimately uses
+# it — it means "my run completed", not "the work is validated". The honest,
+# checkable rule is the one the prose was actually written against: a Planning
+# block must not record a VALIDATION VERDICT — `last_validation`, `validation`,
+# `validation_status`, `validation_verdict`, `verdict`. Those belong to
+# Validation, on evidence Planning does not yet have.
+
+# --- TEST-021 — a Planning block carrying a validation verdict is rejected ----
+test_021_planning_verdict_rejected() {
+  log_info "TEST-021: a Planning result block claiming a VALIDATION verdict -> E-PLANNING-VERDICT..."
+  local out rc
+  set +e
+  out="$(runcheck --file "$FIXTURES_DIR/planning-verdict-violating.md" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 1 ]] || log_fail "planning-verdict-violating.md expected exit 1, got $rc; output: $out"
+  echo "$out" | grep -qF "ROLE-OUTPUT-VIOLATION: E-PLANNING-VERDICT" \
+    || log_fail "expected E-PLANNING-VERDICT, got: $out"
+  echo "$out" | grep -qF "last_validation" \
+    || log_fail "the violation line must name the offending field, got: $out"
+
+  # every reserved verdict field, and a lowercase role spelling
+  local key msg
+  for key in validation validation_status validation_verdict verdict; do
+    msg="$TMP_ROOT/planning-$key.md"
+    {
+      echo '```yaml'
+      echo 'subagent_result:'
+      echo '  scope: s'
+      echo '  role: planning'
+      echo '  status: PASS'
+      echo '  started_utc: 2026-01-07T00:00:00Z'
+      echo '  ended_utc: 2026-01-07T00:01:00Z'
+      echo '  duration_seconds: 60'
+      echo "  $key: pass"
+      echo '  evidence:'
+      echo '    - command: echo ok'
+      echo '      exit_code: 0'
+      echo '  files_changed: []'
+      echo '  blockers: []'
+      echo '```'
+    } > "$msg"
+    set +e
+    out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
+    set -e
+    [[ "$rc" -eq 1 ]] || log_fail "Planning block with '$key' expected exit 1, got $rc"
+    echo "$out" | grep -qF "E-PLANNING-VERDICT" \
+      || log_fail "Planning block with '$key' expected E-PLANNING-VERDICT, got: $out"
+  done
+  log_pass "TEST-021 Planning blocks claiming a validation verdict are rejected (5 field spellings, case-insensitive role)"
+}
+
+# --- TEST-022 — negative controls: what must STILL pass ----------------------
+test_022_planning_verdict_controls() {
+  log_info "TEST-022: status PASS in Planning stays legal; verdict fields stay legal for Validation..."
+  local out rc
+  # (a) the shipped planning-valid.md (status: PASS, no verdict field) passes.
+  set +e
+  out="$(runcheck --file "$FIXTURES_DIR/planning-valid.md" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "planning-valid.md (status: PASS, no verdict field) must still pass, got $rc: $out"
+
+  # (b) the SAME verdict field in a VALIDATION block is legitimate.
+  local msg="$TMP_ROOT/validation-verdict-ok.md"
+  cat > "$msg" <<'EOF'
+```yaml
+subagent_result:
+  scope: s
+  role: Validation
+  status: PASS
+  started_utc: 2026-01-07T00:00:00Z
+  ended_utc: 2026-01-07T00:01:00Z
+  duration_seconds: 60
+  last_validation: pass
+  evidence:
+    - command: echo ok
+      exit_code: 0
+  files_changed: []
+  blockers: []
+```
+EOF
+  set +e
+  out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "a Validation block recording last_validation must pass, got $rc: $out"
+
+  # (c) a Planning block with an unrelated extension field still passes
+  # (E-PLANNING-VERDICT must not become a whitelist on Planning).
+  msg="$TMP_ROOT/planning-extension-ok.md"
+  cat > "$msg" <<'EOF'
+```yaml
+subagent_result:
+  scope: s
+  role: Planning
+  status: PASS
+  started_utc: 2026-01-07T00:00:00Z
+  ended_utc: 2026-01-07T00:01:00Z
+  duration_seconds: 60
+  spec_path: docs/specs/SPEC-DRAFT-x.md
+  freeze_status: frozen
+  evidence:
+    - command: echo ok
+      exit_code: 0
+  files_changed: []
+  blockers: []
+```
+EOF
+  set +e
+  out="$(runcheck --file "$msg" --now 2026-06-01T00:00:00Z)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "a Planning block with unrelated extension fields must pass, got $rc: $out"
+  log_pass "TEST-022 negative controls: Planning status PASS, Validation verdicts, and Planning extension fields all still pass"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -573,6 +690,8 @@ main() {
   test_020_contract_headroom
   test_013_future_started
   test_014_seam1_contract_skeleton
+  test_021_planning_verdict_rejected
+  test_022_planning_verdict_controls
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="
 }
 
