@@ -11,6 +11,27 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(tests): the state-suite "byte-identical write" flake was a second-boundary race, not CI load (CHANGE-0124-state-flake-rootcause) [L1]
+
+- `test_063_rguard_marker_absent_bytewise` compared the files written by two
+  separate `state.mjs` invocations with a raw `cmp` — including the
+  `updated_at_utc` field every mutator self-stamps from the wall clock at
+  one-second resolution. When the pair straddled a second boundary the arm
+  failed on exactly one byte (the seconds digit; captured:
+  `...T09:18:47Z` vs `...T09:18:48Z`, `cmp -l` offset 2671). Measured at
+  1/30 locally with NO load, so the "CI-load-only, just re-run it" filing
+  was wrong — load only widens the window between the two `node` starts.
+  The arm now normalizes exactly that one field and compares every other
+  byte verbatim, and separately asserts both writes carry exactly one
+  well-formed ISO-8601 stamp bumped off the frozen fixture value — so the
+  normalization cannot mask a suppressed bump. `state.mjs` and
+  `state-engine.mjs` are untouched: two writes at two instants are supposed
+  to stamp two times. 30x under saturating CPU load and 30x without: green
+  (pre-fix 2/30 and 1/30 failures). The reaper arms in
+  `test-aai-run-tests.sh` are a different mechanism (process liveness across
+  an etime-derived epoch guard, no byte comparison anywhere in that suite)
+  and are left alone.
+
 ## [unreleased] — fix(quality): tests that lie get caught — registration guard, corpus-sweep rule, honest names (CHANGE-0123) [L1]
 
 - From the CHANGE-0120 retrospective: three shapes of misleading-but-green

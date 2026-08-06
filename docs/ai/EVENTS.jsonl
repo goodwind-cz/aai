@@ -1492,3 +1492,6 @@
 {"v":1,"ts":"2026-08-05T18:13:14.868Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"test-registration-guard","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-08-05T18:13:14.900Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"test-registration-guard","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-05T18:13:14.930Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"test-registration-guard","payload":{"commit":"8f1b22c2ba729e4928b1adfb7f395d57def458cb"}}
+{"v":1,"ts":"2026-08-06T09:39:29.000Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"state-flake-rootcause","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-06T09:39:29.035Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"state-flake-rootcause","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-06T09:39:29.067Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"state-flake-rootcause","payload":{"commit":"fec69d5f7011daf22cd161e9927e2fb6b8d2b5ad"}}
