@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-07T10:15:33.942Z
+Generated: 2026-08-07T13:51:59.246Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -39,7 +39,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (285)
+## Done (286)
 
 | ID | Type | Path |
 |---|---|---|
@@ -168,6 +168,7 @@ _None._
 | CHANGE-0123 | issues | docs/issues/CHANGE-0123-test-registration-guard.md |
 | CHANGE-0124 | issues | docs/issues/CHANGE-0124-state-flake-rootcause.md |
 | CHANGE-0125 | issues | docs/issues/CHANGE-0125-adopt-v2-planning.md |
+| CHANGE-0126 | issues | docs/issues/CHANGE-0126-win-escalation-hygiene.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |

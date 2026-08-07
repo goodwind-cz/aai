@@ -1501,3 +1501,6 @@
 {"v":1,"ts":"2026-08-06T17:33:16.916Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"altitude-prompt-experiment","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-08-06T17:33:16.950Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"altitude-prompt-experiment","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-06T17:33:16.982Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"altitude-prompt-experiment","payload":{"commit":"4fcda307d2f7f920d61aa5db09dcd060868d6927"}}
+{"v":1,"ts":"2026-08-07T13:24:47.761Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"win-escalation-hygiene","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-07T13:24:47.793Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"win-escalation-hygiene","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-07T13:24:47.824Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"win-escalation-hygiene","payload":{"commit":"fa14a36737eb673f1b0b967d06b3061d23f4250e"}}
