@@ -16,9 +16,9 @@ links:
 
 ## Summary
 - Owner-reported downstream friction (Codex/Windows): after one
-  CreateProcessAsUserW 1920 sandbox error the agent sticky-escalated and
+  `CreateProcessAsUserW` 1920 sandbox error the agent sticky-escalated and
   re-prompted for every command, including an explicitly allowed
-  Get-Content. The agent itself admitted the permissions mishandling.
+  `Get-Content`. The agent itself admitted the permissions mishandling.
 - Fix at AAI's honest leverage point — CORRECTED by the owner mid-ride:
   docs/knowledge/LEARNED.md is PROJECT-OWNED and never syncs downstream, so
   the rule's vendored carrier is .aai/knowledge/PATTERNS_UNIVERSAL.md (the

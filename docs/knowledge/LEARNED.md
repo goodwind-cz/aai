@@ -217,8 +217,8 @@
   sticky-set `require_escalated` and the UI re-prompted for EVERY subsequent
   command — including `Get-Content`, which the operator had explicitly
   allowed. Rules: (1) escalation is a PER-COMMAND necessity decided fresh
-  each time, never a sticky mode; after a 1920-class failure retry the NEXT
-  command non-escalated first; (2) never re-request approval for a command
+  each time, never a sticky mode; after a 1920-class failure run the NEXT
+  command non-escalated (do not inherit the escalation); (2) never re-request approval for a command
   the operator has explicitly allowed — repeated prompts for pre-approved
   commands are operator-hostile friction, not caution; (3) if a command
   genuinely needs escalation, say WHY in one line when asking. (Source:

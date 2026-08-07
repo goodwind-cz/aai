@@ -49,7 +49,7 @@ Evidence: <where this was learned>
 Tags: windows, permissions, escalation, sandbox, codex
 - Escalation is a PER-COMMAND necessity decided fresh each time — never a
   sticky mode. After a `CreateProcessAsUserW` 1920-class sandbox failure,
-  retry the NEXT command non-escalated first.
+  run the NEXT command non-escalated (never inherit the escalation).
 - NEVER re-request approval for a command the operator explicitly allowed —
   repeated prompts for pre-approved commands are operator-hostile friction.
 - When escalation is genuinely needed, state WHY in one line when asking.
