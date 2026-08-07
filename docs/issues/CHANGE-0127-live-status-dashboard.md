@@ -50,7 +50,14 @@ ceremony_level: 1
   absent/partial data (missing harness dirs named as ABSENT per harness,
   never fatal); outputs are runtime sidecars (RUNTIME_IGNORE class, never
   committed).
-- AC-005: Registry ships with parsers for Claude Code
+- AC-005: Cross-platform incl. Windows (owner requirement 2026-08-07): all
+  harness-dir discovery goes through os.homedir()/env (never hardcoded
+  POSIX strings) so the node generator runs unchanged on Windows; the
+  statusline-tap and hook helper scripts ship as bash + PowerShell twins
+  (repo convention, e.g. aai-sync.sh/.ps1); spool paths and mtime logic are
+  path-separator-agnostic; degradation messages name the expected per-OS
+  location.
+- AC-006: Registry ships with parsers for Claude Code
   (`~/.claude/projects/**/*.jsonl` + CLAUDE_CONFIG_DIR) and Codex
   (`~/.codex/sessions/**` with session_index.jsonl), plus Gemini CLI
   best-effort (`~/.gemini/tmp/*/logs.json`) — a harness whose format yields
