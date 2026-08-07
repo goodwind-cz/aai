@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(planning): CHANGE-0113's D2 gate closes with five behavioral probes, and the altitude PLANNING prompt is adopted (CHANGE-0125-adopt-v2-planning) [L2]
+## [v2026.08.07] — feat(planning): CHANGE-0113's D2 gate closes with five behavioral probes, and the altitude PLANNING prompt is adopted (CHANGE-0125-adopt-v2-planning) [L2]
 
 - The altitude experiment's pre-registered decision rule had three of four
   conditions satisfied on 2026-08-05 (D1 quality non-regression: V2 beat the
@@ -67,7 +67,7 @@ RFC-0001).
   regression (median 2 vs 1), and the fact that a Test Plan row naming an AC
   still does not prove its command runs.
 
-## [unreleased] — fix(tests): the state-suite "byte-identical write" flake was a second-boundary race, not CI load (CHANGE-0124-state-flake-rootcause) [L1]
+## [v2026.08.07] — fix(tests): the state-suite "byte-identical write" flake was a second-boundary race, not CI load (CHANGE-0124-state-flake-rootcause) [L1]
 
 - `test_063_rguard_marker_absent_bytewise` compared the files written by two
   separate `state.mjs` invocations with a raw `cmp` — including the
@@ -88,7 +88,7 @@ RFC-0001).
   an etime-derived epoch guard, no byte comparison anywhere in that suite)
   and are left alone.
 
-## [unreleased] — fix(quality): tests that lie get caught — registration guard, corpus-sweep rule, honest names (CHANGE-0123) [L1]
+## [v2026.08.07] — fix(quality): tests that lie get caught — registration guard, corpus-sweep rule, honest names (CHANGE-0123) [L1]
 
 - From the CHANGE-0120 retrospective: three shapes of misleading-but-green
   tests now have deterministic teeth — hygiene test_093 catches
