@@ -74,3 +74,14 @@ ceremony_level: 1
 - AC-004: Opt-in only: no ride/ceremony/CI coupling; documented in
   USER_GUIDE (install + uninstall of tap/hooks); tests cover parser dedup,
   incremental cutoff, degradation paths (RED-first per suite conventions).
+- AC-007: Invocation modes: one-shot (generate, print output path, exit 0);
+  `--watch` sidecar mode (regenerate every ~30s, interval flag, clean
+  Ctrl+C; the HTML carries matching meta auto-refresh so one open browser
+  window stays current — no server, no port); convenience launcher
+  `aai-live.sh` + `aai-live.ps1` (generate + open via open/start/xdg-open).
+  Rendered page: self-contained inline-CSS single file (factory-report
+  convention), sections = harness availability chips, official quotas
+  (when tap spool present), live sessions with state badges
+  (running/waiting-on-approval/finished), spend today/7d per
+  project/harness, and a SKIP section naming every degraded data source
+  with its reason.
