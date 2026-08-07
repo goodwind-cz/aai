@@ -20,6 +20,7 @@
 | Pattern | Tags | Anchor |
 |---------|------|--------|
 | _(no universal patterns yet — add via template repo PR)_ | — | — |
+| win-escalation-hygiene | windows, permissions, escalation, sandbox, codex | #win-escalation-hygiene |
 
 ---
 
@@ -43,3 +44,14 @@ Problem: <what goes wrong>
 Instead: <what to do instead>
 Evidence: <where this was learned>
 -->
+
+## win-escalation-hygiene
+Tags: windows, permissions, escalation, sandbox, codex
+- Escalation is a PER-COMMAND necessity decided fresh each time — never a
+  sticky mode. After a `CreateProcessAsUserW` 1920-class sandbox failure,
+  retry the NEXT command non-escalated first.
+- NEVER re-request approval for a command the operator explicitly allowed —
+  repeated prompts for pre-approved commands are operator-hostile friction.
+- When escalation is genuinely needed, state WHY in one line when asking.
+- Evidence: owner-reported Codex/Windows session 2026-08-07 — one 1920 error
+  sticky-escalated everything incl. an allowed Get-Content.

@@ -19,15 +19,21 @@ links:
   CreateProcessAsUserW 1920 sandbox error the agent sticky-escalated and
   re-prompted for every command, including an explicitly allowed
   Get-Content. The agent itself admitted the permissions mishandling.
-- Fix at AAI's honest leverage point: a LEARNED.md rule (vendored
-  downstream, replayed at task start) — escalation is per-command and never
+- Fix at AAI's honest leverage point — CORRECTED by the owner mid-ride:
+  docs/knowledge/LEARNED.md is PROJECT-OWNED and never syncs downstream, so
+  the rule's vendored carrier is .aai/knowledge/PATTERNS_UNIVERSAL.md (the
+  aai-sync-managed pattern library agents load by tag). The LEARNED entry
+  stays for THIS repo's replay; the pattern entry is what reaches Codex on
+  other projects — escalation is per-command and never
   sticky; a 1920-class failure means retry the next command non-escalated;
   never re-ask for explicitly allowed commands. Harness-side behavior
   cannot be gated deterministically from the vendored layer — knowledge
   steering is the available lever, stated as such.
 
 ## Acceptance Criteria
-- AC-001: LEARNED.md carries the rule with the incident citation.
+- AC-001: PATTERNS_UNIVERSAL.md carries the pattern (INDEX row + entry,
+  tags windows/permissions/escalation) AND LEARNED.md carries the local
+  entry with the incident citation.
 
 ## Constraints / Risks
 - Ceremony L1, strategy direct, docs-only. Prose steering — effectiveness
