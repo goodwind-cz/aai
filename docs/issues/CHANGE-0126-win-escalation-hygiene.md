@@ -2,12 +2,14 @@
 id: win-escalation-hygiene
 number: 126
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
 links:
-  pr: []
-  commits: []
+  pr:
+    - 233
+  commits:
+    - fa14a36737eb673f1b0b967d06b3061d23f4250e
 ---
 
 # Change — Windows escalation hygiene joins the vendored knowledge
