@@ -212,3 +212,14 @@
   corpus-sweep rule (parsers must sweep all real instances), review pin on
   overpromising test names. Author tests catch regressions; foreign eyes
   catch illusions. (Source: CHANGE-0120 L2 saga, PR #229.)
+- [2026-08-07] Windows sandbox escalation hygiene (Codex harness, live
+  operator friction): after a `CreateProcessAsUserW` error 1920 the agent
+  sticky-set `require_escalated` and the UI re-prompted for EVERY subsequent
+  command — including `Get-Content`, which the operator had explicitly
+  allowed. Rules: (1) escalation is a PER-COMMAND necessity decided fresh
+  each time, never a sticky mode; after a 1920-class failure retry the NEXT
+  command non-escalated first; (2) never re-request approval for a command
+  the operator has explicitly allowed — repeated prompts for pre-approved
+  commands are operator-hostile friction, not caution; (3) if a command
+  genuinely needs escalation, say WHY in one line when asking. (Source:
+  owner-reported Codex/Windows session, 2026-08-07.)
