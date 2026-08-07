@@ -33,6 +33,17 @@
 //      parseable ISO-8601 UTC timestamp with an explicit `Z` or `+00:00`
 //      offset (mirrors the CONTRACT timing rule; a non-UTC offset such as
 //      `+02:00` is rejected).
+//   9. E-PLANNING-VERDICT — a `role: Planning` block records a VALIDATION
+//      VERDICT field (`last_validation`, `validation`, `validation_status`,
+//      `validation_verdict`, `verdict`). CHANGE-0113 D2 probe R05.
+//      THE DISTINCTION, because it is easy to get wrong: `status: PASS` is
+//      NOT a validation claim and is NEVER rejected here — per
+//      .aai/SUBAGENT_CONTRACT.md `status` is the ROLE RUN's own outcome and
+//      every role (Planning included, see tests/fixtures/role-outputs/
+//      planning-valid.md) uses PASS to mean "my run completed". What Planning
+//      may not do is record a verdict ON THE WORK: that is Validation's, on
+//      evidence that does not exist while the spec is still being frozen. The
+//      same fields in a Validation block are legitimate and untouched.
 //   6. E-BAD-DURATION / E-FUTURE-STARTED — `duration_seconds` equals
 //      `ended_utc - started_utc` within +/-1s tolerance (E-BAD-DURATION on
 //      mismatch), AND `started_utc` is not more than 300 seconds ahead of
@@ -43,8 +54,30 @@
 //      operand timestamp(s) failed postcondition 5 (nothing sane to
 //      compute from an unparseable timestamp).
 //
+// THE TWO OPTIONAL PLANNING GATES (CHANGE-0113 D2 probes R04 / R09)
+//   Two Planning rules lived as prose in .aai/PLANNING.prompt.md with NO
+//   runtime inspection of what the run actually did: "no code implementation
+//   in planning" (R04) and "do not create a git worktree during Planning"
+//   (R09). They are now checkable here, behind OPT-IN flags:
+//     --base-ref <ref>            E-PLANNING-WROTE-CODE — for a `role: Planning`
+//        block, every path in `git diff --name-only <ref>` plus every untracked
+//        non-ignored file must sit under docs/specs/**, docs/ai/** or be
+//        docs/INDEX.md. Anything else is code the role should not have written.
+//     --worktree-baseline <path>  E-PLANNING-WORKTREE — the EXACT check: a
+//        `git worktree list --porcelain` capture taken BEFORE the run; any
+//        worktree present now and absent then was created during it.
+//     --worktree-guard            E-PLANNING-WORKTREE — the baseline-FREE
+//        approximation for callers with no before-capture: fires when a
+//        worktree's path or branch names the block's own `scope`.
+//   HONEST WIRING SCOPE: the orchestrator's merge-protocol step 1 passes only
+//   `--file` today, so a live ride is gated only when the operator adds these
+//   flags. tests/skills/test-aai-planning-probes.sh is what proves the gates
+//   catch each violation (scripted fake-Planning runs). Documented in
+//   .aai/SUBAGENT_PROTOCOL.md rather than silently assumed.
+//
 // USAGE
 //   node .aai/scripts/check-role-output.mjs [--file <path>] [--now <ISO>]
+//        [--base-ref <ref>] [--worktree-baseline <path>] [--worktree-guard]
 //   (reads the role's final message text from stdin when --file is omitted)
 //   --now defaults to the current system UTC time; pass an explicit value
 //   for deterministic testing of the future-timestamp rule.
@@ -67,6 +100,7 @@
 // Node stdlib only (Technology contract: zero runtime dependencies).
 
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 const REQUIRED_FIELDS = [
   'scope',
@@ -80,6 +114,17 @@ const REQUIRED_FIELDS = [
   'blockers',
 ];
 const VALID_STATUSES = new Set(['PASS', 'FAIL', 'BLOCKED']);
+// Fields that record a VALIDATION VERDICT. Reserved to the Validation role
+// (E-PLANNING-VERDICT, see the header). `status` is deliberately NOT here.
+const VERDICT_FIELDS = new Set([
+  'last_validation', 'validation', 'validation_status', 'validation_verdict', 'verdict',
+]);
+const VERDICT_FORBIDDEN_ROLES = new Set(['planning']);
+// The ONLY surface a Planning run may write (R04). Briefs live under
+// docs/ai/briefs/ and are gitignored, so they never reach this list anyway.
+const PLANNING_WRITE_ALLOWLIST = ['docs/specs/', 'docs/ai/'];
+const PLANNING_WRITE_ALLOWFILES = ['docs/INDEX.md'];
+const PLANNING_ROLE = 'planning';
 const ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|\+00:00)$/;
 const FUTURE_TOLERANCE_SECONDS = 300; // mirrors SUBAGENT_PROTOCOL.md merge-protocol step 2
 const DURATION_TOLERANCE_SECONDS = 1; // mirrors SUBAGENT_CONTRACT.md timing rule
@@ -88,6 +133,10 @@ function usageError(msg) {
   process.stderr.write(`check-role-output: ${msg}\n`);
   process.stderr.write(
     'usage: node .aai/scripts/check-role-output.mjs [--file <path>] [--now <ISO 8601 UTC>]\n'
+    + '       [--base-ref <ref>] [--worktree-baseline <path>] [--worktree-guard]\n'
+    + '  --base-ref / --worktree-baseline / --worktree-guard are OPT-IN Planning\n'
+    + '  gates (R04 no code written, R09 no worktree created); they are no-ops\n'
+    + '  for every other role.\n'
   );
   process.exit(1);
 }
@@ -95,6 +144,9 @@ function usageError(msg) {
 function parseArgs(argv) {
   let filePath = null;
   let nowArg = null;
+  let baseRef = null;
+  let worktreeBaseline = null;
+  let worktreeGuard = false;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--file') {
       filePath = argv[++i];
@@ -102,11 +154,120 @@ function parseArgs(argv) {
     } else if (argv[i] === '--now') {
       nowArg = argv[++i];
       if (nowArg === undefined || nowArg.startsWith('--')) usageError('--now requires an ISO timestamp value');
+    } else if (argv[i] === '--base-ref') {
+      baseRef = argv[++i];
+      if (baseRef === undefined || baseRef.startsWith('--')) usageError('--base-ref requires a git ref value');
+    } else if (argv[i] === '--worktree-baseline') {
+      worktreeBaseline = argv[++i];
+      if (worktreeBaseline === undefined || worktreeBaseline.startsWith('--')) usageError('--worktree-baseline requires a path value');
+    } else if (argv[i] === '--worktree-guard') {
+      worktreeGuard = true;
     } else {
       usageError(`unrecognized argument: ${argv[i]}`);
     }
   }
-  return { filePath, nowArg };
+  return { filePath, nowArg, baseRef, worktreeBaseline, worktreeGuard };
+}
+
+// --- the two optional Planning gates (R04 / R09) -----------------------------
+
+function git(args) {
+  return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+}
+
+// Every path the working tree changed against `ref`, tracked or not.
+// A NEW untracked file is a write too — the R04 violation that matters most
+// (a whole new source or test file) would be invisible to `git diff` alone.
+function changedPathsSince(ref) {
+  const tracked = git(['diff', '--name-only', ref, '--']);
+  const untracked = git(['ls-files', '--others', '--exclude-standard']);
+  const all = `${tracked}\n${untracked}`.split('\n').map((l) => l.trim()).filter(Boolean);
+  return [...new Set(all)].sort();
+}
+
+function isAllowedPlanningPath(p) {
+  if (PLANNING_WRITE_ALLOWFILES.includes(p)) return true;
+  return PLANNING_WRITE_ALLOWLIST.some((prefix) => p.startsWith(prefix));
+}
+
+// Worktree entries as { path, branch } from `git worktree list --porcelain`.
+function parseWorktreePorcelain(text) {
+  const out = [];
+  let cur = null;
+  for (const raw of String(text).replace(/\r\n/g, '\n').split('\n')) {
+    const line = raw.trim();
+    if (line.startsWith('worktree ')) {
+      if (cur) out.push(cur);
+      cur = { path: line.slice('worktree '.length), branch: '' };
+    } else if (line.startsWith('branch ') && cur) {
+      cur.branch = line.slice('branch '.length);
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+// Planning gate violations. Pure-ish: reads git and the baseline file only.
+function planningGateViolations(parsed, opts) {
+  const violations = [];
+  const role = String(parsed.fields.role ?? '').trim().toLowerCase();
+  if (role !== PLANNING_ROLE) return violations;
+
+  if (opts.baseRef) {
+    let paths;
+    try {
+      paths = changedPathsSince(opts.baseRef);
+    } catch (err) {
+      usageError(`--base-ref "${opts.baseRef}": git could not diff it (${String(err.message).split('\n')[0]})`);
+    }
+    for (const p of paths) {
+      if (isAllowedPlanningPath(p)) continue;
+      violations.push([
+        'E-PLANNING-WROTE-CODE',
+        `Planning wrote outside its surface: ${p} (allowed: ${[...PLANNING_WRITE_ALLOWLIST, ...PLANNING_WRITE_ALLOWFILES].join(', ')})`,
+      ]);
+    }
+  }
+
+  if (opts.worktreeBaseline || opts.worktreeGuard) {
+    let now;
+    try {
+      now = parseWorktreePorcelain(git(['worktree', 'list', '--porcelain']));
+    } catch (err) {
+      usageError(`worktree gate: git worktree list failed (${String(err.message).split('\n')[0]})`);
+    }
+    if (opts.worktreeBaseline) {
+      let before;
+      try {
+        before = parseWorktreePorcelain(readFileSync(opts.worktreeBaseline, 'utf8'));
+      } catch (err) {
+        usageError(`--worktree-baseline "${opts.worktreeBaseline}": cannot read it (${err.message})`);
+      }
+      const known = new Set(before.map((w) => w.path));
+      for (const w of now) {
+        if (known.has(w.path)) continue;
+        violations.push([
+          'E-PLANNING-WORKTREE',
+          `Planning created a git worktree: ${w.path}${w.branch ? ` (${w.branch})` : ''} — Planning RECOMMENDS isolation, Implementation Preparation creates it`,
+        ]);
+      }
+    } else {
+      // Baseline-free approximation: a worktree naming this scope. Weaker by
+      // construction (it cannot see a differently-named tree, and it cannot
+      // tell WHO created one that matches) — asserted as such in the probes.
+      const scope = String(parsed.fields.scope ?? '').trim();
+      if (scope) {
+        for (const w of now) {
+          if (!w.path.includes(scope) && !w.branch.includes(scope)) continue;
+          violations.push([
+            'E-PLANNING-WORKTREE',
+            `a git worktree for this scope exists: ${w.path}${w.branch ? ` (${w.branch})` : ''} — Planning RECOMMENDS isolation, Implementation Preparation creates it`,
+          ]);
+        }
+      }
+    }
+  }
+  return violations;
 }
 
 function parseIsoUtc(str) {
@@ -325,6 +486,22 @@ function validateResult(parsed, nowMs) {
     }
   }
 
+  // E-PLANNING-VERDICT (R05) — role-scoped, field-based, value-independent:
+  // Planning has no business recording ANY validation verdict, pass or fail.
+  // Sorted so the violation lines stay byte-stable across runs (TEST-005).
+  if (parsed.present.has('role')) {
+    const role = String(parsed.fields.role ?? '').trim().toLowerCase();
+    if (VERDICT_FORBIDDEN_ROLES.has(role)) {
+      for (const key of [...parsed.present].sort()) {
+        if (!VERDICT_FIELDS.has(key)) continue;
+        violations.push([
+          'E-PLANNING-VERDICT',
+          `role "${parsed.fields.role}" may not record a validation verdict: field "${key}" is Validation's, on evidence Planning does not yet have (status: PASS remains the role-run outcome and is not this violation)`,
+        ]);
+      }
+    }
+  }
+
   if (parsed.present.has('evidence')) {
     const hasIntExitCode = parsed.evidence.some((e) => e && Number.isInteger(e.exit_code));
     if (!hasIntExitCode) {
@@ -379,7 +556,7 @@ function validateResult(parsed, nowMs) {
 }
 
 function main() {
-  const { filePath, nowArg } = parseArgs(process.argv.slice(2));
+  const { filePath, nowArg, baseRef, worktreeBaseline, worktreeGuard } = parseArgs(process.argv.slice(2));
 
   let nowMs;
   if (nowArg) {
@@ -410,6 +587,7 @@ function main() {
   }
 
   const violations = validateResult(parsed, nowMs);
+  violations.push(...planningGateViolations(parsed, { baseRef, worktreeBaseline, worktreeGuard }));
   if (violations.length === 0) process.exit(0);
 
   for (const [code, detail] of violations) {

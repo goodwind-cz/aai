@@ -208,7 +208,11 @@ MD
 write_lean_spec() {
   local p="$1" cl="$2" withac="$3" withjust="$4" ac_block="" just_line=""
   if [[ "$withac" == "true" ]]; then
-    ac_block=$'## Acceptance Criteria\n\n| Spec-AC    | Description | Status |\n|------------|-------------|--------|\n| Spec-AC-01 | fixture     | done   |'
+    # CHANGE-0113 R21: a frozen spec's every AC needs a Test Plan row claiming
+    # it (spec-lint `ac-without-test`), so the lean fixture carries one. The
+    # arms below assert AC-table presence + the justification gate; the Test
+    # Plan row keeps that assertion about what it says it is about.
+    ac_block=$'## Acceptance Criteria\n\n| Spec-AC    | Description | Status |\n|------------|-------------|--------|\n| Spec-AC-01 | fixture     | done   |\n\n## Test Plan\n\n| Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |\n|----------|------------|------|----------------------|-------------|--------|\n| TEST-001 | Spec-AC-01 | unit | tests/x.sh           | fixture     | green  |'
   fi
   if [[ "$withjust" == "true" ]]; then
     just_line="Ceremony justification: fixture lean scope, no engine/test surface."

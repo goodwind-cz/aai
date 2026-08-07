@@ -4,9 +4,17 @@
 //
 // BOUNDARY (SPEC spec-spec-lint D1): this tool owns INTRA-SPEC STRUCTURE —
 // AC ids unique/sequential, AC status tokens, done-needs-evidence, Test Plan
-// row -> Spec-AC mapping, SPEC-FROZEN vs strategy/AC-table/frontmatter-status
-// consistency, ceremony_level enum, and AC rows the shared parser silently
-// drops.
+// row -> Spec-AC mapping (BOTH directions, see `ac-without-test` below),
+// SPEC-FROZEN vs strategy/AC-table/frontmatter-status consistency,
+// ceremony_level enum, and AC rows the shared parser silently drops.
+//
+// AC -> TEST REVERSE COVERAGE (`ac-without-test`, CHANGE-0113 D2 probe R21):
+// a Spec-AC that no Test Plan row claims. Scoped to in-flight specs
+// (draft/proposed/accepted/implementing) because a terminal spec's Test Plan
+// is history, not an actionable finding. spec-freeze.mjs reads this same rule
+// as a hard freeze PRECONDITION — the lint reports, the freeze refuses.
+// WHAT IT DOES NOT CHECK: whether the named test COMMAND actually runs, and
+// whether the AC is measurable at all. Both stay Planning's judgment.
 // docs-audit owns LIFECYCLE/DRIFT (orphans, frontmatter schema, staleness,
 // false-done, close gate, telemetry, body lint). Shared token rules come from
 // lib/docs-model.mjs so the engines cannot diverge on what a valid cell IS.
@@ -65,6 +73,9 @@ const CEREMONY_ENUM = ['0', '1', '2', '3'];
 const AC_ID_RE = /^Spec-AC-(\d{2})$/;
 const AC_RANGE_RE = /^Spec-AC-(\d{2})\.\.(\d{2})$/;
 const STRATEGY_ENUM = ['loop', 'tdd', 'hybrid', 'direct', 'untested', 'undecided'];
+// Statuses at which `ac-without-test` (below) applies — the same set
+// spec-freeze.mjs accepts as freezable, plus nothing else. See the rule.
+const IN_FLIGHT_STATUSES = ['draft', 'proposed', 'accepted', 'implementing'];
 
 function usage() {
   console.error(
@@ -345,6 +356,7 @@ export function lintContent(content, opts = {}) {
   const norm = normalizeNewlines(content);
   const fm = parseFrontmatter(norm) ?? {};
   const ac = parseAcTable(norm);
+  const fmStatus = String(fm.status ?? '').trim().toLowerCase();
 
   // spec-id-shape (SPEC-0058): a type: spec doc whose frontmatter id is a
   // collision-prone bare slug (neither the legacy numbered SPEC-NNNN form nor
@@ -379,6 +391,7 @@ export function lintContent(content, opts = {}) {
     const nums = [];
     for (const row of ac.rows) {
       const id = row['Spec-AC'];
+
       if (knownIds.has(id)) add('ac-id-duplicate', `${id} appears more than once in the AC Status table`);
       knownIds.add(id);
       const m = id.match(AC_ID_RE);
@@ -461,15 +474,44 @@ export function lintContent(content, opts = {}) {
 
   // --- Test Plan -> Spec-AC mapping -----------------------------------------
   const tp = parseTestPlan(norm);
+  const coveredAcIds = new Set();
   for (const row of tp.rows) {
     const { ids, malformed } = expandAcRefs(row.acCell);
     for (const tok of malformed) {
       add('test-ac-malformed', `${row.testId} Spec-AC cell token "${tok}" does not match Spec-AC-NN or Spec-AC-NN..MM`, row.line);
     }
     for (const id of ids) {
+      coveredAcIds.add(id);
       if (!knownIds.has(id)) {
         add('test-ac-unknown', `${row.testId} references ${id}, which is not in the AC Status table`, row.line);
       }
+    }
+  }
+
+  // --- Spec-AC -> TEST reverse coverage (CHANGE-0113 D2 probe R21) ----------
+  // The mapping check above is one-directional: it catches a TEST row pointing
+  // at an AC that does not exist, never an AC that no TEST row claims. The
+  // altitude replay (docs/analysis/altitude-replay.md, task T3) is the
+  // motivating evidence — a Planning candidate produced well-formed ACs whose
+  // tests were absent or non-functional, and nothing in the toolchain said so.
+  // Both AC-table shapes feed it: the canonical gate table and the L0/L1 lean
+  // table already seeded into `knownIds` above, so the lean path needs no
+  // second parser.
+  //   SCOPE — in-flight specs only (draft/proposed/accepted/implementing, the
+  //   same set spec-freeze.mjs will freeze). A terminal spec's Test Plan is
+  //   HISTORY: its suites have since been renamed, folded or archived, and
+  //   re-litigating them yields noise, not action (12 such specs live in this
+  //   corpus today). The rule bites exactly where it can still change an
+  //   outcome — the freeze boundary.
+  if (IN_FLIGHT_STATUSES.includes(fmStatus)) {
+    for (const id of knownIds) {
+      // Malformed ids are owned by `ac-id-malformed`; do not double-report.
+      if (!AC_ID_RE.test(id)) continue;
+      if (coveredAcIds.has(id)) continue;
+      // parseAcTable rows carry no line field — locate the id's own table
+      // row (first `| <id>` line) so the finding is jump-to-able (bot review).
+      const acLineIdx = norm.split('\n').findIndex(l => l.trim().startsWith('|') && l.includes(id));
+      add('ac-without-test', `${id} has no Test Plan row claiming it — every Spec-AC needs at least one TEST-xxx entry naming a runnable command before the spec is frozen`, acLineIdx >= 0 ? acLineIdx + 1 : null);
     }
   }
 
@@ -515,8 +557,7 @@ export function lintContent(content, opts = {}) {
   // the freeze gate, and the pre-marker-convention specs still in the corpus
   // are history, not half-freezes.
   const frozenMarker = specFrozenInBody(norm);
-  const fmStatus = String(fm.status ?? '').trim().toLowerCase();
-  if (frozenMarker && ['draft', 'proposed', 'accepted'].includes(fmStatus)) {
+  if (frozenMarker &&['draft', 'proposed', 'accepted'].includes(fmStatus)) {
     add('half-frozen', `SPEC-FROZEN is true but frontmatter status is "${fmStatus}" — freeze is atomic (marker + status: implementing); run node .aai/scripts/spec-freeze.mjs --path <spec> instead of writing either half by hand`);
   } else if (!frozenMarker && fmStatus === 'implementing') {
     add('half-frozen', 'frontmatter status is "implementing" but the SPEC-FROZEN marker is absent — freeze is atomic (marker + status: implementing); run node .aai/scripts/spec-freeze.mjs --path <spec> instead of writing either half by hand');

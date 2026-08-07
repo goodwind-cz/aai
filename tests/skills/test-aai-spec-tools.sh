@@ -95,6 +95,12 @@ EOF
 | Spec-AC    | Description | Status | Evidence   | Review-By | Notes |
 |------------|-------------|--------|------------|-----------|-------|
 | Spec-AC-01 | first       | done   | tests/a.sh | —         | —     |
+
+## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
+|----------|------------|------|----------------------|-------------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/a.sh           | first       | green  |
 EOF
 }
 
@@ -394,6 +400,10 @@ links:
 ## Links
 - Requirement: docs/issues/CHANGE-0079-fx.md
 
+## Implementation strategy
+- Strategy: direct
+- Rationale: fixture
+
 ## Isolation and review
 - Inline review scope: src/touched.mjs
 EOF
@@ -432,12 +442,12 @@ EOF
     || { log_info "TEST-009(freeze): expected exactly 4 diff lines (status flip + marker + blank), got $dl: $(diff "$spec.orig" "$spec")"; ok=0; }
 
   # (b) the MINIMAL shape that produced `status: implement` + `trueing`.
-  printf -- '---\nid: x\ntype: spec\nstatus: draft\n---\n\n## Summary\nbody text\n' \
+  printf -- '---\nid: x\ntype: spec\nstatus: draft\n---\n\n## Summary\nbody text\n\n## Implementation strategy\n- Strategy: direct\n' \
     > "$REPO/docs/specs/SPEC-0101-min.md"
   out="$(runfreeze --path docs/specs/SPEC-0101-min.md --no-event 2>&1)"; rc=$?
   expect_exit 0 "$rc" "TEST-009(freeze) minimal no-H1" || ok=0
   local want
-  want="$(printf -- '---\nid: x\ntype: spec\nstatus: implementing\n---\n\nSPEC-FROZEN: true\n\n## Summary\nbody text\n')"
+  want="$(printf -- '---\nid: x\ntype: spec\nstatus: implementing\n---\n\nSPEC-FROZEN: true\n\n## Summary\nbody text\n\n## Implementation strategy\n- Strategy: direct\n')"
   [[ "$(cat "$REPO/docs/specs/SPEC-0101-min.md")" == "$want" ]] \
     || { log_info "TEST-009(freeze): minimal output not byte-correct: $(cat "$REPO/docs/specs/SPEC-0101-min.md")"; ok=0; }
   # idempotent on the no-H1 shape too
@@ -646,6 +656,193 @@ test_013_scope_backtick_annotation_key() {
   log_pass "TEST-013(scope): decorated entries matchable; no silent no-op, no duplicate"
 }
 
+# === R31 (CHANGE-0113 D2 probe) — FREEZE PRECONDITIONS ========================
+# Before CHANGE-0113 spec-freeze.mjs checked frontmatter parse + status
+# transition only: a spec whose ACs had no tests, or whose strategy was still
+# `undecided`, froze happily. The Planning prompt said not to; nothing enforced
+# it. These arms are the enforcement.
+#
+# NOTE on the split: MEASURABILITY of an AC stays Planning's judgment (no
+# script can decide it); the two arms a parser CAN decide are gated here.
+
+# freeze_fixture <status> <extra-body-flag> — a freezable spec at $SPEC.
+# Args: 1 status, 2 "notest" to drop the Test Plan, "undecided"/"nostrategy"
+# to break the strategy line.
+freeze_fixture() {
+  local status="$1" variant="${2:-}"
+  spec_body "$status" false "src/touched.mjs" > "$SPEC"
+  case "$variant" in
+    notest) grep -v '^| TEST-001 ' "$SPEC" > "$SPEC.tmp" && mv "$SPEC.tmp" "$SPEC" ;;
+    undecided) sed 's/^- Strategy: direct$/- Strategy: undecided/' "$SPEC" > "$SPEC.tmp" && mv "$SPEC.tmp" "$SPEC" ;;
+    nostrategy) sed '/^- Strategy: direct$/d' "$SPEC" > "$SPEC.tmp" && mv "$SPEC.tmp" "$SPEC" ;;
+  esac
+}
+
+# --- TEST-020(freeze) — an untested Spec-AC REFUSES the freeze ----------------
+test_freeze_020_precondition_ac_without_test() {
+  local out rc ok=1 before
+  new_repo || { log_fail "TEST-020(freeze) fixture setup failed"; return; }
+  freeze_fixture draft notest
+  before="$(cksum "$SPEC")"
+  out="$(runfreeze --path docs/specs/SPEC-0001-fx.md --no-event 2>&1)"; rc=$?
+  expect_exit 3 "$rc" "TEST-020(freeze) untested AC" || ok=0
+  echo "$out" | grep -qi "refus" \
+    || { log_info "TEST-020(freeze): refusal not named: $out"; ok=0; }
+  echo "$out" | grep -qF "ac-without-test" \
+    || { log_info "TEST-020(freeze): the refusal must name its reason (ac-without-test): $out"; ok=0; }
+  echo "$out" | grep -qF "Spec-AC-01" \
+    || { log_info "TEST-020(freeze): the refusal must name the offending AC: $out"; ok=0; }
+  [[ "$before" == "$(cksum "$SPEC")" ]] \
+    || { log_info "TEST-020(freeze): a refused freeze still wrote the spec"; ok=0; }
+  grep -q "^SPEC-FROZEN: true$" "$SPEC" \
+    && { log_info "TEST-020(freeze): the marker was written despite the refusal"; ok=0; }
+  grep -q "^status: implementing$" "$SPEC" \
+    && { log_info "TEST-020(freeze): the status was flipped despite the refusal"; ok=0; }
+
+  # --dry-run is a WOULD-BE freeze: it must refuse identically, not report ok.
+  out="$(runfreeze --path docs/specs/SPEC-0001-fx.md --dry-run --no-event 2>&1)"; rc=$?
+  expect_exit 3 "$rc" "TEST-020(freeze) dry-run refuses too" || ok=0
+
+  # --json must carry a machine-readable refusal (the orchestrator's path).
+  out="$(runfreeze --path docs/specs/SPEC-0001-fx.md --json --no-event 2>&1)"; rc=$?
+  expect_exit 3 "$rc" "TEST-020(freeze) json refusal" || ok=0
+  echo "$out" | grep -qF '"refused": true' \
+    || { log_info "TEST-020(freeze): --json refusal shape wrong: $out"; ok=0; }
+  echo "$out" | grep -qF 'ac-without-test' \
+    || { log_info "TEST-020(freeze): --json refusal must name the reason: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-020(freeze) an untested Spec-AC refuses the freeze (exit 3, named reason, nothing written)" \
+    || log_fail "TEST-020(freeze) ac-without-test precondition"
+}
+
+# --- TEST-021(freeze) — an undecided/absent strategy REFUSES the freeze -------
+test_freeze_021_precondition_strategy() {
+  local out rc ok=1 before variant
+  for variant in undecided nostrategy; do
+    new_repo || { log_fail "TEST-021(freeze) fixture setup failed"; return; }
+    freeze_fixture draft "$variant"
+    before="$(cksum "$SPEC")"
+    out="$(runfreeze --path docs/specs/SPEC-0001-fx.md --no-event 2>&1)"; rc=$?
+    expect_exit 3 "$rc" "TEST-021(freeze) strategy $variant" || ok=0
+    echo "$out" | grep -qF "frozen-without-strategy" \
+      || { log_info "TEST-021(freeze) $variant: the refusal must name its reason: $out"; ok=0; }
+    [[ "$before" == "$(cksum "$SPEC")" ]] \
+      || { log_info "TEST-021(freeze) $variant: a refused freeze still wrote the spec"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-021(freeze) an undecided/absent strategy refuses the freeze (both arms, nothing written)" \
+    || log_fail "TEST-021(freeze) strategy precondition"
+}
+
+# --- TEST-022(freeze) — negative controls: what must STILL freeze -------------
+test_freeze_022_precondition_controls() {
+  local out rc ok=1
+  # (a) the full fixture (covered AC + decided strategy) still freezes
+  new_repo || { log_fail "TEST-022(freeze) fixture setup failed"; return; }
+  freeze_fixture draft
+  out="$(runfreeze --path docs/specs/SPEC-0001-fx.md --no-event 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-022(freeze) compliant spec freezes" || ok=0
+  grep -q "^SPEC-FROZEN: true$" "$SPEC" \
+    || { log_info "TEST-022(freeze): compliant spec did not get the marker"; ok=0; }
+
+  # (b) an L1 lean spec is strategy-EXEMPT (RFC-0009), exactly as spec-lint is,
+  # but its ACs still need tests — the two arms are independent.
+  new_repo || { log_fail "TEST-022(freeze) fixture setup failed"; return; }
+  cat > "$REPO/docs/specs/SPEC-0200-lean.md" <<'EOF'
+---
+id: spec-fixture-lean-freeze
+type: spec
+number: 200
+status: draft
+ceremony_level: 1
+links:
+  pr: []
+---
+
+# Fixture — lean L1
+
+Ceremony justification: single-surface fixture fix.
+
+## Acceptance Criteria
+
+| Spec-AC    | Description | Status  |
+|------------|-------------|---------|
+| Spec-AC-01 | only        | planned |
+
+## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
+|----------|------------|------|----------------------|-------------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/x.sh           | a           | pending |
+EOF
+  out="$(runfreeze --path docs/specs/SPEC-0200-lean.md --no-event 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-022(freeze) lean L1 strategy exemption" || ok=0
+
+  # (c) the OTHER refusal classes still take precedence and still name
+  # themselves (a precondition must not swallow a terminal-status refusal).
+  printf -- '---\nid: d\ntype: spec\nstatus: done\n---\n\n# D\n' \
+    > "$REPO/docs/specs/SPEC-0201-done.md"
+  out="$(runfreeze --path docs/specs/SPEC-0201-done.md --no-event 2>&1)"; rc=$?
+  expect_exit 3 "$rc" "TEST-022(freeze) terminal status still refuses" || ok=0
+  echo "$out" | grep -qi "only draft" \
+    || { log_info "TEST-022(freeze): terminal-status refusal changed wording: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-022(freeze) compliant + lean-L1 specs still freeze; other refusals unchanged" \
+    || log_fail "TEST-022(freeze) precondition negative controls"
+}
+
+# --- TEST-023(freeze) — the gate is documented in --help ----------------------
+test_freeze_023_help_documents_preconditions() {
+  local out rc ok=1
+  new_repo || { log_fail "TEST-023(freeze) fixture setup failed"; return; }
+  out="$(runfreeze --help 2>&1)"; rc=$?
+  echo "$out" | grep -qF "ac-without-test" \
+    || { log_info "TEST-023(freeze): --help does not name the ac-without-test precondition: $out"; ok=0; }
+  echo "$out" | grep -qi "strategy" \
+    || { log_info "TEST-023(freeze): --help does not name the strategy precondition: $out"; ok=0; }
+  # measurability is NOT claimed by the tool — the honest split
+  grep -qi "measurab" "$FREEZE" \
+    || { log_info "TEST-023(freeze): the script must document that measurability stays prompt judgment"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-023(freeze) --help documents both precondition arms; measurability split documented" \
+    || log_fail "TEST-023(freeze) precondition documentation"
+}
+
+test_024_freeze_unparsed_ac_row() {
+  # bot P2 (#232): an AC-looking row the parser drops must refuse the freeze
+  log_info "TEST-024(freeze): parser-dropped AC row refuses (ac-row-unparsed)..."
+  local d; d="$(mktemp -d "${TMPDIR:-/tmp}/sf24.XXXXXX")"
+  cat > "$d/SPEC-0001-spec-x.md" <<'SPEC'
+---
+id: spec-x
+type: spec
+number: 1
+status: draft
+---
+# S
+
+- Strategy: direct
+
+## Acceptance Criteria Status
+
+| Spec-AC | Description | Status | Test | Evidence | Review-By |
+|---|---|---|---|---|---|
+| Spec-AC-01 | a | planned | tests/a.sh | — | — |
+| Spec-AC-02 broken row no pipes
+
+## Test Plan
+
+| Test ID | Spec-AC | Type | File path (expected) | Description | Status |
+|---|---|---|---|---|---|
+| TEST-001 | Spec-AC-01 | unit | tests/a.sh | a | pending |
+SPEC
+  local before after rc=0 out
+  before="$(cksum "$d/SPEC-0001-spec-x.md")"
+  out="$(node "$FREEZE" --path "$d/SPEC-0001-spec-x.md" --no-event 2>&1)" || rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "TEST-024(freeze): must refuse exit 3 (got $rc): $out"
+  printf '%s' "$out" | grep -q 'ac-row-unparsed' || log_fail "TEST-024(freeze): reason must name ac-row-unparsed: $out"
+  after="$(cksum "$d/SPEC-0001-spec-x.md")"
+  [[ "$before" == "$after" ]] || log_fail "TEST-024(freeze): refusal must write nothing"
+  rm -rf "$d"
+  log_pass "TEST-024(freeze): unparsed AC row refuses, nothing written"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -662,6 +859,11 @@ main() {
   test_freeze_002_half_state_refusal
   test_freeze_003_repairs_half_frozen
   test_freeze_004_no_h1
+  test_freeze_020_precondition_ac_without_test
+  test_freeze_021_precondition_strategy
+  test_freeze_022_precondition_controls
+  test_freeze_023_help_documents_preconditions
+  test_024_freeze_unparsed_ac_row
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then
