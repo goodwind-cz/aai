@@ -272,14 +272,14 @@ keeps it side-effect-free, testable offline, and portable.
 
 | Spec-AC    | Description | Status | Evidence | Review-By | Notes |
 |------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN the routine template is read THEN it carries all six named contract elements and exactly the four declared placeholders | planned | — | — | field re-creation of the live trigger is residual risk R1 |
-| Spec-AC-02 | WHEN the emitter renders SCRYER with full arguments THEN output matches the golden byte-for-byte, is idempotent, and holds no unresolved placeholder | planned | — | — | — |
-| Spec-AC-03 | WHEN a harness and OS are named THEN the emitter prints the matching installation payload, and exits 2 on an unknown value | planned | — | — | claude payload is a JSON spec block per D1 |
-| Spec-AC-04 | WHEN --merge is passed THEN a merge-enabled contract is emitted ONLY on a machine-checked routine_authorization record, else report-only with a loud stderr line | planned | — | — | fail-closed on malformed ledger |
-| Spec-AC-05 | The real decisions ledger gains one canonical routine_authorization record for aai-morning-scryer, appended, with provenance | planned | — | — | line 83 stays byte-unchanged |
-| Spec-AC-06 | The skill is on-demand only — verbatim pin present and no automatic surface references it — and four harness wrappers exist | planned | — | — | mirrors the aai-issues wrapper shape |
-| Spec-AC-07 | WHEN any emission is produced THEN it ends with a TEST AT CREATION block naming the fire command and three verifications | planned | — | — | memory rule cloud-routine-test-at-creation |
-| Spec-AC-08 | Governance companions are satisfied — PROFILES entries, diet-ledger entry plus TEST-012 re-sum, SKILLS.md row, suite-map row | planned | — | — | closed two-entry companion check plus catalog wiring |
+| Spec-AC-01 | WHEN the routine template is read THEN it carries all six named contract elements and exactly the four declared placeholders | done | test-aai-routine.sh TEST-001/002 PASS 2026-08-08 | — | field re-creation of the live trigger is residual risk R1 |
+| Spec-AC-02 | WHEN the emitter renders SCRYER with full arguments THEN output matches the golden byte-for-byte, is idempotent, and holds no unresolved placeholder | done | test-aai-routine.sh TEST-003/004/005/006 PASS 2026-08-08 | — | — |
+| Spec-AC-03 | WHEN a harness and OS are named THEN the emitter prints the matching installation payload, and exits 2 on an unknown value | done | test-aai-routine.sh TEST-007..010 PASS 2026-08-08 | — | claude payload is a JSON spec block per D1 |
+| Spec-AC-04 | WHEN --merge is passed THEN a merge-enabled contract is emitted ONLY on a machine-checked routine_authorization record, else report-only with a loud stderr line | done | test-aai-routine.sh TEST-011..014 PASS 2026-08-08 | — | fail-closed on malformed ledger |
+| Spec-AC-05 | The real decisions ledger gains one canonical routine_authorization record for aai-morning-scryer, appended, with provenance | done | test-aai-routine.sh TEST-015..017 PASS 2026-08-08 | — | line 83 stays byte-unchanged |
+| Spec-AC-06 | The skill is on-demand only — verbatim pin present and no automatic surface references it — and four harness wrappers exist | done | test-aai-routine.sh TEST-018..020 PASS 2026-08-08 | — | mirrors the aai-issues wrapper shape |
+| Spec-AC-07 | WHEN any emission is produced THEN it ends with a TEST AT CREATION block naming the fire command and three verifications | done | test-aai-routine.sh TEST-021 PASS 2026-08-08 | — | memory rule cloud-routine-test-at-creation |
+| Spec-AC-08 | Governance companions are satisfied — PROFILES entries, diet-ledger entry plus TEST-012 re-sum, SKILLS.md row, suite-map row | done | test-aai-routine.sh TEST-022 + test-aai-layer-profiles.sh TEST-001 + test-aai-prompt-diet.sh TEST-010/012 + test-aai-hygiene-pack.sh PASS 2026-08-08 | — | closed two-entry companion check plus catalog wiring |
 
 ## Implementation plan
 
@@ -349,31 +349,31 @@ Edge cases:
 
 | Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
 |----------|------------|------|----------------------|-------------|--------|
-| TEST-001 | Spec-AC-01 | unit | tests/skills/test-aai-routine.sh | template carries all six contract elements as greppable text | pending |
-| TEST-002 | Spec-AC-01 | unit | tests/skills/test-aai-routine.sh | placeholder set is exactly the four declared tokens, none undeclared | pending |
-| TEST-003 | Spec-AC-02 | int  | tests/skills/test-aai-routine.sh | render equals tests/fixtures/routines/scryer-claude-merge.golden.txt byte-for-byte | pending |
-| TEST-004 | Spec-AC-02 | int  | tests/skills/test-aai-routine.sh | two identical renders are byte-identical (idempotence) | pending |
-| TEST-005 | Spec-AC-02 | int  | tests/skills/test-aai-routine.sh | rendered output contains zero unresolved placeholder sequences | pending |
-| TEST-006 | Spec-AC-02 | unit | tests/skills/test-aai-routine.sh | missing required flag exits 2 and writes nothing to stdout | pending |
-| TEST-007 | Spec-AC-03 | int  | tests/skills/test-aai-routine.sh | claude payload parses as JSON, prompt equals render, fields echo arguments | pending |
-| TEST-008 | Spec-AC-03 | int  | tests/skills/test-aai-routine.sh | codex, gemini and generic on macos and linux emit a crontab line plus headless CLI runner | pending |
-| TEST-009 | Spec-AC-03 | int  | tests/skills/test-aai-routine.sh | windows emits Register-ScheduledTask and both twin filenames | pending |
-| TEST-010 | Spec-AC-03 | unit | tests/skills/test-aai-routine.sh | unknown harness and unknown os each exit 2 with empty stdout | pending |
-| TEST-011 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | authorized fixture yields merge-allowed true plus all three merge gates, exit 0 | pending |
-| TEST-012 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | unauthorized fixture yields report-only, loud MERGE DISABLED stderr line, exit 0 | pending |
-| TEST-013 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | four near-miss records (wrong ref, by not human, grants lacking merge, wrong type) each yield report-only | pending |
-| TEST-014 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | absent and truncated decisions files fail closed to report-only, exit 0 | pending |
-| TEST-015 | Spec-AC-05 | int  | tests/skills/test-aai-routine.sh | live docs/ai/decisions.jsonl holds exactly one matching record with all required fields and non-empty derived_from | pending |
-| TEST-016 | Spec-AC-05 | int  | tests/skills/test-aai-routine.sh | ledger change is append-only across the scope, first 83 lines byte-unchanged | pending |
-| TEST-017 | Spec-AC-05 | e2e  | tests/skills/test-aai-routine.sh | emit against the live ledger with ref aai-morning-scryer and merge prints merge-allowed true, exit 0 | pending |
-| TEST-018 | Spec-AC-06 | unit | tests/skills/test-aai-routine.sh | skill prompt pins the on-demand sentence verbatim | pending |
-| TEST-019 | Spec-AC-06 | unit | tests/skills/test-aai-routine.sh | seven automatic surfaces contain neither routine-emit nor aai-routine | pending |
-| TEST-020 | Spec-AC-06 | unit | tests/skills/test-aai-routine.sh | four wrappers exist with matching name frontmatter, prompt path and fallback sentence | pending |
-| TEST-021 | Spec-AC-07 | int  | tests/skills/test-aai-routine.sh | all eight harness times merge-mode emissions carry the TEST AT CREATION block with fire command and three verifications | pending |
-| TEST-022 | Spec-AC-08 | unit | tests/skills/test-aai-routine.sh | SKILLS.md carries one aai-routine row naming the prompt path | pending |
-| TEST-023 | Spec-AC-08 | int  | tests/skills/test-aai-layer-profiles.sh | TEST-001 union equals the live .aai tree with the three new files classified | pending |
-| TEST-024 | Spec-AC-08 | int  | tests/skills/test-aai-prompt-diet.sh | TEST-010 floor plus headroom cap and TEST-012 pin equals independent re-sum after the new ledger entry | pending |
-| TEST-025 | Spec-AC-08 | int  | tests/skills/test-aai-hygiene-pack.sh | every tests/skills/test-aai-*.sh has exactly one suite-map row, including the new suite | pending |
+| TEST-001 | Spec-AC-01 | unit | tests/skills/test-aai-routine.sh | template carries all six contract elements as greppable text | green |
+| TEST-002 | Spec-AC-01 | unit | tests/skills/test-aai-routine.sh | placeholder set is exactly the four declared tokens, none undeclared | green |
+| TEST-003 | Spec-AC-02 | int  | tests/skills/test-aai-routine.sh | render equals tests/fixtures/routines/scryer-claude-merge.golden.txt byte-for-byte | green |
+| TEST-004 | Spec-AC-02 | int  | tests/skills/test-aai-routine.sh | two identical renders are byte-identical (idempotence) | green |
+| TEST-005 | Spec-AC-02 | int  | tests/skills/test-aai-routine.sh | rendered output contains zero unresolved placeholder sequences | green |
+| TEST-006 | Spec-AC-02 | unit | tests/skills/test-aai-routine.sh | missing required flag exits 2 and writes nothing to stdout | green |
+| TEST-007 | Spec-AC-03 | int  | tests/skills/test-aai-routine.sh | claude payload parses as JSON, prompt equals render, fields echo arguments | green |
+| TEST-008 | Spec-AC-03 | int  | tests/skills/test-aai-routine.sh | codex, gemini and generic on macos and linux emit a crontab line plus headless CLI runner | green |
+| TEST-009 | Spec-AC-03 | int  | tests/skills/test-aai-routine.sh | windows emits Register-ScheduledTask and both twin filenames | green |
+| TEST-010 | Spec-AC-03 | unit | tests/skills/test-aai-routine.sh | unknown harness and unknown os each exit 2 with empty stdout | green |
+| TEST-011 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | authorized fixture yields merge-allowed true plus all three merge gates, exit 0 | green |
+| TEST-012 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | unauthorized fixture yields report-only, loud MERGE DISABLED stderr line, exit 0 | green |
+| TEST-013 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | four near-miss records (wrong ref, by not human, grants lacking merge, wrong type) each yield report-only | green |
+| TEST-014 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | absent and truncated decisions files fail closed to report-only, exit 0 | green |
+| TEST-015 | Spec-AC-05 | int  | tests/skills/test-aai-routine.sh | live docs/ai/decisions.jsonl holds exactly one matching record with all required fields and non-empty derived_from | green |
+| TEST-016 | Spec-AC-05 | int  | tests/skills/test-aai-routine.sh | ledger change is append-only across the scope, first 83 lines byte-unchanged | green |
+| TEST-017 | Spec-AC-05 | e2e  | tests/skills/test-aai-routine.sh | emit against the live ledger with ref aai-morning-scryer and merge prints merge-allowed true, exit 0 | green |
+| TEST-018 | Spec-AC-06 | unit | tests/skills/test-aai-routine.sh | skill prompt pins the on-demand sentence verbatim | green |
+| TEST-019 | Spec-AC-06 | unit | tests/skills/test-aai-routine.sh | seven automatic surfaces contain neither routine-emit nor aai-routine | green |
+| TEST-020 | Spec-AC-06 | unit | tests/skills/test-aai-routine.sh | four wrappers exist with matching name frontmatter, prompt path and fallback sentence | green |
+| TEST-021 | Spec-AC-07 | int  | tests/skills/test-aai-routine.sh | all eight harness times merge-mode emissions carry the TEST AT CREATION block with fire command and three verifications | green |
+| TEST-022 | Spec-AC-08 | unit | tests/skills/test-aai-routine.sh | SKILLS.md carries one aai-routine row naming the prompt path | green |
+| TEST-023 | Spec-AC-08 | int  | tests/skills/test-aai-layer-profiles.sh | TEST-001 union equals the live .aai tree with the three new files classified | green |
+| TEST-024 | Spec-AC-08 | int  | tests/skills/test-aai-prompt-diet.sh | TEST-010 floor plus headroom cap and TEST-012 pin equals independent re-sum after the new ledger entry | green |
+| TEST-025 | Spec-AC-08 | int  | tests/skills/test-aai-hygiene-pack.sh | every tests/skills/test-aai-*.sh has exactly one suite-map row, including the new suite | green |
 
 RED discipline (strategy hybrid): TEST-011 through TEST-014 (the merge guard)
 and TEST-003 plus TEST-005 (the renderer) are the AC-gating tests and MUST be
