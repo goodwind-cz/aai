@@ -1,4 +1,4 @@
-// claude-code.mjs — Claude Code harness parser (SPEC-DRAFT-spec-live-status-dashboard).
+// claude-code.mjs — Claude Code harness parser (SPEC-0114-spec-live-status-dashboard).
 //
 // Session shape: ~/.claude/projects/<slug>/<session>.jsonl (or
 // $CLAUDE_CONFIG_DIR/projects/<slug>/<session>.jsonl). `type: assistant`

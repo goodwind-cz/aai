@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff origin/main...HEAD (feat/live-status-dashboard @ b181d1f, 15 commits, 27 files); remediation delta git show b181d1f (9 files, +572/-23)
-  spec: docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md (12 Spec-AC, 36-row Test Plan)
+  spec: docs/specs/SPEC-0114-spec-live-status-dashboard.md (12 Spec-AC, 36-row Test Plan)
   spec_compliance:
     verdict: pass
     ac_walk:

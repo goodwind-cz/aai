@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-live-status
-# (docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md, TEST-001..020, 024..036)
+# (docs/specs/SPEC-0114-spec-live-status-dashboard.md, TEST-001..020, 024..036)
 #
 # Verifies .aai/scripts/generate-live-status.mjs — the optional, zero-token,
 # zero-network live-status dashboard generator — plus its per-harness parser

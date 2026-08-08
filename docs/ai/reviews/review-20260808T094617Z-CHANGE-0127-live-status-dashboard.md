@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff origin/main...HEAD (feat/live-status-dashboard @ 23e4339, 12 commits, 24 files)
-  spec: docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md (frozen, 12 Spec-AC, 29-row Test Plan)
+  spec: docs/specs/SPEC-0114-spec-live-status-dashboard.md (frozen, 12 Spec-AC, 29-row Test Plan)
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -102,7 +102,7 @@ review:
   worktree policy selects `git diff <base>...HEAD` and `inline_review_scope` is not
   consulted. `git status --porcelain` empty before and after every probe below.
   Two stale STATE fields noted under the process verdict.
-- Spec: `docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md`, SPEC-FROZEN, 12
+- Spec: `docs/specs/SPEC-0114-spec-live-status-dashboard.md`, SPEC-FROZEN, 12
   Spec-AC, 29-row Test Plan, ceremony_level 2, strategy hybrid. No `Review-By`
   values, so the gate's Rules 3/4 do not fire.
 - Both validation rounds read (091200Z FAIL, 093456Z PASS). I did not re-litigate

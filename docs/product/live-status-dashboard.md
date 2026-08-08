@@ -5,7 +5,7 @@ capability: live-status-dashboard
 status: current
 delivered_by:
   - CHANGE-0127
-spec: docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md
+spec: docs/specs/SPEC-0114-spec-live-status-dashboard.md
 updated: 2026-08-08
 ---
 
@@ -114,5 +114,5 @@ ever invokes it, and it is never coupled to ride ceremony.
 ## Links
 
 - Request: docs/issues/CHANGE-0127-live-status-dashboard.md
-- Spec: docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md
+- Spec: docs/specs/SPEC-0114-spec-live-status-dashboard.md
 - Analysis: docs/analysis/blume-and-alternatives.md

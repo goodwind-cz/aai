@@ -1,4 +1,4 @@
-// codex.mjs — Codex CLI harness parser (SPEC-DRAFT-spec-live-status-dashboard).
+// codex.mjs — Codex CLI harness parser (SPEC-0114-spec-live-status-dashboard).
 //
 // Session shape: ~/.codex/sessions/<YYYY>/<MM>/<DD>/rollout-<ts>-<uuid>.jsonl
 // (session_index.jsonl is a discovery convenience the generator does not

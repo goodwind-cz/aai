@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# live-spool.sh — statusline/hook tap writer (SPEC-DRAFT-spec-live-status-dashboard).
+# live-spool.sh — statusline/hook tap writer (SPEC-0114-spec-live-status-dashboard).
 #
 # Reads ONE JSON payload on stdin, projects a WHITELIST of fields, appends
 # one line to docs/ai/live/<kind>.jsonl (kind = statusline|hooks, first

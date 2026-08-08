@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
   aai-live.ps1 - generate the live-status dashboard, then open it
-  (SPEC-DRAFT-spec-live-status-dashboard). Windows twin of aai-live.sh.
+  (SPEC-0114-spec-live-status-dashboard). Windows twin of aai-live.sh.
 
 .DESCRIPTION
   No server, no port: opens the static HTML file directly via Start-Process

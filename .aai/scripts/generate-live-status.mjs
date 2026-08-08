@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // generate-live-status.mjs — optional, zero-token live-status dashboard
-// (SPEC-DRAFT-spec-live-status-dashboard / CHANGE-0127).
+// (SPEC-0114-spec-live-status-dashboard / CHANGE-0127).
 //
 // Answers what the existing three generators (dashboard, factory-report,
 // overview) cannot: what is running NOW, what it has cost TODAY, and how

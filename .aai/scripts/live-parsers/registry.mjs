@@ -1,4 +1,4 @@
-// registry.mjs — per-harness parser registry (SPEC-DRAFT-spec-live-status-dashboard,
+// registry.mjs — per-harness parser registry (SPEC-0114-spec-live-status-dashboard,
 // Spec-AC-02 / Spec-AC-04). Each entry declares: id, roots(env), discover(roots),
 // parse(file, ctx), accumulation, project(record), and optionally
 // rateLimits(records). The generator knows nothing else about any harness —

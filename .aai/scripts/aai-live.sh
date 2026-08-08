@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # aai-live.sh — generate the live-status dashboard, then open it
-# (SPEC-DRAFT-spec-live-status-dashboard). No server, no port: the page is a
+# (SPEC-0114-spec-live-status-dashboard). No server, no port: the page is a
 # plain static file opened directly via the platform opener; `--watch` keeps
 # it current through its own meta-refresh (see generate-live-status.mjs).
 #

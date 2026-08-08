@@ -1,4 +1,4 @@
-// gemini-cli.mjs — Gemini CLI harness parser (SPEC-DRAFT-spec-live-status-dashboard).
+// gemini-cli.mjs — Gemini CLI harness parser (SPEC-0114-spec-live-status-dashboard).
 //
 // Session shape: ~/.gemini/tmp/<project>/logs.json — a JSON array of
 // {sessionId, messageId, type, message, timestamp}. NO usage fields exist in

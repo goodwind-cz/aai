@@ -1,7 +1,7 @@
 ---
 id: spec-live-status-dashboard
 type: spec
-number: null
+number: 114
 status: implementing
 ceremony_level: 2
 links:
@@ -139,7 +139,7 @@ Allowed strategy values: loop | tdd | hybrid | direct | untested | undecided
   .aai/system/PROFILES.yaml, .aai/system/RUNTIME_IGNORE.list,
   .aai/system/DOCS_AI_CANON.list, .gitignore,
   docs/product/live-status-dashboard.md, docs/USER_GUIDE.md,
-  docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md,
+  docs/specs/SPEC-0114-spec-live-status-dashboard.md,
   docs/issues/CHANGE-0127-live-status-dashboard.md, CHANGELOG.md
 
 ## Acceptance Criteria Mapping
@@ -400,8 +400,8 @@ unclassified — record that observation, do not skip it.
     acceptable recorded outcome; the CI ps1-quality workflow is the backstop)
   - `node .aai/scripts/generate-live-status.mjs` — live smoke on the owner's
     real corpus: exit 0, both files written
-  - `node .aai/scripts/docs-audit.mjs --check --strict --no-event --path docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md`
-  - `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md`
+  - `node .aai/scripts/docs-audit.mjs --check --strict --no-event --path docs/specs/SPEC-0114-spec-live-status-dashboard.md`
+  - `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0114-spec-live-status-dashboard.md`
 - Measured but NOT gated: the wall-clock of the cold live smoke over the
   ~485 MB Claude Code corpus and of the warm incremental re-run, both recorded
   as evidence. A machine-dependent duration is not an acceptance threshold.

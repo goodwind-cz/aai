@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-  live-spool.ps1 - statusline/hook tap writer (SPEC-DRAFT-spec-live-status-dashboard).
+  live-spool.ps1 - statusline/hook tap writer (SPEC-0114-spec-live-status-dashboard).
   Windows twin of live-spool.sh.
 
 .DESCRIPTION
