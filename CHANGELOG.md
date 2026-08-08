@@ -41,7 +41,14 @@ RFC-0001).
   sync, or any automatic path.
 - Governance: `.aai/system/PROFILES.yaml`, `tests/skills/suite-map.yaml`,
   the prompt-diet ledger, and `SKILLS.md` all gained their required entries;
-  new suite `tests/skills/test-aai-routine.sh` (TEST-001..022, all green).
+  new suite `tests/skills/test-aai-routine.sh` (TEST-001..022 plus
+  input-hardening TEST-026..030, 27 tests, all green).
+- Input-hardening batch: every free-text flag now rejects control
+  characters (incl. Unicode U+2028/U+2029) at the parsing boundary, a
+  markerless template or an unresolved `{{...}}` placeholder after render
+  (new exit code `3`) fails closed instead of leaking, and Windows
+  `-TaskName`/`-Description` are PowerShell single-quoted literals immune
+  to `$(...)` subexpression injection.
 
 ## [unreleased] — feat(live-status): optional zero-token live-status dashboard — per-harness parser registry, statusline/hook tap, watch mode (CHANGE-0127) [L2]
 

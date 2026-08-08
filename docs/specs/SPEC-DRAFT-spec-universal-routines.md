@@ -276,7 +276,7 @@ keeps it side-effect-free, testable offline, and portable.
 | Spec-AC-02 | WHEN the emitter renders SCRYER with full arguments THEN output matches the golden byte-for-byte, is idempotent, and holds no unresolved placeholder | done | test-aai-routine.sh TEST-003/004/005/006 PASS 2026-08-08 | — | — |
 | Spec-AC-03 | WHEN a harness and OS are named THEN the emitter prints the matching installation payload, and exits 2 on an unknown value | done | test-aai-routine.sh TEST-007..010 PASS 2026-08-08 | — | claude payload is a JSON spec block per D1 |
 | Spec-AC-04 | WHEN --merge is passed THEN a merge-enabled contract is emitted ONLY on a machine-checked routine_authorization record, else report-only with a loud stderr line | done | test-aai-routine.sh TEST-011..014 PASS 2026-08-08 | — | fail-closed on malformed ledger |
-| Spec-AC-05 | The real decisions ledger gains one canonical routine_authorization record for aai-morning-scryer, appended, with provenance | done | test-aai-routine.sh TEST-015..017 PASS 2026-08-08 | — | line 83 stays byte-unchanged |
+| Spec-AC-05 | The real decisions ledger gains one canonical routine_authorization record for aai-morning-scryer, appended, with provenance | done | test-aai-routine.sh TEST-015..017 PASS 2026-08-08 | — | line 85 stays byte-unchanged |
 | Spec-AC-06 | The skill is on-demand only — verbatim pin present and no automatic surface references it — and four harness wrappers exist | done | test-aai-routine.sh TEST-018..020 PASS 2026-08-08 | — | mirrors the aai-issues wrapper shape |
 | Spec-AC-07 | WHEN any emission is produced THEN it ends with a TEST AT CREATION block naming the fire command and three verifications | done | test-aai-routine.sh TEST-021 PASS 2026-08-08 | — | memory rule cloud-routine-test-at-creation |
 | Spec-AC-08 | Governance companions are satisfied — PROFILES entries, diet-ledger entry plus TEST-012 re-sum, SKILLS.md row, suite-map row | done | test-aai-routine.sh TEST-022 + test-aai-layer-profiles.sh TEST-001 + test-aai-prompt-diet.sh TEST-010/012 + test-aai-hygiene-pack.sh PASS 2026-08-08 | — | closed two-entry companion check plus catalog wiring |
@@ -364,7 +364,7 @@ Edge cases:
 | TEST-013 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | four near-miss records (wrong ref, by not human, grants lacking merge, wrong type) each yield report-only | green |
 | TEST-014 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | absent and truncated decisions files fail closed to report-only, exit 0 | green |
 | TEST-015 | Spec-AC-05 | int  | tests/skills/test-aai-routine.sh | live docs/ai/decisions.jsonl holds exactly one matching record with all required fields and non-empty derived_from | green |
-| TEST-016 | Spec-AC-05 | int  | tests/skills/test-aai-routine.sh | ledger change is append-only across the scope, first 83 lines byte-unchanged | green |
+| TEST-016 | Spec-AC-05 | int  | tests/skills/test-aai-routine.sh | ledger change is append-only across the scope, first 85 lines byte-unchanged | green |
 | TEST-017 | Spec-AC-05 | e2e  | tests/skills/test-aai-routine.sh | emit against the live ledger with ref aai-morning-scryer and merge prints merge-allowed true, exit 0 | green |
 | TEST-018 | Spec-AC-06 | unit | tests/skills/test-aai-routine.sh | skill prompt pins the on-demand sentence verbatim | green |
 | TEST-019 | Spec-AC-06 | unit | tests/skills/test-aai-routine.sh | seven automatic surfaces contain neither routine-emit nor aai-routine | green |

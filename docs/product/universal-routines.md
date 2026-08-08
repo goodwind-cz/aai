@@ -91,7 +91,10 @@ ledger; absent one, the routine emits in report-only mode and says so loudly.
     `[--decisions <path>]`, `-h`/`--help`.
   - Exit codes (closed set): `0` emitted (including the degraded
     report-only case); `2` usage error (unknown flag, missing/invalid value,
-    unknown template) — nothing written to stdout.
+    a control character in a free-text value, unknown template, or a
+    template missing its MERGE-GATES marker pair) — nothing written to
+    stdout; `3` an unresolved `{{...}}` placeholder survived render
+    (template/value mismatch) — nothing written to stdout.
   - `--harness claude` prints one line of JSON
     (`name, cron, timezone, model, repo, merge_enabled, prompt`) plus a
     handoff instruction naming Claude's own scheduling skill as installer.
