@@ -1,64 +1,64 @@
 {
-  "generatedAt": "2026-08-08T11:21:11.110Z",
+  "generatedAt": "2026-08-08T14:14:36.882Z",
   "project": "aai",
   "counts": {
-    "delivered": 172,
+    "delivered": 173,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 23273206
+    "tokens_total": 24741358
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "live-status-dashboard",
+    "ref": "universal-routines",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "live-status-dashboard",
+      "ref": "universal-routines",
       "type": "intake_change",
-      "phase": null
+      "phase": "validation"
     },
     "strategy": "hybrid",
     "worktree": {
-      "recommendation": "recommended",
-      "user_decision": "worktree"
+      "recommendation": "optional",
+      "user_decision": "inline"
     },
     "validation_status": "not_run",
     "review_status": "not_run",
     "ticks": [
       {
-        "tick": 12,
-        "role": "Code Review",
-        "scope": "CHANGE-0127",
-        "duration_seconds": 810,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 11,
+        "tick": 21,
         "role": "Remediation",
-        "scope": "CHANGE-0127",
-        "duration_seconds": 642,
+        "scope": "universal-routines",
+        "duration_seconds": 735,
         "harness_version": "2.1.220 (Claude Code)"
       },
       {
-        "tick": 10,
+        "tick": 20,
         "role": "Code Review",
-        "scope": "CHANGE-0127",
-        "duration_seconds": 681,
+        "scope": "universal-routines",
+        "duration_seconds": 617,
         "harness_version": "2.1.220 (Claude Code)"
       },
       {
-        "tick": 9,
+        "tick": 19,
         "role": "Remediation",
-        "scope": "CHANGE-0127",
-        "duration_seconds": 927,
+        "scope": "universal-routines",
+        "duration_seconds": 1147,
         "harness_version": "2.1.220 (Claude Code)"
       },
       {
-        "tick": 8,
+        "tick": 18,
         "role": "Code Review",
-        "scope": "CHANGE-0127",
-        "duration_seconds": 1178,
+        "scope": "universal-routines",
+        "duration_seconds": 596,
+        "harness_version": "2.1.220 (Claude Code)"
+      },
+      {
+        "tick": 17,
+        "role": "Validation",
+        "scope": "universal-routines",
+        "duration_seconds": 831,
         "harness_version": "2.1.220 (Claude Code)"
       }
     ]
@@ -91,6 +91,19 @@
       "spec": "docs/specs/SPEC-0114-spec-live-status-dashboard.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260808T111602Z-CHANGE-0127-live-status-dashboard-rereview3.md"
+    },
+    {
+      "ref": "universal-routines",
+      "title": "Change — Standing routines become a vendored, on-demand template (scryer generalized)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0128-universal-routines.md",
+      "closed_on": "2026-08-08",
+      "agent_minutes": 120,
+      "token_total": 1468152,
+      "spec": "docs/specs/SPEC-0115-spec-universal-routines.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260808T132824Z-CHANGE-0128-universal-routines.md"
     },
     {
       "ref": "win-escalation-hygiene",
@@ -2334,6 +2347,19 @@
           "spec": "docs/specs/SPEC-0114-spec-live-status-dashboard.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260808T111602Z-CHANGE-0127-live-status-dashboard-rereview3.md"
+        },
+        {
+          "ref": "universal-routines",
+          "title": "Change — Standing routines become a vendored, on-demand template (scryer generalized)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0128-universal-routines.md",
+          "closed_on": "2026-08-08",
+          "agent_minutes": 120,
+          "token_total": 1468152,
+          "spec": "docs/specs/SPEC-0115-spec-universal-routines.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260808T132824Z-CHANGE-0128-universal-routines.md"
         },
         {
           "ref": "win-escalation-hygiene",

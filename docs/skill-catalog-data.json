@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-08-08T11:21:02.133Z",
-  "skillsCount": 36,
-  "degradedCount": 21,
+  "generatedAt": "2026-08-08T14:14:36.695Z",
+  "skillsCount": 37,
+  "degradedCount": 22,
   "skills": [
     {
       "dir": "aai-auto-trigger",
@@ -249,6 +249,17 @@
       "goal": null,
       "notes": [
         "NOTE: no \"## Goal\" section found in .aai/SKILL_REPLAY.prompt.md"
+      ]
+    },
+    {
+      "dir": "aai-routine",
+      "name": "aai-routine",
+      "description": "On-demand instantiation of a vendored, agent-neutral standing routine (e.g. the morning scryer) for a named harness — never runs from bootstrap, sync, or any automatic path.",
+      "model": null,
+      "promptFile": ".aai/SKILL_ROUTINE.prompt.md",
+      "goal": null,
+      "notes": [
+        "NOTE: no \"## Goal\" section found in .aai/SKILL_ROUTINE.prompt.md"
       ]
     },
     {

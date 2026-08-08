@@ -196,6 +196,7 @@ extended:
   - .aai/SKILL_INTERROGATE.prompt.md
   - .aai/SKILL_ISSUES.prompt.md
   - .aai/SKILL_PROFILE.prompt.md
+  - .aai/SKILL_ROUTINE.prompt.md
   - .aai/SKILL_SCOUT.prompt.md
   - .aai/SKILL_SESSION_JOURNAL.prompt.md
   - .aai/SKILL_SHARE.prompt.md
@@ -204,6 +205,7 @@ extended:
   - .aai/SKILL_VALIDATE_REPORT.prompt.md
   - .aai/SKILL_WRAP_UP.prompt.md
   - .aai/feedback.yaml
+  - .aai/routines/SCRYER.routine.md
   - .aai/scripts/PSScriptAnalyzerSettings.psd1
   - .aai/scripts/aai-canonicalize.ps1
   - .aai/scripts/aai-canonicalize.sh
@@ -238,6 +240,7 @@ extended:
   - .aai/scripts/migrate-yaml-to-jsonl.ps1
   - .aai/scripts/migrate-yaml-to-jsonl.sh
   - .aai/scripts/prune-stale-briefs.mjs
+  - .aai/scripts/routine-emit.mjs
   - .aai/scripts/share-convert.mjs
   - .aai/scripts/test-canon.mjs
   - .aai/scripts/validate-skills.ps1

@@ -1,26 +1,26 @@
 {
-  "generatedAt": "2026-08-08T11:21:02.164Z",
+  "generatedAt": "2026-08-08T14:14:36.725Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 104,
-    "delivered": 295,
+    "rides": 105,
+    "delivered": 297,
     "active_weeks": 6,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (295 closes vs 104 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 295,
-    "delivered_per_week_avg": 49.2,
+    "note": "\"delivered\" counts every work_item_closed event (297 closes vs 105 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 297,
+    "delivered_per_week_avg": 49.5,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
       "2026-W29": 135,
       "2026-W30": 64,
       "2026-W31": 72,
-      "2026-W32": 15
+      "2026-W32": 17
     },
     "delivered_groups": [
       {
@@ -298,7 +298,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 32,
+        "count": 34,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -331,7 +331,9 @@
           "altitude-prompt-experiment",
           "win-escalation-hygiene",
           "live-status-dashboard",
-          "spec-live-status-dashboard"
+          "spec-live-status-dashboard",
+          "universal-routines",
+          "spec-universal-routines"
         ]
       }
     ],
@@ -1516,25 +1518,33 @@
         {
           "ref": "spec-live-status-dashboard",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "universal-routines",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-universal-routines",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3072,
       "mean_seconds": 145520.1,
       "measured": 101,
-      "unmeasurable": 194
+      "unmeasurable": 196
     }
   },
   "speed": {
     "ride_busy_seconds": {
       "median": 2021,
-      "mean": 2684.8,
-      "measured": 102
+      "mean": 2765.5,
+      "measured": 103
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 91635,
-        "tokens": 8675060
+        "duration_seconds": 93766,
+        "tokens": 9021158
       },
       {
         "role": "Implementation",
@@ -1543,23 +1553,23 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 33748,
-        "tokens": 4177222
+        "duration_seconds": 37205,
+        "tokens": 4785837
       },
       {
         "role": "Remediation",
-        "duration_seconds": 14057,
-        "tokens": 620204
+        "duration_seconds": 17417,
+        "tokens": 1591376
       },
       {
         "role": "Validation",
-        "duration_seconds": 54640,
-        "tokens": 4378881
+        "duration_seconds": 55942,
+        "tokens": 4630105
       },
       {
         "role": "Planning",
-        "duration_seconds": 51530,
-        "tokens": 4460485
+        "duration_seconds": 52275,
+        "tokens": 4615049
       }
     ],
     "per_ride": [
@@ -2082,6 +2092,11 @@
         "ref": "product-capability-refinements",
         "busy_seconds": 1080,
         "remediation_runs": 0
+      },
+      {
+        "ref": "CHANGE-0127",
+        "busy_seconds": 10995,
+        "remediation_runs": 4
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -2091,15 +2106,15 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 427748,
-      "mean": 415593,
-      "measured": 56
+      "median": 429071,
+      "mean": 449208.4,
+      "measured": 57
     },
-    "tokens_total": 23273206,
+    "tokens_total": 25604879,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 8675060
+        "tokens": 9021158
       },
       {
         "role": "Implementation",
@@ -2107,25 +2122,25 @@
       },
       {
         "role": "Code Review",
-        "tokens": 4177222
+        "tokens": 4785837
       },
       {
         "role": "Remediation",
-        "tokens": 620204
+        "tokens": 1591376
       },
       {
         "role": "Validation",
-        "tokens": 4378881
+        "tokens": 4630105
       },
       {
         "role": "Planning",
-        "tokens": 4460485
+        "tokens": 4615049
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 189,
-      "total_runs": 411,
-      "pct": 46,
+      "runs_with_marker": 201,
+      "total_runs": 423,
+      "pct": 48,
       "by_week": [
         {
           "week": "2026-W27",
@@ -2156,6 +2171,12 @@
           "runs_with_marker": 54,
           "total_runs": 72,
           "pct": 75
+        },
+        {
+          "week": "2026-W32",
+          "runs_with_marker": 12,
+          "total_runs": 12,
+          "pct": 100
         }
       ]
     }
@@ -2163,20 +2184,21 @@
   "quality": {
     "first_pass_clean": {
       "clean": 69,
-      "flagged": 78,
-      "rate_pct": 88
+      "flagged": 79,
+      "rate_pct": 87
     },
     "na_reliability": 26,
     "remediation_distribution": {
       "0": 69,
       "1": 6,
       "2": 3,
+      "4": 1,
       "n/a": 26
     },
     "avg_validation_fails": 0,
     "avg_review_fails": 0,
     "verdict_mix": {
-      "PASS": 91,
+      "PASS": 92,
       "null": 13
     },
     "review_events": 26,
@@ -2225,11 +2247,11 @@
     },
     {
       "week": "2026-W32",
-      "delivered": 15,
+      "delivered": 17,
       "median_lead_time_seconds": null,
-      "busy_seconds": null,
-      "tokens": null,
-      "first_pass_rate": null
+      "busy_seconds": 10995,
+      "tokens": 2331673,
+      "first_pass_rate": 0
     }
   ],
   "notes": [

@@ -1,0 +1,2 @@
+{"ts":"2026-01-01T00:00:00Z","type":"other","ref":"unrelated","by":"human","note":"noise line before the real record"}
+{"ts":"2026-01-02T00:00:00Z","type":"routine_authorization","ref":"test-ref","by":"human","grants":["merge"],"constraints":["ci_green","bot_comments_answered","never_l3"],"derived_from":{"ts":"2025-12-01T00:00:00Z","question_ref":"test-fixture"}}

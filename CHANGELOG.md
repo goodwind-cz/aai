@@ -11,6 +11,57 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(routine): standing routines become a vendored, on-demand, agent-neutral template (CHANGE-0128) [L2]
+
+- New `.aai/routines/SCRYER.routine.md` — the morning-scryer standing routine
+  reconstructed as a git-diffable, agent-neutral contract with a closed
+  four-placeholder set (`{{REPO}}`, `{{SCHEDULE}}`, `{{MERGE_ALLOWED}}`,
+  `{{MODEL}}`), replacing the previous Anthropic-cloud-only trigger
+  (`trig_01XpMxioptoJ7j32YKzzaKnR`) that had no repository evidence beyond a
+  merge authorization line.
+- New `node .aai/scripts/routine-emit.mjs` — zero-network, Node-stdlib,
+  emit-only instantiator: `--harness claude|codex|gemini|generic` and
+  `--os macos|linux|windows` print the matching installation payload
+  (a `JSON.parse`-able Claude trigger definition, or a crontab line + bash
+  runner + PowerShell `Register-ScheduledTask` twin for local schedulers);
+  every emission ends with a `TEST AT CREATION` block naming an immediate
+  fire command and three things to verify.
+- Merge-rights guard (Spec-AC-04): `--merge` emits the merge-enabled variant
+  ONLY when `docs/ai/decisions.jsonl` carries a machine-checked
+  `routine_authorization` record (`type`, `ref`, `by: "human"`, `grants`
+  including `"merge"`); otherwise it degrades to report-only and prints a
+  loud `MERGE DISABLED` line on stderr. Fails closed on an absent, unreadable,
+  or malformed ledger — never silently skips the check.
+- `docs/ai/decisions.jsonl` gains one appended canonical `routine_authorization`
+  record for `aai-morning-scryer`, transcribing the prior 2026-08-06 free-text
+  authorization with `derived_from` provenance; the pre-existing line is
+  byte-unchanged (append-only).
+- New `/aai-routine` skill (`.aai/SKILL_ROUTINE.prompt.md` + wrappers in all
+  four skill trees) — invocation-only, pinned never to run from bootstrap,
+  sync, or any automatic path.
+- Governance: `.aai/system/PROFILES.yaml`, `tests/skills/suite-map.yaml`,
+  the prompt-diet ledger, and `SKILLS.md` all gained their required entries;
+  new suite `tests/skills/test-aai-routine.sh` (TEST-001..022 plus
+  input-hardening TEST-026..034, 31 tests, all green).
+- Input-hardening batch: every free-text flag now rejects control
+  characters (incl. Unicode U+2028/U+2029) at the parsing boundary, a
+  markerless template or an unresolved `{{...}}` placeholder after render
+  (new exit code `3`) fails closed instead of leaking, and Windows
+  `-TaskName`/`-Description` are PowerShell single-quoted literals immune
+  to `$(...)` subexpression injection.
+- PR #237 bot-sweep remediation (Codex + Copilot, TEST-031..034): the merge
+  guard now fails closed over the WHOLE ledger on any malformed non-comment
+  line (a valid record no longer survives a corrupt line elsewhere);
+  windows emissions install an honestly-recurring `Register-ScheduledTask`
+  trigger mapped from the cron shape (daily/weekly/every-N-hours), refusing
+  loudly (exit 2) instead of the previous always-`-Once` trigger; the
+  codex runner now invokes the real CLI grammar (`codex exec`, prompt fed
+  via stdin) instead of the non-existent `--prompt-file` flag; template
+  substitution is single-pass so a value can never be re-interpreted as
+  another placeholder token; and `isMain` compares realpaths so invoking
+  the script through a symlinked path (e.g. macOS's own `/var` ->
+  `/private/var` TMPDIR) no longer silently no-ops.
+
 ## [unreleased] — feat(live-status): optional zero-token live-status dashboard — per-harness parser registry, statusline/hook tap, watch mode (CHANGE-0127) [L2]
 
 - New, strictly OPTIONAL `node .aai/scripts/generate-live-status.mjs` answers
