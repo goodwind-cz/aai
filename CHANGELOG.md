@@ -43,6 +43,8 @@ RFC-0001).
   the prompt-diet ledger, and `SKILLS.md` all gained their required entries;
   new suite `tests/skills/test-aai-routine.sh` (TEST-001..022, all green).
 
+## [unreleased] — feat(live-status): optional zero-token live-status dashboard — per-harness parser registry, statusline/hook tap, watch mode (CHANGE-0127) [L2]
+
 - New, strictly OPTIONAL `node .aai/scripts/generate-live-status.mjs` answers
   what the existing three generators (dashboard, factory-report, overview)
   cannot: what is running NOW, what it has cost TODAY, and official
