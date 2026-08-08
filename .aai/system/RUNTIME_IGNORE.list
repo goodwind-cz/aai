@@ -29,3 +29,6 @@ docs/ai/locks/
 docs/ai/.session-context.md
 docs/ai/.pre-compact-state-backup.yaml
 docs/INDEX.audit.md
+docs/ai/live-status.html
+docs/ai/live-status-data.json
+docs/ai/live/**

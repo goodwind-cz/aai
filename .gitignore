@@ -90,6 +90,15 @@ docs/ai/hitl-channel.json
 # never committed (the script recreates the directory as needed).
 docs/ai/locks/
 
+# Live-status dashboard (SPEC-DRAFT-spec-live-status-dashboard, CHANGE-0127):
+# an OPTIONAL, on-demand local sidecar — unlike factory-report/dashboard/
+# overview, its outputs are never regenerated-and-committed at close, so they
+# stay pure runtime and are gitignored (Spec-AC-11). The spool directory holds
+# the whitelisted statusline/hook tap projections, also never committed.
+docs/ai/live-status.html
+docs/ai/live-status-data.json
+docs/ai/live/**
+
 # Expert subagent cache (fetched on-demand from VoltAgent registry)
 .aai/cache/
 

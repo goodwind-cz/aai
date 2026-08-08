@@ -24,6 +24,7 @@
 archive
 briefs
 friction
+live
 locks
 loop
 reports
@@ -45,6 +46,8 @@ docs-audit.yaml
 factory-report-data.json
 factory-report.html
 hitl-channel.json
+live-status-data.json
+live-status.html
 overview-data.json
 overview.html
 pr-config.yaml
