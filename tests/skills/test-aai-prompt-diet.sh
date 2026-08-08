@@ -416,7 +416,7 @@ test_011_tick_wrappers() {
 # -8487 (true-up: universal-routines added a +2769 B itemized entry for the
 # new .aai/SKILL_ROUTINE.prompt.md thin wrapper documenting the on-demand
 # /aai-routine standing-routine instantiation skill
-# (CHANGE-0128-universal-routines / SPEC-DRAFT-spec-universal-routines.md
+# (CHANGE-0128-universal-routines / SPEC-0115-spec-universal-routines.md
 # Spec-AC-06); the routine-emit.mjs engine + the SCRYER.routine.md template
 # live outside the .aai/*.prompt.md glob, so they carry no ledger cost; the
 # measured deficit was 1619 B (headroom was -1619, below the required floor),

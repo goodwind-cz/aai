@@ -21,7 +21,7 @@
 #                             is looked up (default project root)
 #
 # Usage:
-#   bash tests/skills/test-aai-routine.sh            # run all (TEST-001..022, TEST-026..030)
+#   bash tests/skills/test-aai-routine.sh            # run all (TEST-001..022, TEST-026..034)
 #   bash tests/skills/test-aai-routine.sh 001 011     # run only selected tests
 #
 # Exit codes:
@@ -255,7 +255,13 @@ test_008_local_scheduler_macos_linux() {
         *) log_info "TEST-008: $h/$o missing crontab line with schedule"; ok=0 ;;
       esac
       case "$h" in
-        codex) grep -qF "codex --prompt-file" <<<"$out" || { log_info "TEST-008: $h/$o missing codex headless invocation"; ok=0; } ;;
+        codex)
+          # CODEX P1 hardening: the real Codex CLI grammar is
+          # `codex exec [OPTIONS] [PROMPT]` (no --prompt-file flag); the
+          # prompt file is fed through stdin via a pipe.
+          grep -qF "codex exec" <<<"$out" || { log_info "TEST-008: $h/$o missing codex exec invocation"; ok=0; }
+          grep -qF "codex --prompt-file" <<<"$out" && { log_info "TEST-008: $h/$o still emits the non-existent codex --prompt-file flag"; ok=0; }
+          ;;
         gemini) grep -qF "gemini --prompt-file" <<<"$out" || { log_info "TEST-008: $h/$o missing gemini headless invocation"; ok=0; } ;;
         generic) grep -qF "<agent-cli> --prompt-file" <<<"$out" || { log_info "TEST-008: $h/$o missing generic headless invocation"; ok=0; } ;;
       esac
@@ -284,6 +290,10 @@ test_009_windows_register_scheduled_task() {
   grep -qF "Register-ScheduledTask" <<<"$OUT" || { log_info "TEST-009: no Register-ScheduledTask"; ok=0; }
   grep -qF "aai-scryer-codex.sh" <<<"$OUT" || { log_info "TEST-009: no .sh twin filename"; ok=0; }
   grep -qF "aai-scryer-codex.ps1" <<<"$OUT" || { log_info "TEST-009: no .ps1 twin filename"; ok=0; }
+  # CODEX P1 hardening: the daily "0 7 * * *" schedule must map to an
+  # honestly-recurring trigger, never the old one-shot "-Once -At (Get-Date)".
+  grep -qF 'New-ScheduledTaskTrigger -Daily -At "07:00"' <<<"$OUT" || { log_info "TEST-009: trigger is not -Daily -At \"07:00\""; ok=0; }
+  grep -qF -- '-Once -At (Get-Date)' <<<"$OUT" && { log_info "TEST-009: still emits the one-shot -Once -At (Get-Date) trigger"; ok=0; }
 
   local psfile="$TMP_ROOT/t009-block.ps1"
   awk '
@@ -344,7 +354,7 @@ PS1EOF
       log_info "TEST-009: expected exactly 3 top-level PowerShell statements, got '$stmtcount' (a backslash line-continuation splits the block into extra bogus statements)"
       ok=0
     fi
-    if [[ -z "$argument" || "$argument" != *"codex --prompt-file"* ]]; then
+    if [[ -z "$argument" || "$argument" != *"codex exec"* ]]; then
       log_info "TEST-009: New-ScheduledTaskAction did not receive the expected non-empty -Argument (got '$argument')"
       ok=0
     fi
@@ -740,7 +750,7 @@ merge-allowed: {{MERGE_ALLOWED}}
 ## Merge gates
 1. This section has no MERGE-GATES markers around it and must never leak.
 EOF
-  local out err rc
+  local out err rc err_f
   err_f="$(mktemp "$TMP_ROOT/t028-err.XXXXXX")"
   out="$(node "$root/.aai/scripts/routine-emit.mjs" --routine NOMARKERS --harness claude --os macos \
     --repo owner/repo --schedule "0 7 * * *" --model m --tz UTC 2>"$err_f")"; rc=$?
@@ -851,6 +861,136 @@ PS1EOF
     || log_fail "TEST-030 PS subexpression hardening"
 }
 
+# --- TEST-031 — a valid authorization record followed by ONE malformed
+#     non-comment line poisons the WHOLE ledger, exit 0 report-only --------
+# PR #237 bot finding (CODEX P1): checkAuthorization used to `continue` past
+# a line that failed JSON.parse, so a valid routine_authorization record
+# ANYWHERE in the ledger still granted merge rights even when a later (or
+# earlier) line was corrupt — contradicting the documented fail-closed
+# contract ("any read/parse error is NO authorization"). This fixture pairs
+# a genuinely matching record with one malformed non-comment line; the
+# ledger's own `#`-prefixed comment header lines (see the live ledger) stay
+# skippable by design and must not themselves trip this guard (see TEST-015/
+# TEST-017 against the real, comment-carrying docs/ai/decisions.jsonl).
+test_031_poisoned_ledger_fails_closed() {
+  log_info "TEST-031: valid authorization + one malformed non-comment line -> merge DISABLED, exit 0..."
+  run_emit --routine SCRYER --harness claude --os macos --repo owner/repo \
+    --schedule "0 7 * * *" --model claude-sonnet-5 --tz Europe/Prague \
+    --merge --ref test-ref --decisions "$FIXDIR/decisions-valid-then-malformed.jsonl"
+  local ok=1
+  [[ "$RC" -eq 0 ]] || { log_info "TEST-031: exit $RC (want 0)"; ok=0; }
+  local line merge_enabled
+  line="$(first_line "$OUT")"
+  merge_enabled=$(printf '%s' "$line" | json_field merge_enabled)
+  [[ "$merge_enabled" == "false" ]] || { log_info "TEST-031: merge_enabled=$merge_enabled (want false — poisoned ledger must not grant merge)"; ok=0; }
+  grep -qF "MERGE DISABLED — no routine_authorization record for ref=test-ref in $FIXDIR/decisions-valid-then-malformed.jsonl" <<<"$ERR" \
+    || { log_info "TEST-031: loud stderr line missing/wrong: $ERR"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-031 poisoned ledger (valid record + malformed line) fails closed" \
+    || log_fail "TEST-031 poisoned-ledger fail-closed"
+}
+
+# --- TEST-032 — windows recurring trigger: honest cron mapping + refusal
+#     for an unmappable shape -----------------------------------------------
+# PR #237 bot finding (CODEX P1): every windows emission used to install
+# `-Once -At (Get-Date)` regardless of --schedule, firing exactly once ever
+# with the real cron left as a dead trailing comment. cronToWindowsTrigger
+# now maps the common shapes to an honestly-recurring trigger and REFUSES
+# (exit 2, naming the unsupported shape) rather than emit a silently-wrong
+# one-shot trigger.
+test_032_windows_recurring_trigger() {
+  log_info "TEST-032: windows daily schedule emits -Daily -At; an unmappable cron shape exits 2 naming it..."
+  local ok=1
+  run_emit --routine SCRYER --harness codex --os windows --repo owner/repo \
+    --schedule "0 7 * * *" --model claude-sonnet-5 --tz Europe/Prague
+  if [[ "$RC" -ne 0 ]]; then
+    log_info "TEST-032: default daily schedule exit $RC (want 0); stderr=$ERR"; ok=0
+  else
+    grep -qF 'New-ScheduledTaskTrigger -Daily -At "07:00"' <<<"$OUT" || { log_info "TEST-032: no -Daily -At \"07:00\" trigger"; ok=0; }
+    grep -qF -- '-Once -At (Get-Date)' <<<"$OUT" && { log_info "TEST-032: still emits the one-shot -Once -At (Get-Date) trigger"; ok=0; }
+  fi
+
+  # weekly: Monday 06:30 (cron dow 1)
+  run_emit --routine SCRYER --harness codex --os windows --repo owner/repo \
+    --schedule "30 6 * * 1" --model claude-sonnet-5 --tz Europe/Prague
+  if [[ "$RC" -ne 0 ]]; then
+    log_info "TEST-032: weekly schedule exit $RC (want 0); stderr=$ERR"; ok=0
+  else
+    grep -qF 'New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At "06:30"' <<<"$OUT" \
+      || { log_info "TEST-032: no -Weekly -DaysOfWeek Monday trigger"; ok=0; }
+  fi
+
+  # every-6-hours
+  run_emit --routine SCRYER --harness codex --os windows --repo owner/repo \
+    --schedule "15 */6 * * *" --model claude-sonnet-5 --tz Europe/Prague
+  if [[ "$RC" -ne 0 ]]; then
+    log_info "TEST-032: every-N-hours schedule exit $RC (want 0); stderr=$ERR"; ok=0
+  else
+    grep -qF -- '-RepetitionInterval (New-TimeSpan -Hours 6)' <<<"$OUT" \
+      || { log_info "TEST-032: no every-6-hours -RepetitionInterval trigger"; ok=0; }
+  fi
+
+  # unsupported shape: minute step + fixed day-of-month
+  run_emit --routine SCRYER --harness codex --os windows --repo owner/repo \
+    --schedule "*/7 3 2 * *" --model claude-sonnet-5 --tz Europe/Prague
+  [[ "$RC" -eq 2 ]] || { log_info "TEST-032: unsupported cron rc=$RC (want 2)"; ok=0; }
+  [[ -z "$OUT" ]] || { log_info "TEST-032: unsupported cron stdout not empty: $OUT"; ok=0; }
+  grep -qF -- '*/7 3 2 * *' <<<"$ERR" || { log_info "TEST-032: stderr does not name the unsupported cron shape: $ERR"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-032 windows recurring trigger (daily/weekly/every-N-hours) + refusal for unmappable cron" \
+    || log_fail "TEST-032 windows recurring trigger mapping"
+}
+
+# --- TEST-033 — substitute() is single-pass: a value carrying a literal
+#     placeholder token lands verbatim, never re-interpreted ---------------
+# PR #237 bot finding (COPILOT): the previous substitute() ran one
+# split/join pass PER KEY, each over the PREVIOUS pass's output, so a value
+# substituted early (e.g. --repo carrying the literal text "{{MODEL}}")
+# became indistinguishable from a real template token by the time the
+# MODEL pass ran and got silently re-substituted with the real model id.
+# Exercises the exported `substitute` function directly (not through the
+# CLI/renderTemplate, whose separate post-render "{{" closure check is an
+# unrelated engine invariant about the TEMPLATE's own declared tokens).
+test_033_substitute_single_pass() {
+  log_info "TEST-033: substitute() single-pass — a value carrying a literal {{TOKEN}} lands verbatim, never re-interpreted..."
+  local out
+  out="$(node --input-type=module -e '
+    import { substitute } from "'"$SCRIPT"'";
+    const out = substitute(
+      "Repo: {{REPO}} Model: {{MODEL}}",
+      { REPO: "{{MODEL}}", MODEL: "actual-model-id" },
+    );
+    process.stdout.write(out);
+  ' 2>&1)"
+  local ok=1
+  [[ "$out" == "Repo: {{MODEL}} Model: actual-model-id" ]] \
+    || { log_info "TEST-033: got '$out' (want 'Repo: {{MODEL}} Model: actual-model-id')"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-033 substitute() single-pass — value carrying a literal token lands verbatim" \
+    || log_fail "TEST-033 substitute() sequential re-substitution"
+}
+
+# --- TEST-034 — isMain compares REALPATHS: invoking via a symlinked path
+#     still runs main() -----------------------------------------------------
+# PR #237 bot finding (COPILOT): `path.resolve(process.argv[1]) ===
+# __filename` only normalizes a path, it never follows symlinks — invoking
+# the script through a symlinked path (macOS's own TMPDIR lives under /var,
+# itself a symlink to /private/var) made isMain silently false: exit 0, no
+# output, nothing to diagnose. Proven directly (portable to Linux too) by
+# creating our OWN symlink to the script and invoking it through that path.
+test_034_isMain_realpath_symlink() {
+  log_info "TEST-034: invoking routine-emit.mjs via a symlinked path still runs main() (realpath comparison)..."
+  local linked out rc
+  linked="$TMP_ROOT/routine-emit-symlink.mjs"
+  ln -sf "$SCRIPT" "$linked"
+  out="$(node "$linked" --routine SCRYER --harness claude --os macos --repo owner/repo \
+    --schedule "0 7 * * *" --model claude-sonnet-5 --tz Europe/Prague 2>&1)"; rc=$?
+  local ok=1
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-034: exit $rc (want 0)"; ok=0; }
+  [[ -n "$out" ]] || { log_info "TEST-034: stdout empty — main() silently never ran through the symlink"; ok=0; }
+  grep -qF '"merge_enabled"' <<<"$out" || { log_info "TEST-034: no claude JSON payload in output: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-034 isMain realpath comparison survives symlinked invocation" \
+    || log_fail "TEST-034 isMain symlink mismatch"
+}
+
 ALL_TESTS=(
   test_001_contract_elements
   test_002_placeholder_closure
@@ -879,6 +1019,10 @@ ALL_TESTS=(
   test_028_markerless_template_fails_closed
   test_029_unresolved_placeholder_exits_3
   test_030_ps_description_subexpression_not_evaluated
+  test_031_poisoned_ledger_fails_closed
+  test_032_windows_recurring_trigger
+  test_033_substitute_single_pass
+  test_034_isMain_realpath_symlink
 )
 
 main() {

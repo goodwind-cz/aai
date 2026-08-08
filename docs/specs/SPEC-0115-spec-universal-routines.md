@@ -158,8 +158,9 @@ keeps it side-effect-free, testable offline, and portable.
   contract and whose `cron`/`model`/`repo` fields equal the passed arguments.
   Every other harness prints a local-scheduler installation: for
   `--os macos` or `--os linux` a crontab line whose schedule field equals
-  `--schedule` plus a POSIX `sh` runner invoking the named agent CLI headless
-  against a prompt file; for `--os windows` a PowerShell `Register-ScheduledTask`
+  `--schedule` plus a `bash` runner (`#!/usr/bin/env bash`, `set -euo
+  pipefail`) invoking the named agent CLI headless against a prompt file;
+  for `--os windows` a PowerShell `Register-ScheduledTask`
   twin of the same runner. Every non-claude emission prints BOTH twins'
   filenames (`<name>.sh` and `<name>.ps1`). An unknown `--harness` or `--os`
   value exits 2 and writes nothing to stdout.

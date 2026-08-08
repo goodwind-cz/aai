@@ -60,11 +60,16 @@
 //              equal to the rendered contract, then a one-line handoff
 //              instruction naming Claude's own `schedule` skill as installer.
 //   codex/gemini/generic + macos/linux — a crontab line carrying --schedule
-//              verbatim, a POSIX `sh` runner invoking the named agent CLI
-//              headless against a prompt file, and the rendered contract to
+//              verbatim, a `bash` runner (`set -euo pipefail`) invoking the
+//              named agent CLI headless against a prompt file (codex:
+//              `codex exec`, prompt fed via stdin — its real CLI grammar
+//              has no --prompt-file flag), and the rendered contract to
 //              save into that prompt file.
 //   codex/gemini/generic + windows      — a PowerShell Register-ScheduledTask
-//              twin of the same runner.
+//              twin of the same runner, with an honestly-recurring trigger
+//              mapped from --schedule (daily/weekly/every-N-hours; an
+//              unmappable cron shape is a usage error, never a silently
+//              wrong one-shot trigger).
 //   Every non-claude emission prints BOTH twin filenames (<name>.sh and
 //   <name>.ps1), regardless of which --os body is shown, so the operator
 //   knows both exist.
@@ -81,8 +86,10 @@
 //   0  emitted (including the degraded report-only case)
 //   2  usage error (unknown flag, missing/invalid flag value, missing
 //      template, a --repo/--routine/--schedule/--model value carrying a
-//      control character, or a template missing its MERGE-GATES marker
-//      pair) — nothing printed to stdout
+//      control character, a template missing its MERGE-GATES marker
+//      pair, or — for a non-claude harness with --os windows — a
+//      --schedule cron shape that cannot map to a recurring Task
+//      Scheduler trigger) — nothing printed to stdout
 //   3  rendered output still contains an unresolved `{{` placeholder after
 //      substitution (template/placeholder-set mismatch — an engine
 //      invariant, not a per-template test assertion) — nothing printed to
@@ -162,6 +169,60 @@ function usage() {
   process.exit(0);
 }
 
+// --- windows cron -> Task Scheduler trigger (CODEX P1 hardening) -----------
+//
+// The previous windows emission installed `-Once -At (Get-Date)` for EVERY
+// cron schedule, with the actual schedule only left in a trailing comment
+// ("adjust to match"). That is a one-shot trigger: the operator gets one
+// immediate execution and then nothing — never the advertised standing
+// routine. cronToWindowsTrigger() maps the common, unambiguous 5-field cron
+// shapes onto an honestly-recurring ScheduledTaskTrigger and THROWS for any
+// shape it cannot map — never emit a silently-wrong trigger. Supported:
+//   "M H * * *"   daily at H:M          -> -Daily -At "H:M"
+//   "M H * * D"   weekly on cron dow D  -> -Weekly -DaysOfWeek <Day> -At "H:M"
+//   "M */N * * *" every N hours         -> -Once -At "00:M" -RepetitionInterval
+//                                          (New-TimeSpan -Hours N) -RepetitionDuration
+//                                          ([TimeSpan]::MaxValue)  (the standard PS
+//                                          idiom for an indefinitely-repeating trigger;
+//                                          there is no -Hourly switch)
+const CRON_DOW_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function cronToWindowsTrigger(schedule) {
+  const fields = schedule.trim().split(/\s+/);
+  const bad = () => {
+    const err = new Error(
+      `unsupported cron shape for --os windows: "${schedule}" — cannot map to a recurring Task Scheduler trigger (supported: daily "M H * * *", weekly "M H * * D", every-N-hours "M */N * * *"); refusing to emit a silently-wrong -Once trigger`,
+    );
+    err.exitCode = 2;
+    return err;
+  };
+  if (fields.length !== 5) throw bad();
+  const [min, hour, dom, mon, dow] = fields;
+  const isInt = (s, lo, hi) => /^\d+$/.test(s) && Number(s) >= lo && Number(s) <= hi;
+  const at = (h, m) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+
+  if (isInt(min, 0, 59) && isInt(hour, 0, 23) && dom === '*' && mon === '*' && dow === '*') {
+    return [`$Trigger = New-ScheduledTaskTrigger -Daily -At "${at(hour, min)}"`];
+  }
+
+  if (isInt(min, 0, 59) && isInt(hour, 0, 23) && dom === '*' && mon === '*' && /^[0-7]$/.test(dow)) {
+    const dayName = CRON_DOW_NAMES[Number(dow) % 7]; // cron 0 and 7 both mean Sunday
+    return [`$Trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek ${dayName} -At "${at(hour, min)}"`];
+  }
+
+  const everyN = /^\*\/([1-9][0-9]?)$/.exec(hour);
+  if (isInt(min, 0, 59) && everyN && dom === '*' && mon === '*' && dow === '*') {
+    const n = Number(everyN[1]);
+    if (n >= 1 && n <= 23) {
+      return [
+        `$Trigger = New-ScheduledTaskTrigger -Once -At "${at(0, min)}" -RepetitionInterval (New-TimeSpan -Hours ${n}) -RepetitionDuration ([TimeSpan]::MaxValue)`,
+      ];
+    }
+  }
+
+  throw bad();
+}
+
 function parseArgs(argv) {
   const args = {
     routine: null,
@@ -229,6 +290,20 @@ function parseArgs(argv) {
       fail(`--${flag} must not contain control characters (newline, CR, NUL, ...) — got a value that could corrupt rendered or relayed output`);
     }
   }
+  // CODEX P1 hardening: a windows local-scheduler emission installs an
+  // ACTUAL Register-ScheduledTask trigger derived from --schedule (see
+  // cronToWindowsTrigger); validate the shape here, at the usual usage-
+  // error boundary, before any template load or ledger read, rather than
+  // discovering it deep inside output assembly. claude harness ignores
+  // --os entirely (no local trigger is ever installed for it), so this
+  // check only applies to the harnesses that actually emit one.
+  if (args.os === 'windows' && args.harness !== 'claude') {
+    try {
+      cronToWindowsTrigger(args.schedule);
+    } catch (err) {
+      fail(err.message);
+    }
+  }
   return args;
 }
 
@@ -290,12 +365,25 @@ function applyMergeGate(text, mergeAllowed) {
   return before + after;
 }
 
+// substitute: SINGLE PASS over the ORIGINAL text (COPILOT hardening). The
+// previous implementation ran one split/join pass PER KEY, each over the
+// PREVIOUS pass's output — so a value substituted early (e.g. --repo
+// carrying the literal text "{{MODEL}}") became indistinguishable from a
+// real template token by the time the MODEL pass ran, and got silently
+// re-substituted with the real model id. A value is untrusted TEXT, never
+// structure: one combined regex, one `.replace()` call, matches only
+// `{{TOKEN}}` occurrences in the ORIGINAL template text; JS's replace()
+// does not rescan inserted replacement text, so a value can never be
+// re-interpreted as another placeholder token.
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function substitute(text, vars) {
-  let out = text;
-  for (const [k, v] of Object.entries(vars)) {
-    out = out.split(`{{${k}}}`).join(v);
-  }
-  return out;
+  const keys = Object.keys(vars);
+  if (keys.length === 0) return text;
+  const pattern = new RegExp(keys.map((k) => `\\{\\{${escapeRegExp(k)}\\}\\}`).join('|'), 'g');
+  return text.replace(pattern, (match) => vars[match.slice(2, -2)]);
 }
 
 // collapse 3+ consecutive blank lines down to 1, and trim to a single
@@ -337,10 +425,17 @@ function defaultDecisionsPath() {
   return path.join(PROJECT_ROOT, 'docs', 'ai', 'decisions.jsonl');
 }
 
-// checkAuthorization: fail-closed. Any read failure -> false. Any single
-// line that fails JSON.parse is skipped (not fatal) so one malformed/
-// truncated line never masks a valid record elsewhere in the ledger, and
-// never masks the "no match" case either — both fold to `false`.
+// checkAuthorization: fail-closed OVER THE WHOLE FILE (CODEX P1 hardening).
+// Any read failure -> false. The ledger legitimately carries `#`-prefixed
+// comment lines (its own file-header documentation) — those are skippable
+// by design, always. But a NON-comment line that fails JSON.parse poisons
+// the entire ledger: the old behaviour `continue`d past it and kept
+// scanning, so a valid routine_authorization record appearing anywhere
+// else (before OR after the malformed line) still granted merge rights —
+// contradicting the documented "any read/parse error is NO authorization"
+// contract. Two passes: first parse every non-comment/non-blank line,
+// bailing to `false` on the FIRST parse failure (poisoned-ledger fail
+// closed); only once the whole file is known-clean do we look for a match.
 function checkAuthorization(decisionsPath, ref) {
   let raw;
   try {
@@ -349,15 +444,18 @@ function checkAuthorization(decisionsPath, ref) {
     return false;
   }
   const lines = raw.split('\n');
+  const records = [];
   for (const line of lines) {
     const t = line.trim();
     if (!t) continue;
-    let obj;
+    if (t.startsWith('#')) continue; // ledger comment line — always skippable
     try {
-      obj = JSON.parse(t);
+      records.push(JSON.parse(t));
     } catch {
-      continue;
+      return false; // any malformed non-comment line poisons the whole ledger
     }
+  }
+  for (const obj of records) {
     if (
       obj &&
       obj.type === 'routine_authorization' &&
@@ -411,8 +509,20 @@ function buildClaudePayload({ routine, repo, schedule, model, tz, mergeAllowed, 
   };
 }
 
+// CODEX P1 hardening: the real Codex CLI grammar is
+// `codex exec [OPTIONS] [PROMPT]` — there is no `--prompt-file` flag (the
+// previous emission exited 2 against the real CLI: "unexpected argument
+// '--prompt-file'"). `exec` reads its prompt from stdin when PROMPT is
+// omitted. This same invocation string is ALSO embedded verbatim into the
+// windows `pwsh -Command "..."` action (buildLocalSchedulerText), so a
+// plain `<` file-redirect is avoided: PowerShell reserves `<` for future
+// use and throws a parse error on it. `cat "<file>" | codex exec` parses
+// in BOTH runtimes — POSIX `cat` piped to stdin in bash, and PowerShell's
+// built-in `cat` alias (Get-Content) piped to a native command, which
+// PowerShell also feeds to that command's stdin — one string, valid
+// stdin-feeding syntax either way.
 function agentCliInvocation(harness, promptFileName) {
-  if (harness === 'codex') return `codex --prompt-file "${promptFileName}"`;
+  if (harness === 'codex') return `cat "${promptFileName}" | codex exec`;
   if (harness === 'gemini') return `gemini --prompt-file "${promptFileName}"`;
   return `<agent-cli> --prompt-file "${promptFileName}"  # generic: substitute your CLI's headless invocation`;
 }
@@ -451,7 +561,11 @@ function buildLocalSchedulerText({ routine, harness, os, repo, schedule, prompt 
     lines.push('PowerShell scheduled task (Register-ScheduledTask):');
     lines.push('$Action = New-ScheduledTaskAction -Execute "pwsh" `');
     lines.push(`  -Argument ${psSingleQuoteLiteral(argumentValue)}`);
-    lines.push(`$Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date)  # cron: ${schedule} (adjust to match)`);
+    // CODEX P1 hardening: cronToWindowsTrigger() maps the (already
+    // validated in parseArgs) cron shape onto an HONESTLY recurring
+    // trigger — the previous `-Once -At (Get-Date)` fired exactly once,
+    // ever, with the real schedule left as a dead trailing comment.
+    for (const triggerLine of cronToWindowsTrigger(schedule)) lines.push(triggerLine);
     // N11 hardening: -TaskName/-Description used to be plain double-quoted
     // PS strings. PowerShell EVALUATES a $(...) subexpression embedded
     // inside a double-quoted string, so a --repo/--routine value carrying
@@ -550,7 +664,24 @@ function main() {
   process.exit(run(args));
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === __filename;
+// COPILOT hardening: path.resolve() only normalizes a path (., .., //) —
+// it never follows symlinks. Invoking this script through a symlinked
+// path (e.g. macOS's TMPDIR living under /var, itself a symlink to
+// /private/var, or any project that vendors this file behind a symlink)
+// made process.argv[1] resolve to a DIFFERENT string than __filename
+// (fileURLToPath already resolves the real module location), so isMain
+// was silently false: exit 0, no output, nothing to diagnose. Comparing
+// REALPATHS on both sides collapses any such symlink indirection to the
+// same canonical path.
+function realpathOrResolve(p) {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
+const isMain = process.argv[1] && realpathOrResolve(process.argv[1]) === realpathOrResolve(__filename);
 if (isMain) main();
 
 export {

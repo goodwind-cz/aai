@@ -42,13 +42,25 @@ RFC-0001).
 - Governance: `.aai/system/PROFILES.yaml`, `tests/skills/suite-map.yaml`,
   the prompt-diet ledger, and `SKILLS.md` all gained their required entries;
   new suite `tests/skills/test-aai-routine.sh` (TEST-001..022 plus
-  input-hardening TEST-026..030, 27 tests, all green).
+  input-hardening TEST-026..034, 31 tests, all green).
 - Input-hardening batch: every free-text flag now rejects control
   characters (incl. Unicode U+2028/U+2029) at the parsing boundary, a
   markerless template or an unresolved `{{...}}` placeholder after render
   (new exit code `3`) fails closed instead of leaking, and Windows
   `-TaskName`/`-Description` are PowerShell single-quoted literals immune
   to `$(...)` subexpression injection.
+- PR #237 bot-sweep remediation (Codex + Copilot, TEST-031..034): the merge
+  guard now fails closed over the WHOLE ledger on any malformed non-comment
+  line (a valid record no longer survives a corrupt line elsewhere);
+  windows emissions install an honestly-recurring `Register-ScheduledTask`
+  trigger mapped from the cron shape (daily/weekly/every-N-hours), refusing
+  loudly (exit 2) instead of the previous always-`-Once` trigger; the
+  codex runner now invokes the real CLI grammar (`codex exec`, prompt fed
+  via stdin) instead of the non-existent `--prompt-file` flag; template
+  substitution is single-pass so a value can never be re-interpreted as
+  another placeholder token; and `isMain` compares realpaths so invoking
+  the script through a symlinked path (e.g. macOS's own `/var` ->
+  `/private/var` TMPDIR) no longer silently no-ops.
 
 ## [unreleased] — feat(live-status): optional zero-token live-status dashboard — per-harness parser registry, statusline/hook tap, watch mode (CHANGE-0127) [L2]
 
