@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-08T08:24:37.594Z
+Generated: 2026-08-08T09:00:13.466Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,13 +12,13 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-live-status-dashboard | specs | implementing | 12 planned | docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md |
+| spec-live-status-dashboard | specs | implementing | 12 done | docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Product (17)
+## Product (18)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -33,6 +33,7 @@ _None._
 | issues-skill | issues-skill | 1 | docs/product/issues-skill.md |
 | learned-append-gate | learned-append-gate | 1 | docs/product/learned-append-gate.md |
 | lightweight-e2e-lane | lightweight-e2e-lane | 1 | docs/product/lightweight-e2e-lane.md |
+| live-status-dashboard | live-status-dashboard | 1 | docs/product/live-status-dashboard.md |
 | orphan-sweep | orphan-sweep | 1 | docs/product/orphan-sweep.md |
 | platform-portable-pr | platform-portable-pr | 1 | docs/product/platform-portable-pr.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |

@@ -11,6 +11,54 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(live-status): optional zero-token live-status dashboard — per-harness parser registry, statusline/hook tap, watch mode (CHANGE-0127) [L2]
+
+- New, strictly OPTIONAL `node .aai/scripts/generate-live-status.mjs` answers
+  what the existing three generators (dashboard, factory-report, overview)
+  cannot: what is running NOW, what it has cost TODAY, and official
+  plan-quota headroom — zero LLM tokens, zero network, node stdlib only,
+  never coupled to ride ceremony (grepped: zero references in
+  close-work-item.mjs, autonomous-loop.sh, session-start.sh, .github/workflows).
+- A per-harness parser registry (`.aai/scripts/live-parsers/{registry,
+  claude-code,codex,gemini-cli}.mjs`) normalizes Claude Code, Codex and
+  Gemini CLI session transcripts into one model. The honesty-critical core
+  is TDD'd: Claude Code dedups on `message.id`+`requestId`
+  (`event_sum_dedup`) so a duplicated on-disk line counts once; Codex takes
+  the LAST `token_count` event's cumulative total per session
+  (`session_cumulative_last`) so summing never multiplies real spend;
+  Gemini CLI carries no usage field and renders the literal `N/A`, never a
+  fabricated zero. A malformed registry entry is refused with a named error
+  instead of silently producing partial totals.
+- An incremental cache (`.aai/cache/live-status-index.json`, keyed on
+  path+mtime+size) means a re-run over an unchanged corpus re-reads zero
+  session files; verified live against the owner's real ~755-file corpus
+  (cold ~1.3s, warm ~0.1s with 754/755 files skipped).
+- Official quotas render from an opt-in statusline-tap spool
+  (`five_hour`/`seven_day` used% + `resets_at`) or a harness's own
+  in-session server-authoritative rate limits (Codex), else a named `SKIP`
+  with an install hint — never an estimated limit. Liveness renders
+  `finished`/`waiting-on-approval` from an opt-in hooks spool
+  (Stop/Notification), else an mtime-window heuristic labelled with the
+  literal word `heuristic`. Both spools are written by
+  `.aai/scripts/live-spool.sh` (+ `.ps1` twin), which projects a WHITELIST
+  of fields only and always exits 0.
+- One-shot and `--watch` invocation modes (matching meta-refresh interval,
+  clean exit 0 on SIGINT, no leftover child process); convenience launcher
+  `aai-live.sh` / `aai-live.ps1` generates and opens the page via the
+  platform opener, refusing with a named error instead of hanging when none
+  is found. The opt-in hook overlay
+  (`.aai/templates/hooks/live-status-hooks.json`) and the product doc
+  (`docs/product/live-status-dashboard.md`) document install and uninstall
+  for both spools.
+- Outputs (`docs/ai/live-status.html`, `live-status-data.json`) and the
+  spool directory (`docs/ai/live/`) are pure runtime sidecars — unlike
+  dashboard/factory-report/overview they are never regenerated-and-committed
+  at close, so `.gitignore` and `RUNTIME_IGNORE.list` gitignore them and
+  `DOCS_AI_CANON.list` classifies them (never leaking into git status or the
+  docs-audit non-canonical class). New `.aai` files classified in
+  `PROFILES.yaml` (extended); new suite `aai-live-status` gets its
+  `suite-map.yaml` row.
+
 ## [v2026.08.07] — feat(planning): CHANGE-0113's D2 gate closes with five behavioral probes, and the altitude PLANNING prompt is adopted (CHANGE-0125-adopt-v2-planning) [L2]
 
 - The altitude experiment's pre-registered decision rule had three of four
