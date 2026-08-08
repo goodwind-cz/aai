@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-07T21:01:13.406Z
+Generated: 2026-08-08T08:24:37.594Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-live-status-dashboard | specs | implementing | 12 planned | docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md |
 
 ## Canonical layer (0)
 
@@ -371,4 +372,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-07 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-08 — counts above use this date for overdue checks.
