@@ -1,17 +1,19 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-08T12:13:56.294Z
+Generated: 2026-08-08T12:24:25.249Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
+| CHANGE-0128 | issues | implementing | — | docs/issues/CHANGE-0128-universal-routines.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-universal-routines | specs | implementing | 8 planned | docs/specs/SPEC-DRAFT-spec-universal-routines.md |
 
 ## Canonical layer (0)
 
@@ -333,11 +335,9 @@ _None._
 | SPEC-0114 | specs | docs/specs/SPEC-0114-spec-live-status-dashboard.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0128 | issues | docs/issues/CHANGE-0128-universal-routines.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

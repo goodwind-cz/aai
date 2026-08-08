@@ -2,9 +2,9 @@
 id: universal-routines
 number: 128
 type: change
-status: draft
+status: implementing
 user_visible: true
-ceremony_level: 1
+ceremony_level: 2
 ---
 
 # Change — Standing routines become a vendored, on-demand template (scryer generalized)
@@ -44,3 +44,15 @@ ceremony_level: 1
   immediate test run and what to verify (digest produced, no crash,
   degraded sections named); prompt corpus governance applies (diet ledger +
   TEST-012 + PROFILES) since .aai/** grows.
+
+## Notes
+- Spec: docs/specs/SPEC-DRAFT-spec-universal-routines.md (SPEC-FROZEN
+  2026-08-08, strategy hybrid).
+- Ceremony level re-classified 1 -> 2 by Planning at freeze (RFC-0009 gives
+  the spec's declaration authority): the scope is not a single-surface fix —
+  it adds a new executable emitter, a new prompt-corpus file, a new routine
+  template directory, four harness wrappers, a new test suite and four
+  governance surfaces, and one of its behaviors (the merge-rights guard)
+  decides whether a scheduled agent may write to the repository. That
+  argues for the full review lane, not the lightweight one. No
+  `protected_paths_l3` surface is touched, so level 3 is not required.
