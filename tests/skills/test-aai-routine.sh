@@ -481,20 +481,24 @@ test_015_live_ledger_record() {
 }
 
 # --- TEST-016 — ledger change is append-only ---------------------------------
+# Baseline pin is the FULL line count of docs/ai/decisions.jsonl at
+# $BASELINE_SHA (85 lines) — not a rounded-down 83, which silently excluded
+# baseline lines 84/85 (the two CHANGE-0127 review_nb_disposition records)
+# from the append-only proof (review-20260808T132824Z NB-8/N3).
 test_016_ledger_append_only() {
-  log_info "TEST-016: first 83 lines of docs/ai/decisions.jsonl byte-unchanged since $BASELINE_SHA..."
+  log_info "TEST-016: first 85 lines of docs/ai/decisions.jsonl byte-unchanged since $BASELINE_SHA..."
   [[ -f "$REAL_DECISIONS" ]] || { log_fail "TEST-016: $REAL_DECISIONS missing"; return; }
   local before after
   before="$TMP_ROOT/t016-before.txt"
   after="$TMP_ROOT/t016-after.txt"
-  if ! git -C "$PROJECT_ROOT" show "$BASELINE_SHA:docs/ai/decisions.jsonl" 2>/dev/null | sed -n '1,83p' > "$before"; then
+  if ! git -C "$PROJECT_ROOT" show "$BASELINE_SHA:docs/ai/decisions.jsonl" 2>/dev/null | sed -n '1,85p' > "$before"; then
     log_fail "TEST-016: cannot read baseline $BASELINE_SHA:docs/ai/decisions.jsonl"; return
   fi
-  sed -n '1,83p' "$REAL_DECISIONS" > "$after"
+  sed -n '1,85p' "$REAL_DECISIONS" > "$after"
   if diff -q "$before" "$after" >/dev/null 2>&1; then
-    log_pass "TEST-016 first 83 lines byte-unchanged (append-only)"
+    log_pass "TEST-016 first 85 lines byte-unchanged (append-only)"
   else
-    log_fail "TEST-016: first 83 lines of $REAL_DECISIONS diverged from baseline"
+    log_fail "TEST-016: first 85 lines of $REAL_DECISIONS diverged from baseline"
   fi
 }
 

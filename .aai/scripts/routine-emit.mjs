@@ -144,7 +144,7 @@ function parseArgs(argv) {
       args.merge = true;
     } else if (KNOWN.has(tok)) {
       const v = argv[i + 1];
-      if (v === undefined || (v.startsWith('--') && v !== '-')) fail(`${tok} requires a value`);
+      if (v === undefined || v.startsWith('--')) fail(`${tok} requires a value`);
       const key = tok.slice(2);
       args[key] = v;
       i += 1;
