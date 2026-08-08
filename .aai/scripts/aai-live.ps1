@@ -36,14 +36,31 @@ $OutputHtml = Join-Path $RepoRoot 'docs/ai/live-status.html'
 Set-Location $RepoRoot
 
 if ($Watch) {
-  # Warm one-shot FULL generate (HTML + JSON, no --data-only) so there is
-  # actually something to open immediately (BLOCKING-2, code review
-  # CHANGE-0127 — --data-only used to suppress the HTML while Start-Process
-  # below unconditionally opened it, so every fresh checkout opened a
-  # nonexistent file).
-  & node $Gen | Out-Null
+  # Warm one-shot generate so there is actually something to open
+  # immediately (BLOCKING-2, code review CHANGE-0127).
+  #
+  # The warm-up forwards the invocation's OWN args (minus -watch itself, so
+  # it stays one-shot) instead of running the generator bare. Two
+  # regressions this closes (NNB-1/NNB-2, code review 102429Z, introduced by
+  # the prior BLOCKING-2 remediation): a bare warm-up always wrote the HTML
+  # even when -data-only asked to suppress it, and it ignored -output (plus
+  # -home/-interval/-cache/-spool-dir), so under
+  # `-watch -output custom/page.html` Start-Process opened a frozen
+  # snapshot at the DEFAULT path while the watch loop rewrote
+  # custom/page.html — a page that looks live and is permanently stale.
+  $WarmupArgs = @($RestArgs | Where-Object { $_ -ne '--watch' })
+  & node $Gen @WarmupArgs | Out-Null
   if (-not $DataOnly) {
-    Start-Process $OutputHtml -ErrorAction SilentlyContinue
+    $OpenTarget = $OutputHtml
+    for ($i = 0; $i -lt $RestArgs.Count; $i++) {
+      if ($RestArgs[$i] -eq '--output' -and ($i + 1) -lt $RestArgs.Count) {
+        $OpenTarget = $RestArgs[$i + 1]
+        if (-not [System.IO.Path]::IsPathRooted($OpenTarget)) {
+          $OpenTarget = Join-Path $RepoRoot $OpenTarget
+        }
+      }
+    }
+    Start-Process $OpenTarget -ErrorAction SilentlyContinue
   }
   & node $Gen @RestArgs
   exit $LASTEXITCODE

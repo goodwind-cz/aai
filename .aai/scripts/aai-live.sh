@@ -42,18 +42,56 @@ is_watch() {
   return 1
 }
 
+# resolve_output_path <args...> -> the value of the invocation's own
+# --output flag, or the generator's own default when absent. Used so the
+# opener (below) always targets the SAME file the watch loop is about to
+# keep rewriting, never the hardcoded default path.
+resolve_output_path() {
+  local out="docs/ai/live-status.html"
+  local prev=""
+  local a
+  for a in "$@"; do
+    [[ "$prev" == "--output" ]] && out="$a"
+    prev="$a"
+  done
+  printf '%s' "$out"
+}
+
 cd "$REPO_ROOT"
 
 if is_watch "$@"; then
-  # Warm one-shot FULL generate (HTML + JSON, no --data-only) first so there
-  # is actually something to open immediately, THEN open, THEN hand off to
-  # the (blocking, self-refreshing) watch loop. --data-only here used to
-  # suppress the HTML write while the opener unconditionally opened the HTML
-  # path anyway (BLOCKING-2, code review CHANGE-0127): every fresh checkout
-  # (outputs are gitignored) opened a file that did not exist yet.
-  node "$GEN" >/dev/null 2>&1 || true
+  # Warm one-shot generate first so there is actually something to open
+  # immediately, THEN open, THEN hand off to the (blocking, self-refreshing)
+  # watch loop.
+  #
+  # The warm-up forwards the invocation's OWN args (minus --watch itself, so
+  # the warm-up is one-shot and does not block) instead of running the
+  # generator bare. Two regressions this closes (NNB-1/NNB-2, code review
+  # 102429Z, introduced by the prior remediation of BLOCKING-2):
+  #   - a bare `node "$GEN"` always wrote the HTML, even when the invocation
+  #     passed --data-only to suppress it — the flag was silently ignored
+  #     for exactly the warm-up write.
+  #   - a bare `node "$GEN"` also ignored --output/--home/--interval/--cache/
+  #     --spool-dir, so under e.g. `--watch --output custom/page.html` the
+  #     opener (hardcoded to docs/ai/live-status.html) opened a frozen
+  #     snapshot at the DEFAULT path while the watch loop kept rewriting
+  #     custom/page.html — a page that looks live and is permanently stale.
+  # Passing the same args through makes the warm-up honor --data-only (no
+  # HTML written, matching the flag's own promise) and write to the same
+  # --output the opener below now resolves from those same args.
+  WARMUP_ARGS=()
+  for ARG in "$@"; do
+    [[ "$ARG" == "--watch" ]] && continue
+    WARMUP_ARGS+=("$ARG")
+  done
+  node "$GEN" "${WARMUP_ARGS[@]}" >/dev/null 2>&1 || true
   if ! is_data_only "$@"; then
-    "$OPENER" "$REPO_ROOT/docs/ai/live-status.html" >/dev/null 2>&1 || true
+    OPEN_TARGET="$(resolve_output_path "$@")"
+    case "$OPEN_TARGET" in
+      /*) : ;;
+      *) OPEN_TARGET="$REPO_ROOT/$OPEN_TARGET" ;;
+    esac
+    "$OPENER" "$OPEN_TARGET" >/dev/null 2>&1 || true
   fi
   exec node "$GEN" "$@"
 fi

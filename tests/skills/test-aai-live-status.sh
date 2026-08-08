@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-live-status
-# (docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md, TEST-001..020, 024..034)
+# (docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md, TEST-001..020, 024..035)
 #
 # Verifies .aai/scripts/generate-live-status.mjs — the optional, zero-token,
 # zero-network live-status dashboard generator — plus its per-harness parser
@@ -604,8 +604,10 @@ test_028_spaced_script_path_runs() {
   # disagree for a reason that has nothing to do with the space-in-path bug
   # this test targets — that would be an environment artifact, not evidence.
   spaced="$(cd "$spaced" && pwd -P)"
+  mkdir -p "$spaced/lib"
   cp "$GEN" "$spaced/generate-live-status.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/live-parsers/"*.mjs "$spaced/live-parsers/"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$spaced/lib/runtime-file.mjs"
   local h; h="$(mk_home t028)"
   mkdir -p "$h/out"
   local out="$h/gen-run.log"
@@ -707,10 +709,11 @@ test_031_watch_warmup_opens_existing_html() {
   # no-op that writes nothing, which is not the BLOCKING-2 behavior this test
   # targets.
   scratch="$(cd "$scratch" && pwd -P)"
-  mkdir -p "$scratch/.aai/scripts/live-parsers"
+  mkdir -p "$scratch/.aai/scripts/live-parsers" "$scratch/.aai/scripts/lib"
   cp "$LIVE" "$scratch/.aai/scripts/aai-live.sh"
   cp "$GEN" "$scratch/.aai/scripts/generate-live-status.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/live-parsers/"*.mjs "$scratch/.aai/scripts/live-parsers/"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$scratch/.aai/scripts/lib/runtime-file.mjs"
   local fixture_home; fixture_home="$(mk_home t031home)"
   local openerlog="$TEST_DIR/t031-opener.log"
   local openerbin="$TEST_DIR/t031-opener.sh"
@@ -794,13 +797,28 @@ JSONL
     return
   fi
   run_gen "$h"
-  chmod 644 "$h/.claude/projects/proj/s1.jsonl" 2>/dev/null || true
-  [[ "$EC" == 0 ]] || log_fail "must exit 0 even with an unreadable session file: $(cat "$OUT")"
+  [[ "$EC" == 0 ]] || log_fail "cold run must exit 0 even with an unreadable session file: $(cat "$OUT")"
   local usage; usage="$(node_get "$DATA" "(m.harnesses.find(h=>h.id==='claude-code')||{}).usage_today")"
   [[ "$usage" == "0" ]] || log_fail "unreadable file must not fabricate usage, expected 0, got $usage"
   local hasNote; hasNote="$(node_get "$DATA" 'm.notes.some(n=>n.includes("claude-code") && n.includes("read failed"))')"
-  [[ "$hasNote" == "true" ]] || log_fail "expected a named notes[] entry for the unreadable file, got: $(node_get "$DATA" 'JSON.stringify(m.notes)')"
-  log_pass "TEST-033: unreadable session file named in notes[], usage stays honest 0 not a silent fabrication"
+  [[ "$hasNote" == "true" ]] || log_fail "cold run: expected a named notes[] entry for the unreadable file, got: $(node_get "$DATA" 'JSON.stringify(m.notes)')"
+  # Warm run (BLOCKING-A, re-review 102429Z): run_gen reuses the SAME --cache
+  # path for this $h, so this second run is a cache HIT for s1.jsonl (its
+  # mtime/size are unchanged — the file is still chmod 000). A cached FAILED
+  # parse used to be stored as a normal {records: []} entry with no memory of
+  # the failure, so every subsequent run silently re-absorbed the file into a
+  # 0 with no note — one honest tick, then indefinitely many dishonest ones
+  # under --watch. The note must survive the cache hit.
+  run_gen "$h"
+  chmod 644 "$h/.claude/projects/proj/s1.jsonl" 2>/dev/null || true
+  [[ "$EC" == 0 ]] || log_fail "warm run (cache hit) must exit 0: $(cat "$OUT")"
+  local usage2; usage2="$(node_get "$DATA" "(m.harnesses.find(h=>h.id==='claude-code')||{}).usage_today")"
+  [[ "$usage2" == "0" ]] || log_fail "warm run: unreadable file must not fabricate usage, expected 0, got $usage2"
+  local skipped; skipped="$(node_get "$DATA" 'm.scan.files_skipped_unchanged')"
+  [[ "$skipped" == "1" ]] || log_fail "warm run: expected the cache to have taken the skip branch (files_skipped_unchanged=1), got $skipped"
+  local hasNote2; hasNote2="$(node_get "$DATA" 'm.notes.some(n=>n.includes("claude-code") && n.includes("read failed"))')"
+  [[ "$hasNote2" == "true" ]] || log_fail "warm run (cache hit) dropped the note — BLOCKING-A regression: $(node_get "$DATA" 'JSON.stringify(m.notes)')"
+  log_pass "TEST-033: unreadable session file named in notes[] on BOTH a cold run and a warm cache-hit run"
 }
 
 # ============================ TEST-034 (Spec-AC-02) ============================
@@ -824,8 +842,43 @@ JSONL
   log_pass "TEST-034: ts-less record excluded from totals AND named in notes[], never a silent fabricated 0"
 }
 
+# ============================ TEST-035 (Spec-AC-03) ============================
+# Regression pin for BLOCKING-B (code review 102429Z): loadCache/saveCache used
+# to hand-roll their lifecycle (bare try/catch -> {} on read, plain
+# writeFileSync on write) instead of lib/runtime-file.mjs's loadOrDegrade /
+# atomicWrite. A damaged (e.g. truncated mid-write) cache file was silently
+# read as "nothing there" and a plain writeFileSync left a torn-write window.
+# After migrating to the shared primitives, a truncated cache must recover
+# HONESTLY: a named notes[] entry for the rebuild, and correct totals from the
+# cold re-parse it falls back to — never a silently wrong or missing figure.
+test_035_truncated_cache_recovers_honestly() {
+  log_info "Test: a truncated/corrupt cache file recovers with a named note and correct totals, never silent (BLOCKING-B)..."
+  local h; h="$(mk_home t035)"
+  mkdir -p "$h/.claude/projects/proj"
+  cat > "$h/.claude/projects/proj/s1.jsonl" <<'JSONL'
+{"type":"assistant","sessionId":"s1","cwd":"/x/proj","timestamp":"2026-08-08T10:00:00.000Z","requestId":"req1","message":{"id":"msg1","model":"m","usage":{"input_tokens":10,"output_tokens":5,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+JSONL
+  run_gen "$h"
+  [[ "$EC" == 0 ]] || log_fail "cold run must exit 0: $(cat "$OUT")"
+  local usage_cold; usage_cold="$(node_get "$DATA" "(m.harnesses.find(h=>h.id==='claude-code')||{}).usage_today")"
+  [[ "$usage_cold" == "15" ]] || log_fail "expected usage_today 15 on the cold run, got $usage_cold"
+  local cache="$h/cache.json"
+  [[ -f "$cache" ]] || log_fail "cache file was not written: $cache"
+  # Simulate a torn write / partial crash mid-save: truncate to half size, so
+  # the file is present but unparseable JSON.
+  local size; size="$(wc -c < "$cache" | tr -d ' ')"
+  head -c "$((size / 2))" "$cache" > "$cache.trunc" && mv "$cache.trunc" "$cache"
+  run_gen "$h"
+  [[ "$EC" == 0 ]] || log_fail "run over a truncated cache must still exit 0: $(cat "$OUT")"
+  local usage_warm; usage_warm="$(node_get "$DATA" "(m.harnesses.find(h=>h.id==='claude-code')||{}).usage_today")"
+  [[ "$usage_warm" == "15" ]] || log_fail "truncated cache must not corrupt totals, expected 15, got $usage_warm"
+  local hasNote; hasNote="$(node_get "$DATA" 'm.notes.some(n=>n.includes("cache") && (n.includes("corrupt") || n.includes("rebuild")))')"
+  [[ "$hasNote" == "true" ]] || log_fail "expected a named notes[] entry for the corrupt cache rebuild, got: $(node_get "$DATA" 'JSON.stringify(m.notes)')"
+  log_pass "TEST-035: truncated cache recovers with a named note and correct totals, never silent"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-live-status-dashboard TEST-001..020, 024..034)"
+  echo "Testing $TEST_NAME (SPEC spec-live-status-dashboard TEST-001..020, 024..035)"
   check_deps
   setup_fixture
   test_001_run_writes_both_outputs
@@ -859,6 +912,7 @@ main() {
   test_032_home_flag_overrides_harness_env
   test_033_unreadable_file_named_in_notes
   test_034_ts_less_record_named_not_silent
+  test_035_truncated_cache_recovers_honestly
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

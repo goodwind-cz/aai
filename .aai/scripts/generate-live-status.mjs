@@ -27,6 +27,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import PARSERS from './live-parsers/registry.mjs';
+import { loadOrDegrade, atomicWrite } from './lib/runtime-file.mjs';
 
 const ROOT = process.cwd();
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -71,7 +72,11 @@ function parseArgs(argv) {
 }
 
 function esc(s) {
-  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  // The apostrophe is escaped too (NNB-4, code review 102429Z) so
+  // Spec-AC-10's "never breaks out of its attribute" universal holds by
+  // construction rather than by the accident of no single-quoted attribute
+  // existing today in renderHtml.
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 const na = (v) => (v === null || v === undefined ? 'N/A' : String(v));
 // naEsc: the na() semantics (missing -> literal "N/A") PLUS esc() on any
@@ -101,20 +106,37 @@ function within7d(ts, nowMs) {
 
 // ---- cache -------------------------------------------------------------
 
-function loadCache(cacheAbs) {
-  try {
-    const raw = fs.readFileSync(cacheAbs, 'utf8');
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
+// loadCache/saveCache used to hand-roll their lifecycle (bare try/catch ->
+// {} on read; plain fs.writeFileSync on write) instead of the shared
+// lib/runtime-file.mjs primitives (BLOCKING-B, code review 102429Z:
+// SKILL_CODE_REVIEW.prompt.md Verdict 2, SIDECAR LIFECYCLE — a NEW gitignored
+// runtime sidecar hand-rolling load/write is a categorical BLOCKING finding).
+// loadOrDegrade distinguishes absent (ENOENT -> a normal empty cache) from
+// corrupt (present-but-unreadable or unparseable or wrong-shape -> a DAMAGED
+// cache, class B) so a truncated/torn write is never silently read as
+// "nothing cached" with no trace. A corrupt cache degrades LOUDLY: named in
+// notes[] and rebuilt cold, never a silent {} that could later be mistaken
+// for a legitimately empty cache.
+function loadCache(cacheAbs, notes) {
+  const result = loadOrDegrade(cacheAbs, {
+    empty: {},
+    isShape: (parsed) => parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed),
+  });
+  if (result.status === 'corrupt') {
+    if (Array.isArray(notes)) {
+      notes.push(`live-status: cache ${cacheAbs} unreadable or corrupt (${result.code || 'parse error'}), rebuilding from a cold scan`);
+    }
     return {};
   }
+  return result.data;
 }
 
+// atomicWrite (class E primitive: temp + rename, the rename the sole commit
+// point) replaces the prior plain writeFileSync — a crash mid-save now
+// leaves the PRIOR cache intact instead of a torn/truncated file.
 function saveCache(cacheAbs, cache) {
   try {
-    fs.mkdirSync(path.dirname(cacheAbs), { recursive: true });
-    fs.writeFileSync(cacheAbs, JSON.stringify(cache));
+    atomicWrite(cacheAbs, JSON.stringify(cache));
   } catch {
     // Cache is a pure optimization — a write failure never fails the run.
   }
@@ -151,11 +173,26 @@ function scanHarness(entry, env, cache, args, notes) {
     let fileRecords;
     if (cached && cached.mtimeMs === file.mtimeMs && cached.size === file.size) {
       fileRecords = cached.records;
+      // BLOCKING-A (code review 102429Z): a FAILED or partially-malformed
+      // parse used to be cached as an indistinguishable normal entry, so its
+      // notes[] entry (file read failed / malformed file / malformed line)
+      // was produced exactly once, on the cold run, then silently dropped on
+      // every subsequent cache HIT — the file stayed absorbed into a 0
+      // forever with no trace. Replay the notes this file's parse produced,
+      // stored alongside its cached records, on every cache hit so the
+      // degradation is named for as long as it persists (steady state under
+      // --watch, not a one-shot tick).
+      if (Array.isArray(cached.notes) && cached.notes.length) {
+        for (const n of cached.notes) notes.push(n);
+      }
       filesSkipped += 1;
     } else {
+      const notesBefore = notes.length;
       const parseCtx = { notes };
       fileRecords = [...entry.parse(file, parseCtx)];
+      const notesForFile = notes.slice(notesBefore);
       cache[key] = { mtimeMs: file.mtimeMs, size: file.size, records: fileRecords };
+      if (notesForFile.length) cache[key].notes = notesForFile;
       filesRead += 1;
     }
     for (const r of fileRecords) {
@@ -336,8 +373,8 @@ function buildModel(args) {
     ? path.resolve(ROOT, args.spoolDir)
     : path.resolve(ROOT, process.env.AAI_LIVE_SPOOL_DIR || 'docs/ai/live');
   const cacheAbs = path.resolve(ROOT, args.cachePath);
-  const cache = args.noCache ? {} : loadCache(cacheAbs);
   const notes = [];
+  const cache = args.noCache ? {} : loadCache(cacheAbs, notes);
 
   const harnessResults = [];
   const degraded = [];
