@@ -1,65 +1,65 @@
 {
-  "generatedAt": "2026-08-07T13:25:07.423Z",
+  "generatedAt": "2026-08-08T11:21:11.110Z",
   "project": "aai",
   "counts": {
-    "delivered": 171,
+    "delivered": 172,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 23273206
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "auto-update-config",
+    "ref": "live-status-dashboard",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "auto-update-config",
+      "ref": "live-status-dashboard",
       "type": "intake_change",
-      "phase": "validation"
+      "phase": null
     },
-    "strategy": "direct",
+    "strategy": "hybrid",
     "worktree": {
       "recommendation": "recommended",
-      "user_decision": "inline"
+      "user_decision": "worktree"
     },
     "validation_status": "not_run",
-    "review_status": "pass",
+    "review_status": "not_run",
     "ticks": [
       {
-        "tick": 2,
-        "role": "Implementation",
-        "scope": "core-prompt-diet",
-        "duration_seconds": 1814,
-        "harness_version": "2.1.218 (Claude Code)"
-      },
-      {
-        "tick": 2,
+        "tick": 12,
         "role": "Code Review",
-        "scope": "product-capability-refinements",
-        "duration_seconds": 360,
-        "harness_version": "2.1.218 (Claude Code)"
+        "scope": "CHANGE-0127",
+        "duration_seconds": 810,
+        "harness_version": "2.1.220 (Claude Code)"
       },
       {
-        "tick": 1,
-        "role": "Implementation",
-        "scope": "product-capability-refinements",
-        "duration_seconds": 720,
-        "harness_version": "2.1.218 (Claude Code)"
+        "tick": 11,
+        "role": "Remediation",
+        "scope": "CHANGE-0127",
+        "duration_seconds": 642,
+        "harness_version": "2.1.220 (Claude Code)"
       },
       {
-        "tick": 4,
+        "tick": 10,
         "role": "Code Review",
-        "scope": "product-docs-capability-model",
-        "duration_seconds": 960,
-        "harness_version": "2.1.218 (Claude Code)"
+        "scope": "CHANGE-0127",
+        "duration_seconds": 681,
+        "harness_version": "2.1.220 (Claude Code)"
       },
       {
-        "tick": 3,
-        "role": "Validation",
-        "scope": "product-docs-capability-model",
-        "duration_seconds": 960,
-        "harness_version": "2.1.218 (Claude Code)"
+        "tick": 9,
+        "role": "Remediation",
+        "scope": "CHANGE-0127",
+        "duration_seconds": 927,
+        "harness_version": "2.1.220 (Claude Code)"
+      },
+      {
+        "tick": 8,
+        "role": "Code Review",
+        "scope": "CHANGE-0127",
+        "duration_seconds": 1178,
+        "harness_version": "2.1.220 (Claude Code)"
       }
     ]
   },
@@ -79,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "live-status-dashboard",
+      "title": "Change — Optional zero-token live-status dashboard (factory sidecar)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0127-live-status-dashboard.md",
+      "closed_on": "2026-08-08",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0114-spec-live-status-dashboard.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260808T111602Z-CHANGE-0127-live-status-dashboard-rereview3.md"
+    },
     {
       "ref": "win-escalation-hygiene",
       "title": "Change — Windows escalation hygiene joins the vendored knowledge",
@@ -2309,6 +2322,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "live-status-dashboard",
+          "title": "Change — Optional zero-token live-status dashboard (factory sidecar)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0127-live-status-dashboard.md",
+          "closed_on": "2026-08-08",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0114-spec-live-status-dashboard.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260808T111602Z-CHANGE-0127-live-status-dashboard-rereview3.md"
+        },
         {
           "ref": "win-escalation-hygiene",
           "title": "Change — Windows escalation hygiene joins the vendored knowledge",

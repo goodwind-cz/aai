@@ -1,0 +1,29 @@
+{
+  "_comment": "AAI live-status dashboard tap overlay (SPEC-0114-spec-live-status-dashboard). OPT-IN: nothing installs this automatically — merge the 'statusLine' key and the 'Stop'/'Notification' hooks below into the project's .claude/settings.json (existing settings are merged additively, never overwritten). Wires the Claude Code statusLine and the Stop/Notification hooks to live-spool.sh, which appends a WHITELISTED projection of the harness's own stdin payload to docs/ai/live/{statusline,hooks}.jsonl — never message or transcript content. Absence of this overlay leaves the dashboard's liveness section on its mtime heuristic fallback and the quotas section on its named SKIP; both are honest, tested paths, not broken ones. The writer always exits 0 so a spool failure never disturbs the harness. Uninstall: remove the 'statusLine' key and the two hook entries below from .claude/settings.json (or delete docs/ai/live/ to reset the spools without uninstalling).",
+  "statusLine": {
+    "type": "command",
+    "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.aai/scripts/live-spool.sh\" statusline"
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "S=\"${CLAUDE_PROJECT_DIR:-.}/.aai/scripts/live-spool.sh\"; if [ -f \"$S\" ]; then bash \"$S\" hooks; fi"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "S=\"${CLAUDE_PROJECT_DIR:-.}/.aai/scripts/live-spool.sh\"; if [ -f \"$S\" ]; then bash \"$S\" hooks; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

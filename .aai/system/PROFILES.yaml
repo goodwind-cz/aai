@@ -212,6 +212,8 @@ extended:
   - .aai/scripts/aai-feedback-upsert.mjs
   - .aai/scripts/aai-friction.mjs
   - .aai/scripts/aai-issues.mjs
+  - .aai/scripts/aai-live.ps1
+  - .aai/scripts/aai-live.sh
   - .aai/scripts/cloudflare-share.ps1
   - .aai/scripts/cloudflare-share.sh
   - .aai/scripts/docs-canon.mjs
@@ -220,11 +222,18 @@ extended:
   - .aai/scripts/generate-dashboard.mjs
   - .aai/scripts/generate-docs-hub.mjs
   - .aai/scripts/generate-factory-report.mjs
+  - .aai/scripts/generate-live-status.mjs
   - .aai/scripts/generate-overview.mjs
   - .aai/scripts/generate-userguide-rollup.mjs
   - .aai/scripts/lib/aai-redact.mjs
   - .aai/scripts/lib/docs-canon-core.mjs
   - .aai/scripts/lib/test-canon-core.mjs
+  - .aai/scripts/live-parsers/claude-code.mjs
+  - .aai/scripts/live-parsers/codex.mjs
+  - .aai/scripts/live-parsers/gemini-cli.mjs
+  - .aai/scripts/live-parsers/registry.mjs
+  - .aai/scripts/live-spool.ps1
+  - .aai/scripts/live-spool.sh
   - .aai/scripts/metrics-report.mjs
   - .aai/scripts/migrate-yaml-to-jsonl.ps1
   - .aai/scripts/migrate-yaml-to-jsonl.sh
@@ -237,3 +246,4 @@ extended:
   - .aai/system/FRICTION_PROTOCOL.md
   - .aai/system/SELF_HOSTING.md
   - .aai/system/SUPERPOWERS_INTEGRATION.md
+  - .aai/templates/hooks/live-status-hooks.json

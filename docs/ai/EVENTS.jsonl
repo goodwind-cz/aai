@@ -1504,3 +1504,10 @@
 {"v":1,"ts":"2026-08-07T13:24:47.761Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"win-escalation-hygiene","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-08-07T13:24:47.793Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"win-escalation-hygiene","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-07T13:24:47.824Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"win-escalation-hygiene","payload":{"commit":"fa14a36737eb673f1b0b967d06b3061d23f4250e"}}
+{"v":1,"ts":"2026-08-08T08:23:21.765Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-live-status-dashboard","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-08T11:20:47.622Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"live-status-dashboard","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-08T11:20:47.655Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"live-status-dashboard","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-08T11:20:47.685Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"live-status-dashboard","payload":{"commit":"134a074655e4f1fbf53e7306cacd91bc2364fd97"}}
+{"v":1,"ts":"2026-08-08T11:20:47.717Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-live-status-dashboard","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-08T11:20:47.749Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-live-status-dashboard","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-08T11:20:47.781Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-live-status-dashboard","payload":{"commit":"134a074655e4f1fbf53e7306cacd91bc2364fd97"}}

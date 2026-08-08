@@ -364,6 +364,17 @@ suites:
       - .aai/SKILL_DOCTOR.prompt.md
       - .aai/system/AAI_PIN.md
 
+  aai-live-status:
+    globs:
+      - .aai/scripts/generate-live-status.mjs
+      - .aai/scripts/live-parsers/**
+      - .aai/scripts/live-spool.sh
+      - .aai/scripts/live-spool.ps1
+      - .aai/scripts/aai-live.sh
+      - .aai/scripts/aai-live.ps1
+      - .aai/templates/hooks/live-status-hooks.json
+      - docs/product/live-status-dashboard.md
+
   aai-sync-seed:
     globs:
       - .aai/scripts/aai-sync.sh
