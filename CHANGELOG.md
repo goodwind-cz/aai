@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(routine): standing routines become a vendored, on-demand, agent-neutral template (CHANGE-0128) [L2]
+## [v2026.08.08] — feat(routine): standing routines become a vendored, on-demand, agent-neutral template (CHANGE-0128) [L2]
 
 - New `.aai/routines/SCRYER.routine.md` — the morning-scryer standing routine
   reconstructed as a git-diffable, agent-neutral contract with a closed
@@ -62,7 +62,7 @@ RFC-0001).
   the script through a symlinked path (e.g. macOS's own `/var` ->
   `/private/var` TMPDIR) no longer silently no-ops.
 
-## [unreleased] — feat(live-status): optional zero-token live-status dashboard — per-harness parser registry, statusline/hook tap, watch mode (CHANGE-0127) [L2]
+## [v2026.08.08] — feat(live-status): optional zero-token live-status dashboard — per-harness parser registry, statusline/hook tap, watch mode (CHANGE-0127) [L2]
 
 - New, strictly OPTIONAL `node .aai/scripts/generate-live-status.mjs` answers
   what the existing three generators (dashboard, factory-report, overview)
