@@ -264,9 +264,19 @@ test_008_local_scheduler_macos_linux() {
   [[ $ok -eq 1 ]] && log_pass "TEST-008 codex/gemini/generic macos+linux crontab + headless CLI" || log_fail "TEST-008 local scheduler macos/linux"
 }
 
-# --- TEST-009 — windows emits Register-ScheduledTask + both twin filenames -
+# --- TEST-009 — windows emits Register-ScheduledTask + both twin filenames,
+#     and the emitted block is VALID, EXECUTABLE PowerShell (Spec-AC-03) -----
+# Textual greps alone don't discriminate a broken emission from a working one
+# (both contain the literal strings "Register-ScheduledTask" etc). This test
+# additionally pipes the extracted windows block through pwsh's own parser
+# (Parser::ParseFile) to assert it is AST-clean and forms exactly the three
+# intended statements, then round-trips it through stubbed cmdlets to assert
+# New-ScheduledTaskAction actually receives a non-empty -Argument (not a
+# standalone-statement fragment) and Register-ScheduledTask receives
+# -Description. Guarded with the same pwsh-present skip convention
+# test-ps1-quality.sh uses (informational skip, never a hard suite failure).
 test_009_windows_register_scheduled_task() {
-  log_info "TEST-009: windows emits Register-ScheduledTask + both .sh/.ps1 twin filenames..."
+  log_info "TEST-009: windows emits Register-ScheduledTask + both .sh/.ps1 twin filenames, as valid executable PowerShell..."
   run_emit --routine SCRYER --harness codex --os windows --repo owner/repo \
     --schedule "0 7 * * *" --model claude-sonnet-5 --tz Europe/Prague
   if [[ "$RC" -ne 0 ]]; then log_fail "TEST-009: exit $RC (want 0)"; return; fi
@@ -274,7 +284,79 @@ test_009_windows_register_scheduled_task() {
   grep -qF "Register-ScheduledTask" <<<"$OUT" || { log_info "TEST-009: no Register-ScheduledTask"; ok=0; }
   grep -qF "aai-scryer-codex.sh" <<<"$OUT" || { log_info "TEST-009: no .sh twin filename"; ok=0; }
   grep -qF "aai-scryer-codex.ps1" <<<"$OUT" || { log_info "TEST-009: no .ps1 twin filename"; ok=0; }
-  [[ $ok -eq 1 ]] && log_pass "TEST-009 windows Register-ScheduledTask + both twins" || log_fail "TEST-009 windows emission"
+
+  local psfile="$TMP_ROOT/t009-block.ps1"
+  awk '
+    /^PowerShell scheduled task \(Register-ScheduledTask\):$/ { flag=1; next }
+    flag && /^$/ { exit }
+    flag { print }
+  ' <<<"$OUT" > "$psfile"
+  [[ -s "$psfile" ]] || { log_info "TEST-009: could not extract windows PowerShell block from emission"; ok=0; }
+
+  if command -v pwsh >/dev/null 2>&1; then
+    local checker="$TMP_ROOT/t009-check.ps1"
+    cat > "$checker" <<'PS1EOF'
+param([Parameter(Mandatory=$true)][string]$Path)
+$errs = $null
+$tokens = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$tokens, [ref]$errs)
+$parseErrCount = 0
+if ($errs) { $parseErrCount = $errs.Count }
+Write-Output ("PARSEERR=" + $parseErrCount)
+if ($errs) { foreach ($e in $errs) { Write-Output ("  " + $e.Message) } }
+$stmtCount = $ast.EndBlock.Statements.Count
+Write-Output ("STMTCOUNT=" + $stmtCount)
+if ($parseErrCount -eq 0) {
+  function New-ScheduledTaskAction {
+    param([string]$Execute, [string]$Argument)
+    $global:__CapturedArgument = $Argument
+    [pscustomobject]@{ Execute = $Execute; Argument = $Argument }
+  }
+  function New-ScheduledTaskTrigger {
+    param([switch]$Once, $At)
+    [pscustomobject]@{ Once = $Once; At = $At }
+  }
+  function Register-ScheduledTask {
+    param([string]$TaskName, $Action, $Trigger, [string]$Description)
+    $global:__CapturedDescription = $Description
+    $global:__CapturedTaskName = $TaskName
+    [pscustomobject]@{ TaskName = $TaskName }
+  }
+  $global:__CapturedArgument = $null
+  $global:__CapturedDescription = $null
+  . $Path
+  Write-Output ("ARGUMENT=" + $global:__CapturedArgument)
+  Write-Output ("DESCRIPTION=" + $global:__CapturedDescription)
+}
+PS1EOF
+    local result parseerr stmtcount argument description
+    result="$(pwsh -NoProfile -File "$checker" -Path "$psfile" 2>&1)"
+    parseerr="$(grep -m1 '^PARSEERR=' <<<"$result" | cut -d= -f2)"
+    stmtcount="$(grep -m1 '^STMTCOUNT=' <<<"$result" | cut -d= -f2)"
+    argument="$(grep -m1 '^ARGUMENT=' <<<"$result" | cut -d= -f2-)"
+    description="$(grep -m1 '^DESCRIPTION=' <<<"$result" | cut -d= -f2-)"
+    if [[ "$parseerr" != "0" ]]; then
+      log_info "TEST-009: pwsh AST parse errors (want 0, got '$parseerr'):"
+      grep -v '^PARSEERR=\|^STMTCOUNT=\|^ARGUMENT=\|^DESCRIPTION=' <<<"$result" | while IFS= read -r l; do log_info "  $l"; done
+      ok=0
+    fi
+    if [[ "$stmtcount" != "3" ]]; then
+      log_info "TEST-009: expected exactly 3 top-level PowerShell statements, got '$stmtcount' (a backslash line-continuation splits the block into extra bogus statements)"
+      ok=0
+    fi
+    if [[ -z "$argument" || "$argument" != *"codex --prompt-file"* ]]; then
+      log_info "TEST-009: New-ScheduledTaskAction did not receive the expected non-empty -Argument (got '$argument')"
+      ok=0
+    fi
+    if [[ -z "$description" || "$description" != *"AAI routine SCRYER"* ]]; then
+      log_info "TEST-009: Register-ScheduledTask did not receive the expected non-empty -Description (got '$description')"
+      ok=0
+    fi
+  else
+    log_info "TEST-009: SKIP pwsh AST-parse/-Argument-bind discriminating check (pwsh not installed — install with 'brew install powershell' to run it, same convention as test-ps1-quality.sh)"
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-009 windows Register-ScheduledTask + both twins + valid executable PowerShell (pwsh AST parse, -Argument/-Description bound)" || log_fail "TEST-009 windows emission"
 }
 
 # --- TEST-010 — unknown harness / os each exit 2, empty stdout -------------

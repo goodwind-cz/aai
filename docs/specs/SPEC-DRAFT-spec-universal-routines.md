@@ -357,7 +357,7 @@ Edge cases:
 | TEST-006 | Spec-AC-02 | unit | tests/skills/test-aai-routine.sh | missing required flag exits 2 and writes nothing to stdout | green |
 | TEST-007 | Spec-AC-03 | int  | tests/skills/test-aai-routine.sh | claude payload parses as JSON, prompt equals render, fields echo arguments | green |
 | TEST-008 | Spec-AC-03 | int  | tests/skills/test-aai-routine.sh | codex, gemini and generic on macos and linux emit a crontab line plus headless CLI runner | green |
-| TEST-009 | Spec-AC-03 | int  | tests/skills/test-aai-routine.sh | windows emits Register-ScheduledTask and both twin filenames | green |
+| TEST-009 | Spec-AC-03 | int  | tests/skills/test-aai-routine.sh | windows emits Register-ScheduledTask and both twin filenames; the block parses as AST-clean PowerShell with pwsh Parser::ParseFile (exactly 3 top-level statements, zero errors) and New-ScheduledTaskAction / Register-ScheduledTask actually bind a non-empty -Argument / -Description via stubbed cmdlets, guarded with the pwsh-present skip convention | green |
 | TEST-010 | Spec-AC-03 | unit | tests/skills/test-aai-routine.sh | unknown harness and unknown os each exit 2 with empty stdout | green |
 | TEST-011 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | authorized fixture yields merge-allowed true plus all three merge gates, exit 0 | green |
 | TEST-012 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | unauthorized fixture yields report-only, loud MERGE DISABLED stderr line, exit 0 | green |

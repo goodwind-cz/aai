@@ -328,6 +328,17 @@ function agentCliInvocation(harness, promptFileName) {
   return `<agent-cli> --prompt-file "${promptFileName}"  # generic: substitute your CLI's headless invocation`;
 }
 
+// PowerShell single-quoted string literals treat every character literally
+// except '' (a doubled single quote, representing one literal quote) — no
+// backslash or double-quote escaping is needed inside them. Building the
+// nested `-Command "..."` value this way (instead of a double-quoted PS
+// string, which needs backtick escapes for embedded quotes) keeps the
+// windows -Argument literal correct regardless of what agentCliInvocation()
+// embeds.
+function psSingleQuoteLiteral(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
 function buildLocalSchedulerText({ routine, harness, os, repo, schedule, prompt }) {
   const baseName = baseNameFor(routine, harness);
   const shName = `${baseName}.sh`;
@@ -338,11 +349,21 @@ function buildLocalSchedulerText({ routine, harness, os, repo, schedule, prompt 
   lines.push(`Routine: ${routine} (${repo}) — harness=${harness} os=${os}`);
   lines.push('');
   if (os === 'windows') {
+    // Windows Task Scheduler runs `pwsh -Command "<cliInvocation>"` as a
+    // literal child-process command line, so the -Argument VALUE must carry
+    // that nested double-quoted string with its inner quotes backslash-
+    // escaped (standard Windows argument-quoting). psSingleQuoteLiteral()
+    // wraps that value in a PowerShell single-quoted literal so nothing in
+    // it needs PS-level escaping. Backtick (`) is PowerShell's line
+    // continuation character — backslash is not, and using it here (as the
+    // previous emission did) splits each statement in two and drops
+    // -Argument/-Description entirely (Spec-AC-03 regression, see TEST-009).
+    const argumentValue = `-Command "${cliInvocation.replace(/"/g, '\\"')}"`;
     lines.push('PowerShell scheduled task (Register-ScheduledTask):');
-    lines.push('$Action = New-ScheduledTaskAction -Execute "pwsh" \\');
-    lines.push(`  -Argument "-Command \\"${cliInvocation}\\""`);
+    lines.push('$Action = New-ScheduledTaskAction -Execute "pwsh" `');
+    lines.push(`  -Argument ${psSingleQuoteLiteral(argumentValue)}`);
     lines.push(`$Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date)  # cron: ${schedule} (adjust to match)`);
-    lines.push(`Register-ScheduledTask -TaskName "${baseName}" -Action $Action -Trigger $Trigger \\`);
+    lines.push(`Register-ScheduledTask -TaskName "${baseName}" -Action $Action -Trigger $Trigger \``);
     lines.push(`  -Description "AAI routine ${routine} (${repo})"`);
   } else {
     lines.push('Crontab line:');
