@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-08T11:20:17.266Z
+Generated: 2026-08-08T11:21:21.541Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0114 | specs | implementing | 12 done | docs/specs/SPEC-0114-spec-live-status-dashboard.md |
 
 ## Canonical layer (0)
 
@@ -33,7 +32,7 @@ _None._
 | issues-skill | issues-skill | 1 | docs/product/issues-skill.md |
 | learned-append-gate | learned-append-gate | 1 | docs/product/learned-append-gate.md |
 | lightweight-e2e-lane | lightweight-e2e-lane | 1 | docs/product/lightweight-e2e-lane.md |
-| live-status-dashboard | live-status-dashboard | 1 | docs/product/live-status-dashboard.md |
+| live-status-dashboard | live-status-dashboard | 2 | docs/product/live-status-dashboard.md |
 | orphan-sweep | orphan-sweep | 1 | docs/product/orphan-sweep.md |
 | platform-portable-pr | platform-portable-pr | 1 | docs/product/platform-portable-pr.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
@@ -41,7 +40,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 
-## Done (286)
+## Done (288)
 
 | ID | Type | Path |
 |---|---|---|
@@ -171,6 +170,7 @@ _None._
 | CHANGE-0124 | issues | docs/issues/CHANGE-0124-state-flake-rootcause.md |
 | CHANGE-0125 | issues | docs/issues/CHANGE-0125-adopt-v2-planning.md |
 | CHANGE-0126 | issues | docs/issues/CHANGE-0126-win-escalation-hygiene.md |
+| CHANGE-0127 | issues | docs/issues/CHANGE-0127-live-status-dashboard.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -330,13 +330,12 @@ _None._
 | SPEC-0111 | specs | docs/specs/SPEC-0111-spec-async-hitl-platform-comments.md |
 | SPEC-0112 | specs | docs/specs/SPEC-0112-spec-lightweight-e2e-lane.md |
 | SPEC-0113 | specs | docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md |
+| SPEC-0114 | specs | docs/specs/SPEC-0114-spec-live-status-dashboard.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0127 | issues | docs/issues/CHANGE-0127-live-status-dashboard.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

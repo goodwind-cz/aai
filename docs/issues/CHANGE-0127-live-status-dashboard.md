@@ -2,9 +2,14 @@
 id: live-status-dashboard
 number: 127
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
+links:
+  commits:
+    - 134a074655e4f1fbf53e7306cacd91bc2364fd97
+  pr:
+    - 236
 ---
 
 # Change — Optional zero-token live-status dashboard (factory sidecar)

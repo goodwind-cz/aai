@@ -5,6 +5,7 @@ capability: live-status-dashboard
 status: current
 delivered_by:
   - CHANGE-0127
+  - live-status-dashboard
 spec: docs/specs/SPEC-0114-spec-live-status-dashboard.md
 updated: 2026-08-08
 ---

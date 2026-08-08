@@ -2,13 +2,15 @@
 id: spec-live-status-dashboard
 type: spec
 number: 114
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: live-status-dashboard
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 236
+  commits:
+    - 134a074655e4f1fbf53e7306cacd91bc2364fd97
 ---
 
 # Implementation Spec — Optional zero-token live-status dashboard

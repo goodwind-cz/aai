@@ -2143,7 +2143,7 @@ read its gate warning) to see which section is missing.
 
 Answers what the existing three generators (dashboard, factory-report, overview) cannot: **what is running NOW**, **what it has cost TODAY**, and **how much official plan-quota headroom is left** — with zero LLM tokens, zero network calls, node stdlib only. It reads harness session transcripts (Claude Code, Codex, Gemini CLI) through a per-harness parser registry and renders one self-contained page, `docs/ai/live-status.html`, plus its machine-readable twin `docs/ai/live-status-data.json`. It is strictly OPTIONAL: nothing in the ride path (close-work-item, the autonomous loop, CI) ever invokes it, and it is never coupled to ride ceremony.
 
-[Product doc](product/live-status-dashboard.md) · [Spec](specs/SPEC-DRAFT-spec-live-status-dashboard.md)
+[Product doc](product/live-status-dashboard.md) · [Spec](specs/SPEC-0114-spec-live-status-dashboard.md)
 
 ### Small changes stop paying the full ceremony price
 
