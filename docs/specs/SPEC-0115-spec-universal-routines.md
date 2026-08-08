@@ -1,7 +1,7 @@
 ---
 id: spec-universal-routines
 type: spec
-number: null
+number: 115
 status: implementing
 ceremony_level: 2
 links:
@@ -76,7 +76,7 @@ keeps it side-effect-free, testable offline, and portable.
   .aai/system/PROFILES.yaml, SKILLS.md, tests/skills/suite-map.yaml,
   tests/skills/lib/prompt-diet-ledger.sh, tests/skills/test-aai-prompt-diet.sh,
   tests/skills/test-aai-routine.sh, tests/fixtures/routines/**,
-  docs/ai/decisions.jsonl, docs/specs/SPEC-DRAFT-spec-universal-routines.md,
+  docs/ai/decisions.jsonl, docs/specs/SPEC-0115-spec-universal-routines.md,
   docs/issues/CHANGE-0128-universal-routines.md
 
 ## Design decisions
@@ -389,7 +389,7 @@ Commands:
 - `bash tests/skills/test-aai-layer-profiles.sh`
 - `bash tests/skills/test-aai-prompt-diet.sh`
 - `bash tests/skills/test-aai-hygiene-pack.sh`
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-universal-routines.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0115-spec-universal-routines.md`
 - `node .aai/scripts/docs-audit.mjs --check --strict`
 
 Evidence artifacts: suite stdout with per-TEST pass lines, the RED transcripts

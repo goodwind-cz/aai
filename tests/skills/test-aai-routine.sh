@@ -2,7 +2,7 @@
 #
 # Test: universal standing routines — on-demand, agent-neutral routine
 # template + emitter (CHANGE-0128-universal-routines /
-# SPEC-DRAFT-spec-universal-routines.md).
+# SPEC-0115-spec-universal-routines.md).
 #
 # Verifies .aai/routines/SCRYER.routine.md (contract elements + closed
 # placeholder set), .aai/scripts/routine-emit.mjs (render, per-harness

@@ -2,7 +2,7 @@
 
 - **Scope**: `git diff 9f944f5..HEAD` on `feat/universal-routines` (HEAD `07ef4cb`), 9 files / +475 / -30. Commits in scope: `86ab6ae`, `99be12d`, `e8c5bed`, `8ed3e6a`, `07ef4cb`.
 - **Base**: `9f944f5` — the commit carrying the prior full review report (prior review's reviewed HEAD was `5d208fd`; `9f944f5` adds only that report, so `9f944f5..HEAD` is exactly the post-review batch).
-- **Spec**: `docs/specs/SPEC-DRAFT-spec-universal-routines.md` (SPEC-FROZEN, ceremony_level 2)
+- **Spec**: `docs/specs/SPEC-0115-spec-universal-routines.md` (SPEC-FROZEN, ceremony_level 2)
 - **Prior review**: `docs/ai/reviews/review-20260808T132824Z-CHANGE-0128-universal-routines.md` (dual PASS, NB-1..NB-8). Prior rounds' accepted debt and follow-up rows were NOT re-litigated per the dispatch.
 - **Reviewer**: fresh independent context (Opus 5); read-only on implementation — wrote only this report.
 - **Run UTC**: ~2026-08-08T13:41Z → 2026-08-08T13:58:30Z. Honesty note: `started_utc` is a reconstructed lower bound (I did not capture `date -u` at dispatch); the hard mid-run anchor is my own `docs-audit` append to `docs/ai/EVENTS.jsonl` at `2026-08-08T13:44:57.525Z`.
@@ -10,7 +10,7 @@
 ```yaml
 review:
   scope: git diff 9f944f5..HEAD (feat/universal-routines @ 07ef4cb)
-  spec: docs/specs/SPEC-DRAFT-spec-universal-routines.md
+  spec: docs/specs/SPEC-0115-spec-universal-routines.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -48,7 +48,7 @@ review:
       - { rank: NON-BLOCKING, file: .aai/scripts/routine-emit.mjs, line: 270,
           issue: "substitute() applies the four tokens SEQUENTIALLY, so a value substituted earlier is itself scanned for later tokens — a value can still act as a template token, which is the exact 'value is untrusted text' invariant this batch set out to establish",
           failure_scenario: "Reproduced live: --repo '{{MODEL}}' --model BLED -> exit 0, the claude payload's repo field reads '{{MODEL}}' while the prompt an agent executes reads 'morning scryer for `BLED`'. Payload metadata and executed prompt disagree about which repository the routine targets. Fix: single-pass replace (one regex with a lookup) instead of four sequential split/join passes" }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-universal-routines.md, line: 279,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0115-spec-universal-routines.md, line: 279,
           issue: "Doc drift left behind by the batch: the Spec-AC-05 Status-table note still reads 'line 83 stays byte-unchanged' and the Test Plan TEST-016 row still reads 'first 83 lines byte-unchanged', while the shipped test now pins 85. CHANGELOG.md:44 likewise still says 'TEST-001..022, all green' (now ..027) and documents none of the hardening",
           failure_scenario: "The next reviewer/auditor reconciling the spec against the suite sees an 83/85 mismatch and must re-derive which is authoritative; a release cut from this CHANGELOG ships a section that never mentions the new exit code 3 or the input rejection, so a downstream pin consumer sees no behavioral-contract change" }
   cannot_verify:

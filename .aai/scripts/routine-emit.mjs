@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // routine-emit.mjs — on-demand, agent-neutral standing-routine instantiator
-// (CHANGE-0128-universal-routines / SPEC-DRAFT-spec-universal-routines.md).
+// (CHANGE-0128-universal-routines / SPEC-0115-spec-universal-routines.md).
 //
 // PURPOSE
 //   Renders a vendored routine template (.aai/routines/<NAME>.routine.md)

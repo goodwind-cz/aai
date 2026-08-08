@@ -5,7 +5,7 @@ capability: universal-routines
 status: current
 delivered_by:
   - CHANGE-0128
-spec: docs/specs/SPEC-DRAFT-spec-universal-routines.md
+spec: docs/specs/SPEC-0115-spec-universal-routines.md
 updated: 2026-08-08
 ---
 
@@ -127,5 +127,5 @@ ledger; absent one, the routine emits in report-only mode and says so loudly.
 ## Links
 
 - Request: docs/issues/CHANGE-0128-universal-routines.md
-- Spec: docs/specs/SPEC-DRAFT-spec-universal-routines.md
+- Spec: docs/specs/SPEC-0115-spec-universal-routines.md
 - Review: docs/ai/reviews/review-20260808T132824Z-CHANGE-0128-universal-routines.md

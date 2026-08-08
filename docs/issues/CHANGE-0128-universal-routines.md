@@ -46,7 +46,7 @@ ceremony_level: 2
   TEST-012 + PROFILES) since .aai/** grows.
 
 ## Notes
-- Spec: docs/specs/SPEC-DRAFT-spec-universal-routines.md (SPEC-FROZEN
+- Spec: docs/specs/SPEC-0115-spec-universal-routines.md (SPEC-FROZEN
   2026-08-08, strategy hybrid).
 - Ceremony level re-classified 1 -> 2 by Planning at freeze (RFC-0009 gives
   the spec's declaration authority): the scope is not a single-surface fix —

@@ -1,7 +1,7 @@
 # Code Review — CHANGE-0128 universal-routines (single dual-verdict pass)
 
 - **Scope**: `git diff origin/main...HEAD` on `feat/universal-routines` @ `5d208fd` (base `8e4f9ac`), 27 files / +1962 / -6
-- **Spec**: `docs/specs/SPEC-DRAFT-spec-universal-routines.md` (SPEC-FROZEN, ceremony_level 2, strategy `hybrid`)
+- **Spec**: `docs/specs/SPEC-0115-spec-universal-routines.md` (SPEC-FROZEN, ceremony_level 2, strategy `hybrid`)
 - **Reviewer**: fresh independent context (Opus 5); did not author or remediate this code
 - **Prior evidence read**: `docs/ai/validation/validation-20260808T125500Z-...md` (FAIL, B1+B2), `docs/ai/validation/validation-20260808T131800Z-...-revalidation.md` (PASS, NB N1-N13)
 - **Run UTC**: 2026-08-08T13:18Z (lower bound — see honesty note) → 2026-08-08T13:28:24Z
@@ -9,7 +9,7 @@
 ```yaml
 review:
   scope: git diff origin/main...HEAD (feat/universal-routines @ 5d208fd, base 8e4f9ac)
-  spec: docs/specs/SPEC-DRAFT-spec-universal-routines.md
+  spec: docs/specs/SPEC-0115-spec-universal-routines.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -269,7 +269,7 @@ tested and one whose safety is enforced.
 
 ```yaml
 subagent_result:
-  scope: CHANGE-0128 / docs/specs/SPEC-DRAFT-spec-universal-routines.md
+  scope: CHANGE-0128 / docs/specs/SPEC-0115-spec-universal-routines.md
   role: Review
   status: PASS
   started_utc: 2026-08-08T13:18:00Z
