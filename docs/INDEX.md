@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-08T12:24:25.249Z
+Generated: 2026-08-08T12:43:22.024Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -13,7 +13,7 @@ _None._
 |---|---|---|---|---|
 | CHANGE-0128 | issues | implementing | — | docs/issues/CHANGE-0128-universal-routines.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-universal-routines | specs | implementing | 8 planned | docs/specs/SPEC-DRAFT-spec-universal-routines.md |
+| spec-universal-routines | specs | implementing | 8 done | docs/specs/SPEC-DRAFT-spec-universal-routines.md |
 
 ## Canonical layer (0)
 
