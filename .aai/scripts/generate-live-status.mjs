@@ -25,6 +25,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import PARSERS from './live-parsers/registry.mjs';
 
 const ROOT = process.cwd();
@@ -186,7 +187,18 @@ function accumulate(entry, records) {
     for (const r of records) {
       if (!r.sessionId) continue;
       const prev = bySession.get(r.sessionId);
-      if (!prev || (r.ts && (!prev.ts || r.ts >= prev.ts))) bySession.set(r.sessionId, r);
+      if (!prev) { bySession.set(r.sessionId, r); continue; }
+      if (r.ts && prev.ts) {
+        // Both sides carry a real timestamp: the later one wins.
+        if (r.ts >= prev.ts) bySession.set(r.sessionId, r);
+      } else {
+        // Either side lacks a reliable ts (upstream format drift, RR-3): a
+        // `r.ts &&` guard here used to silently keep whichever record
+        // arrived FIRST, inverting "last cumulative wins" to "first wins".
+        // Fall back to encounter order — records arrive in file order, so
+        // the later record in iteration deterministically wins instead.
+        bySession.set(r.sessionId, r);
+      }
     }
     return [...bySession.values()];
   }
@@ -324,8 +336,11 @@ function buildModel(args) {
     const sessions = new Set(scan.records.filter((r) => r.sessionId).map((r) => r.sessionId));
     let usageToday = null;
     let usage7d = null;
-    const spendByProject = new Map(); // project -> {today, sevenDay}
-    if (entry.accumulation !== 'none') {
+    // project -> {today, sevenDay}; values are numbers when a real usage
+    // total was accumulated, or `null` when the honesty invariant requires
+    // it (see the two branches below) — never a fabricated 0.
+    const spendByProject = new Map();
+    if (scan.available && entry.accumulation !== 'none') {
       usageToday = 0;
       usage7d = 0;
       for (const r of usageRecords) {
@@ -336,7 +351,20 @@ function buildModel(args) {
         if (isToday(r.ts, nowMs, nowDay)) { usageToday += r.usage; bucket.today += r.usage; }
         if (within7d(r.ts, nowMs)) { usage7d += r.usage; bucket.sevenDay += r.usage; }
       }
+    } else if (scan.available && entry.accumulation === 'none') {
+      // Spec-AC-04: this format carries no usage fields at all (Gemini CLI).
+      // Surface an explicit spend row per project with tokens: null so the
+      // renderer's N/A cell actually reaches the page — omitting the row
+      // entirely (the old behavior) silently dropped the AC's named
+      // observable even though the top-level usage_today/usage_7d were
+      // already honest.
+      const projects = new Set(scan.records.map((r) => r.project || 'unknown'));
+      for (const proj of projects) spendByProject.set(proj, { today: null, sevenDay: null });
     }
+    // scan.available === false (harness dir ABSENT): usageToday/usage7d and
+    // spendByProject stay null/empty. An absent harness's spend is UNKNOWN,
+    // not a verified zero — reporting 0 would let a consumer summing
+    // usage_today across harnesses silently absorb a missing source.
     const rateLimits = typeof entry.rateLimits === 'function' ? entry.rateLimits(scan.records) : null;
     harnessResults.push({
       id: entry.id,
@@ -529,9 +557,15 @@ function main() {
   process.on('SIGTERM', shutdown);
 }
 
-const isMain = (() => {
-  try { return path.resolve(process.argv[1] || '') === path.resolve(new URL(import.meta.url).pathname); } catch { return false; }
-})();
+// B1 fix (validation blocker): comparing path.resolve(process.argv[1]) (raw)
+// against path.resolve(new URL(import.meta.url).pathname) (percent-encoded)
+// never matches once the path contains a space or other URL-encoded
+// character — a silent exit-0 no-op, and unconditionally broken on Windows
+// drive-letter paths. Adopt the proven idiom from generate-dashboard.mjs:370
+// — normalize both sides to a file:// URL string instead of comparing a
+// decoded path against an encoded one.
+const isMain = Boolean(process.argv[1])
+  && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
 if (isMain) main();
 
 export { buildModel, renderHtml, parseArgs, accumulate };

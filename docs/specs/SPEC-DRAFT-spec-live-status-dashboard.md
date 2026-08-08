@@ -183,10 +183,10 @@ Single-writer state — the generator never reads or writes docs/ai/STATE.yaml.
 
 | Spec-AC    | Description | Status | Evidence | Review-By | Notes |
 |------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN generate-live-status.mjs runs the system SHALL write docs/ai/live-status-data.json and docs/ai/live-status.html from one model using Node stdlib only with no network import and no outbound socket and SHALL exit 0 even when every harness directory is absent naming each absent harness in a machine-readable degraded array | done | TEST-001,002,003 green; docs/ai/tdd/green-20260808T085117Z.log | — | |
-| Spec-AC-02 | The system SHALL resolve harnesses through a registry where each entry declares id discover parse and accumulation mode and SHALL apply mode event_sum_dedup for Claude Code keyed on message.id plus requestId and mode session_cumulative_last for Codex so that a duplicated Claude Code assistant line counts once and a Codex session with three token_count events reports its last cumulative total not their sum | done | TEST-004,005,006 green; docs/ai/tdd/red-20260808T085117Z-test_004_claude_code_dedup.log, red-...test_005_codex_cumulative_last.log (product_red), green-20260808T085117Z.log | — | |
+| Spec-AC-01 | WHEN generate-live-status.mjs runs the system SHALL write docs/ai/live-status-data.json and docs/ai/live-status.html from one model using Node stdlib only with no network import and no outbound socket and SHALL exit 0 even when every harness directory is absent naming each absent harness in a machine-readable degraded array and SHALL do so regardless of any URL-encodable character (space, non-ASCII) in the script's own on-disk path | done | TEST-001,002,003,028 green; docs/ai/tdd/green-20260808T085117Z.log, red-20260808T091843Z-test_028_spaced_script_path_runs.log (product_red, remediation of validation B1) | — | |
+| Spec-AC-02 | The system SHALL resolve harnesses through a registry where each entry declares id discover parse and accumulation mode and SHALL apply mode event_sum_dedup for Claude Code keyed on message.id plus requestId and mode session_cumulative_last for Codex so that a duplicated Claude Code assistant line counts once and a Codex session with three token_count events reports its last cumulative total not their sum deterministically even when the events carry no timestamp | done | TEST-004,005,006,029 green; docs/ai/tdd/red-20260808T085117Z-test_004_claude_code_dedup.log, red-...test_005_codex_cumulative_last.log (product_red), red-20260808T091843Z-test_029_codex_no_ts_tiebreak.log (product_red, remediation of validation N2), green-20260808T085117Z.log | — | |
 | Spec-AC-03 | WHEN the generator runs a second time over an unchanged corpus it SHALL re-read zero session files reporting scan.files_skipped_unchanged equal to the corpus file count and SHALL produce aggregates byte-identical to the cold run and WHEN one session file gains a line it SHALL re-read exactly that file | done | TEST-007,008 green; docs/ai/tdd/red-20260808T085117Z-test_007_incremental_cutoff_unchanged.log, red-...test_008_incremental_cutoff_appended.log (product_red), green-20260808T085117Z.log | — | |
-| Spec-AC-04 | The registry SHALL ship parsers for Claude Code and Codex and Gemini CLI and a harness whose records carry no usage fields SHALL render sessions and liveness with the usage value null and the rendered cell reading N/A and SHALL NEVER render a zero or an estimate in place of a missing usage figure | done | TEST-009,010 green; docs/ai/tdd/red-20260808T085117Z-test_009_gemini_usage_na.log (product_red), green-20260808T085117Z.log | — | |
+| Spec-AC-04 | The registry SHALL ship parsers for Claude Code and Codex and Gemini CLI and a harness whose records carry no usage fields SHALL render sessions and liveness with the usage value null and the rendered cell reading N/A and SHALL NEVER render a zero or an estimate in place of a missing usage figure | done | TEST-009,010 green; docs/ai/tdd/red-20260808T085117Z-test_009_gemini_usage_na.log (product_red), red-20260808T091843Z-test_009_gemini_usage_na_b2.log (product_red, remediation of validation B2 — rendered N/A cell), green-20260808T085117Z.log | — | |
 | Spec-AC-05 | Every harness directory and spool path SHALL be built with os.homedir or an env override joined by path.join with no hardcoded forward-slash home string anywhere in the generator or parsers and the tap and launcher helpers SHALL ship as bash and PowerShell twins that both parse cleanly and each degradation message SHALL name the expected location for the running OS | done | TEST-020 green (test-aai-live-status.sh); TEST-023 green (test-ps1-quality.sh, live-spool.ps1 + aai-live.ps1 parse clean, 0 PSScriptAnalyzer errors) | — | |
 | Spec-AC-06 | WHEN the statusline tap spool exists the quotas section SHALL render five_hour and seven_day used percentage and resets_at read from the spooled payload and WHEN a harness session file carries its own server-authoritative rate limits the section SHALL render them attributed to that harness and WHEN neither source exists the section SHALL render a SKIP naming the absent source and its install command and SHALL NOT render any estimated limit and the tap SHALL spool only whitelisted fields never message or transcript content | done | TEST-011,012,013,014 green; docs/ai/tdd/red-...test_011/012/014...log (product_red), green-20260808T085117Z.log | — | RR-1 (unverified real statusline payload shape) stands per spec |
 | Spec-AC-07 | WHEN the hooks spool carries Stop or Notification lines for a session the state badge SHALL read finished or waiting-on-approval accordingly and WHEN no spool line exists for a session the badge SHALL derive from the transcript mtime window and SHALL carry the literal word heuristic | done | TEST-015 green; docs/ai/tdd/red-20260808T085117Z-test_015_liveness_hooks_and_heuristic.log (product_red), green-20260808T085117Z.log | — | |
@@ -357,17 +357,22 @@ result on the other — no mocked boundaries.
 | TEST-025 | Spec-AC-09 | integration | tests/skills/test-aai-live-status.sh | watch mode with a one second interval rewrites the outputs at least twice within four seconds and exits 0 on SIGINT leaving no surviving child process | green |
 | TEST-026 | Spec-AC-10 | unit | tests/skills/test-aai-live-status.sh | the page meta refresh interval in seconds equals the watch interval and the SKIP section names every degraded source with its reason | green |
 | TEST-027 | Spec-AC-09 | unit | tests/skills/test-aai-live-status.sh | aai-live.sh resolves an opener and refuses with a named error instead of hanging when none exists | green |
+| TEST-028 | Spec-AC-01 | unit | tests/skills/test-aai-live-status.sh | the generator writes both output files and exits 0 when its own script path contains a space (remediation of validation B1) | green |
+| TEST-029 | Spec-AC-02 | unit | tests/skills/test-aai-live-status.sh | session_cumulative_last resolves last-cumulative-wins deterministically by file order when records carry no timestamp at all (remediation of validation N2) | green |
 
 Test status values: pending -> red -> green.
 
 RED-proof obligation (hybrid strategy): every AC-gating test above must be
 observed FAILING on the pre-change tree before its green counts as evidence.
 For the TDD-lane tests — TEST-004, TEST-005, TEST-007, TEST-008, TEST-009,
-TEST-011, TEST-012, TEST-014, TEST-015 — the RED observation is STORED under
-`docs/ai/tdd/` per .aai/SKILL_TDD.prompt.md. For the loop-lane remainder the
-RED must be OBSERVED and reported; storage is optional. The three pins
-(TEST-021, TEST-022, TEST-023) are RED by construction the moment the new
-files exist unclassified — record that observation, do not skip it.
+TEST-011, TEST-012, TEST-014, TEST-015, TEST-028, TEST-029 — the RED
+observation is STORED under `docs/ai/tdd/` per .aai/SKILL_TDD.prompt.md.
+TEST-028 and TEST-029 were added during remediation of validation findings
+B1 and N2 respectively, each with its own stored RED against the pre-fix
+code. For the loop-lane remainder the RED must be OBSERVED and reported;
+storage is optional. The three pins (TEST-021, TEST-022, TEST-023) are RED
+by construction the moment the new files exist unclassified — record that
+observation, do not skip it.
 
 ## Verification
 

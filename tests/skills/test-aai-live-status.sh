@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-live-status
-# (docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md, TEST-001..020, 024..027)
+# (docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md, TEST-001..020, 024..029)
 #
 # Verifies .aai/scripts/generate-live-status.mjs — the optional, zero-token,
 # zero-network live-status dashboard generator — plus its per-harness parser
@@ -118,7 +118,11 @@ test_002_absent_home_all_absent() {
   [[ "$(node_get "$DATA" 'm.degraded.every(d=>/^ABSENT:/.test(d.reason))')" == "true" ]] || log_fail "every degraded reason must start with ABSENT:"
   local ids; ids="$(node_get "$DATA" 'm.degraded.map(d=>d.source).sort().join(",")')"
   [[ "$ids" == "claude-code,codex,gemini-cli" ]] || log_fail "expected all three harness ids, got: $ids"
-  log_pass "TEST-002: absent home -> exit 0, all three harnesses ABSENT"
+  # Honesty invariant: an ABSENT harness dir means the spend is UNKNOWN, not a
+  # verified zero. usage_today/usage_7d must be null, never a fabricated 0.
+  [[ "$(node_get "$DATA" 'm.harnesses.every(h=>h.usage_today===null && h.usage_7d===null)')" == "true" ]] \
+    || log_fail "every ABSENT harness must report usage_today/usage_7d as null, never 0"
+  log_pass "TEST-002: absent home -> exit 0, all three harnesses ABSENT, usage null not 0"
 }
 
 # ============================ TEST-003 (Spec-AC-01) ===========================
@@ -256,9 +260,19 @@ JSONL
   [[ "$today" == "null" ]] || log_fail "gemini usage_today must be null, got $today"
   [[ "$d7" == "null" ]] || log_fail "gemini usage_7d must be null, got $d7"
   grep -q "gemini-cli" "$HTML" || log_fail "html must mention gemini-cli chip"
-  # No fabricated numeric usage anywhere for gemini-cli sessions in the spend tables.
-  [[ "$(node_get "$DATA" "m.spend.today.some(s=>s.harness==='gemini-cli')")" == "false" ]] || log_fail "gemini-cli must never appear in numeric spend rows"
-  log_pass "TEST-009: Gemini usage is null end-to-end, never a fabricated zero"
+  # The spend tables carry an explicit gemini-cli row so the page can render
+  # its N/A cell — the JSON stays honest with tokens: null (never a fabricated
+  # 0, never a string), the row is simply never omitted.
+  [[ "$(node_get "$DATA" "m.spend.today.some(s=>s.harness==='gemini-cli' && s.tokens===null)")" == "true" ]] \
+    || log_fail "gemini-cli must appear in spend.today with tokens: null (never omitted, never a number)"
+  [[ "$(node_get "$DATA" "m.spend.today.every(s=>s.harness!=='gemini-cli' || s.tokens===null)")" == "true" ]] \
+    || log_fail "gemini-cli must never carry a numeric spend.today figure"
+  [[ "$(node_get "$DATA" "m.spend.seven_day.some(s=>s.harness==='gemini-cli' && s.tokens===null)")" == "true" ]] \
+    || log_fail "gemini-cli must appear in spend.seven_day with tokens: null"
+  # Rendered page: Spec-AC-04's named observable is the literal N/A cell, not
+  # just an honest null in the JSON — assert it actually reached the page.
+  grep -q "N/A" "$HTML" || log_fail "html must render at least one N/A usage cell for the no-usage harness (Spec-AC-04)"
+  log_pass "TEST-009: Gemini usage is null end-to-end, JSON null + rendered N/A, never a fabricated zero"
 }
 
 # ============================ TEST-010 (Spec-AC-04) ============================
@@ -570,8 +584,75 @@ test_027_opener_refusal() {
   log_pass "TEST-027: aai-live.sh refuses with a named error when no opener is found (rc=$rc)"
 }
 
+# ============================ TEST-028 (Spec-AC-01) ============================
+# Regression pin for the B1 validation blocker: the old `isMain` guard
+# compared path.resolve(process.argv[1]) (raw) against
+# path.resolve(new URL(import.meta.url).pathname) (percent-encoded), so any
+# script path containing a space (or other URL-encoded char) never matched
+# and `main()` was never invoked — a silent exit-0 no-op writing nothing.
+test_028_spaced_script_path_runs() {
+  log_info "Test: the generator writes both outputs when its OWN script path contains a space (B1 isMain regression)..."
+  local spaced="$TEST_DIR/space test/gen"
+  mkdir -p "$spaced/live-parsers"
+  # Resolve to the PHYSICAL path (pwd -P): on macOS $TMPDIR sits under a
+  # /var -> /private/var symlink, and process.argv[1] (not symlink-resolved)
+  # vs import.meta.url (symlink-resolved by the module loader) would then
+  # disagree for a reason that has nothing to do with the space-in-path bug
+  # this test targets — that would be an environment artifact, not evidence.
+  spaced="$(cd "$spaced" && pwd -P)"
+  cp "$GEN" "$spaced/generate-live-status.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/live-parsers/"*.mjs "$spaced/live-parsers/"
+  local h; h="$(mk_home t028)"
+  mkdir -p "$h/out"
+  local out="$h/gen-run.log"
+  local data="$h/out/live-status-data.json"
+  local html="$h/out/live-status.html"
+  local ec=0
+  node "$spaced/generate-live-status.mjs" --home "$h" --output "$html" --cache "$h/cache.json" \
+    --spool-dir "$h/spool" --now "$NOW" > "$out" 2>&1 || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "must exit 0 even when its own script path contains a space: $(cat "$out")"
+  [[ -f "$data" ]] || log_fail "data JSON missing when invoked from a spaced script path (isMain regression): $data"
+  [[ -f "$html" ]] || log_fail "html missing when invoked from a spaced script path (isMain regression): $html"
+  log_pass "TEST-028: generator writes both outputs when its own script path contains a space"
+}
+
+# ============================ TEST-029 (Spec-AC-02) ============================
+# Regression pin for the N2 validation finding: session_cumulative_last
+# guarded the overwrite on `r.ts &&`, so when records carry NO top-level
+# timestamp the first record won and every later one was rejected —
+# inverting "last cumulative wins" to "first cumulative wins". Fix: when a
+# reliable ts comparison isn't available, fall back to encounter (file) order
+# — the later record in iteration order always wins.
+test_029_codex_cumulative_last_no_timestamp_tiebreak() {
+  log_info "Test: session_cumulative_last resolves last-cumulative-wins by file order when records carry no ts..."
+  # Exercises the exported accumulate() directly (same style as TEST-006):
+  # three same-session records with no ts at all, in ascending-usage file
+  # order. The old `r.ts &&` guard kept whichever arrived FIRST (100); the
+  # fix must keep the LAST one encountered (300), matching "session
+  #_cumulative_last" even when no reliable ts exists to compare.
+  # NB: the module path is passed via env, NOT as process.argv[1] — GEN's own
+  # isMain guard (fixed under B1) fires main() whenever process.argv[1]
+  # resolves to GEN's own path, which a plain `node -e '...' "$GEN"` positional
+  # arg would do, writing real files into cwd as an import side effect.
+  local msg
+  msg="$(GEN_MODULE_PATH="$GEN" node -e '
+    import(process.env.GEN_MODULE_PATH).then((mod) => {
+      const entry = { accumulation: "session_cumulative_last" };
+      const records = [
+        { sessionId: "cx1", ts: null, usage: 100 },
+        { sessionId: "cx1", ts: null, usage: 200 },
+        { sessionId: "cx1", ts: null, usage: 300 },
+      ];
+      const out = mod.accumulate(entry, records);
+      console.log(JSON.stringify(out.map((r) => r.usage)));
+    });
+  ')"
+  [[ "$msg" == "[300]" ]] || log_fail "expected the LAST record by file order (usage 300) with no ts, got: $msg"
+  log_pass "TEST-029: no-timestamp session_cumulative_last records resolve last-wins deterministically by file order"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-live-status-dashboard TEST-001..020, 024..027)"
+  echo "Testing $TEST_NAME (SPEC spec-live-status-dashboard TEST-001..020, 024..029)"
   check_deps
   setup_fixture
   test_001_run_writes_both_outputs
@@ -598,6 +679,8 @@ main() {
   test_025_watch_mode_rewrites_and_clean_sigint
   test_026_meta_refresh_and_skip_section
   test_027_opener_refusal
+  test_028_spaced_script_path_runs
+  test_029_codex_cumulative_last_no_timestamp_tiebreak
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
