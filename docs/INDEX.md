@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-07T15:49:26.779Z
+Generated: 2026-08-08T08:11:22.681Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -330,9 +330,11 @@ _None._
 | SPEC-0113 | specs | docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0128 | issues | docs/issues/CHANGE-0128-universal-routines.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -369,4 +371,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-07 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-08 — counts above use this date for overdue checks.
