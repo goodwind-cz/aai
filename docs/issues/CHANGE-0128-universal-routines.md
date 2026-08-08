@@ -2,9 +2,14 @@
 id: universal-routines
 number: 128
 type: change
-status: implementing
+status: done
 user_visible: true
 ceremony_level: 2
+links:
+  commits:
+    - 5f869e8b668344d18410ae7e8c513ab3b2d6a097
+  pr:
+    - 237
 ---
 
 # Change — Standing routines become a vendored, on-demand template (scryer generalized)

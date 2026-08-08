@@ -2,13 +2,15 @@
 id: spec-universal-routines
 type: spec
 number: 115
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0128-universal-routines.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 237
+  commits:
+    - 5f869e8b668344d18410ae7e8c513ab3b2d6a097
 ---
 
 # Spec — Standing routines become a vendored, on-demand, agent-neutral template

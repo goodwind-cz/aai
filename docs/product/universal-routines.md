@@ -5,6 +5,7 @@ capability: universal-routines
 status: current
 delivered_by:
   - CHANGE-0128
+  - universal-routines
 spec: docs/specs/SPEC-0115-spec-universal-routines.md
 updated: 2026-08-08
 ---

@@ -1,19 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-08T14:13:51.820Z
+Generated: 2026-08-08T14:14:36.987Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (3)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
-| CHANGE-0128 | issues | implementing | — | docs/issues/CHANGE-0128-universal-routines.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0115 | specs | implementing | 8 done | docs/specs/SPEC-0115-spec-universal-routines.md |
 
 ## Canonical layer (0)
 
@@ -41,9 +39,9 @@ _None._
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
-| universal-routines | universal-routines | 1 | docs/product/universal-routines.md |
+| universal-routines | universal-routines | 2 | docs/product/universal-routines.md |
 
-## Done (288)
+## Done (290)
 
 | ID | Type | Path |
 |---|---|---|
@@ -174,6 +172,7 @@ _None._
 | CHANGE-0125 | issues | docs/issues/CHANGE-0125-adopt-v2-planning.md |
 | CHANGE-0126 | issues | docs/issues/CHANGE-0126-win-escalation-hygiene.md |
 | CHANGE-0127 | issues | docs/issues/CHANGE-0127-live-status-dashboard.md |
+| CHANGE-0128 | issues | docs/issues/CHANGE-0128-universal-routines.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -334,6 +333,7 @@ _None._
 | SPEC-0112 | specs | docs/specs/SPEC-0112-spec-lightweight-e2e-lane.md |
 | SPEC-0113 | specs | docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md |
 | SPEC-0114 | specs | docs/specs/SPEC-0114-spec-live-status-dashboard.md |
+| SPEC-0115 | specs | docs/specs/SPEC-0115-spec-universal-routines.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)

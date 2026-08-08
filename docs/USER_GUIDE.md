@@ -2145,6 +2145,12 @@ Answers what the existing three generators (dashboard, factory-report, overview)
 
 [Product doc](product/live-status-dashboard.md) · [Spec](specs/SPEC-0114-spec-live-status-dashboard.md)
 
+### Universal standing routines
+
+Lets an operator turn a vendored, agent-neutral routine template (for example the morning "scryer" digest) into a concrete scheduled-agent installation for any harness, on demand. Previously the morning scryer existed only as a hand-rolled Anthropic-cloud trigger config: not reproducible, not reviewable, not portable off Claude Cloud, and never test-fired at creation. Now the routine is a plain, git-diffable file in the repo, and `/aai-routine` renders it into the exact payload the operator needs to install — a Claude cloud routine spec block, or a crontab line + headless-CLI runner (macOS/Linux) / Windows Scheduled Task (Windows) for Codex, Gemini, or any other CLI agent. Nothing is installed automatically: the skill only prints text for the operator (or the harness's own scheduling skill) to install, and it never runs from bootstrap, sync, or any automatic path.
+
+[Product doc](product/universal-routines.md) · [Spec](specs/SPEC-0115-spec-universal-routines.md)
+
 ### Small changes stop paying the full ceremony price
 
 Every ride used to pay a flat ~42-minute pipeline floor (two full CI rounds plus a 10-minute external-review window) no matter how small the change. Now a **deterministic gate** (`lane-gate.mjs`) checks four machine-readable predicates and, when ALL hold, the ride takes a **fast lane**:
