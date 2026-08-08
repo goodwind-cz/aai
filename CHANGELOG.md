@@ -70,6 +70,20 @@ RFC-0001).
   summed harness token fields with no `Number()` coercion, so a non-numeric
   field turned `+` into string concatenation and a hostile value could reach
   the page as a live `<script>` tag — both layers fixed together.
+- PR bot-sweep follow-ups: the one-shot (non-`--watch`) launcher branch of
+  `aai-live.sh`/`aai-live.ps1` now resolves the opener target from the
+  invocation's own `--output`, mirroring the `--watch` branch's existing
+  `resolve_output_path`/`Resolve-OutputPath` logic, instead of always
+  opening the hardcoded default `docs/ai/live-status.html`. The dead,
+  non-escaping `na()` helper is removed (`naEsc()` is the only escaping path
+  now, closing the maintainability footgun of a look-alike non-escaping
+  twin). When an available harness's records ALL fail usage coercion,
+  `usage_today`/`usage_7d` now report `null` (never a fabricated `0`) with a
+  named `notes[]` entry; when only a subset is unknown, the real numeric sum
+  from the known records is kept and the exclusion is still named. Stale
+  `SPEC-DRAFT-spec-live-status-dashboard` references (pre-dating the
+  allocator's rename to `SPEC-0114-spec-live-status-dashboard`) fixed in
+  `.gitignore` and the hooks overlay's install comment.
 
 ## [v2026.08.07] — feat(planning): CHANGE-0113's D2 gate closes with five behavioral probes, and the altitude PLANNING prompt is adopted (CHANGE-0125-adopt-v2-planning) [L2]
 

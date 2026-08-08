@@ -78,14 +78,17 @@ function esc(s) {
   // existing today in renderHtml.
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
-const na = (v) => (v === null || v === undefined ? 'N/A' : String(v));
-// naEsc: the na() semantics (missing -> literal "N/A") PLUS esc() on any
-// present value. Every foreign-data interpolation in renderHtml() must go
-// through esc() or naEsc() — na() alone is not an escaping function (see
-// BLOCKING-1, code review CHANGE-0127: the session-quotas branch used na()
-// on payload.rate_limits.primary fields read verbatim from a harness JSONL
-// file, so a hostile resets_at/used_percent rendered a live <script> into a
-// page the spec guarantees is network-free).
+// naEsc: missing -> literal "N/A", PLUS esc() on any present value. Every
+// foreign-data interpolation in renderHtml() must go through esc() or
+// naEsc() — a bare non-escaping "N/A when missing" helper is not safe to
+// keep around (see BLOCKING-1, code review CHANGE-0127: the session-quotas
+// branch once used exactly such a helper on payload.rate_limits.primary
+// fields read verbatim from a harness JSONL file, so a hostile
+// resets_at/used_percent rendered a live <script> into a page the spec
+// guarantees is network-free). That helper (na()) is deliberately not kept
+// alongside naEsc() — a non-escaping twin next to the escaping one it is
+// this close to being confused with is a maintainability footgun, not a
+// convenience (code review re-review4, NB: "dead na() in scope").
 const naEsc = (v) => (v === null || v === undefined ? 'N/A' : esc(String(v)));
 
 function isoDay(ts) {
@@ -401,8 +404,17 @@ function buildModel(args) {
     if (scan.available && entry.accumulation !== 'none') {
       usageToday = 0;
       usage7d = 0;
+      let unknownUsageCount = 0;
       for (const r of usageRecords) {
-        if (r.usage === null || r.usage === undefined) continue;
+        if (r.usage === null || r.usage === undefined) {
+          // A coercion-failed / missing usage field (see claude-code.mjs and
+          // codex.mjs's usageTotal(), which returns null rather than a
+          // fabricated 0 for a garbage field). Counted, not summed — the
+          // honesty verdict for the harness as a whole is decided below,
+          // once every record has been looked at.
+          unknownUsageCount += 1;
+          continue;
+        }
         const proj = r.project || 'unknown';
         if (!spendByProject.has(proj)) spendByProject.set(proj, { today: 0, sevenDay: 0 });
         const bucket = spendByProject.get(proj);
@@ -415,6 +427,27 @@ function buildModel(args) {
           // burying it — an upstream format that stops writing timestamps
           // must not look indistinguishable from a genuinely idle day.
           notes.push(`${entry.id}: record with usage ${r.usage} has no timestamp; excluded from usage_today and usage_7d`);
+        }
+      }
+      // Unknown-usage honesty (Copilot + Codex P2, code review re-review4
+      // NB "preserve unknown usage instead of reporting zero"): the `continue`
+      // above used to be the end of the story — a harness whose ENTIRE
+      // corpus failed to coerce silently kept usageToday/usage7d at their
+      // initialized 0, indistinguishable from a genuinely idle day. When
+      // EVERY record's usage is unknown, report usage_today/usage_7d as
+      // null (the same honesty invariant Spec-AC-04 already states for a
+      // harness with no usage fields at all) and name it. When only a
+      // nonzero SUBSET is unknown, the numeric sum from the known records is
+      // real and stays — but the exclusion itself is still named so a
+      // drifted/partially malformed corpus is never silently absorbed into a
+      // clean-looking total.
+      if (unknownUsageCount > 0) {
+        if (unknownUsageCount === usageRecords.length) {
+          usageToday = null;
+          usage7d = null;
+          notes.push(`${entry.id}: all ${unknownUsageCount} record(s) have unknown usage; usage_today/usage_7d reported as unknown, not zero`);
+        } else {
+          notes.push(`${entry.id}: ${unknownUsageCount} record(s) with unknown usage excluded`);
         }
       }
     } else if (scan.available && entry.accumulation === 'none') {

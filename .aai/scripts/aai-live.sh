@@ -109,6 +109,17 @@ fi
 node "$GEN" "$@"
 rc=$?
 if [[ "$rc" -eq 0 ]] && ! is_data_only "$@"; then
-  "$OPENER" "$REPO_ROOT/docs/ai/live-status.html" >/dev/null 2>&1 || true
+  # Honor the invocation's own --output here too (Copilot + Codex P2, code
+  # review re-review4): a one-shot `--output custom/page.html` used to still
+  # open the hardcoded default docs/ai/live-status.html — absent (first run)
+  # or a stale prior snapshot — while the generator actually wrote
+  # custom/page.html. The --watch branch above already resolves this via
+  # resolve_output_path(); mirror it here.
+  OPEN_TARGET="$(resolve_output_path "$@")"
+  case "$OPEN_TARGET" in
+    /*) : ;;
+    *) OPEN_TARGET="$REPO_ROOT/$OPEN_TARGET" ;;
+  esac
+  "$OPENER" "$OPEN_TARGET" >/dev/null 2>&1 || true
 fi
 exit "$rc"

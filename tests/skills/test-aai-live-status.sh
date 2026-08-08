@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-live-status
-# (docs/specs/SPEC-0114-spec-live-status-dashboard.md, TEST-001..020, 024..036)
+# (docs/specs/SPEC-0114-spec-live-status-dashboard.md, TEST-001..020, 024..039)
 #
 # Verifies .aai/scripts/generate-live-status.mjs — the optional, zero-token,
 # zero-network live-status dashboard generator — plus its per-harness parser
@@ -971,8 +971,109 @@ JSONL
   log_pass "TEST-036: hostile token field renders zero live <script> tags and a real number (BLOCKING-II)"
 }
 
+# ============================ TEST-037 (Spec-AC-09) ============================
+# Regression pin for the one-shot --output launcher gap (Copilot x2 + Codex
+# P2, code review re-review4 NB "one-shot opener --output twin"): the --watch
+# branch resolves the invocation's own --output via resolve_output_path()
+# (BLOCKING-2 fix, commit b181d1f) but the plain one-shot (non-watch) branch
+# still hardcoded the opener to the DEFAULT docs/ai/live-status.html — so
+# `aai-live.sh --output custom/page.html` wrote custom/page.html but opened
+# either nothing (first run) or a stale unrelated snapshot at the default
+# path.
+test_037_one_shot_output_flag_opens_correct_file() {
+  log_info "Test: aai-live.sh one-shot mode opens the invocation's OWN --output target, not the hardcoded default..."
+  local scratch="$TEST_DIR/t037repo"
+  mkdir -p "$scratch"
+  # Physical path (pwd -P), same reason as TEST-028/031: aai-live.sh derives
+  # REPO_ROOT via logical `cd .. && pwd`, while the generator's isMain guard
+  # compares against a symlink-resolved import.meta.url.
+  scratch="$(cd "$scratch" && pwd -P)"
+  mkdir -p "$scratch/.aai/scripts/live-parsers" "$scratch/.aai/scripts/lib"
+  cp "$LIVE" "$scratch/.aai/scripts/aai-live.sh"
+  cp "$GEN" "$scratch/.aai/scripts/generate-live-status.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/live-parsers/"*.mjs "$scratch/.aai/scripts/live-parsers/"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$scratch/.aai/scripts/lib/runtime-file.mjs"
+  local fixture_home; fixture_home="$(mk_home t037home)"
+  local openerlog="$TEST_DIR/t037-opener.log"
+  local openerbin="$TEST_DIR/t037-opener.sh"
+  : > "$openerlog"
+  cat > "$openerbin" <<SH
+#!/usr/bin/env bash
+echo "OPENED \$1" >> "$openerlog"
+SH
+  chmod +x "$openerbin"
+
+  # A stale file already sitting at the DEFAULT path: if the launcher still
+  # opens the hardcoded default (the bug), the opener log names it instead of
+  # the custom --output target.
+  mkdir -p "$scratch/docs/ai"
+  echo "STALE" > "$scratch/docs/ai/live-status.html"
+
+  HOME="$fixture_home" USERPROFILE="$fixture_home" AAI_LIVE_OPENER="$openerbin" \
+    CLAUDE_CONFIG_DIR="$fixture_home/.claude" CODEX_HOME="$fixture_home/.codex" GEMINI_HOME="$fixture_home/.gemini" \
+    bash "$scratch/.aai/scripts/aai-live.sh" --output custom/page.html \
+    --cache "$scratch/cache.json" --spool-dir "$scratch/spool" > "$TEST_DIR/t037-run.log" 2>&1
+  local rc=$?
+  [[ "$rc" == 0 ]] || log_fail "one-shot run must exit 0: $(cat "$TEST_DIR/t037-run.log")"
+
+  [[ -s "$openerlog" ]] || log_fail "opener was never invoked: $(cat "$TEST_DIR/t037-run.log")"
+  local expected="$scratch/custom/page.html"
+  grep -qF "OPENED $expected" "$openerlog" || log_fail "opener must be invoked with the invocation's own --output path ($expected), got: $(cat "$openerlog")"
+  grep -qF "OPENED $scratch/docs/ai/live-status.html" "$openerlog" && log_fail "opener must NOT be invoked with the hardcoded default path when --output was given: $(cat "$openerlog")"
+  log_pass "TEST-037: one-shot aai-live.sh opens the invocation's own --output target, not the hardcoded default"
+}
+
+# ============================ TEST-038 (Spec-AC-02) ============================
+# Unknown-usage honesty, ALL-unknown case (Copilot + Codex P2, code review
+# re-review4 NB "preserve unknown usage instead of reporting zero"): when an
+# AVAILABLE harness has records but every one of them fails usage coercion
+# (usageTotal() returns null — see claude-code.mjs/codex.mjs), the old
+# `continue` left usageToday/usage7d at their initialized 0 with no trace —
+# indistinguishable from a genuinely idle day. Must report null, not 0, and
+# name it.
+test_038_all_unknown_usage_reports_null_not_zero() {
+  log_info "Test: a harness whose ONLY record has coercion-failed usage reports usage_today/usage_7d as null, not a fabricated 0..."
+  local h; h="$(mk_home t038)"
+  mkdir -p "$h/.claude/projects/proj"
+  cat > "$h/.claude/projects/proj/s1.jsonl" <<'JSONL'
+{"type":"assistant","sessionId":"s1","cwd":"/x/proj","timestamp":"2026-08-08T10:00:00.000Z","requestId":"req1","message":{"id":"msg1","model":"m","usage":{"input_tokens":"not-a-number","output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+JSONL
+  run_gen "$h"
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  local today; today="$(node_get "$DATA" "(m.harnesses.find(h=>h.id==='claude-code')||{}).usage_today")"
+  local d7; d7="$(node_get "$DATA" "(m.harnesses.find(h=>h.id==='claude-code')||{}).usage_7d")"
+  [[ "$today" == "null" ]] || log_fail "expected usage_today null (all-unknown), got $today"
+  [[ "$d7" == "null" ]] || log_fail "expected usage_7d null (all-unknown), got $d7"
+  local hasNote; hasNote="$(node_get "$DATA" 'm.notes.some(n=>n.includes("claude-code") && n.includes("unknown usage"))')"
+  [[ "$hasNote" == "true" ]] || log_fail "expected a named notes[] entry for the all-unknown-usage harness, got: $(node_get "$DATA" 'JSON.stringify(m.notes)')"
+  log_pass "TEST-038: all-unknown-usage harness reports usage_today/usage_7d as null, never 0, and names it in notes[]"
+}
+
+# ============================ TEST-039 (Spec-AC-02) ============================
+# Unknown-usage honesty, PARTIAL-unknown case (same findings as TEST-038):
+# when only a nonzero SUBSET of a harness's records fail usage coercion, the
+# numeric sum from the known records is real and must stay (never dropped to
+# null) — but the exclusion itself must be named so a drifted/partially
+# malformed corpus never looks like a clean total with no trace.
+test_039_partial_unknown_usage_keeps_sum_and_notes_exclusion() {
+  log_info "Test: a harness with one clean record and one coercion-failed record keeps the clean sum AND names the excluded record..."
+  local h; h="$(mk_home t039)"
+  mkdir -p "$h/.claude/projects/proj"
+  cat > "$h/.claude/projects/proj/s1.jsonl" <<'JSONL'
+{"type":"assistant","sessionId":"s1","cwd":"/x/proj","timestamp":"2026-08-08T10:00:00.000Z","requestId":"r1","message":{"id":"m1","model":"m","usage":{"input_tokens":7,"output_tokens":3,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+{"type":"assistant","sessionId":"s1","cwd":"/x/proj","timestamp":"2026-08-08T10:05:00.000Z","requestId":"r2","message":{"id":"m2","model":"m","usage":{"input_tokens":"not-a-number","output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+JSONL
+  run_gen "$h"
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  local today; today="$(node_get "$DATA" "(m.harnesses.find(h=>h.id==='claude-code')||{}).usage_today")"
+  [[ "$today" == "10" ]] || log_fail "expected the clean record's real sum (10) to survive, not dropped to null/0, got $today"
+  local hasNote; hasNote="$(node_get "$DATA" 'm.notes.some(n=>n.includes("claude-code") && n.includes("unknown usage excluded"))')"
+  [[ "$hasNote" == "true" ]] || log_fail "expected a named notes[] entry naming the excluded unknown-usage record, got: $(node_get "$DATA" 'JSON.stringify(m.notes)')"
+  log_pass "TEST-039: partial-unknown-usage harness keeps the real numeric sum AND names the excluded record"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-live-status-dashboard TEST-001..020, 024..036)"
+  echo "Testing $TEST_NAME (SPEC spec-live-status-dashboard TEST-001..020, 024..039)"
   check_deps
   setup_fixture
   test_001_run_writes_both_outputs
@@ -1008,6 +1109,9 @@ main() {
   test_034_ts_less_record_named_not_silent
   test_035_truncated_cache_recovers_honestly
   test_036_hostile_token_field_escaped_and_coerced
+  test_037_one_shot_output_flag_opens_correct_file
+  test_038_all_unknown_usage_reports_null_not_zero
+  test_039_partial_unknown_usage_keeps_sum_and_notes_exclusion
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

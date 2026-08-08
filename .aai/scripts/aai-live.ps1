@@ -33,6 +33,25 @@ $DataOnly = $RestArgs -contains '--data-only'
 $Watch = $RestArgs -contains '--watch'
 $OutputHtml = Join-Path $RepoRoot 'docs/ai/live-status.html'
 
+# Resolve-OutputPath <args...> -> the value of the invocation's own --output
+# flag, or the generator's own default ($OutputHtml) when absent. Used so the
+# opener always targets the SAME file the generator is about to write/keep
+# rewriting, never the hardcoded default path (mirrors aai-live.sh's
+# resolve_output_path).
+function Resolve-OutputPath {
+  param([string[]]$ArgList)
+  $out = $OutputHtml
+  for ($i = 0; $i -lt $ArgList.Count; $i++) {
+    if ($ArgList[$i] -eq '--output' -and ($i + 1) -lt $ArgList.Count) {
+      $out = $ArgList[$i + 1]
+      if (-not [System.IO.Path]::IsPathRooted($out)) {
+        $out = Join-Path $RepoRoot $out
+      }
+    }
+  }
+  return $out
+}
+
 Set-Location $RepoRoot
 
 if ($Watch) {
@@ -51,15 +70,7 @@ if ($Watch) {
   $WarmupArgs = @($RestArgs | Where-Object { $_ -ne '--watch' })
   & node $Gen @WarmupArgs | Out-Null
   if (-not $DataOnly) {
-    $OpenTarget = $OutputHtml
-    for ($i = 0; $i -lt $RestArgs.Count; $i++) {
-      if ($RestArgs[$i] -eq '--output' -and ($i + 1) -lt $RestArgs.Count) {
-        $OpenTarget = $RestArgs[$i + 1]
-        if (-not [System.IO.Path]::IsPathRooted($OpenTarget)) {
-          $OpenTarget = Join-Path $RepoRoot $OpenTarget
-        }
-      }
-    }
+    $OpenTarget = Resolve-OutputPath -ArgList $RestArgs
     Start-Process $OpenTarget -ErrorAction SilentlyContinue
   }
   & node $Gen @RestArgs
@@ -69,6 +80,11 @@ if ($Watch) {
 & node $Gen @RestArgs
 $rc = $LASTEXITCODE
 if ($rc -eq 0 -and -not $DataOnly) {
-  Start-Process $OutputHtml -ErrorAction SilentlyContinue
+  # Honor the invocation's own --output here too (Copilot + Codex P2, code
+  # review re-review4): a one-shot `--output custom/page.html` used to still
+  # open the hardcoded default $OutputHtml — absent (first run) or a stale
+  # prior snapshot — while the generator actually wrote custom/page.html.
+  $OpenTarget = Resolve-OutputPath -ArgList $RestArgs
+  Start-Process $OpenTarget -ErrorAction SilentlyContinue
 }
 exit $rc
