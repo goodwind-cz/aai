@@ -413,7 +413,15 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
-# -10449 (true-up: CHANGE-0120-cheap-ticks added an +889 B itemized entry for
+# -9637 (true-up: universal-routines added a +1619 B itemized entry for the
+# new .aai/SKILL_ROUTINE.prompt.md thin wrapper (2769 B) documenting the
+# on-demand /aai-routine standing-routine instantiation skill
+# (CHANGE-0128-universal-routines / SPEC-DRAFT-spec-universal-routines.md
+# Spec-AC-06); the routine-emit.mjs engine + the SCRYER.routine.md template
+# live outside the .aai/*.prompt.md glob, so they carry no ledger cost;
+# without this entry the corpus was BELOW the required floor (headroom
+# -1619); credited 1:1 so the floor is met exactly, headroom 0/2048, over the prior
+# -11256 (true-up: CHANGE-0120-cheap-ticks added an +889 B itemized entry for
 # the three deterministic-tick wirings — ORCHESTRATION --confirm + the rule-9x
 # advance exception (+186, file held at 40 lines), PLANNING step 10 routed
 # through spec-freeze.mjs (+237), ORCHESTRATION_PARALLEL's spec-scope-edit.mjs
@@ -525,15 +533,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -11256 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -11256)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -9637 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -9637)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -11256 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -9637 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

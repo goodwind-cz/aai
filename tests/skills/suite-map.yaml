@@ -519,6 +519,18 @@ suites:
       - .aai/SUBAGENT_CONTRACT.md
       - .aai/SUBAGENT_PROTOCOL.md
 
+  aai-routine:
+    globs:
+      - .aai/routines/SCRYER.routine.md
+      - .aai/scripts/routine-emit.mjs
+      - .aai/SKILL_ROUTINE.prompt.md
+      - .claude/skills/aai-routine/**
+      - .agents/skills/aai-routine/**
+      - .codex/skills/aai-routine/**
+      - .gemini/skills/aai-routine/**
+      - tests/fixtures/routines/**
+      - SKILLS.md
+
   aai-run-tests:
     globs:
       - .aai/scripts/aai-run-tests.sh
