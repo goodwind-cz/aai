@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-08T13:31:30.749Z
+Generated: 2026-08-08T13:46:39.348Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -19,7 +19,7 @@ _None._
 
 _None._
 
-## Product (18)
+## Product (19)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -41,6 +41,7 @@ _None._
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
+| universal-routines | universal-routines | 1 | docs/product/universal-routines.md |
 
 ## Done (288)
 
