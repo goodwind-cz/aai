@@ -35,7 +35,12 @@ function discover(rootList) {
 
 function* parse(file, ctx) {
   let raw;
-  try { raw = fs.readFileSync(file.path, 'utf8'); } catch { return; }
+  try { raw = fs.readFileSync(file.path, 'utf8'); } catch (e) {
+    // Honesty gap (review NB-2/O1-family): see claude-code.mjs's identical
+    // guard — name the skipped file instead of silently dropping it.
+    if (ctx && Array.isArray(ctx.notes)) ctx.notes.push(`gemini-cli: file read failed, skipped ${file.path}: ${e.code || e.message}`);
+    return;
+  }
   let arr;
   try { arr = JSON.parse(raw); } catch {
     if (ctx && Array.isArray(ctx.notes)) ctx.notes.push(`gemini-cli: malformed file skipped ${file.path}`);

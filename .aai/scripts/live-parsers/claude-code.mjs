@@ -56,7 +56,13 @@ function usageTotal(u) {
 // skipped and counted in ctx.notes, never fatal.
 function* parse(file, ctx) {
   let raw;
-  try { raw = fs.readFileSync(file.path, 'utf8'); } catch { return; }
+  try { raw = fs.readFileSync(file.path, 'utf8'); } catch (e) {
+    // Honesty gap (review NB-2/O1-family): a read failure (permissions,
+    // mid-scan deletion, rotation) used to vanish this file's records with
+    // no trace, producing a fabricated-looking verified zero. Name it.
+    if (ctx && Array.isArray(ctx.notes)) ctx.notes.push(`claude-code: file read failed, skipped ${file.path}: ${e.code || e.message}`);
+    return;
+  }
   const lines = raw.split('\n');
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i].trim();

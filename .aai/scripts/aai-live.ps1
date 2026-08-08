@@ -36,7 +36,12 @@ $OutputHtml = Join-Path $RepoRoot 'docs/ai/live-status.html'
 Set-Location $RepoRoot
 
 if ($Watch) {
-  & node $Gen --data-only | Out-Null
+  # Warm one-shot FULL generate (HTML + JSON, no --data-only) so there is
+  # actually something to open immediately (BLOCKING-2, code review
+  # CHANGE-0127 — --data-only used to suppress the HTML while Start-Process
+  # below unconditionally opened it, so every fresh checkout opened a
+  # nonexistent file).
+  & node $Gen | Out-Null
   if (-not $DataOnly) {
     Start-Process $OutputHtml -ErrorAction SilentlyContinue
   }

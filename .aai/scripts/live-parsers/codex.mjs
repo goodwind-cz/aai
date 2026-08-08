@@ -63,7 +63,12 @@ function usageTotal(t) {
 
 function* parse(file, ctx) {
   let raw;
-  try { raw = fs.readFileSync(file.path, 'utf8'); } catch { return; }
+  try { raw = fs.readFileSync(file.path, 'utf8'); } catch (e) {
+    // Honesty gap (review NB-2/O1-family): see claude-code.mjs's identical
+    // guard — name the skipped file instead of silently dropping it.
+    if (ctx && Array.isArray(ctx.notes)) ctx.notes.push(`codex: file read failed, skipped ${file.path}: ${e.code || e.message}`);
+    return;
+  }
   const lines = raw.split('\n');
   let sessionId = null;
   let cwd = null;

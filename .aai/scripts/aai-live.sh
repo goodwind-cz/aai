@@ -45,9 +45,13 @@ is_watch() {
 cd "$REPO_ROOT"
 
 if is_watch "$@"; then
-  # Warm one-shot generate first so there is something to open immediately,
-  # THEN open, THEN hand off to the (blocking, self-refreshing) watch loop.
-  node "$GEN" --data-only >/dev/null 2>&1 || true
+  # Warm one-shot FULL generate (HTML + JSON, no --data-only) first so there
+  # is actually something to open immediately, THEN open, THEN hand off to
+  # the (blocking, self-refreshing) watch loop. --data-only here used to
+  # suppress the HTML write while the opener unconditionally opened the HTML
+  # path anyway (BLOCKING-2, code review CHANGE-0127): every fresh checkout
+  # (outputs are gitignored) opened a file that did not exist yet.
+  node "$GEN" >/dev/null 2>&1 || true
   if ! is_data_only "$@"; then
     "$OPENER" "$REPO_ROOT/docs/ai/live-status.html" >/dev/null 2>&1 || true
   fi

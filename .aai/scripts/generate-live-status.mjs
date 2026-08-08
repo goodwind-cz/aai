@@ -31,6 +31,12 @@ import PARSERS from './live-parsers/registry.mjs';
 const ROOT = process.cwd();
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HEURISTIC_RUNNING_WINDOW_MS = 15 * 60 * 1000;
+// The env vars each parser's roots(env) prefers over HOME/USERPROFILE (see
+// live-parsers/claude-code.mjs, codex.mjs, gemini-cli.mjs). --home must strip
+// all of these or a machine that exports one of them silently defeats the
+// fixture override and reads the real corpus (BLOCKING-3, code review
+// CHANGE-0127). Extend this list whenever a new parser adds its own override.
+const HARNESS_ENV_OVERRIDES = ['CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'GEMINI_HOME'];
 
 function parseArgs(argv) {
   const args = {
@@ -68,6 +74,14 @@ function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 const na = (v) => (v === null || v === undefined ? 'N/A' : String(v));
+// naEsc: the na() semantics (missing -> literal "N/A") PLUS esc() on any
+// present value. Every foreign-data interpolation in renderHtml() must go
+// through esc() or naEsc() — na() alone is not an escaping function (see
+// BLOCKING-1, code review CHANGE-0127: the session-quotas branch used na()
+// on payload.rate_limits.primary fields read verbatim from a harness JSONL
+// file, so a hostile resets_at/used_percent rendered a live <script> into a
+// page the spec guarantees is network-free).
+const naEsc = (v) => (v === null || v === undefined ? 'N/A' : esc(String(v)));
 
 function isoDay(ts) {
   return typeof ts === 'string' && ts.length >= 10 ? ts.slice(0, 10) : null;
@@ -310,7 +324,14 @@ function buildModel(args) {
   const nowMs = now.getTime();
   const nowDay = isoDay(now.toISOString());
   const homeOverride = args.home ? path.resolve(ROOT, args.home) : null;
-  const env = { ...process.env, ...(homeOverride ? { HOME: homeOverride, USERPROFILE: homeOverride } : {}) };
+  const env = { ...process.env };
+  if (homeOverride) {
+    env.HOME = homeOverride;
+    env.USERPROFILE = homeOverride;
+    // --home means total isolation: strip every harness-specific override so
+    // a parser cannot silently prefer the real corpus over the fixture.
+    for (const key of HARNESS_ENV_OVERRIDES) delete env[key];
+  }
   const spoolDir = args.spoolDir
     ? path.resolve(ROOT, args.spoolDir)
     : path.resolve(ROOT, process.env.AAI_LIVE_SPOOL_DIR || 'docs/ai/live');
@@ -350,6 +371,14 @@ function buildModel(args) {
         const bucket = spendByProject.get(proj);
         if (isToday(r.ts, nowMs, nowDay)) { usageToday += r.usage; bucket.today += r.usage; }
         if (within7d(r.ts, nowMs)) { usage7d += r.usage; bucket.sevenDay += r.usage; }
+        if (!r.ts) {
+          // Honesty gap (validator O1 / review NB-7): a ts-less record
+          // matches neither isToday nor within7d and used to contribute a
+          // silent, plausible-looking 0 to every bucket. Name it instead of
+          // burying it — an upstream format that stops writing timestamps
+          // must not look indistinguishable from a genuinely idle day.
+          notes.push(`${entry.id}: record with usage ${r.usage} has no timestamp; excluded from usage_today and usage_7d`);
+        }
       }
     } else if (scan.available && entry.accumulation === 'none') {
       // Spec-AC-04: this format carries no usage fields at all (Gemini CLI).
@@ -431,7 +460,7 @@ function renderHtml(m) {
   } else if (m.quotas.source && m.quotas.source.startsWith('session:')) {
     const harness = m.quotas.source.slice('session:'.length);
     const p = m.quotas.primary || {};
-    quotasHtml = `<p>Attributed to <b>${esc(harness)}</b> (server-authoritative, in-session): used ${na(p.used_percent)}%, window ${na(p.window_minutes)}m, resets at ${na(p.resets_at)}.</p>`;
+    quotasHtml = `<p>Attributed to <b>${esc(harness)}</b> (server-authoritative, in-session): used ${naEsc(p.used_percent)}%, window ${naEsc(p.window_minutes)}m, resets at ${naEsc(p.resets_at)}.</p>`;
   } else {
     quotasHtml = `<p class="skip">SKIP — ${esc(m.quotas.skip.reason)}. Install: ${esc(m.quotas.skip.install)}</p>`;
   }

