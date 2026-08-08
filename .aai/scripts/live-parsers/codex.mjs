@@ -55,10 +55,29 @@ function discover(rootList) {
 // re-summing a subset of fields that could silently miss a future one, e.g.
 // reasoning_output_tokens); falls back to a manual sum for older/partial
 // shapes that lack it.
+// usageTotal(t) -> Number()-coerced total, or null when `t` is missing/
+// wrong-shaped, when a present `total_tokens` fails to coerce to a finite
+// number, or when any field in the manual-sum fallback does. The old
+// `typeof t.total_tokens === 'number'` guard only protected the authoritative
+// branch; the manual-sum fallback below it did `(t.input_tokens || 0) + ...`
+// with no coercion at all, so a string field there turned `+` into
+// concatenation and reached the rendered page verbatim (BLOCKING-II, code
+// review re-review2 — see claude-code.mjs's identical fix and rationale).
 function usageTotal(t) {
   if (!t || typeof t !== 'object') return null;
-  if (typeof t.total_tokens === 'number') return t.total_tokens;
-  return (t.input_tokens || 0) + (t.output_tokens || 0) + (t.cached_input_tokens || 0);
+  if (t.total_tokens !== undefined && t.total_tokens !== null) {
+    const n = Number(t.total_tokens);
+    return Number.isFinite(n) ? n : null;
+  }
+  const fields = [t.input_tokens, t.output_tokens, t.cached_input_tokens];
+  let total = 0;
+  for (const f of fields) {
+    if (f === undefined || f === null) continue;
+    const n = Number(f);
+    if (!Number.isFinite(n)) return null;
+    total += n;
+  }
+  return total;
 }
 
 function* parse(file, ctx) {

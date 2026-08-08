@@ -58,6 +58,18 @@ RFC-0001).
   docs-audit non-canonical class). New `.aai` files classified in
   `PROFILES.yaml` (extended); new suite `aai-live-status` gets its
   `suite-map.yaml` row.
+- Two re-review findings closed: `aai-live.sh`'s bare `--watch` (no other
+  flags) died with an unbound-variable error on bash < 4.4 (bash 3.2.57,
+  stock macOS) because an empty `WARMUP_ARGS` array expansion is fatal under
+  `set -u` on those versions — fixed with the
+  `${WARMUP_ARGS[@]+"${WARMUP_ARGS[@]}"}` idiom, which is correct for both
+  the empty and non-empty case (unlike `"${ARR[@]:-}"`, which still passes
+  one stray empty-string argument through). The spend-rows table cell was
+  the last unescaped foreign-data interpolation in `renderHtml()` (`na()`
+  instead of `naEsc()`), and `claude-code.mjs`/`codex.mjs`'s `usageTotal()`
+  summed harness token fields with no `Number()` coercion, so a non-numeric
+  field turned `+` into string concatenation and a hostile value could reach
+  the page as a live `<script>` tag — both layers fixed together.
 
 ## [v2026.08.07] — feat(planning): CHANGE-0113's D2 gate closes with five behavioral probes, and the altitude PLANNING prompt is adopted (CHANGE-0125-adopt-v2-planning) [L2]
 

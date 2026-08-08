@@ -44,10 +44,27 @@ function discover(rootList) {
   return out;
 }
 
+// usageTotal(u) -> the summed token count, Number()-coerced, or null when
+// `u` itself is missing/wrong-shaped OR when any PRESENT field fails to
+// coerce to a finite number. The bare `(u.input_tokens || 0) + ...` this
+// replaced let a truthy non-numeric field (e.g. a string) turn `+` into
+// string concatenation, so a hostile/drifted input_tokens flowed straight
+// through usageToday accumulation into the rendered page (BLOCKING-II, code
+// review re-review2). Returning null — not 0 — for a garbage field is the
+// same honesty invariant Spec-AC-04 already states for a harness with no
+// usage fields at all: never render a fabricated zero in place of a figure
+// that could not actually be computed.
 function usageTotal(u) {
   if (!u || typeof u !== 'object') return null;
-  return (u.input_tokens || 0) + (u.output_tokens || 0)
-    + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+  const fields = [u.input_tokens, u.output_tokens, u.cache_creation_input_tokens, u.cache_read_input_tokens];
+  let total = 0;
+  for (const f of fields) {
+    if (f === undefined || f === null) continue;
+    const n = Number(f);
+    if (!Number.isFinite(n)) return null;
+    total += n;
+  }
+  return total;
 }
 
 // parse(file, ctx) -> yields normalized {harness, sessionId, project, ts,

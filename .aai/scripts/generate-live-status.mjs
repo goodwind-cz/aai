@@ -504,7 +504,11 @@ function renderHtml(m) {
 
   const sessionRows = m.live_sessions.map((s) => `<tr><td>${esc(s.harness)}</td><td>${esc(s.project)}</td><td>${esc(s.sessionId)}</td><td>${esc(s.state)}</td></tr>`).join('');
 
-  const spendRows = (rows) => rows.map((r) => `<tr><td>${esc(r.harness)}</td><td>${esc(r.project)}</td><td>${na(r.tokens)}</td></tr>`).join('');
+  // BLOCKING-II (re-review 105110Z): r.tokens is foreign-derived (a parser's
+  // usageTotal(), ultimately from a harness JSONL field on disk) — it must
+  // go through naEsc(), never na() alone, same rule as every other
+  // interpolation in this function (see the naEsc comment above).
+  const spendRows = (rows) => rows.map((r) => `<tr><td>${esc(r.harness)}</td><td>${esc(r.project)}</td><td>${naEsc(r.tokens)}</td></tr>`).join('');
 
   const degradedRows = m.degraded.map((d) => `<li><b>${esc(d.source)}</b> — ${esc(d.reason)}</li>`).join('');
   const skipHtml = m.quotas.skip ? `<li><b>quotas</b> — ${esc(m.quotas.skip.reason)}. Install: ${esc(m.quotas.skip.install)}</li>` : '';
