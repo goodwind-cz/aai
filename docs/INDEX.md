@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-09T11:12:11.078Z
+Generated: 2026-08-09T11:32:56.631Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -346,12 +346,10 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (9)
+## Deferred items (per-AC, across all specs) (7)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
-| SPEC-0076 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-Linux-only flake; local pass is not sufficient evidence (Honesty requirements section). Owned by Validation after push. |
-| SPEC-0077 | Spec-AC-06 | 2026-08-10 | CI-authoritative for this CI-only flake; local pass is not sufficient evidence (Honesty requirements). Owned by Validation after push. |
 | SPEC-0090 | Spec-AC-07 | 2026-08-10 | Local half (targeted suites) is green; PR CI full framework is the authoritative gate and has not run yet (not yet pushed/PR'd) — defer to done once CI is green on the PR. |
 | SPEC-0094 | Spec-AC-05 | 2026-08-10 | PR CI leg (TEST-015) verifies on push; local legs all green |
 | SPEC-0083 | Spec-AC-04 | 2026-08-15 | CI-authoritative; the flake is CI-load-only and not locally reproducible |
