@@ -1532,3 +1532,8 @@
 {"v":1,"ts":"2026-08-08T14:14:22.056Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-universal-routines","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-08T14:14:22.086Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-universal-routines","payload":{"commit":"5f869e8b668344d18410ae7e8c513ab3b2d6a097"}}
 {"v":1,"ts":"2026-08-09T10:09:33.049Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-scryer-mcp-and-shallow","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-09T10:19:29.433Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-scryer-mcp-and-shallow/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-08-09T10:19:29.470Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-scryer-mcp-and-shallow/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-08-09T10:19:29.504Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-scryer-mcp-and-shallow/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-08-09T10:19:29.539Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-scryer-mcp-and-shallow/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-08-09T10:20:00.736Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":312,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}

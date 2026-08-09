@@ -11,6 +11,46 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(routine): scryer template v2 — MCP-aware merge sweep + shallow-clone-honest health (CHANGE-0129) [L2]
+
+- `.aai/routines/SCRYER.routine.md`: `## Step 0 — Prerequisite probes` gains
+  the read-ladder statement — `gh` when its probe passed, otherwise the
+  GitHub MCP read tools `list_pull_requests`, `get_pull_request`,
+  `get_pull_request_status`, `get_pull_request_comments` — plus the rule
+  that an unavailable named tool degrades that digest section, never an
+  invented substitute. A failed `gh` probe alone no longer degrades the PR
+  sections; only losing both rungs does.
+- New `## Step 1 — Repository health`, outside the merge-gate markers: a
+  shallow-clone probe (`git rev-parse --is-shallow-repository`), a
+  best-effort `git fetch --unshallow` repair, a re-probe that branches on
+  the RE-PROBED state (never the fetch's exit code), and — when history is
+  still unavailable — the digest names the shallow-clone artifact in
+  **Degradováno** and SKIPs the history-based classes (`false-done`,
+  `false-open`, `stale`) instead of reporting them as findings. Never a
+  crash, per the existing resilience contract.
+- Inside `<!-- MERGE-GATES:START -->`/`<!-- MERGE-GATES:END -->`: the merge
+  ladder — `gh pr merge` when its probe passed, otherwise the GitHub MCP
+  `merge_pull_request` tool. The three merge gates are unchanged; the
+  report-only render (no `routine_authorization` record) still carries
+  none of `## Merge gates` / `gh pr merge` / `merge_pull_request` — proven
+  on the RENDERED output, not just template text, since only
+  `applyMergeGate`'s marker-stripping enforces that isolation.
+- `## Digest shape (Czech)` gains **Cesta nástrojů**, naming which tool
+  path served the run.
+- `tests/fixtures/routines/scryer-claude-merge.golden.txt` regenerated
+  byte-for-byte from the edited template via the TEST-003 emitter
+  invocation (never hand-patched).
+- `tests/skills/test-aai-routine.sh` gains TEST-035 (ladder literals pinned
+  on the correct side of the MERGE-GATES markers, digest names the tool
+  path), TEST-036 (report-only vs authorized merge-instruction isolation,
+  asserted on both rendered branches of `applyMergeGate`), and TEST-037
+  (shallow-honesty health pins present in both rendered variants) — all
+  three observed RED against the pre-change template before the edit,
+  stored under `docs/ai/tdd/`. Full suite: 37 tests, all green.
+- No `routine-emit.mjs` change (D3) and no new placeholder (D2): the ladder
+  is unconditional prose the agent evaluates at run time, not a
+  render-time branch.
+
 ## [v2026.08.08] — feat(routine): standing routines become a vendored, on-demand, agent-neutral template (CHANGE-0128) [L2]
 
 - New `.aai/routines/SCRYER.routine.md` — the morning-scryer standing routine

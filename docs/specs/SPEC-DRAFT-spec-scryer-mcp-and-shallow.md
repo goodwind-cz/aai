@@ -226,10 +226,10 @@ way SPEC-0115 recorded R1/R2, and it is the orchestrator's post-merge act.
 
 | Spec-AC    | Description | Status | Evidence | Review-By | Notes |
 |------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN the template is read THEN the read ladder and its MCP tool literals sit outside the merge markers, the merge ladder literals sit inside them, the digest names the tool path that ran, and the six contract elements plus the four-token placeholder set survive | planned | — | — | TEST-035 plus regression TEST-001/002 |
-| Spec-AC-02 | WHEN the emitter renders without an authorization record THEN the prompt carries merge-allowed false and none of the three merge literals; WHEN it renders with one THEN all three are present | planned | — | — | the D1 boundary, asserted on rendered output |
-| Spec-AC-03 | WHEN either variant is rendered THEN it carries the shallow probe, the best-effort unshallow, the re-probe branch, the skip-not-report rule naming false-done, and the never-crash pointer | planned | — | — | health step is new text per D4 |
-| Spec-AC-04 | WHEN the pin chain runs after the edit THEN the regenerated golden matches byte-for-byte, the routine suite exits 0, and no governance path appears in the scope diff | planned | — | — | golden regenerated per D7, companions do not fire |
+| Spec-AC-01 | WHEN the template is read THEN the read ladder and its MCP tool literals sit outside the merge markers, the merge ladder literals sit inside them, the digest names the tool path that ran, and the six contract elements plus the four-token placeholder set survive | done | test-aai-routine.sh TEST-035/001/002 PASS 2026-08-09 | — | RED stored docs/ai/tdd/red-TEST-035-20260809T101612Z.log |
+| Spec-AC-02 | WHEN the emitter renders without an authorization record THEN the prompt carries merge-allowed false and none of the three merge literals; WHEN it renders with one THEN all three are present | done | test-aai-routine.sh TEST-036/011/012 PASS 2026-08-09 | — | RED stored docs/ai/tdd/red-TEST-036-20260809T101612Z.log; the D1 boundary, asserted on rendered output |
+| Spec-AC-03 | WHEN either variant is rendered THEN it carries the shallow probe, the best-effort unshallow, the re-probe branch, the skip-not-report rule naming false-done, and the never-crash pointer | done | test-aai-routine.sh TEST-037 PASS 2026-08-09 | — | RED stored docs/ai/tdd/red-TEST-037-20260809T101612Z.log; health step is new text per D4 |
+| Spec-AC-04 | WHEN the pin chain runs after the edit THEN the regenerated golden matches byte-for-byte, the routine suite exits 0, and no governance path appears in the scope diff | done | test-aai-routine.sh full suite (37 tests) + test-aai-layer-profiles.sh + test-aai-prompt-diet.sh + test-aai-hygiene-pack.sh PASS 2026-08-09 | — | RED stored docs/ai/tdd/red-TEST-003-golden-20260809T101649Z.log; golden regenerated per D7, companions do not fire |
 
 ## Implementation plan
 
@@ -318,18 +318,18 @@ Edge cases:
 
 | Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
 |----------|------------|------|----------------------|-------------|--------|
-| TEST-035 | Spec-AC-01 | unit | tests/skills/test-aai-routine.sh | read-ladder literals and the MCP degrade rule appear OUTSIDE the MERGE-GATES marker pair, the merge-ladder literals appear INSIDE it, and the digest shape names the tool path that ran | pending |
-| TEST-001 | Spec-AC-01 | unit | tests/skills/test-aai-routine.sh | regression: the six CHANGE-0128 contract elements are still greppable in the edited template | pending |
-| TEST-002 | Spec-AC-01 | unit | tests/skills/test-aai-routine.sh | regression: the placeholder set is still exactly the four declared tokens | pending |
-| TEST-036 | Spec-AC-02 | int  | tests/skills/test-aai-routine.sh | report-only render has merge-allowed false and none of `## Merge gates` / `gh pr merge` / `merge_pull_request`; authorized render has merge-allowed true and all three; both exit 0 | pending |
-| TEST-011 | Spec-AC-02 | int  | tests/skills/test-aai-routine.sh | regression: authorized fixture still yields merge-enabled plus the three gates | pending |
-| TEST-012 | Spec-AC-02 | int  | tests/skills/test-aai-routine.sh | regression: unauthorized fixture still yields report-only plus the loud MERGE DISABLED stderr line | pending |
-| TEST-037 | Spec-AC-03 | int  | tests/skills/test-aai-routine.sh | both rendered variants carry the shallow probe, the best-effort unshallow, the re-probe branch, the skip-not-report rule naming false-done, and the never-crash pointer | pending |
-| TEST-003 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | regenerated golden equals the render byte-for-byte | pending |
-| TEST-004 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | two identical renders of the edited template are byte-identical | pending |
-| TEST-005 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | edited template renders with zero unresolved placeholder sequences | pending |
-| TEST-038 | Spec-AC-04 | int  | tests/skills/test-aai-layer-profiles.sh | its TEST-001 union still equals the live .aai tree (no new or unclassified .aai file was added) | pending |
-| TEST-039 | Spec-AC-04 | int  | tests/skills/test-aai-prompt-diet.sh | its TEST-010 floor and TEST-012 pin are unchanged (the routine template is outside the .aai/*.prompt.md corpus glob) | pending |
+| TEST-035 | Spec-AC-01 | unit | tests/skills/test-aai-routine.sh | read-ladder literals and the MCP degrade rule appear OUTSIDE the MERGE-GATES marker pair, the merge-ladder literals appear INSIDE it, and the digest shape names the tool path that ran | green |
+| TEST-001 | Spec-AC-01 | unit | tests/skills/test-aai-routine.sh | regression: the six CHANGE-0128 contract elements are still greppable in the edited template | green |
+| TEST-002 | Spec-AC-01 | unit | tests/skills/test-aai-routine.sh | regression: the placeholder set is still exactly the four declared tokens | green |
+| TEST-036 | Spec-AC-02 | int  | tests/skills/test-aai-routine.sh | report-only render has merge-allowed false and none of `## Merge gates` / `gh pr merge` / `merge_pull_request`; authorized render has merge-allowed true and all three; both exit 0 | green |
+| TEST-011 | Spec-AC-02 | int  | tests/skills/test-aai-routine.sh | regression: authorized fixture still yields merge-enabled plus the three gates | green |
+| TEST-012 | Spec-AC-02 | int  | tests/skills/test-aai-routine.sh | regression: unauthorized fixture still yields report-only plus the loud MERGE DISABLED stderr line | green |
+| TEST-037 | Spec-AC-03 | int  | tests/skills/test-aai-routine.sh | both rendered variants carry the shallow probe, the best-effort unshallow, the re-probe branch, the skip-not-report rule naming false-done, and the never-crash pointer | green |
+| TEST-003 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | regenerated golden equals the render byte-for-byte | green |
+| TEST-004 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | two identical renders of the edited template are byte-identical | green |
+| TEST-005 | Spec-AC-04 | int  | tests/skills/test-aai-routine.sh | edited template renders with zero unresolved placeholder sequences | green |
+| TEST-038 | Spec-AC-04 | int  | tests/skills/test-aai-layer-profiles.sh | its TEST-001 union still equals the live .aai tree (no new or unclassified .aai file was added) | green |
+| TEST-039 | Spec-AC-04 | int  | tests/skills/test-aai-prompt-diet.sh | its TEST-010 floor and TEST-012 pin are unchanged (the routine template is outside the .aai/*.prompt.md corpus glob) | green |
 
 RED discipline (strategy hybrid): TEST-035, TEST-036 and TEST-037 are the
 AC-gating tests for the three new behaviors and MUST be observed FAILING
