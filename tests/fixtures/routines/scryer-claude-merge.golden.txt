@@ -22,17 +22,26 @@ present and runnable:
 
 - `gh --version` — GitHub CLI (PR/issue/CI reads, and merges when
   `merge-allowed: true`).
+- `gh auth status` — GitHub CLI authentication; gates whether the `gh`
+  rung of the tool ladder below may be used at all. `gh --version`
+  succeeding is not enough on its own — an installed-but-unauthenticated
+  or broken `gh` must not be treated as the live rung.
 - `git --version` — repository state, branch, log reads.
 - `node --version` — running any AAI script this routine invokes.
 
 Any probe that fails is named in the digest as a degraded section (see the
 resilience contract below) — never a silent skip and never a routine crash.
 
-For pull-request reads (open PRs, checks, comments), use `gh` when its
-probe passed; otherwise fall back to the GitHub MCP read tools
-`list_pull_requests`, `get_pull_request`, `get_pull_request_status` and
-`get_pull_request_comments`. A failed `gh` probe alone no longer degrades
-the PR sections — only losing both rungs does. If a named tool is
+For pull-request reads (open PRs, checks, comments), use `gh` when the
+Step-0 `gh auth status` probe SUCCEEDED; otherwise fall back to the GitHub
+MCP read tools `list_pull_requests`, `get_pull_request`,
+`get_pull_request_status` and `get_pull_request_comments` for every
+PR-read call in this run. A failed `gh --version` probe alone no longer
+degrades the PR sections — only losing both rungs does. If `gh auth
+status` SUCCEEDED but a `gh` call still fails partway through the run
+(an authentication error or any other API error), fall through to the
+MCP tools for the REMAINING calls in this run instead of dying on rung
+1, and name the fallback in **Cesta nástrojů**. If a named tool is
 unavailable, degrade that section — never invent one.
 
 ## Resilience contract
@@ -57,9 +66,10 @@ merge.
 3. NEVER for `[L3]` scopes — an `[L3]`-tagged scope is always reported and
    left for the operator to merge by hand, regardless of gates 1 and 2.
 
-Use `gh pr merge` to merge when its probe passed; otherwise use the GitHub
-MCP `merge_pull_request` tool. The digest names which path performed each
-merge, in **Cesta nástrojů**.
+Use `gh pr merge` to merge when the Step-0 `gh auth status` probe
+SUCCEEDED and no prior `gh` call in this run hit an authentication or API
+error; otherwise use the GitHub MCP `merge_pull_request` tool. The digest
+names which path performed each merge, in **Cesta nástrojů**.
 
 ## Step 1 — Repository health
 
@@ -90,10 +100,11 @@ Produce the digest in Czech, with these sections in order:
 - **Otevřené položky** — one line per open work item: ref, stav, další
   krok.
 - **Cesta nástrojů** — which tool path served each step of this run
-  (`gh`, the GitHub MCP fallback, or degraded — per **Degradováno**).
-  A degraded section is named exactly once, in **Degradováno**; this
-  section names only the tool path used per step and never re-lists the
-  degradation itself.
+  (`gh`, the GitHub MCP fallback, or degraded — per **Degradováno**),
+  including naming any mid-run fallback triggered by a `gh`
+  authentication or API failure. A degraded section is named exactly
+  once, in **Degradováno**; this section names only the tool path used
+  per step and never re-lists the degradation itself.
 - **Blokováno na člověku** — anything waiting on a human decision (HITL),
   or "žádné" if none.
 - **Degradováno** — any section this run could not populate, and why, or
