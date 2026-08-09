@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-09T10:00:36.329Z
+Generated: 2026-08-09T11:32:56.631Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -41,7 +41,7 @@ _None._
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 | universal-routines | universal-routines | 2 | docs/product/universal-routines.md |
 
-## Done (290)
+## Done (292)
 
 | ID | Type | Path |
 |---|---|---|
@@ -173,6 +173,7 @@ _None._
 | CHANGE-0126 | issues | docs/issues/CHANGE-0126-win-escalation-hygiene.md |
 | CHANGE-0127 | issues | docs/issues/CHANGE-0127-live-status-dashboard.md |
 | CHANGE-0128 | issues | docs/issues/CHANGE-0128-universal-routines.md |
+| CHANGE-0129 | issues | docs/issues/CHANGE-0129-scryer-mcp-and-shallow.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -334,6 +335,7 @@ _None._
 | SPEC-0113 | specs | docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md |
 | SPEC-0114 | specs | docs/specs/SPEC-0114-spec-live-status-dashboard.md |
 | SPEC-0115 | specs | docs/specs/SPEC-0115-spec-universal-routines.md |
+| SPEC-0116 | specs | docs/specs/SPEC-0116-spec-scryer-mcp-and-shallow.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
