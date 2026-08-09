@@ -1531,3 +1531,4 @@
 {"v":1,"ts":"2026-08-08T14:14:22.024Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-universal-routines","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-08T14:14:22.056Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-universal-routines","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-08T14:14:22.086Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-universal-routines","payload":{"commit":"5f869e8b668344d18410ae7e8c513ab3b2d6a097"}}
+{"v":1,"ts":"2026-08-09T10:09:33.049Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-scryer-mcp-and-shallow","payload":{"from":"draft","to":"implementing"}}
