@@ -1,26 +1,26 @@
 {
-  "generatedAt": "2026-08-08T14:14:36.725Z",
+  "generatedAt": "2026-08-09T10:46:41.290Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 105,
-    "delivered": 297,
+    "rides": 106,
+    "delivered": 299,
     "active_weeks": 6,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (297 closes vs 105 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 297,
-    "delivered_per_week_avg": 49.5,
+    "note": "\"delivered\" counts every work_item_closed event (299 closes vs 106 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 299,
+    "delivered_per_week_avg": 49.8,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
       "2026-W29": 135,
       "2026-W30": 64,
       "2026-W31": 72,
-      "2026-W32": 17
+      "2026-W32": 19
     },
     "delivered_groups": [
       {
@@ -298,7 +298,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 34,
+        "count": 36,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -333,7 +333,9 @@
           "live-status-dashboard",
           "spec-live-status-dashboard",
           "universal-routines",
-          "spec-universal-routines"
+          "spec-universal-routines",
+          "scryer-mcp-and-shallow",
+          "spec-scryer-mcp-and-shallow"
         ]
       }
     ],
@@ -1521,30 +1523,38 @@
         },
         {
           "ref": "universal-routines",
-          "lead_time_seconds": null
+          "lead_time_seconds": 7250
         },
         {
           "ref": "spec-universal-routines",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "scryer-mcp-and-shallow",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-scryer-mcp-and-shallow",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 3072,
-      "mean_seconds": 145520.1,
-      "measured": 101,
-      "unmeasurable": 196
+      "median_seconds": 3130,
+      "mean_seconds": 144164.5,
+      "measured": 102,
+      "unmeasurable": 197
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2021,
-      "mean": 2765.5,
-      "measured": 103
+      "median": 2068,
+      "mean": 2807.9,
+      "measured": 104
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 93766,
-        "tokens": 9021158
+        "duration_seconds": 94979,
+        "tokens": 9284544
       },
       {
         "role": "Implementation",
@@ -1553,23 +1563,23 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 37205,
-        "tokens": 4785837
+        "duration_seconds": 38417,
+        "tokens": 5047229
       },
       {
         "role": "Remediation",
-        "duration_seconds": 17417,
-        "tokens": 1591376
+        "duration_seconds": 19942,
+        "tokens": 2133533
       },
       {
         "role": "Validation",
-        "duration_seconds": 55942,
-        "tokens": 4630105
+        "duration_seconds": 57457,
+        "tokens": 4909432
       },
       {
         "role": "Planning",
-        "duration_seconds": 52275,
-        "tokens": 4615049
+        "duration_seconds": 52985,
+        "tokens": 4736939
       }
     ],
     "per_ride": [
@@ -2097,6 +2107,11 @@
         "ref": "CHANGE-0127",
         "busy_seconds": 10995,
         "remediation_runs": 4
+      },
+      {
+        "ref": "universal-routines",
+        "busy_seconds": 7175,
+        "remediation_runs": 3
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -2106,15 +2121,15 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 429071,
-      "mean": 449208.4,
-      "measured": 57
+      "median": 429246,
+      "mean": 466776.4,
+      "measured": 58
     },
-    "tokens_total": 25604879,
+    "tokens_total": 27073031,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 9021158
+        "tokens": 9284544
       },
       {
         "role": "Implementation",
@@ -2122,25 +2137,25 @@
       },
       {
         "role": "Code Review",
-        "tokens": 4785837
+        "tokens": 5047229
       },
       {
         "role": "Remediation",
-        "tokens": 1591376
+        "tokens": 2133533
       },
       {
         "role": "Validation",
-        "tokens": 4630105
+        "tokens": 4909432
       },
       {
         "role": "Planning",
-        "tokens": 4615049
+        "tokens": 4736939
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 201,
-      "total_runs": 423,
-      "pct": 48,
+      "runs_with_marker": 210,
+      "total_runs": 432,
+      "pct": 49,
       "by_week": [
         {
           "week": "2026-W27",
@@ -2174,8 +2189,8 @@
         },
         {
           "week": "2026-W32",
-          "runs_with_marker": 12,
-          "total_runs": 12,
+          "runs_with_marker": 21,
+          "total_runs": 21,
           "pct": 100
         }
       ]
@@ -2184,21 +2199,22 @@
   "quality": {
     "first_pass_clean": {
       "clean": 69,
-      "flagged": 79,
-      "rate_pct": 87
+      "flagged": 80,
+      "rate_pct": 86
     },
     "na_reliability": 26,
     "remediation_distribution": {
       "0": 69,
       "1": 6,
       "2": 3,
+      "3": 1,
       "4": 1,
       "n/a": 26
     },
     "avg_validation_fails": 0,
     "avg_review_fails": 0,
     "verdict_mix": {
-      "PASS": 92,
+      "PASS": 93,
       "null": 13
     },
     "review_events": 26,
@@ -2247,10 +2263,10 @@
     },
     {
       "week": "2026-W32",
-      "delivered": 17,
-      "median_lead_time_seconds": null,
-      "busy_seconds": 10995,
-      "tokens": 2331673,
+      "delivered": 19,
+      "median_lead_time_seconds": 7250,
+      "busy_seconds": 18170,
+      "tokens": 3799825,
       "first_pass_rate": 0
     }
   ],

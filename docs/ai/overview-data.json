@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-08T14:14:36.882Z",
+  "generatedAt": "2026-08-09T10:46:41.448Z",
   "project": "aai",
   "counts": {
-    "delivered": 173,
+    "delivered": 174,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 24741358
+    "tokens_total": 25357400
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "universal-routines",
+    "ref": "scryer-mcp-and-shallow",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "universal-routines",
+      "ref": "scryer-mcp-and-shallow",
       "type": "intake_change",
       "phase": "validation"
     },
@@ -27,38 +27,38 @@
     "review_status": "not_run",
     "ticks": [
       {
-        "tick": 21,
+        "tick": 26,
         "role": "Remediation",
-        "scope": "universal-routines",
-        "duration_seconds": 735,
+        "scope": "scryer-mcp-and-shallow",
+        "duration_seconds": 429,
         "harness_version": "2.1.220 (Claude Code)"
       },
       {
-        "tick": 20,
+        "tick": 25,
         "role": "Code Review",
-        "scope": "universal-routines",
-        "duration_seconds": 617,
+        "scope": "scryer-mcp-and-shallow",
+        "duration_seconds": 446,
         "harness_version": "2.1.220 (Claude Code)"
       },
       {
-        "tick": 19,
-        "role": "Remediation",
-        "scope": "universal-routines",
-        "duration_seconds": 1147,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 18,
-        "role": "Code Review",
-        "scope": "universal-routines",
-        "duration_seconds": 596,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 17,
+        "tick": 24,
         "role": "Validation",
-        "scope": "universal-routines",
-        "duration_seconds": 831,
+        "scope": "scryer-mcp-and-shallow",
+        "duration_seconds": 546,
+        "harness_version": "2.1.220 (Claude Code)"
+      },
+      {
+        "tick": 23,
+        "role": "TDD Implementation",
+        "scope": "scryer-mcp-and-shallow",
+        "duration_seconds": 580,
+        "harness_version": "2.1.220 (Claude Code)"
+      },
+      {
+        "tick": 22,
+        "role": "Planning",
+        "scope": "scryer-mcp-and-shallow",
+        "duration_seconds": 532,
         "harness_version": "2.1.220 (Claude Code)"
       }
     ]
@@ -79,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "scryer-mcp-and-shallow",
+      "title": "Change — Scryer template v2: MCP-aware merge sweep + shallow-clone-honest health",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0129-scryer-mcp-and-shallow.md",
+      "closed_on": "2026-08-09",
+      "agent_minutes": 42,
+      "token_total": 616042,
+      "spec": "docs/specs/SPEC-0116-spec-scryer-mcp-and-shallow.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260809T103602Z-CHANGE-0129-scryer-mcp-and-shallow.md"
+    },
     {
       "ref": "live-status-dashboard",
       "title": "Change — Optional zero-token live-status dashboard (factory sidecar)",
@@ -2335,6 +2348,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "scryer-mcp-and-shallow",
+          "title": "Change — Scryer template v2: MCP-aware merge sweep + shallow-clone-honest health",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0129-scryer-mcp-and-shallow.md",
+          "closed_on": "2026-08-09",
+          "agent_minutes": 42,
+          "token_total": 616042,
+          "spec": "docs/specs/SPEC-0116-spec-scryer-mcp-and-shallow.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260809T103602Z-CHANGE-0129-scryer-mcp-and-shallow.md"
+        },
         {
           "ref": "live-status-dashboard",
           "title": "Change — Optional zero-token live-status dashboard (factory sidecar)",

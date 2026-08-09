@@ -1539,3 +1539,9 @@
 {"v":1,"ts":"2026-08-09T10:20:00.736Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":312,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
 {"v":1,"ts":"2026-08-09T10:27:33.418Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":312,"orphans":0,"drifted":2,"stale":0,"false_open":2,"mode":"enforced"}}
 {"v":1,"ts":"2026-08-09T10:27:51.333Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":312,"orphans":0,"drifted":2,"stale":0,"false_open":2,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-09T10:46:26.903Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"scryer-mcp-and-shallow","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-09T10:46:26.940Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"scryer-mcp-and-shallow","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-09T10:46:26.973Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"scryer-mcp-and-shallow","payload":{"commit":"949fed6e7903e77f43f57600742b942575f09706"}}
+{"v":1,"ts":"2026-08-09T10:46:27.005Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-scryer-mcp-and-shallow","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-09T10:46:27.037Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-scryer-mcp-and-shallow","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-09T10:46:27.068Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-scryer-mcp-and-shallow","payload":{"commit":"949fed6e7903e77f43f57600742b942575f09706"}}

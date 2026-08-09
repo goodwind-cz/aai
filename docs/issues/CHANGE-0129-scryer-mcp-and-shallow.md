@@ -2,9 +2,14 @@
 id: scryer-mcp-and-shallow
 number: 129
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 2
+links:
+  commits:
+    - 949fed6e7903e77f43f57600742b942575f09706
+  pr:
+    - 239
 ---
 
 # Change — Scryer template v2: MCP-aware merge sweep + shallow-clone-honest health

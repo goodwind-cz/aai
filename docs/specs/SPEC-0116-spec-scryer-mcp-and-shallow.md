@@ -2,13 +2,15 @@
 id: spec-scryer-mcp-and-shallow
 type: spec
 number: 116
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0129-scryer-mcp-and-shallow.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 239
+  commits:
+    - 949fed6e7903e77f43f57600742b942575f09706
 ---
 
 # Spec — Scryer template v2: MCP-aware tool ladder + shallow-clone-honest health
