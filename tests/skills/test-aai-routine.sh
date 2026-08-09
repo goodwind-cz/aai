@@ -1020,7 +1020,12 @@ test_035_tool_ladder_placement() {
   grep -qF "list_pull_requests" "$outside" || { log_info "TEST-035: list_pull_requests not outside markers"; ok=0; }
   grep -qF "get_pull_request_status" "$outside" || { log_info "TEST-035: get_pull_request_status not outside markers"; ok=0; }
   grep -qF "get_pull_request_comments" "$outside" || { log_info "TEST-035: get_pull_request_comments not outside markers"; ok=0; }
-  grep -qF "get_pull_request" "$outside" || { log_info "TEST-035: get_pull_request not outside markers"; ok=0; }
+  # NB-1 (review-20260809T103602Z): -qF "get_pull_request" is also satisfied
+  # by the longer literals get_pull_request_status / get_pull_request_comments
+  # (substring match), so it never actually pins the bare rung. Pin the exact
+  # literal: require "get_pull_request" NOT immediately followed by "_" (which
+  # would make it a prefix of one of the longer names).
+  grep -qE "get_pull_request[^_]" "$outside" || { log_info "TEST-035: get_pull_request (bare) not outside markers"; ok=0; }
   grep -qF "never invent" "$outside" || { log_info "TEST-035: degrade/never-invent rule not outside markers"; ok=0; }
 
   grep -qF "gh pr merge" "$inside" || { log_info "TEST-035: gh pr merge not inside markers"; ok=0; }

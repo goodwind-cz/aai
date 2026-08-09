@@ -81,7 +81,8 @@ Before producing the digest, check whether this checkout has full history:
   expected, not fatal.
 - Re-probe with `git rev-parse --is-shallow-repository` and branch on the
   RE-PROBED state, never on the fetch's exit code.
-- Run `docs-audit` for the health check the digest reports.
+- Run `node .aai/scripts/docs-audit.mjs --check --strict --no-event` for the
+  health check the digest reports.
 - If the checkout is still shallow after the repair attempt, the digest
   names the shallow-clone artifact in **Degradováno** and SKIPs the
   history-based classes — `false-done`, `false-open`, `stale` — instead of
@@ -98,9 +99,11 @@ Produce the digest in Czech, with these sections in order:
   koho.
 - **Otevřené položky** — one line per open work item: ref, stav, další
   krok.
-- **Cesta nástrojů** — which tool path served this run (`gh`, or the
-  GitHub MCP fallback), and which sections degraded if both rungs of a
-  ladder were unavailable.
+- **Cesta nástrojů** — which tool path served each step of this run
+  (`gh`, the GitHub MCP fallback, or degraded — per **Degradováno**).
+  A degraded section is named exactly once, in **Degradováno**; this
+  section names only the tool path used per step and never re-lists the
+  degradation itself.
 - **Blokováno na člověku** — anything waiting on a human decision (HITL),
   or "žádné" if none.
 - **Degradováno** — any section this run could not populate, and why, or

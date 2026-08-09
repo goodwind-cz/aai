@@ -46,7 +46,7 @@ RFC-0001).
   asserted on both rendered branches of `applyMergeGate`), and TEST-037
   (shallow-honesty health pins present in both rendered variants) — all
   three observed RED against the pre-change template before the edit,
-  stored under `docs/ai/tdd/`. Full suite: 37 tests, all green.
+  stored under `docs/ai/tdd/`. Full suite: 34 tests (IDs to 037), all green.
 - No `routine-emit.mjs` change (D3) and no new placeholder (D2): the ladder
   is unconditional prose the agent evaluates at run time, not a
   render-time branch.
