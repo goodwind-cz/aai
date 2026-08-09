@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff main...HEAD (branch feat/scryer-mcp-and-shallow @ a9b88be, 8 files)
-  spec: docs/specs/SPEC-DRAFT-spec-scryer-mcp-and-shallow.md (frozen, ceremony_level 2, strategy hybrid)
+  spec: docs/specs/SPEC-0116-spec-scryer-mcp-and-shallow.md (frozen, ceremony_level 2, strategy hybrid)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -28,7 +28,7 @@ review:
           issue: "**Cesta nástrojů** and **Degradováno** overlap without a precedence rule: Cesta nástrojů asks for \"which sections degraded if both rungs of a ladder were unavailable\", Degradováno asks for \"any section this run could not populate, and why\". The same degradation is instructed into two sections with no statement of which is authoritative.",
           failure_scenario: "Host with neither `gh` nor GitHub MCP: PR sections are lost. The contract tells the agent to name that loss in Cesta nástrojů AND in Degradováno; a deterministic agent duplicates it, a less literal one picks one arbitrarily and the operator's habitual scan of **Degradováno** may miss it. One-line fix: Cesta nástrojů names the path only; **Degradováno** stays the single place degraded sections are listed." }
       - { rank: NON-BLOCKING, file: CHANGELOG.md, line: 46,
-          issue: "\"Full suite: 37 tests, all green\" — the suite registers 34 test functions (`ALL_TESTS` count = 34; IDs 001-022 + 026-037). 37 is the highest test ID, not the count. The same error is in the spec's Spec-AC-04 evidence cell (\"full suite (37 tests)\", docs/specs/SPEC-DRAFT-spec-scryer-mcp-and-shallow.md:232).",
+          issue: "\"Full suite: 37 tests, all green\" — the suite registers 34 test functions (`ALL_TESTS` count = 34; IDs 001-022 + 026-037). 37 is the highest test ID, not the count. The same error is in the spec's Spec-AC-04 evidence cell (\"full suite (37 tests)\", docs/specs/SPEC-0116-spec-scryer-mcp-and-shallow.md:232).",
           failure_scenario: "Release-visible text. A maintainer reading \"37 tests\" in the shipped CHANGELOG looks for TEST-023/024/025 in this suite; the SPEC-0115 Test Plan deliberately allocated those IDs to other suites, and the suite header comment says so — the changelog contradicts it. Fix: \"34 tests (IDs to 037)\"." }
   cannot_verify:
     - { claim: "That a sonnet-5 cloud agent actually re-probes and SKIPs the history-based classes instead of reporting them (spec R3).",
@@ -141,7 +141,7 @@ subagent_result:
     - command: bash tests/skills/test-aai-layer-profiles.sh; test-aai-prompt-diet.sh; test-aai-hygiene-pack.sh
       exit_code: 0
       output_snippet: "=== ALL TESTS PASSED: aai-layer-profiles === / All tests passed! / PASS: All aai-hygiene-pack tests passed"
-    - command: node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-scryer-mcp-and-shallow.md --strategy hybrid
+    - command: node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0116-spec-scryer-mcp-and-shallow.md --strategy hybrid
       exit_code: 0
       output_snippet: "Findings: 0 — LINT PASS: no structural findings."
   files_changed:

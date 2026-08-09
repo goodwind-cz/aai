@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-09T10:44:33.812Z
+Generated: 2026-08-09T10:45:55.983Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-scryer-mcp-and-shallow | specs | implementing | 4 done | docs/specs/SPEC-DRAFT-spec-scryer-mcp-and-shallow.md |
+| SPEC-0116 | specs | implementing | 4 done | docs/specs/SPEC-0116-spec-scryer-mcp-and-shallow.md |
 
 ## Canonical layer (0)
 

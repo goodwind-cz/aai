@@ -1,7 +1,7 @@
 ---
 id: spec-scryer-mcp-and-shallow
 type: spec
-number: null
+number: 116
 status: implementing
 ceremony_level: 2
 links:
@@ -74,7 +74,7 @@ out-of-repo operator/orchestrator obligation, recorded as R1 below.
 - Inline review scope: .aai/routines/SCRYER.routine.md,
   tests/fixtures/routines/scryer-claude-merge.golden.txt,
   tests/skills/test-aai-routine.sh, CHANGELOG.md,
-  docs/specs/SPEC-DRAFT-spec-scryer-mcp-and-shallow.md,
+  docs/specs/SPEC-0116-spec-scryer-mcp-and-shallow.md,
   docs/issues/CHANGE-0129-scryer-mcp-and-shallow.md
 
 ## Design decisions
@@ -348,7 +348,7 @@ Commands:
 - `bash tests/skills/test-aai-prompt-diet.sh`
 - `bash tests/skills/test-aai-hygiene-pack.sh`
 - `git diff --name-only main...HEAD`
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-scryer-mcp-and-shallow.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0116-spec-scryer-mcp-and-shallow.md`
 - `node .aai/scripts/docs-audit.mjs --check --strict`
 
 Evidence artifacts: suite stdout with per-TEST pass lines, the RED transcripts
