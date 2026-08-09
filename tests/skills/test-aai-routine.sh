@@ -21,7 +21,7 @@
 #                             is looked up (default project root)
 #
 # Usage:
-#   bash tests/skills/test-aai-routine.sh            # run all (TEST-001..022, TEST-026..034)
+#   bash tests/skills/test-aai-routine.sh            # run all (TEST-001..022, TEST-026..037)
 #   bash tests/skills/test-aai-routine.sh 001 011     # run only selected tests
 #
 # Exit codes:
@@ -991,6 +991,128 @@ test_034_isMain_realpath_symlink() {
     || log_fail "TEST-034 isMain symlink mismatch"
 }
 
+# --- TEST-035 — tool ladder split across MERGE-GATES markers (CHANGE-0129
+#     Spec-AC-01, D1/D6): the read ladder (gh, else GitHub MCP read tools)
+#     and its "never invent a tool" degrade rule live OUTSIDE the marker
+#     pair (every digest needs PR reads, including report-only); the merge
+#     ladder (gh pr merge, else merge_pull_request) lives INSIDE it, because
+#     applyMergeGate strips ONLY the marker block — a merge-ladder literal
+#     on the wrong side would ship merge wording to a routine that must not
+#     merge. The digest shape also gains a section naming which tool path
+#     served the run.
+test_035_tool_ladder_placement() {
+  log_info "TEST-035: read-ladder MCP literals + degrade rule sit OUTSIDE the MERGE-GATES markers; merge-ladder literals sit INSIDE; digest names the tool path..."
+  [[ -f "$TEMPLATE" ]] || { log_fail "TEST-035: $TEMPLATE missing"; return; }
+  local outside inside ok=1
+  outside="$TMP_ROOT/t035-outside.txt"
+  inside="$TMP_ROOT/t035-inside.txt"
+  awk '
+    /<!-- MERGE-GATES:START -->/ { inside=1; next }
+    /<!-- MERGE-GATES:END -->/ { inside=0; next }
+    !inside { print }
+  ' "$TEMPLATE" > "$outside"
+  awk '
+    /<!-- MERGE-GATES:START -->/ { inside=1; next }
+    /<!-- MERGE-GATES:END -->/ { inside=0; next }
+    inside { print }
+  ' "$TEMPLATE" > "$inside"
+
+  grep -qF "list_pull_requests" "$outside" || { log_info "TEST-035: list_pull_requests not outside markers"; ok=0; }
+  grep -qF "get_pull_request_status" "$outside" || { log_info "TEST-035: get_pull_request_status not outside markers"; ok=0; }
+  grep -qF "get_pull_request_comments" "$outside" || { log_info "TEST-035: get_pull_request_comments not outside markers"; ok=0; }
+  grep -qF "get_pull_request" "$outside" || { log_info "TEST-035: get_pull_request not outside markers"; ok=0; }
+  grep -qF "never invent" "$outside" || { log_info "TEST-035: degrade/never-invent rule not outside markers"; ok=0; }
+
+  grep -qF "gh pr merge" "$inside" || { log_info "TEST-035: gh pr merge not inside markers"; ok=0; }
+  grep -qF "merge_pull_request" "$inside" || { log_info "TEST-035: merge_pull_request not inside markers"; ok=0; }
+
+  grep -qF "gh pr merge" "$outside" && { log_info "TEST-035: gh pr merge leaked outside markers"; ok=0; }
+  grep -qF "merge_pull_request" "$outside" && { log_info "TEST-035: merge_pull_request leaked outside markers"; ok=0; }
+
+  grep -qF "Cesta nástrojů" "$TEMPLATE" || { log_info "TEST-035: digest shape missing tool-path section"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-035 tool ladder correctly split across MERGE-GATES markers, digest names tool path" \
+    || log_fail "TEST-035 tool ladder placement"
+}
+
+# --- TEST-036 — S2 seam: report-only render carries NO merge instruction
+#     (CHANGE-0129 Spec-AC-02). A template-text grep alone cannot prove this
+#     (the template legitimately contains the merge literals) — this test
+#     renders BOTH branches of applyMergeGate from the REAL template through
+#     the REAL emitter and asserts presence on one side, absence on the
+#     other.
+test_036_report_only_variant_isolation() {
+  log_info "TEST-036: report-only render has merge-allowed false and none of the merge literals; authorized render has merge-allowed true and all three; both exit 0..."
+  local ok=1
+
+  run_emit --routine SCRYER --harness claude --os macos --repo owner/repo \
+    --schedule "0 7 * * *" --model claude-sonnet-5 --tz Europe/Prague \
+    --merge --ref test-ref --decisions "$FIXDIR/decisions-unauthorized.jsonl"
+  if [[ "$RC" -ne 0 ]]; then
+    log_info "TEST-036: report-only exit $RC (want 0)"; ok=0
+  else
+    local line merge_enabled prompt
+    line="$(first_line "$OUT")"
+    merge_enabled=$(printf '%s' "$line" | json_field merge_enabled)
+    prompt=$(printf '%s' "$line" | json_field prompt)
+    [[ "$merge_enabled" == "false" ]] || { log_info "TEST-036: report-only merge_enabled=$merge_enabled (want false)"; ok=0; }
+    grep -qF "## Merge gates" <<<"$prompt" && { log_info "TEST-036: report-only prompt leaks '## Merge gates'"; ok=0; }
+    grep -qF "gh pr merge" <<<"$prompt" && { log_info "TEST-036: report-only prompt leaks 'gh pr merge'"; ok=0; }
+    grep -qF "merge_pull_request" <<<"$prompt" && { log_info "TEST-036: report-only prompt leaks 'merge_pull_request'"; ok=0; }
+  fi
+
+  run_emit --routine SCRYER --harness claude --os macos --repo owner/repo \
+    --schedule "0 7 * * *" --model claude-sonnet-5 --tz Europe/Prague \
+    --merge --ref test-ref --decisions "$FIXDIR/decisions-authorized.jsonl"
+  if [[ "$RC" -ne 0 ]]; then
+    log_info "TEST-036: authorized exit $RC (want 0)"; ok=0
+  else
+    local line2 merge_enabled2 prompt2
+    line2="$(first_line "$OUT")"
+    merge_enabled2=$(printf '%s' "$line2" | json_field merge_enabled)
+    prompt2=$(printf '%s' "$line2" | json_field prompt)
+    [[ "$merge_enabled2" == "true" ]] || { log_info "TEST-036: authorized merge_enabled=$merge_enabled2 (want true)"; ok=0; }
+    grep -qF "## Merge gates" <<<"$prompt2" || { log_info "TEST-036: authorized prompt missing '## Merge gates'"; ok=0; }
+    grep -qF "gh pr merge" <<<"$prompt2" || { log_info "TEST-036: authorized prompt missing 'gh pr merge'"; ok=0; }
+    grep -qF "merge_pull_request" <<<"$prompt2" || { log_info "TEST-036: authorized prompt missing 'merge_pull_request'"; ok=0; }
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-036 report-only isolation vs authorized presence, both exit 0" \
+    || log_fail "TEST-036 report-only merge-instruction isolation"
+}
+
+# --- TEST-037 — shallow-honest HEALTH step survives into BOTH rendered
+#     variants (CHANGE-0129 Spec-AC-03/D4/D5): it sits outside the marker
+#     pair, so both the merge-enabled and the report-only render must carry
+#     the shallow probe, the best-effort unshallow repair, the re-probe
+#     branch (never the fetch's own exit code), the SKIP-not-report rule
+#     naming false-done, and the never-crash pointer to the resilience
+#     contract.
+test_037_shallow_health_pins() {
+  log_info "TEST-037: both rendered variants carry the shallow probe, best-effort unshallow, re-probe branch, skip-not-report rule (false-done), and never-crash pointer..."
+  local ok=1 pair label decisions_file
+  for pair in "merge-enabled:decisions-authorized.jsonl" "report-only:decisions-unauthorized.jsonl"; do
+    label="${pair%%:*}"
+    decisions_file="$FIXDIR/${pair#*:}"
+    run_emit --routine SCRYER --harness claude --os macos --repo owner/repo \
+      --schedule "0 7 * * *" --model claude-sonnet-5 --tz Europe/Prague \
+      --merge --ref test-ref --decisions "$decisions_file"
+    if [[ "$RC" -ne 0 ]]; then
+      log_info "TEST-037: $label exit $RC (want 0)"; ok=0; continue
+    fi
+    local line prompt
+    line="$(first_line "$OUT")"
+    prompt=$(printf '%s' "$line" | json_field prompt)
+    grep -qF "git rev-parse --is-shallow-repository" <<<"$prompt" || { log_info "TEST-037: $label missing shallow probe"; ok=0; }
+    grep -qF "git fetch --unshallow" <<<"$prompt" || { log_info "TEST-037: $label missing best-effort unshallow"; ok=0; }
+    grep -qF "RE-PROBED state" <<<"$prompt" || { log_info "TEST-037: $label missing re-probe branch rule"; ok=0; }
+    grep -qF "false-done" <<<"$prompt" || { log_info "TEST-037: $label missing skip-not-report rule naming false-done"; ok=0; }
+    grep -qF "never crashes" <<<"$prompt" || { log_info "TEST-037: $label missing never-crash pointer"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-037 shallow-honest health pins present in both rendered variants" \
+    || log_fail "TEST-037 shallow-honesty health step"
+}
+
 ALL_TESTS=(
   test_001_contract_elements
   test_002_placeholder_closure
@@ -1023,6 +1145,9 @@ ALL_TESTS=(
   test_032_windows_recurring_trigger
   test_033_substitute_single_pass
   test_034_isMain_realpath_symlink
+  test_035_tool_ladder_placement
+  test_036_report_only_variant_isolation
+  test_037_shallow_health_pins
 )
 
 main() {
