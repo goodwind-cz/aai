@@ -288,7 +288,7 @@ Residual risks (no automated coverage / accepted):
 | Spec-AC-04 | Dry-run reports planned per-tree rewrites and writes nothing            | done | TEST-105 green; docs/ai/tdd/green-20260726T232940Z-TEST-105.log | — | — |
 | Spec-AC-05 | Single exported REWRITE_TREES plus EXCLUDED_TREES; verbatim matcher     | done | TEST-106 green; docs/ai/tdd/green-20260726T232940Z-TEST-106.log | — | — |
 | Spec-AC-06 | Existing allocation/collision/guard suites pass unchanged              | done | TEST-107 green; docs/ai/tdd/green-20260726T233122Z-doc-numbering-regression.log, docs/ai/tdd/green-20260726T233122Z-reservation-reaped.log | — | — |
-| Spec-AC-07 | No regression — targeted suites green locally; PR CI full run           | deferred | TEST-108 green locally; docs/ai/tdd/green-20260726T233122Z-reservation-fullsuite.log | 2026-08-10 | Local half (targeted suites) is green; PR CI full framework is the authoritative gate and has not run yet (not yet pushed/PR'd) — defer to done once CI is green on the PR. |
+| Spec-AC-07 | No regression — targeted suites green locally; PR CI full run           | done     | TEST-108 green locally (docs/ai/tdd/green-20260726T233122Z-reservation-fullsuite.log); PR #164 merged 2026-07-27 with green CI, plus 39/40 subsequent successful runs on main through 2026-08-11 with zero allocator regressions | —          | Closed 2026-08-11 (Review-By 2026-08-10): the authoritative PR-CI leg ran green at merge and repeatedly since. |
 
 ## Implementation plan
 

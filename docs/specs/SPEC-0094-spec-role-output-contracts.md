@@ -224,7 +224,7 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
 | Spec-AC-02 | Deterministic, LLM-free, zero-dependency                          | done | docs/ai/tdd/green-role-output-contracts-full-suite-20260727T094804Z.log (TEST-005,006) | — | — |
 | Spec-AC-03 | Duration +/-1s tolerance; 300s-future + malformed timestamp rejected | done | docs/ai/tdd/green-role-output-contracts-full-suite-20260727T094804Z.log (TEST-007,008,013) | — | — |
 | Spec-AC-04 | CONTRACT EXPECT pointer (<=60 lines); PROTOCOL step-1 wiring; PROFILES core | done | docs/ai/tdd/green-role-output-contracts-full-suite-20260727T094804Z.log (TEST-010); tests/skills/test-aai-layer-profiles.sh (TEST-011) | — | — |
-| Spec-AC-05 | No regression: new suite + docs-lock + hygiene-pack + layer-profiles green | deferred | tests/skills/test-aai-role-output.sh, test-aai-docs-lock.sh, test-aai-hygiene-pack.sh, test-aai-layer-profiles.sh all exit 0 locally (TEST-012 done); TEST-015 (PR CI full framework) not yet run | 2026-08-10 | PR CI leg (TEST-015) verifies on push; local legs all green |
+| Spec-AC-05 | No regression: new suite + docs-lock + hygiene-pack + layer-profiles green | done     | Local legs green (TEST-012); TEST-015 satisfied: PR #168 merged 2026-07-27 with green full-framework CI, plus 39/40 subsequent successful runs on main through 2026-08-11 with the role-output suite in every run | —          | Closed 2026-08-11 (Review-By 2026-08-10): the PR-CI leg ran green at merge and repeatedly since. |
 
 Status values: planned / implementing / done / deferred / blocked / rejected
 

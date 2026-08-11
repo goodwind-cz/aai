@@ -1547,3 +1547,5 @@
 {"v":1,"ts":"2026-08-09T10:46:27.068Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-scryer-mcp-and-shallow","payload":{"commit":"949fed6e7903e77f43f57600742b942575f09706"}}
 {"v":1,"ts":"2026-08-09T10:00:16.789Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0076/Spec-AC-06","payload":{"from":"deferred","to":"done","notes":"repeated-CI-green evidence: main 30/30 success 2026-08-07..09"}}
 {"v":1,"ts":"2026-08-09T10:00:16.822Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0077/Spec-AC-06","payload":{"from":"deferred","to":"done","notes":"repeated-CI-green evidence: main 30/30 success 2026-08-07..09"}}
+{"v":1,"ts":"2026-08-11T04:47:14.011Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0090/Spec-AC-07","payload":{"from":"deferred","to":"done","notes":"PR #164 CI green at merge + 39/40 main runs since; closed 2026-08-11"}}
+{"v":1,"ts":"2026-08-11T04:47:14.045Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0094/Spec-AC-05","payload":{"from":"deferred","to":"done","notes":"PR #168 CI green at merge + 39/40 main runs since; closed 2026-08-11"}}

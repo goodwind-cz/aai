@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-09T12:47:59.079Z
+Generated: 2026-08-11T04:47:14.148Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -346,12 +346,10 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (7)
+## Deferred items (per-AC, across all specs) (5)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
-| SPEC-0090 | Spec-AC-07 | 2026-08-10 | Local half (targeted suites) is green; PR CI full framework is the authoritative gate and has not run yet (not yet pushed/PR'd) — defer to done once CI is green on the PR. |
-| SPEC-0094 | Spec-AC-05 | 2026-08-10 | PR CI leg (TEST-015) verifies on push; local legs all green |
 | SPEC-0083 | Spec-AC-04 | 2026-08-15 | CI-authoritative; the flake is CI-load-only and not locally reproducible |
 | SPEC-0086 | Spec-AC-05 | 2026-08-15 | Full-framework TEST-010 confirmation deferred to Validation by design (dispatch constraint), not a real gap in this scope's own edits |
 | SPEC-0103 | Spec-AC-06 | 2026-08-15 | No Azure remote available in this repo/environment; evidence contract = first live Azure adoption round trip logged under docs/ai/reports/ |
@@ -375,4 +373,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-09 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-11 — counts above use this date for overdue checks.
