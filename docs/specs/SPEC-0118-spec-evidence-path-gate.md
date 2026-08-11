@@ -1,7 +1,7 @@
 ---
 id: spec-evidence-path-gate
 type: spec
-number: null
+number: 118
 status: implementing
 ceremony_level: 1
 links:
@@ -67,7 +67,7 @@ executable command.
 - User decision: undecided
 - Base ref: main
 - Worktree branch/path: feat/evidence-path-gate (inline)
-- Inline review scope: .aai/scripts/lib/evidence-paths.mjs, .aai/scripts/lib/guard-config.mjs, .aai/scripts/close-work-item.mjs, docs/ai/docs-audit.yaml, .aai/system/PROFILES.yaml, tests/skills/test-aai-close-work-item.sh, docs/specs/SPEC-DRAFT-spec-evidence-path-gate.md, docs/issues/CHANGE-0131-evidence-path-gate.md, CHANGELOG.md
+- Inline review scope: .aai/scripts/lib/evidence-paths.mjs, .aai/scripts/lib/guard-config.mjs, .aai/scripts/close-work-item.mjs, docs/ai/docs-audit.yaml, .aai/system/PROFILES.yaml, tests/skills/test-aai-close-work-item.sh, docs/specs/SPEC-0118-spec-evidence-path-gate.md, docs/issues/CHANGE-0131-evidence-path-gate.md, CHANGELOG.md
 
 ## Summary
 
@@ -293,7 +293,7 @@ D2), and it is deliberately biased to skip rather than to guess.
   0, `tests/skills/test-aai-hygiene-pack.sh` (the grep-versus-reader dial
   conformance) exits 0, `tests/skills/test-aai-layer-profiles.sh` exits 0 with
   the new lib listed in `.aai/system/PROFILES.yaml`, and
-  `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-evidence-path-gate.md`
+  `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0118-spec-evidence-path-gate.md`
   reports zero findings.
   - Verification: the five commands above. Evidence: the five stdouts.
 
@@ -433,7 +433,7 @@ Edge cases:
 | TEST-042 | Spec-AC-07 | int  | tests/skills/test-aai-close-work-item.sh | run `bash tests/skills/test-aai-close-work-item.sh test_042_evidence_gate_prose_never_refuses` — spec fixture whose three Evidence cells hold only the Spec-AC-01 hostile shapes, enforce: exit 0, doc done, and grep of stderr for evidence-path gate finds nothing | green |
 | TEST-043 | Spec-AC-08 | int  | tests/skills/test-aai-close-work-item.sh | run `bash tests/skills/test-aai-close-work-item.sh test_043_evidence_gate_dry_run_noop` — enforce plus --dry-run against an unresolvable citation: exit 0, stdout JSON carries evidencePathGate with severity refuse and the unresolvable path listed, doc bytes and EVENTS size unchanged, docs/INDEX.md never created | green |
 | TEST-044 | Spec-AC-09 | int  | tests/skills/test-aai-close-work-item.sh | run `bash tests/skills/test-aai-close-work-item.sh` then `bash tests/skills/test-aai-state.sh` then `bash tests/skills/test-aai-hygiene-pack.sh` — all three exit 0, and the close suite still registers and runs test_001 through test_035 | green |
-| TEST-045 | Spec-AC-09 | int  | tests/skills/test-aai-layer-profiles.sh | run `bash tests/skills/test-aai-layer-profiles.sh` and `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-evidence-path-gate.md` — profiles union equals the live .aai tree with evidence-paths.mjs classified core, and spec-lint reports zero findings | green |
+| TEST-045 | Spec-AC-09 | int  | tests/skills/test-aai-layer-profiles.sh | run `bash tests/skills/test-aai-layer-profiles.sh` and `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0118-spec-evidence-path-gate.md` — profiles union equals the live .aai tree with evidence-paths.mjs classified core, and spec-lint reports zero findings | green |
 
 RED discipline (strategy tdd). TEST-036 through TEST-043 are the AC-gating
 tests and MUST each be observed FAILING on the PRE-change tree before any
@@ -470,7 +470,7 @@ Commands, in order:
 3. `bash tests/skills/test-aai-hygiene-pack.sh` — the grep-versus-reader dial
    conformance (test_031).
 4. `bash tests/skills/test-aai-layer-profiles.sh` — the new lib is classified.
-5. `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-evidence-path-gate.md`
+5. `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0118-spec-evidence-path-gate.md`
    — zero findings.
 6. `node .aai/scripts/docs-audit.mjs --check` — exit 0 (one expected false-open
    on this spec while the ride is in flight).

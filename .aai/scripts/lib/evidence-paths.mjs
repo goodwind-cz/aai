@@ -1,5 +1,5 @@
 // lib/evidence-paths.mjs — close-time evidence-path extraction (CHANGE-0131 /
-// docs/specs/SPEC-DRAFT-spec-evidence-path-gate.md). Pure functions only: the
+// docs/specs/SPEC-0118-spec-evidence-path-gate.md). Pure functions only: the
 // six-rule D2 grammar that decides whether a token inside an AC table's
 // Evidence cell is a candidate repo-relative path, plus the doc-level and
 // unresolved-filter wrappers close-work-item.mjs consults to choose

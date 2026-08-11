@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-11T23:14:10.456Z
+Generated: 2026-08-11T23:14:31.921Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-evidence-path-gate | specs | implementing | 9 done | docs/specs/SPEC-DRAFT-spec-evidence-path-gate.md |
+| SPEC-0118 | specs | implementing | 9 done | docs/specs/SPEC-0118-spec-evidence-path-gate.md |
 
 ## Canonical layer (0)
 

@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff main...HEAD (branch feat/evidence-path-gate, HEAD 65c6472; 5 commits, 11 files, +1157/-6)
-  spec: docs/specs/SPEC-DRAFT-spec-evidence-path-gate.md (SPEC-FROZEN, ceremony_level 1)
+  spec: docs/specs/SPEC-0118-spec-evidence-path-gate.md (SPEC-FROZEN, ceremony_level 1)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -50,7 +50,7 @@ review:
 
 - Branch verified with `git branch --show-current` → `feat/evidence-path-gate`; never switched, never pushed; working tree clean at review start and at review end.
 - Read-only on implementation files. Nothing under `.aai/`, `docs/specs/`, `docs/issues/` or `tests/` was written. The only file this review creates is this report.
-- Diff read in full: `git diff main...HEAD` over `.aai/scripts/close-work-item.mjs`, `.aai/scripts/lib/evidence-paths.mjs`, `.aai/scripts/lib/guard-config.mjs`, `.aai/system/PROFILES.yaml`, `CHANGELOG.md`, `docs/INDEX.md`, `docs/ai/EVENTS.jsonl`, `docs/ai/docs-audit.yaml`, `docs/issues/CHANGE-0131-evidence-path-gate.md`, `docs/specs/SPEC-DRAFT-spec-evidence-path-gate.md`, `tests/skills/test-aai-close-work-item.sh`.
+- Diff read in full: `git diff main...HEAD` over `.aai/scripts/close-work-item.mjs`, `.aai/scripts/lib/evidence-paths.mjs`, `.aai/scripts/lib/guard-config.mjs`, `.aai/system/PROFILES.yaml`, `CHANGELOG.md`, `docs/INDEX.md`, `docs/ai/EVENTS.jsonl`, `docs/ai/docs-audit.yaml`, `docs/issues/CHANGE-0131-evidence-path-gate.md`, `docs/specs/SPEC-0118-spec-evidence-path-gate.md`, `tests/skills/test-aai-close-work-item.sh`.
 - Validation report `docs/ai/validation/validation-20260811T225925Z-CHANGE-0131-evidence-path-gate.md` read as settled ground (PASS; F1 fixed post-validation, F2 recorded as spec R6). This review did not re-run validation's matrix; it re-ran only what the post-validation commit put at risk (below) and added its own code-level probes.
 - Dispatch-coaching check (anti-gaming contract): the dispatch named review AREAS (grammar readability, wiring quality, S3 maintainability, comment accuracy, CHANGELOG truthfulness, test quality, merge fitness) without pre-rating severity, characterizing expected findings, or excluding any part of the diff. No coaching to record.
 
@@ -61,7 +61,7 @@ Validation ran at `cbe38f6`. `65c6472` changed the risk-bearing lib and the froz
 - **Semantics.** The raw NUL at the memo-key join is now the escape `\u0000` inside a template literal (`.aai/scripts/lib/evidence-paths.mjs:60`). In JS a `\u0000` escape in a template literal produces U+0000 — byte-for-byte the same key the raw NUL produced. Confirmed at runtime: the escaped string `===` `'r' + String.fromCharCode(0) + 's'`, length 3, `charCodeAt(1) === 0`.
 - **Diffability restored.** `python3` byte scan: 0 NUL bytes; `file` reports `Java source, Unicode text, UTF-8 text` (was `data`); `git diff main...HEAD --stat` now shows `126 ++++...` instead of `Bin 0 -> 5707 bytes`. The remaining non-ASCII bytes are U+2026 (rule 2's `…` literal) and U+2014 (em dashes in comments) — both ordinary UTF-8, both diff-visible. `.gitattributes` `*.mjs text eol=lf` is satisfied.
 - **Suite still green at HEAD** (this is the assertion validation could not make): `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-close-work-item.sh` → `=== aai-close-work-item: ALL TESTS PASSED ===`, TEST-036..043 all PASS. TEST-037's `grep -qF` contract, which validation flagged as evaluating against a binary file, now runs against plain text and still discriminates.
-- **Spec still lints at HEAD** after R6 was appended: `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-evidence-path-gate.md` → `Findings: 0`.
+- **Spec still lints at HEAD** after R6 was appended: `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0118-spec-evidence-path-gate.md` → `Findings: 0`.
 
 Verdict on the F1 fix: correct, minimal, and it converts the scope's single most risk-bearing artifact from unreviewable to reviewable. Without it I would have raised the binary lib as BLOCKING (a diff no human and no PR bot can read is not a reviewable diff).
 
