@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(routine): scryer template v2 — MCP-aware merge sweep + shallow-clone-honest health (CHANGE-0129) [L2]
+## [v2026.08.11] — feat(routine): scryer template v2 — MCP-aware merge sweep + shallow-clone-honest health (CHANGE-0129) [L2]
 
 - `.aai/routines/SCRYER.routine.md`: `## Step 0 — Prerequisite probes` gains
   the read-ladder statement — `gh` when its probe passed, otherwise the
