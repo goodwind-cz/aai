@@ -524,3 +524,9 @@ BY PATH, from the main tree.
   closes and only THEN writes its evidence files (or renames them) is
   unaffected by the gate and still ends with dangling citations. The close
   ordering makes this unlikely; no mechanism prevents it.
+- R6 (validation finding F2) — a LEAN AC table inside a CHANGE doc is
+  silently un-gated when the doc carries an earlier `## Acceptance Criteria`
+  heading (the CHANGE_TEMPLATE bullet list): `parseLeanAcTable` anchors on
+  the FIRST such heading and yields zero citations. Live-corpus impact
+  today: zero docs. Shared-parser behavior (D6/S2) — fixing it means fixing
+  `lib/docs-model.mjs` for every consumer, a separate scope.
