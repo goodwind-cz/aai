@@ -79,6 +79,12 @@
 //      usage_capture=none sentinel, under a `usage_capture_gate: enforce` dial.
 //      Evaluated BEFORE any write (never a rollback path) — nothing written.
 //      --dry-run never returns 4 (verdict reported informationally in its JSON).
+//   5  evidence-path gate REFUSED (CHANGE-0131 / spec-evidence-path-gate): a
+//      closing doc's Acceptance Criteria Status Evidence cell cites a
+//      path-shaped token that does not resolve from the repo root the close
+//      runs in, under an `evidence_path_gate: enforce` dial. Evaluated BEFORE
+//      any write (never a rollback path) — nothing written. --dry-run never
+//      returns 5 (verdict reported informationally in its JSON).
 //
 // Node stdlib only (docs/TECHNOLOGY.md). Reuses append-event.mjs verbatim
 // (no forked event schema) and the shared docs-audit engine (no re-implemented
@@ -93,6 +99,7 @@ import { parseFrontmatter, extractDocIds, DEFAULT_CATEGORY_PREFIXES, slugFamilyF
 import { readGuardConfig } from './lib/guard-config.mjs';
 import { REQUIRED_PRODUCT_SECTIONS, missingProductSections } from './lib/product-doc.mjs';
 import { extractUsageTotal, hasUsageSentinel, isHarnessDispatchedRole } from './lib/usage-note.mjs';
+import { unresolvedCitations } from './lib/evidence-paths.mjs';
 
 const ROOT = process.cwd();
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -766,6 +773,38 @@ function evaluateUsageCaptureGate(ref) {
   return { severity: dial === 'enforce' ? 'refuse' : 'warn', dial, roles, reason };
 }
 
+// --- CLOSE-TIME evidence-path gate (CHANGE-0131 / spec-evidence-path-gate) --
+//
+// The mechanical checkpoint the CHANGE-0127 incident named as missing: an AC
+// Status Evidence cell can cite a docs/ai/tdd/... transcript that resolves
+// only inside a worktree that gets deleted, and nothing before this gate ever
+// checked whether the bytes an Evidence cell points at exist anywhere. Same
+// fail-open guard-config-dial discipline as its two siblings above: WARN
+// (report-only, shipped default) or REFUSE pre-write (enforce, opt-in).
+// Scans every doc `close-work-item.mjs` already resolved (D5 — the primary
+// --ref doc AND, when given, --spec), never a repo-wide sweep.
+
+// evaluateEvidencePathGate(docs) -> { severity, dial?, unresolved, reason? }.
+// severity is 'none' (nothing unresolvable across any doc), 'warn'
+// (report-only dial), or 'refuse' (enforce dial). Read-only — the caller
+// decides whether/when to act (D8: the refuse branch must run BEFORE any
+// write; --dry-run must never act on it). `unresolved` is
+// [{ doc, acId, token }] across every scanned doc, in scan order.
+function evaluateEvidencePathGate(docs) {
+  const unresolved = [];
+  for (const d of docs) {
+    for (const { acId, token } of unresolvedCitations(d.content, ROOT)) {
+      unresolved.push({ doc: d.rel, acId, token });
+    }
+  }
+  if (unresolved.length === 0) return { severity: 'none', unresolved };
+  const dial = readGuardConfig(path.join(ROOT, 'docs/ai')).evidence_path_gate;
+  const reason = unresolved
+    .map((u) => `${u.doc} ${u.acId ?? '(unknown AC)'} cites "${u.token}" which does not resolve from the repo root`)
+    .join('; ');
+  return { severity: dial === 'enforce' ? 'refuse' : 'warn', dial, unresolved, reason };
+}
+
 // Best-effort remediation-friction capture. Fires ONLY on a real close (called
 // once from the main() success path). Isolation mirrors the wrapper's capture
 // point: honors the AAI_FRICTION_CAPTURE off-switch, and writes only when the
@@ -967,6 +1006,21 @@ function main() {
     process.stderr.write(`close-work-item: WARNING (usage-capture gate) — ${usageGate.reason}\n`);
   }
 
+  // CHANGE-0131 / spec-evidence-path-gate — close-time evidence-path gate for
+  // EVERY resolved doc (D5: primary --ref, and --spec when given). Same
+  // pre-write discipline as the two gates above: evaluated BEFORE anything
+  // that could write (including the idempotency short-circuit's INDEX regen
+  // below, D8); --dry-run reports the verdict in its JSON below and never
+  // acts on it.
+  const evidenceGate = evaluateEvidencePathGate(resolved);
+  if (!args.dryRun && evidenceGate.severity === 'refuse') {
+    process.stderr.write(`close-work-item: REFUSED (evidence-path gate) — ${evidenceGate.reason}\n`);
+    process.exit(5);
+  }
+  if (!args.dryRun && evidenceGate.severity === 'warn') {
+    process.stderr.write(`close-work-item: WARNING (evidence-path gate) — ${evidenceGate.reason}\n`);
+  }
+
   const events = readEvents(ROOT);
   const plan = resolved.map((d) => ({
     ...d,
@@ -1000,6 +1054,7 @@ function main() {
         anyMutation: anyMutationTotal,
         productDocGate,
         usageCaptureGate: usageGate,
+        evidencePathGate: evidenceGate,
         productDocUpdate: productDocPlan
           ? { path: productDocGate.productDocPath, needsUpdate: productDocPlan.needsUpdate }
           : null,

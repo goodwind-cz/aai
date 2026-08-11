@@ -11,6 +11,50 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(close): evidence-path gate — cited evidence must resolve from the main tree (CHANGE-0131) [L1]
+
+- New `.aai/scripts/lib/evidence-paths.mjs` (Node stdlib only): a measured
+  six-rule extraction grammar (`extractEvidencePaths`) over an AC Status
+  Evidence cell — strip surrounding markdown punctuation, require a `/`,
+  reject an ellipsis (`...`/`…`), require a clean `[A-Za-z0-9._/-]` charset,
+  reject an absolute path, reject a `..` segment, and require the first
+  segment to name an existing directory at the repo root. Measured against
+  the live `docs/specs/` + `docs/issues/` corpus before it was written: 752
+  tokens extracted, zero false positives over 718 cells. `evidenceCitations`
+  reads AC rows only through the shared `parseAcTable`/`parseLeanAcTable`
+  readers (`lib/docs-model.mjs`) — no fourth table parser.
+  `unresolvedCitations` filters to tokens that do not `fs.existsSync` from
+  the repo root (existence, not git-tracking — `docs/ai/tdd/**` is
+  gitignored by design and is the single most common evidence location).
+- `.aai/scripts/lib/guard-config.mjs`: `evidence_path_gate` joins the
+  closed `GUARD_DIALS` set, the defaults object, and the line-parser
+  alternation (all three, together — a dial added to only one silently
+  reads as its default forever).
+- `.aai/scripts/close-work-item.mjs`: `evaluateEvidencePathGate(docs)` runs
+  immediately after the usage-capture gate and BEFORE `readEvents`/the
+  idempotency short-circuit's INDEX regeneration — a refusal never leaves
+  `docs/INDEX.md` written. Report-only (shipped default) WARNs on stderr
+  naming the doc, the Spec-AC row and the unresolvable path; `enforce`
+  REFUSES pre-write with exit code 5 (documented in the EXIT CONTRACT
+  header, after the existing 0-4). `--dry-run` reports the verdict under
+  `evidencePathGate` in its JSON and never exits 5 or writes.
+- `docs/ai/docs-audit.yaml` ships the documented `evidence_path_gate:
+  report-only` key (fail-open default; the flip to enforce is a later,
+  separately-evidenced KPI decision, same as `usage_capture_gate`).
+- `.aai/system/PROFILES.yaml`: the new lib joins the core
+  `.aai/scripts/lib/*` classification (layer-profiles UNCLASSIFIED check
+  enforces this).
+- `tests/skills/test-aai-close-work-item.sh` gains TEST-036 through
+  TEST-043 (extraction grammar, shared-parser grep contract, guard-config
+  dial, report-only warn, enforce pre-write refusal, existence-not-tracking,
+  the prose-never-refuses negative control, and `--dry-run` no-op) plus a
+  `set_evidence_path_gate_dial` fixture helper; the pre-existing TEST-001
+  through TEST-035 continue registered and green.
+- Fixes the CHANGE-0127 incident this scope exists to close: a spec's AC
+  Status Evidence citing a `docs/ai/tdd/...` transcript that resolved only
+  inside a deleted worktree, caught previously only by a validator's manual
+  sweep.
+
 ## [unreleased] — feat(factory-report): per-role token consumption + weekly trend (CHANGE-0130) [L1]
 
 - `.aai/scripts/generate-factory-report.mjs` gains one additive block,
