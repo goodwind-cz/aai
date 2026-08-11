@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-11T20:17:30.456Z
+Generated: 2026-08-11T20:49:51.526Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-role-token-trend | specs | implementing | 7 planned | docs/specs/SPEC-DRAFT-spec-role-token-trend.md |
+| spec-role-token-trend | specs | implementing | 7 done | docs/specs/SPEC-DRAFT-spec-role-token-trend.md |
 
 ## Canonical layer (0)
 
@@ -27,7 +27,7 @@ _None._
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
-| factory-performance-report | factory-performance-report | 1 | docs/product/factory-performance-report.md |
+| factory-performance-report | factory-performance-report | 2 | docs/product/factory-performance-report.md |
 | friction-capture-default-on | friction-capture-default-on | 1 | docs/product/friction-capture-default-on.md |
 | implementation-mode-choice | implementation-mode-choice | 1 | docs/product/implementation-mode-choice.md |
 | issues-skill | issues-skill | 1 | docs/product/issues-skill.md |
