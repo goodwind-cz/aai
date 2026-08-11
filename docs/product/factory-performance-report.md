@@ -5,8 +5,9 @@ capability: factory-performance-report
 status: current
 delivered_by:
   - CHANGE-0098
+  - CHANGE-0130
 spec: docs/specs/SPEC-0108-spec-factory-performance-report.md
-updated: 2026-07-30
+updated: 2026-08-11
 ---
 
 # Factory performance report
@@ -52,14 +53,47 @@ every work-item close, so it is a continuous overview, not a one-off snapshot.
 - Close-hook: `close-work-item.mjs` regenerates the report strictly last,
   swallowing failures (exit code of the close never changes).
 
+## Role consumption
+
+- The `<section id="role-consumption">` block (`cost.role_consumption` in
+  `factory-report-data.json`) answers WHERE tokens go per role, not just the
+  lifetime total `cost.by_role` already carried: a per-role table (run count,
+  token total, median tokens/run, share of the marked-token grand total) plus
+  a per-ISO-week trend of per-role median tokens/run, so context growth reads
+  as a curve instead of a single number.
+- Every agent run lands in exactly one of three buckets, and they partition
+  each role's run count: `runs_marked` (a valid `usage_total_tokens=<N>` note
+  marker), `runs_sentinel` (no marker, but the honest `usage_capture=none`
+  gap marker), and `runs_unmarked` (neither). A run carrying both a marker
+  and the sentinel counts as `runs_marked` — a run with a real total is a
+  measured run.
+- Marker-only, never imputed: `tokens_total`, `median_tokens_per_run` and
+  `share_pct` derive ONLY from marker-carrying (`runs_marked`) runs. A role or
+  a week with no marked run renders the literal `n/a` in the HTML and `null`
+  (never `0`) in the JSON — a reader must never mistake "not measured" for
+  "measured as cheap".
+- Sparse-era caveat: usage-marker coverage across the ledger is complete only
+  since **2026-08-02**, when the close-time `usage_capture_gate` went to
+  `enforce`. Earlier weeks carry a real but thin `runs_marked` denominator —
+  carried in the JSON next to every median and total, and rendered in the
+  per-role summary table; the weekly trend cells and sparklines do not
+  repeat it, so for a thin week check `runs_marked` in the summary table or
+  the JSON before reading a curve as growth.
+
 ## Limits and non-goals
 
 - Trends are directional, not statistical — the history is weeks deep.
 - No cost in USD by design; runs that expose no usage stay honest-null.
 - Quality metrics come only from the flush-recorded reliability block; prose
   run notes are never parsed for load-bearing numbers.
+- Role-consumption medians over one or two marked runs (especially in the
+  sparse era) are arithmetic, not statistics; `runs_marked` is the
+  denominator to consult (summary table or JSON) before trusting any
+  per-role figure.
 
 ## Links
 
 - Request: docs/issues/CHANGE-0098-factory-performance-report.md
 - Spec: docs/specs/SPEC-0108-spec-factory-performance-report.md
+- Request: docs/issues/CHANGE-0130-role-token-trend.md
+- Spec: docs/specs/SPEC-0117-spec-role-token-trend.md

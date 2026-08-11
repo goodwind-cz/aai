@@ -1,0 +1,191 @@
+{
+  "generatedAt": "1970-01-01T00:00:00.000Z",
+  "project": "golden-sparse",
+  "empty": false,
+  "empty_reason": null,
+  "counts": {
+    "rides": 2,
+    "delivered": 2,
+    "active_weeks": 2,
+    "releases": 0,
+    "review_events": 0
+  },
+  "throughput": {
+    "note": "\"delivered\" counts every work_item_closed event (2 closes vs 2 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 2,
+    "delivered_per_week_avg": 1,
+    "delivered_by_week": {
+      "2026-W28": 1,
+      "2026-W29": 1
+    },
+    "delivered_groups": [
+      {
+        "key": "month:2026-07",
+        "kind": "month",
+        "label": "2026-07",
+        "count": 2,
+        "refs": [
+          "SPARSE-A",
+          "SPARSE-B"
+        ]
+      }
+    ],
+    "lead_time": {
+      "per_item": [
+        {
+          "ref": "SPARSE-A",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "SPARSE-B",
+          "lead_time_seconds": null
+        }
+      ],
+      "median_seconds": null,
+      "mean_seconds": null,
+      "measured": 0,
+      "unmeasurable": 2
+    }
+  },
+  "speed": {
+    "ride_busy_seconds": {
+      "median": 273,
+      "mean": 272.5,
+      "measured": 2
+    },
+    "role_split": [
+      {
+        "role": "Implementation",
+        "duration_seconds": 90,
+        "tokens": null
+      },
+      {
+        "role": "Code Review",
+        "duration_seconds": 90,
+        "tokens": null
+      },
+      {
+        "role": "Validation",
+        "duration_seconds": 200,
+        "tokens": null
+      },
+      {
+        "role": "Planning",
+        "duration_seconds": 120,
+        "tokens": null
+      },
+      {
+        "role": "Other",
+        "duration_seconds": 45,
+        "tokens": null
+      }
+    ],
+    "per_ride": [
+      {
+        "ref": "SPARSE-A",
+        "busy_seconds": 255,
+        "remediation_runs": 1
+      },
+      {
+        "ref": "SPARSE-B",
+        "busy_seconds": 290,
+        "remediation_runs": null
+      }
+    ],
+    "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
+  },
+  "cost": {
+    "tokens_only": true,
+    "usd": null,
+    "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
+    "tokens_per_ride": {
+      "median": null,
+      "mean": null,
+      "measured": 0
+    },
+    "tokens_total": null,
+    "by_role": [
+      {
+        "role": "Implementation",
+        "tokens": null
+      },
+      {
+        "role": "Code Review",
+        "tokens": null
+      },
+      {
+        "role": "Validation",
+        "tokens": null
+      },
+      {
+        "role": "Planning",
+        "tokens": null
+      },
+      {
+        "role": "Other",
+        "tokens": null
+      }
+    ],
+    "capture_coverage": {
+      "runs_with_marker": 0,
+      "total_runs": 5,
+      "pct": 0,
+      "by_week": [
+        {
+          "week": "2026-W28",
+          "runs_with_marker": 0,
+          "total_runs": 3,
+          "pct": 0
+        },
+        {
+          "week": "2026-W29",
+          "runs_with_marker": 0,
+          "total_runs": 2,
+          "pct": 0
+        }
+      ]
+    }
+  },
+  "quality": {
+    "first_pass_clean": {
+      "clean": 0,
+      "flagged": 1,
+      "rate_pct": 0
+    },
+    "na_reliability": 1,
+    "remediation_distribution": {
+      "1": 1,
+      "n/a": 1
+    },
+    "avg_validation_fails": 1,
+    "avg_review_fails": 0,
+    "verdict_mix": {
+      "PASS": 2
+    },
+    "review_events": 0,
+    "review_verdict_note": "per-review pass/fail lives only in prose run notes and is not mechanically derived; only ride verdict + code_review_completed count are shown"
+  },
+  "trend": [
+    {
+      "week": "2026-W28",
+      "delivered": 1,
+      "median_lead_time_seconds": null,
+      "busy_seconds": 255,
+      "tokens": null,
+      "first_pass_rate": 0
+    },
+    {
+      "week": "2026-W29",
+      "delivered": 1,
+      "median_lead_time_seconds": null,
+      "busy_seconds": 290,
+      "tokens": null,
+      "first_pass_rate": null
+    }
+  ],
+  "notes": [
+    "NOTE 1 agent_run(s) had a role that matched no canonical role — bucketed as Other",
+    "NOTE 1 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
+    "NOTE 2 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)"
+  ]
+}

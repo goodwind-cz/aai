@@ -11,6 +11,47 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(factory-report): per-role token consumption + weekly trend (CHANGE-0130) [L1]
+
+- `.aai/scripts/generate-factory-report.mjs` gains one additive block,
+  `cost.role_consumption`, built inside the EXISTING ride/agent_run loop (one
+  extra accumulation pass, no second read/parse — reuses `normalizeRole`,
+  `extractUsageTotal`, `hasUsageSentinel` and `CANONICAL_ROLES` from
+  `lib/usage-note.mjs`, and the existing `median()` helper): per role, the
+  six canonical roles (plus `Other` only when populated) each carry three
+  partitioning run buckets — `runs_marked`, `runs_sentinel`,
+  `runs_unmarked` — and `tokens_total` / `median_tokens_per_run` /
+  `share_pct`, computed ONLY from marker-carrying runs and `null` (never `0`)
+  when a role has no marked run. A run whose note carries both the
+  `usage_total_tokens=<N>` marker and the `usage_capture=none` sentinel
+  counts as marked.
+- `cost.role_consumption.by_week` BORROWS the existing `m.trend[].week`
+  array verbatim (never recomputed), so the new per-role weekly-median
+  series shares its x-axis exactly with the report's other four charts.
+- New `<section id="role-consumption">` in `factory-report.html` — the ONLY
+  element in the page carrying an `id` — with a per-role table, a weekly
+  median table, and one sparkline SVG per role with at least one marked
+  run; `n/a` renders for every null cell; no dollar-amount figure anywhere.
+- `tests/skills/test-aai-factory-report.sh` gains TEST-022 through TEST-027:
+  bucket partitioning + marker-beats-sentinel + never-marked all-null
+  (TEST-022), cross-KPI identities re-summed against `capture_coverage`,
+  `cost.tokens_total` and `cost.by_role` on a fixture AND on the real
+  `docs/ai` ledgers (TEST-023), weekly-trend borrowing incl. even-count
+  median rounding (TEST-024), HTML-versus-JSON rendering (TEST-025), a
+  byte-stability backcompat pin against two new goldens
+  (`tests/fixtures/factory-report/backcompat-sparse-{data.json,html}`,
+  captured from the PRE-change generator and never regenerated) proven by a
+  RED mutation pair (TEST-026), and the product-doc pins (TEST-027). All six
+  observed RED pre-change (`cost.role_consumption` undefined); full suite:
+  28 tests (IDs to 027), all green. Sibling suites over the shared
+  `lib/usage-note.mjs` grammar and the close hook — `test-aai-metrics.sh`,
+  `test-aai-overview.sh`, `test-aai-close-work-item.sh`,
+  `test-aai-layer-profiles.sh` — all green, unchanged.
+- `docs/product/factory-performance-report.md`: new "Role consumption"
+  section documenting the three buckets, the marker-only rule, the
+  never-imputed `n/a` rule, and the sparse-era caveat (usage-marker coverage
+  is complete only since 2026-08-02); `delivered_by` gains `CHANGE-0130`.
+
 ## [v2026.08.11] — feat(routine): scryer template v2 — MCP-aware merge sweep + shallow-clone-honest health (CHANGE-0129) [L2]
 
 - `.aai/routines/SCRYER.routine.md`: `## Step 0 — Prerequisite probes` gains

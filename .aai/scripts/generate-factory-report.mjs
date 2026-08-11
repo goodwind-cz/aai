@@ -30,7 +30,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { extractUsageTotal, CANONICAL_ROLES, normalizeRole } from './lib/usage-note.mjs';
+import {
+  extractUsageTotal, hasUsageSentinel, CANONICAL_ROLES, normalizeRole,
+} from './lib/usage-note.mjs';
 
 const ROOT = process.cwd();
 
@@ -305,6 +307,14 @@ function buildModel(args) {
   let totalRuns = 0;
   let runsWithMarker = 0;
   const coverageByWeek = new Map();    // week -> { total, with }
+  // Per-role token-consumption accumulators (CHANGE-0130, D1/D8): one extra
+  // pass over data already in hand inside the SAME loop — no second read, no
+  // second parse. roleConsumption: roleKey -> { total, marked, sentinel,
+  // unmarked, tokens: number[] (marker values only) }. weeklyRoleTokens:
+  // "week|roleKey" -> { marked, tokens: number[] } — the per-(week,role)
+  // marker-only token lists the weekly medians (Spec-AC-03) are built from.
+  const roleConsumption = new Map();
+  const weeklyRoleTokens = new Map();
   for (const m of rides) {
     let busy = 0; let hasBusy = false;
     let tok = 0; let hasTok = false;
@@ -327,6 +337,19 @@ function buildModel(args) {
         c.total += 1;
         if (t !== null) c.with += 1;
         coverageByWeek.set(rideWeek, c);
+      }
+      // D1: every run lands in EXACTLY ONE bucket. Marker WINS over sentinel
+      // (a run with a real total is a measured run, even if it also carries
+      // the honest-gap sentinel by mistake).
+      const rc = roleConsumption.get(roleKey) ?? { total: 0, marked: 0, sentinel: 0, unmarked: 0, tokens: [] };
+      rc.total += 1;
+      if (t !== null) { rc.marked += 1; rc.tokens.push(t); } else if (hasUsageSentinel(r.note)) { rc.sentinel += 1; } else { rc.unmarked += 1; }
+      roleConsumption.set(roleKey, rc);
+      if (rideWeek) {
+        const wkey = `${rideWeek}|${roleKey}`;
+        const wrt = weeklyRoleTokens.get(wkey) ?? { marked: 0, tokens: [] };
+        if (t !== null) { wrt.marked += 1; wrt.tokens.push(t); }
+        weeklyRoleTokens.set(wkey, wrt);
       }
     }
     const rel = m.reliability && typeof m.reliability === 'object' && !Array.isArray(m.reliability) ? m.reliability : null;
@@ -429,6 +452,46 @@ function buildModel(args) {
     by_week: captureByWeek,
   };
 
+  // ==================== ROLE CONSUMPTION (CHANGE-0130) ====================
+  // Projects the roleConsumption/weeklyRoleTokens accumulators (built inside
+  // the ride/run loop above — no second read, no second parse, D8) into
+  // cost.role_consumption. D2: only runs_marked feeds a number —
+  // tokens_total, median_tokens_per_run and share_pct are null (never 0) for
+  // a role with no marked run. D5: six canonical roles always, in the same
+  // CANONICAL_ROLES order roleSplit/by_role use, Other appended only when at
+  // least one run normalized to it.
+  const tokensTotal = rideTokenVals.length ? rideTokenVals.reduce((a, v) => a + v, 0) : null;
+  const roleConsumptionRoleKeys = CANONICAL_ROLES.slice();
+  if ((roleConsumption.get('Other') ?? { total: 0 }).total > 0) roleConsumptionRoleKeys.push('Other');
+  const roleConsumptionRoles = roleConsumptionRoleKeys.map((role) => {
+    const rc = roleConsumption.get(role) ?? { total: 0, marked: 0, sentinel: 0, unmarked: 0, tokens: [] };
+    const roleTokensTotal = rc.marked > 0 ? rc.tokens.reduce((a, v) => a + v, 0) : null;
+    return {
+      role,
+      runs_total: rc.total,
+      runs_marked: rc.marked,
+      runs_sentinel: rc.sentinel,
+      runs_unmarked: rc.unmarked,
+      tokens_total: roleTokensTotal,
+      median_tokens_per_run: rc.marked > 0 ? median(rc.tokens) : null,
+      // Guard: null (never a division result) when there is nothing to share
+      // of (Edge cases) — a role's own null tokens_total already guards the
+      // numerator; `tokensTotal` guards a null/zero denominator.
+      share_pct: (roleTokensTotal !== null && tokensTotal) ? Math.round((100 * roleTokensTotal) / tokensTotal) : null,
+    };
+  });
+  // D3: by_week BORROWS the existing `weeks` array verbatim (never
+  // recomputed) — the union of delivery weeks and ride weeks built above —
+  // so this chart's x-axis stays synchronized with the report's other four.
+  const roleConsumptionByWeek = weeks.map((wk) => ({
+    week: wk,
+    roles: roleConsumptionRoleKeys.map((role) => {
+      const wrt = weeklyRoleTokens.get(`${wk}|${role}`) ?? { marked: 0, tokens: [] };
+      return { role, runs_marked: wrt.marked, median_tokens: wrt.marked > 0 ? median(wrt.tokens) : null };
+    }),
+  }));
+  const roleConsumptionModel = { roles: roleConsumptionRoles, by_week: roleConsumptionByWeek };
+
   return {
     generatedAt: new Date().toISOString(),
     project: projectLabel(),
@@ -466,9 +529,10 @@ function buildModel(args) {
       usd: null,
       usd_note: 'no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price',
       tokens_per_ride: { median: median(rideTokenVals), mean: mean1(rideTokenVals), measured: rideTokenVals.length },
-      tokens_total: rideTokenVals.length ? rideTokenVals.reduce((a, v) => a + v, 0) : null,
+      tokens_total: tokensTotal,
       by_role: roleSplit.map((x) => ({ role: x.role, tokens: x.tokens })),
       capture_coverage: captureCoverage,
+      role_consumption: roleConsumptionModel,
     },
     quality: {
       first_pass_clean: flagged.length ? { clean, flagged: flagged.length, rate_pct: Math.round((100 * clean) / flagged.length) } : { clean: 0, flagged: 0, rate_pct: null },
@@ -528,6 +592,25 @@ function renderHtml(m) {
     .map((g) => `<tr><td>${esc(g.label)}</td><td>${esc(g.kind)}</td><td>${g.count}</td></tr>`).join('');
   const roleRows = m.speed.role_split
     .map((r) => `<tr><td>${esc(r.role)}</td><td>${fmtDur(r.duration_seconds)}</td><td>${na(r.tokens)}</td></tr>`).join('');
+  // Role consumption (CHANGE-0130): per-role table + weekly median table +
+  // one sparkline per role with at least one marked run. Reuses esc/na/
+  // barSeries — barSeries takes {week, median_tokens} points directly and
+  // already renders a null point as a grey bar with an n/a title.
+  const rcModel = m.cost.role_consumption;
+  const roleConsumptionRows = rcModel.roles
+    .map((r) => `<tr><td>${esc(r.role)}</td><td>${r.runs_total}</td><td>${r.runs_marked}</td><td>${r.runs_sentinel}</td><td>${r.runs_unmarked}</td><td>${na(r.tokens_total)}</td><td>${na(r.median_tokens_per_run)}</td><td>${r.share_pct === null ? 'n/a' : `${r.share_pct}%`}</td></tr>`)
+    .join('');
+  const roleConsumptionWeekHeader = rcModel.roles.map((r) => `<th>${esc(r.role)}</th>`).join('');
+  const roleConsumptionWeekRows = rcModel.by_week
+    .map((wk) => `<tr><td>${esc(wk.week)}</td>${wk.roles.map((r) => `<td>${na(r.median_tokens)}</td>`).join('')}</tr>`)
+    .join('');
+  const roleConsumptionSparks = rcModel.roles
+    .filter((r) => r.runs_marked > 0)
+    .map((r) => {
+      const points = rcModel.by_week.map((wk) => ({ week: wk.week, median_tokens: wk.roles.find((x) => x.role === r.role)?.median_tokens ?? null }));
+      return `<p class="meta">${esc(r.role)}</p>${barSeries(points, 'median_tokens', (v) => `${v} tokens`)}`;
+    })
+    .join('');
   // Deterministic order: numeric remediation-count buckets ascending, then the
   // non-numeric 'n/a' bucket LAST explicitly (Number('n/a') is NaN, whose
   // comparisons are undefined — never let it decide the order — Copilot :462).
@@ -615,6 +698,14 @@ function renderHtml(m) {
 <p class="meta">Tokens only — ${esc(m.cost.usd_note)}.</p>
 <div class="scroll">${barSeries(m.cost.capture_coverage.by_week, 'pct', (v) => `${v}%`)}</div>
 <p class="meta">Run-level usage-capture coverage per ISO week — runs carrying a usage_total_tokens marker / total runs (${m.cost.capture_coverage.runs_with_marker}/${m.cost.capture_coverage.total_runs} overall). A close-time gate (usage_capture_gate) drives this upward.</p>
+</section>
+
+<section id="role-consumption">
+<h2>Role consumption</h2>
+<p class="meta">Per-role token consumption — computed ONLY from runs carrying a usage_total_tokens marker; runs_sentinel counts the honest usage_capture=none gap, runs_unmarked counts neither. A role or week with no marked run renders n/a and is never imputed. Overall and weekly run counts may honestly disagree when a ride's date is absent or unparseable — it still counts overall but belongs to no week.</p>
+<div class="scroll"><table><thead><tr><th>Role</th><th>Runs</th><th>Marked</th><th>Sentinel</th><th>Unmarked</th><th>Tokens total</th><th>Median tokens/run</th><th>Share</th></tr></thead><tbody>${roleConsumptionRows}</tbody></table></div>
+<div class="scroll"><table><thead><tr><th>Week</th>${roleConsumptionWeekHeader}</tr></thead><tbody>${roleConsumptionWeekRows}</tbody></table></div>
+<div class="scroll">${roleConsumptionSparks}</div>
 </section>
 
 <section>
