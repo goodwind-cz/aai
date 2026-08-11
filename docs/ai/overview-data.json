@@ -1,64 +1,64 @@
 {
-  "generatedAt": "2026-08-11T21:18:14.905Z",
+  "generatedAt": "2026-08-11T23:15:18.239Z",
   "project": "aai",
   "counts": {
-    "delivered": 175,
+    "delivered": 176,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 25976027
+    "tokens_total": 26623390
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "role-token-trend",
+    "ref": "evidence-path-gate",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "role-token-trend",
+      "ref": "evidence-path-gate",
       "type": "intake_change",
       "phase": "validation"
     },
-    "strategy": "hybrid",
+    "strategy": "tdd",
     "worktree": {
-      "recommendation": "optional",
+      "recommendation": "not_needed",
       "user_decision": "inline"
     },
     "validation_status": "not_run",
     "review_status": "not_run",
     "ticks": [
       {
+        "tick": 34,
+        "role": "Code Review",
+        "scope": "evidence-path-gate",
+        "duration_seconds": 569,
+        "harness_version": "2.1.220 (Claude Code)"
+      },
+      {
+        "tick": 33,
+        "role": "Validation",
+        "scope": "evidence-path-gate",
+        "duration_seconds": 826,
+        "harness_version": "2.1.220 (Claude Code)"
+      },
+      {
+        "tick": 32,
+        "role": "TDD Implementation",
+        "scope": "evidence-path-gate",
+        "duration_seconds": 1375,
+        "harness_version": "2.1.220 (Claude Code)"
+      },
+      {
+        "tick": 31,
+        "role": "Planning",
+        "scope": "evidence-path-gate",
+        "duration_seconds": 777,
+        "harness_version": "2.1.220 (Claude Code)"
+      },
+      {
         "tick": 30,
         "role": "Code Review",
         "scope": "role-token-trend",
         "duration_seconds": 518,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 29,
-        "role": "Validation",
-        "scope": "role-token-trend",
-        "duration_seconds": 781,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 28,
-        "role": "TDD Implementation",
-        "scope": "role-token-trend",
-        "duration_seconds": 0,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 27,
-        "role": "Planning",
-        "scope": "role-token-trend",
-        "duration_seconds": 598,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 26,
-        "role": "Remediation",
-        "scope": "scryer-mcp-and-shallow",
-        "duration_seconds": 429,
         "harness_version": "2.1.220 (Claude Code)"
       }
     ]
@@ -86,11 +86,24 @@
       "status": "done",
       "path": "docs/issues/CHANGE-0130-role-token-trend.md",
       "closed_on": "2026-08-11",
-      "agent_minutes": 32,
+      "agent_minutes": 67,
       "token_total": 618627,
       "spec": "docs/specs/SPEC-0117-spec-role-token-trend.md",
       "validation": null,
       "review": "docs/ai/reviews/review-dual-verdict-role-token-trend-20260811T211331Z.md"
+    },
+    {
+      "ref": "evidence-path-gate",
+      "title": "Change — Close-time evidence-path gate: cited evidence must resolve from the main tree",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0131-evidence-path-gate.md",
+      "closed_on": "2026-08-11",
+      "agent_minutes": 59,
+      "token_total": 647363,
+      "spec": "docs/specs/SPEC-0118-spec-evidence-path-gate.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260811T230913Z-CHANGE-0131-evidence-path-gate.md"
     },
     {
       "ref": "scryer-mcp-and-shallow",
@@ -2368,11 +2381,24 @@
           "status": "done",
           "path": "docs/issues/CHANGE-0130-role-token-trend.md",
           "closed_on": "2026-08-11",
-          "agent_minutes": 32,
+          "agent_minutes": 67,
           "token_total": 618627,
           "spec": "docs/specs/SPEC-0117-spec-role-token-trend.md",
           "validation": null,
           "review": "docs/ai/reviews/review-dual-verdict-role-token-trend-20260811T211331Z.md"
+        },
+        {
+          "ref": "evidence-path-gate",
+          "title": "Change — Close-time evidence-path gate: cited evidence must resolve from the main tree",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0131-evidence-path-gate.md",
+          "closed_on": "2026-08-11",
+          "agent_minutes": 59,
+          "token_total": 647363,
+          "spec": "docs/specs/SPEC-0118-spec-evidence-path-gate.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260811T230913Z-CHANGE-0131-evidence-path-gate.md"
         },
         {
           "ref": "scryer-mcp-and-shallow",

@@ -2,13 +2,15 @@
 id: spec-evidence-path-gate
 type: spec
 number: 118
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0131-evidence-path-gate.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 245
+  commits:
+    - 2ecb9163779205f5afd5031c1439d73d65ad749a
 ---
 
 # Spec — Close-time evidence-path gate: cited evidence must resolve from the main tree

@@ -2,9 +2,14 @@
 id: evidence-path-gate
 number: 131
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
+links:
+  commits:
+    - 2ecb9163779205f5afd5031c1439d73d65ad749a
+  pr:
+    - 245
 ---
 
 # Change — Close-time evidence-path gate: cited evidence must resolve from the main tree
