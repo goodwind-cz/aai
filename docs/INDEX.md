@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-11T20:08:10.554Z
+Generated: 2026-08-11T20:08:50.611Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -338,9 +338,11 @@ _None._
 | SPEC-0116 | specs | docs/specs/SPEC-0116-spec-scryer-mcp-and-shallow.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0130 | issues | docs/issues/CHANGE-0130-role-token-trend.md |
 
 ## Deferred (whole-doc) (0)
 
