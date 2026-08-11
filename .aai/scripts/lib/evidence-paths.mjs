@@ -52,9 +52,12 @@ function stripEdgePunct(tok) {
 }
 
 // isExistingRootDir(root, segment) -> true when `segment` names an existing
-// DIRECTORY directly under `root` (rule 6). Memoized per (root, segment) —
-// D2's "the root-directory probe is memoized per call site so a 9-row table
-// costs a handful of statSync calls, not one per token."
+// DIRECTORY directly under `root` (rule 6). This is a MODULE-LEVEL cache
+// keyed on the (root, segment) pair — not "memoized per call site" (every
+// call site sharing this module shares the same cache) — D2's "the
+// root-directory probe is memoized per call site so a 9-row table costs a
+// handful of statSync calls, not one per token" describes the effect (one
+// statSync per distinct segment, not per token), not the cache's scope.
 const ROOT_DIR_CACHE = new Map();
 function isExistingRootDir(root, segment) {
   const key = `${root}\u0000${segment}`;

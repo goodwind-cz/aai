@@ -2007,6 +2007,88 @@ test_043_evidence_gate_dry_run_noop() {
   log_pass "--dry-run reports the evidence-path verdict, never refuses/writes (Spec-AC-08)"
 }
 
+# TEST-046 (PR #245 Codex P1 / CHANGE-0127 regression) — the evidence-path
+# gate must resolve cited paths against the MAIN checkout, never against
+# process.cwd(), because SKILL_PR step 5c runs close-work-item FROM a linked
+# git worktree. Resolving against cwd there lets worktree-stranded evidence
+# resolve "fine" and silently defeats the gate's whole purpose. Two docs in
+# ONE fixture, closed from ONE linked worktree: doc A's evidence exists ONLY
+# in the worktree (must WARN — absent from the main tree); doc B's evidence
+# (the control) exists ONLY in the main tree, created AFTER the worktree
+# exists so it cannot leak into it (must NOT warn — present in the main
+# tree). A third pass checks the dry-run JSON's evidencePathGate carries a
+# resolutionRoot naming the main tree, not the worktree.
+test_046_evidence_gate_worktree_resolves_against_main_tree() {
+  log_info "Test: evidence-path gate resolves cited paths against the MAIN checkout, not a linked worktree's cwd (PR #245 Codex P1 / CHANGE-0127)..."
+  local dir; dir=$(new_fixture_repo "t046")
+
+  # Doc A: evidence path that will exist ONLY inside the worktree.
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t046a.md" "t046a-change-slug" "draft"
+  write_spec_doc "$dir/docs/specs/SPEC-0001-t046a.md" "t046a-spec-slug" "implementing" "done" "docs/ai/tdd/red-t046a-worktree-only.log"
+
+  # Doc B (control): evidence path that will exist ONLY in the main tree.
+  write_change_doc "$dir/docs/issues/CHANGE-0002-t046b.md" "t046b-change-slug" "draft"
+  write_spec_doc "$dir/docs/specs/SPEC-0002-t046b.md" "t046b-spec-slug" "implementing" "done" "docs/ai/tdd/green-t046b-maintree-only.log"
+  commit_fixture_docs "$dir"
+
+  # Spin up a linked worktree off the fixture's HEAD — the exact shape
+  # SKILL_PR step 5c runs a scope close from.
+  local wt="$TEST_DIR/t046-wt"
+  git -C "$dir" worktree add -q -b t046-wt-branch "$wt" HEAD \
+    || log_fail "t046: fixture setup error — could not create a linked worktree"
+
+  # Doc A's evidence: created ONLY inside the worktree.
+  mkdir -p "$wt/docs/ai/tdd"
+  : > "$wt/docs/ai/tdd/red-t046a-worktree-only.log"
+  [[ ! -e "$dir/docs/ai/tdd/red-t046a-worktree-only.log" ]] \
+    || log_fail "t046: fixture setup error — worktree-only evidence leaked into the main tree"
+
+  # Doc B's evidence: created ONLY in the main tree, AFTER the worktree
+  # already exists, so it cannot appear in the worktree's own working copy.
+  mkdir -p "$dir/docs/ai/tdd"
+  : > "$dir/docs/ai/tdd/green-t046b-maintree-only.log"
+  [[ ! -e "$wt/docs/ai/tdd/green-t046b-maintree-only.log" ]] \
+    || log_fail "t046: fixture setup error — main-tree evidence leaked into the worktree"
+
+  # Close doc A FROM the worktree, report-only (no dial line -> default):
+  # its evidence does not exist in the main tree -> must WARN.
+  local outA="$TEST_DIR/t046a.out" errA="$TEST_DIR/t046a.err" codeA
+  codeA=$(run_close "$wt" "$outA" "$errA" --ref t046a-change-slug --spec t046a-spec-slug --pr 46 --commit a046a046)
+  assert_exit "worktree-stranded evidence: report-only proceeds" 0 "$codeA"
+  grep -q -- 'WARNING (evidence-path gate)' "$errA" \
+    || log_fail "t046: worktree-only evidence must WARN when resolved against the main tree (absent there), got: $(cat "$errA")"
+  grep -qF 'docs/ai/tdd/red-t046a-worktree-only.log' "$errA" \
+    || log_fail "t046: WARNING must name the worktree-stranded path"
+
+  # Close doc B FROM the SAME worktree: its evidence exists only in the main
+  # tree -> resolving against the main tree must find it -> must NOT warn.
+  local outB="$TEST_DIR/t046b.out" errB="$TEST_DIR/t046b.err" codeB
+  codeB=$(run_close "$wt" "$outB" "$errB" --ref t046b-change-slug --spec t046b-spec-slug --pr 46 --commit b046b046)
+  assert_exit "main-tree evidence: report-only proceeds" 0 "$codeB"
+  if grep -qi -- 'evidence-path gate' "$errB"; then
+    log_fail "t046: main-tree evidence must resolve cleanly (no gate line) when closed from a worktree, got: $(cat "$errB")"
+  fi
+
+  # --dry-run from the worktree must report a resolutionRoot naming the main
+  # tree (not the worktree) — the resolution root made observable (Codex P1).
+  local dir_real wt_real
+  dir_real=$(cd "$dir" && pwd -P)
+  wt_real=$(cd "$wt" && pwd -P)
+  local outC="$TEST_DIR/t046c.out" errC="$TEST_DIR/t046c.err" codeC
+  codeC=$(run_close "$wt" "$outC" "$errC" --ref t046a-change-slug --spec t046a-spec-slug --pr 46 --commit a046a046 --dry-run)
+  assert_exit "dry-run never refuses" 0 "$codeC"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const root = j.evidencePathGate && j.evidencePathGate.resolutionRoot;
+    if (!root) { console.error("expected evidencePathGate.resolutionRoot in the dry-run JSON"); process.exit(1); }
+    if (root !== process.argv[2]) { console.error("expected resolutionRoot " + process.argv[2] + ", got " + root); process.exit(1); }
+    if (root === process.argv[3]) { console.error("resolutionRoot must NOT be the worktree cwd"); process.exit(1); }
+  ' "$outC" "$dir_real" "$wt_real" \
+    || log_fail "t046: dry-run resolutionRoot must name the main checkout, not the worktree cwd"
+
+  log_pass "Evidence-path gate resolves against the main checkout from a linked worktree: worktree-only evidence warns, main-tree evidence resolves clean, resolutionRoot observable (PR #245 Codex P1 / CHANGE-0127)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -2061,6 +2143,7 @@ main() {
   test_041_evidence_gate_existence_not_tracking
   test_042_evidence_gate_prose_never_refuses
   test_043_evidence_gate_dry_run_noop
+  test_046_evidence_gate_worktree_resolves_against_main_tree
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

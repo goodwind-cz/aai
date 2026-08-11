@@ -81,10 +81,13 @@
 //      --dry-run never returns 4 (verdict reported informationally in its JSON).
 //   5  evidence-path gate REFUSED (CHANGE-0131 / spec-evidence-path-gate): a
 //      closing doc's Acceptance Criteria Status Evidence cell cites a
-//      path-shaped token that does not resolve from the repo root the close
-//      runs in, under an `evidence_path_gate: enforce` dial. Evaluated BEFORE
-//      any write (never a rollback path) — nothing written. --dry-run never
-//      returns 5 (verdict reported informationally in its JSON).
+//      path-shaped token that does not resolve from the MAIN checkout root
+//      (PR #245 Codex P1: resolved via `git worktree list --porcelain`, NOT
+//      process.cwd() — a close run from a linked worktree must not let
+//      worktree-stranded evidence resolve "fine"), under an
+//      `evidence_path_gate: enforce` dial. Evaluated BEFORE any write (never
+//      a rollback path) — nothing written. --dry-run never returns 5
+//      (verdict reported informationally in its JSON).
 //
 // Node stdlib only (docs/TECHNOLOGY.md). Reuses append-event.mjs verbatim
 // (no forked event schema) and the shared docs-audit engine (no re-implemented
@@ -784,25 +787,65 @@ function evaluateUsageCaptureGate(ref) {
 // Scans every doc `close-work-item.mjs` already resolved (D5 — the primary
 // --ref doc AND, when given, --spec), never a repo-wide sweep.
 
-// evaluateEvidencePathGate(docs) -> { severity, dial?, unresolved, reason? }.
-// severity is 'none' (nothing unresolvable across any doc), 'warn'
-// (report-only dial), or 'refuse' (enforce dial). Read-only — the caller
-// decides whether/when to act (D8: the refuse branch must run BEFORE any
-// write; --dry-run must never act on it). `unresolved` is
-// [{ doc, acId, token }] across every scanned doc, in scan order.
-function evaluateEvidencePathGate(docs) {
+// resolveEvidenceRoot(root) -> the MAIN checkout's absolute path (PR #245
+// Codex P1 / CHANGE-0127 regression). SKILL_PR step 5c runs close-work-item
+// FROM a linked git worktree, so resolving citations against ROOT =
+// process.cwd() (the worktree itself) lets evidence stranded ONLY in that
+// worktree resolve "fine" — defeating the gate's exact purpose. Found the
+// same way reconcile-telemetry.mjs's listWorktrees does: `git worktree list
+// --porcelain` always lists the main checkout FIRST, linked worktrees after.
+// Falls back to `root` unchanged (current behavior, byte-identical) when git
+// is unavailable, the command errors, or the porcelain output is
+// unparseable — and, with no special-casing needed, when the current tree
+// already IS the main checkout: git's first-listed entry then IS `root`
+// (mod realpath), so a plain clone resolves to the exact same path either
+// way. No new dependency, no network (D10 discipline, same as the rest of
+// this gate).
+function resolveEvidenceRoot(root) {
+  let out;
+  try {
+    out = execFileSync('git', ['worktree', 'list', '--porcelain'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  } catch {
+    return root;
+  }
+  const first = out.split('\n').find((l) => l.startsWith('worktree '));
+  const mainPath = first ? first.slice('worktree '.length).trim() : '';
+  if (!mainPath) return root;
+  try {
+    return fs.realpathSync(mainPath);
+  } catch {
+    return path.resolve(mainPath);
+  }
+}
+
+// evaluateEvidencePathGate(docs, evidenceRoot) -> { severity, dial?,
+// unresolved, reason?, resolutionRoot }. severity is 'none' (nothing
+// unresolvable across any doc), 'warn' (report-only dial), or 'refuse'
+// (enforce dial). Read-only — the caller decides whether/when to act (D8:
+// the refuse branch must run BEFORE any write; --dry-run must never act on
+// it). `unresolved` is [{ doc, acId, token }] across every scanned doc, in
+// scan order. `evidenceRoot` (PR #245 Codex P1) is the MAIN checkout root
+// resolved by resolveEvidenceRoot — citations resolve against it, never
+// against cwd, so worktree-stranded evidence cannot silently pass; it is
+// echoed back as `resolutionRoot` so the behavior stays observable (dry-run
+// JSON, docs-audit-relevant tooling).
+function evaluateEvidencePathGate(docs, evidenceRoot) {
   const unresolved = [];
   for (const d of docs) {
-    for (const { acId, token } of unresolvedCitations(d.content, ROOT)) {
+    for (const { acId, token } of unresolvedCitations(d.content, evidenceRoot)) {
       unresolved.push({ doc: d.rel, acId, token });
     }
   }
-  if (unresolved.length === 0) return { severity: 'none', unresolved };
+  if (unresolved.length === 0) return { severity: 'none', unresolved, resolutionRoot: evidenceRoot };
   const dial = readGuardConfig(path.join(ROOT, 'docs/ai')).evidence_path_gate;
   const reason = unresolved
-    .map((u) => `${u.doc} ${u.acId ?? '(unknown AC)'} cites "${u.token}" which does not resolve from the repo root`)
+    .map((u) => `${u.doc} ${u.acId ?? '(unknown AC)'} cites "${u.token}" which does not resolve from the main checkout root`)
     .join('; ');
-  return { severity: dial === 'enforce' ? 'refuse' : 'warn', dial, unresolved, reason };
+  return { severity: dial === 'enforce' ? 'refuse' : 'warn', dial, unresolved, reason, resolutionRoot: evidenceRoot };
 }
 
 // Best-effort remediation-friction capture. Fires ONLY on a real close (called
@@ -1012,7 +1055,8 @@ function main() {
   // that could write (including the idempotency short-circuit's INDEX regen
   // below, D8); --dry-run reports the verdict in its JSON below and never
   // acts on it.
-  const evidenceGate = evaluateEvidencePathGate(resolved);
+  const evidenceRoot = resolveEvidenceRoot(ROOT);
+  const evidenceGate = evaluateEvidencePathGate(resolved, evidenceRoot);
   if (!args.dryRun && evidenceGate.severity === 'refuse') {
     process.stderr.write(`close-work-item: REFUSED (evidence-path gate) — ${evidenceGate.reason}\n`);
     process.exit(5);
