@@ -96,4 +96,4 @@ every work-item close, so it is a continuous overview, not a one-off snapshot.
 - Request: docs/issues/CHANGE-0098-factory-performance-report.md
 - Spec: docs/specs/SPEC-0108-spec-factory-performance-report.md
 - Request: docs/issues/CHANGE-0130-role-token-trend.md
-- Spec: docs/specs/SPEC-DRAFT-spec-role-token-trend.md
+- Spec: docs/specs/SPEC-0117-spec-role-token-trend.md

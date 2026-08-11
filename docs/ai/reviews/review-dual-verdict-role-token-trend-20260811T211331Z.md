@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff main...HEAD (feat/role-token-trend, 789698a..c68a9ae, 12 files)
-  spec: docs/specs/SPEC-DRAFT-spec-role-token-trend.md (SPEC-FROZEN, ceremony_level 1)
+  spec: docs/specs/SPEC-0117-spec-role-token-trend.md (SPEC-FROZEN, ceremony_level 1)
   spec_compliance:
     verdict: pass
     ac_walk:

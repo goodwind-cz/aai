@@ -1,7 +1,7 @@
 ---
 id: spec-role-token-trend
 type: spec
-number: null
+number: 117
 status: implementing
 ceremony_level: 1
 links:
@@ -158,7 +158,7 @@ first-class output, not a footnote.
   tests/fixtures/factory-report/backcompat-sparse-data.json,
   tests/fixtures/factory-report/backcompat-sparse.html,
   docs/product/factory-performance-report.md,
-  docs/specs/SPEC-DRAFT-spec-role-token-trend.md,
+  docs/specs/SPEC-0117-spec-role-token-trend.md,
   docs/issues/CHANGE-0130-role-token-trend.md, CHANGELOG.md
 
 ## Acceptance Criteria Mapping
@@ -433,7 +433,7 @@ Commands:
 - `bash tests/skills/test-aai-layer-profiles.sh`
 - `node .aai/scripts/generate-factory-report.mjs --data-only` (real ledger, exit 0)
 - `node .aai/scripts/docs-audit.mjs --check`
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-role-token-trend.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0117-spec-role-token-trend.md`
 - `git diff --name-only main...HEAD`
 
 Evidence artifacts: suite stdout with per-TEST pass lines, the RED transcripts

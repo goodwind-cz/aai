@@ -2,7 +2,7 @@
 #
 # Test: aai-factory-report
 # (docs/specs/SPEC-DRAFT-spec-factory-performance-report.md, TEST-001..014;
-#  docs/specs/SPEC-DRAFT-spec-role-token-trend.md, TEST-022..027)
+#  docs/specs/SPEC-0117-spec-role-token-trend.md, TEST-022..027)
 #
 # Verifies .aai/scripts/generate-factory-report.mjs — the deterministic
 # Factory Performance Report generator over docs/ai/METRICS.jsonl +
