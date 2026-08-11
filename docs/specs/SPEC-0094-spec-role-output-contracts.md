@@ -224,7 +224,7 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
 | Spec-AC-02 | Deterministic, LLM-free, zero-dependency                          | done | docs/ai/tdd/green-role-output-contracts-full-suite-20260727T094804Z.log (TEST-005,006) | — | — |
 | Spec-AC-03 | Duration +/-1s tolerance; 300s-future + malformed timestamp rejected | done | docs/ai/tdd/green-role-output-contracts-full-suite-20260727T094804Z.log (TEST-007,008,013) | — | — |
 | Spec-AC-04 | CONTRACT EXPECT pointer (<=60 lines); PROTOCOL step-1 wiring; PROFILES core | done | docs/ai/tdd/green-role-output-contracts-full-suite-20260727T094804Z.log (TEST-010); tests/skills/test-aai-layer-profiles.sh (TEST-011) | — | — |
-| Spec-AC-05 | No regression: new suite + docs-lock + hygiene-pack + layer-profiles green | done     | Local legs green (TEST-012); TEST-015 satisfied: PR #168 merged 2026-07-27 with green full-framework CI, plus 39/40 subsequent successful runs on main through 2026-08-11 with the role-output suite in every run | —          | Closed 2026-08-11 (Review-By 2026-08-10): the PR-CI leg ran green at merge and repeatedly since. |
+| Spec-AC-05 | No regression: new suite + docs-lock + hygiene-pack + layer-profiles green | done     | Local legs green (TEST-012); TEST-015 satisfied: PR #168 merged 2026-07-27 with green full-framework CI, plus 39/40 subsequent successful runs on main through 2026-08-11 (gh run list --branch main; incl. runs 31294905060, 31274463153, 31263914946, 31256736170) with the role-output suite in every run | —          | Closed 2026-08-11 (Review-By 2026-08-10): the PR-CI leg ran green at merge and repeatedly since. |
 
 Status values: planned / implementing / done / deferred / blocked / rejected
 
@@ -247,7 +247,7 @@ For each Spec-AC, enumerate concrete tests:
 | TEST-012 | Spec-AC-05 | integration | tests/skills/test-aai-docs-lock.sh + tests/skills/test-aai-hygiene-pack.sh | CONTRACT/PROTOCOL pins survive the EXPECT-pointer + step-1 edits        | green |
 | TEST-013 | Spec-AC-03 | integration | tests/skills/test-aai-role-output.sh    | started_utc >300s ahead of --now -> E-FUTURE-STARTED; PROTOCOL still documents 300s (SEAM-2) | green |
 | TEST-014 | Spec-AC-01 | integration | tests/skills/test-aai-role-output.sh    | SEAM-1: canonical subagent_result skeleton extracted from SUBAGENT_CONTRACT.md, filled with valid values, passes the checker | green |
-| TEST-015 | Spec-AC-05 | e2e         | .github/workflows/skill-suite.yml       | Full framework green on PR CI (auto-discovered suite runs)              | pending |
+| TEST-015 | Spec-AC-05 | e2e         | .github/workflows/skill-suite.yml       | Full framework green on PR CI (auto-discovered suite runs)              | green (PR #168 CI at merge; runs 31294905060, 31274463153 et al. on main through 2026-08-11) |
 
 Test status values: pending / red / green
 
