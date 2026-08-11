@@ -607,7 +607,7 @@ function renderHtml(m) {
   const roleConsumptionSparks = rcModel.roles
     .filter((r) => r.runs_marked > 0)
     .map((r) => {
-      const points = rcModel.by_week.map((wk) => ({ week: wk.week, median_tokens: wk.roles.find((x) => x.role === r.role).median_tokens }));
+      const points = rcModel.by_week.map((wk) => ({ week: wk.week, median_tokens: wk.roles.find((x) => x.role === r.role)?.median_tokens ?? null }));
       return `<p class="meta">${esc(r.role)}</p>${barSeries(points, 'median_tokens', (v) => `${v} tokens`)}`;
     })
     .join('');
