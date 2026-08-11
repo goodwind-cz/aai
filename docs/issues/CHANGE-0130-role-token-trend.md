@@ -2,9 +2,14 @@
 id: role-token-trend
 number: 130
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
+links:
+  commits:
+    - 85331c68e7eedd303c1dcc3c61fdbf2adf518ea0
+  pr:
+    - 244
 ---
 
 # Change — Factory report: per-role token trend (layer-2 measurement)

@@ -2,13 +2,15 @@
 id: spec-role-token-trend
 type: spec
 number: 117
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0130-role-token-trend.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 244
+  commits:
+    - 85331c68e7eedd303c1dcc3c61fdbf2adf518ea0
 ---
 
 # Spec — Factory report: per-role token consumption and weekly trend

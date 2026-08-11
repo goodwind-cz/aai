@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-09T10:46:41.448Z",
+  "generatedAt": "2026-08-11T21:18:14.905Z",
   "project": "aai",
   "counts": {
-    "delivered": 174,
+    "delivered": 175,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 25357400
+    "tokens_total": 25976027
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "scryer-mcp-and-shallow",
+    "ref": "role-token-trend",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "scryer-mcp-and-shallow",
+      "ref": "role-token-trend",
       "type": "intake_change",
       "phase": "validation"
     },
@@ -27,38 +27,38 @@
     "review_status": "not_run",
     "ticks": [
       {
+        "tick": 30,
+        "role": "Code Review",
+        "scope": "role-token-trend",
+        "duration_seconds": 518,
+        "harness_version": "2.1.220 (Claude Code)"
+      },
+      {
+        "tick": 29,
+        "role": "Validation",
+        "scope": "role-token-trend",
+        "duration_seconds": 781,
+        "harness_version": "2.1.220 (Claude Code)"
+      },
+      {
+        "tick": 28,
+        "role": "TDD Implementation",
+        "scope": "role-token-trend",
+        "duration_seconds": 0,
+        "harness_version": "2.1.220 (Claude Code)"
+      },
+      {
+        "tick": 27,
+        "role": "Planning",
+        "scope": "role-token-trend",
+        "duration_seconds": 598,
+        "harness_version": "2.1.220 (Claude Code)"
+      },
+      {
         "tick": 26,
         "role": "Remediation",
         "scope": "scryer-mcp-and-shallow",
         "duration_seconds": 429,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 25,
-        "role": "Code Review",
-        "scope": "scryer-mcp-and-shallow",
-        "duration_seconds": 446,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 24,
-        "role": "Validation",
-        "scope": "scryer-mcp-and-shallow",
-        "duration_seconds": 546,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 23,
-        "role": "TDD Implementation",
-        "scope": "scryer-mcp-and-shallow",
-        "duration_seconds": 580,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 22,
-        "role": "Planning",
-        "scope": "scryer-mcp-and-shallow",
-        "duration_seconds": 532,
         "harness_version": "2.1.220 (Claude Code)"
       }
     ]
@@ -79,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "role-token-trend",
+      "title": "Change — Factory report: per-role token trend (layer-2 measurement)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0130-role-token-trend.md",
+      "closed_on": "2026-08-11",
+      "agent_minutes": 32,
+      "token_total": 618627,
+      "spec": "docs/specs/SPEC-0117-spec-role-token-trend.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-dual-verdict-role-token-trend-20260811T211331Z.md"
+    },
     {
       "ref": "scryer-mcp-and-shallow",
       "title": "Change — Scryer template v2: MCP-aware merge sweep + shallow-clone-honest health",
@@ -2348,6 +2361,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "role-token-trend",
+          "title": "Change — Factory report: per-role token trend (layer-2 measurement)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0130-role-token-trend.md",
+          "closed_on": "2026-08-11",
+          "agent_minutes": 32,
+          "token_total": 618627,
+          "spec": "docs/specs/SPEC-0117-spec-role-token-trend.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-dual-verdict-role-token-trend-20260811T211331Z.md"
+        },
         {
           "ref": "scryer-mcp-and-shallow",
           "title": "Change — Scryer template v2: MCP-aware merge sweep + shallow-clone-honest health",

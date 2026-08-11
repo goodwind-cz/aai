@@ -2139,6 +2139,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Factory performance report
+
+Answers "how efficiently is the factory running" in one self-contained page: **what it delivers** (throughput), **how fast** (speed), **at what cost** (tokens), and **at what quality** — each as an overall rollup plus a per-ISO-week trend, computed deterministically from the local ledgers (METRICS.jsonl + EVENTS.jsonl, zero network). The page refreshes itself at every work-item close, so it is a continuous overview, not a one-off snapshot.
+
+[Product doc](product/factory-performance-report.md) · [Spec](specs/SPEC-0108-spec-factory-performance-report.md)
+
 ### Live status dashboard
 
 Answers what the existing three generators (dashboard, factory-report, overview) cannot: **what is running NOW**, **what it has cost TODAY**, and **how much official plan-quota headroom is left** — with zero LLM tokens, zero network calls, node stdlib only. It reads harness session transcripts (Claude Code, Codex, Gemini CLI) through a per-harness parser registry and renders one self-contained page, `docs/ai/live-status.html`, plus its machine-readable twin `docs/ai/live-status-data.json`. It is strictly OPTIONAL: nothing in the ride path (close-work-item, the autonomous loop, CI) ever invokes it, and it is never coupled to ride ceremony.
@@ -2174,12 +2180,6 @@ When a ride hits a decision only you can make, the factory no longer has to sit 
 At the end of every intake, AAI now **asks you how to implement** — with a recommendation — instead of silently defaulting to the full TDD loop:
 
 [Product doc](product/implementation-mode-choice.md) · [Spec](specs/SPEC-0109-spec-implementation-mode-choice.md)
-
-### Factory performance report
-
-Answers "how efficiently is the factory running" in one self-contained page: **what it delivers** (throughput), **how fast** (speed), **at what cost** (tokens), and **at what quality** — each as an overall rollup plus a per-ISO-week trend, computed deterministically from the local ledgers (METRICS.jsonl + EVENTS.jsonl, zero network). The page refreshes itself at every work-item close, so it is a continuous overview, not a one-off snapshot.
-
-[Product doc](product/factory-performance-report.md) · [Spec](specs/SPEC-0108-spec-factory-performance-report.md)
 
 ### Staying current with AAI releases
 
