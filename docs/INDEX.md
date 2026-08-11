@@ -1,11 +1,14 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-09T12:47:59.079Z
+Generated: 2026-08-11T05:09:47.035Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
-## Overdue reviews (0)
+## Overdue reviews (2)
 
-_None._
+| Doc | AC | Status | Was Due | Notes |
+|---|---|---|---|---|
+| SPEC-0090 | Spec-AC-07 | deferred | 2026-08-10 | Local half (targeted suites) is green; PR CI full framework is the authoritative gate and has not run yet (not yet pushed/PR'd) — defer to done once CI is green on the PR. |
+| SPEC-0094 | Spec-AC-05 | deferred | 2026-08-10 | PR CI leg (TEST-015) verifies on push; local legs all green |
 
 ## Active (implementing) (1)
 
@@ -375,4 +378,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-09 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-11 — counts above use this date for overdue checks.
