@@ -75,9 +75,10 @@ every work-item close, so it is a continuous overview, not a one-off snapshot.
 - Sparse-era caveat: usage-marker coverage across the ledger is complete only
   since **2026-08-02**, when the close-time `usage_capture_gate` went to
   `enforce`. Earlier weeks carry a real but thin `runs_marked` denominator —
-  it sits next to every median and total, in both the JSON and the rendered
-  tables, so the reader always sees what a figure is (and is not) measured
-  over.
+  carried in the JSON next to every median and total, and rendered in the
+  per-role summary table; the weekly trend cells and sparklines do not
+  repeat it, so for a thin week check `runs_marked` in the summary table or
+  the JSON before reading a curve as growth.
 
 ## Limits and non-goals
 
@@ -86,8 +87,9 @@ every work-item close, so it is a continuous overview, not a one-off snapshot.
 - Quality metrics come only from the flush-recorded reliability block; prose
   run notes are never parsed for load-bearing numbers.
 - Role-consumption medians over one or two marked runs (especially in the
-  sparse era) are arithmetic, not statistics; `runs_marked` is always shown
-  alongside so the denominator is never hidden.
+  sparse era) are arithmetic, not statistics; `runs_marked` is the
+  denominator to consult (summary table or JSON) before trusting any
+  per-role figure.
 
 ## Links
 
