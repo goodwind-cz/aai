@@ -45,7 +45,11 @@ product_doc_gate: report-only
 # sentinel note `usage_capture=none`, which counts as captured and passes even
 # under enforce — enforce must not punish an honest gap. Meta-roles
 # (Orchestration, Metrics Flush) and any unrecognized role are never gated.
-usage_capture_gate: report-only
+usage_capture_gate: enforce
+# Flipped report-only -> enforce 2026-08-11 (pre-registered KPI gate, CHANGE-0105
+# rollout): since the gate landed (2026-08-02) coverage is 26/26 runs = 100%
+# usage markers AND 100% prompt_hash across 3 rides (pre-gate baseline: 46.2%).
+# The usage_capture=none sentinel remains the honest escape hatch.
 # RFC-0009 / spec-scale-adaptive-ceremony — L3 protected surfaces (project-owned
 # config; the POLICY and these canonical defaults live in
 # .aai/workflow/WORKFLOW.md "Ceremony levels"). A spec whose scope touches any
