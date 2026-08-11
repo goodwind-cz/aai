@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Test: aai-factory-report
-# (docs/specs/SPEC-DRAFT-spec-factory-performance-report.md, TEST-001..014)
+# (docs/specs/SPEC-DRAFT-spec-factory-performance-report.md, TEST-001..014;
+#  docs/specs/SPEC-DRAFT-spec-role-token-trend.md, TEST-022..027)
 #
 # Verifies .aai/scripts/generate-factory-report.mjs — the deterministic
 # Factory Performance Report generator over docs/ai/METRICS.jsonl +
@@ -9,6 +10,8 @@
 # generator SEAM tests share ONE fixture with metrics-report.mjs (TEST-011)
 # and generate-overview.mjs (TEST-012); TEST-013 drives the REAL
 # close-work-item.mjs with a rigged generator failure (negative control).
+# TEST-022..027 (CHANGE-0130) cover cost.role_consumption — the additive
+# per-role token consumption + weekly trend block.
 #
 # ALL fixtures are scratch temp-dir repos — the real docs/ tree is NEVER
 # touched. bash 3.2 compatible (no ${var^^}, no declare -A).
@@ -125,6 +128,89 @@ node_get() {  # node_get <json-file> <expr-using-m>
     const fs=require("fs"); const m=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
     const expr=process.argv[2]; process.stdout.write(String(eval(expr)));
   ' "$1" "$2"
+}
+
+# run_report_real_ledger <scratch-dir> -> OUT/EC set; reads the REPO's real
+# docs/ai/METRICS.jsonl + EVENTS.jsonl READ-ONLY (never writes them), outputs
+# land only under <scratch-dir>/docs/ai (CHANGE-0130 TEST-023 real-ledger arm).
+run_report_real_ledger() {
+  local d="$1"
+  mkdir -p "$d/docs/ai"
+  OUT="$d/report-run.log"; EC=0
+  ( cd "$d" && node "$REPORT" --data-only --output "$d/docs/ai/factory-report.html" \
+      --metrics "$PROJECT_ROOT/docs/ai/METRICS.jsonl" --events "$PROJECT_ROOT/docs/ai/EVENTS.jsonl" \
+      --releases "$PROJECT_ROOT/docs/releases" > "$OUT" 2>&1 ) || EC=$?
+}
+
+# assert_role_consumption_identities <data-json> <label> — SEAM S2 (Spec-AC-02):
+# re-sums cost.role_consumption and compares against capture_coverage,
+# cost.tokens_total and cost.by_role on the SAME run; never a mock.
+assert_role_consumption_identities() {
+  local dj="$1" label="$2" result rc
+  result="$(node -e '
+    const fs = require("fs");
+    const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const rc = m.cost.role_consumption;
+    const errors = [];
+    const sumRunsTotal = rc.roles.reduce((a, r) => a + r.runs_total, 0);
+    const sumRunsMarked = rc.roles.reduce((a, r) => a + r.runs_marked, 0);
+    if (sumRunsTotal !== m.cost.capture_coverage.total_runs) errors.push(`runs_total sum ${sumRunsTotal} != capture_coverage.total_runs ${m.cost.capture_coverage.total_runs}`);
+    if (sumRunsMarked !== m.cost.capture_coverage.runs_with_marker) errors.push(`runs_marked sum ${sumRunsMarked} != capture_coverage.runs_with_marker ${m.cost.capture_coverage.runs_with_marker}`);
+    const sumTokens = rc.roles.reduce((a, r) => a + (r.tokens_total === null ? 0 : r.tokens_total), 0);
+    if (m.cost.tokens_total !== null && sumTokens !== m.cost.tokens_total) errors.push(`tokens_total sum ${sumTokens} != cost.tokens_total ${m.cost.tokens_total}`);
+    if (m.cost.tokens_total === null && sumTokens !== 0) errors.push(`cost.tokens_total is null but role tokens sum to ${sumTokens}`);
+    for (const r of rc.roles) {
+      const byRole = m.cost.by_role.find((x) => x.role === r.role);
+      const expected = byRole ? byRole.tokens : null;
+      if (r.tokens_total !== expected) errors.push(`role ${r.role} tokens_total ${r.tokens_total} != cost.by_role ${expected}`);
+      const expectedShare = (r.tokens_total === null || !m.cost.tokens_total) ? null : Math.round((100 * r.tokens_total) / m.cost.tokens_total);
+      if (r.share_pct !== expectedShare) errors.push(`role ${r.role} share_pct ${r.share_pct} != expected ${expectedShare}`);
+    }
+    if (errors.length) { console.log("FAIL:" + errors.join(" | ")); process.exit(1); }
+    console.log("OK");
+  ' "$dj")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == "OK" ]] || log_fail "role_consumption identities violated on $label: $result"
+}
+
+# assert_role_consumption_html <data-json> <html> — SEAM S3 (Spec-AC-04): the
+# rendered role-consumption section carries the JSON values field-for-field,
+# n/a for every null cell, and exactly one spark per marked-run role.
+assert_role_consumption_html() {
+  local dj="$1" html="$2" result rc
+  result="$(node -e '
+    const fs = require("fs");
+    const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const html = fs.readFileSync(process.argv[2], "utf8");
+    const rc = m.cost.role_consumption;
+    const errors = [];
+    const startTag = "<section id=\"role-consumption\">";
+    const start = html.indexOf(startTag);
+    if (start === -1) { console.log("FAIL:no <section id=\"role-consumption\"> found"); process.exit(1); }
+    const end = html.indexOf("</section>", start);
+    if (end === -1) { console.log("FAIL:no closing </section> found for role-consumption"); process.exit(1); }
+    const section = html.slice(start, end + "</section>".length);
+    if (!/<h2>Role consumption<\/h2>/.test(section)) errors.push("missing <h2>Role consumption</h2>");
+    for (const r of rc.roles) {
+      if (r.tokens_total !== null && !section.includes(String(r.tokens_total))) errors.push(`missing tokens_total ${r.tokens_total} for role ${r.role}`);
+      if (r.median_tokens_per_run !== null && !section.includes(String(r.median_tokens_per_run))) errors.push(`missing median ${r.median_tokens_per_run} for role ${r.role}`);
+      if (r.share_pct !== null && !section.includes(`${r.share_pct}%`)) errors.push(`missing share ${r.share_pct}% for role ${r.role}`);
+    }
+    let expectedNa = 0;
+    for (const r of rc.roles) {
+      if (r.tokens_total === null) expectedNa += 1;
+      if (r.median_tokens_per_run === null) expectedNa += 1;
+      if (r.share_pct === null) expectedNa += 1;
+    }
+    for (const wk of rc.by_week) for (const r of wk.roles) if (r.median_tokens === null) expectedNa += 1;
+    const actualNa = (section.match(/<td>n\/a<\/td>/g) || []).length;
+    if (actualNa !== expectedNa) errors.push(`n/a cell count ${actualNa} != expected ${expectedNa}`);
+    const expectedSparks = rc.roles.filter((r) => r.runs_marked > 0).length;
+    const actualSparks = (section.match(/class="spark"/g) || []).length;
+    if (actualSparks !== expectedSparks) errors.push(`spark svg count ${actualSparks} != expected ${expectedSparks} (roles with runs_marked>0)`);
+    if (errors.length) { console.log("FAIL:" + errors.join(" | ")); process.exit(1); }
+    console.log("OK");
+  ' "$dj" "$html")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == "OK" ]] || log_fail "role-consumption html assertion failed: $result"
 }
 
 # --- close-work-item fixture helpers (TEST-013 negative control) --------------
@@ -598,8 +684,235 @@ JSONL
   log_pass "Remediation table sorts numeric ascending, n/a last (finding 6, TEST-019)"
 }
 
+# ============================ TEST-022 (Spec-AC-01, CHANGE-0130) =============
+test_022_role_consumption_buckets() {
+  log_info "Test: cost.role_consumption.roles — six canonical roles + Other, three partitioning buckets, marker beats sentinel, never-marked role all-null (TEST-022)..."
+  local d; d="$(mk_repo t022)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-06","ref_id":"A","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=100"},{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=200"},{"role":"Planning","duration_seconds":10,"note":"usage_capture=none"},{"role":"Planning","duration_seconds":10,"note":"no marker here"},{"role":"Validation","duration_seconds":10,"note":"usage_total_tokens=50 usage_capture=none"},{"role":"QA Ops","duration_seconds":10,"note":"no marker"}],"verdict":"PASS"}
+JSONL
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  local result rc
+  result="$(node -e '
+    const fs = require("fs");
+    const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const rc = m.cost.role_consumption;
+    const errors = [];
+    const order = rc.roles.map((r) => r.role);
+    const expectedOrder = ["TDD Implementation","Implementation","Code Review","Remediation","Validation","Planning","Other"];
+    if (JSON.stringify(order) !== JSON.stringify(expectedOrder)) errors.push(`role order ${JSON.stringify(order)} != ${JSON.stringify(expectedOrder)}`);
+    for (const r of rc.roles) {
+      if (r.runs_marked + r.runs_sentinel + r.runs_unmarked !== r.runs_total) errors.push(`role ${r.role} buckets ${r.runs_marked}+${r.runs_sentinel}+${r.runs_unmarked} != runs_total ${r.runs_total}`);
+    }
+    const planning = rc.roles.find((r) => r.role === "Planning");
+    if (!planning || planning.runs_total !== 4 || planning.runs_marked !== 2 || planning.runs_sentinel !== 1 || planning.runs_unmarked !== 1) errors.push(`Planning buckets wrong: ${JSON.stringify(planning)}`);
+    if (!planning || planning.tokens_total !== 300 || planning.median_tokens_per_run !== 150 || planning.share_pct !== 86) errors.push(`Planning measures wrong: ${JSON.stringify(planning)}`);
+    const validation = rc.roles.find((r) => r.role === "Validation");
+    if (!validation || validation.runs_total !== 1 || validation.runs_marked !== 1 || validation.runs_sentinel !== 0 || validation.runs_unmarked !== 0) errors.push(`Validation both-markers run must count as MARKED (marker beats sentinel, D1): ${JSON.stringify(validation)}`);
+    if (!validation || validation.tokens_total !== 50 || validation.median_tokens_per_run !== 50 || validation.share_pct !== 14) errors.push(`Validation measures wrong: ${JSON.stringify(validation)}`);
+    const codeReview = rc.roles.find((r) => r.role === "Code Review");
+    if (!codeReview || codeReview.runs_total !== 0 || codeReview.tokens_total !== null || codeReview.median_tokens_per_run !== null || codeReview.share_pct !== null) errors.push(`never-ran role Code Review must be all-null, never zero: ${JSON.stringify(codeReview)}`);
+    const other = rc.roles.find((r) => r.role === "Other");
+    if (!other || other.runs_total !== 1 || other.runs_unmarked !== 1 || other.tokens_total !== null) errors.push(`Other (non-canonical QA Ops) wrong: ${JSON.stringify(other)}`);
+    if (errors.length) { console.log("FAIL:" + errors.join(" | ")); process.exit(1); }
+    console.log("OK");
+  ' "$DJ")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == "OK" ]] || log_fail "role_consumption buckets wrong: $result"
+  log_pass "Six canonical roles + Other, buckets partition, marker beats sentinel, never-marked all-null (TEST-022)"
+}
+
+# ============================ TEST-023 (Spec-AC-02, CHANGE-0130) =============
+test_023_role_consumption_seam_invariants() {
+  log_info "Test: SEAM S2 — role_consumption re-summed matches capture_coverage, cost.tokens_total, cost.by_role and share_pct, on a fixture AND on the real docs/ai ledgers (TEST-023)..."
+  local d; d="$(mk_repo t023)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-06","ref_id":"A","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=1000"},{"role":"Implementation","duration_seconds":10,"note":"usage_total_tokens=500"},{"role":"Validation","duration_seconds":10,"note":"no marker"},{"role":"Code Review","duration_seconds":10,"note":"usage_capture=none"}],"verdict":"PASS"}
+{"date_utc":"2026-07-13","ref_id":"B","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=250"}],"verdict":"PASS"}
+JSONL
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  assert_role_consumption_identities "$DJ" "fixture t023"
+  log_pass "identities hold on the fixture (TEST-023 fixture arm)"
+
+  local rd; rd="$TEST_DIR/t023-real"
+  run_report_real_ledger "$rd"
+  [[ "$EC" == 0 ]] || log_fail "real-ledger run must exit 0: $(cat "$OUT")"
+  local RDJ="$rd/docs/ai/factory-report-data.json"
+  [[ -f "$RDJ" ]] || log_fail "real-ledger data.json not written"
+  assert_role_consumption_identities "$RDJ" "REAL docs/ai ledger"
+  log_pass "SEAM S2 identities hold on a fixture AND the real docs/ai ledgers (TEST-023)"
+}
+
+# ============================ TEST-024 (Spec-AC-03, CHANGE-0130) =============
+test_024_role_consumption_weekly_trend() {
+  log_info "Test: cost.role_consumption.by_week weeks equal m.trend weeks exactly; per-role weekly medians incl. even-count rounding; unmarked role-week null; delivery-only week all-null (TEST-024)..."
+  local d; d="$(mk_repo t024)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-06-29","ref_id":"R1","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=100"},{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=300"},{"role":"Validation","duration_seconds":10,"note":"usage_total_tokens=50"}],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"R2","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=900"}],"verdict":"PASS"}
+JSONL
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" "R3" "2026-07-20T00:00:00Z"  # delivery-only week, no ride at all
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  local result rc
+  result="$(node -e '
+    const fs = require("fs");
+    const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const rc = m.cost.role_consumption;
+    const errors = [];
+    const weeks = rc.by_week.map((w) => w.week);
+    const trendWeeks = m.trend.map((t) => t.week);
+    if (JSON.stringify(weeks) !== JSON.stringify(trendWeeks)) errors.push(`by_week weeks ${JSON.stringify(weeks)} != m.trend weeks ${JSON.stringify(trendWeeks)}`);
+    if (JSON.stringify(weeks) !== JSON.stringify(["2026-W27","2026-W28","2026-W30"])) errors.push(`unexpected week set ${JSON.stringify(weeks)}`);
+    const byWeek = {};
+    for (const w of rc.by_week) byWeek[w.week] = w;
+    const w27plan = byWeek["2026-W27"].roles.find((r) => r.role === "Planning");
+    if (!w27plan || w27plan.runs_marked !== 2 || w27plan.median_tokens !== 200) errors.push(`W27 Planning wrong (even-count median pin): ${JSON.stringify(w27plan)}`);
+    const w27val = byWeek["2026-W27"].roles.find((r) => r.role === "Validation");
+    if (!w27val || w27val.runs_marked !== 1 || w27val.median_tokens !== 50) errors.push(`W27 Validation wrong: ${JSON.stringify(w27val)}`);
+    const w28plan = byWeek["2026-W28"].roles.find((r) => r.role === "Planning");
+    if (!w28plan || w28plan.runs_marked !== 1 || w28plan.median_tokens !== 900) errors.push(`W28 Planning wrong: ${JSON.stringify(w28plan)}`);
+    const w28val = byWeek["2026-W28"].roles.find((r) => r.role === "Validation");
+    if (!w28val || w28val.runs_marked !== 0 || w28val.median_tokens !== null) errors.push(`W28 Validation must be null/zero (never marked that week): ${JSON.stringify(w28val)}`);
+    for (const wk of ["2026-W27","2026-W28","2026-W30"]) {
+      const cr = byWeek[wk].roles.find((r) => r.role === "Code Review");
+      if (!cr || cr.runs_marked !== 0 || cr.median_tokens !== null) errors.push(`${wk} Code Review (never marked anywhere) must be null/zero: ${JSON.stringify(cr)}`);
+    }
+    const w30 = byWeek["2026-W30"];
+    if (!w30.roles.every((r) => r.runs_marked === 0 && r.median_tokens === null)) errors.push(`delivery-only week 2026-W30 must be all-null/zero: ${JSON.stringify(w30)}`);
+    for (const wk of rc.by_week) {
+      const rolesOrder = wk.roles.map((r) => r.role);
+      const topOrder = rc.roles.map((r) => r.role);
+      if (JSON.stringify(rolesOrder) !== JSON.stringify(topOrder)) errors.push(`week ${wk.week} role vocabulary/order ${JSON.stringify(rolesOrder)} != top-level ${JSON.stringify(topOrder)}`);
+    }
+    if (errors.length) { console.log("FAIL:" + errors.join(" | ")); process.exit(1); }
+    console.log("OK");
+  ' "$DJ")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == "OK" ]] || log_fail "weekly trend wrong: $result"
+  log_pass "by_week borrows m.trend weeks exactly; medians incl. even-count rounding; null-not-zero (TEST-024, seam S1)"
+}
+
+# ============================ TEST-025 (Spec-AC-04, CHANGE-0130) =============
+test_025_role_consumption_html() {
+  log_info "Test: <section id=\"role-consumption\"> renders the JSON values, n/a literals for nulls, one spark per marked-run role, no dollar figure (TEST-025, seam S3)..."
+  local d; d="$(mk_repo t025)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-06","ref_id":"A","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=500"},{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=700"},{"role":"Validation","duration_seconds":10,"note":"usage_total_tokens=50"},{"role":"QA Ops","duration_seconds":10,"note":"no marker"}],"verdict":"PASS"}
+JSONL
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" "A" "2026-07-07T00:00:00Z"
+  run_report "$d"
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  local html="$d/docs/ai/factory-report.html"
+  assert_role_consumption_html "$DJ" "$html"
+  if grep -qE '\$[0-9]' "$DJ"; then log_fail "data.json contains a dollar amount"; fi
+  if grep -qE '\$[0-9]' "$html"; then log_fail "html contains a dollar amount"; fi
+  log_pass "role-consumption HTML matches JSON field-for-field, n/a literals, sparks, no dollar figure (TEST-025)"
+}
+
+# ============================ TEST-026 (Spec-AC-05, CHANGE-0130) =============
+# Byte-stability pin (D6/D7): reconstructs the EXACT ledger that produced the
+# committed pre-change goldens (tests/fixtures/factory-report/backcompat-
+# sparse-{data.json,html}), captured from the pre-change generator and never
+# regenerated (D7/S5). Directory name "golden-sparse" reproduces the golden's
+# basename-fallback project label.
+test_026_role_consumption_backcompat() {
+  log_info "Test: sparse no-marker ledger — outputs minus the new key/section are byte-identical to the pre-change goldens; new key present all-null (TEST-026)..."
+  local d; d="$(mk_repo golden-sparse)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-06","ref_id":"SPARSE-A","agent_runs":[{"role":"Planning","duration_seconds":120},{"role":"Code Review","duration_seconds":90},{"role":"QA Something","duration_seconds":45}],"reliability":{"validation_fails":1,"review_fails":0,"remediation_runs":1,"first_pass_clean":false},"verdict":"PASS"}
+{"date_utc":"2026-07-13","ref_id":"SPARSE-B","agent_runs":[{"role":"Implementation","duration_seconds":90},{"role":"Validation","duration_seconds":200}],"verdict":"PASS"}
+JSONL
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" "SPARSE-A" "2026-07-06T00:00:00Z"
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" "SPARSE-B" "2026-07-13T00:00:00Z"
+  run_report "$d"
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  local html="$d/docs/ai/factory-report.html"
+  local golden_data="$PROJECT_ROOT/tests/fixtures/factory-report/backcompat-sparse-data.json"
+  local golden_html="$PROJECT_ROOT/tests/fixtures/factory-report/backcompat-sparse.html"
+  [[ -f "$golden_data" ]] || log_fail "missing golden: $golden_data"
+  [[ -f "$golden_html" ]] || log_fail "missing golden: $golden_html"
+  local result rc
+  result="$(node -e '
+    const fs = require("fs");
+    const [dataPath, htmlPath, goldenDataPath, goldenHtmlPath] = process.argv.slice(1);
+    const errors = [];
+    const PLACEHOLDER = "1970-01-01T00:00:00.000Z";
+
+    // --- new-key arm: cost.role_consumption present, every role all-null,
+    // every run in runs_unmarked (no marker anywhere in this fixture) ---
+    const model = JSON.parse(fs.readFileSync(dataPath, "utf8"));
+    const rc = model.cost.role_consumption;
+    if (!rc) { console.log("FAIL:new-key-missing:cost.role_consumption absent"); process.exit(1); }
+    for (const r of rc.roles) {
+      if (r.runs_marked !== 0) errors.push(`role ${r.role} runs_marked must be 0 on an all-unmarked ledger, got ${r.runs_marked}`);
+      if (r.tokens_total !== null || r.median_tokens_per_run !== null || r.share_pct !== null) errors.push(`role ${r.role} must be all-null (never zero) with no markers: ${JSON.stringify(r)}`);
+    }
+    const sumUnmarked = rc.roles.reduce((a, r) => a + r.runs_unmarked, 0);
+    if (sumUnmarked !== 5) errors.push(`sum of runs_unmarked must be 5 (total agent runs), got ${sumUnmarked}`);
+
+    // --- byte-stability arm: data.json, minus the new key, generatedAt
+    // normalized, must equal the golden byte-for-byte ---
+    delete model.cost.role_consumption;
+    model.generatedAt = PLACEHOLDER;
+    const normalizedData = JSON.stringify(model, null, 2) + "\n";
+    const goldenData = fs.readFileSync(goldenDataPath, "utf8");
+    if (normalizedData !== goldenData) {
+      const a = normalizedData.split("\n"), b = goldenData.split("\n");
+      let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i += 1;
+      errors.push(`data.json byte-stability mismatch at line ${i + 1}: got ${JSON.stringify(a[i])} want ${JSON.stringify(b[i])}`);
+    }
+
+    // --- byte-stability arm: html, section excised (through its trailing
+    // blank line), generatedAt normalized, must equal the golden byte-for-byte
+    let html = fs.readFileSync(htmlPath, "utf8");
+    const rawModel = JSON.parse(fs.readFileSync(dataPath, "utf8")); // un-mutated: real generatedAt
+    html = html.split(rawModel.generatedAt).join(PLACEHOLDER);
+    const startTag = "<section id=\"role-consumption\">";
+    const start = html.indexOf(startTag);
+    if (start === -1) { console.log("FAIL:section-missing:no <section id=\"role-consumption\"> found"); process.exit(1); }
+    const closeTag = "</section>";
+    const end = html.indexOf(closeTag, start);
+    if (end === -1) { console.log("FAIL:section-not-closed"); process.exit(1); }
+    let after = end + closeTag.length;
+    if (html.slice(after, after + 2) === "\n\n") after += 2;
+    else if (html.slice(after, after + 1) === "\n") after += 1;
+    const excisedHtml = html.slice(0, start) + html.slice(after);
+    const goldenHtml = fs.readFileSync(goldenHtmlPath, "utf8");
+    if (excisedHtml !== goldenHtml) {
+      const a = excisedHtml.split("\n"), b = goldenHtml.split("\n");
+      let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i += 1;
+      errors.push(`html byte-stability mismatch at line ${i + 1}: got ${JSON.stringify(a[i])} want ${JSON.stringify(b[i])}`);
+    }
+    if (errors.length) { console.log("FAIL:" + errors.join(" | ")); process.exit(1); }
+    console.log("OK");
+  ' "$DJ" "$html" "$golden_data" "$golden_html")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == "OK" ]] || log_fail "backcompat pin violated: $result"
+  log_pass "sparse ledger byte-identical to pre-change goldens minus the new key/section; new key present all-null (TEST-026)"
+}
+
+# ============================ TEST-027 (Spec-AC-07, CHANGE-0130) =============
+test_027_product_doc_pins() {
+  log_info "Test: docs/product/factory-performance-report.md pins the Role consumption section, the three buckets, the marker-only rule, the never-imputed n/a rule, the 2026-08-02 sparse-era caveat, and frontmatter delivered_by CHANGE-0130 (TEST-027)..."
+  local doc="$PROJECT_ROOT/docs/product/factory-performance-report.md"
+  [[ -f "$doc" ]] || log_fail "product doc not found: $doc"
+  grep -qF 'Role consumption' "$doc" || log_fail "product doc must name the Role consumption section"
+  grep -qF 'runs_marked' "$doc" || log_fail "product doc must name the runs_marked bucket"
+  grep -qF 'runs_sentinel' "$doc" || log_fail "product doc must name the runs_sentinel bucket"
+  grep -qF 'runs_unmarked' "$doc" || log_fail "product doc must name the runs_unmarked bucket"
+  grep -qF '2026-08-02' "$doc" || log_fail "product doc must name the sparse-era caveat date 2026-08-02"
+  grep -qi 'n/a' "$doc" || log_fail "product doc must state the never-imputed n/a rule"
+  grep -qF 'CHANGE-0130' "$doc" || log_fail "product doc frontmatter delivered_by must include CHANGE-0130"
+  log_pass "product doc pins present: section, three buckets, marker-only + never-imputed rules, sparse-era caveat, delivered_by (TEST-027)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014, +017..019; telemetry-completeness TEST-020..021)"
+  echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014, +017..019; telemetry-completeness TEST-020..021; role-token-trend TEST-022..027)"
   check_deps
   setup_fixture
   test_001_data_only_blocks_present
@@ -621,6 +934,12 @@ main() {
   test_019_remediation_sort_na_last
   test_020_capture_coverage_kpi
   test_021_capture_coverage_honest_nulls
+  test_022_role_consumption_buckets
+  test_023_role_consumption_seam_invariants
+  test_024_role_consumption_weekly_trend
+  test_025_role_consumption_html
+  test_026_role_consumption_backcompat
+  test_027_product_doc_pins
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
