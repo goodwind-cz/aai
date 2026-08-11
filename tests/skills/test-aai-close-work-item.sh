@@ -1736,6 +1736,7 @@ eq('clean citation with trailing comma+paren',
   extractEvidencePaths('see (docs/ai/tdd/green-example.log),', root),
   ['docs/ai/tdd/green-example.log']);
 eq('TEST-id range', extractEvidencePaths('TEST-001/002', root), []);
+eq('dotdot traversal segment skips (D2 rule 5)', extractEvidencePaths('docs/../etc/passwd and ../../etc/passwd', root), []);
 eq('prose A/B', extractEvidencePaths('A/B', root), []);
 eq('slash command', extractEvidencePaths('/aai-release', root), []);
 eq('absolute bin', extractEvidencePaths('/bin/bash', root), []);
