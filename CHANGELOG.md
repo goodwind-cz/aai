@@ -9,7 +9,33 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased]
+## [unreleased] — feat(validation): lane-scaled depth + capability-detected validator isolation (CHANGE-0132) [L2]
+
+- `.aai/VALIDATION.prompt.md` CEREMONY LANE block: on the lightweight lane
+  (ceremony_level 0/1) the validator now runs the declared test scope plus
+  adversarial probes on the seams it touches and does NOT run a blanket
+  full-suite re-execution — close-before-CI ordering is named as why the
+  full-suite proof still lands on the same commit. L2/L3 depth and the
+  fail-closed default are byte-unchanged.
+- `.aai/SUBAGENT_PROTOCOL.md` gains a "Capability detection (runtime, never
+  a harness table)" contract (`multi_agent_backend`, `spawn_agent_available`,
+  `spawn_model_catalog`, `fork_turns_supported`, resolved at runtime,
+  re-resolved on a refused spawn, fail-closed on unknown) and rewrites
+  "Spawning a validator" as four ordered isolation tiers — native
+  `spawn_agent` with a different model and `fork_turns="none"` → retry
+  against an available `spawn_model_catalog` model → separate
+  role-per-invocation process (`codex exec -m`, hard isolation) →
+  in-parent-session execution as last resort with a recorded residual risk
+  — replacing the vague "other in-session hosts" bullet, plus a
+  verify-the-granted-model clause.
+- `.aai/scripts/lib/usage-note.mjs` gains a `requested_model=`/
+  `actual_model=` marker grammar (same boundary discipline as
+  `USAGE_NOTE_RE`, bracketed context-window suffix tolerant so
+  `claude-opus-4-8[1m]` parses) so a silently-dropped model override is
+  visible in `METRICS.jsonl` instead of being read as independence that
+  never happened; `append-run --model` keeps recording the granted model.
+- New product doc `docs/product/validation-cost-calibration.md` and new
+  suite `tests/skills/test-aai-validator-isolation.sh`.
 
 ## [v2026.08.12] — feat(close): evidence-path gate — cited evidence must resolve from the main tree (CHANGE-0131) [L1]
 
