@@ -700,6 +700,130 @@ Write-Output "GRANDCHILD_SAW=$childSaw"
             Should -Invoke Get-ProcessEnvironmentSnapshot -Times 1 -Exactly
         }
     }
+
+    # ---- PR #247 iter-4 (owner-directed remediation) ---------------------------
+    Context 'TEST-011 (5.1 ExitCode-null footgun): every Start-Process -PassThru launch helper touches .Handle immediately' {
+        # Structural/source pin, not a behavioral one: the null-ExitCode-after-
+        # exit quirk is Windows PowerShell 5.1-only (.NET Framework Process
+        # class), so it cannot be reproduced on this (macOS pwsh 7) host. What
+        # CAN be pinned here is the SHAPE of the fix — that the very next
+        # statement after each `$proc = Start-Process ... -PassThru` assigns
+        # `.Handle` to $null-discard, BEFORE any Remove-Item/wait/return —
+        # so a future edit that reorders or drops that line regresses loudly.
+        It 'Start-WslProbeProcess touches $proc.Handle on the line immediately after the Start-Process assignment' {
+            $content = Get-Content -Raw $script:RunDispatcher
+            if ($content -match '(?s)function Start-WslProbeProcess\s*\{(.*?)\n\}') {
+                $body = $Matches[1]
+            } else {
+                $body = ''
+            }
+            $body | Should -Match '(?s)\$proc\s*=\s*Start-Process\s+-FilePath\s+''wsl\.exe''.*?\n\s*(#.*\n\s*)*\$null\s*=\s*\$proc\.Handle'
+        }
+
+        It 'Start-GitBashProcess touches $proc.Handle on the line immediately after the Start-Process assignment, and returns $proc (not the raw Start-Process pipeline output)' {
+            $content = Get-Content -Raw $script:RunDispatcher
+            if ($content -match '(?s)function Start-GitBashProcess\s*\{(.*?)\n\}') {
+                $body = $Matches[1]
+            } else {
+                $body = ''
+            }
+            $body | Should -Match '(?s)\$proc\s*=\s*Start-Process\s+-FilePath\s+\$BashPath.*?\n\s*(#.*\n\s*)*\$null\s*=\s*\$proc\.Handle'
+            $body | Should -Match 'return\s+\$proc\s*$'
+            $body | Should -Not -Match 'return\s+Start-Process'
+        }
+    }
+
+    Context 'TEST-012 (TIMEOUT VISIBILITY): Get-EffectiveTimeoutSource labels env vs default in parity with Get-EffectiveTimeout''s own coercion rule' {
+        It 'Get-EffectiveTimeoutSource: <_.Raw> -> <_.Expected>' -ForEach @(
+            @{ Raw = 'bogus'; Expected = 'default' }
+            @{ Raw = '0'; Expected = 'default' }
+            @{ Raw = '-5'; Expected = 'default' }
+            @{ Raw = ''; Expected = 'default' }
+            @{ Raw = $null; Expected = 'default' }
+            @{ Raw = '45'; Expected = 'env' }
+            @{ Raw = '99999999999'; Expected = 'default' }
+        ) {
+            Get-EffectiveTimeoutSource -Raw $Raw | Should -Be $Expected
+        }
+
+        It 'never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced' -ForEach @(
+            'bogus', '0', '-5', '', $null, '45', '300', '99999999999'
+        ) {
+            $raw = $_
+            $value = Get-EffectiveTimeout -Raw $raw
+            $source = Get-EffectiveTimeoutSource -Raw $raw
+            if ($source -eq 'default') { $value | Should -Be 300 }
+        }
+    }
+
+    Context 'TEST-013 (branch diagnostic, always-on): AAI-BRANCH line names the chosen branch and effective timeout on every non-error run' {
+        It 'Write-BranchDiag writes exactly one AAI-BRANCH line with branch, timeout, and source' {
+            $origErr = [Console]::Error
+            $sw = [System.IO.StringWriter]::new()
+            [Console]::SetError($sw)
+            try {
+                Write-BranchDiag -Branch 'Git Bash' -Timeout 2 -TimeoutSource 'env'
+            } finally {
+                [Console]::SetError($origErr)
+            }
+            $lines = @($sw.ToString() -split "`r?`n" | Where-Object { $_ -match '^AAI-BRANCH:' })
+            $lines.Count | Should -Be 1
+            $lines[0] | Should -Match '^AAI-BRANCH: Git Bash \| AAI-TIMEOUT: 2s \(source=env\)$'
+        }
+
+        It 'Invoke-Dispatch prints AAI-BRANCH naming WSL, with the default-sourced timeout, on the wsl branch' {
+            Mock Test-WslUsable { $true }
+            Mock ConvertTo-WslPath { '/mnt/c/repo/.aai/scripts/aai-run-tests.sh' }
+            Mock Invoke-WslProcess { 0 }
+            $origErr = [Console]::Error
+            $sw = [System.IO.StringWriter]::new()
+            [Console]::SetError($sw)
+            try {
+                $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 0')
+            } finally {
+                [Console]::SetError($origErr)
+            }
+            $rc | Should -Be 0
+            $sw.ToString() | Should -Match '^AAI-BRANCH: WSL \| AAI-TIMEOUT: 300s \(source=default\)'
+        }
+
+        It 'Invoke-Dispatch prints AAI-BRANCH naming Git Bash, with the env-sourced timeout, on the gitbash branch' {
+            Mock Test-WslUsable { $false }
+            Mock Find-GitBash { 'C:\Program Files\Git\bin\bash.exe' }
+            Mock Start-GitBashProcess { [PSCustomObject]@{ Id = 9001; ExitCode = 3 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            $origErr = [Console]::Error
+            $sw = [System.IO.StringWriter]::new()
+            [Console]::SetError($sw)
+            $prevTimeout = $env:AAI_TEST_TIMEOUT
+            $env:AAI_TEST_TIMEOUT = '2'
+            try {
+                $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 3')
+            } finally {
+                [Console]::SetError($origErr)
+                $env:AAI_TEST_TIMEOUT = $prevTimeout
+            }
+            $rc | Should -Be 3
+            $sw.ToString() | Should -Match '^AAI-BRANCH: Git Bash \| AAI-TIMEOUT: 2s \(source=env\)'
+        }
+
+        It 'Invoke-Dispatch never prints AAI-BRANCH on the error branch (Write-EnvError keeps its exactly-one-line contract)' {
+            Mock Test-WslUsable { $false }
+            Mock Find-GitBash { $null }
+            $origErr = [Console]::Error
+            $sw = [System.IO.StringWriter]::new()
+            [Console]::SetError($sw)
+            try {
+                $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 0')
+            } finally {
+                [Console]::SetError($origErr)
+            }
+            $rc | Should -Be 78
+            $sw.ToString() | Should -Not -Match 'AAI-BRANCH:'
+            $errLines = @($sw.ToString() -split "`r?`n" | Where-Object { $_ -match '^AAI-ENV-ERROR:' })
+            $errLines.Count | Should -Be 1
+        }
+    }
 }
 
 Describe 'aai-release.ps1' {

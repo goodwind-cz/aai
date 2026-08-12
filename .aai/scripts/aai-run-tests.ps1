@@ -74,6 +74,13 @@
 #   AAI_TEST_TIMEOUT  timeout in seconds (default 300; non-integer or <=0 -> 300;
 #                      same coercion as the .sh wrapper)
 #
+# Diagnostics (PR #247 iter-4): on both the wsl and gitbash branches, ONE
+# unconditional stderr line — `AAI-BRANCH: <WSL|Git Bash> | AAI-TIMEOUT:
+# <N>s (source=env|default)` — names the chosen branch and the EFFECTIVE
+# timeout actually in force, whether or not the run succeeds (Write-
+# BranchDiag). Never emitted on the AAI-ENV-ERROR path (Spec-AC-02 keeps
+# that exactly one line, and there is no branch to report there).
+#
 # CANNOT VERIFY ON THIS HOST: real WSL delegation, real Git-Bash/MSYS process
 # semantics, real `taskkill /T` tree-kill completeness. Covered by the Manual
 # verification protocol (SPEC-0046 MV-1..MV-3), not by this repo's CI.
@@ -125,6 +132,14 @@ function Start-WslProbeProcess {
   $errFile = [System.IO.Path]::GetTempFileName()
   $proc = Start-Process -FilePath 'wsl.exe' -ArgumentList $ArgumentList -NoNewWindow -PassThru `
     -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+  # 5.1 ExitCode-null footgun (PR #247 iter-4 field evidence): on Windows
+  # PowerShell 5.1, a -PassThru process object whose .Handle is never touched
+  # can read back $proc.ExitCode as $null after the process has already
+  # exited (the .NET Framework Process class lazily/insufficiently opens the
+  # handle needed for GetExitCodeProcess unless something forces it open
+  # first). Test-WslUsable reads $proc.ExitCode right below — touch the
+  # handle immediately, before any wait/poll, so that read is real.
+  $null = $proc.Handle
   Remove-Item -LiteralPath $outFile -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $errFile -ErrorAction SilentlyContinue
   return $proc
@@ -382,6 +397,28 @@ function Write-SpawnError {
   [Console]::Error.WriteLine("AAI-SPAWN-ERROR: [$Branch] $Message")
 }
 
+function Write-BranchDiag {
+  # PR #247 iter-4 (owner-directed): the prior state only ever named a branch
+  # on the degraded-mode/spawn-error paths (Write-SpawnError) — a SUCCESSFUL
+  # run left both "which branch ran" and "what timeout did it actually use"
+  # undiagnosable after the fact (field evidence: arm1/arm2's diag showed
+  # branch=unknown even though the wrapper genuinely dispatched). This is the
+  # unconditional counterpart: ALWAYS one stderr line, on both the wsl and
+  # gitbash branches, naming the chosen branch plus the EFFECTIVE
+  # AAI_TEST_TIMEOUT and whether it came from the env var or the 300s
+  # default — cheap, and it settles "did AAI_TEST_TIMEOUT actually arrive?"
+  # definitively on the very next run. Never called on the error branch:
+  # Write-EnvError's Spec-AC-02 contract is EXACTLY one stderr line, and
+  # there is no "chosen branch" to report when resolution failed.
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][string]$Branch,
+    [Parameter(Mandatory)][int]$Timeout,
+    [Parameter(Mandatory)][string]$TimeoutSource
+  )
+  [Console]::Error.WriteLine("AAI-BRANCH: $Branch | AAI-TIMEOUT: ${Timeout}s (source=$TimeoutSource)")
+}
+
 function Write-EnvError {
   # Spec-AC-02: EXACTLY ONE stderr line, naming both probed options plus a
   # remediation hint.
@@ -413,6 +450,22 @@ function Get-EffectiveTimeout {
     }
   }
   return 300
+}
+
+function Get-EffectiveTimeoutSource {
+  # Companion to Get-EffectiveTimeout, same acceptance rule, kept as its own
+  # tiny pure function rather than changing Get-EffectiveTimeout's return
+  # shape (which existing coercion-parity tests pin to a plain int). Backs
+  # the AAI-BRANCH diagnostic line's "source=env|default" field (PR #247
+  # iter-4: TIMEOUT VISIBILITY) — never itself decides the effective value.
+  [CmdletBinding()] param([string]$Raw)
+  if ($Raw -and ($Raw -match '^[0-9]+$')) {
+    $parsed = [long]0
+    if ([long]::TryParse($Raw, [ref]$parsed) -and $parsed -gt 0 -and $parsed -le [int]::MaxValue) {
+      return 'env'
+    }
+  }
+  return 'default'
 }
 
 # ---- WSL launch path ------------------------------------------------------------
@@ -485,7 +538,18 @@ function Start-GitBashProcess {
   # -ErrorAction Stop (Spec-AC-03): a non-terminating Start-Process error
   # (e.g. the OrdinalIgnoreCase Path/PATH dictionary collision this scope
   # fixes) becomes a catchable exception instead of silently returning $null.
-  return Start-Process -FilePath $BashPath -ArgumentList $ScriptArgs -NoNewWindow -PassThru -ErrorAction Stop
+  $proc = Start-Process -FilePath $BashPath -ArgumentList $ScriptArgs -NoNewWindow -PassThru -ErrorAction Stop
+  # 5.1 ExitCode-null footgun (PR #247 iter-4 field evidence: arm1 captured
+  # the marker — the launched sh genuinely ran and exited 3 — yet the
+  # wrapper reported 0). Same cause as Start-WslProbeProcess above: on
+  # Windows PowerShell 5.1, $proc.ExitCode reads back $null once the process
+  # exits unless .Handle was touched right after Start-Process -PassThru.
+  # Invoke-ViaGitBash reads $proc.ExitCode after the wait below — a $null
+  # there gets coerced to exit code 0 by `exit`, indistinguishable from a
+  # real success. Touch the handle here, before any wait, so that read is
+  # real on every PowerShell version.
+  $null = $proc.Handle
+  return $proc
 }
 
 function Wait-ProcessWithTimeout {
@@ -585,10 +649,17 @@ function Invoke-Dispatch {
   Set-CanonicalProcessEnvironment | Out-Null
   $shScriptPath = Join-Path $PSScriptRoot 'aai-run-tests.sh'
   $timeout = Get-EffectiveTimeout -Raw $env:AAI_TEST_TIMEOUT
+  $timeoutSource = Get-EffectiveTimeoutSource -Raw $env:AAI_TEST_TIMEOUT
   $resolution = Resolve-Interpreter
   switch ($resolution.Mode) {
-    'wsl' { return Invoke-ViaWsl -Command $Command -ShScriptPath $shScriptPath -Timeout $timeout }
-    'gitbash' { return Invoke-ViaGitBash -BashPath $resolution.BashPath -Command $Command -ShScriptPath $shScriptPath -Timeout $timeout }
+    'wsl' {
+      Write-BranchDiag -Branch 'WSL' -Timeout $timeout -TimeoutSource $timeoutSource
+      return Invoke-ViaWsl -Command $Command -ShScriptPath $shScriptPath -Timeout $timeout
+    }
+    'gitbash' {
+      Write-BranchDiag -Branch 'Git Bash' -Timeout $timeout -TimeoutSource $timeoutSource
+      return Invoke-ViaGitBash -BashPath $resolution.BashPath -Command $Command -ShScriptPath $shScriptPath -Timeout $timeout
+    }
     default {
       Write-EnvError
       return 78

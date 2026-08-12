@@ -266,7 +266,15 @@ jobs:
           }
 
           function Get-SmokeDiagBranch {
+            # PR #247 iter-4: the wrapper now prints an unconditional
+            # "AAI-BRANCH: <Branch> | AAI-TIMEOUT: <N>s (source=env|default)"
+            # line on every non-error run (Write-BranchDiag in
+            # aai-run-tests.ps1), so a SUCCESSFUL arm no longer has to fall
+            # back to "unknown" -- only the spawn-error and env-error paths
+            # still need their own patterns (AAI-BRANCH is never emitted on
+            # those, by the wrapper's own Spec-AC-02/03 single-line contracts).
             param([string]$Err)
+            if ($Err -match 'AAI-BRANCH:\s*([^|]+?)\s*\|') { return $Matches[1].Trim() }
             if ($Err -match 'AAI-SPAWN-ERROR:\s*\[([^\]]+)\]') { return $Matches[1] }
             if ($Err -match 'AAI-ENV-ERROR') { return 'none (env-error)' }
             return 'unknown (no branch marker on stderr)'
@@ -404,7 +412,10 @@ jobs:
           }
 
           function Get-SmokeDiagBranch {
+            # PR #247 iter-4: mirrors the Windows PowerShell 5.1 step above --
+            # see its Get-SmokeDiagBranch comment for the full rationale.
             param([string]$Err)
+            if ($Err -match 'AAI-BRANCH:\s*([^|]+?)\s*\|') { return $Matches[1].Trim() }
             if ($Err -match 'AAI-SPAWN-ERROR:\s*\[([^\]]+)\]') { return $Matches[1] }
             if ($Err -match 'AAI-ENV-ERROR') { return 'none (env-error)' }
             return 'unknown (no branch marker on stderr)'
