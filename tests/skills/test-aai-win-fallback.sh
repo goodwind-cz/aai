@@ -179,6 +179,18 @@ test_016() {
 
   grep -qE 'Import-Module[[:space:]]+Pester[[:space:]]+-MinimumVersion[[:space:]]+5\.0' "$CI_WORKFLOW" \
     || log_fail "$CI_WORKFLOW must Import-Module Pester -MinimumVersion 5.0 (fails below major 5, closing the 5.1 built-in 3.4.0 silent-bind trap)"
+
+  # VF-3: -MinimumVersion 5.0 must appear in ALL SIX occurrences across BOTH
+  # engines (per engine: Install-Module + Import-Module in the install-if-
+  # missing step, plus the Import-Module in the full-suite discovery step) --
+  # a single grep -q above is satisfied by any one of them, so a per-step drop
+  # (e.g. VF-3's b1 mutation: remove it from one of the four/six occurrences)
+  # must be caught by a floor on the total count, not existence alone.
+  local minver_count
+  minver_count="$(grep -cF -- '-MinimumVersion 5.0' "$CI_WORKFLOW")"
+  [[ "$minver_count" -ge 6 ]] \
+    || log_fail "$CI_WORKFLOW must assert -MinimumVersion 5.0 at least 6 times (3 per engine: install-step Install-Module + Import-Module, plus the discovery-step Import-Module), got $minver_count -- a per-step drop is no longer silent"
+
   grep -qF 'AAI-PESTER-VERSION' "$CI_WORKFLOW" \
     || log_fail "$CI_WORKFLOW must print an AAI-PESTER-VERSION line"
   grep -qF 'AAI-PESTER-ELAPSED' "$CI_WORKFLOW" \
@@ -187,8 +199,10 @@ test_016() {
     || log_fail "$CI_WORKFLOW must discover the tests/skills DIRECTORY (not two hardcoded *.Tests.ps1 files), so a future Tests.ps1 file is picked up without a workflow edit"
   grep -qE 'timeout-minutes:[[:space:]]*15' "$CI_WORKFLOW" \
     || log_fail "$CI_WORKFLOW Pester step(s) must carry timeout-minutes: 15"
-  grep -qE 'elapsed[[:space:]]*-gt[[:space:]]*600' "$CI_WORKFLOW" \
-    || log_fail "$CI_WORKFLOW must assert the 600s hard ceiling on measured Pester duration"
+  # VF-1: anchored on the trailing token boundary so a relaxation to 6000/60000
+  # (still textually starting with "600") cannot slip through as a false match.
+  grep -qE 'elapsed[[:space:]]*-gt[[:space:]]*600([^0-9]|$)' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must assert the 600s hard ceiling on measured Pester duration (exact '600' token, not a relaxed '6000')"
 
   # Per-engine Pester install-if-missing steps (5.1 needs TLS 1.2 + NuGet
   # provider bootstrap; each engine has its own CurrentUser module scope).
@@ -197,14 +211,25 @@ test_016() {
   grep -qF 'NuGet' "$CI_WORKFLOW" \
     || log_fail "$CI_WORKFLOW must bootstrap the NuGet package provider under Windows PowerShell 5.1"
 
-  # Two Invoke-Pester run steps, one per engine's shell.
-  local ps_pester_steps pwsh_pester_steps
-  ps_pester_steps="$(grep -c "shell: powershell" "$CI_WORKFLOW")"
-  pwsh_pester_steps="$(grep -c "shell: pwsh" "$CI_WORKFLOW")"
-  [[ "$ps_pester_steps" -ge 1 ]] || log_fail "$CI_WORKFLOW must run at least one step under shell: powershell"
-  [[ "$pwsh_pester_steps" -ge 1 ]] || log_fail "$CI_WORKFLOW must run at least one step under shell: pwsh"
-  grep -qF 'Invoke-Pester' "$CI_WORKFLOW" \
-    || log_fail "$CI_WORKFLOW must call Invoke-Pester"
+  # VF-2: the "both engines" claim is the central claim of AC-001 and must be
+  # pinned on content that ONLY the two full-suite Pester run steps carry --
+  # "shell: powershell" / "shell: pwsh" / a bare "Invoke-Pester" substring are
+  # each also satisfied by the parse-check and real-wrapper smoke steps, so
+  # deleting an ENTIRE engine's Pester run step left this pin green before.
+  # Fix: pin the two step names verbatim (deleting either step removes its
+  # name) AND require >= 2 Invoke-Pester invocations tied to those two step
+  # bodies specifically (each full-suite step calls Invoke-Pester exactly
+  # once with this configuration-object shape; no other step in the file
+  # does), so a step deleted OR gutted while its name survives is still caught.
+  grep -qF 'name: "Full Pester suite discovery under Windows PowerShell 5.1 (CHANGE-0134 Spec-AC-01/Spec-AC-02)"' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must carry the named 'Full Pester suite discovery under Windows PowerShell 5.1' step (5.1 engine Pester coverage deleted)"
+  grep -qF 'name: "Full Pester suite discovery under pwsh 7 (CHANGE-0134 Spec-AC-01/Spec-AC-02)"' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must carry the named 'Full Pester suite discovery under pwsh 7' step (pwsh 7 engine Pester coverage deleted)"
+
+  local invoke_pester_count
+  invoke_pester_count="$(grep -cE 'Invoke-Pester[[:space:]]+-Configuration[[:space:]]+\$cfg' "$CI_WORKFLOW")"
+  [[ "$invoke_pester_count" -ge 2 ]] \
+    || log_fail "$CI_WORKFLOW must call 'Invoke-Pester -Configuration \$cfg' at least twice -- once per engine's full-suite discovery step -- got $invoke_pester_count"
 
   log_pass "windows-5_1 job installs Pester per engine and runs the full suite under both shells (TEST-016)"
 }

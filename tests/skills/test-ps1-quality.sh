@@ -28,7 +28,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PS_DIR="$PROJECT_ROOT/.aai/scripts"
 SETTINGS="$PS_DIR/PSScriptAnalyzerSettings.psd1"
-PESTER_TESTS="$SCRIPT_DIR/aai-update.Tests.ps1,$SCRIPT_DIR/aai-win-dispatch.Tests.ps1"
+# VF-6: directory discovery (matching the windows-5_1 job's own
+# `$cfg.Run.Path = 'tests/skills'`), not a hardcoded two-file list -- a future
+# tests/skills/*.Tests.ps1 file is now picked up on BOTH sides identically, so
+# it cannot land on Windows CI while staying invisible to this POSIX
+# SkippedCount=0 guard (CHANGE-0134 SEAM-4's stated intent, now true on both).
+PESTER_TESTS_DIR="$SCRIPT_DIR"
 
 log_pass() { echo "PASS: $*"; }
 log_fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -106,9 +111,9 @@ if [[ "$has_pester" == "yes" ]]; then
   # This IS the guard that a Windows-only skip predicate (CHANGE-0134's
   # $script:SkipOnWindows) can never leak into the Linux/macOS gate and turn
   # it vacuously green: on a POSIX host SkippedCount must be exactly zero.
-  if PESTER_TESTS="$PESTER_TESTS" pwsh -NoProfile -Command '
+  if PESTER_TESTS_DIR="$PESTER_TESTS_DIR" pwsh -NoProfile -Command '
       $cfg = New-PesterConfiguration
-      $cfg.Run.Path = @($env:PESTER_TESTS -split ",")
+      $cfg.Run.Path = $env:PESTER_TESTS_DIR
       $cfg.Run.PassThru = $true
       $cfg.Output.Verbosity = "Detailed"
       $result = Invoke-Pester -Configuration $cfg
@@ -117,6 +122,13 @@ if [[ "$has_pester" == "yes" ]]; then
       if ($result.FailedCount -gt 0) { $fail++ }
       if ($result.SkippedCount -ne 0) {
         Write-Host "FAIL: SkippedCount=$($result.SkippedCount) on a POSIX host (must be 0 -- a Windows-only skip predicate leaked through)"
+        $fail++
+      }
+      # VF-5: TEST-005 declares a TotalCount floor of 111; previously only
+      # printed, never asserted, so a discovery that silently matched no
+      # files (e.g. a bad Run.Path) would report Total=0 and still exit green.
+      if ($result.TotalCount -lt 111) {
+        Write-Host "FAIL: TotalCount=$($result.TotalCount) is below the declared floor of 111 (TEST-005)"
         $fail++
       }
       if ($fail -gt 0) { exit 1 }
