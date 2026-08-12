@@ -22,7 +22,9 @@ INDEPENDENCE REQUIREMENT (run this BEFORE anything else)
   same session and cannot spawn a separate validator), STOP: re-run validation from
   a cleared/fresh context, or hand off to an independent validator. If neither is
   possible, record "validator shared context with implementer" as a residual risk
-  that lowers confidence — never silently self-validate.
+  that lowers confidence — never silently self-validate. See
+  .aai/SUBAGENT_PROTOCOL.md's four-tier isolation hierarchy — in-parent
+  execution is tier 4 (last resort), not the first fallback.
 
 CORPUS-SWEEP RULE: when the validated change PARSES repo-corpus files
 (specs, intakes, CHANGELOG, docs/ai ledgers), fixture-only evidence is
@@ -104,10 +106,14 @@ CEREMONY LANE (spec-loop-ceremony-aware-dispatch)
   discovery/execution obligation is scoped to the DECLARED test scope — the
   executable command(s) named by the frozen spec/tech-note's Test Plan rows
   (or, for a lean L0/L1 artifact, its Verification/AC-table command lines) —
-  plus any suite that directly covers the changed paths; the full-repository
-  sweep is NOT required within that scope. Everything else — independence,
-  adversarial stance, AC STATUS GATE, evidence discipline, RED-proof — is
-  unchanged at every level.
+  plus any suite that directly covers the changed paths, PLUS adversarial
+  probes on the seams the change touches (negative controls and edge inputs
+  at the crossing points a minimal happy-path run would not exercise).
+  Do not run a blanket full-suite re-execution at this lane — close-before-CI
+  ordering means CI produces that same full-suite proof on this commit minutes
+  later, so no evidence is lost, only a duplicate execution of it.
+  Everything else — independence, adversarial stance, AC STATUS GATE,
+  evidence discipline, RED-proof — is unchanged at every level.
 - When `lane.selected == "full"` (ceremony_level 2/3, or any fail-closed
   case above), run the full discovery/execution sweep exactly as today.
 

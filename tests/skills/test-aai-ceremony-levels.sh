@@ -1017,6 +1017,14 @@ test_015_prompt_lane_surfaces() {
   echo "$block" | grep -qi "fail-closed" || log_fail "CEREMONY LANE block must name the fail-closed rule"
   echo "$block" | grep -qi "declared" || log_fail "CEREMONY LANE block must name the L0/L1 declared-scope validation rule"
   echo "$block" | grep -q "lane.selected" || log_fail "CEREMONY LANE block must reference the dispatch lane.selected field"
+  # validation-cost-calibration Spec-AC-01 (spec TEST-001): the lightweight
+  # lane PROHIBITS a blanket full-suite re-execution, MANDATES adversarial
+  # probes on the seams in addition to the declared scope, and NAMES
+  # close-before-CI ordering as the reason the full-suite proof still exists.
+  echo "$block" | grep -qi "do not run a blanket full-suite re-execution" \
+    || log_fail "CEREMONY LANE block must prohibit a blanket full-suite re-execution at lightweight (Spec-AC-01)"
+  echo "$block" | grep -qi "adversarial" || log_fail "CEREMONY LANE block must mandate adversarial seam probes at lightweight (Spec-AC-01)"
+  echo "$block" | grep -qi "close-before-ci" || log_fail "CEREMONY LANE block must name close-before-CI ordering as why the full-suite proof still exists (Spec-AC-01)"
 
   block="$(awk '/^10\) /{f=1} /^11\) /{f=0} f' "$p")"
   [[ -n "$block" ]] || log_fail "PLANNING step 10 block not found"
@@ -1123,6 +1131,29 @@ test_017_seam_survival_spec0041() {
 # --- TEST-018 (prompt-dedup-canonical-includes spec TEST-001/Spec-AC-01):
 # PLANNING step 10 trimmed to a WORKFLOW.md pointer -----------------------
 
+# --- TEST-019 (validation-cost-calibration spec TEST-012/Spec-AC-05): the
+# pre-registered KPI sentence + rollback action survive verbatim in the spec,
+# matched by glob so the pin survives the merge-time DRAFT-to-numbered rename.
+
+test_019_kpi_pin_survives_rename() {
+  log_info "Test: pre-registered KPI sentence + named rollback action recorded verbatim in the validation-cost-calibration spec, matched by glob (spec TEST-012/Spec-AC-05)..."
+  local matches spec flat
+  matches="$(ls "$PROJECT_ROOT"/docs/specs/*validation-cost-calibration.md 2>/dev/null || true)"
+  [[ -n "$matches" ]] || log_fail "TEST-019: no docs/specs/*validation-cost-calibration.md file found"
+  for spec in $matches; do
+    # Prose wraps across lines in the markdown source; normalize whitespace
+    # before matching so the pin is line-break tolerant.
+    flat="$(tr '\n' ' ' < "$spec" | tr -s ' ')"
+    printf '%s' "$flat" | grep -qF "Validation median tokens/run decreases while ride remediation rate does not increase" \
+      || log_fail "TEST-019: $spec must record the pre-registered KPI sentence verbatim"
+    printf '%s' "$flat" | grep -qF "Rollback action: revert the CEREMONY LANE prohibition clause" \
+      || log_fail "TEST-019: $spec must record the named rollback action verbatim"
+    printf '%s' "$flat" | grep -qF "is NOT rolled back with it" \
+      || log_fail "TEST-019: $spec must state Spec-AC-02 to Spec-AC-04 are NOT rolled back with the lane rule"
+  done
+  log_pass "KPI sentence + rollback action recorded verbatim, glob-matched (TEST-019/spec TEST-012)"
+}
+
 test_018_step10_workflow_pointer() {
   log_info "Test: PLANNING step 10 points at WORKFLOW.md, carries no four-level paraphrase / no protected-surface MANDATORY-L3 restatement; residue retained; no ceremony table row leaks into PLANNING/VALIDATION (prompt-dedup-canonical-includes TEST-001/Spec-AC-01)..."
   local p="$PROJECT_ROOT/.aai/PLANNING.prompt.md" v="$PROJECT_ROOT/.aai/VALIDATION.prompt.md" block
@@ -1188,6 +1219,7 @@ main() {
   test_017_seam_survival_spec0041
   test_010_seam_survival
   test_018_step10_workflow_pointer
+  test_019_kpi_pin_survives_rename
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
