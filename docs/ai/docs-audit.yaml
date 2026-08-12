@@ -50,6 +50,21 @@ usage_capture_gate: enforce
 # rollout): since the gate landed (2026-08-02) coverage is 26/26 runs = 100%
 # usage markers AND 100% prompt_hash across 3 rides (pre-gate baseline: 46.2%).
 # The usage_capture=none sentinel remains the honest escape hatch.
+# CHANGE-0131 / spec-evidence-path-gate — close-time evidence-path gate
+# (opt-in). Consulted ONLY by close-work-item.mjs to choose warn-vs-refuse
+# when a closing doc set's Acceptance Criteria Status Evidence cells cite a
+# path-shaped token that does not resolve from the repo root the close runs
+# in (the CHANGE-0127 incident: a worktree-only docs/ai/tdd/... transcript
+# cited in a spec's Evidence column that never existed in the main tree).
+# Values: enforce | report-only. Default (key or file absent, or an invalid
+# value) is report-only, fail-open — an unresolvable citation warns loudly
+# on stderr (naming the doc, the Spec-AC row and the missing path) but never
+# blocks the close. AAI core ships this key report-only; existence is
+# checked with fs.existsSync (not git-tracking — docs/ai/tdd/** is
+# gitignored by design and is the single most common evidence location in
+# this repo). Close-only dial (NOT a pre-commit-hook concern) — the shell
+# greps deliberately do not mirror it.
+evidence_path_gate: report-only
 # RFC-0009 / spec-scale-adaptive-ceremony — L3 protected surfaces (project-owned
 # config; the POLICY and these canonical defaults live in
 # .aai/workflow/WORKFLOW.md "Ceremony levels"). A spec whose scope touches any

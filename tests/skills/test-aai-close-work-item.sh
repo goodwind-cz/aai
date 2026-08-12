@@ -304,6 +304,16 @@ set_usage_capture_gate_dial() {
   printf 'usage_capture_gate: %s\n' "$value" >> "$dir/docs/ai/docs-audit.yaml"
 }
 
+# --- evidence-path-gate fixture builders (CHANGE-0131 / spec-evidence-path-gate)
+
+# set_evidence_path_gate_dial <fixture_dir> <enforce|report-only|bogus> —
+# appends the dial to the fixture's docs-audit.yaml (first occurrence wins in
+# guard-config.mjs's column-0 scan; the base fixture has no such line).
+set_evidence_path_gate_dial() {
+  local dir="$1" value="$2"
+  printf 'evidence_path_gate: %s\n' "$value" >> "$dir/docs/ai/docs-audit.yaml"
+}
+
 # state_begin <fixture_dir> <ref> — start a docs/ai/STATE.yaml carrying the
 # metrics.work_items.<ref>.agent_runs block (append runs with state_add_run).
 state_begin() {
@@ -1697,6 +1707,388 @@ NODE
   log_pass "guard-config usage_capture_gate: enforce/report-only/invalid-fail-open/absent-default all correct (AC-006)"
 }
 
+# ===== evidence-path gate (CHANGE-0131 / spec-evidence-path-gate) ============
+#
+# The close-time gate that catches a spec's AC Status Evidence cell citing a
+# docs/ai/tdd/... transcript that resolves only inside a deleted worktree
+# (the CHANGE-0127 incident). Six-rule extraction grammar in
+# .aai/scripts/lib/evidence-paths.mjs (D2), a fail-open GUARD_DIALS dial
+# (D7), placed BEFORE readEvents/regenerateIndex (D8, exit code 5).
+
+# TEST-036 (Spec-AC-01) — extractEvidencePaths: one real citation extracts
+# clean; every hostile prose shape (test-id ranges, slash commands, absolute
+# paths, URLs, line-number citations, globs, brace expansions, digests, run
+# IDs, backtick-glued joins, and the SPEC-0114 ellipsis abbreviation) yields
+# nothing. Pure unit test — no close invocation.
+test_036_evidence_path_extraction_grammar() {
+  log_info "Test: extractEvidencePaths — six-rule grammar over a hostile corpus (Spec-AC-01)..."
+  local lib="$PROJECT_ROOT/.aai/scripts/lib/evidence-paths.mjs"
+  EVIDENCE_LIB="$lib" EVIDENCE_ROOT="$PROJECT_ROOT" node --input-type=module > "$TEST_DIR/t036.out" 2>&1 <<'NODE' || log_fail "TEST-036: extraction-grammar assertions failed: $(cat "$TEST_DIR/t036.out")"
+const { extractEvidencePaths } = await import(process.env.EVIDENCE_LIB);
+const root = process.env.EVIDENCE_ROOT;
+function eq(desc, got, want) {
+  if (JSON.stringify(got) !== JSON.stringify(want)) {
+    console.error(desc + ': got ' + JSON.stringify(got) + ' want ' + JSON.stringify(want));
+    process.exit(1);
+  }
+}
+eq('clean citation with trailing comma+paren',
+  extractEvidencePaths('see (docs/ai/tdd/green-example.log),', root),
+  ['docs/ai/tdd/green-example.log']);
+eq('TEST-id range', extractEvidencePaths('TEST-001/002', root), []);
+eq('dotdot traversal segment skips (D2 rule 5)', extractEvidencePaths('docs/../etc/passwd and ../../etc/passwd', root), []);
+eq('prose A/B', extractEvidencePaths('A/B', root), []);
+eq('slash command', extractEvidencePaths('/aai-release', root), []);
+eq('absolute bin', extractEvidencePaths('/bin/bash', root), []);
+eq('https URL', extractEvidencePaths('https://github.com/goodwind-cz/aai/actions/runs/30289358425', root), []);
+eq('line-number citation', extractEvidencePaths('.aai/scripts/lib/docs-audit-core.mjs:591', root), []);
+eq('star glob', extractEvidencePaths('docs/ai/reports/test-canon-coverage-*.md', root), []);
+eq('brace expansion', extractEvidencePaths('docs/ai/tdd/green-...-TEST-00{1..5}.log', root), []);
+eq('sha256 digest', extractEvidencePaths('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b8', root), []);
+eq('run id', extractEvidencePaths('30289358425', root), []);
+eq('backtick-glued join', extractEvidencePaths('`test-aai-state.sh`/`test-aai-layer-profiles.sh`', root), []);
+eq('SPEC-0114 ellipsis abbreviation', extractEvidencePaths('docs/ai/tdd/red-...test_011/012/014...log', root), []);
+console.log('ok');
+NODE
+  grep -qF 'ok' "$TEST_DIR/t036.out" || log_fail "TEST-036: extraction-grammar assertions failed: $(cat "$TEST_DIR/t036.out")"
+  log_pass "extractEvidencePaths: accepts one clean citation, rejects every hostile shape (Spec-AC-01)"
+}
+
+# TEST-037 (Spec-AC-02) — grep contract: the lib imports parseAcTable +
+# parseLeanAcTable from lib/docs-model.mjs and declares no local
+# heading-regex; behavioral: zero citations for a table-less doc, non-zero
+# for a lean L1 table carrying an Evidence column.
+test_037_evidence_paths_shared_parser_contract() {
+  log_info "Test: evidence-paths.mjs reuses ONLY the shared AC-table readers, no forked heading regex (Spec-AC-02)..."
+  local lib="$PROJECT_ROOT/.aai/scripts/lib/evidence-paths.mjs"
+  [[ -f "$lib" ]] || log_fail "missing $lib (RED until CHANGE-0131 lands)"
+  grep -qF "parseAcTable" "$lib" || log_fail "TEST-037: lib must import parseAcTable from lib/docs-model.mjs"
+  grep -qF "parseLeanAcTable" "$lib" || log_fail "TEST-037: lib must import parseLeanAcTable from lib/docs-model.mjs"
+  grep -qE "docs-model\.mjs" "$lib" || log_fail "TEST-037: lib must import from lib/docs-model.mjs, not re-declare a reader"
+  if grep -qF "Acceptance Criteria Status" "$lib"; then
+    log_fail "TEST-037: lib must declare no local 'Acceptance Criteria Status' heading regex — S2, no fourth table parser"
+  fi
+
+  EVIDENCE_LIB="$lib" node --input-type=module > "$TEST_DIR/t037.out" 2>&1 <<'NODE' || log_fail "TEST-037: shared-parser behavioral assertions failed: $(cat "$TEST_DIR/t037.out")"
+const { evidenceCitations } = await import(process.env.EVIDENCE_LIB);
+const noTable = '# Doc\n\nno AC table here.\n';
+const noTableResult = evidenceCitations(noTable, process.cwd());
+if (noTableResult.length !== 0) { console.error('table-less doc must yield zero citations, got ' + JSON.stringify(noTableResult)); process.exit(1); }
+
+const lean = [
+  '---',
+  'id: t037-lean',
+  'type: change',
+  'status: implementing',
+  '---',
+  '',
+  '## Acceptance Criteria Status',
+  '',
+  '| Spec-AC    | Status | Evidence |',
+  '|------------|--------|----------|',
+  '| Spec-AC-01 | done   | docs/ai/tdd/green-t037.log |',
+  '',
+].join('\n');
+const leanResult = evidenceCitations(lean, process.cwd());
+if (leanResult.length === 0) { console.error('lean L1 table with an Evidence column must yield a non-empty result'); process.exit(1); }
+console.log('ok');
+NODE
+  grep -qF 'ok' "$TEST_DIR/t037.out" || log_fail "TEST-037: shared-parser behavioral assertions failed: $(cat "$TEST_DIR/t037.out")"
+  log_pass "evidence-paths.mjs reuses parseAcTable/parseLeanAcTable exclusively, declares no local heading regex (Spec-AC-02)"
+}
+
+# TEST-038 (Spec-AC-03) — guard-config unit: evidence_path_gate enforce /
+# report-only / invalid-fail-open (with a stderr notice) / absent-default;
+# plus the shipped docs-audit.yaml carries exactly one column-0 line.
+test_038_guard_config_evidence_path_gate_dial() {
+  log_info "Test: guard-config readGuardConfig returns evidence_path_gate for enforce/report-only/invalid-fail-open/absent (Spec-AC-03)..."
+  node --input-type=module > "$TEST_DIR/t038.out" 2>&1 <<NODE || log_fail "Spec-AC-03: guard-config evidence_path_gate checks failed: $(cat "$TEST_DIR/t038.out")"
+import { readGuardConfig, GUARD_DIALS } from '${GUARD_CONFIG_LIB}';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+if (!GUARD_DIALS.includes('evidence_path_gate')) { console.error('GUARD_DIALS must list evidence_path_gate'); process.exit(1); }
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'epg-'));
+fs.writeFileSync(path.join(dir, 'docs-audit.yaml'), 'evidence_path_gate: enforce\n');
+if (readGuardConfig(dir).evidence_path_gate !== 'enforce') { console.error('expected enforce'); process.exit(1); }
+fs.writeFileSync(path.join(dir, 'docs-audit.yaml'), 'evidence_path_gate: report-only\n');
+if (readGuardConfig(dir).evidence_path_gate !== 'report-only') { console.error('expected report-only'); process.exit(1); }
+let warned = false;
+fs.writeFileSync(path.join(dir, 'docs-audit.yaml'), 'evidence_path_gate: enforced\n');
+if (readGuardConfig(dir, { warn: () => { warned = true; } }).evidence_path_gate !== 'report-only') { console.error('expected fail-open report-only for invalid value'); process.exit(1); }
+if (!warned) { console.error('expected a stderr notice on an invalid value'); process.exit(1); }
+fs.writeFileSync(path.join(dir, 'docs-audit.yaml'), 'legacy_until_date: 2020-01-01\n');
+if (readGuardConfig(dir).evidence_path_gate !== 'report-only') { console.error('expected default report-only when the key is absent'); process.exit(1); }
+console.log('ok');
+NODE
+  grep -qF 'ok' "$TEST_DIR/t038.out" || log_fail "t038: guard-config evidence_path_gate assertions did not all pass: $(cat "$TEST_DIR/t038.out")"
+
+  local n
+  n="$(grep -c -- '^evidence_path_gate: report-only$' "$PROJECT_ROOT/docs/ai/docs-audit.yaml" || true)"
+  [[ "$n" == "1" ]] || log_fail "t038: expected exactly one column-0 'evidence_path_gate: report-only' line in the shipped docs-audit.yaml, got $n"
+
+  log_pass "guard-config evidence_path_gate: enforce/report-only/invalid-fail-open/absent-default all correct; shipped dial documented (Spec-AC-03)"
+}
+
+# TEST-039 (Spec-AC-04) — absent dial defaults to report-only: one absent +
+# one present evidence path WARNS (naming the doc, the absent path, the
+# Spec-AC row id — NOT the resolvable path) but the close still proceeds.
+test_039_evidence_gate_report_only_warns() {
+  log_info "Test: one absent + one present evidence path, no dial line -> report-only WARNING, close proceeds (Spec-AC-04)..."
+  local dir; dir=$(new_fixture_repo "t039")
+  # NB: no evidence_path_gate line in docs-audit.yaml -> fail-open report-only.
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t039.md" "t039-change-slug" "draft"
+  mkdir -p "$dir/docs/ai/tdd"
+  : > "$dir/docs/ai/tdd/green-t039.log"
+  write_spec_doc "$dir/docs/specs/SPEC-0001-t039.md" "t039-spec-slug" "implementing" "done" "docs/ai/tdd/green-t039.log docs/ai/tdd/red-t039-missing.log"
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t039.out" err="$TEST_DIR/t039.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t039-change-slug --spec t039-spec-slug --pr 39 --commit a039a039)
+  assert_exit "report-only default proceeds" 0 "$code"
+  grep -q -- 'WARNING (evidence-path gate)' "$err" \
+    || log_fail "t039: expected an evidence-path-gate WARNING on stderr, got: $(cat "$err")"
+  grep -qF 'docs/ai/tdd/red-t039-missing.log' "$err" \
+    || log_fail "t039: WARNING must name the unresolvable path"
+  grep -qF 'SPEC-0001-t039.md' "$err" \
+    || log_fail "t039: WARNING must name the doc"
+  grep -qF 'Spec-AC-01' "$err" \
+    || log_fail "t039: WARNING must name the Spec-AC row id"
+  if grep -qF 'docs/ai/tdd/green-t039.log' "$err"; then
+    log_fail "t039: WARNING must NOT name the resolvable path, got: $(cat "$err")"
+  fi
+  grep -q '^status: done$' "$dir/docs/specs/SPEC-0001-t039.md" \
+    || log_fail "t039: report-only close must still proceed to done"
+  log_pass "Absent dial = report-only: WARNS naming the doc, the AC row and the absent path only, close proceeds (Spec-AC-04)"
+}
+
+# TEST-040 (Spec-AC-05) — enforce refuses BEFORE any write (exit 5); doc
+# bytes, EVENTS length, and docs/INDEX.md are all untouched (S1).
+test_040_evidence_gate_enforce_refuses_pre_write() {
+  log_info "Test: same fixture under enforce -> exit 5 REFUSED, nothing written, docs/INDEX.md never created (Spec-AC-05)..."
+  local dir; dir=$(new_fixture_repo "t040")
+  set_evidence_path_gate_dial "$dir" "enforce"
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t040.md" "t040-change-slug" "draft"
+  mkdir -p "$dir/docs/ai/tdd"
+  : > "$dir/docs/ai/tdd/green-t040.log"
+  write_spec_doc "$dir/docs/specs/SPEC-0001-t040.md" "t040-spec-slug" "implementing" "done" "docs/ai/tdd/green-t040.log docs/ai/tdd/red-t040-missing.log"
+  commit_fixture_docs "$dir"
+  cp "$dir/docs/issues/CHANGE-0001-t040.md" "$TEST_DIR/t040-change-before.md"
+  cp "$dir/docs/specs/SPEC-0001-t040.md" "$TEST_DIR/t040-spec-before.md"
+  local events_before; events_before=$(file_size "$dir/docs/ai/EVENTS.jsonl")
+
+  local out="$TEST_DIR/t040.out" err="$TEST_DIR/t040.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t040-change-slug --spec t040-spec-slug --pr 40 --commit b040b040)
+  assert_exit "enforce gate refuses" 5 "$code"
+  grep -q -- 'REFUSED (evidence-path gate)' "$err" \
+    || log_fail "t040: expected an evidence-path-gate REFUSED line, got: $(cat "$err")"
+  grep -qF 'docs/ai/tdd/red-t040-missing.log' "$err" \
+    || log_fail "t040: REFUSED reason must name the unresolvable path"
+  diff -q "$TEST_DIR/t040-change-before.md" "$dir/docs/issues/CHANGE-0001-t040.md" >/dev/null \
+    || log_fail "t040: change doc mutated despite a pre-write refusal"
+  diff -q "$TEST_DIR/t040-spec-before.md" "$dir/docs/specs/SPEC-0001-t040.md" >/dev/null \
+    || log_fail "t040: spec doc mutated despite a pre-write refusal"
+  [[ "$(file_size "$dir/docs/ai/EVENTS.jsonl")" == "$events_before" ]] \
+    || log_fail "t040: EVENTS.jsonl grew despite a pre-write refusal"
+  [[ ! -e "$dir/docs/INDEX.md" ]] \
+    || log_fail "t040: docs/INDEX.md created despite a pre-write refusal (gate must fire before ANY write)"
+  log_pass "Enforce gate: exit 5 refuse, nothing written (doc + EVENTS + INDEX untouched) (Spec-AC-05)"
+}
+
+# TEST-041 (Spec-AC-06) — existence, not tracking (D4): a gitignored-but-
+# present file and an existing directory pass under enforce; deleting only
+# the gitignored file flips the SAME close to refuse.
+test_041_evidence_gate_existence_not_tracking() {
+  log_info "Test: existence not tracking — gitignored-but-present file + existing dir pass; deleting the file alone flips to refuse (Spec-AC-06)..."
+  local dir; dir=$(new_fixture_repo "t041")
+  set_evidence_path_gate_dial "$dir" "enforce"
+  printf 'docs/ai/tdd/\n' >> "$dir/.gitignore"
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t041.md" "t041-change-slug" "draft"
+  mkdir -p "$dir/docs/ai/tdd"
+  : > "$dir/docs/ai/tdd/green-t041.log"
+  write_spec_doc "$dir/docs/specs/SPEC-0001-t041.md" "t041-spec-slug" "implementing" "done" "docs/ai/tdd/green-t041.log docs/specs"
+  commit_fixture_docs "$dir"
+  git -C "$dir" check-ignore -v "docs/ai/tdd/green-t041.log" >/dev/null \
+    || log_fail "t041: fixture setup error — docs/ai/tdd/green-t041.log must be gitignored"
+
+  local out1="$TEST_DIR/t041a.out" err1="$TEST_DIR/t041a.err" code1
+  code1=$(run_close "$dir" "$out1" "$err1" --ref t041-change-slug --spec t041-spec-slug --pr 41 --commit c041c041)
+  assert_exit "gitignored-but-present file + directory pass under enforce" 0 "$code1"
+  if grep -qi -- 'evidence-path gate' "$err1"; then
+    log_fail "t041: a present (gitignored) file and an existing directory must not trip the gate, got: $(cat "$err1")"
+  fi
+
+  rm -f "$dir/docs/ai/tdd/green-t041.log"
+  local out2="$TEST_DIR/t041b.out" err2="$TEST_DIR/t041b.err" code2
+  code2=$(run_close "$dir" "$out2" "$err2" --ref t041-change-slug --spec t041-spec-slug --pr 41 --commit c041c041)
+  assert_exit "deleting the gitignored file alone flips to refuse" 5 "$code2"
+  grep -qF 'docs/ai/tdd/green-t041.log' "$err2" \
+    || log_fail "t041: second (post-delete) REFUSED reason must name the now-missing path"
+
+  log_pass "Existence, not tracking: gitignored-but-present + directory pass; deleting the file alone refuses (Spec-AC-06, D4)"
+}
+
+# TEST-042 (Spec-AC-07) — the intake hard requirement: Evidence cells holding
+# ONLY hostile prose shapes never trip the gate, even under enforce.
+test_042_evidence_gate_prose_never_refuses() {
+  log_info "Test: Evidence cells holding ONLY hostile prose shapes never trip the gate, even under enforce (Spec-AC-07)..."
+  local dir; dir=$(new_fixture_repo "t042")
+  set_evidence_path_gate_dial "$dir" "enforce"
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t042.md" "t042-change-slug" "draft"
+  cat > "$dir/docs/specs/SPEC-0001-t042.md" <<'EOF'
+---
+id: t042-spec-slug
+type: spec
+number: null
+status: implementing
+ceremony_level: 2
+links:
+  requirement: null
+  rfc: null
+  pr: []
+  commits: []
+---
+
+# SPEC — Fixture t042-spec-slug
+
+SPEC-FROZEN: true
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|--------------|--------|----------|-----------|-------|
+| Spec-AC-01 | fixture      | done   | TEST-001/002, see run 30289358425 | — | — |
+| Spec-AC-02 | fixture      | done   | /aai-release and /bin/bash        | — | — |
+| Spec-AC-03 | fixture      | done   | .aai/scripts/lib/docs-audit-core.mjs:591 | — | — |
+
+## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path | Description | Status |
+|----------|------------|------|-----------|--------------|--------|
+| TEST-001 | Spec-AC-01 | unit | n/a       | fixture      | green  |
+EOF
+  commit_fixture_docs "$dir"
+
+  local out="$TEST_DIR/t042.out" err="$TEST_DIR/t042.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t042-change-slug --spec t042-spec-slug --pr 42 --commit e042e042)
+  assert_exit "prose-only evidence never refuses under enforce" 0 "$code"
+  if grep -qi -- 'evidence-path gate' "$err"; then
+    log_fail "t042: hostile prose-only Evidence cells must never emit a gate line, got: $(cat "$err")"
+  fi
+  grep -q '^status: done$' "$dir/docs/specs/SPEC-0001-t042.md" \
+    || log_fail "t042: close did not proceed"
+  log_pass "Hostile prose shapes (test-id ranges, slash commands, line-number citations) never trip the gate, even under enforce (Spec-AC-07)"
+}
+
+# TEST-043 (Spec-AC-08) — --dry-run under enforce against an unresolvable
+# citation: exit 0, evidencePathGate JSON verdict names the path, nothing written.
+test_043_evidence_gate_dry_run_noop() {
+  log_info "Test: --dry-run reports the evidence-path verdict but never refuses/writes (Spec-AC-08)..."
+  local dir; dir=$(new_fixture_repo "t043")
+  set_evidence_path_gate_dial "$dir" "enforce"
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t043.md" "t043-change-slug" "draft"
+  write_spec_doc "$dir/docs/specs/SPEC-0001-t043.md" "t043-spec-slug" "implementing" "done" "docs/ai/tdd/red-t043-missing.log"
+  commit_fixture_docs "$dir"
+  cp "$dir/docs/specs/SPEC-0001-t043.md" "$TEST_DIR/t043-before.md"
+  local events_before; events_before=$(file_size "$dir/docs/ai/EVENTS.jsonl")
+
+  local out="$TEST_DIR/t043.out" err="$TEST_DIR/t043.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t043-change-slug --spec t043-spec-slug --pr 43 --commit f043f043 --dry-run)
+  assert_exit "dry-run never refuses" 0 "$code"
+  grep -qF 'evidencePathGate' "$out" \
+    || log_fail "t043: dry-run JSON must carry the evidencePathGate verdict, got: $(cat "$out")"
+  node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if(j.evidencePathGate.severity!=="refuse"){console.error("expected severity refuse in dry-run JSON, got "+j.evidencePathGate.severity);process.exit(1)}; const s=JSON.stringify(j.evidencePathGate); if(!s.includes("docs/ai/tdd/red-t043-missing.log")){console.error("expected the unresolvable path listed in evidencePathGate, got "+s);process.exit(1)}' "$out" \
+    || log_fail "t043: dry-run must report the would-be refuse verdict naming the unresolvable path"
+  diff -q "$TEST_DIR/t043-before.md" "$dir/docs/specs/SPEC-0001-t043.md" >/dev/null \
+    || log_fail "t043: --dry-run mutated the doc"
+  [[ "$(file_size "$dir/docs/ai/EVENTS.jsonl")" == "$events_before" ]] \
+    || log_fail "t043: --dry-run grew EVENTS.jsonl"
+  [[ ! -e "$dir/docs/INDEX.md" ]] || log_fail "t043: --dry-run wrote docs/INDEX.md"
+  log_pass "--dry-run reports the evidence-path verdict, never refuses/writes (Spec-AC-08)"
+}
+
+# TEST-046 (PR #245 Codex P1 / CHANGE-0127 regression) — the evidence-path
+# gate must resolve cited paths against the MAIN checkout, never against
+# process.cwd(), because SKILL_PR step 5c runs close-work-item FROM a linked
+# git worktree. Resolving against cwd there lets worktree-stranded evidence
+# resolve "fine" and silently defeats the gate's whole purpose. Two docs in
+# ONE fixture, closed from ONE linked worktree: doc A's evidence exists ONLY
+# in the worktree (must WARN — absent from the main tree); doc B's evidence
+# (the control) exists ONLY in the main tree, created AFTER the worktree
+# exists so it cannot leak into it (must NOT warn — present in the main
+# tree). A third pass checks the dry-run JSON's evidencePathGate carries a
+# resolutionRoot naming the main tree, not the worktree.
+test_046_evidence_gate_worktree_resolves_against_main_tree() {
+  log_info "Test: evidence-path gate resolves cited paths against the MAIN checkout, not a linked worktree's cwd (PR #245 Codex P1 / CHANGE-0127)..."
+  local dir; dir=$(new_fixture_repo "t046")
+
+  # Doc A: evidence path that will exist ONLY inside the worktree.
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t046a.md" "t046a-change-slug" "draft"
+  write_spec_doc "$dir/docs/specs/SPEC-0001-t046a.md" "t046a-spec-slug" "implementing" "done" "docs/ai/tdd/red-t046a-worktree-only.log"
+
+  # Doc B (control): evidence path that will exist ONLY in the main tree.
+  write_change_doc "$dir/docs/issues/CHANGE-0002-t046b.md" "t046b-change-slug" "draft"
+  write_spec_doc "$dir/docs/specs/SPEC-0002-t046b.md" "t046b-spec-slug" "implementing" "done" "docs/ai/tdd/green-t046b-maintree-only.log"
+  commit_fixture_docs "$dir"
+
+  # Spin up a linked worktree off the fixture's HEAD — the exact shape
+  # SKILL_PR step 5c runs a scope close from.
+  local wt="$TEST_DIR/t046-wt"
+  git -C "$dir" worktree add -q -b t046-wt-branch "$wt" HEAD \
+    || log_fail "t046: fixture setup error — could not create a linked worktree"
+
+  # Doc A's evidence: created ONLY inside the worktree.
+  mkdir -p "$wt/docs/ai/tdd"
+  : > "$wt/docs/ai/tdd/red-t046a-worktree-only.log"
+  [[ ! -e "$dir/docs/ai/tdd/red-t046a-worktree-only.log" ]] \
+    || log_fail "t046: fixture setup error — worktree-only evidence leaked into the main tree"
+
+  # Doc B's evidence: created ONLY in the main tree, AFTER the worktree
+  # already exists, so it cannot appear in the worktree's own working copy.
+  mkdir -p "$dir/docs/ai/tdd"
+  : > "$dir/docs/ai/tdd/green-t046b-maintree-only.log"
+  [[ ! -e "$wt/docs/ai/tdd/green-t046b-maintree-only.log" ]] \
+    || log_fail "t046: fixture setup error — main-tree evidence leaked into the worktree"
+
+  # Close doc A FROM the worktree, report-only (no dial line -> default):
+  # its evidence does not exist in the main tree -> must WARN.
+  local outA="$TEST_DIR/t046a.out" errA="$TEST_DIR/t046a.err" codeA
+  codeA=$(run_close "$wt" "$outA" "$errA" --ref t046a-change-slug --spec t046a-spec-slug --pr 46 --commit a046a046)
+  assert_exit "worktree-stranded evidence: report-only proceeds" 0 "$codeA"
+  grep -q -- 'WARNING (evidence-path gate)' "$errA" \
+    || log_fail "t046: worktree-only evidence must WARN when resolved against the main tree (absent there), got: $(cat "$errA")"
+  grep -qF 'docs/ai/tdd/red-t046a-worktree-only.log' "$errA" \
+    || log_fail "t046: WARNING must name the worktree-stranded path"
+
+  # Close doc B FROM the SAME worktree: its evidence exists only in the main
+  # tree -> resolving against the main tree must find it -> must NOT warn.
+  local outB="$TEST_DIR/t046b.out" errB="$TEST_DIR/t046b.err" codeB
+  codeB=$(run_close "$wt" "$outB" "$errB" --ref t046b-change-slug --spec t046b-spec-slug --pr 46 --commit b046b046)
+  assert_exit "main-tree evidence: report-only proceeds" 0 "$codeB"
+  if grep -qi -- 'evidence-path gate' "$errB"; then
+    log_fail "t046: main-tree evidence must resolve cleanly (no gate line) when closed from a worktree, got: $(cat "$errB")"
+  fi
+
+  # --dry-run from the worktree must report a resolutionRoot naming the main
+  # tree (not the worktree) — the resolution root made observable (Codex P1).
+  local dir_real wt_real
+  dir_real=$(cd "$dir" && pwd -P)
+  wt_real=$(cd "$wt" && pwd -P)
+  local outC="$TEST_DIR/t046c.out" errC="$TEST_DIR/t046c.err" codeC
+  codeC=$(run_close "$wt" "$outC" "$errC" --ref t046a-change-slug --spec t046a-spec-slug --pr 46 --commit a046a046 --dry-run)
+  assert_exit "dry-run never refuses" 0 "$codeC"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const root = j.evidencePathGate && j.evidencePathGate.resolutionRoot;
+    if (!root) { console.error("expected evidencePathGate.resolutionRoot in the dry-run JSON"); process.exit(1); }
+    if (root !== process.argv[2]) { console.error("expected resolutionRoot " + process.argv[2] + ", got " + root); process.exit(1); }
+    if (root === process.argv[3]) { console.error("resolutionRoot must NOT be the worktree cwd"); process.exit(1); }
+  ' "$outC" "$dir_real" "$wt_real" \
+    || log_fail "t046: dry-run resolutionRoot must name the main checkout, not the worktree cwd"
+
+  log_pass "Evidence-path gate resolves against the main checkout from a linked worktree: worktree-only evidence warns, main-tree evidence resolves clean, resolutionRoot observable (PR #245 Codex P1 / CHANGE-0127)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -1743,6 +2135,15 @@ main() {
   test_033_usage_gate_captured_and_metarole_pass
   test_034_usage_gate_dry_run_noop
   test_035_guard_config_usage_capture_gate_dial
+  test_036_evidence_path_extraction_grammar
+  test_037_evidence_paths_shared_parser_contract
+  test_038_guard_config_evidence_path_gate_dial
+  test_039_evidence_gate_report_only_warns
+  test_040_evidence_gate_enforce_refuses_pre_write
+  test_041_evidence_gate_existence_not_tracking
+  test_042_evidence_gate_prose_never_refuses
+  test_043_evidence_gate_dry_run_noop
+  test_046_evidence_gate_worktree_resolves_against_main_tree
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

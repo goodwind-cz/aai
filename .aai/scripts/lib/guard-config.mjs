@@ -32,7 +32,12 @@ export const GUARD_CONFIG_BASENAME = 'docs-audit.yaml';
 // choose warn-vs-refuse for its pre-write close-time usage-capture gate. Like
 // product_doc_gate it is a close-only dial (NOT a pre-commit-hook concern), so
 // the shell greps in pre-commit-checks.{sh,ps1} deliberately do not cover it.
-export const GUARD_DIALS = ['independence', 'close_gate', 'doc_number_guard', 'product_doc_gate', 'usage_capture_gate'];
+// `evidence_path_gate` (CHANGE-0131 / spec-evidence-path-gate) mirrors both:
+// same grammar and fail-open default, consulted by close-work-item.mjs to
+// choose warn-vs-refuse when a closing doc's AC Status Evidence cells cite a
+// path-shaped token that does not resolve from the repo root. Close-only —
+// the shell greps deliberately do not cover it either.
+export const GUARD_DIALS = ['independence', 'close_gate', 'doc_number_guard', 'product_doc_gate', 'usage_capture_gate', 'evidence_path_gate'];
 
 // Presence probe shared with docs-audit.mjs mode detection (enforced vs
 // report-only hangs off this file's existence — documented coupling, D8).
@@ -60,6 +65,7 @@ export function readGuardConfig(dir, opts = {}) {
     doc_number_guard: 'report-only',
     product_doc_gate: 'report-only',
     usage_capture_gate: 'report-only',
+    evidence_path_gate: 'report-only',
   };
   let raw;
   try {
@@ -75,7 +81,7 @@ export function readGuardConfig(dir, opts = {}) {
     // comment ("enforce# note") therefore yields the token "enforce#", which
     // fails the closed-set check below and falls open WITH a warning — the
     // same verdict the hooks' grep boundary (enforce([[:space:]]|$)) reaches.
-    const m = line.match(/^(independence|close_gate|doc_number_guard|product_doc_gate|usage_capture_gate):\s*(\S+)/);
+    const m = line.match(/^(independence|close_gate|doc_number_guard|product_doc_gate|usage_capture_gate|evidence_path_gate):\s*(\S+)/);
     if (!m || seen.has(m[1])) continue;   // column-0 only; first occurrence wins
     seen.add(m[1]);
     if (m[2] !== 'enforce' && m[2] !== 'report-only') {
