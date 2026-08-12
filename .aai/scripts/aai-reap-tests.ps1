@@ -65,17 +65,62 @@ function Test-WslPresent {
   return [bool](Get-Command wsl.exe -ErrorAction SilentlyContinue)
 }
 
+function Start-WslProbeProcess {
+  # REAL functional probe (CHANGE-0134 Spec-AC-03, ports the identical fix
+  # aai-run-tests.ps1 already carries for the same field defect — PR #247 run
+  # 31603532721 / run 31606986703): a distro-less `wsl.exe` on windows-latest
+  # prints a UTF-16LE "no installed distributions" message and exits 0, so the
+  # probe must be silent (both streams redirected to real per-call temp files,
+  # never inherited/NUL) and the caller must demand an exact sentinel exit
+  # code back rather than a bare ExitCode -eq 0. The 5.1 ExitCode-null footgun
+  # (a -PassThru process object whose .Handle is never touched can read back
+  # $null after the process has exited on Windows PowerShell 5.1) is guarded
+  # by touching .Handle immediately, before any wait/poll. Kept FILE-LOCAL,
+  # byte-shape-identical to aai-run-tests.ps1's copy — both dispatcher headers
+  # deliberately share no module, so a Pester pin (TEST-009, SEAM-3) is what
+  # keeps the two copies from drifting apart again.
+  [CmdletBinding()]
+  param([Parameter(Mandatory)][string[]]$ArgumentList)
+  $outFile = [System.IO.Path]::GetTempFileName()
+  $errFile = [System.IO.Path]::GetTempFileName()
+  $proc = Start-Process -FilePath 'wsl.exe' -ArgumentList $ArgumentList -NoNewWindow -PassThru `
+    -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+  $null = $proc.Handle
+  Remove-Item -LiteralPath $outFile -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $errFile -ErrorAction SilentlyContinue
+  return $proc
+}
+
+function Wait-ProcessWithTimeout {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]$Process,
+    [Parameter(Mandatory)][int]$TimeoutSeconds
+  )
+  return $Process.WaitForExit($TimeoutSeconds * 1000)
+}
+
 function Test-WslUsable {
+  # REAL functional probe (CHANGE-0134 Spec-AC-03): mirrors aai-run-tests.ps1's
+  # Test-WslUsable exactly — a present-but-distro-less wsl.exe answers "no
+  # installed distributions" and exits 0, indistinguishable from real success
+  # under a bare ExitCode check. This probe runs a trivial command THROUGH a
+  # distro (`sh -c 'exit <sentinel>'`) and requires that EXACT sentinel exit
+  # code back; a distro-less wsl.exe, a timeout, or any other non-sentinel
+  # result all count as NOT usable and fall through to Git Bash
+  # (Resolve-Interpreter). The 5s watchdog guards against any prompt/hang so
+  # this NEVER blocks the caller.
   [CmdletBinding()] param()
   if (-not (Test-WslPresent)) { return $false }
+  $sentinel = 42
   try {
-    $proc = Start-Process -FilePath 'wsl.exe' -ArgumentList @('-e', 'true') -NoNewWindow -PassThru
-    $completed = $proc.WaitForExit(5000)
+    $proc = Start-WslProbeProcess -ArgumentList @('-e', 'sh', '-c', "exit $sentinel")
+    $completed = Wait-ProcessWithTimeout -Process $proc -TimeoutSeconds 5
     if (-not $completed) {
       try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
       return $false
     }
-    return ($proc.ExitCode -eq 0)
+    return ($proc.ExitCode -eq $sentinel)
   } catch {
     return $false
   }

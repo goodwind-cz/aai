@@ -1014,6 +1014,100 @@ Describe 'aai-reap-tests.ps1' {
         $errors | Should -BeNullOrEmpty
     }
 
+    # ---- CHANGE-0134 TEST-007 (Spec-AC-03): reaper Test-WslUsable gains the
+    # SAME functional-probe fix aai-run-tests.ps1 already carries (CHANGE-0133
+    # follow-up) -- the pre-change reaper accepts any `wsl.exe -e true` exit 0
+    # as usable, which a distro-less windows-latest satisfies vacuously. RED on
+    # the pre-change tree: the reaper has neither Start-WslProbeProcess nor
+    # Wait-ProcessWithTimeout, so Test-WslUsable never calls the mocked probe
+    # at all and these expectations fail.
+    Context 'CHANGE-0134 TEST-007 (Spec-AC-03): reaper Test-WslUsable is a REAL functional probe, not a bare present-check' {
+        It 'wsl.exe present, ZERO installed distributions (probe exits 0 without the sentinel) -> NOT usable' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 9101; ExitCode = 0 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            Test-WslUsable | Should -Be $false
+        }
+
+        It 'wsl.exe present, real distro answers the exact sentinel exit code -> usable' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 9102; ExitCode = 42 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            Test-WslUsable | Should -Be $true
+        }
+
+        It 'wsl.exe present, distro answers a NON-sentinel exit code -> NOT usable' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 9103; ExitCode = 1 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            Test-WslUsable | Should -Be $false
+        }
+
+        It 'probe never completes within the watchdog -> NOT usable, probe process stopped exactly once' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 9104; ExitCode = $null } }
+            Mock Wait-ProcessWithTimeout { $false }
+            Mock Stop-Process { }
+            Test-WslUsable | Should -Be $false
+            Should -Invoke Stop-Process -Times 1 -Exactly -ParameterFilter { $Id -eq 9104 }
+        }
+    }
+
+    # ---- CHANGE-0134 TEST-008 (Spec-AC-03): structural pin over the reaper's
+    # own Start-WslProbeProcess, mirroring the pin that already guards
+    # aai-run-tests.ps1's copy (TEST-011 in the Describe above). RED on the
+    # pre-change tree: the function does not exist yet.
+    Context 'CHANGE-0134 TEST-008 (Spec-AC-03): structural pin -- reaper Start-WslProbeProcess redirects both streams and touches .Handle immediately' {
+        It 'Start-WslProbeProcess exists, redirects stdout+stderr to per-call temp files, and touches $proc.Handle on the very next statement' {
+            $content = Get-Content -Raw $script:ReapDispatcher
+            if ($content -match '(?s)function Start-WslProbeProcess\s*\{(.*?)\n\}') {
+                $body = $Matches[1]
+            } else {
+                $body = ''
+            }
+            $body | Should -Not -BeNullOrEmpty
+            $body | Should -Match '-RedirectStandardOutput\s+\$outFile'
+            $body | Should -Match '-RedirectStandardError\s+\$errFile'
+            $body | Should -Not -Match "-RedirectStandardOutput\s+(\`$null|'NUL'|""NUL"")"
+            $body | Should -Match '(?s)\$proc\s*=\s*Start-Process\s+-FilePath\s+''wsl\.exe''.*?\n\s*(#.*\n\s*)*\$null\s*=\s*\$proc\.Handle'
+        }
+    }
+
+    # ---- CHANGE-0134 TEST-009 (Spec-AC-03, SEAM-3): cross-file sentinel/argv
+    # parity -- the two dispatchers deliberately share no module (see both
+    # headers), so nothing but a test enforces they still agree. RED on the
+    # pre-change tree: the reaper's probe argv is the bare `-e true` command,
+    # not the sentinel `-e sh -c "exit <N>"` shape aai-run-tests.ps1 uses.
+    Context 'CHANGE-0134 TEST-009 (Spec-AC-03, SEAM-3): reaper and run-tests dispatchers agree on the sentinel value and probe argv' {
+        It 'both dispatchers'' Test-WslUsable declare the identical sentinel integer literal' {
+            $runContent = Get-Content -Raw $script:RunDispatcher
+            $reapContent = Get-Content -Raw $script:ReapDispatcher
+            $runSentinel = if ($runContent -match '\$sentinel\s*=\s*(\d+)') { $Matches[1] } else { $null }
+            $reapSentinel = if ($reapContent -match '\$sentinel\s*=\s*(\d+)') { $Matches[1] } else { $null }
+            $runSentinel | Should -Not -BeNullOrEmpty
+            $reapSentinel | Should -Not -BeNullOrEmpty
+            $reapSentinel | Should -Be $runSentinel
+        }
+
+        It 'both dispatchers'' Test-WslUsable pass the identical probe argument list shape (-e sh -c "exit $sentinel") to Start-WslProbeProcess' {
+            $runContent = Get-Content -Raw $script:RunDispatcher
+            $reapContent = Get-Content -Raw $script:ReapDispatcher
+            $pattern = "Start-WslProbeProcess\s+-ArgumentList\s+@\('-e',\s*'sh',\s*'-c',\s*""exit \`$sentinel""\)"
+            $runContent | Should -Match $pattern
+            $reapContent | Should -Match $pattern
+        }
+
+        It 'reaper Resolve-Interpreter falls through to gitbash when the probe does not return the sentinel-clean result' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 9105; ExitCode = 0 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            Mock Find-GitBash { 'C:\Program Files\Git\bin\bash.exe' }
+            $r = Resolve-Interpreter
+            $r.Mode | Should -Be 'gitbash'
+            $r.BashPath | Should -Be 'C:\Program Files\Git\bin\bash.exe'
+        }
+    }
+
     Context 'TEST-006 (Spec-AC-04): mocked snapshot — other-workspace spared, young spared, old match killed as tree; prints reaped: N' {
         BeforeEach {
             $script:now = Get-Date '2026-07-17T12:00:00'
