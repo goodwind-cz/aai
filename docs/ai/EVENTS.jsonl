@@ -1595,3 +1595,4 @@
 {"v":1,"ts":"2026-08-12T15:59:48.882Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-ps1-wrapper-path-dup","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-12T15:59:48.916Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-ps1-wrapper-path-dup","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-12T15:59:48.950Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-ps1-wrapper-path-dup","payload":{"commit":"83e0ff3946497b7388f93f9fa17c9f5a4316ea25"}}
+{"v":1,"ts":"2026-08-12T19:42:21.380Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pester-on-windows-ci","payload":{"from":"draft","to":"implementing"}}
