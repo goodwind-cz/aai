@@ -17,6 +17,7 @@ on:
     paths:
       - '.aai/scripts/**.ps1'
       - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
+      - '.aai/scripts/aai-run-tests.sh'
       - 'tests/skills/test-ps1-quality.sh'
       - 'tests/skills/aai-update.Tests.ps1'
       - 'tests/skills/aai-win-dispatch.Tests.ps1'
@@ -25,6 +26,7 @@ on:
     paths:
       - '.aai/scripts/**.ps1'
       - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
+      - '.aai/scripts/aai-run-tests.sh'
       - 'tests/skills/test-ps1-quality.sh'
       - 'tests/skills/aai-update.Tests.ps1'
       - 'tests/skills/aai-win-dispatch.Tests.ps1'
@@ -366,6 +368,7 @@ jobs:
             if ($r3.Code -ne 125) { Write-Host "FAIL spawnfail: expected exit 125, got $($r3.Code)"; $fail++ }
             if ($r3.Err -notmatch 'AAI-SPAWN-ERROR') { Write-Host "FAIL spawnfail: expected AAI-SPAWN-ERROR on stderr, got none"; $fail++ }
             if ($r3.Out -match 'AAI-WRAPPER-SMOKE-MARKER') { Write-Host "FAIL spawnfail: marker must NOT appear (process never started)"; $fail++ }
+            if ($r3.Out -match 'SHOULD-NOT-RUN') { Write-Host "FAIL spawnfail: fixture RAN (SHOULD-NOT-RUN captured) - 125 did not come from a pre-spawn failure"; $fail++ }
           }
 
           if ($fail -gt 0) { Write-Error "real-wrapper smoke failed under Windows PowerShell 5.1 ($fail check(s))"; exit 1 }
@@ -500,6 +503,7 @@ jobs:
             if ($r3.Code -ne 125) { Write-Host "FAIL spawnfail: expected exit 125, got $($r3.Code)"; $fail++ }
             if ($r3.Err -notmatch 'AAI-SPAWN-ERROR') { Write-Host "FAIL spawnfail: expected AAI-SPAWN-ERROR on stderr, got none"; $fail++ }
             if ($r3.Out -match 'AAI-WRAPPER-SMOKE-MARKER') { Write-Host "FAIL spawnfail: marker must NOT appear (process never started)"; $fail++ }
+            if ($r3.Out -match 'SHOULD-NOT-RUN') { Write-Host "FAIL spawnfail: fixture RAN (SHOULD-NOT-RUN captured) - 125 did not come from a pre-spawn failure"; $fail++ }
           }
 
           if ($fail -gt 0) { Write-Error "real-wrapper smoke failed under pwsh 7 ($fail check(s))"; exit 1 }
