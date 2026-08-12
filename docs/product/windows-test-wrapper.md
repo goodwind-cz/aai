@@ -98,6 +98,6 @@ blind end-to-end iteration.
 - Request (fast-iteration path, full Pester on Windows CI):
   docs/issues/CHANGE-0134-pester-on-windows-ci.md
 - Spec (fast-iteration path, full Pester on Windows CI):
-  docs/specs/SPEC-DRAFT-spec-pester-on-windows-ci.md
+  docs/specs/SPEC-0121-spec-pester-on-windows-ci.md
 - Validation evidence: docs/ai/validation/ (gitignored runtime directory —
   reports land here per ride, not committed to the repo)

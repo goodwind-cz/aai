@@ -1,7 +1,7 @@
 ---
 id: spec-pester-on-windows-ci
 type: spec
-number: null
+number: 121
 status: implementing
 ceremony_level: 1
 links:
@@ -389,7 +389,7 @@ Commands to run:
 - `bash tests/skills/test-aai-suite-select.sh`
 - `bash tests/skills/test-aai-hygiene-pack.sh` (test-function registration)
 - `node .aai/scripts/docs-audit.mjs --check --strict --no-event`
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-pester-on-windows-ci.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0121-spec-pester-on-windows-ci.md`
 - the `ps1-quality / windows-5_1` job on this scope's PR
 
 Evidence artifacts: stored RED logs under `docs/ai/tdd/` for TEST-007, TEST-008

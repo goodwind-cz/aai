@@ -3,14 +3,14 @@
 - Reviewer: independent fresh context, read-only on implementation (no source/test/doc file touched; only this report written)
 - Branch: `feat/pester-on-windows-ci` (verified `git branch --show-current`; never switched, never pushed)
 - Scope: `git diff main...HEAD` — 5 commits (d6d39a2, 65b0a26, e710eab, 6069ce1, 7bf39ae), 15 files, +1117/-31
-- Spec: docs/specs/SPEC-DRAFT-spec-pester-on-windows-ci.md (SPEC-FROZEN, ceremony_level 1, hybrid)
+- Spec: docs/specs/SPEC-0121-spec-pester-on-windows-ci.md (SPEC-FROZEN, ceremony_level 1, hybrid)
 - Prior validation read: docs/ai/validation/validation-20260812T201132Z-CHANGE-0134-pester-on-windows-ci.md (CONDITIONAL-PASS; VF-1/2/3/5/6 remediated in 7bf39ae)
 - Working tree clean at review time
 
 ```yaml
 review:
   scope: git diff main...HEAD (feat/pester-on-windows-ci, 5 commits, 15 files)
-  spec: docs/specs/SPEC-DRAFT-spec-pester-on-windows-ci.md
+  spec: docs/specs/SPEC-0121-spec-pester-on-windows-ci.md
   spec_compliance:
     verdict: pass
     ac_walk:
