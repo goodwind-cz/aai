@@ -1,7 +1,7 @@
 ---
 id: spec-ps1-wrapper-path-dup
 type: spec
-number: null
+number: 120
 status: implementing
 ceremony_level: 2
 links:
@@ -382,7 +382,7 @@ Commands to run:
 - `node .aai/scripts/generate-userguide-rollup.mjs` then confirm the USER_GUIDE
   diff is contained to the marker block plus the hand-edited exit-code prose
 - `node .aai/scripts/docs-audit.mjs --check --strict --no-event`
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-ps1-wrapper-path-dup.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md`
 
 Evidence artifacts: the stored RED logs under `docs/ai/tdd/` for TEST-001 to
 TEST-009 and the recorded RED observation for TEST-010, TEST-012, TEST-013 and

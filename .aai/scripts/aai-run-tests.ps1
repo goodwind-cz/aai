@@ -27,7 +27,7 @@
 #                                         POSIX sessions on Windows) — weaker than SPEC-0009
 #   Windows, neither WSL nor Git Bash  - AAI-ENV-ERROR: ..., exit 78; no test run attempted
 #
-# Exit-code contract (CHANGE-0133 / SPEC-DRAFT-spec-ps1-wrapper-path-dup):
+# Exit-code contract (CHANGE-0133 / SPEC-0120-spec-ps1-wrapper-path-dup):
 #   0/N   - the wrapped command RAN and this is its own real exit code.
 #   2     - usage error (no command given); never confused with the codes below.
 #   78    - no usable POSIX interpreter (sysexits EX_CONFIG); AAI-ENV-ERROR on

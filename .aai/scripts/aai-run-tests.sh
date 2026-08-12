@@ -43,7 +43,7 @@
 #   Windows, neither WSL nor Git Bash  - AAI-ENV-ERROR: ..., exit 78 (aai-run-tests.ps1); this
 #                                         POSIX file is never reached in that configuration
 #
-# Exit-code contract (CHANGE-0133 / SPEC-DRAFT-spec-ps1-wrapper-path-dup,
+# Exit-code contract (CHANGE-0133 / SPEC-0120-spec-ps1-wrapper-path-dup,
 # Spec-AC-06 parity check — the ONE sanctioned behavior change in this file is
 # the perl-fallback exec-failure fidelity fix below (ENOENT -> 127, anything
 # else -> 126, matching native POSIX shell semantics); everything else here is

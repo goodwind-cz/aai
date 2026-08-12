@@ -6,7 +6,7 @@ status: current
 delivered_by:
   - CHANGE-0133
   - ps1-wrapper-path-dup
-spec: docs/specs/SPEC-DRAFT-spec-ps1-wrapper-path-dup.md
+spec: docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md
 updated: 2026-08-12
 ---
 
@@ -76,6 +76,6 @@ wrapper invocation.
 ## Links
 
 - Request: docs/issues/CHANGE-0133-ps1-wrapper-path-dup.md
-- Spec: docs/specs/SPEC-DRAFT-spec-ps1-wrapper-path-dup.md
+- Spec: docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md
 - Validation evidence: docs/ai/validation/ (gitignored runtime directory —
   reports land here per ride, not committed to the repo)

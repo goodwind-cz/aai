@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-12T13:49:33.714Z
+Generated: 2026-08-12T13:49:55.406Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-ps1-wrapper-path-dup | specs | implementing | 6 done, 1 planned | docs/specs/SPEC-DRAFT-spec-ps1-wrapper-path-dup.md |
+| SPEC-0120 | specs | implementing | 6 done, 1 planned | docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md |
 
 ## Canonical layer (0)
 

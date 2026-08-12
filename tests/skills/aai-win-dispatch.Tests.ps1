@@ -214,10 +214,10 @@ Describe 'aai-run-tests.ps1' {
         }
     }
 
-    # ---- CHANGE-0133 / SPEC-DRAFT-spec-ps1-wrapper-path-dup (TEST-001..009) ----
+    # ---- CHANGE-0133 / SPEC-0120-spec-ps1-wrapper-path-dup (TEST-001..009) ----
     # Environment canonicalization before every spawn, explicit 125 infra exit
     # code, no fake 124. NOTE: the "TEST-NNN" labels below are this spec's OWN
-    # Test Plan ids, scoped to SPEC-DRAFT-spec-ps1-wrapper-path-dup — they are
+    # Test Plan ids, scoped to SPEC-0120-spec-ps1-wrapper-path-dup — they are
     # independent of (and numerically overlap) the SPEC-0046 TEST-001..006
     # labels used above in this same Describe block for a different spec.
 

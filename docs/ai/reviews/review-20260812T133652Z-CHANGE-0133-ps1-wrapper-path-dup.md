@@ -1,8 +1,8 @@
-# Code Review (single dual-verdict pass) — CHANGE-0133 / SPEC-DRAFT-spec-ps1-wrapper-path-dup
+# Code Review (single dual-verdict pass) — CHANGE-0133 / SPEC-0120-spec-ps1-wrapper-path-dup
 
 - Scope: `git diff main...HEAD` on `fix/ps1-wrapper-path-dup` @ `288f6bf` (verified
   with `git branch --show-current`; never switched, never pushed; working tree clean)
-- Spec: `docs/specs/SPEC-DRAFT-spec-ps1-wrapper-path-dup.md` (SPEC-FROZEN, ceremony_level 2)
+- Spec: `docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md` (SPEC-FROZEN, ceremony_level 2)
 - Reviewer: independent fresh context, read-only on implementation (no implementation,
   test, spec, doc or STATE file written by this pass — only this report)
 - Validation history read before reviewing: `validation-20260812T124805Z-*` (FAIL, V-F1)
@@ -13,7 +13,7 @@
 ```yaml
 review:
   scope: "git diff main...HEAD (fix/ps1-wrapper-path-dup @ 288f6bf)"
-  spec: docs/specs/SPEC-DRAFT-spec-ps1-wrapper-path-dup.md
+  spec: docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -40,7 +40,7 @@ review:
       - { rank: NON-BLOCKING, file: .aai/scripts/aai-run-tests.sh, line: 47,
           issue: "header states 'NO behavior change in this file, characterization only' while the same commit changes behavior at :163",
           failure_scenario: "An operator or agent debugging a 126 on a setsid-less host reads the header, concludes CHANGE-0133 did not touch this file, and mis-attributes the exit code; TEST-015 greps only for the 124/125/78 tokens so nothing catches the untruth." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-ps1-wrapper-path-dup.md, line: 190,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md, line: 190,
           issue: "V-F7 confirmed: Spec-AC-05 (:190) and TEST-011 (:308) describe a single success arm; the delivered step has three (success/timeout/induced-spawnfail)",
           failure_scenario: "The AC-05 flip happens at PR time, likely in a context that never read this ride; a red timeout or spawnfail arm is then read against prose that does not describe it, and the stamped evidence claims a run that is not what executed." }
       - { rank: NON-BLOCKING, file: .github/workflows/ps1-quality.yml, line: 163,
