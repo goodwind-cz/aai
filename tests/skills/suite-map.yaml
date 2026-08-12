@@ -650,6 +650,11 @@ suites:
       - docs/product/**
       - docs/USER_GUIDE.md
 
+  aai-validator-isolation:
+    globs:
+      - .aai/SUBAGENT_PROTOCOL.md
+      - .aai/VALIDATION.prompt.md
+
   aai-verify-gate:
     globs:
       - .aai/SKILL_VERIFY.prompt.md
