@@ -42,28 +42,56 @@ function Invoke-NativeChecked {
   # SUCCESS-stderr (e.g. `git push`'s "To <remote>..." progress line) must
   # NEVER be promoted to a terminating error under this script's outer
   # `$ErrorActionPreference = 'Stop'` (that promotion is Windows PowerShell
-  # 5.1 behavior; see the issue). This helper localizes EAP to 'Continue' for
-  # the duration of the call, captures merged stdout+stderr, and gates
-  # SOLELY on `$LASTEXITCODE`: zero -> return the captured output, never
-  # throw, regardless of stderr content; non-zero -> throw a terminating
-  # error whose message INCLUDES the captured text, so a real failure
-  # (rejected push, auth, network) still fails loudly with git/gh's own
-  # diagnostic - never a blanket `*> $null` that would hide it.
+  # 5.1 behavior; see the issue). Gates SOLELY on the child's real exit code:
+  # zero -> return the captured output, never throw, regardless of stderr
+  # content; non-zero -> throw a terminating error whose message INCLUDES the
+  # captured text, so a real failure (rejected push, auth, network) still
+  # fails loudly with git/gh's own diagnostic - never a blanket `*> $null`
+  # that would hide it.
+  #
+  # CHANGE-0134 remediation (RR-1 realized -- first real Windows PowerShell 5.1 run,
+  # PR #248 run 31638479811, TEST-002): a LOCAL `$ErrorActionPreference =
+  # 'Continue'` reassignment around an in-process `2>&1` merge does NOT
+  # reliably suppress the 5.1 stderr-promotion described above -- proven
+  # false on real hardware, exactly the residual risk SPEC-0067 recorded as
+  # unverified (pwsh 7 does not reproduce the promotion at all, so this was
+  # never provable off-host). Capturing at the OS-handle level via
+  # Start-Process -RedirectStandardOutput/-RedirectStandardError sidesteps
+  # PowerShell's error-stream/EAP machinery entirely -- the same technique
+  # aai-run-tests.ps1's Start-WslProbeProcess/Start-GitBashProcess already
+  # use for the sibling 5.1 ExitCode-null footgun. Arguments are individually
+  # quoted into ONE -ArgumentList string first: Start-Process -ArgumentList
+  # silently mis-splits an ARRAY whose elements contain embedded spaces (each
+  # element is naively space-joined, not quoted) -- proven while building
+  # this fix, and would otherwise tear a commit message or `-m` value into
+  # multiple argv entries.
   [CmdletBinding()]
   param(
     [Parameter(Mandatory)][string]$Exe,
     [Parameter(Mandatory)][string[]]$Arguments
   )
-  $prevEap = $ErrorActionPreference
-  $ErrorActionPreference = 'Continue'
-  $out = & $Exe @Arguments 2>&1
-  $exitCode = $LASTEXITCODE
-  $ErrorActionPreference = $prevEap
+  $outFile = [System.IO.Path]::GetTempFileName()
+  $errFile = [System.IO.Path]::GetTempFileName()
+  try {
+    $argString = ($Arguments | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }) -join ' '
+    $proc = Start-Process -FilePath $Exe -ArgumentList $argString -NoNewWindow -PassThru -Wait `
+      -RedirectStandardOutput $outFile -RedirectStandardError $errFile -ErrorAction Stop
+    # 5.1 ExitCode-null footgun: touch .Handle so a real exit code is
+    # readable on every PowerShell version, even though -Wait already
+    # blocked until the process exited.
+    $null = $proc.Handle
+    $exitCode = $proc.ExitCode
+    $stdout = @(Get-Content -LiteralPath $outFile -ErrorAction SilentlyContinue)
+    $stderr = @(Get-Content -LiteralPath $errFile -ErrorAction SilentlyContinue)
+    $out = @($stdout + $stderr) | Where-Object { $null -ne $_ }
+  } finally {
+    Remove-Item -LiteralPath $outFile, $errFile -ErrorAction SilentlyContinue
+  }
   if ($exitCode -ne 0) {
     $joined = ($out | ForEach-Object { "$_" }) -join [Environment]::NewLine
     throw "$Exe $($Arguments -join ' ') failed (exit ${exitCode}): $joined"
   }
-  return $out
+  return ,$out
 }
 
 if ($MyInvocation.InvocationName -ne '.') {

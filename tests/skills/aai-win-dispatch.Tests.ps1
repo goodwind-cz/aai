@@ -17,12 +17,22 @@
 #
 # Run via: pwsh -NoProfile -Command "Invoke-Pester tests/skills/aai-win-dispatch.Tests.ps1 -Output Detailed"
 # (tests/skills/test-ps1-quality.sh wraps this and skips if pwsh/Pester absent.)
+#
+# CHANGE-0134 Spec-AC-02: dot-sourced at FILE/DISCOVERY scope (plain top-level
+# script code, NOT inside BeforeAll) so the handful of genuinely
+# Windows-fragile `It`s below can reference $script:SkipOnWindows in their own
+# `-Skip:` parameter — see tests/skills/lib/pester-host-skip.ps1 for why a
+# BeforeAll-scoped variable would silently fail to skip here.
+. (Join-Path $PSScriptRoot 'lib/pester-host-skip.ps1')
+$script:SkipOnWindows = Test-IsWindowsHostFor -Edition $PSVersionTable.PSEdition -IsWindowsFlag $IsWindows
 
 BeforeAll {
     $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
     $script:RunDispatcher = Join-Path $RepoRoot '.aai/scripts/aai-run-tests.ps1'
     $script:ReapDispatcher = Join-Path $RepoRoot '.aai/scripts/aai-reap-tests.ps1'
     $script:ReleaseScript = Join-Path $RepoRoot '.aai/scripts/aai-release.ps1'
+    $script:SkipHelperPath = Join-Path $PSScriptRoot 'lib/pester-host-skip.ps1'
+    $script:NativeCaptureHelperPath = Join-Path $PSScriptRoot 'lib/pester-native-capture.ps1'
 }
 
 Describe 'aai-run-tests.ps1' {
@@ -30,6 +40,14 @@ Describe 'aai-run-tests.ps1' {
     BeforeEach {
         # Re-dot-source before every test so Mocks never leak between tests.
         . $script:RunDispatcher
+        # CHANGE-0134 remediation (real Windows PowerShell 5.1 fix): see
+        # lib/pester-native-capture.ps1 header for why the tests below that
+        # spawn a real child pwsh route through Invoke-NativeCaptured instead
+        # of an in-process `2>$file`/`2>$null` redirect. Dot-sourced HERE
+        # (inside BeforeEach, like the dispatcher itself) rather than at
+        # top-of-file scope -- a top-level dot-source's function definitions
+        # do not carry into Pester's Run-phase block scopes.
+        . $script:NativeCaptureHelperPath
     }
 
     It 'parses with no syntax errors' {
@@ -37,6 +55,26 @@ Describe 'aai-run-tests.ps1' {
         [System.Management.Automation.Language.Parser]::ParseFile(
             $script:RunDispatcher, [ref]$null, [ref]$errors) | Out-Null
         $errors | Should -BeNullOrEmpty
+    }
+
+    Context 'CHANGE-0134 TEST-003 (Spec-AC-02): Test-IsWindowsHostFor never silently fails to skip on Windows PowerShell 5.1, never over-skips on POSIX' {
+        # Real child-process invocations (not a direct in-process call): Pester
+        # v5 only runs top-level (non-block) script code during DISCOVERY, so
+        # the file-scope dot-source above (needed there so $script:SkipOnWindows
+        # is correct for -Skip: evaluation) does not carry the function forward
+        # into Run phase. Spawning a fresh pwsh per case keeps the helper
+        # dot-sourced in EXACTLY one place in this file (file/discovery scope,
+        # never inside a BeforeAll) -- the shape TEST-004 below pins.
+        It 'edition <_.Edition>, IsWindowsFlag <_.FlagLiteral> -> <_.Expected>' -ForEach @(
+            @{ Edition = 'Desktop'; FlagLiteral = '$null'; Expected = $true }
+            @{ Edition = 'Core'; FlagLiteral = '$true'; Expected = $true }
+            @{ Edition = 'Core'; FlagLiteral = '$false'; Expected = $false }
+            @{ Edition = 'Desktop'; FlagLiteral = '$false'; Expected = $true }
+        ) {
+            $cmd = ". '$script:SkipHelperPath'; Test-IsWindowsHostFor -Edition '$Edition' -IsWindowsFlag $FlagLiteral"
+            $out = (& pwsh -NoProfile -Command $cmd | Select-Object -Last 1).Trim()
+            $out | Should -Be ([string]$Expected)
+        }
     }
 
     Context 'TEST-001 (Spec-AC-01): usable WSL -> WSL branch selected, delegation argv correct' {
@@ -206,25 +244,19 @@ Describe 'aai-run-tests.ps1' {
     }
 
     Context 'TEST-004 (Spec-AC-02): real invocation on THIS host (no WSL, no Windows Git Bash) -> exit 78 + exactly one AAI-ENV-ERROR line' {
-        It 'exits 78 with exactly one stderr line matching ^AAI-ENV-ERROR: naming both probed options' {
-            $errFile = [System.IO.Path]::GetTempFileName()
-            try {
-                & pwsh -NoProfile -File $script:RunDispatcher sh -c 'exit 0' 2>$errFile 1>$null
-                $code = $LASTEXITCODE
-                $errLines = @(Get-Content $errFile -ErrorAction SilentlyContinue | Where-Object { $_ -match '^AAI-ENV-ERROR:' })
-                $code | Should -Be 78
-                $errLines.Count | Should -Be 1
-                $errLines[0] | Should -Match 'AAI-ENV-ERROR: no usable POSIX interpreter'
-                $errLines[0] | Should -Match 'WSL'
-                $errLines[0] | Should -Match 'Git'
-            } finally {
-                Remove-Item $errFile -ErrorAction SilentlyContinue
-            }
+        It 'exits 78 with exactly one stderr line matching ^AAI-ENV-ERROR: naming both probed options (PosixOnly: windows-latest always has a real Git Bash, so the dispatcher resolves it and runs the command instead of erroring)' -Skip:$script:SkipOnWindows {
+            $r = Invoke-NativeCaptured -Exe 'pwsh' -Arguments @('-NoProfile', '-File', $script:RunDispatcher, 'sh', '-c', 'exit 0')
+            $errLines = @($r.Err -split "`r?`n" | Where-Object { $_ -match '^AAI-ENV-ERROR:' })
+            $r.Code | Should -Be 78
+            $errLines.Count | Should -Be 1
+            $errLines[0] | Should -Match 'AAI-ENV-ERROR: no usable POSIX interpreter'
+            $errLines[0] | Should -Match 'WSL'
+            $errLines[0] | Should -Match 'Git'
         }
 
         It 'usage error (no command given) is distinct from the env error and never exit 78' {
-            & pwsh -NoProfile -File $script:RunDispatcher 2>$null 1>$null
-            $LASTEXITCODE | Should -Not -Be 78
+            $r = Invoke-NativeCaptured -Exe 'pwsh' -Arguments @('-NoProfile', '-File', $script:RunDispatcher)
+            $r.Code | Should -Not -Be 78
         }
     }
 
@@ -303,16 +335,28 @@ Describe 'aai-run-tests.ps1' {
 
     Context 'CHANGE-0133 TEST-001 (Spec-AC-01): PATH collision group collapses to one literal Path key, ordinal-ordered union, dedup' {
         It 'Path + PATH + path -> exactly one key "Path", ordinal-key-ordered union with duplicate segments dropped; OrdinalIgnoreCase dictionary build does not throw' {
+            # CHANGE-0134 Spec-AC-02: made PORTABLE, not skipped -- this is the
+            # one arm of this suite where the logic under test (path-segment
+            # splitting/joining) is genuinely engine-relevant, so skipping it
+            # on Windows would forfeit real Windows coverage of the exact
+            # defect class this scope exists to catch. The pre-existing
+            # fixture hardcoded ':' as the segment separator while the
+            # assertion joined with [IO.Path]::PathSeparator -- correct only
+            # on POSIX (':'), silently wrong under Windows (';'). Both the
+            # fixture values and the expected value are now built with the
+            # SAME [IO.Path]::PathSeparator, so the test asserts identically
+            # on every platform.
+            $sep = [IO.Path]::PathSeparator
             $envd = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
-            $envd.Add('Path', '/usr/bin:/shared')
-            $envd.Add('PATH', '/bin:/shared')
+            $envd.Add('Path', "/usr/bin${sep}/shared")
+            $envd.Add('PATH', "/bin${sep}/shared")
             $envd.Add('path', '/opt/bin')
             $map = Get-CanonicalEnvironmentMap -Environment $envd
             @($map.Keys) | Should -Be @('Path')
             # Ordinal member order: 'PATH' < 'Path' < 'path' (uppercase sorts
             # before lowercase) -> PATH's segments first, then Path's ('/shared'
             # already seen, dropped), then path's.
-            $expected = @('/bin', '/shared', '/usr/bin', '/opt/bin') -join [IO.Path]::PathSeparator
+            $expected = @('/bin', '/shared', '/usr/bin', '/opt/bin') -join $sep
             $map['Path'] | Should -Be $expected
             {
                 $d = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -364,7 +408,7 @@ Describe 'aai-run-tests.ps1' {
     }
 
     Context 'CHANGE-0133 TEST-003 (Spec-AC-02, SEAM-1): real dual-casing environment -- CONTROL throws, TREATMENT does not, one Path survives with both directories' {
-        It 'child pwsh: CONTROL arm (OrdinalIgnoreCase dictionary over the live dup env) THROWS; TREATMENT arm (after Set-CanonicalProcessEnvironment) does NOT throw, exactly one PATH casing remains, value holds both original directories' {
+        It 'child pwsh: CONTROL arm (OrdinalIgnoreCase dictionary over the live dup env) THROWS; TREATMENT arm (after Set-CanonicalProcessEnvironment) does NOT throw, exactly one PATH casing remains, value holds both original directories (PosixOnly: the Win32 environment block is case-insensitive, so the CONTROL arm cannot be constructed in-process on Windows -- SPEC-0120 RR-1)' -Skip:$script:SkipOnWindows {
             $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('aai-run-tests-dupenv-' + [System.IO.Path]::GetRandomFileName())
             New-Item -ItemType Directory -Path $tmp | Out-Null
             try {
@@ -489,10 +533,9 @@ exit $rc
 '@
                 $probeBody = $probeBody.Replace('__DISPATCHER__', $script:RunDispatcher)
                 Set-Content -LiteralPath $probeFile -Value $probeBody
-                $errFile = Join-Path $tmp 'err.txt'
-                & pwsh -NoProfile -File $probeFile 2>$errFile 1>$null
-                $code = $LASTEXITCODE
-                $errLines = @(Get-Content $errFile -ErrorAction SilentlyContinue | Where-Object { $_ -match '^AAI-SPAWN-ERROR:' })
+                $r = Invoke-NativeCaptured -Exe 'pwsh' -Arguments @('-NoProfile', '-File', $probeFile)
+                $code = $r.Code
+                $errLines = @($r.Err -split "`r?`n" | Where-Object { $_ -match '^AAI-SPAWN-ERROR:' })
                 $code | Should -Be 125
                 $errLines.Count | Should -Be 1
                 $errLines[0] | Should -Match 'AAI-TEST-006-UNIQUE-SPAWN-FAILURE'
@@ -630,7 +673,7 @@ exit $rc
             $script:crOneStore['TEMP'] | Should -Be '/original-temp'
         }
 
-        It 'H3 (PR #247 run 31606986703 investigation): an unrelated process-scope var (AAI_TEST_TIMEOUT) survives canonicalization of a REAL Path/PATH collision AND is visible to a spawned grandchild process — RED/GREEN probe for the smoke''s "default 300s watchdog used instead of AAI_TEST_TIMEOUT=2" symptom' {
+        It 'H3 (PR #247 run 31606986703 investigation): an unrelated process-scope var (AAI_TEST_TIMEOUT) survives canonicalization of a REAL Path/PATH collision AND is visible to a spawned grandchild process — RED/GREEN probe for the smoke''s "default 300s watchdog used instead of AAI_TEST_TIMEOUT=2" symptom (PosixOnly: same Win32 case-insensitive-environment limitation as CHANGE-0133 TEST-003, PLUS the fixture overwrites PATH with a nonexistent directory, which on Windows breaks the Start-Process -FilePath ''pwsh'' resolution this assertion depends on)' -Skip:$script:SkipOnWindows {
             # Field evidence: arm2 of the Windows smoke set AAI_TEST_TIMEOUT=2
             # then invoked aai-run-tests.ps1, which ran to the DEFAULT 300s
             # watchdog instead — i.e. Get-EffectiveTimeout resolved 300, not 2,
@@ -850,15 +893,17 @@ Describe 'aai-release.ps1' {
         $errors | Should -BeNullOrEmpty
     }
 
-    Context 'TEST-001 (Spec-AC-01): static contract — helper defined with a local EAP override' {
+    Context 'TEST-001 (Spec-AC-01): static contract — helper defined via OS-handle-level capture (CHANGE-0134 remediation)' {
         It 'defines function Invoke-NativeChecked' {
             $content = Get-Content -Raw $script:ReleaseScript
             $content | Should -Match 'function\s+Invoke-NativeChecked'
         }
 
-        It 'sets a local $ErrorActionPreference = ''Continue'' inside the helper' {
+        It 'captures via Start-Process -RedirectStandardOutput/-RedirectStandardError, never an in-process 2>&1 merge (a local $ErrorActionPreference override was proven NOT to suppress the real Windows PowerShell 5.1 stderr-promotion — PR #248 run 31638479811, TEST-002)' {
             $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match "\`$ErrorActionPreference\s*=\s*'Continue'"
+            $content | Should -Match 'Start-Process\s+-FilePath\s+\$Exe'
+            $content | Should -Match '-RedirectStandardOutput\s+\$outFile'
+            $content | Should -Match '-RedirectStandardError\s+\$errFile'
         }
     }
 
@@ -1012,6 +1057,103 @@ Describe 'aai-reap-tests.ps1' {
         [System.Management.Automation.Language.Parser]::ParseFile(
             $script:ReapDispatcher, [ref]$null, [ref]$errors) | Out-Null
         $errors | Should -BeNullOrEmpty
+    }
+
+    # ---- CHANGE-0134 TEST-007 (Spec-AC-03): reaper Test-WslUsable gains the
+    # SAME functional-probe fix aai-run-tests.ps1 already carries (CHANGE-0133
+    # follow-up) -- the pre-change reaper accepts any `wsl.exe -e true` exit 0
+    # as usable, which a distro-less windows-latest satisfies vacuously. RED on
+    # the pre-change tree: the reaper has neither Start-WslProbeProcess nor
+    # Wait-ProcessWithTimeout, so Test-WslUsable never calls the mocked probe
+    # at all and these expectations fail.
+    Context 'CHANGE-0134 TEST-007 (Spec-AC-03): reaper Test-WslUsable is a REAL functional probe, not a bare present-check' {
+        It 'wsl.exe present, ZERO installed distributions (probe exits 0 without the sentinel) -> NOT usable' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 9101; ExitCode = 0 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            Test-WslUsable | Should -Be $false
+        }
+
+        It 'wsl.exe present, real distro answers the exact sentinel exit code -> usable' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 9102; ExitCode = 42 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            Test-WslUsable | Should -Be $true
+        }
+
+        It 'wsl.exe present, distro answers a NON-sentinel exit code -> NOT usable' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 9103; ExitCode = 1 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            Test-WslUsable | Should -Be $false
+        }
+
+        It 'probe never completes within the watchdog -> NOT usable, probe process stopped exactly once' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 9104; ExitCode = $null } }
+            Mock Wait-ProcessWithTimeout { $false }
+            Mock Stop-Process { }
+            Test-WslUsable | Should -Be $false
+            Should -Invoke Stop-Process -Times 1 -Exactly -ParameterFilter { $Id -eq 9104 }
+        }
+    }
+
+    # ---- CHANGE-0134 TEST-008 (Spec-AC-03): structural pin over the reaper's
+    # own Start-WslProbeProcess, mirroring the pin that already guards
+    # aai-run-tests.ps1's copy (TEST-011 in the Describe above). RED on the
+    # pre-change tree: the function does not exist yet.
+    Context 'CHANGE-0134 TEST-008 (Spec-AC-03): structural pin -- reaper Start-WslProbeProcess redirects both streams and touches .Handle immediately' {
+        It 'Start-WslProbeProcess exists, redirects stdout+stderr to per-call temp files, and touches $proc.Handle on the very next statement' {
+            $content = Get-Content -Raw $script:ReapDispatcher
+            if ($content -match '(?s)function Start-WslProbeProcess\s*\{(.*?)\n\}') {
+                $body = $Matches[1]
+            } else {
+                $body = ''
+            }
+            $body | Should -Not -BeNullOrEmpty
+            $body | Should -Match '-RedirectStandardOutput\s+\$outFile'
+            $body | Should -Match '-RedirectStandardError\s+\$errFile'
+            $body | Should -Not -Match "-RedirectStandardOutput\s+(\`$null|'NUL'|""NUL"")"
+            $body | Should -Match '(?s)\$proc\s*=\s*Start-Process\s+-FilePath\s+''wsl\.exe''.*?\n\s*(#.*\n\s*)*\$null\s*=\s*\$proc\.Handle'
+        }
+    }
+
+    # ---- CHANGE-0134 TEST-009 (Spec-AC-03, SEAM-3): cross-file sentinel/argv
+    # parity -- the two dispatchers deliberately share no module (see both
+    # headers), so nothing but a test enforces they still agree. RED on the
+    # pre-change tree: the reaper's probe argv is the bare `-e true` command,
+    # not the sentinel `-e sh -c "exit <N>"` shape aai-run-tests.ps1 uses.
+    Context 'CHANGE-0134 TEST-009 (Spec-AC-03, SEAM-3): reaper and run-tests dispatchers agree on the sentinel value and probe argv' {
+        It 'both dispatchers'' Test-WslUsable declare the identical sentinel integer literal' {
+            $runContent = Get-Content -Raw $script:RunDispatcher
+            $reapContent = Get-Content -Raw $script:ReapDispatcher
+            $runSentinel = if ($runContent -match '\$sentinel\s*=\s*(\d+)') { $Matches[1] } else { $null }
+            $reapSentinel = if ($reapContent -match '\$sentinel\s*=\s*(\d+)') { $Matches[1] } else { $null }
+            $runSentinel | Should -Not -BeNullOrEmpty
+            $reapSentinel | Should -Not -BeNullOrEmpty
+            $reapSentinel | Should -Be $runSentinel
+        }
+
+        It 'both dispatchers'' Test-WslUsable pass an IDENTICAL probe argument list to Start-WslProbeProcess (compared to each other, not a hardcoded shape -- drift-proof: a future edit to ONE file''s call site fails this even if it never touches the other)' {
+            $runContent = Get-Content -Raw $script:RunDispatcher
+            $reapContent = Get-Content -Raw $script:ReapDispatcher
+            $callPattern = 'Start-WslProbeProcess\s+-ArgumentList\s+@\([^)]*\)'
+            $runMatch = [regex]::Match($runContent, $callPattern)
+            $reapMatch = [regex]::Match($reapContent, $callPattern)
+            $runMatch.Success | Should -Be $true
+            $reapMatch.Success | Should -Be $true
+            $reapMatch.Value | Should -Be $runMatch.Value
+        }
+
+        It 'reaper Resolve-Interpreter falls through to gitbash when the probe does not return the sentinel-clean result' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 9105; ExitCode = 0 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            Mock Find-GitBash { 'C:\Program Files\Git\bin\bash.exe' }
+            $r = Resolve-Interpreter
+            $r.Mode | Should -Be 'gitbash'
+            $r.BashPath | Should -Be 'C:\Program Files\Git\bin\bash.exe'
+        }
     }
 
     Context 'TEST-006 (Spec-AC-04): mocked snapshot — other-workspace spared, young spared, old match killed as tree; prints reaped: N' {

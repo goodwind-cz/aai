@@ -27,23 +27,38 @@
 # Run via: pwsh -NoProfile -Command "Invoke-Pester tests/skills/aai-update.Tests.ps1"
 # (the bash gate tests/skills/test-ps1-quality.sh wraps this and skips if pwsh
 #  or Pester is unavailable).
+#
+# CHANGE-0134 Spec-AC-02: dot-sourced at FILE/DISCOVERY scope (plain top-level
+# script code, NOT inside BeforeAll) -- see tests/skills/lib/pester-host-skip.ps1
+# for why a BeforeAll-scoped variable would silently fail to skip here.
+. (Join-Path $PSScriptRoot 'lib/pester-host-skip.ps1')
+$script:SkipOnWindows = Test-IsWindowsHostFor -Edition $PSVersionTable.PSEdition -IsWindowsFlag $IsWindows
 
 BeforeAll {
     $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
     $script:Update   = Join-Path $RepoRoot '.aai/scripts/aai-update.ps1'
+    # CHANGE-0134 remediation (real Windows PowerShell 5.1 fix): dot-sourced
+    # HERE (inside BeforeAll) rather than at top-of-file/discovery scope -- a
+    # top-level dot-source's function definitions do not carry into Pester's
+    # Run-phase block scopes (proven while building this fix: a top-level `.`
+    # left `Invoke-NativeCaptured` unresolved inside this very BeforeAll).
+    . (Join-Path $PSScriptRoot 'lib/pester-native-capture.ps1')
 
     # Invoke the updater in a fresh pwsh and capture stdout/stderr/exit code.
     # NB: the parameter must NOT be named $Args (that is an automatic variable in
     # PowerShell functions; splatting it would forward nothing). Returns
     # @{ Out; Err; Code }.
+    #
+    # CHANGE-0134 remediation (real Windows PowerShell 5.1 fix): routed through the
+    # shared Invoke-NativeCaptured (lib/pester-native-capture.ps1) instead of
+    # an in-process `2>$errFile` — see that file's header for why the naive
+    # form throws a caught "RemoteException" under real 5.1 whenever this
+    # harness runs with $ErrorActionPreference = 'Stop' (ps1-quality.yml's
+    # Pester step sets exactly that).
     function Invoke-Update {
         param([string[]]$ScriptArgs)
-        $errFile = [System.IO.Path]::GetTempFileName()
-        $out = & pwsh -NoProfile -File $script:Update @ScriptArgs 2>$errFile
-        $code = $LASTEXITCODE
-        $err = Get-Content $errFile -Raw -ErrorAction SilentlyContinue
-        Remove-Item $errFile -ErrorAction SilentlyContinue
-        return @{ Out = ($out -join "`n"); Err = "$err"; Code = $code }
+        $r = Invoke-NativeCaptured -Exe 'pwsh' -Arguments (@('-NoProfile', '-File', $script:Update) + $ScriptArgs)
+        return @{ Out = $r.Out; Err = $r.Err; Code = $r.Code }
     }
 }
 
@@ -118,7 +133,7 @@ Describe 'aai-update.ps1' {
     }
 
     Context 'SEAM-1 integration (ISSUE-0012 / SPEC-0052 — real clone parity)' {
-        It 'TEST-009: file:// fixture clone with -KeepTemp lands at $Tmp/src; $Tmp retained (skips if git unavailable)' {
+        It 'TEST-009: file:// fixture clone with -KeepTemp lands at $Tmp/src; $Tmp retained (skips if git unavailable) (PosixOnly: redirects the temp base through $env:TMPDIR, which [System.IO.Path]::GetTempPath() ignores on Windows, and builds a file://C:\...  URL from a backslash path)' -Skip:$script:SkipOnWindows {
             if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
                 Set-ItResult -Skipped -Because 'git not installed'
                 return
