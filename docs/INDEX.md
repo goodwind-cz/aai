@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-12T02:46:19.355Z
+Generated: 2026-08-12T07:31:56.455Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -342,9 +342,11 @@ _None._
 | SPEC-0118 | specs | docs/specs/SPEC-0118-spec-evidence-path-gate.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0132 | issues | docs/issues/CHANGE-0132-validation-cost-calibration.md |
 
 ## Deferred (whole-doc) (0)
 
