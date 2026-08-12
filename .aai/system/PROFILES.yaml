@@ -92,6 +92,7 @@ core:
   - .aai/scripts/aai-sync.sh
   - .aai/scripts/aai-update.ps1
   - .aai/scripts/aai-update.sh
+  - .aai/scripts/aai-win-selftest.ps1
   - .aai/scripts/allocate-doc-number.mjs
   - .aai/scripts/append-event.mjs
   - .aai/scripts/autonomous-loop.ps1
