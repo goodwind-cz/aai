@@ -157,6 +157,31 @@ Describe 'aai-run-tests.ps1' {
             Test-WslUsable | Should -Be $true
             $script:capturedProbeArgs | Should -Be @('-e', 'sh', '-c', 'exit 42')
         }
+
+        It 'H1 (field defect, PR #247 run 31606986703): Start-WslProbeProcess redirects BOTH stdout and stderr, never inherits the caller''s streams' {
+            # The zero-distro windows-latest field defect: wsl.exe prints its
+            # UTF-16LE "no installed distributions" message and exits 0. With
+            # -NoNewWindow and NO redirection, that message inherits whatever
+            # the CALLER's own stdout/stderr are pointed at (a harness
+            # capturing this wrapper's own stdout to a file, in the real
+            # smoke) -- a UTF-16LE BOM at the start of that captured stream
+            # flips Get-Content's encoding auto-detection for the WHOLE file,
+            # corrupting every ASCII/UTF-8 byte after it, including a real
+            # success marker written later by the Git-Bash branch. This is a
+            # static source-contract check (real wsl.exe is not available on
+            # any CI host this suite runs on) pinning that the fix -- both
+            # streams redirected to real files, never $null/NUL -- stays in
+            # place.
+            $content = Get-Content -Raw $script:RunDispatcher
+            if ($content -match '(?s)function Start-WslProbeProcess\s*\{(.*?)\n\}') {
+                $body = $Matches[1]
+            } else {
+                $body = ''
+            }
+            $body | Should -Match '-RedirectStandardOutput\s+\$outFile'
+            $body | Should -Match '-RedirectStandardError\s+\$errFile'
+            $body | Should -Not -Match "-RedirectStandardOutput\s+(\`$null|'NUL'|""NUL"")"
+        }
     }
 
     Context 'TEST-003 (Spec-AC-01): all probes negative -> error branch, never a partial launch' {
@@ -603,6 +628,60 @@ exit $rc
             # a re-write.
             $script:crOneStore.ContainsKey('TEMP') | Should -Be $true
             $script:crOneStore['TEMP'] | Should -Be '/original-temp'
+        }
+
+        It 'H3 (PR #247 run 31606986703 investigation): an unrelated process-scope var (AAI_TEST_TIMEOUT) survives canonicalization of a REAL Path/PATH collision AND is visible to a spawned grandchild process — RED/GREEN probe for the smoke''s "default 300s watchdog used instead of AAI_TEST_TIMEOUT=2" symptom' {
+            # Field evidence: arm2 of the Windows smoke set AAI_TEST_TIMEOUT=2
+            # then invoked aai-run-tests.ps1, which ran to the DEFAULT 300s
+            # watchdog instead — i.e. Get-EffectiveTimeout resolved 300, not 2,
+            # sometime after Set-CanonicalProcessEnvironment ran (Invoke-
+            # Dispatch calls canonicalize THEN reads AAI_TEST_TIMEOUT). This is
+            # a REAL, unmocked child-process probe (mirrors CHANGE-0133
+            # TEST-003's pattern) exercising the dispatcher's actual removal/
+            # rewrite primitives against a genuine dual-casing PATH collision
+            # -- the one scenario CR-1 proved DOES trigger collateral damage
+            # for a group member. AAI_TEST_TIMEOUT is a single-casing,
+            # non-colliding key: if it survives here, Set-
+            # CanonicalProcessEnvironment is CLEARED as the root cause and the
+            # loss must be happening upstream of this process (fix-at-cause
+            # belongs in whatever spawns THIS process, not here).
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('aai-run-tests-h3-' + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $tmp | Out-Null
+            try {
+                $probeFile = Join-Path $tmp 'probe.ps1'
+                $probeBody = @'
+. "__DISPATCHER__"
+[Environment]::SetEnvironmentVariable('PATH', '/dir-one')
+[Environment]::SetEnvironmentVariable('Path', '/dir-two')
+[Environment]::SetEnvironmentVariable('AAI_TEST_TIMEOUT', '137')
+
+Set-CanonicalProcessEnvironment | Out-Null
+
+Write-Output "AFTER_ENV_DRIVE=$($env:AAI_TEST_TIMEOUT)"
+Write-Output "AFTER_ENV_CLASS=$([Environment]::GetEnvironmentVariable('AAI_TEST_TIMEOUT'))"
+Write-Output "EFFECTIVE_TIMEOUT=$(Get-EffectiveTimeout -Raw $env:AAI_TEST_TIMEOUT)"
+
+$outFile = [System.IO.Path]::GetTempFileName()
+try {
+    Start-Process -FilePath 'pwsh' -ArgumentList @('-NoProfile', '-Command', '$env:AAI_TEST_TIMEOUT') `
+        -NoNewWindow -Wait -RedirectStandardOutput $outFile | Out-Null
+    $childSaw = (Get-Content -LiteralPath $outFile -Raw).Trim()
+} finally {
+    Remove-Item -LiteralPath $outFile -ErrorAction SilentlyContinue
+}
+Write-Output "GRANDCHILD_SAW=$childSaw"
+'@
+                $probeBody = $probeBody.Replace('__DISPATCHER__', $script:RunDispatcher)
+                Set-Content -LiteralPath $probeFile -Value $probeBody
+                $out = & pwsh -NoProfile -File $probeFile 2>&1
+                $joined = $out -join "`n"
+                $joined | Should -Match 'AFTER_ENV_DRIVE=137'
+                $joined | Should -Match 'AFTER_ENV_CLASS=137'
+                $joined | Should -Match 'EFFECTIVE_TIMEOUT=137'
+                $joined | Should -Match 'GRANDCHILD_SAW=137'
+            } finally {
+                Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+            }
         }
 
         It 'an already-clean environment still makes ZERO Set-EnvironmentVariableRaw calls (no re-read on the no-op path)' {

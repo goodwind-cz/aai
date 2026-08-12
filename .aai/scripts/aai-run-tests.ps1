@@ -95,9 +95,39 @@ function Start-WslProbeProcess {
   # functional probe — kept separate from Invoke-WslProcess (the real
   # delegation launch) so Pester can stub the probe's process object
   # independently of the delegation path.
+  #
+  # H1 fix (field defect, PR #247 run 31606986703): a bare `-NoNewWindow
+  # -PassThru` with NO redirection makes the probe INHERIT the current
+  # process's own stdout/stderr handles verbatim. On windows-latest's
+  # zero-distro wsl.exe (Test-WslUsable's own header comment) that means the
+  # UTF-16LE "Windows Subsystem for Linux has no installed distributions."
+  # message writes straight into whatever the CALLER's stdout/stderr happen
+  # to be redirected to (e.g. a harness capturing this whole wrapper's own
+  # stdout to a file) — a UTF-16LE BOM at the START of that stream flips
+  # Get-Content's encoding auto-detection for the ENTIRE file, corrupting
+  # every ASCII/UTF-8 byte written after it (including a real success
+  # marker). The probe must be SILENT irrespective of what the caller's own
+  # streams are doing: every byte it could write is redirected to a per-call
+  # temp file, never left for a console/inherited-handle to receive. `NUL`/
+  # `/dev/null` is deliberately NOT used — Start-Process's
+  # -RedirectStandardOutput/-RedirectStandardError require a real
+  # creatable file path on every supported PowerShell version (5.1 and 7.x
+  # alike); a real temp file is the portable way to get the same "nobody
+  # sees it" effect. Best-effort cleanup only: PassThru returns before the
+  # process (and its file handles) have necessarily exited, so an immediate
+  # delete can legitimately fail while wsl.exe still holds the handle open —
+  # that is harmless (ephemeral CI temp dirs are reaped by the host; a
+  # human's real Windows temp folder tolerates a handful of near-empty
+  # leftovers), never a correctness concern for the probe's own result.
   [CmdletBinding()]
   param([Parameter(Mandatory)][string[]]$ArgumentList)
-  return Start-Process -FilePath 'wsl.exe' -ArgumentList $ArgumentList -NoNewWindow -PassThru
+  $outFile = [System.IO.Path]::GetTempFileName()
+  $errFile = [System.IO.Path]::GetTempFileName()
+  $proc = Start-Process -FilePath 'wsl.exe' -ArgumentList $ArgumentList -NoNewWindow -PassThru `
+    -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+  Remove-Item -LiteralPath $outFile -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $errFile -ErrorAction SilentlyContinue
+  return $proc
 }
 
 function Test-WslUsable {
