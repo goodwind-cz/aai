@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-12T20:36:16.802Z
+Generated: 2026-08-12T21:39:56.612Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0121 | specs | implementing | 2 planned, 2 done | docs/specs/SPEC-0121-spec-pester-on-windows-ci.md |
+| SPEC-0121 | specs | implementing | 4 done | docs/specs/SPEC-0121-spec-pester-on-windows-ci.md |
 
 ## Canonical layer (0)
 
