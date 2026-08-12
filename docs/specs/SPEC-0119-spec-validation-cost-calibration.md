@@ -1,7 +1,7 @@
 ---
 id: spec-validation-cost-calibration
 type: spec
-number: null
+number: 119
 status: implementing
 ceremony_level: 2
 links:
@@ -388,7 +388,7 @@ Commands to run:
 - `bash tests/skills/test-aai-product-docs.sh`
 - `bash tests/skills/test-aai-hygiene-pack.sh` (suite-map row for the new suite)
 - `node .aai/scripts/docs-audit.mjs --check --strict --no-event`
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-validation-cost-calibration.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0119-spec-validation-cost-calibration.md`
 
 Evidence artifacts: the RED logs under `docs/ai/tdd/` for the TDD-lane tests
 (TEST-007 to TEST-009 and TEST-011), the suite stdout with exit codes for

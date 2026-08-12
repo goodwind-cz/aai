@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff main...HEAD (edaf8b4..e60ad8c, branch feat/validation-cost-calibration)
-  spec: docs/specs/SPEC-DRAFT-spec-validation-cost-calibration.md (SPEC-FROZEN, ceremony_level 2)
+  spec: docs/specs/SPEC-0119-spec-validation-cost-calibration.md (SPEC-FROZEN, ceremony_level 2)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -63,7 +63,7 @@ review:
 ## Scope and method
 
 - Scope: `git diff main...HEAD` — 17 files, +1169/-29, commits edaf8b4..e60ad8c.
-- Spec: `docs/specs/SPEC-DRAFT-spec-validation-cost-calibration.md` (frozen, L2), read in full.
+- Spec: `docs/specs/SPEC-0119-spec-validation-cost-calibration.md` (frozen, L2), read in full.
 - Prior evidence read: `docs/ai/validation/validation-20260812T082535Z-CHANGE-0132-validation-cost-calibration.md` (PASS, 10 NB findings).
 - Read-only on implementation: no file under `.aai/`, `tests/`, `docs/` (other than this report) was modified. Mutation experiments ran against copies in the session scratchpad. `git status --porcelain` was empty after every suite run.
 - Own executions (all from this context): `tests/skills/test-aai-validator-isolation.sh` EXIT=0, `test-aai-ceremony-levels.sh` EXIT=0, `test-aai-prompt-diet.sh` EXIT=0, `test-aai-product-docs.sh` EXIT=0; direct node probes of `lib/usage-note.mjs`; `select-suites.mjs --files-from -` on three path sets; `wc -c` byte recompute; two source mutations (independence-clause deletion, tier-3 token deletion) replayed against scratch copies.

@@ -5,7 +5,7 @@ capability: validation-cost-calibration
 status: current
 delivered_by:
   - CHANGE-0132
-spec: docs/specs/SPEC-DRAFT-spec-validation-cost-calibration.md
+spec: docs/specs/SPEC-0119-spec-validation-cost-calibration.md
 updated: 2026-08-12
 ---
 
@@ -75,6 +75,6 @@ STATE field, no schema change.
 ## Links
 
 - Request: docs/issues/CHANGE-0132-validation-cost-calibration.md
-- Spec: docs/specs/SPEC-DRAFT-spec-validation-cost-calibration.md
+- Spec: docs/specs/SPEC-0119-spec-validation-cost-calibration.md
 - Validation evidence: docs/ai/validation/ (gitignored runtime directory —
   reports land here per ride, not committed to the repo)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-validator-isolation — capability-detected validator isolation
-# (CHANGE-0132 / docs/specs/SPEC-DRAFT-spec-validation-cost-calibration.md,
+# (CHANGE-0132 / docs/specs/SPEC-0119-spec-validation-cost-calibration.md,
 # spec TEST-003..006 / Spec-AC-02..03).
 #
 # Verifies .aai/SUBAGENT_PROTOCOL.md:
