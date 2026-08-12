@@ -516,6 +516,50 @@ test_013_fresh_ride_e2e() {
   log_pass "Fresh user_visible ride: template -> audit clean + INDEX Product + gate pass + delivered_by stamped (inverse of #189, TEST-013)"
 }
 
+# --- TEST-014 (validation-cost-calibration spec TEST-013/Spec-AC-06) -------
+# The real docs/product/validation-cost-calibration.md this scope ships:
+# missingProductSections must return empty, and a fixture ref carrying this
+# slug + user_visible true must resolve gate severity 'none' via the real
+# close-work-item.mjs end-to-end (mirrors TEST-013's fresh-ride e2e shape,
+# against the REAL product doc rather than a synthetic fixture body).
+
+test_014_validation_cost_calibration_product_doc() {
+  log_info "Test: docs/product/validation-cost-calibration.md is a real, non-placeholder product doc; close-work-item gate severity is none for a fixture ref carrying this slug (spec TEST-013)..."
+  local real="$PROJECT_ROOT/docs/product/validation-cost-calibration.md"
+  [[ -f "$real" ]] || { log_fail "t014: docs/product/validation-cost-calibration.md does not exist"; return; }
+
+  local probe="$TEST_DIR/t014-probe.mjs"
+  cat > "$probe" <<PROBE
+import fs from 'node:fs';
+import { missingProductSections } from '$PROJECT_ROOT/.aai/scripts/lib/product-doc.mjs';
+const content = fs.readFileSync('$real', 'utf8');
+const missing = missingProductSections(content);
+if (missing.length > 0) { console.error('missing/placeholder sections: ' + missing.join(',')); process.exit(1); }
+console.log('OK missingProductSections empty');
+PROBE
+  node "$probe" > "$TEST_DIR/t014.out" 2>&1 \
+    || { log_fail "t014: missingProductSections must be empty for the real doc: $(cat "$TEST_DIR/t014.out")"; return; }
+
+  # Gate severity: fixture ref carrying this exact slug + user_visible true,
+  # closed through the REAL close-work-item.mjs against a fixture repo whose
+  # docs/product/validation-cost-calibration.md is a COPY of the real file
+  # (never mutate the real one; the fixture proves the gate resolves 'none').
+  local dir; dir=$(new_fixture_repo "t014")
+  write_user_visible_change_doc "$dir/docs/issues/CHANGE-9014-t014.md" "t014-slug" "validation-cost-calibration"
+  cp "$real" "$dir/docs/product/validation-cost-calibration.md"
+  commit_fixture_docs "$dir"
+
+  local close_out="$TEST_DIR/t014-close.out" close_err="$TEST_DIR/t014-close.err" close_code=0
+  ( cd "$dir" && node .aai/scripts/close-work-item.mjs --ref t014-slug --pr 14 --commit e2e0014 > "$close_out" 2> "$close_err" ) || close_code=$?
+  [[ "$close_code" == "0" ]] || { log_fail "t014: close-work-item must exit 0 (gate severity none), got $close_code: $(cat "$close_err")"; return; }
+  if grep -qi 'product-doc gate' "$close_err"; then
+    log_fail "t014: gate severity must be none for this slug — no warn/refuse expected: $(cat "$close_err")"
+    return
+  fi
+
+  log_pass "docs/product/validation-cost-calibration.md: missingProductSections empty, close-work-item gate severity none (TEST-014/spec TEST-013)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -538,6 +582,7 @@ main() {
   test_005_anti_duplication
   test_012_migration_body_diff_zero
   test_013_fresh_ride_e2e
+  test_014_validation_cost_calibration_product_doc
 
   if [[ "$FAILED" == "1" ]]; then
     echo "=== $TEST_NAME: SOME TESTS FAILED ==="

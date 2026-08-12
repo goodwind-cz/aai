@@ -76,6 +76,28 @@ under review — cannot steer the verdicts it is buying.
    dispatch prompt invites pre-filtering (the orchestrator choosing what the
    reviewer gets to see) and bloats the expensive context.
 
+## Capability detection (runtime, never a harness table)
+
+Before spawning ANY subagent (a validator above all), the orchestrating agent
+resolves four capability fields from the ACTUAL host, at runtime — never from
+a table that keys behavior on a literal harness-name string (Claude, Codex,
+Gemini):
+
+| Field | Meaning |
+|---|---|
+| `multi_agent_backend` | which subagent backend the current host exposes (e.g. MultiAgentV1, MultiAgentV2, none) |
+| `spawn_agent_available` | whether a native `spawn_agent(task_name, message, fork_turns, model, reasoning_effort)` primitive is callable in THIS session |
+| `spawn_model_catalog` | the models the subagent backend can actually grant (can be narrower than the top-level model catalog) |
+| `fork_turns_supported` | whether `fork_turns="none"` (a child spawned with no surrounding parent context) is honored by this backend |
+
+Resolution rules: resolve all four fields AT RUNTIME before the ride's first
+dispatch — never assumed from a prior ride, a harness name, or a version
+string; they are re-resolved when a spawn call is refused (a rejected model,
+a refused `fork_turns`, a hard spawn failure — the catalog and backend can
+change mid-session); an UNKNOWN capability fails closed to the NEXT
+isolation tier below, never assumed present. Isolation tier selection below
+is keyed on these DETECTED capabilities, not on harness name equality.
+
 ## Spawning a validator in a separate agent
 
 The Validation role must run in an agent that did NOT produce the implementation
@@ -94,21 +116,47 @@ record the reuse as a residual risk on the verdict. The mechanical backstop is
 `state.mjs set-validation --model <validator-model>` (warns by default; refuses
 the write under `independence: enforce` in docs/ai/docs-audit.yaml).
 
-- **In-session agentic harness (e.g. Claude Code):** call the host's agent/task
-  tool to spawn a subagent. Pass the validation prompt + INPUT as the task, and set
-  the per-subagent model override to a model other than the implementer's. The
-  subagent runs in its own fresh context by construction and returns the
-  result block (`.aai/SUBAGENT_CONTRACT.md`). The parent loop only merges the
-  verdict — it does not re-judge.
-- **Other in-session hosts (Codex, Gemini, …):** use that host's subagent/task
-  primitive with the same INPUT contract and a distinct model where available.
-- **Headless / CLI runner:** run validation as a SEPARATE process — ideally a
-  different binary or model than the build step — e.g.
-  `claude -p --prompt-file .aai/VALIDATION.prompt.md` (or `codex`/`gemini`
-  equivalent) executed against the same repo. A fresh process is a fresh context.
-- **No subagent/process isolation available (fallback):** clear/reset context, then
-  run validation re-reading ONLY the artifacts above. Record "validator shared
-  context with implementer" as a residual risk that lowers confidence in the PASS.
+Isolation tiers, resolved from the detected capabilities above, IN ORDER —
+attempt tier 1 first, fall through only when the tier's own precondition is
+absent or its spawn attempt is refused:
+
+1. **Native `spawn_agent`, different model, `fork_turns="none"`** — when
+   `spawn_agent_available` is true AND `fork_turns_supported` is true: call
+   the host's native `spawn_agent` with `fork_turns="none"` (the child
+   receives NO surrounding parent context) and `model` set to an id other
+   than the implementer's recorded model. The subagent runs in its own
+   fresh context by construction and returns the result block
+   (`.aai/SUBAGENT_CONTRACT.md`); the parent loop only merges the verdict,
+   it does not re-judge. `fork_turns_supported` false or unknown means a
+   spawned child may inherit the parent's context, so tier 1 does not apply
+   — fall to tier 3.
+2. **`spawn_agent` retried against an available `spawn_model_catalog`
+   model** — when tier 1's requested model is REJECTED (the subagent
+   backend's model catalog is narrower than the top level, or an explicit
+   override is silently dropped, CLI ~0.145.0 history): retry `spawn_agent`
+   with a model actually present in the detected `spawn_model_catalog`,
+   still distinct from the implementer's model where the catalog offers one.
+3. **Separate role-per-invocation process, hard isolation** — when no
+   `spawn_agent` primitive is available (`spawn_agent_available` false or
+   unknown), OR when `fork_turns_supported` is false or unknown (tier 1 does
+   not apply per its own precondition, and tier 2 only covers a rejected
+   model, not an unsupported fork_turns): run validation as a SEPARATE
+   process, e.g. `claude -p --prompt-file .aai/VALIDATION.prompt.md` or
+   `codex exec -m <model>` (or the host-equivalent headless invocation)
+   against the same repo — a fresh process is a fresh context by
+   construction.
+4. **In-parent-session execution, LAST RESORT** — only when tiers 1-3 are
+   all unavailable: clear/reset context, then run validation re-reading
+   ONLY the artifacts above. Record "validator shared context with
+   implementer" as a residual risk that lowers confidence in the PASS; this
+   tier is the fallback of last resort, never the first choice.
+
+Whichever tier fires, the orchestrator MUST VERIFY the granted model from the
+subagent's own returned/observed identity — never assume a requested
+override took. A silently-dropped override is detectable after the fact via
+the `requested_model=`/`actual_model=` note markers below; a validator that
+ends up sharing the implementer's model, whether via tier-4 fallback or a
+dropped override, is a residual risk to record, not a silent pass.
 
 ## Harness-reported usage capture
 
@@ -136,6 +184,20 @@ Token usage is captured ONLY from the harness-level result visible to the dispat
   role's append-run. The dispatch human block's `Prompt hash:` line is a
   truncated 12-char display — never copy it; the JSON field is the value.
   No dispatch hash (no_action/needs_llm, older dispatcher) = omit the flag.
+- Requested vs. actual model (validation-cost-calibration Spec-AC-04):
+  `append-run --model <id>` always records `model_id` as the GRANTED model —
+  the one the subagent actually ran on, never the one merely asked for.
+  Whenever a model override was REQUESTED for a role (a validator dispatch
+  above all — see the isolation tiers), both markers are recorded
+  together in the SAME `--note` — `requested_model=<id>` AND
+  `actual_model=<id>` — even when they are equal: an equal pair is the
+  positive evidence the override took, and its absence must not be
+  readable as either outcome. A silently-dropped
+  override then shows up as `requested_model` != `actual_model`
+  (`lib/usage-note.mjs` `modelOverrideDropped()`) instead of being read as
+  independence that never happened. Any claim of validator independence
+  (maker≠checker, "Spawning a validator" above) MUST cite `actual_model`,
+  never `requested_model` — the request is not proof the isolation landed.
 
 | Rationalization                                  | Reality                                                                                                          |
 |---------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|

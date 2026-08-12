@@ -2038,6 +2038,24 @@ set_strategy_source() {  # <state-file> <selected> <source> [rationale]
   (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$f" "${args[@]}") >/dev/null 2>&1
 }
 
+test_133_model_marker_grep_contract() {  # validation-cost-calibration spec TEST-008 (Spec-AC-04)
+  log_info "Test: REQUESTED_MODEL_RE/ACTUAL_MODEL_RE raw regex literals each live in exactly one file, lib/usage-note.mjs (spec TEST-008)..."
+  local hits n
+  hits="$(grep -rlF 'requested_model=' "$PROJECT_ROOT/.aai/scripts" 2>/dev/null || true)"
+  n="$(printf '%s\n' "$hits" | grep -c . || true)"
+  [[ "$n" == "1" ]] || log_fail "requested_model= raw regex literal must exist in exactly one file (got $n): $hits"
+  printf '%s\n' "$hits" | grep -qF ".aai/scripts/lib/usage-note.mjs" \
+    || log_fail "the single source file for requested_model= must be .aai/scripts/lib/usage-note.mjs (got: $hits)"
+
+  hits="$(grep -rlF 'actual_model=' "$PROJECT_ROOT/.aai/scripts" 2>/dev/null || true)"
+  n="$(printf '%s\n' "$hits" | grep -c . || true)"
+  [[ "$n" == "1" ]] || log_fail "actual_model= raw regex literal must exist in exactly one file (got $n): $hits"
+  printf '%s\n' "$hits" | grep -qF ".aai/scripts/lib/usage-note.mjs" \
+    || log_fail "the single source file for actual_model= must be .aai/scripts/lib/usage-note.mjs (got: $hits)"
+
+  log_pass "requested_model=/actual_model= raw regex literals: exactly one file each, lib/usage-note.mjs (TEST-133/spec TEST-008)"
+}
+
 test_130_rguard_flush_provenance_warn() {  # r-guard TEST-RG-FLUSH-05 / Spec-AC-05
   log_info "Test: flush WARNs when implementation_strategy.source is not intake/spec-path; silent when sanctioned (r-guard Spec-AC-05)..."
   local d n
@@ -2195,6 +2213,7 @@ main() {
   test_130_rguard_flush_provenance_warn
   test_131_rguard_flush_rigor_downgrade
   test_132_rguard_events_appendonly
+  test_133_model_marker_grep_contract
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
