@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-12T07:45:09.116Z
+Generated: 2026-08-12T08:05:08.971Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -18,7 +18,7 @@ _None._
 
 _None._
 
-## Product (19)
+## Product (20)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -41,6 +41,7 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 | universal-routines | universal-routines | 2 | docs/product/universal-routines.md |
+| validation-cost-calibration | validation-cost-calibration | 1 | docs/product/validation-cost-calibration.md |
 
 ## Done (296)
 
