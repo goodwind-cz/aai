@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-12T07:31:56.455Z
+Generated: 2026-08-12T07:45:09.116Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-validation-cost-calibration | specs | implementing | 6 planned | docs/specs/SPEC-DRAFT-spec-validation-cost-calibration.md |
 
 ## Canonical layer (0)
 
