@@ -5,6 +5,7 @@ capability: validation-cost-calibration
 status: current
 delivered_by:
   - CHANGE-0132
+  - validation-cost-calibration
 spec: docs/specs/SPEC-0119-spec-validation-cost-calibration.md
 updated: 2026-08-12
 ---

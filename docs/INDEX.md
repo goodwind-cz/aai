@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-12T09:09:16.663Z
+Generated: 2026-08-12T09:10:16.624Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0119 | specs | implementing | 6 done | docs/specs/SPEC-0119-spec-validation-cost-calibration.md |
 
 ## Canonical layer (0)
 
@@ -41,9 +40,9 @@ _None._
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 | universal-routines | universal-routines | 2 | docs/product/universal-routines.md |
-| validation-cost-calibration | validation-cost-calibration | 1 | docs/product/validation-cost-calibration.md |
+| validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 
-## Done (296)
+## Done (298)
 
 | ID | Type | Path |
 |---|---|---|
@@ -178,6 +177,7 @@ _None._
 | CHANGE-0129 | issues | docs/issues/CHANGE-0129-scryer-mcp-and-shallow.md |
 | CHANGE-0130 | issues | docs/issues/CHANGE-0130-role-token-trend.md |
 | CHANGE-0131 | issues | docs/issues/CHANGE-0131-evidence-path-gate.md |
+| CHANGE-0132 | issues | docs/issues/CHANGE-0132-validation-cost-calibration.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -342,13 +342,12 @@ _None._
 | SPEC-0116 | specs | docs/specs/SPEC-0116-spec-scryer-mcp-and-shallow.md |
 | SPEC-0117 | specs | docs/specs/SPEC-0117-spec-role-token-trend.md |
 | SPEC-0118 | specs | docs/specs/SPEC-0118-spec-evidence-path-gate.md |
+| SPEC-0119 | specs | docs/specs/SPEC-0119-spec-validation-cost-calibration.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0132 | issues | docs/issues/CHANGE-0132-validation-cost-calibration.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

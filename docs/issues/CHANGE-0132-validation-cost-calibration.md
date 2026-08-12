@@ -2,9 +2,14 @@
 id: validation-cost-calibration
 number: 132
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 2
+links:
+  commits:
+    - a202687d6f5f24553e1253856477f22a2974fdbd
+  pr:
+    - 246
 ---
 
 # Change — Validation cost calibration: lane-scaled depth + harness-aware role isolation (capability-detected, never hardcoded)

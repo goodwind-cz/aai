@@ -2,13 +2,15 @@
 id: spec-validation-cost-calibration
 type: spec
 number: 119
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0132-validation-cost-calibration.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 246
+  commits:
+    - a202687d6f5f24553e1253856477f22a2974fdbd
 ---
 
 # Spec — Validation cost calibration: lane-scaled depth + capability-detected validator isolation

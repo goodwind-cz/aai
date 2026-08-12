@@ -2139,6 +2139,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Validation stops re-running the whole suite twice
+
+Independent validation used to re-run the ENTIRE discovered test suite on every ride, even the small ones — a proof that CI produced again minutes later on the same commit. Now, on a small/typo-fix ride (the two lightest ceremony levels), the validator runs only the tests the change actually declares plus targeted probes on the seams it touches, instead of the whole repository's suite. Bigger, riskier rides keep the full independent re-run exactly as before — nothing about their depth changed. Alongside that, the factory's rule for running validation in a separate, unbiased agent no longer depends on which AI harness you're using — it detects what that harness can actually do (does it support spawning a sub-agent? with a different model? with no shared context?) and picks the strongest isolation it can, falling back gracefully rather than guessing from a name. And when a validation run asks for a different model than the implementer used, the factory now records both "what model we asked for" and "what model we actually got" — so if a platform silently substitutes a different model than requested, that's visible in the numbers instead of being mistaken for genuine independence.
+
+[Product doc](product/validation-cost-calibration.md) · [Spec](specs/SPEC-0119-spec-validation-cost-calibration.md)
+
 ### Factory performance report
 
 Answers "how efficiently is the factory running" in one self-contained page: **what it delivers** (throughput), **how fast** (speed), **at what cost** (tokens), and **at what quality** — each as an overall rollup plus a per-ISO-week trend, computed deterministically from the local ledgers (METRICS.jsonl + EVENTS.jsonl, zero network). The page refreshes itself at every work-item close, so it is a continuous overview, not a one-off snapshot.
