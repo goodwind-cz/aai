@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-12T16:00:06.340Z
+Generated: 2026-08-12T19:33:59.437Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -348,9 +348,11 @@ _None._
 | SPEC-0120 | specs | docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0134 | issues | docs/issues/CHANGE-0134-pester-on-windows-ci.md |
 
 ## Deferred (whole-doc) (0)
 
