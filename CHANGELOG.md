@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(close): evidence-path gate — cited evidence must resolve from the main tree (CHANGE-0131) [L1]
+## [v2026.08.12] — feat(close): evidence-path gate — cited evidence must resolve from the main tree (CHANGE-0131) [L1]
 
 - New `.aai/scripts/lib/evidence-paths.mjs` (Node stdlib only): a measured
   six-rule extraction grammar (`extractEvidencePaths`) over an AC Status
@@ -55,7 +55,7 @@ RFC-0001).
   inside a deleted worktree, caught previously only by a validator's manual
   sweep.
 
-## [unreleased] — feat(factory-report): per-role token consumption + weekly trend (CHANGE-0130) [L1]
+## [v2026.08.12] — feat(factory-report): per-role token consumption + weekly trend (CHANGE-0130) [L1]
 
 - `.aai/scripts/generate-factory-report.mjs` gains one additive block,
   `cost.role_consumption`, built inside the EXISTING ride/agent_run loop (one

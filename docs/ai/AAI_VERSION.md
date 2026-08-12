@@ -1,6 +1,6 @@
 # AAI Version
 
-- Version: v2026.08.11
+- Version: v2026.08.12
 
 Notes:
 - Written by the release engines (aai-release.sh / aai-release.ps1) at each cut;
