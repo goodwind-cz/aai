@@ -102,7 +102,12 @@ add_core_and_role_files() {
 # is covered by their own dedicated suites, not re-tested here) and a real
 # copy of check-state.mjs (structural check IS this script's own contract).
 build_clean_fixture() {
-  local d="$TMP_ROOT/clean"
+  # CHANGE-0135: accepts an optional distinct name so a test can build its
+  # OWN clean fixture without colliding with one an earlier test already
+  # git-init'd/pushed at the same fixed path (the original single-caller
+  # "clean" name is the default, preserved for the pre-existing caller).
+  local suffix="${1:-clean}"
+  local d="$TMP_ROOT/$suffix"
   mkdir -p "$d"
   add_core_and_role_files "$d"
   install_doctor_copy "$d" "check-state.mjs"
@@ -176,7 +181,7 @@ EOF
   git -C "$d" config user.name "AAI Test"
   git -C "$d" add -A
   git -C "$d" commit -qm "fixture: clean doctor tree"
-  local bare="$TMP_ROOT/clean-bare.git"
+  local bare="$TMP_ROOT/$suffix-bare.git"
   git init -q --bare "$bare"
   git -C "$d" remote add origin "$bare"
   git -C "$d" push -q -u origin main
@@ -497,7 +502,12 @@ test_013_cat13_exit4_tolerated() {
   fi
 }
 
-# --- TEST-014 — fully clean fixture -> DOCTOR CLEAN, exit 0 -----------------
+# --- TEST-014 — fully clean fixture -> DOCTOR CLEAN modulo CAT-14/15 -------
+# CHANGE-0135: CAT-14 (Windows Self-Test) and CAT-15 (Windows Environment)
+# are a legitimate, honest SKIP on any non-Windows host (D6) -- they spawn
+# nothing there. "Fully clean" on THIS test host therefore means every OTHER
+# category is PASS and the verdict is either CLEAN (both Windows categories
+# somehow PASS) or exactly ISSUES(2) naming only CAT-14/CAT-15 as SKIP.
 test_014_clean_fixture_doctor_clean() {
   local fixture out rc
   fixture="$(build_clean_fixture)"
@@ -505,11 +515,27 @@ test_014_clean_fixture_doctor_clean() {
   # $DOCTOR) so its default-root resolution picks up the fixture's own
   # stubbed docs-audit.mjs / layer-drift.mjs siblings, not the real repo's.
   out="$(node "$fixture/.aai/scripts/aai-doctor.mjs" 2>&1)"; rc=$?
-  if echo "$out" | grep -q "^DOCTOR CLEAN$" && [[ "$rc" -eq 0 ]]; then
-    log_pass "TEST-014 fully-clean fixture -> DOCTOR CLEAN, exit 0"
-  else
+  if [[ "$rc" -ne 0 ]]; then
     log_info "TEST-014: rc=$rc, full output:"
     log_info "$out"
+    log_fail "TEST-014 clean fixture exit code"
+    return
+  fi
+  local bad_lines
+  bad_lines="$(echo "$out" | grep -E '^CAT-' | grep -vE '^CAT-14 |^CAT-15 ' | grep -v ' PASS ')"
+  if [[ -n "$bad_lines" ]]; then
+    log_info "TEST-014: unexpected non-PASS category outside CAT-14/CAT-15: $bad_lines"
+    log_fail "TEST-014 clean fixture verdict"
+    return
+  fi
+  if echo "$out" | grep -q "^DOCTOR CLEAN$"; then
+    log_pass "TEST-014 fully-clean fixture -> DOCTOR CLEAN, exit 0"
+  elif echo "$out" | grep -q "^DOCTOR ISSUES(2)$" \
+    && echo "$out" | grep "^CAT-14" | grep -q "SKIP" \
+    && echo "$out" | grep "^CAT-15" | grep -q "SKIP"; then
+    log_pass "TEST-014 fully-clean fixture -> DOCTOR ISSUES(2) (CAT-14/CAT-15 SKIP off Windows), exit 0"
+  else
+    log_info "TEST-014: got: $out"
     log_fail "TEST-014 clean fixture verdict"
   fi
 }
@@ -526,9 +552,9 @@ test_015_json_shape() {
       const die = (m) => { console.error(m); process.exit(1); };
       if (typeof j.root !== "string") die("root missing/wrong type");
       if (typeof j.generatedAt !== "string") die("generatedAt missing/wrong type");
-      if (!Array.isArray(j.categories) || j.categories.length !== 13) die("categories: want array of 13, got " + (j.categories && j.categories.length));
+      if (!Array.isArray(j.categories) || j.categories.length !== 16) die("categories: want array of 16, got " + (j.categories && j.categories.length));
       const wantIds = [];
-      for (let i = 1; i <= 13; i++) wantIds.push("CAT-" + String(i).padStart(2, "0"));
+      for (let i = 1; i <= 16; i++) wantIds.push("CAT-" + String(i).padStart(2, "0"));
       const gotIds = j.categories.map(c => c.id);
       if (JSON.stringify(gotIds) !== JSON.stringify(wantIds)) die("category ids: " + JSON.stringify(gotIds));
       for (const c of j.categories) {
@@ -536,11 +562,16 @@ test_015_json_shape() {
         if (typeof c.reason !== "string" || c.reason.length === 0) die("empty reason for " + c.id);
         if (typeof c.name !== "string" || c.name.length === 0) die("empty name for " + c.id);
       }
+      // CHANGE-0135: CAT-14/CAT-15/CAT-16 each carry a structured detail object.
+      for (const id of ["CAT-14", "CAT-15", "CAT-16"]) {
+        const c = j.categories.find(x => x.id === id);
+        if (!c || typeof c.detail !== "object" || c.detail === null) die(id + " missing a structured detail object");
+      }
       if (!["CLEAN","ISSUES"].includes(j.verdict)) die("bad verdict: " + j.verdict);
       if (typeof j.issues !== "number") die("issues not a number");
       if (typeof j.exit !== "number") die("exit not a number");
     });
-  ' && log_pass "TEST-015 --json emits the documented shape (13 categories, CAT-01..13)" \
+  ' && log_pass "TEST-015 --json emits the documented shape (16 categories, CAT-01..16, CAT-14/15/16 carry detail)" \
     || log_fail "TEST-015 --json shape"
 }
 
@@ -669,6 +700,388 @@ test_022_suite_map_row() {
   fi
 }
 
+# =============================================================================
+# CHANGE-0135 / spec-doctor-win-selftest — CAT-14/CAT-15/CAT-16 additions.
+# New-spec Test Plan TEST-001..015; TEST-002/004/006/007 are Pester (this
+# host's macOS/Linux run stays on the SKIP branch of CAT-14/15, so their real
+# behavior is unit-tested at the ps1 layer in aai-win-dispatch.Tests.ps1, not
+# here) and TEST-015 lives in test-aai-win-fallback.sh (skip-budget pin).
+# =============================================================================
+
+# --- TEST-023 (Spec-AC-01) — CAT-14 SKIP off Windows, detail.spawned=false --
+test_023_win_selftest_skip_off_windows() {
+  local out rc
+  out="$(node "$DOCTOR" --root "$PROJECT_ROOT" --json 2>&1)"; rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    log_info "TEST-023: rc=$rc (want 0 on the real repo)"
+    log_fail "TEST-023 CAT-14 off-Windows SKIP contract"
+    return
+  fi
+  echo "$out" | node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const c14 = j.categories.find(x => x.id === "CAT-14");
+      if (!c14) die("CAT-14 missing");
+      if (c14.status !== "SKIP") die("expected SKIP off Windows, got " + c14.status);
+      if (!/not.*windows/i.test(c14.reason)) die("reason does not name the not-a-Windows-host precondition: " + c14.reason);
+      if (!c14.detail || c14.detail.spawned !== false) die("detail.spawned must be false: " + JSON.stringify(c14.detail));
+    });
+  ' && log_pass "TEST-023 CAT-14 SKIP off Windows, detail.spawned=false, exit 0" \
+    || log_fail "TEST-023 CAT-14 off-Windows SKIP contract"
+}
+
+# --- TEST-024 (Spec-AC-01) — structural arm pins on aai-win-selftest.ps1 ----
+test_024_selftest_structural_arm_pins() {
+  local f="$PROJECT_ROOT/.aai/scripts/aai-win-selftest.ps1"
+  if [[ ! -f "$f" ]]; then
+    log_fail "TEST-024 aai-win-selftest.ps1 not found"
+    return
+  fi
+  local ok=1
+  grep -qF 'RedirectStandardOutput' "$f" || { log_info "TEST-024: no RedirectStandardOutput"; ok=0; }
+  grep -qF 'RedirectStandardError' "$f" || { log_info "TEST-024: no RedirectStandardError"; ok=0; }
+
+  # .Handle discarded on the statement immediately after the Start-Process
+  # assignment. Collapse backtick line-continuations first so the check sees
+  # the logical statement boundary, not a physical-line artifact.
+  local collapsed
+  collapsed="$(perl -0777 -pe 's/`\r?\n[ \t]*/ /g' "$f")"
+  if ! printf '%s\n' "$collapsed" | awk '
+    /\$proc = Start-Process/ { want=1; next }
+    want { if ($0 ~ /\$null = \$proc\.Handle/) { found=1 } want=0 }
+    END { exit(found ? 0 : 1) }
+  '; then
+    log_info "TEST-024: \$null = \$proc.Handle does not immediately follow the Start-Process assignment"
+    ok=0
+  fi
+
+  # Every AAI_TEST_TIMEOUT assignment lives inside the inner-script text
+  # (backtick-escaped), never a live assignment executed on the calling
+  # process — i.e. each arm sets its own environment in the spawned engine's
+  # command text rather than relying on inheritance.
+  local total escaped
+  total="$(grep -cF '$env:AAI_TEST_TIMEOUT' "$f")"
+  escaped="$(grep -cF '`$env:AAI_TEST_TIMEOUT' "$f")"
+  if [[ "$total" -eq 0 || "$total" -ne "$escaped" ]]; then
+    log_info "TEST-024: AAI_TEST_TIMEOUT total=$total escaped=$escaped (want equal and > 0)"
+    ok=0
+  fi
+
+  # Never a Move-Item/Rename-Item, and Remove-Item never targets the decoy
+  # bash path — the host Git installation can never be mutated. Comment
+  # lines are stripped first so this pin checks CODE, not prose describing
+  # the guarantee (a full-line '#' comment never counts as a violation).
+  local code_only
+  code_only="$(grep -vE '^\s*#' "$f")"
+  printf '%s\n' "$code_only" | grep -qE 'Move-Item|Rename-Item' \
+    && { log_info "TEST-024: Move-Item/Rename-Item present in code"; ok=0; }
+  printf '%s\n' "$code_only" | grep -qE 'Remove-Item.*[Dd]ecoy[Bb]ash' \
+    && { log_info "TEST-024: Remove-Item applied to the decoy bash path"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-024 structural arm pins (redirect + Handle + env-in-child-text + no mutate)" \
+    || log_fail "TEST-024 structural arm pins"
+}
+
+# --- TEST-025 (Spec-AC-02) — REUSE structural pin ---------------------------
+test_025_selftest_reuse_structural_pin() {
+  local f="$PROJECT_ROOT/.aai/scripts/aai-win-selftest.ps1"
+  if [[ ! -f "$f" ]]; then
+    log_fail "TEST-025 aai-win-selftest.ps1 not found"
+    return
+  fi
+  local ok=1
+
+  # Dot-sources the wrapper exactly once, at unindented file/top-level scope.
+  local dotcount
+  dotcount="$(grep -cE "^\\. \\(Join-Path \\\$PSScriptRoot 'aai-run-tests\\.ps1'\\)" "$f")"
+  [[ "$dotcount" -eq 1 ]] || { log_info "TEST-025: file-scope dot-source count=$dotcount (want 1)"; ok=0; }
+
+  # Same-shaped direct-invocation guard as the wrapper.
+  grep -qF "\$MyInvocation.InvocationName -ne '.'" "$f" \
+    || { log_info "TEST-025: no direct-invocation guard of the wrapper's shape"; ok=0; }
+
+  # References the wrapper's own probe functions, defines none of them.
+  local fn
+  for fn in Test-WslPresent Test-WslUsable Get-GitBashCandidates Find-GitBash \
+            Get-ProcessEnvironmentSnapshot Get-CanonicalEnvironmentMap; do
+    grep -qF "$fn" "$f" || { log_info "TEST-025: does not reference $fn"; ok=0; }
+    grep -qE "^function $fn\\b" "$f" && { log_info "TEST-025: redefines $fn"; ok=0; }
+  done
+
+  # No second Git-Bash candidate literal, no second System32 shim pattern,
+  # and Set-CanonicalProcessEnvironment (the MUTATING call) is never named.
+  grep -qF -- 'Git\bin\bash.exe' "$f" && { log_info "TEST-025: duplicates the Git-Bash candidate literal"; ok=0; }
+  grep -qE 'System32.{0,3}bash' "$f" && { log_info "TEST-025: duplicates the System32 bash-shim pattern"; ok=0; }
+  grep -qF -- 'Set-CanonicalProcessEnvironment' "$f" && { log_info "TEST-025: names Set-CanonicalProcessEnvironment"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-025 REUSE structural pin (dot-source once, guard shape, no redefinition, no mutation)" \
+    || log_fail "TEST-025 REUSE structural pin"
+}
+
+# --- TEST-026 (Spec-AC-03) — CAT-16 fake-CLI PRESENT + empty-PATH ABSENT ---
+test_026_agent_cli_probe_fake_and_absent() {
+  local fakebin="$TMP_ROOT/fakebin"
+  mkdir -p "$fakebin"
+  cat > "$fakebin/claude" <<'EOF'
+#!/bin/sh
+echo "claude-fixture-version-9.9.9"
+EOF
+  chmod +x "$fakebin/claude"
+
+  local out rc1
+  out="$(PATH="$fakebin:$PATH" node "$DOCTOR" --json 2>&1)"
+  echo "$out" | node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const c16 = j.categories.find(x => x.id === "CAT-16");
+      if (!c16) die("CAT-16 missing");
+      const claude = c16.detail.clis.claude;
+      if (!claude || !claude.present || claude.version !== "claude-fixture-version-9.9.9") {
+        die("claude not PRESENT with the fixture version: " + JSON.stringify(claude));
+      }
+    });
+  '
+  rc1=$?
+
+  # Resolve node's OWN absolute path first: PATH="" must empty the PATH the
+  # SPAWNED doctor process sees for its own child-CLI resolution, without
+  # also breaking this shell's ability to exec node itself (a bare "node"
+  # command name needs PATH to be found at all).
+  local node_bin
+  node_bin="$(command -v node)"
+  local out2 rc2
+  out2="$(PATH="" "$node_bin" "$DOCTOR" --json 2>&1)"
+  echo "$out2" | node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const clis = j.categories.find(x => x.id === "CAT-16").detail.clis;
+      for (const name of ["claude", "codex", "gemini"]) {
+        if (clis[name].present) die(name + " unexpectedly PRESENT with an empty PATH");
+        if (clis[name].version) die(name + " unexpectedly carries a version with an empty PATH: " + clis[name].version);
+      }
+    });
+  '
+  rc2=$?
+
+  if [[ "$rc1" -eq 0 && "$rc2" -eq 0 ]]; then
+    log_pass "TEST-026 CAT-16 fake-CLI PRESENT (verbatim version) + empty-PATH ABSENT (no invented version)"
+  else
+    log_fail "TEST-026 CAT-16 fake-CLI/empty-PATH fixtures"
+  fi
+}
+
+# --- TEST-027 (Spec-AC-03) — four capability fields literal UNKNOWN --------
+test_027_capability_fields_unknown() {
+  local out
+  out="$(node "$DOCTOR" --json 2>&1)"
+  echo "$out" | node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const c16 = j.categories.find(x => x.id === "CAT-16");
+      const caps = c16.detail.capabilities;
+      const names = ["multi_agent_backend", "spawn_agent_available", "spawn_model_catalog", "fork_turns_supported"];
+      for (const n of names) {
+        if (!caps[n]) die("missing capability field " + n);
+        if (caps[n].value !== "UNKNOWN") die(n + " must be the literal UNKNOWN, got " + JSON.stringify(caps[n].value));
+        if (!/runtime/i.test(caps[n].reason) || !/agent session/i.test(caps[n].reason)) {
+          die(n + " reason does not mention runtime resolution inside an agent session: " + caps[n].reason);
+        }
+      }
+      if (c16.detail.codex_exec_subcommand === undefined) die("codex_exec_subcommand missing (must be its own separate key)");
+      if (Object.prototype.hasOwnProperty.call(caps, "codex_exec_subcommand")) die("codex exec observation leaked into the capabilities object");
+    });
+  ' && log_pass "TEST-027 four capability fields literal UNKNOWN + codex_exec_subcommand as its own key" \
+    || log_fail "TEST-027 capability fields UNKNOWN contract"
+}
+
+# --- TEST-028 (Spec-AC-04) — output shape: one line each, --json detail,
+#     CAT-01..13 unchanged, categories grow 13 -> 16 on a clean fixture ------
+test_028_output_shape_growth() {
+  local out
+  out="$(node "$DOCTOR" --root "$PROJECT_ROOT" 2>&1)"
+  local c14 c15 c16
+  c14="$(echo "$out" | grep -c '^CAT-14 ')"
+  c15="$(echo "$out" | grep -c '^CAT-15 ')"
+  c16="$(echo "$out" | grep -c '^CAT-16 ')"
+  if [[ "$c14" -ne 1 || "$c15" -ne 1 || "$c16" -ne 1 ]]; then
+    log_info "TEST-028: text-mode line counts CAT-14=$c14 CAT-15=$c15 CAT-16=$c16 (want 1 each)"
+    log_fail "TEST-028 output shape: one line each"
+    return
+  fi
+
+  local fixture jout
+  fixture="$(build_clean_fixture clean-028)"
+  jout="$(node "$fixture/.aai/scripts/aai-doctor.mjs" --json 2>&1)"
+  echo "$jout" | node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      if (j.categories.length !== 16) die("categories.length=" + j.categories.length + " (want 16)");
+      for (let i = 1; i <= 13; i++) {
+        const id = "CAT-" + String(i).padStart(2, "0");
+        const c = j.categories.find(x => x.id === id);
+        if (!c || c.status !== "PASS") die(id + " changed on the clean fixture: " + JSON.stringify(c));
+      }
+      for (const id of ["CAT-14", "CAT-15", "CAT-16"]) {
+        const c = j.categories.find(x => x.id === id);
+        if (!c || typeof c.detail !== "object" || c.detail === null) die(id + " missing a structured detail object under --json");
+      }
+    });
+  ' && log_pass "TEST-028 output shape: one line each, --json detail, CAT-01..13 unchanged, 13->16 growth" \
+    || log_fail "TEST-028 output shape growth"
+}
+
+# --- TEST-029 (Spec-AC-04) — exit matrix ------------------------------------
+test_029_exit_matrix() {
+  # WARN (an existing always-WARN category, CAT-04, on a bare fixture): exits
+  # 0 without --strict, 1 with --strict. CAT-14/CAT-15 cannot be forced into
+  # WARN off Windows (D6 makes them SKIP there), so this reuses an existing
+  # WARN category to exercise the matrix — the --strict LOGIC under test
+  # (any WARN or FAIL -> 1) does not care which category produced the WARN.
+  local fixture rc rc_strict
+  fixture="$(new_bare_fixture t029-warn)"
+  add_core_and_role_files "$fixture"
+  node "$DOCTOR" --root "$fixture" >/dev/null 2>&1; rc=$?
+  node "$DOCTOR" --root "$fixture" --strict >/dev/null 2>&1; rc_strict=$?
+  if [[ "$rc" -ne 0 || "$rc_strict" -ne 1 ]]; then
+    log_info "TEST-029a: rc=$rc rc_strict=$rc_strict (want 0 then 1)"
+    log_fail "TEST-029a WARN matrix"
+    return
+  fi
+
+  # SKIP-only fixture (the clean fixture: its only non-PASS categories on
+  # this host are CAT-14/CAT-15 SKIP): --strict still exits 0.
+  local fixture2 rc2_strict
+  fixture2="$(build_clean_fixture clean-029)"
+  node "$fixture2/.aai/scripts/aai-doctor.mjs" --strict >/dev/null 2>&1; rc2_strict=$?
+  if [[ "$rc2_strict" -ne 0 ]]; then
+    log_info "TEST-029b: --strict on a SKIP-only fixture exited $rc2_strict (want 0)"
+    log_fail "TEST-029b SKIP-only --strict"
+    return
+  fi
+
+  # A genuine CAT-01 FAIL still exits 1 without --strict.
+  local fixture3 rc3
+  fixture3="$(new_bare_fixture t029-fail)"
+  mkdir -p "$fixture3/.aai" "$fixture3/docs/ai"
+  : > "$fixture3/.aai/PLAYBOOK.md"
+  node "$DOCTOR" --root "$fixture3" >/dev/null 2>&1; rc3=$?
+  if [[ "$rc3" -ne 1 ]]; then
+    log_info "TEST-029c: FAIL fixture without --strict exited $rc3 (want 1)"
+    log_fail "TEST-029c FAIL fixture exit"
+    return
+  fi
+
+  # An unknown flag still exits 2.
+  local rc4
+  node "$DOCTOR" --nope >/dev/null 2>&1; rc4=$?
+  if [[ "$rc4" -ne 2 ]]; then
+    log_info "TEST-029d: unknown flag exited $rc4 (want 2)"
+    log_fail "TEST-029d usage error exit"
+    return
+  fi
+
+  log_pass "TEST-029 exit matrix: WARN 0/--strict 1, SKIP-only --strict 0, FAIL 1, usage error 2"
+}
+
+# --- TEST-030 (Spec-AC-04) — zero-network / zero-LLM pin --------------------
+test_030_zero_network_pin() {
+  local tokens=("fetch(" "node:http" "require('http')" "node:https" "require('https')" \
+    "Invoke-WebRequest" "Invoke-RestMethod" "curl " "wget " "git fetch" "git ls-remote" "git clone")
+  local files=("$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs" "$PROJECT_ROOT/.aai/scripts/aai-win-selftest.ps1")
+  local ok=1 f t
+  for f in "${files[@]}"; do
+    for t in "${tokens[@]}"; do
+      if grep -qF -- "$t" "$f"; then
+        log_info "TEST-030: $f references a network/LLM token: $t"
+        ok=0
+      fi
+    done
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-030 zero-network/zero-LLM pin (aai-doctor.mjs + aai-win-selftest.ps1)" \
+    || log_fail "TEST-030 zero-network pin"
+}
+
+# --- TEST-031 (Spec-AC-05) — hygiene set ------------------------------------
+test_031_hygiene_set() {
+  local ok=1 tmp
+
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-doctor-ctr.XXXXXX")"
+  if ! node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" >"$tmp" 2>&1; then
+    log_info "TEST-031: check-test-registration.mjs reported orphans: $(cat "$tmp")"
+    ok=0
+  fi
+  rm -f "$tmp"
+
+  grep -qF '.aai/scripts/aai-win-selftest.ps1' "$PROJECT_ROOT/tests/skills/suite-map.yaml" \
+    || { log_info "TEST-031: suite-map.yaml aai-doctor row missing aai-win-selftest.ps1"; ok=0; }
+  grep -qF 'tests/skills/aai-win-dispatch.Tests.ps1' "$PROJECT_ROOT/tests/skills/suite-map.yaml" \
+    || { log_info "TEST-031: suite-map.yaml aai-doctor row missing aai-win-dispatch.Tests.ps1"; ok=0; }
+
+  local profcount
+  profcount="$(grep -cF '.aai/scripts/aai-win-selftest.ps1' "$PROJECT_ROOT/.aai/system/PROFILES.yaml")"
+  [[ "$profcount" -eq 1 ]] || { log_info "TEST-031: PROFILES.yaml lists aai-win-selftest.ps1 $profcount time(s) (want 1)"; ok=0; }
+
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-doctor-lp.XXXXXX")"
+  if ! bash "$PROJECT_ROOT/tests/skills/test-aai-layer-profiles.sh" >"$tmp" 2>&1; then
+    log_info "TEST-031: test-aai-layer-profiles.sh failed: $(tail -20 "$tmp")"
+    ok=0
+  fi
+  rm -f "$tmp"
+
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-doctor-ss.XXXXXX")"
+  if ! bash "$PROJECT_ROOT/tests/skills/test-aai-suite-select.sh" >"$tmp" 2>&1; then
+    log_info "TEST-031: test-aai-suite-select.sh failed: $(tail -20 "$tmp")"
+    ok=0
+  fi
+  rm -f "$tmp"
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-031 hygiene set: registration clean, suite-map row, PROFILES entry once, layer-profiles/suite-select green" \
+    || log_fail "TEST-031 hygiene set"
+}
+
+# --- TEST-032 (Spec-AC-05) — documentation pin ------------------------------
+test_032_documentation_pin() {
+  local ok=1
+  local pdoc="$PROJECT_ROOT/docs/product/aai-doctor.md"
+  if [[ ! -f "$pdoc" ]]; then
+    log_info "TEST-032: $pdoc does not exist"
+    ok=0
+  else
+    local sec
+    for sec in "## What it does" "## How to use it" "## Data model" "## Interfaces and contracts" "## Limits and non-goals"; do
+      grep -qF -- "$sec" "$pdoc" || { log_info "TEST-032: $pdoc missing section: $sec"; ok=0; }
+    done
+    grep -qi 'self-test' "$pdoc" || { log_info "TEST-032: $pdoc does not mention the self-test"; ok=0; }
+    grep -qiE 'does not prove|cannot prove|never proves|not prove' "$pdoc" \
+      || { log_info "TEST-032: $pdoc does not state what the self-test does NOT prove"; ok=0; }
+  fi
+
+  grep -qF '/aai-doctor' "$PROJECT_ROOT/docs/USER_GUIDE.md" || { log_info "TEST-032: USER_GUIDE.md missing /aai-doctor"; ok=0; }
+  grep -qF -- '--strict' "$PROJECT_ROOT/docs/USER_GUIDE.md" || { log_info "TEST-032: USER_GUIDE.md missing --strict"; ok=0; }
+  grep -qF 'UNKNOWN' "$PROJECT_ROOT/docs/USER_GUIDE.md" || { log_info "TEST-032: USER_GUIDE.md missing the UNKNOWN capability-reporting note"; ok=0; }
+
+  grep -qE '^## \[unreleased\] — .*[Dd]octor' "$PROJECT_ROOT/CHANGELOG.md" \
+    || { log_info "TEST-032: CHANGELOG.md missing an unreleased heading for this scope"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-032 documentation pin: product doc sections, USER_GUIDE, CHANGELOG heading" \
+    || log_fail "TEST-032 documentation pin"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -695,6 +1108,16 @@ main() {
   test_020_usage_errors
   test_021_skill_doctor_thin_wrapper
   test_022_suite_map_row
+  test_023_win_selftest_skip_off_windows
+  test_024_selftest_structural_arm_pins
+  test_025_selftest_reuse_structural_pin
+  test_026_agent_cli_probe_fake_and_absent
+  test_027_capability_fields_unknown
+  test_028_output_shape_growth
+  test_029_exit_matrix
+  test_030_zero_network_pin
+  test_031_hygiene_set
+  test_032_documentation_pin
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

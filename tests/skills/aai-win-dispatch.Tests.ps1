@@ -31,6 +31,8 @@ BeforeAll {
     $script:RunDispatcher = Join-Path $RepoRoot '.aai/scripts/aai-run-tests.ps1'
     $script:ReapDispatcher = Join-Path $RepoRoot '.aai/scripts/aai-reap-tests.ps1'
     $script:ReleaseScript = Join-Path $RepoRoot '.aai/scripts/aai-release.ps1'
+    $script:SelfTestScript = Join-Path $RepoRoot '.aai/scripts/aai-win-selftest.ps1'
+    $script:DoctorScript = Join-Path $RepoRoot '.aai/scripts/aai-doctor.mjs'
     $script:SkipHelperPath = Join-Path $PSScriptRoot 'lib/pester-host-skip.ps1'
     $script:NativeCaptureHelperPath = Join-Path $PSScriptRoot 'lib/pester-native-capture.ps1'
 }
@@ -1348,6 +1350,125 @@ Describe 'aai-reap-tests.ps1' {
             Should -Invoke Invoke-ReapViaWsl -Times 0 -Exactly
             ([regex]::Matches($out, 'reaped: \d+')).Count | Should -Be 1
             $out | Should -Match 'reaped: 5'
+        }
+    }
+}
+
+Describe 'aai-win-selftest.ps1 (CHANGE-0135 / spec-doctor-win-selftest)' {
+
+    BeforeEach {
+        # Re-dot-source before every test so Mocks never leak between tests.
+        # aai-win-selftest.ps1 itself dot-sources aai-run-tests.ps1 (D1), so
+        # this single dot-source defines BOTH files' functions in scope --
+        # Test-WslPresent/Test-WslUsable (the wrapper's) are mockable here
+        # exactly as they are in the 'aai-run-tests.ps1' Describe above.
+        . $script:SelfTestScript
+        # Same reasoning as the NativeCaptureHelperPath dot-source above: a
+        # top-level (discovery-scope) dot-source's function definitions do
+        # not carry into Pester's Run-phase block scopes, so
+        # Test-IsWindowsHostFor (used by the TEST-004 context below) must be
+        # re-dot-sourced HERE to be callable inside an It.
+        . $script:SkipHelperPath
+    }
+
+    It 'parses with no syntax errors' {
+        $errors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile(
+            $script:SelfTestScript, [ref]$null, [ref]$errors) | Out-Null
+        $errors | Should -BeNullOrEmpty
+    }
+
+    Context 'CHANGE-0135 TEST-002 (Spec-AC-01): pure self-test report builder turns arm results into the documented shape' {
+        It 'produces one entry per arm, preserves status/exitCode/diag verbatim (including the AAI-TIMEOUT field), and marks failed when any arm is not PASS' {
+            $arms = @(
+                [ordered]@{ Name = 'success'; Status = 'PASS'; ExitCode = 3; Diag = 'AAI-BRANCH: Git Bash | AAI-TIMEOUT: 60s (source=env)' }
+                [ordered]@{ Name = 'timeout'; Status = 'PASS'; ExitCode = 124; Diag = 'AAI-BRANCH: Git Bash | AAI-TIMEOUT: 2s (source=env)' }
+                [ordered]@{ Name = 'spawnfail'; Status = 'FAIL'; ExitCode = 125; Diag = 'AAI-SPAWN-ERROR: [Git Bash] boom' }
+            )
+            $report = Build-SelfTestReport -Arms $arms
+            $report.arms.Count | Should -Be 3
+            $report.arms[0].name | Should -Be 'success'
+            $report.arms[0].status | Should -Be 'PASS'
+            $report.arms[0].exitCode | Should -Be 3
+            $report.arms[1].diag | Should -Be 'AAI-BRANCH: Git Bash | AAI-TIMEOUT: 2s (source=env)'
+            $report.arms[2].status | Should -Be 'FAIL'
+            $report.failed | Should -Be $true
+        }
+
+        It 'reports failed=$false when every arm is PASS' {
+            $arms = @(
+                [ordered]@{ Name = 'success'; Status = 'PASS'; ExitCode = 3; Diag = 'x' }
+                [ordered]@{ Name = 'timeout'; Status = 'PASS'; ExitCode = 124; Diag = 'y' }
+                [ordered]@{ Name = 'spawnfail'; Status = 'PASS'; ExitCode = 125; Diag = 'z' }
+            )
+            (Build-SelfTestReport -Arms $arms).failed | Should -Be $false
+        }
+    }
+
+    Context 'CHANGE-0135 TEST-006/TEST-007 (Spec-AC-02): environment collision report + WSL tri-state mapper' {
+        It 'names exactly one collision group (survivor Path, collapsed PATH) for a Path/PATH-colliding dictionary, and never mutates the real environment' {
+            $envDict = [System.Collections.Specialized.OrderedDictionary]::new()
+            $envDict.Add('Path', 'C:\a')
+            $envDict.Add('PATH', 'C:\b')
+            $envDict.Add('UNRELATED', 'x')
+            # No @() wrap: Get-EnvironmentCollisionReport already guarantees a
+            # real array via -NoEnumerate; re-wrapping with @() would
+            # double-wrap it (PowerShell pipeline-capture quirk on a function
+            # that emits exactly one pipeline object -- here, the array
+            # itself) and break the zero-groups case below.
+            $report = Get-EnvironmentCollisionReport -Environment $envDict
+            $report.Count | Should -Be 1
+            $report[0].survivor | Should -Be 'Path'
+            $report[0].collapsed | Should -Be @('PATH')
+        }
+
+        It 'names zero collision groups for a collision-free dictionary' {
+            $clean = [System.Collections.Specialized.OrderedDictionary]::new()
+            $clean.Add('FOO', '1')
+            $clean.Add('BAR', '2')
+            $report = Get-EnvironmentCollisionReport -Environment $clean
+            $report.Count | Should -Be 0
+        }
+
+        It 'Get-WslTriState returns absent when Test-WslPresent is false' {
+            Mock Test-WslPresent { $false }
+            Mock Test-WslUsable { $true }
+            Get-WslTriState | Should -Be 'absent'
+        }
+
+        It 'Get-WslTriState returns present-no-distro when present but not usable' {
+            Mock Test-WslPresent { $true }
+            Mock Test-WslUsable { $false }
+            Get-WslTriState | Should -Be 'present-no-distro'
+        }
+
+        It 'Get-WslTriState returns functional when present and usable' {
+            Mock Test-WslPresent { $true }
+            Mock Test-WslUsable { $true }
+            Get-WslTriState | Should -Be 'functional'
+        }
+    }
+
+    Context 'CHANGE-0135 TEST-004 (Spec-AC-01): host-adaptive end-to-end -- node aai-doctor.mjs --json over the real probe' {
+        # D5: no -Skip mark on this It -- the POSIX Pester gate asserts
+        # SkippedCount is ZERO, so the Windows/non-Windows distinction is
+        # made with an in-test if/else (both branches always RUN, on every
+        # host), never a discovery-time skip. Edition-aware (never a bare
+        # $IsWindows, which is undefined under Windows PowerShell 5.1).
+        It 'CAT-14 spawns and all three arms are reported on Windows; CAT-14 is a named, non-spawning SKIP everywhere else' {
+            $isWindowsHost = Test-IsWindowsHostFor -Edition $PSVersionTable.PSEdition -IsWindowsFlag $IsWindows
+            $rawJson = & node $script:DoctorScript '--json' 2>$null
+            $parsed = ($rawJson -join "`n") | ConvertFrom-Json
+            $cat14 = $parsed.categories | Where-Object { $_.id -eq 'CAT-14' }
+            $cat14 | Should -Not -BeNullOrEmpty
+            if ($isWindowsHost) {
+                $cat14.detail.spawned | Should -Be $true
+                $cat14.detail.arms.Count | Should -Be 3
+                $cat14.status | Should -BeIn @('PASS', 'WARN')
+            } else {
+                $cat14.status | Should -Be 'SKIP'
+                $cat14.detail.spawned | Should -Be $false
+            }
         }
     }
 }
