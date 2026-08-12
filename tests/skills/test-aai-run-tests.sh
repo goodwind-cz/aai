@@ -920,6 +920,10 @@ test_024() {
   # Mutation proof: a deliberately-naive stub that ALWAYS returns 124
   # unconditionally must FAIL to reproduce the missing-cmd/non-exec codes --
   # proving the assertions above actually bite rather than being vacuous.
+  # Injected through AAI_RUN_TESTS_SCRIPT (the seam the Test Plan names,
+  # matching the override convention $RUN_TESTS_SCRIPT itself already uses
+  # at suite startup, line ~35) rather than invoked directly, so the proof
+  # exercises the real override machinery, not just a second hardcoded path.
   local stub="$TMP_ROOT/aai-test-024-stub-always-124.sh"
   cat > "$stub" <<'STUB'
 #!/bin/sh
@@ -928,8 +932,8 @@ STUB
   chmod +x "$stub"
 
   local stub_missing_rc stub_nonexec_rc
-  sh "$stub" /nonexistent/aai-test-024-nope-cmd >/dev/null 2>&1; stub_missing_rc=$?
-  sh "$stub" "$nonexec" >/dev/null 2>&1; stub_nonexec_rc=$?
+  AAI_RUN_TESTS_SCRIPT="$stub" sh -c 'sh "$AAI_RUN_TESTS_SCRIPT" "$@"' _ /nonexistent/aai-test-024-nope-cmd >/dev/null 2>&1; stub_missing_rc=$?
+  AAI_RUN_TESTS_SCRIPT="$stub" sh -c 'sh "$AAI_RUN_TESTS_SCRIPT" "$@"' _ "$nonexec" >/dev/null 2>&1; stub_nonexec_rc=$?
 
   if [[ "$stub_missing_rc" -eq 127 && "$stub_nonexec_rc" -eq 126 ]]; then
     log_fail "TEST-024 mutation proof failed: the always-124 stub reproduced the SAME correct codes as the real wrapper -- this guard would be vacuous"

@@ -234,9 +234,13 @@ Components/modules affected:
     from a delegation that RAN is passed through unchanged.
   - Header block: the resolution-order comment, the exit-code list and the
     platform matrix gain the 125 row.
-- `.aai/scripts/aai-run-tests.sh` — NO behavior change. Header only: the
-  exit-code paragraph states 124-versus-125 explicitly and records that this
-  file can only ever produce the shell's real 126/127 for an unlaunchable
+- `.aai/scripts/aai-run-tests.sh` — header-only exit-code paragraph plus one
+  sanctioned, root-caused one-line deviation confined to the setsid-less perl
+  fallback's exec-failure handling (collapsed a non-executable file to 127
+  instead of the real 126; disclosed in the AC-Status Notes, a code comment
+  and CHANGELOG per Spec-AC-06's own mutation-proved characterization guard):
+  the exit-code paragraph states 124-versus-125 explicitly and records that
+  this file can only ever produce the shell's real 126/127 for an unlaunchable
   command (the property Spec-AC-06 pins).
 - `tests/skills/aai-win-dispatch.Tests.ps1` — new contexts for TEST-001 to
   TEST-009 inside the existing `Describe 'aai-run-tests.ps1'`. Two of them
