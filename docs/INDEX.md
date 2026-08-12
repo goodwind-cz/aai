@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-12T09:10:16.624Z
+Generated: 2026-08-12T11:49:14.394Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -345,9 +345,11 @@ _None._
 | SPEC-0119 | specs | docs/specs/SPEC-0119-spec-validation-cost-calibration.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0133 | issues | docs/issues/CHANGE-0133-ps1-wrapper-path-dup.md |
 
 ## Deferred (whole-doc) (0)
 
