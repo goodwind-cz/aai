@@ -104,6 +104,86 @@ Describe 'aai-run-tests.ps1' {
         }
     }
 
+    Context 'TEST-010 (field fix, PR #247 run 31603532721): Test-WslUsable is a REAL functional probe, not a bare present-check' {
+        It 'wsl.exe present, ZERO installed distributions (stub prints the message and exits 0) -> NOT usable' {
+            # The exact field defect: windows-latest wsl.exe with no installed
+            # distro prints "Windows Subsystem for Linux has no installed
+            # distributions." and exits 0 -- indistinguishable from success
+            # under a bare ExitCode -eq 0 check.
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 8001; ExitCode = 0 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            Test-WslUsable | Should -Be $false
+        }
+
+        It 'wsl.exe present, real distro answers the sentinel exit code -> usable' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 8002; ExitCode = 42 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            Test-WslUsable | Should -Be $true
+        }
+
+        It 'wsl.exe present, distro answers a NON-sentinel exit code -> NOT usable' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 8003; ExitCode = 1 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            Test-WslUsable | Should -Be $false
+        }
+
+        It 'wsl.exe absent -> NOT usable, probe process never spawned' {
+            Mock Test-WslPresent { $false }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 8004; ExitCode = 42 } }
+            Test-WslUsable | Should -Be $false
+            Should -Invoke Start-WslProbeProcess -Times 0 -Exactly
+        }
+
+        It 'probe hangs past the watchdog -> NOT usable, hung probe process killed (never stalls the caller)' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 8005; ExitCode = $null } }
+            Mock Wait-ProcessWithTimeout { $false }
+            Mock Stop-Process { }
+            Test-WslUsable | Should -Be $false
+            Should -Invoke Stop-Process -Times 1 -Exactly -ParameterFilter { $Id -eq 8005 }
+        }
+
+        It 'probe runs the sentinel command THROUGH a distro (-e sh -c), never a bare presence check' {
+            Mock Test-WslPresent { $true }
+            $script:capturedProbeArgs = $null
+            Mock Start-WslProbeProcess {
+                $script:capturedProbeArgs = $ArgumentList
+                [PSCustomObject]@{ Id = 8006; ExitCode = 42 }
+            }
+            Mock Wait-ProcessWithTimeout { $true }
+            Test-WslUsable | Should -Be $true
+            $script:capturedProbeArgs | Should -Be @('-e', 'sh', '-c', 'exit 42')
+        }
+
+        It 'H1 (field defect, PR #247 run 31606986703): Start-WslProbeProcess redirects BOTH stdout and stderr, never inherits the caller''s streams' {
+            # The zero-distro windows-latest field defect: wsl.exe prints its
+            # UTF-16LE "no installed distributions" message and exits 0. With
+            # -NoNewWindow and NO redirection, that message inherits whatever
+            # the CALLER's own stdout/stderr are pointed at (a harness
+            # capturing this wrapper's own stdout to a file, in the real
+            # smoke) -- a UTF-16LE BOM at the start of that captured stream
+            # flips Get-Content's encoding auto-detection for the WHOLE file,
+            # corrupting every ASCII/UTF-8 byte after it, including a real
+            # success marker written later by the Git-Bash branch. This is a
+            # static source-contract check (real wsl.exe is not available on
+            # any CI host this suite runs on) pinning that the fix -- both
+            # streams redirected to real files, never $null/NUL -- stays in
+            # place.
+            $content = Get-Content -Raw $script:RunDispatcher
+            if ($content -match '(?s)function Start-WslProbeProcess\s*\{(.*?)\n\}') {
+                $body = $Matches[1]
+            } else {
+                $body = ''
+            }
+            $body | Should -Match '-RedirectStandardOutput\s+\$outFile'
+            $body | Should -Match '-RedirectStandardError\s+\$errFile'
+            $body | Should -Not -Match "-RedirectStandardOutput\s+(\`$null|'NUL'|""NUL"")"
+        }
+    }
+
     Context 'TEST-003 (Spec-AC-01): all probes negative -> error branch, never a partial launch' {
         It 'Resolve-Interpreter returns error when neither WSL nor Git Bash is usable' {
             Mock Test-WslUsable { $false }
@@ -211,6 +291,537 @@ Describe 'aai-run-tests.ps1' {
                 -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 2
             $rc | Should -Be 124
             Should -Invoke Stop-ProcessTree -Times 1 -Exactly -ParameterFilter { $ProcessId -eq 4242 }
+        }
+    }
+
+    # ---- CHANGE-0133 / SPEC-0120-spec-ps1-wrapper-path-dup (TEST-001..009) ----
+    # Environment canonicalization before every spawn, explicit 125 infra exit
+    # code, no fake 124. NOTE: the "TEST-NNN" labels below are this spec's OWN
+    # Test Plan ids, scoped to SPEC-0120-spec-ps1-wrapper-path-dup — they are
+    # independent of (and numerically overlap) the SPEC-0046 TEST-001..006
+    # labels used above in this same Describe block for a different spec.
+
+    Context 'CHANGE-0133 TEST-001 (Spec-AC-01): PATH collision group collapses to one literal Path key, ordinal-ordered union, dedup' {
+        It 'Path + PATH + path -> exactly one key "Path", ordinal-key-ordered union with duplicate segments dropped; OrdinalIgnoreCase dictionary build does not throw' {
+            $envd = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+            $envd.Add('Path', '/usr/bin:/shared')
+            $envd.Add('PATH', '/bin:/shared')
+            $envd.Add('path', '/opt/bin')
+            $map = Get-CanonicalEnvironmentMap -Environment $envd
+            @($map.Keys) | Should -Be @('Path')
+            # Ordinal member order: 'PATH' < 'Path' < 'path' (uppercase sorts
+            # before lowercase) -> PATH's segments first, then Path's ('/shared'
+            # already seen, dropped), then path's.
+            $expected = @('/bin', '/shared', '/usr/bin', '/opt/bin') -join [IO.Path]::PathSeparator
+            $map['Path'] | Should -Be $expected
+            {
+                $d = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::OrdinalIgnoreCase)
+                foreach ($k in $map.Keys) { $d.Add([string]$k, [string]$map[$k]) }
+            } | Should -Not -Throw
+        }
+    }
+
+    Context 'CHANGE-0133 TEST-002 (Spec-AC-01): non-PATH group -> ordinal-first key+value only, no-op on clean input, idempotent' {
+        It 'Temp/TEMP collapses to the ordinal-first key with that key''s value only (no concatenation)' {
+            $envd = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+            $envd.Add('TEMP', '/private/tmp')
+            $envd.Add('Temp', '/other/tmp')
+            $map = Get-CanonicalEnvironmentMap -Environment $envd
+            @($map.Keys) | Should -Be @('TEMP')
+            $map['TEMP'] | Should -Be '/private/tmp'
+        }
+
+        It 'identical-value duplicate casings collapse to a single entry' {
+            $envd = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+            $envd.Add('FOO', 'same-value')
+            $envd.Add('foo', 'same-value')
+            $map = Get-CanonicalEnvironmentMap -Environment $envd
+            @($map.Keys).Count | Should -Be 1
+            $map['FOO'] | Should -Be 'same-value'
+        }
+
+        It 'a collision-free map is returned unchanged' {
+            $envd = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+            $envd.Add('ALPHA', '1')
+            $envd.Add('BETA', '2')
+            $map = Get-CanonicalEnvironmentMap -Environment $envd
+            @($map.Keys) | Should -Be @('ALPHA', 'BETA')
+            $map['ALPHA'] | Should -Be '1'
+            $map['BETA'] | Should -Be '2'
+        }
+
+        It 'normalizing the output a second time yields an identical map (idempotent)' {
+            $envd = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+            $envd.Add('Path', '/a:/b')
+            $envd.Add('PATH', '/b:/c')
+            $envd.Add('Temp', '/t1')
+            $envd.Add('TEMP', '/t2')
+            $once = Get-CanonicalEnvironmentMap -Environment $envd
+            $twice = Get-CanonicalEnvironmentMap -Environment $once
+            @($twice.Keys) | Should -Be @($once.Keys)
+            foreach ($k in $once.Keys) { $twice[$k] | Should -Be $once[$k] }
+        }
+    }
+
+    Context 'CHANGE-0133 TEST-003 (Spec-AC-02, SEAM-1): real dual-casing environment -- CONTROL throws, TREATMENT does not, one Path survives with both directories' {
+        It 'child pwsh: CONTROL arm (OrdinalIgnoreCase dictionary over the live dup env) THROWS; TREATMENT arm (after Set-CanonicalProcessEnvironment) does NOT throw, exactly one PATH casing remains, value holds both original directories' {
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('aai-run-tests-dupenv-' + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $tmp | Out-Null
+            try {
+                $probeFile = Join-Path $tmp 'probe.ps1'
+                $probeBody = @'
+. "__DISPATCHER__"
+[Environment]::SetEnvironmentVariable('PATH', '/dir-one')
+[Environment]::SetEnvironmentVariable('Path', '/dir-two')
+
+$controlThrew = $false
+try {
+    $d = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $snap = [Environment]::GetEnvironmentVariables()
+    foreach ($k in $snap.Keys) { $d.Add([string]$k, [string]$snap[$k]) }
+} catch { $controlThrew = $true }
+Write-Output "CONTROL_THREW=$controlThrew"
+
+Set-CanonicalProcessEnvironment | Out-Null
+
+$treatmentThrew = $false
+try {
+    $d2 = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $snap2 = [Environment]::GetEnvironmentVariables()
+    foreach ($k in $snap2.Keys) { $d2.Add([string]$k, [string]$snap2[$k]) }
+} catch { $treatmentThrew = $true }
+Write-Output "TREATMENT_THREW=$treatmentThrew"
+
+$finalSnap = [Environment]::GetEnvironmentVariables()
+$pathCasings = @($finalSnap.Keys | Where-Object { $_ -match '(?i)^path$' })
+Write-Output "PATH_CASING_COUNT=$($pathCasings.Count)"
+Write-Output "FINAL_PATH=$($finalSnap['Path'])"
+'@
+                $probeBody = $probeBody.Replace('__DISPATCHER__', $script:RunDispatcher)
+                Set-Content -LiteralPath $probeFile -Value $probeBody
+                $out = & pwsh -NoProfile -File $probeFile 2>&1
+                $joined = $out -join "`n"
+                $joined | Should -Match 'CONTROL_THREW=True'
+                $joined | Should -Match 'TREATMENT_THREW=False'
+                $joined | Should -Match 'PATH_CASING_COUNT=1'
+                $joined | Should -Match 'FINAL_PATH=.*dir-one'
+                $joined | Should -Match 'FINAL_PATH=.*dir-two'
+            } finally {
+                Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    Context 'CHANGE-0133 TEST-004 (Spec-AC-02, SEAM-3): canonicalizer runs exactly once, before every probe/launch primitive on both branches; clean env -> zero raw Set calls' {
+        It 'gitbash branch: canonicalizer invoked exactly once, BEFORE Test-WslUsable and BEFORE Start-GitBashProcess' {
+            $script:order = [System.Collections.Generic.List[string]]::new()
+            Mock Set-CanonicalProcessEnvironment { $script:order.Add('canonicalize') }
+            Mock Test-WslUsable { $script:order.Add('Test-WslUsable'); $false }
+            Mock Find-GitBash { 'C:\Program Files\Git\bin\bash.exe' }
+            Mock Start-GitBashProcess { $script:order.Add('Start-GitBashProcess'); [PSCustomObject]@{ Id = 7001; ExitCode = 0 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 0')
+            $rc | Should -Be 0
+            Should -Invoke Set-CanonicalProcessEnvironment -Times 1 -Exactly
+            @($script:order) | Should -Be @('canonicalize', 'Test-WslUsable', 'Start-GitBashProcess')
+        }
+
+        It 'wsl branch: canonicalizer invoked exactly once, BEFORE Test-WslUsable and BEFORE Invoke-WslProcess' {
+            $script:order2 = [System.Collections.Generic.List[string]]::new()
+            Mock Set-CanonicalProcessEnvironment { $script:order2.Add('canonicalize') }
+            Mock Test-WslUsable { $script:order2.Add('Test-WslUsable'); $true }
+            Mock ConvertTo-WslPath { '/mnt/c/repo/.aai/scripts/aai-run-tests.sh' }
+            Mock Invoke-WslProcess { $script:order2.Add('Invoke-WslProcess'); 0 }
+            $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 0')
+            $rc | Should -Be 0
+            Should -Invoke Set-CanonicalProcessEnvironment -Times 1 -Exactly
+            @($script:order2) | Should -Be @('canonicalize', 'Test-WslUsable', 'Invoke-WslProcess')
+        }
+
+        It 'on an already-clean environment the applier performs ZERO Set-EnvironmentVariableRaw calls' {
+            Mock Get-ProcessEnvironmentSnapshot {
+                $d = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+                $d.Add('FOO', 'bar')
+                $d.Add('PATH', '/a:/b')
+                return $d
+            }
+            Mock Set-EnvironmentVariableRaw { }
+            Set-CanonicalProcessEnvironment | Out-Null
+            Should -Invoke Set-EnvironmentVariableRaw -Times 0 -Exactly
+        }
+    }
+
+    Context 'CHANGE-0133 TEST-005 (Spec-AC-03): spawn failure (throw or null) -> 125, wait logic never reached, never 124' {
+        It 'Start-GitBashProcess THROW -> Invoke-ViaGitBash returns 125, Wait-ProcessWithTimeout never invoked' {
+            Mock Start-GitBashProcess { throw 'AAI-TEST-005-THROW' }
+            Mock Wait-ProcessWithTimeout { $true }
+            Mock Stop-ProcessTree { }
+            $rc = Invoke-ViaGitBash -BashPath 'C:\Git\bin\bash.exe' -Command @('sh', '-c', 'exit 0') `
+                -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 300
+            $rc | Should -Be 125
+            $rc | Should -Not -Be 124
+            Should -Invoke Wait-ProcessWithTimeout -Times 0 -Exactly
+        }
+
+        It 'Start-GitBashProcess returns $null -> Invoke-ViaGitBash returns 125, Wait-ProcessWithTimeout never invoked' {
+            Mock Start-GitBashProcess { $null }
+            Mock Wait-ProcessWithTimeout { $true }
+            Mock Stop-ProcessTree { }
+            $rc = Invoke-ViaGitBash -BashPath 'C:\Git\bin\bash.exe' -Command @('sh', '-c', 'exit 0') `
+                -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 300
+            $rc | Should -Be 125
+            $rc | Should -Not -Be 124
+            Should -Invoke Wait-ProcessWithTimeout -Times 0 -Exactly
+        }
+    }
+
+    Context 'CHANGE-0133 TEST-006 (Spec-AC-03): real child pwsh spawn-failure -> exactly one AAI-SPAWN-ERROR line naming Git Bash + exit 125' {
+        It 'stderr holds exactly one AAI-SPAWN-ERROR line containing the exception text and the literal token "Git Bash"; exit code is 125' {
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('aai-run-tests-spawnfail-' + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $tmp | Out-Null
+            try {
+                $probeFile = Join-Path $tmp 'probe.ps1'
+                $probeBody = @'
+. "__DISPATCHER__"
+function Start-GitBashProcess { param($BashPath, $ScriptArgs, $Timeout) throw 'AAI-TEST-006-UNIQUE-SPAWN-FAILURE' }
+$rc = Invoke-ViaGitBash -BashPath 'C:\Git\bin\bash.exe' -Command @('sh', '-c', 'exit 0') -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 300
+exit $rc
+'@
+                $probeBody = $probeBody.Replace('__DISPATCHER__', $script:RunDispatcher)
+                Set-Content -LiteralPath $probeFile -Value $probeBody
+                $errFile = Join-Path $tmp 'err.txt'
+                & pwsh -NoProfile -File $probeFile 2>$errFile 1>$null
+                $code = $LASTEXITCODE
+                $errLines = @(Get-Content $errFile -ErrorAction SilentlyContinue | Where-Object { $_ -match '^AAI-SPAWN-ERROR:' })
+                $code | Should -Be 125
+                $errLines.Count | Should -Be 1
+                $errLines[0] | Should -Match 'AAI-TEST-006-UNIQUE-SPAWN-FAILURE'
+                $errLines[0] | Should -Match 'Git Bash'
+            } finally {
+                Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    Context 'CHANGE-0133 TEST-007 (Spec-AC-03): regression pins -- 124 keeps its meaning, no spawn-error noise' {
+        It 'live process + timeout still yields 124, tree-kill once, NO AAI-SPAWN-ERROR written' {
+            Mock Start-GitBashProcess { [PSCustomObject]@{ Id = 5150; ExitCode = $null } }
+            Mock Wait-ProcessWithTimeout { $false }
+            Mock Stop-ProcessTree { }
+            $origErr = [Console]::Error
+            $sw = [System.IO.StringWriter]::new()
+            [Console]::SetError($sw)
+            try {
+                $rc = Invoke-ViaGitBash -BashPath 'C:\Git\bin\bash.exe' -Command @('sh', '-c', 'sleep 300') `
+                    -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 2
+            } finally {
+                [Console]::SetError($origErr)
+            }
+            $rc | Should -Be 124
+            Should -Invoke Stop-ProcessTree -Times 1 -Exactly -ParameterFilter { $ProcessId -eq 5150 }
+            $sw.ToString() | Should -Not -Match 'AAI-SPAWN-ERROR'
+        }
+
+        It 'a normally completed process still propagates its own exit code 7' {
+            Mock Start-GitBashProcess { [PSCustomObject]@{ Id = 5151; ExitCode = 7 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            $rc = Invoke-ViaGitBash -BashPath 'C:\Git\bin\bash.exe' -Command @('sh', '-c', 'exit 7') `
+                -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 300
+            $rc | Should -Be 7
+        }
+    }
+
+    Context 'CHANGE-0133 TEST-008 (Spec-AC-04): cleanup covers the spawn-failed branch, never a null pid' {
+        It 'a throw AFTER a live process object exists tree-kills exactly that pid once and returns 125' {
+            Mock Start-GitBashProcess { [PSCustomObject]@{ Id = 6001; ExitCode = $null } }
+            Mock Wait-ProcessWithTimeout { throw 'AAI-TEST-008-POST-SPAWN-FAILURE' }
+            Mock Stop-ProcessTree { }
+            $rc = Invoke-ViaGitBash -BashPath 'C:\Git\bin\bash.exe' -Command @('sh', '-c', 'exit 0') `
+                -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 300
+            $rc | Should -Be 125
+            Should -Invoke Stop-ProcessTree -Times 1 -Exactly -ParameterFilter { $ProcessId -eq 6001 }
+        }
+
+        It 'a spawn that produced no object invokes Stop-ProcessTree zero times (never a null/empty pid to taskkill)' {
+            Mock Start-GitBashProcess { $null }
+            Mock Stop-ProcessTree { }
+            $rc = Invoke-ViaGitBash -BashPath 'C:\Git\bin\bash.exe' -Command @('sh', '-c', 'exit 0') `
+                -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 300
+            $rc | Should -Be 125
+            Should -Invoke Stop-ProcessTree -Times 0 -Exactly
+        }
+    }
+
+    Context 'CHANGE-0133 TEST-009 (Spec-AC-04): WSL branch parity -- throw -> 125 named WSL, surfaced unchanged through Invoke-Dispatch; a real non-zero delegation passes through' {
+        It 'Invoke-WslProcess THROW -> Invoke-ViaWsl returns 125 with a diagnostic naming the literal token WSL' {
+            Mock Invoke-WslProcess { throw 'AAI-TEST-009-WSL-SPAWN-FAILURE' }
+            Mock ConvertTo-WslPath { '/mnt/c/repo/.aai/scripts/aai-run-tests.sh' }
+            $origErr = [Console]::Error
+            $sw = [System.IO.StringWriter]::new()
+            [Console]::SetError($sw)
+            try {
+                $rc = Invoke-ViaWsl -Command @('sh', '-c', 'exit 0') -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 300
+            } finally {
+                [Console]::SetError($origErr)
+            }
+            $rc | Should -Be 125
+            $sw.ToString() | Should -Match 'AAI-SPAWN-ERROR'
+            $sw.ToString() | Should -Match 'WSL'
+            $sw.ToString() | Should -Match 'AAI-TEST-009-WSL-SPAWN-FAILURE'
+        }
+
+        It 'Invoke-Dispatch surfaces that 125 unchanged on the wsl branch' {
+            Mock Test-WslUsable { $true }
+            Mock ConvertTo-WslPath { '/mnt/c/repo/.aai/scripts/aai-run-tests.sh' }
+            Mock Invoke-WslProcess { throw 'AAI-TEST-009-DISPATCH-SPAWN-FAILURE' }
+            $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 0')
+            $rc | Should -Be 125
+        }
+
+        It 'a delegation that RAN and returned non-zero is passed through as its own code' {
+            Mock Invoke-WslProcess { 3 }
+            Mock ConvertTo-WslPath { '/mnt/c/repo/.aai/scripts/aai-run-tests.sh' }
+            $rc = Invoke-ViaWsl -Command @('sh', '-c', 'exit 3') -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 300
+            $rc | Should -Be 3
+        }
+    }
+
+    # ---- review-20260812T133652Z-CHANGE-0133-ps1-wrapper-path-dup, CR-1 -------
+    # (NON-BLOCKING finding, remediated in-tree). Ports the review's own
+    # worst-case emulation of a case-insensitive removal primitive (the kind
+    # available on Windows, unavailable on this macOS host) into a Pester arm
+    # so the defect the review found -- and its fix -- have a permanent home.
+    Context 'CR-1 (review 20260812T133652Z): survivor re-write must be decided against POST-removal state, not the pre-removal snapshot' {
+        It 'a case-insensitive removal primitive that erases the survivor''s own entry still gets the merged value written back' {
+            # Emulates the Windows Env:-provider / Win32 removal semantics this
+            # host cannot exercise directly: Set-EnvironmentVariableRaw(name,
+            # $null) here deletes EVERY casing of that name from a mutable
+            # store, exactly the review's worst-case primitive. TEMP/Temp is a
+            # non-PATH group, which the review identifies as the class that
+            # ALWAYS trips the bug (the survivor's canonical value never
+            # differs from its own pre-removal value, so the stale-snapshot
+            # comparison always skips the write).
+            $script:crOneStore = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+            $script:crOneStore['TEMP'] = '/original-temp'
+            $script:crOneStore['Temp'] = '/other-temp'
+            Mock Get-ProcessEnvironmentSnapshot {
+                $d = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+                foreach ($k in $script:crOneStore.Keys) { $d[$k] = $script:crOneStore[$k] }
+                return $d
+            }
+            Mock Set-EnvironmentVariableRaw {
+                param($Name, $Value)
+                if ([string]::IsNullOrEmpty($Value)) {
+                    foreach ($k in @($script:crOneStore.Keys)) {
+                        if ([string]::Equals($k, $Name, [System.StringComparison]::OrdinalIgnoreCase)) {
+                            $script:crOneStore.Remove($k) | Out-Null
+                        }
+                    }
+                } else {
+                    $script:crOneStore[$Name] = $Value
+                }
+            }
+            Set-CanonicalProcessEnvironment | Out-Null
+            # The survivor casing 'TEMP' carrying its canonical value must be
+            # present afterwards -- a case-insensitive removal of the discarded
+            # 'Temp' casing must never be allowed to silently delete it without
+            # a re-write.
+            $script:crOneStore.ContainsKey('TEMP') | Should -Be $true
+            $script:crOneStore['TEMP'] | Should -Be '/original-temp'
+        }
+
+        It 'H3 (PR #247 run 31606986703 investigation): an unrelated process-scope var (AAI_TEST_TIMEOUT) survives canonicalization of a REAL Path/PATH collision AND is visible to a spawned grandchild process — RED/GREEN probe for the smoke''s "default 300s watchdog used instead of AAI_TEST_TIMEOUT=2" symptom' {
+            # Field evidence: arm2 of the Windows smoke set AAI_TEST_TIMEOUT=2
+            # then invoked aai-run-tests.ps1, which ran to the DEFAULT 300s
+            # watchdog instead — i.e. Get-EffectiveTimeout resolved 300, not 2,
+            # sometime after Set-CanonicalProcessEnvironment ran (Invoke-
+            # Dispatch calls canonicalize THEN reads AAI_TEST_TIMEOUT). This is
+            # a REAL, unmocked child-process probe (mirrors CHANGE-0133
+            # TEST-003's pattern) exercising the dispatcher's actual removal/
+            # rewrite primitives against a genuine dual-casing PATH collision
+            # -- the one scenario CR-1 proved DOES trigger collateral damage
+            # for a group member. AAI_TEST_TIMEOUT is a single-casing,
+            # non-colliding key: if it survives here, Set-
+            # CanonicalProcessEnvironment is CLEARED as the root cause and the
+            # loss must be happening upstream of this process (fix-at-cause
+            # belongs in whatever spawns THIS process, not here).
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('aai-run-tests-h3-' + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $tmp | Out-Null
+            try {
+                $probeFile = Join-Path $tmp 'probe.ps1'
+                $probeBody = @'
+. "__DISPATCHER__"
+[Environment]::SetEnvironmentVariable('PATH', '/dir-one')
+[Environment]::SetEnvironmentVariable('Path', '/dir-two')
+[Environment]::SetEnvironmentVariable('AAI_TEST_TIMEOUT', '137')
+
+Set-CanonicalProcessEnvironment | Out-Null
+
+Write-Output "AFTER_ENV_DRIVE=$($env:AAI_TEST_TIMEOUT)"
+Write-Output "AFTER_ENV_CLASS=$([Environment]::GetEnvironmentVariable('AAI_TEST_TIMEOUT'))"
+Write-Output "EFFECTIVE_TIMEOUT=$(Get-EffectiveTimeout -Raw $env:AAI_TEST_TIMEOUT)"
+
+$outFile = [System.IO.Path]::GetTempFileName()
+try {
+    Start-Process -FilePath 'pwsh' -ArgumentList @('-NoProfile', '-Command', '$env:AAI_TEST_TIMEOUT') `
+        -NoNewWindow -Wait -RedirectStandardOutput $outFile | Out-Null
+    $childSaw = (Get-Content -LiteralPath $outFile -Raw).Trim()
+} finally {
+    Remove-Item -LiteralPath $outFile -ErrorAction SilentlyContinue
+}
+Write-Output "GRANDCHILD_SAW=$childSaw"
+'@
+                $probeBody = $probeBody.Replace('__DISPATCHER__', $script:RunDispatcher)
+                Set-Content -LiteralPath $probeFile -Value $probeBody
+                $out = & pwsh -NoProfile -File $probeFile 2>&1
+                $joined = $out -join "`n"
+                $joined | Should -Match 'AFTER_ENV_DRIVE=137'
+                $joined | Should -Match 'AFTER_ENV_CLASS=137'
+                $joined | Should -Match 'EFFECTIVE_TIMEOUT=137'
+                $joined | Should -Match 'GRANDCHILD_SAW=137'
+            } finally {
+                Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+            }
+        }
+
+        It 'an already-clean environment still makes ZERO Set-EnvironmentVariableRaw calls (no re-read on the no-op path)' {
+            # Guards the RAW_SET_CALLS=0 no-op contract the review's 59-key
+            # real-environment probe asserts: the CR-1 re-read must only fire
+            # when $collapsed.Count -gt 0, never unconditionally.
+            Mock Get-ProcessEnvironmentSnapshot {
+                $d = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+                $d.Add('FOO', 'bar')
+                $d.Add('PATH', '/a:/b')
+                return $d
+            }
+            Mock Set-EnvironmentVariableRaw { }
+            Set-CanonicalProcessEnvironment | Out-Null
+            Should -Invoke Set-EnvironmentVariableRaw -Times 0 -Exactly
+            Should -Invoke Get-ProcessEnvironmentSnapshot -Times 1 -Exactly
+        }
+    }
+
+    # ---- PR #247 iter-4 (owner-directed remediation) ---------------------------
+    Context 'TEST-011 (5.1 ExitCode-null footgun): every Start-Process -PassThru launch helper touches .Handle immediately' {
+        # Structural/source pin, not a behavioral one: the null-ExitCode-after-
+        # exit quirk is Windows PowerShell 5.1-only (.NET Framework Process
+        # class), so it cannot be reproduced on this (macOS pwsh 7) host. What
+        # CAN be pinned here is the SHAPE of the fix — that the very next
+        # statement after each `$proc = Start-Process ... -PassThru` assigns
+        # `.Handle` to $null-discard, BEFORE any Remove-Item/wait/return —
+        # so a future edit that reorders or drops that line regresses loudly.
+        It 'Start-WslProbeProcess touches $proc.Handle on the line immediately after the Start-Process assignment' {
+            $content = Get-Content -Raw $script:RunDispatcher
+            if ($content -match '(?s)function Start-WslProbeProcess\s*\{(.*?)\n\}') {
+                $body = $Matches[1]
+            } else {
+                $body = ''
+            }
+            $body | Should -Match '(?s)\$proc\s*=\s*Start-Process\s+-FilePath\s+''wsl\.exe''.*?\n\s*(#.*\n\s*)*\$null\s*=\s*\$proc\.Handle'
+        }
+
+        It 'Start-GitBashProcess touches $proc.Handle on the line immediately after the Start-Process assignment, and returns $proc (not the raw Start-Process pipeline output)' {
+            $content = Get-Content -Raw $script:RunDispatcher
+            if ($content -match '(?s)function Start-GitBashProcess\s*\{(.*?)\n\}') {
+                $body = $Matches[1]
+            } else {
+                $body = ''
+            }
+            $body | Should -Match '(?s)\$proc\s*=\s*Start-Process\s+-FilePath\s+\$BashPath.*?\n\s*(#.*\n\s*)*\$null\s*=\s*\$proc\.Handle'
+            $body | Should -Match 'return\s+\$proc\s*$'
+            $body | Should -Not -Match 'return\s+Start-Process'
+        }
+    }
+
+    Context 'TEST-012 (TIMEOUT VISIBILITY): Get-EffectiveTimeoutSource labels env vs default in parity with Get-EffectiveTimeout''s own coercion rule' {
+        It 'Get-EffectiveTimeoutSource: <_.Raw> -> <_.Expected>' -ForEach @(
+            @{ Raw = 'bogus'; Expected = 'default' }
+            @{ Raw = '0'; Expected = 'default' }
+            @{ Raw = '-5'; Expected = 'default' }
+            @{ Raw = ''; Expected = 'default' }
+            @{ Raw = $null; Expected = 'default' }
+            @{ Raw = '45'; Expected = 'env' }
+            @{ Raw = '99999999999'; Expected = 'default' }
+        ) {
+            Get-EffectiveTimeoutSource -Raw $Raw | Should -Be $Expected
+        }
+
+        It 'never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced' -ForEach @(
+            'bogus', '0', '-5', '', $null, '45', '300', '99999999999'
+        ) {
+            $raw = $_
+            $value = Get-EffectiveTimeout -Raw $raw
+            $source = Get-EffectiveTimeoutSource -Raw $raw
+            if ($source -eq 'default') { $value | Should -Be 300 }
+        }
+    }
+
+    Context 'TEST-013 (branch diagnostic, always-on): AAI-BRANCH line names the chosen branch and effective timeout on every non-error run' {
+        It 'Write-BranchDiag writes exactly one AAI-BRANCH line with branch, timeout, and source' {
+            $origErr = [Console]::Error
+            $sw = [System.IO.StringWriter]::new()
+            [Console]::SetError($sw)
+            try {
+                Write-BranchDiag -Branch 'Git Bash' -Timeout 2 -TimeoutSource 'env'
+            } finally {
+                [Console]::SetError($origErr)
+            }
+            $lines = @($sw.ToString() -split "`r?`n" | Where-Object { $_ -match '^AAI-BRANCH:' })
+            $lines.Count | Should -Be 1
+            $lines[0] | Should -Match '^AAI-BRANCH: Git Bash \| AAI-TIMEOUT: 2s \(source=env\)$'
+        }
+
+        It 'Invoke-Dispatch prints AAI-BRANCH naming WSL, with the default-sourced timeout, on the wsl branch' {
+            Mock Test-WslUsable { $true }
+            Mock ConvertTo-WslPath { '/mnt/c/repo/.aai/scripts/aai-run-tests.sh' }
+            Mock Invoke-WslProcess { 0 }
+            $origErr = [Console]::Error
+            $sw = [System.IO.StringWriter]::new()
+            [Console]::SetError($sw)
+            try {
+                $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 0')
+            } finally {
+                [Console]::SetError($origErr)
+            }
+            $rc | Should -Be 0
+            $sw.ToString() | Should -Match '^AAI-BRANCH: WSL \| AAI-TIMEOUT: 300s \(source=default\)'
+        }
+
+        It 'Invoke-Dispatch prints AAI-BRANCH naming Git Bash, with the env-sourced timeout, on the gitbash branch' {
+            Mock Test-WslUsable { $false }
+            Mock Find-GitBash { 'C:\Program Files\Git\bin\bash.exe' }
+            Mock Start-GitBashProcess { [PSCustomObject]@{ Id = 9001; ExitCode = 3 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            $origErr = [Console]::Error
+            $sw = [System.IO.StringWriter]::new()
+            [Console]::SetError($sw)
+            $prevTimeout = $env:AAI_TEST_TIMEOUT
+            $env:AAI_TEST_TIMEOUT = '2'
+            try {
+                $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 3')
+            } finally {
+                [Console]::SetError($origErr)
+                $env:AAI_TEST_TIMEOUT = $prevTimeout
+            }
+            $rc | Should -Be 3
+            $sw.ToString() | Should -Match '^AAI-BRANCH: Git Bash \| AAI-TIMEOUT: 2s \(source=env\)'
+        }
+
+        It 'Invoke-Dispatch never prints AAI-BRANCH on the error branch (Write-EnvError keeps its exactly-one-line contract)' {
+            Mock Test-WslUsable { $false }
+            Mock Find-GitBash { $null }
+            $origErr = [Console]::Error
+            $sw = [System.IO.StringWriter]::new()
+            [Console]::SetError($sw)
+            try {
+                $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 0')
+            } finally {
+                [Console]::SetError($origErr)
+            }
+            $rc | Should -Be 78
+            $sw.ToString() | Should -Not -Match 'AAI-BRANCH:'
+            $errLines = @($sw.ToString() -split "`r?`n" | Where-Object { $_ -match '^AAI-ENV-ERROR:' })
+            $errLines.Count | Should -Be 1
         }
     }
 }

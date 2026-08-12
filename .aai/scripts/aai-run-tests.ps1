@@ -27,6 +27,28 @@
 #                                         POSIX sessions on Windows) — weaker than SPEC-0009
 #   Windows, neither WSL nor Git Bash  - AAI-ENV-ERROR: ..., exit 78; no test run attempted
 #
+# Exit-code contract (CHANGE-0133 / SPEC-0120-spec-ps1-wrapper-path-dup):
+#   0/N   - the wrapped command RAN and this is its own real exit code.
+#   2     - usage error (no command given); never confused with the codes below.
+#   78    - no usable POSIX interpreter (sysexits EX_CONFIG); AAI-ENV-ERROR on
+#           stderr; no test run attempted (see Resolution order above).
+#   124   - a process that RAN and was killed at AAI_TEST_TIMEOUT (GNU-timeout
+#           convention). NEVER produced for a command that never started.
+#   125   - the dispatcher itself could not START the command — a spawn/
+#           infrastructure failure (e.g. a duplicate-casing Path/PATH
+#           dictionary collision reaching Start-Process) — one AAI-SPAWN-ERROR
+#           line on stderr names the real exception and the branch (WSL or
+#           Git Bash). The wait logic is never reached with a null process.
+#
+# Environment canonicalization (Spec-AC-01/Spec-AC-02): before ANY spawn — the
+# WSL probe (Test-WslUsable itself calls Start-Process) included —
+# Set-CanonicalProcessEnvironment collapses every OrdinalIgnoreCase-duplicate
+# environment key (the field defect: a process environment carrying both
+# `Path` and `PATH`, invisible through the case-insensitive $env: drive but
+# fatal to the OrdinalIgnoreCase dictionary .NET builds for a child process)
+# down to one canonical key per collision group, via
+# [Environment]::SetEnvironmentVariable — never the $env: drive.
+#
 # Git-Bash run contract (Spec-AC-03, narrower guarantee stated verbatim): on
 # the Git-Bash path this dispatcher launches `.aai/scripts/aai-run-tests.sh
 # <cmd...>` under the resolved bash.exe, passes AAI_TEST_TIMEOUT through,
@@ -35,7 +57,9 @@
 # launched tree only — a detached/reparented descendant is NOT guaranteed
 # reaped, because Windows has no POSIX process-group/session semantics. That
 # is explicitly WEAKER than the SPEC-0009 macOS/Linux contract; never assume
-# it is equivalent.
+# it is equivalent. A failure to SPAWN at all (Start-Process throws or
+# returns no process object) never reaches this contract: it exits 125 with
+# an AAI-SPAWN-ERROR line instead (Spec-AC-03/Spec-AC-04).
 #
 # Every probe/launch/kill primitive below is its own small function so Pester
 # (tests/skills/aai-win-dispatch.Tests.ps1) can override each branch. Dot-
@@ -49,6 +73,13 @@
 # Environment:
 #   AAI_TEST_TIMEOUT  timeout in seconds (default 300; non-integer or <=0 -> 300;
 #                      same coercion as the .sh wrapper)
+#
+# Diagnostics (PR #247 iter-4): on both the wsl and gitbash branches, ONE
+# unconditional stderr line — `AAI-BRANCH: <WSL|Git Bash> | AAI-TIMEOUT:
+# <N>s (source=env|default)` — names the chosen branch and the EFFECTIVE
+# timeout actually in force, whether or not the run succeeds (Write-
+# BranchDiag). Never emitted on the AAI-ENV-ERROR path (Spec-AC-02 keeps
+# that exactly one line, and there is no branch to report there).
 #
 # CANNOT VERIFY ON THIS HOST: real WSL delegation, real Git-Bash/MSYS process
 # semantics, real `taskkill /T` tree-kill completeness. Covered by the Manual
@@ -66,20 +97,77 @@ function Test-WslPresent {
   return [bool](Get-Command wsl.exe -ErrorAction SilentlyContinue)
 }
 
+function Start-WslProbeProcess {
+  # Thin, mockable wrapper around the raw wsl.exe spawn for Test-WslUsable's
+  # functional probe — kept separate from Invoke-WslProcess (the real
+  # delegation launch) so Pester can stub the probe's process object
+  # independently of the delegation path.
+  #
+  # H1 fix (field defect, PR #247 run 31606986703): a bare `-NoNewWindow
+  # -PassThru` with NO redirection makes the probe INHERIT the current
+  # process's own stdout/stderr handles verbatim. On windows-latest's
+  # zero-distro wsl.exe (Test-WslUsable's own header comment) that means the
+  # UTF-16LE "Windows Subsystem for Linux has no installed distributions."
+  # message writes straight into whatever the CALLER's stdout/stderr happen
+  # to be redirected to (e.g. a harness capturing this whole wrapper's own
+  # stdout to a file) — a UTF-16LE BOM at the START of that stream flips
+  # Get-Content's encoding auto-detection for the ENTIRE file, corrupting
+  # every ASCII/UTF-8 byte written after it (including a real success
+  # marker). The probe must be SILENT irrespective of what the caller's own
+  # streams are doing: every byte it could write is redirected to a per-call
+  # temp file, never left for a console/inherited-handle to receive. `NUL`/
+  # `/dev/null` is deliberately NOT used — Start-Process's
+  # -RedirectStandardOutput/-RedirectStandardError require a real
+  # creatable file path on every supported PowerShell version (5.1 and 7.x
+  # alike); a real temp file is the portable way to get the same "nobody
+  # sees it" effect. Best-effort cleanup only: PassThru returns before the
+  # process (and its file handles) have necessarily exited, so an immediate
+  # delete can legitimately fail while wsl.exe still holds the handle open —
+  # that is harmless (ephemeral CI temp dirs are reaped by the host; a
+  # human's real Windows temp folder tolerates a handful of near-empty
+  # leftovers), never a correctness concern for the probe's own result.
+  [CmdletBinding()]
+  param([Parameter(Mandatory)][string[]]$ArgumentList)
+  $outFile = [System.IO.Path]::GetTempFileName()
+  $errFile = [System.IO.Path]::GetTempFileName()
+  $proc = Start-Process -FilePath 'wsl.exe' -ArgumentList $ArgumentList -NoNewWindow -PassThru `
+    -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+  # 5.1 ExitCode-null footgun (PR #247 iter-4 field evidence): on Windows
+  # PowerShell 5.1, a -PassThru process object whose .Handle is never touched
+  # can read back $proc.ExitCode as $null after the process has already
+  # exited (the .NET Framework Process class lazily/insufficiently opens the
+  # handle needed for GetExitCodeProcess unless something forces it open
+  # first). Test-WslUsable reads $proc.ExitCode right below — touch the
+  # handle immediately, before any wait/poll, so that read is real.
+  $null = $proc.Handle
+  Remove-Item -LiteralPath $outFile -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $errFile -ErrorAction SilentlyContinue
+  return $proc
+}
+
 function Test-WslUsable {
-  # wsl.exe present AND a probe command succeeds in the default distro. A
-  # present-but-no-distro wsl.exe answers quickly with a non-zero exit; the
-  # 5s watchdog guards against any prompt/hang so this NEVER blocks the caller.
+  # REAL functional probe (field fix, PR #247 run 31603532721): windows-latest
+  # HAS wsl.exe but with ZERO installed distributions — `wsl` prints "Windows
+  # Subsystem for Linux has no installed distributions." (UTF-16LE) and exits
+  # 0. A bare `$proc.ExitCode -eq 0` check (the prior probe: `wsl.exe -e
+  # true`) cannot tell that apart from real success, so it wrongly judged WSL
+  # usable and routed into it. This probe instead runs a trivial command
+  # THROUGH a distro (`sh -c 'exit <sentinel>'`) and requires that EXACT
+  # sentinel exit code back — a present-but-distro-less wsl.exe, a timeout, or
+  # any other non-sentinel result all count as NOT usable and fall through to
+  # Git Bash (Resolve-Interpreter). The 5s watchdog guards against any
+  # prompt/hang so this NEVER blocks the caller.
   [CmdletBinding()] param()
   if (-not (Test-WslPresent)) { return $false }
+  $sentinel = 42
   try {
-    $proc = Start-Process -FilePath 'wsl.exe' -ArgumentList @('-e', 'true') -NoNewWindow -PassThru
-    $completed = $proc.WaitForExit(5000)
+    $proc = Start-WslProbeProcess -ArgumentList @('-e', 'sh', '-c', "exit $sentinel")
+    $completed = Wait-ProcessWithTimeout -Process $proc -TimeoutSeconds 5
     if (-not $completed) {
       try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
       return $false
     }
-    return ($proc.ExitCode -eq 0)
+    return ($proc.ExitCode -eq $sentinel)
   } catch {
     return $false
   }
@@ -145,6 +233,192 @@ function Resolve-Interpreter {
   return @{ Mode = 'error' }
 }
 
+function Get-ProcessEnvironmentSnapshot {
+  # Thin, mockable wrapper around the REAL process environment. MUST read
+  # [Environment]::GetEnvironmentVariables() — NEVER the $env: drive, which is
+  # exactly the case-insensitive view that HIDES a Path/PATH duplicate (the
+  # field defect this canonicalizer closes).
+  [CmdletBinding()] param()
+  return [Environment]::GetEnvironmentVariables()
+}
+
+function Set-EnvironmentVariableRaw {
+  # Thin, mockable wrapper around the single native primitive that mutates the
+  # CURRENT process's environment block (never Start-Process -Environment —
+  # that overload is 7.4+ only and out of bounds under the Windows PowerShell
+  # 5.1 compatibility gate, Article 3). $Value = $null removes the variable.
+  #
+  # Cross-runtime defense-in-depth: on at least one real .NET/Unix combination
+  # observed in this repo's own CI-equivalent host, [Environment]::
+  # SetEnvironmentVariable(name, $null) leaves the key present with an empty
+  # value instead of truly removing it, which still collides in a later
+  # OrdinalIgnoreCase dictionary build. When the primary call demonstrably did
+  # not remove the EXACT key, fall back to the env-provider remove targeted at
+  # that literal, already-known name — proven exact on THIS proof's own
+  # runtime (Unix pwsh / .NET 10: removing 'PATH' leaves a co-existing 'Path'
+  # survivor untouched, verified empirically), but Windows exactness is NOT
+  # established by that proof — both the Win32 and Env: providers there match
+  # names case-insensitively, which is the same defect CR-1 closes via the
+  # removal-then-re-read-then-write ordering in Set-CanonicalProcessEnvironment
+  # rather than via this primitive's precision — never a case-insensitive scan
+  # standing in for detection.
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][string]$Name,
+    [AllowNull()][string]$Value
+  )
+  [Environment]::SetEnvironmentVariable($Name, $Value)
+  # NB: PowerShell coerces an explicit $null argument into "" for a [string]-
+  # typed parameter (a well-known binding quirk) — [string]::IsNullOrEmpty
+  # is the delete-intent test that survives that coercion, matching .NET's
+  # own documented deletion semantics (null/empty/whitespace-only deletes).
+  if ([string]::IsNullOrEmpty($Value) -and (Get-ProcessEnvironmentSnapshot).ContainsKey($Name)) {
+    Remove-Item -LiteralPath "Env:\$Name" -ErrorAction SilentlyContinue
+  }
+}
+
+function Get-CanonicalEnvironmentMap {
+  # Pure, side-effect-free (Spec-AC-01). Groups keys by OrdinalIgnoreCase;
+  # within a group members are ordered by [StringComparer]::Ordinal. The PATH
+  # group survives under the literal key 'Path' with the ordinal-ordered
+  # union of the group's values (split on [IO.Path]::PathSeparator, empty
+  # segments dropped, duplicate directory entries dropped preserving first
+  # occurrence). Every other collision group survives under its ordinal-first
+  # member's key AND that key's value, unchanged — concatenating unrelated
+  # values would corrupt them. A collision-free map is returned unchanged, and
+  # the output never contains a residual collision, so normalizing twice is
+  # identical to normalizing once.
+  [CmdletBinding()]
+  param([Parameter(Mandatory)][System.Collections.IDictionary]$Environment)
+
+  $groupOrder = [System.Collections.Generic.List[string]]::new()
+  $groups = [System.Collections.Generic.Dictionary[string, System.Collections.Generic.List[string]]]::new(
+    [StringComparer]::OrdinalIgnoreCase)
+  foreach ($key in $Environment.Keys) {
+    $k = [string]$key
+    if (-not $groups.ContainsKey($k)) {
+      $groups[$k] = [System.Collections.Generic.List[string]]::new()
+      $groupOrder.Add($k)
+    }
+    $groups[$k].Add($k)
+  }
+
+  $result = [ordered]@{}
+  foreach ($groupKey in $groupOrder) {
+    $members = $groups[$groupKey].ToArray()
+    [Array]::Sort($members, [StringComparer]::Ordinal)
+    # The PATH-merge rule applies only to a GENUINE collision (more than one
+    # casing actually present) — a lone 'PATH' (the ordinary POSIX spelling,
+    # never colliding with anything) must survive completely unchanged, same
+    # as any other single-member group, or the "already-clean environment is
+    # a NO-OP" edge case would regress on every normal POSIX host.
+    $isPathGroup = $false
+    if ($members.Count -gt 1) {
+      foreach ($m in $members) {
+        if ([string]::Equals($m, 'Path', [System.StringComparison]::OrdinalIgnoreCase)) { $isPathGroup = $true; break }
+      }
+    }
+    if ($isPathGroup) {
+      $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+      $union = [System.Collections.Generic.List[string]]::new()
+      foreach ($m in $members) {
+        $val = [string]$Environment[$m]
+        if ([string]::IsNullOrEmpty($val)) { continue }
+        foreach ($seg in $val.Split([IO.Path]::PathSeparator)) {
+          if ([string]::IsNullOrEmpty($seg)) { continue }
+          if ($seen.Add($seg)) { $union.Add($seg) }
+        }
+      }
+      $result['Path'] = [string]::Join([IO.Path]::PathSeparator, $union)
+    } else {
+      $first = $members[0]
+      $result[$first] = $Environment[$first]
+    }
+  }
+  return $result
+}
+
+function Set-CanonicalProcessEnvironment {
+  # Applies Get-CanonicalEnvironmentMap to the REAL current-process
+  # environment (Spec-AC-02): discards every casing that did not survive via
+  # Set-EnvironmentVariableRaw($name, $null), then sets each survivor whose
+  # value actually changed. Returns the list of DISCARDED (collapsed) names.
+  # On an already-clean environment (no collision groups, no value drift)
+  # this makes ZERO Set-EnvironmentVariableRaw calls — the common path never
+  # regresses.
+  [CmdletBinding()] param()
+  $current = Get-ProcessEnvironmentSnapshot
+  $canonical = Get-CanonicalEnvironmentMap -Environment $current
+  $survivors = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+  foreach ($k in $canonical.Keys) { [void]$survivors.Add([string]$k) }
+
+  $collapsed = [System.Collections.Generic.List[string]]::new()
+  foreach ($existingKey in @($current.Keys)) {
+    $ek = [string]$existingKey
+    if (-not $survivors.Contains($ek)) {
+      Set-EnvironmentVariableRaw -Name $ek -Value $null
+      $collapsed.Add($ek)
+    }
+  }
+  # CR-1 (review 20260812T133652Z): a case-insensitive removal primitive — the
+  # only kind available on Windows — can take a SURVIVOR's own entry when the
+  # survivor shares a name-insensitive casing with a just-discarded key (e.g.
+  # removing 'Temp' can also erase 'TEMP'). Deciding the write below against
+  # the PRE-removal $current then wrongly no-ops whenever the canonical value
+  # equals the survivor's pre-removal value — exactly every non-PATH group,
+  # and any PATH group whose other casings add no new segments. Re-read the
+  # REAL post-removal state before comparing, but ONLY when a removal
+  # actually happened: on an already-clean environment $collapsed is empty,
+  # so this branch is skipped and the zero-Set-EnvironmentVariableRaw-calls
+  # no-op contract stays byte-identical (RAW_SET_CALLS=0).
+  if ($collapsed.Count -gt 0) {
+    $current = Get-ProcessEnvironmentSnapshot
+  }
+  foreach ($k in $canonical.Keys) {
+    $kk = [string]$k
+    $newVal = [string]$canonical[$k]
+    $oldVal = if ($current.ContainsKey($kk)) { [string]$current[$kk] } else { $null }
+    if ($oldVal -ne $newVal) {
+      Set-EnvironmentVariableRaw -Name $kk -Value $newVal
+    }
+  }
+  return $collapsed
+}
+
+function Write-SpawnError {
+  # Spec-AC-03/Spec-AC-04: EXACTLY ONE stderr line, naming the failing branch
+  # (literal token WSL or Git Bash) and the real exception message. Mirrors
+  # the single-line discipline of Write-EnvError.
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][string]$Branch,
+    [Parameter(Mandatory)][string]$Message
+  )
+  [Console]::Error.WriteLine("AAI-SPAWN-ERROR: [$Branch] $Message")
+}
+
+function Write-BranchDiag {
+  # PR #247 iter-4 (owner-directed): the prior state only ever named a branch
+  # on the degraded-mode/spawn-error paths (Write-SpawnError) — a SUCCESSFUL
+  # run left both "which branch ran" and "what timeout did it actually use"
+  # undiagnosable after the fact (field evidence: arm1/arm2's diag showed
+  # branch=unknown even though the wrapper genuinely dispatched). This is the
+  # unconditional counterpart: ALWAYS one stderr line, on both the wsl and
+  # gitbash branches, naming the chosen branch plus the EFFECTIVE
+  # AAI_TEST_TIMEOUT and whether it came from the env var or the 300s
+  # default — cheap, and it settles "did AAI_TEST_TIMEOUT actually arrive?"
+  # definitively on the very next run. Never called on the error branch:
+  # Write-EnvError's Spec-AC-02 contract is EXACTLY one stderr line, and
+  # there is no "chosen branch" to report when resolution failed.
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][string]$Branch,
+    [Parameter(Mandatory)][int]$Timeout,
+    [Parameter(Mandatory)][string]$TimeoutSource
+  )
+  [Console]::Error.WriteLine("AAI-BRANCH: $Branch | AAI-TIMEOUT: ${Timeout}s (source=$TimeoutSource)")
+}
+
 function Write-EnvError {
   # Spec-AC-02: EXACTLY ONE stderr line, naming both probed options plus a
   # remediation hint.
@@ -176,6 +450,22 @@ function Get-EffectiveTimeout {
     }
   }
   return 300
+}
+
+function Get-EffectiveTimeoutSource {
+  # Companion to Get-EffectiveTimeout, same acceptance rule, kept as its own
+  # tiny pure function rather than changing Get-EffectiveTimeout's return
+  # shape (which existing coercion-parity tests pin to a plain int). Backs
+  # the AAI-BRANCH diagnostic line's "source=env|default" field (PR #247
+  # iter-4: TIMEOUT VISIBILITY) — never itself decides the effective value.
+  [CmdletBinding()] param([string]$Raw)
+  if ($Raw -and ($Raw -match '^[0-9]+$')) {
+    $parsed = [long]0
+    if ([long]::TryParse($Raw, [ref]$parsed) -and $parsed -gt 0 -and $parsed -le [int]::MaxValue) {
+      return 'env'
+    }
+  }
+  return 'default'
 }
 
 # ---- WSL launch path ------------------------------------------------------------
@@ -223,7 +513,16 @@ function Invoke-ViaWsl {
     [Parameter(Mandatory)][int]$Timeout
   )
   $wslArgs = Get-WslDelegationArgs -Command $Command -ShScriptPath $ShScriptPath -Timeout $Timeout
-  return Invoke-WslProcess -Arguments $wslArgs
+  try {
+    # Invoke-WslProcess is synchronous (`& wsl.exe @Arguments`) — there is no
+    # separate process object to reap on failure, so Stop-ProcessTree is never
+    # invoked on this branch (Spec-AC-04): a delegation that RAN returns its
+    # own $LASTEXITCODE unchanged; a throw here means the delegation never ran.
+    return Invoke-WslProcess -Arguments $wslArgs
+  } catch {
+    Write-SpawnError -Branch 'WSL' -Message $_.Exception.Message
+    return 125
+  }
 }
 
 # ---- Git-Bash launch path -------------------------------------------------------
@@ -236,7 +535,21 @@ function Start-GitBashProcess {
     [Parameter(Mandatory)][int]$Timeout
   )
   $env:AAI_TEST_TIMEOUT = "$Timeout"
-  return Start-Process -FilePath $BashPath -ArgumentList $ScriptArgs -NoNewWindow -PassThru
+  # -ErrorAction Stop (Spec-AC-03): a non-terminating Start-Process error
+  # (e.g. the OrdinalIgnoreCase Path/PATH dictionary collision this scope
+  # fixes) becomes a catchable exception instead of silently returning $null.
+  $proc = Start-Process -FilePath $BashPath -ArgumentList $ScriptArgs -NoNewWindow -PassThru -ErrorAction Stop
+  # 5.1 ExitCode-null footgun (PR #247 iter-4 field evidence: arm1 captured
+  # the marker — the launched sh genuinely ran and exited 3 — yet the
+  # wrapper reported 0). Same cause as Start-WslProbeProcess above: on
+  # Windows PowerShell 5.1, $proc.ExitCode reads back $null once the process
+  # exits unless .Handle was touched right after Start-Process -PassThru.
+  # Invoke-ViaGitBash reads $proc.ExitCode after the wait below — a $null
+  # there gets coerced to exit code 0 by `exit`, indistinguishable from a
+  # real success. Touch the handle here, before any wait, so that read is
+  # real on every PowerShell version.
+  $null = $proc.Handle
+  return $proc
 }
 
 function Wait-ProcessWithTimeout {
@@ -280,15 +593,45 @@ function Invoke-ViaGitBash {
     [Parameter(Mandatory)][string]$ShScriptPath,
     [Parameter(Mandatory)][int]$Timeout
   )
+  # Spec-AC-03/Spec-AC-04: a throw OR a $null/pid-less return from the spawn
+  # primitive writes the spawn error and returns 125 WITHOUT ever calling
+  # Wait-ProcessWithTimeout (the wait logic must never see $null); a throw
+  # raised AFTER a live process object exists is reaped in `finally` (guarded
+  # on a non-null pid, so a spawn that produced no object never reaches
+  # Stop-ProcessTree at all); the timeout path below is byte-equivalent to
+  # before this change.
+  # CR-5 (review 20260812T133652Z): this same catch also fires for a throw
+  # raised by Wait-ProcessWithTimeout or by reading $proc.ExitCode AFTER the
+  # command genuinely started — those cases still print AAI-SPAWN-ERROR even
+  # though the command DID start, so the message names the failing branch and
+  # exception, not "never started"; the process is still reaped above, so
+  # this is a diagnostic-wording caveat only, never a functional gap.
   $bashArgs = @($ShScriptPath) + $Command
-  $proc = Start-GitBashProcess -BashPath $BashPath -ScriptArgs $bashArgs -Timeout $Timeout
-  $outerTimeout = $Timeout + (Get-OuterWatchdogGraceSeconds)
-  $completed = Wait-ProcessWithTimeout -Process $proc -TimeoutSeconds $outerTimeout
-  if (-not $completed) {
-    Stop-ProcessTree -ProcessId $proc.Id
-    return 124
+  $proc = $null
+  $spawnFailed = $false
+  try {
+    $proc = Start-GitBashProcess -BashPath $BashPath -ScriptArgs $bashArgs -Timeout $Timeout
+    if (-not $proc -or -not $proc.Id) {
+      Write-SpawnError -Branch 'Git Bash' -Message 'spawn primitive returned no process object'
+      $spawnFailed = $true
+      return 125
+    }
+    $outerTimeout = $Timeout + (Get-OuterWatchdogGraceSeconds)
+    $completed = Wait-ProcessWithTimeout -Process $proc -TimeoutSeconds $outerTimeout
+    if (-not $completed) {
+      Stop-ProcessTree -ProcessId $proc.Id
+      return 124
+    }
+    return $proc.ExitCode
+  } catch {
+    Write-SpawnError -Branch 'Git Bash' -Message $_.Exception.Message
+    $spawnFailed = $true
+    return 125
+  } finally {
+    if ($spawnFailed -and $proc -and $proc.Id) {
+      Stop-ProcessTree -ProcessId $proc.Id
+    }
   }
-  return $proc.ExitCode
 }
 
 # ---- Dispatch -------------------------------------------------------------------
@@ -299,12 +642,24 @@ function Invoke-Dispatch {
     [Console]::Error.WriteLine('usage: aai-run-tests.ps1 <command> [args...]')
     return 2
   }
+  # SEAM-3: canonicalize BEFORE Resolve-Interpreter, not merely before the
+  # chosen launch primitive — Test-WslUsable (inside Resolve-Interpreter)
+  # itself calls Start-Process, so it is a spawn site too and would otherwise
+  # remain on the broken duplicate-cased environment.
+  Set-CanonicalProcessEnvironment | Out-Null
   $shScriptPath = Join-Path $PSScriptRoot 'aai-run-tests.sh'
   $timeout = Get-EffectiveTimeout -Raw $env:AAI_TEST_TIMEOUT
+  $timeoutSource = Get-EffectiveTimeoutSource -Raw $env:AAI_TEST_TIMEOUT
   $resolution = Resolve-Interpreter
   switch ($resolution.Mode) {
-    'wsl' { return Invoke-ViaWsl -Command $Command -ShScriptPath $shScriptPath -Timeout $timeout }
-    'gitbash' { return Invoke-ViaGitBash -BashPath $resolution.BashPath -Command $Command -ShScriptPath $shScriptPath -Timeout $timeout }
+    'wsl' {
+      Write-BranchDiag -Branch 'WSL' -Timeout $timeout -TimeoutSource $timeoutSource
+      return Invoke-ViaWsl -Command $Command -ShScriptPath $shScriptPath -Timeout $timeout
+    }
+    'gitbash' {
+      Write-BranchDiag -Branch 'Git Bash' -Timeout $timeout -TimeoutSource $timeoutSource
+      return Invoke-ViaGitBash -BashPath $resolution.BashPath -Command $Command -ShScriptPath $shScriptPath -Timeout $timeout
+    }
     default {
       Write-EnvError
       return 78

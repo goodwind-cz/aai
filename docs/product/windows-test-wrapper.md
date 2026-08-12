@@ -1,0 +1,81 @@
+---
+id: windows-test-wrapper
+type: product
+capability: windows-test-wrapper
+status: current
+delivered_by:
+  - CHANGE-0133
+  - ps1-wrapper-path-dup
+spec: docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md
+updated: 2026-08-12
+---
+
+# Windows test wrapper stops lying about timeouts it never caused
+
+## What it does
+
+On Windows, running the factory's test/build commands goes through
+`.aai/scripts/aai-run-tests.ps1`, which hands off to the same
+process-group-safe wrapper macOS and Linux use. A downstream report found
+that on some Windows machines the process environment can carry the same
+variable twice under different capitalization (both `Path` and `PATH`) —
+invisible in an ordinary PowerShell prompt, but fatal to the exact
+dictionary the wrapper needs to build before launching anything. Before
+this fix, that collision made the wrapper crash before the wrapped command
+ever ran, and it reported the run as **timed out** — the same code used
+for a test suite that genuinely hangs — so a person or an AI agent
+debugging the failure would look for a slow test instead of the real
+cause, burning real time chasing a phantom hang. The wrapper now cleans up
+any duplicate-cased environment variable before it launches anything, and
+if a launch still cannot start for some other reason, it reports that
+honestly with its own distinct signal instead of pretending the run timed
+out.
+
+## How to use it
+
+Nothing to configure — this is the existing Windows test-wrapper command,
+unchanged in how you invoke it: `pwsh -File .aai/scripts/aai-run-tests.ps1
+<command> [args...]`. The environment cleanup and the new failure signal
+both happen automatically on every invocation.
+
+## Data model
+
+None. No new files or persistent records — the fix operates purely on the
+current process's in-memory environment variables for the duration of one
+wrapper invocation.
+
+## Interfaces and contracts
+
+- Exit code **124** keeps its existing meaning: the wrapped command
+  actually started running and was killed after exceeding the timeout.
+- Exit code **125** is new: the wrapper itself could not start the
+  wrapped command at all (an infrastructure failure, such as the
+  duplicate-variable collision this fix closes). One line on stderr
+  beginning `AAI-SPAWN-ERROR:` names which launch path failed (WSL or Git
+  Bash) and the underlying error, so the real cause is visible instead of
+  guessed at.
+- Exit code **78** is unchanged: no usable Windows Subsystem for Linux or
+  Git Bash was found at all, so no run was attempted.
+- No command-line flags or environment variables were added; the fix is
+  entirely internal to how the wrapper prepares to launch.
+
+## Limits and non-goals
+
+- This does not change anything about how the wrapper behaves on macOS or
+  Linux, and it does not change what a genuinely hung test run looks like
+  (still 124).
+- The exact field scenario (a real Windows machine handing the wrapper a
+  duplicate-cased environment) cannot be reproduced on this project's own
+  Linux/macOS continuous integration; this fix is proven with an
+  equivalent reproduction plus a real end-to-end run on Windows in CI, but
+  a residual gap in full real-world coverage is documented in the spec.
+- This does not add new process-cleanup guarantees beyond what the wrapper
+  already provided for a run that starts successfully — it only closes the
+  gap for a run that fails to start in the first place.
+
+## Links
+
+- Request: docs/issues/CHANGE-0133-ps1-wrapper-path-dup.md
+- Spec: docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md
+- Validation evidence: docs/ai/validation/ (gitignored runtime directory —
+  reports land here per ride, not committed to the repo)

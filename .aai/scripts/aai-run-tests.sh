@@ -43,6 +43,19 @@
 #   Windows, neither WSL nor Git Bash  - AAI-ENV-ERROR: ..., exit 78 (aai-run-tests.ps1); this
 #                                         POSIX file is never reached in that configuration
 #
+# Exit-code contract (CHANGE-0133 / SPEC-0120-spec-ps1-wrapper-path-dup,
+# Spec-AC-06 parity check — the ONE sanctioned behavior change in this file is
+# the perl-fallback exec-failure fidelity fix below (ENOENT -> 127, anything
+# else -> 126, matching native POSIX shell semantics); everything else here is
+# characterization only): 124 means a process that RAN and was killed at
+# AAI_TEST_TIMEOUT (the watchdog below); 125 is the aai-run-tests.ps1
+# dispatcher's spawn/infrastructure-failure code and is NEVER produced by
+# this POSIX file. This file has no separate "could not start the command"
+# branch of its own to masquerade as a timeout: an unlaunchable command
+# surfaces the SHELL's own real code instead — 127 for a command not found,
+# 126 for a file that exists but is not executable — both distinct from, and
+# never confused with, 124.
+#
 # POSIX sh; works on macOS + Linux (no GNU-only tools).
 
 set -u
@@ -143,7 +156,14 @@ elif command -v setsid >/dev/null 2>&1; then
   setsid "$@" &
   CMD_PID=$!
 elif command -v perl >/dev/null 2>&1; then
-  perl -e 'use POSIX qw(setsid); setsid(); exec @ARGV or exit 127' -- "$@" &
+  # CHANGE-0133 Spec-AC-06: `exec @ARGV or exit 127` collapsed EVERY exec
+  # failure to 127, including a non-executable file (EACCES), which should
+  # report the shell's real 126 -- discovered via the TEST-024 characterization
+  # guard on a setsid-less host (this branch is exactly where that host lands).
+  # `exec` never returns on success; on failure $! carries the OS errno, so
+  # ENOENT (not found) -> 127, anything else (not executable, etc.) -> 126,
+  # matching native POSIX shell exec-failure semantics on the setsid(1) path.
+  perl -e 'use POSIX qw(setsid); setsid(); exec @ARGV; exit($!{ENOENT} ? 127 : 126)' -- "$@" &
   CMD_PID=$!
 elif [ -n "${BASH_VERSION:-}" ]; then
   set -m

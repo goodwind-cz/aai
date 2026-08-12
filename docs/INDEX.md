@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-12T09:10:16.624Z
+Generated: 2026-08-12T16:00:06.340Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (20)
+## Product (21)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -41,8 +41,9 @@ _None._
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 | universal-routines | universal-routines | 2 | docs/product/universal-routines.md |
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
+| windows-test-wrapper | windows-test-wrapper | 2 | docs/product/windows-test-wrapper.md |
 
-## Done (298)
+## Done (300)
 
 | ID | Type | Path |
 |---|---|---|
@@ -178,6 +179,7 @@ _None._
 | CHANGE-0130 | issues | docs/issues/CHANGE-0130-role-token-trend.md |
 | CHANGE-0131 | issues | docs/issues/CHANGE-0131-evidence-path-gate.md |
 | CHANGE-0132 | issues | docs/issues/CHANGE-0132-validation-cost-calibration.md |
+| CHANGE-0133 | issues | docs/issues/CHANGE-0133-ps1-wrapper-path-dup.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -343,6 +345,7 @@ _None._
 | SPEC-0117 | specs | docs/specs/SPEC-0117-spec-role-token-trend.md |
 | SPEC-0118 | specs | docs/specs/SPEC-0118-spec-evidence-path-gate.md |
 | SPEC-0119 | specs | docs/specs/SPEC-0119-spec-validation-cost-calibration.md |
+| SPEC-0120 | specs | docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)

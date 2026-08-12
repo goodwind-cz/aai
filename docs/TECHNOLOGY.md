@@ -104,6 +104,20 @@
   | Windows + Git-Bash-only (no WSL)   | DEGRADED: launched-tree `taskkill /T` only; detached/reparented descendants NOT guaranteed reaped (no POSIX sessions on Windows) — explicitly weaker than the SPEC-0009 contract |
   | Windows, neither WSL nor Git Bash  | `AAI-ENV-ERROR: ...`, exit 78 (sysexits `EX_CONFIG`); no test run attempted |
 
+  Exit-code contract (CHANGE-0133 — kept identical across both wrapper
+  headers, this row, and `docs/USER_GUIDE.md`): **78** — no usable POSIX
+  interpreter (`AAI-ENV-ERROR`); no run attempted. **124** — the wrapped
+  command RAN and was killed at `AAI_TEST_TIMEOUT` (GNU-`timeout`
+  convention). **125** — the dispatcher itself could not START the command
+  (a spawn/infrastructure failure, e.g. the Path/PATH duplicate-casing
+  dictionary collision this scope fixes on `aai-run-tests.ps1`); one
+  `AAI-SPAWN-ERROR: [<branch>] <exception>` line on stderr names the failing
+  branch (`WSL` or `Git Bash`) and the real exception — the wait logic is
+  never reached with a null process, and 124 is never produced for a
+  command that never started. The environment is canonicalized (every
+  OrdinalIgnoreCase-duplicate key collapsed to one survivor) once per
+  dispatch, before any spawn — including the WSL usability probe itself.
+
   Reaper age guard (`.aai/scripts/aai-reap-tests.sh` / `aai-reap-tests.ps1`,
   "reaper-deterministic-age-guard"): the post-step survivor sweep's spare-vs-
   reap decision is STEP-START-EPOCH relative when the step owner (SKILL_LOOP /

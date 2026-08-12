@@ -17,6 +17,7 @@ on:
     paths:
       - '.aai/scripts/**.ps1'
       - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
+      - '.aai/scripts/aai-run-tests.sh'
       - 'tests/skills/test-ps1-quality.sh'
       - 'tests/skills/aai-update.Tests.ps1'
       - 'tests/skills/aai-win-dispatch.Tests.ps1'
@@ -25,6 +26,7 @@ on:
     paths:
       - '.aai/scripts/**.ps1'
       - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
+      - '.aai/scripts/aai-run-tests.sh'
       - 'tests/skills/test-ps1-quality.sh'
       - 'tests/skills/aai-update.Tests.ps1'
       - 'tests/skills/aai-win-dispatch.Tests.ps1'
@@ -146,3 +148,363 @@ jobs:
             if ($errs -and $errs.Count) { $bad++; Write-Host "PARSEFAIL $($_.Name)"; $errs | ForEach-Object { Write-Host "  $($_.Message)" } }
           }
           if ($bad -gt 0) { Write-Error "$bad .ps1 file(s) fail to parse under pwsh 7"; exit 1 }
+
+      - name: "Prepare real-wrapper smoke fixtures (CHANGE-0133 Spec-AC-05)"
+        # LF-only fixture scripts, written once and shared by both engine
+        # smoke steps below. Using script FILES (not an inline `sh -c "a; b"`
+        # string) sidesteps a real PowerShell footgun proven while building
+        # this step: Start-Process -ArgumentList silently space-joins array
+        # elements instead of quoting them, so a single argument containing
+        # spaces/semicolons arrives at the child as several mis-split words.
+        shell: bash
+        run: |
+          tmp="${RUNNER_TEMP}"
+          # Iteration-3 hardening (PR #247 run 31606986703): the marker is
+          # asserted via a FILE the arm writes to (path handed in through
+          # AAI_SMOKE_MARKER_FILE), never via a stdout regex. The prior stdout-
+          # only marker was proven encoding-fragile: a leaked UTF-16LE probe
+          # message earlier in the SAME stdout stream flips Get-Content's BOM
+          # auto-detection for the whole file, silently corrupting the ASCII
+          # marker text downstream of it. The stdout echo is kept too (cheap,
+          # useful for the diagnostic line below) but is no longer load-bearing.
+          printf 'echo AAI-WRAPPER-SMOKE-MARKER\necho AAI-WRAPPER-SMOKE-MARKER > "$AAI_SMOKE_MARKER_FILE"\nexit 3\n' > "$tmp/aai-smoke-marker.sh"
+          # Field fact (PR #247 run 31603532721): the timeout arm returned 0
+          # instead of 124 -- the fixture must hang UNCONDITIONALLY, with a
+          # duration that cannot plausibly elapse (300s vs. the arm's
+          # AAI_TEST_TIMEOUT=2 + outer watchdog grace). `sleep 300` has no
+          # `read`/tty dependency and no EOF-on-stdin escape hatch.
+          printf 'sleep 300\n' > "$tmp/aai-smoke-hang.sh"
+          printf 'echo SHOULD-NOT-RUN\n' > "$tmp/aai-smoke-spawnfail.sh"
+
+      - name: "Real-wrapper smoke: aai-run-tests.ps1 under Windows PowerShell 5.1 (CHANGE-0133 Spec-AC-05)"
+        # First real end-to-end execution of aai-run-tests.ps1 on a real
+        # Windows host (Git Bash present, WSL absent on windows-latest), three
+        # arms proving the exit-code contract this scope adds:
+        #   success  - exits exactly 3, marker FILE exists with the expected
+        #              content (see the file-vs-stdout note below), no
+        #              AAI-SPAWN-ERROR line (124/125 semantics unaffected).
+        #   timeout  - a command that genuinely hangs past AAI_TEST_TIMEOUT
+        #              still exits 124 with no AAI-SPAWN-ERROR (124 keeps its
+        #              "ran and was killed" meaning).
+        #   spawnfail - a REAL (not mocked) broken Git-Bash interpreter -
+        #              the first candidate aai-run-tests.ps1 itself would
+        #              resolve is swapped for a non-executable decoy for the
+        #              duration of this one arm - makes the "no
+        #              AAI-SPAWN-ERROR" checks above non-vacuous: this is the
+        #              one arm where the line MUST appear, with exit 125 and
+        #              no marker file (the process never started).
+        #
+        # Captured at the OS handle level via Start-Process
+        # -RedirectStandardOutput/-RedirectStandardError on the WRAPPER
+        # INVOCATION ITSELF (a real child process), never in-process `1>`/`2>`
+        # on a dot-invoked script: [Console]::Error (Write-SpawnError) writes
+        # the process's real stderr handle and bypasses PowerShell's error
+        # stream, so in-process `2>` never sees it and the assertion was
+        # always vacuous (proven locally under pwsh before this fix landed).
+        #
+        # Iteration-3 hardening (PR #247 run 31606986703), two field defects:
+        #   H1 (encoding): the marker is now asserted from a FILE the arm
+        #     writes to (AAI_SMOKE_MARKER_FILE), not a stdout regex -- a
+        #     leaked UTF-16LE probe message earlier in the same stdout stream
+        #     was proven to flip Get-Content's BOM auto-detection for the
+        #     WHOLE captured file, silently corrupting real ASCII/UTF-8 text
+        #     written after it (fixed at the source too: aai-run-tests.ps1's
+        #     Start-WslProbeProcess now redirects its own stdout/stderr to
+        #     temp files, never the caller's inherited streams -- but this
+        #     assertion no longer depends on that being true).
+        #   H3 (timeout not honored): arm2 field evidence (run
+        #     31606986703) shows AAI_TEST_TIMEOUT=2 never reached the
+        #     wrapper -- it ran to the DEFAULT 300s watchdog and only exited 0
+        #     because `sleep 300` outraced it naturally. A Pester probe
+        #     (aai-win-dispatch.Tests.ps1, "H3 ... investigation") proves
+        #     Set-CanonicalProcessEnvironment itself does NOT drop an
+        #     unrelated process-scope var, even across a genuine Path/PATH
+        #     collision -- so the loss was happening upstream, in THIS
+        #     harness's own ambient env -> Start-Process -> child inheritance
+        #     hop. Fixed at cause here: every var the wrapper process needs
+        #     (AAI_TEST_TIMEOUT, AAI_SMOKE_MARKER_FILE) is now set INSIDE the
+        #     spawned engine's own -Command script text, in the SAME process
+        #     that reads it -- never relying on cross-process inheritance for
+        #     it. (`exit N` inside a script invoked via `&` from -Command
+        #     does NOT become the process's own exit code unless followed by
+        #     `exit $LASTEXITCODE` -- verified locally; New-SmokeCommandText
+        #     always appends it, preserving the 3/124/125 contract byte-for-
+        #     byte.)
+        shell: powershell   # Windows PowerShell 5.1 (the field environment)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $engine = "powershell.exe"
+          $scriptPath = (Resolve-Path ".\.aai\scripts\aai-run-tests.ps1").Path
+          $markerScript = Join-Path $env:RUNNER_TEMP "aai-smoke-marker.sh"
+          $hangScript = Join-Path $env:RUNNER_TEMP "aai-smoke-hang.sh"
+          $spawnfailScript = Join-Path $env:RUNNER_TEMP "aai-smoke-spawnfail.sh"
+          $markerFile = Join-Path $env:RUNNER_TEMP "aai-smoke-51-success.marker"
+          $fail = 0
+
+          function New-SmokeCommandText {
+            # Builds a -Command script string that sets $ExtraEnv INSIDE the
+            # spawned engine's own process, then invokes the wrapper via the
+            # call operator, then propagates its real exit code explicitly.
+            # See the H3 hardening note above the step header for why this
+            # replaces ambient parent->child env inheritance across the
+            # Start-Process boundary.
+            param(
+              [Parameter(Mandatory)][string]$ScriptPath,
+              [Parameter(Mandatory)][string[]]$WrapperArgs,
+              [hashtable]$ExtraEnv
+            )
+            $sb = [System.Text.StringBuilder]::new()
+            if ($ExtraEnv) {
+              foreach ($k in $ExtraEnv.Keys) {
+                $v = ([string]$ExtraEnv[$k]) -replace "'", "''"
+                [void]$sb.Append("`$env:$k = '$v'; ")
+              }
+            }
+            $q = { param($s) "'" + ($s -replace "'", "''") + "'" }
+            [void]$sb.Append('& ' + (& $q $ScriptPath))
+            foreach ($a in $WrapperArgs) { [void]$sb.Append(' ' + (& $q $a)) }
+            [void]$sb.Append('; exit $LASTEXITCODE')
+            return $sb.ToString()
+          }
+
+          function Get-SmokeDiagBranch {
+            # PR #247 iter-4: the wrapper now prints an unconditional
+            # "AAI-BRANCH: <Branch> | AAI-TIMEOUT: <N>s (source=env|default)"
+            # line on every non-error run (Write-BranchDiag in
+            # aai-run-tests.ps1), so a SUCCESSFUL arm no longer has to fall
+            # back to "unknown" -- only the spawn-error and env-error paths
+            # still need their own patterns (AAI-BRANCH is never emitted on
+            # those, by the wrapper's own Spec-AC-02/03 single-line contracts).
+            param([string]$Err)
+            if ($Err -match 'AAI-BRANCH:\s*([^|]+?)\s*\|') { return $Matches[1].Trim() }
+            if ($Err -match 'AAI-SPAWN-ERROR:\s*\[([^\]]+)\]') { return $Matches[1] }
+            if ($Err -match 'AAI-ENV-ERROR') { return 'none (env-error)' }
+            return 'unknown (no branch marker on stderr)'
+          }
+
+          function Invoke-WrapperSmokeArm {
+            param([string]$ArmName, [string[]]$WrapperArgs, [hashtable]$ExtraEnv)
+            $outFile = Join-Path $env:RUNNER_TEMP "aai-smoke-51-$ArmName.out"
+            $errFile = Join-Path $env:RUNNER_TEMP "aai-smoke-51-$ArmName.err"
+            if (Test-Path $outFile) { Remove-Item $outFile -Force }
+            if (Test-Path $errFile) { Remove-Item $errFile -Force }
+            $commandText = New-SmokeCommandText -ScriptPath $scriptPath -WrapperArgs $WrapperArgs -ExtraEnv $ExtraEnv
+            $psArgs = @('-NoProfile', '-Command', $commandText)
+            $p = Start-Process -FilePath $engine -ArgumentList $psArgs -NoNewWindow -PassThru -Wait `
+                  -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+            $out = Get-Content $outFile -Raw -ErrorAction SilentlyContinue
+            $err = Get-Content $errFile -Raw -ErrorAction SilentlyContinue
+            $result = [pscustomobject]@{ Code = $p.ExitCode; Out = $out; Err = $err }
+            $branch = Get-SmokeDiagBranch -Err $result.Err
+            $out80 = if ($result.Out) { $result.Out.Substring(0, [Math]::Min(80, $result.Out.Length)) } else { '' }
+            $err80 = if ($result.Err) { $result.Err.Substring(0, [Math]::Min(80, $result.Err.Length)) } else { '' }
+            Write-Host "diag[$ArmName]: branch=$branch out80=[$out80] err80=[$err80]"
+            return $result
+          }
+
+          function Resolve-RealGitBashForSmoke {
+            # Mirrors Get-GitBashCandidates/Find-GitBash's resolution order
+            # (read-only re-derivation for the test harness; the production
+            # functions in aai-run-tests.ps1 are untouched) so the decoy swap
+            # below always targets the SAME file the wrapper would resolve.
+            $candidates = @()
+            if ($env:ProgramFiles) { $candidates += (Join-Path $env:ProgramFiles 'Git\bin\bash.exe') }
+            $pf86 = ${env:ProgramFiles(x86)}
+            if ($pf86) { $candidates += (Join-Path $pf86 'Git\bin\bash.exe') }
+            $gitCmd = Get-Command git.exe -ErrorAction SilentlyContinue
+            if ($gitCmd) {
+              try {
+                $execPath = & git.exe --exec-path 2>$null
+                if ($execPath) {
+                  $gitRoot = Split-Path (Split-Path (Split-Path $execPath -Parent) -Parent) -Parent
+                  if ($gitRoot) { $candidates += (Join-Path $gitRoot 'bin\bash.exe') }
+                }
+              } catch {}
+            }
+            $pathBash = Get-Command bash.exe -ErrorAction SilentlyContinue -All
+            if ($pathBash) { foreach ($b in $pathBash) { $candidates += $b.Source } }
+            foreach ($c in $candidates) {
+              if (-not $c) { continue }
+              if ($c -match '(?i)\\System32\\bash\.exe$') { continue }
+              if (Test-Path -LiteralPath $c -PathType Leaf) { return $c }
+            }
+            return $null
+          }
+
+          # Arm 1 - success
+          if (Test-Path $markerFile) { Remove-Item $markerFile -Force }
+          $r1 = Invoke-WrapperSmokeArm -ArmName 'success' -WrapperArgs @('sh', $markerScript) -ExtraEnv @{ AAI_SMOKE_MARKER_FILE = $markerFile }
+          Write-Host "success: code=$($r1.Code) out=[$($r1.Out)] err=[$($r1.Err)]"
+          if ($r1.Code -ne 3) { Write-Host "FAIL success: expected exit 3, got $($r1.Code)"; $fail++ }
+          if (-not (Test-Path $markerFile)) {
+            Write-Host "FAIL success: marker file was not created: $markerFile"; $fail++
+          } elseif ((Get-Content -LiteralPath $markerFile -Raw -ErrorAction SilentlyContinue) -notmatch 'AAI-WRAPPER-SMOKE-MARKER') {
+            Write-Host "FAIL success: marker file exists but lacks expected content"; $fail++
+          }
+          if ($r1.Err -match 'AAI-SPAWN-ERROR') { Write-Host "FAIL success: unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }
+
+          # Arm 2 - genuine timeout (124 keeps its own meaning, never 125)
+          $r2 = Invoke-WrapperSmokeArm -ArmName 'timeout' -WrapperArgs @('sh', $hangScript) -ExtraEnv @{ AAI_TEST_TIMEOUT = '2' }
+          Write-Host "timeout: code=$($r2.Code) err=[$($r2.Err)]"
+          if ($r2.Code -ne 124) { Write-Host "FAIL timeout: expected exit 124, got $($r2.Code)"; $fail++ }
+          if ($r2.Err -match 'AAI-SPAWN-ERROR') { Write-Host "FAIL timeout: unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }
+
+          # Arm 3 - REAL induced spawn failure (non-vacuous AAI-SPAWN-ERROR proof)
+          $realBash = Resolve-RealGitBashForSmoke
+          if (-not $realBash) {
+            Write-Host "FAIL spawnfail: no real Git Bash resolved on this runner (cannot induce a real spawn failure)"
+            $fail++
+          } else {
+            $backupPath = "$realBash.aai-smoke-backup"
+            Move-Item -Path $realBash -Destination $backupPath -Force
+            Set-Content -Path $realBash -Value "not a real executable (aai-run-tests.ps1 smoke: induced spawn failure)" -NoNewline -Encoding ascii
+            try {
+              $r3 = Invoke-WrapperSmokeArm -ArmName 'spawnfail' -WrapperArgs @('sh', $spawnfailScript)
+            } finally {
+              Remove-Item -Path $realBash -Force -ErrorAction SilentlyContinue
+              Move-Item -Path $backupPath -Destination $realBash -Force
+            }
+            Write-Host "spawnfail: code=$($r3.Code) out=[$($r3.Out)] err=[$($r3.Err)]"
+            if ($r3.Code -ne 125) { Write-Host "FAIL spawnfail: expected exit 125, got $($r3.Code)"; $fail++ }
+            if ($r3.Err -notmatch 'AAI-SPAWN-ERROR') { Write-Host "FAIL spawnfail: expected AAI-SPAWN-ERROR on stderr, got none"; $fail++ }
+            if ($r3.Out -match 'AAI-WRAPPER-SMOKE-MARKER') { Write-Host "FAIL spawnfail: marker must NOT appear (process never started)"; $fail++ }
+            if ($r3.Out -match 'SHOULD-NOT-RUN') { Write-Host "FAIL spawnfail: fixture RAN (SHOULD-NOT-RUN captured) - 125 did not come from a pre-spawn failure"; $fail++ }
+          }
+
+          if ($fail -gt 0) { Write-Error "real-wrapper smoke failed under Windows PowerShell 5.1 ($fail check(s))"; exit 1 }
+          Write-Host "REAL-WRAPPER SMOKE OK (Windows PowerShell 5.1): success/timeout/spawnfail all correct"
+
+      - name: "Real-wrapper smoke: aai-run-tests.ps1 under pwsh 7 (CHANGE-0133 Spec-AC-05)"
+        # Same three arms as the Windows PowerShell 5.1 step above, engine
+        # swapped to pwsh so both engines named in Spec-AC-05 are exercised.
+        # H1/H3 hardening (PR #247 run 31606986703): kept byte-for-byte in
+        # sync with the Windows PowerShell 5.1 step above -- see its header
+        # comment for the full rationale (file-based marker assertion,
+        # env-vars-set-inside-the-spawned-process instead of relying on
+        # ambient Start-Process inheritance, exit-code fidelity via explicit
+        # `exit $LASTEXITCODE`).
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $engine = "pwsh"
+          $scriptPath = (Resolve-Path "./.aai/scripts/aai-run-tests.ps1").Path
+          $markerScript = Join-Path $env:RUNNER_TEMP "aai-smoke-marker.sh"
+          $hangScript = Join-Path $env:RUNNER_TEMP "aai-smoke-hang.sh"
+          $spawnfailScript = Join-Path $env:RUNNER_TEMP "aai-smoke-spawnfail.sh"
+          $markerFile = Join-Path $env:RUNNER_TEMP "aai-smoke-pwsh7-success.marker"
+          $fail = 0
+
+          function New-SmokeCommandText {
+            param(
+              [Parameter(Mandatory)][string]$ScriptPath,
+              [Parameter(Mandatory)][string[]]$WrapperArgs,
+              [hashtable]$ExtraEnv
+            )
+            $sb = [System.Text.StringBuilder]::new()
+            if ($ExtraEnv) {
+              foreach ($k in $ExtraEnv.Keys) {
+                $v = ([string]$ExtraEnv[$k]) -replace "'", "''"
+                [void]$sb.Append("`$env:$k = '$v'; ")
+              }
+            }
+            $q = { param($s) "'" + ($s -replace "'", "''") + "'" }
+            [void]$sb.Append('& ' + (& $q $ScriptPath))
+            foreach ($a in $WrapperArgs) { [void]$sb.Append(' ' + (& $q $a)) }
+            [void]$sb.Append('; exit $LASTEXITCODE')
+            return $sb.ToString()
+          }
+
+          function Get-SmokeDiagBranch {
+            # PR #247 iter-4: mirrors the Windows PowerShell 5.1 step above --
+            # see its Get-SmokeDiagBranch comment for the full rationale.
+            param([string]$Err)
+            if ($Err -match 'AAI-BRANCH:\s*([^|]+?)\s*\|') { return $Matches[1].Trim() }
+            if ($Err -match 'AAI-SPAWN-ERROR:\s*\[([^\]]+)\]') { return $Matches[1] }
+            if ($Err -match 'AAI-ENV-ERROR') { return 'none (env-error)' }
+            return 'unknown (no branch marker on stderr)'
+          }
+
+          function Invoke-WrapperSmokeArm {
+            param([string]$ArmName, [string[]]$WrapperArgs, [hashtable]$ExtraEnv)
+            $outFile = Join-Path $env:RUNNER_TEMP "aai-smoke-pwsh7-$ArmName.out"
+            $errFile = Join-Path $env:RUNNER_TEMP "aai-smoke-pwsh7-$ArmName.err"
+            if (Test-Path $outFile) { Remove-Item $outFile -Force }
+            if (Test-Path $errFile) { Remove-Item $errFile -Force }
+            $commandText = New-SmokeCommandText -ScriptPath $scriptPath -WrapperArgs $WrapperArgs -ExtraEnv $ExtraEnv
+            $psArgs = @('-NoProfile', '-Command', $commandText)
+            $p = Start-Process -FilePath $engine -ArgumentList $psArgs -NoNewWindow -PassThru -Wait `
+                  -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+            $out = Get-Content $outFile -Raw -ErrorAction SilentlyContinue
+            $err = Get-Content $errFile -Raw -ErrorAction SilentlyContinue
+            $result = [pscustomobject]@{ Code = $p.ExitCode; Out = $out; Err = $err }
+            $branch = Get-SmokeDiagBranch -Err $result.Err
+            $out80 = if ($result.Out) { $result.Out.Substring(0, [Math]::Min(80, $result.Out.Length)) } else { '' }
+            $err80 = if ($result.Err) { $result.Err.Substring(0, [Math]::Min(80, $result.Err.Length)) } else { '' }
+            Write-Host "diag[$ArmName]: branch=$branch out80=[$out80] err80=[$err80]"
+            return $result
+          }
+
+          function Resolve-RealGitBashForSmoke {
+            $candidates = @()
+            if ($env:ProgramFiles) { $candidates += (Join-Path $env:ProgramFiles 'Git\bin\bash.exe') }
+            $pf86 = ${env:ProgramFiles(x86)}
+            if ($pf86) { $candidates += (Join-Path $pf86 'Git\bin\bash.exe') }
+            $gitCmd = Get-Command git.exe -ErrorAction SilentlyContinue
+            if ($gitCmd) {
+              try {
+                $execPath = & git.exe --exec-path 2>$null
+                if ($execPath) {
+                  $gitRoot = Split-Path (Split-Path (Split-Path $execPath -Parent) -Parent) -Parent
+                  if ($gitRoot) { $candidates += (Join-Path $gitRoot 'bin\bash.exe') }
+                }
+              } catch {}
+            }
+            $pathBash = Get-Command bash.exe -ErrorAction SilentlyContinue -All
+            if ($pathBash) { foreach ($b in $pathBash) { $candidates += $b.Source } }
+            foreach ($c in $candidates) {
+              if (-not $c) { continue }
+              if ($c -match '(?i)\\System32\\bash\.exe$') { continue }
+              if (Test-Path -LiteralPath $c -PathType Leaf) { return $c }
+            }
+            return $null
+          }
+
+          if (Test-Path $markerFile) { Remove-Item $markerFile -Force }
+          $r1 = Invoke-WrapperSmokeArm -ArmName 'success' -WrapperArgs @('sh', $markerScript) -ExtraEnv @{ AAI_SMOKE_MARKER_FILE = $markerFile }
+          Write-Host "success: code=$($r1.Code) out=[$($r1.Out)] err=[$($r1.Err)]"
+          if ($r1.Code -ne 3) { Write-Host "FAIL success: expected exit 3, got $($r1.Code)"; $fail++ }
+          if (-not (Test-Path $markerFile)) {
+            Write-Host "FAIL success: marker file was not created: $markerFile"; $fail++
+          } elseif ((Get-Content -LiteralPath $markerFile -Raw -ErrorAction SilentlyContinue) -notmatch 'AAI-WRAPPER-SMOKE-MARKER') {
+            Write-Host "FAIL success: marker file exists but lacks expected content"; $fail++
+          }
+          if ($r1.Err -match 'AAI-SPAWN-ERROR') { Write-Host "FAIL success: unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }
+
+          $r2 = Invoke-WrapperSmokeArm -ArmName 'timeout' -WrapperArgs @('sh', $hangScript) -ExtraEnv @{ AAI_TEST_TIMEOUT = '2' }
+          Write-Host "timeout: code=$($r2.Code) err=[$($r2.Err)]"
+          if ($r2.Code -ne 124) { Write-Host "FAIL timeout: expected exit 124, got $($r2.Code)"; $fail++ }
+          if ($r2.Err -match 'AAI-SPAWN-ERROR') { Write-Host "FAIL timeout: unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }
+
+          $realBash = Resolve-RealGitBashForSmoke
+          if (-not $realBash) {
+            Write-Host "FAIL spawnfail: no real Git Bash resolved on this runner (cannot induce a real spawn failure)"
+            $fail++
+          } else {
+            $backupPath = "$realBash.aai-smoke-backup"
+            Move-Item -Path $realBash -Destination $backupPath -Force
+            Set-Content -Path $realBash -Value "not a real executable (aai-run-tests.ps1 smoke: induced spawn failure)" -NoNewline -Encoding ascii
+            try {
+              $r3 = Invoke-WrapperSmokeArm -ArmName 'spawnfail' -WrapperArgs @('sh', $spawnfailScript)
+            } finally {
+              Remove-Item -Path $realBash -Force -ErrorAction SilentlyContinue
+              Move-Item -Path $backupPath -Destination $realBash -Force
+            }
+            Write-Host "spawnfail: code=$($r3.Code) out=[$($r3.Out)] err=[$($r3.Err)]"
+            if ($r3.Code -ne 125) { Write-Host "FAIL spawnfail: expected exit 125, got $($r3.Code)"; $fail++ }
+            if ($r3.Err -notmatch 'AAI-SPAWN-ERROR') { Write-Host "FAIL spawnfail: expected AAI-SPAWN-ERROR on stderr, got none"; $fail++ }
+            if ($r3.Out -match 'AAI-WRAPPER-SMOKE-MARKER') { Write-Host "FAIL spawnfail: marker must NOT appear (process never started)"; $fail++ }
+            if ($r3.Out -match 'SHOULD-NOT-RUN') { Write-Host "FAIL spawnfail: fixture RAN (SHOULD-NOT-RUN captured) - 125 did not come from a pre-spawn failure"; $fail++ }
+          }
+
+          if ($fail -gt 0) { Write-Error "real-wrapper smoke failed under pwsh 7 ($fail check(s))"; exit 1 }
+          Write-Host "REAL-WRAPPER SMOKE OK (pwsh 7): success/timeout/spawnfail all correct"
