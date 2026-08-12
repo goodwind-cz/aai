@@ -32,6 +32,7 @@ BeforeAll {
     $script:ReapDispatcher = Join-Path $RepoRoot '.aai/scripts/aai-reap-tests.ps1'
     $script:ReleaseScript = Join-Path $RepoRoot '.aai/scripts/aai-release.ps1'
     $script:SkipHelperPath = Join-Path $PSScriptRoot 'lib/pester-host-skip.ps1'
+    $script:NativeCaptureHelperPath = Join-Path $PSScriptRoot 'lib/pester-native-capture.ps1'
 }
 
 Describe 'aai-run-tests.ps1' {
@@ -39,6 +40,14 @@ Describe 'aai-run-tests.ps1' {
     BeforeEach {
         # Re-dot-source before every test so Mocks never leak between tests.
         . $script:RunDispatcher
+        # CHANGE-0134 remediation (real Windows PowerShell 5.1 fix): see
+        # lib/pester-native-capture.ps1 header for why the tests below that
+        # spawn a real child pwsh route through Invoke-NativeCaptured instead
+        # of an in-process `2>$file`/`2>$null` redirect. Dot-sourced HERE
+        # (inside BeforeEach, like the dispatcher itself) rather than at
+        # top-of-file scope -- a top-level dot-source's function definitions
+        # do not carry into Pester's Run-phase block scopes.
+        . $script:NativeCaptureHelperPath
     }
 
     It 'parses with no syntax errors' {
@@ -236,24 +245,18 @@ Describe 'aai-run-tests.ps1' {
 
     Context 'TEST-004 (Spec-AC-02): real invocation on THIS host (no WSL, no Windows Git Bash) -> exit 78 + exactly one AAI-ENV-ERROR line' {
         It 'exits 78 with exactly one stderr line matching ^AAI-ENV-ERROR: naming both probed options (PosixOnly: windows-latest always has a real Git Bash, so the dispatcher resolves it and runs the command instead of erroring)' -Skip:$script:SkipOnWindows {
-            $errFile = [System.IO.Path]::GetTempFileName()
-            try {
-                & pwsh -NoProfile -File $script:RunDispatcher sh -c 'exit 0' 2>$errFile 1>$null
-                $code = $LASTEXITCODE
-                $errLines = @(Get-Content $errFile -ErrorAction SilentlyContinue | Where-Object { $_ -match '^AAI-ENV-ERROR:' })
-                $code | Should -Be 78
-                $errLines.Count | Should -Be 1
-                $errLines[0] | Should -Match 'AAI-ENV-ERROR: no usable POSIX interpreter'
-                $errLines[0] | Should -Match 'WSL'
-                $errLines[0] | Should -Match 'Git'
-            } finally {
-                Remove-Item $errFile -ErrorAction SilentlyContinue
-            }
+            $r = Invoke-NativeCaptured -Exe 'pwsh' -Arguments @('-NoProfile', '-File', $script:RunDispatcher, 'sh', '-c', 'exit 0')
+            $errLines = @($r.Err -split "`r?`n" | Where-Object { $_ -match '^AAI-ENV-ERROR:' })
+            $r.Code | Should -Be 78
+            $errLines.Count | Should -Be 1
+            $errLines[0] | Should -Match 'AAI-ENV-ERROR: no usable POSIX interpreter'
+            $errLines[0] | Should -Match 'WSL'
+            $errLines[0] | Should -Match 'Git'
         }
 
         It 'usage error (no command given) is distinct from the env error and never exit 78' {
-            & pwsh -NoProfile -File $script:RunDispatcher 2>$null 1>$null
-            $LASTEXITCODE | Should -Not -Be 78
+            $r = Invoke-NativeCaptured -Exe 'pwsh' -Arguments @('-NoProfile', '-File', $script:RunDispatcher)
+            $r.Code | Should -Not -Be 78
         }
     }
 
@@ -530,10 +533,9 @@ exit $rc
 '@
                 $probeBody = $probeBody.Replace('__DISPATCHER__', $script:RunDispatcher)
                 Set-Content -LiteralPath $probeFile -Value $probeBody
-                $errFile = Join-Path $tmp 'err.txt'
-                & pwsh -NoProfile -File $probeFile 2>$errFile 1>$null
-                $code = $LASTEXITCODE
-                $errLines = @(Get-Content $errFile -ErrorAction SilentlyContinue | Where-Object { $_ -match '^AAI-SPAWN-ERROR:' })
+                $r = Invoke-NativeCaptured -Exe 'pwsh' -Arguments @('-NoProfile', '-File', $probeFile)
+                $code = $r.Code
+                $errLines = @($r.Err -split "`r?`n" | Where-Object { $_ -match '^AAI-SPAWN-ERROR:' })
                 $code | Should -Be 125
                 $errLines.Count | Should -Be 1
                 $errLines[0] | Should -Match 'AAI-TEST-006-UNIQUE-SPAWN-FAILURE'
@@ -891,15 +893,17 @@ Describe 'aai-release.ps1' {
         $errors | Should -BeNullOrEmpty
     }
 
-    Context 'TEST-001 (Spec-AC-01): static contract — helper defined with a local EAP override' {
+    Context 'TEST-001 (Spec-AC-01): static contract — helper defined via OS-handle-level capture (CHANGE-0134 remediation)' {
         It 'defines function Invoke-NativeChecked' {
             $content = Get-Content -Raw $script:ReleaseScript
             $content | Should -Match 'function\s+Invoke-NativeChecked'
         }
 
-        It 'sets a local $ErrorActionPreference = ''Continue'' inside the helper' {
+        It 'captures via Start-Process -RedirectStandardOutput/-RedirectStandardError, never an in-process 2>&1 merge (a local $ErrorActionPreference override was proven NOT to suppress the real Windows PowerShell 5.1 stderr-promotion — PR #248 run 31638479811, TEST-002)' {
             $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match "\`$ErrorActionPreference\s*=\s*'Continue'"
+            $content | Should -Match 'Start-Process\s+-FilePath\s+\$Exe'
+            $content | Should -Match '-RedirectStandardOutput\s+\$outFile'
+            $content | Should -Match '-RedirectStandardError\s+\$errFile'
         }
     }
 

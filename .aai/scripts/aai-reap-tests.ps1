@@ -228,7 +228,20 @@ function Get-ReapCandidates {
     }
     $out += $p
   }
-  return $out
+  # CHANGE-0134 remediation (real Windows PowerShell 5.1 fix, PR #248 run
+  # 31638479811): `return $out` UNROLLS a single-element array onto the
+  # pipeline, so a caller assigning `$candidates = Get-ReapCandidates ...`
+  # gets the bare PSCustomObject, not a 1-element array, whenever exactly one
+  # process matches. Windows PowerShell 5.1 does NOT synthesize a `.Count`
+  # property on a scalar object (pwsh 6+ does, which is why this was
+  # invisible on every host this repo could test before real 5.1 CI existed)
+  # -- `$candidates.Count` then reads back $null instead of 1, which is
+  # exactly what broke Get-ReapCandidates' own "exactly one match" tests AND
+  # Invoke-ReapNative's "reaped: $($candidates.Count)" line below (it printed
+  # "reaped: " with no number). The unary comma forces the array itself
+  # through the pipeline as ONE object, so `.Count` is correct on every
+  # PowerShell version regardless of match count.
+  return ,$out
 }
 
 function Stop-ProcessTree {
