@@ -1606,3 +1606,4 @@
 {"v":1,"ts":"2026-08-12T21:40:02.161Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pester-on-windows-ci","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-12T21:40:02.192Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-pester-on-windows-ci","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-12T21:40:02.222Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-pester-on-windows-ci","payload":{"commit":"d5f4c403d0dd217324c42cb599137e8855a19823"}}
+{"v":1,"ts":"2026-08-12T22:42:52.743Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-doctor-win-selftest","payload":{"from":"draft","to":"implementing"}}

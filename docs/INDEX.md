@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-12T22:33:33.898Z
+Generated: 2026-08-12T22:43:52.557Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-doctor-win-selftest | specs | implementing | 5 planned | docs/specs/SPEC-DRAFT-spec-doctor-win-selftest.md |
 
 ## Canonical layer (0)
 
