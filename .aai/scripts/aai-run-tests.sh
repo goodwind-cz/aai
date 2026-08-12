@@ -44,14 +44,17 @@
 #                                         POSIX file is never reached in that configuration
 #
 # Exit-code contract (CHANGE-0133 / SPEC-DRAFT-spec-ps1-wrapper-path-dup,
-# Spec-AC-06 parity check — NO behavior change in this file, characterization
-# only): 124 means a process that RAN and was killed at AAI_TEST_TIMEOUT
-# (the watchdog below); 125 is the aai-run-tests.ps1 dispatcher's spawn/
-# infrastructure-failure code and is NEVER produced by this POSIX file. This
-# file has no separate "could not start the command" branch of its own to
-# masquerade as a timeout: an unlaunchable command surfaces the SHELL's own
-# real code instead — 127 for a command not found, 126 for a file that exists
-# but is not executable — both distinct from, and never confused with, 124.
+# Spec-AC-06 parity check — the ONE sanctioned behavior change in this file is
+# the perl-fallback exec-failure fidelity fix below (ENOENT -> 127, anything
+# else -> 126, matching native POSIX shell semantics); everything else here is
+# characterization only): 124 means a process that RAN and was killed at
+# AAI_TEST_TIMEOUT (the watchdog below); 125 is the aai-run-tests.ps1
+# dispatcher's spawn/infrastructure-failure code and is NEVER produced by
+# this POSIX file. This file has no separate "could not start the command"
+# branch of its own to masquerade as a timeout: an unlaunchable command
+# surfaces the SHELL's own real code instead — 127 for a command not found,
+# 126 for a file that exists but is not executable — both distinct from, and
+# never confused with, 124.
 #
 # POSIX sh; works on macOS + Linux (no GNU-only tools).
 

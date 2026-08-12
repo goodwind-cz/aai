@@ -190,9 +190,14 @@ function Set-EnvironmentVariableRaw {
   # value instead of truly removing it, which still collides in a later
   # OrdinalIgnoreCase dictionary build. When the primary call demonstrably did
   # not remove the EXACT key, fall back to the env-provider remove targeted at
-  # that literal, already-known name — proven exact (removing 'PATH' leaves a
-  # co-existing 'Path' survivor untouched, verified empirically), never a
-  # case-insensitive scan standing in for detection.
+  # that literal, already-known name — proven exact on THIS proof's own
+  # runtime (Unix pwsh / .NET 10: removing 'PATH' leaves a co-existing 'Path'
+  # survivor untouched, verified empirically), but Windows exactness is NOT
+  # established by that proof — both the Win32 and Env: providers there match
+  # names case-insensitively, which is the same defect CR-1 closes via the
+  # removal-then-re-read-then-write ordering in Set-CanonicalProcessEnvironment
+  # rather than via this primitive's precision — never a case-insensitive scan
+  # standing in for detection.
   [CmdletBinding()]
   param(
     [Parameter(Mandatory)][string]$Name,
@@ -290,6 +295,20 @@ function Set-CanonicalProcessEnvironment {
       Set-EnvironmentVariableRaw -Name $ek -Value $null
       $collapsed.Add($ek)
     }
+  }
+  # CR-1 (review 20260812T133652Z): a case-insensitive removal primitive — the
+  # only kind available on Windows — can take a SURVIVOR's own entry when the
+  # survivor shares a name-insensitive casing with a just-discarded key (e.g.
+  # removing 'Temp' can also erase 'TEMP'). Deciding the write below against
+  # the PRE-removal $current then wrongly no-ops whenever the canonical value
+  # equals the survivor's pre-removal value — exactly every non-PATH group,
+  # and any PATH group whose other casings add no new segments. Re-read the
+  # REAL post-removal state before comparing, but ONLY when a removal
+  # actually happened: on an already-clean environment $collapsed is empty,
+  # so this branch is skipped and the zero-Set-EnvironmentVariableRaw-calls
+  # no-op contract stays byte-identical (RAW_SET_CALLS=0).
+  if ($collapsed.Count -gt 0) {
+    $current = Get-ProcessEnvironmentSnapshot
   }
   foreach ($k in $canonical.Keys) {
     $kk = [string]$k
@@ -468,6 +487,12 @@ function Invoke-ViaGitBash {
   # on a non-null pid, so a spawn that produced no object never reaches
   # Stop-ProcessTree at all); the timeout path below is byte-equivalent to
   # before this change.
+  # CR-5 (review 20260812T133652Z): this same catch also fires for a throw
+  # raised by Wait-ProcessWithTimeout or by reading $proc.ExitCode AFTER the
+  # command genuinely started — those cases still print AAI-SPAWN-ERROR even
+  # though the command DID start, so the message names the failing branch and
+  # exception, not "never started"; the process is still reaped above, so
+  # this is a diagnostic-wording caveat only, never a functional gap.
   $bashArgs = @($ShScriptPath) + $Command
   $proc = $null
   $spawnFailed = $false

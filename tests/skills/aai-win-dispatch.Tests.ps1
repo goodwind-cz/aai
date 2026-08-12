@@ -505,6 +505,67 @@ exit $rc
             $rc | Should -Be 3
         }
     }
+
+    # ---- review-20260812T133652Z-CHANGE-0133-ps1-wrapper-path-dup, CR-1 -------
+    # (NON-BLOCKING finding, remediated in-tree). Ports the review's own
+    # worst-case emulation of a case-insensitive removal primitive (the kind
+    # available on Windows, unavailable on this macOS host) into a Pester arm
+    # so the defect the review found -- and its fix -- have a permanent home.
+    Context 'CR-1 (review 20260812T133652Z): survivor re-write must be decided against POST-removal state, not the pre-removal snapshot' {
+        It 'a case-insensitive removal primitive that erases the survivor''s own entry still gets the merged value written back' {
+            # Emulates the Windows Env:-provider / Win32 removal semantics this
+            # host cannot exercise directly: Set-EnvironmentVariableRaw(name,
+            # $null) here deletes EVERY casing of that name from a mutable
+            # store, exactly the review's worst-case primitive. TEMP/Temp is a
+            # non-PATH group, which the review identifies as the class that
+            # ALWAYS trips the bug (the survivor's canonical value never
+            # differs from its own pre-removal value, so the stale-snapshot
+            # comparison always skips the write).
+            $script:crOneStore = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+            $script:crOneStore['TEMP'] = '/original-temp'
+            $script:crOneStore['Temp'] = '/other-temp'
+            Mock Get-ProcessEnvironmentSnapshot {
+                $d = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+                foreach ($k in $script:crOneStore.Keys) { $d[$k] = $script:crOneStore[$k] }
+                return $d
+            }
+            Mock Set-EnvironmentVariableRaw {
+                param($Name, $Value)
+                if ([string]::IsNullOrEmpty($Value)) {
+                    foreach ($k in @($script:crOneStore.Keys)) {
+                        if ([string]::Equals($k, $Name, [System.StringComparison]::OrdinalIgnoreCase)) {
+                            $script:crOneStore.Remove($k) | Out-Null
+                        }
+                    }
+                } else {
+                    $script:crOneStore[$Name] = $Value
+                }
+            }
+            Set-CanonicalProcessEnvironment | Out-Null
+            # The survivor casing 'TEMP' carrying its canonical value must be
+            # present afterwards -- a case-insensitive removal of the discarded
+            # 'Temp' casing must never be allowed to silently delete it without
+            # a re-write.
+            $script:crOneStore.ContainsKey('TEMP') | Should -Be $true
+            $script:crOneStore['TEMP'] | Should -Be '/original-temp'
+        }
+
+        It 'an already-clean environment still makes ZERO Set-EnvironmentVariableRaw calls (no re-read on the no-op path)' {
+            # Guards the RAW_SET_CALLS=0 no-op contract the review's 59-key
+            # real-environment probe asserts: the CR-1 re-read must only fire
+            # when $collapsed.Count -gt 0, never unconditionally.
+            Mock Get-ProcessEnvironmentSnapshot {
+                $d = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+                $d.Add('FOO', 'bar')
+                $d.Add('PATH', '/a:/b')
+                return $d
+            }
+            Mock Set-EnvironmentVariableRaw { }
+            Set-CanonicalProcessEnvironment | Out-Null
+            Should -Invoke Set-EnvironmentVariableRaw -Times 0 -Exactly
+            Should -Invoke Get-ProcessEnvironmentSnapshot -Times 1 -Exactly
+        }
+    }
 }
 
 Describe 'aai-release.ps1' {
