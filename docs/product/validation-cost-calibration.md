@@ -76,4 +76,5 @@ STATE field, no schema change.
 
 - Request: docs/issues/CHANGE-0132-validation-cost-calibration.md
 - Spec: docs/specs/SPEC-DRAFT-spec-validation-cost-calibration.md
-- Validation evidence: docs/ai/reports/
+- Validation evidence: docs/ai/validation/ (gitignored runtime directory —
+  reports land here per ride, not committed to the repo)

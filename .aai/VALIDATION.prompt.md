@@ -111,7 +111,10 @@ CEREMONY LANE (spec-loop-ceremony-aware-dispatch)
   at the crossing points a minimal happy-path run would not exercise).
   Do not run a blanket full-suite re-execution at this lane — close-before-CI
   ordering means CI produces that same full-suite proof on this commit minutes
-  later, so no evidence is lost, only a duplicate execution of it.
+  later, so no evidence is lost, only a duplicate execution of it. A
+  full-suite command DECLARED by the spec's own Test Plan is part of the
+  declared scope and still runs; the prohibition targets an UNDECLARED
+  blanket sweep.
   Everything else — independence, adversarial stance, AC STATUS GATE,
   evidence discipline, RED-proof — is unchanged at every level.
 - When `lane.selected == "full"` (ceremony_level 2/3, or any fail-closed

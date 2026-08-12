@@ -121,12 +121,15 @@ attempt tier 1 first, fall through only when the tier's own precondition is
 absent or its spawn attempt is refused:
 
 1. **Native `spawn_agent`, different model, `fork_turns="none"`** — when
-   `spawn_agent_available` is true: call the host's native `spawn_agent`
-   with `fork_turns="none"` (the child receives NO surrounding parent
-   context) and `model` set to an id other than the implementer's recorded
-   model. The subagent runs in its own fresh context by construction and
-   returns the result block (`.aai/SUBAGENT_CONTRACT.md`); the parent loop
-   only merges the verdict, it does not re-judge.
+   `spawn_agent_available` is true AND `fork_turns_supported` is true: call
+   the host's native `spawn_agent` with `fork_turns="none"` (the child
+   receives NO surrounding parent context) and `model` set to an id other
+   than the implementer's recorded model. The subagent runs in its own
+   fresh context by construction and returns the result block
+   (`.aai/SUBAGENT_CONTRACT.md`); the parent loop only merges the verdict,
+   it does not re-judge. `fork_turns_supported` false or unknown means a
+   spawned child may inherit the parent's context, so tier 1 does not apply
+   — fall to tier 3.
 2. **`spawn_agent` retried against an available `spawn_model_catalog`
    model** — when tier 1's requested model is REJECTED (the subagent
    backend's model catalog is narrower than the top level, or an explicit
@@ -135,9 +138,10 @@ absent or its spawn attempt is refused:
    still distinct from the implementer's model where the catalog offers one.
 3. **Separate role-per-invocation process, hard isolation** — when no
    `spawn_agent` primitive is available (`spawn_agent_available` false or
-   unknown): run validation as a SEPARATE process, e.g. `codex exec -m
-   <model>` (or the host-equivalent headless invocation) against the same
-   repo — a fresh process is a fresh context by construction.
+   unknown): run validation as a SEPARATE process, e.g. `claude -p
+   --prompt-file .aai/VALIDATION.prompt.md` or `codex exec -m <model>` (or
+   the host-equivalent headless invocation) against the same repo — a fresh
+   process is a fresh context by construction.
 4. **In-parent-session execution, LAST RESORT** — only when tiers 1-3 are
    all unavailable: clear/reset context, then run validation re-reading
    ONLY the artifacts above. Record "validator shared context with

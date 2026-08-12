@@ -104,12 +104,20 @@ test_003_four_tiers_in_order() {
   block="$(awk '/^## Spawning a validator/{f=1} /^## Harness-reported usage capture/{f=0} f' "$PROTOCOL")"
   [[ -n "$block" ]] || log_fail "TEST-003: 'Spawning a validator' section body not found (must end before Harness-reported usage capture)"
 
+  # awk first-match (NOT `grep -n ... | head -1 | cut -d: -f1`): under this
+  # file's `set -euo pipefail`, a grep with ZERO matches exits 1, and that
+  # exit status survives through `head`/`cut` under pipefail, aborting the
+  # whole script at the assignment -- BEFORE the `[[ -n ... ]] || log_fail`
+  # diagnostics below ever run (the repo's own learned pipefail trap,
+  # review-20260812T083704Z CQ-3). `awk '{...; exit}'` exits 0 whether or
+  # not it finds a match, so a missing token now reaches its own log_fail
+  # with a named reason instead of a silent mid-test abort.
   local pos_spawn_agent pos_fork_turns pos_catalog_retry pos_codex_exec pos_last_resort
-  pos_spawn_agent="$(echo "$block" | grep -n 'spawn_agent' | head -1 | cut -d: -f1)"
-  pos_fork_turns="$(echo "$block" | grep -n 'fork_turns' | head -1 | cut -d: -f1)"
-  pos_catalog_retry="$(echo "$block" | grep -n 'spawn_model_catalog' | head -1 | cut -d: -f1)"
-  pos_codex_exec="$(echo "$block" | grep -n 'codex exec -m' | head -1 | cut -d: -f1)"
-  pos_last_resort="$(echo "$block" | grep -ni 'last resort' | head -1 | cut -d: -f1)"
+  pos_spawn_agent="$(printf '%s\n' "$block" | awk '/spawn_agent/{print NR; exit}')"
+  pos_fork_turns="$(printf '%s\n' "$block" | awk '/fork_turns/{print NR; exit}')"
+  pos_catalog_retry="$(printf '%s\n' "$block" | awk '/spawn_model_catalog/{print NR; exit}')"
+  pos_codex_exec="$(printf '%s\n' "$block" | awk '/codex exec -m/{print NR; exit}')"
+  pos_last_resort="$(printf '%s\n' "$block" | awk 'tolower($0) ~ /last resort/{print NR; exit}')"
 
   [[ -n "$pos_spawn_agent" ]] || log_fail "TEST-003: tier 1 (native spawn_agent) token 'spawn_agent' not found"
   [[ -n "$pos_fork_turns" ]] || log_fail "TEST-003: tier 1 token 'fork_turns' not found"

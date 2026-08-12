@@ -652,8 +652,16 @@ suites:
 
   aai-validator-isolation:
     globs:
+      # Widened from the two pinned files (review-20260812T083704Z CQ-4):
+      # TEST-002/TEST-004's corpus negative controls sweep ALL of
+      # .aai/**/*.md for a re-introduced harness-name-equality gate or
+      # named-harness subagent denial, so the "standing control" must be
+      # selected on ANY .aai/*.md re-entry point, not just the two files the
+      # spec happened to edit. Keep the two named rows for readability; the
+      # corpus glob is what actually makes the control stand.
       - .aai/SUBAGENT_PROTOCOL.md
       - .aai/VALIDATION.prompt.md
+      - .aai/**/*.md
 
   aai-verify-gate:
     globs:

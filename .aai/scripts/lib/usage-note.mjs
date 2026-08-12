@@ -61,11 +61,19 @@ export function hasUsageSentinel(note) {
 // prefixed key (not_requested_model=x) or an empty value
 // (requested_model=) never matches, exactly like the existing
 // not_usage_total_tokens=456 rejection. The captured <id> is a base id
-// `[A-Za-z0-9][A-Za-z0-9._:@/+-]*` plus an OPTIONAL bracketed
-// context-window suffix `(?:\[[A-Za-z0-9._-]+\])?` — required because
-// `claude-opus-4-8[1m]` is a real recorded model id and the bare
-// USAGE_NOTE_RE right-boundary class does not admit `[`.
-const MODEL_ID_GROUP = "([A-Za-z0-9][A-Za-z0-9._:@/+-]*(?:\\[[A-Za-z0-9._-]+\\])?)";
+// `[A-Za-z0-9](?:[A-Za-z0-9._:@/+-]*[A-Za-z0-9])?` plus an OPTIONAL
+// bracketed context-window suffix `(?:\[[A-Za-z0-9._-]+\])?` — required
+// because `claude-opus-4-8[1m]` is a real recorded model id and the bare
+// USAGE_NOTE_RE right-boundary class does not admit `[`. The id MUST END
+// on an alphanumeric (or the bracket suffix): `.` is both a right-boundary
+// delimiter AND a character the old id class admitted, so a sentence-final
+// marker (`actual_model=claude-opus-4-8.`) swallowed the period into the
+// id and made modelOverrideDropped() report a FALSE positive on an
+// override that took (review-20260812T083704Z CQ-1). Requiring an
+// alphanumeric (or bracket) tail closes that without narrowing any
+// mid-string id — `.`/`-`/etc. remain legal INSIDE the id, only a
+// trailing one is excluded.
+const MODEL_ID_GROUP = "([A-Za-z0-9](?:[A-Za-z0-9._:@/+-]*[A-Za-z0-9])?(?:\\[[A-Za-z0-9._-]+\\])?)";
 export const REQUESTED_MODEL_RE = new RegExp(
   '(?:^|[\\s"\'(\\[])requested_model=' + MODEL_ID_GROUP + '(?=$|[\\s"\'),\\].;])'
 );

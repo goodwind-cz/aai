@@ -486,6 +486,42 @@ assert.strictEqual(extractRequestedModel(null), null);
 assert.strictEqual(extractRequestedModel(undefined), null);
 assert.strictEqual(extractRequestedModel('usage_total_tokens=123'), null);
 
+// Sentence-final marker (review-20260812T083704Z CQ-1): a trailing `.` is a
+// right-boundary delimiter, NOT part of the id, even though the note itself
+// ends right there -- plain form, marker alone.
+assert.strictEqual(
+  extractActualModel('actual_model=claude-opus-4-8.'),
+  'claude-opus-4-8',
+  'sentence-final period must not be captured into the id (CQ-1 plain)'
+);
+// Sentence-final marker with the OTHER marker mid-note: requested_model
+// sits mid-string, actual_model is the sentence-final token carrying the
+// period. Pre-fix this made modelOverrideDropped() report TRUE for an
+// override that took (the exact false-positive CQ-1 names) because the
+// captured actual id was 'claude-opus-4-8.' != 'claude-opus-4-8'.
+assert.strictEqual(
+  extractActualModel('requested_model=claude-opus-4-8 actual_model=claude-opus-4-8.'),
+  'claude-opus-4-8',
+  'sentence-final period must not be captured when the other marker is mid-note (CQ-1)'
+);
+assert.strictEqual(
+  modelOverrideDropped('requested_model=claude-opus-4-8 actual_model=claude-opus-4-8.'),
+  false,
+  'CQ-1 false positive: an EQUAL pair must not report a dropped override just because the note ends in a period'
+);
+// Regression guard: the bracketed context-window suffix must stay immune --
+// the suffix group already ends the id before the trailing period.
+assert.strictEqual(
+  extractRequestedModel('requested_model=claude-opus-4-8[1m]. actual_model=claude-opus-4-8[1m]'),
+  'claude-opus-4-8[1m]',
+  'bracketed [1m] suffix must still parse after the CQ-1 boundary fix'
+);
+assert.strictEqual(
+  modelOverrideDropped('requested_model=claude-opus-4-8[1m]. actual_model=claude-opus-4-8[1m]'),
+  false,
+  'bracketed sentence-final pair must not false-positive either'
+);
+
 // modelOverrideDropped: true ONLY when both present and DIFFER.
 assert.strictEqual(
   modelOverrideDropped('requested_model=claude-opus-4-8 actual_model=claude-haiku-4-5'),
@@ -600,8 +636,17 @@ test_013_subagent_protocol_model_marker_prose() {
     || log_fail "TEST-013 (spec TEST-010): usage-capture section must state model_id records the GRANTED model"
   echo "$block" | grep -qiF 'both markers' \
     || log_fail "TEST-013 (spec TEST-010): usage-capture section must state both markers are recorded whenever an override was requested"
-  echo "$block" | grep -qiF 'actual_model' \
-    || log_fail "TEST-013 (spec TEST-010): usage-capture section must state validator-independence claims cite actual_model"
+  # Sharper than a bare 'actual_model' grep (subsumed by the earlier
+  # 'actual_model=' pin, review-20260812T083704Z CQ-2, mutation-proved: the
+  # old pin stayed GREEN after deleting the whole "Any claim of validator
+  # independence ... MUST cite actual_model" sentence). Two phrases unique to
+  # that sentence -- "must cite" and "claim of validator independence" (the
+  # word "independence" alone recurs elsewhere in the block, e.g.
+  # "independence that never happened", so it cannot anchor alone).
+  echo "$block" | grep -qiF 'must cite' \
+    || log_fail "TEST-013 (spec TEST-010): usage-capture section must state validator-independence claims MUST cite actual_model"
+  echo "$block" | grep -qiF 'claim of validator independence' \
+    || log_fail "TEST-013 (spec TEST-010): usage-capture section must name the validator-independence claim actual_model must be cited for"
 
   log_pass "SUBAGENT_PROTOCOL usage-capture prose: model_id==granted, both-markers-together, independence-cites-actual_model (TEST-013/spec TEST-010)"
 }
