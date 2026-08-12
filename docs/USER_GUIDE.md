@@ -1252,6 +1252,38 @@ Full notice: `.aai/SKILL_AUTO_TRIGGER.prompt.md`.
 Overall: HEALTHY (2 warnings)
 ```
 
+**Windows self-test, environment and agent-CLI probe (CHANGE-0135):**
+Three more categories, additive to the 13 above:
+- `CAT-14` Windows Self-Test — on a real Windows host with `pwsh` or
+  `powershell.exe` available, runs the real `.aai/scripts/aai-run-tests.ps1`
+  wrapper three times (success, timeout, induced spawn failure) and reports
+  each arm; anywhere else it is a named `SKIP` that spawns nothing.
+- `CAT-15` Windows Environment — reports case-colliding environment variable
+  groups (the `Path`/`PATH` class of defect), installed PowerShell engines
+  and versions, Git Bash candidates and which one would be picked, and the
+  WSL tri-state (absent / present-no-distro / functional). Also `SKIP` off
+  Windows.
+- `CAT-16` Agent CLI Probe — reports `claude`/`codex`/`gemini` as PRESENT
+  with their real `--version` output or ABSENT, on every platform. The four
+  `SUBAGENT_PROTOCOL` capability fields (`multi_agent_backend`,
+  `spawn_agent_available`, `spawn_model_catalog`, `fork_turns_supported`)
+  are always reported as the literal string `UNKNOWN` with a reason — they
+  are resolved at runtime inside an agent session and are genuinely not
+  observable from the child process `/aai-doctor` spawns, so they are never
+  guessed as true/false or inferred from which CLI happens to be installed.
+
+`--json` adds a structured `detail` object to each of these three
+categories (also shown as an indented line in the default text report).
+`--strict` is a new opt-in flag: without it, `/aai-doctor` keeps its
+existing exit code contract (0 on clean/warnings-only, 1 on any FAIL); with
+it, it also exits 1 when any category is WARN, and 0 only when every
+category is PASS or SKIP.
+
+A green `CAT-14` proves the wrapper contract holds on THIS machine, right
+now — it does not prove the same for a different Windows machine (different
+WSL/Git-for-Windows/PowerShell state). See `docs/product/aai-doctor.md`
+for the full "what it proves / what it does not" statement.
+
 #### `/aai-replay`
 **What:** Surfaces relevant past learnings before starting work.
 
