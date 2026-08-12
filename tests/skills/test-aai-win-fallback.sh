@@ -247,6 +247,7 @@ test_017() {
     || log_fail "$skip_helper must define Test-IsWindowsHostFor"
 
   local f
+  local total_skip_lines=0
   for f in "$win_dispatch" "$update_tests"; do
     [[ -f "$f" ]] || log_fail "missing $f"
 
@@ -276,7 +277,7 @@ test_017() {
 
     # Every -Skip:$script:SkipOnWindows It must carry the PosixOnly token with
     # a non-empty reason in its own description line.
-    local skip_lines
+    local skip_lines skip_count
     skip_lines="$(grep -nE "^\s*It[[:space:]]+'.*'[[:space:]]+-Skip:\\\$script:SkipOnWindows" "$f" || true)"
     if [[ -n "$skip_lines" ]]; then
       while IFS= read -r line; do
@@ -285,6 +286,8 @@ test_017() {
         echo "$line" | grep -qE 'PosixOnly:[[:space:]]*[^)'"'"']+' \
           || log_fail "$f: a -Skip:\$script:SkipOnWindows It carries PosixOnly with no non-empty reason: $line"
       done <<< "$skip_lines"
+      skip_count="$(grep -cE "^\s*It[[:space:]]+'.*'[[:space:]]+-Skip:\\\$script:SkipOnWindows" "$f")"
+      total_skip_lines=$((total_skip_lines + skip_count))
     fi
   done
 
@@ -297,7 +300,19 @@ test_017() {
   grep -qF 'AAI-WIN-SKIP' "$CI_WORKFLOW" \
     || log_fail "$CI_WORKFLOW must print one AAI-WIN-SKIP line per skipped test"
 
-  log_pass "shared SkipOnWindows predicate wired correctly; PosixOnly reasons present; expected-skip-count declared once (TEST-017)"
+  # NB-1: pin the declared count to reality -- the number of
+  # -Skip:$script:SkipOnWindows It lines actually present across both files
+  # must equal the workflow's declared AAI_EXPECTED_WIN_SKIP_COUNT, so a fifth
+  # skip added without bumping the workflow constant fails here (a bash
+  # suite, seconds) instead of ~10+ minutes into the real Windows job.
+  local workflow_count
+  workflow_count="$(grep -oE 'AAI_EXPECTED_WIN_SKIP_COUNT:[[:space:]]*"?[0-9]+' "$CI_WORKFLOW" | grep -oE '[0-9]+$')"
+  [[ -n "$workflow_count" ]] \
+    || log_fail "$CI_WORKFLOW: could not parse an integer value out of the AAI_EXPECTED_WIN_SKIP_COUNT declaration"
+  [[ "$total_skip_lines" -eq "$workflow_count" ]] \
+    || log_fail "actual -Skip:\$script:SkipOnWindows It count ($total_skip_lines across $win_dispatch + $update_tests) != $CI_WORKFLOW's declared AAI_EXPECTED_WIN_SKIP_COUNT ($workflow_count) -- bump the workflow constant when adding/removing a PosixOnly skip"
+
+  log_pass "shared SkipOnWindows predicate wired correctly; PosixOnly reasons present; expected-skip-count ($workflow_count) matches actual skip count (TEST-017)"
 }
 
 # --- TEST-018 (CHANGE-0134 Spec-AC-04): fast-iteration path documented ------

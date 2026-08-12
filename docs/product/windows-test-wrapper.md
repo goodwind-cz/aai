@@ -65,8 +65,8 @@ wrapper invocation.
 
 The `windows-5_1` job in `.github/workflows/ps1-quality.yml` runs the full
 `tests/skills` Pester suite under both Windows PowerShell 5.1 and pwsh 7 on
-every relevant push/PR. It can also be run standalone, without opening a PR,
-via `workflow_dispatch`:
+every relevant push/PR. It can also run the whole ps1-quality workflow via
+`workflow_dispatch`, on demand and without opening a PR:
 
 ```
 gh workflow run ps1-quality.yml

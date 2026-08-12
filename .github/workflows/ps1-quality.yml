@@ -19,9 +19,11 @@ name: ps1-quality
 #                    scripts parse, instead of surfacing only after a blind
 #                    ~10-minute e2e iteration.
 #
-# Fast-iteration path (CHANGE-0134 Spec-AC-04): windows-5_1 can be run
-# standalone, without opening a PR, via:
+# Fast-iteration path (CHANGE-0134 Spec-AC-04): this runs the whole
+# ps1-quality workflow (both `gate` and `windows-5_1`) via workflow_dispatch,
+# on demand and without opening a PR:
 #   gh workflow run ps1-quality.yml
+# GitHub Actions has no single-job dispatch, so `gate` runs too.
 # `workflow_dispatch` is wired below; this note exists so the next Windows
 # debugging session does not have to rediscover it.
 
@@ -542,7 +544,11 @@ jobs:
           path: |
             ~\Documents\WindowsPowerShell\Modules
             ~\Documents\PowerShell\Modules
-          key: ps-modules-${{ runner.os }}-pester5-win
+          # -v1 is a manual cache-busting discriminator (INFO-5): unlike the
+          # `gate` job's key above, nothing here rotates automatically, so a
+          # bad/partial first save would be restored forever without a
+          # bumpable segment to invalidate it.
+          key: ps-modules-${{ runner.os }}-pester5-win-v1
 
       - name: "Install Pester 5 for Windows PowerShell 5.1 (CHANGE-0134 Spec-AC-01)"
         # Windows PowerShell 5.1 ships Pester 3.4.0 as a built-in system
@@ -617,6 +623,8 @@ jobs:
           $expected = [int]$env:AAI_EXPECTED_WIN_SKIP_COUNT
           $fail = 0
           if ($result.FailedCount -gt 0) { Write-Host "FAIL: FailedCount=$($result.FailedCount)"; $fail++ }
+          if ($result.FailedContainersCount -gt 0) { Write-Host "FAIL: FailedContainersCount=$($result.FailedContainersCount) (a .Tests.ps1 failed Pester DISCOVERY -- a parse/syntax error under this engine)"; $fail++ }
+          if ($result.TotalCount -lt 111) { Write-Host "FAIL: TotalCount=$($result.TotalCount) is below the declared floor of 111 (symmetric with the POSIX gate's TEST-005 floor; catches a vacuous discovery)"; $fail++ }
           if ($elapsed -gt 600) { Write-Host "FAIL: elapsed ${elapsed}s exceeds the 600s ceiling"; $fail++ }
           if ($skipLines -ne $result.SkippedCount) { Write-Host "FAIL: AAI-WIN-SKIP line count ($skipLines) != Pester SkippedCount ($($result.SkippedCount))"; $fail++ }
           if ($result.SkippedCount -ne $expected) { Write-Host "FAIL: SkippedCount ($($result.SkippedCount)) != declared expected ($expected)"; $fail++ }
@@ -649,6 +657,8 @@ jobs:
           $expected = [int]$env:AAI_EXPECTED_WIN_SKIP_COUNT
           $fail = 0
           if ($result.FailedCount -gt 0) { Write-Host "FAIL: FailedCount=$($result.FailedCount)"; $fail++ }
+          if ($result.FailedContainersCount -gt 0) { Write-Host "FAIL: FailedContainersCount=$($result.FailedContainersCount) (a .Tests.ps1 failed Pester DISCOVERY -- a parse/syntax error under this engine)"; $fail++ }
+          if ($result.TotalCount -lt 111) { Write-Host "FAIL: TotalCount=$($result.TotalCount) is below the declared floor of 111 (symmetric with the POSIX gate's TEST-005 floor; catches a vacuous discovery)"; $fail++ }
           if ($elapsed -gt 600) { Write-Host "FAIL: elapsed ${elapsed}s exceeds the 600s ceiling"; $fail++ }
           if ($skipLines -ne $result.SkippedCount) { Write-Host "FAIL: AAI-WIN-SKIP line count ($skipLines) != Pester SkippedCount ($($result.SkippedCount))"; $fail++ }
           if ($result.SkippedCount -ne $expected) { Write-Host "FAIL: SkippedCount ($($result.SkippedCount)) != declared expected ($expected)"; $fail++ }

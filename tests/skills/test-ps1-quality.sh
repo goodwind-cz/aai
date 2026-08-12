@@ -28,6 +28,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PS_DIR="$PROJECT_ROOT/.aai/scripts"
 SETTINGS="$PS_DIR/PSScriptAnalyzerSettings.psd1"
+# VF-4: CHANGE-0134 puts tests/skills/*.Tests.ps1 + tests/skills/lib/*.ps1 on
+# Windows PowerShell 5.1 for the first time (the windows-5_1 job's full-suite
+# discovery step); the cross-version compat gate below must cover them too,
+# not just .aai/scripts, or a 5.1-incompatible construct there ships clean
+# through this gate and is discovered only in the real Windows job.
+TESTS_PS_DIR="$PROJECT_ROOT/tests/skills"
 # VF-6: directory discovery (matching the windows-5_1 job's own
 # `$cfg.Run.Path = 'tests/skills'`), not a hardcoded two-file list -- a future
 # tests/skills/*.Tests.ps1 file is now picked up on BOTH sides identically, so
@@ -70,12 +76,16 @@ if [[ "$has_pssa" == "yes" ]]; then
   #     true parse Errors. PSUseCompatibleSyntax reports any construct that one of
   #     the target versions cannot parse — the exact cross-version class the field
   #     failure belongs to. Any finding here fails the gate.
-  log_info "Running PSScriptAnalyzer cross-version syntax check (5.1 + 7.0) ..."
-  compat_out="$(PS_DIR="$PS_DIR" pwsh -NoProfile -Command '
+  log_info "Running PSScriptAnalyzer cross-version syntax check (5.1 + 7.0) over .aai/scripts + tests/skills (.Tests.ps1 + lib/*.ps1) ..."
+  compat_out="$(PS_DIR="$PS_DIR" TESTS_PS_DIR="$TESTS_PS_DIR" pwsh -NoProfile -Command '
     $s = @{ Rules = @{ PSUseCompatibleSyntax = @{ Enable = $true; TargetVersions = @("5.1","7.0") } } }
-    $compat = Invoke-ScriptAnalyzer -Path $env:PS_DIR -Recurse -IncludeRule PSUseCompatibleSyntax -Settings $s
+    $paths = @($env:PS_DIR, $env:TESTS_PS_DIR)
+    # Invoke-ScriptAnalyzer -Path does not accept an array on this PSSA
+    # version (throws "Cannot convert System.Object[] to String"), so each
+    # directory is scanned in its own call and the results merged.
+    $compat = @($paths | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Recurse -IncludeRule PSUseCompatibleSyntax -Settings $s })
     # -Severity Error is unreliable across PSScriptAnalyzer versions; filter explicitly.
-    $errs = Invoke-ScriptAnalyzer -Path $env:PS_DIR -Recurse | Where-Object { $_.Severity -eq "Error" }
+    $errs = @($paths | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Recurse } | Where-Object { $_.Severity -eq "Error" })
     $all = @($compat) + @($errs)
     if ($all -and $all.Count) {
       $all | ForEach-Object { Write-Output ("{0}:{1}  {2}  {3}" -f (Split-Path $_.ScriptName -Leaf), $_.Line, $_.RuleName, $_.Message) }
@@ -86,7 +96,7 @@ if [[ "$has_pssa" == "yes" ]]; then
   if ! echo "$compat_out" | grep -q '^COMPATBAD=0$'; then
     log_fail "PSScriptAnalyzer found cross-version syntax incompatibilities or parse Errors (see above)"
   fi
-  log_pass "PSScriptAnalyzer: scripts are 5.1 + 7.0 syntax compatible, 0 parse Errors"
+  log_pass "PSScriptAnalyzer: .aai/scripts + tests/skills are 5.1 + 7.0 syntax compatible, 0 parse Errors"
 
   # 2b. INFORMATIONAL: quality warnings (non-blocking; CLI scripts intentionally
   #     use Write-Host etc., excluded via PSScriptAnalyzerSettings.psd1).

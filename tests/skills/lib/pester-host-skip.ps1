@@ -20,6 +20,12 @@
 #   . (Join-Path $PSScriptRoot 'lib/pester-host-skip.ps1')
 #   $script:SkipOnWindows = Test-IsWindowsHostFor -Edition $PSVersionTable.PSEdition -IsWindowsFlag $IsWindows
 #   ... It '... (PosixOnly: <reason>)' -Skip:$script:SkipOnWindows { ... }
+#
+# Adding a PosixOnly skip requires bumping AAI_EXPECTED_WIN_SKIP_COUNT in
+# .github/workflows/ps1-quality.yml (one place, job-level env) -- test_017 in
+# tests/skills/test-aai-win-fallback.sh pins the two to stay equal, so a skip
+# added without the bump fails fast, locally, instead of ~10+ minutes into
+# the real Windows job.
 
 function Test-IsWindowsHostFor {
   [CmdletBinding()]
