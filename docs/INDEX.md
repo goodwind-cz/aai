@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-12T21:39:56.612Z
+Generated: 2026-08-12T21:40:18.674Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0121 | specs | implementing | 4 done | docs/specs/SPEC-0121-spec-pester-on-windows-ci.md |
 
 ## Canonical layer (0)
 
@@ -44,7 +43,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 4 | docs/product/windows-test-wrapper.md |
 
-## Done (300)
+## Done (302)
 
 | ID | Type | Path |
 |---|---|---|
@@ -181,6 +180,7 @@ _None._
 | CHANGE-0131 | issues | docs/issues/CHANGE-0131-evidence-path-gate.md |
 | CHANGE-0132 | issues | docs/issues/CHANGE-0132-validation-cost-calibration.md |
 | CHANGE-0133 | issues | docs/issues/CHANGE-0133-ps1-wrapper-path-dup.md |
+| CHANGE-0134 | issues | docs/issues/CHANGE-0134-pester-on-windows-ci.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -347,13 +347,12 @@ _None._
 | SPEC-0118 | specs | docs/specs/SPEC-0118-spec-evidence-path-gate.md |
 | SPEC-0119 | specs | docs/specs/SPEC-0119-spec-validation-cost-calibration.md |
 | SPEC-0120 | specs | docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md |
+| SPEC-0121 | specs | docs/specs/SPEC-0121-spec-pester-on-windows-ci.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0134 | issues | docs/issues/CHANGE-0134-pester-on-windows-ci.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

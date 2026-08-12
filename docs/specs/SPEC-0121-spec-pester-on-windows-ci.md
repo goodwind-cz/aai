@@ -2,13 +2,15 @@
 id: spec-pester-on-windows-ci
 type: spec
 number: 121
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0134-pester-on-windows-ci.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 248
+  commits:
+    - d5f4c403d0dd217324c42cb599137e8855a19823
 ---
 
 # Spec — the full Pester suite runs on real Windows CI under both engines

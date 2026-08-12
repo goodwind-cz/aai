@@ -2,9 +2,14 @@
 id: pester-on-windows-ci
 number: 134
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
+links:
+  commits:
+    - d5f4c403d0dd217324c42cb599137e8855a19823
+  pr:
+    - 248
 ---
 
 # Change — Run the full Pester suite on real Windows CI under both engines

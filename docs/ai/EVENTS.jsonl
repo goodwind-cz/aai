@@ -1600,3 +1600,9 @@
 {"v":1,"ts":"2026-08-12T20:00:36.538Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-pester-on-windows-ci/Spec-AC-04","payload":{"from":"planned","to":"done","notes":"CHANGE-0134: TEST-010 green (bash tests/skills/test-aai-win-fallback.sh 018); no CI dependency"}}
 {"v":1,"ts":"2026-08-12T21:39:56.430Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0121/Spec-AC-01","payload":{"from":"planned","to":"done","notes":"windows-5_1 run 31641793244 green"}}
 {"v":1,"ts":"2026-08-12T21:39:56.463Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0121/Spec-AC-02","payload":{"from":"planned","to":"done","notes":"same run, skips 4==4==4"}}
+{"v":1,"ts":"2026-08-12T21:40:02.060Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"pester-on-windows-ci","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-12T21:40:02.098Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"pester-on-windows-ci","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-12T21:40:02.129Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"pester-on-windows-ci","payload":{"commit":"d5f4c403d0dd217324c42cb599137e8855a19823"}}
+{"v":1,"ts":"2026-08-12T21:40:02.161Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pester-on-windows-ci","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-12T21:40:02.192Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-pester-on-windows-ci","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-12T21:40:02.222Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-pester-on-windows-ci","payload":{"commit":"d5f4c403d0dd217324c42cb599137e8855a19823"}}
