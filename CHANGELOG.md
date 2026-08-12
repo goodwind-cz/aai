@@ -9,6 +9,8 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased]
+
 ## [unreleased] — feat(validation): lane-scaled depth + capability-detected validator isolation (CHANGE-0132) [L2]
 
 - `.aai/VALIDATION.prompt.md` CEREMONY LANE block: on the lightweight lane
