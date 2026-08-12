@@ -2,13 +2,15 @@
 id: spec-ps1-wrapper-path-dup
 type: spec
 number: 120
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0133-ps1-wrapper-path-dup.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 247
+  commits:
+    - 83e0ff3946497b7388f93f9fa17c9f5a4316ea25
 ---
 
 # Spec — aai-run-tests.ps1: canonical env before every spawn, explicit infra exit code, no fake 124

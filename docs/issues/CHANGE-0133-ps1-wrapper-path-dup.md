@@ -2,10 +2,15 @@
 id: ps1-wrapper-path-dup
 number: 133
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 2
 capability: windows-test-wrapper
+links:
+  commits:
+    - 83e0ff3946497b7388f93f9fa17c9f5a4316ea25
+  pr:
+    - 247
 ---
 
 # Change — aai-run-tests.ps1: Path/PATH duplicate kills Start-Process; failure masquerades as timeout 124
