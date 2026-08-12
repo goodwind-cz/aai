@@ -560,6 +560,46 @@ PROBE
   log_pass "docs/product/validation-cost-calibration.md: missingProductSections empty, close-work-item gate severity none (TEST-014/spec TEST-013)"
 }
 
+# --- TEST-015 (CHANGE-0133 spec TEST-014/Spec-AC-07) -----------------------
+# The real docs/product/windows-test-wrapper.md this scope ships:
+# missingProductSections must return empty, and a fixture ref carrying this
+# slug + user_visible true must resolve gate severity 'none' via the real
+# close-work-item.mjs end-to-end (mirrors TEST-013/TEST-014's fresh-ride e2e
+# shape, against the REAL product doc rather than a synthetic fixture body).
+
+test_015_windows_test_wrapper_product_doc() {
+  log_info "Test: docs/product/windows-test-wrapper.md is a real, non-placeholder product doc; close-work-item gate severity is none for a fixture ref carrying this slug (CHANGE-0133 spec TEST-014)..."
+  local real="$PROJECT_ROOT/docs/product/windows-test-wrapper.md"
+  [[ -f "$real" ]] || { log_fail "t015: docs/product/windows-test-wrapper.md does not exist"; return; }
+
+  local probe="$TEST_DIR/t015-probe.mjs"
+  cat > "$probe" <<PROBE
+import fs from 'node:fs';
+import { missingProductSections } from '$PROJECT_ROOT/.aai/scripts/lib/product-doc.mjs';
+const content = fs.readFileSync('$real', 'utf8');
+const missing = missingProductSections(content);
+if (missing.length > 0) { console.error('missing/placeholder sections: ' + missing.join(',')); process.exit(1); }
+console.log('OK missingProductSections empty');
+PROBE
+  node "$probe" > "$TEST_DIR/t015.out" 2>&1 \
+    || { log_fail "t015: missingProductSections must be empty for the real doc: $(cat "$TEST_DIR/t015.out")"; return; }
+
+  local dir; dir=$(new_fixture_repo "t015")
+  write_user_visible_change_doc "$dir/docs/issues/CHANGE-9015-t015.md" "t015-slug" "windows-test-wrapper"
+  cp "$real" "$dir/docs/product/windows-test-wrapper.md"
+  commit_fixture_docs "$dir"
+
+  local close_out="$TEST_DIR/t015-close.out" close_err="$TEST_DIR/t015-close.err" close_code=0
+  ( cd "$dir" && node .aai/scripts/close-work-item.mjs --ref t015-slug --pr 15 --commit e2e0015 > "$close_out" 2> "$close_err" ) || close_code=$?
+  [[ "$close_code" == "0" ]] || { log_fail "t015: close-work-item must exit 0 (gate severity none), got $close_code: $(cat "$close_err")"; return; }
+  if grep -qi 'product-doc gate' "$close_err"; then
+    log_fail "t015: gate severity must be none for this slug -- no warn/refuse expected: $(cat "$close_err")"
+    return
+  fi
+
+  log_pass "docs/product/windows-test-wrapper.md: missingProductSections empty, close-work-item gate severity none (TEST-014/spec TEST-014)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -583,6 +623,7 @@ main() {
   test_012_migration_body_diff_zero
   test_013_fresh_ride_e2e
   test_014_validation_cost_calibration_product_doc
+  test_015_windows_test_wrapper_product_doc
 
   if [[ "$FAILED" == "1" ]]; then
     echo "=== $TEST_NAME: SOME TESTS FAILED ==="
