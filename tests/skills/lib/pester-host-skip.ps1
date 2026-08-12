@@ -8,7 +8,7 @@
 # reads back $null there, and $null is falsy, so the test would silently NOT
 # skip on the very host this predicate exists to guard.
 #
-# $IsWindows is a pwsh-7+-only automatic variable — reading it under Windows
+# $IsWindows is a PowerShell Core (6.0+)-only automatic variable — reading it under Windows
 # PowerShell 5.1 returns $null (undefined, not $false), which is also falsy
 # and would silently un-skip a Windows-fragile test on exactly the engine
 # this scope adds coverage for. $PSVersionTable.PSEdition is 'Desktop' on

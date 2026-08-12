@@ -12,9 +12,9 @@
 #   2. PSScriptAnalyzer at Error severity using .aai/scripts/PSScriptAnalyzerSettings.psd1
 #      (includes PSUseCompatibleSyntax targeting 5.1 + 7.0). Skipped-with-note if
 #      the module is absent.
-#   3. Pester smoke tests: aai-update.Tests.ps1 (aai-update.ps1) AND
-#      aai-win-dispatch.Tests.ps1 (SPEC-0046 Windows test-wrapper dispatchers,
-#      Spec-AC-09). Skipped-with-note if Pester absent.
+#   3. Pester smoke tests: every tests/skills/*.Tests.ps1 (directory discovery,
+#      matching the windows-5_1 job's own Run.Path — SPEC-0046 Windows
+#      test-wrapper dispatchers, Spec-AC-09). Skipped-with-note if Pester absent.
 #
 # Exit codes:
 #   0  - All checks passed
@@ -111,10 +111,10 @@ else
   log_info "SKIP PSScriptAnalyzer (module absent; install: pwsh -c \"Install-Module PSScriptAnalyzer -Scope CurrentUser\")"
 fi
 
-# --- 3. Pester smoke tests: aai-update.ps1 + the Windows dispatchers ---------
+# --- 3. Pester smoke tests: tests/skills/*.Tests.ps1 (directory discovery) ---
 has_pester="$(pwsh -NoProfile -Command 'if (Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 }) { "yes" } else { "no" }' 2>/dev/null || echo no)"
 if [[ "$has_pester" == "yes" ]]; then
-  log_info "Running Pester smoke tests (aai-update.Tests.ps1, aai-win-dispatch.Tests.ps1) ..."
+  log_info "Running Pester smoke tests (tests/skills/*.Tests.ps1, directory discovery) ..."
   # CHANGE-0134 Spec-AC-02 (POSIX half of SEAM-1): PassThru captures the
   # result object so SkippedCount can be asserted directly, rather than
   # letting Pester's own Run.Exit decide pass/fail from FailedCount alone.
@@ -146,7 +146,7 @@ if [[ "$has_pester" == "yes" ]]; then
     '; then
     log_pass "Pester smoke tests passed (SkippedCount 0 on this POSIX host)"
   else
-    log_fail "Pester smoke tests failed (aai-update.ps1 and/or aai-win-dispatch.Tests.ps1 failed, or a non-zero SkippedCount leaked on POSIX)"
+    log_fail "Pester smoke tests failed (one or more tests/skills/*.Tests.ps1 failed, or a non-zero SkippedCount leaked on POSIX)"
   fi
 else
   log_info "SKIP Pester (Pester v5 absent; install: pwsh -c \"Install-Module Pester -Scope CurrentUser\")"

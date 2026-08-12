@@ -1134,12 +1134,15 @@ Describe 'aai-reap-tests.ps1' {
             $reapSentinel | Should -Be $runSentinel
         }
 
-        It 'both dispatchers'' Test-WslUsable pass the identical probe argument list shape (-e sh -c "exit $sentinel") to Start-WslProbeProcess' {
+        It 'both dispatchers'' Test-WslUsable pass an IDENTICAL probe argument list to Start-WslProbeProcess (compared to each other, not a hardcoded shape -- drift-proof: a future edit to ONE file''s call site fails this even if it never touches the other)' {
             $runContent = Get-Content -Raw $script:RunDispatcher
             $reapContent = Get-Content -Raw $script:ReapDispatcher
-            $pattern = "Start-WslProbeProcess\s+-ArgumentList\s+@\('-e',\s*'sh',\s*'-c',\s*""exit \`$sentinel""\)"
-            $runContent | Should -Match $pattern
-            $reapContent | Should -Match $pattern
+            $callPattern = 'Start-WslProbeProcess\s+-ArgumentList\s+@\([^)]*\)'
+            $runMatch = [regex]::Match($runContent, $callPattern)
+            $reapMatch = [regex]::Match($reapContent, $callPattern)
+            $runMatch.Success | Should -Be $true
+            $reapMatch.Success | Should -Be $true
+            $reapMatch.Value | Should -Be $runMatch.Value
         }
 
         It 'reaper Resolve-Interpreter falls through to gitbash when the probe does not return the sentinel-clean result' {

@@ -83,7 +83,18 @@ function Start-WslProbeProcess {
   param([Parameter(Mandatory)][string[]]$ArgumentList)
   $outFile = [System.IO.Path]::GetTempFileName()
   $errFile = [System.IO.Path]::GetTempFileName()
-  $proc = Start-Process -FilePath 'wsl.exe' -ArgumentList $ArgumentList -NoNewWindow -PassThru `
+  # ArgumentList must reach Start-Process as ONE pre-quoted string, never the raw
+  # array: Start-Process space-joins array elements WITHOUT quoting ones that
+  # contain embedded spaces (Test-WslUsable's own "exit $sentinel" element), so the
+  # command line wsl.exe re-parses via CreateProcess split "-c"'s argument into two
+  # bare tokens (exit, <sentinel>) instead of one. `sh -c exit <sentinel>` then runs
+  # a bare `exit` (no operand -> exits with the LAST status, usually 0) with
+  # <sentinel> merely as $0 -- the sentinel exit code never comes back, so a
+  # WSL-usable host is wrongly judged unusable. Individually quoting each element
+  # before joining mirrors tests/skills/lib/pester-native-capture.ps1's
+  # Invoke-NativeCaptured, which hit and fixed the identical Start-Process footgun.
+  $argString = ($ArgumentList | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }) -join ' '
+  $proc = Start-Process -FilePath 'wsl.exe' -ArgumentList $argString -NoNewWindow -PassThru `
     -RedirectStandardOutput $outFile -RedirectStandardError $errFile
   $null = $proc.Handle
   Remove-Item -LiteralPath $outFile -ErrorAction SilentlyContinue

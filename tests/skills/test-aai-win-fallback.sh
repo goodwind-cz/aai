@@ -278,7 +278,7 @@ test_017() {
     # Every -Skip:$script:SkipOnWindows It must carry the PosixOnly token with
     # a non-empty reason in its own description line.
     local skip_lines skip_count
-    skip_lines="$(grep -nE "^\s*It[[:space:]]+'.*'[[:space:]]+-Skip:\\\$script:SkipOnWindows" "$f" || true)"
+    skip_lines="$(grep -nE "^[[:space:]]*It[[:space:]]+'.*'[[:space:]]+-Skip:\\\$script:SkipOnWindows" "$f" || true)"
     if [[ -n "$skip_lines" ]]; then
       while IFS= read -r line; do
         echo "$line" | grep -qF 'PosixOnly' \
@@ -286,7 +286,7 @@ test_017() {
         echo "$line" | grep -qE 'PosixOnly:[[:space:]]*[^)'"'"']+' \
           || log_fail "$f: a -Skip:\$script:SkipOnWindows It carries PosixOnly with no non-empty reason: $line"
       done <<< "$skip_lines"
-      skip_count="$(grep -cE "^\s*It[[:space:]]+'.*'[[:space:]]+-Skip:\\\$script:SkipOnWindows" "$f")"
+      skip_count="$(grep -cE "^[[:space:]]*It[[:space:]]+'.*'[[:space:]]+-Skip:\\\$script:SkipOnWindows" "$f")"
       total_skip_lines=$((total_skip_lines + skip_count))
     fi
   done
