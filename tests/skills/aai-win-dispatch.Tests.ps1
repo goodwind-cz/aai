@@ -104,6 +104,61 @@ Describe 'aai-run-tests.ps1' {
         }
     }
 
+    Context 'TEST-010 (field fix, PR #247 run 31603532721): Test-WslUsable is a REAL functional probe, not a bare present-check' {
+        It 'wsl.exe present, ZERO installed distributions (stub prints the message and exits 0) -> NOT usable' {
+            # The exact field defect: windows-latest wsl.exe with no installed
+            # distro prints "Windows Subsystem for Linux has no installed
+            # distributions." and exits 0 -- indistinguishable from success
+            # under a bare ExitCode -eq 0 check.
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 8001; ExitCode = 0 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            Test-WslUsable | Should -Be $false
+        }
+
+        It 'wsl.exe present, real distro answers the sentinel exit code -> usable' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 8002; ExitCode = 42 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            Test-WslUsable | Should -Be $true
+        }
+
+        It 'wsl.exe present, distro answers a NON-sentinel exit code -> NOT usable' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 8003; ExitCode = 1 } }
+            Mock Wait-ProcessWithTimeout { $true }
+            Test-WslUsable | Should -Be $false
+        }
+
+        It 'wsl.exe absent -> NOT usable, probe process never spawned' {
+            Mock Test-WslPresent { $false }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 8004; ExitCode = 42 } }
+            Test-WslUsable | Should -Be $false
+            Should -Invoke Start-WslProbeProcess -Times 0 -Exactly
+        }
+
+        It 'probe hangs past the watchdog -> NOT usable, hung probe process killed (never stalls the caller)' {
+            Mock Test-WslPresent { $true }
+            Mock Start-WslProbeProcess { [PSCustomObject]@{ Id = 8005; ExitCode = $null } }
+            Mock Wait-ProcessWithTimeout { $false }
+            Mock Stop-Process { }
+            Test-WslUsable | Should -Be $false
+            Should -Invoke Stop-Process -Times 1 -Exactly -ParameterFilter { $Id -eq 8005 }
+        }
+
+        It 'probe runs the sentinel command THROUGH a distro (-e sh -c), never a bare presence check' {
+            Mock Test-WslPresent { $true }
+            $script:capturedProbeArgs = $null
+            Mock Start-WslProbeProcess {
+                $script:capturedProbeArgs = $ArgumentList
+                [PSCustomObject]@{ Id = 8006; ExitCode = 42 }
+            }
+            Mock Wait-ProcessWithTimeout { $true }
+            Test-WslUsable | Should -Be $true
+            $script:capturedProbeArgs | Should -Be @('-e', 'sh', '-c', 'exit 42')
+        }
+    }
+
     Context 'TEST-003 (Spec-AC-01): all probes negative -> error branch, never a partial launch' {
         It 'Resolve-Interpreter returns error when neither WSL nor Git Bash is usable' {
             Mock Test-WslUsable { $false }

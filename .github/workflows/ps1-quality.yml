@@ -158,7 +158,12 @@ jobs:
         run: |
           tmp="${RUNNER_TEMP}"
           printf 'echo AAI-WRAPPER-SMOKE-MARKER\nexit 3\n' > "$tmp/aai-smoke-marker.sh"
-          printf 'sleep 10\n' > "$tmp/aai-smoke-hang.sh"
+          # Field fact (PR #247 run 31603532721): the timeout arm returned 0
+          # instead of 124 -- the fixture must hang UNCONDITIONALLY, with a
+          # duration that cannot plausibly elapse (300s vs. the arm's
+          # AAI_TEST_TIMEOUT=2 + outer watchdog grace). `sleep 300` has no
+          # `read`/tty dependency and no EOF-on-stdin escape hatch.
+          printf 'sleep 300\n' > "$tmp/aai-smoke-hang.sh"
           printf 'echo SHOULD-NOT-RUN\n' > "$tmp/aai-smoke-spawnfail.sh"
 
       - name: "Real-wrapper smoke: aai-run-tests.ps1 under Windows PowerShell 5.1 (CHANGE-0133 Spec-AC-05)"

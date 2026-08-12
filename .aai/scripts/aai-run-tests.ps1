@@ -90,20 +90,39 @@ function Test-WslPresent {
   return [bool](Get-Command wsl.exe -ErrorAction SilentlyContinue)
 }
 
+function Start-WslProbeProcess {
+  # Thin, mockable wrapper around the raw wsl.exe spawn for Test-WslUsable's
+  # functional probe — kept separate from Invoke-WslProcess (the real
+  # delegation launch) so Pester can stub the probe's process object
+  # independently of the delegation path.
+  [CmdletBinding()]
+  param([Parameter(Mandatory)][string[]]$ArgumentList)
+  return Start-Process -FilePath 'wsl.exe' -ArgumentList $ArgumentList -NoNewWindow -PassThru
+}
+
 function Test-WslUsable {
-  # wsl.exe present AND a probe command succeeds in the default distro. A
-  # present-but-no-distro wsl.exe answers quickly with a non-zero exit; the
-  # 5s watchdog guards against any prompt/hang so this NEVER blocks the caller.
+  # REAL functional probe (field fix, PR #247 run 31603532721): windows-latest
+  # HAS wsl.exe but with ZERO installed distributions — `wsl` prints "Windows
+  # Subsystem for Linux has no installed distributions." (UTF-16LE) and exits
+  # 0. A bare `$proc.ExitCode -eq 0` check (the prior probe: `wsl.exe -e
+  # true`) cannot tell that apart from real success, so it wrongly judged WSL
+  # usable and routed into it. This probe instead runs a trivial command
+  # THROUGH a distro (`sh -c 'exit <sentinel>'`) and requires that EXACT
+  # sentinel exit code back — a present-but-distro-less wsl.exe, a timeout, or
+  # any other non-sentinel result all count as NOT usable and fall through to
+  # Git Bash (Resolve-Interpreter). The 5s watchdog guards against any
+  # prompt/hang so this NEVER blocks the caller.
   [CmdletBinding()] param()
   if (-not (Test-WslPresent)) { return $false }
+  $sentinel = 42
   try {
-    $proc = Start-Process -FilePath 'wsl.exe' -ArgumentList @('-e', 'true') -NoNewWindow -PassThru
-    $completed = $proc.WaitForExit(5000)
+    $proc = Start-WslProbeProcess -ArgumentList @('-e', 'sh', '-c', "exit $sentinel")
+    $completed = Wait-ProcessWithTimeout -Process $proc -TimeoutSeconds 5
     if (-not $completed) {
       try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
       return $false
     }
-    return ($proc.ExitCode -eq 0)
+    return ($proc.ExitCode -eq $sentinel)
   } catch {
     return $false
   }

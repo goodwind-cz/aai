@@ -38,6 +38,19 @@ RFC-0001).
 - New product doc `docs/product/windows-test-wrapper.md`; intake gains
   `capability: windows-test-wrapper`; `docs/TECHNOLOGY.md` and
   `docs/USER_GUIDE.md` document the 124/125/78 exit-code contract.
+- Field fix from the first real Windows CI run (PR #247, run 31603532721):
+  `Test-WslUsable` is now a REAL functional probe — it spawns `wsl.exe -e sh
+  -c 'exit <sentinel>'` via the new mockable `Start-WslProbeProcess` and
+  requires that exact sentinel exit code back, closing the hole where
+  windows-latest's wsl.exe with zero installed distributions prints "Windows
+  Subsystem for Linux has no installed distributions." and exits 0 —
+  indistinguishable from real success under the prior bare
+  `ExitCode -eq 0` check, which wrongly routed into WSL. Any non-sentinel
+  result (no distro, timeout, error) now correctly falls through to Git Bash.
+  `.github/workflows/ps1-quality.yml`'s hang fixture (`aai-smoke-hang.sh`)
+  changes from `sleep 10` to `sleep 300` so the timeout arm hangs
+  unconditionally with a duration that cannot plausibly elapse before the
+  arm's `AAI_TEST_TIMEOUT=2` + outer watchdog grace fires.
 
 ## [unreleased] — feat(validation): lane-scaled depth + capability-detected validator isolation (CHANGE-0132) [L2]
 
