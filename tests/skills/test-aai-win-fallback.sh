@@ -37,6 +37,8 @@ RUN_TESTS_PS1="$PROJECT_ROOT/.aai/scripts/aai-run-tests.ps1"
 REAP_PS1="$PROJECT_ROOT/.aai/scripts/aai-reap-tests.ps1"
 TECHNOLOGY_DOC="$PROJECT_ROOT/docs/TECHNOLOGY.md"
 SPEC_DOC="$PROJECT_ROOT/docs/specs/SPEC-0046-spec-test-wrapper-windows-fallback.md"
+USER_GUIDE_DOC="$PROJECT_ROOT/docs/USER_GUIDE.md"
+CI_WORKFLOW="$PROJECT_ROOT/.github/workflows/ps1-quality.yml"
 
 log_pass() { echo "PASS: $*"; }
 log_fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -132,7 +134,44 @@ test_013() {
   log_pass "Manual verification protocol section documented; execution remains off-host (TEST-013)"
 }
 
-ALL_TESTS="007 009 013"
+# --- TEST-014 (CHANGE-0133 Spec-AC-05): ps1-quality windows-5_1 job carries a real-wrapper smoke step ---
+
+test_014() {
+  log_info "TEST-014: ps1-quality windows-5_1 job carries a real-wrapper smoke step (aai-run-tests.ps1, both engines, exit 3 + marker + no AAI-SPAWN-ERROR)..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  grep -qF "aai-run-tests.ps1" "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must name aai-run-tests.ps1 in a real-wrapper smoke step"
+  grep -qiE "windows-5_1" "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must carry the windows-5_1 job"
+  grep -qE 'shell:[[:space:]]*powershell' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must run a step under Windows PowerShell 5.1 (shell: powershell)"
+  grep -qE 'shell:[[:space:]]*pwsh' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must run a step under pwsh 7 (shell: pwsh)"
+  grep -qE '(-eq 3|exit 3)' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW smoke step must assert exit code 3"
+  grep -qiE "AAI-SPAWN-ERROR" "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW smoke step must assert the absence of an AAI-SPAWN-ERROR line"
+  log_pass "ps1-quality windows-5_1 job carries the real-wrapper smoke step (TEST-014)"
+}
+
+# --- TEST-015 (CHANGE-0133 Spec-AC-07): 124/125/78 exit-code contract documented consistently ---
+
+test_015() {
+  log_info "TEST-015: 124/125/78 exit-code contract documented consistently in both wrapper headers + TECHNOLOGY.md + USER_GUIDE.md; pre-existing 5-row matrix pins still pass..."
+  local doc
+  for doc in "$RUN_TESTS_PS1" "$RUN_TESTS_SCRIPT" "$TECHNOLOGY_DOC" "$USER_GUIDE_DOC"; do
+    [[ -f "$doc" ]] || log_fail "missing $doc"
+    grep -qE "124" "$doc" || log_fail "$doc missing the 124 (timeout of a RAN process) code"
+    grep -qE "125" "$doc" || log_fail "$doc missing the 125 (spawn/infrastructure failure) code"
+    grep -qE "78" "$doc" || log_fail "$doc missing the 78 (no usable interpreter) code"
+  done
+  # Re-run the pre-existing 5-row platform-matrix pins to prove editing the
+  # header did not break them (SEAM-4).
+  test_009
+  log_pass "125 exit-code contract documented consistently across all four docs; 5-row matrix pins still pass (TEST-015)"
+}
+
+ALL_TESTS="007 009 013 014 015"
 
 main() {
   echo "Testing $TEST_NAME (Windows fallback: MSYS branch, platform matrix, MV protocol doc-presence)"

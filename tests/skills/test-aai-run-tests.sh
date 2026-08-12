@@ -878,7 +878,67 @@ test_023() {
   log_pass "reaper 'reaped raw:' diagnostic header stable on the no-op path (TEST-023)"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023"
+# --- TEST-024 — SAFETY: no failure-masquerade class in aai-run-tests.sh (CHANGE-0133 Spec-AC-06) --
+# RED-proofed / mutation-proofed: against a deliberately-naive stub wrapper
+# that ALWAYS exits 124 unconditionally, the SAME case list must FAIL to
+# reproduce the real codes -- proving this guard actually bites rather than
+# being vacuously true. Runs the REAL .aai/scripts/aai-run-tests.sh directly
+# (ignores any AAI_RUN_TESTS_SCRIPT override) because the point is to pin the
+# shipped file's own behavior, not whatever the suite is currently overridden
+# to test.
+test_024() {
+  log_info "TEST-024: real wrapper never masquerades a spawn failure as 124 -- missing cmd->127, non-exec file->126, real hang->124; mutation-proofed against an always-124 stub..."
+  local real_wrapper="$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh"
+  [[ -f "$real_wrapper" ]] || log_fail "wrapper script not found: $real_wrapper"
+
+  local rc
+
+  # Real wrapper: a non-existent command must exit the shell's REAL 127.
+  sh "$real_wrapper" /nonexistent/aai-test-024-nope-cmd >/dev/null 2>&1; rc=$?
+  [[ "$rc" -eq 127 ]] || log_fail "real wrapper: a missing command must exit 127 (got $rc)"
+
+  # Real wrapper: a non-executable fixture file must exit the shell's REAL 126.
+  local nonexec="$TMP_ROOT/aai-test-024-nonexec.sh"
+  printf '#!/bin/sh\nexit 0\n' > "$nonexec"
+  chmod -x "$nonexec"
+  sh "$real_wrapper" "$nonexec" >/dev/null 2>&1; rc=$?
+  [[ "$rc" -eq 126 ]] || log_fail "real wrapper: a non-executable file must exit 126 (got $rc)"
+
+  # Real wrapper: a genuinely hung command must still exit 124 (a real
+  # timeout of a process that RAN) -- never confused with a spawn-failure code.
+  local marker="aai_024_${$}_${RANDOM}_vitest"
+  AAI_TEST_TIMEOUT=1 sh "$real_wrapper" bash -c "exec -a $marker sleep 300" >/dev/null 2>&1; rc=$?
+  [[ "$rc" -eq 124 ]] || log_fail "real wrapper: a genuine hang must still exit 124 (got $rc)"
+  sleep 1
+  if pgrep -f "$marker" >/dev/null 2>&1; then
+    local survivors
+    survivors="$(pgrep -f "$marker" | tr '\n' ' ')"
+    kill -9 $survivors >/dev/null 2>&1 || true
+    log_fail "real wrapper: hung-command fixture left a survivor (pids: $survivors)"
+  fi
+
+  # Mutation proof: a deliberately-naive stub that ALWAYS returns 124
+  # unconditionally must FAIL to reproduce the missing-cmd/non-exec codes --
+  # proving the assertions above actually bite rather than being vacuous.
+  local stub="$TMP_ROOT/aai-test-024-stub-always-124.sh"
+  cat > "$stub" <<'STUB'
+#!/bin/sh
+exit 124
+STUB
+  chmod +x "$stub"
+
+  local stub_missing_rc stub_nonexec_rc
+  sh "$stub" /nonexistent/aai-test-024-nope-cmd >/dev/null 2>&1; stub_missing_rc=$?
+  sh "$stub" "$nonexec" >/dev/null 2>&1; stub_nonexec_rc=$?
+
+  if [[ "$stub_missing_rc" -eq 127 && "$stub_nonexec_rc" -eq 126 ]]; then
+    log_fail "TEST-024 mutation proof failed: the always-124 stub reproduced the SAME correct codes as the real wrapper -- this guard would be vacuous"
+  fi
+
+  log_pass "real wrapper: no failure-masquerade class (127/126/124 all correct); guard mutation-proofed against an always-124 stub"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023 024"
 
 main() {
   echo "Testing $TEST_NAME (process-group wrapper + workspace/etime-scoped reaper + wiring)"
