@@ -5,6 +5,7 @@ type: change
 status: draft
 user_visible: true
 ceremony_level: 2
+capability: windows-test-wrapper
 ---
 
 # Change — aai-run-tests.ps1: Path/PATH duplicate kills Start-Process; failure masquerades as timeout 124

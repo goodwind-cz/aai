@@ -11,6 +11,34 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(scripts): aai-run-tests.ps1 canonicalizes Path/PATH before every spawn, never fakes 124 (CHANGE-0133) [L2]
+
+- `.aai/scripts/aai-run-tests.ps1`: new `Get-CanonicalEnvironmentMap` /
+  `Set-CanonicalProcessEnvironment` collapse any OrdinalIgnoreCase-duplicate
+  environment key (e.g. both `Path` and `PATH`) to one canonical survivor,
+  applied once per dispatch before the WSL probe and before either launch
+  primitive — closing the field defect where that duplicate crashed
+  `Start-Process` and the wrapper silently reported a fake timeout (124) for
+  a command that never ran. `Invoke-ViaGitBash` and `Invoke-ViaWsl` now wrap
+  every spawn in `try`/`catch`/`finally`: a genuine spawn failure exits the
+  new **125** (never 124), writes one `AAI-SPAWN-ERROR: [<branch>] <message>`
+  line naming the real exception and the failing branch, and reaps a live
+  process object if one exists — a spawn that produced no object never
+  reaches `Stop-ProcessTree`. 124 keeps its exact prior meaning (a process
+  that RAN and was killed at the deadline).
+- `.aai/scripts/aai-run-tests.sh`: header documents the 124-vs-125 contract;
+  one root-caused one-line fix in the perl `setsid`-fallback launch path so a
+  non-executable file reports the shell's real 126 instead of being
+  collapsed into 127 alongside a missing command (found via the new
+  characterization guard, `tests/skills/test-aai-run-tests.sh` TEST-024,
+  mutation-proofed against a stub that always returns 124).
+- `.github/workflows/ps1-quality.yml` `windows-5_1` job gains a real
+  end-to-end smoke step under both Windows PowerShell 5.1 and pwsh 7 —
+  the first real-Windows execution of this dispatcher.
+- New product doc `docs/product/windows-test-wrapper.md`; intake gains
+  `capability: windows-test-wrapper`; `docs/TECHNOLOGY.md` and
+  `docs/USER_GUIDE.md` document the 124/125/78 exit-code contract.
+
 ## [unreleased] — feat(validation): lane-scaled depth + capability-detected validator isolation (CHANGE-0132) [L2]
 
 - `.aai/VALIDATION.prompt.md` CEREMONY LANE block: on the lightweight lane
