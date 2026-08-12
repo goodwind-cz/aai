@@ -81,11 +81,19 @@ test_001_capability_detection_contract() {
 # .aai/*.md canon prose (scripts, which legitimately branch on harness for
 # host-specific command rendering, e.g. routine-emit.mjs, are excluded by
 # the --include='*.md' scope: no .md files live under .aai/scripts).
+#
+# The identifier alternation is not limited to a variable literally named
+# `harness` (Codex P2, review-20260812T083704Z): a harness-equality gate is
+# just as real when it is spelled `agent`, `backend`, `platform`, or `tool`
+# (optionally suffixed, e.g. `agent_name`, `platformType`) compared to a
+# harness-name string literal. Widened 2026-08-12; re-verified zero hits on
+# the live corpus (mutation-proven to still catch a synthetic
+# `agent_name === "claude"` / `platformType is "codex"` violation).
 
 test_002_no_harness_equality_gate() {
   log_info "Test: corpus negative control — no harness-name equality test gates subagent behavior (spec TEST-004)..."
   local hits
-  hits="$(grep -rniE "harness[[:space:]]*(==|===|is)[[:space:]]*['\"]?(claude|codex|gemini)" \
+  hits="$(grep -rniE "(harness|agent|backend|platform|tool)[a-zA-Z_]*[[:space:]]*(==|===|is|equals|matches)[[:space:]]*['\"]?(claude|codex|gemini)" \
     "$PROJECT_ROOT/.aai" --include='*.md' 2>/dev/null || true)"
   if [[ -n "$hits" ]]; then
     echo "$hits" >&2
@@ -145,7 +153,12 @@ test_003_four_tiers_in_order() {
 test_004_no_named_harness_denial() {
   log_info "Test: corpus sweep — no file asserts a named harness lacks subagents or cannot spawn (spec TEST-006)..."
   local deny_re harness_re hits
-  harness_re='\b(claude|codex|gemini)\b'
+  # `\b` is a GNU/PCRE extension, not a POSIX ERE metacharacter (Copilot
+  # finding, review-20260812T083704Z): a BSD `grep -E` is free to treat it as
+  # unspecified/literal, producing silent false negatives. Use an ERE-safe
+  # boundary instead — a non-alnum/underscore character or line start/end on
+  # each side — so the sweep behaves identically on GNU and BSD grep.
+  harness_re='(^|[^[:alnum:]_])(claude|codex|gemini)([^[:alnum:]_]|$)'
   deny_re='(has no|have no|no native|cannot spawn|does not support)[^.]{0,60}(subagent|spawn)'
   hits="$(grep -rniE "$harness_re" "$PROJECT_ROOT/.aai" --include='*.md' 2>/dev/null \
     | grep -iE "$deny_re" || true)"

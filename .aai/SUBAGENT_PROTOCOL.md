@@ -138,10 +138,13 @@ absent or its spawn attempt is refused:
    still distinct from the implementer's model where the catalog offers one.
 3. **Separate role-per-invocation process, hard isolation** — when no
    `spawn_agent` primitive is available (`spawn_agent_available` false or
-   unknown): run validation as a SEPARATE process, e.g. `claude -p
-   --prompt-file .aai/VALIDATION.prompt.md` or `codex exec -m <model>` (or
-   the host-equivalent headless invocation) against the same repo — a fresh
-   process is a fresh context by construction.
+   unknown), OR when `fork_turns_supported` is false or unknown (tier 1 does
+   not apply per its own precondition, and tier 2 only covers a rejected
+   model, not an unsupported fork_turns): run validation as a SEPARATE
+   process, e.g. `claude -p --prompt-file .aai/VALIDATION.prompt.md` or
+   `codex exec -m <model>` (or the host-equivalent headless invocation)
+   against the same repo — a fresh process is a fresh context by
+   construction.
 4. **In-parent-session execution, LAST RESORT** — only when tiers 1-3 are
    all unavailable: clear/reset context, then run validation re-reading
    ONLY the artifacts above. Record "validator shared context with
