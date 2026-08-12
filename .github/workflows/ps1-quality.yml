@@ -146,3 +146,47 @@ jobs:
             if ($errs -and $errs.Count) { $bad++; Write-Host "PARSEFAIL $($_.Name)"; $errs | ForEach-Object { Write-Host "  $($_.Message)" } }
           }
           if ($bad -gt 0) { Write-Error "$bad .ps1 file(s) fail to parse under pwsh 7"; exit 1 }
+
+      - name: "Real-wrapper smoke: aai-run-tests.ps1 under Windows PowerShell 5.1 (CHANGE-0133 Spec-AC-05)"
+        # First real end-to-end execution of aai-run-tests.ps1 on a real
+        # Windows host (Git Bash present, WSL absent on windows-latest): runs
+        # a command that prints a marker and exits 3, and fails unless the
+        # dispatcher exits exactly 3, the marker reaches stdout, and no
+        # AAI-SPAWN-ERROR line reaches stderr (the failure-masquerade class
+        # this scope closes never fires on a real spawn that actually works).
+        shell: powershell   # Windows PowerShell 5.1 (the field environment)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $outFile = Join-Path $env:RUNNER_TEMP "aai-wrapper-smoke-51.out"
+          $errFile = Join-Path $env:RUNNER_TEMP "aai-wrapper-smoke-51.err"
+          & .\.aai\scripts\aai-run-tests.ps1 sh -c "echo AAI-WRAPPER-SMOKE-MARKER; exit 3" 1> $outFile 2> $errFile
+          $code = $LASTEXITCODE
+          $out = Get-Content $outFile -Raw -ErrorAction SilentlyContinue
+          $err = Get-Content $errFile -Raw -ErrorAction SilentlyContinue
+          Write-Host "stdout: $out"
+          Write-Host "stderr: $err"
+          $fail = 0
+          if ($code -ne 3) { Write-Host "expected exit 3, got $code"; $fail++ }
+          if ($out -notmatch 'AAI-WRAPPER-SMOKE-MARKER') { Write-Host "missing marker on stdout"; $fail++ }
+          if ($err -match 'AAI-SPAWN-ERROR') { Write-Host "unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }
+          if ($fail -gt 0) { Write-Error "real-wrapper smoke failed under Windows PowerShell 5.1 ($fail check(s))"; exit 1 }
+          Write-Host "REAL-WRAPPER SMOKE OK (Windows PowerShell 5.1)"
+
+      - name: "Real-wrapper smoke: aai-run-tests.ps1 under pwsh 7 (CHANGE-0133 Spec-AC-05)"
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $outFile = Join-Path $env:RUNNER_TEMP "aai-wrapper-smoke-pwsh7.out"
+          $errFile = Join-Path $env:RUNNER_TEMP "aai-wrapper-smoke-pwsh7.err"
+          & .\.aai\scripts\aai-run-tests.ps1 sh -c "echo AAI-WRAPPER-SMOKE-MARKER; exit 3" 1> $outFile 2> $errFile
+          $code = $LASTEXITCODE
+          $out = Get-Content $outFile -Raw -ErrorAction SilentlyContinue
+          $err = Get-Content $errFile -Raw -ErrorAction SilentlyContinue
+          Write-Host "stdout: $out"
+          Write-Host "stderr: $err"
+          $fail = 0
+          if ($code -ne 3) { Write-Host "expected exit 3, got $code"; $fail++ }
+          if ($out -notmatch 'AAI-WRAPPER-SMOKE-MARKER') { Write-Host "missing marker on stdout"; $fail++ }
+          if ($err -match 'AAI-SPAWN-ERROR') { Write-Host "unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }
+          if ($fail -gt 0) { Write-Error "real-wrapper smoke failed under pwsh 7 ($fail check(s))"; exit 1 }
+          Write-Host "REAL-WRAPPER SMOKE OK (pwsh 7)"
