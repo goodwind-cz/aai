@@ -1587,3 +1587,4 @@
 {"v":1,"ts":"2026-08-12T09:09:59.036Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-validation-cost-calibration","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-12T09:09:59.074Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-validation-cost-calibration","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-12T09:09:59.109Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-validation-cost-calibration","payload":{"commit":"a202687d6f5f24553e1253856477f22a2974fdbd"}}
+{"v":1,"ts":"2026-08-12T11:58:39.656Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-ps1-wrapper-path-dup","payload":{"from":"draft","to":"implementing"}}
