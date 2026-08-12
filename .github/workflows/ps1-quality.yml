@@ -6,10 +6,24 @@ name: ps1-quality
 #   - gate:          the full bash quality gate on Linux (parse-check + PSScript-
 #                    Analyzer 5.1/7.0 syntax compat + Pester smoke tests) under pwsh 7.
 #   - windows-5_1:   parse-check every .ps1 under REAL Windows PowerShell 5.1 —
-#                    the actual environment that broke — plus pwsh 7, AND a
+#                    the actual environment that broke — plus pwsh 7, a
 #                    functional aai-sync.ps1 smoke into a fresh target (catches
 #                    runtime copy behavior a parse check cannot, e.g. the
-#                    Copy-Item DirectoryNotFoundException on .codex/skills).
+#                    Copy-Item DirectoryNotFoundException on .codex/skills),
+#                    AND (CHANGE-0134) the SAME full tests/skills Pester
+#                    discovery the `gate` job runs on Linux, executed under
+#                    BOTH Windows PowerShell 5.1 and pwsh 7, so an
+#                    engine-specific runtime semantic (SPEC-0120's 5.1
+#                    ExitCode-null footgun class of defect) fails as a named
+#                    unit test in the same job that already proves the
+#                    scripts parse, instead of surfacing only after a blind
+#                    ~10-minute e2e iteration.
+#
+# Fast-iteration path (CHANGE-0134 Spec-AC-04): windows-5_1 can be run
+# standalone, without opening a PR, via:
+#   gh workflow run ps1-quality.yml
+# `workflow_dispatch` is wired below; this note exists so the next Windows
+# debugging session does not have to rediscover it.
 
 on:
   push:
@@ -19,8 +33,8 @@ on:
       - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
       - '.aai/scripts/aai-run-tests.sh'
       - 'tests/skills/test-ps1-quality.sh'
-      - 'tests/skills/aai-update.Tests.ps1'
-      - 'tests/skills/aai-win-dispatch.Tests.ps1'
+      - 'tests/skills/*.Tests.ps1'
+      - 'tests/skills/lib/**'
       - '.github/workflows/ps1-quality.yml'
   pull_request:
     paths:
@@ -28,8 +42,8 @@ on:
       - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
       - '.aai/scripts/aai-run-tests.sh'
       - 'tests/skills/test-ps1-quality.sh'
-      - 'tests/skills/aai-update.Tests.ps1'
-      - 'tests/skills/aai-win-dispatch.Tests.ps1'
+      - 'tests/skills/*.Tests.ps1'
+      - 'tests/skills/lib/**'
       - '.github/workflows/ps1-quality.yml'
   workflow_dispatch: {}
 
@@ -76,8 +90,17 @@ jobs:
           exit "$rc"
 
   windows-5_1:
-    name: parse-check + functional sync smoke under Windows PowerShell 5.1
+    name: parse-check + functional sync smoke + full Pester suite (both engines)
     runs-on: windows-latest
+    env:
+      # CHANGE-0134 Spec-AC-02: declared exactly ONCE, at job level, so both
+      # engine run steps below assert the identical expected skip count
+      # (SEAM-1) — a per-step literal would let the two engines silently
+      # drift apart. Count derives from the four named Windows-fragile tests
+      # this scope skips: aai-win-dispatch.Tests.ps1's TEST-004 real-invocation
+      # arm, CHANGE-0133 TEST-003 (dual-casing environment), the CR-1 H3
+      # grandchild probe, and aai-update.Tests.ps1's TEST-009 (file:// clone).
+      AAI_EXPECTED_WIN_SKIP_COUNT: "4"
     steps:
       - uses: actions/checkout@v4
 
@@ -508,3 +531,126 @@ jobs:
 
           if ($fail -gt 0) { Write-Error "real-wrapper smoke failed under pwsh 7 ($fail check(s))"; exit 1 }
           Write-Host "REAL-WRAPPER SMOKE OK (pwsh 7): success/timeout/spawnfail all correct"
+
+      - name: "Cache PowerShell modules (Windows PowerShell 5.1 + pwsh 7 CurrentUser scopes)"
+        # CHANGE-0134 Spec-AC-01: the two engines have SEPARATE CurrentUser
+        # module scopes on Windows (Documents\WindowsPowerShell\Modules vs
+        # Documents\PowerShell\Modules) — both are cached under one key so a
+        # warm run installs neither.
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\Documents\WindowsPowerShell\Modules
+            ~\Documents\PowerShell\Modules
+          key: ps-modules-${{ runner.os }}-pester5-win
+
+      - name: "Install Pester 5 for Windows PowerShell 5.1 (CHANGE-0134 Spec-AC-01)"
+        # Windows PowerShell 5.1 ships Pester 3.4.0 as a built-in system
+        # module, so "is Pester present" is never a good enough check — it is
+        # ALWAYS present, at the wrong major version, and a bare Import-Module
+        # would silently bind to it and run a subset of the file while
+        # reporting success (the exact "Pester availability decision" trap
+        # recorded in this scope's spec). Only install when no major>=5
+        # module is already available; the TLS 1.2 + NuGet provider bootstrap
+        # is required non-interactively on 5.1 or Install-Module fails/prompts.
+        shell: powershell   # Windows PowerShell 5.1 (the field environment)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $existing = Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 } | Select-Object -First 1
+          if (-not $existing) {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+            if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+              Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser | Out-Null
+            }
+            Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.0
+          }
+          Import-Module Pester -MinimumVersion 5.0
+          $ver = (Get-Module Pester | Sort-Object Version -Descending | Select-Object -First 1).Version
+          if ($ver.Major -lt 5) { Write-Error "Pester major version $ver < 5 under Windows PowerShell 5.1 (5.1's built-in 3.4.0 silent-bind trap)"; exit 1 }
+          Write-Host "Pester $ver ready under Windows PowerShell 5.1"
+
+      - name: "Install Pester 5 for pwsh 7 (CHANGE-0134 Spec-AC-01)"
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $existing = Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 } | Select-Object -First 1
+          if (-not $existing) {
+            Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.0
+          }
+          Import-Module Pester -MinimumVersion 5.0
+          $ver = (Get-Module Pester | Sort-Object Version -Descending | Select-Object -First 1).Version
+          if ($ver.Major -lt 5) { Write-Error "Pester major version $ver < 5 under pwsh 7"; exit 1 }
+          Write-Host "Pester $ver ready under pwsh 7"
+
+      - name: "Full Pester suite discovery under Windows PowerShell 5.1 (CHANGE-0134 Spec-AC-01/Spec-AC-02)"
+        # Runs the SAME tests/skills Pester discovery the `gate` job runs on
+        # Linux (directory-based, so a new *.Tests.ps1 file is picked up
+        # without a workflow edit — SEAM-4), under the actual engine that
+        # broke CHANGE-0133 four times blind. AAI-PESTER-VERSION and
+        # AAI-PESTER-ELAPSED are printed unconditionally; the step fails on
+        # any Pester failure, a Pester major version below 5, a measured
+        # duration over the 600s hard ceiling, or an AAI-WIN-SKIP line count
+        # that disagrees with either Pester's own SkippedCount or the
+        # job-level declared expected count (SEAM-1, both directions).
+        shell: powershell   # Windows PowerShell 5.1 (the field environment)
+        timeout-minutes: 15
+        run: |
+          $ErrorActionPreference = "Stop"
+          Import-Module Pester -MinimumVersion 5.0
+          $ver = (Get-Module Pester | Sort-Object Version -Descending | Select-Object -First 1).Version
+          if ($ver.Major -lt 5) { Write-Error "Pester major version $ver < 5 under Windows PowerShell 5.1"; exit 1 }
+          Write-Host "AAI-PESTER-VERSION: powershell $ver"
+          $cfg = New-PesterConfiguration
+          $cfg.Run.Path = 'tests/skills'
+          $cfg.Run.PassThru = $true
+          $cfg.Output.Verbosity = 'Detailed'
+          $sw = [System.Diagnostics.Stopwatch]::StartNew()
+          $result = Invoke-Pester -Configuration $cfg
+          $sw.Stop()
+          $elapsed = [Math]::Round($sw.Elapsed.TotalSeconds, 2)
+          Write-Host "AAI-PESTER-ELAPSED: powershell ${elapsed}s"
+          $skipLines = 0
+          foreach ($s in $result.Skipped) {
+            Write-Host "AAI-WIN-SKIP: $($s.ExpandedPath)"
+            $skipLines++
+          }
+          $expected = [int]$env:AAI_EXPECTED_WIN_SKIP_COUNT
+          $fail = 0
+          if ($result.FailedCount -gt 0) { Write-Host "FAIL: FailedCount=$($result.FailedCount)"; $fail++ }
+          if ($elapsed -gt 600) { Write-Host "FAIL: elapsed ${elapsed}s exceeds the 600s ceiling"; $fail++ }
+          if ($skipLines -ne $result.SkippedCount) { Write-Host "FAIL: AAI-WIN-SKIP line count ($skipLines) != Pester SkippedCount ($($result.SkippedCount))"; $fail++ }
+          if ($result.SkippedCount -ne $expected) { Write-Host "FAIL: SkippedCount ($($result.SkippedCount)) != declared expected ($expected)"; $fail++ }
+          if ($fail -gt 0) { Write-Error "Pester gate failed under Windows PowerShell 5.1 ($fail check(s))"; exit 1 }
+          Write-Host "PESTER OK (Windows PowerShell 5.1): $($result.PassedCount) passed, $($result.SkippedCount) skipped, 0 failed, ${elapsed}s"
+
+      - name: "Full Pester suite discovery under pwsh 7 (CHANGE-0134 Spec-AC-01/Spec-AC-02)"
+        shell: pwsh
+        timeout-minutes: 15
+        run: |
+          $ErrorActionPreference = "Stop"
+          Import-Module Pester -MinimumVersion 5.0
+          $ver = (Get-Module Pester | Sort-Object Version -Descending | Select-Object -First 1).Version
+          if ($ver.Major -lt 5) { Write-Error "Pester major version $ver < 5 under pwsh 7"; exit 1 }
+          Write-Host "AAI-PESTER-VERSION: pwsh $ver"
+          $cfg = New-PesterConfiguration
+          $cfg.Run.Path = 'tests/skills'
+          $cfg.Run.PassThru = $true
+          $cfg.Output.Verbosity = 'Detailed'
+          $sw = [System.Diagnostics.Stopwatch]::StartNew()
+          $result = Invoke-Pester -Configuration $cfg
+          $sw.Stop()
+          $elapsed = [Math]::Round($sw.Elapsed.TotalSeconds, 2)
+          Write-Host "AAI-PESTER-ELAPSED: pwsh ${elapsed}s"
+          $skipLines = 0
+          foreach ($s in $result.Skipped) {
+            Write-Host "AAI-WIN-SKIP: $($s.ExpandedPath)"
+            $skipLines++
+          }
+          $expected = [int]$env:AAI_EXPECTED_WIN_SKIP_COUNT
+          $fail = 0
+          if ($result.FailedCount -gt 0) { Write-Host "FAIL: FailedCount=$($result.FailedCount)"; $fail++ }
+          if ($elapsed -gt 600) { Write-Host "FAIL: elapsed ${elapsed}s exceeds the 600s ceiling"; $fail++ }
+          if ($skipLines -ne $result.SkippedCount) { Write-Host "FAIL: AAI-WIN-SKIP line count ($skipLines) != Pester SkippedCount ($($result.SkippedCount))"; $fail++ }
+          if ($result.SkippedCount -ne $expected) { Write-Host "FAIL: SkippedCount ($($result.SkippedCount)) != declared expected ($expected)"; $fail++ }
+          if ($fail -gt 0) { Write-Error "Pester gate failed under pwsh 7 ($fail check(s))"; exit 1 }
+          Write-Host "PESTER OK (pwsh 7): $($result.PassedCount) passed, $($result.SkippedCount) skipped, 0 failed, ${elapsed}s"

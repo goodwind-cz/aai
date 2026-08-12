@@ -143,7 +143,10 @@
   `--lint-body-file`, SPEC-0013)
 - CI/CD: GitHub Actions — `.github/workflows/ps1-quality.yml` (parse-checks
   every `.ps1` under Windows PowerShell 5.1 and pwsh 7, plus PSScriptAnalyzer
-  and Pester on Linux)
+  on Linux; the `windows-5_1` job runs the full `tests/skills` Pester suite
+  under BOTH Windows PowerShell 5.1 and pwsh 7 — CHANGE-0134 — in addition to
+  the `gate` job's own Pester run on Linux, and can be run standalone via
+  `gh workflow run ps1-quality.yml` (`workflow_dispatch`))
 - Local developer tooling: git + gh CLI (PR ceremony via `/aai-pr`; the agent
   never merges), installable pre-commit hook
   (`.aai/scripts/install-pre-commit-hook.sh`/`.ps1`), optional Wrangler CLI

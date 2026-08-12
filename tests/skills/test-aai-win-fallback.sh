@@ -171,7 +171,137 @@ test_015() {
   log_pass "125 exit-code contract documented consistently across all four docs; 5-row matrix pins still pass (TEST-015)"
 }
 
-ALL_TESTS="007 009 013 014 015"
+# --- TEST-016 (CHANGE-0134 Spec-AC-01): windows-5_1 runs the full Pester suite under both engines ---
+
+test_016() {
+  log_info "TEST-016: windows-5_1 job installs Pester per engine and runs Pester discovery over tests/skills under both shells, printing AAI-PESTER-VERSION/AAI-PESTER-ELAPSED, timeout-minutes 15, 600s ceiling asserted..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+
+  grep -qE 'Import-Module[[:space:]]+Pester[[:space:]]+-MinimumVersion[[:space:]]+5\.0' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must Import-Module Pester -MinimumVersion 5.0 (fails below major 5, closing the 5.1 built-in 3.4.0 silent-bind trap)"
+  grep -qF 'AAI-PESTER-VERSION' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must print an AAI-PESTER-VERSION line"
+  grep -qF 'AAI-PESTER-ELAPSED' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must print an AAI-PESTER-ELAPSED line"
+  grep -qF "cfg.Run.Path = 'tests/skills'" "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must discover the tests/skills DIRECTORY (not two hardcoded *.Tests.ps1 files), so a future Tests.ps1 file is picked up without a workflow edit"
+  grep -qE 'timeout-minutes:[[:space:]]*15' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW Pester step(s) must carry timeout-minutes: 15"
+  grep -qE 'elapsed[[:space:]]*-gt[[:space:]]*600' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must assert the 600s hard ceiling on measured Pester duration"
+
+  # Per-engine Pester install-if-missing steps (5.1 needs TLS 1.2 + NuGet
+  # provider bootstrap; each engine has its own CurrentUser module scope).
+  grep -qF 'Tls12' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must force TLS 1.2 before installing Pester under Windows PowerShell 5.1"
+  grep -qF 'NuGet' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must bootstrap the NuGet package provider under Windows PowerShell 5.1"
+
+  # Two Invoke-Pester run steps, one per engine's shell.
+  local ps_pester_steps pwsh_pester_steps
+  ps_pester_steps="$(grep -c "shell: powershell" "$CI_WORKFLOW")"
+  pwsh_pester_steps="$(grep -c "shell: pwsh" "$CI_WORKFLOW")"
+  [[ "$ps_pester_steps" -ge 1 ]] || log_fail "$CI_WORKFLOW must run at least one step under shell: powershell"
+  [[ "$pwsh_pester_steps" -ge 1 ]] || log_fail "$CI_WORKFLOW must run at least one step under shell: pwsh"
+  grep -qF 'Invoke-Pester' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must call Invoke-Pester"
+
+  log_pass "windows-5_1 job installs Pester per engine and runs the full suite under both shells (TEST-016)"
+}
+
+# --- TEST-017 (CHANGE-0134 Spec-AC-02): host-specific tests skipped via one named, counted mechanism ---
+
+test_017() {
+  log_info "TEST-017: shared SkipOnWindows predicate dot-sourced at file scope, PosixOnly reasons, expected-skip-count declared once..."
+  local skip_helper="$PROJECT_ROOT/tests/skills/lib/pester-host-skip.ps1"
+  local win_dispatch="$PROJECT_ROOT/tests/skills/aai-win-dispatch.Tests.ps1"
+  local update_tests="$PROJECT_ROOT/tests/skills/aai-update.Tests.ps1"
+
+  [[ -f "$skip_helper" ]] || log_fail "missing $skip_helper"
+  grep -qF 'function Test-IsWindowsHostFor' "$skip_helper" \
+    || log_fail "$skip_helper must define Test-IsWindowsHostFor"
+
+  local f
+  for f in "$win_dispatch" "$update_tests"; do
+    [[ -f "$f" ]] || log_fail "missing $f"
+
+    # Dot-sourced at file/discovery scope: a top-level '. (Join-Path ...
+    # pester-host-skip.ps1)' line OUTSIDE any BeforeAll block, and nowhere
+    # else in the file as an ACTUAL dot-source (a second copy inside
+    # BeforeAll would defeat the discovery-time -Skip: evaluation this scope
+    # depends on). Matched on the dot-source SHAPE (a line starting with a
+    # bare '.' operator), not a bare substring -- a path-only reference such
+    # as '$script:SkipHelperPath = Join-Path ... pester-host-skip.ps1' is a
+    # legitimate, unrelated use of the same filename and must not count.
+    local dotsource_count
+    dotsource_count="$(grep -cE "^[[:space:]]*\.[[:space:]].*lib/pester-host-skip\.ps1" "$f")"
+    [[ "$dotsource_count" -eq 1 ]] \
+      || log_fail "$f must dot-source lib/pester-host-skip.ps1 exactly once (got $dotsource_count)"
+
+    local before_line dotsource_line
+    before_line="$(grep -n '^BeforeAll' "$f" | head -n1 | cut -d: -f1)"
+    dotsource_line="$(grep -nE "^[[:space:]]*\.[[:space:]].*lib/pester-host-skip\.ps1" "$f" | head -n1 | cut -d: -f1)"
+    if [[ -n "$before_line" && -n "$dotsource_line" ]]; then
+      [[ "$dotsource_line" -lt "$before_line" ]] \
+        || log_fail "$f: the pester-host-skip.ps1 dot-source (line $dotsource_line) must precede the first BeforeAll block (line $before_line) -- file/discovery scope, never inside BeforeAll"
+    fi
+
+    grep -qE '\$script:SkipOnWindows[[:space:]]*=[[:space:]]*Test-IsWindowsHostFor' "$f" \
+      || log_fail "$f must set \$script:SkipOnWindows = Test-IsWindowsHostFor ... at file scope"
+
+    # Every -Skip:$script:SkipOnWindows It must carry the PosixOnly token with
+    # a non-empty reason in its own description line.
+    local skip_lines
+    skip_lines="$(grep -nE "^\s*It[[:space:]]+'.*'[[:space:]]+-Skip:\\\$script:SkipOnWindows" "$f" || true)"
+    if [[ -n "$skip_lines" ]]; then
+      while IFS= read -r line; do
+        echo "$line" | grep -qF 'PosixOnly' \
+          || log_fail "$f: a -Skip:\$script:SkipOnWindows It is missing the PosixOnly token in its name: $line"
+        echo "$line" | grep -qE 'PosixOnly:[[:space:]]*[^)'"'"']+' \
+          || log_fail "$f: a -Skip:\$script:SkipOnWindows It carries PosixOnly with no non-empty reason: $line"
+      done <<< "$skip_lines"
+    fi
+  done
+
+  # The expected-skip-count constant is declared exactly once (job-level env
+  # in the workflow), consumed identically by both engine run steps.
+  local decl_count
+  decl_count="$(grep -cF 'AAI_EXPECTED_WIN_SKIP_COUNT:' "$CI_WORKFLOW")"
+  [[ "$decl_count" -eq 1 ]] \
+    || log_fail "$CI_WORKFLOW must declare AAI_EXPECTED_WIN_SKIP_COUNT exactly once (got $decl_count), consumed by both engine steps"
+  grep -qF 'AAI-WIN-SKIP' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must print one AAI-WIN-SKIP line per skipped test"
+
+  log_pass "shared SkipOnWindows predicate wired correctly; PosixOnly reasons present; expected-skip-count declared once (TEST-017)"
+}
+
+# --- TEST-018 (CHANGE-0134 Spec-AC-04): fast-iteration path documented ------
+
+test_018() {
+  log_info "TEST-018: gh workflow run ps1-quality.yml + workflow_dispatch documented in the product doc and workflow header; two-engine Pester coverage stated; stale Pester-on-Linux claim removed from TECHNOLOGY.md..."
+  local product_doc="$PROJECT_ROOT/docs/product/windows-test-wrapper.md"
+  [[ -f "$product_doc" ]] || log_fail "missing $product_doc"
+
+  local f
+  for f in "$product_doc" "$CI_WORKFLOW"; do
+    grep -qF 'gh workflow run ps1-quality.yml' "$f" \
+      || log_fail "$f missing the literal command 'gh workflow run ps1-quality.yml'"
+    grep -qF 'workflow_dispatch' "$f" \
+      || log_fail "$f missing the workflow_dispatch token"
+  done
+
+  for f in "$product_doc" "$CI_WORKFLOW" "$TECHNOLOGY_DOC"; do
+    grep -qiE 'both engines|Windows PowerShell 5\.1.*pwsh|pwsh.*Windows PowerShell 5\.1' "$f" \
+      || log_fail "$f must state the two-engine (Windows PowerShell 5.1 + pwsh 7) Pester coverage"
+  done
+
+  grep -qiE 'Pester on Linux' "$TECHNOLOGY_DOC" \
+    && log_fail "$TECHNOLOGY_DOC still carries the stale 'Pester on Linux' (only) claim"
+
+  log_pass "fast-iteration path (workflow_dispatch / gh workflow run) and two-engine Pester coverage documented; stale claim removed (TEST-018)"
+}
+
+ALL_TESTS="007 009 013 014 015 016 017 018"
 
 main() {
   echo "Testing $TEST_NAME (Windows fallback: MSYS branch, platform matrix, MV protocol doc-presence)"

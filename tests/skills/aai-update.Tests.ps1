@@ -27,6 +27,12 @@
 # Run via: pwsh -NoProfile -Command "Invoke-Pester tests/skills/aai-update.Tests.ps1"
 # (the bash gate tests/skills/test-ps1-quality.sh wraps this and skips if pwsh
 #  or Pester is unavailable).
+#
+# CHANGE-0134 Spec-AC-02: dot-sourced at FILE/DISCOVERY scope (plain top-level
+# script code, NOT inside BeforeAll) -- see tests/skills/lib/pester-host-skip.ps1
+# for why a BeforeAll-scoped variable would silently fail to skip here.
+. (Join-Path $PSScriptRoot 'lib/pester-host-skip.ps1')
+$script:SkipOnWindows = Test-IsWindowsHostFor -Edition $PSVersionTable.PSEdition -IsWindowsFlag $IsWindows
 
 BeforeAll {
     $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
@@ -118,7 +124,7 @@ Describe 'aai-update.ps1' {
     }
 
     Context 'SEAM-1 integration (ISSUE-0012 / SPEC-0052 — real clone parity)' {
-        It 'TEST-009: file:// fixture clone with -KeepTemp lands at $Tmp/src; $Tmp retained (skips if git unavailable)' {
+        It 'TEST-009: file:// fixture clone with -KeepTemp lands at $Tmp/src; $Tmp retained (skips if git unavailable) (PosixOnly: redirects the temp base through $env:TMPDIR, which [System.IO.Path]::GetTempPath() ignores on Windows, and builds a file://C:\...  URL from a backslash path)' -Skip:$script:SkipOnWindows {
             if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
                 Set-ItResult -Skipped -Because 'git not installed'
                 return

@@ -680,6 +680,14 @@ suites:
       - .aai/scripts/aai-run-tests.ps1
       - .aai/scripts/aai-reap-tests.ps1
       - docs/TECHNOLOGY.md
+      # CHANGE-0134: a workflow-only or test-only edit must still select this
+      # suite (SEAM-5) -- a workflow.yml or *.Tests.ps1 change previously did
+      # NOT match any glob here, so TEST-016/TEST-017/TEST-018 (which pin
+      # exactly those files) would not run on the change that breaks them.
+      - .github/workflows/ps1-quality.yml
+      - tests/skills/aai-win-dispatch.Tests.ps1
+      - tests/skills/aai-update.Tests.ps1
+      - tests/skills/lib/**
 
   aai-worktree:
     globs:

@@ -100,16 +100,31 @@ fi
 has_pester="$(pwsh -NoProfile -Command 'if (Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 }) { "yes" } else { "no" }' 2>/dev/null || echo no)"
 if [[ "$has_pester" == "yes" ]]; then
   log_info "Running Pester smoke tests (aai-update.Tests.ps1, aai-win-dispatch.Tests.ps1) ..."
+  # CHANGE-0134 Spec-AC-02 (POSIX half of SEAM-1): PassThru captures the
+  # result object so SkippedCount can be asserted directly, rather than
+  # letting Pester's own Run.Exit decide pass/fail from FailedCount alone.
+  # This IS the guard that a Windows-only skip predicate (CHANGE-0134's
+  # $script:SkipOnWindows) can never leak into the Linux/macOS gate and turn
+  # it vacuously green: on a POSIX host SkippedCount must be exactly zero.
   if PESTER_TESTS="$PESTER_TESTS" pwsh -NoProfile -Command '
       $cfg = New-PesterConfiguration
       $cfg.Run.Path = @($env:PESTER_TESTS -split ",")
-      $cfg.Run.Exit = $true
+      $cfg.Run.PassThru = $true
       $cfg.Output.Verbosity = "Detailed"
-      Invoke-Pester -Configuration $cfg
+      $result = Invoke-Pester -Configuration $cfg
+      Write-Host "AAI-POSIX-PESTER: Total=$($result.TotalCount) Passed=$($result.PassedCount) Failed=$($result.FailedCount) Skipped=$($result.SkippedCount)"
+      $fail = 0
+      if ($result.FailedCount -gt 0) { $fail++ }
+      if ($result.SkippedCount -ne 0) {
+        Write-Host "FAIL: SkippedCount=$($result.SkippedCount) on a POSIX host (must be 0 -- a Windows-only skip predicate leaked through)"
+        $fail++
+      }
+      if ($fail -gt 0) { exit 1 }
+      exit 0
     '; then
-    log_pass "Pester smoke tests passed"
+    log_pass "Pester smoke tests passed (SkippedCount 0 on this POSIX host)"
   else
-    log_fail "Pester smoke tests failed (aai-update.ps1 and/or aai-win-dispatch.Tests.ps1)"
+    log_fail "Pester smoke tests failed (aai-update.ps1 and/or aai-win-dispatch.Tests.ps1 failed, or a non-zero SkippedCount leaked on POSIX)"
   fi
 else
   log_info "SKIP Pester (Pester v5 absent; install: pwsh -c \"Install-Module Pester -Scope CurrentUser\")"

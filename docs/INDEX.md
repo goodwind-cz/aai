@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-12T19:48:15.607Z
+Generated: 2026-08-12T20:01:33.517Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-pester-on-windows-ci | specs | implementing | 4 planned | docs/specs/SPEC-DRAFT-spec-pester-on-windows-ci.md |
+| spec-pester-on-windows-ci | specs | implementing | 2 planned, 2 done | docs/specs/SPEC-DRAFT-spec-pester-on-windows-ci.md |
 
 ## Canonical layer (0)
 
@@ -42,7 +42,7 @@ _None._
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 | universal-routines | universal-routines | 2 | docs/product/universal-routines.md |
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
-| windows-test-wrapper | windows-test-wrapper | 2 | docs/product/windows-test-wrapper.md |
+| windows-test-wrapper | windows-test-wrapper | 4 | docs/product/windows-test-wrapper.md |
 
 ## Done (300)
 

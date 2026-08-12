@@ -11,6 +11,43 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — ci(ps1-quality): windows-5_1 runs the full Pester suite under both engines (CHANGE-0134) [L1]
+
+- `.github/workflows/ps1-quality.yml` `windows-5_1` job gains a per-engine
+  Pester 5 install-if-missing step (Windows PowerShell 5.1's TLS 1.2 + NuGet
+  provider bootstrap, since 5.1 ships Pester 3.4.0 as a system module — a
+  bare `Import-Module Pester -MinimumVersion 5.0` now fails loudly below
+  major 5 rather than silently binding to it) and two `Invoke-Pester` steps —
+  one under `shell: powershell`, one under `shell: pwsh` — discovering the
+  `tests/skills` directory (not two hardcoded files), each printing
+  `AAI-PESTER-VERSION`/`AAI-PESTER-ELAPSED`, asserting a 600s hard ceiling,
+  and carrying `timeout-minutes: 15`. `workflow_dispatch` fast-iteration path
+  (`gh workflow run ps1-quality.yml`) documented in the workflow header and
+  `docs/product/windows-test-wrapper.md`.
+- New `tests/skills/lib/pester-host-skip.ps1`: a shared, discovery-time
+  `Test-IsWindowsHostFor` predicate (edition-aware — `$IsWindows` is
+  undefined under Windows PowerShell 5.1), dot-sourced at file scope by both
+  `.Tests.ps1` files so a `-Skip:` expression can read it during discovery.
+  Four genuinely Windows-fragile tests now carry a named `PosixOnly` skip
+  reason; CHANGE-0133 TEST-001 (PATH-collision union) is made portable
+  instead of skipped ([IO.Path]::PathSeparator fixtures, not a hardcoded
+  `:`). `tests/skills/test-ps1-quality.sh`'s POSIX Pester run now fails when
+  `SkippedCount` is non-zero — mutation-proofed against a forced-true
+  predicate.
+- `.aai/scripts/aai-reap-tests.ps1` `Test-WslUsable` replaces its bare
+  `wsl.exe -e true` exit-0 existence probe (the same pre-fix defect
+  CHANGE-0133 closed in `aai-run-tests.ps1` — vacuously satisfied by a
+  distro-less `wsl.exe`) with the identical functional sentinel probe,
+  copied file-local (`Start-WslProbeProcess` + `Wait-ProcessWithTimeout`);
+  a cross-file Pester pin keeps both dispatchers' sentinel value and probe
+  argv from drifting apart again. TDD RED->GREEN (`docs/ai/tdd/`).
+- `tests/skills/suite-map.yaml` `aai-win-fallback` entry widened to the
+  workflow file, both `.Tests.ps1` files and `tests/skills/lib/**`, so a
+  workflow-only or test-only edit still selects the suite that pins it.
+- `docs/TECHNOLOGY.md` no longer claims Pester runs on Linux only.
+- Spec-AC-01/Spec-AC-02 stay `planned` until the named `windows-5_1` job has
+  actually run green on this scope's PR — recorded honestly, not claimed.
+
 ## [unreleased] — fix(scripts): aai-run-tests.ps1 canonicalizes Path/PATH before every spawn, never fakes 124 (CHANGE-0133) [L2]
 
 - `.aai/scripts/aai-run-tests.ps1`: new `Get-CanonicalEnvironmentMap` /

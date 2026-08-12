@@ -6,6 +6,8 @@ status: current
 delivered_by:
   - CHANGE-0133
   - ps1-wrapper-path-dup
+  - CHANGE-0134
+  - pester-on-windows-ci
 spec: docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md
 updated: 2026-08-12
 ---
@@ -59,6 +61,22 @@ wrapper invocation.
 - No command-line flags or environment variables were added; the fix is
   entirely internal to how the wrapper prepares to launch.
 
+## Fast-iteration path (CHANGE-0134)
+
+The `windows-5_1` job in `.github/workflows/ps1-quality.yml` runs the full
+`tests/skills` Pester suite under both Windows PowerShell 5.1 and pwsh 7 on
+every relevant push/PR. It can also be run standalone, without opening a PR,
+via `workflow_dispatch`:
+
+```
+gh workflow run ps1-quality.yml
+```
+
+This is the fast-iteration path for a Windows debugging session: a defect
+that is unit-testable in the Pester suite now fails there, in the same job
+that already parse-checks every script, instead of only surfacing after a
+blind end-to-end iteration.
+
 ## Limits and non-goals
 
 - This does not change anything about how the wrapper behaves on macOS or
@@ -77,5 +95,9 @@ wrapper invocation.
 
 - Request: docs/issues/CHANGE-0133-ps1-wrapper-path-dup.md
 - Spec: docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md
+- Request (fast-iteration path, full Pester on Windows CI):
+  docs/issues/CHANGE-0134-pester-on-windows-ci.md
+- Spec (fast-iteration path, full Pester on Windows CI):
+  docs/specs/SPEC-DRAFT-spec-pester-on-windows-ci.md
 - Validation evidence: docs/ai/validation/ (gitignored runtime directory —
   reports land here per ride, not committed to the repo)

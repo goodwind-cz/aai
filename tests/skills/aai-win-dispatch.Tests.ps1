@@ -17,12 +17,21 @@
 #
 # Run via: pwsh -NoProfile -Command "Invoke-Pester tests/skills/aai-win-dispatch.Tests.ps1 -Output Detailed"
 # (tests/skills/test-ps1-quality.sh wraps this and skips if pwsh/Pester absent.)
+#
+# CHANGE-0134 Spec-AC-02: dot-sourced at FILE/DISCOVERY scope (plain top-level
+# script code, NOT inside BeforeAll) so the handful of genuinely
+# Windows-fragile `It`s below can reference $script:SkipOnWindows in their own
+# `-Skip:` parameter — see tests/skills/lib/pester-host-skip.ps1 for why a
+# BeforeAll-scoped variable would silently fail to skip here.
+. (Join-Path $PSScriptRoot 'lib/pester-host-skip.ps1')
+$script:SkipOnWindows = Test-IsWindowsHostFor -Edition $PSVersionTable.PSEdition -IsWindowsFlag $IsWindows
 
 BeforeAll {
     $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
     $script:RunDispatcher = Join-Path $RepoRoot '.aai/scripts/aai-run-tests.ps1'
     $script:ReapDispatcher = Join-Path $RepoRoot '.aai/scripts/aai-reap-tests.ps1'
     $script:ReleaseScript = Join-Path $RepoRoot '.aai/scripts/aai-release.ps1'
+    $script:SkipHelperPath = Join-Path $PSScriptRoot 'lib/pester-host-skip.ps1'
 }
 
 Describe 'aai-run-tests.ps1' {
@@ -37,6 +46,26 @@ Describe 'aai-run-tests.ps1' {
         [System.Management.Automation.Language.Parser]::ParseFile(
             $script:RunDispatcher, [ref]$null, [ref]$errors) | Out-Null
         $errors | Should -BeNullOrEmpty
+    }
+
+    Context 'CHANGE-0134 TEST-003 (Spec-AC-02): Test-IsWindowsHostFor never silently fails to skip on Windows PowerShell 5.1, never over-skips on POSIX' {
+        # Real child-process invocations (not a direct in-process call): Pester
+        # v5 only runs top-level (non-block) script code during DISCOVERY, so
+        # the file-scope dot-source above (needed there so $script:SkipOnWindows
+        # is correct for -Skip: evaluation) does not carry the function forward
+        # into Run phase. Spawning a fresh pwsh per case keeps the helper
+        # dot-sourced in EXACTLY one place in this file (file/discovery scope,
+        # never inside a BeforeAll) -- the shape TEST-004 below pins.
+        It 'edition <_.Edition>, IsWindowsFlag <_.FlagLiteral> -> <_.Expected>' -ForEach @(
+            @{ Edition = 'Desktop'; FlagLiteral = '$null'; Expected = $true }
+            @{ Edition = 'Core'; FlagLiteral = '$true'; Expected = $true }
+            @{ Edition = 'Core'; FlagLiteral = '$false'; Expected = $false }
+            @{ Edition = 'Desktop'; FlagLiteral = '$false'; Expected = $true }
+        ) {
+            $cmd = ". '$script:SkipHelperPath'; Test-IsWindowsHostFor -Edition '$Edition' -IsWindowsFlag $FlagLiteral"
+            $out = (& pwsh -NoProfile -Command $cmd | Select-Object -Last 1).Trim()
+            $out | Should -Be ([string]$Expected)
+        }
     }
 
     Context 'TEST-001 (Spec-AC-01): usable WSL -> WSL branch selected, delegation argv correct' {
@@ -206,7 +235,7 @@ Describe 'aai-run-tests.ps1' {
     }
 
     Context 'TEST-004 (Spec-AC-02): real invocation on THIS host (no WSL, no Windows Git Bash) -> exit 78 + exactly one AAI-ENV-ERROR line' {
-        It 'exits 78 with exactly one stderr line matching ^AAI-ENV-ERROR: naming both probed options' {
+        It 'exits 78 with exactly one stderr line matching ^AAI-ENV-ERROR: naming both probed options (PosixOnly: windows-latest always has a real Git Bash, so the dispatcher resolves it and runs the command instead of erroring)' -Skip:$script:SkipOnWindows {
             $errFile = [System.IO.Path]::GetTempFileName()
             try {
                 & pwsh -NoProfile -File $script:RunDispatcher sh -c 'exit 0' 2>$errFile 1>$null
@@ -303,16 +332,28 @@ Describe 'aai-run-tests.ps1' {
 
     Context 'CHANGE-0133 TEST-001 (Spec-AC-01): PATH collision group collapses to one literal Path key, ordinal-ordered union, dedup' {
         It 'Path + PATH + path -> exactly one key "Path", ordinal-key-ordered union with duplicate segments dropped; OrdinalIgnoreCase dictionary build does not throw' {
+            # CHANGE-0134 Spec-AC-02: made PORTABLE, not skipped -- this is the
+            # one arm of this suite where the logic under test (path-segment
+            # splitting/joining) is genuinely engine-relevant, so skipping it
+            # on Windows would forfeit real Windows coverage of the exact
+            # defect class this scope exists to catch. The pre-existing
+            # fixture hardcoded ':' as the segment separator while the
+            # assertion joined with [IO.Path]::PathSeparator -- correct only
+            # on POSIX (':'), silently wrong under Windows (';'). Both the
+            # fixture values and the expected value are now built with the
+            # SAME [IO.Path]::PathSeparator, so the test asserts identically
+            # on every platform.
+            $sep = [IO.Path]::PathSeparator
             $envd = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
-            $envd.Add('Path', '/usr/bin:/shared')
-            $envd.Add('PATH', '/bin:/shared')
+            $envd.Add('Path', "/usr/bin${sep}/shared")
+            $envd.Add('PATH', "/bin${sep}/shared")
             $envd.Add('path', '/opt/bin')
             $map = Get-CanonicalEnvironmentMap -Environment $envd
             @($map.Keys) | Should -Be @('Path')
             # Ordinal member order: 'PATH' < 'Path' < 'path' (uppercase sorts
             # before lowercase) -> PATH's segments first, then Path's ('/shared'
             # already seen, dropped), then path's.
-            $expected = @('/bin', '/shared', '/usr/bin', '/opt/bin') -join [IO.Path]::PathSeparator
+            $expected = @('/bin', '/shared', '/usr/bin', '/opt/bin') -join $sep
             $map['Path'] | Should -Be $expected
             {
                 $d = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -364,7 +405,7 @@ Describe 'aai-run-tests.ps1' {
     }
 
     Context 'CHANGE-0133 TEST-003 (Spec-AC-02, SEAM-1): real dual-casing environment -- CONTROL throws, TREATMENT does not, one Path survives with both directories' {
-        It 'child pwsh: CONTROL arm (OrdinalIgnoreCase dictionary over the live dup env) THROWS; TREATMENT arm (after Set-CanonicalProcessEnvironment) does NOT throw, exactly one PATH casing remains, value holds both original directories' {
+        It 'child pwsh: CONTROL arm (OrdinalIgnoreCase dictionary over the live dup env) THROWS; TREATMENT arm (after Set-CanonicalProcessEnvironment) does NOT throw, exactly one PATH casing remains, value holds both original directories (PosixOnly: the Win32 environment block is case-insensitive, so the CONTROL arm cannot be constructed in-process on Windows -- SPEC-0120 RR-1)' -Skip:$script:SkipOnWindows {
             $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('aai-run-tests-dupenv-' + [System.IO.Path]::GetRandomFileName())
             New-Item -ItemType Directory -Path $tmp | Out-Null
             try {
@@ -630,7 +671,7 @@ exit $rc
             $script:crOneStore['TEMP'] | Should -Be '/original-temp'
         }
 
-        It 'H3 (PR #247 run 31606986703 investigation): an unrelated process-scope var (AAI_TEST_TIMEOUT) survives canonicalization of a REAL Path/PATH collision AND is visible to a spawned grandchild process — RED/GREEN probe for the smoke''s "default 300s watchdog used instead of AAI_TEST_TIMEOUT=2" symptom' {
+        It 'H3 (PR #247 run 31606986703 investigation): an unrelated process-scope var (AAI_TEST_TIMEOUT) survives canonicalization of a REAL Path/PATH collision AND is visible to a spawned grandchild process — RED/GREEN probe for the smoke''s "default 300s watchdog used instead of AAI_TEST_TIMEOUT=2" symptom (PosixOnly: same Win32 case-insensitive-environment limitation as CHANGE-0133 TEST-003, PLUS the fixture overwrites PATH with a nonexistent directory, which on Windows breaks the Start-Process -FilePath ''pwsh'' resolution this assertion depends on)' -Skip:$script:SkipOnWindows {
             # Field evidence: arm2 of the Windows smoke set AAI_TEST_TIMEOUT=2
             # then invoked aai-run-tests.ps1, which ran to the DEFAULT 300s
             # watchdog instead — i.e. Get-EffectiveTimeout resolved 300, not 2,
