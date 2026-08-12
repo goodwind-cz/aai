@@ -444,6 +444,168 @@ test_010_d3_prose_reclassified() {
   log_pass "SUBAGENT_PROTOCOL D3 prose reclassified to INFO (spec TEST-009)"
 }
 
+# --- validation-cost-calibration (Spec-AC-04) -------------------------------
+
+# --- TEST-011 (spec TEST-007/Spec-AC-04): requested/actual model extractors -
+
+test_011_model_marker_extractors() {
+  log_info "Test: extractRequestedModel/extractActualModel/modelOverrideDropped — plain id, bracketed context-window id, prefixed key, empty/malformed value, differ/equal (spec TEST-007)..."
+  cat > "$TEST_DIR/t011.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const lib = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/lib/usage-note.mjs')).href);
+const { extractRequestedModel, extractActualModel, modelOverrideDropped } = lib;
+
+// Plain id.
+assert.strictEqual(extractRequestedModel('requested_model=claude-sonnet-5'), 'claude-sonnet-5');
+assert.strictEqual(extractActualModel('actual_model=claude-haiku-4-5'), 'claude-haiku-4-5');
+
+// Bracketed context-window suffix (a REAL recorded model id).
+assert.strictEqual(extractRequestedModel('requested_model=claude-opus-4-8[1m]'), 'claude-opus-4-8[1m]');
+assert.strictEqual(extractActualModel('actual_model=claude-opus-4-8[1m]'), 'claude-opus-4-8[1m]');
+
+// Boundary discipline: quoted / parenthesized forms still match.
+assert.strictEqual(extractRequestedModel('note="requested_model=claude-sonnet-5"'), 'claude-sonnet-5');
+assert.strictEqual(extractRequestedModel('(requested_model=claude-sonnet-5)'), 'claude-sonnet-5');
+
+// Prefixed key must never match (same discipline as not_usage_total_tokens=).
+assert.strictEqual(extractRequestedModel('not_requested_model=claude-sonnet-5'), null);
+assert.strictEqual(extractActualModel('not_actual_model=claude-sonnet-5'), null);
+
+// Empty value never matches.
+assert.strictEqual(extractRequestedModel('requested_model='), null);
+assert.strictEqual(extractRequestedModel('requested_model= trailing'), null);
+
+// Malformed value (id cannot start with a disallowed character) never matches.
+assert.strictEqual(extractRequestedModel('requested_model=!badstart'), null);
+
+// Non-string / no marker at all -> null, never throws.
+assert.strictEqual(extractRequestedModel(null), null);
+assert.strictEqual(extractRequestedModel(undefined), null);
+assert.strictEqual(extractRequestedModel('usage_total_tokens=123'), null);
+
+// modelOverrideDropped: true ONLY when both present and DIFFER.
+assert.strictEqual(
+  modelOverrideDropped('requested_model=claude-opus-4-8 actual_model=claude-haiku-4-5'),
+  true,
+  'differing pair must report the override dropped'
+);
+// Equal pair is POSITIVE evidence the override took -- never "dropped".
+assert.strictEqual(
+  modelOverrideDropped('requested_model=claude-opus-4-8 actual_model=claude-opus-4-8'),
+  false,
+  'equal pair must NOT report a dropped override'
+);
+// Only one marker present -> false (absence must not be readable as either outcome).
+assert.strictEqual(modelOverrideDropped('requested_model=claude-opus-4-8'), false);
+assert.strictEqual(modelOverrideDropped('actual_model=claude-opus-4-8'), false);
+assert.strictEqual(modelOverrideDropped(''), false);
+assert.strictEqual(modelOverrideDropped(null), false);
+
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t011.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t011.log" 2>&1 \
+    || log_fail "TEST-011 (spec TEST-007): model marker extractor cases failed: $(cat "$TEST_DIR/t011.log")"
+  log_pass "extractRequestedModel/extractActualModel/modelOverrideDropped: plain/bracketed/boundary/prefixed/empty/malformed/differ/equal (TEST-011/spec TEST-007)"
+}
+
+# --- TEST-012 (spec TEST-009/Spec-AC-04, SEAM-1 integration): note with all
+# three markers survives append-run -> STATE -> metrics-flush -> METRICS.jsonl
+# verbatim; extractUsageTotal (existing) and the new extractors both still
+# resolve correctly out of the flushed line -----------------------------------
+
+test_012_model_marker_seam_roundtrip() {
+  log_info "Test: SEAM -- a note carrying requested_model, actual_model AND usage_total_tokens survives append-run + metrics-flush into METRICS.jsonl verbatim; all three extractors resolve from the flushed line (spec TEST-009)..."
+  local d="$TEST_DIR/t012"
+  mkdir -p "$d/docs/ai"
+  local s="$d/docs/ai/STATE.yaml"
+  local m="$d/docs/ai/METRICS.jsonl"
+  local tk="$d/docs/ai/LOOP_TICKS.jsonl"
+  local ev="$d/docs/ai/EVENTS.jsonl"
+  local pr="$d/PRICING.yaml"
+  write_state_fixture_005 "$s"
+  write_pricing_005 "$pr"
+  printf '# ledger comment header\n' > "$m"
+  : > "$tk"
+  : > "$ev"
+  capture_now
+
+  local note="requested_model=claude-opus-4-8 actual_model=claude-opus-4-8[1m] usage_total_tokens=48213 (harness total; in/out not exposed)"
+  local ar_log="$d/append-run.log"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$s" append-run \
+    --ref CHANGE-9001 --role Validation --model claude-opus-4-8 --started "$NOW_UTC" \
+    --note "$note" > "$ar_log" 2>&1) \
+    || log_fail "TEST-012 (spec TEST-009): append-run with model+usage note must exit 0: $(cat "$ar_log")"
+
+  grep -qF "requested_model=claude-opus-4-8" "$s" \
+    || log_fail "TEST-012 (spec TEST-009): STATE agent_runs note must carry requested_model verbatim"
+  grep -qF "actual_model=claude-opus-4-8[1m]" "$s" \
+    || log_fail "TEST-012 (spec TEST-009): STATE agent_runs note must carry actual_model verbatim"
+
+  local flush_log="$d/flush.log"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-flush.mjs \
+    --state "$s" --metrics "$m" --ticks "$tk" --pricing "$pr" --events "$ev" \
+    --now "2026-07-17T12:00:00Z" > "$flush_log" 2>&1) \
+    || log_fail "TEST-012 (spec TEST-009): flush must exit 0: $(cat "$flush_log")"
+
+  grep -qF "requested_model=claude-opus-4-8" "$m" \
+    || log_fail "TEST-012 (spec TEST-009): flushed METRICS.jsonl line must carry requested_model verbatim"
+  grep -qF "actual_model=claude-opus-4-8[1m]" "$m" \
+    || log_fail "TEST-012 (spec TEST-009): flushed METRICS.jsonl line must carry actual_model verbatim"
+  grep -qF "usage_total_tokens=48213" "$m" \
+    || log_fail "TEST-012 (spec TEST-009): flushed METRICS.jsonl line must still carry the usage total verbatim"
+
+  local flushed_note
+  flushed_note="$(node -e '
+    const fs = require("fs");
+    const lines = fs.readFileSync(process.argv[1], "utf8").split("\n").filter(l => l.trim() && !l.startsWith("#"));
+    const o = JSON.parse(lines[lines.length - 1]);
+    process.stdout.write(o.agent_runs[0].note);
+  ' "$m")"
+
+  node -e '
+    import(process.argv[1] + "/.aai/scripts/lib/usage-note.mjs").then(lib => {
+      const note = process.argv[2];
+      const total = lib.extractUsageTotal(note);
+      const req = lib.extractRequestedModel(note);
+      const act = lib.extractActualModel(note);
+      if (total !== 48213) { console.error("extractUsageTotal mismatch: " + total); process.exit(1); }
+      if (req !== "claude-opus-4-8") { console.error("extractRequestedModel mismatch: " + req); process.exit(1); }
+      if (act !== "claude-opus-4-8[1m]") { console.error("extractActualModel mismatch: " + act); process.exit(1); }
+    });
+  ' "$PROJECT_ROOT" "$flushed_note" \
+    || log_fail "TEST-012 (spec TEST-009): extractUsageTotal/extractRequestedModel/extractActualModel must all resolve from the flushed note"
+
+  log_pass "SEAM-1: requested/actual model markers + usage total survive append-run -> flush -> METRICS.jsonl verbatim, all extractors resolve (TEST-012/spec TEST-009)"
+}
+
+# --- TEST-013 (spec TEST-010/Spec-AC-04): SUBAGENT_PROTOCOL usage-capture ----
+# prose pin: model_id records the GRANTED model; both markers recorded
+# whenever an override was requested; validator-independence claims cite
+# actual_model.
+
+test_013_subagent_protocol_model_marker_prose() {
+  log_info "Test: SUBAGENT_PROTOCOL Harness-reported usage capture section states model_id==granted, both markers recorded together, independence claims cite actual_model (spec TEST-010)..."
+  local block
+  block="$(awk '/^## Harness-reported usage capture/{f=1} /^## /{if (f && !/^## Harness-reported usage capture/) f=0} f' "$PROTOCOL")"
+  [[ -n "$block" ]] || log_fail "TEST-013 (spec TEST-010): Harness-reported usage capture section body not found"
+
+  echo "$block" | grep -qF 'requested_model=' \
+    || log_fail "TEST-013 (spec TEST-010): usage-capture section must name the requested_model= marker"
+  echo "$block" | grep -qF 'actual_model=' \
+    || log_fail "TEST-013 (spec TEST-010): usage-capture section must name the actual_model= marker"
+  echo "$block" | grep -qiF 'GRANTED model' \
+    || log_fail "TEST-013 (spec TEST-010): usage-capture section must state model_id records the GRANTED model"
+  echo "$block" | grep -qiF 'both markers' \
+    || log_fail "TEST-013 (spec TEST-010): usage-capture section must state both markers are recorded whenever an override was requested"
+  echo "$block" | grep -qiF 'actual_model' \
+    || log_fail "TEST-013 (spec TEST-010): usage-capture section must state validator-independence claims cite actual_model"
+
+  log_pass "SUBAGENT_PROTOCOL usage-capture prose: model_id==granted, both-markers-together, independence-cites-actual_model (TEST-013/spec TEST-010)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -459,6 +621,9 @@ main() {
   test_008_log_tick_negative_control
   test_009_mandatory_usage_note_wording
   test_010_d3_prose_reclassified
+  test_011_model_marker_extractors
+  test_012_model_marker_seam_roundtrip
+  test_013_subagent_protocol_model_marker_prose
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

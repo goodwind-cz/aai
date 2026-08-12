@@ -177,6 +177,20 @@ Token usage is captured ONLY from the harness-level result visible to the dispat
   role's append-run. The dispatch human block's `Prompt hash:` line is a
   truncated 12-char display — never copy it; the JSON field is the value.
   No dispatch hash (no_action/needs_llm, older dispatcher) = omit the flag.
+- Requested vs. actual model (validation-cost-calibration Spec-AC-04):
+  `append-run --model <id>` always records `model_id` as the GRANTED model —
+  the one the subagent actually ran on, never the one merely asked for.
+  Whenever a model override was REQUESTED for a role (a validator dispatch
+  above all — see the isolation tiers), both markers are recorded
+  together in the SAME `--note` — `requested_model=<id>` AND
+  `actual_model=<id>` — even when they are equal: an equal pair is the
+  positive evidence the override took, and its absence must not be
+  readable as either outcome. A silently-dropped
+  override then shows up as `requested_model` != `actual_model`
+  (`lib/usage-note.mjs` `modelOverrideDropped()`) instead of being read as
+  independence that never happened. Any claim of validator independence
+  (maker≠checker, "Spawning a validator" above) MUST cite `actual_model`,
+  never `requested_model` — the request is not proof the isolation landed.
 
 | Rationalization                                  | Reality                                                                                                          |
 |---------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|

@@ -49,6 +49,59 @@ export function hasUsageSentinel(note) {
   return typeof note === 'string' && USAGE_SENTINEL_RE.test(note);
 }
 
+// --- requested/actual MODEL marker grammar (validation-cost-calibration
+// Spec-AC-04) -----------------------------------------------------------
+// `requested_model=<id>` / `actual_model=<id>` make a silently-dropped model
+// override (CLI ~0.145.0 history: the subagent model catalog is narrower
+// than the top level and explicit overrides have been dropped) VISIBLE in
+// METRICS instead of being read as independence that never happened.
+//
+// GRAMMAR: same both-sides boundary discipline as USAGE_NOTE_RE — left
+// `(?:^|[\s"'(\[])`, right `(?=$|[\s"'),\].;])` — around the KEY, so a
+// prefixed key (not_requested_model=x) or an empty value
+// (requested_model=) never matches, exactly like the existing
+// not_usage_total_tokens=456 rejection. The captured <id> is a base id
+// `[A-Za-z0-9][A-Za-z0-9._:@/+-]*` plus an OPTIONAL bracketed
+// context-window suffix `(?:\[[A-Za-z0-9._-]+\])?` — required because
+// `claude-opus-4-8[1m]` is a real recorded model id and the bare
+// USAGE_NOTE_RE right-boundary class does not admit `[`.
+const MODEL_ID_GROUP = "([A-Za-z0-9][A-Za-z0-9._:@/+-]*(?:\\[[A-Za-z0-9._-]+\\])?)";
+export const REQUESTED_MODEL_RE = new RegExp(
+  '(?:^|[\\s"\'(\\[])requested_model=' + MODEL_ID_GROUP + '(?=$|[\\s"\'),\\].;])'
+);
+export const ACTUAL_MODEL_RE = new RegExp(
+  '(?:^|[\\s"\'(\\[])actual_model=' + MODEL_ID_GROUP + '(?=$|[\\s"\'),\\].;])'
+);
+
+// extractRequestedModel(note) -> the requested_model=<id> value from `note`,
+// or null when `note` is not a string or carries no valid marker (prefixed
+// key, empty value, malformed id). Never throws.
+export function extractRequestedModel(note) {
+  if (typeof note !== 'string') return null;
+  const m = note.match(REQUESTED_MODEL_RE);
+  return m ? m[1] : null;
+}
+
+// extractActualModel(note) -> the actual_model=<id> value from `note`, or
+// null under the same conditions as extractRequestedModel. Never throws.
+export function extractActualModel(note) {
+  if (typeof note !== 'string') return null;
+  const m = note.match(ACTUAL_MODEL_RE);
+  return m ? m[1] : null;
+}
+
+// modelOverrideDropped(note) -> true ONLY when `note` carries BOTH markers
+// and their values differ (a granted model that is not the requested one —
+// the override was silently dropped). false when either marker is absent
+// or the two values are equal (an equal pair is the positive evidence the
+// override took). Never throws.
+export function modelOverrideDropped(note) {
+  const requested = extractRequestedModel(note);
+  const actual = extractActualModel(note);
+  if (requested === null || actual === null) return false;
+  return requested !== actual;
+}
+
 // --- canonical harness-dispatched role vocabulary (SINGLE SOURCE) ------------
 // The six roles the harness dispatches per ride — state.mjs ROLES minus the
 // meta-roles Orchestration / Metrics Flush, which may legitimately run with no
