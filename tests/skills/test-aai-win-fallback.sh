@@ -665,13 +665,17 @@ test_024() {
   )
   for pf in "${prompt_files[@]}"; do
     [[ -f "$pf" ]] || log_fail "missing $pf"
-    local n_all n_bash
-    n_all="$(grep -cF -- '.aai/scripts/aai-run-tests.sh' "$pf")"
-    n_bash="$(grep -cF -- 'bash .aai/scripts/aai-run-tests.sh' "$pf")"
-    [[ "$n_bash" -ge 1 ]] \
+    grep -qF -- 'bash .aai/scripts/aai-run-tests.sh' "$pf" \
       || log_fail "$pf missing the bash-prefixed canonical POSIX invocation literal"
-    [[ "$n_all" -eq "$n_bash" ]] \
-      || log_fail "$pf still carries a bare-path aai-run-tests.sh invocation mention ($n_all mention line(s), only $n_bash bash-prefixed)"
+    # Shadow-proof bare-mention audit (PR #254 bot catch): a line-count
+    # compare (grep -c) lets a bare mention hide on a line that ALSO carries
+    # a prefixed one. Strip every canonical occurrence from the content
+    # first, then ANY surviving mention is a bare one — per-occurrence, not
+    # per-line.
+    local residue
+    residue="$(sed 's|bash \.aai/scripts/aai-run-tests\.sh||g' "$pf" | grep -nF -- '.aai/scripts/aai-run-tests.sh' || true)"
+    [[ -z "$residue" ]] \
+      || log_fail "$pf still carries a bare-path aai-run-tests.sh invocation mention after canonical-occurrence strip: $residue"
   done
 
   log_pass "guidance trio carries the contract verbatim; all seven prompt invocation mentions are bash-prefixed (TEST-024)"
