@@ -34,7 +34,8 @@ and do NOT narrate the steps — run the one script and relay its output.
 
 2. Relay the script's output as a SHORT report — do not paste the full sync log.
    Surface only: target path, upstream + ref, sync vs dry-run, changed-file count
-   (and notable paths), any conflict-advisory path, and the recommended next command.
+   (and notable paths), any conflict-advisory path, the DOCTOR verdict (or
+   DOCTOR-REPORT SKIP) line + report path, and the recommended next command.
 
 3. If the script exits non-zero, report the cause plainly and stop:
    - exit 2 = refused (this looks like the canonical AAI repo; use normal git, or `--force`)

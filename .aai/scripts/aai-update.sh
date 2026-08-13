@@ -154,6 +154,22 @@ if [[ -n "$latest_conflict" ]]; then
   echo "- ⚠ Conflict advisory: ${latest_conflict#$TARGET/} — review before committing."
 fi
 
+# Post-update doctor field report (CHANGE-0137). Thin guarded postamble: the
+# whole behavior (config dial, doctor spawn + timeout, provenance, retention,
+# one-line emission) lives in the TARGET's update-doctor-report.mjs — this
+# section only locates node + the helper and degrades to a named SKIP line.
+# It can never change this script's exit code (every arm ends in echo), and
+# it never runs on --dry-run (that path exited above).
+echo
+echo "## Doctor field report"
+if ! command -v node >/dev/null 2>&1; then
+  echo "DOCTOR-REPORT SKIP node missing - update unaffected"
+elif [[ ! -f "$TARGET/.aai/scripts/update-doctor-report.mjs" ]]; then
+  echo "DOCTOR-REPORT SKIP helper missing - update unaffected"
+else
+  node "$TARGET/.aai/scripts/update-doctor-report.mjs" --root "$TARGET" || echo "DOCTOR-REPORT SKIP helper crashed - update unaffected"
+fi
+
 echo
 echo "## Next"
 echo "- Review the diff (git diff), then commit manually (this tool never auto-commits)."

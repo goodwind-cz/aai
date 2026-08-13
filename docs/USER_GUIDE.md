@@ -249,6 +249,17 @@ AAI uses two different classes of documentation:
 - `/aai-doctor` to verify the environment
 - `/aai-test-skills` to verify skill health
 
+**Doctor field report:** every successful (non-dry-run) update ends by running
+the freshly vendored doctor and writing a provenance-stamped doctor field report
+to `docs/ai/reports/doctor-<UTC>-<machine>.md` (runtime-ignored — it never
+dirties your tree; newest 10 kept). The update tail prints one line with the
+DOCTOR verdict and the report path. The loop: update → report →
+**attach that report file when filing an issue** — it tells maintainers exactly what your
+machine looked like, on platforms CI never covers. Opt out with
+`post_update_doctor: off` in `docs/ai/update-config.yaml` (you get a named
+skip line, never silence); any failure in this step degrades to one named
+`DOCTOR-REPORT SKIP` line and never fails the update itself.
+
 **Note:**
 - For private upstream repos, prefer authenticated `gh repo clone` or an authenticated git remote/SSH URL
 
@@ -2183,6 +2194,12 @@ read its gate warning) to see which section is missing.
 `/aai-doctor` (`node .aai/scripts/aai-doctor.mjs`) is the AAI environment health check — a deterministic, zero-dependency script that reports one `PASS`/`WARN`/`FAIL`/`SKIP` line per category plus an overall verdict. The original 13 categories cover core files, role prompts, skills, knowledge files, `STATE.yaml` health, telemetry, git status, hooks, the RFC-0001 migration matrix, docs hygiene and vendored-layer drift.
 
 [Product doc](product/aai-doctor.md) · [Spec](specs/SPEC-0122-spec-doctor-win-selftest.md)
+
+### `/aai-update` refreshes the vendored AAI layer and ends with a doctor field report
+
+`/aai-update` is the one-command refresh of a project's vendored AAI layer: it materializes the canonical AAI repository's `main` (or a chosen ref), runs the layer sync into the current project, and prints concise post-sync evidence — changed files, the updated AAI pin, and any conflict advisory. It never commits; the user reviews the diff and commits manually.
+
+[Product doc](product/aai-update.md) · [Spec](specs/SPEC-0124-spec-update-doctor-field-report.md)
 
 ### Windows test wrapper stops lying about timeouts it never caused
 

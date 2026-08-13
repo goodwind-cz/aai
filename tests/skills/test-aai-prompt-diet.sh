@@ -413,6 +413,14 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# -7144 (true-up: update-doctor-field-report added a +66 B itemized entry for
+# the SKILL_UPDATE.prompt.md step 2 relay clause — the agent surfaces the
+# DOCTOR verdict (or DOCTOR-REPORT SKIP) line + report path in the short
+# update report (CHANGE-0137 / spec-update-doctor-field-report Spec-AC-05);
+# the update-doctor-report.mjs engine and both update-script postambles live
+# outside the .aai/*.prompt.md glob, so they carry no ledger cost; measured
+# 2949 -> 3015 B, inside the spec's 120 B budget, credited 1:1 so headroom
+# stays 1150/2048, over the prior
 # -7210 (true-up: doctor-win-selftest-f8-remediation added a +216 B itemized
 # entry for the CHANGE-0135 validation F8 fix — .aai/SKILL_DOCTOR.prompt.md
 # said "The 13 health-check categories" and listed only CAT-01..13 after the
@@ -543,15 +551,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -7210 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -7210)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -7144 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -7144)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -7210 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -7144 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

@@ -643,6 +643,9 @@ suites:
     globs:
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
+      # CHANGE-0137: the post-update doctor field report helper is pinned by
+      # this suite's 0137-TEST-001..012 rows — an edit to it must select it.
+      - .aai/scripts/update-doctor-report.mjs
       - .claude/skills/aai-update/**
       - .codex/skills/aai-update/**
       - .gemini/skills/aai-update/**

@@ -57,6 +57,11 @@ node .aai/scripts/aai-doctor.mjs --json
 node .aai/scripts/aai-doctor.mjs --strict
 ```
 
+You rarely need to run it by hand after an update: every successful
+`/aai-update` runs this doctor automatically and persists a provenance-stamped
+**doctor field report** under `docs/ai/reports/` — attach that file when
+filing an issue (see docs/product/aai-update.md).
+
 No flags are required. `--json` prints one structured document instead of
 the text report — CAT-14/CAT-15/CAT-16 each carry an extra `detail` object
 with the full self-test/environment/CLI data. Detail objects appear under
