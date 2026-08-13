@@ -23,12 +23,17 @@ links:
   Copilot/Cursor/Zed (irrelevant to a factory that owns its own dispatch);
   their opinionated architecture articles (library-first, max 3 projects,
   CLI text-in/text-out) — those are product dogma, not transferable rules.
-- NOT INGESTED (honest gap): the README's video overview
-  <https://www.youtube.com/watch?v=a9eR1xsfvHg>. WebFetch returned only the
-  YouTube page footer — no title, description, chapters or transcript. No
-  claim in this document derives from the video. Re-open this research if
-  the video is later summarized by a human or a transcript becomes
-  reachable.
+- PARTIALLY INGESTED (honest boundary): the README's video overview
+  <https://www.youtube.com/watch?v=a9eR1xsfvHg> — "The ONLY guide you'll
+  need for GitHub Spec Kit" by Den Delimarsky (@DenDev), a spec-kit
+  maintainer. The video ITSELF was not watched: WebFetch returns only the
+  YouTube page shell, the public timedtext caption endpoint returns empty,
+  and no downloader (yt-dlp / youtube-dl) exists on this machine. Only the
+  oEmbed metadata above was retrieved. As a substitute, the same author's
+  long-form written treatment was read (see F8); den.dev returned HTTP 403,
+  so the Microsoft Developer Blog copy was used. No claim in this document
+  is attributed to the video. To close the gap: a human summary, or install
+  yt-dlp and pull the auto-captions.
 
 ## Success Criteria
 - A ranked, evidence-backed list of mechanisms worth adopting, each with a
@@ -144,6 +149,35 @@ worth borrowing verbatim as review language.
 - #641 deferring a suggestion for later review with no place to put it —
   the direct trigger for CHANGE-0142; measured locally as 1 typed
   `follow_up` entry against 14 prose FOLLOW-UP clauses in 11 entries.
+
+### F8 — The maintainer's own framing (written substitute for the video)
+Source: Den Delimarsky, "Diving Into Spec-Driven Development With GitHub
+Spec Kit", Microsoft Developer Blog. Distinctive claims worth keeping:
+- *"Code is inherently a binding artifact — once you write an
+  implementation, it's very hard to decouple from it."* Left unspecified,
+  *"the codebase becomes the de-facto specification — a collection of
+  seemingly disjoint components that can work together but are hard to
+  maintain, evolve, and debug."*
+- SDD is explicitly *"not about writing exhaustive, dry requirements
+  documents that nobody reads"* and *"not about waterfall planning"*; specs
+  are *"living documents that evolve alongside your code"* and *"active
+  tools that help you think through edge cases, coordinate across teams,
+  and onboard new people."*
+- Honest self-assessment: the toolkit is *"an experiment"* with *"a lot of
+  questions that we still want to answer."*
+- Practice note: *"having a very detailed first prompt will produce a much
+  better specification"* — quality is front-loaded into the human's opening
+  statement.
+- **Greenfield bias, stated by omission**: the piece addresses bootstrapping
+  new projects and does not cover applying Spec Kit to an existing codebase.
+
+Consequence for us: their tool is greenfield-first, while this factory is
+brownfield-native — it runs against a live repo of 344 docs with its own
+history, telemetry and gates. That difference explains most of the delta
+found in F1-F7: they optimize the first mile (get a good spec out of a vague
+prompt), we optimize the long tail (keep hundreds of artifacts honest as
+they age). Their front-loading insight still lands on us as F2: the cheapest
+place to catch a bad scope is the intake sentence, not the review.
 
 ## Recommendations
 1. **Typed follow-up registry** — adopted, in flight as CHANGE-0142.

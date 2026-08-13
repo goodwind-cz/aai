@@ -829,6 +829,11 @@ test_026_role_consumption_backcompat() {
 JSONL
   write_closed_event "$d/docs/ai/EVENTS.jsonl" "SPARSE-A" "2026-07-06T00:00:00Z"
   write_closed_event "$d/docs/ai/EVENTS.jsonl" "SPARSE-B" "2026-07-13T00:00:00Z"
+  # An EMPTY-but-present decisions ledger (CHANGE-0142): the follow-up
+  # registry folds to nothing and contributes NO note, so this pin keeps
+  # measuring what it was written to measure — the pre-change bytes — instead
+  # of drifting into an assertion about the new block's degrade wording.
+  : > "$d/docs/ai/decisions.jsonl"
   run_report "$d"
   [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
   DJ="$d/docs/ai/factory-report-data.json"
@@ -856,9 +861,16 @@ JSONL
     const sumUnmarked = rc.roles.reduce((a, r) => a + r.runs_unmarked, 0);
     if (sumUnmarked !== 5) errors.push(`sum of runs_unmarked must be 5 (total agent runs), got ${sumUnmarked}`);
 
-    // --- byte-stability arm: data.json, minus the new key, generatedAt
+    // --- new-key arm (CHANGE-0142): follow_ups present, empty, honest nulls
+    if (!model.follow_ups) { console.log("FAIL:new-key-missing:follow_ups absent"); process.exit(1); }
+    if (model.follow_ups.open_count !== 0 || model.follow_ups.oldest_age_days !== null || model.follow_ups.items.length !== 0) {
+      errors.push(`follow_ups must be empty with a null oldest age on an empty ledger: ${JSON.stringify(model.follow_ups)}`);
+    }
+
+    // --- byte-stability arm: data.json, minus the new keys, generatedAt
     // normalized, must equal the golden byte-for-byte ---
     delete model.cost.role_consumption;
+    delete model.follow_ups;
     model.generatedAt = PLACEHOLDER;
     const normalizedData = JSON.stringify(model, null, 2) + "\n";
     const goldenData = fs.readFileSync(goldenDataPath, "utf8");
@@ -873,16 +885,18 @@ JSONL
     let html = fs.readFileSync(htmlPath, "utf8");
     const rawModel = JSON.parse(fs.readFileSync(dataPath, "utf8")); // un-mutated: real generatedAt
     html = html.split(rawModel.generatedAt).join(PLACEHOLDER);
-    const startTag = "<section id=\"role-consumption\">";
-    const start = html.indexOf(startTag);
-    if (start === -1) { console.log("FAIL:section-missing:no <section id=\"role-consumption\"> found"); process.exit(1); }
     const closeTag = "</section>";
-    const end = html.indexOf(closeTag, start);
-    if (end === -1) { console.log("FAIL:section-not-closed"); process.exit(1); }
-    let after = end + closeTag.length;
-    if (html.slice(after, after + 2) === "\n\n") after += 2;
-    else if (html.slice(after, after + 1) === "\n") after += 1;
-    const excisedHtml = html.slice(0, start) + html.slice(after);
+    for (const startTag of ["<section id=\"role-consumption\">", "<section id=\"follow-ups\">"]) {
+      const start = html.indexOf(startTag);
+      if (start === -1) { console.log(`FAIL:section-missing:no ${startTag} found`); process.exit(1); }
+      const end = html.indexOf(closeTag, start);
+      if (end === -1) { console.log(`FAIL:section-not-closed:${startTag}`); process.exit(1); }
+      let after = end + closeTag.length;
+      if (html.slice(after, after + 2) === "\n\n") after += 2;
+      else if (html.slice(after, after + 1) === "\n") after += 1;
+      html = html.slice(0, start) + html.slice(after);
+    }
+    const excisedHtml = html;
     const goldenHtml = fs.readFileSync(goldenHtmlPath, "utf8");
     if (excisedHtml !== goldenHtml) {
       const a = excisedHtml.split("\n"), b = goldenHtml.split("\n");
