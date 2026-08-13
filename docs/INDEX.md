@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T20:09:54.918Z
+Generated: 2026-08-13T20:30:52.160Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0128 | specs | implementing | 4 done | docs/specs/SPEC-0128-spec-changelog-payload-hardening.md |
 
 ## Canonical layer (0)
 
@@ -47,7 +46,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (314)
+## Done (316)
 
 | ID | Type | Path |
 |---|---|---|
@@ -191,6 +190,7 @@ _None._
 | CHANGE-0138 | issues | docs/issues/CHANGE-0138-doctor-honesty-batch.md |
 | CHANGE-0139 | issues | docs/issues/CHANGE-0139-canonical-test-invocation.md |
 | CHANGE-0140 | issues | docs/issues/CHANGE-0140-reporting-docs-true-up.md |
+| CHANGE-0141 | issues | docs/issues/CHANGE-0141-changelog-payload-hardening.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -364,13 +364,12 @@ _None._
 | SPEC-0125 | specs | docs/specs/SPEC-0125-spec-doctor-honesty-batch.md |
 | SPEC-0126 | specs | docs/specs/SPEC-0126-spec-canonical-test-invocation.md |
 | SPEC-0127 | specs | docs/specs/SPEC-0127-spec-reporting-docs-true-up.md |
+| SPEC-0128 | specs | docs/specs/SPEC-0128-spec-changelog-payload-hardening.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0141 | issues | docs/issues/CHANGE-0141-changelog-payload-hardening.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

@@ -2,10 +2,15 @@
 id: changelog-payload-hardening
 number: 141
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-release
+links:
+  commits:
+    - a46aedb
+  pr:
+    - 256
 ---
 
 # Change — released-CHANGELOG class pin + dashboard payload-escaping fix

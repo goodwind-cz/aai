@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-08-13T20:02:33.093Z",
+  "generatedAt": "2026-08-13T20:30:42.757Z",
   "project": "aai",
   "counts": {
-    "delivered": 185,
-    "in_progress": 2,
+    "delivered": 186,
+    "in_progress": 1,
     "releases": 1,
-    "tokens_total": 35419704
+    "tokens_total": 35966108
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -23,9 +23,16 @@
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "pass",
+    "validation_status": "not_run",
     "review_status": "not_run",
     "ticks": [
+      {
+        "tick": 90,
+        "role": "code_review",
+        "scope": "changelog-payload-hardening",
+        "duration_seconds": 148,
+        "harness_version": "unknown"
+      },
       {
         "tick": 89,
         "role": "validation",
@@ -53,30 +60,10 @@
         "scope": "reporting-docs-true-up",
         "duration_seconds": 135,
         "harness_version": "unknown"
-      },
-      {
-        "tick": 85,
-        "role": "validation",
-        "scope": "reporting-docs-true-up",
-        "duration_seconds": 491,
-        "harness_version": "unknown"
       }
     ]
   },
   "in_progress": [
-    {
-      "ref": "changelog-payload-hardening",
-      "title": "Change — released-CHANGELOG class pin + dashboard payload-escaping fix",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0141-changelog-payload-hardening.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-DRAFT-spec-changelog-payload-hardening.md",
-      "validation": null,
-      "review": null
-    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
@@ -169,6 +156,19 @@
       "spec": "docs/specs/SPEC-0127-spec-reporting-docs-true-up.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260813T184301Z-CHANGE-0140-reporting-docs-true-up.md"
+    },
+    {
+      "ref": "changelog-payload-hardening",
+      "title": "Change — released-CHANGELOG class pin + dashboard payload-escaping fix",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0141-changelog-payload-hardening.md",
+      "closed_on": "2026-08-13",
+      "agent_minutes": 36,
+      "token_total": 546404,
+      "spec": "docs/specs/SPEC-0128-spec-changelog-payload-hardening.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260813T200548Z-CHANGE-0141-changelog-payload-hardening.md"
     },
     {
       "ref": "validation-cost-calibration",
@@ -2581,6 +2581,19 @@
           "spec": "docs/specs/SPEC-0127-spec-reporting-docs-true-up.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260813T184301Z-CHANGE-0140-reporting-docs-true-up.md"
+        },
+        {
+          "ref": "changelog-payload-hardening",
+          "title": "Change — released-CHANGELOG class pin + dashboard payload-escaping fix",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0141-changelog-payload-hardening.md",
+          "closed_on": "2026-08-13",
+          "agent_minutes": 36,
+          "token_total": 546404,
+          "spec": "docs/specs/SPEC-0128-spec-changelog-payload-hardening.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260813T200548Z-CHANGE-0141-changelog-payload-hardening.md"
         },
         {
           "ref": "validation-cost-calibration",

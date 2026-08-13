@@ -2,13 +2,15 @@
 id: spec-changelog-payload-hardening
 type: spec
 number: 128
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0141-changelog-payload-hardening.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 256
+  commits:
+    - a46aedb
 ---
 
 # Spec — released-CHANGELOG class pin, dashboard payload embed hardening, link-form drift extraction
