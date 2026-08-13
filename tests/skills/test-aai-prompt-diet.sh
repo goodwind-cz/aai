@@ -413,6 +413,16 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# -6642 (true-up: canonical-test-invocation added a +502 B itemized entry —
+# .aai/AGENTS.md '### Canonical test invocation' echo subsection (+472 B
+# measured, outside the live glob, credited manually at the exact delta per
+# the friction-shadow-capture-wiring precedent) + six in-glob prompt
+# invocation mentions gaining the canonical 'bash ' prefix (+5 B each =
+# +30 B measured); the contract BODY lives on non-ledgered surfaces
+# (TECHNOLOGY.md, TECHNOLOGY_TEMPLATE.md, USER_GUIDE, product doc, wrapper
+# headers) and the doctor probe is script-only (CHANGE-0139 /
+# spec-canonical-test-invocation Spec-AC-04); headroom 1150 -> 1622 within
+# the 2048 cap, over the prior
 # -7144 (true-up: update-doctor-field-report added a +66 B itemized entry for
 # the SKILL_UPDATE.prompt.md step 2 relay clause — the agent surfaces the
 # DOCTOR verdict (or DOCTOR-REPORT SKIP) line + report path in the short
@@ -551,15 +561,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -7144 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -7144)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -6642 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -6642)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -7144 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -6642 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

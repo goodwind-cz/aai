@@ -82,6 +82,17 @@
 
 ## Testing
 
+- Test invocation (contract, CHANGE-0139): ONE canonical, allowlist-stable
+  command shape per platform, run from the repository root:
+
+  - Windows: `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <command...>`
+    (`pwsh -NoProfile -File ...` runs identically but is non-canonical and is
+    not covered by the two approval-allowlist prefixes)
+  - POSIX (macOS/Linux/WSL shells): `bash .aai/scripts/aai-run-tests.sh <command...>`
+
+  Run it from the repository root; when elsewhere, cd to the repo root first - never rewrite the script path relative to the current directory.
+  Never invoke bash.exe, sh, or wsl directly for test runs, and never via CWD-relative paths from a subdirectory - the dispatcher owns interpreter routing.
+  The fixed repo-root literal prefix is what approval allowlists match - a stable command shape is approved once, a varying one re-prompts forever.
 - Unit: bash test suites in `tests/skills/` (bash-3.2 compatible), executed
   through the `.aai/scripts/aai-run-tests.sh` process-group wrapper
   (SPEC-0009 — killable process group, inline timeout watchdog)

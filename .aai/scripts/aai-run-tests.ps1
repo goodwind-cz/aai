@@ -67,8 +67,15 @@
 # only a direct invocation (`pwsh -File ...`) runs Main, via the
 # `$MyInvocation.InvocationName -ne '.'` guard at the bottom.
 #
-# Usage:
-#   pwsh -File .aai/scripts/aai-run-tests.ps1 <command> [args...]
+# Usage (canonical invocation, CHANGE-0139 - run from the repository root):
+#   powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <command> [args...]
+#
+#   powershell.exe exists on every Windows host (pwsh -NoProfile -File ...
+#   runs identically but is non-canonical and not covered by the approval
+#   allowlist). Run it from the repository root; when elsewhere, cd to the
+#   repo root first - never rewrite the script path relative to the current
+#   directory, and never invoke bash.exe, sh, or wsl directly for test runs -
+#   this dispatcher owns interpreter routing.
 #
 # Environment:
 #   AAI_TEST_TIMEOUT  timeout in seconds (default 300; non-integer or <=0 -> 300;

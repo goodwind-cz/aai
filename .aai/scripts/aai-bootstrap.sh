@@ -106,8 +106,10 @@ add_unique() {
 # Prefix a detected test command with the leak-safe process-group wrapper so a
 # generated aai-test-* skill can never orphan a hung test tree (SPEC-0009). The
 # wrapper is vendored under .aai/scripts/ by aai-sync, so the path resolves in
-# the target project.
-RUN_TESTS_WRAPPER=".aai/scripts/aai-run-tests.sh"
+# the target project. The bash prefix is the CHANGE-0139 canonical POSIX
+# shape — generated skills must emit the allowlist-stable literal, never the
+# bare path (PR #254 field class: unstable shapes re-trigger approval).
+RUN_TESTS_WRAPPER="bash .aai/scripts/aai-run-tests.sh"
 wrap_test_command() {
   printf '%s %s' "$RUN_TESTS_WRAPPER" "$1"
 }

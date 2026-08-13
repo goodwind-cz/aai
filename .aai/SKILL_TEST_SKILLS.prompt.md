@@ -12,7 +12,7 @@ bash tests/skills/test-framework.sh --skill aai-share
 bash tests/skills/test-framework.sh --fix           # accepted but a NO-OP today (see step 7)
 bash tests/skills/test-framework.sh --verbose
 ```
-Prefer `.aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh ...`
+Prefer `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh ...`
 when running under a loop/orchestrator — it wraps the same invocation in a
 killable process group with a timeout watchdog (SPEC-0009), so a hung suite
 cannot strand the run.

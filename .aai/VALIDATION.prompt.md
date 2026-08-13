@@ -156,7 +156,7 @@ PROCESS
       LEAK-SAFE EXECUTION (SPEC-0009): capture the step-start epoch —
       `AAI_REAP_STEP_START_EPOCH=$(date +%s)` — BEFORE launching the test
       command, then run every discovered test command THROUGH the
-      process-group wrapper `.aai/scripts/aai-run-tests.sh <cmd>` — never
+      process-group wrapper `bash .aai/scripts/aai-run-tests.sh <cmd>` — never
       invoke `vitest`/`tsc`/dev-servers directly. After the test step
       completes, reap this-workspace survivors on the step boundary with the
       workspace-scoped reaper `.aai/scripts/aai-reap-tests.sh`, passing it that

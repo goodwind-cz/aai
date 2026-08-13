@@ -4,8 +4,14 @@
 # group, with an inline timeout watchdog, guaranteeing that no descendant of the
 # command can outlive this call (SPEC-0009 / ISSUE-0002 fix #1).
 #
-# Usage:
-#   .aai/scripts/aai-run-tests.sh <command> [args...]
+# Usage (canonical invocation, CHANGE-0139 - run from the repository root):
+#   bash .aai/scripts/aai-run-tests.sh <command> [args...]
+#
+#   Run it from the repository root; when elsewhere, cd to the repo root
+#   first - never rewrite the script path relative to the current directory,
+#   and never invoke bash.exe, sh, or wsl directly for test runs - the
+#   dispatcher layer owns interpreter routing (Windows enters through
+#   aai-run-tests.ps1, which delegates here).
 #
 # Contract (SPEC-0009 D2):
 #   - Starts a NEW process group (set -m) so the command and ALL its descendants

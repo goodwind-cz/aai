@@ -11,6 +11,32 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — docs(contract): canonical test invocation — one allowlist-stable command shape per platform, wrapper never bypassed (CHANGE-0139) [L1]
+
+- Field evidence (downstream Codex on Windows) showed an agent bypassing the
+  vendored dispatcher with `& 'C:\Program Files\Git\bin\bash.exe' ..\..\...`
+  — no environment canonicalization, no watchdog, no exit contract, and a
+  fresh approval dialog on every call because the command shape varied. The
+  invocation shape is now a stated CONTRACT: Windows
+  `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <command...>`,
+  POSIX `bash .aai/scripts/aai-run-tests.sh <command...>`, always from the
+  repository root (cd there first — never relativize the script path), and
+  never direct `bash.exe`/`sh`/`wsl` for test runs.
+- The contract lives verbatim on `docs/TECHNOLOGY.md` (authoritative),
+  `.aai/templates/TECHNOLOGY_TEMPLATE.md` (downstream skeleton),
+  `.aai/AGENTS.md` (agent-facing echo), both wrapper Usage headers
+  (comment-only — the `.ps1` header's `pwsh -File` guidance is aligned to the
+  5.1-safe `powershell` shape), the product doc, and six prompt invocation
+  mentions plus `DYNAMIC_SKILLS.md` gain the `bash ` prefix.
+- Operators allowlist exactly two stable prefixes once
+  (`docs/USER_GUIDE.md` "Approval allowlist: two stable prefixes").
+- aai-doctor CAT-16 detail gains `canonical_invocation` — a tri-state probe
+  (`carried: true / false / 'UNKNOWN'` with named reasons and the
+  `/aai-update` remedy) over the two prefix literals in `.aai/AGENTS.md`;
+  CAT-16 stays PASS-only, detail under `--json` only, no new exit codes,
+  zero network. Wrapper BEHAVIOR is unchanged (parity pins and both suites
+  prove it); the prompt-diet ledger credits the measured corpus delta.
+
 ## [v2026.08.13] — fix(doctor/update): honesty batch — block-anchored codex exec probe, CLI tri-state, BOM parity, named config/prune degrades (CHANGE-0138) [L1]
 
 - CAT-16's codex `exec` observation now parses `codex --help` anchored to

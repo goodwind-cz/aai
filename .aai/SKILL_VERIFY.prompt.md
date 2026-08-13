@@ -25,7 +25,7 @@ IDENTIFY → RUN → READ → VERIFY → CLAIM
 1. IDENTIFY the specific claim about to be made — which test, which build,
    which behavior, on which files.
 2. RUN the command that can falsify it. For test suites, run through
-   `.aai/scripts/aai-run-tests.sh <cmd>` (LEARNED rule) — never invoke the
+   `bash .aai/scripts/aai-run-tests.sh <cmd>` (LEARNED rule) — never invoke the
    test runner directly.
 3. READ the full output, not just the exit-code banner and not just the
    tail.

@@ -42,6 +42,14 @@
 - State / data fetching:
 
 ## Testing
+- Test invocation (contract): ONE canonical, allowlist-stable command shape
+  per platform, run from the repository root (the wrapper is vendored to
+  every AAI project):
+  - Windows: `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <command...>`
+  - POSIX: `bash .aai/scripts/aai-run-tests.sh <command...>`
+
+  Run it from the repository root; when elsewhere, cd to the repo root first - never rewrite the script path relative to the current directory.
+  Never invoke bash.exe, sh, or wsl directly for test runs, and never via CWD-relative paths from a subdirectory - the dispatcher owns interpreter routing.
 - Unit:
 - Integration:
 - E2E:

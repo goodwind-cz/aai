@@ -30,7 +30,7 @@ not explicitly ask for:
 
 ## Behavior-unchanged rule
 A deslop pass must be a NO-OP for behavior. After edits, run the full test
-suite through `.aai/scripts/aai-run-tests.sh <project test command>` (LEARNED
+suite through `bash .aai/scripts/aai-run-tests.sh <project test command>` (LEARNED
 rule — never invoke the runner directly) and it must pass exactly as before
 the pass. If any test changes outcome, the pass removed load-bearing code:
 revert that edit — do not "fix" the test. Deleting a test is never deslop.
