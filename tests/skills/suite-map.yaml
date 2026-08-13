@@ -99,6 +99,18 @@ suites:
       - .aai/templates/SPEC_TEMPLATE.md
       - .aai/AGENTS.md
 
+  aai-dashboard:
+    globs:
+      - .aai/scripts/generate-dashboard.mjs
+      - docs/dashboard-template.html
+      - .aai/SKILL_DASHBOARD.prompt.md
+      - .claude/skills/aai-dashboard/**
+      - .codex/skills/aai-dashboard/**
+      - .gemini/skills/aai-dashboard/**
+      - docs/product/aai-dashboard.md
+      - docs/ai/dashboard.html
+      - docs/ai/dashboard-data.json
+
   aai-debug-gate:
     globs:
       - .aai/SKILL_DEBUG.prompt.md
@@ -649,6 +661,12 @@ suites:
       - .claude/skills/aai-update/**
       - .codex/skills/aai-update/**
       - .gemini/skills/aai-update/**
+
+  aai-userguide-drift:
+    globs:
+      - docs/USER_GUIDE.md
+      - .claude/skills/**
+      - .aai/scripts/generate-userguide-rollup.mjs
 
   aai-userguide-rollup:
     globs:

@@ -52,13 +52,18 @@ in `generate-dashboard.mjs`) — a file may mix both.
    per line: `{ timestamp, skill, operation, tokens: {input, output},
    duration_ms, status, metadata: {worktree, ...} }`.
 
-**Tokens are mostly null.** Real `agent_runs[]` entries almost always carry
-`tokens_in: null, tokens_out: null` — harness usage is captured as an
-undecomposed `usage_total_tokens=<N>` note on the run, not split into
-in/out fields (see `.aai/SUBAGENT_PROTOCOL.md` "Harness-reported usage capture").
-The dashboard's token totals and per-skill token charts will read low or zero
-against real METRICS.jsonl data until that note text is parsed into a
-structured field — this is a known gap, not a bug to chase per-run.
+**Note-carried usage is parsed.** Real `agent_runs[]` entries almost always
+carry `tokens_in: null, tokens_out: null` — harness usage is captured as an
+undecomposed `usage_total_tokens=<N>` note on the run (see
+`.aai/SUBAGENT_PROTOCOL.md` "Harness-reported usage capture"). The script
+parses that marker via the shared grammar in `.aai/scripts/lib/usage-note.mjs`
+(imported, never forked). Precedence per run: explicit finite tokens_in/out
+win; otherwise the note marker's total; otherwise no contribution. A marker is
+only ever a TOTAL — it is reported as the `total` series/field and never split
+into fabricated in/out numbers. Chart sections whose source data is absent
+across the whole dataset (tdd/worktree/publish on typical ledgers, or tokens
+when no run carries any token signal) render a named
+"No data recorded in this dataset" state instead of an empty axis.
 
 ## Output
 - `docs/ai/dashboard.html` — interactive HTML (skipped with `--data-only`)
@@ -72,6 +77,7 @@ structured field — this is a known gap, not a bug to chase per-run.
 | `Template not found` | `docs/dashboard-template.html` missing; run `/aai-update` |
 | `unknown flag: --x` | Check the Usage block above; the script exits 2, nothing is written |
 | Dashboard exists but is empty | All lines fell outside `--from`/`--to`/`--skill` filters |
-| Token numbers look wrong | Expected — see "Tokens are mostly null" above |
+| Token total is 0 | No run in range carries tokens_in/out or a valid `usage_total_tokens=<N>` note marker — see "Note-carried usage is parsed" above |
+| A panel says "No data recorded in this dataset" | Expected — that section's source data is absent across the dataset, the named no-data state replaces the chart |
 
 BEGIN NOW.

@@ -291,6 +291,20 @@
       color: var(--text-muted);
     }
 
+    /* Named no-data state (CHANGE-0140 D4): rendered by the generator in
+       place of a canvas when a section's source data is absent across the
+       whole dataset — never a bare empty axis. */
+    .no-data {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muted);
+      font-size: 16px;
+      border: 2px dashed var(--border-color);
+      border-radius: 8px;
+    }
+
     .spinner {
       border: 4px solid var(--border-color);
       border-top: 4px solid var(--accent-primary);
@@ -350,7 +364,7 @@
     <div class="chart-section">
       <h2>Token Usage Over Time</h2>
       <div class="chart-container">
-        <canvas id="tokenChart"></canvas>
+        {{PANEL_TOKENS}}
       </div>
     </div>
 
@@ -358,14 +372,14 @@
       <div class="chart-section">
         <h2>TDD Cycle Duration</h2>
         <div class="chart-container">
-          <canvas id="tddChart"></canvas>
+          {{PANEL_TDD}}
         </div>
       </div>
 
       <div class="chart-section">
         <h2>Worktree Distribution</h2>
         <div class="chart-container">
-          <canvas id="worktreeChart"></canvas>
+          {{PANEL_WORKTREE}}
         </div>
       </div>
     </div>
@@ -394,7 +408,7 @@
     <div class="chart-section">
       <h2>Publishing Timeline</h2>
       <div class="chart-container">
-        <canvas id="publishChart"></canvas>
+        {{PANEL_PUBLISH}}
       </div>
     </div>
 
@@ -431,16 +445,22 @@
       document.getElementById('period').textContent = data.summary.period || 'All time';
       document.getElementById('generated-at').textContent = `Generated: ${new Date(data.generatedAt).toLocaleString()}`;
 
+      // Each chart renders only when its canvas exists — a section whose
+      // whole-dataset source is absent carries the generator's named
+      // no-data element in place of the canvas (CHANGE-0140 D4).
+
       // Token usage over time chart
-      renderTokenChart(data.tokensByTime);
+      if (document.getElementById('tokenChart')) {
+        renderTokenChart(data.tokensByTime);
+      }
 
       // TDD cycle chart
-      if (data.tddStats) {
+      if (data.tddStats && document.getElementById('tddChart')) {
         renderTDDChart(data.tddStats);
       }
 
       // Worktree distribution
-      if (data.worktreeStats) {
+      if (data.worktreeStats && document.getElementById('worktreeChart')) {
         renderWorktreeChart(data.worktreeStats);
       }
 
@@ -449,7 +469,7 @@
       renderSkillTable(data.skillStats);
 
       // Publishing timeline
-      if (data.publishStats) {
+      if (data.publishStats && document.getElementById('publishChart')) {
         renderPublishChart(data.publishStats);
       }
     }
@@ -459,12 +479,27 @@
       const labels = Object.keys(tokensByTime).sort();
       const inputData = labels.map(date => tokensByTime[date].input);
       const outputData = labels.map(date => tokensByTime[date].output);
+      // Total includes note-carried undecomposed usage (usage_total_tokens=<N>)
+      // that has no in/out split; falls back to input+output for legacy data
+      // objects generated before the `total` field existed.
+      const totalData = labels.map(date => {
+        const t = tokensByTime[date];
+        return t.total != null ? t.total : t.input + t.output;
+      });
 
       new Chart(ctx, {
         type: 'line',
         data: {
           labels: labels,
           datasets: [
+            {
+              label: 'Total Tokens',
+              data: totalData,
+              borderColor: '#FF9800',
+              backgroundColor: 'rgba(255, 152, 0, 0.1)',
+              tension: 0.4,
+              fill: true
+            },
             {
               label: 'Input Tokens',
               data: inputData,

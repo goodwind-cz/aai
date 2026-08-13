@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T17:47:25.630Z
+Generated: 2026-08-13T18:05:59.714Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,16 +12,17 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-reporting-docs-true-up | specs | implementing | 6 planned | docs/specs/SPEC-DRAFT-spec-reporting-docs-true-up.md |
+| spec-reporting-docs-true-up | specs | implementing | 6 done | docs/specs/SPEC-DRAFT-spec-reporting-docs-true-up.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Product (23)
+## Product (24)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
+| aai-dashboard | aai-dashboard | 1 | docs/product/aai-dashboard.md |
 | aai-doctor | aai-doctor | 8 | docs/product/aai-doctor.md |
 | aai-update | aai-update | 5 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |

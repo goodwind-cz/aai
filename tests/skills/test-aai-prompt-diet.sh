@@ -413,6 +413,15 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# -6044 (true-up: reporting-docs-true-up added a +598 B itemized entry —
+# .aai/SKILL_DASHBOARD.prompt.md's stale 'Tokens are mostly null ... known
+# gap' caveat replaced by the truthful note-parse description (shared
+# usage-note.mjs grammar, D3 precedence, marker-as-TOTAL, named no-data
+# panel state) + two truthful troubleshooting rows; the generator/template/
+# product-doc/USER_GUIDE edits live outside the .aai/*.prompt.md glob, so
+# they carry no ledger cost (CHANGE-0140 / spec-reporting-docs-true-up
+# Spec-AC-05); measured 4157 -> 4755 B, credited 1:1 so headroom stays
+# 1622/2048, over the prior
 # -6642 (true-up: canonical-test-invocation added a +502 B itemized entry —
 # .aai/AGENTS.md '### Canonical test invocation' echo subsection (+472 B
 # measured, outside the live glob, credited manually at the exact delta per
@@ -561,15 +570,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -6642 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -6642)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -6044 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -6044)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -6642 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -6044 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
