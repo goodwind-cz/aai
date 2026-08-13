@@ -159,7 +159,26 @@ worth borrowing verbatim as review language.
    broader than the "add an override layer" framing this research started
    with. Must consider `aai-update`, `aai-sync`, PROFILES.yaml and the
    prompt-diet ledger.
-6. **Do not adopt**: their constitution articles (product dogma), the
+6. **Interactive CLI installer/configurator (OPTIONAL, owner-flagged
+   2026-08-13: "for less skilled users")** — their `specify init` is a
+   guided provisioning step; ours is a file copy plus tribal knowledge.
+   Verified: the settings a newcomer would want already exist and already
+   work — `docs/ai/update-config.yaml` carries `mode: notify|auto`
+   (CHANGE-0091, fired from the SessionStart hook as a side effect of normal
+   use), `throttle_hours`, and `post_update_doctor` (CHANGE-0137). Nothing
+   discovers them for you: you must know the keys exist and hand-edit YAML.
+   An `init`/`config` command would ask the few real questions (notify vs
+   auto update, throttle, post-update doctor, profile core vs extended,
+   which agent harnesses to provision) and write the answers.
+   Design constraints to carry into the RFC, non-negotiable in this repo:
+   the interactive path must be a thin layer over deterministic flags with a
+   non-interactive twin (`--yes` plus explicit flags), because CI, agents
+   and every test in tests/skills must never depend on a prompt; and it must
+   print exactly what it will write BEFORE writing, mirroring their
+   `info` shows exactly what `install` adds guarantee. Scope it as optional
+   UX on top of recommendation 5, never as a required entry point — the
+   existing non-interactive paths stay first-class.
+7. **Do not adopt**: their constitution articles (product dogma), the
    `tasks.md` artifact (STATE plus roles is richer), the checklist generator
    (fights prompt-diet discipline), and the "keep spec.md high-level, push
    detail into implementation-details/" split (our deterministic dispatch
