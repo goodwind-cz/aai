@@ -47,7 +47,9 @@ RFC-0001).
 - SKILL_DASHBOARD.prompt.md's "Tokens are mostly null ... known gap" caveat
   replaced by the truthful note-parse description (+598 B, diet-ledger entry,
   TEST-012 pin -6642 -> -6044); NEW docs/product/aai-dashboard.md product doc
-  (capability aai-dashboard); suite-map rows for both new suites. — docs(contract): canonical test invocation — one allowlist-stable command shape per platform, wrapper never bypassed (CHANGE-0139) [L1]
+  (capability aai-dashboard); suite-map rows for both new suites.
+
+## [v2026.08.13.2] — docs(contract): canonical test invocation — one allowlist-stable command shape per platform, wrapper never bypassed (CHANGE-0139) [L1]
 
 - Field evidence (downstream Codex on Windows) showed an agent bypassing the
   vendored dispatcher with `& 'C:\Program Files\Git\bin\bash.exe' ..\..\...`
