@@ -137,10 +137,21 @@ function Start-WslProbeProcess {
   # bare tokens (exit, <sentinel>) instead of one. `sh -c exit <sentinel>` then runs
   # a bare `exit` (no operand -> exits with the LAST status, usually 0) with
   # <sentinel> merely as $0 -- the sentinel exit code never comes back, so a
-  # WSL-usable host is wrongly judged unusable. Individually quoting each element
-  # before joining mirrors tests/skills/lib/pester-native-capture.ps1's
-  # Invoke-NativeCaptured, which hit and fixed the identical Start-Process footgun.
-  $argString = ($ArgumentList | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }) -join ' '
+  # WSL-usable host is wrongly judged unusable.
+  # BUT the quoting must be SELECTIVE (PR #251 run 31682243993, first
+  # functional-WSL CI leg): wsl.exe does NOT parse its command line with
+  # CommandLineToArgvW -- it matches flag tokens like -e/--exec against the
+  # RAW text including quote characters, so an all-quoted `"-e"` is not
+  # recognized as the exec flag, the whole tail runs through the default
+  # shell instead, and `-e` comes back 127 command-not-found (field evidence:
+  # direct `& wsl.exe -e sh -c "exit 42"` returned 42 while the all-quoted
+  # probe returned 127 in BOTH console and redirected-child contexts, ~200ms).
+  # Quote only elements that need it (spaces/quotes/empty) -- exactly the
+  # rule PowerShell's own native-call quoting applies, which is why the real
+  # delegation path (`& wsl.exe @Arguments` in Invoke-WslProcess) never hit this.
+  $argString = ($ArgumentList | ForEach-Object {
+      if ($_ -eq '' -or $_ -match '[\s"]') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ }
+    }) -join ' '
   $proc = Start-Process -FilePath 'wsl.exe' -ArgumentList $argString -NoNewWindow -PassThru `
     -RedirectStandardOutput $outFile -RedirectStandardError $errFile
   # 5.1 ExitCode-null footgun (PR #247 iter-4 field evidence): on Windows
@@ -482,9 +493,16 @@ function Get-EffectiveTimeoutSource {
 # ---- WSL launch path ------------------------------------------------------------
 
 function ConvertTo-WslPath {
+  # `-e` is load-bearing (PR #251 run 31683376326, first functional-WSL CI
+  # leg): without it the command runs through the distro's login SHELL,
+  # which eats the Windows path's backslashes before wslpath sees them —
+  # wslpath fails, the catch-all returns the RAW Windows path, and the
+  # delegation dies inside WSL with `env: 'D:\...': No such file or
+  # directory` (exit 127). With -e, wslpath receives the argv verbatim —
+  # the same invocation shape the ps1-quality WSL-leg control proves live.
   [CmdletBinding()] param([Parameter(Mandatory)][string]$WindowsPath)
   try {
-    $result = & wsl.exe wslpath -a $WindowsPath 2>$null
+    $result = & wsl.exe -e wslpath -a $WindowsPath 2>$null
     if ($LASTEXITCODE -eq 0 -and $result) { return ($result | Select-Object -First 1) }
   } catch {}
   return $WindowsPath

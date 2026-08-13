@@ -8,8 +8,10 @@ delivered_by:
   - ps1-wrapper-path-dup
   - CHANGE-0134
   - pester-on-windows-ci
+  - CHANGE-0136
+  - ps1-ci-platform-coverage
 spec: docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md
-updated: 2026-08-12
+updated: 2026-08-13
 ---
 
 # Windows test wrapper stops lying about timeouts it never caused
@@ -76,6 +78,29 @@ This is the fast-iteration path for a Windows debugging session: a defect
 that is unit-testable in the Pester suite now fails there, in the same job
 that already parse-checks every script, instead of only surfacing after a
 blind end-to-end iteration.
+
+The same workflow also runs as a weekly scheduled canary (Mondays 05:00
+UTC, CHANGE-0136): a failure on one of those scheduled runs means the
+GitHub runner image drifted (a Git Bash / Pester / pwsh / WSL update), not
+that any pull-request change broke something — the run name marks canary
+runs in the Actions list so the two are never confused.
+
+## What CI proves per platform (CHANGE-0136)
+
+- **Functional WSL, WSL1 only**: the `windows-wsl1` job installs a real
+  WSL1 Debian distribution on the runner and proves the wrapper's WSL
+  branch end-to-end — routing (`AAI-BRANCH: WSL`), the marker path
+  translated via `wslpath`, the timeout (124) and spawn-failure (125)
+  contracts, and the full Pester suite with WSL genuinely usable.
+  WSL1-coverage caveat: GitHub-hosted runners cannot run WSL2 at all (no
+  nested virtualization), so WSL2-specific failures — for example the
+  E_ACCESSDENIED class — remain field-only and are never claimed by CI.
+- **5.1-only hosts**: the `windows-5_1` job additionally proves the
+  prefer-pwsh-else-powershell fallbacks in a doctored child context where
+  `pwsh` is genuinely not resolvable (the common corporate shape: Windows
+  PowerShell 5.1 plus Git Bash, no pwsh). Nothing is uninstalled or renamed
+  on the host — only a child process's PATH is reduced, with control
+  assertions in both directions.
 
 ## Limits and non-goals
 

@@ -691,6 +691,10 @@ suites:
       - tests/skills/aai-win-dispatch.Tests.ps1
       - tests/skills/aai-update.Tests.ps1
       - tests/skills/lib/**
+      # CHANGE-0136: test_018/test_022/test_023 pin sentences in the product
+      # doc (canary, WSL1-vs-WSL2 caveat), so a doc-only edit must select
+      # this suite too.
+      - docs/product/windows-test-wrapper.md
 
   aai-worktree:
     globs:

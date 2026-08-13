@@ -186,6 +186,32 @@ Describe 'aai-run-tests.ps1' {
             Should -Invoke Stop-Process -Times 1 -Exactly -ParameterFilter { $Id -eq 8005 }
         }
 
+        It 'CHANGE-0136 field fix (PR #251 run 31683376326): ConvertTo-WslPath execs wslpath via -e, never through the login shell' {
+            # Without -e the distro shell eats the Windows path's backslashes
+            # before wslpath runs; the silent fallback then hands the raw
+            # Windows path to the delegation, which dies as 127 inside WSL.
+            # Structural pin on the function body — the call is a native
+            # invocation that cannot be mocked engine-independently.
+            (Get-Command ConvertTo-WslPath).Definition | Should -Match 'wsl\.exe\s+-e\s+wslpath'
+        }
+
+        It 'CHANGE-0136 field fix (PR #251 run 31682243993): probe quoting is SELECTIVE — bare -e survives unquoted, the spaced sentinel stays quoted' {
+            # wsl.exe matches -e/--exec against the RAW command-line token
+            # including quote characters (custom parser, not
+            # CommandLineToArgvW): an all-quoted "-e" is not recognized, the
+            # tail runs through the default shell and comes back 127 — the
+            # first functional-WSL CI leg proved it in both console and
+            # redirected contexts while the direct call returned 42.
+            $script:wslArgString = $null
+            Mock Start-Process {
+                $script:wslArgString = $ArgumentList
+                [PSCustomObject]@{ Id = 8007; Handle = [IntPtr]::new(1); ExitCode = 42 }
+            }
+            $null = Start-WslProbeProcess -ArgumentList @('-e', 'sh', '-c', 'exit 42')
+            @($script:wslArgString).Count | Should -Be 1
+            @($script:wslArgString)[0] | Should -Be '-e sh -c "exit 42"'
+        }
+
         It 'probe runs the sentinel command THROUGH a distro (-e sh -c), never a bare presence check' {
             Mock Test-WslPresent { $true }
             $script:capturedProbeArgs = $null

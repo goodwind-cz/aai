@@ -129,8 +129,15 @@
   — `Get-ReapCandidates` already uses a real per-process `CreationDate`, so it
   never had the `ps etime` whole-second-rounding flake to begin with.
 
-  Real Windows-host process-cleanup semantics are documented but NOT verified
-  by this repo's own CI (macOS/Linux only) — see SPEC-0046's Manual
+  Windows-host semantics, CI-verified vs. manual (CHANGE-0136): the WSL1
+  delegation path — branch routing (`AAI-BRANCH: WSL`), the timeout-124
+  group-kill via the delegated `.sh` watchdog, and the marker write-back
+  across the Windows-to-POSIX path boundary (`wslpath`) — is CI-verified by
+  the `windows-wsl1` job in `.github/workflows/ps1-quality.yml`, which
+  installs a real WSL1 Debian distro on windows-latest. The Git-Bash
+  degraded-mode tree-kill COMPLETENESS, and all WSL2-specific semantics
+  (e.g. the E_ACCESSDENIED class — hosted runners cannot run WSL2, no
+  nested virtualization), remain field/manual-only — see SPEC-0046's Manual
   verification protocol (MV-1..MV-3) and residual risk RR-1.
 
 ## Tooling
