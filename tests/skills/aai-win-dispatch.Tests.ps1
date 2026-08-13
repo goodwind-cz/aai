@@ -1405,6 +1405,46 @@ Describe 'aai-win-selftest.ps1 (CHANGE-0135 / spec-doctor-win-selftest)' {
         }
     }
 
+    Context 'CHANGE-0135 F2 (Spec-AC-01): Get-QuotedArgumentString quoting contract, and the load-bearing regression it prevents' {
+        It 'quotes every argument individually, preserving embedded spaces and escaping embedded double quotes' {
+            $result = Get-QuotedArgumentString -ArgumentList @('-NoProfile', '-File', 'C:\a path\file.ps1', 'has "quote"')
+            $result | Should -Be '"-NoProfile" "-File" "C:\a path\file.ps1" "has \"quote\""'
+        }
+
+        It 'a spaced ArmTempDir still reaches the child engine intact (A/B pin: an unquoted raw ArgumentList array breaks this -- validator-observed quoted exitCode=3 vs raw exitCode=64)' {
+            # Exercises Get-QuotedArgumentString through its real caller,
+            # Invoke-SelfTestChildEngine, with an inner script whose OWN path
+            # contains a space -- the exact footgun the fix exists for --
+            # without depending on this host having a WSL/Git-Bash-resolvable
+            # POSIX interpreter (this host does not; see the "real invocation
+            # on THIS host" context above, which is why the inner script here
+            # is a bare `exit 3` rather than a full arm through the wrapper).
+            $engine = if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell' }
+            $spacedRoot = Join-Path $TestDrive 'aai self test dir'
+            New-Item -ItemType Directory -Path $spacedRoot -Force | Out-Null
+            $armDir = Join-Path $spacedRoot 'arm-success'
+            $result = Invoke-SelfTestChildEngine -Engine $engine -InnerScriptContent 'exit 3' -ArmTempDir $armDir -WaitSeconds 30
+            $result.TimedOut | Should -Be $false
+            $result.ExitCode | Should -Be 3
+        }
+    }
+
+    Context 'CHANGE-0135 F3 (Spec-AC-02): Get-AvailableEngines emits a real array even for exactly one engine' {
+        It 'returns a one-element array (not a pipeline-unwrapped scalar) when exactly one engine resolves, so CAT-15 counts it correctly' {
+            Mock Get-Command { $null } -ParameterFilter { $Name -eq 'powershell' }
+            Mock Get-Command { [pscustomobject]@{ Name = 'pwsh' } } -ParameterFilter { $Name -eq 'pwsh' }
+            $result = Get-AvailableEngines
+            # Without -NoEnumerate, PowerShell's automatic pipeline output
+            # unwraps a single-element array to its bare element -- an
+            # ordered hashtable -- so `.Count` silently reads the hashtable's
+            # KEY count (2: name/version) instead of the engine count (1),
+            # which is exactly how catWinEnvironment's "0 PowerShell
+            # engine(s)" misreport (F3) happens on a real single-engine host.
+            $result.Count | Should -Be 1
+            $result[0].name | Should -Be 'pwsh'
+        }
+    }
+
     Context 'CHANGE-0135 TEST-006/TEST-007 (Spec-AC-02): environment collision report + WSL tri-state mapper' {
         It 'names exactly one collision group (survivor Path, collapsed PATH) for a Path/PATH-colliding dictionary, and never mutates the real environment' {
             $envDict = [System.Collections.Specialized.OrderedDictionary]::new()
@@ -1464,7 +1504,41 @@ Describe 'aai-win-selftest.ps1 (CHANGE-0135 / spec-doctor-win-selftest)' {
             if ($isWindowsHost) {
                 $cat14.detail.spawned | Should -Be $true
                 $cat14.detail.arms.Count | Should -Be 3
-                $cat14.status | Should -BeIn @('PASS', 'WARN')
+                $successArm = $cat14.detail.arms | Where-Object { $_.name -eq 'success' }
+                $timeoutArm = $cat14.detail.arms | Where-Object { $_.name -eq 'timeout' }
+                $spawnfailArm = $cat14.detail.arms | Where-Object { $_.name -eq 'spawnfail' }
+                $successArm | Should -Not -BeNullOrEmpty
+                $timeoutArm | Should -Not -BeNullOrEmpty
+                $spawnfailArm | Should -Not -BeNullOrEmpty
+                if ($cat14.detail.reason -and $cat14.detail.reason -match 'no usable POSIX interpreter') {
+                    # Named precondition (spec edge case, D6): this Windows
+                    # runner has neither WSL nor Git Bash, so success/timeout
+                    # cannot pass -- assert the wrapper's own documented
+                    # AAI-ENV-ERROR contract (exit 78) instead of accepting a
+                    # bare WARN as if the arms had run cleanly.
+                    $successArm.exitCode | Should -Be 78
+                    $timeoutArm.exitCode | Should -Be 78
+                } else {
+                    # F1: the Test Plan's actual demand is that EACH arm PASSES
+                    # individually with its documented exit code -- never
+                    # inferred from the aggregate status alone, which rolls
+                    # every non-PASS arm up to WARN and so cannot distinguish
+                    # 3/3 from 0/3 passing (status can never be FAIL; see
+                    # catWinSelfTest in aai-doctor.mjs).
+                    $successArm.status | Should -Be 'PASS'
+                    $successArm.exitCode | Should -Be 3
+                    $timeoutArm.status | Should -Be 'PASS'
+                    $timeoutArm.exitCode | Should -Be 124
+                    $spawnfailArm.status | Should -Be 'PASS'
+                    $spawnfailArm.exitCode | Should -Be 125
+                    $spawnfailArm.diag | Should -Match 'AAI-SPAWN-ERROR'
+                    $cat14.status | Should -Be 'PASS'
+                }
+                # SEAM-2: a non-empty captured AAI-BRANCH diag on the success
+                # arm, surviving the two-hop OS-handle capture -- the Test
+                # Plan row's other unchecked demand.
+                $successArm.diag | Should -Not -BeNullOrEmpty
+                $successArm.diag | Should -Match '^AAI-BRANCH:'
             } else {
                 $cat14.status | Should -Be 'SKIP'
                 $cat14.detail.spawned | Should -Be $false

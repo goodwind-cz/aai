@@ -558,7 +558,12 @@ function probeCodexExecSubcommand(root, codexPresent) {
   const res = run(exe, ['--help'], root, 5_000);
   if (res.error) return { available: 'UNKNOWN', reason: 'codex --help failed to run' };
   const out = `${res.stdout || ''}\n${res.stderr || ''}`;
-  const hasExec = /(^|\s)exec(\s|$)/m.test(out);
+  // F4: anchored to a command-list line shape (line-start, >=2 spaces,
+  // "exec", >=2 spaces, then the subcommand's description) so free-form
+  // prose that merely contains the word "exec" -- e.g. "This tool will
+  // never exec anything on your behalf." -- cannot fabricate a positive
+  // observation. A bare `/(^|\s)exec(\s|$)/m` matched that sentence.
+  const hasExec = /^\s{2,}exec\s{2,}\S/m.test(out);
   return {
     available: hasExec,
     reason: hasExec ? 'codex --help lists an exec subcommand' : 'codex --help does not list an exec subcommand',

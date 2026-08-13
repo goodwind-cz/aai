@@ -804,11 +804,19 @@ test_025_selftest_reuse_structural_pin() {
     || { log_info "TEST-025: no direct-invocation guard of the wrapper's shape"; ok=0; }
 
   # References the wrapper's own probe functions, defines none of them.
+  # F7: the redefinition check is anchored to allow leading whitespace
+  # (`^\s*function `) -- an unanchored `^function ` is evaded by an indented
+  # `  function Test-WslPresent { ... }`, which still silently shadows the
+  # wrapper's real function inside a Pester block scope. Wait-ProcessWithTimeout
+  # joins this pin list: the file's own header claims it calls that wrapper
+  # function (it does, at the Invoke-SelfTestChildEngine wait), so a rename in
+  # aai-run-tests.ps1 must break this probe with a POSIX-reachable signal.
   local fn
   for fn in Test-WslPresent Test-WslUsable Get-GitBashCandidates Find-GitBash \
-            Get-ProcessEnvironmentSnapshot Get-CanonicalEnvironmentMap; do
+            Get-ProcessEnvironmentSnapshot Get-CanonicalEnvironmentMap \
+            Wait-ProcessWithTimeout; do
     grep -qF "$fn" "$f" || { log_info "TEST-025: does not reference $fn"; ok=0; }
-    grep -qE "^function $fn\\b" "$f" && { log_info "TEST-025: redefines $fn"; ok=0; }
+    grep -qE "^\\s*function $fn\\b" "$f" && { log_info "TEST-025: redefines $fn"; ok=0; }
   done
 
   # No second Git-Bash candidate literal, no second System32 shim pattern,
@@ -1082,6 +1090,136 @@ test_032_documentation_pin() {
     || log_fail "TEST-032 documentation pin"
 }
 
+# --- TEST-033 (F4, Spec-AC-03) — codex exec detection is not fooled by prose,
+#     and still fires on a real command-list line -----------------------------
+test_033_codex_exec_detection_honesty() {
+  local fakebin="$TMP_ROOT/fakebin-exec"
+  mkdir -p "$fakebin"
+
+  # Negative fixture: --help PROSE that merely contains the word "exec" in a
+  # sentence. Before F4 (`/(^|\s)exec(\s|$)/m`) this fabricated
+  # available:true; the fixed regex requires a real command-list line shape.
+  cat > "$fakebin/codex" <<'EOF'
+#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "codex-fixture-1.0.0"
+  exit 0
+fi
+cat <<'HELP'
+codex-fixture 1.0.0
+This tool will never exec anything on your behalf without confirmation.
+HELP
+exit 0
+EOF
+  chmod +x "$fakebin/codex"
+
+  local out rc1
+  out="$(PATH="$fakebin:$PATH" node "$DOCTOR" --json 2>&1)"
+  echo "$out" | node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const c16 = j.categories.find(x => x.id === "CAT-16");
+      const obs = c16.detail.codex_exec_subcommand;
+      if (obs.available !== false) die("prose mentioning \"exec\" fabricated available=true: " + JSON.stringify(obs));
+    });
+  '
+  rc1=$?
+
+  # Positive fixture: a real command-list line (`Usage:` + `Commands:` shape),
+  # line-anchored, two-space-indented -- the shape F4 anchors to.
+  cat > "$fakebin/codex" <<'EOF'
+#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "codex-fixture-1.0.0"
+  exit 0
+fi
+cat <<'HELP'
+Usage: codex [OPTIONS] <COMMAND>
+
+Commands:
+  exec         Run Codex non-interactively
+  login        Manage login
+HELP
+exit 0
+EOF
+  chmod +x "$fakebin/codex"
+
+  local out2 rc2
+  out2="$(PATH="$fakebin:$PATH" node "$DOCTOR" --json 2>&1)"
+  echo "$out2" | node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const c16 = j.categories.find(x => x.id === "CAT-16");
+      const obs = c16.detail.codex_exec_subcommand;
+      if (obs.available !== true) die("real command-list line did not register available=true: " + JSON.stringify(obs));
+    });
+  '
+  rc2=$?
+
+  if [[ "$rc1" -eq 0 && "$rc2" -eq 0 ]]; then
+    log_pass "TEST-033 codex exec detection: honest on prose (false), fires on a real command-list line (true)"
+  else
+    log_fail "TEST-033 codex exec detection honesty"
+  fi
+}
+
+# --- TEST-034 (F9, Spec-AC-01) — CAT-14 WARN branch, exercised for real ------
+test_034_cat14_warn_branch_and_strict() {
+  # D6 gates CAT-14 on process.platform === 'win32', which this suite cannot
+  # be (it must run off Windows too). A `--import` ESM preload flips
+  # process.platform for a genuinely spawned doctor child process only --
+  # nothing here mocks catWinSelfTest's mapping logic. On this host (no WSL,
+  # no Windows Git Bash) the real .aai/scripts/aai-win-selftest.ps1 probe then
+  # genuinely runs and genuinely produces a non-all-PASS report (the same
+  # named edge case D3/D6 document: success/timeout arms hit the wrapper's
+  # own AAI-ENV-ERROR exit 78), giving CAT-14 status WARN for real -- the
+  # highest-value untested branch (a permanently degraded CAT-14 would
+  # otherwise read green in CI forever, per the validation report's F9).
+  local preload="$TMP_ROOT/aai-platform-preload.mjs"
+  cat > "$preload" <<'EOF'
+Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+EOF
+
+  local out rc
+  out="$(node --import "$preload" "$DOCTOR" --json 2>&1)"; rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    log_info "TEST-034: plain run rc=$rc (want 0 on a WARN-only categories set)"
+    log_fail "TEST-034 CAT-14 WARN branch"
+    return
+  fi
+  echo "$out" | node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const c14 = j.categories.find(x => x.id === "CAT-14");
+      if (!c14) die("CAT-14 missing");
+      if (c14.status !== "WARN") die("expected WARN on this no-WSL/no-Git-Bash host, got " + c14.status + ": " + JSON.stringify(c14));
+      if (c14.detail.spawned !== true) die("detail.spawned must be true (the probe genuinely ran): " + JSON.stringify(c14.detail));
+      if (c14.detail.failed !== true) die("detail.failed must be true: " + JSON.stringify(c14.detail));
+      if (!Array.isArray(c14.detail.arms) || c14.detail.arms.length !== 3) die("expected 3 real arm results: " + JSON.stringify(c14.detail.arms));
+    });
+  '
+  local rc_shape=$?
+
+  local rc_strict
+  node --import "$preload" "$DOCTOR" --strict >/dev/null 2>&1; rc_strict=$?
+
+  if [[ "$rc_shape" -eq 0 && "$rc_strict" -eq 1 ]]; then
+    log_pass "TEST-034 CAT-14 WARN branch exercised for real (genuine spawn, non-all-PASS arms) + --strict exit 1"
+  else
+    log_info "TEST-034: rc_shape=$rc_shape rc_strict=$rc_strict (want 0 then 1)"
+    log_fail "TEST-034 CAT-14 WARN branch and --strict"
+  fi
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1118,6 +1256,8 @@ main() {
   test_030_zero_network_pin
   test_031_hygiene_set
   test_032_documentation_pin
+  test_033_codex_exec_detection_honesty
+  test_034_cat14_warn_branch_and_strict
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

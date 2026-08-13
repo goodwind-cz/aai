@@ -9,10 +9,12 @@ Source: Inspired by pro-workflow /doctor command (https://github.com/rohitg00/pr
 
 ## Instructions
 
-The 13 health-check categories are computed by a deterministic, zero-dependency
-script (CHANGE-0079 / spec-doctor-determinize). Do NOT re-derive file
-existence, line counts, git status, hook wiring, or the RFC-0001 migration
-matrix by hand — run the script and relay its output.
+The 16 health-check categories are computed by a deterministic, zero-dependency
+script (CHANGE-0079 / spec-doctor-determinize; CAT-14..16 added by
+CHANGE-0135 / spec-doctor-win-selftest). Do NOT re-derive file existence,
+line counts, git status, hook wiring, the RFC-0001 migration matrix, the
+Windows self-test, the Windows environment probe, or the agent-CLI probe by
+hand — run the script and relay its output.
 
 1. From the project root, run:
    ```bash
@@ -29,7 +31,8 @@ matrix by hand — run the script and relay its output.
    CAT-04 Dynamic Skills, CAT-05 Knowledge Files, CAT-06 STATE.yaml Health,
    CAT-07 Telemetry & Metrics, CAT-08 Git Status, CAT-09 Pre-Compact Hook,
    CAT-10 RFC-0001 Migration, CAT-11 Docs Hygiene, CAT-12 Index Regen Hook,
-   CAT-13 Layer Drift.
+   CAT-13 Layer Drift, CAT-14 Windows Self-Test, CAT-15 Windows Environment,
+   CAT-16 Agent CLI Probe.
 
 3. Translate the verdict for the user in one line:
    - `DOCTOR CLEAN` -> "HEALTHY — no issues found."
