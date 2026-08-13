@@ -3,13 +3,13 @@
 - Date: 2026-08-13T13:41:07Z
 - Reviewer: Code Review role (single dual-verdict pass, .aai/SKILL_CODE_REVIEW.prompt.md)
 - Scope: `git diff 53b7e20..HEAD` (f923f0a, e17f511, e30bf61) on branch feat/doctor-honesty-batch
-- Spec: docs/specs/SPEC-DRAFT-spec-doctor-honesty-batch.md (frozen at 53b7e20)
+- Spec: docs/specs/SPEC-0125-spec-doctor-honesty-batch.md (frozen at 53b7e20)
 - Prior validation: docs/ai/validation/validation-20260813T133311Z-CHANGE-0138-doctor-honesty-batch.md (PASS)
 
 ```yaml
 review:
   scope: 53b7e20..HEAD (f923f0a, e17f511, e30bf61)
-  spec: docs/specs/SPEC-DRAFT-spec-doctor-honesty-batch.md
+  spec: docs/specs/SPEC-0125-spec-doctor-honesty-batch.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -126,7 +126,7 @@ review:
 | bash tests/skills/test-aai-update.sh | exit 0, 24 PASS |
 | bash tests/skills/test-aai-update-check.sh | exit 0 |
 | bash tests/skills/test-aai-release.sh | exit 0 (TEST-024 PASS) |
-| node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-doctor-honesty-batch.md | exit 0, 0 findings |
+| node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0125-spec-doctor-honesty-batch.md | exit 0, 0 findings |
 | node .aai/scripts/check-test-registration.mjs | exit 0 |
 | node .aai/scripts/aai-doctor.mjs --json (repo root) | exit 0; CAT-16 PASS, 3/3 present all versioned, exec true via real Commands: block |
 | pwsh Invoke-Pester (aai-update + aai-win-dispatch) | 141 passed / 0 failed |

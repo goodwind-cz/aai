@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T13:44:35.976Z
+Generated: 2026-08-13T13:44:58.960Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-doctor-honesty-batch | specs | implementing | 6 done | docs/specs/SPEC-DRAFT-spec-doctor-honesty-batch.md |
+| SPEC-0125 | specs | implementing | 6 done | docs/specs/SPEC-0125-spec-doctor-honesty-batch.md |
 
 ## Canonical layer (0)
 

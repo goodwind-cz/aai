@@ -1,7 +1,7 @@
 ---
 id: spec-doctor-honesty-batch
 type: spec
-number: null
+number: 125
 status: implementing
 ceremony_level: 1
 links:
@@ -241,7 +241,7 @@ and `docs/CONSTITUTION.md`. None of them is in this scope.
 - User decision: undecided
 - Base ref: feat/doctor-honesty-batch
 - Worktree branch/path: not selected
-- Inline review scope: .aai/scripts/aai-doctor.mjs .aai/scripts/update-doctor-report.mjs .aai/scripts/update-check.mjs tests/skills/test-aai-doctor.sh tests/skills/test-aai-update.sh tests/skills/test-aai-update-check.sh docs/product/aai-doctor.md docs/product/aai-update.md docs/issues/CHANGE-0138-doctor-honesty-batch.md docs/specs/SPEC-DRAFT-spec-doctor-honesty-batch.md CHANGELOG.md
+- Inline review scope: .aai/scripts/aai-doctor.mjs .aai/scripts/update-doctor-report.mjs .aai/scripts/update-check.mjs tests/skills/test-aai-doctor.sh tests/skills/test-aai-update.sh tests/skills/test-aai-update-check.sh docs/product/aai-doctor.md docs/product/aai-update.md docs/issues/CHANGE-0138-doctor-honesty-batch.md docs/specs/SPEC-0125-spec-doctor-honesty-batch.md CHANGELOG.md
 
 ## Acceptance Criteria Mapping
 
@@ -431,7 +431,7 @@ Commands to run:
 - `bash tests/skills/test-aai-hygiene-pack.sh`
 - `node .aai/scripts/check-test-registration.mjs`
 - `node .aai/scripts/aai-doctor.mjs` and `node .aai/scripts/aai-doctor.mjs --json`
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-doctor-honesty-batch.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0125-spec-doctor-honesty-batch.md`
 - `node .aai/scripts/docs-audit.mjs --check --strict --no-event`
 
 Evidence artifacts: stored RED logs under `docs/ai/tdd/` for the TDD-lane
