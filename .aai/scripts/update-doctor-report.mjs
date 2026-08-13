@@ -101,7 +101,10 @@ function parseArgs(argv) {
 // One line, one outcome (D4). SKIP lines are the ONLY output of a degraded
 // run; the success line is the ONLY output of a good one.
 function emitSkip(reason) {
-  console.log(`DOCTOR-REPORT SKIP ${reason} - update unaffected`);
+  // fs.writeSync to fd 1 is synchronous even on an async pipe (the Windows
+  // PS pipeline), so the line can never be dropped by the process.exit that
+  // callers rely on for never-returns control flow (review NB-1 class).
+  fs.writeSync(1, `DOCTOR-REPORT SKIP ${reason} - update unaffected\n`);
   process.exit(0);
 }
 
@@ -192,7 +195,7 @@ function main() {
   const doctor = args.doctor || path.join(root, '.aai/scripts/aai-doctor.mjs');
 
   if (resolvePostUpdateDoctor(cfgPath) === 'off') {
-    console.log('DOCTOR-REPORT SKIP disabled by config (post_update_doctor: off)');
+    fs.writeSync(1, 'DOCTOR-REPORT SKIP disabled by config (post_update_doctor: off)\n');
     process.exit(0);
   }
 
@@ -258,7 +261,11 @@ function main() {
   pruneReports(reportsDir, args.maxReports);
 
   console.log(`DOCTOR ${verdict} - full report: ${relPath}`);
-  process.exit(0);
+  // Review NB-1 (PR round): process.exit(0) can drop the line above
+  // unflushed when stdout is an async pipe (the Windows PS pipeline) —
+  // a silent postamble at exit 0 that no fallback would catch. Setting
+  // exitCode and returning lets Node drain stdout before exiting.
+  process.exitCode = 0;
 }
 
 main();
