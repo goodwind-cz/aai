@@ -31,20 +31,24 @@ RFC-0001).
   installation.
 - `--strict` flag: exits 1 when any category is WARN or FAIL (0 when every
   category is PASS or SKIP); the pre-existing exit map (0 clean/WARN-only,
-  1 on any FAIL) is unchanged without it. Both new categories cap at WARN
-  and can never emit FAIL.
-- `tests/skills/aai-win-dispatch.Tests.ps1` gains three new Pester contexts
-  for the probe script's pure functions; `tests/skills/test-aai-doctor.sh`
-  gains ten new cases (SKIP branch, structural REUSE/arm pins, fake-CLI and
-  empty-PATH fixtures, output-shape growth, exit matrix, zero-network pin,
-  hygiene set, documentation pin). `.aai/system/PROFILES.yaml` classifies
-  the new script under `core`; `tests/skills/suite-map.yaml`'s `aai-doctor`
-  row widens to cover it.
+  1 on any FAIL) is unchanged without it. `CAT-14`/`CAT-15` cap at WARN and
+  can never emit FAIL; `CAT-16` is always PASS. A SKIP (CAT-14/CAT-15 off
+  Windows) is never counted as an issue — `DOCTOR ISSUES(n)` and `--strict`
+  both count WARN/FAIL only.
+- `tests/skills/aai-win-dispatch.Tests.ps1` gains six new Pester contexts
+  for the probe script's pure functions and its apostrophe-path escaping;
+  `tests/skills/test-aai-doctor.sh` gains twelve new cases (SKIP branch,
+  structural REUSE/arm pins, fake-CLI and empty-PATH fixtures, output-shape
+  growth, exit matrix, zero-network pin, hygiene set, documentation pin).
+  `.aai/system/PROFILES.yaml` classifies the new script under `core`;
+  `tests/skills/suite-map.yaml`'s `aai-doctor` row widens to cover it.
 - New `docs/product/aai-doctor.md`; `docs/USER_GUIDE.md` documents the
   three new categories, `--strict`, and the UNKNOWN capability reporting.
 - Spec-AC-01 (the Windows self-test itself) stays `planned` until the named
   `ps1-quality / windows-5_1` job has actually run green on this scope's PR
   with all three arms PASS — recorded honestly, not claimed.
+
+## [unreleased] — ci(ps1-quality): windows-5_1 runs the full Pester suite under both engines (CHANGE-0134) [L1]
 
 - `.github/workflows/ps1-quality.yml` `windows-5_1` job gains a per-engine
   Pester 5 install-if-missing step (Windows PowerShell 5.1's TLS 1.2 + NuGet
