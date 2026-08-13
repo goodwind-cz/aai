@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-08-13T18:56:05.860Z",
+  "generatedAt": "2026-08-13T18:59:11.018Z",
   "project": "aai",
   "counts": {
-    "delivered": 184,
-    "in_progress": 2,
+    "delivered": 185,
+    "in_progress": 1,
     "releases": 1,
-    "tokens_total": 34767196
+    "tokens_total": 35419704
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -23,8 +23,8 @@
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "pass",
-    "review_status": "pass",
+    "validation_status": "not_run",
+    "review_status": "not_run",
     "ticks": [
       {
         "tick": 86,
@@ -64,19 +64,6 @@
     ]
   },
   "in_progress": [
-    {
-      "ref": "reporting-docs-true-up",
-      "title": "Change — reporting/docs true-up: USER_GUIDE matches the real skill set, dashboard reads real usage, no empty charts",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0140-reporting-docs-true-up.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0127-spec-reporting-docs-true-up.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-20260813T184301Z-CHANGE-0140-reporting-docs-true-up.md"
-    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
@@ -156,6 +143,19 @@
       "spec": "docs/specs/SPEC-0126-spec-canonical-test-invocation.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260813T154123Z-CHANGE-0139-canonical-test-invocation.md"
+    },
+    {
+      "ref": "reporting-docs-true-up",
+      "title": "Change — reporting/docs true-up: USER_GUIDE matches the real skill set, dashboard reads real usage, no empty charts",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0140-reporting-docs-true-up.md",
+      "closed_on": "2026-08-13",
+      "agent_minutes": 27,
+      "token_total": 652508,
+      "spec": "docs/specs/SPEC-0127-spec-reporting-docs-true-up.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260813T184301Z-CHANGE-0140-reporting-docs-true-up.md"
     },
     {
       "ref": "validation-cost-calibration",
@@ -2555,6 +2555,19 @@
           "spec": "docs/specs/SPEC-0126-spec-canonical-test-invocation.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260813T154123Z-CHANGE-0139-canonical-test-invocation.md"
+        },
+        {
+          "ref": "reporting-docs-true-up",
+          "title": "Change — reporting/docs true-up: USER_GUIDE matches the real skill set, dashboard reads real usage, no empty charts",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0140-reporting-docs-true-up.md",
+          "closed_on": "2026-08-13",
+          "agent_minutes": 27,
+          "token_total": 652508,
+          "spec": "docs/specs/SPEC-0127-spec-reporting-docs-true-up.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260813T184301Z-CHANGE-0140-reporting-docs-true-up.md"
         },
         {
           "ref": "validation-cost-calibration",

@@ -5,6 +5,7 @@ capability: aai-dashboard
 status: current
 delivered_by:
   - CHANGE-0140
+  - reporting-docs-true-up
 spec: docs/specs/SPEC-0127-spec-reporting-docs-true-up.md
 updated: 2026-08-13
 ---

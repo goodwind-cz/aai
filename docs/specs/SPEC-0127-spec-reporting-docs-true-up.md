@@ -2,13 +2,15 @@
 id: spec-reporting-docs-true-up
 type: spec
 number: 127
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0140-reporting-docs-true-up.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 255
+  commits:
+    - c54568a
 ---
 
 # Spec — reporting/docs true-up: USER_GUIDE matches the real skill set, dashboard reads real usage, no empty charts

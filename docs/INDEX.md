@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T18:56:13.968Z
+Generated: 2026-08-13T18:59:11.123Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0127 | specs | implementing | 6 done | docs/specs/SPEC-0127-spec-reporting-docs-true-up.md |
 
 ## Canonical layer (0)
 
@@ -22,7 +21,7 @@ _None._
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
-| aai-dashboard | aai-dashboard | 1 | docs/product/aai-dashboard.md |
+| aai-dashboard | aai-dashboard | 2 | docs/product/aai-dashboard.md |
 | aai-doctor | aai-doctor | 8 | docs/product/aai-doctor.md |
 | aai-update | aai-update | 5 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
@@ -47,7 +46,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (312)
+## Done (314)
 
 | ID | Type | Path |
 |---|---|---|
@@ -190,6 +189,7 @@ _None._
 | CHANGE-0137 | issues | docs/issues/CHANGE-0137-update-doctor-field-report.md |
 | CHANGE-0138 | issues | docs/issues/CHANGE-0138-doctor-honesty-batch.md |
 | CHANGE-0139 | issues | docs/issues/CHANGE-0139-canonical-test-invocation.md |
+| CHANGE-0140 | issues | docs/issues/CHANGE-0140-reporting-docs-true-up.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -362,13 +362,12 @@ _None._
 | SPEC-0124 | specs | docs/specs/SPEC-0124-spec-update-doctor-field-report.md |
 | SPEC-0125 | specs | docs/specs/SPEC-0125-spec-doctor-honesty-batch.md |
 | SPEC-0126 | specs | docs/specs/SPEC-0126-spec-canonical-test-invocation.md |
+| SPEC-0127 | specs | docs/specs/SPEC-0127-spec-reporting-docs-true-up.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0140 | issues | docs/issues/CHANGE-0140-reporting-docs-true-up.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

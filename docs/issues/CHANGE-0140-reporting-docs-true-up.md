@@ -2,10 +2,15 @@
 id: reporting-docs-true-up
 number: 140
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
 capability: aai-dashboard
+links:
+  commits:
+    - c54568a
+  pr:
+    - 255
 ---
 
 # Change — reporting/docs true-up: USER_GUIDE matches the real skill set, dashboard reads real usage, no empty charts
