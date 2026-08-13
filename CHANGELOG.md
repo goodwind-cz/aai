@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(doctor/update): honesty batch — block-anchored codex exec probe, CLI tri-state, BOM parity, named config/prune degrades (CHANGE-0138) [L1]
+## [v2026.08.13] — fix(doctor/update): honesty batch — block-anchored codex exec probe, CLI tri-state, BOM parity, named config/prune degrades (CHANGE-0138) [L1]
 
 - CAT-16's codex `exec` observation now parses `codex --help` anchored to
   its `Commands:`/`SUBCOMMANDS:` block (column-0 header, whitespace-indented
@@ -41,7 +41,7 @@ RFC-0001).
   path and the count of additional failures. Stdout keeps its
   exactly-one-line contract and exit 0 in every arm.
 
-## [unreleased] — feat(update): every successful /aai-update ends with a doctor field report (CHANGE-0137) [L1]
+## [v2026.08.13] — feat(update): every successful /aai-update ends with a doctor field report (CHANGE-0137) [L1]
 
 - After a successful, non-dry-run sync, both update entrypoints now invoke
   the new `.aai/scripts/update-doctor-report.mjs` (one shared engine — never
@@ -64,7 +64,7 @@ RFC-0001).
   USER_GUIDE `/aai-update` section, new docs/product/aai-update.md, pointer
   from docs/product/aai-doctor.md.
 
-## [unreleased] — ci(ps1-quality): functional-WSL1 leg, 5.1-only fallback proof, weekly image-drift canary (CHANGE-0136) [L1]
+## [v2026.08.13] — ci(ps1-quality): functional-WSL1 leg, 5.1-only fallback proof, weekly image-drift canary (CHANGE-0136) [L1]
 
 - The leg's first four live runs each caught a real latent defect no other
   platform could see — exactly the blind spot this change closes:
@@ -110,7 +110,7 @@ RFC-0001).
   to workflow-level env — still declared exactly once, now consumed by both
   windows jobs (test_017's pin holds unchanged).
 
-## [unreleased] — feat(doctor): Windows self-test, environment and agent-CLI probe (CHANGE-0135) [L1]
+## [v2026.08.13] — feat(doctor): Windows self-test, environment and agent-CLI probe (CHANGE-0135) [L1]
 
 - `/aai-doctor` (`.aai/scripts/aai-doctor.mjs`) gains three new categories:
   `CAT-14` Windows Self-Test runs the REAL `.aai/scripts/aai-run-tests.ps1`
@@ -158,7 +158,7 @@ RFC-0001).
   `ps1-quality / windows-5_1` job has actually run green on this scope's PR
   with all three arms PASS — recorded honestly, not claimed.
 
-## [unreleased] — ci(ps1-quality): windows-5_1 runs the full Pester suite under both engines (CHANGE-0134) [L1]
+## [v2026.08.13] — ci(ps1-quality): windows-5_1 runs the full Pester suite under both engines (CHANGE-0134) [L1]
 
 - `.github/workflows/ps1-quality.yml` `windows-5_1` job gains a per-engine
   Pester 5 install-if-missing step (Windows PowerShell 5.1's TLS 1.2 + NuGet
@@ -195,7 +195,7 @@ RFC-0001).
 - Spec-AC-01/Spec-AC-02 stay `planned` until the named `windows-5_1` job has
   actually run green on this scope's PR — recorded honestly, not claimed.
 
-## [unreleased] — fix(scripts): aai-run-tests.ps1 canonicalizes Path/PATH before every spawn, never fakes 124 (CHANGE-0133) [L2]
+## [v2026.08.13] — fix(scripts): aai-run-tests.ps1 canonicalizes Path/PATH before every spawn, never fakes 124 (CHANGE-0133) [L2]
 
 - `.aai/scripts/aai-run-tests.ps1`: new `Get-CanonicalEnvironmentMap` /
   `Set-CanonicalProcessEnvironment` collapse any OrdinalIgnoreCase-duplicate
@@ -236,7 +236,7 @@ RFC-0001).
   unconditionally with a duration that cannot plausibly elapse before the
   arm's `AAI_TEST_TIMEOUT=2` + outer watchdog grace fires.
 
-## [unreleased] — feat(validation): lane-scaled depth + capability-detected validator isolation (CHANGE-0132) [L2]
+## [v2026.08.13] — feat(validation): lane-scaled depth + capability-detected validator isolation (CHANGE-0132) [L2]
 
 - `.aai/VALIDATION.prompt.md` CEREMONY LANE block: on the lightweight lane
   (ceremony_level 0/1) the validator now runs the declared test scope plus
