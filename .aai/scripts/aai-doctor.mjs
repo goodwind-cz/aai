@@ -650,7 +650,12 @@ function main() {
   const categories = runDoctor(root, scriptDir);
   const failCount = categories.filter((c) => c.status === 'FAIL').length;
   const warnOrFailCount = categories.filter((c) => c.status === 'WARN' || c.status === 'FAIL').length;
-  const issueCount = categories.filter((c) => c.status !== 'PASS').length;
+  // A SKIP is not a finding (matches --strict's own contract below, and the
+  // SKILL_DOCTOR.prompt.md verdict-translation line): CAT-14/CAT-15 SKIP on
+  // every non-Windows host, which is the NORMAL state there, not an issue.
+  // Every category is still printed either way -- only the summary count
+  // excludes SKIP.
+  const issueCount = warnOrFailCount;
   const verdict = issueCount === 0 ? 'CLEAN' : 'ISSUES';
   let exitCode = failCount > 0 ? 1 : 0;
   if (args.strict && exitCode === 0 && warnOrFailCount > 0) exitCode = 1;
@@ -665,11 +670,11 @@ function main() {
       exit: exitCode,
     }, null, 2));
   } else {
+    // detail is a structured machine object (CAT-14/15/16) meant for --json
+    // consumers; text mode is the paste-able report and never prints it
+    // (a raw compact-JSON line here can run past a kilobyte — see --json).
     for (const c of categories) {
       console.log(`${c.id} ${c.status} ${c.reason}`);
-      if (c.detail !== undefined) {
-        console.log(`  detail: ${JSON.stringify(c.detail)}`);
-      }
     }
     console.log(`DOCTOR ${verdict === 'CLEAN' ? 'CLEAN' : `ISSUES(${issueCount})`}`);
   }

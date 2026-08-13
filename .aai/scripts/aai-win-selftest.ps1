@@ -159,6 +159,33 @@ function Resolve-SelfTestEngine {
   return $null
 }
 
+function ConvertTo-PsSingleQuoteEscaped {
+  # Escapes an embedded single quote for safe interpolation inside a
+  # PowerShell single-quoted string literal -- '' is the PS escape for a
+  # literal quote character. Every value interpolated into the `'...'`
+  # segments the three arm functions below write into a generated inner.ps1
+  # (RunDispatcherPath, decoyRoot, reducedPath) MUST pass through this first,
+  # or an apostrophe anywhere in the path (a legal Windows profile name, e.g.
+  # `C:\Users\O'Brien\...`) breaks the single-quoted literal and the whole
+  # generated script fails to parse -- the arm never runs, and CAT-14 reports
+  # the wrapper broken on a machine whose wrapper is fine.
+  [CmdletBinding()]
+  param([Parameter(Mandatory)][AllowEmptyString()][string]$Value)
+  return ($Value -replace "'", "''")
+}
+
+function ConvertTo-PosixShSingleQuoteEscaped {
+  # Escapes an embedded single quote for safe interpolation inside a POSIX
+  # sh single-quoted string literal: close the quote, emit a literal quote
+  # via a backslash-escaped quote, then reopen the quote ('\''). Used for the
+  # marker path embedded inside the `sh -c "..."` argument the arms hand to
+  # aai-run-tests.ps1 -- that argument is parsed a SECOND time, by the POSIX
+  # shell on the far end, where PowerShell's own '' doubling means nothing.
+  [CmdletBinding()]
+  param([Parameter(Mandatory)][AllowEmptyString()][string]$Value)
+  return ($Value -replace "'", "'\''")
+}
+
 function Get-QuotedArgumentString {
   # ArgumentList must reach Start-Process as ONE pre-quoted string, never the
   # raw array: Start-Process space-joins array elements WITHOUT quoting ones
@@ -230,9 +257,11 @@ function Invoke-SelfTestArmSuccess {
   )
   $marker = Join-Path $ArmTempDir 'marker.txt'
   $markerPosix = $marker -replace '\\', '/'
+  $runDispatcherPathPs = ConvertTo-PsSingleQuoteEscaped -Value $RunDispatcherPath
+  $markerPosixSh = ConvertTo-PosixShSingleQuoteEscaped -Value $markerPosix
   $inner = @"
 `$env:AAI_TEST_TIMEOUT = '60'
-& '$RunDispatcherPath' sh -c "echo AAI-SELFTEST-OK > '$markerPosix'; exit 3"
+& '$runDispatcherPathPs' sh -c "echo AAI-SELFTEST-OK > '$markerPosixSh'; exit 3"
 exit `$LASTEXITCODE
 "@
   $result = Invoke-SelfTestChildEngine -Engine $Engine -InnerScriptContent $inner -ArmTempDir $ArmTempDir -WaitSeconds 90
@@ -251,9 +280,10 @@ function Invoke-SelfTestArmTimeout {
     [Parameter(Mandatory)][string]$RunDispatcherPath,
     [Parameter(Mandatory)][string]$ArmTempDir
   )
+  $runDispatcherPathPs = ConvertTo-PsSingleQuoteEscaped -Value $RunDispatcherPath
   $inner = @"
 `$env:AAI_TEST_TIMEOUT = '2'
-& '$RunDispatcherPath' sh -c 'sleep 30'
+& '$runDispatcherPathPs' sh -c 'sleep 30'
 exit `$LASTEXITCODE
 "@
   $result = Invoke-SelfTestChildEngine -Engine $Engine -InnerScriptContent $inner -ArmTempDir $ArmTempDir -WaitSeconds 30
@@ -285,13 +315,17 @@ function Invoke-SelfTestArmSpawnFail {
   $marker = Join-Path $ArmTempDir 'marker.txt'
   $markerPosix = $marker -replace '\\', '/'
   $reducedPath = if ($env:SystemRoot) { Join-Path $env:SystemRoot 'System32' } else { '/usr/bin' }
+  $decoyRootPs = ConvertTo-PsSingleQuoteEscaped -Value $decoyRoot
+  $reducedPathPs = ConvertTo-PsSingleQuoteEscaped -Value $reducedPath
+  $runDispatcherPathPs = ConvertTo-PsSingleQuoteEscaped -Value $RunDispatcherPath
+  $markerPosixSh = ConvertTo-PosixShSingleQuoteEscaped -Value $markerPosix
   $inner = @"
-`$env:ProgramFiles = '$decoyRoot'
-`${env:ProgramFiles(x86)} = '$decoyRoot'
-`$env:PATH = '$reducedPath'
-`$env:Path = '$reducedPath'
+`$env:ProgramFiles = '$decoyRootPs'
+`${env:ProgramFiles(x86)} = '$decoyRootPs'
+`$env:PATH = '$reducedPathPs'
+`$env:Path = '$reducedPathPs'
 `$env:AAI_TEST_TIMEOUT = '30'
-& '$RunDispatcherPath' sh -c "echo should-not-run > '$markerPosix'; exit 0"
+& '$runDispatcherPathPs' sh -c "echo should-not-run > '$markerPosixSh'; exit 0"
 exit `$LASTEXITCODE
 "@
   $result = Invoke-SelfTestChildEngine -Engine $Engine -InnerScriptContent $inner -ArmTempDir $ArmTempDir -WaitSeconds 30

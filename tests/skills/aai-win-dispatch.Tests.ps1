@@ -1429,6 +1429,57 @@ Describe 'aai-win-selftest.ps1 (CHANGE-0135 / spec-doctor-win-selftest)' {
         }
     }
 
+    Context 'CHANGE-0135 NB-1 (Code Review): interpolated paths escape an embedded apostrophe in all three arms' {
+        # A real Windows host whose repo or TEMP path contains an apostrophe
+        # (`C:\Users\O'Brien\...`, a legal Windows profile name) breaks the
+        # single-quoted PowerShell literals these arms build by raw string
+        # interpolation: the review proved `[Parser]::ParseInput` returns a
+        # "string is missing the terminator" error on the generated inner
+        # script. Each It below builds an apostrophe-bearing RunDispatcherPath
+        # AND ArmTempDir (which flows into the marker path both arms embed),
+        # runs the real arm function, and parses the inner.ps1 it wrote --
+        # the same proof method the review used, feasible on macOS because
+        # pwsh's parser is cross-platform and no real POSIX interpreter is
+        # required for a syntax-only check.
+        BeforeEach {
+            $script:AposRoot = Join-Path $TestDrive "O'Brien"
+            New-Item -ItemType Directory -Path $script:AposRoot -Force | Out-Null
+            $script:FakeDispatcher = Join-Path $script:AposRoot 'aai-run-tests.ps1'
+            Set-Content -LiteralPath $script:FakeDispatcher -Value 'exit 0'
+            $script:Engine = if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell' }
+        }
+
+        It 'Invoke-SelfTestArmSuccess writes a syntactically valid inner script' {
+            $armDir = Join-Path $script:AposRoot 'arm-success'
+            $null = Invoke-SelfTestArmSuccess -Engine $script:Engine -RunDispatcherPath $script:FakeDispatcher -ArmTempDir $armDir
+            $innerPath = Join-Path $armDir 'inner.ps1'
+            Test-Path -LiteralPath $innerPath | Should -Be $true
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($innerPath, [ref]$null, [ref]$errors) | Out-Null
+            $errors.Count | Should -Be 0
+        }
+
+        It 'Invoke-SelfTestArmTimeout writes a syntactically valid inner script' {
+            $armDir = Join-Path $script:AposRoot 'arm-timeout'
+            $null = Invoke-SelfTestArmTimeout -Engine $script:Engine -RunDispatcherPath $script:FakeDispatcher -ArmTempDir $armDir
+            $innerPath = Join-Path $armDir 'inner.ps1'
+            Test-Path -LiteralPath $innerPath | Should -Be $true
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($innerPath, [ref]$null, [ref]$errors) | Out-Null
+            $errors.Count | Should -Be 0
+        }
+
+        It 'Invoke-SelfTestArmSpawnFail writes a syntactically valid inner script' {
+            $armDir = Join-Path $script:AposRoot 'arm-spawnfail'
+            $null = Invoke-SelfTestArmSpawnFail -Engine $script:Engine -RunDispatcherPath $script:FakeDispatcher -ArmTempDir $armDir
+            $innerPath = Join-Path $armDir 'inner.ps1'
+            Test-Path -LiteralPath $innerPath | Should -Be $true
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($innerPath, [ref]$null, [ref]$errors) | Out-Null
+            $errors.Count | Should -Be 0
+        }
+    }
+
     Context 'CHANGE-0135 F3 (Spec-AC-02): Get-AvailableEngines emits a real array even for exactly one engine' {
         It 'returns a one-element array (not a pipeline-unwrapped scalar) when exactly one engine resolves, so CAT-15 counts it correctly' {
             Mock Get-Command { $null } -ParameterFilter { $Name -eq 'powershell' }
@@ -1533,12 +1584,16 @@ Describe 'aai-win-selftest.ps1 (CHANGE-0135 / spec-doctor-win-selftest)' {
                     $spawnfailArm.exitCode | Should -Be 125
                     $spawnfailArm.diag | Should -Match 'AAI-SPAWN-ERROR'
                     $cat14.status | Should -Be 'PASS'
+                    # SEAM-2: a non-empty captured AAI-BRANCH diag on the
+                    # success arm, surviving the two-hop OS-handle capture --
+                    # the Test Plan row's other unchecked demand. Scoped to
+                    # THIS branch only (N1): the precondition branch above has
+                    # exit 78 on both success/timeout, where
+                    # aai-run-tests.ps1:81 documents AAI-BRANCH is never
+                    # emitted, so asserting it there is a false demand.
+                    $successArm.diag | Should -Not -BeNullOrEmpty
+                    $successArm.diag | Should -Match '^AAI-BRANCH:'
                 }
-                # SEAM-2: a non-empty captured AAI-BRANCH diag on the success
-                # arm, surviving the two-hop OS-handle capture -- the Test
-                # Plan row's other unchecked demand.
-                $successArm.diag | Should -Not -BeNullOrEmpty
-                $successArm.diag | Should -Match '^AAI-BRANCH:'
             } else {
                 $cat14.status | Should -Be 'SKIP'
                 $cat14.detail.spawned | Should -Be $false

@@ -127,4 +127,5 @@ disk.
 
 - Request: docs/issues/CHANGE-0135-doctor-win-selftest.md
 - Spec: docs/specs/SPEC-DRAFT-spec-doctor-win-selftest.md
-- Validation evidence: docs/ai/reports/
+- Validation evidence: docs/ai/validation/ (gitignored runtime directory —
+  reports land here per ride, not committed to the repo)
