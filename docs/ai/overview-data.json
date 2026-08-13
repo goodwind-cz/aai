@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-13T18:38:24.570Z",
+  "generatedAt": "2026-08-13T18:56:05.860Z",
   "project": "aai",
   "counts": {
     "delivered": 184,
@@ -24,8 +24,15 @@
       "user_decision": "inline"
     },
     "validation_status": "pass",
-    "review_status": "not_run",
+    "review_status": "pass",
     "ticks": [
+      {
+        "tick": 86,
+        "role": "code_review",
+        "scope": "reporting-docs-true-up",
+        "duration_seconds": 135,
+        "harness_version": "unknown"
+      },
       {
         "tick": 85,
         "role": "validation",
@@ -53,13 +60,6 @@
         "scope": "canonical-test-invocation",
         "duration_seconds": 130,
         "harness_version": "unknown"
-      },
-      {
-        "tick": 81,
-        "role": "validation",
-        "scope": "canonical-test-invocation",
-        "duration_seconds": 125,
-        "harness_version": "unknown"
       }
     ]
   },
@@ -73,9 +73,9 @@
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
-      "spec": "docs/specs/SPEC-DRAFT-spec-reporting-docs-true-up.md",
+      "spec": "docs/specs/SPEC-0127-spec-reporting-docs-true-up.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-20260813T184301Z-CHANGE-0140-reporting-docs-true-up.md"
     },
     {
       "ref": "aai-self-improvement-feedback-loop",

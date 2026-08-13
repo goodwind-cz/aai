@@ -2238,7 +2238,7 @@ read its gate warning) to see which section is missing.
 
 Turns the local metrics ledger (`docs/ai/METRICS.jsonl`) into one self-contained interactive HTML page of per-run operational charts: token usage over time, per-skill usage frequency and cost, TDD cycle durations, worktree distribution, and publishing timeline. Token totals are real even though the ledger rarely records decomposed input/output numbers — harness usage captured as an undecomposed `usage_total_tokens=<N>` note on a run is parsed and reported as a total (never fabricated into an input/output split). Chart sections whose source data is absent across the whole dataset show a named "No data recorded in this dataset" state instead of an empty axis, so a blank chart always means "nothing recorded", never "broken page".
 
-[Product doc](product/aai-dashboard.md) · [Spec](specs/SPEC-DRAFT-spec-reporting-docs-true-up.md)
+[Product doc](product/aai-dashboard.md) · [Spec](specs/SPEC-0127-spec-reporting-docs-true-up.md)
 
 ### `/aai-doctor` diagnoses the real Windows and agent-CLI environment it runs on
 

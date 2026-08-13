@@ -14,8 +14,9 @@ capability: aai-dashboard
 - Owner audit 2026-08-13 ("user docs nesedi uplne s tim jake mame skily ...
   a dashboard taky neukazuje vse, ma prazdne grafy"): three confirmed
   defects. (1) docs/USER_GUIDE.md documents skills/scripts that do not
-  exist (the /aai-feedback-triage and /aai-feedback-upsert flow — only
-  aai-feedback-status.mjs exists) and omits /aai-factory-report entirely
+  exist (the /aai-feedback-triage and /aai-feedback-upsert SKILL aliases —
+  the three .mjs engines all exist; Planning corrected this intake claim,
+  only the alias mentions were dead) and omits /aai-factory-report entirely
   (shipped in CHANGE-0130). (2) generate-dashboard.mjs reads tokens only
   from tokens_in/tokens_out, which the real ledger never fills — usage
   lives in the run note as `usage_total_tokens=N` (SUBAGENT_PROTOCOL
