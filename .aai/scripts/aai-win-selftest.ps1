@@ -120,12 +120,21 @@ function Build-SelfTestReport {
   $failed = $false
   $entries = @()
   foreach ($arm in $Arms) {
-    $entries += [ordered]@{
+    $entry = [ordered]@{
       name     = $arm.Name
       status   = $arm.Status
       exitCode = $arm.ExitCode
       diag     = $arm.Diag
     }
+    # Evidence pass-through (bounded, see Get-TextTail): a FAIL arm's JSON
+    # must name which sub-check broke without a re-run under a debugger.
+    if ($arm.Contains('TimedOut'))        { $entry.timedOut        = $arm.TimedOut }
+    if ($arm.Contains('MarkerOk'))        { $entry.markerOk        = $arm.MarkerOk }
+    if ($arm.Contains('MarkerAbsent'))    { $entry.markerAbsent    = $arm.MarkerAbsent }
+    if ($arm.Contains('SpawnErrorCount')) { $entry.spawnErrorCount = $arm.SpawnErrorCount }
+    if ($arm.Contains('StdOutTail'))      { $entry.stdoutTail      = $arm.StdOutTail }
+    if ($arm.Contains('StdErrTail'))      { $entry.stderrTail      = $arm.StdErrTail }
+    $entries += $entry
     if ($arm.Status -ne 'PASS') { $failed = $true }
   }
   # Edge case (spec, recorded): a real Windows host with NEITHER WSL nor Git
@@ -245,6 +254,18 @@ function Get-LastDiagLine {
   return $found[$found.Count - 1].Value.Trim()
 }
 
+function Get-TextTail {
+  # Bounded evidence for the report: a FAILing arm must carry enough of the
+  # child's captured streams to diagnose WHICH sub-check broke from the JSON
+  # alone (a bare status='FAIL' cost a blind CI iteration on PR #249).
+  [CmdletBinding()]
+  param([string]$Text, [int]$MaxChars = 400)
+  if ([string]::IsNullOrEmpty($Text)) { return '' }
+  $trimmed = $Text.Trim()
+  if ($trimmed.Length -le $MaxChars) { return $trimmed }
+  return $trimmed.Substring($trimmed.Length - $MaxChars)
+}
+
 function Invoke-SelfTestArmSuccess {
   # success: exit 3 plus a marker FILE whose content matches, no
   # AAI-SPAWN-ERROR line. A marker FILE (not a stdout regex) sidesteps the
@@ -269,7 +290,9 @@ exit `$LASTEXITCODE
   $spawnError = $result.StdErr -match 'AAI-SPAWN-ERROR'
   $diag = Get-LastDiagLine -Text $result.StdErr -Pattern 'AAI-BRANCH:.*'
   $status = if ($result.ExitCode -eq 3 -and $markerOk -and -not $spawnError) { 'PASS' } else { 'FAIL' }
-  return [ordered]@{ Name = 'success'; Status = $status; ExitCode = $result.ExitCode; Diag = $diag }
+  return [ordered]@{ Name = 'success'; Status = $status; ExitCode = $result.ExitCode; Diag = $diag
+    TimedOut = $result.TimedOut; MarkerOk = $markerOk
+    StdOutTail = Get-TextTail -Text $result.StdOut; StdErrTail = Get-TextTail -Text $result.StdErr }
 }
 
 function Invoke-SelfTestArmTimeout {
@@ -290,7 +313,9 @@ exit `$LASTEXITCODE
   $spawnError = $result.StdErr -match 'AAI-SPAWN-ERROR'
   $diag = Get-LastDiagLine -Text $result.StdErr -Pattern 'AAI-BRANCH:.*'
   $status = if ($result.ExitCode -eq 124 -and -not $spawnError) { 'PASS' } else { 'FAIL' }
-  return [ordered]@{ Name = 'timeout'; Status = $status; ExitCode = $result.ExitCode; Diag = $diag }
+  return [ordered]@{ Name = 'timeout'; Status = $status; ExitCode = $result.ExitCode; Diag = $diag
+    TimedOut = $result.TimedOut
+    StdOutTail = Get-TextTail -Text $result.StdOut; StdErrTail = Get-TextTail -Text $result.StdErr }
 }
 
 function Invoke-SelfTestArmSpawnFail {
@@ -333,7 +358,9 @@ exit `$LASTEXITCODE
   $markerAbsent = -not (Test-Path -LiteralPath $marker)
   $status = if ($result.ExitCode -eq 125 -and $spawnErrorMatches.Count -eq 1 -and $markerAbsent) { 'PASS' } else { 'FAIL' }
   $diag = if ($spawnErrorMatches.Count -gt 0) { $spawnErrorMatches[$spawnErrorMatches.Count - 1].Value.Trim() } else { '' }
-  return [ordered]@{ Name = 'spawnfail'; Status = $status; ExitCode = $result.ExitCode; Diag = $diag }
+  return [ordered]@{ Name = 'spawnfail'; Status = $status; ExitCode = $result.ExitCode; Diag = $diag
+    TimedOut = $result.TimedOut; MarkerAbsent = $markerAbsent; SpawnErrorCount = $spawnErrorMatches.Count
+    StdOutTail = Get-TextTail -Text $result.StdOut; StdErrTail = Get-TextTail -Text $result.StdErr }
 }
 
 function Invoke-SelfTest {

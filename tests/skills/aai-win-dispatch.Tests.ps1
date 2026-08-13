@@ -1553,6 +1553,11 @@ Describe 'aai-win-selftest.ps1 (CHANGE-0135 / spec-doctor-win-selftest)' {
             $cat14 = $parsed.categories | Where-Object { $_.id -eq 'CAT-14' }
             $cat14 | Should -Not -BeNullOrEmpty
             if ($isWindowsHost) {
+                # Diagnostic dump BEFORE any assert: when an arm fails on a
+                # real Windows runner this is the only evidence in the CI log
+                # (PR #249 run 31657594477 failed here with a bare
+                # status='FAIL' and nothing to diagnose from).
+                Write-Host ("CAT-14 detail: " + ($cat14.detail | ConvertTo-Json -Depth 8 -Compress))
                 $cat14.detail.spawned | Should -Be $true
                 $cat14.detail.arms.Count | Should -Be 3
                 $successArm = $cat14.detail.arms | Where-Object { $_.name -eq 'success' }
