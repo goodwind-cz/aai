@@ -511,6 +511,9 @@ function buildModel(args) {
   const openFollowUps = registry.items.filter((i) => !i.closed);
   const followUpAges = openFollowUps.map((i) => i.age_days).filter((v) => typeof v === 'number');
   const followUps = {
+    // The ledger actually read (PR #257 Copilot): --decisions can point
+    // elsewhere, and a report naming a path it did not read is a lie.
+    source: args.decisionsPath,
     open_count: openFollowUps.length,
     // null (never 0) for an empty backlog — an empty registry and a
     // brand-new one must not look like a same-day deferral.
@@ -617,7 +620,13 @@ function barSeries(series, key, labelFn) {
 
 function renderHtml(m) {
   if (m.empty) {
-    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(m.project)} — Factory Performance Report</title></head><body><h1>${esc(m.project)} — Factory Performance Report</h1><p>No metrics recorded yet.</p></body></html>\n`;
+    // A repo with no rides can still carry open follow-ups (a fresh downstream
+    // is exactly that shape). Suppressing them here would hide the whole
+    // registry behind an unrelated emptiness — PR #257 Codex P2.
+    const fuLine = m.follow_ups && m.follow_ups.open_count > 0
+      ? `<p><b>${m.follow_ups.open_count}</b> open follow-up(s) recorded in <code>${esc(m.follow_ups.source ?? 'docs/ai/decisions.jsonl')}</code>${m.follow_ups.oldest_age_days === null ? '' : `, oldest ${m.follow_ups.oldest_age_days}d`}.</p>`
+      : '';
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(m.project)} — Factory Performance Report</title></head><body><h1>${esc(m.project)} — Factory Performance Report</h1><p>No metrics recorded yet.</p>${fuLine}</body></html>\n`;
   }
   const lead = m.throughput.lead_time;
   const notesHtml = m.notes.length
@@ -768,7 +777,7 @@ function renderHtml(m) {
   <div class="kpi"><b>${m.follow_ups.open_count}</b><span>open follow-ups</span></div>
   <div class="kpi"><b>${m.follow_ups.oldest_age_days === null ? 'n/a' : `${m.follow_ups.oldest_age_days}d`}</b><span>oldest open item</span></div>
 </div>
-<p class="meta">Typed <code>follow_up</code> entries folded out of <code>docs/ai/decisions.jsonl</code>, oldest first. Report-only — nothing here blocks anything. Close one with <code>node .aai/scripts/follow-ups.mjs close --id &lt;id&gt; --resolved-by &lt;ref&gt;</code>.</p>
+<p class="meta">Typed <code>follow_up</code> entries folded out of <code>${esc(m.follow_ups.source ?? 'docs/ai/decisions.jsonl')}</code>, oldest first. Report-only — nothing here blocks anything. Close one with <code>node .aai/scripts/follow-ups.mjs close --id &lt;id&gt; --resolved-by &lt;ref&gt;</code>.</p>
 <div class="scroll"><table><thead><tr><th>Id</th><th>Severity</th><th>Raised by</th><th>Age</th><th>What</th></tr></thead><tbody>${followUpRows}</tbody></table></div>
 </section>
 

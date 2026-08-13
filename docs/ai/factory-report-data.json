@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-13T22:53:23.402Z",
+  "generatedAt": "2026-08-13T23:18:23.776Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 119,
-    "delivered": 324,
+    "rides": 120,
+    "delivered": 326,
     "active_weeks": 7,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (324 closes vs 119 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 324,
-    "delivered_per_week_avg": 46.3,
+    "note": "\"delivered\" counts every work_item_closed event (326 closes vs 120 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 326,
+    "delivered_per_week_avg": 46.6,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -21,7 +21,7 @@
       "2026-W30": 64,
       "2026-W31": 72,
       "2026-W32": 19,
-      "2026-W33": 25
+      "2026-W33": 27
     },
     "delivered_groups": [
       {
@@ -299,7 +299,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 61,
+        "count": 63,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -361,7 +361,9 @@
           "spec-reporting-docs-true-up",
           "changelog-payload-hardening",
           "spec-changelog-payload-hardening",
-          "spec-kit-comparative"
+          "spec-kit-comparative",
+          "followup-registry",
+          "spec-followup-registry"
         ]
       }
     ],
@@ -1662,25 +1664,33 @@
         {
           "ref": "spec-kit-comparative",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "followup-registry",
+          "lead_time_seconds": 7586
+        },
+        {
+          "ref": "spec-followup-registry",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 3587,
-      "mean_seconds": 128600.3,
-      "measured": 115,
-      "unmeasurable": 209
+      "median_seconds": 3589,
+      "mean_seconds": 127557.1,
+      "measured": 116,
+      "unmeasurable": 210
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2151,
-      "mean": 2927.2,
-      "measured": 117
+      "median": 2161,
+      "mean": 2949.3,
+      "measured": 118
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 111287,
-        "tokens": 12539750
+        "duration_seconds": 113200,
+        "tokens": 12823230
       },
       {
         "role": "Implementation",
@@ -1689,8 +1699,8 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 44184,
-        "tokens": 6863034
+        "duration_seconds": 45637,
+        "tokens": 7045862
       },
       {
         "role": "Remediation",
@@ -1699,13 +1709,13 @@
       },
       {
         "role": "Validation",
-        "duration_seconds": 66636,
-        "tokens": 6883812
+        "duration_seconds": 67926,
+        "tokens": 7118579
       },
       {
         "role": "Planning",
-        "duration_seconds": 61581,
-        "tokens": 6826622
+        "duration_seconds": 62461,
+        "tokens": 7000582
       }
     ],
     "per_ride": [
@@ -2303,6 +2313,11 @@
         "ref": "changelog-payload-hardening",
         "busy_seconds": 2171,
         "remediation_runs": 0
+      },
+      {
+        "ref": "followup-registry",
+        "busy_seconds": 5536,
+        "remediation_runs": 0
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -2312,15 +2327,15 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 464257,
-      "mean": 539405.4,
-      "measured": 71
+      "median": 469041,
+      "mean": 544066.9,
+      "measured": 72
     },
-    "tokens_total": 38297781,
+    "tokens_total": 39172816,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 12539750
+        "tokens": 12823230
       },
       {
         "role": "Implementation",
@@ -2328,7 +2343,7 @@
       },
       {
         "role": "Code Review",
-        "tokens": 6863034
+        "tokens": 7045862
       },
       {
         "role": "Remediation",
@@ -2336,16 +2351,16 @@
       },
       {
         "role": "Validation",
-        "tokens": 6883812
+        "tokens": 7118579
       },
       {
         "role": "Planning",
-        "tokens": 6826622
+        "tokens": 7000582
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 278,
-      "total_runs": 500,
+      "runs_with_marker": 282,
+      "total_runs": 504,
       "pct": 56,
       "by_week": [
         {
@@ -2386,8 +2401,8 @@
         },
         {
           "week": "2026-W33",
-          "runs_with_marker": 63,
-          "total_runs": 63,
+          "runs_with_marker": 67,
+          "total_runs": 67,
           "pct": 100
         }
       ]
@@ -2396,12 +2411,12 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 76,
-          "runs_marked": 56,
+          "runs_total": 77,
+          "runs_marked": 57,
           "runs_sentinel": 0,
           "runs_unmarked": 20,
-          "tokens_total": 12539750,
-          "median_tokens_per_run": 223210,
+          "tokens_total": 12823230,
+          "median_tokens_per_run": 224045,
           "share_pct": 33
         },
         {
@@ -2412,16 +2427,16 @@
           "runs_unmarked": 38,
           "tokens_total": 961354,
           "median_tokens_per_run": 202407,
-          "share_pct": 3
+          "share_pct": 2
         },
         {
           "role": "Code Review",
-          "runs_total": 119,
-          "runs_marked": 74,
+          "runs_total": 120,
+          "runs_marked": 75,
           "runs_sentinel": 0,
           "runs_unmarked": 45,
-          "tokens_total": 6863034,
-          "median_tokens_per_run": 83667,
+          "tokens_total": 7045862,
+          "median_tokens_per_run": 83900,
           "share_pct": 18
         },
         {
@@ -2436,22 +2451,22 @@
         },
         {
           "role": "Validation",
-          "runs_total": 112,
-          "runs_marked": 66,
+          "runs_total": 113,
+          "runs_marked": 67,
           "runs_sentinel": 0,
           "runs_unmarked": 46,
-          "tokens_total": 6883812,
-          "median_tokens_per_run": 103480,
+          "tokens_total": 7118579,
+          "median_tokens_per_run": 104154,
           "share_pct": 18
         },
         {
           "role": "Planning",
-          "runs_total": 99,
-          "runs_marked": 52,
+          "runs_total": 100,
+          "runs_marked": 53,
           "runs_sentinel": 0,
           "runs_unmarked": 47,
-          "tokens_total": 6826622,
-          "median_tokens_per_run": 127889,
+          "tokens_total": 7000582,
+          "median_tokens_per_run": 128640,
           "share_pct": 18
         }
       ],
@@ -2671,8 +2686,8 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 12,
-              "median_tokens": 247722
+              "runs_marked": 13,
+              "median_tokens": 255490
             },
             {
               "role": "Implementation",
@@ -2681,8 +2696,8 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 13,
-              "median_tokens": 135799
+              "runs_marked": 14,
+              "median_tokens": 136212
             },
             {
               "role": "Remediation",
@@ -2691,13 +2706,13 @@
             },
             {
               "role": "Validation",
-              "runs_marked": 14,
-              "median_tokens": 133495
+              "runs_marked": 15,
+              "median_tokens": 135579
             },
             {
               "role": "Planning",
-              "runs_marked": 12,
-              "median_tokens": 159950
+              "runs_marked": 13,
+              "median_tokens": 160524
             }
           ]
         }
@@ -2706,13 +2721,13 @@
   },
   "quality": {
     "first_pass_clean": {
-      "clean": 77,
-      "flagged": 93,
+      "clean": 78,
+      "flagged": 94,
       "rate_pct": 83
     },
     "na_reliability": 26,
     "remediation_distribution": {
-      "0": 77,
+      "0": 78,
       "1": 8,
       "2": 3,
       "3": 3,
@@ -2723,7 +2738,7 @@
     "avg_validation_fails": 0,
     "avg_review_fails": 0,
     "verdict_mix": {
-      "PASS": 106,
+      "PASS": 107,
       "null": 13
     },
     "review_events": 26,
@@ -2780,14 +2795,15 @@
     },
     {
       "week": "2026-W33",
-      "delivered": 25,
-      "median_lead_time_seconds": 4671,
-      "busy_seconds": 47930,
-      "tokens": 10608708,
-      "first_pass_rate": 67
+      "delivered": 27,
+      "median_lead_time_seconds": 4757,
+      "busy_seconds": 53466,
+      "tokens": 11483743,
+      "first_pass_rate": 69
     }
   ],
   "follow_ups": {
+    "source": "docs/ai/decisions.jsonl",
     "open_count": 14,
     "oldest_age_days": 5,
     "items": [
@@ -2827,7 +2843,7 @@
         "id": "fu-guard-dials-derivation",
         "ref": "CHANGE-0131",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "GUARD_DIALS is decorative: the defaults object and the parser regex carry the real behavior, so a seventh dial can silently half-register - derive both from the array. Paired item: the case-insensitive APFS vs case-sensitive CI divergence must be re-read at the evidence_path_gate enforce-flip decision",
         "status": "open"
       },
