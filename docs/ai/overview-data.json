@@ -1,64 +1,64 @@
 {
-  "generatedAt": "2026-08-11T23:15:18.239Z",
+  "generatedAt": "2026-08-13T02:15:55.089Z",
   "project": "aai",
   "counts": {
-    "delivered": 176,
+    "delivered": 180,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 26623390
+    "tokens_total": 32159838
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "evidence-path-gate",
+    "ref": "doctor-win-selftest",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "evidence-path-gate",
+      "ref": "doctor-win-selftest",
       "type": "intake_change",
       "phase": "validation"
     },
-    "strategy": "tdd",
+    "strategy": "hybrid",
     "worktree": {
-      "recommendation": "not_needed",
+      "recommendation": "optional",
       "user_decision": "inline"
     },
     "validation_status": "not_run",
     "review_status": "not_run",
     "ticks": [
       {
-        "tick": 34,
-        "role": "Code Review",
-        "scope": "evidence-path-gate",
-        "duration_seconds": 569,
+        "tick": 66,
+        "role": "remediation",
+        "scope": "doctor-win-selftest",
+        "duration_seconds": 755,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 65,
+        "role": "code_review",
+        "scope": "doctor-win-selftest",
+        "duration_seconds": 818,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 64,
+        "role": "Remediation",
+        "scope": "doctor-win-selftest",
+        "duration_seconds": 1183,
         "harness_version": "2.1.220 (Claude Code)"
       },
       {
-        "tick": 33,
+        "tick": 63,
+        "role": "Code Review",
+        "scope": "doctor-win-selftest",
+        "duration_seconds": 643,
+        "harness_version": "2.1.220 (Claude Code)"
+      },
+      {
+        "tick": 62,
         "role": "Validation",
-        "scope": "evidence-path-gate",
-        "duration_seconds": 826,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 32,
-        "role": "TDD Implementation",
-        "scope": "evidence-path-gate",
-        "duration_seconds": 1375,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 31,
-        "role": "Planning",
-        "scope": "evidence-path-gate",
-        "duration_seconds": 777,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 30,
-        "role": "Code Review",
-        "scope": "role-token-trend",
-        "duration_seconds": 518,
+        "scope": "doctor-win-selftest",
+        "duration_seconds": 895,
         "harness_version": "2.1.220 (Claude Code)"
       }
     ]
@@ -79,6 +79,58 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "doctor-win-selftest",
+      "title": "Change — aai-doctor: Windows wrapper self-test + agent-CLI capability probe (test reality, not the CI image)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0135-doctor-win-selftest.md",
+      "closed_on": "2026-08-13",
+      "agent_minutes": 161,
+      "token_total": 1655409,
+      "spec": "docs/specs/SPEC-0122-spec-doctor-win-selftest.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260813T010000Z-CHANGE-0135-doctor-win-selftest-rereview.md"
+    },
+    {
+      "ref": "validation-cost-calibration",
+      "title": "Change — Validation cost calibration: lane-scaled depth + harness-aware role isolation (capability-detected, never hardcoded)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0132-validation-cost-calibration.md",
+      "closed_on": "2026-08-12",
+      "agent_minutes": 94,
+      "token_total": 888195,
+      "spec": "docs/specs/SPEC-0119-spec-validation-cost-calibration.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260812T083704Z-CHANGE-0132-validation-cost-calibration.md"
+    },
+    {
+      "ref": "ps1-wrapper-path-dup",
+      "title": "Change — aai-run-tests.ps1: Path/PATH duplicate kills Start-Process; failure masquerades as timeout 124",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0133-ps1-wrapper-path-dup.md",
+      "closed_on": "2026-08-12",
+      "agent_minutes": 162,
+      "token_total": 1790560,
+      "spec": "docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260812T133652Z-CHANGE-0133-ps1-wrapper-path-dup.md"
+    },
+    {
+      "ref": "pester-on-windows-ci",
+      "title": "Change — Run the full Pester suite on real Windows CI under both engines",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0134-pester-on-windows-ci.md",
+      "closed_on": "2026-08-12",
+      "agent_minutes": 71,
+      "token_total": 1202284,
+      "spec": "docs/specs/SPEC-0121-spec-pester-on-windows-ci.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260812T202503Z-CHANGE-0134-pester-on-windows-ci.md"
+    },
     {
       "ref": "role-token-trend",
       "title": "Change — Factory report: per-role token trend (layer-2 measurement)",
@@ -2374,6 +2426,58 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "doctor-win-selftest",
+          "title": "Change — aai-doctor: Windows wrapper self-test + agent-CLI capability probe (test reality, not the CI image)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0135-doctor-win-selftest.md",
+          "closed_on": "2026-08-13",
+          "agent_minutes": 161,
+          "token_total": 1655409,
+          "spec": "docs/specs/SPEC-0122-spec-doctor-win-selftest.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260813T010000Z-CHANGE-0135-doctor-win-selftest-rereview.md"
+        },
+        {
+          "ref": "validation-cost-calibration",
+          "title": "Change — Validation cost calibration: lane-scaled depth + harness-aware role isolation (capability-detected, never hardcoded)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0132-validation-cost-calibration.md",
+          "closed_on": "2026-08-12",
+          "agent_minutes": 94,
+          "token_total": 888195,
+          "spec": "docs/specs/SPEC-0119-spec-validation-cost-calibration.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260812T083704Z-CHANGE-0132-validation-cost-calibration.md"
+        },
+        {
+          "ref": "ps1-wrapper-path-dup",
+          "title": "Change — aai-run-tests.ps1: Path/PATH duplicate kills Start-Process; failure masquerades as timeout 124",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0133-ps1-wrapper-path-dup.md",
+          "closed_on": "2026-08-12",
+          "agent_minutes": 162,
+          "token_total": 1790560,
+          "spec": "docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260812T133652Z-CHANGE-0133-ps1-wrapper-path-dup.md"
+        },
+        {
+          "ref": "pester-on-windows-ci",
+          "title": "Change — Run the full Pester suite on real Windows CI under both engines",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0134-pester-on-windows-ci.md",
+          "closed_on": "2026-08-12",
+          "agent_minutes": 71,
+          "token_total": 1202284,
+          "spec": "docs/specs/SPEC-0121-spec-pester-on-windows-ci.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260812T202503Z-CHANGE-0134-pester-on-windows-ci.md"
+        },
         {
           "ref": "role-token-trend",
           "title": "Change — Factory report: per-role token trend (layer-2 measurement)",

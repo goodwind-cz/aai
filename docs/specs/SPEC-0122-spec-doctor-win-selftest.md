@@ -2,13 +2,15 @@
 id: spec-doctor-win-selftest
 type: spec
 number: 122
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0135-doctor-win-selftest.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 249
+  commits:
+    - dbeda70
 ---
 
 # Spec — aai-doctor diagnoses the real Windows/agent-CLI environment it is run on

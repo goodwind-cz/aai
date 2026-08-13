@@ -8,6 +8,7 @@ delivered_by:
   - spec-doctor-determinize
   - CHANGE-0135
   - spec-doctor-win-selftest
+  - doctor-win-selftest
 spec: docs/specs/SPEC-0122-spec-doctor-win-selftest.md
 updated: 2026-08-13
 ---

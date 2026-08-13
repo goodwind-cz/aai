@@ -2,10 +2,15 @@
 id: doctor-win-selftest
 number: 135
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
 capability: aai-doctor
+links:
+  commits:
+    - dbeda70
+  pr:
+    - 249
 ---
 
 # Change — aai-doctor: Windows wrapper self-test + agent-CLI capability probe (test reality, not the CI image)
