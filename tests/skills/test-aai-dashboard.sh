@@ -378,7 +378,10 @@ test_012_hostile_payload_embed() {  # CHANGE-0141 TEST-003 (Spec-AC-02)
     {"role":"Val ${boom} dollar-brace","started_utc":"2026-08-10T11:00:00Z","note":"usage_total_tokens=200"},
     {"role":"Backslash run C:\\tmp\\` adjacency \\\\ deep","started_utc":"2026-08-10T12:00:00Z"},
     {"role":"Replacement $& $` $1 patterns","started_utc":"2026-08-10T13:00:00Z"},
-    {"role":"</script><script>alert(1)</script> closer","started_utc":"2026-08-10T14:00:00Z"}
+    {"role":"</script><script>alert(1)</script> closer","started_utc":"2026-08-10T14:00:00Z"},
+    {"role":"LineSep   ParaSep   raw","started_utc":"2026-08-10T15:00:00Z","note":"usage_total_tokens=300"},
+    {"role":"Lone surrogate \ud800 tail","started_utc":"2026-08-10T16:00:00Z"},
+    {"role":"Placeholder {{PANEL_TOKENS}} {{METRICS_DATA}} echo","started_utc":"2026-08-10T17:00:00Z"}
   ]'
   run_generator "$d/METRICS.jsonl" "$d/dashboard.html"
   [[ "$EC" == 0 ]] || log_fail "TEST-012 generator must exit 0 (got $EC): $(cat "$OUT")"
@@ -416,6 +419,16 @@ test_013_embed_structural_pin() {  # CHANGE-0141 TEST-004 (Spec-AC-02)
   # Function-replacement substitution for ALL five {{...}} replaces ($&-proof).
   grep -qF "'{{METRICS_DATA}}', () =>" "$GENERATOR" \
     || log_fail "TEST-013 METRICS_DATA substitution must be function-form (() =>) — string form re-arms \$& replacement patterns"
+
+  # Substitution ORDER (review NB-2): the attacker-influenced payload must be
+  # substituted LAST, so a payload-borne literal {{PANEL_*}} can never be
+  # re-substituted by a later pass — an invariant that must not depend on
+  # where the template happens to place its panel placeholders.
+  local n_md n_lastpanel
+  n_md="$(grep -n "'{{METRICS_DATA}}', () =>" "$GENERATOR" | head -1 | cut -d: -f1)"
+  n_lastpanel="$(grep -nE "'\{\{PANEL_[A-Z]+\}\}', \(\) =>" "$GENERATOR" | tail -1 | cut -d: -f1)"
+  [[ -n "$n_md" && -n "$n_lastpanel" && "$n_md" -gt "$n_lastpanel" ]] \
+    || log_fail "TEST-013 METRICS_DATA must be substituted AFTER every PANEL substitution (payload@$n_md lastPanel@$n_lastpanel)"
   local fn_count
   fn_count="$(grep -cE "'\\{\\{PANEL_[A-Z]+\\}\\}', \\(\\) =>" "$GENERATOR")" || true
   [[ "$fn_count" == "4" ]] \

@@ -426,12 +426,18 @@ function generateDashboard({ metricsPath, outputPath, from, to, skill, dataOnly 
     // `$n` replacement patterns in the payload. The four PANEL substitutions
     // take the same form for uniformity (generator-owned constant markup;
     // hygiene, not a fix).
+    // Substitution ORDER matters (review NB-2): the payload is the only
+    // attacker-influenced string here, so it goes LAST — a payload-borne
+    // literal `{{PANEL_*}}` can then never be re-substituted, whatever a
+    // future template edit does to placeholder positions. (Today it is
+    // inert anyway because every panel placeholder sits above the script
+    // block, but that is a template layout accident, not an invariant.)
     const html = template
-      .replace('{{METRICS_DATA}}', () => payload)
       .replace('{{PANEL_TOKENS}}', () => panelMarkup('tokens', 'tokenChart', data.hasTokenSignal))
       .replace('{{PANEL_TDD}}', () => panelMarkup('tdd', 'tddChart', data.tddStats !== null))
       .replace('{{PANEL_WORKTREE}}', () => panelMarkup('worktree', 'worktreeChart', data.worktreeStats !== null))
-      .replace('{{PANEL_PUBLISH}}', () => panelMarkup('publish', 'publishChart', data.publishStats !== null));
+      .replace('{{PANEL_PUBLISH}}', () => panelMarkup('publish', 'publishChart', data.publishStats !== null))
+      .replace('{{METRICS_DATA}}', () => payload);
 
     ensureDir(outputPath);
     fs.writeFileSync(outputPath, html, 'utf8');

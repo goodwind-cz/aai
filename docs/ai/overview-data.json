@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-13T18:59:11.018Z",
+  "generatedAt": "2026-08-13T20:02:33.093Z",
   "project": "aai",
   "counts": {
     "delivered": 185,
-    "in_progress": 1,
+    "in_progress": 2,
     "releases": 1,
     "tokens_total": 35419704
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "reporting-docs-true-up",
+    "ref": "changelog-payload-hardening",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "reporting-docs-true-up",
+      "ref": "changelog-payload-hardening",
       "type": "intake_change",
       "phase": "code_review"
     },
@@ -23,9 +23,30 @@
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "not_run",
+    "validation_status": "pass",
     "review_status": "not_run",
     "ticks": [
+      {
+        "tick": 89,
+        "role": "validation",
+        "scope": "changelog-payload-hardening",
+        "duration_seconds": 218,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 88,
+        "role": "implementation",
+        "scope": "changelog-payload-hardening",
+        "duration_seconds": 714,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 87,
+        "role": "planning",
+        "scope": "changelog-payload-hardening",
+        "duration_seconds": 1091,
+        "harness_version": "unknown"
+      },
       {
         "tick": 86,
         "role": "code_review",
@@ -39,31 +60,23 @@
         "scope": "reporting-docs-true-up",
         "duration_seconds": 491,
         "harness_version": "unknown"
-      },
-      {
-        "tick": 84,
-        "role": "implementation",
-        "scope": "reporting-docs-true-up",
-        "duration_seconds": 750,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 83,
-        "role": "planning",
-        "scope": "reporting-docs-true-up",
-        "duration_seconds": 269,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 82,
-        "role": "code_review",
-        "scope": "canonical-test-invocation",
-        "duration_seconds": 130,
-        "harness_version": "unknown"
       }
     ]
   },
   "in_progress": [
+    {
+      "ref": "changelog-payload-hardening",
+      "title": "Change — released-CHANGELOG class pin + dashboard payload-escaping fix",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0141-changelog-payload-hardening.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-DRAFT-spec-changelog-payload-hardening.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
