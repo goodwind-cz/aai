@@ -291,6 +291,20 @@
       color: var(--text-muted);
     }
 
+    /* Named no-data state (CHANGE-0140 D4): rendered by the generator in
+       place of a canvas when a section's source data is absent across the
+       whole dataset — never a bare empty axis. */
+    .no-data {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muted);
+      font-size: 16px;
+      border: 2px dashed var(--border-color);
+      border-radius: 8px;
+    }
+
     .spinner {
       border: 4px solid var(--border-color);
       border-top: 4px solid var(--accent-primary);
@@ -323,7 +337,7 @@
       <div class="summary-card">
         <h3>Total Tokens</h3>
         <div class="value" id="total-tokens">-</div>
-        <div class="subvalue">Input + Output</div>
+        <div class="subvalue">Total usage (in/out split unknown for note-carried runs)</div>
       </div>
       <div class="summary-card">
         <h3>Avg Duration</h3>
@@ -358,14 +372,14 @@
       <div class="chart-section">
         <h2>TDD Cycle Duration</h2>
         <div class="chart-container">
-          <canvas id="tddChart"></canvas>
+          <div class="no-data" data-panel="tdd">No data recorded in this dataset</div>
         </div>
       </div>
 
       <div class="chart-section">
         <h2>Worktree Distribution</h2>
         <div class="chart-container">
-          <canvas id="worktreeChart"></canvas>
+          <div class="no-data" data-panel="worktree">No data recorded in this dataset</div>
         </div>
       </div>
     </div>
@@ -394,7 +408,7 @@
     <div class="chart-section">
       <h2>Publishing Timeline</h2>
       <div class="chart-container">
-        <canvas id="publishChart"></canvas>
+        <div class="no-data" data-panel="publish">No data recorded in this dataset</div>
       </div>
     </div>
 
@@ -406,7 +420,7 @@
 
   <script>
     // Data placeholder - will be replaced during generation
-    const rawMetricsData = `{"summary":{"total":311,"totalTokens":0,"avgDuration":591534,"successRate":"100.0","activeWorktrees":0,"publishes":0,"workItems":73,"period":"2026-06-25 to 2026-07-25"},"tokensByTime":{"2026-06-30":{"input":0,"output":0},"2026-07-01":{"input":0,"output":0},"2026-07-02":{"input":0,"output":0},"2026-07-03":{"input":0,"output":0},"2026-07-04":{"input":0,"output":0},"2026-07-07":{"input":0,"output":0},"2026-06-25":{"input":0,"output":0},"2026-06-26":{"input":0,"output":0},"2026-07-15":{"input":0,"output":0},"2026-07-16":{"input":0,"output":0},"2026-07-17":{"input":0,"output":0},"2026-07-18":{"input":0,"output":0},"2026-07-19":{"input":0,"output":0},"2026-07-20":{"input":0,"output":0},"2026-07-21":{"input":0,"output":0},"2026-07-22":{"input":0,"output":0},"2026-07-23":{"input":0,"output":0},"2026-07-24":{"input":0,"output":0},"2026-07-25":{"input":0,"output":0}},"skillStats":[{"name":"Validation","count":74,"avgTokens":0,"avgDuration":"565.1","successRate":"100.0"},{"name":"Code Review","count":71,"avgTokens":0,"avgDuration":"347.1","successRate":"100.0"},{"name":"Planning","count":63,"avgTokens":0,"avgDuration":"363.0","successRate":"100.0"},{"name":"TDD Implementation","count":42,"avgTokens":0,"avgDuration":"1477.0","successRate":"100.0"},{"name":"Implementation","count":30,"avgTokens":0,"avgDuration":"586.9","successRate":"100.0"},{"name":"Remediation","count":24,"avgTokens":0,"avgDuration":"436.3","successRate":"100.0"},{"name":"Implementation (loop)","count":1,"avgTokens":0,"avgDuration":"190.0","successRate":"100.0"},{"name":"Remediation (E1 over-kill)","count":1,"avgTokens":0,"avgDuration":"900.0","successRate":"100.0"},{"name":"Code Review (re-review)","count":1,"avgTokens":0,"avgDuration":"744.0","successRate":"100.0"},{"name":"Remediation (W1 POSIX)","count":1,"avgTokens":0,"avgDuration":"1354.0","successRate":"100.0"},{"name":"Remediation (P1+P2 Codex)","count":1,"avgTokens":0,"avgDuration":"359.0","successRate":"100.0"},{"name":"Remediation (WARNING-1 firstCommitDate)","count":1,"avgTokens":0,"avgDuration":"252.0","successRate":"100.0"},{"name":"Remediation (Copilot nits + Codex P2 inline-agent_runs)","count":1,"avgTokens":0,"avgDuration":"720.0","successRate":"100.0"}],"tddStats":null,"worktreeStats":null,"publishStats":null,"generatedAt":"2026-07-26T08:44:19.097Z","source":{"entries":73,"operations":311,"schema":"work-item-ledger"},"filters":{"from":null,"to":null,"skill":null}}`;
+    const rawMetricsData = `{"summary":{"total":492,"totalTokens":37098869,"avgDuration":688348,"successRate":"100.0","activeWorktrees":0,"publishes":0,"workItems":117,"period":"2026-06-25 to 2026-08-13"},"tokensByTime":{"2026-06-30":{"input":0,"output":0,"total":0},"2026-07-01":{"input":0,"output":0,"total":0},"2026-07-02":{"input":0,"output":0,"total":0},"2026-07-03":{"input":0,"output":0,"total":0},"2026-07-04":{"input":0,"output":0,"total":0},"2026-07-07":{"input":0,"output":0,"total":0},"2026-06-25":{"input":0,"output":0,"total":0},"2026-06-26":{"input":0,"output":0,"total":0},"2026-07-15":{"input":0,"output":0,"total":0},"2026-07-16":{"input":0,"output":0,"total":0},"2026-07-17":{"input":0,"output":0,"total":4981341},"2026-07-18":{"input":0,"output":0,"total":4041312},"2026-07-19":{"input":0,"output":0,"total":1267795},"2026-07-20":{"input":0,"output":0,"total":1222256},"2026-07-21":{"input":0,"output":0,"total":449465},"2026-07-22":{"input":0,"output":0,"total":958488},"2026-07-23":{"input":0,"output":0,"total":0},"2026-07-24":{"input":0,"output":0,"total":0},"2026-07-25":{"input":0,"output":0,"total":0},"2026-07-26":{"input":0,"output":0,"total":3333071},"2026-07-27":{"input":0,"output":0,"total":4589395},"2026-07-28":{"input":0,"output":0,"total":2430083},"2026-08-08":{"input":0,"output":0,"total":3799825},"2026-08-09":{"input":0,"output":0,"total":616042},"2026-08-11":{"input":0,"output":0,"total":1265990},"2026-08-12":{"input":0,"output":0,"total":4800374},"2026-08-13":{"input":0,"output":0,"total":3343432}},"skillStats":[{"name":"Code Review","count":116,"avgTokens":57034,"avgDuration":"372.1","successRate":"100.0"},{"name":"Validation","count":110,"avgTokens":60138,"avgDuration":"599.3","successRate":"100.0"},{"name":"Planning","count":97,"avgTokens":67387,"avgDuration":"620.8","successRate":"100.0"},{"name":"TDD Implementation","count":74,"avgTokens":164144,"avgDuration":"1484.1","successRate":"100.0"},{"name":"Remediation","count":46,"avgTokens":91809,"avgDuration":"586.3","successRate":"100.0"},{"name":"Implementation","count":42,"avgTokens":22889,"avgDuration":"667.8","successRate":"100.0"},{"name":"Implementation (loop)","count":1,"avgTokens":0,"avgDuration":"190.0","successRate":"100.0"},{"name":"Remediation (E1 over-kill)","count":1,"avgTokens":0,"avgDuration":"900.0","successRate":"100.0"},{"name":"Code Review (re-review)","count":1,"avgTokens":0,"avgDuration":"744.0","successRate":"100.0"},{"name":"Remediation (W1 POSIX)","count":1,"avgTokens":0,"avgDuration":"1354.0","successRate":"100.0"},{"name":"Remediation (P1+P2 Codex)","count":1,"avgTokens":0,"avgDuration":"359.0","successRate":"100.0"},{"name":"Remediation (WARNING-1 firstCommitDate)","count":1,"avgTokens":0,"avgDuration":"252.0","successRate":"100.0"},{"name":"Remediation (Copilot nits + Codex P2 inline-agent_runs)","count":1,"avgTokens":0,"avgDuration":"720.0","successRate":"100.0"}],"tddStats":null,"worktreeStats":null,"publishStats":null,"hasTokenSignal":true,"generatedAt":"2026-08-13T18:56:05.749Z","source":{"entries":117,"operations":492,"schema":"work-item-ledger"},"filters":{"from":null,"to":null,"skill":null}}`;
 
     function formatNumber(num) {
       return num.toLocaleString();
@@ -431,16 +445,22 @@
       document.getElementById('period').textContent = data.summary.period || 'All time';
       document.getElementById('generated-at').textContent = `Generated: ${new Date(data.generatedAt).toLocaleString()}`;
 
+      // Each chart renders only when its canvas exists — a section whose
+      // whole-dataset source is absent carries the generator's named
+      // no-data element in place of the canvas (CHANGE-0140 D4).
+
       // Token usage over time chart
-      renderTokenChart(data.tokensByTime);
+      if (document.getElementById('tokenChart')) {
+        renderTokenChart(data.tokensByTime);
+      }
 
       // TDD cycle chart
-      if (data.tddStats) {
+      if (data.tddStats && document.getElementById('tddChart')) {
         renderTDDChart(data.tddStats);
       }
 
       // Worktree distribution
-      if (data.worktreeStats) {
+      if (data.worktreeStats && document.getElementById('worktreeChart')) {
         renderWorktreeChart(data.worktreeStats);
       }
 
@@ -449,7 +469,7 @@
       renderSkillTable(data.skillStats);
 
       // Publishing timeline
-      if (data.publishStats) {
+      if (data.publishStats && document.getElementById('publishChart')) {
         renderPublishChart(data.publishStats);
       }
     }
@@ -459,12 +479,27 @@
       const labels = Object.keys(tokensByTime).sort();
       const inputData = labels.map(date => tokensByTime[date].input);
       const outputData = labels.map(date => tokensByTime[date].output);
+      // Total includes note-carried undecomposed usage (usage_total_tokens=<N>)
+      // that has no in/out split; falls back to input+output for legacy data
+      // objects generated before the `total` field existed.
+      const totalData = labels.map(date => {
+        const t = tokensByTime[date];
+        return t.total != null ? t.total : t.input + t.output;
+      });
 
       new Chart(ctx, {
         type: 'line',
         data: {
           labels: labels,
           datasets: [
+            {
+              label: 'Total Tokens',
+              data: totalData,
+              borderColor: '#FF9800',
+              backgroundColor: 'rgba(255, 152, 0, 0.1)',
+              tension: 0.4,
+              fill: true
+            },
             {
               label: 'Input Tokens',
               data: inputData,

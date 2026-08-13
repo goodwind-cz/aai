@@ -2,6 +2,32 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+// Canonical usage_total_tokens=<N> note-marker grammar — IMPORTED, never
+// forked (SPEC-0089 single-source contract; test_120 in test-aai-metrics.sh
+// fails if the raw regex literal exists in more than one source file).
+import { extractUsageTotal } from './lib/usage-note.mjs';
+
+// finiteNum(v) -> v when it is a real recorded number, else null. JSON null
+// (the real ledger's tokens_in/tokens_out on almost every run) must NOT
+// count as a recorded 0 — Number(null) === 0 would silently shadow the
+// note-carried total (CHANGE-0140 D3).
+function finiteNum(v) {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+// D3 per-run token precedence (never double-count, never fabricate):
+// explicit finite tokens_in/tokens_out win; otherwise the note marker's
+// undecomposed TOTAL (never split into in/out); otherwise no contribution.
+// Returns { total, hasSignal } — hasSignal distinguishes "recorded as 0"
+// from "nothing recorded at all" (drives the token panel's no-data state).
+function runTokenTotal(tokensIn, tokensOut, note) {
+  if (tokensIn !== null || tokensOut !== null) {
+    return { total: (tokensIn ?? 0) + (tokensOut ?? 0), hasSignal: true };
+  }
+  const noteTotal = extractUsageTotal(note);
+  if (noteTotal !== null) return { total: noteTotal, hasSignal: true };
+  return { total: 0, hasSignal: false };
+}
 
 function parseArgs(argv) {
   const args = {
@@ -103,14 +129,19 @@ function toIsoDate(value) {
 
 function normalizeOperationRecord(entry) {
   const timestamp = toIsoDate(entry.timestamp) || toIsoDate(entry.date_utc) || null;
+  const tokensIn = finiteNum(entry.tokens?.input);
+  const tokensOut = finiteNum(entry.tokens?.output);
+  const tokens = runTokenTotal(tokensIn, tokensOut, entry.note);
   return {
     timestamp,
     skill: entry.skill || entry.operation || 'unknown',
     operation: entry.operation || entry.skill || 'unknown',
     status: entry.status || 'success',
     durationMs: Number(entry.duration_ms) || 0,
-    tokensIn: Number(entry.tokens?.input) || 0,
-    tokensOut: Number(entry.tokens?.output) || 0,
+    tokensIn: tokensIn ?? 0,
+    tokensOut: tokensOut ?? 0,
+    tokensTotal: tokens.total,
+    hasTokenSignal: tokens.hasSignal,
     metadata: entry.metadata || {}
   };
 }
@@ -123,8 +154,12 @@ function normalizeLedgerEntry(entry) {
   return runs.map((run, index) => {
     const timestamp = toIsoDate(run.started_utc) || toIsoDate(run.ended_utc) || toIsoDate(entry.date_utc) || null;
     const role = run.role || 'Unknown';
-    const tokensIn = Number(run.tokens_in);
-    const tokensOut = Number(run.tokens_out);
+    const tokensIn = finiteNum(run.tokens_in);
+    const tokensOut = finiteNum(run.tokens_out);
+    // Real agent_runs almost always carry tokens_in/out: null with usage as
+    // an undecomposed usage_total_tokens=<N> note (SUBAGENT_PROTOCOL
+    // capture convention) — parsed under the D3 precedence rule.
+    const tokens = runTokenTotal(tokensIn, tokensOut, run.note);
     const durationSeconds = Number(run.duration_seconds);
 
     return {
@@ -133,8 +168,10 @@ function normalizeLedgerEntry(entry) {
       operation: role,
       status,
       durationMs: Number.isFinite(durationSeconds) ? Math.round(durationSeconds * 1000) : 0,
-      tokensIn: Number.isFinite(tokensIn) ? tokensIn : 0,
-      tokensOut: Number.isFinite(tokensOut) ? tokensOut : 0,
+      tokensIn: tokensIn ?? 0,
+      tokensOut: tokensOut ?? 0,
+      tokensTotal: tokens.total,
+      hasTokenSignal: tokens.hasSignal,
       metadata: {
         ref_id: entry.ref_id,
         title: entry.title,
@@ -191,7 +228,7 @@ function filterOperations(operations, { from, to, skill }) {
 
 function calculateSummary(operations, workItemCount) {
   const total = operations.length;
-  const totalTokens = operations.reduce((sum, op) => sum + op.tokensIn + op.tokensOut, 0);
+  const totalTokens = operations.reduce((sum, op) => sum + op.tokensTotal, 0);
   const totalDuration = operations.reduce((sum, op) => sum + op.durationMs, 0);
   const successes = operations.filter((op) => op.status === 'success').length;
   const worktrees = new Set(operations.map((op) => op.metadata?.worktree).filter(Boolean));
@@ -222,9 +259,13 @@ function groupTokensByDay(operations) {
   for (const op of operations) {
     const day = toDateOnly(op.timestamp);
     if (!day) continue;
-    if (!grouped[day]) grouped[day] = { input: 0, output: 0 };
+    // `total` is ADDITIVE (CHANGE-0140): input/output carry only explicit
+    // decomposed fields; a note marker's undecomposed total lands ONLY in
+    // `total` — it is never fabricated into an in/out split.
+    if (!grouped[day]) grouped[day] = { input: 0, output: 0, total: 0 };
     grouped[day].input += op.tokensIn;
     grouped[day].output += op.tokensOut;
+    grouped[day].total += op.tokensTotal;
   }
   return grouped;
 }
@@ -238,7 +279,7 @@ function calculateSkillStats(operations) {
     }
     const item = map.get(key);
     item.count += 1;
-    item.tokens += op.tokensIn + op.tokensOut;
+    item.tokens += op.tokensTotal;
     item.durationMs += op.durationMs;
     if (op.status === 'success') item.success += 1;
   }
@@ -316,6 +357,11 @@ function buildData(entries, args, sourceHints = {}) {
     tddStats: calculateRolePhaseStats(operations),
     worktreeStats: calculateWorktreeStats(operations),
     publishStats: calculatePublishStats(operations),
+    // ADDITIVE (CHANGE-0140 D4): false only when NO operation in the
+    // filtered dataset carries any token signal (explicit fields or a valid
+    // note marker) — drives the token panel's named no-data state, so an
+    // absent signal never renders as a flat zero line.
+    hasTokenSignal: operations.some((op) => op.hasTokenSignal),
     generatedAt: new Date().toISOString(),
     source: {
       entries: entries.length,
@@ -358,7 +404,19 @@ function generateDashboard({ metricsPath, outputPath, from, to, skill, dataOnly 
       .replace(/</g, '\\u003c')
       .replace(/`/g, '\\`')
       .replace(/\\/g, '\\\\');
-    const html = template.replace('{{METRICS_DATA}}', payload);
+    // Named no-data state (CHANGE-0140 D4): a chart section whose source
+    // stat is absent across the WHOLE dataset renders a deterministic,
+    // greppable placeholder in place of its canvas — never a bare empty
+    // axis. Sections with data keep their canvas (fixture-proven both ways).
+    const panelMarkup = (panel, canvasId, hasData) => (hasData
+      ? `<canvas id="${canvasId}"></canvas>`
+      : `<div class="no-data" data-panel="${panel}">No data recorded in this dataset</div>`);
+    const html = template
+      .replace('{{METRICS_DATA}}', payload)
+      .replace('{{PANEL_TOKENS}}', panelMarkup('tokens', 'tokenChart', data.hasTokenSignal))
+      .replace('{{PANEL_TDD}}', panelMarkup('tdd', 'tddChart', data.tddStats !== null))
+      .replace('{{PANEL_WORKTREE}}', panelMarkup('worktree', 'worktreeChart', data.worktreeStats !== null))
+      .replace('{{PANEL_PUBLISH}}', panelMarkup('publish', 'publishChart', data.publishStats !== null));
 
     ensureDir(outputPath);
     fs.writeFileSync(outputPath, html, 'utf8');

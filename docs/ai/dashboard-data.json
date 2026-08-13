@@ -1,133 +1,192 @@
 {
   "summary": {
-    "total": 311,
-    "totalTokens": 0,
-    "avgDuration": 591534,
+    "total": 492,
+    "totalTokens": 37098869,
+    "avgDuration": 688348,
     "successRate": "100.0",
     "activeWorktrees": 0,
     "publishes": 0,
-    "workItems": 73,
-    "period": "2026-06-25 to 2026-07-25"
+    "workItems": 117,
+    "period": "2026-06-25 to 2026-08-13"
   },
   "tokensByTime": {
     "2026-06-30": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 0
     },
     "2026-07-01": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 0
     },
     "2026-07-02": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 0
     },
     "2026-07-03": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 0
     },
     "2026-07-04": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 0
     },
     "2026-07-07": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 0
     },
     "2026-06-25": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 0
     },
     "2026-06-26": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 0
     },
     "2026-07-15": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 0
     },
     "2026-07-16": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 0
     },
     "2026-07-17": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 4981341
     },
     "2026-07-18": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 4041312
     },
     "2026-07-19": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 1267795
     },
     "2026-07-20": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 1222256
     },
     "2026-07-21": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 449465
     },
     "2026-07-22": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 958488
     },
     "2026-07-23": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 0
     },
     "2026-07-24": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 0
     },
     "2026-07-25": {
       "input": 0,
-      "output": 0
+      "output": 0,
+      "total": 0
+    },
+    "2026-07-26": {
+      "input": 0,
+      "output": 0,
+      "total": 3333071
+    },
+    "2026-07-27": {
+      "input": 0,
+      "output": 0,
+      "total": 4589395
+    },
+    "2026-07-28": {
+      "input": 0,
+      "output": 0,
+      "total": 2430083
+    },
+    "2026-08-08": {
+      "input": 0,
+      "output": 0,
+      "total": 3799825
+    },
+    "2026-08-09": {
+      "input": 0,
+      "output": 0,
+      "total": 616042
+    },
+    "2026-08-11": {
+      "input": 0,
+      "output": 0,
+      "total": 1265990
+    },
+    "2026-08-12": {
+      "input": 0,
+      "output": 0,
+      "total": 4800374
+    },
+    "2026-08-13": {
+      "input": 0,
+      "output": 0,
+      "total": 3343432
     }
   },
   "skillStats": [
     {
-      "name": "Validation",
-      "count": 74,
-      "avgTokens": 0,
-      "avgDuration": "565.1",
+      "name": "Code Review",
+      "count": 116,
+      "avgTokens": 57034,
+      "avgDuration": "372.1",
       "successRate": "100.0"
     },
     {
-      "name": "Code Review",
-      "count": 71,
-      "avgTokens": 0,
-      "avgDuration": "347.1",
+      "name": "Validation",
+      "count": 110,
+      "avgTokens": 60138,
+      "avgDuration": "599.3",
       "successRate": "100.0"
     },
     {
       "name": "Planning",
-      "count": 63,
-      "avgTokens": 0,
-      "avgDuration": "363.0",
+      "count": 97,
+      "avgTokens": 67387,
+      "avgDuration": "620.8",
       "successRate": "100.0"
     },
     {
       "name": "TDD Implementation",
-      "count": 42,
-      "avgTokens": 0,
-      "avgDuration": "1477.0",
-      "successRate": "100.0"
-    },
-    {
-      "name": "Implementation",
-      "count": 30,
-      "avgTokens": 0,
-      "avgDuration": "586.9",
+      "count": 74,
+      "avgTokens": 164144,
+      "avgDuration": "1484.1",
       "successRate": "100.0"
     },
     {
       "name": "Remediation",
-      "count": 24,
-      "avgTokens": 0,
-      "avgDuration": "436.3",
+      "count": 46,
+      "avgTokens": 91809,
+      "avgDuration": "586.3",
+      "successRate": "100.0"
+    },
+    {
+      "name": "Implementation",
+      "count": 42,
+      "avgTokens": 22889,
+      "avgDuration": "667.8",
       "successRate": "100.0"
     },
     {
@@ -183,10 +242,11 @@
   "tddStats": null,
   "worktreeStats": null,
   "publishStats": null,
-  "generatedAt": "2026-07-26T08:44:19.097Z",
+  "hasTokenSignal": true,
+  "generatedAt": "2026-08-13T18:56:05.749Z",
   "source": {
-    "entries": 73,
-    "operations": 311,
+    "entries": 117,
+    "operations": 492,
     "schema": "work-item-ledger"
   },
   "filters": {
