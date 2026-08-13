@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T21:20:15.893Z
+Generated: 2026-08-13T21:32:09.082Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -47,7 +47,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (316)
+## Done (317)
 
 | ID | Type | Path |
 |---|---|---|
@@ -238,6 +238,7 @@ _None._
 | RFC-0011 | rfc | docs/rfc/RFC-0011-delta-spec-lifecycle.md |
 | RFC-0013 | rfc | docs/rfc/RFC-0013-friction-record-v2-redaction.md |
 | RES-0001 | specs | docs/specs/RES-0001-aai-competitive-gap-and-model-efficiency.md |
+| RESEARCH-0001 | specs | docs/specs/RESEARCH-0001-spec-kit-comparative.md |
 | SPEC-0001 | specs | docs/specs/SPEC-0001-docs-hygiene-and-drift-audit.md |
 | SPEC-0002 | specs | docs/specs/SPEC-0002-docs-canonicalization-skill.md |
 | SPEC-0003 | specs | docs/specs/SPEC-0003-docs-audit-closeout-candidate.md |
