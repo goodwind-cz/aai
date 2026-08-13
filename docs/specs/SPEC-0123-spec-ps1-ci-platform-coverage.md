@@ -1,7 +1,7 @@
 ---
 id: spec-ps1-ci-platform-coverage
 type: spec
-number: null
+number: 123
 status: implementing
 ceremony_level: 1
 links:
@@ -233,7 +233,7 @@ CONSTITUTION.md): none is in this scope.
 - User decision: undecided
 - Base ref: feat/ps1-ci-platform-coverage
 - Worktree branch/path: not selected
-- Inline review scope: .github/workflows/ps1-quality.yml tests/skills/test-aai-win-fallback.sh docs/product/windows-test-wrapper.md docs/TECHNOLOGY.md docs/issues/CHANGE-0136-ps1-ci-platform-coverage.md docs/specs/SPEC-DRAFT-spec-ps1-ci-platform-coverage.md CHANGELOG.md
+- Inline review scope: .github/workflows/ps1-quality.yml tests/skills/test-aai-win-fallback.sh docs/product/windows-test-wrapper.md docs/TECHNOLOGY.md docs/issues/CHANGE-0136-ps1-ci-platform-coverage.md docs/specs/SPEC-0123-spec-ps1-ci-platform-coverage.md CHANGELOG.md
 
 ## Acceptance Criteria Mapping
 
@@ -439,7 +439,7 @@ Commands to run:
 - `bash tests/skills/test-aai-win-fallback.sh` (all, incl. the five new pins)
 - `bash tests/skills/test-ps1-quality.sh` (local Pester + parse gate stay green)
 - `node .aai/scripts/check-test-registration.mjs`
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-ps1-ci-platform-coverage.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0123-spec-ps1-ci-platform-coverage.md`
 - `node .aai/scripts/docs-audit.mjs --check --strict --no-event`
 - `gh workflow run ps1-quality.yml` then `gh run watch` / `gh run view` — the
   named run on this scope's PR (windows-wsl1 AND windows-5_1 green)

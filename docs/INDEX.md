@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T07:19:29.462Z
+Generated: 2026-08-13T07:53:28.550Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-ps1-ci-platform-coverage | specs | implementing | 3 planned, 3 done | docs/specs/SPEC-DRAFT-spec-ps1-ci-platform-coverage.md |
+| SPEC-0123 | specs | implementing | 3 planned, 3 done | docs/specs/SPEC-0123-spec-ps1-ci-platform-coverage.md |
 
 ## Canonical layer (0)
 
