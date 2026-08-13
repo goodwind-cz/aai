@@ -1643,3 +1643,4 @@
 {"v":1,"ts":"2026-08-13T14:05:17.313Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-doctor-honesty-batch","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-13T14:05:17.343Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-doctor-honesty-batch","payload":{"commit":"4f4698f"}}
 {"v":1,"ts":"2026-08-13T14:05:43.878Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":334,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-13T15:00:55.123Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-canonical-test-invocation","payload":{"from":"draft","to":"implementing"}}
