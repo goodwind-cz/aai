@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T22:54:28.549Z
+Generated: 2026-08-13T23:14:04.406Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0129 | specs | implementing | 7 done | docs/specs/SPEC-0129-spec-followup-registry.md |
 
 ## Canonical layer (0)
 
@@ -48,7 +47,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (317)
+## Done (319)
 
 | ID | Type | Path |
 |---|---|---|
@@ -193,6 +192,7 @@ _None._
 | CHANGE-0139 | issues | docs/issues/CHANGE-0139-canonical-test-invocation.md |
 | CHANGE-0140 | issues | docs/issues/CHANGE-0140-reporting-docs-true-up.md |
 | CHANGE-0141 | issues | docs/issues/CHANGE-0141-changelog-payload-hardening.md |
+| CHANGE-0142 | issues | docs/issues/CHANGE-0142-followup-registry.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -368,13 +368,12 @@ _None._
 | SPEC-0126 | specs | docs/specs/SPEC-0126-spec-canonical-test-invocation.md |
 | SPEC-0127 | specs | docs/specs/SPEC-0127-spec-reporting-docs-true-up.md |
 | SPEC-0128 | specs | docs/specs/SPEC-0128-spec-changelog-payload-hardening.md |
+| SPEC-0129 | specs | docs/specs/SPEC-0129-spec-followup-registry.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0142 | issues | docs/issues/CHANGE-0142-followup-registry.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

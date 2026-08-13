@@ -2,10 +2,15 @@
 id: followup-registry
 number: 142
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-decisions
+links:
+  commits:
+    - 2b0165f
+  pr:
+    - 257
 ---
 
 # Change — typed, queryable follow-up registry (deferred work stops rotting in prose)

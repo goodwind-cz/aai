@@ -2,13 +2,15 @@
 id: spec-followup-registry
 type: spec
 number: 129
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0142-followup-registry.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 257
+  commits:
+    - 2b0165f
 ---
 
 # Spec — typed, queryable follow-up registry on the existing decision ledger
