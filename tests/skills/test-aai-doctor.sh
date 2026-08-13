@@ -1339,6 +1339,12 @@ test_035_0138_codex_exec_block_battery() {
   printf 'codex-fixture 1.0.0\nThis tool will never exec anything on your behalf.\n' > "$fxdir/fx10.txt"
   # FX-11: Commands: block listing `execute` but never `exec`.
   printf 'Commands:\n  execute   Run a task\n  login     Manage login\n' > "$fxdir/fx11.txt"
+  # FX-12 (review NB-1): a BLANK line inside the block must NOT end it —
+  # clap groups subcommand rows with blank separators; the block is bounded
+  # by the next non-empty column-0 line, so exec AFTER the blank still
+  # counts. A parser simplified to stop at blank lines passes FX-01..11 but
+  # false-negatives here.
+  printf 'Commands:\n  login     Manage login\n\n  exec      Run non-interactively\n\nOptions:\n  -h  Help\n' > "$fxdir/fx12.txt"
 
   local re_true='Commands: block lists an exec subcommand'
   local re_false='Commands: block does not list an exec subcommand'
@@ -1355,9 +1361,10 @@ test_035_0138_codex_exec_block_battery() {
   run_battery_fixture FX-09 true    "$re_true"    "$fxdir/fx09.txt" "$fakebin" "$fixroot"
   run_battery_fixture FX-10 UNKNOWN "$re_unknown" "$fxdir/fx10.txt" "$fakebin" "$fixroot"
   run_battery_fixture FX-11 false   "$re_false"   "$fxdir/fx11.txt" "$fakebin" "$fixroot"
+  run_battery_fixture FX-12 true    "$re_true"    "$fxdir/fx12.txt" "$fakebin" "$fixroot"
 
   if [[ "$BATTERY_FAILED" -eq 0 ]]; then
-    log_pass "TEST-035 (0138-TEST-001) 11-fixture D1 battery: block-anchored verdicts, honest no-block UNKNOWN, CAT-16 PASS-only"
+    log_pass "TEST-035 (0138-TEST-001) 12-fixture D1 battery: block-anchored verdicts, blank-line-tolerant bounding, honest no-block UNKNOWN, CAT-16 PASS-only"
   else
     log_fail "TEST-035 (0138-TEST-001) D1 block-parse battery"
   fi
