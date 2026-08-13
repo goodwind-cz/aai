@@ -11,7 +11,43 @@ RFC-0001).
 
 ## [unreleased]
 
-## [v2026.08.13.2] — docs(contract): canonical test invocation — one allowlist-stable command shape per platform, wrapper never bypassed (CHANGE-0139) [L1]
+## [unreleased] — fix(reporting): USER_GUIDE true-up, dashboard reads note-carried usage, named no-data panels (CHANGE-0140) [L1]
+
+- USER_GUIDE truth (owner audit 2026-08-13): the two dead skill-alias
+  comments (`# or /aai-feedback-triage`, `# or /aai-feedback-upsert`) are
+  removed — the `.mjs` feedback engines are real and stay documented; only
+  the slash aliases had no `.claude/skills/` counterpart. `/aai-factory-report`
+  (shipped CHANGE-0130, previously unmentioned) gains a hand-authored section
+  next to `/aai-dashboard` (four KPI families, per-ISO-week trend,
+  auto-refresh at close, when-vs-dashboard comparison), a Monitoring &
+  Analysis table row and a quick-reference entry — all outside the
+  AAI:USERGUIDE-ROLLUP markers.
+- NEW tests/skills/test-aai-userguide-drift.sh reconciles USER_GUIDE against
+  `.claude/skills/` in BOTH directions with an anchored extractor (slash
+  preceded by BOL/whitespace/backtick/paren/pipe — script paths and URLs are
+  structurally excluded, no fuzzy allowlist) and in-test exception arrays
+  (forward: the three bootstrap-generated examples; reverse: empty).
+  RED-first: the pre-change run names both dead aliases and
+  aai-factory-report (docs/ai/tdd/red-20260813T175818Z-*.log).
+- generate-dashboard.mjs now parses note-carried usage: real `agent_runs[]`
+  carry `tokens_in/out: null` with harness usage as an undecomposed
+  `usage_total_tokens=<N>` note, so token charts rendered all-zero.
+  The generator imports `extractUsageTotal` from the canonical
+  `.aai/scripts/lib/usage-note.mjs` grammar (single-source contract intact)
+  under a strict precedence rule: explicit finite in/out wins, else the
+  marker's TOTAL (never fabricated into an in/out split), else no
+  contribution. `tokensByTime` gains an additive per-day `total`; the
+  template's token chart gains a Total series alongside Input/Output.
+- Named no-data panels: a chart section whose source stat is absent across
+  the whole dataset (tdd/worktree/publish on today's real ledger, or tokens
+  with zero signal) renders a greppable
+  `<div class="no-data" data-panel="...">No data recorded in this dataset</div>`
+  in place of its canvas — never a bare empty axis; fixture-proven in both
+  directions by the NEW tests/skills/test-aai-dashboard.sh.
+- SKILL_DASHBOARD.prompt.md's "Tokens are mostly null ... known gap" caveat
+  replaced by the truthful note-parse description (+598 B, diet-ledger entry,
+  TEST-012 pin -6642 -> -6044); NEW docs/product/aai-dashboard.md product doc
+  (capability aai-dashboard); suite-map rows for both new suites. — docs(contract): canonical test invocation — one allowlist-stable command shape per platform, wrapper never bypassed (CHANGE-0139) [L1]
 
 - Field evidence (downstream Codex on Windows) showed an agent bypassing the
   vendored dispatcher with `& 'C:\Program Files\Git\bin\bash.exe' ..\..\...`

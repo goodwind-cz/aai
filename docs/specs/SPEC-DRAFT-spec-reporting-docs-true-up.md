@@ -277,12 +277,12 @@ performed (7).)
 
 | Spec-AC    | Description                                                        | Status  | Evidence | Review-By | Notes |
 |------------|--------------------------------------------------------------------|---------|----------|-----------|-------|
-| Spec-AC-01 | USER_GUIDE truth: dead aliases removed, factory-report documented, D1c convention | planned | — | — | — |
-| Spec-AC-02 | Both-direction anti-drift suite, anchored extractor, in-test exceptions, RED-first | planned | — | — | — |
-| Spec-AC-03 | Dashboard parses usage_total_tokens via shared lib; totals never fabricated into in/out | planned | — | — | — |
-| Spec-AC-04 | Named no-data state for whole-dataset-absent chart sections; fixture-proven both ways | planned | — | — | — |
-| Spec-AC-05 | SKILL_DASHBOARD caveat truthful; diet ledger + TEST-012 pin moved from -6642 | planned | — | — | — |
-| Spec-AC-06 | Real product doc for capability aai-dashboard passes placeholder predicate | planned | — | — | — |
+| Spec-AC-01 | USER_GUIDE truth: dead aliases removed, factory-report documented, D1c convention | done | test-aai-userguide-drift.sh TEST-009 exit 0; test-aai-userguide-rollup.sh exit 0; rollup re-run outside-marker bytes byte-identical (2026-08-13) | — | — |
+| Spec-AC-02 | Both-direction anti-drift suite, anchored extractor, in-test exceptions, RED-first | done | docs/ai/tdd/red-20260813T175818Z-reporting-docs-true-up-userguide-drift.log (names both aliases + aai-factory-report); post-change suite exit 0; hygiene-pack exit 0 | — | — |
+| Spec-AC-03 | Dashboard parses usage_total_tokens via shared lib; totals never fabricated into in/out | done | test-aai-dashboard.sh TEST-001/002/005 exit 0; test-aai-metrics.sh exit 0 (test_120); real ledger run: Total tokens 37098869 == independent D3 recompute | — | — |
+| Spec-AC-04 | Named no-data state for whole-dataset-absent chart sections; fixture-proven both ways | done | docs/ai/tdd/red-20260813T175818Z-reporting-docs-true-up-dashboard.log; test-aai-dashboard.sh TEST-003/004 exit 0; real HTML: tdd/worktree/publish no-data, tokenChart renders | — | — |
+| Spec-AC-05 | SKILL_DASHBOARD caveat truthful; diet ledger + TEST-012 pin moved from -6642 | done | test-aai-dashboard.sh TEST-006 exit 0; test-aai-prompt-diet.sh exit 0 (+598 B entry, pin -6642 -> -6044 == independent re-sum) | — | — |
+| Spec-AC-06 | Real product doc for capability aai-dashboard passes placeholder predicate | done | test-aai-dashboard.sh TEST-011 exit 0; rollup re-run renders product/aai-dashboard.md (24 features) | — | — |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 
@@ -348,19 +348,19 @@ payload line only.
 
 | Test ID  | Spec-AC    | Type        | File path (expected)                        | Description                                                        | Status  |
 |----------|------------|-------------|---------------------------------------------|--------------------------------------------------------------------|---------|
-| TEST-001 | Spec-AC-03 | integration | tests/skills/test-aai-dashboard.sh          | fixture ledger with marker-carrying notes: totalTokens, per-day and per-skill totals equal exact expected sums | pending |
-| TEST-002 | Spec-AC-03 | integration | tests/skills/test-aai-dashboard.sh          | honesty: marker never split into in/out; explicit in/out wins over marker; malformed markers contribute nothing | pending |
-| TEST-003 | Spec-AC-04 | integration | tests/skills/test-aai-dashboard.sh          | no-data fixture: rendered HTML carries the named no-data state per absent section, no bare empty axis | pending |
-| TEST-004 | Spec-AC-04 | integration | tests/skills/test-aai-dashboard.sh          | has-data fixture (incl. legacy flat entries): charts render, no-data markers absent | pending |
-| TEST-005 | Spec-AC-03 | unit        | tests/skills/test-aai-dashboard.sh          | structural pin: generate-dashboard.mjs imports lib/usage-note.mjs extractUsageTotal; no local regex literal | pending |
-| TEST-006 | Spec-AC-05 | unit        | tests/skills/test-aai-dashboard.sh          | SKILL_DASHBOARD.prompt.md pin: stale known-gap caveat absent, note-parse behavior described | pending |
-| TEST-007 | Spec-AC-02 | integration | tests/skills/test-aai-userguide-drift.sh    | forward reconcile: anchored /aai-* mentions resolve to .claude/skills or ALLOWED_GENERATED; miss FAILS naming mention and line | pending |
-| TEST-008 | Spec-AC-02 | integration | tests/skills/test-aai-userguide-drift.sh    | reverse reconcile: every vendored skill mentioned; exception array empty; miss FAILS naming the skill | pending |
-| TEST-009 | Spec-AC-01 | integration | tests/skills/test-aai-userguide-drift.sh    | truth pins: dead feedback aliases absent; factory-report section present with dashboard comparison; convention holds | pending |
-| TEST-010 | Spec-AC-05 | integration | tests/skills/test-aai-prompt-diet.sh        | diet-ledger true-up: moved TEST-012 checkpoint equals independent re-sum after prompt byte delta | pending |
-| TEST-011 | Spec-AC-06 | unit        | tests/skills/test-aai-dashboard.sh          | docs/product/aai-dashboard.md passes the lib/product-doc.mjs placeholder predicate (real doc) | pending |
-| TEST-012 | Spec-AC-02 | integration | tests/skills/test-aai-hygiene-pack.sh       | both new suites carry suite-map rows (existing hygiene pin re-run) | pending |
-| TEST-013 | Spec-AC-01 | integration | tests/skills/test-aai-userguide-rollup.sh   | rollup containment/idempotence green after USER_GUIDE surgery (markers untouched) | pending |
+| TEST-001 | Spec-AC-03 | integration | tests/skills/test-aai-dashboard.sh          | fixture ledger with marker-carrying notes: totalTokens, per-day and per-skill totals equal exact expected sums | green   |
+| TEST-002 | Spec-AC-03 | integration | tests/skills/test-aai-dashboard.sh          | honesty: marker never split into in/out; explicit in/out wins over marker; malformed markers contribute nothing | green   |
+| TEST-003 | Spec-AC-04 | integration | tests/skills/test-aai-dashboard.sh          | no-data fixture: rendered HTML carries the named no-data state per absent section, no bare empty axis | green   |
+| TEST-004 | Spec-AC-04 | integration | tests/skills/test-aai-dashboard.sh          | has-data fixture (incl. legacy flat entries): charts render, no-data markers absent | green   |
+| TEST-005 | Spec-AC-03 | unit        | tests/skills/test-aai-dashboard.sh          | structural pin: generate-dashboard.mjs imports lib/usage-note.mjs extractUsageTotal; no local regex literal | green   |
+| TEST-006 | Spec-AC-05 | unit        | tests/skills/test-aai-dashboard.sh          | SKILL_DASHBOARD.prompt.md pin: stale known-gap caveat absent, note-parse behavior described | green   |
+| TEST-007 | Spec-AC-02 | integration | tests/skills/test-aai-userguide-drift.sh    | forward reconcile: anchored /aai-* mentions resolve to .claude/skills or ALLOWED_GENERATED; miss FAILS naming mention and line | green   |
+| TEST-008 | Spec-AC-02 | integration | tests/skills/test-aai-userguide-drift.sh    | reverse reconcile: every vendored skill mentioned; exception array empty; miss FAILS naming the skill | green   |
+| TEST-009 | Spec-AC-01 | integration | tests/skills/test-aai-userguide-drift.sh    | truth pins: dead feedback aliases absent; factory-report section present with dashboard comparison; convention holds | green   |
+| TEST-010 | Spec-AC-05 | integration | tests/skills/test-aai-prompt-diet.sh        | diet-ledger true-up: moved TEST-012 checkpoint equals independent re-sum after prompt byte delta | green   |
+| TEST-011 | Spec-AC-06 | unit        | tests/skills/test-aai-dashboard.sh          | docs/product/aai-dashboard.md passes the lib/product-doc.mjs placeholder predicate (real doc) | green   |
+| TEST-012 | Spec-AC-02 | integration | tests/skills/test-aai-hygiene-pack.sh       | both new suites carry suite-map rows (existing hygiene pin re-run) | green   |
+| TEST-013 | Spec-AC-01 | integration | tests/skills/test-aai-userguide-rollup.sh   | rollup containment/idempotence green after USER_GUIDE surgery (markers untouched) | green   |
 
 RED plan (hybrid): TEST-001 (totalTokens 0), TEST-003 (marker absent),
 TEST-006 (caveat present), TEST-007 (names the two dead aliases), TEST-008
