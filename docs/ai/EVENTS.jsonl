@@ -1635,3 +1635,4 @@
 {"v":1,"ts":"2026-08-13T11:07:24.324Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-update-doctor-field-report","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-13T11:07:24.356Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-update-doctor-field-report","payload":{"commit":"2a4795c"}}
 {"v":1,"ts":"2026-08-13T11:07:51.131Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":332,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-13T12:56:31.256Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-doctor-honesty-batch","payload":{"from":"draft","to":"implementing"}}
