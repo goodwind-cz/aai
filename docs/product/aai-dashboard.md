@@ -5,7 +5,7 @@ capability: aai-dashboard
 status: current
 delivered_by:
   - CHANGE-0140
-spec: docs/specs/SPEC-DRAFT-spec-reporting-docs-true-up.md
+spec: docs/specs/SPEC-0127-spec-reporting-docs-true-up.md
 updated: 2026-08-13
 ---
 
@@ -79,5 +79,5 @@ axis, so a blank chart always means "nothing recorded", never "broken page".
 ## Links
 
 - Request: docs/issues/CHANGE-0140-reporting-docs-true-up.md
-- Spec: docs/specs/SPEC-DRAFT-spec-reporting-docs-true-up.md
+- Spec: docs/specs/SPEC-0127-spec-reporting-docs-true-up.md
 - Validation evidence: docs/ai/tdd/ (red-*-reporting-docs-true-up-*.log)

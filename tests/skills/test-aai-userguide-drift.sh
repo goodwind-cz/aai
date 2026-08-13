@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: USER_GUIDE <-> .claude/skills both-direction anti-drift reconciliation
-# (docs/specs/SPEC-DRAFT-spec-reporting-docs-true-up.md, TEST-007..009,
+# (docs/specs/SPEC-0127-spec-reporting-docs-true-up.md, TEST-007..009,
 #  Spec-AC-01/Spec-AC-02; intake CHANGE-0140 AC-001/AC-002).
 #
 # Forward (TEST-007): every ANCHORED /aai-* slash-command mention in

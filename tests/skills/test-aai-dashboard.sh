@@ -2,7 +2,7 @@
 #
 # Test: aai-dashboard generator — real note-carried usage totals + named
 # no-data panels
-# (docs/specs/SPEC-DRAFT-spec-reporting-docs-true-up.md, TEST-001..006 +
+# (docs/specs/SPEC-0127-spec-reporting-docs-true-up.md, TEST-001..006 +
 #  TEST-011; intake CHANGE-0140 AC-003/AC-004/AC-005/AC-006).
 #
 # Covers .aai/scripts/generate-dashboard.mjs + docs/dashboard-template.html:

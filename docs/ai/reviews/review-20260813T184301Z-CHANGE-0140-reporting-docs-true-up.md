@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: eecc340..HEAD (a69bd52) — commits 598bcec, f681cb2, bc056cd, a69bd52; inline path list per spec
-  spec: docs/specs/SPEC-DRAFT-spec-reporting-docs-true-up.md (frozen at eecc340, ceremony_level 1)
+  spec: docs/specs/SPEC-0127-spec-reporting-docs-true-up.md (frozen at eecc340, ceremony_level 1)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -209,7 +209,7 @@ the real repo file. Therefore:
 | test-aai-userguide-rollup.sh | 0 |
 | test-aai-prompt-diet.sh (TEST-012 −6044) | 0 |
 | test-aai-hygiene-pack.sh (suite-map rows) | 0 |
-| spec-lint --path SPEC-DRAFT-spec-reporting-docs-true-up.md | 0 |
+| spec-lint --path SPEC-0127-spec-reporting-docs-true-up.md | 0 |
 | generate-dashboard.mjs --metrics real ledger --output scratch | 0, Total tokens 37098869 |
 | independent D3 recompute (own script, 492 runs) | 37098869 exact |
 | scratch-clone rollup re-run | ZERO DIFF |

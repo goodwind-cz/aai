@@ -1,7 +1,7 @@
 ---
 id: spec-reporting-docs-true-up
 type: spec
-number: null
+number: 127
 status: implementing
 ceremony_level: 1
 links:
@@ -191,7 +191,7 @@ files. No CI-only assertion exists in this spec.
   docs/USER_GUIDE.md, docs/product/aai-dashboard.md,
   tests/skills/test-aai-dashboard.sh, tests/skills/test-aai-userguide-drift.sh,
   tests/skills/suite-map.yaml, tests/skills/lib/prompt-diet-ledger.sh,
-  tests/skills/test-aai-prompt-diet.sh, docs/specs/SPEC-DRAFT-spec-reporting-docs-true-up.md,
+  tests/skills/test-aai-prompt-diet.sh, docs/specs/SPEC-0127-spec-reporting-docs-true-up.md,
   docs/issues/CHANGE-0140-reporting-docs-true-up.md, CHANGELOG.md
 
 Code review required: true (code + template + tests + prompt bytes); scope =
@@ -378,7 +378,7 @@ RED arises mechanically from the byte/row changes.
 - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-prompt-diet.sh`
 - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-hygiene-pack.sh`
 - `node .aai/scripts/generate-dashboard.mjs --data-only` (real ledger; Total tokens > 0)
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-reporting-docs-true-up.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0127-spec-reporting-docs-true-up.md`
 - PASS criteria: all TEST-xxx green AND all Spec-AC terminal.
 
 ## Evidence contract
