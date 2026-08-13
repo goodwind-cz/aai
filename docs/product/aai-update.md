@@ -6,6 +6,9 @@ status: current
 delivered_by:
   - CHANGE-0137
   - update-doctor-field-report
+  - CHANGE-0138
+  - spec-doctor-honesty-batch
+  - doctor-honesty-batch
 spec: docs/specs/SPEC-0124-spec-update-doctor-field-report.md
 updated: 2026-08-13
 ---
@@ -59,6 +62,27 @@ post_update_doctor: on   # default; "off" prints a named disabled-by-config line
 
 An absent file or key means on. An unknown value warns on stderr and behaves
 as on. A dry-run never runs the doctor.
+
+As of CHANGE-0138 the config handling is honest about degraded shapes:
+
+- **BOM tolerance.** A UTF-8 byte-order mark (BOM) at the very start of
+  `docs/ai/update-config.yaml` no longer hides a first-line key from the
+  column-0 parsers — both `update-doctor-report.mjs` and `update-check.mjs`
+  strip exactly one BOM at index 0 (a BOM byte sequence on any later line is
+  ordinary content, not a BOM). The two parsers carry a byte-identical strip
+  and are pinned together — neither side can be fixed or reverted alone.
+- **Exists-but-unreadable config.** A config path that exists but cannot be
+  read (any read error other than not-found, e.g. a directory at the config
+  path) emits exactly one named stderr `WARNING` carrying the path and the
+  error code, and still behaves as on — never a silent default. An absent
+  file stays silent (that is the documented default, not a degradation).
+- **Prune failures.** When retention pruning cannot delete one or more
+  shaped reports, the run emits at most ONE stderr line —
+  `update-doctor-report: WARNING retention prune failed for <path> (<code>)`
+  with ` and <n> more` appended when several failed — never one line per
+  file and never silence. The budget is one prune line plus one config line
+  per run, so a fully degraded run adds at most two stderr lines while
+  stdout keeps its exactly-one-line contract and the exit code stays 0.
 
 ## Data model
 

@@ -114,9 +114,25 @@ function resolvePostUpdateDoctor(cfgPath) {
   let raw;
   try {
     raw = fs.readFileSync(cfgPath, 'utf8');
-  } catch {
+  } catch (e) {
+    // CHANGE-0138: only ENOENT is the silent absent==on default. A config
+    // that EXISTS but cannot be read (EISDIR, EACCES, ...) is named on
+    // stderr — never a silent default — and still behaves as on (the step
+    // is read-only and bounded, so degradation lands on the safe direction).
+    if (e && e.code !== 'ENOENT') {
+      console.error(`update-doctor-report: WARNING config ${cfgPath} exists but `
+        + `could not be read (${(e && e.code) || 'unknown error'}) - treating as on `
+        + '(the default; this step is read-only and bounded)');
+    }
     return 'on'; // absent file == on (D2)
   }
+  // CHANGE-0138 (NB-2/D3): a UTF-8 BOM must not hide a FIRST-LINE column-0
+  // key from the parser (`^` anchors at the BOM character). Only index 0 is
+  // stripped, exactly once — a BOM sequence on a later line is content
+  // (ZWNBSP), not a BOM. This statement is byte-identical to its twin in
+  // update-check.mjs resolveConfig (SEAM-3 parity invariant; deliberately
+  // vendored twice, never a shared import — both files are standalone).
+  if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
   for (const line of raw.split(/\r?\n/)) {
     const m = line.match(/^post_update_doctor:\s*(\S+)/);
     if (!m) continue; // column-0 only; indented/commented keys are never a dial
@@ -173,16 +189,30 @@ function utcStamp(d) {
 
 // --- Retention (D3): prune ONLY the exact doctor-report shape ---------------
 
+// CHANGE-0138 (D4): prune stays best-effort — a failure never degrades the
+// run, the stdout line, or the exit code — but stops being silent: AT MOST
+// ONE stderr line per run names the first failed path plus the count of
+// additional failures. An unreadable reports directory produces the same
+// single line naming the directory. Zero failures emit zero prune stderr.
 function pruneReports(reportsDir, maxReports) {
+  const failed = [];
   try {
     const shaped = fs.readdirSync(reportsDir)
       .filter((f) => REPORT_SHAPE.test(f))
       .sort() // the UTC stamp is the sortable prefix: ascending == oldest first
       .reverse();
     for (const f of shaped.slice(maxReports)) {
-      try { fs.unlinkSync(path.join(reportsDir, f)); } catch { /* best-effort */ }
+      const p = path.join(reportsDir, f);
+      try { fs.unlinkSync(p); } catch (e) { failed.push({ path: p, code: (e && e.code) || 'unknown error' }); }
     }
-  } catch { /* best-effort: a prune failure never degrades the run */ }
+  } catch (e) {
+    failed.push({ path: reportsDir, code: (e && e.code) || 'unknown error' });
+  }
+  if (failed.length > 0) {
+    const extra = failed.length > 1 ? ` and ${failed.length - 1} more` : '';
+    console.error(`update-doctor-report: WARNING retention prune failed for `
+      + `${failed[0].path} (${failed[0].code})${extra}`);
+  }
 }
 
 // --- Main --------------------------------------------------------------------

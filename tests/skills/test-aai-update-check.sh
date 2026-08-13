@@ -1154,6 +1154,32 @@ console.log('ok');
   log_pass "TEST-031 surfaceOutcome recovers a stale orphaned claim once; leaves a fresh (live) orphan untouched"
 }
 
+# --- 0138-TEST-005 (CHANGE-0138 Spec-AC-04, behavioral half, update-check side)
+# A UTF-8 BOM immediately followed by a first-line column-0 `mode: auto` key
+# must be honored by resolveConfig: on the throttled fast path (fresh cache +
+# injected --now, zero network) --json resolves effective_mode auto with
+# throttled true. The twin structural pin lives in test-aai-update.sh.
+test_bom_first_line_key() {
+  log_info "0138-TEST-005: BOM + first-line 'mode: auto' -> effective_mode auto on the throttled fast path (zero network)..."
+  local dir="$TMP_ROOT/t0138-bom" cfg cache out rc
+  mkdir -p "$dir/.aai/cache"
+  cfg="$dir/update-config.yaml"
+  cache="$dir/.aai/cache/update-check.json"
+  # EF BB BF then the column-0 key on LINE ONE (the exact NB-2 shape).
+  printf '\357\273\277mode: auto\n' > "$cfg"
+  # Fresh cache within the default 24h window -> throttle fast path, no probe.
+  printf '{"last_check_utc":"2026-07-20T10:00:00Z"}' > "$cache"
+  set +e
+  out="$(cd "$dir" && runcheck --config "$cfg" --cache "$cache" --now "2026-07-20T11:00:00Z" --json 2>&1)"; rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || log_fail "0138-TEST-005: throttled BOM run must exit 0 (got $rc): $out"
+  grep -qF '"effective_mode":"auto"' <<<"$out" \
+    || log_fail "0138-TEST-005: BOM must not hide the first-line mode key (want auto): $out"
+  grep -qF '"throttled":true' <<<"$out" \
+    || log_fail "0138-TEST-005: expected the throttled fast path (zero network): $out"
+  log_pass "0138-TEST-005 BOM-prefixed first-line mode: auto honored on the throttled fast path"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -1189,6 +1215,7 @@ main() {
   test_linksync_fallback_and_error
   test_owner_scoped_release
   test_surface_orphan_recovery
+  test_bom_first_line_key
   echo "=== ALL TESTS PASSED: $TEST_NAME ==="
 }
 

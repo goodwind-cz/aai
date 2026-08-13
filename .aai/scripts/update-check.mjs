@@ -140,6 +140,12 @@ export function resolveConfig(cfgPath, warn = (m) => console.error(m)) {
   } catch {
     return out; // absent file: notify default, silently
   }
+  // CHANGE-0138 (NB-2/D3): strip a UTF-8 BOM at index 0, exactly once, so a
+  // first-line column-0 key is never hidden from the `^` anchor. Byte-
+  // identical to its twin in update-doctor-report.mjs resolvePostUpdateDoctor
+  // (SEAM-3 parity invariant; deliberately vendored twice, never a shared
+  // import — both files are standalone).
+  if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
   out.present = true;
   const seen = new Set();
   for (const line of raw.split(/\r?\n/)) {
