@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-13T21:31:47.587Z",
+  "generatedAt": "2026-08-13T21:53:55.635Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
@@ -2782,9 +2782,96 @@
       "first_pass_rate": 67
     }
   ],
+  "follow_ups": {
+    "open_count": 10,
+    "oldest_age_days": 5,
+    "items": [
+      {
+        "id": "fu-routines-iteration-backlog",
+        "ref": "CHANGE-0128",
+        "severity": "P2",
+        "age_days": 5,
+        "what": "Universal-routines carry-over batch: sequential-substitution value-as-token, POSIX-sh AC wording vs the bash runner, crontab pwd->HOME at fire time, --routine path confinement, revoked:true still granting, TEST-009 harness loop beyond codex, the pwsh-less CI degradation hole, TEST-002 regex breadth, and the latent isMain /var-symlink mismatch in routine-emit",
+        "status": "open"
+      },
+      {
+        "id": "fu-routines-downstream-portability",
+        "ref": "CHANGE-0129",
+        "severity": "P3",
+        "age_days": 4,
+        "what": "Scryer routine downstream portability: INFO-3 section reorder places the health step above the merge-gate markers; O-1 the provenance preamble renders verbatim downstream although the trigger id and R1 mention are aai-specific; O-2 the Czech digest is hardcoded instead of a closed placeholder set",
+        "status": "open"
+      },
+      {
+        "id": "fu-telemetry-completeness-20260811T0520",
+        "ref": "telemetry-completeness",
+        "severity": null,
+        "age_days": 2,
+        "what": "Codex P1 on PR #242 (enforce flip): under usage_capture_gate: enforce there is no per-run CLI correction for a run whose usage marker was omitted — append-run only appends, STATE hand-edits are forbidden, so the supported recovery today is the dial toggle (report-only -> close -> enforce) plus the usage_capture=none sentinel for honest gaps.",
+        "status": "open"
+      },
+      {
+        "id": "fu-factory-report-sparkline-scale",
+        "ref": "CHANGE-0130",
+        "severity": "P3",
+        "age_days": 2,
+        "what": "Factory-report iteration carry: per-series sparkline scaling (same quantity on independent scales, a misread risk needing a spec change), render runs_marked as n= in the weekly cells and tooltips, strengthen the TEST-027 pins (vacuous n/a grep, doc-wide ref grep), and test-aai-metrics.sh dirtying the real tree",
+        "status": "open"
+      },
+      {
+        "id": "fu-guard-dials-derivation",
+        "ref": "CHANGE-0131",
+        "severity": "P2",
+        "age_days": 1,
+        "what": "GUARD_DIALS is decorative: the defaults object and the parser regex carry the real behavior, so a seventh dial can silently half-register - derive both from the array. Paired item: the case-insensitive APFS vs case-sensitive CI divergence must be re-read at the evidence_path_gate enforce-flip decision",
+        "status": "open"
+      },
+      {
+        "id": "fu-cat16-timeout-vs-absent",
+        "ref": "CHANGE-0135",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "CAT-16's one-line reason folds a timed-out probe (unknown) into the present-count, so the text line cannot distinguish absent from unknown",
+        "status": "open"
+      },
+      {
+        "id": "fu-doctor-version-absent-overload",
+        "ref": "CHANGE-0135",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "resolveCliVersion returns present:false for BOTH no-executable and an empty --version, and the stdout-or-stderr fallback can report a stderr diagnostic as the version; a distinct present:true version:null reason:<why> state is wanted",
+        "status": "open"
+      },
+      {
+        "id": "fu-bom-first-line-key",
+        "ref": "CHANGE-0137",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "A UTF-8 BOM hides a FIRST-LINE config key from both column-0 parsers identically, so an explicit off silently becomes on",
+        "status": "open"
+      },
+      {
+        "id": "fu-config-retention-robustness",
+        "ref": "CHANGE-0137",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "Config/retention robustness batch from the PR #252 sweep: the BOM first-line key (same item as the 10:50 entry, fix both parsers together), unreadable-config-defaults-on wants a named degrade line, and silent prune failures want a stderr diagnostic",
+        "status": "open"
+      },
+      {
+        "id": "fu-red-class-stamp-at-capture",
+        "ref": "CHANGE-0139",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "RED_CLASS stamp-at-capture is still a process line only: stored RED logs keep the legacy unstamped shape and nothing mechanically enforces stamping at the moment of capture",
+        "status": "open"
+      }
+    ]
+  },
   "notes": [
     "NOTE 6 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)",
     "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
-    "NOTE 48 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)"
+    "NOTE 48 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
+    "NOTE 1 id-less follow_up entry folded under a derived id (fu-<ref_id-slug>-<yyyymmddThhmm>) — the original line is never rewritten"
   ]
 }
