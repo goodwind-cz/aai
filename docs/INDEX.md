@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T16:30:18.298Z
+Generated: 2026-08-13T17:36:45.924Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -362,9 +362,11 @@ _None._
 | SPEC-0126 | specs | docs/specs/SPEC-0126-spec-canonical-test-invocation.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0140 | issues | docs/issues/CHANGE-0140-reporting-docs-true-up.md |
 
 ## Deferred (whole-doc) (0)
 
