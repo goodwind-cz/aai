@@ -37,9 +37,15 @@ out.
 
 ## How to use it
 
-Nothing to configure — this is the existing Windows test-wrapper command,
-unchanged in how you invoke it: `pwsh -File .aai/scripts/aai-run-tests.ps1
-<command> [args...]`. The environment cleanup and the new failure signal
+Nothing to configure — this is the existing Windows test-wrapper command.
+The canonical invocation (CHANGE-0139), from the repository root, is:
+`powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <command> [args...]`.
+`powershell.exe` exists on every Windows host — including 5.1-only corporate
+machines where `pwsh` is not installed (`pwsh -NoProfile -File ...` runs
+identically where present, but it is not the canonical shape). Keeping this
+one fixed repo-root literal is what makes approval allowlists work: an
+operator approves the stable command prefix once, instead of re-approving
+every ad-hoc variation. The environment cleanup and the failure signal
 both happen automatically on every invocation.
 
 ## Data model

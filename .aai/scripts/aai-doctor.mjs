@@ -608,6 +608,43 @@ function probeCodexExecSubcommand(root, codexPresent) {
   return parseCodexExecObservation(`${res.stdout || ''}\n${res.stderr || ''}`);
 }
 
+// CHANGE-0139 (spec-canonical-test-invocation D3): the canonical
+// test-invocation contract probe. Probes .aai/AGENTS.md — the vendored,
+// agent-facing surface every downstream agent reads at session start — for
+// BOTH allowlist prefix literals (exactly the strings an approval allowlist
+// matches, never prose that can drift). Tri-state `carried`: true when the
+// file is readable and both literals present; false when readable and either
+// literal missing (an outdated vendored layer — /aai-update is the remedy);
+// the literal 'UNKNOWN' when the file is absent or unreadable (honest
+// degrade, never a fabricated false). One readFileSync plus two includes():
+// no spawn, no network. CAT-16 stays PASS-only — the signal lives in the
+// reason segment and the --json detail, never in the exit code.
+const CANONICAL_INVOCATION_FILE = '.aai/AGENTS.md';
+const CANONICAL_INVOCATION_PREFIXES = [
+  'powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1',
+  'bash .aai/scripts/aai-run-tests.sh',
+];
+
+function probeCanonicalInvocation(root) {
+  const text = readText(root, CANONICAL_INVOCATION_FILE);
+  if (text === null) {
+    return {
+      file: CANONICAL_INVOCATION_FILE,
+      carried: 'UNKNOWN',
+      reason: `${CANONICAL_INVOCATION_FILE} is absent or unreadable - contract carriage cannot be observed`,
+    };
+  }
+  const missing = CANONICAL_INVOCATION_PREFIXES.filter((p) => !text.includes(p));
+  if (missing.length > 0) {
+    return {
+      file: CANONICAL_INVOCATION_FILE,
+      carried: false,
+      reason: `canonical test-invocation contract missing from ${CANONICAL_INVOCATION_FILE} (${missing.length} of 2 prefix literals absent) - outdated vendored layer; run /aai-update`,
+    };
+  }
+  return { file: CANONICAL_INVOCATION_FILE, carried: true, reason: null };
+}
+
 function catAgentCliProbe(root) {
   const clis = {};
   for (const name of AGENT_CLIS) clis[name] = resolveCliVersion(root, name);
@@ -618,6 +655,7 @@ function catAgentCliProbe(root) {
     fork_turns_supported: { value: 'UNKNOWN', reason: CAPABILITY_REASON },
   };
   const codex_exec_subcommand = probeCodexExecSubcommand(root, clis.codex.present);
+  const canonical_invocation = probeCanonicalInvocation(root);
   // CHANGE-0138 (F6/D2): strict equality everywhere — UNKNOWN can never
   // inflate the present count, and a timed-out probe is named on the line
   // (`, N unknown`) instead of being folded into absence. A present CLI
@@ -631,10 +669,16 @@ function catAgentCliProbe(root) {
   let counts = `${presentCount}/${AGENT_CLIS.length} agent CLI(s) present`;
   if (noVersionCount > 0) counts += ` (${noVersionCount} without version)`;
   if (unknownCount > 0) counts += `, ${unknownCount} unknown`;
-  const reason = `${counts}; four SUBAGENT_PROTOCOL capability fields reported UNKNOWN (${CAPABILITY_REASON})`;
+  // CHANGE-0139: one short appended segment names the contract tri-state on
+  // the single CAT-16 text line; the structured record lives in the detail.
+  let contractSeg;
+  if (canonical_invocation.carried === true) contractSeg = 'carried';
+  else if (canonical_invocation.carried === false) contractSeg = 'MISSING (run /aai-update)';
+  else contractSeg = 'UNKNOWN (.aai/AGENTS.md absent or unreadable)';
+  const reason = `${counts}; four SUBAGENT_PROTOCOL capability fields reported UNKNOWN (${CAPABILITY_REASON}); canonical test-invocation contract: ${contractSeg}`;
   return {
     ...cat('CAT-16', 'Agent CLI Probe', 'PASS', reason),
-    detail: { clis, capabilities, codex_exec_subcommand },
+    detail: { clis, capabilities, codex_exec_subcommand, canonical_invocation },
   };
 }
 

@@ -46,6 +46,13 @@ To update the AAI layer from a template worktree, see .aai/scripts/aai-sync.(sh|
    (.aai/SKILL_PR.prompt.md). The agent never merges — merging is an
    operator-only action.
 
+### Canonical test invocation
+
+- Windows: `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <command...>`
+- POSIX: `bash .aai/scripts/aai-run-tests.sh <command...>`
+
+Run it from the repository root; when elsewhere, cd to the repo root first - never rewrite the script path relative to the current directory.
+Never invoke bash.exe, sh, or wsl directly for test runs, and never via CWD-relative paths from a subdirectory - the dispatcher owns interpreter routing.
 
 ### Entry points (low-token)
 

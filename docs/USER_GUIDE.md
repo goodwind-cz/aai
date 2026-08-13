@@ -1908,6 +1908,21 @@ Generated `aai-test-unit` / `aai-test-e2e` skills are already wrapped, and both
 `.aai/scripts/aai-run-tests.sh` and reap with `.aai/scripts/aai-reap-tests.sh` on
 the step boundary.
 
+### Approval allowlist: two stable prefixes (CHANGE-0139)
+
+Agents invoke tests with exactly one canonical command shape per platform,
+always from the repository root. Allowlist these two command prefixes once in
+your agent harness, and every canonical invocation matches them forever:
+
+- `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1`
+- `bash .aai/scripts/aai-run-tests.sh`
+
+The fixed repo-root literal prefix is what approval allowlists match - a stable command shape is approved once, a varying one re-prompts forever.
+An agent that varies the shape per call (CWD-relative `..\..\` paths, direct
+`bash.exe`, ad-hoc quoting) re-triggers the approval dialog on every call and
+bypasses the wrapper's environment canonicalization, watchdog, and exit
+contract.
+
 ---
 
 ## Troubleshooting

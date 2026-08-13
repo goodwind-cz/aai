@@ -53,7 +53,7 @@ The generator may create/update:
 ## Leak-safe Test Commands (SPEC-0009)
 
 Generated `aai-test-unit` / `aai-test-e2e` skills route their detected command
-through the process-group wrapper `.aai/scripts/aai-run-tests.sh <cmd>` rather
+through the process-group wrapper `bash .aai/scripts/aai-run-tests.sh <cmd>` rather
 than invoking `vitest`/`playwright` directly. The wrapper runs the command in a
 killable process group with an inline timeout (default 300s → exit 124) so a
 suite that leaks open handles cannot orphan a hung `vitest`/`esbuild` tree; it is
