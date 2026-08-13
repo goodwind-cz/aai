@@ -26,22 +26,35 @@
 //   CAT-10/11/12/13, and extends the same posture to CAT-03/04/05/07/08/09
 //   which the original prose never named a required/BROKEN trigger for.
 //
+// CAT-14/CAT-15/CAT-16 (CHANGE-0135 / spec-doctor-win-selftest) add three
+// read-only diagnostic sections: the REAL Windows wrapper self-test
+// (.aai/scripts/aai-win-selftest.ps1, which dot-sources
+// .aai/scripts/aai-run-tests.ps1 for its probe functions — never a second
+// implementation of them), the environment the wrapper actually sees
+// (case-colliding env var groups, PowerShell engines, Git Bash candidates,
+// WSL tri-state), and an agent-CLI presence/version probe. All three cap at
+// WARN — see catWinSelfTest/catWinEnvironment/catAgentCliProbe below — so the
+// pre-existing exit map (0 clean/WARN-only, 1 on any FAIL) stays unchanged;
+// `--strict` is the opt-in that also exits 1 on any WARN.
+//
 // Usage:
-//   node .aai/scripts/aai-doctor.mjs [--root <path>] [--json]
+//   node .aai/scripts/aai-doctor.mjs [--root <path>] [--json] [--strict]
 //
 // --root defaults to the repo root resolved from THIS script's own location
 // (two levels up from .aai/scripts/), NOT process.cwd() — so the tool
 // produces the same verdict regardless of the caller's working directory.
 // Pass --root explicitly to point at a fixture / foreign project tree.
 //
-// Output (default, one line per category):
+// Output (default, one line per category — text mode never prints detail):
 //   CAT-NN <PASS|WARN|FAIL|SKIP> <short reason>
 //   DOCTOR <CLEAN|ISSUES(n)>
 // --json prints one object:
-//   { root, generatedAt, categories: [{id,name,status,reason}],
+//   { root, generatedAt, categories: [{id,name,status,reason,detail?}],
 //     verdict: "CLEAN"|"ISSUES", issues: <int>, exit: <int> }
 //
-// Exit codes: 0 on CLEAN or WARN-only, 1 when any category is FAIL.
+// Exit codes: 0 on CLEAN or WARN-only, 1 when any category is FAIL, 2 on a
+// CLI usage error. `--strict`: 1 when any category is WARN or FAIL, 0 only
+// when every category is PASS or SKIP (a SKIP is not a finding).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -418,10 +431,166 @@ function readProfileFromPin(root) {
   return value;
 }
 
+// --- CAT-14/CAT-15 Windows Self-Test + Environment (shared probe) -----------
+// D1: BOTH categories are derived from the SAME single spawn of
+// aai-win-selftest.ps1 (SEAM-1 — one JSON document on stdout), never two
+// spawns. D6: this section runs only when process.platform === 'win32' AND a
+// PowerShell engine resolves; either missing precondition is a named SKIP
+// that spawns NOTHING (never touches the ps1 probe at all).
+
+function resolveWinEngine(root) {
+  for (const engine of ['pwsh', 'powershell']) {
+    const res = run(engine, ['-NoProfile', '-Command', 'exit 0'], root, 5_000);
+    if (!res.error) return engine;
+  }
+  return null;
+}
+
+function runWinSelfTestProbe(root, scriptDir) {
+  if (process.platform !== 'win32') {
+    return { skip: 'not running on a Windows host' };
+  }
+  const engine = resolveWinEngine(root);
+  if (!engine) {
+    return { skip: 'no PowerShell engine (pwsh or powershell.exe) resolved on PATH' };
+  }
+  const probe = path.join(scriptDir, 'aai-win-selftest.ps1');
+  if (!fs.existsSync(probe)) {
+    return { warn: 'aai-win-selftest.ps1 not found — run /aai-update' };
+  }
+  // Generous but bounded: three self-test arms (success/timeout/spawnfail)
+  // plus engine-resolution overhead; a genuine hang degrades to WARN, never
+  // a throw (RR-4).
+  const res = run(engine, ['-NoProfile', '-File', probe], root, 170_000);
+  if (res.error) {
+    const timedOut = res.error.code === 'ETIMEDOUT' || res.error.killed === true;
+    return { warn: timedOut ? 'self-test timed out' : `self-test failed to run: ${res.error.message}` };
+  }
+  let parsed = null;
+  try { parsed = JSON.parse(res.stdout); } catch { /* leave null — unparseable */ }
+  if (!parsed || typeof parsed !== 'object') {
+    return { warn: 'self-test produced unparseable output' };
+  }
+  return { ok: true, parsed };
+}
+
+function catWinSelfTest(probe) {
+  if (probe.skip) return { ...cat('CAT-14', 'Windows Self-Test', 'SKIP', probe.skip), detail: { spawned: false } };
+  if (probe.warn) return { ...cat('CAT-14', 'Windows Self-Test', 'WARN', probe.warn), detail: { spawned: false } };
+  const st = (probe.parsed && probe.parsed.selftest) || {};
+  const arms = Array.isArray(st.arms) ? st.arms : [];
+  const passCount = arms.filter((a) => a && a.status === 'PASS').length;
+  const status = st.failed || arms.length === 0 ? 'WARN' : 'PASS';
+  const reason = arms.length === 0
+    ? (st.reason || 'self-test reported no arm results')
+    : `${passCount}/${arms.length} arms passed${st.reason ? ` (${st.reason})` : ''}`;
+  return { ...cat('CAT-14', 'Windows Self-Test', status, reason), detail: st };
+}
+
+function catWinEnvironment(probe) {
+  if (probe.skip) return { ...cat('CAT-15', 'Windows Environment', 'SKIP', probe.skip), detail: {} };
+  if (probe.warn) return { ...cat('CAT-15', 'Windows Environment', 'WARN', probe.warn), detail: {} };
+  const env = (probe.parsed && probe.parsed.environment) || {};
+  const collisions = Array.isArray(env.collisions) ? env.collisions : [];
+  const engines = Array.isArray(env.engines) ? env.engines : [];
+  const gitBash = env.gitBash || {};
+  const wsl = env.wsl || 'UNKNOWN';
+  const parts = [
+    collisions.length > 0 ? `${collisions.length} colliding env group(s)` : 'no env collisions',
+    `${engines.length} PowerShell engine(s)`,
+    `WSL: ${wsl}`,
+    gitBash.selected ? 'Git Bash resolved' : 'no Git Bash resolved',
+  ];
+  const status = collisions.length > 0 ? 'WARN' : 'PASS';
+  return { ...cat('CAT-15', 'Windows Environment', status, parts.join(', ')), detail: env };
+}
+
+// --- CAT-16 Agent CLI Probe (cross-platform) --------------------------------
+// Spec-AC-03/D4: each agent CLI is resolved and version-probed for real
+// (never inferred from a harness name); the four SUBAGENT_PROTOCOL
+// capability fields are reported as the literal UNKNOWN with a reason — they
+// are runtime properties of the ORCHESTRATING SESSION, not observable from a
+// child process — and are never converted into true/false. The codex `exec`
+// subcommand observation is a separate, individually labelled fact.
+
+const AGENT_CLIS = ['claude', 'codex', 'gemini'];
+const CAPABILITY_REASON = 'resolved at runtime inside an agent session; not observable from a child process';
+
+function resolveExecutable(root, name) {
+  if (process.platform !== 'win32') {
+    // POSIX: spawnSync with shell:false resolves a bare command name via
+    // PATH itself (execvp semantics) — no manual search needed.
+    return name;
+  }
+  // Windows: honor PATHEXT explicitly (Spec-AC-03) — spawning without a
+  // shell means Node does not perform PATHEXT resolution for us.
+  const pathDirs = String(process.env.PATH || process.env.Path || '').split(path.delimiter).filter(Boolean);
+  const pathext = String(process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
+  for (const dir of pathDirs) {
+    for (const ext of ['', ...pathext]) {
+      const candidate = path.join(dir, name + ext);
+      try {
+        if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate;
+      } catch { /* unreadable dir entry — keep scanning */ }
+    }
+  }
+  return null;
+}
+
+function resolveCliVersion(root, name) {
+  const exe = resolveExecutable(root, name);
+  if (!exe) return { present: false };
+  const res = run(exe, ['--version'], root, 5_000);
+  if (res.error) {
+    const timedOut = res.error.code === 'ETIMEDOUT' || res.error.killed === true;
+    if (timedOut) return { present: false, unknown: true, reason: `${name} --version timed out` };
+    return { present: false };
+  }
+  const firstLine = (res.stdout || res.stderr || '').trim().split('\n')[0] || '';
+  return firstLine ? { present: true, version: firstLine } : { present: false };
+}
+
+function probeCodexExecSubcommand(root, codexPresent) {
+  if (!codexPresent) return { available: 'UNKNOWN', reason: 'codex CLI not present' };
+  const exe = resolveExecutable(root, 'codex');
+  if (!exe) return { available: 'UNKNOWN', reason: 'codex CLI not present' };
+  const res = run(exe, ['--help'], root, 5_000);
+  if (res.error) return { available: 'UNKNOWN', reason: 'codex --help failed to run' };
+  const out = `${res.stdout || ''}\n${res.stderr || ''}`;
+  // F4: anchored to a command-list line shape (line-start, >=2 spaces,
+  // "exec", >=2 spaces, then the subcommand's description) so free-form
+  // prose that merely contains the word "exec" -- e.g. "This tool will
+  // never exec anything on your behalf." -- cannot fabricate a positive
+  // observation. A bare `/(^|\s)exec(\s|$)/m` matched that sentence.
+  const hasExec = /^\s{2,}exec\s{2,}\S/m.test(out);
+  return {
+    available: hasExec,
+    reason: hasExec ? 'codex --help lists an exec subcommand' : 'codex --help does not list an exec subcommand',
+  };
+}
+
+function catAgentCliProbe(root) {
+  const clis = {};
+  for (const name of AGENT_CLIS) clis[name] = resolveCliVersion(root, name);
+  const capabilities = {
+    multi_agent_backend: { value: 'UNKNOWN', reason: CAPABILITY_REASON },
+    spawn_agent_available: { value: 'UNKNOWN', reason: CAPABILITY_REASON },
+    spawn_model_catalog: { value: 'UNKNOWN', reason: CAPABILITY_REASON },
+    fork_turns_supported: { value: 'UNKNOWN', reason: CAPABILITY_REASON },
+  };
+  const codex_exec_subcommand = probeCodexExecSubcommand(root, clis.codex.present);
+  const presentCount = Object.values(clis).filter((c) => c.present).length;
+  const reason = `${presentCount}/${AGENT_CLIS.length} agent CLI(s) present; four SUBAGENT_PROTOCOL capability fields reported UNKNOWN (${CAPABILITY_REASON})`;
+  return {
+    ...cat('CAT-16', 'Agent CLI Probe', 'PASS', reason),
+    detail: { clis, capabilities, codex_exec_subcommand },
+  };
+}
+
 // --- CLI ---------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { root: null, json: false };
+  const args = { root: null, json: false, strict: false };
   const toks = argv.slice(2);
   for (let i = 0; i < toks.length; i++) {
     const tok = toks[i];
@@ -431,9 +600,11 @@ function parseArgs(argv) {
       args.root = path.resolve(v);
     } else if (tok === '--json') {
       args.json = true;
+    } else if (tok === '--strict') {
+      args.strict = true;
     } else {
       console.error(`aai-doctor: unknown flag: ${tok}`);
-      console.error('Usage: aai-doctor [--root <path>] [--json]');
+      console.error('Usage: aai-doctor [--root <path>] [--json] [--strict]');
       process.exit(2);
     }
   }
@@ -446,6 +617,7 @@ function defaultRoot() {
 }
 
 export function runDoctor(root, scriptDir) {
+  const winProbe = runWinSelfTestProbe(root, scriptDir);
   return [
     catCoreFiles(root),
     catRolePrompts(root),
@@ -460,6 +632,9 @@ export function runDoctor(root, scriptDir) {
     catDocsHygiene(root, scriptDir),
     catIndexRegenHook(root),
     catLayerDrift(root, scriptDir),
+    catWinSelfTest(winProbe),
+    catWinEnvironment(winProbe),
+    catAgentCliProbe(root),
   ];
 }
 
@@ -473,9 +648,16 @@ function main() {
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const categories = runDoctor(root, scriptDir);
   const failCount = categories.filter((c) => c.status === 'FAIL').length;
-  const issueCount = categories.filter((c) => c.status !== 'PASS').length;
+  const warnOrFailCount = categories.filter((c) => c.status === 'WARN' || c.status === 'FAIL').length;
+  // A SKIP is not a finding (matches --strict's own contract below, and the
+  // SKILL_DOCTOR.prompt.md verdict-translation line): CAT-14/CAT-15 SKIP on
+  // every non-Windows host, which is the NORMAL state there, not an issue.
+  // Every category is still printed either way -- only the summary count
+  // excludes SKIP.
+  const issueCount = warnOrFailCount;
   const verdict = issueCount === 0 ? 'CLEAN' : 'ISSUES';
-  const exitCode = failCount > 0 ? 1 : 0;
+  let exitCode = failCount > 0 ? 1 : 0;
+  if (args.strict && exitCode === 0 && warnOrFailCount > 0) exitCode = 1;
 
   if (args.json) {
     console.log(JSON.stringify({
@@ -487,6 +669,9 @@ function main() {
       exit: exitCode,
     }, null, 2));
   } else {
+    // detail is a structured machine object (CAT-14/15/16) meant for --json
+    // consumers; text mode is the paste-able report and never prints it
+    // (a raw compact-JSON line here can run past a kilobyte — see --json).
     for (const c of categories) {
       console.log(`${c.id} ${c.status} ${c.reason}`);
     }

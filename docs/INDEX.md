@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-12T21:40:18.674Z
+Generated: 2026-08-13T02:45:22.427Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,10 +17,11 @@ _None._
 
 _None._
 
-## Product (21)
+## Product (22)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
+| aai-doctor | aai-doctor | 5 | docs/product/aai-doctor.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
 | auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
@@ -43,7 +44,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 4 | docs/product/windows-test-wrapper.md |
 
-## Done (302)
+## Done (304)
 
 | ID | Type | Path |
 |---|---|---|
@@ -181,6 +182,7 @@ _None._
 | CHANGE-0132 | issues | docs/issues/CHANGE-0132-validation-cost-calibration.md |
 | CHANGE-0133 | issues | docs/issues/CHANGE-0133-ps1-wrapper-path-dup.md |
 | CHANGE-0134 | issues | docs/issues/CHANGE-0134-pester-on-windows-ci.md |
+| CHANGE-0135 | issues | docs/issues/CHANGE-0135-doctor-win-selftest.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -348,6 +350,7 @@ _None._
 | SPEC-0119 | specs | docs/specs/SPEC-0119-spec-validation-cost-calibration.md |
 | SPEC-0120 | specs | docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md |
 | SPEC-0121 | specs | docs/specs/SPEC-0121-spec-pester-on-windows-ci.md |
+| SPEC-0122 | specs | docs/specs/SPEC-0122-spec-doctor-win-selftest.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
@@ -385,4 +388,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-12 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-13 — counts above use this date for overdue checks.

@@ -11,6 +11,54 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(doctor): Windows self-test, environment and agent-CLI probe (CHANGE-0135) [L1]
+
+- `/aai-doctor` (`.aai/scripts/aai-doctor.mjs`) gains three new categories:
+  `CAT-14` Windows Self-Test runs the REAL `.aai/scripts/aai-run-tests.ps1`
+  wrapper three times (success / timeout / induced spawn failure) on the
+  machine `/aai-doctor` runs on, `CAT-15` Windows Environment reports
+  case-colliding env var groups, PowerShell engines, Git Bash candidates and
+  the WSL tri-state, and `CAT-16` Agent CLI Probe reports `claude`/`codex`/
+  `gemini` presence and verbatim version, with the four
+  `SUBAGENT_PROTOCOL` capability fields honestly reported `UNKNOWN` (never
+  inferred from an installed CLI's name).
+- New `.aai/scripts/aai-win-selftest.ps1` dot-sources the existing
+  `.aai/scripts/aai-run-tests.ps1` for its probe functions (the wrapper's
+  own header blesses dot-sourcing to define-without-run) — never a second
+  implementation of WSL/Git-Bash resolution or the env-collision rule.
+  CAT-14's induced spawn-failure arm doctors only a throwaway CHILD
+  process's environment (a temp-directory decoy), never the host's real Git
+  installation.
+- `--strict` flag: exits 1 when any category is WARN or FAIL (0 when every
+  category is PASS or SKIP); the pre-existing exit map (0 clean/WARN-only,
+  1 on any FAIL) is unchanged without it. `CAT-14`/`CAT-15` cap at WARN and
+  can never emit FAIL; `CAT-16` is always PASS. The SKIP exclusion applies
+  to the `DOCTOR ISSUES(n)` count globally — any SKIP category, including
+  pre-existing SKIP-capable ones such as `CAT-08` on a non-git repo, is
+  never counted as an issue; `DOCTOR ISSUES(n)` and `--strict` both count
+  WARN/FAIL only.
+- Field catch on this change's own first real-Windows CI run: CAT-14
+  exposed a live defect in `aai-run-tests.ps1` itself — `Start-GitBashProcess`
+  passed `-ArgumentList` as a raw array, which is space-joined without
+  quoting on at least one engine, so a `sh -c '<script>'` payload split into
+  words and only the script's first word ever executed (a bare `echo` exited
+  0 with no marker; `sleep: missing operand`). The spawn now pre-quotes the
+  argument vector into one string — the same fix the file's own WSL probe
+  already carries — with a RED-proven engine-independent Pester pin.
+- `tests/skills/aai-win-dispatch.Tests.ps1` gains six new Pester contexts
+  for the probe script's pure functions and its apostrophe-path escaping
+  (plus the wrapper-quoting pin above);
+  `tests/skills/test-aai-doctor.sh` gains twelve new cases (SKIP branch,
+  structural REUSE/arm pins, fake-CLI and empty-PATH fixtures, output-shape
+  growth, exit matrix, zero-network pin, hygiene set, documentation pin).
+  `.aai/system/PROFILES.yaml` classifies the new script under `core`;
+  `tests/skills/suite-map.yaml`'s `aai-doctor` row widens to cover it.
+- New `docs/product/aai-doctor.md`; `docs/USER_GUIDE.md` documents the
+  three new categories, `--strict`, and the UNKNOWN capability reporting.
+- Spec-AC-01 (the Windows self-test itself) stays `planned` until the named
+  `ps1-quality / windows-5_1` job has actually run green on this scope's PR
+  with all three arms PASS — recorded honestly, not claimed.
+
 ## [unreleased] — ci(ps1-quality): windows-5_1 runs the full Pester suite under both engines (CHANGE-0134) [L1]
 
 - `.github/workflows/ps1-quality.yml` `windows-5_1` job gains a per-engine

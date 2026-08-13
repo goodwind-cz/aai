@@ -196,6 +196,9 @@ suites:
     globs:
       - .aai/scripts/aai-doctor.mjs
       - .aai/SKILL_DOCTOR.prompt.md
+      - .aai/scripts/aai-win-selftest.ps1
+      - tests/skills/aai-win-dispatch.Tests.ps1
+      - tests/skills/test-aai-doctor.sh
 
   aai-factory-report:
     globs:

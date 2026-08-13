@@ -28,27 +28,31 @@
 </head>
 <body>
 <h1>aai — Project Overview</h1>
-<p class="meta">Generated 2026-08-11T23:15:18.239Z · regenerate with <code>node .aai/scripts/generate-overview.mjs</code></p>
+<p class="meta">Generated 2026-08-13T02:15:55.089Z · regenerate with <code>node .aai/scripts/generate-overview.mjs</code></p>
 <div class="counts">
-  <div><b>176</b>delivered</div>
+  <div><b>180</b>delivered</div>
   <div><b>1</b>in progress</div>
   <div><b>1</b>releases</div>
-  <div><b>26623390</b>agent tokens (delivered)</div>
+  <div><b>32159838</b>agent tokens (delivered)</div>
 </div>
 
 <section><h2>In flight now</h2>
-<p><strong>evidence-path-gate</strong> <span class="meta">intake_change · validation</span></p>
-<div class="chips"><span class="chip">strategy: tdd</span><span class="chip">worktree: not_needed / inline</span><span class="chip">validation: not_run</span><span class="chip">review: not_run</span></div>
+<p><strong>doctor-win-selftest</strong> <span class="meta">intake_change · validation</span></p>
+<div class="chips"><span class="chip">strategy: hybrid</span><span class="chip">worktree: optional / inline</span><span class="chip">validation: not_run</span><span class="chip">review: not_run</span></div>
 <table class="ticks"><thead><tr><th>Tick</th><th>Role</th><th>Scope</th><th>Duration (s)</th><th>Harness</th></tr></thead><tbody>
-<tr><td>34</td><td>Code Review</td><td>evidence-path-gate</td><td>569</td><td>2.1.220 (Claude Code)</td></tr>
-<tr><td>33</td><td>Validation</td><td>evidence-path-gate</td><td>826</td><td>2.1.220 (Claude Code)</td></tr>
-<tr><td>32</td><td>TDD Implementation</td><td>evidence-path-gate</td><td>1375</td><td>2.1.220 (Claude Code)</td></tr>
-<tr><td>31</td><td>Planning</td><td>evidence-path-gate</td><td>777</td><td>2.1.220 (Claude Code)</td></tr>
-<tr><td>30</td><td>Code Review</td><td>role-token-trend</td><td>518</td><td>2.1.220 (Claude Code)</td></tr>
+<tr><td>66</td><td>remediation</td><td>doctor-win-selftest</td><td>755</td><td>unknown</td></tr>
+<tr><td>65</td><td>code_review</td><td>doctor-win-selftest</td><td>818</td><td>unknown</td></tr>
+<tr><td>64</td><td>Remediation</td><td>doctor-win-selftest</td><td>1183</td><td>2.1.220 (Claude Code)</td></tr>
+<tr><td>63</td><td>Code Review</td><td>doctor-win-selftest</td><td>643</td><td>2.1.220 (Claude Code)</td></tr>
+<tr><td>62</td><td>Validation</td><td>doctor-win-selftest</td><td>895</td><td>2.1.220 (Claude Code)</td></tr>
 </tbody></table>
 </section>
 <section><h2>In progress (1)</h2><ul><li><strong>RFC (Decision Proposal)</strong><br><span class="meta">rfc</span><br><span class="links"><a href="../../docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md">request</a></span></li></ul></section>
-<section><h2>Delivered (176)</h2><h3>2026-08</h3><ul><li><strong>Change — Factory report: per-role token trend (layer-2 measurement)</strong><br><span class="meta">delivered 2026-08-11 · 67 min agent time · 618627 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0130-role-token-trend.md">request</a> · <a href="../../docs/specs/SPEC-0117-spec-role-token-trend.md">spec</a> · <a href="../../docs/ai/reviews/review-dual-verdict-role-token-trend-20260811T211331Z.md">code review</a></span></li>
+<section><h2>Delivered (180)</h2><h3>2026-08</h3><ul><li><strong>Change — aai-doctor: Windows wrapper self-test + agent-CLI capability probe (test reality, not the CI image)</strong><br><span class="meta">delivered 2026-08-13 · 161 min agent time · 1655409 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0135-doctor-win-selftest.md">request</a> · <a href="../../docs/specs/SPEC-0122-spec-doctor-win-selftest.md">spec</a> · <a href="../../docs/ai/reviews/review-20260813T010000Z-CHANGE-0135-doctor-win-selftest-rereview.md">code review</a></span></li>
+<li><strong>Change — Validation cost calibration: lane-scaled depth + harness-aware role isolation (capability-detected, never hardcoded)</strong><br><span class="meta">delivered 2026-08-12 · 94 min agent time · 888195 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0132-validation-cost-calibration.md">request</a> · <a href="../../docs/specs/SPEC-0119-spec-validation-cost-calibration.md">spec</a> · <a href="../../docs/ai/reviews/review-20260812T083704Z-CHANGE-0132-validation-cost-calibration.md">code review</a></span></li>
+<li><strong>Change — aai-run-tests.ps1: Path/PATH duplicate kills Start-Process; failure masquerades as timeout 124</strong><br><span class="meta">delivered 2026-08-12 · 162 min agent time · 1790560 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0133-ps1-wrapper-path-dup.md">request</a> · <a href="../../docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md">spec</a> · <a href="../../docs/ai/reviews/review-20260812T133652Z-CHANGE-0133-ps1-wrapper-path-dup.md">code review</a></span></li>
+<li><strong>Change — Run the full Pester suite on real Windows CI under both engines</strong><br><span class="meta">delivered 2026-08-12 · 71 min agent time · 1202284 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0134-pester-on-windows-ci.md">request</a> · <a href="../../docs/specs/SPEC-0121-spec-pester-on-windows-ci.md">spec</a> · <a href="../../docs/ai/reviews/review-20260812T202503Z-CHANGE-0134-pester-on-windows-ci.md">code review</a></span></li>
+<li><strong>Change — Factory report: per-role token trend (layer-2 measurement)</strong><br><span class="meta">delivered 2026-08-11 · 67 min agent time · 618627 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0130-role-token-trend.md">request</a> · <a href="../../docs/specs/SPEC-0117-spec-role-token-trend.md">spec</a> · <a href="../../docs/ai/reviews/review-dual-verdict-role-token-trend-20260811T211331Z.md">code review</a></span></li>
 <li><strong>Change — Close-time evidence-path gate: cited evidence must resolve from the main tree</strong><br><span class="meta">delivered 2026-08-11 · 59 min agent time · 647363 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0131-evidence-path-gate.md">request</a> · <a href="../../docs/specs/SPEC-0118-spec-evidence-path-gate.md">spec</a> · <a href="../../docs/ai/reviews/review-20260811T230913Z-CHANGE-0131-evidence-path-gate.md">code review</a></span></li>
 <li><strong>Change — Scryer template v2: MCP-aware merge sweep + shallow-clone-honest health</strong><br><span class="meta">delivered 2026-08-09 · 42 min agent time · 616042 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0129-scryer-mcp-and-shallow.md">request</a> · <a href="../../docs/specs/SPEC-0116-spec-scryer-mcp-and-shallow.md">spec</a> · <a href="../../docs/ai/reviews/review-20260809T103602Z-CHANGE-0129-scryer-mcp-and-shallow.md">code review</a></span></li>
 <li><strong>Change — Optional zero-token live-status dashboard (factory sidecar)</strong><br><span class="meta">delivered 2026-08-08 · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0127-live-status-dashboard.md">request</a> · <a href="../../docs/specs/SPEC-0114-spec-live-status-dashboard.md">spec</a> · <a href="../../docs/ai/reviews/review-20260808T111602Z-CHANGE-0127-live-status-dashboard-rereview3.md">code review</a></span></li>

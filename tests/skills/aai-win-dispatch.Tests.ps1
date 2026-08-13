@@ -31,6 +31,8 @@ BeforeAll {
     $script:RunDispatcher = Join-Path $RepoRoot '.aai/scripts/aai-run-tests.ps1'
     $script:ReapDispatcher = Join-Path $RepoRoot '.aai/scripts/aai-reap-tests.ps1'
     $script:ReleaseScript = Join-Path $RepoRoot '.aai/scripts/aai-release.ps1'
+    $script:SelfTestScript = Join-Path $RepoRoot '.aai/scripts/aai-win-selftest.ps1'
+    $script:DoctorScript = Join-Path $RepoRoot '.aai/scripts/aai-doctor.mjs'
     $script:SkipHelperPath = Join-Path $PSScriptRoot 'lib/pester-host-skip.ps1'
     $script:NativeCaptureHelperPath = Join-Path $PSScriptRoot 'lib/pester-native-capture.ps1'
 }
@@ -571,6 +573,37 @@ exit $rc
             $rc = Invoke-ViaGitBash -BashPath 'C:\Git\bin\bash.exe' -Command @('sh', '-c', 'exit 7') `
                 -ShScriptPath 'C:\repo\.aai\scripts\aai-run-tests.sh' -Timeout 300
             $rc | Should -Be 7
+        }
+    }
+
+    Context 'CHANGE-0135 field fix (PR #249 run 31658515767): Start-GitBashProcess pre-quotes ArgumentList into ONE string' {
+        # First real-Windows CAT-14 run caught this live: the raw string[]
+        # ArgumentList is space-joined WITHOUT quoting on at least one engine,
+        # so the `sh -c '<script>'` payload splits into words and only the
+        # script's first word executes (`sleep: missing operand` on the
+        # timeout arm; bare `echo` exit 0 + no marker on the success arm).
+        # Same footgun and same fix as Start-WslProbeProcess's own header.
+        It 'passes a single pre-quoted string, spaces in the script path and the sh payload both survive' {
+            $script:gbArgList = $null
+            Mock Start-Process {
+                $script:gbArgList = $ArgumentList
+                [PSCustomObject]@{ Id = 7100; Handle = [IntPtr]::new(1); ExitCode = 0 }
+            }
+            $origTimeout = $env:AAI_TEST_TIMEOUT
+            try {
+                $proc = Start-GitBashProcess -BashPath 'C:\Git\bin\bash.exe' `
+                    -ScriptArgs @('C:\repo with space\.aai\scripts\aai-run-tests.sh', 'sh', '-c', 'echo AAI-SELFTEST-OK > ''/tmp/m.txt''; exit 3') `
+                    -Timeout 60
+            } finally {
+                if ($null -eq $origTimeout) { Remove-Item Env:AAI_TEST_TIMEOUT -ErrorAction SilentlyContinue } else { $env:AAI_TEST_TIMEOUT = $origTimeout }
+            }
+            $proc.Id | Should -Be 7100
+            # Start-Process's -ArgumentList parameter is [string[]]-typed, so
+            # even a single pre-quoted string binds as a 1-element array at
+            # the mock: pin EXACTLY one element (pre-fix: 4 raw elements) that
+            # carries the whole payload with every segment quoted.
+            @($script:gbArgList).Count | Should -Be 1 -Because 'a raw multi-element array is space-joined engine-dependently; the payload must be pre-quoted into one string'
+            @($script:gbArgList)[0] | Should -Be '"C:\repo with space\.aai\scripts\aai-run-tests.sh" "sh" "-c" "echo AAI-SELFTEST-OK > ''/tmp/m.txt''; exit 3"'
         }
     }
 
@@ -1348,6 +1381,278 @@ Describe 'aai-reap-tests.ps1' {
             Should -Invoke Invoke-ReapViaWsl -Times 0 -Exactly
             ([regex]::Matches($out, 'reaped: \d+')).Count | Should -Be 1
             $out | Should -Match 'reaped: 5'
+        }
+    }
+}
+
+Describe 'aai-win-selftest.ps1 (CHANGE-0135 / spec-doctor-win-selftest)' {
+
+    BeforeEach {
+        # Re-dot-source before every test so Mocks never leak between tests.
+        # aai-win-selftest.ps1 itself dot-sources aai-run-tests.ps1 (D1), so
+        # this single dot-source defines BOTH files' functions in scope --
+        # Test-WslPresent/Test-WslUsable (the wrapper's) are mockable here
+        # exactly as they are in the 'aai-run-tests.ps1' Describe above.
+        . $script:SelfTestScript
+        # Same reasoning as the NativeCaptureHelperPath dot-source above: a
+        # top-level (discovery-scope) dot-source's function definitions do
+        # not carry into Pester's Run-phase block scopes, so
+        # Test-IsWindowsHostFor (used by the TEST-004 context below) must be
+        # re-dot-sourced HERE to be callable inside an It.
+        . $script:SkipHelperPath
+    }
+
+    It 'parses with no syntax errors' {
+        $errors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile(
+            $script:SelfTestScript, [ref]$null, [ref]$errors) | Out-Null
+        $errors | Should -BeNullOrEmpty
+    }
+
+    Context 'CHANGE-0135 TEST-002 (Spec-AC-01): pure self-test report builder turns arm results into the documented shape' {
+        It 'produces one entry per arm, preserves status/exitCode/diag verbatim (including the AAI-TIMEOUT field), and marks failed when any arm is not PASS' {
+            $arms = @(
+                [ordered]@{ Name = 'success'; Status = 'PASS'; ExitCode = 3; Diag = 'AAI-BRANCH: Git Bash | AAI-TIMEOUT: 60s (source=env)' }
+                [ordered]@{ Name = 'timeout'; Status = 'PASS'; ExitCode = 124; Diag = 'AAI-BRANCH: Git Bash | AAI-TIMEOUT: 2s (source=env)' }
+                [ordered]@{ Name = 'spawnfail'; Status = 'FAIL'; ExitCode = 125; Diag = 'AAI-SPAWN-ERROR: [Git Bash] boom' }
+            )
+            $report = Build-SelfTestReport -Arms $arms
+            $report.arms.Count | Should -Be 3
+            $report.arms[0].name | Should -Be 'success'
+            $report.arms[0].status | Should -Be 'PASS'
+            $report.arms[0].exitCode | Should -Be 3
+            $report.arms[1].diag | Should -Be 'AAI-BRANCH: Git Bash | AAI-TIMEOUT: 2s (source=env)'
+            $report.arms[2].status | Should -Be 'FAIL'
+            $report.failed | Should -Be $true
+        }
+
+        It 'reports failed=$false when every arm is PASS' {
+            $arms = @(
+                [ordered]@{ Name = 'success'; Status = 'PASS'; ExitCode = 3; Diag = 'x' }
+                [ordered]@{ Name = 'timeout'; Status = 'PASS'; ExitCode = 124; Diag = 'y' }
+                [ordered]@{ Name = 'spawnfail'; Status = 'PASS'; ExitCode = 125; Diag = 'z' }
+            )
+            (Build-SelfTestReport -Arms $arms).failed | Should -Be $false
+        }
+    }
+
+    Context 'CHANGE-0135 F2 (Spec-AC-01): Get-QuotedArgumentString quoting contract, and the load-bearing regression it prevents' {
+        It 'quotes every argument individually, preserving embedded spaces and escaping embedded double quotes' {
+            $result = Get-QuotedArgumentString -ArgumentList @('-NoProfile', '-File', 'C:\a path\file.ps1', 'has "quote"')
+            $result | Should -Be '"-NoProfile" "-File" "C:\a path\file.ps1" "has \"quote\""'
+        }
+
+        It 'a spaced ArmTempDir still reaches the child engine intact (A/B pin: an unquoted raw ArgumentList array breaks this -- validator-observed quoted exitCode=3 vs raw exitCode=64)' {
+            # Exercises Get-QuotedArgumentString through its real caller,
+            # Invoke-SelfTestChildEngine, with an inner script whose OWN path
+            # contains a space -- the exact footgun the fix exists for --
+            # without depending on this host having a WSL/Git-Bash-resolvable
+            # POSIX interpreter (this host does not; see the "real invocation
+            # on THIS host" context above, which is why the inner script here
+            # is a bare `exit 3` rather than a full arm through the wrapper).
+            $engine = if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell' }
+            $spacedRoot = Join-Path $TestDrive 'aai self test dir'
+            New-Item -ItemType Directory -Path $spacedRoot -Force | Out-Null
+            $armDir = Join-Path $spacedRoot 'arm-success'
+            $result = Invoke-SelfTestChildEngine -Engine $engine -InnerScriptContent 'exit 3' -ArmTempDir $armDir -WaitSeconds 30
+            $result.TimedOut | Should -Be $false
+            $result.ExitCode | Should -Be 3
+        }
+    }
+
+    Context 'CHANGE-0135 NB-1 (Code Review): interpolated paths escape an embedded apostrophe in all three arms' {
+        # A real Windows host whose repo or TEMP path contains an apostrophe
+        # (`C:\Users\O'Brien\...`, a legal Windows profile name) breaks the
+        # single-quoted PowerShell literals these arms build by raw string
+        # interpolation: the review proved `[Parser]::ParseInput` returns a
+        # "string is missing the terminator" error on the generated inner
+        # script. Each It below builds an apostrophe-bearing RunDispatcherPath
+        # AND ArmTempDir (which flows into the marker path both arms embed),
+        # runs the real arm function, and parses the inner.ps1 it wrote --
+        # the same proof method the review used, feasible on macOS because
+        # pwsh's parser is cross-platform and no real POSIX interpreter is
+        # required for a syntax-only check.
+        BeforeEach {
+            $script:AposRoot = Join-Path $TestDrive "O'Brien"
+            New-Item -ItemType Directory -Path $script:AposRoot -Force | Out-Null
+            $script:FakeDispatcher = Join-Path $script:AposRoot 'aai-run-tests.ps1'
+            Set-Content -LiteralPath $script:FakeDispatcher -Value 'exit 0'
+            $script:Engine = if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell' }
+        }
+
+        It 'Invoke-SelfTestArmSuccess writes a syntactically valid inner script' {
+            $armDir = Join-Path $script:AposRoot 'arm-success'
+            $null = Invoke-SelfTestArmSuccess -Engine $script:Engine -RunDispatcherPath $script:FakeDispatcher -ArmTempDir $armDir
+            $innerPath = Join-Path $armDir 'inner.ps1'
+            Test-Path -LiteralPath $innerPath | Should -Be $true
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($innerPath, [ref]$null, [ref]$errors) | Out-Null
+            $errors.Count | Should -Be 0
+            # PR #249 bot-sweep pins: the sh payload sits in a PS SINGLE-quoted
+            # literal (a `$`/backtick in a legal Windows path must not
+            # interpolate at the child-PS layer), and carries the wslpath
+            # guard so the WSL branch gets a /mnt/-translated marker path
+            # while Git Bash keeps the C:/-style one.
+            $innerText = Get-Content -LiteralPath $innerPath -Raw
+            $innerText | Should -Match "sh -c '"
+            $innerText | Should -Not -Match 'sh -c "'
+            $innerText | Should -Match 'command -v wslpath'
+        }
+
+        It 'Invoke-SelfTestArmTimeout writes a syntactically valid inner script' {
+            $armDir = Join-Path $script:AposRoot 'arm-timeout'
+            $null = Invoke-SelfTestArmTimeout -Engine $script:Engine -RunDispatcherPath $script:FakeDispatcher -ArmTempDir $armDir
+            $innerPath = Join-Path $armDir 'inner.ps1'
+            Test-Path -LiteralPath $innerPath | Should -Be $true
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($innerPath, [ref]$null, [ref]$errors) | Out-Null
+            $errors.Count | Should -Be 0
+        }
+
+        It 'Invoke-SelfTestArmSpawnFail writes a syntactically valid inner script' {
+            $armDir = Join-Path $script:AposRoot 'arm-spawnfail'
+            $null = Invoke-SelfTestArmSpawnFail -Engine $script:Engine -RunDispatcherPath $script:FakeDispatcher -ArmTempDir $armDir
+            $innerPath = Join-Path $armDir 'inner.ps1'
+            Test-Path -LiteralPath $innerPath | Should -Be $true
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($innerPath, [ref]$null, [ref]$errors) | Out-Null
+            $errors.Count | Should -Be 0
+            # PR #249 bot-sweep pin (Codex P1): the doctored PATH points at the
+            # arm's own decoy root — NEVER System32, which still contains
+            # wsl.exe and would let a WSL-functional host route around the
+            # decoy entirely (D3 demands neither wsl.exe nor a real bash.exe
+            # resolves via PATH).
+            $innerText = Get-Content -LiteralPath $innerPath -Raw
+            # (the O'Brien path is PS-escaped inside the inner text, so match
+            # the stable 'decoy' segment rather than the full escaped path)
+            $innerText | Should -Not -Match 'System32'
+            $innerText | Should -Match "PATH = '.*decoy"
+        }
+    }
+
+    Context 'CHANGE-0135 F3 (Spec-AC-02): Get-AvailableEngines emits a real array even for exactly one engine' {
+        It 'returns a one-element array (not a pipeline-unwrapped scalar) when exactly one engine resolves, so CAT-15 counts it correctly' {
+            Mock Get-Command { $null } -ParameterFilter { $Name -eq 'powershell' }
+            Mock Get-Command { [pscustomobject]@{ Name = 'pwsh' } } -ParameterFilter { $Name -eq 'pwsh' }
+            $result = Get-AvailableEngines
+            # Without -NoEnumerate, PowerShell's automatic pipeline output
+            # unwraps a single-element array to its bare element -- an
+            # ordered hashtable -- so `.Count` silently reads the hashtable's
+            # KEY count (2: name/version) instead of the engine count (1),
+            # which is exactly how catWinEnvironment's "0 PowerShell
+            # engine(s)" misreport (F3) happens on a real single-engine host.
+            $result.Count | Should -Be 1
+            $result[0].name | Should -Be 'pwsh'
+        }
+    }
+
+    Context 'CHANGE-0135 TEST-006/TEST-007 (Spec-AC-02): environment collision report + WSL tri-state mapper' {
+        It 'names exactly one collision group (survivor Path, collapsed PATH) for a Path/PATH-colliding dictionary, and never mutates the real environment' {
+            $envDict = [System.Collections.Specialized.OrderedDictionary]::new()
+            $envDict.Add('Path', 'C:\a')
+            $envDict.Add('PATH', 'C:\b')
+            $envDict.Add('UNRELATED', 'x')
+            # No @() wrap: Get-EnvironmentCollisionReport already guarantees a
+            # real array via -NoEnumerate; re-wrapping with @() would
+            # double-wrap it (PowerShell pipeline-capture quirk on a function
+            # that emits exactly one pipeline object -- here, the array
+            # itself) and break the zero-groups case below.
+            $report = Get-EnvironmentCollisionReport -Environment $envDict
+            $report.Count | Should -Be 1
+            $report[0].survivor | Should -Be 'Path'
+            $report[0].collapsed | Should -Be @('PATH')
+        }
+
+        It 'names zero collision groups for a collision-free dictionary' {
+            $clean = [System.Collections.Specialized.OrderedDictionary]::new()
+            $clean.Add('FOO', '1')
+            $clean.Add('BAR', '2')
+            $report = Get-EnvironmentCollisionReport -Environment $clean
+            $report.Count | Should -Be 0
+        }
+
+        It 'Get-WslTriState returns absent when Test-WslPresent is false' {
+            Mock Test-WslPresent { $false }
+            Mock Test-WslUsable { $true }
+            Get-WslTriState | Should -Be 'absent'
+        }
+
+        It 'Get-WslTriState returns present-no-distro when present but not usable' {
+            Mock Test-WslPresent { $true }
+            Mock Test-WslUsable { $false }
+            Get-WslTriState | Should -Be 'present-no-distro'
+        }
+
+        It 'Get-WslTriState returns functional when present and usable' {
+            Mock Test-WslPresent { $true }
+            Mock Test-WslUsable { $true }
+            Get-WslTriState | Should -Be 'functional'
+        }
+    }
+
+    Context 'CHANGE-0135 TEST-004 (Spec-AC-01): host-adaptive end-to-end -- node aai-doctor.mjs --json over the real probe' {
+        # D5: no -Skip mark on this It -- the POSIX Pester gate asserts
+        # SkippedCount is ZERO, so the Windows/non-Windows distinction is
+        # made with an in-test if/else (both branches always RUN, on every
+        # host), never a discovery-time skip. Edition-aware (never a bare
+        # $IsWindows, which is undefined under Windows PowerShell 5.1).
+        It 'CAT-14 spawns and all three arms are reported on Windows; CAT-14 is a named, non-spawning SKIP everywhere else' {
+            $isWindowsHost = Test-IsWindowsHostFor -Edition $PSVersionTable.PSEdition -IsWindowsFlag $IsWindows
+            $rawJson = & node $script:DoctorScript '--json' 2>$null
+            $parsed = ($rawJson -join "`n") | ConvertFrom-Json
+            $cat14 = $parsed.categories | Where-Object { $_.id -eq 'CAT-14' }
+            $cat14 | Should -Not -BeNullOrEmpty
+            if ($isWindowsHost) {
+                # Diagnostic dump BEFORE any assert: when an arm fails on a
+                # real Windows runner this is the only evidence in the CI log
+                # (PR #249 run 31657594477 failed here with a bare
+                # status='FAIL' and nothing to diagnose from).
+                Write-Host ("CAT-14 detail: " + ($cat14.detail | ConvertTo-Json -Depth 8 -Compress))
+                $cat14.detail.spawned | Should -Be $true
+                $cat14.detail.arms.Count | Should -Be 3
+                $successArm = $cat14.detail.arms | Where-Object { $_.name -eq 'success' }
+                $timeoutArm = $cat14.detail.arms | Where-Object { $_.name -eq 'timeout' }
+                $spawnfailArm = $cat14.detail.arms | Where-Object { $_.name -eq 'spawnfail' }
+                $successArm | Should -Not -BeNullOrEmpty
+                $timeoutArm | Should -Not -BeNullOrEmpty
+                $spawnfailArm | Should -Not -BeNullOrEmpty
+                if ($cat14.detail.reason -and $cat14.detail.reason -match 'no usable POSIX interpreter') {
+                    # Named precondition (spec edge case, D6): this Windows
+                    # runner has neither WSL nor Git Bash, so success/timeout
+                    # cannot pass -- assert the wrapper's own documented
+                    # AAI-ENV-ERROR contract (exit 78) instead of accepting a
+                    # bare WARN as if the arms had run cleanly.
+                    $successArm.exitCode | Should -Be 78
+                    $timeoutArm.exitCode | Should -Be 78
+                } else {
+                    # F1: the Test Plan's actual demand is that EACH arm PASSES
+                    # individually with its documented exit code -- never
+                    # inferred from the aggregate status alone, which rolls
+                    # every non-PASS arm up to WARN and so cannot distinguish
+                    # 3/3 from 0/3 passing (status can never be FAIL; see
+                    # catWinSelfTest in aai-doctor.mjs).
+                    $successArm.status | Should -Be 'PASS'
+                    $successArm.exitCode | Should -Be 3
+                    $timeoutArm.status | Should -Be 'PASS'
+                    $timeoutArm.exitCode | Should -Be 124
+                    $spawnfailArm.status | Should -Be 'PASS'
+                    $spawnfailArm.exitCode | Should -Be 125
+                    $spawnfailArm.diag | Should -Match 'AAI-SPAWN-ERROR'
+                    $cat14.status | Should -Be 'PASS'
+                    # SEAM-2: a non-empty captured AAI-BRANCH diag on the
+                    # success arm, surviving the two-hop OS-handle capture --
+                    # the Test Plan row's other unchecked demand. Scoped to
+                    # THIS branch only (N1): the precondition branch above has
+                    # exit 78 on both success/timeout, where
+                    # aai-run-tests.ps1:81 documents AAI-BRANCH is never
+                    # emitted, so asserting it there is a false demand.
+                    $successArm.diag | Should -Not -BeNullOrEmpty
+                    $successArm.diag | Should -Match '^AAI-BRANCH:'
+                }
+            } else {
+                $cat14.status | Should -Be 'SKIP'
+                $cat14.detail.spawned | Should -Be $false
+            }
         }
     }
 }

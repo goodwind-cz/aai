@@ -680,6 +680,60 @@ test_023_cut_consumes_existing_scaffold() {
   log_pass "TEST-023 cut consumes the pre-existing scaffold (exactly one remains)"
 }
 
+test_024_no_deleted_unreleased_heading_vs_main() {
+  # CLASS guard (code review, CHANGE-0135): the second heading-deletion
+  # incident in one week (CHANGE-0128, then cf6f037 on this branch) — a docs
+  # closeout commit REPLACED a pre-existing '## [unreleased] — ...' heading
+  # with its own instead of adding a new one above it, silently
+  # re-attributing the deleted heading's bullets to the wrong scope. TEST-032
+  # (aai-doctor) only greps for A heading matching the current scope; it
+  # cannot see one that vanished. Cheap, local, honest guard: every
+  # unreleased ENTRY heading present at this branch's merge-base with main
+  # must still be present verbatim in the live CHANGELOG — a PR may ADD
+  # headings, never make one it did not itself write disappear. Single awk
+  # pass over two files, no pipelines (this suite's own set -o pipefail
+  # trap), soft-skips when neither origin/main nor main resolves, or the
+  # merge-base / base CHANGELOG aren't reachable (fresh clone without the
+  # remote, template repo with no CHANGELOG.md).
+  log_info "TEST-024: no pre-existing unreleased heading is deleted relative to the branch's merge-base with main..."
+  # Base-ref resolution prefers origin/main: GitHub Actions PR checkouts are
+  # detached-HEAD with only origin/main fetched (no local 'main' branch), so
+  # resolving the bare ref 'main' made this pin vacuous exactly where it
+  # matters most. Repo precedent: .aai/scripts/allocate-doc-number.mjs
+  # defaults to origin/main. Soft-skip only when NEITHER ref resolves.
+  local base_ref=""
+  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
+    base_ref="origin/main"
+  elif git -C "$PROJECT_ROOT" rev-parse --verify --quiet main >/dev/null 2>&1; then
+    base_ref="main"
+  else
+    log_pass "TEST-024 skipped: neither 'origin/main' nor 'main' ref reachable"
+    return
+  fi
+  local base
+  base="$(git -C "$PROJECT_ROOT" merge-base HEAD "$base_ref" 2>/dev/null)" || base=""
+  if [[ -z "$base" ]]; then
+    log_pass "TEST-024 skipped: no merge-base with main"
+    return
+  fi
+  local base_file="$TMP_ROOT/t024-base-changelog.md"
+  if ! git -C "$PROJECT_ROOT" show "$base:CHANGELOG.md" >"$base_file" 2>/dev/null; then
+    log_pass "TEST-024 skipped: CHANGELOG.md not present at merge-base $base"
+    return
+  fi
+  local missing
+  missing="$(awk '
+    NR==FNR { if ($0 ~ /^## \[unreleased\] — /) base[$0]=1; next }
+    $0 ~ /^## \[unreleased\] — / { live[$0]=1 }
+    END { for (h in base) if (!(h in live)) print h }
+  ' "$base_file" "$PROJECT_ROOT/CHANGELOG.md")"
+  if [[ -n "$missing" ]]; then
+    log_fail "TEST-024: unreleased heading(s) present at merge-base ($base) are missing from the live CHANGELOG — deleted rather than added above: $missing"
+    return
+  fi
+  log_pass "TEST-024 every merge-base unreleased heading is still present verbatim in the live CHANGELOG"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -713,6 +767,7 @@ main() {
   test_021_docs_document_release
   test_022_live_changelog_scaffold_invariants
   test_023_cut_consumes_existing_scaffold
+  test_024_no_deleted_unreleased_heading_vs_main
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
