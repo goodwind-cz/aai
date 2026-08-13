@@ -1674,3 +1674,6 @@
 {"v":1,"ts":"2026-08-13T21:33:11.533Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-kit-comparative","payload":{"from":"draft","to":"done"}}
 {"v":1,"ts":"2026-08-13T21:33:11.572Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-kit-comparative","payload":{"commit":"1d09eb4"}}
 {"v":1,"ts":"2026-08-13T21:33:43.081Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":344,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-13T22:18:58.868Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-kit-comparative","payload":{"validation":"n/a","code_review":"n/a","notes":"research doc, no code scope: F1-F11 captured from README, spec-driven.md, analyze/converge templates, upgrade.md, evolving-specs.md, issue tracker, two videos via yt-dlp captions, June/July newsletters; no PR, no validation or review roles apply"}}
+{"v":1,"ts":"2026-08-13T22:19:59.299Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":345,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-13T22:49:55.678Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":345,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}

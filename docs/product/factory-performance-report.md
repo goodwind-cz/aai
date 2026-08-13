@@ -122,4 +122,4 @@ every work-item close, so it is a continuous overview, not a one-off snapshot.
 - Request: docs/issues/CHANGE-0130-role-token-trend.md
 - Spec: docs/specs/SPEC-0117-spec-role-token-trend.md
 - Request: docs/issues/CHANGE-0142-followup-registry.md
-- Spec: docs/specs/SPEC-DRAFT-spec-followup-registry.md
+- Spec: docs/specs/SPEC-0129-spec-followup-registry.md

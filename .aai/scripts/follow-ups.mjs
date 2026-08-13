@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // follow-ups.mjs — typed, queryable follow-up registry over the EXISTING
-// decision ledger (CHANGE-0142 / SPEC-DRAFT-spec-followup-registry.md).
+// decision ledger (CHANGE-0142 / SPEC-0129-spec-followup-registry.md).
 //
 // PURPOSE
 //   Deferred work used to live as free prose inside the `decision` field of
@@ -184,16 +184,35 @@ function foldFollowUps(records, opts = {}) {
 
   const items = [];
   for (const [id, { rec, derived: isDerived }] of byId) {
+    // Codepoint ordering, NOT localeCompare (review NB-2): the item sort
+    // below compares with < / >, so a locale-sensitive comparator here could
+    // pick a different "latest" than the rest of the fold under another
+    // LANG/ICU build — determinism must not depend on the machine's locale.
     const history = (statuses.get(id) ?? [])
       .slice()
-      .sort((a, b) => String(a.ts ?? '').localeCompare(String(b.ts ?? '')));
+      .sort((a, b) => {
+        const at = String(a.ts ?? ''); const bt = String(b.ts ?? '');
+        return at < bt ? -1 : (at > bt ? 1 : 0);
+      });
     const latest = history.length ? history[history.length - 1] : null;
-    const status = latest && typeof latest.status === 'string' && latest.status.trim() !== ''
-      ? latest.status.trim() : 'open';
+    // A status record carrying NO usable status key must never silently
+    // re-open a closed item (review NB-1): that was the one hand-written
+    // malformation that changed the answer without naming itself. Such a
+    // record is ignored for the verdict and named below.
+    const latestUsable = history.filter(
+      (h) => typeof h.status === 'string' && h.status.trim() !== '',
+    ).pop() ?? null;
+    const statuslessCount = history.length - history.filter(
+      (h) => typeof h.status === 'string' && h.status.trim() !== '',
+    ).length;
+    const status = latestUsable ? latestUsable.status.trim() : 'open';
     // A status value outside the closed vocabulary must never SILENTLY hide an
     // item — it stays in the backlog and is named (degrade-with-NOTE).
     if (latest && !TERMINAL_STATUSES.includes(status) && status !== 'open') {
       notes.push(`NOTE follow-up ${id} carries a non-terminal status value "${status}" — left in the backlog`);
+    }
+    if (statuslessCount > 0) {
+      notes.push(`NOTE follow-up ${id} has ${statuslessCount} follow_up_status record(s) with no status key — ignored for the verdict, never silently re-opening the item`);
     }
     const effectiveTs = typeof rec.source_ts === 'string' ? rec.source_ts : rec.ts;
     const age = ageDays(effectiveTs, nowMs);

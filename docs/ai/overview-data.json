@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-13T20:35:08.569Z",
+  "generatedAt": "2026-08-13T22:53:23.368Z",
   "project": "aai",
   "counts": {
     "delivered": 186,
-    "in_progress": 1,
+    "in_progress": 2,
     "releases": 1,
     "tokens_total": 35966108
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "changelog-payload-hardening",
+    "ref": "followup-registry",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "changelog-payload-hardening",
+      "ref": "followup-registry",
       "type": "intake_change",
       "phase": "code_review"
     },
@@ -23,47 +23,60 @@
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "not_run",
-    "review_status": "not_run",
+    "validation_status": "pass",
+    "review_status": "pass",
     "ticks": [
+      {
+        "tick": 94,
+        "role": "code_review",
+        "scope": "followup-registry",
+        "duration_seconds": 1453,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 93,
+        "role": "validation",
+        "scope": "followup-registry",
+        "duration_seconds": 1279,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 92,
+        "role": "implementation",
+        "scope": "followup-registry",
+        "duration_seconds": 1913,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 91,
+        "role": "planning",
+        "scope": "followup-registry",
+        "duration_seconds": 880,
+        "harness_version": "unknown"
+      },
       {
         "tick": 90,
         "role": "code_review",
         "scope": "changelog-payload-hardening",
         "duration_seconds": 148,
         "harness_version": "unknown"
-      },
-      {
-        "tick": 89,
-        "role": "validation",
-        "scope": "changelog-payload-hardening",
-        "duration_seconds": 218,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 88,
-        "role": "implementation",
-        "scope": "changelog-payload-hardening",
-        "duration_seconds": 714,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 87,
-        "role": "planning",
-        "scope": "changelog-payload-hardening",
-        "duration_seconds": 1091,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 86,
-        "role": "code_review",
-        "scope": "reporting-docs-true-up",
-        "duration_seconds": 135,
-        "harness_version": "unknown"
       }
     ]
   },
   "in_progress": [
+    {
+      "ref": "followup-registry",
+      "title": "Change — typed, queryable follow-up registry (deferred work stops rotting in prose)",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0142-followup-registry.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0129-spec-followup-registry.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260813T222716Z-CHANGE-0142-followup-registry.md"
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",

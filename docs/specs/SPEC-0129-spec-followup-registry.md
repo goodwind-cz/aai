@@ -1,7 +1,7 @@
 ---
 id: spec-followup-registry
 type: spec
-number: null
+number: 129
 status: implementing
 ceremony_level: 2
 links:
@@ -362,7 +362,7 @@ on CI.
   tests/skills/suite-map.yaml, tests/skills/lib/prompt-diet-ledger.sh,
   tests/skills/test-aai-prompt-diet.sh, docs/ai/decisions.jsonl,
   docs/product/aai-decisions.md, docs/product/factory-performance-report.md,
-  docs/specs/SPEC-DRAFT-spec-followup-registry.md,
+  docs/specs/SPEC-0129-spec-followup-registry.md,
   docs/issues/CHANGE-0142-followup-registry.md, CHANGELOG.md
 
 Code review required: true (new executable code, a generator change, a schema,
@@ -639,7 +639,7 @@ damage reaches the assertion, `infra_fail` otherwise, per SKILL_TDD):
 - `node .aai/scripts/follow-ups.mjs list --json` (real ledger; exits 0)
 - `node .aai/scripts/generate-factory-report.mjs --data-only` (real ledger; exits 0)
 - `node .aai/scripts/check-test-registration.mjs tests/skills`
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-followup-registry.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0129-spec-followup-registry.md`
 - PASS criteria: all TEST-xxx green AND all Spec-AC in a terminal status.
 
 ## Evidence contract

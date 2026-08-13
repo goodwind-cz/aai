@@ -5,7 +5,7 @@ capability: aai-decisions
 status: current
 delivered_by:
   - CHANGE-0142
-spec: docs/specs/SPEC-DRAFT-spec-followup-registry.md
+spec: docs/specs/SPEC-0129-spec-followup-registry.md
 updated: 2026-08-13
 ---
 
@@ -179,6 +179,6 @@ Degradations are always named, never silent:
 ## Links
 
 - Request: docs/issues/CHANGE-0142-followup-registry.md
-- Spec: docs/specs/SPEC-DRAFT-spec-followup-registry.md
+- Spec: docs/specs/SPEC-0129-spec-followup-registry.md
 - Ledger: docs/ai/decisions.jsonl
 - Report surface: docs/product/factory-performance-report.md

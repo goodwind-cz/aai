@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-13T21:53:55.635Z",
+  "generatedAt": "2026-08-13T22:53:23.402Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 119,
-    "delivered": 323,
+    "delivered": 324,
     "active_weeks": 7,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (323 closes vs 119 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 323,
-    "delivered_per_week_avg": 46.1,
+    "note": "\"delivered\" counts every work_item_closed event (324 closes vs 119 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 324,
+    "delivered_per_week_avg": 46.3,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -21,7 +21,7 @@
       "2026-W30": 64,
       "2026-W31": 72,
       "2026-W32": 19,
-      "2026-W33": 24
+      "2026-W33": 25
     },
     "delivered_groups": [
       {
@@ -299,7 +299,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 60,
+        "count": 61,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -360,7 +360,8 @@
           "reporting-docs-true-up",
           "spec-reporting-docs-true-up",
           "changelog-payload-hardening",
-          "spec-changelog-payload-hardening"
+          "spec-changelog-payload-hardening",
+          "spec-kit-comparative"
         ]
       }
     ],
@@ -1657,12 +1658,16 @@
         {
           "ref": "spec-changelog-payload-hardening",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-kit-comparative",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3587,
       "mean_seconds": 128600.3,
       "measured": 115,
-      "unmeasurable": 208
+      "unmeasurable": 209
     }
   },
   "speed": {
@@ -2775,7 +2780,7 @@
     },
     {
       "week": "2026-W33",
-      "delivered": 24,
+      "delivered": 25,
       "median_lead_time_seconds": 4671,
       "busy_seconds": 47930,
       "tokens": 10608708,
@@ -2783,7 +2788,7 @@
     }
   ],
   "follow_ups": {
-    "open_count": 10,
+    "open_count": 14,
     "oldest_age_days": 5,
     "items": [
       {
@@ -2864,6 +2869,38 @@
         "severity": "P3",
         "age_days": 0,
         "what": "RED_CLASS stamp-at-capture is still a process line only: stored RED logs keep the legacy unstamped shape and nothing mechanically enforces stamping at the moment of capture",
+        "status": "open"
+      },
+      {
+        "id": "fu-orchestrator-git-add-scope-bleed",
+        "ref": "CHANGE-0142",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "orchestrator must never git add -A while a subagent edits the same worktree; stage explicit paths",
+        "status": "open"
+      },
+      {
+        "id": "fu-flag-values-leading-dashes",
+        "ref": "CHANGE-0142",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "flag values may not begin with -- so add --what \"--decisions is undocumented\" exits 2 and pushes the author back to the hand-written line the design exists to prevent",
+        "status": "open"
+      },
+      {
+        "id": "fu-generator-undercount-clause",
+        "ref": "CHANGE-0142",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "a malformed line that IS a follow_up under-counts open_count behind a generic exclusion note that never says the figure may be understated",
+        "status": "open"
+      },
+      {
+        "id": "fu-ledger-readable-directory",
+        "ref": "CHANGE-0142",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "requireReadableLedger accepts a DIRECTORY (or a path unreadable after the check), degrading D6's exit-2 unreadable-ledger contract to exit 0 plus an absent note",
         "status": "open"
       }
     ]

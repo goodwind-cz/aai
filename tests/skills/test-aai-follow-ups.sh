@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-follow-ups
-# (docs/specs/SPEC-DRAFT-spec-followup-registry.md, TEST-001..005, 008, 009)
+# (docs/specs/SPEC-0129-spec-followup-registry.md, TEST-001..005, 008, 009)
 #
 # Verifies .aai/scripts/follow-ups.mjs — the typed follow-up registry folded
 # out of the EXISTING docs/ai/decisions.jsonl ledger (no new store):
@@ -196,6 +196,16 @@ test_002_query_path() {
   run_fu list --ledger "$led" --age-days 10000
   [[ "$EC" == 0 ]] || log_fail "--age-days must exit 0 even when it empties the view"
   grep -qE "shown=0" <<<"$OUT" || log_fail "--age-days 10000 must narrow to nothing: $OUT"
+
+  # Non-vacuity (review NB-4): the emptying case alone would also pass for a
+  # filter hard-wired to return nothing. Assert the KEEPING case too — a
+  # threshold the aged item clears must retain exactly it.
+  run_fu list --ledger "$led" --age-days 1
+  [[ "$EC" == 0 ]] || log_fail "--age-days 1 must exit 0"
+  grep -qF "fu-old-one" <<<"$OUT" \
+    || log_fail "--age-days 1 must KEEP the aged item (filter would be vacuous otherwise): $OUT"
+  grep -qE "shown=0" <<<"$OUT" \
+    && log_fail "--age-days 1 must not empty the view: $OUT"
 
   # --json parses and its item ids match the text rows exactly.
   run_fu list --ledger "$led" --json
