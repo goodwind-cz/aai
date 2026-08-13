@@ -2,13 +2,15 @@
 id: spec-doctor-honesty-batch
 type: spec
 number: 125
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0138-doctor-honesty-batch.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 253
+  commits:
+    - 4f4698f
 ---
 
 # Spec — doctor/config honesty batch: six recorded follow-ups, one scope

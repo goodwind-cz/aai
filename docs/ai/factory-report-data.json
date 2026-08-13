@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-13T11:07:42.147Z",
+  "generatedAt": "2026-08-13T14:05:34.954Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 114,
-    "delivered": 315,
+    "rides": 115,
+    "delivered": 317,
     "active_weeks": 7,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (315 closes vs 114 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 315,
-    "delivered_per_week_avg": 45,
+    "note": "\"delivered\" counts every work_item_closed event (317 closes vs 115 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 317,
+    "delivered_per_week_avg": 45.3,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -21,7 +21,7 @@
       "2026-W30": 64,
       "2026-W31": 72,
       "2026-W32": 19,
-      "2026-W33": 16
+      "2026-W33": 18
     },
     "delivered_groups": [
       {
@@ -299,7 +299,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 52,
+        "count": 54,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -352,7 +352,9 @@
           "ps1-ci-platform-coverage",
           "spec-ps1-ci-platform-coverage",
           "update-doctor-field-report",
-          "spec-update-doctor-field-report"
+          "spec-update-doctor-field-report",
+          "doctor-honesty-batch",
+          "spec-doctor-honesty-batch"
         ]
       }
     ],
@@ -1612,30 +1614,38 @@
         },
         {
           "ref": "update-doctor-field-report",
-          "lead_time_seconds": null
+          "lead_time_seconds": 4404
         },
         {
           "ref": "spec-update-doctor-field-report",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "doctor-honesty-batch",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-doctor-honesty-batch",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 3371,
-      "mean_seconds": 134239.3,
-      "measured": 110,
-      "unmeasurable": 205
+      "median_seconds": 3527,
+      "mean_seconds": 133069.6,
+      "measured": 111,
+      "unmeasurable": 206
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2198,
-      "mean": 2972,
-      "measured": 112
+      "median": 2192,
+      "mean": 2960.8,
+      "measured": 113
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 106645,
-        "tokens": 11412583
+        "duration_seconds": 107651,
+        "tokens": 11633817
       },
       {
         "role": "Implementation",
@@ -1644,8 +1654,8 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 43531,
-        "tokens": 6227952
+        "duration_seconds": 43675,
+        "tokens": 6383705
       },
       {
         "role": "Remediation",
@@ -1654,13 +1664,13 @@
       },
       {
         "role": "Validation",
-        "duration_seconds": 65515,
-        "tokens": 6240321
+        "duration_seconds": 65657,
+        "tokens": 6371732
       },
       {
         "role": "Planning",
-        "duration_seconds": 58383,
-        "tokens": 6089631
+        "duration_seconds": 58790,
+        "tokens": 6262835
       }
     ],
     "per_ride": [
@@ -2233,6 +2243,11 @@
         "ref": "ps1-ci-platform-coverage",
         "busy_seconds": 1456,
         "remediation_runs": 0
+      },
+      {
+        "ref": "update-doctor-field-report",
+        "busy_seconds": 1699,
+        "remediation_runs": 0
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -2242,15 +2257,15 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 445657,
-      "mean": 532652.3,
-      "measured": 66
+      "median": 449075,
+      "mean": 534875.4,
+      "measured": 67
     },
-    "tokens_total": 35155050,
+    "tokens_total": 35836652,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 11412583
+        "tokens": 11633817
       },
       {
         "role": "Implementation",
@@ -2258,7 +2273,7 @@
       },
       {
         "role": "Code Review",
-        "tokens": 6227952
+        "tokens": 6383705
       },
       {
         "role": "Remediation",
@@ -2266,16 +2281,16 @@
       },
       {
         "role": "Validation",
-        "tokens": 6240321
+        "tokens": 6371732
       },
       {
         "role": "Planning",
-        "tokens": 6089631
+        "tokens": 6262835
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 258,
-      "total_runs": 480,
+      "runs_with_marker": 262,
+      "total_runs": 484,
       "pct": 54,
       "by_week": [
         {
@@ -2316,8 +2331,8 @@
         },
         {
           "week": "2026-W33",
-          "runs_with_marker": 43,
-          "total_runs": 43,
+          "runs_with_marker": 47,
+          "total_runs": 47,
           "pct": 100
         }
       ]
@@ -2326,12 +2341,12 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 71,
-          "runs_marked": 51,
+          "runs_total": 72,
+          "runs_marked": 52,
           "runs_sentinel": 0,
           "runs_unmarked": 20,
-          "tokens_total": 11412583,
-          "median_tokens_per_run": 222375,
+          "tokens_total": 11633817,
+          "median_tokens_per_run": 221805,
           "share_pct": 32
         },
         {
@@ -2346,12 +2361,12 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 114,
-          "runs_marked": 69,
+          "runs_total": 115,
+          "runs_marked": 70,
           "runs_sentinel": 0,
           "runs_unmarked": 45,
-          "tokens_total": 6227952,
-          "median_tokens_per_run": 82851,
+          "tokens_total": 6383705,
+          "median_tokens_per_run": 83082,
           "share_pct": 18
         },
         {
@@ -2366,22 +2381,22 @@
         },
         {
           "role": "Validation",
-          "runs_total": 107,
-          "runs_marked": 61,
+          "runs_total": 108,
+          "runs_marked": 62,
           "runs_sentinel": 0,
           "runs_unmarked": 46,
-          "tokens_total": 6240321,
-          "median_tokens_per_run": 101912,
+          "tokens_total": 6371732,
+          "median_tokens_per_run": 102234,
           "share_pct": 18
         },
         {
           "role": "Planning",
-          "runs_total": 94,
-          "runs_marked": 47,
+          "runs_total": 95,
+          "runs_marked": 48,
           "runs_sentinel": 0,
           "runs_unmarked": 47,
-          "tokens_total": 6089631,
-          "median_tokens_per_run": 120764,
+          "tokens_total": 6262835,
+          "median_tokens_per_run": 121327,
           "share_pct": 17
         }
       ],
@@ -2601,8 +2616,8 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 7,
-              "median_tokens": 288056
+              "runs_marked": 8,
+              "median_tokens": 264005
             },
             {
               "role": "Implementation",
@@ -2611,8 +2626,8 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 8,
-              "median_tokens": 136212
+              "runs_marked": 9,
+              "median_tokens": 136625
             },
             {
               "role": "Remediation",
@@ -2621,13 +2636,13 @@
             },
             {
               "role": "Validation",
-              "runs_marked": 9,
-              "median_tokens": 136517
+              "runs_marked": 10,
+              "median_tokens": 133964
             },
             {
               "role": "Planning",
-              "runs_marked": 7,
-              "median_tokens": 166301
+              "runs_marked": 8,
+              "median_tokens": 168078
             }
           ]
         }
@@ -2636,13 +2651,13 @@
   },
   "quality": {
     "first_pass_clean": {
-      "clean": 72,
-      "flagged": 88,
+      "clean": 73,
+      "flagged": 89,
       "rate_pct": 82
     },
     "na_reliability": 26,
     "remediation_distribution": {
-      "0": 72,
+      "0": 73,
       "1": 8,
       "2": 3,
       "3": 3,
@@ -2653,7 +2668,7 @@
     "avg_validation_fails": 0,
     "avg_review_fails": 0,
     "verdict_mix": {
-      "PASS": 101,
+      "PASS": 102,
       "null": 13
     },
     "review_events": 26,
@@ -2710,11 +2725,11 @@
     },
     {
       "week": "2026-W33",
-      "delivered": 16,
-      "median_lead_time_seconds": 7558,
-      "busy_seconds": 38316,
-      "tokens": 7465977,
-      "first_pass_rate": 43
+      "delivered": 18,
+      "median_lead_time_seconds": 6666,
+      "busy_seconds": 40015,
+      "tokens": 8147579,
+      "first_pass_rate": 50
     }
   ],
   "notes": [

@@ -2,10 +2,15 @@
 id: doctor-honesty-batch
 number: 138
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
 capability: aai-doctor
+links:
+  commits:
+    - 4f4698f
+  pr:
+    - 253
 ---
 
 # Change — doctor/config honesty batch: six recorded follow-ups, one scope
