@@ -1098,8 +1098,11 @@ test_032_documentation_pin() {
   grep -qF -- '--strict' "$PROJECT_ROOT/docs/USER_GUIDE.md" || { log_info "TEST-032: USER_GUIDE.md missing --strict"; ok=0; }
   grep -qF 'UNKNOWN' "$PROJECT_ROOT/docs/USER_GUIDE.md" || { log_info "TEST-032: USER_GUIDE.md missing the UNKNOWN capability-reporting note"; ok=0; }
 
-  grep -qE '^## \[unreleased\] — .*[Dd]octor' "$PROJECT_ROOT/CHANGELOG.md" \
-    || { log_info "TEST-032: CHANGELOG.md missing an unreleased heading for this scope"; ok=0; }
+  # Release-tolerant: /aai-release legitimately rolls unreleased headings
+  # into a '## [vYYYY.MM.DD...]' section at cut time (the v2026.08.13 release
+  # rolled the doctor entries; an unreleased-only pin rots at every release).
+  grep -qE '^## \[(unreleased|v[0-9][^]]*)\] — .*[Dd]octor' "$PROJECT_ROOT/CHANGELOG.md" \
+    || { log_info "TEST-032: CHANGELOG.md missing an own-heading entry for this scope"; ok=0; }
 
   [[ $ok -eq 1 ]] && log_pass "TEST-032 documentation pin: product doc sections, USER_GUIDE, CHANGELOG heading" \
     || log_fail "TEST-032 documentation pin"

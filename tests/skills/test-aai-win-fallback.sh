@@ -601,9 +601,12 @@ test_023() {
   grep -qF 'documented but NOT verified' "$TECHNOLOGY_DOC" \
     && log_fail "$TECHNOLOGY_DOC still carries the stale blanket 'documented but NOT verified by this repo's own CI' claim — false for the WSL1 delegation path after CHANGE-0136"
 
-  # CHANGELOG: one unreleased heading entry for this scope.
-  grep -qE '^## \[unreleased\].*CHANGE-0136' "$changelog" \
-    || log_fail "$changelog must carry the CHANGE-0136 scope entry as its own '## [unreleased] — <title>' heading"
+  # CHANGELOG: one own-heading entry for this scope. Accepts the rolled form
+  # too — /aai-release legitimately moves '## [unreleased] — <title>' headings
+  # into a '## [vYYYY.MM.DD...]' section at cut time (the v2026.08.13 release
+  # rolled this entry; an unreleased-only pin rots at every release).
+  grep -qE '^## \[(unreleased|v[0-9][^]]*)\].*CHANGE-0136' "$changelog" \
+    || log_fail "$changelog must carry the CHANGE-0136 scope entry as its own '## [unreleased/vX] — <title>' heading"
 
   log_pass "WSL1-vs-WSL2 honesty stated in workflow header, product doc and TECHNOLOGY.md; CHANGELOG entry present (TEST-023)"
 }
@@ -732,11 +735,14 @@ test_026() {
   grep -qiE 'allowlist' "$product_doc" \
     || log_fail "$product_doc must name the allowlist-stability rationale"
 
-  # CHANGELOG: this scope as its own unreleased heading (TEST-024 discipline).
+  # CHANGELOG: this scope as its own '## [unreleased] — <title>' heading
+  # entry. The rolled '## [vYYYY.MM.DD...]' form is accepted too, so this pin
+  # does not rot when /aai-release later cuts the entry into a versioned
+  # section (the exact rot test_023's CHANGE-0136 pin exhibited).
   local changelog="$PROJECT_ROOT/CHANGELOG.md"
   [[ -f "$changelog" ]] || log_fail "missing $changelog"
-  grep -qE '^## \[unreleased\].*CHANGE-0139' "$changelog" \
-    || log_fail "$changelog must carry the CHANGE-0139 scope entry as its own '## [unreleased] — <title>' heading"
+  grep -qE '^## \[(unreleased|v[0-9][^]]*)\].*CHANGE-0139' "$changelog" \
+    || log_fail "$changelog must carry the CHANGE-0139 scope entry as its own '## [unreleased/vX] — <title>' heading"
 
   log_pass "allowlist rationale + operator note + truthful product doc + CHANGELOG heading (TEST-026)"
 }

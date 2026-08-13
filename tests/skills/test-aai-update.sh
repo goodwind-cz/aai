@@ -908,8 +908,12 @@ test_015_0137_documentation_pins() {
   grep -qi 'field report' "$dd" \
     || log_fail "0137-TEST-010: docs/product/aai-doctor.md does not point at the field report"
 
-  grep -qE '^## \[unreleased\] .*CHANGE-0137' "$cl" \
-    || log_fail "0137-TEST-010: CHANGELOG.md has no unreleased heading entry for CHANGE-0137"
+  # Accepts the rolled '## [vYYYY.MM.DD...]' form too — /aai-release
+  # legitimately moves unreleased headings into a versioned section at cut
+  # time (the v2026.08.13 release rolled this entry; an unreleased-only pin
+  # rots at every release).
+  grep -qE '^## \[(unreleased|v[0-9][^]]*)\] .*CHANGE-0137' "$cl" \
+    || log_fail "0137-TEST-010: CHANGELOG.md has no own-heading entry for CHANGE-0137"
 
   log_pass "Documentation pins: USER_GUIDE loop, product docs, doctor pointer, CHANGELOG entry (0137-TEST-010)"
 }
@@ -1212,8 +1216,10 @@ test_022_0138_documentation_pins() {
   grep -qiE 'unreadable' "$pd" \
     || log_fail "0138-TEST-009: aai-update.md does not document the exists-but-unreadable config warning"
 
-  grep -qE '^## \[unreleased\] — .*CHANGE-0138' "$cl" \
-    || log_fail "0138-TEST-009: CHANGELOG.md has no unreleased heading entry for CHANGE-0138"
+  # Release-tolerant like the 0137-TEST-010 pin above: the rolled versioned
+  # heading counts too.
+  grep -qE '^## \[(unreleased|v[0-9][^]]*)\] — .*CHANGE-0138' "$cl" \
+    || log_fail "0138-TEST-009: CHANGELOG.md has no own-heading entry for CHANGE-0138"
 
   log_pass "Update product doc tells the new degrade truths; CHANGELOG heading present (0138-TEST-009 slice)"
 }
