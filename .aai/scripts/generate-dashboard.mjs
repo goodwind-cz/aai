@@ -400,10 +400,20 @@ function generateDashboard({ metricsPath, outputPath, from, to, skill, dataOnly 
     }
 
     const template = fs.readFileSync(templatePath, 'utf8');
+    // Template-literal embed hardening (CHANGE-0141 D2). Order matters:
+    // backslash-doubling MUST run FIRST — the old order (`<`, backtick, then
+    // backslash) re-exposed the backslash added by the backtick escape
+    // (` -> \` -> \\` = escaped backslash + LIVE backtick, SyntaxError, page
+    // dead). Then backtick and `${` (never escaped before) are neutralized,
+    // and `<` LAST with a SINGLE post-doubling backslash: the template
+    // literal decodes the backslash-u003c escape back to `<` (keeping
+    // "</script>" out of the HTML byte stream) while JSON.parse sees the
+    // raw character.
     const payload = JSON.stringify(data)
-      .replace(/</g, '\\u003c')
+      .replace(/\\/g, '\\\\')
       .replace(/`/g, '\\`')
-      .replace(/\\/g, '\\\\');
+      .replace(/\$\{/g, '\\${')
+      .replace(/</g, '\\u003c');
     // Named no-data state (CHANGE-0140 D4): a chart section whose source
     // stat is absent across the WHOLE dataset renders a deterministic,
     // greppable placeholder in place of its canvas — never a bare empty
@@ -411,12 +421,17 @@ function generateDashboard({ metricsPath, outputPath, from, to, skill, dataOnly 
     const panelMarkup = (panel, canvasId, hasData) => (hasData
       ? `<canvas id="${canvasId}"></canvas>`
       : `<div class="no-data" data-panel="${panel}">No data recorded in this dataset</div>`);
+    // Function-replacement substitution (CHANGE-0141 D2): a FUNCTION return
+    // value is inserted verbatim, disarming String.replace's `$&`/`$\``/`$'`/
+    // `$n` replacement patterns in the payload. The four PANEL substitutions
+    // take the same form for uniformity (generator-owned constant markup;
+    // hygiene, not a fix).
     const html = template
-      .replace('{{METRICS_DATA}}', payload)
-      .replace('{{PANEL_TOKENS}}', panelMarkup('tokens', 'tokenChart', data.hasTokenSignal))
-      .replace('{{PANEL_TDD}}', panelMarkup('tdd', 'tddChart', data.tddStats !== null))
-      .replace('{{PANEL_WORKTREE}}', panelMarkup('worktree', 'worktreeChart', data.worktreeStats !== null))
-      .replace('{{PANEL_PUBLISH}}', panelMarkup('publish', 'publishChart', data.publishStats !== null));
+      .replace('{{METRICS_DATA}}', () => payload)
+      .replace('{{PANEL_TOKENS}}', () => panelMarkup('tokens', 'tokenChart', data.hasTokenSignal))
+      .replace('{{PANEL_TDD}}', () => panelMarkup('tdd', 'tddChart', data.tddStats !== null))
+      .replace('{{PANEL_WORKTREE}}', () => panelMarkup('worktree', 'worktreeChart', data.worktreeStats !== null))
+      .replace('{{PANEL_PUBLISH}}', () => panelMarkup('publish', 'publishChart', data.publishStats !== null));
 
     ensureDir(outputPath);
     fs.writeFileSync(outputPath, html, 'utf8');

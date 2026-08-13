@@ -27,6 +27,13 @@
 #   - TEST-011 (Spec-AC-06): docs/product/aai-dashboard.md is a REAL product
 #     doc (capability aai-dashboard, no placeholder sections per
 #     lib/product-doc.mjs).
+#   - test_012/test_013 (CHANGE-0141 Spec-AC-02, TEST-003/TEST-004): the
+#     template-literal payload embed is corruption-proof — hostile fixture
+#     (backtick, ${boom}, backslash runs, $&, </script>) renders a page whose
+#     embedded script parses and whose decoded payload deep-equals the
+#     sidecar dashboard-data.json; structural pin on the D2 escape-chain
+#     order (backslash FIRST, < LAST) and the five function-form
+#     substitutions; real-ledger embed round-trips.
 #
 # Fixture diversity checklist (SPEC-0013 H7), mapped:
 #   - degenerate/empty       -> TEST-003: runs with zero token signal
@@ -332,6 +339,106 @@ test_011_product_doc_real() {  # TEST-011 (Spec-AC-06)
   log_pass "TEST-011 docs/product/aai-dashboard.md passes the placeholder predicate with capability aai-dashboard"
 }
 
+# probe_embed <html> <data.json> — syntax-checks the page's embedded script
+# and deep-compares the decoded rawMetricsData payload against the sidecar
+# JSON. Prints EMBED-OK on success; any corruption (SyntaxError, split
+# script block, replacement-pattern damage, decode mismatch) fails loudly.
+# Truth criterion of CHANGE-0141 Spec-AC-02: the EMBEDDED payload — after
+# template-literal decoding and JSON.parse — deep-equals the sidecar.
+probe_embed() {
+  node -e '
+    const fs = require("fs");
+    const [htmlPath, dataPath] = process.argv.slice(1);
+    const html = fs.readFileSync(htmlPath, "utf8");
+    const line = html.split("\n").find((l) => l.includes("const rawMetricsData = "));
+    if (!line) { console.error("NO-EMBED-LINE (substitution corrupted the assignment)"); process.exit(1); }
+    const blocks = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    if (blocks.length !== 1) { console.error("SCRIPT-BLOCKS: " + blocks.length + " (a payload </script> leaked into the HTML byte stream)"); process.exit(1); }
+    new Function(blocks[0]);
+    const decoded = new Function(line.trim() + " return rawMetricsData;")();
+    const parsed = JSON.parse(decoded);
+    const sidecar = JSON.parse(fs.readFileSync(dataPath, "utf8"));
+    require("assert").deepStrictEqual(parsed, sidecar);
+    console.log("EMBED-OK");
+  ' "$1" "$2"
+}
+
+test_012_hostile_payload_embed() {  # CHANGE-0141 TEST-003 (Spec-AC-02)
+  log_info "Test: hostile payload strings (backtick, \${boom}, backslash runs, \$&, </script>) — embedded script parses, decoded payload deep-equals sidecar (TEST-012)..."
+  local d="$TEST_DIR/t012"
+  mkdir -p "$d"
+  : > "$d/METRICS.jsonl"
+  # Every hostile class from the CHANGE-0141 review probe in ONE fixture:
+  # backtick, dollar-brace, backslash immediately before a backtick, deep
+  # backslash runs, String.replace replacement patterns, closing script tag —
+  # in role names AND a worktree name (the strings that really reach the
+  # payload).
+  write_ledger_entry "$d/METRICS.jsonl" "2026-08-10" "HOSTILE-1" '[
+    {"role":"Impl `loop` backtick","started_utc":"2026-08-10T10:00:00Z","note":"usage_total_tokens=100","worktree":"wt-${env}`x\\"},
+    {"role":"Val ${boom} dollar-brace","started_utc":"2026-08-10T11:00:00Z","note":"usage_total_tokens=200"},
+    {"role":"Backslash run C:\\tmp\\` adjacency \\\\ deep","started_utc":"2026-08-10T12:00:00Z"},
+    {"role":"Replacement $& $` $1 patterns","started_utc":"2026-08-10T13:00:00Z"},
+    {"role":"</script><script>alert(1)</script> closer","started_utc":"2026-08-10T14:00:00Z"}
+  ]'
+  run_generator "$d/METRICS.jsonl" "$d/dashboard.html"
+  [[ "$EC" == 0 ]] || log_fail "TEST-012 generator must exit 0 (got $EC): $(cat "$OUT")"
+
+  local probe_out rc=0
+  probe_out="$(probe_embed "$d/dashboard.html" "$d/dashboard-data.json" 2>&1)" || rc=$?
+  [[ "$rc" == 0 && "$probe_out" == "EMBED-OK" ]] \
+    || log_fail "TEST-012 hostile payload corrupted the embed: $probe_out"
+  # The raw closing tag from the payload must never reach the HTML bytes on
+  # the embed line (the < neutralization keeps it a JS-side decode).
+  local embed_line
+  embed_line="$(grep -F 'const rawMetricsData = ' "$d/dashboard.html")"
+  [[ "$embed_line" != *"</script>"* ]] \
+    || log_fail "TEST-012 embed line carries a literal </script> from the payload"
+  log_pass "TEST-012 hostile payload: embedded script parses, decoded payload deep-equals sidecar, no </script> leak"
+}
+
+test_013_embed_structural_pin() {  # CHANGE-0141 TEST-004 (Spec-AC-02)
+  log_info "Test: structural pin — backslash escape FIRST / < neutralization LAST, all five substitutions function-form; real-ledger embed round-trips (TEST-013)..."
+  # Escape-chain ordering (D2): backslash-doubling first, then backtick,
+  # then ${, then < — a future "cleanup" restoring the broken order (the
+  # exact pre-fix bug) fails here even before any fixture runs.
+  local hit n_bs n_bt n_db n_lt
+  hit="$(grep -nF '.replace(/\\/g' "$GENERATOR")" || log_fail "TEST-013 backslash-doubling step missing from the escape chain"
+  n_bs="${hit%%:*}"
+  hit="$(grep -nF '.replace(/`/g' "$GENERATOR")" || log_fail "TEST-013 backtick escape step missing from the escape chain"
+  n_bt="${hit%%:*}"
+  hit="$(grep -nF '.replace(/\$\{/g' "$GENERATOR")" || log_fail "TEST-013 dollar-brace escape step missing from the escape chain"
+  n_db="${hit%%:*}"
+  hit="$(grep -nF '.replace(/</g' "$GENERATOR")" || log_fail "TEST-013 < neutralization step missing from the escape chain"
+  n_lt="${hit%%:*}"
+  [[ "$n_bs" -lt "$n_bt" && "$n_bt" -lt "$n_db" && "$n_db" -lt "$n_lt" ]] \
+    || log_fail "TEST-013 escape chain order broken: backslash@$n_bs backtick@$n_bt dollar-brace@$n_db lt@$n_lt (must be strictly ascending — backslash FIRST, < LAST)"
+
+  # Function-replacement substitution for ALL five {{...}} replaces ($&-proof).
+  grep -qF "'{{METRICS_DATA}}', () =>" "$GENERATOR" \
+    || log_fail "TEST-013 METRICS_DATA substitution must be function-form (() =>) — string form re-arms \$& replacement patterns"
+  local fn_count
+  fn_count="$(grep -cE "'\\{\\{PANEL_[A-Z]+\\}\\}', \\(\\) =>" "$GENERATOR")" || true
+  [[ "$fn_count" == "4" ]] \
+    || log_fail "TEST-013 all four PANEL substitutions must be function-form, found $fn_count"
+
+  # Real-ledger arm: the actual METRICS.jsonl renders an embed that
+  # round-trips deep-equal to its own sidecar (no regression on benign data).
+  local real_metrics="$PROJECT_ROOT/docs/ai/METRICS.jsonl"
+  if [[ ! -f "$real_metrics" ]]; then
+    log_info "TEST-013 real-ledger arm skipped: docs/ai/METRICS.jsonl absent (template/downstream repo)"
+  else
+    local d="$TEST_DIR/t013"
+    mkdir -p "$d"
+    run_generator "$real_metrics" "$d/dashboard.html"
+    [[ "$EC" == 0 ]] || log_fail "TEST-013 generator must exit 0 on the real ledger (got $EC): $(cat "$OUT")"
+    local probe_out rc=0
+    probe_out="$(probe_embed "$d/dashboard.html" "$d/dashboard-data.json" 2>&1)" || rc=$?
+    [[ "$rc" == 0 && "$probe_out" == "EMBED-OK" ]] \
+      || log_fail "TEST-013 real-ledger embed does not round-trip: $probe_out"
+  fi
+  log_pass "TEST-013 structural pin: chain order backslash-first/<-last, five function-form substitutions, real-ledger embed round-trips"
+}
+
 main() {
   echo "=== Test: $TEST_NAME ==="
   check_deps
@@ -346,6 +453,8 @@ main() {
     test_005_shared_lib_import_pin
     test_006_prompt_caveat_truthful
     test_011_product_doc_real
+    test_012_hostile_payload_embed
+    test_013_embed_structural_pin
   fi
   echo "=== All $TEST_NAME tests passed ==="
 }
