@@ -13,6 +13,17 @@ RFC-0001).
 
 ## [unreleased] — ci(ps1-quality): functional-WSL1 leg, 5.1-only fallback proof, weekly image-drift canary (CHANGE-0136) [L1]
 
+- The leg's first four live runs each caught a real latent defect no other
+  platform could see — exactly the blind spot this change closes:
+  `Start-WslProbeProcess`'s all-quoted argv broke wsl.exe's raw-token
+  `-e` flag matching (probe 127 → silent Git Bash fallback on every
+  WSL-functional host; quoting is now selective), `ConvertTo-WslPath`
+  invoked wslpath through the distro's login shell which ate the Windows
+  path's backslashes (delegation died 127 inside WSL; now execs via `-e`),
+  setup-wsl@v7's catalog rejects unversioned distro names (Debian-12),
+  and a non-ASCII em-dash in a 5.1-parsed step string mojibaked into a
+  U+201D closing quote under the BOM-less ANSI read (ASCII-only rule
+  pinned in a comment). Both wrapper fixes carry RED-proven Pester pins.
 - New `windows-wsl1` job in `.github/workflows/ps1-quality.yml` installs a
   real WSL1 Debian distro (`Vampire/setup-wsl@v7`, major verified current at
   build time) and proves live, for the first time in CI: the wrapper's WSL
