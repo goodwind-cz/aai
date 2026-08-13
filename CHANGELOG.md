@@ -11,6 +11,41 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — ci(ps1-quality): functional-WSL1 leg, 5.1-only fallback proof, weekly image-drift canary (CHANGE-0136) [L1]
+
+- New `windows-wsl1` job in `.github/workflows/ps1-quality.yml` installs a
+  real WSL1 Debian distro (`Vampire/setup-wsl@v7`, major verified current at
+  build time) and proves live, for the first time in CI: the wrapper's WSL
+  branch (`AAI-BRANCH: WSL` on a real `aai-run-tests.ps1` invocation), the
+  vendored selftest's three CAT-14 arms with WSL semantics (success exit 3
+  with the marker written through the payload `wslpath` translation, timeout
+  124, spawnfail 125 with the decoy reached because wsl.exe is hidden), CAT-15
+  `wsl: functional`, and the full `tests/skills` Pester suite under Windows
+  PowerShell 5.1 with the identical floor/ceiling/skip discipline. Three
+  non-vacuous controls fail the leg loudly instead of degrading it into a
+  duplicate Git Bash run: the exit-42 functional sentinel, `wsl -l -v`
+  VERSION 1, and `wslpath` translating into `/mnt/c`.
+- The existing `windows-5_1` job gains a 5.1-only step: `pwsh` is hidden from
+  a doctored CHILD environment's PATH (nothing on the host is uninstalled or
+  renamed), control-asserted in both directions (resolvable undoctored,
+  unresolvable inside the child with a distinct exit code);
+  `Resolve-SelfTestEngine` returns `powershell` and all three CAT-14 arms
+  PASS under powershell.exe for real.
+- Weekly cron `0 5 * * 1` plus a schedule-only canary run-name turn a GitHub
+  runner-image update into a named scheduled failure instead of breaking the
+  next unrelated PR.
+- Honesty: GitHub-hosted runners cannot run WSL2 (no nested virtualization) —
+  the new leg proves WSL1 only, and WSL2-specific failures (e.g. the
+  E_ACCESSDENIED class) remain field-only; stated in the workflow header,
+  `docs/product/windows-test-wrapper.md` and `docs/TECHNOLOGY.md` (the stale
+  blanket "not verified by this repo's own CI" sentence replaced; the 5-row
+  platform matrix byte-unchanged).
+- New shape pins `test_019`..`test_023` in
+  `tests/skills/test-aai-win-fallback.sh` (RED-proven on the pre-change
+  tree); the `AAI_EXPECTED_WIN_SKIP_COUNT` declaration moved from job-level
+  to workflow-level env — still declared exactly once, now consumed by both
+  windows jobs (test_017's pin holds unchanged).
+
 ## [unreleased] — feat(doctor): Windows self-test, environment and agent-CLI probe (CHANGE-0135) [L1]
 
 - `/aai-doctor` (`.aai/scripts/aai-doctor.mjs`) gains three new categories:

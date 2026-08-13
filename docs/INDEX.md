@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T07:02:14.189Z
+Generated: 2026-08-13T07:19:14.123Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-ps1-ci-platform-coverage | specs | implementing | 6 planned | docs/specs/SPEC-DRAFT-spec-ps1-ci-platform-coverage.md |
+| spec-ps1-ci-platform-coverage | specs | implementing | 3 planned, 3 done | docs/specs/SPEC-DRAFT-spec-ps1-ci-platform-coverage.md |
 
 ## Canonical layer (0)
 
@@ -43,7 +43,7 @@ _None._
 | telemetry | telemetry | 3 | docs/product/telemetry.md |
 | universal-routines | universal-routines | 2 | docs/product/universal-routines.md |
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
-| windows-test-wrapper | windows-test-wrapper | 4 | docs/product/windows-test-wrapper.md |
+| windows-test-wrapper | windows-test-wrapper | 6 | docs/product/windows-test-wrapper.md |
 
 ## Done (304)
 

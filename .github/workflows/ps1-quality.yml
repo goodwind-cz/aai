@@ -1,4 +1,9 @@
 name: ps1-quality
+# Schedule-only canary marker (CHANGE-0136 Spec-AC-04): on schedule events the
+# run is named as the weekly image-drift canary so a scheduled failure is
+# visually distinguishable from PR noise in the Actions list; every other
+# event yields an empty string, which GitHub replaces with the default name.
+run-name: ${{ github.event_name == 'schedule' && 'ps1-quality weekly runner-image-drift canary (scheduled)' || '' }}
 
 # Guards the vendored PowerShell scripts (.aai/scripts/*.ps1) against the class of
 # failure that broke /aai-update: a parse error that only surfaces when a user
@@ -26,6 +31,30 @@ name: ps1-quality
 # GitHub Actions has no single-job dispatch, so `gate` runs too.
 # `workflow_dispatch` is wired below; this note exists so the next Windows
 # debugging session does not have to rediscover it.
+#
+# CHANGE-0136 closes three CI platform blind spots on top of the jobs above:
+#   - windows-wsl1:  a NEW sibling job that installs a real WSL1 Debian distro
+#                    (Vampire/setup-wsl, pinned major) and proves, live, what
+#                    windows-latest's distro-less wsl.exe never could: the
+#                    wrapper's WSL branch (AAI-BRANCH: WSL), the vendored
+#                    selftest's three arms with WSL semantics (marker written
+#                    through the payload wslpath translation, timeout 124,
+#                    spawnfail 125 via the decoy with wsl.exe hidden), and the
+#                    full 5.1 Pester suite with WSL usable. HONESTY (WSL1 vs
+#                    WSL2): GitHub-hosted Windows runners cannot run WSL2 at
+#                    all — no nested virtualization — so this leg proves WSL1
+#                    ONLY; WSL2-specific failure classes (e.g. E_ACCESSDENIED)
+#                    remain field-only (SPEC-0046 MV-1..MV-3). The existing
+#                    windows-5_1 job keeps its zero-distro no-WSL semantics
+#                    untouched on its own VM (a distro install is host-global).
+#   - windows-5_1:   gains a 5.1-only step that hides pwsh from a doctored
+#                    CHILD environment's PATH (nothing on the host is ever
+#                    uninstalled or renamed) to prove the prefer-pwsh-else-
+#                    powershell fallbacks take the powershell.exe arm for real.
+#   - schedule:      a weekly cron (Mondays 05:00 UTC) turns a runner-image
+#                    update (Git Bash / Pester / pwsh / WSL) into a named
+#                    canary failure instead of breaking the next unrelated PR;
+#                    the run-name above marks scheduled runs as the canary.
 
 on:
   push:
@@ -48,9 +77,30 @@ on:
       - 'tests/skills/lib/**'
       - '.github/workflows/ps1-quality.yml'
   workflow_dispatch: {}
+  schedule:
+    # CHANGE-0136 Spec-AC-04: weekly runner-image-drift canary — Mondays
+    # 05:00 UTC, before the CET workday. See the run-name expression at the
+    # top for how a scheduled run is marked in the Actions list.
+    - cron: '0 5 * * 1'
 
 permissions:
   contents: read
+
+env:
+  # CHANGE-0134 Spec-AC-02: declared exactly ONCE so every consumer step
+  # asserts the identical expected skip count (SEAM-1) — a per-step literal
+  # would let the engines silently drift apart. Count derives from the four
+  # named Windows-fragile tests this scope skips: aai-win-dispatch.Tests.ps1's
+  # TEST-004 real-invocation arm, CHANGE-0133 TEST-003 (dual-casing
+  # environment), the CR-1 H3 grandchild probe, and aai-update.Tests.ps1's
+  # TEST-009 (file:// clone).
+  # CHANGE-0136 Spec-AC-02: moved from windows-5_1's job level to WORKFLOW
+  # level — both windows jobs consume it and test_017 pins the single
+  # declaration. The count 4 is re-derived valid for the WSL-usable
+  # windows-wsl1 leg too: every PosixOnly skip predicate is host-OS-driven
+  # (Test-IsWindowsHostFor), none is WSL-state-driven. If the legs' counts
+  # ever diverge, the pin goes per-leg — the count is never loosened.
+  AAI_EXPECTED_WIN_SKIP_COUNT: "4"
 
 jobs:
   gate:
@@ -94,15 +144,9 @@ jobs:
   windows-5_1:
     name: parse-check + functional sync smoke + full Pester suite (both engines)
     runs-on: windows-latest
-    env:
-      # CHANGE-0134 Spec-AC-02: declared exactly ONCE, at job level, so both
-      # engine run steps below assert the identical expected skip count
-      # (SEAM-1) — a per-step literal would let the two engines silently
-      # drift apart. Count derives from the four named Windows-fragile tests
-      # this scope skips: aai-win-dispatch.Tests.ps1's TEST-004 real-invocation
-      # arm, CHANGE-0133 TEST-003 (dual-casing environment), the CR-1 H3
-      # grandchild probe, and aai-update.Tests.ps1's TEST-009 (file:// clone).
-      AAI_EXPECTED_WIN_SKIP_COUNT: "4"
+    # NB (CHANGE-0136): the expected-skip-count declaration this job consumes
+    # moved to WORKFLOW-level env above — declared once, consumed by both
+    # windows jobs' Pester run steps.
     steps:
       - uses: actions/checkout@v4
 
@@ -534,6 +578,102 @@ jobs:
           if ($fail -gt 0) { Write-Error "real-wrapper smoke failed under pwsh 7 ($fail check(s))"; exit 1 }
           Write-Host "REAL-WRAPPER SMOKE OK (pwsh 7): success/timeout/spawnfail all correct"
 
+      - name: "5.1-only fallback proof in a doctored child (CHANGE-0136 Spec-AC-03)"
+        # Runners carry BOTH engines, so every prefer-pwsh-else-powershell
+        # fallback (Resolve-SelfTestEngine, the doctor's own engine pick and
+        # every selftest child spawn) always took the pwsh arm in CI — the
+        # powershell.exe-only path, a common corporate configuration
+        # (Windows PowerShell 5.1 plus Git Bash, no pwsh), was never
+        # exercised. This step proves it for real, in a doctored CHILD
+        # environment only (same technique class as the CHANGE-0135 D3
+        # decoy): the child's own script text sets Path to the parent PATH
+        # minus every directory containing pwsh.exe. Nothing on the host is
+        # ever uninstalled, relocated or otherwise mutated. Controls hold in
+        # BOTH directions: pwsh must resolve in the undoctored parent (else
+        # the hiding check would be vacuous) and must resolve to NOTHING
+        # inside the doctored child (distinct exit code 97 if the hiding
+        # itself silently stopped working — intake AC-002's named failure).
+        # This job has no WSL distro, so this also covers the corporate
+        # powershell.exe-plus-Git-Bash-only shape end to end.
+        shell: powershell   # Windows PowerShell 5.1 (the field environment)
+        run: |
+          $ErrorActionPreference = "Stop"
+          # Control direction 1: pwsh IS resolvable in the undoctored parent.
+          $pwshCmds = @(Get-Command pwsh.exe -ErrorAction SilentlyContinue -All)
+          if ($pwshCmds.Count -eq 0) {
+            Write-Error "CONTROL FAIL: pwsh is not resolvable in the undoctored parent -- the child-side hiding check below would be vacuous"; exit 1
+          }
+          Write-Host "CONTROL OK: pwsh resolvable in the undoctored parent: $($pwshCmds[0].Source)"
+          # Reduced PATH: the current PATH minus every directory in which
+          # pwsh.exe exists (surgical — node, git and the wrapper's Git Bash
+          # resolution all survive the filter).
+          $keep = @()
+          foreach ($d in ($env:Path -split ';')) {
+            if (-not $d) { continue }
+            $probe = $null
+            try { $probe = Join-Path $d 'pwsh.exe' } catch { $keep += $d; continue }
+            if (Test-Path -LiteralPath $probe -PathType Leaf) { Write-Host "PATH filter drops: $d"; continue }
+            $keep += $d
+          }
+          $reducedPath = ($keep -join ';')
+          $repoRoot = (Get-Location).Path
+          $doctorJson = Join-Path $env:RUNNER_TEMP 'aai-51only-doctor.json'
+          $innerPath = Join-Path $env:RUNNER_TEMP 'aai-51only-inner.ps1'
+          $inner = @'
+          $ErrorActionPreference = 'Stop'
+          $env:Path = '__REDUCED_PATH__'
+          $env:PATH = '__REDUCED_PATH__'
+          # Control direction 2: pwsh must resolve to NOTHING here — a
+          # distinct loud exit code if the hiding silently stopped working.
+          $still = Get-Command pwsh -ErrorAction SilentlyContinue
+          if ($still) { Write-Host "CONTROL FAIL: pwsh still resolves in the doctored child: $($still.Source)"; exit 97 }
+          Write-Host "CONTROL OK: pwsh is not resolvable in the doctored child"
+          Set-Location '__REPO_ROOT__'
+          . (Join-Path '__REPO_ROOT__' '.aai\scripts\aai-win-selftest.ps1')
+          $engine = Resolve-SelfTestEngine
+          if ($engine -ne 'powershell') { Write-Host "FAIL: Resolve-SelfTestEngine returned [$engine], expected powershell"; exit 98 }
+          Write-Host "Resolve-SelfTestEngine -> powershell (5.1-only fallback taken for real)"
+          $jsonText = (& node .aai\scripts\aai-doctor.mjs --json) -join [Environment]::NewLine
+          Write-Host "doctor exit code inside the doctored child: $LASTEXITCODE"
+          Set-Content -LiteralPath '__DOCTOR_JSON__' -Value $jsonText
+          exit 0
+          '@
+          $inner = $inner.Replace('__REDUCED_PATH__', ($reducedPath -replace "'", "''"))
+          $inner = $inner.Replace('__REPO_ROOT__', ($repoRoot -replace "'", "''"))
+          $inner = $inner.Replace('__DOCTOR_JSON__', ($doctorJson -replace "'", "''"))
+          Set-Content -LiteralPath $innerPath -Value $inner
+          $outFile = Join-Path $env:RUNNER_TEMP 'aai-51only.out'
+          $errFile = Join-Path $env:RUNNER_TEMP 'aai-51only.err'
+          # OS-handle stream capture on a REAL child; pre-quoted argument
+          # string (Start-Process silently space-joins array elements);
+          # .Handle touched immediately (the 5.1 ExitCode-null footgun).
+          $argString = '"-NoProfile" "-File" "' + $innerPath + '"'
+          $p = Start-Process -FilePath powershell.exe -ArgumentList $argString -NoNewWindow -PassThru `
+                -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+          $null = $p.Handle
+          $p.WaitForExit()
+          Get-Content $outFile -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "child| $_" }
+          Get-Content $errFile -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "child-err| $_" }
+          if ($p.ExitCode -eq 97) { Write-Error "CONTROL FAIL: pwsh was still resolvable inside the doctored child (exit 97) -- the hiding silently stopped working"; exit 1 }
+          if ($p.ExitCode -eq 98) { Write-Error "FAIL: Resolve-SelfTestEngine did not return powershell in the doctored child (exit 98)"; exit 1 }
+          if ($p.ExitCode -ne 0) { Write-Error "doctored child failed with exit $($p.ExitCode)"; exit 1 }
+          # The doctor ran INSIDE the doctored context; assert its CAT-14
+          # arms here from the JSON it wrote (parsing location is irrelevant
+          # to what the run proved).
+          $doc = Get-Content -LiteralPath $doctorJson -Raw | ConvertFrom-Json
+          $cat14 = $doc.categories | Where-Object { $_.id -eq 'CAT-14' } | Select-Object -First 1
+          $fail = 0
+          if (-not $cat14) { Write-Host "FAIL: no CAT-14 category in the doctored-context doctor output"; $fail++ }
+          $arms = @()
+          if ($cat14 -and $cat14.detail -and $cat14.detail.arms) { $arms = @($cat14.detail.arms) }
+          if ($arms.Count -ne 3) { Write-Host "FAIL: expected 3 CAT-14 arms from the doctored-context run, got $($arms.Count)"; $fail++ }
+          foreach ($a in $arms) {
+            if ($a.status -ne 'PASS') { Write-Host "FAIL: CAT-14 arm $($a.name) is $($a.status) (exit $($a.exitCode)) under powershell.exe"; $fail++ }
+            else { Write-Host "CAT-14 arm $($a.name): PASS (exit $($a.exitCode)) under powershell.exe"; }
+          }
+          if ($fail -gt 0) { Write-Error "5.1-only doctored-child proof failed ($fail check(s))"; exit 1 }
+          Write-Host "5.1-ONLY FALLBACK OK: pwsh hidden in the child, Resolve-SelfTestEngine -> powershell, all three CAT-14 arms PASS under powershell.exe"
+
       - name: "Cache PowerShell modules (Windows PowerShell 5.1 + pwsh 7 CurrentUser scopes)"
         # CHANGE-0134 Spec-AC-01: the two engines have SEPARATE CurrentUser
         # module scopes on Windows (Documents\WindowsPowerShell\Modules vs
@@ -664,3 +804,216 @@ jobs:
           if ($result.SkippedCount -ne $expected) { Write-Host "FAIL: SkippedCount ($($result.SkippedCount)) != declared expected ($expected)"; $fail++ }
           if ($fail -gt 0) { Write-Error "Pester gate failed under pwsh 7 ($fail check(s))"; exit 1 }
           Write-Host "PESTER OK (pwsh 7): $($result.PassedCount) passed, $($result.SkippedCount) skipped, 0 failed, ${elapsed}s"
+
+  windows-wsl1:
+    # CHANGE-0136 Spec-AC-01/Spec-AC-02: the functional-WSL leg. windows-latest
+    # ships wsl.exe with ZERO distros, so the wrapper's WSL branch had never
+    # run end-to-end in CI (both Codex P1 findings on PR #249 lived exactly
+    # there). A SEPARATE job, never steps in windows-5_1 (D2): a distro
+    # install is HOST-GLOBAL and would flip Test-WslUsable to true for every
+    # step of the existing job, destroying the proven zero-distro fallback
+    # coverage (the TEST-010 field defect's live regression bed).
+    # WSL1 ONLY (D1, honesty): hosted runners have no nested virtualization,
+    # so WSL2 cannot run here at all — WSL2-specific failure classes (e.g.
+    # E_ACCESSDENIED) remain field-only, per SPEC-0046 MV-1..MV-3.
+    name: functional WSL1 leg (wrapper WSL routing + selftest arms + full 5.1 Pester)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Install WSL1 Debian (CHANGE-0136 Spec-AC-01 / D1)"
+        # Pinned by MAJOR tag (v7 verified current via
+        # `gh api repos/Vampire/setup-wsl/releases/latest` at build time);
+        # test_019 pins the @v-major SHAPE so a future bump is a reviewed
+        # one-token change. Debian over Alpine: the delegated aai-run-tests.sh
+        # depends on setsid/procps/mktemp shapes busybox does not provide.
+        uses: Vampire/setup-wsl@v7
+        with:
+          distribution: Debian
+          wsl-version: 1
+
+      - name: "Controls: WSL is genuinely functional and genuinely WSL1 (CHANGE-0136 Spec-AC-01 / D1)"
+        # Three controls, each a NAMED loud failure — a half-broken setup-wsl
+        # install must never silently degrade this leg into a duplicate
+        # Git Bash run (SEAM-1):
+        #   1. functional sentinel: & wsl.exe -e sh -c "exit 42" must return
+        #      exactly 42 — the SAME semantics as Test-WslUsable's own probe
+        #      (direct call operator = native argv; the Start-Process
+        #      pre-quoting footgun does not apply to &).
+        #   2. wsl -l -v must report the distro at VERSION 1 — the leg can
+        #      never silently become a WSL2 claim.
+        #   3. wslpath -a must translate a C:\ path into /mnt/c — the exact
+        #      seam the selftest success arm's marker translation crosses.
+        shell: powershell   # Windows PowerShell 5.1 (the field environment)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $env:WSL_UTF8 = "1"
+          $fail = 0
+          & wsl.exe -e sh -c "exit 42"
+          if ($LASTEXITCODE -ne 42) { Write-Host "CONTROL FAIL: sentinel wsl.exe -e sh -c 'exit 42' exited $LASTEXITCODE (expected exactly 42) -- setup-wsl left WSL non-functional"; $fail++ }
+          else { Write-Host "CONTROL OK: functional sentinel exited 42" }
+          # UTF-16LE output guard: WSL_UTF8=1 asks for UTF-8, and the null
+          # strip below covers runners whose wsl.exe predates that variable.
+          $lv = (& wsl.exe -l -v | Out-String) -replace "`0", ''
+          Write-Host "wsl -l -v reports:`n$lv"
+          if ($lv -notmatch '(?m)Debian.*\s1\s*$') { Write-Host "CONTROL FAIL: wsl.exe -l -v does not report Debian at VERSION 1 -- this leg must never silently become a WSL2 (or broken-install) claim"; $fail++ }
+          else { Write-Host "CONTROL OK: Debian reported at VERSION 1" }
+          # C:\Windows, not a bare 'C:\': a trailing backslash before the
+          # closing quote is mangled by native argv quoting on 5.1.
+          $mnt = (& wsl.exe -e wslpath -a 'C:\Windows' | Out-String).Trim()
+          Write-Host "wslpath -a C:\Windows -> [$mnt]"
+          if ($mnt -notmatch '^/mnt/c') { Write-Host "CONTROL FAIL: wslpath -a 'C:\Windows' returned [$mnt], expected a path beginning /mnt/c"; $fail++ }
+          else { Write-Host "CONTROL OK: wslpath translates into /mnt/c" }
+          if ($fail -gt 0) { Write-Error "WSL1 controls failed ($fail check(s)) -- failing loudly instead of degrading into a duplicate Git Bash leg"; exit 1 }
+          Write-Host "WSL1 CONTROLS OK: sentinel 42 + VERSION 1 + wslpath /mnt/c"
+
+      - name: "Wrapper routes via the WSL branch, live (CHANGE-0136 Spec-AC-01)"
+        # One REAL aai-run-tests.ps1 invocation. Captured at the OS-handle
+        # level (Start-Process -RedirectStandardError on a real child):
+        # the AAI-BRANCH diagnostic is written via [Console]::Error, which an
+        # in-process 2> never sees.
+        shell: powershell   # Windows PowerShell 5.1 (the field environment)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $scriptPath = (Resolve-Path ".\.aai\scripts\aai-run-tests.ps1").Path
+          $outFile = Join-Path $env:RUNNER_TEMP "aai-wsl1-route.out"
+          $errFile = Join-Path $env:RUNNER_TEMP "aai-wsl1-route.err"
+          $cmd = "& '" + ($scriptPath -replace "'", "''") + "' sh -c 'exit 0'; exit `$LASTEXITCODE"
+          $p = Start-Process -FilePath powershell.exe -ArgumentList @('-NoProfile', '-Command', $cmd) -NoNewWindow -PassThru -Wait `
+                -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+          $out = Get-Content $outFile -Raw -ErrorAction SilentlyContinue
+          $err = Get-Content $errFile -Raw -ErrorAction SilentlyContinue
+          Write-Host "routing run: code=$($p.ExitCode) out=[$out] err=[$err]"
+          $fail = 0
+          if ($p.ExitCode -ne 0) { Write-Host "FAIL: expected exit 0 from the wrapper, got $($p.ExitCode)"; $fail++ }
+          if ($err -notmatch 'AAI-BRANCH:\s*WSL') { Write-Host "FAIL: expected an AAI-BRANCH: WSL line on the wrapper's stderr (WSL routing not taken)"; $fail++ }
+          if ($fail -gt 0) { Write-Error "WSL routing proof failed ($fail check(s))"; exit 1 }
+          Write-Host "WSL ROUTING OK: wrapper exit 0 with AAI-BRANCH: WSL on stderr"
+
+      - name: "Vendored selftest with WSL semantics via the doctor (CHANGE-0136 Spec-AC-01)"
+        # Deliberate reuse (SPEC-0122 D1): the three-arm smoke on this leg IS
+        # the vendored selftest through aai-doctor.mjs — never a third smoke
+        # implementation. This is the first real execution of both e398686
+        # fixes: the success arm's marker is written through the payload's
+        # own `command -v wslpath` translation, and the spawnfail arm only
+        # reaches the decoy because the selftest's reduced PATH hides wsl.exe
+        # (a regression there routes the arm through WSL and fails the
+        # marker-must-not-exist check — the desired loud signal). The raw
+        # smoke fixtures above are NOT reused here: $AAI_SMOKE_MARKER_FILE is
+        # a Windows env var + Windows path, which WSL drops/cannot read
+        # (no WSLENV), so their assertions would be vacuous on this leg.
+        # node is a real child process, so plain output capture is already
+        # a real-stream read; the AAI-BRANCH evidence sits INSIDE the JSON
+        # (the selftest captures each arm at the OS-handle level itself).
+        shell: powershell   # Windows PowerShell 5.1 (the field environment)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $jsonText = (& node .aai/scripts/aai-doctor.mjs --json) -join "`n"
+          Write-Host "doctor exit code: $LASTEXITCODE (informational -- assertions below are on CAT-14/CAT-15 content)"
+          $doc = $jsonText | ConvertFrom-Json
+          $fail = 0
+          $cat15 = $doc.categories | Where-Object { $_.id -eq 'CAT-15' } | Select-Object -First 1
+          if (-not $cat15) { Write-Host "FAIL: no CAT-15 category in doctor output"; $fail++ }
+          elseif ($cat15.detail.wsl -ne 'functional') { Write-Host "FAIL: CAT-15 wsl tri-state is [$($cat15.detail.wsl)], expected functional"; $fail++ }
+          else { Write-Host "CAT-15 OK: wsl functional" }
+          $cat14 = $doc.categories | Where-Object { $_.id -eq 'CAT-14' } | Select-Object -First 1
+          $arms = @()
+          if ($cat14 -and $cat14.detail -and $cat14.detail.arms) { $arms = @($cat14.detail.arms) }
+          if ($arms.Count -ne 3) { Write-Host "FAIL: expected 3 CAT-14 arms, got $($arms.Count)"; $fail++ }
+          $success = $arms | Where-Object { $_.name -eq 'success' } | Select-Object -First 1
+          $timeout = $arms | Where-Object { $_.name -eq 'timeout' } | Select-Object -First 1
+          $spawnfail = $arms | Where-Object { $_.name -eq 'spawnfail' } | Select-Object -First 1
+          if (-not $success) { Write-Host "FAIL: no 'success' arm"; $fail++ }
+          else {
+            if ($success.status -ne 'PASS') { Write-Host "FAIL: success arm status $($success.status)"; $fail++ }
+            if ($success.exitCode -ne 3) { Write-Host "FAIL: success arm exit $($success.exitCode), expected 3"; $fail++ }
+            if (-not $success.markerOk) { Write-Host "FAIL: success arm marker not written through the payload wslpath translation"; $fail++ }
+            if ($success.diag -notmatch 'AAI-BRANCH:\s*WSL') { Write-Host "FAIL: success arm diag [$($success.diag)] does not show WSL routing"; $fail++ }
+            else { Write-Host "success arm OK: exit 3, marker translated+written, diag [$($success.diag)]" }
+          }
+          if (-not $timeout) { Write-Host "FAIL: no 'timeout' arm"; $fail++ }
+          else {
+            if ($timeout.status -ne 'PASS') { Write-Host "FAIL: timeout arm status $($timeout.status)"; $fail++ }
+            if ($timeout.exitCode -ne 124) { Write-Host "FAIL: timeout arm exit $($timeout.exitCode), expected 124"; $fail++ }
+            else { Write-Host "timeout arm OK: exit 124, diag [$($timeout.diag)]" }
+          }
+          if (-not $spawnfail) { Write-Host "FAIL: no 'spawnfail' arm"; $fail++ }
+          else {
+            if ($spawnfail.status -ne 'PASS') { Write-Host "FAIL: spawnfail arm status $($spawnfail.status)"; $fail++ }
+            if ($spawnfail.exitCode -ne 125) { Write-Host "FAIL: spawnfail arm exit $($spawnfail.exitCode), expected 125"; $fail++ }
+            if ($spawnfail.spawnErrorCount -ne 1) { Write-Host "FAIL: spawnfail arm AAI-SPAWN-ERROR count $($spawnfail.spawnErrorCount), expected exactly 1"; $fail++ }
+            else { Write-Host "spawnfail arm OK: exit 125, exactly one AAI-SPAWN-ERROR (decoy reached with wsl.exe hidden)" }
+          }
+          if ($fail -gt 0) { Write-Error "selftest-with-WSL-semantics proof failed ($fail check(s))"; exit 1 }
+          Write-Host "SELFTEST OK (WSL semantics): success 3 via wslpath-translated marker, timeout 124, spawnfail 125"
+
+      - name: "Cache PowerShell modules (Windows PowerShell 5.1 scope, WSL1 leg)"
+        # Same shape as the windows-5_1 job's cache, distinct key
+        # discriminator (this leg installs for the 5.1 scope only — D2: the
+        # two-engine matrix is already proven on the no-WSL leg).
+        uses: actions/cache@v4
+        with:
+          path: ~\Documents\WindowsPowerShell\Modules
+          key: ps-modules-${{ runner.os }}-pester5-win-wsl1-v1
+
+      - name: "Install Pester 5 for Windows PowerShell 5.1 (WSL1 leg)"
+        # Byte-for-byte the same install-if-missing logic as the windows-5_1
+        # job's 5.1 step — see its header for the built-in 3.4.0 silent-bind
+        # trap and the TLS 1.2 + NuGet bootstrap rationale.
+        shell: powershell   # Windows PowerShell 5.1 (the field environment)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $existing = Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 } | Select-Object -First 1
+          if (-not $existing) {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+            if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+              Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser | Out-Null
+            }
+            Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.0
+          }
+          Import-Module Pester -MinimumVersion 5.0
+          $ver = (Get-Module Pester | Sort-Object Version -Descending | Select-Object -First 1).Version
+          if ($ver.Major -lt 5) { Write-Error "Pester major version $ver < 5 under Windows PowerShell 5.1 (5.1's built-in 3.4.0 silent-bind trap)"; exit 1 }
+          Write-Host "Pester $ver ready under Windows PowerShell 5.1"
+
+      - name: "Full Pester suite discovery under Windows PowerShell 5.1 with WSL usable (CHANGE-0136 Spec-AC-02)"
+        # The SAME tests/skills discovery and the IDENTICAL result-floor
+        # discipline as the windows-5_1 job's 5.1 step — floor 111, 600s
+        # ceiling, AAI-WIN-SKIP reconciled in both directions against the
+        # single workflow-level expected count (4: every PosixOnly skip
+        # predicate is host-OS-driven, none is WSL-state-driven, so the
+        # count holds on a WSL-usable host too). Inside this run the
+        # CHANGE-0135 host-adaptive end-to-end test executes with real WSL
+        # routing for the first time.
+        shell: powershell   # Windows PowerShell 5.1 (the field environment)
+        timeout-minutes: 15
+        run: |
+          $ErrorActionPreference = "Stop"
+          Import-Module Pester -MinimumVersion 5.0
+          $ver = (Get-Module Pester | Sort-Object Version -Descending | Select-Object -First 1).Version
+          if ($ver.Major -lt 5) { Write-Error "Pester major version $ver < 5 under Windows PowerShell 5.1"; exit 1 }
+          Write-Host "AAI-PESTER-VERSION: powershell (WSL1 leg) $ver"
+          $cfg = New-PesterConfiguration
+          $cfg.Run.Path = 'tests/skills'
+          $cfg.Run.PassThru = $true
+          $cfg.Output.Verbosity = 'Detailed'
+          $sw = [System.Diagnostics.Stopwatch]::StartNew()
+          $result = Invoke-Pester -Configuration $cfg
+          $sw.Stop()
+          $elapsed = [Math]::Round($sw.Elapsed.TotalSeconds, 2)
+          Write-Host "AAI-PESTER-ELAPSED: powershell (WSL1 leg) ${elapsed}s"
+          $skipLines = 0
+          foreach ($s in $result.Skipped) {
+            Write-Host "AAI-WIN-SKIP: $($s.ExpandedPath)"
+            $skipLines++
+          }
+          $expected = [int]$env:AAI_EXPECTED_WIN_SKIP_COUNT
+          $fail = 0
+          if ($result.FailedCount -gt 0) { Write-Host "FAIL: FailedCount=$($result.FailedCount)"; $fail++ }
+          if ($result.FailedContainersCount -gt 0) { Write-Host "FAIL: FailedContainersCount=$($result.FailedContainersCount) (a .Tests.ps1 failed Pester DISCOVERY -- a parse/syntax error under this engine)"; $fail++ }
+          if ($result.TotalCount -lt 111) { Write-Host "FAIL: TotalCount=$($result.TotalCount) is below the declared floor of 111 (symmetric with the POSIX gate's TEST-005 floor; catches a vacuous discovery)"; $fail++ }
+          if ($elapsed -gt 600) { Write-Host "FAIL: elapsed ${elapsed}s exceeds the 600s ceiling"; $fail++ }
+          if ($skipLines -ne $result.SkippedCount) { Write-Host "FAIL: AAI-WIN-SKIP line count ($skipLines) != Pester SkippedCount ($($result.SkippedCount))"; $fail++ }
+          if ($result.SkippedCount -ne $expected) { Write-Host "FAIL: SkippedCount ($($result.SkippedCount)) != declared expected ($expected)"; $fail++ }
+          if ($fail -gt 0) { Write-Error "Pester gate failed under Windows PowerShell 5.1 with WSL usable ($fail check(s))"; exit 1 }
+          Write-Host "PESTER OK (Windows PowerShell 5.1, WSL1 leg): $($result.PassedCount) passed, $($result.SkippedCount) skipped, 0 failed, ${elapsed}s"
