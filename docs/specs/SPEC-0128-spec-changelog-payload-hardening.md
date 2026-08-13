@@ -1,7 +1,7 @@
 ---
 id: spec-changelog-payload-hardening
 type: spec
-number: null
+number: 128
 status: implementing
 ceremony_level: 1
 links:
@@ -199,7 +199,7 @@ tag-naming pass message makes any single CI log a checkable witness.
 - Inline review scope: tests/skills/test-aai-release.sh,
   .aai/scripts/generate-dashboard.mjs, tests/skills/test-aai-dashboard.sh,
   tests/skills/test-aai-userguide-drift.sh,
-  docs/specs/SPEC-DRAFT-spec-changelog-payload-hardening.md,
+  docs/specs/SPEC-0128-spec-changelog-payload-hardening.md,
   docs/issues/CHANGE-0141-changelog-payload-hardening.md, CHANGELOG.md
 
 Code review required: true (code + test changes); scope = the explicit path
@@ -391,7 +391,7 @@ damage reaches the assertion, infra_fail otherwise, per SKILL_TDD):
 - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-userguide-drift.sh`
 - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-metrics.sh`
 - `node .aai/scripts/generate-dashboard.mjs --data-only` (real ledger; sidecar byte-identical pre/post fix)
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-changelog-payload-hardening.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0128-spec-changelog-payload-hardening.md`
 - PASS criteria: all TEST-xxx green AND all Spec-AC in a terminal status.
 
 ## Evidence contract

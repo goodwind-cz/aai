@@ -4,7 +4,7 @@
 - Reviewer: Code Review role (dual-verdict single pass, SKILL_CODE_REVIEW)
 - Scope: `git diff 0ff2da1..HEAD` (de580ae, cc52d22, 03484e7, 0f2b3a1) on
   feat/changelog-payload-hardening
-- Spec: docs/specs/SPEC-DRAFT-spec-changelog-payload-hardening.md (SPEC-FROZEN @ 0ff2da1,
+- Spec: docs/specs/SPEC-0128-spec-changelog-payload-hardening.md (SPEC-FROZEN @ 0ff2da1,
   ceremony_level 1)
 - Validation consulted: docs/ai/validation/validation-20260813T195747Z-CHANGE-0141-changelog-payload-hardening.md (PASS)
 - Read-only pass: no product files edited, no branch switch, STATE.yaml untouched.
@@ -13,8 +13,8 @@
 review:
   scope: 0ff2da1..HEAD (tests/skills/test-aai-release.sh, .aai/scripts/generate-dashboard.mjs,
     tests/skills/test-aai-dashboard.sh, tests/skills/test-aai-userguide-drift.sh,
-    CHANGELOG.md, docs/INDEX.md, docs/specs/SPEC-DRAFT-spec-changelog-payload-hardening.md)
-  spec: docs/specs/SPEC-DRAFT-spec-changelog-payload-hardening.md
+    CHANGELOG.md, docs/INDEX.md, docs/specs/SPEC-0128-spec-changelog-payload-hardening.md)
+  spec: docs/specs/SPEC-0128-spec-changelog-payload-hardening.md
   spec_compliance:
     verdict: pass
     ac_walk:

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T20:09:31.018Z
+Generated: 2026-08-13T20:09:54.918Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-changelog-payload-hardening | specs | implementing | 4 done | docs/specs/SPEC-DRAFT-spec-changelog-payload-hardening.md |
+| SPEC-0128 | specs | implementing | 4 done | docs/specs/SPEC-0128-spec-changelog-payload-hardening.md |
 
 ## Canonical layer (0)
 
