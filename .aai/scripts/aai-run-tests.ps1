@@ -493,9 +493,16 @@ function Get-EffectiveTimeoutSource {
 # ---- WSL launch path ------------------------------------------------------------
 
 function ConvertTo-WslPath {
+  # `-e` is load-bearing (PR #251 run 31683376326, first functional-WSL CI
+  # leg): without it the command runs through the distro's login SHELL,
+  # which eats the Windows path's backslashes before wslpath sees them —
+  # wslpath fails, the catch-all returns the RAW Windows path, and the
+  # delegation dies inside WSL with `env: 'D:\...': No such file or
+  # directory` (exit 127). With -e, wslpath receives the argv verbatim —
+  # the same invocation shape the ps1-quality WSL-leg control proves live.
   [CmdletBinding()] param([Parameter(Mandatory)][string]$WindowsPath)
   try {
-    $result = & wsl.exe wslpath -a $WindowsPath 2>$null
+    $result = & wsl.exe -e wslpath -a $WindowsPath 2>$null
     if ($LASTEXITCODE -eq 0 -and $result) { return ($result | Select-Object -First 1) }
   } catch {}
   return $WindowsPath
