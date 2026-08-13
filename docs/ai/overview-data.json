@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-13T16:06:00.176Z",
+  "generatedAt": "2026-08-13T18:38:24.570Z",
   "project": "aai",
   "counts": {
     "delivered": 184,
-    "in_progress": 1,
+    "in_progress": 2,
     "releases": 1,
     "tokens_total": 34767196
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "canonical-test-invocation",
+    "ref": "reporting-docs-true-up",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "canonical-test-invocation",
+      "ref": "reporting-docs-true-up",
       "type": "intake_change",
       "phase": "code_review"
     },
@@ -23,9 +23,30 @@
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "not_run",
+    "validation_status": "pass",
     "review_status": "not_run",
     "ticks": [
+      {
+        "tick": 85,
+        "role": "validation",
+        "scope": "reporting-docs-true-up",
+        "duration_seconds": 491,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 84,
+        "role": "implementation",
+        "scope": "reporting-docs-true-up",
+        "duration_seconds": 750,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 83,
+        "role": "planning",
+        "scope": "reporting-docs-true-up",
+        "duration_seconds": 269,
+        "harness_version": "unknown"
+      },
       {
         "tick": 82,
         "role": "code_review",
@@ -39,31 +60,23 @@
         "scope": "canonical-test-invocation",
         "duration_seconds": 125,
         "harness_version": "unknown"
-      },
-      {
-        "tick": 80,
-        "role": "implementation",
-        "scope": "canonical-test-invocation",
-        "duration_seconds": 1044,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 79,
-        "role": "planning",
-        "scope": "canonical-test-invocation",
-        "duration_seconds": 715,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 78,
-        "role": "code_review",
-        "scope": "doctor-honesty-batch",
-        "duration_seconds": 97,
-        "harness_version": "unknown"
       }
     ]
   },
   "in_progress": [
+    {
+      "ref": "reporting-docs-true-up",
+      "title": "Change — reporting/docs true-up: USER_GUIDE matches the real skill set, dashboard reads real usage, no empty charts",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0140-reporting-docs-true-up.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-DRAFT-spec-reporting-docs-true-up.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
