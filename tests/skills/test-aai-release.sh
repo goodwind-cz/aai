@@ -692,15 +692,26 @@ test_024_no_deleted_unreleased_heading_vs_main() {
   # must still be present verbatim in the live CHANGELOG — a PR may ADD
   # headings, never make one it did not itself write disappear. Single awk
   # pass over two files, no pipelines (this suite's own set -o pipefail
-  # trap), soft-skips when main/merge-base/base CHANGELOG aren't reachable
-  # (fresh clone, detached CI checkout, template repo with no CHANGELOG.md).
+  # trap), soft-skips when neither origin/main nor main resolves, or the
+  # merge-base / base CHANGELOG aren't reachable (fresh clone without the
+  # remote, template repo with no CHANGELOG.md).
   log_info "TEST-024: no pre-existing unreleased heading is deleted relative to the branch's merge-base with main..."
-  if ! git -C "$PROJECT_ROOT" rev-parse --verify --quiet main >/dev/null 2>&1; then
-    log_pass "TEST-024 skipped: local 'main' ref not reachable"
+  # Base-ref resolution prefers origin/main: GitHub Actions PR checkouts are
+  # detached-HEAD with only origin/main fetched (no local 'main' branch), so
+  # resolving the bare ref 'main' made this pin vacuous exactly where it
+  # matters most. Repo precedent: .aai/scripts/allocate-doc-number.mjs
+  # defaults to origin/main. Soft-skip only when NEITHER ref resolves.
+  local base_ref=""
+  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
+    base_ref="origin/main"
+  elif git -C "$PROJECT_ROOT" rev-parse --verify --quiet main >/dev/null 2>&1; then
+    base_ref="main"
+  else
+    log_pass "TEST-024 skipped: neither 'origin/main' nor 'main' ref reachable"
     return
   fi
   local base
-  base="$(git -C "$PROJECT_ROOT" merge-base HEAD main 2>/dev/null)" || base=""
+  base="$(git -C "$PROJECT_ROOT" merge-base HEAD "$base_ref" 2>/dev/null)" || base=""
   if [[ -z "$base" ]]; then
     log_pass "TEST-024 skipped: no merge-base with main"
     return
