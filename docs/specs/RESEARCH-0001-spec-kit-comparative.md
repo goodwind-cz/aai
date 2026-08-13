@@ -27,14 +27,14 @@ links:
   video overview
   <https://www.youtube.com/watch?v=a9eR1xsfvHg> — "The ONLY guide you'll
   need for GitHub Spec Kit" by Den Delimarsky (@DenDev), a spec-kit
-  maintainer. The video ITSELF was not watched: WebFetch returns only the
-  YouTube page shell, the public timedtext caption endpoint returns empty,
-  and no downloader (yt-dlp / youtube-dl) exists on this machine. Only the
-  oEmbed metadata above was retrieved. As a substitute, the same author's
-  long-form written treatment was read (see F8); den.dev returned HTTP 403,
-  so the Microsoft Developer Blog copy was used. No claim in this document
-  is attributed to the video. To close the gap: a human summary, or install
-  yt-dlp and pull the auto-captions.
+  maintainer. First pass failed — WebFetch returns only the YouTube page
+  shell and the public timedtext caption endpoint returns empty — so the
+  early revision of this document recorded the video as an explicit gap.
+  Resolved on the owner's instruction to install the tooling: yt-dlp
+  (2026.07.04) pulled the auto-captions, de-duplicated to a 7012-word
+  transcript, digested in F9 under its early-release dating caveat. The
+  same author's long-form written treatment is folded in as F8 (den.dev
+  returned HTTP 403, so the Microsoft Developer Blog copy was used).
 
 ## Success Criteria
 - A ranked, evidence-backed list of mechanisms worth adopting, each with a
