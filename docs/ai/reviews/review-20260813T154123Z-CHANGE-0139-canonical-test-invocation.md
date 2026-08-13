@@ -2,14 +2,14 @@
 
 - Reviewer: Code Review role (single dual-verdict pass, .aai/SKILL_CODE_REVIEW.prompt.md)
 - Scope: `git diff c2c4f9e..HEAD` (636a743 RED, 9d888f9 GREEN, 7137baf rot-pin fix, d3d7924 reconciliation) on branch feat/canonical-test-invocation @ d3d7924
-- Spec: docs/specs/SPEC-DRAFT-spec-canonical-test-invocation.md (frozen a341237, ceremony_level 1)
+- Spec: docs/specs/SPEC-0126-spec-canonical-test-invocation.md (frozen a341237, ceremony_level 1)
 - Prior evidence: validation PASS round 1, docs/ai/validation/validation-20260813T153218Z-CHANGE-0139-canonical-test-invocation.md (F1, F2 non-blocking)
 - Date: 2026-08-13T15:41:23Z
 
 ```yaml
 review:
   scope: c2c4f9e..d3d7924 (feat/canonical-test-invocation)
-  spec: docs/specs/SPEC-DRAFT-spec-canonical-test-invocation.md
+  spec: docs/specs/SPEC-0126-spec-canonical-test-invocation.md
   spec_compliance:
     verdict: pass
     ac_walk:

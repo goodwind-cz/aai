@@ -1,7 +1,7 @@
 ---
 id: spec-canonical-test-invocation
 type: spec
-number: null
+number: 126
 status: implementing
 ceremony_level: 1
 links:
@@ -239,7 +239,7 @@ the comment-only wrapper edits, but no AC's evidence DEPENDS on them.
 - User decision: undecided
 - Base ref: feat/canonical-test-invocation
 - Worktree branch/path: not selected
-- Inline review scope: docs/TECHNOLOGY.md .aai/templates/TECHNOLOGY_TEMPLATE.md .aai/AGENTS.md .aai/VALIDATION.prompt.md .aai/SKILL_LOOP.prompt.md .aai/SKILL_VERIFY.prompt.md .aai/SKILL_TEST_SKILLS.prompt.md .aai/SKILL_BOOTSTRAP.prompt.md .aai/SKILL_DESLOP.prompt.md .aai/system/DYNAMIC_SKILLS.md .aai/scripts/aai-run-tests.sh .aai/scripts/aai-run-tests.ps1 .aai/scripts/aai-doctor.mjs tests/skills/lib/prompt-diet-ledger.sh tests/skills/test-aai-prompt-diet.sh tests/skills/test-aai-win-fallback.sh tests/skills/test-aai-doctor.sh docs/USER_GUIDE.md docs/product/windows-test-wrapper.md docs/issues/CHANGE-0139-canonical-test-invocation.md docs/specs/SPEC-DRAFT-spec-canonical-test-invocation.md CHANGELOG.md
+- Inline review scope: docs/TECHNOLOGY.md .aai/templates/TECHNOLOGY_TEMPLATE.md .aai/AGENTS.md .aai/VALIDATION.prompt.md .aai/SKILL_LOOP.prompt.md .aai/SKILL_VERIFY.prompt.md .aai/SKILL_TEST_SKILLS.prompt.md .aai/SKILL_BOOTSTRAP.prompt.md .aai/SKILL_DESLOP.prompt.md .aai/system/DYNAMIC_SKILLS.md .aai/scripts/aai-run-tests.sh .aai/scripts/aai-run-tests.ps1 .aai/scripts/aai-doctor.mjs tests/skills/lib/prompt-diet-ledger.sh tests/skills/test-aai-prompt-diet.sh tests/skills/test-aai-win-fallback.sh tests/skills/test-aai-doctor.sh docs/USER_GUIDE.md docs/product/windows-test-wrapper.md docs/issues/CHANGE-0139-canonical-test-invocation.md docs/specs/SPEC-0126-spec-canonical-test-invocation.md CHANGELOG.md
 
 Code review: required (code, tests and vendored-guidance changes).
 
@@ -429,7 +429,7 @@ Commands to run:
 - `node .aai/scripts/check-test-registration.mjs`
 - `node .aai/scripts/aai-doctor.mjs --json` (post-change repo: carried true)
 - `node .aai/scripts/docs-audit.mjs --check --strict --no-event`
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-canonical-test-invocation.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0126-spec-canonical-test-invocation.md`
 
 Evidence artifacts: stored RED under `docs/ai/tdd/` for the TDD-lane doctor
 tests (TEST-004, TEST-005); recorded RED observations (pre-change pin
