@@ -56,7 +56,7 @@ None.
 | Spec-AC-01 | etime_to_secs fail-safe on non-etime input             | done    | TEST-022 RED/GREEN | —   | GREEN |
 | Spec-AC-02 | full reaper suite green with new output line           | done    | local suite pass   | —   | GREEN |
 | Spec-AC-03 | reaper emits reaped ages: diagnostic                   | done    | live run           | —   | GREEN |
-| Spec-AC-04 | TEST-018 stops flaking on unrelated PRs (CI-load)      | deferred | —       | 2026-08-15  | CI-authoritative; the flake is CI-load-only and not locally reproducible |
+| Spec-AC-04 | TEST-018 stops flaking on unrelated PRs (CI-load)      | done | zero TEST-018/reaper flakes across every full-framework CI run since the guard landed, including four 75-suite full runs under ci-full load on 2026-08-13 alone (PR #249: runs 31657594491, 31660638695, 31660711043 and the all-green 31661804469) plus the PR #247/#248 windows-era full runs — every skill-suite failure in that window was attributed to other suites (docs-audit false-open, pricing), never the reaper | — | reviewed 2026-08-13 at the Review-By checkpoint; per docs/knowledge/LEARNED.md the historical flake was CI-load-only, so a multi-run loaded streak IS the evidence contract |
 
 ## Implementation plan
 - `.aai/scripts/aai-reap-tests.sh`: shape guard at the top of `etime_to_secs`

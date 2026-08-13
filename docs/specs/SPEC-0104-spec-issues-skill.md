@@ -129,7 +129,7 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
 |---|---|---|---|---|---|
 | Spec-AC-01 | aai-issues.mjs deterministic fetch + normalize (github wired) | done | docs/ai/tdd/green-20260728T143042Z-aai-issues.log | — | TEST-001..012 green |
 | Spec-AC-02 | SKILL_ISSUES triage taxonomy + one checkpoint + write-back contract | done | docs/ai/tdd/green-20260728T143042Z-aai-issues.log | — | TEST-013..017 grep pins |
-| Spec-AC-03 | Azure az-boards degrade line + generic-mode loud degrade | deferred | — | 2026-08-15 | No Azure remote available in this repo/environment; evidence contract = first live az boards round trip logged under docs/ai/reports/; degrade-line WIRING itself is done and covered by TEST-018..020 |
+| Spec-AC-03 | Azure az-boards degrade line + generic-mode loud degrade | deferred | — | 2026-09-15 | defer_extended 2026-08-13 (was 2026-08-15): still no Azure remote in this repo/environment and none is planned before the new date; evidence contract unchanged = first live az boards round trip logged under docs/ai/reports/; degrade-line WIRING itself is done and covered by TEST-018..020 |
 
 ## Implementation plan
 - `.aai/scripts/aai-issues.mjs` (new): zero-dep CLI. Imports `classify`,
