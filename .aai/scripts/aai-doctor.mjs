@@ -593,7 +593,14 @@ function parseCodexExecObservation(text) {
 function probeCodexExecSubcommand(root, codexPresent) {
   // Tri-state guard: only a strict present === true earns a --help spawn —
   // an UNKNOWN (timed-out) codex would just hang the probe a second time.
-  if (codexPresent !== true) return { available: 'UNKNOWN', reason: 'codex CLI not present' };
+  // The skip reason preserves WHICH non-true state blocked the probe (PR
+  // #253 bot sweep): an UNKNOWN codex is not "not present", it is unproven.
+  if (codexPresent !== true) {
+    const reason = codexPresent === 'UNKNOWN'
+      ? 'codex CLI state UNKNOWN (version probe inconclusive) - exec probe skipped'
+      : 'codex CLI not present';
+    return { available: 'UNKNOWN', reason };
+  }
   const exe = resolveExecutable(root, 'codex');
   if (!exe) return { available: 'UNKNOWN', reason: 'codex CLI not present' };
   const res = run(exe, ['--help'], root, 5_000);

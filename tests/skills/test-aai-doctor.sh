@@ -1170,7 +1170,7 @@ EOF
 
   local out2 rc2
   out2="$(PATH="$fakebin:$PATH" node "$DOCTOR" --json 2>&1)"
-  echo "$out2" | node -e '
+  node -e '
     let d = "";
     process.stdin.on("data", c => d += c);
     process.stdin.on("end", () => {
@@ -1180,7 +1180,7 @@ EOF
       const obs = c16.detail.codex_exec_subcommand;
       if (obs.available !== true) die("real command-list line did not register available=true: " + JSON.stringify(obs));
     });
-  '
+  ' <<<"$out2"
   rc2=$?
 
   if [[ "$rc1" -eq 0 && "$rc2" -eq 0 ]]; then

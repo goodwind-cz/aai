@@ -116,6 +116,7 @@ old fixture could no longer discriminate; FX-08..FX-11 are new:
 | FX-09 | Commands: block whose exec row is TAB-indented | true |
 | FX-10 | prose-only help containing `exec` mid-sentence, no header anywhere | UNKNOWN |
 | FX-11 | Commands: block listing `execute` but never `exec` | false |
+| FX-12 (review NB-1, added post-freeze) | Commands: block with a BLANK line between rows, exec after the blank — a blank line must not end the block | true |
 
 RED targets on the pre-change tree: FX-01 and FX-07 currently read true,
 FX-03 and FX-04 currently read false, FX-10 currently reads false instead of
