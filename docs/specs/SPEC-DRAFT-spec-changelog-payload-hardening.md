@@ -272,10 +272,10 @@ records phase/strategy through state.mjs (6); no merge is performed (7).)
 
 | Spec-AC    | Description                                                                 | Status  | Evidence | Review-By | Notes |
 |------------|-----------------------------------------------------------------------------|---------|----------|-----------|-------|
-| Spec-AC-01 | Released-region class pin vs latest ancestor release tag; named skips; pass names tag | planned | —        | —         | —     |
-| Spec-AC-02 | Payload embed corruption-proof: D2 chain + function replacement; round-trip equality  | planned | —        | —         | —     |
-| Spec-AC-03 | Forward drift extractor admits markdown-link-form mentions; self-check control added  | planned | —        | —         | —     |
-| Spec-AC-04 | Four suites green, RED_CLASS stamped at capture, exit contracts and docs truthful     | planned | —        | —         | —     |
+| Spec-AC-01 | Released-region class pin vs latest ancestor release tag; named skips; pass names tag | done | release suite exit 0; test_025 pass line names v2026.08.13.2; test_026 scratch matrix green; RED docs/ai/tdd/red-20260813T193830Z-changelog-payload-hardening-released-region-pin.log (both mutations passed the entire pre-change suite) | — | scratch-clone GREEN replay: glue and retitle both FAIL naming tag + first divergence |
+| Spec-AC-02 | Payload embed corruption-proof: D2 chain + function replacement; round-trip equality  | done | dashboard suite exit 0 (test_012 hostile fixture EMBED-OK; test_013 order + function-form pin + real-ledger round-trip); RED docs/ai/tdd/red-20260813T193830Z-changelog-payload-hardening-hostile-embed.log (pre-change SyntaxError); real-ledger sidecar byte-identical pre/post (generatedAt-normalized cmp) | — | — |
+| Spec-AC-03 | Forward drift extractor admits markdown-link-form mentions; self-check control added  | done | userguide-drift suite exit 0 with widened anchor + link-form control; RED docs/ai/tdd/red-20260813T193830Z-changelog-payload-hardening-linkform-extractor.log (zero hits pre-change) | — | — |
+| Spec-AC-04 | Four suites green, RED_CLASS stamped at capture, exit contracts and docs truthful     | done | release, dashboard, userguide-drift, metrics suites all exit 0 via aai-run-tests.sh; head -1 of each new RED log is RED_CLASS: product_red; git diff main shows no exit-path, CLI-flag or placeholder change | — | metrics test_120 single-occurrence lib pin untouched |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 
@@ -357,13 +357,13 @@ Residual risks (written down, not silently accepted):
 
 | Test ID  | Spec-AC    | Type        | File path (expected)                     | Description                                                                 | Status  |
 |----------|------------|-------------|------------------------------------------|-----------------------------------------------------------------------------|---------|
-| TEST-001 | Spec-AC-01 | integration | tests/skills/test-aai-release.sh         | test_025 real-repo pin: released region byte-identical vs latest ancestor release tag (D1+D3); pass message names the tag; FAIL names tag + first divergence | pending |
-| TEST-002 | Spec-AC-01 | integration | tests/skills/test-aai-release.sh         | test_026 scratch matrix: glue of newest heading FAILS; deep-history retitle FAILS; unreleased-only edit PASSES; tagless repo yields the named soft-skip | pending |
-| TEST-003 | Spec-AC-02 | integration | tests/skills/test-aai-dashboard.sh       | hostile-payload fixture (backtick, dollar-brace, backslash runs, replacement patterns, closing script tag): embedded script parses (node) and decoded payload deep-equals sidecar JSON | pending |
-| TEST-004 | Spec-AC-02 | unit        | tests/skills/test-aai-dashboard.sh       | structural pin: backslash escape first in the chain, METRICS_DATA substitution function-form; real-ledger embed round-trips equal to dashboard-data.json | pending |
-| TEST-005 | Spec-AC-03 | integration | tests/skills/test-aai-userguide-drift.sh | extractor self-check gains link-form positive control; forward reconcile extracts markdown-link-form mentions; existing negative controls still hold | pending |
-| TEST-006 | Spec-AC-04 | integration | tests/skills/ (four suites)              | release, dashboard, userguide-drift and metrics suites all exit 0 via aai-run-tests.sh; metrics test_120 single-occurrence pin untouched | pending |
-| TEST-007 | Spec-AC-04 | unit        | docs/ai/tdd/ (new RED logs)              | every stored RED log for this scope carries RED_CLASS on line 1, stamped at capture time (head -1 check) | pending |
+| TEST-001 | Spec-AC-01 | integration | tests/skills/test-aai-release.sh         | test_025 real-repo pin: released region byte-identical vs latest ancestor release tag (D1+D3); pass message names the tag; FAIL names tag + first divergence | green |
+| TEST-002 | Spec-AC-01 | integration | tests/skills/test-aai-release.sh         | test_026 scratch matrix: glue of newest heading FAILS; deep-history retitle FAILS; unreleased-only edit PASSES; tagless repo yields the named soft-skip | green |
+| TEST-003 | Spec-AC-02 | integration | tests/skills/test-aai-dashboard.sh       | hostile-payload fixture (backtick, dollar-brace, backslash runs, replacement patterns, closing script tag): embedded script parses (node) and decoded payload deep-equals sidecar JSON | green |
+| TEST-004 | Spec-AC-02 | unit        | tests/skills/test-aai-dashboard.sh       | structural pin: backslash escape first in the chain, METRICS_DATA substitution function-form; real-ledger embed round-trips equal to dashboard-data.json | green |
+| TEST-005 | Spec-AC-03 | integration | tests/skills/test-aai-userguide-drift.sh | extractor self-check gains link-form positive control; forward reconcile extracts markdown-link-form mentions; existing negative controls still hold | green |
+| TEST-006 | Spec-AC-04 | integration | tests/skills/ (four suites)              | release, dashboard, userguide-drift and metrics suites all exit 0 via aai-run-tests.sh; metrics test_120 single-occurrence pin untouched | green |
+| TEST-007 | Spec-AC-04 | unit        | docs/ai/tdd/ (new RED logs)              | every stored RED log for this scope carries RED_CLASS on line 1, stamped at capture time (head -1 check) | green |
 
 RED plan (hybrid; every RED observed and stored BEFORE its GREEN work,
 `RED_CLASS:` stamped as line 1 AT capture — product_red when the planted
