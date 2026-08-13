@@ -45,9 +45,8 @@
 // produces the same verdict regardless of the caller's working directory.
 // Pass --root explicitly to point at a fixture / foreign project tree.
 //
-// Output (default, one line per category):
+// Output (default, one line per category — text mode never prints detail):
 //   CAT-NN <PASS|WARN|FAIL|SKIP> <short reason>
-//   [indented "  detail: {...}" line for a category that carries one]
 //   DOCTOR <CLEAN|ISSUES(n)>
 // --json prints one object:
 //   { root, generatedAt, categories: [{id,name,status,reason,detail?}],

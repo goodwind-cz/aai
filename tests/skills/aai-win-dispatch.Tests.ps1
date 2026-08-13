@@ -1488,6 +1488,15 @@ Describe 'aai-win-selftest.ps1 (CHANGE-0135 / spec-doctor-win-selftest)' {
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile($innerPath, [ref]$null, [ref]$errors) | Out-Null
             $errors.Count | Should -Be 0
+            # PR #249 bot-sweep pins: the sh payload sits in a PS SINGLE-quoted
+            # literal (a `$`/backtick in a legal Windows path must not
+            # interpolate at the child-PS layer), and carries the wslpath
+            # guard so the WSL branch gets a /mnt/-translated marker path
+            # while Git Bash keeps the C:/-style one.
+            $innerText = Get-Content -LiteralPath $innerPath -Raw
+            $innerText | Should -Match "sh -c '"
+            $innerText | Should -Not -Match 'sh -c "'
+            $innerText | Should -Match 'command -v wslpath'
         }
 
         It 'Invoke-SelfTestArmTimeout writes a syntactically valid inner script' {
@@ -1508,6 +1517,16 @@ Describe 'aai-win-selftest.ps1 (CHANGE-0135 / spec-doctor-win-selftest)' {
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile($innerPath, [ref]$null, [ref]$errors) | Out-Null
             $errors.Count | Should -Be 0
+            # PR #249 bot-sweep pin (Codex P1): the doctored PATH points at the
+            # arm's own decoy root — NEVER System32, which still contains
+            # wsl.exe and would let a WSL-functional host route around the
+            # decoy entirely (D3 demands neither wsl.exe nor a real bash.exe
+            # resolves via PATH).
+            $innerText = Get-Content -LiteralPath $innerPath -Raw
+            # (the O'Brien path is PS-escaped inside the inner text, so match
+            # the stable 'decoy' segment rather than the full escaped path)
+            $innerText | Should -Not -Match 'System32'
+            $innerText | Should -Match "PATH = '.*decoy"
         }
     }
 

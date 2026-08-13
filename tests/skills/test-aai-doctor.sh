@@ -748,7 +748,7 @@ test_024_selftest_structural_arm_pins() {
   # assignment. Collapse backtick line-continuations first so the check sees
   # the logical statement boundary, not a physical-line artifact.
   local collapsed
-  collapsed="$(perl -0777 -pe 's/`\r?\n[ \t]*/ /g' "$f")"
+  collapsed="$(node -e 'const fs=require("fs");process.stdout.write(fs.readFileSync(process.argv[1],"utf8").replace(/`\r?\n[ \t]*/g," "))' "$f")"
   if ! printf '%s\n' "$collapsed" | awk '
     /\$proc = Start-Process/ { want=1; next }
     want { if ($0 ~ /\$null = \$proc\.Handle/) { found=1 } want=0 }

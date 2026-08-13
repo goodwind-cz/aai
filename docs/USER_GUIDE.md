@@ -1273,7 +1273,8 @@ Three more categories, additive to the 13 above:
   guessed as true/false or inferred from which CLI happens to be installed.
 
 `--json` adds a structured `detail` object to each of these three
-categories (also shown as an indented line in the default text report).
+categories; the default text report stays one `CAT-NN STATUS reason` line
+per category with no detail lines.
 `--strict` is a new opt-in flag: without it, `/aai-doctor` keeps its
 existing exit code contract (0 on clean/warnings-only, 1 on any FAIL); with
 it, it also exits 1 when any category is WARN, and 0 only when every

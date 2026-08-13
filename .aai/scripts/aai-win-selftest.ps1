@@ -280,9 +280,20 @@ function Invoke-SelfTestArmSuccess {
   $markerPosix = $marker -replace '\\', '/'
   $runDispatcherPathPs = ConvertTo-PsSingleQuoteEscaped -Value $RunDispatcherPath
   $markerPosixSh = ConvertTo-PosixShSingleQuoteEscaped -Value $markerPosix
+  # PR #249 bot sweep, two fixes in one payload shape:
+  # 1. The payload is wrapped in PS SINGLE quotes inside the generated inner
+  #    script (was double quotes): `$`/backtick in a legal Windows path no
+  #    longer silently interpolates at the child-PS parse layer.
+  # 2. `wslpath` exists only inside WSL, so on a WSL-functional host the
+  #    wrapper's WSL branch gets the marker translated to /mnt/...; Git Bash
+  #    has no wslpath and consumes the C:/-style path natively unchanged.
+  $q = "'"
+  $shPayload = 'm=' + $q + $markerPosixSh + $q +
+    '; command -v wslpath >/dev/null 2>&1 && m=$(wslpath -u "$m"); echo AAI-SELFTEST-OK > "$m"; exit 3'
+  $shPayloadPs = ConvertTo-PsSingleQuoteEscaped -Value $shPayload
   $inner = @"
 `$env:AAI_TEST_TIMEOUT = '60'
-& '$runDispatcherPathPs' sh -c "echo AAI-SELFTEST-OK > '$markerPosixSh'; exit 3"
+& '$runDispatcherPathPs' sh -c '$shPayloadPs'
 exit `$LASTEXITCODE
 "@
   $result = Invoke-SelfTestChildEngine -Engine $Engine -InnerScriptContent $inner -ArmTempDir $ArmTempDir -WaitSeconds 90
@@ -339,18 +350,27 @@ function Invoke-SelfTestArmSpawnFail {
   Set-Content -LiteralPath $decoyBash -Value 'AAI self-test decoy: not a real executable' -NoNewline
   $marker = Join-Path $ArmTempDir 'marker.txt'
   $markerPosix = $marker -replace '\\', '/'
-  $reducedPath = if ($env:SystemRoot) { Join-Path $env:SystemRoot 'System32' } else { '/usr/bin' }
+  # PR #249 bot sweep (Codex P1): PATH must hide wsl.exe too, exactly as D3's
+  # own sentence demands — System32 kept wsl.exe visible, so a WSL-functional
+  # host would route the command through WSL and never reach the decoy. The
+  # decoy root itself contains no executables at its top level, so neither
+  # wsl.exe nor a real bash.exe resolves via PATH, while the wrapper's
+  # ProgramFiles-based candidate order still finds the decoy bash first.
+  $reducedPath = $decoyRoot
   $decoyRootPs = ConvertTo-PsSingleQuoteEscaped -Value $decoyRoot
   $reducedPathPs = ConvertTo-PsSingleQuoteEscaped -Value $reducedPath
   $runDispatcherPathPs = ConvertTo-PsSingleQuoteEscaped -Value $RunDispatcherPath
   $markerPosixSh = ConvertTo-PosixShSingleQuoteEscaped -Value $markerPosix
+  $q = "'"
+  $shPayload = 'echo should-not-run > ' + $q + $markerPosixSh + $q + '; exit 0'
+  $shPayloadPs = ConvertTo-PsSingleQuoteEscaped -Value $shPayload
   $inner = @"
 `$env:ProgramFiles = '$decoyRootPs'
 `${env:ProgramFiles(x86)} = '$decoyRootPs'
 `$env:PATH = '$reducedPathPs'
 `$env:Path = '$reducedPathPs'
 `$env:AAI_TEST_TIMEOUT = '30'
-& '$runDispatcherPathPs' sh -c "echo should-not-run > '$markerPosixSh'; exit 0"
+& '$runDispatcherPathPs' sh -c '$shPayloadPs'
 exit `$LASTEXITCODE
 "@
   $result = Invoke-SelfTestChildEngine -Engine $Engine -InnerScriptContent $inner -ArmTempDir $ArmTempDir -WaitSeconds 30

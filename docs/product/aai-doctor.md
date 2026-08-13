@@ -59,8 +59,9 @@ node .aai/scripts/aai-doctor.mjs --strict
 
 No flags are required. `--json` prints one structured document instead of
 the text report — CAT-14/CAT-15/CAT-16 each carry an extra `detail` object
-with the full self-test/environment/CLI data, present in both text mode
-(as an indented `detail:` line under the category) and `--json`.
+with the full self-test/environment/CLI data. Detail objects appear under
+`--json` only; the text report stays one `CAT-NN STATUS reason` line per
+category.
 
 `--strict` changes only the exit code: without it, `/aai-doctor` exits 0 on
 a clean report or on warnings alone, and 1 only when something actually
