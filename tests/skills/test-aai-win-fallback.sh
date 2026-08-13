@@ -378,55 +378,55 @@ test_019() {
   [[ -n "$job" ]] || log_fail "$CI_WORKFLOW must carry a windows-wsl1 job (functional-WSL leg)"
 
   # D1: install mechanism — Vampire/setup-wsl pinned by MAJOR tag, WSL1, Debian.
-  echo "$job" | grep -qE 'uses:[[:space:]]*Vampire/setup-wsl@v[0-9]+' \
+  grep -qE 'uses:[[:space:]]*Vampire/setup-wsl@v[0-9]+' <<<"$job" \
     || log_fail "windows-wsl1 must use Vampire/setup-wsl pinned by major tag (@vN)"
-  echo "$job" | grep -qE 'wsl-version:[[:space:]]*1([^0-9]|$)' \
+  grep -qE 'wsl-version:[[:space:]]*1([^0-9]|$)' <<<"$job" \
     || log_fail "windows-wsl1 setup-wsl step must request wsl-version: 1 (WSL1 — hosted runners cannot run WSL2)"
-  echo "$job" | grep -qE 'distribution:[[:space:]]*Debian' \
+  grep -qE 'distribution:[[:space:]]*Debian' <<<"$job" \
     || log_fail "windows-wsl1 setup-wsl step must install the Debian distribution (D1: GNU userland, not busybox)"
 
   # D1 controls: functional sentinel (Test-WslUsable's own semantics), genuine
   # VERSION 1, and the wslpath /mnt/c translation.
-  echo "$job" | grep -qF 'exit 42' \
+  grep -qF 'exit 42' <<<"$job" \
     || log_fail "windows-wsl1 control step must run the exit-42 functional sentinel (wsl.exe -e sh -c \"exit 42\")"
-  echo "$job" | grep -qE '\-ne 42|\-eq 42' \
+  grep -qE '\-ne 42|\-eq 42' <<<"$job" \
     || log_fail "windows-wsl1 control step must assert the sentinel exit code is exactly 42"
-  echo "$job" | grep -qE 'wsl\.exe -l -v|wsl -l -v' \
+  grep -qE 'wsl\.exe -l -v|wsl -l -v' <<<"$job" \
     || log_fail "windows-wsl1 control step must run wsl -l -v to assert the distro is genuinely VERSION 1"
-  echo "$job" | grep -qF 'wslpath -a' \
+  grep -qF 'wslpath -a' <<<"$job" \
     || log_fail "windows-wsl1 control step must run wslpath -a (the marker-translation seam control)"
-  echo "$job" | grep -qF '/mnt/c' \
+  grep -qF '/mnt/c' <<<"$job" \
     || log_fail "windows-wsl1 wslpath control must assert a path beginning /mnt/c"
 
   # Routing proof: one REAL wrapper invocation, OS-handle stream capture,
   # asserting the AAI-BRANCH: WSL stderr line.
-  echo "$job" | grep -qF 'aai-run-tests.ps1' \
+  grep -qF 'aai-run-tests.ps1' <<<"$job" \
     || log_fail "windows-wsl1 must invoke the real aai-run-tests.ps1 wrapper"
-  echo "$job" | grep -qF 'RedirectStandardError' \
+  grep -qF 'RedirectStandardError' <<<"$job" \
     || log_fail "windows-wsl1 wrapper invocation must capture stderr at the OS-handle level (Start-Process -RedirectStandardError) — [Console]::Error is invisible to in-process 2>"
-  echo "$job" | grep -qF 'AAI-BRANCH:\s*WSL' \
+  grep -qF 'AAI-BRANCH:\s*WSL' <<<"$job" \
     || log_fail "windows-wsl1 must assert the AAI-BRANCH: WSL routing line on the wrapper's captured stderr"
 
   # Selftest reuse (SPEC-0122 D1): the vendored selftest via the doctor,
   # per-arm assertions with WSL semantics.
-  echo "$job" | grep -qF 'aai-doctor.mjs' \
+  grep -qF 'aai-doctor.mjs' <<<"$job" \
     || log_fail "windows-wsl1 must run node .aai/scripts/aai-doctor.mjs (vendored selftest reuse, never a third smoke implementation)"
-  echo "$job" | grep -qF -- '--json' \
+  grep -qF -- <<<"$job" '--json' \
     || log_fail "windows-wsl1 doctor step must use --json (structured per-arm assertions)"
   local arm
   for arm in success timeout spawnfail; do
-    echo "$job" | grep -qF "'$arm'" \
+    grep -qF "'$arm'" <<<"$job" \
       || log_fail "windows-wsl1 doctor step must assert the CAT-14 '$arm' arm by name"
   done
-  echo "$job" | grep -qE '\-ne 3([^0-9]|$)' \
+  grep -qE '\-ne 3([^0-9]|$)' <<<"$job" \
     || log_fail "windows-wsl1 doctor step must assert the success arm exit code 3"
-  echo "$job" | grep -qE '\-ne 124([^0-9]|$)' \
+  grep -qE '\-ne 124([^0-9]|$)' <<<"$job" \
     || log_fail "windows-wsl1 doctor step must assert the timeout arm exit code 124"
-  echo "$job" | grep -qE '\-ne 125([^0-9]|$)' \
+  grep -qE '\-ne 125([^0-9]|$)' <<<"$job" \
     || log_fail "windows-wsl1 doctor step must assert the spawnfail arm exit code 125"
-  echo "$job" | grep -qF 'CAT-15' \
+  grep -qF 'CAT-15' <<<"$job" \
     || log_fail "windows-wsl1 doctor step must assert CAT-15 (Windows Environment)"
-  echo "$job" | grep -qF 'functional' \
+  grep -qF 'functional' <<<"$job" \
     || log_fail "windows-wsl1 doctor step must assert the CAT-15 wsl tri-state is 'functional'"
 
   log_pass "windows-wsl1 job shape: pinned setup-wsl, three non-vacuous controls, live WSL routing + selftest arm assertions (TEST-019)"
@@ -442,21 +442,21 @@ test_020() {
   job="$(get_job_block "windows-wsl1")"
   [[ -n "$job" ]] || log_fail "$CI_WORKFLOW must carry a windows-wsl1 job"
 
-  echo "$job" | grep -qF "cfg.Run.Path = 'tests/skills'" \
+  grep -qF "cfg.Run.Path = 'tests/skills'" <<<"$job" \
     || log_fail "windows-wsl1 Pester step must discover the tests/skills DIRECTORY (same discovery as the other legs)"
-  echo "$job" | grep -qE 'shell:[[:space:]]*powershell([[:space:]]|$)' \
+  grep -qE 'shell:[[:space:]]*powershell([[:space:]]|$)' <<<"$job" \
     || log_fail "windows-wsl1 Pester step must run under Windows PowerShell 5.1 (shell: powershell) — D2: one engine, the field one"
-  echo "$job" | grep -qE 'timeout-minutes:[[:space:]]*15' \
+  grep -qE 'timeout-minutes:[[:space:]]*15' <<<"$job" \
     || log_fail "windows-wsl1 Pester step must carry timeout-minutes: 15 like the existing legs"
-  echo "$job" | grep -qE 'TotalCount[[:space:]]*-lt[[:space:]]*111' \
+  grep -qE 'TotalCount[[:space:]]*-lt[[:space:]]*111' <<<"$job" \
     || log_fail "windows-wsl1 Pester step must assert the TotalCount floor of 111"
-  echo "$job" | grep -qE 'elapsed[[:space:]]*-gt[[:space:]]*600([^0-9]|$)' \
+  grep -qE 'elapsed[[:space:]]*-gt[[:space:]]*600([^0-9]|$)' <<<"$job" \
     || log_fail "windows-wsl1 Pester step must assert the 600s hard ceiling"
-  echo "$job" | grep -qF 'AAI-WIN-SKIP' \
+  grep -qF 'AAI-WIN-SKIP' <<<"$job" \
     || log_fail "windows-wsl1 Pester step must print one AAI-WIN-SKIP line per skipped test (two-direction reconciliation)"
-  echo "$job" | grep -qF 'Invoke-Pester -Configuration $cfg' \
+  grep -qF 'Invoke-Pester -Configuration $cfg' <<<"$job" \
     || log_fail "windows-wsl1 Pester step must call Invoke-Pester -Configuration \$cfg"
-  echo "$job" | grep -qF 'FailedContainersCount' \
+  grep -qF 'FailedContainersCount' <<<"$job" \
     || log_fail "windows-wsl1 Pester step must assert FailedContainersCount (discovery-failure detection)"
 
   # SEAM-3: the single declaration now feeds TWO consumer jobs, so it must sit
@@ -486,7 +486,7 @@ test_021() {
   local job step
   job="$(get_job_block "windows-5_1")"
   [[ -n "$job" ]] || log_fail "$CI_WORKFLOW must carry the windows-5_1 job"
-  echo "$job" | grep -qF "$step_name" \
+  grep -qF "$step_name" <<<"$job" \
     || log_fail "the windows-5_1 job must carry the step named '$step_name'"
 
   step="$(get_step_block "$step_name")"
@@ -494,43 +494,43 @@ test_021() {
 
   # Control, direction 1: pwsh IS resolvable in the undoctored parent (the
   # hiding check below can never pass vacuously).
-  echo "$step" | grep -qiE 'undoctored' \
+  grep -qiE 'undoctored' <<<"$step" \
     || log_fail "the 5.1-only step must control-assert pwsh IS resolvable in the undoctored parent first"
-  echo "$step" | grep -qF 'pwsh.exe' \
+  grep -qF 'pwsh.exe' <<<"$step" \
     || log_fail "the 5.1-only step must filter PATH by directories containing pwsh.exe (surgical filter, D3)"
 
   # Control, direction 2: inside the doctored child, Get-Command pwsh must
   # resolve NOTHING, with a distinct loud exit code.
-  echo "$step" | grep -qF 'Get-Command pwsh' \
+  grep -qF 'Get-Command pwsh' <<<"$step" \
     || log_fail "the doctored child must control-assert Get-Command pwsh resolves nothing"
-  echo "$step" | grep -qF 'exit 97' \
+  grep -qF 'exit 97' <<<"$step" \
     || log_fail "the child-side hiding control must fail with a DISTINCT exit code (97) if pwsh still resolves — the hiding silently breaking is a named failure"
 
   # The real fallback proofs.
-  echo "$step" | grep -qF 'aai-win-selftest.ps1' \
+  grep -qF 'aai-win-selftest.ps1' <<<"$step" \
     || log_fail "the doctored child must dot-source aai-win-selftest.ps1 for Resolve-SelfTestEngine"
-  echo "$step" | grep -qF 'Resolve-SelfTestEngine' \
+  grep -qF 'Resolve-SelfTestEngine' <<<"$step" \
     || log_fail "the doctored child must assert Resolve-SelfTestEngine returns powershell"
-  echo "$step" | grep -qF "'powershell'" \
+  grep -qF "'powershell'" <<<"$step" \
     || log_fail "the Resolve-SelfTestEngine assertion must compare against 'powershell'"
-  echo "$step" | grep -qF 'aai-doctor.mjs' \
+  grep -qF 'aai-doctor.mjs' <<<"$step" \
     || log_fail "the doctored child must run node .aai/scripts/aai-doctor.mjs (doctor's own engine pick under the doctored PATH)"
-  echo "$step" | grep -qF -- '--json' \
+  grep -qF -- <<<"$step" '--json' \
     || log_fail "the doctored-child doctor run must use --json"
-  echo "$step" | grep -qF 'CAT-14' \
+  grep -qF 'CAT-14' <<<"$step" \
     || log_fail "the step must assert the CAT-14 arms from the doctored-context doctor run"
-  echo "$step" | grep -qF 'PASS' \
+  grep -qF 'PASS' <<<"$step" \
     || log_fail "the step must assert all three CAT-14 arms are PASS under powershell.exe"
 
   # Negative pin (D3): a doctored CHILD environment only — never a host
   # mutation. The step body must contain neither Move-Item nor Rename-Item.
-  echo "$step" | grep -qF 'Move-Item' \
+  grep -qF 'Move-Item' <<<"$step" \
     && log_fail "the 5.1-only step must NOT contain Move-Item (host mutation forbidden — doctored CHILD environment only)"
-  echo "$step" | grep -qF 'Rename-Item' \
+  grep -qF 'Rename-Item' <<<"$step" \
     && log_fail "the 5.1-only step must NOT contain Rename-Item (host mutation forbidden — doctored CHILD environment only)"
 
   # OS-handle capture on the child spawn.
-  echo "$step" | grep -qF 'RedirectStandardError' \
+  grep -qF 'RedirectStandardError' <<<"$step" \
     || log_fail "the doctored child must be spawned with OS-handle stream capture (Start-Process -RedirectStandardError)"
 
   log_pass "5.1-only doctored-child step: both control directions, powershell fallback proven, no host mutation (TEST-021)"

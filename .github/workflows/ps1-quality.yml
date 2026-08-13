@@ -909,7 +909,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $jsonText = (& node .aai/scripts/aai-doctor.mjs --json) -join "`n"
-          Write-Host "doctor exit code: $LASTEXITCODE (informational -- assertions below are on CAT-14/CAT-15 content)"
+          Write-Host "doctor exit code: $LASTEXITCODE (load-bearing: no later native call resets it, so GitHub's appended 'exit `$LASTEXITCODE' re-raises a doctor FAIL — deliberate fail-closed on top of the content assertions below)"
           $doc = $jsonText | ConvertFrom-Json
           $fail = 0
           $cat15 = $doc.categories | Where-Object { $_.id -eq 'CAT-15' } | Select-Object -First 1
