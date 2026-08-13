@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T03:06:45.545Z
+Generated: 2026-08-13T06:49:27.365Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -353,9 +353,12 @@ _None._
 | SPEC-0122 | specs | docs/specs/SPEC-0122-spec-doctor-win-selftest.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (2)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0136 | issues | docs/issues/CHANGE-0136-ps1-ci-platform-coverage.md |
+| CHANGE-0137 | issues | docs/issues/CHANGE-0137-update-doctor-field-report.md |
 
 ## Deferred (whole-doc) (0)
 
