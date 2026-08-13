@@ -1,12 +1,12 @@
 {
   "summary": {
-    "total": 496,
-    "totalTokens": 37751377,
-    "avgDuration": 686111,
+    "total": 500,
+    "totalTokens": 38297781,
+    "avgDuration": 684964,
     "successRate": "100.0",
     "activeWorktrees": 0,
     "publishes": 0,
-    "workItems": 118,
+    "workItems": 119,
     "period": "2026-06-25 to 2026-08-13"
   },
   "tokensByTime": {
@@ -143,36 +143,36 @@
     "2026-08-13": {
       "input": 0,
       "output": 0,
-      "total": 3995940
+      "total": 4542344
     }
   },
   "skillStats": [
     {
       "name": "Code Review",
-      "count": 117,
-      "avgTokens": 57752,
-      "avgDuration": "370.0",
+      "count": 118,
+      "avgTokens": 58161,
+      "avgDuration": "368.1",
       "successRate": "100.0"
     },
     {
       "name": "Validation",
-      "count": 111,
-      "avgTokens": 60851,
-      "avgDuration": "598.4",
+      "count": 112,
+      "avgTokens": 61463,
+      "avgDuration": "595.0",
       "successRate": "100.0"
     },
     {
       "name": "Planning",
-      "count": 98,
-      "avgTokens": 68202,
-      "avgDuration": "617.2",
+      "count": 99,
+      "avgTokens": 68956,
+      "avgDuration": "622.0",
       "successRate": "100.0"
     },
     {
       "name": "TDD Implementation",
-      "count": 75,
-      "avgTokens": 164953,
-      "avgDuration": "1474.3",
+      "count": 76,
+      "avgTokens": 164997,
+      "avgDuration": "1464.3",
       "successRate": "100.0"
     },
     {
@@ -243,10 +243,10 @@
   "worktreeStats": null,
   "publishStats": null,
   "hasTokenSignal": true,
-  "generatedAt": "2026-08-13T20:03:47.899Z",
+  "generatedAt": "2026-08-13T20:35:08.596Z",
   "source": {
-    "entries": 118,
-    "operations": 496,
+    "entries": 119,
+    "operations": 500,
     "schema": "work-item-ledger"
   },
   "filters": {

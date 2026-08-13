@@ -424,9 +424,13 @@ test_013_embed_structural_pin() {  # CHANGE-0141 TEST-004 (Spec-AC-02)
   # substituted LAST, so a payload-borne literal {{PANEL_*}} can never be
   # re-substituted by a later pass — an invariant that must not depend on
   # where the template happens to place its panel placeholders.
-  local n_md n_lastpanel
-  n_md="$(grep -n "'{{METRICS_DATA}}', () =>" "$GENERATOR" | head -1 | cut -d: -f1)"
-  n_lastpanel="$(grep -nE "'\{\{PANEL_[A-Z]+\}\}', \(\) =>" "$GENERATOR" | tail -1 | cut -d: -f1)"
+  # Pipeline-free capture (repo LEARNED trap: grep|head/tail under
+  # `set -o pipefail` can die on SIGPIPE even when matches exist).
+  local md_hits panel_hits n_md n_lastpanel
+  md_hits="$(grep -n "'{{METRICS_DATA}}', () =>" "$GENERATOR")" || md_hits=""
+  panel_hits="$(grep -nE "'\{\{PANEL_[A-Z]+\}\}', \(\) =>" "$GENERATOR")" || panel_hits=""
+  n_md="${md_hits%%$'\n'*}"; n_md="${n_md%%:*}"
+  n_lastpanel="${panel_hits##*$'\n'}"; n_lastpanel="${n_lastpanel%%:*}"
   [[ -n "$n_md" && -n "$n_lastpanel" && "$n_md" -gt "$n_lastpanel" ]] \
     || log_fail "TEST-013 METRICS_DATA must be substituted AFTER every PANEL substitution (payload@$n_md lastPanel@$n_lastpanel)"
   local fn_count

@@ -201,6 +201,17 @@ released_region_verdict() {
     printf 'SKIP git show %s:CHANGELOG.md failed (tag carries no CHANGELOG.md)\n' "$resolved"
     return 0
   fi
+  # EOF-byte fidelity (PR #256 bot sweep): awk's `print` always emits a
+  # trailing newline, so two files differing ONLY in whether the last line
+  # is newline-terminated would extract byte-identical. Capture each file's
+  # final-byte state alongside the region and compare it too.
+  eof_state() {
+    local f="$1"
+    if [[ ! -s "$f" ]]; then printf 'empty\n'; return 0; fi
+    local last
+    last="$(tail -c 1 "$f" | od -An -tx1 | tr -d ' \n')"
+    if [[ "$last" == "0a" ]]; then printf 'newline\n'; else printf 'no-newline\n'; fi
+  }
   awk 'f { print; next } /^## \[v/ { f = 1; print }' "$prefix-tag-changelog.md" > "$prefix-tag-region"
   if [[ ! -s "$prefix-tag-region" ]]; then
     printf 'SKIP %s CHANGELOG.md contains no released heading (^## [v)\n' "$resolved"
@@ -219,6 +230,14 @@ released_region_verdict() {
   cmp_out="$(cmp "$prefix-live-region" "$prefix-tag-region" 2>&1)" || rc=$?
   if [[ "$rc" != "0" ]]; then
     printf 'FAIL %s released region diverges from the tag'"'"'s own copy: %s\n' "$resolved" "$cmp_out"
+    return 0
+  fi
+  local live_eof tag_eof
+  live_eof="$(eof_state "$dir/CHANGELOG.md")"
+  tag_eof="$(eof_state "$prefix-tag-changelog.md")"
+  if [[ "$live_eof" != "$tag_eof" ]]; then
+    printf 'FAIL %s released region matches but the file EOF state differs (live=%s tag=%s)\n' \
+      "$resolved" "$live_eof" "$tag_eof"
     return 0
   fi
   printf 'PASS %s\n' "$resolved"
