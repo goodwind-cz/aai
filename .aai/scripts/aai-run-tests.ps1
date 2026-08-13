@@ -546,10 +546,18 @@ function Start-GitBashProcess {
     [Parameter(Mandatory)][int]$Timeout
   )
   $env:AAI_TEST_TIMEOUT = "$Timeout"
+  # ArgumentList must reach Start-Process as ONE pre-quoted string, never the
+  # raw array — the same space-join footgun Start-WslProbeProcess pins above:
+  # engines differ in whether they quote array elements containing spaces, and
+  # an unquoted join splits the `sh -c '<script>'` payload into words, so only
+  # the script's FIRST word executes (PR #249 run 31658515767, CAT-14 field
+  # evidence: `sleep: missing operand` on the timeout arm, bare `echo` exit 0
+  # on the success arm).
+  $argString = ($ScriptArgs | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }) -join ' '
   # -ErrorAction Stop (Spec-AC-03): a non-terminating Start-Process error
   # (e.g. the OrdinalIgnoreCase Path/PATH dictionary collision this scope
   # fixes) becomes a catchable exception instead of silently returning $null.
-  $proc = Start-Process -FilePath $BashPath -ArgumentList $ScriptArgs -NoNewWindow -PassThru -ErrorAction Stop
+  $proc = Start-Process -FilePath $BashPath -ArgumentList $argString -NoNewWindow -PassThru -ErrorAction Stop
   # 5.1 ExitCode-null footgun (PR #247 iter-4 field evidence: arm1 captured
   # the marker — the launched sh genuinely ran and exited 3 — yet the
   # wrapper reported 0). Same cause as Start-WslProbeProcess above: on

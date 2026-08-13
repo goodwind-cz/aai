@@ -576,6 +576,37 @@ exit $rc
         }
     }
 
+    Context 'CHANGE-0135 field fix (PR #249 run 31658515767): Start-GitBashProcess pre-quotes ArgumentList into ONE string' {
+        # First real-Windows CAT-14 run caught this live: the raw string[]
+        # ArgumentList is space-joined WITHOUT quoting on at least one engine,
+        # so the `sh -c '<script>'` payload splits into words and only the
+        # script's first word executes (`sleep: missing operand` on the
+        # timeout arm; bare `echo` exit 0 + no marker on the success arm).
+        # Same footgun and same fix as Start-WslProbeProcess's own header.
+        It 'passes a single pre-quoted string, spaces in the script path and the sh payload both survive' {
+            $script:gbArgList = $null
+            Mock Start-Process {
+                $script:gbArgList = $ArgumentList
+                [PSCustomObject]@{ Id = 7100; Handle = [IntPtr]::new(1); ExitCode = 0 }
+            }
+            $origTimeout = $env:AAI_TEST_TIMEOUT
+            try {
+                $proc = Start-GitBashProcess -BashPath 'C:\Git\bin\bash.exe' `
+                    -ScriptArgs @('C:\repo with space\.aai\scripts\aai-run-tests.sh', 'sh', '-c', 'echo AAI-SELFTEST-OK > ''/tmp/m.txt''; exit 3') `
+                    -Timeout 60
+            } finally {
+                if ($null -eq $origTimeout) { Remove-Item Env:AAI_TEST_TIMEOUT -ErrorAction SilentlyContinue } else { $env:AAI_TEST_TIMEOUT = $origTimeout }
+            }
+            $proc.Id | Should -Be 7100
+            # Start-Process's -ArgumentList parameter is [string[]]-typed, so
+            # even a single pre-quoted string binds as a 1-element array at
+            # the mock: pin EXACTLY one element (pre-fix: 4 raw elements) that
+            # carries the whole payload with every segment quoted.
+            @($script:gbArgList).Count | Should -Be 1 -Because 'a raw multi-element array is space-joined engine-dependently; the payload must be pre-quoted into one string'
+            @($script:gbArgList)[0] | Should -Be '"C:\repo with space\.aai\scripts\aai-run-tests.sh" "sh" "-c" "echo AAI-SELFTEST-OK > ''/tmp/m.txt''; exit 3"'
+        }
+    }
+
     Context 'CHANGE-0133 TEST-008 (Spec-AC-04): cleanup covers the spawn-failed branch, never a null pid' {
         It 'a throw AFTER a live process object exists tree-kills exactly that pid once and returns 125' {
             Mock Start-GitBashProcess { [PSCustomObject]@{ Id = 6001; ExitCode = $null } }

@@ -37,8 +37,17 @@ RFC-0001).
   pre-existing SKIP-capable ones such as `CAT-08` on a non-git repo, is
   never counted as an issue; `DOCTOR ISSUES(n)` and `--strict` both count
   WARN/FAIL only.
+- Field catch on this change's own first real-Windows CI run: CAT-14
+  exposed a live defect in `aai-run-tests.ps1` itself — `Start-GitBashProcess`
+  passed `-ArgumentList` as a raw array, which is space-joined without
+  quoting on at least one engine, so a `sh -c '<script>'` payload split into
+  words and only the script's first word ever executed (a bare `echo` exited
+  0 with no marker; `sleep: missing operand`). The spawn now pre-quotes the
+  argument vector into one string — the same fix the file's own WSL probe
+  already carries — with a RED-proven engine-independent Pester pin.
 - `tests/skills/aai-win-dispatch.Tests.ps1` gains six new Pester contexts
-  for the probe script's pure functions and its apostrophe-path escaping;
+  for the probe script's pure functions and its apostrophe-path escaping
+  (plus the wrapper-quoting pin above);
   `tests/skills/test-aai-doctor.sh` gains twelve new cases (SKIP branch,
   structural REUSE/arm pins, fake-CLI and empty-PATH fixtures, output-shape
   growth, exit matrix, zero-network pin, hygiene set, documentation pin).
