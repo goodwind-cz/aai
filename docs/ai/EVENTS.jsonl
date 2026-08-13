@@ -1670,3 +1670,4 @@
 {"v":1,"ts":"2026-08-13T20:30:23.976Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-changelog-payload-hardening","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-13T20:30:24.007Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-changelog-payload-hardening","payload":{"commit":"a46aedb"}}
 {"v":1,"ts":"2026-08-13T20:30:52.047Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":341,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-13T21:19:04.330Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-followup-registry","payload":{"from":"draft","to":"implementing"}}
