@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T18:59:11.123Z
+Generated: 2026-08-13T19:20:54.256Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -365,9 +365,11 @@ _None._
 | SPEC-0127 | specs | docs/specs/SPEC-0127-spec-reporting-docs-true-up.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0141 | issues | docs/issues/CHANGE-0141-changelog-payload-hardening.md |
 
 ## Deferred (whole-doc) (0)
 
