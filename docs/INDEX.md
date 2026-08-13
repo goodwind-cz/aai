@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T10:45:52.933Z
+Generated: 2026-08-13T10:46:15.113Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-update-doctor-field-report | specs | implementing | 5 done | docs/specs/SPEC-DRAFT-spec-update-doctor-field-report.md |
+| SPEC-0124 | specs | implementing | 5 done | docs/specs/SPEC-0124-spec-update-doctor-field-report.md |
 
 ## Canonical layer (0)
 

@@ -4,7 +4,7 @@
 - Date: 2026-08-13T10:42:21Z
 - Branch: feat/update-doctor-field-report (verified via `git branch --show-current`)
 - Scope: `git diff db4717a..HEAD` (commits 5308e9e, f8f583c, 5f36dd7; 17 files, +1258/−24)
-- Frozen spec: docs/specs/SPEC-DRAFT-spec-update-doctor-field-report.md (frozen at db4717a)
+- Frozen spec: docs/specs/SPEC-0124-spec-update-doctor-field-report.md (frozen at db4717a)
 - Intake: docs/issues/CHANGE-0137-update-doctor-field-report.md
 - Prior validation: docs/ai/validation/validation-20260813T103126Z-CHANGE-0137-update-doctor-field-report.md (PASS, one LOW F-1) — read; every claim I rely on below was independently re-executed.
 - STATE.yaml: not touched (read-only reviewer; orchestrator records the verdict).
@@ -12,7 +12,7 @@
 ```yaml
 review:
   scope: db4717a..HEAD (feat/update-doctor-field-report)
-  spec: docs/specs/SPEC-DRAFT-spec-update-doctor-field-report.md
+  spec: docs/specs/SPEC-0124-spec-update-doctor-field-report.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -35,7 +35,7 @@ review:
       - { rank: NON-BLOCKING, file: .aai/scripts/update-doctor-report.mjs, line: 117,
           issue: "a UTF-8 BOM at file start makes a first-line 'post_update_doctor: off' invisible (column-0 anchor does not strip \\uFEFF) — the doctor runs although the user dialed off",
           failure_scenario: "downstream user recreates docs/ai/update-config.yaml in Windows Notepad (UTF-8-with-BOM) with the key on line 1 -> off ignored, doctor runs. Mitigations: identical behavior in update-check resolveConfig (parity preserved — probed both), the seeded config starts with comment lines so the key is never on line 1, and the miss degrades to the read-only default. Fix belongs in BOTH parsers in one scope, never the helper alone" }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-update-doctor-field-report.md, line: 232,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0124-spec-update-doctor-field-report.md, line: 232,
           issue: "inline_review_scope (15 paths) omits two files the diff actually changes: docs/ai/update-config.yaml (edited per D2 — clearly intended) and docs/INDEX.md (auto-generated index refresh)",
           failure_scenario: "a scope-driven stager (SKILL_PR stages ONLY in-scope paths) drops docs/ai/update-config.yaml from the commit set -> the shipped default config lacks the documented active key; metadata slip only, both files reviewed here" }
     info:
@@ -66,7 +66,7 @@ review:
 - `bash tests/skills/test-aai-release.sh` -> 0 (incl. TEST-024 heading discipline; note: file mode 644, so the aai-run-tests wrapper exec path returns 126 — invoke via bash)
 - `bash tests/skills/test-aai-layer-profiles.sh` / `test-aai-suite-select.sh` / `test-aai-hygiene-pack.sh` / `test-ps1-quality.sh` -> all 0
 - `node .aai/scripts/check-test-registration.mjs` -> 0
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-update-doctor-field-report.md` -> LINT PASS, 0 findings
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0124-spec-update-doctor-field-report.md` -> LINT PASS, 0 findings
 - `node .aai/scripts/docs-audit.mjs --check --strict --no-event` -> 0; NEEDS-TRIAGE (2) = this scope's own expected pre-close false-open pair (flipped by close-work-item at the PR step)
 - `pwsh [Parser]::ParseFile(aai-update.ps1)` -> 0 errors; byte-level `LC_ALL=C grep '[^ -~]'` over the postamble region (lines 157-180) -> ASCII clean
 - Independent helper probes (scratchpad, never the repo tree): BOM config x2 parsers, duplicate keys both orders, CRLF, reports-dir-as-a-file, chmod-555 reports dir, 2 MiB doctor stdout, JSON-array output, piped-stdout line retention, pwsh -File trailing-native-exit probe — every arm: exit 0, exactly one line, contract line text exact.

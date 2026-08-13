@@ -5,7 +5,7 @@ capability: aai-update
 status: current
 delivered_by:
   - CHANGE-0137
-spec: docs/specs/SPEC-DRAFT-spec-update-doctor-field-report.md
+spec: docs/specs/SPEC-0124-spec-update-doctor-field-report.md
 updated: 2026-08-13
 ---
 
@@ -108,7 +108,7 @@ as on. A dry-run never runs the doctor.
 ## Links
 
 - Request: docs/issues/CHANGE-0137-update-doctor-field-report.md
-- Spec: docs/specs/SPEC-DRAFT-spec-update-doctor-field-report.md
+- Spec: docs/specs/SPEC-0124-spec-update-doctor-field-report.md
 - Validation evidence: docs/ai/reports/ (gitignored runtime directory —
   evidence lands per ride, not committed)
 - Doctor engine: docs/product/aai-doctor.md

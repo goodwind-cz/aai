@@ -1,7 +1,7 @@
 ---
 id: spec-update-doctor-field-report
 type: spec
-number: null
+number: 124
 status: implementing
 ceremony_level: 1
 links:
@@ -229,7 +229,7 @@ this scope.
 - User decision: undecided
 - Base ref: feat/update-doctor-field-report
 - Worktree branch/path: not selected
-- Inline review scope: .aai/scripts/update-doctor-report.mjs .aai/scripts/aai-update.sh .aai/scripts/aai-update.ps1 .aai/templates/update-config.template.yaml .aai/SKILL_UPDATE.prompt.md .aai/system/PROFILES.yaml tests/skills/test-aai-update.sh tests/skills/suite-map.yaml tests/skills/lib/prompt-diet-ledger.sh tests/skills/test-aai-prompt-diet.sh docs/USER_GUIDE.md docs/product/aai-update.md docs/product/aai-doctor.md docs/specs/SPEC-DRAFT-spec-update-doctor-field-report.md CHANGELOG.md docs/ai/update-config.yaml docs/INDEX.md
+- Inline review scope: .aai/scripts/update-doctor-report.mjs .aai/scripts/aai-update.sh .aai/scripts/aai-update.ps1 .aai/templates/update-config.template.yaml .aai/SKILL_UPDATE.prompt.md .aai/system/PROFILES.yaml tests/skills/test-aai-update.sh tests/skills/suite-map.yaml tests/skills/lib/prompt-diet-ledger.sh tests/skills/test-aai-prompt-diet.sh docs/USER_GUIDE.md docs/product/aai-update.md docs/product/aai-doctor.md docs/specs/SPEC-0124-spec-update-doctor-field-report.md CHANGELOG.md docs/ai/update-config.yaml docs/INDEX.md
 
 ## Acceptance Criteria Mapping
 
@@ -437,7 +437,7 @@ Commands to run:
   edited aai-update.ps1)
 - `node .aai/scripts/check-test-registration.mjs`
 - `node .aai/scripts/docs-audit.mjs --check --strict --no-event`
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-update-doctor-field-report.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0124-spec-update-doctor-field-report.md`
 
 Evidence artifacts: stored RED logs under `docs/ai/tdd/` for the TDD-lane
 AC-gating tests (TEST-002, TEST-004, TEST-005, TEST-007, TEST-008); the
