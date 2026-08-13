@@ -1870,7 +1870,7 @@ externally-spawned test process must be in a **killable group**, **resource
 bounded**, **reaped on the step boundary**, and **accounted for**.
 
 1. **Killable group + timeout — the wrapper.** Run test/build commands through
-   `.aai/scripts/aai-run-tests.sh <cmd> [args...]`. It starts a new **process
+   `bash .aai/scripts/aai-run-tests.sh <cmd> [args...]`. It starts a new **process
    group**, runs the command as the group leader, arms an inline timeout
    (`AAI_TEST_TIMEOUT`, default 300s — macOS has no GNU `timeout`), and on every
    exit path TERMs then KILLs the whole group. It returns the command's **real
