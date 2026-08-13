@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 #
 # Test: aai-release.sh — deterministic release-cut engine (aai-release-skill /
-# SPEC-0063-spec-aai-release-skill, TEST-001..021).
+# SPEC-0063-spec-aai-release-skill, TEST-001..021), plus the live-CHANGELOG
+# integrity pins: scaffold invariants (test_022/023), no-deleted-unreleased-
+# heading vs merge-base (test_024, CHANGE-0135) and the released-region class
+# pin vs the latest ancestor release tag (test_025/026, CHANGE-0141).
 #
 # Covers the CHANGELOG [unreleased] rollup transform (D1), release-notes
 # extraction (D2, SEAM-1), version resolution (D3), the operator gate (D4),
@@ -154,6 +157,91 @@ build_isolated_path() {
   done
   if command -v sha256sum >/dev/null 2>&1; then ln -sf "$(command -v sha256sum)" "$bin/sha256sum"; fi
   if command -v shasum >/dev/null 2>&1; then ln -sf "$(command -v shasum)" "$bin/shasum"; fi
+}
+
+# --- Released-region class pin helper (CHANGE-0141 Spec-AC-01, D1+D3) -------
+#
+# released_region_verdict <repo_dir> <scratch_prefix>
+#
+# Emits EXACTLY ONE verdict line on stdout and always returns 0 (the caller
+# interprets the verdict — log_fail exits the suite, so the scratch matrix in
+# test_026 needs a non-exiting core):
+#   PASS <tag>            released region byte-identical vs <tag>'s own copy
+#   SKIP <named reason>   no usable tag (D1.3 — never a silent pass)
+#   FAIL <tag> <detail>   divergence, naming the tag and the first divergence
+#
+# D1 tag resolution: candidates from `git tag --list 'v[0-9]*'
+# --sort=-v:refname` captured into a variable (NEVER a pipeline — this suite
+# runs `set -euo pipefail`; `… | head -1` dies of SIGPIPE on CI), iterated via
+# here-string; the FIRST candidate that is an ancestor of HEAD wins.
+# D3 region: from the first `^## [v` line through EOF, byte-compared (cmp).
+# A live CHANGELOG with no released heading while the tag's region is
+# non-empty is a FAIL, never a skip — that is the total-glue/deletion case
+# this pin exists for.
+released_region_verdict() {
+  local dir="$1" prefix="$2"
+  local tags tag resolved=""
+  tags="$(git -C "$dir" tag --list 'v[0-9]*' --sort=-v:refname)"
+  if [[ -z "$tags" ]]; then
+    printf 'SKIP no tag matching v[0-9]* exists in this repo\n'
+    return 0
+  fi
+  while IFS= read -r tag; do
+    [[ -n "$tag" ]] || continue
+    if git -C "$dir" merge-base --is-ancestor "$tag" HEAD 2>/dev/null; then
+      resolved="$tag"
+      break
+    fi
+  done <<<"$tags"
+  if [[ -z "$resolved" ]]; then
+    printf 'SKIP no v[0-9]* tag is an ancestor of HEAD\n'
+    return 0
+  fi
+  if ! git -C "$dir" show "$resolved:CHANGELOG.md" > "$prefix-tag-changelog.md" 2>/dev/null; then
+    printf 'SKIP git show %s:CHANGELOG.md failed (tag carries no CHANGELOG.md)\n' "$resolved"
+    return 0
+  fi
+  awk 'f { print; next } /^## \[v/ { f = 1; print }' "$prefix-tag-changelog.md" > "$prefix-tag-region"
+  if [[ ! -s "$prefix-tag-region" ]]; then
+    printf 'SKIP %s CHANGELOG.md contains no released heading (^## [v)\n' "$resolved"
+    return 0
+  fi
+  if [[ ! -f "$dir/CHANGELOG.md" ]]; then
+    printf 'FAIL %s live CHANGELOG.md is missing while the tag region is non-empty\n' "$resolved"
+    return 0
+  fi
+  awk 'f { print; next } /^## \[v/ { f = 1; print }' "$dir/CHANGELOG.md" > "$prefix-live-region"
+  if [[ ! -s "$prefix-live-region" ]]; then
+    printf 'FAIL %s live CHANGELOG has NO released heading while the tag region is non-empty (total glue/deletion)\n' "$resolved"
+    return 0
+  fi
+  local rc=0 cmp_out
+  cmp_out="$(cmp "$prefix-live-region" "$prefix-tag-region" 2>&1)" || rc=$?
+  if [[ "$rc" != "0" ]]; then
+    printf 'FAIL %s released region diverges from the tag'"'"'s own copy: %s\n' "$resolved" "$cmp_out"
+    return 0
+  fi
+  printf 'PASS %s\n' "$resolved"
+}
+
+# Replicate the exact bc056cd damage shape on a CHANGELOG copy: the FIRST
+# released heading's tail (everything after `## [vX]`) is glued onto the last
+# non-blank line above it; the heading line and the blanks between vanish.
+glue_first_released_heading() {
+  # $1 = pristine source, $2 = destination
+  awk '
+    { lines[++n] = $0 }
+    END {
+      idx = 0
+      for (i = 1; i <= n; i++) if (lines[i] ~ /^## \[v/) { idx = i; break }
+      tail = lines[idx]
+      sub(/^## \[v[^\]]*\]/, "", tail)
+      m = idx - 1
+      while (m >= 1 && lines[m] ~ /^[ \t]*$/) m--
+      lines[m] = lines[m] tail
+      for (i = 1; i <= n; i++) { if (i > m && i <= idx) continue; print lines[i] }
+    }
+  ' "$1" > "$2"
 }
 
 # Extract the "rolled section" for a version directly from a written
@@ -734,6 +822,98 @@ test_024_no_deleted_unreleased_heading_vs_main() {
   log_pass "TEST-024 every merge-base unreleased heading is still present verbatim in the live CHANGELOG"
 }
 
+test_025_released_region_pin_vs_tag() {
+  # CLASS guard (CHANGE-0141 Spec-AC-01 / TEST-001): the THIRD glued/damaged
+  # released-heading incident (bc056cd glued the released v2026.08.13.2
+  # heading onto a CHANGE-0140 bullet) was caught only because a
+  # scope-specific pin happened to cover the immediately-previous scope.
+  # Release history is immutable by definition, so the class guard is a
+  # byte-compare of the live released region (first `^## [v` line to EOF)
+  # against the SAME region of the latest ancestor release tag's own
+  # CHANGELOG.md. Unreleased-zone edits (the normal life of a PR) never
+  # enter the compare; glue/deletion/retitle/reorder at ANY depth fails
+  # naming the tag and the first divergence.
+  log_info "TEST-025: live CHANGELOG released region byte-identical vs the latest ancestor release tag (D1+D3)..."
+  local verdict
+  verdict="$(released_region_verdict "$PROJECT_ROOT" "$TMP_ROOT/t025")"
+  case "$verdict" in
+    PASS\ *)
+      log_pass "TEST-025 released region byte-identical vs ${verdict#PASS } (latest ancestor release tag)"
+      ;;
+    SKIP\ *)
+      log_pass "TEST-025 skipped: ${verdict#SKIP }"
+      ;;
+    FAIL\ *)
+      log_fail "TEST-025: ${verdict#FAIL }"
+      ;;
+    *)
+      log_fail "TEST-025: unexpected verdict from released_region_verdict: $verdict"
+      ;;
+  esac
+}
+
+test_026_released_region_scratch_matrix() {
+  # In-suite negative control for the class pin (CHANGE-0141 Spec-AC-01 /
+  # TEST-002): drives the SAME released_region_verdict helper test_025 uses
+  # through a scratch repo where the suite itself owns the tags, so the
+  # guard's bite is proven on every run, not only in the one-off RED replay:
+  #   (a) exact bc056cd glue of the newest released heading  -> FAIL
+  #   (b) deep-history retitle (the v2026.08.08-era heading) -> FAIL
+  #   (c) unreleased-zone-only edit                          -> PASS
+  #   (d) tagless repo                                       -> NAMED skip
+  log_info "TEST-026: scratch matrix — glue FAILS, deep retitle FAILS, unreleased edit PASSES, tagless is a NAMED skip..."
+  local repo="$TMP_ROOT/t026" pristine="$TMP_ROOT/t026-pristine.md" verdict
+
+  # Fixture: two releases cut in sequence (annotated CalVer tags where
+  # -v:refname must rank v2026.08.13.2 above v2026.08.08), then a
+  # post-release unreleased entry on top — the real repo's shape.
+  new_repo "$repo"
+  printf '# Changelog\n\n## [unreleased]\n\n## [v2026.08.08] — feat: older release (REF-A)\n\n- older bullet\n' > "$repo/CHANGELOG.md"
+  commit_all "$repo" "release v2026.08.08"
+  git -C "$repo" tag -a v2026.08.08 -m v2026.08.08
+  printf '# Changelog\n\n## [unreleased]\n\n## [v2026.08.13.2] — feat: newest release (REF-B)\n\n- newest bullet\n\n## [v2026.08.08] — feat: older release (REF-A)\n\n- older bullet\n' > "$repo/CHANGELOG.md"
+  commit_all "$repo" "release v2026.08.13.2"
+  git -C "$repo" tag -a v2026.08.13.2 -m v2026.08.13.2
+  printf '# Changelog\n\n## [unreleased]\n\n## [unreleased] — feat: pending work (REF-C)\n\n- pending bullet\n\n## [v2026.08.13.2] — feat: newest release (REF-B)\n\n- newest bullet\n\n## [v2026.08.08] — feat: older release (REF-A)\n\n- older bullet\n' > "$repo/CHANGELOG.md"
+  commit_all "$repo" "docs: pending unreleased entry"
+  cp "$repo/CHANGELOG.md" "$pristine"
+
+  # Baseline: intact repo passes, naming the version-sorted newest ancestor
+  # tag (v2026.08.13.2, NOT v2026.08.08 — the -v:refname + ancestor rule).
+  verdict="$(released_region_verdict "$repo" "$TMP_ROOT/t026-base")"
+  [[ "$verdict" == "PASS v2026.08.13.2" ]] \
+    || log_fail "TEST-026 baseline: intact scratch repo must PASS naming v2026.08.13.2, got: $verdict"
+
+  # (a) glue: the exact bc056cd damage shape on the newest released heading.
+  glue_first_released_heading "$pristine" "$repo/CHANGELOG.md"
+  verdict="$(released_region_verdict "$repo" "$TMP_ROOT/t026-glue")"
+  [[ "$verdict" == FAIL\ v2026.08.13.2* ]] \
+    || log_fail "TEST-026 glue arm: bc056cd-shape glue must FAIL naming v2026.08.13.2, got: $verdict"
+
+  # (b) deep-history retitle of the OLDER released heading.
+  sed -E 's/^## \[v2026\.08\.08\] — .*/## [v2026.08.08] — feat: RETITLED deep-history heading (mutation)/' "$pristine" > "$repo/CHANGELOG.md"
+  verdict="$(released_region_verdict "$repo" "$TMP_ROOT/t026-retitle")"
+  [[ "$verdict" == FAIL\ v2026.08.13.2* ]] \
+    || log_fail "TEST-026 retitle arm: deep-history retitle must FAIL naming v2026.08.13.2, got: $verdict"
+
+  # (c) unreleased-zone-only edit (the normal life of a PR) never trips it.
+  awk '{ print; if ($0 == "- pending bullet") print "- added unreleased-zone bullet" }' "$pristine" > "$repo/CHANGELOG.md"
+  verdict="$(released_region_verdict "$repo" "$TMP_ROOT/t026-unrel")"
+  [[ "$verdict" == "PASS v2026.08.13.2" ]] \
+    || log_fail "TEST-026 unreleased arm: unreleased-zone-only edit must PASS, got: $verdict"
+
+  # (d) tagless repo: NAMED soft-skip, never a silent pass.
+  local repo2="$TMP_ROOT/t026b"
+  new_repo "$repo2"
+  printf '# Changelog\n\n## [unreleased]\n\n## [v2026.01.01] — feat: looks released, never tagged (REF-Z)\n\n- bullet\n' > "$repo2/CHANGELOG.md"
+  commit_all "$repo2" "init without tags"
+  verdict="$(released_region_verdict "$repo2" "$TMP_ROOT/t026-tagless")"
+  [[ "$verdict" == SKIP\ no\ tag\ matching* ]] \
+    || log_fail "TEST-026 tagless arm: must SKIP with the named no-tag reason, got: $verdict"
+
+  log_pass "TEST-026 scratch matrix: glue FAILS, deep retitle FAILS, unreleased edit PASSES, tagless yields the named skip (all naming v2026.08.13.2 where resolved)"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -768,6 +948,8 @@ main() {
   test_022_live_changelog_scaffold_invariants
   test_023_cut_consumes_existing_scaffold
   test_024_no_deleted_unreleased_heading_vs_main
+  test_025_released_region_pin_vs_tag
+  test_026_released_region_scratch_matrix
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
