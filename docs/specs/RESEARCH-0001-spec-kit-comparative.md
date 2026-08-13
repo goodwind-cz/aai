@@ -169,10 +169,16 @@ Spec Kit", Microsoft Developer Blog. Distinctive claims worth keeping:
 - Practice note: *"having a very detailed first prompt will produce a much
   better specification"* — quality is front-loaded into the human's opening
   statement.
-- **Greenfield bias, stated by omission**: the piece addresses bootstrapping
-  new projects and does not cover applying Spec Kit to an existing codebase.
+- **Greenfield bias in THIS piece**: it addresses bootstrapping new projects
+  and does not cover applying Spec Kit to an existing codebase.
+  **CORRECTED by F10** — I generalized that omission into "their tool is
+  greenfield-first", and the lead maintainer falsifies it directly on the
+  May livestream (brownfield constitution bootstrap; 307K-line ASP.NET and
+  ~400K-line Java walkthroughs). The article is greenfield; the tool is not.
+  Correction kept visible rather than silently rewritten.
 
-Consequence for us: their tool is greenfield-first, while this factory is
+Consequence for us, as originally written and now narrowed: their WRITTEN
+INTRODUCTORY material is greenfield-first, while this factory is
 brownfield-native — it runs against a live repo of 344 docs with its own
 history, telemetry and gates. That difference explains most of the delta
 found in F1-F7: they optimize the first mile (get a good spec out of a vague
@@ -227,6 +233,111 @@ Signal worth keeping:
   knowing.
 - Brownfield: still only an aside (the `.specify` folder exists so an
   existing project is not littered at root). Confirms F8's greenfield bias.
+
+### F10 — Second video: the lead maintainer, current-era (2026-05-08)
+The repo links TWO videos; a code search over the repo found the second in
+`newsletters/2026-May.md`: "Open Source Friday with Spec-Kit", GitHub, hosted
+by Andrea Griffiths with lead maintainer Manfred Riem. Captions pulled the
+same way (12,070 words de-duplicated). Caveat: despite postdating the command
+expansion, the stream itself never demonstrates analyze, checklist, converge
+or taskstoissues; clarify appears once in passing.
+
+- **Presets outrank the constitution for mandatory policy.** The sharpest
+  transferable idea in either video: prose a human must remember to include
+  is weaker than a template layer injected with priority and
+  append/prepend/wrap/replace semantics — *"the constitution template would
+  then actually contain that requirement and you couldn't get around it"*.
+  This reframes recommendation 5: the override stack is not only a
+  customization affordance, it is the enforcement surface for org policy.
+- **Phase-scoped autonomy**: approvals stay on through planning and are
+  released only at implementation — *"I say bypass all approvals. I did not
+  say autopilot."* We express autonomy per ceremony level, not per phase.
+- **Context-window utilization as telemetry, and over-specification as its
+  cause.** *"the moment you start context window compaction it loses context
+  which means its reliability goes down off a cliff"*; if it overflows,
+  *"you probably for the models that you're using over specified"* — he
+  concedes his own demo was over-specified, and reports finishing at 66
+  percent of one window. We measure tokens per role but never window
+  utilization, and we have never treated a long spec as a reliability risk.
+- **Vocabulary independence as a cheap chaos test**: a pirate-speak preset
+  renamed every artifact (spec becomes "voyage manifest") and execution was
+  unaffected — *"It did not care whatsoever. It just executed it
+  faithfully."* A one-off rename run would prove our dispatch keys on
+  structure, not on document titles.
+- **Brownfield works** (the F8 correction): *"if you have an existing
+  project you are able to actually just say hey given this code base can you
+  create me a set of principles … So it works for brownfield as well"*, with
+  307K-line ASP.NET and ~400K Java walkthroughs. Plus a warning that lands on
+  us: an inferred blanket coverage gate on legacy code *"would crunch tokens
+  just to get to that point"* — gates should ramp per scope, not be constant.
+- **Recursive specs**: tasks of a higher-level spec may themselves become
+  specs; a maintenance plan sits *"a level higher than the spec"*. Validates
+  our umbrella/child-phase pattern.
+- **Community catalog is read-only by design**: *"we don't maintain them. We
+  just list them here as reference"*, consumers must vet and vendor
+  themselves — a deliberate supply-chain stance worth copying if we ever
+  publish a skills registry.
+- **Agent-neutral core, enforced by refusal**: he rejected agent-specific
+  additions to core templates twice, including for the vendor's own IDE.
+- Honest framing of the whole enterprise: an agent is *"a very capable intern
+  and a very quick intern but it's still an intern nonetheless"*; and on
+  whether SDD beats plain prompting he claims only downstream leverage, with
+  regression benefit explicitly unevidenced — *"Don't quote me."*
+
+### F11 — Project newsletters, June and July 2026
+Six monthly newsletters exist (Feb–Jul); the two most recent were read.
+
+- **They paid our exact tax and then removed it.** July ported the core
+  scripts, the git extension and the agent-context updater from shell to
+  Python, reason stated plainly: *"the perennial bash/PowerShell parity tax
+  — every script fix previously had to be written twice and kept in sync, a
+  recurring source of the Windows-parity bugs."* That is a literal
+  description of our 2026-08-13: `aai-run-tests.sh` plus its `.ps1` twin,
+  `aai-sync.sh` plus `.ps1`, and four CI iterations chasing WSL and 5.1
+  semantics. We have mitigated the class (parity by construction, one Node
+  helper called by thin twins in CHANGE-0137) without naming it; they
+  eliminated it by moving the logic to one interpreter. Worth an explicit
+  decision: is our remaining shell-twin surface a standing cost we accept?
+- **The criticism they publish about themselves applies to us.** July:
+  *"documentation proliferation and cognitive load remain the single
+  most-cited concern"*; one user finished a 108-task build but flagged
+  *"~15,000 lines of generated documentation"*, another named
+  *"over-production of docs, and single-source-of-truth collapse."* This
+  repo carries 345 docs. Our docs-canon and delta-spec machinery exist
+  precisely for this, but nothing measures whether the corpus is still
+  navigable by a human.
+- **Their engine became programmable**: gate verdicts bind to typed workflow
+  inputs (`verdict_input`), shell stdout parses to `output.data` via
+  `output_format: json`, and a `from_json` filter turns step outputs into
+  typed values. Prose-chaining became data-passing — the same direction our
+  deterministic dispatch already took.
+- **Runtime events layer with per-agent adapters** (v0.15.0): canonical
+  snake_case lifecycle events dispatched from one zero-dependency script,
+  translated per harness (`.claude`, `.cursor`, `.codex`, `.github`), with
+  four-tier resolution and multiple extensions allowed on one event. Reason:
+  extension authors *"declare events once and never learn agent-specific
+  names"*. Directly comparable to our hooks overlay, but generalized.
+- **"Fail loudly, don't crash"** was a named July campaign: dozens of PRs
+  replaced raw exceptions with validation errors on malformed input, unknown
+  fan-in step names became validation failures, unknown expression filters
+  now fail loudly. Same instinct as our fail-closed ledger reads.
+- **Converge's append-only invariant** is stricter than I recorded in F3:
+  its only write is a new `## Phase N: Convergence` section at the bottom of
+  tasks.md; it never modifies spec or plan, never renumbers, never touches
+  code, and when clean leaves the file byte-for-byte unchanged. Adopt that
+  invariant verbatim if we build the unrequested sweep.
+- **Adoption and its shadow**: ~124k stars, 144 extensions, 29 presets by
+  July. Named adopter SNCF Connect claims 2–4× velocity *"while candidly
+  flagging token-cost and governance concerns"*. An independent scoring put
+  Spec-Kit at 2.77 versus OpenSpec 4.00 for brownfield and developer
+  experience.
+- **They measure nothing themselves.** All cost signal is external —
+  community extensions for token economy and model right-sizing. Our
+  telemetry is the single largest capability gap in their favor, i.e. ours.
+- **Agentic triage pipeline**, label-driven: `bug-assess` → `bug-test` →
+  `bug-fix`. And a pre-spec `assess` extension ending in an explicit **go /
+  clarify / kill** decision — the "should this be built at all" gate we lack
+  (aai-scout scores readiness but never recommends killing a scope).
 
 ## Recommendations
 1. **Typed follow-up registry** — adopted, in flight as CHANGE-0142.
