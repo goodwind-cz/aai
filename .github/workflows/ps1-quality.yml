@@ -867,6 +867,48 @@ jobs:
           if ($fail -gt 0) { Write-Error "WSL1 controls failed ($fail check(s)) -- failing loudly instead of degrading into a duplicate Git Bash leg"; exit 1 }
           Write-Host "WSL1 CONTROLS OK: sentinel 42 + VERSION 1 + wslpath /mnt/c"
 
+      - name: "WSL probe diagnostics (iteration 3 — run 31681167608 saw Git Bash despite green controls)"
+        # Temporary instrumentation: the wrapper's Test-WslUsable returns
+        # false ONLY inside the OS-handle-redirected child (the routing step
+        # below), while the in-step sentinel is green. Replicate both
+        # contexts and print the probe internals so the next fix is surgical.
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          . .\.aai\scripts\aai-run-tests.ps1
+          Write-Host "DIAG in-step: Test-WslPresent=$(Test-WslPresent)"
+          $sw = [System.Diagnostics.Stopwatch]::StartNew()
+          $probe = Start-WslProbeProcess -ArgumentList @('-e', 'sh', '-c', 'exit 42')
+          $done = Wait-ProcessWithTimeout -Process $probe -TimeoutSeconds 5
+          $sw.Stop()
+          Write-Host "DIAG in-step probe: completed=$done exit=[$($probe.ExitCode)] elapsed=$($sw.ElapsedMilliseconds)ms"
+          Write-Host "DIAG in-step: Test-WslUsable=$(Test-WslUsable)"
+          $diagChild = @'
+          . .\.aai\scripts\aai-run-tests.ps1
+          Write-Output ("child: present=" + (Test-WslPresent))
+          & wsl.exe -e sh -c "exit 42"
+          Write-Output ("child: direct wsl LASTEXITCODE=" + $LASTEXITCODE)
+          $sw = [System.Diagnostics.Stopwatch]::StartNew()
+          $p = Start-WslProbeProcess -ArgumentList @('-e', 'sh', '-c', 'exit 42')
+          $done = Wait-ProcessWithTimeout -Process $p -TimeoutSeconds 5
+          $sw.Stop()
+          Write-Output ("child: probe completed=" + $done + " exit=[" + $p.ExitCode + "] elapsed=" + $sw.ElapsedMilliseconds + "ms")
+          Write-Output ("child: Test-WslUsable=" + (Test-WslUsable))
+          exit 0
+          '@
+          $diagPath = Join-Path $env:RUNNER_TEMP "aai-wsl-diag-child.ps1"
+          Set-Content -LiteralPath $diagPath -Value $diagChild
+          $outFile = Join-Path $env:RUNNER_TEMP "aai-wsl-diag.out"
+          $errFile = Join-Path $env:RUNNER_TEMP "aai-wsl-diag.err"
+          $p = Start-Process -FilePath powershell.exe -ArgumentList @('-NoProfile', '-File', $diagPath) -NoNewWindow -PassThru -Wait `
+                -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+          Write-Host "DIAG redirected-child exit=$($p.ExitCode)"
+          Write-Host "DIAG redirected-child stdout:"
+          Get-Content $outFile -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  child| $_" }
+          Write-Host "DIAG redirected-child stderr:"
+          Get-Content $errFile -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  child~ $_" }
+          exit 0
+
       - name: "Wrapper routes via the WSL branch, live (CHANGE-0136 Spec-AC-01)"
         # One REAL aai-run-tests.ps1 invocation. Captured at the OS-handle
         # level (Start-Process -RedirectStandardError on a real child):
