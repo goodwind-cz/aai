@@ -26,5 +26,15 @@
 #     Skip the network probe if a check completed within this many hours
 #     (state in .aai/cache/update-check.json, gitignored). 0 = probe every
 #     session (escape hatch). Override a single run with --force.
+#   post_update_doctor: on | off      (default: on — absent file/key == on)
+#     Read by .aai/scripts/update-doctor-report.mjs (CHANGE-0137), which both
+#     update entrypoints invoke after a SUCCESSFUL non-dry-run sync: it runs
+#     the freshly-vendored doctor (--json) and writes a provenance-stamped
+#     field report to docs/ai/reports/ (runtime-ignored — never dirties the
+#     tree). Read-only, zero-network, timeout-bounded; any failure degrades
+#     to one named "DOCTOR-REPORT SKIP <reason>" line and never changes the
+#     update's exit code. off prints the named disabled-by-config line —
+#     never silence. An unknown value warns on stderr and behaves as on.
 mode: notify
 throttle_hours: 24
+post_update_doctor: on

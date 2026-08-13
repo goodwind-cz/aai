@@ -154,6 +154,29 @@ try {
     if ($conf) { Write-Host "- ! Conflict advisory: $($conf.Name) - review before committing." }
   }
 
+  # Post-update doctor field report (CHANGE-0137). Thin guarded postamble
+  # calling the SAME one helper as the bash twin (parity by construction).
+  # try/catch-wrapped so nothing here can change this script's exit code;
+  # never reached on -DryRun (that path exited above). ASCII-only strings.
+  Write-Host ""
+  Write-Host "## Doctor field report"
+  try {
+    $helper = Join-Path $Target ".aai/scripts/update-doctor-report.mjs"
+    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    if (-not $nodeCmd) {
+      Write-Host "DOCTOR-REPORT SKIP node missing - update unaffected"
+    } elseif (-not (Test-Path $helper)) {
+      Write-Host "DOCTOR-REPORT SKIP helper missing - update unaffected"
+    } else {
+      & node $helper --root $Target
+      if ($LASTEXITCODE -ne 0) {
+        Write-Host "DOCTOR-REPORT SKIP helper crashed - update unaffected"
+      }
+    }
+  } catch {
+    Write-Host "DOCTOR-REPORT SKIP helper crashed - update unaffected"
+  }
+
   Write-Host ""
   Write-Host "## Next"
   Write-Host "- Review the diff (git diff), then commit manually (this tool never auto-commits)."

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T09:59:56.548Z
+Generated: 2026-08-13T10:20:23.803Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,17 +12,18 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-update-doctor-field-report | specs | implementing | 5 planned | docs/specs/SPEC-DRAFT-spec-update-doctor-field-report.md |
+| spec-update-doctor-field-report | specs | implementing | 5 done | docs/specs/SPEC-DRAFT-spec-update-doctor-field-report.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Product (22)
+## Product (23)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
 | aai-doctor | aai-doctor | 5 | docs/product/aai-doctor.md |
+| aai-update | aai-update | 1 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
 | auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
