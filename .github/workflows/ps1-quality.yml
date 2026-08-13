@@ -829,7 +829,7 @@ jobs:
         # depends on setsid/procps/mktemp shapes busybox does not provide.
         uses: Vampire/setup-wsl@v7
         with:
-          distribution: Debian
+          distribution: Debian-12   # setup-wsl@v7 catalog uses versioned names (bare 'Debian' rejected — PR #251 run 31679696225)
           wsl-version: 1
 
       - name: "Controls: WSL is genuinely functional and genuinely WSL1 (CHANGE-0136 Spec-AC-01 / D1)"
