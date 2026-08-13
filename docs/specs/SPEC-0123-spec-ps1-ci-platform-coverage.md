@@ -2,13 +2,15 @@
 id: spec-ps1-ci-platform-coverage
 type: spec
 number: 123
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0136-ps1-ci-platform-coverage.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 251
+  commits:
+    - 7e9e53f
 ---
 
 # Spec — ps1-quality closes the three CI platform blind spots (functional WSL, 5.1-only hosts, image drift)

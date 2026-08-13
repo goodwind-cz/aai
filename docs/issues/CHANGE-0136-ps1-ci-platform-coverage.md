@@ -2,10 +2,15 @@
 id: ps1-ci-platform-coverage
 number: 136
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: windows-test-wrapper
+links:
+  commits:
+    - 7e9e53f
+  pr:
+    - 251
 ---
 
 # Change — ps1-quality: close the three CI platform blind spots (functional WSL, 5.1-only hosts, image drift)

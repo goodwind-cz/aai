@@ -2184,17 +2184,17 @@ read its gate warning) to see which section is missing.
 
 [Product doc](product/aai-doctor.md) · [Spec](specs/SPEC-0122-spec-doctor-win-selftest.md)
 
-### Validation stops re-running the whole suite twice
-
-Independent validation used to re-run the ENTIRE discovered test suite on every ride, even the small ones — a proof that CI produced again minutes later on the same commit. Now, on a small/typo-fix ride (the two lightest ceremony levels), the validator runs only the tests the change actually declares plus targeted probes on the seams it touches, instead of the whole repository's suite. Bigger, riskier rides keep the full independent re-run exactly as before — nothing about their depth changed. Alongside that, the factory's rule for running validation in a separate, unbiased agent no longer depends on which AI harness you're using — it detects what that harness can actually do (does it support spawning a sub-agent? with a different model? with no shared context?) and picks the strongest isolation it can, falling back gracefully rather than guessing from a name. And when a validation run asks for a different model than the implementer used, the factory now records both "what model we asked for" and "what model we actually got" — so if a platform silently substitutes a different model than requested, that's visible in the numbers instead of being mistaken for genuine independence.
-
-[Product doc](product/validation-cost-calibration.md) · [Spec](specs/SPEC-0119-spec-validation-cost-calibration.md)
-
 ### Windows test wrapper stops lying about timeouts it never caused
 
 On Windows, running the factory's test/build commands goes through `.aai/scripts/aai-run-tests.ps1`, which hands off to the same process-group-safe wrapper macOS and Linux use. A downstream report found that on some Windows machines the process environment can carry the same variable twice under different capitalization (both `Path` and `PATH`) — invisible in an ordinary PowerShell prompt, but fatal to the exact dictionary the wrapper needs to build before launching anything. Before this fix, that collision made the wrapper crash before the wrapped command ever ran, and it reported the run as **timed out** — the same code used for a test suite that genuinely hangs — so a person or an AI agent debugging the failure would look for a slow test instead of the real cause, burning real time chasing a phantom hang. The wrapper now cleans up any duplicate-cased environment variable before it launches anything, and if a launch still cannot start for some other reason, it reports that honestly with its own distinct signal instead of pretending the run timed out.
 
 [Product doc](product/windows-test-wrapper.md) · [Spec](specs/SPEC-0120-spec-ps1-wrapper-path-dup.md)
+
+### Validation stops re-running the whole suite twice
+
+Independent validation used to re-run the ENTIRE discovered test suite on every ride, even the small ones — a proof that CI produced again minutes later on the same commit. Now, on a small/typo-fix ride (the two lightest ceremony levels), the validator runs only the tests the change actually declares plus targeted probes on the seams it touches, instead of the whole repository's suite. Bigger, riskier rides keep the full independent re-run exactly as before — nothing about their depth changed. Alongside that, the factory's rule for running validation in a separate, unbiased agent no longer depends on which AI harness you're using — it detects what that harness can actually do (does it support spawning a sub-agent? with a different model? with no shared context?) and picks the strongest isolation it can, falling back gracefully rather than guessing from a name. And when a validation run asks for a different model than the implementer used, the factory now records both "what model we asked for" and "what model we actually got" — so if a platform silently substitutes a different model than requested, that's visible in the numbers instead of being mistaken for genuine independence.
+
+[Product doc](product/validation-cost-calibration.md) · [Spec](specs/SPEC-0119-spec-validation-cost-calibration.md)
 
 ### Factory performance report
 

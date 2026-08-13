@@ -1,24 +1,24 @@
 {
-  "generatedAt": "2026-08-13T02:15:55.089Z",
+  "generatedAt": "2026-08-13T09:29:41.351Z",
   "project": "aai",
   "counts": {
-    "delivered": 180,
-    "in_progress": 1,
+    "delivered": 181,
+    "in_progress": 2,
     "releases": 1,
-    "tokens_total": 32159838
+    "tokens_total": 32823377
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "doctor-win-selftest",
+    "ref": "ps1-ci-platform-coverage",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "doctor-win-selftest",
+      "ref": "ps1-ci-platform-coverage",
       "type": "intake_change",
-      "phase": "validation"
+      "phase": "code_review"
     },
-    "strategy": "hybrid",
+    "strategy": "loop",
     "worktree": {
       "recommendation": "optional",
       "user_decision": "inline"
@@ -27,43 +27,56 @@
     "review_status": "not_run",
     "ticks": [
       {
+        "tick": 70,
+        "role": "code_review",
+        "scope": "ps1-ci-platform-coverage",
+        "duration_seconds": 171,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 69,
+        "role": "validation",
+        "scope": "ps1-ci-platform-coverage",
+        "duration_seconds": 170,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 68,
+        "role": "implementation",
+        "scope": "ps1-ci-platform-coverage",
+        "duration_seconds": 484,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 67,
+        "role": "planning",
+        "scope": "ps1-ci-platform-coverage",
+        "duration_seconds": 631,
+        "harness_version": "unknown"
+      },
+      {
         "tick": 66,
         "role": "remediation",
         "scope": "doctor-win-selftest",
         "duration_seconds": 755,
         "harness_version": "unknown"
-      },
-      {
-        "tick": 65,
-        "role": "code_review",
-        "scope": "doctor-win-selftest",
-        "duration_seconds": 818,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 64,
-        "role": "Remediation",
-        "scope": "doctor-win-selftest",
-        "duration_seconds": 1183,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 63,
-        "role": "Code Review",
-        "scope": "doctor-win-selftest",
-        "duration_seconds": 643,
-        "harness_version": "2.1.220 (Claude Code)"
-      },
-      {
-        "tick": 62,
-        "role": "Validation",
-        "scope": "doctor-win-selftest",
-        "duration_seconds": 895,
-        "harness_version": "2.1.220 (Claude Code)"
       }
     ]
   },
   "in_progress": [
+    {
+      "ref": "update-doctor-field-report",
+      "title": "Change — aai-update: every downstream update ends with a doctor field report",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0137-update-doctor-field-report.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
@@ -91,6 +104,19 @@
       "spec": "docs/specs/SPEC-0122-spec-doctor-win-selftest.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260813T010000Z-CHANGE-0135-doctor-win-selftest-rereview.md"
+    },
+    {
+      "ref": "ps1-ci-platform-coverage",
+      "title": "Change — ps1-quality: close the three CI platform blind spots (functional WSL, 5.1-only hosts, image drift)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0136-ps1-ci-platform-coverage.md",
+      "closed_on": "2026-08-13",
+      "agent_minutes": 24,
+      "token_total": 663539,
+      "spec": "docs/specs/SPEC-0123-spec-ps1-ci-platform-coverage.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260813T074813Z-CHANGE-0136-ps1-ci-platform-coverage.md"
     },
     {
       "ref": "validation-cost-calibration",
@@ -2438,6 +2464,19 @@
           "spec": "docs/specs/SPEC-0122-spec-doctor-win-selftest.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260813T010000Z-CHANGE-0135-doctor-win-selftest-rereview.md"
+        },
+        {
+          "ref": "ps1-ci-platform-coverage",
+          "title": "Change — ps1-quality: close the three CI platform blind spots (functional WSL, 5.1-only hosts, image drift)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0136-ps1-ci-platform-coverage.md",
+          "closed_on": "2026-08-13",
+          "agent_minutes": 24,
+          "token_total": 663539,
+          "spec": "docs/specs/SPEC-0123-spec-ps1-ci-platform-coverage.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260813T074813Z-CHANGE-0136-ps1-ci-platform-coverage.md"
         },
         {
           "ref": "validation-cost-calibration",
