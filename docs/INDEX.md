@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T21:38:05.169Z
+Generated: 2026-08-13T21:45:03.422Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -18,11 +18,12 @@ _None._
 
 _None._
 
-## Product (24)
+## Product (25)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
 | aai-dashboard | aai-dashboard | 2 | docs/product/aai-dashboard.md |
+| aai-decisions | aai-decisions | 1 | docs/product/aai-decisions.md |
 | aai-doctor | aai-doctor | 8 | docs/product/aai-doctor.md |
 | aai-update | aai-update | 5 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
@@ -30,7 +31,7 @@ _None._
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
-| factory-performance-report | factory-performance-report | 2 | docs/product/factory-performance-report.md |
+| factory-performance-report | factory-performance-report | 3 | docs/product/factory-performance-report.md |
 | friction-capture-default-on | friction-capture-default-on | 1 | docs/product/friction-capture-default-on.md |
 | implementation-mode-choice | implementation-mode-choice | 1 | docs/product/implementation-mode-choice.md |
 | issues-skill | issues-skill | 1 | docs/product/issues-skill.md |

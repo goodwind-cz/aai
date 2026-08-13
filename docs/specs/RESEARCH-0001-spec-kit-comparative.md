@@ -23,7 +23,8 @@ links:
   Copilot/Cursor/Zed (irrelevant to a factory that owns its own dispatch);
   their opinionated architecture articles (library-first, max 3 projects,
   CLI text-in/text-out) — those are product dogma, not transferable rules.
-- PARTIALLY INGESTED (honest boundary): the README's video overview
+- INGESTED after the owner's "install it yourself" (see F9): the README's
+  video overview
   <https://www.youtube.com/watch?v=a9eR1xsfvHg> — "The ONLY guide you'll
   need for GitHub Spec Kit" by Den Delimarsky (@DenDev), a spec-kit
   maintainer. The video ITSELF was not watched: WebFetch returns only the
@@ -178,6 +179,54 @@ found in F1-F7: they optimize the first mile (get a good spec out of a vague
 prompt), we optimize the long tail (keep hundreds of artifacts honest as
 they age). Their front-loading insight still lands on us as F2: the cheapest
 place to catch a bad scope is the intake sentence, not the review.
+
+### F9 — The video, actually ingested (yt-dlp auto-captions)
+Owner instruction "install it yourself": `brew install yt-dlp` (2026.07.04),
+auto-captions pulled and de-duplicated to a 7012-word transcript.
+**Dating caveat that governs every quote below**: the video was recorded
+about a week after release, when the flow was only `/specify`, `/plan`,
+`/tasks` — no `clarify`, `analyze`, `constitution` or `implement` command
+existed. What he does by hand there is largely command-ified today, so read
+it as pre-history, not as current practice. Auto-captions are unpunctuated
+and garble names.
+
+Signal worth keeping:
+- **Governance artifacts get edited by the agent.** He reports Sonnet going
+  *"off the rail"* at the constitution step: *"it starts editing the
+  constitution file and then it starts creating more files."* Checked
+  against this repo: `docs/CONSTITUTION.md` IS listed under
+  `protected_paths_l3` in docs/ai/docs-audit.yaml, so the failure mode is
+  already fenced here. Recorded as a validated design choice, no action.
+- **Fabricated research presented as research.** *"copilot in this case did
+  not do the actual research it used its training data to come up with this
+  research."* Same class as our own 2026-08-13 defect where intake
+  CHANGE-0140 asserted a false fact about which scripts exist. Independent
+  corroboration for recommendation 3 (mark, do not assert).
+- **The checklist is the real gate**, not the prose: *"you got to make sure
+  that the acceptance checklist is actually filled out"*, and he ticks the
+  no-needs-clarification box explicitly before moving on. Corroborates F2.
+- **Model routing by phase**: GPT-5 through spec/plan/tasks, Sonnet for
+  code — *"GBD5 is good at setting up the spec scaffolding for us but for
+  creative output Sonnet 4 is still unbeatable to me."* We hold a
+  MODEL_ROUTING doc but currently run every role on one model; with TDD
+  Implementation measured as our most expensive role (median ~220k tokens),
+  phase-differentiated routing is a live cost lever, not a theory.
+- **Spec is the durable asset, code is regenerable**: *"You can just delete
+  the source. The spec is still there and then use a different model"*. A
+  prototype-scale stance — we remediate rather than regenerate — but it is
+  the sharpest statement of why the spec outranks the code.
+- **Humans should hand-edit the artifacts**: *"People make the mistake of
+  thinking that oh the LM produced this I can only manage this with [an
+  LLM]. No, it's a markdown file. Go in with your hands and start typing."*
+- **He does not claim SDD improves first-pass output.** Asked whether this
+  beats vibe coding, the answer is entirely downstream leverage: the spec
+  becomes reusable context for additive features. Honest, and it matches
+  what our own telemetry shows — the payoff is in the long tail.
+- **No token or cost discussion anywhere in the video.** Their material has
+  no economics; ours is instrumented end to end. Nothing to learn, worth
+  knowing.
+- Brownfield: still only an aside (the `.specify` folder exists so an
+  existing project is not littered at root). Confirms F8's greenfield bias.
 
 ## Recommendations
 1. **Typed follow-up registry** — adopted, in flight as CHANGE-0142.

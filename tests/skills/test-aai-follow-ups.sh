@@ -532,7 +532,7 @@ test_009_consumer_seam() {
       const cats=j.categories||j.results||[];
       const c=cats.find(x=>x&&(x.id==="CAT-07"||x.code==="CAT-07"));
       if (!c) { console.log("NO-CAT-07"); process.exit(0); }
-      const detail=String(c.detail||c.message||"");
+      const detail=String(c.reason||c.detail||c.message||"");
       const m=detail.match(/decisions\.jsonl:\s*(\d+) entries/);
       if (!m) { console.log("NO-COUNT:"+detail); process.exit(0); }
       if (Number(m[1])<=0) { console.log("ZERO-COUNT:"+detail); process.exit(0); }

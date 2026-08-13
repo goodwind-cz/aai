@@ -106,6 +106,7 @@ core:
   - .aai/scripts/delta-merge.mjs
   - .aai/scripts/docs-audit.mjs
   - .aai/scripts/docs-lock.mjs
+  - .aai/scripts/follow-ups.mjs
   - .aai/scripts/generate-docs-index.mjs
   - .aai/scripts/hitl-channel.mjs
   - .aai/scripts/lane-gate.mjs
