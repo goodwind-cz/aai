@@ -8,7 +8,7 @@ delivered_by:
   - spec-doctor-determinize
   - CHANGE-0135
   - spec-doctor-win-selftest
-spec: docs/specs/SPEC-DRAFT-spec-doctor-win-selftest.md
+spec: docs/specs/SPEC-0122-spec-doctor-win-selftest.md
 updated: 2026-08-13
 ---
 
@@ -126,6 +126,6 @@ disk.
 ## Links
 
 - Request: docs/issues/CHANGE-0135-doctor-win-selftest.md
-- Spec: docs/specs/SPEC-DRAFT-spec-doctor-win-selftest.md
+- Spec: docs/specs/SPEC-0122-spec-doctor-win-selftest.md
 - Validation evidence: docs/ai/validation/ (gitignored runtime directory —
   reports land here per ride, not committed to the repo)

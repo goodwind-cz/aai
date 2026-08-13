@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff main...HEAD (branch feat/doctor-win-selftest @ 9727980, 16 files)
-  spec: docs/specs/SPEC-DRAFT-spec-doctor-win-selftest.md (SPEC-FROZEN, ceremony_level 1)
+  spec: docs/specs/SPEC-0122-spec-doctor-win-selftest.md (SPEC-FROZEN, ceremony_level 1)
   spec_compliance:
     verdict: pass
     ac_walk:

@@ -1,7 +1,7 @@
 ---
 id: spec-doctor-win-selftest
 type: spec
-number: null
+number: 122
 status: implementing
 ceremony_level: 1
 links:
@@ -206,7 +206,7 @@ this scope.
 - User decision: undecided
 - Base ref: feat/doctor-win-selftest
 - Worktree branch/path: not selected
-- Inline review scope: .aai/scripts/aai-doctor.mjs .aai/scripts/aai-win-selftest.ps1 .aai/system/PROFILES.yaml tests/skills/test-aai-doctor.sh tests/skills/aai-win-dispatch.Tests.ps1 tests/skills/suite-map.yaml docs/product/aai-doctor.md docs/USER_GUIDE.md docs/issues/CHANGE-0135-doctor-win-selftest.md docs/specs/SPEC-DRAFT-spec-doctor-win-selftest.md CHANGELOG.md
+- Inline review scope: .aai/scripts/aai-doctor.mjs .aai/scripts/aai-win-selftest.ps1 .aai/system/PROFILES.yaml tests/skills/test-aai-doctor.sh tests/skills/aai-win-dispatch.Tests.ps1 tests/skills/suite-map.yaml docs/product/aai-doctor.md docs/USER_GUIDE.md docs/issues/CHANGE-0135-doctor-win-selftest.md docs/specs/SPEC-0122-spec-doctor-win-selftest.md CHANGELOG.md
 
 ## Acceptance Criteria Mapping
 
@@ -423,7 +423,7 @@ Commands to run:
 - `node .aai/scripts/check-test-registration.mjs`
 - `node .aai/scripts/aai-doctor.mjs` and `node .aai/scripts/aai-doctor.mjs --json`
 - `node .aai/scripts/docs-audit.mjs --check --strict --no-event`
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-doctor-win-selftest.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0122-spec-doctor-win-selftest.md`
 - the `ps1-quality / windows-5_1` job on this scope's PR (both engines)
 
 Evidence artifacts: stored RED logs under `docs/ai/tdd/` for the TDD-lane

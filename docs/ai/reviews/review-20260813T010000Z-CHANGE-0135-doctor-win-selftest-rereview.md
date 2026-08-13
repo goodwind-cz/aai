@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff 3861d66..HEAD (remediation commits 4b3004e + bdf1864, 7 files) + merge fitness of git diff main...HEAD @ bdf1864"
-  spec: docs/specs/SPEC-DRAFT-spec-doctor-win-selftest.md (SPEC-FROZEN, status implementing, ceremony_level 1)
+  spec: docs/specs/SPEC-0122-spec-doctor-win-selftest.md (SPEC-FROZEN, status implementing, ceremony_level 1)
   spec_compliance:
     verdict: fail
     ac_walk:
