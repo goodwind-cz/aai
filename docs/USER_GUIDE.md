@@ -249,6 +249,17 @@ AAI uses two different classes of documentation:
 - `/aai-doctor` to verify the environment
 - `/aai-test-skills` to verify skill health
 
+**Doctor field report:** every successful (non-dry-run) update ends by running
+the freshly vendored doctor and writing a provenance-stamped doctor field report
+to `docs/ai/reports/doctor-<UTC>-<machine>.md` (runtime-ignored — it never
+dirties your tree; newest 10 kept). The update tail prints one line with the
+DOCTOR verdict and the report path. The loop: update → report →
+**attach that report file when filing an issue** — it tells maintainers exactly what your
+machine looked like, on platforms CI never covers. Opt out with
+`post_update_doctor: off` in `docs/ai/update-config.yaml` (you get a named
+skip line, never silence); any failure in this step degrades to one named
+`DOCTOR-REPORT SKIP` line and never fails the update itself.
+
 **Note:**
 - For private upstream repos, prefer authenticated `gh repo clone` or an authenticated git remote/SSH URL
 

@@ -11,6 +11,29 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(update): every successful /aai-update ends with a doctor field report (CHANGE-0137) [L1]
+
+- After a successful, non-dry-run sync, both update entrypoints now invoke
+  the new `.aai/scripts/update-doctor-report.mjs` (one shared engine — never
+  twin shell implementations): it runs the freshly vendored doctor with
+  `--json` under a 240 s bound and writes a provenance-stamped field report
+  to `docs/ai/reports/doctor-<UTC>-<machine>.md` (runtime-ignored; newest 10
+  of exactly that name shape kept — sync-conflict and validation reports are
+  untouchable by construction). The update tail prints one line with the
+  DOCTOR verdict and the report path; a doctor exit 1 still writes the
+  report (a FAIL-bearing machine is exactly the one the fleet wants a report
+  from). Every failure anywhere in the path — node/doctor missing, timeout,
+  usage error, unparseable output, helper crash — degrades to exactly one
+  named `DOCTOR-REPORT SKIP <reason>` line and can never change the update's
+  own exit code.
+- New `post_update_doctor: on|off` dial in `docs/ai/update-config.yaml`
+  (absent == on; `off` prints a named disabled-by-config line, never
+  silence; an unknown value warns and behaves as on). The existing
+  update-check parser is unaffected by the new key.
+- Docs state the fleet loop — update → report → attach when filing an issue:
+  USER_GUIDE `/aai-update` section, new docs/product/aai-update.md, pointer
+  from docs/product/aai-doctor.md.
+
 ## [unreleased] — ci(ps1-quality): functional-WSL1 leg, 5.1-only fallback proof, weekly image-drift canary (CHANGE-0136) [L1]
 
 - The leg's first four live runs each caught a real latent defect no other
