@@ -253,7 +253,14 @@ function main() {
   const reportsDir = path.join(root, 'docs/ai/reports');
   try {
     fs.mkdirSync(reportsDir, { recursive: true });
-    fs.writeFileSync(path.join(root, relPath), body);
+    // Atomic publish (PR #252 bot sweep, torn-write class): write the whole
+    // body to a same-directory temp name, then rename into the final name —
+    // the repo's learned-append.mjs pattern. A reader (or a crash mid-write)
+    // can never observe a half-written report under the canonical name.
+    const finalPath = path.join(root, relPath);
+    const tmpPath = finalPath + '.tmp';
+    fs.writeFileSync(tmpPath, body);
+    fs.renameSync(tmpPath, finalPath);
   } catch {
     emitSkip('report write failed');
   }
