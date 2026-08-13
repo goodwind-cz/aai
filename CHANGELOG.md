@@ -32,9 +32,11 @@ RFC-0001).
 - `--strict` flag: exits 1 when any category is WARN or FAIL (0 when every
   category is PASS or SKIP); the pre-existing exit map (0 clean/WARN-only,
   1 on any FAIL) is unchanged without it. `CAT-14`/`CAT-15` cap at WARN and
-  can never emit FAIL; `CAT-16` is always PASS. A SKIP (CAT-14/CAT-15 off
-  Windows) is never counted as an issue — `DOCTOR ISSUES(n)` and `--strict`
-  both count WARN/FAIL only.
+  can never emit FAIL; `CAT-16` is always PASS. The SKIP exclusion applies
+  to the `DOCTOR ISSUES(n)` count globally — any SKIP category, including
+  pre-existing SKIP-capable ones such as `CAT-08` on a non-git repo, is
+  never counted as an issue; `DOCTOR ISSUES(n)` and `--strict` both count
+  WARN/FAIL only.
 - `tests/skills/aai-win-dispatch.Tests.ps1` gains six new Pester contexts
   for the probe script's pure functions and its apostrophe-path escaping;
   `tests/skills/test-aai-doctor.sh` gains twelve new cases (SKIP branch,
