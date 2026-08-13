@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T02:45:22.427Z
+Generated: 2026-08-13T03:06:45.545Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -361,14 +361,12 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (5)
+## Deferred items (per-AC, across all specs) (3)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
-| SPEC-0083 | Spec-AC-04 | 2026-08-15 | CI-authoritative; the flake is CI-load-only and not locally reproducible |
-| SPEC-0086 | Spec-AC-05 | 2026-08-15 | Full-framework TEST-010 confirmation deferred to Validation by design (dispatch constraint), not a real gap in this scope's own edits |
-| SPEC-0103 | Spec-AC-06 | 2026-08-15 | No Azure remote available in this repo/environment; evidence contract = first live Azure adoption round trip logged under docs/ai/reports/ |
-| SPEC-0104 | Spec-AC-03 | 2026-08-15 | No Azure remote available in this repo/environment; evidence contract = first live az boards round trip logged under docs/ai/reports/; degrade-line WIRING itself is done and covered by TEST-018..020 |
+| SPEC-0103 | Spec-AC-06 | 2026-09-15 | defer_extended 2026-08-13 (was 2026-08-15): still no Azure remote in this repo/environment and none is planned before the new date — the blocker is external availability, not missing work; evidence contract unchanged = first live Azure adoption round trip logged under docs/ai/reports/ |
+| SPEC-0104 | Spec-AC-03 | 2026-09-15 | defer_extended 2026-08-13 (was 2026-08-15): still no Azure remote in this repo/environment and none is planned before the new date; evidence contract unchanged = first live az boards round trip logged under docs/ai/reports/; degrade-line WIRING itself is done and covered by TEST-018..020 |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)

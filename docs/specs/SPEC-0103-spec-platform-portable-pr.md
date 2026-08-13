@@ -149,7 +149,7 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
 | Spec-AC-03 | 5d reviewer-fallback REQUIRED contract | done | docs/ai/tdd/green-20260728T081246Z-pr-platform.log | — | TEST-017 grep pin |
 | Spec-AC-04 | Findings published as PR threads + closing reply | done | docs/ai/tdd/green-20260728T081246Z-pr-platform.log | — | TEST-017 grep pin (shared with Spec-AC-03) |
 | Spec-AC-05 | GENERIC MODE skip + mandatory internal review + loud line | done | docs/ai/tdd/green-20260728T081246Z-pr-platform.log | — | TEST-018 grep pin |
-| Spec-AC-06 | Live Azure CLI command-shape proof | deferred | — | 2026-08-15 | No Azure remote available in this repo/environment; evidence contract = first live Azure adoption round trip logged under docs/ai/reports/ |
+| Spec-AC-06 | Live Azure CLI command-shape proof | deferred | — | 2026-09-15 | defer_extended 2026-08-13 (was 2026-08-15): still no Azure remote in this repo/environment and none is planned before the new date — the blocker is external availability, not missing work; evidence contract unchanged = first live Azure adoption round trip logged under docs/ai/reports/ |
 
 ## Implementation plan
 - `.aai/scripts/pr-platform.mjs` (new): zero-dep CLI. `readOriginUrl()` runs

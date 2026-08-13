@@ -218,9 +218,9 @@ Status values: planned | implementing | done | deferred | blocked | rejected
   skip/run semantics, `needs.select.outputs` propagation across the actual
   Actions runtime) cannot be exercised by a local bash/node test — only
   local YAML structure and grep contracts are proven here. Spec-AC-04 and
-  Spec-AC-06 are `deferred` with a Review-By date rather than
-  fabricated `done`, pending this PR's real CI run (evidence contract below
-  names exactly what to attach when it lands).
+  Spec-AC-06 were initially `deferred` with a Review-By date rather than
+  fabricated `done`; the live PR CI run landed (PR #171 run 30289358425) and
+  both rows are now `done` with that evidence attached.
 
 ## Test Plan
 
@@ -264,8 +264,9 @@ Notes:
   - `node .aai/scripts/docs-audit.mjs --check`
   - Live: this PR's own CI run on GitHub Actions (Spec-AC-04/06 evidence).
 - PASS criteria: all TEST-xxx in status green AND all Spec-AC in a terminal
-  status (Spec-AC-04/06 currently `deferred`, Review-By 2026-08-15,
-  pending the live PR CI run) AND the three targeted suites green locally.
+  status (Spec-AC-04/06 flipped to `done` on the live PR #171 CI run —
+  no open Review-By remains in this spec) AND the three targeted suites
+  green locally.
 
 ## Evidence contract
 For each artifact, record: ref_id; Spec-AC and TEST-xxx links; command or
