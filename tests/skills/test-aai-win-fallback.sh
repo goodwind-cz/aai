@@ -291,8 +291,10 @@ test_017() {
     fi
   done
 
-  # The expected-skip-count constant is declared exactly once (job-level env
-  # in the workflow), consumed identically by both engine run steps.
+  # The expected-skip-count constant is declared exactly once (WORKFLOW-level
+  # env since CHANGE-0136 — it moved up from windows-5_1's job level so BOTH
+  # windows jobs consume the one declaration), asserted identically by every
+  # engine run step.
   local decl_count
   decl_count="$(grep -cF 'AAI_EXPECTED_WIN_SKIP_COUNT:' "$CI_WORKFLOW")"
   [[ "$decl_count" -eq 1 ]] \
@@ -341,7 +343,272 @@ test_018() {
   log_pass "fast-iteration path (workflow_dispatch / gh workflow run) and two-engine Pester coverage documented; stale claim removed (TEST-018)"
 }
 
-ALL_TESTS="007 009 013 014 015 016 017 018"
+# --- CHANGE-0136 helpers: job/step block extraction --------------------------
+
+# Prints the body of one top-level job (2-space-indented key) from the
+# ps1-quality workflow, from its key line up to (exclusive) the next job key.
+get_job_block() {
+  local job_key="$1"
+  awk -v job="$job_key" '
+    $0 ~ ("^  " job ":") { f = 1; print; next }
+    f && /^  [A-Za-z0-9_-]+:/ { f = 0 }
+    f { print }
+  ' "$CI_WORKFLOW"
+}
+
+# Prints the body of one step (6-space-indented "- name:" entry) from the
+# workflow, from its verbatim name line up to (exclusive) the next step.
+get_step_block() {
+  local step_name="$1"
+  awk -v name="$step_name" '
+    index($0, name) > 0 && $0 ~ /^      - name:/ { f = 1; print; next }
+    f && /^      - name:/ { f = 0 }
+    f { print }
+  ' "$CI_WORKFLOW"
+}
+
+# --- TEST-019 (CHANGE-0136 Spec-AC-01): windows-wsl1 job shape ---------------
+
+test_019() {
+  log_info "TEST-019: windows-wsl1 job installs WSL1 Debian via major-pinned Vampire/setup-wsl, control-asserts sentinel 42 + VERSION 1 + wslpath /mnt/c, proves AAI-BRANCH: WSL on a real wrapper invocation, and asserts the three doctor CAT-14 arms (3/124/125) plus CAT-15 wsl functional..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+
+  local job
+  job="$(get_job_block "windows-wsl1")"
+  [[ -n "$job" ]] || log_fail "$CI_WORKFLOW must carry a windows-wsl1 job (functional-WSL leg)"
+
+  # D1: install mechanism — Vampire/setup-wsl pinned by MAJOR tag, WSL1, Debian.
+  echo "$job" | grep -qE 'uses:[[:space:]]*Vampire/setup-wsl@v[0-9]+' \
+    || log_fail "windows-wsl1 must use Vampire/setup-wsl pinned by major tag (@vN)"
+  echo "$job" | grep -qE 'wsl-version:[[:space:]]*1([^0-9]|$)' \
+    || log_fail "windows-wsl1 setup-wsl step must request wsl-version: 1 (WSL1 — hosted runners cannot run WSL2)"
+  echo "$job" | grep -qE 'distribution:[[:space:]]*Debian' \
+    || log_fail "windows-wsl1 setup-wsl step must install the Debian distribution (D1: GNU userland, not busybox)"
+
+  # D1 controls: functional sentinel (Test-WslUsable's own semantics), genuine
+  # VERSION 1, and the wslpath /mnt/c translation.
+  echo "$job" | grep -qF 'exit 42' \
+    || log_fail "windows-wsl1 control step must run the exit-42 functional sentinel (wsl.exe -e sh -c \"exit 42\")"
+  echo "$job" | grep -qE '\-ne 42|\-eq 42' \
+    || log_fail "windows-wsl1 control step must assert the sentinel exit code is exactly 42"
+  echo "$job" | grep -qE 'wsl\.exe -l -v|wsl -l -v' \
+    || log_fail "windows-wsl1 control step must run wsl -l -v to assert the distro is genuinely VERSION 1"
+  echo "$job" | grep -qF 'wslpath -a' \
+    || log_fail "windows-wsl1 control step must run wslpath -a (the marker-translation seam control)"
+  echo "$job" | grep -qF '/mnt/c' \
+    || log_fail "windows-wsl1 wslpath control must assert a path beginning /mnt/c"
+
+  # Routing proof: one REAL wrapper invocation, OS-handle stream capture,
+  # asserting the AAI-BRANCH: WSL stderr line.
+  echo "$job" | grep -qF 'aai-run-tests.ps1' \
+    || log_fail "windows-wsl1 must invoke the real aai-run-tests.ps1 wrapper"
+  echo "$job" | grep -qF 'RedirectStandardError' \
+    || log_fail "windows-wsl1 wrapper invocation must capture stderr at the OS-handle level (Start-Process -RedirectStandardError) — [Console]::Error is invisible to in-process 2>"
+  echo "$job" | grep -qF 'AAI-BRANCH:\s*WSL' \
+    || log_fail "windows-wsl1 must assert the AAI-BRANCH: WSL routing line on the wrapper's captured stderr"
+
+  # Selftest reuse (SPEC-0122 D1): the vendored selftest via the doctor,
+  # per-arm assertions with WSL semantics.
+  echo "$job" | grep -qF 'aai-doctor.mjs' \
+    || log_fail "windows-wsl1 must run node .aai/scripts/aai-doctor.mjs (vendored selftest reuse, never a third smoke implementation)"
+  echo "$job" | grep -qF -- '--json' \
+    || log_fail "windows-wsl1 doctor step must use --json (structured per-arm assertions)"
+  local arm
+  for arm in success timeout spawnfail; do
+    echo "$job" | grep -qF "'$arm'" \
+      || log_fail "windows-wsl1 doctor step must assert the CAT-14 '$arm' arm by name"
+  done
+  echo "$job" | grep -qE '\-ne 3([^0-9]|$)' \
+    || log_fail "windows-wsl1 doctor step must assert the success arm exit code 3"
+  echo "$job" | grep -qE '\-ne 124([^0-9]|$)' \
+    || log_fail "windows-wsl1 doctor step must assert the timeout arm exit code 124"
+  echo "$job" | grep -qE '\-ne 125([^0-9]|$)' \
+    || log_fail "windows-wsl1 doctor step must assert the spawnfail arm exit code 125"
+  echo "$job" | grep -qF 'CAT-15' \
+    || log_fail "windows-wsl1 doctor step must assert CAT-15 (Windows Environment)"
+  echo "$job" | grep -qF 'functional' \
+    || log_fail "windows-wsl1 doctor step must assert the CAT-15 wsl tri-state is 'functional'"
+
+  log_pass "windows-wsl1 job shape: pinned setup-wsl, three non-vacuous controls, live WSL routing + selftest arm assertions (TEST-019)"
+}
+
+# --- TEST-020 (CHANGE-0136 Spec-AC-02): WSL-leg Pester discipline + workflow-level skip count ---
+
+test_020() {
+  log_info "TEST-020: windows-wsl1 runs the full 5.1 Pester discovery with the identical floor/ceiling/skip discipline; AAI_EXPECTED_WIN_SKIP_COUNT sits at WORKFLOW level (before jobs:); test_017's pins still hold..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+
+  local job
+  job="$(get_job_block "windows-wsl1")"
+  [[ -n "$job" ]] || log_fail "$CI_WORKFLOW must carry a windows-wsl1 job"
+
+  echo "$job" | grep -qF "cfg.Run.Path = 'tests/skills'" \
+    || log_fail "windows-wsl1 Pester step must discover the tests/skills DIRECTORY (same discovery as the other legs)"
+  echo "$job" | grep -qE 'shell:[[:space:]]*powershell([[:space:]]|$)' \
+    || log_fail "windows-wsl1 Pester step must run under Windows PowerShell 5.1 (shell: powershell) — D2: one engine, the field one"
+  echo "$job" | grep -qE 'timeout-minutes:[[:space:]]*15' \
+    || log_fail "windows-wsl1 Pester step must carry timeout-minutes: 15 like the existing legs"
+  echo "$job" | grep -qE 'TotalCount[[:space:]]*-lt[[:space:]]*111' \
+    || log_fail "windows-wsl1 Pester step must assert the TotalCount floor of 111"
+  echo "$job" | grep -qE 'elapsed[[:space:]]*-gt[[:space:]]*600([^0-9]|$)' \
+    || log_fail "windows-wsl1 Pester step must assert the 600s hard ceiling"
+  echo "$job" | grep -qF 'AAI-WIN-SKIP' \
+    || log_fail "windows-wsl1 Pester step must print one AAI-WIN-SKIP line per skipped test (two-direction reconciliation)"
+  echo "$job" | grep -qF 'Invoke-Pester -Configuration $cfg' \
+    || log_fail "windows-wsl1 Pester step must call Invoke-Pester -Configuration \$cfg"
+  echo "$job" | grep -qF 'FailedContainersCount' \
+    || log_fail "windows-wsl1 Pester step must assert FailedContainersCount (discovery-failure detection)"
+
+  # SEAM-3: the single declaration now feeds TWO consumer jobs, so it must sit
+  # at WORKFLOW level — i.e. BEFORE the jobs: key.
+  local decl_line jobs_line
+  decl_line="$(grep -nF 'AAI_EXPECTED_WIN_SKIP_COUNT:' "$CI_WORKFLOW" | head -n1 | cut -d: -f1)"
+  jobs_line="$(grep -nE '^jobs:' "$CI_WORKFLOW" | head -n1 | cut -d: -f1)"
+  [[ -n "$decl_line" ]] || log_fail "$CI_WORKFLOW must declare AAI_EXPECTED_WIN_SKIP_COUNT"
+  [[ -n "$jobs_line" ]] || log_fail "$CI_WORKFLOW must carry a top-level jobs: key"
+  [[ "$decl_line" -lt "$jobs_line" ]] \
+    || log_fail "AAI_EXPECTED_WIN_SKIP_COUNT (line $decl_line) must be declared at WORKFLOW level, before jobs: (line $jobs_line) — both windows jobs consume the single declaration"
+
+  # test_017's declared-exactly-once and count-equals-actual pins must keep
+  # holding across the move (SEAM-3).
+  test_017
+
+  log_pass "windows-wsl1 Pester discipline identical to the existing leg; skip-count declaration at workflow level, still declared once (TEST-020)"
+}
+
+# --- TEST-021 (CHANGE-0136 Spec-AC-03): 5.1-only doctored-child step in windows-5_1 ---
+
+test_021() {
+  log_info "TEST-021: windows-5_1 carries the 5.1-only doctored-child step — undoctored-parent pwsh control, child-side must-not-resolve control with distinct exit code, Resolve-SelfTestEngine -> powershell, CAT-14 arms PASS, and no host mutation..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+
+  local step_name='5.1-only fallback proof in a doctored child (CHANGE-0136 Spec-AC-03)'
+  local job step
+  job="$(get_job_block "windows-5_1")"
+  [[ -n "$job" ]] || log_fail "$CI_WORKFLOW must carry the windows-5_1 job"
+  echo "$job" | grep -qF "$step_name" \
+    || log_fail "the windows-5_1 job must carry the step named '$step_name'"
+
+  step="$(get_step_block "$step_name")"
+  [[ -n "$step" ]] || log_fail "could not extract the '$step_name' step body"
+
+  # Control, direction 1: pwsh IS resolvable in the undoctored parent (the
+  # hiding check below can never pass vacuously).
+  echo "$step" | grep -qiE 'undoctored' \
+    || log_fail "the 5.1-only step must control-assert pwsh IS resolvable in the undoctored parent first"
+  echo "$step" | grep -qF 'pwsh.exe' \
+    || log_fail "the 5.1-only step must filter PATH by directories containing pwsh.exe (surgical filter, D3)"
+
+  # Control, direction 2: inside the doctored child, Get-Command pwsh must
+  # resolve NOTHING, with a distinct loud exit code.
+  echo "$step" | grep -qF 'Get-Command pwsh' \
+    || log_fail "the doctored child must control-assert Get-Command pwsh resolves nothing"
+  echo "$step" | grep -qF 'exit 97' \
+    || log_fail "the child-side hiding control must fail with a DISTINCT exit code (97) if pwsh still resolves — the hiding silently breaking is a named failure"
+
+  # The real fallback proofs.
+  echo "$step" | grep -qF 'aai-win-selftest.ps1' \
+    || log_fail "the doctored child must dot-source aai-win-selftest.ps1 for Resolve-SelfTestEngine"
+  echo "$step" | grep -qF 'Resolve-SelfTestEngine' \
+    || log_fail "the doctored child must assert Resolve-SelfTestEngine returns powershell"
+  echo "$step" | grep -qF "'powershell'" \
+    || log_fail "the Resolve-SelfTestEngine assertion must compare against 'powershell'"
+  echo "$step" | grep -qF 'aai-doctor.mjs' \
+    || log_fail "the doctored child must run node .aai/scripts/aai-doctor.mjs (doctor's own engine pick under the doctored PATH)"
+  echo "$step" | grep -qF -- '--json' \
+    || log_fail "the doctored-child doctor run must use --json"
+  echo "$step" | grep -qF 'CAT-14' \
+    || log_fail "the step must assert the CAT-14 arms from the doctored-context doctor run"
+  echo "$step" | grep -qF 'PASS' \
+    || log_fail "the step must assert all three CAT-14 arms are PASS under powershell.exe"
+
+  # Negative pin (D3): a doctored CHILD environment only — never a host
+  # mutation. The step body must contain neither Move-Item nor Rename-Item.
+  echo "$step" | grep -qF 'Move-Item' \
+    && log_fail "the 5.1-only step must NOT contain Move-Item (host mutation forbidden — doctored CHILD environment only)"
+  echo "$step" | grep -qF 'Rename-Item' \
+    && log_fail "the 5.1-only step must NOT contain Rename-Item (host mutation forbidden — doctored CHILD environment only)"
+
+  # OS-handle capture on the child spawn.
+  echo "$step" | grep -qF 'RedirectStandardError' \
+    || log_fail "the doctored child must be spawned with OS-handle stream capture (Start-Process -RedirectStandardError)"
+
+  log_pass "5.1-only doctored-child step: both control directions, powershell fallback proven, no host mutation (TEST-021)"
+}
+
+# --- TEST-022 (CHANGE-0136 Spec-AC-04): weekly scheduled canary --------------
+
+test_022() {
+  log_info "TEST-022: ps1-quality declares the weekly UTC cron, a schedule-only canary run-name, and the product doc carries the canary sentence..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  local product_doc="$PROJECT_ROOT/docs/product/windows-test-wrapper.md"
+  [[ -f "$product_doc" ]] || log_fail "missing $product_doc"
+
+  grep -qF "cron: '0 5 * * 1'" "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must declare the weekly UTC cron '0 5 * * 1' (Mondays 05:00 UTC) under schedule:"
+  grep -qE '^[[:space:]]*schedule:' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must declare a schedule: trigger"
+  grep -qE '^run-name:' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW must declare a top-level run-name expression"
+  grep -qF "github.event_name == 'schedule'" "$CI_WORKFLOW" \
+    || log_fail "the run-name expression must condition on github.event_name == 'schedule' (canary named on schedule events ONLY)"
+  grep -qiF 'canary' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW run-name must name the canary so a scheduled failure is distinguishable from PR noise"
+
+  grep -qiF 'canary' "$product_doc" \
+    || log_fail "$product_doc must carry the weekly-canary sentence (Spec-AC-04)"
+  grep -qiE 'runner[- ]image|image drift' "$product_doc" \
+    || log_fail "$product_doc canary sentence must state what a scheduled failure means (runner-image drift, not PR changes)"
+
+  log_pass "weekly cron + schedule-only canary run-name declared; product doc carries the canary sentence (TEST-022)"
+}
+
+# --- TEST-023 (CHANGE-0136 Spec-AC-05): WSL1-vs-WSL2 honesty docs ------------
+
+test_023() {
+  log_info "TEST-023: WSL1-only coverage stated truthfully — workflow header (no nested virtualization), product doc (E_ACCESSDENIED field-only), TECHNOLOGY.md (WSL1 CI-verified, stale not-verified claim gone), CHANGELOG entry present..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  local product_doc="$PROJECT_ROOT/docs/product/windows-test-wrapper.md"
+  local changelog="$PROJECT_ROOT/CHANGELOG.md"
+  [[ -f "$product_doc" ]] || log_fail "missing $product_doc"
+  [[ -f "$changelog" ]] || log_fail "missing $changelog"
+
+  # Workflow header: hosted runners cannot run WSL2 — the leg proves WSL1 only.
+  grep -qiF 'nested virtualization' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW header must state that GitHub-hosted runners cannot run WSL2 (no nested virtualization)"
+  grep -qF 'WSL1' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW header must state the leg proves WSL1 only"
+  grep -qF 'WSL2' "$CI_WORKFLOW" \
+    || log_fail "$CI_WORKFLOW header must name the WSL2 limitation explicitly"
+
+  # Product doc: WSL1-coverage caveat naming the E_ACCESSDENIED class.
+  grep -qF 'WSL1' "$product_doc" \
+    || log_fail "$product_doc must state the WSL1-coverage caveat"
+  grep -qF 'E_ACCESSDENIED' "$product_doc" \
+    || log_fail "$product_doc must name WSL2-specific failures such as the E_ACCESSDENIED class as remaining field-only"
+  grep -qiE 'field[- ]only' "$product_doc" \
+    || log_fail "$product_doc must state that WSL2-specific failures remain field-only"
+
+  # TECHNOLOGY.md: the stale blanket not-verified-by-CI sentence is replaced
+  # by the truthful WSL1-CI-verified statement; the matrix itself is pinned
+  # byte-identical-in-concepts by test_009/test_015 (rerun by the full suite).
+  grep -qF 'windows-wsl1' "$TECHNOLOGY_DOC" \
+    || log_fail "$TECHNOLOGY_DOC must name the windows-wsl1 job as the CI proof of the WSL1 delegation path"
+  grep -qiF 'CI-verified' "$TECHNOLOGY_DOC" \
+    || log_fail "$TECHNOLOGY_DOC must state the WSL1 delegation path is CI-verified"
+  grep -qF 'E_ACCESSDENIED' "$TECHNOLOGY_DOC" \
+    || log_fail "$TECHNOLOGY_DOC must state WSL2-specific semantics (e.g. the E_ACCESSDENIED class) remain field/manual-only"
+  grep -qF 'documented but NOT verified' "$TECHNOLOGY_DOC" \
+    && log_fail "$TECHNOLOGY_DOC still carries the stale blanket 'documented but NOT verified by this repo's own CI' claim — false for the WSL1 delegation path after CHANGE-0136"
+
+  # CHANGELOG: one unreleased heading entry for this scope.
+  grep -qE '^## \[unreleased\].*CHANGE-0136' "$changelog" \
+    || log_fail "$changelog must carry the CHANGE-0136 scope entry as its own '## [unreleased] — <title>' heading"
+
+  log_pass "WSL1-vs-WSL2 honesty stated in workflow header, product doc and TECHNOLOGY.md; CHANGELOG entry present (TEST-023)"
+}
+
+ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023"
 
 main() {
   echo "Testing $TEST_NAME (Windows fallback: MSYS branch, platform matrix, MV protocol doc-presence)"
