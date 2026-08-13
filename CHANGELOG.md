@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — docs(contract): canonical test invocation — one allowlist-stable command shape per platform, wrapper never bypassed (CHANGE-0139) [L1]
+## [v2026.08.13.2] — docs(contract): canonical test invocation — one allowlist-stable command shape per platform, wrapper never bypassed (CHANGE-0139) [L1]
 
 - Field evidence (downstream Codex on Windows) showed an agent bypassing the
   vendored dispatcher with `& 'C:\Program Files\Git\bin\bash.exe' ..\..\...`
