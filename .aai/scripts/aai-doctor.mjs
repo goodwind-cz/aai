@@ -537,36 +537,75 @@ function resolveExecutable(root, name) {
   return null;
 }
 
+// CHANGE-0138 (F5/D2): every record carries the SAME three fields —
+// { present: true | false | 'UNKNOWN', version, reason }. Only a non-empty
+// FIRST STDOUT LINE may ever become a version (the old stdout||stderr
+// fallback presented stderr diagnostics as versions); a resolved executable
+// whose --version yields no stdout is present:true / version:null with a
+// named reason (existence is not version knowledge); a timed-out or
+// non-ENOENT-failing probe is the literal UNKNOWN (the ad-hoc `unknown: true`
+// flag is retired in favor of the tri-state `present` value).
 function resolveCliVersion(root, name) {
   const exe = resolveExecutable(root, name);
-  if (!exe) return { present: false };
+  if (!exe) return { present: false, version: null, reason: 'not found on PATH' };
   const res = run(exe, ['--version'], root, 5_000);
   if (res.error) {
     const timedOut = res.error.code === 'ETIMEDOUT' || res.error.killed === true;
-    if (timedOut) return { present: false, unknown: true, reason: `${name} --version timed out` };
-    return { present: false };
+    if (timedOut) return { present: 'UNKNOWN', version: null, reason: `${name} --version timed out` };
+    if (res.error.code === 'ENOENT') return { present: false, version: null, reason: 'not found on PATH' };
+    return { present: 'UNKNOWN', version: null, reason: `${name} --version failed to spawn (${res.error.code || 'unknown error'})` };
   }
-  const firstLine = (res.stdout || res.stderr || '').trim().split('\n')[0] || '';
-  return firstLine ? { present: true, version: firstLine } : { present: false };
+  const firstLine = (res.stdout || '').split(/\r?\n/)[0].trim();
+  if (firstLine) return { present: true, version: firstLine, reason: null };
+  return { present: true, version: null, reason: `--version produced no stdout (exit ${res.status})` };
+}
+
+// CHANGE-0138 (N2/D1): the exec observation is derived only from
+// Commands:/Subcommands: BLOCKS — what clap-style --help actually emits —
+// never from a bare line-shape heuristic (rescope fixtures A/G fabricated
+// true from indented prose; C/D false-negatived on tab / single-space
+// separators). Header: a column-0 `Commands:`/`SUBCOMMANDS:` line with
+// nothing after the colon but whitespace. Block: the following
+// whitespace-indented lines; a blank line does NOT end the block, the first
+// non-empty column-0 line (or EOF) does. Row: the token exactly `exec`
+// followed by any single whitespace or end of line. No header anywhere ==
+// honest UNKNOWN — prose-only output can no longer produce a boolean.
+function parseCodexExecObservation(text) {
+  const lines = text.split(/\r?\n/); // CRLF child output parses identically
+  let sawHeader = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^(commands|subcommands):\s*$/i.test(lines[i])) continue;
+    sawHeader = true;
+    for (let j = i + 1; j < lines.length; j++) {
+      const line = lines[j];
+      if (line !== '' && !/^[ \t]/.test(line)) break; // non-empty column-0 ends the block
+      if (/^[ \t]+exec([ \t]|$)/.test(line)) {
+        return { available: true, reason: 'codex --help Commands: block lists an exec subcommand' };
+      }
+    }
+  }
+  if (!sawHeader) {
+    return { available: 'UNKNOWN', reason: 'codex --help output has no Commands: block' };
+  }
+  return { available: false, reason: 'codex --help Commands: block does not list an exec subcommand' };
 }
 
 function probeCodexExecSubcommand(root, codexPresent) {
-  if (!codexPresent) return { available: 'UNKNOWN', reason: 'codex CLI not present' };
+  // Tri-state guard: only a strict present === true earns a --help spawn —
+  // an UNKNOWN (timed-out) codex would just hang the probe a second time.
+  // The skip reason preserves WHICH non-true state blocked the probe (PR
+  // #253 bot sweep): an UNKNOWN codex is not "not present", it is unproven.
+  if (codexPresent !== true) {
+    const reason = codexPresent === 'UNKNOWN'
+      ? 'codex CLI state UNKNOWN (version probe inconclusive) - exec probe skipped'
+      : 'codex CLI not present';
+    return { available: 'UNKNOWN', reason };
+  }
   const exe = resolveExecutable(root, 'codex');
   if (!exe) return { available: 'UNKNOWN', reason: 'codex CLI not present' };
   const res = run(exe, ['--help'], root, 5_000);
   if (res.error) return { available: 'UNKNOWN', reason: 'codex --help failed to run' };
-  const out = `${res.stdout || ''}\n${res.stderr || ''}`;
-  // F4: anchored to a command-list line shape (line-start, >=2 spaces,
-  // "exec", >=2 spaces, then the subcommand's description) so free-form
-  // prose that merely contains the word "exec" -- e.g. "This tool will
-  // never exec anything on your behalf." -- cannot fabricate a positive
-  // observation. A bare `/(^|\s)exec(\s|$)/m` matched that sentence.
-  const hasExec = /^\s{2,}exec\s{2,}\S/m.test(out);
-  return {
-    available: hasExec,
-    reason: hasExec ? 'codex --help lists an exec subcommand' : 'codex --help does not list an exec subcommand',
-  };
+  return parseCodexExecObservation(`${res.stdout || ''}\n${res.stderr || ''}`);
 }
 
 function catAgentCliProbe(root) {
@@ -579,8 +618,20 @@ function catAgentCliProbe(root) {
     fork_turns_supported: { value: 'UNKNOWN', reason: CAPABILITY_REASON },
   };
   const codex_exec_subcommand = probeCodexExecSubcommand(root, clis.codex.present);
-  const presentCount = Object.values(clis).filter((c) => c.present).length;
-  const reason = `${presentCount}/${AGENT_CLIS.length} agent CLI(s) present; four SUBAGENT_PROTOCOL capability fields reported UNKNOWN (${CAPABILITY_REASON})`;
+  // CHANGE-0138 (F6/D2): strict equality everywhere — UNKNOWN can never
+  // inflate the present count, and a timed-out probe is named on the line
+  // (`, N unknown`) instead of being folded into absence. A present CLI
+  // without a version is inside the present count and named by the
+  // parenthesized segment. CAT-16 stays PASS-only: the honesty lives in the
+  // line and the detail, never in the exit code.
+  const records = Object.values(clis);
+  const presentCount = records.filter((c) => c.present === true).length;
+  const noVersionCount = records.filter((c) => c.present === true && c.version === null).length;
+  const unknownCount = records.filter((c) => c.present === 'UNKNOWN').length;
+  let counts = `${presentCount}/${AGENT_CLIS.length} agent CLI(s) present`;
+  if (noVersionCount > 0) counts += ` (${noVersionCount} without version)`;
+  if (unknownCount > 0) counts += `, ${unknownCount} unknown`;
+  const reason = `${counts}; four SUBAGENT_PROTOCOL capability fields reported UNKNOWN (${CAPABILITY_REASON})`;
   return {
     ...cat('CAT-16', 'Agent CLI Probe', 'PASS', reason),
     detail: { clis, capabilities, codex_exec_subcommand },

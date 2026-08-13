@@ -1006,6 +1006,218 @@ test_017_0137_real_engine_crossing() {
   log_pass "Real engine crossing: report JSON parses, CAT-01..CAT-16 present, verdict matches the emitted line (0137-TEST-012)"
 }
 
+# ===========================================================================
+# CHANGE-0138 — doctor/config honesty batch (spec-doctor-honesty-batch).
+# BOM parity (Spec-AC-04), unreadable-config + prune-failure honesty
+# (Spec-AC-05), product-doc/CHANGELOG pins (Spec-AC-06). Log lines labelled
+# 0138-TEST-xxx after that spec's Test Plan ids.
+# ===========================================================================
+
+# --- 0138-TEST-004 (Spec-AC-04): BOM behavioral pin, helper side -------------
+test_018_0138_bom_config_helper() {
+  log_info "Test: EF BB BF + first-line post_update_doctor: off is honored — exact disabled line, no report, one stdout line, exit 0 (0138-TEST-004)..."
+  command -v node >/dev/null 2>&1 || { log_skip "0138-TEST-004: node not available"; return 0; }
+  [[ -f "$HELPER_MJS" ]] || log_fail "0138-TEST-004: helper missing: $HELPER_MJS"
+
+  local work root out err stub lines
+  work="$(mktemp -d "${TMPDIR:-/tmp}/aai-0138-t004.XXXXXX")"; work="$(cd "$work" && pwd)"
+  out="$work/out.log"; err="$work/err.log"
+  stub="$work/stub-clean.js"; write_stub_doctor "$stub" clean
+
+  # Arm 1: UTF-8 BOM immediately followed by the column-0 key on line one.
+  root="$work/root-bom"; make_helper_root "$root"
+  printf '\357\273\277post_update_doctor: off\n' > "$root/docs/ai/update-config.yaml"
+  run_helper "$work" "$out" "$err" --root "$root" --doctor "$stub"
+  [[ "$HELPER_RC" == "0" ]] || log_fail "0138-TEST-004: BOM arm expected exit 0, got $HELPER_RC"
+  lines=$(wc -l < "$out" | tr -d ' ')
+  [[ "$lines" == "1" ]] || log_fail "0138-TEST-004: BOM arm expected exactly 1 stdout line, got $lines: $(cat "$out")"
+  [[ "$(cat "$out")" == "DOCTOR-REPORT SKIP disabled by config (post_update_doctor: off)" ]] \
+    || log_fail "0138-TEST-004: BOM must not hide the first-line off dial (got: $(cat "$out"))"
+  [[ "$(count_doctor_reports "$root")" == "0" ]] \
+    || log_fail "0138-TEST-004: BOM arm must not write a report (dial is off)"
+
+  # Arm 2 (negative control): a BOM byte sequence on a NON-first line is
+  # content (ZWNBSP), not a BOM — only index 0 is stripped, exactly once, so
+  # the key stays hidden and the run behaves as on.
+  root="$work/root-zwnbsp"; make_helper_root "$root"
+  printf '# leading comment\n\357\273\277post_update_doctor: off\n' > "$root/docs/ai/update-config.yaml"
+  run_helper "$work" "$out" "$err" --root "$root" --doctor "$stub"
+  [[ "$HELPER_RC" == "0" ]] || log_fail "0138-TEST-004: ZWNBSP arm expected exit 0, got $HELPER_RC"
+  lines=$(wc -l < "$out" | tr -d ' ')
+  [[ "$lines" == "1" ]] || log_fail "0138-TEST-004: ZWNBSP arm expected exactly 1 stdout line, got $lines: $(cat "$out")"
+  [[ "$(count_doctor_reports "$root")" == "1" ]] \
+    || log_fail "0138-TEST-004: a mid-file ZWNBSP-prefixed key must NOT act as a dial (doctor must run)"
+
+  rm -rf "$work"
+  log_pass "BOM+off honored on line one; mid-file ZWNBSP is content; one stdout line in every arm (0138-TEST-004)"
+}
+
+# --- 0138-TEST-005, structural half (Spec-AC-04): twin-identical strip pin ---
+test_019_0138_bom_twin_structural_pin() {
+  log_info "Test: the byte-identical BOM strip statement exists exactly once in BOTH config parsers (0138-TEST-005 structural)..."
+  local check_mjs="$PROJECT_ROOT/.aai/scripts/update-check.mjs"
+  [[ -f "$HELPER_MJS" ]] || log_fail "0138-TEST-005: helper missing: $HELPER_MJS"
+  [[ -f "$check_mjs" ]] || log_fail "0138-TEST-005: update-check.mjs missing: $check_mjs"
+
+  local strip='if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);'
+  local n1 n2 l1 l2
+  n1=$(grep -cF "$strip" "$HELPER_MJS" || true)
+  n2=$(grep -cF "$strip" "$check_mjs" || true)
+  [[ "$n1" == "1" ]] || log_fail "0138-TEST-005: update-doctor-report.mjs must carry the strip statement exactly once, got $n1"
+  [[ "$n2" == "1" ]] || log_fail "0138-TEST-005: update-check.mjs must carry the strip statement exactly once, got $n2"
+  # Byte-identical including indentation: neither side may drift alone (D3).
+  l1="$(grep -F "$strip" "$HELPER_MJS")"
+  l2="$(grep -F "$strip" "$check_mjs")"
+  [[ "$l1" == "$l2" ]] \
+    || log_fail "0138-TEST-005: strip lines are not byte-identical: [$l1] vs [$l2]"
+
+  log_pass "Twin-identical BOM strip pinned in both parsers, byte-for-byte (0138-TEST-005 structural)"
+}
+
+# --- 0138-TEST-006 (Spec-AC-05): exists-but-unreadable config honesty --------
+test_020_0138_unreadable_config_warns() {
+  log_info "Test: directory-shaped --config -> ONE named stderr WARNING, still default-on; absent config stays silent (0138-TEST-006)..."
+  command -v node >/dev/null 2>&1 || { log_skip "0138-TEST-006: node not available"; return 0; }
+  [[ -f "$HELPER_MJS" ]] || log_fail "0138-TEST-006: helper missing: $HELPER_MJS"
+
+  local work root out err stub lines errlines
+  work="$(mktemp -d "${TMPDIR:-/tmp}/aai-0138-t006.XXXXXX")"; work="$(cd "$work" && pwd)"
+  out="$work/out.log"; err="$work/err.log"
+  stub="$work/stub-clean.js"; write_stub_doctor "$stub" clean
+
+  # Arm 1: --config points at a DIRECTORY — readFileSync fails EISDIR
+  # (exists-but-unreadable, works even as root; D5 portable injection).
+  root="$work/root-eisdir"; make_helper_root "$root"
+  mkdir -p "$root/cfg-as-dir"
+  run_helper "$work" "$out" "$err" --root "$root" --config "$root/cfg-as-dir" --doctor "$stub"
+  [[ "$HELPER_RC" == "0" ]] || log_fail "0138-TEST-006: EISDIR arm expected exit 0, got $HELPER_RC"
+  lines=$(wc -l < "$out" | tr -d ' ')
+  [[ "$lines" == "1" ]] || log_fail "0138-TEST-006: EISDIR arm expected exactly 1 stdout line, got $lines: $(cat "$out")"
+  grep -q '^DOCTOR CLEAN - full report: ' "$out" \
+    || log_fail "0138-TEST-006: unreadable config must still default ON (doctor runs): $(cat "$out")"
+  [[ "$(count_doctor_reports "$root")" == "1" ]] \
+    || log_fail "0138-TEST-006: unreadable-config arm must write the report (default on)"
+  errlines=$(wc -l < "$err" | tr -d ' ')
+  [[ "$errlines" == "1" ]] || log_fail "0138-TEST-006: expected exactly 1 stderr line, got $errlines: $(cat "$err")"
+  grep -qF 'WARNING' "$err" || log_fail "0138-TEST-006: stderr line is not a named WARNING: $(cat "$err")"
+  grep -qF "$root/cfg-as-dir" "$err" || log_fail "0138-TEST-006: stderr WARNING must name the config path: $(cat "$err")"
+  grep -qF '(EISDIR)' "$err" || log_fail "0138-TEST-006: stderr WARNING must name the error code: $(cat "$err")"
+
+  # Arm 2 (negative control): an ABSENT config stays stderr-silent and on.
+  root="$work/root-absent"; make_helper_root "$root"
+  run_helper "$work" "$out" "$err" --root "$root" --doctor "$stub"
+  [[ "$HELPER_RC" == "0" ]] || log_fail "0138-TEST-006: absent arm expected exit 0, got $HELPER_RC"
+  lines=$(wc -l < "$out" | tr -d ' ')
+  [[ "$lines" == "1" ]] || log_fail "0138-TEST-006: absent arm expected exactly 1 stdout line, got $lines"
+  [[ ! -s "$err" ]] || log_fail "0138-TEST-006: an absent config (ENOENT) must stay silent on stderr: $(cat "$err")"
+
+  rm -rf "$work"
+  log_pass "Unreadable config: one named stderr WARNING (path + code), still on; ENOENT silent; stdout cardinality kept (0138-TEST-006)"
+}
+
+# --- 0138-TEST-007 (Spec-AC-05): prune-failure stderr budget ------------------
+test_021_0138_prune_failure_budget() {
+  log_info "Test: undeletable directory-shaped report -> max ONE stderr line per run; shaped files beyond cap still pruned; writable run silent (0138-TEST-007)..."
+  command -v node >/dev/null 2>&1 || { log_skip "0138-TEST-007: node not available"; return 0; }
+  [[ -f "$HELPER_MJS" ]] || log_fail "0138-TEST-007: helper missing: $HELPER_MJS"
+
+  local work root out err stub lines errlines
+  work="$(mktemp -d "${TMPDIR:-/tmp}/aai-0138-t007.XXXXXX")"; work="$(cd "$work" && pwd)"
+  out="$work/out.log"; err="$work/err.log"
+  stub="$work/stub-clean.js"; write_stub_doctor "$stub" clean
+
+  # Arm 1: one undeletable DIRECTORY whose name matches the report shape
+  # (unlinkSync on a directory fails on every platform — D5), plus shaped
+  # FILES beyond the cap that must still be pruned past the failure.
+  root="$work/root-dirtrap"; make_helper_root "$root"
+  mkdir -p "$root/docs/ai/reports/doctor-20250101T000000Z-adir.md"
+  local i
+  for i in 02 03 04 05; do
+    printf 'old %s\n' "$i" > "$root/docs/ai/reports/doctor-202501${i}T000000Z-oldhost.md"
+  done
+  run_helper "$work" "$out" "$err" --root "$root" --doctor "$stub" --max-reports 3
+  [[ "$HELPER_RC" == "0" ]] || log_fail "0138-TEST-007: dir-trap arm expected exit 0, got $HELPER_RC"
+  lines=$(wc -l < "$out" | tr -d ' ')
+  [[ "$lines" == "1" ]] || log_fail "0138-TEST-007: dir-trap arm expected exactly 1 stdout line, got $lines: $(cat "$out")"
+  grep -q '^DOCTOR CLEAN - full report: ' "$out" \
+    || log_fail "0138-TEST-007: prune failure must never degrade the run's stdout line: $(cat "$out")"
+  errlines=$(wc -l < "$err" | tr -d ' ')
+  [[ "$errlines" == "1" ]] || log_fail "0138-TEST-007: expected exactly ONE stderr line per run, got $errlines: $(cat "$err")"
+  grep -qF 'WARNING retention prune failed for' "$err" \
+    || log_fail "0138-TEST-007: stderr line is not the named prune warning: $(cat "$err")"
+  grep -qF "doctor-20250101T000000Z-adir.md" "$err" \
+    || log_fail "0138-TEST-007: prune warning must name the undeletable path: $(cat "$err")"
+  if grep -qF ' more' "$err"; then
+    log_fail "0138-TEST-007: a single failure must not claim additional failures: $(cat "$err")"
+  fi
+  # Shaped files beyond the cap were still pruned despite the failure; the
+  # newest survive (cap 3 = new report + 0105 + 0104).
+  [[ ! -f "$root/docs/ai/reports/doctor-20250102T000000Z-oldhost.md" ]] \
+    || log_fail "0138-TEST-007: shaped file beyond the cap must still be pruned past the failure"
+  [[ ! -f "$root/docs/ai/reports/doctor-20250103T000000Z-oldhost.md" ]] \
+    || log_fail "0138-TEST-007: shaped file beyond the cap must still be pruned past the failure"
+  [[ -f "$root/docs/ai/reports/doctor-20250104T000000Z-oldhost.md" ]] \
+    || log_fail "0138-TEST-007: in-cap shaped file must survive"
+  [[ -f "$root/docs/ai/reports/doctor-20250105T000000Z-oldhost.md" ]] \
+    || log_fail "0138-TEST-007: in-cap shaped file must survive"
+  [[ -d "$root/docs/ai/reports/doctor-20250101T000000Z-adir.md" ]] \
+    || log_fail "0138-TEST-007: the undeletable directory fixture vanished (bad fixture)"
+
+  # Arm 2: several failures -> STILL one line, 'and N more' appended.
+  root="$work/root-twodirs"; make_helper_root "$root"
+  mkdir -p "$root/docs/ai/reports/doctor-20250101T000000Z-adir.md"
+  mkdir -p "$root/docs/ai/reports/doctor-20250102T000000Z-bdir.md"
+  for i in 03 04 05; do
+    printf 'old %s\n' "$i" > "$root/docs/ai/reports/doctor-202501${i}T000000Z-oldhost.md"
+  done
+  run_helper "$work" "$out" "$err" --root "$root" --doctor "$stub" --max-reports 3
+  [[ "$HELPER_RC" == "0" ]] || log_fail "0138-TEST-007: two-dirs arm expected exit 0, got $HELPER_RC"
+  errlines=$(wc -l < "$err" | tr -d ' ')
+  [[ "$errlines" == "1" ]] || log_fail "0138-TEST-007: two failures must still emit exactly ONE stderr line, got $errlines: $(cat "$err")"
+  grep -qF 'and 1 more' "$err" \
+    || log_fail "0138-TEST-007: multi-failure line must append 'and 1 more': $(cat "$err")"
+  lines=$(wc -l < "$out" | tr -d ' ')
+  [[ "$lines" == "1" ]] || log_fail "0138-TEST-007: two-dirs arm expected exactly 1 stdout line, got $lines"
+
+  # Arm 3 (negative control): fully writable prune emits ZERO prune stderr.
+  root="$work/root-writable"; make_helper_root "$root"
+  mkdir -p "$root/docs/ai/reports"
+  for i in 01 02 03 04 05; do
+    printf 'old %s\n' "$i" > "$root/docs/ai/reports/doctor-202501${i}T000000Z-oldhost.md"
+  done
+  run_helper "$work" "$out" "$err" --root "$root" --doctor "$stub" --max-reports 3
+  [[ "$HELPER_RC" == "0" ]] || log_fail "0138-TEST-007: writable arm expected exit 0, got $HELPER_RC"
+  [[ ! -s "$err" ]] || log_fail "0138-TEST-007: a fully writable run must add zero stderr: $(cat "$err")"
+  lines=$(wc -l < "$out" | tr -d ' ')
+  [[ "$lines" == "1" ]] || log_fail "0138-TEST-007: writable arm expected exactly 1 stdout line, got $lines"
+
+  rm -rf "$work"
+  log_pass "Prune budget: one stderr line per run naming the first failed path (+ count), files still pruned, writable run silent (0138-TEST-007)"
+}
+
+# --- 0138-TEST-009 slice (Spec-AC-06): update product-doc + CHANGELOG pins ---
+test_022_0138_documentation_pins() {
+  log_info "Test: aai-update.md states BOM tolerance + the named degrade lines/budgets; CHANGELOG carries the CHANGE-0138 heading (0138-TEST-009)..."
+
+  local pd="$PROJECT_ROOT/docs/product/aai-update.md"
+  local cl="$PROJECT_ROOT/CHANGELOG.md"
+  [[ -f "$pd" ]] || log_fail "0138-TEST-009: docs/product/aai-update.md does not exist"
+
+  grep -qi 'BOM' "$pd" \
+    || log_fail "0138-TEST-009: aai-update.md does not document the BOM tolerance"
+  grep -qF 'retention prune failed' "$pd" \
+    || log_fail "0138-TEST-009: aai-update.md does not name the prune degrade line"
+  grep -qiE 'at most (one|two)' "$pd" \
+    || log_fail "0138-TEST-009: aai-update.md does not state the one-line-per-run stderr budget"
+  grep -qiE 'unreadable' "$pd" \
+    || log_fail "0138-TEST-009: aai-update.md does not document the exists-but-unreadable config warning"
+
+  grep -qE '^## \[unreleased\] — .*CHANGE-0138' "$cl" \
+    || log_fail "0138-TEST-009: CHANGELOG.md has no unreleased heading entry for CHANGE-0138"
+
+  log_pass "Update product doc tells the new degrade truths; CHANGELOG heading present (0138-TEST-009 slice)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -1033,6 +1245,11 @@ main() {
   test_015_0137_documentation_pins
   test_016_0137_governance_set
   test_017_0137_real_engine_crossing
+  test_018_0138_bom_config_helper
+  test_019_0138_bom_twin_structural_pin
+  test_020_0138_unreadable_config_warns
+  test_021_0138_prune_failure_budget
+  test_022_0138_documentation_pins
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

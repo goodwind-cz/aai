@@ -11,6 +11,36 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(doctor/update): honesty batch — block-anchored codex exec probe, CLI tri-state, BOM parity, named config/prune degrades (CHANGE-0138) [L1]
+
+- CAT-16's codex `exec` observation now parses `codex --help` anchored to
+  its `Commands:`/`SUBCOMMANDS:` block (column-0 header, whitespace-indented
+  block bounded by the next non-empty column-0 line, token exactly `exec`
+  with tab / single-space / wider separators all accepted). Indented prose
+  can no longer fabricate `available: true`, tab or single-space command
+  lists no longer false-negative, and help output with no command-list block
+  yields the honest `UNKNOWN` with a reason naming the missing block —
+  proven by an 11-fixture battery through the real doctor.
+- `resolveCliVersion` returns a tri-state record `{ present: true | false |
+  'UNKNOWN', version, reason }`: a resolved executable whose `--version`
+  yields no stdout is `present: true, version: null` with a named reason
+  (the `stdout || stderr` fallback is deleted — a stderr diagnostic is never
+  presented as a version), and a timed-out or non-ENOENT-failing probe is
+  the literal `UNKNOWN` (the ad-hoc `unknown: true` flag is retired). The
+  CAT-16 line distinguishes absent from unknown — `2/3 agent CLI(s) present
+  (1 without version), 1 unknown` — with strict-equality counts; CAT-16
+  stays PASS-only and the doctor exit map is unchanged.
+- A UTF-8 BOM no longer hides a first-line config key from either column-0
+  parser: `update-doctor-report.mjs` AND `update-check.mjs` strip exactly
+  one BOM at index 0 via a byte-identical twin statement (SEAM-3 parity,
+  pinned behaviorally on both parsers plus structurally across both files).
+- `update-doctor-report.mjs` stops degrading silently: an
+  exists-but-unreadable config (non-ENOENT) emits one named stderr WARNING
+  with the path and error code and still defaults on; retention-prune
+  failures emit at most one stderr line per run naming the first undeletable
+  path and the count of additional failures. Stdout keeps its
+  exactly-one-line contract and exit 0 in every arm.
+
 ## [unreleased] — feat(update): every successful /aai-update ends with a doctor field report (CHANGE-0137) [L1]
 
 - After a successful, non-dry-run sync, both update entrypoints now invoke
