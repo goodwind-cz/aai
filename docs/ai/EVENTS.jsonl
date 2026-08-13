@@ -1661,3 +1661,4 @@
 {"v":1,"ts":"2026-08-13T18:58:40.476Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-reporting-docs-true-up","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-13T18:58:40.509Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-reporting-docs-true-up","payload":{"commit":"c54568a"}}
 {"v":1,"ts":"2026-08-13T18:59:10.915Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":339,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-13T19:30:36.113Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-changelog-payload-hardening","payload":{"from":"draft","to":"implementing"}}
