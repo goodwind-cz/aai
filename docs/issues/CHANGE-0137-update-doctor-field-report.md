@@ -2,10 +2,15 @@
 id: update-doctor-field-report
 number: 137
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
 capability: aai-update
+links:
+  commits:
+    - 2a4795c
+  pr:
+    - 252
 ---
 
 # Change — aai-update: every downstream update ends with a doctor field report

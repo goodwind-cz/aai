@@ -5,6 +5,7 @@ capability: aai-update
 status: current
 delivered_by:
   - CHANGE-0137
+  - update-doctor-field-report
 spec: docs/specs/SPEC-0124-spec-update-doctor-field-report.md
 updated: 2026-08-13
 ---

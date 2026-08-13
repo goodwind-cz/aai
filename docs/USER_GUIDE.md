@@ -2195,6 +2195,12 @@ read its gate warning) to see which section is missing.
 
 [Product doc](product/aai-doctor.md) · [Spec](specs/SPEC-0122-spec-doctor-win-selftest.md)
 
+### `/aai-update` refreshes the vendored AAI layer and ends with a doctor field report
+
+`/aai-update` is the one-command refresh of a project's vendored AAI layer: it materializes the canonical AAI repository's `main` (or a chosen ref), runs the layer sync into the current project, and prints concise post-sync evidence — changed files, the updated AAI pin, and any conflict advisory. It never commits; the user reviews the diff and commits manually.
+
+[Product doc](product/aai-update.md) · [Spec](specs/SPEC-0124-spec-update-doctor-field-report.md)
+
 ### Windows test wrapper stops lying about timeouts it never caused
 
 On Windows, running the factory's test/build commands goes through `.aai/scripts/aai-run-tests.ps1`, which hands off to the same process-group-safe wrapper macOS and Linux use. A downstream report found that on some Windows machines the process environment can carry the same variable twice under different capitalization (both `Path` and `PATH`) — invisible in an ordinary PowerShell prompt, but fatal to the exact dictionary the wrapper needs to build before launching anything. Before this fix, that collision made the wrapper crash before the wrapped command ever ran, and it reported the run as **timed out** — the same code used for a test suite that genuinely hangs — so a person or an AI agent debugging the failure would look for a slow test instead of the real cause, burning real time chasing a phantom hang. The wrapper now cleans up any duplicate-cased environment variable before it launches anything, and if a launch still cannot start for some other reason, it reports that honestly with its own distinct signal instead of pretending the run timed out.

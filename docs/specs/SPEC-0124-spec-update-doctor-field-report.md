@@ -2,13 +2,15 @@
 id: spec-update-doctor-field-report
 type: spec
 number: 124
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0137-update-doctor-field-report.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 252
+  commits:
+    - 2a4795c
 ---
 
 # Spec — aai-update ends every successful downstream update with a doctor field report

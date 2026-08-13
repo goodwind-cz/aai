@@ -1,24 +1,24 @@
 {
-  "generatedAt": "2026-08-13T09:29:41.351Z",
+  "generatedAt": "2026-08-13T11:07:42.286Z",
   "project": "aai",
   "counts": {
-    "delivered": 181,
-    "in_progress": 2,
+    "delivered": 182,
+    "in_progress": 1,
     "releases": 1,
-    "tokens_total": 32823377
+    "tokens_total": 33504979
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "ps1-ci-platform-coverage",
+    "ref": "update-doctor-field-report",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "ps1-ci-platform-coverage",
+      "ref": "update-doctor-field-report",
       "type": "intake_change",
       "phase": "code_review"
     },
-    "strategy": "loop",
+    "strategy": "hybrid",
     "worktree": {
       "recommendation": "optional",
       "user_decision": "inline"
@@ -27,56 +27,43 @@
     "review_status": "not_run",
     "ticks": [
       {
+        "tick": 74,
+        "role": "code_review",
+        "scope": "update-doctor-field-report",
+        "duration_seconds": 144,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 73,
+        "role": "validation",
+        "scope": "update-doctor-field-report",
+        "duration_seconds": 142,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 72,
+        "role": "implementation",
+        "scope": "update-doctor-field-report",
+        "duration_seconds": 1006,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 71,
+        "role": "planning",
+        "scope": "update-doctor-field-report",
+        "duration_seconds": 407,
+        "harness_version": "unknown"
+      },
+      {
         "tick": 70,
         "role": "code_review",
         "scope": "ps1-ci-platform-coverage",
         "duration_seconds": 171,
         "harness_version": "unknown"
-      },
-      {
-        "tick": 69,
-        "role": "validation",
-        "scope": "ps1-ci-platform-coverage",
-        "duration_seconds": 170,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 68,
-        "role": "implementation",
-        "scope": "ps1-ci-platform-coverage",
-        "duration_seconds": 484,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 67,
-        "role": "planning",
-        "scope": "ps1-ci-platform-coverage",
-        "duration_seconds": 631,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 66,
-        "role": "remediation",
-        "scope": "doctor-win-selftest",
-        "duration_seconds": 755,
-        "harness_version": "unknown"
       }
     ]
   },
   "in_progress": [
-    {
-      "ref": "update-doctor-field-report",
-      "title": "Change — aai-update: every downstream update ends with a doctor field report",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0137-update-doctor-field-report.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
@@ -117,6 +104,19 @@
       "spec": "docs/specs/SPEC-0123-spec-ps1-ci-platform-coverage.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260813T074813Z-CHANGE-0136-ps1-ci-platform-coverage.md"
+    },
+    {
+      "ref": "update-doctor-field-report",
+      "title": "Change — aai-update: every downstream update ends with a doctor field report",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0137-update-doctor-field-report.md",
+      "closed_on": "2026-08-13",
+      "agent_minutes": 28,
+      "token_total": 681602,
+      "spec": "docs/specs/SPEC-0124-spec-update-doctor-field-report.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260813T104221Z-CHANGE-0137-update-doctor-field-report.md"
     },
     {
       "ref": "validation-cost-calibration",
@@ -2477,6 +2477,19 @@
           "spec": "docs/specs/SPEC-0123-spec-ps1-ci-platform-coverage.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260813T074813Z-CHANGE-0136-ps1-ci-platform-coverage.md"
+        },
+        {
+          "ref": "update-doctor-field-report",
+          "title": "Change — aai-update: every downstream update ends with a doctor field report",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0137-update-doctor-field-report.md",
+          "closed_on": "2026-08-13",
+          "agent_minutes": 28,
+          "token_total": 681602,
+          "spec": "docs/specs/SPEC-0124-spec-update-doctor-field-report.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260813T104221Z-CHANGE-0137-update-doctor-field-report.md"
         },
         {
           "ref": "validation-cost-calibration",

@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T10:46:15.113Z
+Generated: 2026-08-13T11:07:51.254Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0124 | specs | implementing | 5 done | docs/specs/SPEC-0124-spec-update-doctor-field-report.md |
 
 ## Canonical layer (0)
 
@@ -23,7 +22,7 @@ _None._
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
 | aai-doctor | aai-doctor | 5 | docs/product/aai-doctor.md |
-| aai-update | aai-update | 1 | docs/product/aai-update.md |
+| aai-update | aai-update | 2 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
 | auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
@@ -46,7 +45,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 6 | docs/product/windows-test-wrapper.md |
 
-## Done (306)
+## Done (308)
 
 | ID | Type | Path |
 |---|---|---|
@@ -186,6 +185,7 @@ _None._
 | CHANGE-0134 | issues | docs/issues/CHANGE-0134-pester-on-windows-ci.md |
 | CHANGE-0135 | issues | docs/issues/CHANGE-0135-doctor-win-selftest.md |
 | CHANGE-0136 | issues | docs/issues/CHANGE-0136-ps1-ci-platform-coverage.md |
+| CHANGE-0137 | issues | docs/issues/CHANGE-0137-update-doctor-field-report.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -355,13 +355,12 @@ _None._
 | SPEC-0121 | specs | docs/specs/SPEC-0121-spec-pester-on-windows-ci.md |
 | SPEC-0122 | specs | docs/specs/SPEC-0122-spec-doctor-win-selftest.md |
 | SPEC-0123 | specs | docs/specs/SPEC-0123-spec-ps1-ci-platform-coverage.md |
+| SPEC-0124 | specs | docs/specs/SPEC-0124-spec-update-doctor-field-report.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0137 | issues | docs/issues/CHANGE-0137-update-doctor-field-report.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 
