@@ -608,7 +608,140 @@ test_023() {
   log_pass "WSL1-vs-WSL2 honesty stated in workflow header, product doc and TECHNOLOGY.md; CHANGELOG entry present (TEST-023)"
 }
 
-ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023"
+# =============================================================================
+# CHANGE-0139 / spec-canonical-test-invocation — the canonical test-invocation
+# contract: one allowlist-stable command shape per platform, wrapper never
+# bypassed. Fixed literals and pinned sentences are defined in the frozen
+# spec's "The contract" section and pinned verbatim here (grep -F, single
+# lines, ASCII hyphens, no pipes).
+# =============================================================================
+
+# The two canonical repo-root literals (full shape as stated in guidance) and
+# the two allowlist prefixes (what an operator approves once).
+CANON_WIN_LITERAL='powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 <command...>'
+CANON_POSIX_LITERAL='bash .aai/scripts/aai-run-tests.sh <command...>'
+CANON_WIN_PREFIX='powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1'
+CANON_POSIX_PREFIX='bash .aai/scripts/aai-run-tests.sh'
+CANON_ROOT_RULE='Run it from the repository root; when elsewhere, cd to the repo root first - never rewrite the script path relative to the current directory.'
+CANON_PROHIBITION='Never invoke bash.exe, sh, or wsl directly for test runs, and never via CWD-relative paths from a subdirectory - the dispatcher owns interpreter routing.'
+CANON_RATIONALE='The fixed repo-root literal prefix is what approval allowlists match - a stable command shape is approved once, a varying one re-prompts forever.'
+
+# --- TEST-024 (Spec-AC-01): guidance trio carries the contract verbatim; the
+#     seven prompt-corpus invocation mentions carry the bash-prefixed literal --
+test_024() {
+  log_info "TEST-024: TECHNOLOGY.md + TECHNOLOGY_TEMPLATE.md + AGENTS.md carry both canonical literals + repo-root rule + prohibition; 6 prompts + DYNAMIC_SKILLS.md carry the bash-prefixed POSIX literal with no bare-path mention left..."
+
+  local template_doc="$PROJECT_ROOT/.aai/templates/TECHNOLOGY_TEMPLATE.md"
+  local agents_doc="$PROJECT_ROOT/.aai/AGENTS.md"
+  [[ -f "$template_doc" ]] || log_fail "missing $template_doc"
+  [[ -f "$agents_doc" ]] || log_fail "missing $agents_doc"
+
+  local doc
+  for doc in "$TECHNOLOGY_DOC" "$template_doc" "$agents_doc"; do
+    grep -qF "$CANON_WIN_LITERAL" "$doc" \
+      || log_fail "$doc missing the canonical Windows literal: $CANON_WIN_LITERAL"
+    grep -qF "$CANON_POSIX_LITERAL" "$doc" \
+      || log_fail "$doc missing the canonical POSIX literal: $CANON_POSIX_LITERAL"
+    grep -qF "$CANON_ROOT_RULE" "$doc" \
+      || log_fail "$doc missing the pinned repo-root sentence"
+    grep -qF "$CANON_PROHIBITION" "$doc" \
+      || log_fail "$doc missing the pinned prohibition sentence"
+  done
+
+  # The seven invocation mentions (six prompt-corpus files + the system-side
+  # DYNAMIC_SKILLS.md): every aai-run-tests.sh mention carries the bash prefix.
+  local pf
+  local prompt_files=(
+    "$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
+    "$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md"
+    "$PROJECT_ROOT/.aai/SKILL_VERIFY.prompt.md"
+    "$PROJECT_ROOT/.aai/SKILL_TEST_SKILLS.prompt.md"
+    "$PROJECT_ROOT/.aai/SKILL_BOOTSTRAP.prompt.md"
+    "$PROJECT_ROOT/.aai/SKILL_DESLOP.prompt.md"
+    "$PROJECT_ROOT/.aai/system/DYNAMIC_SKILLS.md"
+  )
+  for pf in "${prompt_files[@]}"; do
+    [[ -f "$pf" ]] || log_fail "missing $pf"
+    local n_all n_bash
+    n_all="$(grep -cF -- '.aai/scripts/aai-run-tests.sh' "$pf")"
+    n_bash="$(grep -cF -- 'bash .aai/scripts/aai-run-tests.sh' "$pf")"
+    [[ "$n_bash" -ge 1 ]] \
+      || log_fail "$pf missing the bash-prefixed canonical POSIX invocation literal"
+    [[ "$n_all" -eq "$n_bash" ]] \
+      || log_fail "$pf still carries a bare-path aai-run-tests.sh invocation mention ($n_all mention line(s), only $n_bash bash-prefixed)"
+  done
+
+  log_pass "guidance trio carries the contract verbatim; all seven prompt invocation mentions are bash-prefixed (TEST-024)"
+}
+
+# --- TEST-025 (Spec-AC-01): wrapper Usage headers state the canonical shapes,
+#     comment-only, ASCII-clean on the edited literal lines ------------------
+test_025() {
+  log_info "TEST-025: aai-run-tests.ps1 Usage header carries the canonical powershell literal (ASCII-clean lines); aai-run-tests.sh Usage header carries the bash-prefixed literal..."
+
+  [[ -f "$RUN_TESTS_PS1" ]] || log_fail "missing $RUN_TESTS_PS1"
+  grep -qF "$CANON_WIN_PREFIX" "$RUN_TESTS_PS1" \
+    || log_fail "$RUN_TESTS_PS1 Usage header missing the canonical Windows literal prefix: $CANON_WIN_PREFIX"
+
+  # ASCII-clean pin on the edited lines: every line carrying the canonical
+  # Windows prefix must be pure printable ASCII (LC_ALL=C; no bytes >= 0x80).
+  local lit_lines
+  lit_lines="$(grep -F "$CANON_WIN_PREFIX" "$RUN_TESTS_PS1")"
+  if LC_ALL=C grep -q '[^ -~]' <<<"$lit_lines"; then
+    log_fail "$RUN_TESTS_PS1: a line carrying the canonical Windows literal contains non-ASCII bytes"
+  fi
+
+  grep -qF "$CANON_POSIX_PREFIX" "$RUN_TESTS_SCRIPT" \
+    || log_fail "$RUN_TESTS_SCRIPT Usage header missing the canonical bash-prefixed literal: $CANON_POSIX_PREFIX"
+
+  log_pass "both wrapper Usage headers state the canonical shapes; ps1 literal lines are ASCII-clean (TEST-025)"
+}
+
+# --- TEST-026 (Spec-AC-02/Spec-AC-05): allowlist rationale + USER_GUIDE
+#     operator note + truthful product doc + CHANGELOG heading ---------------
+test_026() {
+  log_info "TEST-026: TECHNOLOGY.md rationale sentence; USER_GUIDE Leak-safe section names both prefixes + 'once'; product doc states the canonical Windows literal (no stale pwsh -File claim as THE way); CHANGELOG unreleased heading..."
+
+  grep -qF "$CANON_RATIONALE" "$TECHNOLOGY_DOC" \
+    || log_fail "$TECHNOLOGY_DOC missing the pinned allowlist-rationale sentence"
+
+  # Operator note scoped to the Leak-safe test execution section.
+  [[ -f "$USER_GUIDE_DOC" ]] || log_fail "missing $USER_GUIDE_DOC"
+  local section
+  section="$(awk '/^## Leak-safe test execution$/{f=1;next} f && /^## /{f=0} f' "$USER_GUIDE_DOC")"
+  [[ -n "$section" ]] || log_fail "$USER_GUIDE_DOC missing the '## Leak-safe test execution' section"
+  grep -qF "$CANON_WIN_PREFIX" <<<"$section" \
+    || log_fail "$USER_GUIDE_DOC Leak-safe section missing the Windows allowlist prefix: $CANON_WIN_PREFIX"
+  grep -qF "$CANON_POSIX_PREFIX" <<<"$section" \
+    || log_fail "$USER_GUIDE_DOC Leak-safe section missing the POSIX allowlist prefix: $CANON_POSIX_PREFIX"
+  grep -qiE 'allowlist' <<<"$section" \
+    || log_fail "$USER_GUIDE_DOC Leak-safe section missing the allowlist operator note"
+  grep -qiE 'once' <<<"$section" \
+    || log_fail "$USER_GUIDE_DOC Leak-safe section must say the two prefixes are approved once"
+
+  # Product doc: the canonical Windows literal is THE stated invocation; the
+  # stale 'pwsh -File .aai/scripts/aai-run-tests.ps1' claim (pwsh does not
+  # exist on 5.1-only corporate hosts) is gone; the allowlist stability
+  # rationale is named.
+  local product_doc="$PROJECT_ROOT/docs/product/windows-test-wrapper.md"
+  [[ -f "$product_doc" ]] || log_fail "missing $product_doc"
+  grep -qF "$CANON_WIN_PREFIX" "$product_doc" \
+    || log_fail "$product_doc missing the canonical Windows invocation literal"
+  grep -qF 'pwsh -File .aai/scripts/aai-run-tests.ps1' "$product_doc" \
+    && log_fail "$product_doc still states the stale 'pwsh -File .aai/scripts/aai-run-tests.ps1' shape as THE invocation (pwsh is absent on 5.1-only hosts)"
+  grep -qiE 'allowlist' "$product_doc" \
+    || log_fail "$product_doc must name the allowlist-stability rationale"
+
+  # CHANGELOG: this scope as its own unreleased heading (TEST-024 discipline).
+  local changelog="$PROJECT_ROOT/CHANGELOG.md"
+  [[ -f "$changelog" ]] || log_fail "missing $changelog"
+  grep -qE '^## \[unreleased\].*CHANGE-0139' "$changelog" \
+    || log_fail "$changelog must carry the CHANGE-0139 scope entry as its own '## [unreleased] — <title>' heading"
+
+  log_pass "allowlist rationale + operator note + truthful product doc + CHANGELOG heading (TEST-026)"
+}
+
+ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026"
 
 main() {
   echo "Testing $TEST_NAME (Windows fallback: MSYS branch, platform matrix, MV protocol doc-presence)"

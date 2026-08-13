@@ -1486,6 +1486,173 @@ test_037_0138_count_line_composition() {
   fi
 }
 
+# =============================================================================
+# CHANGE-0139 / spec-canonical-test-invocation — CAT-16 detail gains the
+# canonical_invocation tri-state contract probe (spec TEST-004 / TEST-005).
+# The probe greps .aai/AGENTS.md under --root for the two allowlist prefix
+# literals; carried is true / false / the literal 'UNKNOWN' with named
+# reasons; CAT-16 stays PASS-only; detail under --json only; no spawn.
+# =============================================================================
+
+CANON_WIN_PREFIX='powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1'
+CANON_POSIX_PREFIX='bash .aai/scripts/aai-run-tests.sh'
+
+# Builds a core-files fixture whose .aai/AGENTS.md carries BOTH canonical
+# prefix literals (the carried=true shape).
+build_canonical_true_fixture() {
+  local name="$1" d
+  d="$(new_bare_fixture "$name")"
+  add_core_and_role_files "$d"
+  {
+    printf '# Agent Guide fixture\n\n### Canonical test invocation\n\n'
+    printf -- '- Windows: `%s <command...>`\n' "$CANON_WIN_PREFIX"
+    printf -- '- POSIX: `%s <command...>`\n' "$CANON_POSIX_PREFIX"
+  } > "$d/.aai/AGENTS.md"
+  echo "$d"
+}
+
+# --- TEST-038 (0139-TEST-004, Spec-AC-03) — probe fixture matrix -------------
+test_038_0139_canonical_invocation_fixtures() {
+  local fx_true fx_false fx_absent out rc1=0 rc2=0 rc3=0
+
+  # Fixture 1: AGENTS.md carries BOTH prefix literals -> carried === true.
+  fx_true="$(build_canonical_true_fixture t038-true)"
+  out="$(node "$DOCTOR" --root "$fx_true" --json 2>&1)"
+  node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const c16 = j.categories.find(x => x.id === "CAT-16");
+      if (!c16) die("CAT-16 missing");
+      const ci = c16.detail && c16.detail.canonical_invocation;
+      if (!ci) die("detail.canonical_invocation missing: " + JSON.stringify(c16.detail));
+      if (ci.file !== ".aai/AGENTS.md") die("file must be .aai/AGENTS.md: " + JSON.stringify(ci));
+      if (ci.carried !== true) die("both-literals fixture must report carried true: " + JSON.stringify(ci));
+      if (c16.status !== "PASS") die("CAT-16 must stay PASS-only, got " + c16.status);
+    });
+  ' <<<"$out" || rc1=1
+
+  # Fixture 2: AGENTS.md readable but the WINDOWS literal is missing ->
+  # carried === false with a reason naming the /aai-update remedy.
+  fx_false="$(new_bare_fixture t038-false)"
+  add_core_and_role_files "$fx_false"
+  printf 'POSIX only: `%s <command...>`\n' "$CANON_POSIX_PREFIX" > "$fx_false/.aai/AGENTS.md"
+  out="$(node "$DOCTOR" --root "$fx_false" --json 2>&1)"
+  node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const c16 = j.categories.find(x => x.id === "CAT-16");
+      const ci = c16.detail && c16.detail.canonical_invocation;
+      if (!ci) die("detail.canonical_invocation missing");
+      if (ci.carried !== false) die("missing-Windows-literal fixture must report carried false: " + JSON.stringify(ci));
+      if (typeof ci.reason !== "string" || !ci.reason.includes("/aai-update")) {
+        die("carried-false reason must name the /aai-update remedy: " + JSON.stringify(ci));
+      }
+      if (!/missing/i.test(ci.reason)) die("carried-false reason must name the missing contract: " + JSON.stringify(ci));
+      if (c16.status !== "PASS") die("CAT-16 must stay PASS-only, got " + c16.status);
+    });
+  ' <<<"$out" || rc2=1
+
+  # Fixture 3: no .aai/AGENTS.md at all -> carried === the literal UNKNOWN
+  # with a reason (honest degrade, never a fabricated false). CAT-01 FAILs on
+  # this fixture (doctor exit 1) — the probe's verdict is read from --json
+  # regardless.
+  fx_absent="$(new_bare_fixture t038-absent)"
+  add_core_and_role_files "$fx_absent"
+  rm -f "$fx_absent/.aai/AGENTS.md"
+  out="$(node "$DOCTOR" --root "$fx_absent" --json 2>&1)"
+  node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const c16 = j.categories.find(x => x.id === "CAT-16");
+      const ci = c16.detail && c16.detail.canonical_invocation;
+      if (!ci) die("detail.canonical_invocation missing");
+      if (ci.carried !== "UNKNOWN") die("absent-file fixture must report the literal UNKNOWN: " + JSON.stringify(ci));
+      if (typeof ci.reason !== "string" || ci.reason.length === 0) die("UNKNOWN must carry a non-empty reason: " + JSON.stringify(ci));
+      if (c16.status !== "PASS") die("CAT-16 must stay PASS-only, got " + c16.status);
+    });
+  ' <<<"$out" || rc3=1
+
+  if [[ "$rc1" -eq 0 && "$rc2" -eq 0 && "$rc3" -eq 0 ]]; then
+    log_pass "TEST-038 (0139-TEST-004) canonical_invocation fixture matrix: true / false (+/aai-update reason) / literal UNKNOWN, CAT-16 PASS-only"
+  else
+    log_fail "TEST-038 (0139-TEST-004) canonical_invocation fixture matrix"
+  fi
+}
+
+# --- TEST-039 (0139-TEST-005, Spec-AC-03) — shape invariants + real repo ----
+test_039_0139_canonical_invocation_shape() {
+  local fixture out_text out_json ok=1
+
+  # Text mode on the carried=true fixture: exactly one CAT-16 line, the
+  # contract segment appended to its reason, no detail leaked into text mode.
+  fixture="$(build_canonical_true_fixture t039-true)"
+  out_text="$(node "$DOCTOR" --root "$fixture" 2>&1)"
+  local n_lines
+  n_lines="$(grep -c '^CAT-16 ' <<<"$out_text")"
+  if [[ "$n_lines" -ne 1 ]]; then
+    log_info "TEST-039: text mode printed $n_lines CAT-16 lines (want exactly 1)"
+    ok=0
+  fi
+  local c16_line
+  c16_line="$(grep '^CAT-16 ' <<<"$out_text")"
+  if ! grep -qF 'canonical test-invocation contract' <<<"$c16_line"; then
+    log_info "TEST-039: CAT-16 text line missing the contract segment: $c16_line"
+    ok=0
+  fi
+  if ! grep -qF 'CAT-16 PASS' <<<"$c16_line"; then
+    log_info "TEST-039: CAT-16 must stay PASS: $c16_line"
+    ok=0
+  fi
+  if grep -qF '"carried"' <<<"$out_text"; then
+    log_info "TEST-039: structured detail leaked into text mode"
+    ok=0
+  fi
+
+  # SEAM-1 crossed for real: the actual doctor over the ACTUAL repo root must
+  # report carried true (the guidance edits and the probe literals agree).
+  out_json="$(node "$DOCTOR" --root "$PROJECT_ROOT" --json 2>&1)"
+  node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const c16 = j.categories.find(x => x.id === "CAT-16");
+      const ci = c16.detail && c16.detail.canonical_invocation;
+      if (!ci) die("real repo: detail.canonical_invocation missing");
+      if (ci.carried !== true) die("real repo root must report carried true: " + JSON.stringify(ci));
+      if (c16.status !== "PASS") die("real repo CAT-16 must stay PASS, got " + c16.status);
+    });
+  ' <<<"$out_json" || ok=0
+
+  # No-spawn/no-network structural pin on the probe itself: the
+  # probeCanonicalInvocation function body performs pure fs reads — no
+  # spawnSync, no run(), no network primitive (TEST-030 re-pins the whole
+  # file; this pins the NEW code path by name).
+  local body
+  body="$(awk '/^function probeCanonicalInvocation/{f=1} f{print; if ($0 ~ /^}/) exit}' "$DOCTOR")"
+  if [[ -z "$body" ]]; then
+    log_info "TEST-039: probeCanonicalInvocation function not found in $DOCTOR"
+    ok=0
+  fi
+  if grep -qE 'spawnSync|[^A-Za-z]run\(' <<<"$body"; then
+    log_info "TEST-039: probeCanonicalInvocation spawns a process"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-039 (0139-TEST-005) shape invariants: one CAT-16 text line with contract segment, detail json-only, real repo carried=true, probe spawn-free" \
+    || log_fail "TEST-039 (0139-TEST-005) canonical_invocation shape invariants"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1540,6 +1707,8 @@ main() {
   test_035_0138_codex_exec_block_battery
   test_036_0138_cli_version_tristate
   test_037_0138_count_line_composition
+  test_038_0139_canonical_invocation_fixtures
+  test_039_0139_canonical_invocation_shape
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then
