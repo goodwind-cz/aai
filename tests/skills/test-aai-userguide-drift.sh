@@ -7,12 +7,13 @@
 # Forward (TEST-007): every ANCHORED /aai-* slash-command mention in
 # docs/USER_GUIDE.md must resolve to a .claude/skills/<name> directory OR be
 # listed in the explicit ALLOWED_GENERATED array below (bootstrap-generated
-# downstream example skills). The anchor (D2): the mention's `/` is preceded
-# by start-of-line, whitespace, backtick, `(` or `|` (table cell) — which
-# structurally excludes script paths (`.aai/scripts/aai-sync.sh`: `/`
-# preceded by `s`) and URLs (`https://aai-reports-x.pages.dev`: preceded by
-# `/`), so neither class ever needs a fuzzy allowlist. A miss FAILS naming
-# the mention and its line number.
+# downstream example skills). The anchor (D2, widened by CHANGE-0141): the
+# mention's `/` is preceded by start-of-line, whitespace, backtick, `(`,
+# `|` (table cell) or `[` (markdown-link label) — which structurally
+# excludes script paths (`.aai/scripts/aai-sync.sh`: `/` preceded by `s`)
+# and URLs (`https://aai-reports-x.pages.dev`: preceded by `/`), so neither
+# class ever needs a fuzzy allowlist. A miss FAILS naming the mention and
+# its line number.
 #
 # Reverse (TEST-008): every vendored .claude/skills/aai-* directory must
 # have a `/<name>` mention in docs/USER_GUIDE.md. The exception array is
@@ -55,9 +56,10 @@ check_deps() {
   log_pass "Dependencies checked"
 }
 
-# D2 anchored extractor: `/` preceded by BOL, whitespace, backtick, `(` or
-# `|`; name is aai- plus lowercase kebab segments.
-MENTION_RE='(^|[[:space:]]|`|\(|\|)/aai-[a-z0-9]+(-[a-z0-9]+)*'
+# D2 anchored extractor: `/` preceded by BOL, whitespace, backtick, `(`, `|`
+# or `[` (CHANGE-0141 Spec-AC-03: markdown-link-form mentions `[/aai-x](…)`
+# were a forward false negative); name is aai- plus lowercase kebab segments.
+MENTION_RE='(^|[[:space:]]|`|\(|\||\[)/aai-[a-z0-9]+(-[a-z0-9]+)*'
 
 # Bootstrap-generated downstream example skills documented as generator
 # OUTPUT (USER_GUIDE bootstrap example block) — legitimate mentions with no
@@ -90,12 +92,18 @@ test_007_forward_reconcile() {  # TEST-007 (Spec-AC-02)
     echo 'run bash .aai/scripts/aai-sync.sh from the root'
     echo 'see https://aai-reports-abc123.pages.dev for the page'
     echo 'invoke `/aai-probe-positive` when needed'
+    echo 'see [/aai-probe-link](https://example.com/docs) for details'
   } > "$probe"
   local probe_hits
   probe_hits="$(extract_mentions "$probe")"
   rm -f "$probe"
   grep -q "aai-probe-positive" <<<"$probe_hits" \
     || log_fail "TEST-007 extractor self-check: anchored positive control not extracted"
+  # Link-form positive control (CHANGE-0141 Spec-AC-03): a regressed
+  # extractor that drops `[` from the anchor class fails HERE, before ever
+  # touching the guide.
+  grep -q "aai-probe-link" <<<"$probe_hits" \
+    || log_fail "TEST-007 extractor self-check: markdown-link-form positive control [/aai-probe-link](...) not extracted"
   grep -q "aai-sync" <<<"$probe_hits" \
     && log_fail "TEST-007 extractor self-check: script path .aai/scripts/aai-sync.sh must NOT match the anchor"
   grep -q "aai-reports" <<<"$probe_hits" \

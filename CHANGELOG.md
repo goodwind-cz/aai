@@ -11,6 +11,42 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(release+dashboard): released-region class pin, corruption-proof payload embed, link-form drift extraction (CHANGE-0141) [L1]
+
+- Released-CHANGELOG class guard (third glued/damaged-heading incident,
+  bc056cd): NEW test_025 in tests/skills/test-aai-release.sh byte-compares
+  the live CHANGELOG's released region (first `^## [v` line to EOF) against
+  the same region of `git show <tag>:CHANGELOG.md`, where the tag is the
+  FIRST `v[0-9]*` version-sorted (`-v:refname`) tag that is an ancestor of
+  HEAD — glue, deletion, retitle or reorder of ANY released heading at any
+  age now FAILS naming the tag and the first divergence; unreleased-zone
+  edits never trip it; tagless/unreachable-tag repos soft-skip with a NAMED
+  reason and the pass message names the resolved tag (non-vacuity witness in
+  every CI log). NEW test_026 drives the same helper through a scratch-repo
+  matrix (bc056cd-shape glue FAILS, deep-history retitle FAILS,
+  unreleased-only edit PASSES, tagless repo yields the named skip).
+  RED-first: both mutations passed the ENTIRE pre-change suite
+  (docs/ai/tdd/red-20260813T193830Z-*-released-region-pin.log).
+- generate-dashboard.mjs payload embed made corruption-proof (review +
+  Copilot both proved page death): the escape chain now runs
+  backslash-doubling FIRST (the old `<`/backtick/backslash order re-exposed
+  the backtick escape), escapes backticks and `${`, neutralizes `<` LAST,
+  and all five `{{...}}` template substitutions take function-replacement
+  form so `$&`-style replacement patterns in the payload are inert. NEW
+  test_012 (hostile fixture: backtick, `${boom}`, backslash-before-backtick
+  runs, `$&`, `</script>` — embedded script parses and the decoded payload
+  deep-equals the sidecar dashboard-data.json) and test_013 (structural pin
+  on chain order + function form; real-ledger embed round-trip) in
+  tests/skills/test-aai-dashboard.sh. Real-ledger sidecar byte-identical
+  pre/post fix (generatedAt-normalized cmp). RED-first: pre-change hostile
+  page is a SyntaxError (docs/ai/tdd/red-20260813T193830Z-*-hostile-embed.log).
+- userguide-drift forward extractor admits markdown-link-form mentions:
+  `[` joins the MENTION_RE anchor class and the extractor self-check gains
+  a `[/aai-probe-link](...)` positive control — a regressed extractor fails
+  before ever touching the guide. RED-first: the pre-change regex extracted
+  nothing from the planted link-form control
+  (docs/ai/tdd/red-20260813T193830Z-*-linkform-extractor.log).
+
 ## [unreleased] — fix(reporting): USER_GUIDE true-up, dashboard reads note-carried usage, named no-data panels (CHANGE-0140) [L1]
 
 - USER_GUIDE truth (owner audit 2026-08-13): the two dead skill-alias
