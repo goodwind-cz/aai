@@ -850,9 +850,12 @@ EOF
       const c16 = j.categories.find(x => x.id === "CAT-16");
       if (!c16) die("CAT-16 missing");
       const claude = c16.detail.clis.claude;
-      if (!claude || !claude.present || claude.version !== "claude-fixture-version-9.9.9") {
+      // CHANGE-0138 (Spec-AC-02): the record is the D2 tri-state — strict
+      // present === true, verbatim version, reason null.
+      if (!claude || claude.present !== true || claude.version !== "claude-fixture-version-9.9.9") {
         die("claude not PRESENT with the fixture version: " + JSON.stringify(claude));
       }
+      if (claude.reason !== null) die("a versioned CLI must carry reason null: " + JSON.stringify(claude));
     });
   '
   rc1=$?
@@ -873,8 +876,11 @@ EOF
       const die = (m) => { console.error(m); process.exit(1); };
       const clis = j.categories.find(x => x.id === "CAT-16").detail.clis;
       for (const name of ["claude", "codex", "gemini"]) {
-        if (clis[name].present) die(name + " unexpectedly PRESENT with an empty PATH");
-        if (clis[name].version) die(name + " unexpectedly carries a version with an empty PATH: " + clis[name].version);
+        // CHANGE-0138 (Spec-AC-02): absent is the strict tri-state shape —
+        // present false (never a truthy stand-in), version null, named reason.
+        if (clis[name].present !== false) die(name + " unexpectedly PRESENT with an empty PATH: " + JSON.stringify(clis[name]));
+        if (clis[name].version !== null) die(name + " unexpectedly carries a version with an empty PATH: " + clis[name].version);
+        if (clis[name].reason !== "not found on PATH") die(name + " absent record must carry the not-found-on-PATH reason: " + JSON.stringify(clis[name]));
       }
     });
   '
@@ -1077,6 +1083,15 @@ test_032_documentation_pin() {
     grep -qi 'self-test' "$pdoc" || { log_info "TEST-032: $pdoc does not mention the self-test"; ok=0; }
     grep -qiE 'does not prove|cannot prove|never proves|not prove' "$pdoc" \
       || { log_info "TEST-032: $pdoc does not state what the self-test does NOT prove"; ok=0; }
+    # CHANGE-0138 (Spec-AC-06): the doc tells the new CAT-16 truths — the
+    # tri-state presence record, the unknown-vs-absent count line, and the
+    # honest no-Commands:-block UNKNOWN for the codex exec observation.
+    grep -qi 'tri-state' "$pdoc" || { log_info "TEST-032: $pdoc does not document the tri-state presence record"; ok=0; }
+    grep -qF 'without version' "$pdoc" || { log_info "TEST-032: $pdoc does not document the without-version count segment"; ok=0; }
+    grep -qiE 'unknown.*(never|not).*(absent|present)|absent.*(never|not).*unknown|distinguish' "$pdoc" \
+      || { log_info "TEST-032: $pdoc does not state the unknown-vs-absent line semantics"; ok=0; }
+    grep -qF 'no Commands: block' "$pdoc" \
+      || { log_info "TEST-032: $pdoc does not document the honest no-Commands:-block UNKNOWN"; ok=0; }
   fi
 
   grep -qF '/aai-doctor' "$PROJECT_ROOT/docs/USER_GUIDE.md" || { log_info "TEST-032: USER_GUIDE.md missing /aai-doctor"; ok=0; }
@@ -1092,13 +1107,18 @@ test_032_documentation_pin() {
 
 # --- TEST-033 (F4, Spec-AC-03) — codex exec detection is not fooled by prose,
 #     and still fires on a real command-list line -----------------------------
+# CHANGE-0138 (Spec-AC-01): the prose-only fixture has NO Commands: block, so
+# the D1 block parse honestly reports UNKNOWN there — the old pin expected
+# false, which the line-shape heuristic could only fabricate. The positive
+# command-list fixture stays available:true.
 test_033_codex_exec_detection_honesty() {
   local fakebin="$TMP_ROOT/fakebin-exec"
   mkdir -p "$fakebin"
 
   # Negative fixture: --help PROSE that merely contains the word "exec" in a
-  # sentence. Before F4 (`/(^|\s)exec(\s|$)/m`) this fabricated
-  # available:true; the fixed regex requires a real command-list line shape.
+  # sentence and carries no Commands:/Subcommands: block at all. The D1
+  # block-anchored parse reports the honest UNKNOWN (prose can never produce
+  # a boolean either way).
   cat > "$fakebin/codex" <<'EOF'
 #!/bin/sh
 if [ "$1" = "--version" ]; then
@@ -1115,7 +1135,7 @@ EOF
 
   local out rc1
   out="$(PATH="$fakebin:$PATH" node "$DOCTOR" --json 2>&1)"
-  echo "$out" | node -e '
+  node -e '
     let d = "";
     process.stdin.on("data", c => d += c);
     process.stdin.on("end", () => {
@@ -1123,9 +1143,10 @@ EOF
       const die = (m) => { console.error(m); process.exit(1); };
       const c16 = j.categories.find(x => x.id === "CAT-16");
       const obs = c16.detail.codex_exec_subcommand;
-      if (obs.available !== false) die("prose mentioning \"exec\" fabricated available=true: " + JSON.stringify(obs));
+      if (obs.available !== "UNKNOWN") die("prose-only help with no Commands: block must be UNKNOWN: " + JSON.stringify(obs));
+      if (!/no Commands: block/.test(obs.reason || "")) die("UNKNOWN reason must name the missing Commands: block: " + JSON.stringify(obs));
     });
-  '
+  ' <<<"$out"
   rc1=$?
 
   # Positive fixture: a real command-list line (`Usage:` + `Commands:` shape),
@@ -1163,7 +1184,7 @@ EOF
   rc2=$?
 
   if [[ "$rc1" -eq 0 && "$rc2" -eq 0 ]]; then
-    log_pass "TEST-033 codex exec detection: honest on prose (false), fires on a real command-list line (true)"
+    log_pass "TEST-033 codex exec detection: honest UNKNOWN on prose-only help, fires on a real Commands: block (true)"
   else
     log_fail "TEST-033 codex exec detection honesty"
   fi
@@ -1220,10 +1241,261 @@ EOF
   fi
 }
 
+# =============================================================================
+# CHANGE-0138 / spec-doctor-honesty-batch — CAT-16 honesty: D1 Commands:-block
+# parse (0138-TEST-001), D2 version-probe tri-state (0138-TEST-002), the
+# unknown-vs-absent count line (0138-TEST-003). All fixtures drive the REAL
+# doctor via PATH-injected fake CLIs; new assertions use here-strings, never
+# echo|grep pipes (LEARNED shell-options rule).
+# =============================================================================
+
+# Shared fast fake CLI writer: a shell stub that prints <version> for
+# --version (empty string => prints nothing) and <helpfile>'s bytes for
+# anything else (missing helpfile => prints nothing).
+write_fake_cli() {
+  local path="$1" version="$2" helpfile="${3:-}"
+  {
+    printf '#!/bin/sh\n'
+    printf 'if [ "$1" = "--version" ]; then\n'
+    if [[ -n "$version" ]]; then
+      printf '  echo "%s"\n' "$version"
+    fi
+    printf '  exit 0\nfi\n'
+    if [[ -n "$helpfile" ]]; then
+      printf 'cat "%s"\n' "$helpfile"
+    fi
+    printf 'exit 0\n'
+  } > "$path"
+  chmod +x "$path"
+}
+
+# --- 0138-TEST-001 (Spec-AC-01) — the 11-fixture D1 block-parse battery ------
+# FX-01..FX-07 are the 0135 rescope report's A..G; FX-08..FX-11 are new.
+# Every fixture is a real fake-codex --help driven through the REAL doctor.
+BATTERY_FAILED=0
+
+run_battery_fixture() {
+  local fx="$1" expect="$2" reasonre="$3" helpfile="$4" fakebin="$5" fixroot="$6"
+  write_fake_cli "$fakebin/codex" "codex-fixture-1.0.0" "$helpfile"
+  local out rc=0
+  out="$(PATH="$fakebin:$PATH" node "$DOCTOR" --root "$fixroot" --json 2>&1)"
+  node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const c16 = j.categories.find(x => x.id === "CAT-16");
+      if (!c16) die("CAT-16 missing");
+      const obs = c16.detail.codex_exec_subcommand;
+      const expect = process.argv[1];
+      const want = expect === "true" ? true : expect === "false" ? false : "UNKNOWN";
+      if (obs.available !== want) die("available=" + JSON.stringify(obs.available) + " want " + expect + " (reason: " + obs.reason + ")");
+      if (!new RegExp(process.argv[2]).test(obs.reason || "")) die("reason class mismatch: " + JSON.stringify(obs.reason));
+      if (c16.status !== "PASS") die("CAT-16 must stay PASS-only on every fixture, got " + c16.status);
+    });
+  ' "$expect" "$reasonre" <<<"$out" || rc=1
+  if [[ "$rc" -eq 0 ]]; then
+    log_info "0138-TEST-001 $fx -> $expect (ok)"
+  else
+    log_info "0138-TEST-001 $fx: expected $expect, assertion failed (see above)"
+    BATTERY_FAILED=1
+  fi
+}
+
+test_035_0138_codex_exec_block_battery() {
+  local fakebin="$TMP_ROOT/fakebin-0138-battery" fxdir="$TMP_ROOT/fx-0138" fixroot="$TMP_ROOT/fx-0138-root"
+  mkdir -p "$fakebin" "$fxdir" "$fixroot"
+  # Fast fake claude/gemini so no battery run ever probes a real CLI.
+  write_fake_cli "$fakebin/claude" "claude-fixture-1.0.0"
+  write_fake_cli "$fakebin/gemini" "gemini-fixture-1.0.0"
+
+  # FX-01 (was A): prose-only help, 4-space-indented line starting `exec` plus
+  # two spaces, no Commands: header -> UNKNOWN (was the false positive).
+  printf 'codex-fixture 1.0.0\n\nBehavior notes:\n    exec  is mentioned here purely as prose\n' > "$fxdir/fx01.txt"
+  # FX-02 (was B): real clap Commands: block, 2-space indent, column-aligned.
+  printf 'Usage: codex [OPTIONS] <COMMAND>\n\nCommands:\n  exec         Run Codex non-interactively\n  login        Manage login\n' > "$fxdir/fx02.txt"
+  # FX-03 (was C): Commands: block, TAB separator after `exec` (was the false
+  # negative).
+  printf 'Usage: codex [OPTIONS] <COMMAND>\n\nCommands:\n  exec\tRun Codex non-interactively\n  login\tManage login\n' > "$fxdir/fx03.txt"
+  # FX-04 (was D): Commands: block, single-space separator (was the false
+  # negative).
+  printf 'Commands:\n  exec Run Codex non-interactively\n  login Manage login\n' > "$fxdir/fx04.txt"
+  # FX-05 (was E): Commands: block listing run/login only, no exec anywhere.
+  printf 'Commands:\n  run     Run something once\n  login   Manage login\n' > "$fxdir/fx05.txt"
+  # FX-06 (was F): the filed unindented prose sentence containing `exec`,
+  # above a Commands: block that lacks exec.
+  printf 'This tool will never exec anything on your behalf.\n\nCommands:\n  run     Run something once\n  login   Manage login\n' > "$fxdir/fx06.txt"
+  # FX-07 (was G): Commands: block without exec, then a column-0 Options:
+  # line, then 2-space-indented prose starting `exec` (block bounding kills
+  # the second false positive).
+  printf 'Commands:\n  run     Run something once\n  login   Manage login\n\nOptions:\n  exec  and eval are words we deliberately avoid.\n' > "$fxdir/fx07.txt"
+  # FX-08: SUBCOMMANDS: header variant with an exec row — written with CRLF
+  # line endings (the D1 parse must tolerate CRLF child output).
+  printf 'USAGE: codex <SUBCOMMAND>\r\n\r\nSUBCOMMANDS:\r\n    exec    Run non-interactively\r\n    help    Print help\r\n' > "$fxdir/fx08.txt"
+  # FX-09: Commands: block whose exec row is TAB-indented.
+  printf 'Commands:\n\texec\tRun Codex non-interactively\n\tlogin\tManage login\n' > "$fxdir/fx09.txt"
+  # FX-10: prose-only help containing exec mid-sentence, no header anywhere.
+  printf 'codex-fixture 1.0.0\nThis tool will never exec anything on your behalf.\n' > "$fxdir/fx10.txt"
+  # FX-11: Commands: block listing `execute` but never `exec`.
+  printf 'Commands:\n  execute   Run a task\n  login     Manage login\n' > "$fxdir/fx11.txt"
+
+  local re_true='Commands: block lists an exec subcommand'
+  local re_false='Commands: block does not list an exec subcommand'
+  local re_unknown='no Commands: block'
+  BATTERY_FAILED=0
+  run_battery_fixture FX-01 UNKNOWN "$re_unknown" "$fxdir/fx01.txt" "$fakebin" "$fixroot"
+  run_battery_fixture FX-02 true    "$re_true"    "$fxdir/fx02.txt" "$fakebin" "$fixroot"
+  run_battery_fixture FX-03 true    "$re_true"    "$fxdir/fx03.txt" "$fakebin" "$fixroot"
+  run_battery_fixture FX-04 true    "$re_true"    "$fxdir/fx04.txt" "$fakebin" "$fixroot"
+  run_battery_fixture FX-05 false   "$re_false"   "$fxdir/fx05.txt" "$fakebin" "$fixroot"
+  run_battery_fixture FX-06 false   "$re_false"   "$fxdir/fx06.txt" "$fakebin" "$fixroot"
+  run_battery_fixture FX-07 false   "$re_false"   "$fxdir/fx07.txt" "$fakebin" "$fixroot"
+  run_battery_fixture FX-08 true    "$re_true"    "$fxdir/fx08.txt" "$fakebin" "$fixroot"
+  run_battery_fixture FX-09 true    "$re_true"    "$fxdir/fx09.txt" "$fakebin" "$fixroot"
+  run_battery_fixture FX-10 UNKNOWN "$re_unknown" "$fxdir/fx10.txt" "$fakebin" "$fixroot"
+  run_battery_fixture FX-11 false   "$re_false"   "$fxdir/fx11.txt" "$fakebin" "$fixroot"
+
+  if [[ "$BATTERY_FAILED" -eq 0 ]]; then
+    log_pass "TEST-035 (0138-TEST-001) 11-fixture D1 battery: block-anchored verdicts, honest no-block UNKNOWN, CAT-16 PASS-only"
+  else
+    log_fail "TEST-035 (0138-TEST-001) D1 block-parse battery"
+  fi
+}
+
+# --- 0138-TEST-002 (Spec-AC-02) — version-probe tri-state through the doctor -
+test_036_0138_cli_version_tristate() {
+  local fakebin="$TMP_ROOT/fakebin-0138-tristate"
+  mkdir -p "$fakebin" "$TMP_ROOT/fx-0138-root-b"
+  # claude: version on STDERR only (exit 0) — present, no version, and the
+  # stderr text must never be presented as a version.
+  printf '#!/bin/sh\nif [ "$1" = "--version" ]; then\n  echo "claude-stderr-secret-7.7.7" >&2\n  exit 0\nfi\nexit 0\n' > "$fakebin/claude"
+  chmod +x "$fakebin/claude"
+  # codex: prints nothing anywhere, exits 1 — present, no version, named reason.
+  printf '#!/bin/sh\nif [ "$1" = "--version" ]; then\n  exit 1\nfi\nexit 0\n' > "$fakebin/codex"
+  chmod +x "$fakebin/codex"
+  # gemini: a normal versioned CLI (control).
+  write_fake_cli "$fakebin/gemini" "gemini-fixture-2.0.0"
+
+  local out rc=0
+  out="$(PATH="$fakebin:$PATH" node "$DOCTOR" --root "$TMP_ROOT/fx-0138-root-b" --json 2>&1)"
+  node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const clis = j.categories.find(x => x.id === "CAT-16").detail.clis;
+      for (const name of ["claude", "codex", "gemini"]) {
+        const rec = clis[name];
+        for (const field of ["present", "version", "reason"]) {
+          if (!Object.prototype.hasOwnProperty.call(rec, field)) die(name + " record missing the " + field + " field: " + JSON.stringify(rec));
+        }
+      }
+      const claude = clis.claude;
+      if (claude.present !== true || claude.version !== null) die("stderr-only CLI must be present true / version null: " + JSON.stringify(claude));
+      if (typeof claude.reason !== "string" || !/no stdout/.test(claude.reason)) die("stderr-only CLI must carry a named no-stdout reason: " + JSON.stringify(claude));
+      if (JSON.stringify(clis).includes("claude-stderr-secret")) die("stderr diagnostic leaked into the CLI detail: " + JSON.stringify(clis));
+      const codex = clis.codex;
+      if (codex.present !== true || codex.version !== null) die("no-output CLI must be present true / version null: " + JSON.stringify(codex));
+      if (typeof codex.reason !== "string" || !/no stdout/.test(codex.reason)) die("no-output CLI must carry a named no-stdout reason: " + JSON.stringify(codex));
+      const gemini = clis.gemini;
+      if (gemini.present !== true || gemini.version !== "gemini-fixture-2.0.0" || gemini.reason !== null) {
+        die("versioned control CLI record wrong: " + JSON.stringify(gemini));
+      }
+    });
+  ' <<<"$out" || rc=1
+  if [[ "$rc" -eq 0 ]]; then
+    log_pass "TEST-036 (0138-TEST-002) tri-state: stderr-only/no-output CLIs are present-no-version with named reasons; stderr never a version"
+  else
+    log_fail "TEST-036 (0138-TEST-002) version-probe tri-state"
+  fi
+}
+
+# --- 0138-TEST-003 (Spec-AC-03) — CAT-16 count-line composition ---------------
+test_037_0138_count_line_composition() {
+  local fakebin="$TMP_ROOT/fakebin-0138-countline"
+  mkdir -p "$fakebin" "$TMP_ROOT/fx-0138-root-c" "$TMP_ROOT/fx-0138-root-d"
+  # One versioned claude, one no-stdout codex, one SLEEPING gemini (the
+  # --version timeout arm: 5s doctor bound, honest UNKNOWN).
+  write_fake_cli "$fakebin/claude" "claude-fixture-3.0.0"
+  printf '#!/bin/sh\nexit 0\n' > "$fakebin/codex"
+  chmod +x "$fakebin/codex"
+  printf '#!/bin/sh\nif [ "$1" = "--version" ]; then\n  sleep 30\nfi\nexit 0\n' > "$fakebin/gemini"
+  chmod +x "$fakebin/gemini"
+
+  local out rc1=0
+  out="$(PATH="$fakebin:$PATH" node "$DOCTOR" --root "$TMP_ROOT/fx-0138-root-c" --json 2>&1)"
+  node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const c16 = j.categories.find(x => x.id === "CAT-16");
+      if (c16.status !== "PASS") die("CAT-16 must stay PASS, got " + c16.status);
+      if (!c16.reason.includes("2/3 agent CLI(s) present (1 without version), 1 unknown")) {
+        die("count line segment wrong: " + c16.reason);
+      }
+      if (!c16.reason.includes("; four SUBAGENT_PROTOCOL capability fields reported UNKNOWN (")) {
+        die("capability tail changed: " + c16.reason);
+      }
+      const gem = c16.detail.clis.gemini;
+      if (gem.present !== "UNKNOWN" || gem.version !== null || !/timed out/.test(gem.reason || "")) {
+        die("sleeping CLI must be the literal UNKNOWN with a timed-out reason: " + JSON.stringify(gem));
+      }
+    });
+  ' <<<"$out" || rc1=1
+
+  # All-versioned PATH: 3/3 with neither optional segment.
+  local fakebin2="$TMP_ROOT/fakebin-0138-countline-all"
+  mkdir -p "$fakebin2"
+  local cli
+  for cli in claude codex gemini; do
+    write_fake_cli "$fakebin2/$cli" "$cli-fixture-4.0.0"
+  done
+  local out2 rc2=0
+  out2="$(PATH="$fakebin2:$PATH" node "$DOCTOR" --root "$TMP_ROOT/fx-0138-root-d" --json 2>&1)"
+  node -e '
+    let d = "";
+    process.stdin.on("data", c => d += c);
+    process.stdin.on("end", () => {
+      const j = JSON.parse(d);
+      const die = (m) => { console.error(m); process.exit(1); };
+      const c16 = j.categories.find(x => x.id === "CAT-16");
+      if (!c16.reason.startsWith("3/3 agent CLI(s) present; four SUBAGENT_PROTOCOL")) {
+        die("all-versioned line must be 3/3 with neither optional segment: " + c16.reason);
+      }
+      if (c16.reason.includes("without version") || /\d+ unknown/.test(c16.reason)) {
+        die("optional segments must be absent when their counts are zero: " + c16.reason);
+      }
+    });
+  ' <<<"$out2" || rc2=1
+
+  if [[ "$rc1" -eq 0 && "$rc2" -eq 0 ]]; then
+    log_pass "TEST-037 (0138-TEST-003) count line: 2/3 present (1 without version), 1 unknown; 3/3 clean; tail + PASS frozen"
+  else
+    log_fail "TEST-037 (0138-TEST-003) count-line composition"
+  fi
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
   check_deps
+  if [[ $# -gt 0 ]]; then
+    # Single-test mode (mirrors test-aai-update.sh): used by the TDD lane to
+    # capture per-test RED/GREEN evidence without running the whole suite.
+    "$1"
+    echo ""
+    if [[ $FAILED -eq 0 ]]; then
+      echo "Selected test passed."
+      exit 0
+    else
+      echo "Selected test FAILED."
+      exit 1
+    fi
+  fi
   test_001_cat01_fail_named
   test_002_cat02_fail_named
   test_003_cat03_orphan_warn
@@ -1258,6 +1530,9 @@ main() {
   test_032_documentation_pin
   test_033_codex_exec_detection_honesty
   test_034_cat14_warn_branch_and_strict
+  test_035_0138_codex_exec_block_battery
+  test_036_0138_cli_version_tristate
+  test_037_0138_count_line_composition
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

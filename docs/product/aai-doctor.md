@@ -9,6 +9,9 @@ delivered_by:
   - CHANGE-0135
   - spec-doctor-win-selftest
   - doctor-win-selftest
+  - CHANGE-0138
+  - spec-doctor-honesty-batch
+  - doctor-honesty-batch
 spec: docs/specs/SPEC-0122-spec-doctor-win-selftest.md
 updated: 2026-08-13
 ---
@@ -48,6 +51,23 @@ session:
   string, and honestly reports that four specific orchestration-capability
   questions cannot be answered from outside a running agent session — see
   "Limits and non-goals" below.
+
+As of CHANGE-0138, CAT-16 tells the whole truth it observes. Each CLI
+record in the `--json` detail is a **tri-state**: `present` is `true`,
+`false`, or the literal string `UNKNOWN`, always alongside `version` and
+`reason`. A CLI that resolves on PATH but yields no usable `--version`
+output is `present: true, version: null` with a named reason — existence is
+never conflated with version knowledge, and a stderr diagnostic is never
+presented as a version string. A probe that times out or fails for a
+non-not-found cause is `UNKNOWN`, never silently folded into absence. The
+one-line CAT-16 reason distinguishes these states —
+`2/3 agent CLI(s) present (1 without version), 1 unknown` — so an unknown
+probe is never counted as absent and never inflates the present count (a
+segment is omitted when its count is zero). The codex `exec` subcommand
+observation is anchored to the `Commands:`/`SUBCOMMANDS:` block of
+`codex --help`; help output with no such block yields the honest
+`UNKNOWN` (`codex --help output has no Commands: block`) instead of a
+boolean guessed from prose.
 
 ## How to use it
 
@@ -104,6 +124,12 @@ disk.
   manual inspection — it prints the same JSON document to stdout.
 - Zero network access and zero LLM calls, on every platform, in both the
   Node and PowerShell halves of this feature.
+- CHANGE-0138 widened `detail.clis.<name>.present` from a boolean to
+  boolean-or-`'UNKNOWN'` (replacing the retired ad-hoc `unknown: true`
+  flag). This is visible to any consumer of the `--json` detail, including
+  the field report `/aai-update` embeds verbatim: consumers must treat any
+  non-`true` value as not-present. Confined to `--json`; the text report,
+  the CAT-16 PASS-only status, and the exit map are unchanged.
 
 ## Limits and non-goals
 
