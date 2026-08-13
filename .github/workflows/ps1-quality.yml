@@ -818,6 +818,7 @@ jobs:
     # E_ACCESSDENIED) remain field-only, per SPEC-0046 MV-1..MV-3.
     name: functional WSL1 leg (wrapper WSL routing + selftest arms + full 5.1 Pester)
     runs-on: windows-latest
+    timeout-minutes: 25   # job-level bound (PR #251 bot sweep): a hung setup-wsl download or WSL control must never hold the runner for the 360-min default
     steps:
       - uses: actions/checkout@v4
 
