@@ -10,6 +10,7 @@ delivered_by:
   - pester-on-windows-ci
   - CHANGE-0136
   - ps1-ci-platform-coverage
+  - canonical-test-invocation
 spec: docs/specs/SPEC-0120-spec-ps1-wrapper-path-dup.md
 updated: 2026-08-13
 ---

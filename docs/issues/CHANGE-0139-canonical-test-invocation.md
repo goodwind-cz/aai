@@ -2,10 +2,15 @@
 id: canonical-test-invocation
 number: 139
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
 capability: windows-test-wrapper
+links:
+  commits:
+    - 9d888f9
+  pr:
+    - 254
 ---
 
 # Change — canonical test-invocation contract: one allowlist-stable command shape, wrapper never bypassed

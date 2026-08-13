@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-13T14:05:35.091Z",
+  "generatedAt": "2026-08-13T16:06:00.176Z",
   "project": "aai",
   "counts": {
-    "delivered": 183,
+    "delivered": 184,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 34154337
+    "tokens_total": 34767196
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "doctor-honesty-batch",
+    "ref": "canonical-test-invocation",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "doctor-honesty-batch",
+      "ref": "canonical-test-invocation",
       "type": "intake_change",
       "phase": "code_review"
     },
@@ -27,38 +27,38 @@
     "review_status": "not_run",
     "ticks": [
       {
+        "tick": 82,
+        "role": "code_review",
+        "scope": "canonical-test-invocation",
+        "duration_seconds": 130,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 81,
+        "role": "validation",
+        "scope": "canonical-test-invocation",
+        "duration_seconds": 125,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 80,
+        "role": "implementation",
+        "scope": "canonical-test-invocation",
+        "duration_seconds": 1044,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 79,
+        "role": "planning",
+        "scope": "canonical-test-invocation",
+        "duration_seconds": 715,
+        "harness_version": "unknown"
+      },
+      {
         "tick": 78,
         "role": "code_review",
         "scope": "doctor-honesty-batch",
         "duration_seconds": 97,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 77,
-        "role": "validation",
-        "scope": "doctor-honesty-batch",
-        "duration_seconds": 145,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 76,
-        "role": "implementation",
-        "scope": "doctor-honesty-batch",
-        "duration_seconds": 1128,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 75,
-        "role": "planning",
-        "scope": "doctor-honesty-batch",
-        "duration_seconds": 716,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 74,
-        "role": "code_review",
-        "scope": "update-doctor-field-report",
-        "duration_seconds": 144,
         "harness_version": "unknown"
       }
     ]
@@ -130,6 +130,19 @@
       "spec": "docs/specs/SPEC-0125-spec-doctor-honesty-batch.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260813T134107Z-CHANGE-0138-doctor-honesty-batch.md"
+    },
+    {
+      "ref": "canonical-test-invocation",
+      "title": "Change — canonical test-invocation contract: one allowlist-stable command shape, wrapper never bypassed",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0139-canonical-test-invocation.md",
+      "closed_on": "2026-08-13",
+      "agent_minutes": 34,
+      "token_total": 612859,
+      "spec": "docs/specs/SPEC-0126-spec-canonical-test-invocation.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260813T154123Z-CHANGE-0139-canonical-test-invocation.md"
     },
     {
       "ref": "validation-cost-calibration",
@@ -2516,6 +2529,19 @@
           "spec": "docs/specs/SPEC-0125-spec-doctor-honesty-batch.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260813T134107Z-CHANGE-0138-doctor-honesty-batch.md"
+        },
+        {
+          "ref": "canonical-test-invocation",
+          "title": "Change — canonical test-invocation contract: one allowlist-stable command shape, wrapper never bypassed",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0139-canonical-test-invocation.md",
+          "closed_on": "2026-08-13",
+          "agent_minutes": 34,
+          "token_total": 612859,
+          "spec": "docs/specs/SPEC-0126-spec-canonical-test-invocation.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260813T154123Z-CHANGE-0139-canonical-test-invocation.md"
         },
         {
           "ref": "validation-cost-calibration",

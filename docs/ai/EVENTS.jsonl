@@ -1644,3 +1644,10 @@
 {"v":1,"ts":"2026-08-13T14:05:17.343Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-doctor-honesty-batch","payload":{"commit":"4f4698f"}}
 {"v":1,"ts":"2026-08-13T14:05:43.878Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":334,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-08-13T15:00:55.123Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-canonical-test-invocation","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-13T16:05:41.805Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"canonical-test-invocation","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-13T16:05:41.836Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"canonical-test-invocation","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-13T16:05:41.867Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"canonical-test-invocation","payload":{"commit":"9d888f9"}}
+{"v":1,"ts":"2026-08-13T16:05:41.904Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-canonical-test-invocation","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-13T16:05:41.938Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-canonical-test-invocation","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-13T16:05:41.970Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-canonical-test-invocation","payload":{"commit":"9d888f9"}}
+{"v":1,"ts":"2026-08-13T16:06:09.148Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":336,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

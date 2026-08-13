@@ -2,13 +2,15 @@
 id: spec-canonical-test-invocation
 type: spec
 number: 126
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0139-canonical-test-invocation.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 254
+  commits:
+    - 9d888f9
 ---
 
 # Spec — canonical test-invocation contract: one allowlist-stable command shape per platform, wrapper never bypassed
