@@ -339,6 +339,178 @@ Six monthly newsletters exist (Feb–Jul); the two most recent were read.
   clarify / kill** decision — the "should this be built at all" gate we lack
   (aai-scout scores readiness but never recommends killing a scope).
 
+### F12 — The eight remaining command templates (mechanism only)
+- **Anti-theater clause, repeated verbatim in every template**: after emitting
+  a hook block, *"you MUST actually invoke the hook and wait for it to finish
+  before continuing… Emitting the block alone does not run the hook."* A
+  one-sentence defence against an agent describing an action instead of
+  performing it — the exact class this factory keeps catching by hand.
+- **The LLM is forbidden from evaluating gate predicates**: *"do not attempt
+  to interpret or evaluate hook `condition` expressions… leave condition
+  evaluation to the HookExecutor implementation."* Independent confirmation
+  of our own split (scripts own gates, judgement never does).
+- **`specify` caps ambiguity markers**: *"Maximum 3 [NEEDS CLARIFICATION]
+  markers total"*, prioritized scope > security/privacy > UX > technical, and
+  — the part that matters — an explicit DON'T-ASK default list (retention,
+  performance, error handling, auth, integration patterns). Directly reshapes
+  recommendation 3: a vagueness lint without a don't-ask list produces noise.
+  Also a bounded repair loop: *"Re-run validation until all items pass (max 3
+  iterations)"*, then warn rather than spin.
+- **`clarify`**: 11-category coverage taxonomy scored Clear/Partial/Missing,
+  top 5 by impact times uncertainty, hard cap *"Maximum of 5 total questions"*,
+  strictly one at a time, answers bounded (2-5 mutually exclusive options or
+  5 words), every question carries a **Recommended** default acceptable with
+  "yes", and write-back must *"replace that statement instead of
+  duplicating; leave no obsolete contradictory text"* with an atomic save
+  after each integration. Question-quality grammar is pinned: a real
+  interrogative, *"NEVER use a topic label, section heading, or requirement
+  id as the question itself"*.
+- **`checklist` is not a test plan** — it is *"UNIT TESTS FOR REQUIREMENTS
+  WRITING"*, validating prose, with a prohibition list (no Verify/Test/Check
+  plus behavior, no click/navigate/render). Bounds: IDs append-only, *"≥80%
+  of items MUST include at least one traceability reference"*, soft cap at 40
+  items. **Ownership rule worth stealing**: the command *"MUST NOT mark
+  generated items [x]"* — a `[x]` means a human reviewer judged it. An
+  explicit agent-maintained vs reviewer-owned split on gate artifacts.
+- **`constitution` has a Scope Guard**: writes only the constitution file,
+  *"You MUST NOT create, modify, or delete application source files"*, and
+  *"Dependent templates and commands read the constitution at runtime and are
+  not modified here"* — confirming the July removal of write-fanout.
+  Principles get semver bump rules and a Sync Impact Report prepended as an
+  HTML comment.
+- **`implement` is the cautionary read, not a source**: against mid-flight
+  deviation there is nothing but prose. The known field defect (#464, a
+  library silently swapped for a textarea) is unaddressed in the template.
+  On failure: halt non-parallel, continue parallel, no retry budget, no
+  rollback. Our independent validation is precisely the missing organ.
+- `taskstoissues` refuses hard on remote mismatch (*"UNDER NO CIRCUMSTANCES
+  EVER CREATE ISSUES IN REPOSITORIES THAT DO NOT MATCH THE REMOTE URL"*) and
+  is re-run-safe via word-boundary task-id matching.
+
+### F13 — Concepts, community and installation: the anti-fork primitive
+This is the layer that answers our actual downstream problem, and it is more
+mechanical than the README suggests.
+
+- **Resolution is PER FILE, not per package**: overrides → presets →
+  extensions → core, and *"Each file name is evaluated independently against
+  the priority stack, so different files can come from different layers."*
+  A downstream can override one template without pinning everything else.
+- **`wrap` is the anti-fork primitive.** Composition is not only replace:
+  `prepend`, `append`, and `wrap`, where the override *"replaces
+  `{CORE_TEMPLATE}` with lower-priority content"* (scripts use
+  `$CORE_SCRIPT`). The downstream wrapper CONTAINS the upstream body instead
+  of copying it, so upstream edits keep flowing through the wrapper. This is
+  the single most important mechanism in the whole research: it is how you
+  customize without forking, and we have nothing like it.
+- **Overlays are diffs with fail-closed anchors**: `extends: <base>` plus
+  `edits: [insert_after: <step-id> | replace: <step-id>]`, stored outside the
+  installed directory so a refresh preserves them — and an overlay naming a
+  step id that no longer exists *"will raise a validation error when the
+  workflow is resolved"*. Overrides that break loudly when upstream renames
+  something are the difference between an override layer and silent drift.
+  Limits are explicit too: overlays cannot change metadata or inputs and
+  *"Overlays cannot target steps added by other overlays."*
+- **A managed-path manifest is what makes edits survive**: *"the file is
+  tracked in the shared-infrastructure manifest: your edits are preserved on
+  re-init"*. Combined with the hash manifest from F5, this is the complete
+  answer to `aai-sync` overwriting local work.
+- **A trace command exists**: `specify preset resolve <name>` *"shows which
+  file will be used… by tracing the full resolution stack."* Any precedence
+  stack we build needs its own explain-why command from day one.
+- **Config layering** for extensions: defaults → version-controlled
+  `<ext>-config.yml` → gitignored `<ext>-config.local.yml` → environment.
+  Maps cleanly onto our update-config plus a future machine-local file.
+- **Their own pin enforcement is weaker than advertised** — a warning we
+  should design against, not copy: *"Pin enforcement is install-time only.
+  Idempotency checks are id-based, not version-aware: a component that is
+  already present is skipped during install without comparing its on-disk
+  version to the manifest pin."* Id-based idempotency silently keeps stale
+  layers. Our sync must compare versions, not presence.
+- **Write-permission grades per phase, stated as contracts**: `analyze` is
+  read-only and must *"fix them at the source"*; `converge` is append-only,
+  *"its only possible write is adding tasks to `tasks.md`"*. We enforce the
+  same shape by role prompt and review culture; stating it as a per-phase
+  permission grade is tighter.
+- **Definition of done as a fixpoint**: *"Converged — no gaps found.
+  `tasks.md` is left byte-for-byte unchanged."* Byte-identity as the
+  done-oracle is a cheap, forgery-resistant evidence idea.
+- **Checklist ownership invariant, repeated across docs**: `[x]` means a
+  human reviewer judged the criterion satisfied, and `/speckit.implement`
+  *"must not change checklist markers"* — only the built-in
+  `checklists/requirements.md` is agent-maintained.
+- **Their trust signal is not a trust signal.** Maintainers *"do not review,
+  audit, endorse, or support the extension code itself"*; `verified` is a
+  formatting badge. Community catalogs are discovery-only by default and
+  installing requires explicitly adding an install-allowed catalog. If we
+  ever publish a registry, copy the posture, not the badge.
+- **Their docs drift too**, found deliberately: two mutually exclusive
+  preset-submission paths in one file, `verified` described two
+  contradictory ways, a documented command name that does not exist
+  (`extension add-catalog` vs the real `extension catalog add`), and a
+  "coming in Phase 4" FAQ for a shipped feature. Independent argument for the
+  anti-drift suite we built in CHANGE-0140.
+- **Security note worth keeping**: their workflows reference states plainly
+  that there is *"no shell-escaping filter"* and *"no sandbox around a
+  `shell` step"*, that *"Quoting is not a security boundary"*, and that gates
+  *"do not inspect the next step"* so *"approval never neutralises an
+  injectable interpolation."* If we ever interpolate agent output into a
+  shell step behind a human gate, that is the failure mode, stated better
+  than anywhere in their corpus.
+- Monorepo constitutions have *"no built-in base/inheritance mechanism"* —
+  duplicate or sync per project. Our vendored layer already beats that.
+
+### F14 — Project history, February to May 2026 (the most instructive read)
+- **They paid our parity tax for four months before paying it off.** The fix
+  log runs: PowerShell 5.1 compatibility restored (March), BSD-portable sed
+  escaping, PowerShell positional binding, CRLF warnings, UTF-8 BOM stripping
+  (April), PowerShell UTF-8 BOM and a Windows gate-step crash (May) — then
+  July ports the scripts to Python. Every one of those has a twin in our own
+  2026-08 log. April also replaced shell-based context updates with
+  marker-based upsert *"eliminating accidental context file bloat"* — the
+  first admission the shell approach was structurally wrong, three months
+  before the port. Reading their arc, the question for us is not whether the
+  shell-twin surface costs us, but whether we keep paying monthly.
+- **Windows entered their CI matrix only in month three**, after the breakage
+  above. We added real Windows coverage in CHANGE-0134/0136 for the same
+  reason, independently. Two projects, same lesson, both late.
+- **Constitution propagation peaked in May and was removed in June/July.**
+  May explicitly added constitution loading to `/implement` *"to enforce
+  governance during code generation"*; six weeks later template propagation
+  was deleted in favour of runtime read. Anyone tempted to make governance
+  text fan out into other artifacts should read that reversal first — our
+  pointer-based articles are already on the surviving side of it.
+- **Bundles were killed in April and rebuilt in June.** The April removal of
+  template zips is justified as *"the CLI itself now handling all scaffolding.
+  This ensured CLI and templates stay in sync."* That is a live caution for
+  our recommendation 5: a distribution layer decoupled from the tool drifts
+  from it, and they deleted theirs for exactly that reason before
+  reintroducing it with version pinning. The RFC must answer how the
+  precedence stack stays in sync with the tool that reads it.
+- **Deprecation discipline worth copying**: every removal is announced with a
+  target version gate (`--no-git` announced April, removed at v0.10.0 in
+  June). Our vendored layer changes downstream behavior with no such runway.
+- **The only adversarial measurement in the entire corpus** (March, Isoform
+  controlled test): SDD took *"33 min / 689 lines vs 8 min iterative
+  prompting"* with *"no measured quality improvement"*. It was never rebutted
+  with counter-data. That is the honest ceiling on this whole paradigm for
+  small scopes, and it is the strongest external argument for our ceremony
+  levels — and against adding ceremony to L0/L1 lanes.
+- **Ceremony overkill for small tasks is a complaint in all four months**,
+  answered with a lean preset, never with a core change. **Spec drift is the
+  top roadmap item four months running, still unsolved in core** — March
+  notes *"native real-time drift detection is not yet in core"*. Their
+  community solved phantom completions (*"tasks marked done with no real
+  code"*) with an extension; we solved it in core with
+  `done-without-evidence`.
+- **Independent verification is named but not built**: May quotes an analyst
+  — *"verification at each checkpoint cannot be deferred to the agent
+  producing it"*. That sentence describes our Validation role, which their
+  pipeline still lacks.
+- Supply-chain posture arrived only after the catalog passed 100 entries
+  (SHA-pinned Actions, URL scheme validation, labeled-event-only submissions,
+  confirmation on URL installs), and two community extensions were already
+  removed as dead repositories — the open catalog rots.
+
 ## Recommendations
 1. **Typed follow-up registry** — adopted, in flight as CHANGE-0142.
 2. **Regenerate-after-allocate wired into the close ceremony** — local
@@ -352,7 +524,21 @@ Six monthly newsletters exist (Feb–Jul); the two most recent were read.
    manifest (F5)** — the highest-value structural change, and materially
    broader than the "add an override layer" framing this research started
    with. Must consider `aai-update`, `aai-sync`, PROFILES.yaml and the
-   prompt-diet ledger.
+   prompt-diet ledger. **Concrete design inputs now available (F13):**
+   per-file resolution rather than per-package; `wrap` with a `$CORE_SCRIPT`
+   / `{CORE_TEMPLATE}` placeholder as the anti-fork primitive so a downstream
+   override contains the upstream body instead of copying it; overrides
+   stored outside the managed directory so refresh preserves them; anchors
+   that FAIL CLOSED when upstream renames the thing they target; a
+   managed-path manifest as the mechanism that makes edits survive; a
+   `resolve`-style trace command from day one; and config layering
+   (defaults → tracked → machine-local → env). **Two cautions from their own
+   history:** they deleted the distribution layer in April because it drifted
+   from the tool (*"the CLI itself now handling all scaffolding. This ensured
+   CLI and templates stay in sync"*) before rebuilding it in June — the RFC
+   must answer how the stack stays in sync with the tool that reads it; and
+   their pin enforcement is install-time only with id-based idempotency, so
+   ours must compare versions, not presence.
 6. **Interactive CLI installer/configurator (OPTIONAL, owner-flagged
    2026-08-13: "for less skilled users")** — their `specify init` is a
    guided provisioning step; ours is a file copy plus tribal knowledge.
