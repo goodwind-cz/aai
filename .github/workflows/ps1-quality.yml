@@ -909,7 +909,11 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $jsonText = (& node .aai/scripts/aai-doctor.mjs --json) -join "`n"
-          Write-Host "doctor exit code: $LASTEXITCODE (load-bearing: no later native call resets it, so GitHub's appended 'exit `$LASTEXITCODE' re-raises a doctor FAIL — deliberate fail-closed on top of the content assertions below)"
+          # ASCII-only inside 5.1-parsed strings: GitHub writes this temp
+          # script BOM-less, 5.1 falls back to ANSI, and a UTF-8 em-dash's
+          # last byte (0x94) reads as U+201D -- a closing-quote character to
+          # the 5.1 parser (run 31684595635: whole script failed to parse).
+          Write-Host "doctor exit code: $LASTEXITCODE (load-bearing: no later native call resets it, so GitHub's appended 'exit `$LASTEXITCODE' re-raises a doctor FAIL -- deliberate fail-closed on top of the content assertions below)"
           $doc = $jsonText | ConvertFrom-Json
           $fail = 0
           $cat15 = $doc.categories | Where-Object { $_.id -eq 'CAT-15' } | Select-Object -First 1
