@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-14T00:06:46.555Z
+Generated: 2026-08-14T00:07:56.679Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -371,9 +371,11 @@ _None._
 | SPEC-0129 | specs | docs/specs/SPEC-0129-spec-followup-registry.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0143 | issues | docs/issues/CHANGE-0143-close-regenerate-order.md |
 
 ## Deferred (whole-doc) (0)
 
