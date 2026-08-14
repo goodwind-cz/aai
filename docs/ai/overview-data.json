@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-08-14T07:05:51.956Z",
+  "generatedAt": "2026-08-14T07:59:52.183Z",
   "project": "aai",
   "counts": {
-    "delivered": 188,
-    "in_progress": 2,
+    "delivered": 189,
+    "in_progress": 1,
     "releases": 1,
-    "tokens_total": 37173509
+    "tokens_total": 37960153
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -23,8 +23,8 @@
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "pass",
-    "review_status": "pass",
+    "validation_status": "not_run",
+    "review_status": "not_run",
     "ticks": [
       {
         "tick": 102,
@@ -65,19 +65,6 @@
   },
   "in_progress": [
     {
-      "ref": "close-regenerate-order",
-      "title": "Change — generated pages are regenerated AFTER the spec number is allocated, by machine not by discipline",
-      "type": "change",
-      "status": "implementing",
-      "path": "docs/issues/CHANGE-0143-close-regenerate-order.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0131-spec-close-regenerate-order.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-20260814T065229Z-CHANGE-0143-close-regenerate-order.md"
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -92,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "close-regenerate-order",
+      "title": "Change — generated pages are regenerated AFTER the spec number is allocated, by machine not by discipline",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0143-close-regenerate-order.md",
+      "closed_on": "2026-08-14",
+      "agent_minutes": 315,
+      "token_total": 786644,
+      "spec": "docs/specs/SPEC-0131-spec-close-regenerate-order.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260814T065229Z-CHANGE-0143-close-regenerate-order.md"
+    },
     {
       "ref": "vagueness-gate",
       "title": "Change — mark it, do not assert it: a freeze-time gate on vagueness and unverified claims",
@@ -2543,6 +2543,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "close-regenerate-order",
+          "title": "Change — generated pages are regenerated AFTER the spec number is allocated, by machine not by discipline",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0143-close-regenerate-order.md",
+          "closed_on": "2026-08-14",
+          "agent_minutes": 315,
+          "token_total": 786644,
+          "spec": "docs/specs/SPEC-0131-spec-close-regenerate-order.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260814T065229Z-CHANGE-0143-close-regenerate-order.md"
+        },
         {
           "ref": "vagueness-gate",
           "title": "Change — mark it, do not assert it: a freeze-time gate on vagueness and unverified claims",

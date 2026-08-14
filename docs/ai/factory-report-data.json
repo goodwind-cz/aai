@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-14T07:06:05.929Z",
+  "generatedAt": "2026-08-14T07:59:52.089Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 121,
-    "delivered": 328,
+    "rides": 122,
+    "delivered": 330,
     "active_weeks": 7,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (328 closes vs 121 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 328,
-    "delivered_per_week_avg": 46.9,
+    "note": "\"delivered\" counts every work_item_closed event (330 closes vs 122 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 330,
+    "delivered_per_week_avg": 47.1,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -21,7 +21,7 @@
       "2026-W30": 64,
       "2026-W31": 72,
       "2026-W32": 19,
-      "2026-W33": 29
+      "2026-W33": 31
     },
     "delivered_groups": [
       {
@@ -299,7 +299,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 65,
+        "count": 67,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -365,7 +365,9 @@
           "followup-registry",
           "spec-followup-registry",
           "vagueness-gate",
-          "spec-vagueness-gate"
+          "spec-vagueness-gate",
+          "close-regenerate-order",
+          "spec-close-regenerate-order"
         ]
       }
     ],
@@ -1682,25 +1684,33 @@
         {
           "ref": "spec-vagueness-gate",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "close-regenerate-order",
+          "lead_time_seconds": 26393
+        },
+        {
+          "ref": "spec-close-regenerate-order",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 3591,
-      "mean_seconds": 126504.6,
-      "measured": 117,
-      "unmeasurable": 211
+      "median_seconds": 3621,
+      "mean_seconds": 125656.2,
+      "measured": 118,
+      "unmeasurable": 212
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2171,
-      "mean": 2948.7,
-      "measured": 119
+      "median": 2182,
+      "mean": 3081.6,
+      "measured": 120
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 113200,
-        "tokens": 12823230
+        "duration_seconds": 122879,
+        "tokens": 13089575
       },
       {
         "role": "Implementation",
@@ -1709,8 +1719,8 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 46830,
-        "tokens": 7194680
+        "duration_seconds": 47226,
+        "tokens": 7364369
       },
       {
         "role": "Remediation",
@@ -1719,13 +1729,13 @@
       },
       {
         "role": "Validation",
-        "duration_seconds": 69605,
-        "tokens": 7302127
+        "duration_seconds": 77645,
+        "tokens": 7500115
       },
       {
         "role": "Planning",
-        "duration_seconds": 62461,
-        "tokens": 7000582
+        "duration_seconds": 63245,
+        "tokens": 7153204
       }
     ],
     "per_ride": [
@@ -2333,6 +2343,11 @@
         "ref": "vagueness-gate",
         "busy_seconds": 2872,
         "remediation_runs": 0
+      },
+      {
+        "ref": "close-regenerate-order",
+        "busy_seconds": 18899,
+        "remediation_runs": 0
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -2342,15 +2357,15 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 464257,
-      "mean": 541166.9,
-      "measured": 73
+      "median": 469041,
+      "mean": 544484.1,
+      "measured": 74
     },
-    "tokens_total": 39505182,
+    "tokens_total": 40291826,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 12823230
+        "tokens": 13089575
       },
       {
         "role": "Implementation",
@@ -2358,7 +2373,7 @@
       },
       {
         "role": "Code Review",
-        "tokens": 7194680
+        "tokens": 7364369
       },
       {
         "role": "Remediation",
@@ -2366,16 +2381,16 @@
       },
       {
         "role": "Validation",
-        "tokens": 7302127
+        "tokens": 7500115
       },
       {
         "role": "Planning",
-        "tokens": 7000582
+        "tokens": 7153204
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 284,
-      "total_runs": 506,
+      "runs_with_marker": 288,
+      "total_runs": 510,
       "pct": 56,
       "by_week": [
         {
@@ -2416,8 +2431,8 @@
         },
         {
           "week": "2026-W33",
-          "runs_with_marker": 69,
-          "total_runs": 69,
+          "runs_with_marker": 73,
+          "total_runs": 73,
           "pct": 100
         }
       ]
@@ -2426,12 +2441,12 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 77,
-          "runs_marked": 57,
+          "runs_total": 78,
+          "runs_marked": 58,
           "runs_sentinel": 0,
           "runs_unmarked": 20,
-          "tokens_total": 12823230,
-          "median_tokens_per_run": 224045,
+          "tokens_total": 13089575,
+          "median_tokens_per_run": 224435,
           "share_pct": 32
         },
         {
@@ -2446,12 +2461,12 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 121,
-          "runs_marked": 76,
+          "runs_total": 122,
+          "runs_marked": 77,
           "runs_sentinel": 0,
           "runs_unmarked": 45,
-          "tokens_total": 7194680,
-          "median_tokens_per_run": 84514,
+          "tokens_total": 7364369,
+          "median_tokens_per_run": 85128,
           "share_pct": 18
         },
         {
@@ -2462,26 +2477,26 @@
           "runs_unmarked": 26,
           "tokens_total": 4223209,
           "median_tokens_per_run": 164496,
-          "share_pct": 11
+          "share_pct": 10
         },
         {
           "role": "Validation",
-          "runs_total": 114,
-          "runs_marked": 68,
+          "runs_total": 115,
+          "runs_marked": 69,
           "runs_sentinel": 0,
           "runs_unmarked": 46,
-          "tokens_total": 7302127,
-          "median_tokens_per_run": 104158,
-          "share_pct": 18
+          "tokens_total": 7500115,
+          "median_tokens_per_run": 104162,
+          "share_pct": 19
         },
         {
           "role": "Planning",
-          "runs_total": 100,
-          "runs_marked": 53,
+          "runs_total": 101,
+          "runs_marked": 54,
           "runs_sentinel": 0,
           "runs_unmarked": 47,
-          "tokens_total": 7000582,
-          "median_tokens_per_run": 128640,
+          "tokens_total": 7153204,
+          "median_tokens_per_run": 128667,
           "share_pct": 18
         }
       ],
@@ -2701,8 +2716,8 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 13,
-              "median_tokens": 255490
+              "runs_marked": 14,
+              "median_tokens": 256429
             },
             {
               "role": "Implementation",
@@ -2711,8 +2726,8 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 15,
-              "median_tokens": 136625
+              "runs_marked": 16,
+              "median_tokens": 137424
             },
             {
               "role": "Remediation",
@@ -2721,13 +2736,13 @@
             },
             {
               "role": "Validation",
-              "runs_marked": 16,
-              "median_tokens": 136048
+              "runs_marked": 17,
+              "median_tokens": 136517
             },
             {
               "role": "Planning",
-              "runs_marked": 13,
-              "median_tokens": 160524
+              "runs_marked": 14,
+              "median_tokens": 159950
             }
           ]
         }
@@ -2736,13 +2751,13 @@
   },
   "quality": {
     "first_pass_clean": {
-      "clean": 79,
-      "flagged": 95,
+      "clean": 80,
+      "flagged": 96,
       "rate_pct": 83
     },
     "na_reliability": 26,
     "remediation_distribution": {
-      "0": 79,
+      "0": 80,
       "1": 8,
       "2": 3,
       "3": 3,
@@ -2753,7 +2768,7 @@
     "avg_validation_fails": 0,
     "avg_review_fails": 0,
     "verdict_mix": {
-      "PASS": 108,
+      "PASS": 109,
       "null": 13
     },
     "review_events": 26,
@@ -2810,16 +2825,16 @@
     },
     {
       "week": "2026-W33",
-      "delivered": 29,
-      "median_lead_time_seconds": 4671,
-      "busy_seconds": 56338,
-      "tokens": 11816109,
-      "first_pass_rate": 71
+      "delivered": 31,
+      "median_lead_time_seconds": 4757,
+      "busy_seconds": 75237,
+      "tokens": 12602753,
+      "first_pass_rate": 73
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 31,
+    "open_count": 33,
     "oldest_age_days": 5,
     "items": [
       {
@@ -3068,6 +3083,22 @@
         "severity": "P3",
         "age_days": 0,
         "what": "TEST-029's unreachable-base-ref arm calls log_pass, so the close-work-item pin can go inert while reporting PASS",
+        "status": "open"
+      },
+      {
+        "id": "fu-index-regen-silent-degrade",
+        "ref": "close-regenerate-order",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "regenerateIndex() swallows generator failures with no named stderr line, unlike the two spec-page generators",
+        "status": "open"
+      },
+      {
+        "id": "fu-reserve-success-path-uncovered",
+        "ref": "close-regenerate-order",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the universal no-regeneration arm never exercises a --reserve that actually allocates",
         "status": "open"
       }
     ]
