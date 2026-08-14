@@ -6,8 +6,9 @@ status: current
 delivered_by:
   - CHANGE-0098
   - CHANGE-0130
+  - CHANGE-0142
 spec: docs/specs/SPEC-0108-spec-factory-performance-report.md
-updated: 2026-08-11
+updated: 2026-08-13
 ---
 
 # Factory performance report
@@ -36,7 +37,8 @@ every work-item close, so it is a continuous overview, not a one-off snapshot.
 - Inputs: `docs/ai/METRICS.jsonl` (rides, agent runs, durations, the
   `usage_total_tokens=` note grammar, the reliability block) and
   `docs/ai/EVENTS.jsonl` (`work_item_closed` timestamps); release grouping via
-  release-doc `links.members`.
+  release-doc `links.members`; `docs/ai/decisions.jsonl` for the typed
+  follow-up registry (`--decisions <path>` overrides it).
 - Outputs: `docs/ai/factory-report.html` (self-contained, inline CSS/SVG) +
   `factory-report-data.json` (field-for-field the same model).
 
@@ -52,6 +54,28 @@ every work-item close, so it is a continuous overview, not a one-off snapshot.
   ledger yields an empty report with a marker, exit 0.
 - Close-hook: `close-work-item.mjs` regenerates the report strictly last,
   swallowing failures (exit code of the close never changes).
+- `--decisions <path>` selects the decision ledger the follow-ups block folds
+  (default `docs/ai/decisions.jsonl`).
+
+## Open follow-ups
+
+- The `<section id="follow-ups">` block (`follow_ups` in
+  `factory-report-data.json`) lists the OPEN typed follow-ups folded out of
+  `docs/ai/decisions.jsonl`: `open_count`, `oldest_age_days`, and one item per
+  open entry with id, raising ref, severity, `age_days` and the one-line
+  finding. Ageing deferred work is a quality-debt signal, which is why it sits
+  on this page rather than the stakeholder overview.
+- Ordered by AGE, never by severity, so a mis-assigned P-level cannot hide an
+  item. Report-only: nothing here gates anything.
+- The fold is the SAME code the `follow-ups.mjs` CLI runs, so
+  `open_count` and `node .aai/scripts/follow-ups.mjs list --json` can never
+  disagree over one ledger. See docs/product/aai-decisions.md for the record
+  shape and the manual close command.
+- Degradations are named in the existing notes block and never fatal: an
+  absent ledger, a malformed line, an id-less legacy entry folded under a
+  derived id, and a dangling status record each produce a note, exit 0. An
+  empty registry reports `open_count: 0` and `oldest_age_days: null` — never
+  a fabricated 0.
 
 ## Role consumption
 
@@ -97,3 +121,5 @@ every work-item close, so it is a continuous overview, not a one-off snapshot.
 - Spec: docs/specs/SPEC-0108-spec-factory-performance-report.md
 - Request: docs/issues/CHANGE-0130-role-token-trend.md
 - Spec: docs/specs/SPEC-0117-spec-role-token-trend.md
+- Request: docs/issues/CHANGE-0142-followup-registry.md
+- Spec: docs/specs/SPEC-0129-spec-followup-registry.md

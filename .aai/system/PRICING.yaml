@@ -88,6 +88,14 @@ models:
     output_usd_per_m: 50.00
     source_ref: anthropic-pricing
     last_verified_utc: "2026-07-15T19:19:02Z"
+  # Recorded in METRICS.jsonl from 2026-08-13 (the session model switched to
+  # Opus 5 mid-block). Rates read off the published model-pricing table, not
+  # inferred from the 4.8 row they happen to match.
+  claude-opus-5:
+    input_usd_per_m: 5.00
+    output_usd_per_m: 25.00
+    source_ref: anthropic-pricing
+    last_verified_utc: "2026-08-13T23:35:00Z"
   claude-opus-4-8:
     input_usd_per_m: 5.00
     output_usd_per_m: 25.00

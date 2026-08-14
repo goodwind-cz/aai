@@ -9,6 +9,7 @@
 //   - docs/ai/METRICS.jsonl   (per-ride agent_runs, reliability, verdict)
 //   - docs/ai/EVENTS.jsonl    (work_item_closed timestamps)
 //   - docs/releases/*.md      (links.members release grouping)
+//   - docs/ai/decisions.jsonl (typed follow_up registry — CHANGE-0142)
 //
 // It is NOT generate-dashboard.mjs (per-operation activity telemetry, keyed on
 // tokens_in/out which are null across this repo) nor generate-overview.mjs
@@ -23,6 +24,7 @@
 // Usage: node .aai/scripts/generate-factory-report.mjs
 //          [--output <html path>] [--data-only]
 //          [--metrics <path>] [--events <path>] [--releases <dir>]
+//          [--decisions <path>]
 // Read-only over inputs; writes only the two output files. Node stdlib only,
 // zero network (docs/TECHNOLOGY.md). Always exits 0 on a readable/absent
 // ledger; a malformed JSONL line is skipped and named, never fatal.
@@ -33,6 +35,11 @@ import { execFileSync } from 'node:child_process';
 import {
   extractUsageTotal, hasUsageSentinel, CANONICAL_ROLES, normalizeRole,
 } from './lib/usage-note.mjs';
+// ONE fold, two consumers (SEAM-2, CHANGE-0142 D4): the follow-up registry is
+// IMPORTED from the CLI that owns it, never re-implemented here. That also
+// carries the `#`-comment skip this file's own readJsonl would have to repeat
+// for a ledger whose first 15 lines are a comment header (SEAM-3).
+import { loadRegistry } from './follow-ups.mjs';
 
 const ROOT = process.cwd();
 
@@ -91,6 +98,7 @@ function parseArgs(argv) {
     metricsPath: 'docs/ai/METRICS.jsonl',
     eventsPath: 'docs/ai/EVENTS.jsonl',
     releasesDir: 'docs/releases',
+    decisionsPath: 'docs/ai/decisions.jsonl',
   };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
@@ -98,9 +106,10 @@ function parseArgs(argv) {
     if (tok === '--metrics' && argv[i + 1]) { args.metricsPath = argv[i + 1]; i += 1; continue; }
     if (tok === '--events' && argv[i + 1]) { args.eventsPath = argv[i + 1]; i += 1; continue; }
     if (tok === '--releases' && argv[i + 1]) { args.releasesDir = argv[i + 1]; i += 1; continue; }
+    if (tok === '--decisions' && argv[i + 1]) { args.decisionsPath = argv[i + 1]; i += 1; continue; }
     if (tok === '--data-only') { args.dataOnly = true; continue; }
     if (tok === '-h' || tok === '--help') {
-      console.log('Usage: generate-factory-report.mjs [--output <html>] [--data-only] [--metrics <path>] [--events <path>] [--releases <dir>]');
+      console.log('Usage: generate-factory-report.mjs [--output <html>] [--data-only] [--metrics <path>] [--events <path>] [--releases <dir>] [--decisions <path>]');
       process.exit(0);
     }
   }
@@ -492,6 +501,34 @@ function buildModel(args) {
   }));
   const roleConsumptionModel = { roles: roleConsumptionRoles, by_week: roleConsumptionByWeek };
 
+  // ==================== FOLLOW-UPS (CHANGE-0142, D4) ====================
+  // Ageing deferred work is a QUALITY-DEBT metric, which is why it lands on
+  // this page and not on the stakeholder overview. REPORT-ONLY: every ledger
+  // shape (absent, empty, comment-only, malformed line, non-empty) exits 0
+  // with the degradation named in `notes` — no gate, no new exit code.
+  const decisionsAbs = path.resolve(ROOT, args.decisionsPath);
+  const registry = loadRegistry(decisionsAbs);
+  const openFollowUps = registry.items.filter((i) => !i.closed);
+  const followUpAges = openFollowUps.map((i) => i.age_days).filter((v) => typeof v === 'number');
+  const followUps = {
+    // The ledger actually read (PR #257 Copilot): --decisions can point
+    // elsewhere, and a report naming a path it did not read is a lie.
+    source: args.decisionsPath,
+    open_count: openFollowUps.length,
+    // null (never 0) for an empty backlog — an empty registry and a
+    // brand-new one must not look like a same-day deferral.
+    oldest_age_days: followUpAges.length ? Math.max(...followUpAges) : null,
+    items: openFollowUps.map((i) => ({
+      id: i.id,
+      ref: i.ref_id,
+      severity: i.severity,
+      age_days: i.age_days,
+      what: i.finding,
+      status: i.status,
+    })),
+  };
+  for (const n of registry.notes) notes.push(n);
+
   return {
     generatedAt: new Date().toISOString(),
     project: projectLabel(),
@@ -545,6 +582,7 @@ function buildModel(args) {
       review_verdict_note: 'per-review pass/fail lives only in prose run notes and is not mechanically derived; only ride verdict + code_review_completed count are shown',
     },
     trend,
+    follow_ups: followUps,
     notes,
   };
 }
@@ -582,7 +620,13 @@ function barSeries(series, key, labelFn) {
 
 function renderHtml(m) {
   if (m.empty) {
-    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(m.project)} — Factory Performance Report</title></head><body><h1>${esc(m.project)} — Factory Performance Report</h1><p>No metrics recorded yet.</p></body></html>\n`;
+    // A repo with no rides can still carry open follow-ups (a fresh downstream
+    // is exactly that shape). Suppressing them here would hide the whole
+    // registry behind an unrelated emptiness — PR #257 Codex P2.
+    const fuLine = m.follow_ups && m.follow_ups.open_count > 0
+      ? `<p><b>${m.follow_ups.open_count}</b> open follow-up(s) recorded in <code>${esc(m.follow_ups.source ?? 'docs/ai/decisions.jsonl')}</code>${m.follow_ups.oldest_age_days === null ? '' : `, oldest ${m.follow_ups.oldest_age_days}d`}.</p>`
+      : '';
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(m.project)} — Factory Performance Report</title></head><body><h1>${esc(m.project)} — Factory Performance Report</h1><p>No metrics recorded yet.</p>${fuLine}</body></html>\n`;
   }
   const lead = m.throughput.lead_time;
   const notesHtml = m.notes.length
@@ -627,6 +671,11 @@ function renderHtml(m) {
   const verdictRows = Object.keys(m.quality.verdict_mix).sort()
     .map((k) => `<tr><td>${esc(k)}</td><td>${m.quality.verdict_mix[k]}</td></tr>`).join('');
   const fpc = m.quality.first_pass_clean;
+  // Follow-ups (CHANGE-0142): ordered by AGE, never by severity, so a
+  // mis-assigned P-level cannot hide an item (residual risk R4).
+  const followUpRows = m.follow_ups.items
+    .map((f) => `<tr><td><code>${esc(f.id)}</code></td><td>${esc(f.severity ?? 'n/a')}</td><td>${esc(f.ref ?? 'n/a')}</td><td>${f.age_days === null ? 'n/a' : `${f.age_days}d`}</td><td>${esc(f.what)}</td></tr>`)
+    .join('');
 
   return `<!doctype html>
 <html lang="en">
@@ -720,6 +769,16 @@ function renderHtml(m) {
 <p class="meta">First-pass-clean rate per ISO week (weeks with no reliability data show empty bars). ${esc(m.quality.review_verdict_note)}.</p>
 <div class="scroll"><table><thead><tr><th>Remediation runs</th><th>Rides</th></tr></thead><tbody>${remRows}</tbody></table></div>
 <div class="scroll"><table><thead><tr><th>Ride verdict</th><th>Rides</th></tr></thead><tbody>${verdictRows}</tbody></table></div>
+</section>
+
+<section id="follow-ups">
+<h2>Open follow-ups — deferred work, ageing</h2>
+<div class="kpis">
+  <div class="kpi"><b>${m.follow_ups.open_count}</b><span>open follow-ups</span></div>
+  <div class="kpi"><b>${m.follow_ups.oldest_age_days === null ? 'n/a' : `${m.follow_ups.oldest_age_days}d`}</b><span>oldest open item</span></div>
+</div>
+<p class="meta">Typed <code>follow_up</code> entries folded out of <code>${esc(m.follow_ups.source ?? 'docs/ai/decisions.jsonl')}</code>, oldest first. Report-only — nothing here blocks anything. Close one with <code>node .aai/scripts/follow-ups.mjs close --id &lt;id&gt; --resolved-by &lt;ref&gt;</code>.</p>
+<div class="scroll"><table><thead><tr><th>Id</th><th>Severity</th><th>Raised by</th><th>Age</th><th>What</th></tr></thead><tbody>${followUpRows}</tbody></table></div>
 </section>
 
 ${notesHtml}

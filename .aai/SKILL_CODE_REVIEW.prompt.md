@@ -177,8 +177,10 @@ SKILL_PR treats scope-cited reports as expected companions.
 - A PASS verdict with open WARNINGs (NON-BLOCKING findings) is conditional
   — before closeout, EACH WARNING must be either
   (a) remediated, or
-  (b) promoted to a `docs/ai/decisions.jsonl` entry (decision id +
-      rationale), or
+  (b) promoted to a typed `docs/ai/decisions.jsonl` follow_up = the decision
+      id: `node .aai/scripts/follow-ups.mjs add --id fu-<slug> --ref <ref>
+      --severity P1|P2|P3 --what <line> --why <line> --source <ev>`
+      (never hand-write it: a bad line fails the ledger closed), or
   (c) promoted to a tracked follow-up ref (an ISSUE/CHANGE id named in the
       review notes).
   The review report AND STATE.yaml `code_review.notes` must name the chosen

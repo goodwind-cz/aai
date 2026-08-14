@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-13T20:36:01.521Z
+Generated: 2026-08-13T23:18:26.173Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,11 +17,12 @@ _None._
 
 _None._
 
-## Product (24)
+## Product (25)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
 | aai-dashboard | aai-dashboard | 2 | docs/product/aai-dashboard.md |
+| aai-decisions | aai-decisions | 1 | docs/product/aai-decisions.md |
 | aai-doctor | aai-doctor | 8 | docs/product/aai-doctor.md |
 | aai-update | aai-update | 5 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
@@ -29,7 +30,7 @@ _None._
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
-| factory-performance-report | factory-performance-report | 2 | docs/product/factory-performance-report.md |
+| factory-performance-report | factory-performance-report | 3 | docs/product/factory-performance-report.md |
 | friction-capture-default-on | friction-capture-default-on | 1 | docs/product/friction-capture-default-on.md |
 | implementation-mode-choice | implementation-mode-choice | 1 | docs/product/implementation-mode-choice.md |
 | issues-skill | issues-skill | 1 | docs/product/issues-skill.md |
@@ -46,7 +47,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (316)
+## Done (319)
 
 | ID | Type | Path |
 |---|---|---|
@@ -191,6 +192,7 @@ _None._
 | CHANGE-0139 | issues | docs/issues/CHANGE-0139-canonical-test-invocation.md |
 | CHANGE-0140 | issues | docs/issues/CHANGE-0140-reporting-docs-true-up.md |
 | CHANGE-0141 | issues | docs/issues/CHANGE-0141-changelog-payload-hardening.md |
+| CHANGE-0142 | issues | docs/issues/CHANGE-0142-followup-registry.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -237,6 +239,7 @@ _None._
 | RFC-0011 | rfc | docs/rfc/RFC-0011-delta-spec-lifecycle.md |
 | RFC-0013 | rfc | docs/rfc/RFC-0013-friction-record-v2-redaction.md |
 | RES-0001 | specs | docs/specs/RES-0001-aai-competitive-gap-and-model-efficiency.md |
+| RESEARCH-0001 | specs | docs/specs/RESEARCH-0001-spec-kit-comparative.md |
 | SPEC-0001 | specs | docs/specs/SPEC-0001-docs-hygiene-and-drift-audit.md |
 | SPEC-0002 | specs | docs/specs/SPEC-0002-docs-canonicalization-skill.md |
 | SPEC-0003 | specs | docs/specs/SPEC-0003-docs-audit-closeout-candidate.md |
@@ -365,6 +368,7 @@ _None._
 | SPEC-0126 | specs | docs/specs/SPEC-0126-spec-canonical-test-invocation.md |
 | SPEC-0127 | specs | docs/specs/SPEC-0127-spec-reporting-docs-true-up.md |
 | SPEC-0128 | specs | docs/specs/SPEC-0128-spec-changelog-payload-hardening.md |
+| SPEC-0129 | specs | docs/specs/SPEC-0129-spec-followup-registry.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)

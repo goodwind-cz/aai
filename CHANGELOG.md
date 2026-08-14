@@ -11,6 +11,65 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(decisions): typed, queryable follow-up registry on the existing decision ledger (CHANGE-0142) [L2]
+
+- Deferred work stops disappearing. `docs/ai/decisions.jsonl` gains two typed
+  record shapes — `follow_up` (id, raising ref, severity, one-line finding,
+  one-line rationale, source) and `follow_up_status` (done/dropped,
+  resolved_by) — reusing the ledger's existing key vocabulary, so no existing
+  consumer sees an alien shape. Resolution is ALWAYS a second appended line;
+  nothing is ever rewritten.
+- NEW `.aai/scripts/follow-ups.mjs` (`list` / `add` / `close`, PROFILES `core`):
+  folds the registry as a projection on every read (first `follow_up` per id
+  wins, statuses applied in `ts` order, latest wins), filters by `--ref`,
+  `--status` and `--age-days`, emits `--json`, and degrades with a NAMED note
+  for every hostile input — `#` comment lines, a malformed line, an id-less
+  legacy entry (folded under a derived `fu-<ref-slug>-<yyyymmddThhmm>` id), a
+  duplicate id (first wins), a dangling status, an unparseable or future
+  timestamp. Ids are slugs (`^fu-[a-z0-9]+(-[a-z0-9]+)*$`, max 40), never
+  renumbered, so a `closes fu-<slug>` citation stays true; dense sequential
+  ids were rejected on the github/spec-kit#4065 renumbering lesson.
+- `add` exists instead of a hand-authored JSON line for a SAFETY reason:
+  `routine-emit.mjs` reads this ledger fail-closed over its whole contents, so
+  one malformed hand-written line silently revokes merge authorization for
+  every scheduled routine. Going through the tool makes that class unreachable
+  (write-refuse at exit 2 on a bad id shape, an over-length id, a duplicate id,
+  a missing flag or a bad severity — with the ledger byte-length unchanged;
+  read-tolerate everywhere).
+- `close --id --resolved-by` appends the status line and PROVES the flip: it
+  re-reads the ledger from disk, re-folds it, prints the new status and exits 0
+  only when the re-read confirms it (exit 1 when a later-dated status record
+  shadows the append). Re-closing is idempotent with a note.
+  `close-work-item.mjs` is deliberately NOT wired — its rollback arm truncates
+  a telemetry ledger by byte length, and a bug in a second such arm would
+  delete decision history.
+- BACKFILL, pure append: 14 clause-derived lines (one per `FOLLOW-UP`
+  occurrence across the 11 pre-change disposition entries, each citing its
+  source line's `ts` as `source_ts`) plus 3 paired `follow_up_status` lines for
+  clauses already resolved by shipped work (CHANGE-0135/e398686,
+  CHANGE-0138, CHANGE-0139 at 16:05, CHANGE-0141/PR #256). Every pre-existing
+  byte is untouched — pinned by a `git show main:` byte-prefix compare with a
+  planted-rewrite mutation control.
+- Factory report gains a read-only `follow_ups` block + `<section
+  id="follow-ups">` (open count, oldest age in days, oldest-first items with
+  id/ref/severity/age) and a `--decisions <path>` flag. The generator IMPORTS
+  the CLI's fold rather than re-implementing it, so the report's `open_count`
+  and `follow-ups.mjs list --json` can never disagree. Exit contract unchanged:
+  always 0 on a readable or absent ledger.
+- ONE prompt-corpus byte spend: `.aai/SKILL_CODE_REVIEW.prompt.md`'s WARNINGS
+  POLICY clause (b) reworded from the abstract "decision id + rationale" (a
+  thing this repo had no shape for) to the concrete typed follow_up and its
+  `follow-ups.mjs add` invocation. Measured +200 B, exactly the spec's budget
+  ceiling; diet ledger trued up and the TEST-012 pin moved -6044 -> -5844 with
+  headroom unchanged at 1622/2048.
+- NEW suite `tests/skills/test-aai-follow-ups.sh` (7 tests: schema/id
+  discipline, query determinism and filters, degrade-with-NOTE + zero-network
+  source pins, backfill accounting, history integrity with a mutation control,
+  the close path, and the routine-emit fail-closed consumer seam with its own
+  mutation control), plus two new arms in
+  `tests/skills/test-aai-factory-report.sh`. New product doc
+  `docs/product/aai-decisions.md`.
+
 ## [unreleased] — fix(release+dashboard): released-region class pin, corruption-proof payload embed, link-form drift extraction (CHANGE-0141) [L1]
 
 - Released-CHANGELOG class guard (third glued/damaged-heading incident,

@@ -829,6 +829,11 @@ test_026_role_consumption_backcompat() {
 JSONL
   write_closed_event "$d/docs/ai/EVENTS.jsonl" "SPARSE-A" "2026-07-06T00:00:00Z"
   write_closed_event "$d/docs/ai/EVENTS.jsonl" "SPARSE-B" "2026-07-13T00:00:00Z"
+  # An EMPTY-but-present decisions ledger (CHANGE-0142): the follow-up
+  # registry folds to nothing and contributes NO note, so this pin keeps
+  # measuring what it was written to measure — the pre-change bytes — instead
+  # of drifting into an assertion about the new block's degrade wording.
+  : > "$d/docs/ai/decisions.jsonl"
   run_report "$d"
   [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
   DJ="$d/docs/ai/factory-report-data.json"
@@ -856,9 +861,16 @@ JSONL
     const sumUnmarked = rc.roles.reduce((a, r) => a + r.runs_unmarked, 0);
     if (sumUnmarked !== 5) errors.push(`sum of runs_unmarked must be 5 (total agent runs), got ${sumUnmarked}`);
 
-    // --- byte-stability arm: data.json, minus the new key, generatedAt
+    // --- new-key arm (CHANGE-0142): follow_ups present, empty, honest nulls
+    if (!model.follow_ups) { console.log("FAIL:new-key-missing:follow_ups absent"); process.exit(1); }
+    if (model.follow_ups.open_count !== 0 || model.follow_ups.oldest_age_days !== null || model.follow_ups.items.length !== 0) {
+      errors.push(`follow_ups must be empty with a null oldest age on an empty ledger: ${JSON.stringify(model.follow_ups)}`);
+    }
+
+    // --- byte-stability arm: data.json, minus the new keys, generatedAt
     // normalized, must equal the golden byte-for-byte ---
     delete model.cost.role_consumption;
+    delete model.follow_ups;
     model.generatedAt = PLACEHOLDER;
     const normalizedData = JSON.stringify(model, null, 2) + "\n";
     const goldenData = fs.readFileSync(goldenDataPath, "utf8");
@@ -873,16 +885,18 @@ JSONL
     let html = fs.readFileSync(htmlPath, "utf8");
     const rawModel = JSON.parse(fs.readFileSync(dataPath, "utf8")); // un-mutated: real generatedAt
     html = html.split(rawModel.generatedAt).join(PLACEHOLDER);
-    const startTag = "<section id=\"role-consumption\">";
-    const start = html.indexOf(startTag);
-    if (start === -1) { console.log("FAIL:section-missing:no <section id=\"role-consumption\"> found"); process.exit(1); }
     const closeTag = "</section>";
-    const end = html.indexOf(closeTag, start);
-    if (end === -1) { console.log("FAIL:section-not-closed"); process.exit(1); }
-    let after = end + closeTag.length;
-    if (html.slice(after, after + 2) === "\n\n") after += 2;
-    else if (html.slice(after, after + 1) === "\n") after += 1;
-    const excisedHtml = html.slice(0, start) + html.slice(after);
+    for (const startTag of ["<section id=\"role-consumption\">", "<section id=\"follow-ups\">"]) {
+      const start = html.indexOf(startTag);
+      if (start === -1) { console.log(`FAIL:section-missing:no ${startTag} found`); process.exit(1); }
+      const end = html.indexOf(closeTag, start);
+      if (end === -1) { console.log(`FAIL:section-not-closed:${startTag}`); process.exit(1); }
+      let after = end + closeTag.length;
+      if (html.slice(after, after + 2) === "\n\n") after += 2;
+      else if (html.slice(after, after + 1) === "\n") after += 1;
+      html = html.slice(0, start) + html.slice(after);
+    }
+    const excisedHtml = html;
     const goldenHtml = fs.readFileSync(goldenHtmlPath, "utf8");
     if (excisedHtml !== goldenHtml) {
       const a = excisedHtml.split("\n"), b = goldenHtml.split("\n");
@@ -911,8 +925,135 @@ test_027_product_doc_pins() {
   log_pass "product doc pins present: section, three buckets, marker-only + never-imputed rules, sparse-era caveat, delivered_by (TEST-027)"
 }
 
+# ============ TEST-028 (Spec-AC-04, CHANGE-0142 / spec-followup-registry) ====
+# The follow_ups block. SEAM-2: the report and the CLI share ONE fold
+# (exported from .aai/scripts/follow-ups.mjs), so open_count is asserted
+# EQUAL to the CLI's own --json count over the SAME ledger — never two
+# independently computed numbers. SEAM-3: the fixture ledger opens with `#`
+# comment lines, the shape the real docs/ai/decisions.jsonl carries.
+test_028_follow_ups_block() {
+  log_info "Test: follow_ups block (open_count, oldest_age_days, items with id/ref/severity/age_days) and open_count == the CLI --json count over the same #-commented ledger (TEST-028 / spec TEST-006)..."
+  local fu="$PROJECT_ROOT/.aai/scripts/follow-ups.mjs"
+  [[ -f "$fu" ]] || log_fail "follow-ups.mjs not found: $fu"
+  local d; d="$(mk_repo t028)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-01","ref_id":"A","agent_runs":[{"role":"Planning","duration_seconds":60,"note":"usage_total_tokens=100"}],"verdict":"PASS"}
+JSONL
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" "A" "2026-07-02T00:00:00Z"
+  cat > "$d/docs/ai/decisions.jsonl" <<'JSONL'
+# Decision Log — append-only, one JSON object per line (JSONL format)
+#
+# Rules:
+#   - Append only. Never edit existing lines.
+{"v":1,"ts":"2026-01-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-oldest-one","ref_id":"CHANGE-0100","severity":"P1","finding":"oldest open item","decision":"deferred","source":"s1"}
+{"v":1,"ts":"2026-06-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-newer-two","ref_id":"CHANGE-0101","severity":"P3","finding":"newer open item","decision":"deferred","source":"s2"}
+{"v":1,"ts":"2026-06-02T00:00:00Z","actor":"a","type":"follow_up","id":"fu-closed-three","ref_id":"CHANGE-0101","severity":"P2","finding":"already resolved","decision":"deferred","source":"s3"}
+{"v":1,"ts":"2026-06-03T00:00:00Z","actor":"a","type":"follow_up_status","id":"fu-closed-three","status":"done","resolved_by":"CHANGE-0102","source":"sha"}
+JSONL
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  [[ "$(node_get "$DJ" 'typeof m.follow_ups')" == "object" ]] || log_fail "data.json must carry a follow_ups block"
+  [[ "$(node_get "$DJ" 'm.follow_ups.open_count')" == "2" ]] || log_fail "open_count must be 2, got $(node_get "$DJ" 'm.follow_ups.open_count')"
+  [[ "$(node_get "$DJ" 'm.follow_ups.items.length')" == "2" ]] || log_fail "items must list the 2 open follow-ups (closed ones excluded)"
+  [[ "$(node_get "$DJ" 'm.follow_ups.items[0].id')" == "fu-oldest-one" ]] || log_fail "items must be ordered OLDEST-first"
+  [[ "$(node_get "$DJ" 'm.follow_ups.items[0].severity')" == "P1" ]] || log_fail "items must carry severity"
+  [[ "$(node_get "$DJ" 'm.follow_ups.items[0].ref')" == "CHANGE-0100" ]] || log_fail "items must carry the raising ref"
+  [[ "$(node_get "$DJ" 'typeof m.follow_ups.items[0].age_days')" == "number" ]] || log_fail "items must carry a numeric age_days"
+  [[ "$(node_get "$DJ" 'typeof m.follow_ups.oldest_age_days')" == "number" ]] || log_fail "oldest_age_days must be a number when a backlog exists"
+  [[ "$(node_get "$DJ" 'm.follow_ups.oldest_age_days === m.follow_ups.items[0].age_days')" == "true" ]] || log_fail "oldest_age_days must equal the oldest item's age"
+
+  # SEAM-2: ONE fold, two consumers — the numbers must be the same number.
+  local cli_json cli_open
+  cli_json="$(node "$fu" list --ledger "$d/docs/ai/decisions.jsonl" --json)"
+  cli_open="$(node -e 'process.stdout.write(String(JSON.parse(process.argv[1]).counts.open))' "$cli_json")"
+  [[ "$cli_open" == "$(node_get "$DJ" 'm.follow_ups.open_count')" ]] \
+    || log_fail "SEAM-2 broken: report open_count=$(node_get "$DJ" 'm.follow_ups.open_count') but CLI counts.open=$cli_open over the SAME ledger"
+
+  # --decisions <path> reaches a ledger outside the default location.
+  local alt="$TEST_DIR/alt-decisions.jsonl"
+  cp "$d/docs/ai/decisions.jsonl" "$alt"
+  printf '%s\n' '{"v":1,"ts":"2026-06-04T00:00:00Z","actor":"a","type":"follow_up","id":"fu-alt-four","ref_id":"CHANGE-0103","severity":"P2","finding":"only in the alt ledger","decision":"deferred","source":"s4"}' >> "$alt"
+  run_report "$d" --data-only --decisions "$alt"
+  [[ "$EC" == 0 ]] || log_fail "--decisions must exit 0: $(cat "$OUT")"
+  [[ "$(node_get "$DJ" 'm.follow_ups.open_count')" == "3" ]] || log_fail "--decisions must select the alternate ledger"
+
+  log_pass "follow_ups block present with oldest-first items, and open_count is the CLI's own folded number over the same #-commented ledger (TEST-028 / spec TEST-006)"
+}
+
+# ============ TEST-029 (Spec-AC-04, CHANGE-0142 / spec-followup-registry) ====
+test_029_follow_ups_report_only() {
+  log_info "Test: report-only contract — absent, empty, comment-only, malformed-line and non-empty ledgers each exit 0 with the degradation NAMED in notes; HTML carries the section (TEST-029 / spec TEST-007)..."
+  # (1) ABSENT ledger — mk_repo writes no decisions.jsonl.
+  local d; d="$(mk_repo t029-absent)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-01","ref_id":"A","agent_runs":[{"role":"Planning","duration_seconds":60}],"verdict":"PASS"}
+JSONL
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" "A" "2026-07-02T00:00:00Z"
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "absent ledger must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  [[ "$(node_get "$DJ" 'm.follow_ups.open_count')" == "0" ]] || log_fail "absent ledger must report open_count 0"
+  [[ "$(node_get "$DJ" 'm.follow_ups.oldest_age_days')" == "null" ]] || log_fail "absent ledger oldest_age_days must be null, never 0"
+  [[ "$(node_get "$DJ" 'm.notes.some(n=>/decision ledger/i.test(n)&&/absent/i.test(n))')" == "true" ]] || log_fail "an absent ledger must be NAMED in notes"
+
+  # (2) EMPTY ledger (zero bytes).
+  local e; e="$(mk_repo t029-empty)"
+  cp "$d/docs/ai/METRICS.jsonl" "$e/docs/ai/METRICS.jsonl"
+  write_closed_event "$e/docs/ai/EVENTS.jsonl" "A" "2026-07-02T00:00:00Z"
+  : > "$e/docs/ai/decisions.jsonl"
+  run_report "$e" --data-only
+  [[ "$EC" == 0 ]] || log_fail "empty ledger must exit 0"
+  DJ="$e/docs/ai/factory-report-data.json"
+  [[ "$(node_get "$DJ" 'm.follow_ups.open_count')" == "0" ]] || log_fail "empty ledger must report open_count 0"
+  [[ "$(node_get "$DJ" 'm.follow_ups.oldest_age_days')" == "null" ]] || log_fail "empty ledger oldest_age_days must be null, never 0"
+
+  # (3) COMMENT-ONLY ledger (SEAM-3: the real ledger opens with 15 `#` lines).
+  local c; c="$(mk_repo t029-comments)"
+  cp "$d/docs/ai/METRICS.jsonl" "$c/docs/ai/METRICS.jsonl"
+  write_closed_event "$c/docs/ai/EVENTS.jsonl" "A" "2026-07-02T00:00:00Z"
+  cat > "$c/docs/ai/decisions.jsonl" <<'JSONL'
+# Decision Log — append-only, one JSON object per line (JSONL format)
+#   - Append only. Never edit existing lines.
+JSONL
+  run_report "$c" --data-only
+  [[ "$EC" == 0 ]] || log_fail "comment-only ledger must exit 0"
+  DJ="$c/docs/ai/factory-report-data.json"
+  [[ "$(node_get "$DJ" 'm.follow_ups.open_count')" == "0" ]] || log_fail "comment-only ledger must fold to 0, not crash on the header"
+  [[ "$(node_get "$DJ" 'm.notes.some(n=>/malformed decision/i.test(n))')" == "false" ]] || log_fail "a `#` comment line must NEVER be counted as malformed"
+
+  # (4) MALFORMED line + a real backlog.
+  local f; f="$(mk_repo t029-malformed)"
+  cp "$d/docs/ai/METRICS.jsonl" "$f/docs/ai/METRICS.jsonl"
+  write_closed_event "$f/docs/ai/EVENTS.jsonl" "A" "2026-07-02T00:00:00Z"
+  cat > "$f/docs/ai/decisions.jsonl" <<'JSONL'
+# Decision Log
+{"v":1,"ts":"2026-01-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-real-one","ref_id":"CHANGE-0100","severity":"P1","finding":"a real open item","decision":"deferred","source":"s"}
+this line is not json
+{"v":1,"ts":"2026-01-02T00:00:00Z","actor":"a","type":"follow_up","ref_id":"legacy-idless","finding":"no id on this one","decision":"deferred","source":"s"}
+{"v":1,"ts":"2026-01-03T00:00:00Z","actor":"a","type":"follow_up_status","id":"fu-never-raised","status":"done","resolved_by":"X","source":"s"}
+JSONL
+  run_report "$f" --data-only
+  [[ "$EC" == 0 ]] || log_fail "malformed line must never be fatal"
+  DJ="$f/docs/ai/factory-report-data.json"
+  [[ "$(node_get "$DJ" 'm.notes.some(n=>/malformed decision/i.test(n))')" == "true" ]] || log_fail "the skipped malformed line must be NAMED in notes"
+  [[ "$(node_get "$DJ" 'm.notes.some(n=>/derived/i.test(n))')" == "true" ]] || log_fail "the id-less legacy entry must be NAMED in notes"
+  [[ "$(node_get "$DJ" 'm.notes.some(n=>/dangling/i.test(n))')" == "true" ]] || log_fail "the dangling status record must be NAMED in notes"
+  [[ "$(node_get "$DJ" 'm.follow_ups.open_count')" == "2" ]] || log_fail "the real item + the derived-id legacy item must both be listed"
+
+  # (5) NON-EMPTY backlog, full render: the HTML carries the section.
+  run_report "$f"
+  [[ "$EC" == 0 ]] || log_fail "full render must exit 0"
+  local html="$f/docs/ai/factory-report.html"
+  [[ -f "$html" ]] || log_fail "html not written"
+  grep -qF 'id="follow-ups"' "$html" || log_fail "the HTML must carry the follow-ups section"
+  grep -qF 'fu-real-one' "$html" || log_fail "the HTML section must render the open items"
+
+  log_pass "absent, empty, comment-only, malformed and non-empty ledgers each exit 0 with a named note; HTML section rendered (TEST-029 / spec TEST-007)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014, +017..019; telemetry-completeness TEST-020..021; role-token-trend TEST-022..027)"
+  echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014, +017..019; telemetry-completeness TEST-020..021; role-token-trend TEST-022..027; followup-registry TEST-028..029)"
   check_deps
   setup_fixture
   test_001_data_only_blocks_present
@@ -940,6 +1081,8 @@ main() {
   test_025_role_consumption_html
   test_026_role_consumption_backcompat
   test_027_product_doc_pins
+  test_028_follow_ups_block
+  test_029_follow_ups_report_only
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

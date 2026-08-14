@@ -413,6 +413,15 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# -5844 (true-up: followup-registry added a +200 B itemized entry —
+# .aai/SKILL_CODE_REVIEW.prompt.md's WARNINGS POLICY clause (b) reworded from
+# the abstract "decision id + rationale" to the concrete typed follow_up and
+# its `node .aai/scripts/follow-ups.mjs add` invocation; the engine, the
+# generator block, the ledger backfill and the product doc all live outside
+# the .aai/*.prompt.md glob, so they carry no ledger cost (CHANGE-0142 /
+# spec-followup-registry Spec-AC-07); measured 10812 -> 11012 B, exactly the
+# spec D7 budget ceiling, credited 1:1 so headroom stays 1622/2048, over the
+# prior
 # -6044 (true-up: reporting-docs-true-up added a +598 B itemized entry —
 # .aai/SKILL_DASHBOARD.prompt.md's stale 'Tokens are mostly null ... known
 # gap' caveat replaced by the truthful note-parse description (shared
@@ -570,15 +579,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -6044 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -6044)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -5844 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -5844)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -6044 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -5844 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
