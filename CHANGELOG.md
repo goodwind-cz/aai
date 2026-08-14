@@ -11,6 +11,51 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(spec-lint): mark it, do not assert it — a freeze-time gate on unverified claims (CHANGE-0144) [L1]
+
+- Our spec vocabulary had no way to say "I could not verify this", so an
+  unverified claim read exactly like a verified one. It now has one canonical
+  marker, `[NEEDS-CLARIFICATION: <specific question>]` — hyphenated, uppercase,
+  case-sensitive, matched on the OPENING token so a bare or unterminated marker
+  still counts (fail closed). **Resolution is deletion**: answer the question,
+  write the answer as the claim, remove the marker. Every resolution is a diff
+  hunk a reviewer can read.
+- `.aai/scripts/spec-lint.mjs` gains three rules in ONE block, guarded by the
+  existing in-flight-status predicate (terminal docs are history and stay
+  silent): `unresolved-clarification` (one finding per live marker with its
+  1-based line and the question text), `clarification-cap-exceeded` (advisory —
+  more than 3 markers in one document, reported once at the fourth, naming the
+  cap and the trim order scope > security/privacy > UX > technical detail) and
+  `ac-vague-term` (advisory forever — `scalable`, `secure`, `robust`,
+  `quickly`, whole-word, in AC Status Description cells only).
+- `.aai/scripts/spec-freeze.mjs` blocks by INHERITANCE: `unresolved-clarification`
+  is one more string in the existing `PRECONDITION_RULES` array, so the existing
+  precondition pass refuses at exit 3 writing nothing. The two advisory rules
+  are deliberately absent from that array — a cap breach can never refuse a
+  freeze.
+- Specimens are exempt: a marker inside a fenced block or an inline code span is
+  documentation, not an occurrence. The mask that produces the exemption
+  replaces hidden characters with spaces but PRESERVES newlines and `|`, so no
+  line number and no table cell count moves, and it feeds only the new rules.
+- `fast` was measured OUT of the vague-word list: 16 table rows across 8 specs
+  in this corpus, all 16 domain vocabulary ("fails fast", "fast path", "LANE
+  fast") — a 16/16 false-positive rate. A control fixture derived from the real
+  SPEC-0112 pins the exclusion.
+- ZERO added ceremony, on purpose (RESEARCH-0001 F14: spec-driven ceremony cost
+  33 min against 8 min of plain prompting with no measured quality gain). No new
+  script, step, agent invocation, CLI flag or exit code — spec-lint still
+  returns 0/1/2 and spec-freeze 0/1/2/3 — and the whole prompt-corpus delta is
+  ONE 423 B sentence in `.aai/PLANNING.prompt.md`, credited 1:1 in the diet
+  ledger.
+- `docs/USER_GUIDE.md` documents the vocabulary, the cap, the priority order,
+  the five DON'T-ASK defaults and the three rule ids — and states the limits
+  plainly: a confident FALSE assertion carrying no marker (the CHANGE-0140
+  shape) is NOT caught, deleting a marker without answering it satisfies the
+  gate, a marker added after freeze blocks nothing, and intake documents are
+  gated by nothing automatic. It is not a false-claim detector. The section's
+  stale "never writes files or hard-gates" claim is replaced by the precise
+  split (spec-lint never blocks; spec-freeze reads a named subset of its rules).
+
 ## [unreleased] — feat(decisions): typed, queryable follow-up registry on the existing decision ledger (CHANGE-0142) [L2]
 
 - Deferred work stops disappearing. `docs/ai/decisions.jsonl` gains two typed

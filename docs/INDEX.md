@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-14T01:05:02.608Z
+Generated: 2026-08-14T01:07:18.904Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-vagueness-gate | specs | implementing | 7 planned | docs/specs/SPEC-DRAFT-spec-vagueness-gate.md |
+| spec-vagueness-gate | specs | implementing | 7 done | docs/specs/SPEC-DRAFT-spec-vagueness-gate.md |
 
 ## Canonical layer (0)
 
