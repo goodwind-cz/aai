@@ -1500,7 +1500,7 @@ test_028_exit_contract_unchanged() {
 # `gh pr create`). A future scope that legitimately edits close-work-item.mjs
 # must update this pin in the same commit — that friction is the point.
 test_029_close_work_item_byte_unchanged() {
-  log_info "TEST-029: git diff main -- .aai/scripts/close-work-item.mjs is empty..."
+  log_info "TEST-029: close-work-item.mjs byte-unchanged against the base ref..."
   # origin/main first (validation F4; fourth instance of this class in the repo
   # — a bare `main` never resolves on a detached PR checkout, so the pin goes
   # inert while still reporting PASS).
@@ -1510,8 +1510,10 @@ test_029_close_work_item_byte_unchanged() {
     else base="main"; fi
   fi
   if ! git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
-    log_info "TEST-029: base ref '$base' unreachable — pin skipped (named degrade)"
-    log_pass "TEST-029 close-work-item pin skipped (base ref unreachable)"
+    # No log_pass here: an unrun assertion must never read as an enforced pin
+    # in the logs (review NB, PR #259). log_skip would abort the whole file
+    # (exit 42), so this degrades named-but-quiet and greps as NOT-VERIFIED.
+    log_info "TEST-029: NOT-VERIFIED — base ref '$base' unreachable, byte-unchanged pin did not run"
     return 0
   fi
   local out

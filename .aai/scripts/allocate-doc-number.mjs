@@ -39,9 +39,11 @@
 // (generate-overview.mjs), then the docs/USER_GUIDE.md rollup block
 // (generate-userguide-rollup.mjs). The last two are the order
 // close-work-item.mjs already uses, so no second convention exists. All three
-// are BEST-EFFORT: an absent generator is skipped silently, a failing one
-// costs exactly one named INFO line on stderr, and the exit code never
-// changes. The completion line names every page actually regenerated — that
+// are BEST-EFFORT: an absent generator is skipped silently and the exit code
+// never changes. A FAILING one is named on stderr by the two SPEC_PAGE
+// generators only; regenerateIndex() still degrades SILENTLY (pre-existing,
+// out of CHANGE-0143's signed scope — see fu-index-regen-silent-degrade).
+// The completion line names every page actually regenerated — that
 // list is the stage-me list (an unstaged regenerated page makes the fix
 // inert; .aai/SKILL_PR.prompt.md step 1b carries the same list).
 //
