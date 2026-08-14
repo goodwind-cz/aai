@@ -1461,9 +1461,9 @@ EOF
   assert_finding_at "$out" "$ln" "clarification-cap-exceeded" "TEST-004(clarify)" || ok=0
   grep -qF "scope > security/privacy > UX > technical detail" <<<"$out" \
     || { log_info "TEST-004(clarify): the cap finding does not name the priority order: $out"; ok=0; }
-  grep -qE "\[clarification-cap-exceeded\][^\n]*\b4\b" <<<"$out" \
+  grep -qE "\[clarification-cap-exceeded\].*\b4\b" <<<"$out" \
     || { log_info "TEST-004(clarify): the cap finding does not name the count: $out"; ok=0; }
-  grep -qE "\[clarification-cap-exceeded\][^\n]*\b3\b" <<<"$out" \
+  grep -qE "\[clarification-cap-exceeded\].*\b3\b" <<<"$out" \
     || { log_info "TEST-004(clarify): the cap finding does not name the cap: $out"; ok=0; }
 
   # exactly three markers: at the cap, not over it — no cap finding
@@ -1532,9 +1532,9 @@ EOF
     ln="${ln%%:*}"
     assert_finding_at "$out" "$ln" "ac-vague-term" "TEST-006(clarify) $w" || ok=0
   done
-  grep -qE "\[ac-vague-term\][^\n]*Spec-AC-04" <<<"$out" \
+  grep -qE "\[ac-vague-term\].*Spec-AC-04" <<<"$out" \
     && { log_info "TEST-006(clarify): a backticked specimen term was flagged: $out"; ok=0; }
-  grep -qE "\[ac-vague-term\][^\n]*Spec-AC-05" <<<"$out" \
+  grep -qE "\[ac-vague-term\].*Spec-AC-05" <<<"$out" \
     && { log_info "TEST-006(clarify): 'fast' fired despite the D4 measurement: $out"; ok=0; }
 
   # Control derived from the REAL SPEC-0112 (four `fast` AC/Test-Plan rows),
