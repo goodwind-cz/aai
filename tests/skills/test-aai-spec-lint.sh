@@ -1275,6 +1275,418 @@ test_actest_005_real_corpus() {
     || log_fail "TEST-005(actest) real corpus"
 }
 
+# === SPEC spec-vagueness-gate (clarify) — marker, cap and vagueness rules =====
+# Vocabulary: `[NEEDS-CLARIFICATION: <specific question>]` — hyphenated,
+# case-sensitive, anchored on the opening token so a truncated marker still
+# counts (fail closed). Resolution is DELETION. Three rules, all guarded by the
+# existing IN_FLIGHT_STATUSES predicate:
+#   unresolved-clarification   BLOCKING at freeze (spec-freeze.mjs reads it off
+#                              PRECONDITION_RULES; the refusal itself is proven
+#                              in tests/skills/test-aai-spec-tools.sh)
+#   clarification-cap-exceeded ADVISORY, never a precondition
+#   ac-vague-term              ADVISORY forever
+# A marker inside a fenced block or an inline code span is a SPECIMEN and never
+# counts — which is what lets this suite, the spec and the guide name the
+# vocabulary without self-flagging.
+
+# clarify_body — the canonical clean spec (status implementing = in-flight)
+# plus a `## Notes` section carrying the arm's body text on stdin.
+clarify_body() {
+  clean_spec_body
+  printf '\n## Notes\n\n'
+  cat
+  printf '\n'
+}
+
+# assert_finding_at <output> <line> <rule> <label> — the CLI prints
+# `- <rel>:<line> [<rule>] <detail>`, so the line number is asserted exactly.
+assert_finding_at() {
+  local out="$1" line="$2" rule="$3" label="$4"
+  grep -qF ":$line [$rule]" <<<"$out" && return 0
+  log_info "$label: no [$rule] finding at line $line; got: $out"
+  return 1
+}
+
+# --- TEST-001(clarify) — live markers: one finding each, exact lines ----------
+# Bare and unterminated markers count; two markers on ONE line give two
+# findings at that line; case variants and the spaced spec-kit spelling are NOT
+# markers (D5.4 negative control, so a future "helpful" widening must argue
+# with a test).
+test_clarify_001_live_markers() {
+  new_fixture_root
+  clarify_body > "$FIX/docs/specs/SPEC-DRAFT-clarify-live.md" <<'EOF'
+Planning could not verify these, so it marked them instead of guessing.
+
+[NEEDS-CLARIFICATION: does the close gate read this field, or only the index?]
+
+A bare marker with no question at all: [NEEDS-CLARIFICATION]
+
+An unterminated one: [NEEDS-CLARIFICATION: the bracket never closes
+
+Two on one line: [NEEDS-CLARIFICATION: first?] and [NEEDS-CLARIFICATION: second?]
+EOF
+  local out rc ok=1 n hits ln
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-001(clarify)" || ok=0
+  n=$(grep -c "\[unresolved-clarification\]" <<<"$out")
+  [[ "$n" -eq 5 ]] || { log_info "TEST-001(clarify): expected 5 unresolved-clarification findings, got $n: $out"; ok=0; }
+  hits="$(grep -n 'NEEDS-CLARIFICATION' "$FIX/docs/specs/SPEC-DRAFT-clarify-live.md")"
+  while IFS=: read -r ln _rest; do
+    [[ -n "$ln" ]] || continue
+    assert_finding_at "$out" "$ln" "unresolved-clarification" "TEST-001(clarify)" || ok=0
+  done <<<"$hits"
+  grep -qF "does the close gate read this field" <<<"$out" \
+    || { log_info "TEST-001(clarify): the question text is not carried in the finding: $out"; ok=0; }
+
+  # negative control: lowercase, the spaced spec-kit spelling, and prose are
+  # NOT markers (RESEARCH-0001 quotes the spaced form twice — a rule keyed on
+  # it would self-flag our own research doc).
+  new_fixture_root
+  clarify_body > "$FIX/docs/specs/SPEC-DRAFT-clarify-variants.md" <<'EOF'
+Upstream spells it NEEDS CLARIFICATION, in prose and with a space.
+
+[NEEDS CLARIFICATION: the spaced upstream spelling]
+[needs-clarification: lowercase]
+This sentence merely needs clarification and is not a marker.
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-001(clarify) variants control" || ok=0
+  grep -q "unresolved-clarification" <<<"$out" \
+    && { log_info "TEST-001(clarify): a case/spacing variant was treated as a marker: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-001(clarify) one finding per live marker at its exact line (+bare/unterminated/two-per-line, case+spacing controls)" \
+    || log_fail "TEST-001(clarify) live marker detection"
+}
+
+# --- TEST-003(clarify) — specimen exemption + masking keeps the geometry ------
+test_clarify_003_specimen_exemption() {
+  local out rc ok=1 n ln
+  new_fixture_root
+  clarify_body > "$FIX/docs/specs/SPEC-DRAFT-clarify-specimen.md" <<'EOF'
+The vocabulary is DOCUMENTED here, not used:
+
+```
+[NEEDS-CLARIFICATION: a specimen inside a fenced block]
+[NEEDS-CLARIFICATION: a second specimen on the next line]
+```
+
+Inline: write `[NEEDS-CLARIFICATION: <specific question>]` where you cannot
+verify a claim, and `[NEEDS-CLARIFICATION]` is the bare form.
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-003(clarify) specimens" || ok=0
+  grep -q "unresolved-clarification" <<<"$out" \
+    && { log_info "TEST-003(clarify): a fenced/code-span specimen was counted: $out"; ok=0; }
+
+  # Mixed fixture: a fenced specimen ABOVE a pre-existing finding (line numbers
+  # must not shift), an escaped-pipe row the shared parser drops (cell counts
+  # must not shift), a live marker, and a vague AC row — the vague finding can
+  # only fire if the MASKED table still parses with identical geometry.
+  new_fixture_root
+  write_spec "$FIX/docs/specs/SPEC-DRAFT-clarify-mixed.md" <<'EOF'
+---
+id: spec-fixture-clarify-mixed
+type: spec
+number: null
+status: implementing
+links:
+  pr: []
+---
+
+# Fixture — mixed: specimen, dropped row, live marker, vague cell
+
+SPEC-FROZEN: true
+
+```
+[NEEDS-CLARIFICATION: specimen above everything that follows]
+```
+
+## Implementation strategy
+- Strategy: loop
+- Rationale: fixture
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | the export must be robust under retry | done | run-1 | — | — |
+| Spec-AC-02 | second      | done   | notes preserved (`\|-`/`>+`/`\|`) run-2 | — | — |
+
+## Test Plan
+
+| Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
+|----------|------------|------|----------------------|-------------|--------|
+| TEST-001 | Spec-AC-01 | unit | tests/x.sh           | a           | green  |
+| TEST-002 | Spec-AC-02 | unit | tests/x.sh           | b           | green  |
+
+## Notes
+
+[NEEDS-CLARIFICATION: which retry budget does "robust" mean here?]
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-003(clarify) mixed" || ok=0
+  # line numbers are computed INDEPENDENTLY from the fixture
+  ln="$(grep -n '^| Spec-AC-02 | second' "$FIX/docs/specs/SPEC-DRAFT-clarify-mixed.md")"
+  ln="${ln%%:*}"
+  assert_finding_at "$out" "$ln" "ac-row-unparseable" "TEST-003(clarify)" || ok=0
+  n=$(grep -c "\[ac-row-unparseable\]" <<<"$out")
+  [[ "$n" -eq 1 ]] || { log_info "TEST-003(clarify): expected exactly 1 ac-row-unparseable (cell counts shifted?), got $n: $out"; ok=0; }
+  ln="$(grep -n 'which retry budget' "$FIX/docs/specs/SPEC-DRAFT-clarify-mixed.md")"
+  ln="${ln%%:*}"
+  assert_finding_at "$out" "$ln" "unresolved-clarification" "TEST-003(clarify)" || ok=0
+  ln="$(grep -n '^| Spec-AC-01 | the export' "$FIX/docs/specs/SPEC-DRAFT-clarify-mixed.md")"
+  ln="${ln%%:*}"
+  assert_finding_at "$out" "$ln" "ac-vague-term" "TEST-003(clarify)" || ok=0
+  [[ $ok -eq 1 ]] && log_pass "TEST-003(clarify) fenced/inline specimens exempt; masking shifts no line and no cell count" \
+    || log_fail "TEST-003(clarify) specimen exemption / masking geometry"
+}
+
+# --- TEST-004(clarify) — cap 3 advisory at the FOURTH occurrence --------------
+test_clarify_004_cap() {
+  local out rc ok=1 n ln
+  new_fixture_root
+  clarify_body > "$FIX/docs/specs/SPEC-DRAFT-clarify-cap4.md" <<'EOF'
+[NEEDS-CLARIFICATION: one?]
+[NEEDS-CLARIFICATION: two?]
+[NEEDS-CLARIFICATION: three?]
+[NEEDS-CLARIFICATION: four?]
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-004(clarify) four markers" || ok=0
+  n=$(grep -c "\[unresolved-clarification\]" <<<"$out")
+  [[ "$n" -eq 4 ]] || { log_info "TEST-004(clarify): expected 4 marker findings, got $n: $out"; ok=0; }
+  n=$(grep -c "\[clarification-cap-exceeded\]" <<<"$out")
+  [[ "$n" -eq 1 ]] || { log_info "TEST-004(clarify): expected exactly 1 cap finding, got $n: $out"; ok=0; }
+  ln="$(grep -n 'four?' "$FIX/docs/specs/SPEC-DRAFT-clarify-cap4.md")"
+  ln="${ln%%:*}"
+  assert_finding_at "$out" "$ln" "clarification-cap-exceeded" "TEST-004(clarify)" || ok=0
+  grep -qF "scope > security/privacy > UX > technical detail" <<<"$out" \
+    || { log_info "TEST-004(clarify): the cap finding does not name the priority order: $out"; ok=0; }
+  grep -qE "\[clarification-cap-exceeded\].*\b4\b" <<<"$out" \
+    || { log_info "TEST-004(clarify): the cap finding does not name the count: $out"; ok=0; }
+  grep -qE "\[clarification-cap-exceeded\].*\b3\b" <<<"$out" \
+    || { log_info "TEST-004(clarify): the cap finding does not name the cap: $out"; ok=0; }
+
+  # exactly three markers: at the cap, not over it — no cap finding
+  new_fixture_root
+  clarify_body > "$FIX/docs/specs/SPEC-DRAFT-clarify-cap3.md" <<'EOF'
+[NEEDS-CLARIFICATION: one?]
+[NEEDS-CLARIFICATION: two?]
+[NEEDS-CLARIFICATION: three?]
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-004(clarify) three markers" || ok=0
+  grep -q "clarification-cap-exceeded" <<<"$out" \
+    && { log_info "TEST-004(clarify): three markers must not trip the cap: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-004(clarify) cap 3 fires once at the fourth occurrence naming count/cap/order; three markers stay under it" \
+    || log_fail "TEST-004(clarify) clarification cap"
+}
+
+# --- TEST-006(clarify) — ac-vague-term over AC Description cells --------------
+# Closed measured list: scalable, secure, robust, quickly. `fast` is EXCLUDED
+# on measurement (12/12 false positives at origin/main), pinned by a control
+# fixture DERIVED FROM THE REAL SPEC-0112 with its status flipped to
+# implementing — so the exclusion tracks the corpus, not a hand-written mock.
+test_clarify_006_vague_terms() {
+  local out rc ok=1 n ln w
+  new_fixture_root
+  write_spec "$FIX/docs/specs/SPEC-DRAFT-clarify-vague.md" <<'EOF'
+---
+id: spec-fixture-clarify-vague
+type: spec
+number: null
+status: implementing
+links:
+  pr: []
+---
+
+# Fixture — vague AC descriptions
+
+SPEC-FROZEN: true
+
+## Implementation strategy
+- Strategy: loop
+- Rationale: fixture
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | the endpoint is secure | done | run-1 | — | — |
+| Spec-AC-02 | the writer is robust and scalable | done | run-2 | — | — |
+| Spec-AC-03 | the report renders quickly | done | run-3 | — | — |
+| Spec-AC-04 | the retry path is `secure` by construction | done | run-4 | — | — |
+| Spec-AC-05 | the reaper fails fast on a stale lock | done | run-5 | — | — |
+
+## Test Plan
+
+| Test ID  | Spec-AC        | Type | File path (expected) | Description | Status |
+|----------|----------------|------|----------------------|-------------|--------|
+| TEST-001 | Spec-AC-01..05 | unit | tests/x.sh           | a           | green  |
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-006(clarify) vague rows" || ok=0
+  n=$(grep -c "\[ac-vague-term\]" <<<"$out")
+  [[ "$n" -eq 3 ]] || { log_info "TEST-006(clarify): expected 3 ac-vague-term findings (rows 01/02/03), got $n: $out"; ok=0; }
+  for w in "Spec-AC-01" "Spec-AC-02" "Spec-AC-03"; do
+    ln="$(grep -n "^| $w " "$FIX/docs/specs/SPEC-DRAFT-clarify-vague.md")"
+    ln="${ln%%:*}"
+    assert_finding_at "$out" "$ln" "ac-vague-term" "TEST-006(clarify) $w" || ok=0
+  done
+  grep -qE "\[ac-vague-term\].*Spec-AC-04" <<<"$out" \
+    && { log_info "TEST-006(clarify): a backticked specimen term was flagged: $out"; ok=0; }
+  grep -qE "\[ac-vague-term\].*Spec-AC-05" <<<"$out" \
+    && { log_info "TEST-006(clarify): 'fast' fired despite the D4 measurement: $out"; ok=0; }
+
+  # Control derived from the REAL SPEC-0112 (four `fast` AC/Test-Plan rows),
+  # status flipped to implementing so the in-flight rules actually run.
+  local real
+  real="$(ls "$PROJECT_ROOT"/docs/specs/SPEC-0112-*.md 2>/dev/null | head -1)"
+  if [[ -n "$real" && -f "$real" ]]; then
+    new_fixture_root
+    sed 's/^status: done$/status: implementing/' "$real" > "$FIX/docs/specs/SPEC-0112-control.md"
+    n=$(grep -cE '^\|.*\bfast\b' "$FIX/docs/specs/SPEC-0112-control.md")
+    [[ "$n" -ge 4 ]] || { log_info "TEST-006(clarify): the SPEC-0112 control lost its \`fast\` rows ($n found) — re-measure D4"; ok=0; }
+    out="$(runlint "$FIX" --path docs/specs/SPEC-0112-control.md 2>&1)"
+    grep -q "ac-vague-term" <<<"$out" \
+      && { log_info "TEST-006(clarify): the real-derived in-flight control produced an ac-vague-term finding: $out"; ok=0; }
+  else
+    log_info "TEST-006(clarify): SPEC-0112 not present — the real-derived control did not run"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-006(clarify) ac-vague-term fires per offending AC row; backticked specimens and \`fast\` stay clean (SPEC-0112 control)" \
+    || log_fail "TEST-006(clarify) ac-vague-term"
+}
+
+# --- TEST-009(clarify) — terminal scope + the real corpus ---------------------
+test_clarify_009_terminal_and_corpus() {
+  local out rc ok=1 f
+  new_fixture_root
+  clean_spec_body \
+    | sed 's/^status: implementing$/status: done/' \
+    | sed 's/| Spec-AC-02 | second      | planned |/| Spec-AC-02 | the writer is robust | planned |/' \
+    > "$FIX/docs/specs/SPEC-DRAFT-clarify-terminal.md"
+  cat >> "$FIX/docs/specs/SPEC-DRAFT-clarify-terminal.md" <<'EOF'
+
+## Notes
+
+[NEEDS-CLARIFICATION: one?]
+[NEEDS-CLARIFICATION: two?]
+[NEEDS-CLARIFICATION: three?]
+[NEEDS-CLARIFICATION: four?]
+EOF
+  out="$(runlint "$FIX" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-009(clarify) terminal fixture" || ok=0
+  grep -qE "unresolved-clarification|clarification-cap-exceeded|ac-vague-term" <<<"$out" \
+    && { log_info "TEST-009(clarify): a terminal-status doc produced a new-rule finding: $out"; ok=0; }
+
+  # the REAL corpus stays at zero findings
+  out="$(runlint "$PROJECT_ROOT" 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-009(clarify) real corpus" || ok=0
+  grep -qE "unresolved-clarification|clarification-cap-exceeded|ac-vague-term" <<<"$out" \
+    && { log_info "TEST-009(clarify): the real corpus produced a new-rule finding: $out"; ok=0; }
+
+  # this scope's own spec is the corpus's only in-flight document: it documents
+  # the whole vocabulary in code spans and MUST lint clean (D6 witness c)
+  for f in "$PROJECT_ROOT"/docs/specs/*vagueness-gate*.md; do
+    [[ -f "$f" ]] || continue
+    out="$(cd "$PROJECT_ROOT" && node "$LINT" --path "docs/specs/$(basename "$f")" 2>&1)"; rc=$?
+    expect_exit 0 "$rc" "TEST-009(clarify) self-lint $(basename "$f")" || { log_info "TEST-009(clarify): $out"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-009(clarify) terminal docs exempt; real corpus and this scope's own spec stay clean" \
+    || log_fail "TEST-009(clarify) in-flight scoping"
+}
+
+# --- TEST-010(clarify) — the authoring rule and the honest guide --------------
+test_clarify_010_prompt_and_guide() {
+  local ok=1 n plan="$PROJECT_ROOT/.aai/PLANNING.prompt.md" guide="$PROJECT_ROOT/docs/USER_GUIDE.md" t
+  n=$(grep -c 'NEEDS-CLARIFICATION' "$plan")
+  [[ "$n" -eq 1 ]] || { log_info "TEST-010(clarify): PLANNING.prompt.md carries the marker sentence $n time(s) (want exactly 1)"; ok=0; }
+  grep -qF 'unresolved-clarification' "$plan" \
+    || { log_info "TEST-010(clarify): PLANNING.prompt.md does not name the blocking rule id"; ok=0; }
+  grep -qF 'scope > security/privacy > UX > technical detail' "$plan" \
+    || { log_info "TEST-010(clarify): PLANNING.prompt.md does not carry the priority order"; ok=0; }
+  for t in 'data retention' 'performance budget' 'error handling' 'auth' 'integration pattern'; do
+    grep -qi "$t" "$plan" \
+      || { log_info "TEST-010(clarify): PLANNING.prompt.md does not carry the DON'T-ASK default '$t'"; ok=0; }
+  done
+
+  grep -qF 'NEEDS-CLARIFICATION' "$guide" \
+    || { log_info "TEST-010(clarify): USER_GUIDE.md does not document the marker spelling"; ok=0; }
+  for t in 'unresolved-clarification' 'clarification-cap-exceeded' 'ac-vague-term'; do
+    grep -qF "$t" "$guide" \
+      || { log_info "TEST-010(clarify): USER_GUIDE.md does not name the rule id $t"; ok=0; }
+  done
+  grep -qF 'scope > security/privacy > UX > technical detail' "$guide" \
+    || { log_info "TEST-010(clarify): USER_GUIDE.md does not carry the priority order"; ok=0; }
+  for t in 'data retention' 'performance budget' 'error handling' 'auth' 'integration pattern'; do
+    grep -qi "$t" "$guide" \
+      || { log_info "TEST-010(clarify): USER_GUIDE.md does not carry the DON'T-ASK default '$t'"; ok=0; }
+  done
+  grep -qF 'CHANGE-0140' "$guide" \
+    || { log_info "TEST-010(clarify): USER_GUIDE.md does not state that the CHANGE-0140 shape is NOT caught"; ok=0; }
+  grep -q 'never writes files or hard-' "$guide" \
+    && { log_info "TEST-010(clarify): USER_GUIDE.md still claims spec-lint never hard-gates"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-010(clarify) PLANNING carries the marker sentence once; USER_GUIDE documents vocabulary, lists, rule ids and the honest limits" \
+    || log_fail "TEST-010(clarify) prompt + guide contracts"
+}
+
+# --- TEST-011(clarify) — zero added ceremony (contract pins) ------------------
+test_clarify_011_no_new_ceremony() {
+  local ok=1 f p
+  grep -qF "Usage: spec-lint [--path <file>] [--json] [--slug-handles] [--strategy <v>]" "$LINT" \
+    || { log_info "TEST-011(clarify): spec-lint's usage line changed (a new flag?)"; ok=0; }
+  grep -qF "Exit: 0 clean | 1 findings | 2 usage error / unreadable --path." "$LINT" \
+    || { log_info "TEST-011(clarify): spec-lint's exit contract line changed"; ok=0; }
+  f="$PROJECT_ROOT/.aai/scripts/spec-freeze.mjs"
+  grep -qF "Usage: spec-freeze --path <spec> [--json] [--dry-run] [--no-event]" "$f" \
+    || { log_info "TEST-011(clarify): spec-freeze's usage line changed (a new flag?)"; ok=0; }
+  for p in "0 frozen, or already frozen (idempotent no-op)" "2 usage error" "3 REFUSED" "1 internal error"; do
+    grep -qF "$p" "$f" \
+      || { log_info "TEST-011(clarify): spec-freeze's exit contract lost \"$p\""; ok=0; }
+  done
+  # the whole .aai/ delta against main is the two scripts plus ONE prompt
+  # Base-ref resolution prefers origin/main (third occurrence of this class
+  # today — TEST-024 and the follow-ups suite both shipped with a bare `main`
+  # that never resolves on a detached PR checkout, making the pin inert on CI).
+  local base_ref=""
+  if (cd "$PROJECT_ROOT" && git rev-parse --verify -q origin/main >/dev/null); then base_ref="origin/main"
+  elif (cd "$PROJECT_ROOT" && git rev-parse --verify -q main >/dev/null); then base_ref="main"; fi
+  if [[ -n "$base_ref" ]]; then
+    local changed
+    changed="$(cd "$PROJECT_ROOT" && git diff --name-only "$base_ref" -- .aai/)"
+    while IFS= read -r p; do
+      [[ -n "$p" ]] || continue
+      case "$p" in
+        .aai/scripts/spec-lint.mjs|.aai/scripts/spec-freeze.mjs|.aai/PLANNING.prompt.md) ;;
+        *) log_info "TEST-011(clarify): unexpected .aai/ path in the branch diff: $p"; ok=0 ;;
+      esac
+    done <<<"$changed"
+  else
+    log_info "TEST-011(clarify): neither origin/main nor main resolves — the .aai/ diff pin did not run"
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ delta is the two scripts + PLANNING.prompt.md" \
+    || log_fail "TEST-011(clarify) zero-added-ceremony pins"
+}
+
+# --- TEST-012(clarify) — every stored RED log is classified at capture --------
+test_clarify_012_red_class_stamped() {
+  local ok=1 f first n=0
+  for f in "$PROJECT_ROOT"/docs/ai/tdd/red-*vagueness-gate*.log; do
+    [[ -f "$f" ]] || continue
+    n=$((n + 1))
+    first="$(head -1 "$f")"
+    grep -qE '^RED_CLASS: (product_red|infra_fail)$' <<<"$first" \
+      || { log_info "TEST-012(clarify): $(basename "$f") line 1 is not a RED_CLASS line: $first"; ok=0; }
+  done
+  # docs/ai/tdd/** is gitignored per-dev runtime evidence (pruned by
+  # METRICS_FLUSH after 7 days), so a fresh clone / CI runner legitimately has
+  # none. Degrade with a NOTE rather than failing on someone else's machine —
+  # the assertion is "every log that EXISTS was classified at capture".
+  [[ "$n" -ge 1 ]] || log_info "TEST-012(clarify): NOTE — no stored RED log for this scope under docs/ai/tdd/ (gitignored per-dev runtime evidence); nothing to classify"
+  [[ $ok -eq 1 ]] && log_pass "TEST-012(clarify) all $n stored RED log(s) carry RED_CLASS as line 1" \
+    || log_fail "TEST-012(clarify) RED_CLASS stamping"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -1318,6 +1730,14 @@ main() {
   test_actest_003_lean_table
   test_actest_004_terminal_scope
   test_actest_005_real_corpus
+  test_clarify_001_live_markers
+  test_clarify_003_specimen_exemption
+  test_clarify_004_cap
+  test_clarify_006_vague_terms
+  test_clarify_009_terminal_and_corpus
+  test_clarify_010_prompt_and_guide
+  test_clarify_011_no_new_ceremony
+  test_clarify_012_red_class_stamped
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

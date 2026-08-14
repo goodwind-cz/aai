@@ -34,14 +34,21 @@
 //     - `ac-without-test`         — a Spec-AC no Test Plan row claims
 //     - `frozen-without-strategy` — strategy `undecided`/absent (L2+ only;
 //                                   L0/L1 lean specs stay exempt per RFC-0009)
+//     - `unresolved-clarification` — a live `[NEEDS-CLARIFICATION: <question>]`
+//                                   marker (SPEC spec-vagueness-gate D2).
+//                                   Answer it and DELETE the marker; the two
+//                                   ADVISORY rules that ship beside it in
+//                                   spec-lint are deliberately NOT listed here.
 //   Both are read off spec-lint's OWN rules, evaluated against the would-be
 //   frozen document (lintContent on the transform's result), so this tool and
 //   the lint can never disagree about what a violation IS — there is no second
 //   parser here.
-//   NOT ENFORCED, deliberately: whether an AC is MEASURABLE, and whether a
-//   Test Plan row's command actually runs. No parser can decide either; they
-//   stay Planning's judgment and Validation's evidence. Say so rather than
-//   implying the gate is complete.
+//   NOT ENFORCED, deliberately: whether an AC is MEASURABLE, whether a Test
+//   Plan row's command actually runs, and whether a DELETED marker's question
+//   was ever answered. No parser can decide any of them; they stay Planning's
+//   judgment and Validation's evidence. A marker added AFTER the freeze is
+//   reported by spec-lint but refuses nothing — the gate below runs only on a
+//   real transition. Say so rather than implying the gate is complete.
 //
 // Exit codes (closed contract):
 //   0 frozen, or already frozen (idempotent no-op)
@@ -72,7 +79,7 @@ const ROOT = process.cwd();
 const FROZEN_STATUS = 'implementing';
 // spec-lint rules that are FREEZE PRECONDITIONS, not merely advisories (see
 // the header). Everything else spec-lint reports stays report-only.
-const PRECONDITION_RULES = ['ac-without-test', 'frozen-without-strategy'];
+const PRECONDITION_RULES = ['ac-without-test', 'frozen-without-strategy', 'unresolved-clarification'];
 // Statuses a spec may be frozen FROM. Anything else (done, superseded,
 // rejected, deferred, legacy, an unknown token) is refused rather than
 // silently reopened.
@@ -84,10 +91,12 @@ function usage() {
     + '  Writes frontmatter `status: implementing` AND the `SPEC-FROZEN: true`\n'
     + '  body marker in ONE atomic write, or writes nothing at all.\n'
     + '  PRECONDITIONS (refused, nothing written): every Spec-AC must be claimed\n'
-    + '  by a Test Plan row (spec-lint `ac-without-test`) and the implementation\n'
-    + '  strategy must be decided (`frozen-without-strategy`, L2+ only).\n'
+    + '  by a Test Plan row (spec-lint `ac-without-test`), the implementation\n'
+    + '  strategy must be decided (`frozen-without-strategy`, L2+ only), and no\n'
+    + '  `[NEEDS-CLARIFICATION: ...]` marker may survive (`unresolved-clarification`\n'
+    + '  - answer the question and DELETE the marker).\n'
     + '  AC MEASURABILITY is NOT checked here - no parser can decide it; it stays\n'
-    + '  Planning judgment.\n'
+    + '  Planning judgment, and neither is whether a deleted marker was answered.\n'
     + '  Exit codes:\n'
     + '  0 frozen, or already frozen (idempotent no-op)\n'
     + '  2 usage error\n'
