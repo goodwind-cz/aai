@@ -43,9 +43,11 @@ PROCESS
      `--all`, which would pull in out-of-scope `*-DRAFT-*.md` left behind):
        node .aai/scripts/allocate-doc-number.mjs --path docs/<type>/<TYPE>-DRAFT-<slug>.md --base-ref origin/<base>
      It renames to `<TYPE>-000N-<slug>.md`, stamps `number: N` (slug `id`
-     unchanged), rewrites references, and regenerates docs/INDEX.md.
+     unchanged), rewrites references, and regenerates docs/INDEX.md,
+     docs/ai/overview.html + overview-data.json and docs/USER_GUIDE.md.
    - Update the in-scope list: DROP the `*-DRAFT-*` path, ADD the
-     `<TYPE>-000N-<slug>.md` path (+ docs/INDEX.md companion).
+     `<TYPE>-000N-<slug>.md` path + every page the allocator just printed
+     (INDEX, overview x2, USER_GUIDE) — unstaged means a dead link ships.
    - Exit codes: 0 success/nothing; 3 base ref unreachable — STOP (never commit an
      unnumbered draft); 4 guard failure (malformed / collision) — STOP and fix.
    - FALLBACK: if the allocator is absent (older layer), NOTE it and proceed — the

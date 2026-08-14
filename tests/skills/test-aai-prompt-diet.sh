@@ -413,6 +413,16 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# -5262 (true-up: close-regenerate-order added a +159 B itemized entry —
+# .aai/SKILL_PR.prompt.md step 1b's two load-bearing lines: what the allocator
+# regenerates (INDEX + overview.html/-data.json + USER_GUIDE) and the in-scope
+# STAGING bullet that must ADD those pages, because staging is scope-only and
+# an unstaged regenerated page ships a dead link; the allocator header/stdout
+# contract, the detection predicate, the incident-replay fixtures and the
+# suite-map row live outside the .aai/*.prompt.md glob, so they carry no
+# ledger cost (CHANGE-0143 / spec-close-regenerate-order Spec-AC-07); measured
+# 21333 -> 21492 B, inside the spec's 200 B budget, credited 1:1 so headroom
+# stays 1622/2048, over the prior
 # -5421 (true-up: spec-vagueness-gate added a +423 B itemized entry —
 # .aai/PLANNING.prompt.md PRINCIPLE 1 gains ONE sentence: the DON'T-GUESS twin
 # of "you have written a wish", carrying the canonical marker spelling, the
@@ -589,15 +599,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -5421 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -5421)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -5262 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -5262)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -5421 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -5262 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

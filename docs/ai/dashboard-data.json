@@ -1,13 +1,13 @@
 {
   "summary": {
-    "total": 504,
-    "totalTokens": 39172816,
-    "avgDuration": 690512,
+    "total": 506,
+    "totalTokens": 39505182,
+    "avgDuration": 693458,
     "successRate": "100.0",
     "activeWorktrees": 0,
     "publishes": 0,
-    "workItems": 120,
-    "period": "2026-06-25 to 2026-08-13"
+    "workItems": 121,
+    "period": "2026-06-25 to 2026-08-14"
   },
   "tokensByTime": {
     "2026-06-30": {
@@ -144,21 +144,26 @@
       "input": 0,
       "output": 0,
       "total": 5417379
+    },
+    "2026-08-14": {
+      "input": 0,
+      "output": 0,
+      "total": 332366
     }
   },
   "skillStats": [
     {
       "name": "Code Review",
-      "count": 119,
-      "avgTokens": 59209,
-      "avgDuration": "377.3",
+      "count": 120,
+      "avgTokens": 59956,
+      "avgDuration": "384.1",
       "successRate": "100.0"
     },
     {
       "name": "Validation",
-      "count": 113,
-      "avgTokens": 62996,
-      "avgDuration": "601.1",
+      "count": 114,
+      "avgTokens": 64054,
+      "avgDuration": "610.6",
       "successRate": "100.0"
     },
     {
@@ -243,10 +248,10 @@
   "worktreeStats": null,
   "publishStats": null,
   "hasTokenSignal": true,
-  "generatedAt": "2026-08-14T02:10:20.807Z",
+  "generatedAt": "2026-08-14T07:06:05.965Z",
   "source": {
-    "entries": 120,
-    "operations": 504,
+    "entries": 121,
+    "operations": 506,
     "schema": "work-item-ledger"
   },
   "filters": {

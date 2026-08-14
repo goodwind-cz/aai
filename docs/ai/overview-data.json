@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-14T02:10:20.736Z",
+  "generatedAt": "2026-08-14T07:05:51.956Z",
   "project": "aai",
   "counts": {
-    "delivered": 187,
+    "delivered": 188,
     "in_progress": 2,
     "releases": 1,
-    "tokens_total": 36841143
+    "tokens_total": 37173509
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "vagueness-gate",
+    "ref": "close-regenerate-order",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "vagueness-gate",
+      "ref": "close-regenerate-order",
       "type": "intake_change",
       "phase": "code_review"
     },
@@ -26,6 +26,27 @@
     "validation_status": "pass",
     "review_status": "pass",
     "ticks": [
+      {
+        "tick": 102,
+        "role": "code_review",
+        "scope": "close-regenerate-order",
+        "duration_seconds": 396,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 101,
+        "role": "validation",
+        "scope": "close-regenerate-order",
+        "duration_seconds": 8040,
+        "harness_version": "unknown"
+      },
+      {
+        "tick": 100,
+        "role": "implementation",
+        "scope": "close-regenerate-order",
+        "duration_seconds": 9679,
+        "harness_version": "unknown"
+      },
       {
         "tick": 99,
         "role": "code_review",
@@ -39,43 +60,22 @@
         "scope": "vagueness-gate",
         "duration_seconds": 1679,
         "harness_version": "unknown"
-      },
-      {
-        "tick": 97,
-        "role": "implementation",
-        "scope": "spec-vagueness-gate",
-        "duration_seconds": 1346,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 96,
-        "role": "planning",
-        "scope": "spec-vagueness-gate",
-        "duration_seconds": 656,
-        "harness_version": "unknown"
-      },
-      {
-        "tick": 95,
-        "role": "planning",
-        "scope": "close-regenerate-order",
-        "duration_seconds": 784,
-        "harness_version": "unknown"
       }
     ]
   },
   "in_progress": [
     {
-      "ref": "vagueness-gate",
-      "title": "Change — mark it, do not assert it: a freeze-time gate on vagueness and unverified claims",
+      "ref": "close-regenerate-order",
+      "title": "Change — generated pages are regenerated AFTER the spec number is allocated, by machine not by discipline",
       "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0144-vagueness-gate.md",
+      "status": "implementing",
+      "path": "docs/issues/CHANGE-0143-close-regenerate-order.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
-      "spec": "docs/specs/SPEC-0130-spec-vagueness-gate.md",
+      "spec": "docs/specs/SPEC-0131-spec-close-regenerate-order.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-20260814T020405Z-CHANGE-0144-vagueness-gate.md"
+      "review": "docs/ai/reviews/review-20260814T065229Z-CHANGE-0143-close-regenerate-order.md"
     },
     {
       "ref": "aai-self-improvement-feedback-loop",
@@ -92,6 +92,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "vagueness-gate",
+      "title": "Change — mark it, do not assert it: a freeze-time gate on vagueness and unverified claims",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0144-vagueness-gate.md",
+      "closed_on": "2026-08-14",
+      "agent_minutes": 48,
+      "token_total": 332366,
+      "spec": "docs/specs/SPEC-0130-spec-vagueness-gate.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260814T020405Z-CHANGE-0144-vagueness-gate.md"
+    },
     {
       "ref": "doctor-win-selftest",
       "title": "Change — aai-doctor: Windows wrapper self-test + agent-CLI capability probe (test reality, not the CI image)",
@@ -2530,6 +2543,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "vagueness-gate",
+          "title": "Change — mark it, do not assert it: a freeze-time gate on vagueness and unverified claims",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0144-vagueness-gate.md",
+          "closed_on": "2026-08-14",
+          "agent_minutes": 48,
+          "token_total": 332366,
+          "spec": "docs/specs/SPEC-0130-spec-vagueness-gate.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260814T020405Z-CHANGE-0144-vagueness-gate.md"
+        },
         {
           "ref": "doctor-win-selftest",
           "title": "Change — aai-doctor: Windows wrapper self-test + agent-CLI capability probe (test reality, not the CI image)",

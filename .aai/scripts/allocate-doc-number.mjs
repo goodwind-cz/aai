@@ -30,6 +30,23 @@
 // counter; allocating for one member reserves ALL members' refs in one
 // atomic push.
 //
+// CHANGE-0143 / spec-close-regenerate-order — REGENERATION ORDER CONTRACT.
+// The rename is the event that invalidates every PROJECTION of the renamed
+// file, so the rename and the regeneration are ONE operation. On the success
+// path of an allocation ONLY (never --dry-run/--guard/--backfill/--reserve),
+// this script regenerates, in this order: docs/INDEX.md
+// (generate-docs-index.mjs), then docs/ai/overview.html + overview-data.json
+// (generate-overview.mjs), then the docs/USER_GUIDE.md rollup block
+// (generate-userguide-rollup.mjs). The last two are the order
+// close-work-item.mjs already uses, so no second convention exists. All three
+// are BEST-EFFORT: an absent generator is skipped silently and the exit code
+// never changes. A FAILING one is named on stderr by the two SPEC_PAGE
+// generators only; regenerateIndex() still degrades SILENTLY (pre-existing,
+// out of CHANGE-0143's signed scope — see fu-index-regen-silent-degrade).
+// The completion line names every page actually regenerated — that
+// list is the stage-me list (an unstaged regenerated page makes the fix
+// inert; .aai/SKILL_PR.prompt.md step 1b carries the same list).
+//
 // Usage:
 //   node .aai/scripts/allocate-doc-number.mjs [--path <draft-file>] [--type <t>]
 //        [--base-ref <ref>] [--all] [--backfill] [--dry-run] [--guard] [--reserve]
@@ -795,6 +812,42 @@ function regenerateIndex(root) {
   } catch { /* degrade-and-report: index regen is best-effort */ }
 }
 
+// The PROJECTION generators whose output embeds a spec PATH (CHANGE-0143 D2,
+// survey-verified on this tree), each with the tracked pages it writes. Order
+// is copied from close-work-item.mjs's regen tail (overview, then the
+// USER_GUIDE rollup) so no second convention is invented; neither generator
+// reads the other's output, so the order is a stability convention, not a
+// dependency. factory-report and dashboard are deliberately EXCLUDED: their
+// artifacts embed bare ids, never a docs/specs path, so running them here
+// would add timestamp churn to every allocation commit and buy nothing.
+const SPEC_PAGE_GENERATORS = [
+  { gen: '.aai/scripts/generate-overview.mjs', pages: ['docs/ai/overview.html', 'docs/ai/overview-data.json'] },
+  { gen: '.aai/scripts/generate-userguide-rollup.mjs', pages: ['docs/USER_GUIDE.md'] },
+];
+
+// Best-effort regen of the spec-path projections, invoked immediately after
+// regenerateIndex(root) on the success path of runAllocate only. Mirrors
+// close-work-item.mjs's regenerateFactoryReportBestEffort(): fs.existsSync
+// guard (these are `extended`-profile generators and may be absent in a
+// core-only sync -> silent skip), every throw swallowed into ONE named INFO
+// stderr line, no rollback path reachable, the exit code never changed.
+// Returns the pages actually regenerated, so the completion line can name
+// them honestly instead of claiming a generator that never ran.
+function regenerateSpecPagesBestEffort(root) {
+  const regenerated = [];
+  for (const { gen, pages } of SPEC_PAGE_GENERATORS) {
+    try {
+      const abs = path.join(root, gen);
+      if (!fs.existsSync(abs)) continue;
+      execFileSync('node', [abs], { cwd: root, stdio: 'ignore' });
+      regenerated.push(...pages);
+    } catch (err) {
+      process.stderr.write(`allocate-doc-number: INFO ${path.basename(gen)} regen skipped (best-effort, non-fatal): ${err.message}\n`);
+    }
+  }
+  return regenerated;
+}
+
 function moveFile(root, fromRel, toRel) {
   const tracked = git(root, ['ls-files', '--error-unmatch', fromRel]) !== null;
   if (tracked) {
@@ -1109,7 +1162,8 @@ function runAllocate(root, opts) {
     console.log(`allocated ${p.rel} -> ${p.newRel} (number ${p.n}, id ${p.slug}${provisional ? ', number_reserved: false' : ''})`);
   }
   regenerateIndex(root);
-  console.log(`allocate complete: ${plan.length} draft(s) numbered; docs/INDEX.md regenerated.`);
+  const regenerated = ['docs/INDEX.md', ...regenerateSpecPagesBestEffort(root)];
+  console.log(`allocate complete: ${plan.length} draft(s) numbered; regenerated ${regenerated.join(', ')} — stage every page listed here.`);
 }
 
 // --reserve: complete a provisional (D4) reservation for an already-numbered

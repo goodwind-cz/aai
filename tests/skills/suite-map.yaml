@@ -153,6 +153,19 @@ suites:
       - .aai/templates/RFC_TEMPLATE.md
       - .aai/templates/SPEC_TEMPLATE.md
       - docs/INDEX.md
+      # CHANGE-0143: the allocator now regenerates the spec-path projections at
+      # the rename, and this suite owns the stale-DRAFT invariant over the whole
+      # closed list — a diff that touches any generated page must re-select it.
+      - .aai/scripts/generate-overview.mjs
+      - .aai/scripts/generate-userguide-rollup.mjs
+      - docs/USER_GUIDE.md
+      - docs/ai/overview.html
+      - docs/ai/overview-data.json
+      - docs/ai/factory-report.html
+      - docs/ai/factory-report-data.json
+      - docs/ai/dashboard.html
+      - docs/ai/dashboard-data.json
+      - tests/fixtures/close-regenerate-order/**
 
   aai-docs-audit:
     globs:
