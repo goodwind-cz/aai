@@ -1486,7 +1486,14 @@ test_028_exit_contract_unchanged() {
 # must update this pin in the same commit — that friction is the point.
 test_029_close_work_item_byte_unchanged() {
   log_info "TEST-029: git diff main -- .aai/scripts/close-work-item.mjs is empty..."
-  local base="${CLOSE_PIN_BASE_REF:-main}"
+  # origin/main first (validation F4; fourth instance of this class in the repo
+  # — a bare `main` never resolves on a detached PR checkout, so the pin goes
+  # inert while still reporting PASS).
+  local base="${CLOSE_PIN_BASE_REF:-}"
+  if [[ -z "$base" ]]; then
+    if git -C "$PROJECT_ROOT" rev-parse --verify --quiet origin/main >/dev/null; then base="origin/main"
+    else base="main"; fi
+  fi
   if ! git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
     log_info "TEST-029: base ref '$base' unreachable — pin skipped (named degrade)"
     log_pass "TEST-029 close-work-item pin skipped (base ref unreachable)"

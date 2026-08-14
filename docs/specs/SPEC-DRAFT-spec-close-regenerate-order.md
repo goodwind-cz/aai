@@ -128,7 +128,7 @@ The survey was run, not assumed. Every candidate was measured on this tree for
 | generate-overview.mjs | docs/ai/overview.html + overview-data.json | tracked | YES (115 + 229 SPEC refs, `<a href="../../docs/specs/SPEC-....md">`) | 0.08 s |
 | generate-factory-report.mjs | docs/ai/factory-report.html + -data.json | tracked | NO — bare ids only (`refs[]`, `lead_time.per_item[].ref`); zero `specs/` strings in the generator | 0.06 s |
 | generate-dashboard.mjs | docs/ai/dashboard.html + -data.json | tracked | NO — zero `SPEC-` occurrences of any form in either artifact | 0.04 s |
-| generate-docs-hub.mjs | docs/ai/docs-hub.html | ABSENT and untracked in this checkout | n/a | n/a |
+| generate-docs-hub.mjs | docs/ai/docs-hub.html | present and tracked; its OUTPUT is neither on disk nor tracked (corrected post-freeze, validation F3) | NO — 0 `docs/specs` and 0 `SPEC-` strings, re-measured | n/a |
 
 Chosen set: `generate-overview.mjs`, then `generate-userguide-rollup.mjs`,
 appended after the existing `regenerateIndex(root)` at line 1111. The INDEX regen
@@ -205,10 +205,13 @@ and both of which get a test:
    the convention; six suites assert on DRAFT literals as fixture data). A
    repo-wide grep would fire on all of it. The check reads only the eight paths
    above.
-2. Non-generated runtime state is never scanned. `docs/ai/STATE.yaml` carries,
-   right now, `source: docs/specs/SPEC-DRAFT-spec-followup-registry.md` inside a
-   historical `implementation_strategy.rationale` while
-   `docs/specs/SPEC-0129-spec-followup-registry.md` exists — a true positive
+2. Non-generated runtime state is never scanned. The specific counterexample
+   this spec cited at freeze (a stale `SPEC-DRAFT-spec-followup-registry.md`
+   pointer in `implementation_strategy.rationale`) has since been overwritten
+   by later rides — but the rule is MORE justified than at freeze, not less:
+   validation re-measured `docs/ai/STATE.yaml` and found **34** DRAFT tokens
+   whose numbered counterpart exists today (corrected post-freeze, F3). Any one
+   of them would be a true positive
    under a naive predicate and a false alarm in fact, because STATE is a
    point-in-time record, not a published page. It is not in the list.
 
@@ -305,7 +308,19 @@ running them. The full command list is in `## Verification`.
   tests/skills/suite-map.yaml, tests/skills/lib/prompt-diet-ledger.sh,
   tests/skills/test-aai-prompt-diet.sh, tests/fixtures/close-regenerate-order/**,
   docs/specs/SPEC-DRAFT-spec-close-regenerate-order.md,
-  docs/issues/CHANGE-0143-close-regenerate-order.md, CHANGELOG.md
+  docs/issues/CHANGE-0143-close-regenerate-order.md, CHANGELOG.md,
+  tests/skills/test-aai-spec-lint.sh (see IMPLEMENTATION ADJUSTMENT below)
+
+IMPLEMENTATION ADJUSTMENT (recorded post-freeze, validation F2b): the ride had
+to touch one file this spec never named. CHANGE-0144's TEST-011(clarify)
+allowlists `.aai/` paths against the BRANCH diff, so it fails for every future
+scope that edits `.aai/` — including this one. The implementation added this
+scope's two paths in a separate, commented case arm rather than re-scoping that
+pin's semantics inside an L3 ride with no AC or RED covering it. Validation
+judged the call correct and the root cause (branch-diff scoping, not the
+allowlist) is filed as `fu-test011-branch-diff-allowlist-tax`. The same
+precedent as the TEST-013 host-file adjustment already recorded in the Test
+Plan notes.
 
 Code review required: true (a protected-surface script change, new tests, a
 prompt-corpus edit and a governance-ledger true-up); scope = the explicit path
