@@ -2,10 +2,15 @@
 id: close-regenerate-order
 number: 143
 type: change
-status: implementing
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-pr
+links:
+  commits:
+    - 49056cc
+  pr:
+    - 259
 ---
 
 # Change — generated pages are regenerated AFTER the spec number is allocated, by machine not by discipline

@@ -2,13 +2,15 @@
 id: spec-close-regenerate-order
 type: spec
 number: 131
-status: implementing
+status: done
 ceremony_level: 3
 links:
   requirement: docs/issues/CHANGE-0143-close-regenerate-order.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 259
+  commits:
+    - 49056cc
 ---
 
 # Spec — generated pages regenerate at the rename, by machine

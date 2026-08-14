@@ -1,19 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-14T07:06:16.724Z
+Generated: 2026-08-14T07:29:34.311Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (3)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
-| CHANGE-0143 | issues | implementing | — | docs/issues/CHANGE-0143-close-regenerate-order.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0131 | specs | implementing | 7 done | docs/specs/SPEC-0131-spec-close-regenerate-order.md |
 
 ## Canonical layer (0)
 
@@ -49,7 +47,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (321)
+## Done (323)
 
 | ID | Type | Path |
 |---|---|---|
@@ -195,6 +193,7 @@ _None._
 | CHANGE-0140 | issues | docs/issues/CHANGE-0140-reporting-docs-true-up.md |
 | CHANGE-0141 | issues | docs/issues/CHANGE-0141-changelog-payload-hardening.md |
 | CHANGE-0142 | issues | docs/issues/CHANGE-0142-followup-registry.md |
+| CHANGE-0143 | issues | docs/issues/CHANGE-0143-close-regenerate-order.md |
 | CHANGE-0144 | issues | docs/issues/CHANGE-0144-vagueness-gate.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
@@ -373,6 +372,7 @@ _None._
 | SPEC-0128 | specs | docs/specs/SPEC-0128-spec-changelog-payload-hardening.md |
 | SPEC-0129 | specs | docs/specs/SPEC-0129-spec-followup-registry.md |
 | SPEC-0130 | specs | docs/specs/SPEC-0130-spec-vagueness-gate.md |
+| SPEC-0131 | specs | docs/specs/SPEC-0131-spec-close-regenerate-order.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
