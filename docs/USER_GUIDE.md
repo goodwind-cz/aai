@@ -1067,7 +1067,7 @@ and it feeds only these three rules.
 
 `fast` is deliberately **not** in the vague-word list. Measured: in this corpus
 `grep -rInE '^\|.*\bfast\b' docs/specs/*.md` returns 12 table rows across 6
-specs and all 16 are domain vocabulary ("fails fast", "fast path", "LANE
+specs and all 12 are domain vocabulary ("fails fast", "fast path", "LANE
 fast") — a 12/12 false-positive rate, zero true positives. The row count moves
 with the corpus; the zero-true-positive result is the part that decides. Any future word must
 clear the same measurement.
@@ -1091,6 +1091,12 @@ clear the same measurement.
    Mapping bullets, not the Summary, not any narrative section.
 7. **The question's quality is not judged**: a marker asking a DON'T-ASK
    question blocks the freeze exactly as hard as a good one.
+8. **Backticking a marker satisfies the gate.** The specimen exemption cannot
+   distinguish a genuine code specimen from a marker someone wrapped in
+   backticks to make the freeze go through — verified: the spec freezes at
+   exit 0 with the marker text still in the file. That escape is cheaper and
+   LESS visible in a diff than deleting the marker, so treat a newly
+   backticked marker in review the way you would treat a deleted one.
 
 ---
 

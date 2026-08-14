@@ -378,9 +378,11 @@ const CLARIFICATION_TOKEN = '[NEEDS-CLARIFICATION';
 const CLARIFICATION_CAP = 3;
 const CLARIFICATION_PRIORITY = 'scope > security/privacy > UX > technical detail';
 // D4 — closed, MEASURED word list. `fast` is deliberately absent: in this
-// corpus `grep -rInE '^\|.*\bfast\b' docs/specs/*.md` returns 16 table rows
-// across 8 specs and all 16 are domain vocabulary ("fails fast", "fast path",
-// "prints LANE fast"), a measured 16/16 false-positive rate. The same grep over
+// corpus `grep -rInE '^\|.*\bfast\b' docs/specs/*.md` returns 12 table rows
+// across 6 specs at origin/main and all 12 are domain vocabulary ("fails fast",
+// "fast path", "prints LANE fast"), a 12/12 false-positive rate measured at
+// origin/main — the count moves with the corpus, the zero-true-positive result
+// does not. The same grep over
 // the four words below returns 0 rows, which is why they survive; any future
 // word must clear the same measurement.
 const VAGUE_TERMS = ['scalable', 'secure', 'robust', 'quickly'];

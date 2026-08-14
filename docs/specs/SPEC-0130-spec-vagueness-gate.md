@@ -1,7 +1,7 @@
 ---
 id: spec-vagueness-gate
 type: spec
-number: null
+number: 130
 status: implementing
 ceremony_level: 1
 links:
@@ -267,7 +267,7 @@ exemption is wrong, the corpus scan says so immediately.
   existing TEST-012 pin. STATE carries no intake-sourced strategy choice for
   this scope (the intake has no `Implementation mode (user choice):` line), so
   this is Planning's call and the orchestrator should record it with
-  `--source docs/specs/SPEC-DRAFT-spec-vagueness-gate.md`.
+  `--source docs/specs/SPEC-0130-spec-vagueness-gate.md`.
 
 ## Isolation and review
 - Worktree recommendation: not_needed
@@ -281,7 +281,7 @@ exemption is wrong, the corpus scan says so immediately.
   .aai/PLANNING.prompt.md, tests/skills/test-aai-spec-lint.sh,
   tests/skills/test-aai-spec-tools.sh, tests/skills/lib/prompt-diet-ledger.sh,
   tests/skills/test-aai-prompt-diet.sh, docs/USER_GUIDE.md,
-  docs/specs/SPEC-DRAFT-spec-vagueness-gate.md,
+  docs/specs/SPEC-0130-spec-vagueness-gate.md,
   docs/issues/CHANGE-0144-vagueness-gate.md, CHANGELOG.md
 
 Code review required: true (code, test and prompt changes); scope = the
@@ -355,7 +355,7 @@ explicit path list above as a diff against main.
   AND the recorded non-vacuity witnesses of D6 (fixture arms, the
   `SPEC-0112`-derived in-flight control, and this spec as the corpus's only
   in-flight document) are present as executable arms rather than prose.
-- Verification: terminal-status fixture (marker + vague word + 4 markers) exits 0; `node .aai/scripts/spec-lint.mjs` exits 0 over the real corpus; `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-vagueness-gate.md` exits 0.
+- Verification: terminal-status fixture (marker + vague word + 4 markers) exits 0; `node .aai/scripts/spec-lint.mjs` exits 0 over the real corpus; `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0130-spec-vagueness-gate.md` exits 0.
 
 - Maps to: CHANGE-0144 AC-006
 - Spec-AC-07: WHEN the scope is complete THEN docs/USER_GUIDE.md's spec-lint
@@ -524,7 +524,7 @@ input reaches the assertion, `infra_fail` otherwise, per SKILL_TDD):
 - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-prompt-diet.sh`
 - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-ceremony-levels.sh`
 - `node .aai/scripts/spec-lint.mjs` (real corpus, expect exit 0)
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-vagueness-gate.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0130-spec-vagueness-gate.md`
 - PASS criteria: all TEST-xxx green AND all Spec-AC in a terminal status.
 
 ## Evidence contract

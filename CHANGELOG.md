@@ -37,9 +37,9 @@ RFC-0001).
   documentation, not an occurrence. The mask that produces the exemption
   replaces hidden characters with spaces but PRESERVES newlines and `|`, so no
   line number and no table cell count moves, and it feeds only the new rules.
-- `fast` was measured OUT of the vague-word list: 16 table rows across 8 specs
-  in this corpus, all 16 domain vocabulary ("fails fast", "fast path", "LANE
-  fast") — a 16/16 false-positive rate. A control fixture derived from the real
+- `fast` was measured OUT of the vague-word list: 12 table rows across 6 specs
+  at origin/main, all 12 domain vocabulary ("fails fast", "fast path", "LANE
+  fast") — a 12/12 false-positive rate. A control fixture derived from the real
   SPEC-0112 pins the exclusion.
 - ZERO added ceremony, on purpose (RESEARCH-0001 F14: spec-driven ceremony cost
   33 min against 8 min of plain prompting with no measured quality gain). No new

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-13T23:18:23.776Z",
+  "generatedAt": "2026-08-14T02:10:20.771Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
@@ -2804,7 +2804,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 14,
+    "open_count": 27,
     "oldest_age_days": 5,
     "items": [
       {
@@ -2851,7 +2851,7 @@
         "id": "fu-cat16-timeout-vs-absent",
         "ref": "CHANGE-0135",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "CAT-16's one-line reason folds a timed-out probe (unknown) into the present-count, so the text line cannot distinguish absent from unknown",
         "status": "open"
       },
@@ -2859,7 +2859,7 @@
         "id": "fu-doctor-version-absent-overload",
         "ref": "CHANGE-0135",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "resolveCliVersion returns present:false for BOTH no-executable and an empty --version, and the stdout-or-stderr fallback can report a stderr diagnostic as the version; a distinct present:true version:null reason:<why> state is wanted",
         "status": "open"
       },
@@ -2917,6 +2917,110 @@
         "severity": "P3",
         "age_days": 0,
         "what": "requireReadableLedger accepts a DIRECTORY (or a path unreadable after the check), degrading D6's exit-2 unreadable-ledger contract to exit 0 plus an absent note",
+        "status": "open"
+      },
+      {
+        "id": "fu-malformed-explicit-id-unnamed",
+        "ref": "CHANGE-0142",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "a malformed explicit follow-up id (e.g. BAD ID) is listed as an ordinary item with an empty notes array — only the derived-id case is named",
+        "status": "open"
+      },
+      {
+        "id": "fu-verify-staged-set-after-commit",
+        "ref": "CHANGE-0142",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "orchestrator must verify git show --stat after every commit, not the exit code",
+        "status": "open"
+      },
+      {
+        "id": "fu-context-window-telemetry",
+        "ref": "RESEARCH-0001",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "measure context-window utilization per role and treat an overflowing window as an over-specification signal, not a tooling failure",
+        "status": "open"
+      },
+      {
+        "id": "fu-corpus-navigability-measure",
+        "ref": "RESEARCH-0001",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "measure whether the 345-document corpus is still navigable by a human, and act on the number",
+        "status": "open"
+      },
+      {
+        "id": "fu-go-clarify-kill-gate",
+        "ref": "RESEARCH-0001",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "a pre-spec gate that can recommend KILL, not only score readiness",
+        "status": "open"
+      },
+      {
+        "id": "fu-shell-twin-parity-tax",
+        "ref": "RESEARCH-0001",
+        "severity": "P1",
+        "age_days": 0,
+        "what": "decide explicitly whether the remaining shell twin surface (sh plus ps1) is a standing cost we accept or a port we schedule",
+        "status": "open"
+      },
+      {
+        "id": "fu-vocabulary-independence-chaos-test",
+        "ref": "RESEARCH-0001",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "one-off chaos test: rename every artifact type and prove dispatch keys on structure, not document titles",
+        "status": "open"
+      },
+      {
+        "id": "fu-0143-l3-operator-signoff",
+        "ref": "CHANGE-0143",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "operator must choose: (A) approve the ceremony-L3 edit to allocate-doc-number.mjs so it regenerates overview and the USER_GUIDE rollup right after the rename, or (B) detection-only at L1",
+        "status": "open"
+      },
+      {
+        "id": "fu-intake-spec-id-collision-guard",
+        "ref": "CHANGE-0144",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "make an intake id that collides with its spec id impossible, not merely correctable",
+        "status": "open"
+      },
+      {
+        "id": "fu-mask-pipe-clause-unpinned",
+        "ref": "CHANGE-0144",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the specimen mask's pipe-preservation clause is not mutation-pinned: removing it from maskCodeSpecimens survives the whole spec-lint suite",
+        "status": "open"
+      },
+      {
+        "id": "fu-test008-missing-red-artifact",
+        "ref": "CHANGE-0144",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "spec TEST-008 has neither a red- nor a report- artifact although its RED is real and was reproduced independently by validation",
+        "status": "open"
+      },
+      {
+        "id": "fu-mask-duplicates-docs-audit-core",
+        "ref": "CHANGE-0144",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "the specimen masker in spec-lint.mjs duplicates docs-audit-core.mjs:782-875 more weakly, reintroducing both bugs that file fixed under SPEC-0013 W3",
+        "status": "open"
+      },
+      {
+        "id": "fu-vague-term-line-attribution",
+        "ref": "CHANGE-0144",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "ac-vague-term reports the Test Plan row's line number when the Test Plan section precedes the AC table (measured 19 vs 25)",
         "status": "open"
       }
     ]
