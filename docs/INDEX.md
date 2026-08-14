@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-14T00:34:26.663Z
+Generated: 2026-08-14T00:34:58.258Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -371,9 +371,11 @@ _None._
 | SPEC-0129 | specs | docs/specs/SPEC-0129-spec-followup-registry.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0144 | issues | docs/issues/CHANGE-0144-spec-vagueness-gate.md |
 
 ## Deferred (whole-doc) (0)
 
