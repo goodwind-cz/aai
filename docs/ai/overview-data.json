@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-13T22:53:23.368Z",
+  "generatedAt": "2026-08-14T02:10:20.736Z",
   "project": "aai",
   "counts": {
-    "delivered": 186,
+    "delivered": 187,
     "in_progress": 2,
     "releases": 1,
-    "tokens_total": 35966108
+    "tokens_total": 36841143
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "followup-registry",
+    "ref": "vagueness-gate",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "followup-registry",
+      "ref": "vagueness-gate",
       "type": "intake_change",
       "phase": "code_review"
     },
@@ -27,55 +27,55 @@
     "review_status": "pass",
     "ticks": [
       {
-        "tick": 94,
+        "tick": 99,
         "role": "code_review",
-        "scope": "followup-registry",
-        "duration_seconds": 1453,
+        "scope": "vagueness-gate",
+        "duration_seconds": 1193,
         "harness_version": "unknown"
       },
       {
-        "tick": 93,
+        "tick": 98,
         "role": "validation",
-        "scope": "followup-registry",
-        "duration_seconds": 1279,
+        "scope": "vagueness-gate",
+        "duration_seconds": 1679,
         "harness_version": "unknown"
       },
       {
-        "tick": 92,
+        "tick": 97,
         "role": "implementation",
-        "scope": "followup-registry",
-        "duration_seconds": 1913,
+        "scope": "spec-vagueness-gate",
+        "duration_seconds": 1346,
         "harness_version": "unknown"
       },
       {
-        "tick": 91,
+        "tick": 96,
         "role": "planning",
-        "scope": "followup-registry",
-        "duration_seconds": 880,
+        "scope": "spec-vagueness-gate",
+        "duration_seconds": 656,
         "harness_version": "unknown"
       },
       {
-        "tick": 90,
-        "role": "code_review",
-        "scope": "changelog-payload-hardening",
-        "duration_seconds": 148,
+        "tick": 95,
+        "role": "planning",
+        "scope": "close-regenerate-order",
+        "duration_seconds": 784,
         "harness_version": "unknown"
       }
     ]
   },
   "in_progress": [
     {
-      "ref": "followup-registry",
-      "title": "Change — typed, queryable follow-up registry (deferred work stops rotting in prose)",
+      "ref": "vagueness-gate",
+      "title": "Change — mark it, do not assert it: a freeze-time gate on vagueness and unverified claims",
       "type": "change",
       "status": "draft",
-      "path": "docs/issues/CHANGE-0142-followup-registry.md",
+      "path": "docs/issues/CHANGE-0144-vagueness-gate.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
-      "spec": "docs/specs/SPEC-0129-spec-followup-registry.md",
+      "spec": "docs/specs/SPEC-0130-spec-vagueness-gate.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-20260813T222716Z-CHANGE-0142-followup-registry.md"
+      "review": "docs/ai/reviews/review-20260814T020405Z-CHANGE-0144-vagueness-gate.md"
     },
     {
       "ref": "aai-self-improvement-feedback-loop",
@@ -182,6 +182,19 @@
       "spec": "docs/specs/SPEC-0128-spec-changelog-payload-hardening.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260813T200548Z-CHANGE-0141-changelog-payload-hardening.md"
+    },
+    {
+      "ref": "followup-registry",
+      "title": "Change — typed, queryable follow-up registry (deferred work stops rotting in prose)",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0142-followup-registry.md",
+      "closed_on": "2026-08-13",
+      "agent_minutes": 92,
+      "token_total": 875035,
+      "spec": "docs/specs/SPEC-0129-spec-followup-registry.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260813T222716Z-CHANGE-0142-followup-registry.md"
     },
     {
       "ref": "validation-cost-calibration",
@@ -2607,6 +2620,19 @@
           "spec": "docs/specs/SPEC-0128-spec-changelog-payload-hardening.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260813T200548Z-CHANGE-0141-changelog-payload-hardening.md"
+        },
+        {
+          "ref": "followup-registry",
+          "title": "Change — typed, queryable follow-up registry (deferred work stops rotting in prose)",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0142-followup-registry.md",
+          "closed_on": "2026-08-13",
+          "agent_minutes": 92,
+          "token_total": 875035,
+          "spec": "docs/specs/SPEC-0129-spec-followup-registry.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260813T222716Z-CHANGE-0142-followup-registry.md"
         },
         {
           "ref": "validation-cost-calibration",

@@ -8,6 +8,25 @@
 // SPEC-FROZEN vs strategy/AC-table/frontmatter-status consistency,
 // ceremony_level enum, and AC rows the shared parser silently drops.
 //
+// CLARIFICATION MARKERS + AC VAGUENESS (SPEC spec-vagueness-gate): three rules
+// over in-flight documents only, all fed by a mask that hides fenced code
+// blocks and inline code spans (a marker inside one is a SPECIMEN, not an
+// occurrence):
+//   `unresolved-clarification`   — a live `[NEEDS-CLARIFICATION: <question>]`
+//        marker. This one IS a freeze PRECONDITION: spec-freeze.mjs carries it
+//        in PRECONDITION_RULES and refuses at exit 3 writing nothing.
+//   `clarification-cap-exceeded` — more than 3 markers in one document.
+//        ADVISORY, never a precondition (at freeze the allowed count is zero).
+//   `ac-vague-term`              — a measured, closed word list in an AC
+//        Description cell. ADVISORY FOREVER: it detects a WORD, never the
+//        absence of quantification.
+// WHAT THIS DOES NOT CATCH, said plainly because the failure mode of a gate
+// like this is that people believe it: a confident FALSE assertion carrying no
+// marker passes every rule here, cleanly (the CHANGE-0140 shape); deleting a
+// marker without answering the question satisfies the gate; and a marker added
+// AFTER the freeze is reported but refuses nothing. It is not a false-claim
+// detector.
+//
 // AC -> TEST REVERSE COVERAGE (`ac-without-test`, CHANGE-0113 D2 probe R21):
 // a Spec-AC that no Test Plan row claims. Scoped to in-flight specs
 // (draft/proposed/accepted/implementing) because a terminal spec's Test Plan
@@ -346,6 +365,58 @@ export function redEvidenceDemands(norm) {
   return hits;
 }
 
+// --- clarification markers + AC vagueness (SPEC spec-vagueness-gate) ---------
+
+// D1 — ONE canonical spelling, hyphenated and uppercase, matched on the OPENING
+// TOKEN only and case-sensitively: a truncated or unterminated marker is still
+// an unresolved marker (fail closed), while prose that merely says "needs
+// clarification" — and the SPACED upstream spelling our own RESEARCH-0001
+// quotes twice — are not markers at all. RESOLUTION IS DELETION: there is no
+// "resolved" annotation form, so every resolution is a visible diff hunk.
+const CLARIFICATION_TOKEN = '[NEEDS-CLARIFICATION';
+// D3 — the cap and the trim order (RESEARCH-0001 F12, adopted verbatim).
+const CLARIFICATION_CAP = 3;
+const CLARIFICATION_PRIORITY = 'scope > security/privacy > UX > technical detail';
+// D4 — closed, MEASURED word list. `fast` is deliberately absent: in this
+// corpus `grep -rInE '^\|.*\bfast\b' docs/specs/*.md` returns 12 table rows
+// across 6 specs at origin/main and all 12 are domain vocabulary ("fails fast",
+// "fast path", "prints LANE fast"), a 12/12 false-positive rate measured at
+// origin/main — the count moves with the corpus, the zero-true-positive result
+// does not. The same grep over
+// the four words below returns 0 rows, which is why they survive; any future
+// word must clear the same measurement.
+const VAGUE_TERMS = ['scalable', 'secure', 'robust', 'quickly'];
+
+// Mask fenced code blocks and inline code spans so a documented SPECIMEN never
+// reads as a live marker. Masked characters become spaces, but NEWLINES and
+// `|` are PRESERVED, so every line number stays exact and no table row's cell
+// count can shift. Used by the two clarification rules and by ac-vague-term
+// ONLY — no pre-existing rule's input changes.
+//   An unterminated fence masks everything after it: the document is malformed
+//   markdown (docs-audit's boundary), and failing toward silence there is safe.
+export function maskCodeSpecimens(norm) {
+  const blank = (s) => s.replace(/[^\n|]/g, ' ');
+  let fence = null;
+  const out = [];
+  for (const line of norm.split('\n')) {
+    const open = line.match(/^\s*(`{3,}|~{3,})/);
+    if (fence === null) {
+      if (open) {
+        fence = open[1][0];
+        out.push(blank(line));
+      } else {
+        // Inline spans: a run of N backticks closed by a run of N backticks on
+        // the same line. An unpaired backtick masks nothing.
+        out.push(line.replace(/(`+)[^\n]*?\1/g, blank));
+      }
+      continue;
+    }
+    if (open && open[1][0] === fence) fence = null;
+    out.push(blank(line));
+  }
+  return out.join('\n');
+}
+
 // Lint one document's content. Pure: no filesystem, no git. Returns findings
 // [{ rule, detail, line }] — rel/id are attached by the caller.
 // opts.strategy: STATE's recorded implementation strategy when the CALLER knows
@@ -524,6 +595,58 @@ export function lintContent(content, opts = {}) {
   // one-for-one into a finding with its D2 code and the block's line number.
   const deltas = parseDeltasSection(norm);
   for (const v of deltas.violations) add(v.code, v.detail, v.line ?? null);
+
+  // --- clarification markers + AC vagueness (SPEC spec-vagueness-gate) ------
+  // Scoped by the SAME in-flight predicate `ac-without-test` uses, for the same
+  // reason: a terminal doc is history, and re-litigating it yields noise, not
+  // action. The three rules and their honest limits are in the file header.
+  if (IN_FLIGHT_STATUSES.includes(fmStatus)) {
+    const masked = maskCodeSpecimens(norm);
+    const marks = [];
+    for (let at = masked.indexOf(CLARIFICATION_TOKEN); at !== -1;
+      at = masked.indexOf(CLARIFICATION_TOKEN, at + CLARIFICATION_TOKEN.length)) {
+      marks.push(at);
+    }
+    for (const at of marks) {
+      // The question text, as far as the author got: everything up to the
+      // closing bracket or the end of the line, whichever comes first.
+      const tail = masked.slice(at + CLARIFICATION_TOKEN.length).split('\n')[0];
+      const q = tail.replace(/^:\s*/, '').split(']')[0].trim();
+      const excerpt = q.length > 90 ? `${q.slice(0, 87)}...` : (q || '(no question text)');
+      add(
+        'unresolved-clarification',
+        `unresolved clarification marker: "${excerpt}" — answer the question, write the answer as the claim, and DELETE the marker (resolution is deletion). This is a freeze PRECONDITION: spec-freeze.mjs refuses while it stands`,
+        lineAt(masked, at),
+      );
+    }
+    if (marks.length > CLARIFICATION_CAP) {
+      add(
+        'clarification-cap-exceeded',
+        `${marks.length} unresolved clarification markers exceed the cap of ${CLARIFICATION_CAP} — keep the ${CLARIFICATION_CAP} that decide the most, in the order ${CLARIFICATION_PRIORITY}, and resolve or drop the rest; never spend one on data retention, performance budgets, error handling, auth or integration patterns (canon already decides those). Advisory: never a freeze precondition`,
+        lineAt(masked, marks[CLARIFICATION_CAP]),
+      );
+    }
+
+    // ac-vague-term reads ONLY the AC Status table's Description cell (the one
+    // cell every other gate already reads) of the MASKED document, so a
+    // backticked specimen is exempt here too. Both table shapes feed it.
+    const maskedGate = parseAcTable(masked);
+    const vagueRows = maskedGate.hasGate ? maskedGate.rows : parseLeanAcTable(masked).rows;
+    const normLines = norm.split('\n');
+    for (const row of vagueRows) {
+      const id = row['Spec-AC'];
+      const hits = VAGUE_TERMS.filter((w) => new RegExp(`\\b${w}\\b`, 'i').test(row['Description'] ?? ''));
+      if (!hits.length) continue;
+      // parseAcTable rows carry no line field — locate the id's own table row,
+      // the `ac-without-test` precedent, so the finding is jump-to-able.
+      const idx = normLines.findIndex((l) => l.trim().startsWith('|') && l.includes(id));
+      add(
+        'ac-vague-term',
+        `${id}'s Description carries the vague term(s) ${hits.map((w) => `"${w}"`).join(', ')} — state the measured observable instead (a named command, a named artifact, one pass/fail result). ADVISORY: a word is not proof of vagueness and this rule never blocks a freeze; whether the AC is measurable stays Planning's judgment`,
+        idx >= 0 ? idx + 1 : null,
+      );
+    }
+  }
 
   // --- SPEC-FROZEN consistency ----------------------------------------------
   // Strategy is exempt at levels 0/1 (RFC-0009 lean artifacts). The AC table:

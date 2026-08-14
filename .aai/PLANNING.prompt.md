@@ -21,6 +21,12 @@ pending, stop and say so rather than planning around it.
    been observed FAILING without the change proves nothing about the change, under
    any strategy. Plan for the RED observation first, and say where it will be
    recorded; only then does the green count as evidence.
+   When you cannot verify a claim, DO NOT GUESS: write
+   `[NEEDS-CLARIFICATION: <specific question>]` inline — resolution is deletion,
+   an `unresolved-clarification` marker refuses the freeze, at most 3 per
+   document in the order scope > security/privacy > UX > technical detail, and
+   never one on data retention, performance budgets, error handling, auth or
+   integration patterns (canon already decides those).
 
 2. SPEC THE SEAMS, NOT THE PARTS THE CHANGE OWNS.
    The defects that survive this factory are rarely inside a function. They live

@@ -843,6 +843,118 @@ SPEC
   log_pass "TEST-024(freeze): unparsed AC row refuses, nothing written"
 }
 
+# === SPEC spec-vagueness-gate (clarify) — the marker is a freeze precondition ==
+# spec-lint DETECTS `[NEEDS-CLARIFICATION: <question>]` in an in-flight doc;
+# spec-freeze INHERITS the block by carrying `unresolved-clarification` in its
+# existing PRECONDITION_RULES array. No new flag, no new exit code, no new
+# control flow: freezePreconditions() already lints the would-be-frozen text
+# and refuses at exit 3 writing nothing. These arms drive the real CLI end to
+# end (SEAM-1: a rule renamed on one side would silently disarm the gate while
+# every spec-lint unit test still passed).
+
+# clarify_freeze_fixture <marker-count> — an otherwise FREEZABLE draft spec at
+# $SPEC carrying <marker-count> live markers in a `## Notes` section.
+clarify_freeze_fixture() {
+  local count="$1" i
+  spec_body draft false "src/touched.mjs" > "$SPEC"
+  printf '\n## Notes\n\n' >> "$SPEC"
+  i=1
+  while [[ "$i" -le "$count" ]]; do
+    printf '[NEEDS-CLARIFICATION: question number %s of %s?]\n' "$i" "$count" >> "$SPEC"
+    i=$((i + 1))
+  done
+}
+
+# --- TEST-002(clarify) — an unresolved marker REFUSES the freeze --------------
+test_freeze_clarify_002_marker_refuses() {
+  local out rc ok=1 before n
+  new_repo || { log_fail "TEST-002(clarify) fixture setup failed"; return; }
+  clarify_freeze_fixture 2
+  before="$(cksum "$SPEC")"
+  out="$(runfreeze --path docs/specs/SPEC-0001-fx.md --no-event 2>&1)"; rc=$?
+  expect_exit 3 "$rc" "TEST-002(clarify) marker refuses" || ok=0
+  grep -qi "refus" <<<"$out" \
+    || { log_info "TEST-002(clarify): refusal not named: $out"; ok=0; }
+  n=$(grep -c "unresolved-clarification" <<<"$out")
+  [[ "$n" -ge 1 ]] || { log_info "TEST-002(clarify): the refusal must name the rule: $out"; ok=0; }
+  grep -qF "question number 1 of 2" <<<"$out" \
+    || { log_info "TEST-002(clarify): the refusal must name the first occurrence: $out"; ok=0; }
+  grep -qF "question number 2 of 2" <<<"$out" \
+    || { log_info "TEST-002(clarify): the refusal must name the second occurrence: $out"; ok=0; }
+  [[ "$before" == "$(cksum "$SPEC")" ]] \
+    || { log_info "TEST-002(clarify): a refused freeze still wrote the spec"; ok=0; }
+  grep -q "^SPEC-FROZEN: true$" "$SPEC" \
+    && { log_info "TEST-002(clarify): the marker half was written despite the refusal"; ok=0; }
+  grep -q "^status: implementing$" "$SPEC" \
+    && { log_info "TEST-002(clarify): the status half was flipped despite the refusal"; ok=0; }
+
+  # --dry-run answers "would this freeze?" — it must refuse identically.
+  out="$(runfreeze --path docs/specs/SPEC-0001-fx.md --dry-run --no-event 2>&1)"; rc=$?
+  expect_exit 3 "$rc" "TEST-002(clarify) dry-run refuses too" || ok=0
+  [[ "$before" == "$(cksum "$SPEC")" ]] \
+    || { log_info "TEST-002(clarify): --dry-run wrote the spec"; ok=0; }
+
+  # a pre-freeze LINT of the same doc reports and blocks nothing (exit 1)
+  out="$(cd "$REPO" && node "$PROJECT_ROOT/.aai/scripts/spec-lint.mjs" --path docs/specs/SPEC-0001-fx.md 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-002(clarify) pre-freeze lint reports" || ok=0
+  grep -q "unresolved-clarification" <<<"$out" \
+    || { log_info "TEST-002(clarify): the pre-freeze lint did not report the marker: $out"; ok=0; }
+
+  # RESOLUTION IS DELETION: with the markers gone the SAME fixture freezes.
+  grep -v '^\[NEEDS-CLARIFICATION' "$SPEC" > "$SPEC.tmp" && mv "$SPEC.tmp" "$SPEC"
+  out="$(runfreeze --path docs/specs/SPEC-0001-fx.md --no-event 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-002(clarify) resolved fixture freezes" || { log_info "TEST-002(clarify): $out"; ok=0; }
+  grep -q "^SPEC-FROZEN: true$" "$SPEC" \
+    || { log_info "TEST-002(clarify): the resolved spec did not get the marker half"; ok=0; }
+  grep -q "^status: implementing$" "$SPEC" \
+    || { log_info "TEST-002(clarify): the resolved spec did not get the status half"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-002(clarify) an unresolved marker refuses the freeze (exit 3, every occurrence named, nothing written); deleting it freezes" \
+    || log_fail "TEST-002(clarify) unresolved-clarification precondition"
+}
+
+# --- TEST-005(clarify) — the CAP is never a precondition ----------------------
+test_freeze_clarify_005_cap_not_a_precondition() {
+  local out rc ok=1 n
+  new_repo || { log_fail "TEST-005(clarify) fixture setup failed"; return; }
+  clarify_freeze_fixture 4
+  out="$(runfreeze --path docs/specs/SPEC-0001-fx.md --no-event 2>&1)"; rc=$?
+  expect_exit 3 "$rc" "TEST-005(clarify) four markers refuse" || ok=0
+  grep -q "unresolved-clarification" <<<"$out" \
+    || { log_info "TEST-005(clarify): the refusal must name unresolved-clarification: $out"; ok=0; }
+  grep -q "clarification-cap-exceeded" <<<"$out" \
+    && { log_info "TEST-005(clarify): the advisory cap rule leaked into the freeze refusal: $out"; ok=0; }
+  n=$(grep -c "clarification-cap-exceeded" "$FREEZE")
+  [[ "$n" -eq 0 ]] || { log_info "TEST-005(clarify): spec-freeze.mjs mentions the advisory cap rule $n time(s) (want 0)"; ok=0; }
+
+  out="$(runfreeze --help 2>&1)"
+  grep -qF "unresolved-clarification" <<<"$out" \
+    || { log_info "TEST-005(clarify): --help does not name the new precondition: $out"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-005(clarify) the refusal names only unresolved-clarification; the cap id is absent from spec-freeze; --help documents the gate" \
+    || log_fail "TEST-005(clarify) cap is never a precondition"
+}
+
+# --- TEST-007(clarify) — a vague-only spec still FREEZES ----------------------
+test_freeze_clarify_007_vague_still_freezes() {
+  local out rc ok=1
+  new_repo || { log_fail "TEST-007(clarify) fixture setup failed"; return; }
+  spec_body draft false "src/touched.mjs" > "$SPEC"
+  sed 's/| Spec-AC-01 | first       | done   |/| Spec-AC-01 | the writer is robust and secure | done   |/' \
+    "$SPEC" > "$SPEC.tmp" && mv "$SPEC.tmp" "$SPEC"
+  # precondition of the arm: the lint DOES report the advisory finding
+  out="$(cd "$REPO" && node "$PROJECT_ROOT/.aai/scripts/spec-lint.mjs" --path docs/specs/SPEC-0001-fx.md 2>&1)"; rc=$?
+  expect_exit 1 "$rc" "TEST-007(clarify) vague row is reported" || ok=0
+  grep -q "ac-vague-term" <<<"$out" \
+    || { log_info "TEST-007(clarify): the vague fixture produced no ac-vague-term finding: $out"; ok=0; }
+  out="$(runfreeze --path docs/specs/SPEC-0001-fx.md --no-event 2>&1)"; rc=$?
+  expect_exit 0 "$rc" "TEST-007(clarify) vague-only spec freezes" || { log_info "TEST-007(clarify): $out"; ok=0; }
+  grep -q "^SPEC-FROZEN: true$" "$SPEC" \
+    || { log_info "TEST-007(clarify): the frozen spec is missing the marker half"; ok=0; }
+  grep -q "^status: implementing$" "$SPEC" \
+    || { log_info "TEST-007(clarify): the frozen spec is missing the status half"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-007(clarify) an ac-vague-term-only spec freezes at exit 0 — the advisory rule cannot block" \
+    || log_fail "TEST-007(clarify) advisory rule cannot block"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -864,6 +976,9 @@ main() {
   test_freeze_022_precondition_controls
   test_freeze_023_help_documents_preconditions
   test_024_freeze_unparsed_ac_row
+  test_freeze_clarify_002_marker_refuses
+  test_freeze_clarify_005_cap_not_a_precondition
+  test_freeze_clarify_007_vague_still_freezes
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

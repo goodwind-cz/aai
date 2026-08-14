@@ -413,6 +413,16 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# -5421 (true-up: spec-vagueness-gate added a +423 B itemized entry —
+# .aai/PLANNING.prompt.md PRINCIPLE 1 gains ONE sentence: the DON'T-GUESS twin
+# of "you have written a wish", carrying the canonical marker spelling, the
+# blocking rule id `unresolved-clarification`, the cap of 3, the trim order and
+# the five DON'T-ASK defaults; the three spec-lint rules, the specimen mask and
+# the spec-freeze PRECONDITION_RULES entry live in .aai/scripts/ and the
+# USER_GUIDE section outside the glob, so they carry no ledger cost
+# (CHANGE-0144 / spec-vagueness-gate Spec-AC-05); measured 10227 -> 10650 B,
+# inside the spec's 450 B ceiling, credited 1:1 so headroom stays 1622/2048,
+# over the prior
 # -5844 (true-up: followup-registry added a +200 B itemized entry —
 # .aai/SKILL_CODE_REVIEW.prompt.md's WARNINGS POLICY clause (b) reworded from
 # the abstract "decision id + rationale" to the concrete typed follow_up and
@@ -579,15 +589,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -5844 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -5844)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -5421 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -5421)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -5844 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -5421 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
