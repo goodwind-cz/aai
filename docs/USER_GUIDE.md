@@ -960,8 +960,12 @@ it is confirmed reserved.
 **What:** `.aai/scripts/spec-lint.mjs` is a deterministic, **report-only**
 structural lint for `docs/specs/**` (AC-id uniqueness/sequence, status tokens,
 Test-Plan → Spec-AC mapping, `ceremony_level` enum, and more). It runs as an
-advisory line at spec freeze and in Validation — it never writes files or hard-
-gates.
+advisory line at spec freeze and in Validation. **The precise contract:**
+spec-lint itself never writes a file and never blocks anything — but
+`spec-freeze.mjs` reads a **named subset of spec-lint's rules as freeze
+preconditions** (`ac-without-test`, `frozen-without-strategy`,
+`unresolved-clarification`) and refuses the freeze at exit 3, writing nothing,
+when one of them fires. Every other rule stays purely advisory.
 
 ```bash
 node .aai/scripts/spec-lint.mjs                 # all docs/specs/**/*.md (type: spec)
@@ -1015,6 +1019,77 @@ node .aai/scripts/spec-lint.mjs --path <spec> --strategy direct
 Per-strategy guidance rows (the `### Evidence by strategy` table
 SPEC_TEMPLATE ships) and sentences that explicitly waive the artifact never
 fire it, and an unknown or `undecided` strategy fails **open** — no finding.
+
+**Mark it, do not assert it — the clarification marker (CHANGE-0144):** a spec
+vocabulary with no way to say *"I could not verify this"* makes an unverified
+claim read exactly like a verified one. The canonical marker is one spelling,
+written where the claim would go:
+
+```
+[NEEDS-CLARIFICATION: does the close gate read this field, or only the index?]
+```
+
+Hyphenated, uppercase, bracketed, **case-sensitive**, and matched on the
+opening token — a bare `[NEEDS-CLARIFICATION]` or an unterminated one still
+counts (fail closed). Lowercase, the spaced upstream spelling
+(`NEEDS CLARIFICATION`) and ordinary prose are **not** markers.
+**Resolution is deletion:** answer the question, write the answer as the claim,
+and remove the marker — there is no "resolved" annotation form, so every
+resolution is a diff hunk a reviewer can read.
+
+Three rules fire, on **in-flight documents only**
+(`draft`/`proposed`/`accepted`/`implementing` — a terminal doc is history):
+
+| Rule id | Severity | What it says |
+|---|---|---|
+| `unresolved-clarification` | **BLOCKING at freeze** | one finding per live marker, with its 1-based line and the question text; `spec-freeze.mjs` refuses at exit 3 and writes nothing |
+| `clarification-cap-exceeded` | advisory | more than **3** markers in one document: one finding at the fourth, naming the count, the cap and the trim order |
+| `ac-vague-term` | advisory **forever** | an AC Status **Description** cell carrying `scalable`, `secure`, `robust` or `quickly` (whole word) |
+
+Trim to the cap in this priority order:
+`scope > security/privacy > UX > technical detail`.
+And never spend a marker on one of the five **DON'T-ASK defaults** — this repo already decided each, so asking is pure ceremony:
+
+| # | Never ask about | The recorded default |
+|---|---|---|
+| 1 | data retention | every durable artifact is an append-only plain file (Constitution art. 3) |
+| 2 | performance budgets | acceptance criteria here are pass/fail command observables, not SLOs |
+| 3 | error handling | degrade gracefully with an explicit report, fail fast with context (art. 4) |
+| 4 | auth / authorization | there is no auth surface; the CLI inherits your `gh auth` session (art. 7) |
+| 5 | integration patterns | `docs/TECHNOLOGY.md` is the contract — read it, never ask |
+
+**Specimens are exempt.** A marker inside a fenced code block or an inline code
+span is documentation, not an occurrence — which is how this section, the spec
+and the test fixtures can name the vocabulary without flagging themselves. The
+mask that produces the exemption replaces the hidden characters with spaces but
+**preserves newlines and `|`**, so no line number and no table cell count moves,
+and it feeds only these three rules.
+
+`fast` is deliberately **not** in the vague-word list. Measured: in this corpus
+`grep -rInE '^\|.*\bfast\b' docs/specs/*.md` returns 16 table rows across 8
+specs and all 16 are domain vocabulary ("fails fast", "fast path", "LANE
+fast") — a 16/16 false-positive rate, zero true positives. Any future word must
+clear the same measurement.
+
+**What this gate does NOT catch — read this before trusting it:**
+
+1. **A confident false assertion is invisible.** The defect that motivated the
+   change (CHANGE-0140 asserted that only `aai-feedback-status.mjs` survived,
+   when all three feedback engines exist) carried **no marker**, so it passes
+   every rule here, cleanly. Nothing in spec-lint inspects whether a claim is
+   TRUE. This is not a false-claim detector; what changes that shape is the
+   authoring rule (mark it, do not guess) plus the reviewer's own verification.
+2. **Resolution is not verified.** Deleting a marker satisfies the gate whether
+   or not anyone answered the question. You get a visible diff, not honesty.
+3. **A marker added AFTER the freeze blocks nothing** — the precondition runs
+   only on a real status transition. It is reported, never enforced.
+4. **Spelling variants are invisible** (lowercase, spaced, prose).
+5. **Intake documents are gated by nothing automatic**: no pipeline lints
+   `docs/issues/**`; point `--path` at one yourself.
+6. **`ac-vague-term` reads only the AC table's Description cell** — not the AC
+   Mapping bullets, not the Summary, not any narrative section.
+7. **The question's quality is not judged**: a marker asking a DON'T-ASK
+   question blocks the freeze exactly as hard as a good one.
 
 ---
 
