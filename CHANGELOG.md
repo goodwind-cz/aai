@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(allocator): generated pages regenerate at the rename, by machine (CHANGE-0143) [L3]
+## [v2026.08.14] — feat(allocator): generated pages regenerate at the rename, by machine (CHANGE-0143) [L3]
 
 - Twice in one day the ride shipped a link to a file that no longer existed.
   The allocator renames `SPEC-DRAFT-<slug>.md` to `SPEC-<NNNN>-<slug>.md` and
@@ -46,7 +46,7 @@ RFC-0001).
   and from git history.
 - `.aai/scripts/close-work-item.mjs` is byte-unchanged and pinned so by a test.
 
-## [unreleased] — feat(spec-lint): mark it, do not assert it — a freeze-time gate on unverified claims (CHANGE-0144) [L1]
+## [v2026.08.14] — feat(spec-lint): mark it, do not assert it — a freeze-time gate on unverified claims (CHANGE-0144) [L1]
 
 - Our spec vocabulary had no way to say "I could not verify this", so an
   unverified claim read exactly like a verified one. It now has one canonical
@@ -91,7 +91,7 @@ RFC-0001).
   stale "never writes files or hard-gates" claim is replaced by the precise
   split (spec-lint never blocks; spec-freeze reads a named subset of its rules).
 
-## [unreleased] — feat(decisions): typed, queryable follow-up registry on the existing decision ledger (CHANGE-0142) [L2]
+## [v2026.08.14] — feat(decisions): typed, queryable follow-up registry on the existing decision ledger (CHANGE-0142) [L2]
 
 - Deferred work stops disappearing. `docs/ai/decisions.jsonl` gains two typed
   record shapes — `follow_up` (id, raising ref, severity, one-line finding,
@@ -150,7 +150,7 @@ RFC-0001).
   `tests/skills/test-aai-factory-report.sh`. New product doc
   `docs/product/aai-decisions.md`.
 
-## [unreleased] — fix(release+dashboard): released-region class pin, corruption-proof payload embed, link-form drift extraction (CHANGE-0141) [L1]
+## [v2026.08.14] — fix(release+dashboard): released-region class pin, corruption-proof payload embed, link-form drift extraction (CHANGE-0141) [L1]
 
 - Released-CHANGELOG class guard (third glued/damaged-heading incident,
   bc056cd): NEW test_025 in tests/skills/test-aai-release.sh byte-compares
@@ -186,7 +186,7 @@ RFC-0001).
   nothing from the planted link-form control
   (docs/ai/tdd/red-20260813T193830Z-*-linkform-extractor.log).
 
-## [unreleased] — fix(reporting): USER_GUIDE true-up, dashboard reads note-carried usage, named no-data panels (CHANGE-0140) [L1]
+## [v2026.08.14] — fix(reporting): USER_GUIDE true-up, dashboard reads note-carried usage, named no-data panels (CHANGE-0140) [L1]
 
 - USER_GUIDE truth (owner audit 2026-08-13): the two dead skill-alias
   comments (`# or /aai-feedback-triage`, `# or /aai-feedback-upsert`) are
