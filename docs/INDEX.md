@@ -1,18 +1,19 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-14T05:36:16.683Z
+Generated: 2026-08-14T06:11:09.153Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
+| CHANGE-0143 | issues | implementing | — | docs/issues/CHANGE-0143-close-regenerate-order.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-close-regenerate-order | specs | implementing | 7 planned | docs/specs/SPEC-DRAFT-spec-close-regenerate-order.md |
+| spec-close-regenerate-order | specs | implementing | 7 done | docs/specs/SPEC-DRAFT-spec-close-regenerate-order.md |
 
 ## Canonical layer (0)
 
@@ -374,11 +375,9 @@ _None._
 | SPEC-0130 | specs | docs/specs/SPEC-0130-spec-vagueness-gate.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0143 | issues | docs/issues/CHANGE-0143-close-regenerate-order.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

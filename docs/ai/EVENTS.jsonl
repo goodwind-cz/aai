@@ -1705,3 +1705,5 @@
 {"v":1,"ts":"2026-08-14T02:29:37.539Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-vagueness-gate","payload":{"commit":"745bfc3"}}
 {"v":1,"ts":"2026-08-14T02:30:06.866Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":347,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-08-14T02:53:20.301Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":347,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-14T05:58:11.342Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"close-regenerate-order","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-14T06:02:49.018Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-close-regenerate-order","payload":{"from":"implementing","to":"implementing"}}

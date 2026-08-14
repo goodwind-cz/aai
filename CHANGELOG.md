@@ -11,6 +11,38 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(allocator): generated pages regenerate at the rename, by machine (CHANGE-0143) [L3]
+
+- Twice in one day the ride shipped a link to a file that no longer existed.
+  The allocator renames `SPEC-DRAFT-<slug>.md` to `SPEC-<NNNN>-<slug>.md` and
+  rewrites the SOURCES, then regenerated exactly one PROJECTION of them
+  (`docs/INDEX.md`) — leaving `docs/ai/overview.html`, `overview-data.json` and
+  the `docs/USER_GUIDE.md` rollup holding the pre-rename path. Those bytes were
+  committed, pushed and read by the review bots before the close ceremony's own
+  regen ever fired, because close runs AFTER `gh pr create`.
+- `.aai/scripts/allocate-doc-number.mjs` now regenerates the spec-path pages at
+  the rename: `regenerateSpecPagesBestEffort()` runs `generate-overview.mjs`
+  then `generate-userguide-rollup.mjs` immediately after the existing
+  `regenerateIndex()`, on the success path of an allocation only. `--dry-run`
+  returns before it; `--guard`, `--backfill` and `--reserve` never enter it.
+  factory-report and dashboard are excluded on a measured survey (their
+  artifacts embed bare ids, never a `docs/specs` path).
+- Honest degradation, mirroring close-work-item's regen tail: an absent
+  generator is skipped silently, a failing one costs exactly one
+  `allocate-doc-number: INFO <generator> regen skipped (best-effort,
+  non-fatal):` line on stderr, and no exit code changes. No new gate anywhere.
+- The completion line now names every page it actually regenerated, and
+  `.aai/SKILL_PR.prompt.md` step 1b names them in BOTH its what-it-regenerates
+  line and its in-scope STAGING list — staging is scope-only, so an unstaged
+  regenerated page ships a dead link and makes the whole fix inert.
+- Detection, because prevention is one call site: `tests/skills/test-aai-doc-numbering.sh`
+  gains a check over a CLOSED list of eight tracked generated pages that flags a
+  `<TYPE>-DRAFT-<slug>` token only when its numbered counterpart exists (exact
+  slug anchoring; the spec/test corpus and `docs/ai/STATE.yaml` are never read).
+  RED-proven by byte-exact replays of both real incidents, from static fixtures
+  and from git history.
+- `.aai/scripts/close-work-item.mjs` is byte-unchanged and pinned so by a test.
+
 ## [unreleased] — feat(spec-lint): mark it, do not assert it — a freeze-time gate on unverified claims (CHANGE-0144) [L1]
 
 - Our spec vocabulary had no way to say "I could not verify this", so an

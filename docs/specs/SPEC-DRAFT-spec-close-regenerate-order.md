@@ -373,13 +373,13 @@ pass, which is explicitly barred from it (6); no merge is performed (7).)
 
 | Spec-AC    | Description                                                                              | Status  | Evidence | Review-By | Notes |
 |------------|------------------------------------------------------------------------------------------|---------|----------|-----------|-------|
-| Spec-AC-01 | Allocator regenerates the spec-path pages after rename; dry-run and guard regenerate nothing | planned | —        | —         | Existing `regenerateIndex` call site at line 1111; dry-run already returns at line 1072 |
-| Spec-AC-02 | Exactly overview then userguide-rollup, in that order; factory-report and dashboard excluded on survey evidence | planned | —        | —         | Order taken from close-work-item lines 1200-1201 so no second convention is invented |
-| Spec-AC-03 | Detection FAILS on a stale SPEC-DRAFT with a numbered counterpart, RED-proven by the PR #255 and #256 replays | planned | —        | —         | Static byte-exact fixture always runs; the git-history arm degrades named |
-| Spec-AC-04 | Detection precision: in-flight drafts pass, closed list only, exact slug match             | planned | —        | —         | Live-tree control must pass despite STATE.yaml carrying a stale SPEC-DRAFT reference |
-| Spec-AC-05 | Honest degradation: absent generator silent, failing generator one named INFO line, exit codes unchanged | planned | —        | —         | Mirrors regenerateFactoryReportBestEffort verbatim; no new gate anywhere |
-| Spec-AC-06 | close-work-item.mjs byte-unchanged; exit contract and EVENTS truncate transaction untouched | planned | —        | —         | Mutation RED: a planted byte must make the in-suite empty-diff pin fail |
-| Spec-AC-07 | SKILL_PR step 1b + staging list + allocator stdout and header; suite-map widened; RED_CLASS stamped; diet ledger trued up | planned | —        | —         | Staging-list line is load-bearing: unstaged pages make the whole fix inert |
+| Spec-AC-01 | Allocator regenerates the spec-path pages after rename; dry-run and guard regenerate nothing | done    | doc-numbering TEST-020+021 green in docs/ai/tdd/green-20260814T060544Z-close-regenerate-order.log; RED docs/ai/tdd/red-20260814T054738Z-close-regenerate-order-prevention.log | —         | Existing `regenerateIndex` call site at line 1111; dry-run already returns at line 1072 |
+| Spec-AC-02 | Exactly overview then userguide-rollup, in that order; factory-report and dashboard excluded on survey evidence | done    | doc-numbering TEST-022+023 green in docs/ai/tdd/green-20260814T060544Z-close-regenerate-order.log (stub order file, survey pin) | —         | Order taken from close-work-item lines 1200-1201 so no second convention is invented |
+| Spec-AC-03 | Detection FAILS on a stale SPEC-DRAFT with a numbered counterpart, RED-proven by the PR #255 and #256 replays | done    | doc-numbering TEST-024+025 green in docs/ai/tdd/green-20260814T060544Z-close-regenerate-order.log; RED docs/ai/tdd/red-20260814T054821Z-close-regenerate-order-detection.log | —         | Static byte-exact fixture always runs; the git-history arm degrades named |
+| Spec-AC-04 | Detection precision: in-flight drafts pass, closed list only, exact slug match             | done    | doc-numbering TEST-026 green in docs/ai/tdd/green-20260814T060544Z-close-regenerate-order.log; mutation RED docs/ai/tdd/red-20260814T055113Z-close-regenerate-order-mutation-inflight-control.log | —         | Live-tree control must pass despite STATE.yaml carrying a stale SPEC-DRAFT reference |
+| Spec-AC-05 | Honest degradation: absent generator silent, failing generator one named INFO line, exit codes unchanged | done    | doc-numbering TEST-027+028 green in docs/ai/tdd/green-20260814T060544Z-close-regenerate-order.log; RED docs/ai/tdd/red-20260814T054840Z-close-regenerate-order-degradation.log | —         | Mirrors regenerateFactoryReportBestEffort verbatim; no new gate anywhere |
+| Spec-AC-06 | close-work-item.mjs byte-unchanged; exit contract and EVENTS truncate transaction untouched | done    | doc-numbering TEST-029 + close suite green in docs/ai/tdd/green-20260814T060544Z-close-regenerate-order.log; mutation RED docs/ai/tdd/red-20260814T055043Z-close-regenerate-order-mutation-close-pin.log | —         | Mutation RED: a planted byte must make the in-suite empty-diff pin fail |
+| Spec-AC-07 | SKILL_PR step 1b + staging list + allocator stdout and header; suite-map widened; RED_CLASS stamped; diet ledger trued up | done    | doc-numbering TEST-030+031 and prompt-diet TEST-012 (-5262) green in docs/ai/tdd/green-20260814T060544Z-close-regenerate-order.log; RED docs/ai/tdd/red-20260814T054902Z-close-regenerate-order-docs.log | —         | Staging-list line is load-bearing: unstaged pages make the whole fix inert |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 
@@ -475,26 +475,33 @@ Edge cases:
 
 | Test ID  | Spec-AC    | Type        | File path (expected)                    | Description                                                                                          | Status  |
 |----------|------------|-------------|-----------------------------------------|------------------------------------------------------------------------------------------------------|---------|
-| TEST-001 | Spec-AC-01 | integration | tests/skills/test-aai-doc-numbering.sh  | Real allocation in the iso repo clears the seeded draft link from USER_GUIDE and overview html + json | pending |
-| TEST-002 | Spec-AC-01 | integration | tests/skills/test-aai-doc-numbering.sh  | dry-run, guard, backfill and reserve leave all three pages byte-identical (sha256 compare)             | pending |
-| TEST-003 | Spec-AC-02 | integration | tests/skills/test-aai-doc-numbering.sh  | Stub generators prove exactly overview then userguide-rollup ran, and the two excluded ones never did  | pending |
-| TEST-004 | Spec-AC-02 | unit        | tests/skills/test-aai-doc-numbering.sh  | Survey pin: factory-report and dashboard generators contain zero docs/specs path strings               | pending |
-| TEST-005 | Spec-AC-03 | integration | tests/skills/test-aai-doc-numbering.sh  | PR 255 replay flags exactly 3 files and PR 256 replay exactly 2, from the byte-exact static fixture     | pending |
-| TEST-006 | Spec-AC-03 | integration | tests/skills/test-aai-doc-numbering.sh  | Same replay from real git history at 00bdd03 and ff8208e, degrading with one named line when absent     | pending |
-| TEST-007 | Spec-AC-04 | integration | tests/skills/test-aai-doc-numbering.sh  | Precision: in-flight draft passes, prefix collision passes, absent member skips named, live tree passes | pending |
-| TEST-008 | Spec-AC-05 | integration | tests/skills/test-aai-doc-numbering.sh  | Absent generator silent and exit 0; each failing generator yields exactly one named INFO line, exit 0   | pending |
-| TEST-009 | Spec-AC-05 | integration | tests/skills/test-aai-doc-numbering.sh  | Pre-existing exit codes unchanged: no-args exit 2, unreachable base ref exit 3, guard violation exit 4  | pending |
-| TEST-010 | Spec-AC-06 | integration | tests/skills/test-aai-doc-numbering.sh  | close-work-item.mjs diff against the base ref is empty (mutation-RED via a planted byte)               | pending |
-| TEST-011 | Spec-AC-06 | integration | tests/skills/test-aai-close-work-item.sh | Existing close suite still exits 0 with no edits to it                                                 | pending |
-| TEST-012 | Spec-AC-07 | integration | tests/skills/test-aai-doc-numbering.sh  | Grep pins: SKILL_PR 1b names the pages and the staging list, allocator stdout and header name them      | pending |
-| TEST-013 | Spec-AC-07 | integration | tests/skills/test-aai-hygiene-pack.sh   | suite-map aai-doc-numbering row carries the closed-list page globs and the hygiene row pin holds        | pending |
-| TEST-014 | Spec-AC-07 | integration | tests/skills/test-aai-prompt-diet.sh    | JUSTIFIED_ADDITIONS entry equals the measured delta and the TEST-012 pin moved by exactly that amount   | pending |
+| TEST-001 | Spec-AC-01 | integration | tests/skills/test-aai-doc-numbering.sh  | Real allocation in the iso repo clears the seeded draft link from USER_GUIDE and overview html + json | green   |
+| TEST-002 | Spec-AC-01 | integration | tests/skills/test-aai-doc-numbering.sh  | dry-run, guard, backfill and reserve leave all three pages byte-identical (sha256 compare)             | green   |
+| TEST-003 | Spec-AC-02 | integration | tests/skills/test-aai-doc-numbering.sh  | Stub generators prove exactly overview then userguide-rollup ran, and the two excluded ones never did  | green   |
+| TEST-004 | Spec-AC-02 | unit        | tests/skills/test-aai-doc-numbering.sh  | Survey pin: factory-report and dashboard generators contain zero docs/specs path strings               | green   |
+| TEST-005 | Spec-AC-03 | integration | tests/skills/test-aai-doc-numbering.sh  | PR 255 replay flags exactly 3 files and PR 256 replay exactly 2, from the byte-exact static fixture     | green   |
+| TEST-006 | Spec-AC-03 | integration | tests/skills/test-aai-doc-numbering.sh  | Same replay from real git history at 00bdd03 and ff8208e, degrading with one named line when absent     | green   |
+| TEST-007 | Spec-AC-04 | integration | tests/skills/test-aai-doc-numbering.sh  | Precision: in-flight draft passes, prefix collision passes, absent member skips named, live tree passes | green   |
+| TEST-008 | Spec-AC-05 | integration | tests/skills/test-aai-doc-numbering.sh  | Absent generator silent and exit 0; each failing generator yields exactly one named INFO line, exit 0   | green   |
+| TEST-009 | Spec-AC-05 | integration | tests/skills/test-aai-doc-numbering.sh  | Pre-existing exit codes unchanged: no-args exit 2, unreachable base ref exit 3, guard violation exit 4  | green   |
+| TEST-010 | Spec-AC-06 | integration | tests/skills/test-aai-doc-numbering.sh  | close-work-item.mjs diff against the base ref is empty (mutation-RED via a planted byte)               | green   |
+| TEST-011 | Spec-AC-06 | integration | tests/skills/test-aai-close-work-item.sh | Existing close suite still exits 0 with no edits to it                                                 | green   |
+| TEST-012 | Spec-AC-07 | integration | tests/skills/test-aai-doc-numbering.sh  | Grep pins: SKILL_PR 1b names the pages and the staging list, allocator stdout and header name them      | green   |
+| TEST-013 | Spec-AC-07 | integration | tests/skills/test-aai-doc-numbering.sh  | suite-map aai-doc-numbering row carries the closed-list page globs and the hygiene row pin holds        | green   |
+| TEST-014 | Spec-AC-07 | integration | tests/skills/test-aai-prompt-diet.sh    | JUSTIFIED_ADDITIONS entry equals the measured delta and the TEST-012 pin moved by exactly that amount   | green   |
 
 Test status values: pending → red → green
 
 Notes:
 - Every Spec-AC has at least one TEST-xxx entry, and every TEST-xxx maps to a
   Spec-AC.
+- IMPLEMENTATION ADJUSTMENT (TEST-013 host file): the suite-map row pin landed
+  in `tests/skills/test-aai-doc-numbering.sh` (stanza TEST-031) rather than in
+  `tests/skills/test-aai-hygiene-pack.sh`, following the existing precedent for
+  a suite pinning its OWN row (test-aai-doctor.sh TEST-022/TEST-031) and keeping
+  the closed-list constant single-sourced next to the predicate that uses it.
+  The hygiene pack's generic "every suite has a row" check is unchanged and
+  still runs; both suites are in the Verification command list.
 - Test IDs are stable — do not renumber after freeze.
 - TEST-010 and the in-flight-draft half of TEST-007 pass on the pre-change tree
   and therefore take MUTATION RED (a planted byte, a planted numbered

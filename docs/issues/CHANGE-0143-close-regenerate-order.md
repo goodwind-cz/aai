@@ -2,7 +2,7 @@
 id: close-regenerate-order
 number: 143
 type: change
-status: draft
+status: implementing
 user_visible: false
 ceremony_level: 1
 capability: aai-pr

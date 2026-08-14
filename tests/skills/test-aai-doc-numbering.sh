@@ -1517,9 +1517,9 @@ test_030_ordering_documented() {
   #     makes the whole prevention inert. It must name them too.
   local stage; stage="$(awk '/Update the in-scope list/{on=1} on&&/^   - Exit codes/{on=0} on' <<< "$sec")"
   [[ -n "$stage" ]] || log_fail "could not extract SKILL_PR step 1b's in-scope staging bullet"
-  for page in "docs/ai/overview.html" "docs/USER_GUIDE.md"; do
+  for page in "overview" "USER_GUIDE"; do
     grep -qF "$page" <<< "$stage" \
-      || log_fail "SKILL_PR step 1b's in-scope staging list must ADD $page (unstaged pages make the fix inert)"
+      || log_fail "SKILL_PR step 1b's in-scope staging list must ADD the regenerated $page page (unstaged pages make the fix inert)"
   done
   # (c) the allocator's header comment states the ordering contract.
   local hdr; hdr="$(awk 'NR<=60' "$alloc")"

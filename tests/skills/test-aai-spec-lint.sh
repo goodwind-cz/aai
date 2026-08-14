@@ -1658,6 +1658,14 @@ test_clarify_011_no_new_ceremony() {
       [[ -n "$p" ]] || continue
       case "$p" in
         .aai/scripts/spec-lint.mjs|.aai/scripts/spec-freeze.mjs|.aai/PLANNING.prompt.md) ;;
+        # NOT this scope's paths — this pin is a BRANCH-DIFF allowlist, so any
+        # LATER scope that legitimately edits .aai/ on a branch cut from main
+        # trips it until its paths are listed here. CHANGE-0143
+        # (close-regenerate-order) is the first such scope: the allocator gains
+        # the spec-path regen at the rename and SKILL_PR step 1b names the
+        # regenerated pages. The zero-added-ceremony claim above still concerns
+        # exactly the three files on the line before this comment.
+        .aai/scripts/allocate-doc-number.mjs|.aai/SKILL_PR.prompt.md) ;;
         *) log_info "TEST-011(clarify): unexpected .aai/ path in the branch diff: $p"; ok=0 ;;
       esac
     done <<<"$changed"
