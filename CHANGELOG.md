@@ -28,9 +28,12 @@ RFC-0001).
   factory-report and dashboard are excluded on a measured survey (their
   artifacts embed bare ids, never a `docs/specs` path).
 - Honest degradation, mirroring close-work-item's regen tail: an absent
-  generator is skipped silently, a failing one costs exactly one
-  `allocate-doc-number: INFO <generator> regen skipped (best-effort,
+  generator is skipped silently, a failing SPEC-PAGE generator costs exactly
+  one `allocate-doc-number: INFO <generator> regen skipped (best-effort,
   non-fatal):` line on stderr, and no exit code changes. No new gate anywhere.
+  The pre-existing `regenerateIndex()` still degrades SILENTLY — outside this
+  scope's signed L3 surface, named in the file header and tracked as
+  `fu-index-regen-silent-degrade`.
 - The completion line now names every page it actually regenerated, and
   `.aai/SKILL_PR.prompt.md` step 1b names them in BOTH its what-it-regenerates
   line and its in-scope STAGING list — staging is scope-only, so an unstaged
