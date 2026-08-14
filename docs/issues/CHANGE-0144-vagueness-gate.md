@@ -1,5 +1,5 @@
 ---
-id: spec-vagueness-gate
+id: vagueness-gate
 number: 144
 type: change
 status: draft

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-14T01:12:04.674Z
+Generated: 2026-08-14T01:15:15.440Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -376,7 +376,7 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| CHANGE-0144 | issues | docs/issues/CHANGE-0144-spec-vagueness-gate.md |
+| CHANGE-0144 | issues | docs/issues/CHANGE-0144-vagueness-gate.md |
 
 ## Deferred (whole-doc) (0)
 
