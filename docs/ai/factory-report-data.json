@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-14T02:10:20.771Z",
+  "generatedAt": "2026-08-14T07:06:05.929Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 120,
-    "delivered": 326,
+    "rides": 121,
+    "delivered": 328,
     "active_weeks": 7,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (326 closes vs 120 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 326,
-    "delivered_per_week_avg": 46.6,
+    "note": "\"delivered\" counts every work_item_closed event (328 closes vs 121 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 328,
+    "delivered_per_week_avg": 46.9,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -21,7 +21,7 @@
       "2026-W30": 64,
       "2026-W31": 72,
       "2026-W32": 19,
-      "2026-W33": 27
+      "2026-W33": 29
     },
     "delivered_groups": [
       {
@@ -138,10 +138,10 @@
           "spec-tdd-red-evidence-classification",
           "intake-secrets-preflight",
           "spec-intake-secrets-preflight",
-          "spec-doc-number-origin-reservation",
-          "doc-number-origin-reservation",
           "test-wrapper-windows-fallback",
           "spec-test-wrapper-windows-fallback",
+          "spec-doc-number-origin-reservation",
+          "doc-number-origin-reservation",
           "prompt-diet-byte-budget-true-up",
           "secrets-preflight-env-multiline",
           "dispatch-4a-fail-verdict-precedence",
@@ -216,9 +216,9 @@
           "spec-feedback-upsert-review",
           "reaper-test-018-etime-shape-guard",
           "spec-reaper-test-018-etime-shape-guard",
-          "close-work-item-brief-cleanup",
           "friction-feedback-discovery",
           "spec-friction-feedback-discovery",
+          "close-work-item-brief-cleanup",
           "reaper-etime-impossible-age-clamp",
           "prune-stale-briefs",
           "umbrella-progress-rollup",
@@ -299,7 +299,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 63,
+        "count": 65,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -363,7 +363,9 @@
           "spec-changelog-payload-hardening",
           "spec-kit-comparative",
           "followup-registry",
-          "spec-followup-registry"
+          "spec-followup-registry",
+          "vagueness-gate",
+          "spec-vagueness-gate"
         ]
       }
     ],
@@ -802,20 +804,20 @@
           "lead_time_seconds": null
         },
         {
-          "ref": "spec-doc-number-origin-reservation",
-          "lead_time_seconds": null
-        },
-        {
-          "ref": "doc-number-origin-reservation",
-          "lead_time_seconds": 4970
-        },
-        {
           "ref": "test-wrapper-windows-fallback",
           "lead_time_seconds": 3591
         },
         {
           "ref": "spec-test-wrapper-windows-fallback",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-doc-number-origin-reservation",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "doc-number-origin-reservation",
+          "lead_time_seconds": 4970
         },
         {
           "ref": "prompt-diet-byte-budget-true-up",
@@ -1114,15 +1116,15 @@
           "lead_time_seconds": null
         },
         {
-          "ref": "close-work-item-brief-cleanup",
-          "lead_time_seconds": null
-        },
-        {
           "ref": "friction-feedback-discovery",
           "lead_time_seconds": 75
         },
         {
           "ref": "spec-friction-feedback-discovery",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "close-work-item-brief-cleanup",
           "lead_time_seconds": null
         },
         {
@@ -1672,19 +1674,27 @@
         {
           "ref": "spec-followup-registry",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "vagueness-gate",
+          "lead_time_seconds": 4417
+        },
+        {
+          "ref": "spec-vagueness-gate",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 3589,
-      "mean_seconds": 127557.1,
-      "measured": 116,
-      "unmeasurable": 210
+      "median_seconds": 3591,
+      "mean_seconds": 126504.6,
+      "measured": 117,
+      "unmeasurable": 211
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2161,
-      "mean": 2949.3,
-      "measured": 118
+      "median": 2171,
+      "mean": 2948.7,
+      "measured": 119
     },
     "role_split": [
       {
@@ -1699,8 +1709,8 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 45637,
-        "tokens": 7045862
+        "duration_seconds": 46830,
+        "tokens": 7194680
       },
       {
         "role": "Remediation",
@@ -1709,8 +1719,8 @@
       },
       {
         "role": "Validation",
-        "duration_seconds": 67926,
-        "tokens": 7118579
+        "duration_seconds": 69605,
+        "tokens": 7302127
       },
       {
         "role": "Planning",
@@ -2318,6 +2328,11 @@
         "ref": "followup-registry",
         "busy_seconds": 5536,
         "remediation_runs": 0
+      },
+      {
+        "ref": "vagueness-gate",
+        "busy_seconds": 2872,
+        "remediation_runs": 0
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -2327,11 +2342,11 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 469041,
-      "mean": 544066.9,
-      "measured": 72
+      "median": 464257,
+      "mean": 541166.9,
+      "measured": 73
     },
-    "tokens_total": 39172816,
+    "tokens_total": 39505182,
     "by_role": [
       {
         "role": "TDD Implementation",
@@ -2343,7 +2358,7 @@
       },
       {
         "role": "Code Review",
-        "tokens": 7045862
+        "tokens": 7194680
       },
       {
         "role": "Remediation",
@@ -2351,7 +2366,7 @@
       },
       {
         "role": "Validation",
-        "tokens": 7118579
+        "tokens": 7302127
       },
       {
         "role": "Planning",
@@ -2359,8 +2374,8 @@
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 282,
-      "total_runs": 504,
+      "runs_with_marker": 284,
+      "total_runs": 506,
       "pct": 56,
       "by_week": [
         {
@@ -2401,8 +2416,8 @@
         },
         {
           "week": "2026-W33",
-          "runs_with_marker": 67,
-          "total_runs": 67,
+          "runs_with_marker": 69,
+          "total_runs": 69,
           "pct": 100
         }
       ]
@@ -2417,7 +2432,7 @@
           "runs_unmarked": 20,
           "tokens_total": 12823230,
           "median_tokens_per_run": 224045,
-          "share_pct": 33
+          "share_pct": 32
         },
         {
           "role": "Implementation",
@@ -2431,12 +2446,12 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 120,
-          "runs_marked": 75,
+          "runs_total": 121,
+          "runs_marked": 76,
           "runs_sentinel": 0,
           "runs_unmarked": 45,
-          "tokens_total": 7045862,
-          "median_tokens_per_run": 83900,
+          "tokens_total": 7194680,
+          "median_tokens_per_run": 84514,
           "share_pct": 18
         },
         {
@@ -2451,12 +2466,12 @@
         },
         {
           "role": "Validation",
-          "runs_total": 113,
-          "runs_marked": 67,
+          "runs_total": 114,
+          "runs_marked": 68,
           "runs_sentinel": 0,
           "runs_unmarked": 46,
-          "tokens_total": 7118579,
-          "median_tokens_per_run": 104154,
+          "tokens_total": 7302127,
+          "median_tokens_per_run": 104158,
           "share_pct": 18
         },
         {
@@ -2696,8 +2711,8 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 14,
-              "median_tokens": 136212
+              "runs_marked": 15,
+              "median_tokens": 136625
             },
             {
               "role": "Remediation",
@@ -2706,8 +2721,8 @@
             },
             {
               "role": "Validation",
-              "runs_marked": 15,
-              "median_tokens": 135579
+              "runs_marked": 16,
+              "median_tokens": 136048
             },
             {
               "role": "Planning",
@@ -2721,13 +2736,13 @@
   },
   "quality": {
     "first_pass_clean": {
-      "clean": 78,
-      "flagged": 94,
+      "clean": 79,
+      "flagged": 95,
       "rate_pct": 83
     },
     "na_reliability": 26,
     "remediation_distribution": {
-      "0": 78,
+      "0": 79,
       "1": 8,
       "2": 3,
       "3": 3,
@@ -2738,7 +2753,7 @@
     "avg_validation_fails": 0,
     "avg_review_fails": 0,
     "verdict_mix": {
-      "PASS": 107,
+      "PASS": 108,
       "null": 13
     },
     "review_events": 26,
@@ -2795,16 +2810,16 @@
     },
     {
       "week": "2026-W33",
-      "delivered": 27,
-      "median_lead_time_seconds": 4757,
-      "busy_seconds": 53466,
-      "tokens": 11483743,
-      "first_pass_rate": 69
+      "delivered": 29,
+      "median_lead_time_seconds": 4671,
+      "busy_seconds": 56338,
+      "tokens": 11816109,
+      "first_pass_rate": 71
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 27,
+    "open_count": 31,
     "oldest_age_days": 5,
     "items": [
       {
@@ -2827,7 +2842,7 @@
         "id": "fu-telemetry-completeness-20260811T0520",
         "ref": "telemetry-completeness",
         "severity": null,
-        "age_days": 2,
+        "age_days": 3,
         "what": "Codex P1 on PR #242 (enforce flip): under usage_capture_gate: enforce there is no per-run CLI correction for a run whose usage marker was omitted — append-run only appends, STATE hand-edits are forbidden, so the supported recovery today is the dial toggle (report-only -> close -> enforce) plus the usage_capture=none sentinel for honest gaps.",
         "status": "open"
       },
@@ -2976,14 +2991,6 @@
         "status": "open"
       },
       {
-        "id": "fu-0143-l3-operator-signoff",
-        "ref": "CHANGE-0143",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "operator must choose: (A) approve the ceremony-L3 edit to allocate-doc-number.mjs so it regenerates overview and the USER_GUIDE rollup right after the rename, or (B) detection-only at L1",
-        "status": "open"
-      },
-      {
         "id": "fu-intake-spec-id-collision-guard",
         "ref": "CHANGE-0144",
         "severity": "P2",
@@ -3021,6 +3028,46 @@
         "severity": "P3",
         "age_days": 0,
         "what": "ac-vague-term reports the Test Plan row's line number when the Test Plan section precedes the AC table (measured 19 vs 25)",
+        "status": "open"
+      },
+      {
+        "id": "fu-test011-branch-diff-allowlist-tax",
+        "ref": "CHANGE-0144",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "CHANGE-0144's TEST-011(clarify) allowlists .aai/ paths against the BRANCH diff, so every future scope that touches .aai/ must edit that test or go red",
+        "status": "open"
+      },
+      {
+        "id": "fu-completion-line-hardcodes-index",
+        "ref": "CHANGE-0143",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the allocator's completion line hardcodes docs/INDEX.md into the regenerated list, so it names the file even when generate-docs-index.mjs is absent and nothing was rewritten",
+        "status": "open"
+      },
+      {
+        "id": "fu-overview-partial-write-unnamed",
+        "ref": "CHANGE-0143",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "generate-overview.mjs writes the JSON before the HTML, so a throw between them leaves a modified page the stage-me list never names",
+        "status": "open"
+      },
+      {
+        "id": "fu-rollup-creates-userguide",
+        "ref": "CHANGE-0143",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the spec's edge case says the rollup generator no-ops when USER_GUIDE.md is absent; it CREATES the file",
+        "status": "open"
+      },
+      {
+        "id": "fu-test029-unreachable-base-logpass",
+        "ref": "CHANGE-0143",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "TEST-029's unreachable-base-ref arm calls log_pass, so the close-work-item pin can go inert while reporting PASS",
         "status": "open"
       }
     ]

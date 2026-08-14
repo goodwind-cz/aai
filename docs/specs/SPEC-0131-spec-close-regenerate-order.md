@@ -1,7 +1,7 @@
 ---
 id: spec-close-regenerate-order
 type: spec
-number: null
+number: 131
 status: implementing
 ceremony_level: 3
 links:
@@ -307,7 +307,7 @@ running them. The full command list is in `## Verification`.
   .aai/SKILL_PR.prompt.md, tests/skills/test-aai-doc-numbering.sh,
   tests/skills/suite-map.yaml, tests/skills/lib/prompt-diet-ledger.sh,
   tests/skills/test-aai-prompt-diet.sh, tests/fixtures/close-regenerate-order/**,
-  docs/specs/SPEC-DRAFT-spec-close-regenerate-order.md,
+  docs/specs/SPEC-0131-spec-close-regenerate-order.md,
   docs/issues/CHANGE-0143-close-regenerate-order.md, CHANGELOG.md,
   tests/skills/test-aai-spec-lint.sh (see IMPLEMENTATION ADJUSTMENT below)
 
@@ -538,7 +538,7 @@ bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-userguide-rollup.s
 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-hygiene-pack.sh
 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-prompt-diet.sh
 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-doc-number-reservation.sh
-node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-close-regenerate-order.md
+node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0131-spec-close-regenerate-order.md
 git diff main -- .aai/scripts/close-work-item.mjs
 ```
 

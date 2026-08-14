@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-14T06:43:00.743Z
+Generated: 2026-08-14T07:06:16.724Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -13,7 +13,7 @@ _None._
 |---|---|---|---|---|
 | CHANGE-0143 | issues | implementing | — | docs/issues/CHANGE-0143-close-regenerate-order.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-close-regenerate-order | specs | implementing | 7 done | docs/specs/SPEC-DRAFT-spec-close-regenerate-order.md |
+| SPEC-0131 | specs | implementing | 7 done | docs/specs/SPEC-0131-spec-close-regenerate-order.md |
 
 ## Canonical layer (0)
 

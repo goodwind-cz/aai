@@ -1381,6 +1381,21 @@ test_026_detection_precision() {
   rc=0; out="$(scan_stale_draft_refs "$d")" || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "slug matching must be exact, not a prefix:\n$out"
   rm -rf "$d"
+  # (b2) SUFFIX collision — the arm the review's mutation exposed as untested.
+  #      The basename anchor `^prefix-[0-9]+-slug\.md$` is load-bearing here,
+  #      not in (b): the glob `SPEC-*-foo.md` already excludes `foobar`, but it
+  #      MATCHES `SPEC-0131-close-regenerate-order.md` for the draft slug
+  #      `order`. Deleting the anchor left the whole suite green while
+  #      false-positiving a legitimately in-flight draft (review NB-5).
+  d="$(make_scan_repo "$TEST_DIR/scan-suffix")"
+  printf 'see SPEC-DRAFT-order somewhere\n' > "$d/docs/ai/overview.html"
+  printf 'in flight\n' > "$d/docs/specs/SPEC-DRAFT-order.md"
+  printf 'unrelated numbered doc\n' > "$d/docs/specs/SPEC-0131-close-regenerate-order.md"
+  (cd "$d" && git add -A >/dev/null)
+  rc=0; out="$(scan_stale_draft_refs "$d")" || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "slug matching must be exact on the WHOLE basename: a draft slug that is a SUFFIX of a numbered doc's slug must not fire:\n$out"
+  rm -rf "$d"
   # (c) non-generated runtime state is never scanned: docs/ai/STATE.yaml may
   #     legitimately record a DRAFT path whose counterpart now exists.
   d="$(make_scan_repo "$TEST_DIR/scan-state")"
