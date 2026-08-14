@@ -2,13 +2,15 @@
 id: spec-vagueness-gate
 type: spec
 number: 130
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0144-vagueness-gate.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 258
+  commits:
+    - 745bfc3
 ---
 
 # Spec — mark it, do not assert it: three spec-lint rules and one freeze precondition

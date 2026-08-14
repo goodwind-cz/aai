@@ -2,10 +2,15 @@
 id: vagueness-gate
 number: 144
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-intake
+links:
+  commits:
+    - 745bfc3
+  pr:
+    - 258
 ---
 
 # Change — mark it, do not assert it: a freeze-time gate on vagueness and unverified claims
