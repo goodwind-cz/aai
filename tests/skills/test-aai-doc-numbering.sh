@@ -73,6 +73,11 @@ setup_iso_repo() {
            "$d/docs/requirements" "$d/docs/releases" "$d/docs/ai"
   cp "$PROJECT_ROOT/.aai/scripts/allocate-doc-number.mjs" "$d/.aai/scripts/" 2>/dev/null || true
   cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
+  # CHANGE-0143: the two spec-path PROJECTION generators the allocator now
+  # regenerates at the rename. Vendored into EVERY fixture (not just the new
+  # stanzas) so the seam is crossed by the real generators, never a mock.
+  cp "$PROJECT_ROOT/.aai/scripts/generate-overview.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/generate-userguide-rollup.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/pre-commit-checks.sh" "$d/.aai/scripts/" 2>/dev/null || true
@@ -1015,6 +1020,537 @@ TXT
   log_pass "TEST-019 code-tree rewrite: sources rewritten, meta-test/fixtures/non-source untouched, idempotent"
 }
 
+# =============================================================================
+# CHANGE-0143 / spec-close-regenerate-order — TEST-020..TEST-031
+#
+# The rename that invalidates the projections and the regeneration that repairs
+# them are ONE operation (prevention, in the allocator), plus a detection check
+# over a CLOSED list of tracked generated pages (compensating control, because
+# prevention is a single call site and the pages have other writers).
+#
+# Spec-AC / spec TEST-xxx mapping is named per stanza. This suite is in the
+# allocator's EXCLUDED_CODE_PATHS, so every DRAFT literal below stays verbatim.
+# =============================================================================
+
+# The CLOSED list (D3). NOT a repo-wide grep: `SPEC-DRAFT-` is legitimate,
+# permanent prose in docs/specs/**, docs/issues/**, .aai/** and tests/**, and
+# docs/ai/STATE.yaml legitimately records a point-in-time DRAFT path mid-ride.
+# Only these eight PUBLISHED, GENERATED pages are read.
+STALE_SCAN_PAGES=(
+  "docs/USER_GUIDE.md"
+  "docs/INDEX.md"
+  "docs/ai/overview.html"
+  "docs/ai/overview-data.json"
+  "docs/ai/factory-report.html"
+  "docs/ai/factory-report-data.json"
+  "docs/ai/dashboard.html"
+  "docs/ai/dashboard-data.json"
+)
+
+# scan_stale_draft_refs <root>
+#   The D3 predicate. For every closed-list page that EXISTS and is git-TRACKED
+#   under <root>, extract each `<TYPE>-DRAFT-<slug>` token and report a
+#   VIOLATION only when a numbered counterpart `docs/<dir>/<TYPE>-<digits>-
+#   <slug>.md` exists on disk. A token whose DRAFT doc is still in flight (no
+#   numbered counterpart) is NOT a violation. The slug match is EXACT and
+#   anchored on the whole basename, so `SPEC-DRAFT-foo` is never satisfied by
+#   `SPEC-0001-foobar.md`. Absent/untracked members are SKIPPED with a named
+#   INFO line, never a failure.
+#   Prints one line per violation / skip; returns 1 iff any violation was found.
+#   No pipeline feeds any loop or counter here (here-strings only) and every rc
+#   is captured explicitly, so the suite's `set -euo pipefail` can neither mask
+#   a failure nor trip SIGPIPE.
+scan_stale_draft_refs() {
+  local root="$1"
+  local page abs toks tok prefix slug dir cand base found=0
+  for page in "${STALE_SCAN_PAGES[@]}"; do
+    abs="$root/$page"
+    if [[ ! -f "$abs" ]]; then
+      echo "INFO: stale-draft scan: skipping absent page $page"
+      continue
+    fi
+    if ! git -C "$root" ls-files --error-unmatch "$page" >/dev/null 2>&1; then
+      echo "INFO: stale-draft scan: skipping untracked page $page"
+      continue
+    fi
+    toks="$(grep -oE '[A-Z]+-DRAFT-[a-z0-9]+(-[a-z0-9]+)*' "$abs" || true)"
+    [[ -n "$toks" ]] || continue
+    toks="$(sort -u <<< "$toks")"
+    while IFS= read -r tok; do
+      [[ -n "$tok" ]] || continue
+      prefix="${tok%%-DRAFT-*}"
+      slug="${tok#*-DRAFT-}"
+      for dir in rfc specs issues requirements releases; do
+        for cand in "$root/docs/$dir/$prefix-"[0-9]*"-$slug.md"; do
+          [[ -f "$cand" ]] || continue
+          base="$(basename "$cand")"
+          [[ "$base" =~ ^${prefix}-[0-9]+-${slug}\.md$ ]] || continue
+          echo "VIOLATION: $page carries $tok while docs/$dir/$base exists"
+          found=1
+        done
+      done
+    done <<< "$toks"
+  done
+  [[ "$found" -eq 0 ]]
+}
+
+# count_lines_matching <pattern> <blob> — grep -c over a HERE-STRING (never a
+# pipeline: `echo | grep` dies on SIGPIPE under pipefail) with the no-match
+# exit 1 absorbed, so the caller gets a number and never a masked failure.
+count_lines_matching() {
+  local pat="$1" blob="$2" n=0
+  n="$(grep -cE "$pat" <<< "$blob" || true)"
+  printf '%s' "${n:-0}"
+}
+
+# Seed the PROJECTION SEAM in an iso repo: SOURCES (a change doc, a spec DRAFT,
+# a product doc whose `spec:` frontmatter points at the DRAFT) plus the two
+# PROJECTIONS generated FROM them, so both projections really carry the DRAFT
+# path before the rename. Committed, so the scan's tracked filter sees them.
+seed_projection_fixture() {
+  local d="$1" slug="$2"
+  mkdir -p "$d/docs/product" "$d/docs/ai"
+  cat > "$d/docs/issues/CHANGE-0099-$slug.md" <<MD
+---
+id: $slug
+type: change
+number: 99
+status: implementing
+links:
+  pr: []
+---
+# Change — $slug
+MD
+  cat > "$d/docs/specs/SPEC-DRAFT-$slug.md" <<MD
+---
+id: $slug
+type: spec
+number: null
+status: implementing
+links:
+  pr: []
+---
+# Spec — $slug
+MD
+  cat > "$d/docs/product/$slug.md" <<MD
+---
+id: $slug
+spec: docs/specs/SPEC-DRAFT-$slug.md
+updated: 2026-08-14
+---
+# Product — $slug
+
+## What it does
+
+It projects a spec path into a generated page.
+
+## Data model
+
+None.
+
+## Interfaces and contracts
+
+None.
+MD
+  printf '# User Guide\n\nHand-written prose that must survive verbatim.\n' > "$d/docs/USER_GUIDE.md"
+  (cd "$d" && node .aai/scripts/generate-overview.mjs >/dev/null 2>&1) \
+    || log_fail "fixture seed: generate-overview.mjs failed"
+  (cd "$d" && node .aai/scripts/generate-userguide-rollup.mjs >/dev/null 2>&1) \
+    || log_fail "fixture seed: generate-userguide-rollup.mjs failed"
+  # The fixture is worthless unless the seam is really crossed: all three
+  # projections must carry the DRAFT path BEFORE the allocator runs.
+  assert_contains "$d/docs/USER_GUIDE.md" "SPEC-DRAFT-$slug"
+  assert_contains "$d/docs/ai/overview.html" "SPEC-DRAFT-$slug"
+  assert_contains "$d/docs/ai/overview-data.json" "SPEC-DRAFT-$slug"
+  (cd "$d" && git add -A docs && git commit -qm "docs: seed projection fixture" >/dev/null)
+}
+
+# --- TEST-020 (spec TEST-001, Spec-AC-01): the rename regenerates -----------
+test_020_alloc_regenerates_spec_pages() {
+  log_info "TEST-020: a real allocation leaves no projection holding the DRAFT path..."
+  local d; d="$(setup_iso_repo t020)"
+  seed_projection_fixture "$d" widget-projection
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/specs/SPEC-DRAFT-widget-projection.md --base-ref main \
+      > alloc.log 2>&1) \
+    || log_fail "allocation must exit 0: $(cat "$d/alloc.log")"
+  assert_file "$d/docs/specs/SPEC-0001-widget-projection.md"
+  local page
+  for page in docs/USER_GUIDE.md docs/ai/overview.html docs/ai/overview-data.json; do
+    assert_not_contains "$d/$page" "SPEC-DRAFT-widget-projection"
+    assert_contains "$d/$page" "SPEC-0001-widget-projection"
+  done
+  # containment: the hand-written USER_GUIDE prose outside the markers survived
+  assert_contains "$d/docs/USER_GUIDE.md" "Hand-written prose that must survive verbatim."
+  # the D3 predicate agrees with the byte assertions
+  local rc=0
+  (cd "$d" && git add -A docs >/dev/null)
+  scan_stale_draft_refs "$d" > "$d/scan.log" 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "post-allocation tree must be clean: $(cat "$d/scan.log")"
+  # D4 point 2: the completion line names every page it regenerated, so the
+  # stage-me list is carried on stdout rather than remembered.
+  assert_contains "$d/alloc.log" "docs/INDEX.md"
+  assert_contains "$d/alloc.log" "docs/ai/overview.html"
+  assert_contains "$d/alloc.log" "docs/USER_GUIDE.md"
+  rm -rf "$d"
+  log_pass "TEST-020 allocation regenerated both projections; no stale DRAFT path survives"
+}
+
+# --- TEST-021 (spec TEST-002, Spec-AC-01): read-only modes regenerate nothing
+test_021_readonly_modes_no_regen() {
+  log_info "TEST-021: --dry-run/--guard/--backfill/--reserve leave every page byte-identical..."
+  local d; d="$(setup_iso_repo t021)"
+  seed_projection_fixture "$d" readonly-projection
+  local pages=(docs/USER_GUIDE.md docs/ai/overview.html docs/ai/overview-data.json)
+  local before after page rc
+  before="$(cd "$d" && shasum -a 256 "${pages[@]}")"
+  # --dry-run: exits 0, prints the plan, regenerates nothing
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/specs/SPEC-DRAFT-readonly-projection.md --base-ref main --dry-run \
+      > dry.log 2>&1) || log_fail "--dry-run must exit 0: $(cat "$d/dry.log")"
+  assert_contains "$d/dry.log" "SPEC-0001-readonly-projection.md"
+  # --guard (the staged DRAFT trips it; the exit code is irrelevant here — the
+  # invariant under test is that no guard run ever writes a page)
+  rc=0
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --guard > guard.log 2>&1) || rc=$?
+  # --backfill over an already-correct numbered doc
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --backfill \
+      --path docs/issues/CHANGE-0099-readonly-projection.md > bf.log 2>&1) \
+    || log_fail "--backfill must exit 0: $(cat "$d/bf.log")"
+  # --reserve on a doc carrying no provisional marker (usage error, no writes)
+  rc=0
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --reserve \
+      --path docs/issues/CHANGE-0099-readonly-projection.md > reserve.log 2>&1) || rc=$?
+  after="$(cd "$d" && shasum -a 256 "${pages[@]}")"
+  [[ "$before" == "$after" ]] \
+    || log_fail "read-only modes must leave every page byte-identical:\nbefore:\n$before\nafter:\n$after"
+  # the DRAFT itself is still a DRAFT (nothing was renamed by any of the four)
+  assert_file "$d/docs/specs/SPEC-DRAFT-readonly-projection.md"
+  rm -rf "$d"
+  log_pass "TEST-021 dry-run/guard/backfill/reserve regenerate nothing (sha256 identical)"
+}
+
+# --- TEST-022 (spec TEST-003, Spec-AC-02): exactly two generators, in order --
+test_022_generator_order_pin() {
+  log_info "TEST-022: exactly generate-overview.mjs then generate-userguide-rollup.mjs..."
+  local d; d="$(setup_iso_repo t022)"
+  seed_projection_fixture "$d" order-projection
+  # Replace every candidate generator with a stub that appends its own name to
+  # an order file. The two EXCLUDED ones (factory-report, dashboard) and the
+  # untracked-here docs-hub must never appear in that file.
+  local g
+  for g in generate-overview generate-userguide-rollup generate-factory-report \
+           generate-dashboard generate-docs-hub; do
+    cat > "$d/.aai/scripts/$g.mjs" <<MJS
+import fs from 'node:fs';
+fs.appendFileSync('genorder.txt', '$g.mjs\\n');
+MJS
+  done
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/specs/SPEC-DRAFT-order-projection.md --base-ref main \
+      > alloc.log 2>&1) \
+    || log_fail "allocation must exit 0: $(cat "$d/alloc.log")"
+  assert_file "$d/genorder.txt"
+  local got want
+  got="$(cat "$d/genorder.txt")"
+  want="$(printf 'generate-overview.mjs\ngenerate-userguide-rollup.mjs')"
+  [[ "$got" == "$want" ]] \
+    || log_fail "generator order must be overview then userguide-rollup, and nothing else. got:\n$got"
+  rm -rf "$d"
+  log_pass "TEST-022 order pinned (overview -> userguide-rollup); factory-report/dashboard/docs-hub never ran"
+}
+
+# --- TEST-023 (spec TEST-004, Spec-AC-02): the exclusion survey still holds --
+test_023_excluded_generators_survey_pin() {
+  log_info "TEST-023: factory-report + dashboard generators build no docs/specs path..."
+  local g n
+  for g in generate-factory-report.mjs generate-dashboard.mjs; do
+    assert_file "$PROJECT_ROOT/.aai/scripts/$g"
+    n="$(grep -cF 'docs/specs' "$PROJECT_ROOT/.aai/scripts/$g" || true)"
+    [[ "${n:-0}" -eq 0 ]] \
+      || log_fail "$g now builds a docs/specs path ($n occurrence(s)) — the D2 exclusion survey is stale, re-run it"
+  done
+  log_pass "TEST-023 excluded generators embed no spec PATH (D2 survey still true)"
+}
+
+# --- shared: materialize a historical/static tree into a scanned git repo ----
+# The predicate only reads git-TRACKED pages, so a replay tree must be a real
+# (local, zero-network) repo with the files added.
+make_scan_repo() {
+  local d="$1"
+  rm -rf "$d"
+  mkdir -p "$d/docs/ai" "$d/docs/specs"
+  (cd "$d" && git init -q -b main \
+     && git config user.email test@example.com \
+     && git config user.name "AAI Test")
+  printf '%s' "$d"
+}
+
+# --- TEST-024 (spec TEST-005, Spec-AC-03): byte-exact static replay ----------
+test_024_static_incident_replay() {
+  log_info "TEST-024: PR #255 replay flags 3 pages, PR #256 replay flags 2 (static fixture)..."
+  local fx="$PROJECT_ROOT/tests/fixtures/close-regenerate-order"
+  [[ -d "$fx" ]] || log_fail "missing byte-exact incident fixture tree: $fx"
+  local rc out n
+  # PR #255 (00bdd03): USER_GUIDE + overview.html + overview-data.json
+  rc=0; out="$(scan_stale_draft_refs "$fx/pr255")" || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "PR #255 replay must FAIL the check (rc=$rc):\n$out"
+  n="$(count_lines_matching '^VIOLATION:' "$out")"
+  [[ "$n" -eq 3 ]] || log_fail "PR #255 replay must flag exactly 3 pages (got $n):\n$out"
+  local page
+  for page in "docs/USER_GUIDE.md" "docs/ai/overview.html" "docs/ai/overview-data.json"; do
+    grep -qF "VIOLATION: $page" <<< "$out" || log_fail "PR #255 replay must name $page:\n$out"
+  done
+  grep -qF "SPEC-DRAFT-spec-reporting-docs-true-up" <<< "$out" \
+    || log_fail "PR #255 replay must name the offending slug:\n$out"
+  grep -qF "SPEC-0127-spec-reporting-docs-true-up.md" <<< "$out" \
+    || log_fail "PR #255 replay must name the numbered counterpart:\n$out"
+  # PR #256 (ff8208e): overview.html + overview-data.json only
+  rc=0; out="$(scan_stale_draft_refs "$fx/pr256")" || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "PR #256 replay must FAIL the check (rc=$rc):\n$out"
+  n="$(count_lines_matching '^VIOLATION:' "$out")"
+  [[ "$n" -eq 2 ]] || log_fail "PR #256 replay must flag exactly 2 pages (got $n):\n$out"
+  grep -qF "SPEC-DRAFT-spec-changelog-payload-hardening" <<< "$out" \
+    || log_fail "PR #256 replay must name the offending slug:\n$out"
+  log_pass "TEST-024 static replay: PR #255 -> 3 violations, PR #256 -> 2, both named"
+}
+
+# --- TEST-025 (spec TEST-006, Spec-AC-03): the same replay from real history -
+test_025_history_incident_replay() {
+  log_info "TEST-025: same two shapes read from git history at 00bdd03 / ff8208e..."
+  local sha slug counterpart files f d rc out n want
+  local reachable=0
+  for sha in 00bdd03 ff8208e; do
+    if ! git -C "$PROJECT_ROOT" cat-file -e "$sha^{commit}" 2>/dev/null; then
+      log_info "TEST-025: history object $sha unreachable (shallow clone) — arm skipped, the static fixture in TEST-024 always runs"
+      continue
+    fi
+    reachable=$((reachable + 1))
+    if [[ "$sha" == "00bdd03" ]]; then
+      slug="spec-reporting-docs-true-up"
+      counterpart="docs/specs/SPEC-0127-$slug.md"
+      files="docs/USER_GUIDE.md docs/ai/overview.html docs/ai/overview-data.json"
+      want=3
+    else
+      slug="spec-changelog-payload-hardening"
+      counterpart="docs/specs/SPEC-0128-$slug.md"
+      files="docs/ai/overview.html docs/ai/overview-data.json"
+      want=2
+    fi
+    d="$(make_scan_repo "$TEST_DIR/replay-$sha")"
+    for f in $files $counterpart; do
+      git -C "$PROJECT_ROOT" show "$sha:$f" > "$d/$f" \
+        || log_fail "TEST-025: could not materialize $sha:$f"
+    done
+    (cd "$d" && git add -A >/dev/null)
+    rc=0; out="$(scan_stale_draft_refs "$d")" || rc=$?
+    [[ "$rc" -eq 1 ]] || log_fail "TEST-025: $sha tree must FAIL the check (rc=$rc):\n$out"
+    n="$(count_lines_matching '^VIOLATION:' "$out")"
+    [[ "$n" -eq "$want" ]] || log_fail "TEST-025: $sha must flag exactly $want page(s), got $n:\n$out"
+    grep -qF "SPEC-DRAFT-$slug" <<< "$out" || log_fail "TEST-025: $sha output must name the slug:\n$out"
+    rm -rf "$d"
+  done
+  log_pass "TEST-025 history replay ran for $reachable/2 incident commit(s) (absent objects degrade named)"
+}
+
+# --- TEST-026 (spec TEST-007, Spec-AC-04): precision -------------------------
+test_026_detection_precision() {
+  log_info "TEST-026: in-flight drafts pass, prefix collisions pass, absent members skip named, live tree passes..."
+  local d rc out n
+  # (a) in-flight draft: the DRAFT doc still exists and has NO numbered
+  #     counterpart -> NOT a violation.
+  d="$(make_scan_repo "$TEST_DIR/scan-inflight")"
+  printf '<a href="../../docs/specs/SPEC-DRAFT-in-flight-topic.md">spec</a>\n' > "$d/docs/ai/overview.html"
+  printf 'placeholder draft\n' > "$d/docs/specs/SPEC-DRAFT-in-flight-topic.md"
+  (cd "$d" && git add -A >/dev/null)
+  rc=0; out="$(scan_stale_draft_refs "$d")" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "an in-flight draft must NOT be flagged:\n$out"
+  # (a2) the positive twin — plant the numbered counterpart and the SAME tree
+  #      must now be flagged exactly once (the negative control has teeth).
+  printf 'numbered\n' > "$d/docs/specs/SPEC-0001-in-flight-topic.md"
+  rc=0; out="$(scan_stale_draft_refs "$d")" || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "planting the numbered counterpart must flag the tree (rc=$rc):\n$out"
+  n="$(count_lines_matching '^VIOLATION:' "$out")"
+  [[ "$n" -eq 1 ]] || log_fail "planted counterpart must yield exactly 1 violation (got $n):\n$out"
+  rm -rf "$d"
+  # (b) prefix collision: SPEC-DRAFT-foo must NOT be satisfied by SPEC-0001-foobar.md
+  d="$(make_scan_repo "$TEST_DIR/scan-prefix")"
+  printf 'see SPEC-DRAFT-foo somewhere\n' > "$d/docs/ai/overview.html"
+  printf 'unrelated\n' > "$d/docs/specs/SPEC-0001-foobar.md"
+  (cd "$d" && git add -A >/dev/null)
+  rc=0; out="$(scan_stale_draft_refs "$d")" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "slug matching must be exact, not a prefix:\n$out"
+  rm -rf "$d"
+  # (c) non-generated runtime state is never scanned: docs/ai/STATE.yaml may
+  #     legitimately record a DRAFT path whose counterpart now exists.
+  d="$(make_scan_repo "$TEST_DIR/scan-state")"
+  printf '  source: docs/specs/SPEC-DRAFT-state-recorded.md\n' > "$d/docs/ai/STATE.yaml"
+  printf 'numbered\n' > "$d/docs/specs/SPEC-0002-state-recorded.md"
+  (cd "$d" && git add -A >/dev/null)
+  rc=0; out="$(scan_stale_draft_refs "$d")" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "docs/ai/STATE.yaml must never be scanned:\n$out"
+  local p
+  for p in "${STALE_SCAN_PAGES[@]}"; do
+    [[ "$p" != "docs/ai/STATE.yaml" ]] || log_fail "docs/ai/STATE.yaml must not be in the closed list"
+  done
+  rm -rf "$d"
+  # (d) an absent closed-list member is SKIPPED with a named INFO line, exit 0
+  d="$(make_scan_repo "$TEST_DIR/scan-absent")"
+  printf 'clean page\n' > "$d/docs/ai/overview.html"
+  (cd "$d" && git add -A >/dev/null)
+  rc=0; out="$(scan_stale_draft_refs "$d")" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "absent closed-list members must not fail the check:\n$out"
+  grep -qF "skipping absent page docs/USER_GUIDE.md" <<< "$out" \
+    || log_fail "an absent member must be named, never silently dropped:\n$out"
+  # an untracked page is skipped named too (a guard over an untracked file is theatre)
+  printf 'SPEC-DRAFT-untracked-topic\n' > "$d/docs/ai/overview-data.json"
+  printf 'numbered\n' > "$d/docs/specs/SPEC-0003-untracked-topic.md"
+  rc=0; out="$(scan_stale_draft_refs "$d")" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "an untracked page must be skipped, not flagged:\n$out"
+  grep -qF "skipping untracked page docs/ai/overview-data.json" <<< "$out" \
+    || log_fail "an untracked member must be named:\n$out"
+  rm -rf "$d"
+  # (e) the LIVE repository tree passes, despite the DRAFT literals all over the
+  #     spec/test corpus and the DRAFT path recorded in docs/ai/STATE.yaml.
+  rc=0; out="$(scan_stale_draft_refs "$PROJECT_ROOT")" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "the live repository tree must be clean:\n$out"
+  log_pass "TEST-026 precision: in-flight passes (planted counterpart fires), exact slug match, STATE/corpus never read, live tree clean"
+}
+
+# --- TEST-027 (spec TEST-008, Spec-AC-05): honest degradation ----------------
+test_027_regen_degradation() {
+  log_info "TEST-027: absent generator silent, failing generator one named INFO line, exit 0 either way..."
+  local d rc out n
+  # (a) BOTH generators absent -> silent skip, exit 0, rename still happened
+  d="$(setup_iso_repo t027a)"
+  seed_projection_fixture "$d" degrade-absent
+  rm "$d/.aai/scripts/generate-overview.mjs" "$d/.aai/scripts/generate-userguide-rollup.mjs"
+  rc=0
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/specs/SPEC-DRAFT-degrade-absent.md --base-ref main \
+      > alloc.log 2> alloc.err) || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "absent generators must not change the exit code (got $rc): $(cat "$d/alloc.err")"
+  assert_file "$d/docs/specs/SPEC-0001-degrade-absent.md"
+  out="$(cat "$d/alloc.err")"
+  n="$(count_lines_matching 'allocate-doc-number: INFO' "$out")"
+  [[ "$n" -eq 0 ]] || log_fail "an ABSENT generator must degrade SILENTLY (got $n INFO line(s)):\n$out"
+  rm -rf "$d"
+  # (b) each generator, present but exiting 1 -> exactly ONE named INFO line
+  local g
+  for g in generate-overview generate-userguide-rollup; do
+    d="$(setup_iso_repo "t027-$g")"
+    seed_projection_fixture "$d" "degrade-$g"
+    printf 'process.exit(1);\n' > "$d/.aai/scripts/$g.mjs"
+    rc=0
+    (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+        --path "docs/specs/SPEC-DRAFT-degrade-$g.md" --base-ref main \
+        > alloc.log 2> alloc.err) || rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "a FAILING $g must not change the exit code (got $rc): $(cat "$d/alloc.err")"
+    assert_file "$d/docs/specs/SPEC-0001-degrade-$g.md"
+    out="$(cat "$d/alloc.err")"
+    n="$(count_lines_matching "^allocate-doc-number: INFO $g\.mjs regen skipped \(best-effort, non-fatal\):" "$out")"
+    [[ "$n" -eq 1 ]] \
+      || log_fail "a failing $g must emit EXACTLY ONE named INFO line (got $n):\n$out"
+    rm -rf "$d"
+  done
+  log_pass "TEST-027 degradation: absent silent, failing named once, exit code never changes"
+}
+
+# --- TEST-028 (spec TEST-009, Spec-AC-05): pre-existing exit codes unchanged -
+test_028_exit_contract_unchanged() {
+  log_info "TEST-028: no-args 2, unreachable base ref 3, guard violation 4 — unchanged by the regen hook..."
+  local d; d="$(setup_iso_repo t028)"
+  seed_projection_fixture "$d" exit-contract
+  local rc
+  rc=0
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs > noargs.log 2>&1) || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "no-args must still exit 2 (got $rc): $(cat "$d/noargs.log")"
+  rc=0
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs \
+      --path docs/specs/SPEC-DRAFT-exit-contract.md --base-ref origin/nonexistent \
+      > unreach.log 2>&1) || rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "unreachable base ref must still exit 3 (got $rc): $(cat "$d/unreach.log")"
+  assert_file "$d/docs/specs/SPEC-DRAFT-exit-contract.md"
+  rc=0
+  (cd "$d" && node .aai/scripts/allocate-doc-number.mjs --guard > guard.log 2>&1) || rc=$?
+  [[ "$rc" -eq 4 ]] || log_fail "a staged DRAFT must still trip --guard with exit 4 (got $rc): $(cat "$d/guard.log")"
+  rm -rf "$d"
+  log_pass "TEST-028 exit contract unchanged (2 / 3 / 4)"
+}
+
+# --- TEST-029 (spec TEST-010, Spec-AC-06): close-work-item.mjs is untouched --
+# D5 pin: this scope deliberately does NOT touch the close ceremony (its
+# snapshot/rollback transaction truncates EVENTS.jsonl by byte length, and both
+# incidents happened WITH its regen tail already in place, because it runs after
+# `gh pr create`). A future scope that legitimately edits close-work-item.mjs
+# must update this pin in the same commit — that friction is the point.
+test_029_close_work_item_byte_unchanged() {
+  log_info "TEST-029: git diff main -- .aai/scripts/close-work-item.mjs is empty..."
+  local base="${CLOSE_PIN_BASE_REF:-main}"
+  if ! git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
+    log_info "TEST-029: base ref '$base' unreachable — pin skipped (named degrade)"
+    log_pass "TEST-029 close-work-item pin skipped (base ref unreachable)"
+    return 0
+  fi
+  local out
+  out="$(git -C "$PROJECT_ROOT" diff "$base" -- .aai/scripts/close-work-item.mjs)"
+  [[ -z "$out" ]] \
+    || log_fail "close-work-item.mjs must be byte-unchanged against $base (Spec-AC-06); diff:\n$out"
+  log_pass "TEST-029 close-work-item.mjs byte-unchanged against $base"
+}
+
+# --- TEST-030 (spec TEST-012, Spec-AC-07): the ordering is documented --------
+test_030_ordering_documented() {
+  log_info "TEST-030: SKILL_PR step 1b + allocator stdout + allocator header name the pages..."
+  local pr="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
+  local alloc="$ALLOC_SCRIPT"
+  assert_file "$pr"; assert_file "$alloc"
+  # (a) step 1b's what-it-regenerates line names all three pages.
+  local sec; sec="$(awk '/^1b\. /{on=1} /^1c\. /{on=0} on' "$pr")"
+  [[ -n "$sec" ]] || log_fail "could not extract SKILL_PR step 1b"
+  local page
+  for page in "docs/INDEX.md" "docs/ai/overview.html" "docs/USER_GUIDE.md"; do
+    grep -qF "$page" <<< "$sec" \
+      || log_fail "SKILL_PR step 1b must name $page as regenerated by the allocator"
+  done
+  # (b) the in-scope STAGING list is load-bearing: an unstaged regenerated page
+  #     makes the whole prevention inert. It must name them too.
+  local stage; stage="$(awk '/Update the in-scope list/{on=1} on&&/^   - Exit codes/{on=0} on' <<< "$sec")"
+  [[ -n "$stage" ]] || log_fail "could not extract SKILL_PR step 1b's in-scope staging bullet"
+  for page in "docs/ai/overview.html" "docs/USER_GUIDE.md"; do
+    grep -qF "$page" <<< "$stage" \
+      || log_fail "SKILL_PR step 1b's in-scope staging list must ADD $page (unstaged pages make the fix inert)"
+  done
+  # (c) the allocator's header comment states the ordering contract.
+  local hdr; hdr="$(awk 'NR<=60' "$alloc")"
+  grep -qF "generate-overview.mjs" <<< "$hdr" \
+    || log_fail "the allocator header must name generate-overview.mjs"
+  grep -qF "generate-userguide-rollup.mjs" <<< "$hdr" \
+    || log_fail "the allocator header must name generate-userguide-rollup.mjs"
+  # (d) the completion stdout line names the regenerated pages (source pin; the
+  #     runtime pin is TEST-020's assertion on alloc.log).
+  grep -qF 'allocate complete:' "$alloc" \
+    || log_fail "the allocator must still print a completion line"
+  log_pass "TEST-030 ordering documented in SKILL_PR 1b (both lines) + allocator header + completion line"
+}
+
+# --- TEST-031 (spec TEST-013, Spec-AC-07): suite-map row widened -------------
+test_031_suite_map_row() {
+  log_info "TEST-031: the aai-doc-numbering suite-map row carries the closed-list pages..."
+  local map="$PROJECT_ROOT/tests/skills/suite-map.yaml"
+  assert_file "$map"
+  local row; row="$(awk '/^  aai-doc-numbering:/{on=1;next} on&&/^  [a-z]/{on=0} on' "$map")"
+  [[ -n "$row" ]] || log_fail "no aai-doc-numbering row in $map"
+  local page
+  for page in "${STALE_SCAN_PAGES[@]}"; do
+    grep -qF "$page" <<< "$row" \
+      || log_fail "suite-map aai-doc-numbering row must list $page so a page-touching diff re-selects the suite that owns the invariant"
+  done
+  grep -qF "tests/fixtures/close-regenerate-order" <<< "$row" \
+    || log_fail "suite-map aai-doc-numbering row must list the incident-replay fixture tree"
+  log_pass "TEST-031 suite-map aai-doc-numbering row carries all eight closed-list pages + the replay fixtures"
+}
+
 main() {
   echo ""
   echo "AAI Doc-Numbering Test Suite (SPEC-0015 / RFC-0007)"
@@ -1042,6 +1578,19 @@ main() {
   test_017_project_dominant_width
   test_018_enforce_flip
   test_019_code_tree_rewrite
+  # CHANGE-0143 / spec-close-regenerate-order
+  test_020_alloc_regenerates_spec_pages
+  test_021_readonly_modes_no_regen
+  test_022_generator_order_pin
+  test_023_excluded_generators_survey_pin
+  test_024_static_incident_replay
+  test_025_history_incident_replay
+  test_026_detection_precision
+  test_027_regen_degradation
+  test_028_exit_contract_unchanged
+  test_029_close_work_item_byte_unchanged
+  test_030_ordering_documented
+  test_031_suite_map_row
 
   echo ""
   echo "All doc-numbering tests passed."
