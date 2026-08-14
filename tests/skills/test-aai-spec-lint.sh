@@ -1483,7 +1483,7 @@ EOF
 
 # --- TEST-006(clarify) — ac-vague-term over AC Description cells --------------
 # Closed measured list: scalable, secure, robust, quickly. `fast` is EXCLUDED
-# on measurement (16/16 false positives in this corpus), pinned by a control
+# on measurement (12/12 false positives at origin/main), pinned by a control
 # fixture DERIVED FROM THE REAL SPEC-0112 with its status flipped to
 # implementing — so the exclusion tracks the corpus, not a hand-written mock.
 test_clarify_006_vague_terms() {
@@ -1645,9 +1645,15 @@ test_clarify_011_no_new_ceremony() {
       || { log_info "TEST-011(clarify): spec-freeze's exit contract lost \"$p\""; ok=0; }
   done
   # the whole .aai/ delta against main is the two scripts plus ONE prompt
-  if (cd "$PROJECT_ROOT" && git rev-parse --verify -q main >/dev/null); then
+  # Base-ref resolution prefers origin/main (third occurrence of this class
+  # today — TEST-024 and the follow-ups suite both shipped with a bare `main`
+  # that never resolves on a detached PR checkout, making the pin inert on CI).
+  local base_ref=""
+  if (cd "$PROJECT_ROOT" && git rev-parse --verify -q origin/main >/dev/null); then base_ref="origin/main"
+  elif (cd "$PROJECT_ROOT" && git rev-parse --verify -q main >/dev/null); then base_ref="main"; fi
+  if [[ -n "$base_ref" ]]; then
     local changed
-    changed="$(cd "$PROJECT_ROOT" && git diff --name-only main -- .aai/)"
+    changed="$(cd "$PROJECT_ROOT" && git diff --name-only "$base_ref" -- .aai/)"
     while IFS= read -r p; do
       [[ -n "$p" ]] || continue
       case "$p" in
@@ -1656,7 +1662,7 @@ test_clarify_011_no_new_ceremony() {
       esac
     done <<<"$changed"
   else
-    log_info "TEST-011(clarify): no local main ref — the .aai/ diff pin did not run"
+    log_info "TEST-011(clarify): neither origin/main nor main resolves — the .aai/ diff pin did not run"
   fi
   [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ delta is the two scripts + PLANNING.prompt.md" \
     || log_fail "TEST-011(clarify) zero-added-ceremony pins"

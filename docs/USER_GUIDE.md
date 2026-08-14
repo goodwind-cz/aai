@@ -1066,9 +1066,10 @@ mask that produces the exemption replaces the hidden characters with spaces but
 and it feeds only these three rules.
 
 `fast` is deliberately **not** in the vague-word list. Measured: in this corpus
-`grep -rInE '^\|.*\bfast\b' docs/specs/*.md` returns 16 table rows across 8
+`grep -rInE '^\|.*\bfast\b' docs/specs/*.md` returns 12 table rows across 6
 specs and all 16 are domain vocabulary ("fails fast", "fast path", "LANE
-fast") — a 16/16 false-positive rate, zero true positives. Any future word must
+fast") — a 12/12 false-positive rate, zero true positives. The row count moves
+with the corpus; the zero-true-positive result is the part that decides. Any future word must
 clear the same measurement.
 
 **What this gate does NOT catch — read this before trusting it:**

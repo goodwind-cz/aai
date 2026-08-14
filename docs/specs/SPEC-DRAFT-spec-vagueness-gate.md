@@ -5,7 +5,7 @@ number: null
 status: implementing
 ceremony_level: 1
 links:
-  requirement: docs/issues/CHANGE-0144-spec-vagueness-gate.md
+  requirement: docs/issues/CHANGE-0144-vagueness-gate.md
   rfc: null
   pr: []
   commits: []
@@ -16,7 +16,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-0144-spec-vagueness-gate.md
+- Requirement: docs/issues/CHANGE-0144-vagueness-gate.md
 - Borrowed mechanism and its bounds: docs/specs/RESEARCH-0001-spec-kit-comparative.md F2 (marker + DON'T GUESS), F12 (cap 3, priority order, DON'T-ASK default list, bounded repair loop), F14 (33 min vs 8 min with no measured quality gain; "ceremony overkill on small tasks" in all four months)
 - The local defect this scope answers: commit 27409cb `docs/issues/CHANGE-0140-reporting-docs-true-up.md` asserted that only `aai-feedback-status.mjs` survived; all three engines exist (`.aai/scripts/aai-feedback-{status,triage,upsert}.mjs`) and the current file carries Planning's inline correction
 - Engine extended: `.aai/scripts/spec-lint.mjs` (rule set, `IN_FLIGHT_STATUSES` scoping precedent)
@@ -184,10 +184,10 @@ documents only, over the masked text of D2. One `ac-vague-term` finding per
 offending AC row, carrying the row's line.
 
 `fast` — named by the intake — is DELIBERATELY EXCLUDED, on measurement. In
-this corpus `grep -rInE '^\|.*\bfast\b' docs/specs/*.md` returns 16 table rows
-across 8 specs, and every single one is domain vocabulary, not vagueness:
+this corpus `grep -rInE '^\|.*\bfast\b' docs/specs/*.md` returns 12 table rows
+across 6 specs, and every single one is domain vocabulary, not vagueness:
 "fails fast", "fail-fast", "fast path", "prints LANE fast", "rc 0 fast",
-"fast-eligible". Measured false-positive rate 16/16, measured true positives
+"fast-eligible". Measured false-positive rate 12/12, measured true positives
 0. Shipping it would mean the rule's only observable effect on the existing
 corpus is noise — which is precisely the failure mode F12 warns about. Its
 vagueness sense is still covered by `quickly` and, more importantly, by the AC
@@ -282,7 +282,7 @@ exemption is wrong, the corpus scan says so immediately.
   tests/skills/test-aai-spec-tools.sh, tests/skills/lib/prompt-diet-ledger.sh,
   tests/skills/test-aai-prompt-diet.sh, docs/USER_GUIDE.md,
   docs/specs/SPEC-DRAFT-spec-vagueness-gate.md,
-  docs/issues/CHANGE-0144-spec-vagueness-gate.md, CHANGELOG.md
+  docs/issues/CHANGE-0144-vagueness-gate.md, CHANGELOG.md
 
 Code review required: true (code, test and prompt changes); scope = the
 explicit path list above as a diff against main.
@@ -392,7 +392,7 @@ is performed.)
 | Spec-AC-01 | Marker vocabulary and detection — one finding per live marker with its line; code-span and fenced specimens exempt; masking preserves lines and cell counts | done    | 00ece96 TEST-001/003(clarify) green | —         | rule id `unresolved-clarification` |
 | Spec-AC-02 | Freeze gate — exit 3 refusal naming each occurrence, nothing written; pre-freeze lint reports at exit 1 and blocks nothing | done    | 00ece96 TEST-002(clarify) green | —         | inherits spec-freeze `PRECONDITION_RULES`; no new exit code |
 | Spec-AC-03 | Cap 3 advisory with priority order; DON'T-ASK defaults recorded in spec, prompt and guide; cap is never a precondition | done    | 00ece96 TEST-004+005(clarify) green | —         | rule id `clarification-cap-exceeded` |
-| Spec-AC-04 | Vagueness advisory over AC Description cells for the closed measured word list; a vague-only spec still freezes | done    | 00ece96 TEST-006+007(clarify) green | —         | rule id `ac-vague-term`; `fast` excluded on 16/16 false-positive measurement |
+| Spec-AC-04 | Vagueness advisory over AC Description cells for the closed measured word list; a vague-only spec still freezes | done    | 00ece96 TEST-006+007(clarify) green | —         | rule id `ac-vague-term`; `fast` excluded on a 12/12 false-positive measurement at origin/main (the count moves with the corpus, the zero-true-positive invariant does not) |
 | Spec-AC-05 | Zero added ceremony — no step, agent, script, flag or exit code; prompt delta at most 450 B in one file with the ledger true-up | done    | 78b05e4 TEST-011(clarify) + diet TEST-012 green | —         | TEST-012 pin -5844 plus measured G |
 | Spec-AC-06 | In-flight scoping — terminal docs exempt, real corpus stays at zero findings, non-vacuity witnesses executable | done    | 00ece96 TEST-009(clarify) green, corpus 130 specs 0 findings | —         | corpus has zero in-flight specs today; this spec becomes the first |
 | Spec-AC-07 | Honest docs — guide states the vocabulary, the limits and the corrected gate claim; RED_CLASS stamped at capture | done    | a466195 TEST-010+012(clarify) green | —         | the CHANGE-0140 shape is documented as NOT caught |
