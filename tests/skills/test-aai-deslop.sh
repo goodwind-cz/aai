@@ -616,8 +616,8 @@ test_007_empty_diff_offers_all() {
   fi
 
   # B2 (round-4 review) — a NON-empty diff whose only changed file sits
-  # OUTSIDE the scanned globs (.aai/scripts/**.{mjs,sh,ps1}, .aai/system/*.
-  # yaml) must never be reported as "empty diff": that told a downstream
+  # OUTSIDE the scanned globs (.aai/scripts/**/*.{mjs,sh,ps1}, .aai/system/
+  # *.yaml) must never be reported as "empty diff": that told a downstream
   # project (whose changes are almost never under .aai/) that its real,
   # non-empty diff was empty. Reproduced pre-fix: a staged src/app.mjs
   # printed the literal empty-diff note at exit 0.
@@ -1196,6 +1196,207 @@ test_017_git_failure_surfaced_not_silent() {
     || log_fail "TEST-017 git-failure honesty"
 }
 
+# ---------------------------------------------------------------------------
+# TEST-018 (Spec-AC-07) — PR #260 Codex finding (line 713): both refs of a
+# --base range can resolve individually yet share no merge base (two
+# unrelated histories) — `git diff <base>...HEAD` then exits 128 instead of
+# printing a diff. That failure must surface as an explicit git-failure
+# NOTE, never as the ordinary "empty diff" clean-scan note.
+# ---------------------------------------------------------------------------
+test_018_range_diff_failure_surfaced() {
+  local d ok=1
+  d="$(new_fixture)" || return
+  init_repo "$d" || { log_fail "TEST-018 init_repo failed"; return; }
+  cat > "$d/.aai/scripts/x.mjs" <<'EOF'
+if (tok === '--brand-new-flag') { /* handled */ }
+EOF
+  (cd "$d" && git add -A && git commit -q -m 'main-side baseline')
+
+  # an orphan branch shares NO commit history with main, so main and this
+  # branch's HEAD both resolve individually (--verify succeeds for both)
+  # but have no merge base.
+  (cd "$d" && git checkout -q --orphan other && git rm -rf -q . >/dev/null 2>&1)
+  mkdir -p "$d/.aai/scripts"
+  cat > "$d/.aai/scripts/y.mjs" <<'EOF'
+if (tok === '--other-branch-flag') { /* handled */ }
+EOF
+  (cd "$d" && git add -A && git commit -q -m 'unrelated orphan history')
+
+  local out code body
+  out="$(run_engine "$d" --diff --base main)"
+  code="$(engine_exit_code "$out")"
+  body="$(engine_body "$out")"
+  [[ "$code" == "0" ]] || { log_info "TEST-018: exit=$code (want 0)"; ok=0; }
+  if grep -qF "NOTE: empty diff" <<<"$body"; then
+    log_info "TEST-018: a range diff that fails outright (no merge base) must not read as 'empty diff': $body"
+    ok=0
+  fi
+  grep -qF "no merge base" <<<"$body" \
+    || { log_info "TEST-018: missing an explicit git-failure NOTE for the failed range diff: $body"; ok=0; }
+  grep -qF "Candidates: 0" <<<"$body" \
+    || { log_info "TEST-018: a failed range diff can produce no candidates (nothing was checked): $body"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-018 a --base range diff that fails outright (no merge base between two unrelated histories) surfaces an explicit git-failure NOTE rather than reading as a clean empty-diff scan" \
+    || log_fail "TEST-018 range-diff failure honesty"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-019 (Spec-AC-07) — PR #260 Codex finding (line 748): a COMPLETE file
+# deletion never emits `+++ b/<path>` (git prints `+++ /dev/null` for the
+# new side instead), so the file previously got no Map entry at all. When
+# it is the ONLY change, that misread the diff as empty. Same honesty class
+# as V4-6 (a partial in-file deletion), one level up: the whole file, not
+# just its content, was removed.
+# ---------------------------------------------------------------------------
+test_019_full_file_deletion_not_empty_diff() {
+  local d ok=1
+  d="$(new_fixture)" || return
+  init_repo "$d" || { log_fail "TEST-019 init_repo failed"; return; }
+  cat > "$d/.aai/scripts/z.mjs" <<'EOF'
+if (tok === '--doomed-flag') { /* handled */ }
+EOF
+  (cd "$d" && git add -A && git commit -q -m 'baseline with a file about to be deleted entirely')
+  (cd "$d" && git rm -q .aai/scripts/z.mjs)
+
+  local out code body
+  out="$(run_engine "$d" --diff)"
+  code="$(engine_exit_code "$out")"
+  body="$(engine_body "$out")"
+  [[ "$code" == "0" ]] || { log_info "TEST-019: exit=$code (want 0)"; ok=0; }
+  if grep -qF "NOTE: empty diff" <<<"$body"; then
+    log_info "TEST-019: a COMPLETE file deletion (+++ /dev/null, no +++ b/<path>) must not read as 'empty diff': $body"
+    ok=0
+  fi
+  grep -qF "Surface scanned: 1 files" <<<"$body" \
+    || { log_info "TEST-019: the deleted path must still count as a touched/scanned file: $body"; ok=0; }
+  grep -qF "Candidates: 0" <<<"$body" \
+    || { log_info "TEST-019: a pure deletion has nothing added, expected zero candidates: $body"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-019 a diff whose only change is a COMPLETE file deletion (+++ /dev/null) is preserved as touched, never misread as an empty diff" \
+    || log_fail "TEST-019 full-file-deletion honesty"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-020 (Spec-AC-04) — PR #260 Codex finding (line 241): a stale or
+# unreadable STATE.yaml spec_path/primary_path was silently dropped inside
+# buildCorpusText while the result still reported the corpus count and kept
+# empty: false — a corpus that failed to load looked identical to a corpus
+# that had nothing to say. Mirrors resolveAllCorpus's own named-degrade
+# pattern: fully-unreadable degrades to the EMPTY-corpus note; a partial
+# read names every skipped path instead of dropping it.
+# ---------------------------------------------------------------------------
+test_020_unreadable_state_corpus_document_named() {
+  local d ok=1
+  d="$(new_fixture)" || return
+  init_repo "$d" || { log_fail "TEST-020(a) init_repo failed"; return; }
+  # (a) BOTH focus paths are stale (point at documents that do not exist):
+  # must degrade to the same named EMPTY-corpus note an absent/unparseable
+  # STATE already produces, not silently drop the paths at empty: false.
+  cat > "$d/docs/ai/STATE.yaml" <<'EOF'
+current_focus:
+  type: intake_change
+  ref_id: x
+  primary_path: docs/issues/CHANGE-does-not-exist.md
+  spec_path: docs/specs/SPEC-does-not-exist.md
+EOF
+  cat > "$d/.aai/scripts/x.mjs" <<'EOF'
+const USAGE = 'baseline, nothing new yet';
+EOF
+  (cd "$d" && git add -A && git commit -q -m 'baseline, stale STATE already committed')
+  cat >> "$d/.aai/scripts/x.mjs" <<'EOF'
+if (tok === '--brand-new-flag') { /* handled */ }
+EOF
+
+  local out json code
+  out="$(run_engine "$d" --diff --json)"
+  code="$(engine_exit_code "$out")"
+  json="$(engine_body "$out")"
+  [[ "$code" == "0" ]] || { log_info "TEST-020(a): exit=$code (want 0)"; ok=0; }
+  node_check "$json" 'd.requirement_corpus.empty === true && d.requirement_corpus.empty_reason.includes("SPEC-does-not-exist.md") && d.requirement_corpus.empty_reason.includes("CHANGE-does-not-exist.md")' \
+    || { log_info "TEST-020(a): a fully-stale STATE corpus should degrade to empty, naming both unreadable paths: $json"; ok=0; }
+  node_check "$json" 'd.candidates.length === 1 && d.candidates[0].symbol === "--brand-new-flag"' \
+    || { log_info "TEST-020(a): a degraded-to-empty corpus should report every extracted symbol, none silently suppressed: $json"; ok=0; }
+
+  # (b) ONE focus path is readable, the OTHER is stale: the corpus is NOT
+  # empty (real requirement text still informs matching), but the skipped
+  # path must be NAMED, and the readable document must still suppress the
+  # symbol it names.
+  local d2
+  d2="$(new_fixture)" || return
+  init_repo "$d2" || { log_fail "TEST-020(b) init_repo failed"; return; }
+  cat > "$d2/docs/specs/SPEC-x.md" <<'EOF'
+---
+id: spec-x
+type: spec
+number: null
+status: done
+---
+# Spec X
+
+This change adds --named-flag to sample.mjs.
+EOF
+  cat > "$d2/docs/ai/STATE.yaml" <<'EOF'
+current_focus:
+  type: intake_change
+  ref_id: x
+  primary_path: docs/issues/CHANGE-does-not-exist.md
+  spec_path: docs/specs/SPEC-x.md
+EOF
+  cat > "$d2/.aai/scripts/x.mjs" <<'EOF'
+const USAGE = 'baseline';
+EOF
+  (cd "$d2" && git add -A && git commit -q -m 'one stale path, one readable path')
+  cat >> "$d2/.aai/scripts/x.mjs" <<'EOF'
+if (tok === '--named-flag') { /* handled */ }
+if (tok === '--unnamed-flag') { /* handled */ }
+EOF
+
+  local out2 json2 code2
+  out2="$(run_engine "$d2" --diff --json)"
+  code2="$(engine_exit_code "$out2")"
+  json2="$(engine_body "$out2")"
+  [[ "$code2" == "0" ]] || { log_info "TEST-020(b): exit=$code2 (want 0)"; ok=0; }
+  node_check "$json2" 'd.notes.some(n => n.includes("requirement document(s) unreadable, skipped") && n.includes("CHANGE-does-not-exist.md"))' \
+    || { log_info "TEST-020(b): a partially-stale corpus must name the skipped document: $json2"; ok=0; }
+  node_check "$json2" 'd.requirement_corpus.count === 1 && d.candidates.length === 1 && d.candidates[0].symbol === "--unnamed-flag"' \
+    || { log_info "TEST-020(b): the readable document should still count toward the corpus and still suppress the symbol it names: $json2"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-020 a stale/unreadable STATE.yaml focus path is never silently dropped: a fully-stale corpus degrades to the named EMPTY-corpus note, a partially-stale corpus names the skipped path while the readable document still suppresses" \
+    || log_fail "TEST-020 unreadable-corpus-document honesty"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-021 (Spec-AC-06) — PR #260 Codex finding (line 93): `--base --json`
+# silently consumed `--json` as the ref, dropping the requested JSON mode
+# and falling back to the working-tree diff at exit 0. A flag-shaped token
+# must never be accepted as a --base value.
+# ---------------------------------------------------------------------------
+test_021_base_rejects_flag_shaped_value() {
+  local d ok=1
+  d="$(new_fixture)" || return
+  init_repo "$d" || { log_fail "TEST-021 init_repo failed"; return; }
+
+  local out code body
+  out="$(run_engine "$d" --diff --base --json)"
+  code="$(engine_exit_code "$out")"
+  body="$(engine_body "$out")"
+  [[ "$code" == "2" ]] \
+    || { log_info "TEST-021: --base --json exit=$code (want 2 — --json must not be silently consumed as the --base ref value)"; ok=0; }
+  grep -qF -- "--diff" <<<"$body" || { log_info "TEST-021: usage text missing --diff: $body"; ok=0; }
+  if grep -qE '^\{' <<<"$body"; then
+    log_info "TEST-021: JSON output leaked even though the malformed invocation should be rejected: $body"
+    ok=0
+  fi
+
+  local out2 code2
+  out2="$(run_engine "$d" --diff --base --all)"
+  code2="$(engine_exit_code "$out2")"
+  [[ "$code2" == "2" ]] || { log_info "TEST-021: --base --all exit=$code2 (want 2)"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-021 a flag-shaped token following --base (--json, --all) is rejected as a usage error rather than silently consumed as the ref" \
+    || log_fail "TEST-021 --base flag-shaped-value rejection"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1219,6 +1420,10 @@ main() {
   test_015_cli_flag_precision_css_and_external_tool
   test_016_all_scope_empty_surface_note
   test_017_git_failure_surfaced_not_silent
+  test_018_range_diff_failure_surfaced
+  test_019_full_file_deletion_not_empty_diff
+  test_020_unreadable_state_corpus_document_named
+  test_021_base_rejects_flag_shaped_value
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

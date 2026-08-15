@@ -90,9 +90,10 @@ current diff, and its class-4 row ("Unrequested features: behavior, flags, or
 config no AC asked for") is a table entry that no code checks — class 4
 happens only when the agent notices.
 
-This scope makes scope an explicit parameter (`--diff` default, `--all`, ASK
-when unspecified) and gives class 4 a mechanical detector that both scopes
-drive with the same code, differing only in its input set. The wide scope IS
+This scope makes scope an explicit parameter (`--diff`, `--all`, ASK when
+unspecified — no default; D4 fails closed) and gives class 4 a mechanical
+detector that both scopes drive with the same code, differing only in its
+input set. The wide scope IS
 RESEARCH-0001 F3: every check we own asks "is the requirement covered?";
 nothing asks the reverse question about accumulated surface — does this code
 answer to any requirement?
@@ -810,6 +811,10 @@ Residual risks, written down rather than silently accepted:
 | TEST-015 | Spec-AC-03 | integration | tests/skills/test-aai-deslop.sh            | REPURPOSED by the 2026-08-15 amendment (its original mjs-export brace-list coverage no longer applies — that kind is removed), then EXTENDED by round-5 remediation (V5-1/V5-2): the cli-flag precision fix — a CSS custom-property declaration and its var() usage are excluded, a flag passed to git via the git/tryGit/runGh wrapper convention or a direct execFileSync('git', ...)-shaped call (including one level of local array indirection) is excluded, a flag passed to node (this repo's own other script) stays a candidate, a comment-only occurrence is now excluded everywhere, and a genuine own-flag in real code still matches (mjs arm); a new shell arm proves the sh/ps1 external-tool exclusion is command-word/position-based, not line-wide, and is mutation-guarded | green |
 | TEST-016 | Spec-AC-06 | integration | tests/skills/test-aai-deslop.sh            | --all invoked from the wrong working directory sees an empty input set (0 files matched) and exits 0 while emitting the surface-EMPTY note rather than a silent clean bill | green |
 | TEST-017 | Spec-AC-07 | integration | tests/skills/test-aai-deslop.sh            | round-4 code-review NB-1, not in the original frozen table (listed here per the round-3 F12 precedent): --diff in a non-git working directory (or where git itself is unusable) surfaces an explicit git-failure NOTE rather than reading as an ordinary empty-diff clean scan | green |
+| TEST-018 | Spec-AC-07 | integration | tests/skills/test-aai-deslop.sh            | PR #260 external review (Codex, engine line 713), not in the original frozen table (round-3 F12 precedent): a --base range diff whose two refs both resolve but share no merge base (two unrelated histories) surfaces an explicit git-failure NOTE naming the no-merge-base cause, rather than reading as an ordinary empty-diff clean scan | green |
+| TEST-019 | Spec-AC-07 | integration | tests/skills/test-aai-deslop.sh            | PR #260 external review (Codex, engine line 748), not in the original frozen table (round-3 F12 precedent): a diff whose only change is a COMPLETE file deletion (git emits +++ /dev/null, never +++ b/path) is preserved as touched with zero candidates, never misread as an empty diff — the V4-6 partial-deletion fix's residual, one level up (whole file, not just its content) | green |
+| TEST-020 | Spec-AC-04 | integration | tests/skills/test-aai-deslop.sh            | PR #260 external review (Codex, engine line 241), not in the original frozen table (round-3 F12 precedent): a stale/unreadable STATE.yaml spec_path or primary_path is never silently dropped — a fully-stale corpus degrades to the named EMPTY-corpus note (mirroring resolveAllCorpus's own degrade), and a partially-stale corpus names the skipped path in a NOTE while the readable document still suppresses the symbol it names | green |
+| TEST-021 | Spec-AC-06 | unit        | tests/skills/test-aai-deslop.sh            | PR #260 external review (Codex, engine line 93), not in the original frozen table (round-3 F12 precedent): a flag-shaped token following --base (e.g. --json, --all) is rejected at exit 2 as a usage error rather than silently consumed as the ref, which would drop the requested flag and fall back to the working-tree diff | green |
 
 RED plan (hybrid; every RED observed and STORED before its GREEN work, with
 `RED_CLASS:` written as line 1 AT CAPTURE — `product_red` when the planted

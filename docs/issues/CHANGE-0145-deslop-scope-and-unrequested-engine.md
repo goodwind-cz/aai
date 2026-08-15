@@ -17,8 +17,8 @@ links:
 - `/aai-deslop` is hardcoded to the current diff and its class-4 row
   ("Unrequested features: behavior, flags, or config no AC asked for") is a
   table entry that no code checks. Make scope an explicit parameter
-  (`--diff` default, `--all`, ask when unspecified) and give class 4 a
-  mechanical detector that feeds both scopes from one engine.
+  (`--diff`, `--all`, ask when unspecified — no default; fails closed) and
+  give class 4 a mechanical detector that feeds both scopes from one engine.
 - The wide scope IS RESEARCH-0001 F3 (`unrequested` is the one detection
   direction we lack). Folding it here means F3 needs no second home.
 

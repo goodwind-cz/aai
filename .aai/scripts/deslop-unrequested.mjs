@@ -88,7 +88,12 @@ function parseArgs(argv) {
     if (tok === '--json') { args.json = true; continue; }
     if (tok === '--base') {
       const v = argv[i + 1];
-      if (v === undefined) return null;
+      // A missing value and an option-shaped value (e.g. `--base --json`,
+      // the next flag silently consumed as a ref) are the same usage error:
+      // both leave --base without a real ref, so both fail closed here
+      // rather than falling back to the working-tree diff with the
+      // requested flag dropped.
+      if (v === undefined || v.startsWith('--')) return null;
       args.base = v;
       i += 1;
       continue;
@@ -199,11 +204,28 @@ function resolveDiffCorpus() {
   if (!focus) {
     return { empty: true, reason: 'STATE.yaml present but unparseable (no current_focus block found)', documents: [] };
   }
-  const documents = [...new Set([focus.specPath, focus.primaryPath].filter(Boolean))];
-  if (documents.length === 0) {
+  const candidatePaths = [...new Set([focus.specPath, focus.primaryPath].filter(Boolean))];
+  if (candidatePaths.length === 0) {
     return { empty: true, reason: 'current_focus.spec_path and primary_path are both null', documents: [] };
   }
-  return { empty: false, documents };
+  // Mirror resolveAllCorpus's own named-degrade pattern (below): a path
+  // STATE names but this process cannot read (stale, deleted, permission-
+  // denied) must not be silently dropped at buildCorpusText time — that
+  // made a corpus that failed to load look identical to a corpus that had
+  // nothing to say, with no NOTE and `empty: false` still claimed.
+  const documents = [];
+  const unreadable = [];
+  for (const p of candidatePaths) {
+    if (readTextSafe(p).ok) documents.push(p); else unreadable.push(p);
+  }
+  if (documents.length === 0) {
+    return {
+      empty: true,
+      reason: `requirement document(s) named by STATE.yaml unreadable: ${unreadable.join(', ')}`,
+      documents: [],
+    };
+  }
+  return { empty: false, documents, unreadable };
 }
 
 function resolveAllCorpus() {
@@ -707,10 +729,17 @@ function resolveDiffInput(baseArg) {
 // mid-implementation shape this skill runs against — so untracked files are
 // added separately as fully-added (every line counts as added).
 function resolveAddedLines(diffInput) {
-  if (diffInput.unavailable) return new Map();
+  if (diffInput.unavailable) return { map: new Map(), rangeDiffFailed: false };
   if (diffInput.mode === 'range') {
     const res = tryGit(['diff', '--unified=0', diffInput.range]);
-    return parseAddedLines(res.ok ? res.stdout : '');
+    // Both refs can resolve individually (resolveDiffInput already checked
+    // that) yet share no merge base — e.g. two unrelated histories reached
+    // via --base — and `git diff <base>...HEAD` then exits non-zero instead
+    // of printing a diff. Treating that failure as empty diff TEXT would
+    // misreport a git failure as a clean, nothing-found scan: same honesty
+    // class as the NB-1 git-unavailable degrade in resolveDiffInput.
+    if (!res.ok) return { map: new Map(), rangeDiffFailed: true };
+    return { map: parseAddedLines(res.stdout), rangeDiffFailed: false };
   }
   const trackedRes = tryGit(['diff', '--unified=0', 'HEAD']);
   const map = parseAddedLines(trackedRes.ok ? trackedRes.stdout : '');
@@ -729,15 +758,37 @@ function resolveAddedLines(diffInput) {
       map.set(rel, set);
     }
   }
-  return map;
+  return { map, rangeDiffFailed: false };
 }
 
 function parseAddedLines(diffText) {
   const result = new Map();
   let currentFile = null;
+  let pendingOldFile = null;
   let newLine = 0;
   for (const line of diffText.split('\n')) {
     if (line.startsWith('diff --git ')) {
+      currentFile = null;
+      pendingOldFile = null;
+      continue;
+    }
+    // A COMPLETE file deletion never emits `+++ b/<path>` — git prints
+    // `+++ /dev/null` for the new side instead, so the fileMatch branch
+    // below never fires and the file gets no Map entry at all. That made a
+    // deletion-only diff (the only change in the range) misread as an
+    // EMPTY diff — the same "touched but nothing to extract" honesty gap
+    // V4-6 fixed for a partial in-file deletion, one level up: the whole
+    // file, not just its content, is what got removed. `--- a/<path>`
+    // always precedes `+++ /dev/null` in the same file header, so its path
+    // is captured here and registered (empty added-line set: a deletion
+    // adds nothing) the moment the dev/null marker confirms a deletion.
+    const oldFileMatch = line.match(/^--- a\/(.+)$/);
+    if (oldFileMatch) {
+      pendingOldFile = oldFileMatch[1];
+      continue;
+    }
+    if (line === '+++ /dev/null') {
+      if (pendingOldFile && !result.has(pendingOldFile)) result.set(pendingOldFile, new Set());
       currentFile = null;
       continue;
     }
@@ -811,7 +862,7 @@ function scanDiff({ base }) {
   const corpus = resolveDiffCorpus();
   const corpusText = corpus.empty ? '' : buildCorpusText(corpus.documents);
   const diffInput = resolveDiffInput(base);
-  const addedLines = resolveAddedLines(diffInput);
+  const { map: addedLines, rangeDiffFailed } = resolveAddedLines(diffInput);
 
   // B2: "the diff has no added lines at all" and "the diff has added lines,
   // but none of them are under the scanned surface" are DIFFERENT facts —
@@ -867,6 +918,7 @@ function scanDiff({ base }) {
     notes: buildNotes({
       corpus,
       diffInput,
+      rangeDiffFailed,
       emptyDiff: diffEmpty,
       noScannedPath,
       touchedCount: touchedFiles.length,
@@ -874,20 +926,32 @@ function scanDiff({ base }) {
   };
 }
 
-function buildNotes({ corpus, diffInput, emptyDiff, noScannedPath, touchedCount, surfaceEmpty }) {
+function buildNotes({ corpus, diffInput, rangeDiffFailed, emptyDiff, noScannedPath, touchedCount, surfaceEmpty }) {
   const notes = [NOT_SCANNED_NOTE];
   if (diffInput) notes.push(`Diff input: ${diffInput.label}`);
   if (diffInput && diffInput.unavailable) {
     // NB-1: a git failure is a DIFFERENT fact than "clean scan, nothing
     // found" and must say so — Constitution art. 4.
     notes.push('NOTE: git failed (not a git repository, or git is not installed) — the diff could not be resolved. This is NOT a clean scan: zero candidates here means nothing was checked, not that nothing was found.');
+  } else if (rangeDiffFailed) {
+    // Same honesty class as NB-1 above, one layer deeper: both refs
+    // resolved, but `git diff <base>...HEAD` itself failed — most commonly
+    // no merge base between two unrelated histories. Zero candidates here
+    // must not read as "nothing to report".
+    notes.push('NOTE: git diff failed for the resolved range — most likely no merge base between the two refs (unrelated histories). This is NOT a clean scan: zero candidates here means nothing was checked, not that nothing was found.');
   } else if (emptyDiff) {
     notes.push('NOTE: empty diff — rerun with --all to scan accumulated surface.');
   } else if (noScannedPath) {
-    notes.push(`NOTE: diff touches ${touchedCount} file(s), but none are under the scanned surface (.aai/scripts/**.{mjs,sh,ps1}, .aai/system/*.yaml) — the diff is NOT empty, it is just out of class-4's scope. Rerun with --all to scan the accumulated surface instead.`);
+    notes.push(`NOTE: diff touches ${touchedCount} file(s), but none are under the scanned surface (.aai/scripts/**/*.{mjs,sh,ps1}, .aai/system/*.yaml) — the diff is NOT empty, it is just out of class-4's scope. Rerun with --all to scan the accumulated surface instead.`);
   }
   if (corpus.empty) {
     notes.push(`NOTE: requirement corpus EMPTY (${corpus.reason}) — every extracted symbol is reported; treat this run as an inventory, not a finding list.`);
+  } else if (corpus.unreadable && corpus.unreadable.length > 0) {
+    // A PARTIAL corpus read — at least one document was readable, so the
+    // corpus is not empty, but a symbol named only by the skipped
+    // document would otherwise be falsely reported as unrequested with no
+    // trace of why. Name every skipped path rather than dropping it.
+    notes.push(`NOTE: requirement document(s) unreadable, skipped (not searched): ${corpus.unreadable.join(', ')}.`);
   }
   if (surfaceEmpty) {
     notes.push('NOTE: surface EMPTY (0 files under .aai/scripts or .aai/system) — this almost always means the scan was invoked from the wrong working directory; re-run from the repository root.');
@@ -906,18 +970,18 @@ function buildLimits(suppressed, diffInput) {
     'Report only. No file was written. Nothing here is a verdict.',
     // Round-5 candidate adjudication (docs/ai/reports/deslop-candidate-
     // adjudication-20260815.md, summarized in the CHANGE intake's
-    // Adjudication Summary — docs/issues/CHANGE-DRAFT-deslop-scope-and-
-    // unrequested-engine.md, moved there from the spec by the 2026-08-15
-    // remediation) walked all 70 real-tree candidates and found 10 that
-    // are flag-shaped TEXT, not a flag this code owns: a string comparison,
-    // a printf/suggestion message, a regex pattern, or a flag naming a
-    // separately configured external agent CLI. Telling those apart from a
-    // genuine own flag needs semantics (does this string describe a flag,
-    // or invoke one?), not syntax — this pattern-based scan cannot attempt
-    // it, and no correct per-run count can be computed without that same
-    // semantic judgment, so this line is disclosed qualitatively rather
-    // than with a guessed number (a fabricated figure would be worse than
-    // none).
+    // Adjudication Summary — docs/issues/
+    // CHANGE-0145-deslop-scope-and-unrequested-engine.md, moved there from
+    // the spec by the 2026-08-15 remediation) walked all 70 real-tree
+    // candidates and found 10 that are flag-shaped TEXT, not a flag this
+    // code owns: a string comparison, a printf/suggestion message, a
+    // regex pattern, or a flag naming a separately configured external
+    // agent CLI. Telling those apart from a genuine own flag needs
+    // semantics (does this string describe a flag, or invoke one?), not
+    // syntax — this pattern-based scan cannot attempt it, and no correct
+    // per-run count can be computed without that same semantic judgment,
+    // so this line is disclosed qualitatively rather than with a guessed
+    // number (a fabricated figure would be worse than none).
     'TEXT, NOT A FLAG: some candidates are flag-shaped TEXT rather than a flag this code owns — a string comparison, a printf/suggestion message, a regex pattern, or a flag naming a separately configured external agent CLI. Distinguishing those needs semantics, not syntax, so this pattern-based scan does not attempt it — read each candidate before acting.',
   ];
   // V4-1 / F17 (tracked fu-deslop-range-mode-dirty-worktree, deliberately
