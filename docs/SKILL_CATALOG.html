@@ -106,18 +106,16 @@ validator's probe forced the root cause out.</p>
   
   <p class="meta">.claude/skills/aai-debug/SKILL.md · .aai/SKILL_DEBUG.prompt.md</p>
 </div>
-<div class="skill-card" data-search="aai-deslop use optionally after implementation and before code review to remove ai slop from the current diff only — obvious comments, defensive try/catch on trusted paths, premature abstraction, unrequested features, annotations on untouched code. behavior must stay unchanged (suite passes after). advisory only — never blocks. remove characteristic ai-generated noise from the current diff before review,
-so reviewers spend attention on behavior, not on narration. strictly
-diff-scoped: only lines this change introduced are candidates — never a
-repo-wide cleanup crusade.
+<div class="skill-card" data-search="aai-deslop use optionally after implementation and before code review to remove ai slop — diff scope covers the current diff; --all scope runs the class-4 unrequested-surface check over .aai/'s scripts and system config, not the whole .aai/ tree; neither is a default, ask-and-stop if the scope is not named. classes: obvious comments, defensive try/catch on trusted paths, premature abstraction, unrequested features, annotations on untouched code. behavior must stay unchanged (suite passes after). advisory only — never blocks. remove characteristic ai-generated noise before review, so reviewers spend
+attention on behavior, not on narration. scope is an explicit parameter —
+see scope below — never a silent repo-wide cleanup crusade.
 
 source: res-0001 p3 recommendation 15 — pro-workflow deslop pass. aai-deslop">
   <h3>aai-deslop</h3>
-  <p class="desc"><strong>When to use:</strong> Use optionally after implementation and before code review to remove AI slop from the current diff only — obvious comments, defensive try/catch on trusted paths, premature abstraction, unrequested features, annotations on untouched code. Behavior must stay unchanged (suite passes after). Advisory only — never blocks.</p>
-  <p class="goal"><strong>Goal:</strong> Remove characteristic AI-generated noise from the CURRENT DIFF before review,
-so reviewers spend attention on behavior, not on narration. Strictly
-diff-scoped: only lines this change introduced are candidates — never a
-repo-wide cleanup crusade.
+  <p class="desc"><strong>When to use:</strong> Use optionally after implementation and before code review to remove AI slop — diff scope covers the current diff; --all scope runs the class-4 unrequested-surface check over .aai/'s scripts and system config, not the whole .aai/ tree; neither is a default, ask-and-stop if the scope is not named. Classes: obvious comments, defensive try/catch on trusted paths, premature abstraction, unrequested features, annotations on untouched code. Behavior must stay unchanged (suite passes after). Advisory only — never blocks.</p>
+  <p class="goal"><strong>Goal:</strong> Remove characteristic AI-generated noise before review, so reviewers spend
+attention on behavior, not on narration. Scope is an explicit parameter —
+see Scope below — never a silent repo-wide cleanup crusade.
 
 Source: RES-0001 P3 recommendation 15 — pro-workflow deslop pass.</p>
   

@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-14T07:59:52.183Z",
+  "generatedAt": "2026-08-15T14:16:31.900Z",
   "project": "aai",
   "counts": {
     "delivered": 189,
-    "in_progress": 1,
+    "in_progress": 2,
     "releases": 1,
     "tokens_total": 37960153
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "close-regenerate-order",
+    "ref": "deslop-scope-and-unrequested-engine",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "close-regenerate-order",
+      "ref": "deslop-scope-and-unrequested-engine",
       "type": "intake_change",
       "phase": "code_review"
     },
@@ -23,47 +23,60 @@
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "not_run",
-    "review_status": "not_run",
+    "validation_status": "pass",
+    "review_status": "pass",
     "ticks": [
       {
-        "tick": 102,
-        "role": "code_review",
-        "scope": "close-regenerate-order",
-        "duration_seconds": 396,
-        "harness_version": "unknown"
+        "tick": 120,
+        "role": "Remediation",
+        "scope": "deslop-scope-and-unrequested-engine",
+        "duration_seconds": 658,
+        "harness_version": "2.1.231 (Claude Code)"
       },
       {
-        "tick": 101,
-        "role": "validation",
-        "scope": "close-regenerate-order",
-        "duration_seconds": 8040,
-        "harness_version": "unknown"
+        "tick": 119,
+        "role": "Code Review",
+        "scope": "deslop-scope-and-unrequested-engine",
+        "duration_seconds": 662,
+        "harness_version": "2.1.231 (Claude Code)"
       },
       {
-        "tick": 100,
-        "role": "implementation",
-        "scope": "close-regenerate-order",
-        "duration_seconds": 9679,
-        "harness_version": "unknown"
+        "tick": 118,
+        "role": "Remediation",
+        "scope": "deslop-scope-and-unrequested-engine",
+        "duration_seconds": 524,
+        "harness_version": "2.1.231 (Claude Code)"
       },
       {
-        "tick": 99,
-        "role": "code_review",
-        "scope": "vagueness-gate",
-        "duration_seconds": 1193,
-        "harness_version": "unknown"
+        "tick": 117,
+        "role": "Validation",
+        "scope": "deslop-scope-and-unrequested-engine",
+        "duration_seconds": 2153,
+        "harness_version": "2.1.231 (Claude Code)"
       },
       {
-        "tick": 98,
-        "role": "validation",
-        "scope": "vagueness-gate",
-        "duration_seconds": 1679,
-        "harness_version": "unknown"
+        "tick": 116,
+        "role": "Remediation",
+        "scope": "deslop-scope-and-unrequested-engine",
+        "duration_seconds": 1801,
+        "harness_version": "2.1.231 (Claude Code)"
       }
     ]
   },
   "in_progress": [
+    {
+      "ref": "deslop-scope-and-unrequested-engine",
+      "title": "Change — deslop: scope becomes a parameter, and class 4 gets an engine",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0145-deslop-scope-and-unrequested-engine.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0132-spec-deslop-scope-and-unrequested-engine.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260815T114500Z-deslop-scope-and-unrequested-engine.md"
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",

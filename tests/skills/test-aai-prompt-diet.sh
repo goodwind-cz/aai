@@ -413,6 +413,42 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# -3747 (true-up: deslop-scope-and-unrequested-engine-remediation round-7
+# code-review added a +305 B itemized entry — .aai/SKILL_DESLOP.prompt.md's
+# --all bullet corrected from the false "whole .aai/ tree" claim (NB-1: only
+# 112 of 223 .aai/ files are actually scanned) to the engine's real scanned
+# surface (.aai/scripts/**, .aai/system/*.yaml), plus one new sentence
+# disclosing the --all suppression corpus is docs/specs/** only and naming
+# the follow-up that tracks widening it (NB-2, fu-deslop-all-corpus-specs-
+# only); the seven sibling NB-1 wording fixes (four wrapper SKILL.md files,
+# SKILLS.md, USER_GUIDE.md, CHANGELOG.md, plus the regenerated docs hub
+# catalog), the two engine comment fixes (NB-6, no code change) and the
+# spec/intake text fixes (NB-3/NB-4/NB-5) all live outside the
+# .aai/*.prompt.md glob (no ledger cost); measured 4100 -> 4405 B, inside
+# the spec's 1900 B D8 budget (1210 + 305 = 1515), credited 1:1, over the
+# prior
+# -4052 (true-up: deslop-scope-and-unrequested-engine added a +1210 B
+# itemized entry, in two increments. Initial (+1140 B): .aai/SKILL_DESLOP.
+# prompt.md's new Scope section (two scopes, ask-and-stop rule, empty-diff
+# --all offer), the class-4 row now pointing at the new
+# .aai/scripts/deslop-unrequested.mjs engine invocation, and the
+# "Diff-scoped only" rule rewritten to name the scope it binds (measured
+# growth 1119 B, 2933 -> 4052 B) + .aai/AGENTS.md's line-115 Follow-line
+# losing its "diff-scoped" claim (measured +21 B, 19640 -> 19661, outside the
+# glob, credited manually at the exact delta per the
+# friction-shadow-capture-wiring precedent). Round-4 code-review remediation
+# (+70 B): SKILL_DESLOP's suppressed-count claim corrected from an inverted
+# "false-negative floor" to an upper bound, and the Scope bullet's
+# "--diff (default)" wording dropped to match the engine's fail-closed
+# no-default (+48 B, 4052 -> 4100 B) + AGENTS.md line-115 reworded to drop
+# the same false "(default)" claim (+22 B, 19661 -> 19683, credited
+# manually). Combined: SKILL_DESLOP 2933 -> 4100 B (inside TEST-010's live
+# .aai/*.prompt.md glob), AGENTS.md +43 B total (19640 -> 19683, outside the
+# glob); the engine itself lives in .aai/scripts/ (no ledger cost); credited
+# at the true +1210 B combined growth, inside the spec's 1900 B budget
+# (spec-deslop-scope-and-unrequested-engine D8); measured headroom across
+# the WHOLE ledger is 1665/2048 (V4-3: the spec's D8 prediction of 1622 was
+# stale, corrected here), over the prior
 # -5262 (true-up: close-regenerate-order added a +159 B itemized entry —
 # .aai/SKILL_PR.prompt.md step 1b's two load-bearing lines: what the allocator
 # regenerates (INDEX + overview.html/-data.json + USER_GUIDE) and the in-scope
@@ -599,15 +635,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -5262 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -5262)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -3747 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -3747)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -5262 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -3747 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

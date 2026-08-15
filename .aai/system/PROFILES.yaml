@@ -222,6 +222,7 @@ extended:
   - .aai/scripts/aai-live.sh
   - .aai/scripts/cloudflare-share.ps1
   - .aai/scripts/cloudflare-share.sh
+  - .aai/scripts/deslop-unrequested.mjs
   - .aai/scripts/docs-canon.mjs
   - .aai/scripts/expert-fetch.ps1
   - .aai/scripts/expert-fetch.sh

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-13T20:30:42.588Z",
+  "generatedAt": "2026-08-15T11:47:47.032Z",
   "skillsCount": 37,
   "degradedCount": 22,
   "skills": [
@@ -77,10 +77,10 @@
     {
       "dir": "aai-deslop",
       "name": "aai-deslop",
-      "description": "Use optionally after implementation and before code review to remove AI slop from the current diff only — obvious comments, defensive try/catch on trusted paths, premature abstraction, unrequested features, annotations on untouched code. Behavior must stay unchanged (suite passes after). Advisory only — never blocks.",
+      "description": "Use optionally after implementation and before code review to remove AI slop — diff scope covers the current diff; --all scope runs the class-4 unrequested-surface check over .aai/'s scripts and system config, not the whole .aai/ tree; neither is a default, ask-and-stop if the scope is not named. Classes: obvious comments, defensive try/catch on trusted paths, premature abstraction, unrequested features, annotations on untouched code. Behavior must stay unchanged (suite passes after). Advisory only — never blocks.",
       "model": null,
       "promptFile": ".aai/SKILL_DESLOP.prompt.md",
-      "goal": "Remove characteristic AI-generated noise from the CURRENT DIFF before review,\nso reviewers spend attention on behavior, not on narration. Strictly\ndiff-scoped: only lines this change introduced are candidates — never a\nrepo-wide cleanup crusade.\n\nSource: RES-0001 P3 recommendation 15 — pro-workflow deslop pass.",
+      "goal": "Remove characteristic AI-generated noise before review, so reviewers spend\nattention on behavior, not on narration. Scope is an explicit parameter —\nsee Scope below — never a silent repo-wide cleanup crusade.\n\nSource: RES-0001 P3 recommendation 15 — pro-workflow deslop pass.",
       "notes": []
     },
     {

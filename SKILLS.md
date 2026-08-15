@@ -42,7 +42,7 @@ set of wrapper directories in `.claude/skills/`.
 | aai-verify | Verification-before-completion gate (IDENTIFY-RUN-READ-VERIFY-CLAIM) | `/aai-verify` | `--prompt-file .aai/SKILL_VERIFY.prompt.md` |
 | aai-debug | Systematic-debugging root-cause gate (READ-REPRODUCE-ISOLATE-FIX-AT-CAUSE) | `/aai-debug` | `--prompt-file .aai/SKILL_DEBUG.prompt.md` |
 | aai-scout | Optional pre-implementation readiness score 0-100, GO/HOLD advisory at 70 (never blocks) | `/aai-scout` | `--prompt-file .aai/SKILL_SCOUT.prompt.md` |
-| aai-deslop | Optional diff-scoped AI-slop removal pass before review, behavior unchanged (never blocks) | `/aai-deslop` | `--prompt-file .aai/SKILL_DESLOP.prompt.md` |
+| aai-deslop | Optional AI-slop removal pass before review (diff scope or --all for .aai/'s scripts+system config, not the whole tree, ask-and-stop if neither given), behavior unchanged (never blocks) | `/aai-deslop` | `--prompt-file .aai/SKILL_DESLOP.prompt.md` |
 | aai-interrogate | Optional plan decision-walk, one pre-answered question at a time, ledger to decisions.jsonl (never blocks) | `/aai-interrogate` | `--prompt-file .aai/SKILL_INTERROGATE.prompt.md` |
 | aai-issues | On-demand: fetch, triage, and (after one approval checkpoint) turn open platform issues into approved intakes | `/aai-issues` | `--prompt-file .aai/SKILL_ISSUES.prompt.md` |
 | aai-routine | On-demand: render a vendored standing-routine template (e.g. the morning scryer) into the harness-appropriate installation payload, merge-rights gated on a decisions.jsonl authorization record | `/aai-routine` | `--prompt-file .aai/SKILL_ROUTINE.prompt.md` |
