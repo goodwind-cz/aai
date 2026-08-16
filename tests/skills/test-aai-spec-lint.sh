@@ -1666,13 +1666,16 @@ test_clarify_011_no_new_ceremony() {
         # regenerated pages. The zero-added-ceremony claim above still concerns
         # exactly the three files on the line before this comment.
         .aai/scripts/allocate-doc-number.mjs|.aai/SKILL_PR.prompt.md) ;;
+        # spec-deslop-scope-and-unrequested-engine: the class-4 engine plus the
+        # three surfaces that stop claiming the pass is diff-only.
+        .aai/scripts/deslop-unrequested.mjs|.aai/SKILL_DESLOP.prompt.md|.aai/AGENTS.md|.aai/system/PROFILES.yaml) ;;
         *) log_info "TEST-011(clarify): unexpected .aai/ path in the branch diff: $p"; ok=0 ;;
       esac
     done <<<"$changed"
   else
     log_info "TEST-011(clarify): neither origin/main nor main resolves — the .aai/ diff pin did not run"
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ delta is the two scripts + PLANNING.prompt.md" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (now 9 paths across 3 scopes) accounts for every changed .aai/ path" \
     || log_fail "TEST-011(clarify) zero-added-ceremony pins"
 }
 

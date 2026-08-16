@@ -1,28 +1,30 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-14T09:20:42.243Z
+Generated: 2026-08-15T15:10:29.405Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0132 | specs | implementing | 11 done | docs/specs/SPEC-0132-spec-deslop-scope-and-unrequested-engine.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Product (25)
+## Product (26)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
 | aai-dashboard | aai-dashboard | 2 | docs/product/aai-dashboard.md |
 | aai-decisions | aai-decisions | 1 | docs/product/aai-decisions.md |
+| aai-deslop | aai-deslop | 1 | docs/product/aai-deslop.md |
 | aai-doctor | aai-doctor | 8 | docs/product/aai-doctor.md |
 | aai-update | aai-update | 5 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
@@ -375,9 +377,11 @@ _None._
 | SPEC-0131 | specs | docs/specs/SPEC-0131-spec-close-regenerate-order.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0145 | issues | docs/issues/CHANGE-0145-deslop-scope-and-unrequested-engine.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -408,4 +412,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-14 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-15 — counts above use this date for overdue checks.

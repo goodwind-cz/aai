@@ -11,6 +11,66 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(deslop): scope becomes a parameter, class 4 gets an engine (spec-deslop-scope-and-unrequested-engine)
+
+- `/aai-deslop` was hardcoded to the current diff, and its class-4 row
+  ("Unrequested features") was a table entry no code checked — class 4 only
+  fired when the agent happened to notice. Scope is now an explicit
+  parameter, and class 4 has a mechanical detector both scopes share.
+- New `.aai/scripts/deslop-unrequested.mjs` (Node stdlib only, read-only,
+  never writes a file): `--diff [--base <ref>] [--json]` walks the current
+  diff (added lines only); `--all [--json]` walks `.aai/scripts/**` and
+  `.aai/system/*.yaml` only, not the whole `.aai/` tree, for
+  class 4 only. Invoked with neither flag (or both, an ambiguous scope) it
+  performs no scan and exits 2 with a usage line — fail-closed, so the
+  absence of a scope decision can never be silently resolved into one.
+- Two closed, pattern-based extractor kinds: `cli-flag`, `yaml-key` — both
+  CONTRACT SURFACES a requirement is expected to name (a flag a human types,
+  a config key a human sets). Owner decision, 2026-08-15 (amends the frozen
+  spec — see its Amendment note): the original five kinds included
+  `mjs-export`, `sh-func` and `ps1-func`, which extracted INTERNAL symbols
+  absent from every spec by design, so their absence carried no signal;
+  those three were REMOVED (245 of 390 real-tree candidates, matching the
+  code review's hand count of internal helpers). `cli-flag` also gained a
+  precision fix (closed follow-up `fu-deslop-cliflag-kind-precision`): CSS
+  custom properties and flags this code merely passes to an external
+  subprocess (git, gh, or any other binary it shells out to) no longer
+  misreport as this repo's own CLI surface (30 + 35 of the original 139
+  cli-flag candidates). Real-tree `--all` candidate count: 390 → 75 → 70
+  (round-5 remediation, next bullet). A symbol is suppressed only when its
+  exact token appears as a whole word anywhere in the body text of the
+  requirement corpus (`--diff`: `docs/ai/STATE.yaml` current_focus's
+  `spec_path`/`primary_path`; `--all`: every `docs/specs/**/*.md` with
+  `type: spec` and status accepted/implementing/done).
+- Round-5 remediation (validation findings V5-1/V5-2): the `.sh`/`.ps1`
+  external-tool exclusion was undocumented, unsound (a hardcoded 10-binary
+  bare-word-anywhere-in-line test that fired inside comments/quoted strings
+  and could sweep a script's OWN flag sitting before the external mention)
+  and untested — now command-word- and position-based, documented in D3
+  alongside the `.mjs` mechanism, and guarded by a mutation-proven TEST-015
+  shell arm. `cli-flag` extraction now also excludes comment-only
+  occurrences everywhere (not just external-tool comments) and resolves one
+  level of local array indirection at `.mjs` external-call sites (`const
+  ghArgs = [...]; runGh(ghArgs)`-shaped code). Every one of the resulting 70
+  real-tree candidates is walked and adjudicated — a one-sentence defense or
+  an explicit indefensible-and-why admission — in
+  `docs/ai/reports/deslop-candidate-adjudication-20260815.md` (60 defensible,
+  10 indefensible; the prior round's self-reported 5 indefensible rows were
+  incomplete). That path is gitignored (`.gitignore:21`) and unavailable to
+  readers of this changelog; the tracked summary of the 10 indefensible rows
+  lives in `docs/issues/CHANGE-0145-deslop-scope-and-unrequested-engine.md`'s
+  Adjudication Summary section.
+- Every report — human and `--json` — carries a LIMITS block naming the
+  detector's own upper bound on false negatives from prose suppression (the
+  suppressed count) so a short candidate list is never mistaken for a clean
+  bill of health.
+- `.aai/SKILL_DESLOP.prompt.md` gained a `## Scope` section (ask-and-stop
+  when no scope is given, offer `--all` on an empty diff) and its old
+  absolute "diff-scoped only" rule now names the scope it binds.
+- Governance: `PROFILES.yaml` extended entry for the new script,
+  `tests/skills/suite-map.yaml` `suites.aai-deslop` row, and the prompt-diet
+  ledger true-up (TEST-012 pin `-5262` → `-4052`, G=1210 B).
+
 ## [v2026.08.14] — feat(allocator): generated pages regenerate at the rename, by machine (CHANGE-0143) [L3]
 
 - Twice in one day the ride shipped a link to a file that no longer existed.
