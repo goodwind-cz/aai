@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — feat(deslop): scope becomes a parameter, class 4 gets a contract-surface engine (CHANGE-0145 / SPEC-0132) [L2]
+## [v2026.08.16] — feat(deslop): scope becomes a parameter, class 4 gets a contract-surface engine (CHANGE-0145 / SPEC-0132) [L2]
 
 - `/aai-deslop` was hardcoded to the current diff, and its class-4 row
   ("Unrequested features") was a table entry no code checked — class 4 only
