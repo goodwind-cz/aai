@@ -69,3 +69,8 @@
 {"timestamp":"2026-07-26T13:04:04Z","type":"skill_test","run_id":"test-20260726-130357","total":1,"passed":1,"failed":0,"skipped":0}
 {"timestamp":"2026-07-26T13:04:36Z","type":"skill_test","run_id":"test-20260726-130420","total":1,"passed":0,"failed":1,"skipped":0}
 {"timestamp":"2026-07-26T13:41:40Z","type":"skill_test","run_id":"test-20260726-132129","total":49,"passed":49,"failed":0,"skipped":0}
+{"timestamp":"2026-08-14T13:28:21Z","type":"skill_test","run_id":"test-20260814-124948","total":79,"passed":78,"failed":1,"skipped":0}
+{"timestamp":"2026-08-14T15:19:13Z","type":"skill_test","run_id":"test-20260814-144606","total":79,"passed":79,"failed":0,"skipped":0}
+{"timestamp":"2026-08-14T23:07:42Z","type":"skill_test","run_id":"test-20260814-223516","total":79,"passed":79,"failed":0,"skipped":0}
+{"timestamp":"2026-08-15T09:28:21Z","type":"skill_test","run_id":"test-20260815-085540","total":79,"passed":79,"failed":0,"skipped":0}
+{"timestamp":"2026-08-15T11:22:15Z","type":"skill_test","run_id":"test-20260815-104921","total":79,"passed":79,"failed":0,"skipped":0}
