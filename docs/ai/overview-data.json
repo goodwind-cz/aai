@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-08-15T14:16:31.900Z",
+  "generatedAt": "2026-08-16T07:03:06.255Z",
   "project": "aai",
   "counts": {
-    "delivered": 189,
-    "in_progress": 2,
+    "delivered": 190,
+    "in_progress": 1,
     "releases": 1,
-    "tokens_total": 37960153
+    "tokens_total": 42276716
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -23,8 +23,8 @@
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "pass",
-    "review_status": "pass",
+    "validation_status": "not_run",
+    "review_status": "not_run",
     "ticks": [
       {
         "tick": 120,
@@ -65,19 +65,6 @@
   },
   "in_progress": [
     {
-      "ref": "deslop-scope-and-unrequested-engine",
-      "title": "Change — deslop: scope becomes a parameter, and class 4 gets an engine",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0145-deslop-scope-and-unrequested-engine.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0132-spec-deslop-scope-and-unrequested-engine.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-20260815T114500Z-deslop-scope-and-unrequested-engine.md"
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -92,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "deslop-scope-and-unrequested-engine",
+      "title": "Change — deslop: scope becomes a parameter, and class 4 gets an engine",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0145-deslop-scope-and-unrequested-engine.md",
+      "closed_on": "2026-08-16",
+      "agent_minutes": 1060,
+      "token_total": 4316563,
+      "spec": "docs/specs/SPEC-0132-spec-deslop-scope-and-unrequested-engine.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260815T114500Z-deslop-scope-and-unrequested-engine.md"
+    },
     {
       "ref": "close-regenerate-order",
       "title": "Change — generated pages are regenerated AFTER the spec number is allocated, by machine not by discipline",
@@ -2556,6 +2556,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "deslop-scope-and-unrequested-engine",
+          "title": "Change — deslop: scope becomes a parameter, and class 4 gets an engine",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0145-deslop-scope-and-unrequested-engine.md",
+          "closed_on": "2026-08-16",
+          "agent_minutes": 1060,
+          "token_total": 4316563,
+          "spec": "docs/specs/SPEC-0132-spec-deslop-scope-and-unrequested-engine.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260815T114500Z-deslop-scope-and-unrequested-engine.md"
+        },
         {
           "ref": "close-regenerate-order",
           "title": "Change — generated pages are regenerated AFTER the spec number is allocated, by machine not by discipline",

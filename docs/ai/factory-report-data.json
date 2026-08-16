@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-14T07:59:52.089Z",
+  "generatedAt": "2026-08-16T07:02:57.464Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 122,
-    "delivered": 330,
+    "delivered": 332,
     "active_weeks": 7,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (330 closes vs 122 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 330,
-    "delivered_per_week_avg": 47.1,
+    "note": "\"delivered\" counts every work_item_closed event (332 closes vs 122 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 332,
+    "delivered_per_week_avg": 47.4,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -21,7 +21,7 @@
       "2026-W30": 64,
       "2026-W31": 72,
       "2026-W32": 19,
-      "2026-W33": 31
+      "2026-W33": 33
     },
     "delivered_groups": [
       {
@@ -299,7 +299,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 67,
+        "count": 69,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -367,7 +367,9 @@
           "vagueness-gate",
           "spec-vagueness-gate",
           "close-regenerate-order",
-          "spec-close-regenerate-order"
+          "spec-close-regenerate-order",
+          "deslop-scope-and-unrequested-engine",
+          "spec-deslop-scope-and-unrequested-engine"
         ]
       }
     ],
@@ -1692,12 +1694,20 @@
         {
           "ref": "spec-close-regenerate-order",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "deslop-scope-and-unrequested-engine",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-deslop-scope-and-unrequested-engine",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3621,
       "mean_seconds": 125656.2,
       "measured": 118,
-      "unmeasurable": 212
+      "unmeasurable": 214
     }
   },
   "speed": {
@@ -2825,7 +2835,7 @@
     },
     {
       "week": "2026-W33",
-      "delivered": 31,
+      "delivered": 33,
       "median_lead_time_seconds": 4757,
       "busy_seconds": 75237,
       "tokens": 12602753,
@@ -2834,14 +2844,14 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 33,
-    "oldest_age_days": 5,
+    "open_count": 49,
+    "oldest_age_days": 7,
     "items": [
       {
         "id": "fu-routines-iteration-backlog",
         "ref": "CHANGE-0128",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 7,
         "what": "Universal-routines carry-over batch: sequential-substitution value-as-token, POSIX-sh AC wording vs the bash runner, crontab pwd->HOME at fire time, --routine path confinement, revoked:true still granting, TEST-009 harness loop beyond codex, the pwsh-less CI degradation hole, TEST-002 regex breadth, and the latent isMain /var-symlink mismatch in routine-emit",
         "status": "open"
       },
@@ -2849,7 +2859,7 @@
         "id": "fu-routines-downstream-portability",
         "ref": "CHANGE-0129",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 6,
         "what": "Scryer routine downstream portability: INFO-3 section reorder places the health step above the merge-gate markers; O-1 the provenance preamble renders verbatim downstream although the trigger id and R1 mention are aai-specific; O-2 the Czech digest is hardcoded instead of a closed placeholder set",
         "status": "open"
       },
@@ -2857,7 +2867,7 @@
         "id": "fu-telemetry-completeness-20260811T0520",
         "ref": "telemetry-completeness",
         "severity": null,
-        "age_days": 3,
+        "age_days": 5,
         "what": "Codex P1 on PR #242 (enforce flip): under usage_capture_gate: enforce there is no per-run CLI correction for a run whose usage marker was omitted — append-run only appends, STATE hand-edits are forbidden, so the supported recovery today is the dial toggle (report-only -> close -> enforce) plus the usage_capture=none sentinel for honest gaps.",
         "status": "open"
       },
@@ -2865,7 +2875,7 @@
         "id": "fu-factory-report-sparkline-scale",
         "ref": "CHANGE-0130",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 4,
         "what": "Factory-report iteration carry: per-series sparkline scaling (same quantity on independent scales, a misread risk needing a spec change), render runs_marked as n= in the weekly cells and tooltips, strengthen the TEST-027 pins (vacuous n/a grep, doc-wide ref grep), and test-aai-metrics.sh dirtying the real tree",
         "status": "open"
       },
@@ -2873,7 +2883,7 @@
         "id": "fu-guard-dials-derivation",
         "ref": "CHANGE-0131",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 4,
         "what": "GUARD_DIALS is decorative: the defaults object and the parser regex carry the real behavior, so a seventh dial can silently half-register - derive both from the array. Paired item: the case-insensitive APFS vs case-sensitive CI divergence must be re-read at the evidence_path_gate enforce-flip decision",
         "status": "open"
       },
@@ -2881,7 +2891,7 @@
         "id": "fu-cat16-timeout-vs-absent",
         "ref": "CHANGE-0135",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 3,
         "what": "CAT-16's one-line reason folds a timed-out probe (unknown) into the present-count, so the text line cannot distinguish absent from unknown",
         "status": "open"
       },
@@ -2889,7 +2899,7 @@
         "id": "fu-doctor-version-absent-overload",
         "ref": "CHANGE-0135",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 3,
         "what": "resolveCliVersion returns present:false for BOTH no-executable and an empty --version, and the stdout-or-stderr fallback can report a stderr diagnostic as the version; a distinct present:true version:null reason:<why> state is wanted",
         "status": "open"
       },
@@ -2897,7 +2907,7 @@
         "id": "fu-bom-first-line-key",
         "ref": "CHANGE-0137",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 2,
         "what": "A UTF-8 BOM hides a FIRST-LINE config key from both column-0 parsers identically, so an explicit off silently becomes on",
         "status": "open"
       },
@@ -2905,7 +2915,7 @@
         "id": "fu-config-retention-robustness",
         "ref": "CHANGE-0137",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 2,
         "what": "Config/retention robustness batch from the PR #252 sweep: the BOM first-line key (same item as the 10:50 entry, fix both parsers together), unreadable-config-defaults-on wants a named degrade line, and silent prune failures want a stderr diagnostic",
         "status": "open"
       },
@@ -2913,7 +2923,7 @@
         "id": "fu-red-class-stamp-at-capture",
         "ref": "CHANGE-0139",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 2,
         "what": "RED_CLASS stamp-at-capture is still a process line only: stored RED logs keep the legacy unstamped shape and nothing mechanically enforces stamping at the moment of capture",
         "status": "open"
       },
@@ -2921,7 +2931,7 @@
         "id": "fu-orchestrator-git-add-scope-bleed",
         "ref": "CHANGE-0142",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 2,
         "what": "orchestrator must never git add -A while a subagent edits the same worktree; stage explicit paths",
         "status": "open"
       },
@@ -2929,7 +2939,7 @@
         "id": "fu-flag-values-leading-dashes",
         "ref": "CHANGE-0142",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 2,
         "what": "flag values may not begin with -- so add --what \"--decisions is undocumented\" exits 2 and pushes the author back to the hand-written line the design exists to prevent",
         "status": "open"
       },
@@ -2937,7 +2947,7 @@
         "id": "fu-generator-undercount-clause",
         "ref": "CHANGE-0142",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 2,
         "what": "a malformed line that IS a follow_up under-counts open_count behind a generic exclusion note that never says the figure may be understated",
         "status": "open"
       },
@@ -2945,7 +2955,7 @@
         "id": "fu-ledger-readable-directory",
         "ref": "CHANGE-0142",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 2,
         "what": "requireReadableLedger accepts a DIRECTORY (or a path unreadable after the check), degrading D6's exit-2 unreadable-ledger contract to exit 0 plus an absent note",
         "status": "open"
       },
@@ -2953,7 +2963,7 @@
         "id": "fu-malformed-explicit-id-unnamed",
         "ref": "CHANGE-0142",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 2,
         "what": "a malformed explicit follow-up id (e.g. BAD ID) is listed as an ordinary item with an empty notes array — only the derived-id case is named",
         "status": "open"
       },
@@ -2961,7 +2971,7 @@
         "id": "fu-verify-staged-set-after-commit",
         "ref": "CHANGE-0142",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 2,
         "what": "orchestrator must verify git show --stat after every commit, not the exit code",
         "status": "open"
       },
@@ -2969,7 +2979,7 @@
         "id": "fu-context-window-telemetry",
         "ref": "RESEARCH-0001",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 2,
         "what": "measure context-window utilization per role and treat an overflowing window as an over-specification signal, not a tooling failure",
         "status": "open"
       },
@@ -2977,7 +2987,7 @@
         "id": "fu-corpus-navigability-measure",
         "ref": "RESEARCH-0001",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 2,
         "what": "measure whether the 345-document corpus is still navigable by a human, and act on the number",
         "status": "open"
       },
@@ -2985,7 +2995,7 @@
         "id": "fu-go-clarify-kill-gate",
         "ref": "RESEARCH-0001",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 2,
         "what": "a pre-spec gate that can recommend KILL, not only score readiness",
         "status": "open"
       },
@@ -2993,7 +3003,7 @@
         "id": "fu-shell-twin-parity-tax",
         "ref": "RESEARCH-0001",
         "severity": "P1",
-        "age_days": 0,
+        "age_days": 2,
         "what": "decide explicitly whether the remaining shell twin surface (sh plus ps1) is a standing cost we accept or a port we schedule",
         "status": "open"
       },
@@ -3001,7 +3011,7 @@
         "id": "fu-vocabulary-independence-chaos-test",
         "ref": "RESEARCH-0001",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 2,
         "what": "one-off chaos test: rename every artifact type and prove dispatch keys on structure, not document titles",
         "status": "open"
       },
@@ -3009,7 +3019,7 @@
         "id": "fu-intake-spec-id-collision-guard",
         "ref": "CHANGE-0144",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 2,
         "what": "make an intake id that collides with its spec id impossible, not merely correctable",
         "status": "open"
       },
@@ -3017,7 +3027,7 @@
         "id": "fu-mask-pipe-clause-unpinned",
         "ref": "CHANGE-0144",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 2,
         "what": "the specimen mask's pipe-preservation clause is not mutation-pinned: removing it from maskCodeSpecimens survives the whole spec-lint suite",
         "status": "open"
       },
@@ -3025,7 +3035,7 @@
         "id": "fu-test008-missing-red-artifact",
         "ref": "CHANGE-0144",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 2,
         "what": "spec TEST-008 has neither a red- nor a report- artifact although its RED is real and was reproduced independently by validation",
         "status": "open"
       },
@@ -3033,7 +3043,7 @@
         "id": "fu-mask-duplicates-docs-audit-core",
         "ref": "CHANGE-0144",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 2,
         "what": "the specimen masker in spec-lint.mjs duplicates docs-audit-core.mjs:782-875 more weakly, reintroducing both bugs that file fixed under SPEC-0013 W3",
         "status": "open"
       },
@@ -3041,7 +3051,7 @@
         "id": "fu-vague-term-line-attribution",
         "ref": "CHANGE-0144",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 2,
         "what": "ac-vague-term reports the Test Plan row's line number when the Test Plan section precedes the AC table (measured 19 vs 25)",
         "status": "open"
       },
@@ -3049,7 +3059,7 @@
         "id": "fu-test011-branch-diff-allowlist-tax",
         "ref": "CHANGE-0144",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 2,
         "what": "CHANGE-0144's TEST-011(clarify) allowlists .aai/ paths against the BRANCH diff, so every future scope that touches .aai/ must edit that test or go red",
         "status": "open"
       },
@@ -3057,7 +3067,7 @@
         "id": "fu-completion-line-hardcodes-index",
         "ref": "CHANGE-0143",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 2,
         "what": "the allocator's completion line hardcodes docs/INDEX.md into the regenerated list, so it names the file even when generate-docs-index.mjs is absent and nothing was rewritten",
         "status": "open"
       },
@@ -3065,7 +3075,7 @@
         "id": "fu-overview-partial-write-unnamed",
         "ref": "CHANGE-0143",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "generate-overview.mjs writes the JSON before the HTML, so a throw between them leaves a modified page the stage-me list never names",
         "status": "open"
       },
@@ -3073,7 +3083,7 @@
         "id": "fu-rollup-creates-userguide",
         "ref": "CHANGE-0143",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "the spec's edge case says the rollup generator no-ops when USER_GUIDE.md is absent; it CREATES the file",
         "status": "open"
       },
@@ -3081,7 +3091,7 @@
         "id": "fu-test029-unreachable-base-logpass",
         "ref": "CHANGE-0143",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "TEST-029's unreachable-base-ref arm calls log_pass, so the close-work-item pin can go inert while reporting PASS",
         "status": "open"
       },
@@ -3089,7 +3099,7 @@
         "id": "fu-index-regen-silent-degrade",
         "ref": "close-regenerate-order",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "regenerateIndex() swallows generator failures with no named stderr line, unlike the two spec-page generators",
         "status": "open"
       },
@@ -3097,8 +3107,136 @@
         "id": "fu-reserve-success-path-uncovered",
         "ref": "close-regenerate-order",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "the universal no-regeneration arm never exercises a --reserve that actually allocates",
+        "status": "open"
+      },
+      {
+        "id": "fu-dispatch-targets-closed-scope",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P2",
+        "age_days": 1,
+        "what": "orchestration-dispatch matched rule 6 and dispatched Planning onto a scope it already knew was closed",
+        "status": "open"
+      },
+      {
+        "id": "fu-setfocus-keeps-stale-spec-path",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P2",
+        "age_days": 1,
+        "what": "set-focus to a new ref leaves the previous scope's spec_path in current_focus, so the next dispatch hands the role a foreign spec as an input",
+        "status": "open"
+      },
+      {
+        "id": "fu-subagent-state-write-contradiction",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P2",
+        "age_days": 1,
+        "what": "SUBAGENT_CONTRACT forbids subagent STATE writes while the dispatch block explicitly directs them; two roles hit it independently in one ride",
+        "status": "open"
+      },
+      {
+        "id": "fu-deslop-corpus-header-other-bucket",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P3",
+        "age_days": 1,
+        "what": "resolveAllCorpus's --all header counts (included plus the five per-status excluded buckets) do not sum to files scanned: a type spec doc whose status is outside the five closed-list statuses, or whose frontmatter fails to parse, is dropped from BOTH the included and excluded lines with no visible signal.",
+        "status": "open"
+      },
+      {
+        "id": "fu-tdd-skips-full-sweep",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P2",
+        "age_days": 1,
+        "what": "the TDD role declares done after targeted suites only, so defects visible only to the full framework sweep surface two roles later and cost a whole validate-remediate lap each",
+        "status": "open"
+      },
+      {
+        "id": "fu-deslop-range-mode-dirty-worktree",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P2",
+        "age_days": 1,
+        "what": "range mode takes added-line numbers from git diff base...HEAD but reads file content from the worktree, so a dirty tree reports an untouched symbol and misses the changed ones",
+        "status": "open"
+      },
+      {
+        "id": "fu-validation-staleness-undetected",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P2",
+        "age_days": 1,
+        "what": "a validation pass survives a later remediation that rewrites the validated code, and the default routing skips re-validation",
+        "status": "open"
+      },
+      {
+        "id": "fu-subagent-long-wait-never-wakes",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "a subagent waiting on a long background process can miss its own completion and stall indefinitely, holding the whole ride",
+        "status": "open"
+      },
+      {
+        "id": "fu-subagent-probe-hits-real-repo",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P1",
+        "age_days": 0,
+        "what": "a validator probe helper ran git commands against the real repository and created two commits on main",
+        "status": "open"
+      },
+      {
+        "id": "fu-deslop-adjudication-self-suppression",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "writing the list of indefensible candidates into the spec made the engine suppress them, because any mention in a requirement doc counts as the requirement naming the symbol",
+        "status": "open"
+      },
+      {
+        "id": "fu-deslop-external-bin-words-closed-list",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "EXTERNAL_BIN_WORDS (the .sh/.ps1 external-tool recognizer in D3) is a closed, hardcoded 10-binary list (git, gh, cargo, rg, wrangler, tsc, wsl, sed, npm, npx). A binary outside this list, e.g. grep --color=auto, yields --color as a live candidate instead of being excluded.",
+        "status": "open"
+      },
+      {
+        "id": "fu-deslop-external-call-shape-gaps",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "The .mjs external-tool exclusion (D3) misses two call shapes: (a) a subprocess call whose command is an expression rather than a string literal, e.g. execFileSync(ghBinOf(opts), [... '--jq' ...]) in hitl-channel.mjs:233 leaks gh's --jq; (b) an argv array built and returned by a helper function rather than a local const, e.g. buildGhArgs() in aai-issues.mjs:235 leaks gh's --state.",
+        "status": "open"
+      },
+      {
+        "id": "fu-deslop-all-corpus-specs-only",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "The --all requirement corpus is docs/specs/** with type: spec only; a flag or config key requested in docs/issues/** or docs/rfc/** is not suppressed and still reports as an unrequested-surface candidate.",
+        "status": "open"
+      },
+      {
+        "id": "fu-deslop-test014-no-restore-trap",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "tests/skills/test-aai-deslop.sh:916 TEST-014 runs generate-docs-hub.mjs against the real repo and restores docs/SKILL_CATALOG.html and docs/skill-catalog-data.json from mktemp copies at the end of the function, with no trap.",
+        "status": "open"
+      },
+      {
+        "id": "fu-allocator-misses-wrapped-refs",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "the allocator's reference-rewrite pass misses a DRAFT basename that is line-wrapped across two comment lines",
+        "status": "open"
+      },
+      {
+        "id": "fu-deslop-allcorpus-unreadable-silent",
+        "ref": "deslop-scope-and-unrequested-engine",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "resolveAllCorpus silently skips a spec file it cannot read, while the diff path now names it",
         "status": "open"
       }
     ]
