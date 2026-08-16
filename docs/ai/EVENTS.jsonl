@@ -1734,3 +1734,10 @@
 {"v":1,"ts":"2026-08-14T11:37:20.867Z","actor":"ales_holubec.net","event":"phase_confirmed","ref":"deslop-scope-and-unrequested-engine","payload":{"phase":"planning","hash":"40096c7a9db7ce65c70f39cad29ff531ba149060ce2feb57b95e287c99517e40"}}
 {"v":1,"ts":"2026-08-15T10:10:33.400Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":351,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-08-15T10:16:35.991Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":351,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-16T07:02:36.526Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"deslop-scope-and-unrequested-engine","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-16T07:02:36.557Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"deslop-scope-and-unrequested-engine","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-16T07:02:36.590Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"deslop-scope-and-unrequested-engine","payload":{"commit":"c824367"}}
+{"v":1,"ts":"2026-08-16T07:02:36.622Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-deslop-scope-and-unrequested-engine","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-16T07:02:36.655Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-deslop-scope-and-unrequested-engine","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-16T07:02:36.687Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-deslop-scope-and-unrequested-engine","payload":{"commit":"c824367"}}
+{"v":1,"ts":"2026-08-16T07:03:16.454Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":352,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

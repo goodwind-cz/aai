@@ -2,13 +2,15 @@
 id: deslop-scope-and-unrequested-engine
 number: 145
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 2
 capability: aai-deslop
 links:
-  pr: []
-  commits: []
+  pr:
+    - 260
+  commits:
+    - c824367
 ---
 
 # Change — deslop: scope becomes a parameter, and class 4 gets an engine

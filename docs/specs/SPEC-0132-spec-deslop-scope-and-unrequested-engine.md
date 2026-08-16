@@ -2,13 +2,15 @@
 id: spec-deslop-scope-and-unrequested-engine
 type: spec
 number: 132
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0145-deslop-scope-and-unrequested-engine.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 260
+  commits:
+    - c824367
 ---
 
 # Spec — deslop: scope becomes a parameter, and class 4 gets an engine
