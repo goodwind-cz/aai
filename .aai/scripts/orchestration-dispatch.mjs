@@ -53,6 +53,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { specContentHash, acTableGreen } from './lib/docs-model.mjs';
@@ -315,7 +316,78 @@ function dispatchRetarget(candidate, snapshot, fromRef) {
 // "what would this tick do if confirming were not an option?" — used ONLY by
 // the --confirm fail-closed fallback, when the confirmation could not be
 // recorded and therefore does not exist as far as the next tick is concerned.
+//
+// role-verification-guards G2 (D2) — decide() is a thin wrapper: the rule
+// table itself lives in decideRuleTable() below, UNCHANGED; this function
+// only adds the pure, additive staleness comparison on the way out, so every
+// existing return point keeps its exact verdict/rule/role/reasons/exit-code
+// behavior and only gains an `advisories` key in the one case that trips it.
 export function decide(snapshot, opts = {}) {
+  return withStaleAdvisory(decideRuleTable(snapshot, opts), snapshot);
+}
+
+// withStaleAdvisory(out, snapshot) — pure comparison of the two G2 snapshot
+// fields (tree_hash, last_validation_verdict), computed once in
+// buildSnapshot() and never recomputed here. Sets an ADDITIVE `advisories`
+// key ONLY when: a validation_verdict event exists for the focus ref, its
+// recorded status is still 'pass', STATE's OWN `validation.status` is ALSO
+// still 'pass' for the same ref (corrected at remediation, N-4,
+// validation-20260816T203700Z — see below), and its hash differs from the
+// current tree_hash — with BOTH hashes non-null. A snapshot missing either
+// new field (undefined — every pre-existing snapshot fixture) or carrying a
+// null hash on either side yields the input unchanged: decide()'s own return
+// value is byte-identical in that case. The CLI's stdout is NOT byte-identical
+// to the pre-G2 tree even then — buildSnapshot unconditionally adds
+// `tree_hash` and `last_validation_verdict` to `state_summary` regardless of
+// staleness — it is additive-only modulo those two named keys (Spec-AC-05;
+// test_042's `cmp` against the pinned pre-change blob, corrected at
+// validation-20260816T131500Z B3/N2b — this comment previously repeated the
+// retracted byte-identity claim and a `test_033` citation the spec removed
+// as a non-sequitur; test_033 pins `prompt_hash`/`inherits` stability across
+// two ticks, a different, narrower thing).
+//
+// N-4 fix: the STALE-EVENT status check alone is not enough. The event
+// payload's `status` is a snapshot of what `last_validation.status` WAS at
+// stamp time — it never changes after the fact. If STATE's own
+// `last_validation.status` later moves off 'pass' (a genuine new fail/not_run
+// verdict, or an operator's `reset-block`), the OLD stamped event still says
+// `status: "pass"` forever, and without this corroborating check a live tick
+// would keep asserting "the recorded pass verdict's tree hash no longer
+// matches" about a pass verdict STATE no longer holds — a true statement
+// about the stale EVENT, but a false one about STATE, which is what the
+// advisory text actually claims. Requiring `snapshot.validation.status ===
+// 'pass'` too means the advisory only fires while STATE and the last stamp
+// AGREE that a pass verdict is standing.
+//
+// Corrected at remediation (external review, PR #261 F2 — Copilot and Codex
+// both independently found this; internal code review round 2 raised the
+// same gap as NB-2 and it went unfiled): "the same ref" above was aspirational
+// prose the code never enforced. `last_validation_verdict` (the stamped
+// EVENT) is always focus-ref-scoped — buildSnapshot's EVENTS scan already
+// filters by `refMatches(e.ref, focusRef)` — but `currentlyPass` corroborated
+// only `snapshot.validation.status`, which can be 'pass' for ANY ref STATE
+// currently holds, not necessarily the focus ref the stamped event names.
+// decideRuleTable's own rule-11-adjacent `vmatch` (~line 494) and the
+// recordValidationVerdict stamp call in main() (~line 1273) both already
+// require `refMatches(validation.ref_id, focus.ref_id)`; this function now
+// applies the identical guard so a same-status, wrong-ref STATE verdict can
+// no longer be misread as corroborating the focus ref's stamped event.
+function withStaleAdvisory(out, snapshot) {
+  const s = snapshot;
+  const verdict = s && s.last_validation_verdict;
+  const treeHash = s ? s.tree_hash : undefined;
+  const focusRef = s && s.focus ? s.focus.ref_id : null;
+  const currentlyPass = !!(s && s.validation && s.validation.status === 'pass'
+    && refMatches(s.validation.ref_id, focusRef));
+  if (verdict && verdict.status === 'pass' && currentlyPass
+    && verdict.hash != null && treeHash != null
+    && verdict.hash !== treeHash) {
+    return { ...out, advisories: ['validation_verdict_stale'] };
+  }
+  return out;
+}
+
+function decideRuleTable(snapshot, opts = {}) {
   const s = snapshot;
   // Rule 1 — paused.
   if (s.project_status === 'paused') return noAction('1', s, ['project_status_paused']);
@@ -594,6 +666,132 @@ function buildOpenIntakes(root, focusRef, workItems) {
   return candidates;
 }
 
+// TREE_HASH_EXCLUDE_PATHS (role-verification-guards G2, B1 fix —
+// validation-20260816T131500Z). Tracked, append-only telemetry/generated
+// ledgers that ordinary factory operation writes as a BYPRODUCT of a ride,
+// never as a reviewed change to the tree a validator judged. Excluding them
+// from computeTreeHash below breaks two feedback loops the un-excluded hash
+// created in THIS repository (proven by probe_g2b in the validation report):
+//   1. self-invalidation — the --confirm stamp appends to
+//      docs/ai/EVENTS.jsonl AFTER tree_hash is computed for that tick, so the
+//      write invalidated its own hash, and because the stamp is
+//      first-observation-only (D2 "who writes it") it never recovered: the
+//      staleness advisory latched ON permanently with nothing else changed.
+//   2. ordinary-ride churn — docs/ai/decisions.jsonl, the regenerated
+//      docs/INDEX.md, docs/ai/overview.html and
+//      docs/ai/tests/test-runs.jsonl are all TRACKED and all move within
+//      minutes of routine ride activity that has nothing to do with the
+//      judged verdict.
+// Deliberately narrow (an itemized denylist, not a whole directory), so a
+// real change under docs/ai/ that IS part of what a reviewer judged
+// (docs-audit.yaml, pr-config.yaml, update-config.yaml, ...) still moves the
+// hash. Each entry is the repo-relative posix path exactly as
+// `git status --porcelain` prints it — the SAME strings also match the
+// `diff --git a/<path> b/<path>` header paths filterExcludedDiff compares
+// against below (B4 fix), so a content edit inside an excluded ledger is
+// exactly as invisible as its status-letter change already was.
+const TREE_HASH_EXCLUDE_PATHS = new Set([
+  'docs/ai/EVENTS.jsonl',
+  'docs/ai/METRICS.jsonl',
+  'docs/ai/decisions.jsonl',
+  'docs/ai/tests/test-runs.jsonl',
+  'docs/INDEX.md',
+  'docs/ai/overview.html',
+  'docs/ai/overview-data.json',
+  'docs/ai/dashboard.html',
+  'docs/ai/dashboard-data.json',
+  'docs/ai/factory-report.html',
+  'docs/ai/factory-report-data.json',
+]);
+
+// filterExcludedDiff(rawDiff) -> the `git diff HEAD` text with any per-file
+// block whose path is a TREE_HASH_EXCLUDE_PATHS entry removed wholesale
+// (role-verification-guards G2, B4 fix — validation-20260816T143000Z). Every
+// file's hunks in unified diff output start with a `diff --git a/<path>
+// b/<path>` header; dropping everything from a matching header up to (not
+// including) the next one applies the exact SAME denylist used on the
+// porcelain status lines below, so an uncommitted edit to an excluded ledger
+// stays invisible to the hash on BOTH inputs, never just one.
+//
+// Corrected at remediation (external review, PR #261 F1 — Copilot and Codex
+// both independently found this; fu-filterdiff-skipflag-leak): every file's
+// header carries the literal `diff --git ` prefix EVEN WHEN git quotes the
+// two paths that follow (core.quotepath is on by default — any path with a
+// space, non-ASCII byte or control character is emitted as an octal-escaped
+// quoted string the `a\/(.+) b\/(.+)` regex below does not match). The
+// PREVIOUS version only reset `skipping` inside `if (m)`, so an unparseable
+// header left `skipping` at whatever the PRIOR file set it to — a quoted-path
+// file immediately following an excluded ledger in sorted diff order had its
+// entire diff block silently dropped from the hash, fails silent. Boundary
+// detection now keys off the literal prefix (matches every header,
+// parseable or not) and `skipping` is recomputed FRESH on every boundary; an
+// unparseable header defaults to `skipping = false` — fail toward INCLUDING
+// the file's content in the hash, never toward dropping it.
+function filterExcludedDiff(rawDiff) {
+  if (!rawDiff) return '';
+  const lines = rawDiff.split('\n');
+  const kept = [];
+  let skipping = false;
+  for (const line of lines) {
+    if (line.startsWith('diff --git ')) {
+      const m = /^diff --git a\/(.+) b\/(.+)$/.exec(line);
+      skipping = !!m && (TREE_HASH_EXCLUDE_PATHS.has(m[1]) || TREE_HASH_EXCLUDE_PATHS.has(m[2]));
+      if (skipping) continue;
+    }
+    if (!skipping) kept.push(line);
+  }
+  return kept.join('\n');
+}
+
+// computeTreeHash(root) -> sha256 hex string, or null on any git failure
+// (role-verification-guards G2, D2; content-sensitivity added at remediation
+// — validation-20260816T143000Z B4). A TREE hash, NOT a spec content hash:
+// sha256 over `git rev-parse HEAD`, `git status --porcelain=v1 -uno` (minus
+// any line naming a TREE_HASH_EXCLUDE_PATHS entry, B1 fix) AND `git diff
+// HEAD` for tracked changes (minus any per-file block naming a
+// TREE_HASH_EXCLUDE_PATHS entry via filterExcludedDiff, same list, B4 fix).
+// The status line alone carries only a path and an XY status letter, never
+// content, so editing a tracked file that was ALREADY dirty left the pre-B4
+// hash byte-identical — proven the dominant shape on a live ride (this
+// repository sits at 20 modified tracked files as a matter of routine).
+// Folding in the diff closes that blind spot while keeping every existing
+// property: `-uno`/plain `git diff HEAD` (no `--no-index`) both ignore
+// untracked files identically, the exclusion list still applies via the
+// SAME Set to both inputs, and any git failure at any of the three calls
+// fails the whole hash open to null, same as before. Measured cost on this
+// repository (rsync copy, mktemp; never this repo — see D5): `git diff
+// HEAD` adds roughly 20ms beside the ~10ms `git status` call already paid
+// every tick, immaterial next to the rest of a dispatch tick's file I/O.
+// What this still does NOT close (D5/RR-2): a tree that moved and moved
+// back to byte-identical content is still invisible, and a COMMIT touching
+// only an excluded path still moves `git rev-parse HEAD`.
+function computeTreeHash(root) {
+  try {
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const rawStatus = execFileSync('git', ['status', '--porcelain=v1', '-uno'], {
+      cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const status = rawStatus.split('\n').filter((line) => {
+      if (line.length <= 3) return true; // blank/malformed: keep, never seen in practice
+      return !TREE_HASH_EXCLUDE_PATHS.has(line.slice(3).trim());
+    }).join('\n');
+    // maxBuffer raised 16 MB -> 64 MB (role-verification-guards remediation,
+    // N-C): TREE_HASH_EXCLUDE_PATHS does NOT reduce what crosses this buffer
+    // — filterExcludedDiff runs on the string AFTER execFileSync returns, so
+    // a large regenerated EXCLUDED ledger counts against the limit in full
+    // before it is ever filtered out. Costs nothing when unused; see D5.
+    const rawDiff = execFileSync('git', ['diff', 'HEAD', '--'], {
+      cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024,
+    });
+    const diff = filterExcludedDiff(rawDiff);
+    return crypto.createHash('sha256').update(head + status + diff).digest('hex');
+  } catch {
+    return null;
+  }
+}
+
 // buildSnapshot(statePath, root) -> { snapshot, problems[] }
 // problems non-empty => the CLI degrades fail-closed (exit 4, needs_llm).
 export function buildSnapshot(statePath, root) {
@@ -668,6 +866,16 @@ export function buildSnapshot(statePath, root) {
     status: checkEnum(readScalar(lines, 'last_validation', 'status'), VALIDATION_STATUSES, 'last_validation.status', { required: true }),
     ref_id: readScalar(lines, 'last_validation', 'ref_id'),
   };
+  // validationRunAtUtc (role-verification-guards remediation, B-1) — the
+  // recorded verdict's own timestamp, read from the SAME block as `validation`
+  // above but DELIBERATELY kept OFF the `snapshot` object (and therefore off
+  // `state_summary`, which is `snapshot` verbatim): Spec-AC-05 pins
+  // state_summary as additive-only modulo exactly the two G2 fields
+  // (`tree_hash`, `last_validation_verdict`); a third visible key would widen
+  // that contract for a value only main()'s re-stamp condition needs, never
+  // decide() or any consumer of the JSON. Returned as a sibling of `snapshot`
+  // below instead.
+  const validationRunAtUtc = readScalar(lines, 'last_validation', 'run_at_utc');
   const review = {
     required: parseBool(checkEnum(readScalar(lines, 'code_review', 'required'), BOOLS, 'code_review.required')),
     status: checkEnum(readScalar(lines, 'code_review', 'status'), REVIEW_STATUSES, 'code_review.status'),
@@ -699,6 +907,11 @@ export function buildSnapshot(statePath, root) {
   // this change deliberately does not touch).
   let closeEventPresent = false;
   let lastPhaseConfirm = null;
+  // role-verification-guards G2 — the LAST validation_verdict event for the
+  // focus ref, from the SAME scan (last wins, matching the phase_confirmed
+  // precedent immediately below). Null when no such event has ever been
+  // recorded for this ref.
+  let lastValidationVerdict = null;
   const eventsPath = path.resolve(root, 'docs/ai/EVENTS.jsonl');
   if (focusRef && fs.existsSync(eventsPath)) {
     for (const line of fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/)) {
@@ -710,10 +923,26 @@ export function buildSnapshot(statePath, root) {
         if (e.event === 'work_item_closed') closeEventPresent = true;
         else if (e.event === 'phase_confirmed' && e.payload) {
           lastPhaseConfirm = { phase: e.payload.phase ?? null, hash: e.payload.hash ?? null };
+        } else if (e.event === 'validation_verdict' && e.payload) {
+          // `ts` (role-verification-guards remediation, B-1) — the EVENT's
+          // own auto-filled append-event.mjs timestamp, carried through so
+          // main() can compare it against last_validation.run_at_utc and
+          // tell a fresh stamp from a stale one. Every append-event.mjs line
+          // carries `ts`; a hand-corrupted or pre-B-1 line without it falls
+          // back to null, which the stamp condition below treats as "cannot
+          // prove this stamp is fresh" (fail-closed to no-re-stamp, same
+          // polarity as every other null-hash guard in this file).
+          lastValidationVerdict = { status: e.payload.status ?? null, hash: e.payload.hash ?? null, ts: e.ts ?? null };
         }
       } catch { /* unparseable event line: best-effort probe, skip */ }
     }
   }
+  // role-verification-guards G2 — TREE hash of the current working tree
+  // (D2). Computed unconditionally (read-only git probe, no --confirm gate)
+  // so the staleness comparison in decide() always has a fresh right-hand
+  // side; git failure -> null, same fail-open contract as every other probe
+  // here.
+  const treeHash = computeTreeHash(root);
   const runs = focusRef ? agentRunsFor(lines, focusRef) : [];
   const openIntakes = buildOpenIntakes(root, focusRef, items);
   const snapshot = {
@@ -732,6 +961,10 @@ export function buildSnapshot(statePath, root) {
     flushed,
     close_event_present: closeEventPresent,
     last_phase_confirm: lastPhaseConfirm,
+    // role-verification-guards G2 — the two staleness-comparison inputs
+    // (D2); decide() only ever compares them, never recomputes either.
+    tree_hash: treeHash,
+    last_validation_verdict: lastValidationVerdict,
     // Rule 9x prior-green bootstrap: an implementer actually ran for this ref
     // at some point. Paired with a fully green AC table it is the committed
     // proof that the phase WAS green before the re-plan bounced it back; on
@@ -741,7 +974,7 @@ export function buildSnapshot(statePath, root) {
     implementer_model: focusRef ? lastImplementerModel(lines, focusRef) : null,
     last_run_role: runs.length ? runs[runs.length - 1].role : null,
   };
-  return { snapshot, problems: [] };
+  return { snapshot, problems: [], validationRunAtUtc };
 }
 
 // --- CLI ---------------------------------------------------------------------------
@@ -752,10 +985,12 @@ function usage() {
     + '  Deterministic orchestration tick: reads STATE + repo probes, prints ONE\n'
     + '  dispatch JSON on stdout. Exit: 0 dispatch, 3 no action, 4 LLM must take\n'
     + '  over (named reasons in JSON), 2 usage, 1 internal error.\n'
-    + '  Reads only, with ONE opt-in exception: --confirm lets the rule-9x arm\n'
-    + '  append its phase_confirmed line to docs/ai/EVENTS.jsonl (idempotent —\n'
-    + '  skipped when the last recorded confirmation already matches). STATE and\n'
-    + '  the spec are NEVER written, with or without the flag.',
+    + '  Reads only, with ONE opt-in exception: --confirm permits TWO idempotent\n'
+    + '  docs/ai/EVENTS.jsonl appends — the rule-9x arm\'s phase_confirmed line\n'
+    + '  (skipped once the last recorded confirmation already matches), and a\n'
+    + '  first-observation validation_verdict stamp (role-verification-guards G2,\n'
+    + '  skipped once one already exists for the ref). STATE and the spec are\n'
+    + '  NEVER written, with or without the flag.',
   );
 }
 
@@ -909,6 +1144,60 @@ function recordConfirm(ev, root, snapshot) {
   }
 }
 
+// recordValidationVerdict (role-verification-guards G2, D2; re-stamp
+// condition corrected at remediation B-1) — the SECOND write --confirm
+// permits, independent of the rule-9x confirm arm above and of which rule
+// fired this tick. PER-VERDICT, not per-ref-forever: fires when
+// last_validation.status is 'pass' FOR THE FOCUS REF (refMatches, same guard
+// rule 13/14 already apply to a leaked/stale verdict), tree_hash is known,
+// and EITHER no validation_verdict event exists yet for that ref OR the
+// recorded validation's own `run_at_utc` is strictly newer than the last
+// stamped event's `ts` — i.e. a fresh validation round has been recorded
+// since the last stamp. Until a newer verdict is observed, the SAME verdict
+// is stamped once (repeated --confirm ticks with nothing new to observe do
+// not re-append). This is D2's stated window trade ("who writes it"), NOT
+// the phase_confirmed precedent: `recordConfirm` above DOES re-append
+// whenever the hash moves (it only returns 'skipped' when
+// `prior.hash === ev.hash && prior.phase === ev.phase`) — a corrected claim,
+// validation-20260816T131500Z N2; the two writers deliberately differ.
+//
+// Corrected at remediation (B-1): the ORIGINAL condition was
+// `!snapshot.last_validation_verdict` — gated on whether ANY stamp event
+// existed for the ref, never on whether it was still the CURRENT verdict's
+// stamp. After the first remediation lap on any ride, every later pass
+// verdict stamped nothing, so `withStaleAdvisory` compared the current tree
+// against a reference that was one or more remediations old and the
+// `validation_verdict_stale` advisory latched permanently ON — exactly the
+// motivating incident G2 exists to catch, reproduced end-to-end in the
+// review that found it. The fix compares timestamps, not existence.
+//
+// A DIFFERENT design — refresh-on-hash-mismatch — was weighed for G2 and
+// rejected, and that rejection still stands: because decide() reads the
+// snapshot BUILT BEFORE this tick's own write, refreshing on a tree_hash
+// mismatch would still print one stale line on the very tick that observes
+// each tracked delta before healing itself, whereas TREE_HASH_EXCLUDE_PATHS
+// (B1, above) removes that self-invalidation at its source instead.
+// Refresh-on-NEW-VERDICT (this fix) is a different trigger with none of that
+// behavior: it fires only when a validator records something new, never as a
+// reaction to the tree moving.
+//
+// Delegates to append-event.mjs so the EVENTS schema keeps exactly ONE
+// writer. Every failure is swallowed: unlike recordConfirm this write has no
+// fail-closed fallback to take — it is purely additive telemetry for a NEXT
+// tick's staleness comparison, never something THIS tick's verdict depends
+// on.
+function recordValidationVerdict(root, ref, status, hash) {
+  const appender = path.join(path.dirname(fileURLToPath(import.meta.url)), 'append-event.mjs');
+  try {
+    execFileSync(process.execPath, [appender,
+      '--event', 'validation_verdict', '--ref', ref,
+      '--status', status, '--hash', hash], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function humanBlock(out) {
   const lines = [
     '=== ORCHESTRATION DISPATCH (deterministic tick) ===',
@@ -945,7 +1234,7 @@ function main() {
   const root = path.resolve(process.cwd(), opts.root);
   let out;
   try {
-    const { snapshot, problems } = buildSnapshot(statePath, root);
+    const { snapshot, problems, validationRunAtUtc } = buildSnapshot(statePath, root);
     if (problems.length > 0) {
       out = needsLlm(snapshot, problems);
       out.state_summary = snapshot ?? {};
@@ -972,6 +1261,61 @@ function main() {
         fallback.reasons = [...fallback.reasons, 'confirm_record_failed_fallback_dispatch'];
         out = fallback;
       }
+    }
+    // role-verification-guards G2 (D2) — validation-verdict stamp, under the
+    // SAME --confirm opt-in, independent of the rule-9x confirm_event arm
+    // above (it can fire on ANY rule, e.g. the rule-14 metrics-flush arm a
+    // fresh pass verdict typically lands on). PER-VERDICT (corrected at
+    // remediation, B-1): re-stamps when either no validation_verdict event
+    // exists yet for the ref, OR the recorded validation's own run_at_utc
+    // (read separately from `snapshot` — see buildSnapshot's
+    // `validationRunAtUtc`, kept OFF state_summary so Spec-AC-05's additive
+    // key count does not grow) is strictly newer than the last stamped
+    // event's ts — i.e. a validation round has completed SINCE the last
+    // stamp. Both timestamps are ISO 8601 UTC strings, but at DIFFERENT
+    // precision BY DESIGN — corrected at remediation, BLOCKING-1
+    // (validation-20260816T203700Z): append-event.mjs's auto-filled `ts`
+    // keeps milliseconds while state-engine.mjs's `nowIso()` (state.mjs's
+    // self-stamped `run_at_utc`) truncates to the second. A prior version of
+    // this comment claimed "lexicographic `>` is a correct newer-than
+    // comparison" — that was FALSE: at string index 19 a truncated-second
+    // string ends in `Z` (0x5A) while a millisecond string in the same
+    // second has `.` (0x2E) there, so the truncated string sorts ABOVE the
+    // millisecond one even though it is not later, and a verdict recorded in
+    // the SAME wall-clock second as its own stamp compared as strictly
+    // *newer* than that stamp — on every later tick, forever, since the
+    // comparison is against the last stamp's `ts`, not the live clock. Both
+    // sides are now parsed via `Date.parse` and compared as instants
+    // (`validationRunAtMs`/`lastStampMs` below), each guarded by
+    // `Number.isFinite`: an unparseable value — same as an absent one (an
+    // old event predating this field, or a fixture/STATE without
+    // `run_at_utc`) — fails the freshness check closed, no re-stamp, the
+    // same polarity as every other missing-data guard in this file. A
+    // same-second verdict and stamp now compare as NOT newer (truncation
+    // makes the two instants equal), which is the correct fail-closed
+    // reading: a verdict whose recorded second matches the stamp's cannot be
+    // *proven* newer. None of this changes the "stamp once, ever" case: the
+    // `!lvv` arm still covers first observation exactly as before.
+    const validationRunAtMs = validationRunAtUtc ? Date.parse(validationRunAtUtc) : NaN;
+    const lastStampMs = (snapshot && snapshot.last_validation_verdict && snapshot.last_validation_verdict.ts)
+      ? Date.parse(snapshot.last_validation_verdict.ts) : NaN;
+    if (opts.confirm && snapshot && snapshot.validation && snapshot.validation.status === 'pass'
+      && snapshot.focus && snapshot.focus.ref_id
+      && refMatches(snapshot.validation.ref_id, snapshot.focus.ref_id)
+      && snapshot.tree_hash != null
+      && (!snapshot.last_validation_verdict
+        || (Number.isFinite(validationRunAtMs) && Number.isFinite(lastStampMs) && validationRunAtMs > lastStampMs))) {
+      recordValidationVerdict(root, snapshot.focus.ref_id, snapshot.validation.status, snapshot.tree_hash);
+    }
+    // role-verification-guards G2 (D2) — stale-verdict advisory, printed
+    // regardless of --confirm/--human and regardless of which rule fired;
+    // decide() already computed the additive `advisories` key purely from
+    // the snapshot.
+    if (Array.isArray(out.advisories) && out.advisories.includes('validation_verdict_stale')) {
+      console.error(
+        `orchestration-dispatch: WARN validation_verdict_stale - ref ${out.ref_id ?? '(unknown)'}: `
+        + 'the recorded pass verdict\'s tree hash no longer matches the tracked tree'
+      );
     }
     const routing = loadModelRouting(root);
     out.suggested_model = suggestModel(out, routing);

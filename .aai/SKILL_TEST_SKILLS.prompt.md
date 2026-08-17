@@ -45,6 +45,12 @@ cannot strand the run.
    currently a no-op) — never claim repairs happened; if repairs are
    needed, do them explicitly and say what you did.
 
+## Waiting for a Background Run (G4)
+Wait on the DISK ARTIFACT `$RUN_DIR/summary.txt`, never a pattern in the
+process output stream. Its mere EXISTENCE is NOT completion — setup writes it
+once immediately ("Test run started at ..."). Poll for its final content: the
+literal `AAI Skills Test Summary`, written only once every suite finishes.
+
 ## Test Isolation
 Every suite runs against isolated fixtures/temp dirs and cleans up on exit
 (success or failure) via `trap ... EXIT`. No suite is expected to mutate the

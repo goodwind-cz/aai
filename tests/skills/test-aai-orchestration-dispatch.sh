@@ -67,6 +67,72 @@ mk_root() {
   printf '%s' "$d"
 }
 
+# git_init_fixture <dir> — git-inits and commits the WHOLE fixture tree so
+# computeTreeHash(root) (role-verification-guards G2) resolves to a real
+# hash. mk_root fixtures are NOT git repos by default (most existing arms
+# don't need one, and git absence must fail tree_hash open to null); only
+# the G2 arms opt in.
+git_init_fixture() {
+  local d="$1"
+  git -C "$d" init -q -b main
+  git -C "$d" config user.email test@example.com
+  git -C "$d" config user.name test
+  git -C "$d" add -A
+  git -C "$d" commit -q -m init
+}
+
+# git_init_fixture_tracked_events <dir> — same as git_init_fixture, but
+# creates (and commits) an EMPTY docs/ai/EVENTS.jsonl BEFORE the first
+# commit, mirroring THIS repo where docs/ai/EVENTS.jsonl is a TRACKED file
+# (validation-20260816T131500Z B1: every other G2 arm's git_init_fixture
+# commits the mk_root tree before any EVENTS.jsonl exists, so the ledger
+# stays UNTRACKED for the rest of that arm and `-uno` ignores it — invisible
+# to the self-invalidation bug this fixture exists to reproduce).
+git_init_fixture_tracked_events() {
+  local d="$1"
+  mkdir -p "$d/docs/ai"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  git_init_fixture "$d"
+}
+
+# PRE_G2_ORCHESTRATION_DISPATCH_BLOB — the git blob sha of
+# .aai/scripts/orchestration-dispatch.mjs exactly as it stood immediately
+# before this scope's G2 edit landed (recorded once, by hand, from
+# `git rev-parse HEAD:.aai/scripts/orchestration-dispatch.mjs` on the
+# pre-change tree). Same fixed-point rationale as
+# PRE_G1_CLOSE_WORK_ITEM_BLOB in tests/skills/test-aai-close-work-item.sh
+# (validation-20260816T131500Z B2): `git archive HEAD` would break the moment
+# this scope's own delivery commit becomes HEAD, because HEAD then IS the
+# post-G2 tree.
+PRE_G2_ORCHESTRATION_DISPATCH_BLOB="4def5f48bca577ea14d3e7d484feed2bbcddeb65"
+
+# pre_change_dispatch_tree -> prints the path to a scratch `.aai/scripts`
+# tree whose orchestration-dispatch.mjs is the pinned PRE-G2 blob and whose
+# siblings (append-event.mjs, lib/*.mjs — none of which this scope changes
+# the behavior of for a plain non---confirm run) come from the CURRENT tree.
+# Memoized per suite run.
+_PRE_CHANGE_DISPATCH_TREE=""
+pre_change_dispatch_tree() {
+  if [[ -n "$_PRE_CHANGE_DISPATCH_TREE" && -f "$_PRE_CHANGE_DISPATCH_TREE/.aai/scripts/orchestration-dispatch.mjs" ]]; then
+    echo "$_PRE_CHANGE_DISPATCH_TREE"
+    return
+  fi
+  local root="$TEST_DIR/pre-change-dispatch-tree"
+  mkdir -p "$root/.aai"
+  cp -r "$PROJECT_ROOT/.aai/scripts" "$root/.aai/scripts"
+  local content
+  content=$(cd "$PROJECT_ROOT" && git cat-file -p "$PRE_G2_ORCHESTRATION_DISPATCH_BLOB") \
+    || log_fail "pre_change_dispatch_tree: git cat-file of the pinned pre-G2 blob failed"
+  case "$content" in
+    *tree_hash*)
+      log_fail "pre_change_dispatch_tree: the pinned pre-G2 blob unexpectedly already carries tree_hash — PRE_G2_ORCHESTRATION_DISPATCH_BLOB points at the wrong object"
+      ;;
+  esac
+  printf '%s\n' "$content" > "$root/.aai/scripts/orchestration-dispatch.mjs"
+  _PRE_CHANGE_DISPATCH_TREE="$root"
+  echo "$_PRE_CHANGE_DISPATCH_TREE"
+}
+
 # write_spec <path> <frontmatter-status> <frozen true|false>
 write_spec() {
   local p="$1" status="$2" frozen="$3"
@@ -2383,6 +2449,511 @@ test_038_confirm_record_failure_falls_back() {
   log_pass "an unrecordable --confirm falls back to a real dispatch with a stderr note; a SKIPPED (idempotent) append does not (CHANGE-0120 TEST-038)"
 }
 
+# --- TEST-004 (Spec-AC-03, role-verification-guards G2): validation-verdict stamp
+
+test_039_g2_validation_verdict_stamp() {
+  log_info "Test: G2 --confirm stamps ONE validation_verdict event on a pass verdict, idempotent, absent --confirm writes nothing (TEST-004)..."
+  local d
+  d="$(mk_root t39)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass
+  git_init_fixture "$d"
+
+  # Default (no --confirm): must write nothing.
+  run_dispatch "$d"
+  [[ ! -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "TEST-004: a run without --confirm must not write EVENTS.jsonl"
+
+  # --confirm: appends exactly ONE validation_verdict event, hash == state_summary.tree_hash.
+  run_dispatch "$d" --confirm
+  [[ -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "TEST-004: --confirm must append the validation_verdict event"
+  local n
+  n="$(grep -c '"event":"validation_verdict"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-004: expected exactly one validation_verdict line (got $n): $(cat "$d/docs/ai/EVENTS.jsonl")"
+  node -e '
+    const fs = require("fs");
+    const out = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const e = JSON.parse(fs.readFileSync(process.argv[2], "utf8").trim().split("\n").pop());
+    if (e.event !== "validation_verdict") throw new Error("event: " + e.event);
+    if (e.ref !== "CHANGE-0001") throw new Error("ref: " + e.ref);
+    if (e.payload.status !== "pass") throw new Error("status: " + JSON.stringify(e.payload));
+    if (!out.state_summary || !out.state_summary.tree_hash) throw new Error("state_summary.tree_hash missing: " + JSON.stringify(out.state_summary));
+    if (e.payload.hash !== out.state_summary.tree_hash) throw new Error("hash mismatch: event=" + e.payload.hash + " tree_hash=" + out.state_summary.tree_hash);
+  ' "$OUT" "$d/docs/ai/EVENTS.jsonl" || log_fail "TEST-004: validation_verdict payload/hash contract wrong"
+
+  # Idempotent: a second identical --confirm tick appends nothing further.
+  run_dispatch "$d" --confirm
+  n="$(grep -c '"event":"validation_verdict"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-004: second --confirm tick must not append a duplicate (got $n)"
+
+  # role-verification-guards remediation (B-1): the stamp must be PER-VERDICT,
+  # not per-ref-forever. The original bug gated the re-stamp on
+  # `!snapshot.last_validation_verdict` — whether ANY stamp event existed for
+  # the ref, never on whether a NEWER verdict had since been recorded — so
+  # after one remediation lap the stale advisory latched permanently ON with
+  # no way for a fresh pass verdict to clear it. Reproduce the shape: mutate a
+  # tracked file (as a remediation would), confirm the advisory fires; then
+  # record a validation round NEWER than the last stamp (a later
+  # last_validation.run_at_utc) and prove --confirm appends a SECOND
+  # validation_verdict line, and the advisory clears on the next tick.
+  echo "mutated-for-b1" >> "$d/docs/TECHNOLOGY.md"
+  run_dispatch "$d"
+  n="$(grep -c validation_verdict_stale "$ERR" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-004/B-1: expected the stale advisory after a tracked mutation (precondition for the re-stamp proof), got $n: $(cat "$ERR")"
+
+  sed -i.bak 's/^  run_at_utc: .*/  run_at_utc: 2030-01-01T00:00:00Z/' "$d/docs/ai/STATE.yaml" && rm -f "$d/docs/ai/STATE.yaml.bak"
+  run_dispatch "$d" --confirm
+  n="$(grep -c '"event":"validation_verdict"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 2 ]] || log_fail "TEST-004/B-1: a validation round recorded NEWER than the last stamp (later last_validation.run_at_utc) must append a SECOND validation_verdict line (got $n) — the stamp must be per-verdict, not per-ref-forever"
+
+  run_dispatch "$d"
+  n="$(grep -c validation_verdict_stale "$ERR" || true)"
+  [[ "$n" == 0 ]] || log_fail "TEST-004/B-1: the re-stamp must clear the stale advisory on the following tick (got $n stale lines): $(cat "$ERR")"
+
+  # role-verification-guards remediation (BLOCKING-1, validation round 4,
+  # validation-20260816T203700Z): the two ISO-8601 producers this stamp
+  # condition compares emit at DIFFERENT precision BY DESIGN --
+  # state-engine.mjs's nowIso() truncates `last_validation.run_at_utc` to the
+  # second, while append-event.mjs keeps milliseconds on the stamped event's
+  # `ts`. A lexicographic `>` treats a verdict recorded in the SAME
+  # wall-clock second as its own stamp as strictly NEWER (string index 19:
+  # truncated `Z` 0x5A > millisecond `.` 0x2E), so this exact boundary must be
+  # exercised -- not a date a month or four years away like the STATE default
+  # (2026-07-01) or the arm above (2030-01-01), neither of which land in the
+  # same second as any real stamp. Derive the boundary from the REAL last
+  # stamp's own `ts` (never a hand-picked date) the same way state-engine.mjs
+  # would have, had the validator recorded the verdict in that same second.
+  local stamp_ts truncated_second events_before n_stale
+  stamp_ts="$(node -e '
+    const fs = require("fs");
+    const lines = fs.readFileSync(process.argv[1], "utf8").trim().split("\n");
+    let last = null;
+    for (const l of lines) { const e = JSON.parse(l); if (e.event === "validation_verdict") last = e; }
+    if (!last) throw new Error("no validation_verdict event found in fixture ledger");
+    process.stdout.write(last.ts);
+  ' "$d/docs/ai/EVENTS.jsonl")"
+  # Mirrors state-engine.mjs nowIso()'s OWN truncation regex exactly.
+  truncated_second="$(node -e 'process.stdout.write(process.argv[1].replace(/\.\d+Z$/, "Z"))' "$stamp_ts")"
+  sed -i.bak "s/^  run_at_utc: .*/  run_at_utc: $truncated_second/" "$d/docs/ai/STATE.yaml" && rm -f "$d/docs/ai/STATE.yaml.bak"
+
+  events_before="$(grep -c '"event":"validation_verdict"' "$d/docs/ai/EVENTS.jsonl" || true)"
+
+  # Repeated --confirm ticks at the boundary append nothing: a verdict whose
+  # recorded second matches the stamp's cannot be PROVEN newer (Spec-AC-03's
+  # idempotency clause, exercised exactly where the two clocks disagree).
+  run_dispatch "$d" --confirm
+  n="$(grep -c '"event":"validation_verdict"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == "$events_before" ]] || log_fail "TEST-004/BLOCKING-1: a validation recorded in the SAME wall-clock second as the last stamp (run_at_utc truncated to the stamp's own ts) must NOT append a new validation_verdict line -- a same-second verdict cannot be proven newer than its own stamp (before=$events_before after=$n)"
+
+  # A genuine tracked mutation at this same boundary must keep producing the
+  # advisory on EVERY subsequent tick, not self-clear after one -- the
+  # refresh-on-mismatch design the code explicitly rejects (:1127-1135),
+  # reinstated through the same-second compare bug per validation round 4's
+  # reproduction 2.
+  echo "mutated-for-blocking1" >> "$d/docs/TECHNOLOGY.md"
+  run_dispatch "$d" --confirm
+  n="$(grep -c '"event":"validation_verdict"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == "$events_before" ]] || log_fail "TEST-004/BLOCKING-1: the tick that OBSERVES a tracked mutation must not spuriously re-stamp when no NEW verdict has been recorded -- a same-second false 'newer' compare adopts the mutated tree as the new reference and silently heals the advisory (before=$events_before after=$n)"
+  n_stale="$(grep -c validation_verdict_stale "$ERR" || true)"
+  [[ "$n_stale" == 1 ]] || log_fail "TEST-004/BLOCKING-1: the drift-observing --confirm tick must still print the stale advisory (got $n_stale): $(cat "$ERR")"
+
+  run_dispatch "$d" --confirm
+  n="$(grep -c '"event":"validation_verdict"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == "$events_before" ]] || log_fail "TEST-004/BLOCKING-1: a further --confirm tick with no new verdict must still not re-stamp (before=$events_before after=$n)"
+  n_stale="$(grep -c validation_verdict_stale "$ERR" || true)"
+  [[ "$n_stale" == 1 ]] || log_fail "TEST-004/BLOCKING-1: the advisory must keep firing on EVERY subsequent --confirm tick while no new verdict is recorded, not self-clear after one tick (got $n_stale)"
+
+  log_pass "G2 --confirm stamps exactly one validation_verdict event, idempotent, absent --confirm writes nothing, re-stamps on a newer recorded verdict, and stays idempotent/non-self-healing at the same-second precision boundary (TEST-004, B-1, BLOCKING-1)"
+}
+
+# --- TEST-005 (Spec-AC-04, role-verification-guards G2): stale advisory integration
+
+test_040_g2_stale_advisory_integration() {
+  log_info "Test: G2 stale-verdict advisory fires after a tracked mutation, with and without --human, no agent input (TEST-005)..."
+  local d
+  d="$(mk_root t40)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass
+  git_init_fixture "$d"
+  run_dispatch "$d" --confirm
+  [[ -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "TEST-005: baseline --confirm must stamp the ledger first"
+
+  # Mutate ONE tracked file (docs/TECHNOLOGY.md, committed by git_init_fixture).
+  echo "mutated" >> "$d/docs/TECHNOLOGY.md"
+
+  run_dispatch "$d"
+  local n
+  n="$(grep -c validation_verdict_stale "$ERR" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-005: expected exactly one validation_verdict_stale stderr line (got $n): $(cat "$ERR")"
+  grep -qF "CHANGE-0001" "$ERR" || log_fail "TEST-005: stale advisory must name the focus ref"
+
+  run_dispatch "$d" --human
+  n="$(grep -c validation_verdict_stale "$ERR" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-005: --human must still print exactly one stale line (got $n): $(cat "$ERR")"
+
+  log_pass "G2 stale-verdict advisory fires after a tracked mutation, with and without --human, no agent input (TEST-005)"
+}
+
+# --- TEST-006 (Spec-AC-04, role-verification-guards G2): silence controls -----
+
+test_041_g2_silence_controls() {
+  log_info "Test: G2 silence controls -- unmutated tree, fields absent, null hash on either side all yield zero advisories (TEST-006)..."
+  local d
+  d="$(mk_root t41)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass
+  git_init_fixture "$d"
+  run_dispatch "$d" --confirm
+  [[ -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "TEST-006: baseline --confirm must stamp the ledger first"
+
+  # CONTROL: unmutated tree -> zero stale lines on the next tick.
+  run_dispatch "$d"
+  local n
+  n="$(grep -c validation_verdict_stale "$ERR" || true)"
+  [[ "$n" == 0 ]] || log_fail "TEST-006: unmutated tree must yield zero stale lines (got $n): $(cat "$ERR")"
+
+  # Pure decide() checks: fields absent entirely, or null on either side of
+  # the comparison, must all yield NO advisories key.
+  cat > "$TEST_DIR/t41.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const base = {
+  project_status: 'active', human_input_required: false, technology_present: true, workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0001' },
+  work_item: { phase: 'code_review', status: 'in_progress' },
+  spec: { path: 'docs/specs/SPEC-0001-fx.md', present: true, frozen: true, frontmatter_status: 'implementing', ceremony_level: 2 },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'pass', ref_id: 'CHANGE-0001' },
+  review: { required: true, status: 'pass' },
+  flushed: false,
+  implementer_model: null,
+  last_run_role: null,
+};
+
+const a = decide({ ...base });
+assert.ok(!('advisories' in a), 'fields-absent snapshot must yield no advisories key');
+
+const b = decide({ ...base, tree_hash: null, last_validation_verdict: { status: 'pass', hash: 'deadbeef' } });
+assert.ok(!('advisories' in b), 'null tree_hash must yield no advisories key');
+
+const c = decide({ ...base, tree_hash: 'deadbeef', last_validation_verdict: null });
+assert.ok(!('advisories' in c), 'null last_validation_verdict must yield no advisories key');
+
+const d2 = decide({ ...base, tree_hash: 'deadbeef', last_validation_verdict: { status: 'pass', hash: 'deadbeef' } });
+assert.ok(!('advisories' in d2), 'matching hashes must yield no advisories key');
+
+// N-4 (validation-20260816T203700Z): the stamped EVENT's payload.status is a
+// snapshot frozen at stamp time -- it never changes after the fact. If
+// STATE's OWN last_validation.status has since moved off 'pass' (a fresh
+// fail/not_run verdict, or an operator reset-block), the old event still
+// says "pass" forever. Without corroborating against STATE's CURRENT
+// validation.status, a live tick would keep asserting "the recorded pass
+// verdict's tree hash no longer matches" about a pass verdict STATE no
+// longer holds. A mismatched hash with STATE now not_run must yield NO
+// advisories key, even though the stale EVENT alone still says pass/mismatch.
+const e = decide({ ...base, validation: { status: 'not_run', ref_id: 'CHANGE-0001' },
+  tree_hash: 'bbbb', last_validation_verdict: { status: 'pass', hash: 'aaaa' } });
+assert.ok(!('advisories' in e), "STATE's last_validation.status no longer 'pass' must yield no advisories key even when the stale stamped event still says pass and its hash mismatches");
+
+// F2 (PR #261 bot review, both Copilot and Codex; code review NB-2): STATE's
+// own `validation.status` is 'pass' but for a DIFFERENT ref than the current
+// focus. `last_validation_verdict` is always focus-ref-scoped (buildSnapshot
+// filters the EVENTS scan by refMatches(e.ref, focusRef)), so a same-status,
+// wrong-ref STATE verdict must NOT corroborate it -- withStaleAdvisory must
+// require refMatches(validation.ref_id, focus.ref_id), the same guard rule
+// 521's `vmatch` and the recordValidationVerdict stamp call already apply.
+const f = decide({ ...base, validation: { status: 'pass', ref_id: 'CHANGE-9999' },
+  tree_hash: 'bbbb', last_validation_verdict: { status: 'pass', hash: 'aaaa' } });
+assert.ok(!('advisories' in f), "STATE's pass verdict for a DIFFERENT ref than the focus ref must yield no advisories key even though status alone says pass and the hashes mismatch");
+
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t41.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t41.log" 2>&1 \
+    || log_fail "TEST-006: pure decide() silence controls failed: $(cat "$TEST_DIR/t41.log")"
+
+  log_pass "G2 silence controls: unmutated CLI control + pure decide() absent/null-hash/STATE-no-longer-pass controls (TEST-006)"
+}
+
+# --- TEST-007 (Spec-AC-05, role-verification-guards G2): report-only proof ----
+
+test_042_g2_report_only_proof() {
+  log_info "Test: G2 is report-only -- stale vs non-stale decide() differ ONLY by advisories; docs-audit tolerates the new event type (SEAM-3) (TEST-007)..."
+
+  cat > "$TEST_DIR/t42.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const base = {
+  project_status: 'active', human_input_required: false, technology_present: true, workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0001' },
+  work_item: { phase: 'code_review', status: 'in_progress' },
+  spec: { path: 'docs/specs/SPEC-0001-fx.md', present: true, frozen: true, frontmatter_status: 'implementing', ceremony_level: 2 },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'pass', ref_id: 'CHANGE-0001' },
+  review: { required: true, status: 'pass' },
+  flushed: false,
+  implementer_model: null,
+  last_run_role: null,
+};
+
+const nonStale = decide({ ...base, tree_hash: 'aaaa', last_validation_verdict: { status: 'pass', hash: 'aaaa' } });
+const stale = decide({ ...base, tree_hash: 'bbbb', last_validation_verdict: { status: 'pass', hash: 'aaaa' } });
+const preChangeShape = decide({ ...base }); // no tree_hash/last_validation_verdict fields at all
+
+assert.ok(!('advisories' in nonStale), 'non-stale must carry no advisories key');
+assert.deepStrictEqual(nonStale, preChangeShape, "non-stale decide() output must be byte-identical to the fields-absent (pre-G2) shape -- decide()'s own contribution, D2");
+
+assert.deepStrictEqual(stale.advisories, ['validation_verdict_stale'], 'stale must carry the additive advisories key');
+const { advisories, ...staleRest } = stale;
+assert.deepStrictEqual(staleRest, nonStale, 'stale output must differ from non-stale ONLY by the advisories key');
+for (const k of ['rule', 'verdict', 'role', 'reasons']) {
+  assert.deepStrictEqual(stale[k], nonStale[k], `${k} must be identical stale vs non-stale`);
+}
+
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t42.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t42.log" 2>&1 \
+    || log_fail "TEST-007: pure report-only proof failed: $(cat "$TEST_DIR/t42.log")"
+
+  # Spec-AC-05's SECOND clause, the REAL cmp the spec names
+  # (validation-20260816T131500Z B3): run the SAME fixture through the
+  # pinned PRE-G2 script and the current (post-G2) script; after deleting the
+  # two known-additive state_summary keys from the post-G2 capture, the two
+  # stdout JSON captures must be byte-identical. The decide()-level check
+  # above stays -- it is real and useful -- this is IN ADDITION to it, not
+  # instead of it.
+  local d2; d2="$(mk_root t42c)"
+  write_dstate "$d2/docs/ai/STATE.yaml" pass
+  git_init_fixture "$d2"
+
+  local pre_tree; pre_tree="$(pre_change_dispatch_tree)"
+  local pre_out="$TEST_DIR/t42-pre.out" pre_err="$TEST_DIR/t42-pre.err" pre_ec=0
+  ( cd "$pre_tree" && node .aai/scripts/orchestration-dispatch.mjs \
+      --state "$d2/docs/ai/STATE.yaml" --root "$d2" > "$pre_out" 2> "$pre_err" ) || pre_ec=$?
+
+  local post_out="$TEST_DIR/t42-post.out" post_err="$TEST_DIR/t42-post.err" post_ec=0
+  ( cd "$PROJECT_ROOT" && node .aai/scripts/orchestration-dispatch.mjs \
+      --state "$d2/docs/ai/STATE.yaml" --root "$d2" > "$post_out" 2> "$post_err" ) || post_ec=$?
+
+  [[ "$pre_ec" == "$post_ec" ]] \
+    || log_fail "TEST-007: pre-G2 and post-G2 exit codes must match on the same non-stale snapshot (pre=$pre_ec post=$post_ec)"
+
+  node -e '
+    const fs = require("fs");
+    const [preFile, postFile] = process.argv.slice(1);
+    const pre = JSON.parse(fs.readFileSync(preFile, "utf8"));
+    const post = JSON.parse(fs.readFileSync(postFile, "utf8"));
+    if (post.state_summary) {
+      delete post.state_summary.tree_hash;
+      delete post.state_summary.last_validation_verdict;
+    }
+    const preStr = JSON.stringify(pre);
+    const postStr = JSON.stringify(post);
+    if (preStr !== postStr) {
+      throw new Error("stdout differs beyond the two additive state_summary keys:\npre=" + preStr + "\npost=" + postStr);
+    }
+  ' "$pre_out" "$post_out" \
+    || log_fail "TEST-007: non-stale stdout must be byte-identical to the pre-G2 capture once tree_hash/last_validation_verdict are deleted from both sides"
+
+  # SEAM-3: docs-audit stays CLEAN when EVENTS.jsonl carries the new
+  # validation_verdict event type (every consumer filters by explicit ===
+  # equality, so an unrecognized type is inert -- verified here end to end).
+  local d
+  d="$(mk_root t42b)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass
+  git_init_fixture "$d"
+  run_dispatch "$d" --confirm
+  [[ -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "TEST-007: SEAM-3 fixture must have a stamped validation_verdict event"
+  local audit_out="$TEST_DIR/t42-audit.out" audit_ec=0
+  ( cd "$d" && node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --check --strict --no-event ) > "$audit_out" 2>&1 || audit_ec=$?
+  grep -qF "Verdict: CLEAN" "$audit_out" \
+    || log_fail "TEST-007: docs-audit must still report CLEAN with a validation_verdict event on the ledger: $(cat "$audit_out")"
+  [[ "$audit_ec" == 0 ]] || log_fail "TEST-007: docs-audit exit code must be unaffected by the new event type (got $audit_ec)"
+
+  log_pass "G2 report-only proof: stale/non-stale decide() differ only by advisories, docs-audit stays CLEAN with the new event type (TEST-007)"
+}
+
+# --- TEST-011 (Spec-AC-04, role-verification-guards G2 B1 fix): the confirm
+# stamp must not self-invalidate when EVENTS.jsonl is TRACKED --------------
+
+test_043_g2_stamp_survives_tracked_events_ledger() {
+  log_info "Test: G2's --confirm stamp does not self-invalidate when docs/ai/EVENTS.jsonl is TRACKED, matching this repo (TEST-011, validation-20260816T131500Z B1)..."
+  local d
+  d="$(mk_root t43)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass
+  git_init_fixture_tracked_events "$d"
+
+  # tick 1: --confirm stamps the FIRST validation_verdict event.
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 0 ]] || log_fail "TEST-011: tick 1 (--confirm) must exit 0, got $EC: $(cat "$ERR")"
+  [[ -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "TEST-011: baseline --confirm must stamp the ledger"
+  local n
+  n="$(grep -c '"event":"validation_verdict"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-011: expected exactly one validation_verdict line after tick 1 (got $n)"
+
+  # tick 2: nothing else changed -- the tick-1 stamp write is the ONLY tree
+  # delta since. Pre-fix, the stamp's own append to the TRACKED
+  # EVENTS.jsonl moved tree_hash out from under the hash just recorded, and
+  # this tick printed validation_verdict_stale with nothing else changed.
+  # N5 (validation-20260816T143000Z): an exit-code assertion sits beside
+  # each stale-count check below, since a fail-closed exit-4 dispatch would
+  # satisfy "zero stale lines" just as vacuously as a healthy exit-0 one.
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-011: tick 2 (nothing else changed) must exit 0, got $EC: $(cat "$ERR")"
+  n="$(grep -c validation_verdict_stale "$ERR" || true)"
+  [[ "$n" == 0 ]] || log_fail "TEST-011: tick 2 (nothing else changed) must yield zero stale lines, got $n: $(cat "$ERR")"
+
+  # tick 3: still nothing else changed -- the advisory must not latch on.
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-011: tick 3 (still nothing else changed) must exit 0, got $EC: $(cat "$ERR")"
+  n="$(grep -c validation_verdict_stale "$ERR" || true)"
+  [[ "$n" == 0 ]] || log_fail "TEST-011: tick 3 (still nothing else changed) must yield zero stale lines, got $n: $(cat "$ERR")"
+
+  # A LATER --confirm tick must still be a true idempotent no-op: no second
+  # validation_verdict line appended just because EVENTS.jsonl is tracked.
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 0 ]] || log_fail "TEST-011: tick 4 (later --confirm) must exit 0, got $EC: $(cat "$ERR")"
+  n="$(grep -c '"event":"validation_verdict"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-011: a later --confirm tick must not append a second validation_verdict line (got $n)"
+
+  log_pass "G2 --confirm stamp survives a TRACKED docs/ai/EVENTS.jsonl: no self-invalidation, no latched advisory (TEST-011)"
+}
+
+# --- TEST-013 (Spec-AC-04, role-verification-guards G2, B4 fix): a CONTENT
+# edit inside an ALREADY-DIRTY tracked file must trip the advisory, and the
+# same shape inside a TREE_HASH_EXCLUDE_PATHS entry must stay silent --------
+
+test_044_g2_stale_advisory_dirty_file_content() {
+  log_info "Test: G2 stale advisory fires on a content-only edit inside an ALREADY-DIRTY tracked file, and stays silent on the same shape inside an excluded ledger (TEST-013, validation-20260816T143000Z B4)..."
+
+  # --- positive: docs/TECHNOLOGY.md is dirtied ONCE (git status letter " M"
+  # set here and never touched again in this arm), stamped while dirty, then
+  # edited a SECOND time -- same path, same status letter, different bytes.
+  # This is exactly the shape `git status --porcelain` (paths + XY letters,
+  # never content) could not see before B4; every OTHER G2 arm in this suite
+  # mutates a file that was CLEAN at stamp time, which the pre-B4 hash could
+  # already detect via the status-letter flip, so none of them exercise this.
+  local d
+  d="$(mk_root t44a)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass
+  git_init_fixture "$d"
+
+  echo "predirty" >> "$d/docs/TECHNOLOGY.md"
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 0 ]] || log_fail "TEST-013: baseline --confirm tick must exit 0, got $EC: $(cat "$ERR")"
+  local n
+  n="$(grep -c '"event":"validation_verdict"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-013: baseline --confirm must stamp exactly one validation_verdict event (got $n)"
+
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-013: control tick (nothing changed since the stamp) must exit 0, got $EC"
+  n="$(grep -c validation_verdict_stale "$ERR" || true)"
+  [[ "$n" == 0 ]] || log_fail "TEST-013: control tick (nothing changed since the stamp) must yield zero stale lines, got $n: $(cat "$ERR")"
+
+  local before_status after_status
+  before_status="$(git -C "$d" status --porcelain -- docs/TECHNOLOGY.md)"
+  echo "postdirty" >> "$d/docs/TECHNOLOGY.md"
+  after_status="$(git -C "$d" status --porcelain -- docs/TECHNOLOGY.md)"
+  [[ "$before_status" == "$after_status" ]] \
+    || log_fail "TEST-013: fixture invariant broken -- the status LETTER for docs/TECHNOLOGY.md must stay identical across the second edit (before=[$before_status] after=[$after_status]), or this arm is not exercising the content-only case B4 names"
+
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-013: dirty-content tick must still exit 0 (report-only), got $EC"
+  n="$(grep -c validation_verdict_stale "$ERR" || true)"
+  [[ "$n" == 1 ]] \
+    || log_fail "TEST-013: a content edit inside an ALREADY-DIRTY tracked file must trip exactly one validation_verdict_stale line (B4), got $n: $(cat "$ERR")"
+  grep -qF "CHANGE-0001" "$ERR" || log_fail "TEST-013: the dirty-content stale advisory must name the focus ref"
+
+  # --- negative: the SAME shape inside a TREE_HASH_EXCLUDE_PATHS entry
+  # (docs/ai/EVENTS.jsonl) must stay silent -- B1's exclusion behaviour has
+  # to hold on the diff-content input exactly as it already does on the
+  # status-line input, or fixing B4 would reintroduce the B1 self-invalidation
+  # this suite's own --confirm stamp depends on.
+  local d2
+  d2="$(mk_root t44b)"
+  write_dstate "$d2/docs/ai/STATE.yaml" pass
+  git_init_fixture_tracked_events "$d2"
+
+  echo '{"noise":1}' >> "$d2/docs/ai/EVENTS.jsonl"
+  run_dispatch "$d2" --confirm
+  [[ "$EC" == 0 ]] || log_fail "TEST-013: excluded-ledger baseline --confirm tick must exit 0, got $EC"
+  n="$(grep -c '"event":"validation_verdict"' "$d2/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-013: excluded-ledger baseline --confirm must stamp exactly one validation_verdict event (got $n)"
+
+  echo '{"noise":2}' >> "$d2/docs/ai/EVENTS.jsonl"
+  run_dispatch "$d2"
+  [[ "$EC" == 0 ]] || log_fail "TEST-013: excluded-ledger dirty-content tick must exit 0, got $EC"
+  n="$(grep -c validation_verdict_stale "$ERR" || true)"
+  [[ "$n" == 0 ]] \
+    || log_fail "TEST-013: a content edit inside an ALREADY-DIRTY docs/ai/EVENTS.jsonl (a TREE_HASH_EXCLUDE_PATHS entry) must stay silent -- the B4 diff filter must exclude it exactly as the status filter already does, got $n: $(cat "$ERR")"
+
+  log_pass "G2 stale advisory: content-only edit inside an already-dirty tracked file trips exactly once, the same shape inside an excluded ledger stays silent (TEST-013, B4)"
+}
+
+# --- TEST-014 (Spec-AC-04, role-verification-guards G2): filterExcludedDiff
+# must not leak its skip state across a git-QUOTED (unparseable) diff header
+# (F1, PR #261 bot review -- Copilot and Codex both; fu-filterdiff-skipflag-leak) --
+
+test_045_g2_filterdiff_quoted_header_reset() {
+  log_info "Test: G2 filterExcludedDiff resets skip state on EVERY diff --git header, including one git quotes and the regex cannot parse, so a real change in a quoted-path file sorting after an excluded ledger is never silently dropped from tree_hash (TEST-014, F1)..."
+
+  # Fixture: a tracked quoted-path file (non-ASCII byte -- core.quotepath is
+  # on by default, so git emits its `diff --git` header as an octal-escaped
+  # quoted string the a\/(.+) b\/(.+) regex does not match) that sorts AFTER
+  # docs/ai/EVENTS.jsonl (a TREE_HASH_EXCLUDE_PATHS entry) in git's diff
+  # order, so the excluded file's header lands immediately before the quoted
+  # one -- exactly the adjacency the skip-state leak needs to bite.
+  local d
+  d="$(mk_root t45)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass
+  printf 'x\n' > "$d/docs/ai/zžfile.md"
+  git_init_fixture_tracked_events "$d"
+
+  # docs/ai/EVENTS.jsonl (excluded, sorts first) and the quoted-path file
+  # (not excluded, sorts second) both dirtied ONCE before the first stamp --
+  # same "fixed status letter for the whole arm" discipline as TEST-013's
+  # positive arm, so only the DIFF-CONTENT input can distinguish the two ticks.
+  echo '{"noise":1}' >> "$d/docs/ai/EVENTS.jsonl"
+  echo "predirty" >> "$d/docs/ai/zžfile.md"
+
+  # Non-vacuity: prove git genuinely QUOTES this header on this host (the
+  # exact precondition F1 names) before trusting anything downstream. A
+  # plain, unquoted header here would mean the arm exercises nothing.
+  local header_lines
+  header_lines="$(git -C "$d" diff HEAD -- "docs/ai/zžfile.md" | grep -c '^diff --git "a/')"
+  [[ "$header_lines" == 1 ]] \
+    || log_fail "TEST-014: fixture precondition failed -- this host's git did not QUOTE the non-ASCII path's diff header (core.quotepath expected on by default), so this arm cannot exercise F1's quoted-header case"
+
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 0 ]] || log_fail "TEST-014: baseline --confirm tick must exit 0, got $EC: $(cat "$ERR")"
+  local n
+  n="$(grep -c '"event":"validation_verdict"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-014: baseline --confirm must stamp exactly one validation_verdict event (got $n)"
+
+  local before_status after_status
+  before_status="$(git -C "$d" status --porcelain -- "docs/ai/zžfile.md")"
+  echo "IMPORTANT REAL CHANGE" >> "$d/docs/ai/zžfile.md"
+  after_status="$(git -C "$d" status --porcelain -- "docs/ai/zžfile.md")"
+  [[ "$before_status" == "$after_status" ]] \
+    || log_fail "TEST-014: fixture invariant broken -- the status LETTER for the quoted-path file must stay identical across the second edit (before=[$before_status] after=[$after_status]), or this arm is not exercising the content-only case F1 names"
+
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-014: dirty-content tick must still exit 0 (report-only), got $EC"
+  n="$(grep -c validation_verdict_stale "$ERR" || true)"
+  [[ "$n" == 1 ]] \
+    || log_fail "TEST-014: a content edit inside an ALREADY-DIRTY quoted-path file (sorting immediately after an excluded ledger in diff order) must trip exactly one validation_verdict_stale line -- got $n. A leaked skip-state (F1) silently drops the quoted file's whole diff block, making this real change invisible to tree_hash: $(cat "$ERR")"
+  grep -qF "CHANGE-0001" "$ERR" || log_fail "TEST-014: the stale advisory must name the focus ref"
+
+  log_pass "G2 filterExcludedDiff: skip state resets on every diff header including an unparseable quoted one, so a real change in a quoted-path file after an excluded ledger still trips the advisory (TEST-014, F1)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026; TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
   check_deps
@@ -2424,6 +2995,13 @@ main() {
   test_036_confirm_cli_event
   test_037_confirm_delta_control
   test_038_confirm_record_failure_falls_back
+  test_039_g2_validation_verdict_stamp
+  test_040_g2_stale_advisory_integration
+  test_041_g2_silence_controls
+  test_042_g2_report_only_proof
+  test_043_g2_stamp_survives_tracked_events_ledger
+  test_044_g2_stale_advisory_dirty_file_content
+  test_045_g2_filterdiff_quoted_header_reset
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

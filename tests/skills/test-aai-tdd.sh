@@ -13,6 +13,11 @@ set -euo pipefail
 # Test metadata
 TEST_NAME="aai-tdd"
 TEST_DIR=""
+# Captured BEFORE setup_test_env() ever cd's away, so the G3 prompt-contract
+# test (TEST-008, role-verification-guards) can still find the real repo's
+# .aai/SKILL_TDD.prompt.md from inside the fixture working directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Cleanup function
 cleanup() {
@@ -326,6 +331,46 @@ test_verify_state_updates() {
   log_pass "STATE.yaml updated correctly"
 }
 
+# Test 8 (TEST-008, Spec-AC-06, role-verification-guards G3): the SKILL_TDD
+# Phase 4 sweep-gate teaching — grep contracts over the REAL
+# .aai/SKILL_TDD.prompt.md (never the fixture), each token present EXACTLY
+# ONCE inside the "### Phase 4" region (the section ends at the next "### "
+# heading or EOF).
+test_g3_sweep_gate_prompt_contract() {
+  log_info "Test 8: G3 full-framework-sweep gate present in SKILL_TDD Phase 4 (TEST-008)..."
+
+  local prompt="$PROJECT_ROOT/.aai/SKILL_TDD.prompt.md"
+  if [[ ! -f "$prompt" ]]; then
+    log_fail "SKILL_TDD.prompt.md not found: $prompt"
+  fi
+
+  local phase4="$TEST_DIR/phase4-region.txt"
+  awk '/^### Phase 4:/{p=1; print; next} p && /^### / {exit} p{print}' "$prompt" > "$phase4"
+
+  local n
+  # role-verification-guards remediation (Q4): REQUIRED -> RECOMMENDED. The
+  # original wording shipped this as a standing rule on a break-even claim
+  # that did not hold on its own numbers, and its cost model missed that
+  # VALIDATION.prompt.md already mandates the same full sweep one role later
+  # at the identical L2/L3 population — see spec D3.
+  n=$(grep -c "RECOMMENDED at ceremony_level 2 and 3" "$phase4" || true)
+  [[ "$n" -eq 1 ]] || log_fail "Phase 4 must name ceremony_level 2 and 3 as RECOMMENDED exactly once (got $n)"
+
+  n=$(grep -c "NOT recommended at ceremony_level 0 and 1" "$phase4" || true)
+  [[ "$n" -eq 1 ]] || log_fail "Phase 4 must name ceremony_level 0 and 1 as exempt exactly once (got $n)"
+
+  n=$(grep -ci "framework sweep" "$phase4" || true)
+  [[ "$n" -ge 1 ]] || log_fail "Phase 4 must name the full framework sweep requirement"
+
+  n=$(grep -c "SWEEP NOT RUN" "$phase4" || true)
+  [[ "$n" -eq 1 ]] || log_fail "Phase 4 must carry the named did-not-run statement form 'SWEEP NOT RUN' exactly once (got $n)"
+
+  n=$(grep -c "treated as 2" "$phase4" || true)
+  [[ "$n" -eq 1 ]] || log_fail "Phase 4 must instruct that an absent/unreadable ceremony level is treated as 2, exactly once (got $n)"
+
+  log_pass "G3 sweep-gate teaching present in SKILL_TDD Phase 4, all tokens exactly once (TEST-008)"
+}
+
 # Main test execution
 main() {
   echo "Testing: $TEST_NAME"
@@ -342,6 +387,7 @@ main() {
   test_refactor_phase
   test_verify_evidence
   test_verify_state_updates
+  test_g3_sweep_gate_prompt_contract
 
   echo ""
   echo "All tests passed!"

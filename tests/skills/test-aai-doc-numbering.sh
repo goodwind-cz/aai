@@ -19,6 +19,12 @@ TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ALLOC_SCRIPT="$PROJECT_ROOT/.aai/scripts/allocate-doc-number.mjs"
+# Shared close-work-item.mjs content-hash allowlist (role-verification-guards
+# unification, see the lib header): TEST-029 below and
+# test-aai-follow-ups.sh TEST-008 both consult this SAME list so their two
+# independently frozen invariants on that one file can never silently
+# disagree again.
+source "$SCRIPT_DIR/lib/close-work-item-pin.sh"
 
 cleanup() {
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
@@ -1499,28 +1505,23 @@ test_028_exit_contract_unchanged() {
 # incidents happened WITH its regen tail already in place, because it runs after
 # `gh pr create`). A future scope that legitimately edits close-work-item.mjs
 # must update this pin in the same commit — that friction is the point.
+#
+# role-verification-guards unification: this WAS a base-ref byte-diff-empty
+# check; it now shares the content-hash allowlist mechanism with
+# test-aai-follow-ups.sh TEST-008 (tests/skills/lib/close-work-item-pin.sh) —
+# see that file's header for why two independently frozen pins on the same
+# file needed one shared mechanism. A useful side effect: hashing the file
+# directly needs no reachable base ref at all, so the old
+# base-ref-unreachable NOT-VERIFIED degrade path no longer applies here.
 test_029_close_work_item_byte_unchanged() {
-  log_info "TEST-029: close-work-item.mjs byte-unchanged against the base ref..."
-  # origin/main first (validation F4; fourth instance of this class in the repo
-  # — a bare `main` never resolves on a detached PR checkout, so the pin goes
-  # inert while still reporting PASS).
-  local base="${CLOSE_PIN_BASE_REF:-}"
-  if [[ -z "$base" ]]; then
-    if git -C "$PROJECT_ROOT" rev-parse --verify --quiet origin/main >/dev/null; then base="origin/main"
-    else base="main"; fi
-  fi
-  if ! git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
-    # No log_pass here: an unrun assertion must never read as an enforced pin
-    # in the logs (review NB, PR #259). log_skip would abort the whole file
-    # (exit 42), so this degrades named-but-quiet and greps as NOT-VERIFIED.
-    log_info "TEST-029: NOT-VERIFIED — base ref '$base' unreachable, byte-unchanged pin did not run"
-    return 0
-  fi
-  local out
-  out="$(git -C "$PROJECT_ROOT" diff "$base" -- .aai/scripts/close-work-item.mjs)"
-  [[ -z "$out" ]] \
-    || log_fail "close-work-item.mjs must be byte-unchanged against $base (Spec-AC-06); diff:\n$out"
-  log_pass "TEST-029 close-work-item.mjs byte-unchanged against $base"
+  log_info "TEST-029: close-work-item.mjs content hash is on the shared allowlist..."
+  # OK-vs-ABSENT/MISMATCH/unrecognized-status assertion hoisted into
+  # close_work_item_pin_assert (role-verification-guards remediation, N-B) —
+  # one guard shared with test-aai-follow-ups.sh TEST-008, not a copy.
+  local result hash
+  result="$(close_work_item_pin_assert "$PROJECT_ROOT")" || log_fail "TEST-029: $result"
+  hash="${result#OK }"
+  log_pass "TEST-029 close-work-item.mjs content hash $hash is on the shared allowlist"
 }
 
 # --- TEST-030 (spec TEST-012, Spec-AC-07): the ordering is documented --------

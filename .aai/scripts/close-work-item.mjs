@@ -9,6 +9,12 @@
 // any drift. See docs/specs/SPEC-0053-spec-deterministic-close-ceremony.md
 // for the full design record (D1-D10).
 //
+// POST-MERGE-CLOSE ADVISORY (role-verification-guards G1): a report-only
+// stderr WARNING, printed at most once per invocation, when the delivery
+// `--commit` already sits on the resolved upstream default ref — a git
+// predicate (`git merge-base --is-ancestor`), never the PR API. Never
+// changes the exit code or stdout; fail-open on any git failure.
+//
 // GRAMMAR (D1, closed)
 //   node .aai/scripts/close-work-item.mjs --ref <slug> --pr <N> --commit <sha>
 //     [--spec <spec-slug>] [--review <pass|waived|none>] [--dry-run]
@@ -484,6 +490,60 @@ function emitEvent(event, ref, extraArgs) {
     stdio: 'ignore',
     cwd: ROOT,
   });
+}
+
+// --- post-merge-close advisory (role-verification-guards G1, D1) ------------
+//
+// Detects a close running AFTER its delivery commit already reached the
+// upstream default branch — proxy for "the PR is merged" via a git predicate
+// only, never the PR API (D1: close-work-item stays network-free and every
+// one of its arms hermetic; pr-platform.mjs is a URL classifier with no
+// PR-state reader). Fail-open on every git failure or absent remote: a false
+// silence costs nothing, a false alarm in the close ceremony trains people to
+// ignore the line. Resolution order: `origin/HEAD` symbolic ref, then the
+// literal `origin/main`, then `origin/master` — first hit wins.
+
+function resolveUpstreamDefaultRef(root) {
+  try {
+    const out = execFileSync('git', ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'], {
+      cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (out) return out.replace(/^refs\/remotes\//, '');
+  } catch { /* fall through to the literal candidates */ }
+  for (const ref of ['origin/main', 'origin/master']) {
+    try {
+      execFileSync('git', ['rev-parse', '--verify', '--quiet', ref], {
+        cwd: root, stdio: ['ignore', 'ignore', 'ignore'],
+      });
+      return ref;
+    } catch { /* try the next candidate */ }
+  }
+  return null;
+}
+
+// emitPostMergeCloseWarning(root, commit, pr) — called ONCE per invocation
+// (never once per ref, so a pair-close still prints at most one line). Prints
+// to stderr only; never touches stdout or the exit code. Any unexpected
+// failure here is swallowed — this advisory must never affect the close.
+function emitPostMergeCloseWarning(root, commit, pr) {
+  try {
+    if (!commit) return;
+    const ref = resolveUpstreamDefaultRef(root);
+    if (!ref) return;
+    try {
+      execFileSync('git', ['merge-base', '--is-ancestor', commit, ref], {
+        cwd: root, stdio: ['ignore', 'ignore', 'ignore'],
+      });
+    } catch {
+      return; // not an ancestor (or the commit/ref is unresolvable) -> silence
+    }
+    process.stderr.write(
+      `close-work-item: WARN post-merge-close - delivery commit ${commit} is already an ` +
+      `ancestor of ${ref}; commits produced by this close will be in neither PR #${pr} nor its CI\n`
+    );
+  } catch {
+    /* fail-open: never let this advisory affect the close */
+  }
 }
 
 // --- self-verify (D6.4) -------------------------------------------------------
@@ -980,6 +1040,12 @@ function pruneBriefs(plan) {
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const slugs = [args.ref, ...(args.spec ? [args.spec] : [])];
+
+  // role-verification-guards G1 — post-merge-close advisory, evaluated ONCE
+  // per invocation before any resolution or write (report-only; --dry-run
+  // already reports everything informationally in its own JSON, so this line
+  // is suppressed there too, matching the three gates below).
+  if (!args.dryRun) emitPostMergeCloseWarning(ROOT, args.commit, args.pr);
 
   // D2 + D3 — resolve EVERY doc and validate its status BEFORE any write
   // (D7 pair pre-write abort: either failing aborts the whole transaction).
