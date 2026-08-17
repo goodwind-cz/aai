@@ -1674,13 +1674,20 @@ test_clarify_011_no_new_ceremony() {
         # validation-verdict staleness), G3 (SKILL_TDD.prompt.md sweep gate),
         # G4 (SKILL_TEST_SKILLS.prompt.md disk-artifact-poll teaching).
         .aai/scripts/close-work-item.mjs|.aai/scripts/append-event.mjs|.aai/scripts/orchestration-dispatch.mjs|.aai/SKILL_TDD.prompt.md|.aai/SKILL_TEST_SKILLS.prompt.md) ;;
+        # docs-model-nul-escape: two raw NUL bytes in a template literal made
+        # the whole file binary to grep, so every agent sweeping .aai/scripts/
+        # silently missed it. Replaced with the six-character backslash-u-0000
+        # escape - proven identical at runtime (same key string, separator
+        # charCode 0, rest of the file byte-for-byte unchanged). Fourth payment
+        # of this allowlist tax, tracked as fu-test011-branch-diff-allowlist-tax.
+        .aai/scripts/lib/docs-model.mjs) ;;
         *) log_info "TEST-011(clarify): unexpected .aai/ path in the branch diff: $p"; ok=0 ;;
       esac
     done <<<"$changed"
   else
     log_info "TEST-011(clarify): neither origin/main nor main resolves — the .aai/ diff pin did not run"
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (now 14 paths across 4 scopes) accounts for every changed .aai/ path" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (now 15 paths across 5 scopes) accounts for every changed .aai/ path" \
     || log_fail "TEST-011(clarify) zero-added-ceremony pins"
 }
 

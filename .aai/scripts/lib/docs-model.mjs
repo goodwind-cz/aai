@@ -327,7 +327,7 @@ export function parseDeltasSection(content) {
 
   const OPS = new Set(['ADDED', 'MODIFIED', 'REMOVED']);
   const numberedSeen = new Set();    // full REQ-<DOMAIN>-NNN ids already targeted
-  const addedTitleSeen = new Set();  // `${domain} ${title.toLowerCase()}`
+  const addedTitleSeen = new Set();  // `${domain}\u0000${title.toLowerCase()}`
 
   for (const b of blocks) {
     const V = (code, detail) => violations.push({ code, detail, line: b.lineNo });
@@ -410,7 +410,7 @@ export function parseDeltasSection(content) {
       else numberedSeen.add(idToken);
     }
     if (op === 'ADDED' && domain != null && title != null) {
-      const key = `${domain} ${title.toLowerCase()}`;
+      const key = `${domain}\u0000${title.toLowerCase()}`;
       if (addedTitleSeen.has(key)) V('delta-duplicate', `ADDED title "${title}" collides with another ADDED in domain ${domain}`);
       else addedTitleSeen.add(key);
     }

@@ -1,24 +1,24 @@
 {
-  "generatedAt": "2026-08-17T03:18:16.649Z",
+  "generatedAt": "2026-08-17T13:31:02.116Z",
   "project": "aai",
   "counts": {
     "delivered": 191,
-    "in_progress": 1,
+    "in_progress": 2,
     "releases": 1,
     "tokens_total": 45545822
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "role-verification-guards",
+    "ref": "docs-model-nul-escape",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "role-verification-guards",
+      "ref": "docs-model-nul-escape",
       "type": "intake_change",
-      "phase": "validation"
+      "phase": "implementation"
     },
-    "strategy": "hybrid",
+    "strategy": "direct",
     "worktree": {
       "recommendation": "optional",
       "user_decision": "inline"
@@ -64,6 +64,19 @@
     ]
   },
   "in_progress": [
+    {
+      "ref": "docs-model-nul-escape",
+      "title": "Change — two raw NUL bytes made a shared library invisible to grep",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0147-docs-model-nul-escape.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
