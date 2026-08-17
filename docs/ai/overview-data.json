@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-08-17T03:16:31.428Z",
+  "generatedAt": "2026-08-17T03:18:16.649Z",
   "project": "aai",
   "counts": {
-    "delivered": 190,
-    "in_progress": 2,
+    "delivered": 191,
+    "in_progress": 1,
     "releases": 1,
-    "tokens_total": 42276716
+    "tokens_total": 45545822
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -23,8 +23,8 @@
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "pass",
-    "review_status": "pass",
+    "validation_status": "not_run",
+    "review_status": "not_run",
     "ticks": [
       {
         "tick": 133,
@@ -65,19 +65,6 @@
   },
   "in_progress": [
     {
-      "ref": "role-verification-guards",
-      "title": "Change — four guards where roles trust each other instead of checking",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0146-role-verification-guards.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0133-spec-role-verification-guards.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-20260816T214153Z-role-verification-guards.md"
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -92,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "role-verification-guards",
+      "title": "Change — four guards where roles trust each other instead of checking",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0146-role-verification-guards.md",
+      "closed_on": "2026-08-17",
+      "agent_minutes": 665,
+      "token_total": 3269106,
+      "spec": "docs/specs/SPEC-0133-spec-role-verification-guards.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260816T214153Z-role-verification-guards.md"
+    },
     {
       "ref": "deslop-scope-and-unrequested-engine",
       "title": "Change — deslop: scope becomes a parameter, and class 4 gets an engine",
@@ -2569,6 +2569,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "role-verification-guards",
+          "title": "Change — four guards where roles trust each other instead of checking",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0146-role-verification-guards.md",
+          "closed_on": "2026-08-17",
+          "agent_minutes": 665,
+          "token_total": 3269106,
+          "spec": "docs/specs/SPEC-0133-spec-role-verification-guards.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260816T214153Z-role-verification-guards.md"
+        },
         {
           "ref": "deslop-scope-and-unrequested-engine",
           "title": "Change — deslop: scope becomes a parameter, and class 4 gets an engine",
