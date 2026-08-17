@@ -2,13 +2,15 @@
 id: docs-model-nul-escape
 number: 147
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-workflow
 links:
-  pr: []
-  commits: []
+  pr:
+    - 262
+  commits:
+    - 838c8a1
 ---
 
 # Change — two raw NUL bytes made a shared library invisible to grep
