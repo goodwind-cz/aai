@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-08-17T13:31:02.116Z",
+  "generatedAt": "2026-08-17T19:04:43.476Z",
   "project": "aai",
   "counts": {
-    "delivered": 191,
-    "in_progress": 2,
+    "delivered": 192,
+    "in_progress": 1,
     "releases": 1,
     "tokens_total": 45545822
   },
@@ -24,7 +24,7 @@
       "user_decision": "inline"
     },
     "validation_status": "not_run",
-    "review_status": "not_run",
+    "review_status": "pass",
     "ticks": [
       {
         "tick": 133,
@@ -65,19 +65,6 @@
   },
   "in_progress": [
     {
-      "ref": "docs-model-nul-escape",
-      "title": "Change — two raw NUL bytes made a shared library invisible to grep",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0147-docs-model-nul-escape.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -104,6 +91,19 @@
       "spec": "docs/specs/SPEC-0133-spec-role-verification-guards.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260816T214153Z-role-verification-guards.md"
+    },
+    {
+      "ref": "docs-model-nul-escape",
+      "title": "Change — two raw NUL bytes made a shared library invisible to grep",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0147-docs-model-nul-escape.md",
+      "closed_on": "2026-08-17",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": "docs/ai/reviews/review-docs-model-nul-escape-20260817T153931Z.md"
     },
     {
       "ref": "deslop-scope-and-unrequested-engine",
@@ -2594,6 +2594,19 @@
           "spec": "docs/specs/SPEC-0133-spec-role-verification-guards.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260816T214153Z-role-verification-guards.md"
+        },
+        {
+          "ref": "docs-model-nul-escape",
+          "title": "Change — two raw NUL bytes made a shared library invisible to grep",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0147-docs-model-nul-escape.md",
+          "closed_on": "2026-08-17",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": "docs/ai/reviews/review-docs-model-nul-escape-20260817T153931Z.md"
         },
         {
           "ref": "deslop-scope-and-unrequested-engine",
