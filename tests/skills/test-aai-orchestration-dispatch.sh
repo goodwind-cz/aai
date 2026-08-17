@@ -2657,6 +2657,17 @@ const e = decide({ ...base, validation: { status: 'not_run', ref_id: 'CHANGE-000
   tree_hash: 'bbbb', last_validation_verdict: { status: 'pass', hash: 'aaaa' } });
 assert.ok(!('advisories' in e), "STATE's last_validation.status no longer 'pass' must yield no advisories key even when the stale stamped event still says pass and its hash mismatches");
 
+// F2 (PR #261 bot review, both Copilot and Codex; code review NB-2): STATE's
+// own `validation.status` is 'pass' but for a DIFFERENT ref than the current
+// focus. `last_validation_verdict` is always focus-ref-scoped (buildSnapshot
+// filters the EVENTS scan by refMatches(e.ref, focusRef)), so a same-status,
+// wrong-ref STATE verdict must NOT corroborate it -- withStaleAdvisory must
+// require refMatches(validation.ref_id, focus.ref_id), the same guard rule
+// 521's `vmatch` and the recordValidationVerdict stamp call already apply.
+const f = decide({ ...base, validation: { status: 'pass', ref_id: 'CHANGE-9999' },
+  tree_hash: 'bbbb', last_validation_verdict: { status: 'pass', hash: 'aaaa' } });
+assert.ok(!('advisories' in f), "STATE's pass verdict for a DIFFERENT ref than the focus ref must yield no advisories key even though status alone says pass and the hashes mismatch");
+
 console.log('ok');
 EOF
   (cd "$PROJECT_ROOT" && node "$TEST_DIR/t41.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t41.log" 2>&1 \
@@ -2886,6 +2897,63 @@ test_044_g2_stale_advisory_dirty_file_content() {
   log_pass "G2 stale advisory: content-only edit inside an already-dirty tracked file trips exactly once, the same shape inside an excluded ledger stays silent (TEST-013, B4)"
 }
 
+# --- TEST-014 (Spec-AC-04, role-verification-guards G2): filterExcludedDiff
+# must not leak its skip state across a git-QUOTED (unparseable) diff header
+# (F1, PR #261 bot review -- Copilot and Codex both; fu-filterdiff-skipflag-leak) --
+
+test_045_g2_filterdiff_quoted_header_reset() {
+  log_info "Test: G2 filterExcludedDiff resets skip state on EVERY diff --git header, including one git quotes and the regex cannot parse, so a real change in a quoted-path file sorting after an excluded ledger is never silently dropped from tree_hash (TEST-014, F1)..."
+
+  # Fixture: a tracked quoted-path file (non-ASCII byte -- core.quotepath is
+  # on by default, so git emits its `diff --git` header as an octal-escaped
+  # quoted string the a\/(.+) b\/(.+) regex does not match) that sorts AFTER
+  # docs/ai/EVENTS.jsonl (a TREE_HASH_EXCLUDE_PATHS entry) in git's diff
+  # order, so the excluded file's header lands immediately before the quoted
+  # one -- exactly the adjacency the skip-state leak needs to bite.
+  local d
+  d="$(mk_root t45)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass
+  printf 'x\n' > "$d/docs/ai/zžfile.md"
+  git_init_fixture_tracked_events "$d"
+
+  # docs/ai/EVENTS.jsonl (excluded, sorts first) and the quoted-path file
+  # (not excluded, sorts second) both dirtied ONCE before the first stamp --
+  # same "fixed status letter for the whole arm" discipline as TEST-013's
+  # positive arm, so only the DIFF-CONTENT input can distinguish the two ticks.
+  echo '{"noise":1}' >> "$d/docs/ai/EVENTS.jsonl"
+  echo "predirty" >> "$d/docs/ai/zžfile.md"
+
+  # Non-vacuity: prove git genuinely QUOTES this header on this host (the
+  # exact precondition F1 names) before trusting anything downstream. A
+  # plain, unquoted header here would mean the arm exercises nothing.
+  local header_lines
+  header_lines="$(git -C "$d" diff HEAD -- "docs/ai/zžfile.md" | grep -c '^diff --git "a/')"
+  [[ "$header_lines" == 1 ]] \
+    || log_fail "TEST-014: fixture precondition failed -- this host's git did not QUOTE the non-ASCII path's diff header (core.quotepath expected on by default), so this arm cannot exercise F1's quoted-header case"
+
+  run_dispatch "$d" --confirm
+  [[ "$EC" == 0 ]] || log_fail "TEST-014: baseline --confirm tick must exit 0, got $EC: $(cat "$ERR")"
+  local n
+  n="$(grep -c '"event":"validation_verdict"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-014: baseline --confirm must stamp exactly one validation_verdict event (got $n)"
+
+  local before_status after_status
+  before_status="$(git -C "$d" status --porcelain -- "docs/ai/zžfile.md")"
+  echo "IMPORTANT REAL CHANGE" >> "$d/docs/ai/zžfile.md"
+  after_status="$(git -C "$d" status --porcelain -- "docs/ai/zžfile.md")"
+  [[ "$before_status" == "$after_status" ]] \
+    || log_fail "TEST-014: fixture invariant broken -- the status LETTER for the quoted-path file must stay identical across the second edit (before=[$before_status] after=[$after_status]), or this arm is not exercising the content-only case F1 names"
+
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-014: dirty-content tick must still exit 0 (report-only), got $EC"
+  n="$(grep -c validation_verdict_stale "$ERR" || true)"
+  [[ "$n" == 1 ]] \
+    || log_fail "TEST-014: a content edit inside an ALREADY-DIRTY quoted-path file (sorting immediately after an excluded ledger in diff order) must trip exactly one validation_verdict_stale line -- got $n. A leaked skip-state (F1) silently drops the quoted file's whole diff block, making this real change invisible to tree_hash: $(cat "$ERR")"
+  grep -qF "CHANGE-0001" "$ERR" || log_fail "TEST-014: the stale advisory must name the focus ref"
+
+  log_pass "G2 filterExcludedDiff: skip state resets on every diff header including an unparseable quoted one, so a real change in a quoted-path file after an excluded ledger still trips the advisory (TEST-014, F1)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026; TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
   check_deps
@@ -2933,6 +3001,7 @@ main() {
   test_042_g2_report_only_proof
   test_043_g2_stamp_survives_tracked_events_ledger
   test_044_g2_stale_advisory_dirty_file_content
+  test_045_g2_filterdiff_quoted_header_reset
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

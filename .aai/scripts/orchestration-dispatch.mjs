@@ -358,11 +358,27 @@ export function decide(snapshot, opts = {}) {
 // advisory text actually claims. Requiring `snapshot.validation.status ===
 // 'pass'` too means the advisory only fires while STATE and the last stamp
 // AGREE that a pass verdict is standing.
+//
+// Corrected at remediation (external review, PR #261 F2 — Copilot and Codex
+// both independently found this; internal code review round 2 raised the
+// same gap as NB-2 and it went unfiled): "the same ref" above was aspirational
+// prose the code never enforced. `last_validation_verdict` (the stamped
+// EVENT) is always focus-ref-scoped — buildSnapshot's EVENTS scan already
+// filters by `refMatches(e.ref, focusRef)` — but `currentlyPass` corroborated
+// only `snapshot.validation.status`, which can be 'pass' for ANY ref STATE
+// currently holds, not necessarily the focus ref the stamped event names.
+// decideRuleTable's own rule-11-adjacent `vmatch` (~line 494) and the
+// recordValidationVerdict stamp call in main() (~line 1273) both already
+// require `refMatches(validation.ref_id, focus.ref_id)`; this function now
+// applies the identical guard so a same-status, wrong-ref STATE verdict can
+// no longer be misread as corroborating the focus ref's stamped event.
 function withStaleAdvisory(out, snapshot) {
   const s = snapshot;
   const verdict = s && s.last_validation_verdict;
   const treeHash = s ? s.tree_hash : undefined;
-  const currentlyPass = !!(s && s.validation && s.validation.status === 'pass');
+  const focusRef = s && s.focus ? s.focus.ref_id : null;
+  const currentlyPass = !!(s && s.validation && s.validation.status === 'pass'
+    && refMatches(s.validation.ref_id, focusRef));
   if (verdict && verdict.status === 'pass' && currentlyPass
     && verdict.hash != null && treeHash != null
     && verdict.hash !== treeHash) {
@@ -696,15 +712,30 @@ const TREE_HASH_EXCLUDE_PATHS = new Set([
 // including) the next one applies the exact SAME denylist used on the
 // porcelain status lines below, so an uncommitted edit to an excluded ledger
 // stays invisible to the hash on BOTH inputs, never just one.
+//
+// Corrected at remediation (external review, PR #261 F1 — Copilot and Codex
+// both independently found this; fu-filterdiff-skipflag-leak): every file's
+// header carries the literal `diff --git ` prefix EVEN WHEN git quotes the
+// two paths that follow (core.quotepath is on by default — any path with a
+// space, non-ASCII byte or control character is emitted as an octal-escaped
+// quoted string the `a\/(.+) b\/(.+)` regex below does not match). The
+// PREVIOUS version only reset `skipping` inside `if (m)`, so an unparseable
+// header left `skipping` at whatever the PRIOR file set it to — a quoted-path
+// file immediately following an excluded ledger in sorted diff order had its
+// entire diff block silently dropped from the hash, fails silent. Boundary
+// detection now keys off the literal prefix (matches every header,
+// parseable or not) and `skipping` is recomputed FRESH on every boundary; an
+// unparseable header defaults to `skipping = false` — fail toward INCLUDING
+// the file's content in the hash, never toward dropping it.
 function filterExcludedDiff(rawDiff) {
   if (!rawDiff) return '';
   const lines = rawDiff.split('\n');
   const kept = [];
   let skipping = false;
   for (const line of lines) {
-    const m = /^diff --git a\/(.+) b\/(.+)$/.exec(line);
-    if (m) {
-      skipping = TREE_HASH_EXCLUDE_PATHS.has(m[1]) || TREE_HASH_EXCLUDE_PATHS.has(m[2]);
+    if (line.startsWith('diff --git ')) {
+      const m = /^diff --git a\/(.+) b\/(.+)$/.exec(line);
+      skipping = !!m && (TREE_HASH_EXCLUDE_PATHS.has(m[1]) || TREE_HASH_EXCLUDE_PATHS.has(m[2]));
       if (skipping) continue;
     }
     if (!skipping) kept.push(line);
