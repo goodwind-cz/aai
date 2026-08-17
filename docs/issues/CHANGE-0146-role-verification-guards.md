@@ -2,13 +2,15 @@
 id: role-verification-guards
 number: 146
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-workflow
 links:
-  pr: []
-  commits: []
+  pr:
+    - 261
+  commits:
+    - 797c742
 ---
 
 # Change — four guards where roles trust each other instead of checking

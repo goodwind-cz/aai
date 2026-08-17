@@ -2,13 +2,15 @@
 id: spec-role-verification-guards
 type: spec
 number: 133
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0146-role-verification-guards.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 261
+  commits:
+    - 797c742
 ---
 
 # Spec — four report-only guards where one role takes another's word
