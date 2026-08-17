@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-17T10:46:38.570Z
+Generated: 2026-08-17T13:31:22.205Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -380,9 +380,11 @@ _None._
 | SPEC-0133 | specs | docs/specs/SPEC-0133-spec-role-verification-guards.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0147 | issues | docs/issues/CHANGE-0147-docs-model-nul-escape.md |
 
 ## Deferred (whole-doc) (0)
 
