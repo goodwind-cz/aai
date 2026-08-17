@@ -161,6 +161,12 @@ suites:
       - .aai/scripts/pre-commit-checks.ps1
       - .aai/templates/RFC_TEMPLATE.md
       - .aai/templates/SPEC_TEMPLATE.md
+      # role-verification-guards remediation, NB-7: TEST-029 pins
+      # close-work-item.mjs via the shared close-work-item-pin.sh library —
+      # neither was previously globbed here, so editing either could skip
+      # this suite (fu-pin-lib-suite-map-route).
+      - .aai/scripts/close-work-item.mjs
+      - tests/skills/lib/close-work-item-pin.sh
       - docs/INDEX.md
       # CHANGE-0143: the allocator now regenerates the spec-path projections at
       # the rename, and this suite owns the stale-DRAFT invariant over the whole
@@ -262,6 +268,11 @@ suites:
       - .aai/scripts/follow-ups.mjs
       - docs/ai/decisions.jsonl
       - tests/skills/test-aai-follow-ups.sh
+      # role-verification-guards remediation, NB-7: TEST-008/TEST-010 pin
+      # close-work-item.mjs via the shared close-work-item-pin.sh library —
+      # neither was previously globbed here (fu-pin-lib-suite-map-route).
+      - .aai/scripts/close-work-item.mjs
+      - tests/skills/lib/close-work-item-pin.sh
 
   aai-friction-capture-points:
     globs:

@@ -241,6 +241,14 @@ After completing REFACTOR for one TEST-xxx:
 
 No completion claim in this phase without the `.aai/SKILL_VERIFY.prompt.md` gate.
 
+0. **Full framework sweep (G3)** — RECOMMENDED at ceremony_level 2 and 3
+   before any done/complete claim: run once and report the real tally —
+   `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh`.
+   NOT recommended at ceremony_level 0 and 1 (the level itself is the sanctioned
+   reason). Absent/unreadable level is treated as 2 (fail-closed). If it did
+   not run, say `SWEEP NOT RUN — <reason>` — never a silent omission, never a
+   blocking gate.
+
 1. **Update Documentation**
    - Add/update code comments
    - Update `docs/knowledge/FACTS.md` with learnings

@@ -413,6 +413,19 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# -2918 (true-up: role-verification-guards added an +829 B itemized entry —
+# .aai/SKILL_TDD.prompt.md Phase 4 step 0 full-framework-sweep (G3,
+# RECOMMENDED at ceremony_level 2 and 3, NOT recommended at 0 and 1, absent/
+# unreadable level treated as 2; measured growth 485 B; corrected at
+# remediation Q4 from REQUIRED to RECOMMENDED — see spec D3) + .aai/SKILL_TEST_
+# SKILLS.prompt.md "Waiting for a Background Run" disk-artifact-poll teaching
+# (G4, the literal AAI Skills Test Summary is the completion token, existence
+# alone is not completion; measured growth 344 B); the close-work-item.mjs
+# post-merge-close advisory (G1) and the orchestration-dispatch.mjs/
+# append-event.mjs validation-verdict staleness advisory (G2) are both
+# script-only (.aai/scripts/, no ledger cost); measured combined growth
+# 829 B, inside the spec's 900 B ceiling, credited 1:1 so the TEST-012 pin
+# moves -3747 -> -2918, over the prior
 # -3747 (true-up: deslop-scope-and-unrequested-engine-remediation round-7
 # code-review added a +305 B itemized entry — .aai/SKILL_DESLOP.prompt.md's
 # --all bullet corrected from the false "whole .aai/ tree" claim (NB-1: only
@@ -635,15 +648,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -3747 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -3747)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -2918 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -2918)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -3747 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -2918 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
@@ -937,6 +950,57 @@ test_019_core_prompt_diet_dedup() {
     || log_fail "TEST-019 core-prompt-diet dedup + surviving recipes"
 }
 
+# TEST-020 (spec TEST-009, Spec-AC-07, role-verification-guards G4) —
+# .aai/SKILL_TEST_SKILLS.prompt.md teaches the disk-artifact poll (never an
+# output-stream pattern match); a corpus-wide scan of .aai/** for
+# output-stream-wait phrasing returns zero hits on the real corpus, and a
+# synthetic fixture carrying that phrasing makes the SAME scan return
+# non-zero (proving the scan can actually bite, not just pass vacuously).
+OUTPUT_STREAM_WAIT_RE='wait(ing)?[[:space:]]+(for|on)[^.]*output[[:space:]]+stream'
+
+test_020_g4_disk_artifact_poll_contract() {
+  local ok=1
+  local skill_test_skills=".aai/SKILL_TEST_SKILLS.prompt.md"
+
+  if [[ ! -f "$skill_test_skills" ]]; then
+    log_info "TEST-020: $skill_test_skills not found"
+    ok=0
+  else
+    grep -qF 'summary.txt' "$skill_test_skills" \
+      || { log_info "TEST-020: $skill_test_skills does not name summary.txt"; ok=0; }
+    grep -qF 'AAI Skills Test Summary' "$skill_test_skills" \
+      || { log_info "TEST-020: $skill_test_skills does not name the completion literal 'AAI Skills Test Summary'"; ok=0; }
+    grep -qi 'EXISTENCE is NOT completion' "$skill_test_skills" \
+      || { log_info "TEST-020: $skill_test_skills does not state that existence is not completion"; ok=0; }
+  fi
+
+  # Real-corpus scan: zero output-stream-wait hits anywhere under .aai/**.
+  local hits
+  hits=$(grep -r -l -i -I -E "$OUTPUT_STREAM_WAIT_RE" "$PROJECT_ROOT/.aai" 2>/dev/null | wc -l | tr -d ' ')
+  if [[ "$hits" -ne 0 ]]; then
+    log_info "TEST-020: corpus scan expected 0 output-stream-wait hits under .aai/**, got $hits"
+    ok=0
+  fi
+
+  # Bite check: apply the SAME regex to a synthetic fixture carrying the
+  # forbidden phrasing, built in a throwaway temp dir (NEVER inside the real
+  # .aai tree -- fixtures never mutate this repository) -- must flip
+  # non-zero, proving the zero-hit result above is not vacuous.
+  local fixture
+  fixture="$(mktemp "${TMPDIR:-/tmp}/aai-g4-bite-fixture.XXXXXX")"
+  echo "Wait for the colour-coded PASS pattern in the process output stream." > "$fixture"
+  local bite_hits
+  bite_hits=$(grep -l -i -I -E "$OUTPUT_STREAM_WAIT_RE" "$fixture" 2>/dev/null | wc -l | tr -d ' ')
+  rm -f "$fixture"
+  if [[ "$bite_hits" -eq 0 ]]; then
+    log_info "TEST-020: synthetic forbidden-phrasing fixture did not trip the scan (test bug, not a real finding)"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-020 G4 disk-artifact-poll teaching present, corpus scan clean, bite check proven (spec TEST-009 / Spec-AC-07)" \
+    || log_fail "TEST-020 G4 disk-artifact-poll contract (spec TEST-009 / Spec-AC-07)"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -962,6 +1026,7 @@ main() {
   test_017_dashboard_test_skills_pins
   test_018_journal_report_contract_pins
   test_019_core_prompt_diet_dedup
+  test_020_g4_disk_artifact_poll_contract
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

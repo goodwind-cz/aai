@@ -1741,3 +1741,6 @@
 {"v":1,"ts":"2026-08-16T07:02:36.655Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-deslop-scope-and-unrequested-engine","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-16T07:02:36.687Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-deslop-scope-and-unrequested-engine","payload":{"commit":"c824367"}}
 {"v":1,"ts":"2026-08-16T07:03:16.454Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":352,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-16T07:22:02.131Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-role-verification-guards","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-16T19:09:26.964Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"role-verification-guards","payload":{"status":"pass","hash":"88623bd23399147578d9bec5a894bf17e42ea2532c67afc58943aa09b562553f"}}
+{"v":1,"ts":"2026-08-16T21:34:51.350Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"role-verification-guards","payload":{"status":"pass","hash":"8e3632641356447539dc33e753c056b4bb7a9b479782f7c3f15f0d725bf484d0"}}

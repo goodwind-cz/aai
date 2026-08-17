@@ -151,6 +151,75 @@ YAML
   echo "$dir"
 }
 
+# new_fixture_repo_with_remote <name> -> prints the fixture repo's absolute
+# path. Same as new_fixture_repo, PLUS a bare "origin" remote (SEAM-5,
+# role-verification-guards G1): the init commit is pushed to origin main and
+# refs/remotes/origin/HEAD is set, so `git merge-base --is-ancestor` has a
+# real upstream default ref to resolve. The bare remote lives alongside the
+# working copy under $TEST_DIR (never inside it), so `cp -r` on the working
+# copy alone still leaves a valid `origin` (both copies share the same
+# throwaway remote path).
+new_fixture_repo_with_remote() {
+  local name="$1"
+  local dir; dir=$(new_fixture_repo "$name")
+  local remote="$TEST_DIR/${name}-remote.git"
+  git init -q --bare "$remote" >/dev/null
+  git -C "$dir" remote add origin "$remote"
+  git -C "$dir" push -q origin HEAD:refs/heads/main
+  git -C "$dir" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+  echo "$dir"
+}
+
+# push_head_to_origin_main <dir> — pushes the fixture's CURRENT HEAD to
+# origin main (the "merged order" shape: the delivery commit already sits on
+# the upstream default ref BEFORE close runs).
+push_head_to_origin_main() {
+  local dir="$1"
+  git -C "$dir" push -q origin HEAD:refs/heads/main
+}
+
+# PRE_G1_CLOSE_WORK_ITEM_BLOB — the git blob sha of
+# .aai/scripts/close-work-item.mjs exactly as it stood immediately before
+# this scope's G1 edit landed (recorded once, by hand, from
+# `git rev-parse HEAD:.aai/scripts/close-work-item.mjs` on the pre-change
+# tree). validation-20260816T131500Z B2: deriving "pre-change" from
+# `git archive HEAD` broke the moment this scope's own delivery commit became
+# HEAD, because HEAD then IS the post-G1 tree and the "pre-change" run started
+# emitting the very warning it was there to prove absent. A pinned blob sha is
+# stable regardless of where HEAD points, now or after any future commit,
+# because the object stays reachable as an ancestor of every commit that
+# descends from the pre-change tree.
+PRE_G1_CLOSE_WORK_ITEM_BLOB="4594d98cb2598d2380116c0f48f70c6481c55278"
+
+# pre_change_close_script -> prints the path to a runnable copy of the
+# PRE-G1 close-work-item.mjs. Siblings (append-event.mjs, the generate-*.mjs
+# best-effort regenerators, lib/*.mjs — none of which G1 touches) come from
+# the CURRENT tree so every relative import/execFileSync sibling call
+# resolves on any commit; only close-work-item.mjs itself is swapped for the
+# pinned pre-G1 blob. Memoized per suite run — the scratch tree is static
+# content, built once.
+_PRE_CHANGE_CLOSE_SCRIPT=""
+pre_change_close_script() {
+  if [[ -n "$_PRE_CHANGE_CLOSE_SCRIPT" && -f "$_PRE_CHANGE_CLOSE_SCRIPT" ]]; then
+    echo "$_PRE_CHANGE_CLOSE_SCRIPT"
+    return
+  fi
+  local root="$TEST_DIR/pre-change-tree"
+  mkdir -p "$root/.aai"
+  cp -r "$PROJECT_ROOT/.aai/scripts" "$root/.aai/scripts"
+  local content
+  content=$(cd "$PROJECT_ROOT" && git cat-file -p "$PRE_G1_CLOSE_WORK_ITEM_BLOB") \
+    || log_fail "pre_change_close_script: git cat-file of the pinned pre-G1 blob failed"
+  case "$content" in
+    *post-merge-close*)
+      log_fail "pre_change_close_script: the pinned pre-G1 blob unexpectedly already carries post-merge-close — PRE_G1_CLOSE_WORK_ITEM_BLOB points at the wrong object"
+      ;;
+  esac
+  printf '%s\n' "$content" > "$root/.aai/scripts/close-work-item.mjs"
+  _PRE_CHANGE_CLOSE_SCRIPT="$root/.aai/scripts/close-work-item.mjs"
+  echo "$_PRE_CHANGE_CLOSE_SCRIPT"
+}
+
 commit_fixture_docs() {
   local dir="$1"
   git -C "$dir" add -A
@@ -2089,6 +2158,174 @@ test_046_evidence_gate_worktree_resolves_against_main_tree() {
   log_pass "Evidence-path gate resolves against the main checkout from a linked worktree: worktree-only evidence warns, main-tree evidence resolves clean, resolutionRoot observable (PR #245 Codex P1 / CHANGE-0127)"
 }
 
+# --- TEST-001 (Spec-AC-01, role-verification-guards G1): post-merge-close --
+
+test_047_post_merge_close_warns_once() {
+  log_info "Test: G1 post-merge-close warning fires exactly once, incl. on a pair-close (TEST-001)..."
+
+  # Single-ref merged-order fixture: the delivery commit is pushed to
+  # origin/main BEFORE close runs.
+  local dir; dir=$(new_fixture_repo_with_remote "t047a")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t047a.md" "t047a-slug" "draft"
+  commit_fixture_docs "$dir"
+  local sha; sha=$(git -C "$dir" rev-parse HEAD)
+  push_head_to_origin_main "$dir"
+
+  local out="$TEST_DIR/t047a.out" err="$TEST_DIR/t047a.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t047a-slug --pr 47 --commit "$sha")
+  assert_exit "merged-order close still succeeds" 0 "$code"
+  [[ "$(grep -c post-merge-close "$err" || true)" -eq 1 ]] \
+    || log_fail "t047a: expected exactly one post-merge-close line, got: $(cat "$err")"
+  grep -qF "$sha" "$err" || log_fail "t047a: post-merge-close line must name the delivery sha"
+  grep -qF "PR #47" "$err" || log_fail "t047a: post-merge-close line must name the PR number"
+  grep -qF "origin/main" "$err" || log_fail "t047a: post-merge-close line must name the resolved upstream ref"
+
+  # Pair-close: --ref + --spec in ONE invocation must still print exactly one
+  # line (D1 — emitted ONCE PER INVOCATION, never once per ref).
+  local dir2; dir2=$(new_fixture_repo_with_remote "t047b")
+  write_change_doc "$dir2/docs/issues/CHANGE-0001-t047b.md" "t047b-change-slug" "draft"
+  write_spec_doc "$dir2/docs/specs/SPEC-0001-t047b.md" "t047b-spec-slug" "implementing"
+  commit_fixture_docs "$dir2"
+  local sha2; sha2=$(git -C "$dir2" rev-parse HEAD)
+  push_head_to_origin_main "$dir2"
+
+  local out2="$TEST_DIR/t047b.out" err2="$TEST_DIR/t047b.err" code2
+  code2=$(run_close "$dir2" "$out2" "$err2" --ref t047b-change-slug --spec t047b-spec-slug --pr 48 --commit "$sha2")
+  assert_exit "merged-order pair-close still succeeds" 0 "$code2"
+  [[ "$(grep -c post-merge-close "$err2" || true)" -eq 1 ]] \
+    || log_fail "t047b: pair-close must still print exactly ONE post-merge-close line, got: $(cat "$err2")"
+
+  log_pass "G1 post-merge-close warning fires exactly once per invocation, single-ref and pair-close alike (TEST-001)"
+}
+
+# --- TEST-002 (Spec-AC-01, role-verification-guards G1): negative controls -
+
+test_048_post_merge_close_negative_controls() {
+  log_info "Test: G1 negative controls — open-PR order and no-remote both print zero lines (TEST-002)..."
+
+  # Open-PR-order: origin/main carries only the init commit; the delivery
+  # commit exists ONLY on the local fixture, never pushed.
+  local dir; dir=$(new_fixture_repo_with_remote "t048a")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t048a.md" "t048a-slug" "draft"
+  commit_fixture_docs "$dir"
+  local sha; sha=$(git -C "$dir" rev-parse HEAD)
+
+  local out="$TEST_DIR/t048a.out" err="$TEST_DIR/t048a.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t048a-slug --pr 1 --commit "$sha")
+  assert_exit "open-PR-order close succeeds" 0 "$code"
+  [[ "$(grep -c post-merge-close "$err" || true)" -eq 0 ]] \
+    || log_fail "t048a: open-PR-order fixture must print zero post-merge-close lines, got: $(cat "$err")"
+
+  # No remote at all: resolveUpstreamDefaultRef must fail closed to silence,
+  # never an error.
+  local dir2; dir2=$(new_fixture_repo "t048b")
+  write_change_doc "$dir2/docs/issues/CHANGE-0001-t048b.md" "t048b-slug" "draft"
+  commit_fixture_docs "$dir2"
+  local sha2; sha2=$(git -C "$dir2" rev-parse HEAD)
+
+  local out2="$TEST_DIR/t048b.out" err2="$TEST_DIR/t048b.err" code2
+  code2=$(run_close "$dir2" "$out2" "$err2" --ref t048b-slug --pr 2 --commit "$sha2")
+  assert_exit "no-remote close succeeds" 0 "$code2"
+  [[ "$(grep -c post-merge-close "$err2" || true)" -eq 0 ]] \
+    || log_fail "t048b: no-remote fixture must print zero post-merge-close lines, got: $(cat "$err2")"
+
+  # --dry-run: even on a MERGED-ORDER fixture (would otherwise warn), the
+  # advisory is suppressed -- --dry-run already reports everything
+  # informationally in its own JSON, matching the three pre-existing gates
+  # beside it (Spec-AC-01 dry-run carve-out, validation-20260816T131500Z N7).
+  local dir3; dir3=$(new_fixture_repo_with_remote "t048c")
+  write_change_doc "$dir3/docs/issues/CHANGE-0001-t048c.md" "t048c-slug" "draft"
+  commit_fixture_docs "$dir3"
+  local sha3; sha3=$(git -C "$dir3" rev-parse HEAD)
+  push_head_to_origin_main "$dir3"
+
+  local out3="$TEST_DIR/t048c.out" err3="$TEST_DIR/t048c.err" code3
+  code3=$(run_close "$dir3" "$out3" "$err3" --ref t048c-slug --pr 3 --commit "$sha3" --dry-run)
+  assert_exit "merged-order --dry-run close succeeds" 0 "$code3"
+  [[ "$(grep -c post-merge-close "$err3" || true)" -eq 0 ]] \
+    || log_fail "t048c: --dry-run on a merged-order fixture must print zero post-merge-close lines, got: $(cat "$err3")"
+
+  log_pass "G1 negative controls: open-PR order, no-remote and --dry-run (even merged-order) all silent (TEST-002)"
+}
+
+# --- TEST-003 (Spec-AC-02, role-verification-guards G1): report-only proof -
+
+test_049_post_merge_close_report_only() {
+  log_info "Test: G1 changes neither exit code nor stdout, on the warning path or the silent path (TEST-003)..."
+
+  # Build ONE merged-order fixture, then literally COPY it (the whole
+  # working tree, .git included, so the delivery commit sha is byte-for-byte
+  # identical in both copies) before either copy is closed. One copy is
+  # closed with the PRE-CHANGE close-work-item.mjs (the PRE_G1_CLOSE_WORK_ITEM_BLOB
+  # pinned blob sha, NOT HEAD-relative -- N4/B2: HEAD IS the post-change tree
+  # from this scope's delivery commit onward); the other with the real,
+  # post-change script under test. Same docs, same ref/pr/commit -> stdout
+  # and exit code must be byte-identical; only stderr may differ.
+  local base; base=$(new_fixture_repo_with_remote "t049")
+  write_change_doc "$base/docs/issues/CHANGE-0001-t049.md" "t049-slug" "draft"
+  commit_fixture_docs "$base"
+  local sha; sha=$(git -C "$base" rev-parse HEAD)
+  push_head_to_origin_main "$base"
+
+  local pre_dir="$TEST_DIR/t049-pre" post_dir="$TEST_DIR/t049-post"
+  cp -r "$base" "$pre_dir"
+  cp -r "$base" "$post_dir"
+
+  # The pre-change script needs its sibling lib/ modules to resolve (none of
+  # which this scope touches), so extract close-work-item.mjs alone from the
+  # PRE_G1_CLOSE_WORK_ITEM_BLOB pinned blob (N4/B2: never HEAD-relative) into
+  # a scratch scripts/ directory carrying a copy of the CURRENT (unmodified)
+  # lib/ tree.
+  local pre_script; pre_script=$(pre_change_close_script)
+
+  local pre_out="$TEST_DIR/t049-pre.out" pre_err="$TEST_DIR/t049-pre.err" pre_code
+  pre_code=0
+  ( cd "$pre_dir" && node "$pre_script" --ref t049-slug --pr 49 --commit "$sha" > "$pre_out" 2> "$pre_err" ) || pre_code=$?
+
+  local post_out="$TEST_DIR/t049-post.out" post_err="$TEST_DIR/t049-post.err" post_code
+  post_code=$(run_close "$post_dir" "$post_out" "$post_err" --ref t049-slug --pr 49 --commit "$sha")
+
+  assert_exit "pre-change close succeeds" 0 "$pre_code"
+  assert_exit "post-change close succeeds identically" "$pre_code" "$post_code"
+  cmp -s "$pre_out" "$post_out" \
+    || log_fail "t049: stdout must be byte-identical pre- and post-G1, pre=[$(cat "$pre_out")] post=[$(cat "$post_out")]"
+
+  # The post-change run DOES carry the warning on stderr (this fixture is
+  # merged-order); the pre-change run cannot (the code did not exist yet).
+  [[ "$(grep -c post-merge-close "$pre_err" || true)" -eq 0 ]] \
+    || log_fail "t049: pre-change stderr must never carry post-merge-close (no such code existed)"
+  [[ "$(grep -c post-merge-close "$post_err" || true)" -eq 1 ]] \
+    || log_fail "t049: post-change stderr must carry exactly one post-merge-close line"
+
+  # Same invariant on the non-warning (open-PR-order) path: build a second
+  # pre/post pair that is never pushed to origin.
+  local base2; base2=$(new_fixture_repo_with_remote "t049n")
+  write_change_doc "$base2/docs/issues/CHANGE-0001-t049n.md" "t049n-slug" "draft"
+  commit_fixture_docs "$base2"
+  local sha2; sha2=$(git -C "$base2" rev-parse HEAD)
+  # deliberately NOT pushed -> open-PR order
+
+  local pre_dir2="$TEST_DIR/t049n-pre" post_dir2="$TEST_DIR/t049n-post"
+  cp -r "$base2" "$pre_dir2"
+  cp -r "$base2" "$post_dir2"
+
+  local pre_out2="$TEST_DIR/t049n-pre.out" pre_err2="$TEST_DIR/t049n-pre.err" pre_code2
+  pre_code2=0
+  ( cd "$pre_dir2" && node "$pre_script" --ref t049n-slug --pr 50 --commit "$sha2" > "$pre_out2" 2> "$pre_err2" ) || pre_code2=$?
+
+  local post_out2="$TEST_DIR/t049n-post.out" post_err2="$TEST_DIR/t049n-post.err" post_code2
+  post_code2=$(run_close "$post_dir2" "$post_out2" "$post_err2" --ref t049n-slug --pr 50 --commit "$sha2")
+
+  assert_exit "pre-change (non-merged) close succeeds" 0 "$pre_code2"
+  assert_exit "post-change (non-merged) close succeeds identically" "$pre_code2" "$post_code2"
+  cmp -s "$pre_out2" "$post_out2" \
+    || log_fail "t049n: non-warning-path stdout must be byte-identical pre- and post-G1"
+  [[ "$(grep -c post-merge-close "$post_err2" || true)" -eq 0 ]] \
+    || log_fail "t049n: open-PR-order post-change stderr must stay silent too"
+
+  log_pass "G1 report-only proof: stdout/exit code byte-identical pre- and post-change on both the warning and silent paths (TEST-003)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -2144,6 +2381,9 @@ main() {
   test_042_evidence_gate_prose_never_refuses
   test_043_evidence_gate_dry_run_noop
   test_046_evidence_gate_worktree_resolves_against_main_tree
+  test_047_post_merge_close_warns_once
+  test_048_post_merge_close_negative_controls
+  test_049_post_merge_close_report_only
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

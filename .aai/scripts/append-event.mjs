@@ -3,7 +3,8 @@
 //
 // Event types (closed set): ac_status, ac_evidence, defer_extended, doc_lifecycle,
 //   docs_audit, work_item_closed, code_review_completed (SPEC-0011 G2),
-//   phase_confirmed, spec_scope_edited (CHANGE-0120).
+//   phase_confirmed, spec_scope_edited (CHANGE-0120),
+//   validation_verdict (role-verification-guards G2).
 // Required: --event, --ref. Auto-filled: v=1, ts (ISO UTC), actor (git slug).
 //
 // Examples:
@@ -24,7 +25,7 @@ import { execSync } from 'node:child_process';
 
 const EVENTS_PATH = path.join(process.cwd(), 'docs/ai/EVENTS.jsonl');
 const SCHEMA_VERSION = 1;
-const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed', 'phase_confirmed', 'spec_scope_edited']);
+const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed', 'phase_confirmed', 'spec_scope_edited', 'validation_verdict']);
 
 function parseArgs(argv) {
   const args = {};
@@ -137,6 +138,22 @@ function main() {
       entry.payload = { op: args.op, target: args.target };
       if (args.base_ref) entry.payload.base_ref = args.base_ref;
       if (args.spec) entry.payload.spec = args.spec;
+      if (args.notes) entry.payload.notes = args.notes;
+      break;
+    case 'validation_verdict':
+      // role-verification-guards G2 — orchestration-dispatch.mjs stamps the
+      // TREE hash a recorded validation verdict was judged against. `hash` is
+      // the sha256 tree_hash (rev-parse HEAD + `status --porcelain -uno` +
+      // `diff HEAD`, both filtered by TREE_HASH_EXCLUDE_PATHS — the `diff`
+      // fold-in was added at remediation B4 so a content edit inside an
+      // already-dirty tracked file is not invisible to the hash; see
+      // computeTreeHash in orchestration-dispatch.mjs for the exact
+      // definition, never re-derive it here), `status` is the validation
+      // status at stamp time. The NEXT tick's decide() compares this line's
+      // hash against the current tree_hash to report staleness — never a
+      // re-implemented hash function.
+      if (!args.status || !args.hash) fail('validation_verdict requires --status and --hash');
+      entry.payload = { status: args.status, hash: args.hash };
       if (args.notes) entry.payload.notes = args.notes;
       break;
   }

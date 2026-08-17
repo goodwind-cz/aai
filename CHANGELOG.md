@@ -11,6 +11,72 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(guards): four report-only verification guards close role-trust gaps (CHANGE-0146-role-verification-guards / SPEC-0133-spec-role-verification-guards) [L2]
+
+- Four places where one role took another's word and nothing verified it,
+  found on the CHANGE-0145 ride. Each fix is ONE warning on an existing
+  surface — no new script, no new gate, no exit-code change.
+- G1: `close-work-item.mjs` now warns on stderr (`post-merge-close`) when the
+  delivery `--commit` is already an ancestor of the resolved upstream default
+  ref — a `git merge-base --is-ancestor` predicate, never the PR API, so the
+  close ceremony stays network-free. Fail-open on any git failure; emitted
+  once per invocation, even on a pair-close.
+- G2: `orchestration-dispatch.mjs` now stamps a `validation_verdict` event
+  (new `append-event.mjs` type, `docs/ai/EVENTS.jsonl`, not `last_validation`
+  — L3-protected `state.mjs` stays untouched) carrying the sha256 tree hash a
+  recorded pass verdict was judged against, under the existing `--confirm`
+  opt-in. The next tick's `decide()` compares it against the current tree
+  hash and sets an additive `advisories: ["validation_verdict_stale"]` key
+  plus one stderr line when the tracked tree moved under the verdict —
+  report-only, rule/verdict/role/reasons/exit code unchanged.
+- G3: `.aai/SKILL_TDD.prompt.md` Phase 4 now recommends the full framework
+  sweep (`tests/skills/test-framework.sh`) before a done/complete claim at
+  ceremony_level 2 and 3 (absent/unreadable level fails closed to 2; demoted
+  from REQUIRED to RECOMMENDED at round-3 remediation, Q4 — see below); not
+  recommended at 0/1, where the level itself is the sanctioned reason.
+- G4: `.aai/SKILL_TEST_SKILLS.prompt.md` now teaches waiting on the disk
+  artifact (`summary.txt`'s final content, the literal `AAI Skills Test
+  Summary`), never a pattern in the process output stream — the framework
+  writes `summary.txt` twice, so existence alone is not completion.
+- Fixed at remediation (round 2, B4): G2's tree hash was blind to a content
+  edit inside a tracked file that was ALREADY dirty — `git status
+  --porcelain` carries only a path and a status letter, never bytes, so the
+  dominant shape on a live ride (a file already modified when the pass
+  verdict was judged) went undetected. `computeTreeHash` now also folds in
+  `git diff HEAD`'s filtered patch text (same `TREE_HASH_EXCLUDE_PATHS`
+  denylist applied to both inputs), closing the blind spot at roughly 20ms
+  added cost per dispatch tick.
+- Fixed at remediation (round 3): B-1 — the `validation_verdict` stamp was
+  first-observation-per-REF, never per-VERDICT, so a re-validation after
+  remediation never refreshed it and the staleness advisory latched
+  permanently ON; the stamp now re-fires whenever a validation round has
+  completed since the last stamp. Q4 — G3's REQUIRED sweep demoted to
+  RECOMMENDED (see above): the break-even arithmetic behind REQUIRED was
+  self-refuting, and the cost model ignored that `VALIDATION.prompt.md`
+  already mandates the identical full sweep one role later at the same
+  ceremony population. N-A — Spec-AC-07's universal-negative claim about the
+  `OUTPUT_STREAM_WAIT_RE` regex narrowed to what its test arm actually
+  verifies. N-B — the close-work-item content-hash pin's OK-status assertion
+  hoisted into one shared, hoisted guard (`close_work_item_pin_assert`) both
+  real callers now delegate to. N-C — `git diff HEAD`'s buffer raised
+  16 → 64 MB and `TREE_HASH_EXCLUDE_PATHS` confirmed to filter it. NB-6 —
+  `append-event.mjs`'s hash-description comment corrected for the B4 diff
+  fold-in. NB-7 — `tests/skills/suite-map.yaml` now globs
+  `close-work-item.mjs` and the new pin library from both suites that depend
+  on them.
+- Fixed at remediation (round 4): BLOCKING-1 — the re-stamp compared
+  `last_validation.run_at_utc` against the stamped event's `ts` with
+  lexicographic `>`; the two producers emit ISO 8601 at DIFFERENT precision
+  by design (`append-event.mjs` keeps milliseconds, `state.mjs` truncates to
+  the second), so a verdict recorded in the SAME wall-clock second as its own
+  stamp compared as strictly newer than it, re-stamping (and silently
+  healing a genuine staleness advisory) on ticks where nothing new was
+  recorded. Both sides are now parsed via `Date.parse` and compared as
+  instants. N-4 — the staleness advisory keyed off the stamped event's own
+  `status`, never STATE's current `last_validation.status`, so after a
+  verdict reset the advisory could still claim "the recorded pass verdict"
+  about a pass verdict STATE no longer holds; it now requires both to agree.
+
 ## [v2026.08.16] — feat(deslop): scope becomes a parameter, class 4 gets a contract-surface engine (CHANGE-0145 / SPEC-0132) [L2]
 
 - `/aai-deslop` was hardcoded to the current diff, and its class-4 row

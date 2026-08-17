@@ -38,6 +38,12 @@ FU="$PROJECT_ROOT/.aai/scripts/follow-ups.mjs"
 ROUTINE_EMIT="$PROJECT_ROOT/.aai/scripts/routine-emit.mjs"
 DOCTOR="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
 LIVE_LEDGER="$PROJECT_ROOT/docs/ai/decisions.jsonl"
+# Shared close-work-item.mjs content-hash allowlist (role-verification-guards
+# unification, see the lib header): the D5 check below and
+# test-aai-doc-numbering.sh TEST-029 both consult this SAME list so their
+# two independently frozen invariants on that one file can never silently
+# disagree again.
+source "$SCRIPT_DIR/lib/close-work-item-pin.sh"
 # Base-ref resolution prefers origin/main (CHANGE-0135 TEST-024 lesson,
 # re-learned here on PR #257): a GitHub Actions PR checkout is detached-HEAD
 # with only origin/main fetched, so a bare `main` never resolves and every
@@ -496,14 +502,23 @@ test_008_close_path() {
   [[ -f "$pdoc" ]] || log_fail "product doc missing: $pdoc"
   grep -qF "follow-ups.mjs close" "$pdoc" || log_fail "docs/product/aai-decisions.md must document the manual close invocation (D5)"
 
-  # close-work-item.mjs is deliberately NOT wired (D5).
-  if command -v git >/dev/null 2>&1; then
-    local cwidiff
-    cwidiff="$(git -C "$PROJECT_ROOT" diff "$BASE_REF" -- .aai/scripts/close-work-item.mjs 2>/dev/null || true)"
-    [[ -z "$cwidiff" ]] || log_fail "close-work-item.mjs must stay UNTOUCHED (D5), but it differs from $BASE_REF"
-  fi
+  # close-work-item.mjs must never gain follow-ups WIRING (D5): D5's actual
+  # rejection is "wiring --resolves fu-x into close-work-item.mjs" (coupling
+  # its transaction to a second append-only ledger) — NOT "this file may
+  # never change again for any reason". role-verification-guards unification:
+  # this consults the SAME shared content-hash allowlist as
+  # test-aai-doc-numbering.sh TEST-029 (tests/skills/lib/close-work-item-pin.sh)
+  # rather than a keyword scan of its own — a legitimate future edit updates
+  # ONE shared list, re-affirming BOTH specs' frozen invariants in one place,
+  # instead of two suites independently guessing at what changed. The OK-vs-
+  # ABSENT/MISMATCH/unrecognized-status assertion is hoisted into
+  # close_work_item_pin_assert (role-verification-guards remediation, N-B) so
+  # there is exactly one guard, not a copy re-implemented in every caller.
+  local result hash
+  result="$(close_work_item_pin_assert "$PROJECT_ROOT")" || log_fail "TEST-008: $result"
+  hash="${result#OK }"
 
-  log_pass "close appends + proves by re-read, is idempotent, refuses unknown ids, exits 1 on an unproven flip; manual step documented; close-work-item untouched (TEST-008)"
+  log_pass "close appends + proves by re-read, is idempotent, refuses unknown ids, exits 1 on an unproven flip; manual step documented; close-work-item content hash $hash on the shared allowlist (TEST-008)"
 }
 
 # ============================ TEST-009 (Spec-AC-06) ==========================
@@ -577,8 +592,63 @@ test_009_consumer_seam() {
   log_pass "routine-emit grants over a tool-written ledger and fails closed on a planted malformed line; reporter tolerates it; doctor CAT-07 PASS with a non-zero count (TEST-009)"
 }
 
+# ============================ TEST-010 (Spec-AC-09) ==========================
+# N1 regression (validation-20260816T131500Z, closed at
+# validation-20260816T143000Z): the shared close-work-item pin's callers
+# (here and in test-aai-doc-numbering.sh TEST-029) must ASSERT the positive
+# OK status, not just denylist the two known failure statuses
+# (ABSENT/MISMATCH). A gutted close_work_item_pin_check (empty stdout, exit
+# 0 -- the validation report's own defeat attempt) falls through BOTH the
+# ABSENT and MISMATCH arms of a denylist-shaped caller and reads as success.
+#
+# Hoisted at remediation (role-verification-guards, N-B): N1's static pin
+# (validation-20260816T143000Z) grepped the extracted caller function bodies
+# for the literal `!= "OK"` -- a real improvement over round-2's inline-copy
+# shadow (which proved nothing about the real callers), but STILL a textual
+# pin over what was, until this remediation, a textual if/elif chain
+# copy-pasted into each caller. A comment mentioning that literal, surviving
+# after the real branch is deleted, satisfies a literal grep -- the same
+# substitution this scope's own B1/B4/N1 findings kept recurring at one level
+# out. The if/elif is now hoisted into ONE function,
+# close_work_item_pin_assert (tests/skills/lib/close-work-item-pin.sh), that
+# BOTH real callers (test_008_close_path here, and
+# test_029_close_work_item_byte_unchanged in test-aai-doc-numbering.sh)
+# delegate to in one line -- nothing textual is left to grep for, so this arm
+# now shadows close_work_item_pin_check and drives the REAL
+# close_work_item_pin_assert directly: a behavioural pin, not a textual one.
+test_010_pin_ok_assertion_catches_gutted_check() {
+  log_info "Test: close_work_item_pin_assert rejects a gutted close_work_item_pin_check and accepts the real file, and both real callers delegate to it (TEST-010, N-B)..."
+
+  # Behavioural proof: shadow the REAL (sourced) close_work_item_pin_check
+  # with the exact defeat shape the validation report proved passes a
+  # denylist-only caller (empty output, exit 0), then drive the REAL
+  # close_work_item_pin_assert -- not a copy of its logic.
+  local probe_rc=0
+  (
+    set -euo pipefail
+    close_work_item_pin_check() { echo ""; }
+    close_work_item_pin_assert "$PROJECT_ROOT" >/dev/null
+  ) || probe_rc=$?
+  [[ "$probe_rc" == 1 ]] \
+    || log_fail "TEST-010: a gutted close_work_item_pin_check (empty status, exit 0) must be rejected by close_work_item_pin_assert, got rc=$probe_rc (a denylist-only caller would report rc=0 here)"
+
+  # Positive control: the REAL (unshadowed) check must still assert OK for
+  # the real, unmodified close-work-item.mjs.
+  close_work_item_pin_assert "$PROJECT_ROOT" >/dev/null \
+    || log_fail "TEST-010: close_work_item_pin_assert must accept the real, unmodified close-work-item.mjs"
+
+  # Both real callers are one-line delegations to the shared assert helper --
+  # confirms the hoist actually landed in both suites, not only here.
+  grep -qF 'close_work_item_pin_assert "$PROJECT_ROOT"' "$PROJECT_ROOT/tests/skills/test-aai-follow-ups.sh" \
+    || log_fail "TEST-010: test_008_close_path no longer delegates to close_work_item_pin_assert"
+  grep -qF 'close_work_item_pin_assert "$PROJECT_ROOT"' "$PROJECT_ROOT/tests/skills/test-aai-doc-numbering.sh" \
+    || log_fail "TEST-010: test_029_close_work_item_byte_unchanged no longer delegates to close_work_item_pin_assert"
+
+  log_pass "TEST-010: close_work_item_pin_assert rejects a gutted check and accepts the real file; both real callers delegate to the single shared guard (N-B)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-followup-registry TEST-001..005, 008, 009)"
+  echo "Testing $TEST_NAME (SPEC spec-followup-registry TEST-001..005, 008, 009; role-verification-guards TEST-010/Spec-AC-09 N1)"
   check_deps
   setup_fixture
   test_001_schema_and_id_discipline
@@ -588,6 +658,7 @@ main() {
   test_005_history_integrity
   test_008_close_path
   test_009_consumer_seam
+  test_010_pin_ok_assertion_catches_gutted_check
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

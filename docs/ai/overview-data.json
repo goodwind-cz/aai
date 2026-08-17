@@ -1,69 +1,82 @@
 {
-  "generatedAt": "2026-08-16T07:03:06.255Z",
+  "generatedAt": "2026-08-17T03:16:31.428Z",
   "project": "aai",
   "counts": {
     "delivered": 190,
-    "in_progress": 1,
+    "in_progress": 2,
     "releases": 1,
     "tokens_total": 42276716
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "deslop-scope-and-unrequested-engine",
+    "ref": "role-verification-guards",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "deslop-scope-and-unrequested-engine",
+      "ref": "role-verification-guards",
       "type": "intake_change",
-      "phase": "code_review"
+      "phase": "validation"
     },
     "strategy": "hybrid",
     "worktree": {
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "not_run",
-    "review_status": "not_run",
+    "validation_status": "pass",
+    "review_status": "pass",
     "ticks": [
       {
-        "tick": 120,
-        "role": "Remediation",
-        "scope": "deslop-scope-and-unrequested-engine",
-        "duration_seconds": 658,
-        "harness_version": "2.1.231 (Claude Code)"
-      },
-      {
-        "tick": 119,
+        "tick": 133,
         "role": "Code Review",
-        "scope": "deslop-scope-and-unrequested-engine",
-        "duration_seconds": 662,
+        "scope": "role-verification-guards",
+        "duration_seconds": 653,
         "harness_version": "2.1.231 (Claude Code)"
       },
       {
-        "tick": 118,
-        "role": "Remediation",
-        "scope": "deslop-scope-and-unrequested-engine",
-        "duration_seconds": 524,
-        "harness_version": "2.1.231 (Claude Code)"
-      },
-      {
-        "tick": 117,
+        "tick": 132,
         "role": "Validation",
-        "scope": "deslop-scope-and-unrequested-engine",
-        "duration_seconds": 2153,
+        "scope": "role-verification-guards",
+        "duration_seconds": 2216,
         "harness_version": "2.1.231 (Claude Code)"
       },
       {
-        "tick": 116,
+        "tick": 131,
         "role": "Remediation",
-        "scope": "deslop-scope-and-unrequested-engine",
-        "duration_seconds": 1801,
+        "scope": "role-verification-guards",
+        "duration_seconds": 1068,
+        "harness_version": "2.1.231 (Claude Code)"
+      },
+      {
+        "tick": 130,
+        "role": "Validation",
+        "scope": "role-verification-guards",
+        "duration_seconds": 2333,
+        "harness_version": "2.1.231 (Claude Code)"
+      },
+      {
+        "tick": 129,
+        "role": "Remediation",
+        "scope": "role-verification-guards",
+        "duration_seconds": 1947,
         "harness_version": "2.1.231 (Claude Code)"
       }
     ]
   },
   "in_progress": [
+    {
+      "ref": "role-verification-guards",
+      "title": "Change — four guards where roles trust each other instead of checking",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0146-role-verification-guards.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0133-spec-role-verification-guards.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260816T214153Z-role-verification-guards.md"
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
