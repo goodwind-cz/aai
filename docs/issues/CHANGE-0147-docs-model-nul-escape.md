@@ -22,11 +22,14 @@ links:
   file is text again and greppable.
 
 ## Motivation / Business Value
-- Found during the 2026-08-17 registry triage, not by any test. Every agent
-  sweep over `.aai/scripts/` has been silently missing this file — a false
-  negative that looks exactly like "the symbol is not there". The library is
-  shared by docs-audit, spec-lint and the allocator, so it is one of the files
-  most often searched.
+- Found during the 2026-08-17 registry triage, not by any test. The blast
+  radius is narrower and sharper than a first reading suggests: `git grep` and
+  ripgrep both still match the file, so agent searches using those were fine.
+  POSIX and BSD `grep` are what fail — and that is exactly what this repo's own
+  suites use. Code review proved the consequence with a planted canary: the
+  negative taxonomy guard at `tests/skills/test-aai-delta-stage2.sh:210` found
+  nothing and logged PASS, so it had been silently inert. This change re-arms
+  it, and the suite is green with it armed.
 - NUL as a key separator is a sound choice, since it cannot occur in a domain
   or a title. Only its spelling in the source was wrong.
 

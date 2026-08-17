@@ -1687,7 +1687,7 @@ test_clarify_011_no_new_ceremony() {
   else
     log_info "TEST-011(clarify): neither origin/main nor main resolves — the .aai/ diff pin did not run"
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (now 14 paths across 4 scopes) accounts for every changed .aai/ path" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (now 15 paths across 5 scopes) accounts for every changed .aai/ path" \
     || log_fail "TEST-011(clarify) zero-added-ceremony pins"
 }
 

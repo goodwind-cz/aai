@@ -15,14 +15,18 @@ RFC-0001).
 
 - `.aai/scripts/lib/docs-model.mjs` carried two literal NUL bytes inside a
   template literal used as a duplicate-detection key, so `file` classified the
-  whole file as binary data and every `grep` over `.aai/scripts/` skipped it
-  without saying so. The library is shared by docs-audit, spec-lint and the
-  allocator, which makes it one of the most frequently searched files here.
+  whole file as binary data. POSIX and BSD `grep` skipped it without saying so;
+  `git grep` and ripgrep still matched, so the failure landed exactly where it
+  was least visible — this repo's own test suites, which use POSIX grep.
 - Replaced the raw bytes with the escape form. Proven a runtime no-op: the key
   string is identical, its separator still has char code 0, and the rest of the
   file is byte-for-byte unchanged.
+- The consequence was larger than a spelling fix: code review proved with a
+  planted canary that the negative taxonomy guard at
+  `tests/skills/test-aai-delta-stage2.sh:210` found nothing and logged PASS, so
+  it had been silently inert. This change re-arms it and the suite stays green.
 - Found by the 2026-08-17 registry triage, not by any test. Nothing in the repo
-  checks for NUL bytes in tracked text — filed as fu-escape-literals-self-inflict
+  checks for NUL bytes in tracked text (now fu-no-nul-guard, P2) — filed as fu-escape-literals-self-inflict
   after the same byte was accidentally reintroduced three times while writing
   this change up.
 
