@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-08-18T10:37:10.383Z",
+  "generatedAt": "2026-08-18T10:38:40.204Z",
   "project": "aai",
   "counts": {
-    "delivered": 193,
-    "in_progress": 2,
+    "delivered": 194,
+    "in_progress": 1,
     "releases": 1,
-    "tokens_total": 47477521
+    "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -23,8 +23,8 @@
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "pass",
-    "review_status": "pass",
+    "validation_status": "not_run",
+    "review_status": "not_run",
     "ticks": [
       {
         "tick": 150,
@@ -65,19 +65,6 @@
   },
   "in_progress": [
     {
-      "ref": "followups-cli-hardening",
-      "title": "Change — four defects in the follow-up registry CLI, one file",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0149-followups-cli-hardening.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0135-spec-followups-cli-hardening.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-20260818T094328Z-followups-cli-hardening.md"
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -104,6 +91,19 @@
       "spec": "docs/specs/SPEC-0134-spec-ride-cost-readout.md",
       "validation": null,
       "review": "docs/ai/reviews/review-dual-verdict-ride-cost-readout-20260817T230200Z.md"
+    },
+    {
+      "ref": "followups-cli-hardening",
+      "title": "Change — four defects in the follow-up registry CLI, one file",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0149-followups-cli-hardening.md",
+      "closed_on": "2026-08-18",
+      "agent_minutes": 102,
+      "token_total": 1045424,
+      "spec": "docs/specs/SPEC-0135-spec-followups-cli-hardening.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260818T094328Z-followups-cli-hardening.md"
     },
     {
       "ref": "role-verification-guards",
@@ -2620,6 +2620,19 @@
           "spec": "docs/specs/SPEC-0134-spec-ride-cost-readout.md",
           "validation": null,
           "review": "docs/ai/reviews/review-dual-verdict-ride-cost-readout-20260817T230200Z.md"
+        },
+        {
+          "ref": "followups-cli-hardening",
+          "title": "Change — four defects in the follow-up registry CLI, one file",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0149-followups-cli-hardening.md",
+          "closed_on": "2026-08-18",
+          "agent_minutes": 102,
+          "token_total": 1045424,
+          "spec": "docs/specs/SPEC-0135-spec-followups-cli-hardening.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260818T094328Z-followups-cli-hardening.md"
         },
         {
           "ref": "role-verification-guards",
