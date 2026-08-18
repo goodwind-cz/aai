@@ -309,6 +309,12 @@ function buildModel(args) {
   const roleDurations = new Map();     // canonical role -> total seconds
   const roleTokens = new Map();        // canonical role -> total tokens (null-safe)
   let unnormalizedRoleRuns = 0;
+  // ride-cost-readout BLOCKING-1: Agent time (summed) is a partial fold over
+  // duration_seconds, same as Tokens is a partial fold over the usage marker
+  // (D4) — so a run missing duration_seconds must degrade-and-report the same
+  // way, never disappear silently (Constitution Article 4, spec Edge cases:
+  // "notes names the count").
+  let runsMissingDuration = 0;
   // Run-level usage-capture coverage (spec-telemetry-completeness B): the
   // first-class KPI the close-time gate exists to drive upward — runs carrying
   // a valid usage_total_tokens marker / ALL agent runs, overall + per ISO week
@@ -324,12 +330,28 @@ function buildModel(args) {
   // marker-only token lists the weekly medians (Spec-AC-03) are built from.
   const roleConsumption = new Map();
   const weeklyRoleTokens = new Map();
+  // ride-cost-readout (D6): a named note per ride whose reliability.remediation_runs
+  // disagrees with the structural (Remediation-role-run) count. Tagged
+  // "(scope_cost)" so TEST-026's byte-stability arm — an unrelated pre-existing
+  // fixture that happens to also trip this — can filter these out the same way
+  // it deletes the new keys, never by silently suppressing the check itself.
+  const scopeCostNotes = [];
   for (const m of rides) {
     let busy = 0; let hasBusy = false;
     let tok = 0; let hasTok = false;
     const rideWeek = isoWeek(m.date_utc);
+    // ride-cost-readout (D9): one extra accumulator pass alongside the
+    // existing busy/tok/roleConsumption folds — no second read, no second
+    // parse. minStartMs/maxEndMs feed elapsed_wall_seconds (D1); scopeRoleCounts
+    // feeds the per-scope roles array (D12, only roles that ran); remediation*
+    // feed the structural rework figure (D6).
+    let minStartMs = null; let maxEndMs = null;
+    let scopeRunsTotal = 0; let scopeRunsMarked = 0;
+    const scopeRoleCounts = new Map();
+    let remediationStructural = 0;
+    let remediationTok = 0; let hasRemediationTok = false;
     for (const r of m.agent_runs ?? []) {
-      if (typeof r.duration_seconds === 'number') { busy += r.duration_seconds; hasBusy = true; }
+      if (typeof r.duration_seconds === 'number') { busy += r.duration_seconds; hasBusy = true; } else { runsMissingDuration += 1; }
       const role = normalizeRole(r.role);
       if (role === null) unnormalizedRoleRuns += 1;
       const roleKey = role ?? 'Other';
@@ -360,12 +382,40 @@ function buildModel(args) {
         if (t !== null) { wrt.marked += 1; wrt.tokens.push(t); }
         weeklyRoleTokens.set(wkey, wrt);
       }
+      // ride-cost-readout: reuses role/roleKey/t computed above.
+      scopeRunsTotal += 1;
+      scopeRoleCounts.set(roleKey, (scopeRoleCounts.get(roleKey) ?? 0) + 1);
+      if (t !== null) scopeRunsMarked += 1;
+      if (typeof r.started_utc === 'string') {
+        const s = Date.parse(r.started_utc);
+        if (!Number.isNaN(s) && (minStartMs === null || s < minStartMs)) minStartMs = s;
+      }
+      if (typeof r.ended_utc === 'string') {
+        const e = Date.parse(r.ended_utc);
+        if (!Number.isNaN(e) && (maxEndMs === null || e > maxEndMs)) maxEndMs = e;
+      }
+      if (roleKey === 'Remediation') {
+        remediationStructural += 1;
+        if (t !== null) { remediationTok += t; hasRemediationTok = true; }
+      }
     }
+    // elapsed_wall_seconds: max parseable ended_utc minus min parseable
+    // started_utc; null when either endpoint is unmeasurable or the span would
+    // be negative (unusable timestamps), mirroring the existing lead-time guard.
+    const elapsedWallSeconds = (minStartMs !== null && maxEndMs !== null && maxEndMs >= minStartMs)
+      ? Math.round((maxEndMs - minStartMs) / 1000) : null;
+    // D12: only roles that ran, in CANONICAL_ROLES order with Other last.
+    const scopeRoles = CANONICAL_ROLES.concat(['Other'])
+      .filter((role) => scopeRoleCounts.has(role))
+      .map((role) => ({ role, runs: scopeRoleCounts.get(role) }));
     const rel = m.reliability && typeof m.reliability === 'object' && !Array.isArray(m.reliability) ? m.reliability : null;
     // Remediation count is reliability-only (Spec-AC-05): a ride predating the
     // reliability block is null, NOT a role-prefix guess — so pre-field rides
     // land in the explicit n/a bucket below and never inflate a numeric one.
     const remediation = rel && typeof rel.remediation_runs === 'number' ? rel.remediation_runs : null;
+    if (remediation !== null && remediation !== remediationStructural) {
+      scopeCostNotes.push(`NOTE scope ${m.ref_id} remediation runs disagree: structural ${remediationStructural} vs reliability.remediation_runs ${remediation} (scope_cost)`);
+    }
     perRide.push({
       ref: m.ref_id,
       date_utc: m.date_utc ?? null,
@@ -377,8 +427,18 @@ function buildModel(args) {
       validation_fails: rel && typeof rel.validation_fails === 'number' ? rel.validation_fails : null,
       review_fails: rel && typeof rel.review_fails === 'number' ? rel.review_fails : null,
       verdict: typeof m.verdict === 'string' ? m.verdict : null,
+      elapsed_wall_seconds: elapsedWallSeconds,
+      runs_total: scopeRunsTotal,
+      runs_marked: scopeRunsMarked,
+      roles: scopeRoles,
+      remediation_runs_structural: remediationStructural,
+      remediation_tokens: hasRemediationTok ? remediationTok : null,
     });
   }
+  // ride-cost-readout BLOCKING-1: same shape Tokens already uses for a
+  // partial-coverage degradation (line ~532 below) — a NOTE naming the count,
+  // never a silent short sum.
+  if (runsMissingDuration) scopeCostNotes.push(`NOTE ${runsMissingDuration} agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)`);
   const roleSplit = CANONICAL_ROLES
     .concat(['Other'])
     .map((role) => ({
@@ -434,6 +494,44 @@ function buildModel(args) {
     };
   });
 
+  // ==================== SCOPE COST (ride-cost-readout) ====================
+  // Projects the elapsed/agent-time/role-count/token/remediation accumulators
+  // collected inside the ride/run loop above (D9 — no second read, no second
+  // parse) into the top-level scope_cost block.
+  const scopeCostRaw = perRide.map((r) => {
+    // D7: share of MEASURED tokens only; null unless both inputs are measured
+    // and the denominator is non-zero (never a division result over nothing).
+    const remediationSharePct = (r.remediation_tokens !== null && r.tokens)
+      ? Math.round((100 * r.remediation_tokens) / r.tokens) : null;
+    return {
+      ref: r.ref,
+      date_utc: r.date_utc,
+      runs_total: r.runs_total,
+      elapsed_wall_seconds: r.elapsed_wall_seconds,
+      agent_seconds: r.busy_seconds,
+      roles: r.roles,
+      runs_marked: r.runs_marked,
+      tokens_total: r.tokens,
+      remediation_runs: r.remediation_runs_structural,
+      remediation_tokens: r.remediation_tokens,
+      remediation_share_pct: remediationSharePct,
+    };
+  });
+  // D10: one ordering, defined in the model — elapsed_wall_seconds DESCENDING,
+  // null last, ties broken by ref ascending.
+  const scopeCostScopes = scopeCostRaw.slice().sort((a, b) => {
+    if (a.elapsed_wall_seconds === null && b.elapsed_wall_seconds === null) return String(a.ref).localeCompare(String(b.ref));
+    if (a.elapsed_wall_seconds === null) return 1;
+    if (b.elapsed_wall_seconds === null) return -1;
+    if (a.elapsed_wall_seconds !== b.elapsed_wall_seconds) return b.elapsed_wall_seconds - a.elapsed_wall_seconds;
+    return String(a.ref).localeCompare(String(b.ref));
+  });
+  // D1: the count of scopes whose agent time exceeds their elapsed span is
+  // COMPUTED into notes, never written as prose that would rot as the ledger
+  // grows.
+  const scopeOverlapCount = scopeCostScopes.filter((s) => s.agent_seconds !== null && s.elapsed_wall_seconds !== null && s.agent_seconds > s.elapsed_wall_seconds).length;
+  if (scopeOverlapCount) scopeCostNotes.push(`NOTE ${scopeOverlapCount} scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)`);
+
   // ============================ NOTES (degrade-with-NOTE) ============================
   if (reClosedRefs) notes.push(`NOTE ${reClosedRefs} ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)`);
   if (droppedMetrics) notes.push(`EXCLUDED ${droppedMetrics} malformed METRICS.jsonl line(s) (unparseable JSON, skipped)`);
@@ -442,6 +540,7 @@ function buildModel(args) {
   if (naReliability) notes.push(`NOTE ${naReliability} ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)`);
   const noMarkerRides = perRide.filter((r) => r.tokens === null).length;
   if (noMarkerRides) notes.push(`NOTE ${noMarkerRides} ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)`);
+  for (const n of scopeCostNotes) notes.push(n);
 
   const rideTokenVals = perRide.map((r) => r.tokens).filter((v) => v !== null);
   const rideBusyVals = perRide.map((r) => r.busy_seconds).filter((v) => v !== null);
@@ -583,6 +682,9 @@ function buildModel(args) {
     },
     trend,
     follow_ups: followUps,
+    // D11: every ride in METRICS.jsonl gets a row; none are filtered by close
+    // state.
+    scope_cost: { scopes: scopeCostScopes },
     notes,
   };
 }
@@ -658,6 +760,23 @@ function renderHtml(m) {
   // Deterministic order: numeric remediation-count buckets ascending, then the
   // non-numeric 'n/a' bucket LAST explicitly (Number('n/a') is NaN, whose
   // comparisons are undefined — never let it decide the order — Copilot :462).
+  // Scope cost (ride-cost-readout): one row per scope_cost.scopes[] entry, in
+  // array order (D10 sort already applied in the model). Token cell follows
+  // D4/D5 — the runs_marked/runs_total denominator travels WITH the total,
+  // and a zero-marked scope renders the named no-marker line, never a zero.
+  const scopeCostRows = m.scope_cost.scopes
+    .map((s) => {
+      // NB-4: a zero-run ride (2 exist live, ISSUE-0004/0005) must render a
+      // named line, never a blank <td> — the same never-blank-cell rule D5
+      // already applies to the token cell.
+      const rolesStr = s.roles.length ? s.roles.map((r) => `${esc(r.role)} ${r.runs}`).join(', ') : 'no runs recorded';
+      const tokenCell = s.runs_marked === 0
+        ? `no usage marker (0/${s.runs_total} runs)`
+        : `${s.tokens_total} (${s.runs_marked}/${s.runs_total} runs)`;
+      const shareCell = s.remediation_share_pct === null ? 'n/a' : `${s.remediation_share_pct}%`;
+      return `<tr><td>${esc(s.ref)}</td><td>${fmtDur(s.elapsed_wall_seconds)}</td><td>${fmtDur(s.agent_seconds)}</td><td>${rolesStr}</td><td>${tokenCell}</td><td>${s.remediation_runs}</td><td>${shareCell}</td></tr>`;
+    })
+    .join('');
   const remRows = Object.keys(m.quality.remediation_distribution)
     .sort((a, b) => {
       const na = Number(a); const nb = Number(b);
@@ -755,6 +874,12 @@ function renderHtml(m) {
 <div class="scroll"><table><thead><tr><th>Role</th><th>Runs</th><th>Marked</th><th>Sentinel</th><th>Unmarked</th><th>Tokens total</th><th>Median tokens/run</th><th>Share</th></tr></thead><tbody>${roleConsumptionRows}</tbody></table></div>
 <div class="scroll"><table><thead><tr><th>Week</th>${roleConsumptionWeekHeader}</tr></thead><tbody>${roleConsumptionWeekRows}</tbody></table></div>
 <div class="scroll">${roleConsumptionSparks}</div>
+</section>
+
+<section id="scope-cost">
+<h2>Scope cost — what one scope cost</h2>
+<p class="meta">Elapsed (wall clock) is the span from this scope's first run start to its last run end; Agent time (summed) is the total of each run's own duration — they are different numbers and neither bounds the other: agent time falls below elapsed when a ride idles between roles, and above it when roles ran concurrently (see the data honesty notes below for today's count). Roles are listed in a fixed canonical order, not the order in which they ran. Remediation counts every Remediation run only; the round whose finding it addressed is not included, so this is rework, not a failure rate — on a ride with several remediation rounds, every one of those preceding Validation/Code Review rounds is excluded too, so the true rework share runs higher than this figure alone. One row per ride recorded in <code>docs/ai/METRICS.jsonl</code>, in the order below — none are filtered by close state.</p>
+<div class="scroll"><table><thead><tr><th>Ref</th><th>Elapsed (wall clock)</th><th>Agent time (summed)</th><th>Roles</th><th>Tokens</th><th>Remediation runs</th><th>Remediation share (of measured tokens)</th></tr></thead><tbody>${scopeCostRows}</tbody></table></div>
 </section>
 
 <section>

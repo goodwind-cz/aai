@@ -7,8 +7,9 @@ delivered_by:
   - CHANGE-0098
   - CHANGE-0130
   - CHANGE-0142
+  - ride-cost-readout
 spec: docs/specs/SPEC-0108-spec-factory-performance-report.md
-updated: 2026-08-13
+updated: 2026-08-17
 ---
 
 # Factory performance report
@@ -104,6 +105,43 @@ every work-item close, so it is a continuous overview, not a one-off snapshot.
   repeat it, so for a thin week check `runs_marked` in the summary table or
   the JSON before reading a curve as growth.
 
+## Scope cost
+
+- The `<section id="scope-cost">` block (`scope_cost.scopes` in
+  `factory-report-data.json`) answers "what did this scope cost" per ride, so
+  the ledger never has to be summed by hand — one row per ride recorded in
+  `docs/ai/METRICS.jsonl`, none filtered by close state. Rows exist only
+  after a ride's runs are flushed to the ledger and the report regenerates at
+  close — this is an after-the-fact comparison across finished rides, not a
+  live view of a ride still in progress (see Limits and non-goals).
+- Two distinct time figures, never confused: **Elapsed (wall clock)** is the
+  span from the ride's first run start to its last run end; **Agent time (summed)**
+  is the total of each run's own duration. They diverge in BOTH directions —
+  agent time falls below elapsed when a ride idles between roles, and above
+  it when roles run concurrently — and neither bounds the other, so the
+  report never labels either a bare "duration". The count of scopes where
+  agent time exceeds elapsed is computed into the data-honesty notes, never
+  written as prose that could go stale. A run missing `duration_seconds`
+  makes Agent time (summed) a partial sum on that scope; the count of such
+  runs is likewise computed into the data-honesty notes, never silently
+  dropped.
+- The Roles cell lists only the roles that ran, in a fixed canonical order —
+  not the order in which they ran, so it must not be read as a chronology. A
+  scope with zero recorded runs renders the named line `no runs recorded`,
+  never a blank cell.
+- Token figures are marker-only, from the same `extractUsageTotal` grammar as
+  the rest of the report, and every token cell carries its own
+  `runs_marked`/`runs_total` denominator in the same cell — a partial sum is
+  shown, never hidden, and never mistaken for a complete one. A scope with
+  zero marked runs renders the named line `no usage marker (0/N runs)` and a
+  `null` total in the JSON — never a zero.
+- The remediation figure counts every `Remediation` run structurally; the
+  round whose finding it addressed is not included, so this is a rework
+  figure, not a failure rate. `Remediation share (of measured tokens)` is
+  `null` unless both the remediation tokens and the scope's tokens_total are
+  measured. On a ride with several remediation rounds this figure
+  understates total rework (see Limits and non-goals).
+
 ## Limits and non-goals
 
 - Trends are directional, not statistical — the history is weeks deep.
@@ -114,6 +152,16 @@ every work-item close, so it is a continuous overview, not a one-off snapshot.
   sparse era) are arithmetic, not statistics; `runs_marked` is the
   denominator to consult (summary table or JSON) before trusting any
   per-role figure.
+- Scope cost is not a live view: `agent_runs` only lands in `METRICS.jsonl`
+  at metrics-flush and the report only regenerates at close, so a ride still
+  in progress has no row. Use it to compare finished rides against each
+  other, never to decide whether to stop one that is still running
+  (follow-up: a genuinely live view is a separate, unshipped capability).
+- The remediation share is a lower bound on rework: it counts only
+  `Remediation`-role runs and excludes every round that produced the finding
+  a remediation round addressed (the preceding Validation or Code Review
+  round). On a multi-round ride, true rework — remediation plus its repeat
+  Validation/Code Review rounds — can run well above the rendered share.
 
 ## Links
 
@@ -123,3 +171,5 @@ every work-item close, so it is a continuous overview, not a one-off snapshot.
 - Spec: docs/specs/SPEC-0117-spec-role-token-trend.md
 - Request: docs/issues/CHANGE-0142-followup-registry.md
 - Spec: docs/specs/SPEC-0129-spec-followup-registry.md
+- Request: docs/issues/CHANGE-0148-ride-cost-readout.md
+- Spec: docs/specs/SPEC-0134-spec-ride-cost-readout.md

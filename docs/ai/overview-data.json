@@ -1,69 +1,82 @@
 {
-  "generatedAt": "2026-08-17T19:04:43.476Z",
+  "generatedAt": "2026-08-18T04:24:41.375Z",
   "project": "aai",
   "counts": {
     "delivered": 192,
-    "in_progress": 1,
+    "in_progress": 2,
     "releases": 1,
     "tokens_total": 45545822
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "docs-model-nul-escape",
+    "ref": "ride-cost-readout",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "docs-model-nul-escape",
+      "ref": "ride-cost-readout",
       "type": "intake_change",
-      "phase": "implementation"
+      "phase": "code_review"
     },
     "strategy": "direct",
     "worktree": {
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "not_run",
+    "validation_status": "pass",
     "review_status": "pass",
     "ticks": [
       {
-        "tick": 133,
+        "tick": 145,
+        "role": "Remediation",
+        "scope": "ride-cost-readout",
+        "duration_seconds": 1136,
+        "harness_version": "2.1.231 (Claude Code)"
+      },
+      {
+        "tick": 144,
+        "role": "Remediation",
+        "scope": "ride-cost-readout",
+        "duration_seconds": 1261,
+        "harness_version": "2.1.231 (Claude Code)"
+      },
+      {
+        "tick": 143,
         "role": "Code Review",
-        "scope": "role-verification-guards",
-        "duration_seconds": 653,
+        "scope": "ride-cost-readout",
+        "duration_seconds": 649,
         "harness_version": "2.1.231 (Claude Code)"
       },
       {
-        "tick": 132,
+        "tick": 142,
         "role": "Validation",
-        "scope": "role-verification-guards",
-        "duration_seconds": 2216,
+        "scope": "ride-cost-readout",
+        "duration_seconds": 734,
         "harness_version": "2.1.231 (Claude Code)"
       },
       {
-        "tick": 131,
+        "tick": 141,
         "role": "Remediation",
-        "scope": "role-verification-guards",
-        "duration_seconds": 1068,
-        "harness_version": "2.1.231 (Claude Code)"
-      },
-      {
-        "tick": 130,
-        "role": "Validation",
-        "scope": "role-verification-guards",
-        "duration_seconds": 2333,
-        "harness_version": "2.1.231 (Claude Code)"
-      },
-      {
-        "tick": 129,
-        "role": "Remediation",
-        "scope": "role-verification-guards",
-        "duration_seconds": 1947,
+        "scope": "ride-cost-readout",
+        "duration_seconds": 790,
         "harness_version": "2.1.231 (Claude Code)"
       }
     ]
   },
   "in_progress": [
+    {
+      "ref": "ride-cost-readout",
+      "title": "Change — what a scope cost, without anyone adding it up by hand",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0148-ride-cost-readout.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0134-spec-ride-cost-readout.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-dual-verdict-ride-cost-readout-20260817T230200Z.md"
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",

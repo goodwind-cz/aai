@@ -11,7 +11,10 @@
 # and generate-overview.mjs (TEST-012); TEST-013 drives the REAL
 # close-work-item.mjs with a rigged generator failure (negative control).
 # TEST-022..027 (CHANGE-0130) cover cost.role_consumption — the additive
-# per-role token consumption + weekly trend block.
+# per-role token consumption + weekly trend block. TEST-031..037,039
+# (docs/specs/SPEC-0134-spec-ride-cost-readout.md) cover scope_cost — the
+# additive per-scope cost readout (elapsed vs agent time, role counts, token
+# totals with denominator, structural remediation/rework figure).
 #
 # ALL fixtures are scratch temp-dir repos — the real docs/ tree is NEVER
 # touched. bash 3.2 compatible (no ${var^^}, no declare -A).
@@ -867,10 +870,25 @@ JSONL
       errors.push(`follow_ups must be empty with a null oldest age on an empty ledger: ${JSON.stringify(model.follow_ups)}`);
     }
 
+    // --- new-key arm (ride-cost-readout): scope_cost present, every scope
+    // marker-derived figure null (no usage_total_tokens marker anywhere in
+    // this fixture) ---
+    if (!model.scope_cost || !Array.isArray(model.scope_cost.scopes)) { console.log("FAIL:new-key-missing:scope_cost absent"); process.exit(1); }
+    for (const s of model.scope_cost.scopes) {
+      if (s.runs_marked !== 0) errors.push(`scope ${s.ref} runs_marked must be 0 on an all-unmarked ledger, got ${s.runs_marked}`);
+      if (s.tokens_total !== null || s.remediation_tokens !== null || s.remediation_share_pct !== null) errors.push(`scope ${s.ref} tokens_total/remediation_tokens/remediation_share_pct must all be null with no markers: ${JSON.stringify(s)}`);
+    }
+
     // --- byte-stability arm: data.json, minus the new keys, generatedAt
-    // normalized, must equal the golden byte-for-byte ---
+    // normalized, must equal the golden byte-for-byte. scope_cost can also
+    // add a D6 disagreement note (SPARSE-A carries reliability.remediation_runs:1
+    // with no Remediation-role run — a genuine structural/reliability
+    // disagreement, unrelated to this pin) — filtered the same way the new
+    // keys are deleted, never by suppressing the check itself (see TEST-035).
     delete model.cost.role_consumption;
     delete model.follow_ups;
+    delete model.scope_cost;
+    model.notes = model.notes.filter((n) => !n.includes("(scope_cost)"));
     model.generatedAt = PLACEHOLDER;
     const normalizedData = JSON.stringify(model, null, 2) + "\n";
     const goldenData = fs.readFileSync(goldenDataPath, "utf8");
@@ -886,7 +904,7 @@ JSONL
     const rawModel = JSON.parse(fs.readFileSync(dataPath, "utf8")); // un-mutated: real generatedAt
     html = html.split(rawModel.generatedAt).join(PLACEHOLDER);
     const closeTag = "</section>";
-    for (const startTag of ["<section id=\"role-consumption\">", "<section id=\"follow-ups\">"]) {
+    for (const startTag of ["<section id=\"role-consumption\">", "<section id=\"scope-cost\">", "<section id=\"follow-ups\">"]) {
       const start = html.indexOf(startTag);
       if (start === -1) { console.log(`FAIL:section-missing:no ${startTag} found`); process.exit(1); }
       const end = html.indexOf(closeTag, start);
@@ -896,6 +914,9 @@ JSONL
       else if (html.slice(after, after + 1) === "\n") after += 1;
       html = html.slice(0, start) + html.slice(after);
     }
+    // Same scope_cost-note filter as the JSON arm above, applied to the
+    // rendered "Data honesty notes" list item.
+    html = html.replace(/<li>[^<]*\(scope_cost\)<\/li>/g, "");
     const excisedHtml = html;
     const goldenHtml = fs.readFileSync(goldenHtmlPath, "utf8");
     if (excisedHtml !== goldenHtml) {
@@ -1052,8 +1073,558 @@ JSONL
   log_pass "absent, empty, comment-only, malformed and non-empty ledgers each exit 0 with a named note; HTML section rendered (TEST-029 / spec TEST-007)"
 }
 
+# ============ TEST-031 (Spec-AC-01, spec-ride-cost-readout) ==================
+test_031_scope_cost_elapsed_and_agent_time() {
+  log_info "Test: scope_cost elapsed (wall clock) and agent time (summed) — idle gap, overlap, no-timestamp, no-duration, no-run rides; nulls not zeros; order elapsed-desc null-last ref-asc; divergence note names the overlap count; a run missing duration_seconds names its own count (BLOCKING-1) (TEST-031)..."
+  local d; d="$(mk_repo t031)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-06","ref_id":"R-IDLE","agent_runs":[{"role":"Planning","started_utc":"2026-07-06T00:00:00Z","ended_utc":"2026-07-06T00:01:00Z","duration_seconds":60},{"role":"Validation","started_utc":"2026-07-06T00:10:00Z","ended_utc":"2026-07-06T00:11:00Z","duration_seconds":60}],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"R-OVERLAP","agent_runs":[{"role":"Planning","started_utc":"2026-07-06T00:00:00Z","ended_utc":"2026-07-06T00:10:00Z","duration_seconds":600},{"role":"Validation","started_utc":"2026-07-06T00:05:00Z","ended_utc":"2026-07-06T00:15:00Z","duration_seconds":600}],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"R-NOTIME","agent_runs":[{"role":"Planning","duration_seconds":90},{"role":"Validation","duration_seconds":30}],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"R-NORUNS","agent_runs":[],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"R-NODUR","agent_runs":[{"role":"Planning","duration_seconds":50},{"role":"Validation"}],"verdict":"PASS"}
+JSONL
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  local result rc
+  result="$(node -e '
+    const fs = require("fs");
+    const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const sc = m.scope_cost.scopes;
+    const errors = [];
+    const byRef = {}; for (const s of sc) byRef[s.ref] = s;
+    if (!byRef["R-IDLE"] || byRef["R-IDLE"].elapsed_wall_seconds !== 660 || byRef["R-IDLE"].agent_seconds !== 120) errors.push(`R-IDLE wrong: ${JSON.stringify(byRef["R-IDLE"])}`);
+    if (!byRef["R-OVERLAP"] || byRef["R-OVERLAP"].elapsed_wall_seconds !== 900 || byRef["R-OVERLAP"].agent_seconds !== 1200) errors.push(`R-OVERLAP wrong: ${JSON.stringify(byRef["R-OVERLAP"])}`);
+    if (!byRef["R-NOTIME"] || byRef["R-NOTIME"].elapsed_wall_seconds !== null || byRef["R-NOTIME"].agent_seconds !== 120) errors.push(`R-NOTIME wrong: ${JSON.stringify(byRef["R-NOTIME"])}`);
+    if (!byRef["R-NORUNS"] || byRef["R-NORUNS"].elapsed_wall_seconds !== null || byRef["R-NORUNS"].agent_seconds !== null || byRef["R-NORUNS"].runs_total !== 0 || byRef["R-NORUNS"].roles.length !== 0) errors.push(`R-NORUNS wrong: ${JSON.stringify(byRef["R-NORUNS"])}`);
+    // BLOCKING-1: R-NODUR has one run WITH duration_seconds (50) and one
+    // WITHOUT — agent_seconds must be the partial sum of the counted run only
+    // (never null, never silently dropped), and the missing run must be
+    // named in notes, the same shape Tokens already uses for its own partial
+    // sum (runs_marked/runs_total).
+    if (!byRef["R-NODUR"] || byRef["R-NODUR"].agent_seconds !== 50 || byRef["R-NODUR"].elapsed_wall_seconds !== null || byRef["R-NODUR"].runs_total !== 2) errors.push(`R-NODUR wrong: ${JSON.stringify(byRef["R-NODUR"])}`);
+    if (!m.notes.some((n) => /^NOTE 1 agent_run\(s\) carry no duration_seconds — Agent time \(summed\) is a partial sum on those scopes \(scope_cost\)$/.test(n))) errors.push(`missing partial-agent-time note (BLOCKING-1): ${JSON.stringify(m.notes)}`);
+    const order = sc.map((s) => s.ref);
+    if (JSON.stringify(order) !== JSON.stringify(["R-OVERLAP","R-IDLE","R-NODUR","R-NORUNS","R-NOTIME"])) errors.push(`order wrong: ${JSON.stringify(order)}`);
+    if (!m.notes.some((n) => /1 scope\(s\) have Agent time \(summed\) exceeding Elapsed \(wall clock\)/.test(n))) errors.push(`missing overlap divergence note: ${JSON.stringify(m.notes)}`);
+    if (errors.length) { console.log("FAIL:" + errors.join(" | ")); process.exit(1); }
+    console.log("OK");
+  ' "$DJ")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == "OK" ]] || log_fail "scope_cost elapsed/agent time wrong: $result"
+  log_pass "idle-gap/overlap/no-timestamp/no-duration/no-run rides give hand-computed elapsed+agent, order elapsed-desc null-last ref-asc, overlap divergence note, missing-duration partial-sum note (BLOCKING-1) (TEST-031 fixture arm)"
+
+  # real-ledger arm (D2): agent_seconds must equal the raw totals.agent_duration_seconds
+  # field on the REAL docs/ai/METRICS.jsonl for every ride (read-only; SEAM S1).
+  local rd; rd="$TEST_DIR/t031-real"
+  run_report_real_ledger "$rd"
+  [[ "$EC" == 0 ]] || log_fail "real-ledger run must exit 0: $(cat "$OUT")"
+  local RDJ="$rd/docs/ai/factory-report-data.json"
+  result="$(node -e '
+    const fs = require("fs");
+    const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const lines = fs.readFileSync(process.argv[2], "utf8").split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith("#"));
+    const totalsByRef = {};
+    for (const l of lines) {
+      let row; try { row = JSON.parse(l); } catch { continue; }
+      if (!row || !row.ref_id) continue;
+      totalsByRef[row.ref_id] = row.totals && typeof row.totals.agent_duration_seconds === "number" ? row.totals.agent_duration_seconds : undefined;
+    }
+    const errors = [];
+    let checked = 0;
+    for (const s of m.scope_cost.scopes) {
+      const expected = totalsByRef[s.ref];
+      if (expected === undefined) continue;
+      // A zero-agent-run ride (runs_total 0, 2 exist in the live ledger, see
+      // the spec Edge cases) legitimately renders agent_seconds null (never
+      // ran, D9/edge-case) while metrics-flush.mjs sums an empty array to the
+      // literal 0 in totals.agent_duration_seconds — a representational
+      // difference (never-measured vs measured-zero), not a drift bug, so it
+      // is excluded from this identity rather than counted as a mismatch.
+      if (s.runs_total === 0) continue;
+      checked += 1;
+      if (s.agent_seconds !== expected) errors.push(`ref ${s.ref}: agent_seconds ${s.agent_seconds} != totals.agent_duration_seconds ${expected}`);
+    }
+    if (checked === 0) errors.push("no ride on the real ledger carried a totals.agent_duration_seconds field to compare against");
+    if (errors.length) { console.log("FAIL:" + errors.join(" | ")); process.exit(1); }
+    console.log(`OK:${checked}`);
+  ' "$RDJ" "$PROJECT_ROOT/docs/ai/METRICS.jsonl")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == OK:* ]] || log_fail "real-ledger agent_seconds vs totals.agent_duration_seconds mismatch: $result"
+  log_pass "agent_seconds equals totals.agent_duration_seconds on the REAL docs/ai/METRICS.jsonl ledger, $result rides checked (TEST-031 real-ledger arm, D2)"
+
+  # real-ledger SHADOW-MODEL arm (round-3 validation F1/F2, extended for F3-F6):
+  # a fixture can only pin the shapes the author thought of — three straight
+  # rounds each rescued one column (roles, tokens, now remediation) by adding
+  # ONE more fixture row, and the next round always found the next column. So
+  # instead of a fourth fixture row, INDEPENDENTLY re-derive the whole
+  # scope_cost row for every REAL ride straight from docs/ai/METRICS.jsonl —
+  # using only the canonical normalizeRole/extractUsageTotal/CANONICAL_ROLES
+  # (the single source, D3 — re-deriving role/token grammar by hand here would
+  # be the exact drift risk D3 exists to prevent) — and diff every field the
+  # generator wrote against that independent computation. Because the mutant
+  # generator code (e.g. counting Validation as Remediation, or firing the
+  # disagreement note on agreement) is NEVER consulted by this re-derivation,
+  # any defect in that code shows up as a mismatch, on whatever real rides
+  # happen to exercise it — no fixture row to remember. This also directly
+  # re-derives roles/tokens_total/runs_marked/date_utc (F4), the full D10 sort
+  # order including the ref tie-break (F5, real ledger has tie groups), the
+  # remediation_share_pct rounding (F6), and the D1 divergence-note count
+  # under the STRICT ">" rule (F3) — the seven columns TEST-037 already proved
+  # are not render-blind now also cannot be MODEL-blind on the real corpus.
+  # STABLE AGAINST LEDGER GROWTH: every expected value is computed from the
+  # ledger at test-run time, never hardcoded, so a new ride landing in
+  # METRICS.jsonl changes both the actual and the independently-derived side
+  # together and this arm keeps passing without edits.
+  # NB-7 REPAIR DIRECTIVE: on a mismatch here, fix generate-factory-report.mjs
+  # (the generator), NEVER this re-derivation. The whole point of a shadow
+  # model independent of the generator is that it computes scope_cost from
+  # docs/ai/METRICS.jsonl using ONLY the canonical normalizeRole/
+  # extractUsageTotal/CANONICAL_ROLES primitives (D3) — pasting the
+  # generator's new rule in here to make a red arm green converts this into a
+  # tautology and silently retires every finding it exists to catch. The one
+  # legitimate reason to edit the block below is a genuine bug IN the
+  # re-derivation itself (e.g. it mis-copies a primitive), never "make it
+  # agree with the generator's current behavior".
+  result="$(node -e '
+    (async () => {
+      const fs = require("fs");
+      const { pathToFileURL } = require("url");
+      const { extractUsageTotal, normalizeRole, CANONICAL_ROLES } = await import(pathToFileURL(process.argv[3]).href);
+      const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      const lines = fs.readFileSync(process.argv[2], "utf8").split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith("#"));
+      const rides = [];
+      for (const l of lines) {
+        let row; try { row = JSON.parse(l); } catch { continue; }
+        if (row && row.ref_id) rides.push(row);
+      }
+      const shadow = [];
+      let expectedMissingDur = 0;
+      for (const rrow of rides) {
+        let minStartMs = null; let maxEndMs = null;
+        let runsTotal = 0; let runsMarked = 0;
+        let busy = 0; let hasBusy = false;
+        let tok = 0; let hasTok = false;
+        const roleCounts = new Map();
+        let remediationStructural = 0;
+        let remediationTok = 0; let hasRemediationTok = false;
+        for (const r of rrow.agent_runs ?? []) {
+          runsTotal += 1;
+          const roleKey = normalizeRole(r.role) ?? "Other";
+          roleCounts.set(roleKey, (roleCounts.get(roleKey) ?? 0) + 1);
+          if (typeof r.duration_seconds === "number") { busy += r.duration_seconds; hasBusy = true; } else { expectedMissingDur += 1; }
+          const t = extractUsageTotal(r.note);
+          if (t !== null) { tok += t; hasTok = true; runsMarked += 1; }
+          if (typeof r.started_utc === "string") {
+            const s = Date.parse(r.started_utc);
+            if (!Number.isNaN(s) && (minStartMs === null || s < minStartMs)) minStartMs = s;
+          }
+          if (typeof r.ended_utc === "string") {
+            const e = Date.parse(r.ended_utc);
+            if (!Number.isNaN(e) && (maxEndMs === null || e > maxEndMs)) maxEndMs = e;
+          }
+          if (roleKey === "Remediation") {
+            remediationStructural += 1;
+            if (t !== null) { remediationTok += t; hasRemediationTok = true; }
+          }
+        }
+        const elapsed = (minStartMs !== null && maxEndMs !== null && maxEndMs >= minStartMs) ? Math.round((maxEndMs - minStartMs) / 1000) : null;
+        const agentSeconds = hasBusy ? busy : null;
+        const tokensTotal = hasTok ? tok : null;
+        const remediationTokens = hasRemediationTok ? remediationTok : null;
+        const remediationSharePct = (remediationTokens !== null && tokensTotal) ? Math.round((100 * remediationTokens) / tokensTotal) : null;
+        const roles = CANONICAL_ROLES.concat(["Other"]).filter((role) => roleCounts.has(role)).map((role) => ({ role, runs: roleCounts.get(role) }));
+        shadow.push({
+          ref: rrow.ref_id, date_utc: rrow.date_utc ?? null, runs_total: runsTotal,
+          elapsed_wall_seconds: elapsed, agent_seconds: agentSeconds, roles,
+          runs_marked: runsMarked, tokens_total: tokensTotal,
+          remediation_runs: remediationStructural, remediation_tokens: remediationTokens,
+          remediation_share_pct: remediationSharePct,
+          reliability: (rrow.reliability && typeof rrow.reliability === "object" && !Array.isArray(rrow.reliability)) ? rrow.reliability : null,
+        });
+      }
+      const errors = [];
+      const byRef = {}; for (const s of m.scope_cost.scopes) byRef[s.ref] = s;
+      let checked = 0;
+      for (const sh of shadow) {
+        const actual = byRef[sh.ref];
+        if (!actual) { errors.push(`ref ${sh.ref}: missing from scope_cost.scopes`); continue; }
+        checked += 1;
+        for (const field of ["date_utc", "runs_total", "elapsed_wall_seconds", "agent_seconds", "runs_marked", "tokens_total", "remediation_runs", "remediation_tokens", "remediation_share_pct"]) {
+          if (actual[field] !== sh[field]) errors.push(`ref ${sh.ref} field ${field}: actual ${actual[field]} != independently-derived ${sh[field]}`);
+        }
+        if (JSON.stringify(actual.roles) !== JSON.stringify(sh.roles)) errors.push(`ref ${sh.ref} roles: actual ${JSON.stringify(actual.roles)} != independently-derived ${JSON.stringify(sh.roles)}`);
+      }
+      if (checked === 0) errors.push("no ride checked");
+      const expectedDisagreeNotes = [];
+      for (const sh of shadow) {
+        if (sh.reliability && typeof sh.reliability.remediation_runs === "number" && sh.reliability.remediation_runs !== sh.remediation_runs) {
+          expectedDisagreeNotes.push(`NOTE scope ${sh.ref} remediation runs disagree: structural ${sh.remediation_runs} vs reliability.remediation_runs ${sh.reliability.remediation_runs} (scope_cost)`);
+        }
+      }
+      const actualDisagreeNotes = m.notes.filter((n) => /remediation runs disagree/.test(n));
+      if (actualDisagreeNotes.length !== expectedDisagreeNotes.length) errors.push(`disagreement note count: actual ${actualDisagreeNotes.length} != independently-derived ${expectedDisagreeNotes.length}`);
+      for (const en of expectedDisagreeNotes) if (!actualDisagreeNotes.includes(en)) errors.push(`missing expected disagreement note: ${en}`);
+      for (const an of actualDisagreeNotes) if (!expectedDisagreeNotes.includes(an)) errors.push(`unexpected disagreement note fired on an agreeing ride: ${an}`);
+      const expectedOverlap = shadow.filter((sh) => sh.agent_seconds !== null && sh.elapsed_wall_seconds !== null && sh.agent_seconds > sh.elapsed_wall_seconds).length;
+      const overlapNoteMatch = m.notes.find((n) => /scope\(s\) have Agent time \(summed\) exceeding Elapsed \(wall clock\)/.test(n));
+      const actualOverlap = overlapNoteMatch ? Number(overlapNoteMatch.match(/^NOTE (\d+) /)[1]) : 0;
+      if (actualOverlap !== expectedOverlap) errors.push(`overlap count (strict >): actual ${actualOverlap} != independently-derived ${expectedOverlap}`);
+      const missingDurNoteMatch = m.notes.find((n) => /agent_run\(s\) carry no duration_seconds/.test(n));
+      const actualMissingDur = missingDurNoteMatch ? Number(missingDurNoteMatch.match(/^NOTE (\d+) /)[1]) : 0;
+      if (actualMissingDur !== expectedMissingDur) errors.push(`missing-duration count (R2-NB-1): actual ${actualMissingDur} != independently-derived ${expectedMissingDur}`);
+      const expectedOrder = shadow.slice().sort((a, b) => {
+        if (a.elapsed_wall_seconds === null && b.elapsed_wall_seconds === null) return a.ref.localeCompare(b.ref);
+        if (a.elapsed_wall_seconds === null) return 1;
+        if (b.elapsed_wall_seconds === null) return -1;
+        if (a.elapsed_wall_seconds !== b.elapsed_wall_seconds) return b.elapsed_wall_seconds - a.elapsed_wall_seconds;
+        return a.ref.localeCompare(b.ref);
+      }).map((s) => s.ref);
+      const actualOrder = m.scope_cost.scopes.map((s) => s.ref);
+      if (JSON.stringify(actualOrder) !== JSON.stringify(expectedOrder)) {
+        let idx = -1;
+        for (let i = 0; i < Math.max(actualOrder.length, expectedOrder.length); i += 1) { if (actualOrder[i] !== expectedOrder[i]) { idx = i; break; } }
+        errors.push(`order mismatch at index ${idx}: actual ${actualOrder[idx]} != independently-derived ${expectedOrder[idx]}`);
+      }
+      const elapsedCounts = new Map();
+      for (const sh of shadow) { if (sh.elapsed_wall_seconds === null) continue; elapsedCounts.set(sh.elapsed_wall_seconds, (elapsedCounts.get(sh.elapsed_wall_seconds) ?? 0) + 1); }
+      const tieGroups = [...elapsedCounts.values()].filter((c) => c > 1).length;
+      if (errors.length) { console.log("FAIL:" + errors.slice(0, 15).join(" | ")); process.exitCode = 1; return; }
+      console.log(`OK:${checked}:${tieGroups}:${expectedDisagreeNotes.length}:${expectedOverlap}`);
+    })().catch((e) => { console.log(`FAIL:threw ${e && e.stack ? e.stack : e}`); process.exitCode = 1; });
+  ' "$RDJ" "$PROJECT_ROOT/docs/ai/METRICS.jsonl" "$PROJECT_ROOT/.aai/scripts/lib/usage-note.mjs")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == OK:* ]] || log_fail "real-ledger shadow-model mismatch (independently re-derived roles/tokens/remediation/order/notes): $result"
+  log_pass "shadow-model: every scope_cost field (roles, tokens_total, runs_marked, date_utc, remediation_runs/tokens/share_pct), the full D10 sort order (tie-break included) and the (scope_cost) note set (disagreement + strict-> divergence) independently re-derived from the real docs/ai/METRICS.jsonl ledger and matched exactly — $result (TEST-031 real-ledger shadow-model arm, closes round-3 F1/F2/F3/F4/F5/F6)"
+}
+
+# ============ TEST-032 (Spec-AC-02, spec-ride-cost-readout) ==================
+test_032_scope_cost_role_counts() {
+  log_info "Test: scope_cost roles array covers exactly the roles that ran, CANONICAL_ROLES order with Other last, a variant string normalizes, an unrecognised one buckets to Other, counts sum to runs_total, absent agent_runs key -> empty roles (TEST-032)..."
+  local d; d="$(mk_repo t032)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-06","ref_id":"R-ROLES","agent_runs":[{"role":"Implementation (loop)","duration_seconds":10},{"role":"Validation","duration_seconds":10},{"role":"Validation","duration_seconds":10},{"role":"QA Something","duration_seconds":10}],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"R-NOKEY","verdict":"PASS"}
+JSONL
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  local result rc
+  result="$(node -e '
+    const fs = require("fs");
+    const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const sc = m.scope_cost.scopes;
+    const errors = [];
+    const roles = sc.find((s) => s.ref === "R-ROLES");
+    const expected = [{role:"Implementation",runs:1},{role:"Validation",runs:2},{role:"Other",runs:1}];
+    if (!roles || JSON.stringify(roles.roles) !== JSON.stringify(expected)) errors.push(`R-ROLES roles wrong: ${JSON.stringify(roles && roles.roles)}`);
+    if (!roles || roles.roles.reduce((a, r) => a + r.runs, 0) !== roles.runs_total) errors.push(`role counts must sum to runs_total: ${JSON.stringify(roles)}`);
+    const nokey = sc.find((s) => s.ref === "R-NOKEY");
+    if (!nokey || nokey.roles.length !== 0 || nokey.runs_total !== 0) errors.push(`R-NOKEY (absent agent_runs key) must have empty roles and runs_total 0: ${JSON.stringify(nokey)}`);
+    if (errors.length) { console.log("FAIL:" + errors.join(" | ")); process.exit(1); }
+    console.log("OK");
+  ' "$DJ")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == "OK" ]] || log_fail "scope_cost role counts wrong: $result"
+  log_pass "roles array covers exactly the roles that ran, canonical order with Other last, sums to runs_total, absent key -> empty (TEST-032)"
+}
+
+# ============ TEST-033 (Spec-AC-03, spec-ride-cost-readout) ==================
+test_033_scope_cost_token_source() {
+  log_info "Test: scope_cost token figures come only from extractUsageTotal — valid marker, malformed marker, prefixed key and bare note; unmarked runs contribute nothing; no capturing regex duplicate; lib/usage-note.mjs imported exactly once (TEST-033)..."
+  local d; d="$(mk_repo t033)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-06","ref_id":"R-TOK","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=1000 (ok)"},{"role":"Validation","duration_seconds":10,"note":"usage_total_tokens=500x (malformed, ignored)"},{"role":"Code Review","duration_seconds":10,"note":"not_usage_total_tokens=999 (prefixed key, ignored)"},{"role":"Remediation","duration_seconds":10,"note":"no marker here"}],"verdict":"PASS"}
+JSONL
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  local tt rm rt
+  tt="$(node_get "$DJ" '(m.scope_cost.scopes.find(x=>x.ref==="R-TOK")||{}).tokens_total')"
+  rm="$(node_get "$DJ" '(m.scope_cost.scopes.find(x=>x.ref==="R-TOK")||{}).runs_marked')"
+  rt="$(node_get "$DJ" '(m.scope_cost.scopes.find(x=>x.ref==="R-TOK")||{}).runs_total')"
+  [[ "$tt" == "1000" ]] || log_fail "tokens_total must be 1000 (only the valid marker counts), got $tt"
+  [[ "$rm" == "1" ]] || log_fail "runs_marked must be 1 (malformed/prefixed/bare contribute nothing), got $rm"
+  [[ "$rt" == "4" ]] || log_fail "runs_total must be 4, got $rt"
+  local regex_count import_count
+  regex_count="$(grep -c 'usage_total_tokens=(' "$REPORT" || true)"
+  import_count="$(grep -c "from './lib/usage-note.mjs'" "$REPORT" || true)"
+  [[ "$regex_count" == "0" ]] || log_fail "generator must carry no capturing regex literal for the usage_total_tokens grammar, found $regex_count"
+  [[ "$import_count" == "1" ]] || log_fail "generator must import lib/usage-note.mjs exactly once, found $import_count"
+  log_pass "scope_cost tokens come only from extractUsageTotal; malformed/prefixed/bare excluded; no duplicate regex; single import (TEST-033)"
+}
+
+# ============ TEST-034 (Spec-AC-04, spec-ride-cost-readout) ==================
+test_034_scope_cost_partial_and_no_data() {
+  log_info "Test: scope_cost token cell — fully marked, partially marked and unmarked rides give the expected JSON nulls; every rendered token cell carries the runs_marked/runs_total fraction; the unmarked ride renders the literal no-usage-marker line, never a zero (TEST-034)..."
+  local d; d="$(mk_repo t034)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-06","ref_id":"R-FULL","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=100"},{"role":"Validation","duration_seconds":10,"note":"usage_total_tokens=200"}],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"R-PARTIAL","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=100"},{"role":"Validation","duration_seconds":10,"note":"no marker"}],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"R-NONE","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"no marker"},{"role":"Validation","duration_seconds":10,"note":"no marker"}],"verdict":"PASS"}
+JSONL
+  run_report "$d"
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  local html="$d/docs/ai/factory-report.html"
+  local result rc
+  result="$(node -e '
+    const fs = require("fs");
+    const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const html = fs.readFileSync(process.argv[2], "utf8");
+    const errors = [];
+    const byRef = {}; for (const s of m.scope_cost.scopes) byRef[s.ref] = s;
+    if (!byRef["R-FULL"] || byRef["R-FULL"].tokens_total !== 300 || byRef["R-FULL"].runs_marked !== 2) errors.push(`R-FULL wrong: ${JSON.stringify(byRef["R-FULL"])}`);
+    if (!byRef["R-PARTIAL"] || byRef["R-PARTIAL"].tokens_total !== 100 || byRef["R-PARTIAL"].runs_marked !== 1) errors.push(`R-PARTIAL wrong: ${JSON.stringify(byRef["R-PARTIAL"])}`);
+    if (!byRef["R-NONE"] || byRef["R-NONE"].tokens_total !== null || byRef["R-NONE"].runs_marked !== 0) errors.push(`R-NONE wrong: ${JSON.stringify(byRef["R-NONE"])}`);
+    const start = html.indexOf("<section id=\"scope-cost\">");
+    if (start === -1) { console.log("FAIL:no scope-cost section found"); process.exit(1); }
+    const end = html.indexOf("</section>", start);
+    const section = html.slice(start, end);
+    if (!section.includes("300 (2/2 runs)")) errors.push("missing full-coverage cell 300 (2/2 runs)");
+    if (!section.includes("100 (1/2 runs)")) errors.push("missing partial-coverage cell 100 (1/2 runs)");
+    if (!section.includes("no usage marker (0/2 runs)")) errors.push("missing named no-marker cell for the fully-unmarked ride");
+    if (errors.length) { console.log("FAIL:" + errors.join(" | ")); process.exit(1); }
+    console.log("OK");
+  ' "$DJ" "$html")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == "OK" ]] || log_fail "scope_cost partial/no-data wrong: $result"
+  log_pass "token cell carries the runs_marked/runs_total fraction in all three coverage shapes; unmarked scope renders the named no-marker line, null total (TEST-034)"
+}
+
+# ============ TEST-035 (Spec-AC-05, spec-ride-cost-readout) ==================
+test_035_scope_cost_rework() {
+  log_info "Test: scope_cost rework — hand-computed remediation runs/tokens/share, a Remediation variant string counted, unmarked remediation runs give a count with null tokens and null share, a rigged reliability disagreement emits the named note, an absent reliability block emits none (TEST-035)..."
+  local d; d="$(mk_repo t035)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-06","ref_id":"R-REM-MARKED","agent_runs":[{"role":"Remediation","duration_seconds":10,"note":"usage_total_tokens=300"},{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=700"}],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"R-REM-UNMARKED","agent_runs":[{"role":"Remediation","duration_seconds":10,"note":"no marker"},{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=50"}],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"R-REM-VARIANT","agent_runs":[{"role":"Remediation (E1 over-kill)","duration_seconds":10,"note":"usage_total_tokens=40"}],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"R-REL-DISAGREE","agent_runs":[{"role":"Planning","duration_seconds":10}],"reliability":{"remediation_runs":2,"validation_fails":0,"review_fails":0,"first_pass_clean":true},"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"R-REL-ABSENT","agent_runs":[{"role":"Planning","duration_seconds":10}],"verdict":"PASS"}
+JSONL
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  local result rc
+  result="$(node -e '
+    const fs = require("fs");
+    const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const sc = m.scope_cost.scopes;
+    const errors = [];
+    const byRef = {}; for (const s of sc) byRef[s.ref] = s;
+    const marked = byRef["R-REM-MARKED"];
+    if (!marked || marked.remediation_runs !== 1 || marked.remediation_tokens !== 300 || marked.remediation_share_pct !== 30) errors.push(`R-REM-MARKED wrong: ${JSON.stringify(marked)}`);
+    const unmarked = byRef["R-REM-UNMARKED"];
+    if (!unmarked || unmarked.remediation_runs !== 1 || unmarked.remediation_tokens !== null || unmarked.remediation_share_pct !== null) errors.push(`R-REM-UNMARKED wrong (count present, tokens/share null): ${JSON.stringify(unmarked)}`);
+    const variant = byRef["R-REM-VARIANT"];
+    if (!variant || variant.remediation_runs !== 1 || variant.remediation_tokens !== 40 || variant.remediation_share_pct !== 100) errors.push(`R-REM-VARIANT (Remediation (E1 over-kill)) wrong: ${JSON.stringify(variant)}`);
+    const disagree = byRef["R-REL-DISAGREE"];
+    if (!disagree || disagree.remediation_runs !== 0) errors.push(`R-REL-DISAGREE structural count must be 0 (no Remediation-role run): ${JSON.stringify(disagree)}`);
+    if (!m.notes.some((n) => n.includes("R-REL-DISAGREE") && n.includes("structural 0") && n.includes("reliability.remediation_runs 2"))) errors.push(`missing disagreement note naming R-REL-DISAGREE and both numbers: ${JSON.stringify(m.notes)}`);
+    if (m.notes.some((n) => n.includes("R-REL-ABSENT"))) errors.push(`R-REL-ABSENT has no reliability block and must emit no disagreement note: ${JSON.stringify(m.notes)}`);
+    if (errors.length) { console.log("FAIL:" + errors.join(" | ")); process.exit(1); }
+    console.log("OK");
+  ' "$DJ")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == "OK" ]] || log_fail "scope_cost rework wrong: $result"
+  log_pass "remediation runs/tokens/share hand-computed, variant string counted, unmarked remediation null-not-zero, disagreement note present, absent block emits none (TEST-035)"
+}
+
+# ============ TEST-036 (Spec-AC-06, spec-ride-cost-readout) ==================
+test_036_scope_cost_report_only() {
+  log_info "Test: report-only contract — absent/empty/comment-only/one-malformed-line/real ledgers each exit 0; no non-zero process.exit; no dollar-amount figure in either output (TEST-036)..."
+  local d
+  d="$(mk_repo t036-absent)"; rm -f "$d/docs/ai/METRICS.jsonl"
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "absent ledger must exit 0: $(cat "$OUT")"
+
+  d="$(mk_repo t036-empty)"; : > "$d/docs/ai/METRICS.jsonl"
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "empty ledger must exit 0: $(cat "$OUT")"
+
+  d="$(mk_repo t036-comment)"; printf '# comment only\n' > "$d/docs/ai/METRICS.jsonl"
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "comment-only ledger must exit 0: $(cat "$OUT")"
+
+  d="$(mk_repo t036-malformed)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-06","ref_id":"OK","agent_runs":[{"role":"Planning","duration_seconds":10,"note":"usage_total_tokens=42"}],"verdict":"PASS"}
+{this is not valid json
+JSONL
+  run_report "$d"
+  [[ "$EC" == 0 ]] || log_fail "one-malformed-line ledger must exit 0: $(cat "$OUT")"
+  local html_m="$d/docs/ai/factory-report.html"
+  local dj_m="$d/docs/ai/factory-report-data.json"
+  grep -qE '\$[0-9]' "$dj_m" && log_fail "malformed-line-ledger data.json must carry no dollar amount"
+  grep -qE '\$[0-9]' "$html_m" && log_fail "malformed-line-ledger html must carry no dollar amount"
+
+  local rd; rd="$TEST_DIR/t036-real"
+  run_report_real_ledger "$rd"
+  [[ "$EC" == 0 ]] || log_fail "real-ledger run must exit 0: $(cat "$OUT")"
+
+  local exit_count
+  exit_count="$(grep -cE 'process\.exit\([1-9]' "$REPORT" || true)"
+  [[ "$exit_count" == "0" ]] || log_fail "generator must carry no non-zero process.exit, found $exit_count occurrence(s)"
+  log_pass "absent/empty/comment-only/one-malformed-line/real ledgers all exit 0; no non-zero process.exit; no dollar figure (TEST-036)"
+}
+
+# ============ TEST-037 (Spec-AC-07, spec-ride-cost-readout) ==================
+test_037_scope_cost_html_parity() {
+  log_info "Test: <section id=\"scope-cost\"> pins all 7 <th> column headings by position, pins the caption's D1/D6/D11 sentences independently of the headings, and compares EVERY rendered cell (ref, elapsed, agent time, roles, token, remediation runs, share) against the same run's factory-report-data.json cell-by-cell (never row-scoped), for exactly one row per scope_cost.scopes[] entry in array order — fixture includes a multi-role, null-agent-time, partially-marked ride (Roles join / Agent-time null not vacuous), a zero-run ride (NB-4: named Roles cell, never blank) and a zero-token-marker Remediation-only ride (NB-5: D7's zero-denominator guard visible only in the HTML, not the JSON) (TEST-037, seam S3)..."
+  local d; d="$(mk_repo t037)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-06","ref_id":"P-ONE","agent_runs":[{"role":"Planning","started_utc":"2026-07-06T00:00:00Z","ended_utc":"2026-07-06T00:02:00Z","duration_seconds":120,"note":"usage_total_tokens=500"}],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"P-TWO","agent_runs":[{"role":"Validation","duration_seconds":30,"note":"no marker"}],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"P-THREE","agent_runs":[{"role":"Remediation","started_utc":"2026-07-06T00:00:00Z","ended_utc":"2026-07-06T00:05:00Z","duration_seconds":300,"note":"usage_total_tokens=800"},{"role":"Remediation","duration_seconds":100,"note":"usage_total_tokens=200"}],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"P-FOUR","agent_runs":[{"role":"Implementation","started_utc":"2026-07-06T00:00:00Z","ended_utc":"2026-07-06T00:10:00Z","note":"usage_total_tokens=300"},{"role":"Planning","started_utc":"2026-07-06T00:10:00Z","ended_utc":"2026-07-06T00:12:00Z","note":"no marker"}],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"P-ZERO-RUNS","agent_runs":[],"verdict":"PASS"}
+{"date_utc":"2026-07-06","ref_id":"P-ZERO-TOK","agent_runs":[{"role":"Remediation","duration_seconds":10,"note":"usage_total_tokens=0"}],"verdict":"PASS"}
+JSONL
+  run_report "$d"
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  local html="$d/docs/ai/factory-report.html"
+  local result rc
+  result="$(node -e '
+    const fs = require("fs");
+    const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const html = fs.readFileSync(process.argv[2], "utf8");
+    const errors = [];
+    const startTag = "<section id=\"scope-cost\">";
+    const start = html.indexOf(startTag);
+    if (start === -1) { console.log("FAIL:no scope-cost section found"); process.exit(1); }
+    const end = html.indexOf("</section>", start);
+    if (end === -1) { console.log("FAIL:no closing </section> found for scope-cost"); process.exit(1); }
+    const section = html.slice(start, end);
+    if (!/<h2>Scope cost/.test(section)) errors.push("missing <h2>Scope cost ...</h2>");
+
+    // Column headings: pinned by exact position inside <thead>, never by a
+    // bare section.includes() — the caption below reuses the same two label
+    // strings, so a deleted <th> could otherwise hide behind the caption.
+    const theadMatch = section.match(/<thead>([\s\S]*?)<\/thead>/);
+    if (!theadMatch) { console.log("FAIL:no <thead> found in scope-cost table"); process.exit(1); }
+    const ths = [...theadMatch[1].matchAll(/<th>([\s\S]*?)<\/th>/g)].map((mm) => mm[1]);
+    const expectedThs = ["Ref", "Elapsed (wall clock)", "Agent time (summed)", "Roles", "Tokens", "Remediation runs", "Remediation share (of measured tokens)"];
+    if (JSON.stringify(ths) !== JSON.stringify(expectedThs)) errors.push(`column headings wrong: got ${JSON.stringify(ths)}`);
+
+    // Caption: the D1 (wall-clock-vs-agent-time), D6 (remediation-not-failure)
+    // and D11 (metrics-ledger row set) sentences, pinned as substrings that do
+    // NOT overlap the <th> label text, so they cannot be satisfied by the
+    // headings surviving while the caption prose is gutted.
+    const captionMatch = section.match(/<p class="meta">([\s\S]*?)<\/p>/);
+    if (!captionMatch) { console.log("FAIL:no caption <p class=\"meta\"> found in scope-cost section"); process.exit(1); }
+    const caption = captionMatch[1];
+    if (!caption.includes("is the span from this scope")) errors.push("caption missing D1 elapsed-definition clause");
+    if (!caption.includes("is the total of each run")) errors.push("caption missing D1 agent-time-definition clause");
+    if (!caption.includes("they are different numbers and neither bounds the other")) errors.push("caption missing D1 wall-clock-versus-agent-time rule sentence");
+    if (!caption.includes("so this is rework, not a failure rate")) errors.push("caption missing D6 remediation-not-failure sentence");
+    if (!caption.includes("One row per ride recorded in")) errors.push("caption missing D11 metrics-ledger row set sentence");
+    if (!caption.includes("none are filtered by close state")) errors.push("caption missing D11 unfiltered-row-set clause");
+    if (!caption.includes("Roles are listed in a fixed canonical order, not the order in which they ran.")) errors.push("caption missing NB-6 canonical-order clause (R2-NB-3)");
+    if (!caption.includes("the true rework share runs higher than this figure alone")) errors.push("caption missing NB-1 cumulative-exclusion clause (R2-NB-3)");
+
+    // fmtDur mirrored from the generator (.aai/scripts/generate-factory-report.mjs)
+    // to compute the expected rendered text from the raw JSON seconds — fmtDur
+    // itself is exercised elsewhere (TEST-031 hand-computes the raw seconds);
+    // this only checks that the HTML cell reproduces what that function emits.
+    function fmtDur(sec) {
+      if (sec === null || sec === undefined) return "n/a";
+      if (sec < 90) return `${sec}s`;
+      if (sec < 5400) return `${Math.round(sec / 60)}m`;
+      return `${Math.round((sec / 3600) * 10) / 10}h`;
+    }
+
+    let cursor = 0;
+    for (const s of m.scope_cost.scopes) {
+      const refIdx = section.indexOf(`>${s.ref}<`, cursor);
+      if (refIdx === -1) { errors.push(`ref ${s.ref} not found in row order after cursor ${cursor}`); continue; }
+      const rowStart = section.lastIndexOf("<tr>", refIdx);
+      const rowEnd = section.indexOf("</tr>", refIdx) + "</tr>".length;
+      const row = section.slice(rowStart, rowEnd);
+      cursor = rowEnd;
+
+      // Cell-by-cell parity, fixed column order — each cell is checked against
+      // its OWN JSON field, never rescued by a sibling cell (a swapped or
+      // constant-replaced column is caught at its own index; a row-scoped
+      // ">n/a<" search can no longer be satisfied by a DIFFERENT null cell in
+      // the same row).
+      const cells = [...row.matchAll(/<td>([\s\S]*?)<\/td>/g)].map((mm) => mm[1]);
+      if (cells.length !== 7) { errors.push(`${s.ref}: row has ${cells.length} <td> cells, expected 7`); continue; }
+      const [refCell, elapsedCell, agentCell, rolesCell, tokenCell, remCell, shareCell] = cells;
+
+      if (refCell !== s.ref) errors.push(`${s.ref}: ref cell "${refCell}" != "${s.ref}"`);
+
+      const expectedElapsed = fmtDur(s.elapsed_wall_seconds);
+      if (elapsedCell !== expectedElapsed) errors.push(`${s.ref}: Elapsed cell "${elapsedCell}" != expected "${expectedElapsed}" (elapsed_wall_seconds=${s.elapsed_wall_seconds})`);
+
+      const expectedAgent = fmtDur(s.agent_seconds);
+      if (agentCell !== expectedAgent) errors.push(`${s.ref}: Agent-time cell "${agentCell}" != expected "${expectedAgent}" (agent_seconds=${s.agent_seconds})`);
+
+      // NB-4: a zero-run ride must render the named line, never a blank cell.
+      const expectedRoles = s.roles.length ? s.roles.map((r) => `${r.role} ${r.runs}`).join(", ") : "no runs recorded";
+      if (rolesCell !== expectedRoles) errors.push(`${s.ref}: Roles cell "${rolesCell}" != expected "${expectedRoles}"`);
+
+      const expectedToken = s.runs_marked === 0
+        ? `no usage marker (0/${s.runs_total} runs)`
+        : `${s.tokens_total} (${s.runs_marked}/${s.runs_total} runs)`;
+      if (tokenCell !== expectedToken) errors.push(`${s.ref}: Tokens cell "${tokenCell}" != expected "${expectedToken}"`);
+
+      const expectedRem = String(s.remediation_runs);
+      if (remCell !== expectedRem) errors.push(`${s.ref}: Remediation-runs cell "${remCell}" != expected "${expectedRem}"`);
+
+      const expectedShare = s.remediation_share_pct === null ? "n/a" : `${s.remediation_share_pct}%`;
+      if (shareCell !== expectedShare) errors.push(`${s.ref}: Remediation-share cell "${shareCell}" != expected "${expectedShare}"`);
+    }
+
+    // Row cardinality: the per-scope loop above proves presence and order but
+    // never count, so a duplicated <tr> or an injected ghost <tr> would be
+    // invisible to it. Assert the <tbody> holds EXACTLY one <tr> per
+    // scope_cost.scopes[] entry, never merely "at least one, in order".
+    const tbodyMatch = section.match(/<tbody>([\s\S]*?)<\/tbody>/);
+    if (!tbodyMatch) { console.log("FAIL:no <tbody> found in scope-cost table"); process.exit(1); }
+    const trCount = (tbodyMatch[1].match(/<tr>/g) || []).length;
+    if (trCount !== m.scope_cost.scopes.length) errors.push(`tbody has ${trCount} <tr> rows, expected ${m.scope_cost.scopes.length} (one per scope_cost.scopes[] entry)`);
+
+    if (errors.length) { console.log("FAIL:" + errors.join(" | ")); process.exit(1); }
+    console.log("OK");
+  ' "$DJ" "$html")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == "OK" ]] || log_fail "scope-cost html parity wrong: $result"
+  log_pass "scope-cost: all 7 column headings pinned by position, caption D1/D6/D11 sentences pinned, every cell (ref/elapsed/agent-time/roles/tokens/remediation-runs/share) compared 1:1 against the JSON in row order, multi-role/null-agent-time/zero-run(NB-4)/zero-token-marker-remediation(NB-5) rows exercised, row count pinned exactly (TEST-037)"
+}
+
+# ============ TEST-039 (Spec-AC-09, spec-ride-cost-readout) ==================
+test_039_scope_cost_product_doc_pins() {
+  log_info "Test: docs/product/factory-performance-report.md pins the Scope cost section, both time labels + divergence statement, the marker-only + denominator rule, the named no-marker rule, the remediation-not-failure rule, frontmatter delivered_by + updated bump, and the intake capability fix (TEST-039)..."
+  local doc="$PROJECT_ROOT/docs/product/factory-performance-report.md"
+  [[ -f "$doc" ]] || log_fail "product doc not found: $doc"
+  grep -qF 'Scope cost' "$doc" || log_fail "product doc must name the Scope cost section"
+  grep -qF 'Elapsed (wall clock)' "$doc" || log_fail "product doc must name the Elapsed (wall clock) label"
+  grep -qF 'Agent time (summed)' "$doc" || log_fail "product doc must name the Agent time (summed) label"
+  grep -qF 'diverge' "$doc" || log_fail "product doc must state the two time figures diverge"
+  grep -qF 'runs_marked' "$doc" || log_fail "product doc must name the runs_marked denominator"
+  grep -qF 'no usage marker (0/N runs)' "$doc" || log_fail "product doc must name the literal no-marker line"
+  grep -qF 'not a failure rate' "$doc" || log_fail "product doc must state the remediation-not-failure rule"
+  # NB-2 (fifth instance of the same defect class on this ride): grep -qF
+  # 'ride-cost-readout' over the WHOLE doc claims to assert frontmatter
+  # delivered_by but cannot fail on what it names — the Links section (file
+  # paths CHANGE-0148-ride-cost-readout.md / spec-ride-cost-readout.md)
+  # carries the same substring, so deleting the delivered_by entry alone
+  # leaves this arm green. Anchor to the frontmatter block itself (the text
+  # between the first two literal '---' delimiter lines), never the whole doc.
+  local frontmatter
+  frontmatter="$(awk '/^---$/{n++; next} n==1' "$doc")"
+  echo "$frontmatter" | grep -qE '^[[:space:]]*-[[:space:]]*ride-cost-readout[[:space:]]*$' \
+    || log_fail "product doc frontmatter delivered_by must include ride-cost-readout"
+  # NB-3: a literal date pin turns every future legitimate edit of this doc
+  # into a failure of an unrelated scope's test (Spec-AC-09 itself requires
+  # 'updated' to be bumped on every touch). Assert the frontmatter carries a
+  # well-formed ISO date, not this scope's specific one.
+  echo "$frontmatter" | grep -qE '^updated: [0-9]{4}-[0-9]{2}-[0-9]{2}$' \
+    || log_fail "product doc frontmatter updated must be a well-formed ISO date"
+  local change="$PROJECT_ROOT/docs/issues/CHANGE-0148-ride-cost-readout.md"
+  [[ -f "$change" ]] || log_fail "intake not found: $change"
+  grep -qF 'capability: factory-performance-report' "$change" || log_fail "intake frontmatter capability must read factory-performance-report"
+  log_pass "product doc pins present: section, two time labels + divergence, marker-only + denominator, named no-marker line, remediation-not-failure, frontmatter-anchored delivered_by + well-formed updated date; intake capability fixed (TEST-039)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014, +017..019; telemetry-completeness TEST-020..021; role-token-trend TEST-022..027; followup-registry TEST-028..029)"
+  echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014, +017..019; telemetry-completeness TEST-020..021; role-token-trend TEST-022..027; followup-registry TEST-028..029; scope-cost TEST-031..037,039)"
   check_deps
   setup_fixture
   test_001_data_only_blocks_present
@@ -1083,6 +1654,14 @@ main() {
   test_027_product_doc_pins
   test_028_follow_ups_block
   test_029_follow_ups_report_only
+  test_031_scope_cost_elapsed_and_agent_time
+  test_032_scope_cost_role_counts
+  test_033_scope_cost_token_source
+  test_034_scope_cost_partial_and_no_data
+  test_035_scope_cost_rework
+  test_036_scope_cost_report_only
+  test_037_scope_cost_html_parity
+  test_039_scope_cost_product_doc_pins
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

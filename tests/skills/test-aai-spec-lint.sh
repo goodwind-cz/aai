@@ -1681,13 +1681,17 @@ test_clarify_011_no_new_ceremony() {
         # charCode 0, rest of the file byte-for-byte unchanged). Fourth payment
         # of this allowlist tax, tracked as fu-test011-branch-diff-allowlist-tax.
         .aai/scripts/lib/docs-model.mjs) ;;
+        # ride-cost-readout: the scope-cost section in the factory report
+        # generator. Fifth payment of this allowlist tax
+        # (fu-test011-branch-diff-allowlist-tax, P2, live).
+        .aai/scripts/generate-factory-report.mjs) ;;
         *) log_info "TEST-011(clarify): unexpected .aai/ path in the branch diff: $p"; ok=0 ;;
       esac
     done <<<"$changed"
   else
     log_info "TEST-011(clarify): neither origin/main nor main resolves — the .aai/ diff pin did not run"
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (now 15 paths across 5 scopes) accounts for every changed .aai/ path" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (now 16 paths across 6 scopes) accounts for every changed .aai/ path" \
     || log_fail "TEST-011(clarify) zero-added-ceremony pins"
 }
 

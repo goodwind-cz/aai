@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-17T19:05:26.385Z
+Generated: 2026-08-18T07:54:25.322Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -31,7 +31,7 @@ _None._
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
-| factory-performance-report | factory-performance-report | 3 | docs/product/factory-performance-report.md |
+| factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
 | friction-capture-default-on | friction-capture-default-on | 1 | docs/product/friction-capture-default-on.md |
 | implementation-mode-choice | implementation-mode-choice | 1 | docs/product/implementation-mode-choice.md |
 | issues-skill | issues-skill | 1 | docs/product/issues-skill.md |
@@ -48,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (328)
+## Done (330)
 
 | ID | Type | Path |
 |---|---|---|
@@ -199,6 +199,7 @@ _None._
 | CHANGE-0145 | issues | docs/issues/CHANGE-0145-deslop-scope-and-unrequested-engine.md |
 | CHANGE-0146 | issues | docs/issues/CHANGE-0146-role-verification-guards.md |
 | CHANGE-0147 | issues | docs/issues/CHANGE-0147-docs-model-nul-escape.md |
+| CHANGE-0148 | issues | docs/issues/CHANGE-0148-ride-cost-readout.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -379,6 +380,7 @@ _None._
 | SPEC-0131 | specs | docs/specs/SPEC-0131-spec-close-regenerate-order.md |
 | SPEC-0132 | specs | docs/specs/SPEC-0132-spec-deslop-scope-and-unrequested-engine.md |
 | SPEC-0133 | specs | docs/specs/SPEC-0133-spec-role-verification-guards.md |
+| SPEC-0134 | specs | docs/specs/SPEC-0134-spec-ride-cost-readout.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
@@ -414,4 +416,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-17 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-18 — counts above use this date for overdue checks.

@@ -2320,6 +2320,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Factory performance report
+
+Answers "how efficiently is the factory running" in one self-contained page: **what it delivers** (throughput), **how fast** (speed), **at what cost** (tokens), and **at what quality** — each as an overall rollup plus a per-ISO-week trend, computed deterministically from the local ledgers (METRICS.jsonl + EVENTS.jsonl, zero network). The page refreshes itself at every work-item close, so it is a continuous overview, not a one-off snapshot.
+
+[Product doc](product/factory-performance-report.md) · [Spec](specs/SPEC-0108-spec-factory-performance-report.md)
+
 ### Deslop pass — removing AI slop, and finding code nobody asked for
 
 `/aai-deslop` is an advisory pass that strips characteristic AI-generated noise from a change before review: comments that restate the next line, defensive try/catch around trusted internal calls, abstractions introduced for a single caller, behavior nobody asked for, and reformatting of untouched lines. It never blocks and never gates — skipping it is always a valid outcome.
@@ -2349,12 +2355,6 @@ Deferred work used to disappear. When a review found something real but the ride
 `/aai-update` is the one-command refresh of a project's vendored AAI layer: it materializes the canonical AAI repository's `main` (or a chosen ref), runs the layer sync into the current project, and prints concise post-sync evidence — changed files, the updated AAI pin, and any conflict advisory. It never commits; the user reviews the diff and commits manually.
 
 [Product doc](product/aai-update.md) · [Spec](specs/SPEC-0124-spec-update-doctor-field-report.md)
-
-### Factory performance report
-
-Answers "how efficiently is the factory running" in one self-contained page: **what it delivers** (throughput), **how fast** (speed), **at what cost** (tokens), and **at what quality** — each as an overall rollup plus a per-ISO-week trend, computed deterministically from the local ledgers (METRICS.jsonl + EVENTS.jsonl, zero network). The page refreshes itself at every work-item close, so it is a continuous overview, not a one-off snapshot.
-
-[Product doc](product/factory-performance-report.md) · [Spec](specs/SPEC-0108-spec-factory-performance-report.md)
 
 ### Windows test wrapper stops lying about timeouts it never caused
 
