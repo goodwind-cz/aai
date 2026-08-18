@@ -647,8 +647,405 @@ test_010_pin_ok_assertion_catches_gutted_check() {
   log_pass "TEST-010: close_work_item_pin_assert rejects a gutted check and accepts the real file; both real callers delegate to the single shared guard (N-B)"
 }
 
+# ============================ TEST-011 (Spec-AC-01) ==========================
+test_011_flag_values_with_leading_dashes() {
+  log_info "Test: D1 — a flag value beginning with two dashes is accepted verbatim for every value-taking flag unless it is EXACTLY a token the subcommand knows; a genuinely missing value still exits 2 in all three shapes; --flag=value works including --what=--why and --what=--help; -h/--help/help in FLAG position still print usage at exit 0; routine-emit still GRANTS over a ledger a dashed value was written into (TEST-011)..."
+  local led; led="$(mk_ledger t011)"
+
+  # --- bare dashed values accepted for --what/--why/--source/--ref/--actor ---
+  run_fu add --ledger "$led" --id fu-dash-one --ref "--change-like-ref" \
+    --severity P2 --what "--decisions is undocumented" --why "--deferred, quoted" \
+    --source "--evidence-looking-path" --actor "--weird-actor"
+  [[ "$EC" == 0 ]] || log_fail "a dashed value must be accepted for --what/--why/--source/--ref/--actor, got $EC: $ERR"
+  run_fu list --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "list after the dashed-value add must exit 0"
+  local probe
+  probe="$(node -e '
+    const j=JSON.parse(process.argv[1]);
+    const it=j.items.find(i=>i.id==="fu-dash-one");
+    if (!it) { console.log("MISSING"); process.exit(0); }
+    const errs=[];
+    if (it.finding!=="--decisions is undocumented") errs.push("finding:"+it.finding);
+    if (it.decision!=="--deferred, quoted") errs.push("decision:"+it.decision);
+    if (it.source!=="--evidence-looking-path") errs.push("source:"+it.source);
+    if (it.ref_id!=="--change-like-ref") errs.push("ref_id:"+it.ref_id);
+    console.log(errs.length?errs.join(" ; "):"OK");
+  ' "$OUT")"
+  [[ "$probe" == "OK" ]] || log_fail "dashed values must round-trip verbatim through the fold: $probe"
+  local rawactor
+  rawactor="$(node -e '
+    const fs=require("fs");
+    const lines=fs.readFileSync(process.argv[1],"utf8").split("\n").filter(l=>l.trim()!==""&&!l.startsWith("#"));
+    const o=JSON.parse(lines[lines.length-1]);
+    console.log(o.actor==="--weird-actor" ? "OK" : "ACTOR:"+o.actor);
+  ' "$led")"
+  [[ "$rawactor" == "OK" ]] || log_fail "a dashed --actor value must round-trip verbatim into the raw appended line: $rawactor"
+
+  # --- list --ref with a dashed value narrows correctly (not swallowed) ------
+  run_fu list --ledger "$led" --ref "--change-like-ref"
+  [[ "$EC" == 0 ]] || log_fail "list --ref with a dashed value must exit 0, got $EC"
+  grep -qF "fu-dash-one" <<<"$OUT" || log_fail "list --ref with a dashed value must keep the matching item: $OUT"
+
+  # --- --id: a dashed value is ACCEPTED as the value (not swallowed into a ---
+  # --- missing-value error) even though it is then refused on ID GRAMMAR. ---
+  run_fu add --ledger "$led" --id "--looks-like-a-flag" --ref R --severity P1 --what w --why y --source s
+  [[ "$EC" == 2 ]] || log_fail "a dashed --id must still be refused (bad id shape), got $EC"
+  grep -qF "requires a value" <<<"$ERR" && log_fail "a dashed --id value must be ACCEPTED as a value, not read as missing (the value-swallow defect): $ERR"
+  grep -qF "does not match ^fu-" <<<"$ERR" || log_fail "a dashed --id must be refused on id GRAMMAR, not on parsing: $ERR"
+
+  # --- --ledger: a value beginning with two dashes is accepted as a PATH -----
+  local dashled="$TEST_DIR/--dash-ledger.jsonl"
+  cp "$led" "$dashled"
+  run_fu list --ledger "$dashled"
+  [[ "$EC" == 0 ]] || log_fail "a dashed --ledger PATH VALUE must be accepted, got $EC: $ERR"
+  grep -qF "fu-dash-one" <<<"$OUT" || log_fail "list over the dash-named ledger must show its items: $OUT"
+
+  # --- close --resolved-by with a dashed value: full success, no grammar -----
+  run_fu close --ledger "$led" --id fu-dash-one --resolved-by "--change-like-ref" --source s
+  [[ "$EC" == 0 ]] || log_fail "close --resolved-by with a dashed value must exit 0, got $EC: $ERR"
+
+  # --- a genuinely missing value still exits 2, in ALL THREE shapes ----------
+  local before; before="$(fsize "$led")"
+  run_fu add --ledger "$led" --what
+  [[ "$EC" == 2 ]] || log_fail "end-of-argv missing value must exit 2, got $EC"
+  grep -qF 'flag "--what" requires a value' <<<"$ERR" || log_fail "end-of-argv missing value must name the flag: $ERR"
+  run_fu add --ledger "$led" --id fu-x --ref R --severity P1 --what --why y --source s
+  [[ "$EC" == 2 ]] || log_fail "a following EXACTLY-known-flag must still read as a missing value, got $EC"
+  grep -qF 'flag "--what" requires a value' <<<"$ERR" || log_fail "an exactly-known-flag lookahead must name the flag: $ERR"
+  run_fu add --ledger "$led" --id fu-x --ref R --severity P1 --what --json
+  [[ "$EC" == 2 ]] || log_fail "a following --json must still read as a missing value, got $EC"
+  run_fu add --ledger "$led" --id fu-x --ref R --severity P1 --what --help
+  [[ "$EC" == 2 ]] || log_fail "a following --help must still read as a missing value, got $EC"
+  grep -qF 'flag "--what" requires a value' <<<"$ERR" || log_fail "a following --help must name the flag as missing, not print usage: $ERR"
+  run_fu add --ledger "$led" --id fu-x --ref R --severity P1 --what -h
+  [[ "$EC" == 2 ]] || log_fail "a following -h must still read as a missing value, got $EC"
+
+  # --- review NB-1: a REAL flag name from a DIFFERENT subcommand in value ---
+  # --- position must also be caught. knownTokens used to be built from ONLY
+  # --- the current subcommand's flags, so `add ... --what --resolved-by`
+  # --- (--resolved-by is a close-only flag) was silently accepted as the
+  # --- literal value "--resolved-by" — the exact "a bad input reads as
+  # --- success" shape D2 exists to remove, one function over. -------------
+  run_fu add --ledger "$led" --id fu-x --ref R --severity P1 --what --resolved-by --why y --source s
+  [[ "$EC" == 2 ]] || log_fail "a foreign-subcommand flag (--resolved-by, close-only) in value position on add must be caught as a missing value, got $EC: $ERR"
+  grep -qF 'flag "--what" requires a value' <<<"$ERR" || log_fail "the foreign-subcommand-flag lookahead must name the flag: $ERR"
+  [[ "$(fsize "$led")" == "$before" ]] || log_fail "no missing-value arm may append anything (ledger grew from $before to $(fsize "$led"))"
+
+  # --- the --flag=value escape hatch -----------------------------------------
+  run_fu add --ledger "$led" --id=fu-eq-test --ref=R2 --severity=P3 --what=w2 --why=y2 --source=s2 --actor=--eq-actor
+  [[ "$EC" == 0 ]] || log_fail "the --flag=value form must be accepted for every flag, got $EC: $ERR"
+  run_fu add --ledger "$led" --id fu-eq-value-test --ref R --severity P2 --what=--why --why y --source s
+  [[ "$EC" == 0 ]] || log_fail "--what=--why must be accepted (the escape hatch for a value that IS a known flag token), got $EC: $ERR"
+  run_fu list --ledger "$led" --json
+  local eqprobe
+  eqprobe="$(node -e '
+    const j=JSON.parse(process.argv[1]);
+    const a=j.items.find(i=>i.id==="fu-eq-test");
+    const b=j.items.find(i=>i.id==="fu-eq-value-test");
+    const errs=[];
+    if (!a || a.ref_id!=="R2" || a.severity!=="P3" || a.finding!=="w2") errs.push("eq-form:"+JSON.stringify(a));
+    if (!b || b.finding!=="--why") errs.push("eq-value:"+JSON.stringify(b));
+    console.log(errs.length?errs.join(" ; "):"OK");
+  ' "$OUT")"
+  [[ "$eqprobe" == "OK" ]] || log_fail "flag=value round-trip failed: $eqprobe"
+
+  # --- --ledger=<path> exercises D1 and D2 at once (edge case) --------------
+  run_fu list --ledger="$led"
+  [[ "$EC" == 0 ]] || log_fail "--ledger=<path> must be accepted, got $EC: $ERR"
+
+  # --- -h / --help / help in FLAG position still print usage, exit 0 --------
+  run_fu --help
+  [[ "$EC" == 0 ]] || log_fail "--help must exit 0"
+  grep -qF "follow-ups.mjs close" <<<"$OUT" || log_fail "--help must print the usage text"
+  run_fu -h
+  [[ "$EC" == 0 ]] || log_fail "-h must exit 0"
+  run_fu help
+  [[ "$EC" == 0 ]] || log_fail "help must exit 0"
+  run_fu add --ledger "$led" -h
+  [[ "$EC" == 0 ]] || log_fail "-h in flag position on a subcommand must still print usage, got $EC"
+
+  # --- --help documents the dashed-value rule + the flag=value escape hatch -
+  run_fu --help
+  grep -qE "begin with two dashes" <<<"$OUT" || log_fail "--help must document the dashed-value rule"
+  grep -qF "flag=value" <<<"$OUT" || log_fail "--help must document the --flag=value escape hatch"
+
+  # --- SEAM-2: routine-emit still GRANTS over the ledger a dashed value was --
+  # --- written into (JSON.stringify escapes it; the ledger cannot be
+  # --- malformed by construction) --------------------------------------------
+  if [[ -f "$ROUTINE_EMIT" ]]; then
+    local seamled; seamled="$(mk_ledger t011-seam)"
+    printf '%s\n' '{"v":1,"ts":"2026-08-01T00:00:00Z","type":"routine_authorization","ref":"seam-ref","by":"human","grants":["merge"],"notes":"fixture"}' >> "$seamled"
+    run_fu add --ledger "$seamled" --id fu-seam-dash --ref R --severity P2 \
+      --what "--this quotes a flag name" --why y --source s
+    [[ "$EC" == 0 ]] || log_fail "seam add must succeed: $ERR"
+    local remit_out remit_ec=0
+    remit_out="$(node "$ROUTINE_EMIT" --routine SCRYER --harness generic --os macos \
+      --repo owner/repo --schedule "0 7 * * *" --model m --tz UTC \
+      --merge --ref seam-ref --decisions "$seamled" 2>&1)" || remit_ec=$?
+    [[ "$remit_ec" == 0 ]] || log_fail "routine-emit must exit 0 over a ledger a dashed value was written into: $remit_ec: $remit_out"
+    grep -qF "MERGE DISABLED" <<<"$remit_out" && log_fail "SEAM-2 broken: a dashed value revoked merge authorization: $remit_out"
+  fi
+
+  log_pass "D1: dashed values accepted verbatim except exactly-known tokens, missing-value still exits 2 in all three shapes, flag=value escape hatch works, -h/--help/help in flag position still print usage, SEAM-2 (routine-emit) unaffected (TEST-011)"
+}
+
+# ============================ TEST-012 (Spec-AC-02) ==========================
+test_012_unreadable_ledger_refused() {
+  log_info "Test: D2 — a --ledger path that is a directory is refused (exit 2, path+reason on stderr, no total=0/absent/reported-as-empty, ledger byte-unchanged) on list/add/close; a chmod-000 file degrades the same way or is skipped as root; --ledger=<dir> exercises the = form into the same refusal (TEST-012)..."
+  local led; led="$(mk_ledger t012)"
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-untouched","ref_id":"R","severity":"P1","finding":"must not be appended to","decision":"d","source":"s"}' >> "$led"
+  local before; before="$(fsize "$led")"
+  # Node's path.resolve() normalizes a double slash (macOS TMPDIR already ends
+  # in "/", so "$TEST_DIR/x" often becomes ".../T//x"); squeeze it here too so
+  # the string-containment checks below compare like with like.
+  local test_dir_norm; test_dir_norm="$(printf '%s' "$TEST_DIR" | tr -s '/')"
+  local dir="$test_dir_norm/adirectory"
+  mkdir -p "$dir"
+
+  run_fu list --ledger "$dir"
+  [[ "$EC" == 2 ]] || log_fail "list --ledger <directory> must exit 2, got $EC"
+  grep -qF "$dir" <<<"$ERR" || log_fail "the refusal must name the resolved path: $ERR"
+  grep -qE "total=0" <<<"$OUT$ERR" && log_fail "a directory must never print total=0: $OUT $ERR"
+  grep -qiE "absent" <<<"$OUT$ERR" && log_fail "a directory must never say absent: $OUT $ERR"
+  grep -qF "reported as empty" <<<"$OUT$ERR" && log_fail "a directory must never say reported as empty: $OUT $ERR"
+
+  run_fu add --ledger "$dir" --id fu-refused --ref R --severity P1 --what w --why y --source s
+  [[ "$EC" == 2 ]] || log_fail "add --ledger <directory> must exit 2, got $EC"
+  grep -qF "$dir" <<<"$ERR" || log_fail "add's refusal must name the resolved path: $ERR"
+
+  run_fu close --ledger "$dir" --id fu-x --resolved-by R
+  [[ "$EC" == 2 ]] || log_fail "close --ledger <directory> must exit 2, got $EC"
+  grep -qF "$dir" <<<"$ERR" || log_fail "close's refusal must name the resolved path: $ERR"
+
+  [[ "$(fsize "$led")" == "$before" ]] || log_fail "a directory refusal must never touch the real ledger"
+
+  # --ledger=<directory> exercises D1 (the = form) and D2 (the directory
+  # guard) at once.
+  run_fu list --ledger="$dir"
+  [[ "$EC" == 2 ]] || log_fail "--ledger=<directory> must exit 2 (D1+D2 combined), got $EC"
+  grep -qF "$dir" <<<"$ERR" || log_fail "--ledger=<directory> refusal must name the path: $ERR"
+
+  # A chmod-000 FILE (not a directory): same outcome, or degrade when running
+  # as root (root ignores file permission bits, so the arm would be vacuous).
+  local ro="$test_dir_norm/t012-chmod000.jsonl"
+  cp "$led" "$ro"
+  chmod 000 "$ro"
+  if [[ "$(id -u)" == "0" ]]; then
+    log_info "TEST-012: chmod-000 arm skipped — running as root ignores file permission bits"
+  else
+    run_fu list --ledger "$ro"
+    [[ "$EC" == 2 ]] || log_fail "an unreadable (chmod 000) ledger file must exit 2, got $EC"
+    grep -qF "$ro" <<<"$ERR" || log_fail "the chmod-000 refusal must name the path: $ERR"
+  fi
+  chmod 644 "$ro"
+
+  log_pass "D2: a directory --ledger is refused on list/add/close (exit 2, path+reason named, no total=0/absent/reported-as-empty, byte-unchanged); --ledger=<dir> refused the same way; chmod-000 refused or degrades as root (TEST-012)"
+}
+
+# ============================ TEST-013 (Spec-AC-03) ==========================
+test_013_absent_ledger_contract_unchanged() {
+  log_info "Test: D2/D3 — the CLI still exits 2 on an absent ledger (the intake's claim of exit 0 is wrong); loadRegistry keeps missing:true + the byte-identical absent note for an absent path, and returns missing:false + an unreadable object + a note matching neither /absent/i nor 'reported as empty' for a directory, neither call throwing (TEST-013)..."
+  local absent="$TEST_DIR/t013-does-not-exist.jsonl"
+  run_fu list --ledger "$absent"
+  [[ "$EC" == 2 ]] || log_fail "an absent ledger must still exit 2 on the CLI, got $EC"
+  grep -qF "ledger not found" <<<"$ERR" || log_fail "the absent-ledger CLI message must be unchanged: $ERR"
+
+  local dir="$TEST_DIR/t013-a-directory"
+  mkdir -p "$dir"
+  local result
+  # Env vars, not argv: `node -e` with ANY extra positional arg sets
+  # process.argv[1] to that arg, and follow-ups.mjs's own isMain guard
+  # compares process.argv[1]'s realpath against ITS OWN realpath — passing
+  # $FU as an argv value here would make the IMPORTED module think it is
+  # being run as main and execute main() against the other args as a bogus
+  # CLI invocation. Zero extra argv sidesteps that collision entirely.
+  result="$(FU_PATH="$FU" ABSENT_PATH="$absent" DIR_PATH="$dir" node --input-type=module -e '
+    const mod = await import("file://" + process.env.FU_PATH);
+    const a = mod.loadRegistry(process.env.ABSENT_PATH);
+    const d = mod.loadRegistry(process.env.DIR_PATH);
+    const errs = [];
+    if (a.missing !== true) errs.push("absent.missing:" + a.missing);
+    if (a.unreadable !== null) errs.push("absent.unreadable:" + JSON.stringify(a.unreadable));
+    if (!a.notes.some((n) => /absent/i.test(n))) errs.push("absent note missing /absent/i: " + JSON.stringify(a.notes));
+    if (d.missing !== false) errs.push("dir.missing:" + d.missing);
+    if (!d.unreadable || typeof d.unreadable.code !== "string") errs.push("dir.unreadable:" + JSON.stringify(d.unreadable));
+    if (!d.notes.length || d.notes.some((n) => /absent/i.test(n))) errs.push("dir note wrongly matches /absent/i: " + JSON.stringify(d.notes));
+    if (d.notes.some((n) => n.includes("reported as empty"))) errs.push("dir note wrongly says reported as empty: " + JSON.stringify(d.notes));
+    console.log(errs.length ? errs.join(" ; ") : "OK");
+  ' 2>&1)"
+  [[ "$result" == "OK" ]] || log_fail "loadRegistry absent-vs-directory contract violated: $result"
+
+  log_pass "CLI still exits 2 on an absent ledger; loadRegistry keeps missing:true+absent-note for an absent path and returns missing:false+unreadable+a discriminable note for a directory, neither call throwing (TEST-013)"
+}
+
+# ============================ TEST-014 (Spec-AC-04) ==========================
+test_014_malformed_id_named_and_counted() {
+  log_info "Test: D3/D3a — a hand-written malformed id is named MALFORMED-ID on the row, id_malformed:true in JSON, counted in counts.malformed_ids and STILL in counts.open; a derived (id-less) legacy entry is NEVER marked malformed; exactly one id-grammar regex literal remains in the source (TEST-014)..."
+  local led; led="$(mk_ledger t014)"
+  {
+    printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-well-formed","ref_id":"R1","severity":"P1","finding":"a normal item","decision":"d","source":"s"}'
+    printf '%s\n' '{"v":1,"ts":"2026-01-02T00:00:00Z","actor":"a","type":"follow_up","id":"BAD ID","ref_id":"R2","severity":"P2","finding":"malformed id item","decision":"d","source":"s"}'
+    printf '%s\n' '{"v":1,"ts":"2026-01-03T00:00:00Z","actor":"a","type":"follow_up","id":"fu-aaaaaaaaaa-bbbbbbbbbb-cccccccccc-dddddddddd","ref_id":"R3","severity":"P3","finding":"over-length id item","decision":"d","source":"s"}'
+    printf '%s\n' '{"v":1,"ts":"2026-01-04T00:00:00Z","actor":"a","type":"follow_up","ref_id":"legacy-no-id","finding":"an id-less legacy entry","decision":"d","source":"s"}'
+  } >> "$led"
+
+  run_fu list --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "a ledger with malformed ids must still exit 0 on the read path, got $EC: $ERR"
+  local probe
+  probe="$(node -e '
+    const j=JSON.parse(process.argv[1]);
+    const errs=[];
+    const bad=j.items.find(i=>i.id==="BAD ID");
+    const long=j.items.find(i=>i.id&&i.id.length>40);
+    const good=j.items.find(i=>i.id==="fu-well-formed");
+    const legacy=j.items.find(i=>i.derived_id===true);
+    if (!bad || bad.id_malformed!==true) errs.push("BAD-ID id_malformed:"+JSON.stringify(bad));
+    if (!long || long.id_malformed!==true) errs.push("over-length id_malformed:"+JSON.stringify(long));
+    if (!good || good.id_malformed!==false) errs.push("well-formed id_malformed:"+JSON.stringify(good));
+    if (!legacy || legacy.id_malformed!==false) errs.push("derived legacy id_malformed:"+JSON.stringify(legacy));
+    if (j.counts.malformed_ids!==2) errs.push("counts.malformed_ids:"+j.counts.malformed_ids);
+    if (j.counts.open!==4) errs.push("counts.open:"+j.counts.open+" (nothing may be hidden)");
+    const note=j.notes.find(n=>/^NOTE 2 follow-up\(s\) carry an id/.test(n));
+    if (!note) errs.push("no note naming the malformed-id count: "+JSON.stringify(j.notes));
+    else if (!/still counted/i.test(note)) errs.push("note does not say the items are still counted: "+note);
+    console.log(errs.length?errs.join(" ; "):"OK");
+  ' "$OUT")"
+  [[ "$probe" == "OK" ]] || log_fail "malformed-id contract violated: $probe"
+
+  run_fu list --ledger "$led"
+  [[ "$EC" == 0 ]] || log_fail "text list must exit 0"
+  grep -qF "MALFORMED-ID" <<<"$OUT" || log_fail "the text row must carry the MALFORMED-ID token: $OUT"
+  # Row-only count: the summary NOTE line also legitimately says the words
+  # "MALFORMED-ID" once, so count only lines that are actual ITEM ROWS
+  # (leading open|done|dropped, SEAM-6's own row-detection convention). A
+  # here-string into node avoids a `cmd | grep` pipe (this suite's own
+  # SIGPIPE-under-pipefail trap, see the file header).
+  local markers
+  markers="$(node -e '
+    const text=require("fs").readFileSync(0,"utf8");
+    const rows=text.split("\n").filter((l)=>/^(open|done|dropped)\b/.test(l));
+    console.log(rows.filter((l)=>l.includes("MALFORMED-ID")).length);
+  ' <<<"$OUT")"
+  [[ "$markers" == "2" ]] || log_fail "exactly 2 rows must carry MALFORMED-ID, got $markers"
+
+  # D5: the id grammar is a SINGLE constant — assert exactly one occurrence of
+  # the actual REGEX LITERAL (a leading "/" distinguishes the real RegExp from
+  # the comment header, the USAGE doc string and the cmdAdd error message,
+  # which all legitimately quote the same grammar as TEXT, not as a second
+  # RegExp — the spec's own `grep -c 'fu-\[a-z0-9\]'` command, run unmodified,
+  # already returns 4 on this file and always will; it is not this scope's
+  # invariant, so the leading-slash-anchored pattern below is used instead).
+  local litcount
+  litcount="$(grep -c '/\^fu-\[a-z0-9\]' "$FU" || true)"
+  [[ "$litcount" == "1" ]] || log_fail "exactly one id-grammar REGEX LITERAL may exist in follow-ups.mjs, got $litcount"
+
+  # --- review NB-4: a newline embedded in a malformed id must never spoof a
+  # --- fabricated extra row. formatRow renders a malformed id through
+  # --- JSON.stringify, so the whole id (including the embedded newline,
+  # --- escaped as the two characters \n) stays on the item's OWN row; before
+  # --- the fix the raw newline split the row in two, leaving the item's own
+  # --- row markerless and pushing MALFORMED-ID onto a fabricated
+  # --- continuation line that read as a second, well-formed item. ----------
+  local spoofled; spoofled="$(mk_ledger t014-spoof)"
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-good","ref_id":"R1","severity":"P1","finding":"real","decision":"d","source":"s"}' >> "$spoofled"
+  node -e '
+    const fs=require("fs");
+    const entry={v:1,ts:"2026-01-02T00:00:00Z",actor:"a",type:"follow_up",
+      id:"fu-spoof\nopen  fu-fake  P1  R9  age=1d  injected row",
+      ref_id:"R2",severity:"P2",finding:"spoofer",decision:"d",source:"s"};
+    fs.appendFileSync(process.argv[1], JSON.stringify(entry)+"\n");
+  ' "$spoofled"
+  run_fu list --ledger "$spoofled" --status all
+  [[ "$EC" == 0 ]] || log_fail "a newline-embedded malformed id must never be fatal on the read path, got $EC: $ERR"
+  grep -qE '^open[[:space:]]+fu-fake\b' <<<"$OUT" && log_fail "a newline in a malformed id must never spoof a fabricated row that reads as a separate well-formed item: $OUT"
+  local spoofrows
+  spoofrows="$(node -e '
+    const text=require("fs").readFileSync(0,"utf8");
+    console.log(text.split("\n").filter((l)=>/^(open|done|dropped)\b/.test(l)).length);
+  ' <<<"$OUT")"
+  [[ "$spoofrows" == "2" ]] || log_fail "exactly 2 item rows expected (fu-good + the spoofed id kept on its OWN single row), got $spoofrows: $OUT"
+  grep -qF "MALFORMED-ID" <<<"$OUT" || log_fail "the spoofed-id row must still carry the MALFORMED-ID marker: $OUT"
+
+  log_pass "malformed id named on the row (MALFORMED-ID) and in JSON (id_malformed), counted in malformed_ids and STILL in open; a derived legacy id is never malformed; one regex literal for the grammar; a newline in a malformed id cannot spoof a fabricated extra row (TEST-014)"
+}
+
+# ============================ TEST-015 (Spec-AC-05) ==========================
+test_015_exclusion_note_states_understatement() {
+  log_info "Test: D4 — the EXCLUDED note keeps its existing prefix VERBATIM (test_029's /malformed decision/i pin) and gains the UNDERSTATED clause on both the text and json paths whenever a line was excluded; when nothing is excluded, neither the note nor the word UNDERSTATED appears anywhere (TEST-015)..."
+  local led; led="$(mk_ledger t015)"
+  {
+    printf '%s\n' 'this is not valid json'
+    printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-real-one","ref_id":"R1","severity":"P1","finding":"a real item","decision":"d","source":"s"}'
+  } >> "$led"
+
+  run_fu list --ledger "$led"
+  [[ "$EC" == 0 ]] || log_fail "a malformed line must never be fatal on the read path, got $EC: $ERR"
+  grep -qF "EXCLUDED 1 malformed decision ledger line(s)" <<<"$OUT" || log_fail "the existing EXCLUDED prefix must be preserved verbatim: $OUT"
+  grep -qF "UNDERSTATED" <<<"$OUT" || log_fail "the text note must state the counts may be UNDERSTATED: $OUT"
+
+  run_fu list --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "json list must exit 0"
+  local probe
+  probe="$(node -e '
+    const j=JSON.parse(process.argv[1]);
+    const note=j.notes.find(n=>/^EXCLUDED/.test(n));
+    if (!note) { console.log("NO-EXCLUDED-NOTE"); process.exit(0); }
+    if (!note.startsWith("EXCLUDED 1 malformed decision ledger line(s)")) { console.log("PREFIX-CHANGED:"+note); process.exit(0); }
+    if (!/UNDERSTATED/.test(note)) { console.log("NO-UNDERSTATED:"+note); process.exit(0); }
+    console.log("OK");
+  ' "$OUT")"
+  [[ "$probe" == "OK" ]] || log_fail "json EXCLUDED note contract violated: $probe"
+
+  # No exclusion at all: neither the note nor the word UNDERSTATED anywhere.
+  local clean; clean="$(mk_ledger t015-clean)"
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-clean-one","ref_id":"R1","severity":"P1","finding":"a real item","decision":"d","source":"s"}' >> "$clean"
+  run_fu list --ledger "$clean"
+  [[ "$EC" == 0 ]] || log_fail "a clean ledger must exit 0"
+  grep -qF "UNDERSTATED" <<<"$OUT" && log_fail "UNDERSTATED must never appear when nothing was excluded (text): $OUT"
+  grep -qF "EXCLUDED" <<<"$OUT" && log_fail "EXCLUDED must never appear when nothing was excluded (text): $OUT"
+  run_fu list --ledger "$clean" --json
+  grep -qF "UNDERSTATED" <<<"$OUT" && log_fail "UNDERSTATED must never appear when nothing was excluded (json): $OUT"
+
+  log_pass "EXCLUDED note keeps its existing prefix verbatim and gains the UNDERSTATED clause on both text and json paths; absent when nothing was excluded (TEST-015)"
+}
+
+# ============================ TEST-017 (Spec-AC-08) ==========================
+test_017_grammar_and_product_doc_pins() {
+  log_info "Test: D1/D2/D3/D4 published contract — --help documents the dashed-value rule and the flag=value escape hatch; docs/product/aai-decisions.md carries the malformed-id and unreadable-path degradation rows, the understatement clause, the exit-2-unreadable case, and a bumped delivered_by/updated; docs-audit.mjs --check exits 0 (a smoke assertion, not a CLEAN-verdict claim) (TEST-017)..."
+  run_fu --help
+  [[ "$EC" == 0 ]] || log_fail "--help must exit 0"
+  grep -qE "begin with two dashes" <<<"$OUT" || log_fail "--help must document the dashed-value rule: $OUT"
+  grep -qF "flag=value" <<<"$OUT" || log_fail "--help must document the --flag=value escape hatch: $OUT"
+
+  local pdoc="$PROJECT_ROOT/docs/product/aai-decisions.md"
+  [[ -f "$pdoc" ]] || log_fail "product doc missing: $pdoc"
+  local doctext; doctext="$(cat "$pdoc")"
+  grep -qF "MALFORMED-ID" <<<"$doctext" || log_fail "product doc must carry the malformed-id degradation row"
+  grep -qiE "not (a readable file|readable)" <<<"$doctext" || log_fail "product doc must carry the unreadable-path degradation row"
+  grep -qiE "understated" <<<"$doctext" || log_fail "product doc must state the understatement clause"
+  grep -qF "exit 2" <<<"$doctext" || log_fail "product doc exit-code paragraph must name the unreadable-path exit-2 case"
+
+  local frontmatter
+  frontmatter="$(awk '/^---$/{n++; next} n==1' "$pdoc")"
+  echo "$frontmatter" | grep -qE '^[[:space:]]*-[[:space:]]*followups-cli-hardening[[:space:]]*$' \
+    || log_fail "product doc frontmatter delivered_by must include followups-cli-hardening"
+  echo "$frontmatter" | grep -qE '^updated: [0-9]{4}-[0-9]{2}-[0-9]{2}$' \
+    || log_fail "product doc frontmatter updated must be a well-formed ISO date"
+
+  # NOTE (review NB-6): `--check` exits 0 on NEEDS-TRIAGE too (it only exits
+  # non-zero on result.hardFail) — this is a smoke assertion that the audit
+  # command itself runs cleanly, NOT a claim that the audit's VERDICT is
+  # CLEAN. Do not read a green here as "docs-audit clean".
+  local audit_out audit_ec=0
+  audit_out="$(cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --no-event 2>&1)" || audit_ec=$?
+  [[ "$audit_ec" == 0 ]] || log_fail "docs-audit.mjs --check must exit 0: $audit_out"
+
+  log_pass "--help documents the dashed-value rule + flag=value escape hatch; product doc carries the malformed-id and unreadable-path rows, understatement clause, exit-2 case, frontmatter bump; docs-audit.mjs --check runs (exit 0 is a smoke assertion, not a CLEAN-verdict claim) (TEST-017)"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-followup-registry TEST-001..005, 008, 009; role-verification-guards TEST-010/Spec-AC-09 N1)"
+  echo "  + followups-cli-hardening TEST-011..015,017"
   check_deps
   setup_fixture
   test_001_schema_and_id_discipline
@@ -659,6 +1056,12 @@ main() {
   test_008_close_path
   test_009_consumer_seam
   test_010_pin_ok_assertion_catches_gutted_check
+  test_011_flag_values_with_leading_dashes
+  test_012_unreadable_ledger_refused
+  test_013_absent_ledger_contract_unchanged
+  test_014_malformed_id_named_and_counted
+  test_015_exclusion_note_states_understatement
+  test_017_grammar_and_product_doc_pins
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

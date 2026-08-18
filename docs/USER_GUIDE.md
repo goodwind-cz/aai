@@ -2320,6 +2320,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Follow-up registry on the decision ledger
+
+Deferred work used to disappear. When a review found something real but the ride did not fix it, the deferral was written as free prose inside a decision entry — 14 such clauses had accumulated against exactly one typed entry, and nothing in the toolchain could list any of them. One lesson recorded that way was repeated verbatim as a defect one ride later.
+
+[Product doc](product/aai-decisions.md) · [Spec](specs/SPEC-0129-spec-followup-registry.md)
+
 ### Factory performance report
 
 Answers "how efficiently is the factory running" in one self-contained page: **what it delivers** (throughput), **how fast** (speed), **at what cost** (tokens), and **at what quality** — each as an overall rollup plus a per-ISO-week trend, computed deterministically from the local ledgers (METRICS.jsonl + EVENTS.jsonl, zero network). The page refreshes itself at every work-item close, so it is a continuous overview, not a one-off snapshot.
@@ -2337,12 +2343,6 @@ Answers "how efficiently is the factory running" in one self-contained page: **w
 Turns the local metrics ledger (`docs/ai/METRICS.jsonl`) into one self-contained interactive HTML page of per-run operational charts: token usage over time, per-skill usage frequency and cost, TDD cycle durations, worktree distribution, and publishing timeline. Token totals are real even though the ledger rarely records decomposed input/output numbers — harness usage captured as an undecomposed `usage_total_tokens=<N>` note on a run is parsed and reported as a total (never fabricated into an input/output split). Chart sections whose source data is absent across the whole dataset show a named "No data recorded in this dataset" state instead of an empty axis, so a blank chart always means "nothing recorded", never "broken page".
 
 [Product doc](product/aai-dashboard.md) · [Spec](specs/SPEC-0127-spec-reporting-docs-true-up.md)
-
-### Follow-up registry on the decision ledger
-
-Deferred work used to disappear. When a review found something real but the ride did not fix it, the deferral was written as free prose inside a decision entry — 14 such clauses had accumulated against exactly one typed entry, and nothing in the toolchain could list any of them. One lesson recorded that way was repeated verbatim as a defect one ride later.
-
-[Product doc](product/aai-decisions.md) · [Spec](specs/SPEC-0129-spec-followup-registry.md)
 
 ### `/aai-doctor` diagnoses the real Windows and agent-CLI environment it runs on
 

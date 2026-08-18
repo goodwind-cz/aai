@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-18T08:19:19.840Z
+Generated: 2026-08-18T10:37:19.396Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0135 | specs | implementing | 8 done | docs/specs/SPEC-0135-spec-followups-cli-hardening.md |
 
 ## Canonical layer (0)
 
@@ -22,7 +23,7 @@ _None._
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
 | aai-dashboard | aai-dashboard | 2 | docs/product/aai-dashboard.md |
-| aai-decisions | aai-decisions | 1 | docs/product/aai-decisions.md |
+| aai-decisions | aai-decisions | 2 | docs/product/aai-decisions.md |
 | aai-deslop | aai-deslop | 1 | docs/product/aai-deslop.md |
 | aai-doctor | aai-doctor | 8 | docs/product/aai-doctor.md |
 | aai-update | aai-update | 5 | docs/product/aai-update.md |
@@ -383,9 +384,11 @@ _None._
 | SPEC-0134 | specs | docs/specs/SPEC-0134-spec-ride-cost-readout.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0149 | issues | docs/issues/CHANGE-0149-followups-cli-hardening.md |
 
 ## Deferred (whole-doc) (0)
 

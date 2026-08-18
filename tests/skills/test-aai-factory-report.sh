@@ -1073,6 +1073,106 @@ JSONL
   log_pass "absent, empty, comment-only, malformed and non-empty ledgers each exit 0 with a named note; HTML section rendered (TEST-029 / spec TEST-007)"
 }
 
+# ============ TEST-040 (Spec-AC-07, followups-cli-hardening) =================
+# SEAM-1: the report reaches the follow-ups fold through the EXPORTED
+# loadRegistry, never the CLI, so D2's exit-code deviation on the CLI path
+# must not touch this generator's always-exit-0 contract. Runs the REAL
+# generator over three degraded ledger shapes; no mock on this path.
+test_040_follow_ups_unreadable_and_understatement() {
+  log_info "Test: the real generator exits 0 over an absent, an unreadable (a directory via --decisions) and a malformed-line decisions ledger; the unreadable case is named without claiming absent/empty, the malformed case carries the UNDERSTATED clause, both render under the HTML data-honesty notes; generate-factory-report.mjs stays byte-unchanged (TEST-040)..."
+
+  # (1) ABSENT decisions ledger (default path, never created by mk_repo).
+  local d1; d1="$(mk_repo t040-absent)"
+  run_report "$d1" --data-only
+  [[ "$EC" == 0 ]] || log_fail "absent decisions ledger must exit 0: $(cat "$OUT")"
+  local dj1="$d1/docs/ai/factory-report-data.json"
+  [[ "$(node_get "$dj1" 'm.follow_ups.open_count')" == "0" ]] || log_fail "absent ledger must report open_count 0"
+  [[ "$(node_get "$dj1" 'm.follow_ups.oldest_age_days')" == "null" ]] || log_fail "absent ledger oldest_age_days must be null"
+  [[ "$(node_get "$dj1" 'm.notes.some(n=>/absent/i.test(n))')" == "true" ]] || log_fail "absent ledger must be named /absent/i in notes"
+
+  # (2) UNREADABLE decisions ledger — a DIRECTORY reached via --decisions.
+  # A non-empty METRICS/EVENTS pair is required so the FULL render below hits
+  # the real report body, not the "No metrics recorded yet" empty-model stub
+  # (which never reaches the notes section at all — mk_repo's METRICS.jsonl
+  # is empty by default).
+  local d2; d2="$(mk_repo t040-unreadable)"
+  cat > "$d2/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-01","ref_id":"A","agent_runs":[{"role":"Planning","duration_seconds":60}],"verdict":"PASS"}
+JSONL
+  write_closed_event "$d2/docs/ai/EVENTS.jsonl" "A" "2026-07-02T00:00:00Z"
+  local badpath="$d2/docs/ai/a-directory-not-a-ledger"
+  mkdir -p "$badpath"
+  # Node's path.resolve() normalizes a double slash (macOS TMPDIR already ends
+  # in "/", so mktemp-derived paths often carry "...//..."); squeeze it here
+  # too so the string-containment check below compares like with like.
+  badpath="$(printf '%s' "$badpath" | tr -s '/')"
+  run_report "$d2" --data-only --decisions "$badpath"
+  [[ "$EC" == 0 ]] || log_fail "an unreadable decisions ledger must exit 0 (degrade, never crash): $(cat "$OUT")"
+  local dj2="$d2/docs/ai/factory-report-data.json"
+  [[ "$(node_get "$dj2" 'm.follow_ups.open_count')" == "0" ]] || log_fail "unreadable ledger must report open_count 0"
+  [[ "$(node_get "$dj2" 'm.follow_ups.oldest_age_days')" == "null" ]] || log_fail "unreadable ledger oldest_age_days must be null"
+  local unreadprobe
+  unreadprobe="$(node -e '
+    const m=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
+    const n=m.notes.find((x)=>x.includes(process.argv[2]));
+    if (!n) { console.log("NO-NOTE-NAMING-PATH:"+JSON.stringify(m.notes)); process.exit(0); }
+    if (/absent/i.test(n)) { console.log("WRONGLY-ABSENT:"+n); process.exit(0); }
+    if (n.includes("reported as empty")) { console.log("WRONGLY-EMPTY:"+n); process.exit(0); }
+    console.log("OK");
+  ' "$dj2" "$badpath")"
+  [[ "$unreadprobe" == "OK" ]] || log_fail "unreadable-ledger note contract violated: $unreadprobe"
+
+  # (3) MALFORMED-LINE decisions ledger — the understatement clause.
+  local d3; d3="$(mk_repo t040-malformed)"
+  cat > "$d3/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-01","ref_id":"A","agent_runs":[{"role":"Planning","duration_seconds":60}],"verdict":"PASS"}
+JSONL
+  write_closed_event "$d3/docs/ai/EVENTS.jsonl" "A" "2026-07-02T00:00:00Z"
+  local malpath="$d3/alt-decisions.jsonl"
+  {
+    printf '%s\n' '# Decision Log'
+    printf '%s\n' 'this is not json'
+    printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-real-one","ref_id":"CHANGE-0100","severity":"P1","finding":"a real open item","decision":"deferred","source":"s"}'
+  } > "$malpath"
+  run_report "$d3" --data-only --decisions "$malpath"
+  [[ "$EC" == 0 ]] || log_fail "a malformed-line ledger must exit 0: $(cat "$OUT")"
+  local dj3="$d3/docs/ai/factory-report-data.json"
+  [[ "$(node_get "$dj3" 'm.notes.some(n=>/malformed decision/i.test(n))')" == "true" ]] || log_fail "the malformed line must be named in notes"
+  [[ "$(node_get "$dj3" 'm.notes.some(n=>/UNDERSTATED/.test(n))')" == "true" ]] || log_fail "the malformed-line note must carry the UNDERSTATED clause"
+
+  # Full render: BOTH the unreadable and the malformed-line degradations
+  # appear under the HTML data-honesty notes section.
+  run_report "$d2" --decisions "$badpath"
+  [[ "$EC" == 0 ]] || log_fail "full render over the unreadable ledger must exit 0: $(cat "$OUT")"
+  local html2="$d2/docs/ai/factory-report.html"
+  grep -qF "$badpath" "$html2" || log_fail "the HTML must name the unreadable path in the data-honesty notes"
+  run_report "$d3" --decisions "$malpath"
+  [[ "$EC" == 0 ]] || log_fail "full render over the malformed-line ledger must exit 0: $(cat "$OUT")"
+  local html3="$d3/docs/ai/factory-report.html"
+  grep -qF "UNDERSTATED" "$html3" || log_fail "the HTML must render the UNDERSTATED clause"
+
+  # generate-factory-report.mjs is NOT edited by this scope (Spec-AC-07) — a
+  # base ref that cannot be resolved (shallow clone, detached HEAD) degrades
+  # this ONE assertion rather than failing or skipping the whole test.
+  local base_ref=""
+  if [[ -n "${AAI_FACTORY_REPORT_BASE_REF:-}" ]]; then
+    base_ref="$AAI_FACTORY_REPORT_BASE_REF"
+  elif command -v git >/dev/null 2>&1 && git -C "$PROJECT_ROOT" rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
+    base_ref="origin/main"
+  elif command -v git >/dev/null 2>&1 && git -C "$PROJECT_ROOT" rev-parse --verify --quiet main >/dev/null 2>&1; then
+    base_ref="main"
+  fi
+  if [[ -z "$base_ref" ]]; then
+    log_info "TEST-040: no resolvable base ref (shallow clone or detached base) — byte-identity diff skipped"
+  else
+    local diffstat
+    diffstat="$(git -C "$PROJECT_ROOT" diff --stat "$base_ref" -- .aai/scripts/generate-factory-report.mjs)"
+    [[ -z "$diffstat" ]] || log_fail "generate-factory-report.mjs must be byte-unchanged by this scope: $diffstat"
+  fi
+
+  log_pass "generator exits 0 over absent/unreadable/malformed-line ledgers; unreadable note names the path without absent/empty; malformed note carries UNDERSTATED; both render in HTML; generate-factory-report.mjs byte-unchanged (TEST-040)"
+}
+
 # ============ TEST-031 (Spec-AC-01, spec-ride-cost-readout) ==================
 test_031_scope_cost_elapsed_and_agent_time() {
   log_info "Test: scope_cost elapsed (wall clock) and agent time (summed) — idle gap, overlap, no-timestamp, no-duration, no-run rides; nulls not zeros; order elapsed-desc null-last ref-asc; divergence note names the overlap count; a run missing duration_seconds names its own count (BLOCKING-1) (TEST-031)..."
@@ -1625,6 +1725,7 @@ test_039_scope_cost_product_doc_pins() {
 
 main() {
   echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014, +017..019; telemetry-completeness TEST-020..021; role-token-trend TEST-022..027; followup-registry TEST-028..029; scope-cost TEST-031..037,039)"
+  echo "  + followups-cli-hardening TEST-040"
   check_deps
   setup_fixture
   test_001_data_only_blocks_present
@@ -1654,6 +1755,7 @@ main() {
   test_027_product_doc_pins
   test_028_follow_ups_block
   test_029_follow_ups_report_only
+  test_040_follow_ups_unreadable_and_understatement
   test_031_scope_cost_elapsed_and_agent_time
   test_032_scope_cost_role_counts
   test_033_scope_cost_token_source

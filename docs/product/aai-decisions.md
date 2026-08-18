@@ -5,8 +5,9 @@ capability: aai-decisions
 status: current
 delivered_by:
   - CHANGE-0142
+  - followups-cli-hardening
 spec: docs/specs/SPEC-0129-spec-followup-registry.md
-updated: 2026-08-13
+updated: 2026-08-18
 ---
 
 # Follow-up registry on the decision ledger
@@ -116,12 +117,14 @@ Degradations are always named, never silent:
 | Input | Behavior |
 |---|---|
 | `#` comment line, blank line | Skipped (the ledger opens with a comment header) |
-| Malformed JSON line | Counted, named in a note, skipped — never fatal on the read path |
+| Malformed JSON line | Counted, named in a note that also states the counts above may therefore be UNDERSTATED, skipped — never fatal on the read path |
 | `follow_up` with no `id` | Folded under a derived `fu-<ref-slug>-<yyyymmddThhmm>` id, named in a note; the original line is never rewritten |
 | Same id twice | First occurrence wins, the duplicate is named in a note |
 | `follow_up_status` with no matching `follow_up` | Counted as dangling, named, never listed as an item |
 | Unparseable or future timestamp | Age reported as n/a, never a negative number and never a fabricated 0 |
 | Empty registry | `open_count: 0`, oldest age `null` (never 0) |
+| An id that does not match the id grammar | Named `MALFORMED-ID` on the `list` row and `id_malformed: true` in JSON, counted in `counts.malformed_ids`; still counted in `open`/`closed`/`total` — a mistyped id must never make a real item disappear from the backlog |
+| `--ledger` names a path that exists but is not a readable file (a directory, a permission error) | On the CLI: refused at exit 2, naming the path and the reason — never reported as an empty registry |
 
 ## Interfaces and contracts
 
@@ -148,14 +151,23 @@ Degradations are always named, never silent:
   expected state (for example a later-dated status record for the same id
   shadows the append). The read path can never return 1. `2` usage error —
   unknown flag or subcommand, missing required flag, bad id shape, duplicate
-  id on `add`, unknown id on `close`, unreadable ledger.
+  id on `add`, unknown id on `close`, an unreadable `--ledger` path (a
+  directory, a permission error) — refused loudly, never folded into the
+  absent-ledger case, and never reported as an empty registry.
+- A flag value may itself begin with two dashes (for example
+  `--what "--decisions is undocumented"`) as long as it is not EXACTLY a flag
+  token the subcommand knows. When it is (for example the literal value
+  `--why`), write it as `--flag=value` instead (`--what=--why`) — the escape
+  hatch for the one case bare argv cannot otherwise resolve.
 - `node .aai/scripts/generate-factory-report.mjs [--decisions <path>]` — the
   report reads this registry through the SAME fold the CLI uses (one
   implementation, two consumers) and renders a read-only "Open follow-ups"
   section plus a `follow_ups` block in `docs/ai/factory-report-data.json`
   (`open_count`, `oldest_age_days`, `items[]` with id, ref, severity,
   age_days, what). The report's exit contract is unchanged: always 0 on a
-  readable or absent ledger.
+  readable, absent OR unreadable ledger — an unreadable path is named in the
+  data honesty notes, never in the exit code (the CLI's own `--ledger` path
+  is the one surface that refuses at exit 2; see the degradation table above).
 - Zero network, no LLM, Node standard library only.
 
 ## Limits and non-goals
@@ -180,5 +192,7 @@ Degradations are always named, never silent:
 
 - Request: docs/issues/CHANGE-0142-followup-registry.md
 - Spec: docs/specs/SPEC-0129-spec-followup-registry.md
+- Hardening: docs/issues/CHANGE-0149-followups-cli-hardening.md,
+  docs/specs/SPEC-0135-spec-followups-cli-hardening.md
 - Ledger: docs/ai/decisions.jsonl
 - Report surface: docs/product/factory-performance-report.md
