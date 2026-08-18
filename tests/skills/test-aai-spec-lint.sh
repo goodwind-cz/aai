@@ -1685,6 +1685,11 @@ test_clarify_011_no_new_ceremony() {
         # generator. Fifth payment of this allowlist tax
         # (fu-test011-branch-diff-allowlist-tax, P2, live).
         .aai/scripts/generate-factory-report.mjs) ;;
+        # followups-cli-hardening: D1 dashed-value parsing, D2 unreadable-ledger
+        # refusal, D3 malformed-id naming, D4 understatement note — all four
+        # confined to this one script. Sixth payment of this allowlist tax
+        # (fu-test011-branch-diff-allowlist-tax, P2, live).
+        .aai/scripts/follow-ups.mjs) ;;
         *) log_info "TEST-011(clarify): unexpected .aai/ path in the branch diff: $p"; ok=0 ;;
       esac
     done <<<"$changed"

@@ -11,6 +11,42 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(follow-ups): CLI hardening — dashed flag values, unreadable-ledger refusal, malformed-id naming, understatement note (followups-cli-hardening) [L1]
+
+- Four separately-filed registry defects in `.aai/scripts/follow-ups.mjs`,
+  shipped as one scope because they share one file, one fold and one suite:
+  the first of six planned cluster rides against a 54-item backlog that
+  one-item-per-ride cannot drain.
+- D1 — a flag value beginning with two dashes (`--what "--decisions is
+  undocumented"`) is now accepted verbatim unless it is EXACTLY a token the
+  subcommand knows; the `--flag=value` form is the escape hatch for the one
+  residual case (a value that IS a known flag name, e.g. `--what=--why`). The
+  same defect also silently swallowed a value equal to `--help` into a help
+  print at exit 0 — fixed in the same change, since it is the same bug in the
+  same function.
+- D2 — **behaviour change**: `--ledger` naming a path that exists but is not
+  a readable file (most notably a directory) now exits 2, naming the path and
+  the reason, instead of exiting 0 and reporting "the registry is empty". The
+  absent-ledger contract (ENOENT) is untouched on both the CLI (still exit 2)
+  and the exported `loadRegistry` (still `missing: true`, exit 0 through the
+  report). Every `--ledger` invocation in this repository was enumerated and
+  none passes a directory, so nothing in-repo regresses; a downstream project
+  that does would newly see exit 2 where it saw exit 0 before.
+- D3 — a folded item whose id does not match the id grammar (or exceeds the
+  40-char limit) is now named on all three surfaces — the `list` row carries
+  `MALFORMED-ID`, the JSON item carries `id_malformed: true`, and
+  `counts.malformed_ids` plus a NOTE record the count — and REMAINS in the
+  open count, deliberately: excluding it would recreate, one layer down, the
+  exact silent-undercount defect this scope exists to remove. A tool-derived
+  legacy id (`fu-<slug>-<yyyymmddThhmm>`) is never marked malformed.
+- D4 — the malformed-line exclusion note now states that every count above
+  may therefore be UNDERSTATED, not just that lines were excluded; the
+  existing note prefix is unchanged so pre-existing assertions on it keep
+  matching.
+- `.aai/scripts/generate-factory-report.mjs` is NOT edited: the report
+  reaches this fold only through the exported `loadRegistry`, whose
+  always-exit-0 contract is untouched by the D2 CLI-side exit-code change.
+
 ## [unreleased] — feat(factory-report): per-scope cost readout — elapsed vs agent time, tokens with denominator, rework share (ride-cost-readout) [L1]
 
 - The factory report never totalled one scope, so answering "how long did

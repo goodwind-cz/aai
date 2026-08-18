@@ -1,69 +1,82 @@
 {
-  "generatedAt": "2026-08-18T04:28:10.637Z",
+  "generatedAt": "2026-08-18T10:37:10.383Z",
   "project": "aai",
   "counts": {
     "delivered": 193,
-    "in_progress": 1,
+    "in_progress": 2,
     "releases": 1,
     "tokens_total": 47477521
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "ride-cost-readout",
+    "ref": "followups-cli-hardening",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "ride-cost-readout",
+      "ref": "followups-cli-hardening",
       "type": "intake_change",
-      "phase": "code_review"
+      "phase": "implementation"
     },
     "strategy": "direct",
     "worktree": {
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "not_run",
-    "review_status": "not_run",
+    "validation_status": "pass",
+    "review_status": "pass",
     "ticks": [
       {
-        "tick": 145,
+        "tick": 150,
         "role": "Remediation",
-        "scope": "ride-cost-readout",
-        "duration_seconds": 1136,
+        "scope": "followups-cli-hardening",
+        "duration_seconds": 998,
         "harness_version": "2.1.231 (Claude Code)"
       },
       {
-        "tick": 144,
-        "role": "Remediation",
-        "scope": "ride-cost-readout",
-        "duration_seconds": 1261,
-        "harness_version": "2.1.231 (Claude Code)"
-      },
-      {
-        "tick": 143,
+        "tick": 149,
         "role": "Code Review",
-        "scope": "ride-cost-readout",
-        "duration_seconds": 649,
+        "scope": "followups-cli-hardening",
+        "duration_seconds": 814,
         "harness_version": "2.1.231 (Claude Code)"
       },
       {
-        "tick": 142,
+        "tick": 148,
         "role": "Validation",
-        "scope": "ride-cost-readout",
-        "duration_seconds": 734,
+        "scope": "followups-cli-hardening",
+        "duration_seconds": 1102,
         "harness_version": "2.1.231 (Claude Code)"
       },
       {
-        "tick": 141,
-        "role": "Remediation",
-        "scope": "ride-cost-readout",
-        "duration_seconds": 790,
+        "tick": 147,
+        "role": "Implementation",
+        "scope": "followups-cli-hardening",
+        "duration_seconds": 2385,
+        "harness_version": "2.1.231 (Claude Code)"
+      },
+      {
+        "tick": 146,
+        "role": "Planning",
+        "scope": "followups-cli-hardening",
+        "duration_seconds": 804,
         "harness_version": "2.1.231 (Claude Code)"
       }
     ]
   },
   "in_progress": [
+    {
+      "ref": "followups-cli-hardening",
+      "title": "Change — four defects in the follow-up registry CLI, one file",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0149-followups-cli-hardening.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0135-spec-followups-cli-hardening.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260818T094328Z-followups-cli-hardening.md"
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",

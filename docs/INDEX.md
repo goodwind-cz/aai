@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-18T08:19:19.840Z
+Generated: 2026-08-18T10:39:01.075Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -22,7 +22,7 @@ _None._
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
 | aai-dashboard | aai-dashboard | 2 | docs/product/aai-dashboard.md |
-| aai-decisions | aai-decisions | 1 | docs/product/aai-decisions.md |
+| aai-decisions | aai-decisions | 2 | docs/product/aai-decisions.md |
 | aai-deslop | aai-deslop | 1 | docs/product/aai-deslop.md |
 | aai-doctor | aai-doctor | 8 | docs/product/aai-doctor.md |
 | aai-update | aai-update | 5 | docs/product/aai-update.md |
@@ -48,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (330)
+## Done (332)
 
 | ID | Type | Path |
 |---|---|---|
@@ -200,6 +200,7 @@ _None._
 | CHANGE-0146 | issues | docs/issues/CHANGE-0146-role-verification-guards.md |
 | CHANGE-0147 | issues | docs/issues/CHANGE-0147-docs-model-nul-escape.md |
 | CHANGE-0148 | issues | docs/issues/CHANGE-0148-ride-cost-readout.md |
+| CHANGE-0149 | issues | docs/issues/CHANGE-0149-followups-cli-hardening.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -381,6 +382,7 @@ _None._
 | SPEC-0132 | specs | docs/specs/SPEC-0132-spec-deslop-scope-and-unrequested-engine.md |
 | SPEC-0133 | specs | docs/specs/SPEC-0133-spec-role-verification-guards.md |
 | SPEC-0134 | specs | docs/specs/SPEC-0134-spec-ride-cost-readout.md |
+| SPEC-0135 | specs | docs/specs/SPEC-0135-spec-followups-cli-hardening.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)

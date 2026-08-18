@@ -104,18 +104,23 @@ const DAY_MS = 86400000;
 
 // --- reading ------------------------------------------------------------------
 
-// readDecisionsLedger(absPath) -> { records, malformed, missing }
+// readDecisionsLedger(absPath) -> { records, malformed, missing, unreadable }
 // Skips blank and `#` comment lines (the real ledger opens with a 15-line `#`
 // header). A malformed non-comment line is COUNTED, never fatal — the caller
-// names it in a NOTE.
+// names it in a NOTE. The catch is split by err.code (D2): ENOENT is an
+// ABSENT ledger (missing:true, today's behaviour, byte-for-byte); anything
+// else (EISDIR, EACCES, EIO, ...) is UNREADABLE (missing:false, unreadable
+// set) and must never be folded into "absent" — a directory answering "the
+// registry is empty" is the exact defect this split exists to remove.
 function readDecisionsLedger(absPath) {
   const records = [];
   let malformed = 0;
   let raw;
   try {
     raw = fs.readFileSync(absPath, 'utf8');
-  } catch {
-    return { records, malformed, missing: true };
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return { records, malformed, missing: true, unreadable: null };
+    return { records, malformed, missing: false, unreadable: { code: err && err.code, message: err && err.message } };
   }
   for (const line of raw.split(/\r?\n/)) {
     const t = line.trim();
@@ -126,7 +131,7 @@ function readDecisionsLedger(absPath) {
       malformed += 1;
     }
   }
-  return { records, malformed, missing: false };
+  return { records, malformed, missing: false, unreadable: null };
 }
 
 function slugify(value) {
@@ -165,6 +170,7 @@ function foldFollowUps(records, opts = {}) {
   let duplicates = 0;
   let derived = 0;
   let unparseableTs = 0;
+  let malformedIds = 0;
 
   for (const rec of records) {
     if (!rec || typeof rec !== 'object') continue;
@@ -217,6 +223,13 @@ function foldFollowUps(records, opts = {}) {
     const effectiveTs = typeof rec.source_ts === 'string' ? rec.source_ts : rec.ts;
     const age = ageDays(effectiveTs, nowMs);
     if (age === null) unparseableTs += 1;
+    // D3/D3a: a hand-written id that does not match the grammar is NAMED, not
+    // excluded — excluding it would recreate D2's own silent-undercount defect
+    // one layer down. A DERIVED id (D1b) is never checked: deriveLegacyId's
+    // yyyymmddThhmm stamp contains an uppercase T, so it never matches
+    // FOLLOW_UP_ID_RE by construction and is already named by its own note.
+    const idMalformed = !isDerived && (!FOLLOW_UP_ID_RE.test(id) || id.length > ID_MAX_LEN);
+    if (idMalformed) malformedIds += 1;
     items.push({
       id,
       ref_id: typeof rec.ref_id === 'string' ? rec.ref_id : null,
@@ -231,6 +244,7 @@ function foldFollowUps(records, opts = {}) {
       origin: typeof rec.origin === 'string' ? rec.origin : null,
       age_days: age,
       derived_id: isDerived,
+      id_malformed: idMalformed,
       resolved_by: latest && typeof latest.resolved_by === 'string' ? latest.resolved_by : null,
       resolved_ts: latest && typeof latest.ts === 'string' ? latest.ts : null,
     });
@@ -251,24 +265,37 @@ function foldFollowUps(records, opts = {}) {
   if (duplicates) notes.push(`NOTE ${duplicates} duplicate follow_up id(s) in the ledger — the FIRST occurrence wins, the later line(s) ignored`);
   if (dangling) notes.push(`NOTE ${dangling} dangling follow_up_status record(s) (an id with no follow_up) — counted, never listed as an item`);
   if (unparseableTs) notes.push(`NOTE ${unparseableTs} follow-up(s) carry an unparseable or future timestamp — age shown as n/a, never 0`);
+  if (malformedIds) notes.push(`NOTE ${malformedIds} follow-up(s) carry an id that does not match the id grammar (marked MALFORMED-ID) — still counted in the open/closed/total counts above, never excluded`);
 
+  // D3: the open count is deliberately NOT filtered by id_malformed — a
+  // mistyped id must never make a real deferred item vanish from the number
+  // this registry publishes.
   const open = items.filter((i) => !i.closed).length;
   return {
     items,
     notes,
-    counts: { open, closed: items.length - open, total: items.length, dangling, duplicates, derived },
+    counts: { open, closed: items.length - open, total: items.length, dangling, duplicates, derived, malformed_ids: malformedIds },
   };
 }
 
 // loadRegistry(absPath) -> the fold PLUS the reader's own degradation notes.
 // One entry point so the CLI and generate-factory-report.mjs cannot drift.
 function loadRegistry(absPath, opts = {}) {
-  const { records, malformed, missing } = readDecisionsLedger(absPath);
+  const { records, malformed, missing, unreadable } = readDecisionsLedger(absPath);
   const folded = foldFollowUps(records, opts);
   const notes = [];
   if (missing) notes.push(`NOTE decision ledger absent at ${absPath} — follow-up registry reported as empty`);
-  if (malformed) notes.push(`EXCLUDED ${malformed} malformed decision ledger line(s) (unparseable JSON, skipped — comment lines are not counted)`);
-  return { ...folded, notes: notes.concat(folded.notes), malformed, missing };
+  // D2: an unreadable ledger (a directory, EACCES, EIO, ...) is NEVER folded
+  // into the absent note above — that would be exactly today's defect one
+  // string over. This note is textually discriminable from it: it never
+  // contains "absent" and never contains "reported as empty".
+  if (unreadable) notes.push(`NOTE decision ledger at ${absPath} could not be read (${unreadable.code}: ${unreadable.message}) — refused, never treated as an empty registry`);
+  // D4: the exclusion note keeps its existing prefix verbatim (test_029 pins
+  // it) and gains the understatement clause — an excluded line may have
+  // carried a follow_up, so every count above may be UNDERSTATED, not just
+  // short by the excluded line count.
+  if (malformed) notes.push(`EXCLUDED ${malformed} malformed decision ledger line(s) (unparseable JSON, skipped — comment lines are not counted) — the counts above may therefore be UNDERSTATED`);
+  return { ...folded, notes: notes.concat(folded.notes), malformed, missing, unreadable };
 }
 
 // --- writing ------------------------------------------------------------------
@@ -315,6 +342,12 @@ Ids match ^fu-[a-z0-9]+(-[a-z0-9]+)*$ (max ${ID_MAX_LEN} chars) and are never
 renumbered or reused. Resolution is a SEPARATE appended follow_up_status line;
 the original follow_up line is never edited.
 
+A flag value may begin with two dashes (e.g. --what "--decisions is
+undocumented") as long as it is not EXACTLY a flag token this subcommand
+knows. When it is (for example the literal value --why), bare argv cannot
+tell a value from the next flag — write it as --flag=value instead
+(e.g. --what=--why), which takes everything after the FIRST = verbatim.
+
 Closing is a documented MANUAL step — close-work-item.mjs is deliberately not
 wired to this ledger (its rollback arm truncates, and a bug there would delete
 decision history). Run it yourself when a follow-up ships:
@@ -339,13 +372,18 @@ const FLAG_SPECS = {
   close: ['--ledger', '--id', '--resolved-by', '--source', '--status', '--actor', '--origin', '--source-ts'],
 };
 
+// D1 — a value is a value unless it is EXACTLY a token this subcommand knows.
+// The old rule (`val.startsWith('--')`) rejected ANY dashed value, so a
+// finding could never quote a flag name, and the old `-h`/`--help` PRE-SCAN
+// (`rest.includes(...)`) swallowed a value that happened to equal --help
+// into a silent help-and-exit-0 — the same defect class, folded in here.
 function parseArgs(argv) {
   const rest = argv.slice(2);
   let sub = 'list';
   if (rest.length > 0 && !rest[0].startsWith('-')) {
     sub = rest.shift();
   }
-  if (rest.includes('-h') || rest.includes('--help') || sub === 'help') {
+  if (sub === 'help') {
     console.log(USAGE);
     process.exit(0);
   }
@@ -353,17 +391,44 @@ function parseArgs(argv) {
     usageError(`unknown subcommand "${sub}" (expected list, add or close)`);
   }
   const valueFlags = FLAG_SPECS[sub];
+  // Lookahead-ambiguous tokens (D1 rule 2): a value-taking flag's NEXT token
+  // is the value UNLESS it is EXACTLY one of these — never a prefix test.
+  // -h/--help/--json are always in this set regardless of subcommand. The
+  // set is built from EVERY subcommand's flags, not just this one's (review
+  // NB-1): a per-subcommand set let a MISTYPED or foreign-subcommand flag in
+  // value position (e.g. `add ... --what --sorce`, `list --ref --resolved-by`)
+  // be silently swallowed as the value — reintroducing D2's own "a bad input
+  // reads as success" shape one function over from where it was removed.
+  const knownTokens = new Set([...Object.values(FLAG_SPECS).flat(), '--json', '--help', '-h']);
   const opts = { json: false };
   for (let i = 0; i < rest.length; i += 1) {
     const tok = rest[i];
+    // Fires ONLY in flag position: a value already consumed via `i += 1`
+    // below is never re-examined by this check (D1 rule 3).
+    if (tok === '-h' || tok === '--help') {
+      console.log(USAGE);
+      process.exit(0);
+    }
     if (tok === '--json') {
       if (sub !== 'list') usageError(`--json is only valid on \`list\``);
       opts.json = true;
       continue;
     }
+    // D1 rule 1 — the `--flag=value` escape hatch: split on the FIRST `=`,
+    // the remainder is the value verbatim, whatever it starts with. Only a
+    // token that itself STARTS WITH `--` is considered for this split, so a
+    // bare value containing `=` (`--what "a=b"`) is unaffected.
+    if (tok.startsWith('--') && tok.includes('=')) {
+      const eq = tok.indexOf('=');
+      const flag = tok.slice(0, eq);
+      const val = tok.slice(eq + 1);
+      if (!valueFlags.includes(flag)) usageError(`unknown flag "${flag}" for \`${sub}\``);
+      opts[flag.replace(/^--/, '').replace(/-/g, '_')] = val;
+      continue;
+    }
     if (!valueFlags.includes(tok)) usageError(`unknown flag "${tok}" for \`${sub}\``);
     const val = rest[i + 1];
-    if (val === undefined || val.startsWith('--')) usageError(`flag "${tok}" requires a value`);
+    if (val === undefined || knownTokens.has(val)) usageError(`flag "${tok}" requires a value`);
     opts[tok.replace(/^--/, '').replace(/-/g, '_')] = val;
     i += 1;
   }
@@ -377,6 +442,19 @@ function ledgerPath(opts) {
 
 function requireReadableLedger(abs) {
   if (!fs.existsSync(abs)) usageError(`ledger not found: ${abs}`);
+  // D2 — a directory passes existsSync AND accessSync(R_OK) (directories are
+  // "readable" for permission purposes), then throws EISDIR on the actual
+  // read and used to land in the absent branch: "the registry is empty" for
+  // a mistyped path. Refuse it here, before any read is attempted.
+  // statSync follows symlinks, so a symlink to a real ledger still passes.
+  let st;
+  try {
+    st = fs.statSync(abs);
+  } catch (err) {
+    usageError(`ledger not readable: ${abs} (${err && err.code})`);
+    return;
+  }
+  if (!st.isFile()) usageError(`ledger is not a regular file: ${abs}`);
   try {
     fs.accessSync(abs, fs.constants.R_OK);
   } catch {
@@ -386,13 +464,25 @@ function requireReadableLedger(abs) {
 
 function formatRow(item) {
   const age = item.age_days === null ? 'age=n/a' : `age=${item.age_days}d`;
-  return [item.status, item.id, item.severity ?? 'P?', item.ref_id ?? '-', age, item.finding].join('  ');
+  // D3: the MALFORMED-ID token is inserted AFTER the id, never touching the
+  // leading status word row-detection (SEAM-6, test_002) depends on. A
+  // malformed id is rendered through JSON.stringify (review NB-4): an id
+  // containing a newline (or other row-breaking whitespace) would otherwise
+  // push MALFORMED-ID onto a fabricated continuation line while the item's
+  // own row still looked well-formed — the one input shape where D3's "named
+  // ON THE ROW" promise was not kept.
+  const idDisplay = item.id_malformed ? JSON.stringify(item.id) : item.id;
+  const parts = [item.status, idDisplay];
+  if (item.id_malformed) parts.push('MALFORMED-ID');
+  parts.push(item.severity ?? 'P?', item.ref_id ?? '-', age, item.finding);
+  return parts.join('  ');
 }
 
 function cmdList(opts) {
   const abs = ledgerPath(opts);
   requireReadableLedger(abs);
   const reg = loadRegistry(abs);
+  if (reg.unreadable) usageError(`ledger not readable: ${abs} (${reg.unreadable.code}: ${reg.unreadable.message})`);
 
   const wantStatus = opts.status ?? 'open';
   if (!['open', 'done', 'dropped', 'all'].includes(wantStatus)) {
@@ -440,6 +530,7 @@ function cmdAdd(opts) {
 
   requireReadableLedger(abs);
   const reg = loadRegistry(abs);
+  if (reg.unreadable) usageError(`ledger not readable: ${abs} (${reg.unreadable.code}: ${reg.unreadable.message})`);
   if (reg.items.some((i) => i.id === id)) usageError(`duplicate --id "${id}" — ids are never reused (first occurrence already in ${abs})`);
 
   const entry = {
@@ -481,6 +572,7 @@ function cmdClose(opts) {
 
   requireReadableLedger(abs);
   const before = loadRegistry(abs);
+  if (before.unreadable) usageError(`ledger not readable: ${abs} (${before.unreadable.code}: ${before.unreadable.message})`);
   const current = before.items.find((i) => i.id === id);
   if (!current) usageError(`unknown --id "${id}" — no follow_up with that id in ${abs}`);
   if (current.closed) {
