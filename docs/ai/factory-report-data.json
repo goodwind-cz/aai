@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-17T19:04:43.571Z",
+  "generatedAt": "2026-08-18T04:28:10.733Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 124,
-    "delivered": 335,
+    "rides": 125,
+    "delivered": 337,
     "active_weeks": 8,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (335 closes vs 124 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 335,
-    "delivered_per_week_avg": 41.9,
+    "note": "\"delivered\" counts every work_item_closed event (337 closes vs 125 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 337,
+    "delivered_per_week_avg": 42.1,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -22,7 +22,7 @@
       "2026-W31": 72,
       "2026-W32": 19,
       "2026-W33": 33,
-      "2026-W34": 3
+      "2026-W34": 5
     },
     "delivered_groups": [
       {
@@ -300,7 +300,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 72,
+        "count": 74,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -373,7 +373,9 @@
           "spec-deslop-scope-and-unrequested-engine",
           "role-verification-guards",
           "spec-role-verification-guards",
-          "docs-model-nul-escape"
+          "docs-model-nul-escape",
+          "ride-cost-readout",
+          "spec-ride-cost-readout"
         ]
       }
     ],
@@ -1718,19 +1720,27 @@
         {
           "ref": "docs-model-nul-escape",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "ride-cost-readout",
+          "lead_time_seconds": 31385
+        },
+        {
+          "ref": "spec-ride-cost-readout",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 3669,
-      "mean_seconds": 125488.8,
-      "measured": 120,
-      "unmeasurable": 215
+      "median_seconds": 3687,
+      "mean_seconds": 124711.1,
+      "measured": 121,
+      "unmeasurable": 216
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2198,
-      "mean": 3879.4,
-      "measured": 122
+      "median": 2203,
+      "mean": 3939.6,
+      "measured": 123
     },
     "role_split": [
       {
@@ -1740,28 +1750,28 @@
       },
       {
         "role": "Implementation",
-        "duration_seconds": 50153,
-        "tokens": 1814073
+        "duration_seconds": 51555,
+        "tokens": 2098610
       },
       {
         "role": "Code Review",
-        "duration_seconds": 49883,
-        "tokens": 8030550
+        "duration_seconds": 50532,
+        "tokens": 8174248
       },
       {
         "role": "Remediation",
-        "duration_seconds": 49132,
-        "tokens": 7292422
+        "duration_seconds": 53508,
+        "tokens": 7993956
       },
       {
         "role": "Validation",
-        "duration_seconds": 136545,
-        "tokens": 10132286
+        "duration_seconds": 140540,
+        "tokens": 10736366
       },
       {
         "role": "Planning",
-        "duration_seconds": 64696,
-        "tokens": 7518589
+        "duration_seconds": 65555,
+        "tokens": 7716439
       }
     ],
     "per_ride": [
@@ -2384,6 +2394,11 @@
         "ref": "role-verification-guards",
         "busy_seconds": 39888,
         "remediation_runs": 4
+      },
+      {
+        "ref": "ride-cost-readout",
+        "busy_seconds": 11281,
+        "remediation_runs": 6
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -2393,11 +2408,11 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 475340,
-      "mean": 629967,
-      "measured": 76
+      "median": 476854,
+      "mean": 646872.6,
+      "measured": 77
     },
-    "tokens_total": 47877495,
+    "tokens_total": 49809194,
     "by_role": [
       {
         "role": "TDD Implementation",
@@ -2405,29 +2420,29 @@
       },
       {
         "role": "Implementation",
-        "tokens": 1814073
+        "tokens": 2098610
       },
       {
         "role": "Code Review",
-        "tokens": 8030550
+        "tokens": 8174248
       },
       {
         "role": "Remediation",
-        "tokens": 7292422
+        "tokens": 7993956
       },
       {
         "role": "Validation",
-        "tokens": 10132286
+        "tokens": 10736366
       },
       {
         "role": "Planning",
-        "tokens": 7518589
+        "tokens": 7716439
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 319,
-      "total_runs": 541,
-      "pct": 59,
+      "runs_with_marker": 330,
+      "total_runs": 554,
+      "pct": 60,
       "by_week": [
         {
           "week": "2026-W27",
@@ -2473,9 +2488,9 @@
         },
         {
           "week": "2026-W34",
-          "runs_with_marker": 13,
-          "total_runs": 13,
-          "pct": 100
+          "runs_with_marker": 24,
+          "total_runs": 26,
+          "pct": 92
         }
       ]
     },
@@ -2489,57 +2504,57 @@
           "runs_unmarked": 20,
           "tokens_total": 13089575,
           "median_tokens_per_run": 224435,
-          "share_pct": 27
+          "share_pct": 26
         },
         {
           "role": "Implementation",
-          "runs_total": 45,
-          "runs_marked": 7,
+          "runs_total": 46,
+          "runs_marked": 8,
           "runs_sentinel": 0,
           "runs_unmarked": 38,
-          "tokens_total": 1814073,
-          "median_tokens_per_run": 226054,
+          "tokens_total": 2098610,
+          "median_tokens_per_run": 227676,
           "share_pct": 4
         },
         {
           "role": "Code Review",
-          "runs_total": 126,
-          "runs_marked": 81,
+          "runs_total": 127,
+          "runs_marked": 82,
           "runs_sentinel": 0,
           "runs_unmarked": 45,
-          "tokens_total": 8030550,
-          "median_tokens_per_run": 88877,
-          "share_pct": 17
+          "tokens_total": 8174248,
+          "median_tokens_per_run": 89225,
+          "share_pct": 16
         },
         {
           "role": "Remediation",
-          "runs_total": 63,
-          "runs_marked": 37,
+          "runs_total": 69,
+          "runs_marked": 41,
           "runs_sentinel": 0,
-          "runs_unmarked": 26,
-          "tokens_total": 7292422,
-          "median_tokens_per_run": 176771,
-          "share_pct": 15
+          "runs_unmarked": 28,
+          "tokens_total": 7993956,
+          "median_tokens_per_run": 173297,
+          "share_pct": 16
         },
         {
           "role": "Validation",
-          "runs_total": 126,
-          "runs_marked": 80,
+          "runs_total": 130,
+          "runs_marked": 84,
           "runs_sentinel": 0,
           "runs_unmarked": 46,
-          "tokens_total": 10132286,
-          "median_tokens_per_run": 106162,
-          "share_pct": 21
+          "tokens_total": 10736366,
+          "median_tokens_per_run": 108438,
+          "share_pct": 22
         },
         {
           "role": "Planning",
-          "runs_total": 103,
-          "runs_marked": 56,
+          "runs_total": 104,
+          "runs_marked": 57,
           "runs_sentinel": 0,
           "runs_unmarked": 47,
-          "tokens_total": 7518589,
-          "median_tokens_per_run": 129206,
-          "share_pct": 16
+          "tokens_total": 7716439,
+          "median_tokens_per_run": 129717,
+          "share_pct": 15
         }
       ],
       "by_week": [
@@ -2798,28 +2813,28 @@
             },
             {
               "role": "Implementation",
-              "runs_marked": 1,
-              "median_tokens": 514756
+              "runs_marked": 2,
+              "median_tokens": 399647
             },
             {
               "role": "Code Review",
-              "runs_marked": 2,
-              "median_tokens": 179597
+              "runs_marked": 3,
+              "median_tokens": 170401
             },
             {
               "role": "Remediation",
-              "runs_marked": 4,
-              "median_tokens": 291427
+              "runs_marked": 8,
+              "median_tokens": 262020
             },
             {
               "role": "Validation",
-              "runs_marked": 5,
-              "median_tokens": 203471
+              "runs_marked": 9,
+              "median_tokens": 182301
             },
             {
               "role": "Planning",
-              "runs_marked": 1,
-              "median_tokens": 181925
+              "runs_marked": 2,
+              "median_tokens": 189888
             }
           ]
         }
@@ -2829,8 +2844,8 @@
   "quality": {
     "first_pass_clean": {
       "clean": 80,
-      "flagged": 98,
-      "rate_pct": 82
+      "flagged": 99,
+      "rate_pct": 81
     },
     "na_reliability": 26,
     "remediation_distribution": {
@@ -2840,13 +2855,14 @@
       "3": 3,
       "4": 2,
       "5": 1,
+      "6": 1,
       "8": 1,
       "n/a": 26
     },
     "avg_validation_fails": 0,
     "avg_review_fails": 0,
     "verdict_mix": {
-      "PASS": 111,
+      "PASS": 112,
       "null": 13
     },
     "review_events": 26,
@@ -2911,16 +2927,16 @@
     },
     {
       "week": "2026-W34",
-      "delivered": 3,
-      "median_lead_time_seconds": 72336,
-      "busy_seconds": 39888,
-      "tokens": 3269106,
+      "delivered": 5,
+      "median_lead_time_seconds": 51861,
+      "busy_seconds": 51169,
+      "tokens": 5200805,
       "first_pass_rate": 0
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 51,
+    "open_count": 52,
     "oldest_age_days": 9,
     "items": [
       {
@@ -2951,7 +2967,7 @@
         "id": "fu-factory-report-sparkline-scale",
         "ref": "CHANGE-0130",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "Factory-report iteration carry: per-series sparkline scaling (same quantity on independent scales, a misread risk needing a spec change), render runs_marked as n= in the weekly cells and tooltips, strengthen the TEST-027 pins (vacuous n/a grep, doc-wide ref grep), and test-aai-metrics.sh dirtying the real tree",
         "status": "open"
       },
@@ -2959,7 +2975,7 @@
         "id": "fu-guard-dials-derivation",
         "ref": "CHANGE-0131",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "GUARD_DIALS is decorative: the defaults object and the parser regex carry the real behavior, so a seventh dial can silently half-register - derive both from the array. Paired item: the case-insensitive APFS vs case-sensitive CI divergence must be re-read at the evidence_path_gate enforce-flip decision",
         "status": "open"
       },
@@ -2975,7 +2991,7 @@
         "id": "fu-orchestrator-git-add-scope-bleed",
         "ref": "CHANGE-0142",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "orchestrator must never git add -A while a subagent edits the same worktree; stage explicit paths",
         "status": "open"
       },
@@ -2983,7 +2999,7 @@
         "id": "fu-flag-values-leading-dashes",
         "ref": "CHANGE-0142",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "flag values may not begin with -- so add --what \"--decisions is undocumented\" exits 2 and pushes the author back to the hand-written line the design exists to prevent",
         "status": "open"
       },
@@ -2991,7 +3007,7 @@
         "id": "fu-generator-undercount-clause",
         "ref": "CHANGE-0142",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "a malformed line that IS a follow_up under-counts open_count behind a generic exclusion note that never says the figure may be understated",
         "status": "open"
       },
@@ -2999,7 +3015,7 @@
         "id": "fu-ledger-readable-directory",
         "ref": "CHANGE-0142",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "requireReadableLedger accepts a DIRECTORY (or a path unreadable after the check), degrading D6's exit-2 unreadable-ledger contract to exit 0 plus an absent note",
         "status": "open"
       },
@@ -3007,7 +3023,7 @@
         "id": "fu-malformed-explicit-id-unnamed",
         "ref": "CHANGE-0142",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "a malformed explicit follow-up id (e.g. BAD ID) is listed as an ordinary item with an empty notes array — only the derived-id case is named",
         "status": "open"
       },
@@ -3015,7 +3031,7 @@
         "id": "fu-verify-staged-set-after-commit",
         "ref": "CHANGE-0142",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "orchestrator must verify git show --stat after every commit, not the exit code",
         "status": "open"
       },
@@ -3023,7 +3039,7 @@
         "id": "fu-context-window-telemetry",
         "ref": "RESEARCH-0001",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "measure context-window utilization per role and treat an overflowing window as an over-specification signal, not a tooling failure",
         "status": "open"
       },
@@ -3031,7 +3047,7 @@
         "id": "fu-corpus-navigability-measure",
         "ref": "RESEARCH-0001",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "measure whether the 345-document corpus is still navigable by a human, and act on the number",
         "status": "open"
       },
@@ -3039,7 +3055,7 @@
         "id": "fu-go-clarify-kill-gate",
         "ref": "RESEARCH-0001",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "a pre-spec gate that can recommend KILL, not only score readiness",
         "status": "open"
       },
@@ -3047,7 +3063,7 @@
         "id": "fu-shell-twin-parity-tax",
         "ref": "RESEARCH-0001",
         "severity": "P1",
-        "age_days": 3,
+        "age_days": 4,
         "what": "decide explicitly whether the remaining shell twin surface (sh plus ps1) is a standing cost we accept or a port we schedule",
         "status": "open"
       },
@@ -3055,7 +3071,7 @@
         "id": "fu-vocabulary-independence-chaos-test",
         "ref": "RESEARCH-0001",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "one-off chaos test: rename every artifact type and prove dispatch keys on structure, not document titles",
         "status": "open"
       },
@@ -3063,7 +3079,7 @@
         "id": "fu-intake-spec-id-collision-guard",
         "ref": "CHANGE-0144",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "make an intake id that collides with its spec id impossible, not merely correctable",
         "status": "open"
       },
@@ -3071,7 +3087,7 @@
         "id": "fu-mask-pipe-clause-unpinned",
         "ref": "CHANGE-0144",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "the specimen mask's pipe-preservation clause is not mutation-pinned: removing it from maskCodeSpecimens survives the whole spec-lint suite",
         "status": "open"
       },
@@ -3079,7 +3095,7 @@
         "id": "fu-test008-missing-red-artifact",
         "ref": "CHANGE-0144",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "spec TEST-008 has neither a red- nor a report- artifact although its RED is real and was reproduced independently by validation",
         "status": "open"
       },
@@ -3087,7 +3103,7 @@
         "id": "fu-mask-duplicates-docs-audit-core",
         "ref": "CHANGE-0144",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "the specimen masker in spec-lint.mjs duplicates docs-audit-core.mjs:782-875 more weakly, reintroducing both bugs that file fixed under SPEC-0013 W3",
         "status": "open"
       },
@@ -3095,7 +3111,7 @@
         "id": "fu-vague-term-line-attribution",
         "ref": "CHANGE-0144",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "ac-vague-term reports the Test Plan row's line number when the Test Plan section precedes the AC table (measured 19 vs 25)",
         "status": "open"
       },
@@ -3199,7 +3215,7 @@
         "id": "fu-validation-staleness-undetected",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "a validation pass survives a later remediation that rewrites the validated code, and the default routing skips re-validation",
         "status": "open"
       },
@@ -3287,7 +3303,7 @@
         "id": "fu-dispatch-prompt-coaching-bias",
         "ref": "role-verification-guards",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "my role dispatches pre-rank findings and name the pattern to look for, which frames the answer before the role forms one",
         "status": "open"
       },
@@ -3295,7 +3311,7 @@
         "id": "fu-ts-precision-unify-source",
         "ref": "role-verification-guards",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "state-engine.mjs nowIso() truncates ISO timestamps to the second while append-event.mjs keeps milliseconds; orchestration-dispatch.mjs now defends against this at the comparison site (Date.parse + Number.isFinite instants), but the two producers still disagree at the source",
         "status": "open"
       },
@@ -3303,7 +3319,7 @@
         "id": "fu-g2-restamp-tick-false-stale",
         "ref": "role-verification-guards",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "the stale advisory prints from the pre-write snapshot on the re-stamp tick, so every fresh validation round emits one false validation_verdict_stale line",
         "status": "open"
       },
@@ -3311,7 +3327,7 @@
         "id": "fu-g4-corpus-regex-polarity",
         "ref": "role-verification-guards",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "TEST-020's corpus scan is polarity-blind and passes only by accident",
         "status": "open"
       },
@@ -3330,6 +3346,3658 @@
         "age_days": 0,
         "what": "nothing checks tracked text files for NUL bytes, so a control character can silently turn a source file binary to POSIX grep",
         "status": "open"
+      },
+      {
+        "id": "fu-scope-cost-no-live-view",
+        "ref": "ride-cost-readout",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "scope_cost rows only exist after metrics-flush and the report only regenerates at close, so the section cannot serve the intake's headline motivation (deciding to stop a ride while it is still running)",
+        "status": "open"
+      }
+    ]
+  },
+  "scope_cost": {
+    "scopes": [
+      {
+        "ref": "deslop-scope-and-unrequested-engine",
+        "date_utc": "2026-08-16",
+        "runs_total": 18,
+        "elapsed_wall_seconds": 90047,
+        "agent_seconds": 63611,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 8
+          },
+          {
+            "role": "Validation",
+            "runs": 6
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 18,
+        "tokens_total": 4316563,
+        "remediation_runs": 8,
+        "remediation_tokens": 1923125,
+        "remediation_share_pct": 45
+      },
+      {
+        "ref": "role-verification-guards",
+        "date_utc": "2026-08-17",
+        "runs_total": 13,
+        "elapsed_wall_seconds": 52405,
+        "agent_seconds": 39888,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 4
+          },
+          {
+            "role": "Validation",
+            "runs": 5
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 13,
+        "tokens_total": 3269106,
+        "remediation_runs": 4,
+        "remediation_tokens": 1146088,
+        "remediation_share_pct": 35
+      },
+      {
+        "ref": "close-regenerate-order",
+        "date_utc": "2026-08-14",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 24576,
+        "agent_seconds": 18899,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 786644,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "RFC-0006",
+        "date_utc": "2026-06-30",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 20411,
+        "agent_seconds": 8185,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "feedback-triage-offline",
+        "date_utc": "2026-07-25",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 17404,
+        "agent_seconds": 0,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 2
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "RFC-0003",
+        "date_utc": "2026-07-15",
+        "runs_total": 6,
+        "elapsed_wall_seconds": 17180,
+        "agent_seconds": 2633,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 2,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "prompt-diet-itemized-growth-ledger",
+        "date_utc": "2026-07-18",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 15593,
+        "agent_seconds": 16725,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 2
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 375192,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "ps1-wrapper-path-dup",
+        "date_utc": "2026-08-12",
+        "runs_total": 10,
+        "elapsed_wall_seconds": 14024,
+        "agent_seconds": 9716,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 5
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 10,
+        "tokens_total": 1790560,
+        "remediation_runs": 5,
+        "remediation_tokens": 840507,
+        "remediation_share_pct": 47
+      },
+      {
+        "ref": "token-capture-canary",
+        "date_utc": "2026-07-26",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 13043,
+        "agent_seconds": 8700,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 631296,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "ride-cost-readout",
+        "date_utc": "2026-08-18",
+        "runs_total": 13,
+        "elapsed_wall_seconds": 12373,
+        "agent_seconds": 11281,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 6
+          },
+          {
+            "role": "Validation",
+            "runs": 4
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 11,
+        "tokens_total": 1931699,
+        "remediation_runs": 6,
+        "remediation_tokens": 701534,
+        "remediation_share_pct": 36
+      },
+      {
+        "ref": "product-docs-capability-model",
+        "date_utc": "2026-07-28",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 11593,
+        "agent_seconds": 11035,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 862979,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "CHANGE-0127",
+        "date_utc": "2026-08-08",
+        "runs_total": 12,
+        "elapsed_wall_seconds": 11135,
+        "agent_seconds": 10995,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 4
+          },
+          {
+            "role": "Remediation",
+            "runs": 4
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 12,
+        "tokens_total": 2331673,
+        "remediation_runs": 4,
+        "remediation_tokens": 971172,
+        "remediation_share_pct": 42
+      },
+      {
+        "ref": "doctor-win-selftest",
+        "date_utc": "2026-08-13",
+        "runs_total": 9,
+        "elapsed_wall_seconds": 10016,
+        "agent_seconds": 9655,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 9,
+        "tokens_total": 1655409,
+        "remediation_runs": 3,
+        "remediation_tokens": 493012,
+        "remediation_share_pct": 30
+      },
+      {
+        "ref": "prompt-dedup-canonical-includes",
+        "date_utc": "2026-07-26",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 8252,
+        "agent_seconds": 8080,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 649036,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "universal-routines",
+        "date_utc": "2026-08-08",
+        "runs_total": 9,
+        "elapsed_wall_seconds": 7204,
+        "agent_seconds": 7175,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 9,
+        "tokens_total": 1468152,
+        "remediation_runs": 3,
+        "remediation_tokens": 542157,
+        "remediation_share_pct": 37
+      },
+      {
+        "ref": "reaper-epoch-survivor-robustness",
+        "date_utc": "2026-07-23",
+        "runs_total": 7,
+        "elapsed_wall_seconds": 6836,
+        "agent_seconds": 3330,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "CHANGE-0006",
+        "date_utc": "2026-07-04T10:04:21Z",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 6369,
+        "agent_seconds": 2783,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "followup-registry",
+        "date_utc": "2026-08-13",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 6253,
+        "agent_seconds": 5536,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 875035,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "CHANGE-0009",
+        "date_utc": "2026-07-15",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 6200,
+        "agent_seconds": 5507,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "pester-on-windows-ci",
+        "date_utc": "2026-08-12",
+        "runs_total": 7,
+        "elapsed_wall_seconds": 6168,
+        "agent_seconds": 4286,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 7,
+        "tokens_total": 1202284,
+        "remediation_runs": 3,
+        "remediation_tokens": 485183,
+        "remediation_share_pct": 40
+      },
+      {
+        "ref": "hitl-decision-propagation",
+        "date_utc": "2026-07-21",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 5972,
+        "agent_seconds": 5376,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 449465,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "validation-cost-calibration",
+        "date_utc": "2026-08-12",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 5707,
+        "agent_seconds": 5660,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 5,
+        "tokens_total": 888195,
+        "remediation_runs": 1,
+        "remediation_tokens": 166568,
+        "remediation_share_pct": 19
+      },
+      {
+        "ref": "ISSUE-0002",
+        "date_utc": "2026-07-01",
+        "runs_total": 8,
+        "elapsed_wall_seconds": 5665,
+        "agent_seconds": 6114,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 3,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "CHANGE-0005",
+        "date_utc": "2026-07-03",
+        "runs_total": 7,
+        "elapsed_wall_seconds": 5428,
+        "agent_seconds": 3418,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 2,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "reaper-deterministic-age-guard",
+        "date_utc": "2026-07-20",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 5353,
+        "agent_seconds": 3950,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 542801,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "test-018-legacy-spare-attribution",
+        "date_utc": "2026-07-24",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 5122,
+        "agent_seconds": 4891,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "false-open-metrics-and-supersession",
+        "date_utc": "2026-07-23",
+        "runs_total": 7,
+        "elapsed_wall_seconds": 5112,
+        "agent_seconds": 5675,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 2,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "doc-number-origin-reservation",
+        "date_utc": "2026-07-17",
+        "runs_total": 6,
+        "elapsed_wall_seconds": 4908,
+        "agent_seconds": 4905,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 6,
+        "tokens_total": 938677,
+        "remediation_runs": 1,
+        "remediation_tokens": 136987,
+        "remediation_share_pct": 15
+      },
+      {
+        "ref": "friction-capture-foundation",
+        "date_utc": "2026-07-25",
+        "runs_total": 9,
+        "elapsed_wall_seconds": 4759,
+        "agent_seconds": 4435,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 3
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 2,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "deterministic-close-ceremony",
+        "date_utc": "2026-07-18",
+        "runs_total": 8,
+        "elapsed_wall_seconds": 4702,
+        "agent_seconds": 4702,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 8,
+        "tokens_total": 1177590,
+        "remediation_runs": 2,
+        "remediation_tokens": 258774,
+        "remediation_share_pct": 22
+      },
+      {
+        "ref": "aai-release-skill",
+        "date_utc": "2026-07-20",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 4410,
+        "agent_seconds": 3810,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 565542,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "CHANGE-0007",
+        "date_utc": "2026-07-04T11:35:56Z",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 4391,
+        "agent_seconds": 3605,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "ISSUE-0003",
+        "date_utc": "2026-07-01",
+        "runs_total": 6,
+        "elapsed_wall_seconds": 4384,
+        "agent_seconds": 2809,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 2,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "doctor-determinize",
+        "date_utc": "2026-07-27",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 4344,
+        "agent_seconds": 7686,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 3,
+        "tokens_total": 449075,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "ISSUE-0007",
+        "date_utc": "2026-07-16",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 4335,
+        "agent_seconds": 4792,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "issues-skill",
+        "date_utc": "2026-07-28",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 4079,
+        "agent_seconds": 6066,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 2,
+        "tokens_total": 349032,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "role-token-trend",
+        "date_utc": "2026-08-11",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 4036,
+        "agent_seconds": 3997,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 618627,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "allocator-rewrite-all-trees",
+        "date_utc": "2026-07-26",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 4020,
+        "agent_seconds": 5199,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 464257,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "metrics-flush-strands-completed-refs",
+        "date_utc": "2026-07-22",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 3870,
+        "agent_seconds": 3652,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 3,
+        "tokens_total": 429071,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "skill-suite-linux-ci-portability",
+        "date_utc": "2026-07-19",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 3752,
+        "agent_seconds": 3283,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 400426,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "reporting-docs-true-up",
+        "date_utc": "2026-08-13",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 3674,
+        "agent_seconds": 1644,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 652508,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "evidence-path-gate",
+        "date_utc": "2026-08-11",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 3628,
+        "agent_seconds": 3546,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 647363,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "CHANGE-0027",
+        "date_utc": "2026-07-16",
+        "runs_total": 6,
+        "elapsed_wall_seconds": 3615,
+        "agent_seconds": 1445,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "test-wrapper-windows-fallback",
+        "date_utc": "2026-07-17",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 3590,
+        "agent_seconds": 3075,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 612993,
+        "remediation_runs": 1,
+        "remediation_tokens": 139799,
+        "remediation_share_pct": 23
+      },
+      {
+        "ref": "CHANGE-0008",
+        "date_utc": "2026-07-07T08:37:02Z",
+        "runs_total": 6,
+        "elapsed_wall_seconds": 3523,
+        "agent_seconds": 2626,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "subagent-protocol-slim",
+        "date_utc": "2026-07-26",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 3520,
+        "agent_seconds": 1739,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 503671,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "ps1-ci-platform-coverage",
+        "date_utc": "2026-08-13",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 3501,
+        "agent_seconds": 1456,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 663539,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "retire-stranded-nonworkitem-metric",
+        "date_utc": "2026-07-24",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 3482,
+        "agent_seconds": 3216,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "doctor-honesty-batch",
+        "date_utc": "2026-08-13",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 3397,
+        "agent_seconds": 2086,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 649358,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "changelog-payload-hardening",
+        "date_utc": "2026-08-13",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 3208,
+        "agent_seconds": 2171,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 546404,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "vagueness-gate",
+        "date_utc": "2026-08-14",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 3173,
+        "agent_seconds": 2872,
+        "roles": [
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 2,
+        "tokens_total": 332366,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "canonical-test-invocation",
+        "date_utc": "2026-08-13",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 3130,
+        "agent_seconds": 2014,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 612859,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "docs-audit-duplicate-doc-id",
+        "date_utc": "2026-07-18",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 3130,
+        "agent_seconds": 3121,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 506275,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "update-doctor-field-report",
+        "date_utc": "2026-08-13",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 3024,
+        "agent_seconds": 1699,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 681602,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "prompt-hash-telemetry",
+        "date_utc": "2026-07-27",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 3011,
+        "agent_seconds": 2319,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 509481,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "friction-schema-v2-capture",
+        "date_utc": "2026-07-25",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 3008,
+        "agent_seconds": 0,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "DEBT-0001",
+        "date_utc": "2026-06-30",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 3007,
+        "agent_seconds": 2192,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "RFC-0005",
+        "date_utc": "2026-07-15",
+        "runs_total": 6,
+        "elapsed_wall_seconds": 2934,
+        "agent_seconds": 1654,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "flush-close-event-alignment",
+        "date_utc": "2026-07-18",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2912,
+        "agent_seconds": 2912,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 569074,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "docs-audit-d2-evidence-hardening",
+        "date_utc": "2026-07-17",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2869,
+        "agent_seconds": 2339,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "ci-test-impact-selection",
+        "date_utc": "2026-07-27",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2865,
+        "agent_seconds": 2849,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 3,
+        "tokens_total": 442239,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "CHANGE-0012",
+        "date_utc": "2026-07-15",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2822,
+        "agent_seconds": 1795,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "loop-token-usage-capture",
+        "date_utc": "2026-07-17",
+        "runs_total": 6,
+        "elapsed_wall_seconds": 2763,
+        "agent_seconds": 2225,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 312723,
+        "remediation_runs": 1,
+        "remediation_tokens": 84644,
+        "remediation_share_pct": 27
+      },
+      {
+        "ref": "CHANGE-0010",
+        "date_utc": "2026-07-15",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2754,
+        "agent_seconds": 1268,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "product-docs-enforced",
+        "date_utc": "2026-07-27",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2642,
+        "agent_seconds": 1812,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 618497,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "loop-ceremony-aware-dispatch",
+        "date_utc": "2026-07-17",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2637,
+        "agent_seconds": 2355,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "RFC-0004",
+        "date_utc": "2026-07-15",
+        "runs_total": 6,
+        "elapsed_wall_seconds": 2613,
+        "agent_seconds": 1651,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "friction-capture-default-on",
+        "date_utc": "2026-07-26",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 2576,
+        "agent_seconds": 1713,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 521010,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "scryer-mcp-and-shallow",
+        "date_utc": "2026-08-09",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 2533,
+        "agent_seconds": 2533,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 5,
+        "tokens_total": 616042,
+        "remediation_runs": 1,
+        "remediation_tokens": 104406,
+        "remediation_share_pct": 17
+      },
+      {
+        "ref": "test-infra-reds-and-ci-gate",
+        "date_utc": "2026-07-19",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2461,
+        "agent_seconds": 2359,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 379603,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "ISSUE-0001",
+        "date_utc": "2026-06-30",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 2446,
+        "agent_seconds": 1939,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "worktree-telemetry-reconciliation",
+        "date_utc": "2026-07-18",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 2420,
+        "agent_seconds": 2747,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 2
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 536905,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "dispatch-new-intake-after-completed-scope",
+        "date_utc": "2026-07-17",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2362,
+        "agent_seconds": 1735,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "platform-portable-pr",
+        "date_utc": "2026-07-28",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2339,
+        "agent_seconds": 3316,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 3,
+        "tokens_total": 405173,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "prompt-diet-byte-budget-true-up",
+        "date_utc": "2026-07-17",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2313,
+        "agent_seconds": 2777,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 400419,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "token-economics-end-to-end",
+        "date_utc": "2026-07-26",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2310,
+        "agent_seconds": 1867,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 522582,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "test-canon-drift-detection",
+        "date_utc": "2026-07-24",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2241,
+        "agent_seconds": 1905,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "RFC-0007",
+        "date_utc": "2026-07-15",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 2220,
+        "agent_seconds": 1590,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "state-bootstrap-template",
+        "date_utc": "2026-07-27",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2210,
+        "agent_seconds": 2822,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 3,
+        "tokens_total": 379757,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "dispatch-4a-fail-verdict-precedence",
+        "date_utc": "2026-07-17",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2203,
+        "agent_seconds": 2203,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 559718,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "ps1-native-stderr-guard",
+        "date_utc": "2026-07-22",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2148,
+        "agent_seconds": 2021,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 426424,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "role-output-contracts",
+        "date_utc": "2026-07-27",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2125,
+        "agent_seconds": 2819,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 473825,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "spec-lint-enforce-spec-id-prefix",
+        "date_utc": "2026-07-18",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2122,
+        "agent_seconds": 2115,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 402687,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "feedback-upsert-review",
+        "date_utc": "2026-07-25",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 2097,
+        "agent_seconds": 0,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "branch-guard-no-work-item",
+        "date_utc": "2026-07-24",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2077,
+        "agent_seconds": 703,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "CHANGE-0011",
+        "date_utc": "2026-07-15",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2024,
+        "agent_seconds": 2151,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "aai-update-temp-toctou",
+        "date_utc": "2026-07-17",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2020,
+        "agent_seconds": 2020,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 476854,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "intake-secrets-preflight",
+        "date_utc": "2026-07-17",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2000,
+        "agent_seconds": 2000,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 505034,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "spec-lint-duplicate-ac-id",
+        "date_utc": "2026-07-17",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 1905,
+        "agent_seconds": 1905,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 429421,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "secrets-preflight-env-multiline",
+        "date_utc": "2026-07-17",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 1884,
+        "agent_seconds": 1744,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 3,
+        "tokens_total": 308987,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "learned-append-gate",
+        "date_utc": "2026-07-27",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 1857,
+        "agent_seconds": 2330,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 3,
+        "tokens_total": 424166,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "session-loose-ends",
+        "date_utc": "2026-07-28",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 1822,
+        "agent_seconds": 3120,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 2,
+        "tokens_total": 149374,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "verification-before-completion",
+        "date_utc": "2026-07-16",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 1776,
+        "agent_seconds": 1365,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "CHANGE-0004",
+        "date_utc": "2026-07-15",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 1689,
+        "agent_seconds": 924,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "cheap-model-in-practice",
+        "date_utc": "2026-07-27",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 1681,
+        "agent_seconds": 1192,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 367663,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "secrets-preflight-unterminated-quote-safe-direction",
+        "date_utc": "2026-07-18",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 1609,
+        "agent_seconds": 1609,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 432243,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "friction-shadow-capture-wiring",
+        "date_utc": "2026-07-25",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 1569,
+        "agent_seconds": 0,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "tdd-red-evidence-classification",
+        "date_utc": "2026-07-17",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 1528,
+        "agent_seconds": 1528,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 436515,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "follow-ups-scripts",
+        "date_utc": "2026-07-28",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 1500,
+        "agent_seconds": 1860,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 1,
+        "tokens_total": 60858,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "CHANGE-0014",
+        "date_utc": "2026-07-16",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 1495,
+        "agent_seconds": 1453,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "doctor-vendored-layer-drift",
+        "date_utc": "2026-07-16",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 1490,
+        "agent_seconds": 786,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "single-dual-verdict-review",
+        "date_utc": "2026-07-16",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 1487,
+        "agent_seconds": 1318,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "docs-hub-generator",
+        "date_utc": "2026-07-28",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 1454,
+        "agent_seconds": 2280,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 2,
+        "tokens_total": 306896,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "prompt-diet-floor-credit-drift",
+        "date_utc": "2026-07-19",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 1323,
+        "agent_seconds": 1103,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 307169,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "dev-progress-hub",
+        "date_utc": "2026-07-27",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 1280,
+        "agent_seconds": 1292,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 3,
+        "tokens_total": 308229,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "follow-ups-docs",
+        "date_utc": "2026-07-28",
+        "runs_total": 1,
+        "elapsed_wall_seconds": 1200,
+        "agent_seconds": 1200,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "user-docs-workflow-hardening",
+        "date_utc": "2026-07-19",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 1157,
+        "agent_seconds": 1414,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 2,
+        "tokens_total": 180597,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "product-capability-refinements",
+        "date_utc": "2026-07-28",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 1128,
+        "agent_seconds": 1080,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 1,
+        "tokens_total": 60123,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "skill-sweep-quick-wins",
+        "date_utc": "2026-07-27",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 1113,
+        "agent_seconds": 1080,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 2,
+        "tokens_total": 297443,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "remediate-spec-id-collisions",
+        "date_utc": "2026-07-18",
+        "runs_total": 1,
+        "elapsed_wall_seconds": 1081,
+        "agent_seconds": 1081,
+        "roles": [
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 1,
+        "tokens_total": 41346,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "prompt-hash-runtime-wiring",
+        "date_utc": "2026-07-27",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 1064,
+        "agent_seconds": 1440,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 3,
+        "tokens_total": 267424,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "pr-post-open-review-sweep",
+        "date_utc": "2026-07-26",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 963,
+        "agent_seconds": 1086,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 1,
+        "tokens_total": 41219,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "learned-to-layer-promotion",
+        "date_utc": "2026-07-16",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 952,
+        "agent_seconds": 401,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "test-canon-stat-portability",
+        "date_utc": "2026-07-20",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 901,
+        "agent_seconds": 888,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 2,
+        "tokens_total": 113913,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "decapod-prune",
+        "date_utc": "2026-07-27",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 900,
+        "agent_seconds": 1200,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 1,
+        "tokens_total": 51596,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "validate-report-contract",
+        "date_utc": "2026-07-28",
+        "runs_total": 1,
+        "elapsed_wall_seconds": 900,
+        "agent_seconds": 900,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "dashboard-refit",
+        "date_utc": "2026-07-28",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 891,
+        "agent_seconds": 1200,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 2,
+        "tokens_total": 235648,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "planning-companion-obligations",
+        "date_utc": "2026-07-22",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 780,
+        "agent_seconds": 555,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "branch-per-work-item-hygiene",
+        "date_utc": "2026-07-22",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 700,
+        "agent_seconds": 671,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "test-018-workspace-isolation",
+        "date_utc": "2026-07-22",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 510,
+        "agent_seconds": 503,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 1,
+        "tokens_total": 102993,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "rollup-exclusion-visibility",
+        "date_utc": "2026-07-28",
+        "runs_total": 1,
+        "elapsed_wall_seconds": 300,
+        "agent_seconds": 300,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "suite-map-factory-doc-paths",
+        "date_utc": "2026-07-27",
+        "runs_total": 1,
+        "elapsed_wall_seconds": 300,
+        "agent_seconds": 300,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "friction-feedback-discovery",
+        "date_utc": "2026-07-25",
+        "runs_total": 1,
+        "elapsed_wall_seconds": 0,
+        "agent_seconds": 0,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "ISSUE-0004",
+        "date_utc": "2026-07-01",
+        "runs_total": 0,
+        "elapsed_wall_seconds": null,
+        "agent_seconds": null,
+        "roles": [],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "ISSUE-0005",
+        "date_utc": "2026-07-01",
+        "runs_total": 0,
+        "elapsed_wall_seconds": null,
+        "agent_seconds": null,
+        "roles": [],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
       }
     ]
   },
@@ -3337,6 +7005,8 @@
     "NOTE 6 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)",
     "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
     "NOTE 48 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
+    "NOTE 4 agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)",
+    "NOTE 23 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
     "NOTE 1 id-less follow_up entry folded under a derived id (fu-<ref_id-slug>-<yyyymmddThhmm>) — the original line is never rewritten"
   ]
 }

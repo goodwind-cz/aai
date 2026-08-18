@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-08-18T04:24:41.375Z",
+  "generatedAt": "2026-08-18T04:28:10.637Z",
   "project": "aai",
   "counts": {
-    "delivered": 192,
-    "in_progress": 2,
+    "delivered": 193,
+    "in_progress": 1,
     "releases": 1,
-    "tokens_total": 45545822
+    "tokens_total": 47477521
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -23,8 +23,8 @@
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "pass",
-    "review_status": "pass",
+    "validation_status": "not_run",
+    "review_status": "not_run",
     "ticks": [
       {
         "tick": 145,
@@ -65,19 +65,6 @@
   },
   "in_progress": [
     {
-      "ref": "ride-cost-readout",
-      "title": "Change — what a scope cost, without anyone adding it up by hand",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0148-ride-cost-readout.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0134-spec-ride-cost-readout.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-dual-verdict-ride-cost-readout-20260817T230200Z.md"
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -92,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "ride-cost-readout",
+      "title": "Change — what a scope cost, without anyone adding it up by hand",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0148-ride-cost-readout.md",
+      "closed_on": "2026-08-18",
+      "agent_minutes": 188,
+      "token_total": 1931699,
+      "spec": "docs/specs/SPEC-0134-spec-ride-cost-readout.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-dual-verdict-ride-cost-readout-20260817T230200Z.md"
+    },
     {
       "ref": "role-verification-guards",
       "title": "Change — four guards where roles trust each other instead of checking",
@@ -2595,6 +2595,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "ride-cost-readout",
+          "title": "Change — what a scope cost, without anyone adding it up by hand",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0148-ride-cost-readout.md",
+          "closed_on": "2026-08-18",
+          "agent_minutes": 188,
+          "token_total": 1931699,
+          "spec": "docs/specs/SPEC-0134-spec-ride-cost-readout.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-dual-verdict-ride-cost-readout-20260817T230200Z.md"
+        },
         {
           "ref": "role-verification-guards",
           "title": "Change — four guards where roles trust each other instead of checking",
