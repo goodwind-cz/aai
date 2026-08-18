@@ -2,13 +2,15 @@
 id: followups-cli-hardening
 number: 149
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-decisions
 links:
-  pr: []
-  commits: []
+  pr:
+    - 264
+  commits:
+    - 1835cd4
 ---
 
 # Change — four defects in the follow-up registry CLI, one file

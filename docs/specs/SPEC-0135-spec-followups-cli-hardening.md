@@ -2,13 +2,15 @@
 id: spec-followups-cli-hardening
 type: spec
 number: 135
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0149-followups-cli-hardening.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 264
+  commits:
+    - 1835cd4
 ---
 
 # Spec — Follow-up registry CLI: four filed defects, one file

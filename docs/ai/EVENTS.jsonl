@@ -1779,3 +1779,10 @@
 {"v":1,"ts":"2026-08-18T08:51:11.402Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":359,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-08-18T08:51:29.225Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":359,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-08-18T09:14:22.109Z","actor":"ales_holubec.net","event":"phase_confirmed","ref":"followups-cli-hardening","payload":{"phase":"planning","hash":"7c438c000a9036f613bf6792e71a27c1b557719f417d07fff89636b70bee8975"}}
+{"v":1,"ts":"2026-08-18T10:38:17.119Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"followups-cli-hardening","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-18T10:38:17.152Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"followups-cli-hardening","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-18T10:38:17.185Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"followups-cli-hardening","payload":{"commit":"1835cd4"}}
+{"v":1,"ts":"2026-08-18T10:38:17.218Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-followups-cli-hardening","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-18T10:38:17.251Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-followups-cli-hardening","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-18T10:38:17.284Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-followups-cli-hardening","payload":{"commit":"1835cd4"}}
+{"v":1,"ts":"2026-08-18T10:38:51.752Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":359,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
