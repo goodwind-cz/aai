@@ -2,13 +2,15 @@
 id: ride-cost-readout
 number: 148
 type: change
-status: draft
+status: done
 user_visible: true
 ceremony_level: 1
 capability: factory-performance-report
 links:
-  pr: []
-  commits: []
+  pr:
+    - 263
+  commits:
+    - 8fdc091
 ---
 
 # Change — what a scope cost, without anyone adding it up by hand

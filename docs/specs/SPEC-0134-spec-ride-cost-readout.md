@@ -2,13 +2,15 @@
 id: spec-ride-cost-readout
 type: spec
 number: 134
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/CHANGE-0148-ride-cost-readout.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 263
+  commits:
+    - 8fdc091
 ---
 
 # Spec — Factory report: what one scope cost

@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-18T04:24:50.941Z
+Generated: 2026-08-18T04:28:29.641Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0134 | specs | implementing | 9 done | docs/specs/SPEC-0134-spec-ride-cost-readout.md |
 
 ## Canonical layer (0)
 
@@ -49,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (328)
+## Done (330)
 
 | ID | Type | Path |
 |---|---|---|
@@ -200,6 +199,7 @@ _None._
 | CHANGE-0145 | issues | docs/issues/CHANGE-0145-deslop-scope-and-unrequested-engine.md |
 | CHANGE-0146 | issues | docs/issues/CHANGE-0146-role-verification-guards.md |
 | CHANGE-0147 | issues | docs/issues/CHANGE-0147-docs-model-nul-escape.md |
+| CHANGE-0148 | issues | docs/issues/CHANGE-0148-ride-cost-readout.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -380,13 +380,12 @@ _None._
 | SPEC-0131 | specs | docs/specs/SPEC-0131-spec-close-regenerate-order.md |
 | SPEC-0132 | specs | docs/specs/SPEC-0132-spec-deslop-scope-and-unrequested-engine.md |
 | SPEC-0133 | specs | docs/specs/SPEC-0133-spec-role-verification-guards.md |
+| SPEC-0134 | specs | docs/specs/SPEC-0134-spec-ride-cost-readout.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0148 | issues | docs/issues/CHANGE-0148-ride-cost-readout.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

@@ -1767,3 +1767,9 @@
 {"v":1,"ts":"2026-08-17T20:16:39.541Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-ride-cost-readout/Spec-AC-08","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-08-17T20:16:39.575Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-ride-cost-readout/Spec-AC-09","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-08-17T21:59:51.180Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"ride-cost-readout","payload":{"status":"pass","hash":"460c6975732e791a9bc7dab9e339fb6dd4f93803cc28eba500b8a9a5f3bdfec5"}}
+{"v":1,"ts":"2026-08-18T04:27:48.103Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"ride-cost-readout","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-18T04:27:48.141Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"ride-cost-readout","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-18T04:27:48.180Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"ride-cost-readout","payload":{"commit":"8fdc091"}}
+{"v":1,"ts":"2026-08-18T04:27:48.216Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-ride-cost-readout","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-18T04:27:48.248Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-ride-cost-readout","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-18T04:27:48.298Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-ride-cost-readout","payload":{"commit":"8fdc091"}}
