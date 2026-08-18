@@ -11,6 +11,34 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(factory-report): per-scope cost readout — elapsed vs agent time, tokens with denominator, rework share (ride-cost-readout) [L1]
+
+- The factory report never totalled one scope, so answering "how long did
+  this take" or "how many tokens" meant reading `docs/ai/METRICS.jsonl` by
+  hand — which happened four times on 2026-08-16/17. Adds one additive
+  `scope_cost` block plus one `<section id="scope-cost">` to the existing
+  factory report. Report-only: no gate, no exit-code change.
+- Two distinctly-labelled time figures per scope — `Elapsed (wall clock)`
+  (first run start to last run end) and `Agent time (summed)` (sum of each
+  run's own duration) — because they diverge in both directions and neither
+  bounds the other (measured 2026-08-17: 25.0h/17.7h on
+  `deslop-scope-and-unrequested-engine`, 14.6h/11.1h on
+  `role-verification-guards`; agent time exceeds elapsed on 23 of 124 rides
+  where roles ran concurrently).
+- Token totals come only from the canonical `extractUsageTotal`
+  (`.aai/scripts/lib/usage-note.mjs`), every cell carries its own
+  `runs_marked`/`runs_total` denominator, and a scope with zero marked runs
+  renders a named `no usage marker (0/N runs)` line — never a zero.
+- The rework figure counts `Remediation` runs structurally (never a role-prefix
+  guess against `reliability`), shares only measured tokens, and is labelled
+  for what it counts — remediation, never a failure rate: 18 of 32
+  remediation-carrying rides record `validation_fails: 0`.
+- Extends `.aai/scripts/generate-factory-report.mjs`'s existing ride/run loop
+  (no new file, no second read of the ledger) and
+  `tests/skills/test-aai-factory-report.sh` (TEST-031..037, TEST-039); the
+  existing `test_026_role_consumption_backcompat` byte-stability pin is
+  extended in place, its committed goldens untouched.
+
 ## [unreleased] — fix(docs-model): two raw NUL bytes no longer make a shared library invisible to grep (CHANGE-0147) [L1]
 
 - `.aai/scripts/lib/docs-model.mjs` carried two literal NUL bytes inside a

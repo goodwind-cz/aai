@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-17T19:05:26.385Z
+Generated: 2026-08-18T04:24:50.941Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0134 | specs | implementing | 9 done | docs/specs/SPEC-0134-spec-ride-cost-readout.md |
 
 ## Canonical layer (0)
 
@@ -31,7 +32,7 @@ _None._
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
-| factory-performance-report | factory-performance-report | 3 | docs/product/factory-performance-report.md |
+| factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
 | friction-capture-default-on | friction-capture-default-on | 1 | docs/product/friction-capture-default-on.md |
 | implementation-mode-choice | implementation-mode-choice | 1 | docs/product/implementation-mode-choice.md |
 | issues-skill | issues-skill | 1 | docs/product/issues-skill.md |
@@ -381,9 +382,11 @@ _None._
 | SPEC-0133 | specs | docs/specs/SPEC-0133-spec-role-verification-guards.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0148 | issues | docs/issues/CHANGE-0148-ride-cost-readout.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -414,4 +417,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-17 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-18 — counts above use this date for overdue checks.
