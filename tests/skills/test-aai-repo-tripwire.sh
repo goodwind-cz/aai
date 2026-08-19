@@ -3,7 +3,7 @@
 # Test: a suite must not be able to write to the shipping repository
 # (spec-suites-must-not-touch-the-shipping-repo).
 #
-# Covers TEST-001..TEST-007 from
+# Covers TEST-001..TEST-012 from
 # docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md.
 #
 # The tripwire under test lives in .aai/scripts/lib/repo-tripwire.sh and is
@@ -323,7 +323,9 @@ test_006_fixed_suites_leave_the_real_tree_untouched() {
 # TEST-007 (Spec-AC-02) — the same violation is caught at the second funnel,
 # .aai/scripts/aai-run-tests.sh. Report-only there by design: the wrapper's
 # exit code is a pinned contract, so it is proven UNCHANGED in both the clean
-# and the dirty case. An unarmed tripwire says so rather than staying silent.
+# and the dirty case. A tripwire that could not arm because the INSTALLATION is
+# broken (no library) says so; one that could never arm because the ENVIRONMENT
+# has no usable git is silent per run, since that is not news about the run.
 # ---------------------------------------------------------------------------
 test_007_wrapper_reports_the_same_violation() {
   local d out rc=0 ok=1
@@ -379,7 +381,37 @@ test_007_wrapper_reports_the_same_violation() {
   grep -qF 'AAI-TRIPWIRE: NOTE - not armed' <<<"$out2" \
     || { log_info "TEST-007(d): a missing tripwire library degraded SILENTLY: $out2"; ok=0; }
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-007 the ad hoc funnel reports the same violation naming the command and the path, leaves every exit code untouched, is silent on a clean run, and names itself unarmed when the library is absent" \
+  # (e) an environment where the tripwire can NEVER arm (the checkout is not a
+  # git repository at all, which is what the WSL1 CI leg looks like from inside
+  # WSL: git cannot read /mnt/d) must not print a per-run note. The fact is a
+  # constant of the machine, and on that boundary the line displaced
+  # aai-run-tests.ps1's own AAI-BRANCH diagnostic on every invocation.
+  local d3 out3 rc3=0
+  d3="$(new_fixture)" || return
+  mkdir -p "$d3/.aai/scripts/lib"
+  cp "$WRAPPER" "$d3/.aai/scripts/aai-run-tests.sh"
+  cp "$TRIPWIRE_LIB" "$d3/.aai/scripts/lib/repo-tripwire.sh"
+  # Deliberately NOT a git repository: no commit_fixture_repo here.
+  out3="$(bash "$d3/.aai/scripts/aai-run-tests.sh" sh -c 'exit 0' 2>&1)" || rc3=$?
+  [[ "$rc3" -eq 0 ]] || { log_info "TEST-007(e): exit=$rc3 (want 0)"; ok=0; }
+  [[ -n "$out3" ]] && { log_info "TEST-007(e): a tripwire that could never arm still wrote to the wrapper's stderr: $out3"; ok=0; }
+
+  # (f) the opposite case must stay loud: the before-snapshot WAS taken and the
+  # command then made the repository unreadable. That is news about this run.
+  local d4 out4 rc4=0
+  d4="$(new_fixture)" || return
+  mkdir -p "$d4/.aai/scripts/lib"
+  cp "$WRAPPER" "$d4/.aai/scripts/aai-run-tests.sh"
+  cp "$TRIPWIRE_LIB" "$d4/.aai/scripts/lib/repo-tripwire.sh"
+  printf 'baseline\n' > "$d4/tracked.txt"
+  commit_fixture_repo "$d4" || { log_fail "TEST-007 fourth fixture repo init failed"; return; }
+  out4="$(bash "$d4/.aai/scripts/aai-run-tests.sh" sh -c "rm -rf '$d4/.git'; exit 9" 2>&1)" || rc4=$?
+  [[ "$rc4" -eq 9 ]] || { log_info "TEST-007(f): exit=$rc4 (want the command's own 9)"; ok=0; }
+  [[ -d "$d4/.git" ]] && { log_info "TEST-007(f): the fixture did not actually remove .git, so this arm proves nothing"; ok=0; }
+  grep -qF 'the after-snapshot of' <<<"$out4" \
+    || { log_info "TEST-007(f): a repository made unreadable mid-run was reported SILENTLY: $out4"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-007 the ad hoc funnel reports the same violation naming the command and the path, leaves every exit code untouched, is silent on a clean run and where the tripwire could never arm, and names both a missing library and a repository made unreadable mid-run" \
     || log_fail "TEST-007 wrapper funnel"
 }
 

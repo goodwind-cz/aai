@@ -285,7 +285,23 @@ if [ "$AAI_TW_ARMED" -eq 1 ]; then
         "the wrapped command [$AAI_CMD_DESC]" "AAI-TRIPWIRE" >&2
       ;;
     unavailable)
-      echo "AAI-TRIPWIRE: NOTE - snapshot unusable for $AAI_TW_ROOT; this run is NOT attested clean." >&2
+      # Two opposite cases hide behind one `unavailable`, and the library keeps
+      # them apart (aai_tripwire_usable). BEFORE taken, AFTER missing: the
+      # wrapped command took the repository (or git) down with it — news about
+      # THIS run, so it is reported (report-only, the exit code stays the
+      # command's own). BEFORE already unusable: the tripwire could never arm in
+      # this environment — a constant of the machine, not an observation of the
+      # command — so the wrapper says nothing per run. Measured on the WSL1 CI
+      # leg, where git cannot read the /mnt/d checkout: the note fired on EVERY
+      # Windows invocation, and across the WSL1 boundary its stderr write
+      # displaced aai-run-tests.ps1's own `AAI-BRANCH: WSL` diagnostic, so the
+      # line's only lasting effect there was to destroy another one. The
+      # load-bearing funnel still names the case where it costs nothing:
+      # tests/skills/test-framework.sh prints `tripwire NOT ARMED` on the
+      # suite's own progress line.
+      if aai_tripwire_usable "$AAI_TW_BEFORE"; then
+        echo "AAI-TRIPWIRE: NOTE - the after-snapshot of $AAI_TW_ROOT could not be taken; the wrapped command left the repository unreadable, so this run is NOT attested clean." >&2
+      fi
       ;;
   esac
   rm -f "$AAI_TW_BEFORE" "$AAI_TW_AFTER"

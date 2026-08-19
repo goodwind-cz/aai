@@ -572,16 +572,20 @@ run_test() {
     echo "AAI-TRIPWIRE WARNING: test suite '$skill_name' changed the shipping repository."
     echo "AAI-TRIPWIRE   allowed by the known-offender ratchet: $tw_allow_id"
     echo "AAI-TRIPWIRE   entry covers: $tw_allow_paths"
+    # Every path the suite moved is named EXACTLY once, and the two halves split
+    # the list rather than overlapping it: the status half here, the content-only
+    # half below. Printing the union in both loops named each hash-watched path
+    # twice, under two different wordings, which reads as two separate writes.
     local tw_shown
     while IFS= read -r tw_shown; do
       if [[ -n "$tw_shown" ]]; then
         echo "AAI-TRIPWIRE   changed: $tw_shown"
       fi
-    done <<< "$tw_dirty_paths"
+    done <<< "$tw_status_paths"
     if [[ -n "$tw_hash_paths" ]]; then
       local tw_ahp
       while IFS= read -r tw_ahp; do
-        if [[ -n "$tw_ahp" ]]; then
+        if [[ -n "$tw_ahp" ]] && ! tripwire_path_listed "$tw_ahp" "$tw_status_paths"; then
           tripwire_hash_line "$tw_ahp" "$tw_status_paths"
         fi
       done <<< "$tw_hash_paths"
