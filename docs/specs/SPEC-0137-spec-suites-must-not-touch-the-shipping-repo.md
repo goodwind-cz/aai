@@ -373,6 +373,29 @@ contradict what the intake assumed, and both change the shipped design.
     `[TRIPWIRE UNAVAILABLE]`.
   Filed as `fu-tripwire-unavailable-not-red`; closed by this change.
 
+- **D10 — the wrapper applies the same split, and is SILENT on the
+  never-armable side.** The wrapper shipped with one note for both unavailable
+  cases, and CI measured the cost on the functional WSL1 leg: from inside WSL1
+  git cannot read the `/mnt/d` checkout, so the state was `unavailable` on every
+  Windows invocation and the note was permanent stderr noise there. Worse, that
+  stderr write displaced `aai-run-tests.ps1`'s own `AAI-BRANCH: WSL` diagnostic
+  across the WSL1 boundary — the routing proof read only the tripwire line and
+  the leg went red (measured on PR #266; the same leg was green at `6fce072` on
+  `main`, where the wrapper wrote nothing). The exact mechanism on that boundary
+  (a non-shared file offset on the inherited stderr handle) is a hypothesis; the
+  trigger is not — the note was the only new write and the diagnostic vanished
+  with it.
+
+  The wrapper therefore keys on `aai_tripwire_usable` exactly as the framework
+  does, and takes the opposite decision on each side: the BEFORE-taken /
+  AFTER-missing case is named on stderr, while the never-armable case says
+  nothing per run. It is REPORT-ONLY either way — the exit code stays the
+  wrapped command's own, so Spec-AC-02 is untouched. The framework funnel, whose
+  output is a per-suite report rather than a stream sharing a handle with a
+  parent process, still prints `tripwire NOT ARMED`, so the fact is not lost
+  where it costs nothing. What is accepted here: on a machine with no usable
+  git, the ad hoc funnel watches nothing and does not say so per invocation.
+
 - **D6 — companion obligations (closed two-entry list).** PROMPT CORPUS BYTES
   MOVE: NO — no `.aai/*.prompt.md` and no `.aai/AGENTS.md` byte changes, so no
   prompt-diet ledger true-up is owed. NEW `.aai/**` FILE: YES —
@@ -440,7 +463,14 @@ the explicit path list above as a diff against main.
   changed path. The wrapper's exit code is unchanged in every case: 0 for a
   dirty command that exited 0, 7 for a dirty command that exited 7, 0 with no
   tripwire output at all for a clean command. A wrapper whose library is absent
-  prints `AAI-TRIPWIRE: NOTE - not armed` rather than degrading silently.
+  prints `AAI-TRIPWIRE: NOTE - not armed` rather than degrading silently. The
+  two cases behind an `unavailable` state are split the way D9 splits them for
+  the framework: a BEFORE snapshot that was taken and an AFTER snapshot that
+  was not is named on stderr (the command left the repository unreadable), and
+  a BEFORE snapshot that was never usable prints nothing per run — the tripwire
+  could not arm in that ENVIRONMENT, which is a constant of the machine rather
+  than an observation of the command, and repeating it on every invocation was
+  measured to cost a real diagnostic (see D10).
   - Verification: `bash tests/skills/test-aai-repo-tripwire.sh` TEST-007.
     Evidence: suite stdout.
 
@@ -544,7 +574,7 @@ merge is performed.
 | TEST-004 | Spec-AC-05 | int  | tests/skills/test-aai-repo-tripwire.sh | a fixture run over two clean suites and one skipping suite exits 0, passes both, skips one, prints no failure line and no violation block, reports two of three attested clean, and — counted through a git shim placed first on PATH rather than read off the source — issues exactly six status --porcelain=v1 calls, one pair per suite | green |
 | TEST-005 | Spec-AC-05 | int  | tests/skills/test-aai-repo-tripwire.sh | `git check-ignore -q tests/skills/results` succeeds in this repository, so the framework's own per-suite log, written between the two snapshots, can never masquerade as a suite's write and make the tripwire fire on everything | green |
 | TEST-006 | Spec-AC-03 | int  | tests/skills/test-aai-repo-tripwire.sh | tests/skills/test-aai-doc-numbering.sh and tests/skills/test-aai-deslop.sh are each run against the REAL checkout with a HEAD plus status --porcelain=v1 snapshot on both sides; each must come back clean and each must exit 0 or 42, so a suite that aborts part way through cannot pass this arm by touching nothing | green |
-| TEST-007 | Spec-AC-02 | int  | tests/skills/test-aai-repo-tripwire.sh | in a throwaway repository holding a byte copy of .aai/scripts/aai-run-tests.sh, a clean wrapped command produces exit 0 and zero tripwire output, a dirty command exiting 0 produces exit 0 plus a violation block naming the command and the changed path, a dirty command exiting 7 still produces exit 7 plus the block, and a wrapper whose library was removed prints the not-armed NOTE while still returning the command's own exit 5 | green |
+| TEST-007 | Spec-AC-02 | int  | tests/skills/test-aai-repo-tripwire.sh | in a throwaway repository holding a byte copy of .aai/scripts/aai-run-tests.sh, a clean wrapped command produces exit 0 and zero tripwire output, a dirty command exiting 0 produces exit 0 plus a violation block naming the command and the changed path, a dirty command exiting 7 still produces exit 7 plus the block, a wrapper whose library was removed prints the not-armed NOTE while still returning the command's own exit 5, a wrapper whose repository root is not a git checkout at all (the never-armable environment, D10) writes NOTHING while still returning exit 0, and a wrapped command that removes .git mid-run is still named on stderr while its own exit 9 surfaces | green |
 | TEST-008 | Spec-AC-06 | int  | tests/skills/test-aai-repo-tripwire.sh | a five-suite fixture run whose suites are named after the SHIPPED ratchet entries: an allowlisted suite dirtying only its listed paths passes with an ALLOWED label plus a WARNING block naming suite, registry item and changed path and is counted on its own aggregate line; an allowlisted suite dirtying a path its entry does not name still FAILs and the failure names the entry it exceeded; a suite that is not on the list still FAILs (Spec-AC-01 intact); and the aggregate reports 2 of 5 attested clean, so an allowlisted write is never folded into the clean count. The fifth suite is an allowlisted one that writes nothing and is one of the two the attested-clean count covers; the arm asserts nothing about what the run says regarding its unused entry, so the deleted drain report (D8) is not constrained by any assertion here | green |
 | TEST-009 | Spec-AC-04 | int  | tests/skills/test-aai-repo-tripwire.sh | a fixture suite that appends to a tracked file and then removes .git drives the framework to exit 1 with that suite marked FAIL [TRIPWIRE UNAVAILABLE], the report says the after-snapshot could not be taken and states the fail-closed rule, and no PASS line is printed for it; the arm also asserts .git really is gone, so it cannot pass by not destroying anything | green |
 | TEST-010 | Spec-AC-04 | int  | tests/skills/test-aai-repo-tripwire.sh | a framework run in a directory that is NOT a git repository exits 0 (never being armed is not a suite failure) while its exit-0 suite's own progress line reads PASS followed by the NOT ARMED note rather than a bare PASS, and the aggregate reports 0 of 1 attested clean | green |
