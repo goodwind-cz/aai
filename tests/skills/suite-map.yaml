@@ -569,6 +569,14 @@ suites:
       - .codex/skills/aai-release/**
       - .gemini/skills/aai-release/**
 
+  aai-repo-tripwire:
+    globs:
+      - .aai/scripts/lib/repo-tripwire.sh
+      - .aai/scripts/aai-run-tests.sh
+      - tests/skills/test-framework.sh
+      - tests/skills/test-aai-doc-numbering.sh
+      - tests/skills/test-aai-deslop.sh
+
   aai-role-output:
     globs:
       - .aai/scripts/check-role-output.mjs

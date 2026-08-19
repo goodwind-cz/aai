@@ -438,15 +438,27 @@ test_011_seam_survival() {
   if ! (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-prompt-diet.sh >/dev/null 2>&1); then
     log_info "TEST-011: prompt-diet suite failed"; ok=0
   fi
-  # index double-regeneration stability, modulo the Generated stamp
-  local snap1 snap2
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1)
-  snap1="$(grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" | shasum | cut -d' ' -f1)"
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1)
-  snap2="$(grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" | shasum | cut -d' ' -f1)"
+  # Index double-regeneration stability, modulo the Generated stamp. The
+  # generator WRITES, and its Generated line carries a timestamp, so running it
+  # in PROJECT_ROOT dirtied the tracked docs/INDEX.md on every run — the third
+  # instance of the class spec-suites-must-not-touch-the-shipping-repo closes
+  # (this one was found by the tripwire itself, and is why the framework's own
+  # aggregate would otherwise be permanently red). generate-docs-index.mjs
+  # takes its root from process.cwd(), so it runs against a MIRROR of the real
+  # docs/ tree: same generator, same corpus, no write to the checkout.
+  local snap1 snap2 idx_mirror
+  idx_mirror="$(mktemp -d "$TMP_ROOT/idx-mirror.XXXXXX")"
+  if ! cp -R "$PROJECT_ROOT/docs" "$idx_mirror/docs"; then
+    log_info "TEST-011: could not mirror docs/ into $idx_mirror"; ok=0
+  fi
+  (cd "$idx_mirror" && node "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" >/dev/null 2>&1)
+  snap1="$(grep -v '^Generated:' "$idx_mirror/docs/INDEX.md" | shasum | cut -d' ' -f1)"
+  (cd "$idx_mirror" && node "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" >/dev/null 2>&1)
+  snap2="$(grep -v '^Generated:' "$idx_mirror/docs/INDEX.md" | shasum | cut -d' ' -f1)"
   if [[ "$snap1" != "$snap2" ]]; then
     log_info "TEST-011: index regeneration not stable ($snap1 vs $snap2)"; ok=0
   fi
+  rm -rf "$idx_mirror"
   [[ $ok -eq 1 ]] && log_pass "TEST-011 seam survival (audit/diet/index)" || log_fail "TEST-011 seam survival"
 }
 
@@ -1690,13 +1702,19 @@ test_clarify_011_no_new_ceremony() {
         # confined to this one script. Sixth payment of this allowlist tax
         # (fu-test011-branch-diff-allowlist-tax, P2, live).
         .aai/scripts/follow-ups.mjs) ;;
+        # suites-must-not-touch-the-shipping-repo: the shared tripwire library
+        # and the ad hoc test funnel that arms it (the other funnel,
+        # tests/skills/test-framework.sh, is outside .aai/ and so outside this
+        # pin). Seventh payment of this allowlist tax
+        # (fu-test011-branch-diff-allowlist-tax, P2, live).
+        .aai/scripts/lib/repo-tripwire.sh|.aai/scripts/aai-run-tests.sh) ;;
         *) log_info "TEST-011(clarify): unexpected .aai/ path in the branch diff: $p"; ok=0 ;;
       esac
     done <<<"$changed"
   else
     log_info "TEST-011(clarify): neither origin/main nor main resolves — the .aai/ diff pin did not run"
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (now 16 paths across 6 scopes) accounts for every changed .aai/ path" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (recounted 2026-08-19: 19 paths across 8 case groups) accounts for every changed .aai/ path" \
     || log_fail "TEST-011(clarify) zero-added-ceremony pins"
 }
 

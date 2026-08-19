@@ -11,6 +11,52 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(test-harness): a suite that writes to the shipping repository fails and names itself (CHANGE-0151 / SPEC-0137) [L1]
+
+- A tripwire (`.aai/scripts/lib/repo-tripwire.sh`, new) compares
+  `git rev-parse HEAD` plus `git status --porcelain=v1` around every suite at
+  both invocation funnels — `tests/skills/test-framework.sh` (the one CI runs,
+  which fails the run) and `.aai/scripts/aai-run-tests.sh` (report-only on
+  stderr, exit codes untouched, because the canonical whole-suite invocation
+  legitimately dirties the tracked-but-gitignored
+  `docs/ai/tests/test-runs.jsonl` every run).
+- A skipped, crashed, or unsnapshottable suite is reported NOT ATTESTED on its
+  own progress line rather than clean; an unreadable after-snapshot fails the
+  run closed. The aggregate and `metrics.jsonl` carry attested / not-attested
+  counts per suite.
+- Three offenders stopped writing to `PROJECT_ROOT`: TEST-013 in
+  `tests/skills/test-aai-doc-numbering.sh`, TEST-014 in
+  `tests/skills/test-aai-deslop.sh`, and TEST-011 in
+  `tests/skills/test-aai-spec-lint.sh` (the third was found by the tripwire
+  during this ride). Each now runs its generator over a mirror of its real
+  inputs. The first two become runnable during validation again.
+- The guard lands as a scoped ratchet, not a big-bang: a clean-tree census found
+  four live writers, so the framework carries four allowlist entries, each bound
+  to the registry item that owes its fix and scoped to the exact paths that
+  suite already dirties. An allowlisted suite inside its paths warns and is
+  counted separately; any other suite, any other path, or any HEAD move still
+  fails. The list only shrinks and is drained by hand.
+- The ratchet's own watched paths are content-hashed around every suite, listed
+  or not — without it the ratchet's first write to a path masked every later
+  write to that same path, manufacturing the blind spot it was exempted under.
+  Found by code review after two validation rounds had passed the earlier form.
+  Measured: no additional `git` calls (13 total over 3 suites, identical with
+  the ratchet table emptied).
+- Transitional by decision, not by omission: an `hitl_decision` in
+  `docs/ai/decisions.jsonl` (2026-08-19) records that once suites run in a
+  disposable worktree the tripwire, the ratchet and the hashing are deleted and
+  their follow-ups closed as moot.
+- Gated by a new suite, `tests/skills/test-aai-repo-tripwire.sh` (12 arms),
+  registered in `tests/skills/suite-map.yaml`; the new library is classified
+  `core` in `.aai/system/PROFILES.yaml`.
+- Known limits, stated in the vendored library header and the spec rather than
+  buried: `git status` reports a path's change class, not its content, outside
+  the hashed ratchet paths; an unreadable watched path reverts to class-only; a
+  no-hasher environment degrades open with a warning; `.git` internals are not
+  observed. Closes `fu-subagent-probe-hits-real-repo` (P1),
+  `fu-docnumbering-t013-writes-real-tree` (P2),
+  `fu-deslop-test014-no-restore-trap` (P3) and four tripwire follow-ups.
+
 ## [unreleased] — fix(deslop): the class-4 corpus tells the truth about what was requested (CHANGE-0150 / SPEC-0136) [L2]
 
 - Three separately-filed registry defects in one function, `resolveAllCorpus`
