@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-19T09:14:25.365Z
+Generated: 2026-08-19T09:17:38.233Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0136 | specs | implementing | 8 done | docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md |
 
 ## Canonical layer (0)
 
@@ -49,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (332)
+## Done (334)
 
 | ID | Type | Path |
 |---|---|---|
@@ -202,6 +201,7 @@ _None._
 | CHANGE-0147 | issues | docs/issues/CHANGE-0147-docs-model-nul-escape.md |
 | CHANGE-0148 | issues | docs/issues/CHANGE-0148-ride-cost-readout.md |
 | CHANGE-0149 | issues | docs/issues/CHANGE-0149-followups-cli-hardening.md |
+| CHANGE-0150 | issues | docs/issues/CHANGE-0150-deslop-corpus-honesty.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -384,13 +384,12 @@ _None._
 | SPEC-0133 | specs | docs/specs/SPEC-0133-spec-role-verification-guards.md |
 | SPEC-0134 | specs | docs/specs/SPEC-0134-spec-ride-cost-readout.md |
 | SPEC-0135 | specs | docs/specs/SPEC-0135-spec-followups-cli-hardening.md |
+| SPEC-0136 | specs | docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0150 | issues | docs/issues/CHANGE-0150-deslop-corpus-honesty.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

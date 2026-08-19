@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-08-19T09:11:41.593Z",
+  "generatedAt": "2026-08-19T09:16:46.824Z",
   "project": "aai",
   "counts": {
-    "delivered": 194,
-    "in_progress": 2,
+    "delivered": 195,
+    "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
@@ -65,19 +65,6 @@
   },
   "in_progress": [
     {
-      "ref": "deslop-corpus-honesty",
-      "title": "Change — three defects in one corpus resolver",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0150-deslop-corpus-honesty.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-20260819T074244Z-deslop-corpus-honesty-delta.md"
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -92,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "deslop-corpus-honesty",
+      "title": "Change — three defects in one corpus resolver",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0150-deslop-corpus-honesty.md",
+      "closed_on": "2026-08-19",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260819T074244Z-deslop-corpus-honesty-delta.md"
+    },
     {
       "ref": "ride-cost-readout",
       "title": "Change — what a scope cost, without anyone adding it up by hand",
@@ -2621,6 +2621,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "deslop-corpus-honesty",
+          "title": "Change — three defects in one corpus resolver",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0150-deslop-corpus-honesty.md",
+          "closed_on": "2026-08-19",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260819T074244Z-deslop-corpus-honesty-delta.md"
+        },
         {
           "ref": "ride-cost-readout",
           "title": "Change — what a scope cost, without anyone adding it up by hand",

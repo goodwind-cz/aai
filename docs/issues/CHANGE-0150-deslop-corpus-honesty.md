@@ -2,13 +2,15 @@
 id: deslop-corpus-honesty
 number: 150
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-deslop
 links:
-  pr: []
-  commits: []
+  pr:
+    - 265
+  commits:
+    - 6160a86dd12bcc3fee2b7513205776867279300f
 ---
 
 # Change — three defects in one corpus resolver

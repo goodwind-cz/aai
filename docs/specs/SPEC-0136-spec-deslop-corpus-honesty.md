@@ -2,13 +2,15 @@
 id: spec-deslop-corpus-honesty
 type: spec
 number: 136
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0150-deslop-corpus-honesty.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 265
+  commits:
+    - 6160a86dd12bcc3fee2b7513205776867279300f
 ---
 
 # Spec — the class-4 corpus tells the truth about what was requested
