@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-08-19T19:44:56.627Z",
+  "generatedAt": "2026-08-19T19:48:04.166Z",
   "project": "aai",
   "counts": {
-    "delivered": 195,
-    "in_progress": 2,
+    "delivered": 196,
+    "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
@@ -65,19 +65,6 @@
   },
   "in_progress": [
     {
-      "ref": "suites-must-not-touch-the-shipping-repo",
-      "title": "Change — a suite must not be able to write to the shipping repository",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0151-suites-must-not-touch-the-shipping-repo.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-dual-verdict-suites-must-not-touch-the-shipping-repo-20260819T192200Z.md"
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -104,6 +91,19 @@
       "spec": "docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260819T074244Z-deslop-corpus-honesty-delta.md"
+    },
+    {
+      "ref": "suites-must-not-touch-the-shipping-repo",
+      "title": "Change — a suite must not be able to write to the shipping repository",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0151-suites-must-not-touch-the-shipping-repo.md",
+      "closed_on": "2026-08-19",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-dual-verdict-suites-must-not-touch-the-shipping-repo-20260819T192200Z.md"
     },
     {
       "ref": "ride-cost-readout",
@@ -2646,6 +2646,19 @@
           "spec": "docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260819T074244Z-deslop-corpus-honesty-delta.md"
+        },
+        {
+          "ref": "suites-must-not-touch-the-shipping-repo",
+          "title": "Change — a suite must not be able to write to the shipping repository",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0151-suites-must-not-touch-the-shipping-repo.md",
+          "closed_on": "2026-08-19",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-dual-verdict-suites-must-not-touch-the-shipping-repo-20260819T192200Z.md"
         },
         {
           "ref": "ride-cost-readout",

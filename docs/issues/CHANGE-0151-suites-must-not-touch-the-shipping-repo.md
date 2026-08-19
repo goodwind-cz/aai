@@ -2,13 +2,15 @@
 id: suites-must-not-touch-the-shipping-repo
 number: 151
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-test-harness
 links:
-  pr: []
-  commits: []
+  pr:
+    - 266
+  commits:
+    - 0067ffb3e1a30f369bf517ff8e1f78b41fc070a3
 ---
 
 # Change — a suite must not be able to write to the shipping repository
