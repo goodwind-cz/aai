@@ -11,6 +11,69 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(deslop): the class-4 corpus tells the truth about what was requested (CHANGE-0150 / SPEC-0136) [L2]
+
+- Three separately-filed registry defects in one function, `resolveAllCorpus`
+  (`.aai/scripts/deslop-unrequested.mjs`): the `--all` requirement corpus was
+  `docs/specs/**` with `type: spec` only, so a flag requested in a committed
+  CHANGE or RFC document was reported as unrequested; an unreadable corpus
+  document was skipped silently while `--diff` already named one; and the
+  header's per-status counts did not account for every document the resolver
+  examined.
+- D1 — the corpus widens to `docs/specs`, `docs/issues` and `docs/rfc`,
+  directory-independent of a closed five-type set (spec, change, issue,
+  techdebt, rfc), on the unchanged three-status filter (accepted,
+  implementing, done). `--worktree-guard`, `--worktree-baseline` and
+  `--pr-config` — each requested in a committed CHANGE document
+  (CHANGE-0125, CHANGE-0096) — are now suppressed. Measured on this
+  repository after the change: candidates 65 → 56, suppressed 408 → 417,
+  corpus 135 → 331 documents (examined 334).
+- D2 — widening the corpus without a second move would have silently
+  re-suppressed 7 of the adjudicated-indefensible-candidate rows the
+  2026-08-15 remediation deliberately restored (`docs/issues/**` becoming
+  part of its own suppression corpus again). The Adjudication Summary table
+  in `docs/issues/CHANGE-0145-...md` moves verbatim to a new tracked
+  document, `docs/analysis/deslop-candidate-adjudication-20260815.md`
+  (`type: research`, outside the corpus on two independent grounds), with a
+  pointer left behind. `.aai/SKILL_DESLOP.prompt.md` gains a durable
+  convention: findings about this tool belong in `docs/analysis/`, never in
+  a requirement document.
+- D3 — an unreadable `--all` corpus document is now named with the exact
+  sentence the `--diff` path already emits (`NOTE: requirement document(s)
+  unreadable, skipped (not searched): <paths>.`); when every corpus document
+  is unreadable, the EMPTY-corpus reason names the unreadable paths instead
+  of falsely claiming no document matched the filter.
+- D4 — exhaustive bucketing replaces the residue count: every document the
+  resolver examines lands in exactly one of included, five named excluded
+  statuses, `other_status`, `not_requirement_type` or `unparseable_frontmatter`
+  (plus `unreadable`), and the header/`--json` print an `examined` count so
+  the accounting is provably closed (`examined == count + sum(excluded)`)
+  rather than hoped for. In BOTH scopes `examined` is measured before the
+  partition — the directory walk's file count under `--all`, the number of
+  distinct paths STATE names under `--diff` — rather than re-derived from the
+  buckets it is checked against, so the equation is a check that can fail
+  rather than an identity. Two `type: research` documents under `docs/specs`
+  that previously vanished from every line of output now count as
+  `not_requirement_type`. The `--diff` payload balances by the same equation:
+  its STATE-sourced corpus can only exclude an unreadable path, and that
+  bucket carries the measured count instead of a hardcoded zero.
+- Report-only and additive throughout: exit code is unchanged (0 for any
+  scan, 2 only for a usage error), and every JSON change is a new key or a
+  widened object — no key removed or retyped.
+- Four registry follow-ups closed by this scope:
+  `fu-deslop-all-corpus-specs-only`, `fu-deslop-allcorpus-unreadable-silent`,
+  `fu-deslop-corpus-header-other-bucket`, `fu-deslop-adjudication-self-suppression`.
+- NOT delivered, stated plainly: a suite-additivity guard for
+  `tests/skills/test-aai-deslop.sh` was mechanized four times, failed
+  independent validation four times, and was WITHDRAWN together with the
+  suite-additivity clause of Spec-AC-06 — an in-file guard cannot verify its
+  own file. The suite has no mechanical protection against an arm or an
+  assertion being deleted, exactly as it had none before this scope. Carried
+  as `fu-deslop-suite-additivity-guard` (P3).
+- The ride surfaced nine separate "a check that could not fail" defects in
+  work produced during it; each was filed to the registry rather than
+  silently fixed.
+
 ## [unreleased] — fix(follow-ups): CLI hardening — dashed flag values, unreadable-ledger refusal, malformed-id naming, understatement note (followups-cli-hardening) [L1]
 
 - Four separately-filed registry defects in `.aai/scripts/follow-ups.mjs`,

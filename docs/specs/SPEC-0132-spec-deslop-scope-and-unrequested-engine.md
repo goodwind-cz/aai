@@ -50,6 +50,23 @@ scope parameter (`--diff`/`--all`), the corpus resolution (D2) or the
 report-only guarantee (D5/AC-05) changes. `SPEC-FROZEN: true` is preserved —
 this amendment is additive-with-disclosure, not a silent rewrite of history.
 
+## Correction (2026-08-18, spec-deslop-corpus-honesty)
+
+This is a FROZEN spec, corrected under the same additive-with-disclosure
+convention the Amendment above established — not a rewrite of history.
+`docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md` supersedes two of this
+spec's design decisions: D2's `--all` corpus selection (now three
+directories — `docs/specs`, `docs/issues`, `docs/rfc` — and a closed
+five-type set, not `docs/specs/**` with `type: spec` only) and D3's
+adjudication-summary pointer (the table named there moved a second time, to
+`docs/analysis/deslop-candidate-adjudication-20260815.md`, because widening
+the corpus to include `docs/issues/**` would otherwise re-suppress the
+symbols it names — the exact coupling D3's own pointer warned about). Every
+inline `[SUPERSEDED …]` marker below names this correction at its exact
+site. This spec's historical measurements (131 of 133, 70/398, 68/400) are
+NOT rewritten: they were true when taken, against the corpus rule that was
+current at the time.
+
 ## Links
 - Requirement: docs/issues/CHANGE-0145-deslop-scope-and-unrequested-engine.md
 - Source finding: docs/specs/RESEARCH-0001-spec-kit-comparative.md F3 (the one
@@ -158,6 +175,9 @@ CORPUS SELECTION:
   and `deferred` were withdrawn or replaced. Measured 2026-08-14: 131 of the
   133 files under docs/specs/ carry `type: spec`, and every one of them is
   `status: done`, so the selector is non-empty on the real tree today.
+  [SUPERSEDED 2026-08-18 — see this spec's Correction section: the corpus is
+  now three directories (docs/specs, docs/issues, docs/rfc) and a five-type
+  set, per docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md D1.]
 
 STATE reading is READ-ONLY and best effort. docs/ai/STATE.yaml is gitignored
 (RFC-0001) and absent on a fresh CI checkout; the engine never writes it
@@ -279,7 +299,12 @@ REMEDIATION dispatch, round-6 validation V6 disposition item 1 — the
 PREFERRED option validation itself recommended). Rationale: that document is
 `type: change`, `status: draft`, under `docs/issues/`, so it sits outside the
 `--all` requirement corpus (D2 above is `docs/specs/**` with `type: spec`
-only) on three independent grounds, at zero engine change. Keeping the table
+only) on three independent grounds, at zero engine change.
+[SUPERSEDED 2026-08-18 — see this spec's Correction section: the table moved
+a SECOND time, to docs/analysis/deslop-candidate-adjudication-20260815.md,
+because docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md D2 widens the
+`--all` corpus to include docs/issues/**, which would otherwise re-suppress
+these rows exactly as this paragraph's own coupling warns.] Keeping the table
 folded into THIS document was itself an instance of the prose-suppression
 property `limits[1]` discloses — corpus membership, not matcher logic,
 suppressed the 10 rows it names; moving it restores them to `--all` output.
@@ -360,6 +385,12 @@ and the AGENTS.md degrade-with-NOTE convention):
 ### D5 — the output, and how it discloses its own false negatives
 
 Human form:
+
+[SUPERSEDED 2026-08-18 — see this spec's Correction section: the sample
+header line below shows the pre-widening corpus rule; the shipped header now
+names three directories and five types, per
+docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md D1/D5. Preserved verbatim
+below as history, not rewritten.]
 
 ```
 DESLOP class-4 scan — scope: all
@@ -674,7 +705,7 @@ ever READS docs/ai/STATE.yaml. Article 7: no merge is performed.)
 | Spec-AC-01 | WHEN no scope flag is given the engine exits 2 with a usage line naming both scopes and scans nothing, and the prompt asks the operator and stops | done | TEST-001+009 green; docs/ai/tdd/red-20260814T112750Z-deslop-engine-and-companions.log; green-20260814T112849Z-deslop-engine-and-companions.log | — | fail-closed: absence of a decision is never resolved into one |
 | Spec-AC-02 | WHEN the diff scope runs over a fixture the unnamed added symbol is reported with path, line and kind, and a context-line symbol never is | done | TEST-002 green; docs/ai/tdd/red-20260814T112750Z-deslop-engine-and-companions.log; green-20260814T112849Z-deslop-engine-and-companions.log | — | defining line must be an added line under git diff --unified=0 |
 | Spec-AC-03 | WHEN the wide scope runs over a fixture every unmentioned symbol of the two extractor kinds is listed and no mentioned one is, and both scopes emit identical rows for a shared file | done | TEST-003 green; docs/ai/tdd/red-20260814T112750Z-deslop-engine-and-companions.log; green-20260814T112849Z-deslop-engine-and-companions.log | — | the identical-rows arm is the one-engine proof |
-| Spec-AC-04 | WHEN the requirement corpus resolves it is the accepted or implementing or done spec set with per-status excluded counts, STATE is read and never written, and an absent STATE gives a named empty-corpus note at exit 0 | done | TEST-004+010 green; docs/ai/tdd/red-20260814T112750Z-deslop-engine-and-companions.log; green-20260814T112849Z-deslop-engine-and-companions.log; real-repo baseline docs/ai/tdd/deslop-real-repo-all-baseline-20260814.json (historical, PRE-amendment, five kinds, 390/751); docs/ai/tdd/deslop-real-repo-all-baseline-20260815-amendment.json (historical, POST-amendment PRE-round5-remediation, two kinds, 75/444); re-baselined POST-round5-remediation docs/ai/tdd/deslop-real-repo-all-baseline-20260815-round5-remediation.json (two kinds, 70/398) | — | narrows intake A1 to full body text, see D2 |
+| Spec-AC-04 | WHEN the requirement corpus resolves it is the accepted or implementing or done spec set with per-status excluded counts, STATE is read and never written, and an absent STATE gives a named empty-corpus note at exit 0 | done | TEST-004+010 green; docs/ai/tdd/red-20260814T112750Z-deslop-engine-and-companions.log; green-20260814T112849Z-deslop-engine-and-companions.log; real-repo baseline docs/ai/tdd/deslop-real-repo-all-baseline-20260814.json (historical, PRE-amendment, five kinds, 390/751); docs/ai/tdd/deslop-real-repo-all-baseline-20260815-amendment.json (historical, POST-amendment PRE-round5-remediation, two kinds, 75/444); re-baselined POST-round5-remediation docs/ai/tdd/deslop-real-repo-all-baseline-20260815-round5-remediation.json (two kinds, 70/398) | — | narrows intake A1 to full body text, see D2. SUPERSEDED 2026-08-18: corpus widened to three directories and five types, see this spec's Correction section and SPEC-0136-spec-deslop-corpus-honesty. |
 | Spec-AC-05 | WHEN either scope completes the fixture tree is byte-identical, proven by a sha256 manifest compared with cmp, and no new path exists | done | TEST-005 green; docs/ai/tdd/green-20260814T112849Z-deslop-engine-and-companions.log | — | read-only by construction, not by convention |
 | Spec-AC-06 | WHEN a scan completes the exit code is 0 with no candidates, with candidates and over an empty input set, and the only nonzero exit is 2 for a usage error | done | TEST-006 green; docs/ai/tdd/red-20260814T112750Z-deslop-engine-and-companions.log; green-20260814T112849Z-deslop-engine-and-companions.log | — | advisory means advisory |
 | Spec-AC-07 | WHEN the diff is empty the engine exits 0 with the literal note offering the wide scope, and the prompt offers it instead of stopping | done | TEST-007 green; docs/ai/tdd/red-20260814T112750Z-deslop-engine-and-companions.log; green-20260814T112849Z-deslop-engine-and-companions.log | — | replaces today's terminal nothing-to-deslop dead end |

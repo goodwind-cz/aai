@@ -413,6 +413,14 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# -2564 (true-up: deslop-corpus-honesty added a +354 B itemized entry —
+# .aai/SKILL_DESLOP.prompt.md's --all suppression-corpus sentence corrected
+# from the false "docs/specs/** type spec only" claim (fu-deslop-all-corpus-
+# specs-only, now closed) to the widened three-directory five-type rule, plus
+# one new CONVENTION line naming docs/analysis/ as the durable home for
+# findings about this tool (spec-deslop-corpus-honesty D7/D8); measured
+# 4405 -> 4759 B (wc -c), inside the 1665 B headroom-bites-both-ways budget,
+# credited 1:1 so the TEST-012 pin moves -2918 -> -2564, over the prior
 # -2918 (true-up: role-verification-guards added an +829 B itemized entry —
 # .aai/SKILL_TDD.prompt.md Phase 4 step 0 full-framework-sweep (G3,
 # RECOMMENDED at ceremony_level 2 and 3, NOT recommended at 0 and 1, absent/
@@ -648,15 +656,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -2918 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -2918)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -2564 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -2564)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -2918 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -2564 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

@@ -126,6 +126,24 @@ engine_body() {
   sed '$d' <<<"$1"
 }
 
+# base_ref — prints the ref that guards in this suite compare against, or
+# NOTHING when no base exists. A BARE `main` does not resolve on a GitHub
+# `pull_request` checkout: actions/checkout leaves a detached HEAD and only
+# fetches the base as `origin/main`, so `git show main:<path>` throws there
+# and every guard hanging off it silently stops guarding. Fourth occurrence
+# of that exact class in this repository (docs/knowledge/LEARNED.md
+# 2026-07-19; the same fallback is written at
+# tests/skills/test-aai-spec-lint.sh, and .github/workflows/skill-suite.yml
+# uses origin/<base>). Callers MUST fail closed on the empty result — a
+# guard that cannot read its source of truth must not report PASS.
+base_ref() {
+  if (cd "$PROJECT_ROOT" && git rev-parse --verify -q origin/main >/dev/null 2>&1); then
+    printf 'origin/main'
+  elif (cd "$PROJECT_ROOT" && git rev-parse --verify -q main >/dev/null 2>&1); then
+    printf 'main'
+  fi
+}
+
 # node_check <json_text> <js_bool_expr referencing d> — 0 == expr true.
 node_check() {
   local json="$1" expr="$2"
@@ -405,7 +423,14 @@ EOF
   local out json
   out="$(run_engine "$d" --all --json)"
   json="$(engine_body "$out")"
-  node_check "$json" 'd.requirement_corpus.count === 3 && d.requirement_corpus.excluded.draft === 1 && d.requirement_corpus.excluded.proposed === 1 && d.requirement_corpus.excluded.rejected === 1 && d.requirement_corpus.excluded.superseded === 1 && d.requirement_corpus.excluded.deferred === 1' \
+  # Re-baselined 3 -> 4 by spec-deslop-corpus-honesty (D1): the type filter is
+  # now directory-independent, so SPEC-notaspec.md (type: issue, status: done,
+  # created above to exercise the OLD type-only filter) is a legitimate corpus
+  # member — it sits under docs/issues in spirit but is physically placed in
+  # docs/specs, and D1 admits `issue` regardless of which allowlisted
+  # directory it lives in. Do NOT "fix" this back to 3: the count genuinely
+  # grew when the corpus semantics changed, it did not regress.
+  node_check "$json" 'd.requirement_corpus.count === 4 && d.requirement_corpus.excluded.draft === 1 && d.requirement_corpus.excluded.proposed === 1 && d.requirement_corpus.excluded.rejected === 1 && d.requirement_corpus.excluded.superseded === 1 && d.requirement_corpus.excluded.deferred === 1' \
     || { log_info "TEST-004(a): status-bucket counts wrong: $json"; ok=0; }
   # NB-3 regression guard (round-4 code review; previously unguarded per
   # round-4 validation V4-5): the NOT_SCANNED_NOTE must state POSITIVELY
@@ -1316,6 +1341,19 @@ EOF
     || { log_info "TEST-020(a): a fully-stale STATE corpus should degrade to empty, naming both unreadable paths: $json"; ok=0; }
   node_check "$json" 'd.candidates.length === 1 && d.candidates[0].symbol === "--brand-new-flag"' \
     || { log_info "TEST-020(a): a degraded-to-empty corpus should report every extracted symbol, none silently suppressed: $json"; ok=0; }
+  # V-1 (validation round 6): the FULLY-unreadable --diff branch used to omit
+  # `unreadable` from its return, so renderJson's diffUnreadable fell back to
+  # 0 and this run printed `count 0 / examined 0 / excluded.unreadable 0`
+  # right beside a reason naming two unreadable paths. The equation held only
+  # because both sides collapsed to zero — exactly the residue-hiding shape
+  # D4 forbids — and `--all`'s equivalent branch (TEST-025) was already
+  # honest, so the two scopes disagreed. No arm covered this branch in either
+  # direction; this is that pin.
+  node_check "$json" '
+    const c = d.requirement_corpus;
+    const sum = Object.values(c.excluded).reduce((a,b)=>a+b, 0);
+    c.count === 0 && c.excluded.unreadable === 2 && c.examined === 2 && c.examined === c.count + sum
+  ' || { log_info "TEST-020(a): a fully-unreadable --diff corpus must COUNT its unreadable documents (count 0 / examined 2 / unreadable 2), never zero the bucket beside a reason that names them: $json"; ok=0; }
 
   # (b) ONE focus path is readable, the OTHER is stale: the corpus is NOT
   # empty (real requirement text still informs matching), but the skipped
@@ -1397,33 +1435,797 @@ test_021_base_rejects_flag_shaped_value() {
     || log_fail "TEST-021 --base flag-shaped-value rejection"
 }
 
+# ---------------------------------------------------------------------------
+# TEST-022 (Spec-AC-01, spec-deslop-corpus-honesty D1) — the widened corpus
+# rule the code applies and the rule the header/json describe are the same
+# rule: three directories (docs/specs, docs/issues, docs/rfc), a closed
+# five-type set, directory-independent of type.
+# ---------------------------------------------------------------------------
+test_022_corpus_rule_and_header_agree() {
+  local d ok=1
+  d="$(new_fixture)" || return
+  init_repo "$d" || { log_fail "TEST-022 init_repo failed"; return; }
+  mkdir -p "$d/docs/rfc" "$d/docs/product"
+
+  cat > "$d/docs/specs/DOC-spec.md" <<'EOF'
+---
+id: doc-spec
+type: spec
+number: null
+status: done
+---
+spec
+EOF
+  cat > "$d/docs/issues/DOC-change.md" <<'EOF'
+---
+id: doc-change
+type: change
+number: null
+status: done
+---
+change
+EOF
+  cat > "$d/docs/issues/DOC-issue.md" <<'EOF'
+---
+id: doc-issue
+type: issue
+number: null
+status: done
+---
+issue
+EOF
+  cat > "$d/docs/issues/DOC-techdebt.md" <<'EOF'
+---
+id: doc-techdebt
+type: techdebt
+number: null
+status: done
+---
+techdebt
+EOF
+  cat > "$d/docs/rfc/DOC-rfc.md" <<'EOF'
+---
+id: doc-rfc
+type: rfc
+number: null
+status: done
+---
+rfc
+EOF
+  cat > "$d/docs/product/DOC-outside.md" <<'EOF'
+---
+id: doc-outside
+type: spec
+number: null
+status: done
+---
+outside the allowlist
+EOF
+  (cd "$d" && git add -A && git commit -q -m 'AC-01 fixture')
+
+  local out code json
+  out="$(run_engine "$d" --all --json)"
+  code="$(engine_exit_code "$out")"
+  json="$(engine_body "$out")"
+  [[ "$code" == "0" ]] || { log_info "TEST-022: exit=$code (want 0)"; ok=0; }
+  node_check "$json" 'd.requirement_corpus.count === 5' \
+    || { log_info "TEST-022: expected 5 admitted documents: $json"; ok=0; }
+  local expected='
+    const want = ["docs/specs/DOC-spec.md","docs/issues/DOC-change.md","docs/issues/DOC-issue.md","docs/issues/DOC-techdebt.md","docs/rfc/DOC-rfc.md"];
+    const got = [...d.requirement_corpus.documents].sort();
+    JSON.stringify(got) === JSON.stringify([...want].sort())
+  '
+  node_check "$json" "$expected" \
+    || { log_info "TEST-022: admitted document set mismatch: $json"; ok=0; }
+  node_check "$json" '!d.requirement_corpus.documents.some(p => p.startsWith("docs/product"))' \
+    || { log_info "TEST-022: a document outside the allowlisted directories leaked into the corpus: $json"; ok=0; }
+  node_check "$json" 'JSON.stringify(d.requirement_corpus.dirs) === JSON.stringify(["docs/specs","docs/issues","docs/rfc"])' \
+    || { log_info "TEST-022: requirement_corpus.dirs mismatch: $json"; ok=0; }
+  node_check "$json" 'JSON.stringify(d.requirement_corpus.types) === JSON.stringify(["spec","change","issue","techdebt","rfc"])' \
+    || { log_info "TEST-022: requirement_corpus.types mismatch: $json"; ok=0; }
+  node_check "$json" 'JSON.stringify(d.requirement_corpus.statuses) === JSON.stringify(["accepted","implementing","done"])' \
+    || { log_info "TEST-022: requirement_corpus.statuses mismatch: $json"; ok=0; }
+
+  local outHuman bodyHuman
+  outHuman="$(run_engine "$d" --all)"
+  bodyHuman="$(engine_body "$outHuman")"
+  # R-20 (delta review NB-3): these were two UNANCHORED `grep -qF` substring
+  # probes, the same hole R-15 closed two arms away in TEST-026. A header that
+  # named a SUPERSTRING of either list — an extra directory, an extra type —
+  # still contained the wanted substring and passed, so the assertion could not
+  # fail for the drift it exists to catch. Pinned as ONE whole-line match
+  # against the exact header renderHuman emits: dirs, types and statuses all
+  # live on that single line, so a whole-line pin covers all three claims and
+  # no superstring of any of them can satisfy it.
+  local wantCorpusHeader='  Requirement corpus: 5 documents (dirs: docs/specs, docs/issues, docs/rfc; types: spec, change, issue, techdebt, rfc; statuses: accepted/implementing/done)'
+  grep -qxF "$wantCorpusHeader" <<<"$bodyHuman" \
+    || { log_info "TEST-022: human header is not the exact corpus line naming the three directories, the five types and the three statuses (want: $wantCorpusHeader): $bodyHuman"; ok=0; }
+  if grep -qF "type spec, status accepted/implementing/done" <<<"$bodyHuman"; then
+    log_info "TEST-022: human header still claims the corpus is type spec only: $bodyHuman"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-022 the widened corpus rule the code applies and the rule the header/json state are the same rule" \
+    || log_fail "TEST-022 corpus rule and header agreement"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-023 (Spec-AC-02) — a symbol named in a done change document is
+# suppressed; the same symbol shape named only in a draft change document is
+# still reported (proving the status filter is live, not assumed). Real-repo
+# arm: the three real-tree symbols the intake named are gone from
+# candidates, and each is genuinely named in a corpus document that is a
+# corpus member ONLY under the new rule (docs/issues or docs/rfc).
+# NB-1 (round-5 code review): the citation search used to accept ANY corpus
+# document, and this ride's own spec (type: spec, status: implementing, under
+# docs/specs) names all three symbols in its Summary and sorts first, so the
+# loop matched it and the arm stayed green with D1 reverted — a tautology.
+# Requiring the citing document to live outside docs/specs makes the arm bite:
+# under the pre-D1 docs/specs-only corpus no such document can exist.
+# ---------------------------------------------------------------------------
+test_023_change_and_rfc_documents_suppress() {
+  local d ok=1
+  d="$(new_fixture)" || return
+  init_repo "$d" || { log_fail "TEST-023 init_repo failed"; return; }
+
+  cat > "$d/.aai/scripts/x.mjs" <<'EOF'
+if (tok === '--flag-done') { /* handled */ }
+if (tok === '--flag-draft') { /* handled */ }
+EOF
+  cat > "$d/docs/issues/CHANGE-done.md" <<'EOF'
+---
+id: change-done
+type: change
+number: null
+status: done
+---
+Mentions --flag-done.
+EOF
+  cat > "$d/docs/issues/CHANGE-draft.md" <<'EOF'
+---
+id: change-draft
+type: change
+number: null
+status: draft
+---
+Mentions --flag-draft.
+EOF
+  (cd "$d" && git add -A && git commit -q -m 'AC-02 fixture')
+
+  local out code json
+  out="$(run_engine "$d" --all --json)"
+  code="$(engine_exit_code "$out")"
+  json="$(engine_body "$out")"
+  [[ "$code" == "0" ]] || { log_info "TEST-023: exit=$code (want 0)"; ok=0; }
+  node_check "$json" '!d.candidates.some(c => c.symbol === "--flag-done")' \
+    || { log_info "TEST-023: --flag-done (named in a done change document) should be suppressed: $json"; ok=0; }
+  node_check "$json" 'd.candidates.some(c => c.symbol === "--flag-draft")' \
+    || { log_info "TEST-023: --flag-draft (named only in a draft change document) should still be reported: $json"; ok=0; }
+
+  local realOut realCode realJson
+  realOut="$(run_engine "$PROJECT_ROOT" --all --json)"
+  realCode="$(engine_exit_code "$realOut")"
+  realJson="$(engine_body "$realOut")"
+  [[ "$realCode" == "0" ]] || { log_info "TEST-023: real-repo --all exit=$realCode (want 0)"; ok=0; }
+  node_check "$realJson" '!d.candidates.some(c => ["--worktree-guard","--worktree-baseline","--pr-config"].includes(c.symbol))' \
+    || { log_info "TEST-023: one of --worktree-guard/--worktree-baseline/--pr-config still reported on the real repo: $realJson"; ok=0; }
+
+  # V-3 (validation round 6, non-blocking, tracked as
+  # fu-deslop-ac02-single-citation): each of the three symbols has exactly ONE
+  # citation outside docs/specs today (CHANGE-0125 twice, CHANGE-0096 once), so
+  # a status flip, archive or move on either document turns this loop red for a
+  # reason that has nothing to do with the corpus rule — and the arm's other
+  # real-tree assertion above will NOT go red with it, because this ride's own
+  # spec keeps the symbols suppressed from docs/specs. The loop still fails
+  # closed (a real D1 revert must stay red), but it now names WHICH of the two
+  # worlds it is in, so the red is diagnosable instead of misattributed.
+  # The discriminator is the corpus RULE the payload publishes, NOT the mere
+  # existence of a citing file: with D1 reverted, CHANGE-0125 still exists
+  # under docs/issues and still names the symbol, so "a file names it but no
+  # corpus member does" describes a real regression and a drifted citation
+  # equally well. requirement_corpus.dirs separates them — the widening is
+  # either still declared or it is not. Both branches were exercised in a
+  # scratchpad copy (D1 reverted; and the three citing documents flipped to
+  # draft) and each fails closed with the right message.
+  local docsList sym found docpath drifted widened
+  docsList="$(node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); console.log(d.requirement_corpus.documents.join("\n"));' <<<"$realJson")"
+  if node_check "$realJson" 'd.requirement_corpus.dirs.includes("docs/issues") && d.requirement_corpus.dirs.includes("docs/rfc")'; then
+    widened=1
+  else
+    widened=0
+  fi
+  for sym in --worktree-guard --worktree-baseline --pr-config; do
+    found=0
+    while IFS= read -r docpath; do
+      [[ -z "$docpath" ]] && continue
+      [[ "$docpath" == docs/specs/* ]] && continue
+      grep -qF -- "$sym" "$PROJECT_ROOT/$docpath" 2>/dev/null && { found=1; break; }
+    done <<<"$docsList"
+    if [[ "$found" != "1" ]]; then
+      drifted="$(cd "$PROJECT_ROOT" && grep -rlF -- "$sym" docs/issues docs/rfc 2>/dev/null | tr '\n' ' ')"
+      if [[ "$widened" != "1" ]]; then
+        log_info "TEST-023: $sym is not named in any corpus document outside docs/specs, and requirement_corpus.dirs no longer declares both docs/issues and docs/rfc — the corpus RULE itself regressed (D1). This is the failure this assertion exists to catch."
+      elif [[ -n "$drifted" ]]; then
+        log_info "TEST-023: $sym is named under docs/issues/docs/rfc (${drifted%% }) but by NO corpus member, while the corpus still declares both directories — the citation drifted out of the corpus (status flip, archive or move). This is citation drift, not a corpus-rule regression: re-point this arm at a live citation. Tracked as fu-deslop-ac02-single-citation."
+      else
+        log_info "TEST-023: $sym is not named in any corpus document outside docs/specs on the real repo, and no docs/issues or docs/rfc document names it at all — the widened corpus is what suppresses it, and only a docs/issues or docs/rfc citation proves that"
+      fi
+      ok=0
+    fi
+  done
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-023 a done change document suppresses the symbol it names, a draft one does not; the three real-tree symbols are gone and each is genuinely named in a corpus document outside docs/specs" \
+    || log_fail "TEST-023 change/rfc document suppression"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-024 (Spec-AC-03, spec-deslop-corpus-honesty D2) — a document that
+# records findings about this tool never suppresses the symbols it names.
+# Real-repo arm: the corpus contains no docs/analysis path, the relocated
+# adjudication document carries the coupling note and its rows,
+# CHANGE-0145 carries a pointer instead of the table, and the prompt states
+# the findings-outside-the-corpus convention.
+# ---------------------------------------------------------------------------
+test_024_findings_document_never_suppresses() {
+  local d ok=1
+  d="$(new_fixture)" || return
+  init_repo "$d" || { log_fail "TEST-024 init_repo failed"; return; }
+  mkdir -p "$d/docs/analysis"
+
+  cat > "$d/.aai/scripts/x.mjs" <<'EOF'
+if (tok === '--findings-flag') { /* handled */ }
+if (tok === '--corpus-flag') { /* handled */ }
+EOF
+  cat > "$d/docs/analysis/FINDINGS.md" <<'EOF'
+---
+id: findings-x
+type: change
+number: null
+status: done
+---
+Mentions --findings-flag — a finding, not a request.
+EOF
+  cat > "$d/docs/specs/SPEC-corpus.md" <<'EOF'
+---
+id: spec-corpus
+type: spec
+number: null
+status: done
+---
+Mentions --corpus-flag.
+EOF
+  (cd "$d" && git add -A && git commit -q -m 'AC-03 fixture')
+
+  local out code json
+  out="$(run_engine "$d" --all --json)"
+  code="$(engine_exit_code "$out")"
+  json="$(engine_body "$out")"
+  [[ "$code" == "0" ]] || { log_info "TEST-024: exit=$code (want 0)"; ok=0; }
+  node_check "$json" 'd.candidates.some(c => c.symbol === "--findings-flag")' \
+    || { log_info "TEST-024: a symbol named only in a findings document outside the allowlist should still be a candidate: $json"; ok=0; }
+  node_check "$json" '!d.candidates.some(c => c.symbol === "--corpus-flag")' \
+    || { log_info "TEST-024: a symbol named in a corpus document should be suppressed: $json"; ok=0; }
+
+  local realOut realJson
+  realOut="$(run_engine "$PROJECT_ROOT" --all --json)"
+  realJson="$(engine_body "$realOut")"
+  node_check "$realJson" '!d.requirement_corpus.documents.some(p => p.startsWith("docs/analysis"))' \
+    || { log_info "TEST-024: requirement_corpus.documents contains a path under docs/analysis: $realJson"; ok=0; }
+
+  local adjFile="$PROJECT_ROOT/docs/analysis/deslop-candidate-adjudication-20260815.md"
+  [[ -f "$adjFile" ]] || { log_info "TEST-024: $adjFile does not exist"; ok=0; }
+  grep -qF "COUPLING (round-6 code review, NB-3)" "$adjFile" \
+    || { log_info "TEST-024: relocated document missing the coupling note"; ok=0; }
+  grep -qF "| 10 |" "$adjFile" \
+    || { log_info "TEST-024: relocated document missing its tenth adjudication row"; ok=0; }
+
+  local changeFile="$PROJECT_ROOT/docs/issues/CHANGE-0145-deslop-scope-and-unrequested-engine.md"
+  if grep -qF "| # | symbol | site | why indefensible |" "$changeFile"; then
+    log_info "TEST-024: CHANGE-0145 still carries the adjudication table (should carry a pointer instead)"
+    ok=0
+  fi
+  grep -qF "docs/analysis/deslop-candidate-adjudication-20260815.md" "$changeFile" \
+    || { log_info "TEST-024: CHANGE-0145 does not point at the relocated document"; ok=0; }
+
+  grep -qi "docs/analysis" "$DESLOP_PROMPT" \
+    || { log_info "TEST-024: deslop prompt does not state the findings-outside-the-corpus convention"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-024 a findings document never suppresses the symbols it names; the real adjudication table is relocated out of the corpus with a pointer left behind and the prompt states the convention" \
+    || log_fail "TEST-024 findings-document non-suppression"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-025 (Spec-AC-04, spec-deslop-corpus-honesty D3) — an unreadable --all
+# corpus document is named with the exact sentence the --diff path already
+# emits; when every corpus document is unreadable, the EMPTY-corpus reason
+# names the unreadable paths rather than claiming no document matched the
+# filter. Both at exit 0.
+# ---------------------------------------------------------------------------
+test_025_unreadable_corpus_document_named() {
+  local d ok=1
+  d="$(new_fixture)" || return
+  init_repo "$d" || { log_fail "TEST-025 init_repo failed"; return; }
+
+  cat > "$d/docs/specs/SPEC-good.md" <<'EOF'
+---
+id: spec-good
+type: spec
+number: null
+status: done
+---
+Mentions --kept-flag.
+EOF
+  ln -s /nonexistent/path/SPEC-broken.md "$d/docs/specs/SPEC-broken.md"
+  cat > "$d/.aai/scripts/x.mjs" <<'EOF'
+if (tok === '--kept-flag') { /* handled */ }
+if (tok === '--other-flag') { /* handled */ }
+EOF
+  (cd "$d" && git add -A && git commit -q -m 'AC-04 partial fixture')
+
+  local out code json
+  out="$(run_engine "$d" --all --json)"
+  code="$(engine_exit_code "$out")"
+  json="$(engine_body "$out")"
+  [[ "$code" == "0" ]] || { log_info "TEST-025: partial-unreadable exit=$code (want 0)"; ok=0; }
+  node_check "$json" 'd.notes.some(n => n.startsWith("NOTE: requirement document(s) unreadable, skipped (not searched):") && n.includes("docs/specs/SPEC-broken.md"))' \
+    || { log_info "TEST-025: no unreadable-document note naming the symlink path: $json"; ok=0; }
+  node_check "$json" '!d.candidates.some(c => c.symbol === "--kept-flag") && d.candidates.some(c => c.symbol === "--other-flag")' \
+    || { log_info "TEST-025: the readable document should still suppress the symbol it names: $json"; ok=0; }
+
+  local d2 out2 code2 json2
+  d2="$(new_fixture)" || return
+  init_repo "$d2" || { log_fail "TEST-025 (fully-unreadable) init_repo failed"; return; }
+  ln -s /nonexistent/path/SPEC-broken.md "$d2/docs/specs/SPEC-broken.md"
+  cat > "$d2/.aai/scripts/x.mjs" <<'EOF'
+if (tok === '--only-flag') { /* handled */ }
+EOF
+  (cd "$d2" && git add -A && git commit -q -m 'AC-04 fully-unreadable fixture')
+
+  out2="$(run_engine "$d2" --all --json)"
+  code2="$(engine_exit_code "$out2")"
+  json2="$(engine_body "$out2")"
+  [[ "$code2" == "0" ]] || { log_info "TEST-025: fully-unreadable exit=$code2 (want 0)"; ok=0; }
+  node_check "$json2" 'd.requirement_corpus.empty === true && d.requirement_corpus.empty_reason.includes("docs/specs/SPEC-broken.md")' \
+    || { log_info "TEST-025: fully-unreadable corpus should degrade to empty, naming the unreadable path: $json2"; ok=0; }
+  node_check "$json2" 'd.candidates.some(c => c.symbol === "--only-flag")' \
+    || { log_info "TEST-025: a degraded-to-empty corpus should report every extracted symbol: $json2"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-025 an unreadable --all corpus document is named with the --diff path's own sentence; a fully-unreadable corpus degrades to the named EMPTY-corpus note, both at exit 0" \
+    || log_fail "TEST-025 unreadable corpus document honesty"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-026 (Spec-AC-05, spec-deslop-corpus-honesty D4) — the document
+# accounting balances: examined == count + sum(excluded), exhaustively
+# bucketed, on a fixture forcing every bucket and on the real repository;
+# the header prints examined plus every bucket; --diff emits the same
+# excluded key set as --all AND balances the same way when STATE names an
+# unreadable document.
+# ---------------------------------------------------------------------------
+test_026_document_accounting_balances() {
+  local d ok=1
+  d="$(new_fixture)" || return
+  init_repo "$d" || { log_fail "TEST-026 init_repo failed"; return; }
+  mkdir -p "$d/docs/rfc"
+
+  cat > "$d/docs/specs/SPEC-inc.md" <<'EOF'
+---
+id: spec-inc
+type: spec
+number: null
+status: done
+---
+included
+EOF
+  cat > "$d/docs/specs/SPEC-draft.md" <<'EOF'
+---
+id: spec-draft
+type: spec
+number: null
+status: draft
+---
+draft
+EOF
+  cat > "$d/docs/issues/CHANGE-proposed.md" <<'EOF'
+---
+id: change-proposed
+type: change
+number: null
+status: proposed
+---
+proposed
+EOF
+  cat > "$d/docs/rfc/RFC-rejected.md" <<'EOF'
+---
+id: rfc-rejected
+type: rfc
+number: null
+status: rejected
+---
+rejected
+EOF
+  cat > "$d/docs/issues/ISSUE-superseded.md" <<'EOF'
+---
+id: issue-superseded
+type: issue
+number: null
+status: superseded
+---
+superseded
+EOF
+  cat > "$d/docs/specs/TECHDEBT-deferred.md" <<'EOF'
+---
+id: techdebt-deferred
+type: techdebt
+number: null
+status: deferred
+---
+deferred
+EOF
+  cat > "$d/docs/specs/SPEC-other.md" <<'EOF'
+---
+id: spec-other
+type: spec
+number: null
+status: current
+---
+other status
+EOF
+  cat > "$d/docs/specs/RESEARCH-x.md" <<'EOF'
+---
+id: research-x
+type: research
+number: null
+status: done
+---
+not a requirement type
+EOF
+  cat > "$d/docs/specs/NOFM.md" <<'EOF'
+# No frontmatter
+plain body
+EOF
+  ln -s /nonexistent/BROKEN.md "$d/docs/specs/BROKEN.md"
+  (cd "$d" && git add -A && git commit -q -m 'AC-05 exhaustive-bucket fixture')
+
+  local out code json
+  out="$(run_engine "$d" --all --json)"
+  code="$(engine_exit_code "$out")"
+  json="$(engine_body "$out")"
+  [[ "$code" == "0" ]] || { log_info "TEST-026: exit=$code (want 0)"; ok=0; }
+  local eq='
+    const c = d.requirement_corpus;
+    const sum = Object.values(c.excluded).reduce((a,b)=>a+b, 0);
+    c.count === 1 && c.excluded.draft === 1 && c.excluded.proposed === 1 && c.excluded.rejected === 1 && c.excluded.superseded === 1 && c.excluded.deferred === 1 && c.excluded.other_status === 1 && c.excluded.not_requirement_type === 1 && c.excluded.unparseable_frontmatter === 1 && c.excluded.unreadable === 1 && c.examined === c.count + sum
+  '
+  node_check "$json" "$eq" \
+    || { log_info "TEST-026: exhaustive-bucket equation or per-bucket count wrong: $json"; ok=0; }
+
+  local outHuman bodyHuman
+  outHuman="$(run_engine "$d" --all)"
+  bodyHuman="$(engine_body "$outHuman")"
+  # B-3 (validation round 7): this was `grep -qF "examined: 10"`, an UNANCHORED
+  # substring match, and mutation proved it inert — printing
+  # `examined: ${c.examined}${c.documents.length}` (header "examined: 101")
+  # left all 28 arms green, because the right answer is a prefix of the wrong
+  # one. Whole-line (-x) so a superstring cannot satisfy it. Eighth
+  # "check that could not fail" on this ride, and it was living inside the
+  # block added to fix the seventh.
+  grep -qxF "    examined: 10" <<<"$bodyHuman" \
+    || { log_info "TEST-026: human header does not print the examined count: $bodyHuman"; ok=0; }
+  # R-20: the three bucket probes here were bare-name `grep -qF` substring
+  # matches — they proved a bucket NAME appeared somewhere in the output and
+  # nothing about its value or its line, so a superstring bucket line satisfied
+  # them. Replaced with the whole-line pin already used by the empty-by-filter
+  # arm below, which asserts every bucket name AND its measured value in order.
+  grep -qxF "    excluded: 1 draft, 1 proposed, 1 rejected, 1 superseded, 1 deferred, 1 other_status, 1 not_requirement_type, 1 unparseable_frontmatter, 1 unreadable" <<<"$bodyHuman" \
+    || { log_info "TEST-026: human header is not the exact bucket line (every bucket name with its measured value, one per bucket): $bodyHuman"; ok=0; }
+
+  local realOut realJson
+  realOut="$(run_engine "$PROJECT_ROOT" --all --json)"
+  realJson="$(engine_body "$realOut")"
+  node_check "$realJson" '
+    const c = d.requirement_corpus;
+    const sum = Object.values(c.excluded).reduce((a,b)=>a+b, 0);
+    c.examined === c.count + sum
+  ' || { log_info "TEST-026: real-repo accounting does not balance: $realJson"; ok=0; }
+
+  # NB-2 (round-5 code review): the --diff arm used to check the excluded KEY
+  # SET only, so it never noticed that the --diff payload broke D4's balance
+  # rule — examined was synthesised as documents + unreadable while every
+  # bucket, unreadable included, was hardcoded to 0 (count 1 / examined 2 /
+  # sum 0). STATE now names one readable document and one dangling symlink, so
+  # the diff corpus has a real unreadable path and the equation is asserted,
+  # not just the shape.
+  cat > "$d/docs/ai/STATE.yaml" <<'EOF'
+current_focus:
+  type: intake_change
+  ref_id: accounting
+  primary_path: docs/specs/BROKEN.md
+  spec_path: docs/specs/SPEC-inc.md
+EOF
+  local diffOut diffJson
+  diffOut="$(run_engine "$d" --diff --json)"
+  diffJson="$(engine_body "$diffOut")"
+  node_check "$diffJson" '
+    const c = d.requirement_corpus;
+    const sum = Object.values(c.excluded).reduce((a,b)=>a+b, 0);
+    c.count === 1 && c.excluded.unreadable === 1 && c.examined === 2 && c.examined === c.count + sum
+  ' || { log_info "TEST-026: --diff accounting does not balance (an unreadable STATE-named document must be counted, not zeroed): $diffJson"; ok=0; }
+  local keyEq='
+    const want = ["draft","proposed","rejected","superseded","deferred","other_status","not_requirement_type","unparseable_frontmatter","unreadable"];
+    JSON.stringify(Object.keys(d.requirement_corpus.excluded).sort()) === JSON.stringify([...want].sort())
+  '
+  node_check "$json" "$keyEq" \
+    || { log_info "TEST-026: --all excluded key set mismatch: $json"; ok=0; }
+  node_check "$diffJson" "$keyEq" \
+    || { log_info "TEST-026: --diff excluded key set mismatch: $diffJson"; ok=0; }
+
+  # V-2 (validation round 6): the --all half of the accounting fix was pinned
+  # by nothing. renderJson's excluded/examined selection once carried a
+  # `&& !result.corpus.empty` guard; restoring it left all 28 arms green while
+  # breaking D4's balance for an --all corpus that is empty BY FILTER — the
+  # buckets fall back to the diff-shaped zero literal (sum 0) while `examined`
+  # still reports the real walk (count 0 / examined 1 / sum 0). The fixture
+  # above always admits one document so its --all corpus is never empty, and
+  # TEST-025's fully-unreadable fixture survives that mutation by accident
+  # (the fall-through reads corpus.unreadable, which resolveAllCorpus also
+  # returns) and asserts no accounting at all. This is a corpus directory
+  # holding exactly one DRAFT document plus one dangling symlink: empty by
+  # filter AND carrying an unreadable member.
+  #
+  # B-4 (validation round 7), CORRECTED by R-19 (delta review NB-2,
+  # re-measured 2026-08-19; see docs/ai/decisions.jsonl): the dangling symlink
+  # is kept for COVERAGE, not because the fixture could not otherwise bite.
+  # The original note claimed the draft-only fixture balanced under the
+  # guard-restoration regression and that only the unreadable member made the
+  # pin bite. That was wrong. Measured: with `&& !result.corpus.empty` restored
+  # to renderJson's excludedBlock selection and NO symlink present, the
+  # draft-only fixture already fails two clauses below — `excluded.draft`
+  # reads 0 (the zero-literal fall-through) and the balance reads 1 vs 0.
+  # What the symlink genuinely adds is the distinct shape "empty BY FILTER
+  # *and* carrying an unreadable member", where the fall-through zeroes the
+  # `unreadable` bucket while `examined` keeps counting the real walk
+  # (examined 2 vs sum 1) — real coverage, just not the load-bearing reason
+  # first recorded for it.
+  local d3 out3 code3 json3
+  d3="$(new_fixture)" || return
+  init_repo "$d3" || { log_fail "TEST-026 (empty-by-filter) init_repo failed"; return; }
+  cat > "$d3/docs/specs/SPEC-only-draft.md" <<'EOF'
+---
+id: spec-only-draft
+type: spec
+number: null
+status: draft
+---
+Mentions --draft-only-flag, which must still be reported.
+EOF
+  cat > "$d3/.aai/scripts/x.mjs" <<'EOF'
+if (tok === '--draft-only-flag') { /* handled */ }
+EOF
+  ln -s /nonexistent/BROKEN3.md "$d3/docs/specs/BROKEN3.md"
+  (cd "$d3" && git add -A && git commit -q -m 'AC-05 empty-by-filter fixture')
+
+  out3="$(run_engine "$d3" --all --json)"
+  code3="$(engine_exit_code "$out3")"
+  json3="$(engine_body "$out3")"
+  [[ "$code3" == "0" ]] || { log_info "TEST-026: empty-by-filter exit=$code3 (want 0)"; ok=0; }
+  node_check "$json3" '
+    const c = d.requirement_corpus;
+    const sum = Object.values(c.excluded).reduce((a,b)=>a+b, 0);
+    c.count === 0 && c.empty === true && c.excluded.draft === 1 && c.excluded.unreadable === 1 && c.examined === 2 && c.examined === c.count + sum
+  ' || { log_info "TEST-026: an --all corpus that is EMPTY BY FILTER and carries an unreadable member must still bucket and balance (count 0 / examined 2 / draft 1 / unreadable 1), never fall back to an excluded block that zeroes a bucket beside a non-zero examined: $json3"; ok=0; }
+  node_check "$json3" "$keyEq" \
+    || { log_info "TEST-026: empty-by-filter --all excluded key set mismatch: $json3"; ok=0; }
+  local outHuman3 bodyHuman3
+  outHuman3="$(run_engine "$d3" --all)"
+  bodyHuman3="$(engine_body "$outHuman3")"
+  # B-3: whole-line (-x), not substring — see the note on the main fixture's
+  # examined assertion above. The old `grep -qF "examined: 1"` / `"1 draft"`
+  # pair matched a header printing 10 and 10 as happily as 1 and 1.
+  grep -qxF "    examined: 2" <<<"$bodyHuman3" \
+    || { log_info "TEST-026: empty-by-filter human header does not print the examined count: $bodyHuman3"; ok=0; }
+  grep -qxF "    excluded: 1 draft, 0 proposed, 0 rejected, 0 superseded, 0 deferred, 0 other_status, 0 not_requirement_type, 0 unparseable_frontmatter, 1 unreadable" <<<"$bodyHuman3" \
+    || { log_info "TEST-026: empty-by-filter human header does not print the draft and unreadable buckets: $bodyHuman3"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-026 document accounting balances on a fixture covering every bucket, on the real repository, under --diff with an unreadable STATE-named document and under --all on a corpus empty by filter that also carries an unreadable member; the header prints every bucket on its own whole line; --diff carries the same excluded key set" \
+    || log_fail "TEST-026 document accounting"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-028 (Spec-AC-07) — every shipped document that states the corpus rule
+# states the new one: the deslop prompt, the product doc and the engine
+# header carry no docs/specs-only or type:spec-only claim and each names the
+# three directories; SPEC-0132 carries a dated Correction section plus
+# superseded pointers with its historical measurements untouched; the
+# released CHANGELOG v2026.08.16 section is byte-unchanged; docs-audit and
+# spec-lint are both clean.
+# ---------------------------------------------------------------------------
+test_028_published_surfaces_state_the_new_rule() {
+  local ok=1
+
+  # V-5 (spec-deslop-corpus-honesty remediation, 2026-08-18): the previous
+  # negative pattern "type spec only" never occurred verbatim even in the
+  # PRE-change prompt (whose actual text was "`docs/specs/**` (`type:
+  # spec`) only") — a negative assertion that never had anything to match
+  # is not evidence. Uses the pre-change file's actual substring instead,
+  # confirmed present in `main` and absent from the current prompt.
+  if grep -qF '`type: spec`) only' "$DESLOP_PROMPT"; then
+    log_info "TEST-028: deslop prompt still claims the corpus is type spec only"
+    ok=0
+  fi
+  grep -qF "docs/specs/**" "$DESLOP_PROMPT" || { log_info "TEST-028: deslop prompt does not name docs/specs"; ok=0; }
+  grep -qF "docs/issues/**" "$DESLOP_PROMPT" || { log_info "TEST-028: deslop prompt does not name docs/issues"; ok=0; }
+  grep -qF "docs/rfc/**" "$DESLOP_PROMPT" || { log_info "TEST-028: deslop prompt does not name docs/rfc"; ok=0; }
+
+  local productDoc="$PROJECT_ROOT/docs/product/aai-deslop.md"
+  if grep -qF "docs/specs/**\` only" "$productDoc"; then
+    log_info "TEST-028: product doc still claims the corpus is docs/specs only"
+    ok=0
+  fi
+  grep -qF "docs/issues" "$productDoc" || { log_info "TEST-028: product doc does not name docs/issues"; ok=0; }
+  grep -qF "docs/rfc" "$productDoc" || { log_info "TEST-028: product doc does not name docs/rfc"; ok=0; }
+
+  if grep -qF "docs/specs/**/*.md whose frontmatter type is spec and status" "$ENGINE"; then
+    log_info "TEST-028: engine header comment still states the old docs/specs-only rule"
+    ok=0
+  fi
+  grep -qF "docs/specs, docs/issues" "$ENGINE" || { log_info "TEST-028: engine header comment does not name the widened directories"; ok=0; }
+
+  local spec0132="$PROJECT_ROOT/docs/specs/SPEC-0132-spec-deslop-scope-and-unrequested-engine.md"
+  grep -qF "## Correction" "$spec0132" || { log_info "TEST-028: SPEC-0132 has no dated Correction section"; ok=0; }
+  local supersededCount
+  supersededCount="$(grep -cF "SUPERSEDED 2026-08-18" "$spec0132" || true)"
+  [[ "$supersededCount" -ge 4 ]] || { log_info "TEST-028: SPEC-0132 has $supersededCount SUPERSEDED pointers (want >= 4)"; ok=0; }
+  grep -qF "131 of the" "$spec0132" || { log_info "TEST-028: SPEC-0132's historical 131-of-133 measurement was altered"; ok=0; }
+
+  local realOut realCode
+  realOut="$(run_engine "$PROJECT_ROOT" --all --json)"
+  realCode="$(engine_exit_code "$realOut")"
+  [[ "$realCode" == "0" ]] || { log_info "TEST-028: real-repo --all exit=$realCode (want 0)"; ok=0; }
+
+  # V-4 (validation round 2): this used a bare `main` ref, which does not
+  # resolve on a `pull_request` CI checkout, so the comparison threw and the
+  # arm reported "the released section differs" when the section was in fact
+  # byte-identical — failing safe but for a false reason. Base resolution now
+  # goes through base_ref(), the node helper distinguishes "ref unreadable"
+  # from "section differs" and the shell prints whichever actually happened.
+  # FAILS CLOSED when no base resolves: this arm's whole job is to prove a
+  # released section was not rewritten, and that claim is unverifiable
+  # without the committed side — reporting PASS there would be the same
+  # degrades-to-pass defect V-3 fixes one arm above, and both this suite's
+  # CI lanes and every local checkout do have a base ref.
+  local changelogBase changelogOut changelogRc
+  changelogBase="$(base_ref)"
+  if [[ -z "$changelogBase" ]]; then
+    log_info "TEST-028: no base ref resolves (neither origin/main nor main) — cannot verify the released v2026.08.16 CHANGELOG section is byte-unchanged; FAILING CLOSED (this is a missing ref, NOT a detected difference)"
+    ok=0
+  else
+    changelogOut="$(cd "$PROJECT_ROOT" && node -e '
+      const fs = require("fs");
+      const cp = require("child_process");
+      const base = process.argv[1];
+      let head;
+      try {
+        head = cp.execFileSync("git", ["show", base + ":CHANGELOG.md"], { encoding: "utf8" });
+      } catch (e) {
+        console.error("cannot read " + base + ":CHANGELOG.md (" + e.message.split("\n")[0] + ")");
+        process.exit(2);
+      }
+      const work = fs.readFileSync("CHANGELOG.md", "utf8");
+      function section(text) {
+        const start = text.indexOf("## [v2026.08.16]");
+        if (start === -1) return null;
+        const rest = text.slice(start);
+        const nextIdx = rest.indexOf("\n## [", 1);
+        return nextIdx === -1 ? rest : rest.slice(0, nextIdx);
+      }
+      const a = section(head), b = section(work);
+      if (a === null) { console.error("no v2026.08.16 section in " + base + ":CHANGELOG.md"); process.exit(1); }
+      if (b === null) { console.error("no v2026.08.16 section in the working CHANGELOG.md"); process.exit(1); }
+      if (a !== b) { console.error("the released v2026.08.16 section differs from " + base + " (must stay byte-identical): " + a.length + " vs " + b.length + " bytes"); process.exit(1); }
+    ' "$changelogBase" 2>&1)"
+    changelogRc=$?
+    if [[ $changelogRc -ne 0 ]]; then
+      log_info "TEST-028: released-CHANGELOG check failed (rc=$changelogRc): ${changelogOut:-no diagnostic}"
+      ok=0
+    fi
+  fi
+
+  if ! node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --check --strict --no-event >/dev/null 2>&1; then
+    log_info "TEST-028: docs-audit.mjs --check --strict --no-event failed"
+    ok=0
+  fi
+  if ! node "$PROJECT_ROOT/.aai/scripts/spec-lint.mjs" >/dev/null 2>&1; then
+    log_info "TEST-028: spec-lint.mjs failed"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-028 the deslop prompt, product doc and engine header state the new corpus rule; SPEC-0132 carries a dated Correction plus superseded pointers with history unchanged; the released CHANGELOG section is byte-unchanged; docs-audit and spec-lint are clean" \
+    || log_fail "TEST-028 published surfaces state the new rule"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-030 (Spec-AC-08) — all four deslop-corpus-honesty registry follow-ups
+# are closed: none appears under --status open, and each appears done with
+# resolved_by naming this scope under --status all.
+# ---------------------------------------------------------------------------
+test_030_registry_items_closed() {
+  local ok=1
+  local ids=(fu-deslop-all-corpus-specs-only fu-deslop-allcorpus-unreadable-silent fu-deslop-corpus-header-other-bucket fu-deslop-adjudication-self-suppression)
+
+  # --ref-scoped (not the full ledger dump): the four items share ref_id
+  # deslop-scope-and-unrequested-engine, and the full --status all dump is
+  # large enough (~70KB) to hit an environment-specific command-substitution
+  # truncation observed during this ride's own implementation; the --ref
+  # filter keeps the captured JSON well under that ceiling.
+  local openJson
+  openJson="$(node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --ref deslop-scope-and-unrequested-engine --status open --json 2>/dev/null)"
+  local id
+  for id in "${ids[@]}"; do
+    node_check "$openJson" "!(d.items.some(x => x.id === \"$id\"))" \
+      || { log_info "TEST-030: $id still appears under --status open"; ok=0; }
+  done
+
+  local allJson
+  allJson="$(node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --ref deslop-scope-and-unrequested-engine --status all --json 2>/dev/null)"
+  for id in "${ids[@]}"; do
+    node_check "$allJson" "d.items.some(x => x.id === \"$id\" && x.status === \"done\" && x.resolved_by === \"deslop-corpus-honesty\")" \
+      || { log_info "TEST-030: $id is not status done with resolved_by deslop-corpus-honesty under --status all"; ok=0; }
+  done
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-030 all four deslop-corpus-honesty registry follow-ups are closed" \
+    || log_fail "TEST-030 registry items closed"
+}
+
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
 
   check_deps
 
-  test_001_no_scope_fails_closed
-  test_002_diff_scope_added_symbol_only
-  test_003_all_scope_both_kinds_and_shared_engine
-  test_004_corpus_selection_and_state_handling
-  test_005_no_write_proof
-  test_006_exit_code_contract
-  test_007_empty_diff_offers_all
-  test_008_suppressed_count_and_disclosures
-  test_009_prompt_scope_contracts
-  test_010_real_repo_all_scope_sanity
-  test_011_advisory_skills_suite_still_green
-  test_012_prompt_diet_ledger_true_up
-  test_013_governance_companions
-  test_014_description_surfaces_and_catalog_idempotence
-  test_015_cli_flag_precision_css_and_external_tool
-  test_016_all_scope_empty_surface_note
-  test_017_git_failure_surfaced_not_silent
-  test_018_range_diff_failure_surfaced
-  test_019_full_file_deletion_not_empty_diff
-  test_020_unreadable_state_corpus_document_named
-  test_021_base_rejects_flag_shaped_value
+  # V-7: the Test Plan documents per-arm commands
+  # (`bash tests/skills/test-aai-deslop.sh <fn>`) but "$@" used to be
+  # discarded, so each of those commands silently ran the WHOLE suite. Named
+  # arms now run alone; an unknown name is a usage error (exit 2) rather than
+  # a silent full run. No arguments = the full dispatch list, unchanged.
+  if [[ $# -gt 0 ]]; then
+    local fn
+    for fn in "$@"; do
+      [[ "$fn" == test_* && "$(type -t "$fn" 2>/dev/null || true)" == "function" ]] \
+        || { echo "unknown test arm: $fn" >&2; exit 2; }
+      "$fn"
+    done
+  else
+    test_001_no_scope_fails_closed
+    test_002_diff_scope_added_symbol_only
+    test_003_all_scope_both_kinds_and_shared_engine
+    test_004_corpus_selection_and_state_handling
+    test_005_no_write_proof
+    test_006_exit_code_contract
+    test_007_empty_diff_offers_all
+    test_008_suppressed_count_and_disclosures
+    test_009_prompt_scope_contracts
+    test_010_real_repo_all_scope_sanity
+    test_011_advisory_skills_suite_still_green
+    test_012_prompt_diet_ledger_true_up
+    test_013_governance_companions
+    test_014_description_surfaces_and_catalog_idempotence
+    test_015_cli_flag_precision_css_and_external_tool
+    test_016_all_scope_empty_surface_note
+    test_017_git_failure_surfaced_not_silent
+    test_018_range_diff_failure_surfaced
+    test_019_full_file_deletion_not_empty_diff
+    test_020_unreadable_state_corpus_document_named
+    test_021_base_rejects_flag_shaped_value
+    test_022_corpus_rule_and_header_agree
+    test_023_change_and_rfc_documents_suppress
+    test_024_findings_document_never_suppresses
+    test_025_unreadable_corpus_document_named
+    test_026_document_accounting_balances
+    test_028_published_surfaces_state_the_new_rule
+    test_030_registry_items_closed
+  fi
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

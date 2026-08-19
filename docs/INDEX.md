@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-18T11:50:42.463Z
+Generated: 2026-08-19T09:14:25.365Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0136 | specs | implementing | 8 done | docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md |
 
 ## Canonical layer (0)
 
@@ -23,7 +24,7 @@ _None._
 |---|---|---|---|
 | aai-dashboard | aai-dashboard | 2 | docs/product/aai-dashboard.md |
 | aai-decisions | aai-decisions | 2 | docs/product/aai-decisions.md |
-| aai-deslop | aai-deslop | 1 | docs/product/aai-deslop.md |
+| aai-deslop | aai-deslop | 2 | docs/product/aai-deslop.md |
 | aai-doctor | aai-doctor | 8 | docs/product/aai-doctor.md |
 | aai-update | aai-update | 5 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
@@ -385,9 +386,11 @@ _None._
 | SPEC-0135 | specs | docs/specs/SPEC-0135-spec-followups-cli-hardening.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0150 | issues | docs/issues/CHANGE-0150-deslop-corpus-honesty.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -418,4 +421,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-18 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-19 — counts above use this date for overdue checks.
