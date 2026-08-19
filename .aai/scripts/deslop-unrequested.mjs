@@ -73,6 +73,14 @@
 // excluded-by-status (five named statuses plus other_status),
 // not_requirement_type, unparseable_frontmatter or unreadable — the header
 // prints all of them so the accounting is exhaustive, not a residue count.
+// That exhaustiveness is scoped to the documents the WALK COULD SEE: a corpus
+// directory whose read itself fails (permission denial, I/O error, a
+// directory-level symlink loop) hides an UNKNOWN number of documents, which
+// therefore cannot enter `examined` or any per-document bucket without
+// inventing a count. Those directories are named instead — a NOTE in both
+// renderers, `requirement_corpus.unreadable_dirs` in the JSON and an
+// `unreadable directories:` line in the header that says in as many words
+// that they are outside the balance (PR #265 Codex P2 / CHANGE-0150).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -128,17 +136,30 @@ function parseArgs(argv) {
 // File system helpers
 // ---------------------------------------------------------------------------
 
-function walk(dir) {
+// walk(dir, unreadableDirs) — recursive file list. A directory whose read
+// FAILS is never silently dropped (PR #265 Codex P2): the ride's own defect
+// class at directory granularity. Every document inside an unreadable
+// directory vanishes, and the corpus accounting still BALANCES, because those
+// files were never counted as examined — the residue is invisible by
+// construction. When `unreadableDirs` is supplied, each such directory is
+// collected as `<posix path> (<errno>)` so the caller can NAME the hole.
+// ENOENT is deliberately NOT collected: an absent optional corpus directory
+// (docs/rfc in a project that has none) contributes a KNOWN zero, whereas an
+// unreadable one contributes an UNKNOWN number — only the second is a gap.
+function walk(dir, unreadableDirs = null) {
   let out = [];
   let entries;
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
+  } catch (err) {
+    if (unreadableDirs && (!err || err.code !== 'ENOENT')) {
+      unreadableDirs.push(`${toPosix(dir)} (${(err && err.code) || 'unknown error'})`);
+    }
     return out;
   }
   for (const e of entries) {
     const full = path.join(dir, e.name);
-    if (e.isDirectory()) out = out.concat(walk(full));
+    if (e.isDirectory()) out = out.concat(walk(full, unreadableDirs));
     else out.push(full);
   }
   return out;
@@ -275,7 +296,12 @@ function resolveDiffCorpus() {
 // `examined` == count + sum(excluded) always, on any tree — asserted by
 // Spec-AC-05, never just hoped for.
 function resolveAllCorpus() {
-  const files = CORPUS_DIRS.flatMap((dir) => walk(dir))
+  // An unreadable DIRECTORY is outside the per-document partition by
+  // construction (see walk): it is named, never bucketed, and never folded
+  // into `examined` — a count of documents nobody could read cannot be
+  // produced without inventing it.
+  const unreadableDirs = [];
+  const files = CORPUS_DIRS.flatMap((dir) => walk(dir, unreadableDirs))
     .filter((f) => f.endsWith('.md'))
     .map(toPosix);
   const excluded = {
@@ -313,13 +339,19 @@ function resolveAllCorpus() {
   if (documents.length === 0) {
     // D3: when nothing is readable, name the paths instead of claiming no
     // document matched the type/status filter — that claim would be false
-    // whenever the real reason is a read failure, not a filter miss.
-    const reason = unreadable.length > 0
-      ? `requirement document(s) unreadable: ${unreadable.join(', ')}`
+    // whenever the real reason is a read failure, not a filter miss. Same
+    // rule one level up (PR #265 Codex P2): when a corpus DIRECTORY could not
+    // be walked, "no document matched the filter" is equally false, so the
+    // unreadable directories are named in the reason too.
+    const causes = [];
+    if (unreadable.length > 0) causes.push(`requirement document(s) unreadable: ${unreadable.join(', ')}`);
+    if (unreadableDirs.length > 0) causes.push(`corpus directory unreadable, not walked: ${unreadableDirs.join(', ')}`);
+    const reason = causes.length > 0
+      ? causes.join('; ')
       : 'no docs/specs, docs/issues or docs/rfc document with type in spec|change|issue|techdebt|rfc and status in accepted|implementing|done';
-    return { empty: true, reason, documents: [], excluded, unreadable, examined };
+    return { empty: true, reason, documents: [], excluded, unreadable, unreadableDirs, examined };
   }
-  return { empty: false, documents, excluded, unreadable, examined };
+  return { empty: false, documents, excluded, unreadable, unreadableDirs, examined };
 }
 
 function buildCorpusText(documents) {
@@ -1020,6 +1052,13 @@ function buildNotes({ corpus, diffInput, rangeDiffFailed, emptyDiff, noScannedPa
     // trace of why. Name every skipped path rather than dropping it.
     notes.push(`NOTE: requirement document(s) unreadable, skipped (not searched): ${corpus.unreadable.join(', ')}.`);
   }
+  // INDEPENDENT of the two branches above, not an `else if`: an unreadable
+  // directory can sit beside an empty corpus AND beside a partially-read one,
+  // and it is a different fact from either (PR #265 Codex P2). Report-only —
+  // no gate, no exit-code change; the whole fix is that the failure is NAMED.
+  if (corpus.unreadableDirs && corpus.unreadableDirs.length > 0) {
+    notes.push(`NOTE: corpus directory unreadable, not walked — its documents are NOT counted in examined or any excluded bucket, so the accounting below balances over a SMALLER population than the tree actually holds: ${corpus.unreadableDirs.join(', ')}. A symbol reported as a candidate here may in fact be named by a document inside it.`);
+  }
   if (surfaceEmpty) {
     notes.push('NOTE: surface EMPTY (0 files under .aai/scripts or .aai/system) — this almost always means the scan was invoked from the wrong working directory; re-run from the repository root.');
   }
@@ -1071,13 +1110,26 @@ function renderHuman(result) {
   lines.push(`DESLOP class-4 scan — scope: ${result.scope}`);
   if (result.scope === 'all') {
     const c = result.corpus;
+    // Spec-AC-01: "the header and the json both state that same rule" — in
+    // BOTH branches. The empty branch used to print the reason alone and drop
+    // the rule clause, which is exactly the case where a reader most needs to
+    // know what the filter was (PR #265 Codex P2 / CHANGE-0150). One
+    // expression, used twice, so the two branches cannot drift apart again.
+    const rule = `dirs: ${CORPUS_DIRS.join(', ')}; types: ${REQUIREMENT_TYPE_LIST.join(', ')}; statuses: ${INCLUDED_STATUS_LIST.join('/')}`;
     if (c.empty) {
-      lines.push(`  Requirement corpus: 0 documents (${c.reason})`);
+      lines.push(`  Requirement corpus: 0 documents (${rule}) — EMPTY: ${c.reason}`);
     } else {
-      lines.push(`  Requirement corpus: ${c.documents.length} documents (dirs: ${CORPUS_DIRS.join(', ')}; types: ${REQUIREMENT_TYPE_LIST.join(', ')}; statuses: ${INCLUDED_STATUS_LIST.join('/')})`);
+      lines.push(`  Requirement corpus: ${c.documents.length} documents (${rule})`);
     }
     lines.push(`    examined: ${c.examined}`);
     lines.push(`    excluded: ${c.excluded.draft} draft, ${c.excluded.proposed} proposed, ${c.excluded.rejected} rejected, ${c.excluded.superseded} superseded, ${c.excluded.deferred} deferred, ${c.excluded.other_status} other_status, ${c.excluded.not_requirement_type} not_requirement_type, ${c.excluded.unparseable_frontmatter} unparseable_frontmatter, ${c.excluded.unreadable} unreadable`);
+    // Printed on EVERY --all run, zero included: a line that appears only when
+    // something is wrong cannot tell a reader "the walk was complete" apart
+    // from "this build never checked".
+    const unreadableDirs = c.unreadableDirs || [];
+    lines.push(unreadableDirs.length === 0
+      ? '    unreadable directories: 0'
+      : `    unreadable directories: ${unreadableDirs.length} (${unreadableDirs.join(', ')}) — NOT counted in examined or any excluded bucket above`);
   } else {
     const c = result.corpus;
     lines.push(`  Requirement corpus: ${c.documents.length} documents (STATE current_focus: spec_path, primary_path)`);
@@ -1129,6 +1181,14 @@ function renderJson(result) {
       statuses: INCLUDED_STATUS_LIST,
       examined,
       excluded: excludedBlock,
+      // Outside `excluded` and outside `examined` on purpose (PR #265 Codex
+      // P2): an unreadable directory hides an unknown number of documents, so
+      // folding it into a per-document bucket would have to invent a count and
+      // would make `examined == count + sum(excluded)` assert over a figure
+      // nobody measured. Named as its own array instead — always present, so
+      // both scopes and every run carry one shape ([] under --diff, which
+      // walks no directory).
+      unreadable_dirs: result.corpus.unreadableDirs || [],
       empty: result.corpus.empty,
       empty_reason: result.corpus.empty ? result.corpus.reason : null,
     },

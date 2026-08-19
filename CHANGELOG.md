@@ -57,6 +57,38 @@ RFC-0001).
   `not_requirement_type`. The `--diff` payload balances by the same equation:
   its STATE-sourced corpus can only exclude an unreadable path, and that
   bucket carries the measured count instead of a hardcoded zero.
+- PR #265 review remediation (two Codex P2 findings, fixed on the branch
+  before merge):
+  - `walk()` wrapped `readdirSync` in a bare `try { ... } catch { return
+    out; }`, so a corpus directory that could not be read hid every
+    requirement inside it while the accounting still BALANCED — the residue
+    was invisible by construction, and this scope had just widened the
+    exposure by admitting `docs/issues` and `docs/rfc`. An unreadable corpus
+    directory is now named in `notes`, in a new
+    `requirement_corpus.unreadable_dirs` array, and in an `unreadable
+    directories:` header line printed on every `--all` run (zero included, so
+    a complete walk is distinguishable from a build that never checked). It is
+    deliberately NOT bucketed: the number of documents it hides is unknown, so
+    a bucket entry would force a fabricated `examined` increment; the header
+    line says in as many words that the directory sits outside `examined` and
+    outside every bucket. An ABSENT directory (`ENOENT`) is still not
+    reported — that is a known zero. When an unwalkable directory is why the
+    corpus came out empty, `empty_reason` names it instead of claiming no
+    document matched the filter.
+  - the `--all` header's EMPTY branch printed the reason alone and dropped the
+    `dirs / types / statuses` clause, contradicting Spec-AC-01's own
+    requirement that the header and the json state the same rule — in exactly
+    the case where a reader most needs the filter stated. Both branches now
+    render one shared rule expression. The `--json` payload already carried
+    `dirs`, `types` and `statuses` in the empty case; that is now pinned too.
+  - Both fixes are report-only: no gate, no exit-code change, one new JSON key.
+    Two new suite pins (TEST-031, and an empty-corpus arm inside TEST-022),
+    each proven to bite at full-suite level by an isolated mutation against an
+    unmutated green control. Re-measured on this repository after the fixes:
+    corpus 332 documents, examined 334, candidates 56, suppressed 417,
+    unreadable directories 0 — unchanged from the figures above except the
+    corpus count, which moved 331 → 332 when this scope's own CHANGE document
+    flipped to `done` at close and thereby joined the corpus.
 - Report-only and additive throughout: exit code is unchanged (0 for any
   scan, 2 only for a usage error), and every JSON change is a new key or a
   widened object — no key removed or retyped.

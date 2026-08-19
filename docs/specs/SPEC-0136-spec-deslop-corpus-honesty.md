@@ -401,7 +401,14 @@ explicit path list above as a diff against main.
   contains no document whose frontmatter type is outside the five. The human
   header line and the `--json` `requirement_corpus.dirs`, `.types` and
   `.statuses` fields state that same rule, and no output line claims the corpus
-  is `type: spec` only.
+  is `type: spec` only. EXTENDED 2026-08-19 (PR #265 Codex P2, finding F-2):
+  "the header states the rule" holds in EVERY reachable branch, the empty
+  corpus included. The `--all` header's empty branch used to print the reason
+  alone and drop the dirs/types/statuses clause — the one case where a reader
+  most needs to know what the filter was — so the ride failed its own AC. Both
+  branches now render one shared rule expression, and the `--json` payload,
+  which already carried `dirs`, `.types` and `.statuses` unconditionally, is
+  pinned so that cannot silently become conditional either.
   - Verification: `node .aai/scripts/deslop-unrequested.mjs --all --json` over
     this repository, with a Node one-liner asserting the three membership
     properties over `requirement_corpus.documents` by re-reading each document's
@@ -452,11 +459,42 @@ explicit path list above as a diff against main.
   symbols they name. With every corpus document unreadable, the EMPTY-corpus
   note's reason names the unreadable paths rather than claiming no document
   matched the filter. Both runs exit 0, and neither aborts the scan.
+  EXTENDED 2026-08-19 (PR #265 Codex P2, finding F-1): the same rule applies at
+  DIRECTORY granularity. `walk()` wrapped `readdirSync` in a bare
+  `try { ... } catch { return out; }`, so a corpus directory that could not be
+  read (permission denial, transient I/O error, a directory-level symlink loop)
+  made every requirement inside it vanish while the accounting still BALANCED —
+  those files were never counted as examined, so the residue was invisible by
+  construction and a symbol requested only in there was reported as
+  unrequested. This ride newly admitted two more corpus directories
+  (`docs/issues`, `docs/rfc`), widening that exposure. An unreadable corpus
+  directory is now NAMED in three places: a `notes` entry beginning `NOTE:
+  corpus directory unreadable, not walked`, the `--json`
+  `requirement_corpus.unreadable_dirs` array, and an `unreadable directories:`
+  line printed on EVERY `--all` run (zero included, so a complete walk is
+  distinguishable from a build that never checked). It is deliberately NOT
+  placed in an accounting bucket: an unreadable directory hides an UNKNOWN
+  number of documents, so folding it into `excluded` would force a fabricated
+  increment to `examined` and make the balance rule assert over a figure nobody
+  measured. The header line therefore states in as many words that the
+  directory is outside `examined` and outside every bucket. An ABSENT directory
+  (`ENOENT`) is not reported: it contributes a KNOWN zero. When an unwalkable
+  directory is the reason the corpus came out empty, `empty_reason` names it
+  rather than claiming no document matched the filter. The engine stays
+  report-only: no gate, no exit-code change.
   - Verification: two fixture trees, each containing a dangling symlink named
     `*.md` under `docs/specs`, run under `--all --json`; the first asserts the
     note text, the named path and a still-suppressed symbol, the second asserts
     `requirement_corpus.empty` true with the path inside `empty_reason`. Both
-    assert exit 0. Evidence: suite stdout.
+    assert exit 0. For the directory case, a fixture whose nested corpus
+    directory is `chmod 000` (probed, not assumed, since uid 0 is unaffected)
+    and a fixture whose `docs/rfc` is a self-referential symlink (`ELOOP` for
+    every uid, on every platform), each asserting the note, the array entry,
+    the whole-line header claim, an unchanged balance over what the walk could
+    see, a still-suppressing readable document and exit 0; plus the same
+    fixture with the directory readable again as the zero control, and a third
+    fixture asserting the `empty_reason` wording and that an absent directory
+    is never named. Evidence: suite stdout.
 
 - Maps to: CHANGE AC-004
 - Spec-AC-05: the document accounting balances. `requirement_corpus.examined`
@@ -692,10 +730,10 @@ only through `.aai/scripts/state.mjs`, and the engine only ever READS
 
 | Spec-AC    | Description | Status | Evidence | Review-By | Notes |
 |------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN the wide-scope corpus resolves THEN it is exactly the documents under docs/specs docs/issues and docs/rfc whose type is one of spec change issue techdebt rfc and whose status is accepted implementing or done, and the header and the json both state that same rule | done | TEST-022 green | — | the directory allowlist plus the type filter are both load-bearing; measured that no requirement-typed document lives outside the three directories today |
+| Spec-AC-01 | WHEN the wide-scope corpus resolves THEN it is exactly the documents under docs/specs docs/issues and docs/rfc whose type is one of spec change issue techdebt rfc and whose status is accepted implementing or done, and the header and the json both state that same rule | done | TEST-022 green | — | the directory allowlist plus the type filter are both load-bearing; measured that no requirement-typed document lives outside the three directories today. EXTENDED 2026-08-19 (PR #265 Codex P2, finding F-2): the empty branch of the --all header printed the reason alone and dropped the dirs types statuses clause, so the ride failed this AC in the one reachable case where a reader most needs the filter stated. Both branches now render one shared rule expression and TEST-022 pins the empty header as a whole line plus the empty-case json fields. Bite proved by mutation at full-suite level (drop the clause, TEST-022 goes RED, TEST-031 stays green), unmutated control green |
 | Spec-AC-02 | WHEN a symbol is named in a committed change issue techdebt or RFC document with an included status THEN it is not reported as a candidate, demonstrated on --worktree-guard --worktree-baseline and --pr-config | done | TEST-023 green | — | measured: widening to docs/specs plus docs/rfc alone leaves all three still reported, so docs/issues is the load-bearing half. Round-6 validation V-3 (non-blocking): each of the three symbols has exactly one citation outside docs/specs today, so a status flip archive or move on CHANGE-0125 or CHANGE-0096 turns the citation loop red for a reason unrelated to the corpus rule. The loop still fails closed but now names which of the two worlds it is in (citation drift versus a real corpus-rule regression), and the residual coupling is filed as fu-deslop-ac02-single-citation (P3) |
 | Spec-AC-03 | WHEN a document records findings about this tool THEN it never suppresses the symbols it names, proven by the adjudication table living under docs/analysis and by no corpus document path resolving under docs/analysis | done | TEST-024 green | — | the D2 ruling; without the relocation the widening silently reverts the 2026-08-15 fix and costs a measured 7 candidate rows |
-| Spec-AC-04 | WHEN a requirement document cannot be read under --all THEN it is named with the same sentence the --diff path already emits, and when every document is unreadable the empty-corpus reason names the paths, both at exit 0 | done | TEST-025 green | — | resolver change only, no second phrasing invented; paths pass through toPosix before reaching the note |
+| Spec-AC-04 | WHEN a requirement document cannot be read under --all THEN it is named with the same sentence the --diff path already emits, and when every document is unreadable the empty-corpus reason names the paths, both at exit 0 | done | TEST-025 green; TEST-031 green | — | resolver change only, no second phrasing invented; paths pass through toPosix before reaching the note. EXTENDED 2026-08-19 (PR #265 Codex P2, finding F-1): the same defect class at DIRECTORY granularity. walk swallowed every readdirSync failure, so an unreadable corpus directory hid all its documents while the accounting still balanced, and this ride had just widened the exposure by admitting docs/issues and docs/rfc. An unreadable directory is now named in notes, in requirement_corpus.unreadable_dirs and in an unreadable directories header line printed on every --all run. Deliberately NOT bucketed: the number of documents it hides is unknown, so a bucket entry would force a fabricated examined increment and make the balance rule assert over an unmeasured figure. ENOENT is not reported because an absent directory is a known zero. Report-only, exit unchanged. Bite proved by mutation at full-suite level (restore the bare catch, TEST-031 goes RED, TEST-022 stays green), unmutated control green |
 | Spec-AC-05 | WHEN the corpus resolves THEN examined equals included plus the sum of every excluded bucket, on a fixture covering every bucket and on this repository, with the examined count and every bucket printed | done | TEST-026 green; TEST-020 green | — | exhaustive bucketing rather than a leftover counter, so every path is forceable in a fixture; live residue today is 2 research documents. Extended 2026-08-19 (round-6 validation): TEST-020(a) now pins the FULLY-unreadable --diff branch (count 0 examined 2 unreadable 2) which V-1 found zeroing its bucket, and TEST-026 now pins an --all corpus empty BY FILTER (count 0 examined 1 draft 1) which V-2 found unpinned. Both bites proven by mutation under the full suite. Extended again 2026-08-19 (round-7 validation): B-3 mutation-proved the three human-header assertions inert because they were unanchored substring matches (a header printing 101 satisfied "examined: 10"), so they are now whole-line matches; B-4 found the empty-BY-FILTER fixture carried no unreadable member, leaving probe P10 (empty by filter AND one unreadable member, the shape that actually broke at examined 2 versus sum 1) unpinned, so that fixture now also carries a dangling symlink and reads count 0 examined 2 draft 1 unreadable 1. Both bites proven by mutation under the full suite. CORRECTED 2026-08-19 (delta code review NB-2, confirmed by the round-9 confirmation): the P10 control was overstated here. It used a bespoke narrowed mutation; against the regression the pin actually guards (restoring the removed corpus-empty guard), the pre-symlink fixture already bites on two clauses, re-measured independently as draft 1 to 0 and balance true to false. The dangling symlink stays as added coverage of the empty-by-filter-plus-unreadable shape, not for the reason first recorded. See the correcting record in docs/ai/decisions.jsonl |
 | Spec-AC-06 | WHEN either scope runs THEN exit is 0 with and without candidates and over an empty input set, 2 remains the only usage-error exit, and the fixture tree is byte-identical after both scopes with no new path created | done | TEST-005 green (sha256 content manifest AND file list of a fixture tree identical before and after both scopes run) and TEST-006 green (exit 0 for a clean run a with-candidates run and an empty-input-set run, exit 2 for an unknown flag, plus a source-level proof that no process.exit call in the engine uses a value other than 0 or 2); full suite green at 28 arms with 0 FAIL lines | — | the suite-additivity half of this AC was WITHDRAWN 2026-08-18. Its only gate, TEST-027, was mechanized four times and failed independent validation four times, defeated by a self-referential arm array, a bare main base that does not resolve on a pull_request checkout and degraded to PASS, unguarded base-side parsers, an unguarded $self read that one line defeated, an arm moved into an unreachable branch inside main() that still read as wired, and zero-count arms that clear the per-arm floor unconditionally. The arm is removed from the suite and the TEST-027 numbering gap is left in place. An in-file guard cannot verify its own file; a real fix needs an out-of-file checker reading the suite as data. Filed as fu-deslop-suite-additivity-guard (P3). Corrected 2026-08-19 (round-5 review NB-3): suite additivity remains a convention only. It is not mechanized and no document establishes a code-review duty for it; the gap is carried by fu-deslop-suite-additivity-guard |
 | Spec-AC-07 | WHEN the scope is complete THEN no current-state document states the old corpus rule, every published count comes from a post-change measurement, and no dated record is rewritten | done | TEST-028 green | — | released CHANGELOG section and the frozen spec historical measurements stay as history; the frozen spec gets a dated Correction section plus four inline pointers. Remediated 2026-08-18 (validation round 2, finding V-4): the released-section compare called `git show main:CHANGELOG.md`, which throws on a detached pull_request checkout, so the arm went red claiming the section differed while it was in fact byte-identical - the base now resolves origin/main then main, the node helper distinguishes an unreadable ref from a real difference, and the arm fails closed when neither ref resolves |
@@ -727,6 +765,21 @@ Components:
   - NOT touched: `resolveDiffCorpus`, `buildCorpusText`, `wholeWordMatch`, both
     extractors, every external-span helper, `scanDiff`'s added-line logic, and
     `buildNotes`'s existing sentences.
+  - ADDED 2026-08-19 by the PR #265 review remediation, two further touch
+    points: `walk` takes an optional `unreadableDirs` collector and records
+    every non-`ENOENT` `readdirSync` failure as `<posix path> (<errno>)`
+    instead of swallowing it (F-1), and `buildNotes` gains ONE new sentence for
+    that case as an INDEPENDENT `if`, not an `else if`, because an unreadable
+    directory can coexist with both an empty and a partially-read corpus.
+    `renderHuman` gains the always-printed `unreadable directories:` line and
+    renders the corpus rule from one shared expression used by both the empty
+    and the populated branch (F-2); `renderJson` gains
+    `requirement_corpus.unreadable_dirs`, defaulting to `[]` so `--diff`, which
+    walks no directory, carries the same shape. `collectSurfaceFiles` calls
+    `walk` WITHOUT the collector, so surface-directory read failures are
+    unchanged by this pass — the corpus is what carries the exhaustive-
+    accounting claim, and the surface equivalent is filed rather than fixed
+    here (`fu-deslop-surface-walk-dir-silent`).
 - `tests/skills/test-aai-deslop.sh` (EDIT): eight new functions registered in
   `main()` as `test_022` through `test_029`, continuing the file's numbering
   past 021 and following its conventions — `run_engine`, `engine_exit_code`,
@@ -860,7 +913,7 @@ Edge cases:
 
 | Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
 |----------|------------|------|----------------------|-------------|--------|
-| TEST-022 | Spec-AC-01 | int  | tests/skills/test-aai-deslop.sh | run `bash tests/skills/test-aai-deslop.sh test_022_corpus_rule_and_header_agree` — over a fixture carrying one document of each admitted type in each admitted directory plus one requirement-typed document in a directory outside the allowlist, the json requirement_corpus.documents holds exactly the admitted ones, dirs types and statuses state the rule as data, and the human header line names the three directories the five types and the three statuses with no claim of type spec only | green |
+| TEST-022 | Spec-AC-01 | int  | tests/skills/test-aai-deslop.sh | run `bash tests/skills/test-aai-deslop.sh test_022_corpus_rule_and_header_agree` — over a fixture carrying one document of each admitted type in each admitted directory plus one requirement-typed document in a directory outside the allowlist, the json requirement_corpus.documents holds exactly the admitted ones, dirs types and statuses state the rule as data, and the human header line names the three directories the five types and the three statuses with no claim of type spec only; and over a second fixture whose only corpus document is a draft, so the corpus comes out EMPTY, the human header still states the same selection rule beside the reason as a whole-line match and the json still carries dirs types and statuses | green |
 | TEST-023 | Spec-AC-02 | int  | tests/skills/test-aai-deslop.sh | run `bash tests/skills/test-aai-deslop.sh test_023_change_and_rfc_documents_suppress` — over a fixture where one symbol is named only in a type change status done document and another only in a type change status draft document, the first is suppressed and the second is still reported; and over the REAL repository, none of --worktree-guard --worktree-baseline --pr-config appears in candidates while each appears in the body of a document listed in requirement_corpus.documents that lives OUTSIDE docs/specs, so the citation can only come from a document the widened corpus admits | green |
 | TEST-024 | Spec-AC-03 | int  | tests/skills/test-aai-deslop.sh | run `bash tests/skills/test-aai-deslop.sh test_024_findings_document_never_suppresses` — over a fixture where a findings document outside the allowlisted directories names a symbol, that symbol is still a candidate while a symbol named in a corpus document is not; and over the REAL repository, requirement_corpus.documents contains no path under docs/analysis, docs/analysis/deslop-candidate-adjudication-20260815.md carries the ten adjudication rows and the coupling note, CHANGE-0145 carries a pointer instead of the rows, and the deslop prompt states the findings-outside-the-corpus convention | green |
 | TEST-025 | Spec-AC-04 | int  | tests/skills/test-aai-deslop.sh | run `bash tests/skills/test-aai-deslop.sh test_025_unreadable_corpus_document_named` — over a fixture with one readable spec and one dangling symlink named as a markdown file under docs/specs, exit is 0, notes carries an entry beginning with the literal requirement document unreadable skipped not searched prefix naming the symlink path in posix form, and the readable document still suppresses its symbol; over a second fixture where every corpus document is unreadable, requirement_corpus.empty is true and empty_reason names the paths, still at exit 0 | green |
@@ -870,6 +923,7 @@ Edge cases:
 | TEST-006 | Spec-AC-06 | int  | tests/skills/test-aai-deslop.sh | run `bash tests/skills/test-aai-deslop.sh test_006_exit_code_contract` — exit is 0 for a clean run with no candidates, for a run with candidates and for a run over an empty input set, exit is 2 for an unknown flag, and a source-level scan of the engine finds no process.exit call carrying a value other than 0 or 2 | green |
 | TEST-028 | Spec-AC-07 | int  | tests/skills/test-aai-deslop.sh | run `bash tests/skills/test-aai-deslop.sh test_028_published_surfaces_state_the_new_rule` — the deslop prompt, docs/product/aai-deslop.md and the engine header comment carry no claim that the corpus is docs/specs or type spec only and each names the three directories, SPEC-0132 carries a dated Correction section and four inline superseded pointers with its historical measurements unchanged, CHANGELOG carries one new unreleased heading whose counts equal the post-change json capture, the v2026.08.16 section is byte-identical to `git show <base>:CHANGELOG.md` with `<base>` resolving origin/main then main (a message naming an unresolvable ref when that is the real cause, never a false byte-difference claim, and a fail-closed result when neither ref resolves), the product doc frontmatter delivered_by and updated are bumped, and `node .aai/scripts/docs-audit.mjs --check --strict --no-event` and `node .aai/scripts/spec-lint.mjs` are both clean | green |
 | TEST-029 | Spec-AC-08 | int  | tests/skills/test-aai-prompt-diet.sh | run `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-prompt-diet.sh` and `... tests/skills/test-aai-advisory-skills.sh` — both exit 0, TEST-010 reports headroom inside 0 to 2048, TEST-012's pin equals the independent re-sum of JUSTIFIED_ADDITIONS after the measured byte delta is credited 1:1, the four advisory-skills deslop pins still hold, and `node .aai/scripts/check-test-registration.mjs` exits 0 | green |
+| TEST-031 | Spec-AC-04 | int  | tests/skills/test-aai-deslop.sh | run `bash tests/skills/test-aai-deslop.sh test_031_unreadable_corpus_directory_named` — over a fixture whose nested corpus directory under docs/rfc is chmod 000 (probed for real unreadability rather than assumed, since uid 0 is unaffected by the mode) the run exits 0, notes carries an entry beginning with the literal corpus directory unreadable not walked prefix naming the directory, and requirement_corpus.unreadable_dirs names it with its errno; with the mode restored the same fixture prints the unreadable directories line as 0 and carries no such note, so the line tracks reality rather than being a constant; over a fixture whose docs/rfc IS a self-referential symlink, which fails for every uid on every platform, the note and the array both name it, the human header carries a whole-line unreadable directories entry that also states the directory is NOT counted in examined or any excluded bucket, the per-document accounting still balances over what the walk could see, a readable corpus document still suppresses the symbol it names, and exit is 0; and over a third fixture with the same symlink and no readable corpus document, empty_reason names the unwalkable directory instead of claiming the filter matched nothing while an absent corpus directory is never named as unreadable | green |
 | TEST-030 | Spec-AC-08 | int  | tests/skills/test-aai-deslop.sh | run `bash tests/skills/test-aai-deslop.sh test_030_registry_items_closed` — `node .aai/scripts/follow-ups.mjs list --status open --json` names none of fu-deslop-all-corpus-specs-only fu-deslop-allcorpus-unreadable-silent fu-deslop-corpus-header-other-bucket or fu-deslop-adjudication-self-suppression, and each of the four appears with status done and a resolved_by naming this scope under `--status all` | green |
 
 Failing-first discipline (strategy `direct`, so exit codes are the record, not a
@@ -955,6 +1009,20 @@ since renumbering would churn every reference for no gain.) TEST-029 is
 also regression-only unless the measured byte delta moves the pin, in which case
 it goes red on the growth before the ledger entry lands, exactly as the diet
 guard is designed to.
+
+ADDED 2026-08-19 (PR #265 Codex review, findings F-1 and F-2, remediated on the
+open branch before merge). Both new pins were proven to bite at FULL-SUITE
+level, each against an unmutated green control, in a scratchpad copy of the
+repository — never against the working tree. Control: the copy unmutated, 29
+arms, 0 FAIL. Mutation A (`walk()`'s `catch (err) { ...collect... }` reverted to
+the original bare `catch { return out; }`): TEST-031 RED with six named
+assertion failures, TEST-022 still green, suite exit 1. Mutation B (the `--all`
+empty-corpus header line reverted to printing `(${c.reason})` without the rule
+clause): TEST-022 RED naming the exact wanted line, TEST-031 still green, suite
+exit 1. Each mutation reddens exactly the arm that owns the finding and nothing
+else, so neither pin is a restatement of the other. TEST-031 is additionally
+failing-first in the ordinary sense: `requirement_corpus.unreadable_dirs` does
+not exist on the pre-change tree at all.
 
 ## Verification
 

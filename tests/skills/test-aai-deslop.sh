@@ -1545,7 +1545,44 @@ EOF
     ok=0
   fi
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-022 the widened corpus rule the code applies and the rule the header/json state are the same rule" \
+  # F-2 (PR #265 Codex P2, CHANGE-0150): Spec-AC-01 requires the header and the
+  # json to state the SAME rule — in every reachable branch. The empty branch
+  # printed the reason ALONE and dropped the dirs/types/statuses clause, so in
+  # exactly the case where a reader most needs to know what the filter was, the
+  # header did not say. Pinned as a whole line (-x), consistent with the arms
+  # already anchored in this suite: a substring probe would survive re-dropping
+  # the clause as long as the reason text stayed. The json side is pinned in the
+  # same breath — it already carried dirs/types/statuses in the empty case, and
+  # that must not silently become conditional either.
+  local d2 outEmpty bodyEmpty jsonEmpty
+  d2="$(new_fixture)" || return
+  init_repo "$d2" || { log_fail "TEST-022 (empty-corpus header) init_repo failed"; return; }
+  cat > "$d2/docs/specs/DOC-draft.md" <<'EOF'
+---
+id: doc-draft
+type: spec
+number: null
+status: draft
+---
+the only corpus document, and the filter rejects it
+EOF
+  (cd "$d2" && git add -A && git commit -q -m 'AC-01 empty-corpus fixture')
+
+  outEmpty="$(run_engine "$d2" --all)"
+  bodyEmpty="$(engine_body "$outEmpty")"
+  local wantEmptyHeader='  Requirement corpus: 0 documents (dirs: docs/specs, docs/issues, docs/rfc; types: spec, change, issue, techdebt, rfc; statuses: accepted/implementing/done) — EMPTY: no docs/specs, docs/issues or docs/rfc document with type in spec|change|issue|techdebt|rfc and status in accepted|implementing|done'
+  grep -qxF "$wantEmptyHeader" <<<"$bodyEmpty" \
+    || { log_info "TEST-022: the EMPTY-corpus human header does not state the selection rule (dirs, types, statuses) alongside the reason (want: $wantEmptyHeader): $bodyEmpty"; ok=0; }
+  jsonEmpty="$(engine_body "$(run_engine "$d2" --all --json)")"
+  node_check "$jsonEmpty" '
+    const c = d.requirement_corpus;
+    c.empty === true
+      && JSON.stringify(c.dirs) === JSON.stringify(["docs/specs","docs/issues","docs/rfc"])
+      && JSON.stringify(c.types) === JSON.stringify(["spec","change","issue","techdebt","rfc"])
+      && JSON.stringify(c.statuses) === JSON.stringify(["accepted","implementing","done"])
+  ' || { log_info "TEST-022: the EMPTY-corpus json payload does not state the selection rule: $jsonEmpty"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-022 the widened corpus rule the code applies and the rule the header/json state are the same rule, in the populated AND the empty branch" \
     || log_fail "TEST-022 corpus rule and header agreement"
 }
 
@@ -2177,6 +2214,169 @@ test_030_registry_items_closed() {
     || log_fail "TEST-030 registry items closed"
 }
 
+# ---------------------------------------------------------------------------
+# TEST-031 (Spec-AC-04, F-1 / PR #265 Codex P2) — an unreadable corpus
+# DIRECTORY is named, not swallowed. `walk()` used to wrap readdirSync in a
+# bare `try { ... } catch { return out; }`, so an unreadable directory made
+# every requirement inside it vanish while the accounting still BALANCED —
+# those files were never counted as examined, so the residue was invisible by
+# construction, and a symbol requested only in there was reported as
+# unrequested. Report-only: exit stays 0 and no gate is added; the fix is that
+# the failure is NAMED, in the notes, in the json and in the header, with the
+# header saying in as many words that the directory is outside the balance.
+# An ABSENT directory (ENOENT) is deliberately NOT named: it contributes a
+# known zero, while an unreadable one contributes an unknown number.
+# ---------------------------------------------------------------------------
+test_031_unreadable_corpus_directory_named() {
+  local d ok=1
+  d="$(new_fixture)" || return
+  init_repo "$d" || { log_fail "TEST-031 init_repo failed"; return; }
+  mkdir -p "$d/docs/rfc/hidden"
+
+  cat > "$d/docs/specs/SPEC-good.md" <<'EOF'
+---
+id: spec-good
+type: spec
+number: null
+status: done
+---
+Mentions --kept-flag.
+EOF
+  cat > "$d/docs/rfc/hidden/RFC-unreachable.md" <<'EOF'
+---
+id: rfc-unreachable
+type: rfc
+number: null
+status: accepted
+---
+Mentions --hidden-flag, which the walk will never reach.
+EOF
+  cat > "$d/.aai/scripts/x.mjs" <<'EOF'
+if (tok === '--kept-flag') { /* handled */ }
+if (tok === '--hidden-flag') { /* handled */ }
+EOF
+  (cd "$d" && git add -A && git commit -q -m 'F-1 unreadable-directory fixture')
+
+  # PROBE 1 — the permission case named in the dispatch. chmod 000 does not
+  # stop uid 0, and some CI images run as root, so the condition is PROBED
+  # rather than assumed: when the directory is still readable the probe is
+  # reported as inapplicable instead of asserting something the fixture failed
+  # to create. Probe 2 below carries the same claim without any uid
+  # dependency, so this arm never rests on a condition it could not establish.
+  chmod 000 "$d/docs/rfc/hidden" 2>/dev/null
+  if ls "$d/docs/rfc/hidden" >/dev/null 2>&1; then
+    log_info "TEST-031: probe 1 inapplicable — chmod 000 did not make the directory unreadable for this uid (running as root?); the ELOOP probe below carries the claim"
+  else
+    local out code json
+    out="$(run_engine "$d" --all --json)"
+    code="$(engine_exit_code "$out")"
+    json="$(engine_body "$out")"
+    [[ "$code" == "0" ]] || { log_info "TEST-031: unreadable-directory exit=$code (want 0 — report-only, no gate)"; ok=0; }
+    node_check "$json" 'd.notes.some(n => n.startsWith("NOTE: corpus directory unreadable, not walked") && n.includes("docs/rfc/hidden"))' \
+      || { log_info "TEST-031: no note naming the unreadable corpus directory: $json"; ok=0; }
+    node_check "$json" 'd.requirement_corpus.unreadable_dirs.length === 1 && d.requirement_corpus.unreadable_dirs[0].startsWith("docs/rfc/hidden ")' \
+      || { log_info "TEST-031: requirement_corpus.unreadable_dirs does not name the directory: $json"; ok=0; }
+  fi
+  chmod 755 "$d/docs/rfc/hidden" 2>/dev/null
+
+  # CONTROL — the same fixture with the directory readable again. The
+  # `unreadable directories:` line is printed on EVERY --all run, so a reader
+  # can tell "the walk was complete" apart from "this build never checked";
+  # this pins the zero shape and proves the line tracks reality rather than
+  # being a constant.
+  local outCtl bodyCtl
+  outCtl="$(run_engine "$d" --all)"
+  bodyCtl="$(engine_body "$outCtl")"
+  grep -qxF "    unreadable directories: 0" <<<"$bodyCtl" \
+    || { log_info "TEST-031: a complete walk must still print the unreadable-directories line as 0: $bodyCtl"; ok=0; }
+  node_check "$(engine_body "$(run_engine "$d" --all --json)")" \
+    'd.requirement_corpus.unreadable_dirs.length === 0 && !d.notes.some(n => n.startsWith("NOTE: corpus directory unreadable"))' \
+    || { log_info "TEST-031: a complete walk must report no unreadable directory"; ok=0; }
+
+  # PROBE 2 — a directory-level symlink loop on the corpus directory ITSELF
+  # (`docs/rfc` -> `docs/rfc`). readdirSync fails with ELOOP for every uid,
+  # root included, so this probe is deterministic on every platform and is the
+  # one that actually carries the arm. `docs/rfc` is one of the two directories
+  # this ride newly admitted into the corpus, which is where the widened
+  # exposure lives.
+  local d2 out2 code2 json2 body2
+  d2="$(new_fixture)" || return
+  init_repo "$d2" || { log_fail "TEST-031 (ELOOP) init_repo failed"; return; }
+  cat > "$d2/docs/specs/SPEC-good.md" <<'EOF'
+---
+id: spec-good
+type: spec
+number: null
+status: done
+---
+Mentions --kept-flag.
+EOF
+  cat > "$d2/.aai/scripts/x.mjs" <<'EOF'
+if (tok === '--kept-flag') { /* handled */ }
+if (tok === '--other-flag') { /* handled */ }
+EOF
+  ln -s rfc "$d2/docs/rfc"
+  (cd "$d2" && git add -A && git commit -q -m 'F-1 ELOOP fixture')
+
+  out2="$(run_engine "$d2" --all --json)"
+  code2="$(engine_exit_code "$out2")"
+  json2="$(engine_body "$out2")"
+  [[ "$code2" == "0" ]] || { log_info "TEST-031: ELOOP exit=$code2 (want 0 — report-only, no gate)"; ok=0; }
+  node_check "$json2" 'd.notes.some(n => n.startsWith("NOTE: corpus directory unreadable, not walked") && n.includes("docs/rfc"))' \
+    || { log_info "TEST-031: an unwalkable corpus directory must be named in notes: $json2"; ok=0; }
+  node_check "$json2" 'd.requirement_corpus.unreadable_dirs.length === 1 && d.requirement_corpus.unreadable_dirs[0].startsWith("docs/rfc ")' \
+    || { log_info "TEST-031: requirement_corpus.unreadable_dirs must name the unwalkable directory: $json2"; ok=0; }
+  # The per-document accounting is UNCHANGED and still balances: an unreadable
+  # directory hides an unknown number of documents, so folding it into a bucket
+  # would have to invent a count. Pinned so the deliberate choice cannot be
+  # quietly reversed into a fabricated figure.
+  node_check "$json2" '
+    const c = d.requirement_corpus;
+    const sum = Object.values(c.excluded).reduce((a,b)=>a+b, 0);
+    c.count === 1 && c.examined === 1 && c.examined === c.count + sum
+  ' || { log_info "TEST-031: the per-document accounting must still balance over what the walk COULD see, with the directory outside it: $json2"; ok=0; }
+  # The readable half of the corpus still works — the failure is named, not
+  # escalated into an aborted scan.
+  node_check "$json2" '!d.candidates.some(c => c.symbol === "--kept-flag") && d.candidates.some(c => c.symbol === "--other-flag")' \
+    || { log_info "TEST-031: a readable corpus document must still suppress the symbol it names: $json2"; ok=0; }
+
+  body2="$(engine_body "$(run_engine "$d2" --all)")"
+  # Whole-line (-x), consistent with the anchored arms in TEST-022 and
+  # TEST-026: an unanchored substring probe would survive dropping the
+  # "NOT counted in examined" clause, which is the honest half of the line.
+  # -E only so the errno spelling is not pinned (POSIX says ELOOP, but the
+  # assertion is about the line's shape, not the platform's errno name); the
+  # -x anchor still means no superstring can satisfy it.
+  grep -qxE '    unreadable directories: 1 \(docs/rfc \([A-Z]+\)\) — NOT counted in examined or any excluded bucket above' <<<"$body2" \
+    || { log_info "TEST-031: the human header does not name the unreadable directory AND state that it is outside the accounting: $body2"; ok=0; }
+
+  # PROBE 3 — every readable corpus document gone AND a corpus directory
+  # unwalkable: the EMPTY-corpus reason must name the directory rather than
+  # claiming no document matched the type/status filter, which would be false.
+  # Same rule D3 already applies to an unreadable DOCUMENT, one level up.
+  local d3 json3
+  d3="$(new_fixture)" || return
+  init_repo "$d3" || { log_fail "TEST-031 (empty + ELOOP) init_repo failed"; return; }
+  echo "if (tok === '--only-flag') { /* handled */ }" > "$d3/.aai/scripts/x.mjs"
+  ln -s rfc "$d3/docs/rfc"
+  (cd "$d3" && git add -A && git commit -q -m 'F-1 empty + ELOOP fixture')
+
+  json3="$(engine_body "$(run_engine "$d3" --all --json)")"
+  node_check "$json3" 'd.requirement_corpus.empty === true && d.requirement_corpus.empty_reason.includes("corpus directory unreadable, not walked: docs/rfc (")' \
+    || { log_info "TEST-031: an empty corpus whose cause is an unwalkable directory must say so in empty_reason, not claim the filter matched nothing: $json3"; ok=0; }
+  node_check "$json3" 'd.candidates.some(c => c.symbol === "--only-flag")' \
+    || { log_info "TEST-031: a degraded-to-empty corpus should still report every extracted symbol: $json3"; ok=0; }
+
+  # ABSENT is not UNREADABLE: d3 has no docs/issues directory at all and it is
+  # never named — a known zero must not be dressed up as a gap, or the note
+  # fires on every project that simply has no docs/rfc.
+  node_check "$json3" '!d.requirement_corpus.unreadable_dirs.some(x => x.startsWith("docs/issues"))' \
+    || { log_info "TEST-031: an ABSENT corpus directory (ENOENT) must not be reported as unreadable: $json3"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-031 an unreadable corpus directory is named in notes, in requirement_corpus.unreadable_dirs and in the header as outside the accounting; the readable half still suppresses; an empty corpus caused by one says so; an absent directory is not reported; every run exits 0" \
+    || log_fail "TEST-031 unreadable corpus directory honesty"
+}
+
 
 main() {
   echo "Testing: $TEST_NAME"
@@ -2225,6 +2425,7 @@ main() {
     test_026_document_accounting_balances
     test_028_published_surfaces_state_the_new_rule
     test_030_registry_items_closed
+    test_031_unreadable_corpus_directory_named
   fi
 
   echo ""
