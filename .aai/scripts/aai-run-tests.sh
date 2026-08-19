@@ -101,6 +101,38 @@ fi
 # shadow the wrapper's positional parameters.
 AAI_CMD_DESC="$*"
 
+# --- SHIPPING-REPOSITORY WRITE TRIPWIRE ------------------------------------
+# (spec-suites-must-not-touch-the-shipping-repo, D1/D2.) This is the funnel
+# roles invoke ad hoc; tests/skills/test-framework.sh is the one CI runs and
+# carries the same tripwire. Here the tripwire is REPORT-ONLY on purpose: this
+# wrapper's exit code is a pinned contract (124 watchdog, the command's real
+# status otherwise), and the canonical whole-suite invocation legitimately
+# appends to the tracked-but-gitignored docs/ai/tests/test-runs.jsonl, so
+# turning dirt into an exit code here would make the most common invocation
+# permanently red. The framework tripwire is the one that fails a run.
+AAI_TW_ARMED=0
+AAI_TW_WHY=''
+AAI_TW_DIR=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || AAI_TW_DIR=''
+if [ -z "$AAI_TW_DIR" ]; then
+  AAI_TW_WHY='cannot resolve this script directory'
+elif [ ! -f "$AAI_TW_DIR/lib/repo-tripwire.sh" ]; then
+  AAI_TW_WHY="library not found: $AAI_TW_DIR/lib/repo-tripwire.sh"
+else
+  . "$AAI_TW_DIR/lib/repo-tripwire.sh"
+  AAI_TW_ROOT=$(cd "$AAI_TW_DIR/../.." 2>/dev/null && pwd) || AAI_TW_ROOT=''
+  AAI_TW_BEFORE="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/aai-tripwire-b.$$")"
+  AAI_TW_AFTER="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/aai-tripwire-a.$$")"
+  if [ -n "$AAI_TW_ROOT" ] && [ -n "$AAI_TW_BEFORE" ] && [ -n "$AAI_TW_AFTER" ]; then
+    aai_tripwire_snapshot "$AAI_TW_ROOT" "$AAI_TW_BEFORE"
+    AAI_TW_ARMED=1
+  else
+    AAI_TW_WHY='cannot resolve the repository root or a snapshot file'
+  fi
+fi
+if [ "$AAI_TW_ARMED" -eq 0 ]; then
+  echo "AAI-TRIPWIRE: NOTE - not armed ($AAI_TW_WHY); a write to the shipping repository would go unreported." >&2
+fi
+
 # --- CAPTURE POINT 1 — deterministic friction capture (CHANGE deterministic-
 # friction-capture) ----------------------------------------------------------
 # When the wrapped command fails, append ONE raw schema-v2 observation to the
@@ -239,6 +271,24 @@ else
   kill -TERM -"$PGID" 2>/dev/null
   sleep 1
   kill -KILL -"$PGID" 2>/dev/null
+fi
+
+# Tripwire, second half — fires on EVERY exit path (success, failure, timeout),
+# because a command killed at the watchdog is exactly the case most likely to
+# have left the repository half-written.
+if [ "$AAI_TW_ARMED" -eq 1 ]; then
+  aai_tripwire_snapshot "$AAI_TW_ROOT" "$AAI_TW_AFTER"
+  AAI_TW_STATE=$(aai_tripwire_state "$AAI_TW_BEFORE" "$AAI_TW_AFTER")
+  case "$AAI_TW_STATE" in
+    dirty)
+      aai_tripwire_report "$AAI_TW_BEFORE" "$AAI_TW_AFTER" \
+        "the wrapped command [$AAI_CMD_DESC]" "AAI-TRIPWIRE" >&2
+      ;;
+    unavailable)
+      echo "AAI-TRIPWIRE: NOTE - snapshot unusable for $AAI_TW_ROOT; this run is NOT attested clean." >&2
+      ;;
+  esac
+  rm -f "$AAI_TW_BEFORE" "$AAI_TW_AFTER"
 fi
 
 if [ "$TIMED_OUT" -eq 1 ]; then

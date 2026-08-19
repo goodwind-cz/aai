@@ -658,20 +658,38 @@ test_012_wiring() {
 # --- TEST-013: regression backstop ------------------------------------------
 test_013_regression() {
   log_info "TEST-013: repo docs-audit CLEAN + index byte-idempotent (regression backstop)..."
+  # docs-audit --check --strict --no-event is READ-ONLY (--no-event suppresses
+  # the EVENTS append), so it stays on the real tree: it IS the repo-level
+  # regression this arm exists for.
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event \
       > "$TEST_DIR/repo-audit.log" 2>&1) \
     || log_fail "repo docs-audit --check --strict --no-event must be CLEAN (exit 0): $(tail -5 "$TEST_DIR/repo-audit.log")"
   assert_contains "$TEST_DIR/repo-audit.log" "CLEAN"
-  # index byte-idempotent on the real repo (does not stage; compares regen output)
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1) \
-    || log_fail "repo index gen (run 1) failed"
-  grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/repo-run1.snap"
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1) \
-    || log_fail "repo index gen (run 2) failed"
-  grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/repo-run2.snap"
+  # The index generator WRITES. Its output carries a `Generated: <timestamp>`
+  # line, so running it in PROJECT_ROOT dirtied the tracked docs/INDEX.md on
+  # EVERY run — which is why this suite was unrunnable during validation
+  # (fu-docnumbering-t013-writes-real-tree). generate-docs-index.mjs takes its
+  # root from process.cwd(), so a cwd holding a COPY of the real docs/ tree
+  # runs the real generator over the real document corpus while the shipping
+  # repository is never written to. Byte-idempotence is a property of two runs
+  # over the same corpus; it does not need the corpus to be the live checkout.
+  local mirror="$TEST_DIR/repo-index-mirror"
+  rm -rf "$mirror"
+  mkdir -p "$mirror"
+  cp -R "$PROJECT_ROOT/docs" "$mirror/docs" \
+    || log_fail "TEST-013 could not mirror docs/ into $mirror"
+  (cd "$mirror" && node "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" \
+      > "$TEST_DIR/repo-gen1.log" 2>&1) \
+    || log_fail "repo index gen (run 1) failed: $(tail -5 "$TEST_DIR/repo-gen1.log")"
+  grep -v '^Generated:' "$mirror/docs/INDEX.md" > "$TEST_DIR/repo-run1.snap"
+  (cd "$mirror" && node "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" \
+      > "$TEST_DIR/repo-gen2.log" 2>&1) \
+    || log_fail "repo index gen (run 2) failed: $(tail -5 "$TEST_DIR/repo-gen2.log")"
+  grep -v '^Generated:' "$mirror/docs/INDEX.md" > "$TEST_DIR/repo-run2.snap"
   diff -q "$TEST_DIR/repo-run1.snap" "$TEST_DIR/repo-run2.snap" >/dev/null \
     || log_fail "repo index must be byte-idempotent modulo Generated"
-  log_pass "TEST-013 repo docs-audit CLEAN + index byte-idempotent"
+  rm -rf "$mirror"
+  log_pass "TEST-013 repo docs-audit CLEAN + index byte-idempotent (generated in a docs/ mirror, PROJECT_ROOT untouched)"
 }
 
 # --- TEST-014: CRLF frontmatter preserved on stamp -------------------------
