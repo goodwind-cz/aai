@@ -17,9 +17,15 @@ Two scopes; the choice is never silent:
 - `--all`: class 4 ONLY (unrequested surface), over `.aai/scripts/**` and
   `.aai/system/*.yaml` only — not the whole `.aai/` tree (prompts, workflow
   and templates are out of scope) — report-only, run on demand, never an
-  edit. Its suppression corpus is `docs/specs/**` (`type: spec`) only: a
-  flag requested only in `docs/issues/**` or `docs/rfc/**` still reports as
-  a candidate (fu-deslop-all-corpus-specs-only, P2).
+  edit. Its suppression corpus is every `docs/specs/**`, `docs/issues/**` and
+  `docs/rfc/**` document whose type is spec, change, issue, techdebt or rfc
+  and whose status is accepted, implementing or done.
+
+CONVENTION: a document that records FINDINGS about this tool (e.g. an
+adjudication table naming candidate symbols) belongs in `docs/analysis/`,
+never in a spec/change/issue/techdebt/rfc document — naming a symbol there
+suppresses it, turning a finding into its own false negative (see
+`docs/analysis/deslop-candidate-adjudication-20260815.md`).
 
 If the invocation names neither scope, ASK the operator to pick one of the
 two above and STOP until answered — never assume `--diff` by default.

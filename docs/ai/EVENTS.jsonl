@@ -1787,3 +1787,12 @@
 {"v":1,"ts":"2026-08-18T10:38:17.284Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-followups-cli-hardening","payload":{"commit":"1835cd4"}}
 {"v":1,"ts":"2026-08-18T10:38:51.752Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":359,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-08-18T11:50:42.354Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":359,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-18T13:43:04.377Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-deslop-corpus-honesty","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-18T14:35:22.527Z","actor":"ales_holubec.net","event":"phase_confirmed","ref":"deslop-corpus-honesty","payload":{"phase":"planning","hash":"ba83993e0e8d84e8da786552bf92d2bd0fa2e19b774bf787ea504fa22e41677f"}}
+{"v":1,"ts":"2026-08-19T08:53:36.102Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":361,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-19T09:16:17.468Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"deslop-corpus-honesty","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-19T09:16:17.509Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"deslop-corpus-honesty","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-19T09:16:17.549Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"deslop-corpus-honesty","payload":{"commit":"6160a86dd12bcc3fee2b7513205776867279300f"}}
+{"v":1,"ts":"2026-08-19T09:16:17.588Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-deslop-corpus-honesty","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-19T09:16:17.629Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-deslop-corpus-honesty","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-19T09:16:17.668Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-deslop-corpus-honesty","payload":{"commit":"6160a86dd12bcc3fee2b7513205776867279300f"}}

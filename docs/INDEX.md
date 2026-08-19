@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-18T11:50:42.463Z
+Generated: 2026-08-19T10:00:32.955Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -23,7 +23,7 @@ _None._
 |---|---|---|---|
 | aai-dashboard | aai-dashboard | 2 | docs/product/aai-dashboard.md |
 | aai-decisions | aai-decisions | 2 | docs/product/aai-decisions.md |
-| aai-deslop | aai-deslop | 1 | docs/product/aai-deslop.md |
+| aai-deslop | aai-deslop | 2 | docs/product/aai-deslop.md |
 | aai-doctor | aai-doctor | 8 | docs/product/aai-doctor.md |
 | aai-update | aai-update | 5 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
@@ -48,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (332)
+## Done (334)
 
 | ID | Type | Path |
 |---|---|---|
@@ -201,6 +201,7 @@ _None._
 | CHANGE-0147 | issues | docs/issues/CHANGE-0147-docs-model-nul-escape.md |
 | CHANGE-0148 | issues | docs/issues/CHANGE-0148-ride-cost-readout.md |
 | CHANGE-0149 | issues | docs/issues/CHANGE-0149-followups-cli-hardening.md |
+| CHANGE-0150 | issues | docs/issues/CHANGE-0150-deslop-corpus-honesty.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -383,6 +384,7 @@ _None._
 | SPEC-0133 | specs | docs/specs/SPEC-0133-spec-role-verification-guards.md |
 | SPEC-0134 | specs | docs/specs/SPEC-0134-spec-ride-cost-readout.md |
 | SPEC-0135 | specs | docs/specs/SPEC-0135-spec-followups-cli-hardening.md |
+| SPEC-0136 | specs | docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
@@ -418,4 +420,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-18 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-19 — counts above use this date for overdue checks.

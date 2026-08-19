@@ -5,8 +5,9 @@ capability: aai-deslop
 status: current
 delivered_by:
   - deslop-scope-and-unrequested-engine
+  - deslop-corpus-honesty
 spec: docs/specs/SPEC-0132-spec-deslop-scope-and-unrequested-engine.md
-updated: 2026-08-15
+updated: 2026-08-18
 ---
 
 # Deslop pass — removing AI slop, and finding code nobody asked for
@@ -81,16 +82,27 @@ meaningless findings before this was corrected.
 
 Three boundaries are worth knowing before acting on a report:
 
-- **The requirement corpus is `docs/specs/**` only.** A flag requested in a
-  change or RFC document still shows up as unrequested. On this repository that
-  is roughly a quarter of the reported rows.
+- **The requirement corpus is `docs/specs/**`, `docs/issues/**` and
+  `docs/rfc/**`, filtered by type and status.** A document counts only when its
+  frontmatter `type` is spec, change, issue, techdebt or rfc, and its `status`
+  is accepted, implementing or done — a `draft` intake, for example, is
+  intentionally outside `--all` (that is what `--diff` is for). Measured on
+  this repository: widening the corpus from its previous `docs/specs/**`-only,
+  `type: spec`-only scope removed 9 of the 65 previously-reported candidates
+  (14%) — each suppressed because a committed requirement document genuinely
+  names it, not because the corpus was widened past its own defect.
 - **Some rows are text, not flags.** A flag name inside a string comparison, a
   suggestion message, or a regex pattern looks identical to a real one under
   pattern matching. Telling them apart needs semantics; this scan does not
   attempt it and says so in its output.
-- **Naming a symbol in a spec hides it.** Any mention in a requirement document
-  counts as the requirement naming that symbol, so documenting a finding inside
-  a spec removes it from the next report.
+- **Naming a symbol in a corpus document hides it — so findings about this
+  tool live outside the corpus.** Any mention in a requirement document
+  counts as the requirement naming that symbol, so documenting a finding
+  inside a spec, change, issue, techdebt or RFC document removes it from the
+  next report. A document that records findings about the detector itself
+  (an adjudication table naming candidate symbols) belongs in
+  `docs/analysis/` instead, where it cannot self-suppress the symbols it
+  discusses — see `docs/analysis/deslop-candidate-adjudication-20260815.md`.
 
 Non-goals: it never edits, never blocks, is never dispatched automatically, and
 the wide scope is not a cleanup mandate. Read each candidate before acting; the
@@ -101,3 +113,5 @@ report is an argument, not a verdict.
 - Request: docs/issues/CHANGE-0145-deslop-scope-and-unrequested-engine.md
 - Spec: docs/specs/SPEC-0132-spec-deslop-scope-and-unrequested-engine.md
 - Validation evidence: docs/ai/validation/validation-20260815T110436Z-deslop-scope-and-unrequested-engine-round6.md
+- Corpus-honesty correction: docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md
+- Candidate adjudication: docs/analysis/deslop-candidate-adjudication-20260815.md

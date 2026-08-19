@@ -1,64 +1,64 @@
 {
-  "generatedAt": "2026-08-18T10:38:40.204Z",
+  "generatedAt": "2026-08-19T09:16:46.824Z",
   "project": "aai",
   "counts": {
-    "delivered": 194,
+    "delivered": 195,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "followups-cli-hardening",
+    "ref": "deslop-corpus-honesty",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "followups-cli-hardening",
+      "ref": "deslop-corpus-honesty",
       "type": "intake_change",
-      "phase": "implementation"
+      "phase": "validation"
     },
     "strategy": "direct",
     "worktree": {
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "not_run",
-    "review_status": "not_run",
+    "validation_status": "pass",
+    "review_status": "pass",
     "ticks": [
       {
-        "tick": 150,
-        "role": "Remediation",
-        "scope": "followups-cli-hardening",
-        "duration_seconds": 998,
-        "harness_version": "2.1.231 (Claude Code)"
-      },
-      {
-        "tick": 149,
-        "role": "Code Review",
-        "scope": "followups-cli-hardening",
-        "duration_seconds": 814,
-        "harness_version": "2.1.231 (Claude Code)"
-      },
-      {
-        "tick": 148,
+        "tick": 156,
         "role": "Validation",
-        "scope": "followups-cli-hardening",
-        "duration_seconds": 1102,
+        "scope": "deslop-corpus-honesty",
+        "duration_seconds": 1330,
         "harness_version": "2.1.231 (Claude Code)"
       },
       {
-        "tick": 147,
+        "tick": 155,
+        "role": "Remediation",
+        "scope": "deslop-corpus-honesty",
+        "duration_seconds": 1369,
+        "harness_version": "2.1.231 (Claude Code)"
+      },
+      {
+        "tick": 154,
+        "role": "Validation",
+        "scope": "deslop-corpus-honesty",
+        "duration_seconds": 3497,
+        "harness_version": "2.1.231 (Claude Code)"
+      },
+      {
+        "tick": 153,
+        "role": "Remediation",
+        "scope": "deslop-corpus-honesty",
+        "duration_seconds": 870,
+        "harness_version": "2.1.231 (Claude Code)"
+      },
+      {
+        "tick": 152,
         "role": "Implementation",
-        "scope": "followups-cli-hardening",
-        "duration_seconds": 2385,
-        "harness_version": "2.1.231 (Claude Code)"
-      },
-      {
-        "tick": 146,
-        "role": "Planning",
-        "scope": "followups-cli-hardening",
-        "duration_seconds": 804,
+        "scope": "deslop-corpus-honesty",
+        "duration_seconds": 2095,
         "harness_version": "2.1.231 (Claude Code)"
       }
     ]
@@ -79,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "deslop-corpus-honesty",
+      "title": "Change — three defects in one corpus resolver",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0150-deslop-corpus-honesty.md",
+      "closed_on": "2026-08-19",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260819T074244Z-deslop-corpus-honesty-delta.md"
+    },
     {
       "ref": "ride-cost-readout",
       "title": "Change — what a scope cost, without anyone adding it up by hand",
@@ -2608,6 +2621,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "deslop-corpus-honesty",
+          "title": "Change — three defects in one corpus resolver",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0150-deslop-corpus-honesty.md",
+          "closed_on": "2026-08-19",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260819T074244Z-deslop-corpus-honesty-delta.md"
+        },
         {
           "ref": "ride-cost-readout",
           "title": "Change — what a scope cost, without anyone adding it up by hand",

@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-18T10:38:40.029Z",
+  "generatedAt": "2026-08-19T09:16:46.930Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 125,
-    "delivered": 339,
+    "rides": 126,
+    "delivered": 341,
     "active_weeks": 8,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (339 closes vs 125 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 339,
-    "delivered_per_week_avg": 42.4,
+    "note": "\"delivered\" counts every work_item_closed event (341 closes vs 126 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 341,
+    "delivered_per_week_avg": 42.6,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -22,7 +22,7 @@
       "2026-W31": 72,
       "2026-W32": 19,
       "2026-W33": 33,
-      "2026-W34": 7
+      "2026-W34": 9
     },
     "delivered_groups": [
       {
@@ -300,7 +300,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 76,
+        "count": 78,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -377,7 +377,9 @@
           "ride-cost-readout",
           "spec-ride-cost-readout",
           "followups-cli-hardening",
-          "spec-followups-cli-hardening"
+          "spec-followups-cli-hardening",
+          "deslop-corpus-honesty",
+          "spec-deslop-corpus-honesty"
         ]
       }
     ],
@@ -1733,24 +1735,32 @@
         },
         {
           "ref": "followups-cli-hardening",
-          "lead_time_seconds": null
+          "lead_time_seconds": 8247
         },
         {
           "ref": "spec-followups-cli-hardening",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "deslop-corpus-honesty",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-deslop-corpus-honesty",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 3687,
-      "mean_seconds": 124711.1,
-      "measured": 121,
-      "unmeasurable": 218
+      "median_seconds": 3720,
+      "mean_seconds": 123756.5,
+      "measured": 122,
+      "unmeasurable": 219
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2203,
-      "mean": 3939.6,
-      "measured": 123
+      "median": 2214,
+      "mean": 3957,
+      "measured": 124
     },
     "role_split": [
       {
@@ -1760,28 +1770,28 @@
       },
       {
         "role": "Implementation",
-        "duration_seconds": 51555,
-        "tokens": 2098610
+        "duration_seconds": 53940,
+        "tokens": 2451608
       },
       {
         "role": "Code Review",
-        "duration_seconds": 50532,
-        "tokens": 8174248
+        "duration_seconds": 51346,
+        "tokens": 8330230
       },
       {
         "role": "Remediation",
-        "duration_seconds": 53508,
-        "tokens": 7993956
+        "duration_seconds": 54506,
+        "tokens": 8168821
       },
       {
         "role": "Validation",
-        "duration_seconds": 140540,
-        "tokens": 10736366
+        "duration_seconds": 141642,
+        "tokens": 10904820
       },
       {
         "role": "Planning",
-        "duration_seconds": 65555,
-        "tokens": 7716439
+        "duration_seconds": 66359,
+        "tokens": 7909564
       }
     ],
     "per_ride": [
@@ -2409,6 +2419,11 @@
         "ref": "ride-cost-readout",
         "busy_seconds": 11281,
         "remediation_runs": 6
+      },
+      {
+        "ref": "followups-cli-hardening",
+        "busy_seconds": 6103,
+        "remediation_runs": 1
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -2418,11 +2433,11 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 476854,
-      "mean": 646872.6,
-      "measured": 77
+      "median": 490263,
+      "mean": 651982.3,
+      "measured": 78
     },
-    "tokens_total": 49809194,
+    "tokens_total": 50854618,
     "by_role": [
       {
         "role": "TDD Implementation",
@@ -2430,28 +2445,28 @@
       },
       {
         "role": "Implementation",
-        "tokens": 2098610
+        "tokens": 2451608
       },
       {
         "role": "Code Review",
-        "tokens": 8174248
+        "tokens": 8330230
       },
       {
         "role": "Remediation",
-        "tokens": 7993956
+        "tokens": 8168821
       },
       {
         "role": "Validation",
-        "tokens": 10736366
+        "tokens": 10904820
       },
       {
         "role": "Planning",
-        "tokens": 7716439
+        "tokens": 7909564
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 330,
-      "total_runs": 554,
+      "runs_with_marker": 335,
+      "total_runs": 559,
       "pct": 60,
       "by_week": [
         {
@@ -2498,9 +2513,9 @@
         },
         {
           "week": "2026-W34",
-          "runs_with_marker": 24,
-          "total_runs": 26,
-          "pct": 92
+          "runs_with_marker": 29,
+          "total_runs": 31,
+          "pct": 94
         }
       ]
     },
@@ -2518,53 +2533,53 @@
         },
         {
           "role": "Implementation",
-          "runs_total": 46,
-          "runs_marked": 8,
+          "runs_total": 47,
+          "runs_marked": 9,
           "runs_sentinel": 0,
           "runs_unmarked": 38,
-          "tokens_total": 2098610,
-          "median_tokens_per_run": 227676,
-          "share_pct": 4
+          "tokens_total": 2451608,
+          "median_tokens_per_run": 229297,
+          "share_pct": 5
         },
         {
           "role": "Code Review",
-          "runs_total": 127,
-          "runs_marked": 82,
+          "runs_total": 128,
+          "runs_marked": 83,
           "runs_sentinel": 0,
           "runs_unmarked": 45,
-          "tokens_total": 8174248,
-          "median_tokens_per_run": 89225,
+          "tokens_total": 8330230,
+          "median_tokens_per_run": 89572,
           "share_pct": 16
         },
         {
           "role": "Remediation",
-          "runs_total": 69,
-          "runs_marked": 41,
+          "runs_total": 70,
+          "runs_marked": 42,
           "runs_sentinel": 0,
           "runs_unmarked": 28,
-          "tokens_total": 7993956,
-          "median_tokens_per_run": 173297,
+          "tokens_total": 8168821,
+          "median_tokens_per_run": 174081,
           "share_pct": 16
         },
         {
           "role": "Validation",
-          "runs_total": 130,
-          "runs_marked": 84,
+          "runs_total": 131,
+          "runs_marked": 85,
           "runs_sentinel": 0,
           "runs_unmarked": 46,
-          "tokens_total": 10736366,
-          "median_tokens_per_run": 108438,
-          "share_pct": 22
+          "tokens_total": 10904820,
+          "median_tokens_per_run": 109022,
+          "share_pct": 21
         },
         {
           "role": "Planning",
-          "runs_total": 104,
-          "runs_marked": 57,
+          "runs_total": 105,
+          "runs_marked": 58,
           "runs_sentinel": 0,
           "runs_unmarked": 47,
-          "tokens_total": 7716439,
-          "median_tokens_per_run": 129717,
-          "share_pct": 15
+          "tokens_total": 7909564,
+          "median_tokens_per_run": 131071,
+          "share_pct": 16
         }
       ],
       "by_week": [
@@ -2823,28 +2838,28 @@
             },
             {
               "role": "Implementation",
-              "runs_marked": 2,
-              "median_tokens": 399647
+              "runs_marked": 3,
+              "median_tokens": 352998
             },
             {
               "role": "Code Review",
-              "runs_marked": 3,
-              "median_tokens": 170401
+              "runs_marked": 4,
+              "median_tokens": 163192
             },
             {
               "role": "Remediation",
-              "runs_marked": 8,
-              "median_tokens": 262020
+              "runs_marked": 9,
+              "median_tokens": 251104
             },
             {
               "role": "Validation",
-              "runs_marked": 9,
-              "median_tokens": 182301
+              "runs_marked": 10,
+              "median_tokens": 175378
             },
             {
               "role": "Planning",
-              "runs_marked": 2,
-              "median_tokens": 189888
+              "runs_marked": 3,
+              "median_tokens": 193125
             }
           ]
         }
@@ -2854,13 +2869,13 @@
   "quality": {
     "first_pass_clean": {
       "clean": 80,
-      "flagged": 99,
-      "rate_pct": 81
+      "flagged": 100,
+      "rate_pct": 80
     },
     "na_reliability": 26,
     "remediation_distribution": {
       "0": 80,
-      "1": 8,
+      "1": 9,
       "2": 3,
       "3": 3,
       "4": 2,
@@ -2872,7 +2887,7 @@
     "avg_validation_fails": 0,
     "avg_review_fails": 0,
     "verdict_mix": {
-      "PASS": 112,
+      "PASS": 113,
       "null": 13
     },
     "review_events": 26,
@@ -2937,23 +2952,23 @@
     },
     {
       "week": "2026-W34",
-      "delivered": 7,
-      "median_lead_time_seconds": 51861,
-      "busy_seconds": 51169,
-      "tokens": 5200805,
+      "delivered": 9,
+      "median_lead_time_seconds": 31385,
+      "busy_seconds": 57272,
+      "tokens": 6246229,
       "first_pass_rate": 0
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 56,
-    "oldest_age_days": 9,
+    "open_count": 66,
+    "oldest_age_days": 10,
     "items": [
       {
         "id": "fu-routines-iteration-backlog",
         "ref": "CHANGE-0128",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "Universal-routines carry-over batch: sequential-substitution value-as-token, POSIX-sh AC wording vs the bash runner, crontab pwd->HOME at fire time, --routine path confinement, revoked:true still granting, TEST-009 harness loop beyond codex, the pwsh-less CI degradation hole, TEST-002 regex breadth, and the latent isMain /var-symlink mismatch in routine-emit",
         "status": "open"
       },
@@ -2961,7 +2976,7 @@
         "id": "fu-routines-downstream-portability",
         "ref": "CHANGE-0129",
         "severity": "P3",
-        "age_days": 8,
+        "age_days": 9,
         "what": "Scryer routine downstream portability: INFO-3 section reorder places the health step above the merge-gate markers; O-1 the provenance preamble renders verbatim downstream although the trigger id and R1 mention are aai-specific; O-2 the Czech digest is hardcoded instead of a closed placeholder set",
         "status": "open"
       },
@@ -2969,7 +2984,7 @@
         "id": "fu-telemetry-completeness-20260811T0520",
         "ref": "telemetry-completeness",
         "severity": null,
-        "age_days": 7,
+        "age_days": 8,
         "what": "Codex P1 on PR #242 (enforce flip): under usage_capture_gate: enforce there is no per-run CLI correction for a run whose usage marker was omitted — append-run only appends, STATE hand-edits are forbidden, so the supported recovery today is the dial toggle (report-only -> close -> enforce) plus the usage_capture=none sentinel for honest gaps.",
         "status": "open"
       },
@@ -2977,7 +2992,7 @@
         "id": "fu-factory-report-sparkline-scale",
         "ref": "CHANGE-0130",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "Factory-report iteration carry: per-series sparkline scaling (same quantity on independent scales, a misread risk needing a spec change), render runs_marked as n= in the weekly cells and tooltips, strengthen the TEST-027 pins (vacuous n/a grep, doc-wide ref grep), and test-aai-metrics.sh dirtying the real tree",
         "status": "open"
       },
@@ -2985,7 +3000,7 @@
         "id": "fu-guard-dials-derivation",
         "ref": "CHANGE-0131",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "GUARD_DIALS is decorative: the defaults object and the parser regex carry the real behavior, so a seventh dial can silently half-register - derive both from the array. Paired item: the case-insensitive APFS vs case-sensitive CI divergence must be re-read at the evidence_path_gate enforce-flip decision",
         "status": "open"
       },
@@ -2993,7 +3008,7 @@
         "id": "fu-red-class-stamp-at-capture",
         "ref": "CHANGE-0139",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "RED_CLASS stamp-at-capture is still a process line only: stored RED logs keep the legacy unstamped shape and nothing mechanically enforces stamping at the moment of capture",
         "status": "open"
       },
@@ -3001,47 +3016,15 @@
         "id": "fu-orchestrator-git-add-scope-bleed",
         "ref": "CHANGE-0142",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "orchestrator must never git add -A while a subagent edits the same worktree; stage explicit paths",
-        "status": "open"
-      },
-      {
-        "id": "fu-flag-values-leading-dashes",
-        "ref": "CHANGE-0142",
-        "severity": "P3",
-        "age_days": 4,
-        "what": "flag values may not begin with -- so add --what \"--decisions is undocumented\" exits 2 and pushes the author back to the hand-written line the design exists to prevent",
-        "status": "open"
-      },
-      {
-        "id": "fu-generator-undercount-clause",
-        "ref": "CHANGE-0142",
-        "severity": "P3",
-        "age_days": 4,
-        "what": "a malformed line that IS a follow_up under-counts open_count behind a generic exclusion note that never says the figure may be understated",
-        "status": "open"
-      },
-      {
-        "id": "fu-ledger-readable-directory",
-        "ref": "CHANGE-0142",
-        "severity": "P3",
-        "age_days": 4,
-        "what": "requireReadableLedger accepts a DIRECTORY (or a path unreadable after the check), degrading D6's exit-2 unreadable-ledger contract to exit 0 plus an absent note",
-        "status": "open"
-      },
-      {
-        "id": "fu-malformed-explicit-id-unnamed",
-        "ref": "CHANGE-0142",
-        "severity": "P3",
-        "age_days": 4,
-        "what": "a malformed explicit follow-up id (e.g. BAD ID) is listed as an ordinary item with an empty notes array — only the derived-id case is named",
         "status": "open"
       },
       {
         "id": "fu-verify-staged-set-after-commit",
         "ref": "CHANGE-0142",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "orchestrator must verify git show --stat after every commit, not the exit code",
         "status": "open"
       },
@@ -3049,7 +3032,7 @@
         "id": "fu-context-window-telemetry",
         "ref": "RESEARCH-0001",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "measure context-window utilization per role and treat an overflowing window as an over-specification signal, not a tooling failure",
         "status": "open"
       },
@@ -3057,7 +3040,7 @@
         "id": "fu-corpus-navigability-measure",
         "ref": "RESEARCH-0001",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "measure whether the 345-document corpus is still navigable by a human, and act on the number",
         "status": "open"
       },
@@ -3065,7 +3048,7 @@
         "id": "fu-go-clarify-kill-gate",
         "ref": "RESEARCH-0001",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "a pre-spec gate that can recommend KILL, not only score readiness",
         "status": "open"
       },
@@ -3073,7 +3056,7 @@
         "id": "fu-shell-twin-parity-tax",
         "ref": "RESEARCH-0001",
         "severity": "P1",
-        "age_days": 4,
+        "age_days": 5,
         "what": "decide explicitly whether the remaining shell twin surface (sh plus ps1) is a standing cost we accept or a port we schedule",
         "status": "open"
       },
@@ -3081,7 +3064,7 @@
         "id": "fu-vocabulary-independence-chaos-test",
         "ref": "RESEARCH-0001",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "one-off chaos test: rename every artifact type and prove dispatch keys on structure, not document titles",
         "status": "open"
       },
@@ -3089,7 +3072,7 @@
         "id": "fu-intake-spec-id-collision-guard",
         "ref": "CHANGE-0144",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "make an intake id that collides with its spec id impossible, not merely correctable",
         "status": "open"
       },
@@ -3097,7 +3080,7 @@
         "id": "fu-mask-pipe-clause-unpinned",
         "ref": "CHANGE-0144",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "the specimen mask's pipe-preservation clause is not mutation-pinned: removing it from maskCodeSpecimens survives the whole spec-lint suite",
         "status": "open"
       },
@@ -3105,7 +3088,7 @@
         "id": "fu-test008-missing-red-artifact",
         "ref": "CHANGE-0144",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "spec TEST-008 has neither a red- nor a report- artifact although its RED is real and was reproduced independently by validation",
         "status": "open"
       },
@@ -3113,7 +3096,7 @@
         "id": "fu-mask-duplicates-docs-audit-core",
         "ref": "CHANGE-0144",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "the specimen masker in spec-lint.mjs duplicates docs-audit-core.mjs:782-875 more weakly, reintroducing both bugs that file fixed under SPEC-0013 W3",
         "status": "open"
       },
@@ -3121,7 +3104,7 @@
         "id": "fu-vague-term-line-attribution",
         "ref": "CHANGE-0144",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "ac-vague-term reports the Test Plan row's line number when the Test Plan section precedes the AC table (measured 19 vs 25)",
         "status": "open"
       },
@@ -3129,7 +3112,7 @@
         "id": "fu-test011-branch-diff-allowlist-tax",
         "ref": "CHANGE-0144",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "CHANGE-0144's TEST-011(clarify) allowlists .aai/ paths against the BRANCH diff, so every future scope that touches .aai/ must edit that test or go red",
         "status": "open"
       },
@@ -3137,7 +3120,7 @@
         "id": "fu-completion-line-hardcodes-index",
         "ref": "CHANGE-0143",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "the allocator's completion line hardcodes docs/INDEX.md into the regenerated list, so it names the file even when generate-docs-index.mjs is absent and nothing was rewritten",
         "status": "open"
       },
@@ -3145,7 +3128,7 @@
         "id": "fu-overview-partial-write-unnamed",
         "ref": "CHANGE-0143",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "generate-overview.mjs writes the JSON before the HTML, so a throw between them leaves a modified page the stage-me list never names",
         "status": "open"
       },
@@ -3153,7 +3136,7 @@
         "id": "fu-rollup-creates-userguide",
         "ref": "CHANGE-0143",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "the spec's edge case says the rollup generator no-ops when USER_GUIDE.md is absent; it CREATES the file",
         "status": "open"
       },
@@ -3161,7 +3144,7 @@
         "id": "fu-index-regen-silent-degrade",
         "ref": "close-regenerate-order",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "regenerateIndex() swallows generator failures with no named stderr line, unlike the two spec-page generators",
         "status": "open"
       },
@@ -3169,7 +3152,7 @@
         "id": "fu-reserve-success-path-uncovered",
         "ref": "close-regenerate-order",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "the universal no-regeneration arm never exercises a --reserve that actually allocates",
         "status": "open"
       },
@@ -3177,7 +3160,7 @@
         "id": "fu-dispatch-targets-closed-scope",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "orchestration-dispatch matched rule 6 and dispatched Planning onto a scope it already knew was closed",
         "status": "open"
       },
@@ -3185,7 +3168,7 @@
         "id": "fu-setfocus-keeps-stale-spec-path",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "set-focus to a new ref leaves the previous scope's spec_path in current_focus, so the next dispatch hands the role a foreign spec as an input",
         "status": "open"
       },
@@ -3193,23 +3176,15 @@
         "id": "fu-subagent-state-write-contradiction",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "SUBAGENT_CONTRACT forbids subagent STATE writes while the dispatch block explicitly directs them; two roles hit it independently in one ride",
-        "status": "open"
-      },
-      {
-        "id": "fu-deslop-corpus-header-other-bucket",
-        "ref": "deslop-scope-and-unrequested-engine",
-        "severity": "P3",
-        "age_days": 3,
-        "what": "resolveAllCorpus's --all header counts (included plus the five per-status excluded buckets) do not sum to files scanned: a type spec doc whose status is outside the five closed-list statuses, or whose frontmatter fails to parse, is dropped from BOTH the included and excluded lines with no visible signal.",
         "status": "open"
       },
       {
         "id": "fu-tdd-skips-full-sweep",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "the TDD role declares done after targeted suites only, so defects visible only to the full framework sweep surface two roles later and cost a whole validate-remediate lap each",
         "status": "open"
       },
@@ -3217,7 +3192,7 @@
         "id": "fu-deslop-range-mode-dirty-worktree",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "range mode takes added-line numbers from git diff base...HEAD but reads file content from the worktree, so a dirty tree reports an untouched symbol and misses the changed ones",
         "status": "open"
       },
@@ -3225,7 +3200,7 @@
         "id": "fu-validation-staleness-undetected",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "a validation pass survives a later remediation that rewrites the validated code, and the default routing skips re-validation",
         "status": "open"
       },
@@ -3233,23 +3208,15 @@
         "id": "fu-subagent-probe-hits-real-repo",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P1",
-        "age_days": 3,
+        "age_days": 4,
         "what": "a validator probe helper ran git commands against the real repository and created two commits on main",
-        "status": "open"
-      },
-      {
-        "id": "fu-deslop-adjudication-self-suppression",
-        "ref": "deslop-scope-and-unrequested-engine",
-        "severity": "P2",
-        "age_days": 2,
-        "what": "writing the list of indefensible candidates into the spec made the engine suppress them, because any mention in a requirement doc counts as the requirement naming the symbol",
         "status": "open"
       },
       {
         "id": "fu-deslop-external-bin-words-closed-list",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "EXTERNAL_BIN_WORDS (the .sh/.ps1 external-tool recognizer in D3) is a closed, hardcoded 10-binary list (git, gh, cargo, rg, wrangler, tsc, wsl, sed, npm, npx). A binary outside this list, e.g. grep --color=auto, yields --color as a live candidate instead of being excluded.",
         "status": "open"
       },
@@ -3257,23 +3224,15 @@
         "id": "fu-deslop-external-call-shape-gaps",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "The .mjs external-tool exclusion (D3) misses two call shapes: (a) a subprocess call whose command is an expression rather than a string literal, e.g. execFileSync(ghBinOf(opts), [... '--jq' ...]) in hitl-channel.mjs:233 leaks gh's --jq; (b) an argv array built and returned by a helper function rather than a local const, e.g. buildGhArgs() in aai-issues.mjs:235 leaks gh's --state.",
-        "status": "open"
-      },
-      {
-        "id": "fu-deslop-all-corpus-specs-only",
-        "ref": "deslop-scope-and-unrequested-engine",
-        "severity": "P2",
-        "age_days": 2,
-        "what": "The --all requirement corpus is docs/specs/** with type: spec only; a flag or config key requested in docs/issues/** or docs/rfc/** is not suppressed and still reports as an unrequested-surface candidate.",
         "status": "open"
       },
       {
         "id": "fu-deslop-test014-no-restore-trap",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "tests/skills/test-aai-deslop.sh:916 TEST-014 runs generate-docs-hub.mjs against the real repo and restores docs/SKILL_CATALOG.html and docs/skill-catalog-data.json from mktemp copies at the end of the function, with no trap.",
         "status": "open"
       },
@@ -3281,23 +3240,15 @@
         "id": "fu-allocator-misses-wrapped-refs",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "the allocator's reference-rewrite pass misses a DRAFT basename that is line-wrapped across two comment lines",
-        "status": "open"
-      },
-      {
-        "id": "fu-deslop-allcorpus-unreadable-silent",
-        "ref": "deslop-scope-and-unrequested-engine",
-        "severity": "P3",
-        "age_days": 2,
-        "what": "resolveAllCorpus silently skips a spec file it cannot read, while the diff path now names it",
         "status": "open"
       },
       {
         "id": "fu-tdd-red-logs-gitignored",
         "ref": "role-verification-guards",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "cited RED and GREEN evidence logs live under a gitignored tree, so cited proof does not ship",
         "status": "open"
       },
@@ -3305,7 +3256,7 @@
         "id": "fu-test020-corpus-regex-thin",
         "ref": "role-verification-guards",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "TEST-020 corpus regex is thin though it does bite",
         "status": "open"
       },
@@ -3313,7 +3264,7 @@
         "id": "fu-dispatch-prompt-coaching-bias",
         "ref": "role-verification-guards",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "my role dispatches pre-rank findings and name the pattern to look for, which frames the answer before the role forms one",
         "status": "open"
       },
@@ -3321,7 +3272,7 @@
         "id": "fu-ts-precision-unify-source",
         "ref": "role-verification-guards",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "state-engine.mjs nowIso() truncates ISO timestamps to the second while append-event.mjs keeps milliseconds; orchestration-dispatch.mjs now defends against this at the comparison site (Date.parse + Number.isFinite instants), but the two producers still disagree at the source",
         "status": "open"
       },
@@ -3329,7 +3280,7 @@
         "id": "fu-g2-restamp-tick-false-stale",
         "ref": "role-verification-guards",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "the stale advisory prints from the pre-write snapshot on the re-stamp tick, so every fresh validation round emits one false validation_verdict_stale line",
         "status": "open"
       },
@@ -3337,7 +3288,7 @@
         "id": "fu-g4-corpus-regex-polarity",
         "ref": "role-verification-guards",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "TEST-020's corpus scan is polarity-blind and passes only by accident",
         "status": "open"
       },
@@ -3345,7 +3296,7 @@
         "id": "fu-escape-literals-self-inflict",
         "ref": "docs-model-nul-escape",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "writing about a control-character escape reliably inserts the control character itself into the prose",
         "status": "open"
       },
@@ -3353,7 +3304,7 @@
         "id": "fu-no-nul-guard",
         "ref": "docs-model-nul-escape",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "nothing checks tracked text files for NUL bytes, so a control character can silently turn a source file binary to POSIX grep",
         "status": "open"
       },
@@ -3361,7 +3312,7 @@
         "id": "fu-scope-cost-no-live-view",
         "ref": "ride-cost-readout",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "scope_cost rows only exist after metrics-flush and the report only regenerates at close, so the section cannot serve the intake's headline motivation (deciding to stop a ride while it is still running)",
         "status": "open"
       },
@@ -3369,7 +3320,7 @@
         "id": "fu-validation-ignores-suite-selector",
         "ref": "ride-cost-readout",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "validation picks its suites from the declared review scope while CI picks them from select-suites, so a CORE suite can be skipped in validation and fail in CI",
         "status": "open"
       },
@@ -3377,7 +3328,7 @@
         "id": "fu-orchestrator-does-not-watch-ci",
         "ref": "ride-cost-readout",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "after pushing a PR the orchestrator stops instead of watching CI, so a failure sits undetected until the owner asks",
         "status": "open"
       },
@@ -3395,6 +3346,150 @@
         "severity": "P3",
         "age_days": 0,
         "what": "requireReadableLedger (follow-ups.mjs:452) uses !st.isFile(), refusing EVERY non-regular file, not just the directory D2 targets; list --ledger <(cat docs/ai/decisions.jsonl) now exits 2 ledger is not a regular file: /dev/fd/N, where it worked before this change (FIFOs, /dev/stdin, process substitution)",
+        "status": "open"
+      },
+      {
+        "id": "fu-idempotence-assert-no-diff",
+        "ref": "followups-cli-hardening",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the core-sync idempotence assertion discards both sync logs and prints no diff, so a rare failure costs a full investigation to reproduce",
+        "status": "open"
+      },
+      {
+        "id": "fu-sync-hash-compare-fails-open",
+        "ref": "followups-cli-hardening",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "file_content_different in aai-sync.sh treats an unobtainable hash as different, so a transient sha256sum hiccup silently rewrites the target's copilot shim and plants a project-overrides file",
+        "status": "open"
+      },
+      {
+        "id": "fu-bare-main-baseref-sweep",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "No guard stops a NEW test or script from pinning a bare 'main' ref that silently never resolves on a pull_request checkout",
+        "status": "open"
+      },
+      {
+        "id": "fu-deslop-suite-additivity-guard",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "No mechanical guard remains that a pre-existing arm or assertion in tests/skills/test-aai-deslop.sh is not removed: TEST-027 (test_027_suite_stays_green_and_additive) was mechanized four times, failed independent validation four times, and was withdrawn 2026-08-18, taking the suite-additivity clause of Spec-AC-06 with it.",
+        "status": "open"
+      },
+      {
+        "id": "fu-close-before-push-ordering",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "The PR ceremony ordering - run close-work-item.mjs BEFORE the push, not after - is currently only a habit; nothing enforces it, so a ride can push first and then spend a round chasing framework reds that the close would have cleared.",
+        "status": "open"
+      },
+      {
+        "id": "fu-test005-no-exit-assert",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "TEST-005 (no-write proof) never asserts the engine's exit code, so an engine that dies before doing anything passes it vacuously",
+        "status": "open"
+      },
+      {
+        "id": "fu-spec0132-cmp-wording",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "SPEC-0132 says its no-write and corpus arms compare manifests with cmp, but tests/skills/test-aai-deslop.sh invokes no cmp command - the comparisons are shell string compares",
+        "status": "open"
+      },
+      {
+        "id": "fu-deslop-ac02-single-citation",
+        "ref": "spec-deslop-corpus-honesty",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "TEST-023's real-tree citation loop depends on a single non-docs/specs citation per symbol (CHANGE-0125 twice, CHANGE-0096 once)",
+        "status": "open"
+      },
+      {
+        "id": "fu-docnumbering-t013-writes-real-tree",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "tests/skills/test-aai-doc-numbering.sh TEST-013 runs generate-docs-index.mjs against PROJECT_ROOT and rewrites docs/INDEX.md in whatever tree it runs in",
+        "status": "open"
+      },
+      {
+        "id": "fu-test028-exitcode-not-clean",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "TEST-028 asserts docs-audit is clean by checking its EXIT CODE, but docs-audit exits 0 even at NEEDS-TRIAGE, so the arm is green while the audit is not clean",
+        "status": "open"
+      },
+      {
+        "id": "fu-docnumbering-logfail-aborts-suite",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "log_fail in tests/skills/test-aai-doc-numbering.sh calls exit 1, so the first failed assertion aborts the whole suite and every later arm silently never runs",
+        "status": "open"
+      },
+      {
+        "id": "fu-mutation-rig-copies-whole-tree",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "mutation testing has no rig, so each trial rsyncs the whole 119 MB tree and re-runs a full suite; nine trials plus a fixture battery cost one validation round five and a half hours",
+        "status": "open"
+      },
+      {
+        "id": "fu-round7-report-never-written",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "validation round 7 returned a full verdict in its subagent record but never wrote its report to docs/ai/validation, so the on-disk evidence trail jumps round6 to round8",
+        "status": "open"
+      },
+      {
+        "id": "fu-deslop-t026-draft-flag-unpinned",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "TEST-026's d3 draft-only fixture body says --draft-only-flag must still be reported, but no assertion in that arm checks the flag is reported",
+        "status": "open"
+      },
+      {
+        "id": "fu-deslop-diff-balance-clause-shadowed",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "no suite arm fails on the --diff balance clause alone: both --diff balance assertions sit beside literal pins on the same two numbers",
+        "status": "open"
+      },
+      {
+        "id": "fu-deslop-symlink-fixtures-windows",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the four ln -s dangling-symlink fixtures in tests/skills/test-aai-deslop.sh are unverified on Windows and Git-Bash",
+        "status": "open"
+      },
+      {
+        "id": "fu-deslop-unanchored-report-line-greps",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "seven report-line assertions in tests/skills/test-aai-deslop.sh remain unanchored grep -qF substring probes after R-15 and R-20 anchored the corpus/bucket headers",
+        "status": "open"
+      },
+      {
+        "id": "fu-symlink-fixture-line-drift",
+        "ref": "deslop-corpus-honesty",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "fu-deslop-symlink-fixtures-windows cites tests/skills/test-aai-deslop.sh line 1998 for a symlink fixture that now sits at line 2005",
         "status": "open"
       }
     ]
@@ -4040,6 +4135,40 @@
         "remediation_runs": 3,
         "remediation_tokens": 485183,
         "remediation_share_pct": 40
+      },
+      {
+        "ref": "followups-cli-hardening",
+        "date_utc": "2026-08-18",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 6143,
+        "agent_seconds": 6103,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 5,
+        "tokens_total": 1045424,
+        "remediation_runs": 1,
+        "remediation_tokens": 174865,
+        "remediation_share_pct": 17
       },
       {
         "ref": "hitl-decision-propagation",

@@ -2326,17 +2326,17 @@ Deferred work used to disappear. When a review found something real but the ride
 
 [Product doc](product/aai-decisions.md) · [Spec](specs/SPEC-0129-spec-followup-registry.md)
 
-### Factory performance report
-
-Answers "how efficiently is the factory running" in one self-contained page: **what it delivers** (throughput), **how fast** (speed), **at what cost** (tokens), and **at what quality** — each as an overall rollup plus a per-ISO-week trend, computed deterministically from the local ledgers (METRICS.jsonl + EVENTS.jsonl, zero network). The page refreshes itself at every work-item close, so it is a continuous overview, not a one-off snapshot.
-
-[Product doc](product/factory-performance-report.md) · [Spec](specs/SPEC-0108-spec-factory-performance-report.md)
-
 ### Deslop pass — removing AI slop, and finding code nobody asked for
 
 `/aai-deslop` is an advisory pass that strips characteristic AI-generated noise from a change before review: comments that restate the next line, defensive try/catch around trusted internal calls, abstractions introduced for a single caller, behavior nobody asked for, and reformatting of untouched lines. It never blocks and never gates — skipping it is always a valid outcome.
 
 [Product doc](product/aai-deslop.md) · [Spec](specs/SPEC-0132-spec-deslop-scope-and-unrequested-engine.md)
+
+### Factory performance report
+
+Answers "how efficiently is the factory running" in one self-contained page: **what it delivers** (throughput), **how fast** (speed), **at what cost** (tokens), and **at what quality** — each as an overall rollup plus a per-ISO-week trend, computed deterministically from the local ledgers (METRICS.jsonl + EVENTS.jsonl, zero network). The page refreshes itself at every work-item close, so it is a continuous overview, not a one-off snapshot.
+
+[Product doc](product/factory-performance-report.md) · [Spec](specs/SPEC-0108-spec-factory-performance-report.md)
 
 ### Workflow metrics dashboard
 
