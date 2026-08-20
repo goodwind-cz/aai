@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-20T11:43:53.058Z
+Generated: 2026-08-20T19:36:06.182Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0138 | specs | implementing | 6 implementing | docs/specs/SPEC-0138-spec-suites-run-in-a-disposable-worktree.md |
 
 ## Canonical layer (0)
 
@@ -389,9 +390,11 @@ _None._
 | SPEC-0137 | specs | docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0152 | issues | docs/issues/CHANGE-0152-suites-run-in-a-disposable-worktree.md |
 
 ## Deferred (whole-doc) (0)
 

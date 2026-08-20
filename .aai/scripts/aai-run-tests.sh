@@ -101,6 +101,16 @@ fi
 # shadow the wrapper's positional parameters.
 AAI_CMD_DESC="$*"
 
+# Resolved ONCE, up front, because the isolation block below may `cd` into a
+# disposable checkout: after that, `dirname "$0"` no longer resolves for a
+# relative invocation. Every later user of this script's own location reads
+# these two instead of re-deriving them.
+AAI_SELF_DIR=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || AAI_SELF_DIR=''
+AAI_REPO_ROOT=''
+if [ -n "$AAI_SELF_DIR" ]; then
+  AAI_REPO_ROOT=$(cd "$AAI_SELF_DIR/../.." 2>/dev/null && pwd) || AAI_REPO_ROOT=''
+fi
+
 # --- SHIPPING-REPOSITORY WRITE TRIPWIRE ------------------------------------
 # (spec-suites-must-not-touch-the-shipping-repo, D1/D2.) This is the funnel
 # roles invoke ad hoc; tests/skills/test-framework.sh is the one CI runs and
@@ -112,14 +122,14 @@ AAI_CMD_DESC="$*"
 # permanently red. The framework tripwire is the one that fails a run.
 AAI_TW_ARMED=0
 AAI_TW_WHY=''
-AAI_TW_DIR=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || AAI_TW_DIR=''
+AAI_TW_DIR="$AAI_SELF_DIR"
 if [ -z "$AAI_TW_DIR" ]; then
   AAI_TW_WHY='cannot resolve this script directory'
 elif [ ! -f "$AAI_TW_DIR/lib/repo-tripwire.sh" ]; then
   AAI_TW_WHY="library not found: $AAI_TW_DIR/lib/repo-tripwire.sh"
 else
   . "$AAI_TW_DIR/lib/repo-tripwire.sh"
-  AAI_TW_ROOT=$(cd "$AAI_TW_DIR/../.." 2>/dev/null && pwd) || AAI_TW_ROOT=''
+  AAI_TW_ROOT="$AAI_REPO_ROOT"
   AAI_TW_BEFORE="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/aai-tripwire-b.$$")"
   AAI_TW_AFTER="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/aai-tripwire-a.$$")"
   if [ -n "$AAI_TW_ROOT" ] && [ -n "$AAI_TW_BEFORE" ] && [ -n "$AAI_TW_AFTER" ]; then
@@ -157,7 +167,7 @@ aai_capture_friction() {
   # $1 = exit code (integer), $2 = failure_class (taxonomy enum)
   [ "${AAI_FRICTION_CAPTURE:-1}" != "0" ] || return 0
   command -v node >/dev/null 2>&1 || return 0
-  fc_scriptdir=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || return 0
+  fc_scriptdir="$AAI_SELF_DIR"
   [ -n "$fc_scriptdir" ] || return 0
   fc_cli="$fc_scriptdir/aai-friction.mjs"
   [ -f "$fc_cli" ] || return 0
@@ -175,6 +185,173 @@ aai_capture_friction() {
   printf '%s' "$fc_json" | AAI_FRICTION_SPOOL_DIR="$fc_dir" node "$fc_cli" record --input - >/dev/null 2>&1 || true
   return 0
 }
+
+# --- DISPOSABLE-WORKTREE ISOLATION (spec-suites-run-in-a-disposable-worktree) -
+# A SUITE run through this ad hoc funnel gets the same throwaway checkout the
+# framework gives it. The tripwire above only tells you afterwards; this stops
+# it happening.
+#
+# SCOPED TO SUITE RUNS, deliberately. This wrapper carries arbitrary commands -
+# builds, generators, npm scripts - and isolating those would throw the artifact
+# away with the checkout, which is a regression rather than a guard.
+# tests/skills/test-framework.sh is excluded for the mirror-image reason: it
+# isolates per suite itself, and its run ledger has to land in the real tree.
+# AAI_TEST_ISOLATION=0 turns this off. The exit-code contract is untouched
+# either way: nothing below this line can change the wrapped command's status.
+AAI_ISO_BASE=''
+AAI_ISO_WT=''
+
+# aai_iso_deregister <wt> - drop the admin entry for ONE worktree path: the
+# entry a `git worktree prune` would drop for it, and no other. Matched by the
+# `gitdir` file, which holds the path verbatim as it was given to `worktree add`.
+#
+# Deliberately NOT `git worktree prune`, which is REPOSITORY-WIDE and judges
+# every registration by whether its directory is reachable RIGHT NOW. An
+# operator worktree parked on an unmounted volume, a detached external disk or a
+# temporarily renamed path is unreachable but perfectly alive, and prune deletes
+# its `.git/worktrees/<name>` metadata - after which `git worktree repair`
+# answers `fatal: not a git repository`. A test runner must not be able to do
+# that to the operator's own repository.
+aai_iso_deregister() {
+  ai_wt="$1"
+  [ -n "$ai_wt" ] || return 0
+  ai_common=$(cd "$AAI_REPO_ROOT" 2>/dev/null && cd "$(git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd) || return 0
+  { [ -n "$ai_common" ] && [ -d "$ai_common/worktrees" ]; } || return 0
+  for ai_adm in "$ai_common"/worktrees/*; do
+    [ -f "$ai_adm/gitdir" ] || continue
+    [ "$(cat "$ai_adm/gitdir" 2>/dev/null)" = "$ai_wt/.git" ] || continue
+    rm -rf "$ai_adm" >/dev/null 2>&1
+  done
+  return 0
+}
+
+aai_iso_cleanup() {
+  [ -n "$AAI_ISO_BASE" ] || return 0
+  # The happy path: `worktree remove` clears the directory AND the registration,
+  # and nothing else runs. Only when it FAILS is the registration cleared here,
+  # and then for this one checkout only.
+  if git --no-optional-locks -C "$AAI_REPO_ROOT" worktree remove --force "$AAI_ISO_WT" >/dev/null 2>&1; then
+    rm -rf "$AAI_ISO_BASE" >/dev/null 2>&1
+  else
+    rm -rf "$AAI_ISO_BASE" >/dev/null 2>&1
+    aai_iso_deregister "$AAI_ISO_WT"
+  fi
+  AAI_ISO_BASE=''
+  return 0
+}
+
+# aai_iso_is_suite_run - true when an argument names an existing test suite file
+# inside this repository's tests/ tree. The framework is never a suite run.
+#
+# The framework opt-out (D5) is matched by RESOLVED PATH, never by suffix. It
+# used to be the glob `*test-framework.sh` tried against every argument, so any
+# word ending in those characters - `my-test-framework.sh`, which need not even
+# name an existing file - silently turned isolation off for the WHOLE
+# invocation. Only this repository's own tests/skills/test-framework.sh opts
+# out now; TEST-005(e)/(f) hold both directions.
+aai_iso_is_suite_run() {
+  for ai_a in "$@"; do
+    [ "${ai_a##*/}" = "test-framework.sh" ] || continue
+    [ -f "$ai_a" ] || continue
+    ai_d=$(cd "$(dirname "$ai_a")" 2>/dev/null && pwd) || continue
+    if [ "$ai_d/test-framework.sh" = "$AAI_REPO_ROOT/tests/skills/test-framework.sh" ]; then
+      return 1
+    fi
+  done
+  for ai_a in "$@"; do
+    case "$ai_a" in
+      *test-*.sh) ;;
+      *) continue ;;
+    esac
+    [ -f "$ai_a" ] || continue
+    ai_d=$(cd "$(dirname "$ai_a")" 2>/dev/null && pwd) || continue
+    case "$ai_d/$(basename "$ai_a")" in
+      "$AAI_REPO_ROOT"/tests/*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+if [ "${AAI_TEST_ISOLATION:-1}" != "0" ] && [ -n "$AAI_REPO_ROOT" ] &&
+   git --no-optional-locks -C "$AAI_REPO_ROOT" rev-parse --verify -q HEAD >/dev/null 2>&1 &&
+   aai_iso_is_suite_run "$@"; then
+  AAI_ISO_BASE=$(mktemp -d "${TMPDIR:-/tmp}/aai-iso-wrap.XXXXXX" 2>/dev/null) || AAI_ISO_BASE=''
+  # Symlinks resolved, and it is load-bearing: on macOS $TMPDIR lives under
+  # /var, a symlink to /private/var, and every .mjs CLI here guards main() with
+  # path.resolve(process.argv[1]) === fileURLToPath(import.meta.url). From an
+  # unresolved checkout that guard is false, so the CLI prints nothing and exits
+  # 0 - a silent no-op that reads as an assertion failure. No-op elsewhere.
+  if [ -n "$AAI_ISO_BASE" ]; then
+    AAI_ISO_BASE=$(cd "$AAI_ISO_BASE" 2>/dev/null && pwd -P) || AAI_ISO_BASE=''
+  fi
+  AAI_ISO_WT="$AAI_ISO_BASE/wt"
+  if [ -z "$AAI_ISO_BASE" ] ||
+     ! git --no-optional-locks -C "$AAI_REPO_ROOT" worktree add --detach --quiet "$AAI_ISO_WT" HEAD >/dev/null 2>&1 ||
+     ! cd "$AAI_ISO_WT"; then
+    [ -n "$AAI_ISO_BASE" ] && rm -rf "$AAI_ISO_BASE"
+    AAI_ISO_BASE=''
+    echo "AAI-ISOLATION: NOTE - no disposable checkout could be made; the command runs against the shipping repository." >&2
+  else
+    # A worktree checks out a COMMIT, so without the three steps below the copy
+    # is HEAD: uncommitted edits and brand-new untracked suite files would be
+    # invisible and a TDD RED could never go red.
+    # (1) the tracked diff, staged and unstaged, binary-safe.
+    git --no-optional-locks -C "$AAI_REPO_ROOT" diff HEAD --binary > "$AAI_ISO_BASE/wt.patch" 2>/dev/null
+    if [ -s "$AAI_ISO_BASE/wt.patch" ] &&
+       ! git -C "$AAI_ISO_WT" apply --whitespace=nowarn "$AAI_ISO_BASE/wt.patch" >/dev/null 2>&1; then
+      echo "AAI-ISOLATION: NOTE - the working-tree diff could not be replayed; the command sees HEAD, not your uncommitted edits." >&2
+    fi
+    # (2) untracked-but-not-ignored files - a brand-new suite is exactly this.
+    git --no-optional-locks -C "$AAI_REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null |
+      while IFS= read -r ai_f; do
+        case "$ai_f" in
+          \"*) echo "AAI-ISOLATION: NOTE - untracked path $ai_f carries a character git quotes and was NOT seeded into the disposable checkout." >&2; continue ;;
+        esac
+        mkdir -p "$AAI_ISO_WT/$(dirname "$ai_f")" 2>/dev/null
+        cp -p "$AAI_REPO_ROOT/$ai_f" "$AAI_ISO_WT/$ai_f" 2>/dev/null
+      done
+    # (3) the gitignored per-dev files suites READ. Without these, four
+    # assertion groups turn into PASSING SKIPS - a greener run that tests less.
+    for ai_f in ${AAI_TEST_ISOLATION_SEED:-docs/ai/STATE.yaml docs/ai/LOOP_TICKS.jsonl docs/ai/hitl-channel.json}; do
+      [ -f "$AAI_REPO_ROOT/$ai_f" ] || continue
+      mkdir -p "$AAI_ISO_WT/$(dirname "$ai_f")" 2>/dev/null
+      cp -p "$AAI_REPO_ROOT/$ai_f" "$AAI_ISO_WT/$ai_f" 2>/dev/null
+    done
+    # Absolute arguments pointing into the checkout are retargeted; relative
+    # ones resolve against the new working directory by themselves. An existing
+    # absolute path is NORMALISED before the prefix test, because a caller's
+    # spelling need not match the root's: $TMPDIR ends in a slash on macOS, so
+    # a path built from it carries a `//` that no prefix comparison against a
+    # cd-normalised root can ever match. Measured - the un-normalised form left
+    # an absolute suite path pointing back at the shipping repository while the
+    # working directory had already moved, i.e. isolation that isolated nothing.
+    ai_n=$#
+    ai_i=0
+    while [ "$ai_i" -lt "$ai_n" ]; do
+      ai_a="$1"
+      shift
+      case "$ai_a" in
+        /*)
+          if [ -e "$ai_a" ]; then
+            ai_p=$(cd "$(dirname "$ai_a")" 2>/dev/null && pwd)/$(basename "$ai_a")
+            case "$ai_p" in
+              "$AAI_REPO_ROOT"/*) ai_a="$AAI_ISO_WT/${ai_p#"$AAI_REPO_ROOT"/}" ;;
+            esac
+          fi
+          ;;
+      esac
+      set -- "$@" "$ai_a"
+      ai_i=$((ai_i + 1))
+    done
+  fi
+fi
+
+# A pass and a failure both reach the removal after the group reap below; a
+# hangup and a Ctrl-C do not, so they are trapped. No EXIT trap: dash runs one
+# inside a subshell, and this script forks the watchdog as a subshell.
+trap 'aai_iso_cleanup; exit 130' INT
+trap 'aai_iso_cleanup; exit 143' TERM
+trap 'aai_iso_cleanup; exit 129' HUP
 
 # Launch the command as the leader of a NEW session / process group so that even
 # descendants it REPARENTS away (double-fork, `( ... ) & exit 0`) stay inside one
@@ -272,6 +449,12 @@ else
   sleep 1
   kill -KILL -"$PGID" 2>/dev/null
 fi
+
+# The disposable checkout goes BEFORE the after-snapshot, so its removal falls
+# inside the tripwire's window instead of after it. This is the removal that
+# covers a pass, a failure and a watchdog kill alike; the signal traps above
+# cover the paths that never reach here.
+aai_iso_cleanup
 
 # Tripwire, second half — fires on EVERY exit path (success, failure, timeout),
 # because a command killed at the watchdog is exactly the case most likely to
