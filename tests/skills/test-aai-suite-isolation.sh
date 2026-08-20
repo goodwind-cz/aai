@@ -455,9 +455,10 @@ exit 0'
 # TEST-005 (AC-005) — the ad hoc funnel isolates too, without touching the
 # wrapped command's exit code. And it isolates a SUITE RUN, not everything: a
 # build run through this wrapper must still leave its artifact behind, or the
-# guard is a regression wearing a guard's clothes. Sub-arms (e) and (f) pin the
-# framework opt-out from both sides: a decoy argument must not buy it, and the
-# genuine framework must still get it.
+# guard is a regression wearing a guard's clothes. Sub-arms (e), (f) and (g) pin
+# the framework opt-out from all three sides: a decoy WORD must not buy it, the
+# genuine framework invocation must still get it, and the genuine framework PATH
+# carried as an argument of another suite must not buy it either.
 # ---------------------------------------------------------------------------
 test_005_wrapper_isolates_a_suite_run() {
   local d evid ok=1 rc=0 before after
@@ -549,13 +550,38 @@ exit \"\${1:-0}\""
   [[ -n "$(ls -A "$d/tests/skills/results" 2>/dev/null)" ]] \
     || { log_info "TEST-005(f): the wrapper isolated the framework — its run ledger went with the disposable checkout instead of landing in the real tree (D5)"; ok=0; }
 
-  # No registration and no directory survives any of the four.
+  # (g) THE SECOND DECOY — the same class as (e), one variable over, and the one
+  # still live when Codex reviewed PR #267. Making the match exact left the SCAN
+  # over every argument, so a WRITING suite that merely CARRIES the genuine
+  # framework path as one of its own arguments bought the opt-out for the whole
+  # invocation: the suite ran against the shipping checkout, and because this
+  # funnel's tripwire is report-only its writes stayed and the run still exited
+  # 0. Measured before the fix on this fixture: ` M tracked.txt` +
+  # `?? untracked-dirt.txt`, with the suite reporting the fixture root as its
+  # own. The opt-out now reads the EXECUTED script only.
+  rc=0
+  rm -f "$evid/wroot.txt"
+  before="$(repo_state "$d")"
+  ( cd "$d" && AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wsuite.sh 0 tests/skills/test-framework.sh ) >/dev/null 2>&1 || rc=$?
+  after="$(repo_state "$d")"
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-005(g): exit=$rc (want the command's own 0)"; ok=0; }
+  [[ -s "$evid/wroot.txt" ]] || { log_info "TEST-005(g): the suite never ran, so the arm proves nothing"; ok=0; }
+  # Same `cd … && pwd -P` comparison as (e), and for the same measured reason.
+  local seen_g="" root_g
+  [[ -s "$evid/wroot.txt" ]] && seen_g="$(cd "$(cat "$evid/wroot.txt")" 2>/dev/null && pwd -P)"
+  root_g="$(cd "$d" && pwd -P)"
+  [[ -n "$seen_g" && "$seen_g" == "$root_g" ]] \
+    && { log_info "TEST-005(g): the genuine framework path passed as an ARGUMENT of another suite turned isolation OFF — the suite ran at $seen_g, i.e. IN the shipping repository"; ok=0; }
+  [[ "$before" == "$after" ]] \
+    || { log_info "TEST-005(g): the shipping repository MOVED when the framework path rode along as a suite argument. before=[$before] after=[$after]"; ok=0; }
+
+  # No registration and no directory survives any of them.
   local n_reg
   n_reg=$(( $(git -C "$d" worktree list 2>/dev/null | wc -l) - 1 ))
   [[ "$n_reg" -eq 0 ]] \
     || { log_info "TEST-005: $n_reg disposable checkout(s) still registered: $(git -C "$d" worktree list)"; ok=0; }
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-005 the ad hoc funnel isolates a suite run by relative and by absolute path, leaves exit 0 and exit 7 untouched, leaks no worktree, still runs a non-suite command in the real tree, still isolates when a decoy argument named my-test-framework.sh is present, and still excludes the genuine test-framework.sh so its run ledger lands in the real tree" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-005 the ad hoc funnel isolates a suite run by relative and by absolute path, leaves exit 0 and exit 7 untouched, leaks no worktree, still runs a non-suite command in the real tree, still isolates when a decoy argument named my-test-framework.sh is present, still isolates when the GENUINE tests/skills/test-framework.sh path rides along as an argument of another suite, and still excludes the genuine test-framework.sh invocation itself so its run ledger lands in the real tree" \
     || log_fail "TEST-005 the wrapper isolates a suite run"
 }
 

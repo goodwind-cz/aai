@@ -209,8 +209,12 @@ AAI_ISO_WT=''
 # every registration by whether its directory is reachable RIGHT NOW. An
 # operator worktree parked on an unmounted volume, a detached external disk or a
 # temporarily renamed path is unreachable but perfectly alive, and prune deletes
-# its `.git/worktrees/<name>` metadata - after which `git worktree repair`
-# answers `fatal: not a git repository`. A test runner must not be able to do
+# its `.git/worktrees/<name>` metadata - after which the registration is gone
+# for good. Measured on git 2.50.1, both halves of that: `git worktree repair
+# <path>` answers `error: unable to locate repository; .git file does not
+# reference a repository: <path>/.git` (rc 1), and any git command run INSIDE
+# the restored directory answers `fatal: not a git repository:
+# <common-dir>/worktrees/<name>` (rc 128). A test runner must not be able to do
 # that to the operator's own repository.
 aai_iso_deregister() {
   ai_wt="$1"
@@ -240,24 +244,53 @@ aai_iso_cleanup() {
   return 0
 }
 
+# aai_iso_exec_script - print the path of the script the wrapped command
+# actually EXECUTES, or nothing when it executes no script file (`sh -c '...'`,
+# `npm test`, a binary). `bash <suite> tests/skills/test-framework.sh` executes
+# <suite>: the framework name there is an ARGUMENT OF that suite, not the
+# program being run, and the opt-out below must not see it.
+aai_iso_exec_script() {
+  [ "$#" -gt 0 ] || return 0
+  case "${1##*/}" in
+    sh|bash|dash|ash|ksh|ksh93|zsh)
+      shift
+      while [ "$#" -gt 0 ]; do
+        case "$1" in
+          -c) return 0 ;;
+          --) shift; break ;;
+          -o|+o) shift; [ "$#" -gt 0 ] && shift ;;
+          -*|+*) shift ;;
+          *) break ;;
+        esac
+      done
+      ;;
+  esac
+  [ "$#" -gt 0 ] || return 0
+  printf '%s\n' "$1"
+  return 0
+}
+
 # aai_iso_is_suite_run - true when an argument names an existing test suite file
 # inside this repository's tests/ tree. The framework is never a suite run.
 #
-# The framework opt-out (D5) is matched by RESOLVED PATH, never by suffix. It
-# used to be the glob `*test-framework.sh` tried against every argument, so any
-# word ending in those characters - `my-test-framework.sh`, which need not even
-# name an existing file - silently turned isolation off for the WHOLE
-# invocation. Only this repository's own tests/skills/test-framework.sh opts
-# out now; TEST-005(e)/(f) hold both directions.
+# The framework opt-out (D5) is matched by RESOLVED PATH, never by suffix, and
+# against the EXECUTED SCRIPT ONLY. Two bypasses, one class, both closed here:
+# it used to be the glob `*test-framework.sh` (so the bare word
+# `my-test-framework.sh` disarmed isolation), and the exact match that replaced
+# it was still tried against EVERY argument (so
+# `bash <a-writing-suite> tests/skills/test-framework.sh` disarmed it, and the
+# suite then wrote to the shipping checkout under a report-only tripwire -
+# Codex, PR #267). Only an invocation whose executed script IS this
+# repository's tests/skills/test-framework.sh opts out; TEST-005(e)/(f)/(g)
+# hold all three directions.
 aai_iso_is_suite_run() {
-  for ai_a in "$@"; do
-    [ "${ai_a##*/}" = "test-framework.sh" ] || continue
-    [ -f "$ai_a" ] || continue
-    ai_d=$(cd "$(dirname "$ai_a")" 2>/dev/null && pwd) || continue
-    if [ "$ai_d/test-framework.sh" = "$AAI_REPO_ROOT/tests/skills/test-framework.sh" ]; then
+  ai_exec=$(aai_iso_exec_script "$@")
+  if [ -n "$ai_exec" ] && [ "${ai_exec##*/}" = "test-framework.sh" ] && [ -f "$ai_exec" ]; then
+    ai_d=$(cd "$(dirname "$ai_exec")" 2>/dev/null && pwd) || ai_d=''
+    if [ -n "$ai_d" ] && [ "$ai_d/test-framework.sh" = "$AAI_REPO_ROOT/tests/skills/test-framework.sh" ]; then
       return 1
     fi
-  done
+  fi
   for ai_a in "$@"; do
     case "$ai_a" in
       *test-*.sh) ;;

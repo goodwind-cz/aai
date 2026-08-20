@@ -306,10 +306,13 @@ iso_create() {
 # and judges every registration by whether its directory is reachable RIGHT NOW.
 # An operator worktree parked on an unmounted volume, a detached external disk
 # or a temporarily renamed path is unreachable but perfectly alive, and prune
-# deletes its `.git/worktrees/<name>` metadata — after which `git worktree
-# repair` answers `fatal: not a git repository` and the registration is gone for
-# good. A test harness must not be able to do that to the operator's own
-# repository, ~81 times a run.
+# deletes its `.git/worktrees/<name>` metadata — after which the registration is
+# gone for good. Measured on git 2.50.1, both halves of that: `git worktree
+# repair <path>` answers `error: unable to locate repository; .git file does not
+# reference a repository: <path>/.git` (rc 1), and any git command run INSIDE
+# the restored directory answers `fatal: not a git repository:
+# <common-dir>/worktrees/<name>` (rc 128). A test harness must not be able to do
+# that to the operator's own repository, ~81 times a run.
 iso_deregister() {
   local wt="$1" common admin
   [[ -n "$wt" && "$wt" == /* ]] || return 0
