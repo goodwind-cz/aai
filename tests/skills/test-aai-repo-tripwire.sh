@@ -30,6 +30,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
+# The ONE thing disposable-worktree isolation
+# (spec-suites-run-in-a-disposable-worktree) had to change in an existing suite.
+# Every framework arm below runs a BYTE COPY of test-framework.sh over fixture
+# suites whose whole job is to dirty their own fixture repository. With
+# isolation on, those fixtures dirty a throwaway worktree instead and the
+# tripwire never sees the write it exists to catch — which is the right
+# behaviour and the wrong test. MEASURED, twice, rather than reasoned: remove
+# this export and 6 of the 12 arms go RED (TEST-001, TEST-002, TEST-008,
+# TEST-009, TEST-011, TEST-012) against a 12/12 green control. The other six
+# stay green; whether any of those then passes for the wrong reason was not
+# measured. Either way the suite stops testing the tripwire, so isolation is
+# off for this suite's children only.
+# It does not weaken the guard: nothing here writes to the real checkout, and
+# the outer framework's own tripwire still watches this suite.
+export AAI_TEST_ISOLATION=0
+
 TRIPWIRE_LIB="$PROJECT_ROOT/.aai/scripts/lib/repo-tripwire.sh"
 FRAMEWORK="$PROJECT_ROOT/tests/skills/test-framework.sh"
 WRAPPER="$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh"

@@ -196,6 +196,169 @@ tripwire_hash_line() {
   fi
 }
 
+# --- DISPOSABLE-WORKTREE ISOLATION (spec-suites-run-in-a-disposable-worktree) -
+# Every suite runs in a throwaway `git worktree` seeded from the WORKING TREE,
+# so a suite's writes do not reach the shipping WORKING TREE by accident, and it
+# is observable when they do. Not `cannot`: a worktree links back to the
+# repository's common directory, so `git -C "$PROJECT_ROOT" rev-parse
+# --git-common-dir` hands a suite the shipping tree's path in ONE command, and
+# refs, `.git/config` and `.git/hooks` are reachable the same way (measured;
+# spec D7). What this closes is the ordinary path — a suite resolving its own
+# root and writing there — not a determined one. That is not closed here. The tripwire above is
+# deliberately left armed on the real checkout: if isolation is complete it
+# simply never fires, and if it fires that is information.
+#
+# Seeded from the working tree, not from HEAD, because `git worktree add`
+# checks out a COMMIT: uncommitted edits and brand-new untracked suite files
+# would be invisible, and a TDD RED could never go red. Measured on the naive
+# form: a new suite reports `No such file or directory` and is counted a test
+# failure. Three things are therefore replayed into the checkout —
+#   1. the tracked diff, staged and unstaged, binary-safe (`git diff HEAD`);
+#   2. the untracked-but-not-ignored files (a brand-new suite is exactly this);
+#   3. the gitignored per-dev files suites READ. Without (3) four assertion
+#      groups silently become PASSING SKIPS — check-state TEST-010/TEST-002,
+#      orchestration-mode TEST-016 and orchestration-dispatch's repo-wide gate
+#      all skip when docs/ai/STATE.yaml is absent, which is a greener run that
+#      tests less: the exact failure mode the tripwire exists to prevent.
+# The seed list is overridable (AAI_TEST_ISOLATION_SEED) so a downstream project
+# with different per-dev files does not have to fork this file.
+ISOLATION_SEED_PATHS="${AAI_TEST_ISOLATION_SEED:-docs/ai/STATE.yaml docs/ai/LOOP_TICKS.jsonl docs/ai/hitl-channel.json}"
+ISOLATION_ENABLED=true
+ISOLATION_WHY=""
+# At most one live disposable checkout at a time (each suite's is destroyed
+# before the next is made); the array is what the signal traps below drain, so a
+# watchdog kill or a Ctrl-C cannot leak one.
+ISOLATION_BASES=()
+
+iso_git() { git --no-optional-locks -C "$PROJECT_ROOT" "$@"; }
+
+# iso_probe — decide ONCE whether isolation is possible, and name the reason
+# when it is not (Constitution art. 4: degrade with a NOTE, never silently).
+iso_probe() {
+  if [[ "${AAI_TEST_ISOLATION:-1}" == "0" ]]; then
+    ISOLATION_ENABLED=false
+    ISOLATION_WHY="AAI_TEST_ISOLATION=0"
+  elif ! command -v git >/dev/null 2>&1; then
+    ISOLATION_ENABLED=false
+    ISOLATION_WHY="git not found"
+  elif ! iso_git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+    ISOLATION_ENABLED=false
+    ISOLATION_WHY="$PROJECT_ROOT is not a git checkout with a commit to branch from"
+  fi
+}
+
+# iso_create <skill> — make a fresh disposable checkout seeded from the working
+# tree and publish it in ISO_LAST_WT, or return 1.
+#
+# It sets a global instead of echoing the path, and that is load-bearing: a
+# command substitution runs in a SUBSHELL, so `ISOLATION_BASES+=(...)` inside
+# one is invisible to the parent and the signal traps below would then drain an
+# empty list. Measured — with the echoing form, a watchdog kill left both the
+# directory and the `git worktree list` registration behind.
+ISO_LAST_WT=""
+iso_create() {
+  local skill="$1" base wt patch f d
+  ISO_LAST_WT=""
+  base="$(mktemp -d "${TMPDIR:-/tmp}/aai-iso-${skill}.XXXXXX" 2>/dev/null)" || return 1
+  [[ -n "$base" && "$base" == /* ]] || return 1
+  # SYMLINKS RESOLVED, and this is load-bearing, not tidiness. On macOS $TMPDIR
+  # is under /var, which is a symlink to /private/var. Every .mjs CLI in this
+  # repository guards its entry point with
+  # `path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)`;
+  # path.resolve keeps the symlinked spelling while import.meta.url carries the
+  # real one, so from an unresolved checkout the guard is FALSE, main() never
+  # runs, and the CLI exits 0 having printed nothing. Measured: with the raw
+  # mktemp path, tests/skills/test-aai-hitl-propagation.sh TEST-010/011/012 got
+  # empty stdout at exit 0 from orchestration-dispatch.mjs and read as three
+  # assertion failures. `pwd -P` is a no-op wherever TMPDIR is already real.
+  base="$(cd "$base" 2>/dev/null && pwd -P)" || return 1
+  [[ -n "$base" && "$base" == /* ]] || return 1
+  wt="$base/wt"
+  if ! iso_git worktree add --detach --quiet "$wt" HEAD >/dev/null 2>&1; then
+    rm -rf "$base"
+    return 1
+  fi
+  ISOLATION_BASES+=("$base")
+  patch="$base/working-tree.patch"
+  if iso_git diff HEAD --binary > "$patch" 2>/dev/null && [[ -s "$patch" ]]; then
+    git -C "$wt" apply --whitespace=nowarn "$patch" >/dev/null 2>&1 \
+      || log_warn "Isolation: could not replay the working-tree diff into '$skill''s disposable checkout — it runs against HEAD, so uncommitted edits are invisible to it"
+  fi
+  while IFS= read -r -d '' f; do
+    d="$(dirname "$f")"
+    [[ "$d" == "." ]] || mkdir -p "$wt/$d"
+    cp -p "$PROJECT_ROOT/$f" "$wt/$f" 2>/dev/null || true
+  done < <(iso_git ls-files --others --exclude-standard -z 2>/dev/null)
+  for f in $ISOLATION_SEED_PATHS; do
+    [[ -f "$PROJECT_ROOT/$f" ]] || continue
+    d="$(dirname "$f")"
+    [[ "$d" == "." ]] || mkdir -p "$wt/$d"
+    cp -p "$PROJECT_ROOT/$f" "$wt/$f" 2>/dev/null || true
+  done
+  ISO_LAST_WT="$wt"
+}
+
+# iso_deregister <wt> — drop the admin entry for ONE worktree path: the entry a
+# `git worktree prune` would drop for it, and no other. Matched by the `gitdir`
+# file, which holds the path verbatim as it was given to `worktree add`.
+#
+# This exists instead of `git worktree prune` because prune is REPOSITORY-WIDE
+# and judges every registration by whether its directory is reachable RIGHT NOW.
+# An operator worktree parked on an unmounted volume, a detached external disk
+# or a temporarily renamed path is unreachable but perfectly alive, and prune
+# deletes its `.git/worktrees/<name>` metadata — after which the registration is
+# gone for good. Measured on git 2.50.1, both halves of that: `git worktree
+# repair <path>` answers `error: unable to locate repository; .git file does not
+# reference a repository: <path>/.git` (rc 1), and any git command run INSIDE
+# the restored directory answers `fatal: not a git repository:
+# <common-dir>/worktrees/<name>` (rc 128). A test harness must not be able to do
+# that to the operator's own repository, ~81 times a run.
+iso_deregister() {
+  local wt="$1" common admin
+  [[ -n "$wt" && "$wt" == /* ]] || return 0
+  common="$(cd "$PROJECT_ROOT" 2>/dev/null && cd "$(git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd)" || return 0
+  [[ -n "$common" && -d "$common/worktrees" ]] || return 0
+  for admin in "$common"/worktrees/*; do
+    [[ -d "$admin" && -f "$admin/gitdir" ]] || continue
+    [[ "$(cat "$admin/gitdir" 2>/dev/null)" == "$wt/.git" ]] || continue
+    rm -rf "$admin" 2>/dev/null || true
+  done
+  return 0
+}
+
+# iso_destroy <base> — remove the checkout AND its registration. On the happy
+# path `git worktree remove --force` clears both and nothing else runs. Only
+# when that removal FAILS — a suite that deleted its own checkout's `.git` link
+# leaves `remove` with nothing it recognises, which is the case TEST-004(e)
+# holds — is the registration cleared, and then for this one checkout only.
+iso_destroy() {
+  local base="$1" removed=1
+  [[ -n "$base" && "$base" == /* ]] || return 0
+  if ! iso_git worktree remove --force "$base/wt" >/dev/null 2>&1; then
+    removed=0
+  fi
+  rm -rf "$base" 2>/dev/null || true
+  [[ "$removed" -eq 1 ]] || iso_deregister "$base/wt"
+  return 0
+}
+
+iso_cleanup_all() {
+  local b
+  for b in "${ISOLATION_BASES[@]:-}"; do
+    [[ -n "$b" ]] && iso_destroy "$b"
+  done
+  ISOLATION_BASES=()
+}
+
+# A pass and a failure both fall through to the removal at the end of run_test;
+# a watchdog kill, a hangup and a Ctrl-C do not, so they are trapped. Bash does
+# not run an EXIT trap in a subshell or a command substitution, so this cannot
+# fire mid-suite.
+trap 'iso_cleanup_all' EXIT
+trap 'iso_cleanup_all; exit 130' INT
+trap 'iso_cleanup_all; exit 143' TERM
+trap 'iso_cleanup_all; exit 129' HUP
+
 # Configuration
 RESULTS_DIR="$SCRIPT_DIR/results"
 RUN_ID="test-$(date -u +%Y%m%d-%H%M%S)"
@@ -368,10 +531,44 @@ run_test() {
   local tw_hash_after="$RUN_DIR/${skill_name}.tripwire-hash-after"
   aai_tripwire_hash_snapshot "$PROJECT_ROOT" "$tw_hash_before" "${TRIPWIRE_WATCH_PATHS[@]:-}"
 
+  # The suite runs in its own disposable checkout, never in the shipping
+  # repository. The framework's OWN artifacts stay behind: $log_file, the
+  # snapshot files and metrics.jsonl all live under RUN_DIR in the real tree
+  # (D5), so the operator finds the run ledger where it has always been, while
+  # everything the SUITE writes under tests/skills/results/ goes with the copy.
+  local iso_base="" iso_root="$PROJECT_ROOT" iso_target="$test_file" iso_rel
+  if [[ "$ISOLATION_ENABLED" == "true" ]]; then
+    if iso_create "$skill_name" && [[ -n "$ISO_LAST_WT" ]]; then
+      iso_base="$(dirname "$ISO_LAST_WT")"
+      iso_rel="${test_file#"$PROJECT_ROOT"/}"
+      if [[ -f "$ISO_LAST_WT/$iso_rel" ]]; then
+        iso_root="$ISO_LAST_WT"
+        iso_target="$ISO_LAST_WT/$iso_rel"
+      else
+        # The seeding missed this suite. Never let that read as a suite
+        # failure: `No such file or directory` on a brand-new suite is exactly
+        # the silent TDD failure this design exists to avoid.
+        log_warn "Isolation: '$skill_name' ($iso_rel) is not in the disposable checkout — running it against the shipping repository instead"
+        iso_destroy "$iso_base"
+        ISOLATION_BASES=()
+        iso_base=""
+      fi
+    else
+      log_warn "Isolation: no disposable checkout for '$skill_name' — running it against the shipping repository instead"
+    fi
+  fi
+
   if [[ "$VERBOSE" == "true" ]]; then
-    bash "$test_file" 2>&1 | tee "$log_file" || exit_code=$?
+    ( [[ -z "$iso_base" ]] || cd "$iso_root"; bash "$iso_target" ) 2>&1 | tee "$log_file" || exit_code=$?
   else
-    bash "$test_file" &> "$log_file" || exit_code=$?
+    ( [[ -z "$iso_base" ]] || cd "$iso_root"; bash "$iso_target" ) &> "$log_file" || exit_code=$?
+  fi
+
+  # Removed BEFORE the after-snapshot, so the removal itself is inside the
+  # tripwire's window rather than after it.
+  if [[ -n "$iso_base" ]]; then
+    iso_destroy "$iso_base"
+    ISOLATION_BASES=()
   fi
 
   # TRIPWIRE, half two.
@@ -682,6 +879,12 @@ main() {
   setup_results_dir
   check_dependencies
   tripwire_ratchet_init
+  iso_probe
+  if [[ "$ISOLATION_ENABLED" == "true" ]]; then
+    log "Isolation: every suite runs in a disposable git worktree seeded from the working tree"
+  else
+    log_warn "Isolation: DISABLED ($ISOLATION_WHY) — suites run against the shipping repository and only the tripwire stands between them and it"
+  fi
 
   # Discover tests
   log "Discovering skill tests..."

@@ -577,6 +577,15 @@ suites:
       - tests/skills/test-aai-doc-numbering.sh
       - tests/skills/test-aai-deslop.sh
 
+  # spec-suites-run-in-a-disposable-worktree: the sibling of the row above and
+  # its inverse. Both funnels are pinned because the isolation is armed at both.
+  aai-suite-isolation:
+    globs:
+      - tests/skills/test-framework.sh
+      - .aai/scripts/aai-run-tests.sh
+      - .aai/scripts/lib/repo-tripwire.sh
+      - tests/skills/test-aai-repo-tripwire.sh
+
   aai-role-output:
     globs:
       - .aai/scripts/check-role-output.mjs

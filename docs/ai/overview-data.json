@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-19T19:48:04.166Z",
+  "generatedAt": "2026-08-20T19:38:30.297Z",
   "project": "aai",
   "counts": {
-    "delivered": 196,
+    "delivered": 197,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "suites-must-not-touch-the-shipping-repo",
+    "ref": "suites-run-in-a-disposable-worktree",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "suites-must-not-touch-the-shipping-repo",
+      "ref": "suites-run-in-a-disposable-worktree",
       "type": "intake_change",
       "phase": "validation"
     },
@@ -79,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "suites-run-in-a-disposable-worktree",
+      "title": "Change — every suite runs in a disposable worktree",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0152-suites-run-in-a-disposable-worktree.md",
+      "closed_on": "2026-08-20",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0138-spec-suites-run-in-a-disposable-worktree.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-suites-run-in-a-disposable-worktree-20260820T191536Z.md"
+    },
     {
       "ref": "deslop-corpus-honesty",
       "title": "Change — three defects in one corpus resolver",
@@ -2634,6 +2647,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "suites-run-in-a-disposable-worktree",
+          "title": "Change — every suite runs in a disposable worktree",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0152-suites-run-in-a-disposable-worktree.md",
+          "closed_on": "2026-08-20",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0138-spec-suites-run-in-a-disposable-worktree.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-suites-run-in-a-disposable-worktree-20260820T191536Z.md"
+        },
         {
           "ref": "deslop-corpus-honesty",
           "title": "Change — three defects in one corpus resolver",

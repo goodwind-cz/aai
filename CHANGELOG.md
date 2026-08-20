@@ -11,6 +11,39 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — feat(test-harness): every suite runs in a disposable worktree (CHANGE-0152 / SPEC-0138) [L1]
+
+- Both suite funnels — `tests/skills/test-framework.sh` (what CI runs) and
+  `.aai/scripts/aai-run-tests.sh` (what roles invoke ad hoc) — now run a suite
+  in a throwaway `git worktree` seeded from the WORKING TREE: the tracked diff
+  is replayed (`git diff HEAD --binary`, staged and unstaged), untracked-but-not
+  -ignored files are copied, and the gitignored per-dev files suites read are
+  seeded. Without that third step four assertion groups silently become passing
+  skips, which is a greener run that tests less.
+- Live full run 81/81, exit 0. The still-armed tripwire attests all 81 clean
+  with ZERO ratchet-allowed writes, against four allowed with isolation off —
+  the causal proof at scale. Matched pair measured +1.074 s per suite against
+  the 2 s bound in AC-006.
+- Honest limit: a `git worktree` shares one `.git`, so refs, `.git/config` and
+  `.git/hooks` stay reachable from the copy. Measured (a tag, a branch, a config
+  key and an executable `post-checkout` hook all landed with HEAD and the
+  porcelain unmoved); filed as `fu-worktree-shares-git-admin-surface` and
+  `fu-worktree-hook-disarms-later-suites`, documented in the spec's D7. The
+  working TREE is protected from the ordinary path, and observably so.
+- The tripwire, its ratchet and the ratchet-path hashing are deliberately LEFT
+  IN PLACE. Deleting them is a follow-on change with a hard precondition now
+  filed as P1 `fu-isolation-arm-failure-uncounted`: nothing currently counts a
+  failure to ARM isolation, so a run where isolation never armed would stay
+  green once the guard is gone.
+- A code review found the harness cleanup ran a repository-wide
+  `git worktree prune` about 81 times per run, which irrecoverably destroys an
+  operator's own worktree metadata when its directory is unreachable. Removed
+  and replaced by a single-entry deregistration on the failure path only.
+- `tests/skills/test-aai-suite-isolation.sh` (new, six arms) is the suite that
+  gates this scope; `tests/skills/test-aai-repo-tripwire.sh` gained one
+  `export AAI_TEST_ISOLATION=0` so its fixture suites can still dirty their own
+  fixture repositories.
+
 ## [unreleased] — feat(test-harness): a suite that writes to the shipping repository fails and names itself (CHANGE-0151 / SPEC-0137) [L1]
 
 - A tripwire (`.aai/scripts/lib/repo-tripwire.sh`, new) compares
