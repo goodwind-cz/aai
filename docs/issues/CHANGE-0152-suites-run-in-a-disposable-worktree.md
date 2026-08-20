@@ -2,13 +2,15 @@
 id: suites-run-in-a-disposable-worktree
 number: 152
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-test-harness
 links:
-  pr: []
-  commits: []
+  pr:
+    - 267
+  commits:
+    - a7f40dcd2102f14860c5e2d0a0b4f2a8f6523b86
 ---
 
 # Change — every suite runs in a disposable worktree
