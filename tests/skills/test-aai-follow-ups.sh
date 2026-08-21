@@ -114,6 +114,157 @@ mk_ledger() {
   printf '%s' "$f"
 }
 
+# --- pipe-flush helpers (cli-output-survives-a-pipe, TEST-018..022) ----------
+#
+# These arms MUST measure through a real pipe. A redirect to a file is exactly
+# the configuration that already worked before the fix, so a file-based claim
+# about a pipe is not evidence. Everything below therefore runs the CLI as the
+# WRITE end of a genuine pipeline, and every pipeline runs under a wall-clock
+# bound so a process kept alive by a stray handle fails an arm instead of
+# hanging the suite.
+
+BOUNDED_EC=0
+
+# kill_tree <pid> — depth-first kill, so a bounded pipeline cannot leave the
+# node processes behind when the bound is breached. Never a pattern-based
+# pkill (docs/knowledge/LEARNED.md stress-test busy-loop leak).
+kill_tree() {
+  local p="$1" c
+  if command -v pgrep >/dev/null 2>&1; then
+    for c in $(pgrep -P "$p" 2>/dev/null || true); do kill_tree "$c"; done
+  fi
+  kill -9 "$p" 2>/dev/null || true
+}
+
+# run_bounded <seconds> <command string> -> BOUNDED_EC (124 when the bound is
+# breached). The command string is run by a fresh `bash -c`, so this suite's
+# own `set -euo pipefail` cannot turn an expected non-zero exit into a suite
+# abort, and the caller reads the code rather than the shell's reaction to it.
+run_bounded() {
+  local secs="$1" cmd="$2" pid i=0
+  BOUNDED_EC=0
+  bash -c "$cmd" &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    if [[ $i -ge $((secs * 10)) ]]; then
+      kill_tree "$pid"
+      wait "$pid" 2>/dev/null || true
+      BOUNDED_EC=124
+      return 0
+    fi
+    sleep 0.1
+    i=$((i + 1))
+  done
+  set +e
+  wait "$pid"
+  BOUNDED_EC=$?
+  set -e
+  return 0
+}
+
+# run_fu_bounded <seconds> <fu args...> -> BOUNDED_EC, OUT, ERR
+run_fu_bounded() {
+  local secs="$1"; shift
+  local o="$TEST_DIR/.bout" e="$TEST_DIR/.berr" cmd q
+  cmd="node $(printf '%q' "$FU")"
+  for q in "$@"; do cmd="$cmd $(printf '%q' "$q")"; done
+  cmd="$cmd > $(printf '%q' "$o") 2> $(printf '%q' "$e")"
+  run_bounded "$secs" "$cmd"
+  OUT="$(cat "$o" 2>/dev/null || true)"
+  ERR="$(cat "$e" 2>/dev/null || true)"
+}
+
+PIPE_READER_OUT=""
+PIPE_WRITER_ERR=""
+PIPE_WRITER_EC=""
+
+# run_pipe_bounded <seconds> <reader command string> <fu args...>
+# Runs `{ node follow-ups.mjs <args> 2>err; echo $? >ec; } | <reader> >out`.
+# The writer's own exit code is captured INSIDE the write end rather than from
+# PIPESTATUS, so it survives the outer shell and is readable even when the
+# reader closed the pipe first.
+run_pipe_bounded() {
+  local secs="$1" reader="$2"; shift 2
+  local o="$TEST_DIR/.pout" e="$TEST_DIR/.perr" w="$TEST_DIR/.pwec" cmd q
+  rm -f "$o" "$e" "$w"
+  cmd="node $(printf '%q' "$FU")"
+  for q in "$@"; do cmd="$cmd $(printf '%q' "$q")"; done
+  cmd="{ $cmd 2> $(printf '%q' "$e") ; echo \$? > $(printf '%q' "$w") ; } | $reader > $(printf '%q' "$o")"
+  run_bounded "$secs" "$cmd"
+  PIPE_READER_OUT="$(cat "$o" 2>/dev/null || true)"
+  PIPE_WRITER_ERR="$(cat "$e" 2>/dev/null || true)"
+  PIPE_WRITER_EC="$(cat "$w" 2>/dev/null || true)"
+  [[ -n "$PIPE_WRITER_EC" ]] || PIPE_WRITER_EC="MISSING"
+}
+
+# mk_readers — two stdin readers written into the fixture dir.
+#   reader-slow   waits <ms> before reading a byte, then prints the count
+#   reader-parse  JSON.parse of the whole payload
+# Every byte-count assertion in this suite reads through reader-slow, and that
+# is deliberate: node's stdin stays paused until a 'data' listener attaches, so
+# a delayed listener genuinely does not drain. Through a FAST reader (`cat`, or
+# a counter that attaches its listener immediately) the HUMAN listing did not
+# truncate even before the fix — many small writes that the reader keeps up
+# with — so a fast-reader byte-count assertion is vacuous on that branch and no
+# such reader is kept here.
+mk_readers() {
+  cat > "$TEST_DIR/reader-slow.mjs" <<'READER_SLOW_EOF'
+const delay = Number(process.argv[2] || 400);
+setTimeout(() => {
+  let n = 0;
+  process.stdin.on('data', (c) => { n += c.length; });
+  process.stdin.on('end', () => { process.stdout.write(`${n}\n`); });
+}, delay);
+READER_SLOW_EOF
+  cat > "$TEST_DIR/reader-parse.mjs" <<'READER_PARSE_EOF'
+let d = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (c) => { d += c; });
+process.stdin.on('end', () => {
+  const bytes = Buffer.byteLength(d);
+  try {
+    const j = JSON.parse(d);
+    const items = Array.isArray(j.items) ? j.items.length : -1;
+    process.stdout.write(`OK bytes=${bytes} items=${items}\n`);
+  } catch (err) {
+    process.stdout.write(`FAIL bytes=${bytes} ${err.message}\n`);
+  }
+});
+READER_PARSE_EOF
+}
+
+# mk_big_ledger <name> <count> -> a fixture ledger with <count> follow_up
+# entries, wide enough that `list --json` over it clears 174080 bytes and the
+# human listing clears 65536. Built here rather than read from the live ledger
+# on purpose: the live payload is a moving number, and an arm that depends on
+# today's 87012 bytes stops proving anything next week.
+mk_big_ledger() {
+  local f="$TEST_DIR/$1.jsonl"
+  rm -f "$f"
+  node -e '
+    const fs = require("fs");
+    const out = ["# Decision Log — append-only, one JSON object per line (JSONL format)"];
+    const n = Number(process.argv[2]);
+    for (let i = 0; i < n; i += 1) {
+      const s = String(i).padStart(4, "0");
+      out.push(JSON.stringify({
+        v: 1,
+        ts: "2026-0" + (1 + (i % 8)) + "-" + String(1 + (i % 27)).padStart(2, "0") + "T0" + (i % 10) + ":0" + (i % 6) + ":00Z",
+        actor: "fixture",
+        type: "follow_up",
+        id: "fu-fixture-" + s,
+        ref_id: "CHANGE-" + (1000 + i),
+        severity: ["P1", "P2", "P3"][i % 3],
+        finding: "synthetic finding " + s + " padded to a realistic one-line width so the human listing also crosses the 64 KB pipe buffer threshold",
+        decision: "deferred for fixture purposes, entry " + s,
+        source: "docs/ai/reports/fixture-" + s + ".md",
+      }));
+    }
+    fs.writeFileSync(process.argv[1], out.join("\n") + "\n");
+  ' "$f" "$2"
+  printf '%s' "$f"
+}
+
 # ============================ TEST-001 (Spec-AC-01) ==========================
 test_001_schema_and_id_discipline() {
   log_info "Test: D1 entry shape + id discipline — valid add accepted and re-read; bad shape, over-length, duplicate, missing flag and bad severity each exit 2 with the ledger byte-length UNCHANGED (TEST-001)..."
@@ -1043,9 +1194,249 @@ test_017_grammar_and_product_doc_pins() {
   log_pass "--help documents the dashed-value rule + flag=value escape hatch; product doc carries the malformed-id and unreadable-path rows, understatement clause, exit-2 case, frontmatter bump; docs-audit.mjs --check runs (exit 0 is a smoke assertion, not a CLEAN-verdict claim) (TEST-017)"
 }
 
+# ==================== TEST-018 (cli-output-survives-a-pipe Spec-AC-01) ======
+test_018_json_survives_a_pipe() {
+  log_info "Test: AC-001 — \`list --json\` read through a PIPE by a JSON parser yields a document that parses, at a payload above 64 KB, on a synthetic ledger of at least 174080 bytes of payload AND on the live decisions ledger (TEST-018)..."
+  mk_readers
+  local led; led="$(mk_big_ledger t018 500)"
+  local parse_reader="node $(printf '%q' "$TEST_DIR/reader-parse.mjs")"
+
+  # Size the payload by writing it to a FILE first — that is the configuration
+  # that already worked, so it is the reference the pipe is compared against.
+  local jf="$TEST_DIR/t018.json"
+  node "$FU" list --json --ledger "$led" > "$jf"
+  local jsize; jsize="$(fsize "$jf")"
+  [[ "$jsize" -ge 174080 ]] \
+    || log_fail "the synthetic payload must clear 174080 bytes for this arm to test anything above the pipe buffer, got $jsize"
+
+  run_pipe_bounded 20 "$parse_reader" list --json --ledger "$led"
+  [[ "$BOUNDED_EC" == 0 ]] || log_fail "the piped run must finish inside the bound (BOUNDED_EC=$BOUNDED_EC)"
+  [[ "$PIPE_WRITER_EC" == 0 ]] || log_fail "the writer must exit 0 through a pipe, got $PIPE_WRITER_EC: $PIPE_WRITER_ERR"
+  [[ "$PIPE_READER_OUT" == "OK bytes=$jsize items=500" ]] \
+    || log_fail "synthetic \`list --json\` through a pipe must parse and deliver every byte and all 500 items; expected \"OK bytes=$jsize items=500\", got \"$PIPE_READER_OUT\""
+
+  # The LIVE ledger, read-only — the payload the defect was measured on.
+  [[ -f "$LIVE_LEDGER" ]] || log_fail "live ledger missing: $LIVE_LEDGER"
+  local lf="$TEST_DIR/t018-live.json"
+  node "$FU" list --json --ledger "$LIVE_LEDGER" > "$lf"
+  local lsize litems
+  lsize="$(fsize "$lf")"
+  litems="$(node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(String(j.items.length))' "$lf")"
+  if [[ "$lsize" -le 65536 ]]; then
+    log_info "NOTE the live ledger's --json payload is $lsize bytes, at or below the 65536 pipe buffer, so the synthetic half above carries the above-threshold claim; the live half below still asserts a complete, parseable payload"
+  fi
+  run_pipe_bounded 20 "$parse_reader" list --json --ledger "$LIVE_LEDGER"
+  [[ "$BOUNDED_EC" == 0 ]] || log_fail "the live piped run must finish inside the bound (BOUNDED_EC=$BOUNDED_EC)"
+  [[ "$PIPE_WRITER_EC" == 0 ]] || log_fail "the live writer must exit 0 through a pipe, got $PIPE_WRITER_EC: $PIPE_WRITER_ERR"
+  [[ "$PIPE_READER_OUT" == "OK bytes=$lsize items=$litems" ]] \
+    || log_fail "live \`list --json\` through a pipe must parse and deliver every byte; expected \"OK bytes=$lsize items=$litems\", got \"$PIPE_READER_OUT\""
+
+  log_pass "\`list --json\` through a pipe parses whole: synthetic $jsize bytes / 500 items and live $lsize bytes / $litems items (TEST-018)"
+}
+
+# ==================== TEST-019 (cli-output-survives-a-pipe Spec-AC-02) ======
+test_019_pipe_bytes_equal_file_bytes() {
+  log_info "Test: AC-002 — above 64 KB the byte count a reader RECEIVES equals the byte count written to a file, for \`list --json\` and for the human listing, measured against a reader that waits 400 ms before draining (TEST-019)..."
+  mk_readers
+  local led; led="$(mk_big_ledger t019 500)"
+  local slow_reader="node $(printf '%q' "$TEST_DIR/reader-slow.mjs") 400"
+
+  # --json branch
+  local jf="$TEST_DIR/t019.json"
+  node "$FU" list --json --ledger "$led" > "$jf"
+  local jsize; jsize="$(fsize "$jf")"
+  [[ "$jsize" -gt 65536 ]] || log_fail "the --json payload must exceed the 65536 pipe buffer, got $jsize"
+  run_pipe_bounded 20 "$slow_reader" list --json --ledger "$led"
+  [[ "$BOUNDED_EC" == 0 ]] || log_fail "the slow-reader --json run must finish inside the bound (BOUNDED_EC=$BOUNDED_EC)"
+  [[ "$PIPE_WRITER_EC" == 0 ]] || log_fail "the --json writer must exit 0, got $PIPE_WRITER_EC: $PIPE_WRITER_ERR"
+  [[ "$PIPE_READER_OUT" == "$jsize" ]] \
+    || log_fail "--json through a pipe delivered $PIPE_READER_OUT bytes but the same command writes $jsize bytes to a file"
+
+  # human branch — the latent half. Through `cat` this passed BEFORE the fix,
+  # so the slow reader is what makes the assertion bite.
+  local hf="$TEST_DIR/t019.txt"
+  node "$FU" list --ledger "$led" > "$hf"
+  local hsize; hsize="$(fsize "$hf")"
+  [[ "$hsize" -gt 65536 ]] || log_fail "the human payload must exceed the 65536 pipe buffer, got $hsize"
+  run_pipe_bounded 20 "$slow_reader" list --ledger "$led"
+  [[ "$BOUNDED_EC" == 0 ]] || log_fail "the slow-reader human run must finish inside the bound (BOUNDED_EC=$BOUNDED_EC)"
+  [[ "$PIPE_WRITER_EC" == 0 ]] || log_fail "the human writer must exit 0, got $PIPE_WRITER_EC: $PIPE_WRITER_ERR"
+  [[ "$PIPE_READER_OUT" == "$hsize" ]] \
+    || log_fail "the human listing through a pipe delivered $PIPE_READER_OUT bytes but the same command writes $hsize bytes to a file"
+
+  log_pass "pipe bytes equal file bytes above the 64 KB buffer through a 400 ms slow reader: --json $jsize and human $hsize (TEST-019)"
+}
+
+# ==================== TEST-020 (cli-output-survives-a-pipe Spec-AC-03) ======
+test_020_exit_codes_survive_the_flush() {
+  log_info "Test: AC-003 — every documented exit code still comes out and none of them hangs: 0 on list/add/close/re-close/--help/help, 1 on a shadowed post-append re-read, 2 on unknown subcommand, unknown flag, missing flag value and unknown id (TEST-020)..."
+  local led; led="$(mk_ledger t020)"
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-exit-seed","ref_id":"CHANGE-0100","severity":"P1","finding":"seed","decision":"deferred","source":"s"}' >> "$led"
+
+  run_fu_bounded 20 list --ledger "$led"
+  [[ "$BOUNDED_EC" == 0 ]] || log_fail "list must exit 0, got $BOUNDED_EC: $ERR"
+  run_fu_bounded 20 add --ledger "$led" --id fu-exit-added --ref CHANGE-0101 --severity P2 --what w --why y --source s
+  [[ "$BOUNDED_EC" == 0 ]] || log_fail "add must exit 0, got $BOUNDED_EC: $ERR"
+  run_fu_bounded 20 close --ledger "$led" --id fu-exit-added --resolved-by CHANGE-0102 --source abc
+  [[ "$BOUNDED_EC" == 0 ]] || log_fail "close must exit 0, got $BOUNDED_EC: $ERR"
+  run_fu_bounded 20 close --ledger "$led" --id fu-exit-added --resolved-by CHANGE-0102 --source abc
+  [[ "$BOUNDED_EC" == 0 ]] || log_fail "an idempotent re-close must exit 0, got $BOUNDED_EC: $ERR"
+  grep -qF "re-close is idempotent" <<<"$OUT" || log_fail "the idempotent re-close must still say so: $OUT"
+  run_fu_bounded 20 --help
+  [[ "$BOUNDED_EC" == 0 ]] || log_fail "--help must exit 0, got $BOUNDED_EC: $ERR"
+  [[ -n "$OUT" ]] || log_fail "--help must still print the usage text"
+  run_fu_bounded 20 help
+  [[ "$BOUNDED_EC" == 0 ]] || log_fail "the help subcommand must exit 0, got $BOUNDED_EC: $ERR"
+  [[ -n "$OUT" ]] || log_fail "the help subcommand must still print the usage text"
+
+  # exit 1 — the ONE reachable failed post-append re-read: a later-dated status
+  # record for the same id carries a NON-terminal value, so the item is still
+  # open when `close` starts and still not `done` when it re-reads.
+  local shadow; shadow="$(mk_ledger t020-shadow)"
+  {
+    printf '%s\n' '{"v":1,"ts":"2026-08-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-shadowed","ref_id":"CHANGE-0100","severity":"P2","finding":"shadowed","decision":"deferred","source":"s"}'
+    printf '%s\n' '{"v":1,"ts":"2099-01-01T00:00:00Z","actor":"a","type":"follow_up_status","id":"fu-shadowed","status":"deferred","resolved_by":"none","source":""}'
+  } >> "$shadow"
+  run_fu_bounded 20 close --ledger "$shadow" --id fu-shadowed --resolved-by CHANGE-0102 --source abc
+  [[ "$BOUNDED_EC" == 1 ]] || log_fail "a shadowed post-append re-read must exit 1, got $BOUNDED_EC: $OUT $ERR"
+  grep -qF "the flip is NOT proven" <<<"$ERR" || log_fail "the exit-1 path must still name why on stderr: $ERR"
+
+  # exit 2 — four shapes, each still reaching stderr in full.
+  run_fu_bounded 20 bogus
+  [[ "$BOUNDED_EC" == 2 ]] || log_fail "an unknown subcommand must exit 2, got $BOUNDED_EC"
+  grep -qF 'unknown subcommand "bogus"' <<<"$ERR" || log_fail "the usage error must still name the subcommand: $ERR"
+  run_fu_bounded 20 list --ledger "$led" --nope 1
+  [[ "$BOUNDED_EC" == 2 ]] || log_fail "an unknown flag must exit 2, got $BOUNDED_EC"
+  run_fu_bounded 20 list --ledger
+  [[ "$BOUNDED_EC" == 2 ]] || log_fail "a missing flag value must exit 2, got $BOUNDED_EC"
+  run_fu_bounded 20 close --ledger "$led" --id fu-not-here --resolved-by CHANGE-0102
+  [[ "$BOUNDED_EC" == 2 ]] || log_fail "an unknown id on close must exit 2, got $BOUNDED_EC"
+
+  log_pass "all eleven documented exit paths still return their own code (0, 1, 2) inside a 20s bound, with the stderr text intact (TEST-020)"
+}
+
+# ==================== TEST-021 (cli-output-survives-a-pipe Spec-AC-04) ======
+test_021_early_close_is_not_a_failure() {
+  log_info "Test: AC-004 — \`list --json\` whose reader is \`head -n 1\` neither hangs nor reports a tool failure: writer exits 0, stderr is empty (no EPIPE stack trace), and the reader still received its first line (TEST-021)..."
+  local led; led="$(mk_big_ledger t021 500)"
+
+  run_pipe_bounded 20 "head -n 1" list --json --ledger "$led"
+  [[ "$BOUNDED_EC" == 0 ]] || log_fail "\`list --json\` into \`head -n 1\` must not hang (BOUNDED_EC=$BOUNDED_EC)"
+  [[ "$PIPE_WRITER_EC" == 0 ]] \
+    || log_fail "an early-closing reader must not turn into a tool failure; writer exited $PIPE_WRITER_EC: $PIPE_WRITER_ERR"
+  [[ -z "$PIPE_WRITER_ERR" ]] \
+    || log_fail "an early-closing reader must produce NOTHING on stderr (an unhandled EPIPE prints a stack trace), got: $PIPE_WRITER_ERR"
+  [[ "$PIPE_READER_OUT" == "{" ]] \
+    || log_fail "the reader must still receive the first line of the JSON document, got \"$PIPE_READER_OUT\""
+
+  # Same shape on the human branch, where the first line is the count header.
+  run_pipe_bounded 20 "head -n 1" list --ledger "$led"
+  [[ "$BOUNDED_EC" == 0 ]] || log_fail "the human listing into \`head -n 1\` must not hang (BOUNDED_EC=$BOUNDED_EC)"
+  [[ "$PIPE_WRITER_EC" == 0 ]] || log_fail "the human listing into \`head -n 1\` must exit 0, got $PIPE_WRITER_EC: $PIPE_WRITER_ERR"
+  [[ -z "$PIPE_WRITER_ERR" ]] || log_fail "the human listing into \`head -n 1\` must produce nothing on stderr, got: $PIPE_WRITER_ERR"
+  grep -qE '^follow-ups: shown=[0-9]+ open=[0-9]+' <<<"$PIPE_READER_OUT" \
+    || log_fail "the reader must still receive the header line, got \"$PIPE_READER_OUT\""
+
+  # (c) the falsifiable half, and the one an early-close fix most easily gets
+  # wrong. Node's GLOBAL console is constructed with ignoreErrors:true, so
+  # every `console.log` above already swallows EPIPE and (a)/(b) would pass
+  # with no stream guard at all. The two `process.stderr.write` sites get no
+  # such treatment: with stderr merged into the same pipe and the reader gone
+  # BEFORE the write, an unhandled EPIPE is an uncaught exception and the
+  # process exits 1 — silently replacing the usage code a caller reads.
+  # MEASURED both ways: 2 with the guard, 1 without it, six runs each.
+  # The reader is the shell builtin `true`, which is gone microseconds after
+  # the fork and long before node has booted, so the close always wins the
+  # race; a node-based reader does not, and made this arm flaky.
+  local ecf="$TEST_DIR/.t021ec"
+  rm -f "$ecf"
+  run_bounded 20 "{ node $(printf '%q' "$FU") bogus 2>&1 ; echo \$? > $(printf '%q' "$ecf") ; } | true"
+  [[ "$BOUNDED_EC" == 0 ]] || log_fail "the closed-pipe usage-error run must finish inside the bound (BOUNDED_EC=$BOUNDED_EC)"
+  [[ -f "$ecf" ]] || log_fail "the writer's exit code was never recorded — the write end did not run to completion"
+  local closed_ec; closed_ec="$(cat "$ecf")"
+  [[ "$closed_ec" == 2 ]] \
+    || log_fail "a usage error whose output pipe was closed BEFORE the write must still exit 2 (an unhandled EPIPE reports 1), got $closed_ec"
+
+  log_pass "an early-closing reader (head -n 1) leaves the writer at exit 0 with an empty stderr on both branches, the first line still arrives, and a usage error into an already-closed pipe still exits 2 rather than 1 (TEST-021)"
+}
+
+# ==================== TEST-022 (cli-output-survives-a-pipe Spec-AC-05) ======
+test_022_output_format_is_pinned() {
+  log_info "Test: AC-005 — no output format change: the list header, a list row's field order, the --json top-level key set and its two-space indentation, and the add and close confirmation lines all match their frozen shapes, and the file-directed bytes equal the bytes a 400 ms slow reader receives through a pipe on the same fixture (TEST-022)..."
+  mk_readers
+  local led; led="$(mk_ledger t022)"
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00Z","actor":"a","type":"follow_up","id":"fu-fmt-seed","ref_id":"CHANGE-0100","severity":"P1","finding":"a seeded finding","decision":"deferred","source":"s"}' >> "$led"
+
+  run_fu list --ledger "$led"
+  [[ "$EC" == 0 ]] || log_fail "list must exit 0, got $EC: $ERR"
+  grep -qE '^follow-ups: shown=[0-9]+ open=[0-9]+ closed=[0-9]+ total=[0-9]+ ledger=/' <<<"$OUT" \
+    || log_fail "the list header line shape changed: $OUT"
+  grep -qE '^open  fu-fmt-seed  P1  CHANGE-0100  age=([0-9]+d|n/a)  a seeded finding$' <<<"$OUT" \
+    || log_fail "the list row field order or its two-space separator changed: $OUT"
+
+  run_fu list --ledger "$led" --json
+  [[ "$EC" == 0 ]] || log_fail "list --json must exit 0, got $EC: $ERR"
+  local shape
+  shape="$(node -e '
+    const j = JSON.parse(process.argv[1]);
+    const keys = Object.keys(j).join(",");
+    if (keys !== "ledger,counts,items,notes") { console.log("KEYS:" + keys); process.exit(0); }
+    const second = process.argv[1].split("\n")[1];
+    if (!/^  "ledger": "/.test(second)) { console.log("INDENT:" + JSON.stringify(second)); process.exit(0); }
+    console.log("OK");
+  ' "$OUT")"
+  [[ "$shape" == "OK" ]] || log_fail "the --json document shape or its two-space indentation changed: $shape"
+
+  run_fu add --ledger "$led" --id fu-fmt-one --ref CHANGE-0001 --severity P2 --what w --why y --source s
+  [[ "$EC" == 0 ]] || log_fail "add must exit 0, got $EC: $ERR"
+  grep -qE '^follow-ups: added fu-fmt-one \(P2 CHANGE-0001\) — open backlog is now [0-9]+$' <<<"$OUT" \
+    || log_fail "the add confirmation line shape changed: $OUT"
+
+  run_fu close --ledger "$led" --id fu-fmt-one --resolved-by CHANGE-0002 --source abc123
+  [[ "$EC" == 0 ]] || log_fail "close must exit 0, got $EC: $ERR"
+  grep -qE '^follow-ups: fu-fmt-one -> done \(resolved_by CHANGE-0002\), proven by re-reading .+ — open backlog is now [0-9]+$' <<<"$OUT" \
+    || log_fail "the close confirmation line shape changed: $OUT"
+
+  # The other half of AC-005: what a file gets and what a pipe gets are the
+  # same bytes on the same fixture, for both list branches. Run over an
+  # ABOVE-BUFFER fixture, not the small one above — at two items the two
+  # numbers agree even on the unfixed tree, and an assertion that cannot fail
+  # is not one. Read through the SAME 400 ms slow reader TEST-019 uses, for the
+  # same reason: through a fast reader the human branch delivered its full
+  # 88020 bytes even on the unfixed tree, so that leg could not go red (round-1
+  # validation F2, mutation M5).
+  local bigled; bigled="$(mk_big_ledger t022big 500)"
+  local slow_reader="node $(printf '%q' "$TEST_DIR/reader-slow.mjs") 400"
+  local f
+  for f in human json; do
+    local target="$TEST_DIR/t022-$f.out" size
+    if [[ "$f" == "json" ]]; then
+      node "$FU" list --ledger "$bigled" --json > "$target"
+      run_pipe_bounded 20 "$slow_reader" list --ledger "$bigled" --json
+    else
+      node "$FU" list --ledger "$bigled" > "$target"
+      run_pipe_bounded 20 "$slow_reader" list --ledger "$bigled"
+    fi
+    size="$(fsize "$target")"
+    [[ "$BOUNDED_EC" == 0 ]] || log_fail "the $f byte-equality run must finish inside the bound (BOUNDED_EC=$BOUNDED_EC)"
+    # Above-buffer guard, the one TEST-019 already carries. Without it a shrunken
+    # fixture makes this leg silently unfailable: below 65536 the two counts agree
+    # even on the unfixed tree (round-2 validation F2-r2, proved by shrinking the
+    # fixture to 5 entries and watching this arm pass on the pre-change tree while
+    # TEST-019 failed loudly).
+    [[ "$size" -gt 65536 ]] \
+      || log_fail "$f: the byte-equality fixture must exceed the 65536 pipe buffer or this leg cannot fail, got $size"
+    [[ "$PIPE_READER_OUT" == "$size" ]] \
+      || log_fail "$f: a pipe received $PIPE_READER_OUT bytes but a file received $size"
+  done
+
+  log_pass "list header, row field order, --json key set and indentation, add and close confirmation lines all unchanged; file bytes equal pipe bytes on both branches through a 400 ms slow reader (TEST-022)"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-followup-registry TEST-001..005, 008, 009; role-verification-guards TEST-010/Spec-AC-09 N1)"
   echo "  + followups-cli-hardening TEST-011..015,017"
+  echo "  + cli-output-survives-a-pipe TEST-018..022"
   check_deps
   setup_fixture
   test_001_schema_and_id_discipline
@@ -1062,6 +1453,11 @@ main() {
   test_014_malformed_id_named_and_counted
   test_015_exclusion_note_states_understatement
   test_017_grammar_and_product_doc_pins
+  test_018_json_survives_a_pipe
+  test_019_pipe_bytes_equal_file_bytes
+  test_020_exit_codes_survive_the_flush
+  test_021_early_close_is_not_a_failure
+  test_022_output_format_is_pinned
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

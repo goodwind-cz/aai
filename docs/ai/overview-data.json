@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-20T19:38:30.297Z",
+  "generatedAt": "2026-08-21T03:57:23.610Z",
   "project": "aai",
   "counts": {
     "delivered": 197,
-    "in_progress": 1,
+    "in_progress": 2,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "suites-run-in-a-disposable-worktree",
+    "ref": "cli-output-survives-a-pipe",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "suites-run-in-a-disposable-worktree",
+      "ref": "cli-output-survives-a-pipe",
       "type": "intake_change",
       "phase": "validation"
     },
@@ -64,6 +64,19 @@
     ]
   },
   "in_progress": [
+    {
+      "ref": "cli-output-survives-a-pipe",
+      "title": "Change — CLI output must survive being piped",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0153-cli-output-survives-a-pipe.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0139-spec-cli-output-survives-a-pipe.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-cli-output-survives-a-pipe-20260821T035200Z.md"
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",

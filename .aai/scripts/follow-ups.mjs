@@ -89,6 +89,19 @@
 //   2  usage error — unknown flag/subcommand, missing required flag, bad --id
 //      shape, duplicate id on add, unknown id on close, unreadable ledger.
 //
+// EXIT MUST NOT TRUNCATE THE OUTPUT (cli-output-survives-a-pipe) — every exit
+//   path here used to be `console.log(...); process.exit(code)`. To a FILE
+//   stdout is synchronous, so that completes; to a PIPE it is asynchronous,
+//   `process.exit` runs before the queued remainder is handed to the kernel,
+//   and the reader gets exactly the 64 KB the pipe buffer took. Measured on
+//   the live ledger: `list --json` was 87012 bytes to a file and 65536 through
+//   a pipe, with `JSON.parse` failing at position 65522. The fix is structural,
+//   not per-call-site: `exit(code)` THROWS an ExitSignal that `runMain` turns
+//   into `process.exitCode`, so the process ends the ordinary way — after the
+//   event loop has drained stdout — and the exit code is unchanged. Nothing
+//   here opens a timer, a socket or a stdin read, so there is no handle to
+//   keep the process alive past that drain.
+//
 // Node stdlib only, zero network, no LLM (docs/TECHNOLOGY.md).
 
 import fs from 'node:fs';
@@ -324,6 +337,55 @@ function appendLine(absPath, entry) {
   fs.appendFileSync(absPath, `${prefix}${JSON.stringify(entry)}\n`);
 }
 
+// --- exit discipline ----------------------------------------------------------
+
+// ExitSignal + exit(): the ONLY way this CLI ends. `process.exit` discards
+// whatever stdout has queued but not yet flushed, which is every byte past the
+// pipe buffer when the reader is a pipe. Throwing instead lets `runMain` record
+// the code in `process.exitCode` and return, so Node exits on its own once the
+// stream has drained. The thrown value is not an ordinary error: no `catch`
+// block in this file wraps a call to exit(), so it always reaches runMain.
+class ExitSignal extends Error {
+  constructor(code) {
+    super(`exit ${code}`);
+    this.name = 'ExitSignal';
+    this.code = code;
+  }
+}
+
+function exit(code) {
+  throw new ExitSignal(code);
+}
+
+// A reader that closes early (`| head -1`) makes the remaining writes fail with
+// EPIPE. That is the reader's choice, not a tool failure, and it must not turn
+// into an unhandled 'error' event (exit 1 plus a stack trace on stderr). There
+// is nothing left to flush once the far end is gone, so ending immediately with
+// the code we already meant is both correct and the only thing that terminates.
+function installPipeGuard(stream) {
+  stream.on('error', (err) => {
+    const code = err && err.code;
+    if (code === 'EPIPE' || code === 'ERR_STREAM_DESTROYED') {
+      process.exit(typeof process.exitCode === 'number' ? process.exitCode : 0);
+    }
+    throw err;
+  });
+}
+
+function runMain() {
+  installPipeGuard(process.stdout);
+  installPipeGuard(process.stderr);
+  try {
+    main();
+  } catch (err) {
+    if (err instanceof ExitSignal) {
+      process.exitCode = err.code;
+      return;
+    }
+    throw err;
+  }
+}
+
 // --- CLI ----------------------------------------------------------------------
 
 const USAGE = `Usage:
@@ -363,7 +425,7 @@ post-append re-read did not confirm the write | 2 usage error.`;
 function usageError(msg) {
   process.stderr.write(`follow-ups: ${msg}\n`);
   process.stderr.write('Run `node .aai/scripts/follow-ups.mjs --help` for the grammar.\n');
-  process.exit(2);
+  exit(2);
 }
 
 const FLAG_SPECS = {
@@ -385,7 +447,7 @@ function parseArgs(argv) {
   }
   if (sub === 'help') {
     console.log(USAGE);
-    process.exit(0);
+    exit(0);
   }
   if (!Object.prototype.hasOwnProperty.call(FLAG_SPECS, sub)) {
     usageError(`unknown subcommand "${sub}" (expected list, add or close)`);
@@ -407,7 +469,7 @@ function parseArgs(argv) {
     // below is never re-examined by this check (D1 rule 3).
     if (tok === '-h' || tok === '--help') {
       console.log(USAGE);
-      process.exit(0);
+      exit(0);
     }
     if (tok === '--json') {
       if (sub !== 'list') usageError(`--json is only valid on \`list\``);
@@ -507,13 +569,13 @@ function cmdList(opts) {
   const counts = { shown: shown.length, ...reg.counts };
   if (opts.json) {
     console.log(JSON.stringify({ ledger: abs, counts, items: shown, notes }, null, 2));
-    process.exit(0);
+    exit(0);
   }
   console.log(`follow-ups: shown=${counts.shown} open=${counts.open} closed=${counts.closed} total=${counts.total} ledger=${abs}`);
   for (const item of shown) console.log(formatRow(item));
   if (shown.length === 0) console.log('(no follow-ups match this view)');
   for (const n of notes) console.log(n);
-  process.exit(0);
+  exit(0);
 }
 
 function cmdAdd(opts) {
@@ -554,10 +616,10 @@ function cmdAdd(opts) {
   const item = after.items.find((i) => i.id === id);
   if (!item) {
     process.stderr.write(`follow-ups: appended ${id} but the re-read did not show it in ${abs}\n`);
-    process.exit(1);
+    exit(1);
   }
   console.log(`follow-ups: added ${id} (${item.severity} ${item.ref_id}) — open backlog is now ${after.counts.open}`);
-  process.exit(0);
+  exit(0);
 }
 
 function cmdClose(opts) {
@@ -577,7 +639,7 @@ function cmdClose(opts) {
   if (!current) usageError(`unknown --id "${id}" — no follow_up with that id in ${abs}`);
   if (current.closed) {
     console.log(`NOTE follow-up ${id} is already ${current.status} (resolved_by ${current.resolved_by ?? 'n/a'}) — nothing appended, re-close is idempotent`);
-    process.exit(0);
+    exit(0);
   }
 
   const entry = {
@@ -601,10 +663,10 @@ function cmdClose(opts) {
   const item = after.items.find((i) => i.id === id);
   if (!item || item.status !== status) {
     process.stderr.write(`follow-ups: appended the ${status} status for ${id}, but the re-read of ${abs} shows status "${item ? item.status : 'MISSING'}" — the flip is NOT proven (a later-dated status record for this id may shadow it)\n`);
-    process.exit(1);
+    exit(1);
   }
   console.log(`follow-ups: ${id} -> ${item.status} (resolved_by ${item.resolved_by}), proven by re-reading ${abs} — open backlog is now ${after.counts.open}`);
-  process.exit(0);
+  exit(0);
 }
 
 function main() {
@@ -623,7 +685,7 @@ function realpathOrResolve(p) {
 }
 const __filename = fileURLToPath(import.meta.url);
 const isMain = process.argv[1] && realpathOrResolve(process.argv[1]) === realpathOrResolve(__filename);
-if (isMain) main();
+if (isMain) runMain();
 
 export {
   DEFAULT_LEDGER,

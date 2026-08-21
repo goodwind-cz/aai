@@ -11,6 +11,45 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(follow-ups): CLI output survives being piped (CHANGE-0153 / SPEC-0139) [L1]
+
+- `.aai/scripts/follow-ups.mjs` printed with `console.log` and then called
+  `process.exit(0)` at all ten of its exit sites. To a file that is correct —
+  stdout is synchronous there. To a PIPE the write is asynchronous and
+  `process.exit` discards whatever the pipe buffer has not yet accepted.
+  Measured before the change: `list --json` wrote **87012 bytes** to a file and
+  exactly **65536** through a pipe — one pipe buffer — with `JSON.parse`
+  failing at position 65522. Every caller that piped the registry into a parser
+  was silently reading a prefix and deriving wrong counts from it.
+- The fix is structural rather than per-site: `exit(code)` throws an
+  `ExitSignal` that `runMain()` catches and turns into `process.exitCode`, so
+  Node exits by the ordinary route — after the event loop has drained stdout
+  and stderr. All ten `process.exit` sites became `exit()`; no other statement
+  on any of those paths moved. Verified live after the change: the same
+  `list --json` parses whole through a pipe.
+- The EPIPE guard is deliberately ASYMMETRIC and the spec says so. Node's
+  global `console` is built with `ignoreErrors: true`, so the `console.log`
+  branches already swallow EPIPE on their own; the guard is load-bearing only
+  on the two `process.stderr.write` sites, where without it a usage error exits
+  **1** instead of **2**. Measured 10/10 both ways.
+- Five new suite arms, TEST-018 to TEST-022, each mutation-proved with an
+  unmutated green control. TEST-019 and TEST-022 read through a deliberately
+  SLOW (400 ms) reader, because through `cat` the human listing delivered its
+  full byte count even on the unfixed tree — a fast-reader assertion there
+  would have been vacuous.
+- Honest limits, all filed rather than fixed: the same
+  `console.log`-then-`process.exit` pattern is present in **41 of 51** scripts
+  under `.aai/scripts/` (`fu-cli-exit-truncates-pipe-sweep`) — this ride fixed
+  one file deliberately, since a repo-wide sweep needs its own per-CLI
+  exit-code proof; TEST-021(c) does not assert its own precondition
+  (`fu-test021c-precondition-unasserted`); the exit contract is unmeasured on
+  Windows (`fu-pipe-exit-contract-windows-untested`); and the guard's
+  non-EPIPE re-throw arm is read-verified only
+  (`fu-pipeguard-nonepipe-arm-unproven`).
+- A reader that neither drains nor closes now BLOCKS instead of truncating.
+  That is correct POSIX behaviour for any well-behaved writer and is stated in
+  the spec's D5 rather than hidden.
+
 ## [unreleased] — feat(test-harness): every suite runs in a disposable worktree (CHANGE-0152 / SPEC-0138) [L1]
 
 - Both suite funnels — `tests/skills/test-framework.sh` (what CI runs) and

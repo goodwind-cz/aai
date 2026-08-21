@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-20T20:52:59.003Z
+Generated: 2026-08-21T03:59:14.344Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0139 | specs | implementing | 5 implementing | docs/specs/SPEC-0139-spec-cli-output-survives-a-pipe.md |
 
 ## Canonical layer (0)
 
@@ -391,9 +392,11 @@ _None._
 | SPEC-0138 | specs | docs/specs/SPEC-0138-spec-suites-run-in-a-disposable-worktree.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0153 | issues | docs/issues/CHANGE-0153-cli-output-survives-a-pipe.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -424,4 +427,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-20 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-21 — counts above use this date for overdue checks.
