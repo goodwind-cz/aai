@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-21T04:58:31.629Z",
+  "generatedAt": "2026-08-21T08:11:50.907Z",
   "project": "aai",
   "counts": {
     "delivered": 198,
@@ -9,13 +9,13 @@
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "cli-output-survives-a-pipe",
-    "type": "intake_change"
+    "ref": "intake-numbers-some-doc-types-immediately",
+    "type": "intake_issue"
   },
   "in_flight": {
     "focus": {
-      "ref": "cli-output-survives-a-pipe",
-      "type": "intake_change",
+      "ref": "intake-numbers-some-doc-types-immediately",
+      "type": "intake_issue",
       "phase": "validation"
     },
     "strategy": "direct",
@@ -73,9 +73,9 @@
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
-      "spec": null,
+      "spec": "docs/specs/SPEC-0140-spec-intake-numbers-some-doc-types-immediately.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-20260821T074214Z-intake-numbers-some-doc-types-immediately.md"
     },
     {
       "ref": "aai-self-improvement-feedback-loop",

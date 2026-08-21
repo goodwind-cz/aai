@@ -1708,13 +1708,21 @@ test_clarify_011_no_new_ceremony() {
         # pin). Seventh payment of this allowlist tax
         # (fu-test011-branch-diff-allowlist-tax, P2, live).
         .aai/scripts/lib/repo-tripwire.sh|.aai/scripts/aai-run-tests.sh) ;;
+        # intake-numbers-some-doc-types-immediately: the DRAFT naming rule moves
+        # to where the intake router reads it (INTAKE_COMMON's single-source
+        # type table plus one RULES bullet in each of the eight per-type
+        # prompts) and gains an intake-time gate (docs-audit --intake-file,
+        # self-contained in the CLI so the shared docs-audit-core library stays
+        # byte-untouched). Eighth payment of this allowlist tax
+        # (fu-test011-branch-diff-allowlist-tax, P2, live).
+        .aai/INTAKE_COMMON.md|.aai/INTAKE_CHANGE.prompt.md|.aai/INTAKE_HOTFIX.prompt.md|.aai/INTAKE_ISSUE.prompt.md|.aai/INTAKE_PRD.prompt.md|.aai/INTAKE_RELEASE.prompt.md|.aai/INTAKE_RESEARCH.prompt.md|.aai/INTAKE_RFC.prompt.md|.aai/INTAKE_TECHDEBT.prompt.md|.aai/scripts/docs-audit.mjs) ;;
         *) log_info "TEST-011(clarify): unexpected .aai/ path in the branch diff: $p"; ok=0 ;;
       esac
     done <<<"$changed"
   else
     log_info "TEST-011(clarify): neither origin/main nor main resolves — the .aai/ diff pin did not run"
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (recounted 2026-08-19: 19 paths across 8 case groups) accounts for every changed .aai/ path" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (recounted 2026-08-21: 29 paths across 9 case groups) accounts for every changed .aai/ path" \
     || log_fail "TEST-011(clarify) zero-added-ceremony pins"
 }
 

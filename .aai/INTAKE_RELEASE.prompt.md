@@ -6,6 +6,7 @@ and save it under docs/releases/.
 
 RULES
 - Ask ONE question at a time.
+- NEVER a numbered filename: save docs/<dir>/<PREFIX>-DRAFT-<slug>.md with number: null, status: draft — the DURABLE DOC IDENTITY table in .aai/INTAKE_COMMON.md gives <dir> and <PREFIX> for this type.
 - Do NOT implement code.
 - Do NOT modify requirements or specs.
 - Verification gates must be executable commands.
@@ -30,7 +31,7 @@ PROCESS
 8) Ask for short release notes draft.
 9) Ask for required sign-off roles/names.
 10) If enough information is available, stop questions early.
-11) Output summary + completed Release Plan markdown + suggested filename.
+11) Output summary + completed Release Plan markdown + the DRAFT filename.
 
 SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its four blocks (language policy, durable doc identity, post-save check, metrics question) exactly.
 

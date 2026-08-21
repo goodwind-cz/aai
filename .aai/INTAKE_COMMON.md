@@ -27,13 +27,33 @@ changelog entries, PR titles) before the allocator assigns it — use the slug i
 FALLBACK (allocator absent, older AAI layer): scan-and-mint the next free
 TYPE-000N from existing docs and name the file docs/<type>/<TYPE>-000N-<slug>.md
 directly; the CI/pre-commit duplicate-number guard is the backstop.
+This table is the ONLY statement of the PREFIX per type, and the AUTHORITY for
+the directory: a per-type prompt names its own directory in its own opening
+line, and that line must match this table's row. Never improvise either half.
+Rows: intake type, frontmatter type, directory, prefix. Machine-read by
+docs-audit.mjs --intake-file, so keep the pipe-table shape exactly.
+
+| prd | requirement | docs/requirements | PRD |
+| change | change | docs/issues | CHANGE |
+| issue | issue | docs/issues | ISSUE |
+| hotfix | issue | docs/issues | ISSUE |
+| techdebt | techdebt | docs/issues | DEBT |
+| research | research | docs/specs | RES |
+| rfc | rfc | docs/rfc | RFC |
+| release | release | docs/releases | REL |
+
+Research is RES. RESEARCH-0001 predates this rule and keeps its name — a
+display id is a durable primary key and is never renamed to match a later
+convention. Planning's own artifact is docs/specs/SPEC-DRAFT-<slug>.md.
 
 ## POST-SAVE CHECK (RFC-0002)
 After saving the document, verify template compliance:
   node .aai/scripts/docs-audit.mjs --check --strict --no-event --path <saved-file>
-If the check fails, fix the frontmatter per the template and re-run until it
-passes. Do not report the artifact as saved while the check fails. If the
-script does not exist (older AAI layer), note that and continue.
+then verify it is the unnumbered draft intake must produce:
+  node .aai/scripts/docs-audit.mjs --intake-file <saved-file>
+If either check fails, fix the frontmatter or the FILENAME per the table above
+and re-run until both pass. Do not report the artifact as saved while a check
+fails. If the script does not exist (older AAI layer), note that and continue.
 
 ## METRICS (after saving the document)
 Ask the user (in their language):

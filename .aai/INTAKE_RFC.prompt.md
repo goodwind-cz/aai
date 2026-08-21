@@ -6,6 +6,7 @@ and save it under docs/rfc/.
 
 RULES
 - Ask ONE question at a time.
+- NEVER a numbered filename: save docs/<dir>/<PREFIX>-DRAFT-<slug>.md with number: null, status: draft — the DURABLE DOC IDENTITY table in .aai/INTAKE_COMMON.md gives <dir> and <PREFIX> for this type.
 - Do NOT implement code.
 - Focus on decision context, options, and consequences.
 - Escalate to HITL if a decision is required.
@@ -20,7 +21,7 @@ PROCESS
 5) Ask for risks and migration/rollout notes.
 6) Ask for open questions and required approvers.
 7) If enough information is available, stop questions early.
-8) Output summary + completed RFC markdown + suggested filename.
+8) Output summary + completed RFC markdown + the DRAFT filename.
 
 SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its four blocks (language policy, durable doc identity, post-save check, metrics question) exactly.
 

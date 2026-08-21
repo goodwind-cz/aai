@@ -19,6 +19,15 @@
 //                                                   # explicit file (a materialized
 //                                                   # STAGED blob): 1 findings /
 //                                                   # 0 clean / 2 unreadable
+//   node .aai/scripts/docs-audit.mjs --intake-file <f>     # pure predicate on the
+//                                                   # artifact intake just saved:
+//                                                   # it must be an UNNUMBERED
+//                                                   # <PREFIX>-DRAFT-<slug>.md with
+//                                                   # number: null / status: draft
+//                                                   # and the prefix + directory the
+//                                                   # .aai/INTAKE_COMMON.md table
+//                                                   # gives its type: 1 findings /
+//                                                   # 0 clean / 2 unreadable
 //
 // Modes: enforced (docs/ai/docs-audit.yaml present), report-only (absent), quick.
 // In report-only mode --check always exits 0 — first runs never drown the operator.
@@ -31,6 +40,7 @@ import {
   runAudit, suggestedStep, gateDoc, gateFile, lintBody, lintFile,
   scanAuditDocs, loadConfig, CONFIG_PATH,
 } from './lib/docs-audit-core.mjs';
+import { parseFrontmatter, normalizeNewlines } from './lib/docs-model.mjs';
 import fs from 'node:fs';
 
 const ROOT = process.cwd();
@@ -50,6 +60,7 @@ function parseArgs(argv) {
     else if (tok === '--gate-file') args.gateFile = argv[++i];
     else if (tok === '--lint-body') args.lintBody = true;
     else if (tok === '--lint-body-file') args.lintBodyFile = argv[++i];
+    else if (tok === '--intake-file') args.intakeFile = argv[++i];
   }
   return args;
 }
@@ -110,6 +121,126 @@ function runLintBodyFile(filePath) {
   process.exit(1);
 }
 
+// spec-intake-numbers-some-doc-types-immediately — `--intake-file <file>`: the
+// INTAKE-time twin of the allocator's merge-time no-DRAFT guard. That guard
+// catches an unnumbered doc reaching the merge point; nothing caught a NUMBERED
+// doc being created at intake, which is how DEBT-0001, DEBT-0002, RES-0001 and
+// RESEARCH-0001 entered the corpus already numbered. Scoped to the ONE file
+// intake just saved (the only place the act of creation is observable), so it
+// never judges a doc the allocator legitimately numbered later. Same exit
+// contract as --gate-file: 1 findings / 0 clean / 2 unreadable.
+//
+// Everything this mode needs lives HERE rather than in lib/docs-audit-core.mjs
+// on purpose: that library is imported by two dozen suites, `select-suites.mjs`
+// classifies it as a shared lib and escalates any edit to a FULL_RUN, and
+// `test-aai-ceremony-levels.sh` TEST-016 pins it byte-untouched. None of that
+// is worth paying for three functions used by one flag.
+
+// Path to the ONE place that states the intake type -> directory + prefix
+// mapping. It is a PROMPT the intake router already reads, so keeping the
+// machine-readable table there (rather than duplicating it here) is what makes
+// prompt and gate un-driftable: the gate fails the moment the table the router
+// obeys stops matching the artifact the router produced.
+const INTAKE_COMMON_PATH = '.aai/INTAKE_COMMON.md';
+
+// Parse the DURABLE DOC IDENTITY type table out of INTAKE_COMMON.md. One row
+// per intake type: "| <intake type> | <frontmatter type> | docs/<dir> | PREFIX |".
+// The header row and the |---| separator cannot match by construction (their
+// cells carry spaces and capitals), so no row-skipping heuristic is needed.
+// Returns [] when the table is absent — callers treat that as an error, never
+// as "no rule" (degrade LOUDLY, never silently permit).
+// EXPORTED for one reason: tests/skills/test-aai-intake.sh TEST-013 reads the
+// table with a deliberately independent single-space awk, and an independent
+// reader that is never cross-checked cannot notice a row the GATE has and the
+// test does not (this regex allows \s*, the awk does not). The arm imports
+// this function to compare the two readings row-for-row. Nothing in production
+// imports it; main() below is the only caller.
+export function parseIntakeTypeTable(content) {
+  const rows = [];
+  for (const line of normalizeNewlines(String(content ?? '')).split('\n')) {
+    const m = line.match(/^\|\s*([a-z]+)\s*\|\s*([a-z]+)\s*\|\s*(docs\/[a-z]+)\s*\|\s*([A-Z]+)\s*\|\s*$/);
+    if (m) rows.push({ intakeType: m[1], type: m[2], dir: m[3], prefix: m[4] });
+  }
+  return rows;
+}
+
+// Pure predicate: does this artifact have the shape intake is required to
+// produce? An intake artifact is an UNNUMBERED draft — the sequential display
+// number is assigned at MERGE by allocate-doc-number.mjs. Returns finding
+// strings; empty == clean.
+function intakeShapeFindings(rel, content, table) {
+  const findings = [];
+  const base = path.basename(rel);
+  const dir = path.dirname(rel).split(path.sep).join('/');
+  const draft = base.match(/^([A-Z]+(?:-[A-Z]+)*)-DRAFT-([a-z0-9-]+)\.md$/);
+  const numbered = base.match(/^([A-Z]+(?:-[A-Z]+)*)-(\d{1,5})(?=[-.])/);
+  if (!draft) {
+    findings.push(numbered
+      ? `numbered-at-intake: "${base}" already carries the display number ${numbered[2]}. Intake creates ${numbered[1]}-DRAFT-<slug>.md; the number is assigned at MERGE by allocate-doc-number.mjs`
+      : `not-a-draft-basename: "${base}" is not <PREFIX>-DRAFT-<slug>.md`);
+  }
+  const fm = parseFrontmatter(content);
+  if (fm == null) {
+    findings.push('no-frontmatter: the artifact has no parsable YAML frontmatter block');
+    return findings;
+  }
+  // An ABSENT `number:` key is a finding, not a pass. `fm.number != null` is
+  // false for `undefined`, so a frontmatter block that simply omits the key
+  // used to clear the gate while an omitted `status` was caught — an asymmetry
+  // with no reason behind it. The rule is `number: null`, present and explicit
+  // (the allocator stamps the number INTO that key at merge), so the gate says
+  // so. It only ever failed open in the unnumbered direction, which is why
+  // this is a hardening, not a numbered-at-intake escape.
+  if (!Object.prototype.hasOwnProperty.call(fm, 'number')) {
+    findings.push('number-absent: frontmatter has no number key at all (intake writes an explicit number: null)');
+  } else if (fm.number != null) findings.push(`number-not-null: frontmatter number is "${fm.number}" (intake writes number: null)`);
+  if (fm.status !== 'draft') findings.push(`status-not-draft: frontmatter status is "${fm.status ?? '(absent)'}" (intake writes status: draft)`);
+  const type = fm.type == null ? '' : String(fm.type);
+  const matches = table.filter(r => r.type === type);
+  if (matches.length === 0) {
+    findings.push(`unknown-type: frontmatter type "${type || '(absent)'}" is not in the ${INTAKE_COMMON_PATH} table (known: ${[...new Set(table.map(r => r.type))].join(', ')})`);
+  } else if (!matches.some(r => r.dir === dir && Boolean(draft) && draft[1] === r.prefix)) {
+    const want = [...new Set(matches.map(r => `${r.dir}/${r.prefix}-DRAFT-<slug>.md`))].join(' or ');
+    findings.push(`wrong-prefix-or-dir: type "${type}" must be saved as ${want}, got "${rel}"`);
+  }
+  return findings;
+}
+
+// File-facing wrapper mirroring gateFile / lintFile: resolves both the artifact
+// and the single-source table, and reports WHICH of the two is unreadable
+// rather than passing an unchecked artifact.
+function intakeShapeFile(root, filePath) {
+  const abs = path.isAbsolute(filePath) ? filePath : path.join(root, filePath);
+  let content;
+  try { content = fs.readFileSync(abs, 'utf8'); }
+  catch { return { found: false, findings: [], error: `file not found or unreadable: "${filePath}"` }; }
+  let table;
+  try { table = parseIntakeTypeTable(fs.readFileSync(path.join(root, INTAKE_COMMON_PATH), 'utf8')); }
+  catch { return { found: false, findings: [], error: `${INTAKE_COMMON_PATH} not found or unreadable — the type/prefix table is the single source of truth and cannot be inferred` }; }
+  if (table.length === 0) {
+    return { found: false, findings: [], error: `${INTAKE_COMMON_PATH} carries no DURABLE DOC IDENTITY type table` };
+  }
+  const rel = path.isAbsolute(filePath) ? path.relative(root, abs) : filePath;
+  return { found: true, findings: intakeShapeFindings(rel, content, table), error: null };
+}
+
+function runIntakeFile(filePath) {
+  console.log(`## Intake Shape — ${filePath}`);
+  console.log('');
+  const res = intakeShapeFile(ROOT, filePath);
+  if (!res.found) {
+    console.log(`INTAKE ERROR: ${res.error}`);
+    process.exit(2);
+  }
+  if (res.findings.length === 0) {
+    console.log('INTAKE PASS: unnumbered draft with the prefix and directory its type requires.');
+    process.exit(0);
+  }
+  console.log('INTAKE FAIL — this artifact is not the unnumbered draft intake must produce:');
+  for (const f of res.findings) console.log(`- ${f}`);
+  process.exit(1);
+}
+
 // SPEC-0011 G1 — `--gate <DOC-ID>` offline close-time predicate. Prints the
 // reasons and exits 1 on fail, 0 on pass, 2 when the id resolves to no scanned
 // doc. Scope-limited to the one doc; never emits a docs_audit event.
@@ -165,6 +296,7 @@ function emitEvent(result, scope) {
 
 function main() {
   const args = parseArgs(process.argv);
+  if (args.intakeFile) runIntakeFile(args.intakeFile);   // exits 1/0/2; never returns
   if (args.gate) runGate(args.gate);   // exits 1/0/2; never returns
   if (args.gateFile) runGateFile(args.gateFile);   // exits 1/0/2; never returns
   if (args.lintBodyFile) runLintBodyFile(args.lintBodyFile);   // exits 1/0/2; never returns

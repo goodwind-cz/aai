@@ -11,6 +11,42 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(intake): every intake type states the DRAFT rule it was silently skipping (ISSUE-0032 / SPEC-0140) [L1]
+
+- The owner reported that a `techdebt` intake produced a numbered document
+  instead of a `DEBT-DRAFT-<slug>.md`. The check found `research` and `release`
+  doing the same, and a second defect: research documents carry TWO prefixes,
+  `RES` and `RESEARCH`. Four documents sit in the corpus already numbered with
+  no DRAFT predecessor — `DEBT-0001`, `DEBT-0002`, `RES-0001`, `RESEARCH-0001`.
+- Cause, measured before planning began: **none of the eight
+  `.aai/INTAKE_*.prompt.md` files contained the string `DRAFT` or
+  `DURABLE DOC IDENTITY`** — zero hits in all eight. The rule lived only in
+  `.aai/INTAKE_COMMON.md`, applied by one router step (`SKILL_INTAKE` STEP 2.4)
+  that the per-type prompts neither stated nor reinforced. For the frequently
+  exercised types the router applied it; for the rare ones the per-type prompt's
+  own "suggested filename" instruction won and nothing caught it.
+- The fix: one RULES bullet in each of the eight prompts naming the DRAFT shape
+  and pointing INSIDE that same block at a new eight-row table in
+  `.aai/INTAKE_COMMON.md` — the single source of the PREFIX and the authority
+  for the directory — plus a new read-only `docs-audit.mjs --intake-file <f>`
+  (exit 1 `numbered-at-intake`, 0 clean, 2 unreadable) wired into the POST-SAVE
+  CHECK. **Nothing was renamed**: existing display ids are durable primary keys.
+- `RES` was chosen on evidence, not taste: the research template already reads
+  `id: RES-XXXX`, citations run 9 to 3 in its favour, and the allocator's
+  `TYPE_MAP` — which has no research row at all — is consulted only when minting
+  from `--type`, never on the numbering path.
+- Residual, stated plainly: enforcement is prompt-level. Nothing automated runs
+  `--intake-file`. The merge-point guard `allocate-doc-number.mjs --guard` is
+  what actually blocks, and it already works — it turned `main` red on an
+  unnumbered `ISSUE-DRAFT-` pushed on 2026-08-20.
+- Four new arms TEST-012..TEST-015 in `tests/skills/test-aai-intake.sh`, each
+  mutation-proved with an unmutated green control, plus
+  `test_021_ledger_has_no_unescaped_backtick` in
+  `tests/skills/test-aai-prompt-diet.sh`: the prompt-diet ledger carried
+  unescaped backticks that ran `wc -c` at source time on every consumer and
+  silently deleted a word from the entry's own text. Found, fixed, and now
+  pinned by a test instead of a prose claim.
+
 ## [unreleased] — fix(follow-ups): CLI output survives being piped (CHANGE-0153 / SPEC-0139) [L1]
 
 - `.aai/scripts/follow-ups.mjs` printed with `console.log` and then called
