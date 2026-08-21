@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-21T04:05:48.327Z
+Generated: 2026-08-21T04:56:08.895Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -395,7 +395,7 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| intake-numbers-some-doc-types-immediately (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-intake-numbers-some-doc-types-immediately.md |
+| ISSUE-0032 | issues | docs/issues/ISSUE-0032-intake-numbers-some-doc-types-immediately.md |
 
 ## Deferred (whole-doc) (0)
 
