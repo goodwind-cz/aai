@@ -2287,7 +2287,15 @@ test_issue0001_posix_paths_noop() {
   out="$(index_posix_findings "$mutant")" || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "a backslash separator in an index path must FAIL this arm (the bite proof did not bite)"
-  printf '%s\n' "$out" | grep -qF 'not POSIX' \
+  # Pattern match, NOT `printf ... | grep -q`. `grep -q` exits at the first
+  # match, so the writer takes SIGPIPE on anything larger than the 64 KiB pipe
+  # buffer and `set -o pipefail` turns that into a failed assertion on a payload
+  # that DID match. Measured: 52 KiB passes 20/20, 90 KiB fails 20/20 — not a
+  # race, a threshold. It reddened CI on this very arm while passing locally,
+  # because the mutant payload sits either side of 64 KiB depending on how many
+  # documents the index holds. Every assertion over a findings payload in this
+  # suite must stay pipe-free.
+  [[ "$out" == *"not POSIX"* ]] \
     || log_fail "the failure must name the path problem (expected 'not POSIX'), got: $out"
   rc=0
   out="$(index_posix_findings "$control")" || rc=$?
@@ -2320,9 +2328,9 @@ test_indexarm_index_is_not_stale() {
   out="$(index_stale_findings "$PROJECT_ROOT" "$dropped")" || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "dropping the tracked document $victim from the listing must be reported (bite 1 did not bite)"
-  printf '%s\n' "$out" | grep -qF 'STALE' \
+  [[ "$out" == *"STALE"* ]] \
     || log_fail "the finding must say the index is STALE, got: $out"
-  printf '%s\n' "$out" | grep -qF "$victim" \
+  [[ "$out" == *"$victim"* ]] \
     || log_fail "the finding must name the missing document, got: $out"
 
   # BITE 2 — a listed path that no longer exists (a document was deleted without
@@ -2334,7 +2342,7 @@ test_indexarm_index_is_not_stale() {
   out="$(index_stale_findings "$PROJECT_ROOT" "$ghost")" || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "a listed path that no longer exists must be reported (bite 2 did not bite)"
-  printf '%s\n' "$out" | grep -qF 'no longer exists on disk' \
+  [[ "$out" == *"no longer exists on disk"* ]] \
     || log_fail "the finding must say the listed path is gone, got: $out"
 
   # CONTROL — the same copy, unmutated.
@@ -5916,6 +5924,347 @@ test_docsaicanon_real_repo_clean() {  # TEST-U02
   log_pass "Real repo docs/ai is fully canonical; docs/ai/tests is registered (TEST-U02)"
 }
 
+# --- SPEC docs-history-is-one-git-call-per-doc (TEST-001..005) ----------------
+# The engine answers "when was this document added" for every document from ONE
+# `git log --diff-filter=A` walk per runAudit call instead of one subprocess per
+# document. These arms pin the whole-corpus equivalence with the shipped
+# per-file function (TEST-001), the one-call-per-audit gating and the --quick
+# no-op (TEST-002), the --no-renames requirement without which a close-ceremony
+# rename silently loses its date (TEST-003), the no-add-commit degrade
+# (TEST-004), and the surviving single-document export (TEST-005).
+
+# An isolated repo with the vendored engine and a legacy_until_date config
+# (the gate the map build hangs off). Deliberately does NOT commit: TEST-004
+# needs a repository with no commits at all. Echoes the repo path on stdout.
+setup_histmap_repo() {
+  local d="$TEST_DIR/iso-histmap-$1"
+  rm -rf "$d"
+  mkdir -p "$d/.aai/scripts/lib" "$d/docs/issues" "$d/docs/specs" "$d/docs/ai"
+  cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
+  cat > "$d/docs/ai/docs-audit.yaml" <<'YAML'
+legacy_until_date: 2026-06-01
+stale_after_days: 90
+scan_exclude: []
+backlog_globs: []
+YAML
+  (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test")
+  printf '%s' "$d"
+}
+
+test_histmap_corpus_equivalence() {  # TEST-001 / Spec-AC-01
+  log_info "Test: the bulk add-history map equals the shipped per-file firstCommitDate over the WHOLE corpus (TEST-001)..."
+  cat > "$TEST_DIR/histmap-corpus.mjs" <<'EOF'
+// Every tracked docs/**/*.md, both strategies, byte-compared. The per-file side
+// is the expensive one (one subprocess per document) so it is computed ONCE and
+// reused for the mutation proof — the arm pays for it a single time.
+import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+const [corePath, root] = process.argv.slice(2);
+const { firstCommitDate, buildFirstCommitDateMap } = await import(pathToFileURL(corePath).href);
+const files = execFileSync('git', ['ls-files', '--', 'docs'],
+  { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 }).split('\n').filter((f) => f.endsWith('.md'));
+const map = buildFirstCommitDateMap(root);
+if (map === null) {
+  console.log('FINDING: the bulk walk returned null on a repository that HAS history');
+  process.exit(1);
+}
+const perFile = new Map(files.map((f) => [f, firstCommitDate(root, f)]));
+const compare = (m) => {
+  const out = { mismatches: [], bothNull: 0, dated: 0 };
+  for (const f of files) {
+    const per = perFile.get(f);
+    const bulk = m.has(f) ? m.get(f) : null;
+    if (per === bulk) { if (per === null) out.bothNull++; else out.dated++; continue; }
+    out.mismatches.push(`${f}: per-file=${per} bulk=${bulk}`);
+  }
+  return out;
+};
+const clean = compare(map);
+console.log(`documents=${files.length} mismatches=${clean.mismatches.length} both_null=${clean.bothNull} dated=${clean.dated}`);
+for (const m of clean.mismatches.slice(0, 10)) console.log(`FINDING: ${m}`);
+let bad = clean.mismatches.length > 0;
+// Vacuity guards: an empty or dateless corpus must FAIL, never pass by having
+// nothing to compare.
+if (files.length < 100) { console.log(`FINDING: only ${files.length} tracked document(s) — the comparison would be vacuous`); bad = true; }
+if (clean.dated < 100) { console.log(`FINDING: only ${clean.dated} document(s) carry a date — the comparison would be vacuous`); bad = true; }
+// BITE: one map entry rewritten to a wrong date must be reported, and only that
+// one. Without it, "mismatches=0" could be printed by a comparator that never
+// compares. The unmutated map above is the green control.
+const victim = files.find((f) => perFile.get(f) !== null);
+if (!victim) {
+  console.log('FINDING: no dated document to mutate with — the bite proof would be vacuous');
+  bad = true;
+} else {
+  const mutated = new Map(map);
+  mutated.set(victim, '1970-01-01');
+  const bit = compare(mutated);
+  if (bit.mismatches.length !== 1 || !bit.mismatches[0].startsWith(`${victim}:`)) {
+    console.log(`FINDING: the wrong-date mutation did not bite (${bit.mismatches.length} mismatch(es))`);
+    bad = true;
+  } else {
+    console.log(`bite=ok mutated=${victim}`);
+  }
+}
+process.exit(bad ? 1 : 0);
+EOF
+  local out rc=0
+  out="$(node "$TEST_DIR/histmap-corpus.mjs" \
+    "$PROJECT_ROOT/.aai/scripts/lib/docs-audit-core.mjs" "$PROJECT_ROOT" 2>&1)" || rc=$?
+  log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "the bulk map is not equivalent to the shipped per-file firstCommitDate: $out"
+  log_pass "Bulk add-history map equals per-file over the whole corpus; the wrong-date mutation bites"
+}
+
+test_histmap_one_git_call_per_audit() {  # TEST-002 / Spec-AC-02
+  log_info "Test: a full audit spends ONE add-history git call for N documents, --quick spends none (TEST-002)..."
+  local d; d="$(setup_histmap_repo onecall)"
+  local i
+  for i in 1 2 3 4; do
+    cat > "$d/docs/issues/CHANGE-60$i-histmap.md" <<MD
+---
+id: CHANGE-60$i
+type: change
+status: implementing
+links:
+  pr: []
+---
+# Histmap fixture document $i
+MD
+  done
+  (cd "$d" && git add -A && git commit -qm "docs: histmap fixtures" >/dev/null)
+
+  # A git shim that records every invocation and then execs the real git. The
+  # real path is captured BEFORE the override, or the shim would exec itself.
+  local realgit gitlog="$d/git-calls.log"
+  realgit="$(command -v git)"
+  mkdir -p "$d/shim"
+  cat > "$d/shim/git" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$gitlog"
+exec "$realgit" "\$@"
+EOF
+  chmod +x "$d/shim/git"
+
+  # Counted by the EXACT argv shape of each strategy, because the engine makes
+  # other --diff-filter=A calls (the per-document delivery-commit probe uses
+  # --format=%H) that this arm is not about. Patterns go through `-e`: a BSD
+  # grep parses a pattern beginning with `-` as options.
+  local walk_shape='log -z --no-renames --diff-filter=A'
+  local perfile_shape='log --diff-filter=A --format=%cs'
+
+  : > "$gitlog"
+  (cd "$d" && PATH="$d/shim:$PATH" node .aai/scripts/docs-audit.mjs --check --no-event > "$d/full.log" 2>&1) || true
+  local total walks perfile
+  total="$(wc -l < "$gitlog" | tr -d ' ')"
+  walks="$(grep -cF -e "$walk_shape" "$gitlog" || true)"
+  perfile="$(grep -cF -e "$perfile_shape" "$gitlog" || true)"
+  # Vacuity: a shim that intercepted nothing would report 0 of everything and
+  # both halves of this arm would pass for the wrong reason.
+  [[ "$total" -gt 0 ]] \
+    || log_fail "the git shim recorded no invocation at all — the call counts would be vacuous"
+  grep -qF -e "Scanned: 4 docs" "$d/full.log" \
+    || log_fail "the fixture audit must have scanned 4 documents, or 'one call' is not distinguishable from 'one per document'"
+  [[ "$walks" -eq 1 ]] \
+    || log_fail "a full audit over 4 documents must spend exactly ONE add-history walk, got $walks (total git calls: $total)"
+  [[ "$perfile" -eq 0 ]] \
+    || log_fail "a full audit over 4 TRACKED documents must spend no per-file first-commit call, got $perfile"
+
+  : > "$gitlog"
+  (cd "$d" && PATH="$d/shim:$PATH" node .aai/scripts/docs-audit.mjs --check --quick --no-event > "$d/quick.log" 2>&1) || true
+  local qwalks qperfile qtotal
+  qtotal="$(wc -l < "$gitlog" | tr -d ' ')"
+  qwalks="$(grep -cF -e "$walk_shape" "$gitlog" || true)"
+  qperfile="$(grep -cF -e "$perfile_shape" "$gitlog" || true)"
+  [[ "$qwalks" -eq 0 && "$qperfile" -eq 0 ]] \
+    || log_fail "--quick must ask git for no first-commit date at all, got $qwalks walk(s) and $qperfile per-file call(s)"
+  rm -rf "$d"
+  log_pass "Full audit: 1 add-history walk and 0 per-file calls for 4 documents ($total git calls total); --quick: 0 of $qtotal"
+}
+
+test_histmap_rename_needs_no_renames() {  # TEST-003 / Spec-AC-03
+  log_info "Test: a close-ceremony rename keeps its date ONLY because the walk passes --no-renames (TEST-003)..."
+  local d; d="$(setup_histmap_repo rename)"
+  cat > "$d/docs/issues/CHANGE-DRAFT-histmap-rename.md" <<'MD'
+---
+id: histmap-rename
+type: change
+status: draft
+links:
+  pr: []
+---
+# Draft intake that gets numbered at its close ceremony
+
+The body is unchanged across the rename so git's similarity detection fires,
+which is exactly what makes the entry an R record instead of an A record.
+MD
+  (cd "$d" && git add -A \
+    && GIT_COMMITTER_DATE="2026-01-10T10:00:00Z" GIT_AUTHOR_DATE="2026-01-10T10:00:00Z" \
+       git commit -qm "docs: draft intake" >/dev/null)
+  (cd "$d" && git mv docs/issues/CHANGE-DRAFT-histmap-rename.md \
+       docs/issues/CHANGE-0046-histmap-rename.md \
+    && GIT_COMMITTER_DATE="2026-03-05T10:00:00Z" GIT_AUTHOR_DATE="2026-03-05T10:00:00Z" \
+       git commit -qm "docs: number the intake (close ceremony)" >/dev/null)
+
+  cat > "$TEST_DIR/histmap-rename.mjs" <<'EOF'
+import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+const [corePath, root] = process.argv.slice(2);
+const { firstCommitDate, buildFirstCommitDateMap } = await import(pathToFileURL(corePath).href);
+const numbered = 'docs/issues/CHANGE-0046-histmap-rename.md';
+const draft = 'docs/issues/CHANGE-DRAFT-histmap-rename.md';
+const map = buildFirstCommitDateMap(root);
+let bad = false;
+const say = (m) => { console.log(`FINDING: ${m}`); bad = true; };
+if (map === null) say('the walk returned null on a repository that has history');
+const gotNumbered = map && map.get(numbered);
+const gotDraft = map && map.get(draft);
+const perNumbered = firstCommitDate(root, numbered);
+console.log(`numbered=${gotNumbered} draft=${gotDraft} per_file_numbered=${perNumbered}`);
+if (gotNumbered !== '2026-03-05') say(`the numbered path must carry the RENAME date 2026-03-05, got ${gotNumbered}`);
+if (gotDraft !== '2026-01-10') say(`the draft path must carry its own add date 2026-01-10, got ${gotDraft}`);
+if (gotNumbered !== perNumbered) say(`the map (${gotNumbered}) and the shipped per-file call (${perNumbered}) disagree`);
+// BITE: the SAME walk with --no-renames removed. git then reports the numbered
+// path as an R record, --diff-filter=A drops it, and the document vanishes from
+// the walk entirely. The unmutated walk above is the green control.
+const walk = (args) => execFileSync('git',
+  ['log', '-z', ...args, '--diff-filter=A', '--format=%x00%cs', '--name-only', '--relative', '--', 'docs'],
+  { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
+const withFlag = walk(['--no-renames']);
+const without = walk([]);
+console.log(`raw_with_no_renames_has_numbered=${withFlag.includes(numbered)} raw_without_has_numbered=${without.includes(numbered)}`);
+if (!withFlag.includes(numbered)) say('--no-renames did not keep the numbered path in the walk — the control is broken');
+if (without.includes(numbered)) say('dropping --no-renames did NOT lose the numbered path — the bite did not bite');
+process.exit(bad ? 1 : 0);
+EOF
+  local out rc=0
+  out="$(node "$TEST_DIR/histmap-rename.mjs" "$PROJECT_ROOT/.aai/scripts/lib/docs-audit-core.mjs" "$d" 2>&1)" || rc=$?
+  log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
+  [[ "$rc" -eq 0 ]] || log_fail "close-ceremony rename handling is wrong: $out"
+  rm -rf "$d"
+  log_pass "Renamed close-ceremony document keeps its date; removing --no-renames loses it (bite proved in-arm)"
+}
+
+test_histmap_no_history_yields_null() {  # TEST-004 / Spec-AC-04
+  log_info "Test: a document with no add commit yields null, not a crash and not another date (TEST-004)..."
+  # (a) a repository with a document on disk and NO commits at all.
+  local a; a="$(setup_histmap_repo nohistory)"
+  cat > "$a/docs/issues/CHANGE-701-never-committed.md" <<'MD'
+---
+id: CHANGE-701
+type: change
+status: implementing
+links:
+  pr: []
+---
+# Document in a repository that has no commits at all
+MD
+  # (b) a repository WITH history plus one untracked document.
+  local b; b="$(setup_histmap_repo untracked)"
+  cat > "$b/docs/issues/CHANGE-702-committed.md" <<'MD'
+---
+id: CHANGE-702
+type: change
+status: implementing
+links:
+  pr: []
+---
+# Committed document
+MD
+  (cd "$b" && git add -A && git commit -qm "docs: committed fixture" >/dev/null)
+  cat > "$b/docs/issues/CHANGE-703-untracked.md" <<'MD'
+---
+id: CHANGE-703
+type: change
+status: implementing
+links:
+  pr: []
+---
+# Untracked document in a repository that does have history
+MD
+
+  cat > "$TEST_DIR/histmap-nohistory.mjs" <<'EOF'
+import { pathToFileURL } from 'node:url';
+const [corePath, noHistoryRoot, historyRoot] = process.argv.slice(2);
+const { firstCommitDate, buildFirstCommitDateMap } = await import(pathToFileURL(corePath).href);
+let bad = false;
+const say = (m) => { console.log(`FINDING: ${m}`); bad = true; };
+
+// (a) no commits at all: the walk itself fails and the map is null (the caller
+// then falls back to the shipped per-file call, which is null here too).
+const emptyMap = buildFirstCommitDateMap(noHistoryRoot);
+const emptyPer = firstCommitDate(noHistoryRoot, 'docs/issues/CHANGE-701-never-committed.md');
+console.log(`no_history_map=${emptyMap === null ? 'null' : `Map(${emptyMap.size})`} no_history_per_file=${emptyPer}`);
+if (emptyMap !== null) say(`a repository with no commits must yield a null map, got Map(${emptyMap.size})`);
+if (emptyPer !== null) say(`the shipped per-file call must yield null with no commits, got ${emptyPer}`);
+
+// (b) history present: the untracked document is simply an absent key, and the
+// committed one IS present — so "absent" discriminates instead of being the
+// only answer the map can give.
+const map = buildFirstCommitDateMap(historyRoot);
+if (map === null) { say('the walk returned null on a repository that has history'); }
+else {
+  const tracked = 'docs/issues/CHANGE-702-committed.md';
+  const untracked = 'docs/issues/CHANGE-703-untracked.md';
+  const perUntracked = firstCommitDate(historyRoot, untracked);
+  console.log(`map_size=${map.size} tracked_present=${map.has(tracked)} untracked_present=${map.has(untracked)} per_file_untracked=${perUntracked}`);
+  if (map.size < 1) say('the map is empty — the absent-key claim would be vacuous');
+  if (!map.has(tracked)) say('the committed document is missing from the map');
+  if (map.has(untracked)) say('the untracked document must NOT be in the map');
+  if (perUntracked !== null) say(`the shipped per-file call must yield null for an untracked document, got ${perUntracked}`);
+}
+process.exit(bad ? 1 : 0);
+EOF
+  local out rc=0
+  out="$(node "$TEST_DIR/histmap-nohistory.mjs" \
+    "$PROJECT_ROOT/.aai/scripts/lib/docs-audit-core.mjs" "$a" "$b" 2>&1)" || rc=$?
+  log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
+  [[ "$rc" -eq 0 ]] || log_fail "no-add-commit handling is wrong: $out"
+
+  # And the whole audit must survive both shapes rather than crash.
+  (cd "$a" && node .aai/scripts/docs-audit.mjs --check --no-event > "$a/audit.log" 2>&1) || true
+  assert_contains "$a/audit.log" "Verdict:"
+  (cd "$b" && node .aai/scripts/docs-audit.mjs --check --no-event > "$b/audit.log" 2>&1) || true
+  assert_contains "$b/audit.log" "Verdict:"
+  rm -rf "$a" "$b"
+  log_pass "No-commit repo yields a null map, an untracked doc an absent key; both audits still render a verdict"
+}
+
+test_histmap_first_commit_date_still_exported() {  # TEST-005 / Spec-AC-05
+  log_info "Test: firstCommitDate is still exported and still answers for ONE document (TEST-005)..."
+  cat > "$TEST_DIR/histmap-export.mjs" <<'EOF'
+import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+const [corePath, root] = process.argv.slice(2);
+const { firstCommitDate, buildFirstCommitDateMap } = await import(pathToFileURL(corePath).href);
+let bad = false;
+const say = (m) => { console.log(`FINDING: ${m}`); bad = true; };
+if (typeof firstCommitDate !== 'function') say('firstCommitDate is no longer an exported function');
+const victim = execFileSync('git', ['ls-files', '--', 'docs/specs'],
+  { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 }).split('\n').filter((f) => f.endsWith('.md'))[0];
+if (!victim) say('no tracked spec to ask about — the claim would be vacuous');
+const one = victim ? firstCommitDate(root, victim) : null;
+const map = buildFirstCommitDateMap(root);
+const fromMap = map && victim ? map.get(victim) : undefined;
+// Discrimination: the same function must answer null for a path that never
+// existed, so a hardcoded date could not pass this arm.
+const ghost = firstCommitDate(root, 'docs/specs/SPEC-9998-never-existed.md');
+console.log(`doc=${victim} single=${one} from_map=${fromMap} ghost=${ghost}`);
+if (!/^\d{4}-\d{2}-\d{2}$/.test(String(one))) say(`the single-document call must return a YYYY-MM-DD date, got ${one}`);
+if (one !== fromMap) say(`the single-document call (${one}) and the map (${fromMap}) disagree`);
+if (ghost !== null) say(`a path that never existed must yield null, got ${ghost}`);
+process.exit(bad ? 1 : 0);
+EOF
+  local out rc=0
+  out="$(node "$TEST_DIR/histmap-export.mjs" \
+    "$PROJECT_ROOT/.aai/scripts/lib/docs-audit-core.mjs" "$PROJECT_ROOT" 2>&1)" || rc=$?
+  log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
+  [[ "$rc" -eq 0 ]] || log_fail "firstCommitDate no longer works as a single-document export: $out"
+  log_pass "firstCommitDate still exported, still answers for one document, still null for a ghost path"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
@@ -6069,6 +6418,11 @@ main() {
   test_pdcm_product_family_repo_wide_clean
   test_pdci_validation_gate_delegation
   test_pdci_gate_characterization_temporal_gap
+  test_histmap_corpus_equivalence
+  test_histmap_one_git_call_per_audit
+  test_histmap_rename_needs_no_renames
+  test_histmap_no_history_yields_null
+  test_histmap_first_commit_date_still_exported
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

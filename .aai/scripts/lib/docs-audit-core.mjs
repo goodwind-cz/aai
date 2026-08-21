@@ -4,7 +4,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import {
   DOC_STATUS_ENUM, TERMINAL_AC, DOC_TYPE_ENUM, DOC_ID_RE,
   DEFAULT_CATEGORY_PREFIXES, extractDocIds, normalizeAcStatus,
@@ -305,6 +305,63 @@ export function firstCommitDate(root, rel) {
   if (!out) return null;
   const lines = out.split('\n').filter(Boolean);
   return lines.length ? lines[lines.length - 1] : null;
+}
+
+// SPEC docs-history-is-one-git-call-per-doc — the question firstCommitDate
+// answers with one subprocess PER DOCUMENT, answered for every document in ONE
+// walk of the add-history (measured: 536 subprocesses / 15.8 s -> 1 walk / 49 ms).
+//
+// D5 — the records are separated by real NUL bytes, not by a date-shaped regex.
+// argv cannot carry a NUL but the stream does not need it to: `-z` makes
+// --name-only emit NUL-TERMINATED paths and the pretty placeholder `%x00` puts a
+// literal NUL in the header from an ASCII format string. Splitting on NUL then
+// yields an EMPTY token immediately before every date, so a header is told apart
+// from a path by POSITION, never by what it looks like. `-z` also settles a live
+// hazard: in line mode core.quotePath (default true) C-quotes a non-ASCII path
+// ("docs/specs/SPEC-0001-caf\303\251.md"), a key that would match no scanned doc
+// and silently cost that document its date.
+// D6 — --no-renames is mandatory: without it a close-ceremony
+// CHANGE-DRAFT-x.md -> CHANGE-0046-x.md rename is reported as R, --diff-filter=A
+// drops it, and documents lose their date silently (measured on this corpus by
+// dropping the flag: 21 of 536 on 2026-08-21, 23 when the intake measured it on
+// e0223a7 — the corpus moved, the defect did not). It is the CHANGE-0002
+// D13 --follow hazard arriving from the other direction. --full-history is
+// deliberately NOT passed: the shipped per-file call does not use it either.
+// D7 — the stream is newest-first, so the LAST write for a path is its OLDEST
+// add, which is exactly the value firstCommitDate takes from its own output.
+const ADD_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function buildFirstCommitDateMap(root) {
+  let raw;
+  try {
+    raw = execFileSync('git', [
+      'log', '-z', '--no-renames', '--diff-filter=A', '--format=%x00%cs',
+      '--name-only',
+      // --name-only prints paths relative to the REPOSITORY ROOT while callers
+      // hold paths relative to `root`; with `root` a subdirectory of the repo
+      // every lookup would miss silently. --relative re-bases them on the
+      // process cwd, which is `root`, and is a no-op at a repository root.
+      '--relative',
+      '--', SCAN_ROOT,
+    ], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 28 });
+  } catch {
+    return null;   // D3 — no git, no history, or a failed walk: the caller falls
+  }                // back to the shipped per-file call rather than to a wrong date
+  const map = new Map();
+  let date = null, expectDate = false, firstPath = false;
+  for (const token of raw.split('\0')) {
+    if (token === '') { expectDate = true; firstPath = false; continue; }
+    if (expectDate) {
+      // A parser that cannot recognise its own stream must not guess at it.
+      if (!ADD_DATE_RE.test(token)) return null;
+      date = token; expectDate = false; firstPath = true; continue;
+    }
+    // one newline separates the header record from the name list that follows it
+    const rel = firstPath && token.charCodeAt(0) === 10 ? token.slice(1) : token;
+    firstPath = false;
+    if (rel && date) map.set(rel, date);
+  }
+  return map;
 }
 
 function lastEditDate(root, rel) {
@@ -923,6 +980,18 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
 
   const files = scanAuditDocs(root, { scopePath, scanExclude: config?.scan_exclude ?? [] });
+  // SPEC docs-history-is-one-git-call-per-doc D1/D4 — one add-history walk for
+  // the whole call, built under EXACTLY the gate the per-document branch below
+  // uses (that condition is loop-invariant, so it is hoisted verbatim): --quick
+  // and a repository with no legacy_until_date still spawn nothing. The map is
+  // discarded with this call — a process-lifetime cache would be wrong the
+  // moment a fixture commits.
+  // files.length > 1, not > 0: a scoped audit (--path <one doc>, the intake
+  // post-save gate) would otherwise pay a whole-corpus walk to answer about a
+  // single document. Measured on this repository: walk 49.9 ms against one
+  // per-file call 27.6 ms, and the ratio grows with the corpus. Review of this
+  // spec found it; a map of null sends the single document down the D3 path.
+  const firstCommitMap = (!quick && legacyUntil && files.length > 1) ? buildFirstCommitDateMap(root) : null;
   const events = quick ? [] : readEvents(root);
   const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
   const extraMethods = config?.review_by_methods ?? [];
@@ -976,7 +1045,11 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
 
     // legacy/new split (D4): first-commit date vs legacy_until_date; untracked => new
     if (!quick && legacyUntil) {
-      const first = firstCommitDate(root, f.rel);
+      // D2/D3 — an absent key (untracked, or added outside the walk) and a
+      // failed walk both fall back to the shipped per-file call. A key-shape
+      // divergence then costs TIME, never a wrong date: the alternative reads
+      // an absent key as `null` and reclassifies the whole corpus as new.
+      const first = firstCommitMap?.has(f.rel) ? firstCommitMap.get(f.rel) : firstCommitDate(root, f.rel);
       doc.firstCommit = first;
       doc.legacy = first != null && first < legacyUntil;
     } else if (quick || !legacyUntil) {
