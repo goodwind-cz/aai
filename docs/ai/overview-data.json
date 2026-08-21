@@ -1,21 +1,21 @@
 {
-  "generatedAt": "2026-08-21T12:58:47.241Z",
+  "generatedAt": "2026-08-21T15:16:13.938Z",
   "project": "aai",
   "counts": {
-    "delivered": 200,
+    "delivered": 201,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "index-arm-diffs-whole-file-for-a-path-claim",
-    "type": "intake_issue"
+    "ref": "docs-history-is-one-git-call-per-doc",
+    "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "index-arm-diffs-whole-file-for-a-path-claim",
-      "type": "intake_issue",
+      "ref": "docs-history-is-one-git-call-per-doc",
+      "type": "intake_change",
       "phase": "code_review"
     },
     "strategy": "direct",
@@ -91,6 +91,19 @@
       "spec": "docs/specs/SPEC-0139-spec-cli-output-survives-a-pipe.md",
       "validation": null,
       "review": "docs/ai/reviews/review-cli-output-survives-a-pipe-20260821T035200Z.md"
+    },
+    {
+      "ref": "docs-history-is-one-git-call-per-doc",
+      "title": "Change — the docs audit asks git the same question once per document",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0154-docs-history-is-one-git-call-per-doc.md",
+      "closed_on": "2026-08-21",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0142-spec-docs-history-is-one-git-call-per-doc.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260821T150851Z-docs-history-is-one-git-call-per-doc.md"
     },
     {
       "ref": "intake-numbers-some-doc-types-immediately",
@@ -2698,6 +2711,19 @@
           "spec": "docs/specs/SPEC-0139-spec-cli-output-survives-a-pipe.md",
           "validation": null,
           "review": "docs/ai/reviews/review-cli-output-survives-a-pipe-20260821T035200Z.md"
+        },
+        {
+          "ref": "docs-history-is-one-git-call-per-doc",
+          "title": "Change — the docs audit asks git the same question once per document",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0154-docs-history-is-one-git-call-per-doc.md",
+          "closed_on": "2026-08-21",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0142-spec-docs-history-is-one-git-call-per-doc.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260821T150851Z-docs-history-is-one-git-call-per-doc.md"
         },
         {
           "ref": "intake-numbers-some-doc-types-immediately",

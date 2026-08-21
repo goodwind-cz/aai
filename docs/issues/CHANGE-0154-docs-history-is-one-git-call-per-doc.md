@@ -1,17 +1,19 @@
 ---
 id: docs-history-is-one-git-call-per-doc
-number: null
+number: 154
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-docs-audit
 links:
-  pr: []
-  commits: []
+  pr:
+    - 271
+  commits:
+    - 829b84ee51d38bddcbec75746cb3d6d551868acb
 ---
 
-# Change — the docs audit spends 99% of its time asking git the same question 536 times
+# Change — the docs audit asks git the same question once per document
 
 ## Summary
 - `firstCommitDate` (`.aai/scripts/lib/docs-audit-core.mjs:301`) runs one
@@ -29,9 +31,13 @@ docs-audit.mjs --check --strict --no-event   14056 ms
 docs-audit.mjs --check --quick  --no-event     125 ms   (--quick skips firstCommitDate)
 ```
 
-So the history loop is not part of the cost — it is **99.1%** of it. Everything
-else the audit does, reading and parsing 536 documents, validating frontmatter
-and running every body-lint rule, costs an eighth of a second.
+**This inference was wrong and is corrected here rather than deleted.** It read
+the gap as "the history loop is 99.1% of the audit's cost". `--quick` skips
+EVERY git probe, not only this one. Counted under a recording PATH shim during
+the ride: a strict audit makes 581 git calls before the change and 211 after,
+and 203 of the survivors are a different per-document probe,
+`git log -1 --grep=<id>` at about 17-19 ms each. The history loop was the
+larger half, not the whole: 12155 ms fell to 3667 ms, a measured 3.31x.
 
 Direct comparison of the two strategies over every tracked document:
 

@@ -1,14 +1,16 @@
 ---
 id: spec-docs-history-is-one-git-call-per-doc
 type: spec
-number: null
-status: implementing
+number: 142
+status: done
 ceremony_level: 1
 links:
-  requirement: docs/issues/CHANGE-DRAFT-docs-history-is-one-git-call-per-doc.md
+  requirement: docs/issues/CHANGE-0154-docs-history-is-one-git-call-per-doc.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 271
+  commits:
+    - 829b84ee51d38bddcbec75746cb3d6d551868acb
 ---
 
 # Spec — one history walk answers what 536 subprocesses answered
@@ -16,7 +18,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-docs-history-is-one-git-call-per-doc.md
+- Requirement: docs/issues/CHANGE-0154-docs-history-is-one-git-call-per-doc.md
 - Engine under change: .aai/scripts/lib/docs-audit-core.mjs (`firstCommitDate`, `runAudit`)
 - Out-of-scope single-document caller: .aai/scripts/generate-docs-index.mjs:266
 - Suite gaining arms: tests/skills/test-aai-docs-audit.sh
@@ -218,7 +220,7 @@ decision, recorded in the intake and not taken here.
 - Base ref: main
 - Inline review scope: .aai/scripts/lib/docs-audit-core.mjs,
   tests/skills/test-aai-docs-audit.sh,
-  docs/specs/SPEC-DRAFT-spec-docs-history-is-one-git-call-per-doc.md
+  docs/specs/SPEC-0142-spec-docs-history-is-one-git-call-per-doc.md
 
 Code review required: true (shared engine behind the audit, the index generator
 and several gates).

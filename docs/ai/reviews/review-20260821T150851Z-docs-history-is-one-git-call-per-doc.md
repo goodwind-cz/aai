@@ -2,8 +2,8 @@
 
 ```yaml
 review:
-  scope: "git diff e0223a7..688ac60 -- .aai/scripts/lib/docs-audit-core.mjs tests/skills/test-aai-docs-audit.sh docs/specs/SPEC-DRAFT-spec-docs-history-is-one-git-call-per-doc.md docs/issues/CHANGE-DRAFT-docs-history-is-one-git-call-per-doc.md"
-  spec: docs/specs/SPEC-DRAFT-spec-docs-history-is-one-git-call-per-doc.md
+  scope: "git diff e0223a7..688ac60 -- .aai/scripts/lib/docs-audit-core.mjs tests/skills/test-aai-docs-audit.sh docs/specs/SPEC-0142-spec-docs-history-is-one-git-call-per-doc.md docs/issues/CHANGE-0154-docs-history-is-one-git-call-per-doc.md"
+  spec: docs/specs/SPEC-0142-spec-docs-history-is-one-git-call-per-doc.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -23,7 +23,7 @@ review:
       - { rank: NON-BLOCKING, file: .aai/scripts/lib/docs-audit-core.mjs, line: 989,
           issue: "The hoisted gate ignores `scopePath`: a single-document scoped audit now pays a whole-corpus history walk instead of one per-file call.",
           failure_scenario: "`docs-audit.mjs --check --strict --no-event --path docs/specs/SPEC-DRAFT-<slug>.md` — the intake post-save gate named in SPEC-0013/SPEC-0019 and .aai prompts. Measured here: whole walk 49.9 ms vs one per-file call 27.6 ms (+22 ms on a 170 ms run). The walk scales with the number of add records under docs/ across all history, the per-file call with one file's history, so the ratio grows without bound on a larger docs corpus while the scoped work stays at one document. Recommended disposition: promote-to-follow-up (guard is one token: `files.length > 1`)." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-docs-history-is-one-git-call-per-doc.md, line: 238,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0142-spec-docs-history-is-one-git-call-per-doc.md, line: 238,
           issue: "Spec evidence citations do not resolve against the shipped suite: Spec-AC-02 names arm `test_histmap_quick_spawns_no_git` (shipped name is `test_histmap_one_git_call_per_audit`), and the Implementation plan (:325) and Test Plan prose say four new arms / four main() calls where five shipped.",
           failure_scenario: "A future reader (or the close ceremony populating the Evidence column) greps the suite for the named arm, finds nothing, and either records empty evidence or concludes the AC is unimplemented. Recommended disposition: remediate-in-tree at close — text-only." }
   cannot_verify:
