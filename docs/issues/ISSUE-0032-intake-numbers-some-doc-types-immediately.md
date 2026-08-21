@@ -1,6 +1,6 @@
 ---
 id: intake-numbers-some-doc-types-immediately
-number: null
+number: 32
 type: issue
 status: draft
 user_visible: false
