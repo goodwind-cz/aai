@@ -1843,3 +1843,5 @@
 {"v":1,"ts":"2026-08-21T15:15:24.850Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-docs-history-is-one-git-call-per-doc","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-21T15:15:24.885Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-docs-history-is-one-git-call-per-doc","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-21T15:15:24.920Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-docs-history-is-one-git-call-per-doc","payload":{"commit":"829b84ee51d38bddcbec75746cb3d6d551868acb"}}
+{"v":1,"ts":"2026-08-21T17:17:28.410Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-assertions-must-not-die-on-their-own-payload","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-21T17:42:52.685Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":375,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

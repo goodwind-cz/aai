@@ -32,6 +32,14 @@ core:
   - aai-check-state
   - aai-docs-audit
   - aai-spec-lint
+  # Added by assertions-must-not-die-on-their-own-payload after validation
+  # measured the gap: this suite holds the pipe-into-grep-q ratchet, and a PR
+  # that ADDS an occurrence to an already-baselined suite file does not select
+  # it — so the ratchet never gated the PR that violated it. A ratchet that
+  # cannot run on the change it exists to catch is a rubber stamp. The suite
+  # costs 6 s, which is the whole argument for making it always-on rather than
+  # widening its globs to tests/** and hoping the glob keeps up.
+  - aai-hygiene-pack
 
 full_run_triggers:
   shared_lib_globs:
@@ -323,6 +331,9 @@ suites:
   aai-hygiene-pack:
     globs:
       - .aai/scripts/check-test-registration.mjs
+      - tests/skills/lib/assert-payload.sh
+      - tests/skills/lib/pipe-grep-q-ratchet.sh
+      - tests/skills/lib/pipe-grep-q-baseline.tsv
       - .aai/AGENTS.md
       - .aai/IMPLEMENTATION.prompt.md
       - .aai/INTAKE_COMMON.md

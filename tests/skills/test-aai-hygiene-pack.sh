@@ -972,6 +972,469 @@ test_070_companion_obligations() {  # spec-planning-companion-obligations TEST-0
   log_pass "PLANNING companion-obligations checklist: both triggers + companions + files, closed to 2 bullets (spec-planning-companion-obligations TEST-001..003)"
 }
 
+# --- spec-assertions-must-not-die-on-their-own-payload ----------------------
+# TEST-001..006. An assertion that pipes its payload into `grep -q` reports
+# FAILURE on a payload that MATCHED, once the payload passes the 64 KiB pipe
+# buffer: `grep -q` exits at the first match, the writer takes SIGPIPE (141),
+# and `set -o pipefail` promotes that to the pipeline's status. These arms own
+# the pipe-free helper (tests/skills/lib/assert-payload.sh) and the corpus
+# ratchet that stops new occurrences of the shape being added silently.
+AP_LIB_REL="tests/skills/lib/assert-payload.sh"
+PGQ_LIB_REL="tests/skills/lib/pipe-grep-q-ratchet.sh"
+PGQ_BASELINE_REL="tests/skills/lib/pipe-grep-q-baseline.tsv"
+
+# THE PIPE CHARACTER IS PARAMETERISED THROUGHOUT THESE ARMS, ON PURPOSE.
+# The ratchet scans tests/skills/*.sh — including THIS FILE — for the literal
+# shape: an echo or printf of a variable, piped into a quiet grep. (Even THIS
+# COMMENT matched it in an earlier draft and put this suite in the baseline at
+# 2 — the scanner does not care that the occurrence is prose.) The fixtures
+# below must CONTAIN that shape to prove the ratchet bites and to reproduce the
+# 141 that justifies all of this, but writing it literally
+# here would make this suite the corpus's newest offender and would ratchet the
+# ratchet's own demonstrations. Substituting the bar keeps this file at zero
+# real occurrences. Do not "tidy" it back to a literal `|`.
+PGQ_BAR='|'
+
+# Absolute path: `grep` resolves to a ugrep shell function in this repo's
+# environment even non-interactively, and a measurement must not depend on
+# whose shell ran it.
+PGQ_GREP_BIN=/usr/bin/grep
+[[ -x "$PGQ_GREP_BIN" ]] || PGQ_GREP_BIN=grep
+
+ap_tmpdir() {
+  TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"
+  printf '%s' "$TEST_DIR"
+}
+
+# ap_payload <lines> <needle> — a payload built with NO pipe anywhere. `yes |
+# head` is itself a pipefail SIGPIPE trap and would kill the fixture before it
+# reached the assertion under test (measured while writing these arms).
+ap_payload() {
+  awk -v n="$1" -v needle="$2" 'BEGIN{
+    print needle
+    for (i = 0; i < n; i++) print "filler line padding the payload past the pipe buffer"
+  }'
+}
+
+# ap_grep_lines <count> <file> — append <count> occurrences of the UNSAFE shape.
+ap_grep_lines() {
+  local _n="$1" _f="$2" _i=0
+  while [[ "$_i" -lt "$_n" ]]; do
+    printf 'echo "$out%s" %s grep -qF needle%s\n' "$_i" "$PGQ_BAR" "$_i" >> "$_f"
+    _i=$(( _i + 1 ))
+  done
+}
+
+test_100_assert_payload_contract() {  # TEST-001 / Spec-AC-02
+  log_info "test_100: pipe-free payload assertions — needle named, preview bounded, vacuous needle refused (TEST-001)..."
+  local lib="$PROJECT_ROOT/$AP_LIB_REL" d
+  [[ -f "$lib" ]] || log_fail "test_100: missing $AP_LIB_REL"
+  d="$(ap_tmpdir)"
+
+  # Every probe runs in a CHILD bash that sources the library WITHOUT a
+  # log_fail of its own, so what is measured is the helper's own stderr +
+  # return-1 fallback, and a deliberately failing probe cannot take this suite
+  # down with it.
+  local probe="$d/ap-probe.sh"
+  cat > "$probe" <<PROBE
+. '$lib'
+fn="\$1"; shift
+"\$fn" "\$@"
+PROBE
+
+  local out rc
+  # (a) present -> exit 0, silent.
+  out="$(bash "$probe" assert_payload_contains "alpha beta gamma" "beta" "must find beta" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_100(a): a present needle must pass, got exit $rc: $out"
+  [[ -z "$out" ]] || log_fail "test_100(a): a passing assertion must print nothing, got: $out"
+
+  # (b) absent -> exit 1, message names BOTH the needle and the caller's text.
+  out="$(bash "$probe" assert_payload_contains "alpha beta gamma" "delta" "must find delta" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "test_100(b): an absent needle must exit 1, got $rc"
+  [[ "$out" == *"delta"* ]] || log_fail "test_100(b): the failure must NAME the needle, got: $out"
+  [[ "$out" == *"must find delta"* ]] || log_fail "test_100(b): the failure must carry the caller's message, got: $out"
+
+  # (c) BOUNDED PREVIEW. The incident behind this spec printed a FAIL line with
+  # 46 KB of findings after `got:`. A ~220 KB payload must produce a message
+  # small enough to read, and must state the TRUE total so the truncation can
+  # never be mistaken for the whole payload.
+  local big
+  big="$(ap_payload 4000 'needle-here')"
+  local biglen
+  biglen="$(LC_ALL=C; printf '%s' "${#big}")"
+  [[ "$biglen" -gt 65536 ]] \
+    || log_fail "test_100(c): the fixture payload must exceed the 64 KiB pipe buffer to be meaningful, got $biglen B"
+  out="$(bash "$probe" assert_payload_contains "$big" "absent-zzz" "big payload miss" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "test_100(c): expected exit 1, got $rc"
+  local outlen
+  outlen="$(LC_ALL=C; printf '%s' "${#out}")"
+  [[ "$outlen" -lt 1200 ]] \
+    || log_fail "test_100(c): the failure message must stay bounded, got $outlen B for a $biglen B payload"
+  [[ "$out" == *"$biglen bytes total, truncated to 512"* ]] \
+    || log_fail "test_100(c): the message must state the TRUE total ($biglen) and the bound, got: $out"
+
+  # (d) CONTROL for (c): a payload UNDER the bound is printed WHOLE and is not
+  # labelled truncated. Without this, (c) would also pass a helper that simply
+  # printed a fixed string and never showed the payload at all.
+  out="$(bash "$probe" assert_payload_contains "short-payload-marker" "absent-zzz" "small payload miss" 2>&1)" && rc=0 || rc=$?
+  [[ "$out" == *"short-payload-marker"* ]] \
+    || log_fail "test_100(d): a small payload must be shown in full, got: $out"
+  [[ "$out" != *"truncated"* ]] \
+    || log_fail "test_100(d): a small payload must NOT be labelled truncated, got: $out"
+
+  # (e) the not-contains direction, both ways.
+  out="$(bash "$probe" assert_payload_not_contains "alpha beta" "zeta" "must not find zeta" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_100(e): an absent needle must pass not_contains, got $rc: $out"
+  out="$(bash "$probe" assert_payload_not_contains "alpha beta" "beta" "must not find beta" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "test_100(e): a present needle must FAIL not_contains, got $rc"
+  [[ "$out" == *"beta"* ]] || log_fail "test_100(e): not_contains failure must name the needle, got: $out"
+
+  # (f) VACUITY GUARD on the guard. An empty needle matches every payload, so
+  # an assertion whose needle expanded to nothing would pass forever while
+  # testing nothing. Both directions must REFUSE it, not answer it.
+  out="$(bash "$probe" assert_payload_contains "anything at all" "" "empty needle" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] \
+    || log_fail "test_100(f): assert_payload_contains must REFUSE an empty needle (it matches everything), got exit $rc"
+  [[ "$out" == *"vacuous"* ]] || log_fail "test_100(f): the refusal must say why, got: $out"
+  out="$(bash "$probe" assert_payload_not_contains "anything at all" "" "empty needle" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] \
+    || log_fail "test_100(f): assert_payload_not_contains must REFUSE an empty needle, got exit $rc"
+
+  # (g) DELEGATION: when the sourcing suite has its own log_fail, the helper
+  # uses it, so a suite's existing failure convention and exit code survive.
+  local dprobe="$d/ap-probe-delegating.sh"
+  cat > "$dprobe" <<PROBE
+log_fail() { echo "SUITE-LOG-FAIL: \$*" >&2; exit 7; }
+. '$lib'
+assert_payload_contains "alpha" "omega" "delegated message"
+echo "UNREACHABLE"
+PROBE
+  out="$(bash "$dprobe" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 7 ]] \
+    || log_fail "test_100(g): the helper must delegate to the suite's log_fail (expected exit 7), got $rc: $out"
+  [[ "$out" == *"SUITE-LOG-FAIL: delegated message"* ]] \
+    || log_fail "test_100(g): the suite's log_fail must receive the message, got: $out"
+  [[ "$out" != *"UNREACHABLE"* ]] \
+    || log_fail "test_100(g): delegation must not fall through past the suite's exiting log_fail"
+
+  log_pass "test_100: helper names the needle, bounds the preview at 512 B, refuses a vacuous needle, delegates to log_fail (TEST-001)"
+}
+
+test_101_helper_survives_the_pipe_buffer() {  # TEST-002 / Spec-AC-02
+  log_info "test_101: a >64 KiB MATCHING payload kills the old idiom (141) and passes the helper (0) (TEST-002)..."
+  local lib="$PROJECT_ROOT/$AP_LIB_REL" d
+  d="$(ap_tmpdir)"
+
+  # One payload, three runs. It MATCHES in all three — every failure below is
+  # the mechanism, never a missing needle.
+  local big biglen
+  big="$(ap_payload 4000 'needle-here')"
+  biglen="$(LC_ALL=C; printf '%s' "${#big}")"
+  [[ "$biglen" -gt 65536 ]] || log_fail "test_101: fixture payload $biglen B does not clear the 64 KiB buffer"
+
+  # CONTROL A — the hazard is REAL on this machine right now. Without this, a
+  # green subject below would prove nothing: the helper could be passing
+  # because the platform never had the defect.
+  #
+  # The ABSOLUTE grep path is load-bearing. Measured: run under a `grep` shim
+  # that slurps stdin to EOF (this repo's ugrep wrapper does, and so does the
+  # census shim used to size this very change), the bare-name form exits 0 and
+  # this control fires — correctly, but for the wrong reason. Pinning the
+  # binary makes the control measure the POSIX grep the corpus's 390 sites
+  # actually resolve to in CI, instead of whatever the operator's shell put in
+  # front of it.
+  local old="$d/old-idiom.sh"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' 'set -euo pipefail'
+    printf '%s\n' 'big="$(cat "$1")"'
+    printf 'printf "%%s\\n" "$big" %s %s -qF "needle-here"\n' "$PGQ_BAR" "$PGQ_GREP_BIN"
+  } > "$old"
+  printf '%s\n' "$big" > "$d/big.txt"
+  local rc
+  bash "$old" "$d/big.txt" && rc=0 || rc=$?
+  [[ "$rc" -eq 141 ]] \
+    || log_fail "test_101 CONTROL A: the old idiom on a $biglen B MATCHING payload must die with SIGPIPE (141), got $rc — if this is 0 the buffer hazard did not reproduce and the rest of this arm is vacuous"
+
+  # CONTROL B — it is a THRESHOLD, not a broken fixture. The same idiom, the
+  # same needle, a payload under the buffer: exit 0.
+  local small
+  small="$(ap_payload 40 'needle-here')"
+  printf '%s\n' "$small" > "$d/small.txt"
+  bash "$old" "$d/small.txt" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_101 CONTROL B: the same idiom on a small MATCHING payload must pass (got $rc) — otherwise CONTROL A's 141 is not about size"
+
+  # SUBJECT — the helper, same payload, under the same set -euo pipefail.
+  local new="$d/new-helper.sh"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' 'set -euo pipefail'
+    printf '. %s\n' "'$lib'"
+    printf '%s\n' 'big="$(cat "$1")"'
+    printf '%s\n' 'assert_payload_contains "$big" "needle-here" "the payload must carry the needle"'
+    printf '%s\n' 'echo HELPER-OK'
+  } > "$new"
+  local out
+  out="$(bash "$new" "$d/big.txt" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_101 SUBJECT: the helper must pass the same $biglen B matching payload, got $rc: $out"
+  [[ "$out" == *"HELPER-OK"* ]] \
+    || log_fail "test_101 SUBJECT: execution must continue past the assertion, got: $out"
+
+  log_pass "test_101: old idiom 141 / small 0 / helper 0 on a ${biglen}B matching payload (TEST-002)"
+}
+
+test_102_pgq_ratchet_gate_and_bite() {  # TEST-003 / Spec-AC-03
+  log_info "test_102: unsafe-shape ratchet — live gate over tests/skills, plus a bite proof with an unmutated control (TEST-003)..."
+  local ratchet="$PROJECT_ROOT/$PGQ_LIB_REL" baseline="$PROJECT_ROOT/$PGQ_BASELINE_REL" d
+  [[ -f "$ratchet" ]] || log_fail "test_102: missing $PGQ_LIB_REL"
+  [[ -f "$baseline" ]] || log_fail "test_102: missing $PGQ_BASELINE_REL"
+  d="$(ap_tmpdir)"
+  # shellcheck source=lib/pipe-grep-q-ratchet.sh
+  . "$ratchet"
+
+  # ---- LIVE GATE ----------------------------------------------------------
+  local scan base total files
+  scan="$(pgq_scan "$PROJECT_ROOT/tests/skills")"
+  base="$(pgq_read_baseline "$baseline")"
+  total="$(pgq_total "$scan")"
+  files="$(printf '%s\n' "$scan" | "$PGQ_GREP_BIN" -c '[^[:space:]]')" || files=0
+
+  # VACUITY GUARD. A broken pattern scans to nothing, and an empty scan
+  # contradicts no baseline: the gate would pass by measuring the empty set.
+  # The corpus is known to carry hundreds of occurrences, so a zero here is a
+  # broken scanner, never a clean corpus.
+  [[ "$total" -gt 0 && "$files" -gt 0 ]] \
+    || log_fail "test_102: the live scan found $total occurrence(s) in $files file(s) — the scanner is broken, not the corpus (an empty scan can never contradict a baseline)"
+  [[ -n "$base" ]] \
+    || log_fail "test_102: $PGQ_BASELINE_REL has no data rows — re-record it: bash $PGQ_LIB_REL --record"
+
+  local verdicts risen shrunk
+  verdicts="$(pgq_compare "$base" "$scan")"
+  risen="$(printf '%s\n' "$verdicts" | "$PGQ_GREP_BIN" -E '^(RISE|NEW) ' 2>/dev/null)" || risen=""
+  if [[ -n "$risen" ]]; then
+    printf '%s\n' "$risen"
+    log_fail "test_102: the unsafe \`grep -q\` pipe count ROSE (see the RISE/NEW lines above, each naming its file). Use assert_payload_contains from $AP_LIB_REL instead; an echo or printf of a variable piped into a quiet grep reports FAILURE on a payload that MATCHED, once it passes 64 KiB"
+  fi
+  shrunk="$(printf '%s\n' "$verdicts" | "$PGQ_GREP_BIN" -E '^(SHRINK|GONE) ' 2>/dev/null)" || shrunk=""
+  if [[ -n "$shrunk" ]]; then
+    log_info "test_102: NOTE — the corpus SHRANK below the recorded bar. The bar is not lowered automatically; re-record deliberately: bash $PGQ_LIB_REL --record"
+    printf '%s\n' "$shrunk" | while IFS= read -r l; do [[ -z "$l" ]] || log_info "  $l"; done
+  fi
+  log_info "test_102: live corpus $total occurrence(s) of the ratcheted shape across $files file(s); wider surface (any pipe into grep -q) $(pgq_superset_count "$PROJECT_ROOT/tests/skills") — reported, not gated"
+
+  # ---- BITE PROOF, on a fixture tree --------------------------------------
+  local fx="$d/pgq-fixture" fb="$d/pgq-fixture-baseline.tsv"
+  rm -rf "$fx"; mkdir -p "$fx"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-fix-a.sh"; ap_grep_lines 2 "$fx/test-aai-fix-a.sh"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-fix-b.sh"; ap_grep_lines 1 "$fx/test-aai-fix-b.sh"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-fix-clean.sh"
+  printf '%s\n' 'grep -qF needle "$file" || true' >> "$fx/test-aai-fix-clean.sh"
+
+  bash "$ratchet" --record "$fb" "$fx" > /dev/null \
+    || log_fail "test_102: --record failed on the fixture tree"
+  local fbase fscan
+  fbase="$(pgq_read_baseline "$fb")"
+  fscan="$(pgq_scan "$fx")"
+
+  # Fixture vacuity: the planted occurrences must actually be seen, or the
+  # control's silence below means nothing.
+  [[ "$(pgq_total "$fscan")" -eq 3 ]] \
+    || log_fail "test_102: the fixture plants 3 occurrences but the scanner counted $(pgq_total "$fscan") — the bite proof would be vacuous"
+  [[ "$(pgq_lookup "$fscan" test-aai-fix-clean.sh)" -eq 0 ]] \
+    || log_fail "test_102: a file-target \`grep -qF needle FILE\` has no pipe and must NOT be counted"
+
+  # CONTROL — unmutated: no verdict at all.
+  local fv
+  fv="$(pgq_compare "$fbase" "$fscan")"
+  [[ -z "$fv" ]] || log_fail "test_102 CONTROL: an unmutated fixture must produce no verdict, got: $fv"
+
+  # BITE 1 — one more occurrence in an EXISTING file.
+  ap_grep_lines 1 "$fx/test-aai-fix-a.sh"
+  fv="$(pgq_compare "$fbase" "$(pgq_scan "$fx")")"
+  [[ "$fv" == *"RISE test-aai-fix-a.sh 2 3"* ]] \
+    || log_fail "test_102 BITE 1: adding one occurrence must RISE and NAME the file, got: $fv"
+  [[ "$fv" != *"test-aai-fix-b.sh"* ]] \
+    || log_fail "test_102 BITE 1: an untouched file must not be named, got: $fv"
+
+  # BITE 2 — a BRAND-NEW file carrying the shape. Per-file counts alone would
+  # miss this; the file set is what catches it.
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-fix-new.sh"; ap_grep_lines 1 "$fx/test-aai-fix-new.sh"
+  fv="$(pgq_compare "$fbase" "$(pgq_scan "$fx")")"
+  [[ "$fv" == *"NEW test-aai-fix-new.sh 0 1"* ]] \
+    || log_fail "test_102 BITE 2: a new file carrying the shape must be reported NEW and named, got: $fv"
+
+  log_pass "test_102: live gate clean at $total occurrence(s); ratchet bites on a rise and on a new file, control silent (TEST-003)"
+}
+
+test_103_pgq_baseline_is_measured_not_typed() {  # TEST-004 / Spec-AC-04
+  log_info "test_103: the recorded number is produced by the scanner the arm runs, and TRACKS the tree (TEST-004)..."
+  local ratchet="$PROJECT_ROOT/$PGQ_LIB_REL" baseline="$PROJECT_ROOT/$PGQ_BASELINE_REL" d
+  d="$(ap_tmpdir)"
+  # shellcheck source=lib/pipe-grep-q-ratchet.sh
+  . "$ratchet"
+
+  # The plants are chosen HERE, by this arm. A recorder with a number typed
+  # into it (from the change document or anywhere else) cannot follow them.
+  local fx="$d/pgq-provenance" out="$d/pgq-provenance.tsv"
+  rm -rf "$fx"; mkdir -p "$fx"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-p1.sh"; ap_grep_lines 5 "$fx/test-aai-p1.sh"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-p2.sh"; ap_grep_lines 2 "$fx/test-aai-p2.sh"
+
+  bash "$ratchet" --record "$out" "$fx" > /dev/null || log_fail "test_103: --record failed"
+  local rows
+  rows="$(pgq_read_baseline "$out")"
+  [[ "$(pgq_lookup "$rows" test-aai-p1.sh)" -eq 5 ]] \
+    || log_fail "test_103: --record wrote $(pgq_lookup "$rows" test-aai-p1.sh) for a tree with 5 planted occurrences"
+  [[ "$(pgq_lookup "$rows" test-aai-p2.sh)" -eq 2 ]] \
+    || log_fail "test_103: --record wrote $(pgq_lookup "$rows" test-aai-p2.sh) for a tree with 2 planted occurrences"
+
+  # CHANGE THE TREE, RE-RECORD: the number must move with it. This is what
+  # separates "measured" from "written down once and blessed".
+  ap_grep_lines 3 "$fx/test-aai-p1.sh"
+  bash "$ratchet" --record "$out" "$fx" > /dev/null || log_fail "test_103: re-record failed"
+  rows="$(pgq_read_baseline "$out")"
+  [[ "$(pgq_lookup "$rows" test-aai-p1.sh)" -eq 8 ]] \
+    || log_fail "test_103: after planting 3 more the recorder must write 8, wrote $(pgq_lookup "$rows" test-aai-p1.sh) — the number is not being measured"
+
+  # The COMMITTED baseline must name the generator, so nobody hand-edits it.
+  grep -qF -- '--record' "$baseline" \
+    || log_fail "test_103: $PGQ_BASELINE_REL must name its generator command in the header"
+  grep -qiF 'generated' "$baseline" \
+    || log_fail "test_103: $PGQ_BASELINE_REL must mark itself GENERATED"
+
+  # And it must be a scan of the REAL tree, not of nothing: every committed row
+  # names a file that exists and still carries the shape.
+  local brow bfile bcount live missing=0
+  live="$(pgq_scan "$PROJECT_ROOT/tests/skills")"
+  while IFS=$'\t' read -r bcount bfile; do
+    [[ -n "$bfile" ]] || continue
+    [[ -f "$PROJECT_ROOT/tests/skills/$bfile" ]] \
+      || { log_info "test_103: baseline row names a missing file: $bfile"; missing=1; }
+    [[ "$bcount" -gt 0 ]] || { log_info "test_103: baseline row with a zero count: $bfile"; missing=1; }
+  done <<< "$(pgq_read_baseline "$baseline")"
+  [[ "$missing" -eq 0 ]] \
+    || log_fail "test_103: the committed baseline carries rows that no scan could have produced (see above)"
+  [[ "$(pgq_total "$live")" -gt 0 ]] \
+    || log_fail "test_103: the live scan is empty — a zero-total scan must never validate a baseline"
+
+  log_pass "test_103: --record tracks a planted tree (5/2 then 8), header names the generator, every committed row is real (TEST-004)"
+}
+
+test_104_pgq_shrink_never_lowers_the_bar() {  # TEST-005 / Spec-AC-03
+  log_info "test_104: a file that SHRINKS produces a NOTE, not a pass-by-lowering and not a failure (TEST-005)..."
+  local ratchet="$PROJECT_ROOT/$PGQ_LIB_REL" baseline="$PROJECT_ROOT/$PGQ_BASELINE_REL" d
+  d="$(ap_tmpdir)"
+  # shellcheck source=lib/pipe-grep-q-ratchet.sh
+  . "$ratchet"
+
+  local fx="$d/pgq-shrink" fb="$d/pgq-shrink.tsv"
+  rm -rf "$fx"; mkdir -p "$fx"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-s1.sh"; ap_grep_lines 4 "$fx/test-aai-s1.sh"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-s2.sh"; ap_grep_lines 1 "$fx/test-aai-s2.sh"
+  bash "$ratchet" --record "$fb" "$fx" > /dev/null || log_fail "test_104: --record failed"
+  local fbase before after
+  fbase="$(pgq_read_baseline "$fb")"
+  before="$(cat "$fb")"
+
+  # Convert two sites away, and remove one file's last one entirely.
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-s1.sh"; ap_grep_lines 2 "$fx/test-aai-s1.sh"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-s2.sh"
+
+  local fv
+  fv="$(pgq_compare "$fbase" "$(pgq_scan "$fx")")"
+  [[ "$fv" == *"SHRINK test-aai-s1.sh 4 2"* ]] \
+    || log_fail "test_104: a shrunk file must report SHRINK with BOTH numbers, got: $fv"
+  [[ "$fv" == *"GONE test-aai-s2.sh 1 0"* ]] \
+    || log_fail "test_104: a file with none left must report GONE, got: $fv"
+  [[ "$fv" != *"RISE"* && "$fv" != *"NEW"* ]] \
+    || log_fail "test_104: a shrink must never be reported as a rise, got: $fv"
+
+  # THE BAR ITSELF MUST NOT HAVE MOVED. A ratchet that re-records on read
+  # re-arms one occurrence lower every time a file is edited for an unrelated
+  # reason, and the bar walks to zero with nobody ever seeing it move.
+  after="$(cat "$fb")"
+  [[ "$before" == "$after" ]] \
+    || log_fail "test_104: comparing must not rewrite the recorded numbers — the baseline file changed underneath the comparison"
+
+  # CONTROL: the same fixture, unshrunk, produces nothing at all.
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-s1.sh"; ap_grep_lines 4 "$fx/test-aai-s1.sh"
+  printf '%s\n' '#!/usr/bin/env bash' > "$fx/test-aai-s2.sh"; ap_grep_lines 1 "$fx/test-aai-s2.sh"
+  fv="$(pgq_compare "$fbase" "$(pgq_scan "$fx")")"
+  [[ -z "$fv" ]] || log_fail "test_104 CONTROL: the restored fixture must produce no verdict, got: $fv"
+
+  # And the committed baseline is likewise untouched by a live gate run.
+  local live_before live_after
+  live_before="$(cat "$baseline")"
+  pgq_compare "$(pgq_read_baseline "$baseline")" "$(pgq_scan "$PROJECT_ROOT/tests/skills")" > /dev/null
+  live_after="$(cat "$baseline")"
+  [[ "$live_before" == "$live_after" ]] \
+    || log_fail "test_104: running the live gate rewrote $PGQ_BASELINE_REL"
+
+  log_pass "test_104: SHRINK and GONE are NOTEs, never a rise, and the recorded number is never rewritten by a comparison (TEST-005)"
+}
+
+# Converted sites, as `<suite file>|<needle it must still assert>`. The needle
+# is the CONTRACT: a conversion that quietly changed what an assertion looks for
+# would be a silent loss of coverage, and the suites themselves could not tell
+# you (they would just keep passing on a weaker claim).
+PGQ_CONVERTED=(
+  "test-aai-docs-audit.sh|not POSIX"
+  "test-aai-docs-audit.sh|STALE"
+  "test-aai-docs-audit.sh|no longer exists on disk"
+)
+
+test_105_converted_sites_keep_their_needles() {  # TEST-006 / Spec-AC-01, Spec-AC-05
+  log_info "test_105: every converted site sources the helper, keeps its needle, and dumps no unbounded payload (TEST-006)..."
+  local entry f needle suite seen=0
+
+  # VACUITY GUARD: an empty list would make every loop below pass by never
+  # running. The conversion set is not allowed to be silently empty.
+  [[ "${#PGQ_CONVERTED[@]}" -gt 0 ]] \
+    || log_fail "test_105: the converted-site list is EMPTY — this arm would pass without checking anything"
+
+  for entry in "${PGQ_CONVERTED[@]}"; do
+    f="${entry%%|*}"
+    needle="${entry#*|}"
+    suite="$PROJECT_ROOT/tests/skills/$f"
+    [[ -n "$needle" ]] || log_fail "test_105: empty needle in the converted-site list entry '$entry'"
+    [[ -f "$suite" ]] || log_fail "test_105: converted site names a missing suite: $f"
+
+    # The suite must SOURCE the helper, or its assert_payload_contains calls are
+    # `command not found` — which bash reports as a failure, but only when the
+    # arm holding them actually runs.
+    #
+    # Anchored on a real `.`/`source` COMMAND, not on the path anywhere in the
+    # file. Measured: a plain `grep -qF lib/assert-payload.sh` passed a mutant
+    # with the source line deleted, because the `# shellcheck source=` directive
+    # one line above still carried the path.
+    grep -qE '^[[:space:]]*(\.|source)[[:space:]]+.*lib/assert-payload\.sh' "$suite" \
+      || log_fail "test_105: $f uses the pipe-free helper but never sources tests/skills/lib/assert-payload.sh"
+
+    # The needle survived, and it survived INSIDE a helper call — not merely
+    # somewhere in the file.
+    grep -qF -- "assert_payload_contains \"\$out\" \"$needle\"" "$suite" \
+      || log_fail "test_105: $f no longer asserts the needle '$needle' through assert_payload_contains — a conversion must not change what a site asserts"
+    seen=$(( seen + 1 ))
+  done
+
+  # No converted suite may still dump a whole findings payload into a FAIL line.
+  # This is the exact line the incident produced: 46 KB of findings after `got:`.
+  local unbounded
+  for entry in "${PGQ_CONVERTED[@]}"; do
+    f="${entry%%|*}"
+    suite="$PROJECT_ROOT/tests/skills/$f"
+    unbounded="$(grep -nF -- 'got: $out"' "$suite" 2>/dev/null)" || unbounded=""
+    if [[ -n "$unbounded" ]]; then
+      printf '%s\n' "$unbounded"
+      log_fail "test_105: $f still prints an UNBOUNDED payload in a failure message (see the lines above) — use payload_preview from $AP_LIB_REL"
+    fi
+  done
+
+  log_pass "test_105: $seen converted needle(s) intact, helper sourced, no unbounded payload dump (TEST-006)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -1003,6 +1466,12 @@ main() {
   test_091_session_journal_index_complete
   test_092_no_phantom_node_apis
   test_093_test_registration
+  test_100_assert_payload_contract
+  test_101_helper_survives_the_pipe_buffer
+  test_102_pgq_ratchet_gate_and_bite
+  test_103_pgq_baseline_is_measured_not_typed
+  test_104_pgq_shrink_never_lowers_the_bar
+  test_105_converted_sites_keep_their_needles
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

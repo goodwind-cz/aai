@@ -16,6 +16,11 @@ TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 AUDIT_SCRIPT="$PROJECT_ROOT/.aai/scripts/docs-audit.mjs"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# The index arms below assert over findings payloads that have measured past
+# 46 KB; every one of them must stay off a pipe and must bound what it prints.
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 # Absolute self-path captured BEFORE any cd (review CHANGE-0009 W1: a bare
 # relative BASH_SOURCE is unresolvable after setup_fixture's cd, which made
 # the self-containment guard vacuous — grep exit 2 slipped through '&&').
@@ -2287,19 +2292,20 @@ test_issue0001_posix_paths_noop() {
   out="$(index_posix_findings "$mutant")" || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "a backslash separator in an index path must FAIL this arm (the bite proof did not bite)"
-  # Pattern match, NOT `printf ... | grep -q`. `grep -q` exits at the first
-  # match, so the writer takes SIGPIPE on anything larger than the 64 KiB pipe
-  # buffer and `set -o pipefail` turns that into a failed assertion on a payload
-  # that DID match. Measured: 52 KiB passes 20/20, 90 KiB fails 20/20 — not a
-  # race, a threshold. It reddened CI on this very arm while passing locally,
-  # because the mutant payload sits either side of 64 KiB depending on how many
-  # documents the index holds. Every assertion over a findings payload in this
-  # suite must stay pipe-free.
-  [[ "$out" == *"not POSIX"* ]] \
-    || log_fail "the failure must name the path problem (expected 'not POSIX'), got: $out"
+  # Pipe-free, via tests/skills/lib/assert-payload.sh. An echo or printf of
+  # this payload into a quiet grep exits at the first match, so the writer takes
+  # SIGPIPE on anything larger than the 64 KiB pipe buffer and `set -o pipefail`
+  # turns that into a failed assertion on a payload that DID match. Measured:
+  # 52 KiB passes 20/20, 90 KiB fails 20/20 — not a race, a threshold. It
+  # reddened CI on this very arm while passing locally, because the mutant
+  # payload sits either side of 64 KiB depending on how many documents the index
+  # holds. Every assertion over a findings payload in this suite must stay
+  # pipe-free, and must not print the whole 46 KB of it on failure either.
+  assert_payload_contains "$out" "not POSIX" \
+    "the failure must name the path problem (expected 'not POSIX')"
   rc=0
   out="$(index_posix_findings "$control")" || rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "the unmutated control must stay green, got: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "the unmutated control must stay green, got: $(payload_preview "$out")"
 
   log_pass "Real-repo INDEX paths are POSIX-only and toPosix is a no-op; a backslash separator still bites"
 }
@@ -2328,10 +2334,8 @@ test_indexarm_index_is_not_stale() {
   out="$(index_stale_findings "$PROJECT_ROOT" "$dropped")" || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "dropping the tracked document $victim from the listing must be reported (bite 1 did not bite)"
-  [[ "$out" == *"STALE"* ]] \
-    || log_fail "the finding must say the index is STALE, got: $out"
-  [[ "$out" == *"$victim"* ]] \
-    || log_fail "the finding must name the missing document, got: $out"
+  assert_payload_contains "$out" "STALE" "the finding must say the index is STALE"
+  assert_payload_contains "$out" "$victim" "the finding must name the missing document"
 
   # BITE 2 — a listed path that no longer exists (a document was deleted without
   # regenerating the index).
@@ -2342,15 +2346,15 @@ test_indexarm_index_is_not_stale() {
   out="$(index_stale_findings "$PROJECT_ROOT" "$ghost")" || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "a listed path that no longer exists must be reported (bite 2 did not bite)"
-  [[ "$out" == *"no longer exists on disk"* ]] \
-    || log_fail "the finding must say the listed path is gone, got: $out"
+  assert_payload_contains "$out" "no longer exists on disk" \
+    "the finding must say the listed path is gone"
 
   # CONTROL — the same copy, unmutated.
   local control="$TEST_DIR/t-indexarm-stale-control.md"
   cp "$committed" "$control"
   rc=0
   out="$(index_stale_findings "$PROJECT_ROOT" "$control")" || rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "the unmutated control must stay clean, got: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "the unmutated control must stay clean, got: $(payload_preview "$out")"
 
   log_pass "Committed INDEX is not stale in either direction; both staleness bites bite"
 }
