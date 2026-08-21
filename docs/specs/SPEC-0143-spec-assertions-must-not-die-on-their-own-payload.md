@@ -1,14 +1,16 @@
 ---
 id: spec-assertions-must-not-die-on-their-own-payload
 type: spec
-number: null
-status: implementing
+number: 143
+status: done
 ceremony_level: 1
 links:
-  requirement: docs/issues/CHANGE-DRAFT-assertions-must-not-die-on-their-own-payload.md
+  requirement: docs/issues/CHANGE-0155-assertions-must-not-die-on-their-own-payload.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 272
+  commits:
+    - 90555fb9cd8b4b1e5770643e87fc4de9eb548cd5
 ---
 
 # Spec — an assertion must not die on its own payload
@@ -22,7 +24,7 @@ hygiene, and a bounded set of measured conversions. Blast radius is the test
 corpus itself, and the full framework is the regression net.
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-assertions-must-not-die-on-their-own-payload.md
+- Requirement: docs/issues/CHANGE-0155-assertions-must-not-die-on-their-own-payload.md
 - Related, NOT this defect: SPEC-0139 (`spec-cli-output-survives-a-pipe`,
   CHANGE-0153) fixed `follow-ups.mjs` truncating its own stdout at the same
   64 KiB boundary. Same buffer, different mechanism — that was a WRITER losing
@@ -52,7 +54,7 @@ corpus itself, and the full framework is the regression net.
   `tests/skills/test-aai-hygiene-pack.sh`,
   `tests/skills/test-aai-docs-audit.sh`,
   `tests/skills/suite-map.yaml`,
-  `docs/specs/SPEC-DRAFT-spec-assertions-must-not-die-on-their-own-payload.md`
+  `docs/specs/SPEC-0143-spec-assertions-must-not-die-on-their-own-payload.md`
 
 ## The measurement that sizes this change
 

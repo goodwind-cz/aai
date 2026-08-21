@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff 67b9580..5a30648 (branch fix/assertions-survive-large-payloads)
-  spec: docs/specs/SPEC-DRAFT-spec-assertions-must-not-die-on-their-own-payload.md
+  spec: docs/specs/SPEC-0143-spec-assertions-must-not-die-on-their-own-payload.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -38,10 +38,10 @@ review:
       - { rank: NON-BLOCKING, file: tests/skills/test-aai-hygiene-pack.sh, line: 1382,
           issue: "PGQ_CONVERTED pins 3 of the 4 converted assert_payload_contains sites; docs-audit:2338 (`\"$out\" \"$victim\"`) is unpinned while the arm claims `every converted site ... keeps its needle`.",
           failure_scenario: "delete test-aai-docs-audit.sh:2338 and both suites stay green; the coverage the pin exists to protect is gone unobserved." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-assertions-must-not-die-on-their-own-payload.md, line: 82,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0143-spec-assertions-must-not-die-on-their-own-payload.md, line: 82,
           issue: "the distribution table does not sum to its own stated total: 23+2307+561+10195+3+0 = 13089, the prose says 13091.",
           failure_scenario: "a reader auditing Spec-AC-01's sole evidence artifact adds the column, gets a different number, and cannot tell whether the missing 2 are the filtered fixture rows or a reporting error. Validation round 1 flagged this qualitatively; the follow-up commit did not address it." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-assertions-must-not-die-on-their-own-payload.md, line: 282,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0143-spec-assertions-must-not-die-on-their-own-payload.md, line: 282,
           issue: "Test Plan row TEST-004 describes `baseline is byte-identical to a fresh --record`, which test_103 does not assert — and which would CONTRADICT TEST-005/Spec-AC-03 (a SHRINK must be a NOTE, not a failure).",
           failure_scenario: "a maintainer implements the tabled description and turns every deliberate conversion into a red suite." }
   cannot_verify:

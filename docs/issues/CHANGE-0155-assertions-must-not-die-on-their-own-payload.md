@@ -1,14 +1,16 @@
 ---
 id: assertions-must-not-die-on-their-own-payload
-number: null
+number: 155
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-test-canon
 links:
-  pr: []
-  commits: []
+  pr:
+    - 272
+  commits:
+    - 90555fb9cd8b4b1e5770643e87fc4de9eb548cd5
 ---
 
 # Change — an assertion that pipes into `grep -q` fails on a payload that matched

@@ -1,30 +1,30 @@
 {
-  "generatedAt": "2026-08-21T15:16:13.938Z",
+  "generatedAt": "2026-08-21T20:23:38.462Z",
   "project": "aai",
   "counts": {
-    "delivered": 201,
+    "delivered": 202,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "docs-history-is-one-git-call-per-doc",
+    "ref": "assertions-must-not-die-on-their-own-payload",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "docs-history-is-one-git-call-per-doc",
+      "ref": "assertions-must-not-die-on-their-own-payload",
       "type": "intake_change",
       "phase": "code_review"
     },
     "strategy": "direct",
     "worktree": {
-      "recommendation": "optional",
+      "recommendation": "not_needed",
       "user_decision": "inline"
     },
     "validation_status": "pass",
-    "review_status": "pass",
+    "review_status": "fail",
     "ticks": [
       {
         "tick": 156,
@@ -104,6 +104,19 @@
       "spec": "docs/specs/SPEC-0142-spec-docs-history-is-one-git-call-per-doc.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260821T150851Z-docs-history-is-one-git-call-per-doc.md"
+    },
+    {
+      "ref": "assertions-must-not-die-on-their-own-payload",
+      "title": "Change — an assertion that pipes into `grep -q` fails on a payload that matched",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0155-assertions-must-not-die-on-their-own-payload.md",
+      "closed_on": "2026-08-21",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0143-spec-assertions-must-not-die-on-their-own-payload.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260821T184841Z-assertions-must-not-die-on-their-own-payload.md"
     },
     {
       "ref": "intake-numbers-some-doc-types-immediately",
@@ -2724,6 +2737,19 @@
           "spec": "docs/specs/SPEC-0142-spec-docs-history-is-one-git-call-per-doc.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260821T150851Z-docs-history-is-one-git-call-per-doc.md"
+        },
+        {
+          "ref": "assertions-must-not-die-on-their-own-payload",
+          "title": "Change — an assertion that pipes into `grep -q` fails on a payload that matched",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0155-assertions-must-not-die-on-their-own-payload.md",
+          "closed_on": "2026-08-21",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0143-spec-assertions-must-not-die-on-their-own-payload.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260821T184841Z-assertions-must-not-die-on-their-own-payload.md"
         },
         {
           "ref": "intake-numbers-some-doc-types-immediately",
