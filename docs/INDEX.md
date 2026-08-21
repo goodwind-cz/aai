@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-21T13:36:05.674Z
+Generated: 2026-08-21T15:00:25.280Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-docs-history-is-one-git-call-per-doc | specs | implementing | 5 implementing | docs/specs/SPEC-DRAFT-spec-docs-history-is-one-git-call-per-doc.md |
 
 ## Canonical layer (0)
 
@@ -397,9 +398,11 @@ _None._
 | SPEC-0141 | specs | docs/specs/SPEC-0141-spec-index-arm-diffs-whole-file-for-a-path-claim.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| docs-history-is-one-git-call-per-doc (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-docs-history-is-one-git-call-per-doc.md |
 
 ## Deferred (whole-doc) (0)
 
