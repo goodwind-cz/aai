@@ -20,9 +20,24 @@ AUDIT_SCRIPT="$PROJECT_ROOT/.aai/scripts/docs-audit.mjs"
 # relative BASH_SOURCE is unresolvable after setup_fixture's cd, which made
 # the self-containment guard vacuous — grep exit 2 slipped through '&&').
 SUITE_FILE="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
-# Absolute backup of the REAL docs/INDEX.md, taken once by
-# setup_indexarm_snapshots. Empty until then; see cleanup() below.
+# Absolute backup of the REAL docs/INDEX.md. Armed by
+# index_arm_restore_floor as the FIRST thing setup_fixture does, because an
+# arm that predates the arming is an arm the floor does not cover: review of
+# this spec found test_spec0006_no_regression_real_repo regenerating the real
+# index twice while this was still empty. Empty only before that call.
 INDEX_REAL_BACKUP=""
+
+# Take the backup BEFORE publishing the pointer. Assigning the path first and
+# copying second means an interrupted or short cp leaves cleanup() pointing at
+# a truncated file, which it would then write over the tracked index.
+index_arm_restore_floor() {
+  local idx="$PROJECT_ROOT/docs/INDEX.md" staged="$1"
+  [[ -f "$idx" ]] || log_fail "real repository has no docs/INDEX.md to protect"
+  cp "$idx" "$staged"
+  cmp -s "$idx" "$staged" \
+    || log_fail "restore floor: backup of docs/INDEX.md is not byte-identical to the original"
+  INDEX_REAL_BACKUP="$staged"
+}
 
 cleanup() {
   # SPEC index-arm-diffs-whole-file-for-a-path-claim D6 — restore the REAL
@@ -33,7 +48,10 @@ cleanup() {
   # "something keeps reverting the index". This runs before the KEEP_TEST_DIR
   # early return and before the rm -rf that would delete the backup itself.
   if [[ -n "$INDEX_REAL_BACKUP" && -f "$INDEX_REAL_BACKUP" ]]; then
-    cp "$INDEX_REAL_BACKUP" "$PROJECT_ROOT/docs/INDEX.md" || true
+    # A failed restore is the one outcome the operator must hear about: it
+    # means a tracked file is being left dirty. Degrade loudly, never silently.
+    cp "$INDEX_REAL_BACKUP" "$PROJECT_ROOT/docs/INDEX.md" \
+      || echo "NOTE: restore floor could not rewrite docs/INDEX.md from $INDEX_REAL_BACKUP — the tracked file may be left dirty" >&2
   fi
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
     echo "INFO: keeping fixture at $TEST_DIR"
@@ -97,6 +115,8 @@ run_audit() {
 setup_fixture() {
   log_info "Setting up fixture repo..."
   TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  # Arm the D6 restore floor before ANY arm can regenerate the real index.
+  index_arm_restore_floor "$TEST_DIR/INDEX.real.orig"
   cd "$TEST_DIR"
   git init -q
   git config user.email "test@example.com"
@@ -2074,8 +2094,10 @@ setup_indexarm_snapshots() {
   index_write_posix_check
   local idx="$PROJECT_ROOT/docs/INDEX.md"
   [[ -f "$idx" ]] || log_fail "real repository has no docs/INDEX.md"
-  INDEX_REAL_BACKUP="$TEST_DIR/INDEX.real.orig"
-  cp "$idx" "$INDEX_REAL_BACKUP"
+  # The floor is armed by setup_fixture, not here — re-taking the backup after
+  # earlier arms have run would capture whatever they left behind. Assert it.
+  [[ -n "$INDEX_REAL_BACKUP" && -f "$INDEX_REAL_BACKUP" ]] \
+    || log_fail "restore floor is not armed: setup_fixture must call index_arm_restore_floor before any arm regenerates the real index"
   INDEX_SNAP_COMMITTED="$TEST_DIR/INDEX.committed.snap"
   cp "$idx" "$INDEX_SNAP_COMMITTED"
   INDEX_SNAP_EARLIER="$TEST_DIR/INDEX.earlier.snap"

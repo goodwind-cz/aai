@@ -147,6 +147,18 @@ time costing a measurement cycle.
   is; the trap is added underneath them as a floor, and it runs before
   `cleanup()` removes the fixture directory the backup lives in.
 
+  Corrected after code review: as first implemented the floor was armed by
+  `setup_indexarm_snapshots`, which runs *after*
+  `test_spec0006_no_regression_real_repo` has already regenerated the real index
+  twice — so "every exit path" was false for the one arm that most needed it.
+  Arming moved into `setup_fixture`, ahead of every arm, and the backup pointer
+  is now published only after a `cmp -s`-verified copy, so an interrupted `cp`
+  cannot leave the trap writing a truncated file over the tracked index. A
+  failed restore prints a NOTE instead of being swallowed by `|| true`:
+  a tracked file left dirty is the one outcome the operator must hear about.
+  Registry: `fu-index-floor-armed-after-first-regen`,
+  `fu-index-floor-silent-partial-restore`.
+
 - **D7 — the arm keeps its function name.** `test_issue0001_posix_paths_noop` is
   the name `docs/specs/SPEC-0007-….md` Test Plan row TEST-003 points at, and
   three review and validation reports cite it. The body is narrowed in place and
