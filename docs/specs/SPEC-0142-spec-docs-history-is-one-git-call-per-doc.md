@@ -328,12 +328,12 @@ Components:
     map unconditionally so the last write — the oldest add — wins (D5, D6, D7).
     Returns `null` on a throw or on an unparseable header (D3).
   - `runAudit` (EDIT, two places) — one `const firstCommitMap = (!quick &&
-    legacyUntil && files.length) ? buildFirstCommitDateMap(root) : null;` above
+    legacyUntil && files.length > 1) ? buildFirstCommitDateMap(root) : null;` above
     the loop, and inside the existing `if (!quick && legacyUntil)` branch,
     `const first = firstCommitMap?.has(f.rel) ? firstCommitMap.get(f.rel) :
     firstCommitDate(root, f.rel);`. Nothing else in the loop moves.
 - `tests/skills/test-aai-docs-audit.sh` (EDIT) — five new arms, one Node helper
-  written into `$TEST_DIR` at run time, and four `main()` calls.
+  written into `$TEST_DIR` at run time, and five `main()` calls.
 
 Data flows: the map is created and discarded inside one `runAudit` call. No file
 is written by any part of this change.
