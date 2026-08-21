@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-21T04:55:43.077Z",
+  "generatedAt": "2026-08-21T04:58:31.629Z",
   "project": "aai",
   "counts": {
-    "delivered": 197,
+    "delivered": 198,
     "in_progress": 2,
     "releases": 1,
     "tokens_total": 48522945
@@ -92,6 +92,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "cli-output-survives-a-pipe",
+      "title": "Change — CLI output must survive being piped",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0153-cli-output-survives-a-pipe.md",
+      "closed_on": "2026-08-21",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0139-spec-cli-output-survives-a-pipe.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-cli-output-survives-a-pipe-20260821T035200Z.md"
+    },
     {
       "ref": "suites-run-in-a-disposable-worktree",
       "title": "Change — every suite runs in a disposable worktree",
@@ -2660,6 +2673,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "cli-output-survives-a-pipe",
+          "title": "Change — CLI output must survive being piped",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0153-cli-output-survives-a-pipe.md",
+          "closed_on": "2026-08-21",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0139-spec-cli-output-survives-a-pipe.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-cli-output-survives-a-pipe-20260821T035200Z.md"
+        },
         {
           "ref": "suites-run-in-a-disposable-worktree",
           "title": "Change — every suite runs in a disposable worktree",

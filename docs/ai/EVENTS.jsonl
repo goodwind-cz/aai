@@ -1810,3 +1810,10 @@
 {"v":1,"ts":"2026-08-20T19:38:03.626Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-suites-run-in-a-disposable-worktree","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-20T19:38:03.662Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-suites-run-in-a-disposable-worktree","payload":{"commit":"a7f40dcd2102f14860c5e2d0a0b4f2a8f6523b86"}}
 {"v":1,"ts":"2026-08-20T19:39:07.973Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":365,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-20T21:14:03.352Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-cli-output-survives-a-pipe","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-21T04:00:18.375Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"cli-output-survives-a-pipe","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-21T04:00:18.407Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"cli-output-survives-a-pipe","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-21T04:00:18.440Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"cli-output-survives-a-pipe","payload":{"commit":"13130bb3b9b6cf1cda0b730e9230b806cef336c0"}}
+{"v":1,"ts":"2026-08-21T04:00:18.473Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-cli-output-survives-a-pipe","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-21T04:00:18.507Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-cli-output-survives-a-pipe","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-21T04:00:18.538Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-cli-output-survives-a-pipe","payload":{"commit":"13130bb3b9b6cf1cda0b730e9230b806cef336c0"}}
