@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-21T03:59:14.344Z
+Generated: 2026-08-21T04:01:22.559Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0139 | specs | implementing | 5 implementing | docs/specs/SPEC-0139-spec-cli-output-survives-a-pipe.md |
 
 ## Canonical layer (0)
 
@@ -49,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (338)
+## Done (340)
 
 | ID | Type | Path |
 |---|---|---|
@@ -205,6 +204,7 @@ _None._
 | CHANGE-0150 | issues | docs/issues/CHANGE-0150-deslop-corpus-honesty.md |
 | CHANGE-0151 | issues | docs/issues/CHANGE-0151-suites-must-not-touch-the-shipping-repo.md |
 | CHANGE-0152 | issues | docs/issues/CHANGE-0152-suites-run-in-a-disposable-worktree.md |
+| CHANGE-0153 | issues | docs/issues/CHANGE-0153-cli-output-survives-a-pipe.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -390,13 +390,12 @@ _None._
 | SPEC-0136 | specs | docs/specs/SPEC-0136-spec-deslop-corpus-honesty.md |
 | SPEC-0137 | specs | docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md |
 | SPEC-0138 | specs | docs/specs/SPEC-0138-spec-suites-run-in-a-disposable-worktree.md |
+| SPEC-0139 | specs | docs/specs/SPEC-0139-spec-cli-output-survives-a-pipe.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| CHANGE-0153 | issues | docs/issues/CHANGE-0153-cli-output-survives-a-pipe.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

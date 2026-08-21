@@ -2,13 +2,15 @@
 id: cli-output-survives-a-pipe
 number: 153
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-followups
 links:
-  pr: []
-  commits: []
+  pr:
+    - 268
+  commits:
+    - 13130bb3b9b6cf1cda0b730e9230b806cef336c0
 ---
 
 # Change — CLI output must survive being piped
