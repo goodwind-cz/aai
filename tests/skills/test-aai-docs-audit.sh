@@ -16,6 +16,11 @@ TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 AUDIT_SCRIPT="$PROJECT_ROOT/.aai/scripts/docs-audit.mjs"
+# Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
+# The index arms below assert over findings payloads that have measured past
+# 46 KB; every one of them must stay off a pipe and must bound what it prints.
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 # Absolute self-path captured BEFORE any cd (review CHANGE-0009 W1: a bare
 # relative BASH_SOURCE is unresolvable after setup_fixture's cd, which made
 # the self-containment guard vacuous — grep exit 2 slipped through '&&').
@@ -2238,10 +2243,10 @@ $( { diff "$TEST_DIR/t-indexarm-earlier.mask" "$TEST_DIR/t-indexarm-fresh.mask" 
   # The earlier-day index must satisfy every other real-repo index predicate.
   local out rc=0
   out="$(index_posix_findings "$earlier")" || rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "an earlier-day index must still pass the POSIX-path arm: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "an earlier-day index must still pass the POSIX-path arm: $(payload_preview "$out")"
   rc=0
   out="$(index_stale_findings "$PROJECT_ROOT" "$earlier")" || rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "an earlier-day index must still pass the staleness arm: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "an earlier-day index must still pass the staleness arm: $(payload_preview "$out")"
 
   log_pass "Earlier-day index: raw diff $raw_lines line(s), masked diff $masked_lines, retired proxy $proxy_lines (would have been red)"
 }
@@ -2266,12 +2271,12 @@ test_issue0001_posix_paths_noop() {
 
   local out rc=0
   out="$(index_posix_findings "$committed")" || rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "committed docs/INDEX.md must carry forward-slash paths only: $out"
-  log_info "  committed index: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "committed docs/INDEX.md must carry forward-slash paths only: $(payload_preview "$out")"
+  log_info "  committed index: $(payload_preview "$out")"
   rc=0
   out="$(index_posix_findings "$fresh")" || rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "a fresh regeneration must carry forward-slash paths only: $out"
-  log_info "  fresh regen:     $out"
+  [[ "$rc" -eq 0 ]] || log_fail "a fresh regeneration must carry forward-slash paths only: $(payload_preview "$out")"
+  log_info "  fresh regen:     $(payload_preview "$out")"
 
   # BITE (Spec-AC-02): a genuine backslash separator must still fail, and the
   # message must name the PATH problem. The mutation runs on a scratch COPY —
@@ -2287,19 +2292,20 @@ test_issue0001_posix_paths_noop() {
   out="$(index_posix_findings "$mutant")" || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "a backslash separator in an index path must FAIL this arm (the bite proof did not bite)"
-  # Pattern match, NOT `printf ... | grep -q`. `grep -q` exits at the first
-  # match, so the writer takes SIGPIPE on anything larger than the 64 KiB pipe
-  # buffer and `set -o pipefail` turns that into a failed assertion on a payload
-  # that DID match. Measured: 52 KiB passes 20/20, 90 KiB fails 20/20 — not a
-  # race, a threshold. It reddened CI on this very arm while passing locally,
-  # because the mutant payload sits either side of 64 KiB depending on how many
-  # documents the index holds. Every assertion over a findings payload in this
-  # suite must stay pipe-free.
-  [[ "$out" == *"not POSIX"* ]] \
-    || log_fail "the failure must name the path problem (expected 'not POSIX'), got: $out"
+  # Pipe-free, via tests/skills/lib/assert-payload.sh. An echo or printf of
+  # this payload into a quiet grep exits at the first match, so the writer takes
+  # SIGPIPE on anything larger than the 64 KiB pipe buffer and `set -o pipefail`
+  # turns that into a failed assertion on a payload that DID match. Measured:
+  # 52 KiB passes 20/20, 90 KiB fails 20/20 — not a race, a threshold. It
+  # reddened CI on this very arm while passing locally, because the mutant
+  # payload sits either side of 64 KiB depending on how many documents the index
+  # holds. Every assertion over a findings payload in this suite must stay
+  # pipe-free, and must not print the whole 46 KB of it on failure either.
+  assert_payload_contains "$out" "not POSIX" \
+    "the failure must name the path problem (expected 'not POSIX')"
   rc=0
   out="$(index_posix_findings "$control")" || rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "the unmutated control must stay green, got: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "the unmutated control must stay green, got: $(payload_preview "$out")"
 
   log_pass "Real-repo INDEX paths are POSIX-only and toPosix is a no-op; a backslash separator still bites"
 }
@@ -2313,8 +2319,8 @@ test_indexarm_index_is_not_stale() {
 
   local out rc=0
   out="$(index_stale_findings "$PROJECT_ROOT" "$committed")" || rc=$?
-  log_info "  $out"
-  [[ "$rc" -eq 0 ]] || log_fail "committed docs/INDEX.md is stale: $out"
+  log_info "  $(payload_preview "$out")"
+  [[ "$rc" -eq 0 ]] || log_fail "committed docs/INDEX.md is stale: $(payload_preview "$out")"
 
   # BITE 1 — a tracked document dropped from the listing (the index went stale
   # because a document was committed without regenerating it).
@@ -2328,10 +2334,8 @@ test_indexarm_index_is_not_stale() {
   out="$(index_stale_findings "$PROJECT_ROOT" "$dropped")" || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "dropping the tracked document $victim from the listing must be reported (bite 1 did not bite)"
-  [[ "$out" == *"STALE"* ]] \
-    || log_fail "the finding must say the index is STALE, got: $out"
-  [[ "$out" == *"$victim"* ]] \
-    || log_fail "the finding must name the missing document, got: $out"
+  assert_payload_contains "$out" "STALE" "the finding must say the index is STALE"
+  assert_payload_contains "$out" "$victim" "the finding must name the missing document"
 
   # BITE 2 — a listed path that no longer exists (a document was deleted without
   # regenerating the index).
@@ -2342,15 +2346,15 @@ test_indexarm_index_is_not_stale() {
   out="$(index_stale_findings "$PROJECT_ROOT" "$ghost")" || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "a listed path that no longer exists must be reported (bite 2 did not bite)"
-  [[ "$out" == *"no longer exists on disk"* ]] \
-    || log_fail "the finding must say the listed path is gone, got: $out"
+  assert_payload_contains "$out" "no longer exists on disk" \
+    "the finding must say the listed path is gone"
 
   # CONTROL — the same copy, unmutated.
   local control="$TEST_DIR/t-indexarm-stale-control.md"
   cp "$committed" "$control"
   rc=0
   out="$(index_stale_findings "$PROJECT_ROOT" "$control")" || rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "the unmutated control must stay clean, got: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "the unmutated control must stay clean, got: $(payload_preview "$out")"
 
   log_pass "Committed INDEX is not stale in either direction; both staleness bites bite"
 }
@@ -2420,10 +2424,10 @@ $( { diff "$TEST_DIR/t-indexarm-overdue-earlier.mask" "$TEST_DIR/t-indexarm-over
   for snap in "$snap_earlier" "$snap_fresh"; do
     rc=0
     out="$(index_posix_findings "$snap")" || rc=$?
-    [[ "$rc" -eq 0 ]] || log_fail "the POSIX-path arm must stay clean across the boundary ($snap): $out"
+    [[ "$rc" -eq 0 ]] || log_fail "the POSIX-path arm must stay clean across the boundary ($snap): $(payload_preview "$out")"
     rc=0
     out="$(index_stale_findings "$d" "$snap")" || rc=$?
-    [[ "$rc" -eq 0 ]] || log_fail "the staleness arm must stay clean across the boundary ($snap): $out"
+    [[ "$rc" -eq 0 ]] || log_fail "the staleness arm must stay clean across the boundary ($snap): $(payload_preview "$out")"
   done
 
   rm -rf "$d"
@@ -6014,7 +6018,7 @@ EOF
     "$PROJECT_ROOT/.aai/scripts/lib/docs-audit-core.mjs" "$PROJECT_ROOT" 2>&1)" || rc=$?
   log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
   [[ "$rc" -eq 0 ]] \
-    || log_fail "the bulk map is not equivalent to the shipped per-file firstCommitDate: $out"
+    || log_fail "the bulk map is not equivalent to the shipped per-file firstCommitDate: $(payload_preview "$out")"
   log_pass "Bulk add-history map equals per-file over the whole corpus; the wrong-date mutation bites"
 }
 
@@ -6142,7 +6146,7 @@ EOF
   local out rc=0
   out="$(node "$TEST_DIR/histmap-rename.mjs" "$PROJECT_ROOT/.aai/scripts/lib/docs-audit-core.mjs" "$d" 2>&1)" || rc=$?
   log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
-  [[ "$rc" -eq 0 ]] || log_fail "close-ceremony rename handling is wrong: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "close-ceremony rename handling is wrong: $(payload_preview "$out")"
   rm -rf "$d"
   log_pass "Renamed close-ceremony document keeps its date; removing --no-renames loses it (bite proved in-arm)"
 }
@@ -6221,7 +6225,7 @@ EOF
   out="$(node "$TEST_DIR/histmap-nohistory.mjs" \
     "$PROJECT_ROOT/.aai/scripts/lib/docs-audit-core.mjs" "$a" "$b" 2>&1)" || rc=$?
   log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
-  [[ "$rc" -eq 0 ]] || log_fail "no-add-commit handling is wrong: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "no-add-commit handling is wrong: $(payload_preview "$out")"
 
   # And the whole audit must survive both shapes rather than crash.
   (cd "$a" && node .aai/scripts/docs-audit.mjs --check --no-event > "$a/audit.log" 2>&1) || true
@@ -6261,7 +6265,7 @@ EOF
   out="$(node "$TEST_DIR/histmap-export.mjs" \
     "$PROJECT_ROOT/.aai/scripts/lib/docs-audit-core.mjs" "$PROJECT_ROOT" 2>&1)" || rc=$?
   log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
-  [[ "$rc" -eq 0 ]] || log_fail "firstCommitDate no longer works as a single-document export: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "firstCommitDate no longer works as a single-document export: $(payload_preview "$out")"
   log_pass "firstCommitDate still exported, still answers for one document, still null for a ghost path"
 }
 
