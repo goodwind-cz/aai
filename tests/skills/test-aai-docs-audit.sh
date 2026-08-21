@@ -2287,7 +2287,15 @@ test_issue0001_posix_paths_noop() {
   out="$(index_posix_findings "$mutant")" || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "a backslash separator in an index path must FAIL this arm (the bite proof did not bite)"
-  printf '%s\n' "$out" | grep -qF 'not POSIX' \
+  # Pattern match, NOT `printf ... | grep -q`. `grep -q` exits at the first
+  # match, so the writer takes SIGPIPE on anything larger than the 64 KiB pipe
+  # buffer and `set -o pipefail` turns that into a failed assertion on a payload
+  # that DID match. Measured: 52 KiB passes 20/20, 90 KiB fails 20/20 — not a
+  # race, a threshold. It reddened CI on this very arm while passing locally,
+  # because the mutant payload sits either side of 64 KiB depending on how many
+  # documents the index holds. Every assertion over a findings payload in this
+  # suite must stay pipe-free.
+  [[ "$out" == *"not POSIX"* ]] \
     || log_fail "the failure must name the path problem (expected 'not POSIX'), got: $out"
   rc=0
   out="$(index_posix_findings "$control")" || rc=$?
@@ -2320,9 +2328,9 @@ test_indexarm_index_is_not_stale() {
   out="$(index_stale_findings "$PROJECT_ROOT" "$dropped")" || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "dropping the tracked document $victim from the listing must be reported (bite 1 did not bite)"
-  printf '%s\n' "$out" | grep -qF 'STALE' \
+  [[ "$out" == *"STALE"* ]] \
     || log_fail "the finding must say the index is STALE, got: $out"
-  printf '%s\n' "$out" | grep -qF "$victim" \
+  [[ "$out" == *"$victim"* ]] \
     || log_fail "the finding must name the missing document, got: $out"
 
   # BITE 2 — a listed path that no longer exists (a document was deleted without
@@ -2334,7 +2342,7 @@ test_indexarm_index_is_not_stale() {
   out="$(index_stale_findings "$PROJECT_ROOT" "$ghost")" || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "a listed path that no longer exists must be reported (bite 2 did not bite)"
-  printf '%s\n' "$out" | grep -qF 'no longer exists on disk' \
+  [[ "$out" == *"no longer exists on disk"* ]] \
     || log_fail "the finding must say the listed path is gone, got: $out"
 
   # CONTROL — the same copy, unmutated.

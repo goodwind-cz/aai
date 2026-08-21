@@ -1716,6 +1716,12 @@ test_clarify_011_no_new_ceremony() {
         # byte-untouched). Eighth payment of this allowlist tax
         # (fu-test011-branch-diff-allowlist-tax, P2, live).
         .aai/INTAKE_COMMON.md|.aai/INTAKE_CHANGE.prompt.md|.aai/INTAKE_HOTFIX.prompt.md|.aai/INTAKE_ISSUE.prompt.md|.aai/INTAKE_PRD.prompt.md|.aai/INTAKE_RELEASE.prompt.md|.aai/INTAKE_RESEARCH.prompt.md|.aai/INTAKE_RFC.prompt.md|.aai/INTAKE_TECHDEBT.prompt.md|.aai/scripts/docs-audit.mjs) ;;
+        # docs-history-is-one-git-call-per-doc: the shared audit engine gains
+        # buildFirstCommitDateMap beside firstCommitDate; one runAudit call site
+        # is rewired and nothing else in .aai/ is touched. NINTH payment of this
+        # allowlist tax (fu-test011-branch-diff-allowlist-tax, P2, live) — and
+        # the first time it turned CI RED for three unrelated suites at once.
+        .aai/scripts/lib/docs-audit-core.mjs) ;;
         *) log_info "TEST-011(clarify): unexpected .aai/ path in the branch diff: $p"; ok=0 ;;
       esac
     done <<<"$changed"
