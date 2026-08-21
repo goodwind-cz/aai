@@ -1139,7 +1139,7 @@ PROBE
 }
 
 test_101_helper_survives_the_pipe_buffer() {  # TEST-002 / Spec-AC-02
-  log_info "test_101: a >64 KiB MATCHING payload kills the old idiom (141) and passes the helper (0) (TEST-002)..."
+  log_info "test_101: a >64 KiB MATCHING payload makes the old idiom FAIL under pipefail and passes the helper (TEST-002)..."
   local lib="$PROJECT_ROOT/$AP_LIB_REL" d
   d="$(ap_tmpdir)"
 
@@ -1170,18 +1170,37 @@ test_101_helper_survives_the_pipe_buffer() {  # TEST-002 / Spec-AC-02
   } > "$old"
   printf '%s\n' "$big" > "$d/big.txt"
   local rc
-  bash "$old" "$d/big.txt" && rc=0 || rc=$?
-  [[ "$rc" -eq 141 ]] \
-    || log_fail "test_101 CONTROL A: the old idiom on a $biglen B MATCHING payload must die with SIGPIPE (141), got $rc — if this is 0 the buffer hazard did not reproduce and the rest of this arm is vacuous"
 
-  # CONTROL B — it is a THRESHOLD, not a broken fixture. The same idiom, the
-  # same needle, a payload under the buffer: exit 0.
+  # CONTROL B RUNS FIRST, and the order is the whole argument. B establishes
+  # that this idiom, this needle and this generator produce exit 0 at a small
+  # size. Only then can A's non-zero mean "the pipe killed it" rather than
+  # "the needle was not there" — those are otherwise indistinguishable, both
+  # being exit 1 on Linux. The original arm ran A first, so when A failed on
+  # CI the discriminator never executed and the log could not say which had
+  # happened.
   local small
   small="$(ap_payload 40 'needle-here')"
   printf '%s\n' "$small" > "$d/small.txt"
   bash "$old" "$d/small.txt" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] \
-    || log_fail "test_101 CONTROL B: the same idiom on a small MATCHING payload must pass (got $rc) — otherwise CONTROL A's 141 is not about size"
+    || log_fail "test_101 CONTROL B: the same idiom on a SMALL matching payload must pass, got $rc — the needle, the generator or the grep binary is wrong and nothing below this line would mean anything"
+
+  # CONTROL A — the hazard is REAL on this machine right now. The EXIT CODE is
+  # platform-dependent and the arm must not pin one of them:
+  #   141 — the writer dies by SIGPIPE (macOS, bash 3.2.57)
+  #     1 — bash reports EPIPE from its printf BUILTIN as a write error and
+  #         returns 1 instead of dying by the signal (Linux CI, bash 5.x)
+  # Pinning 141 turned CI red on a machine where the defect reproduced
+  # perfectly well, just with a different number. What both share, and what
+  # actually matters, is that the pipeline reports FAILURE under pipefail on a
+  # payload that MATCHED — which CONTROL B above has just proved it does.
+  bash "$old" "$d/big.txt" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_101 CONTROL A: the old idiom on a $biglen B MATCHING payload must FAIL under pipefail, got 0 — the buffer hazard did not reproduce here and the rest of this arm is vacuous"
+  [[ "$rc" -eq 141 || "$rc" -eq 1 ]] \
+    || log_fail "test_101 CONTROL A: expected 141 (SIGPIPE) or 1 (bash builtin EPIPE), got $rc — an unrecognised failure mode, do not assume it is the same defect"
+  local rc_a="$rc"
+  log_info "  CONTROL A: old idiom on ${biglen} B matching payload -> exit $rc_a (141=SIGPIPE, 1=bash builtin EPIPE)"
 
   # SUBJECT — the helper, same payload, under the same set -euo pipefail.
   local new="$d/new-helper.sh"
@@ -1200,7 +1219,7 @@ test_101_helper_survives_the_pipe_buffer() {  # TEST-002 / Spec-AC-02
   [[ "$out" == *"HELPER-OK"* ]] \
     || log_fail "test_101 SUBJECT: execution must continue past the assertion, got: $out"
 
-  log_pass "test_101: old idiom 141 / small 0 / helper 0 on a ${biglen}B matching payload (TEST-002)"
+  log_pass "test_101: small 0 / old idiom $rc_a (141 SIGPIPE or 1 builtin EPIPE) / helper 0 on a ${biglen}B matching payload (TEST-002)"
 }
 
 test_102_pgq_ratchet_gate_and_bite() {  # TEST-003 / Spec-AC-03

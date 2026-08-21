@@ -36,7 +36,7 @@ corpus itself, and the full framework is the regression net.
 - Strategy: direct
 - Rationale: the defect is already reproduced and characterised by the intake's
   measurements, and re-proved in this scope's own baseline (a 216 000 B payload
-  exits 141 under `set -o pipefail`, a 3 000 B payload exits 0). What is missing
+  fails under `set -o pipefail`, a 3 000 B payload exits 0). What is missing
   is not a red test but a measurement of WHICH sites carry a payload large
   enough to hit it. The conversions are therefore measurement-driven and each
   new assertion still carries its own bite proof plus an unmutated control.
@@ -140,8 +140,15 @@ the sites still at risk get", not "how big can a findings payload get".
     by the true total byte count.
   - Verification: `bash tests/skills/test-aai-hygiene-pack.sh` TEST-001/TEST-002
     — a >64 KiB MATCHING payload (measured 212 011 B) passes through the helper
-    at exit 0, while the old idiom on the SAME payload exits 141 and on a small
-    payload exits 0 (so the 141 is the threshold, not the fixture); a FAILING
+    at exit 0, while the old idiom on the SAME payload FAILS under pipefail and
+    on a small payload exits 0 (so the failure is the threshold, not the
+    fixture). The failing CODE is platform-dependent and the arm does not pin
+    one: 141 where the writer dies by SIGPIPE (macOS, bash 3.2.57) and 1 where
+    bash reports EPIPE from its printf BUILTIN as a write error (Linux CI,
+    bash 5.x). Pinning 141 turned CI red on a machine where the defect
+    reproduced perfectly. Because 1 is also what an absent needle looks like,
+    the small-payload control RUNS FIRST and is what makes the big-payload
+    failure attributable. Registry: `fu-sigpipe-code-differs-by-platform`; a FAILING
     helper call emits a message under 1 200 B naming the needle and stating the
     true total.
 
@@ -205,7 +212,7 @@ None.
 | Spec-AC    | Description                                                                                  | Status       | Evidence | Review-By | Notes                                            |
 |------------|----------------------------------------------------------------------------------------------|--------------|----------|-----------|--------------------------------------------------|
 | Spec-AC-01 | WHEN the census records a grep -q payload at or above 32768 B THEN that site is pipe-free      | done | SATISFIED VACUOUSLY and recorded as such: the census over 13091 recorded payloads found ZERO repository sites at or above the 32768 B floor, so the conversion set is empty and no site was converted for this AC. Validation re-derived 43 percent of the baselined occurrences with its own shim and found nothing above 1006 B | — | max real payload 30048 B, below the floor, filed as fu-ceremony-levels-nearest-miss-30kb |
-| Spec-AC-02 | A sourceable pipe-free helper exists, is used, and bounds its failure message to 512 B         | done | TEST-001 and TEST-002 green: a 212011 B matching payload passes through the helper at exit 0 while the old idiom on the same payload exits 141 and on a small payload exits 0, so the 141 is the threshold and not the fixture. Validation measured the 512 byte bound exactly and confirmed LC_ALL=C does not leak to the caller | —         | tests/skills/lib/assert-payload.sh                 |
+| Spec-AC-02 | A sourceable pipe-free helper exists, is used, and bounds its failure message to 512 B         | done | TEST-001 and TEST-002 green: a 212011 B matching payload passes through the helper at exit 0 while the old idiom on the same payload FAILS under pipefail and on a small payload exits 0, so the failure is the threshold and not the fixture. The failing code is 141 on darwin and 1 on Linux (bash reports EPIPE from a builtin rather than dying by the signal) and the arm pins neither, with the small-payload control running FIRST so the failure is attributable. Validation measured the 512 byte bound exactly and confirmed LC_ALL=C does not leak to the caller | —         | tests/skills/lib/assert-payload.sh                 |
 | Spec-AC-03 | The ratchet counts per file, fails on a rise naming the file, and never lowers on a shrink     | done | TEST-003 and TEST-005 green, live gate 389 occurrences across 38 files. Validation defeated the arm once by showing select-suites did not select it on a rise; aai-hygiene-pack is now a core suite and the gap is closed and verified. The scan-coverage limit (1 of 8 planted variants) is stated in the AC prose and filed, not hidden | —         | arm in test-aai-hygiene-pack.sh                    |
 | Spec-AC-04 | The recorded number is produced by the scanner the arm runs, not typed from a document         | done | TEST-004 green: recording over a fixture tree writes the PLANTED count and writes a DIFFERENT number when the plant changes (5 and 2 becoming 8), so a recorder returning a constant cannot pass. Mutation M6 confirms | —         | --record tracks a planted fixture tree             |
 | Spec-AC-05 | No converted assertion changes what it asserts                                                 | done | TEST-006 green: the three pinnable needles survive verbatim and the helper is sourced; the fourth converted site asserts a run-time variable and cannot be pinned, which the arm now says instead of claiming every site. Code review found the guard sweeping for one literal spelling while twelve dumps used another; the sweep is now anchored on the shape and proved on a fixture | —         | needle pins plus the owning suite green            |
@@ -290,7 +297,7 @@ Edge cases:
 | Test ID  | Spec-AC    | Type        | File path (expected)                  | Description                                                                                  | Status  |
 |----------|------------|-------------|---------------------------------------|----------------------------------------------------------------------------------------------|---------|
 | TEST-001 | Spec-AC-02 | unit        | tests/skills/test-aai-hygiene-pack.sh | helper contract: match, non-match, both directions, needle named, preview bounded to 512 B     | green   |
-| TEST-002 | Spec-AC-02 | integration | tests/skills/test-aai-hygiene-pack.sh | 216000 B matching payload passes the helper at exit 0 while the old idiom exits 141 (control)  | green   |
+| TEST-002 | Spec-AC-02 | integration | tests/skills/test-aai-hygiene-pack.sh | a 212011 B matching payload passes the helper at exit 0 while the old idiom FAILS under pipefail (141 on darwin, 1 on Linux), with a small-payload control run FIRST so the failure is attributable | green   |
 | TEST-003 | Spec-AC-03 | integration | tests/skills/test-aai-hygiene-pack.sh | live gate over tests/skills plus a bite proof: one injected occurrence FAILs and names the file  | green   |
 | TEST-004 | Spec-AC-04 | integration | tests/skills/test-aai-hygiene-pack.sh | --record over a fixture tree writes the PLANTED count, and writes a DIFFERENT number when the plant changes, so a recorder returning a constant cannot pass; zero-total scan FAILS as a vacuity guard | green   |
 | TEST-005 | Spec-AC-03 | integration | tests/skills/test-aai-hygiene-pack.sh | a shrunk file yields a NOTE, exit 0, and an unchanged recorded number                          | green   |
