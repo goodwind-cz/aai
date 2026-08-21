@@ -1379,6 +1379,12 @@ test_104_pgq_shrink_never_lowers_the_bar() {  # TEST-005 / Spec-AC-03
 # is the CONTRACT: a conversion that quietly changed what an assertion looks for
 # would be a silent loss of coverage, and the suites themselves could not tell
 # you (they would just keep passing on a weaker claim).
+#
+# THREE of the four converted assertions are pinned here. The fourth asserts
+# `"$victim"` — a needle computed at run time from whichever tracked spec the
+# fixture picked — and a literal pin cannot express it. Code review found the
+# arm claiming "every converted site" while pinning three of four; the claim is
+# narrowed rather than the gap papered over.
 PGQ_CONVERTED=(
   "test-aai-docs-audit.sh|not POSIX"
   "test-aai-docs-audit.sh|STALE"
@@ -1386,7 +1392,7 @@ PGQ_CONVERTED=(
 )
 
 test_105_converted_sites_keep_their_needles() {  # TEST-006 / Spec-AC-01, Spec-AC-05
-  log_info "test_105: every converted site sources the helper, keeps its needle, and dumps no unbounded payload (TEST-006)..."
+  log_info "test_105: the pinned converted needles survive, the helper is sourced, and no failure message dumps an unbounded payload (TEST-006)..."
   local entry f needle suite seen=0
 
   # VACUITY GUARD: an empty list would make every loop below pass by never
@@ -1425,14 +1431,20 @@ test_105_converted_sites_keep_their_needles() {  # TEST-006 / Spec-AC-01, Spec-A
   for entry in "${PGQ_CONVERTED[@]}"; do
     f="${entry%%|*}"
     suite="$PROJECT_ROOT/tests/skills/$f"
-    unbounded="$(grep -nF -- 'got: $out"' "$suite" 2>/dev/null)" || unbounded=""
+    # Anchored on the SHAPE, not on one spelling. The first version of this
+    # sweep looked for the single literal `got: $out"`, found zero, and logged
+    # "no unbounded payload dump" over a file that had TWELVE — every one of
+    # them spelled `: $out"` with a different word before the colon. Code review
+    # caught it. That is the ride's own defect class inside the ride's own
+    # guard: a claim broader than what it checks.
+    unbounded="$("$PGQ_GREP_BIN" -nE '(log_fail|log_info)[[:space:]]+".*: \$out"[[:space:]]*$' "$suite")" || unbounded=""
     if [[ -n "$unbounded" ]]; then
       printf '%s\n' "$unbounded"
       log_fail "test_105: $f still prints an UNBOUNDED payload in a failure message (see the lines above) — use payload_preview from $AP_LIB_REL"
     fi
   done
 
-  log_pass "test_105: $seen converted needle(s) intact, helper sourced, no unbounded payload dump (TEST-006)"
+  log_pass "test_105: $seen pinned needle(s) of 4 converted sites intact (the 4th asserts a run-time variable and cannot be pinned), helper sourced, no unbounded payload dump (TEST-006)"
 }
 
 main() {

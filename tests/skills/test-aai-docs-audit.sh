@@ -2243,10 +2243,10 @@ $( { diff "$TEST_DIR/t-indexarm-earlier.mask" "$TEST_DIR/t-indexarm-fresh.mask" 
   # The earlier-day index must satisfy every other real-repo index predicate.
   local out rc=0
   out="$(index_posix_findings "$earlier")" || rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "an earlier-day index must still pass the POSIX-path arm: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "an earlier-day index must still pass the POSIX-path arm: $(payload_preview "$out")"
   rc=0
   out="$(index_stale_findings "$PROJECT_ROOT" "$earlier")" || rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "an earlier-day index must still pass the staleness arm: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "an earlier-day index must still pass the staleness arm: $(payload_preview "$out")"
 
   log_pass "Earlier-day index: raw diff $raw_lines line(s), masked diff $masked_lines, retired proxy $proxy_lines (would have been red)"
 }
@@ -2271,11 +2271,11 @@ test_issue0001_posix_paths_noop() {
 
   local out rc=0
   out="$(index_posix_findings "$committed")" || rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "committed docs/INDEX.md must carry forward-slash paths only: $out"
-  log_info "  committed index: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "committed docs/INDEX.md must carry forward-slash paths only: $(payload_preview "$out")"
+  log_info "  committed index: $(payload_preview "$out")"
   rc=0
   out="$(index_posix_findings "$fresh")" || rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "a fresh regeneration must carry forward-slash paths only: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "a fresh regeneration must carry forward-slash paths only: $(payload_preview "$out")"
   log_info "  fresh regen:     $out"
 
   # BITE (Spec-AC-02): a genuine backslash separator must still fail, and the
@@ -2320,7 +2320,7 @@ test_indexarm_index_is_not_stale() {
   local out rc=0
   out="$(index_stale_findings "$PROJECT_ROOT" "$committed")" || rc=$?
   log_info "  $out"
-  [[ "$rc" -eq 0 ]] || log_fail "committed docs/INDEX.md is stale: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "committed docs/INDEX.md is stale: $(payload_preview "$out")"
 
   # BITE 1 — a tracked document dropped from the listing (the index went stale
   # because a document was committed without regenerating it).
@@ -2424,10 +2424,10 @@ $( { diff "$TEST_DIR/t-indexarm-overdue-earlier.mask" "$TEST_DIR/t-indexarm-over
   for snap in "$snap_earlier" "$snap_fresh"; do
     rc=0
     out="$(index_posix_findings "$snap")" || rc=$?
-    [[ "$rc" -eq 0 ]] || log_fail "the POSIX-path arm must stay clean across the boundary ($snap): $out"
+    [[ "$rc" -eq 0 ]] || log_fail "the POSIX-path arm must stay clean across the boundary ($snap): $(payload_preview "$out")"
     rc=0
     out="$(index_stale_findings "$d" "$snap")" || rc=$?
-    [[ "$rc" -eq 0 ]] || log_fail "the staleness arm must stay clean across the boundary ($snap): $out"
+    [[ "$rc" -eq 0 ]] || log_fail "the staleness arm must stay clean across the boundary ($snap): $(payload_preview "$out")"
   done
 
   rm -rf "$d"
@@ -6018,7 +6018,7 @@ EOF
     "$PROJECT_ROOT/.aai/scripts/lib/docs-audit-core.mjs" "$PROJECT_ROOT" 2>&1)" || rc=$?
   log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
   [[ "$rc" -eq 0 ]] \
-    || log_fail "the bulk map is not equivalent to the shipped per-file firstCommitDate: $out"
+    || log_fail "the bulk map is not equivalent to the shipped per-file firstCommitDate: $(payload_preview "$out")"
   log_pass "Bulk add-history map equals per-file over the whole corpus; the wrong-date mutation bites"
 }
 
@@ -6146,7 +6146,7 @@ EOF
   local out rc=0
   out="$(node "$TEST_DIR/histmap-rename.mjs" "$PROJECT_ROOT/.aai/scripts/lib/docs-audit-core.mjs" "$d" 2>&1)" || rc=$?
   log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
-  [[ "$rc" -eq 0 ]] || log_fail "close-ceremony rename handling is wrong: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "close-ceremony rename handling is wrong: $(payload_preview "$out")"
   rm -rf "$d"
   log_pass "Renamed close-ceremony document keeps its date; removing --no-renames loses it (bite proved in-arm)"
 }
@@ -6225,7 +6225,7 @@ EOF
   out="$(node "$TEST_DIR/histmap-nohistory.mjs" \
     "$PROJECT_ROOT/.aai/scripts/lib/docs-audit-core.mjs" "$a" "$b" 2>&1)" || rc=$?
   log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
-  [[ "$rc" -eq 0 ]] || log_fail "no-add-commit handling is wrong: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "no-add-commit handling is wrong: $(payload_preview "$out")"
 
   # And the whole audit must survive both shapes rather than crash.
   (cd "$a" && node .aai/scripts/docs-audit.mjs --check --no-event > "$a/audit.log" 2>&1) || true
@@ -6265,7 +6265,7 @@ EOF
   out="$(node "$TEST_DIR/histmap-export.mjs" \
     "$PROJECT_ROOT/.aai/scripts/lib/docs-audit-core.mjs" "$PROJECT_ROOT" 2>&1)" || rc=$?
   log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
-  [[ "$rc" -eq 0 ]] || log_fail "firstCommitDate no longer works as a single-document export: $out"
+  [[ "$rc" -eq 0 ]] || log_fail "firstCommitDate no longer works as a single-document export: $(payload_preview "$out")"
   log_pass "firstCommitDate still exported, still answers for one document, still null for a ghost path"
 }
 

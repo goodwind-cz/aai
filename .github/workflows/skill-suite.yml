@@ -12,7 +12,7 @@ name: skill-suite
 # .aai/scripts/select-suites.mjs against the diff and maps changed paths onto
 # tests/skills/suite-map.yaml suites. Two outcomes:
 #   - mode=selected: `skills-selected` runs ONLY the matched suites + the
-#     always-on core set (check-state, docs-audit, spec-lint), via
+#     always-on core set (check-state, docs-audit, spec-lint, hygiene-pack), via
 #     `test-framework.sh --skill <name>` per suite (never a hand-rolled
 #     runner — reuses the exit-42-is-SKIP contract test-framework.sh already
 #     owns).

@@ -85,10 +85,21 @@ The recorded distribution decides Spec-AC-01's conversion set.
 1 - 4 KiB           561
 4 - 16 KiB       10 195
 16 - 32 KiB           3
->= 32 KiB             0    <- the at-risk set, over REPOSITORY call sites
+>= 32 KiB             0    <- REPOSITORY call sites only; see the note below
+---------------------------
+recorded here      13 089
+this scope's own fixture  2
+total recorded     13 091
 ```
 
-**The at-risk set is EMPTY.** The two rows at or above the floor are both this
+The buckets sum to 13 089, not 13 091, and the difference is not a rounding
+slip: **two recorded calls are excluded from the table** because they are not
+repository sites. Both are 212 012 B, and both come from this scope's own
+`test_101` CONTROL A fixture, which exists precisely to produce an oversized
+payload. Counting them would put "2" in the `>= 32 KiB` row and make the
+verdict unreadable. They are listed above the line instead of silently dropped.
+
+**The at-risk set is EMPTY.** The two excluded calls are this
 scope's own `test_101` CONTROL A fixture (a temp-dir script that reproduces the
 141 on purpose), not repository sites.
 
@@ -279,9 +290,9 @@ Edge cases:
 | TEST-001 | Spec-AC-02 | unit        | tests/skills/test-aai-hygiene-pack.sh | helper contract: match, non-match, both directions, needle named, preview bounded to 512 B     | green   |
 | TEST-002 | Spec-AC-02 | integration | tests/skills/test-aai-hygiene-pack.sh | 216000 B matching payload passes the helper at exit 0 while the old idiom exits 141 (control)  | green   |
 | TEST-003 | Spec-AC-03 | integration | tests/skills/test-aai-hygiene-pack.sh | live gate over tests/skills plus a bite proof: one injected occurrence FAILs and names the file  | green   |
-| TEST-004 | Spec-AC-04 | integration | tests/skills/test-aai-hygiene-pack.sh | baseline is byte-identical to a fresh --record; zero-total scan FAILS (vacuity guard)          | green   |
+| TEST-004 | Spec-AC-04 | integration | tests/skills/test-aai-hygiene-pack.sh | --record over a fixture tree writes the PLANTED count, and writes a DIFFERENT number when the plant changes, so a recorder returning a constant cannot pass; zero-total scan FAILS as a vacuity guard | green   |
 | TEST-005 | Spec-AC-03 | integration | tests/skills/test-aai-hygiene-pack.sh | a shrunk file yields a NOTE, exit 0, and an unchanged recorded number                          | green   |
-| TEST-006 | Spec-AC-01, Spec-AC-05 | integration | tests/skills/test-aai-hygiene-pack.sh | every converted site sources the helper, keeps its needle, and dumps no unbounded payload       | green   |
+| TEST-006 | Spec-AC-01, Spec-AC-05 | integration | tests/skills/test-aai-hygiene-pack.sh | the three pinnable converted needles survive and the helper is sourced (the fourth asserts a run-time variable and cannot be pinned), and no log_fail or log_info in a converted suite dumps an unbounded payload | green   |
 
 ## Verification
 - `bash tests/skills/test-aai-hygiene-pack.sh` — exit 0, TEST-001..006 all PASS.
