@@ -1829,3 +1829,10 @@
 {"v":1,"ts":"2026-08-21T08:14:17.792Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-intake-numbers-some-doc-types-immediately","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-21T08:14:17.826Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-intake-numbers-some-doc-types-immediately","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-21T08:14:17.858Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-intake-numbers-some-doc-types-immediately","payload":{"commit":"c5241d5"}}
+{"v":1,"ts":"2026-08-21T11:41:40.828Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-index-arm-diffs-whole-file-for-a-path-claim","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-21T12:57:05.931Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"index-arm-diffs-whole-file-for-a-path-claim","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-21T12:57:05.965Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"index-arm-diffs-whole-file-for-a-path-claim","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-21T12:57:06.002Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"index-arm-diffs-whole-file-for-a-path-claim","payload":{"commit":"2ce6909bcb200d4973621af3699aecbbc3eb91c5"}}
+{"v":1,"ts":"2026-08-21T12:57:06.037Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-index-arm-diffs-whole-file-for-a-path-claim","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-21T12:57:06.074Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-index-arm-diffs-whole-file-for-a-path-claim","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-21T12:57:06.111Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-index-arm-diffs-whole-file-for-a-path-claim","payload":{"commit":"2ce6909bcb200d4973621af3699aecbbc3eb91c5"}}

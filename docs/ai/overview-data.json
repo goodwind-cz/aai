@@ -1,22 +1,22 @@
 {
-  "generatedAt": "2026-08-21T08:14:43.461Z",
+  "generatedAt": "2026-08-21T12:58:47.241Z",
   "project": "aai",
   "counts": {
-    "delivered": 199,
+    "delivered": 200,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "intake-numbers-some-doc-types-immediately",
+    "ref": "index-arm-diffs-whole-file-for-a-path-claim",
     "type": "intake_issue"
   },
   "in_flight": {
     "focus": {
-      "ref": "intake-numbers-some-doc-types-immediately",
+      "ref": "index-arm-diffs-whole-file-for-a-path-claim",
       "type": "intake_issue",
-      "phase": "validation"
+      "phase": "code_review"
     },
     "strategy": "direct",
     "worktree": {
@@ -104,6 +104,19 @@
       "spec": "docs/specs/SPEC-0140-spec-intake-numbers-some-doc-types-immediately.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260821T074214Z-intake-numbers-some-doc-types-immediately.md"
+    },
+    {
+      "ref": "index-arm-diffs-whole-file-for-a-path-claim",
+      "title": "Issue — a path assertion diffs the whole index, so it fails at UTC midnight",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0033-index-arm-diffs-whole-file-for-a-path-claim.md",
+      "closed_on": "2026-08-21",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0141-spec-index-arm-diffs-whole-file-for-a-path-claim.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260821T130500Z-index-arm-diffs-whole-file-for-a-path-claim.md"
     },
     {
       "ref": "suites-run-in-a-disposable-worktree",
@@ -2698,6 +2711,19 @@
           "spec": "docs/specs/SPEC-0140-spec-intake-numbers-some-doc-types-immediately.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260821T074214Z-intake-numbers-some-doc-types-immediately.md"
+        },
+        {
+          "ref": "index-arm-diffs-whole-file-for-a-path-claim",
+          "title": "Issue — a path assertion diffs the whole index, so it fails at UTC midnight",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0033-index-arm-diffs-whole-file-for-a-path-claim.md",
+          "closed_on": "2026-08-21",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0141-spec-index-arm-diffs-whole-file-for-a-path-claim.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260821T130500Z-index-arm-diffs-whole-file-for-a-path-claim.md"
         },
         {
           "ref": "suites-run-in-a-disposable-worktree",

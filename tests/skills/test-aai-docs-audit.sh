@@ -20,8 +20,39 @@ AUDIT_SCRIPT="$PROJECT_ROOT/.aai/scripts/docs-audit.mjs"
 # relative BASH_SOURCE is unresolvable after setup_fixture's cd, which made
 # the self-containment guard vacuous — grep exit 2 slipped through '&&').
 SUITE_FILE="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
+# Absolute backup of the REAL docs/INDEX.md. Armed by
+# index_arm_restore_floor as the FIRST thing setup_fixture does, because an
+# arm that predates the arming is an arm the floor does not cover: review of
+# this spec found test_spec0006_no_regression_real_repo regenerating the real
+# index twice while this was still empty. Empty only before that call.
+INDEX_REAL_BACKUP=""
+
+# Take the backup BEFORE publishing the pointer. Assigning the path first and
+# copying second means an interrupted or short cp leaves cleanup() pointing at
+# a truncated file, which it would then write over the tracked index.
+index_arm_restore_floor() {
+  local idx="$PROJECT_ROOT/docs/INDEX.md" staged="$1"
+  [[ -f "$idx" ]] || log_fail "real repository has no docs/INDEX.md to protect"
+  cp "$idx" "$staged"
+  cmp -s "$idx" "$staged" \
+    || log_fail "restore floor: backup of docs/INDEX.md is not byte-identical to the original"
+  INDEX_REAL_BACKUP="$staged"
+}
 
 cleanup() {
+  # SPEC index-arm-diffs-whole-file-for-a-path-claim D6 — restore the REAL
+  # docs/INDEX.md on EVERY exit path. Several arms regenerate it in place and
+  # each restores it itself; an abort BETWEEN a generation and its own restore
+  # (errexit on an unrelated line, an interrupt, a node crash) left a tracked
+  # file dirty, and that is what made an earlier investigation conclude
+  # "something keeps reverting the index". This runs before the KEEP_TEST_DIR
+  # early return and before the rm -rf that would delete the backup itself.
+  if [[ -n "$INDEX_REAL_BACKUP" && -f "$INDEX_REAL_BACKUP" ]]; then
+    # A failed restore is the one outcome the operator must hear about: it
+    # means a tracked file is being left dirty. Degrade loudly, never silently.
+    cp "$INDEX_REAL_BACKUP" "$PROJECT_ROOT/docs/INDEX.md" \
+      || echo "NOTE: restore floor could not rewrite docs/INDEX.md from $INDEX_REAL_BACKUP — the tracked file may be left dirty" >&2
+  fi
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
     echo "INFO: keeping fixture at $TEST_DIR"
     return 0
@@ -84,6 +115,8 @@ run_audit() {
 setup_fixture() {
   log_info "Setting up fixture repo..."
   TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  # Arm the D6 restore floor before ANY arm can regenerate the real index.
+  index_arm_restore_floor "$TEST_DIR/INDEX.real.orig"
   cd "$TEST_DIR"
   git init -q
   git config user.email "test@example.com"
@@ -1870,6 +1903,226 @@ setup_iso_repo() {
 # Convert stdin (LF) to a CRLF-terminated file at $1.
 write_crlf() { awk '{ printf "%s\r\n", $0 }' > "$1"; }
 
+# --- SPEC index-arm-diffs-whole-file-for-a-path-claim helpers ----------------
+# docs/INDEX.md carries exactly THREE date-derived surfaces, enumerated ONCE
+# here so no arm has to rediscover them (measured against
+# .aai/scripts/generate-docs-index.mjs):
+#   1. the `Generated: <ISO>` stamp;
+#   2. the WHOLE `## Overdue reviews (N)` section, heading and body — membership
+#      is `row._parsedReviewBy < todayUTC`, so both the count and the rows are
+#      derived from today's UTC date;
+#   3. the trailing `Today (UTC): <date>` line.
+# If the generator ever grows a fourth, this helper UNDER-masks and TEST-001
+# goes red showing the new line in its diff — the safe direction. Masking a
+# pattern like "any line carrying a date" would fail the other way, silently.
+index_strip_dated() {
+  awk '
+    /^Generated: / { next }
+    /^Today \(UTC\): / { next }
+    /^## / { in_overdue = (index($0, "## Overdue reviews (") == 1) }
+    in_overdue { next }
+    { print }
+  ' "$1"
+}
+
+# The RETIRED whole-file proxy (strip `^Generated:` and diff everything else),
+# kept for exactly one purpose: TEST-001 pins it as a NEGATIVE, so the defect
+# this scope fixes cannot be reintroduced silently.
+index_strip_generated_only() { grep -v '^Generated:' "$1"; }
+
+# A UTC YYYY-MM-DD at a whole-day offset from an anchor epoch-ms. node, not
+# `date`: BSD wants `-v-3d` and GNU wants `-d '-3 days'`, and this suite runs on
+# both. Callers capture ONE anchor and derive every offset from it, so a UTC
+# midnight crossing mid-arm cannot desynchronize two dates against each other.
+utc_day() {  # $1 = anchor epoch ms, $2 = whole-day offset
+  node -e 'const a=Number(process.argv[1]),o=Number(process.argv[2]);console.log(new Date(a+o*86400000).toISOString().slice(0,10))' -- "$1" "$2"
+}
+
+# Run the SHIPPED generate-docs-index.mjs with the process clock pinned to $2
+# (an ISO instant), so an "earlier UTC day" index is produced by the generator's
+# own date logic rather than by hand-editing the very lines a later comparison
+# ignores. The generator is neither copied nor patched: a loader written into
+# the fixture directory swaps globalThis.Date and then imports it.
+index_generate_at() {  # $1 = repo root, $2 = ISO instant, $3 = log path
+  local root="$1" when="$2" log="$3"
+  local loader="$TEST_DIR/index-fakeclock.mjs"
+  if [[ ! -f "$loader" ]]; then
+    cat > "$loader" <<'EOF'
+// Pin the process clock to AAI_FAKE_NOW, then import the real generator.
+import { pathToFileURL } from 'node:url';
+const fixed = Date.parse(process.env.AAI_FAKE_NOW || '');
+if (!Number.isFinite(fixed)) {
+  console.error('fakeclock: AAI_FAKE_NOW must be an ISO instant');
+  process.exit(2);
+}
+const RealDate = Date;
+class FakeDate extends RealDate {
+  constructor(...args) { if (args.length === 0) super(fixed); else super(...args); }
+  static now() { return fixed; }
+}
+globalThis.Date = FakeDate;
+await import(pathToFileURL(process.argv[2]).href);
+EOF
+  fi
+  (cd "$root" && AAI_FAKE_NOW="$when" node "$loader" "$root/.aai/scripts/generate-docs-index.mjs") > "$log" 2>&1
+}
+
+# Judge ONE index file on PATHS alone (Spec-AC-02). Prints `tokens_checked=N`
+# and one finding per offending line; exits 1 when any finding was printed.
+# Two date-free statements: no line carries a backslash, and the SHIPPED
+# toPosix is the identity on every `docs/*.md` token — the "no-op on POSIX"
+# claim stated directly instead of through a whole-file diff. A file yielding
+# zero path tokens FAILS rather than passing vacuously.
+index_posix_findings() {  # $1 = index file
+  node "$TEST_DIR/index-posix-check.mjs" \
+    "$PROJECT_ROOT/.aai/scripts/lib/docs-model.mjs" "$1"
+}
+
+# Write the Node predicate index_posix_findings runs. Called once from setup.
+index_write_posix_check() {
+  cat > "$TEST_DIR/index-posix-check.mjs" <<'EOF'
+import fs from 'node:fs';
+import { pathToFileURL } from 'node:url';
+const [libPath, indexPath] = process.argv.slice(2);
+const { toPosix } = await import(pathToFileURL(libPath).href);
+if (typeof toPosix !== 'function') {
+  console.log(`toPosix is not exported by ${libPath} — the POSIX check cannot run`);
+  process.exit(1);
+}
+const findings = [];
+let tokens = 0;
+fs.readFileSync(indexPath, 'utf8').split('\n').forEach((line, i) => {
+  const n = i + 1;
+  if (line.includes('\\')) {
+    findings.push(`line ${n}: index path is not POSIX — a backslash separator is present: ${line.trim()}`);
+  }
+  for (const m of line.matchAll(/docs[\\/][A-Za-z0-9._\\/-]*\.md/g)) {
+    tokens += 1;
+    const tok = m[0];
+    if (toPosix(tok) !== tok) {
+      findings.push(`line ${n}: index path is not POSIX — toPosix is not a no-op here: ${tok} -> ${toPosix(tok)}`);
+    }
+  }
+});
+if (tokens === 0) {
+  findings.push(`no docs/*.md path token found in ${indexPath} — the POSIX check would be vacuous`);
+}
+console.log(`tokens_checked=${tokens}`);
+for (const f of findings) console.log(f);
+process.exit(findings.length ? 1 : 0);
+EOF
+}
+
+# Judge ONE index file on FRESHNESS, and SAY SO (Spec-AC-03). Two directions,
+# both immune to untracked in-flight documents and to the clock:
+#   forward — every document git TRACKS under the directories the index itself
+#             names in its `Source:` line must be listed in the index;
+#   reverse — every `docs/*.md` path the index lists must still exist on disk.
+# The reverse direction checks EXISTENCE, deliberately not trackedness: an index
+# regenerated locally while an untracked draft exists legitimately lists that
+# draft, and a trackedness rule would redden on it. The scanned directories come
+# from the index's own `Source:` line because that line is generated from the
+# same DOC_FAMILIES registry the scan uses — a hardcoded copy here would
+# silently under-check the day a family is added.
+# Prints a counts line plus one `STALE...` finding per problem; returns 1 when
+# any finding was printed. Both universes must be non-empty.
+index_stale_findings() {  # $1 = repo root, $2 = index file
+  local root="$1" idx="$2"
+  local src dirs d p tracked_list listed
+  local n_tracked=0 n_paths=0 bad=0
+  src="$(grep -m1 '^Source: docs/{' "$idx" || true)"
+  if [[ -z "$src" ]]; then
+    echo "STALE-CHECK ABORTED: $idx carries no 'Source: docs/{...}' line — the scanned directories cannot be derived"
+    return 1
+  fi
+  dirs="${src#Source: docs/\{}"
+  dirs="${dirs%%\}*}"
+  local -a pathspec=()
+  local ifs_save="$IFS"
+  IFS=','
+  for d in $dirs; do
+    if [[ -n "$d" ]]; then pathspec+=( "docs/$d/*.md" ); fi
+  done
+  IFS="$ifs_save"
+  if [[ "${#pathspec[@]}" -eq 0 ]]; then
+    echo "STALE-CHECK ABORTED: the Source line named no directory: $src"
+    return 1
+  fi
+  tracked_list="$( (cd "$root" && git ls-files -- "${pathspec[@]}") )" || {
+    echo "STALE-CHECK ABORTED: git ls-files failed in $root"
+    return 1
+  }
+  while IFS= read -r p; do
+    [[ -n "$p" ]] || continue
+    case "$p" in */INDEX.md) continue ;; esac
+    n_tracked=$(( n_tracked + 1 ))
+    if ! grep -qF "$p" "$idx"; then
+      echo "STALE: the index does not list the tracked document $p — regenerate with node .aai/scripts/generate-docs-index.mjs"
+      bad=$(( bad + 1 ))
+    fi
+  done <<< "$tracked_list"
+  listed="$(grep -oE 'docs/[A-Za-z0-9._/-]+\.md' "$idx" | sort -u || true)"
+  while IFS= read -r p; do
+    [[ -n "$p" ]] || continue
+    n_paths=$(( n_paths + 1 ))
+    if [[ ! -f "$root/$p" ]]; then
+      echo "STALE: the index lists $p which no longer exists on disk — regenerate with node .aai/scripts/generate-docs-index.mjs"
+      bad=$(( bad + 1 ))
+    fi
+  done <<< "$listed"
+  if [[ "$n_tracked" -eq 0 ]]; then
+    echo "STALE-CHECK ABORTED: no tracked document under docs/{$dirs} in $root — the freshness check would be vacuous"
+    bad=$(( bad + 1 ))
+  fi
+  if [[ "$n_paths" -eq 0 ]]; then
+    echo "STALE-CHECK ABORTED: $idx lists no docs/*.md path — the freshness check would be vacuous"
+    bad=$(( bad + 1 ))
+  fi
+  echo "tracked_checked=$n_tracked index_paths_checked=$n_paths"
+  [[ "$bad" -eq 0 ]]
+}
+
+# One backup, two generations of the REAL repository index, one restore — run
+# ONCE from main() so the three real-repo index arms read snapshots and never
+# touch the live file. The restore happens BEFORE any assertion; cleanup()'s
+# trap is the floor under it.
+INDEX_SNAP_COMMITTED=""
+INDEX_SNAP_EARLIER=""
+INDEX_SNAP_FRESH=""
+setup_indexarm_snapshots() {
+  log_info "Setting up real-repo INDEX snapshots (earlier-day + fresh; the generator runs twice)..."
+  index_write_posix_check
+  local idx="$PROJECT_ROOT/docs/INDEX.md"
+  [[ -f "$idx" ]] || log_fail "real repository has no docs/INDEX.md"
+  # The floor is armed by setup_fixture, not here — re-taking the backup after
+  # earlier arms have run would capture whatever they left behind. Assert it.
+  [[ -n "$INDEX_REAL_BACKUP" && -f "$INDEX_REAL_BACKUP" ]] \
+    || log_fail "restore floor is not armed: setup_fixture must call index_arm_restore_floor before any arm regenerates the real index"
+  INDEX_SNAP_COMMITTED="$TEST_DIR/INDEX.committed.snap"
+  cp "$idx" "$INDEX_SNAP_COMMITTED"
+  INDEX_SNAP_EARLIER="$TEST_DIR/INDEX.earlier.snap"
+  INDEX_SNAP_FRESH="$TEST_DIR/INDEX.fresh.snap"
+  local anchor earlier_day
+  anchor="$(node -e 'console.log(Date.now())')"
+  earlier_day="$(utc_day "$anchor" -3)"
+  local rc_earlier=0 rc_fresh=0
+  index_generate_at "$PROJECT_ROOT" "${earlier_day}T12:00:00.000Z" \
+    "$TEST_DIR/indexarm-earlier.log" || rc_earlier=$?
+  if [[ "$rc_earlier" -eq 0 ]]; then cp "$idx" "$INDEX_SNAP_EARLIER"; fi
+  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs) \
+    > "$TEST_DIR/indexarm-fresh.log" 2>&1 || rc_fresh=$?
+  if [[ "$rc_fresh" -eq 0 ]]; then cp "$idx" "$INDEX_SNAP_FRESH"; fi
+  # Restore FIRST, assert second: a failure below must not leave the real index dirty.
+  cp "$INDEX_REAL_BACKUP" "$idx"
+  [[ "$rc_earlier" -eq 0 ]] \
+    || log_fail "pinned-clock index generation failed: $(cat "$TEST_DIR/indexarm-earlier.log")"
+  [[ "$rc_fresh" -eq 0 ]] \
+    || log_fail "real-repo index generation failed: $(cat "$TEST_DIR/indexarm-fresh.log")"
+  [[ -s "$INDEX_SNAP_EARLIER" && -s "$INDEX_SNAP_FRESH" ]] \
+    || log_fail "both index snapshots must be non-empty"
+  log_pass "Real-repo INDEX snapshots captured (earlier day ${earlier_day}); real index restored"
+}
+
 test_issue0001_frontmatter_crlf_tolerance() {  # TEST-001 / Spec-AC-01
   log_info "Test: parseFrontmatter identical for LF/CRLF/lone-CR, no trailing CR (TEST-001)..."
   cat > "$TEST_DIR/t1.mjs" <<'EOF'
@@ -1942,22 +2195,231 @@ EOF
   log_pass "AC-table rows equal across line endings; Review-By/refs clean"
 }
 
-test_issue0001_posix_paths_noop() {  # TEST-003 / Spec-AC-03
-  log_info "Test: real-repo INDEX paths are POSIX-only and the path change is a no-op on POSIX (TEST-003)..."
-  local idx="$PROJECT_ROOT/docs/INDEX.md"
-  local backup="$TEST_DIR/INDEX.t003.orig"
-  cp "$idx" "$backup"
-  grep -v '^Generated:' "$backup" > "$TEST_DIR/t003.before.snap"
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/t003.gen.log" 2>&1) \
-    || { cp "$backup" "$idx"; log_fail "real-repo index gen failed: $(cat "$TEST_DIR/t003.gen.log")"; }
-  grep -v '^Generated:' "$idx" > "$TEST_DIR/t003.after.snap"
-  # POSIX-only: the committed artifact carries no backslash separators.
-  if grep -q '\\' "$idx"; then cp "$backup" "$idx"; log_fail "INDEX must contain forward-slash paths only (found a backslash)"; fi
-  # Restore the real index before asserting (a diff failure must not leave it dirty).
-  cp "$backup" "$idx"
-  diff -q "$TEST_DIR/t003.before.snap" "$TEST_DIR/t003.after.snap" >/dev/null \
-    || log_fail "POSIX-path change must be a no-op on POSIX (real INDEX byte-identical modulo Generated)"
-  log_pass "Real-repo INDEX is POSIX-only; path normalization is a no-op on POSIX"
+# TEST-001 / Spec-AC-01 (SPEC index-arm-diffs-whole-file-for-a-path-claim)
+test_indexarm_earlier_day_generation_is_green() {
+  log_info "Test: an index generated on an EARLIER UTC day differs from today's only in date-derived surfaces (TEST-001)..."
+  local earlier="$INDEX_SNAP_EARLIER" fresh="$INDEX_SNAP_FRESH"
+  [[ -f "$earlier" && -f "$fresh" ]] \
+    || log_fail "TEST-001 requires setup_indexarm_snapshots to have run first"
+
+  # The construction is REAL: the pinned clock actually moved the generator's day.
+  local day_earlier day_fresh
+  day_earlier="$(grep -m1 '^Today (UTC):' "$earlier" || true)"
+  day_fresh="$(grep -m1 '^Today (UTC):' "$fresh" || true)"
+  log_info "  earlier-day index: $day_earlier"
+  log_info "  today's index:     $day_fresh"
+  [[ -n "$day_earlier" && -n "$day_fresh" ]] \
+    || log_fail "both snapshots must carry a 'Today (UTC):' line"
+  [[ "$day_earlier" != "$day_fresh" ]] \
+    || log_fail "the pinned-clock generation did not move the UTC day — TEST-001 would be vacuous"
+
+  # The RAW difference is non-empty, so 'masked diff empty' below means something.
+  local raw_lines masked_lines proxy_lines kept_lines
+  raw_lines="$( { diff "$earlier" "$fresh" || true; } | wc -l | tr -d ' ' )"
+  [[ "$raw_lines" -gt 0 ]] \
+    || log_fail "the two generations are byte-identical — the earlier-day construction did nothing"
+
+  index_strip_dated "$earlier" > "$TEST_DIR/t-indexarm-earlier.mask"
+  index_strip_dated "$fresh"   > "$TEST_DIR/t-indexarm-fresh.mask"
+  kept_lines="$(wc -l < "$TEST_DIR/t-indexarm-earlier.mask" | tr -d ' ')"
+  [[ "$kept_lines" -gt 20 ]] \
+    || log_fail "index_strip_dated masked away all but $kept_lines lines — the comparison would be vacuous"
+  masked_lines="$( { diff "$TEST_DIR/t-indexarm-earlier.mask" "$TEST_DIR/t-indexarm-fresh.mask" || true; } | wc -l | tr -d ' ' )"
+  [[ "$masked_lines" -eq 0 ]] || log_fail "an earlier-day index must differ from today's ONLY in date-derived surfaces, got:
+$( { diff "$TEST_DIR/t-indexarm-earlier.mask" "$TEST_DIR/t-indexarm-fresh.mask" || true; } )"
+
+  # The RETIRED proxy, pinned as a negative: the arm as it was would be red here.
+  index_strip_generated_only "$earlier" > "$TEST_DIR/t-indexarm-earlier.proxy"
+  index_strip_generated_only "$fresh"   > "$TEST_DIR/t-indexarm-fresh.proxy"
+  proxy_lines="$( { diff "$TEST_DIR/t-indexarm-earlier.proxy" "$TEST_DIR/t-indexarm-fresh.proxy" || true; } | wc -l | tr -d ' ' )"
+  [[ "$proxy_lines" -gt 0 ]] \
+    || log_fail "the retired whole-file proxy (strip ^Generated: only) must be NON-empty on this pair — the defect it caused is no longer pinned"
+
+  # The earlier-day index must satisfy every other real-repo index predicate.
+  local out rc=0
+  out="$(index_posix_findings "$earlier")" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "an earlier-day index must still pass the POSIX-path arm: $out"
+  rc=0
+  out="$(index_stale_findings "$PROJECT_ROOT" "$earlier")" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "an earlier-day index must still pass the staleness arm: $out"
+
+  log_pass "Earlier-day index: raw diff $raw_lines line(s), masked diff $masked_lines, retired proxy $proxy_lines (would have been red)"
+}
+
+# TEST-003 / Spec-AC-03 (SPEC-0007) — NARROWED IN PLACE to a path-only claim by
+# TEST-002 / Spec-AC-02 (SPEC index-arm-diffs-whole-file-for-a-path-claim).
+# This arm used to prove its claim by diffing the WHOLE committed index against
+# a fresh regeneration with only `^Generated:` stripped. docs/INDEX.md carries
+# two more date-derived surfaces (`Today (UTC):` and the date-derived
+# `## Overdue reviews (N)`), so the arm reddened at every UTC midnight and
+# reported it as a path failure. The path claim is now asserted ON PATHS: no
+# backslash on any line, and toPosix identity on every docs/*.md token, on the
+# committed artifact AND on a fresh regeneration. The freshness half moved to
+# test_indexarm_index_is_not_stale; the date-independence of the whole
+# comparison is pinned by test_indexarm_earlier_day_generation_is_green. The
+# function name is kept because SPEC-0007's Test Plan row TEST-003 points at it.
+test_issue0001_posix_paths_noop() {
+  log_info "Test: real-repo INDEX paths are POSIX-only and toPosix is a no-op on every path it emits (TEST-003 / TEST-002)..."
+  local committed="$INDEX_SNAP_COMMITTED" fresh="$INDEX_SNAP_FRESH"
+  [[ -f "$committed" && -f "$fresh" ]] \
+    || log_fail "this arm requires setup_indexarm_snapshots to have run first"
+
+  local out rc=0
+  out="$(index_posix_findings "$committed")" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "committed docs/INDEX.md must carry forward-slash paths only: $out"
+  log_info "  committed index: $out"
+  rc=0
+  out="$(index_posix_findings "$fresh")" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "a fresh regeneration must carry forward-slash paths only: $out"
+  log_info "  fresh regen:     $out"
+
+  # BITE (Spec-AC-02): a genuine backslash separator must still fail, and the
+  # message must name the PATH problem. The mutation runs on a scratch COPY —
+  # the real index is never edited — so the proof re-runs on every execution.
+  local control="$TEST_DIR/t003-posix-control.md"
+  local mutant="$TEST_DIR/t003-posix-mutant.md"
+  cp "$committed" "$control"
+  sed 's#docs/specs/#docs\\specs\\#' "$committed" > "$mutant"
+  if cmp -s "$control" "$mutant"; then
+    log_fail "the backslash mutation changed nothing — the bite proof would be vacuous"
+  fi
+  rc=0
+  out="$(index_posix_findings "$mutant")" || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "a backslash separator in an index path must FAIL this arm (the bite proof did not bite)"
+  printf '%s\n' "$out" | grep -qF 'not POSIX' \
+    || log_fail "the failure must name the path problem (expected 'not POSIX'), got: $out"
+  rc=0
+  out="$(index_posix_findings "$control")" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "the unmutated control must stay green, got: $out"
+
+  log_pass "Real-repo INDEX paths are POSIX-only and toPosix is a no-op; a backslash separator still bites"
+}
+
+# TEST-003 / Spec-AC-03 (SPEC index-arm-diffs-whole-file-for-a-path-claim)
+test_indexarm_index_is_not_stale() {
+  log_info "Test: committed docs/INDEX.md lists every tracked doc and no deleted one (TEST-003)..."
+  local committed="$INDEX_SNAP_COMMITTED"
+  [[ -f "$committed" ]] \
+    || log_fail "TEST-003 requires setup_indexarm_snapshots to have run first"
+
+  local out rc=0
+  out="$(index_stale_findings "$PROJECT_ROOT" "$committed")" || rc=$?
+  log_info "  $out"
+  [[ "$rc" -eq 0 ]] || log_fail "committed docs/INDEX.md is stale: $out"
+
+  # BITE 1 — a tracked document dropped from the listing (the index went stale
+  # because a document was committed without regenerating it).
+  local tracked_specs victim
+  tracked_specs="$( (cd "$PROJECT_ROOT" && git ls-files -- 'docs/specs/*.md') )"
+  victim="${tracked_specs%%$'\n'*}"
+  [[ -n "$victim" ]] || log_fail "no tracked spec available to mutate with"
+  local dropped="$TEST_DIR/t-indexarm-stale-dropped.md"
+  grep -vF "$victim" "$committed" > "$dropped" || true
+  rc=0
+  out="$(index_stale_findings "$PROJECT_ROOT" "$dropped")" || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "dropping the tracked document $victim from the listing must be reported (bite 1 did not bite)"
+  printf '%s\n' "$out" | grep -qF 'STALE' \
+    || log_fail "the finding must say the index is STALE, got: $out"
+  printf '%s\n' "$out" | grep -qF "$victim" \
+    || log_fail "the finding must name the missing document, got: $out"
+
+  # BITE 2 — a listed path that no longer exists (a document was deleted without
+  # regenerating the index).
+  local ghost="$TEST_DIR/t-indexarm-stale-ghost.md"
+  cp "$committed" "$ghost"
+  printf '| SPEC-9998 | spec | docs/specs/SPEC-9998-deleted-but-still-listed.md |\n' >> "$ghost"
+  rc=0
+  out="$(index_stale_findings "$PROJECT_ROOT" "$ghost")" || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "a listed path that no longer exists must be reported (bite 2 did not bite)"
+  printf '%s\n' "$out" | grep -qF 'no longer exists on disk' \
+    || log_fail "the finding must say the listed path is gone, got: $out"
+
+  # CONTROL — the same copy, unmutated.
+  local control="$TEST_DIR/t-indexarm-stale-control.md"
+  cp "$committed" "$control"
+  rc=0
+  out="$(index_stale_findings "$PROJECT_ROOT" "$control")" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "the unmutated control must stay clean, got: $out"
+
+  log_pass "Committed INDEX is not stale in either direction; both staleness bites bite"
+}
+
+# TEST-004 / Spec-AC-04 (SPEC index-arm-diffs-whole-file-for-a-path-claim)
+test_indexarm_overdue_boundary_is_green() {
+  log_info "Test: an '## Overdue reviews (N)' count that moves overnight fails no arm (TEST-004)..."
+  local d; d="$(setup_iso_repo overdue-boundary)"
+  local anchor past earlier
+  anchor="$(node -e 'console.log(Date.now())')"
+  past="$(utc_day "$anchor" -1)"
+  earlier="$(utc_day "$anchor" -3)"
+  # A fixture whose Review-By is genuinely in the PAST, so the count really
+  # moves — not an argument that it would.
+  cat > "$d/docs/specs/SPEC-8801-overdue-boundary.md" <<MD
+---
+id: SPEC-8801
+type: spec
+status: implementing
+links:
+  pr: []
+---
+# Overdue boundary fixture
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description        | Status   | Evidence | Review-By  | Notes                     |
+|------------|--------------------|----------|----------|------------|---------------------------|
+| Spec-AC-01 | waits on something | deferred | none     | $past | review date already passed |
+MD
+  (cd "$d" && git add -A && git commit -qm "overdue boundary fixture" >/dev/null) \
+    || log_fail "iso-repo fixture commit failed"
+
+  index_generate_at "$d" "${earlier}T12:00:00.000Z" "$d/gen-earlier.log" \
+    || log_fail "pinned-clock generation failed: $(cat "$d/gen-earlier.log")"
+  local snap_earlier="$TEST_DIR/t-indexarm-overdue-earlier.snap"
+  cp "$d/docs/INDEX.md" "$snap_earlier"
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs > gen-fresh.log 2>&1) \
+    || log_fail "fresh generation failed: $(cat "$d/gen-fresh.log")"
+  local snap_fresh="$TEST_DIR/t-indexarm-overdue-fresh.snap"
+  cp "$d/docs/INDEX.md" "$snap_fresh"
+
+  local h_earlier h_fresh
+  h_earlier="$(grep -m1 '^## Overdue reviews' "$snap_earlier" || true)"
+  h_fresh="$(grep -m1 '^## Overdue reviews' "$snap_fresh" || true)"
+  log_info "  fixture Review-By: $past"
+  log_info "  earlier-day index: $h_earlier"
+  log_info "  today's index:     $h_fresh"
+  [[ "$h_earlier" == "## Overdue reviews (0)" ]] \
+    || log_fail "on the earlier day the fixture must NOT be overdue, got: $h_earlier"
+  [[ "$h_fresh" == "## Overdue reviews (1)" ]] \
+    || log_fail "today the fixture MUST be overdue — the boundary did not move, got: $h_fresh"
+  extract_section "$snap_fresh" "## Overdue reviews" | grep -qF 'SPEC-8801' \
+    || log_fail "today's Overdue reviews section must carry the fixture row"
+
+  local raw_lines masked_lines
+  raw_lines="$( { diff "$snap_earlier" "$snap_fresh" || true; } | wc -l | tr -d ' ' )"
+  [[ "$raw_lines" -gt 0 ]] \
+    || log_fail "the two generations are identical — the boundary crossing was not constructed"
+  index_strip_dated "$snap_earlier" > "$TEST_DIR/t-indexarm-overdue-earlier.mask"
+  index_strip_dated "$snap_fresh"   > "$TEST_DIR/t-indexarm-overdue-fresh.mask"
+  masked_lines="$( { diff "$TEST_DIR/t-indexarm-overdue-earlier.mask" "$TEST_DIR/t-indexarm-overdue-fresh.mask" || true; } | wc -l | tr -d ' ' )"
+  [[ "$masked_lines" -eq 0 ]] || log_fail "an overdue count crossing a Review-By boundary must not change anything else, got:
+$( { diff "$TEST_DIR/t-indexarm-overdue-earlier.mask" "$TEST_DIR/t-indexarm-overdue-fresh.mask" || true; } )"
+
+  local out rc snap
+  for snap in "$snap_earlier" "$snap_fresh"; do
+    rc=0
+    out="$(index_posix_findings "$snap")" || rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "the POSIX-path arm must stay clean across the boundary ($snap): $out"
+    rc=0
+    out="$(index_stale_findings "$d" "$snap")" || rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "the staleness arm must stay clean across the boundary ($snap): $out"
+  done
+
+  rm -rf "$d"
+  log_pass "Overdue count moved 0 -> 1 on the calendar alone: raw diff $raw_lines line(s), masked diff $masked_lines, no arm red"
 }
 
 test_issue0001_crlf_corpus_buckets() {  # TEST-004 / Spec-AC-04
@@ -5505,7 +5967,11 @@ main() {
   test_spec0006_no_regression_real_repo
   test_issue0001_frontmatter_crlf_tolerance
   test_issue0001_actable_crlf_tolerance
+  setup_indexarm_snapshots
+  test_indexarm_earlier_day_generation_is_green
   test_issue0001_posix_paths_noop
+  test_indexarm_index_is_not_stale
+  test_indexarm_overdue_boundary_is_green
   test_issue0001_crlf_corpus_buckets
   test_issue0001_gitattributes
   test_issue0001_legacy_ratio_guard
