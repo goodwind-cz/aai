@@ -1336,9 +1336,9 @@ test_103_pgq_baseline_is_measured_not_typed() {  # TEST-004 / Spec-AC-04
     || log_fail "test_103: after planting 3 more the recorder must write 8, wrote $(pgq_lookup "$rows" test-aai-p1.sh) — the number is not being measured"
 
   # The COMMITTED baseline must name the generator, so nobody hand-edits it.
-  grep -qF -- '--record' "$baseline" \
+  "$PGQ_GREP_BIN" -qF -- '--record' "$baseline" \
     || log_fail "test_103: $PGQ_BASELINE_REL must name its generator command in the header"
-  grep -qiF 'generated' "$baseline" \
+  "$PGQ_GREP_BIN" -qiF 'generated' "$baseline" \
     || log_fail "test_103: $PGQ_BASELINE_REL must mark itself GENERATED"
 
   # And it must be a scan of the REAL tree, not of nothing: every committed row
@@ -1452,12 +1452,12 @@ test_105_converted_sites_keep_their_needles() {  # TEST-006 / Spec-AC-01, Spec-A
     # file. Measured: a plain `grep -qF lib/assert-payload.sh` passed a mutant
     # with the source line deleted, because the `# shellcheck source=` directive
     # one line above still carried the path.
-    grep -qE '^[[:space:]]*(\.|source)[[:space:]]+.*lib/assert-payload\.sh' "$suite" \
+    "$PGQ_GREP_BIN" -qE '^[[:space:]]*(\.|source)[[:space:]]+.*lib/assert-payload\.sh' "$suite" \
       || log_fail "test_105: $f uses the pipe-free helper but never sources tests/skills/lib/assert-payload.sh"
 
     # The needle survived, and it survived INSIDE a helper call — not merely
     # somewhere in the file.
-    grep -qF -- "assert_payload_contains \"\$out\" \"$needle\"" "$suite" \
+    "$PGQ_GREP_BIN" -qF -- "assert_payload_contains \"\$out\" \"$needle\"" "$suite" \
       || log_fail "test_105: $f no longer asserts the needle '$needle' through assert_payload_contains — a conversion must not change what a site asserts"
     seen=$(( seen + 1 ))
   done
@@ -1474,7 +1474,7 @@ test_105_converted_sites_keep_their_needles() {  # TEST-006 / Spec-AC-01, Spec-A
     # them spelled `: $out"` with a different word before the colon. Code review
     # caught it. That is the ride's own defect class inside the ride's own
     # guard: a claim broader than what it checks.
-    unbounded="$("$PGQ_GREP_BIN" -nE '(log_fail|log_info)[[:space:]]+".*: \$out"[[:space:]]*$' "$suite")" || unbounded=""
+    unbounded="$("$PGQ_GREP_BIN" -nE '(log_fail|log_info)[[:space:]]+".*\$out"[[:space:]]*$' "$suite")" || unbounded=""
     if [[ -n "$unbounded" ]]; then
       printf '%s\n' "$unbounded"
       log_fail "test_105: $f still prints an UNBOUNDED payload in a failure message (see the lines above) — use payload_preview from $AP_LIB_REL"

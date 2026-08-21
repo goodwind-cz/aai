@@ -2276,7 +2276,7 @@ test_issue0001_posix_paths_noop() {
   rc=0
   out="$(index_posix_findings "$fresh")" || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "a fresh regeneration must carry forward-slash paths only: $(payload_preview "$out")"
-  log_info "  fresh regen:     $out"
+  log_info "  fresh regen:     $(payload_preview "$out")"
 
   # BITE (Spec-AC-02): a genuine backslash separator must still fail, and the
   # message must name the PATH problem. The mutation runs on a scratch COPY —
@@ -2319,7 +2319,7 @@ test_indexarm_index_is_not_stale() {
 
   local out rc=0
   out="$(index_stale_findings "$PROJECT_ROOT" "$committed")" || rc=$?
-  log_info "  $out"
+  log_info "  $(payload_preview "$out")"
   [[ "$rc" -eq 0 ]] || log_fail "committed docs/INDEX.md is stale: $(payload_preview "$out")"
 
   # BITE 1 — a tracked document dropped from the listing (the index went stale
