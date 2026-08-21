@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-21T04:01:22.559Z
+Generated: 2026-08-21T04:29:52.940Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -393,9 +393,11 @@ _None._
 | SPEC-0139 | specs | docs/specs/SPEC-0139-spec-cli-output-survives-a-pipe.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| intake-numbers-some-doc-types-immediately (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-intake-numbers-some-doc-types-immediately.md |
 
 ## Deferred (whole-doc) (0)
 
