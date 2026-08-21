@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-21T12:55:47.453Z
+Generated: 2026-08-21T12:56:44.566Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-index-arm-diffs-whole-file-for-a-path-claim | specs | implementing | 4 implementing | docs/specs/SPEC-DRAFT-spec-index-arm-diffs-whole-file-for-a-path-claim.md |
+| spec-index-arm-diffs-whole-file-for-a-path-claim | specs | implementing | 4 done | docs/specs/SPEC-DRAFT-spec-index-arm-diffs-whole-file-for-a-path-claim.md |
 
 ## Canonical layer (0)
 
