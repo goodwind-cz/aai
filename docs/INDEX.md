@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-21T15:00:25.280Z
+Generated: 2026-08-21T15:14:34.986Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-docs-history-is-one-git-call-per-doc | specs | implementing | 5 implementing | docs/specs/SPEC-DRAFT-spec-docs-history-is-one-git-call-per-doc.md |
+| spec-docs-history-is-one-git-call-per-doc | specs | implementing | 5 done | docs/specs/SPEC-DRAFT-spec-docs-history-is-one-git-call-per-doc.md |
 
 ## Canonical layer (0)
 

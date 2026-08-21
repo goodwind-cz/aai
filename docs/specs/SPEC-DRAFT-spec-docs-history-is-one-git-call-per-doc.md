@@ -80,7 +80,7 @@ decision, recorded in the intake and not taken here.
   map possible the moment a test fixture commits; the intake rules that out.
 
 - **D2 — the walk covers exactly what the audit can ask about, and a miss costs
-  correctness nothing.** Checked, not assumed: `scanAuditDocs` (`:663-704`)
+  correctness nothing.** Checked, not assumed: `scanAuditDocs` (`:720-763`)
   descends only `SCAN_ROOT` (`'docs'`, `:36`), and `scopePath` only narrows that
   set, so every `f.rel` `runAudit` holds is under `docs/`. The pathspec is
   derived from `SCAN_ROOT` rather than written out again, so it cannot drift
@@ -121,10 +121,18 @@ decision, recorded in the intake and not taken here.
 
 - **D4 — the map is built lazily, under exactly today's gate.** The per-document
   branch is `if (!quick && legacyUntil)`; that condition is loop-invariant, so it
-  is hoisted verbatim and the map is built only when it holds (and only when the
-  scan found at least one document). `--quick` and a repository with no
-  `legacy_until_date` spawn no git process at all — `--quick` stays at its
-  measured 125 ms, which is asserted by an arm rather than assumed.
+  is hoisted verbatim and the map is built only when it holds. `--quick` and a
+  repository with no `legacy_until_date` spawn no git process at all — `--quick`
+  stays at its measured 125 ms, which is asserted by an arm rather than assumed.
+
+  The hoist also carries `files.length > 1`, added after code review. The
+  original guard was `files.length` (at least one document), which made a SCOPED
+  audit — `docs-audit.mjs --check --path <one doc>`, the intake post-save gate —
+  pay a whole-corpus walk to answer about a single document: measured 49.9 ms of
+  walk against a 27.6 ms per-file call, a ratio that grows with the corpus. With
+  `> 1` the single-document case takes the D3 fallback, which is the same code
+  path and the same answer at the cheaper price. This is the one place where the
+  accelerator was slower than what it replaced.
 
 - **D5 — the record separator is a real NUL, and it is `-z` plus `%x00`.** The
   prototype separated `%cs` lines from path lines with a date-shaped regex
@@ -235,7 +243,7 @@ and several gates).
   identical to the pre-change run's on the same corpus, and its wall clock falls
   by at least 3x. Measured in one session on one machine, before and after.
   - Verification: the two timed runs recorded in the evidence contract, plus the
-    arm `test_histmap_quick_spawns_no_git`, which pins that `--quick` builds no
+    arm `test_histmap_one_git_call_per_audit`, which pins that `--quick` builds no
     map (D4). Evidence: both durations and the `diff` of the two verdict
     outputs.
   - **Threshold amended mid-ride, and the reason belongs on the record.** The
@@ -322,7 +330,7 @@ Components:
     the loop, and inside the existing `if (!quick && legacyUntil)` branch,
     `const first = firstCommitMap?.has(f.rel) ? firstCommitMap.get(f.rel) :
     firstCommitDate(root, f.rel);`. Nothing else in the loop moves.
-- `tests/skills/test-aai-docs-audit.sh` (EDIT) — four new arms, one Node helper
+- `tests/skills/test-aai-docs-audit.sh` (EDIT) — five new arms, one Node helper
   written into `$TEST_DIR` at run time, and four `main()` calls.
 
 Data flows: the map is created and discarded inside one `runAudit` call. No file
@@ -391,11 +399,11 @@ only by reading is not accepted.
 
 | Spec-AC    | Description | Status | Evidence | Review-By | Notes |
 |------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN the bulk map is asked for the first-commit date of any tracked document THEN it returns byte-identically what the shipped per-file function returns | implementing | — | — | asserted over the whole corpus as an executable arm, never a sample, with a vacuity guard on the document and dated counts (D8) | 
-| Spec-AC-02 | WHEN docs-audit runs --check --strict --no-event THEN first-commit history costs exactly ONE git process whatever the corpus size, the verdict is unchanged and wall clock falls at least 3x | implementing | — | — | AMENDED mid-ride. Original threshold was under 2000 ms, taken from a faulty inference by the orchestrator rather than a measurement: the 99.1 percent figure came from a --strict versus --quick delta, and --quick skips EVERY git probe not only this one. Measured after: 13569 ms to 3875 ms, 3.5x, output byte-identical. Of the 211 git calls a strict run now makes, 203 are a DIFFERENT per-document probe, git log -1 --grep for id mentions at about 19 ms each, which is the entire 3.8 s residue. That probe is outside AC-001 to AC-005 and is filed as fu-docsaudit-idmention-probe-per-doc (P2). The amended wording claims only the property this change owns | 
-| Spec-AC-03 | WHEN a document was renamed at its close ceremony THEN the numbered path still carries the date the shipped function gives it | implementing | — | — | --no-renames is mandatory; removing it is the in-arm bite and loses the numbered path entirely (D6) | 
-| Spec-AC-04 | WHEN a document has no add commit in the walk THEN the lookup yields null, never a crash and never another document's date | implementing | — | — | two shapes: no history at all takes the D3 fallback, an untracked document is simply an absent key (D2, D3) | 
-| Spec-AC-05 | WHEN a single-document caller imports firstCommitDate THEN it still works unchanged | implementing | — | — | the function is not reimplemented on the map; it is also the reference side of the AC-001 comparison and the D2/D3 fallback (D8) | 
+| Spec-AC-01 | WHEN the bulk map is asked for the first-commit date of any tracked document THEN it returns byte-identically what the shipped per-file function returns | done | — | — | asserted over the whole corpus as an executable arm, never a sample, with a vacuity guard on the document and dated counts (D8) | 
+| Spec-AC-02 | WHEN docs-audit runs --check --strict --no-event THEN first-commit history costs exactly ONE git process whatever the corpus size, the verdict is unchanged and wall clock falls at least 3x | done | — | — | AMENDED mid-ride. Original threshold was under 2000 ms, taken from a faulty inference by the orchestrator rather than a measurement: the 99.1 percent figure came from a --strict versus --quick delta, and --quick skips EVERY git probe not only this one. Measured after: 13569 ms to 3875 ms, 3.5x, output byte-identical. Of the 211 git calls a strict run now makes, 203 are a DIFFERENT per-document probe, git log -1 --grep for id mentions at about 19 ms each, which is the entire 3.8 s residue. That probe is outside AC-001 to AC-005 and is filed as fu-docsaudit-idmention-probe-per-doc (P2). The amended wording claims only the property this change owns | 
+| Spec-AC-03 | WHEN a document was renamed at its close ceremony THEN the numbered path still carries the date the shipped function gives it | done | — | — | --no-renames is mandatory; removing it is the in-arm bite and loses the numbered path entirely (D6) | 
+| Spec-AC-04 | WHEN a document has no add commit in the walk THEN the lookup yields null, never a crash and never another document's date | done | — | — | two shapes: no history at all takes the D3 fallback, an untracked document is simply an absent key (D2, D3) | 
+| Spec-AC-05 | WHEN a single-document caller imports firstCommitDate THEN it still works unchanged | done | — | — | the function is not reimplemented on the map; it is also the reference side of the AC-001 comparison and the D2/D3 fallback (D8) | 
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 

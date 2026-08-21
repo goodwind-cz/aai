@@ -986,7 +986,12 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
   // and a repository with no legacy_until_date still spawn nothing. The map is
   // discarded with this call — a process-lifetime cache would be wrong the
   // moment a fixture commits.
-  const firstCommitMap = (!quick && legacyUntil && files.length) ? buildFirstCommitDateMap(root) : null;
+  // files.length > 1, not > 0: a scoped audit (--path <one doc>, the intake
+  // post-save gate) would otherwise pay a whole-corpus walk to answer about a
+  // single document. Measured on this repository: walk 49.9 ms against one
+  // per-file call 27.6 ms, and the ratio grows with the corpus. Review of this
+  // spec found it; a map of null sends the single document down the D3 path.
+  const firstCommitMap = (!quick && legacyUntil && files.length > 1) ? buildFirstCommitDateMap(root) : null;
   const events = quick ? [] : readEvents(root);
   const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
   const extraMethods = config?.review_by_methods ?? [];
