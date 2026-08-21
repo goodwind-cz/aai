@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-21T12:56:44.566Z
+Generated: 2026-08-21T12:58:53.030Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-index-arm-diffs-whole-file-for-a-path-claim | specs | implementing | 4 done | docs/specs/SPEC-DRAFT-spec-index-arm-diffs-whole-file-for-a-path-claim.md |
 
 ## Canonical layer (0)
 
@@ -49,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (342)
+## Done (344)
 
 | ID | Type | Path |
 |---|---|---|
@@ -240,6 +239,7 @@ _None._
 | ISSUE-0030 | issues | docs/issues/ISSUE-0030-test-018-legacy-spare-attribution.md |
 | ISSUE-0031 | issues | docs/issues/ISSUE-0031-test-canon-drift-detection.md |
 | ISSUE-0032 | issues | docs/issues/ISSUE-0032-intake-numbers-some-doc-types-immediately.md |
+| ISSUE-0033 | issues | docs/issues/ISSUE-0033-index-arm-diffs-whole-file-for-a-path-claim.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -394,13 +394,12 @@ _None._
 | SPEC-0138 | specs | docs/specs/SPEC-0138-spec-suites-run-in-a-disposable-worktree.md |
 | SPEC-0139 | specs | docs/specs/SPEC-0139-spec-cli-output-survives-a-pipe.md |
 | SPEC-0140 | specs | docs/specs/SPEC-0140-spec-intake-numbers-some-doc-types-immediately.md |
+| SPEC-0141 | specs | docs/specs/SPEC-0141-spec-index-arm-diffs-whole-file-for-a-path-claim.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| index-arm-diffs-whole-file-for-a-path-claim (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-index-arm-diffs-whole-file-for-a-path-claim.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

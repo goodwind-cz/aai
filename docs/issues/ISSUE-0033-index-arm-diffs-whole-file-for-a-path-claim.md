@@ -1,14 +1,16 @@
 ---
 id: index-arm-diffs-whole-file-for-a-path-claim
-number: null
+number: 33
 type: issue
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-docs-audit
 links:
-  pr: []
-  commits: []
+  pr:
+    - 270
+  commits:
+    - 2ce6909bcb200d4973621af3699aecbbc3eb91c5
 ---
 
 # Issue — a path assertion diffs the whole index, so it fails at UTC midnight

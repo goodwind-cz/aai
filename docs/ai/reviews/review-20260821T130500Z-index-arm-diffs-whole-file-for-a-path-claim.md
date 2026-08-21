@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: 94ee37d..38d3e5a (branch fix/index-arm-path-claim) — tests/skills/test-aai-docs-audit.sh (+460/-16)
-  spec: docs/specs/SPEC-DRAFT-spec-index-arm-diffs-whole-file-for-a-path-claim.md
+  spec: docs/specs/SPEC-0141-spec-index-arm-diffs-whole-file-for-a-path-claim.md
   ceremony_level: 1
   reviewer_model: claude-opus-5 (adversarial code-review role, read-only on implementation files)
   prior_evidence: docs/ai/validation/validation-20260821T123200Z-index-arm-diffs-whole-file-for-a-path-claim-round1.md (PASS, round 1) — read first, not repeated

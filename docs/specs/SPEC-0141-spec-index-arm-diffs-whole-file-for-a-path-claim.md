@@ -1,14 +1,16 @@
 ---
 id: spec-index-arm-diffs-whole-file-for-a-path-claim
 type: spec
-number: null
-status: implementing
+number: 141
+status: done
 ceremony_level: 1
 links:
-  requirement: docs/issues/ISSUE-DRAFT-index-arm-diffs-whole-file-for-a-path-claim.md
+  requirement: docs/issues/ISSUE-0033-index-arm-diffs-whole-file-for-a-path-claim.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 270
+  commits:
+    - 2ce6909bcb200d4973621af3699aecbbc3eb91c5
 ---
 
 # Spec — a path assertion must fail on paths, not on the calendar
@@ -16,7 +18,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-index-arm-diffs-whole-file-for-a-path-claim.md
+- Requirement: docs/issues/ISSUE-0033-index-arm-diffs-whole-file-for-a-path-claim.md
 - Arm being narrowed: tests/skills/test-aai-docs-audit.sh `test_issue0001_posix_paths_noop`
 - Spec that originally froze that arm as its TEST-003: docs/specs/SPEC-0007-parsefrontmatter-crlf-tolerance-and-posix-index-paths.md
 - Artifact under test: docs/INDEX.md, produced by .aai/scripts/generate-docs-index.mjs
@@ -82,7 +84,7 @@ time costing a measurement cycle.
   generator scans the FILESYSTEM (`walk()` over the `SCAN_DIRS`), so an
   untracked, in-flight document counts. At the moment this spec was written the
   working tree held one untracked document
-  (`docs/issues/ISSUE-DRAFT-index-arm-diffs-whole-file-for-a-path-claim.md`),
+  (`docs/issues/ISSUE-0033-index-arm-diffs-whole-file-for-a-path-claim.md`),
   and a fresh regeneration therefore differed from the committed index by a
   whole `## Drafts` row. A byte-freshness arm would have been RED for the entire
   duration of this ride, and of every other ride in this repository, because
@@ -190,7 +192,7 @@ time costing a measurement cycle.
 - User decision: inline
 - Base ref: main
 - Inline review scope: tests/skills/test-aai-docs-audit.sh,
-  docs/specs/SPEC-DRAFT-spec-index-arm-diffs-whole-file-for-a-path-claim.md
+  docs/specs/SPEC-0141-spec-index-arm-diffs-whole-file-for-a-path-claim.md
 
 Code review required: true (test-suite change).
 
