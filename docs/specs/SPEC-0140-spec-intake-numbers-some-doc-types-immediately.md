@@ -2,13 +2,15 @@
 id: spec-intake-numbers-some-doc-types-immediately
 type: spec
 number: 140
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: docs/issues/ISSUE-0032-intake-numbers-some-doc-types-immediately.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 269
+  commits:
+    - c5241d5
 ---
 
 # Spec — intake must not number a document
@@ -347,10 +349,10 @@ accepted.
 
 | Spec-AC    | Description | Status | Evidence | Review-By | Notes |
 |------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN any of the eight intake types produces an artifact THEN it is an unnumbered PREFIX-DRAFT-slug.md with number null and status draft, and the rule is stated in the per-type prompt the router reads | implementing | TEST-012 and TEST-014 green; all eight prompts carry the rule and all eight types pass as DRAFT and fail as numbered | — | demonstrated mechanically over all eight types, not by running eight live intakes — see D5, which says so rather than implying otherwise | 
-| Spec-AC-02 | WHEN a prefix is needed for a type THEN exactly one place states it and it agrees with the allocator TYPE_MAP for every type TYPE_MAP knows, with research resolved to RES | implementing | TEST-013 green; eight rows, no prefix restated in any per-type prompt, every TYPE_MAP-known row matching on directory and prefix, and all eight per-type prompt directory lines matching their row | — | the prefix is single-sourced, the directory is not and deliberately so; the table is the prefix's only statement and the directory's authority, and the arm pins the eight prompt lines to it (D3). TYPE_MAP has no research and no hotfix row; that gap is filed, not fixed, because the allocator is protected_paths_l3 (D4) | 
-| Spec-AC-03 | WHEN an intake artifact is created already numbered THEN a check fails, and the intake flow runs that check on the artifact it just saved | implementing | TEST-014 green; exit 1 with a numbered-at-intake finding, exit 0 on the DRAFT twin, exit 1 on a draft with no number key at all, exit 2 on an unreadable artifact or a missing table; POST-SAVE CHECK invokes it | — | an absent number key is a finding too (D8), which hardens the unnumbered direction rather than closing an escape. this is the intake-time twin of the allocator merge-time guard, which already exists and works; scoping to the just-saved file is what makes creation observable at all (D1) | 
-| Spec-AC-04 | WHEN this scope ships THEN no existing numbered document has been renamed or renumbered | implementing | TEST-015 green; the four documents named in the intake evidence still resolve at their original paths and the working tree shows no rename under docs/ | — | a boundary, not a nicety: display ids are durable primary keys and history references them. The arm is green pre-change by construction and is proved by mutation only | 
+| Spec-AC-01 | WHEN any of the eight intake types produces an artifact THEN it is an unnumbered PREFIX-DRAFT-slug.md with number null and status draft, and the rule is stated in the per-type prompt the router reads | done | TEST-012 and TEST-014 green; all eight prompts carry the rule and all eight types pass as DRAFT and fail as numbered | — | demonstrated mechanically over all eight types, not by running eight live intakes — see D5, which says so rather than implying otherwise | 
+| Spec-AC-02 | WHEN a prefix is needed for a type THEN exactly one place states it and it agrees with the allocator TYPE_MAP for every type TYPE_MAP knows, with research resolved to RES | done | TEST-013 green; eight rows, no prefix restated in any per-type prompt, every TYPE_MAP-known row matching on directory and prefix, and all eight per-type prompt directory lines matching their row | — | the prefix is single-sourced, the directory is not and deliberately so; the table is the prefix's only statement and the directory's authority, and the arm pins the eight prompt lines to it (D3). TYPE_MAP has no research and no hotfix row; that gap is filed, not fixed, because the allocator is protected_paths_l3 (D4) | 
+| Spec-AC-03 | WHEN an intake artifact is created already numbered THEN a check fails, and the intake flow runs that check on the artifact it just saved | done | TEST-014 green; exit 1 with a numbered-at-intake finding, exit 0 on the DRAFT twin, exit 1 on a draft with no number key at all, exit 2 on an unreadable artifact or a missing table; POST-SAVE CHECK invokes it | — | an absent number key is a finding too (D8), which hardens the unnumbered direction rather than closing an escape. this is the intake-time twin of the allocator merge-time guard, which already exists and works; scoping to the just-saved file is what makes creation observable at all (D1) | 
+| Spec-AC-04 | WHEN this scope ships THEN no existing numbered document has been renamed or renumbered | done | TEST-015 green; the four documents named in the intake evidence still resolve at their original paths and the working tree shows no rename under docs/ | — | a boundary, not a nicety: display ids are durable primary keys and history references them. The arm is green pre-change by construction and is proved by mutation only | 
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 
