@@ -1035,11 +1035,27 @@ test_100_assert_payload_contract() {  # TEST-001 / Spec-AC-02
   # log_fail of its own, so what is measured is the helper's own stderr +
   # return-1 fallback, and a deliberately failing probe cannot take this suite
   # down with it.
+  # `--payload-file <f>` reads the payload from a FILE instead of argv. Not a
+  # convenience: Linux caps a SINGLE argument at MAX_ARG_STRLEN (32 pages =
+  # 131072 B) even though ARG_MAX is far larger, so passing the ~220 KB
+  # oversize fixture as an argument makes execve fail with E2BIG and bash
+  # reports 126. darwin has no such per-argument cap, so case (c) passed
+  # locally and turned CI red — a platform threshold in the FIXTURE, not in
+  # the code under test. The `printf x` / `%x` pair preserves trailing
+  # newlines that `$(cat)` would strip, so the byte count the probe sees is
+  # the byte count this suite computed.
   local probe="$d/ap-probe.sh"
   cat > "$probe" <<PROBE
 . '$lib'
 fn="\$1"; shift
-"\$fn" "\$@"
+if [ "\${1:-}" = "--payload-file" ]; then
+  shift
+  ap_arg="\$(cat "\$1"; printf x)"; ap_arg="\${ap_arg%x}"
+  shift
+  "\$fn" "\$ap_arg" "\$@"
+else
+  "\$fn" "\$@"
+fi
 PROBE
 
   local out rc
@@ -1064,8 +1080,10 @@ PROBE
   biglen="$(LC_ALL=C; printf '%s' "${#big}")"
   [[ "$biglen" -gt 65536 ]] \
     || log_fail "test_100(c): the fixture payload must exceed the 64 KiB pipe buffer to be meaningful, got $biglen B"
-  out="$(bash "$probe" assert_payload_contains "$big" "absent-zzz" "big payload miss" 2>&1)" && rc=0 || rc=$?
-  [[ "$rc" -eq 1 ]] || log_fail "test_100(c): expected exit 1, got $rc"
+  printf '%s' "$big" > "$d/big-arg.txt"
+  out="$(bash "$probe" assert_payload_contains --payload-file "$d/big-arg.txt" "absent-zzz" "big payload miss" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] \
+    || log_fail "test_100(c): expected exit 1, got $rc (126 means the payload went through argv and hit Linux MAX_ARG_STRLEN)"
   local outlen
   outlen="$(LC_ALL=C; printf '%s' "${#out}")"
   [[ "$outlen" -lt 1200 ]] \
