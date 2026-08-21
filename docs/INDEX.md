@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-20T20:52:59.003Z
+Generated: 2026-08-21T04:05:48.327Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -391,9 +391,11 @@ _None._
 | SPEC-0138 | specs | docs/specs/SPEC-0138-spec-suites-run-in-a-disposable-worktree.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| intake-numbers-some-doc-types-immediately (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-intake-numbers-some-doc-types-immediately.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -424,4 +426,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-20 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-21 — counts above use this date for overdue checks.
