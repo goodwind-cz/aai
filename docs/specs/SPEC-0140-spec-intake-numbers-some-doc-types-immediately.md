@@ -192,6 +192,59 @@ where "created at intake" is observable.
   entirely. The remaining strictness asymmetry is filed as
   `fu-intake-table-parser-asymmetry`.
 
+- **D10 — an absent or empty flag VALUE is a usage error, and the check is
+  written once for every value-taking flag** (added at bot-review remediation,
+  PR #269; raised independently by Copilot and Codex, both P2). `main()`
+  dispatches on truthiness, so `--intake-file "$FILE"` with `FILE` unset left
+  `args.intakeFile` falsy, skipped the predicate and ran a FULL REPOSITORY
+  AUDIT: exit 0 on a clean repo, plus a `docs_audit` EVENTS append unless
+  `--no-event` happened to be passed too. A gate that never opened the artifact
+  answered green — the one property this whole scope exists to remove. Both bots
+  reported it on `--intake-file`; the identical three lines produced it for
+  `--gate`, `--gate-file`, `--lint-body-file` and `--path`, and the filed item
+  `fu-file-flags-empty-value-full-audit` already recorded the remedy as "fix
+  once for all three flags (and --path)". So the guard is ONE helper
+  (`requireValue`) applied at all five call sites rather than a patch on the
+  flag that happened to be reviewed: fixing the reviewed one and leaving four
+  known twins is how the same finding gets filed a second time. Exit code 2,
+  the existing "could not evaluate" code of every file predicate; the message
+  goes to stderr so it cannot be mistaken for digest output. No call site in the
+  repository passes an empty value (every one was enumerated), so no caller
+  changes behaviour.
+
+- **D11 — the directory/prefix finding is judged on the directory and the
+  prefix, and on nothing else** (added at bot-review remediation, PR #269;
+  Copilot). `Boolean(draft)` sat inside the `matches.some(...)` predicate, so
+  ANY non-DRAFT basename collected `wrong-prefix-or-dir` — including
+  `DEBT-0001-<slug>.md` in `docs/issues/` with type `techdebt`, whose directory
+  and prefix are both exactly right. The verdict was correct and the diagnosis
+  was false, which is worse than it sounds: a wrong reason sends the next reader
+  to the wrong fix, and the DRAFT shape already has its own finding
+  (`numbered-at-intake`) one line up. The predicate now compares the basename's
+  own prefix token — the DRAFT prefix, else the numbered prefix — against the
+  table row, and the two conditions each mean what they say.
+
+- **D12 — the gate enforces the slug constraint the document states, rather than
+  the document claiming one no tool held** (added at bot-review remediation,
+  PR #269; Codex, P2). `.aai/INTAKE_COMMON.md` DURABLE DOC IDENTITY says the
+  slug is "kebab-case of the topic (lowercase, ASCII, at most 48 chars)"; the
+  basename regex accepted any nonempty run of `[a-z0-9-]`, so
+  `ISSUE-DRAFT--.md`, `ISSUE-DRAFT-foo-.md` and a 49-character slug all passed.
+  The gate was changed rather than the document, because the constraint is the
+  one the allocator's `deriveSlug` already produces (single hyphens between
+  alphanumeric runs, truncated at 48) — the document was right and the gate was
+  behind it. Two named findings, `slug-not-kebab` and `slug-too-long`, so the
+  reader is told which half failed. The DRAFT basename match was widened to
+  accept any slug text precisely so a malformed slug is diagnosed as a malformed
+  slug instead of `not-a-draft-basename`, which would be the D11 defect again.
+  One known gap is named rather than left to be found: `draftFilename(type,
+  slug, suffix)` can append a 4-character collision suffix, which would put a
+  maximal slug at 53 characters. Nothing on the intake path calls it — intake
+  names its own file from the table, and the only callers are in
+  `tests/skills/test-aai-doc-numbering.sh` — so the bound is enforced on the
+  whole slug token as written, and the code comment says which line has to learn
+  about the suffix if that path is ever wired up.
+
 ## Implementation strategy
 - Strategy: direct
 - Rationale: recorded in STATE as `direct` before this ride began. There is no
@@ -269,11 +322,21 @@ change); scope = the explicit path list above as a diff against main.
   omits the `number:` key entirely (D8), and exits 2 when the artifact or the
   single-source table is unreadable rather than passing something it never read.
   The intake flow reaches the check: `.aai/INTAKE_COMMON.md` POST-SAVE CHECK
-  invokes `--intake-file` on the saved artifact.
-  - Verification: `bash tests/skills/test-aai-intake.sh`, arm
-    `test_014_numbered_intake_artifact_fails_the_guard`. Evidence: the arm's
-    stdout with the three exit codes and the finding key, plus the mutation
-    record proving the arm goes red when the predicate is disabled.
+  invokes `--intake-file` on the saved artifact. The gate must also be honest
+  about its own limits: it exits 2 rather than auditing the whole repository
+  when a value-taking flag is given no value (D10), it reports
+  `wrong-prefix-or-dir` only for a genuinely wrong prefix or directory (D11),
+  and it refuses a slug outside the kebab-case, at-most-48-character shape
+  `.aai/INTAKE_COMMON.md` states (D12).
+  - Verification: `bash tests/skills/test-aai-intake.sh`, arms
+    `test_014_numbered_intake_artifact_fails_the_guard`,
+    `test_016_value_flags_refuse_an_empty_value`,
+    `test_017_wrong_prefix_finding_means_wrong_prefix` and
+    `test_018_slug_shape_matches_the_documented_constraint`. Evidence: the arms'
+    stdout with the exit codes and the finding keys, plus the mutation record
+    proving each goes red when the predicate is disabled — for TEST-016 to
+    TEST-018 the mutation runs IN-ARM against a scratch copy of the CLI, so the
+    proof is re-run on every suite execution and no tracked file is ever edited.
 
 - Maps to: ISSUE AC-004
 - Spec-AC-04: no existing numbered document is renamed or renumbered. The four
@@ -307,6 +370,9 @@ is performed.
 | TEST-013 | Spec-AC-02 | int  | tests/skills/test-aai-intake.sh | the single-source table is parsed from .aai/INTAKE_COMMON.md and must have exactly eight rows covering the eight intake types with one prefix each; `TYPE_MAP` is imported read-only from .aai/scripts/allocate-doc-number.mjs and every row present there must match on both directory and prefix; the research row must read RES; no .aai/INTAKE_*.prompt.md may contain a bare display prefix of its own; and the set of docs/<dir> paths each per-type prompt names must be exactly its own table row's directory; and the same table is read a SECOND time with the shipped `parseIntakeTypeTable` (imported from .aai/scripts/docs-audit.mjs), with the row count and the row set required to equal the awk's, proved to bite in-arm on a synthetic copy carrying a double-spaced ninth row that the awk reads as 8 and the shipped parser as 9 (D9) | green |
 | TEST-014 | Spec-AC-03 | int  | tests/skills/test-aai-intake.sh | in a scratch fixture outside the repository, for each of the eight table rows a numbered artifact and its DRAFT twin are created with identical frontmatter apart from `number`; `docs-audit.mjs --intake-file` must exit 1 with a `numbered-at-intake` finding on all eight numbered ones and exit 0 on all eight drafts; plus a wrong-prefix case (RESEARCH-DRAFT for type research) at exit 1, a DRAFT artifact whose frontmatter omits the number key at exit 1 with a number-absent finding, an unreadable artifact at exit 2, and a fixture whose INTAKE_COMMON.md has had the table removed at exit 2; and .aai/INTAKE_COMMON.md must invoke `--intake-file` in its POST-SAVE CHECK | green |
 | TEST-015 | Spec-AC-04 | int  | tests/skills/test-aai-intake.sh | the four documents named in the intake evidence (DEBT-0001, DEBT-0002, RES-0001, RESEARCH-0001) must still exist at their exact original repository paths, and `git status --porcelain=v1 -uno` in the repository must report no rename entry under docs/ | green |
+| TEST-016 | Spec-AC-03 | int  | tests/skills/test-aai-intake.sh | each of the five value-taking flags (--intake-file, --gate-file, --lint-body-file, --gate, --path) must exit 2 with a USAGE ERROR both when its value is the empty string and when the value is omitted entirely, while a valid --intake-file value still exits 0 and a plain --quick --no-event audit still exits 0; proved to bite in-arm against a scratch COPY of the CLI whose requireValue call at the --intake-file site has been reverted, on which the empty value must again produce a full audit at exit 0 (D10) | green |
+| TEST-017 | Spec-AC-03 | int  | tests/skills/test-aai-intake.sh | a correctly located numbered artifact (DEBT-0001-demo-slug.md in docs/issues with type techdebt) must exit 1 reporting numbered-at-intake and must NOT report wrong-prefix-or-dir, while a wrong PREFIX in the right directory (RESEARCH-DRAFT for type research) and a right prefix in the wrong DIRECTORY (a techdebt draft under docs/rfc) must both still report it; proved to bite in-arm against a scratch COPY with Boolean(draft) put back inside the predicate, on which the false finding reappears (D11) | green |
+| TEST-018 | Spec-AC-03 | int  | tests/skills/test-aai-intake.sh | ISSUE-DRAFT--.md and ISSUE-DRAFT-foo-.md must exit 1 with slug-not-kebab and a 49-character slug must exit 1 with slug-too-long, while a slug of exactly 48 characters must exit 0 so the bound is pinned at the boundary rather than at "long"; proved to bite in-arm against a scratch COPY whose slug is read out of the two checks, on which all three malformed shapes are accepted at exit 0 (D12) | green |
 
 Failing-first discipline (strategy `direct`, so exit codes are the record).
 TEST-012, TEST-013 and TEST-014 all fail NATURALLY on the pre-change tree: the
@@ -351,7 +417,7 @@ accepted.
 |------------|-------------|--------|----------|-----------|-------|
 | Spec-AC-01 | WHEN any of the eight intake types produces an artifact THEN it is an unnumbered PREFIX-DRAFT-slug.md with number null and status draft, and the rule is stated in the per-type prompt the router reads | done | TEST-012 and TEST-014 green; all eight prompts carry the rule and all eight types pass as DRAFT and fail as numbered | — | demonstrated mechanically over all eight types, not by running eight live intakes — see D5, which says so rather than implying otherwise | 
 | Spec-AC-02 | WHEN a prefix is needed for a type THEN exactly one place states it and it agrees with the allocator TYPE_MAP for every type TYPE_MAP knows, with research resolved to RES | done | TEST-013 green; eight rows, no prefix restated in any per-type prompt, every TYPE_MAP-known row matching on directory and prefix, and all eight per-type prompt directory lines matching their row | — | the prefix is single-sourced, the directory is not and deliberately so; the table is the prefix's only statement and the directory's authority, and the arm pins the eight prompt lines to it (D3). TYPE_MAP has no research and no hotfix row; that gap is filed, not fixed, because the allocator is protected_paths_l3 (D4) | 
-| Spec-AC-03 | WHEN an intake artifact is created already numbered THEN a check fails, and the intake flow runs that check on the artifact it just saved | done | TEST-014 green; exit 1 with a numbered-at-intake finding, exit 0 on the DRAFT twin, exit 1 on a draft with no number key at all, exit 2 on an unreadable artifact or a missing table; POST-SAVE CHECK invokes it | — | an absent number key is a finding too (D8), which hardens the unnumbered direction rather than closing an escape. this is the intake-time twin of the allocator merge-time guard, which already exists and works; scoping to the just-saved file is what makes creation observable at all (D1) | 
+| Spec-AC-03 | WHEN an intake artifact is created already numbered THEN a check fails, and the intake flow runs that check on the artifact it just saved | done | TEST-014, TEST-016, TEST-017 and TEST-018 green; exit 1 with a numbered-at-intake finding, exit 0 on the DRAFT twin, exit 1 on a draft with no number key at all, exit 2 on an unreadable artifact or a missing table, exit 2 on an absent or empty flag value, and exit 1 on a slug outside the documented shape; POST-SAVE CHECK invokes it | — | an absent number key is a finding too (D8), which hardens the unnumbered direction rather than closing an escape. this is the intake-time twin of the allocator merge-time guard, which already exists and works; scoping to the just-saved file is what makes creation observable at all (D1). Three bot-review defects in the shipped gate are fixed here rather than filed: it failed OPEN into a full audit on an empty flag value, for all five value-taking flags (D10, TEST-016); it reported wrong-prefix-or-dir on files whose prefix and directory were both right (D11, TEST-017); and it accepted slugs the document forbids (D12, TEST-018). Each new arm carries an in-arm bite proof against a mutated scratch copy plus an unmutated control | 
 | Spec-AC-04 | WHEN this scope ships THEN no existing numbered document has been renamed or renumbered | done | TEST-015 green; the four documents named in the intake evidence still resolve at their original paths and the working tree shows no rename under docs/ | — | a boundary, not a nicety: display ids are durable primary keys and history references them. The arm is green pre-change by construction and is proved by mutation only | 
 
 Status values: planned | implementing | done | deferred | blocked | rejected
@@ -390,11 +456,22 @@ Components:
   remediation `parseIntakeTypeTable` gained the `export` keyword (and the
   comment saying why) so TEST-013 can cross-check its independent reading
   against the shipped one (D9); nothing in production imports it and `main()`
-  remains the only caller.
+  remains the only caller. At bot-review remediation the CLI gained the
+  `requireValue` argument guard on all five value-taking flags (D10), the
+  directory/prefix predicate started comparing the basename's own prefix token
+  instead of `Boolean(draft)` (D11), and the DRAFT basename match was widened
+  with two new slug findings behind it, `slug-not-kebab` and `slug-too-long`
+  (D12). The header usage block records both the slug shape and the
+  empty-value contract.
 - `tests/skills/test-aai-intake.sh` (EDIT) — four new arms TEST-012 to TEST-015
   and their helpers, each wired into `main()`; at code-review remediation
   TEST-013 gained the two-readings-agree cross-check and its bite proof, plus
-  the `intake_table_lines_tool` helper (D9).
+  the `intake_table_lines_tool` helper (D9); at bot-review remediation three
+  more arms TEST-016 to TEST-018 (D10 to D12) and the helpers they share —
+  `intake_run_script`, `intake_scratch`, `intake_fixture_root` and
+  `intake_mutant_script`, the last of which copies the CLI and its `lib/` into a
+  scratch tree and applies one `sed` mutation to the COPY, so every bite proof
+  runs on each execution without any tracked file being edited.
 - `tests/skills/lib/prompt-diet-ledger.sh` (EDIT) — the ledger true-up entry;
   at code-review remediation the two REMAINING unescaped backtick pairs
   (the `wc -c` substitutions in the `issues-skill` and `universal-routines`

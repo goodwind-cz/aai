@@ -20,6 +20,8 @@ TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 INTAKE_FIXTURE_DIR=""
+# One scratch tree for TEST-016..TEST-018 fixtures and mutated script copies.
+INTAKE_SCRATCH_DIR=""
 
 # The eight intake types, in the order .aai/INTAKE_COMMON.md lists them.
 INTAKE_TYPES="prd change issue hotfix techdebt research rfc release"
@@ -31,6 +33,9 @@ cleanup() {
   fi
   if [[ -n "${INTAKE_FIXTURE_DIR:-}" ]] && [[ -d "$INTAKE_FIXTURE_DIR" ]]; then
     rm -rf "$INTAKE_FIXTURE_DIR"
+  fi
+  if [[ -n "${INTAKE_SCRATCH_DIR:-}" ]] && [[ -d "$INTAKE_SCRATCH_DIR" ]]; then
+    rm -rf "$INTAKE_SCRATCH_DIR"
   fi
 }
 trap cleanup EXIT
@@ -464,11 +469,57 @@ links:
 EOF
 }
 
-# Run the guard inside a fixture root; echo "<rc>|<output on one line>".
-intake_guard() {
-  local root="$1" rel="$2" out rc
-  out=$( (cd "$root" && node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --intake-file "$rel" 2>&1) ) && rc=0 || rc=$?
+# Run ANY docs-audit script inside a fixture root with arbitrary argv; echo
+# "<rc>|<output on one line>". The script path is a parameter so the bite proofs
+# in TEST-016..TEST-018 can drive a MUTATED COPY without ever editing the
+# tracked one.
+intake_run_script() {
+  local script="$1" root="$2" out rc
+  shift 2
+  out=$( (cd "$root" && node "$script" "$@" 2>&1) ) && rc=0 || rc=$?
   printf '%s|%s\n' "$rc" "$(printf '%s' "$out" | tr '\n' ' ')"
+}
+
+# Run the SHIPPED guard inside a fixture root; echo "<rc>|<output on one line>".
+intake_guard() {
+  intake_run_script "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$1" --intake-file "$2"
+}
+
+# One scratch tree per suite run, removed by the EXIT trap. Every fixture and
+# every mutated script copy below lives under it, so an interrupted run leaves
+# nothing behind and nothing is ever written inside the repository.
+intake_scratch() {
+  if [[ -z "${INTAKE_SCRATCH_DIR:-}" ]]; then
+    INTAKE_SCRATCH_DIR=$(mktemp -d "${TMPDIR:-/tmp}/aai-intake-scratch-XXXXXX")
+  fi
+  mktemp -d "$INTAKE_SCRATCH_DIR/fx-XXXXXX"
+}
+
+# A fixture root carrying the single-source table and nothing else: the guard
+# resolves .aai/INTAKE_COMMON.md relative to its cwd.
+intake_fixture_root() {
+  local d
+  d=$(intake_scratch)
+  mkdir -p "$d/.aai"
+  cp "$PROJECT_ROOT/.aai/INTAKE_COMMON.md" "$d/.aai/INTAKE_COMMON.md"
+  printf '%s\n' "$d"
+}
+
+# Copy the shipped docs-audit CLI plus its lib/ into a scratch tree and apply ONE
+# sed expression ($1) to the copy; echo the mutated script's path. Returns 1 when
+# the expression changed NOTHING — a bite proof against an unmutated copy proves
+# nothing and must fail as a test bug, not pass quietly. sed writes to a new file
+# rather than in place: -i is not portable between BSD and GNU sed.
+intake_mutant_script() {
+  local expr="$1" d
+  d=$(intake_scratch)
+  mkdir -p "$d/scripts"
+  cp -R "$PROJECT_ROOT/.aai/scripts/lib" "$d/scripts/lib"
+  sed "$expr" "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" > "$d/scripts/docs-audit.mjs"
+  if cmp -s "$d/scripts/docs-audit.mjs" "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs"; then
+    return 1
+  fi
+  printf '%s\n' "$d/scripts/docs-audit.mjs"
 }
 
 # TEST-012 (Spec-AC-01) — every per-type intake prompt states the DRAFT rule.
@@ -791,6 +842,207 @@ test_015_existing_numbered_docs_are_not_renamed() {
     || log_fail "TEST-015 existing numbered documents were renamed"
 }
 
+# TEST-016 (Spec-AC-03) — a value-taking flag REFUSES an absent or empty value.
+# The gate this scope exists to add failed OPEN: main() dispatches on
+# truthiness, so `--intake-file "$FILE"` with FILE unset skipped the predicate
+# and ran a full repository audit — exit 0 on a clean repo, and a docs_audit
+# EVENTS append unless --no-event was also passed. Raised independently by
+# Copilot and Codex on PR #269. Fixed once for all five value-taking flags,
+# so pinned over all five.
+test_016_value_flags_refuse_an_empty_value() {
+  log_info "TEST-016: --intake-file and its four siblings refuse an absent/empty value..."
+  local ok=1 root flag res rc out mutant
+  root=$(intake_fixture_root)
+  intake_write_artifact "$root/docs/issues/DEBT-DRAFT-demo-slug.md" techdebt null
+  for flag in --intake-file --gate-file --lint-body-file --gate --path; do
+    res=$(intake_run_script "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$root" --no-event "$flag" "")
+    rc="${res%%|*}"; out="${res#*|}"
+    if [[ "$rc" != "2" || "$out" != *"USAGE ERROR"* ]]; then
+      log_info "TEST-016: $flag with an EMPTY value exited $rc (want 2 with USAGE ERROR): $out"
+      ok=0
+    fi
+    # The value omitted entirely: the flag is the LAST token, so argv[++i] is
+    # undefined rather than "". Same verdict, different code path.
+    res=$(intake_run_script "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$root" --no-event "$flag")
+    rc="${res%%|*}"; out="${res#*|}"
+    if [[ "$rc" != "2" || "$out" != *"USAGE ERROR"* ]]; then
+      log_info "TEST-016: $flag with a MISSING value exited $rc (want 2 with USAGE ERROR): $out"
+      ok=0
+    else
+      log_info "  $flag: empty -> 2, missing -> 2"
+    fi
+  done
+  # Unmutated green controls: a real value still works, and the valueless flags
+  # are untouched by the guard.
+  res=$(intake_guard "$root" "docs/issues/DEBT-DRAFT-demo-slug.md")
+  rc="${res%%|*}"; out="${res#*|}"
+  if [[ "$rc" != "0" ]]; then
+    log_info "TEST-016: control — a VALID --intake-file value exited $rc (want 0): $out"
+    ok=0
+  else
+    log_info "  control: a valid --intake-file value -> 0"
+  fi
+  res=$(intake_run_script "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$root" --quick --no-event)
+  rc="${res%%|*}"
+  if [[ "$rc" != "0" ]]; then
+    log_info "TEST-016: control — a plain --quick --no-event audit exited $rc (want 0)"
+    ok=0
+  else
+    log_info "  control: --quick --no-event (no value-taking flag) -> 0"
+  fi
+  # BITE: revert the guard at the --intake-file call site only. The empty value
+  # must then be accepted and answered with a FULL AUDIT, which is the exact
+  # fail-open both bots reported.
+  if mutant=$(intake_mutant_script 's|args.intakeFile = requireValue(tok, argv\[++i\])|args.intakeFile = argv[++i]|'); then
+    res=$(intake_run_script "$mutant" "$root" --no-event --intake-file "")
+    rc="${res%%|*}"; out="${res#*|}"
+    if [[ "$rc" != "0" || "$out" != *"Docs Audit"* ]]; then
+      log_info "TEST-016: with requireValue removed, --intake-file \"\" exited $rc without a full audit — the pin cannot bite (test bug): $out"
+      ok=0
+    else
+      log_info "  bite proven: requireValue removed -> --intake-file \"\" runs a full audit at exit 0"
+    fi
+  else
+    log_info "TEST-016: the bite mutation matched nothing in docs-audit.mjs (test bug, not a real finding)"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-016 all five value-taking flags exit 2 on an empty and on a missing value; valid values and valueless flags unchanged; fail-open proved reachable without the guard" \
+    || log_fail "TEST-016 value-taking flags fail open on an empty value"
+}
+
+# TEST-017 (Spec-AC-03) — the findings say what is actually wrong. A correctly
+# located numbered file used to collect `wrong-prefix-or-dir` on top of
+# `numbered-at-intake` because `Boolean(draft)` sat inside the directory/prefix
+# predicate (Copilot, PR #269). The verdict was right and the diagnosis was
+# false, which sends the next reader to the wrong fix.
+test_017_wrong_prefix_finding_means_wrong_prefix() {
+  log_info "TEST-017: wrong-prefix-or-dir is not reported for a correctly located file..."
+  local ok=1 root res rc out mutant
+  root=$(intake_fixture_root)
+  # Correct directory, correct prefix, numbered: ONE finding class about the
+  # basename, and it is the numbering.
+  intake_write_artifact "$root/docs/issues/DEBT-0001-demo-slug.md" techdebt 1
+  res=$(intake_guard "$root" "docs/issues/DEBT-0001-demo-slug.md")
+  rc="${res%%|*}"; out="${res#*|}"
+  if [[ "$rc" != "1" ]]; then
+    log_info "TEST-017: the correctly located numbered file exited $rc (want 1): $out"
+    ok=0
+  elif [[ "$out" != *"numbered-at-intake"* ]]; then
+    log_info "TEST-017: no numbered-at-intake finding on DEBT-0001 in docs/issues: $out"
+    ok=0
+  elif [[ "$out" == *"wrong-prefix-or-dir"* ]]; then
+    log_info "TEST-017: DEBT-0001-demo-slug.md in docs/issues with type techdebt is in the RIGHT place and still reports wrong-prefix-or-dir: $out"
+    ok=0
+  else
+    log_info "  DEBT-0001 in docs/issues (type techdebt) -> 1, numbered-at-intake only"
+  fi
+  # A genuinely mislocated file still reports it — twice over: wrong PREFIX in
+  # the right directory, and the right prefix in the wrong DIRECTORY.
+  intake_write_artifact "$root/docs/specs/RESEARCH-DRAFT-demo-slug.md" research null
+  res=$(intake_guard "$root" "docs/specs/RESEARCH-DRAFT-demo-slug.md")
+  rc="${res%%|*}"; out="${res#*|}"
+  if [[ "$rc" != "1" || "$out" != *"wrong-prefix-or-dir"* ]]; then
+    log_info "TEST-017: RESEARCH-DRAFT for type research exited $rc without wrong-prefix-or-dir: $out"
+    ok=0
+  else
+    log_info "  wrong prefix (RESEARCH for research) -> 1 with wrong-prefix-or-dir"
+  fi
+  intake_write_artifact "$root/docs/rfc/DEBT-DRAFT-demo-slug.md" techdebt null
+  res=$(intake_guard "$root" "docs/rfc/DEBT-DRAFT-demo-slug.md")
+  rc="${res%%|*}"; out="${res#*|}"
+  if [[ "$rc" != "1" || "$out" != *"wrong-prefix-or-dir"* ]]; then
+    log_info "TEST-017: a techdebt draft under docs/rfc exited $rc without wrong-prefix-or-dir: $out"
+    ok=0
+  else
+    log_info "  wrong directory (techdebt under docs/rfc) -> 1 with wrong-prefix-or-dir"
+  fi
+  # BITE: put `Boolean(draft) && draft[1] === r.prefix` back into the predicate.
+  # The correctly located numbered file must then pick the false finding up again.
+  if mutant=$(intake_mutant_script 's|r.dir === dir \&\& r.prefix === basePrefix|r.dir === dir \&\& Boolean(draft) \&\& draft[1] === r.prefix|'); then
+    res=$(intake_run_script "$mutant" "$root" --intake-file "docs/issues/DEBT-0001-demo-slug.md")
+    rc="${res%%|*}"; out="${res#*|}"
+    if [[ "$out" != *"wrong-prefix-or-dir"* ]]; then
+      log_info "TEST-017: with Boolean(draft) back inside the predicate the false finding did not reappear — the pin cannot bite (test bug): $out"
+      ok=0
+    else
+      log_info "  bite proven: Boolean(draft) back inside the predicate -> the correctly located file reports wrong-prefix-or-dir again"
+    fi
+  else
+    log_info "TEST-017: the bite mutation matched nothing in docs-audit.mjs (test bug, not a real finding)"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-017 wrong-prefix-or-dir reported only for a genuinely wrong prefix or directory; the false finding proved reachable with the fix reverted" \
+    || log_fail "TEST-017 wrong-prefix-or-dir diagnosis"
+}
+
+# TEST-018 (Spec-AC-03) — the gate enforces the slug constraint the document
+# states. `.aai/INTAKE_COMMON.md` requires a kebab-case ASCII slug of at most 48
+# characters; the basename regex accepted any run of [a-z0-9-] of any length, so
+# `ISSUE-DRAFT--.md`, `ISSUE-DRAFT-foo-.md` and a 49-character slug all passed
+# (Codex, PR #269). Boundary pinned at 48 and 49, not "long".
+test_018_slug_shape_matches_the_documented_constraint() {
+  log_info "TEST-018: the gate enforces the documented kebab-case, <=48-char slug..."
+  local ok=1 root res rc out mutant s48 s49 bad
+  root=$(intake_fixture_root)
+  # Portable 48/49-char slugs without seq or ${var:0:n} arithmetic games.
+  s48=$(printf '%048d' 0 | tr '0' 'a')
+  s49=$(printf '%049d' 0 | tr '0' 'a')
+  if [[ "${#s48}" -ne 48 || "${#s49}" -ne 49 ]]; then
+    log_fail "TEST-018 could not build the 48/49-character slugs (got ${#s48}/${#s49})"
+    return
+  fi
+  intake_write_artifact "$root/docs/issues/ISSUE-DRAFT--.md" issue null
+  intake_write_artifact "$root/docs/issues/ISSUE-DRAFT-foo-.md" issue null
+  intake_write_artifact "$root/docs/issues/ISSUE-DRAFT-$s49.md" issue null
+  intake_write_artifact "$root/docs/issues/ISSUE-DRAFT-$s48.md" issue null
+  for bad in "docs/issues/ISSUE-DRAFT--.md" "docs/issues/ISSUE-DRAFT-foo-.md"; do
+    res=$(intake_guard "$root" "$bad")
+    rc="${res%%|*}"; out="${res#*|}"
+    if [[ "$rc" != "1" || "$out" != *"slug-not-kebab"* ]]; then
+      log_info "TEST-018: $bad exited $rc without slug-not-kebab: $out"
+      ok=0
+    else
+      log_info "  $(basename "$bad") -> 1 (slug-not-kebab)"
+    fi
+  done
+  res=$(intake_guard "$root" "docs/issues/ISSUE-DRAFT-$s49.md")
+  rc="${res%%|*}"; out="${res#*|}"
+  if [[ "$rc" != "1" || "$out" != *"slug-too-long"* ]]; then
+    log_info "TEST-018: a 49-character slug exited $rc without slug-too-long: $out"
+    ok=0
+  else
+    log_info "  49-character slug -> 1 (slug-too-long)"
+  fi
+  # The boundary itself is the control: exactly 48 is legal and must PASS, so
+  # the bound is pinned rather than merely "long slugs fail".
+  res=$(intake_guard "$root" "docs/issues/ISSUE-DRAFT-$s48.md")
+  rc="${res%%|*}"; out="${res#*|}"
+  if [[ "$rc" != "0" ]]; then
+    log_info "TEST-018: control — a slug of exactly 48 characters exited $rc (want 0): $out"
+    ok=0
+  else
+    log_info "  control: 48-character slug -> 0"
+  fi
+  # BITE: take the basename's slug out of the two checks. Every shape above must
+  # then be accepted again, which is the state Codex reported.
+  if mutant=$(intake_mutant_script 's|const slug = draft\[2\];|const slug = "ok";|'); then
+    for bad in "docs/issues/ISSUE-DRAFT--.md" "docs/issues/ISSUE-DRAFT-foo-.md" "docs/issues/ISSUE-DRAFT-$s49.md"; do
+      res=$(intake_run_script "$mutant" "$root" --intake-file "$bad")
+      rc="${res%%|*}"; out="${res#*|}"
+      if [[ "$rc" != "0" ]]; then
+        log_info "TEST-018: with the slug checks neutered, $bad still exited $rc (want 0) — the pin cannot bite (test bug): $out"
+        ok=0
+      fi
+    done
+    [[ $ok -eq 1 ]] && log_info "  bite proven: with the slug read out of the checks all three malformed slugs are accepted at exit 0"
+  else
+    log_info "TEST-018: the bite mutation matched nothing in docs-audit.mjs (test bug, not a real finding)"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-018 leading/trailing/doubled hyphens and a 49-character slug all exit 1; exactly 48 passes; the permissive shape proved reachable with the checks neutered" \
+    || log_fail "TEST-018 documented slug constraint is not enforced"
+}
+
 # Main test execution
 main() {
   echo "Testing: $TEST_NAME"
@@ -815,6 +1067,9 @@ main() {
   test_013_one_prefix_per_type_matches_the_allocator
   test_014_numbered_intake_artifact_fails_the_guard
   test_015_existing_numbered_docs_are_not_renamed
+  test_016_value_flags_refuse_an_empty_value
+  test_017_wrong_prefix_finding_means_wrong_prefix
+  test_018_slug_shape_matches_the_documented_constraint
 
   echo ""
   echo "All tests passed!"

@@ -24,10 +24,15 @@
 //                                                   # it must be an UNNUMBERED
 //                                                   # <PREFIX>-DRAFT-<slug>.md with
 //                                                   # number: null / status: draft
-//                                                   # and the prefix + directory the
+//                                                   # a kebab-case slug of at
+//                                                   # most 48 chars, and the
+//                                                   # prefix + directory the
 //                                                   # .aai/INTAKE_COMMON.md table
 //                                                   # gives its type: 1 findings /
 //                                                   # 0 clean / 2 unreadable
+//
+// Every flag above that takes a value REFUSES an absent or empty one (exit 2,
+// "USAGE ERROR" on stderr) rather than falling through to a full audit.
 //
 // Modes: enforced (docs/ai/docs-audit.yaml present), report-only (absent), quick.
 // In report-only mode --check always exits 0 — first runs never drown the operator.
@@ -45,6 +50,24 @@ import fs from 'node:fs';
 
 const ROOT = process.cwd();
 
+// Every value-taking flag fails CLOSED on an absent or empty value. main()
+// dispatches on TRUTHINESS, so `--intake-file ""` — a wrapper expanding a
+// variable that turned out to be unset — left `args.intakeFile` falsy, skipped
+// the predicate and ran a FULL REPOSITORY AUDIT instead: exit 0 on a clean repo
+// (plus a `docs_audit` EVENTS append unless `--no-event` was also passed),
+// indistinguishable from a pass on an artifact that was never opened. Copilot
+// and Codex both raised it on `--intake-file`; the identical three lines
+// produced it for `--gate`, `--gate-file`, `--lint-body-file` and `--path`, so
+// the check lives in ONE place rather than on the flag that got reviewed.
+// Exit 2 is the existing "could not evaluate" code of every file predicate.
+function requireValue(flag, value) {
+  if (value == null || String(value).trim() === '') {
+    console.error(`USAGE ERROR: ${flag} requires a non-empty value`);
+    process.exit(2);
+  }
+  return value;
+}
+
 function parseArgs(argv) {
   const args = { check: false, quick: false, path: null, event: true, strict: false };
   for (let i = 2; i < argv.length; i += 1) {
@@ -55,12 +78,12 @@ function parseArgs(argv) {
     else if (tok === '--strict') args.strict = true;
     else if (tok === '--strict-types') args.strictTypes = true;
     else if (tok === '--list') args.list = true;
-    else if (tok === '--path') args.path = argv[++i];
-    else if (tok === '--gate') args.gate = argv[++i];
-    else if (tok === '--gate-file') args.gateFile = argv[++i];
+    else if (tok === '--path') args.path = requireValue(tok, argv[++i]);
+    else if (tok === '--gate') args.gate = requireValue(tok, argv[++i]);
+    else if (tok === '--gate-file') args.gateFile = requireValue(tok, argv[++i]);
     else if (tok === '--lint-body') args.lintBody = true;
-    else if (tok === '--lint-body-file') args.lintBodyFile = argv[++i];
-    else if (tok === '--intake-file') args.intakeFile = argv[++i];
+    else if (tok === '--lint-body-file') args.lintBodyFile = requireValue(tok, argv[++i]);
+    else if (tok === '--intake-file') args.intakeFile = requireValue(tok, argv[++i]);
   }
   return args;
 }
@@ -172,12 +195,45 @@ function intakeShapeFindings(rel, content, table) {
   const findings = [];
   const base = path.basename(rel);
   const dir = path.dirname(rel).split(path.sep).join('/');
-  const draft = base.match(/^([A-Z]+(?:-[A-Z]+)*)-DRAFT-([a-z0-9-]+)\.md$/);
+  // The DRAFT match is deliberately permissive about the SLUG (`.+`, not
+  // `[a-z0-9-]+`) and the slug shape is judged separately below. A DRAFT file
+  // with a malformed slug IS a DRAFT file, and reporting `not-a-draft-basename`
+  // for it would be the same wrong-diagnosis defect this pass fixes one finding
+  // down: the verdict would be right and the reason would send the reader to
+  // the wrong fix.
+  const draft = base.match(/^([A-Z]+(?:-[A-Z]+)*)-DRAFT-(.+)\.md$/);
   const numbered = base.match(/^([A-Z]+(?:-[A-Z]+)*)-(\d{1,5})(?=[-.])/);
+  // Prefix token of the basename whatever its shape — the DRAFT prefix, else
+  // the numbered one, else none. The directory/prefix rule is judged against
+  // THIS rather than against `Boolean(draft)` (see the finding below).
+  const basePrefix = draft ? draft[1] : numbered ? numbered[1] : null;
   if (!draft) {
     findings.push(numbered
       ? `numbered-at-intake: "${base}" already carries the display number ${numbered[2]}. Intake creates ${numbered[1]}-DRAFT-<slug>.md; the number is assigned at MERGE by allocate-doc-number.mjs`
       : `not-a-draft-basename: "${base}" is not <PREFIX>-DRAFT-<slug>.md`);
+  } else {
+    // The gate enforces the slug constraint .aai/INTAKE_COMMON.md STATES
+    // ("kebab-case of the topic (lowercase, ASCII, at most 48 chars)"). It did
+    // not: `[a-z0-9-]+` accepted `ISSUE-DRAFT--.md`, `ISSUE-DRAFT-foo-.md` and
+    // any length, so the document claimed a constraint no tool held (Codex
+    // review, PR #269). Kebab-case is spelled out rather than assumed: at
+    // least one alphanumeric run, single hyphens BETWEEN runs only, so no
+    // leading, trailing or doubled hyphen. Same shape `deriveSlug` in
+    // allocate-doc-number.mjs produces, and the same 48 it truncates to.
+    // NOTE the one known gap, named rather than left to be discovered:
+    // `draftFilename(type, slug, suffix)` can append a 4-char collision
+    // suffix, which would put a maximal slug at 53. Nothing on the intake path
+    // calls it (intake names its own file from the table; the only callers are
+    // in tests/skills/test-aai-doc-numbering.sh), so the bound is enforced on
+    // the whole slug token as written. If that path is ever wired to intake,
+    // this is the line that has to learn about the suffix.
+    const slug = draft[2];
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+      findings.push(`slug-not-kebab: "${slug}" is not kebab-case (lowercase ASCII alphanumerics separated by single hyphens; no leading, trailing or doubled hyphen) — ${INTAKE_COMMON_PATH} DURABLE DOC IDENTITY`);
+    }
+    if (slug.length > 48) {
+      findings.push(`slug-too-long: "${slug}" is ${slug.length} characters; ${INTAKE_COMMON_PATH} DURABLE DOC IDENTITY caps the slug at 48`);
+    }
   }
   const fm = parseFrontmatter(content);
   if (fm == null) {
@@ -199,7 +255,15 @@ function intakeShapeFindings(rel, content, table) {
   const matches = table.filter(r => r.type === type);
   if (matches.length === 0) {
     findings.push(`unknown-type: frontmatter type "${type || '(absent)'}" is not in the ${INTAKE_COMMON_PATH} table (known: ${[...new Set(table.map(r => r.type))].join(', ')})`);
-  } else if (!matches.some(r => r.dir === dir && Boolean(draft) && draft[1] === r.prefix)) {
+  } else if (!matches.some(r => r.dir === dir && r.prefix === basePrefix)) {
+    // Judged on the DIRECTORY and the PREFIX alone. `Boolean(draft)` used to
+    // sit inside this predicate, so a correctly located numbered file —
+    // DEBT-0001-<slug>.md in docs/issues/ with type techdebt — collected
+    // `wrong-prefix-or-dir` on top of `numbered-at-intake` even though neither
+    // its directory nor its prefix was wrong (Copilot review, PR #269). The
+    // verdict was right and the reason was false, which sends the next reader
+    // to the wrong fix; the DRAFT shape is already reported by its own finding
+    // above.
     const want = [...new Set(matches.map(r => `${r.dir}/${r.prefix}-DRAFT-<slug>.md`))].join(' or ');
     findings.push(`wrong-prefix-or-dir: type "${type}" must be saved as ${want}, got "${rel}"`);
   }
