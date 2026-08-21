@@ -1,21 +1,21 @@
 {
-  "generatedAt": "2026-08-21T04:58:31.629Z",
+  "generatedAt": "2026-08-21T08:14:43.461Z",
   "project": "aai",
   "counts": {
-    "delivered": 198,
-    "in_progress": 2,
+    "delivered": 199,
+    "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "cli-output-survives-a-pipe",
-    "type": "intake_change"
+    "ref": "intake-numbers-some-doc-types-immediately",
+    "type": "intake_issue"
   },
   "in_flight": {
     "focus": {
-      "ref": "cli-output-survives-a-pipe",
-      "type": "intake_change",
+      "ref": "intake-numbers-some-doc-types-immediately",
+      "type": "intake_issue",
       "phase": "validation"
     },
     "strategy": "direct",
@@ -65,19 +65,6 @@
   },
   "in_progress": [
     {
-      "ref": "intake-numbers-some-doc-types-immediately",
-      "title": "Issue — intake numbers some document types immediately",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0032-intake-numbers-some-doc-types-immediately.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -104,6 +91,19 @@
       "spec": "docs/specs/SPEC-0139-spec-cli-output-survives-a-pipe.md",
       "validation": null,
       "review": "docs/ai/reviews/review-cli-output-survives-a-pipe-20260821T035200Z.md"
+    },
+    {
+      "ref": "intake-numbers-some-doc-types-immediately",
+      "title": "Issue — intake numbers some document types immediately",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0032-intake-numbers-some-doc-types-immediately.md",
+      "closed_on": "2026-08-21",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0140-spec-intake-numbers-some-doc-types-immediately.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260821T074214Z-intake-numbers-some-doc-types-immediately.md"
     },
     {
       "ref": "suites-run-in-a-disposable-worktree",
@@ -2685,6 +2685,19 @@
           "spec": "docs/specs/SPEC-0139-spec-cli-output-survives-a-pipe.md",
           "validation": null,
           "review": "docs/ai/reviews/review-cli-output-survives-a-pipe-20260821T035200Z.md"
+        },
+        {
+          "ref": "intake-numbers-some-doc-types-immediately",
+          "title": "Issue — intake numbers some document types immediately",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0032-intake-numbers-some-doc-types-immediately.md",
+          "closed_on": "2026-08-21",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0140-spec-intake-numbers-some-doc-types-immediately.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260821T074214Z-intake-numbers-some-doc-types-immediately.md"
         },
         {
           "ref": "suites-run-in-a-disposable-worktree",

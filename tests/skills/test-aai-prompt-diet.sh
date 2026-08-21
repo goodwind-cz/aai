@@ -413,6 +413,18 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# 133 (true-up: intake-numbers-some-doc-types-immediately added a +2697 B
+# itemized entry — the DRAFT naming rule moved to where the intake router
+# actually reads it: one RULES bullet in each of the eight
+# .aai/INTAKE_*.prompt.md files (none of which contained the string DRAFT
+# before this scope) at a measured +1624 B across the live glob, plus the
+# eight-row single-source type table, the research=RES decision and the
+# --intake-file POST-SAVE CHECK invocation in .aai/INTAKE_COMMON.md at a
+# measured +1073 B inside TEST-010 extra accounting (920 B at implementation,
+# +153 B at remediation to correct the block's false "ONLY statement of <TYPE>
+# and its directory" claim to the prefix-only claim that is actually pinned,
+# validation round 1 F4); credited 1:1 so the
+# TEST-012 pin moves -2564 -> 133, over the prior
 # -2564 (true-up: deslop-corpus-honesty added a +354 B itemized entry —
 # .aai/SKILL_DESLOP.prompt.md's --all suppression-corpus sentence corrected
 # from the false "docs/specs/** type spec only" claim (fu-deslop-all-corpus-
@@ -656,15 +668,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne -2564 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want -2564)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 133 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 133)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == -2564 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 133 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 
@@ -1009,6 +1021,96 @@ test_020_g4_disk_artifact_poll_contract() {
     || log_fail "TEST-020 G4 disk-artifact-poll contract (spec TEST-009 / Spec-AC-07)"
 }
 
+# TEST-021 (intake-numbers-some-doc-types-immediately remediation, review
+# NB-1/NB-2) — no UNESCAPED backtick survives anywhere in the shared ledger
+# library. The library is sourced by five suites, so every unescaped backtick
+# inside a double-quoted array element runs as a command substitution at source
+# time: from the repo root `wc -c <prompt>` succeeded and pasted its output into
+# the ledger prose; from any other cwd it wrote to stderr and deleted the claim
+# from the entry. JUSTIFIED_GROWTH_BYTES is untouched either way (the leading
+# field survives), so no existing arm could ever redden. The class was "fixed"
+# twice by editing the one instance that happened to be in the diff; this arm
+# replaces the prose claim with a sweep of the WHOLE file.
+#
+# The invariant is no UNESCAPED backtick, not no backtick: \` inside a
+# double-quoted string is inert and legal, and the library already carries
+# such pairs. Both directions are proven with synthetic fixtures below so a
+# green result here can never be vacuous.
+LEDGER_LIB="tests/skills/lib/prompt-diet-ledger.sh"
+
+# Echo "<line>:<text>" for every non-comment line carrying an unescaped
+# backtick; exit 1 when any was found, 0 when clean. Walks characters and skips
+# the character AFTER a backslash, which is exactly bash's own rule inside a
+# double-quoted string.
+scan_unescaped_backticks() {
+  awk '
+    /^[[:space:]]*#/ { next }
+    {
+      n = length($0)
+      for (i = 1; i <= n; i++) {
+        c = substr($0, i, 1)
+        if (c == "\\") { i++; continue }
+        if (c == "`") { printf "%d:%s\n", FNR, substr($0, 1, 120); found = 1; next }
+      }
+    }
+    END { exit found ? 1 : 0 }
+  ' "$1"
+}
+
+test_021_ledger_has_no_unescaped_backtick() {
+  local ok=1 out rc fixture
+
+  if [[ ! -f "$PROJECT_ROOT/$LEDGER_LIB" ]]; then
+    log_fail "TEST-021 $LEDGER_LIB not found"
+    return
+  fi
+
+  # (a) the real library: zero unescaped backticks, file-wide.
+  out=$(scan_unescaped_backticks "$PROJECT_ROOT/$LEDGER_LIB") && rc=0 || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    log_info "TEST-021: $LEDGER_LIB carries unescaped backtick(s) — they execute on every source:"
+    while IFS= read -r l; do [[ -n "$l" ]] && log_info "    $l"; done <<< "$out"
+    ok=0
+  fi
+
+  # (b) sourcing is measurably silent, from a cwd that is NOT the repo root —
+  # the direction in which the substituted text vanished. A command
+  # substitution left in the file writes to stderr here even when it is
+  # harmless from the root.
+  local stderr_out
+  stderr_out=$( (cd "${TMPDIR:-/tmp}" && bash -c 'source "$1" 2>&1 1>/dev/null' _ "$PROJECT_ROOT/$LEDGER_LIB") )
+  if [[ -n "$stderr_out" ]]; then
+    log_info "TEST-021: sourcing $LEDGER_LIB from $(cd "${TMPDIR:-/tmp}" && pwd) wrote to stderr: $stderr_out"
+    ok=0
+  fi
+
+  # (c) bite check — a synthetic entry with an UNESCAPED backtick must trip the
+  # same scanner, proving (a) is not vacuous.
+  fixture="$(mktemp "${TMPDIR:-/tmp}/aai-ledger-backtick-bite.XXXXXX")"
+  printf '%s\n' '# a comment with `backticks` is ignored' \
+                'X_ADDITIONS+=( "42 demo measured via `wc -c file.md`" )' > "$fixture"
+  out=$(scan_unescaped_backticks "$fixture") && rc=0 || rc=$?
+  rm -f "$fixture"
+  if [[ "$rc" -eq 0 ]]; then
+    log_info "TEST-021: synthetic UNESCAPED-backtick fixture did not trip the scan (test bug, not a real finding)"
+    ok=0
+  fi
+
+  # (d) negative control — escaped pairs are legal and must NOT trip it, or the
+  # arm would just be banning a character instead of enforcing the invariant.
+  fixture="$(mktemp "${TMPDIR:-/tmp}/aai-ledger-backtick-control.XXXXXX")"
+  printf '%s\n' 'X_ADDITIONS+=( "42 demo printed \`Prompt hash: <hex>\` verbatim" )' > "$fixture"
+  out=$(scan_unescaped_backticks "$fixture") && rc=0 || rc=$?
+  rm -f "$fixture"
+  if [[ "$rc" -ne 0 ]]; then
+    log_info "TEST-021: escaped-backtick control tripped the scan ($out) — the invariant is UNESCAPED, not absent"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-021 no unescaped backtick in $LEDGER_LIB, silent source from a foreign cwd, bite + escaped-control both proven" \
+    || log_fail "TEST-021 ledger library unescaped-backtick sweep"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -1035,6 +1137,7 @@ main() {
   test_018_journal_report_contract_pins
   test_019_core_prompt_diet_dedup
   test_020_g4_disk_artifact_poll_contract
+  test_021_ledger_has_no_unescaped_backtick
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

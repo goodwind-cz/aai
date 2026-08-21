@@ -6,6 +6,7 @@ and save it under docs/specs/.
 
 RULES
 - Ask ONE question at a time.
+- NEVER a numbered filename: save docs/<dir>/<PREFIX>-DRAFT-<slug>.md with number: null, status: draft — the DURABLE DOC IDENTITY table in .aai/INTAKE_COMMON.md gives <dir> and <PREFIX> for this type.
 - Do NOT implement code.
 - Define clear questions and expected outputs.
 - Identify constraints and timebox.
@@ -19,7 +20,7 @@ PROCESS
 4) Ask for constraints (timebox, tools, data access).
 5) Ask for stakeholders/consumers.
 6) If enough information is available, stop questions early.
-7) Output summary + completed Research markdown + suggested filename.
+7) Output summary + completed Research markdown + the DRAFT filename.
 
 SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its four blocks (language policy, durable doc identity, post-save check, metrics question) exactly.
 

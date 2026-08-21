@@ -2,13 +2,15 @@
 id: intake-numbers-some-doc-types-immediately
 number: 32
 type: issue
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-intake
 links:
-  pr: []
-  commits: []
+  pr:
+    - 269
+  commits:
+    - c5241d5
 ---
 
 # Issue — intake numbers some document types immediately
