@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-22T02:16:40.443Z",
+  "generatedAt": "2026-08-22T16:29:03.219Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 126,
-    "delivered": 357,
+    "delivered": 359,
     "active_weeks": 8,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (357 closes vs 126 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 357,
-    "delivered_per_week_avg": 44.6,
+    "note": "\"delivered\" counts every work_item_closed event (359 closes vs 126 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 359,
+    "delivered_per_week_avg": 44.9,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -22,7 +22,7 @@
       "2026-W31": 72,
       "2026-W32": 19,
       "2026-W33": 33,
-      "2026-W34": 25
+      "2026-W34": 27
     },
     "delivered_groups": [
       {
@@ -300,7 +300,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 94,
+        "count": 96,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -395,7 +395,9 @@
           "assertions-must-not-die-on-their-own-payload",
           "spec-assertions-must-not-die-on-their-own-payload",
           "a-run-must-say-whether-isolation-armed",
-          "spec-a-run-must-say-whether-isolation-armed"
+          "spec-a-run-must-say-whether-isolation-armed",
+          "a-half-seeded-checkout-says-it-is-isolated",
+          "spec-a-half-seeded-checkout-says-it-is-isolated"
         ]
       }
     ],
@@ -1828,12 +1830,20 @@
         {
           "ref": "spec-a-run-must-say-whether-isolation-armed",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "a-half-seeded-checkout-says-it-is-isolated",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-a-half-seeded-checkout-says-it-is-isolated",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3720,
       "mean_seconds": 123756.5,
       "measured": 122,
-      "unmeasurable": 235
+      "unmeasurable": 237
     }
   },
   "speed": {
@@ -3032,7 +3042,7 @@
     },
     {
       "week": "2026-W34",
-      "delivered": 25,
+      "delivered": 27,
       "median_lead_time_seconds": 31385,
       "busy_seconds": 57272,
       "tokens": 6246229,
@@ -3041,14 +3051,14 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 133,
-    "oldest_age_days": 10,
+    "open_count": 135,
+    "oldest_age_days": 11,
     "items": [
       {
         "id": "fu-telemetry-completeness-20260811T0520",
         "ref": "telemetry-completeness",
         "severity": null,
-        "age_days": 10,
+        "age_days": 11,
         "what": "Codex P1 on PR #242 (enforce flip): under usage_capture_gate: enforce there is no per-run CLI correction for a run whose usage marker was omitted — append-run only appends, STATE hand-edits are forbidden, so the supported recovery today is the dial toggle (report-only -> close -> enforce) plus the usage_capture=none sentinel for honest gaps.",
         "status": "open"
       },
@@ -3104,7 +3114,7 @@
         "id": "fu-test011-branch-diff-allowlist-tax",
         "ref": "CHANGE-0144",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "CHANGE-0144's TEST-011(clarify) allowlists .aai/ paths against the BRANCH diff, so every future scope that touches .aai/ must edit that test or go red",
         "status": "open"
       },
@@ -3112,7 +3122,7 @@
         "id": "fu-completion-line-hardcodes-index",
         "ref": "CHANGE-0143",
         "severity": "P3",
-        "age_days": 7,
+        "age_days": 8,
         "what": "the allocator's completion line hardcodes docs/INDEX.md into the regenerated list, so it names the file even when generate-docs-index.mjs is absent and nothing was rewritten",
         "status": "open"
       },
@@ -3120,7 +3130,7 @@
         "id": "fu-rollup-creates-userguide",
         "ref": "CHANGE-0143",
         "severity": "P3",
-        "age_days": 7,
+        "age_days": 8,
         "what": "the spec's edge case says the rollup generator no-ops when USER_GUIDE.md is absent; it CREATES the file",
         "status": "open"
       },
@@ -3128,7 +3138,7 @@
         "id": "fu-index-regen-silent-degrade",
         "ref": "close-regenerate-order",
         "severity": "P3",
-        "age_days": 7,
+        "age_days": 8,
         "what": "regenerateIndex() swallows generator failures with no named stderr line, unlike the two spec-page generators",
         "status": "open"
       },
@@ -3136,7 +3146,7 @@
         "id": "fu-reserve-success-path-uncovered",
         "ref": "close-regenerate-order",
         "severity": "P3",
-        "age_days": 7,
+        "age_days": 8,
         "what": "the universal no-regeneration arm never exercises a --reserve that actually allocates",
         "status": "open"
       },
@@ -3144,7 +3154,7 @@
         "id": "fu-dispatch-targets-closed-scope",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "orchestration-dispatch matched rule 6 and dispatched Planning onto a scope it already knew was closed",
         "status": "open"
       },
@@ -3152,7 +3162,7 @@
         "id": "fu-setfocus-keeps-stale-spec-path",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "set-focus to a new ref leaves the previous scope's spec_path in current_focus, so the next dispatch hands the role a foreign spec as an input",
         "status": "open"
       },
@@ -3160,7 +3170,7 @@
         "id": "fu-subagent-state-write-contradiction",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "SUBAGENT_CONTRACT forbids subagent STATE writes while the dispatch block explicitly directs them; two roles hit it independently in one ride",
         "status": "open"
       },
@@ -3168,7 +3178,7 @@
         "id": "fu-tdd-skips-full-sweep",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "the TDD role declares done after targeted suites only, so defects visible only to the full framework sweep surface two roles later and cost a whole validate-remediate lap each",
         "status": "open"
       },
@@ -3184,7 +3194,7 @@
         "id": "fu-subagent-probe-hits-real-repo",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P1",
-        "age_days": 6,
+        "age_days": 7,
         "what": "a validator probe helper ran git commands against the real repository and created two commits on main",
         "status": "open"
       },
@@ -3192,7 +3202,7 @@
         "id": "fu-test020-corpus-regex-thin",
         "ref": "role-verification-guards",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "TEST-020 corpus regex is thin though it does bite",
         "status": "open"
       },
@@ -3224,7 +3234,7 @@
         "id": "fu-escape-literals-self-inflict",
         "ref": "docs-model-nul-escape",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "writing about a control-character escape reliably inserts the control character itself into the prose",
         "status": "open"
       },
@@ -3232,7 +3242,7 @@
         "id": "fu-no-nul-guard",
         "ref": "docs-model-nul-escape",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "nothing checks tracked text files for NUL bytes, so a control character can silently turn a source file binary to POSIX grep",
         "status": "open"
       },
@@ -3240,7 +3250,7 @@
         "id": "fu-validation-ignores-suite-selector",
         "ref": "ride-cost-readout",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "validation picks its suites from the declared review scope while CI picks them from select-suites, so a CORE suite can be skipped in validation and fail in CI",
         "status": "open"
       },
@@ -3248,7 +3258,7 @@
         "id": "fu-orchestrator-does-not-watch-ci",
         "ref": "ride-cost-readout",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "after pushing a PR the orchestrator stops instead of watching CI, so a failure sits undetected until the owner asks",
         "status": "open"
       },
@@ -3256,7 +3266,7 @@
         "id": "fu-openct-unrdbl-report",
         "ref": "followups-cli-hardening",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "generate-factory-report.mjs:616 publishes follow_ups.open_count: 0 for an UNREADABLE ledger (e.g. --decisions a directory), the same 'a bad input reads as good news' shape D2 refuses on the CLI; the file's own oldest_age_days convention two lines down already uses null, never 0, for exactly this degradation",
         "status": "open"
       },
@@ -3264,7 +3274,7 @@
         "id": "fu-sync-hash-compare-fails-open",
         "ref": "followups-cli-hardening",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "file_content_different in aai-sync.sh treats an unobtainable hash as different, so a transient sha256sum hiccup silently rewrites the target's copilot shim and plants a project-overrides file",
         "status": "open"
       },
@@ -3328,7 +3338,7 @@
         "id": "fu-docnumbering-logfail-aborts-suite",
         "ref": "deslop-corpus-honesty",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "log_fail in tests/skills/test-aai-doc-numbering.sh calls exit 1, so the first failed assertion aborts the whole suite and every later arm silently never runs",
         "status": "open"
       },
@@ -3336,7 +3346,7 @@
         "id": "fu-mutation-rig-copies-whole-tree",
         "ref": "deslop-corpus-honesty",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "mutation testing has no rig, so each trial rsyncs the whole 119 MB tree and re-runs a full suite; nine trials plus a fixture battery cost one validation round five and a half hours",
         "status": "open"
       },
@@ -3344,7 +3354,7 @@
         "id": "fu-round7-report-never-written",
         "ref": "deslop-corpus-honesty",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "validation round 7 returned a full verdict in its subagent record but never wrote its report to docs/ai/validation, so the on-disk evidence trail jumps round6 to round8",
         "status": "open"
       },
@@ -3352,7 +3362,7 @@
         "id": "fu-deslop-t026-draft-flag-unpinned",
         "ref": "deslop-corpus-honesty",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "TEST-026's d3 draft-only fixture body says --draft-only-flag must still be reported, but no assertion in that arm checks the flag is reported",
         "status": "open"
       },
@@ -3360,7 +3370,7 @@
         "id": "fu-deslop-diff-balance-clause-shadowed",
         "ref": "deslop-corpus-honesty",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "no suite arm fails on the --diff balance clause alone: both --diff balance assertions sit beside literal pins on the same two numbers",
         "status": "open"
       },
@@ -3368,7 +3378,7 @@
         "id": "fu-deslop-symlink-fixtures-windows",
         "ref": "deslop-corpus-honesty",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "the four ln -s dangling-symlink fixtures in tests/skills/test-aai-deslop.sh are unverified on Windows and Git-Bash",
         "status": "open"
       },
@@ -3376,7 +3386,7 @@
         "id": "fu-deslop-unanchored-report-line-greps",
         "ref": "deslop-corpus-honesty",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "seven report-line assertions in tests/skills/test-aai-deslop.sh remain unanchored grep -qF substring probes after R-15 and R-20 anchored the corpus/bucket headers",
         "status": "open"
       },
@@ -3384,7 +3394,7 @@
         "id": "fu-close-requires-pr-before-it-exists",
         "ref": "deslop-corpus-honesty",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "close-work-item.mjs requires --pr <N>, but the correct ceremony order runs it BEFORE the push that creates the PR, so the number must be guessed",
         "status": "open"
       },
@@ -3392,7 +3402,7 @@
         "id": "fu-deslop-surface-walk-dir-silent",
         "ref": "deslop-corpus-honesty",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "collectSurfaceFiles calls walk() without the unreadableDirs collector, so an unreadable directory under .aai/scripts is still silently skipped",
         "status": "open"
       },
@@ -3400,7 +3410,7 @@
         "id": "fu-tripwire-porcelain-class-not-content",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "the repo tripwire compares git status --porcelain=v1, which reports a path's change CLASS not its content, so a second write to an already-dirty path is invisible",
         "status": "open"
       },
@@ -3408,7 +3418,7 @@
         "id": "fu-test-runs-jsonl-tracked-ignored",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "docs/ai/tests/test-runs.jsonl is tracked AND listed in .gitignore, so tests/skills/test-framework.sh dirties the working tree on every run",
         "status": "open"
       },
@@ -3416,7 +3426,7 @@
         "id": "fu-hitl-propagation-writes-real-index",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "tests/skills/test-aai-hitl-propagation.sh regenerates docs/INDEX.md in PROJECT_ROOT, leaving the tracked file modified after every run",
         "status": "open"
       },
@@ -3424,7 +3434,7 @@
         "id": "fu-metrics-suite-writes-real-overview",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "tests/skills/test-aai-metrics.sh rewrites docs/ai/overview.html and docs/ai/overview-data.json in PROJECT_ROOT",
         "status": "open"
       },
@@ -3432,7 +3442,7 @@
         "id": "fu-acgate-vs-falseopen-catch22",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "AC STATUS GATE rule 1 blocks PASS on non-terminal AC rows while docs-audit's false-open heuristic fails closed on a terminal AC table with un-timestampable delivery, stripping the CLEAN token and turning TEST-013 red",
         "status": "open"
       },
@@ -3440,7 +3450,7 @@
         "id": "fu-tripwire-evadable-by-index-flags",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "the tripwire is silently defeatable by git plumbing: update-index --assume-unchanged then write, or appending a pattern to the untracked .git/info/exclude then creating files under it",
         "status": "open"
       },
@@ -3448,7 +3458,7 @@
         "id": "fu-state-suite-writes-real-index",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "tests/skills/test-aai-state.sh rewrites the tracked docs/INDEX.md in PROJECT_ROOT on every run",
         "status": "open"
       },
@@ -3456,7 +3466,7 @@
         "id": "fu-token-capture-writes-overview",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "tests/skills/test-aai-token-capture.sh rewrites the tracked docs/ai/overview.html and docs/ai/overview-data.json in PROJECT_ROOT on every run",
         "status": "open"
       },
@@ -3464,7 +3474,7 @@
         "id": "fu-followups-json-truncated-on-pipe",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "follow-ups.mjs list --json stops at exactly 65536 bytes when stdout is a pipe, emitting invalid JSON, while the same command redirected to a file completes",
         "status": "open"
       },
@@ -3472,7 +3482,7 @@
         "id": "fu-tripwire-ratchet-path-glob-widens",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "tripwire_path_listed loops over an unquoted $2, so a ratchet path list undergoes word-splitting and pathname expansion; an entry reading docs/* covers whatever the glob matches in the framework's CWD at run time",
         "status": "open"
       },
@@ -3480,7 +3490,7 @@
         "id": "fu-tripwire-ratchet-duplicate-entry",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "tripwire_allowlist_entry returns on the first match, so a second ratchet entry naming the same suite is dead code and nothing warns that the two collide",
         "status": "open"
       },
@@ -3488,7 +3498,7 @@
         "id": "fu-suite-map-tripwire-row-incomplete",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "the suite-map row for aai-repo-tripwire omits tests/skills/test-aai-spec-lint.sh and .aai/system/PROFILES.yaml, both of which this scope changed and the suite depends on",
         "status": "open"
       },
@@ -3496,7 +3506,7 @@
         "id": "fu-tripwire-fail-hides-suite-log-tail",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "a suite that fails on its OWN exit code AND trips the tripwire prints only the tripwire block, so the failure-lines-plus-tail dump that makes a CI log diagnosable is lost",
         "status": "open"
       },
@@ -3504,7 +3514,7 @@
         "id": "fu-tripwire-git-internals-unnamed",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "writes to .git internals (git config --local, hooks, refs, the stash, reflog) are invisible to the tripwire and are not named as a limit beside D3 and D7",
         "status": "open"
       },
@@ -3512,7 +3522,7 @@
         "id": "fu-wrapper-tripwire-snapshot-leak",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "the mktemp snapshot files .aai/scripts/aai-run-tests.sh creates for the tripwire leak on a signal because the script installs no trap to remove them",
         "status": "open"
       },
@@ -3584,7 +3594,7 @@
         "id": "fu-docsaudit-t003-red-on-new-doc",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "test-aai-docs-audit.sh TEST-003 regenerates docs/INDEX.md and diffs it against the committed one, so it is RED for the whole life of any scope that adds a doc, and test-aai-delta-stage3.sh TEST-007 inherits the failure",
         "status": "open"
       },
@@ -3592,7 +3602,7 @@
         "id": "fu-ismain-symlink-realpath",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "every .mjs CLI guards main() with path.resolve(process.argv[1]) === fileURLToPath(import.meta.url), which is FALSE whenever the checkout is reached through a symlink, so the CLI exits 0 having printed nothing",
         "status": "open"
       },
@@ -3600,7 +3610,7 @@
         "id": "fu-isolation-seeding-duplicated",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "the three-step working-tree seeding (tracked diff replay, untracked-not-ignored copy, gitignored per-dev seed) is implemented twice, once in tests/skills/test-framework.sh and once in .aai/scripts/aai-run-tests.sh",
         "status": "open"
       },
@@ -3608,7 +3618,7 @@
         "id": "fu-orchestrator-monitor-uses-gnu-find",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "the orchestrator's liveness check for running agents used GNU find syntax (-newermt '-N minutes') with stderr sent to /dev/null; on this host find rejects it, so the check reported zero writes as a RESULT when it was a silent command failure",
         "status": "open"
       },
@@ -3616,7 +3626,7 @@
         "id": "fu-iso-kill-arms-double-covered",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "TEST-004's watchdog-kill and interrupt sub-arms cannot be falsified by any single-point mutation because cleanup on those paths is covered twice (the in-loop iso_destroy plus the EXIT/INT/TERM traps); only two-point mutations turn them red",
         "status": "open"
       },
@@ -3624,7 +3634,7 @@
         "id": "fu-nested-isolation-per-suite-cost",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "suites that invoke a funnel themselves pay the disposable-checkout cost again, so 9 of 81 suites exceed the 2s-per-suite bound individually (worst +20s on aai-delta-stage3) while the mean is 1.07s",
         "status": "open"
       },
@@ -3658,14 +3668,6 @@
         "severity": "P2",
         "age_days": 1,
         "what": "the orchestrator again treated a role's 'filed:' list as proof a registry entry exists; fu-iso-suite-leaks-its-own-fixture-dirs was cited as filed in a dispatch and in a decision, and grep of decisions.jsonl returns zero",
-        "status": "open"
-      },
-      {
-        "id": "fu-isolation-arm-failure-uncounted",
-        "ref": "suites-run-in-a-disposable-worktree",
-        "severity": "P1",
-        "age_days": 1,
-        "what": "nothing COUNTS a failure to arm isolation: no counter, no summary line, no run-ledger field — all three degrade paths are a single mid-scroll log_warn",
         "status": "open"
       },
       {
@@ -3752,7 +3754,7 @@
         "id": "fu-orchestrator-mutated-real-file",
         "ref": "cli-output-survives-a-pipe",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "the orchestrator ran a bite-proof mutation against the tracked suite file instead of a copy, and the first restore attempt silently failed on a mis-anchored sed pattern",
         "status": "open"
       },
@@ -3760,7 +3762,7 @@
         "id": "fu-test021c-precondition-unasserted",
         "ref": "cli-output-survives-a-pipe",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "TEST-021(c) never asserts its own precondition that the reader is gone before the write, so the arm reaches the same observable with the guard removed and an open reader",
         "status": "open"
       },
@@ -3768,7 +3770,7 @@
         "id": "fu-main-push-conflicts-open-pr",
         "ref": "cli-output-survives-a-pipe",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "the orchestrator pushed a commit to main that regenerated docs/INDEX.md while a PR shipping the same generated file was open, turning that PR CONFLICTING",
         "status": "open"
       },
@@ -3776,7 +3778,7 @@
         "id": "fu-append-only-merge-needs-prefix-order",
         "ref": "cli-output-survives-a-pipe",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "resolving a merge conflict in the append-only ledger by unioning both sides in the wrong order rewrites existing bytes from the base branch's point of view, even though no record is lost",
         "status": "open"
       },
@@ -3784,7 +3786,7 @@
         "id": "fu-typemap-missing-research-hotfix",
         "ref": "spec-intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "allocate-doc-number.mjs TYPE_MAP has no research and no hotfix row, so --type research and --type hotfix exit 2 as unknown types",
         "status": "open"
       },
@@ -3792,7 +3794,7 @@
         "id": "fu-ceremony-test016-blanket-byte-pin",
         "ref": "spec-intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "test-aai-ceremony-levels.sh TEST-016 pins .aai/scripts/lib/docs-audit-core.mjs with a bare git diff --exit-code, so ANY later scope that touches that shared library fails a test written for SPEC-0041",
         "status": "open"
       },
@@ -3800,7 +3802,7 @@
         "id": "fu-intake-templates-lack-number-key",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "seven of the eight intake templates carry no number: key, so a verbatim copy now fails docs-audit --intake-file with number-absent",
         "status": "open"
       },
@@ -3808,7 +3810,7 @@
         "id": "fu-ledger-backticks-ran-as-command",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "unescaped backticks inside a double-quoted bash string in tests/skills/lib/prompt-diet-ledger.sh ran as command substitution on every source, printing 'extra: command not found' to stderr and silently deleting the word from the ledger text",
         "status": "open"
       },
@@ -3816,7 +3818,7 @@
         "id": "fu-intake-dir-pin-is-set-not-opening",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "Spec-AC-02 and its AC-Status Evidence cell say every per-type prompt's OPENING directory line, but tests/skills/test-aai-intake.sh TEST-013 pins the file-wide SET of docs/<dir> mentions, which is also fence-blind and therefore brittle in the other direction",
         "status": "open"
       },
@@ -3824,7 +3826,7 @@
         "id": "fu-intake-dir-unanchored-research-hotfix",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "for the two intake types TYPE_MAP does not know (research, hotfix) the .aai/INTAKE_COMMON.md table row and the per-type prompt can drift together to a wrong directory with the whole intake suite green",
         "status": "open"
       },
@@ -3832,7 +3834,7 @@
         "id": "fu-prefix-restatement-needs-hyphen",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "TEST-013's no-prefix-restated loop greps for the display prefix WITH its trailing hyphen, so a hyphenless restatement such as 'the prefix for this type is CHANGE' passes",
         "status": "open"
       },
@@ -3840,7 +3842,7 @@
         "id": "fu-intake-table-parser-asymmetry",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "tests/skills/test-aai-intake.sh intake_table_lines requires single-space table cells while the shipped parseIntakeTypeTable in .aai/scripts/docs-audit.mjs allows \\s*, so a double-spaced ninth row is live in the gate and invisible to the arm that pins row count, prefix and directory",
         "status": "open"
       },
@@ -3848,7 +3850,7 @@
         "id": "fu-ledger-no-backtick-claim-is-absolute",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "the intake-numbers ledger entry in tests/skills/lib/prompt-diet-ledger.sh asserted 'no backtick in any ledger entry', which is literally false because line 69 carries an escaped pair; the true invariant is no UNESCAPED backtick",
         "status": "open"
       },
@@ -3856,7 +3858,7 @@
         "id": "fu-test012-sigpipe-rationale-overstated",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "the shipped comment above TEST-012's anchored awk in tests/skills/test-aai-intake.sh says 'awk | grep -q would let grep's early exit SIGPIPE awk and redden the arm' as a certainty, but measured on the real prompts that pipeline returns pipestatus 0 0",
         "status": "open"
       },
@@ -3864,7 +3866,7 @@
         "id": "fu-intake-common-fallback-numbers-doc",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "the legacy FALLBACK block in .aai/INTAKE_COMMON.md still instructs scan-and-mint of docs/<type>/<TYPE>-000N-<slug>.md, which is exactly the numbered filename the new --intake-file predicate rejects",
         "status": "open"
       },
@@ -3872,7 +3874,7 @@
         "id": "fu-report-ids-exceed-registry-cap",
         "ref": "intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "roles routinely write follow-up ids into their reports that the registry CLI refuses, because the ids exceed the hard 40-character cap, so a finding reported as filed can never have been filed under that name",
         "status": "open"
       },
@@ -3880,7 +3882,7 @@
         "id": "fu-spec0010-t001-utc-date-bomb",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "test_spec0010_committed_index_idempotent strips only ^Generated: so it carries the same UTC-midnight bomb in miniature",
         "status": "open"
       },
@@ -3888,7 +3890,7 @@
         "id": "fu-state-focus-specpath-stale",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "STATE current_focus.spec_path points at the previous ride spec while ref_id is the current scope",
         "status": "open"
       },
@@ -3896,7 +3898,7 @@
         "id": "fu-index-row-metadata-unasserted",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "index row metadata, headings, counts and ordering are asserted by no arm after the narrowing; the pre-commit hook is opt-in and CI has none",
         "status": "open"
       },
@@ -3904,7 +3906,7 @@
         "id": "fu-posix-arm-reddens-on-prose-backslash",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "index_posix_findings tests every line for a backslash, not only path tokens, so a Notes cell mentioning a regex reddens the arm with index path is not POSIX",
         "status": "open"
       },
@@ -3912,7 +3914,7 @@
         "id": "fu-stale-arm-reads-worktree-index",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "INDEX_SNAP_COMMITTED is a cp of the live docs/INDEX.md rather than git show HEAD:docs/INDEX.md, so a locally edited index is what the committed-index arm grades",
         "status": "open"
       },
@@ -3920,7 +3922,7 @@
         "id": "fu-staleness-source-line-self-certifies",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "index_stale_findings derives its scanned dirs from the Source: line of the index under test, so an index stale because a family was added never checks that family",
         "status": "open"
       },
@@ -3928,7 +3930,7 @@
         "id": "fu-test004-missing-mask-vacuity-guard",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "TEST-004 lacks TEST-001 kept_lines guard and passes green under a total-swallow mask; the spec D4 sentence credits the raw-diff assertion instead of the guard",
         "status": "open"
       },
@@ -3936,7 +3938,7 @@
         "id": "fu-posix-predicate-exit-conflates-infra",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "index_posix_findings exits 1 both for real path findings and for the predicate failing to run, and does not fold stderr into the captured output, so an infrastructure failure surfaces as a path defect with an empty message",
         "status": "open"
       },
@@ -3944,7 +3946,7 @@
         "id": "fu-strip-dated-runaway-section-mask",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "index_strip_dated clears in_overdue only on a level-2 heading, so the Overdue mask runs to EOF if that section ever stops being followed by one, and the shipped comment claims the helper can only under-mask",
         "status": "open"
       },
@@ -3952,7 +3954,7 @@
         "id": "fu-docsaudit-idmention-probe-per-doc",
         "ref": "spec-docs-history-is-one-git-call-per-doc",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "docs-audit still spends one git log -1 --grep per document for the id-mention probe",
         "status": "open"
       },
@@ -3960,7 +3962,7 @@
         "id": "fu-ceremony-guard-reds-on-dirty-core",
         "ref": "spec-docs-history-is-one-git-call-per-doc",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "test-aai-ceremony-levels TEST-016 asserts git diff --exit-code on docs-audit-core.mjs so it reddens for ANY uncommitted edit of that file",
         "status": "open"
       },
@@ -3968,7 +3970,7 @@
         "id": "fu-histmap-merge-pathspec-divergence",
         "ref": "spec-docs-history-is-one-git-call-per-doc",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "buildFirstCommitDateMap and firstCommitDate can disagree on a doc added on both sides of a real merge, because history simplification is per-pathspec",
         "status": "open"
       },
@@ -4106,6 +4108,30 @@
         "severity": "P2",
         "age_days": 0,
         "what": "deleting the tripwire removes the only thing that turns a silently unisolated run red, so the isolation report must become a GATE in the same change that deletes it, never after",
+        "status": "open"
+      },
+      {
+        "id": "fu-seeding-skipped-token-collides",
+        "ref": "a-half-seeded-checkout-says-it-is-isolated",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "The seeding axis's third token 'skipped' collides with two existing uses of the same word in the SAME summary block",
+        "status": "open"
+      },
+      {
+        "id": "fu-seed-loss-turns-an-arm-into-a-skip",
+        "ref": "a-half-seeded-checkout-says-it-is-isolated",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "a seed path present in the working tree but absent from the checkout leaves the run GREEN at exit 0 while a suite reads an empty file, so an assertion silently becomes a passing skip",
+        "status": "open"
+      },
+      {
+        "id": "fu-seed-step2-enumeration-silent",
+        "ref": "spec-a-half-seeded-checkout-says-it-is-isolated",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "Seeding step 2 reports seeded when git ls-files could not enumerate part of the tree (unreadable directory), so files silently never copied are counted as a complete seed",
         "status": "open"
       }
     ]

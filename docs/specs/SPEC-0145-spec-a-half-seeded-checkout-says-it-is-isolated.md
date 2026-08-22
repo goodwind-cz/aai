@@ -1,14 +1,16 @@
 ---
 id: spec-a-half-seeded-checkout-says-it-is-isolated
 type: spec
-number: null
-status: implementing
+number: 145
+status: done
 ceremony_level: 1
 links:
-  requirement: docs/issues/CHANGE-DRAFT-a-half-seeded-checkout-says-it-is-isolated.md
+  requirement: docs/issues/CHANGE-0157-a-half-seeded-checkout-says-it-is-isolated.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 274
+  commits:
+    - 0645434f207509aa20e4d3c848ff145ffdc9dd24
 ---
 
 # Spec — a half-seeded disposable checkout still reports isolated
@@ -25,7 +27,7 @@ regression net is the suite that already owns both funnels
 (`tests/skills/test-aai-suite-isolation.sh`), plus one full framework run.
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-a-half-seeded-checkout-says-it-is-isolated.md
+- Requirement: docs/issues/CHANGE-0157-a-half-seeded-checkout-says-it-is-isolated.md
 - The sibling axis this copies the shape of: SPEC-0144
   (`spec-a-run-must-say-whether-isolation-armed`).
 - The mechanism being reported on: SPEC-0138
@@ -56,7 +58,7 @@ regression net is the suite that already owns both funnels
 - Inline review scope: `tests/skills/test-framework.sh`,
   `.aai/scripts/aai-run-tests.sh`,
   `tests/skills/test-aai-suite-isolation.sh`,
-  `docs/specs/SPEC-DRAFT-spec-a-half-seeded-checkout-says-it-is-isolated.md`
+  `docs/specs/SPEC-0145-spec-a-half-seeded-checkout-says-it-is-isolated.md`
 
 ## The second axis, named once
 

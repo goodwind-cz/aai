@@ -1,14 +1,16 @@
 ---
 id: a-half-seeded-checkout-says-it-is-isolated
-number: null
+number: 157
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-suite-isolation
 links:
-  pr: []
-  commits: []
+  pr:
+    - 274
+  commits:
+    - 0645434f207509aa20e4d3c848ff145ffdc9dd24
 ---
 
 # Change — a half-seeded disposable checkout still reports `isolated`

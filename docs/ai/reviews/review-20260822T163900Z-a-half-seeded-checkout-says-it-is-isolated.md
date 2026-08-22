@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "4988771..f77b62b (tests/skills/test-framework.sh, .aai/scripts/aai-run-tests.sh, tests/skills/test-aai-suite-isolation.sh, spec + intake docs)"
-  spec: docs/specs/SPEC-DRAFT-spec-a-half-seeded-checkout-says-it-is-isolated.md
+  spec: docs/specs/SPEC-0145-spec-a-half-seeded-checkout-says-it-is-isolated.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -25,7 +25,7 @@ review:
       - { rank: NON-BLOCKING, file: tests/skills/test-framework.sh, line: 366,
           issue: "Seeding step 2 has a third failure mode neither funnel can see: `git ls-files --others --exclude-standard` exits 0 with only a stderr warning when it cannot read a directory, and both funnels send that stderr to /dev/null. Files under such a directory are never enumerated, so n_untracked_fail stays 0 and the run claims a complete seed.",
           failure_scenario: "A working tree containing a directory the runner cannot read (root-owned bind-mount dir from a container, a stray chmod 000). Measured in a scratch repo: `chmod 000 sub` -> `warning: could not open directory 'sub/': Permission denied`, rc=0, and sub/test-aai-newthing.sh absent from the listing. The framework then prints `Seeding: N/N suite(s) fully seeded` and the wrapper prints `AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree` while untracked content did not arrive. Same class as .aai/scripts/aai-run-tests.sh:410." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-a-half-seeded-checkout-says-it-is-isolated.md, line: 306,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0145-spec-a-half-seeded-checkout-says-it-is-isolated.md, line: 306,
           issue: "All five AC Status rows cite commit ccba52c and run test-20260822-065708 as evidence, but f77b62b (the shipped head) edited three arms of the suite those rows are evidenced by. The cited run predates the shipped test code.",
           failure_scenario: "A later reader (or the docs audit at close) resolves the AC evidence to ccba52c, diffs it against head, and finds the evidencing file changed after the cited run — the row cannot be re-derived from what it names. The claim itself still holds: I re-ran the suite at head and got 19/19 (run test-20260822-162209)." }
   cannot_verify:

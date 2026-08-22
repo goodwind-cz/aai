@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-22T02:17:23.331Z",
+  "generatedAt": "2026-08-22T16:29:43.678Z",
   "project": "aai",
   "counts": {
-    "delivered": 203,
+    "delivered": 204,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "a-run-must-say-whether-isolation-armed",
+    "ref": "a-half-seeded-checkout-says-it-is-isolated",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "a-run-must-say-whether-isolation-armed",
+      "ref": "a-half-seeded-checkout-says-it-is-isolated",
       "type": "intake_change",
       "phase": "code_review"
     },
@@ -91,6 +91,19 @@
       "spec": "docs/specs/SPEC-0144-spec-a-run-must-say-whether-isolation-armed.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260822T021038Z-a-run-must-say-whether-isolation-armed.md"
+    },
+    {
+      "ref": "a-half-seeded-checkout-says-it-is-isolated",
+      "title": "Change — a half-seeded disposable checkout still reports `isolated`",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0157-a-half-seeded-checkout-says-it-is-isolated.md",
+      "closed_on": "2026-08-22",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0145-spec-a-half-seeded-checkout-says-it-is-isolated.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260822T163900Z-a-half-seeded-checkout-says-it-is-isolated.md"
     },
     {
       "ref": "cli-output-survives-a-pipe",
@@ -2737,6 +2750,19 @@
           "spec": "docs/specs/SPEC-0144-spec-a-run-must-say-whether-isolation-armed.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260822T021038Z-a-run-must-say-whether-isolation-armed.md"
+        },
+        {
+          "ref": "a-half-seeded-checkout-says-it-is-isolated",
+          "title": "Change — a half-seeded disposable checkout still reports `isolated`",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0157-a-half-seeded-checkout-says-it-is-isolated.md",
+          "closed_on": "2026-08-22",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0145-spec-a-half-seeded-checkout-says-it-is-isolated.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260822T163900Z-a-half-seeded-checkout-says-it-is-isolated.md"
         },
         {
           "ref": "cli-output-survives-a-pipe",
