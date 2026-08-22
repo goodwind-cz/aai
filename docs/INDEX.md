@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-22T01:09:39.637Z
+Generated: 2026-08-22T02:02:07.326Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-a-run-must-say-whether-isolation-armed | specs | implementing | 5 implementing | docs/specs/SPEC-DRAFT-spec-a-run-must-say-whether-isolation-armed.md |
+| spec-a-run-must-say-whether-isolation-armed | specs | implementing | 5 done | docs/specs/SPEC-DRAFT-spec-a-run-must-say-whether-isolation-armed.md |
 
 ## Canonical layer (0)
 

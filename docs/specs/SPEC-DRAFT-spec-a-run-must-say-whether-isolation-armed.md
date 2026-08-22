@@ -256,11 +256,11 @@ None.
 
 | Spec-AC    | Description                                                                                       | Status       | Evidence | Review-By | Notes                                              |
 |------------|-----------------------------------------------------------------------------------------------------|--------------|----------|-----------|-----------------------------------------------------|
-| Spec-AC-01 | Every suite is classified isolated or degraded and counted exactly once at all three degrade paths    | implementing | —        | —         | three paths forced one at a time by environment      |
-| Spec-AC-02 | The summary prints the isolation line on every run including the all-clear                            | implementing | —        | —         | modelled on the existing tripwire accounting line    |
-| Spec-AC-03 | The run-ledger record carries the same two numbers as the summary line for the same run_id            | implementing | —        | —         | invariant isolated plus degraded equals total        |
-| Spec-AC-04 | A fully degraded run differs visibly in all three surfaces with an unchanged exit code                | implementing | —        | —         | report-only argued, gating question filed            |
-| Spec-AC-05 | aai-run-tests.sh reports its own suite-run status in the same two words                               | implementing | —        | —         | silent where isolation does not apply                |
+| Spec-AC-01 | Every suite is classified isolated or degraded and counted exactly once at all three degrade paths    | done         | 3466f09; TEST-101..104 green; validation forced paths 2 and 3 on a real 81-suite repo clone and both two-condition collisions counted once | —         | three paths forced one at a time by environment      |
+| Spec-AC-02 | The summary prints the isolation line on every run including the all-clear                            | done         | 3466f09; TEST-101 green; mutation M4 making the line conditional turns TEST-101, TEST-105 and TEST-106 red | —         | modelled on the existing tripwire accounting line    |
+| Spec-AC-03 | The run-ledger record carries the same two numbers as the summary line for the same run_id            | done         | 3466f09; RUN_ID test-20260822-012816 record reads 81 isolated, 0 degraded, total 81, matching its summary line; TEST-105 green | —         | invariant isolated plus degraded equals total        |
+| Spec-AC-04 | A fully degraded run differs visibly in all three surfaces with an unchanged exit code                | done         | 3466f09; TEST-106 green; validation ran an all-passing real-framework run that degraded and exited 0, and a pass-fail-skip run that stayed 3/3 isolated at exit 1 | —         | report-only argued, gating question filed            |
+| Spec-AC-05 | aai-run-tests.sh reports its own suite-run status in the same two words                               | done         | 3466f09; TEST-107 green; deleting the wrapper degraded line turns TEST-107 red, widening the suite-run predicate turns TEST-005 and TEST-107 red | —         | silent where isolation does not apply                |
 
 ## Implementation plan
 
