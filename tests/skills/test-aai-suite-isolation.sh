@@ -78,6 +78,14 @@ cleanup() {
 trap cleanup EXIT
 
 log_pass() { echo "PASS $*"; }
+# An arm whose LEVER is unavailable on this machine has neither passed nor
+# failed, and calling it either is a lie. Codex reviewed the first fix for the
+# vanishing arms and was right: turning "silently absent" into log_pass turned
+# a hole into a false green, which is worse. UNCOVERED is its own verdict,
+# counted here and reported by main, so the absence is visible in the tally
+# without being counted as a test that ran.
+UNCOVERED=0
+log_uncovered() { echo "UNCOVERED $*"; UNCOVERED=$((UNCOVERED + 1)); }
 log_fail() { echo "FAIL $*" >&2; FAILED=1; printf '%s\n' "$*" >> "$FAILURE_REGISTRY"; }
 log_skip() { echo "SKIP $*"; exit 42; }
 log_info() { echo "  $*"; }
@@ -1244,7 +1252,7 @@ test_110_the_uncopyable_untracked_file_is_reported() {
   evid="$(new_fixture)" || return
   seed_status_fixture "$d" "$evid" step2 || { log_fail "TEST-110 fixture repo init failed"; return; }
   if ! seed_make_unreadable "$d/untracked-seed.txt" "TEST-110"; then
-    log_pass "TEST-110: NOT COVERED on this machine (file mode denies this user nothing) — the arm did not run, and says so rather than vanishing"
+    log_uncovered "TEST-110: file mode denies this user nothing (root?), so no copy can be made to fail — the arm did NOT run and is not counted as passing"
     return
   fi
   [[ -n "$(git -C "$d" ls-files --others --exclude-standard)" ]] \
@@ -1286,7 +1294,7 @@ test_111_the_uncopyable_seed_path_is_reported() {
   git -C "$d" check-ignore -q docs/ai/STATE.yaml \
     || { log_info "TEST-111: the seed path is not gitignored, so it would arrive through step 2 instead and the arm would test the wrong step"; ok=0; }
   if ! seed_make_unreadable "$d/docs/ai/STATE.yaml" "TEST-111"; then
-    log_pass "TEST-111: NOT COVERED on this machine (file mode denies this user nothing) — the arm did not run, and says so rather than vanishing"
+    log_uncovered "TEST-111: file mode denies this user nothing (root?), so no copy can be made to fail — the arm did NOT run and is not counted as passing"
     return
   fi
 
@@ -1343,7 +1351,7 @@ test_112_partly_seeded_is_visible_but_never_fatal() {
     evid_bad="$(new_fixture)" || return
     seed_status_fixture "$d2" "$evid_bad" step2 "$body_exit" || { log_fail "TEST-112($outcome) partial fixture repo init failed"; return; }
     if ! seed_make_unreadable "$d2/untracked-seed.txt" "TEST-112($outcome)"; then
-      log_pass "TEST-112($outcome): NOT COVERED on this machine (file mode denies this user nothing) — the arm did not run, and says so rather than vanishing"
+      log_uncovered "TEST-112($outcome): file mode denies this user nothing (root?), so no copy can be made to fail — the arm did NOT run and is not counted as passing"
       return
     fi
     rm -f "$d2/docs/ai/tests/test-runs.jsonl"
@@ -1489,8 +1497,19 @@ main() {
   # Both halves, because either one alone is a lie on some path: FAILED is
   # blind to a subshell failure, and the registry is blind to a machine where
   # the append itself could not land.
+  # Never "All tests passed" while an arm did not run. The tally is the point:
+  # a machine where a lever is unavailable must say how much of the suite it
+  # actually exercised, or a green here means something different on two hosts
+  # and nobody can tell which.
+  if [[ "$UNCOVERED" -gt 0 ]]; then
+    echo "NOTE: $UNCOVERED arm(s) NOT COVERED on this machine — their lever is unavailable here; the suite exercised less than its full set"
+  fi
   if [[ $FAILED -eq 0 && ! -s "$FAILURE_REGISTRY" ]]; then
-    echo "All tests passed!"
+    if [[ "$UNCOVERED" -gt 0 ]]; then
+      echo "All covered tests passed ($UNCOVERED not covered)"
+    else
+      echo "All tests passed!"
+    fi
     exit 0
   fi
   if [[ $FAILED -eq 0 ]]; then
