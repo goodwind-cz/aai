@@ -1243,7 +1243,10 @@ test_110_the_uncopyable_untracked_file_is_reported() {
   d="$(new_fixture)" || return
   evid="$(new_fixture)" || return
   seed_status_fixture "$d" "$evid" step2 || { log_fail "TEST-110 fixture repo init failed"; return; }
-  seed_make_unreadable "$d/untracked-seed.txt" "TEST-110" || return
+  if ! seed_make_unreadable "$d/untracked-seed.txt" "TEST-110"; then
+    log_pass "TEST-110: NOT COVERED on this machine (file mode denies this user nothing) — the arm did not run, and says so rather than vanishing"
+    return
+  fi
   [[ -n "$(git -C "$d" ls-files --others --exclude-standard)" ]] \
     || { log_info "TEST-110: git no longer lists the unreadable file as untracked, so step 2 would never try to copy it"; ok=0; }
 
@@ -1282,7 +1285,10 @@ test_111_the_uncopyable_seed_path_is_reported() {
   seed_status_fixture "$d" "$evid" step3 || { log_fail "TEST-111 fixture repo init failed"; return; }
   git -C "$d" check-ignore -q docs/ai/STATE.yaml \
     || { log_info "TEST-111: the seed path is not gitignored, so it would arrive through step 2 instead and the arm would test the wrong step"; ok=0; }
-  seed_make_unreadable "$d/docs/ai/STATE.yaml" "TEST-111" || return
+  if ! seed_make_unreadable "$d/docs/ai/STATE.yaml" "TEST-111"; then
+    log_pass "TEST-111: NOT COVERED on this machine (file mode denies this user nothing) — the arm did not run, and says so rather than vanishing"
+    return
+  fi
 
   out="$(seed_run "$d")" || rc=$?
 
@@ -1336,7 +1342,10 @@ test_112_partly_seeded_is_visible_but_never_fatal() {
     d2="$(new_fixture)" || return
     evid_bad="$(new_fixture)" || return
     seed_status_fixture "$d2" "$evid_bad" step2 "$body_exit" || { log_fail "TEST-112($outcome) partial fixture repo init failed"; return; }
-    seed_make_unreadable "$d2/untracked-seed.txt" "TEST-112($outcome)" || return
+    if ! seed_make_unreadable "$d2/untracked-seed.txt" "TEST-112($outcome)"; then
+      log_pass "TEST-112($outcome): NOT COVERED on this machine (file mode denies this user nothing) — the arm did not run, and says so rather than vanishing"
+      return
+    fi
     rm -f "$d2/docs/ai/tests/test-runs.jsonl"
     out_bad="$(seed_run "$d2")" || rc_bad=$?
     rid_bad="$(iso_run_id "$out_bad")"
