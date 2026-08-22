@@ -534,6 +534,14 @@ run_test() {
   local skill_name="${test_name#test-}"
 
   TOTAL_TESTS=$((TOTAL_TESTS + 1))
+  # PAIRED with the single isolation increment ~66 lines below. Code review
+  # found the comment there documents single-site-ness (nothing is counted
+  # TWICE) and says nothing about reach (nothing is counted ZERO times). An
+  # early `return` added between here and there would leave TOTAL_TESTS bumped
+  # and neither isolation counter bumped, and the summary would read a
+  # well-formed "80/81 isolated; 0 degraded" that is simply wrong. There is no
+  # such return today. If you add one, bump the isolation counters first — and
+  # if you forget, generate_summary's invariant check will say so out loud.
 
   # Create log file
   local log_file="$RUN_DIR/${skill_name}.log"
@@ -883,9 +891,25 @@ generate_summary() {
   # Report-only by design: nothing here touches FAILED_TESTS or the exit code
   # (spec section "Why a degraded run does not fail the run").
   if [[ $ISOLATION_DEGRADED -gt 0 ]]; then
-    log_warn "Isolation: $ISOLATION_DEGRADED suite(s) ran degraded — against the shipping repository, with only the tripwire between them and it. Reason(s): $ISOLATION_REASONS"
+    # A degrade with no reason is worse than no line: code review MEASURED
+    # "Reason(s): " with nothing after it when a path marks a suite degraded and
+    # forgets to set the reason. Today's three paths all set one; a fourth might
+    # not, and an empty tail reads as "no reason to give" rather than "the reason
+    # was lost". Name the gap instead of trailing off.
+    local iso_reasons_shown="$ISOLATION_REASONS"
+    [[ -n "$iso_reasons_shown" ]] \
+      || iso_reasons_shown="(none recorded — a degrade path did not name its reason; this is a defect in the framework, not in the suite)"
+    log_warn "Isolation: $ISOLATION_DEGRADED suite(s) ran degraded — against the shipping repository, with only the tripwire between them and it. Reason(s): $iso_reasons_shown"
   fi
   log "Isolation: $ISOLATION_ISOLATED/$TOTAL_TESTS suite(s) isolated; $ISOLATION_DEGRADED degraded"
+  # The invariant this number is read by, checked rather than assumed. It holds
+  # only while every path that bumps TOTAL_TESTS also reaches the isolation
+  # increment, and nothing structural enforces that — see the note at the
+  # TOTAL_TESTS site. An under-count is otherwise a well-formed lie. Report
+  # only: this must not change the exit code (Spec-AC-04).
+  if [[ $(( ISOLATION_ISOLATED + ISOLATION_DEGRADED )) -ne "$TOTAL_TESTS" ]]; then
+    log_warn "Isolation: ACCOUNTING BROKEN — $ISOLATION_ISOLATED + $ISOLATION_DEGRADED does not equal $TOTAL_TESTS. Some suite ran without being classified; treat both numbers above as unreliable."
+  fi
 
   log ""
   log "Results saved to: $RUN_DIR"
