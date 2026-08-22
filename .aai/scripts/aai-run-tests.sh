@@ -214,6 +214,31 @@ AAI_ISO_WT=''
 AAI_ISO_STATUS='not-applicable'
 AAI_ISO_WHY='the wrapped command is not a suite run'
 
+# The SECOND axis, in the framework's three words
+# (spec-a-half-seeded-checkout-says-it-is-isolated): `seeded` - a disposable
+# checkout was made and every seeding step completed; `partial` - one was made
+# and a seeding step failed, so the checkout exists but is missing content;
+# `skipped` - none was made, so there was nothing to seed. It is a SEPARATE axis
+# and not a fourth value of the one above, because a half-seeded checkout is
+# still a checkout: the command could not reach the shipping repository, so
+# calling it `degraded` would make that word untrue. Default `skipped`, so every
+# branch that makes no checkout is already correct.
+AAI_SEED_STATUS='skipped'
+AAI_SEED_WHY=''
+
+# aai_seed_fail <reason> - one failing seeding step. Downgrades the status and
+# adds the reason to a DISTINCT set, tested against the delimited form so a
+# reason that is a substring of another still gets its own entry.
+aai_seed_fail() {
+  AAI_SEED_STATUS='partial'
+  [ -n "$1" ] || return 0
+  case "; $AAI_SEED_WHY; " in
+    *"; $1; "*) return 0 ;;
+  esac
+  AAI_SEED_WHY="${AAI_SEED_WHY:+$AAI_SEED_WHY; }$1"
+  return 0
+}
+
 # aai_iso_deregister <wt> - drop the admin entry for ONE worktree path: the
 # entry a `git worktree prune` would drop for it, and no other. Matched by the
 # `gitdir` file, which holds the path verbatim as it was given to `worktree add`.
@@ -358,31 +383,64 @@ if aai_iso_is_suite_run "$@"; then
     AAI_ISO_WHY='no disposable checkout could be made'
   else
     AAI_ISO_STATUS='isolated'
+    AAI_SEED_STATUS='seeded'
     # A worktree checks out a COMMIT, so without the three steps below the copy
     # is HEAD: uncommitted edits and brand-new untracked suite files would be
-    # invisible and a TDD RED could never go red.
+    # invisible and a TDD RED could never go red. Each step may fail without
+    # aborting - that tolerance is deliberate and is KEPT - but no step may fail
+    # in SILENCE any more: each one names itself and downgrades the axis.
     # (1) the tracked diff, staged and unstaged, binary-safe.
-    git --no-optional-locks -C "$AAI_REPO_ROOT" diff HEAD --binary > "$AAI_ISO_BASE/wt.patch" 2>/dev/null
-    if [ -s "$AAI_ISO_BASE/wt.patch" ] &&
+    if ! git --no-optional-locks -C "$AAI_REPO_ROOT" diff HEAD --binary > "$AAI_ISO_BASE/wt.patch" 2>/dev/null; then
+      echo "AAI-SEEDING: NOTE - the working-tree diff could not be captured; the command sees plain HEAD, not your uncommitted edits." >&2
+      aai_seed_fail 'the working-tree diff could not be captured'
+    elif [ -s "$AAI_ISO_BASE/wt.patch" ] &&
        ! git -C "$AAI_ISO_WT" apply --whitespace=nowarn "$AAI_ISO_BASE/wt.patch" >/dev/null 2>&1; then
-      echo "AAI-ISOLATION: NOTE - the working-tree diff could not be replayed; the command sees HEAD, not your uncommitted edits." >&2
+      echo "AAI-SEEDING: NOTE - the working-tree diff could not be replayed; the command sees HEAD, not your uncommitted edits." >&2
+      aai_seed_fail 'the working-tree diff could not be replayed'
     fi
     # (2) untracked-but-not-ignored files - a brand-new suite is exactly this.
+    #
+    # The failures are recorded in FILES, not variables, and that is load-bearing
+    # rather than a style: a `cmd | while` loop runs in a SUBSHELL, so
+    # `aai_seed_fail` called inside it would set the status in a child that then
+    # exits and the whole step would report nothing. This is the identical
+    # boundary tests/skills/test-aai-suite-isolation.sh documents for its own
+    # registries. The markers live in the checkout's BASE directory, beside the
+    # patch, never inside the checkout itself.
     git --no-optional-locks -C "$AAI_REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null |
       while IFS= read -r ai_f; do
         case "$ai_f" in
-          \"*) echo "AAI-ISOLATION: NOTE - untracked path $ai_f carries a character git quotes and was NOT seeded into the disposable checkout." >&2; continue ;;
+          \"*) printf '%s\n' "$ai_f" >> "$AAI_ISO_BASE/seedfail-quoted"; continue ;;
         esac
         mkdir -p "$AAI_ISO_WT/$(dirname "$ai_f")" 2>/dev/null
-        cp -p "$AAI_REPO_ROOT/$ai_f" "$AAI_ISO_WT/$ai_f" 2>/dev/null
+        cp -p "$AAI_REPO_ROOT/$ai_f" "$AAI_ISO_WT/$ai_f" 2>/dev/null ||
+          printf '%s\n' "$ai_f" >> "$AAI_ISO_BASE/seedfail-untracked"
       done
+    if [ -s "$AAI_ISO_BASE/seedfail-quoted" ]; then
+      echo "AAI-SEEDING: NOTE - $(wc -l < "$AAI_ISO_BASE/seedfail-quoted" | tr -d ' ') untracked path(s) carry a character git quotes and were NOT seeded into the disposable checkout (first: $(head -n 1 "$AAI_ISO_BASE/seedfail-quoted"))." >&2
+      aai_seed_fail 'an untracked path git quotes was not seeded into the disposable checkout'
+    fi
+    if [ -s "$AAI_ISO_BASE/seedfail-untracked" ]; then
+      echo "AAI-SEEDING: NOTE - $(wc -l < "$AAI_ISO_BASE/seedfail-untracked" | tr -d ' ') untracked file(s) could not be copied into the disposable checkout (first: $(head -n 1 "$AAI_ISO_BASE/seedfail-untracked")); a brand-new suite lost here is missing from the copy the command runs in." >&2
+      aai_seed_fail 'an untracked file could not be copied into the disposable checkout'
+    fi
     # (3) the gitignored per-dev files suites READ. Without these, four
     # assertion groups turn into PASSING SKIPS - a greener run that tests less.
+    # This loop is NOT in a subshell, so it reports directly.
+    ai_seedfail=0
+    ai_seedfirst=''
     for ai_f in ${AAI_TEST_ISOLATION_SEED:-docs/ai/STATE.yaml docs/ai/LOOP_TICKS.jsonl docs/ai/hitl-channel.json}; do
       [ -f "$AAI_REPO_ROOT/$ai_f" ] || continue
       mkdir -p "$AAI_ISO_WT/$(dirname "$ai_f")" 2>/dev/null
-      cp -p "$AAI_REPO_ROOT/$ai_f" "$AAI_ISO_WT/$ai_f" 2>/dev/null
+      if ! cp -p "$AAI_REPO_ROOT/$ai_f" "$AAI_ISO_WT/$ai_f" 2>/dev/null; then
+        ai_seedfail=$((ai_seedfail + 1))
+        [ -n "$ai_seedfirst" ] || ai_seedfirst="$ai_f"
+      fi
     done
+    if [ "$ai_seedfail" -gt 0 ]; then
+      echo "AAI-SEEDING: NOTE - $ai_seedfail seed path(s) could not be copied into the disposable checkout (first: $ai_seedfirst); a suite that reads one of them degrades to a passing skip." >&2
+      aai_seed_fail 'a seed path could not be copied into the disposable checkout'
+    fi
     # Absolute arguments pointing into the checkout are retargeted; relative
     # ones resolve against the new working directory by themselves. An existing
     # absolute path is NORMALISED before the prefix test, because a caller's
@@ -413,12 +471,13 @@ if aai_iso_is_suite_run "$@"; then
  fi
 fi
 
-# The status line, on stderr, exactly once, and only for an invocation isolation
-# was meant to cover. The two words are the framework's two words, so the two
-# funnels cannot be read as disagreeing; the SEEDING notes above are deliberately
-# NOT folded in, because "the working-tree diff could not be replayed" describes
-# an incomplete seed inside a checkout that WAS made - calling that `degraded`
-# would make the word untrue.
+# The status lines, on stderr, exactly once each, and only for an invocation
+# isolation was meant to cover. Both vocabularies are the framework's own, so the
+# two funnels cannot be read as disagreeing. The SEEDING notes above are
+# deliberately NOT folded into the isolation line, because "the working-tree diff
+# could not be replayed" describes an incomplete seed inside a checkout that WAS
+# made - calling that `degraded` would make the word untrue. They get their own
+# line instead, on their own axis.
 case "$AAI_ISO_STATUS" in
   isolated)
     echo "AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree." >&2
@@ -427,6 +486,25 @@ case "$AAI_ISO_STATUS" in
     echo "AAI-ISOLATION: degraded - $AAI_ISO_WHY; this suite run uses the shipping repository as its working tree." >&2
     ;;
 esac
+# The seeding line prints on EVERY suite run, including the all-clear and
+# including the run that made no checkout at all. A line that appears only on
+# failure is one a reader learns to expect the absence of, and a machine cannot
+# tell "the seeding was fine" from "this build predates the line" - which is the
+# defect this whole axis exists to remove, so it must not be reintroduced by the
+# line's own shape.
+if [ "$AAI_ISO_STATUS" != 'not-applicable' ]; then
+  case "$AAI_SEED_STATUS" in
+    seeded)
+      echo "AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree." >&2
+      ;;
+    partial)
+      echo "AAI-SEEDING: partial - $AAI_SEED_WHY; the disposable checkout is missing content, so a failure here can be unrelated to the command and a pass can be an assertion that skipped itself." >&2
+      ;;
+    *)
+      echo "AAI-SEEDING: skipped - no disposable checkout was made, so nothing was seeded." >&2
+      ;;
+  esac
+fi
 
 # A pass and a failure both reach the removal after the group reap below; a
 # hangup and a Ctrl-C do not, so they are trapped. No EXIT trap: dash runs one

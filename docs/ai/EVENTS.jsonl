@@ -1858,3 +1858,11 @@
 {"v":1,"ts":"2026-08-22T02:16:32.393Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-a-run-must-say-whether-isolation-armed","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-22T02:16:32.426Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-a-run-must-say-whether-isolation-armed","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-22T02:16:32.463Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-a-run-must-say-whether-isolation-armed","payload":{"commit":"cf6120946f4c07c27fa7d1db25a9fd49e0dfe4d4"}}
+{"v":1,"ts":"2026-08-22T05:45:57.865Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-a-half-seeded-checkout-says-it-is-isolated","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-22T07:13:01.942Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":379,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-22T16:28:55.071Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"a-half-seeded-checkout-says-it-is-isolated","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-22T16:28:55.105Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"a-half-seeded-checkout-says-it-is-isolated","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-22T16:28:55.137Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"a-half-seeded-checkout-says-it-is-isolated","payload":{"commit":"0645434f207509aa20e4d3c848ff145ffdc9dd24"}}
+{"v":1,"ts":"2026-08-22T16:28:55.171Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-a-half-seeded-checkout-says-it-is-isolated","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-22T16:28:55.206Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-a-half-seeded-checkout-says-it-is-isolated","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-22T16:28:55.245Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-a-half-seeded-checkout-says-it-is-isolated","payload":{"commit":"0645434f207509aa20e4d3c848ff145ffdc9dd24"}}
