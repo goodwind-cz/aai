@@ -261,6 +261,36 @@ iso_note_reason() {
   ISOLATION_REASONS="${ISOLATION_REASONS:+$ISOLATION_REASONS; }$r"
 }
 
+# seed_note_reason <reason> — the same DISTINCT set, for the seeding axis. A
+# twin rather than a shared helper on purpose: bash 3.2.57 is a supported host,
+# it has no name references, and the eval form that would be needed to write one
+# generic function is a worse thing to have in a test funnel than six duplicated
+# lines. Membership is tested against the delimited form for the same reason as
+# above — a reason that is a substring of another must still get its own entry.
+seed_note_reason() {
+  local r="$1"
+  [[ -n "$r" ]] || return 0
+  case "; $SEEDING_REASONS; " in
+    *"; $r; "*) return 0 ;;
+  esac
+  SEEDING_REASONS="${SEEDING_REASONS:+$SEEDING_REASONS; }$r"
+}
+
+# iso_seed_fail <reason> — one failing seeding step. It downgrades the PER-SUITE
+# status and notes the run-level reason; it counts NOTHING, so however many steps
+# fail for one suite that suite is still counted exactly once, at the single
+# increment site in run_test.
+#
+# Noting the reason HERE rather than at the increment site is the one deliberate
+# difference from the isolation axis, and it is safe by construction: a suite can
+# fail two steps, so its reason is not one string, and every `return 1` path in
+# iso_create is BEFORE the first seeding step — so a reason can only be recorded
+# on a run of iso_create that goes on to succeed and therefore to be counted.
+iso_seed_fail() {
+  ISO_LAST_SEED="partial"
+  seed_note_reason "$1"
+}
+
 # iso_create <skill> — make a fresh disposable checkout seeded from the working
 # tree and publish it in ISO_LAST_WT, or return 1.
 #
@@ -269,10 +299,18 @@ iso_note_reason() {
 # one is invisible to the parent and the signal traps below would then drain an
 # empty list. Measured — with the echoing form, a watchdog kill left both the
 # directory and the `git worktree list` registration behind.
+#
+# ISO_LAST_SEED rides along for the same reason and by the same mechanism: the
+# seeding steps below are the only place that knows a copy failed, and a caller
+# cannot read a variable a subshell set.
 ISO_LAST_WT=""
+ISO_LAST_SEED="seeded"
 iso_create() {
   local skill="$1" base wt patch f d
+  local n_untracked=0 n_untracked_fail=0 first_untracked_fail=""
+  local n_seed=0 n_seed_fail=0 first_seed_fail=""
   ISO_LAST_WT=""
+  ISO_LAST_SEED="seeded"
   base="$(mktemp -d "${TMPDIR:-/tmp}/aai-iso-${skill}.XXXXXX" 2>/dev/null)" || return 1
   [[ -n "$base" && "$base" == /* ]] || return 1
   # SYMLINKS RESOLVED, and this is load-bearing, not tidiness. On macOS $TMPDIR
@@ -293,22 +331,61 @@ iso_create() {
     return 1
   fi
   ISOLATION_BASES+=("$base")
+  # THE THREE SEEDING STEPS. Each one may fail without aborting the run — that
+  # tolerance is deliberate and is KEPT: a single unreadable file in someone's
+  # working tree must not take out every suite. What changes is that the failure
+  # is now named. Every step below branches instead of swallowing, so `|| true`
+  # has become `else say so`.
+  #
+  # STEP 1 — replay the tracked working-tree diff. Two distinct failures, because
+  # they mean different things: the diff could not be CAPTURED (git failed, or the
+  # patch could not be written), and the diff could not be APPLIED. An empty patch
+  # is neither — it means there was no work to do.
   patch="$base/working-tree.patch"
-  if iso_git diff HEAD --binary > "$patch" 2>/dev/null && [[ -s "$patch" ]]; then
-    git -C "$wt" apply --whitespace=nowarn "$patch" >/dev/null 2>&1 \
-      || log_warn "Isolation: could not replay the working-tree diff into '$skill''s disposable checkout — it runs against HEAD, so uncommitted edits are invisible to it"
+  if ! iso_git diff HEAD --binary > "$patch" 2>/dev/null; then
+    iso_seed_fail "the working-tree diff could not be captured"
+    log_warn "Seeding: '$skill' — the working-tree diff could not be captured, so its disposable checkout is plain HEAD and every uncommitted edit is invisible to it"
+  elif [[ -s "$patch" ]] && ! git -C "$wt" apply --whitespace=nowarn "$patch" >/dev/null 2>&1; then
+    iso_seed_fail "the working-tree diff could not be replayed"
+    log_warn "Seeding: '$skill' — the working-tree diff could not be replayed into its disposable checkout, so it runs against HEAD and uncommitted edits are invisible to it"
   fi
+
+  # STEP 2 — the untracked-but-not-ignored files. A brand-new suite file is
+  # exactly this, so a failure here is the one that can remove a suite from its
+  # own checkout. ONE note per suite naming the count and the first offender,
+  # never one per file: 83 suites times N files is a flood, and a flood is the
+  # other way to be unreadable.
   while IFS= read -r -d '' f; do
+    n_untracked=$((n_untracked + 1))
     d="$(dirname "$f")"
-    [[ "$d" == "." ]] || mkdir -p "$wt/$d"
-    cp -p "$PROJECT_ROOT/$f" "$wt/$f" 2>/dev/null || true
+    [[ "$d" == "." ]] || mkdir -p "$wt/$d" 2>/dev/null || true
+    if ! cp -p "$PROJECT_ROOT/$f" "$wt/$f" 2>/dev/null; then
+      n_untracked_fail=$((n_untracked_fail + 1))
+      [[ -n "$first_untracked_fail" ]] || first_untracked_fail="$f"
+    fi
   done < <(iso_git ls-files --others --exclude-standard -z 2>/dev/null)
+  if [[ "$n_untracked_fail" -gt 0 ]]; then
+    iso_seed_fail "an untracked file could not be copied into the disposable checkout"
+    log_warn "Seeding: '$skill' — $n_untracked_fail of $n_untracked untracked file(s) could not be copied into its disposable checkout (first: $first_untracked_fail); a brand-new suite lost here is missing from its own checkout"
+  fi
+
+  # STEP 3 — the gitignored per-dev files suites READ. A loss here is the
+  # quietest failure of the three: the suite still runs, finds the file absent,
+  # and turns its assertion into a passing skip.
   for f in $ISOLATION_SEED_PATHS; do
     [[ -f "$PROJECT_ROOT/$f" ]] || continue
+    n_seed=$((n_seed + 1))
     d="$(dirname "$f")"
-    [[ "$d" == "." ]] || mkdir -p "$wt/$d"
-    cp -p "$PROJECT_ROOT/$f" "$wt/$f" 2>/dev/null || true
+    [[ "$d" == "." ]] || mkdir -p "$wt/$d" 2>/dev/null || true
+    if ! cp -p "$PROJECT_ROOT/$f" "$wt/$f" 2>/dev/null; then
+      n_seed_fail=$((n_seed_fail + 1))
+      [[ -n "$first_seed_fail" ]] || first_seed_fail="$f"
+    fi
   done
+  if [[ "$n_seed_fail" -gt 0 ]]; then
+    iso_seed_fail "a seed path could not be copied into the disposable checkout"
+    log_warn "Seeding: '$skill' — $n_seed_fail of $n_seed seed path(s) could not be copied into its disposable checkout (first: $first_seed_fail); a suite that reads one of them degrades to a passing skip"
+  fi
   ISO_LAST_WT="$wt"
 }
 
@@ -410,6 +487,18 @@ ISOLATION_DEGRADED=0
 # is a supported host and `local -a x=()` with `${#x[@]}` under `set -u` is a
 # hard error there.
 ISOLATION_REASONS=""
+# Seeding accounting (spec-a-half-seeded-checkout-says-it-is-isolated). The
+# SECOND axis, and deliberately not folded into the first: `isolated` says the
+# suite ran in a disposable tree, which stays TRUE when that tree was only half
+# built. These three say whether it was completely built. Same shape as the two
+# above — one per-suite status, ONE increment site, an invariant the summary
+# CHECKS: SEEDING_SEEDED + SEEDING_PARTIAL + SEEDING_SKIPPED == TOTAL_TESTS.
+# `skipped` is a real state with its own name rather than an absent line: no
+# checkout was made, so there was nothing to seed.
+SEEDING_SEEDED=0
+SEEDING_PARTIAL=0
+SEEDING_SKIPPED=0
+SEEDING_REASONS=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -578,10 +667,19 @@ run_test() {
   # this block — the alternative (a counter bumped at each degrade path) breaks
   # the isolated + degraded == total invariant the ledger is read by the first
   # time two paths fire for one suite.
+  #
+  # The SEEDING verdict rides in the same block and is assigned the moment a
+  # checkout EXISTS — before the "is the suite in it" question below, not after.
+  # That ordering is the whole reason the denominator is TOTAL_TESTS: a failed
+  # untracked copy is what REMOVES a brand-new suite from its own checkout, so
+  # the degrade path below and a partial seed are the same event seen twice. A
+  # seeding denominator of "isolated suites" would drop exactly that case.
   local iso_base="" iso_root="$PROJECT_ROOT" iso_target="$test_file" iso_rel
   local iso_status="isolated" iso_status_why=""
+  local seed_status="skipped"
   if [[ "$ISOLATION_ENABLED" == "true" ]]; then
     if iso_create "$skill_name" && [[ -n "$ISO_LAST_WT" ]]; then
+      seed_status="$ISO_LAST_SEED"
       iso_base="$(dirname "$ISO_LAST_WT")"
       iso_rel="${test_file#"$PROJECT_ROOT"/}"
       if [[ -f "$ISO_LAST_WT/$iso_rel" ]]; then
@@ -613,6 +711,15 @@ run_test() {
   else
     ISOLATION_ISOLATED=$((ISOLATION_ISOLATED + 1))
   fi
+  # The seeding axis's ONE increment site, beside the isolation one and for the
+  # same reason. Every failing step assigns `partial` and counts nothing, so a
+  # suite that failed two steps is still one increment. The `*` arm is `skipped`
+  # rather than an error: it is the state of a suite that never got a checkout.
+  case "$seed_status" in
+    seeded)  SEEDING_SEEDED=$((SEEDING_SEEDED + 1)) ;;
+    partial) SEEDING_PARTIAL=$((SEEDING_PARTIAL + 1)) ;;
+    *)       SEEDING_SKIPPED=$((SEEDING_SKIPPED + 1)) ;;
+  esac
 
   if [[ "$VERBOSE" == "true" ]]; then
     ( [[ -z "$iso_base" ]] || cd "$iso_root"; bash "$iso_target" ) 2>&1 | tee "$log_file" || exit_code=$?
@@ -911,6 +1018,24 @@ generate_summary() {
     log_warn "Isolation: ACCOUNTING BROKEN — $ISOLATION_ISOLATED + $ISOLATION_DEGRADED does not equal $TOTAL_TESTS. Some suite ran without being classified; treat both numbers above as unreliable."
   fi
 
+  # Seeding accounting — the SECOND axis, in the same three-part shape: a warning
+  # only when there is something to warn about, then an UNCONDITIONAL accounting
+  # line, then the invariant CHECKED rather than assumed. `isolated` above and
+  # `fully seeded` here answer two different questions, and a run can be 81/81 on
+  # the first and 0/81 on the second.
+  # Report-only by design: nothing here touches FAILED_TESTS or the exit code
+  # (spec section "Why an incomplete seed does not fail the run").
+  if [[ $SEEDING_PARTIAL -gt 0 ]]; then
+    local seed_reasons_shown="$SEEDING_REASONS"
+    [[ -n "$seed_reasons_shown" ]] \
+      || seed_reasons_shown="(none recorded — a seeding step failed without naming its reason; this is a defect in the framework, not in the suite)"
+    log_warn "Seeding: $SEEDING_PARTIAL suite(s) ran in a PARTLY SEEDED disposable checkout — the isolation held, but content they may read never arrived, so a failure can be unrelated to the suite and a pass can be an assertion that skipped itself. Reason(s): $seed_reasons_shown"
+  fi
+  log "Seeding: $SEEDING_SEEDED/$TOTAL_TESTS suite(s) fully seeded; $SEEDING_PARTIAL partial; $SEEDING_SKIPPED skipped"
+  if [[ $(( SEEDING_SEEDED + SEEDING_PARTIAL + SEEDING_SKIPPED )) -ne "$TOTAL_TESTS" ]]; then
+    log_warn "Seeding: ACCOUNTING BROKEN — $SEEDING_SEEDED + $SEEDING_PARTIAL + $SEEDING_SKIPPED does not equal $TOTAL_TESTS. Some suite ran without being classified; treat all three numbers above as unreliable."
+  fi
+
   log ""
   log "Results saved to: $RUN_DIR"
 
@@ -949,19 +1074,22 @@ EOF
   # Record in project metrics.
   #
   # `suites_isolated` / `suites_degraded` carry the same two numbers as the
-  # summary line for this RUN_ID, so the claim survives the scrollback. There is
+  # summary line for this RUN_ID, and `suites_seeded` / `suites_partly_seeded` /
+  # `suites_seed_skipped` the same three from the seeding line, so both claims
+  # survive the scrollback. There is
   # deliberately NO probe-state sentinel: iso_probe runs in main() before
   # discovery and this append runs only after the suite loop, so no record can
   # exist without a completed probe behind it. What a reader checks instead is
-  # the invariant suites_isolated + suites_degraded == total.
+  # the invariant suites_isolated + suites_degraded == total, and its seeding
+  # twin suites_seeded + suites_partly_seeded + suites_seed_skipped == total.
   #
   # NOT tripwire-covered, and that is pre-existing: this append writes to the
   # TRACKED docs/ai/tests/test-runs.jsonl AFTER the last suite's tripwire
   # snapshot, so the tripwire is structurally blind to it
-  # (fu-framework-appends-tracked-testruns). The two new fields ride on that
-  # write; they add no new one.
+  # (fu-framework-appends-tracked-testruns). All five accounting fields ride on
+  # that one write; they add no new one.
   if [[ -d "$PROJECT_ROOT/docs/ai/tests" ]] || mkdir -p "$PROJECT_ROOT/docs/ai/tests" 2>/dev/null; then
-    echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"skill_test\",\"run_id\":\"$RUN_ID\",\"total\":$TOTAL_TESTS,\"passed\":$PASSED_TESTS,\"failed\":$FAILED_TESTS,\"skipped\":$SKIPPED_TESTS,\"suites_isolated\":$ISOLATION_ISOLATED,\"suites_degraded\":$ISOLATION_DEGRADED}" >> "$PROJECT_ROOT/docs/ai/tests/test-runs.jsonl"
+    echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"skill_test\",\"run_id\":\"$RUN_ID\",\"total\":$TOTAL_TESTS,\"passed\":$PASSED_TESTS,\"failed\":$FAILED_TESTS,\"skipped\":$SKIPPED_TESTS,\"suites_isolated\":$ISOLATION_ISOLATED,\"suites_degraded\":$ISOLATION_DEGRADED,\"suites_seeded\":$SEEDING_SEEDED,\"suites_partly_seeded\":$SEEDING_PARTIAL,\"suites_seed_skipped\":$SEEDING_SKIPPED}" >> "$PROJECT_ROOT/docs/ai/tests/test-runs.jsonl"
   fi
 }
 

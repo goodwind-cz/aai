@@ -1031,6 +1031,429 @@ test_107_the_wrapper_reports_its_own_isolation_status() {
     || log_fail "TEST-107 the wrapper reports its own isolation status"
 }
 
+# ===========================================================================
+# TEST-108..113 (spec-a-half-seeded-checkout-says-it-is-isolated)
+#
+# TEST-101..107 above prove a run says whether isolation ARMED. These prove it
+# says whether the disposable checkout was completely BUILT — the same "nothing
+# counts it" defect one axis over. `isolated` stays TRUE for a half-seeded run
+# and every arm below asserts that it does, because folding the two together
+# would make the word untrue and would make a future CI grep on `degraded` fire
+# where nothing could reach the shipping repository.
+#
+# Numbered from 108 so SPEC-0138's and SPEC-0144's ids are untouched.
+#
+# THE LEVERS ARE REAL, never a mutation of the fixture's framework copy (SPEC-0144
+# D2's rule). All three were measured on git 2.50.1 before being used here:
+#   step 1  a smudge-only `filter` attribute (no `clean`) makes the worktree
+#           checkout differ from the index, so the working-tree patch cannot
+#           apply — `error: … patch does not apply`, rc 1. The git-lfs shape.
+#           Rejected alternatives: a file-to-directory swap (measured — git apply
+#           SUCCEEDS, so it proves nothing) and a post-checkout hook chmodding
+#           the checkout read-only (works, rc 128, but it breaks steps 2 and 3 in
+#           the same run and so cannot isolate step 1).
+#   steps   a `chmod 000` source file. `git ls-files --others` and `test -f` only
+#   2 + 3   stat, so the file is still SELECTED for copying, and `cp -p` then
+#           cannot read it (measured rc 1).
+#
+# AND EVERY FIXTURE GIVES ALL THREE STEPS GENUINE WORK. On the real repository
+# step 2 copies ZERO files today, so a lever that "breaks" a no-op proves
+# nothing: each fixture commits a baseline and THEN creates an uncommitted
+# tracked edit, an untracked file and a gitignored seed file. TEST-108 asserts
+# all three ARRIVED inside the checkout, so the control is a proof of work rather
+# than an absence of noise, and TEST-109/110/111 each assert their own artifact
+# did NOT arrive, so the lever is proven to have removed content and not merely
+# to have printed a warning.
+
+# seed_status_fixture <dir> <evid> <mode> [t_one_exit] — a committed fixture repo
+# with two suites, real work at all three seeding steps, and the lever for <mode>
+# armed. <mode> is clean | step1 | step2 | step3.
+#
+# The t-one suite reports what it can SEE from inside its own checkout, which is
+# what turns every arm below from "a warning was printed" into "content was lost".
+seed_status_fixture() {
+  local d="$1" evid="$2" mode="$3" t_one_exit="${4:-0}"
+  build_framework_repo "$d"
+  printf 'tests/skills/results/\ndocs/ai/tests/test-runs.jsonl\ndocs/ai/STATE.yaml\n' > "$d/.gitignore"
+  # The step-1 lever, committed so the disposable checkout inherits it.
+  [[ "$mode" == "step1" ]] && printf 'tracked.txt filter=mangle\n' > "$d/.gitattributes"
+  write_fixture_suite "$d" t-one "
+tail -n 1 \"\$R/tracked.txt\" > '$evid/saw-tracked.txt' 2>/dev/null || : > '$evid/saw-tracked.txt'
+cat \"\$R/untracked-seed.txt\" > '$evid/saw-untracked.txt' 2>/dev/null || : > '$evid/saw-untracked.txt'
+cat \"\$R/docs/ai/STATE.yaml\" > '$evid/saw-seed.txt' 2>/dev/null || : > '$evid/saw-seed.txt'
+echo one
+exit $t_one_exit"
+  write_fixture_suite "$d" t-two 'echo two; exit 0'
+  commit_fixture_repo "$d" || return 1
+  # A smudge with no clean: the checkout's copy differs from the index, so the
+  # patch generated against the index cannot apply to it.
+  [[ "$mode" == "step1" ]] && git -C "$d" config filter.mangle.smudge 'sed s/baseline/MANGLED/'
+  # STEP 1 has work: an uncommitted edit to a tracked file.
+  printf 'baseline\nedited-in-the-working-tree\n' > "$d/tracked.txt"
+  # STEP 2 has work: an untracked, not-ignored file.
+  printf 'untracked payload\n' > "$d/untracked-seed.txt"
+  # STEP 3 has work: a gitignored per-dev file, named through the seed list.
+  mkdir -p "$d/docs/ai"
+  printf 'marker-42\n' > "$d/docs/ai/STATE.yaml"
+  return 0
+}
+
+# seed_run <fixture> [extra env assignments...] — every fixture run states
+# AAI_TEST_ISOLATION and AAI_TEST_ISOLATION_SEED explicitly. Inheriting either is
+# the filed defect `fu-isolation-suite-not-hermetic`: with AAI_TEST_ISOLATION=0
+# exported (a legitimate operator action) an arm that inherited it would measure
+# a run that never took the path it names.
+seed_run() {
+  AAI_TEST_ISOLATION=1 AAI_TEST_ISOLATION_SEED='docs/ai/STATE.yaml' \
+    bash "$1/tests/skills/test-framework.sh" 2>&1 | strip_ansi
+}
+
+# seed_summary_line <output> — the ONE unconditional accounting line, matched by
+# SHAPE so a line that exists but has stopped carrying numbers fails loudly.
+seed_summary_line() {
+  grep -E 'Seeding: [0-9]+/[0-9]+ suite\(s\) fully seeded; [0-9]+ partial; [0-9]+ skipped' <<<"$1" | tail -n 1
+}
+
+# seed_expect_counts <label> <output> <seeded> <total> <partial> <skipped>
+# Vacuity-guarded both ways: an ABSENT line fails, and a line whose numbers
+# differ fails naming both.
+seed_expect_counts() {
+  local label="$1" out="$2"
+  local want="Seeding: $3/$4 suite(s) fully seeded; $5 partial; $6 skipped"
+  local got
+  got="$(seed_summary_line "$out")"
+  if [[ -z "$got" ]]; then
+    log_info "$label: NO seeding accounting line in the summary at all (the line must print on EVERY run, including the all-clear)"
+    return 1
+  fi
+  if [[ "$got" != *"$want" ]]; then
+    log_info "$label: summary said [$got], want a line ending [$want]"
+    return 1
+  fi
+  return 0
+}
+
+# seed_make_unreadable <path> <label> — arm the steps 2/3 lever, and refuse to
+# pretend when it is unavailable. chmod denies nothing to root, so an arm that
+# assumed it worked would measure a perfectly seeded run and call it a bug. Same
+# shape as TEST-004(d)'s missing-perl branch: NOT COVERED, never a false green.
+seed_make_unreadable() {
+  chmod 000 "$1" 2>/dev/null
+  if cat "$1" >/dev/null 2>&1; then
+    log_info "$2: '$1' is still readable after chmod 000 — this user is not denied by file mode (running as root?), so no copy can be made to fail; NOT COVERED on this machine"
+    return 1
+  fi
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# TEST-108 (Spec-AC-01, Spec-AC-03) — THE UNMUTATED CONTROL, on a fixture where
+# every seeding step HAS WORK TO DO. It asserts the work was actually done — the
+# uncommitted edit, the untracked file and the gitignored seed file are all read
+# back from inside the disposable checkout — and then that the run says so, on a
+# line that prints when nothing went wrong.
+# ---------------------------------------------------------------------------
+test_108_the_fully_seeded_run_states_its_seeding_status() {
+  local d evid out rc=0 ok=1
+  d="$(new_fixture)" || return
+  evid="$(new_fixture)" || return
+  seed_status_fixture "$d" "$evid" clean || { log_fail "TEST-108 fixture repo init failed"; return; }
+
+  # The fixture must really have work at all three steps, or the control is a
+  # statement about three no-ops.
+  git -C "$d" diff HEAD --quiet \
+    && { log_info "TEST-108: the fixture has an EMPTY working-tree diff, so seeding step 1 had nothing to do and the control proves nothing"; ok=0; }
+  [[ -n "$(git -C "$d" ls-files --others --exclude-standard)" ]] \
+    || { log_info "TEST-108: the fixture has NO untracked files, so seeding step 2 had nothing to do and the control proves nothing"; ok=0; }
+  git -C "$d" check-ignore -q docs/ai/STATE.yaml \
+    || { log_info "TEST-108: the fixture's seed path is not gitignored, so step 3 is not the step that carries it and the control proves nothing"; ok=0; }
+
+  out="$(seed_run "$d")" || rc=$?
+
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-108: framework exit=$rc (want 0): $out"; ok=0; }
+  grep -qE 'Passed: +2 \(100%\)' <<<"$out" \
+    || { log_info "TEST-108: the fixture suites did not all run and pass: $out"; ok=0; }
+  # THE PROOF OF WORK: all three seeded artifacts arrived in the checkout.
+  [[ "$(cat "$evid/saw-tracked.txt" 2>/dev/null)" == "edited-in-the-working-tree" ]] \
+    || { log_info "TEST-108: step 1's uncommitted edit did not reach the checkout (suite saw '$(cat "$evid/saw-tracked.txt" 2>/dev/null)')"; ok=0; }
+  [[ "$(cat "$evid/saw-untracked.txt" 2>/dev/null)" == "untracked payload" ]] \
+    || { log_info "TEST-108: step 2's untracked file did not reach the checkout (suite saw '$(cat "$evid/saw-untracked.txt" 2>/dev/null)')"; ok=0; }
+  [[ "$(cat "$evid/saw-seed.txt" 2>/dev/null)" == "marker-42" ]] \
+    || { log_info "TEST-108: step 3's seed path did not reach the checkout (suite saw '$(cat "$evid/saw-seed.txt" 2>/dev/null)')"; ok=0; }
+  seed_expect_counts "TEST-108" "$out" 2 2 0 0 || ok=0
+  iso_expect_counts "TEST-108 (the isolation axis is untouched)" "$out" 2 2 0 || ok=0
+  grep -qF "Seeding: 'aai-t-one' —" <<<"$out" \
+    && { log_info "TEST-108: a fully seeded run emitted a per-suite seeding NOTE: $out"; ok=0; }
+  grep -qF 'PARTLY SEEDED' <<<"$out" \
+    && { log_info "TEST-108: a fully seeded run emitted the partly-seeded WARNING line: $out"; ok=0; }
+  grep -qF 'Seeding: ACCOUNTING BROKEN' <<<"$out" \
+    && { log_info "TEST-108: the seeding accounting invariant did not hold: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-108 a run whose three seeding steps all had work to do proves all three arrived inside the disposable checkout and prints 'Seeding: 2/2 suite(s) fully seeded; 0 partial; 0 skipped' with no NOTE (the unmutated control for TEST-109..111)" \
+    || log_fail "TEST-108 the fully seeded run states its seeding status"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-109 (Spec-AC-01, Spec-AC-02) — SEEDING STEP 1 ALONE: the working-tree diff
+# cannot be replayed. AC-002 lives here as much as AC-001: the isolation line on
+# the SAME run must still read 2/2 isolated, because the suites really did run in
+# a disposable tree. The seeding line carries the whole difference.
+# ---------------------------------------------------------------------------
+test_109_the_unreplayable_diff_is_reported() {
+  local d evid out rc=0 ok=1
+  d="$(new_fixture)" || return
+  evid="$(new_fixture)" || return
+  seed_status_fixture "$d" "$evid" step1 || { log_fail "TEST-109 fixture repo init failed"; return; }
+
+  out="$(seed_run "$d")" || rc=$?
+
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-109: framework exit=$rc (want 0 — a failed seed must not abort the run): $out"; ok=0; }
+  grep -qE 'Passed: +2 \(100%\)' <<<"$out" \
+    || { log_info "TEST-109: the suites did not all run and pass, so the failed seed aborted something it must not: $out"; ok=0; }
+  grep -qF "Seeding: 'aai-t-one' — the working-tree diff could not be replayed" <<<"$out" \
+    || { log_info "TEST-109: step 1's failure was not reported by name: $out"; ok=0; }
+  # THE LOSS IS REAL, not just announced: the uncommitted edit is absent from the
+  # checkout the suite ran in.
+  [[ "$(cat "$evid/saw-tracked.txt" 2>/dev/null)" != "edited-in-the-working-tree" ]] \
+    || { log_info "TEST-109: the uncommitted edit reached the checkout anyway, so the lever did not fire and the arm proves nothing"; ok=0; }
+  seed_expect_counts "TEST-109" "$out" 0 2 2 0 || ok=0
+  grep -qF 'Reason(s): the working-tree diff could not be replayed' <<<"$out" \
+    || { log_info "TEST-109: the summary named no reason, or the wrong one: $out"; ok=0; }
+  # AC-002: isolation is UNCHANGED. The suites ran in a disposable tree; that
+  # stays true however little of the working tree reached it.
+  iso_expect_counts "TEST-109 (isolated must NOT become false)" "$out" 2 2 0 || ok=0
+  # ATTRIBUTION: exactly one step failed, so the arm is testing the step it names.
+  grep -qF 'untracked file(s) could not be copied' <<<"$out" \
+    && { log_info "TEST-109: step 2 also failed, so the arm is not isolating step 1: $out"; ok=0; }
+  grep -qF 'seed path(s) could not be copied' <<<"$out" \
+    && { log_info "TEST-109: step 3 also failed, so the arm is not isolating step 1: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-109 a working-tree diff that cannot be replayed is reported by name, counts every suite partial (0/2 fully seeded; 2 partial; 0 skipped), leaves the isolation line at 2/2 isolated, loses the uncommitted edit for real, and leaves exit 0" \
+    || log_fail "TEST-109 the unreplayable diff is reported"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-110 (Spec-AC-01, Spec-AC-02) — SEEDING STEP 2 ALONE: an untracked file
+# cannot be copied. This is the step that currently copies ZERO files on this
+# repository, and the one whose failure can remove a brand-new suite from its own
+# checkout.
+# ---------------------------------------------------------------------------
+test_110_the_uncopyable_untracked_file_is_reported() {
+  local d evid out rc=0 ok=1
+  d="$(new_fixture)" || return
+  evid="$(new_fixture)" || return
+  seed_status_fixture "$d" "$evid" step2 || { log_fail "TEST-110 fixture repo init failed"; return; }
+  seed_make_unreadable "$d/untracked-seed.txt" "TEST-110" || return
+  [[ -n "$(git -C "$d" ls-files --others --exclude-standard)" ]] \
+    || { log_info "TEST-110: git no longer lists the unreadable file as untracked, so step 2 would never try to copy it"; ok=0; }
+
+  out="$(seed_run "$d")" || rc=$?
+
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-110: framework exit=$rc (want 0 — a failed copy must not abort the run): $out"; ok=0; }
+  grep -qE 'Passed: +2 \(100%\)' <<<"$out" \
+    || { log_info "TEST-110: the suites did not all run and pass, so the failed copy aborted something it must not: $out"; ok=0; }
+  grep -qF "Seeding: 'aai-t-one' — 1 of 1 untracked file(s) could not be copied into its disposable checkout (first: untracked-seed.txt)" <<<"$out" \
+    || { log_info "TEST-110: step 2's failure was not reported with its count and the offending path: $out"; ok=0; }
+  [[ -z "$(cat "$evid/saw-untracked.txt" 2>/dev/null)" ]] \
+    || { log_info "TEST-110: the untracked file reached the checkout anyway ('$(cat "$evid/saw-untracked.txt" 2>/dev/null)'), so the lever did not fire and the arm proves nothing"; ok=0; }
+  seed_expect_counts "TEST-110" "$out" 0 2 2 0 || ok=0
+  grep -qF 'Reason(s): an untracked file could not be copied into the disposable checkout' <<<"$out" \
+    || { log_info "TEST-110: the summary named no reason, or the wrong one: $out"; ok=0; }
+  iso_expect_counts "TEST-110 (isolated must NOT become false)" "$out" 2 2 0 || ok=0
+  grep -qF 'diff could not be replayed' <<<"$out" \
+    && { log_info "TEST-110: step 1 also failed, so the arm is not isolating step 2: $out"; ok=0; }
+  grep -qF 'seed path(s) could not be copied' <<<"$out" \
+    && { log_info "TEST-110: step 3 also failed, so the arm is not isolating step 2: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-110 an untracked file that cannot be copied is reported with its count and its path, counts every suite partial (0/2 fully seeded; 2 partial; 0 skipped), leaves the isolation line at 2/2 isolated, is genuinely absent from the checkout, and leaves exit 0" \
+    || log_fail "TEST-110 the uncopyable untracked file is reported"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-111 (Spec-AC-01, Spec-AC-02) — SEEDING STEP 3 ALONE: a seed path cannot be
+# copied. The quietest of the three: the suite still runs, finds the file absent
+# and turns its assertion into a passing skip, which is what TEST-003 measures
+# from the other direction.
+# ---------------------------------------------------------------------------
+test_111_the_uncopyable_seed_path_is_reported() {
+  local d evid out rc=0 ok=1
+  d="$(new_fixture)" || return
+  evid="$(new_fixture)" || return
+  seed_status_fixture "$d" "$evid" step3 || { log_fail "TEST-111 fixture repo init failed"; return; }
+  git -C "$d" check-ignore -q docs/ai/STATE.yaml \
+    || { log_info "TEST-111: the seed path is not gitignored, so it would arrive through step 2 instead and the arm would test the wrong step"; ok=0; }
+  seed_make_unreadable "$d/docs/ai/STATE.yaml" "TEST-111" || return
+
+  out="$(seed_run "$d")" || rc=$?
+
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-111: framework exit=$rc (want 0 — a failed copy must not abort the run): $out"; ok=0; }
+  grep -qE 'Passed: +2 \(100%\)' <<<"$out" \
+    || { log_info "TEST-111: the suites did not all run and pass, so the failed copy aborted something it must not: $out"; ok=0; }
+  grep -qF "Seeding: 'aai-t-one' — 1 of 1 seed path(s) could not be copied into its disposable checkout (first: docs/ai/STATE.yaml)" <<<"$out" \
+    || { log_info "TEST-111: step 3's failure was not reported with its count and the offending path: $out"; ok=0; }
+  [[ -z "$(cat "$evid/saw-seed.txt" 2>/dev/null)" ]] \
+    || { log_info "TEST-111: the seed path reached the checkout anyway ('$(cat "$evid/saw-seed.txt" 2>/dev/null)'), so the lever did not fire and the arm proves nothing"; ok=0; }
+  seed_expect_counts "TEST-111" "$out" 0 2 2 0 || ok=0
+  grep -qF 'Reason(s): a seed path could not be copied into the disposable checkout' <<<"$out" \
+    || { log_info "TEST-111: the summary named no reason, or the wrong one: $out"; ok=0; }
+  iso_expect_counts "TEST-111 (isolated must NOT become false)" "$out" 2 2 0 || ok=0
+  grep -qF 'diff could not be replayed' <<<"$out" \
+    && { log_info "TEST-111: step 1 also failed, so the arm is not isolating step 3: $out"; ok=0; }
+  grep -qF 'untracked file(s) could not be copied' <<<"$out" \
+    && { log_info "TEST-111: step 2 also failed, so the arm is not isolating step 3: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-111 a seed path that cannot be copied is reported with its count and its path, counts every suite partial (0/2 fully seeded; 2 partial; 0 skipped), leaves the isolation line at 2/2 isolated, is genuinely absent from the checkout, and leaves exit 0" \
+    || log_fail "TEST-111 the uncopyable seed path is reported"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-112 (Spec-AC-03, Spec-AC-04) — a partly seeded run is VISIBLY different
+# from a fully seeded one in all three surfaces, with an exit code that is
+# IDENTICAL. The ledger is the surface that survives the scrollback; a summary
+# line nobody kept is not an answer to "was that CI run completely built".
+# ---------------------------------------------------------------------------
+test_112_partly_seeded_is_visible_but_never_fatal() {
+  local ok=1 outcome
+  for outcome in pass fail; do
+    local d evid_ok evid_bad body_exit want_rc out_ok out_bad rc_ok=0 rc_bad=0
+    local rid_ok rid_bad l_ok l_bad n_s n_p n_k n_total
+    body_exit=0; want_rc=0
+    [[ "$outcome" == "fail" ]] && { body_exit=1; want_rc=1; }
+
+    # Two fixtures rather than two runs of one, because the lever is a property
+    # of the fixture. The ledger file is removed before each run so the arm can
+    # attribute exactly one record: RUN_ID has one-second resolution and two
+    # 2-suite runs routinely share it (measured for TEST-106).
+    d="$(new_fixture)" || return
+    evid_ok="$(new_fixture)" || return
+    seed_status_fixture "$d" "$evid_ok" clean "$body_exit" || { log_fail "TEST-112($outcome) fixture repo init failed"; return; }
+    rm -f "$d/docs/ai/tests/test-runs.jsonl"
+    out_ok="$(seed_run "$d")" || rc_ok=$?
+    rid_ok="$(iso_run_id "$out_ok")"
+    l_ok="$(iso_ledger_line "$d" "${rid_ok:-none}")"
+
+    local d2
+    d2="$(new_fixture)" || return
+    evid_bad="$(new_fixture)" || return
+    seed_status_fixture "$d2" "$evid_bad" step2 "$body_exit" || { log_fail "TEST-112($outcome) partial fixture repo init failed"; return; }
+    seed_make_unreadable "$d2/untracked-seed.txt" "TEST-112($outcome)" || return
+    rm -f "$d2/docs/ai/tests/test-runs.jsonl"
+    out_bad="$(seed_run "$d2")" || rc_bad=$?
+    rid_bad="$(iso_run_id "$out_bad")"
+    l_bad="$(iso_ledger_line "$d2" "${rid_bad:-none}")"
+
+    # THE EXIT CODE IS THE CLAIM: identical in both seeding states, and the value
+    # the suite's own outcome dictates.
+    [[ "$rc_ok" -eq "$want_rc" ]] \
+      || { log_info "TEST-112($outcome): the fully seeded run exited $rc_ok (want $want_rc)"; ok=0; }
+    [[ "$rc_bad" -eq "$want_rc" ]] \
+      || { log_info "TEST-112($outcome): the PARTLY SEEDED run exited $rc_bad (want $want_rc — an incomplete seed must not change the verdict)"; ok=0; }
+
+    # SURFACE 1 — the run's own NOTE lines.
+    grep -qF "Seeding: 'aai-t-one' —" <<<"$out_ok" \
+      && { log_info "TEST-112($outcome) surface 1: the fully seeded run emitted a seeding NOTE: $out_ok"; ok=0; }
+    grep -qF "Seeding: 'aai-t-one' — 1 of 1 untracked file(s) could not be copied" <<<"$out_bad" \
+      || { log_info "TEST-112($outcome) surface 1: the partly seeded run did not say so: $out_bad"; ok=0; }
+    # SURFACE 2 — the summary accounting line, on BOTH runs.
+    seed_expect_counts "TEST-112($outcome) surface 2 seeded" "$out_ok" 2 2 0 0 || ok=0
+    seed_expect_counts "TEST-112($outcome) surface 2 partial" "$out_bad" 0 2 2 0 || ok=0
+    # SURFACE 3 — the ledger record for each run's own run_id.
+    [[ -n "$l_ok" ]] || { log_info "TEST-112($outcome) surface 3: no ledger record for the fully seeded run (run_id=${rid_ok:-<none>})"; ok=0; }
+    [[ -n "$l_bad" ]] || { log_info "TEST-112($outcome) surface 3: no ledger record for the partly seeded run (run_id=${rid_bad:-<none>})"; ok=0; }
+    [[ "$(iso_json_int "$l_ok" suites_seeded)" == "2" && "$(iso_json_int "$l_ok" suites_partly_seeded)" == "0" ]] \
+      || { log_info "TEST-112($outcome) surface 3: the fully seeded run's ledger record does not say so: $l_ok"; ok=0; }
+    [[ "$(iso_json_int "$l_bad" suites_seeded)" == "0" && "$(iso_json_int "$l_bad" suites_partly_seeded)" == "2" ]] \
+      || { log_info "TEST-112($outcome) surface 3: the partly seeded run's ledger record does not say so: $l_bad"; ok=0; }
+    # ...and the invariant the three fields are read by.
+    n_s="$(iso_json_int "$l_bad" suites_seeded)"
+    n_p="$(iso_json_int "$l_bad" suites_partly_seeded)"
+    n_k="$(iso_json_int "$l_bad" suites_seed_skipped)"
+    n_total="$(iso_json_int "$l_bad" total)"
+    [[ -n "$n_s" && -n "$n_p" && -n "$n_k" ]] \
+      || { log_info "TEST-112($outcome): the ledger record is missing one of the three seeding fields: $l_bad"; ok=0; }
+    [[ -n "$n_total" && -n "$n_k" && $((n_s + n_p + n_k)) -eq "$n_total" ]] \
+      || { log_info "TEST-112($outcome): the record breaks seeded+partly_seeded+seed_skipped==total (${n_s:-?} + ${n_p:-?} + ${n_k:-?} != ${n_total:-<absent>}): $l_bad"; ok=0; }
+  done
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-112 a partly seeded run differs from a fully seeded one in the NOTE lines, the summary line and the ledger record, the three ledger fields sum to total, and the exit code stays the suite's own — 0 for a passing suite and 1 for a failing one in BOTH seeding states" \
+    || log_fail "TEST-112 partly seeded is visible but never fatal"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-113 (Spec-AC-05) — the ad hoc funnel reports the same axis in the same
+# three words, so the two funnels cannot be read as disagreeing. It stays SILENT
+# where isolation does not apply, for the reason TEST-107 gives: a status line on
+# every build is a line the operator learns to skip.
+# ---------------------------------------------------------------------------
+test_113_the_wrapper_reports_its_own_seeding_status() {
+  local d evid ok=1 rc=0 err
+  d="$(new_fixture)" || return
+  evid="$(new_fixture)" || return
+  seed_status_fixture "$d" "$evid" clean || { log_fail "TEST-113 fixture repo init failed"; return; }
+  write_fixture_suite "$d" wstatus 'echo wstatus; exit "${1:-0}"'
+
+  # (a) a fully seeded suite run says `seeded`, and the exit code is its own.
+  err="$( ( cd "$d" && AAI_TEST_ISOLATION=1 AAI_TEST_ISOLATION_SEED='docs/ai/STATE.yaml' AAI_FRICTION_CAPTURE=0 \
+      bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wstatus.sh 0 ) 2>&1 >/dev/null )" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-113(a): exit=$rc (want the command's own 0)"; ok=0; }
+  grep -qF 'AAI-SEEDING: seeded' <<<"$err" \
+    || { log_info "TEST-113(a): a fully seeded suite run said nothing about it: $err"; ok=0; }
+  grep -qF 'AAI-ISOLATION: isolated' <<<"$err" \
+    || { log_info "TEST-113(a): the isolation line went missing beside the seeding line: $err"; ok=0; }
+
+  # (b) the same run with an unreadable untracked file says `partial`, names the
+  #     step, and STILL says `isolated` — the two axes are independent, which is
+  #     the whole point of there being two.
+  local d2 evid2 rc2=0 err2
+  d2="$(new_fixture)" || return
+  evid2="$(new_fixture)" || return
+  seed_status_fixture "$d2" "$evid2" step2 || { log_fail "TEST-113(b) fixture repo init failed"; return; }
+  write_fixture_suite "$d2" wstatus 'echo wstatus; exit "${1:-0}"'
+  if seed_make_unreadable "$d2/untracked-seed.txt" "TEST-113(b)"; then
+    err2="$( ( cd "$d2" && AAI_TEST_ISOLATION=1 AAI_TEST_ISOLATION_SEED='docs/ai/STATE.yaml' AAI_FRICTION_CAPTURE=0 \
+        bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wstatus.sh 7 ) 2>&1 >/dev/null )" || rc2=$?
+    [[ "$rc2" -eq 7 ]] || { log_info "TEST-113(b): exit=$rc2 (want the command's own 7 — the wrapper contract is untouched)"; ok=0; }
+    grep -qF 'AAI-SEEDING: partial - an untracked file could not be copied into the disposable checkout' <<<"$err2" \
+      || { log_info "TEST-113(b): a partly seeded suite run did not say so, or named the wrong step: $err2"; ok=0; }
+    grep -qF 'AAI-ISOLATION: isolated' <<<"$err2" \
+      || { log_info "TEST-113(b): a partly seeded run stopped calling itself isolated — the two axes must not be folded together: $err2"; ok=0; }
+  else
+    log_info "TEST-113(b): NOT COVERED on this machine"
+  fi
+
+  # (c) with isolation off there is no checkout, so seeding says `skipped` rather
+  #     than nothing at all.
+  local rc3=0 err3
+  err3="$( ( cd "$d" && AAI_TEST_ISOLATION=0 AAI_TEST_ISOLATION_SEED='docs/ai/STATE.yaml' AAI_FRICTION_CAPTURE=0 \
+      bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wstatus.sh 0 ) 2>&1 >/dev/null )" || rc3=$?
+  [[ "$rc3" -eq 0 ]] || { log_info "TEST-113(c): exit=$rc3 (want 0)"; ok=0; }
+  grep -qF 'AAI-SEEDING: skipped - no disposable checkout was made' <<<"$err3" \
+    || { log_info "TEST-113(c): a run with no checkout said nothing about its seeding: $err3"; ok=0; }
+  grep -qF 'AAI-ISOLATION: degraded' <<<"$err3" \
+    || { log_info "TEST-113(c): the degraded isolation line that explains the skip is missing: $err3"; ok=0; }
+
+  # (d) a NON-suite command and (e) the genuine framework invocation say nothing
+  #     on either axis.
+  local rc4=0 err4
+  err4="$( ( cd "$d" && AAI_TEST_ISOLATION=1 AAI_TEST_ISOLATION_SEED='docs/ai/STATE.yaml' AAI_FRICTION_CAPTURE=0 \
+      bash .aai/scripts/aai-run-tests.sh sh -c 'printf built > seed-status-artifact.txt' ) 2>&1 >/dev/null )" || rc4=$?
+  [[ "$rc4" -eq 0 ]] || { log_info "TEST-113(d): exit=$rc4 (want 0)"; ok=0; }
+  grep -qF 'AAI-SEEDING:' <<<"$err4" \
+    && { log_info "TEST-113(d): a non-suite command reported a seeding status it was never given: $err4"; ok=0; }
+  [[ "$(cat "$d/seed-status-artifact.txt" 2>/dev/null)" == "built" ]] \
+    || { log_info "TEST-113(d): the non-suite command did not run, so the arm proves nothing"; ok=0; }
+
+  local rc5=0 err5
+  err5="$( ( cd "$d" && AAI_TEST_ISOLATION=1 AAI_TEST_ISOLATION_SEED='docs/ai/STATE.yaml' AAI_FRICTION_CAPTURE=0 \
+      bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh ) 2>&1 >/dev/null )" || rc5=$?
+  [[ "$rc5" -eq 0 ]] || { log_info "TEST-113(e): the framework through the wrapper exited $rc5 (want 0)"; ok=0; }
+  grep -qF 'AAI-SEEDING:' <<<"$err5" \
+    && { log_info "TEST-113(e): the wrapper reported a seeding status for the framework, which reports per suite for itself: $err5"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-113 the wrapper says 'seeded' for a fully seeded suite run, 'partial' naming the step when an untracked file cannot be copied (while still saying isolated), 'skipped' when no checkout was made, stays silent for a non-suite command and for the framework invocation, and leaves exit 0 and exit 7 untouched" \
+    || log_fail "TEST-113 the wrapper reports its own seeding status"
+}
+
 main() {
   echo "=== Test: $TEST_NAME (spec-suites-run-in-a-disposable-worktree) ==="
   check_deps
@@ -1047,6 +1470,12 @@ main() {
   test_105_the_ledger_carries_the_same_two_numbers
   test_106_degraded_is_visible_but_never_fatal
   test_107_the_wrapper_reports_its_own_isolation_status
+  test_108_the_fully_seeded_run_states_its_seeding_status
+  test_109_the_unreplayable_diff_is_reported
+  test_110_the_uncopyable_untracked_file_is_reported
+  test_111_the_uncopyable_seed_path_is_reported
+  test_112_partly_seeded_is_visible_but_never_fatal
+  test_113_the_wrapper_reports_its_own_seeding_status
   echo ""
   # Both halves, because either one alone is a lie on some path: FAILED is
   # blind to a subshell failure, and the registry is blind to a machine where
