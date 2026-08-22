@@ -1151,6 +1151,9 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
       if (req.present && req.requirements.length) {
         canonicalTrace.push({
           id, rel: f.rel,
+          // sources travel with the trace: the D3 resolver treats ids derivable
+          // from a canonical doc's own (archived) sources as traceable.
+          sources: Array.isArray(fm.sources) ? fm.sources.map(String) : [],
           requirements: req.requirements.map(r => ({ id: r.id, provenance: r.provenance })),
         });
       }
@@ -1359,6 +1362,26 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
     for (const d of docs) {
       for (const k of [d.id, d.fileId, ...(d.relatedIds ?? [])]) {
         if (k) knownIds.add(String(k));
+      }
+    }
+    // RFC-0011 D3 amendment: a canonical doc's own frontmatter `sources:` are
+    // part of its provenance universe. docs-canon MOVES contributing specs to
+    // docs/_archive/ (excluded from the scan), so a faithful Provenance naming
+    // an archived defining spec could never resolve against scanned ids alone
+    // — every backfilled/merged requirement in a fully canonicalized repo
+    // would be a false "broken-canonical-provenance". Ids derivable from any
+    // canonical doc's sources (filename-extracted, same extractDocIds grammar
+    // as the scan) are therefore known/traceable — the bidirectional archive
+    // back-link guarantees the doc exists.
+    for (const c of canonicalTrace) {
+      for (const src of c.sources ?? []) {
+        const base = String(src).split('/').pop() ?? '';
+        const stem = base.replace(/\.md$/i, '');
+        if (!stem) continue;
+        knownIds.add(stem);
+        const ids = extractDocIds(base, categoryPrefixes);
+        if (ids?.primary) knownIds.add(ids.primary);
+        for (const rid of ids?.related ?? []) knownIds.add(rid);
       }
     }
     for (const c of canonicalTrace) {
