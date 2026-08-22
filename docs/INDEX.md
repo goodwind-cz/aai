@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-22T18:04:14.942Z
+Generated: 2026-08-22T22:56:06.208Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-drain-the-tripwire-known-offender-list | specs | implementing | 5 implementing | docs/specs/SPEC-DRAFT-spec-drain-the-tripwire-known-offender-list.md |
 
 ## Canonical layer (0)
 
@@ -405,9 +406,11 @@ _None._
 | SPEC-0145 | specs | docs/specs/SPEC-0145-spec-a-half-seeded-checkout-says-it-is-isolated.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| drain-the-tripwire-known-offender-list (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-drain-the-tripwire-known-offender-list.md |
 
 ## Deferred (whole-doc) (0)
 

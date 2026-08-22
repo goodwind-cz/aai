@@ -39,7 +39,24 @@ source "$TRIPWIRE_LIB"
 # Known-offender ratchet (D8). The tripwire landed on a tree that ALREADY had
 # four suites writing to the shipping repository, so failing every one of them
 # on day one would have made CI permanently red and the guard unlandable. The
-# four are listed here instead, and the list is a RATCHET: it only shrinks.
+# four were listed here instead, and the list is a RATCHET: it only shrinks.
+#
+# IT IS EMPTY, and that is the point. Disposable-worktree isolation
+# (spec-suites-run-in-a-disposable-worktree) removed the cause; all four suites
+# were then re-measured one at a time through the real framework and none of
+# them writes to the shipping repository any more, so the four entries went
+# and their four registry items were closed against the measurement
+# (spec-drain-the-tripwire-known-offender-list). Every suite is now held to the
+# same rule. The emptiness is not left to good intentions: it is a LENGTH
+# RATCHET, asserted by tests/skills/test-aai-repo-tripwire.sh TEST-014 against a
+# declared maximum of zero. Adding an exemption means raising that maximum, in
+# the same diff as the entry, where a reviewer sees it — the cheapest legal edit
+# keeps the arm alive instead of tempting whoever is in a hurry to delete it.
+#
+# The format below is LIVE CODE, not history. tripwire_allowlist_entry splits on
+# '|' and tripwire_ratchet_init strips two fields to reach the paths, so the
+# parser demands all three fields whether or not an entry exists today. Write a
+# two-field entry and its first path is silently eaten as the registry id.
 #
 # Format, one entry per line:  <suite>|<registry item id>|<path> [<path>...]
 #
@@ -61,11 +78,10 @@ source "$TRIPWIRE_LIB"
 # a suite that skipped (exit 42) or crashed — it told the operator to delete a
 # live entry and close a real defect as fixed. Draining is a convenience, not
 # part of the guard, so it was removed rather than conditioned.
+# The multi-line form is deliberate on an empty table: every arm that needs the
+# ratchet MECHANISM seeds its own entries by inserting lines after this anchor,
+# so collapsing it to `=()` would put those lines outside the array.
 TRIPWIRE_KNOWN_OFFENDERS=(
-  "aai-hitl-propagation|fu-hitl-propagation-writes-real-index|docs/INDEX.md"
-  "aai-metrics|fu-metrics-suite-writes-real-overview|docs/ai/overview.html docs/ai/overview-data.json"
-  "aai-state|fu-state-suite-writes-real-index|docs/INDEX.md"
-  "aai-token-capture|fu-token-capture-writes-overview|docs/ai/overview.html docs/ai/overview-data.json"
 )
 
 # The ratchet's own paths are additionally CONTENT-HASHED around EVERY suite,
@@ -82,7 +98,26 @@ TRIPWIRE_KNOWN_OFFENDERS=(
 # call (Spec-AC-05's pair budget is untouched), and makes Spec-AC-06's "a suite
 # that is not on the list still fails" true for these paths instead of true only
 # until the ratchet fires.
-TRIPWIRE_WATCH_PATHS=()
+#
+# With the table drained this set is EMPTY, so the D7 status-class blind spot is
+# back for those three paths — not because the ratchet still masks them, but
+# because a FAILING suite does not revert its write either, so a second writer
+# of the same path later in the same run still leaves porcelain byte-identical.
+# FIXED here rather than filed, because this scope CAUSED it. Deriving the
+# hashed set from the exemption table coupled two unrelated questions — "which
+# suite is forgiven" and "which path is worth hashing" — so draining the table
+# silently emptied the hash half. The floor below decouples them: these three
+# paths are hashed on every run whether or not anything is exempt. They are the
+# three a suite has ever actually written (the four drained entries named these
+# and nothing else), and they are the ones the D7 status-class blind spot hurts
+# most, because they are regenerated artifacts a second writer can leave
+# byte-identical in porcelain. The table's paths are still added on top.
+TRIPWIRE_ALWAYS_WATCH=(
+  "docs/INDEX.md"
+  "docs/ai/overview.html"
+  "docs/ai/overview-data.json"
+)
+TRIPWIRE_WATCH_PATHS=("${TRIPWIRE_ALWAYS_WATCH[@]}")
 TRIPWIRE_HASH_DEGRADED=false
 
 # tripwire_allowlist_entry <suite> — echoes "<id>|<paths>" for a listed suite,
@@ -130,6 +165,12 @@ tripwire_path_listed() {
 #     compared literally), so the entry exempts less than its author thinks.
 tripwire_ratchet_init() {
   local entry suite paths p seen_suites="" seen_paths="" tw_ri_reglob=false
+  # Seed the dedup set with the always-watch floor, or a table entry naming one
+  # of those three would append it a second time and the path would be hashed
+  # twice per snapshot.
+  for p in "${TRIPWIRE_ALWAYS_WATCH[@]}"; do
+    seen_paths="$seen_paths $p"
+  done
   case $- in
     *f*) ;;
     *) tw_ri_reglob=true; set -f ;;

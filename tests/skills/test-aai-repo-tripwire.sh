@@ -4,7 +4,15 @@
 # (spec-suites-must-not-touch-the-shipping-repo).
 #
 # Covers TEST-001..TEST-012 from
-# docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md.
+# docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md, plus
+# TEST-013 and TEST-014 from
+# docs/specs/SPEC-DRAFT-spec-drain-the-tripwire-known-offender-list.md.
+#
+# The shipped known-offender table is EMPTY (that change drained it), so every
+# arm that needs the ratchet MECHANISM seeds its own entries into its byte copy
+# through inject_ratchet_entries and proves the seeding landed. Two arms read
+# the SHIPPED table on purpose and must not seed: TEST-013 asserts the drained
+# table exempts nobody, and TEST-014 ratchets its length.
 #
 # The tripwire under test lives in .aai/scripts/lib/repo-tripwire.sh and is
 # armed at the two funnels every suite enters through: tests/skills/
@@ -49,6 +57,14 @@ export AAI_TEST_ISOLATION=0
 TRIPWIRE_LIB="$PROJECT_ROOT/.aai/scripts/lib/repo-tripwire.sh"
 FRAMEWORK="$PROJECT_ROOT/tests/skills/test-framework.sh"
 WRAPPER="$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh"
+
+# The maximum number of entries the SHIPPED known-offender table may hold
+# (TEST-014). It is zero: disposable-worktree isolation removed the cause of all
+# four original exemptions and each was re-measured clean before its entry came
+# out. Raising this number is how a new exemption is added — one line, in the
+# same diff as the entry it admits, visible to a reviewer. Lowering it again is
+# the ratchet working. Deleting the arm is not an option this file offers.
+TRIPWIRE_RATCHET_MAX_ENTRIES=0
 
 FAILED=0
 WORKDIRS=()
@@ -113,6 +129,69 @@ build_framework_repo() {
   cp "$TRIPWIRE_LIB" "$d/.aai/scripts/lib/repo-tripwire.sh"
   printf 'baseline\n' > "$d/tracked.txt"
   printf 'tests/skills/results/\ndocs/ai/tests/test-runs.jsonl\n' > "$d/.gitignore"
+}
+
+# inject_ratchet_entries <framework copy> <entry> [<entry>...]
+# Seed known-offender entries into a byte copy's table, at the
+# `TRIPWIRE_KNOWN_OFFENDERS=(` anchor, and PROVE every one of them landed. The
+# shipped table is empty by design, so an arm that needs the ratchet to fire
+# must seed it; an arm whose seeding silently failed would be exercising the
+# drained table and passing for the wrong reason, which is why the read-back
+# below is not optional. Returns non-zero on any failure and logs nothing — the
+# caller owns the message, and log_fail from inside a command substitution never
+# reaches the parent anyway.
+inject_ratchet_entries() {
+  local fw="$1"; shift
+  local ents="$fw.entries.tmp" out="$fw.injected.tmp" entry
+  : > "$ents" || return 1
+  for entry in "$@"; do
+    # The injector writes SHELL SOURCE. A quote or a backslash in an entry would
+    # change what the copy parses, so refuse rather than corrupt the fixture.
+    case "$entry" in
+      *\\*|*'"'*) rm -f "$ents"; return 1 ;;
+    esac
+    printf '  "%s"\n' "$entry" >> "$ents" || { rm -f "$ents"; return 1; }
+  done
+  # getline from a file, not `-v`: awk processes escape sequences in a `-v`
+  # value, so a payload built that way is not the payload that was asked for.
+  awk -v ents="$ents" '
+    { print }
+    /^TRIPWIRE_KNOWN_OFFENDERS=\(/ && !done {
+      while ((getline line < ents) > 0) print line
+      close(ents)
+      done = 1
+    }
+  ' "$fw" > "$out" || { rm -f "$ents" "$out"; return 1; }
+  mv "$out" "$fw" || { rm -f "$ents" "$out"; return 1; }
+  rm -f "$ents"
+  for entry in "$@"; do
+    grep -qF -- "$entry" "$fw" || return 1
+  done
+  return 0
+}
+
+# count_ratchet_entries <framework path>
+# Echo the number of entry lines in that file's TRIPWIRE_KNOWN_OFFENDERS table.
+# Exit 2 when the anchor is missing, 3 when the table is never closed: an
+# UNMEASURABLE table is not a table with nothing in it, and a caller that treats
+# those two the same reports a clean ratchet for a file it could not parse.
+# Pure awk, so there is no bash-3.2 empty-array or `$?`-after-a-pipe hazard, and
+# nothing here logs (it runs inside a command substitution).
+count_ratchet_entries() {
+  awk '
+    /^TRIPWIRE_KNOWN_OFFENDERS=\(/ { inside = 1; anchored = 1; next }
+    inside && /^\)[[:space:]]*$/    { inside = 0; closed = 1; next }
+    inside {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      if (line != "" && line !~ /^#/) n++
+    }
+    END {
+      if (!anchored) exit 2
+      if (!closed) exit 3
+      print n + 0
+    }
+  ' "$1"
 }
 
 commit_fixture_repo() {
@@ -432,13 +511,17 @@ test_007_wrapper_reports_the_same_violation() {
 }
 
 # ---------------------------------------------------------------------------
-# TEST-008 (Spec-AC-06) — the known-offender ratchet, exercised against the
-# SHIPPED allowlist rather than a test-only injection: the fixture suites are
-# named after the real entries (aai-metrics, aai-state, aai-hitl-propagation)
-# and dirty the real paths, so the arm reads the same table CI reads. Three
-# properties in one run: an entry inside its paths warns and does not fail, an
-# entry OUTSIDE its paths still fails, and an unlisted suite still fails
-# (Spec-AC-01 intact). The drain report that used to print STALE for an entry
+# TEST-008 (Spec-AC-06) — the known-offender ratchet MECHANISM. The arm used to
+# read the SHIPPED allowlist, naming its fixture suites after the four real
+# entries; draining that table (spec-drain-the-tripwire-known-offender-list)
+# turned this arm red, which is the correct consequence and not a defect in it.
+# It now seeds the entries it needs into its own byte copy, with fixture-scoped
+# registry ids so nobody mistakes them for live items, and asserts the seeding
+# landed before drawing any conclusion. What is covered is unchanged: the
+# mechanism, not the contents of the shipped file — TEST-014 covers that, from
+# the opposite direction. Three properties in one run: an entry inside its paths
+# warns and does not fail, an entry OUTSIDE its paths still fails, and an
+# unlisted suite still fails (Spec-AC-01 intact). The drain report that used to print STALE for an entry
 # whose suite changed nothing is deleted (D8) — "changed nothing in this run" is
 # also true of a suite that skipped or crashed, so the line told the operator to
 # delete a live entry. NOTHING here asserts that absence: no arm constrains
@@ -455,6 +538,12 @@ test_008_known_offender_ratchet() {
   printf 'index\n' > "$d/docs/INDEX.md"
   printf '<html>\n' > "$d/docs/ai/overview.html"
   printf '{}\n' > "$d/docs/ai/overview-data.json"
+
+  inject_ratchet_entries "$d/tests/skills/test-framework.sh" \
+    "aai-metrics|fu-fixture-metrics-overview|docs/ai/overview.html docs/ai/overview-data.json" \
+    "aai-state|fu-fixture-state-index|docs/INDEX.md" \
+    "aai-hitl-propagation|fu-fixture-hitl-index|docs/INDEX.md" \
+    || { log_fail "TEST-008 could not seed the ratchet entries into the byte copy"; return; }
 
   # On the list, and stays inside the two paths its entry names.
   write_fixture_suite "$d" metrics '
@@ -477,7 +566,8 @@ printf "dirt\n" >> "$R/tracked.txt"
 exit 0'
   # On the list, but writes nothing. It is one of the two suites the
   # attested-clean assertion below counts; nothing here asserts what the run
-  # says ABOUT its unused entry (see the header note).
+  # says ABOUT its unused entry (see the header note on the deleted drain
+  # report).
   write_fixture_suite "$d" hitl-propagation 'echo "clean now"; exit 0'
   write_fixture_suite "$d" t-clean 'echo "clean"; exit 0'
   commit_fixture_repo "$d" || { log_fail "TEST-008 fixture repo init failed"; return; }
@@ -491,7 +581,7 @@ exit 0'
     || { log_info "TEST-008(a): an allowlisted suite inside its paths did not pass with an ALLOWED label: $out"; ok=0; }
   grep -qF "AAI-TRIPWIRE WARNING: test suite 'aai-metrics' changed the shipping repository." <<<"$out" \
     || { log_info "TEST-008(a): no WARNING naming the allowlisted suite: $out"; ok=0; }
-  grep -qF 'allowed by the known-offender ratchet: fu-metrics-suite-writes-real-overview' <<<"$out" \
+  grep -qF 'allowed by the known-offender ratchet: fu-fixture-metrics-overview' <<<"$out" \
     || { log_info "TEST-008(a): the WARNING does not name the registry item: $out"; ok=0; }
   grep -qF 'AAI-TRIPWIRE   changed: docs/ai/overview.html' <<<"$out" \
     || { log_info "TEST-008(a): the WARNING does not name the changed path: $out"; ok=0; }
@@ -502,7 +592,7 @@ exit 0'
   # its paths, never blanket permission for the suite that holds it.
   grep -qE 'aai-state .*FAIL.*\[TRIPWIRE\]' <<<"$out" \
     || { log_info "TEST-008(b): an allowlisted suite dirtying an unlisted path did not fail: $out"; ok=0; }
-  grep -qF "NOTE: 'aai-state' is on the known-offender ratchet (fu-state-suite-writes-real-index) for: docs/INDEX.md" <<<"$out" \
+  grep -qF "NOTE: 'aai-state' is on the known-offender ratchet (fu-fixture-state-index) for: docs/INDEX.md" <<<"$out" \
     || { log_info "TEST-008(b): the failure does not explain which entry was exceeded: $out"; ok=0; }
   grep -qF 'It also changed: stray-from-state.txt' <<<"$out" \
     || { log_info "TEST-008(b): the failure does not name the unlisted path: $out"; ok=0; }
@@ -591,6 +681,9 @@ test_010_unarmed_run_is_labelled_not_failed() {
 # docs/INDEX.md and every later writer of that path — listed or not — used to
 # read clean: a bare PASS and a place in the attested count. Three suites write
 # ONE path in sequence, which is the only order in which the defect appears.
+# Like TEST-008, this arm used to lean on the shipped table and now seeds its
+# own two entries: the shipped table is empty, so a suite it does not seed would
+# simply fail as an unlisted writer and the masking would never be reached.
 # ---------------------------------------------------------------------------
 test_011_ratchet_paths_are_content_watched() {
   local d out rc=0 ok=1 appended
@@ -598,6 +691,11 @@ test_011_ratchet_paths_are_content_watched() {
   build_framework_repo "$d"
   mkdir -p "$d/docs/ai"
   printf 'index\n' > "$d/docs/INDEX.md"
+
+  inject_ratchet_entries "$d/tests/skills/test-framework.sh" \
+    "aai-hitl-propagation|fu-fixture-hitl-index|docs/INDEX.md" \
+    "aai-state|fu-fixture-state-index|docs/INDEX.md" \
+    || { log_fail "TEST-011 could not seed the ratchet entries into the byte copy"; return; }
 
   # Runs first (sort order): on the list, writes its listed path. From here on
   # docs/INDEX.md is ' M' and its status line can no longer move.
@@ -644,9 +742,9 @@ exit 0'
 # this arm. A path field is matched LITERALLY: without `set -f` around the split
 # it is a glob, and `docs/*` would exempt whatever it matches in the framework's
 # working directory. A second entry for one suite is unreachable behind the
-# first-match lookup. This is the one arm that must inject entries, so it edits
-# the byte copy's table and says so; every other ratchet arm reads the shipped
-# table.
+# first-match lookup. Both collisions have to be BUILT, so this arm seeds them —
+# through the same injector TEST-008 and TEST-011 use now that the shipped table
+# is empty.
 # ---------------------------------------------------------------------------
 test_012_ratchet_table_collisions_are_named() {
   local d out rc=0 ok=1
@@ -656,18 +754,11 @@ test_012_ratchet_table_collisions_are_named() {
   printf 'index\n' > "$d/docs/INDEX.md"
   printf '<html>\n' > "$d/docs/ai/overview.html"
 
-  # Inject three entries at the head of the shipped table.
-  local injected="$d/tests/skills/framework-injected.tmp"
-  awk '
-    { print }
-    /^TRIPWIRE_KNOWN_OFFENDERS=\(/ && !done {
-      print "  \"aai-dup-victim|fu-dup-first-entry|docs/INDEX.md\""
-      print "  \"aai-dup-victim|fu-dup-second-entry|docs/ai/overview.html\""
-      print "  \"aai-glob-suite|fu-glob-entry|docs/*\""
-      done = 1
-    }
-  ' "$d/tests/skills/test-framework.sh" > "$injected" && mv "$injected" "$d/tests/skills/test-framework.sh"
-  grep -qF 'fu-dup-second-entry' "$d/tests/skills/test-framework.sh" \
+  # Seed three colliding entries into the byte copy's table.
+  inject_ratchet_entries "$d/tests/skills/test-framework.sh" \
+    "aai-dup-victim|fu-dup-first-entry|docs/INDEX.md" \
+    "aai-dup-victim|fu-dup-second-entry|docs/ai/overview.html" \
+    "aai-glob-suite|fu-glob-entry|docs/*" \
     || { log_fail "TEST-012 could not inject the colliding entries"; return; }
 
   # Covered ONLY by the dead second entry, so it must still fail.
@@ -702,6 +793,152 @@ exit 0'
     || log_fail "TEST-012 ratchet table collisions are named"
 }
 
+# ---------------------------------------------------------------------------
+# TEST-013 (spec-drain-the-tripwire-known-offender-list Spec-AC-02) — the drain
+# BITES. Four suites were exempt because they wrote to the shipping repository;
+# disposable-worktree isolation fixed that and all four were re-measured clean,
+# so the entries came out. This arm is the proof that removing them removed the
+# exemption and not merely the paperwork: a suite carrying a formerly exempt
+# NAME, writing a formerly exempt PATH, against a byte copy of the SHIPPED
+# table, must now fail the run and be named.
+#
+# It deliberately seeds NOTHING. That makes its fixture the one place where an
+# empty shipped table could make the arm pass for the wrong reason, so the
+# vacuity guard below refuses to conclude anything from a byte copy that carries
+# no table at all.
+#
+# The coupling that follows from that is deliberate too: the day someone
+# legitimately raises TRIPWIRE_RATCHET_MAX_ENTRIES, this arm's premise is gone
+# and it reports UNCOVERED rather than passing on a table it is not testing.
+# Adding an exemption therefore costs two edits, in one diff — the number in
+# TEST-014, and whatever this arm has to become. That is the price of an
+# exemption, and it is meant to be paid in front of a reviewer.
+# ---------------------------------------------------------------------------
+test_013_drained_list_exempts_nobody() {
+  local d out rc=0 ok=1
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  mkdir -p "$d/docs/ai"
+  printf 'index\n' > "$d/docs/INDEX.md"
+  printf '<html>\n' > "$d/docs/ai/overview.html"
+
+  # Vacuity guard: no table in the copy means the fixture is broken, not that
+  # the drained table exempts nobody. UNCOVERED fails; it never passes.
+  local shipped_count="" shipped_rc=0
+  shipped_count="$(count_ratchet_entries "$d/tests/skills/test-framework.sh")"
+  shipped_rc=$?
+  if [[ $shipped_rc -ne 0 ]]; then
+    log_fail "TEST-013 UNCOVERED — the byte copy carries no readable TRIPWIRE_KNOWN_OFFENDERS table (count_ratchet_entries exit $shipped_rc), so 'the drained table exempts nobody' was never exercised"
+    return
+  fi
+  if [[ "$shipped_count" -ne 0 ]]; then
+    log_fail "TEST-013 UNCOVERED — the shipped table holds $shipped_count entr(ies), so this arm is not testing a drained table; drain it or fix TEST-014's maximum first"
+    return
+  fi
+
+  write_fixture_suite "$d" hitl-propagation '
+printf "formerly exempt write\n" >> "$R/docs/INDEX.md"
+exit 0'
+  write_fixture_suite "$d" metrics '
+printf "formerly exempt write\n" >> "$R/docs/ai/overview.html"
+exit 0'
+  commit_fixture_repo "$d" || { log_fail "TEST-013 fixture repo init failed"; return; }
+
+  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+
+  [[ "$rc" -eq 1 ]] \
+    || { log_info "TEST-013: framework exit=$rc (want 1 — neither suite is exempt any more): $out"; ok=0; }
+  grep -qE 'aai-hitl-propagation .*FAIL.*\[TRIPWIRE\]' <<<"$out" \
+    || { log_info "TEST-013: a formerly exempt suite writing docs/INDEX.md did not fail: $out"; ok=0; }
+  grep -qE 'aai-metrics .*FAIL.*\[TRIPWIRE\]' <<<"$out" \
+    || { log_info "TEST-013: a formerly exempt suite writing docs/ai/overview.html did not fail: $out"; ok=0; }
+  grep -qF "AAI-TRIPWIRE FAIL: test suite 'aai-hitl-propagation'" <<<"$out" \
+    || { log_info "TEST-013: the violation block does not name aai-hitl-propagation: $out"; ok=0; }
+  grep -qF "AAI-TRIPWIRE FAIL: test suite 'aai-metrics'" <<<"$out" \
+    || { log_info "TEST-013: the violation block does not name aai-metrics: $out"; ok=0; }
+  grep -qF 'tripwire ALLOWED' <<<"$out" \
+    && { log_info "TEST-013: something still reads ALLOWED, so an exemption survived the drain: $out"; ok=0; }
+  grep -qF 'Failed:  2' <<<"$out" \
+    || { log_info "TEST-013: the aggregate does not count both formerly exempt suites as failures: $out"; ok=0; }
+  grep -qF 'Tripwire: 0/2 suite(s) attested clean' <<<"$out" \
+    || { log_info "TEST-013: a formerly exempt writer was folded into the attested-clean count: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-013 with the known-offender table drained, a suite carrying a formerly exempt name and writing a formerly exempt path fails the run and is named, and nothing reads ALLOWED" \
+    || log_fail "TEST-013 the drained list exempts nobody"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-014 (spec-drain-the-tripwire-known-offender-list Spec-AC-04) — a LENGTH
+# RATCHET on the shipped table, not a bare emptiness assertion. At a maximum of
+# zero the two accept exactly the same file, so the choice is not about
+# detection power; it is about which edit the next engineer reaches for. Under a
+# bare "must be empty" arm there is no legal edit that keeps the arm and admits a
+# genuinely needed exemption, so the cheapest path is to delete the arm and the
+# whole class of assertion vanishes silently. Under a ratchet the cheapest path
+# is to raise the maximum by one: the arm survives, the number is in the diff,
+# and the trend is legible. Legible erosion beats a silent hole.
+# ---------------------------------------------------------------------------
+test_014_shipped_ratchet_length_is_ratcheted() {
+  local d="" base_count="" base_rc=0 ctl_count="" ctl_rc=0 shipped_count="" shipped_rc=0
+
+  # Vacuity guard, positive half: prove the counter can SEE entries before any
+  # zero it reports is treated as evidence. A counter that always returns 0
+  # would otherwise make this arm green forever. The assertion is on the DELTA,
+  # not on an absolute 2 — the day the declared maximum is legitimately raised,
+  # a control pinned to an empty shipped table would fail for the wrong reason
+  # and read as a broken counter (measured, first run).
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  base_count="$(count_ratchet_entries "$d/tests/skills/test-framework.sh")"
+  base_rc=$?
+  if [[ $base_rc -ne 0 ]]; then
+    log_fail "TEST-014 UNCOVERED — the counter could not read the byte copy's table before seeding (exit $base_rc), so its positive control cannot be built"
+    return
+  fi
+  inject_ratchet_entries "$d/tests/skills/test-framework.sh" \
+    "aai-ctl-one|fu-ctl-one|docs/INDEX.md" \
+    "aai-ctl-two|fu-ctl-two|docs/ai/overview.html" \
+    || { log_fail "TEST-014 could not seed the counter's positive control"; return; }
+  ctl_count="$(count_ratchet_entries "$d/tests/skills/test-framework.sh")"
+  ctl_rc=$?
+  if [[ $ctl_rc -ne 0 || "$ctl_count" -ne $((base_count + 2)) ]]; then
+    log_fail "TEST-014 UNCOVERED — the entry counter read '$ctl_count' (exit $ctl_rc) from a table that held $base_count entr(ies) before 2 were seeded into it, so any count it reports for the shipped table would prove nothing"
+    return
+  fi
+
+  # Vacuity guard, negative half: prove the UNCOVERED path is reachable. A file
+  # with the anchor removed must be REFUSED, never counted as zero.
+  local noanchor="$d/tests/skills/framework-noanchor.tmp" na_count="" na_rc=0
+  grep -v '^TRIPWIRE_KNOWN_OFFENDERS=($' "$d/tests/skills/test-framework.sh" > "$noanchor" \
+    || { log_fail "TEST-014 could not build the anchorless control"; return; }
+  na_count="$(count_ratchet_entries "$noanchor")"
+  na_rc=$?
+  if [[ $na_rc -eq 0 ]]; then
+    log_fail "TEST-014 UNCOVERED — the entry counter returned success with '$na_count' for a file that has no TRIPWIRE_KNOWN_OFFENDERS anchor; an unmeasurable table would be reported as a clean one"
+    return
+  fi
+
+  # The ratchet itself, against the SHIPPED framework.
+  shipped_count="$(count_ratchet_entries "$FRAMEWORK")"
+  shipped_rc=$?
+  if [[ $shipped_rc -ne 0 ]]; then
+    log_fail "TEST-014 UNCOVERED — the TRIPWIRE_KNOWN_OFFENDERS table in $FRAMEWORK could not be measured (count_ratchet_entries exit $shipped_rc: 2 means no anchor, 3 means no closing paren); the ratchet is not being enforced"
+    return
+  fi
+  if [[ "$shipped_count" -gt "$TRIPWIRE_RATCHET_MAX_ENTRIES" ]]; then
+    log_info "TEST-014: entries over the line:"
+    awk '
+      /^TRIPWIRE_KNOWN_OFFENDERS=\(/ { inside = 1; next }
+      inside && /^\)[[:space:]]*$/    { exit }
+      inside                          { print "    " $0 }
+    ' "$FRAMEWORK"
+    log_fail "TEST-014 the known-offender ratchet went the WRONG WAY: $shipped_count entr(ies) in the shipped table, declared maximum $TRIPWIRE_RATCHET_MAX_ENTRIES. An exemption is added by raising TRIPWIRE_RATCHET_MAX_ENTRIES in this file, in the same diff as the entry, with a registry item id in the entry — never by deleting this arm."
+    return
+  fi
+
+  log_pass "TEST-014 the shipped known-offender table holds $shipped_count entr(ies), at or under the declared maximum of $TRIPWIRE_RATCHET_MAX_ENTRIES, measured by a counter proved able to see 2 seeded entries and to refuse an anchorless file"
+}
+
 main() {
   echo "=== Test: $TEST_NAME (spec-suites-must-not-touch-the-shipping-repo) ==="
   check_deps
@@ -717,6 +954,8 @@ main() {
   test_010_unarmed_run_is_labelled_not_failed
   test_011_ratchet_paths_are_content_watched
   test_012_ratchet_table_collisions_are_named
+  test_013_drained_list_exempts_nobody
+  test_014_shipped_ratchet_length_is_ratcheted
   echo ""
   if [[ $FAILED -eq 0 ]]; then
     echo "All tests passed!"
