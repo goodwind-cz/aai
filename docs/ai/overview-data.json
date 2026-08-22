@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-21T20:23:38.462Z",
+  "generatedAt": "2026-08-22T02:17:23.331Z",
   "project": "aai",
   "counts": {
-    "delivered": 202,
+    "delivered": 203,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "assertions-must-not-die-on-their-own-payload",
+    "ref": "a-run-must-say-whether-isolation-armed",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "assertions-must-not-die-on-their-own-payload",
+      "ref": "a-run-must-say-whether-isolation-armed",
       "type": "intake_change",
       "phase": "code_review"
     },
@@ -24,7 +24,7 @@
       "user_decision": "inline"
     },
     "validation_status": "pass",
-    "review_status": "fail",
+    "review_status": "pass",
     "ticks": [
       {
         "tick": 156,
@@ -79,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "a-run-must-say-whether-isolation-armed",
+      "title": "Change — nothing counts a run in which isolation never armed",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0156-a-run-must-say-whether-isolation-armed.md",
+      "closed_on": "2026-08-22",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0144-spec-a-run-must-say-whether-isolation-armed.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260822T021038Z-a-run-must-say-whether-isolation-armed.md"
+    },
     {
       "ref": "cli-output-survives-a-pipe",
       "title": "Change — CLI output must survive being piped",
@@ -2712,6 +2725,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "a-run-must-say-whether-isolation-armed",
+          "title": "Change — nothing counts a run in which isolation never armed",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0156-a-run-must-say-whether-isolation-armed.md",
+          "closed_on": "2026-08-22",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0144-spec-a-run-must-say-whether-isolation-armed.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260822T021038Z-a-run-must-say-whether-isolation-armed.md"
+        },
         {
           "ref": "cli-output-survives-a-pipe",
           "title": "Change — CLI output must survive being piped",

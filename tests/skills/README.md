@@ -343,8 +343,15 @@ Current coverage:
 Test runs are recorded in `docs/ai/tests/test-runs.jsonl`:
 
 ```jsonl
-{"timestamp":"2026-03-07T08:22:03Z","type":"skill_test","run_id":"test-20260307-082203","total":5,"passed":5,"failed":0,"skipped":0}
+{"timestamp":"2026-03-07T08:22:03Z","type":"skill_test","run_id":"test-20260307-082203","total":5,"passed":5,"failed":0,"skipped":0,"suites_isolated":5,"suites_degraded":0}
 ```
+
+`suites_isolated` / `suites_degraded` are the same two numbers the run's summary
+prints as `Isolation: <I>/<T> suite(s) isolated; <D> degraded`, for the same
+`run_id`. A suite is `degraded` when it ran with the shipping repository as its
+working tree instead of a disposable checkout; `suites_isolated +
+suites_degraded` always equals `total`. This is reporting, not a gate — a
+degraded run does not change the exit code.
 
 This allows tracking test health over time.
 

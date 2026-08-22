@@ -623,6 +623,414 @@ test_006_added_wall_clock_per_suite() {
     || log_fail "TEST-006 added wall clock per suite"
 }
 
+# ===========================================================================
+# TEST-101..107 (spec-a-run-must-say-whether-isolation-armed)
+#
+# The arms above prove isolation WORKS. These prove the run SAYS SO — which is
+# the hard precondition for deleting the tripwire: with the tripwire gone, a run
+# where isolation never armed would otherwise stay green in silence.
+#
+# Numbered from 101 so SPEC-0138's TEST-001..006 keep their ids in this file.
+#
+# The three degrade paths are forced by ENVIRONMENT, never by mutating the
+# fixture's byte copy of the framework. A mutated framework only proves that a
+# mutated framework counts; an unusable TMPDIR and a gitignored suite file make
+# the REAL branches run.
+# ===========================================================================
+
+# HERMETIC BY CONSTRUCTION: every fixture run below states the isolation it
+# needs, `AAI_TEST_ISOLATION=1` as loudly as `=0`. An arm that merely INHERITED
+# the setting is not measuring the path it names — measured on the real
+# repository: with `AAI_TEST_ISOLATION=0` exported (a legitimate operator
+# action, and the very state this scope exists to report), TEST-101/103/104/
+# 105/106/107 all went red while the framework was behaving exactly as
+# designed. The fixture framework is a byte copy, so it reads the same
+# environment this suite was launched with.
+#
+# The SPEC-0138 arms above (TEST-001, TEST-003, TEST-005) have the same
+# exposure and are deliberately NOT touched here — out of this scope's
+# acceptance criteria, filed as `fu-isolation-suite-not-hermetic`.
+
+# iso_status_fixture <dir> — a committed fixture repo with two trivially-passing
+# suites. Everything TEST-101..106 needs and nothing else.
+iso_status_fixture() {
+  local d="$1"
+  build_framework_repo "$d"
+  write_fixture_suite "$d" t-one 'echo one; exit 0'
+  write_fixture_suite "$d" t-two 'echo two; exit 0'
+  commit_fixture_repo "$d"
+}
+
+# iso_summary_line <output> — the ONE unconditional accounting line. Matched by
+# SHAPE, not by a full literal, so the arm fails loudly on a line that exists
+# but has stopped carrying numbers.
+iso_summary_line() {
+  grep -E 'Isolation: [0-9]+/[0-9]+ suite\(s\) isolated; [0-9]+ degraded' <<<"$1" | tail -n 1
+}
+
+# iso_expect_counts <label> <output> <isolated> <total> <degraded>
+# Vacuity-guarded in both directions: an ABSENT line fails (a run that printed
+# nothing must never pass), and a line whose numbers differ fails naming both.
+iso_expect_counts() {
+  local label="$1" out="$2" want="Isolation: $3/$4 suite(s) isolated; $5 degraded"
+  local got
+  got="$(iso_summary_line "$out")"
+  if [[ -z "$got" ]]; then
+    log_info "$label: NO isolation accounting line in the summary at all (the line must print on EVERY run, including the all-clear)"
+    return 1
+  fi
+  if [[ "$got" != *"$want" ]]; then
+    log_info "$label: summary said [$got], want a line ending [$want]"
+    return 1
+  fi
+  return 0
+}
+
+# iso_ledger_line <fixture> <run_id> — the ledger record for exactly this run.
+iso_ledger_line() {
+  grep -F "\"run_id\":\"$2\"" "$1/docs/ai/tests/test-runs.jsonl" 2>/dev/null
+}
+
+# iso_json_int <line> <key> — one integer field out of a one-line JSON record,
+# with no jq dependency. Prints nothing when the key is absent, which is what
+# makes an absent field an assertion failure rather than a silent zero.
+iso_json_int() {
+  local v
+  v="$(sed -E "s/.*\"$2\":([0-9]+).*/\1/" <<<"$1")"
+  [[ "$v" == "$1" ]] && return 0   # no substitution happened: key absent
+  printf '%s\n' "$v"
+}
+
+# iso_run_id <output> — the framework prints its results directory; its
+# basename IS the RUN_ID the ledger record carries.
+iso_run_id() {
+  local d
+  d="$(grep -F 'Results saved to:' <<<"$1" | tail -n 1 | sed -E 's/.*Results saved to: //')"
+  [[ -n "$d" ]] && basename "$d"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-101 (Spec-AC-01, Spec-AC-02) — THE UNMUTATED CONTROL. A run where
+# nothing went wrong still states its isolation status. This is the arm that
+# makes the line's presence a pinned fact: a line that appears only on failure
+# is one a reader learns to expect the absence of, and a machine cannot tell
+# "isolation was fine" from "this build predates the line".
+# ---------------------------------------------------------------------------
+test_101_the_all_clear_run_states_its_isolation_status() {
+  local d out rc=0 ok=1
+  d="$(new_fixture)" || return
+  iso_status_fixture "$d" || { log_fail "TEST-101 fixture repo init failed"; return; }
+
+  out="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-101: framework exit=$rc (want 0): $out"; ok=0; }
+  # Vacuity guard: the suites must actually have run, or "2/2 isolated" is a
+  # statement about a run that never happened.
+  grep -qE 'aai-t-one +PASS' <<<"$out" || { log_info "TEST-101: the fixture suites did not run: $out"; ok=0; }
+  iso_expect_counts "TEST-101" "$out" 2 2 0 || ok=0
+  grep -qF 'runs degraded' <<<"$out" \
+    && { log_info "TEST-101: a clean run emitted a degrade NOTE: $out"; ok=0; }
+  grep -qF 'suite(s) ran degraded' <<<"$out" \
+    && { log_info "TEST-101: a clean run emitted the degraded WARNING line: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-101 an all-clear run prints 'Isolation: 2/2 suite(s) isolated; 0 degraded' with no degrade NOTE and no degraded warning (the unmutated control for TEST-102..104)" \
+    || log_fail "TEST-101 the all-clear run states its isolation status"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-102 (Spec-AC-01, Spec-AC-02) — DEGRADE PATH 1 ALONE: the global probe
+# fails. Forced with AAI_TEST_ISOLATION=0, which is a real probe branch
+# (iso_probe), not a mutation. Every suite must be counted degraded, and the
+# probe's own reason must reach the summary — a count with no reason sends the
+# reader back into the scrollback this line exists to replace.
+# ---------------------------------------------------------------------------
+test_102_the_global_probe_degrade_is_counted() {
+  local d out rc=0 ok=1
+  d="$(new_fixture)" || return
+  iso_status_fixture "$d" || { log_fail "TEST-102 fixture repo init failed"; return; }
+
+  out="$(AAI_TEST_ISOLATION=0 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-102: framework exit=$rc (want 0 — this is reporting, not a gate): $out"; ok=0; }
+  grep -qE 'aai-t-one +PASS' <<<"$out" || { log_info "TEST-102: the fixture suites did not run: $out"; ok=0; }
+  iso_expect_counts "TEST-102" "$out" 0 2 2 || ok=0
+  grep -qF 'Reason(s): AAI_TEST_ISOLATION=0' <<<"$out" \
+    || { log_info "TEST-102: the summary named no reason, or the wrong one: $out"; ok=0; }
+  # ATTRIBUTION: this must be the PROBE path, not one of the per-suite paths.
+  grep -qF 'no disposable checkout could be made' <<<"$out" \
+    && { log_info "TEST-102: the run took the no-checkout path, so this arm is not testing the probe path: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-102 a global probe degrade counts every suite degraded (0/2 isolated; 2 degraded), names AAI_TEST_ISOLATION=0 as the reason, and leaves exit 0" \
+    || log_fail "TEST-102 the global probe degrade is counted"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-103 (Spec-AC-01, Spec-AC-02) — DEGRADE PATH 2 ALONE: iso_create fails.
+# Forced by pointing TMPDIR at a REGULAR FILE, which is the framework's ONLY use
+# of TMPDIR (the mktemp -d in iso_create), so it reaches that function's
+# `|| return 1` and nothing else. The reason must be the no-checkout one,
+# distinguishing this path from TEST-102's.
+# ---------------------------------------------------------------------------
+test_103_the_no_checkout_degrade_is_counted() {
+  local d out rc=0 ok=1 badtmp
+  d="$(new_fixture)" || return
+  iso_status_fixture "$d" || { log_fail "TEST-103 fixture repo init failed"; return; }
+  # A REGULAR FILE, not a missing directory. `mkdtemp` under a file is ENOTDIR
+  # and nothing can turn a file into a directory behind the arm's back — whereas
+  # a merely-absent TMPDIR is racy: measured here, an unrelated node process
+  # sharing the exported TMPDIR created it (leaving a `node-compile-cache`
+  # inside) between the guard and the run, and the arm then measured a perfectly
+  # isolated run and called it a bug.
+  badtmp="$d/tmpdir-is-a-file"
+  printf 'not a directory\n' > "$badtmp"
+  [[ -f "$badtmp" && ! -d "$badtmp" ]] \
+    || { log_info "TEST-103: the unusable TMPDIR is not a plain file, so mktemp could succeed and the arm proves nothing"; ok=0; }
+
+  out="$(TMPDIR="$badtmp" AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-103: framework exit=$rc (want 0): $out"; ok=0; }
+  # Vacuity guard. NOT `<suite> +PASS` on one line: a degraded suite has its
+  # NOTE printed BETWEEN the progress prefix and its result, so the two are on
+  # different lines. Measured here — the single-line form made this arm fail on
+  # a run that was working perfectly.
+  grep -qE 'Passed: +2 \(100%\)' <<<"$out" \
+    || { log_info "TEST-103: the fixture suites did not all run and pass: $out"; ok=0; }
+  iso_expect_counts "TEST-103" "$out" 0 2 2 || ok=0
+  grep -qF "Isolation: 'aai-t-one' runs degraded — no disposable checkout could be made" <<<"$out" \
+    || { log_info "TEST-103: the per-suite no-checkout NOTE did not fire, so this arm is not testing that path: $out"; ok=0; }
+  grep -qF 'Reason(s): no disposable checkout could be made' <<<"$out" \
+    || { log_info "TEST-103: the summary named no reason, or the wrong one: $out"; ok=0; }
+  # ATTRIBUTION: the probe must have SUCCEEDED, or this is TEST-102 again.
+  grep -qF 'every suite runs isolated' <<<"$out" \
+    || { log_info "TEST-103: the probe itself degraded, so this arm is not testing the per-suite path: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-103 a per-suite iso_create failure counts every suite degraded (0/2 isolated; 2 degraded) with the no-disposable-checkout reason, on a run whose probe succeeded" \
+    || log_fail "TEST-103 the no-checkout degrade is counted"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-104 (Spec-AC-01, Spec-AC-02) — DEGRADE PATH 3 ALONE: the suite is not in
+# the disposable checkout. Forced with a gitignored-but-present suite file,
+# which every seeding step misses by construction: discover_tests globs the
+# FILESYSTEM, while the checkout is HEAD (the file is not committed) plus
+# `ls-files --others --exclude-standard` (it is ignored) plus the seed list (it
+# is not on it).
+#
+# This is also the MIXED run, and that is the point: the other two suites stay
+# isolated, so the arm proves the counter is per-suite rather than per-run.
+# ---------------------------------------------------------------------------
+test_104_the_suite_missing_from_the_checkout_is_counted() {
+  local d out rc=0 ok=1
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  write_fixture_suite "$d" t-one 'echo one; exit 0'
+  write_fixture_suite "$d" t-two 'echo two; exit 0'
+  printf 'tests/skills/results/\ndocs/ai/tests/test-runs.jsonl\ntests/skills/test-aai-t-ghost.sh\n' > "$d/.gitignore"
+  write_fixture_suite "$d" t-ghost 'echo ghost; exit 0'
+  commit_fixture_repo "$d" || { log_fail "TEST-104 fixture repo init failed"; return; }
+  git -C "$d" check-ignore -q tests/skills/test-aai-t-ghost.sh \
+    || { log_info "TEST-104: the ghost suite is not gitignored, so it would be seeded and the arm proves nothing"; ok=0; }
+
+  out="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-104: framework exit=$rc (want 0): $out"; ok=0; }
+  # Vacuity guard, same lesson as TEST-103: the degraded suite's NOTE sits
+  # between its progress prefix and its result, so assert discovery and the
+  # aggregate rather than one line.
+  grep -qF 'Found 3 test(s)' <<<"$out" \
+    || { log_info "TEST-104: the ghost suite was not discovered, so nothing could take the missing-from-checkout path: $out"; ok=0; }
+  grep -qE 'Passed: +3 \(100%\)' <<<"$out" \
+    || { log_info "TEST-104: not all three suites ran to a PASS: $out"; ok=0; }
+  iso_expect_counts "TEST-104" "$out" 2 3 1 || ok=0
+  grep -qF "Isolation: 'aai-t-ghost' (tests/skills/test-aai-t-ghost.sh) runs degraded" <<<"$out" \
+    || { log_info "TEST-104: the per-suite NOTE did not name the ghost suite: $out"; ok=0; }
+  grep -qF 'Reason(s): a suite was not in the disposable checkout' <<<"$out" \
+    || { log_info "TEST-104: the summary named no reason, or the wrong one: $out"; ok=0; }
+  # ATTRIBUTION, both directions: the probe succeeded and no OTHER suite degraded.
+  grep -qF 'every suite runs isolated' <<<"$out" \
+    || { log_info "TEST-104: the probe itself degraded, so this arm is not testing the per-suite path: $out"; ok=0; }
+  grep -qF 'no disposable checkout could be made' <<<"$out" \
+    && { log_info "TEST-104: a suite also took the no-checkout path, so two paths fired and the arm is not isolating one: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-104 a suite missing from the disposable checkout is the ONLY one counted degraded on a mixed run (2/3 isolated; 1 degraded), named on its own NOTE line, with the other two still isolated" \
+    || log_fail "TEST-104 the suite missing from the checkout is counted"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-105 (Spec-AC-03) — the run ledger carries the same two numbers as the
+# summary line of the SAME run_id, on a clean run and on a fully degraded one.
+# The ledger is what survives the scrollback; a summary line nobody kept is not
+# an answer to "was that CI run isolated".
+#
+# The ledger file is removed before each run so the arm can assert there is
+# EXACTLY ONE record for the run_id — RUN_ID has one-second resolution, and two
+# runs inside one second would otherwise let the arm read the wrong line.
+# ---------------------------------------------------------------------------
+test_105_the_ledger_carries_the_same_two_numbers() {
+  local ok=1 case_name
+  for case_name in clean degraded; do
+    local d out rc=0 rid line n_iso n_deg n_total want_iso want_deg
+    d="$(new_fixture)" || return
+    iso_status_fixture "$d" || { log_fail "TEST-105($case_name) fixture repo init failed"; return; }
+    rm -f "$d/docs/ai/tests/test-runs.jsonl"
+
+    if [[ "$case_name" == "clean" ]]; then
+      want_iso=2; want_deg=0
+      out="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+    else
+      want_iso=0; want_deg=2
+      out="$(AAI_TEST_ISOLATION=0 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+    fi
+    [[ "$rc" -eq 0 ]] || { log_info "TEST-105($case_name): framework exit=$rc (want 0): $out"; ok=0; }
+    iso_expect_counts "TEST-105($case_name)" "$out" "$want_iso" 2 "$want_deg" || ok=0
+
+    rid="$(iso_run_id "$out")"
+    if [[ -z "$rid" ]]; then
+      log_info "TEST-105($case_name): no run id could be read from the run output, so no ledger claim can be checked: $out"
+      ok=0
+      continue
+    fi
+    line="$(iso_ledger_line "$d" "$rid")"
+    if [[ -z "$line" ]]; then
+      log_info "TEST-105($case_name): NO ledger record for run_id=$rid (the summary line said one thing and the ledger said nothing)"
+      ok=0
+      continue
+    fi
+    [[ "$(wc -l <<<"$line" | tr -d ' ')" == "1" ]] \
+      || { log_info "TEST-105($case_name): $(wc -l <<<"$line") ledger records carry run_id=$rid; the arm cannot attribute one"; ok=0; }
+
+    n_iso="$(iso_json_int "$line" suites_isolated)"
+    n_deg="$(iso_json_int "$line" suites_degraded)"
+    n_total="$(iso_json_int "$line" total)"
+    [[ -n "$n_iso" && -n "$n_deg" ]] \
+      || { log_info "TEST-105($case_name): the ledger record has no suites_isolated/suites_degraded fields: $line"; ok=0; continue; }
+    [[ "$n_iso" == "$want_iso" && "$n_deg" == "$want_deg" ]] \
+      || { log_info "TEST-105($case_name): ledger says isolated=$n_iso degraded=$n_deg, summary says isolated=$want_iso degraded=$want_deg — the two surfaces disagree for run_id=$rid"; ok=0; }
+    [[ -n "$n_total" && $((n_iso + n_deg)) -eq "$n_total" ]] \
+      || { log_info "TEST-105($case_name): the record breaks isolated+degraded==total ($n_iso + $n_deg != ${n_total:-<absent>}): $line"; ok=0; }
+  done
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-105 the run-ledger record for a run's own run_id carries suites_isolated and suites_degraded, they match that run's summary line on a clean and on a fully degraded run, and they sum to total" \
+    || log_fail "TEST-105 the ledger carries the same two numbers"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-106 (Spec-AC-04) — a fully degraded run is VISIBLY different from a
+# fully isolated one in all three surfaces, with an exit code that is
+# IDENTICAL. Report-only is the whole contract here: the moment a degrade can
+# turn a run red, an operator's `AAI_TEST_ISOLATION=0` becomes a gate on the
+# machine rather than a statement about it, and the one suite that sets it on
+# purpose (test-aai-repo-tripwire) would need a carve-out inside the gate.
+# ---------------------------------------------------------------------------
+test_106_degraded_is_visible_but_never_fatal() {
+  local ok=1 outcome
+  for outcome in pass fail; do
+    local d body_exit want_rc out_iso out_deg rc_iso=0 rc_deg=0 rid_iso rid_deg
+    d="$(new_fixture)" || return
+    build_framework_repo "$d"
+    body_exit=0; want_rc=0
+    [[ "$outcome" == "fail" ]] && { body_exit=1; want_rc=1; }
+    write_fixture_suite "$d" t-one "echo one; exit $body_exit"
+    write_fixture_suite "$d" t-two 'echo two; exit 0'
+    commit_fixture_repo "$d" || { log_fail "TEST-106($outcome) fixture repo init failed"; return; }
+
+    # Each run's ledger record is READ while it is the only one on disk. RUN_ID
+    # has one-second resolution, so two runs of a 2-suite fixture routinely
+    # share it; reading both records after both runs matched the degraded record
+    # for BOTH run ids and reported two identical records that never existed.
+    # Measured here.
+    local li ld
+    rm -f "$d/docs/ai/tests/test-runs.jsonl"
+    out_iso="$(AAI_TEST_ISOLATION=1 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc_iso=$?
+    rid_iso="$(iso_run_id "$out_iso")"
+    li="$(iso_ledger_line "$d" "${rid_iso:-none}")"
+    rm -f "$d/docs/ai/tests/test-runs.jsonl"
+    out_deg="$(AAI_TEST_ISOLATION=0 bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc_deg=$?
+    rid_deg="$(iso_run_id "$out_deg")"
+    ld="$(iso_ledger_line "$d" "${rid_deg:-none}")"
+
+    # THE EXIT CODE IS THE CLAIM: same in both isolation states, and the value
+    # the suite's own outcome dictates.
+    [[ "$rc_iso" -eq "$want_rc" ]] \
+      || { log_info "TEST-106($outcome): the isolated run exited $rc_iso (want $want_rc)"; ok=0; }
+    [[ "$rc_deg" -eq "$want_rc" ]] \
+      || { log_info "TEST-106($outcome): the DEGRADED run exited $rc_deg (want $want_rc — degrading isolation must not change the verdict)"; ok=0; }
+
+    # SURFACE 1 — the run's own NOTE lines.
+    grep -qF 'Isolation: every suite runs isolated' <<<"$out_iso" \
+      || { log_info "TEST-106($outcome) surface 1: the isolated run did not say so: $out_iso"; ok=0; }
+    grep -qF 'Isolation: every suite runs degraded (AAI_TEST_ISOLATION=0)' <<<"$out_deg" \
+      || { log_info "TEST-106($outcome) surface 1: the degraded run did not say so: $out_deg"; ok=0; }
+    # SURFACE 2 — the summary accounting line.
+    iso_expect_counts "TEST-106($outcome) surface 2 isolated" "$out_iso" 2 2 0 || ok=0
+    iso_expect_counts "TEST-106($outcome) surface 2 degraded" "$out_deg" 0 2 2 || ok=0
+    # SURFACE 3 — the ledger record, read per run above.
+    [[ -n "$li" ]] || { log_info "TEST-106($outcome) surface 3: no ledger record for the isolated run (run_id=${rid_iso:-<none>})"; ok=0; }
+    [[ -n "$ld" ]] || { log_info "TEST-106($outcome) surface 3: no ledger record for the degraded run (run_id=${rid_deg:-<none>})"; ok=0; }
+    [[ "$(iso_json_int "$li" suites_isolated)" == "2" && "$(iso_json_int "$li" suites_degraded)" == "0" ]] \
+      || { log_info "TEST-106($outcome) surface 3: the isolated run's ledger record does not say so: $li"; ok=0; }
+    [[ "$(iso_json_int "$ld" suites_isolated)" == "0" && "$(iso_json_int "$ld" suites_degraded)" == "2" ]] \
+      || { log_info "TEST-106($outcome) surface 3: the degraded run's ledger record does not say so: $ld"; ok=0; }
+  done
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-106 a fully degraded run differs from a fully isolated one in the NOTE lines, the summary line and the ledger record, while the exit code stays the suite's own — 0 for a passing suite and 1 for a failing one in BOTH isolation states" \
+    || log_fail "TEST-106 degraded is visible but never fatal"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-107 (Spec-AC-05) — the ad hoc funnel says the same two words about
+# itself, so the two funnels cannot be read as disagreeing. And it stays SILENT
+# where isolation does not apply: a build (isolating it would throw the
+# artifact away, TEST-005(d)) and the framework invocation itself (which reports
+# for its own suites, and whose ledger must land in the real tree, TEST-005(f)).
+# A status line on every build is a line the operator learns to skip.
+# ---------------------------------------------------------------------------
+test_107_the_wrapper_reports_its_own_isolation_status() {
+  local d ok=1 rc=0 err
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  write_fixture_suite "$d" wstatus 'echo wstatus; exit "${1:-0}"'
+  commit_fixture_repo "$d" || { log_fail "TEST-107 fixture repo init failed"; return; }
+
+  # (a) an isolated suite run says `isolated`, and the exit code is its own.
+  err="$( ( cd "$d" && AAI_TEST_ISOLATION=1 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wstatus.sh 0 ) 2>&1 >/dev/null )" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-107(a): exit=$rc (want the command's own 0)"; ok=0; }
+  grep -qF 'AAI-ISOLATION: isolated' <<<"$err" \
+    || { log_info "TEST-107(a): an isolated suite run said nothing about it: $err"; ok=0; }
+  grep -qF 'AAI-ISOLATION: degraded' <<<"$err" \
+    && { log_info "TEST-107(a): an isolated suite run ALSO claimed degraded: $err"; ok=0; }
+
+  # (b) the same run with isolation off says `degraded` and names the reason,
+  #     and the exit code is still the command's own — 7, not 0.
+  rc=0
+  err="$( ( cd "$d" && AAI_TEST_ISOLATION=0 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-wstatus.sh 7 ) 2>&1 >/dev/null )" || rc=$?
+  [[ "$rc" -eq 7 ]] || { log_info "TEST-107(b): exit=$rc (want the command's own 7 — the wrapper contract is untouched)"; ok=0; }
+  grep -qF 'AAI-ISOLATION: degraded - AAI_TEST_ISOLATION=0' <<<"$err" \
+    || { log_info "TEST-107(b): a degraded suite run did not say so, or named the wrong reason: $err"; ok=0; }
+
+  # (c) a NON-suite command says nothing: isolation was never meant to cover it.
+  rc=0
+  err="$( ( cd "$d" && AAI_TEST_ISOLATION=1 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh sh -c 'printf built > iso-status-artifact.txt' ) 2>&1 >/dev/null )" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-107(c): exit=$rc (want 0)"; ok=0; }
+  grep -qF 'AAI-ISOLATION:' <<<"$err" \
+    && { log_info "TEST-107(c): a non-suite command reported an isolation status it was never given: $err"; ok=0; }
+  # Vacuity guard: the command must actually have run, or (c) is vacuous.
+  [[ "$(cat "$d/iso-status-artifact.txt" 2>/dev/null)" == "built" ]] \
+    || { log_info "TEST-107(c): the non-suite command did not run, so the arm proves nothing"; ok=0; }
+
+  # (d) the genuine framework invocation says nothing HERE — it reports for its
+  #     own suites, and two funnels reporting one run is how they start to
+  #     disagree.
+  rc=0
+  err="$( ( cd "$d" && AAI_TEST_ISOLATION=1 AAI_FRICTION_CAPTURE=0 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh ) 2>&1 >/dev/null )" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-107(d): the framework through the wrapper exited $rc (want 0)"; ok=0; }
+  grep -qF 'AAI-ISOLATION:' <<<"$err" \
+    && { log_info "TEST-107(d): the wrapper reported an isolation status for the framework, which reports for itself: $err"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-107 the wrapper says 'isolated' for an isolated suite run and 'degraded - AAI_TEST_ISOLATION=0' when it is off, in the framework's own two words, stays silent for a non-suite command and for the framework invocation, and leaves exit 0 and exit 7 untouched" \
+    || log_fail "TEST-107 the wrapper reports its own isolation status"
+}
+
 main() {
   echo "=== Test: $TEST_NAME (spec-suites-run-in-a-disposable-worktree) ==="
   check_deps
@@ -632,6 +1040,13 @@ main() {
   test_004_the_checkout_is_removed_on_every_exit
   test_005_wrapper_isolates_a_suite_run
   test_006_added_wall_clock_per_suite
+  test_101_the_all_clear_run_states_its_isolation_status
+  test_102_the_global_probe_degrade_is_counted
+  test_103_the_no_checkout_degrade_is_counted
+  test_104_the_suite_missing_from_the_checkout_is_counted
+  test_105_the_ledger_carries_the_same_two_numbers
+  test_106_degraded_is_visible_but_never_fatal
+  test_107_the_wrapper_reports_its_own_isolation_status
   echo ""
   # Both halves, because either one alone is a lie on some path: FAILED is
   # blind to a subshell failure, and the registry is blind to a machine where

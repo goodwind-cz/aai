@@ -201,6 +201,19 @@ aai_capture_friction() {
 AAI_ISO_BASE=''
 AAI_ISO_WT=''
 
+# The status this invocation reports for itself, in the SAME two words the
+# framework's summary line uses (spec-a-run-must-say-whether-isolation-armed):
+# `isolated` - the unit ran with its own disposable checkout as its working
+# tree; `degraded` - it ran with the shipping repository as its working tree.
+# The third value is the one the two funnels must not be read as disagreeing
+# about: `not-applicable` covers an invocation isolation was never meant to
+# cover (a build, a generator, and the framework itself, which reports for its
+# own 83 suites and would have its run ledger discarded if this wrapper isolated
+# it). Nothing is printed for that value - a line on every build is a line the
+# operator learns to skip, which is the same defect one surface over.
+AAI_ISO_STATUS='not-applicable'
+AAI_ISO_WHY='the wrapped command is not a suite run'
+
 # aai_iso_deregister <wt> - drop the admin entry for ONE worktree path: the
 # entry a `git worktree prune` would drop for it, and no other. Matched by the
 # `gitdir` file, which holds the path verbatim as it was given to `worktree add`.
@@ -305,9 +318,24 @@ aai_iso_is_suite_run() {
   return 1
 }
 
-if [ "${AAI_TEST_ISOLATION:-1}" != "0" ] && [ -n "$AAI_REPO_ROOT" ] &&
-   git --no-optional-locks -C "$AAI_REPO_ROOT" rev-parse --verify -q HEAD >/dev/null 2>&1 &&
-   aai_iso_is_suite_run "$@"; then
+# THE SUITE-RUN TEST COMES FIRST, and the two environment preconditions are
+# reported branches inside it rather than silent members of one conjunction.
+# The SET of invocations that get isolated is unchanged - all three predicates
+# are side-effect free (`aai_iso_is_suite_run` only reads and `cd`s inside
+# subshells) and a conjunction does not care about order. What changes is that a
+# suite run which is NOT isolated can now say which of the three reasons it was,
+# instead of being indistinguishable from a build.
+if aai_iso_is_suite_run "$@"; then
+ if [ -z "$AAI_REPO_ROOT" ]; then
+  AAI_ISO_STATUS='degraded'
+  AAI_ISO_WHY='no repository root could be resolved'
+ elif [ "${AAI_TEST_ISOLATION:-1}" = "0" ]; then
+  AAI_ISO_STATUS='degraded'
+  AAI_ISO_WHY='AAI_TEST_ISOLATION=0'
+ elif ! git --no-optional-locks -C "$AAI_REPO_ROOT" rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  AAI_ISO_STATUS='degraded'
+  AAI_ISO_WHY="$AAI_REPO_ROOT is not a git checkout with a commit to branch from"
+ else
   AAI_ISO_BASE=$(mktemp -d "${TMPDIR:-/tmp}/aai-iso-wrap.XXXXXX" 2>/dev/null) || AAI_ISO_BASE=''
   # Symlinks resolved, and it is load-bearing: on macOS $TMPDIR lives under
   # /var, a symlink to /private/var, and every .mjs CLI here guards main() with
@@ -323,8 +351,13 @@ if [ "${AAI_TEST_ISOLATION:-1}" != "0" ] && [ -n "$AAI_REPO_ROOT" ] &&
      ! cd "$AAI_ISO_WT"; then
     [ -n "$AAI_ISO_BASE" ] && rm -rf "$AAI_ISO_BASE"
     AAI_ISO_BASE=''
-    echo "AAI-ISOLATION: NOTE - no disposable checkout could be made; the command runs against the shipping repository." >&2
+    # No separate NOTE here any more: this IS the degraded case, and the single
+    # status line printed below says so once, in the shared vocabulary, instead
+    # of twice in two different wordings.
+    AAI_ISO_STATUS='degraded'
+    AAI_ISO_WHY='no disposable checkout could be made'
   else
+    AAI_ISO_STATUS='isolated'
     # A worktree checks out a COMMIT, so without the three steps below the copy
     # is HEAD: uncommitted edits and brand-new untracked suite files would be
     # invisible and a TDD RED could never go red.
@@ -377,7 +410,23 @@ if [ "${AAI_TEST_ISOLATION:-1}" != "0" ] && [ -n "$AAI_REPO_ROOT" ] &&
       ai_i=$((ai_i + 1))
     done
   fi
+ fi
 fi
+
+# The status line, on stderr, exactly once, and only for an invocation isolation
+# was meant to cover. The two words are the framework's two words, so the two
+# funnels cannot be read as disagreeing; the SEEDING notes above are deliberately
+# NOT folded in, because "the working-tree diff could not be replayed" describes
+# an incomplete seed inside a checkout that WAS made - calling that `degraded`
+# would make the word untrue.
+case "$AAI_ISO_STATUS" in
+  isolated)
+    echo "AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree." >&2
+    ;;
+  degraded)
+    echo "AAI-ISOLATION: degraded - $AAI_ISO_WHY; this suite run uses the shipping repository as its working tree." >&2
+    ;;
+esac
 
 # A pass and a failure both reach the removal after the group reap below; a
 # hangup and a Ctrl-C do not, so they are trapped. No EXIT trap: dash runs one
