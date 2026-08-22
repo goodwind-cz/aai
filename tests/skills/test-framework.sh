@@ -247,6 +247,20 @@ iso_probe() {
   fi
 }
 
+# iso_note_reason <reason> — add one reason to the DISTINCT set the summary
+# reports. Membership is tested against the delimited form ('; ' on both sides)
+# so a reason that is a prefix or a substring of another still gets its own
+# entry — "git not found" must not be swallowed by a longer reason containing
+# those words.
+iso_note_reason() {
+  local r="$1"
+  [[ -n "$r" ]] || return 0
+  case "; $ISOLATION_REASONS; " in
+    *"; $r; "*) return 0 ;;
+  esac
+  ISOLATION_REASONS="${ISOLATION_REASONS:+$ISOLATION_REASONS; }$r"
+}
+
 # iso_create <skill> — make a fresh disposable checkout seeded from the working
 # tree and publish it in ISO_LAST_WT, or return 1.
 #
@@ -382,6 +396,20 @@ SKIPPED_TESTS=0
 TRIPWIRE_FAILED=0
 TRIPWIRE_UNATTESTED=0
 TRIPWIRE_ALLOWED=0
+# Isolation accounting (spec-a-run-must-say-whether-isolation-armed). Two
+# counters and a reason set, because "how many suites ran isolated" is the
+# question a reader and a CI check both have to be able to answer AFTER the run,
+# and until now nothing counted it: the degrade paths were log_warn only, so a
+# 1500-line log ended `Passed: 81 (100%)` with isolation off. Every suite lands
+# in exactly one of the two — the invariant the summary line and the run ledger
+# are both read by is ISOLATION_ISOLATED + ISOLATION_DEGRADED == TOTAL_TESTS.
+ISOLATION_ISOLATED=0
+ISOLATION_DEGRADED=0
+# DISTINCT reasons only, joined with '; '. A fully degraded 83-suite run has one
+# reason, not 83 copies of it. A plain string rather than an array: bash 3.2.57
+# is a supported host and `local -a x=()` with `${#x[@]}` under `set -u` is a
+# hard error there.
+ISOLATION_REASONS=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -536,7 +564,14 @@ run_test() {
   # snapshot files and metrics.jsonl all live under RUN_DIR in the real tree
   # (D5), so the operator finds the run ledger where it has always been, while
   # everything the SUITE writes under tests/skills/results/ goes with the copy.
+  # ONE per-suite verdict, and exactly ONE increment site for it below. Every
+  # degrade path assigns iso_status/iso_status_why and nothing else counts, so a
+  # suite cannot be counted twice however many paths a later change adds inside
+  # this block — the alternative (a counter bumped at each degrade path) breaks
+  # the isolated + degraded == total invariant the ledger is read by the first
+  # time two paths fire for one suite.
   local iso_base="" iso_root="$PROJECT_ROOT" iso_target="$test_file" iso_rel
+  local iso_status="isolated" iso_status_why=""
   if [[ "$ISOLATION_ENABLED" == "true" ]]; then
     if iso_create "$skill_name" && [[ -n "$ISO_LAST_WT" ]]; then
       iso_base="$(dirname "$ISO_LAST_WT")"
@@ -548,14 +583,27 @@ run_test() {
         # The seeding missed this suite. Never let that read as a suite
         # failure: `No such file or directory` on a brand-new suite is exactly
         # the silent TDD failure this design exists to avoid.
-        log_warn "Isolation: '$skill_name' ($iso_rel) is not in the disposable checkout — running it against the shipping repository instead"
+        iso_status="degraded"
+        iso_status_why="a suite was not in the disposable checkout"
+        log_warn "Isolation: '$skill_name' ($iso_rel) runs degraded — it is not in the disposable checkout, so it runs against the shipping repository instead"
         iso_destroy "$iso_base"
         ISOLATION_BASES=()
         iso_base=""
       fi
     else
-      log_warn "Isolation: no disposable checkout for '$skill_name' — running it against the shipping repository instead"
+      iso_status="degraded"
+      iso_status_why="no disposable checkout could be made"
+      log_warn "Isolation: '$skill_name' runs degraded — no disposable checkout could be made, so it runs against the shipping repository instead"
     fi
+  else
+    iso_status="degraded"
+    iso_status_why="$ISOLATION_WHY"
+  fi
+  if [[ "$iso_status" == "degraded" ]]; then
+    ISOLATION_DEGRADED=$((ISOLATION_DEGRADED + 1))
+    iso_note_reason "$iso_status_why"
+  else
+    ISOLATION_ISOLATED=$((ISOLATION_ISOLATED + 1))
   fi
 
   if [[ "$VERBOSE" == "true" ]]; then
@@ -827,6 +875,18 @@ generate_summary() {
     log_warn "Tripwire: the count above is CLASS-ONLY for the ratchet's paths — no digest tool on this machine, so a second write to one of them in this run was invisible (D7)"
   fi
 
+  # Isolation accounting, same two-line shape as the tripwire above: a warning
+  # only when there is something to warn about, then an UNCONDITIONAL accounting
+  # line. The unconditional line is the point — a line that appears only on
+  # failure is one a reader learns to expect the absence of, and a machine
+  # cannot tell "isolation was fine" from "this build predates the line".
+  # Report-only by design: nothing here touches FAILED_TESTS or the exit code
+  # (spec section "Why a degraded run does not fail the run").
+  if [[ $ISOLATION_DEGRADED -gt 0 ]]; then
+    log_warn "Isolation: $ISOLATION_DEGRADED suite(s) ran degraded — against the shipping repository, with only the tripwire between them and it. Reason(s): $ISOLATION_REASONS"
+  fi
+  log "Isolation: $ISOLATION_ISOLATED/$TOTAL_TESTS suite(s) isolated; $ISOLATION_DEGRADED degraded"
+
   log ""
   log "Results saved to: $RUN_DIR"
 
@@ -862,9 +922,22 @@ EOF
     echo "  (none)" >> "$RUN_DIR/summary.txt"
   fi
 
-  # Record in project metrics
+  # Record in project metrics.
+  #
+  # `suites_isolated` / `suites_degraded` carry the same two numbers as the
+  # summary line for this RUN_ID, so the claim survives the scrollback. There is
+  # deliberately NO probe-state sentinel: iso_probe runs in main() before
+  # discovery and this append runs only after the suite loop, so no record can
+  # exist without a completed probe behind it. What a reader checks instead is
+  # the invariant suites_isolated + suites_degraded == total.
+  #
+  # NOT tripwire-covered, and that is pre-existing: this append writes to the
+  # TRACKED docs/ai/tests/test-runs.jsonl AFTER the last suite's tripwire
+  # snapshot, so the tripwire is structurally blind to it
+  # (fu-framework-appends-tracked-testruns). The two new fields ride on that
+  # write; they add no new one.
   if [[ -d "$PROJECT_ROOT/docs/ai/tests" ]] || mkdir -p "$PROJECT_ROOT/docs/ai/tests" 2>/dev/null; then
-    echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"skill_test\",\"run_id\":\"$RUN_ID\",\"total\":$TOTAL_TESTS,\"passed\":$PASSED_TESTS,\"failed\":$FAILED_TESTS,\"skipped\":$SKIPPED_TESTS}" >> "$PROJECT_ROOT/docs/ai/tests/test-runs.jsonl"
+    echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"skill_test\",\"run_id\":\"$RUN_ID\",\"total\":$TOTAL_TESTS,\"passed\":$PASSED_TESTS,\"failed\":$FAILED_TESTS,\"skipped\":$SKIPPED_TESTS,\"suites_isolated\":$ISOLATION_ISOLATED,\"suites_degraded\":$ISOLATION_DEGRADED}" >> "$PROJECT_ROOT/docs/ai/tests/test-runs.jsonl"
   fi
 }
 
@@ -881,9 +954,9 @@ main() {
   tripwire_ratchet_init
   iso_probe
   if [[ "$ISOLATION_ENABLED" == "true" ]]; then
-    log "Isolation: every suite runs in a disposable git worktree seeded from the working tree"
+    log "Isolation: every suite runs isolated in a disposable git worktree seeded from the working tree"
   else
-    log_warn "Isolation: DISABLED ($ISOLATION_WHY) — suites run against the shipping repository and only the tripwire stands between them and it"
+    log_warn "Isolation: every suite runs degraded ($ISOLATION_WHY) — against the shipping repository, with only the tripwire between them and it"
   fi
 
   # Discover tests

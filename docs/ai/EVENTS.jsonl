@@ -1851,3 +1851,4 @@
 {"v":1,"ts":"2026-08-21T20:22:55.503Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-assertions-must-not-die-on-their-own-payload","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-21T20:22:55.537Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-assertions-must-not-die-on-their-own-payload","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-21T20:22:55.571Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-assertions-must-not-die-on-their-own-payload","payload":{"commit":"90555fb9cd8b4b1e5770643e87fc4de9eb548cd5"}}
+{"v":1,"ts":"2026-08-21T23:59:22.927Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-a-run-must-say-whether-isolation-armed","payload":{"from":"draft","to":"implementing"}}
