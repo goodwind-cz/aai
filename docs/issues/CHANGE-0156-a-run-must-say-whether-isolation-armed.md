@@ -1,14 +1,16 @@
 ---
 id: a-run-must-say-whether-isolation-armed
-number: null
+number: 156
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-suite-isolation
 links:
-  pr: []
-  commits: []
+  pr:
+    - 273
+  commits:
+    - cf6120946f4c07c27fa7d1db25a9fd49e0dfe4d4
 ---
 
 # Change — nothing counts a run in which isolation never armed

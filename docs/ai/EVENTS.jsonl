@@ -1852,3 +1852,9 @@
 {"v":1,"ts":"2026-08-21T20:22:55.537Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-assertions-must-not-die-on-their-own-payload","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-21T20:22:55.571Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-assertions-must-not-die-on-their-own-payload","payload":{"commit":"90555fb9cd8b4b1e5770643e87fc4de9eb548cd5"}}
 {"v":1,"ts":"2026-08-21T23:59:22.927Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-a-run-must-say-whether-isolation-armed","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-22T02:16:32.292Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"a-run-must-say-whether-isolation-armed","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-22T02:16:32.326Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"a-run-must-say-whether-isolation-armed","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-22T02:16:32.359Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"a-run-must-say-whether-isolation-armed","payload":{"commit":"cf6120946f4c07c27fa7d1db25a9fd49e0dfe4d4"}}
+{"v":1,"ts":"2026-08-22T02:16:32.393Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-a-run-must-say-whether-isolation-armed","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-22T02:16:32.426Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-a-run-must-say-whether-isolation-armed","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-22T02:16:32.463Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-a-run-must-say-whether-isolation-armed","payload":{"commit":"cf6120946f4c07c27fa7d1db25a9fd49e0dfe4d4"}}

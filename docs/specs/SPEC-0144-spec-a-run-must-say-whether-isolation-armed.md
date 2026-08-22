@@ -1,14 +1,16 @@
 ---
 id: spec-a-run-must-say-whether-isolation-armed
 type: spec
-number: null
-status: implementing
+number: 144
+status: done
 ceremony_level: 1
 links:
-  requirement: docs/issues/CHANGE-DRAFT-a-run-must-say-whether-isolation-armed.md
+  requirement: docs/issues/CHANGE-0156-a-run-must-say-whether-isolation-armed.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 273
+  commits:
+    - cf6120946f4c07c27fa7d1db25a9fd49e0dfe4d4
 ---
 
 # Spec — a run must say whether isolation armed
@@ -23,7 +25,7 @@ suite runs. The regression net is the suite that already owns both funnels
 (`tests/skills/test-aai-suite-isolation.sh`), plus the full framework.
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-a-run-must-say-whether-isolation-armed.md
+- Requirement: docs/issues/CHANGE-0156-a-run-must-say-whether-isolation-armed.md
 - Isolation mechanism this reports on: SPEC-0138
   (`spec-suites-run-in-a-disposable-worktree`).
 - The guard this unlocks the removal of, but does NOT remove: SPEC-0137
@@ -50,7 +52,7 @@ suite runs. The regression net is the suite that already owns both funnels
 - Inline review scope: `tests/skills/test-framework.sh`,
   `.aai/scripts/aai-run-tests.sh`,
   `tests/skills/test-aai-suite-isolation.sh`,
-  `docs/specs/SPEC-DRAFT-spec-a-run-must-say-whether-isolation-armed.md`
+  `docs/specs/SPEC-0144-spec-a-run-must-say-whether-isolation-armed.md`
 
 ## The vocabulary, decided once
 

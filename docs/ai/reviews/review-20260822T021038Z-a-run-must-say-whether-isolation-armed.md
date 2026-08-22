@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff 2d1d57c..efdb726 (branch feat/isolation-status-is-reported)
-  spec: docs/specs/SPEC-DRAFT-spec-a-run-must-say-whether-isolation-armed.md
+  spec: docs/specs/SPEC-0144-spec-a-run-must-say-whether-isolation-armed.md
   spec_compliance:
     verdict: pass
     ac_walk:
