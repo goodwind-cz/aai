@@ -1,15 +1,17 @@
 ---
 id: spec-the-tripwire-is-permanent-not-transitional
 type: spec
-number: null
-status: implementing
+number: 148
+status: done
 ceremony_level: 2
 capability: aai-suite-isolation
 links:
-  requirement: docs/issues/CHANGE-DRAFT-the-tripwire-is-permanent-not-transitional.md
+  requirement: docs/issues/CHANGE-0160-the-tripwire-is-permanent-not-transitional.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 281
+  commits:
+    - d83b680d7664d34e04227c88e4da0fb2f32f4cd8
 ---
 
 # Spec — the tripwire is permanent, and the record must say so
@@ -65,7 +67,7 @@ Do not read the raw open count as the observable: it is 16 before this scope and
 (`fu-tripwire-suite-comment-transitional`, D5). The named set is the observable.
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-the-tripwire-is-permanent-not-transitional.md
+- Requirement: docs/issues/CHANGE-0160-the-tripwire-is-permanent-not-transitional.md
 - The frozen spec being corrected: docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md
 - The successor that landed and does not cover the case: docs/specs/SPEC-0138-spec-suites-run-in-a-disposable-worktree.md
 - The two isolation-reporting scopes that cite the removal: docs/specs/SPEC-0144-spec-a-run-must-say-whether-isolation-armed.md, docs/specs/SPEC-0145-spec-a-half-seeded-checkout-says-it-is-isolated.md
@@ -101,7 +103,7 @@ Do not read the raw open count as the observable: it is 16 before this scope and
   docs/issues/CHANGE-0151-suites-must-not-touch-the-shipping-repo.md,
   docs/issues/CHANGE-0156-a-run-must-say-whether-isolation-armed.md,
   docs/issues/CHANGE-0157-a-half-seeded-checkout-says-it-is-isolated.md,
-  docs/specs/SPEC-DRAFT-spec-the-tripwire-is-permanent-not-transitional.md,
+  docs/specs/SPEC-0148-spec-the-tripwire-is-permanent-not-transitional.md,
   and the appended lines of docs/ai/decisions.jsonl
 
 ## The measurement this decision rests on

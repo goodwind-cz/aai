@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-23T17:35:00.126Z",
+  "generatedAt": "2026-08-23T21:23:45.574Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 126,
-    "delivered": 363,
+    "delivered": 365,
     "active_weeks": 8,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (363 closes vs 126 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 363,
-    "delivered_per_week_avg": 45.4,
+    "note": "\"delivered\" counts every work_item_closed event (365 closes vs 126 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 365,
+    "delivered_per_week_avg": 45.6,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -22,7 +22,7 @@
       "2026-W31": 72,
       "2026-W32": 19,
       "2026-W33": 33,
-      "2026-W34": 31
+      "2026-W34": 33
     },
     "delivered_groups": [
       {
@@ -300,7 +300,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 100,
+        "count": 102,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -401,7 +401,9 @@
           "drain-the-tripwire-known-offender-list",
           "spec-drain-the-tripwire-known-offender-list",
           "the-subagent-contract-omits-the-hazards",
-          "spec-the-subagent-contract-omits-the-hazards"
+          "spec-the-subagent-contract-omits-the-hazards",
+          "the-tripwire-is-permanent-not-transitional",
+          "spec-the-tripwire-is-permanent-not-transitional"
         ]
       }
     ],
@@ -1858,12 +1860,20 @@
         {
           "ref": "spec-the-subagent-contract-omits-the-hazards",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "the-tripwire-is-permanent-not-transitional",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-the-tripwire-is-permanent-not-transitional",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3720,
       "mean_seconds": 123756.5,
       "measured": 122,
-      "unmeasurable": 241
+      "unmeasurable": 243
     }
   },
   "speed": {
@@ -3062,7 +3072,7 @@
     },
     {
       "week": "2026-W34",
-      "delivered": 31,
+      "delivered": 33,
       "median_lead_time_seconds": 31385,
       "busy_seconds": 57272,
       "tokens": 6246229,
@@ -3071,7 +3081,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 150,
+    "open_count": 161,
     "oldest_age_days": 12,
     "items": [
       {
@@ -3230,7 +3240,7 @@
         "id": "fu-dispatch-prompt-coaching-bias",
         "ref": "role-verification-guards",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "my role dispatches pre-rank findings and name the pattern to look for, which frames the answer before the role forms one",
         "status": "open"
       },
@@ -3238,7 +3248,7 @@
         "id": "fu-ts-precision-unify-source",
         "ref": "role-verification-guards",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "state-engine.mjs nowIso() truncates ISO timestamps to the second while append-event.mjs keeps milliseconds; orchestration-dispatch.mjs now defends against this at the comparison site (Date.parse + Number.isFinite instants), but the two producers still disagree at the source",
         "status": "open"
       },
@@ -3310,7 +3320,7 @@
         "id": "fu-deslop-suite-additivity-guard",
         "ref": "deslop-corpus-honesty",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "No mechanical guard remains that a pre-existing arm or assertion in tests/skills/test-aai-deslop.sh is not removed: TEST-027 (test_027_suite_stays_green_and_additive) was mechanized four times, failed independent validation four times, and was withdrawn 2026-08-18, taking the suite-additivity clause of Spec-AC-06 with it.",
         "status": "open"
       },
@@ -3318,7 +3328,7 @@
         "id": "fu-close-before-push-ordering",
         "ref": "deslop-corpus-honesty",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "The PR ceremony ordering - run close-work-item.mjs BEFORE the push, not after - is currently only a habit; nothing enforces it, so a ride can push first and then spend a round chasing framework reds that the close would have cleared.",
         "status": "open"
       },
@@ -3518,7 +3528,7 @@
         "id": "fu-parallel-roles-dirty-the-tree",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "dispatching a code review and a validation concurrently makes the review's own report file land in the checkout mid-run, which the tripwire correctly reports as a suite dirtying the shipping repo",
         "status": "open"
       },
@@ -3526,7 +3536,7 @@
         "id": "fu-tripwire-allowed-ignores-pre-dirty",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "the ratchet entry path-subset test compares only paths that MOVED, so an allowlisted suite writing an already-dirty non-ratchet path still reads tripwire ALLOWED inside its listed paths at exit 0",
         "status": "open"
       },
@@ -3534,7 +3544,7 @@
         "id": "fu-tripwire-degrade-not-on-suite-line",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "under the no-hasher degrade a masked writer's own progress line is a bare PASS and metrics.jsonl records tripwire clean with tripwire_attested true; only the two aggregate WARN lines are honest",
         "status": "open"
       },
@@ -3542,7 +3552,7 @@
         "id": "fu-suggested-ids-read-as-filed",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "validation reports list follow-up ids under a 'filed:' key when the role only SUGGESTED them, so the orchestrator relays them as filed and they never enter the ledger",
         "status": "open"
       },
@@ -3550,7 +3560,7 @@
         "id": "fu-tripwire-contract-omits-hash-side",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "the vendor-facing CONTRACT block in repo-tripwire.sh omits aai_tripwire_hash_usable and aai_tripwire_hasher and states no hash-side limit",
         "status": "open"
       },
@@ -3558,7 +3568,7 @@
         "id": "fu-tripwire-unavailable-discards-hash",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "the clean-to-dirty escalation lifts only the 'clean' state, so hash evidence is discarded when tw_state is 'unavailable', and the lost-snapshot block names no paths",
         "status": "open"
       },
@@ -3566,7 +3576,7 @@
         "id": "fu-framework-rundir-same-second",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "tests/skills/test-framework.sh derives RUN_DIR from a second-resolution RUN_ID, so two framework processes started in the same second share one results dir and overwrite each other's per-suite tripwire snapshots",
         "status": "open"
       },
@@ -3574,7 +3584,7 @@
         "id": "fu-tripwire-fixture-dirs-leak",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "tests/skills/test-aai-repo-tripwire.sh new_fixture is always called in a command substitution, so its WORKDIRS+= runs in a subshell and the EXIT trap sees an empty array",
         "status": "open"
       },
@@ -3630,7 +3640,7 @@
         "id": "fu-iso-wroot-string-compare-dead",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "TEST-001 and TEST-005(a)/(c) compare the fixture root as a STRING, so on macOS those sub-assertions can never fire",
         "status": "open"
       },
@@ -3638,7 +3648,7 @@
         "id": "fu-worktree-hook-disarms-later-suites",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "via the shared .git, one suite can arm a failing post-checkout hook that makes git worktree add fail, so every LATER suite in the run executes in the live tree",
         "status": "open"
       },
@@ -3646,7 +3656,7 @@
         "id": "fu-worktree-shares-git-admin-surface",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "a suite in a disposable worktree can still write the shipping repository's refs, .git/config and .git/hooks, because a worktree shares one .git",
         "status": "open"
       },
@@ -3654,7 +3664,7 @@
         "id": "fu-filed-list-trusted-again",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "the orchestrator again treated a role's 'filed:' list as proof a registry entry exists; fu-iso-suite-leaks-its-own-fixture-dirs was cited as filed in a dispatch and in a decision, and grep of decisions.jsonl returns zero",
         "status": "open"
       },
@@ -3662,7 +3672,7 @@
         "id": "fu-iso-bases-reset-discards-entries",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "ISOLATION_BASES=() resets the array WHOLESALE at tests/skills/test-framework.sh (run_test, both the seeding-missed branch and the post-run destroy), discarding any entry it did not create",
         "status": "open"
       },
@@ -3670,7 +3680,7 @@
         "id": "fu-iso-wrapper-traps-dont-reap-group",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "the wrapper's INT/TERM/HUP traps (.aai/scripts/aai-run-tests.sh) call aai_iso_cleanup and exit WITHOUT reaping the wrapped command's process group first",
         "status": "open"
       },
@@ -3678,7 +3688,7 @@
         "id": "fu-ac-flip-must-precede-close",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "the AC Status rows must be flipped to a terminal state BEFORE close-work-item.mjs runs, not after; the orchestrator has been dispatching the opposite order",
         "status": "open"
       },
@@ -3686,7 +3696,7 @@
         "id": "fu-iso-exec-script-basename-only",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "aai_iso_exec_script recognises a shell interpreter by basename only, so 'env bash tests/skills/test-framework.sh' or 'nohup bash ...' treats env/nohup as the executed script and the framework opt-out does not apply",
         "status": "open"
       },
@@ -3694,7 +3704,7 @@
         "id": "fu-adhoc-probes-unisolated-report-only",
         "ref": "registry-audit-20260820",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "aai-run-tests.sh isolates suite runs only, by design, so every generator, build, node one-liner and probe a role runs through the canonical wrapper executes in the shipping tree with a guard that cannot fail the run",
         "status": "open"
       },
@@ -3702,7 +3712,7 @@
         "id": "fu-spec-closes-claim-unverified",
         "ref": "registry-audit-20260820",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "a spec's 'Registry items closed by this scope' line is never checked against the ledger, so a frozen document can claim closures that never happened",
         "status": "open"
       },
@@ -3998,7 +4008,7 @@
         "id": "fu-pgq-scan-evadable-shapes",
         "ref": "assertions-must-not-die-on-their-own-payload",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "pgq_scan misses several real forms of the unsafe idiom: multiline pipelines, grep -F -q flag order, an env-var prefix before grep, an intermediate pipe stage, and every .sh outside the non-recursive tests/skills/*.sh glob (tests/skills/lib/, tests/self-hosting/)",
         "status": "open"
       },
@@ -4006,7 +4016,7 @@
         "id": "fu-ratchet-not-selected-on-rise",
         "ref": "assertions-must-not-die-on-their-own-payload",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "select-suites does not run aai-hygiene-pack when an ordinary suite file gains a pipe-grep-q occurrence, so the new ratchet never gates the PR that violates it",
         "status": "open"
       },
@@ -4014,7 +4024,7 @@
         "id": "fu-payload-needle-unbounded-in-message",
         "ref": "assertions-must-not-die-on-their-own-payload",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "assert_payload_contains bounds the payload at 512 bytes but interpolates the NEEDLE unbounded, so a 5000-byte needle yields a 5040-byte message",
         "status": "open"
       },
@@ -4022,7 +4032,7 @@
         "id": "fu-pgq-baseline-duplicate-row-masks-rise",
         "ref": "assertions-must-not-die-on-their-own-payload",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "pgq_lookup returns the first matching baseline row, so a duplicated row lets a genuine rise be reported as a SHRINK note",
         "status": "open"
       },
@@ -4030,7 +4040,7 @@
         "id": "fu-pgq-scan-silent-on-grep-error",
         "ref": "assertions-must-not-die-on-their-own-payload",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "pgq_scan sends grep stderr to /dev/null and treats a per-file error as count 0, so an unreadable file is reported as an improvement",
         "status": "open"
       },
@@ -4038,7 +4048,7 @@
         "id": "fu-fixture-arg-exceeds-linux-argstrlen",
         "ref": "assertions-must-not-die-on-their-own-payload",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "an oversize test payload passed as a single argv entry fails on Linux with exit 126: MAX_ARG_STRLEN caps ONE argument at 131072 bytes even though ARG_MAX is far larger, and darwin has no such cap",
         "status": "open"
       },
@@ -4046,7 +4056,7 @@
         "id": "fu-sigpipe-code-differs-by-platform",
         "ref": "assertions-must-not-die-on-their-own-payload",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "a writer killed by EPIPE exits 141 on macOS but 1 on Linux when the writer is a bash BUILTIN, because bash reports the builtin's write error instead of dying by the signal",
         "status": "open"
       },
@@ -4080,14 +4090,6 @@
         "severity": "P3",
         "age_days": 1,
         "what": "the wrapper's 'no repository root could be resolved' degrade branch is unreachable, so its comment claims three reportable reasons where only two can fire",
-        "status": "open"
-      },
-      {
-        "id": "fu-tripwire-removal-needs-a-gate",
-        "ref": "a-run-must-say-whether-isolation-armed",
-        "severity": "P2",
-        "age_days": 1,
-        "what": "deleting the tripwire removes the only thing that turns a silently unisolated run red, so the isolation report must become a GATE in the same change that deletes it, never after",
         "status": "open"
       },
       {
@@ -4126,7 +4128,7 @@
         "id": "fu-layer-profiles-sync-idempotence-flake",
         "ref": "a-half-seeded-checkout-says-it-is-isolated",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "test-aai-layer-profiles TEST-004 core sync not idempotent fails intermittently on CI only and passes on a bare re-run of the same commit",
         "status": "open"
       },
@@ -4134,7 +4136,7 @@
         "id": "fu-isolated-suite-reaches-shipping-repo",
         "ref": "retire-the-tripwire-behind-its-replacement",
         "severity": "P1",
-        "age_days": 0,
+        "age_days": 1,
         "what": "a suite can write the shipping WORKING TREE while the run reports isolated, so the degraded gate does not cover the write-capable set",
         "status": "open"
       },
@@ -4142,7 +4144,7 @@
         "id": "fu-wrapper-hidden-suite-run-unreported",
         "ref": "retire-the-tripwire-behind-its-replacement",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "aai-run-tests.sh reports not-applicable and stays SILENT for a real suite run whose command shape hides the suite path, running it in the shipping tree with no isolation line at all",
         "status": "open"
       },
@@ -4272,6 +4274,102 @@
         "severity": "P3",
         "age_days": 0,
         "what": "test_083 pins the Standing hazards section's CONTENT (5 anchors, 5 scars, non-empty, bite proof) but never asserts it precedes '## Result block'; hazards_section() matches the heading anywhere in the file",
+        "status": "open"
+      },
+      {
+        "id": "fu-usage-marker-omission-unfixable",
+        "ref": "the-subagent-contract-omits-the-hazards",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "a run appended without a usage marker cannot be corrected: append-run only appends, STATE hand-edits are forbidden, and the only recovery is toggling usage_capture_gate off and back",
+        "status": "open"
+      },
+      {
+        "id": "fu-pr-number-prediction-races",
+        "ref": "the-subagent-contract-omits-the-hazards",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "close-work-item requires --pr before the PR exists, so the number is predicted as highest+1 and a PR opened by anyone else in that window silently takes it",
+        "status": "open"
+      },
+      {
+        "id": "fu-allowlist-count-is-prose-not-asserted",
+        "ref": "the-subagent-contract-omits-the-hazards",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "TEST-011's path/group count lives only in a log_pass string and a comment, so it goes stale silently on every merge that adds a group and no arm ever notices",
+        "status": "open"
+      },
+      {
+        "id": "fu-empty-path-cd-stays-in-shipping-repo",
+        "ref": "the-subagent-contract-omits-the-hazards",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "a bash local a=1 b=$a chain leaves the second variable empty, so a fixture path computed that way is empty and cd \"\" silently stays in the shipping repository",
+        "status": "open"
+      },
+      {
+        "id": "fu-tripwire-suite-comment-transitional",
+        "ref": "the-tripwire-is-permanent-not-transitional",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "tests/skills/test-aai-repo-tripwire.sh lines 529-531 still justify an uncovered arm with the withdrawn claim that the ratchet is transitional and goes once suites run in a disposable worktree",
+        "status": "open"
+      },
+      {
+        "id": "fu-decisions-supersede-unenforced",
+        "ref": "the-tripwire-is-permanent-not-transitional",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "docs/ai/decisions.jsonl has no supersede mechanism: nothing marks a withdrawn hitl_decision and no check verifies that a superseding entry carries supersedes plus a verbatim supersedes_quote of the entry it withdraws",
+        "status": "open"
+      },
+      {
+        "id": "fu-decisions-appended-out-of-ts-order",
+        "ref": "the-tripwire-is-permanent-not-transitional",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "four decisions.jsonl lines were appended out of timestamp order, an hitl_decision stamped 20:05 sitting physically before follow_up lines stamped 19:54",
+        "status": "open"
+      },
+      {
+        "id": "fu-sweep-scope-excludes-repo-root",
+        "ref": "the-tripwire-is-permanent-not-transitional",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "a claim-correction sweep scoped to .aai/ docs/ tests/ misses CHANGELOG.md at the repo root, where an unreleased entry freezes into a permanent dated section at the next release cut",
+        "status": "open"
+      },
+      {
+        "id": "fu-sweep-regex-misses-present-tense",
+        "ref": "the-tripwire-is-permanent-not-transitional",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "the AC-004 correction sweep regex matches only future-tense removal wording (will be removed, to be deleted, goes away), so a present-tense statement of a planned deletion passes through uncorrected",
+        "status": "open"
+      },
+      {
+        "id": "fu-isolation-suite-presumes-deletion",
+        "ref": "the-tripwire-is-permanent-not-transitional",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "tests/skills/test-aai-suite-isolation.sh around line 637 presumes the tripwire will be deleted, a claim withdrawn on 2026-08-23",
+        "status": "open"
+      },
+      {
+        "id": "fu-claim-sweep-needs-reading-not-regex",
+        "ref": "the-tripwire-is-permanent-not-transitional",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "finding every statement of a withdrawn claim across a document corpus is not achievable by regex: three independent gates each found live hits by a different route after the previous one declared the sweep complete",
+        "status": "open"
+      },
+      {
+        "id": "fu-spec-d6-enumeration-stale",
+        "ref": "the-tripwire-is-permanent-not-transitional",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the correcting spec's own enumerations (D6, the implementation plan, the AC-004 Notes cell) undercount what it corrected, and three documents still call one registry closure moot",
         "status": "open"
       }
     ]

@@ -1,14 +1,16 @@
 ---
 id: the-tripwire-is-permanent-not-transitional
-number: null
+number: 160
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 2
 capability: aai-suite-isolation
 links:
-  pr: []
-  commits: []
+  pr:
+    - 281
+  commits:
+    - d83b680d7664d34e04227c88e4da0fb2f32f4cd8
 ---
 
 # Change — the tripwire is permanent, and calling it transitional is now the false claim
