@@ -221,7 +221,20 @@ released_region_verdict() {
     printf 'FAIL %s live CHANGELOG.md is missing while the tag region is non-empty\n' "$resolved"
     return 0
   fi
-  awk 'f { print; next } /^## \[v/ { f = 1; print }' "$dir/CHANGELOG.md" > "$prefix-live-region"
+  # A RELEASE PR legitimately inserts a NEW `## [vX]` section ABOVE everything
+  # the tag knows about, so "first ^## [v to EOF" diverges at line 1 and this
+  # guard failed every release PR. It never fired on the old path because the
+  # release script tagged AND pushed together: by the time CI ran on main the
+  # new tag was the latest ancestor and the tag's file WAS the live file.
+  # Routing releases through a PR (enforce_admins on main) exposed it.
+  # The property that actually matters is unchanged: everything the tag already
+  # published must survive byte-identically. So anchor the live region at the
+  # TAG's own first released heading rather than at the live file's — a new
+  # section above it is a release, a single byte changed below it is the
+  # glue/deletion/retitle this guard exists to catch.
+  local anchor
+  anchor="$(head -1 "$prefix-tag-region")"
+  awk -v a="$anchor" 'f { print; next } $0 == a { f = 1; print }' "$dir/CHANGELOG.md" > "$prefix-live-region"
   if [[ ! -s "$prefix-live-region" ]]; then
     printf 'FAIL %s live CHANGELOG has NO released heading while the tag region is non-empty (total glue/deletion)\n' "$resolved"
     return 0
@@ -829,10 +842,22 @@ test_024_no_deleted_unreleased_heading_vs_main() {
     return
   fi
   local missing
+  # A merge-base unreleased heading may legitimately disappear in exactly ONE
+  # way: a release roll renames `## [unreleased] — <title>` to
+  # `## [vX] — <title>`. The first version of this guard did not know that, so
+  # it failed EVERY release PR — all nine headings at once — while passing on a
+  # direct push to main, where merge-base(HEAD, main) is HEAD and the base file
+  # IS the live file, so nothing can differ. The bug was latent for as long as
+  # releases bypassed the PR path; enabling `enforce_admins` on main forced them
+  # onto it and turned it into a hard block. The title (everything after the
+  # first " — ") is the identity that must survive; only the version marker may
+  # change, and a title vanishing from BOTH forms is still the deletion this
+  # guard was built to catch.
   missing="$(awk '
-    NR==FNR { if ($0 ~ /^## \[unreleased\] — /) base[$0]=1; next }
-    $0 ~ /^## \[unreleased\] — / { live[$0]=1 }
-    END { for (h in base) if (!(h in live)) print h }
+    function title(line) { sub(/^## \[[^]]*\] — /, "", line); return line }
+    NR==FNR { if ($0 ~ /^## \[unreleased\] — /) base[title($0)]=$0; next }
+    $0 ~ /^## \[[^]]*\] — / { live[title($0)]=1 }
+    END { for (t in base) if (!(t in live)) print base[t] }
   ' "$base_file" "$PROJECT_ROOT/CHANGELOG.md")"
   if [[ -n "$missing" ]]; then
     log_fail "TEST-024: unreleased heading(s) present at merge-base ($base) are missing from the live CHANGELOG — deleted rather than added above: $missing"
