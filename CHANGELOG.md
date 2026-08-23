@@ -161,9 +161,12 @@ RFC-0001).
   `hitl_decision`: the disposable worktree landed and does NOT remove the
   reach — a suite inside one still names the shipping tree via
   `dirname $(git rev-parse --git-common-dir)`, because a worktree shares the
-  common git dir. The tripwire is a PERMANENT layer; only
-  `fu-tripwire-removal-needs-a-gate` closed as moot, and fifteen tripwire
-  defects stay open. See CHANGE-0160 / SPEC-0148.
+  common git dir. The tripwire is a PERMANENT layer. Exactly one registry item
+  closed, and NOT as a defect that was fixed: `fu-tripwire-removal-needs-a-gate`
+  was a precondition for a deletion that is no longer planned, and its
+  requirement survives as one of the three reopening conditions. Fifteen
+  tripwire defects stay open — audit that NAMED SET, not the raw count, which
+  reads 16 both before and after. See CHANGE-0160 / SPEC-0148.
 - Gated by a new suite, `tests/skills/test-aai-repo-tripwire.sh` (12 arms),
   registered in `tests/skills/suite-map.yaml`; the new library is classified
   `core` in `.aai/system/PROFILES.yaml`.

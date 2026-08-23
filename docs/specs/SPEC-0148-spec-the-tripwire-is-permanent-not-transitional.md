@@ -59,8 +59,12 @@ contains the token `tripwire`; 16 total, minus the one that closes):
 Two P2 defects that live in the same layer are deliberately NOT counted above
 because their ids do not carry the token (`fu-always-watch-array-unguarded`,
 `fu-ratchet-counter-line-undercount`, and others under
-`ref_id: drain-the-tripwire-known-offender-list`). The rule is stated so the set
-is reproducible, not because 15 is a ceiling — it is a floor.
+`ref_id: drain-the-tripwire-known-offender-list`). Those are NOT counted above
+because the enumeration rule is mechanical — ids containing `tripwire` — and
+theirs do not. They are tripwire-layer defects all the same. The rule is stated
+so the set is reproducible, not because 15 is a ceiling: it is a FLOOR, and
+code review flagged that the original wording let those two read as excluded on
+purpose rather than by the filter.
 
 Do not read the raw open count as the observable: it is 16 before this scope and
 16 after, because this scope CLOSES one item and FILES a different new one
