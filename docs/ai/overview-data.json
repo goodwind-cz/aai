@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-23T21:24:23.760Z",
+  "generatedAt": "2026-08-23T21:50:35.065Z",
   "project": "aai",
   "counts": {
     "delivered": 207,
@@ -23,7 +23,7 @@
       "recommendation": "not_needed",
       "user_decision": "inline"
     },
-    "validation_status": "fail",
+    "validation_status": "not_run",
     "review_status": "pass",
     "ticks": [
       {
