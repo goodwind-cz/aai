@@ -1876,3 +1876,4 @@
 {"v":1,"ts":"2026-08-23T06:45:32.616Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-drain-the-tripwire-known-offender-list","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-23T06:45:32.657Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-drain-the-tripwire-known-offender-list","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-23T06:45:32.692Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-drain-the-tripwire-known-offender-list","payload":{"commit":"7aee6f6b85b4971ca4adea6036b7438d142bb72a"}}
+{"v":1,"ts":"2026-08-23T13:24:23.097Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-the-subagent-contract-omits-the-hazards","payload":{"from":"draft","to":"implementing"}}

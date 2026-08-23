@@ -4,6 +4,36 @@ The per-dispatch payload every spawned subagent (Implementation, Validation,
 Planning, Research) receives. Orchestrator-only material (decomposition, MODEL
 contract table, review anti-gaming, validator spawning, usage capture, merge
 protocol, delivery gate, platform fallback) stays in `.aai/SUBAGENT_PROTOCOL.md`.
+The Standing hazards below bind the dispatched unit's own hands, so they live here rather than in per-dispatch prose.
+
+## Standing hazards (HARD — each rule is a measured incident, not a style note)
+
+These bind YOU on every dispatch whether or not the dispatch text repeats them; a dispatch may ADD a hazard, never waive one.
+
+- HAZ-RESTORE — no restoring git command on a tracked file (`git checkout --`,
+  `git restore`, `git stash`/`pop`, `git reset --hard`): mutate a COPY instead.
+  Scar `fu-orchestrator-mutated-real-file` (P2, 2026-08-21): a bite-proof
+  mutation went into the tracked suite file itself and its restore silently
+  failed on a mis-anchored `sed`.
+- HAZ-SCRATCH — experiments live in ONE reused copy under the absolute scratch
+  path the dispatch names, never in the shipping tree. Scar
+  `fu-subagent-probe-hits-real-repo` (P1, 2026-08-15): a probe `cd`-ed inside a
+  command substitution, so the parent shell stayed in the real repository and
+  the run created two commits on `main`.
+- HAZ-CD — verify a path is non-empty AND absolute immediately before every
+  `cd`. Scar commit `485a315` (2026-08-22, reachable only from the reflog): a
+  `local a=1 b=$a` chain left the fixture path empty, `cd ""` stayed put, and
+  the harness committed into the shipping repository.
+- HAZ-LEDGER — append-only ledgers (`docs/ai/EVENTS.jsonl`,
+  `docs/ai/decisions.jsonl`, `docs/ai/tests/test-runs.jsonl`) are appended
+  through their own CLI only: never rewritten, reordered, truncated or restored.
+  Scar `.aai/scripts/follow-ups.mjs` (header): close-work-item.mjs is
+  deliberately NOT wired to it — that rollback arm truncates and would delete history.
+- HAZ-WORKTREE — remove a scratch worktree with a targeted
+  `git worktree remove <path>`, never `git worktree prune`. Scar
+  `fu-prune-repair-error-string-misquoted` (2026-08-20, git 2.50.1): `prune -v`
+  deregistered an unreachable-but-alive worktree that `git worktree repair`
+  could not then restore.
 
 ## Result block (mandatory subagent output)
 

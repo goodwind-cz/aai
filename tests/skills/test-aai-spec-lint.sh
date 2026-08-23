@@ -1722,13 +1722,23 @@ test_clarify_011_no_new_ceremony() {
         # allowlist tax (fu-test011-branch-diff-allowlist-tax, P2, live) — and
         # the first time it turned CI RED for three unrelated suites at once.
         .aai/scripts/lib/docs-audit-core.mjs) ;;
+        # spec-the-subagent-contract-omits-the-hazards: the standing hazards
+        # (no restoring git command on a tracked file, absolute scratch path,
+        # append-only ledgers, targeted worktree remove, verify a path before
+        # cd) move OUT of hand-typed dispatch prose and INTO the per-dispatch
+        # payload. The CONTRACT is the only .aai/ path the scope touches.
+        # TENTH payment of this allowlist tax
+        # (fu-test011-branch-diff-allowlist-tax, P2, live); the recount on the
+        # pass line below was already one group stale before this edit, so it
+        # is corrected here to a re-counted 31 paths across 11 groups.
+        .aai/SUBAGENT_CONTRACT.md) ;;
         *) log_info "TEST-011(clarify): unexpected .aai/ path in the branch diff: $p"; ok=0 ;;
       esac
     done <<<"$changed"
   else
     log_info "TEST-011(clarify): neither origin/main nor main resolves — the .aai/ diff pin did not run"
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (recounted 2026-08-21: 29 paths across 9 case groups) accounts for every changed .aai/ path" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (recounted 2026-08-23: 31 paths across 11 case groups) accounts for every changed .aai/ path" \
     || log_fail "TEST-011(clarify) zero-added-ceremony pins"
 }
 
