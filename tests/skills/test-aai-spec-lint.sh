@@ -1730,7 +1730,10 @@ test_clarify_011_no_new_ceremony() {
         # TENTH payment of this allowlist tax
         # (fu-test011-branch-diff-allowlist-tax, P2, live); the recount on the
         # pass line below was already one group stale before this edit, so it
-        # is corrected here to a re-counted 31 paths across 11 groups.
+        # is corrected here to a re-counted 32 paths across 11 groups (31 when
+        # this comment was first written; SUBAGENT_PROTOCOL.md joined the group
+        # in the same scope and the pass line moved with it — a comment that
+        # states a count has to move every time the count does).
         .aai/SUBAGENT_CONTRACT.md|.aai/SUBAGENT_PROTOCOL.md) ;;
         *) log_info "TEST-011(clarify): unexpected .aai/ path in the branch diff: $p"; ok=0 ;;
       esac
