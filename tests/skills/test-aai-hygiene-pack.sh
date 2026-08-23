@@ -883,7 +883,12 @@ HAZ_SCARS=(
   fu-orchestrator-mutated-real-file
   fu-subagent-probe-hits-real-repo
   485a315
-  follow-ups.mjs
+  # HAZ-LEDGER's scar was `follow-ups.mjs` (a script header describing a
+  # rollback that would truncate). Validation judged that weaker than its four
+  # neighbours — a design note, not an incident — and it was wrong besides:
+  # fu-append-only-merge-needs-prefix-order records ledger bytes ACTUALLY
+  # rewritten, caught in CI as DIVERGES at byte offset 248943.
+  fu-append-only-merge-needs-prefix-order
   fu-prune-repair-error-string-misquoted
 )
 
@@ -899,6 +904,18 @@ hazards_section() {
 # log_fail exits the whole suite.
 hazards_findings() {
   local _hf_file="$1" _hf_body _hf_tok
+  # CARDINALITY FIRST. Validation broke this arm by emptying HAZ_IDS/HAZ_SCARS:
+  # on bash >= 4.4 (ubuntu CI) an empty array under `set -u` expands to nothing,
+  # both loops below run zero times, and the arm printed "all 0 anchors + 0
+  # incident citations; bite proved on 0 mutations" at rc 0. A guard reporting
+  # success over an empty corpus is the exact defect this programme has spent
+  # three days removing — reproduced inside the arm that enforces the rules
+  # against it. Never a pass on an unmeasured zero.
+  if [[ "${#HAZ_IDS[@]}" -lt 5 || "${#HAZ_SCARS[@]}" -lt 5 ]]; then
+    printf 'UNCOVERED-EMPTY-CORPUS ids=%s scars=%s (want >=5 each; with fewer, this arm asserts nothing)\n' \
+      "${#HAZ_IDS[@]}" "${#HAZ_SCARS[@]}"
+    return 0
+  fi
   _hf_body="$(hazards_section "$_hf_file")"
   if [[ -z "${_hf_body//[[:space:]]/}" ]]; then
     printf 'MISSING-SECTION\n'

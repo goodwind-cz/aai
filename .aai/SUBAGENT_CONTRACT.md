@@ -24,11 +24,12 @@ These bind YOU on every dispatch whether or not the dispatch text repeats them; 
   `cd`. Scar commit `485a315` (2026-08-22, reachable only from the reflog): a
   `local a=1 b=$a` chain left the fixture path empty, `cd ""` stayed put, and
   the harness committed into the shipping repository.
-- HAZ-LEDGER — append-only ledgers (`docs/ai/EVENTS.jsonl`,
-  `docs/ai/decisions.jsonl`, `docs/ai/tests/test-runs.jsonl`) are appended
-  through their own CLI only: never rewritten, reordered, truncated or restored.
-  Scar `.aai/scripts/follow-ups.mjs` (header): close-work-item.mjs is
-  deliberately NOT wired to it — that rollback arm truncates and would delete history.
+- HAZ-LEDGER — append-only ledgers (`EVENTS.jsonl`, `decisions.jsonl`,
+  `tests/test-runs.jsonl` under `docs/ai/`): only ever add at the end, and a
+  merge must leave the base a byte-exact prefix. About the BYTES, not the tool —
+  a raw append is fine where no CLI owns the file. Scar
+  `fu-append-only-merge-needs-prefix-order`: a union merge ordered the branch's
+  appends first and CI caught `DIVERGES at byte offset 248943`.
 - HAZ-WORKTREE — remove a scratch worktree with a targeted
   `git worktree remove <path>`, never `git worktree prune`. Scar
   `fu-prune-repair-error-string-misquoted` (2026-08-20, git 2.50.1): `prune -v`

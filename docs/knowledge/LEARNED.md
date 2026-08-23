@@ -34,7 +34,11 @@
 - `tests/skills/test-aai-worktree.sh` fails deterministically in its scratch-git
   fixture on this machine ("Commit not found in feature branch") — known
   pre-existing environmental failure, reproduced on clean main repeatedly.
-  Verify suspected regressions via stash/main comparison before chasing it.
+  Verify suspected regressions against a DISPOSABLE WORKTREE cut from HEAD
+  (`git worktree add --detach`), never via `git stash` — stashing reverts the
+  SHARED working tree and is prohibited by HAZ-RESTORE in
+  `.aai/SUBAGENT_CONTRACT.md`, which ships in the same dispatch payload as this
+  file. The diagnostic need is real; the technique named here was not.
   (Source: CHANGE-0012/0010/0009 validation runs, 2026-07-15.)
 - `docs/ai/archive/worktrees/` is this repo's local, untracked convention for
   archiving a worktree's STATE.yaml before `git worktree remove` (established
@@ -48,11 +52,12 @@
 
 - `tests/skills/test-aai-prompt-diet.sh` TEST-010 (corpus byte-budget floor,
   `BASELINE_PROMPT_BYTES` / `REQUIRED_REDUCTION_BYTES`) already FAILS on clean
-  main — reproduced via git-stash comparison before touching anything (net
+  main — reproduced in a disposable worktree cut from HEAD before touching
+  anything, NOT by stashing the shared tree (HAZ-RESTORE) (net
   reduction 28187 bytes < 28672 required, ~485B short at c144736/PR #92).
   Known pre-existing, out-of-scope environmental failure, same category as
-  the 2026-07-15 `test-aai-worktree.sh` entry above: verify via stash/main
-  comparison before chasing it as a regression. `test_010_seam_survival` in
+  the 2026-07-15 `test-aai-worktree.sh` entry above: verify in a disposable
+  worktree before chasing it as a regression. `test_010_seam_survival` in
   `tests/skills/test-aai-ceremony-levels.sh` re-runs this suite and therefore
   ALSO fails pre-existing (the whole `set -euo pipefail` script aborts at that
   point) — run new/other stanzas via the file's single-function invocation
@@ -136,8 +141,9 @@
   number) so the fix is a self-documenting data append. (Source: DEBT-0002,
   CHANGE-0040.)
 - Two operational hazards for the loop: (1) inline validation that runs
-  `git checkout`/`stash` mutates the SHARED working tree — prefer worktree
-  isolation for git-mutating roles. (2) Concurrent audit-touching test suites
+  `git checkout`/`stash` mutates the SHARED working tree. Not "prefer" —
+  HAZ-RESTORE in `.aai/SUBAGENT_CONTRACT.md` prohibits it outright; use a
+  disposable worktree for any git-mutating role. (2) Concurrent audit-touching test suites
   cross-contaminate: each drops ephemeral DRAFT docs into `docs/` while another
   runs a repo-wide strict audit -> spurious failures. Serialize them.
   (Source: ISSUE-0012 validation; CHANGE-0040 validation.)
