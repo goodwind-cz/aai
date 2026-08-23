@@ -34,11 +34,10 @@
 - `tests/skills/test-aai-worktree.sh` fails deterministically in its scratch-git
   fixture on this machine ("Commit not found in feature branch") — known
   pre-existing environmental failure, reproduced on clean main repeatedly.
-  Verify suspected regressions against a DISPOSABLE WORKTREE cut from HEAD
-  (`git worktree add --detach`), never via `git stash` — stashing reverts the
-  SHARED working tree and is prohibited by HAZ-RESTORE in
-  `.aai/SUBAGENT_CONTRACT.md`, which ships in the same dispatch payload as this
-  file. The diagnostic need is real; the technique named here was not.
+  Verify suspected regressions against a DISPOSABLE WORKTREE cut from the BASE
+  ref (`git worktree add --detach <path> main` — the default HEAD would give
+  you your own branch), never via `git stash`: stashing reverts the SHARED
+  working tree and HAZ-RESTORE in `.aai/SUBAGENT_CONTRACT.md` prohibits it.
   (Source: CHANGE-0012/0010/0009 validation runs, 2026-07-15.)
 - `docs/ai/archive/worktrees/` is this repo's local, untracked convention for
   archiving a worktree's STATE.yaml before `git worktree remove` (established
@@ -52,9 +51,13 @@
 
 - `tests/skills/test-aai-prompt-diet.sh` TEST-010 (corpus byte-budget floor,
   `BASELINE_PROMPT_BYTES` / `REQUIRED_REDUCTION_BYTES`) already FAILS on clean
-  main — reproduced in a disposable worktree cut from HEAD before touching
-  anything, NOT by stashing the shared tree (HAZ-RESTORE) (net
+  main — reproduced via git-stash comparison before touching anything (net
   reduction 28187 bytes < 28672 required, ~485B short at c144736/PR #92).
+  *(That is what was done on the day and the record stands. Do not repeat the
+  method: stashing reverts the SHARED working tree and HAZ-RESTORE now
+  prohibits it. Reproduce against a disposable worktree cut from the BASE ref
+  instead — `git worktree add --detach <path> main`, not the default HEAD,
+  which on a working branch is the role's own commits.)*
   Known pre-existing, out-of-scope environmental failure, same category as
   the 2026-07-15 `test-aai-worktree.sh` entry above: verify in a disposable
   worktree before chasing it as a regression. `test_010_seam_survival` in
@@ -141,9 +144,10 @@
   number) so the fix is a self-documenting data append. (Source: DEBT-0002,
   CHANGE-0040.)
 - Two operational hazards for the loop: (1) inline validation that runs
-  `git checkout`/`stash` mutates the SHARED working tree. Not "prefer" —
-  HAZ-RESTORE in `.aai/SUBAGENT_CONTRACT.md` prohibits it outright; use a
-  disposable worktree for any git-mutating role. (2) Concurrent audit-touching test suites
+  `git checkout`/`stash` mutates the SHARED working tree. HAZ-RESTORE in
+  `.aai/SUBAGENT_CONTRACT.md` prohibits those COMMANDS outright — it does not
+  ban inline work, which stays a supported mode. A role that needs to mutate
+  git state needs a disposable worktree; a role that only reads does not. (2) Concurrent audit-touching test suites
   cross-contaminate: each drops ephemeral DRAFT docs into `docs/` while another
   runs a repo-wide strict audit -> spurious failures. Serialize them.
   (Source: ISSUE-0012 validation; CHANGE-0040 validation.)

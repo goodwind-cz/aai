@@ -3,7 +3,7 @@
 This document defines the contract for spawning, running, and merging subagent work.
 All agents that support parallelism MUST follow this protocol.
 
-`.aai/SUBAGENT_CONTRACT.md` is the per-dispatch payload — the ~60-line duty
+`.aai/SUBAGENT_CONTRACT.md` is the per-dispatch payload — the ~85-line duty
 sheet (result block, timing, single-writer core) every spawned subagent
 actually receives. This document is the ORCHESTRATOR-side material: read it
 if you are the dispatching side, not a dispatched unit.
