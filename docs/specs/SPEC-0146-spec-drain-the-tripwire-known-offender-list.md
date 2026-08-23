@@ -1,15 +1,17 @@
 ---
 id: spec-drain-the-tripwire-known-offender-list
 type: spec
-number: null
-status: implementing
+number: 146
+status: done
 ceremony_level: 1
 capability: aai-suite-isolation
 links:
-  requirement: docs/issues/CHANGE-DRAFT-drain-the-tripwire-known-offender-list.md
+  requirement: docs/issues/CHANGE-0158-drain-the-tripwire-known-offender-list.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 276
+  commits:
+    - 7aee6f6b85b4971ca4adea6036b7438d142bb72a
 ---
 
 # Spec — drain the tripwire known-offender list
@@ -22,7 +24,7 @@ so its failure mode is a red CI rather than a silent hole, and it is fully
 covered by a suite that already exists.
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-drain-the-tripwire-known-offender-list.md
+- Requirement: docs/issues/CHANGE-0158-drain-the-tripwire-known-offender-list.md
 - Prior art: docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md
   (the tripwire and the ratchet), docs/specs/SPEC-0138-spec-suites-run-in-a-disposable-worktree.md
   (the isolation that made the four exemptions dead)
@@ -48,7 +50,7 @@ covered by a suite that already exists.
 - Worktree branch/path: measurement-only, disposable, under the session scratchpad
 - Inline review scope: tests/skills/test-framework.sh,
   tests/skills/test-aai-repo-tripwire.sh,
-  docs/specs/SPEC-DRAFT-spec-drain-the-tripwire-known-offender-list.md
+  docs/specs/SPEC-0146-spec-drain-the-tripwire-known-offender-list.md
 
 ## Acceptance Criteria Mapping
 

@@ -6,7 +6,7 @@
 # Covers TEST-001..TEST-012 from
 # docs/specs/SPEC-0137-spec-suites-must-not-touch-the-shipping-repo.md, plus
 # TEST-013 and TEST-014 from
-# docs/specs/SPEC-DRAFT-spec-drain-the-tripwire-known-offender-list.md.
+# docs/specs/SPEC-0146-spec-drain-the-tripwire-known-offender-list.md.
 #
 # The shipped known-offender table is EMPTY (that change drained it), so every
 # arm that needs the ratchet MECHANISM seeds its own entries into its byte copy

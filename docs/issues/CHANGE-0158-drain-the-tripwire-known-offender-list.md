@@ -1,14 +1,16 @@
 ---
 id: drain-the-tripwire-known-offender-list
-number: null
+number: 158
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-suite-isolation
 links:
-  pr: []
-  commits: []
+  pr:
+    - 276
+  commits:
+    - 7aee6f6b85b4971ca4adea6036b7438d142bb72a
 ---
 
 # Change — four suites are still exempt from the tripwire and none of them needs to be

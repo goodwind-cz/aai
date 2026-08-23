@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-22T16:29:43.678Z",
+  "generatedAt": "2026-08-23T06:46:06.581Z",
   "project": "aai",
   "counts": {
-    "delivered": 204,
+    "delivered": 205,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "a-half-seeded-checkout-says-it-is-isolated",
+    "ref": "drain-the-tripwire-known-offender-list",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "a-half-seeded-checkout-says-it-is-isolated",
+      "ref": "drain-the-tripwire-known-offender-list",
       "type": "intake_change",
       "phase": "code_review"
     },
@@ -79,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "drain-the-tripwire-known-offender-list",
+      "title": "Change — four suites are still exempt from the tripwire and none of them needs to be",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0158-drain-the-tripwire-known-offender-list.md",
+      "closed_on": "2026-08-23",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0146-spec-drain-the-tripwire-known-offender-list.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260823T062734Z-drain-the-tripwire-known-offender-list.md"
+    },
     {
       "ref": "a-run-must-say-whether-isolation-armed",
       "title": "Change — nothing counts a run in which isolation never armed",
@@ -2738,6 +2751,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "drain-the-tripwire-known-offender-list",
+          "title": "Change — four suites are still exempt from the tripwire and none of them needs to be",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0158-drain-the-tripwire-known-offender-list.md",
+          "closed_on": "2026-08-23",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0146-spec-drain-the-tripwire-known-offender-list.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260823T062734Z-drain-the-tripwire-known-offender-list.md"
+        },
         {
           "ref": "a-run-must-say-whether-isolation-armed",
           "title": "Change — nothing counts a run in which isolation never armed",

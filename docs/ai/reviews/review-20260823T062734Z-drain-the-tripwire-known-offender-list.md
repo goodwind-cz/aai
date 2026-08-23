@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff 862e069..3fd0137 (branch feat/drain-the-tripwire-ratchet)
-  spec: docs/specs/SPEC-DRAFT-spec-drain-the-tripwire-known-offender-list.md
+  spec: docs/specs/SPEC-0146-spec-drain-the-tripwire-known-offender-list.md
   spec_compliance:
     verdict: pass
     ac_walk:

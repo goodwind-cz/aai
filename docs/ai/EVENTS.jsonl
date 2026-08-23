@@ -1870,3 +1870,9 @@
 {"v":1,"ts":"2026-08-22T23:25:05.509Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":381,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
 {"v":1,"ts":"2026-08-23T06:30:41.146Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":381,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
 {"v":1,"ts":"2026-08-23T06:30:51.618Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":381,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-23T06:45:32.504Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"drain-the-tripwire-known-offender-list","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-23T06:45:32.541Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"drain-the-tripwire-known-offender-list","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-23T06:45:32.578Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"drain-the-tripwire-known-offender-list","payload":{"commit":"7aee6f6b85b4971ca4adea6036b7438d142bb72a"}}
+{"v":1,"ts":"2026-08-23T06:45:32.616Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-drain-the-tripwire-known-offender-list","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-23T06:45:32.657Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-drain-the-tripwire-known-offender-list","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-23T06:45:32.692Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-drain-the-tripwire-known-offender-list","payload":{"commit":"7aee6f6b85b4971ca4adea6036b7438d142bb72a"}}
