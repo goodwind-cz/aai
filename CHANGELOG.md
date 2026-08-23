@@ -106,7 +106,7 @@ RFC-0001).
   `fu-worktree-hook-disarms-later-suites`, documented in the spec's D7. The
   working TREE is protected from the ordinary path, and observably so.
 - The tripwire, its ratchet and the ratchet-path hashing are deliberately LEFT
-  IN PLACE. Deleting them is a follow-on change with a hard precondition then
+  IN PLACE. Deleting them is a follow-on change with a hard precondition now
   filed as P1 `fu-isolation-arm-failure-uncounted`: nothing counted a failure to
   ARM isolation, so a run where isolation never armed would stay green once the
   guard is gone. **UPDATED 2026-08-23**: that precondition was met
@@ -155,7 +155,7 @@ RFC-0001).
   Measured: no additional `git` calls (13 total over 3 suites, identical with
   the ratchet table emptied).
 - Transitional by decision, not by omission: an `hitl_decision` in
-  `docs/ai/decisions.jsonl` (2026-08-19) recorded that once suites run in a
+  `docs/ai/decisions.jsonl` (2026-08-19) records that once suites run in a
   disposable worktree the tripwire, the ratchet and the hashing are deleted and
   their follow-ups closed as moot. **WITHDRAWN 2026-08-23** by a superseding
   `hitl_decision`: the disposable worktree landed and does NOT remove the

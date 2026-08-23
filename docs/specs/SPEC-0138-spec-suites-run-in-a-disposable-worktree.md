@@ -76,6 +76,17 @@ PLACE. They are deleted by a separate change, after a CI cycle has shown
 isolation holding on Linux. If isolation is complete the tripwire simply never
 fires; if it fires, that is information rather than a conflict.
 
+**CORRECTION (2026-08-23).** The deletion described above did not happen and is
+no longer planned. A superseding `hitl_decision` in `docs/ai/decisions.jsonl`
+withdraws the 2026-08-19 one: the disposable worktree landed and does NOT remove
+a suite's REACH — from inside the checkout,
+`dirname $(git rev-parse --git-common-dir)` names the shipping tree in one call,
+because a worktree shares the common git dir
+(`fu-isolated-suite-reaches-shipping-repo`, P1). The retirement scope measured
+the counterfactual and stopped on its own acceptance criterion. The tripwire is a
+PERMANENT layer. Exactly one registry item closed as moot
+(`fu-tripwire-removal-needs-a-gate`); every other tripwire defect stays open. This document is the SOURCE of the release-note wording corrected in the same scope; the copy was fixed first and this original was missed by a sweep whose regex matched only future-tense removal wording (`fu-sweep-regex-misses-present-tense`, P2).
+
 Four things were measured during this ride. Three of them changed the shipped
 code, and none of them is visible by reading the naive patch.
 

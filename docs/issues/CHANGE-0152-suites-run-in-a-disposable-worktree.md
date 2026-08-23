@@ -32,6 +32,17 @@ links:
   tripwire is deliberately **left in place by this change** and deleted by a
   separate one, after a CI cycle has shown isolation holding on Linux.
 
+**CORRECTION (2026-08-23).** The deletion described above did not happen and is
+no longer planned. A superseding `hitl_decision` in `docs/ai/decisions.jsonl`
+withdraws the 2026-08-19 one: the disposable worktree landed and does NOT remove
+a suite's REACH — from inside the checkout,
+`dirname $(git rev-parse --git-common-dir)` names the shipping tree in one call,
+because a worktree shares the common git dir
+(`fu-isolated-suite-reaches-shipping-repo`, P1). The retirement scope measured
+the counterfactual and stopped on its own acceptance criterion. The tripwire is a
+PERMANENT layer. Exactly one registry item closed as moot
+(`fu-tripwire-removal-needs-a-gate`); every other tripwire defect stays open.
+
 ## Motivation / Business Value
 - Four suites write to the shipping repository today and are exempted by a ratchet.
   With isolation they simply cannot, and the exemptions become meaningless.
@@ -46,6 +57,8 @@ links:
   seeding of gitignored per-dev files the suites read.
 - Out of scope, deliberately: deleting the tripwire, its ratchet and the ratchet-path
   hashing (~1140 lines). That is the follow-on change and must not land here.
+  *(2026-08-23: that follow-on change was attempted and STOPPED by its own
+  measurement. See the correction above.)*
 - Out of scope: making any suite hermetic in its own right; anything under
   `protected_paths_l3`.
 

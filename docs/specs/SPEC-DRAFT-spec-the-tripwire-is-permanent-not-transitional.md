@@ -16,7 +16,14 @@ links:
 
 SPEC-FROZEN: true
 
-## Headline: one item closes, fifteen stay open
+## Headline: one item closes, fifteen stay open, and the count still reads 16
+
+ARITHMETIC, so nobody audits this by subtraction: the open `tripwire`-id count
+is 16 before and 16 after, and after validation round 2 filed its own findings it
+is 16 again by a different route. One item closed; new tripwire-named items were
+filed by the same rides. **The observable is the NAMED SET below, never the
+count.** A reader who diffs the number will conclude nothing happened, and a
+reader who is told the number fell will have been misled.
 
 This scope closes **exactly one** registry item, `fu-tripwire-removal-needs-a-gate`
 (P2), because its whole content is a precondition for a deletion that is no
