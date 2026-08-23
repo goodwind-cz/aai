@@ -1,6 +1,6 @@
 ---
 name: aai-feedback-triage
-description: Use when you want to report AAI-layer problems/friction upstream to the canonical repo — step 1: offline triage that reads the local friction spool, scores and clusters observations, and writes a LOCAL report (no network, no GitHub writes)
+description: "Use when you want to report AAI-layer problems/friction upstream to the canonical repo — step 1: offline triage that reads the local friction spool, scores and clusters observations, and writes a LOCAL report (no network, no GitHub writes)"
 ---
 
 <SUBAGENT-STOP>

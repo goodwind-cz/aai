@@ -1,6 +1,6 @@
 ---
 name: aai-feedback-upsert
-description: Use when you want to report AAI-layer problems upstream — step 2: turns triage clusters into redacted, deduplicated, budget-capped GitHub issue drafts for the canonical repo; prepare-only by default; publishing requires explicit --publish --confirm
+description: "Use when you want to report AAI-layer problems upstream — step 2: turns triage clusters into redacted, deduplicated, budget-capped GitHub issue drafts for the canonical repo; prepare-only by default; publishing requires explicit --publish --confirm"
 ---
 
 <SUBAGENT-STOP>

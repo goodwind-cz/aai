@@ -197,8 +197,11 @@ followed by `/aai-feedback-upsert` (redacted, deduplicated, budget-capped GitHub
 issue drafts; prepare-only by default — an issue is filed ONLY via the explicit,
 human-confirmed `--publish <fingerprint> --confirm` step). The destination repo is
 pinned in `.aai/feedback.yaml` (`upsert.destination`). For a one-off report that
-should not wait for triage, the ad-hoc fallback is `gh issue create` on the
-canonical repo.
+should not wait for triage, the ad-hoc fallback is
+`gh issue create --repo <upsert.destination value>` — always pass `--repo` with
+the destination pinned in `.aai/feedback.yaml`, NEVER file it against the
+current project repo (in a downstream project the default repo is the user's
+application, not the AAI layer).
 
 ### Skill Invocation (Claude vs Codex)
 
