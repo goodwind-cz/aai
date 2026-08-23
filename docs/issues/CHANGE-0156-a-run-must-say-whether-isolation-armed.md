@@ -53,6 +53,21 @@ stays GREEN and nothing in the output or the ledger says isolation was off.**
 So the tripwire cannot be removed until a run is able to state its own
 isolation status.
 
+**CORRECTION (2026-08-23).** "The tripwire is explicitly transitional" and the
+framing of this scope as a precondition for deleting it are both withdrawn. The
+successor those rested on landed (SPEC-0138) and does not remove the cause:
+inside a disposable worktree, `git rev-parse --git-common-dir` returns the
+shipping repository's `.git` and its `dirname` is the shipping working tree, so
+isolation relocates a suite without removing its reach
+(`fu-isolated-suite-reaches-shipping-repo`, P1, open). The tripwire is
+permanent; its deletion is not scheduled. What this scope delivered — a run
+stating its own isolation status — stands on its own merit and is not affected.
+The count in the paragraph above ("roughly thirteen registry items") is also
+stale: sixteen open registry items carry `tripwire` in their id today, of which
+exactly one (`fu-tripwire-removal-needs-a-gate`) closes on the permanence
+decision and fifteen stay open as defects in a layer that now stays. Superseding
+record: the `hitl_decision` at 2026-08-23T20:05:00Z in `docs/ai/decisions.jsonl`.
+
 ## Desired Behavior
 A run says, in a place a reader and a machine can both find, how many suites ran
 isolated and how many did not — whether or not anything went wrong.

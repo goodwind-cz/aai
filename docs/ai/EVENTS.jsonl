@@ -1886,3 +1886,5 @@
 {"v":1,"ts":"2026-08-23T17:34:52.139Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-the-subagent-contract-omits-the-hazards","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-23T17:34:52.174Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-the-subagent-contract-omits-the-hazards","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-23T17:34:52.209Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-the-subagent-contract-omits-the-hazards","payload":{"commit":"69faece46071c6b26fc8a9f9292cf7958465617b"}}
+{"v":1,"ts":"2026-08-23T19:52:37.258Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-the-tripwire-is-permanent-not-transitional","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-23T20:00:34.251Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":385,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

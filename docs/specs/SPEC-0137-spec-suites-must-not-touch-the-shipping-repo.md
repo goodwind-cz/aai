@@ -319,6 +319,28 @@ contradict what the intake assumed, and both change the shipped design.
   `hitl_decision` in `docs/ai/decisions.jsonl`): once suites run in a disposable
   worktree, the tripwire, the ratchet and the hashing all go.
 
+  **CORRECTION (2026-08-23).** The three lines above are WRONG and are left
+  standing so the record shows what was believed, not a tidied version of it.
+  The tripwire, the ratchet and the hashing do NOT all go, and their removal is
+  not scheduled. The successor named there — one disposable worktree per suite —
+  LANDED as SPEC-0138, and it does not remove the cause. Measured on `main` at
+  `07e6d81` and re-taken by hand: inside a disposable worktree,
+  `git rev-parse --git-common-dir` returns the SHIPPING repository's `.git`, and
+  its `dirname` is the shipping working tree. Isolation relocates a suite's cwd
+  and script path; it does not remove the suite's reach, and any absolute path a
+  suite already holds still resolves. A suite that writes through that path
+  dirties the shipping repository while the run correctly reports `isolated` —
+  `degraded` cannot fire, because nothing degraded
+  (`fu-isolated-suite-reaches-shipping-repo`, P1, open). The retirement scope
+  measured the counterfactual: with the tripwire deleted and the proposed
+  degraded-gate in place, a run exits 0 at `Passed: 2 (100%) / 0 degraded` with
+  the write landed. The 2026-08-19 decision is therefore SUPERSEDED by the
+  `hitl_decision` appended at **2026-08-23T20:05:00Z** in the same append-only
+  ledger (owner-approved in the 2026-08-23 session, on that measurement); read
+  both, and the later one wins. That entry also names the three measurable
+  conditions that would reopen the deletion question. Spec:
+  `spec-the-tripwire-is-permanent-not-transitional`.
+
   KNOWN LIMIT, stated not enforced: the entry path-subset test compares the
   paths a suite MOVED against the paths its entry names, and a path that was
   already dirty when the suite started does not move. So an allowlisted suite
@@ -334,6 +356,13 @@ contradict what the intake assumed, and both change the shipped design.
   `fu-tripwire-attested-clean-ignores-pre-dirty-paths`, which is 10 characters
   over the ledger's 40-char id limit — left open and mooted by the
   disposable-worktree successor above.
+
+  **CORRECTION (2026-08-23).** "Mooted by the disposable-worktree successor" is
+  withdrawn. The successor landed and does not moot it:
+  `fu-tripwire-allowed-ignores-pre-dirty` (P2) is a live defect in a layer that
+  now stays. It is one of FIFTEEN open tripwire defects that this correction does
+  NOT fix and that no longer have "it is about to be deleted" as an excuse. See
+  the `hitl_decision` at 2026-08-23T20:05:00Z in `docs/ai/decisions.jsonl`.
 
   Every path any entry names is CONTENT-HASHED around every suite, listed or
   not. This is not an optimisation, it is what makes the rules above true:
