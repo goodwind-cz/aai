@@ -81,6 +81,7 @@ places and the same vocabulary it already states whether isolation armed.
   block, and the run-ledger record — exactly as `isolated`/`degraded` does.
 - AC-004: the exit code is unchanged. Report-only, no new gate. State why, and
   state whether it should become a gate when the tripwire is deleted.
+  *(2026-08-23: withdrawn — the tripwire is permanent; see the CORRECTION block in this document.)*
 - AC-005: `aai-run-tests.sh` reports the same axis in the same words, so the two
   funnels cannot be read as disagreeing.
 

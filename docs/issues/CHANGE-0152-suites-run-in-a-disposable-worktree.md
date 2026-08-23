@@ -67,6 +67,7 @@ PERMANENT layer. Exactly one registry item closed as moot
 - `.aai/scripts/aai-run-tests.sh` — wraps an **arbitrary command**, used ad hoc by roles.
   It is in scope: while it is unguarded, a role can still run a suite against the live
   tree, which is why the tripwire cannot be removed until this lands.
+  *(2026-08-23: withdrawn — the tripwire is permanent; see the CORRECTION block in this document.)*
 
 ## Desired Behavior (To-Be)
 - D1 — a suite runs in a disposable checkout and its writes never reach the shipping

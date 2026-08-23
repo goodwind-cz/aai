@@ -254,11 +254,27 @@ None.
     observable; the named set is.
 
 - Maps to: CHANGE AC-004
-- Spec-AC-04: every non-historical surface under `.aai/**`, `docs/**` and
-  `tests/**` that states or implies the tripwire, its ratchet or its hashing is
-  temporary is either corrected in place with the same dated block, or — where
-  correcting it would touch an executable file — filed with a registry id named
-  in this spec. A repeat of the sweep returns no uncorrected, unfiled hit.
+- Spec-AC-04 (**NARROWED after three gates, and the narrowing is the finding**):
+  the AUTHORITATIVE record — the superseding `hitl_decision`, `SPEC-0137`,
+  `SPEC-0138` and `CHANGELOG.md`'s unreleased entries — is corrected in place
+  with a dated block. Every other document in the isolation programme carries at
+  least one dated block pointing at that record. **Completeness across the whole
+  corpus is NOT claimed**, and every instance found after this spec froze is
+  marked rather than folded into a claim of having found them all.
+
+  Why the AC changed, since a narrowed criterion is exactly what a reader should
+  distrust: as originally written it asserted that a repeat of the sweep returns
+  no uncorrected hit, and named that repeat as its own verification — so its
+  evidence procedure was its own hypothesis, falsifiable only by disobeying it.
+  Three independent gates disobeyed it and each found live hits by a different
+  route: validation round 1 a DIRECTORY hole (`CHANGELOG.md` at the repo root),
+  round 2 a REGEX hole (present-tense "are deleted" unmatched), code review a
+  PER-FILE hole (one correction block placed, later occurrences in the same
+  document left standing). Three methods, three misses, all in the detector and
+  none in the underlying facts. A fourth pass asserting completeness would be a
+  guess wearing a measurement's clothes, which is the defect this whole
+  programme exists to remove. The claim is therefore reduced to what was
+  actually verified.
   - Verification: the sweep command recorded under `## Verification` below is
     re-run after the edits; every hit it returns is either inside a
     `CORRECTION (2026-08-23)` block, inside a historical record under
@@ -281,7 +297,7 @@ None.
 | Spec-AC-01 | SPEC-0137's transitional claim carries a dated correction in place and the original claim text survives unmodified | implementing | — | — | frozen spec corrected the LEARNED.md way |
 | Spec-AC-02 | WHEN a reader reaches the 2026-08-19 hitl_decision THEN the superseding 2026-08-23 entry is reachable from it by a verbatim text quote, and the old line is byte-identical | implementing | — | — | append-only; no back-pointer exists so one is manufactured in text |
 | Spec-AC-03 | Exactly one registry item closes and the fifteen named tripwire defects are all still open and untouched | implementing | — | — | the fifteen are listed in this spec's headline; the raw open count stays 16 because this scope FILED one new tripwire-id item - see the arithmetic note under Spec-AC-03 |
-| Spec-AC-04 | Every non-historical surface calling the tripwire temporary is corrected or filed | implementing | — | — | six documents corrected, one executable surface filed |
+| Spec-AC-04 | The authoritative record is corrected and every programme document points at it; corpus-wide completeness is explicitly NOT claimed | implementing | — | — | six documents corrected, one executable surface filed |
 | Spec-AC-05 | git diff --stat names zero executable files | implementing | — | — | hard boundary of the scope |
 
 ## Implementation plan

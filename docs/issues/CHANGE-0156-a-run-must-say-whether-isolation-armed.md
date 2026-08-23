@@ -111,6 +111,7 @@ isolated and how many did not — whether or not anything went wrong.
   because of this change.
 - Do not delete the tripwire in this scope. This change makes deleting it
   *possible*; deleting it is a separate decision with its own evidence.
+  *(2026-08-23: withdrawn — the tripwire is permanent; see the CORRECTION block in this document.)*
 - The full framework run costs 20-28 minutes. Budget one, not several.
 - No secret is referenced by this scope.
 
@@ -118,6 +119,7 @@ isolated and how many did not — whether or not anything went wrong.
 - Registry item this scope closes: `fu-isolation-arm-failure-uncounted` (P1).
 - Unlocked but NOT in scope: deleting the tripwire (~1140 lines, ~13 registry
   items). That is the payoff and it needs its own ride.
+  *(2026-08-23: withdrawn — the tripwire is permanent; see the CORRECTION block in this document.)* The ride ran, measured the reach, and stopped; exactly ONE registry item closed, not thirteen.
 - Ride discipline: ship on these acceptance criteria and nothing else. A finding
   outside them is filed, not fixed here. Two validation rounds maximum.
 - Worth knowing while working: `grep` resolves to a shell function even
