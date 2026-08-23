@@ -1,14 +1,16 @@
 ---
 id: the-subagent-contract-omits-the-hazards
-number: null
+number: 159
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 2
 capability: aai-orchestration
 links:
-  pr: []
-  commits: []
+  pr:
+    - 279
+  commits:
+    - 69faece46071c6b26fc8a9f9292cf7958465617b
 ---
 
 # Change — the contract every subagent reads says how to format its answer and nothing about how not to destroy the repository

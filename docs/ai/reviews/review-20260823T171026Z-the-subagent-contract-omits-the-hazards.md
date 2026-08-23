@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: f46502e...f4b6f3f (branch feat/contract-carries-the-hazards)
-  spec: docs/specs/SPEC-DRAFT-spec-the-subagent-contract-omits-the-hazards.md
+  spec: docs/specs/SPEC-0147-spec-the-subagent-contract-omits-the-hazards.md
   spec_compliance:
     verdict: pass
     ac_walk:

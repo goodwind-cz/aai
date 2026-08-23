@@ -1,14 +1,16 @@
 ---
 id: spec-the-subagent-contract-omits-the-hazards
 type: spec
-number: null
-status: implementing
+number: 147
+status: done
 ceremony_level: 2
 links:
-  requirement: docs/issues/CHANGE-DRAFT-the-subagent-contract-omits-the-hazards.md
+  requirement: docs/issues/CHANGE-0159-the-subagent-contract-omits-the-hazards.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 279
+  commits:
+    - 69faece46071c6b26fc8a9f9292cf7958465617b
 ---
 
 # Implementation Spec — the standing hazards move into the per-dispatch payload
@@ -16,7 +18,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-the-subagent-contract-omits-the-hazards.md
+- Requirement: docs/issues/CHANGE-0159-the-subagent-contract-omits-the-hazards.md
 - Decision records: SPEC-0087 (subagent-protocol-slim — created the CONTRACT and
   its 60-line cap), SPEC-0094 (role-output-contracts — restated the 60-line cap
   and added the <=54 headroom guard), SPEC-0110 (cache-friendly dispatch — the
@@ -202,11 +204,11 @@ and both tiers of the guard are preserved rather than removed.
 
 | Spec-AC    | Description                                                          | Status       | Evidence | Review-By | Notes |
 |------------|----------------------------------------------------------------------|--------------|----------|-----------|-------|
-| Spec-AC-01 | Standing hazards section present with five greppable anchors, non-empty | implementing | —        | —         | —     |
-| Spec-AC-02 | Each hazard cites a measured incident whose id or commit exists       | implementing | —        | —         | —     |
-| Spec-AC-03 | Arm bites per-hazard on mutation, control green, UNCOVERED never passes | implementing | —        | —         | —     |
-| Spec-AC-04 | Corpus governance measured — no ledger entry owed, PROFILES already set | implementing | —        | —         | —     |
-| Spec-AC-05 | No rule sentence duplicated across canon files                        | implementing | —        | —         | —     |
+| Spec-AC-01 | Standing hazards section present with five greppable anchors, non-empty | done | DONE c044346: .aai/SUBAGENT_CONTRACT.md carries one greppable `## Standing hazards` section with all five anchors (HAZ-RESTORE, HAZ-SCRATCH, HAZ-CD, HAZ-LEDGER, HAZ-WORKTREE), placed ahead of the result block. hygiene-pack test_083 green | —         | —     |
+| Spec-AC-02 | Each hazard cites a measured incident whose id or commit exists       | done | DONE: each hazard cites the measured incident that produced it. All five citations independently re-resolved by validation round 2 and by re-review, incl. 485a315 confirmed as the reflog-only commit HAZ-CD describes. HAZ-LEDGER was rewritten after round 1 judged its original scar a design note rather than an incident | —         | —     |
+| Spec-AC-03 | Arm bites per-hazard on mutation, control green, UNCOVERED never passes | done | DONE: hygiene-pack test_083 bites on 10 mutations with the tracked file byte-unchanged. Round 1 defeated the first version (emptied arrays passed asserting nothing on bash >= 4.4); a cardinality guard ahead of both loops now yields UNCOVERED-EMPTY-CORPUS and rc 1, re-verified independently in round 2 | —         | —     |
+| Spec-AC-04 | Corpus governance measured — no ledger entry owed, PROFILES already set | done | DONE, measured not assumed: TEST-010 corpus is .aai/*.prompt.md plus an explicit extra list, and the contract is in neither, so no diet-ledger entry was owed. Headroom 1665/2048 and the TEST-012 pin at 133 are byte-identical to main | —         | —     |
+| Spec-AC-05 | No rule sentence duplicated across canon files                        | done | DONE: no rule sentence is duplicated. spec-subagent-protocol-slim TEST-002 and TEST-003 green; validation round 2 re-swept .aai/** and docs/knowledge/** independently and found no surviving counter-example, after round 1 found four the orchestrator had missed | —         | —     |
 
 ## Implementation plan
 
