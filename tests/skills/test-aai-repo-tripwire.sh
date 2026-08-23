@@ -883,7 +883,14 @@ exit 0'
 # non-interactive ones; an arm that reads the shipped framework must measure the
 # POSIX grep CI resolves to, not whatever is in front of it.
 TW_GREP=/usr/bin/grep
-[[ -x "$TW_GREP" ]] || TW_GREP=grep
+if [[ ! -x "$TW_GREP" ]]; then
+  TW_GREP=grep
+  echo "  NOTE: /usr/bin/grep is absent — TEST-015 falls back to the bare name, which this repository aliases; its reads are weaker on this machine" >&2
+fi
+# Honest boundary: this pins 7 of the 68 grep sites in this file. The other 61
+# predate it and are unpinned. A half-pinned file advertises a guarantee it does
+# not keep, which code review judged WORSE than a consistently unpinned one —
+# filed rather than swept, because pinning 61 call sites is its own change.
 
 # --- TEST-015 — the always-watch floor exists and is not derived from the table
 # Validation of this scope found the floor shipped with ZERO coverage: deleting
@@ -924,9 +931,6 @@ test_015_always_watch_floor_is_declared() {
     log_fail "TEST-015: the fixture framework matched an impossible token — the reads above prove nothing"
     return
   fi
-  seeded_n=1
-
-  [[ "$seeded_n" -eq 1 ]] || { log_fail "TEST-015: vacuity guard did not run"; return; }
   log_pass "TEST-015 the always-watch floor is declared ($floor_n paths), seeds the watch set, and seeds the dedup set — the D7 fix is asserted, not just present"
 }
 

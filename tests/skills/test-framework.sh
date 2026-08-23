@@ -55,9 +55,12 @@ source "$TRIPWIRE_LIB"
 # tree. Isolation REDIRECTS those writes, it did not fix the suites, and the
 # zero-ALLOWED evidence behind the drain proves unreachability rather than
 # repair — the ALLOWED branch cannot be reached at all while isolation holds.
-# The drain is still right, because an exemption that cannot fire protects
-# nothing and its removal can only make the guard stricter. Tracked as
-# fu-drained-suites-still-write-unisolated.
+# The drain is still right, but on ONE argument only: removing an exemption can
+# only make the guard stricter. Code review caught the other half of an earlier
+# wording — "an exemption that cannot fire protects nothing" — contradicting the
+# sentence above it. It CAN fire: at AAI_TEST_ISOLATION=0 the entry would have
+# converted a FAIL into a green ALLOWED warning, which is exactly the state
+# where it mattered. Tracked as fu-drained-suites-still-write-unisolated.
 #
 # The emptiness is not left to good intentions: it is a LENGTH RATCHET, asserted
 # by tests/skills/test-aai-repo-tripwire.sh TEST-014 against a declared maximum
