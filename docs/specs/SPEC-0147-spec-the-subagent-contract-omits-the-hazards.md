@@ -8,7 +8,7 @@ links:
   requirement: docs/issues/CHANGE-0159-the-subagent-contract-omits-the-hazards.md
   rfc: null
   pr:
-    - 279
+    - 280
   commits:
     - 69faece46071c6b26fc8a9f9292cf7958465617b
 ---
