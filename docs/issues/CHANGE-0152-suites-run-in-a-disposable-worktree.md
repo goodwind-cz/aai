@@ -40,8 +40,9 @@ a suite's REACH — from inside the checkout,
 because a worktree shares the common git dir
 (`fu-isolated-suite-reaches-shipping-repo`, P1). The retirement scope measured
 the counterfactual and stopped on its own acceptance criterion. The tripwire is a
-PERMANENT layer. Exactly one registry item closed as moot
-(`fu-tripwire-removal-needs-a-gate`); every other tripwire defect stays open.
+PERMANENT layer. Exactly one registry item closed, and NOT as a defect that was fixed:
+`fu-tripwire-removal-needs-a-gate` was a precondition for a deletion that is no
+longer planned, and its requirement survives as a reopening condition; every other tripwire defect stays open.
 
 ## Motivation / Business Value
 - Four suites write to the shipping repository today and are exempted by a ratchet.

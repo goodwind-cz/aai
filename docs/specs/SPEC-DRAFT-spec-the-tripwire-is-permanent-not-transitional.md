@@ -275,11 +275,18 @@ None.
   guess wearing a measurement's clothes, which is the defect this whole
   programme exists to remove. The claim is therefore reduced to what was
   actually verified.
-  - Verification: the sweep command recorded under `## Verification` below is
-    re-run after the edits; every hit it returns is either inside a
-    `CORRECTION (2026-08-23)` block, inside a historical record under
-    `docs/ai/{validation,reviews,reports,tdd}`, inside this scope's own intake
-    or spec, or named by `fu-tripwire-suite-comment-transitional`.
+  - Verification, and note what it is NOT: the sweep is re-run and every hit it
+    returns is either inside a `CORRECTION (2026-08-23)` block, inside a
+    historical record under `docs/ai/{validation,reviews,reports,tdd}`, inside
+    this scope's own intake or spec, or named by
+    `fu-tripwire-suite-comment-transitional`. **A clean re-run is NOT evidence
+    of completeness** — it is the same detector that missed a directory, a
+    tense, and later occurrences within an already-corrected file. It is
+    retained as a cheap regression check on the hits that ARE known, and code
+    review flagged that keeping it unqualified after diagnosing it would be the
+    contradiction this scope exists to remove. The completeness question is
+    answered by reading the enumerated 51 tracked files, which this scope did
+    not do and does not claim (`fu-claim-sweep-needs-reading-not-regex`, P2).
 
 - Maps to: CHANGE AC-005
 - Spec-AC-05: `git diff --stat` for this scope names ZERO executable files —
