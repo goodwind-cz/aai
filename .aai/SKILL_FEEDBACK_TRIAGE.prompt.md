@@ -1,5 +1,7 @@
 # SKILL: /aai-feedback-triage — offline friction triage (RFC-0012 Phase 2)
 
+This is step 1 of the sanctioned channel for reporting AAI-layer problems/bugs/friction UPSTREAM to the canonical repo (the `upsert.destination` in `.aai/feedback.yaml`).
+
 Thin wrapper over the deterministic engine `.aai/scripts/aai-feedback-triage.mjs`.
 It reads the local friction spool, gates + scores + clusters the observations, and
 writes a LOCAL triage report. This slice is OFFLINE — no GitHub token, no network,

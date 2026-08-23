@@ -1702,6 +1702,14 @@ test_clarify_011_no_new_ceremony() {
         # confined to this one script. Sixth payment of this allowlist tax
         # (fu-test011-branch-diff-allowlist-tax, P2, live).
         .aai/scripts/follow-ups.mjs) ;;
+        # feedback-pipeline-discoverability: ONE discoverability sentence in
+        # each feedback prompt so the upstream-reporting channel is findable by
+        # the vocabulary agents actually search (goodwind-cz/aai#278 / PR #279);
+        # the matching prompt-diet ledger true-up rides in the same PR, and
+        # AGENTS.md is already covered by the deslop entry above. Seventh
+        # payment of this allowlist tax
+        # (fu-test011-branch-diff-allowlist-tax, P2, live).
+        .aai/SKILL_FEEDBACK_TRIAGE.prompt.md|.aai/SKILL_FEEDBACK_UPSERT.prompt.md) ;;
         # suites-must-not-touch-the-shipping-repo: the shared tripwire library
         # and the ad hoc test funnel that arms it (the other funnel,
         # tests/skills/test-framework.sh, is outside .aai/ and so outside this
@@ -1730,7 +1738,7 @@ test_clarify_011_no_new_ceremony() {
         # TENTH payment of this allowlist tax
         # (fu-test011-branch-diff-allowlist-tax, P2, live); the recount on the
         # pass line below was already one group stale before this edit, so it
-        # is corrected here to a re-counted 32 paths across 11 groups (31 when
+        # is corrected here to a re-counted 34 paths across 12 groups (31 when
         # this comment was first written; SUBAGENT_PROTOCOL.md joined the group
         # in the same scope and the pass line moved with it — a comment that
         # states a count has to move every time the count does).
@@ -1741,7 +1749,7 @@ test_clarify_011_no_new_ceremony() {
   else
     log_info "TEST-011(clarify): neither origin/main nor main resolves — the .aai/ diff pin did not run"
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (recounted 2026-08-23: 32 paths across 11 case groups) accounts for every changed .aai/ path" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (recounted 2026-08-23 after merging main: 34 paths across 12 case groups) accounts for every changed .aai/ path" \
     || log_fail "TEST-011(clarify) zero-added-ceremony pins"
 }
 

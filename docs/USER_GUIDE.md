@@ -2167,6 +2167,7 @@ stored, and **no issue is ever filed without your explicit confirmation.**
    ```bash
    node .aai/scripts/aai-feedback-triage.mjs
    ```
+   (In Claude Code this is also invocable as the `/aai-feedback-triage` skill.)
    Clusters that clear the threshold are marked `review_candidate`. Nothing leaves
    your machine.
 
@@ -2177,6 +2178,7 @@ stored, and **no issue is ever filed without your explicit confirmation.**
    # -> writes docs/ai/friction/pending-issues/<fingerprint>.md and prints the
    #    exact confirmed-write command for each
    ```
+   (In Claude Code this is also invocable as the `/aai-feedback-upsert` skill.)
 
 5. **Review, then file — the only step that touches GitHub, and only on your
    `--confirm`.** Read the draft in `docs/ai/friction/pending-issues/`, and if you

@@ -45,6 +45,8 @@ set of wrapper directories in `.claude/skills/`.
 | aai-deslop | Optional AI-slop removal pass before review (diff scope or --all for .aai/'s scripts+system config, not the whole tree, ask-and-stop if neither given), behavior unchanged (never blocks) | `/aai-deslop` | `--prompt-file .aai/SKILL_DESLOP.prompt.md` |
 | aai-interrogate | Optional plan decision-walk, one pre-answered question at a time, ledger to decisions.jsonl (never blocks) | `/aai-interrogate` | `--prompt-file .aai/SKILL_INTERROGATE.prompt.md` |
 | aai-issues | On-demand: fetch, triage, and (after one approval checkpoint) turn open platform issues into approved intakes | `/aai-issues` | `--prompt-file .aai/SKILL_ISSUES.prompt.md` |
+| aai-feedback-triage | Offline friction triage: reads the local friction spool, scores/clusters observations, writes a LOCAL report (no network) — step 1 to report AAI-layer problems/friction upstream to the canonical repo | `/aai-feedback-triage` | `--prompt-file .aai/SKILL_FEEDBACK_TRIAGE.prompt.md` |
+| aai-feedback-upsert | Turns triage clusters into redacted, deduplicated, budget-capped GitHub issue DRAFTS for the canonical repo; DEFAULT WRITES NOTHING — filing only via explicit `--publish <fp> --confirm` — step 2 to report AAI-layer problems/bugs upstream to the canonical repo | `/aai-feedback-upsert` | `--prompt-file .aai/SKILL_FEEDBACK_UPSERT.prompt.md` |
 | aai-routine | On-demand: render a vendored standing-routine template (e.g. the morning scryer) into the harness-appropriate installation payload, merge-rights gated on a decisions.jsonl authorization record | `/aai-routine` | `--prompt-file .aai/SKILL_ROUTINE.prompt.md` |
 
 ## Skills in Detail
@@ -382,6 +384,43 @@ It never merges — merging is an operator action.
 
 # Codex
 codex --prompt-file .aai/SKILL_PR.prompt.md
+```
+
+### aai-feedback-triage
+
+Step 1 of the sanctioned channel to report AAI-layer problems/friction upstream
+to the canonical repo (RFC-0012). Runs the deterministic offline engine
+`.aai/scripts/aai-feedback-triage.mjs` over the local friction spool
+(`docs/ai/friction/observations.jsonl`): gates, scores, and clusters the
+observations and writes a LOCAL triage report
+(`docs/ai/friction/triage-report.json`). No GitHub token, no network, no issue
+writes — nothing leaves your machine.
+
+```bash
+# Claude
+/aai-feedback-triage
+
+# Codex
+codex --prompt-file .aai/SKILL_FEEDBACK_TRIAGE.prompt.md
+```
+
+### aai-feedback-upsert
+
+Step 2 to report AAI-layer problems/bugs upstream to the canonical repo (the
+`upsert.destination` pinned in `.aai/feedback.yaml`). Runs
+`.aai/scripts/aai-feedback-upsert.mjs`, which turns the triage report's
+`review_candidate` clusters into transmit-redacted, deduplicated, budget-capped
+GitHub issue DRAFTS under `docs/ai/friction/pending-issues/`. THE DEFAULT RUN
+WRITES NOTHING TO GITHUB — an issue is filed only via the explicit,
+human-confirmed `--publish <fingerprint> --confirm` step, which re-runs the
+redaction and budget check immediately before the single mutating call.
+
+```bash
+# Claude
+/aai-feedback-upsert
+
+# Codex
+codex --prompt-file .aai/SKILL_FEEDBACK_UPSERT.prompt.md
 ```
 
 ## Agent-Specific Invocation
