@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-22T22:56:06.208Z
+Generated: 2026-08-23T06:26:46.203Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-drain-the-tripwire-known-offender-list | specs | implementing | 5 implementing | docs/specs/SPEC-DRAFT-spec-drain-the-tripwire-known-offender-list.md |
+| spec-drain-the-tripwire-known-offender-list | specs | implementing | 5 done | docs/specs/SPEC-DRAFT-spec-drain-the-tripwire-known-offender-list.md |
 
 ## Canonical layer (0)
 
@@ -441,4 +441,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-22 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-23 — counts above use this date for overdue checks.

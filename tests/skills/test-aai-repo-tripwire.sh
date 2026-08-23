@@ -878,6 +878,58 @@ exit 0'
 # is to raise the maximum by one: the arm survives, the number is in the diff,
 # and the trend is legible. Legible erosion beats a silent hole.
 # ---------------------------------------------------------------------------
+# The absolute grep path, pinned for the arms below. This repository aliases
+# grep to ugrep in interactive shells and a census shim has replaced it in
+# non-interactive ones; an arm that reads the shipped framework must measure the
+# POSIX grep CI resolves to, not whatever is in front of it.
+TW_GREP=/usr/bin/grep
+[[ -x "$TW_GREP" ]] || TW_GREP=grep
+
+# --- TEST-015 — the always-watch floor exists and is not derived from the table
+# Validation of this scope found the floor shipped with ZERO coverage: deleting
+# TRIPWIRE_ALWAYS_WATCH left the suite 14/14 green while a measured regression
+# came back (the second same-run writer of docs/INDEX.md printed a bare PASS and
+# was counted attested clean, with the write landed). The floor is the fix for
+# fu-watch-paths-empty-reopens-d7, and a fix nothing asserts is a fix waiting to
+# be deleted by someone tidying up.
+test_015_always_watch_floor_is_declared() {
+  local d="" fw="" floor_n=0 seeded_n=0
+
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  fw="$d/tests/skills/test-framework.sh"
+  [[ -f "$fw" ]] || { log_fail "TEST-015: the fixture has no framework copy to read"; return; }
+
+  # The floor is DECLARED, and it is not empty. Counted from the byte copy the
+  # fixture holds, so this reads what CI reads.
+  floor_n="$("$TW_GREP" -c '^  "docs/' "$fw" 2>/dev/null || true)"
+  "$TW_GREP" -q '^TRIPWIRE_ALWAYS_WATCH=(' "$fw" \
+    || { log_fail "TEST-015: TRIPWIRE_ALWAYS_WATCH is gone — the D7 floor was removed; see fu-watch-paths-empty-reopens-d7 for what that reopens"; return; }
+  [[ "$floor_n" -ge 3 ]] \
+    || { log_fail "TEST-015: the always-watch floor declares $floor_n path(s), want at least 3 — a shrinking floor is the regression returning by instalments"; return; }
+
+  # It SEEDS the watch set, rather than merely existing beside it. A floor that
+  # is declared and then not used is the same hole with a comment on it.
+  "$TW_GREP" -q '^TRIPWIRE_WATCH_PATHS=("\${TRIPWIRE_ALWAYS_WATCH\[@\]}")' "$fw" \
+    || { log_fail "TEST-015: TRIPWIRE_WATCH_PATHS no longer starts from the floor, so the hashed set is derived from the exemption table again"; return; }
+
+  # And the dedup set is seeded from it, so a table entry naming one of the
+  # three cannot double-hash the path (measured both ways during validation).
+  "$TW_GREP" -q 'for p in "\${TRIPWIRE_ALWAYS_WATCH\[@\]}"; do' "$fw" \
+    || { log_fail "TEST-015: the dedup set is no longer seeded from the floor, so a table entry naming a floor path would hash it twice"; return; }
+
+  # VACUITY GUARD: prove the grep can fail on this file at all, or every check
+  # above passes on an unreadable path forever.
+  if "$TW_GREP" -q 'TRIPWIRE_ALWAYS_WATCH_THIS_TOKEN_MUST_NOT_EXIST' "$fw"; then
+    log_fail "TEST-015: the fixture framework matched an impossible token — the reads above prove nothing"
+    return
+  fi
+  seeded_n=1
+
+  [[ "$seeded_n" -eq 1 ]] || { log_fail "TEST-015: vacuity guard did not run"; return; }
+  log_pass "TEST-015 the always-watch floor is declared ($floor_n paths), seeds the watch set, and seeds the dedup set — the D7 fix is asserted, not just present"
+}
+
 test_014_shipped_ratchet_length_is_ratcheted() {
   local d="" base_count="" base_rc=0 ctl_count="" ctl_rc=0 shipped_count="" shipped_rc=0
 
@@ -956,6 +1008,7 @@ main() {
   test_012_ratchet_table_collisions_are_named
   test_013_drained_list_exempts_nobody
   test_014_shipped_ratchet_length_is_ratcheted
+  test_015_always_watch_floor_is_declared
   echo ""
   if [[ $FAILED -eq 0 ]]; then
     echo "All tests passed!"

@@ -44,14 +44,28 @@ source "$TRIPWIRE_LIB"
 # IT IS EMPTY, and that is the point. Disposable-worktree isolation
 # (spec-suites-run-in-a-disposable-worktree) removed the cause; all four suites
 # were then re-measured one at a time through the real framework and none of
-# them writes to the shipping repository any more, so the four entries went
+# them reaches the shipping repository UNDER ISOLATION, so the four entries went
 # and their four registry items were closed against the measurement
 # (spec-drain-the-tripwire-known-offender-list). Every suite is now held to the
-# same rule. The emptiness is not left to good intentions: it is a LENGTH
-# RATCHET, asserted by tests/skills/test-aai-repo-tripwire.sh TEST-014 against a
-# declared maximum of zero. Adding an exemption means raising that maximum, in
-# the same diff as the entry, where a reviewer sees it — the cheapest legal edit
-# keeps the arm alive instead of tempting whoever is in a hurry to delete it.
+# same rule.
+#
+# Say exactly that and no more. An earlier version of this comment said the four
+# "no longer write", which validation measured to be FALSE: at
+# AAI_TEST_ISOLATION=0, aai-state and aai-token-capture still write the shipping
+# tree. Isolation REDIRECTS those writes, it did not fix the suites, and the
+# zero-ALLOWED evidence behind the drain proves unreachability rather than
+# repair — the ALLOWED branch cannot be reached at all while isolation holds.
+# The drain is still right, because an exemption that cannot fire protects
+# nothing and its removal can only make the guard stricter. Tracked as
+# fu-drained-suites-still-write-unisolated.
+#
+# The emptiness is not left to good intentions: it is a LENGTH RATCHET, asserted
+# by tests/skills/test-aai-repo-tripwire.sh TEST-014 against a declared maximum
+# of zero. What that buys over a bare emptiness assertion is a NAMED NUMBER in
+# the diff and a failure that prints count, maximum and the offending entries.
+# It does NOT buy a one-line legal edit: validation measured that raising the
+# maximum leaves TEST-013 red, so an exemption costs two edits. The earlier
+# claim that "the cheapest legal edit keeps the arm alive" overstated it.
 #
 # The format below is LIVE CODE, not history. tripwire_allowlist_entry splits on
 # '|' and tripwire_ratchet_init strips two fields to reach the paths, so the
@@ -99,10 +113,13 @@ TRIPWIRE_KNOWN_OFFENDERS=(
 # that is not on the list still fails" true for these paths instead of true only
 # until the ratchet fires.
 #
-# With the table drained this set is EMPTY, so the D7 status-class blind spot is
-# back for those three paths — not because the ratchet still masks them, but
-# because a FAILING suite does not revert its write either, so a second writer
-# of the same path later in the same run still leaves porcelain byte-identical.
+# With the table drained this set WOULD BE empty, and the D7 status-class blind
+# spot would be back for those three paths — not because the ratchet still masks
+# them, but because a FAILING suite does not revert its write either, so a second
+# writer of the same path later in the same run still leaves porcelain
+# byte-identical. Validation measured exactly that: without the floor below, the
+# second same-run writer of docs/INDEX.md prints a bare PASS and is counted
+# attested clean with the write landed.
 # FIXED here rather than filed, because this scope CAUSED it. Deriving the
 # hashed set from the exemption table coupled two unrelated questions — "which
 # suite is forgiven" and "which path is worth hashing" — so draining the table
