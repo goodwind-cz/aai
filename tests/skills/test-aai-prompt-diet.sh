@@ -413,6 +413,11 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# 859 (true-up: feedback-pipeline-discoverability added a +1187 B itemized
+# entry — two prompt discoverability sentences (+172 B each) + the AGENTS.md
+# upstream-reporting subsection with the --repo-pinned fallback (+843 B) —
+# plus a -461 B stale-credit reclaim (TEST-010 cap-guard: corpus had shrunk
+# below the standing credit), so the TEST-012 pin moves 133 -> 859, over the prior
 # 133 (true-up: intake-numbers-some-doc-types-immediately added a +2697 B
 # itemized entry — the DRAFT naming rule moved to where the intake router
 # actually reads it: one RULES bullet in each of the eight
@@ -668,15 +673,15 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 133 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 133)"
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 859 ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 859)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 133 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 859 == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

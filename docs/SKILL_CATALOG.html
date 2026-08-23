@@ -164,6 +164,20 @@ and relay its output. Publishable via `/aai-share`.</p>
   <ul class="notes"><li>NOTE: no .aai/SKILL_*.prompt.md reference found in .claude/skills/aai-factory-report/SKILL.md (script-first skill — see description)</li></ul>
   <p class="meta">.claude/skills/aai-factory-report/SKILL.md</p>
 </div>
+<div class="skill-card" data-search="aai-feedback-triage use when you want to report aai-layer problems/friction upstream to the canonical repo — step 1: offline triage that reads the local friction spool, scores and clusters observations, and writes a local report (no network, no github writes) aai-feedback-triage">
+  <h3>aai-feedback-triage</h3>
+  <p class="desc"><strong>When to use:</strong> Use when you want to report AAI-layer problems/friction upstream to the canonical repo — step 1: offline triage that reads the local friction spool, scores and clusters observations, and writes a LOCAL report (no network, no GitHub writes)</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_FEEDBACK_TRIAGE.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-feedback-triage/SKILL.md · .aai/SKILL_FEEDBACK_TRIAGE.prompt.md</p>
+</div>
+<div class="skill-card" data-search="aai-feedback-upsert use when you want to report aai-layer problems upstream — step 2: turns triage clusters into redacted, deduplicated, budget-capped github issue drafts for the canonical repo; prepare-only by default; publishing requires explicit --publish --confirm aai-feedback-upsert">
+  <h3>aai-feedback-upsert</h3>
+  <p class="desc"><strong>When to use:</strong> Use when you want to report AAI-layer problems upstream — step 2: turns triage clusters into redacted, deduplicated, budget-capped GitHub issue drafts for the canonical repo; prepare-only by default; publishing requires explicit --publish --confirm</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_FEEDBACK_UPSERT.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-feedback-upsert/SKILL.md · .aai/SKILL_FEEDBACK_UPSERT.prompt.md</p>
+</div>
 <div class="skill-card" data-search="aai-flush use when the loop exited without flushing metrics, or after manual validation, to move completed work item data from state.yaml to metrics.jsonl. aai-flush">
   <h3>aai-flush<span class="badge">haiku</span></h3>
   <p class="desc"><strong>When to use:</strong> Use when the loop exited without flushing metrics, or after manual validation, to move completed work item data from STATE.yaml to METRICS.jsonl.</p>
@@ -400,7 +414,7 @@ the user chooses to continue in the current working tree.</p>
 </div>
 </div>
 
-<footer>37 skills (22 with extraction notes) · source: .claude/skills/*/SKILL.md + .aai/SKILL_*.prompt.md</footer>
+<footer>39 skills (24 with extraction notes) · source: .claude/skills/*/SKILL.md + .aai/SKILL_*.prompt.md</footer>
 <script>
   document.getElementById('search').addEventListener('input', function (e) {
     var term = e.target.value.trim().toLowerCase();
