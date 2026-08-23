@@ -1,5 +1,7 @@
 # SKILL: /aai-feedback-upsert — review-mode issue upsert (RFC-0012 Phase 2c)
 
+This is step 2 of the sanctioned channel for reporting AAI-layer problems/bugs/friction UPSTREAM to the canonical repo (the `upsert.destination` in `.aai/feedback.yaml`).
+
 Thin wrapper over `.aai/scripts/aai-feedback-upsert.mjs`. It turns the triage
 report's `review_candidate` clusters into transmit-redacted, deduplicated,
 budget-checked GitHub issue drafts. THE DEFAULT RUN WRITES NOTHING TO GITHUB.

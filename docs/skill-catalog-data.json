@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-08-23T06:45:39.984Z",
-  "skillsCount": 37,
-  "degradedCount": 22,
+  "generatedAt": "2026-08-23T15:20:29.485Z",
+  "skillsCount": 39,
+  "degradedCount": 24,
   "skills": [
     {
       "dir": "aai-auto-trigger",
@@ -134,6 +134,28 @@
       "goal": null,
       "notes": [
         "NOTE: no .aai/SKILL_*.prompt.md reference found in .claude/skills/aai-factory-report/SKILL.md (script-first skill — see description)"
+      ]
+    },
+    {
+      "dir": "aai-feedback-triage",
+      "name": "aai-feedback-triage",
+      "description": "Use when you want to report AAI-layer problems/friction upstream to the canonical repo — step 1: offline triage that reads the local friction spool, scores and clusters observations, and writes a LOCAL report (no network, no GitHub writes)",
+      "model": null,
+      "promptFile": ".aai/SKILL_FEEDBACK_TRIAGE.prompt.md",
+      "goal": null,
+      "notes": [
+        "NOTE: no \"## Goal\" section found in .aai/SKILL_FEEDBACK_TRIAGE.prompt.md"
+      ]
+    },
+    {
+      "dir": "aai-feedback-upsert",
+      "name": "aai-feedback-upsert",
+      "description": "Use when you want to report AAI-layer problems upstream — step 2: turns triage clusters into redacted, deduplicated, budget-capped GitHub issue drafts for the canonical repo; prepare-only by default; publishing requires explicit --publish --confirm",
+      "model": null,
+      "promptFile": ".aai/SKILL_FEEDBACK_UPSERT.prompt.md",
+      "goal": null,
+      "notes": [
+        "NOTE: no \"## Goal\" section found in .aai/SKILL_FEEDBACK_UPSERT.prompt.md"
       ]
     },
     {
