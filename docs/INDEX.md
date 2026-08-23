@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-22T18:04:14.942Z
+Generated: 2026-08-23T07:13:08.352Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -48,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (352)
+## Done (354)
 
 | ID | Type | Path |
 |---|---|---|
@@ -209,6 +209,7 @@ _None._
 | CHANGE-0155 | issues | docs/issues/CHANGE-0155-assertions-must-not-die-on-their-own-payload.md |
 | CHANGE-0156 | issues | docs/issues/CHANGE-0156-a-run-must-say-whether-isolation-armed.md |
 | CHANGE-0157 | issues | docs/issues/CHANGE-0157-a-half-seeded-checkout-says-it-is-isolated.md |
+| CHANGE-0158 | issues | docs/issues/CHANGE-0158-drain-the-tripwire-known-offender-list.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -403,6 +404,7 @@ _None._
 | SPEC-0143 | specs | docs/specs/SPEC-0143-spec-assertions-must-not-die-on-their-own-payload.md |
 | SPEC-0144 | specs | docs/specs/SPEC-0144-spec-a-run-must-say-whether-isolation-armed.md |
 | SPEC-0145 | specs | docs/specs/SPEC-0145-spec-a-half-seeded-checkout-says-it-is-isolated.md |
+| SPEC-0146 | specs | docs/specs/SPEC-0146-spec-drain-the-tripwire-known-offender-list.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)
@@ -438,4 +440,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-22 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-23 — counts above use this date for overdue checks.
