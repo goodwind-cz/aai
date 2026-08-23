@@ -47,6 +47,15 @@ arm* to *was the isolated tree completely built*.
 - It is a **second input to deleting the tripwire**, alongside
   `fu-tripwire-removal-needs-a-gate` (P2). Once the tripwire is gone, a silently
   half-seeded run is green and says `isolated`.
+  **CORRECTION (2026-08-23):** the tripwire is not going. A disposable worktree
+  shares the shipping repository's git common dir, so isolation does not remove
+  a suite's reach into the shipping tree
+  (`fu-isolated-suite-reaches-shipping-repo`, P1) — the tripwire is permanent
+  and `fu-tripwire-removal-needs-a-gate` is CLOSED as a precondition for a
+  deletion that is no longer planned, not as a defect that was fixed. This scope
+  is therefore not an input to any deletion; the seeding-completeness reporting
+  it delivered is worth having on its own. Superseding record: the
+  `hitl_decision` at 2026-08-23T20:05:00Z in `docs/ai/decisions.jsonl`.
 - Today the working tree has **zero** untracked files that step 2 would copy, so
   the step is currently a no-op here. That is exactly why it is worth fixing now
   rather than after it starts mattering: nothing would notice it breaking.
@@ -72,6 +81,7 @@ places and the same vocabulary it already states whether isolation armed.
   block, and the run-ledger record — exactly as `isolated`/`degraded` does.
 - AC-004: the exit code is unchanged. Report-only, no new gate. State why, and
   state whether it should become a gate when the tripwire is deleted.
+  *(2026-08-23: withdrawn — the tripwire is permanent; see the CORRECTION block in this document.)*
 - AC-005: `aai-run-tests.sh` reports the same axis in the same words, so the two
   funnels cannot be read as disagreeing.
 

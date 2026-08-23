@@ -30,6 +30,12 @@ suite runs. The regression net is the suite that already owns both funnels
   (`spec-suites-run-in-a-disposable-worktree`).
 - The guard this unlocks the removal of, but does NOT remove: SPEC-0137
   (`spec-suites-must-not-touch-the-shipping-repo`), the tripwire.
+  **CORRECTION (2026-08-23):** that guard's removal is NOT unlocked and is no
+  longer planned — the tripwire is permanent. See the superseding
+  `hitl_decision` at 2026-08-23T20:05:00Z in `docs/ai/decisions.jsonl`, which
+  withdraws the 2026-08-19 one on the measurement that a disposable worktree
+  shares the shipping repo's git common dir. This scope's own delivery is
+  unaffected: it reports on isolation, it never removed anything.
 - Technology contract: docs/TECHNOLOGY.md
 
 ## Implementation strategy
@@ -155,6 +161,15 @@ condition — that the tripwire is still armed — is exactly what the next ride
 removes. So the gating question is filed rather than dropped
 (`fu-isolation-degrade-not-a-gate`), as an input the tripwire-deletion scope
 must answer before it deletes anything.
+
+**CORRECTION (2026-08-23).** "Exactly what the next ride removes" is withdrawn.
+No ride removes it: the tripwire is permanent, so the condition this conclusion
+rests on holds indefinitely rather than briefly. `fu-isolation-degrade-not-a-gate`
+therefore stops being an input to a deletion scope and becomes a standing
+question about the isolation report on its own terms — it is neither closed nor
+resolved by this correction. Superseding record: the `hitl_decision` at
+2026-08-23T20:05:00Z in `docs/ai/decisions.jsonl`, which also names the three
+measurable conditions that would reopen the deletion question.
 
 The exit-code contract is untouched in the letter as well as the spirit:
 `exit 1 iff FAILED_TESTS > 0` is unchanged, and this scope adds no path that can

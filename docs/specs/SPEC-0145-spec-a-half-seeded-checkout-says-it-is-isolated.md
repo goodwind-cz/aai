@@ -34,6 +34,12 @@ regression net is the suite that already owns both funnels
   (`spec-suites-run-in-a-disposable-worktree`).
 - The guard whose removal this is the second input to, and which it does NOT
   remove: SPEC-0137 (`spec-suites-must-not-touch-the-shipping-repo`).
+  **CORRECTION (2026-08-23):** there is no removal for this to be an input to —
+  the tripwire is permanent and its deletion is not scheduled. The superseding
+  `hitl_decision` at 2026-08-23T20:05:00Z in `docs/ai/decisions.jsonl` withdraws
+  the 2026-08-19 one: a disposable worktree shares the shipping repository's git
+  common dir, so isolation moves a suite's cwd without removing its reach. What
+  this scope delivered — seeding completeness reporting — stands unchanged.
 - Technology contract: docs/TECHNOLOGY.md
 
 ## Implementation strategy

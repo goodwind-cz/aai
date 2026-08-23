@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-23T18:28:57.292Z
+Generated: 2026-08-23T21:55:59.662Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -48,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (356)
+## Done (358)
 
 | ID | Type | Path |
 |---|---|---|
@@ -211,6 +211,7 @@ _None._
 | CHANGE-0157 | issues | docs/issues/CHANGE-0157-a-half-seeded-checkout-says-it-is-isolated.md |
 | CHANGE-0158 | issues | docs/issues/CHANGE-0158-drain-the-tripwire-known-offender-list.md |
 | CHANGE-0159 | issues | docs/issues/CHANGE-0159-the-subagent-contract-omits-the-hazards.md |
+| CHANGE-0160 | issues | docs/issues/CHANGE-0160-the-tripwire-is-permanent-not-transitional.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -407,6 +408,7 @@ _None._
 | SPEC-0145 | specs | docs/specs/SPEC-0145-spec-a-half-seeded-checkout-says-it-is-isolated.md |
 | SPEC-0146 | specs | docs/specs/SPEC-0146-spec-drain-the-tripwire-known-offender-list.md |
 | SPEC-0147 | specs | docs/specs/SPEC-0147-spec-the-subagent-contract-omits-the-hazards.md |
+| SPEC-0148 | specs | docs/specs/SPEC-0148-spec-the-tripwire-is-permanent-not-transitional.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)

@@ -72,6 +72,13 @@ links:
   and the ratchet as a whole is transitional — the recorded successor is one
   disposable worktree per suite. This serves AC-001; it adds no acceptance
   criterion of its own.
+  **CORRECTION (2026-08-23):** "the ratchet as a whole is transitional" is
+  withdrawn. The recorded successor landed (SPEC-0138) and does not remove the
+  cause — a disposable worktree shares the shipping repository's git common dir,
+  so a suite inside it still reaches the shipping tree
+  (`fu-isolated-suite-reaches-shipping-repo`, P1). The tripwire, the ratchet and
+  the hashing are permanent; see the superseding `hitl_decision` at
+  2026-08-23T20:05:00Z in `docs/ai/decisions.jsonl`.
 
 ## Acceptance Criteria
 - AC-001: a deliberately dirty test suite, added as a fixture, turns the framework

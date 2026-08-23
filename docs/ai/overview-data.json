@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-23T17:35:39.146Z",
+  "generatedAt": "2026-08-23T21:50:35.065Z",
   "project": "aai",
   "counts": {
-    "delivered": 206,
+    "delivered": 207,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "the-subagent-contract-omits-the-hazards",
+    "ref": "the-tripwire-is-permanent-not-transitional",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "the-subagent-contract-omits-the-hazards",
+      "ref": "the-tripwire-is-permanent-not-transitional",
       "type": "intake_change",
       "phase": "code_review"
     },
@@ -23,7 +23,7 @@
       "recommendation": "not_needed",
       "user_decision": "inline"
     },
-    "validation_status": "pass",
+    "validation_status": "not_run",
     "review_status": "pass",
     "ticks": [
       {
@@ -104,6 +104,19 @@
       "spec": "docs/specs/SPEC-0147-spec-the-subagent-contract-omits-the-hazards.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260823T173041Z-the-subagent-contract-omits-the-hazards.md"
+    },
+    {
+      "ref": "the-tripwire-is-permanent-not-transitional",
+      "title": "Change — the tripwire is permanent, and calling it transitional is now the false claim",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0160-the-tripwire-is-permanent-not-transitional.md",
+      "closed_on": "2026-08-23",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0148-spec-the-tripwire-is-permanent-not-transitional.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260823T211309Z-the-tripwire-is-permanent-not-transitional-round2.md"
     },
     {
       "ref": "a-run-must-say-whether-isolation-armed",
@@ -2789,6 +2802,19 @@
           "spec": "docs/specs/SPEC-0147-spec-the-subagent-contract-omits-the-hazards.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260823T173041Z-the-subagent-contract-omits-the-hazards.md"
+        },
+        {
+          "ref": "the-tripwire-is-permanent-not-transitional",
+          "title": "Change — the tripwire is permanent, and calling it transitional is now the false claim",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0160-the-tripwire-is-permanent-not-transitional.md",
+          "closed_on": "2026-08-23",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0148-spec-the-tripwire-is-permanent-not-transitional.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260823T211309Z-the-tripwire-is-permanent-not-transitional-round2.md"
         },
         {
           "ref": "a-run-must-say-whether-isolation-armed",
