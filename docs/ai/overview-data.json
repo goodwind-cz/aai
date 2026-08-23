@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-23T06:46:06.581Z",
+  "generatedAt": "2026-08-23T17:35:39.146Z",
   "project": "aai",
   "counts": {
-    "delivered": 205,
+    "delivered": 206,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "drain-the-tripwire-known-offender-list",
+    "ref": "the-subagent-contract-omits-the-hazards",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "drain-the-tripwire-known-offender-list",
+      "ref": "the-subagent-contract-omits-the-hazards",
       "type": "intake_change",
       "phase": "code_review"
     },
@@ -91,6 +91,19 @@
       "spec": "docs/specs/SPEC-0146-spec-drain-the-tripwire-known-offender-list.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260823T062734Z-drain-the-tripwire-known-offender-list.md"
+    },
+    {
+      "ref": "the-subagent-contract-omits-the-hazards",
+      "title": "Change — the contract every subagent reads says how to format its answer and nothing about how not to destroy the repository",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0159-the-subagent-contract-omits-the-hazards.md",
+      "closed_on": "2026-08-23",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0147-spec-the-subagent-contract-omits-the-hazards.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260823T173041Z-the-subagent-contract-omits-the-hazards.md"
     },
     {
       "ref": "a-run-must-say-whether-isolation-armed",
@@ -2763,6 +2776,19 @@
           "spec": "docs/specs/SPEC-0146-spec-drain-the-tripwire-known-offender-list.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260823T062734Z-drain-the-tripwire-known-offender-list.md"
+        },
+        {
+          "ref": "the-subagent-contract-omits-the-hazards",
+          "title": "Change — the contract every subagent reads says how to format its answer and nothing about how not to destroy the repository",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0159-the-subagent-contract-omits-the-hazards.md",
+          "closed_on": "2026-08-23",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0147-spec-the-subagent-contract-omits-the-hazards.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260823T173041Z-the-subagent-contract-omits-the-hazards.md"
         },
         {
           "ref": "a-run-must-say-whether-isolation-armed",

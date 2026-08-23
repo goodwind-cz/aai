@@ -727,12 +727,19 @@ test_060_work_item_brief() {  # spec-work-item-brief TEST-001..006 / Spec-AC-01.
 }
 
 test_080_subagent_contract_exists() {  # spec-subagent-protocol-slim TEST-001 / Spec-AC-01
-  log_info "Test: .aai/SUBAGENT_CONTRACT.md exists, <=60 lines, carries the required tokens (spec-subagent-protocol-slim TEST-001)..."
+  # Cap re-based 60 -> 90 by spec-the-subagent-contract-omits-the-hazards D1.
+  # The cap's purpose is per-spawn payload cost, and the Standing hazards
+  # section it makes room for LOWERS that cost: those ~40 lines were already
+  # retyped into every dispatch as variable suffix bytes; in the CONTRACT they
+  # are stable-prefix bytes the SPEC-0110/SPEC-0096 dispatch hash caches. The
+  # cap is re-based, never removed — the sibling headroom guard
+  # (test-aai-role-output.sh TEST-020) re-bases with it, to 84.
+  log_info "Test: .aai/SUBAGENT_CONTRACT.md exists, <=90 lines, carries the required tokens (spec-subagent-protocol-slim TEST-001)..."
   local f="$PROJECT_ROOT/.aai/SUBAGENT_CONTRACT.md"
   [[ -f "$f" ]] || log_fail "missing .aai/SUBAGENT_CONTRACT.md"
   local n
   n="$(wc -l < "$f" | tr -d ' ')"
-  [[ "$n" -le 60 ]] || log_fail "SUBAGENT_CONTRACT.md must be <=60 lines (got $n)"
+  [[ "$n" -le 90 ]] || log_fail "SUBAGENT_CONTRACT.md must be <=90 lines (got $n)"
   grep -qF "subagent_result:" "$f" \
     || log_fail "CONTRACT must carry the fenced subagent_result: result block"
   grep -qF "duration_seconds" "$f" \
@@ -848,6 +855,141 @@ test_082_dispatch_refs_name_contract() {  # spec-subagent-protocol-slim TEST-003
     || log_fail "SKILL_TDD expert result-block reference must name SUBAGENT_CONTRACT.md"
 
   log_pass "Dispatch payload refs resolve to SUBAGENT_CONTRACT.md; orchestrator-only refs stay on SUBAGENT_PROTOCOL.md (spec-subagent-protocol-slim TEST-003)"
+}
+
+# --- spec-the-subagent-contract-omits-the-hazards TEST-001..003 --------------
+# The Standing hazards section IS the change: those rules were written verbatim
+# into every dispatch, read, and still failed twice (fu-subagent-probe-hits-
+# real-repo P1 2026-08-15; commit 485a315 2026-08-22), so they moved into the
+# payload every subagent receives.
+#
+# An arm that only asserted "the heading exists" would stay green on a section
+# someone quietly emptied while tidying up, which is exactly how the rules got
+# lost the first time. So the check is a REPORTER (hazards_findings) plus a bite
+# proof: the shipped file must report nothing, and a COPY with any one hazard —
+# or any one incident citation — removed must report that specific loss.
+#
+# The mutation only ever touches a copy under TEST_DIR; the tracked CONTRACT is
+# read and then proved byte-unchanged. This arm is bound by the HAZ-RESTORE rule
+# it pins.
+
+# The five hazard anchors and the five incident citations they must carry. Ids,
+# not prose fragments: prose gets reworded by the next editor, anchors do not.
+HAZ_IDS=(HAZ-RESTORE HAZ-SCRATCH HAZ-CD HAZ-LEDGER HAZ-WORKTREE)
+# EVERY scar below is a registry id, resolvable by anyone with the repository:
+# `node .aai/scripts/follow-ups.mjs list --status all`. An earlier version cited
+# commit 485a315 for HAZ-CD. Codex caught that it resolves ONLY in the author's
+# reflog — `git cat-file -t 485a315` fails in every clone, including CI and
+# every reviewer's. A citation that only its writer can check is not evidence,
+# which is the defect class this whole section exists to name. It also cited
+# follow-ups.mjs, a script header rather than an incident; that one was replaced
+# during validation for the same reason.
+HAZ_SCARS=(
+  fu-orchestrator-mutated-real-file
+  fu-subagent-probe-hits-real-repo
+  fu-empty-path-cd-stays-in-shipping-repo
+  # HAZ-LEDGER's scar was `follow-ups.mjs` (a script header describing a
+  # rollback that would truncate). Validation judged that weaker than its four
+  # neighbours — a design note, not an incident — and it was wrong besides:
+  # fu-append-only-merge-needs-prefix-order records ledger bytes ACTUALLY
+  # rewritten, caught in CI as DIVERGES at byte offset 248943.
+  fu-append-only-merge-needs-prefix-order
+  fu-prune-repair-error-string-misquoted
+)
+
+# hazards_section <file> — the body of '## Standing hazards' up to the next
+# level-2 heading. Prints nothing when the section is absent.
+hazards_section() {
+  awk '/^## Standing hazards/{f=1;next} f&&/^## /{exit} f' "$1"
+}
+
+# hazards_findings <file> — one MISSING-* token per absent requirement, nothing
+# when complete. It REPORTS and never judges: it must not call log_fail, because
+# the bite half of the arm runs it against a deliberately broken copy and
+# log_fail exits the whole suite.
+hazards_findings() {
+  local _hf_file="$1" _hf_body _hf_tok
+  # CARDINALITY FIRST. Validation broke this arm by emptying HAZ_IDS/HAZ_SCARS:
+  # on bash >= 4.4 (ubuntu CI) an empty array under `set -u` expands to nothing,
+  # both loops below run zero times, and the arm printed "all 0 anchors + 0
+  # incident citations; bite proved on 0 mutations" at rc 0. A guard reporting
+  # success over an empty corpus is the exact defect this programme has spent
+  # three days removing — reproduced inside the arm that enforces the rules
+  # against it. Never a pass on an unmeasured zero.
+  if [[ "${#HAZ_IDS[@]}" -lt 5 || "${#HAZ_SCARS[@]}" -lt 5 ]]; then
+    printf 'UNCOVERED-EMPTY-CORPUS ids=%s scars=%s (want >=5 each; with fewer, this arm asserts nothing)\n' \
+      "${#HAZ_IDS[@]}" "${#HAZ_SCARS[@]}"
+    return 0
+  fi
+  _hf_body="$(hazards_section "$_hf_file")"
+  if [[ -z "${_hf_body//[[:space:]]/}" ]]; then
+    printf 'MISSING-SECTION\n'
+    return 0
+  fi
+  for _hf_tok in "${HAZ_IDS[@]}"; do
+    case "$_hf_body" in
+      *"$_hf_tok"*) ;;
+      *) printf 'MISSING-%s\n' "$_hf_tok" ;;
+    esac
+  done
+  for _hf_tok in "${HAZ_SCARS[@]}"; do
+    case "$_hf_body" in
+      *"$_hf_tok"*) ;;
+      *) printf 'MISSING-SCAR-%s\n' "$_hf_tok" ;;
+    esac
+  done
+  return 0
+}
+
+test_083_subagent_contract_hazards() {  # spec-the-subagent-contract-omits-the-hazards TEST-001..003
+  log_info "Test: SUBAGENT_CONTRACT carries the Standing hazards section with all five hazards + their incidents, and the check BITES when one is removed (spec-the-subagent-contract-omits-the-hazards TEST-001..003)..."
+  local f="$PROJECT_ROOT/.aai/SUBAGENT_CONTRACT.md"
+  [[ -f "$f" ]] || log_fail "missing .aai/SUBAGENT_CONTRACT.md"
+
+  # (a) CONTROL — the shipped, unmutated CONTRACT reports nothing missing.
+  local found
+  found="$(hazards_findings "$f")"
+  [[ -z "$found" ]] \
+    || log_fail "SUBAGENT_CONTRACT.md '## Standing hazards' is incomplete: ${found//$'\n'/ } — every hazard needs its anchor AND the measured incident that produced it (a rule without its scar gets deleted by the next tidy-up)"
+
+  # (b) The lever. No writable scratch dir means the bite proof cannot run, and
+  # an unrun bite proof is UNCOVERED, never a pass.
+  TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"
+  [[ -n "${TEST_DIR:-}" && -d "$TEST_DIR" && -w "$TEST_DIR" ]] \
+    || log_fail "test_083 UNCOVERED — no writable scratch directory, so the per-hazard mutation bite proof did not run; this arm reports UNCOVERED rather than passing on an unexercised check"
+  local pristine="$TEST_DIR/t83-contract-pristine.md"
+  cp "$f" "$pristine"
+
+  # (c) BITE — drop ONE token at a time from a COPY and require the reporter to
+  # name exactly that loss. A mutation that removed nothing proves nothing, so
+  # it is UNCOVERED, not a pass.
+  #
+  # Both UNCOVERED branches were driven and observed exiting 1, not passing
+  # (2026-08-23, in a disposable worktree): (b) with TEST_DIR pointed at a path
+  # under a chmod-500 directory, and (c) with a token the reporter sees but the
+  # file does not carry. Neither can fire on a healthy tree — which is the
+  # point; they exist so a future edit that decouples the reporter's corpus
+  # from the mutation's corpus turns red instead of quietly green.
+  local tok mutated
+  for tok in "${HAZ_IDS[@]}" "${HAZ_SCARS[@]}"; do
+    mutated="$TEST_DIR/t83-without-$tok.md"
+    grep -vF -- "$tok" "$pristine" > "$mutated" || true
+    if cmp -s "$pristine" "$mutated"; then
+      log_fail "test_083 UNCOVERED — removing '$tok' changed nothing, so the assertion below would have 'bitten' on an unmutated file; the token is not where this arm thinks it is"
+    fi
+    found="$(hazards_findings "$mutated")"
+    case "$found" in
+      *"MISSING-$tok"*|*"MISSING-SCAR-$tok"*) ;;
+      *) log_fail "test_083: the hazards check did NOT bite when '$tok' was removed (reported: '${found:-<nothing>}'). A check that stays green on a deleted hazard is the exact failure this change exists to prevent" ;;
+    esac
+  done
+
+  # (d) SELF-BINDING — prove the arm mutated only copies. It pins HAZ-RESTORE;
+  # it does not get to be the thing that breaks it.
+  cmp -s "$f" "$pristine" \
+    || log_fail "test_083: the tracked .aai/SUBAGENT_CONTRACT.md changed while this arm ran — the mutation proof must only ever write copies under TEST_DIR (HAZ-RESTORE)"
+
+  log_pass "Standing hazards present with all ${#HAZ_IDS[@]} anchors + ${#HAZ_SCARS[@]} incident citations; bite proved on $(( ${#HAZ_IDS[@]} + ${#HAZ_SCARS[@]} )) mutations with the tracked file byte-unchanged (spec-the-subagent-contract-omits-the-hazards TEST-001..003)"
 }
 
 test_093_test_registration() {  # CHANGE test-registration-guard
@@ -1511,6 +1653,7 @@ main() {
   test_080_subagent_contract_exists
   test_081_no_rule_duplication
   test_082_dispatch_refs_name_contract
+  test_083_subagent_contract_hazards
   test_090_suite_map_pin
   test_091_session_journal_index_complete
   test_092_no_phantom_node_apis

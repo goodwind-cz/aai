@@ -414,15 +414,19 @@ EOF
   log_pass "TEST-009 missing-field / bad-status / no-evidence bundle"
 }
 
-# --- TEST-010 — CONTRACT EXPECT pointer (<=60 lines); PROTOCOL step 1 --------
+# --- TEST-010 — CONTRACT EXPECT pointer (<=90 lines); PROTOCOL step 1 --------
+# Hard cap re-based 60 -> 90 by spec-the-subagent-contract-omits-the-hazards D1
+# (the Standing hazards section is subagent-binding payload that was previously
+# retyped per dispatch; moving it here lowers the per-spawn cost the cap exists
+# to control). TEST-020's >=6-line headroom guard re-bases with it, to 84.
 test_010_canon_wiring() {
-  log_info "TEST-010: CONTRACT <=60 lines + EXPECT pointer; PROTOCOL step 1 names the mandatory checker invocation + reject-and-re-prompt-once..."
+  log_info "TEST-010: CONTRACT <=90 lines + EXPECT pointer; PROTOCOL step 1 names the mandatory checker invocation + reject-and-re-prompt-once..."
   [[ -f "$CONTRACT_DOC" ]] || log_fail "missing .aai/SUBAGENT_CONTRACT.md"
   [[ -f "$PROTOCOL_DOC" ]] || log_fail "missing .aai/SUBAGENT_PROTOCOL.md"
 
   local n
   n="$(wc -l < "$CONTRACT_DOC" | tr -d ' ')"
-  [[ "$n" -le 60 ]] || log_fail "SUBAGENT_CONTRACT.md must stay <=60 lines (got $n)"
+  [[ "$n" -le 90 ]] || log_fail "SUBAGENT_CONTRACT.md must stay <=90 lines (got $n)"
   grep -qF "check-role-output.mjs" "$CONTRACT_DOC" \
     || log_fail "SUBAGENT_CONTRACT.md must name check-role-output.mjs"
   grep -qiF "EXPECT" "$CONTRACT_DOC" \
@@ -441,18 +445,23 @@ test_010_canon_wiring() {
   log_pass "TEST-010 canon wiring: CONTRACT $n lines + EXPECT pointer; PROTOCOL step 1 mandatory invocation"
 }
 
-# --- TEST-020 — CONTRACT headroom guard (<=54 lines, >=6 below the 60 cap) ----
+# --- TEST-020 — CONTRACT headroom guard (<=84 lines, >=6 below the 90 cap) ----
 # Guards against the zero-headroom trap where the CONTRACT sits exactly at the
-# SPEC-0094 hard <=60-line cap and the next clause addition silently breaches
-# it. This is a stricter sibling of TEST-010's <=60 cap (which stays intact).
+# hard line cap and the next clause addition silently breaches it. This is a
+# stricter sibling of TEST-010's hard cap (which stays intact).
+#
+# Re-based 54 -> 84 alongside the hard cap's 60 -> 90
+# (spec-the-subagent-contract-omits-the-hazards D1). The GUARD, not just the
+# number, is what matters: the >=6-line relation to the hard cap is preserved
+# exactly, so the trap this arm was written for stays closed at the new base.
 test_020_contract_headroom() {
-  log_info "TEST-020: CONTRACT <=54 lines (>=6-line headroom below the 60 cap)..."
+  log_info "TEST-020: CONTRACT <=84 lines (>=6-line headroom below the 90 cap)..."
   [[ -f "$CONTRACT_DOC" ]] || log_fail "missing .aai/SUBAGENT_CONTRACT.md"
   local n
   n="$(wc -l < "$CONTRACT_DOC" | tr -d ' ')"
-  [[ "$n" -le 54 ]] \
-    || log_fail "SUBAGENT_CONTRACT.md must stay <=54 lines for >=6-line headroom below the 60 cap (got $n)"
-  log_pass "TEST-020 CONTRACT headroom: $n lines (<=54, >=6 below the 60 cap)"
+  [[ "$n" -le 84 ]] \
+    || log_fail "SUBAGENT_CONTRACT.md must stay <=84 lines for >=6-line headroom below the 90 cap (got $n)"
+  log_pass "TEST-020 CONTRACT headroom: $n lines (<=84, >=6 below the 90 cap)"
 }
 
 # --- TEST-013 — started_utc >300s ahead of --now -> E-FUTURE-STARTED ---------

@@ -4,6 +4,37 @@ The per-dispatch payload every spawned subagent (Implementation, Validation,
 Planning, Research) receives. Orchestrator-only material (decomposition, MODEL
 contract table, review anti-gaming, validator spawning, usage capture, merge
 protocol, delivery gate, platform fallback) stays in `.aai/SUBAGENT_PROTOCOL.md`.
+The Standing hazards below bind the dispatched unit's own hands, so they live here rather than in per-dispatch prose.
+
+## Standing hazards (HARD — each rule is a measured incident, not a style note)
+
+These bind YOU on every dispatch whether or not the dispatch text repeats them; a dispatch may ADD a hazard, never waive one.
+
+- HAZ-RESTORE — no restoring git command on a tracked file (`git checkout --`,
+  `git restore`, `git stash`/`pop`, `git reset --hard`): mutate a COPY instead.
+  Scar `fu-orchestrator-mutated-real-file` (P2, 2026-08-21): a bite-proof
+  mutation went into the tracked suite file itself and its restore silently
+  failed on a mis-anchored `sed`.
+- HAZ-SCRATCH — experiments live in ONE reused copy under the absolute scratch
+  path the dispatch names, never in the shipping tree. Scar
+  `fu-subagent-probe-hits-real-repo` (P1, 2026-08-15): a probe `cd`-ed inside a
+  command substitution, so the parent shell stayed in the real repository and
+  the run created two commits on `main`.
+- HAZ-CD — verify a path is non-empty AND absolute immediately before every
+  `cd`. Scar `fu-empty-path-cd-stays-in-shipping-repo` (2026-08-22): a
+  `local a=1 b=$a` chain left the fixture path empty, `cd ""` stayed put, and
+  the harness committed into the shipping repository.
+- HAZ-LEDGER — append-only ledgers (`EVENTS.jsonl`, `decisions.jsonl`,
+  `tests/test-runs.jsonl` under `docs/ai/`): only ever add at the end, and a
+  merge must leave the base a byte-exact prefix. About the BYTES, not the tool —
+  a raw append is fine where no CLI owns the file. Scar
+  `fu-append-only-merge-needs-prefix-order`: a union merge ordered the branch's
+  appends first and CI caught `DIVERGES at byte offset 248943`.
+- HAZ-WORKTREE — remove a scratch worktree with a targeted
+  `git worktree remove <path>`, never `git worktree prune`. Scar
+  `fu-prune-repair-error-string-misquoted` (2026-08-20, git 2.50.1): `prune -v`
+  deregistered an unreachable-but-alive worktree that `git worktree repair`
+  could not then restore.
 
 ## Result block (mandatory subagent output)
 
