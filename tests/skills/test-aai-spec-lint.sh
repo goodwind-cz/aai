@@ -1702,6 +1702,14 @@ test_clarify_011_no_new_ceremony() {
         # confined to this one script. Sixth payment of this allowlist tax
         # (fu-test011-branch-diff-allowlist-tax, P2, live).
         .aai/scripts/follow-ups.mjs) ;;
+        # feedback-pipeline-discoverability: ONE discoverability sentence in
+        # each feedback prompt so the upstream-reporting channel is findable by
+        # the vocabulary agents actually search (goodwind-cz/aai#278 / PR #279);
+        # the matching prompt-diet ledger true-up rides in the same PR, and
+        # AGENTS.md is already covered by the deslop entry above. Seventh
+        # payment of this allowlist tax
+        # (fu-test011-branch-diff-allowlist-tax, P2, live).
+        .aai/SKILL_FEEDBACK_TRIAGE.prompt.md|.aai/SKILL_FEEDBACK_UPSERT.prompt.md) ;;
         # suites-must-not-touch-the-shipping-repo: the shared tripwire library
         # and the ad hoc test funnel that arms it (the other funnel,
         # tests/skills/test-framework.sh, is outside .aai/ and so outside this
