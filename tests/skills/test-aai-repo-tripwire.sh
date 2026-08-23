@@ -907,11 +907,21 @@ test_015_always_watch_floor_is_declared() {
   fw="$d/tests/skills/test-framework.sh"
   [[ -f "$fw" ]] || { log_fail "TEST-015: the fixture has no framework copy to read"; return; }
 
-  # The floor is DECLARED, and it is not empty. Counted from the byte copy the
-  # fixture holds, so this reads what CI reads.
-  floor_n="$("$TW_GREP" -c '^  "docs/' "$fw" 2>/dev/null || true)"
+  # The floor is DECLARED, and it holds THESE THREE PATHS BY NAME. Counting was
+  # not enough: code review and Codex both broke the first version by swapping
+  # two of the three for decoys — the count stayed at 3, the suite stayed green,
+  # and the second same-run writer of docs/ai/overview.html went back to a bare
+  # PASS with the write landed. A floor is an identity, not a quantity. Read
+  # from the byte copy the fixture holds, so this reads what CI reads.
   "$TW_GREP" -q '^TRIPWIRE_ALWAYS_WATCH=(' "$fw" \
     || { log_fail "TEST-015: TRIPWIRE_ALWAYS_WATCH is gone — the D7 floor was removed; see fu-watch-paths-empty-reopens-d7 for what that reopens"; return; }
+  local want p_missing=""
+  for want in "docs/INDEX.md" "docs/ai/overview.html" "docs/ai/overview-data.json"; do
+    "$TW_GREP" -qF "  \"$want\"" "$fw" || p_missing="$p_missing $want"
+  done
+  [[ -z "$p_missing" ]] \
+    || { log_fail "TEST-015: the always-watch floor no longer names:$p_missing — every path it drops silently reopens the D7 blind spot for that path (fu-watch-paths-empty-reopens-d7)"; return; }
+  floor_n="$("$TW_GREP" -c '^  "docs/' "$fw" || true)"
   [[ "$floor_n" -ge 3 ]] \
     || { log_fail "TEST-015: the always-watch floor declares $floor_n path(s), want at least 3 — a shrinking floor is the regression returning by instalments"; return; }
 
