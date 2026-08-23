@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(intake): every intake type states the DRAFT rule it was silently skipping (ISSUE-0032 / SPEC-0140) [L1]
+## [v2026.08.23] — fix(intake): every intake type states the DRAFT rule it was silently skipping (ISSUE-0032 / SPEC-0140) [L1]
 
 - The owner reported that a `techdebt` intake produced a numbered document
   instead of a `DEBT-DRAFT-<slug>.md`. The check found `research` and `release`
@@ -47,7 +47,7 @@ RFC-0001).
   silently deleted a word from the entry's own text. Found, fixed, and now
   pinned by a test instead of a prose claim.
 
-## [unreleased] — fix(follow-ups): CLI output survives being piped (CHANGE-0153 / SPEC-0139) [L1]
+## [v2026.08.23] — fix(follow-ups): CLI output survives being piped (CHANGE-0153 / SPEC-0139) [L1]
 
 - `.aai/scripts/follow-ups.mjs` printed with `console.log` and then called
   `process.exit(0)` at all ten of its exit sites. To a file that is correct —
@@ -86,7 +86,7 @@ RFC-0001).
   That is correct POSIX behaviour for any well-behaved writer and is stated in
   the spec's D5 rather than hidden.
 
-## [unreleased] — feat(test-harness): every suite runs in a disposable worktree (CHANGE-0152 / SPEC-0138) [L1]
+## [v2026.08.23] — feat(test-harness): every suite runs in a disposable worktree (CHANGE-0152 / SPEC-0138) [L1]
 
 - Both suite funnels — `tests/skills/test-framework.sh` (what CI runs) and
   `.aai/scripts/aai-run-tests.sh` (what roles invoke ad hoc) — now run a suite
@@ -123,7 +123,7 @@ RFC-0001).
   `export AAI_TEST_ISOLATION=0` so its fixture suites can still dirty their own
   fixture repositories.
 
-## [unreleased] — feat(test-harness): a suite that writes to the shipping repository fails and names itself (CHANGE-0151 / SPEC-0137) [L1]
+## [v2026.08.23] — feat(test-harness): a suite that writes to the shipping repository fails and names itself (CHANGE-0151 / SPEC-0137) [L1]
 
 - A tripwire (`.aai/scripts/lib/repo-tripwire.sh`, new) compares
   `git rev-parse HEAD` plus `git status --porcelain=v1` around every suite at
@@ -178,7 +178,7 @@ RFC-0001).
   `fu-docnumbering-t013-writes-real-tree` (P2),
   `fu-deslop-test014-no-restore-trap` (P3) and four tripwire follow-ups.
 
-## [unreleased] — fix(deslop): the class-4 corpus tells the truth about what was requested (CHANGE-0150 / SPEC-0136) [L2]
+## [v2026.08.23] — fix(deslop): the class-4 corpus tells the truth about what was requested (CHANGE-0150 / SPEC-0136) [L2]
 
 - Three separately-filed registry defects in one function, `resolveAllCorpus`
   (`.aai/scripts/deslop-unrequested.mjs`): the `--all` requirement corpus was
@@ -273,7 +273,7 @@ RFC-0001).
   work produced during it; each was filed to the registry rather than
   silently fixed.
 
-## [unreleased] — fix(follow-ups): CLI hardening — dashed flag values, unreadable-ledger refusal, malformed-id naming, understatement note (followups-cli-hardening) [L1]
+## [v2026.08.23] — fix(follow-ups): CLI hardening — dashed flag values, unreadable-ledger refusal, malformed-id naming, understatement note (followups-cli-hardening) [L1]
 
 - Four separately-filed registry defects in `.aai/scripts/follow-ups.mjs`,
   shipped as one scope because they share one file, one fold and one suite:
@@ -309,7 +309,7 @@ RFC-0001).
   reaches this fold only through the exported `loadRegistry`, whose
   always-exit-0 contract is untouched by the D2 CLI-side exit-code change.
 
-## [unreleased] — feat(factory-report): per-scope cost readout — elapsed vs agent time, tokens with denominator, rework share (ride-cost-readout) [L1]
+## [v2026.08.23] — feat(factory-report): per-scope cost readout — elapsed vs agent time, tokens with denominator, rework share (ride-cost-readout) [L1]
 
 - The factory report never totalled one scope, so answering "how long did
   this take" or "how many tokens" meant reading `docs/ai/METRICS.jsonl` by
@@ -337,7 +337,7 @@ RFC-0001).
   existing `test_026_role_consumption_backcompat` byte-stability pin is
   extended in place, its committed goldens untouched.
 
-## [unreleased] — fix(docs-model): two raw NUL bytes no longer make a shared library invisible to grep (CHANGE-0147) [L1]
+## [v2026.08.23] — fix(docs-model): two raw NUL bytes no longer make a shared library invisible to grep (CHANGE-0147) [L1]
 
 - `.aai/scripts/lib/docs-model.mjs` carried two literal NUL bytes inside a
   template literal used as a duplicate-detection key, so `file` classified the
@@ -356,7 +356,7 @@ RFC-0001).
   after the same byte was accidentally reintroduced three times while writing
   this change up.
 
-## [unreleased] — fix(guards): four report-only verification guards close role-trust gaps (CHANGE-0146-role-verification-guards / SPEC-0133-spec-role-verification-guards) [L2]
+## [v2026.08.23] — fix(guards): four report-only verification guards close role-trust gaps (CHANGE-0146-role-verification-guards / SPEC-0133-spec-role-verification-guards) [L2]
 
 - Four places where one role took another's word and nothing verified it,
   found on the CHANGE-0145 ride. Each fix is ONE warning on an existing
