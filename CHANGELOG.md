@@ -106,10 +106,14 @@ RFC-0001).
   `fu-worktree-hook-disarms-later-suites`, documented in the spec's D7. The
   working TREE is protected from the ordinary path, and observably so.
 - The tripwire, its ratchet and the ratchet-path hashing are deliberately LEFT
-  IN PLACE. Deleting them is a follow-on change with a hard precondition now
-  filed as P1 `fu-isolation-arm-failure-uncounted`: nothing currently counts a
-  failure to ARM isolation, so a run where isolation never armed would stay
-  green once the guard is gone.
+  IN PLACE. Deleting them is a follow-on change with a hard precondition then
+  filed as P1 `fu-isolation-arm-failure-uncounted`: nothing counted a failure to
+  ARM isolation, so a run where isolation never armed would stay green once the
+  guard is gone. **UPDATED 2026-08-23**: that precondition was met
+  (CHANGE-0156) and the deletion was still attempted and STOPPED by its own
+  measurement — isolation relocates a suite but does not remove its reach to the
+  shipping tree. The tripwire is now recorded as permanent, not pending
+  deletion (CHANGE-0160 / SPEC-0148).
 - A code review found the harness cleanup ran a repository-wide
   `git worktree prune` about 81 times per run, which irrecoverably destroys an
   operator's own worktree metadata when its directory is unreachable. Removed
@@ -151,9 +155,15 @@ RFC-0001).
   Measured: no additional `git` calls (13 total over 3 suites, identical with
   the ratchet table emptied).
 - Transitional by decision, not by omission: an `hitl_decision` in
-  `docs/ai/decisions.jsonl` (2026-08-19) records that once suites run in a
+  `docs/ai/decisions.jsonl` (2026-08-19) recorded that once suites run in a
   disposable worktree the tripwire, the ratchet and the hashing are deleted and
-  their follow-ups closed as moot.
+  their follow-ups closed as moot. **WITHDRAWN 2026-08-23** by a superseding
+  `hitl_decision`: the disposable worktree landed and does NOT remove the
+  reach — a suite inside one still names the shipping tree via
+  `dirname $(git rev-parse --git-common-dir)`, because a worktree shares the
+  common git dir. The tripwire is a PERMANENT layer; only
+  `fu-tripwire-removal-needs-a-gate` closed as moot, and fifteen tripwire
+  defects stay open. See CHANGE-0160 / SPEC-0148.
 - Gated by a new suite, `tests/skills/test-aai-repo-tripwire.sh` (12 arms),
   registered in `tests/skills/suite-map.yaml`; the new library is classified
   `core` in `.aai/system/PROFILES.yaml`.
