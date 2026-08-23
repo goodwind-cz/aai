@@ -876,13 +876,18 @@ test_082_dispatch_refs_name_contract() {  # spec-subagent-protocol-slim TEST-003
 # The five hazard anchors and the five incident citations they must carry. Ids,
 # not prose fragments: prose gets reworded by the next editor, anchors do not.
 HAZ_IDS=(HAZ-RESTORE HAZ-SCRATCH HAZ-CD HAZ-LEDGER HAZ-WORKTREE)
-# Every scar below resolves today: four are ids in docs/ai/decisions.jsonl
-# (`node .aai/scripts/follow-ups.mjs list --status all`), 485a315 is a real git
-# object, and follow-ups.mjs is a real file whose header states the ledger rule.
+# EVERY scar below is a registry id, resolvable by anyone with the repository:
+# `node .aai/scripts/follow-ups.mjs list --status all`. An earlier version cited
+# commit 485a315 for HAZ-CD. Codex caught that it resolves ONLY in the author's
+# reflog — `git cat-file -t 485a315` fails in every clone, including CI and
+# every reviewer's. A citation that only its writer can check is not evidence,
+# which is the defect class this whole section exists to name. It also cited
+# follow-ups.mjs, a script header rather than an incident; that one was replaced
+# during validation for the same reason.
 HAZ_SCARS=(
   fu-orchestrator-mutated-real-file
   fu-subagent-probe-hits-real-repo
-  485a315
+  fu-empty-path-cd-stays-in-shipping-repo
   # HAZ-LEDGER's scar was `follow-ups.mjs` (a script header describing a
   # rollback that would truncate). Validation judged that weaker than its four
   # neighbours — a design note, not an incident — and it was wrong besides:

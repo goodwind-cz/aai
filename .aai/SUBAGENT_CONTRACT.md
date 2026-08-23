@@ -21,7 +21,7 @@ These bind YOU on every dispatch whether or not the dispatch text repeats them; 
   command substitution, so the parent shell stayed in the real repository and
   the run created two commits on `main`.
 - HAZ-CD — verify a path is non-empty AND absolute immediately before every
-  `cd`. Scar commit `485a315` (2026-08-22, reachable only from the reflog): a
+  `cd`. Scar `fu-empty-path-cd-stays-in-shipping-repo` (2026-08-22): a
   `local a=1 b=$a` chain left the fixture path empty, `cd ""` stayed put, and
   the harness committed into the shipping repository.
 - HAZ-LEDGER — append-only ledgers (`EVENTS.jsonl`, `decisions.jsonl`,

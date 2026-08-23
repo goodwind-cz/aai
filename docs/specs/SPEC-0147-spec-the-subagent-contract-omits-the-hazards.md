@@ -53,9 +53,18 @@ the wrong PLACE, not a rule with the wrong WORDS.
    (the >=6-line headroom guard), in the three places that assert it.
 
 Out of scope: any change to the result block, the single-writer rule, the
-rationalization table, or the EXPECT pointer; any edit to
-`.aai/SUBAGENT_PROTOCOL.md`; fixing the LEARNED.md sentence that contradicts
-HAZ-RESTORE (filed, not fixed — see `## Notes`).
+rationalization table, or the EXPECT pointer.
+
+SCOPE CHANGED DURING THE RIDE, recorded rather than quietly widened. This clause
+originally also excluded any edit to `.aai/SUBAGENT_PROTOCOL.md` and the
+LEARNED.md sentence contradicting HAZ-RESTORE ("filed, not fixed"). Both were
+delivered, for the same reason: LEARNED.md is hashed into the SAME dispatch
+payload as this contract, so leaving it would have shipped the prohibition and
+four recommendations of the prohibited technique together — the deliverable
+would have been self-cancelling. `SUBAGENT_PROTOCOL.md` carried a fourth,
+prose statement of the line cap ("~60-line duty sheet") that this change makes
+false. Code review of PR #280 flagged the mismatch between this clause and the
+diff; it is corrected here rather than left for a reader to notice.
 
 ### D1 — why the cap MOVES rather than the hazards living in their own file
 
