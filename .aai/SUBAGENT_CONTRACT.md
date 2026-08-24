@@ -68,15 +68,9 @@ observe its own; the orchestrator captures usage from the harness at merge time.
 
 ## Single-writer rule (HARD — RFC-0004 / SPEC-0004 D7)
 
-A dispatched subagent **MUST NOT write `docs/ai/STATE.yaml`**; the orchestrator
-is the **SOLE STATE writer** that merges each returned result block and performs
-every STATE mutation. What a subagent MAY write: its own scoped source/test
-files, append-only evidence under `docs/ai/tdd/`, and `docs/ai/EVENTS.jsonl` via
-`append-event.mjs` (the append-only, commutative audit log).
+A dispatched subagent **MUST NOT write `docs/ai/STATE.yaml`**; the orchestrator is the **SOLE STATE writer** that merges each returned result block and performs every STATE mutation. What a subagent MAY write: its own scoped source/test files, append-only evidence under `docs/ai/tdd/`, and `docs/ai/EVENTS.jsonl` via `append-event.mjs` (the append-only, commutative audit log).
 
-**D1 (being DISPATCHED decides who writes STATE, not which pipeline dispatched you).**
-A dispatched subagent — serial (`.aai/ORCHESTRATION.prompt.md`) or parallel (`.aai/ORCHESTRATION_PARALLEL.prompt.md`) alike — never runs a `state.mjs` mutator itself: it returns every fully-substituted command it would have run, verbatim, one per list item, in execution order, under a top-level `state_update_commands:` key in its result block, and the orchestrator executes them in that order at merge (`.aai/SUBAGENT_PROTOCOL.md` merge protocol); `check-role-output.mjs` ignores unrecognized top-level extension keys, so this key never invalidates an otherwise-clean block.
-**Sole-agent carve:** an agent that is the SOLE agent for the ride — no dispatch, `AAI_ROLE` unset (e.g. `.aai/SKILL_LOOP.prompt.md`'s no-subagent fallback, or this contract's own review rule 2 for `set-code-review`) — IS the single writer and runs the commands itself; the key is optional and omitted when a role has no state change to report.
+**D1 (being DISPATCHED decides who writes STATE, not which pipeline dispatched you).** A dispatched subagent — serial (`.aai/ORCHESTRATION.prompt.md`) or parallel (`.aai/ORCHESTRATION_PARALLEL.prompt.md`) alike — never runs a `state.mjs` mutator itself: it returns every fully-substituted command it would have run, verbatim, one per list item, in execution order, under a top-level `state_update_commands:` key in its result block, and the orchestrator executes them in that order at merge (`.aai/SUBAGENT_PROTOCOL.md` merge protocol); `check-role-output.mjs` ignores unrecognized top-level extension keys, so this key never invalidates an otherwise-clean block. **Sole-agent carve:** an agent that is the SOLE agent for the ride — no dispatch, `AAI_ROLE` unset (e.g. `.aai/SKILL_LOOP.prompt.md`'s no-subagent fallback, or this contract's own review rule 2 for `set-code-review`) — IS the single writer and runs the commands itself; the key is optional and omitted when a role has no state change to report.
 
 ### Single-writer rationalization table (stop and correct any of these)
 
