@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-24T09:06:50.114Z",
+  "generatedAt": "2026-08-24T11:08:53.575Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 126,
-    "delivered": 367,
+    "delivered": 369,
     "active_weeks": 9,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (367 closes vs 126 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 367,
-    "delivered_per_week_avg": 40.8,
+    "note": "\"delivered\" counts every work_item_closed event (369 closes vs 126 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 369,
+    "delivered_per_week_avg": 41,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -23,7 +23,7 @@
       "2026-W32": 19,
       "2026-W33": 33,
       "2026-W34": 33,
-      "2026-W35": 2
+      "2026-W35": 4
     },
     "delivered_groups": [
       {
@@ -301,7 +301,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 104,
+        "count": 106,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -406,7 +406,9 @@
           "the-tripwire-is-permanent-not-transitional",
           "spec-the-tripwire-is-permanent-not-transitional",
           "the-registry-has-no-outflow",
-          "spec-the-registry-has-no-outflow"
+          "spec-the-registry-has-no-outflow",
+          "a-branch-diff-pin-taxes-every-later-scope",
+          "spec-a-branch-diff-pin-taxes-every-later-scope"
         ]
       }
     ],
@@ -1879,12 +1881,20 @@
         {
           "ref": "spec-the-registry-has-no-outflow",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "a-branch-diff-pin-taxes-every-later-scope",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-a-branch-diff-pin-taxes-every-later-scope",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3720,
       "mean_seconds": 123756.5,
       "measured": 122,
-      "unmeasurable": 245
+      "unmeasurable": 247
     }
   },
   "speed": {
@@ -3126,7 +3136,7 @@
     },
     {
       "week": "2026-W35",
-      "delivered": 2,
+      "delivered": 4,
       "median_lead_time_seconds": null,
       "busy_seconds": null,
       "tokens": null,
@@ -3135,7 +3145,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 95,
+    "open_count": 97,
     "oldest_age_days": 10,
     "items": [
       {
@@ -3179,22 +3189,6 @@
         "status": "open"
       },
       {
-        "id": "fu-test011-branch-diff-allowlist-tax",
-        "ref": "CHANGE-0144",
-        "severity": "P2",
-        "age_days": 10,
-        "what": "CHANGE-0144's TEST-011(clarify) allowlists .aai/ paths against the BRANCH diff, so every future scope that touches .aai/ must edit that test or go red",
-        "status": "open"
-      },
-      {
-        "id": "fu-completion-line-hardcodes-index",
-        "ref": "CHANGE-0143",
-        "severity": "P3",
-        "age_days": 10,
-        "what": "the allocator's completion line hardcodes docs/INDEX.md into the regenerated list, so it names the file even when generate-docs-index.mjs is absent and nothing was rewritten",
-        "status": "open"
-      },
-      {
         "id": "fu-rollup-creates-userguide",
         "ref": "CHANGE-0143",
         "severity": "P3",
@@ -3203,18 +3197,10 @@
         "status": "open"
       },
       {
-        "id": "fu-index-regen-silent-degrade",
-        "ref": "close-regenerate-order",
-        "severity": "P3",
-        "age_days": 10,
-        "what": "regenerateIndex() swallows generator failures with no named stderr line, unlike the two spec-page generators",
-        "status": "open"
-      },
-      {
         "id": "fu-dispatch-targets-closed-scope",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "orchestration-dispatch matched rule 6 and dispatched Planning onto a scope it already knew was closed",
         "status": "open"
       },
@@ -3222,7 +3208,7 @@
         "id": "fu-setfocus-keeps-stale-spec-path",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "set-focus to a new ref leaves the previous scope's spec_path in current_focus, so the next dispatch hands the role a foreign spec as an input",
         "status": "open"
       },
@@ -3302,7 +3288,7 @@
         "id": "fu-openct-unrdbl-report",
         "ref": "followups-cli-hardening",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "generate-factory-report.mjs:616 publishes follow_ups.open_count: 0 for an UNREADABLE ledger (e.g. --decisions a directory), the same 'a bad input reads as good news' shape D2 refuses on the CLI; the file's own oldest_age_days convention two lines down already uses null, never 0, for exactly this degradation",
         "status": "open"
       },
@@ -3350,7 +3336,7 @@
         "id": "fu-close-requires-pr-before-it-exists",
         "ref": "deslop-corpus-honesty",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "close-work-item.mjs requires --pr <N>, but the correct ceremony order runs it BEFORE the push that creates the PR, so the number must be guessed",
         "status": "open"
       },
@@ -3358,7 +3344,7 @@
         "id": "fu-test-runs-jsonl-tracked-ignored",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "docs/ai/tests/test-runs.jsonl is tracked AND listed in .gitignore, so tests/skills/test-framework.sh dirties the working tree on every run",
         "status": "open"
       },
@@ -3896,6 +3882,46 @@
         "severity": "P1",
         "age_days": 0,
         "what": "test-aai-release TEST-024 and TEST-025 both structurally forbid cutting a release through a pull request, and both passed only because releases pushed straight to main",
+        "status": "open"
+      },
+      {
+        "id": "fu-usage-pin-misses-appended-flag",
+        "ref": "a-branch-diff-pin-taxes-every-later-scope",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "TEST-011(clarify) pins spec-freeze's usage line with grep -qF, so a flag APPENDED after the pinned run does not trip it",
+        "status": "open"
+      },
+      {
+        "id": "fu-lean-ac-heading-two-authorities",
+        "ref": "the-registry-has-no-outflow",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "docs-audit --gate accepts a lean AC table under the heading Acceptance Criteria while generate-docs-index.mjs near-miss flags exactly that heading and demands Acceptance Criteria Status",
+        "status": "open"
+      },
+      {
+        "id": "fu-pgq-grep-error-reopened",
+        "ref": "the-registry-has-no-outflow",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "pgq_scan sends grep stderr to /dev/null and treats a per-file error as count 0, so an unreadable file is reported as an improvement (reopens fu-pgq-scan-silent-on-grep-error)",
+        "status": "open"
+      },
+      {
+        "id": "fu-overview-project-from-dirname",
+        "ref": "the-registry-has-no-outflow",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "generate-overview.mjs derives the project field from path.basename(ROOT) (line 343), so any non-canonically named checkout (worktree, CI dir) leaks its local directory name into the committed overview pages",
+        "status": "open"
+      },
+      {
+        "id": "fu-exit-contract-pin-comment-dup",
+        "ref": "a-branch-diff-pin-taxes-every-later-scope",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "TEST-011(clarify)'s spec-freeze exit-contract pins (grep -qF \"$p\" \"$f\") check the WHOLE FILE, not the emitted string; spec-freeze.mjs's header comment (lines 54-61) duplicates all four exit-contract phrases verbatim above the runtime strings (lines 101-106) that actually compose the CLI output",
         "status": "open"
       }
     ]

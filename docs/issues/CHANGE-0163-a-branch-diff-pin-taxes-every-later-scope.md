@@ -1,14 +1,16 @@
 ---
 id: a-branch-diff-pin-taxes-every-later-scope
-number: null
+number: 163
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-spec-lint
 links:
-  pr: []
-  commits: []
+  pr:
+    - 284
+  commits:
+    - 87767f8acb1ccf19e7b0af4bd4bc4d0843cf8141
 ---
 
 # Change — a pin on one scope's diff bills every later scope forever

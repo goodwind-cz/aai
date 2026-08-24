@@ -1,14 +1,16 @@
 ---
 id: spec-a-branch-diff-pin-taxes-every-later-scope
 type: spec
-number: null
-status: implementing
+number: 150
+status: done
 ceremony_level: 1
 links:
   requirement: a-branch-diff-pin-taxes-every-later-scope
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 284
+  commits:
+    - 87767f8acb1ccf19e7b0af4bd4bc4d0843cf8141
 ---
 
 # Spec — a pin on one scope's diff must not bill every later scope
@@ -21,7 +23,7 @@ byte-identical and re-proved by mutation. Single-surface, reversible in one
 revert.
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-a-branch-diff-pin-taxes-every-later-scope.md
+- Requirement: docs/issues/CHANGE-0163-a-branch-diff-pin-taxes-every-later-scope.md
 - Decision records: none
 - Technology contract: docs/TECHNOLOGY.md
 

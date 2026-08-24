@@ -2,7 +2,7 @@
 
 - Role: Code Review (single dual-verdict pass, .aai/SKILL_CODE_REVIEW.prompt.md)
 - Branch: fix/allocator-reports-its-own-degrade, head 0672ab5, base e29adb9 (current main)
-- Spec: docs/specs/SPEC-DRAFT-spec-a-branch-diff-pin-taxes-every-later-scope.md (Spec-AC-01..05, ceremony_level 1)
+- Spec: docs/specs/SPEC-0150-spec-a-branch-diff-pin-taxes-every-later-scope.md (Spec-AC-01..05, ceremony_level 1)
 - Validation round 1: docs/ai/validation/validation-20260824T105621Z-a-branch-diff-pin-taxes-every-later-scope-round1.md (PASS — bite proofs, ledger prefixes, allocator diff minimality all re-derived there; NOT repeated here)
 - Reviewer note (anti-gaming): the dispatch named attack surfaces and asked for a
   judgment on an already-filed P2 with its severity pre-stated. Recorded per the
@@ -13,7 +13,7 @@
 ```yaml
 review:
   scope: "e29adb9..0672ab5 (5b838e4 allocator reporting tail; eda5e3f containment arm; 0672ab5 merge of main, OURS on the suite)"
-  spec: docs/specs/SPEC-DRAFT-spec-a-branch-diff-pin-taxes-every-later-scope.md
+  spec: docs/specs/SPEC-0150-spec-a-branch-diff-pin-taxes-every-later-scope.md
   spec_compliance:
     verdict: pass
     ac_walk:
