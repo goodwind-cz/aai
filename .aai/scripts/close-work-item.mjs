@@ -94,6 +94,24 @@
 //      `evidence_path_gate: enforce` dial. Evaluated BEFORE any write (never
 //      a rollback path) — nothing written. --dry-run never returns 5
 //      (verdict reported informationally in its JSON).
+//   6  STATE RECONCILE PARTIAL (spec-close-leaves-state-stale D3): a genuine
+//      mid-apply partial — the first state.mjs reconcile command succeeded but
+//      a LATER one failed. The close itself already committed and self-
+//      verified CLEAN (this exit is reached only strictly after the existing
+//      try/catch above, never a rollback path). Named PARTIAL block on
+//      stderr naming applied-of-total and the remaining commands verbatim.
+//
+// STATE RECONCILE (D1-D6, spec-close-leaves-state-stale) — after self-verify
+// proves the close CLEAN (strictly outside the doc/event try/catch's rollback
+// scope), reconcile docs/ai/STATE.yaml so it stops describing the just-closed
+// scope as in-flight: active_work_items[<ref>].status -> done plus the
+// resolved on-disk paths, and current_focus's paths when it names this scope.
+// Written ONLY through the sanctioned `state.mjs` CLI (set-phase/set-focus,
+// D2) — never a raw STATE byte write (Article 6). Nothing-written failures
+// (STATE absent/unusable, the R-GUARD single-writer refusal, or the first
+// command failing) degrade to a named WARN + exit 0 (Article 4: a STATE
+// defect must never block a verified close); a genuine mid-apply partial is
+// the new exit 6 above.
 //
 // Node stdlib only (docs/TECHNOLOGY.md). Reuses append-event.mjs verbatim
 // (no forked event schema) and the shared docs-audit engine (no re-implemented
@@ -109,9 +127,12 @@ import { readGuardConfig } from './lib/guard-config.mjs';
 import { REQUIRED_PRODUCT_SECTIONS, missingProductSections } from './lib/product-doc.mjs';
 import { extractUsageTotal, hasUsageSentinel, isHarnessDispatchedRole } from './lib/usage-note.mjs';
 import { unresolvedCitations } from './lib/evidence-paths.mjs';
+import { loadState, findBlock, readScalar, unquoteScalar } from './lib/state-engine.mjs';
+import { duplicateKeys, splitLines } from './lib/state-core.mjs';
 
 const ROOT = process.cwd();
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const STATE_CLI = path.join(SCRIPT_DIR, 'state.mjs');
 const EVENTS_PATH = path.join(ROOT, 'docs/ai/EVENTS.jsonl');
 const APPEND_EVENT = path.join(SCRIPT_DIR, 'append-event.mjs');
 const GENERATE_INDEX = path.join(SCRIPT_DIR, 'generate-docs-index.mjs');
@@ -1035,6 +1056,238 @@ function pruneBriefs(plan) {
   return pruned;
 }
 
+// --- STATE RECONCILE (D1-D6, spec-close-leaves-state-stale) ------------------
+//
+// planStateReconcile is PURE and read-only: it never writes a byte, never
+// shells out, and never calls process.exit — it is evaluated pre-write,
+// alongside the three existing gates above, purely to compute a plan.
+// applyStateReconcile is the ONLY function that shells out to the sanctioned
+// `state.mjs` CLI (D2), and main() calls it strictly AFTER the existing
+// try/catch has proved the close CLEAN (D3) — outside that block's rollback
+// scope by construction.
+
+// Closed sets MIRRORING state.mjs's own CLI enums (PHASES, FOCUS_TYPES).
+// state.mjs cannot be imported as a library for these — its main() runs
+// unconditionally at import (no import.meta.url guard), so importing it here
+// would execute its own argv-parsing CLI path. A narrow, bounded duplication
+// of two small closed sets instead of a live import of the protected file.
+const RECONCILE_PHASES = new Set(['planning', 'preparation', 'implementation', 'validation', 'code_review', 'remediation']);
+const RECONCILE_FOCUS_TYPES = new Set(['intake_change', 'intake_issue', 'intake_prd', 'intake_hotfix',
+  'intake_research', 'intake_rfc', 'intake_release', 'technology_extraction', 'maintenance', 'none']);
+const RECONCILE_REF_RE = /^[A-Z]+-\d+$/;
+const RECONCILE_SLUG_RE = /^(?=[a-z0-9-]{3,53}$)[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function reconcileRefShapeOk(v) {
+  return typeof v === 'string' && (RECONCILE_REF_RE.test(v) || RECONCILE_SLUG_RE.test(v));
+}
+
+// Read a current_focus scalar, unquoted (readScalar itself never unquotes —
+// every other caller of it in this codebase pairs it with unquoteScalar).
+function readFocusScalar(lines, field) {
+  const v = readScalar(lines, 'current_focus', field);
+  return v === null ? null : unquoteScalar(v);
+}
+
+// Parse active_work_items into [{ ref_id, status, phase, spec_path,
+// primary_path }] — a read-only mirror of orchestration-dispatch.mjs's own
+// parseWorkItems (that function is local/unexported there; no shared export
+// exists for this one-level-deep item scan).
+function parseActiveWorkItems(lines) {
+  const b = findBlock(lines, 'active_work_items');
+  if (!b) return [];
+  const items = [];
+  let cur = null;
+  for (let i = b.start + 1; i < b.end; i += 1) {
+    const l = lines[i];
+    if (l.trim() === '' || l.trim().startsWith('#')) continue;
+    if (/^ {2}- /.test(l)) { cur = {}; items.push(cur); }
+    if (!cur) continue;
+    const indent = l.length - l.trimStart().length;
+    const m = l.match(/^(?: {2}- | {4})([\w-]+):\s*(.*)$/);
+    if (m && indent <= 4) {
+      const v = m[2].trim();
+      cur[m[1]] = v === '' || v === 'null' ? null : unquoteScalar(v);
+    }
+  }
+  return items;
+}
+
+// planStateReconcile(root, resolved, args) -> { severity: 'none'|'skip'|'apply',
+// reason?, statePath, commands: [[bin, args[]]], echo: [string] }. `resolved`
+// is close-work-item's own already-resolved doc list (resolved[0] the primary
+// --ref doc; resolved[1] the --spec doc when given) — resolveDoc's `rel` is
+// reused verbatim as the path STATE should carry (D1), never re-derived.
+function planStateReconcile(root, resolved, args) {
+  const statePath = path.join(root, 'docs/ai/STATE.yaml');
+  const none = () => ({ severity: 'none', statePath, commands: [], echo: [] });
+  const skip = (reason) => ({ severity: 'skip', reason, statePath, commands: [], echo: [] });
+
+  // STATE absent -> none, silently — the same non-regression property
+  // scanAgentRuns/countRemediationRuns already have for a fixture repo with
+  // no STATE.yaml (D1 Surface 1 bullet).
+  if (!fs.existsSync(statePath)) return none();
+
+  let rawLines;
+  try {
+    rawLines = splitLines(fs.readFileSync(statePath, 'utf8')).lines;
+  } catch (err) {
+    return skip(`STATE unreadable: ${err.message}`);
+  }
+  // Pre-check duplicate top-level keys OURSELVES before calling the protected
+  // loadState(): loadState() refuses via engineFail(), which calls
+  // process.exit() directly and is NOT catchable — invoking it against an
+  // already-corrupt STATE would hard-crash this whole close. A STATE defect
+  // must never block a verified close (Article 4 / D3), so this precondition
+  // is guaranteed before loadState() is ever reached, and its own duplicate-
+  // key branch is therefore provably unreachable from here.
+  const dups = duplicateKeys(rawLines);
+  if (dups.length > 0) {
+    return skip(`STATE has duplicate top-level key(s) [${dups.map((d) => `${d.key} x${d.count}`).join(', ')}] — cannot safely reconcile`);
+  }
+  const { lines } = loadState(statePath);
+
+  // D5 — identity set: the PRIMARY doc's frontmatter fmId plus its display
+  // fileIds (the same two-pass identity resolveDoc uses). The --spec doc
+  // never contributes identity — a close's spec ref is never itself a valid
+  // active_work_items/current_focus key.
+  const primary = resolved[0];
+  const identity = new Set([primary.fmId, ...(primary.fileIds || [])].filter(Boolean));
+  const targetPrimaryPath = primary.rel;
+  const targetSpecPath = args.spec ? resolved[1].rel : undefined;
+
+  const commands = [];
+  const echo = [];
+  let reason = null;
+
+  // --- work-item arm -----------------------------------------------------
+  const items = parseActiveWorkItems(lines);
+  const item = items.find((it) => it.ref_id && identity.has(it.ref_id));
+  if (item) {
+    if (!item.phase || !RECONCILE_PHASES.has(item.phase)) {
+      reason = `active_work_items[${item.ref_id ?? '?'}].phase "${item.phase ?? ''}" is absent/outside the CLI's phase enum — skipping the STATE reconcile`;
+    } else if (!reconcileRefShapeOk(item.ref_id)) {
+      reason = `active_work_items ref "${item.ref_id}" matches neither the display shape ^[A-Z]+-\\d+$ nor the slug shape — skipping the STATE reconcile`;
+    } else {
+      const needsStatus = item.status !== 'done';
+      const needsPrimary = item.primary_path !== targetPrimaryPath;
+      const needsSpec = targetSpecPath !== undefined && item.spec_path !== targetSpecPath;
+      if (needsStatus || needsPrimary || needsSpec) {
+        const cliArgs = ['set-phase', '--ref', item.ref_id, '--phase', item.phase, '--status', 'done', '--path', targetPrimaryPath];
+        if (targetSpecPath !== undefined) cliArgs.push('--spec-path', targetSpecPath);
+        commands.push(['node', [STATE_CLI, ...cliArgs]]);
+        echo.push(`node .aai/scripts/state.mjs ${cliArgs.join(' ')}`);
+      }
+    }
+  }
+
+  // --- focus arm -----------------------------------------------------------
+  if (reason === null) {
+    const focusRefId = readFocusScalar(lines, 'ref_id');
+    if (focusRefId && identity.has(focusRefId)) {
+      const focusType = readFocusScalar(lines, 'type');
+      if (!focusType || !RECONCILE_FOCUS_TYPES.has(focusType)) {
+        reason = `current_focus.type "${focusType ?? ''}" is absent/outside the CLI's type enum — skipping the STATE reconcile`;
+      } else if (!reconcileRefShapeOk(focusRefId)) {
+        reason = `current_focus.ref_id "${focusRefId}" matches neither the display shape ^[A-Z]+-\\d+$ nor the slug shape — skipping the STATE reconcile`;
+      } else {
+        const focusPrimaryPath = readFocusScalar(lines, 'primary_path');
+        const focusSpecPath = readFocusScalar(lines, 'spec_path');
+        const needsPrimary = focusPrimaryPath !== targetPrimaryPath;
+        const needsSpec = targetSpecPath !== undefined && focusSpecPath !== targetSpecPath;
+        if (needsPrimary || needsSpec) {
+          const cliArgs = ['set-focus', '--type', focusType, '--ref', focusRefId, '--path', targetPrimaryPath];
+          if (targetSpecPath !== undefined) cliArgs.push('--spec-path', targetSpecPath);
+          commands.push(['node', [STATE_CLI, ...cliArgs]]);
+          echo.push(`node .aai/scripts/state.mjs ${cliArgs.join(' ')}`);
+        }
+      }
+    }
+  }
+
+  if (reason !== null) return skip(reason);
+  if (commands.length === 0) return none();
+  return { severity: 'apply', statePath, commands, echo };
+}
+
+// applyStateReconcile(plan) -> { applied, total, failedAt, childStderr }.
+// Runs each planned command in order via execFileSync; env is NEVER touched
+// (D4 — the AAI_ROLE=subagent marker, if present, must reach the child
+// unfiltered so the R-GUARD refusal fires there, not here). Stops at the
+// first failure: `failedAt` is that command's index (0 = the first command
+// itself failed — a nothing-written WARN per D3), or -1 when every command
+// applied.
+function applyStateReconcile(plan) {
+  let applied = 0;
+  let failedAt = -1;
+  let childStderr = '';
+  for (let i = 0; i < plan.commands.length; i += 1) {
+    const [bin, cmdArgs] = plan.commands[i];
+    try {
+      execFileSync(bin, cmdArgs, { stdio: ['ignore', 'ignore', 'pipe'], cwd: ROOT });
+      applied += 1;
+    } catch (err) {
+      failedAt = i;
+      childStderr = err.stderr ? err.stderr.toString() : (err.message || '');
+      break;
+    }
+  }
+  return { applied, total: plan.commands.length, failedAt, childStderr };
+}
+
+// One stderr line (Spec-AC-03: "exactly one stderr line"), naming the reason
+// and echoing every planned command verbatim.
+function emitStateReconcileWarn(reason, echoCommands) {
+  const cmdsText = echoCommands.length > 0 ? ` — run: ${echoCommands.join(' ; ')}` : '';
+  process.stderr.write(`close-work-item: WARN (state-reconcile) — ${reason}${cmdsText}\n`);
+}
+
+// Multi-line block (D3: "a close-work-item: PARTIAL (state-reconcile) block"),
+// naming applied-of-total and echoing the remaining commands verbatim.
+function emitStateReconcilePartial(applied, total, remaining) {
+  process.stderr.write(
+    `close-work-item: PARTIAL (state-reconcile) — ${applied} of ${total} state.mjs command(s) applied; `
+    + 'STATE.yaml is PARTIALLY reconciled. Remaining command(s) to run manually:\n'
+  );
+  for (const cmd of remaining) process.stderr.write(`  ${cmd}\n`);
+}
+
+// D6 — worktree advisory: when this close ran from a linked worktree, the
+// STATE the reconcile just wrote is THIS checkout's own (gitignored, distinct
+// from the main checkout's) — name both so the operator is never surprised
+// that the main checkout's STATE stayed stale.
+function emitStateReconcileWorktreeAdvisory(root, evidenceRoot, statePath) {
+  if (evidenceRoot === root) return;
+  process.stderr.write(
+    `close-work-item: INFO state-reconcile wrote ${statePath} (this worktree's own STATE); `
+    + `the main checkout's STATE at ${path.join(evidenceRoot, 'docs/ai/STATE.yaml')} is untouched\n`
+  );
+}
+
+// runStateReconcile(statePlan, evidenceRoot) -> the close's own trailing exit
+// code (0 normally, 6 on a genuine mid-apply PARTIAL, D3). Shared by BOTH
+// success tails (the D6.2 idempotency short-circuit and the full close
+// success path) so the two can never classify a WARN/PARTIAL differently.
+function runStateReconcile(statePlan, evidenceRoot) {
+  if (statePlan.severity === 'none') return 0;
+  if (statePlan.severity === 'skip') {
+    emitStateReconcileWarn(statePlan.reason, statePlan.echo);
+    return 0;
+  }
+  const result = applyStateReconcile(statePlan);
+  if (result.applied > 0) emitStateReconcileWorktreeAdvisory(ROOT, evidenceRoot, statePlan.statePath);
+  if (result.failedAt === 0) {
+    const detail = result.childStderr ? result.childStderr.trim().split('\n')[0] : 'state.mjs exited non-zero';
+    emitStateReconcileWarn(`state.mjs command failed (${detail})`, statePlan.echo);
+    return 0;
+  }
+  if (result.failedAt > 0) {
+    const remaining = statePlan.echo.slice(result.failedAt);
+    emitStateReconcilePartial(result.applied, result.total, remaining);
+    return 6;
+  }
+  return 0;
+}
+
 // --- main ----------------------------------------------------------------------
 
 function main() {
@@ -1131,6 +1384,12 @@ function main() {
     process.stderr.write(`close-work-item: WARNING (evidence-path gate) — ${evidenceGate.reason}\n`);
   }
 
+  // spec-close-leaves-state-stale D1 — plan the STATE reconcile pre-write,
+  // alongside the three gates above. PURE: computes what WOULD run; nothing
+  // is written or executed here (that happens strictly after self-verify,
+  // via runStateReconcile() near the two success tails below).
+  const statePlan = planStateReconcile(ROOT, resolved, args);
+
   const events = readEvents(ROOT);
   const plan = resolved.map((d) => ({
     ...d,
@@ -1156,7 +1415,10 @@ function main() {
     const mutated = applyProductDocMutation(content, resolved[0].fmId);
     productDocPlan = { abs, content, mutated, needsUpdate: mutated !== content };
   }
-  const anyMutationTotal = anyMutation || Boolean(productDocPlan && productDocPlan.needsUpdate);
+  // Spec-AC-02 — a repo whose docs/events are already closed but whose STATE
+  // is still stale must still reconcile on a re-run, instead of the
+  // idempotency short-circuit below reporting "nothing to do" and skipping it.
+  const anyMutationTotal = anyMutation || Boolean(productDocPlan && productDocPlan.needsUpdate) || statePlan.severity === 'apply';
 
   if (args.dryRun) {
     console.log(JSON.stringify(
@@ -1165,6 +1427,7 @@ function main() {
         productDocGate,
         usageCaptureGate: usageGate,
         evidencePathGate: evidenceGate,
+        stateReconcile: { severity: statePlan.severity, reason: statePlan.reason ?? null, statePath: statePlan.statePath, commands: statePlan.echo },
         productDocUpdate: productDocPlan
           ? { path: productDocGate.productDocPath, needsUpdate: productDocPlan.needsUpdate }
           : null,
@@ -1199,7 +1462,10 @@ function main() {
       process.exit(1);
     }
     console.log(`close-work-item: nothing to do (already closed) for ${refs.join(', ')}`);
-    process.exit(0);
+    // statePlan.severity is 'none' or 'skip' here by construction — 'apply'
+    // would have made anyMutationTotal true and routed through the full
+    // write path below instead (Spec-AC-02).
+    process.exit(runStateReconcile(statePlan, evidenceRoot));
   }
 
   // D6.1 — SNAPSHOT before any write. The product doc (when planned) joins
@@ -1271,7 +1537,11 @@ function main() {
   // capture failure never changes the exit code and never reaches rollback. Only
   // the primary --ref ride's remediation load is summarized (the anchor doc).
   captureRemediationFriction(resolved[0].fmId);
-  process.exit(0);
+  // spec-close-leaves-state-stale D3 — STATE RECONCILE, strictly AFTER the
+  // try/catch above has proved the close CLEAN: OUTSIDE that block's rollback
+  // scope by construction. Never affects the doc/event transaction; only its
+  // own 0/6 tail.
+  process.exit(runStateReconcile(statePlan, evidenceRoot));
 }
 
 try {

@@ -713,6 +713,104 @@ events_count() {
   ' "$@"
 }
 
+# --- spec-close-leaves-state-stale fixture/assert helpers (TEST-051..054) ---
+
+# write_reconcile_state <dir> <item_ref> <item_status> <item_phase> \
+#   <item_primary_path> <item_spec_path|-> \
+#   [<focus_ref|-> <focus_type> <focus_primary_path> <focus_spec_path|->]
+#
+# Writes a minimal docs/ai/STATE.yaml with ONE active_work_items entry and
+# (when focus_ref != "-") a current_focus block. "-" for item_spec_path /
+# focus_spec_path omits that field; a focus_ref of "-" (the default) omits
+# current_focus entirely.
+write_reconcile_state() {
+  local dir="$1" ref="$2" status="$3" phase="$4" ppath="$5" spath="$6"
+  local fref="${7:--}" ftype="${8:-intake_change}" fppath="${9:-}" fspath="${10:--}"
+  mkdir -p "$dir/docs/ai"
+  {
+    echo "project_status: active"
+    if [[ "$fref" != "-" ]]; then
+      echo "current_focus:"
+      echo "  type: $ftype"
+      echo "  ref_id: $fref"
+      echo "  primary_path: $fppath"
+      if [[ "$fspath" != "-" ]]; then
+        echo "  spec_path: $fspath"
+      fi
+    fi
+    echo "active_work_items:"
+    echo "  - ref_id: $ref"
+    echo "    status: $status"
+    echo "    phase: $phase"
+    echo "    primary_path: $ppath"
+    if [[ "$spath" != "-" ]]; then
+      echo "    spec_path: $spath"
+    fi
+  } > "$dir/docs/ai/STATE.yaml"
+}
+
+# state_snapshot_json <state_file> <outfile> — dumps {items:[...], focus:{...}}
+# via the SAME shared line-engine helpers (lib/state-engine.mjs,
+# lib/state-core.mjs) production code uses, so the test never drifts from a
+# hand-rolled YAML parser.
+state_snapshot_json() {
+  local f="$1" outfile="$2"
+  cat > "$TEST_DIR/_dump_reconcile_state.mjs" <<'EOF'
+import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+const root = process.argv[2];
+const statePath = process.argv[3];
+const { findBlock, readScalar, unquoteScalar } =
+  await import(pathToFileURL(path.join(root, '.aai/scripts/lib/state-engine.mjs')).href);
+const { splitLines } = await import(pathToFileURL(path.join(root, '.aai/scripts/lib/state-core.mjs')).href);
+const raw = fs.readFileSync(statePath, 'utf8');
+const { lines } = splitLines(raw);
+function parseItems() {
+  const b = findBlock(lines, 'active_work_items');
+  if (!b) return [];
+  const items = [];
+  let cur = null;
+  for (let i = b.start + 1; i < b.end; i += 1) {
+    const l = lines[i];
+    if (l.trim() === '' || l.trim().startsWith('#')) continue;
+    if (/^ {2}- /.test(l)) { cur = {}; items.push(cur); }
+    if (!cur) continue;
+    const indent = l.length - l.trimStart().length;
+    const m = l.match(/^(?: {2}- | {4})([\w-]+):\s*(.*)$/);
+    if (m && indent <= 4) {
+      const v = m[2].trim();
+      cur[m[1]] = v === '' || v === 'null' ? null : unquoteScalar(v);
+    }
+  }
+  return items;
+}
+function focusField(name) {
+  const v = readScalar(lines, 'current_focus', name);
+  return v === null ? null : unquoteScalar(v);
+}
+console.log(JSON.stringify({
+  items: parseItems(),
+  focus: {
+    type: focusField('type'), ref_id: focusField('ref_id'),
+    primary_path: focusField('primary_path'), spec_path: focusField('spec_path'),
+  },
+}));
+EOF
+  node "$TEST_DIR/_dump_reconcile_state.mjs" "$PROJECT_ROOT" "$f" > "$outfile"
+}
+
+# jassert <json-file> <js-boolean-expr over `o`>
+jassert() {
+  node -e '
+    const fs = require("fs");
+    const o = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const expr = process.argv[2];
+    const fn = new Function("o", "return (" + expr + ");");
+    if (!fn(o)) { console.error("assert failed: " + expr + "\n  got: " + JSON.stringify(o)); process.exit(1); }
+  ' "$1" "$2" || log_fail "JSON assertion failed on $1: $2"
+}
+
 # --- TEST-001 (Spec-AC-01): draft-close --------------------------------------
 
 test_001_draft_close() {
@@ -2364,6 +2462,211 @@ test_050_ac_flip_deferral_canon() {
   log_pass "AC-flip deferral canon at both ends; flip ordered before close (TEST-050)"
 }
 
+# --- spec-close-leaves-state-stale (TEST-051..054 / TEST-001..004) ----------
+# Surface 1 — the close ceremony's own STATE reconcile (D1-D6): after the
+# self-verified close, active_work_items[<ref>].status flips to done and the
+# path fields are rewritten to the paths THIS run resolved on disk, and
+# current_focus follows suit only when it names this same scope.
+
+# --- TEST-051 (spec TEST-001, Spec-AC-01): basic reconcile -------------------
+
+test_051_state_reconcile_basic() {
+  log_info "Test: close-time STATE reconcile flips active_work_items status to done and rewrites primary_path (work-item AND focus arms) (spec-close-leaves-state-stale TEST-001)..."
+  local dir; dir=$(new_fixture_repo "t051")
+  write_change_doc "$dir/docs/issues/CHANGE-0001-t051.md" "t051-slug" "implementing"
+  commit_fixture_docs "$dir"
+  write_reconcile_state "$dir" "CHANGE-0001" "in_progress" "implementation" \
+    "docs/issues/CHANGE-DRAFT-t051.md" "-" \
+    "t051-slug" "intake_change" "docs/issues/CHANGE-DRAFT-t051.md" "-"
+
+  local out="$TEST_DIR/t051.out" err="$TEST_DIR/t051.err" code
+  code=$(run_close "$dir" "$out" "$err" --ref t051-slug --pr 1 --commit aaaaaaa1)
+  assert_exit "t051 close" 0 "$code"
+  [[ ! -s "$err" ]] || log_fail "t051: expected no stderr from a clean reconcile, got: $(cat "$err")"
+
+  local snap="$TEST_DIR/t051-state.json"
+  state_snapshot_json "$dir/docs/ai/STATE.yaml" "$snap"
+  jassert "$snap" 'o.items.find(i => i.ref_id === "CHANGE-0001").status === "done"'
+  jassert "$snap" 'o.items.find(i => i.ref_id === "CHANGE-0001").primary_path === "docs/issues/CHANGE-0001-t051.md"'
+  jassert "$snap" 'o.focus.ref_id === "t051-slug"'
+  jassert "$snap" 'o.focus.primary_path === "docs/issues/CHANGE-0001-t051.md"'
+
+  log_pass "STATE reconcile: work-item status/path + focus path both updated on close (TEST-051 / spec TEST-001)"
+}
+
+# --- TEST-052 (spec TEST-002, Spec-AC-01): scoping controls ------------------
+
+test_052_state_reconcile_scoping() {
+  log_info "Test: STATE reconcile scoping — a ref absent from STATE writes nothing; a differently-focused STATE reconciles the work item but leaves current_focus byte-identical (spec-close-leaves-state-stale TEST-002)..."
+
+  # (a) ref absent from active_work_items AND current_focus -> STATE untouched.
+  local dirA; dirA=$(new_fixture_repo "t052a")
+  write_change_doc "$dirA/docs/issues/CHANGE-0002-t052a.md" "t052a-slug" "draft"
+  commit_fixture_docs "$dirA"
+  write_reconcile_state "$dirA" "CHANGE-9999" "in_progress" "implementation" \
+    "docs/issues/CHANGE-9999-other.md" "-" \
+    "some-other-ref" "intake_change" "docs/issues/CHANGE-9999-other.md" "-"
+  local before after
+  before=$(cat "$dirA/docs/ai/STATE.yaml")
+  local outA="$TEST_DIR/t052a.out" errA="$TEST_DIR/t052a.err" codeA
+  codeA=$(run_close "$dirA" "$outA" "$errA" --ref t052a-slug --pr 2 --commit bbbbbbb2)
+  assert_exit "t052a close" 0 "$codeA"
+  [[ ! -s "$errA" ]] || log_fail "t052a: a ref absent from STATE must never warn: $(cat "$errA")"
+  after=$(cat "$dirA/docs/ai/STATE.yaml")
+  [[ "$before" == "$after" ]] || log_fail "t052a: STATE.yaml must stay byte-identical when the closed ref is absent from it"
+
+  # (b) current_focus names a DIFFERENT ref than the one being closed: focus
+  # stays untouched, but the work item (which DOES match) still reconciles.
+  local dirB; dirB=$(new_fixture_repo "t052b")
+  write_change_doc "$dirB/docs/issues/CHANGE-0003-t052b.md" "t052b-slug" "implementing"
+  commit_fixture_docs "$dirB"
+  write_reconcile_state "$dirB" "CHANGE-0003" "in_progress" "implementation" \
+    "docs/issues/CHANGE-DRAFT-t052b.md" "-" \
+    "some-other-ref" "intake_change" "docs/issues/CHANGE-9999-other.md" "-"
+  local focusBefore focusAfter
+  focusBefore=$(sed -n '/^current_focus:/,/^active_work_items:/p' "$dirB/docs/ai/STATE.yaml" | sed '$d')
+  local outB="$TEST_DIR/t052b.out" errB="$TEST_DIR/t052b.err" codeB
+  codeB=$(run_close "$dirB" "$outB" "$errB" --ref t052b-slug --pr 3 --commit ccccccc3)
+  assert_exit "t052b close" 0 "$codeB"
+  focusAfter=$(sed -n '/^current_focus:/,/^active_work_items:/p' "$dirB/docs/ai/STATE.yaml" | sed '$d')
+  [[ "$focusBefore" == "$focusAfter" ]] || log_fail "t052b: current_focus naming a DIFFERENT ref must stay byte-identical"
+  local snapB="$TEST_DIR/t052b-state.json"
+  state_snapshot_json "$dirB/docs/ai/STATE.yaml" "$snapB"
+  jassert "$snapB" 'o.items.find(i => i.ref_id === "CHANGE-0003").status === "done"'
+  jassert "$snapB" 'o.items.find(i => i.ref_id === "CHANGE-0003").primary_path === "docs/issues/CHANGE-0003-t052b.md"'
+  jassert "$snapB" 'o.focus.ref_id === "some-other-ref"'
+
+  log_pass "STATE reconcile scoping: absent ref no-op; unrelated current_focus untouched while the matching work item still reconciles (TEST-052 / spec TEST-002)"
+}
+
+# --- TEST-053 (spec TEST-003, Spec-AC-02): self-recovery + idempotency ------
+
+test_053_state_reconcile_idempotent_recovery() {
+  log_info "Test: STATE reconcile self-recovers when docs/events are already closed but STATE is stale, then makes zero writes on a further re-run (spec-close-leaves-state-stale TEST-003 / Spec-AC-02)..."
+  local dir; dir=$(new_fixture_repo "t053")
+  write_change_doc "$dir/docs/issues/CHANGE-0005-t053.md" "t053-slug" "implementing"
+  commit_fixture_docs "$dir"
+
+  # Run 1: close normally with NO STATE.yaml present yet (STATE absent -> a
+  # silent no-op reconcile, never even creating the file).
+  local out1="$TEST_DIR/t053-1.out" err1="$TEST_DIR/t053-1.err" code1
+  code1=$(run_close "$dir" "$out1" "$err1" --ref t053-slug --pr 5 --commit ddddddd5)
+  assert_exit "t053 run1" 0 "$code1"
+  [[ ! -f "$dir/docs/ai/STATE.yaml" ]] || log_fail "t053: run1 must not CREATE a STATE.yaml (STATE-absent -> none, silent)"
+
+  # STATE now shows up STALE, as if left behind before this scope existed:
+  # docs/events are durably closed, but STATE still says in_progress with the
+  # pre-allocation DRAFT path.
+  write_reconcile_state "$dir" "CHANGE-0005" "in_progress" "implementation" \
+    "docs/issues/CHANGE-DRAFT-t053.md" "-"
+
+  # Run 2: docs/events need NOTHING (already closed) but STATE is stale ->
+  # must still reconcile (Spec-AC-02 self-recovery), never short-circuit to
+  # "nothing to do".
+  local out2="$TEST_DIR/t053-2.out" err2="$TEST_DIR/t053-2.err" code2
+  code2=$(run_close "$dir" "$out2" "$err2" --ref t053-slug --pr 5 --commit ddddddd5)
+  assert_exit "t053 run2 (recovery)" 0 "$code2"
+  [[ ! -s "$err2" ]] || log_fail "t053 run2: expected a clean silent reconcile, got: $(cat "$err2")"
+  local snap2="$TEST_DIR/t053-2-state.json"
+  state_snapshot_json "$dir/docs/ai/STATE.yaml" "$snap2"
+  jassert "$snap2" 'o.items.find(i => i.ref_id === "CHANGE-0005").status === "done"'
+  jassert "$snap2" 'o.items.find(i => i.ref_id === "CHANGE-0005").primary_path === "docs/issues/CHANGE-0005-t053.md"'
+
+  # Run 3: everything (docs, events, STATE) is now already reconciled -> zero
+  # writes, byte-identical STATE.
+  local before after
+  before=$(cat "$dir/docs/ai/STATE.yaml")
+  local out3="$TEST_DIR/t053-3.out" err3="$TEST_DIR/t053-3.err" code3
+  code3=$(run_close "$dir" "$out3" "$err3" --ref t053-slug --pr 5 --commit ddddddd5)
+  assert_exit "t053 run3 (fully idempotent)" 0 "$code3"
+  [[ ! -s "$err3" ]] || log_fail "t053 run3: a fully-reconciled STATE must never warn, got: $(cat "$err3")"
+  after=$(cat "$dir/docs/ai/STATE.yaml")
+  [[ "$before" == "$after" ]] || log_fail "t053 run3: STATE.yaml must be byte-identical on a fully idempotent re-run"
+
+  log_pass "STATE reconcile self-recovers a closed-docs/stale-STATE repo and is byte-idempotent thereafter (TEST-053 / spec TEST-003)"
+}
+
+# --- TEST-054 (spec TEST-004, Spec-AC-03/04): WARN + PARTIAL arms -----------
+
+test_054_state_reconcile_warn_and_partial() {
+  log_info "Test: STATE reconcile degrades to a named WARN (nothing written) under AAI_ROLE=subagent and on a first-command failure, and to a PARTIAL block (exit 6) on a genuine mid-apply failure (spec-close-leaves-state-stale TEST-004 / Spec-AC-03/04)..."
+
+  # Arm 1 — AAI_ROLE=subagent: exit 0, byte-identical STATE, exactly ONE WARN
+  # line naming the single-writer refusal and echoing BOTH planned commands.
+  # The doc itself still closes normally — only the reconcile degrades.
+  local dir1; dir1=$(new_fixture_repo "t054a")
+  write_change_doc "$dir1/docs/issues/CHANGE-0006-t054a.md" "t054a-slug" "implementing"
+  commit_fixture_docs "$dir1"
+  write_reconcile_state "$dir1" "CHANGE-0006" "in_progress" "implementation" \
+    "docs/issues/CHANGE-DRAFT-t054a.md" "-" \
+    "t054a-slug" "intake_change" "docs/issues/CHANGE-DRAFT-t054a.md" "-"
+  local before1 after1
+  before1=$(cat "$dir1/docs/ai/STATE.yaml")
+  local out1="$TEST_DIR/t054a.out" err1="$TEST_DIR/t054a.err" code1=0
+  ( cd "$dir1" && AAI_ROLE=subagent node "$CLOSE_SCRIPT" --ref t054a-slug --pr 6 --commit eeeeeee6 \
+    > "$out1" 2> "$err1" ) || code1=$?
+  assert_exit "t054a (AAI_ROLE=subagent)" 0 "$code1"
+  after1=$(cat "$dir1/docs/ai/STATE.yaml")
+  [[ "$before1" == "$after1" ]] || log_fail "t054a: STATE.yaml must stay byte-identical under AAI_ROLE=subagent"
+  grep -q '^status: done$' "$dir1/docs/issues/CHANGE-0006-t054a.md" \
+    || log_fail "t054a: the doc itself must still close normally despite the STATE WARN"
+  [[ "$(grep -c 'close-work-item: WARN (state-reconcile)' "$err1")" == "1" ]] \
+    || log_fail "t054a: expected EXACTLY one state-reconcile WARN line, got: $(cat "$err1")"
+  grep -q 'single-writer' "$err1" \
+    || log_fail "t054a: WARN must name the single-writer refusal: $(cat "$err1")"
+  grep -q 'set-phase --ref CHANGE-0006' "$err1" \
+    || log_fail "t054a: WARN must echo the set-phase command: $(cat "$err1")"
+  grep -q 'set-focus --type intake_change --ref t054a-slug' "$err1" \
+    || log_fail "t054a: WARN must echo the set-focus command: $(cat "$err1")"
+
+  # Arm 2 — injected first-command failure that is NOT the R-GUARD: the
+  # work-item's ref is a bare YAML-keyword slug ("off"), which passes this
+  # ceremony's own shape pre-check (a real slug shape) but state.mjs's own
+  # refFlag() refuses it (YAML_KEYWORD_SLUGS) — same WARN shape, exit 0,
+  # nothing written, because the FIRST (only) planned command failed.
+  local dir2; dir2=$(new_fixture_repo "t054b")
+  write_change_doc "$dir2/docs/issues/CHANGE-0007-t054b.md" "off" "implementing"
+  commit_fixture_docs "$dir2"
+  write_reconcile_state "$dir2" "off" "in_progress" "implementation" \
+    "docs/issues/CHANGE-DRAFT-t054b.md" "-"
+  local before2 after2
+  before2=$(cat "$dir2/docs/ai/STATE.yaml")
+  local out2="$TEST_DIR/t054b.out" err2="$TEST_DIR/t054b.err" code2
+  code2=$(run_close "$dir2" "$out2" "$err2" --ref off --pr 7 --commit fffffff7)
+  assert_exit "t054b (injected first-command failure)" 0 "$code2"
+  after2=$(cat "$dir2/docs/ai/STATE.yaml")
+  [[ "$before2" == "$after2" ]] || log_fail "t054b: STATE.yaml must stay byte-identical when the only command fails"
+  [[ "$(grep -c 'close-work-item: WARN (state-reconcile)' "$err2")" == "1" ]] \
+    || log_fail "t054b: expected exactly one state-reconcile WARN line, got: $(cat "$err2")"
+
+  # Arm 3 — injected SECOND-command failure: the work-item's ref ("CHANGE-0008")
+  # is a normal ref and succeeds; current_focus's ref is the SAME doc's OTHER
+  # identity member — the bare YAML-keyword slug "off" (the doc's frontmatter
+  # id) — which state.mjs's refFlag() refuses. First command really applies,
+  # second fails -> exit 6, PARTIAL block naming 1-of-2 and echoing the
+  # remaining (failed) command.
+  local dir3; dir3=$(new_fixture_repo "t054c")
+  write_change_doc "$dir3/docs/issues/CHANGE-0008-t054c.md" "off" "implementing"
+  commit_fixture_docs "$dir3"
+  write_reconcile_state "$dir3" "CHANGE-0008" "in_progress" "implementation" \
+    "docs/issues/CHANGE-DRAFT-t054c.md" "-" \
+    "off" "intake_change" "docs/issues/CHANGE-DRAFT-t054c.md" "-"
+  local out3="$TEST_DIR/t054c.out" err3="$TEST_DIR/t054c.err" code3
+  code3=$(run_close "$dir3" "$out3" "$err3" --ref off --pr 8 --commit 08080808)
+  assert_exit "t054c (injected second-command failure -> PARTIAL exit 6)" 6 "$code3"
+  grep -q 'close-work-item: PARTIAL (state-reconcile)' "$err3" \
+    || log_fail "t054c: expected a PARTIAL (state-reconcile) block, got: $(cat "$err3")"
+  grep -q '1 of 2' "$err3" || log_fail "t054c: PARTIAL block must name applied-of-total (1 of 2): $(cat "$err3")"
+  grep -q 'set-focus' "$err3" || log_fail "t054c: PARTIAL block must echo the remaining (failed) command: $(cat "$err3")"
+  local snap3="$TEST_DIR/t054c-state.json"
+  state_snapshot_json "$dir3/docs/ai/STATE.yaml" "$snap3"
+  jassert "$snap3" 'o.items.find(i => i.ref_id === "CHANGE-0008").status === "done"'
+  jassert "$snap3" 'o.focus.ref_id === "off"'
+  jassert "$snap3" 'o.focus.primary_path === "docs/issues/CHANGE-DRAFT-t054c.md"'
+
+  log_pass "STATE reconcile WARN (AAI_ROLE + first-command failure) and PARTIAL (second-command failure, exit 6) arms behave per D3 (TEST-054 / spec TEST-004)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -2423,6 +2726,10 @@ main() {
   test_048_post_merge_close_negative_controls
   test_049_post_merge_close_report_only
   test_050_ac_flip_deferral_canon
+  test_051_state_reconcile_basic
+  test_052_state_reconcile_scoping
+  test_053_state_reconcile_idempotent_recovery
+  test_054_state_reconcile_warn_and_partial
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
