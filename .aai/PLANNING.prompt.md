@@ -114,9 +114,10 @@ row in your spec should survive that reading.
   - Adds a NEW `.aai/**` file -> fold a classification entry into scope + Test
     Plan: .aai/system/PROFILES.yaml.
   Neither applies: skip, no note required.
-- REGISTRY CONSUMER: before freezing, run `node .aai/scripts/follow-ups.mjs
-  list` and scan it for the scope's subjects; write the spec's "Registry
-  items closed by this scope" line from that output (or the literal `none`).
+- REGISTRY CONSUMER: before freezing, run
+  `node .aai/scripts/follow-ups.mjs list` and scan it for the scope's
+  subjects; write the spec's "Registry items closed by this scope" line
+  from that output (or the literal `none`).
   A scope that touches an open item's subject either closes the item or says
   why not (docs/analysis/registry-growth-diagnosis.md).
 

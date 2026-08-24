@@ -1752,14 +1752,17 @@ test_clarify_011_no_new_ceremony() {
         # paid by the very ride whose diagnosis names this arm as the
         # exemplar of a guard that taxes every later scope
         # (docs/analysis/registry-growth-diagnosis.md section 2c).
-        .aai/SKILL_CODE_REVIEW.prompt.md) ;;
+        # (Review round 1 widened this scope: SKILL_WRAP_UP's unrecorded-
+        # warnings advisory must recognize the accepted-residual line or
+        # disposition (d) reads as unrecorded — Codex P1 on PR #283.)
+        .aai/SKILL_CODE_REVIEW.prompt.md|.aai/SKILL_WRAP_UP.prompt.md) ;;
         *) log_info "TEST-011(clarify): unexpected .aai/ path in the branch diff: $p"; ok=0 ;;
       esac
     done <<<"$changed"
   else
     log_info "TEST-011(clarify): neither origin/main nor main resolves — the .aai/ diff pin did not run"
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (recounted 2026-08-24 after the eleventh payment: 35 paths across 13 case groups) accounts for every changed .aai/ path" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (recounted 2026-08-24 after the eleventh payment and its review round: 36 paths across 13 case groups) accounts for every changed .aai/ path" \
     || log_fail "TEST-011(clarify) zero-added-ceremony pins"
 }
 

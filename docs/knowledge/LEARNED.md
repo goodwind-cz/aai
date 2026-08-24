@@ -265,6 +265,6 @@
   inserts the literal control character into the file: after editing any
   document that discusses escapes (\0, \x00, NUL and kin), scan the file for
   the literal byte before committing (portable probe, BSD grep has no -P:
-  node -e 'process.exit(require("fs").readFileSync(f).includes(0)?1:0)';
+  node -e 'process.exit(require("fs").readFileSync(process.argv[1]).includes(0)?1:0)' <file>;
   expect exit 0). (Source: docs-model-nul-escape ride; closes
   fu-escape-literals-self-inflict.)

@@ -73,11 +73,12 @@ plus an internal dual-verdict review plus up to nine validation rounds per
 ride; their finding count scales with diff size and scrutiny and is never
 zero.
 
-**(b) No outflow.** Nothing in the pipeline reads the registry.
-`grep -rl follow-ups.mjs .aai/` returns the CLI itself, the code-review
-prompt (writer), and the factory report (a counter). Planning, intake and
-orchestration never consult it; there is no expiry, no cap, no owner, no
-triage step. The only exits are (1) a next-door ride happening to overlap,
+**(b) No outflow.** Nothing in the pipeline reads the registry — measured
+at the base commit f65ae56, BEFORE this change (this PR itself adds the
+Planning consumer): `grep -rl follow-ups.mjs .aai/` returned the CLI
+itself, the code-review prompt (writer), and the factory report (a
+counter). Planning, intake and orchestration never consulted it; there is
+no expiry, no cap, no owner, no triage step. The only exits are (1) a next-door ride happening to overlap,
 and (2) ad-hoc owner fiat.
 
 **(c) A self-exciting subject.** ~45% of the stock is about the test/guard
@@ -212,7 +213,7 @@ rule is the deliverable and is cited by each closure.
   (green on bare re-run of the same commit); reopen if it reproduces
   locally.
 
-### 5d. Accepted residuals — dropped, reopen on first bite (56, all P3)
+### 5d. Accepted residuals — dropped, reopen on first bite (56 appended, 1 reversed on review — net 55, all P3)
 
 Assurance-strength and maintenance limits with no observed bite and no
 false record: arms that could be evaded by a route nobody takes, pins not
@@ -243,7 +244,7 @@ row with the old id cited.
 `fu-stale-arm-reads-worktree-index`, `fu-strip-dated-runaway-section-mask`,
 `fu-histmap-merge-pathspec-divergence`, `fu-pipe-into-head-sigpipe-class`,
 `fu-pgq-scan-evadable-shapes`, `fu-payload-needle-unbounded-in-message`,
-`fu-pgq-baseline-duplicate-row-masks-rise`, `fu-pgq-scan-silent-on-grep-error`,
+`fu-pgq-baseline-duplicate-row-masks-rise`,
 `fu-isolation-degrade-not-on-pass-line`, `fu-wrapper-no-repo-root-branch-dead`,
 `fu-seeding-skipped-token-collides`, `fu-ratchet-counter-line-undercount`,
 `fu-always-watch-array-unguarded`, `fu-test014-anchorless-control-mismatch`,
@@ -257,6 +258,15 @@ defect class: `fu-tripwire-degrade-not-on-suite-line` (tripwire_attested:
 true recorded under degrade), `fu-seed-step2-enumeration-silent`,
 `fu-marker-append-failure-discarded` (both report "seeded" over an
 incomplete seed).
+
+Correction after external review (PR #283, Codex): the original batch also
+dropped `fu-pgq-scan-silent-on-grep-error`, misclassifying it — its own
+record says the false-good was REPRODUCED (chmod 000 makes an unreadable
+file report as an improvement), so it fails both the no-bite and the
+no-false-record test above. The ledger is append-only, so the drop line
+stands as history; the finding was reopened the documented way, as a fresh
+row `fu-pgq-grep-error-reopened` citing the original id and the review
+comment. Net effect of the batch: 55 residuals accepted, one reversed.
 
 ### 5e. Kept open (95: 4 P1, 73 P2, 18 P3)
 

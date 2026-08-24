@@ -64,3 +64,23 @@ the new (d) this scope introduces — used once, on itself, deliberately):
 
 Verdict: PASS (conditional on the declared conflict; external review and
 owner merge are the independent checks).
+
+## Review round 2 — external bot findings (PR #283, 2026-08-24)
+
+All eight bot findings triaged real; dispositions:
+- Codex P1 (disposition (d) vs warning accounting): remediated — the named-
+  artifact sentence now admits the accepted-residual report line, and
+  SKILL_WRAP_UP 4c recognizes it (12th allowlist payment for the wrap-up
+  prompt recorded in test-aai-spec-lint.sh).
+- Codex P2 (fu-pgq-scan-silent-on-grep-error dropped despite a reproduced
+  false-good): remediated — reopened as fu-pgq-grep-error-reopened; the
+  diagnosis doc carries the correction (5d note); batch net is 55, not 56.
+- Copilot (PLANNING code span split): remediated — rewrapped.
+- Copilot (LEARNED NUL one-liner undefined f): remediated — argv form.
+  NB-1's earlier accepted-residual disposition is superseded by this fix.
+- Copilot (diagnosis 2b claim outdated on-branch): remediated — scoped to
+  the base commit.
+- Copilot (overview project name leaked from worktree dirname): generated
+  files corrected to "aai"; the generator defect filed as
+  fu-overview-project-from-dirname (observed bite).
+- Copilot (162 vs 163 mismatch): remediated — CHANGE-0161 says 163.

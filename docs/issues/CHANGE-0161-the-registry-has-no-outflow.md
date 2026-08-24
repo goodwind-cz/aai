@@ -20,7 +20,7 @@ three learned rules, and append-only ledger status lines written by the
 existing CLI; no script, no schema, no new test arm, no new guard surface.
 
 ## Summary
-- `docs/ai/decisions.jsonl` holds 162 open follow-ups on `main` (f65ae56),
+- `docs/ai/decisions.jsonl` holds 163 open follow-ups on `main` (f65ae56),
   opened over 13 days. Rides close one or two and open five; the trend is
   accelerating (net +39 on 2026-08-21 alone).
 - Diagnosis (docs/analysis/registry-growth-diagnosis.md): the pipeline has a

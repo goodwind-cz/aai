@@ -191,7 +191,9 @@ SKILL_PR treats scope-cited reports as expected companions.
       intended work; the tracked report is the durable record of every
       finding (docs/analysis/registry-growth-diagnosis.md).
   The review report AND STATE.yaml `code_review.notes` must name the chosen
-  artifact per WARNING (decision id or follow-up ref). Unrecorded WARNINGs
+  artifact per WARNING (decision id, follow-up ref, or — for disposition (d)
+  — the report's `accepted residual:` line, quoted in the notes so wrap-up
+  and validation count the warning as recorded). Unrecorded WARNINGs
   are surfaced at closeout by SKILL_WRAP_UP (advisory) and by VALIDATION
   step 8b (enforcement backstop).
 - INFO notes never block.
