@@ -1930,3 +1930,4 @@
 {"v":1,"ts":"2026-08-24T17:36:46.577Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-single-writer-canon-contradiction","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-24T17:36:46.609Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-single-writer-canon-contradiction","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-24T17:36:46.644Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-single-writer-canon-contradiction","payload":{"commit":"205239a"}}
+{"v":1,"ts":"2026-08-24T23:10:52.921Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-close-leaves-state-stale","payload":{"from":"draft","to":"implementing"}}
