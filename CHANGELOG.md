@@ -9,7 +9,40 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-## [unreleased]
+## [unreleased] — fix(canon): dispatch decides who writes STATE, and the serial guard is finally armed (CHANGE-0165 / SPEC-0152) [L2]
+
+- The single-writer rule existed in two contradictory renderings: SUBAGENT_CONTRACT
+  (RFC-0004 D7) forbade dispatched-subagent STATE writes and `state.mjs` R-GUARD S1
+  could refuse them, but the serial role prompts directed roles to run the mutators
+  directly and the serial dispatch never exported `AAI_ROLE=subagent` — so the guard
+  never fired on the pipeline every real ride uses. Two roles had independently
+  tripped over the contradiction in one ride (registry
+  `fu-subagent-state-write-contradiction`).
+- Decision (option a): being dispatched decides who writes STATE, not which pipeline
+  dispatched you. A dispatched subagent returns its `state.mjs` commands as
+  `state_update_commands:` in the result block; the orchestrator, sole STATE writer,
+  executes them at merge. A sole agent for the ride runs them itself.
+- Carve clause added to PLANNING, IMPLEMENTATION, VALIDATION, REMEDIATION (steps 4-6,
+  covering the set-human-input path a review round caught uncovered) and SKILL_TDD;
+  ORCHESTRATION step 2 relays the ENV row and runs returned commands, including on
+  the exit-4 staleness lane; SUBAGENT_PROTOCOL's merge step names the new key.
+- The result-block template now ships a correctly indented `state_update_commands:`
+  exemplar, and the contract's claim about the extension key is qualified to the
+  truth — a flush-left YAML list IS refused by check-role-output.mjs
+  (E-MALFORMED-LINE), proven by a new third TEST-RG-PIN-07 arm.
+- New pins TEST-RG-PIN-04..07 bite-proved by mutation both directions, hardened
+  against a demonstrated decoy that kept the suite green with the rule deleted;
+  `aai-r-guard` suite-map globs extended so CI can select the arms on exactly the
+  files they guard.
+- Prompt-diet: +874 B measured across three ledger entries (657 + 206 + 11), every
+  byte paid 1:1 at zero headroom; TEST-012 pin 1410 -> 2284. The frozen spec's own
+  700 B / single-entry budget is exceeded by the fixes its validation demanded on an
+  undeclared surface — recorded honestly in the AC evidence, not waved through.
+- Registry: `fu-subagent-state-write-contradiction` closed QUALIFIED (three dispatch
+  lanes remain uncarved); successor `fu-uncarved-dispatch-lanes` (P2) filed for
+  SKILL_CODE_REVIEW / SKILL_WORKTREE / METRICS_FLUSH + STATE_FALLBACK.
+- Stale record fixed en route: SPEC-0026 still described test_060's ceiling as 40
+  lines after DEBT-0002 raised it to 45 (dated corrections, history intact).
 
 ## [v2026.08.23] — fix(intake): every intake type states the DRAFT rule it was silently skipping (ISSUE-0032 / SPEC-0140) [L1]
 

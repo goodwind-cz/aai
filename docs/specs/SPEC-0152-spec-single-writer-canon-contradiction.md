@@ -1,7 +1,7 @@
 ---
 id: spec-single-writer-canon-contradiction
 type: spec
-number: null
+number: 152
 status: implementing
 ceremony_level: 2
 links:
@@ -16,7 +16,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-single-writer-canon-contradiction.md
+- Requirement: docs/issues/CHANGE-0165-single-writer-canon-contradiction.md
 - Decision records: none new (design decisions recorded in this spec)
 - Technology contract: docs/TECHNOLOGY.md
 
@@ -136,8 +136,8 @@ the only phrasing that is true of every lane this repo actually runs.
   .aai/ORCHESTRATION.prompt.md, .aai/PLANNING.prompt.md,
   .aai/IMPLEMENTATION.prompt.md, .aai/VALIDATION.prompt.md,
   .aai/REMEDIATION.prompt.md, tests/skills/test-aai-r-guard.sh,
-  tests/skills/suite-map.yaml, docs/specs/SPEC-DRAFT-single-writer-canon-contradiction.md,
-  docs/issues/CHANGE-DRAFT-single-writer-canon-contradiction.md, and
+  tests/skills/suite-map.yaml, docs/specs/SPEC-0152-spec-single-writer-canon-contradiction.md,
+  docs/issues/CHANGE-0165-single-writer-canon-contradiction.md, and
   tests/skills/lib/prompt-diet-ledger.sh plus tests/skills/test-aai-prompt-diet.sh
   only as the measured ledger true-up requires.
 

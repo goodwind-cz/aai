@@ -1,24 +1,24 @@
 {
-  "generatedAt": "2026-08-24T14:17:05.919Z",
+  "generatedAt": "2026-08-24T17:33:51.415Z",
   "project": "aai",
   "counts": {
     "delivered": 210,
-    "in_progress": 1,
+    "in_progress": 2,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "validation-defers-the-ac-flip-to-close",
+    "ref": "single-writer-canon-contradiction",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "validation-defers-the-ac-flip-to-close",
+      "ref": "single-writer-canon-contradiction",
       "type": "intake_change",
       "phase": "code_review"
     },
-    "strategy": "direct",
+    "strategy": "tdd",
     "worktree": {
       "recommendation": "not_needed",
       "user_decision": "inline"
@@ -64,6 +64,19 @@
     ]
   },
   "in_progress": [
+    {
+      "ref": "single-writer-canon-contradiction",
+      "title": "Resolve the single-writer canon contradiction and arm the serial R-GUARD",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0165-single-writer-canon-contradiction.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0152-spec-single-writer-canon-contradiction.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260824T172907Z-single-writer-canon-contradiction-round2.md"
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",

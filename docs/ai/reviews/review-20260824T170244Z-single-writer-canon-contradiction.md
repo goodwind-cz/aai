@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff 061f3a1..HEAD (HEAD = edb2030, branch docs/single-writer-canon)
-  spec: docs/specs/SPEC-DRAFT-single-writer-canon-contradiction.md
+  spec: docs/specs/SPEC-0152-spec-single-writer-canon-contradiction.md
   spec_compliance:
     verdict: fail
     ac_walk:

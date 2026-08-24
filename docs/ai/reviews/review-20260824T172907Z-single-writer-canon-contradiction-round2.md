@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff 061f3a1..HEAD (HEAD = 9f96799, branch docs/single-writer-canon); focus ca90e92..HEAD
-  spec: docs/specs/SPEC-DRAFT-single-writer-canon-contradiction.md
+  spec: docs/specs/SPEC-0152-spec-single-writer-canon-contradiction.md
   round: 2
   spec_compliance:
     verdict: pass
@@ -27,7 +27,7 @@ review:
   code_quality:
     verdict: pass
     findings:
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-single-writer-canon-contradiction.md, line: 0,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0152-spec-single-writer-canon-contradiction.md, line: 0,
           issue: "Spec-AC-04's own wording ('WHEN a result block carrying a state_update_commands: list is checked ... SHALL exit 0') is unconditional, while the delivered contract is correctly conditional on the template's indentation; the AC also says 'both arms' where PIN-07 now has three",
           failure_scenario: "the close ceremony flips Spec-AC-04 to a plain done citing 'exit 0', re-minting at AC level the exact absolute claim P1-2 removed from the contract" }
   cannot_verify:

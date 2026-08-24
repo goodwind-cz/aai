@@ -1,7 +1,7 @@
 ---
 id: single-writer-canon-contradiction
 type: change
-number: null
+number: 165
 status: draft
 links:
   pr: []
