@@ -9,6 +9,8 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
+## [unreleased]
+
 ## [unreleased] — fix(canon): dispatch decides who writes STATE, and the serial guard is finally armed (CHANGE-0165 / SPEC-0152) [L2]
 
 - The single-writer rule existed in two contradictory renderings: SUBAGENT_CONTRACT
