@@ -174,7 +174,7 @@ mechanical extraction + `diff` proving D2.
 | Spec-AC    | Description                                              | Status  | Evidence | Review-By | Notes |
 |------------|----------------------------------------------------------|---------|----------|-----------|-------|
 | Spec-AC-01 | Template ≤60 lines, 5 sections, verbatim Return Record; PLANNING emit step; gitignore + .gitkeep | done | TEST-001..004 green; docs/ai/tdd/work-item-brief-green.log | — | template 55 lines; PLANNING step 11 |
-| Spec-AC-02 | Protocol default+degrade handoff; wrapper cap preserved  | done    | TEST-005/006 green; docs/ai/tdd/work-item-brief-green.log; ORCHESTRATION 40 lines | — | mention in SUBAGENT_PROTOCOL only (D5) |
+| Spec-AC-02 | Protocol default+degrade handoff; wrapper cap preserved  | done    | TEST-005/006 green; docs/ai/tdd/work-item-brief-green.log; ORCHESTRATION 40 lines at delivery (corrected 2026-08-24: cap raised 40->45 by DEBT-0002, 2026-07-17; wrapper now 42 lines, still under the raised cap) | — | mention in SUBAGENT_PROTOCOL only (D5) |
 | Spec-AC-03 | Suites green; diet floor holds; strict audit CLEAN       | done    | hygiene+prompt-diet+state+dispatch+metrics+docs-audit+doc-numbering suites exit 0; docs-audit --check --strict --no-event exit 0; index idempotent; check-state VALID | — | worktree suite failure is the LEARNED 2026-07-15 environmental one |
 
 ## Implementation plan
@@ -214,7 +214,7 @@ mechanical extraction + `diff` proving D2.
 | TEST-003 | Spec-AC-01 | unit        | tests/skills/test-aai-hygiene-pack.sh | PLANNING carries a numbered emit step: `docs/ai/briefs/` + template path + skip-unless-frozen + gitignored-runtime note, positioned after the SPEC-FROZEN step and before the STATE-update step | green |
 | TEST-004 | Spec-AC-01 | integration | tests/skills/test-aai-hygiene-pack.sh | `.gitignore` carries the briefs block; `git check-ignore` confirms docs/ai/briefs/x.md ignored and docs/ai/briefs/.gitkeep NOT ignored; .gitkeep exists (S4) | green |
 | TEST-005 | Spec-AC-02 | unit        | tests/skills/test-aai-hygiene-pack.sh | SUBAGENT_PROTOCOL: brief named as DEFAULT INPUT when present + explicit degrade-to-spec-path clause + Return-Record-is-the-result-block sentence; MODEL row and anti-gaming section intact | green |
-| TEST-006 | Spec-AC-02 | integration | tests/skills/test-aai-hygiene-pack.sh | ORCHESTRATION.prompt.md ≤40 lines AND still routes dispatch through .aai/SUBAGENT_PROTOCOL.md (the brief mention's reachability path — S3) | green |
+| TEST-006 | Spec-AC-02 | integration | tests/skills/test-aai-hygiene-pack.sh | ORCHESTRATION.prompt.md ≤40 lines at delivery (corrected 2026-08-24: test_060's private cap now reads ≤45, DEBT-0002, 2026-07-17) AND still routes dispatch through .aai/SUBAGENT_PROTOCOL.md (the brief mention's reachability path — S3) | green |
 | TEST-007 | Spec-AC-03 | integration | tests/skills/test-aai-prompt-diet.sh  | Existing TEST-010/TEST-011 re-run post-change: strict audit CLEAN, net byte reduction ≥ floor with PLANNING grown, wrapper caps hold (S2) | green |
 
 Notes:

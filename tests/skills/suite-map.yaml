@@ -566,6 +566,7 @@ suites:
       - .aai/IMPLEMENTATION.prompt.md
       - .aai/VALIDATION.prompt.md
       - .aai/REMEDIATION.prompt.md
+      - .aai/SKILL_TDD.prompt.md
 
   aai-reconcile-telemetry:
     globs:

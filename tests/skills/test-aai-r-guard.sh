@@ -146,32 +146,48 @@ test_pin_orchestration_serial() {
     || log_fail "TEST-RG-PIN-04: no AAI_ROLE=subagent wiring in $ORCH_SERIAL"
   grep -qiE 'unset|non-`?subagent`?|not carry|MUST NOT carry' "$ORCH_SERIAL" \
     || log_fail "TEST-RG-PIN-04: ORCHESTRATION.prompt.md does not tell the orchestrator to keep the marker unset for its own writes"
-  grep -qF 'state_update_commands' "$ORCH_SERIAL" \
-    || log_fail "TEST-RG-PIN-04: ORCHESTRATION.prompt.md does not name running the returned state_update_commands"
+  # Imperative shape, not just token presence (P2-2, review-20260824T170244Z):
+  # the orchestrator is the EXECUTOR here (opposite polarity from PIN-05's
+  # dispatched roles), so pin the literal executing verb, not just the noun.
+  grep -qF 'run any returned state_update_commands' "$ORCH_SERIAL" \
+    || log_fail "TEST-RG-PIN-04: ORCHESTRATION.prompt.md does not direct RUNNING the returned state_update_commands (imperative shape missing, decoy-satisfiable)"
   local lines
   lines="$(wc -l < "$ORCH_SERIAL" | tr -d '[:space:]')"
   [[ "$lines" -le 45 ]] || log_fail "TEST-RG-PIN-04: ORCHESTRATION.prompt.md is $lines lines, exceeds the 45-line thin-wrapper ceiling (TEST-011)"
   [[ "$FAILED" == 0 ]] && log_pass "ORCHESTRATION.prompt.md relays the ENV row + state_update_commands, $lines/45 lines (TEST-RG-PIN-04)" || true
 }
 
-# --- TEST-RG-PIN-05: the four role prompts point at the returned-commands duty -
+# --- TEST-RG-PIN-05: the four role prompts + SKILL_TDD point at the returned-commands duty -
 
 test_pin_role_prompts() {
-  log_info "Test: PLANNING/IMPLEMENTATION/VALIDATION/REMEDIATION name state_update_commands + SUBAGENT_CONTRACT.md while keeping the state.mjs primary path and fallback marker (TEST-RG-PIN-05)..."
+  log_info "Test: PLANNING/IMPLEMENTATION/VALIDATION/REMEDIATION/SKILL_TDD name state_update_commands + SUBAGENT_CONTRACT.md while keeping the state.mjs primary path and fallback marker (TEST-RG-PIN-05)..."
   local p f
-  for p in PLANNING IMPLEMENTATION VALIDATION REMEDIATION; do
+  # SKILL_TDD added (P2-3, review-20260824T170244Z): its :66 clause governs
+  # all four set-tdd-cycle sites below it (:109/:172/:223/:290) but was
+  # previously unpinned by any aai-r-guard arm and the file was absent from
+  # the suite's own globs (see suite-map.yaml aai-r-guard).
+  for p in PLANNING IMPLEMENTATION VALIDATION REMEDIATION SKILL_TDD; do
     f="$PROJECT_ROOT/.aai/${p}.prompt.md"
     [[ -f "$f" ]] || { log_fail "TEST-RG-PIN-05: missing prompt $f"; continue; }
     grep -qF 'state_update_commands' "$f" \
       || log_fail "TEST-RG-PIN-05: $p.prompt.md does not name state_update_commands"
     grep -qF '.aai/SUBAGENT_CONTRACT.md' "$f" \
       || log_fail "TEST-RG-PIN-05: $p.prompt.md does not point at .aai/SUBAGENT_CONTRACT.md"
+    # Imperative shape, not just token presence (P2-2, review-20260824T170244Z):
+    # a decoy like "NOTE: see .aai/SUBAGENT_CONTRACT.md for state_update_commands
+    # background." satisfies the two greps above with the rule itself deleted.
+    # Require the return-INSTEAD-of-execute directive and its sole-agent
+    # counterpart, both present verbatim in every carved file today.
+    grep -qF 'instead of running' "$f" \
+      || log_fail "TEST-RG-PIN-05: $p.prompt.md does not direct RETURNING state_update_commands instead of running them (imperative shape missing, decoy-satisfiable)"
+    grep -qF 'Sole agent: run them' "$f" \
+      || log_fail "TEST-RG-PIN-05: $p.prompt.md does not carry the sole-agent imperative counterpart 'Sole agent: run them'"
     grep -qF 'node .aai/scripts/state.mjs' "$f" \
       || log_fail "TEST-RG-PIN-05: $p.prompt.md lost its node .aai/scripts/state.mjs primary path"
     grep -qF 'state.mjs is absent' "$f" \
       || log_fail "TEST-RG-PIN-05: $p.prompt.md lost its 'state.mjs is absent' fallback marker"
   done
-  [[ "$FAILED" == 0 ]] && log_pass "All four role prompts name state_update_commands + SUBAGENT_CONTRACT.md, primary path and fallback marker intact (TEST-RG-PIN-05)" || true
+  [[ "$FAILED" == 0 ]] && log_pass "All five prompts (four roles + SKILL_TDD) name state_update_commands + SUBAGENT_CONTRACT.md, primary path and fallback marker intact (TEST-RG-PIN-05)" || true
 }
 
 # --- TEST-RG-PIN-06: CONTRACT holds the normative duty, PROTOCOL the merge input
@@ -224,6 +240,27 @@ subagent_result:
     - node .aai/scripts/state.mjs set-phase --ref single-writer-canon-contradiction --phase validation --status in_progress
 ```
 MD
+  local flushleft="$TEST_DIR/rg-pin-07-flushleft.md"
+  cat > "$flushleft" <<'MD'
+```yaml
+subagent_result:
+  scope: single-writer-canon-contradiction
+  role: Implementation
+  status: PASS
+  started_utc: 2026-08-24T09:00:00Z
+  ended_utc: 2026-08-24T09:07:00Z
+  duration_seconds: 420
+  evidence:
+    - command: bash tests/skills/test-aai-r-guard.sh
+      exit_code: 0
+      output_snippet: "PASS: all aai-r-guard tests"
+  files_changed:
+    - .aai/SUBAGENT_CONTRACT.md
+  blockers: []
+  state_update_commands:
+  - node .aai/scripts/state.mjs set-phase --ref single-writer-canon-contradiction --phase validation --status in_progress
+```
+MD
   local missing="$TEST_DIR/rg-pin-07-missing-started.md"
   cat > "$missing" <<'MD'
 ```yaml
@@ -254,7 +291,13 @@ MD
   assert_payload_contains "$out" 'ROLE-OUTPUT-VIOLATION:' \
     "TEST-RG-PIN-07: missing-field rejection must print a ROLE-OUTPUT-VIOLATION: line"
 
-  [[ "$FAILED" == 0 ]] && log_pass "SEAM: state_update_commands extension accepted (exit 0); missing-field block still refused (exit 1) (TEST-RG-PIN-07)" || true
+  ec=0
+  out="$(node "$CHECK_ROLE_OUTPUT" --file "$flushleft" --now 2026-08-24T09:10:00Z 2>&1)"; ec=$?
+  [[ "$ec" == 1 ]] || log_fail "TEST-RG-PIN-07: a flush-left state_update_commands list (dedented to the key's own indent) must exit 1, not exit 0 (got $ec): $out"
+  assert_payload_contains "$out" 'E-MALFORMED-LINE' \
+    "TEST-RG-PIN-07: flush-left rejection must name E-MALFORMED-LINE (CONTRACT's indentation exemplar is what saves a subagent from this)"
+
+  [[ "$FAILED" == 0 ]] && log_pass "SEAM: state_update_commands extension accepted indented (exit 0); missing-field block refused (exit 1); flush-left rendering refused too (exit 1, E-MALFORMED-LINE) (TEST-RG-PIN-07)" || true
 }
 
 # --- run ------------------------------------------------------------------------

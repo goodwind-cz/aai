@@ -413,6 +413,13 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# 2284 (2026-08-24, round-2 code-review P2-1 remediation:
+# single-writer-canon-contradiction-remediation pays +11 B — ORCHESTRATION's
+# exit-4 needs_llm staleness lane dispatched Validation/Code Review without
+# naming that the dispatched role returns state_update_commands per step 2,
+# so a role dispatched via that lane could return commands nobody runs;
+# appended "per step 2." to the one sentence. Measured 11 B at zero headroom,
+# credited 1:1, pin moved 2273 -> 2284.
 # 2273 (2026-08-24, round-1 validation F2 remediation:
 # single-writer-canon-contradiction-remediation pays +206 B — .aai/SKILL_TDD.prompt.md
 # still directed a dispatched subagent to run state.mjs set-tdd-cycle
@@ -705,7 +712,7 @@ test_012_growth_sum_matches_ledger() {
   # PASS line still printing 859 after the pin moved to 1036 — the second time
   # this message drifted from the check. A number retyped in prose goes stale;
   # a number printed from the constant cannot.
-  local want_growth=2273
+  local want_growth=2284
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

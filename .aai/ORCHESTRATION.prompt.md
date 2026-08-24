@@ -17,7 +17,7 @@ RUN THE TICK
      node .aai/scripts/check-state.mjs --repair docs/ai/STATE.yaml (create with
      canonical schema defaults if missing), then re-run the script ONCE.
    - validation_staleness_unknown / review_staleness_unknown: judge staleness
-     against the current diff yourself; dispatch Validation / Code Review.
+     against the current diff yourself; dispatch Validation / Code Review per step 2.
    - possible_missing_remediation_reset: apply the missing post-remediation reset
      (node .aai/scripts/state.mjs reset-block <failed block>, per the
      remediation-reset rule in .aai/STATE_FALLBACK.md); re-run the script ONCE.
