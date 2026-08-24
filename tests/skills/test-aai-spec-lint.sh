@@ -1656,113 +1656,41 @@ test_clarify_011_no_new_ceremony() {
     grep -qF "$p" "$f" \
       || { log_info "TEST-011(clarify): spec-freeze's exit contract lost \"$p\""; ok=0; }
   done
-  # the whole .aai/ delta against main is the two scripts plus ONE prompt
-  # Base-ref resolution prefers origin/main (third occurrence of this class
-  # today — TEST-024 and the follow-ups suite both shipped with a bare `main`
-  # that never resolves on a detached PR checkout, making the pin inert on CI).
-  local base_ref=""
-  if (cd "$PROJECT_ROOT" && git rev-parse --verify -q origin/main >/dev/null); then base_ref="origin/main"
-  elif (cd "$PROJECT_ROOT" && git rev-parse --verify -q main >/dev/null); then base_ref="main"; fi
-  if [[ -n "$base_ref" ]]; then
-    local changed
-    changed="$(cd "$PROJECT_ROOT" && git diff --name-only "$base_ref" -- .aai/)"
-    while IFS= read -r p; do
-      [[ -n "$p" ]] || continue
-      case "$p" in
-        .aai/scripts/spec-lint.mjs|.aai/scripts/spec-freeze.mjs|.aai/PLANNING.prompt.md) ;;
-        # NOT this scope's paths — this pin is a BRANCH-DIFF allowlist, so any
-        # LATER scope that legitimately edits .aai/ on a branch cut from main
-        # trips it until its paths are listed here. CHANGE-0143
-        # (close-regenerate-order) is the first such scope: the allocator gains
-        # the spec-path regen at the rename and SKILL_PR step 1b names the
-        # regenerated pages. The zero-added-ceremony claim above still concerns
-        # exactly the three files on the line before this comment.
-        .aai/scripts/allocate-doc-number.mjs|.aai/SKILL_PR.prompt.md) ;;
-        # spec-deslop-scope-and-unrequested-engine: the class-4 engine plus the
-        # three surfaces that stop claiming the pass is diff-only.
-        .aai/scripts/deslop-unrequested.mjs|.aai/SKILL_DESLOP.prompt.md|.aai/AGENTS.md|.aai/system/PROFILES.yaml) ;;
-        # role-verification-guards: G1 (close-work-item.mjs post-merge-close
-        # advisory), G2 (append-event.mjs + orchestration-dispatch.mjs
-        # validation-verdict staleness), G3 (SKILL_TDD.prompt.md sweep gate),
-        # G4 (SKILL_TEST_SKILLS.prompt.md disk-artifact-poll teaching).
-        .aai/scripts/close-work-item.mjs|.aai/scripts/append-event.mjs|.aai/scripts/orchestration-dispatch.mjs|.aai/SKILL_TDD.prompt.md|.aai/SKILL_TEST_SKILLS.prompt.md) ;;
-        # docs-model-nul-escape: two raw NUL bytes in a template literal made
-        # the whole file binary to grep, so every agent sweeping .aai/scripts/
-        # silently missed it. Replaced with the six-character backslash-u-0000
-        # escape - proven identical at runtime (same key string, separator
-        # charCode 0, rest of the file byte-for-byte unchanged). Fourth payment
-        # of this allowlist tax, tracked as fu-test011-branch-diff-allowlist-tax.
-        .aai/scripts/lib/docs-model.mjs) ;;
-        # ride-cost-readout: the scope-cost section in the factory report
-        # generator. Fifth payment of this allowlist tax
-        # (fu-test011-branch-diff-allowlist-tax, P2, live).
-        .aai/scripts/generate-factory-report.mjs) ;;
-        # followups-cli-hardening: D1 dashed-value parsing, D2 unreadable-ledger
-        # refusal, D3 malformed-id naming, D4 understatement note — all four
-        # confined to this one script. Sixth payment of this allowlist tax
-        # (fu-test011-branch-diff-allowlist-tax, P2, live).
-        .aai/scripts/follow-ups.mjs) ;;
-        # feedback-pipeline-discoverability: ONE discoverability sentence in
-        # each feedback prompt so the upstream-reporting channel is findable by
-        # the vocabulary agents actually search (goodwind-cz/aai#278 / PR #279);
-        # the matching prompt-diet ledger true-up rides in the same PR, and
-        # AGENTS.md is already covered by the deslop entry above. Seventh
-        # payment of this allowlist tax
-        # (fu-test011-branch-diff-allowlist-tax, P2, live).
-        .aai/SKILL_FEEDBACK_TRIAGE.prompt.md|.aai/SKILL_FEEDBACK_UPSERT.prompt.md) ;;
-        # suites-must-not-touch-the-shipping-repo: the shared tripwire library
-        # and the ad hoc test funnel that arms it (the other funnel,
-        # tests/skills/test-framework.sh, is outside .aai/ and so outside this
-        # pin). Seventh payment of this allowlist tax
-        # (fu-test011-branch-diff-allowlist-tax, P2, live).
-        .aai/scripts/lib/repo-tripwire.sh|.aai/scripts/aai-run-tests.sh) ;;
-        # intake-numbers-some-doc-types-immediately: the DRAFT naming rule moves
-        # to where the intake router reads it (INTAKE_COMMON's single-source
-        # type table plus one RULES bullet in each of the eight per-type
-        # prompts) and gains an intake-time gate (docs-audit --intake-file,
-        # self-contained in the CLI so the shared docs-audit-core library stays
-        # byte-untouched). Eighth payment of this allowlist tax
-        # (fu-test011-branch-diff-allowlist-tax, P2, live).
-        .aai/INTAKE_COMMON.md|.aai/INTAKE_CHANGE.prompt.md|.aai/INTAKE_HOTFIX.prompt.md|.aai/INTAKE_ISSUE.prompt.md|.aai/INTAKE_PRD.prompt.md|.aai/INTAKE_RELEASE.prompt.md|.aai/INTAKE_RESEARCH.prompt.md|.aai/INTAKE_RFC.prompt.md|.aai/INTAKE_TECHDEBT.prompt.md|.aai/scripts/docs-audit.mjs) ;;
-        # docs-history-is-one-git-call-per-doc: the shared audit engine gains
-        # buildFirstCommitDateMap beside firstCommitDate; one runAudit call site
-        # is rewired and nothing else in .aai/ is touched. NINTH payment of this
-        # allowlist tax (fu-test011-branch-diff-allowlist-tax, P2, live) — and
-        # the first time it turned CI RED for three unrelated suites at once.
-        .aai/scripts/lib/docs-audit-core.mjs) ;;
-        # spec-the-subagent-contract-omits-the-hazards: the standing hazards
-        # (no restoring git command on a tracked file, absolute scratch path,
-        # append-only ledgers, targeted worktree remove, verify a path before
-        # cd) move OUT of hand-typed dispatch prose and INTO the per-dispatch
-        # payload. The CONTRACT is the only .aai/ path the scope touches.
-        # TENTH payment of this allowlist tax
-        # (fu-test011-branch-diff-allowlist-tax, P2, live); the recount on the
-        # pass line below was already one group stale before this edit, so it
-        # is corrected here to a re-counted 34 paths across 12 groups (31 when
-        # this comment was first written; SUBAGENT_PROTOCOL.md joined the group
-        # in the same scope and the pass line moved with it — a comment that
-        # states a count has to move every time the count does).
-        .aai/SUBAGENT_CONTRACT.md|.aai/SUBAGENT_PROTOCOL.md) ;;
-        # the-registry-has-no-outflow (CHANGE-0161/SPEC-0149): the WARNINGS
-        # policy gains disposition (d) "accepted residual" (P3-confined,
-        # recorded in the review report instead of the registry); PLANNING's
-        # REGISTRY CONSUMER bullet rides in the same scope but its file is
-        # already listed in the first case group. ELEVENTH payment of this
-        # allowlist tax (fu-test011-branch-diff-allowlist-tax, P2, live) —
-        # paid by the very ride whose diagnosis names this arm as the
-        # exemplar of a guard that taxes every later scope
-        # (docs/analysis/registry-growth-diagnosis.md section 2c).
-        # (Review round 1 widened this scope: SKILL_WRAP_UP's unrecorded-
-        # warnings advisory must recognize the accepted-residual line or
-        # disposition (d) reads as unrecorded — Codex P1 on PR #283.)
-        .aai/SKILL_CODE_REVIEW.prompt.md|.aai/SKILL_WRAP_UP.prompt.md) ;;
-        *) log_info "TEST-011(clarify): unexpected .aai/ path in the branch diff: $p"; ok=0 ;;
-      esac
-    done <<<"$changed"
-  else
-    log_info "TEST-011(clarify): neither origin/main nor main resolves — the .aai/ diff pin did not run"
+  # --- containment, measured against the LIVE tree ----------------------------
+  # The clarify scope touched a fixed set of .aai/ paths — the manifest below.
+  # This half used to prove
+  # that by diffing .aai/ against a MOVING main and refusing any path outside a
+  # hand-maintained allowlist — which turns a pin on ONE scope's delta into a pin
+  # on what EVERY later scope does. Later scopes paid an allowlist entry each to
+  # land an unrelated .aai/ edit; no payment was a clarify-scope ceremony addition
+  # (fu-test011-branch-diff-allowlist-tax). A fixed commit range would have been
+  # no better: frozen history cannot fail for a real reason, only for a false one
+  # on a shallow CI checkout where the commit is unreachable.
+  # What the claim was always evidence FOR is CONTAINMENT — the clarification
+  # gate lives in the manifest's files and nowhere else under .aai/. That is
+  # checkable against the tree in front of us; it bites when the gate spreads to
+  # a further surface or is gutted out of one of them, and it costs an
+  # unrelated .aai/ edit nothing.
+  # LOST with the allowlist, said plainly: the accidental sweep that made every
+  # scope declare its whole .aai/ footprint. Nothing here replaces it — see
+  # "What the repair still loses" in the scope's spec.
+  local manifest carriers n
+  manifest="$(printf '%s\n' \
+    .aai/PLANNING.prompt.md \
+    .aai/scripts/spec-freeze.mjs \
+    .aai/scripts/spec-lint.mjs | LC_ALL=C sort)"
+  carriers="$(cd "$PROJECT_ROOT" && grep -rlE 'unresolved-clarification|NEEDS-CLARIFICATION' .aai/ | LC_ALL=C sort)"
+  if [[ "$carriers" != "$manifest" ]]; then
+    log_info "TEST-011(clarify): the clarification gate is no longer contained to the .aai/ files the scope added"
+    log_info "  manifest: $(printf '%s' "$manifest" | tr '\n' ' ')"
+    log_info "  measured: $(printf '%s' "$carriers" | tr '\n' ' ')"
+    ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the .aai/ branch-diff allowlist (recounted 2026-08-24 after the eleventh payment and its review round: 36 paths across 13 case groups) accounts for every changed .aai/ path" \
+  n=0
+  while IFS= read -r p; do
+    [[ -n "$p" ]] && n=$((n + 1))
+  done <<<"$carriers"
+  [[ $ok -eq 1 ]] && log_pass "TEST-011(clarify) no new flag or exit code in either script; the clarification gate is contained to the $n .aai/ files of the scope's manifest" \
     || log_fail "TEST-011(clarify) zero-added-ceremony pins"
 }
 

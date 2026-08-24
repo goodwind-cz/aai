@@ -1902,3 +1902,11 @@
 {"v":1,"ts":"2026-08-24T09:06:42.818Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-the-registry-has-no-outflow","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-24T09:06:42.854Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-the-registry-has-no-outflow","payload":{"commit":"ba4954a56ee84ed00c1dd4347a51a2708b2a4f82"}}
 {"v":1,"ts":"2026-08-24T09:09:11.843Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":387,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-24T08:12:09.922Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-a-branch-diff-pin-taxes-every-later-scope","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-24T10:54:56.261Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":389,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-24T11:08:44.901Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"a-branch-diff-pin-taxes-every-later-scope","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-24T11:08:44.936Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"a-branch-diff-pin-taxes-every-later-scope","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-24T11:08:44.980Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"a-branch-diff-pin-taxes-every-later-scope","payload":{"commit":"87767f8acb1ccf19e7b0af4bd4bc4d0843cf8141"}}
+{"v":1,"ts":"2026-08-24T11:08:45.019Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-a-branch-diff-pin-taxes-every-later-scope","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-24T11:08:45.054Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-a-branch-diff-pin-taxes-every-later-scope","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-24T11:08:45.089Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-a-branch-diff-pin-taxes-every-later-scope","payload":{"commit":"87767f8acb1ccf19e7b0af4bd4bc4d0843cf8141"}}

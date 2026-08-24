@@ -804,12 +804,28 @@ function rewriteReferences(root, oldBase, newBase, { dryRun = false } = {}) {
   return report;
 }
 
+// Returns true only when the index was ACTUALLY regenerated, so the completion
+// line can name it honestly. The previous version's catch was commented
+// "degrade-and-report" and reported nothing, and the completion line prepended
+// docs/INDEX.md unconditionally — so a missing or failing generator produced a
+// "stage every page listed here" naming a file that had not been rewritten.
+// Neither the numbering nor the move logic is touched; this is the reporting
+// tail only. The shape is copied verbatim from regenerateSpecPagesBestEffort
+// below, which already reports and already returns what it really did — this
+// function was the one place in the file that did not follow its own sibling.
 function regenerateIndex(root) {
   const gen = path.join(root, '.aai/scripts/generate-docs-index.mjs');
-  if (!fs.existsSync(gen)) return;
+  if (!fs.existsSync(gen)) {
+    process.stderr.write('allocate-doc-number: INFO generate-docs-index.mjs absent — docs/INDEX.md NOT regenerated\n');
+    return false;
+  }
   try {
     execFileSync('node', [gen], { cwd: root, stdio: 'ignore' });
-  } catch { /* degrade-and-report: index regen is best-effort */ }
+    return true;
+  } catch (err) {
+    process.stderr.write(`allocate-doc-number: INFO docs/INDEX.md regen skipped (best-effort, non-fatal): ${err.message}\n`);
+    return false;
+  }
 }
 
 // The PROJECTION generators whose output embeds a spec PATH (CHANGE-0143 D2,
@@ -1161,9 +1177,19 @@ function runAllocate(root, opts) {
     rewriteReferences(root, p.oldBase, p.newBase);
     console.log(`allocated ${p.rel} -> ${p.newRel} (number ${p.n}, id ${p.slug}${provisional ? ', number_reserved: false' : ''})`);
   }
-  regenerateIndex(root);
-  const regenerated = ['docs/INDEX.md', ...regenerateSpecPagesBestEffort(root)];
-  console.log(`allocate complete: ${plan.length} draft(s) numbered; regenerated ${regenerated.join(', ')} — stage every page listed here.`);
+  const indexRegenerated = regenerateIndex(root);
+  const regenerated = [
+    ...(indexRegenerated ? ['docs/INDEX.md'] : []),
+    ...regenerateSpecPagesBestEffort(root),
+  ];
+  if (regenerated.length > 0) {
+    console.log(`allocate complete: ${plan.length} draft(s) numbered; regenerated ${regenerated.join(', ')} — stage every page listed here.`);
+  } else {
+    // Copilot on PR #284: with every generator absent the old line read
+    // "regenerated  — stage every page listed here", an instruction with an
+    // empty subject. Say the true thing instead.
+    console.log(`allocate complete: ${plan.length} draft(s) numbered; NO pages regenerated (no generator ran) — nothing extra to stage.`);
+  }
 }
 
 // --reserve: complete a provisional (D4) reservation for an already-numbered
