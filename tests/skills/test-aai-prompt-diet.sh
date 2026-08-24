@@ -413,6 +413,14 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# 2273 (2026-08-24, round-1 validation F2 remediation:
+# single-writer-canon-contradiction-remediation pays +206 B — .aai/SKILL_TDD.prompt.md
+# still directed a dispatched subagent to run state.mjs set-tdd-cycle
+# unconditionally in all four TDD phases (RED/GREEN/REFACTOR_COMPLETE/IDLE),
+# the same contradiction fixed elsewhere by commit a3e6412 but missed in this
+# file; ONE Dispatched/Sole-agent pointer clause added once after
+# Prerequisites Check governs all four occurrences. Measured 206 B at zero
+# headroom, credited 1:1, pin moved 2067 -> 2273.
 # 2067 (2026-08-24: single-writer-canon-contradiction pays +657 B — the
 # serial ORCHESTRATION.prompt.md never relayed AAI_ROLE=subagent and four role
 # prompts told a dispatched subagent to run state.mjs directly, contradicting
@@ -697,7 +705,7 @@ test_012_growth_sum_matches_ledger() {
   # PASS line still printing 859 after the pin moved to 1036 — the second time
   # this message drifted from the check. A number retyped in prose goes stale;
   # a number printed from the constant cannot.
-  local want_growth=2067
+  local want_growth=2273
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
