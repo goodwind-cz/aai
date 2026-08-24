@@ -2,13 +2,15 @@
 id: spec-single-writer-canon-contradiction
 type: spec
 number: 152
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: single-writer-canon-contradiction
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 287
+  commits:
+    - 205239a
 ---
 
 # Spec — being dispatched decides who writes STATE, and the serial dispatch arms the guard
@@ -243,14 +245,14 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
 
 | Spec-AC    | Description                    | Status      | Evidence       | Review-By   | Notes                          |
 |------------|--------------------------------|-------------|----------------|-------------|--------------------------------|
-| Spec-AC-01 | serial ORCHESTRATION arms AAI_ROLE=subagent, keeps it unset for own writes, names running state_update_commands, stays at 45 lines or less | planned | — | — | — |
-| Spec-AC-02 | four role prompts carry the dispatched-subagent clause naming state_update_commands and SUBAGENT_CONTRACT; state.mjs primary path and fallback marker survive | planned | — | — | — |
-| Spec-AC-03 | SUBAGENT_CONTRACT holds the one normative statement; SUBAGENT_PROTOCOL names the merge input and the serial-plus-parallel ENV scope | planned | — | — | — |
-| Spec-AC-04 | SEAM: check-role-output accepts a block carrying state_update_commands (exit 0) and still refuses a block missing a required field (exit 1) | planned | — | — | the one cross-component seam; checker itself unedited |
-| Spec-AC-05 | every new arm observed RED on pre-fix text and green after, plus a hostile-mutation bite with an unmutated control | planned | — | — | mutations only in a disposable detached worktree |
-| Spec-AC-06 | suite-map aai-r-guard globs list all six newly pinned files so CI selects the suite on an edit to any of them | planned | — | — | — |
-| Spec-AC-07 | in-corpus delta measured, at most 700 bytes, ledgered at the measured amount with the TEST-012 pin bumped by the same amount | planned | — | — | headroom is 0 of 2048 today, so any growth must be paid 1:1 |
-| Spec-AC-08 | no protected_paths_l3 file in the diff; fu-subagent-state-write-contradiction closed with resolved_by at the close | planned | — | — | registry closure is a close-ceremony step, never earlier |
+| Spec-AC-01 | serial ORCHESTRATION arms AAI_ROLE=subagent, keeps it unset for own writes, names running state_update_commands, stays at 45 lines or less | done | val r1 check AC-01 met: r-guard exit 0, PIN-04 PASS, ORCHESTRATION 42 of 45 lines; exit-4 lane completed in remediation 9f96799 (review r2 verified reference resolves). docs/ai/validation/validation-20260824T162044Z-single-writer-canon-contradiction-round2.md | validation:2026-08-24 | review r2 re-read the file whole |
+| Spec-AC-02 | four role prompts carry the dispatched-subagent clause naming state_update_commands and SUBAGENT_CONTRACT; state.mjs primary path and fallback marker survive | done | val r2: carve in all four prompts plus SKILL_TDD (:66 governs all four set-tdd-cycle sites); REMEDIATION widened to steps 4-6 in 9f96799 after review r1 P1-1; prefix-free sweep in review r2 found zero uncovered directives across 19 files. docs/ai/reviews/review-20260824T172907Z-single-writer-canon-contradiction-round2.md | validation:2026-08-24 | per-file sweep rebuilt from scratch |
+| Spec-AC-03 | SUBAGENT_CONTRACT holds the one normative statement; SUBAGENT_PROTOCOL names the merge input and the serial-plus-parallel ENV scope | done | val r2 whitespace-insensitive diff: zero word-level content loss at 83 then 84 of 84 lines; PROTOCOL ENV row binds serial plus parallel, merge step names state_update_commands. docs/ai/validation/validation-20260824T162044Z-single-writer-canon-contradiction-round2.md | validation:2026-08-24 | contract at cap, zero slack (P3-N2 accepted residual) |
+| Spec-AC-04 | SEAM: check-role-output accepts a block carrying state_update_commands (exit 0) and still refuses a block missing a required field (exit 1) | done | review r2 ran four fixtures against the real checker: template verbatim exit 0, 3-space and colon-bearing payload exit 0, flush-left YAML list exit 1 E-MALFORMED-LINE — acceptance holds ONLY for correctly indented nested lines (third PIN-07 arm pins the refusal). docs/ai/reviews/review-20260824T172907Z-single-writer-canon-contradiction-round2.md | validation:2026-08-24 | qualified: not unconditional exit 0 as this row once implied |
+| Spec-AC-05 | every new arm observed RED on pre-fix text and green after, plus a hostile-mutation bite with an unmutated control | done | PIN-04/05/06 observed RED on pre-fix text (docs/ai/tdd/red-20260824T151347Z-r-guard.log) and green after; PIN-07 is a compatibility seam, green pre-fix BY DESIGN — never RED; its bite proved by mutating check-role-output.mjs:432 in a disposable worktree (arm fires, control green). docs/ai/reviews/review-20260824T172907Z-single-writer-canon-contradiction-round2.md | validation:2026-08-24 | honest deviation: 3 of 4 arms RED-observed, seam arm mutation-proved instead |
+| Spec-AC-06 | suite-map aai-r-guard globs list all six newly pinned files so CI selects the suite on an edit to any of them | done | val r2 and review r2: select-suites names aai-r-guard for all pinned paths incl. SKILL_TDD.prompt.md (7 of 7 after remediation r2). docs/ai/reviews/review-20260824T172907Z-single-writer-canon-contradiction-round2.md | validation:2026-08-24 | — |
+| Spec-AC-07 | in-corpus delta measured, at most 700 bytes, ledgered at the measured amount with the TEST-012 pin bumped by the same amount | done | BUDGET EXCEEDED, recorded not waved: measured 874 B across THREE ledger entries (657 plus 206 plus 11) vs this row s 700 B single-entry budget; overage is the validation-demanded F2 fix plus review P2-1 on surfaces the frozen spec never declared. Every byte measured under /bin/bash, ledgered 1:1 at zero headroom, TEST-012 pin 1410 to 2284, re-sum verified independently three times. docs/ai/reviews/review-20260824T172907Z-single-writer-canon-contradiction-round2.md | validation:2026-08-24 | review r2 P3-N3: flip must cite 874/3, never a plain done citing 657 |
+| Spec-AC-08 | no protected_paths_l3 file in the diff; fu-subagent-state-write-contradiction closed with resolved_by at the close | done | diff intersect protected_paths_l3 empty (val r1 and r2); fu-subagent-state-write-contradiction closed QUALIFIED with resolved_by CHANGE-0165 in this branch (lands on merge), successor fu-uncarved-dispatch-lanes filed. docs/ai/decisions.jsonl | validation:2026-08-24 | qualified closure per val r2 F7 and review r2 P3-N4 |
 
 ## Implementation plan
 

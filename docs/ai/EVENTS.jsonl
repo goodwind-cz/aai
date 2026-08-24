@@ -1924,3 +1924,9 @@
 {"v":1,"ts":"2026-08-24T15:45:36.185Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":393,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
 {"v":1,"ts":"2026-08-24T16:52:42.809Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":393,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
 {"v":1,"ts":"2026-08-24T16:54:21.283Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"single-writer-canon-contradiction","payload":{"status":"pass","hash":"ebdb52a7939e3586d200369f1e5ddc68fa17aa09c3db479c4cb9b0124455ca3c"}}
+{"v":1,"ts":"2026-08-24T17:36:46.473Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"single-writer-canon-contradiction","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-24T17:36:46.507Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"single-writer-canon-contradiction","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-24T17:36:46.543Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"single-writer-canon-contradiction","payload":{"commit":"205239a"}}
+{"v":1,"ts":"2026-08-24T17:36:46.577Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-single-writer-canon-contradiction","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-24T17:36:46.609Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-single-writer-canon-contradiction","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-24T17:36:46.644Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-single-writer-canon-contradiction","payload":{"commit":"205239a"}}

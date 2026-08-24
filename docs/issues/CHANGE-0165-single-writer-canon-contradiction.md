@@ -2,10 +2,12 @@
 id: single-writer-canon-contradiction
 type: change
 number: 165
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 287
+  commits:
+    - 205239a
 ---
 
 # Resolve the single-writer canon contradiction and arm the serial R-GUARD
