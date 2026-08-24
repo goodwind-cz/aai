@@ -37,7 +37,6 @@ These bind YOU on every dispatch whether or not the dispatch text repeats them; 
   could not then restore.
 
 ## Result block (mandatory subagent output)
-
 Every subagent MUST return a result block in this exact YAML format:
 
 ```yaml
@@ -56,6 +55,8 @@ subagent_result:
     - <relative path>
   blockers:
     - <description of any blocker; empty list if none>
+  state_update_commands:            # optional (D1): STATE mutator commands returned instead of run
+    - <fully-substituted node .aai/scripts/state.mjs ... command, one per item, indented exactly as here>
 ```
 
 Timing capture rules:
@@ -68,11 +69,9 @@ observe its own; the orchestrator captures usage from the harness at merge time.
 
 ## Single-writer rule (HARD — RFC-0004 / SPEC-0004 D7)
 
-A dispatched subagent **MUST NOT write `docs/ai/STATE.yaml`**; the orchestrator
-is the **SOLE STATE writer** that merges each returned result block and performs
-every STATE mutation. What a subagent MAY write: its own scoped source/test
-files, append-only evidence under `docs/ai/tdd/`, and `docs/ai/EVENTS.jsonl` via
-`append-event.mjs` (the append-only, commutative audit log).
+A dispatched subagent **MUST NOT write `docs/ai/STATE.yaml`**; the orchestrator is the **SOLE STATE writer** that merges each returned result block and performs every STATE mutation. What a subagent MAY write: its own scoped source/test files, append-only evidence under `docs/ai/tdd/`, and `docs/ai/EVENTS.jsonl` via `append-event.mjs` (the append-only, commutative audit log).
+
+**D1 (being DISPATCHED decides who writes STATE, not which pipeline dispatched you).** A dispatched subagent — serial (`.aai/ORCHESTRATION.prompt.md`) or parallel (`.aai/ORCHESTRATION_PARALLEL.prompt.md`) alike — never runs a `state.mjs` mutator itself: it returns every fully-substituted command it would have run, verbatim, one per list item, in execution order, under a top-level `state_update_commands:` key in its result block, indented exactly as the template above shows, and the orchestrator executes them in that order at merge (`.aai/SUBAGENT_PROTOCOL.md` merge protocol); `check-role-output.mjs` ignores unrecognized top-level extension keys and their indented nested lines, so this key never invalidates an otherwise-clean block written in the template's indentation — a flush-left rendering of the list is refused (`E-MALFORMED-LINE`), so match the template. **Sole-agent carve:** an agent that is the SOLE agent for the ride — no dispatch, `AAI_ROLE` unset (e.g. `.aai/SKILL_LOOP.prompt.md`'s no-subagent fallback, or `.aai/SUBAGENT_PROTOCOL.md`'s review rule 2 for `set-code-review`) — IS the single writer and runs the commands itself; the key is optional and omitted when a role has no state change to report.
 
 ### Single-writer rationalization table (stop and correct any of these)
 
@@ -80,5 +79,6 @@ files, append-only evidence under `docs/ai/tdd/`, and `docs/ai/EVENTS.jsonl` via
 |-----------------------------------------------------------|-------------------------------------------------------------------------|
 | "My update to STATE.yaml is tiny, I'll just write it"   | Subagents MUST NOT write `docs/ai/STATE.yaml`. Return a result block; the orchestrator is the sole writer. |
 | "I'll write STATE so the orchestrator doesn't have to"  | Direct subagent STATE writes race and lose updates at K >= 2. That is exactly the bug this rule removes. |
+| "The serial pipeline dispatched me, so my role prompt's `state.mjs` step is my own call to make" | Being dispatched decides it, not which pipeline dispatched you (D1). Return `state_update_commands:`; the orchestrator runs them at merge — serial and parallel alike. |
 
 EXPECT: the result block above is validated by `.aai/scripts/check-role-output.mjs` against six deterministic postconditions (docs/specs/SPEC-0094-spec-role-output-contracts.md) before merge.

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-24T14:52:10.961Z
+Generated: 2026-08-24T18:03:32.722Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -48,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (364)
+## Done (366)
 
 | ID | Type | Path |
 |---|---|---|
@@ -215,6 +215,7 @@ _None._
 | CHANGE-0161 | issues | docs/issues/CHANGE-0161-the-registry-has-no-outflow.md |
 | CHANGE-0163 | issues | docs/issues/CHANGE-0163-a-branch-diff-pin-taxes-every-later-scope.md |
 | CHANGE-0164 | issues | docs/issues/CHANGE-0164-validation-defers-the-ac-flip-to-close.md |
+| CHANGE-0165 | issues | docs/issues/CHANGE-0165-single-writer-canon-contradiction.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
@@ -415,6 +416,7 @@ _None._
 | SPEC-0149 | specs | docs/specs/SPEC-0149-spec-the-registry-has-no-outflow.md |
 | SPEC-0150 | specs | docs/specs/SPEC-0150-spec-a-branch-diff-pin-taxes-every-later-scope.md |
 | SPEC-0151 | specs | docs/specs/SPEC-0151-spec-validation-defers-the-ac-flip-to-close.md |
+| SPEC-0152 | specs | docs/specs/SPEC-0152-spec-single-writer-canon-contradiction.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (0)

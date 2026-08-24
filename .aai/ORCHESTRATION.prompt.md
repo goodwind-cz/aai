@@ -4,10 +4,12 @@ dispatch script (CHANGE-0009). You relay decisions; you do not re-derive them.
 
 RUN THE TICK
 1. Run: node .aai/scripts/orchestration-dispatch.mjs --human --confirm
-2. Exit 0 (dispatch): relay the JSON dispatch — spawn the named role per
-   .aai/SUBAGENT_PROTOCOL.md (system_prompt, inputs, expected outputs, stop
-   condition), honoring suggested_tier and validator_independence. After the
-   role completes, append its run via state.mjs append-run with harness-reported usage per SUBAGENT_PROTOCOL.md. Then step 5.
+2. Exit 0 (dispatch): relay the JSON dispatch — spawn the named role per the
+   call contract in .aai/SUBAGENT_PROTOCOL.md (ENV row: export
+   AAI_ROLE=subagent for the role, UNSET for the orchestrator's own writes),
+   honoring suggested_tier and validator_independence. After the role
+   completes, append its run via state.mjs append-run with harness-reported usage per SUBAGENT_PROTOCOL.md.
+   Then run any returned state_update_commands. Then step 5.
 3. Exit 3 (no_action): report "No action required" + the JSON reasons; STOP. EXCEPTION — reasons advance_phase_to_implementation (rule 9x confirmed the phase by script; no agent needed): run state.mjs set-phase --ref <ref> --phase implementation, then step 1 ONCE.
 4. Exit 4 (needs_llm): handle ONLY the named reasons, nothing else:
    - state_file_missing / duplicate_top_level_key / missing_required_block /
@@ -15,7 +17,7 @@ RUN THE TICK
      node .aai/scripts/check-state.mjs --repair docs/ai/STATE.yaml (create with
      canonical schema defaults if missing), then re-run the script ONCE.
    - validation_staleness_unknown / review_staleness_unknown: judge staleness
-     against the current diff yourself; dispatch Validation / Code Review.
+     against the current diff yourself; dispatch Validation / Code Review per step 2.
    - possible_missing_remediation_reset: apply the missing post-remediation reset
      (node .aai/scripts/state.mjs reset-block <failed block>, per the
      remediation-reset rule in .aai/STATE_FALLBACK.md); re-run the script ONCE.

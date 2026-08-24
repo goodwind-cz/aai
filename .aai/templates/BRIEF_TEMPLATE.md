@@ -52,4 +52,6 @@ subagent_result:
     - <relative path>
   blockers:
     - <description of any blocker; empty list if none>
+  state_update_commands:            # optional (D1): STATE mutator commands returned instead of run
+    - <fully-substituted node .aai/scripts/state.mjs ... command, one per item, indented exactly as here>
 ```

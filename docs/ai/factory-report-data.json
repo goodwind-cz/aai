@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-24T14:16:29.418Z",
+  "generatedAt": "2026-08-24T17:36:54.417Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 126,
-    "delivered": 371,
+    "delivered": 373,
     "active_weeks": 9,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (371 closes vs 126 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 371,
-    "delivered_per_week_avg": 41.2,
+    "note": "\"delivered\" counts every work_item_closed event (373 closes vs 126 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 373,
+    "delivered_per_week_avg": 41.4,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -23,7 +23,7 @@
       "2026-W32": 19,
       "2026-W33": 33,
       "2026-W34": 33,
-      "2026-W35": 6
+      "2026-W35": 8
     },
     "delivered_groups": [
       {
@@ -301,7 +301,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 108,
+        "count": 110,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -410,7 +410,9 @@
           "a-branch-diff-pin-taxes-every-later-scope",
           "spec-a-branch-diff-pin-taxes-every-later-scope",
           "validation-defers-the-ac-flip-to-close",
-          "spec-validation-defers-the-ac-flip-to-close"
+          "spec-validation-defers-the-ac-flip-to-close",
+          "single-writer-canon-contradiction",
+          "spec-single-writer-canon-contradiction"
         ]
       }
     ],
@@ -1899,12 +1901,20 @@
         {
           "ref": "spec-validation-defers-the-ac-flip-to-close",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "single-writer-canon-contradiction",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-single-writer-canon-contradiction",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3720,
       "mean_seconds": 123756.5,
       "measured": 122,
-      "unmeasurable": 249
+      "unmeasurable": 251
     }
   },
   "speed": {
@@ -3146,7 +3156,7 @@
     },
     {
       "week": "2026-W35",
-      "delivered": 6,
+      "delivered": 8,
       "median_lead_time_seconds": null,
       "busy_seconds": null,
       "tokens": null,
@@ -3155,7 +3165,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 98,
+    "open_count": 97,
     "oldest_age_days": 10,
     "items": [
       {
@@ -3223,18 +3233,10 @@
         "status": "open"
       },
       {
-        "id": "fu-subagent-state-write-contradiction",
-        "ref": "deslop-scope-and-unrequested-engine",
-        "severity": "P2",
-        "age_days": 10,
-        "what": "SUBAGENT_CONTRACT forbids subagent STATE writes while the dispatch block explicitly directs them; two roles hit it independently in one ride",
-        "status": "open"
-      },
-      {
         "id": "fu-tdd-skips-full-sweep",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "the TDD role declares done after targeted suites only, so defects visible only to the full framework sweep surface two roles later and cost a whole validate-remediate lap each",
         "status": "open"
       },
@@ -3274,7 +3276,7 @@
         "id": "fu-no-nul-guard",
         "ref": "docs-model-nul-escape",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "nothing checks tracked text files for NUL bytes, so a control character can silently turn a source file binary to POSIX grep",
         "status": "open"
       },
@@ -3314,7 +3316,7 @@
         "id": "fu-bare-main-baseref-sweep",
         "ref": "deslop-corpus-honesty",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "No guard stops a NEW test or script from pinning a bare 'main' ref that silently never resolves on a pull_request checkout",
         "status": "open"
       },
@@ -3370,7 +3372,7 @@
         "id": "fu-followups-json-truncated-on-pipe",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "follow-ups.mjs list --json stops at exactly 65536 bytes when stdout is a pipe, emitting invalid JSON, while the same command redirected to a file completes",
         "status": "open"
       },
@@ -3378,7 +3380,7 @@
         "id": "fu-tripwire-fail-hides-suite-log-tail",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "a suite that fails on its OWN exit code AND trips the tripwire prints only the tripwire block, so the failure-lines-plus-tail dump that makes a CI log diagnosable is lost",
         "status": "open"
       },
@@ -3658,7 +3660,7 @@
         "id": "fu-docsaudit-idmention-probe-per-doc",
         "ref": "spec-docs-history-is-one-git-call-per-doc",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "docs-audit still spends one git log -1 --grep per document for the id-mention probe",
         "status": "open"
       },
@@ -3666,7 +3668,7 @@
         "id": "fu-drain-pipe-grep-q-ratchet",
         "ref": "assertions-must-not-die-on-their-own-payload",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "Drain the 390-occurrence pipe-into-grep-q ratchet in tests/skills to zero, file by file",
         "status": "open"
       },
@@ -3674,7 +3676,7 @@
         "id": "fu-ceremony-levels-nearest-miss-30kb",
         "ref": "assertions-must-not-die-on-their-own-payload",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "test-aai-ceremony-levels.sh TEST-019 pipes a 30048 B flattened spec into grep -q three times — the corpus nearest miss, 46 percent of the pipe buffer",
         "status": "open"
       },
@@ -3722,7 +3724,7 @@
         "id": "fu-seed-step2-enumeration-silent",
         "ref": "spec-a-half-seeded-checkout-says-it-is-isolated",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "Seeding step 2 reports seeded when git ls-files could not enumerate part of the tree (unreadable directory), so files silently never copied are counted as a complete seed",
         "status": "open"
       },
@@ -3730,7 +3732,7 @@
         "id": "fu-marker-append-failure-discarded",
         "ref": "a-half-seeded-checkout-says-it-is-isolated",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "in the wrapper's step-2 pipeline a failed marker append is discarded, so on a full filesystem the copy failure leaves no marker and the -s check reports seeded",
         "status": "open"
       },
@@ -3786,7 +3788,7 @@
         "id": "fu-contract-prefix-order-unenforced",
         "ref": "the-subagent-contract-omits-the-hazards",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "the D1 cap argument rests on the CONTRACT being copied stable-first into the dispatch prefix, but that ordering lives only as prose in .aai/ORCHESTRATION_PARALLEL.prompt.md:142-143; no code assembles the payload and no test pins the ordering (SPEC-0110 TEST-033 compares the SPEC-0096 file-bytes hash, not the assembled prompt), and the Validation dispatch of this very scope shipped a POINTER to the CONTRACT instead of a copy",
         "status": "open"
       },
@@ -3794,7 +3796,7 @@
         "id": "fu-metrics-flush-advises-git-restore",
         "ref": "the-subagent-contract-omits-the-hazards",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": ".aai/scripts/metrics-flush.mjs:801-803 emits 'EVENTS is append-only per RFC-0001 - restore from git before continuing' to whatever agent runs the flush, telling it to run a restoring git command on a tracked append-only ledger in the same sentence that cites the append-only rule",
         "status": "open"
       },
@@ -3802,23 +3804,15 @@
         "id": "fu-contract-ledger-rule-stated-twice",
         "ref": "the-subagent-contract-omits-the-hazards",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": ".aai/SUBAGENT_CONTRACT.md states the EVENTS.jsonl append-only rule twice in one file: HAZ-LEDGER at lines 27-31 and the Single-writer MAY-write list at lines 72-74 ('docs/ai/EVENTS.jsonl via append-event.mjs (the append-only, commutative audit log)')",
-        "status": "open"
-      },
-      {
-        "id": "fu-ac-table-flip-trips-false-open",
-        "ref": "the-subagent-contract-omits-the-hazards",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "VALIDATION.prompt.md step 8a's EXCEPTION only defers the ac_evidence EVENT emission for an open slug-id (unnumbered DRAFT) spec; it does not warn against populating the AC Status table's Status/Evidence columns to done, but doing so ALONE (with zero events emitted) already trips docs-audit's probable-false-open Arm A ('AC Status table fully terminal with evidence') and broke tests/skills/test-aai-doc-numbering.sh TEST-013's repo-wide CLEAN regression backstop",
         "status": "open"
       },
       {
         "id": "fu-usage-marker-omission-unfixable",
         "ref": "the-subagent-contract-omits-the-hazards",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "a run appended without a usage marker cannot be corrected: append-run only appends, STATE hand-edits are forbidden, and the only recovery is toggling usage_capture_gate off and back",
         "status": "open"
       },
@@ -3940,6 +3934,14 @@
         "severity": "P3",
         "age_days": 0,
         "what": "the committed overview embeds links to gitignored validation/review report paths, so every such link 404s from a fresh clone",
+        "status": "open"
+      },
+      {
+        "id": "fu-uncarved-dispatch-lanes",
+        "ref": "CHANGE-0165",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "three dispatchable prompts still direct a subagent to run a STATE mutator without the dispatched-subagent carve, and STATE_FALLBACK's hand-edit path is un-reconciled",
         "status": "open"
       }
     ]

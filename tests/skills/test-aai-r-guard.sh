@@ -26,6 +26,11 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_CLI="$PROJECT_ROOT/.aai/scripts/state.mjs"
 SUBAGENT_PROTOCOL="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
 ORCH_PARALLEL="$PROJECT_ROOT/.aai/ORCHESTRATION_PARALLEL.prompt.md"
+SUBAGENT_CONTRACT="$PROJECT_ROOT/.aai/SUBAGENT_CONTRACT.md"
+ORCH_SERIAL="$PROJECT_ROOT/.aai/ORCHESTRATION.prompt.md"
+CHECK_ROLE_OUTPUT="$PROJECT_ROOT/.aai/scripts/check-role-output.mjs"
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
 
 TEST_DIR=""
 FAILED=0
@@ -125,6 +130,176 @@ YAML
   log_pass "SEAM: wired marker -> state.mjs refuses (exit 3, no write); unset -> writes (TEST-RG-PIN-03)"
 }
 
+# --- TEST-RG-PIN-04: serial ORCHESTRATION relays the ENV row -------------------
+#
+# single-writer-canon-contradiction D1: being DISPATCHED decides who writes
+# STATE, not which pipeline dispatched you. The serial dispatcher must relay
+# the same AAI_ROLE=subagent arming line the parallel one already carries
+# (TEST-RG-PIN-02), keep it unset for its own writes, and name running the
+# returned state_update_commands — while staying inside the thin-wrapper
+# ceiling (TEST-011, 45 lines).
+
+test_pin_orchestration_serial() {
+  log_info "Test: serial ORCHESTRATION.prompt.md arms AAI_ROLE=subagent, keeps it unset for its own writes, names state_update_commands, stays <=45 lines (TEST-RG-PIN-04)..."
+  [[ -f "$ORCH_SERIAL" ]] || { log_fail "TEST-RG-PIN-04: ORCHESTRATION.prompt.md missing: $ORCH_SERIAL"; return; }
+  grep -qF 'AAI_ROLE=subagent' "$ORCH_SERIAL" \
+    || log_fail "TEST-RG-PIN-04: no AAI_ROLE=subagent wiring in $ORCH_SERIAL"
+  grep -qiE 'unset|non-`?subagent`?|not carry|MUST NOT carry' "$ORCH_SERIAL" \
+    || log_fail "TEST-RG-PIN-04: ORCHESTRATION.prompt.md does not tell the orchestrator to keep the marker unset for its own writes"
+  # Imperative shape, not just token presence (P2-2, review-20260824T170244Z):
+  # the orchestrator is the EXECUTOR here (opposite polarity from PIN-05's
+  # dispatched roles), so pin the literal executing verb, not just the noun.
+  grep -qF 'run any returned state_update_commands' "$ORCH_SERIAL" \
+    || log_fail "TEST-RG-PIN-04: ORCHESTRATION.prompt.md does not direct RUNNING the returned state_update_commands (imperative shape missing, decoy-satisfiable)"
+  local lines
+  lines="$(wc -l < "$ORCH_SERIAL" | tr -d '[:space:]')"
+  [[ "$lines" -le 45 ]] || log_fail "TEST-RG-PIN-04: ORCHESTRATION.prompt.md is $lines lines, exceeds the 45-line thin-wrapper ceiling (TEST-011)"
+  [[ "$FAILED" == 0 ]] && log_pass "ORCHESTRATION.prompt.md relays the ENV row + state_update_commands, $lines/45 lines (TEST-RG-PIN-04)" || true
+}
+
+# --- TEST-RG-PIN-05: the four role prompts + SKILL_TDD point at the returned-commands duty -
+
+test_pin_role_prompts() {
+  log_info "Test: PLANNING/IMPLEMENTATION/VALIDATION/REMEDIATION/SKILL_TDD name state_update_commands + SUBAGENT_CONTRACT.md while keeping the state.mjs primary path and fallback marker (TEST-RG-PIN-05)..."
+  local p f
+  # SKILL_TDD added (P2-3, review-20260824T170244Z): its :66 clause governs
+  # all four set-tdd-cycle sites below it (:109/:172/:223/:290) but was
+  # previously unpinned by any aai-r-guard arm and the file was absent from
+  # the suite's own globs (see suite-map.yaml aai-r-guard).
+  for p in PLANNING IMPLEMENTATION VALIDATION REMEDIATION SKILL_TDD; do
+    f="$PROJECT_ROOT/.aai/${p}.prompt.md"
+    [[ -f "$f" ]] || { log_fail "TEST-RG-PIN-05: missing prompt $f"; continue; }
+    grep -qF 'state_update_commands' "$f" \
+      || log_fail "TEST-RG-PIN-05: $p.prompt.md does not name state_update_commands"
+    grep -qF '.aai/SUBAGENT_CONTRACT.md' "$f" \
+      || log_fail "TEST-RG-PIN-05: $p.prompt.md does not point at .aai/SUBAGENT_CONTRACT.md"
+    # Imperative shape, not just token presence (P2-2, review-20260824T170244Z):
+    # a decoy like "NOTE: see .aai/SUBAGENT_CONTRACT.md for state_update_commands
+    # background." satisfies the two greps above with the rule itself deleted.
+    # Require the return-INSTEAD-of-execute directive and its sole-agent
+    # counterpart, both present verbatim in every carved file today.
+    grep -qF 'instead of running' "$f" \
+      || log_fail "TEST-RG-PIN-05: $p.prompt.md does not direct RETURNING state_update_commands instead of running them (imperative shape missing, decoy-satisfiable)"
+    grep -qF 'Sole agent: run them' "$f" \
+      || log_fail "TEST-RG-PIN-05: $p.prompt.md does not carry the sole-agent imperative counterpart 'Sole agent: run them'"
+    grep -qF 'node .aai/scripts/state.mjs' "$f" \
+      || log_fail "TEST-RG-PIN-05: $p.prompt.md lost its node .aai/scripts/state.mjs primary path"
+    grep -qF 'state.mjs is absent' "$f" \
+      || log_fail "TEST-RG-PIN-05: $p.prompt.md lost its 'state.mjs is absent' fallback marker"
+  done
+  [[ "$FAILED" == 0 ]] && log_pass "All five prompts (four roles + SKILL_TDD) name state_update_commands + SUBAGENT_CONTRACT.md, primary path and fallback marker intact (TEST-RG-PIN-05)" || true
+}
+
+# --- TEST-RG-PIN-06: CONTRACT holds the normative duty, PROTOCOL the merge input
+
+test_pin_contract_and_protocol() {
+  log_info "Test: SUBAGENT_CONTRACT.md carries the returned-commands duty + sole-agent carve; SUBAGENT_PROTOCOL.md names state_update_commands as a merge input and names the serial dispatch surface (TEST-RG-PIN-06)..."
+  [[ -f "$SUBAGENT_CONTRACT" ]] || { log_fail "TEST-RG-PIN-06: SUBAGENT_CONTRACT.md missing: $SUBAGENT_CONTRACT"; return; }
+  grep -qF 'state_update_commands' "$SUBAGENT_CONTRACT" \
+    || log_fail "TEST-RG-PIN-06: SUBAGENT_CONTRACT.md does not name state_update_commands"
+  # Must be specific to the D1 sole-agent carve, not the pre-existing
+  # rationalization-table "...the orchestrator is the sole writer" phrase.
+  grep -qiE 'sole-agent carve|SOLE agent for the ride' "$SUBAGENT_CONTRACT" \
+    || log_fail "TEST-RG-PIN-06: SUBAGENT_CONTRACT.md does not carry the sole-agent carve"
+  grep -qF 'state_update_commands' "$SUBAGENT_PROTOCOL" \
+    || log_fail "TEST-RG-PIN-06: SUBAGENT_PROTOCOL.md does not name state_update_commands as a merge input"
+  grep -qF '.aai/ORCHESTRATION.prompt.md' "$SUBAGENT_PROTOCOL" \
+    || log_fail "TEST-RG-PIN-06: SUBAGENT_PROTOCOL.md does not name the serial dispatch surface .aai/ORCHESTRATION.prompt.md"
+  # The existing honesty assertion must survive unchanged.
+  grep -qiF 'not a security boundary' "$SUBAGENT_PROTOCOL" \
+    || log_fail "TEST-RG-PIN-06: SUBAGENT_PROTOCOL.md must keep the 'not a security boundary' honesty (TEST-RG-PIN-01 still binds)"
+  [[ "$FAILED" == 0 ]] && log_pass "SUBAGENT_CONTRACT.md + SUBAGENT_PROTOCOL.md carry the D1 statement, merge input, and serial-surface name (TEST-RG-PIN-06)" || true
+}
+
+# --- TEST-RG-PIN-07: SEAM — check-role-output.mjs accepts the extension key ----
+
+test_seam_extension_key_accepted() {
+  log_info "Test [SEAM]: check-role-output.mjs accepts a block carrying state_update_commands (exit 0) and still refuses a block missing started_utc (exit 1, ROLE-OUTPUT-VIOLATION) (TEST-RG-PIN-07)..."
+  if [[ ! -f "$CHECK_ROLE_OUTPUT" ]]; then
+    log_info "TEST-RG-PIN-07: check-role-output.mjs absent, degrading (skip this arm only)"
+    return
+  fi
+  local valid="$TEST_DIR/rg-pin-07-valid.md"
+  cat > "$valid" <<'MD'
+```yaml
+subagent_result:
+  scope: single-writer-canon-contradiction
+  role: Implementation
+  status: PASS
+  started_utc: 2026-08-24T09:00:00Z
+  ended_utc: 2026-08-24T09:07:00Z
+  duration_seconds: 420
+  evidence:
+    - command: bash tests/skills/test-aai-r-guard.sh
+      exit_code: 0
+      output_snippet: "PASS: all aai-r-guard tests"
+  files_changed:
+    - .aai/SUBAGENT_CONTRACT.md
+  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-phase --ref single-writer-canon-contradiction --phase validation --status in_progress
+```
+MD
+  local flushleft="$TEST_DIR/rg-pin-07-flushleft.md"
+  cat > "$flushleft" <<'MD'
+```yaml
+subagent_result:
+  scope: single-writer-canon-contradiction
+  role: Implementation
+  status: PASS
+  started_utc: 2026-08-24T09:00:00Z
+  ended_utc: 2026-08-24T09:07:00Z
+  duration_seconds: 420
+  evidence:
+    - command: bash tests/skills/test-aai-r-guard.sh
+      exit_code: 0
+      output_snippet: "PASS: all aai-r-guard tests"
+  files_changed:
+    - .aai/SUBAGENT_CONTRACT.md
+  blockers: []
+  state_update_commands:
+  - node .aai/scripts/state.mjs set-phase --ref single-writer-canon-contradiction --phase validation --status in_progress
+```
+MD
+  local missing="$TEST_DIR/rg-pin-07-missing-started.md"
+  cat > "$missing" <<'MD'
+```yaml
+subagent_result:
+  scope: single-writer-canon-contradiction
+  role: Implementation
+  status: PASS
+  ended_utc: 2026-08-24T09:07:00Z
+  duration_seconds: 420
+  evidence:
+    - command: bash tests/skills/test-aai-r-guard.sh
+      exit_code: 0
+      output_snippet: "PASS: all aai-r-guard tests"
+  files_changed:
+    - .aai/SUBAGENT_CONTRACT.md
+  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-phase --ref single-writer-canon-contradiction --phase validation --status in_progress
+```
+MD
+  local ec=0 out=""
+  out="$(node "$CHECK_ROLE_OUTPUT" --file "$valid" --now 2026-08-24T09:10:00Z 2>&1)"; ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-RG-PIN-07: valid block + state_update_commands extension must exit 0 (got $ec): $out"
+
+  ec=0
+  out="$(node "$CHECK_ROLE_OUTPUT" --file "$missing" --now 2026-08-24T09:10:00Z 2>&1)"; ec=$?
+  [[ "$ec" == 1 ]] || log_fail "TEST-RG-PIN-07: block missing started_utc must exit 1 (got $ec): $out"
+  assert_payload_contains "$out" 'ROLE-OUTPUT-VIOLATION:' \
+    "TEST-RG-PIN-07: missing-field rejection must print a ROLE-OUTPUT-VIOLATION: line"
+
+  ec=0
+  out="$(node "$CHECK_ROLE_OUTPUT" --file "$flushleft" --now 2026-08-24T09:10:00Z 2>&1)"; ec=$?
+  [[ "$ec" == 1 ]] || log_fail "TEST-RG-PIN-07: a flush-left state_update_commands list (dedented to the key's own indent) must exit 1, not exit 0 (got $ec): $out"
+  assert_payload_contains "$out" 'E-MALFORMED-LINE' \
+    "TEST-RG-PIN-07: flush-left rejection must name E-MALFORMED-LINE (CONTRACT's indentation exemplar is what saves a subagent from this)"
+
+  [[ "$FAILED" == 0 ]] && log_pass "SEAM: state_update_commands extension accepted indented (exit 0); missing-field block refused (exit 1); flush-left rendering refused too (exit 1, E-MALFORMED-LINE) (TEST-RG-PIN-07)" || true
+}
+
 # --- run ------------------------------------------------------------------------
 
 check_deps
@@ -133,9 +308,13 @@ setup_fixture
 test_pin_subagent_protocol
 test_pin_orchestration_parallel
 test_seam_marker_refuses
+test_pin_orchestration_serial
+test_pin_role_prompts
+test_pin_contract_and_protocol
+test_seam_extension_key_accepted
 
 if [[ "$FAILED" == 0 ]]; then
-  echo "PASS: all aai-r-guard tests (TEST-RG-PIN-01..03)"
+  echo "PASS: all aai-r-guard tests (TEST-RG-PIN-01..07)"
   exit 0
 else
   echo "FAIL: aai-r-guard suite had failures" >&2

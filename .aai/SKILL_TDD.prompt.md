@@ -63,6 +63,8 @@ Before starting TDD cycle:
 7. **Read the `## Test Plan` table** from the spec — this is the source of truth for which tests to write
 8. If the spec has no `## Test Plan` section, STOP and run or dispatch Planning to generate it
 
+Every `set-tdd-cycle` STATE update below (RED/GREEN/REFACTOR_COMPLETE/IDLE): Dispatched: return these as `state_update_commands:` instead of running them (.aai/SUBAGENT_CONTRACT.md). Sole agent: run them.
+
 ### Phase 1: RED (Write Failing Test)
 
 **Objective:** Pick the next `pending` TEST-xxx from the spec's Test Plan and write it so it FAILS.

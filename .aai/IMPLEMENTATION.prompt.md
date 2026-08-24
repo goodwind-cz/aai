@@ -105,6 +105,8 @@ PROCESS
     (adjust set-focus/set-phase flags to the implemented scope; each command
     bumps the real `updated_at_utc` itself)
     FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and follow it.
+    Dispatched: return these as `state_update_commands:` instead of running
+    them (.aai/SUBAGENT_CONTRACT.md). Sole agent: run them.
 
 DECOMPOSITION (when scope has ≥3 independent modules)
 If the scope contains ≥3 independent files/modules with no shared mutable state:
