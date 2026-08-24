@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-24T06:58:12.157Z
+Generated: 2026-08-24T08:40:11.382Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-a-branch-diff-pin-taxes-every-later-scope | specs | implementing | 5 implementing | docs/specs/SPEC-DRAFT-spec-a-branch-diff-pin-taxes-every-later-scope.md |
 
 ## Canonical layer (0)
 
@@ -411,9 +412,11 @@ _None._
 | SPEC-0148 | specs | docs/specs/SPEC-0148-spec-the-tripwire-is-permanent-not-transitional.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| a-branch-diff-pin-taxes-every-later-scope (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-a-branch-diff-pin-taxes-every-later-scope.md |
 
 ## Deferred (whole-doc) (0)
 
