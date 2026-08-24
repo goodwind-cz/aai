@@ -181,7 +181,9 @@ test_pin_contract_and_protocol() {
   [[ -f "$SUBAGENT_CONTRACT" ]] || { log_fail "TEST-RG-PIN-06: SUBAGENT_CONTRACT.md missing: $SUBAGENT_CONTRACT"; return; }
   grep -qF 'state_update_commands' "$SUBAGENT_CONTRACT" \
     || log_fail "TEST-RG-PIN-06: SUBAGENT_CONTRACT.md does not name state_update_commands"
-  grep -qiE 'sole agent|sole-agent|SOLE writer' "$SUBAGENT_CONTRACT" \
+  # Must be specific to the D1 sole-agent carve, not the pre-existing
+  # rationalization-table "...the orchestrator is the sole writer" phrase.
+  grep -qiE 'sole-agent carve|SOLE agent for the ride' "$SUBAGENT_CONTRACT" \
     || log_fail "TEST-RG-PIN-06: SUBAGENT_CONTRACT.md does not carry the sole-agent carve"
   grep -qF 'state_update_commands' "$SUBAGENT_PROTOCOL" \
     || log_fail "TEST-RG-PIN-06: SUBAGENT_PROTOCOL.md does not name state_update_commands as a merge input"
