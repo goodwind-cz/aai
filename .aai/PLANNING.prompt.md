@@ -163,6 +163,8 @@ pin these three lines):
       node .aai/scripts/state.mjs set-worktree --recommendation <not_needed|optional|recommended|required> --base-ref <ref> --rationale "<why>"
       node .aai/scripts/state.mjs set-code-review --required <true|false> --status not_run --scope "<explicit paths or diff range>" --base-ref <ref>
     FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and follow it.
+    Dispatched: return these as `state_update_commands:` instead of running
+    them (.aai/SUBAGENT_CONTRACT.md). Sole agent: run them.
 
 ## RETURN
 

@@ -64,6 +64,8 @@ PROCESS
       node .aai/scripts/state.mjs set-phase --ref <REF-ID> --phase <validation|code_review> --status in_progress
       node .aai/scripts/state.mjs set-human-input --required true --question "<question>" --reason "<blocker>"   # only if blocked on a human decision
    FALLBACK — if .aai/scripts/state.mjs is absent: read .aai/STATE_FALLBACK.md and follow it.
+   Dispatched, steps 4-5: return these as `state_update_commands:` instead of
+   running them (.aai/SUBAGENT_CONTRACT.md). Sole agent: run them.
 6) STOP after the reset + your agent-run append (METRICS below). Do NOT loop:
    the independent re-Validation / re-Review happens on the NEXT orchestration
    tick, never inside this remediation context. If remaining blockers require

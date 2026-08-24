@@ -32,7 +32,7 @@ Each subagent call MUST specify all of the following:
 | `INPUT` | All context the subagent needs — do NOT rely on inherited ambient state |
 | `EXPECTED_OUTPUT` | A result block (see `.aai/SUBAGENT_CONTRACT.md`) |
 | `SYSTEM_PROMPT` | The canonical role prompt from `ai/<ROLE>.prompt.md` |
-| `ENV` | The subagent MUST run with `AAI_ROLE=subagent` exported in its environment/instructions (R-GUARD S1, SPEC-0113). This makes any `state.mjs` STATE mutation it attempts refuse with exit 3 — the single-writer rule enforced at the CLI chokepoint, not merely in prose. The orchestrator MUST NOT carry this marker for its OWN STATE writes: keep it unset (or set to a non-`subagent` value) in orchestrator context, or the merge writes are blocked. `log-tick` (LOOP_TICKS) and `append-event.mjs` (EVENTS.jsonl) stay allowed under the marker. HONESTY: this is a guardrail against the honest/accidental subagent write, NOT a security boundary — an agent that unsets the marker defeats it; the flush-time forensic check (metrics-flush.mjs S2) is the after-the-fact backstop. |
+| `ENV` | The subagent MUST run with `AAI_ROLE=subagent` exported in its environment/instructions (R-GUARD S1, SPEC-0113) — this row binds EVERY dispatch, serial (`.aai/ORCHESTRATION.prompt.md`) and parallel (`.aai/ORCHESTRATION_PARALLEL.prompt.md`) alike; being dispatched decides it, not which pipeline dispatched you (`.aai/SUBAGENT_CONTRACT.md` D1). This makes any `state.mjs` STATE mutation it attempts refuse with exit 3 — the single-writer rule enforced at the CLI chokepoint, not merely in prose. The orchestrator MUST NOT carry this marker for its OWN STATE writes: keep it unset (or set to a non-`subagent` value) in orchestrator context, or the merge writes are blocked. `log-tick` (LOOP_TICKS) and `append-event.mjs` (EVENTS.jsonl) stay allowed under the marker. HONESTY: this is a guardrail against the honest/accidental subagent write, NOT a security boundary — an agent that unsets the marker defeats it; the flush-time forensic check (metrics-flush.mjs S2) is the after-the-fact backstop. |
 
 ### Work-item brief handoff (default INPUT)
 
@@ -279,6 +279,11 @@ After all subagents complete, the orchestrator MUST:
      likewise `--prompt-hash <full hex>` whenever the dispatch JSON carried
      `prompt_hash` (see "Harness-reported usage capture" above)
    - `updated_at_utc`
+   - `state_update_commands` (per `.aai/SUBAGENT_CONTRACT.md` D1, when present
+     on a collected block): run each listed `state.mjs` command, in the
+     returned order, as part of this merge write — this is the returned-commands
+     duty's orchestrator-side half; the subagent-facing duty is not restated
+     here.
 4. Only after STATE.yaml is updated: proceed to deliver result to user.
 
 ## Delivery gate (mandatory)

@@ -716,11 +716,16 @@ test_060_work_item_brief() {  # spec-work-item-brief TEST-001..006 / Spec-AC-01.
   grep -qF "CHANGE-0010 D1" "$sp" || log_fail "the MODEL contract row (CHANGE-0010 D1) must stay intact"
   grep -qF "MUST NOT characterize expected findings" "$sp" || log_fail "the review anti-gaming rules must stay intact"
 
-  # TEST-006 — ORCHESTRATION wrapper untouched in behavior: <=40 lines and the
-  # SUBAGENT_PROTOCOL route (how dispatch inputs reach the brief mention) intact.
+  # TEST-006 — ORCHESTRATION wrapper untouched in behavior: the brief mention
+  # stays out of it (SUBAGENT_PROTOCOL route intact) and it stays inside the
+  # thin-wrapper ceiling. That ceiling is TEST-011's, not a private one: it was
+  # raised 40->45 repo-wide by DEBT-0002 (2026-07-17), and
+  # single-writer-canon-contradiction grew this file to 42/45 for the ENV row +
+  # state_update_commands wiring — this line follows that ceiling rather than
+  # re-pinning the pre-DEBT-0002 value.
   local orch="$PROJECT_ROOT/.aai/ORCHESTRATION.prompt.md"
   n="$(wc -l < "$orch" | tr -d ' ')"
-  [[ "$n" -le 40 ]] || log_fail "ORCHESTRATION.prompt.md must stay <=40 lines (got $n) — the brief mention belongs in SUBAGENT_PROTOCOL (spec D5)"
+  [[ "$n" -le 45 ]] || log_fail "ORCHESTRATION.prompt.md must stay <=45 lines (TEST-011 thin-wrapper ceiling; got $n) — the brief mention belongs in SUBAGENT_PROTOCOL (spec D5)"
   grep -qF ".aai/SUBAGENT_PROTOCOL.md" "$orch" \
     || log_fail "ORCHESTRATION must keep routing dispatches through .aai/SUBAGENT_PROTOCOL.md (the brief mention's reachability path)"
   log_pass "Work-item brief wired: template ($(wc -l < "$tpl" | tr -d ' ') lines) + verbatim Return Record + PLANNING step + protocol default/degrade + gitignore (spec-work-item-brief TEST-001..006)"

@@ -560,6 +560,12 @@ suites:
       - .aai/SUBAGENT_PROTOCOL.md
       - .aai/ORCHESTRATION_PARALLEL.prompt.md
       - docs/specs/SPEC-0113-spec-r-guard-runtime-enforcement.md
+      - .aai/SUBAGENT_CONTRACT.md
+      - .aai/ORCHESTRATION.prompt.md
+      - .aai/PLANNING.prompt.md
+      - .aai/IMPLEMENTATION.prompt.md
+      - .aai/VALIDATION.prompt.md
+      - .aai/REMEDIATION.prompt.md
 
   aai-reconcile-telemetry:
     globs:

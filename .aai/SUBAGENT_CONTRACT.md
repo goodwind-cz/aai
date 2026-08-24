@@ -74,11 +74,16 @@ every STATE mutation. What a subagent MAY write: its own scoped source/test
 files, append-only evidence under `docs/ai/tdd/`, and `docs/ai/EVENTS.jsonl` via
 `append-event.mjs` (the append-only, commutative audit log).
 
+**D1 (being DISPATCHED decides who writes STATE, not which pipeline dispatched you).**
+A dispatched subagent — serial (`.aai/ORCHESTRATION.prompt.md`) or parallel (`.aai/ORCHESTRATION_PARALLEL.prompt.md`) alike — never runs a `state.mjs` mutator itself: it returns every fully-substituted command it would have run, verbatim, one per list item, in execution order, under a top-level `state_update_commands:` key in its result block, and the orchestrator executes them in that order at merge (`.aai/SUBAGENT_PROTOCOL.md` merge protocol); `check-role-output.mjs` ignores unrecognized top-level extension keys, so this key never invalidates an otherwise-clean block.
+**Sole-agent carve:** an agent that is the SOLE agent for the ride — no dispatch, `AAI_ROLE` unset (e.g. `.aai/SKILL_LOOP.prompt.md`'s no-subagent fallback, or this contract's own review rule 2 for `set-code-review`) — IS the single writer and runs the commands itself; the key is optional and omitted when a role has no state change to report.
+
 ### Single-writer rationalization table (stop and correct any of these)
 
 | Rationalization                                          | Reality                                                                 |
 |-----------------------------------------------------------|-------------------------------------------------------------------------|
 | "My update to STATE.yaml is tiny, I'll just write it"   | Subagents MUST NOT write `docs/ai/STATE.yaml`. Return a result block; the orchestrator is the sole writer. |
 | "I'll write STATE so the orchestrator doesn't have to"  | Direct subagent STATE writes race and lose updates at K >= 2. That is exactly the bug this rule removes. |
+| "The serial pipeline dispatched me, so my role prompt's `state.mjs` step is my own call to make" | Being dispatched decides it, not which pipeline dispatched you (D1). Return `state_update_commands:`; the orchestrator runs them at merge — serial and parallel alike. |
 
 EXPECT: the result block above is validated by `.aai/scripts/check-role-output.mjs` against six deterministic postconditions (docs/specs/SPEC-0094-spec-role-output-contracts.md) before merge.
