@@ -413,6 +413,10 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# 1410 (2026-08-24, bot sweep): +374 B — Codex found the round-1 contradiction
+# surviving in two MORE restatements of the blocking rule (the per-file hole:
+# one carve placed, later occurrences left standing), plus the 5c transactional
+# revert clause for a failed close. Credited 1:1 at zero headroom.
 # 1036 (2026-08-24): validation-defers-the-ac-flip-to-close pays +177 B for the
 # MECHANICAL CHECKS carve — validation round 1 proved the narrative Timing
 # parenthetical contradicted the gate's blocking sentence (P1
@@ -683,7 +687,7 @@ test_012_growth_sum_matches_ledger() {
   # PASS line still printing 859 after the pin moved to 1036 — the second time
   # this message drifted from the check. A number retyped in prose goes stale;
   # a number printed from the constant cannot.
-  local want_growth=1036
+  local want_growth=1410
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

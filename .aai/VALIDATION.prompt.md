@@ -99,9 +99,9 @@ Rule 4 (anti-cheat clause) — per-spec, at PASS claim time:
 - A Review-By less than 14 days out blocks PASS with:
   "AC-status gate: Review-By for <SPEC-ID>/<Spec-AC-ID> is <date> (less than 14 days from today); pick a date at least 14 days out or implement the AC now."
 
-When the gate blocks PASS (script exit non-zero, or a prose rule above
-fires), the verdict is FAIL with the gate message as the primary failure
-reason. Test execution evidence is still collected and reported, but the
+When the gate blocks PASS (script exit non-zero outside the MECHANICAL
+CHECKS carve, or a prose rule above fires), the verdict is FAIL with the
+gate message as the primary failure reason. Test execution evidence is still collected and reported, but the
 verdict cannot be PASS until all gate rules pass.
 
 CEREMONY LANE (spec-loop-ceremony-aware-dispatch)
@@ -196,7 +196,7 @@ PROCESS
 6) Build coverage table.
 7) Run AC STATUS GATE (see section above) and record any blocking findings.
 7b) Apply the `.aai/SKILL_VERIFY.prompt.md` gate before producing any verdict.
-8) Produce PASS / FAIL verdict. PASS requires both (a) all test suites green and (b) AC STATUS GATE clear.
+8) Produce PASS / FAIL verdict. PASS requires both (a) all test suites green and (b) AC STATUS GATE clear (clear INCLUDES a gate exit covered by the MECHANICAL CHECKS carve).
    FRICTION HOOK — best-effort record per `.aai/system/FRICTION_PROTOCOL.md`
    (see .aai/ROLE_COMMON.md FRICTION HOOK for the full capture contract).
    Trigger: a FAIL verdict was just recorded. Never let it change the verdict.

@@ -1,4 +1,4 @@
-﻿# Code Review — validation-defers-the-ac-flip-to-close
+# Code Review — validation-defers-the-ac-flip-to-close
 
 ```yaml
 review:

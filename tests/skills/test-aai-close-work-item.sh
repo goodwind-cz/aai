@@ -2340,8 +2340,12 @@ test_050_ac_flip_deferral_canon() {
     || log_fail "t050: VALIDATION.prompt.md must carry the AC-FLIP DEFERRAL rule"
   grep -qF "MUST NOT flip" "$VALIDATION_PROMPT" \
     || log_fail "t050: VALIDATION.prompt.md must forbid flipping AC rows on a still-open doc"
-  if grep -qF "EXCEPTION:" "$VALIDATION_PROMPT"; then
-    log_fail "t050: the old 8a event-EXCEPTION must stay folded into the deferral rule, not stand beside it"
+  # Copilot on PR #285: forbidding the bare token "EXCEPTION:" anywhere in the
+  # file is broader than the intent and would red an unrelated future section
+  # for using the word. Pin the RETIRED PARAGRAPH's own distinctive phrase
+  # instead — that is what must never come back.
+  if grep -qF "do NOT emit this event now" "$VALIDATION_PROMPT"; then
+    log_fail "t050: the old 8a event-EXCEPTION paragraph is back — it must stay folded into the deferral rule, not stand beside it"
   fi
 
   # Close end: SKILL_PR names the flip as its own step, ordered BEFORE the
