@@ -148,11 +148,11 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
 
 | Spec-AC    | Description                    | Status      | Evidence       | Review-By   | Notes                          |
 |------------|--------------------------------|-------------|----------------|-------------|--------------------------------|
-| Spec-AC-01 | VALIDATION 8a states the deferral as the rule, event-EXCEPTION folded in | implementing | — | — | evidence in the implementation report per this very rule |
-| Spec-AC-02 | SKILL_PR 5c names the flip as its own step ordered before close-work-item.mjs | implementing | — | — | — |
-| Spec-AC-03 | corpus governance measured: delta recorded, ledger only if owed, TEST-010/012 green, no cross-file duplication | implementing | — | — | — |
-| Spec-AC-04 | arm pins the rule at both ends; bite proven by mutation with unmutated control | implementing | — | — | mutations in disposable worktree clones only |
-| Spec-AC-05 | heuristic, close gate, TEST-013 untouched; doc-numbering green | implementing | — | — | — |
+| Spec-AC-01 | VALIDATION 8a states the deferral as the rule, event-EXCEPTION folded in | done | DONE c3d9f7d: 8a is one named AC-FLIP DEFERRAL rule absorbing the old EXCEPTION (grep EXCEPTION count 0). Round 1 FAILED as the rule's first live user — the gate's blocking sentence contradicted it — and the MECHANICAL CHECKS carve is now operational: a Rule-1-only exit on a still-open doc is the EXPECTED state; round 2 verified the boundary with three mixed-reason cases, all blocking | — | evidence in the implementation report per this very rule |
+| Spec-AC-02 | SKILL_PR 5c names the flip as its own step ordered before close-work-item.mjs | done | DONE: SKILL_PR step 5c FLIP THE AC TABLE FIRST, ordered before close-work-item.mjs; test_050 asserts the ordering by line numbers and its reorder mutation bites | — | — |
+| Spec-AC-03 | corpus governance measured: delta recorded, ledger only if owed, TEST-010/012 green, no cross-file duplication | done | DONE, measured twice independently: +815 B then +177 B for the carve; first breach of the corpus cap, paid 1:1 at the measured deficit; TEST-010 headroom 0/2048, TEST-012 pin 859 to 1036 with history, messages interpolate the constant after round 2 caught the second drift of that exact message | — | — |
+| Spec-AC-04 | arm pins the rule at both ends; bite proven by mutation with unmutated control | done | DONE: test_050_ac_flip_deferral_canon; three mutations bite (each end's rule text, the ordering), unmutated control green; re-proved independently by round 2 and by review with an un-piped exit code | — | mutations in disposable worktree clones only |
+| Spec-AC-05 | heuristic, close gate, TEST-013 untouched; doc-numbering green | done | DONE: git diff main over docs-audit.mjs, lib/, close-work-item.mjs and the doc-numbering suite is empty; doc-numbering 31/31 | — | — |
 
 ## Implementation plan
 - .aai/VALIDATION.prompt.md: rewrite step 8a as the AC-FLIP DEFERRAL rule

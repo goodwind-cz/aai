@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-24T14:05:35.844Z
+Generated: 2026-08-24T14:16:18.692Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-validation-defers-the-ac-flip-to-close | specs | implementing | 5 implementing | docs/specs/SPEC-DRAFT-spec-validation-defers-the-ac-flip-to-close.md |
+| spec-validation-defers-the-ac-flip-to-close | specs | implementing | 5 done | docs/specs/SPEC-DRAFT-spec-validation-defers-the-ac-flip-to-close.md |
 
 ## Canonical layer (0)
 
