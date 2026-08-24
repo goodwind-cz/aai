@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-24T14:58:55.758Z
+Generated: 2026-08-24T15:08:06.461Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-single-writer-canon-contradiction | specs | implementing | 8 planned | docs/specs/SPEC-DRAFT-single-writer-canon-contradiction.md |
 
 ## Canonical layer (0)
 
