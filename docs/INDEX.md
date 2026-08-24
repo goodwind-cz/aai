@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-24T10:36:23.413Z
+Generated: 2026-08-24T11:08:41.929Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-a-branch-diff-pin-taxes-every-later-scope | specs | implementing | 5 implementing | docs/specs/SPEC-DRAFT-spec-a-branch-diff-pin-taxes-every-later-scope.md |
+| spec-a-branch-diff-pin-taxes-every-later-scope | specs | implementing | 5 done | docs/specs/SPEC-DRAFT-spec-a-branch-diff-pin-taxes-every-later-scope.md |
 
 ## Canonical layer (0)
 
