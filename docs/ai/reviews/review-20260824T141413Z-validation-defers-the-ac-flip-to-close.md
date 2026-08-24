@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "528d1d6..01cf8a3 (docs/ac-flip-belongs-to-close)"
-  spec: docs/specs/SPEC-DRAFT-spec-validation-defers-the-ac-flip-to-close.md
+  spec: docs/specs/SPEC-0151-spec-validation-defers-the-ac-flip-to-close.md
   spec_compliance:
     verdict: pass
     ac_walk:

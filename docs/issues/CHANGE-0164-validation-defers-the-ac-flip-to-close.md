@@ -1,14 +1,16 @@
 ---
 id: validation-defers-the-ac-flip-to-close
-number: null
+number: 164
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 2
 capability: aai-validation
 links:
-  pr: []
-  commits: []
+  pr:
+    - 285
+  commits:
+    - 6774dd786d3814977a9b28d3b0fc3d515a2a9bc9
 ---
 
 # Change — the canon tells validation to do the thing the repo's own heuristic flags

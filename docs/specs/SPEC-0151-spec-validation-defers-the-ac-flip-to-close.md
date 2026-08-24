@@ -1,14 +1,16 @@
 ---
 id: spec-validation-defers-the-ac-flip-to-close
 type: spec
-number: null
-status: implementing
+number: 151
+status: done
 ceremony_level: 2
 links:
   requirement: validation-defers-the-ac-flip-to-close
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 285
+  commits:
+    - 6774dd786d3814977a9b28d3b0fc3d515a2a9bc9
 ---
 
 # Spec — the AC flip belongs to the close, and the canon says so at both ends
@@ -16,7 +18,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-validation-defers-the-ac-flip-to-close.md
+- Requirement: docs/issues/CHANGE-0164-validation-defers-the-ac-flip-to-close.md
 - Decision records: none new (design decisions recorded in this spec)
 - Technology contract: docs/TECHNOLOGY.md
 
@@ -51,8 +53,8 @@ The heuristic, the close gate, and TEST-013 stay byte-identical.
 - Base ref: main
 - Inline review scope: .aai/VALIDATION.prompt.md, .aai/SKILL_PR.prompt.md,
   tests/skills/test-aai-close-work-item.sh,
-  docs/specs/SPEC-DRAFT-spec-validation-defers-the-ac-flip-to-close.md,
-  docs/issues/CHANGE-DRAFT-validation-defers-the-ac-flip-to-close.md, and
+  docs/specs/SPEC-0151-spec-validation-defers-the-ac-flip-to-close.md,
+  docs/issues/CHANGE-0164-validation-defers-the-ac-flip-to-close.md, and
   tests/skills/lib/prompt-diet-ledger.sh plus
   tests/skills/test-aai-prompt-diet.sh only if the corpus byte floor
   requires a ledger entry at the measured delta.
