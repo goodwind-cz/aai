@@ -413,11 +413,20 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# 1410 (2026-08-24, bot sweep): +374 B — Codex found the round-1 contradiction
+# surviving in two MORE restatements of the blocking rule (the per-file hole:
+# one carve placed, later occurrences left standing), plus the 5c transactional
+# revert clause for a failed close. Credited 1:1 at zero headroom.
+# 1036 (2026-08-24): validation-defers-the-ac-flip-to-close pays +177 B for the
+# MECHANICAL CHECKS carve — validation round 1 proved the narrative Timing
+# parenthetical contradicted the gate's blocking sentence (P1
+# fu-ac-flip-gate-timing-contradiction); the operational carve costs 177 B at
+# 137 B headroom, credited 1:1 in the ledger.
 # 859 (true-up: feedback-pipeline-discoverability added a +1187 B itemized
 # entry — two prompt discoverability sentences (+172 B each) + the AGENTS.md
 # upstream-reporting subsection with the --repo-pinned fallback (+843 B) —
 # plus a -461 B stale-credit reclaim (TEST-010 cap-guard: corpus had shrunk
-# below the standing credit), so the TEST-012 pin moves 133 -> 859, over the prior
+# below the standing credit), so the TEST-012 pin moved 133 -> 859, then 859 -> 1036, over the prior
 # 133 (true-up: intake-numbers-some-doc-types-immediately added a +2697 B
 # itemized entry — the DRAFT naming rule moved to where the intake router
 # actually reads it: one RULES bullet in each of the eight
@@ -673,15 +682,21 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 859 ]]; then
-    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 859)"
+  # The wanted value lives in ONE shell variable; the messages interpolate it.
+  # Validation round 2 of validation-defers-the-ac-flip-to-close caught the
+  # PASS line still printing 859 after the pin moved to 1036 — the second time
+  # this message drifted from the check. A number retyped in prose goes stale;
+  # a number printed from the constant cannot.
+  local want_growth=1410
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
+    log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
   fi
   if [[ "$independent_sum" -ne "$JUSTIFIED_GROWTH_BYTES" ]]; then
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
-  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == 859 == independent re-sum" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == $want_growth == independent re-sum" \
     || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
 }
 

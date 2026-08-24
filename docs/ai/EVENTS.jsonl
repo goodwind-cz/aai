@@ -1910,3 +1910,11 @@
 {"v":1,"ts":"2026-08-24T11:08:45.019Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-a-branch-diff-pin-taxes-every-later-scope","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-24T11:08:45.054Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-a-branch-diff-pin-taxes-every-later-scope","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-24T11:08:45.089Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-a-branch-diff-pin-taxes-every-later-scope","payload":{"commit":"87767f8acb1ccf19e7b0af4bd4bc4d0843cf8141"}}
+{"v":1,"ts":"2026-08-24T13:22:11.402Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-validation-defers-the-ac-flip-to-close","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-24T13:41:41.820Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":391,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-08-24T14:16:21.354Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"validation-defers-the-ac-flip-to-close","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-24T14:16:21.395Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"validation-defers-the-ac-flip-to-close","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-24T14:16:21.436Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"validation-defers-the-ac-flip-to-close","payload":{"commit":"6774dd786d3814977a9b28d3b0fc3d515a2a9bc9"}}
+{"v":1,"ts":"2026-08-24T14:16:21.469Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-validation-defers-the-ac-flip-to-close","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-24T14:16:21.505Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-validation-defers-the-ac-flip-to-close","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-24T14:16:21.542Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-validation-defers-the-ac-flip-to-close","payload":{"commit":"6774dd786d3814977a9b28d3b0fc3d515a2a9bc9"}}

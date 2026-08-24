@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-24T11:08:53.575Z",
+  "generatedAt": "2026-08-24T14:16:29.418Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 126,
-    "delivered": 369,
+    "delivered": 371,
     "active_weeks": 9,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (369 closes vs 126 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 369,
-    "delivered_per_week_avg": 41,
+    "note": "\"delivered\" counts every work_item_closed event (371 closes vs 126 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 371,
+    "delivered_per_week_avg": 41.2,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -23,7 +23,7 @@
       "2026-W32": 19,
       "2026-W33": 33,
       "2026-W34": 33,
-      "2026-W35": 4
+      "2026-W35": 6
     },
     "delivered_groups": [
       {
@@ -301,7 +301,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 106,
+        "count": 108,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -408,7 +408,9 @@
           "the-registry-has-no-outflow",
           "spec-the-registry-has-no-outflow",
           "a-branch-diff-pin-taxes-every-later-scope",
-          "spec-a-branch-diff-pin-taxes-every-later-scope"
+          "spec-a-branch-diff-pin-taxes-every-later-scope",
+          "validation-defers-the-ac-flip-to-close",
+          "spec-validation-defers-the-ac-flip-to-close"
         ]
       }
     ],
@@ -1889,12 +1891,20 @@
         {
           "ref": "spec-a-branch-diff-pin-taxes-every-later-scope",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "validation-defers-the-ac-flip-to-close",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-validation-defers-the-ac-flip-to-close",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3720,
       "mean_seconds": 123756.5,
       "measured": 122,
-      "unmeasurable": 247
+      "unmeasurable": 249
     }
   },
   "speed": {
@@ -3136,7 +3146,7 @@
     },
     {
       "week": "2026-W35",
-      "delivered": 4,
+      "delivered": 6,
       "median_lead_time_seconds": null,
       "busy_seconds": null,
       "tokens": null,
@@ -3145,7 +3155,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 97,
+    "open_count": 98,
     "oldest_age_days": 10,
     "items": [
       {
@@ -3216,7 +3226,7 @@
         "id": "fu-subagent-state-write-contradiction",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "SUBAGENT_CONTRACT forbids subagent STATE writes while the dispatch block explicitly directs them; two roles hit it independently in one ride",
         "status": "open"
       },
@@ -3296,7 +3306,7 @@
         "id": "fu-sync-hash-compare-fails-open",
         "ref": "followups-cli-hardening",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "file_content_different in aai-sync.sh treats an unobtainable hash as different, so a transient sha256sum hiccup silently rewrites the target's copilot shim and plants a project-overrides file",
         "status": "open"
       },
@@ -3352,7 +3362,7 @@
         "id": "fu-acgate-vs-falseopen-catch22",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "AC STATUS GATE rule 1 blocks PASS on non-terminal AC rows while docs-audit's false-open heuristic fails closed on a terminal AC table with un-timestampable delivery, stripping the CLEAN token and turning TEST-013 red",
         "status": "open"
       },
@@ -3424,7 +3434,7 @@
         "id": "fu-docsaudit-t003-red-on-new-doc",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "test-aai-docs-audit.sh TEST-003 regenerates docs/INDEX.md and diffs it against the committed one, so it is RED for the whole life of any scope that adds a doc, and test-aai-delta-stage3.sh TEST-007 inherits the failure",
         "status": "open"
       },
@@ -3432,7 +3442,7 @@
         "id": "fu-ismain-symlink-realpath",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "every .mjs CLI guards main() with path.resolve(process.argv[1]) === fileURLToPath(import.meta.url), which is FALSE whenever the checkout is reached through a symlink, so the CLI exits 0 having printed nothing",
         "status": "open"
       },
@@ -3440,7 +3450,7 @@
         "id": "fu-orchestrator-monitor-uses-gnu-find",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "the orchestrator's liveness check for running agents used GNU find syntax (-newermt '-N minutes') with stderr sent to /dev/null; on this host find rejects it, so the check reported zero writes as a RESULT when it was a silent command failure",
         "status": "open"
       },
@@ -3624,7 +3634,7 @@
         "id": "fu-posix-arm-reddens-on-prose-backslash",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "index_posix_findings tests every line for a backslash, not only path tokens, so a Notes cell mentioning a regex reddens the arm with index path is not POSIX",
         "status": "open"
       },
@@ -3632,7 +3642,7 @@
         "id": "fu-staleness-source-line-self-certifies",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "index_stale_findings derives its scanned dirs from the Source: line of the index under test, so an index stale because a family was added never checks that family",
         "status": "open"
       },
@@ -3640,7 +3650,7 @@
         "id": "fu-posix-predicate-exit-conflates-infra",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "index_posix_findings exits 1 both for real path findings and for the predicate failing to run, and does not fold stderr into the captured output, so an infrastructure failure surfaces as a path defect with an empty message",
         "status": "open"
       },
@@ -3922,6 +3932,14 @@
         "severity": "P2",
         "age_days": 0,
         "what": "TEST-011(clarify)'s spec-freeze exit-contract pins (grep -qF \"$p\" \"$f\") check the WHOLE FILE, not the emitted string; spec-freeze.mjs's header comment (lines 54-61) duplicates all four exit-contract phrases verbatim above the runtime strings (lines 101-106) that actually compose the CLI output",
+        "status": "open"
+      },
+      {
+        "id": "fu-overview-links-gitignored-reports",
+        "ref": "a-branch-diff-pin-taxes-every-later-scope",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the committed overview embeds links to gitignored validation/review report paths, so every such link 404s from a fresh clone",
         "status": "open"
       }
     ]

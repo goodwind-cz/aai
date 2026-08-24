@@ -1,22 +1,22 @@
 {
-  "generatedAt": "2026-08-24T11:09:29.780Z",
+  "generatedAt": "2026-08-24T14:17:05.919Z",
   "project": "aai",
   "counts": {
-    "delivered": 209,
+    "delivered": 210,
     "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "a-branch-diff-pin-taxes-every-later-scope",
+    "ref": "validation-defers-the-ac-flip-to-close",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "a-branch-diff-pin-taxes-every-later-scope",
+      "ref": "validation-defers-the-ac-flip-to-close",
       "type": "intake_change",
-      "phase": null
+      "phase": "code_review"
     },
     "strategy": "direct",
     "worktree": {
@@ -104,6 +104,19 @@
       "spec": "docs/specs/SPEC-0150-spec-a-branch-diff-pin-taxes-every-later-scope.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260824T110640Z-a-branch-diff-pin-taxes-every-later-scope.md"
+    },
+    {
+      "ref": "validation-defers-the-ac-flip-to-close",
+      "title": "Change — the canon tells validation to do the thing the repo's own heuristic flags",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0164-validation-defers-the-ac-flip-to-close.md",
+      "closed_on": "2026-08-24",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0151-spec-validation-defers-the-ac-flip-to-close.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260824T141413Z-validation-defers-the-ac-flip-to-close.md"
     },
     {
       "ref": "drain-the-tripwire-known-offender-list",
@@ -2828,6 +2841,19 @@
           "spec": "docs/specs/SPEC-0150-spec-a-branch-diff-pin-taxes-every-later-scope.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260824T110640Z-a-branch-diff-pin-taxes-every-later-scope.md"
+        },
+        {
+          "ref": "validation-defers-the-ac-flip-to-close",
+          "title": "Change — the canon tells validation to do the thing the repo's own heuristic flags",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0164-validation-defers-the-ac-flip-to-close.md",
+          "closed_on": "2026-08-24",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0151-spec-validation-defers-the-ac-flip-to-close.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260824T141413Z-validation-defers-the-ac-flip-to-close.md"
         },
         {
           "ref": "drain-the-tripwire-known-offender-list",

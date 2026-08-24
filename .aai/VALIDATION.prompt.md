@@ -64,7 +64,13 @@ producing any PASS verdict on an opted-in spec, run
   node .aai/scripts/docs-audit.mjs --gate <SPEC-ID>
 and honor its exit code: exit 0 clears the three rules below; a non-zero
 exit blocks PASS with the script's printed reasons as the primary failure
-reason. The script computes, deterministically:
+reason — with ONE mechanical carve, from step 8a's AC-FLIP DEFERRAL: when the
+gated doc's frontmatter status is still open (draft/implementing) and every
+printed reason is a Rule-1 non-terminal row, that exit is the EXPECTED state
+of an in-flight spec and does not block PASS; the rows reconcile at the close
+step, where the gate re-runs against the flipped table. Any other printed
+reason (Rule 2, Rule 4, or a Rule-1 finding on an already-done doc) blocks
+PASS exactly as stated. The script computes, deterministically:
 - Rule 1 — No silent partials: every Spec-AC row in the AC Status table has
   a terminal status (done | deferred | blocked | rejected); a planned or
   implementing row blocks PASS.
@@ -93,9 +99,9 @@ Rule 4 (anti-cheat clause) — per-spec, at PASS claim time:
 - A Review-By less than 14 days out blocks PASS with:
   "AC-status gate: Review-By for <SPEC-ID>/<Spec-AC-ID> is <date> (less than 14 days from today); pick a date at least 14 days out or implement the AC now."
 
-When the gate blocks PASS (script exit non-zero, or a prose rule above
-fires), the verdict is FAIL with the gate message as the primary failure
-reason. Test execution evidence is still collected and reported, but the
+When the gate blocks PASS (script exit non-zero outside the MECHANICAL
+CHECKS carve, or a prose rule above fires), the verdict is FAIL with the
+gate message as the primary failure reason. Test execution evidence is still collected and reported, but the
 verdict cannot be PASS until all gate rules pass.
 
 CEREMONY LANE (spec-loop-ceremony-aware-dispatch)
@@ -190,13 +196,12 @@ PROCESS
 6) Build coverage table.
 7) Run AC STATUS GATE (see section above) and record any blocking findings.
 7b) Apply the `.aai/SKILL_VERIFY.prompt.md` gate before producing any verdict.
-8) Produce PASS / FAIL verdict. PASS requires both (a) all test suites green and (b) AC STATUS GATE clear.
+8) Produce PASS / FAIL verdict. PASS requires both (a) all test suites green and (b) AC STATUS GATE clear (clear INCLUDES a gate exit covered by the MECHANICAL CHECKS carve).
    FRICTION HOOK — best-effort record per `.aai/system/FRICTION_PROTOCOL.md`
    (see .aai/ROLE_COMMON.md FRICTION HOOK for the full capture contract).
    Trigger: a FAIL verdict was just recorded. Never let it change the verdict.
-8a) For each Spec-AC that moved to `done` during this validation (Evidence column populated), append an `ac_evidence` event to docs/ai/EVENTS.jsonl via:
+8a) AC-FLIP DEFERRAL (the rule, not an exception): while a doc's frontmatter `status` is open (`draft`/`implementing`), validation MUST NOT flip its AC rows terminal, populate its Evidence column, or emit `ac_evidence` for it — a terminal, evidenced table (or a slug-ref event: Arm A) under an open `status` is the exact state the probable-false-open heuristic flags, and the flag would be correct. Record per-AC evidence in the VALIDATION REPORT; the flip and the deferred emission happen at the close ceremony, immediately before `close-work-item.mjs` (.aai/SKILL_PR.prompt.md step 5c). The gate's Rule-1 reconciliation of THIS doc's rows therefore lands at the close gate (8b); rows kept open by this rule do not block the verdict when the report carries their evidence chain — every other gate rule binds unchanged. Only an already-`done` doc (re-validation) moves an AC terminal here; then append directly:
     node .aai/scripts/append-event.mjs --event ac_evidence --ref SPEC-XXXX/Spec-AC-YY --commit <sha-or-RUN_ID>
-    EXCEPTION: if the doc's frontmatter `status` is still open (`draft`/`implementing`) and its only matchable ref is the slug `id` (no numbered `fileId` yet), do NOT emit this event now — the slug ref unconditionally trips the probable-false-open heuristic's Arm A and would self-flag the still-open doc. Record the per-AC evidence in the validation report instead and defer emission to the close ceremony (step 8b), once `status` has flipped to `done`. Numbered docs and already-`done` docs are unaffected.
     For each spec whose frontmatter `status` changed to something OTHER than `done` as a result of this validation, append a `doc_lifecycle` event with --from/--to (best-effort). The `done` transition itself — and its `doc_lifecycle` event — is performed by `close-work-item.mjs` at the close step (8b, CHANGE-0037 / SPEC-0053), never hand-emitted here.
 8b) DONE-TRANSITION ASSERTION (RFC-0002): before a doc transitions to
     `status: done`, assert the Acceptance Criteria Status table — when the
