@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-24T14:52:10.961Z
+Generated: 2026-08-24T14:58:55.758Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -417,9 +417,11 @@ _None._
 | SPEC-0151 | specs | docs/specs/SPEC-0151-spec-validation-defers-the-ac-flip-to-close.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| single-writer-canon-contradiction (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-single-writer-canon-contradiction.md |
 
 ## Deferred (whole-doc) (0)
 
