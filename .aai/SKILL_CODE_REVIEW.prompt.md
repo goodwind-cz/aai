@@ -182,9 +182,18 @@ SKILL_PR treats scope-cited reports as expected companions.
       --severity P1|P2|P3 --what <line> --why <line> --source <ev>`
       (never hand-write it: a bad line fails the ledger closed), or
   (c) promoted to a tracked follow-up ref (an ISSUE/CHANGE id named in the
-      review notes).
+      review notes), or
+  (d) recorded as `accepted residual: <reason>` in the review report ONLY —
+      solely for a P3 assurance-strength/maintenance finding (a guard weaker
+      than ideal, an unexercised edge, a cost) with no observed bite and no
+      false record left anywhere. P1/P2, anything that bit, and anything
+      leaving a false record still take (a)-(c). The registry is a queue of
+      intended work; the tracked report is the durable record of every
+      finding (docs/analysis/registry-growth-diagnosis.md).
   The review report AND STATE.yaml `code_review.notes` must name the chosen
-  artifact per WARNING (decision id or follow-up ref). Unrecorded WARNINGs
+  artifact per WARNING (decision id, follow-up ref, or — for disposition (d)
+  — the report's `accepted residual:` line, quoted in the notes so wrap-up
+  and validation count the warning as recorded). Unrecorded WARNINGs
   are surfaced at closeout by SKILL_WRAP_UP (advisory) and by VALIDATION
   step 8b (enforcement backstop).
 - INFO notes never block.
