@@ -283,7 +283,11 @@ After all subagents complete, the orchestrator MUST:
      on a collected block): run each listed `state.mjs` command, in the
      returned order, as part of this merge write — this is the returned-commands
      duty's orchestrator-side half; the subagent-facing duty is not restated
-     here.
+     here. CONFLICT RULE: when two or more collected blocks return commands
+     writing the SAME STATE block (e.g. two `set-validation` verdicts from
+     decomposed validators), do NOT replay them — construct ONE merged command
+     from the aggregate outcome (any fail -> overall fail; evidence paths
+     combined), so a later `pass` can never overwrite an earlier `fail`.
 4. Only after STATE.yaml is updated: proceed to deliver result to user.
 
 ## Delivery gate (mandatory)
