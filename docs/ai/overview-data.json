@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-08-24T17:36:54.313Z",
+  "generatedAt": "2026-08-24T18:27:35.835Z",
   "project": "aai",
   "counts": {
     "delivered": 211,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 48522945
+    "tokens_total": 49871252
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -16,15 +16,15 @@
     "focus": {
       "ref": "single-writer-canon-contradiction",
       "type": "intake_change",
-      "phase": "code_review"
+      "phase": null
     },
     "strategy": "tdd",
     "worktree": {
       "recommendation": "not_needed",
       "user_decision": "inline"
     },
-    "validation_status": "pass",
-    "review_status": "pass",
+    "validation_status": "not_run",
+    "review_status": "not_run",
     "ticks": [
       {
         "tick": 156,
@@ -125,8 +125,8 @@
       "status": "done",
       "path": "docs/issues/CHANGE-0165-single-writer-canon-contradiction.md",
       "closed_on": "2026-08-24",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 166,
+      "token_total": 1348307,
       "spec": "docs/specs/SPEC-0152-spec-single-writer-canon-contradiction.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260824T172907Z-single-writer-canon-contradiction-round2.md"
@@ -2875,8 +2875,8 @@
           "status": "done",
           "path": "docs/issues/CHANGE-0165-single-writer-canon-contradiction.md",
           "closed_on": "2026-08-24",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 166,
+          "token_total": 1348307,
           "spec": "docs/specs/SPEC-0152-spec-single-writer-canon-contradiction.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260824T172907Z-single-writer-canon-contradiction-round2.md"
