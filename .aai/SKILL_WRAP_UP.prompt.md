@@ -86,8 +86,9 @@ PROCESS
 
 4c. UNRECORDED WARNINGS ADVISORY (SPEC-0013 H6, report-only)
    If STATE.yaml `code_review.status == pass` and its notes (or the latest
-   review report) carry WARNINGs with NO named `docs/ai/decisions.jsonl` entry
-   and NO tracked follow-up ref, list them as "unrecorded WARNINGs" in the
+   review report) carry WARNINGs with NO named `docs/ai/decisions.jsonl` entry,
+   NO tracked follow-up ref, and NO `accepted residual:` line (SKILL_CODE_REVIEW
+   disposition (d)), list them as "unrecorded WARNINGs" in the
    wrap-up. Advisory only — VALIDATION step 8b remains the enforcement backstop.
 
 4d. OPERATOR-DOCS DRIFT CHECK (report-only)
