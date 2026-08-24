@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-24T11:09:29.780Z",
+  "generatedAt": "2026-08-24T13:32:52.457Z",
   "project": "aai",
   "counts": {
     "delivered": 209,
-    "in_progress": 1,
+    "in_progress": 2,
     "releases": 1,
     "tokens_total": 48522945
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "a-branch-diff-pin-taxes-every-later-scope",
+    "ref": "validation-defers-the-ac-flip-to-close",
     "type": "intake_change"
   },
   "in_flight": {
     "focus": {
-      "ref": "a-branch-diff-pin-taxes-every-later-scope",
+      "ref": "validation-defers-the-ac-flip-to-close",
       "type": "intake_change",
       "phase": null
     },
@@ -64,6 +64,19 @@
     ]
   },
   "in_progress": [
+    {
+      "ref": "validation-defers-the-ac-flip-to-close",
+      "title": "Change — the canon tells validation to do the thing the repo's own heuristic flags",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-DRAFT-validation-defers-the-ac-flip-to-close.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-DRAFT-spec-validation-defers-the-ac-flip-to-close.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",

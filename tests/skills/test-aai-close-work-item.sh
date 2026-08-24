@@ -2326,6 +2326,40 @@ test_049_post_merge_close_report_only() {
   log_pass "G1 report-only proof: stdout/exit code byte-identical pre- and post-change on both the warning and silent paths (TEST-003)"
 }
 
+# --- TEST-050 (spec-validation-defers-the-ac-flip-to-close TEST-001/002 /
+# Spec-AC-01/02/04): the AC-flip deferral is canon at BOTH ends — validation
+# defers, the close flips, and the flip is ordered before close-work-item.mjs.
+# Deleting either end's rule text (or reordering the flip after the close
+# invocation) must turn this red. ------------------------------------------
+
+test_050_ac_flip_deferral_canon() {
+  log_info "Test: AC-flip deferral canon at both ends, flip ordered before close-work-item.mjs (TEST-050)..."
+
+  # Validation end: the deferral is stated as the rule, not an exception.
+  grep -qF "AC-FLIP DEFERRAL" "$VALIDATION_PROMPT" \
+    || log_fail "t050: VALIDATION.prompt.md must carry the AC-FLIP DEFERRAL rule"
+  grep -qF "MUST NOT flip" "$VALIDATION_PROMPT" \
+    || log_fail "t050: VALIDATION.prompt.md must forbid flipping AC rows on a still-open doc"
+  if grep -qF "EXCEPTION:" "$VALIDATION_PROMPT"; then
+    log_fail "t050: the old 8a event-EXCEPTION must stay folded into the deferral rule, not stand beside it"
+  fi
+
+  # Close end: SKILL_PR names the flip as its own step, ordered BEFORE the
+  # close-work-item.mjs invocation. awk (not grep|head) keeps this safe under
+  # set -euo pipefail on every platform.
+  local flip_line close_line
+  flip_line=$(awk '/FLIP THE AC TABLE/{print NR; exit}' "$SKILL_PR")
+  [[ -n "$flip_line" ]] \
+    || log_fail "t050: SKILL_PR.prompt.md must name the AC-table flip as its own close step"
+  close_line=$(awk '/close-work-item\.mjs --ref/{print NR; exit}' "$SKILL_PR")
+  [[ -n "$close_line" ]] \
+    || log_fail "t050: SKILL_PR.prompt.md lost its close-work-item.mjs invocation"
+  [[ "$flip_line" -lt "$close_line" ]] \
+    || log_fail "t050: the AC-table flip (line $flip_line) must be ordered before the close-work-item.mjs invocation (line $close_line)"
+
+  log_pass "AC-flip deferral canon at both ends; flip ordered before close (TEST-050)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -2384,6 +2418,7 @@ main() {
   test_047_post_merge_close_warns_once
   test_048_post_merge_close_negative_controls
   test_049_post_merge_close_report_only
+  test_050_ac_flip_deferral_canon
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

@@ -220,8 +220,14 @@ PROCESS
      `.git/MERGE_HEAD` exists (merge in progress) or the commit has 2 parents.
 
 5c. CLOSE THE WORK ITEM (CHANGE-0037 / SPEC-0053) — now that the PR number and
-   head commit are known, run the deterministic close ceremony instead of
-   hand-editing frontmatter or hand-emitting close events:
+   head commit are known:
+   - FLIP THE AC TABLE FIRST (its own ordered step — .aai/VALIDATION.prompt.md
+     step 8a defers it to here): set every Spec-AC row of the scope's doc(s)
+     terminal, fill each Evidence cell from the validation report's per-AC
+     evidence, and clear VALIDATION 8b's close gate on the flipped table; the
+     window this opens lasts the seconds until the next command, never ships.
+   - THEN run the deterministic close ceremony instead of hand-editing
+     frontmatter or hand-emitting close events:
      node .aai/scripts/close-work-item.mjs --ref <slug> --pr <N> --commit <sha> \
        [--spec <spec-slug>] --review <pass|waived|none>
    - `<slug>` is the primary work-item doc's frontmatter `id`; pass

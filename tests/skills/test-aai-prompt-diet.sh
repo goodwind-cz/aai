@@ -413,11 +413,16 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# 1036 (2026-08-24): validation-defers-the-ac-flip-to-close pays +177 B for the
+# MECHANICAL CHECKS carve — validation round 1 proved the narrative Timing
+# parenthetical contradicted the gate's blocking sentence (P1
+# fu-ac-flip-gate-timing-contradiction); the operational carve costs 177 B at
+# 137 B headroom, credited 1:1 in the ledger.
 # 859 (true-up: feedback-pipeline-discoverability added a +1187 B itemized
 # entry — two prompt discoverability sentences (+172 B each) + the AGENTS.md
 # upstream-reporting subsection with the --repo-pinned fallback (+843 B) —
 # plus a -461 B stale-credit reclaim (TEST-010 cap-guard: corpus had shrunk
-# below the standing credit), so the TEST-012 pin moves 133 -> 859, over the prior
+# below the standing credit), so the TEST-012 pin moved 133 -> 859, then 859 -> 1036, over the prior
 # 133 (true-up: intake-numbers-some-doc-types-immediately added a +2697 B
 # itemized entry — the DRAFT naming rule moved to where the intake router
 # actually reads it: one RULES bullet in each of the eight
@@ -673,7 +678,7 @@ test_012_growth_sum_matches_ledger() {
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     independent_sum=$(( independent_sum + ${_e%% *} ))
   done
-  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 859 ]]; then
+  if [[ "$JUSTIFIED_GROWTH_BYTES" -ne 1036 ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want 859)"
     ok=0
   fi
