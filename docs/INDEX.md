@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-24T22:55:04.243Z
+Generated: 2026-08-24T22:59:54.984Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -419,9 +419,11 @@ _None._
 | SPEC-0152 | specs | docs/specs/SPEC-0152-spec-single-writer-canon-contradiction.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| close-leaves-state-stale (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-close-leaves-state-stale.md |
 
 ## Deferred (whole-doc) (0)
 
