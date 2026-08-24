@@ -1182,7 +1182,14 @@ function runAllocate(root, opts) {
     ...(indexRegenerated ? ['docs/INDEX.md'] : []),
     ...regenerateSpecPagesBestEffort(root),
   ];
-  console.log(`allocate complete: ${plan.length} draft(s) numbered; regenerated ${regenerated.join(', ')} — stage every page listed here.`);
+  if (regenerated.length > 0) {
+    console.log(`allocate complete: ${plan.length} draft(s) numbered; regenerated ${regenerated.join(', ')} — stage every page listed here.`);
+  } else {
+    // Copilot on PR #284: with every generator absent the old line read
+    // "regenerated  — stage every page listed here", an instruction with an
+    // empty subject. Say the true thing instead.
+    console.log(`allocate complete: ${plan.length} draft(s) numbered; NO pages regenerated (no generator ran) — nothing extra to stage.`);
+  }
 }
 
 // --reserve: complete a provisional (D4) reservation for an already-numbered
