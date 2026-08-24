@@ -244,3 +244,27 @@
   commands are operator-hostile friction, not caution; (3) if a command
   genuinely needs escalation, say WHY in one line when asking. (Source:
   owner-reported Codex/Windows session, 2026-08-07.)
+
+## Session 2026-08-24 (registry triage — the-registry-has-no-outflow)
+
+- [2026-08-24] A corpus-wide claim correction is completed by READING the
+  enumerated files, never by regex: three independent gates each found live
+  misses of one sweep by a different route (a directory hole, a
+  present-tense hole, occurrences past an already-placed correction in the
+  same file). Regex finds candidates; only reading closes the claim.
+  (Source: the-tripwire-is-permanent-not-transitional ride; closes
+  fu-claim-sweep-needs-reading-not-regex.)
+- [2026-08-24] Merge an append-only ledger (docs/ai/decisions.jsonl,
+  docs/ai/EVENTS.jsonl) by keeping the BASE side a byte-exact prefix and
+  appending both branches' new lines after it; a union in any other order
+  rewrites existing bytes from the base's point of view even when no record
+  is lost. Never accept an auto-merge of these files without diffing the
+  prefix. (Source: cli-output-survives-a-pipe ride; closes
+  fu-append-only-merge-needs-prefix-order.)
+- [2026-08-24] Writing prose ABOUT a control-character escape reliably
+  inserts the literal control character into the file: after editing any
+  document that discusses escapes (\0, \x00, NUL and kin), scan the file for
+  the literal byte before committing (portable probe, BSD grep has no -P:
+  node -e 'process.exit(require("fs").readFileSync(f).includes(0)?1:0)';
+  expect exit 0). (Source: docs-model-nul-escape ride; closes
+  fu-escape-literals-self-inflict.)

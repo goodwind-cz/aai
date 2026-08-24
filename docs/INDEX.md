@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-23T23:43:50.151Z
+Generated: 2026-08-24T09:05:49.188Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| SPEC-0149 | specs | implementing | 5 done | docs/specs/SPEC-0149-spec-the-registry-has-no-outflow.md |
 
 ## Canonical layer (0)
 
@@ -411,9 +412,11 @@ _None._
 | SPEC-0148 | specs | docs/specs/SPEC-0148-spec-the-tripwire-is-permanent-not-transitional.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| CHANGE-0161 | issues | docs/issues/CHANGE-0161-the-registry-has-no-outflow.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -444,4 +447,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-23 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-24 — counts above use this date for overdue checks.
