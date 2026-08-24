@@ -2,13 +2,15 @@
 id: the-registry-has-no-outflow
 number: 161
 type: change
-status: draft
+status: done
 user_visible: false
 ceremony_level: 1
 capability: aai-follow-ups
 links:
-  pr: []
-  commits: []
+  pr:
+    - 283
+  commits:
+    - ba4954a56ee84ed00c1dd4347a51a2708b2a4f82
 ---
 
 # Change — the follow-up registry has an intake mandate and no outflow
@@ -75,15 +77,15 @@ existing CLI; no script, no schema, no new test arm, no new guard surface.
 - The open registry fits on two screens and every row is work someone
   intends to do.
 
-## Acceptance Criteria
+## Acceptance Criteria Status
 
-| Spec-AC    | Status | Evidence                                                                 |
-|------------|--------|--------------------------------------------------------------------------|
-| Spec-AC-01 | done   | SPEC-0149 AC table row 1; validation-20260824T090149Z round1 TEST-201    |
-| Spec-AC-02 | done   | SPEC-0149 AC table row 2; validation round1 TEST-202                     |
-| Spec-AC-03 | done   | SPEC-0149 AC table row 3; open=95, 68 appends 0 deletions, prefix proven |
-| Spec-AC-04 | done   | SPEC-0149 AC table row 4; diagnosis sections 1-6                         |
-| Spec-AC-05 | done   | SPEC-0149 AC table row 5; prompt-diet green, headroom 1174/2048          |
+| Spec-AC    | Status | Evidence                                                                 | Review-By |
+|------------|--------|--------------------------------------------------------------------------|-----------|
+| Spec-AC-01 | done   | SPEC-0149 AC table row 1; validation-20260824T090149Z round1 TEST-201    | —         |
+| Spec-AC-02 | done   | SPEC-0149 AC table row 2; validation round1 TEST-202                     | —         |
+| Spec-AC-03 | done   | SPEC-0149 AC table row 3; open=95, 68 appends 0 deletions, prefix proven | —         |
+| Spec-AC-04 | done   | SPEC-0149 AC table row 4; diagnosis sections 1-6                         | —         |
+| Spec-AC-05 | done   | SPEC-0149 AC table row 5; prompt-diet green, headroom 1174/2048          | —         |
 
 Detail (AC-00N maps to Spec-AC-0N in SPEC-0149):
 - AC-001: SKILL_CODE_REVIEW's warnings policy offers an accepted-residual

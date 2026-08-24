@@ -2,13 +2,15 @@
 id: spec-the-registry-has-no-outflow
 type: spec
 number: 149
-status: implementing
+status: done
 ceremony_level: 1
 links:
   requirement: the-registry-has-no-outflow
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 283
+  commits:
+    - ba4954a56ee84ed00c1dd4347a51a2708b2a4f82
 ---
 
 # Spec — the follow-up registry gets an outflow

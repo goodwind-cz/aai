@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-08-24T09:04:00.786Z",
+  "generatedAt": "2026-08-24T09:06:50.024Z",
   "project": "wt-registry",
   "counts": {
-    "delivered": 207,
-    "in_progress": 2,
+    "delivered": 208,
+    "in_progress": 1,
     "releases": 1,
     "tokens_total": 48522945
   },
@@ -14,19 +14,6 @@
   },
   "in_flight": null,
   "in_progress": [
-    {
-      "ref": "the-registry-has-no-outflow",
-      "title": "Change — the follow-up registry has an intake mandate and no outflow",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0161-the-registry-has-no-outflow.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0149-spec-the-registry-has-no-outflow.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-20260824T090245Z-the-registry-has-no-outflow.md"
-    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
@@ -42,6 +29,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "the-registry-has-no-outflow",
+      "title": "Change — the follow-up registry has an intake mandate and no outflow",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0161-the-registry-has-no-outflow.md",
+      "closed_on": "2026-08-24",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0149-spec-the-registry-has-no-outflow.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260824T090245Z-the-registry-has-no-outflow.md"
+    },
     {
       "ref": "drain-the-tripwire-known-offender-list",
       "title": "Change — four suites are still exempt from the tripwire and none of them needs to be",
@@ -2740,6 +2740,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "the-registry-has-no-outflow",
+          "title": "Change — the follow-up registry has an intake mandate and no outflow",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0161-the-registry-has-no-outflow.md",
+          "closed_on": "2026-08-24",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0149-spec-the-registry-has-no-outflow.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260824T090245Z-the-registry-has-no-outflow.md"
+        },
         {
           "ref": "drain-the-tripwire-known-offender-list",
           "title": "Change — four suites are still exempt from the tripwire and none of them needs to be",
