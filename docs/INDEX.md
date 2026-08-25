@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-25T05:23:29.922Z
+Generated: 2026-08-25T16:19:40.102Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -421,9 +421,11 @@ _None._
 | SPEC-0153 | specs | docs/specs/SPEC-0153-spec-close-leaves-state-stale.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| harness-surfaces-drift-unguarded (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-harness-surfaces-drift-unguarded.md |
 
 ## Deferred (whole-doc) (0)
 
