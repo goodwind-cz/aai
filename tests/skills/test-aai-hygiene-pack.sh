@@ -18,7 +18,17 @@ TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# Set by test_113 while a disposable detached worktree is live, so the EXIT
+# trap below removes it with a targeted `git worktree remove` (HAZ-WORKTREE)
+# even if a mid-arm log_fail exits the whole process before test_113's own
+# happy-path cleanup runs.
+HSK_ACTIVE_WORKTREE=""
+
 cleanup() {
+  if [[ -n "${HSK_ACTIVE_WORKTREE:-}" ]]; then
+    git -C "$PROJECT_ROOT" worktree remove --force "$HSK_ACTIVE_WORKTREE" >/dev/null 2>&1 || true
+    HSK_ACTIVE_WORKTREE=""
+  fi
   if [[ -n "${TEST_DIR:-}" && -d "$TEST_DIR" ]]; then
     rm -rf "$TEST_DIR"
   fi
@@ -31,10 +41,15 @@ log_skip() { echo "SKIP: $*"; exit 42; }
 log_info() { echo "INFO: $*"; }
 
 # Skill trees that exist in this checkout (wrapper edits are mirrored to every
-# tree that carries the wrapper — SPEC-0013 D8).
+# tree that carries the wrapper — SPEC-0013 D8). `.agents` added by
+# harness-surfaces-drift-unguarded D4/D1: it is the fourth tracked skill tree
+# (Cursor's FIRST documented project-skills path) and every arm below that
+# iterates skill_trees() now covers it too — that is deliberate, not scope
+# creep (see the spec's "Adding .agents ... retro-applies eight existing arms"
+# edge case note).
 skill_trees() {
   local t
-  for t in .claude .gemini .codex; do
+  for t in .claude .agents .gemini .codex; do
     [[ -d "$PROJECT_ROOT/$t/skills" ]] && echo "$t"
   done
   return 0
@@ -1631,6 +1646,299 @@ test_105_converted_sites_keep_their_needles() {  # TEST-006 / Spec-AC-01, Spec-A
   log_pass "test_105: $seen pinned needle(s) of 4 converted sites intact (the 4th asserts a run-time variable and cannot be pinned), helper sourced, no unbounded payload dump (TEST-006)"
 }
 
+# --- harness-surfaces-drift-unguarded arms (test_110..113) ------------------
+# CHANGE harness-surfaces-drift-unguarded /
+# docs/specs/SPEC-DRAFT-harness-surfaces-drift-unguarded.md.
+#
+# .agents/skills, .codex/skills and .gemini/skills are GENERATED from
+# .claude/skills by .aai/scripts/sync-harness-skills.mjs under the transform
+# declared in .aai/system/HARNESS_SKILLS.yaml (D1). test_110 is a bash-native,
+# node-independent spot check of the same set-equality invariant the
+# generator's --check also proves — defense in depth per D4 (this suite IS
+# the guard; the generator is generation machinery it drives). test_111..113
+# drive the generator itself.
+HSK_GENERATOR_REL=".aai/scripts/sync-harness-skills.mjs"
+HSK_MANIFEST_REL=".aai/system/HARNESS_SKILLS.yaml"
+HSK_MIRROR_TREES=".agents/skills .codex/skills .gemini/skills"
+
+# hsk_skill_dirs <skills-dir> — one skill name per line, sorted. A "skill" is
+# any directory directly under <skills-dir> that itself contains a SKILL.md
+# (excludes README.md and the gitignored skills.local/ index — neither carries
+# a SKILL.md, so no special-case is needed for them).
+hsk_skill_dirs() {
+  local dir="$1" n
+  [[ -d "$dir" ]] || return 0
+  for n in "$dir"/*/; do
+    [[ -f "${n}SKILL.md" ]] && basename "$n"
+  done | LC_ALL=C sort
+}
+
+# hsk_exclusions_for <manifest> <tree> — one excluded skill name per line for
+# <tree>, read from the manifest's `exclusions:` block (tree|skill|reason rows).
+# Prints nothing when the manifest is absent or carries no matching row.
+hsk_exclusions_for() {
+  local manifest="$1" tree="$2" insec=0 line rest etree eskill
+  [[ -f "$manifest" ]] || return 0
+  while IFS= read -r line; do
+    case "$line" in
+      'exclusions:') insec=1; continue ;;
+      [a-zA-Z_]*:*) insec=0; continue ;;
+    esac
+    [[ "$insec" -eq 1 ]] || continue
+    case "$line" in
+      '  - '*) ;;
+      *) continue ;;
+    esac
+    rest="${line#  - }"
+    etree="${rest%%|*}"
+    [[ "$etree" == "$tree" ]] || continue
+    rest="${rest#*|}"
+    eskill="${rest%%|*}"
+    [[ -n "$eskill" ]] && printf '%s\n' "$eskill"
+  done < "$manifest"
+}
+
+# hsk_check_parity <root> [<manifest>] — prints one "PARITY <missing|extra>
+# <tree>/<skill>" line per divergence, honoring the manifest's exclusions;
+# returns 0 clean / 1 dirty. Side-effect-free (no log_fail), so it can be run
+# against a mutated fixture or worktree without killing the whole suite.
+hsk_check_parity() {
+  local root="$1" manifest="${2:-}"
+  [[ -n "$manifest" ]] || manifest="$root/$HSK_MANIFEST_REL"
+  local src="$root/.claude/skills"
+  local expected_all
+  expected_all="$(hsk_skill_dirs "$src")"
+  local rc=0 tree tdir excluded want actual missing extra s
+  for tree in $HSK_MIRROR_TREES; do
+    tdir="$root/$tree"
+    [[ -d "$tdir" ]] || continue
+    excluded="$(hsk_exclusions_for "$manifest" "$tree")"
+    if [[ -n "$excluded" ]]; then
+      want="$(comm -23 <(printf '%s\n' "$expected_all") <(printf '%s\n' "$excluded" | LC_ALL=C sort))"
+    else
+      want="$expected_all"
+    fi
+    actual="$(hsk_skill_dirs "$tdir")"
+    missing="$(comm -23 <(printf '%s\n' "$want") <(printf '%s\n' "$actual"))"
+    extra="$(comm -13 <(printf '%s\n' "$want") <(printf '%s\n' "$actual"))"
+    if [[ -n "$missing" ]]; then
+      while IFS= read -r s; do [[ -n "$s" ]] && printf 'PARITY missing %s/%s\n' "$tree" "$s"; done <<< "$missing"
+      rc=1
+    fi
+    if [[ -n "$extra" ]]; then
+      while IFS= read -r s; do [[ -n "$s" ]] && printf 'PARITY extra %s/%s\n' "$tree" "$s"; done <<< "$extra"
+      rc=1
+    fi
+  done
+  return "$rc"
+}
+
+test_110_skill_set_parity() {  # TEST-001 / Spec-AC-01, TEST-005 / Spec-AC-06 (exclusion half)
+  log_info "test_110: every mirror tree offers exactly .claude/skills' skill set, honoring manifest exclusions (TEST-001, TEST-005 exclusion half)..."
+  TEST_DIR="${TEST_DIR:-$(ap_tmpdir)}"
+
+  # (a) LIVE PARITY — the real, measured drift (6/8/8 missing pre-normalization).
+  local out rc
+  out="$(hsk_check_parity "$PROJECT_ROOT")" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_110: mirror trees diverge from .claude/skills (Spec-AC-01):"$'\n'"$out"
+
+  # (b) EXCLUSION SEMANTICS (Spec-AC-06, the "good exclusion" half) — a
+  # self-contained fixture, independent of the shipped (empty) manifest.
+  # Skill "b" is present in .claude/skills but absent from BOTH .codex/skills
+  # and .gemini/skills; only .codex/skills excludes it. The SAME missing skill
+  # must be forgiven for .codex/skills and still reported for .gemini/skills.
+  local fx="$TEST_DIR/t110-fixture"
+  rm -rf "$fx"
+  mkdir -p "$fx/.claude/skills/a" "$fx/.claude/skills/b" "$fx/.codex/skills/a" "$fx/.gemini/skills/a"
+  printf -- '---\nname: a\ndescription: fixture a\n---\nbody\n' > "$fx/.claude/skills/a/SKILL.md"
+  printf -- '---\nname: b\ndescription: fixture b\n---\nbody\n' > "$fx/.claude/skills/b/SKILL.md"
+  cp "$fx/.claude/skills/a/SKILL.md" "$fx/.codex/skills/a/SKILL.md"
+  cp "$fx/.claude/skills/a/SKILL.md" "$fx/.gemini/skills/a/SKILL.md"
+  local fm="$fx/manifest.yaml"
+  {
+    printf '%s\n' 'trees:'
+    printf '%s\n' '  - .agents/skills|carry|no'
+    printf '%s\n' '  - .codex/skills|drop|yes'
+    printf '%s\n' '  - .gemini/skills|drop|yes'
+    printf '%s\n' 'exclusions:'
+    printf '%s\n' '  - .codex/skills|b|fixture: b is intentionally not offered to codex'
+  } > "$fm"
+
+  out="$(hsk_check_parity "$fx" "$fm")" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_110: fixture expected to still redden on .gemini/skills/b (not excluded there), got clean"
+  case "$out" in
+    *"PARITY missing .codex/skills/b"*)
+      log_fail "test_110: the manifest exclusion (.codex/skills, b, reason) must forgive that ONE pair, but it was still reported missing: $out" ;;
+  esac
+  case "$out" in
+    *"PARITY missing .gemini/skills/b"*) ;;
+    *) log_fail "test_110: the SAME skill 'b', missing from .gemini/skills (NOT excluded there), must still be reported: $out" ;;
+  esac
+
+  log_pass "test_110: mirror trees carry exactly .claude/skills' skill set; an exclusion forgives exactly the one declared (tree, skill) pair (TEST-001, TEST-005 exclusion half)"
+}
+
+test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-AC-02
+  log_info "test_111: sync-harness-skills.mjs --check is clean post-normalization, --write is then a no-op, and both generated READMEs list the full set (TEST-002, TEST-003)..."
+  local gen="$PROJECT_ROOT/$HSK_GENERATOR_REL"
+  [[ -f "$gen" ]] || log_fail "test_111: missing $HSK_GENERATOR_REL"
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+
+  local out rc
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_111: --check must exit 0 on the normalized tree, got $rc:"$'\n'"$out"
+
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must exit 0, got $rc: $out"
+  (cd "$PROJECT_ROOT" && git diff --quiet -- .agents/skills .codex/skills .gemini/skills) \
+    || log_fail "test_111: --write after a clean --check must change no bytes in the mirror trees (idempotence)"
+
+  # TEST-003 — the README indexes list the FULL live set, not the old 22-of-39.
+  local n_skills n t
+  n_skills="$(hsk_skill_dirs "$PROJECT_ROOT/.claude/skills" | grep -c .)"
+  for t in .codex .gemini; do
+    n="$("$PGQ_GREP_BIN" -cE '^- `/aai-' "$PROJECT_ROOT/$t/skills/README.md")" || n=0
+    [[ "$n" -eq "$n_skills" ]] \
+      || log_fail "test_111: $t/skills/README.md lists $n skills, want the full live set of $n_skills"
+  done
+  log_pass "test_111: generator --check clean, --write idempotent, both READMEs list the full $n_skills-skill set (TEST-002, TEST-003)"
+}
+
+test_112_generator_refuses_bad_manifest() {  # TEST-004 / Spec-AC-03, TEST-005 / Spec-AC-06 (stale/reasonless halves)
+  log_info "test_112: generator refuses an undeclared tree and a stale or reason-less exclusion, exit 2 naming the offender (TEST-004, TEST-005 stale/reasonless halves)..."
+  local gen="$PROJECT_ROOT/$HSK_GENERATOR_REL"
+  [[ -f "$gen" ]] || log_fail "test_112: missing $HSK_GENERATOR_REL"
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  TEST_DIR="${TEST_DIR:-$(ap_tmpdir)}"
+  local fx="$TEST_DIR/t112-fixture"
+  rm -rf "$fx"
+  mkdir -p "$fx/.claude/skills/a" "$fx/.agents/skills/a" "$fx/.codex/skills/a" "$fx/.gemini/skills/a"
+  printf -- '---\nname: a\ndescription: fixture a\n---\nbody\n' > "$fx/.claude/skills/a/SKILL.md"
+  cp "$fx/.claude/skills/a/SKILL.md" "$fx/.agents/skills/a/SKILL.md"
+  cp "$fx/.claude/skills/a/SKILL.md" "$fx/.codex/skills/a/SKILL.md"
+  cp "$fx/.claude/skills/a/SKILL.md" "$fx/.gemini/skills/a/SKILL.md"
+
+  local out rc
+
+  # (a) Spec-AC-03 — the .codex/skills row is deleted from the manifest.
+  {
+    printf '%s\n' 'trees:'
+    printf '%s\n' '  - .agents/skills|carry|no'
+    printf '%s\n' '  - .gemini/skills|drop|yes'
+    printf '%s\n' 'exclusions:'
+  } > "$fx/m-no-codex.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$fx" --manifest "$fx/m-no-codex.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(a): undeclared tree must exit 2, got $rc: $out"
+  case "$out" in
+    *".codex/skills"*) ;;
+    *) log_fail "test_112(a): the refusal must name the offending tree .codex/skills, got: $out" ;;
+  esac
+
+  local base_manifest="trees:
+  - .agents/skills|carry|no
+  - .codex/skills|drop|yes
+  - .gemini/skills|drop|yes
+exclusions:"
+
+  # (b) Spec-AC-06 — an exclusion with an empty reason.
+  printf '%s\n  - .codex/skills|a|\n' "$base_manifest" > "$fx/m-empty-reason.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$fx" --manifest "$fx/m-empty-reason.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(b): an exclusion with an empty reason must exit 2, got $rc: $out"
+
+  # (c) Spec-AC-06 — an exclusion naming a skill absent from .claude/skills.
+  printf '%s\n  - .codex/skills|aai-does-not-exist|some reason\n' "$base_manifest" > "$fx/m-stale.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$fx" --manifest "$fx/m-stale.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(c): a stale exclusion must exit 2, got $rc: $out"
+  case "$out" in
+    *[Ss]"tale exclusion"*) ;;
+    *) log_fail "test_112(c): the refusal must say 'stale exclusion', got: $out" ;;
+  esac
+
+  log_pass "test_112: generator refuses an undeclared tree (naming it) and a stale or reason-less exclusion (TEST-004, TEST-005 stale/reasonless halves)"
+}
+
+test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
+  log_info "test_113: bite proofs for the parity guard in a disposable DETACHED worktree, with unmutated controls (TEST-007)..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+
+  TEST_DIR="${TEST_DIR:-$(ap_tmpdir)}"
+  local wt="$TEST_DIR/t113-worktree"
+  rm -rf "$wt"
+  git -C "$PROJECT_ROOT" worktree add --detach "$wt" HEAD >/dev/null 2>&1 \
+    || log_fail "test_113: could not create a disposable detached worktree at $wt from HEAD"
+  HSK_ACTIVE_WORKTREE="$wt"
+
+  local gen="$wt/$HSK_GENERATOR_REL"
+  [[ -f "$gen" ]] || log_fail "test_113: generator missing in the worktree checkout of HEAD: $gen"
+
+  local out rc
+
+  # CONTROL — the worktree is an unmutated checkout of HEAD; --check must be
+  # clean before any mutation.
+  out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_113 CONTROL: --check on the unmutated worktree must exit 0, got $rc: $out"
+
+  # MUTATION (a) — a new directory added under .claude/skills ONLY.
+  mkdir -p "$wt/.claude/skills/aai-zz-mutant-fixture"
+  printf -- '---\nname: aai-zz-mutant-fixture\ndescription: bite-proof fixture\n---\nbody\n' \
+    > "$wt/.claude/skills/aai-zz-mutant-fixture/SKILL.md"
+  out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_113(a): a new .claude/skills-only directory must redden --check, got exit 0"
+  case "$out" in
+    *"aai-zz-mutant-fixture"*) ;;
+    *) log_fail "test_113(a): FAIL output must name the offending skill, got: $out" ;;
+  esac
+  rm -rf "$wt/.claude/skills/aai-zz-mutant-fixture"
+  out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_113: worktree not clean between mutations (a)->(b), got $rc: $out"
+
+  # MUTATION (b) — a directory deleted from .codex/skills ONLY.
+  rm -rf "$wt/.codex/skills/aai-wrap-up"
+  out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_113(b): a directory deleted from .codex/skills only must redden --check, got exit 0"
+  case "$out" in
+    *".codex/skills/aai-wrap-up"*) ;;
+    *) log_fail "test_113(b): FAIL output must name the offending tree and skill, got: $out" ;;
+  esac
+  git -C "$wt" checkout -- .codex/skills/aai-wrap-up
+  out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_113: worktree not clean between mutations (b)->(c), got $rc: $out"
+
+  # MUTATION (c) — a description line edited in .claude/skills ONLY.
+  local target="$wt/.claude/skills/aai-wrap-up/SKILL.md"
+  [[ -f "$target" ]] || log_fail "test_113(c): fixture skill missing: $target"
+  local mutated="$TEST_DIR/t113-mutated-wrap-up.md"
+  sed 's/^description: .*/description: bite-proof mutated description/' "$target" > "$mutated"
+  cp "$mutated" "$target"
+  out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_113(c): a description edited in .claude/skills only must redden --check, got exit 0"
+  case "$out" in
+    *"aai-wrap-up"*) ;;
+    *) log_fail "test_113(c): FAIL output must name the offending skill, got: $out" ;;
+  esac
+  git -C "$wt" checkout -- .claude/skills/aai-wrap-up/SKILL.md
+  out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_113: worktree not clean after reverting mutation (c), got $rc: $out"
+
+  # SELF-BINDING (HAZ-RESTORE) — the real checkout is never touched; all
+  # mutation happened only inside the disposable worktree.
+  (cd "$PROJECT_ROOT" && git diff --quiet -- .claude/skills .codex/skills .gemini/skills .agents/skills) \
+    || log_fail "test_113: the tracked mirror trees changed in the REAL checkout — mutation must be confined to the disposable worktree"
+
+  git -C "$PROJECT_ROOT" worktree remove --force "$wt" >/dev/null 2>&1 || true
+  HSK_ACTIVE_WORKTREE=""
+
+  log_pass "test_113: three independent mutations each redden the parity guard naming the offender, with clean unmutated controls before/between/after, in a disposable detached worktree; real tree untouched (TEST-007)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -1669,6 +1977,10 @@ main() {
   test_103_pgq_baseline_is_measured_not_typed
   test_104_pgq_shrink_never_lowers_the_bar
   test_105_converted_sites_keep_their_needles
+  test_110_skill_set_parity
+  test_111_generator_check_clean_and_idempotent
+  test_112_generator_refuses_bad_manifest
+  test_113_bite_proofs_in_detached_worktree
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
