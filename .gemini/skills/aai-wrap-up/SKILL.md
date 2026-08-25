@@ -1,6 +1,6 @@
 ---
 name: aai-wrap-up
-description: Session wrap-up ritual. Captures learnings, summarizes accomplishments, proposes LEARNED.md rules, checks uncommitted work, and prepares next session context. Trigger phrases: "wrap up", "end session", "done for today", "hotovo", "konec", "bye".
+description: Use when ending a development session to capture learnings, summarize accomplishments, propose LEARNED.md rules, and prepare next session context. Trigger phrases: "wrap up", "end session", "done for today", "hotovo", "konec", "bye".
 ---
 
 <SUBAGENT-STOP>

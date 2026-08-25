@@ -1,6 +1,6 @@
 ---
 name: aai-release
-description: Cut a release — roll CHANGELOG.md [unreleased] into a versioned section, commit, tag, publish a GitHub release, and push. Use when Gemini needs to cut or preview a release for the current project. Operator-gated confirm with a safe default dry-run.
+description: Use when a validated scope is ready to ship a release — rolls CHANGELOG.md [unreleased] into a versioned section, commits, tags, publishes a GitHub release, and pushes, behind an operator-gated confirm with a safe default dry-run.
 ---
 
 Read the file `.aai/SKILL_RELEASE.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-release`.

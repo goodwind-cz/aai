@@ -1,6 +1,6 @@
 ---
 name: aai-replay
-description: Surface relevant past learnings for the current work context. Searches LEARNED.md, PATTERNS.md, FACTS.md, and decisions.jsonl. Shows only what matters for the task at hand.
+description: Use when starting work on a task to surface relevant past learnings, patterns, and decisions from previous sessions.
 ---
 
 Read the file `.aai/SKILL_REPLAY.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-replay`.

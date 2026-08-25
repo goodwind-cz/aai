@@ -1,7 +1,12 @@
 ---
 name: aai-issues
-description: Open platform issue fetch, triage, and approved-intake handoff. Reads gh issue list (or az boards work items), never runs automatically, and writes back to the issue only after its ride's PR merges.
+description: Use when you want open platform issues fetched, triaged and turned into approved intakes
 ---
+
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific role (Planning, Implementation, Validation, Remediation), skip this skill. This skill is only for top-level use initiated by the user or orchestrator.
+</SUBAGENT-STOP>
+
 
 Read the file `.aai/SKILL_ISSUES.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-issues`.
 
