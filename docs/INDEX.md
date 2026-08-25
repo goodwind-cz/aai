@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-25T04:44:04.039Z
+Generated: 2026-08-25T04:45:29.836Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0153 | specs | implementing | 10 planned | docs/specs/SPEC-0153-spec-close-leaves-state-stale.md |
 
 ## Canonical layer (0)
 
@@ -49,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (366)
+## Done (368)
 
 | ID | Type | Path |
 |---|---|---|
@@ -252,6 +251,7 @@ _None._
 | ISSUE-0031 | issues | docs/issues/ISSUE-0031-test-canon-drift-detection.md |
 | ISSUE-0032 | issues | docs/issues/ISSUE-0032-intake-numbers-some-doc-types-immediately.md |
 | ISSUE-0033 | issues | docs/issues/ISSUE-0033-index-arm-diffs-whole-file-for-a-path-claim.md |
+| ISSUE-0035 | issues | docs/issues/ISSUE-0035-close-leaves-state-stale.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -418,13 +418,12 @@ _None._
 | SPEC-0150 | specs | docs/specs/SPEC-0150-spec-a-branch-diff-pin-taxes-every-later-scope.md |
 | SPEC-0151 | specs | docs/specs/SPEC-0151-spec-validation-defers-the-ac-flip-to-close.md |
 | SPEC-0152 | specs | docs/specs/SPEC-0152-spec-single-writer-canon-contradiction.md |
+| SPEC-0153 | specs | docs/specs/SPEC-0153-spec-close-leaves-state-stale.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (1)
+## Drafts (0)
 
-| ID | Type | Path |
-|---|---|---|
-| ISSUE-0035 | issues | docs/issues/ISSUE-0035-close-leaves-state-stale.md |
+_None._
 
 ## Deferred (whole-doc) (0)
 

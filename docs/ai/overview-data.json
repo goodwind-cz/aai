@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-08-25T04:42:10.556Z",
+  "generatedAt": "2026-08-25T04:45:02.610Z",
   "project": "aai",
   "counts": {
-    "delivered": 211,
-    "in_progress": 2,
+    "delivered": 212,
+    "in_progress": 1,
     "releases": 1,
     "tokens_total": 49871252
   },
@@ -65,19 +65,6 @@
   },
   "in_progress": [
     {
-      "ref": "close-leaves-state-stale",
-      "title": "Close ceremony leaves STATE lying and the dispatcher serves the closed scope",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0035-close-leaves-state-stale.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0153-spec-close-leaves-state-stale.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-20260825T043541Z-close-leaves-state-stale-round2.md"
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -92,6 +79,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "close-leaves-state-stale",
+      "title": "Close ceremony leaves STATE lying and the dispatcher serves the closed scope",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0035-close-leaves-state-stale.md",
+      "closed_on": "2026-08-25",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0153-spec-close-leaves-state-stale.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260825T043541Z-close-leaves-state-stale-round2.md"
+    },
     {
       "ref": "the-registry-has-no-outflow",
       "title": "Change — the follow-up registry has an intake mandate and no outflow",
@@ -2842,6 +2842,19 @@
       "kind": "month",
       "label": "2026-08",
       "items": [
+        {
+          "ref": "close-leaves-state-stale",
+          "title": "Close ceremony leaves STATE lying and the dispatcher serves the closed scope",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0035-close-leaves-state-stale.md",
+          "closed_on": "2026-08-25",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0153-spec-close-leaves-state-stale.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20260825T043541Z-close-leaves-state-stale-round2.md"
+        },
         {
           "ref": "the-registry-has-no-outflow",
           "title": "Change — the follow-up registry has an intake mandate and no outflow",

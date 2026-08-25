@@ -1932,3 +1932,9 @@
 {"v":1,"ts":"2026-08-24T17:36:46.644Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-single-writer-canon-contradiction","payload":{"commit":"205239a"}}
 {"v":1,"ts":"2026-08-24T23:10:52.921Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-close-leaves-state-stale","payload":{"from":"draft","to":"implementing"}}
 {"v":1,"ts":"2026-08-25T04:24:01.505Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"close-leaves-state-stale","payload":{"status":"pass","hash":"c77934b3dfcd0b4b199fb8f0a25bd1136b4ed615bf9dcd05e32fb9373ea9d504"}}
+{"v":1,"ts":"2026-08-25T04:44:54.908Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"close-leaves-state-stale","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-25T04:44:54.944Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"close-leaves-state-stale","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-25T04:44:54.976Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"close-leaves-state-stale","payload":{"commit":"c74b2e3"}}
+{"v":1,"ts":"2026-08-25T04:44:55.007Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-close-leaves-state-stale","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-25T04:44:55.045Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-close-leaves-state-stale","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-25T04:44:55.080Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-close-leaves-state-stale","payload":{"commit":"c74b2e3"}}

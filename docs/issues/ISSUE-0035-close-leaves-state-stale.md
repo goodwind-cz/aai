@@ -2,10 +2,12 @@
 id: close-leaves-state-stale
 type: issue
 number: 35
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 290
+  commits:
+    - c74b2e3
 ---
 
 # Close ceremony leaves STATE lying and the dispatcher serves the closed scope
