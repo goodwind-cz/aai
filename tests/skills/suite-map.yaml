@@ -360,11 +360,19 @@ suites:
       - docs/USER_GUIDE.md
       - docs/SKILL_CATALOG.html
       - .claude/skills/**/SKILL.md
+      - .agents/skills/**/SKILL.md
       - .codex/skills/**/SKILL.md
       - .gemini/skills/**/SKILL.md
       - hooks/session-start.sh
       - hooks/session-start.ps1
       - hooks/hooks.json
+      # harness-surfaces-drift-unguarded: the generator + its transform
+      # manifest, the Cursor rule and the root shim are harness surfaces this
+      # suite's parity arms (test_110..113) directly gate.
+      - .aai/scripts/sync-harness-skills.mjs
+      - .aai/system/HARNESS_SKILLS.yaml
+      - .cursor/rules/aai.mdc
+      - AGENTS.md
 
   aai-implementation-mode:
     globs:

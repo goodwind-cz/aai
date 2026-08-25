@@ -145,6 +145,7 @@ core:
   - .aai/scripts/spec-lint.mjs
   - .aai/scripts/spec-scope-edit.mjs
   - .aai/scripts/state.mjs
+  - .aai/scripts/sync-harness-skills.mjs
   - .aai/scripts/tdd-evidence-check.mjs
   - .aai/scripts/triage.ps1
   - .aai/scripts/triage.sh
@@ -154,6 +155,7 @@ core:
   - .aai/system/AUTONOMOUS_LOOP.md
   - .aai/system/DOCS_AI_CANON.list
   - .aai/system/DYNAMIC_SKILLS.md
+  - .aai/system/HARNESS_SKILLS.yaml
   - .aai/system/LOCKS.md
   - .aai/system/MODEL_ROUTING.yaml
   - .aai/system/PRICING.yaml

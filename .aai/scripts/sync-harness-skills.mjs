@@ -8,10 +8,11 @@
 //   .claude/skills is the only hand-authored skill tree. .agents/skills,
 //   .codex/skills and .gemini/skills used to be hand-authored copies that
 //   drifted (stale descriptions, missing <SUBAGENT-STOP> blocks, a
-//   `.Codex/triggers.json` substitution artifact, two README indexes stuck
-//   at 22 of 39 skills). This script makes them GENERATED: body, `name` and
-//   `description` are carried verbatim into every tree; the frontmatter
-//   `model:` key is carried only where the manifest says `carry` (dropped
+//   capitalized `.Codex/` path substituted into a wrapper's runtime-file
+//   reference where the real path is lowercase `.claude/`, two README
+//   indexes stuck at 22 of 39 skills). This script makes them GENERATED:
+//   body, `name` and `description` are carried verbatim into every tree; the
+//   frontmatter `model:` key is carried only where the manifest says `carry` (dropped
 //   elsewhere, matching what those trees already did before this script
 //   existed — neither Codex nor Gemini documents the key). The manifest
 //   (.aai/system/HARNESS_SKILLS.yaml) is the single declared source of that

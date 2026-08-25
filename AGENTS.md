@@ -1,4 +1,4 @@
-# Codex Instructions (Shim)
+# Agent Instructions (Shim)
 
 This file is intentionally minimal to prevent duplicated or conflicting guidance.
 
