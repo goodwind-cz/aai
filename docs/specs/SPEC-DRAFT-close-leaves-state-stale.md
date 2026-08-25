@@ -15,6 +15,62 @@ links:
 
 SPEC-FROZEN: true
 
+## Amendment (post-freeze, 2026-08-25 — validation round-1 F-1)
+
+This is a FROZEN spec, amended after the freeze and disclosed here rather than
+rewritten silently. `SPEC-FROZEN: true` is preserved; the convention is the one
+`docs/specs/SPEC-0132-...md` (`## Amendment`, `## Correction`),
+`docs/specs/SPEC-0072-...md` (`## Scope extension (post-freeze)`, "HONEST
+AMENDMENT") and `docs/specs/SPEC-0142-...md` (an AC amended mid-ride with the
+reason in its Notes cell) already established. Nothing in
+`.aai/workflow/WORKFLOW.md`, `spec-lint.mjs` or `spec-freeze.mjs` defines a
+re-freeze path — `spec-freeze.mjs` is a documented idempotent no-op on an
+already-frozen spec and `spec-lint.mjs` has no immutability rule — so the
+convention IS the mechanism, and it is additive-with-disclosure at every site.
+
+Authority: `docs/ai/decisions.jsonl`, `type: spec_amendment`,
+`ref_id: close-leaves-state-stale`, ts `2026-08-25`. Cause: validation round 1
+finding F-1 (`docs/ai/validation/validation-20260824T234828Z-close-leaves-state-stale-round1.md`),
+raised to a blocker as B-2 in round 2
+(`docs/ai/validation/validation-20260825T005913Z-close-leaves-state-stale-round2.md`).
+
+WHAT WAS WRONG. D3's exit-6 bullet asserted that `.aai/SKILL_PR.prompt.md`
+"enumerates only 0/1/2, so no prompt file changes". It does enumerate only
+0/1/2 — but step 5c ALSO carries a BLANKET rule that enumerates nothing: "If
+`close-work-item.mjs` then exits non-zero, REVERT the flip before anything
+else". Exit 6 is the first non-zero exit this repo has ever had where the close
+STOOD (docs already `status: done`, the close event set already emitted, the
+self-verify already CLEAN). An agent obeying the blanket rule after an exit 6
+would revert an AC-table flip on a closed doc — the false-record shape the
+flip-before-close ordering exists to prevent. The zero-byte claim was therefore
+not a design target this scope met; it was a claim that could only be kept by
+shipping a known defect.
+
+WHAT CHANGED. Commit `3ceaf3f` carves exit 6 out of that blanket rule in
+`.aai/SKILL_PR.prompt.md`, at a MEASURED 108 bytes (corpus 314941 -> 315049,
+`cat .aai/*.prompt.md | wc -c`), credited 1 to 1 by one new
+`JUSTIFIED_ADDITIONS` entry in `tests/skills/lib/prompt-diet-ledger.sh`, moving
+the prompt-diet suite's own pin 2284 -> 2392. Four surfaces of this spec are
+amended to say so: D3's exit-6 bullet, Spec-AC-08, `## Verification` step 4 and
+Test Plan row TEST-010. The zero-byte target is NOT abandoned — it still binds
+`.aai/AGENTS.md` and every `.aai/*.prompt.md` file other than
+`.aai/SKILL_PR.prompt.md`, and the permitted delta is pinned to an exact byte
+count, not to a direction.
+
+WHAT IT COST, recorded so the trade is visible: 108 bytes against a corpus with
+0 of 2048 headroom, one ledger entry, one pin move, and this amendment. The
+alternative — reverting `3ceaf3f` to keep Spec-AC-08 literally true — would have
+kept the number and shipped the false-record hazard. The record is worth less
+than the behaviour it describes.
+
+ALSO ADDED BY THIS AMENDMENT: Spec-AC-10 and Test Plan row TEST-012, pinning the
+carve itself (round-2 F-8: the carve is prose no test asserts, so it can be lost
+in a future edit with nothing going red — the same shape as the round-1 sweep
+hole it was written to close). It costs zero corpus bytes: one grep arm in
+`tests/skills/test-aai-close-work-item.sh`, beside TEST-050 which already greps
+the same file. Not implemented by this amendment — it is the next
+implementation round's work, RED first per Spec-AC-07.
+
 ## Links
 - Requirement: docs/issues/ISSUE-DRAFT-close-leaves-state-stale.md
 - Decision records: none new (design decisions D1-D8 recorded in this spec)
@@ -98,6 +154,17 @@ silent half-close" — so this spec takes it, and Article 6 stays intact:
   how many commands applied and echoing the remaining ones verbatim. Exit 6 is
   additive: exits 3/4/5 were added the same way and `.aai/SKILL_PR.prompt.md`
   enumerates only 0/1/2, so no prompt file changes.
+  **AMENDED 2026-08-25 (post-freeze, validation round-1 F-1 — see
+  `## Amendment`).** The clause "so no prompt file changes" was WRONG and is
+  withdrawn. Step 5c's enumeration is not the only rule there: it also carries a
+  BLANKET trigger — "If `close-work-item.mjs` then exits non-zero, REVERT the
+  flip before anything else" — which enumerates nothing and so already covered
+  6. Exit 6 is the one non-zero exit where the close STOOD, so obeying that rule
+  verbatim would revert an AC-table flip on a doc already `status: done`. The
+  carve ships in commit `3ceaf3f`: the trigger reads "non-zero other than 6" and
+  one sentence says exit 6 keeps the flip and runs the echoed remaining
+  `state.mjs` command(s). Measured 108 bytes, ledgered 1 to 1, prompt-diet pin
+  2284 -> 2392.
 
 ### D4 — the single-writer marker is honored, never stripped
 
@@ -208,8 +275,10 @@ as before.
 
 ## Acceptance Criteria Mapping
 - Maps to: docs/issues/ISSUE-DRAFT-close-leaves-state-stale.md "Expected Behavior"
-- Spec-AC-01 .. Spec-AC-09 below; verification commands are named per row in
+- Spec-AC-01 .. Spec-AC-10 below; verification commands are named per row in
   `## Acceptance Criteria Status` and expanded in `## Verification`.
+  (Spec-AC-10 was ADDED 2026-08-25 by the post-freeze amendment; the frozen
+  original read `Spec-AC-01 .. Spec-AC-09`.)
 
 ## Constitution deviations
 
@@ -220,6 +289,22 @@ avoid that), and the R-GUARD marker is never stripped from the child
 environment (D4). Article 4 (degrade and report) governs the named-skip arm;
 Article 5 (additive first) governs exit code 6 and the new snapshot field, both
 of which leave every existing exit code, rule id and snapshot field unchanged.
+
+AMENDED 2026-08-25 — the article-level verdict above is UNCHANGED and still
+`None.`, and this paragraph records why, rather than leaving the post-freeze
+widening unmentioned in the section a reader checks for exactly that. Widening a
+frozen spec mid-ride is a deviation from the FREEZE contract, not from any
+ratified article: `docs/CONSTITUTION.md` v1 has seven articles and none of them
+governs spec immutability. The article that does touch the widened surface is
+Article 5, which names prompts as a public boundary and demands additive,
+documented change — the `3ceaf3f` carve is additive (one enumeration narrowed,
+one sentence appended, no rule removed) and documented in three places (the
+ledger entry, the `## Amendment` section, `docs/ai/decisions.jsonl`), so it
+CONFORMS to Article 5 rather than deviating from it. Article 6 is untouched: the
+carve changes no STATE writer. Recording the widening here as a non-deviation is
+deliberate — the Constitution's own Deviations rule says a silent deviation is
+drift, and the cheapest way to be sure this one is not silent is to name it in
+the place its absence would be read as a claim.
 
 ## Acceptance Criteria Status
 
@@ -234,8 +319,9 @@ Tracks per-Spec-AC delivery state. Separate from per-test lifecycle below.
 | Spec-AC-05 | WHEN decide() receives a snapshot whose close_event_present is true and close_event_superseded_by_reopen is not true the system SHALL never return role Planning from rule 5 or rule 6; it SHALL return verdict needs_llm carrying reason closed_focus_stale_state, while rules 4a and 4b keep firing first on every snapshot where they fire today | planned | — | — | no rule reordering; only the 5 and 6 verdicts are constrained |
 | Spec-AC-06 | WHEN the last doc_lifecycle event with payload from done for the focus ref appears after the last work_item_closed event for that ref the system SHALL set close_event_superseded_by_reopen true and rules 5 and 6 SHALL return the byte-identical dispatch verdict they return today | planned | — | — | the re-open negative control; keeps rule 4b byte-unchanged |
 | Spec-AC-07 | Every new suite arm SHALL be observed FAILING against the pre-change tree in a disposable detached worktree, with the transcript stored under docs/ai/tdd/, before the change that makes it pass | planned | — | — | tdd strategy; RED-first, bite-proof in both directions |
-| Spec-AC-08 | The delivered diff SHALL contain no path listed in protected_paths_l3 of docs/ai/docs-audit.yaml and no byte added to .aai/*.prompt.md or .aai/AGENTS.md, and the full sweep SHALL be green with the prompt-diet TEST-012 pin unchanged at 2284 | planned | — | — | zero in-corpus growth is a design target of D3 and D7, not an accident |
+| Spec-AC-08 | The delivered diff SHALL contain no path listed in protected_paths_l3 of docs/ai/docs-audit.yaml; the ONLY prompt-corpus path it may name is .aai/SKILL_PR.prompt.md carrying the exit-6 carve, at a measured delta of exactly 108 bytes over the corpus at main, with .aai/AGENTS.md and every other .aai/*.prompt.md file byte-unchanged; and the full sweep SHALL be green with that delta credited 1 to 1 by one new prompt-diet ledger entry and the prompt-diet suite pin reading 2392 | planned | — | — | AMENDED 2026-08-25 post-freeze, cause validation round-1 F-1, see the Amendment section. The frozen original read "no byte added to .aai/\*.prompt.md or .aai/AGENTS.md ... TEST-012 pin unchanged at 2284" with the note "zero in-corpus growth is a design target of D3 and D7, not an accident". That target could only be kept by shipping the F-1 defect, so it is narrowed to a named, byte-exact carve rather than dropped: every prompt file except SKILL_PR is still held at zero |
 | Spec-AC-09 | At the close ceremony fu-dispatch-targets-closed-scope SHALL read status done in the registry with resolved_by naming this scope, while fu-setfocus-keeps-stale-spec-path SHALL still read open | planned | — | — | registry outflow; the narrowing note lives in this spec's Notes |
+| Spec-AC-10 | .aai/SKILL_PR.prompt.md step 5c SHALL carry the exit-6 carve in a form a test asserts: within the step, the revert trigger SHALL name a non-zero exit OTHER THAN 6 and a following line SHALL instruct that exit 6 keeps the AC-table flip, and the arm SHALL be observed FAILING when either half is reverted to the pre-carve wording | planned | — | — | ADDED 2026-08-25 by the post-freeze amendment, cause validation round-2 F-8. Zero corpus bytes: one grep arm in tests/skills/test-aai-close-work-item.sh beside TEST-050, which already greps the same file. Not implemented here; RED first per Spec-AC-07 |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 
@@ -299,6 +385,13 @@ Status values: planned | implementing | done | deferred | blocked | rejected
   registration.
 - `tests/skills/suite-map.yaml` needs no edit: both scripts are already globbed
   to their suites (`aai-close-work-item`, `aai-orchestration-dispatch`).
+- ADDED 2026-08-25 by the post-freeze amendment (Spec-AC-10 / TEST-012): one
+  more arm in `tests/skills/test-aai-close-work-item.sh`, next to TEST-050 which
+  already resolves `$SKILL_PR` and greps it. It asserts, inside step 5c, that the
+  revert trigger names an exit other than 6 and that a following line keeps the
+  flip on exit 6. Same `main()` registration obligation
+  (`check-test-registration.mjs`). No new file, no prompt bytes, no suite-map
+  edit.
 
 ### Seams this change crosses
 
@@ -339,8 +432,9 @@ Status values: planned | implementing | done | deferred | blocked | rejected
 | TEST-007 | Spec-AC-06 | int | tests/skills/test-aai-orchestration-dispatch.sh | re-open negative control: EVENTS carrying work_item_closed then a later doc_lifecycle from done sets close_event_superseded_by_reopen true in state_summary, rules 5 and 6 dispatch Planning exactly as before, and the reverse order (re-open then close) leaves it false | pending |
 | TEST-008 | Spec-AC-07 | int | tests/skills/test-aai-close-work-item.sh + tests/skills/test-aai-orchestration-dispatch.sh | bite-proof both directions: in a disposable detached worktree cut from the base ref, TEST-001 through TEST-007 are observed FAILING on the pre-change tree, and each production edit reverted in isolation reddens only its own arms; transcripts stored under docs/ai/tdd/ | pending |
 | TEST-009 | Spec-AC-08 | e2e | tests/skills/test-framework.sh | full framework sweep green, honoring each suite shebang, run under env -u AAI_ROLE | pending |
-| TEST-010 | Spec-AC-08 | unit | tests/skills/test-aai-prompt-diet.sh | TEST-012 still asserts JUSTIFIED_GROWTH_BYTES equals 2284 with no new ledger entry, and the diff's file list intersected with protected_paths_l3 is empty | pending |
+| TEST-010 | Spec-AC-08 | unit | tests/skills/test-aai-prompt-diet.sh | AMENDED 2026-08-25 post-freeze: that suite's own TEST-012 asserts JUSTIFIED_GROWTH_BYTES equals 2392 against a ledger carrying exactly one new entry crediting the measured 108-byte SKILL_PR exit-6 carve, its TEST-010 headroom stays inside 0 to 2048, and the diff's file list intersected with protected_paths_l3 is empty. The frozen original demanded pin 2284 with no new ledger entry | pending |
 | TEST-011 | Spec-AC-09 | int | tests/skills/test-aai-follow-ups.sh | after the close ceremony, follow-ups.mjs list --status all reports fu-dispatch-targets-closed-scope as done resolved by this scope and fu-setfocus-keeps-stale-spec-path as open | pending |
+| TEST-012 | Spec-AC-10 | int | tests/skills/test-aai-close-work-item.sh | ADDED 2026-08-25 by the post-freeze amendment. Grep contract over .aai/SKILL_PR.prompt.md step 5c: the revert trigger names a non-zero exit other than 6 and a following line within the same step instructs that exit 6 keeps the flip. Bite-proved by reverting each half to the pre-carve wording in a disposable detached worktree and observing the arm fail. Numbered TEST-012 in THIS Test Plan only; the prompt-diet suite's own TEST-012 is a different id in a different file | pending |
 
 Test status values: pending -> red -> green
 
@@ -348,21 +442,33 @@ Test status values: pending -> red -> green
 
 Commands, in order, each producing one observable:
 
-1. Spec-AC-01, Spec-AC-02, Spec-AC-03, Spec-AC-04:
+1. Spec-AC-01, Spec-AC-02, Spec-AC-03, Spec-AC-04, and (AMENDED 2026-08-25)
+   Spec-AC-10:
    `env -u AAI_ROLE bash tests/skills/test-aai-close-work-item.sh` -> exit 0,
-   and the new arms named in its PASS lines.
+   and the new arms named in its PASS lines — including the TEST-012 arm this
+   amendment adds, whose PASS line names the exit-6 carve.
 2. Spec-AC-05, Spec-AC-06:
    `env -u AAI_ROLE bash tests/skills/test-aai-orchestration-dispatch.sh` -> exit 0.
 3. Spec-AC-07: the stored RED transcripts under `docs/ai/tdd/` naming each new
    arm and the assertion text it failed on, produced in a worktree created with
    `git worktree add --detach <scratch> main` and removed with
    `git worktree remove <scratch>`.
-4. Spec-AC-08:
+4. Spec-AC-08 — AMENDED 2026-08-25 post-freeze (see `## Amendment`). The frozen
+   original required `git diff --name-only main...HEAD` to carry "no line
+   matching `^\.aai/.*\.prompt\.md$`" and the prompt-diet suite to print 2284;
+   both clauses are replaced by the byte-exact carve below, and the third
+   clause (`protected_paths_l3`) is unchanged:
    `env -u AAI_ROLE bash tests/skills/test-framework.sh` -> exit 0 with zero
    failing suites; `git diff --name-only main...HEAD` -> no line equal to any
-   `protected_paths_l3` entry and no line matching `^\.aai/.*\.prompt\.md$` or
-   `^\.aai/AGENTS\.md$`; `env -u AAI_ROLE bash tests/skills/test-aai-prompt-diet.sh`
-   -> exit 0 with TEST-012 printing 2284.
+   `protected_paths_l3` entry, no line matching `^\.aai/AGENTS\.md$`, and the
+   lines matching `^\.aai/.*\.prompt\.md$` are exactly one and equal to
+   `.aai/SKILL_PR.prompt.md`;
+   `/bin/bash -c 'cat .aai/*.prompt.md | wc -c'` at HEAD minus the same measure
+   at `main` -> exactly 108; `git diff main...HEAD -- tests/skills/lib/prompt-diet-ledger.sh`
+   -> exactly one added `JUSTIFIED_ADDITIONS` line and its leading integer is
+   108; `env -u AAI_ROLE bash tests/skills/test-aai-prompt-diet.sh` -> exit 0
+   with that suite's TEST-012 printing 2392 and its TEST-010 headroom inside
+   0 to 2048.
 5. Spec-AC-09: `node .aai/scripts/follow-ups.mjs list --status all` -> one line
    showing `fu-dispatch-targets-closed-scope` done, one showing
    `fu-setfocus-keeps-stale-spec-path` open.
@@ -416,6 +522,25 @@ arm (Spec-AC-07) plus the full verification matrix above.
   fix should make unreachable on a healthy ride. Recorded here so an operator who
   wants the autonomous recovery can ask for it as an explicit follow-up rather
   than discovering the omission.
+- ADDED 2026-08-25 (post-freeze amendment) — round-2 F-9 is a NAMED RESIDUAL of
+  this scope, deliberately NOT fixed here, and it is filed as
+  `fu-closeworkitem-pin-tail-wording` (P3). Both the `EXIT CONTRACT` header for
+  code 6 in `.aai/scripts/close-work-item.mjs` and the matching
+  `CLOSE_WORK_ITEM_ALLOWED_HASHES` entry say the reconcile runs "strictly AFTER
+  the existing try/catch". That is literally true of the full write path only:
+  on the D6.2 idempotency short-circuit the reconcile is reached BEFORE the try
+  block, which that tail never enters. The load-bearing invariant — the reconcile
+  is outside the D6 snapshot/rollback transaction on BOTH tails — is true either
+  way, and no Spec-AC in this spec claims the wording, so unlike B-2 nothing on
+  the record becomes false by leaving it. Why it is successor material rather
+  than in scope: the half that matters is the header inside
+  `close-work-item.mjs`, and editing that file moves the very hash this scope
+  just pinned, forcing an allowlist re-pin plus a re-proof of both consumer
+  suites (`test-aai-follow-ups.sh` TEST-008 and `test-aai-doc-numbering.sh`
+  TEST-029) for zero behavioural gain; fixing only the cheap half (the pin
+  script, which does not move the hash) would leave the two texts disagreeing,
+  which is strictly worse than both being slightly imprecise. The successor fixes
+  both in one commit with the re-pin.
 - The intake's live check ("next real ride's first post-merge tick reaches rule
   4b with no hand edits") holds when the close ran in the checkout the next tick
   reads. When the close ran in a linked worktree (D6), the main checkout's STATE

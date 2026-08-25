@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-24T23:12:03.376Z
+Generated: 2026-08-25T01:49:47.696Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-close-leaves-state-stale | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-close-leaves-state-stale.md |
+| spec-close-leaves-state-stale | specs | implementing | 10 planned | docs/specs/SPEC-DRAFT-close-leaves-state-stale.md |
 
 ## Canonical layer (0)
 
@@ -455,4 +455,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-24 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-25 — counts above use this date for overdue checks.
