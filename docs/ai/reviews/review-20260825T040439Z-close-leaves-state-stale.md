@@ -3,7 +3,7 @@
 - ref_id: `close-leaves-state-stale`
 - branch: `fix/post-close-state-truth` @ `5eb5ce4`
 - scope: `git diff main..HEAD` (13 files, 10 commits `e23d4f2..5eb5ce4`)
-- spec: `docs/specs/SPEC-DRAFT-close-leaves-state-stale.md` (SPEC-FROZEN, amended post-freeze 2026-08-25; 10 Spec-ACs, all rows `planned` per VALIDATION rule 8a)
+- spec: `docs/specs/SPEC-0153-spec-close-leaves-state-stale.md` (SPEC-FROZEN, amended post-freeze 2026-08-25; 10 Spec-ACs, all rows `planned` per VALIDATION rule 8a)
 - reviewer: dispatched subagent, read-only on implementation files
 - started_utc: 2026-08-25T03:55:06Z
 - ended_utc: 2026-08-25T04:08:28Z (system clock; the report body was written before this stamp and the stamp captured at commit time)
@@ -11,7 +11,7 @@
 ```yaml
 review:
   scope: main..HEAD (fix/post-close-state-truth @ 5eb5ce4)
-  spec: docs/specs/SPEC-DRAFT-close-leaves-state-stale.md
+  spec: docs/specs/SPEC-0153-spec-close-leaves-state-stale.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -50,7 +50,7 @@ review:
       - { rank: NON-BLOCKING, file: .aai/scripts/close-work-item.mjs, line: 1388,
           issue: "statePlan is computed pre-write; applyStateReconcile runs after the doc writes, self-verify, pruneBriefs, four best-effort regens and the friction capture. The plan replays `--phase <value read at plan time>`.",
           failure_scenario: "A concurrent state.mjs writer advancing the item's phase inside that multi-second window has its advance overwritten by the reconcile's stale --phase. Narrow (STATE is single-writer by discipline) but unguarded and untested." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-close-leaves-state-stale.md, line: 429,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0153-spec-close-leaves-state-stale.md, line: 429,
           issue: "The Edge cases bullet claims 'TEST-005 asserts the new verdict explicitly' for a closed focus with a required-but-unsatisfied review. The delivered TEST-005 (test_046) has no such arm — all seven cases run review.required: false.",
           failure_scenario: "The behaviour is correct (I probed decide() directly: needs_llm rule 6 closed_focus_stale_state), but at close the Spec-AC-05 Evidence cell would cite a test that does not cover the case the spec says it covers — a false record of the exact class this ride removes." }
       - { rank: NON-BLOCKING, file: docs/ai/decisions.jsonl, line: 0,

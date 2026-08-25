@@ -11,6 +11,47 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(close-dispatch): the close ceremony tells STATE the truth, and the dispatcher stops planning a finished scope (ISSUE-0035 / SPEC-0153) [L2]
+
+- After a successful close, `docs/ai/STATE.yaml` kept describing the finished
+  work item as `in_progress` with `spec_path` pointing at the pre-allocation
+  `*-DRAFT-*` file the allocator had already renamed. The next orchestration
+  tick then dispatched Planning at the closed ref — three manual recoveries on
+  one ride (2026-08-24/25) and four hand edits on 2026-08-14
+  (`fu-dispatch-targets-closed-scope`).
+- `close-work-item.mjs` now reconciles STATE after its self-verify audit
+  passes: work item `done`, `spec_path`/`primary_path` pointed at the files
+  that exist at close time, `current_focus` reconciled when it names the same
+  scope. It writes only through the sanctioned `state.mjs` CLI — never a raw
+  STATE byte — so Article 6 stays intact, and it runs outside the D6
+  rollback scope by construction.
+- Failure is named, never silent: nothing-written cases (STATE absent, the
+  R-GUARD refusal, the first command failing) print one `WARN
+  (state-reconcile)` line and exit 0; a genuine mid-apply partial prints
+  `PARTIAL (state-reconcile)` and exits **6**, a deliberately widened exit
+  contract re-affirmed in the shared content-hash allowlist. A repo whose docs
+  are closed but whose STATE is stale now self-recovers on a re-run.
+- `orchestration-dispatch.mjs` rules 5 and 6 no longer dispatch Planning at a
+  focus ref carrying a committed close event; they return `needs_llm
+  closed_focus_stale_state`. Rule order and every other verdict are unchanged
+  (differential over 1,259,712 snapshots: zero drift outside the sanctioned
+  shape). Re-opening stays possible — a new `close_event_superseded_by_reopen`
+  snapshot field distinguishes a later re-open from a stale close.
+- `SKILL_PR` step 5c's blanket "any non-zero exit → revert the AC flip" is
+  carved for exit 6, the first non-zero exit where the close STOOD; reverting
+  there would have corrupted the very record the ordering protects.
+- Six new pinning arms across the two suites, each bite-proved by mutation
+  with controls. One arm was deleted again after review proved it caught no
+  inversion, rejected lawful rewording, and shipped a false justification.
+- Prompt-diet: +108 B measured for the SKILL_PR carve, one ledger entry, pin
+  2284 → 2392. The frozen spec's zero-byte claim was AMENDED in place with
+  disclosure rather than quietly outgrown, with the trade-off recorded in
+  `decisions.jsonl` — including that canon assigns scope changes to HITL and
+  this one was taken under a standing autonomy mandate.
+- Registry: closes `fu-dispatch-targets-closed-scope`; narrows (does not
+  close) `fu-setfocus-keeps-stale-spec-path`; files
+  `fu-closeworkitem-pin-tail-wording` (P3).
+
 ## [unreleased] — fix(canon): dispatch decides who writes STATE, and the serial guard is finally armed (CHANGE-0165 / SPEC-0152) [L2]
 
 - The single-writer rule existed in two contradictory renderings: SUBAGENT_CONTRACT

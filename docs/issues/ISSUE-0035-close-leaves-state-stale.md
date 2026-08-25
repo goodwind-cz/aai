@@ -1,7 +1,7 @@
 ---
 id: close-leaves-state-stale
 type: issue
-number: null
+number: 35
 status: draft
 links:
   pr: []

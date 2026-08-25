@@ -1,7 +1,7 @@
 ---
 id: spec-close-leaves-state-stale
 type: spec
-number: null
+number: 153
 status: implementing
 ceremony_level: 2
 links:
@@ -81,7 +81,7 @@ the same file. Not implemented by this amendment — it is the next
 implementation round's work, RED first per Spec-AC-07.
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-close-leaves-state-stale.md
+- Requirement: docs/issues/ISSUE-0035-close-leaves-state-stale.md
 - Decision records: none new (design decisions D1-D8 recorded in this spec)
 - Technology contract: docs/TECHNOLOGY.md
 
@@ -279,11 +279,11 @@ as before.
   .aai/scripts/orchestration-dispatch.mjs,
   tests/skills/test-aai-close-work-item.sh,
   tests/skills/test-aai-orchestration-dispatch.sh,
-  docs/specs/SPEC-DRAFT-close-leaves-state-stale.md,
-  docs/issues/ISSUE-DRAFT-close-leaves-state-stale.md
+  docs/specs/SPEC-0153-spec-close-leaves-state-stale.md,
+  docs/issues/ISSUE-0035-close-leaves-state-stale.md
 
 ## Acceptance Criteria Mapping
-- Maps to: docs/issues/ISSUE-DRAFT-close-leaves-state-stale.md "Expected Behavior"
+- Maps to: docs/issues/ISSUE-0035-close-leaves-state-stale.md "Expected Behavior"
 - Spec-AC-01 .. Spec-AC-10 below; verification commands are named per row in
   `## Acceptance Criteria Status` and expanded in `## Verification`.
   (Spec-AC-10 was ADDED 2026-08-25 by the post-freeze amendment; the frozen
@@ -481,7 +481,7 @@ Commands, in order, each producing one observable:
 5. Spec-AC-09: `node .aai/scripts/follow-ups.mjs list --status all` -> one line
    showing `fu-dispatch-targets-closed-scope` done, one showing
    `fu-setfocus-keeps-stale-spec-path` open.
-6. Document gates: `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-close-leaves-state-stale.md`
+6. Document gates: `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0153-spec-close-leaves-state-stale.md`
    -> exit 0; `node .aai/scripts/docs-audit.mjs --check --strict --no-event` -> CLEAN.
 
 PASS criteria: every TEST-xxx green AND every Spec-AC in a terminal status.

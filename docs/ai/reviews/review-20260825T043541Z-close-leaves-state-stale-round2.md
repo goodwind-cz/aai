@@ -3,7 +3,7 @@
 - ref_id: `close-leaves-state-stale`
 - branch: `fix/post-close-state-truth` @ `fc788d4`
 - scope: `git diff main..HEAD` (14 files, 11 commits `e23d4f2..fc788d4`); primary attention on the remediation commit `fc788d4`
-- spec: `docs/specs/SPEC-DRAFT-close-leaves-state-stale.md` (SPEC-FROZEN, amended post-freeze 2026-08-25; 10 Spec-ACs, all rows `planned` per VALIDATION rule 8a — re-checked, still all `planned`)
+- spec: `docs/specs/SPEC-0153-spec-close-leaves-state-stale.md` (SPEC-FROZEN, amended post-freeze 2026-08-25; 10 Spec-ACs, all rows `planned` per VALIDATION rule 8a — re-checked, still all `planned`)
 - prior round: `docs/ai/reviews/review-20260825T040439Z-close-leaves-state-stale.md` (FAIL on P1-1)
 - reviewer: fresh dispatched subagent, read-only on implementation files; every ruling below is from a command I ran myself
 - started_utc: 2026-08-25T04:24:37Z
@@ -12,7 +12,7 @@
 ```yaml
 review:
   scope: main..HEAD (fix/post-close-state-truth @ fc788d4)
-  spec: docs/specs/SPEC-DRAFT-close-leaves-state-stale.md
+  spec: docs/specs/SPEC-0153-spec-close-leaves-state-stale.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -83,7 +83,7 @@ review:
 | 6 | `env -u AAI_ROLE bash tests/skills/test-aai-follow-ups.sh` | 0 | all passed |
 | 7 | `node .aai/scripts/check-test-registration.mjs` | 0 | no orphan test functions |
 | 8 | `node .aai/scripts/docs-audit.mjs --check --strict --no-event` | 0 | `Verdict: CLEAN` |
-| 9 | `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-close-leaves-state-stale.md` | 0 | `LINT PASS: no structural findings.` |
+| 9 | `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0153-spec-close-leaves-state-stale.md` | 0 | `LINT PASS: no structural findings.` |
 | 10 | `shasum -a 256 .aai/scripts/close-work-item.mjs` | 0 | `7e8757291b7b5e61d9aef3005f193361ff91f49575f3cb1ee4072a86ad696060`; `grep -c` in `tests/skills/lib/close-work-item-pin.sh` -> 1 |
 | 11 | `git show --name-only --format= fc788d4` | 0 | `docs/INDEX.md`, `docs/ai/decisions.jsonl`, the two test files — **no production file** |
 | 12 | `/bin/bash -c 'cat .aai/*.prompt.md \| wc -c'` at HEAD vs main blobs | 0 | `315049` vs `314941` -> **delta exactly 108** |
@@ -122,7 +122,7 @@ Now every sentence of the replacement comment (`:2694-2702`), challenged:
 
 ## 3. Q-5 — the new test_046 case 8 asserts what the spec claims, and it bites
 
-Spec `docs/specs/SPEC-DRAFT-close-leaves-state-stale.md:425-429`: *"A closed focus with a required-but-unsatisfied review reaches rule 6 today and gets Planning; under D7 it gets `needs_llm closed_focus_stale_state`. … TEST-005 asserts the new verdict explicitly."*
+Spec `docs/specs/SPEC-0153-spec-close-leaves-state-stale.md:425-429`: *"A closed focus with a required-but-unsatisfied review reaches rule 6 today and gets Planning; under D7 it gets `needs_llm closed_focus_stale_state`. … TEST-005 asserts the new verdict explicitly."*
 
 Case 8 (`tests/skills/test-aai-orchestration-dispatch.sh:3085-3099`) builds exactly that snapshot — `spec.frontmatter_status = 'done'`, `close_event_present = true`, `close_event_superseded_by_reopen = false`, `review = { required: true, status: 'not_run' }` — and asserts `verdict === 'needs_llm'`, `rule === '6'`, `role === null`, `reasons.includes('closed_focus_stale_state')`. That is the spec's sentence, clause for clause. **The spec sentence is now true; no further amendment is needed** — the Test Plan's TEST-005 row describes a set of cases without claiming exhaustiveness, so an added case does not contradict it.
 
@@ -142,7 +142,7 @@ Structural check backing Spec-AC-05's universal claim: `/usr/bin/grep -n "dispat
 
 - **Valid JSON**: parses; 10 keys; `ts 2026-08-25T04:18:23Z`, `actor: remediation`.
 - **Append-only**: `head -c $(wc -c < main-copy) docs/ai/decisions.jsonl | cmp -` -> identical. `main` is a byte-exact prefix of HEAD; exactly one line added by `fc788d4` (three across the branch).
-- **Pointer accuracy**: `amends` names *"docs/ai/decisions.jsonl line 551 (ts 2026-08-25T01:52:00Z, type spec_amendment)"* — `sed -n '551p'` is exactly that record. `decision` names *"SPEC-DRAFT-close-leaves-state-stale.md lines 37-45, the '2026-08-25 addendum (round-3 F-14)' paragraph"* — the addendum runs `:37-44` (line 45 is the blank separator), and it does say what the pointer claims: it names `.aai/system/AUTONOMOUS_LOOP.md:25`, states the widening IS a scope change, that canon assigns it to HITL, that prior sign-off was not obtained, that it was disclosed in-session, and that the owner may reverse it. I checked the cited canon line: `sed -n '25p' .aai/system/AUTONOMOUS_LOOP.md` -> *"Resolves disputed decisions, scope changes, and high-impact risk decisions."* Every hop of the citation chain holds.
+- **Pointer accuracy**: `amends` names *"docs/ai/decisions.jsonl line 551 (ts 2026-08-25T01:52:00Z, type spec_amendment)"* — `sed -n '551p'` is exactly that record. `decision` names *"SPEC-0153-spec-close-leaves-state-stale.md lines 37-45, the '2026-08-25 addendum (round-3 F-14)' paragraph"* — the addendum runs `:37-44` (line 45 is the blank separator), and it does say what the pointer claims: it names `.aai/system/AUTONOMOUS_LOOP.md:25`, states the widening IS a scope change, that canon assigns it to HITL, that prior sign-off was not obtained, that it was disclosed in-session, and that the owner may reverse it. I checked the cited canon line: `sed -n '25p' .aai/system/AUTONOMOUS_LOOP.md` -> *"Resolves disputed decisions, scope changes, and high-impact risk decisions."* Every hop of the citation chain holds.
 - **Not a retro-authorization**: the record's `authority` is its own provenance (*"code review Q-6, … remediated per dispatch"*), not a claim of owner approval; the `finding` says in plain words that no prior owner sign-off was obtained. It reads as a disclosure pointer, which is what Q-6 asked for. The phrase *"under the owner's standing autonomy mandate"* recurs here as the actor's stated basis — still unevidenced, still in my cannot_verify list, now in two artifacts instead of one.
 - One nit (R2-4, INFO): the record is typed `spec_amendment` although it amends a *ledger record*, not the spec. A future query for `type: spec_amendment && ref_id: close-leaves-state-stale` now returns two records where one spec amendment occurred. No tool consumes the field today (`follow-ups.mjs` reads only `follow_up` / `follow_up_status`), and the record's own `amends` string is unambiguous, so this is cosmetic.
 
