@@ -2675,6 +2675,40 @@ test_054_state_reconcile_warn_and_partial() {
   log_pass "STATE reconcile WARN (AAI_ROLE + first-command failure) and PARTIAL (second-command failure, exit 6) arms behave per D3 (TEST-054 / spec TEST-004)"
 }
 
+# --- TEST-055 (spec TEST-012, Spec-AC-10): the exit-6 carve in SKILL_PR step
+# 5c is pinned as substance, not a surviving token. Reverting either half back
+# to the pre-carve wording (commit 3ceaf3f^) must turn this red.  -----------
+
+test_055_skill_pr_exit6_carve_pinned() {
+  log_info "Test: SKILL_PR step 5c exit-6 carve is pinned — revert trigger names an exit OTHER THAN 6, and a following instruction keeps the flip and runs the echoed remaining state.mjs command(s) on exit 6 (spec-close-leaves-state-stale TEST-012 / Spec-AC-10)..."
+
+  # Isolate step 5c's own text so a match elsewhere in the file (e.g. a
+  # decoy sentence living in an unrelated step) cannot satisfy this arm.
+  local block
+  block=$(awk '/^5d\./{exit} /^5c\. CLOSE THE WORK ITEM/{flag=1} flag' "$SKILL_PR")
+  [[ -n "$block" ]] || log_fail "t055: could not isolate step 5c's text in $SKILL_PR"
+
+  # Assertion 1 — the revert trigger names a non-zero exit OTHER THAN 6, on
+  # the single physical line that ties the exception to the REVERT verb.
+  # A decoy that drops "other than 6" (the pre-carve blanket rule) or that
+  # plants the token "other than 6" elsewhere, unconnected to REVERT, fails
+  # this grep.
+  echo "$block" | grep -qF 'non-zero other than 6, REVERT the flip' \
+    || log_fail "t055: step 5c's revert trigger must name a non-zero exit OTHER THAN 6 before reverting the flip (pre-carve blanket wording, or an untied decoy token, must fail this)"
+
+  # Assertion 2 — a following instruction in the SAME step gives exit 6 the
+  # opposite imperative: keep the flip, and complete the echoed remaining
+  # state.mjs command(s) rather than reverting. Join the block's wrapped
+  # lines into one string first, since this sentence wraps across two
+  # physical lines in the shipped file.
+  local joined
+  joined=$(printf '%s\n' "$block" | tr '\n' ' ' | tr -s ' ')
+  printf '%s' "$joined" | grep -qF 'Exit 6 means the close STOOD: keep the flip; run the echoed remaining state.mjs command(s).' \
+    || log_fail "t055: step 5c must instruct that exit 6 KEEPS the flip and runs the echoed remaining state.mjs command(s), not just mention exit 6 in passing"
+
+  log_pass "SKILL_PR step 5c exit-6 carve pinned as substance: exit 6 is the one non-zero exit where the flip STAYS (TEST-055 / spec TEST-012)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -2738,6 +2772,7 @@ main() {
   test_052_state_reconcile_scoping
   test_053_state_reconcile_idempotent_recovery
   test_054_state_reconcile_warn_and_partial
+  test_055_skill_pr_exit6_carve_pinned
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
