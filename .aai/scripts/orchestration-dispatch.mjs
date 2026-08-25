@@ -100,8 +100,8 @@ const RULES = [
   { id: '4', when: '.aai/workflow/WORKFLOW.md missing', then: 'dispatch Bootstrap (.aai/BOOTSTRAP.prompt.md)' },
   { id: '4a', when: 'focus work item done/absent AND focus ref flushed to METRICS.jsonl (spec-dispatch-new-intake-after-completed-scope D1) AND no recorded fail verdict (validation.status !== fail AND review.status !== fail; CHANGE-0036 fail-verdict precedence guard — abstains so decide() falls through to rule 10/12 Remediation instead of burying the failure); exactly one open mappable docs/issues intake (draft/implementing, no done work item) -> retarget; zero -> no_action scope_complete_no_open_intake; 2+/unmappable/scan-failure -> needs_llm named reasons', then: 'dispatch Planning retarget (.aai/PLANNING.prompt.md) to the open intake, or no_action/needs_llm per candidate count' },
   { id: '4b', when: 'focus work item done/absent AND focus ref NOT flushed to METRICS.jsonl AND a committed work_item_closed event for the focus ref exists in docs/ai/EVENTS.jsonl (close ceremony ran — possibly in another session/clone whose local STATE verdicts never traveled) AND no recorded fail verdict AND no unsatisfied required review; closes the close->flush->retarget autonomy gap: without this arm a closed-but-unflushed focus falls to rule 5 and re-offers Planning for a finished scope', then: 'dispatch Metrics Flush (.aai/METRICS_FLUSH.prompt.md); after the flush lands, rule 4a retargets or reports scope_complete_no_open_intake' },
-  { id: '5', when: 'focus spec_path null or spec file missing', then: 'dispatch Planning' },
-  { id: '6', when: 'spec not frozen (no SPEC-FROZEN: true) or frontmatter status not draft/implementing; ceremony L0 (RFC-0009) prunes the status arm (tech-note doc), never the marker arm', then: 'dispatch Planning' },
+  { id: '5', when: 'focus spec_path null or spec file missing; spec-close-leaves-state-stale D7 — a CLOSED focus (close_event_present AND NOT close_event_superseded_by_reopen) never gets Planning here: needs_llm closed_focus_stale_state instead (STATE stayed stale after a close, D8 re-open lane excepted)', then: 'dispatch Planning, or needs_llm closed_focus_stale_state on a closed focus' },
+  { id: '6', when: 'spec not frozen (no SPEC-FROZEN: true) or frontmatter status not draft/implementing; ceremony L0 (RFC-0009) prunes the status arm (tech-note doc), never the marker arm; spec-close-leaves-state-stale D7 — same closed-focus guard as rule 5', then: 'dispatch Planning, or needs_llm closed_focus_stale_state on a closed focus' },
   { id: '7', when: 'implementation_strategy.selected missing or undecided', then: 'dispatch Planning' },
   { id: '8', when: 'worktree.recommendation in {recommended, required} AND user_decision == undecided; ceremony L3 (RFC-0009): undecided gates for ANY recommendation (worktree mandatory)', then: 'dispatch Implementation Preparation / Worktree decision (.aai/SKILL_WORKTREE.prompt.md)' },
   { id: '9x', when: 'phase in {planning done, preparation} AND the frozen spec\'s AC table is fully green AND its AC/test content hash matches the last recorded phase_confirmed event for the ref (or, with no prior confirmation, an implementer agent_run for the ref exists); CHANGE-0120 confirm-by-script', then: 'no action required (phase confirmed by script — NO agent dispatched); with --confirm the tick records a phase_confirmed EVENTS line carrying the hash the next tick compares against. ANY delta, a non-green AC table, or missing prior green falls through to 9a/9b/9c' },
@@ -442,8 +442,17 @@ function decideRuleTable(snapshot, opts = {}) {
       return dispatchFor('Metrics Flush', s, '4b', { reasons: ['closed_but_unflushed_focus'] });
     }
   }
+  // spec-close-leaves-state-stale D7 — a closed focus (the close ceremony ran
+  // and no LATER re-open doc_lifecycle event supersedes it, D8) must never be
+  // handed back to Planning by rules 5/6: STATE simply never caught up with
+  // the close. Rules 4a/4b above are evaluated first and unaffected — a focus
+  // that IS genuinely retargetable/flushable still takes those arms.
+  const closedFocus = s.close_event_present === true && s.close_event_superseded_by_reopen !== true;
   // Rules 5+6 — spec mapping / freeze proxies.
-  if (!s.spec || s.spec.path == null || !s.spec.present) return dispatchFor('Planning', s, '5');
+  if (!s.spec || s.spec.path == null || !s.spec.present) {
+    if (closedFocus) return needsLlm(s, ['closed_focus_stale_state'], '5');
+    return dispatchFor('Planning', s, '5');
+  }
   // Ceremony level (RFC-0009 / spec-scale-adaptive-ceremony): FAIL-CLOSED to 2
   // (full ceremony). Anything outside the declared integer enum — absent field,
   // legacy snapshot, garbage frontmatter token — can only ever ADD ceremony,
@@ -461,6 +470,7 @@ function decideRuleTable(snapshot, opts = {}) {
   // tech-note lives in the intake CHANGE doc, whose status lifecycle is not
   // the spec enum); the SPEC-FROZEN marker arm is never pruned.
   if (!s.spec.frozen || (lvl !== 0 && !['draft', 'implementing'].includes(s.spec.frontmatter_status))) {
+    if (closedFocus) return needsLlm(s, ['closed_focus_stale_state'], '6');
     return dispatchFor('Planning', s, '6');
   }
   // Rule 7 — strategy undecided.
@@ -912,15 +922,26 @@ export function buildSnapshot(statePath, root) {
   // precedent immediately below). Null when no such event has ever been
   // recorded for this ref.
   let lastValidationVerdict = null;
+  // spec-close-leaves-state-stale D8 — re-opening is a real lane: track the
+  // ordinal (array index — the append-only log's own order) of the LAST
+  // work_item_closed and the LAST doc_lifecycle carrying payload.from ===
+  // "done", both for the focus ref, in this SAME scan (no new pass). A later
+  // re-open must supersede an earlier close.
+  let lastWorkItemClosedIdx = -1;
+  let lastReopenFromDoneIdx = -1;
   const eventsPath = path.resolve(root, 'docs/ai/EVENTS.jsonl');
   if (focusRef && fs.existsSync(eventsPath)) {
-    for (const line of fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/)) {
-      const t = line.trim();
+    const eventLines = fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/);
+    for (let evIdx = 0; evIdx < eventLines.length; evIdx += 1) {
+      const t = eventLines[evIdx].trim();
       if (t === '' || t.startsWith('#')) continue;
       try {
         const e = JSON.parse(t);
         if (!refMatches(e.ref, focusRef)) continue;
-        if (e.event === 'work_item_closed') closeEventPresent = true;
+        if (e.event === 'work_item_closed') { closeEventPresent = true; lastWorkItemClosedIdx = evIdx; }
+        else if (e.event === 'doc_lifecycle' && e.payload && e.payload.from === 'done') {
+          lastReopenFromDoneIdx = evIdx;
+        }
         else if (e.event === 'phase_confirmed' && e.payload) {
           lastPhaseConfirm = { phase: e.payload.phase ?? null, hash: e.payload.hash ?? null };
         } else if (e.event === 'validation_verdict' && e.payload) {
@@ -943,6 +964,11 @@ export function buildSnapshot(statePath, root) {
   // side; git failure -> null, same fail-open contract as every other probe
   // here.
   const treeHash = computeTreeHash(root);
+  // spec-close-leaves-state-stale D8 — true only when a close event exists
+  // AND a later re-open doc_lifecycle (from done) follows it in the SAME
+  // append-only log; -1 lastWorkItemClosedIdx (no close event at all) can
+  // never be "superseded".
+  const closeEventSupersededByReopen = lastWorkItemClosedIdx !== -1 && lastReopenFromDoneIdx > lastWorkItemClosedIdx;
   const runs = focusRef ? agentRunsFor(lines, focusRef) : [];
   const openIntakes = buildOpenIntakes(root, focusRef, items);
   const snapshot = {
@@ -960,6 +986,7 @@ export function buildSnapshot(statePath, root) {
     review,
     flushed,
     close_event_present: closeEventPresent,
+    close_event_superseded_by_reopen: closeEventSupersededByReopen,
     last_phase_confirm: lastPhaseConfirm,
     // role-verification-guards G2 — the two staleness-comparison inputs
     // (D2); decide() only ever compares them, never recomputes either.

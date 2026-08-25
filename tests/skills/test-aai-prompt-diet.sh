@@ -413,6 +413,12 @@ test_011_tick_wrappers() {
 }
 
 # TEST-012 (spec TEST-001, SPEC-0059 Spec-AC-01) — JUSTIFIED_GROWTH_BYTES ==
+# 2392 (2026-08-25, close-leaves-state-stale F-1 remediation: .aai/SKILL_PR.prompt.md
+# step 5c's blanket "If close-work-item.mjs then exits non-zero, REVERT the
+# flip" rule is carved to exclude exit 6 (spec-close-leaves-state-stale D3's
+# new PARTIAL-but-stood exit) — the close-work-item.mjs consumer whose F-1
+# finding named this gap. Measured 108 B at zero headroom, credited 1:1, pin
+# moved 2284 -> 2392.
 # 2284 (2026-08-24, round-2 code-review P2-1 remediation:
 # single-writer-canon-contradiction-remediation pays +11 B — ORCHESTRATION's
 # exit-4 needs_llm staleness lane dispatched Validation/Code Review without
@@ -712,7 +718,7 @@ test_012_growth_sum_matches_ledger() {
   # PASS line still printing 859 after the pin moved to 1036 — the second time
   # this message drifted from the check. A number retyped in prose goes stale;
   # a number printed from the constant cannot.
-  local want_growth=2284
+  local want_growth=2392
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

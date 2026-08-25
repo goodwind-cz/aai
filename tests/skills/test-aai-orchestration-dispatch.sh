@@ -2725,10 +2725,12 @@ EOF
   # Spec-AC-05's SECOND clause, the REAL cmp the spec names
   # (validation-20260816T131500Z B3): run the SAME fixture through the
   # pinned PRE-G2 script and the current (post-G2) script; after deleting the
-  # two known-additive state_summary keys from the post-G2 capture, the two
-  # stdout JSON captures must be byte-identical. The decide()-level check
-  # above stays -- it is real and useful -- this is IN ADDITION to it, not
-  # instead of it.
+  # THREE known-additive state_summary keys from the post-G2 capture (the two
+  # original G2 fields, PLUS spec-close-leaves-state-stale D8's
+  # close_event_superseded_by_reopen -- a later, equally-additive snapshot
+  # field this pinned pre-G2 blob predates), the two stdout JSON captures must
+  # be byte-identical. The decide()-level check above stays -- it is real and
+  # useful -- this is IN ADDITION to it, not instead of it.
   local d2; d2="$(mk_root t42c)"
   write_dstate "$d2/docs/ai/STATE.yaml" pass
   git_init_fixture "$d2"
@@ -2753,14 +2755,15 @@ EOF
     if (post.state_summary) {
       delete post.state_summary.tree_hash;
       delete post.state_summary.last_validation_verdict;
+      delete post.state_summary.close_event_superseded_by_reopen;
     }
     const preStr = JSON.stringify(pre);
     const postStr = JSON.stringify(post);
     if (preStr !== postStr) {
-      throw new Error("stdout differs beyond the two additive state_summary keys:\npre=" + preStr + "\npost=" + postStr);
+      throw new Error("stdout differs beyond the three known-additive state_summary keys:\npre=" + preStr + "\npost=" + postStr);
     }
   ' "$pre_out" "$post_out" \
-    || log_fail "TEST-007: non-stale stdout must be byte-identical to the pre-G2 capture once tree_hash/last_validation_verdict are deleted from both sides"
+    || log_fail "TEST-007: non-stale stdout must be byte-identical to the pre-G2 capture once tree_hash/last_validation_verdict/close_event_superseded_by_reopen are deleted from both sides"
 
   # SEAM-3: docs-audit stays CLEAN when EVENTS.jsonl carries the new
   # validation_verdict event type (every consumer filters by explicit ===
@@ -2954,6 +2957,291 @@ test_045_g2_filterdiff_quoted_header_reset() {
   log_pass "G2 filterExcludedDiff: skip state resets on every diff header including an unparseable quoted one, so a real change in a quoted-path file after an excluded ledger still trips the advisory (TEST-014, F1)"
 }
 
+# --- spec-close-leaves-state-stale (TEST-046..047 / spec TEST-005..007) -----
+# Surface 2 — rules 5/6 gain a shared closedFocus precondition (D7); rule
+# order/predicates and every OTHER verdict stay byte-unchanged. D8: a later
+# re-open doc_lifecycle supersedes an earlier close, so the guard never
+# misfires on a legitimately reopened scope.
+
+# --- TEST-046 (spec TEST-005, Spec-AC-05): pure decide() arms ---------------
+
+test_046_closed_focus_stale_state_pure() {
+  log_info "Test: pure decide() — a closed, un-superseded focus never gets rule 5/6 Planning (needs_llm closed_focus_stale_state instead), 4a/4b keep firing first, and the un-closed / superseded / legacy-snapshot cases are all unaffected (spec-close-leaves-state-stale TEST-005, Spec-AC-05)..."
+  cat > "$TEST_DIR/t46.mjs" <<'EOF'
+import assert from 'node:assert';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const { decide } = await import(pathToFileURL(path.join(process.argv[2], '.aai/scripts/orchestration-dispatch.mjs')).href);
+
+const base = () => ({
+  project_status: 'active', human_input_required: false, technology_present: true, workflow_present: true,
+  locks_present: false,
+  focus: { type: 'intake_change', ref_id: 'CHANGE-0001' },
+  work_item: { phase: 'implementation', status: 'in_progress' },
+  spec: { path: 'docs/specs/SPEC-0001-fx.md', present: true, frozen: true, frontmatter_status: 'implementing', ceremony_level: 2 },
+  strategy_selected: 'tdd',
+  worktree: { recommendation: 'optional', user_decision: 'inline' },
+  validation: { status: 'not_run', ref_id: null },
+  review: { required: false, status: 'not_run' },
+  flushed: false,
+  close_event_present: false,
+  close_event_superseded_by_reopen: false,
+  open_intakes: [],
+  implementer_model: null,
+  last_run_role: null,
+});
+
+// (1) closed focus (present, not superseded) + missing spec -> needs_llm rule 5.
+let s = base();
+s.spec = { path: null, present: false, frozen: false, frontmatter_status: null, ceremony_level: 2 };
+s.close_event_present = true;
+s.close_event_superseded_by_reopen = false;
+let d = decide(s);
+assert.strictEqual(d.verdict, 'needs_llm', `expected needs_llm, got ${d.verdict} (${JSON.stringify(d.reasons)})`);
+assert.strictEqual(d.rule, '5');
+assert.strictEqual(d.role, null);
+assert.ok(d.reasons.includes('closed_focus_stale_state'), JSON.stringify(d.reasons));
+
+// (2) closed focus + spec present/frozen but frontmatter status done -> needs_llm rule 6.
+s = base();
+s.spec.frontmatter_status = 'done';
+s.close_event_present = true;
+s.close_event_superseded_by_reopen = false;
+d = decide(s);
+assert.strictEqual(d.verdict, 'needs_llm');
+assert.strictEqual(d.rule, '6');
+assert.strictEqual(d.role, null);
+assert.ok(d.reasons.includes('closed_focus_stale_state'));
+
+// (3) NOT closed (close_event_present false) -> rules 5/6 dispatch Planning exactly as before.
+s = base();
+s.spec = { path: null, present: false, frozen: false, frontmatter_status: null, ceremony_level: 2 };
+d = decide(s);
+assert.strictEqual(d.rule, '5');
+assert.strictEqual(d.verdict, 'dispatch');
+assert.strictEqual(d.role, 'Planning');
+
+s = base();
+s.spec.frontmatter_status = 'done';
+d = decide(s);
+assert.strictEqual(d.rule, '6');
+assert.strictEqual(d.verdict, 'dispatch');
+assert.strictEqual(d.role, 'Planning');
+
+// (4) closed BUT superseded by a later re-open (D8 lane) -> rules 5/6 dispatch
+// Planning exactly as before, never needs_llm.
+s = base();
+s.spec = { path: null, present: false, frozen: false, frontmatter_status: null, ceremony_level: 2 };
+s.close_event_present = true;
+s.close_event_superseded_by_reopen = true;
+d = decide(s);
+assert.strictEqual(d.rule, '5');
+assert.strictEqual(d.verdict, 'dispatch');
+assert.strictEqual(d.role, 'Planning');
+
+s = base();
+s.spec.frontmatter_status = 'done';
+s.close_event_present = true;
+s.close_event_superseded_by_reopen = true;
+d = decide(s);
+assert.strictEqual(d.rule, '6');
+assert.strictEqual(d.verdict, 'dispatch');
+assert.strictEqual(d.role, 'Planning');
+
+// (5) legacy snapshot missing close_event_superseded_by_reopen entirely ->
+// treated as "not superseded" (fail-closed-to-halt polarity): closed focus
+// still needs_llm.
+s = base();
+s.spec = { path: null, present: false, frozen: false, frontmatter_status: null, ceremony_level: 2 };
+s.close_event_present = true;
+delete s.close_event_superseded_by_reopen;
+d = decide(s);
+assert.strictEqual(d.verdict, 'needs_llm');
+assert.strictEqual(d.rule, '5');
+
+// (6) rule 4a precedence: closed + flushed + no open intake -> stays rule 4a,
+// never touched by the new guard (4a/4b are evaluated BEFORE 5/6).
+s = base();
+s.work_item = { phase: 'validation', status: 'done' };
+s.flushed = true;
+s.close_event_present = true;
+s.close_event_superseded_by_reopen = false;
+s.open_intakes = [];
+d = decide(s);
+assert.strictEqual(d.rule, '4a', `expected 4a, got ${d.rule}`);
+assert.strictEqual(d.verdict, 'no_action');
+
+// (7) rule 4b precedence: closed + unflushed + no fail + review satisfied ->
+// stays rule 4b.
+s = base();
+s.work_item = { phase: 'validation', status: 'done' };
+s.flushed = false;
+s.close_event_present = true;
+s.close_event_superseded_by_reopen = false;
+d = decide(s);
+assert.strictEqual(d.rule, '4b');
+assert.strictEqual(d.role, 'Metrics Flush');
+
+// (8) closed focus + spec frontmatter done + a required-but-unsatisfied
+// review (required true, status not_run) -> rule 6 matches FIRST (rule 13 is
+// never reached for this snapshot, in either tree) and the closedFocus guard
+// turns its verdict into needs_llm closed_focus_stale_state instead of a
+// Planning dispatch (spec Edge cases D7 knock-on).
+s = base();
+s.spec.frontmatter_status = 'done';
+s.close_event_present = true;
+s.close_event_superseded_by_reopen = false;
+s.review = { required: true, status: 'not_run' };
+d = decide(s);
+assert.strictEqual(d.verdict, 'needs_llm', `expected needs_llm, got ${d.verdict} (${JSON.stringify(d.reasons)})`);
+assert.strictEqual(d.rule, '6');
+assert.strictEqual(d.role, null);
+assert.ok(d.reasons.includes('closed_focus_stale_state'));
+
+console.log('ok');
+EOF
+  (cd "$PROJECT_ROOT" && node "$TEST_DIR/t46.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t46.log" 2>&1 \
+    || log_fail "closed-focus-stale-state pure decide() cases failed: $(cat "$TEST_DIR/t46.log")"
+
+  log_pass "Pure decide(): closed+un-superseded focus never gets rule 5/6 Planning; un-closed/superseded/legacy/4a/4b cases all unaffected (TEST-046 / spec TEST-005)"
+}
+
+# --- TEST-047 (spec TEST-006/007, Spec-AC-05/06): real close->dispatch seam,
+# plus the re-open ordering negative control over REAL EVENTS.jsonl ----------
+
+test_047_close_dispatch_seam_and_reopen_ordering() {
+  log_info "Test: seams S1/S2 end to end — a REAL close-work-item.mjs run reconciles STATE, and the REAL orchestration-dispatch CLI then dispatches rule 4b Metrics Flush (never Planning) against it; plus the re-open ORDERING negative control over a REAL EVENTS.jsonl (spec-close-leaves-state-stale TEST-006/TEST-007, Spec-AC-05/06)..."
+
+  # --- Part A (spec TEST-006): real close-work-item.mjs -> real dispatch ----
+  local d="$TEST_DIR/t47a"
+  mkdir -p "$d/docs/issues" "$d/docs/specs" "$d/docs/ai" "$d/.aai/workflow"
+  echo "# Workflow fixture" > "$d/.aai/workflow/WORKFLOW.md"
+  echo "# Technology fixture" > "$d/docs/TECHNOLOGY.md"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  cat > "$d/docs/ai/docs-audit.yaml" <<'YAML'
+legacy_until_date: 2020-01-01
+stale_after_days: 90
+scan_exclude: []
+backlog_globs: []
+close_gate: report-only
+doc_number_guard: report-only
+protected_paths_l3: []
+YAML
+  cat > "$d/docs/issues/CHANGE-0001-t47a.md" <<'MD'
+---
+id: t47a-slug
+type: change
+status: implementing
+links:
+  pr: []
+  commits: []
+---
+
+# Change — Fixture t47a
+
+## Summary
+- fixture doc for the close-work-item -> orchestration-dispatch seam test.
+MD
+  git init -q "$d"
+  git -C "$d" config user.email test@example.com
+  git -C "$d" config user.name test
+  git -C "$d" add -A
+  git -C "$d" commit -q -m init
+
+  # STATE names the ref as in-flight, pre-allocation DRAFT path -- exactly
+  # the drift D1 exists to fix -- and current_focus names the same scope.
+  cat > "$d/docs/ai/STATE.yaml" <<'YAML'
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: t47a-slug
+  primary_path: docs/issues/CHANGE-DRAFT-t47a.md
+active_work_items:
+  - ref_id: CHANGE-0001
+    status: in_progress
+    phase: implementation
+    primary_path: docs/issues/CHANGE-DRAFT-t47a.md
+implementation_strategy:
+  selected: tdd
+  source: docs/specs/SPEC-0001-fx.md
+  rationale: null
+worktree:
+  recommendation: optional
+  user_decision: inline
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: false
+  status: not_run
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+last_validation:
+  status: pass
+  run_at_utc: 2026-07-01T00:00:00Z
+  ref_id: CHANGE-0001
+  evidence_paths: []
+  notes: null
+human_input:
+  required: false
+  question: null
+locks:
+  implementation: true
+tdd_cycle:
+  status: IDLE
+  test_id: null
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+
+  local cout="$TEST_DIR/t47a-close.out" cerr="$TEST_DIR/t47a-close.err" ccode=0
+  ( cd "$d" && node "$PROJECT_ROOT/.aai/scripts/close-work-item.mjs" --ref t47a-slug --pr 47 --commit 47474747 \
+    > "$cout" 2> "$cerr" ) || ccode=$?
+  [[ "$ccode" == 0 ]] || log_fail "t47a: close-work-item.mjs must exit 0: $(cat "$cout" "$cerr")"
+  grep -q '^    status: done$' "$d/docs/ai/STATE.yaml" \
+    || log_fail "t47a: the reconciled STATE must satisfy metrics-flush's status-must-be-done sweep predicate (S2): $(cat "$d/docs/ai/STATE.yaml")"
+
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "t47a: dispatch must succeed post-close (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "4b" && o.role === "Metrics Flush" && o.verdict === "dispatch"'
+
+  # --- Part B (spec TEST-007): re-open ORDERING over a REAL EVENTS.jsonl ----
+  local d2
+  d2="$(mk_root t47b)"
+  write_dstate "$d2/docs/ai/STATE.yaml" not_run not_run implementation in_progress tdd optional inline CHANGE-0001 false
+  write_spec "$d2/docs/specs/SPEC-0001-fx.md" implementing false
+
+  # Order 1: close THEN reopen -> superseded true -> rule 6 dispatches
+  # Planning exactly as before (never needs_llm).
+  printf '{"v":1,"ts":"2026-07-01T00:00:00Z","actor":"fixture","event":"work_item_closed","ref":"CHANGE-0001","payload":{"validation":"pass","code_review":"none"}}\n' \
+    > "$d2/docs/ai/EVENTS.jsonl"
+  printf '{"v":1,"ts":"2026-07-02T00:00:00Z","actor":"fixture","event":"doc_lifecycle","ref":"CHANGE-0001","payload":{"from":"done","to":"implementing"}}\n' \
+    >> "$d2/docs/ai/EVENTS.jsonl"
+  run_dispatch "$d2"
+  [[ "$EC" == 0 ]] || log_fail "t47b order1 (close then reopen): dispatch must exit 0, got $EC: $(cat "$ERR")"
+  jassert "$OUT" 'o.state_summary.close_event_superseded_by_reopen === true'
+  jassert "$OUT" 'o.rule === "6" && o.verdict === "dispatch" && o.role === "Planning"'
+
+  # Order 2 (reversed): reopen THEN close -> superseded false -> the D7 guard
+  # applies -> needs_llm closed_focus_stale_state at rule 6.
+  printf '{"v":1,"ts":"2026-07-01T00:00:00Z","actor":"fixture","event":"doc_lifecycle","ref":"CHANGE-0001","payload":{"from":"done","to":"implementing"}}\n' \
+    > "$d2/docs/ai/EVENTS.jsonl"
+  printf '{"v":1,"ts":"2026-07-02T00:00:00Z","actor":"fixture","event":"work_item_closed","ref":"CHANGE-0001","payload":{"validation":"pass","code_review":"none"}}\n' \
+    >> "$d2/docs/ai/EVENTS.jsonl"
+  run_dispatch "$d2"
+  [[ "$EC" == 4 ]] || log_fail "t47b order2 (reopen then close): needs_llm dispatch exits 4, got $EC: $(cat "$ERR")"
+  jassert "$OUT" 'o.state_summary.close_event_superseded_by_reopen === false'
+  jassert "$OUT" 'o.rule === "6" && o.verdict === "needs_llm" && o.reasons.includes("closed_focus_stale_state")'
+
+  log_pass "Seams S1/S2 (real close -> real dispatch, rule 4b never Planning) and the re-open ORDERING negative control (real EVENTS.jsonl) both hold (TEST-047 / spec TEST-006/007)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026; TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
   check_deps
@@ -3002,6 +3290,8 @@ main() {
   test_043_g2_stamp_survives_tracked_events_ledger
   test_044_g2_stale_advisory_dirty_file_content
   test_045_g2_filterdiff_quoted_header_reset
+  test_046_closed_focus_stale_state_pure
+  test_047_close_dispatch_seam_and_reopen_ordering
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

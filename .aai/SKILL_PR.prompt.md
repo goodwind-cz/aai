@@ -222,10 +222,11 @@ PROCESS
 5c. CLOSE THE WORK ITEM (CHANGE-0037 / SPEC-0053) — now that the PR number and
    head commit are known:
    - FLIP THE AC TABLE FIRST (its own ordered step — .aai/VALIDATION.prompt.md
-   If `close-work-item.mjs` then exits non-zero, REVERT the flip before
-   anything else — an open doc with terminal evidenced rows is the exact
-   false-open shape this ordering exists to prevent, and the script's own
-   rollback cannot see edits made before it ran.
+   If `close-work-item.mjs` then exits non-zero other than 6, REVERT the flip
+   before anything else — an open doc with terminal evidenced rows is the
+   exact false-open shape this ordering exists to prevent, and the script's
+   own rollback cannot see edits made before it ran. Exit 6 means the close
+   STOOD: keep the flip; run the echoed remaining state.mjs command(s).
      step 8a defers it to here): set every Spec-AC row of the scope's doc(s)
      terminal, fill each Evidence cell from the validation report's per-AC
      evidence, and clear VALIDATION 8b's close gate on the flipped table; the
