@@ -34,6 +34,15 @@ finding F-1 (`docs/ai/validation/validation-20260824T234828Z-close-leaves-state-
 raised to a blocker as B-2 in round 2
 (`docs/ai/validation/validation-20260825T005913Z-close-leaves-state-stale-round2.md`).
 
+2026-08-25 addendum (round-3 F-14): the `decisions.jsonl` record's "NOT an
+owner decision" argument is true but incomplete — it does not mention
+`.aai/system/AUTONOMOUS_LOOP.md:25`, which assigns "disputed decisions, scope
+changes, and high-impact risk decisions" to HITL. This widening IS a scope
+change on that reading; the canon assigns it to HITL, and the orchestrator
+took it under the owner's standing autonomy mandate rather than obtaining
+prior owner sign-off, disclosing it to the owner in this same session. The
+owner may reverse it.
+
 WHAT WAS WRONG. D3's exit-6 bullet asserted that `.aai/SKILL_PR.prompt.md`
 "enumerates only 0/1/2, so no prompt file changes". It does enumerate only
 0/1/2 — but step 5c ALSO carries a BLANKET rule that enumerates nothing: "If

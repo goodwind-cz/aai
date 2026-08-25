@@ -92,6 +92,9 @@ VALIDATION_PROMPT="$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
 TEST_SELF="$PROJECT_ROOT/tests/skills/test-aai-close-work-item.sh"
 GUARD_CONFIG_LIB="$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs"
 
+# shellcheck source=lib/assert-payload.sh
+. "$SCRIPT_DIR/lib/assert-payload.sh"
+
 cleanup() {
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
     echo "INFO: keeping fixture at $TEST_DIR"
@@ -2688,23 +2691,51 @@ test_055_skill_pr_exit6_carve_pinned() {
   block=$(awk '/^5d\./{exit} /^5c\. CLOSE THE WORK ITEM/{flag=1} flag' "$SKILL_PR")
   [[ -n "$block" ]] || log_fail "t055: could not isolate step 5c's text in $SKILL_PR"
 
-  # Assertion 1 — the revert trigger names a non-zero exit OTHER THAN 6, on
-  # the single physical line that ties the exception to the REVERT verb.
-  # A decoy that drops "other than 6" (the pre-carve blanket rule) or that
-  # plants the token "other than 6" elsewhere, unconnected to REVERT, fails
-  # this grep.
-  echo "$block" | grep -qF 'non-zero other than 6, REVERT the flip' \
-    || log_fail "t055: step 5c's revert trigger must name a non-zero exit OTHER THAN 6 before reverting the flip (pre-carve blanket wording, or an untied decoy token, must fail this)"
+  # Pipe-free throughout (tests/skills/lib/assert-payload.sh,
+  # spec-assertions-must-not-die-on-their-own-payload) and matched against a
+  # single whitespace-normalized string so a pure line reflow cannot redden
+  # this arm (F-12). Each check below is a SHORT fragment rather than one
+  # exact sentence, so a meaning-preserving reword (a parenthetical, a
+  # semicolon swapped for "and", one clarifier word) cannot redden it either
+  # — only dropping or inverting the substance can.
+  local joined
+  joined=$(printf '%s\n' "$block" | tr '\n' ' ' | tr -s ' ')
+
+  # Assertion 1 — the revert trigger names a non-zero exit OTHER THAN 6
+  # before reverting. Two independent fragments: the pre-carve blanket
+  # wording (which names no exception) fails the first; a decoy that plants
+  # "other than 6" somewhere unconnected to a REVERT instruction fails the
+  # second.
+  assert_payload_contains "$joined" 'other than 6' \
+    "t055: step 5c's revert trigger must name a non-zero exit OTHER THAN 6 (pre-carve blanket wording must fail this)"
+  assert_payload_contains "$joined" 'REVERT the flip' \
+    "t055: step 5c must instruct REVERTing the flip on the non-6 exception"
 
   # Assertion 2 — a following instruction in the SAME step gives exit 6 the
   # opposite imperative: keep the flip, and complete the echoed remaining
-  # state.mjs command(s) rather than reverting. Join the block's wrapped
-  # lines into one string first, since this sentence wraps across two
-  # physical lines in the shipped file.
-  local joined
-  joined=$(printf '%s\n' "$block" | tr '\n' ' ' | tr -s ' ')
-  printf '%s' "$joined" | grep -qF 'Exit 6 means the close STOOD: keep the flip; run the echoed remaining state.mjs command(s).' \
-    || log_fail "t055: step 5c must instruct that exit 6 KEEPS the flip and runs the echoed remaining state.mjs command(s), not just mention exit 6 in passing"
+  # state.mjs command(s) rather than reverting.
+  assert_payload_contains "$joined" 'Exit 6 means the close STOOD' \
+    "t055: step 5c must state that exit 6 means the close STOOD"
+  assert_payload_contains "$joined" 'keep the flip' \
+    "t055: step 5c must instruct keeping the flip on exit 6"
+  assert_payload_contains "$joined" 'run the echoed remaining state.mjs command(s)' \
+    "t055: step 5c must instruct running the echoed remaining state.mjs command(s) on exit 6, not just mention exit 6 in passing"
+
+  # Assertion 3 (F-11) — pin the ABSENCE of a second, live, contradicting
+  # revert-on-any-exit rule, not just the presence of the carve's own
+  # wording. A decoy can wrap BOTH pinned sentences verbatim inside a
+  # "SUPERSEDED WORDING, DO NOT FOLLOW" block and then state a second
+  # "CURRENT RULE" that reverts on any non-zero exit including 6 — every
+  # fragment above still matches, because the withdrawn text is still
+  # physically present. What the decoy cannot avoid is restating the
+  # REVERT trigger a SECOND time to make that current rule operative, so
+  # step 5c must carry EXACTLY ONE such trigger. Counted with parameter
+  # expansion — no pipe, no grep, so this is not the banned shape either way.
+  local revert_needle='REVERT the flip'
+  local revert_stripped="${joined//$revert_needle/}"
+  local revert_count=$(( (${#joined} - ${#revert_stripped}) / ${#revert_needle} ))
+  [[ "$revert_count" -eq 1 ]] \
+    || log_fail "t055: step 5c must contain EXACTLY ONE 'REVERT the flip' trigger (found $revert_count) — a second, live, contradicting revert-on-any-exit rule elsewhere in the step (e.g. a 'CURRENT RULE' that supersedes a wording the block itself marks SUPERSEDED / DO NOT FOLLOW) must fail this"
 
   log_pass "SKILL_PR step 5c exit-6 carve pinned as substance: exit 6 is the one non-zero exit where the flip STAYS (TEST-055 / spec TEST-012)"
 }
