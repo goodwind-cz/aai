@@ -15,7 +15,7 @@ Read `.aai/AGENTS.md` before starting any development work.
 ## Skills are native in Cursor
 Cursor discovers project skills directly from `.agents/skills/` (and, for
 compatibility, `.claude/skills/` and `.codex/skills/`) — invoke one with
-`/skill-name` or `@skill-name` rather than reading a prompt file by hand.
+`/skill-name` rather than reading a prompt file by hand.
 For anything not covered by a skill, use `@file` to pull in the relevant
 `.aai/*.prompt.md` or `.aai/AGENTS.md` section instead of this file trying to
 enumerate one.
@@ -27,7 +27,6 @@ enumerate one.
 - If `docs/ai/STATE.yaml` exists, read it before any role dispatch
 
 ## Workflow
-1. `/aai-intake` — register new work
-2. Orchestration dispatches Planning → Implementation → Validation automatically
-3. `/aai-loop` runs the full cycle autonomously
-4. `/aai-hitl` unblocks when human input is required
+Orchestration dispatches Planning → Implementation → Validation automatically.
+Invoke any AAI skill with `/skill-name` to start work, run the full cycle, or
+unblock a human decision — see `.aai/AGENTS.md` for the full skill catalog.
