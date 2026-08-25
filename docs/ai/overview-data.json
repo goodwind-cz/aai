@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-08-25T04:45:02.610Z",
+  "generatedAt": "2026-08-25T05:23:21.879Z",
   "project": "aai",
   "counts": {
     "delivered": 212,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 49871252
+    "tokens_total": 52095234
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -16,15 +16,15 @@
     "focus": {
       "ref": "close-leaves-state-stale",
       "type": "intake_issue",
-      "phase": "code_review"
+      "phase": null
     },
     "strategy": "tdd",
     "worktree": {
       "recommendation": "optional",
       "user_decision": "inline"
     },
-    "validation_status": "pass",
-    "review_status": "pass",
+    "validation_status": "not_run",
+    "review_status": "not_run",
     "ticks": [
       {
         "tick": 156,
@@ -86,8 +86,8 @@
       "status": "done",
       "path": "docs/issues/ISSUE-0035-close-leaves-state-stale.md",
       "closed_on": "2026-08-25",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 332,
+      "token_total": 2223982,
       "spec": "docs/specs/SPEC-0153-spec-close-leaves-state-stale.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260825T043541Z-close-leaves-state-stale-round2.md"
@@ -2849,8 +2849,8 @@
           "status": "done",
           "path": "docs/issues/ISSUE-0035-close-leaves-state-stale.md",
           "closed_on": "2026-08-25",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 332,
+          "token_total": 2223982,
           "spec": "docs/specs/SPEC-0153-spec-close-leaves-state-stale.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260825T043541Z-close-leaves-state-stale-round2.md"
