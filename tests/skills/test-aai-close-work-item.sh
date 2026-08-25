@@ -2679,8 +2679,9 @@ test_054_state_reconcile_warn_and_partial() {
 }
 
 # --- TEST-055 (spec TEST-012, Spec-AC-10): the exit-6 carve in SKILL_PR step
-# 5c is pinned as substance, not a surviving token. Reverting either half back
-# to the pre-carve wording (commit 3ceaf3f^) must turn this red.  -----------
+# 5c is pinned against DELETION of either half. Reverting either half back to
+# the pre-carve wording (commit 3ceaf3f^) must turn this red. It does NOT pin
+# WITHDRAWAL — see the residual note on the assertions below.  --------------
 
 test_055_skill_pr_exit6_carve_pinned() {
   log_info "Test: SKILL_PR step 5c exit-6 carve is pinned — revert trigger names an exit OTHER THAN 6, and a following instruction keeps the flip and runs the echoed remaining state.mjs command(s) on exit 6 (spec-close-leaves-state-stale TEST-012 / Spec-AC-10)..."
@@ -2724,7 +2725,7 @@ test_055_skill_pr_exit6_carve_pinned() {
   assert_payload_contains "$joined" 'run the echoed remaining state.mjs command(s)' \
     "t055: step 5c must instruct running the echoed remaining state.mjs command(s) on exit 6, not just mention exit 6 in passing"
 
-  log_pass "SKILL_PR step 5c exit-6 carve pinned as substance: exit 6 is the one non-zero exit where the flip STAYS (TEST-055 / spec TEST-012)"
+  log_pass "SKILL_PR step 5c exit-6 carve pinned against deletion: exit 6 is the one non-zero exit where the flip STAYS (TEST-055 / spec TEST-012)"
 }
 
 main() {

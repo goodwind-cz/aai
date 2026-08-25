@@ -3084,9 +3084,10 @@ assert.strictEqual(d.rule, '4b');
 assert.strictEqual(d.role, 'Metrics Flush');
 
 // (8) closed focus + spec frontmatter done + a required-but-unsatisfied
-// review (required true, status not_run) -> the closedFocus guard at rule 6
-// still wins over rule 13: needs_llm closed_focus_stale_state, never a
-// review dispatch (spec Edge cases D7 knock-on).
+// review (required true, status not_run) -> rule 6 matches FIRST (rule 13 is
+// never reached for this snapshot, in either tree) and the closedFocus guard
+// turns its verdict into needs_llm closed_focus_stale_state instead of a
+// Planning dispatch (spec Edge cases D7 knock-on).
 s = base();
 s.spec.frontmatter_status = 'done';
 s.close_event_present = true;
