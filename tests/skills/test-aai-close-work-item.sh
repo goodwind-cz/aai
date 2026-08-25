@@ -2573,7 +2573,15 @@ test_053_state_reconcile_idempotent_recovery() {
   jassert "$snap2" 'o.items.find(i => i.ref_id === "CHANGE-0005").primary_path === "docs/issues/CHANGE-0005-t053.md"'
 
   # Run 3: everything (docs, events, STATE) is now already reconciled -> zero
-  # writes, byte-identical STATE.
+  # writes, byte-identical STATE. Pin updated_at_utc to a sentinel FIRST
+  # (mirrors test-aai-orchestration-dispatch.sh's run_at_utc pattern): state.mjs
+  # stamps updated_at_utc via nowIso(), which truncates to whole seconds, so
+  # two runs landing inside the same wall-clock second would make a genuine
+  # spurious write invisible to a plain before/after byte compare (F-3). The
+  # sentinel detaches "before" from the real clock so ANY write in run3 —
+  # same-second or not — necessarily changes the file.
+  sed -i.bak 's/^updated_at_utc:.*/updated_at_utc: 2030-01-01T00:00:00Z/' "$dir/docs/ai/STATE.yaml" \
+    && rm -f "$dir/docs/ai/STATE.yaml.bak"
   local before after
   before=$(cat "$dir/docs/ai/STATE.yaml")
   local out3="$TEST_DIR/t053-3.out" err3="$TEST_DIR/t053-3.err" code3
