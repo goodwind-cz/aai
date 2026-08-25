@@ -1415,10 +1415,15 @@ function main() {
     const mutated = applyProductDocMutation(content, resolved[0].fmId);
     productDocPlan = { abs, content, mutated, needsUpdate: mutated !== content };
   }
-  // Spec-AC-02 — a repo whose docs/events are already closed but whose STATE
-  // is still stale must still reconcile on a re-run, instead of the
-  // idempotency short-circuit below reporting "nothing to do" and skipping it.
-  const anyMutationTotal = anyMutation || Boolean(productDocPlan && productDocPlan.needsUpdate) || statePlan.severity === 'apply';
+  // Spec-AC-02's self-recovery does not hinge on anyMutationTotal: BOTH tails
+  // below (the idempotency short-circuit and the full write path) end by
+  // calling runStateReconcile(statePlan, ...), so a repo whose docs/events
+  // are already closed but whose STATE is stale still reconciles on a re-run
+  // either way — through the short-circuit's own tail when no doc/product-doc
+  // mutation is needed. anyMutationTotal only selects WHICH tail runs (and
+  // therefore whether the four best-effort regens/pruneBriefs run), never
+  // whether the STATE reconcile itself runs.
+  const anyMutationTotal = anyMutation || Boolean(productDocPlan && productDocPlan.needsUpdate);
 
   if (args.dryRun) {
     console.log(JSON.stringify(
@@ -1462,9 +1467,9 @@ function main() {
       process.exit(1);
     }
     console.log(`close-work-item: nothing to do (already closed) for ${refs.join(', ')}`);
-    // statePlan.severity is 'none' or 'skip' here by construction — 'apply'
-    // would have made anyMutationTotal true and routed through the full
-    // write path below instead (Spec-AC-02).
+    // statePlan.severity can be 'none', 'skip', OR 'apply' here — this tail
+    // runs the reconcile itself (Spec-AC-02), so a stale-STATE-only repo
+    // still self-recovers without ever routing through the write path above.
     process.exit(runStateReconcile(statePlan, evidenceRoot));
   }
 
