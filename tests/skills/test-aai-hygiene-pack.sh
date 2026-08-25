@@ -1711,12 +1711,21 @@ hsk_check_parity() {
   local rc=0 tree tdir excluded want actual missing extra s
   for tree in $HSK_MIRROR_TREES; do
     tdir="$root/$tree"
-    [[ -d "$tdir" ]] || continue
     excluded="$(hsk_exclusions_for "$manifest" "$tree")"
     if [[ -n "$excluded" ]]; then
       want="$(comm -23 <(printf '%s\n' "$expected_all") <(printf '%s\n' "$excluded" | LC_ALL=C sort))"
     else
       want="$expected_all"
+    fi
+    if [[ ! -d "$tdir" ]]; then
+      # A declared mirror tree that is absent ENTIRELY is the largest
+      # possible drift, not a skip: report every skill this tree should
+      # carry as missing. Fixtures may legitimately ship only a subset of
+      # the mirror trees, so this hard-fail applies only at the real root.
+      [[ "$root" == "$PROJECT_ROOT" ]] || continue
+      while IFS= read -r s; do [[ -n "$s" ]] && printf 'PARITY missing %s/%s\n' "$tree" "$s"; done <<< "$want"
+      rc=1
+      continue
     fi
     actual="$(hsk_skill_dirs "$tdir")"
     missing="$(comm -23 <(printf '%s\n' "$want") <(printf '%s\n' "$actual"))"
@@ -1798,7 +1807,7 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
 
   # TEST-003 — the README indexes list the FULL live set, not the old 22-of-39.
   local n_skills n t
-  n_skills="$(hsk_skill_dirs "$PROJECT_ROOT/.claude/skills" | grep -c .)"
+  n_skills="$(hsk_skill_dirs "$PROJECT_ROOT/.claude/skills" | "$PGQ_GREP_BIN" -c .)" || n_skills=0
   for t in .codex .gemini; do
     n="$("$PGQ_GREP_BIN" -cE '^- `/aai-' "$PROJECT_ROOT/$t/skills/README.md")" || n=0
     [[ "$n" -eq "$n_skills" ]] \
