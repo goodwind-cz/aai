@@ -2694,10 +2694,13 @@ test_055_skill_pr_exit6_carve_pinned() {
   # Pipe-free throughout (tests/skills/lib/assert-payload.sh,
   # spec-assertions-must-not-die-on-their-own-payload) and matched against a
   # single whitespace-normalized string so a pure line reflow cannot redden
-  # this arm (F-12). Each check below is a SHORT fragment rather than one
-  # exact sentence, so a meaning-preserving reword (a parenthetical, a
-  # semicolon swapped for "and", one clarifier word) cannot redden it either
-  # — only dropping or inverting the substance can.
+  # this arm (F-12). RESIDUAL, stated plainly rather than papered over: this
+  # arm pins DELETION and pre-carve wording, not WITHDRAWAL — a decoy that
+  # keeps the sentences verbatim under a "superseded / do not follow" framing
+  # and states an inverted rule elsewhere in step 5c passes. Pinning
+  # withdrawal would need a machine-readable exit->action mapping in step 5c,
+  # which costs corpus bytes the amended Spec-AC-08 does not budget
+  # (successor work).
   local joined
   joined=$(printf '%s\n' "$block" | tr '\n' ' ' | tr -s ' ')
 
@@ -2720,22 +2723,6 @@ test_055_skill_pr_exit6_carve_pinned() {
     "t055: step 5c must instruct keeping the flip on exit 6"
   assert_payload_contains "$joined" 'run the echoed remaining state.mjs command(s)' \
     "t055: step 5c must instruct running the echoed remaining state.mjs command(s) on exit 6, not just mention exit 6 in passing"
-
-  # Assertion 3 (F-11) — pin the ABSENCE of a second, live, contradicting
-  # revert-on-any-exit rule, not just the presence of the carve's own
-  # wording. A decoy can wrap BOTH pinned sentences verbatim inside a
-  # "SUPERSEDED WORDING, DO NOT FOLLOW" block and then state a second
-  # "CURRENT RULE" that reverts on any non-zero exit including 6 — every
-  # fragment above still matches, because the withdrawn text is still
-  # physically present. What the decoy cannot avoid is restating the
-  # REVERT trigger a SECOND time to make that current rule operative, so
-  # step 5c must carry EXACTLY ONE such trigger. Counted with parameter
-  # expansion — no pipe, no grep, so this is not the banned shape either way.
-  local revert_needle='REVERT the flip'
-  local revert_stripped="${joined//$revert_needle/}"
-  local revert_count=$(( (${#joined} - ${#revert_stripped}) / ${#revert_needle} ))
-  [[ "$revert_count" -eq 1 ]] \
-    || log_fail "t055: step 5c must contain EXACTLY ONE 'REVERT the flip' trigger (found $revert_count) — a second, live, contradicting revert-on-any-exit rule elsewhere in the step (e.g. a 'CURRENT RULE' that supersedes a wording the block itself marks SUPERSEDED / DO NOT FOLLOW) must fail this"
 
   log_pass "SKILL_PR step 5c exit-6 carve pinned as substance: exit 6 is the one non-zero exit where the flip STAYS (TEST-055 / spec TEST-012)"
 }

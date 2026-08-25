@@ -3083,6 +3083,21 @@ d = decide(s);
 assert.strictEqual(d.rule, '4b');
 assert.strictEqual(d.role, 'Metrics Flush');
 
+// (8) closed focus + spec frontmatter done + a required-but-unsatisfied
+// review (required true, status not_run) -> the closedFocus guard at rule 6
+// still wins over rule 13: needs_llm closed_focus_stale_state, never a
+// review dispatch (spec Edge cases D7 knock-on).
+s = base();
+s.spec.frontmatter_status = 'done';
+s.close_event_present = true;
+s.close_event_superseded_by_reopen = false;
+s.review = { required: true, status: 'not_run' };
+d = decide(s);
+assert.strictEqual(d.verdict, 'needs_llm', `expected needs_llm, got ${d.verdict} (${JSON.stringify(d.reasons)})`);
+assert.strictEqual(d.rule, '6');
+assert.strictEqual(d.role, null);
+assert.ok(d.reasons.includes('closed_focus_stale_state'));
+
 console.log('ok');
 EOF
   (cd "$PROJECT_ROOT" && node "$TEST_DIR/t46.mjs" "$PROJECT_ROOT") > "$TEST_DIR/t46.log" 2>&1 \
