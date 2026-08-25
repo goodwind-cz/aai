@@ -358,6 +358,36 @@ test_018_gate_job_contract() {  # review remediation: required-check continuity
   log_pass "Gate job preserves the required check across the selected/full split (TEST-018)"
 }
 
+test_020_harness_surfaces_select_hygiene_pack() {  # TEST-010 / Spec-AC-09 (harness-surfaces-drift-unguarded)
+  log_info "Test: each of the five harness surface paths selects aai-hygiene-pack with no FULL_RUN unmapped line, against the real repo suite-map (TEST-010)..."
+  local root="${1:-$PROJECT_ROOT}"
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local list="$TEST_DIR/hsk-020-files.txt"
+  local p out rc
+  for p in \
+    ".agents/skills/aai-ship/SKILL.md" \
+    ".cursor/rules/aai.mdc" \
+    "AGENTS.md" \
+    ".aai/system/HARNESS_SKILLS.yaml" \
+    ".aai/scripts/sync-harness-skills.mjs"
+  do
+    printf '%s\n' "$p" > "$list"
+    out="$(node "$SELECTOR" --repo-root "$root" --files-from "$list" 2>&1)"; rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "test_020: exit code must be 0 for $p, got $rc: $out"
+    # A `case` glob match takes no second process and no pipe, so it cannot
+    # SIGPIPE on a large payload (pipe-grep-q-ratchet: tests/skills/lib/pipe-grep-q-ratchet.sh).
+    case "$out" in
+      *"FULL_RUN reason=unmapped"*)
+        log_fail "test_020: $p must not fail open as unmapped: $out" ;;
+    esac
+    case "$out" in
+      *"aai-hygiene-pack"*) ;;
+      *) log_fail "test_020: $p must select aai-hygiene-pack: $out" ;;
+    esac
+  done
+  log_pass "test_020: all five harness surface paths select aai-hygiene-pack, none unmapped (TEST-010)"
+}
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
@@ -377,6 +407,7 @@ main() {
   test_017_hostile_core_name_fails_open
   test_018_gate_job_contract
   test_019_ghost_core_entry_fails_open
+  test_020_harness_surfaces_select_hygiene_pack
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

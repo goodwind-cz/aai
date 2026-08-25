@@ -1939,6 +1939,66 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
   log_pass "test_113: three independent mutations each redden the parity guard naming the offender, with clean unmutated controls before/between/after, in a disposable detached worktree; real tree untouched (TEST-007)"
 }
 
+test_114_cursor_rule_contract() {  # TEST-008 / Spec-AC-07 (harness-surfaces-drift-unguarded)
+  log_info "test_114: .cursor/rules/aai.mdc carries no stale skills-are-prompt-files claim, no enumerated .aai/SKILL_ prompt paths, exactly one alwaysApply/description line each, at most 60 lines (TEST-008)..."
+  local root="${1:-$PROJECT_ROOT}"
+  local rule="$root/.cursor/rules/aai.mdc"
+  [[ -f "$rule" ]] || log_fail "test_114: missing $rule"
+
+  local c
+  c="$(/usr/bin/grep -c 'Skills are prompt files' "$rule" || true)"
+  [[ "$c" -eq 0 ]] \
+    || log_fail "test_114: $rule still claims skills are prompt files to be read by hand ($c occurrence(s))"
+
+  c="$(/usr/bin/grep -c '\.aai/SKILL_' "$rule" || true)"
+  [[ "$c" -eq 0 ]] \
+    || log_fail "test_114: $rule still enumerates .aai/SKILL_ prompt paths ($c occurrence(s))"
+
+  c="$(/usr/bin/grep -c '^alwaysApply: true$' "$rule" || true)"
+  [[ "$c" -eq 1 ]] \
+    || log_fail "test_114: expected exactly one '^alwaysApply: true$' line in $rule, got $c"
+
+  c="$(/usr/bin/grep -c '^description: ' "$rule" || true)"
+  [[ "$c" -eq 1 ]] \
+    || log_fail "test_114: expected exactly one '^description: ' line in $rule, got $c"
+
+  local lines
+  lines="$(wc -l < "$rule" | tr -d ' ')"
+  [[ "$lines" -le 60 ]] \
+    || log_fail "test_114: $rule is $lines lines, want at most 60"
+
+  log_pass "test_114: Cursor rule contract holds — no stale prompt-file claim, no enumerated SKILL_ paths, single alwaysApply/description line, $lines lines (TEST-008)"
+}
+
+test_115_root_shim_and_manifest_header() {  # TEST-009 / Spec-AC-08 (harness-surfaces-drift-unguarded)
+  log_info "test_115: root AGENTS.md (not .aai/AGENTS.md) is titled for its real audience, and HARNESS_SKILLS.yaml's header records D2 (no .cursor/skills) and D3 (three-times duplicate offering) (TEST-009)..."
+  local root="${1:-$PROJECT_ROOT}"
+  local shim="$root/AGENTS.md"
+  local manifest="$root/$HSK_MANIFEST_REL"
+  [[ -f "$shim" ]] || log_fail "test_115: missing root shim $shim"
+  [[ -f "$manifest" ]] || log_fail "test_115: missing $manifest"
+
+  local c
+  c="$(/usr/bin/grep -c '^# Codex Instructions' "$shim" || true)"
+  [[ "$c" -eq 0 ]] \
+    || log_fail "test_115: root $shim still carries a '# Codex Instructions' heading ($c occurrence(s))"
+
+  local first
+  first="$(head -1 "$shim")"
+  [[ "$first" == "# Agent Instructions (Shim)" ]] \
+    || log_fail "test_115: root $shim first line must be exactly '# Agent Instructions (Shim)', got: $first"
+
+  c="$(/usr/bin/grep -c 'cursor/skills' "$manifest" || true)"
+  [[ "$c" -ge 1 ]] \
+    || log_fail "test_115: $manifest header must record the no-cursor-skills decision (D2) — 'cursor/skills' occurs $c time(s)"
+
+  c="$(/usr/bin/grep -c 'three times' "$manifest" || true)"
+  [[ "$c" -ge 1 ]] \
+    || log_fail "test_115: $manifest header must record the three-times duplicate offering (D3) — 'three times' occurs $c time(s)"
+
+  log_pass "test_115: root shim titled for its real audience (root AGENTS.md, not .aai/AGENTS.md) and D2/D3 recorded in the manifest header (TEST-009)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -1981,6 +2041,8 @@ main() {
   test_111_generator_check_clean_and_idempotent
   test_112_generator_refuses_bad_manifest
   test_113_bite_proofs_in_detached_worktree
+  test_114_cursor_rule_contract
+  test_115_root_shim_and_manifest_header
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
