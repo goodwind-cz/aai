@@ -6,7 +6,12 @@
 # - Source tree is ALWAYS .claude/skills/*/SKILL.md — hardcoded in
 #   .aai/scripts/sync-harness-skills.mjs, never a sink, never declared here.
 # - `trees:` lists the THREE mirror trees this repo ships and, per tree, the
-#   one-line transform `<tree>|<model>|<readme>`:
+#   one-line transform `<tree>|<model>|<readme>`. The set of trees this
+#   generator will ever mirror is ALSO hardcoded (REQUIRED_MIRROR_TREES in
+#   .aai/scripts/sync-harness-skills.mjs) — adding a row here for a tree not
+#   in that list is refused (exit 2), never silently accepted. To add or
+#   remove a mirror tree, edit REQUIRED_MIRROR_TREES in the script FIRST,
+#   then add/remove its row here:
 #     <tree>    repo-relative mirror directory, e.g. .codex/skills
 #     <model>   carry | drop — whether the source frontmatter's `model:` line
 #               survives into this tree's copy (name/description/body are

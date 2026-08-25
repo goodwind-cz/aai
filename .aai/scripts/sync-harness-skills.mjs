@@ -129,6 +129,12 @@ function validateManifest(manifest, sourceSkills) {
       fail(2, `tree ${required} has an invalid readme value (want yes|no): ${row.readme}`);
     }
   }
+  for (const row of manifest.trees) {
+    if (!REQUIRED_MIRROR_TREES.includes(row.tree)) {
+      fail(2, `manifest declares a tree this generator does not mirror: ${row.tree} `
+            + `(the mirror tree list is fixed in sync-harness-skills.mjs REQUIRED_MIRROR_TREES)`);
+    }
+  }
   const sourceSet = new Set(sourceSkills);
   for (const ex of manifest.exclusions) {
     if (!byTree.has(ex.tree)) fail(2, `exclusion names an undeclared tree: ${ex.tree}`);
@@ -323,10 +329,18 @@ function main(argv) {
       const expectedContent = buildTargetContent(frontLines, body, { dropModel: row.model === 'drop' });
       const targetPath = path.join(treeSkillsDir, s, 'SKILL.md');
       let actualContent = null;
+      let readError = null;
       try {
         actualContent = fs.readFileSync(targetPath, 'utf8');
-      } catch {
-        actualContent = null;
+      } catch (err) {
+        readError = err;
+      }
+      if (readError && actualSet.has(s)) {
+        // The skill directory exists (so this is NOT the "missing" case
+        // already reported above) but its SKILL.md could not be read —
+        // e.g. a directory sits where the file should be. Fail-open guard
+        // hole: report it by name rather than silently treating it as OK.
+        divergences.push(`unreadable ${required}/${s}/SKILL.md: ${readError.code || readError.message}`);
       }
       if (actualContent !== expectedContent) {
         if (actualContent !== null) {
