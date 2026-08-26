@@ -2,10 +2,12 @@
 id: harness-surfaces-drift-unguarded
 type: issue
 number: 36
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 292
+  commits:
+    - 3143622
 ---
 
 # Harness surfaces drift for months because nothing compares them

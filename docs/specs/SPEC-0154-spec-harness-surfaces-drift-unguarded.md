@@ -2,13 +2,15 @@
 id: spec-harness-surfaces-drift-unguarded
 type: spec
 number: 154
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0036-harness-surfaces-drift-unguarded.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 292
+  commits:
+    - 3143622
 ---
 
 # Spec — harness skill surfaces are generated from one source and gated by one arm
@@ -326,16 +328,16 @@ returns its mutators as `state_update_commands` per the subagent contract.
 
 | Spec-AC    | Description                                                                                          | Status  | Evidence | Review-By | Notes |
 |------------|------------------------------------------------------------------------------------------------------|---------|----------|-----------|-------|
-| Spec-AC-01 | WHEN the four skill trees are compared THEN the three mirrors carry exactly the 39 names in .claude/skills | planned | —        | —         | pre-change gaps are 6, 8 and 8 |
-| Spec-AC-02 | WHEN the generator runs with --check THEN it exits 0, and a following --write changes no bytes         | planned | —        | —         | idempotence is the parity proof |
-| Spec-AC-03 | WHEN a tree on disk is undeclared in the manifest THEN the generator exits 2 naming that tree          | planned | —        | —         | refuses rather than defaults |
-| Spec-AC-04 | The parity arms live in test-aai-hygiene-pack.sh, are registered in main and the suite is green        | planned | —        | —         | core suite, always selected |
-| Spec-AC-05 | Each of three independent mutations reddens the parity arm while an unmutated control stays green      | planned | —        | —         | disposable detached worktrees only |
-| Spec-AC-06 | A manifest exclusion with a reason forgives one pair only, and a stale exclusion fails the arm         | planned | —        | —         | shipped manifest has zero exclusions |
-| Spec-AC-07 | The Cursor rule claims nothing the current Cursor docs contradict and enumerates no skill subset       | planned | —        | —         | five grep observables |
-| Spec-AC-08 | Root AGENTS.md is not titled for one harness and the manifest header records decisions D2 and D3       | planned | —        | —         | records, does not resolve |
-| Spec-AC-09 | Every harness surface path maps to a suite instead of failing open as unmapped                         | planned | —        | —         | three of five are unmapped today |
-| Spec-AC-10 | Full sweep green, prompt corpus still 315049 bytes, no protected or content-pinned file touched        | planned | —        | —         | close-work-item.mjs stays untouched |
+| Spec-AC-01 | WHEN the four skill trees are compared THEN the three mirrors carry exactly the 39 names in .claude/skills | done | TEST-001/test_110 PASS; review-20260826T093209Z | — | pre-change gaps were 6, 8 and 8 |
+| Spec-AC-02 | WHEN the generator runs with --check THEN it exits 0, and a following --write changes no bytes         | done | TEST-002/003/test_111 PASS; review-20260826T093209Z | — | idempotence is the parity proof |
+| Spec-AC-03 | WHEN a tree on disk is undeclared in the manifest THEN the generator exits 2 naming that tree          | done | TEST-004/test_112 PASS; commit 3143622 | — | also rejects missing CLI path values |
+| Spec-AC-04 | The parity arms live in test-aai-hygiene-pack.sh, are registered in main and the suite is green        | done | TEST-006 registration + hygiene-pack PASS | — | core suite, always selected |
+| Spec-AC-05 | Each of three independent mutations reddens the parity arm while an unmutated control stays green      | done | TEST-007/test_113 PASS; TDD bite logs | — | disposable detached worktrees only |
+| Spec-AC-06 | A manifest exclusion with a reason forgives one pair only, and a stale exclusion fails the arm         | done | TEST-005/test_110+112 PASS | — | shipped manifest has zero exclusions |
+| Spec-AC-07 | The Cursor rule claims nothing the current Cursor docs contradict and enumerates no skill subset       | done | TEST-008/test_114 PASS; review-20260826T093209Z | — | five grep observables |
+| Spec-AC-08 | Root AGENTS.md is not titled for one harness and the manifest header records decisions D2 and D3       | done | TEST-009/test_115 PASS | — | records, does not resolve |
+| Spec-AC-09 | Every harness surface path maps to a suite instead of failing open as unmapped                         | done | TEST-010/test_020 PASS | — | all five surfaces mapped |
+| Spec-AC-10 | Full sweep green, prompt corpus still 315049 bytes, no protected or content-pinned file touched        | done | TEST-011..014; run test-20260825-215029 81/81; validation-20260826T092730Z | — | postfix owning suite PASS; R1 recorded |
 
 Status values: planned, implementing, done, deferred, blocked, rejected.
 
@@ -406,20 +408,20 @@ Edge cases:
 
 | Test ID  | Spec-AC    | Type | File path (expected) | Description | Status |
 |----------|------------|------|----------------------|-------------|--------|
-| TEST-001 | Spec-AC-01 | int | tests/skills/test-aai-hygiene-pack.sh | set equality of skill directories containing a SKILL.md across .claude, .agents, .codex and .gemini, with README and skills.local excluded; FAIL names the tree and every missing or extra skill | pending |
-| TEST-002 | Spec-AC-02 | int | tests/skills/test-aai-hygiene-pack.sh | the generator --check exits 0 against the live tree, and a following --write leaves git diff empty for the three mirror trees | pending |
-| TEST-003 | Spec-AC-02 | int | tests/skills/test-aai-hygiene-pack.sh | generated README regeneration: .codex and .gemini skills README list exactly the live skill set, so the 22-of-39 stale enumeration cannot come back | pending |
-| TEST-004 | Spec-AC-03 | unit | tests/skills/test-aai-hygiene-pack.sh | fixture manifest with the .codex/skills entry deleted makes the generator exit 2 with stderr naming .codex/skills, and no file is written | pending |
-| TEST-005 | Spec-AC-06 | unit | tests/skills/test-aai-hygiene-pack.sh | fixture manifest arms: one excluded pair with a reason passes while the same skill missing elsewhere still fails; an empty reason fails; an exclusion naming a skill absent from .claude/skills fails with a stale exclusion message | pending |
-| TEST-006 | Spec-AC-04 | unit | tests/skills/test-aai-hygiene-pack.sh | check-test-registration.mjs over tests/skills exits 0, proving all four new arms are wired into main and none is an orphan | pending |
-| TEST-007 | Spec-AC-05 | int | tests/skills/test-aai-hygiene-pack.sh | bite proof with an unmutated control in one disposable detached worktree cut from the base ref: control green, then a skill added to .claude only, a skill deleted from .codex only, and a description edited in .claude only each redden the arm and name the offender; transcripts under docs/ai/tdd/ | pending |
-| TEST-008 | Spec-AC-07 | int | tests/skills/test-aai-hygiene-pack.sh | Cursor rule contract: zero occurrences of the skills-are-prompt-files claim, zero enumerated .aai/SKILL_ prompt paths, exactly one alwaysApply true line, exactly one description line, at most 60 lines | pending |
-| TEST-009 | Spec-AC-08 | int | tests/skills/test-aai-hygiene-pack.sh | root AGENTS.md first line is the harness-neutral title and carries no Codex Instructions heading, and the manifest header records both the no-cursor-skills decision and the three-times duplicate offering | pending |
-| TEST-010 | Spec-AC-09 | int | tests/skills/test-aai-suite-select.sh | select-suites over each of the five harness surface paths yields aai-hygiene-pack and no FULL_RUN unmapped line; the pre-change run of the same five is recorded as the RED | pending |
-| TEST-011 | Spec-AC-10 | int | tests/skills/test-aai-layer-profiles.sh | its TEST-001 live-tree conformance arm proves both new .aai files are classified in PROFILES.yaml, disjoint and non-stale | pending |
-| TEST-012 | Spec-AC-10 | int | tests/skills/test-aai-prompt-diet.sh | the prompt corpus is unchanged at 315049 bytes, the TEST-012 JUSTIFIED_GROWTH_BYTES pin is still 2392 and no new ledger entry is required, because no file this scope edits is inside the .aai prompt glob | pending |
-| TEST-013 | Spec-AC-10 | e2e | tests/skills/test-framework.sh | full framework sweep green honoring each suite shebang, run under env -u AAI_ROLE | pending |
-| TEST-014 | Spec-AC-10 | unit | tests/skills/test-aai-doc-numbering.sh | the close-work-item content-hash pin still holds, proving .aai/scripts/close-work-item.mjs was not touched, and the diff intersected with protected_paths_l3 is empty | pending |
+| TEST-001 | Spec-AC-01 | int | tests/skills/test-aai-hygiene-pack.sh | set equality of skill directories containing a SKILL.md across .claude, .agents, .codex and .gemini, with README and skills.local excluded; FAIL names the tree and every missing or extra skill | green |
+| TEST-002 | Spec-AC-02 | int | tests/skills/test-aai-hygiene-pack.sh | the generator --check exits 0 against the live tree, and a following --write leaves git diff empty for the three mirror trees | green |
+| TEST-003 | Spec-AC-02 | int | tests/skills/test-aai-hygiene-pack.sh | generated README regeneration: .codex and .gemini skills README list exactly the live skill set, so the 22-of-39 stale enumeration cannot come back | green |
+| TEST-004 | Spec-AC-03 | unit | tests/skills/test-aai-hygiene-pack.sh | fixture manifest with the .codex/skills entry deleted makes the generator exit 2 with stderr naming .codex/skills, and no file is written | green |
+| TEST-005 | Spec-AC-06 | unit | tests/skills/test-aai-hygiene-pack.sh | fixture manifest arms: one excluded pair with a reason passes while the same skill missing elsewhere still fails; an empty reason fails; an exclusion naming a skill absent from .claude/skills fails with a stale exclusion message | green |
+| TEST-006 | Spec-AC-04 | unit | tests/skills/test-aai-hygiene-pack.sh | check-test-registration.mjs over tests/skills exits 0, proving all four new arms are wired into main and none is an orphan | green |
+| TEST-007 | Spec-AC-05 | int | tests/skills/test-aai-hygiene-pack.sh | bite proof with an unmutated control in one disposable detached worktree cut from the base ref: control green, then a skill added to .claude only, a skill deleted from .codex only, and a description edited in .claude only each redden the arm and name the offender; transcripts under docs/ai/tdd/ | green |
+| TEST-008 | Spec-AC-07 | int | tests/skills/test-aai-hygiene-pack.sh | Cursor rule contract: zero occurrences of the skills-are-prompt-files claim, zero enumerated .aai/SKILL_ prompt paths, exactly one alwaysApply true line, exactly one description line, at most 60 lines | green |
+| TEST-009 | Spec-AC-08 | int | tests/skills/test-aai-hygiene-pack.sh | root AGENTS.md first line is the harness-neutral title and carries no Codex Instructions heading, and the manifest header records both the no-cursor-skills decision and the three-times duplicate offering | green |
+| TEST-010 | Spec-AC-09 | int | tests/skills/test-aai-suite-select.sh | select-suites over each of the five harness surface paths yields aai-hygiene-pack and no FULL_RUN unmapped line; the pre-change run of the same five is recorded as the RED | green |
+| TEST-011 | Spec-AC-10 | int | tests/skills/test-aai-layer-profiles.sh | its TEST-001 live-tree conformance arm proves both new .aai files are classified in PROFILES.yaml, disjoint and non-stale | green |
+| TEST-012 | Spec-AC-10 | int | tests/skills/test-aai-prompt-diet.sh | the prompt corpus is unchanged at 315049 bytes, the TEST-012 JUSTIFIED_GROWTH_BYTES pin is still 2392 and no new ledger entry is required, because no file this scope edits is inside the .aai prompt glob | green |
+| TEST-013 | Spec-AC-10 | e2e | tests/skills/test-framework.sh | full framework sweep green honoring each suite shebang, run under env -u AAI_ROLE | green |
+| TEST-014 | Spec-AC-10 | unit | tests/skills/test-aai-doc-numbering.sh | the close-work-item content-hash pin still holds, proving .aai/scripts/close-work-item.mjs was not touched, and the diff intersected with protected_paths_l3 is empty | green |
 
 Test status values: pending, red, green.
 

@@ -1941,3 +1941,9 @@
 {"v":1,"ts":"2026-08-25T16:29:03.884Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-harness-surfaces-drift-unguarded","payload":{"from":"draft","to":"implementing"}}
 {"v":1,"ts":"2026-08-25T21:30:58.612Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"harness-surfaces-drift-unguarded","payload":{"status":"pass","hash":"3e4fe05ff04f2f246177c836202ae2d4ece6e8f4f66436dd32e691822d0b091f"}}
 {"v":1,"ts":"2026-08-26T09:30:31.338Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"harness-surfaces-drift-unguarded","payload":{"status":"pass","hash":"3dbf7cf717dd7582aadb30c08bdc62ae793764bdee34bc3fd0d4e482a3e1b28e"}}
+{"v":1,"ts":"2026-08-26T14:38:17.736Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"harness-surfaces-drift-unguarded","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-26T14:38:17.776Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"harness-surfaces-drift-unguarded","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-26T14:38:17.818Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"harness-surfaces-drift-unguarded","payload":{"commit":"3143622"}}
+{"v":1,"ts":"2026-08-26T14:38:17.859Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-harness-surfaces-drift-unguarded","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-26T14:38:17.901Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-harness-surfaces-drift-unguarded","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-26T14:38:17.944Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-harness-surfaces-drift-unguarded","payload":{"commit":"3143622"}}
