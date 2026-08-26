@@ -157,7 +157,7 @@ function validateManifest(manifest, sourceSkills) {
 
 // --- skill tree reading -------------------------------------------------------
 
-function listSkills(skillsDir) {
+function listSkills(skillsDir, { includeSymlinks = false } = {}) {
   let entries;
   try {
     entries = fs.readdirSync(skillsDir, { withFileTypes: true });
@@ -165,7 +165,10 @@ function listSkills(skillsDir) {
     return [];
   }
   return entries
-    .filter((e) => e.isDirectory() && fs.existsSync(path.join(skillsDir, e.name, 'SKILL.md')))
+    .filter((e) => (
+      (e.isDirectory() && fs.existsSync(path.join(skillsDir, e.name, 'SKILL.md')))
+      || (includeSymlinks && e.isSymbolicLink())
+    ))
     .map((e) => e.name)
     .sort();
 }
@@ -374,7 +377,12 @@ function main(argv) {
       fs.rmSync(treeSkillsDir, { recursive: true, force: true });
       fs.mkdirSync(treeSkillsDir, { recursive: true });
     }
-    const actualSkills = treeDirIsNonDirectory ? [] : listSkills(treeSkillsDir);
+    // Mirror symlinks are owned entries too. Include them even though Dirent
+    // does not classify them as directories, so unexpected names cannot evade
+    // the parity check and --write can unlink them without following targets.
+    const actualSkills = treeDirIsNonDirectory
+      ? []
+      : listSkills(treeSkillsDir, { includeSymlinks: true });
     const actualSet = new Set(actualSkills);
 
     for (const s of expected) {

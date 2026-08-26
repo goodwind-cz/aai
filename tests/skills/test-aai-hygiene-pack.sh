@@ -1920,6 +1920,27 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
   [[ ! -L "$symlink_fx/.gemini/skills/a" && -f "$symlink_fx/.gemini/skills/a/SKILL.md" ]] \
     || log_fail "test_111: repaired skill-directory symlink must become a real directory with SKILL.md"
 
+  # A symlink with an unexpected skill name must not disappear from parity
+  # enumeration merely because Dirent.isDirectory() is false. Check mode names
+  # it; write mode removes only the owned link and preserves its external tree.
+  mkdir -p "$external_fx/extra-skill"
+  printf '%s\n' 'external extra sentinel' > "$external_fx/extra-skill/SKILL.md"
+  ln -s "$external_fx/extra-skill" "$symlink_fx/.codex/skills/evil"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$symlink_fx" --manifest "$symlink_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "test_111: unexpected symlinked skill must fail --check, got $rc: $out"
+  case "$out" in
+    *"extra .codex/skills/evil"*) ;;
+    *) log_fail "test_111: unexpected symlinked skill must be named as extra, got: $out" ;;
+  esac
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$symlink_fx" --manifest "$symlink_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must remove unexpected symlinked skill, got $rc: $out"
+  [[ ! -e "$symlink_fx/.codex/skills/evil" && ! -L "$symlink_fx/.codex/skills/evil" ]] \
+    || log_fail "test_111: unexpected symlinked skill remained after --write"
+  [[ "$(cat "$external_fx/extra-skill/SKILL.md")" == 'external extra sentinel' ]] \
+    || log_fail "test_111: removing unexpected symlinked skill mutated its external target"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$symlink_fx" --manifest "$symlink_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: repaired unexpected symlink must pass --check, got $rc: $out"
+
   log_pass "test_111: generator --check clean, --write idempotent, both READMEs list the full $n_skills-skill set (TEST-002, TEST-003)"
 }
 
