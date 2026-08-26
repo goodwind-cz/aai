@@ -1,0 +1,10 @@
+WORKTREE: /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/tmp.tnghq6bzjP/mutation-c-worktree
+CASE: mutation-c-source-description
+COMMAND: env -u AAI_ROLE node .aai/scripts/sync-harness-skills.mjs --check
+EXIT: 1
+OUTPUT:
+DIVERGE content .agents/skills/aai-wrap-up/SKILL.md line 3: actual="description: Use when ending a development session to capture learnings, summarize accomplishments, propose LEARNED.md rules, and prepare ne…" expected="description: bite-proof mutated description"
+DIVERGE content .codex/skills/aai-wrap-up/SKILL.md line 3: actual="description: Use when ending a development session to capture learnings, summarize accomplishments, propose LEARNED.md rules, and prepare ne…" expected="description: bite-proof mutated description"
+DIVERGE readme .codex/skills/README.md differs
+DIVERGE content .gemini/skills/aai-wrap-up/SKILL.md line 3: actual="description: Use when ending a development session to capture learnings, summarize accomplishments, propose LEARNED.md rules, and prepare ne…" expected="description: bite-proof mutated description"
+DIVERGE readme .gemini/skills/README.md differs

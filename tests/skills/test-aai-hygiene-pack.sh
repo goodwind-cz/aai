@@ -2039,6 +2039,32 @@ exclusions:"
     *) log_fail "test_112(g): malformed-fence refusal must name the closing frontmatter fence, got: $out" ;;
   esac
 
+  # (h) Internal review — a late malformed source must be rejected before
+  # --write mutates any earlier target, never leaving a partial projection.
+  local late_fx="$TEST_DIR/t112-late-malformed-source"
+  rm -rf "$late_fx"
+  mkdir -p "$late_fx/.claude/skills/a" "$late_fx/.claude/skills/b"
+  local tree
+  for tree in .agents/skills .codex/skills .gemini/skills; do
+    mkdir -p "$late_fx/$tree/a"
+    printf -- '---\nname: a\ndescription: old mirror sentinel\n---\nold body\n' \
+      > "$late_fx/$tree/a/SKILL.md"
+  done
+  printf -- '---\nname: a\ndescription: new source a\n---\nnew body\n' \
+    > "$late_fx/.claude/skills/a/SKILL.md"
+  printf -- '---\nname: b\ndescription: malformed late source\nbody without closing fence\n' \
+    > "$late_fx/.claude/skills/b/SKILL.md"
+  printf '%s\n' "$base_manifest" > "$late_fx/manifest.yaml"
+  local before_targets after_targets
+  before_targets="$(find "$late_fx/.agents/skills" "$late_fx/.codex/skills" "$late_fx/.gemini/skills" \
+    -type f -exec cksum {} \; | LC_ALL=C sort)"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$late_fx" --manifest "$late_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(h): late malformed source must exit 2, got $rc: $out"
+  after_targets="$(find "$late_fx/.agents/skills" "$late_fx/.codex/skills" "$late_fx/.gemini/skills" \
+    -type f -exec cksum {} \; | LC_ALL=C sort)"
+  [[ "$after_targets" == "$before_targets" ]] \
+    || log_fail "test_112(h): failed --write partially mutated mirror targets"
+
   log_pass "test_112: generator refuses invalid manifests and missing CLI path values (TEST-004, TEST-005 stale/reasonless halves)"
 }
 

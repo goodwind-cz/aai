@@ -320,6 +320,21 @@ function main(argv) {
     fail(2, `no skills found under source tree ${SOURCE_TREE} (root=${root})`);
   }
 
+  // Parse every authored source before computing or applying any target
+  // mutation. A malformed late source must fail the whole write transaction
+  // before an earlier skill can leave one or more mirrors partially updated.
+  const sourceModels = new Map();
+  for (const s of sourceSkills) {
+    const srcPath = path.join(sourceDir, s, 'SKILL.md');
+    const srcRaw = fs.readFileSync(srcPath, 'utf8');
+    const { frontLines, body } = parseSkillFile(srcRaw, srcPath);
+    sourceModels.set(s, {
+      frontLines,
+      body,
+      description: extractDescription(frontLines),
+    });
+  }
+
   let byTree;
   try {
     byTree = validateManifest(manifest, sourceSkills);
@@ -371,10 +386,8 @@ function main(argv) {
 
     const skillDescriptions = [];
     for (const s of expected) {
-      const srcPath = path.join(sourceDir, s, 'SKILL.md');
-      const srcRaw = fs.readFileSync(srcPath, 'utf8');
-      const { frontLines, body } = parseSkillFile(srcRaw, srcPath);
-      skillDescriptions.push([s, extractDescription(frontLines)]);
+      const { frontLines, body, description } = sourceModels.get(s);
+      skillDescriptions.push([s, description]);
 
       const expectedContent = buildTargetContent(frontLines, body, { dropModel: row.model === 'drop' });
       const targetDir = path.join(treeSkillsDir, s);

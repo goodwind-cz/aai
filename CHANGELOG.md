@@ -23,8 +23,10 @@ RFC-0001).
 - Harden the generator after review: undeclared trees and unreadable targets are
   named, absent live mirror trees fail closed, and missing `--root`/`--manifest`
   values can no longer produce a false-green check of the live repository.
-- Preserve the remaining symlink-containment concern as the typed P3 follow-up
-  `fu-harness-sync-symlink-containment` rather than burying it in review prose.
+- Contain generated writes across non-file and readable-symlink targets:
+  `SKILL.md`, `README.md`, skill directories, and mirror roots are replaced or
+  refused without modifying external sentinel files; close
+  `fu-harness-sync-symlink-containment` with TEST-111 evidence.
 - Validation and dual-verdict review pass; the committed broad sweep is 81/81,
   and the post-review parser delta passes its complete owning hygiene suite.
 

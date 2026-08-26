@@ -1,0 +1,6 @@
+WORKTREE: /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/tmp.tnghq6bzjP/mutation-b-worktree
+CASE: mutation-b-codex-delete
+COMMAND: env -u AAI_ROLE node .aai/scripts/sync-harness-skills.mjs --check
+EXIT: 1
+OUTPUT:
+DIVERGE missing .codex/skills/aai-wrap-up

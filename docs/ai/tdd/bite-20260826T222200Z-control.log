@@ -1,0 +1,6 @@
+WORKTREE: /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/tmp.tnghq6bzjP/control-worktree
+CASE: control
+COMMAND: env -u AAI_ROLE node .aai/scripts/sync-harness-skills.mjs --check
+EXIT: 0
+OUTPUT:
+OK: .agents/skills, .codex/skills, .gemini/skills match the declared transform
