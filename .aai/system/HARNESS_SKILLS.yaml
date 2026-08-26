@@ -1,6 +1,6 @@
 # .aai/system/HARNESS_SKILLS.yaml — declared per-tree skill-mirror transform
 # (CHANGE harness-surfaces-drift-unguarded /
-#  docs/specs/SPEC-DRAFT-harness-surfaces-drift-unguarded.md, D1).
+#  docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md, D1).
 #
 # CONTRACT
 # - Source tree is ALWAYS .claude/skills/*/SKILL.md — hardcoded in
@@ -38,7 +38,7 @@
 # three of those four. A .cursor/skills/ copy would add a fourth place to
 # drift and zero additional skills visible to Cursor, because everything it
 # could offer is already offered by .agents/skills/ — see
-# docs/specs/SPEC-DRAFT-harness-surfaces-drift-unguarded.md D2 for the full
+# docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md D2 for the full
 # rationale; this paragraph exists so the next reader does not "fix" the
 # absence of .cursor/skills/.
 #

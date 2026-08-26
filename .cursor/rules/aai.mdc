@@ -1,6 +1,6 @@
 ---
 description: AAI workflow rules — always active when working in this project
-globs: **/*
+globs: "**/*"
 alwaysApply: true
 ---
 

@@ -1967,7 +1967,7 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
 }
 
 test_114_cursor_rule_contract() {  # TEST-008 / Spec-AC-07 (harness-surfaces-drift-unguarded)
-  log_info "test_114: .cursor/rules/aai.mdc carries no stale skills-are-prompt-files claim, no enumerated .aai/SKILL_ prompt paths, exactly one alwaysApply/description line each, at most 60 lines (TEST-008)..."
+  log_info "test_114: .cursor/rules/aai.mdc carries valid quoted glob metadata, no stale skills-are-prompt-files claim, no enumerated .aai/SKILL_ prompt paths, exactly one alwaysApply/description line each, at most 60 lines (TEST-008)..."
   local root="${1:-$PROJECT_ROOT}"
   local rule="$root/.cursor/rules/aai.mdc"
   [[ -f "$rule" ]] || log_fail "test_114: missing $rule"
@@ -1989,12 +1989,16 @@ test_114_cursor_rule_contract() {  # TEST-008 / Spec-AC-07 (harness-surfaces-dri
   [[ "$c" -eq 1 ]] \
     || log_fail "test_114: expected exactly one '^description: ' line in $rule, got $c"
 
+  c="$(/usr/bin/grep -c '^globs: "\*\*/\*"$' "$rule" || true)"
+  [[ "$c" -eq 1 ]] \
+    || log_fail "test_114: expected exactly one YAML-safe quoted 'globs: \"**/*\"' line in $rule, got $c"
+
   local lines
   lines="$(wc -l < "$rule" | tr -d ' ')"
   [[ "$lines" -le 60 ]] \
     || log_fail "test_114: $rule is $lines lines, want at most 60"
 
-  log_pass "test_114: Cursor rule contract holds — no stale prompt-file claim, no enumerated SKILL_ paths, single alwaysApply/description line, $lines lines (TEST-008)"
+  log_pass "test_114: Cursor rule contract holds — quoted glob, no stale prompt-file claim, no enumerated SKILL_ paths, single alwaysApply/description line, $lines lines (TEST-008)"
 }
 
 test_115_root_shim_and_manifest_header() {  # TEST-009 / Spec-AC-08 (harness-surfaces-drift-unguarded)
@@ -2022,6 +2026,14 @@ test_115_root_shim_and_manifest_header() {  # TEST-009 / Spec-AC-08 (harness-sur
   c="$(/usr/bin/grep -c 'three times' "$manifest" || true)"
   [[ "$c" -ge 1 ]] \
     || log_fail "test_115: $manifest header must record the three-times duplicate offering (D3) — 'three times' occurs $c time(s)"
+
+  c="$(/usr/bin/grep -c 'SPEC-DRAFT-harness-surfaces-drift-unguarded' "$manifest" || true)"
+  [[ "$c" -eq 0 ]] \
+    || log_fail "test_115: $manifest still references the pre-allocation draft spec path ($c occurrence(s))"
+
+  c="$(/usr/bin/grep -c 'SPEC-0154-spec-harness-surfaces-drift-unguarded.md' "$manifest" || true)"
+  [[ "$c" -eq 2 ]] \
+    || log_fail "test_115: $manifest must reference the allocated SPEC-0154 path twice, got $c occurrence(s)"
 
   log_pass "test_115: root shim titled for its real audience (root AGENTS.md, not .aai/AGENTS.md) and D2/D3 recorded in the manifest header (TEST-009)"
 }
