@@ -1941,6 +1941,17 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
   out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$symlink_fx" --manifest "$symlink_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "test_111: repaired unexpected symlink must pass --check, got $rc: $out"
 
+  mkdir -p "$symlink_fx/.codex/skills/empty-skill"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$symlink_fx" --manifest "$symlink_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "test_111: mirror directory without SKILL.md must fail --check, got $rc: $out"
+  case "$out" in
+    *"extra .codex/skills/empty-skill"*) ;;
+    *) log_fail "test_111: malformed mirror directory must be named as extra, got: $out" ;;
+  esac
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$symlink_fx" --manifest "$symlink_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 && ! -e "$symlink_fx/.codex/skills/empty-skill" ]] \
+    || log_fail "test_111: --write must remove an extra mirror directory without SKILL.md, got $rc: $out"
+
   log_pass "test_111: generator --check clean, --write idempotent, both READMEs list the full $n_skills-skill set (TEST-002, TEST-003)"
 }
 
@@ -2086,6 +2097,29 @@ exclusions:"
   [[ "$after_targets" == "$before_targets" ]] \
     || log_fail "test_112(h): failed --write partially mutated mirror targets"
 
+  # (i) Internal final review — manifest topology diagnostics take precedence
+  # over source parsing when both inputs are invalid. AC-03 requires the
+  # undeclared on-disk tree to be named unconditionally.
+  cp "$fx/m-no-codex.yaml" "$late_fx/m-no-codex.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$late_fx" --manifest "$late_fx/m-no-codex.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(i): combined invalid manifest/source must exit 2, got $rc: $out"
+  case "$out" in
+    *".codex/skills"*) ;;
+    *) log_fail "test_112(i): manifest validation must name .codex/skills before parsing malformed sources, got: $out" ;;
+  esac
+
+  # (j) External review — source directories are authored inputs, so a
+  # directory without SKILL.md is a structural error, never an omitted skill.
+  printf -- '---\nname: b\ndescription: repaired source b\n---\nbody\n' \
+    > "$late_fx/.claude/skills/b/SKILL.md"
+  mkdir -p "$late_fx/.claude/skills/empty-skill"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$late_fx" --manifest "$late_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(j): source directory without SKILL.md must exit 2, got $rc: $out"
+  case "$out" in
+    *"missing SKILL.md"*".claude/skills/empty-skill"*) ;;
+    *) log_fail "test_112(j): malformed source directory must name its missing SKILL.md, got: $out" ;;
+  esac
+
   log_pass "test_112: generator refuses invalid manifests and missing CLI path values (TEST-004, TEST-005 stale/reasonless halves)"
 }
 
@@ -2113,12 +2147,20 @@ NODE
 }
 
 test_117_source_skills_are_lf_pinned() {  # PR review / Windows portability
-  log_info "test_117: source SKILL.md files are pinned to LF so core.autocrlf cannot break generator frontmatter parsing..."
-  local attr
-  attr="$(cd "$PROJECT_ROOT" && git check-attr eol -- .claude/skills/aai-pr/SKILL.md)"
-  [[ "$attr" == ".claude/skills/aai-pr/SKILL.md: eol: lf" ]] \
-    || log_fail "test_117: expected .claude/skills/**/SKILL.md to resolve to eol=lf, got: $attr"
-  log_pass "test_117: source SKILL.md checkout EOL is pinned to LF"
+  log_info "test_117: source and generated skill bytes are pinned to LF so core.autocrlf cannot create false divergence..."
+  local path attr
+  for path in \
+    .claude/skills/aai-pr/SKILL.md \
+    .agents/skills/aai-pr/SKILL.md \
+    .codex/skills/aai-pr/SKILL.md \
+    .codex/skills/README.md \
+    .gemini/skills/aai-pr/SKILL.md \
+    .gemini/skills/README.md; do
+    attr="$(cd "$PROJECT_ROOT" && git check-attr eol -- "$path")"
+    [[ "$attr" == "$path: eol: lf" ]] \
+      || log_fail "test_117: expected $path to resolve to eol=lf, got: $attr"
+  done
+  log_pass "test_117: source and all generated skill files are pinned to LF"
 }
 
 test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
@@ -2144,7 +2186,7 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
   # the previously committed implementation and false-pass.
   local seed_patch="$TEST_DIR/t113-current-seed.diff"
   git -C "$PROJECT_ROOT" diff --binary HEAD -- \
-    "$HSK_GENERATOR_REL" "$HSK_MANIFEST_REL" \
+    "$HSK_GENERATOR_REL" "$HSK_MANIFEST_REL" tests/skills/test-aai-hygiene-pack.sh \
     .claude/skills .agents/skills .codex/skills .gemini/skills > "$seed_patch" \
     || log_fail "test_113: could not capture the current seeded harness diff"
   if [[ -s "$seed_patch" ]]; then
@@ -2154,9 +2196,12 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
 
   cmp -s "$PROJECT_ROOT/$HSK_GENERATOR_REL" "$wt/$HSK_GENERATOR_REL" \
     || log_fail "test_113: nested worktree did not inherit the current seeded generator bytes"
+  cmp -s "$PROJECT_ROOT/tests/skills/test-aai-hygiene-pack.sh" "$wt/tests/skills/test-aai-hygiene-pack.sh" \
+    || log_fail "test_113: nested worktree did not inherit the current parity-arm bytes"
 
   local gen="$wt/$HSK_GENERATOR_REL"
   [[ -f "$gen" ]] || log_fail "test_113: generator missing in the worktree checkout of HEAD: $gen"
+  local parity_fn="test_111_generator_check_clean_and_idempotent"
 
   local source_snapshot="$TEST_DIR/t113-source-wrap-up.md"
   local codex_snapshot="$TEST_DIR/t113-codex-wrap-up"
@@ -2168,7 +2213,7 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
 
   # CONTROL — the worktree is an unmutated checkout of HEAD; --check must be
   # clean before any mutation.
-  out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  out="$(cd "$wt" && env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh "$parity_fn" 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] \
     || log_fail "test_113 CONTROL: --check on the unmutated worktree must exit 0, got $rc: $out"
 
@@ -2176,7 +2221,7 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
   mkdir -p "$wt/.claude/skills/aai-zz-mutant-fixture"
   printf -- '---\nname: aai-zz-mutant-fixture\ndescription: bite-proof fixture\n---\nbody\n' \
     > "$wt/.claude/skills/aai-zz-mutant-fixture/SKILL.md"
-  out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  out="$(cd "$wt" && env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh "$parity_fn" 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "test_113(a): a new .claude/skills-only directory must redden --check, got exit 0"
   case "$out" in
@@ -2184,12 +2229,12 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
     *) log_fail "test_113(a): FAIL output must name the offending skill, got: $out" ;;
   esac
   rm -rf "$wt/.claude/skills/aai-zz-mutant-fixture"
-  out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  out="$(cd "$wt" && env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh "$parity_fn" 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "test_113: worktree not clean between mutations (a)->(b), got $rc: $out"
 
   # MUTATION (b) — a directory deleted from .codex/skills ONLY.
   rm -rf "$wt/.codex/skills/aai-wrap-up"
-  out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  out="$(cd "$wt" && env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh "$parity_fn" 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "test_113(b): a directory deleted from .codex/skills only must redden --check, got exit 0"
   case "$out" in
@@ -2198,7 +2243,7 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
   esac
   rm -rf "$wt/.codex/skills/aai-wrap-up"
   cp -R "$codex_snapshot" "$wt/.codex/skills/aai-wrap-up"
-  out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  out="$(cd "$wt" && env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh "$parity_fn" 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "test_113: worktree not clean between mutations (b)->(c), got $rc: $out"
 
   # MUTATION (c) — a description line edited in .claude/skills ONLY.
@@ -2207,7 +2252,7 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
   local mutated="$TEST_DIR/t113-mutated-wrap-up.md"
   sed 's/^description: .*/description: bite-proof mutated description/' "$target" > "$mutated"
   cp "$mutated" "$target"
-  out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  out="$(cd "$wt" && env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh "$parity_fn" 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -ne 0 ]] \
     || log_fail "test_113(c): a description edited in .claude/skills only must redden --check, got exit 0"
   case "$out" in
@@ -2215,7 +2260,7 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
     *) log_fail "test_113(c): FAIL output must name the offending skill, got: $out" ;;
   esac
   cp "$source_snapshot" "$wt/.claude/skills/aai-wrap-up/SKILL.md"
-  out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  out="$(cd "$wt" && env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh "$parity_fn" 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "test_113: worktree not clean after reverting mutation (c), got $rc: $out"
 
   # SELF-BINDING (HAZ-RESTORE) — the real checkout is never touched; all
@@ -2242,6 +2287,10 @@ test_118_bite_proofs_preserve_seeded_state() {  # PR review / seeded-wrapper reg
   local seeded_root="$TEST_DIR/t118-seeded-root"
   git clone --quiet --no-hardlinks "$shipping_root" "$seeded_root" \
     || log_fail "test_118: could not create seeded fixture repository"
+  cp "$shipping_root/$HSK_GENERATOR_REL" "$seeded_root/$HSK_GENERATOR_REL" \
+    || log_fail "test_118: could not seed the current generator into the fixture"
+  cp "$shipping_root/tests/skills/test-aai-hygiene-pack.sh" "$seeded_root/tests/skills/test-aai-hygiene-pack.sh" \
+    || log_fail "test_118: could not seed the current parity arm into the fixture"
 
   local source_skill="$seeded_root/.claude/skills/aai-wrap-up/SKILL.md"
   local changed_skill="$TEST_DIR/t118-changed-wrap-up.md"
@@ -2425,5 +2474,13 @@ main() {
 # Allow sourcing for isolated per-test execution (RED-proof evidence);
 # run the full suite only when invoked directly.
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  main "$@"
+  if [[ "$#" -eq 0 ]]; then
+    main
+  elif [[ "$#" -eq 1 && "$1" == test_* ]] && declare -F "$1" >/dev/null; then
+    check_deps
+    "$1"
+  else
+    printf 'FAIL: unknown or invalid test function: %s\n' "${1:-<missing>}" >&2
+    exit 2
+  fi
 fi

@@ -157,19 +157,33 @@ function validateManifest(manifest, sourceSkills) {
 
 // --- skill tree reading -------------------------------------------------------
 
-function listSkills(skillsDir, { includeSymlinks = false } = {}) {
+function readSkillEntries(skillsDir) {
   let entries;
   try {
     entries = fs.readdirSync(skillsDir, { withFileTypes: true });
   } catch {
     return [];
   }
+  return entries;
+}
+
+function listSourceSkills(skillsDir) {
+  const entries = readSkillEntries(skillsDir);
+  for (const entry of entries) {
+    if (entry.isDirectory() && !fs.existsSync(path.join(skillsDir, entry.name, 'SKILL.md'))) {
+      throw new ManifestError(`source skill directory missing SKILL.md: ${path.join(skillsDir, entry.name)}`);
+    }
+  }
   return entries
-    .filter((e) => (
-      (e.isDirectory() && fs.existsSync(path.join(skillsDir, e.name, 'SKILL.md')))
-      || (includeSymlinks && e.isSymbolicLink())
-    ))
-    .map((e) => e.name)
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+}
+
+function listMirrorSkills(skillsDir) {
+  return readSkillEntries(skillsDir)
+    .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
+    .map((entry) => entry.name)
     .sort();
 }
 
@@ -318,9 +332,26 @@ function main(argv) {
   }
 
   const sourceDir = path.join(root, SOURCE_TREE);
-  const sourceSkills = listSkills(sourceDir);
+  let sourceSkills;
+  try {
+    sourceSkills = listSourceSkills(sourceDir);
+  } catch (err) {
+    if (err instanceof ManifestError) fail(2, err.message);
+    throw err;
+  }
   if (sourceSkills.length === 0) {
     fail(2, `no skills found under source tree ${SOURCE_TREE} (root=${root})`);
+  }
+
+  // Validate the declared topology before parsing source bodies. This keeps
+  // AC-03 diagnostics deterministic when both the manifest and a source file
+  // are invalid, while both validation phases still complete before writes.
+  let byTree;
+  try {
+    byTree = validateManifest(manifest, sourceSkills);
+  } catch (err) {
+    if (err instanceof ManifestError) fail(2, err.message);
+    throw err;
   }
 
   // Parse every authored source before computing or applying any target
@@ -336,14 +367,6 @@ function main(argv) {
       body,
       description: extractDescription(frontLines),
     });
-  }
-
-  let byTree;
-  try {
-    byTree = validateManifest(manifest, sourceSkills);
-  } catch (err) {
-    if (err instanceof ManifestError) fail(2, err.message);
-    throw err;
   }
 
   for (const ex of manifest.exclusions) {
@@ -382,7 +405,7 @@ function main(argv) {
     // the parity check and --write can unlink them without following targets.
     const actualSkills = treeDirIsNonDirectory
       ? []
-      : listSkills(treeSkillsDir, { includeSymlinks: true });
+      : listMirrorSkills(treeSkillsDir);
     const actualSet = new Set(actualSkills);
 
     for (const s of expected) {

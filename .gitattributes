@@ -11,4 +11,9 @@
 # LF regardless of core.autocrlf, so parseFrontmatter never sees a CRLF checkout.
 docs/**/*.md text eol=lf
 .claude/skills/**/SKILL.md text eol=lf
+.agents/skills/**/SKILL.md text eol=lf
+.codex/skills/**/SKILL.md text eol=lf
+.codex/skills/README.md text eol=lf
+.gemini/skills/**/SKILL.md text eol=lf
+.gemini/skills/README.md text eol=lf
 *.mjs text eol=lf
