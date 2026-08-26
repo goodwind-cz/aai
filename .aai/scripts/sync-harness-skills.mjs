@@ -88,12 +88,13 @@ function parseManifest(raw) {
   const exclusions = [];
   let section = null;
   for (const line of lines) {
-    if (/^\s*#/.test(line)) continue;
+    if (/^\s*$/.test(line) || /^\s*#/.test(line)) continue;
     if (/^trees:\s*$/.test(line)) { section = 'trees'; continue; }
     if (/^exclusions:\s*$/.test(line)) { section = 'exclusions'; continue; }
-    if (/^[A-Za-z_][A-Za-z0-9_]*:\s*$/.test(line)) { section = null; continue; }
     const m = line.match(/^ {2}- (.*)$/);
-    if (!m) continue;
+    if (!m || section === null) {
+      throw new ManifestError(`unparsed manifest content: ${line}`);
+    }
     const rest = m[1];
     if (section === 'trees') {
       const parts = rest.split('|');

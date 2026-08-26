@@ -1899,6 +1899,28 @@ exclusions:"
     *) log_fail "test_112(e): duplicate-tree refusal must name .codex/skills, got: $out" ;;
   esac
 
+  # (f) PR review — no nonblank manifest content may disappear merely
+  # because it has unexpected indentation or a misspelled section header.
+  printf '%s\n' "$base_manifest" '    - .codex/skills|a|intentionally excluded' > "$fx/m-indented-row.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$fx" --manifest "$fx/m-indented-row.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(f): an unexpectedly indented row must exit 2, got $rc: $out"
+  case "$out" in
+    *"unparsed manifest content"*) ;;
+    *) log_fail "test_112(f): indented-row refusal must name unparsed content, got: $out" ;;
+  esac
+
+  printf '%s\n' 'trees:' \
+    '  - .agents/skills|carry|no' \
+    '  - .codex/skills|drop|yes' \
+    '  - .gemini/skills|drop|yes' \
+    'exclusionz:' > "$fx/m-misspelled-section.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$fx" --manifest "$fx/m-misspelled-section.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(f): a misspelled section header must exit 2, got $rc: $out"
+  case "$out" in
+    *"unparsed manifest content"*"exclusionz:"*) ;;
+    *) log_fail "test_112(f): misspelled-section refusal must name the unparsed header, got: $out" ;;
+  esac
+
   log_pass "test_112: generator refuses invalid manifests and missing CLI path values (TEST-004, TEST-005 stale/reasonless halves)"
 }
 
