@@ -170,6 +170,14 @@ function listSkills(skillsDir) {
     .sort();
 }
 
+function isNonFile(targetPath) {
+  try {
+    return !fs.lstatSync(targetPath).isFile();
+  } catch {
+    return false;
+  }
+}
+
 // parseSkillFile: split a SKILL.md into its frontmatter lines and its exact
 // verbatim body (everything after the closing `---` line, byte-for-byte,
 // including leading blank lines). Reconstructing with buildTargetContent and
@@ -352,11 +360,7 @@ function main(argv) {
         actualContent = fs.readFileSync(targetPath, 'utf8');
       } catch (err) {
         readError = err;
-        try {
-          targetIsNonFile = !fs.lstatSync(targetPath).isFile();
-        } catch {
-          targetIsNonFile = false;
-        }
+        targetIsNonFile = isNonFile(targetPath);
       }
       if (readError && actualSet.has(s)) {
         // The skill directory exists (so this is NOT the "missing" case
@@ -389,15 +393,18 @@ function main(argv) {
       const expectedReadme = buildReadme(required, skillDescriptions);
       const readmePath = path.join(treeSkillsDir, 'README.md');
       let actualReadme = null;
+      let readmeIsNonFile = false;
       try {
         actualReadme = fs.readFileSync(readmePath, 'utf8');
       } catch {
         actualReadme = null;
+        readmeIsNonFile = isNonFile(readmePath);
       }
       if (actualReadme !== expectedReadme) {
         divergences.push(`readme ${required}/README.md differs`);
         if (opts.write) {
           fs.mkdirSync(treeSkillsDir, { recursive: true });
+          if (readmeIsNonFile) fs.rmSync(readmePath, { recursive: true, force: true });
           fs.writeFileSync(readmePath, expectedReadme);
         }
       }

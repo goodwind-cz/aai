@@ -1873,6 +1873,12 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
   [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must replace a directory at SKILL.md, got $rc: $out"
   [[ -f "$corrupt_fx/.codex/skills/a/SKILL.md" ]] \
     || log_fail "test_111: repaired .codex/skills/a/SKILL.md must be a regular file"
+  rm "$corrupt_fx/.codex/skills/README.md"
+  mkdir "$corrupt_fx/.codex/skills/README.md"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$corrupt_fx" --manifest "$corrupt_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must replace a directory at README.md, got $rc: $out"
+  [[ -f "$corrupt_fx/.codex/skills/README.md" ]] \
+    || log_fail "test_111: repaired .codex/skills/README.md must be a regular file"
   out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$corrupt_fx" --manifest "$corrupt_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "test_111: repaired non-file target must pass --check, got $rc: $out"
 
