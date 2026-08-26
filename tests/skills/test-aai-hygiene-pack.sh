@@ -1794,6 +1794,7 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
   local gen="$PROJECT_ROOT/$HSK_GENERATOR_REL"
   [[ -f "$gen" ]] || log_fail "test_111: missing $HSK_GENERATOR_REL"
   command -v node >/dev/null 2>&1 || log_skip "node not found"
+  TEST_DIR="${TEST_DIR:-$(ap_tmpdir)}"
 
   local out rc
   out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
@@ -1813,6 +1814,28 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
     [[ "$n" -eq "$n_skills" ]] \
       || log_fail "test_111: $t/skills/README.md lists $n skills, want the full live set of $n_skills"
   done
+
+  # PR review — a readme=yes tree still needs its directory and README when
+  # every source skill is excluded and the mirror tree starts absent.
+  local empty_fx="$TEST_DIR/t111-all-excluded"
+  rm -rf "$empty_fx"
+  mkdir -p "$empty_fx/.claude/skills/a"
+  printf -- '---\nname: a\ndescription: fixture a\n---\nbody\n' > "$empty_fx/.claude/skills/a/SKILL.md"
+  {
+    printf '%s\n' 'trees:'
+    printf '%s\n' '  - .agents/skills|carry|no'
+    printf '%s\n' '  - .codex/skills|drop|yes'
+    printf '%s\n' '  - .gemini/skills|drop|yes'
+    printf '%s\n' 'exclusions:'
+    printf '%s\n' '  - .agents/skills|a|fixture excludes the only skill'
+    printf '%s\n' '  - .codex/skills|a|fixture excludes the only skill'
+    printf '%s\n' '  - .gemini/skills|a|fixture excludes the only skill'
+  } > "$empty_fx/manifest.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$empty_fx" --manifest "$empty_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must create empty readme=yes trees, got $rc: $out"
+  [[ -f "$empty_fx/.codex/skills/README.md" && -f "$empty_fx/.gemini/skills/README.md" ]] \
+    || log_fail "test_111: all-excluded readme=yes trees must still receive README.md"
+
   log_pass "test_111: generator --check clean, --write idempotent, both READMEs list the full $n_skills-skill set (TEST-002, TEST-003)"
 }
 
@@ -1919,6 +1942,17 @@ exclusions:"
   case "$out" in
     *"unparsed manifest content"*"exclusionz:"*) ;;
     *) log_fail "test_112(f): misspelled-section refusal must name the unparsed header, got: $out" ;;
+  esac
+
+  # (g) PR review — a closing frontmatter fence is a complete `---` line,
+  # never a prefix such as `---oops` that gets silently discarded.
+  printf '%s\n' "$base_manifest" > "$fx/m-base.yaml"
+  printf -- '---\nname: a\ndescription: fixture a\n---oops\nbody\n' > "$fx/.claude/skills/a/SKILL.md"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$fx" --manifest "$fx/m-base.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(g): a prefixed closing fence must exit 2, got $rc: $out"
+  case "$out" in
+    *"closing frontmatter fence"*) ;;
+    *) log_fail "test_112(g): malformed-fence refusal must name the closing frontmatter fence, got: $out" ;;
   esac
 
   log_pass "test_112: generator refuses invalid manifests and missing CLI path values (TEST-004, TEST-005 stale/reasonless halves)"

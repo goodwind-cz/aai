@@ -180,13 +180,13 @@ function parseSkillFile(raw, label) {
   if (!raw.startsWith('---\n')) {
     throw new ManifestError(`source skill file missing opening frontmatter fence: ${label}`);
   }
-  const closeIdx = raw.indexOf('\n---', 4);
-  if (closeIdx === -1) {
+  const closeMatch = /\n---(?:\n|$)/.exec(raw.slice(4));
+  if (!closeMatch) {
     throw new ManifestError(`source skill file missing closing frontmatter fence: ${label}`);
   }
+  const closeIdx = 4 + closeMatch.index;
   const frontBlock = raw.slice(4, closeIdx);
-  const fenceLineEnd = raw.indexOf('\n', closeIdx + 1);
-  const body = fenceLineEnd === -1 ? '' : raw.slice(fenceLineEnd + 1);
+  const body = raw.slice(closeIdx + closeMatch[0].length);
   const frontLines = frontBlock.length ? frontBlock.split('\n') : [''];
   return { frontLines, body };
 }
@@ -385,7 +385,10 @@ function main(argv) {
       }
       if (actualReadme !== expectedReadme) {
         divergences.push(`readme ${required}/README.md differs`);
-        if (opts.write) fs.writeFileSync(readmePath, expectedReadme);
+        if (opts.write) {
+          fs.mkdirSync(treeSkillsDir, { recursive: true });
+          fs.writeFileSync(readmePath, expectedReadme);
+        }
       }
     }
   }
