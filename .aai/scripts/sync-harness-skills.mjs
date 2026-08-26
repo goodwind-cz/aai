@@ -118,6 +118,11 @@ function parseManifest(raw) {
 }
 
 function validateManifest(manifest, sourceSkills) {
+  const seenTrees = new Set();
+  for (const row of manifest.trees) {
+    if (seenTrees.has(row.tree)) fail(2, `duplicate tree row in manifest: ${row.tree}`);
+    seenTrees.add(row.tree);
+  }
   const byTree = new Map(manifest.trees.map((t) => [t.tree, t]));
   for (const required of REQUIRED_MIRROR_TREES) {
     const row = byTree.get(required);

@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-08-26T14:38:27.304Z",
+  "generatedAt": "2026-08-26T15:04:52.838Z",
   "project": "aai",
   "counts": {
     "delivered": 213,
     "in_progress": 1,
     "releases": 1,
-    "tokens_total": 53710690
+    "tokens_total": 53372161
   },
   "waiting_on_you": null,
   "current_focus": {
@@ -86,8 +86,8 @@
       "status": "done",
       "path": "docs/issues/ISSUE-0036-harness-surfaces-drift-unguarded.md",
       "closed_on": "2026-08-26",
-      "agent_minutes": 332,
-      "token_total": 1615456,
+      "agent_minutes": 289,
+      "token_total": 1276927,
       "spec": "docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20260826T093209Z-harness-surfaces-drift-unguarded-postfix-final.md"
@@ -2862,8 +2862,8 @@
           "status": "done",
           "path": "docs/issues/ISSUE-0036-harness-surfaces-drift-unguarded.md",
           "closed_on": "2026-08-26",
-          "agent_minutes": 332,
-          "token_total": 1615456,
+          "agent_minutes": 289,
+          "token_total": 1276927,
           "spec": "docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20260826T093209Z-harness-surfaces-drift-unguarded-postfix-final.md"

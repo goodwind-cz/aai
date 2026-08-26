@@ -1884,7 +1884,43 @@ exclusions:"
     done
   done
 
+  # (e) PR review — duplicate tree rows must be rejected before Map
+  # construction can silently discard the first transform.
+  printf '%s\n' 'trees:' \
+    '  - .agents/skills|carry|no' \
+    '  - .codex/skills|nonsense|no' \
+    '  - .codex/skills|drop|yes' \
+    '  - .gemini/skills|drop|yes' \
+    'exclusions:' > "$fx/m-duplicate-tree.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$fx" --manifest "$fx/m-duplicate-tree.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(e): a duplicate tree row must exit 2, got $rc: $out"
+  case "$out" in
+    *"duplicate tree"*".codex/skills"*) ;;
+    *) log_fail "test_112(e): duplicate-tree refusal must name .codex/skills, got: $out" ;;
+  esac
+
   log_pass "test_112: generator refuses invalid manifests and missing CLI path values (TEST-004, TEST-005 stale/reasonless halves)"
+}
+
+test_116_metrics_correction_not_counted() {  # PR review / telemetry honesty
+  log_info "test_116: the harness-surfaces metrics correction is folded into its original run, not counted as extra work..."
+  node - "$PROJECT_ROOT/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "test_116: correction still inflates metrics"
+const fs = require('fs');
+const rows = fs.readFileSync(process.argv[2], 'utf8').trim().split(/\r?\n/)
+  .filter((line) => line && !line.startsWith('#')).map(JSON.parse)
+  .filter((row) => row.ref_id === 'harness-surfaces-drift-unguarded');
+if (rows.length !== 1) throw new Error(`want one metrics row, got ${rows.length}`);
+const row = rows[0];
+const runs = row.agent_runs || [];
+if (runs.some((run) => /CORRECTION of/.test(run.note || ''))) throw new Error('correction is still an agent run');
+const corrected = runs.find((run) => /commits 496b7a1/.test(run.note || ''));
+if (!corrected || !/usage_total_tokens=128719/.test(corrected.note || '')) throw new Error('corrected token total is absent');
+const duration = runs.reduce((sum, run) => sum + (run.duration_seconds || 0), 0);
+if (duration !== 17319 || row.totals.agent_duration_seconds !== duration) throw new Error(`duration mismatch: runs=${duration} total=${row.totals.agent_duration_seconds}`);
+const remediationRuns = runs.filter((run) => run.role === 'Remediation').length;
+if (remediationRuns !== 2 || row.reliability.remediation_runs !== remediationRuns) throw new Error(`remediation mismatch: runs=${remediationRuns} total=${row.reliability.remediation_runs}`);
+NODE
+  log_pass "test_116: correction is non-billable and aggregate duration/remediation counts match the actual runs"
 }
 
 test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
@@ -2082,6 +2118,7 @@ main() {
   test_113_bite_proofs_in_detached_worktree
   test_114_cursor_rule_contract
   test_115_root_shim_and_manifest_header
+  test_116_metrics_correction_not_counted
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

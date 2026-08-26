@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-26T14:38:27.415Z",
+  "generatedAt": "2026-08-26T15:04:52.882Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
@@ -1940,7 +1940,7 @@
   "speed": {
     "ride_busy_seconds": {
       "median": 2280,
-      "mean": 4255.4,
+      "mean": 4235,
       "measured": 127
     },
     "role_split": [
@@ -1961,8 +1961,8 @@
       },
       {
         "role": "Remediation",
-        "duration_seconds": 67519,
-        "tokens": 9685912
+        "duration_seconds": 64928,
+        "tokens": 9347383
       },
       {
         "role": "Validation",
@@ -2618,8 +2618,8 @@
       },
       {
         "ref": "harness-surfaces-drift-unguarded",
-        "busy_seconds": 19910,
-        "remediation_runs": 3
+        "busy_seconds": 17319,
+        "remediation_runs": 2
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -2630,10 +2630,10 @@
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
       "median": 505034,
-      "mean": 691881,
+      "mean": 687701.7,
       "measured": 81
     },
-    "tokens_total": 56042363,
+    "tokens_total": 55703834,
     "by_role": [
       {
         "role": "TDD Implementation",
@@ -2649,7 +2649,7 @@
       },
       {
         "role": "Remediation",
-        "tokens": 9685912
+        "tokens": 9347383
       },
       {
         "role": "Validation",
@@ -2661,8 +2661,8 @@
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 364,
-      "total_runs": 592,
+      "runs_with_marker": 363,
+      "total_runs": 591,
       "pct": 61,
       "by_week": [
         {
@@ -2715,8 +2715,8 @@
         },
         {
           "week": "2026-W35",
-          "runs_with_marker": 29,
-          "total_runs": 33,
+          "runs_with_marker": 28,
+          "total_runs": 32,
           "pct": 88
         }
       ]
@@ -2755,12 +2755,12 @@
         },
         {
           "role": "Remediation",
-          "runs_total": 79,
-          "runs_marked": 51,
+          "runs_total": 78,
+          "runs_marked": 50,
           "runs_sentinel": 0,
           "runs_unmarked": 28,
-          "tokens_total": 9685912,
-          "median_tokens_per_run": 174256,
+          "tokens_total": 9347383,
+          "median_tokens_per_run": 172758,
           "share_pct": 17
         },
         {
@@ -3085,8 +3085,8 @@
             },
             {
               "role": "Remediation",
-              "runs_marked": 9,
-              "median_tokens": 174256
+              "runs_marked": 8,
+              "median_tokens": 133223
             },
             {
               "role": "Validation",
@@ -3113,8 +3113,8 @@
     "remediation_distribution": {
       "0": 80,
       "1": 9,
-      "2": 4,
-      "3": 4,
+      "2": 5,
+      "3": 3,
       "4": 3,
       "5": 1,
       "6": 1,
@@ -3199,8 +3199,8 @@
       "week": "2026-W35",
       "delivered": 12,
       "median_lead_time_seconds": 20654,
-      "busy_seconds": 49765,
-      "tokens": 5187745,
+      "busy_seconds": 47174,
+      "tokens": 4849216,
       "first_pass_rate": 0
     }
   ],
@@ -4042,9 +4042,9 @@
       {
         "ref": "harness-surfaces-drift-unguarded",
         "date_utc": "2026-08-26",
-        "runs_total": 12,
+        "runs_total": 11,
         "elapsed_wall_seconds": 62004,
-        "agent_seconds": 19910,
+        "agent_seconds": 17319,
         "roles": [
           {
             "role": "TDD Implementation",
@@ -4056,7 +4056,7 @@
           },
           {
             "role": "Remediation",
-            "runs": 3
+            "runs": 2
           },
           {
             "role": "Validation",
@@ -4067,11 +4067,11 @@
             "runs": 1
           }
         ],
-        "runs_marked": 8,
-        "tokens_total": 1615456,
-        "remediation_runs": 3,
-        "remediation_tokens": 644229,
-        "remediation_share_pct": 40
+        "runs_marked": 7,
+        "tokens_total": 1276927,
+        "remediation_runs": 2,
+        "remediation_tokens": 305700,
+        "remediation_share_pct": 24
       },
       {
         "ref": "role-verification-guards",
