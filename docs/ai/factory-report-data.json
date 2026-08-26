@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-26T15:04:52.882Z",
+  "generatedAt": "2026-08-26T15:43:23.902Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
@@ -3261,7 +3261,7 @@
         "id": "fu-tdd-skips-full-sweep",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 11,
+        "age_days": 12,
         "what": "the TDD role declares done after targeted suites only, so defects visible only to the full framework sweep surface two roles later and cost a whole validate-remediate lap each",
         "status": "open"
       },
@@ -3301,7 +3301,7 @@
         "id": "fu-no-nul-guard",
         "ref": "docs-model-nul-escape",
         "severity": "P2",
-        "age_days": 8,
+        "age_days": 9,
         "what": "nothing checks tracked text files for NUL bytes, so a control character can silently turn a source file binary to POSIX grep",
         "status": "open"
       },
@@ -3397,7 +3397,7 @@
         "id": "fu-followups-json-truncated-on-pipe",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "follow-ups.mjs list --json stops at exactly 65536 bytes when stdout is a pipe, emitting invalid JSON, while the same command redirected to a file completes",
         "status": "open"
       },

@@ -1941,6 +1941,8 @@ const duration = runs.reduce((sum, run) => sum + (run.duration_seconds || 0), 0)
 if (duration !== 17319 || row.totals.agent_duration_seconds !== duration) throw new Error(`duration mismatch: runs=${duration} total=${row.totals.agent_duration_seconds}`);
 const remediationRuns = runs.filter((run) => run.role === 'Remediation').length;
 if (remediationRuns !== 2 || row.reliability.remediation_runs !== remediationRuns) throw new Error(`remediation mismatch: runs=${remediationRuns} total=${row.reliability.remediation_runs}`);
+const validationFails = runs.filter((run) => run.role === 'Validation' && /FAIL round/.test(run.note || '')).length;
+if (validationFails !== 1 || row.reliability.validation_fails !== validationFails) throw new Error(`validation-fail mismatch: runs=${validationFails} total=${row.reliability.validation_fails}`);
 NODE
   log_pass "test_116: correction is non-billable and aggregate duration/remediation counts match the actual runs"
 }
@@ -1965,6 +1967,23 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
   git -C "$PROJECT_ROOT" worktree add --detach "$wt" HEAD >/dev/null 2>&1 \
     || log_fail "test_113: could not create a disposable detached worktree at $wt from HEAD"
   HSK_ACTIVE_WORKTREE="$wt"
+
+  # The canonical wrapper seeds staged/uncommitted bytes into PROJECT_ROOT
+  # without moving HEAD. Carry the generator-owned tracked diff into this
+  # nested worktree before running bite mutations, or the proof can exercise
+  # the previously committed implementation and false-pass.
+  local seed_patch="$TEST_DIR/t113-current-seed.diff"
+  git -C "$PROJECT_ROOT" diff --binary HEAD -- \
+    "$HSK_GENERATOR_REL" "$HSK_MANIFEST_REL" \
+    .claude/skills .agents/skills .codex/skills .gemini/skills > "$seed_patch" \
+    || log_fail "test_113: could not capture the current seeded harness diff"
+  if [[ -s "$seed_patch" ]]; then
+    git -C "$wt" apply "$seed_patch" \
+      || log_fail "test_113: could not apply the current seeded harness diff to the nested worktree"
+  fi
+
+  cmp -s "$PROJECT_ROOT/$HSK_GENERATOR_REL" "$wt/$HSK_GENERATOR_REL" \
+    || log_fail "test_113: nested worktree did not inherit the current seeded generator bytes"
 
   local gen="$wt/$HSK_GENERATOR_REL"
   [[ -f "$gen" ]] || log_fail "test_113: generator missing in the worktree checkout of HEAD: $gen"

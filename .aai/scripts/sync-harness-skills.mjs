@@ -83,6 +83,8 @@ function fail(code, message) {
 // --- manifest parsing (line-based, PROFILES.yaml discipline) ----------------
 
 function parseManifest(raw) {
+  // Fail closed: every non-comment line must match the declared grammar;
+  // silently skipped content can erase an exclusion or transform.
   const lines = raw.split(/\r?\n/);
   const trees = [];
   const exclusions = [];
