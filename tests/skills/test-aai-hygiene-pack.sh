@@ -1850,6 +1850,32 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
     esac
   done
 
+  # PR review — write mode repairs a non-file SKILL.md target instead of
+  # detecting it in check mode and then crashing with EISDIR while writing.
+  local corrupt_fx="$TEST_DIR/t111-non-file-target"
+  rm -rf "$corrupt_fx"
+  mkdir -p "$corrupt_fx/.claude/skills/a" \
+    "$corrupt_fx/.agents/skills/a" "$corrupt_fx/.codex/skills/a" "$corrupt_fx/.gemini/skills/a"
+  printf -- '---\nname: a\ndescription: fixture a\n---\nbody\n' > "$corrupt_fx/.claude/skills/a/SKILL.md"
+  cp "$corrupt_fx/.claude/skills/a/SKILL.md" "$corrupt_fx/.agents/skills/a/SKILL.md"
+  cp "$corrupt_fx/.claude/skills/a/SKILL.md" "$corrupt_fx/.codex/skills/a/SKILL.md"
+  cp "$corrupt_fx/.claude/skills/a/SKILL.md" "$corrupt_fx/.gemini/skills/a/SKILL.md"
+  rm "$corrupt_fx/.codex/skills/a/SKILL.md"
+  mkdir "$corrupt_fx/.codex/skills/a/SKILL.md"
+  {
+    printf '%s\n' 'trees:'
+    printf '%s\n' '  - .agents/skills|carry|no'
+    printf '%s\n' '  - .codex/skills|drop|yes'
+    printf '%s\n' '  - .gemini/skills|drop|yes'
+    printf '%s\n' 'exclusions:'
+  } > "$corrupt_fx/manifest.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$corrupt_fx" --manifest "$corrupt_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must replace a directory at SKILL.md, got $rc: $out"
+  [[ -f "$corrupt_fx/.codex/skills/a/SKILL.md" ]] \
+    || log_fail "test_111: repaired .codex/skills/a/SKILL.md must be a regular file"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$corrupt_fx" --manifest "$corrupt_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: repaired non-file target must pass --check, got $rc: $out"
+
   log_pass "test_111: generator --check clean, --write idempotent, both READMEs list the full $n_skills-skill set (TEST-002, TEST-003)"
 }
 

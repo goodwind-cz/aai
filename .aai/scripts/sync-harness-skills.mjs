@@ -347,10 +347,16 @@ function main(argv) {
       const targetPath = path.join(treeSkillsDir, s, 'SKILL.md');
       let actualContent = null;
       let readError = null;
+      let targetIsNonFile = false;
       try {
         actualContent = fs.readFileSync(targetPath, 'utf8');
       } catch (err) {
         readError = err;
+        try {
+          targetIsNonFile = !fs.lstatSync(targetPath).isFile();
+        } catch {
+          targetIsNonFile = false;
+        }
       }
       if (readError && actualSet.has(s)) {
         // The skill directory exists (so this is NOT the "missing" case
@@ -365,6 +371,7 @@ function main(argv) {
         }
         if (opts.write) {
           fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+          if (targetIsNonFile) fs.rmSync(targetPath, { recursive: true, force: true });
           fs.writeFileSync(targetPath, expectedContent);
         }
       }
