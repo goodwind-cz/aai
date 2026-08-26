@@ -1923,6 +1923,15 @@ NODE
   log_pass "test_116: correction is non-billable and aggregate duration/remediation counts match the actual runs"
 }
 
+test_117_source_skills_are_lf_pinned() {  # PR review / Windows portability
+  log_info "test_117: source SKILL.md files are pinned to LF so core.autocrlf cannot break generator frontmatter parsing..."
+  local attr
+  attr="$(cd "$PROJECT_ROOT" && git check-attr eol -- .claude/skills/aai-pr/SKILL.md)"
+  [[ "$attr" == ".claude/skills/aai-pr/SKILL.md: eol: lf" ]] \
+    || log_fail "test_117: expected .claude/skills/**/SKILL.md to resolve to eol=lf, got: $attr"
+  log_pass "test_117: source SKILL.md checkout EOL is pinned to LF"
+}
+
 test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
   log_info "test_113: bite proofs for the parity guard in a disposable DETACHED worktree, with unmutated controls (TEST-007)..."
   command -v node >/dev/null 2>&1 || log_skip "node not found"
@@ -2119,6 +2128,7 @@ main() {
   test_114_cursor_rule_contract
   test_115_root_shim_and_manifest_header
   test_116_metrics_correction_not_counted
+  test_117_source_skills_are_lf_pinned
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
