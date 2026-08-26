@@ -1,11 +1,11 @@
 ---
 id: spec-harness-surfaces-drift-unguarded
 type: spec
-number: null
+number: 154
 status: implementing
 ceremony_level: 2
 links:
-  requirement: docs/issues/ISSUE-DRAFT-harness-surfaces-drift-unguarded.md
+  requirement: docs/issues/ISSUE-0036-harness-surfaces-drift-unguarded.md
   rfc: null
   pr: []
   commits: []
@@ -62,7 +62,7 @@ One divergence is a functional regression, not cosmetics: fifteen
 walk into `/aai-loop` in twelve places where a Claude subagent is stopped.
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-harness-surfaces-drift-unguarded.md
+- Requirement: docs/issues/ISSUE-0036-harness-surfaces-drift-unguarded.md
 - Suite that gains the guard: tests/skills/test-aai-hygiene-pack.sh
 - Selector contract: tests/skills/suite-map.yaml
 - Vendored-layer classification contract: .aai/system/PROFILES.yaml
@@ -193,8 +193,8 @@ rather than dropped — see `## Registry items closed by this scope`.
   .aai/system/HARNESS_SKILLS.yaml, .aai/system/PROFILES.yaml,
   tests/skills/test-aai-hygiene-pack.sh, tests/skills/suite-map.yaml,
   .cursor/rules/aai.mdc, AGENTS.md, .agents/skills, .codex/skills,
-  .gemini/skills, docs/specs/SPEC-DRAFT-harness-surfaces-drift-unguarded.md,
-  docs/issues/ISSUE-DRAFT-harness-surfaces-drift-unguarded.md, CHANGELOG.md
+  .gemini/skills, docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md,
+  docs/issues/ISSUE-0036-harness-surfaces-drift-unguarded.md, CHANGELOG.md
 
 ## Acceptance Criteria Mapping
 

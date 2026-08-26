@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-25T22:21:36.259Z
+Generated: 2026-08-26T14:36:01.554Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-harness-surfaces-drift-unguarded | specs | implementing | 10 planned | docs/specs/SPEC-DRAFT-harness-surfaces-drift-unguarded.md |
+| SPEC-0154 | specs | implementing | 10 planned | docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md |
 
 ## Canonical layer (0)
 
@@ -426,7 +426,7 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| harness-surfaces-drift-unguarded (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-harness-surfaces-drift-unguarded.md |
+| ISSUE-0036 | issues | docs/issues/ISSUE-0036-harness-surfaces-drift-unguarded.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -457,4 +457,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-25 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-26 — counts above use this date for overdue checks.

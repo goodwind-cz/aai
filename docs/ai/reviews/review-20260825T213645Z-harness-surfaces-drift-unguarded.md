@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff main..HEAD (branch fix/harness-surface-parity, 9 commits c838666..81da751, 101 files)
-  spec: docs/specs/SPEC-DRAFT-harness-surfaces-drift-unguarded.md
+  spec: docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -61,7 +61,7 @@ review:
 
 - Diff scope: `git diff main..HEAD` on `fix/harness-surface-parity`, nine commits
   `c838666..81da751`, 101 files (87 of them generated mirror files).
-- Spec: `docs/specs/SPEC-DRAFT-harness-surfaces-drift-unguarded.md` (SPEC-FROZEN,
+- Spec: `docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md` (SPEC-FROZEN,
   10 Spec-ACs, 14 TEST rows, D1-D5). Not edited by this review; AC table stays `planned`.
 - I read `.aai/scripts/sync-harness-skills.mjs` end to end as code and probed it
   with four hostile inputs in a scratch fixture (never the shipping tree).

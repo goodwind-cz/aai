@@ -1,69 +1,82 @@
 {
-  "generatedAt": "2026-08-25T05:23:21.879Z",
+  "generatedAt": "2026-08-26T14:34:41.045Z",
   "project": "aai",
   "counts": {
     "delivered": 212,
-    "in_progress": 1,
+    "in_progress": 2,
     "releases": 1,
     "tokens_total": 52095234
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "close-leaves-state-stale",
+    "ref": "harness-surfaces-drift-unguarded",
     "type": "intake_issue"
   },
   "in_flight": {
     "focus": {
-      "ref": "close-leaves-state-stale",
+      "ref": "harness-surfaces-drift-unguarded",
       "type": "intake_issue",
-      "phase": null
+      "phase": "code_review"
     },
     "strategy": "tdd",
     "worktree": {
-      "recommendation": "optional",
+      "recommendation": "recommended",
       "user_decision": "inline"
     },
-    "validation_status": "not_run",
-    "review_status": "not_run",
+    "validation_status": "pass",
+    "review_status": "pass",
     "ticks": [
+      {
+        "tick": 160,
+        "role": "Metrics Flush",
+        "scope": "harness-surfaces-drift-unguarded",
+        "duration_seconds": 18,
+        "harness_version": "codex-cli 0.144.5"
+      },
+      {
+        "tick": 159,
+        "role": "Code Review",
+        "scope": "harness-surfaces-drift-unguarded",
+        "duration_seconds": 164,
+        "harness_version": "codex-cli 0.144.5"
+      },
+      {
+        "tick": 158,
+        "role": "Validation",
+        "scope": "harness-surfaces-drift-unguarded",
+        "duration_seconds": 814,
+        "harness_version": "codex-cli 0.144.5"
+      },
+      {
+        "tick": 157,
+        "role": "Code Review",
+        "scope": "harness-surfaces-drift-unguarded",
+        "duration_seconds": 567,
+        "harness_version": "codex-cli 0.144.5"
+      },
       {
         "tick": 156,
         "role": "Validation",
         "scope": "deslop-corpus-honesty",
         "duration_seconds": 1330,
         "harness_version": "2.1.231 (Claude Code)"
-      },
-      {
-        "tick": 155,
-        "role": "Remediation",
-        "scope": "deslop-corpus-honesty",
-        "duration_seconds": 1369,
-        "harness_version": "2.1.231 (Claude Code)"
-      },
-      {
-        "tick": 154,
-        "role": "Validation",
-        "scope": "deslop-corpus-honesty",
-        "duration_seconds": 3497,
-        "harness_version": "2.1.231 (Claude Code)"
-      },
-      {
-        "tick": 153,
-        "role": "Remediation",
-        "scope": "deslop-corpus-honesty",
-        "duration_seconds": 870,
-        "harness_version": "2.1.231 (Claude Code)"
-      },
-      {
-        "tick": 152,
-        "role": "Implementation",
-        "scope": "deslop-corpus-honesty",
-        "duration_seconds": 2095,
-        "harness_version": "2.1.231 (Claude Code)"
       }
     ]
   },
   "in_progress": [
+    {
+      "ref": "harness-surfaces-drift-unguarded",
+      "title": "Harness surfaces drift for months because nothing compares them",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-0036-harness-surfaces-drift-unguarded.md",
+      "closed_on": null,
+      "agent_minutes": 332,
+      "token_total": 1615456,
+      "spec": "docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260826T093209Z-harness-surfaces-drift-unguarded-postfix-final.md"
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",

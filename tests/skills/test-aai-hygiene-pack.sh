@@ -1648,7 +1648,7 @@ test_105_converted_sites_keep_their_needles() {  # TEST-006 / Spec-AC-01, Spec-A
 
 # --- harness-surfaces-drift-unguarded arms (test_110..113) ------------------
 # CHANGE harness-surfaces-drift-unguarded /
-# docs/specs/SPEC-DRAFT-harness-surfaces-drift-unguarded.md.
+# docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md.
 #
 # .agents/skills, .codex/skills and .gemini/skills are GENERATED from
 # .claude/skills by .aai/scripts/sync-harness-skills.mjs under the transform
@@ -1866,7 +1866,25 @@ exclusions:"
     *) log_fail "test_112(c): the refusal must say 'stale exclusion', got: $out" ;;
   esac
 
-  log_pass "test_112: generator refuses an undeclared tree (naming it) and a stale or reason-less exclusion (TEST-004, TEST-005 stale/reasonless halves)"
+  # (d) Review NB-1 — path-valued flags must not silently fall back to the
+  # live repository when their value is absent or is another option.
+  local cli_case cli_flag
+  for cli_flag in root manifest; do
+    for cli_case in missing option; do
+      if [[ "$cli_case" == "missing" ]]; then
+        out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check "--$cli_flag" 2>&1)" && rc=0 || rc=$?
+      else
+        out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" "--$cli_flag" --check 2>&1)" && rc=0 || rc=$?
+      fi
+      [[ "$rc" -eq 2 ]] || log_fail "test_112(d): --$cli_flag with a $cli_case value must exit 2, got $rc: $out"
+      case "$out" in
+        *"--$cli_flag requires a value"*) ;;
+        *) log_fail "test_112(d): --$cli_flag with a $cli_case value must name its missing value, got: $out" ;;
+      esac
+    done
+  done
+
+  log_pass "test_112: generator refuses invalid manifests and missing CLI path values (TEST-004, TEST-005 stale/reasonless halves)"
 }
 
 test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05

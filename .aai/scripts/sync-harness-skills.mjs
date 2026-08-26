@@ -2,7 +2,7 @@
 //
 // sync-harness-skills.mjs — project .claude/skills/*/SKILL.md into the three
 // declared mirror trees under ONE transform table
-// (CHANGE harness-surfaces-drift-unguarded / SPEC-DRAFT-harness-surfaces-drift-unguarded D1).
+// (CHANGE harness-surfaces-drift-unguarded / SPEC-0154-spec-harness-surfaces-drift-unguarded D1).
 //
 // PURPOSE
 //   .claude/skills is the only hand-authored skill tree. .agents/skills,
@@ -249,12 +249,17 @@ function firstDiffHint(actual, expected) {
 
 function parseArgs(argv) {
   const opts = { check: false, write: false, manifest: null, root: null };
+  const valueAfter = (index, flag) => {
+    const value = argv[index + 1];
+    if (!value || value.startsWith('--')) fail(2, `${flag} requires a value`);
+    return value;
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--check') opts.check = true;
     else if (a === '--write') opts.write = true;
-    else if (a === '--manifest') opts.manifest = argv[++i];
-    else if (a === '--root') opts.root = argv[++i];
+    else if (a === '--manifest') opts.manifest = valueAfter(i++, a);
+    else if (a === '--root') opts.root = valueAfter(i++, a);
     else fail(2, `unrecognized argument: ${a}`);
   }
   if (opts.check === opts.write) {

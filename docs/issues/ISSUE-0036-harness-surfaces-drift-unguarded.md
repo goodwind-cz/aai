@@ -1,7 +1,7 @@
 ---
 id: harness-surfaces-drift-unguarded
 type: issue
-number: null
+number: 36
 status: draft
 links:
   pr: []
