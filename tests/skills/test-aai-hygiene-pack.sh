@@ -2011,6 +2011,11 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
 
   TEST_DIR="${TEST_DIR:-$(ap_tmpdir)}"
   local wt="$TEST_DIR/t113-worktree"
+  local outer_before="$TEST_DIR/t113-outer-before.diff"
+  local outer_after="$TEST_DIR/t113-outer-after.diff"
+  git -C "$PROJECT_ROOT" diff --binary HEAD -- \
+    .claude/skills .agents/skills .codex/skills .gemini/skills > "$outer_before" \
+    || log_fail "test_113: could not snapshot the outer harness state"
   rm -rf "$wt"
   git -C "$PROJECT_ROOT" worktree add --detach "$wt" HEAD >/dev/null 2>&1 \
     || log_fail "test_113: could not create a disposable detached worktree at $wt from HEAD"
@@ -2035,6 +2040,12 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
 
   local gen="$wt/$HSK_GENERATOR_REL"
   [[ -f "$gen" ]] || log_fail "test_113: generator missing in the worktree checkout of HEAD: $gen"
+
+  local source_snapshot="$TEST_DIR/t113-source-wrap-up.md"
+  local codex_snapshot="$TEST_DIR/t113-codex-wrap-up"
+  cp "$wt/.claude/skills/aai-wrap-up/SKILL.md" "$source_snapshot"
+  rm -rf "$codex_snapshot"
+  cp -R "$wt/.codex/skills/aai-wrap-up" "$codex_snapshot"
 
   local out rc
 
@@ -2068,7 +2079,8 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
     *".codex/skills/aai-wrap-up"*) ;;
     *) log_fail "test_113(b): FAIL output must name the offending tree and skill, got: $out" ;;
   esac
-  git -C "$wt" checkout -- .codex/skills/aai-wrap-up
+  rm -rf "$wt/.codex/skills/aai-wrap-up"
+  cp -R "$codex_snapshot" "$wt/.codex/skills/aai-wrap-up"
   out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "test_113: worktree not clean between mutations (b)->(c), got $rc: $out"
 
@@ -2085,19 +2097,58 @@ test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
     *"aai-wrap-up"*) ;;
     *) log_fail "test_113(c): FAIL output must name the offending skill, got: $out" ;;
   esac
-  git -C "$wt" checkout -- .claude/skills/aai-wrap-up/SKILL.md
+  cp "$source_snapshot" "$wt/.claude/skills/aai-wrap-up/SKILL.md"
   out="$(cd "$wt" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "test_113: worktree not clean after reverting mutation (c), got $rc: $out"
 
   # SELF-BINDING (HAZ-RESTORE) — the real checkout is never touched; all
   # mutation happened only inside the disposable worktree.
-  (cd "$PROJECT_ROOT" && git diff --quiet -- .claude/skills .codex/skills .gemini/skills .agents/skills) \
-    || log_fail "test_113: the tracked mirror trees changed in the REAL checkout — mutation must be confined to the disposable worktree"
+  git -C "$PROJECT_ROOT" diff --binary HEAD -- \
+    .claude/skills .agents/skills .codex/skills .gemini/skills > "$outer_after" \
+    || log_fail "test_113: could not resnapshot the outer harness state"
+  cmp -s "$outer_before" "$outer_after" \
+    || log_fail "test_113: the tracked harness trees changed in the REAL checkout — mutation must be confined to the disposable worktree"
 
   git -C "$PROJECT_ROOT" worktree remove --force "$wt" >/dev/null 2>&1 || true
   HSK_ACTIVE_WORKTREE=""
 
   log_pass "test_113: three independent mutations each redden the parity guard naming the offender, with clean unmutated controls before/between/after, in a disposable detached worktree; real tree untouched (TEST-007)"
+}
+
+test_118_bite_proofs_preserve_seeded_state() {  # PR review / seeded-wrapper regression
+  log_info "test_118: bite proofs restore a seeded source+mirror state instead of HEAD..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+
+  TEST_DIR="${TEST_DIR:-$(ap_tmpdir)}"
+  local shipping_root="$PROJECT_ROOT"
+  local seeded_root="$TEST_DIR/t118-seeded-root"
+  git clone --quiet --no-hardlinks "$shipping_root" "$seeded_root" \
+    || log_fail "test_118: could not create seeded fixture repository"
+
+  local source_skill="$seeded_root/.claude/skills/aai-wrap-up/SKILL.md"
+  local changed_skill="$TEST_DIR/t118-changed-wrap-up.md"
+  sed 's/^description: .*/description: seeded wrapper regression fixture/' \
+    "$source_skill" > "$changed_skill"
+  cp "$changed_skill" "$source_skill"
+  (cd "$seeded_root" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --write >/dev/null) \
+    || log_fail "test_118: could not regenerate mirrors for seeded fixture"
+
+  (cd "$seeded_root" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check >/dev/null) \
+    || log_fail "test_118: seeded source+mirror fixture must begin clean"
+  [[ -n "$(git -C "$seeded_root" status --short -- .claude/skills .agents/skills .codex/skills .gemini/skills)" ]] \
+    || log_fail "test_118: fixture must differ from HEAD before bite proofs"
+
+  PROJECT_ROOT="$seeded_root"
+  test_113_bite_proofs_in_detached_worktree
+  PROJECT_ROOT="$shipping_root"
+
+  (cd "$seeded_root" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check >/dev/null) \
+    || log_fail "test_118: seeded source+mirror state diverged after bite proofs"
+  [[ -n "$(git -C "$seeded_root" status --short -- .claude/skills .agents/skills .codex/skills .gemini/skills)" ]] \
+    || log_fail "test_118: bite proofs silently reset the seeded fixture to HEAD"
+
+  log_pass "test_118: nested mutations preserve the exact seeded source+mirror state and leave the outer fixture unchanged"
 }
 
 test_114_cursor_rule_contract() {  # TEST-008 / Spec-AC-07 (harness-surfaces-drift-unguarded)
@@ -2218,6 +2269,7 @@ main() {
   test_115_root_shim_and_manifest_header
   test_116_metrics_correction_not_counted
   test_117_source_skills_are_lf_pinned
+  test_118_bite_proofs_preserve_seeded_state
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
