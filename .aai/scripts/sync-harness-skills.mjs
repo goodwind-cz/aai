@@ -170,8 +170,21 @@ function readSkillEntries(skillsDir) {
 function listSourceSkills(skillsDir) {
   const entries = readSkillEntries(skillsDir);
   for (const entry of entries) {
-    if (entry.isDirectory() && !fs.existsSync(path.join(skillsDir, entry.name, 'SKILL.md'))) {
-      throw new ManifestError(`source skill directory missing SKILL.md: ${path.join(skillsDir, entry.name)}`);
+    const entryPath = path.join(skillsDir, entry.name);
+    if (entry.isSymbolicLink()) {
+      throw new ManifestError(`source skill entry must be a real directory: ${entryPath}`);
+    }
+    if (entry.isDirectory()) {
+      const skillPath = path.join(entryPath, 'SKILL.md');
+      let skillStat;
+      try {
+        skillStat = fs.lstatSync(skillPath);
+      } catch {
+        throw new ManifestError(`source skill directory missing SKILL.md: ${entryPath}`);
+      }
+      if (!skillStat.isFile()) {
+        throw new ManifestError(`source SKILL.md must be a regular file: ${skillPath}`);
+      }
     }
   }
   return entries

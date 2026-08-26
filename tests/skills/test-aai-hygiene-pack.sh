@@ -2120,6 +2120,30 @@ exclusions:"
     *) log_fail "test_112(j): malformed source directory must name its missing SKILL.md, got: $out" ;;
   esac
 
+  # (k) Final review NB-1 — source entries may not escape through directory
+  # symlinks, and SKILL.md itself must be a regular authored file.
+  rm -rf "$late_fx/.claude/skills/empty-skill"
+  local external_source="$TEST_DIR/t112-external-source"
+  mkdir -p "$external_source"
+  printf -- '---\nname: evil\ndescription: external source\n---\nbody\n' > "$external_source/SKILL.md"
+  ln -s "$external_source" "$late_fx/.claude/skills/evil"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$late_fx" --manifest "$late_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(k): symlinked source skill must exit 2, got $rc: $out"
+  case "$out" in
+    *"source skill entry must be a real directory"*".claude/skills/evil"*) ;;
+    *) log_fail "test_112(k): source symlink refusal must name .claude/skills/evil, got: $out" ;;
+  esac
+
+  rm "$late_fx/.claude/skills/evil"
+  rm "$late_fx/.claude/skills/a/SKILL.md"
+  mkdir "$late_fx/.claude/skills/a/SKILL.md"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$late_fx" --manifest "$late_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(k): non-file source SKILL.md must exit 2, got $rc: $out"
+  case "$out" in
+    *"source SKILL.md must be a regular file"*".claude/skills/a/SKILL.md"*) ;;
+    *) log_fail "test_112(k): non-file source refusal must name .claude/skills/a/SKILL.md, got: $out" ;;
+  esac
+
   log_pass "test_112: generator refuses invalid manifests and missing CLI path values (TEST-004, TEST-005 stale/reasonless halves)"
 }
 
