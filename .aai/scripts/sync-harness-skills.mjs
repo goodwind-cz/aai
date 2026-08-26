@@ -171,6 +171,9 @@ function listSourceSkills(skillsDir) {
   const entries = readSkillEntries(skillsDir);
   for (const entry of entries) {
     const entryPath = path.join(skillsDir, entry.name);
+    if (entry.isDirectory() && entry.name === 'README.md') {
+      throw new ManifestError(`source skill name is reserved for generated indexes: ${entryPath}`);
+    }
     if (entry.isSymbolicLink()) {
       throw new ManifestError(`source skill entry must be a real directory: ${entryPath}`);
     }

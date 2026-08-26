@@ -2144,6 +2144,21 @@ exclusions:"
     *) log_fail "test_112(k): non-file source refusal must name .claude/skills/a/SKILL.md, got: $out" ;;
   esac
 
+  # (l) External review — README.md is the generated index path in two
+  # mirrors and therefore cannot also be represented as a source skill name.
+  local reserved_fx="$TEST_DIR/t112-reserved-skill-name"
+  mkdir -p "$reserved_fx/.claude/skills/README.md" \
+    "$reserved_fx/.agents/skills" "$reserved_fx/.codex/skills" "$reserved_fx/.gemini/skills"
+  printf -- '---\nname: README.md\ndescription: collides with generated index\n---\nbody\n' \
+    > "$reserved_fx/.claude/skills/README.md/SKILL.md"
+  printf '%s\n' "$base_manifest" > "$reserved_fx/manifest.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$reserved_fx" --manifest "$reserved_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(l): reserved README.md skill name must exit 2 before writing, got $rc: $out"
+  case "$out" in
+    *"reserved"*"README.md"*) ;;
+    *) log_fail "test_112(l): reserved-name refusal must name README.md, got: $out" ;;
+  esac
+
   log_pass "test_112: generator refuses invalid manifests and missing CLI path values (TEST-004, TEST-005 stale/reasonless halves)"
 }
 
