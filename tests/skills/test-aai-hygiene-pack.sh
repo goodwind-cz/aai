@@ -1805,10 +1805,18 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
   [[ "$rc" -eq 0 ]] \
     || log_fail "test_111: --check must exit 0 on the normalized tree, got $rc:"$'\n'"$out"
 
+  local mirrors_before="$TEST_DIR/t111-mirrors-before.diff"
+  local mirrors_after="$TEST_DIR/t111-mirrors-after.diff"
+  git -C "$PROJECT_ROOT" diff --binary HEAD -- \
+    .agents/skills .codex/skills .gemini/skills > "$mirrors_before" \
+    || log_fail "test_111: could not snapshot the pre-write mirror state"
   out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --write 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must exit 0, got $rc: $out"
-  (cd "$PROJECT_ROOT" && git diff --quiet -- .agents/skills .codex/skills .gemini/skills) \
-    || log_fail "test_111: --write after a clean --check must change no bytes in the mirror trees (idempotence)"
+  git -C "$PROJECT_ROOT" diff --binary HEAD -- \
+    .agents/skills .codex/skills .gemini/skills > "$mirrors_after" \
+    || log_fail "test_111: could not snapshot the post-write mirror state"
+  cmp -s "$mirrors_before" "$mirrors_after" \
+    || log_fail "test_111: --write after a clean --check must change no bytes from the pre-write mirror state (idempotence)"
 
   # TEST-003 — the README indexes list the FULL live set, not the old 22-of-39.
   local n_skills n t
@@ -1881,6 +1889,36 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
     || log_fail "test_111: repaired .codex/skills/README.md must be a regular file"
   out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$corrupt_fx" --manifest "$corrupt_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "test_111: repaired non-file target must pass --check, got $rc: $out"
+
+  # PR review — readable symlinks must never redirect generator writes outside
+  # a declared mirror, whether the link is the file or its skill directory.
+  local symlink_fx="$TEST_DIR/t111-symlink-targets"
+  local external_fx="$TEST_DIR/t111-external-sentinels"
+  rm -rf "$symlink_fx" "$external_fx"
+  cp -R "$corrupt_fx" "$symlink_fx"
+  mkdir -p "$external_fx/skill-dir"
+  printf '%s\n' 'external skill sentinel' > "$external_fx/skill.md"
+  printf '%s\n' 'external readme sentinel' > "$external_fx/readme.md"
+  printf '%s\n' 'external directory sentinel' > "$external_fx/skill-dir/SKILL.md"
+  rm "$symlink_fx/.codex/skills/a/SKILL.md" "$symlink_fx/.codex/skills/README.md"
+  rm -rf "$symlink_fx/.gemini/skills/a"
+  ln -s "$external_fx/skill.md" "$symlink_fx/.codex/skills/a/SKILL.md"
+  ln -s "$external_fx/readme.md" "$symlink_fx/.codex/skills/README.md"
+  ln -s "$external_fx/skill-dir" "$symlink_fx/.gemini/skills/a"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$symlink_fx" --manifest "$symlink_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must safely replace readable symlinks, got $rc: $out"
+  [[ "$(cat "$external_fx/skill.md")" == 'external skill sentinel' ]] \
+    || log_fail "test_111: symlinked SKILL.md redirected the write into the external sentinel"
+  [[ "$(cat "$external_fx/readme.md")" == 'external readme sentinel' ]] \
+    || log_fail "test_111: symlinked README.md redirected the write into the external sentinel"
+  [[ "$(cat "$external_fx/skill-dir/SKILL.md")" == 'external directory sentinel' ]] \
+    || log_fail "test_111: symlinked skill directory redirected the write outside the mirror"
+  [[ ! -L "$symlink_fx/.codex/skills/a/SKILL.md" && -f "$symlink_fx/.codex/skills/a/SKILL.md" ]] \
+    || log_fail "test_111: repaired SKILL.md symlink must become a regular file"
+  [[ ! -L "$symlink_fx/.codex/skills/README.md" && -f "$symlink_fx/.codex/skills/README.md" ]] \
+    || log_fail "test_111: repaired README.md symlink must become a regular file"
+  [[ ! -L "$symlink_fx/.gemini/skills/a" && -f "$symlink_fx/.gemini/skills/a/SKILL.md" ]] \
+    || log_fail "test_111: repaired skill-directory symlink must become a real directory with SKILL.md"
 
   log_pass "test_111: generator --check clean, --write idempotent, both READMEs list the full $n_skills-skill set (TEST-002, TEST-003)"
 }
@@ -2183,6 +2221,36 @@ test_118_bite_proofs_preserve_seeded_state() {  # PR review / seeded-wrapper reg
   log_pass "test_118: nested mutations preserve the exact seeded source+mirror state and leave the outer fixture unchanged"
 }
 
+test_119_generator_idempotence_preserves_seeded_state() {  # PR review / seeded-wrapper regression
+  log_info "test_119: generator idempotence compares against a seeded pre-write mirror state..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+
+  TEST_DIR="${TEST_DIR:-$(ap_tmpdir)}"
+  local shipping_root="$PROJECT_ROOT"
+  local seeded_root="$TEST_DIR/t119-seeded-root"
+  git clone --quiet --no-hardlinks "$shipping_root" "$seeded_root" \
+    || log_fail "test_119: could not create seeded fixture repository"
+  cp "$shipping_root/$HSK_GENERATOR_REL" "$seeded_root/$HSK_GENERATOR_REL" \
+    || log_fail "test_119: could not seed the current generator into the fixture"
+
+  local source_skill="$seeded_root/.claude/skills/aai-wrap-up/SKILL.md"
+  local changed_skill="$TEST_DIR/t119-changed-wrap-up.md"
+  sed 's/^description: .*/description: seeded idempotence regression fixture/' \
+    "$source_skill" > "$changed_skill"
+  cp "$changed_skill" "$source_skill"
+  (cd "$seeded_root" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --write >/dev/null) \
+    || log_fail "test_119: could not regenerate mirrors for seeded fixture"
+  [[ -n "$(git -C "$seeded_root" status --short -- .claude/skills .agents/skills .codex/skills .gemini/skills)" ]] \
+    || log_fail "test_119: fixture must differ from HEAD before idempotence proof"
+
+  PROJECT_ROOT="$seeded_root"
+  test_111_generator_check_clean_and_idempotent
+  PROJECT_ROOT="$shipping_root"
+
+  log_pass "test_119: clean --write preserves a seeded pre-write mirror state"
+}
+
 test_114_cursor_rule_contract() {  # TEST-008 / Spec-AC-07 (harness-surfaces-drift-unguarded)
   log_info "test_114: .cursor/rules/aai.mdc carries valid quoted glob metadata, no stale skills-are-prompt-files claim, no enumerated .aai/SKILL_ prompt paths, exactly one alwaysApply/description line each, at most 60 lines (TEST-008)..."
   local root="${1:-$PROJECT_ROOT}"
@@ -2302,6 +2370,7 @@ main() {
   test_116_metrics_correction_not_counted
   test_117_source_skills_are_lf_pinned
   test_118_bite_proofs_preserve_seeded_state
+  test_119_generator_idempotence_preserves_seeded_state
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

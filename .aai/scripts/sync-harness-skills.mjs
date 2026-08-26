@@ -178,6 +178,14 @@ function isNonFile(targetPath) {
   }
 }
 
+function isNonDirectory(targetPath) {
+  try {
+    return !fs.lstatSync(targetPath).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 // parseSkillFile: split a SKILL.md into its frontmatter lines and its exact
 // verbatim body (everything after the closing `---` line, byte-for-byte,
 // including leading blank lines). Reconstructing with buildTargetContent and
@@ -326,6 +334,17 @@ function main(argv) {
 
   const divergences = [];
 
+  // A mirror's harness directory (for example root/.codex) is not generated
+  // by this command. Refuse a symlink/non-directory there before any mirror
+  // writes can escape through it; the owned skills directory below may still
+  // be replaced safely in --write mode.
+  for (const required of REQUIRED_MIRROR_TREES) {
+    const harnessDir = path.dirname(path.join(root, required));
+    if (isNonDirectory(harnessDir)) {
+      fail(2, `mirror parent must be a real directory: ${path.relative(root, harnessDir)}`);
+    }
+  }
+
   for (const required of REQUIRED_MIRROR_TREES) {
     const row = byTree.get(required);
     const treeSkillsDir = path.join(root, required);
@@ -334,7 +353,13 @@ function main(argv) {
     );
     const expected = sourceSkills.filter((s) => !excludedForTree.has(s));
     const expectedSet = new Set(expected);
-    const actualSkills = listSkills(treeSkillsDir);
+    const treeDirIsNonDirectory = isNonDirectory(treeSkillsDir);
+    if (treeDirIsNonDirectory) divergences.push(`non-directory mirror tree ${required}`);
+    if (opts.write && treeDirIsNonDirectory) {
+      fs.rmSync(treeSkillsDir, { recursive: true, force: true });
+      fs.mkdirSync(treeSkillsDir, { recursive: true });
+    }
+    const actualSkills = treeDirIsNonDirectory ? [] : listSkills(treeSkillsDir);
     const actualSet = new Set(actualSkills);
 
     for (const s of expected) {
@@ -352,15 +377,20 @@ function main(argv) {
       skillDescriptions.push([s, extractDescription(frontLines)]);
 
       const expectedContent = buildTargetContent(frontLines, body, { dropModel: row.model === 'drop' });
-      const targetPath = path.join(treeSkillsDir, s, 'SKILL.md');
+      const targetDir = path.join(treeSkillsDir, s);
+      const targetPath = path.join(targetDir, 'SKILL.md');
+      const targetDirIsNonDirectory = isNonDirectory(targetDir);
       let actualContent = null;
       let readError = null;
-      let targetIsNonFile = false;
-      try {
-        actualContent = fs.readFileSync(targetPath, 'utf8');
-      } catch (err) {
-        readError = err;
-        targetIsNonFile = isNonFile(targetPath);
+      const targetIsNonFile = !targetDirIsNonDirectory && isNonFile(targetPath);
+      if (targetDirIsNonDirectory || targetIsNonFile) {
+        readError = { code: targetDirIsNonDirectory ? 'ENOTDIR' : 'NONFILE' };
+      } else {
+        try {
+          actualContent = fs.readFileSync(targetPath, 'utf8');
+        } catch (err) {
+          readError = err;
+        }
       }
       if (readError && actualSet.has(s)) {
         // The skill directory exists (so this is NOT the "missing" case
@@ -374,7 +404,8 @@ function main(argv) {
           divergences.push(`content ${required}/${s}/SKILL.md ${firstDiffHint(actualContent, expectedContent)}`);
         }
         if (opts.write) {
-          fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+          if (targetDirIsNonDirectory) fs.rmSync(targetDir, { recursive: true, force: true });
+          fs.mkdirSync(targetDir, { recursive: true });
           if (targetIsNonFile) fs.rmSync(targetPath, { recursive: true, force: true });
           fs.writeFileSync(targetPath, expectedContent);
         }
@@ -393,12 +424,13 @@ function main(argv) {
       const expectedReadme = buildReadme(required, skillDescriptions);
       const readmePath = path.join(treeSkillsDir, 'README.md');
       let actualReadme = null;
-      let readmeIsNonFile = false;
-      try {
-        actualReadme = fs.readFileSync(readmePath, 'utf8');
-      } catch {
-        actualReadme = null;
-        readmeIsNonFile = isNonFile(readmePath);
+      const readmeIsNonFile = isNonFile(readmePath);
+      if (!readmeIsNonFile) {
+        try {
+          actualReadme = fs.readFileSync(readmePath, 'utf8');
+        } catch {
+          actualReadme = null;
+        }
       }
       if (actualReadme !== expectedReadme) {
         divergences.push(`readme ${required}/README.md differs`);
