@@ -312,6 +312,10 @@ function main(argv) {
     throw err;
   }
 
+  for (const ex of manifest.exclusions) {
+    process.stdout.write(`EXCLUDED ${ex.tree}/${ex.skill}: ${ex.reason}\n`);
+  }
+
   const divergences = [];
 
   for (const required of REQUIRED_MIRROR_TREES) {

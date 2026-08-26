@@ -1691,9 +1691,13 @@ hsk_exclusions_for() {
     esac
     rest="${line#  - }"
     etree="${rest%%|*}"
+    etree="${etree#"${etree%%[![:space:]]*}"}"
+    etree="${etree%"${etree##*[![:space:]]}"}"
     [[ "$etree" == "$tree" ]] || continue
     rest="${rest#*|}"
     eskill="${rest%%|*}"
+    eskill="${eskill#"${eskill%%[![:space:]]*}"}"
+    eskill="${eskill%"${eskill##*[![:space:]]}"}"
     [[ -n "$eskill" ]] && printf '%s\n' "$eskill"
   done < "$manifest"
 }
@@ -1771,7 +1775,7 @@ test_110_skill_set_parity() {  # TEST-001 / Spec-AC-01, TEST-005 / Spec-AC-06 (e
     printf '%s\n' '  - .codex/skills|drop|yes'
     printf '%s\n' '  - .gemini/skills|drop|yes'
     printf '%s\n' 'exclusions:'
-    printf '%s\n' '  - .codex/skills|b|fixture: b is intentionally not offered to codex'
+    printf '%s\n' '  - .codex/skills | b | fixture: b is intentionally not offered to codex'
   } > "$fm"
 
   out="$(hsk_check_parity "$fx" "$fm")" && rc=0 || rc=$?
@@ -1835,6 +1839,16 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
   [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must create empty readme=yes trees, got $rc: $out"
   [[ -f "$empty_fx/.codex/skills/README.md" && -f "$empty_fx/.gemini/skills/README.md" ]] \
     || log_fail "test_111: all-excluded readme=yes trees must still receive README.md"
+  local excluded_line
+  for excluded_line in \
+    'EXCLUDED .agents/skills/a: fixture excludes the only skill' \
+    'EXCLUDED .codex/skills/a: fixture excludes the only skill' \
+    'EXCLUDED .gemini/skills/a: fixture excludes the only skill'; do
+    case "$out" in
+      *"$excluded_line"*) ;;
+      *) log_fail "test_111: --write must report every applied exclusion; missing '$excluded_line' in: $out" ;;
+    esac
+  done
 
   log_pass "test_111: generator --check clean, --write idempotent, both READMEs list the full $n_skills-skill set (TEST-002, TEST-003)"
 }
