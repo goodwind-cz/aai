@@ -221,3 +221,9 @@ Minimal input examples (Czech input is fine; the saved doc stays English):
 - [docs/knowledge/LEARNED.md](docs/knowledge/LEARNED.md) — project-specific learned rules.
 - [CHANGELOG.md](CHANGELOG.md) — what changed, release by release.
 - [docs/INDEX.md](docs/INDEX.md) — auto-generated catalog of all tracked docs (status, progress, refs).
+
+## License
+
+MIT — see [LICENSE](LICENSE). Copyright (c) 2026 Aleš Holubec.
+
+AAI is meant to be vendored: `install.sh` copies its files into your repository, and MIT is the licence that makes that copying unambiguous. Keep the copyright notice with the copied files and you are done.
