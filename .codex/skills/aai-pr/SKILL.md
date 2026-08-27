@@ -1,6 +1,6 @@
 ---
 name: aai-pr
-description: Use when a validated, review-passed scope is ready to become a pull request. Derives the scope file-list from STATE/spec, stages ONLY in-scope paths, audits staged-vs-scope, commits with project conventions, pushes, and opens the PR via gh pr create. Never merges — merging is an operator action.
+description: Use when a validated, review-passed scope is ready to become a pull request. Derives the scope file-list from STATE/spec, stages ONLY in-scope paths, audits staged-vs-scope, commits with project conventions, pushes, opens the PR via gh pr create, and runs the deterministic close ceremony (close-work-item.mjs — status flip, links, close events, self-verifying audit). Never merges — merging is an operator action.
 ---
 
 <SUBAGENT-STOP>

@@ -1,6 +1,6 @@
 ---
 name: aai-intake
-description: Use when starting any new work — feature, bug, change, RFC, hotfix, techdebt, or release. Routes automatically to the correct intake template.
+description: Use when starting any new work — feature, bug, change, RFC, hotfix, techdebt, or release. Routes automatically to the correct intake template. Includes a secrets preflight (secrets-preflight.mjs) that checks a referenced secret exists/is non-empty without ever reading or echoing its value.
 model: haiku
 ---
 

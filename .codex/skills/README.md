@@ -1,30 +1,48 @@
 # Codex Skill Index
 
 These are the canonical AAI-prefixed skills available after AAI sync.
+Generated from `.claude/skills/` by `.aai/scripts/sync-harness-skills.mjs` — do not hand-edit.
 
 ## Universal skills
-- `/aai-check-state` -> `.aai/SKILL_CHECK_STATE.prompt.md`
-- `/aai-intake` -> `.aai/SKILL_INTAKE.prompt.md`
-- `/aai-loop` -> `.aai/SKILL_LOOP.prompt.md`
-- `/aai-hitl` -> `.aai/SKILL_HITL.prompt.md`
-- `/aai-bootstrap` -> `.aai/SKILL_BOOTSTRAP.prompt.md`
-- `/aai-update` -> `.aai/SKILL_UPDATE.prompt.md`
-- `/aai-validate-report` -> `.aai/SKILL_VALIDATE_REPORT.prompt.md`
-- `/aai-canonicalize` -> `.aai/SKILL_CANONICALIZE.prompt.md`
-- `/aai-share` -> `.aai/SKILL_SHARE.prompt.md`
-- `/aai-tdd` -> `.aai/SKILL_TDD.prompt.md`
-- `/aai-worktree` -> `.aai/SKILL_WORKTREE.prompt.md`
-- `/aai-flush` -> `.aai/SKILL_FLUSH.prompt.md`
-- `/aai-test-skills` -> `.aai/SKILL_TEST_SKILLS.prompt.md`
-- `/aai-docs-hub` -> `.aai/SKILL_DOCS_HUB.prompt.md`
-- `/aai-auto-trigger` -> `.aai/SKILL_AUTO_TRIGGER.prompt.md`
-- `/aai-dashboard` -> `.aai/SKILL_DASHBOARD.prompt.md`
-- `/aai-code-review` -> `.aai/SKILL_CODE_REVIEW.prompt.md`
-- `/aai-profile` -> `.aai/SKILL_PROFILE.prompt.md`
-- `/aai-doctor` -> `.aai/SKILL_DOCTOR.prompt.md`
-- `/aai-replay` -> `.aai/SKILL_REPLAY.prompt.md`
-- `/aai-session-journal` -> `.aai/SKILL_SESSION_JOURNAL.prompt.md`
-- `/aai-wrap-up` -> `.aai/SKILL_WRAP_UP.prompt.md`
+- `/aai-auto-trigger` — DEPRECATED — the .claude/triggers.json mechanism this skill configured has no runtime consumer, so triggers wired there never fire (SPEC-0013 D8). Kept for muscle memory; invoking it explains the deprecation and the real alternative (wrapper-description trigger phrases).
+- `/aai-bootstrap` — Use when setting up a new AAI project or when project-specific test/build/validation commands are missing or outdated. Detects project architecture and generates optimized shortcuts.
+- `/aai-canonicalize` — Use when legacy files exist in unsupported directories, telemetry is still in YAML, or validation evidence is fragmented. Canonicalizes AAI repository structure.
+- `/aai-check-state` — Use when STATE.yaml may be invalid, after unexpected loop failures, or before starting a new loop. Add prefix REPAIR: to auto-fix detected invariant violations.
+- `/aai-code-review` — Use when reviewing committed or staged code changes. One dual-verdict pass returning spec_compliance (AC-table walk) and code_quality (BLOCKING/NON-BLOCKING findings) plus a mandatory cannot_verify list. Supports git diffs and GitHub PR review.
+- `/aai-dashboard` — Use when you want to visualize AAI workflow metrics — token usage, TDD cycles, worktree efficiency — as an interactive HTML dashboard. Publishable via /aai-share.
+- `/aai-debug` — Use when fixing any failing test, bug, or validation finding — applies the systematic-debugging root-cause gate: READ, REPRODUCE, ISOLATE, then FIX-AT-CAUSE. No fixes without root cause.
+- `/aai-deslop` — Use optionally after implementation and before code review to remove AI slop — diff scope covers the current diff; --all scope runs the class-4 unrequested-surface check over .aai/'s scripts and system config, not the whole .aai/ tree; neither is a default, ask-and-stop if the scope is not named. Classes: obvious comments, defensive try/catch on trusted paths, premature abstraction, unrequested features, annotations on untouched code. Behavior must stay unchanged (suite passes after). Advisory only — never blocks.
+- `/aai-docs-audit` — Use when docs/ may contain orphan, false-done, false-open (delivered but still draft/implementing/accepted), stale, or duplicate-doc-id documents (two docs sharing one frontmatter id), before a release closeout, for a periodic docs hygiene review, or to verify a doc's acceptance criteria against the actual code ("verify <DOC-ID>"). Reports per-doc classification and drift verdicts; edits docs only in the operator-approved remediation/verify modes.
+- `/aai-docs-canon` — Use when layered project docs have no single "current state" view per feature — to consolidate intake/specs/RFCs into a canonical, function-categorized layer in docs/canonical/ while preserving and back-linking originals in docs/_archive/. Two phases — Phase 1 analyzes and proposes an AI domain map gated by human approval; Phase 2 auto-synthesizes canonical docs, archives originals, and reports drift on re-run.
+- `/aai-docs-hub` — Use when you need a searchable HTML catalog of all AAI skills with search and per-skill cards (deterministic generator; categorization commentary is an optional LLM add-on). Publishable via /aai-share.
+- `/aai-doctor` — Use when the AAI environment may be broken, after a fresh install, or to diagnose unexpected failures. Reports HEALTHY / DEGRADED / BROKEN with actionable diagnostics.
+- `/aai-factory-report` — Use when the user wants a continuous factory-efficiency overview — what the AAI factory delivers, how fast, at what token cost, and at what quality, trended over time — rendered as a self-contained HTML page from the METRICS and EVENTS ledgers.
+- `/aai-feedback-triage` — Use when you want to report AAI-layer problems/friction upstream to the canonical repo — step 1: offline triage that reads the local friction spool, scores and clusters observations, and writes a LOCAL report (no network, no GitHub writes)
+- `/aai-feedback-upsert` — Use when you want to report AAI-layer problems upstream — step 2: turns triage clusters into redacted, deduplicated, budget-capped GitHub issue drafts for the canonical repo; prepare-only by default; publishing requires explicit --publish --confirm
+- `/aai-flush` — Use when the loop exited without flushing metrics, or after manual validation, to move completed work item data from STATE.yaml to METRICS.jsonl.
+- `/aai-hitl` — Use when the autonomous loop pauses with 'Human decision required'. Surfaces the blocked question from STATE.yaml, collects your answer, and unblocks the loop.
+- `/aai-intake` — Use when starting any new work — feature, bug, change, RFC, hotfix, techdebt, or release. Routes automatically to the correct intake template. Includes a secrets preflight (secrets-preflight.mjs) that checks a referenced secret exists/is non-empty without ever reading or echoing its value.
+- `/aai-interrogate` — Use optionally at spec freeze (or when a plan feels underdetermined) to walk open decisions one question at a time — every question ships a recommended answer, codebase-resolvable ones are inferred silently, and each decision is appended to docs/ai/decisions.jsonl. Advisory only — never blocks.
+- `/aai-issues` — Use when you want open platform issues fetched, triaged and turned into approved intakes
+- `/aai-loop` — Use when starting or resuming the full autonomous AAI development loop. Runs Planning → Implementation → Validation → Remediation cycles automatically until PASS or human input is required. Ceremony-aware: a spec's ceremony_level 0/1 routes small scopes through a lighter lane (implementation → declared-scope validation → one review), while 2/3 (and any absent/invalid level) run the full pipeline.
+- `/aai-overview` — Use when the user wants a plain-language project overview — what the factory has delivered, what is in progress, and what waits on a human decision — rendered as a self-contained HTML page with links to specs and evidence.
+- `/aai-pr` — Use when a validated, review-passed scope is ready to become a pull request. Derives the scope file-list from STATE/spec, stages ONLY in-scope paths, audits staged-vs-scope, commits with project conventions, pushes, opens the PR via gh pr create, and runs the deterministic close ceremony (close-work-item.mjs — status flip, links, close events, self-verifying audit). Never merges — merging is an operator action.
+- `/aai-profile` — Use when diagnosing token usage, execution time, or cache inefficiency across AAI workflows. Generates optimization suggestions and profiling reports.
+- `/aai-release` — Use when a validated scope is ready to ship a release — rolls CHANGELOG.md [unreleased] into a versioned section, commits, tags, publishes a GitHub release, and pushes, behind an operator-gated confirm with a safe default dry-run.
+- `/aai-replay` — Use when starting work on a task to surface relevant past learnings, patterns, and decisions from previous sessions.
+- `/aai-routine` — On-demand instantiation of a vendored, agent-neutral standing routine (e.g. the morning scryer) for a named harness — never runs from bootstrap, sync, or any automatic path.
+- `/aai-scout` — Use optionally before starting implementation to score readiness 0-100 over five dimensions (scope clarity, pattern familiarity, dependency awareness, edge cases, test strategy) with a GO/HOLD advisory at 70. Advisory only — never blocks.
+- `/aai-session-journal` — Create or update a named, durable project discussion session in human language. Use for cross-agent continuity, session resumption, decision trail capture, and agent-neutral project journaling outside runtime state.
+- `/aai-share` — Use when publishing a report, dashboard, or documentation to a shareable Cloudflare Pages URL.
+- `/aai-ship` — Use when the user states a need and wants the factory to take it end-to-end autonomously — intake, planning, implementation, validation, review, product docs — pausing only at one ship checkpoint that opens the PR. Never merges.
+- `/aai-tdd` — Use when implementing any feature or fix that should follow test-driven development. Enforces RED-GREEN-REFACTOR cycle with evidence at each phase.
+- `/aai-test-canon` — Use when tests are fragmented per-change/issue with no single "current state" suite per feature — to consolidate them into a canonical per-domain layer in tests/canonical/ (anchored on the canonical docs domain map) while preserving and back-linking originals in tests/_archive/. Two phases — Phase 1 builds a traceability matrix + coverage-gap report and proposes a per-domain test map gated by human approval; Phase 2 consolidates the tests, archives originals, scaffolds failing/pending RED stubs for uncovered acceptance criteria (handing off to aai-tdd), and reports drift on re-run.
+- `/aai-test-skills` — Use when verifying all AAI skills work correctly after upstream changes, a fresh install, or to diagnose skill failures.
+- `/aai-update` — Use when AAI vendored files need refreshing after upstream changes, or to preview what an update would change in a target project.
+- `/aai-validate-report` — Use when validation output needs to be presented as a chat-friendly report with screenshot evidence saved to docs/ai/reports.
+- `/aai-verify` — Use before any completion claim (Implementation hand-off, TDD GREEN, Validation verdict) to apply the verification-before-completion gate — IDENTIFY, RUN, READ, VERIFY, then CLAIM.
+- `/aai-worktree` — Use when creating or managing isolated git worktrees for parallel feature development or isolated experiments.
+- `/aai-wrap-up` — Use when ending a development session to capture learnings, summarize accomplishments, propose LEARNED.md rules, and prepare next session context. Trigger phrases: "wrap up", "end session", "done for today", "hotovo", "konec", "bye".
 
 ## Project-specific skills
 - Generated by `/aai-bootstrap` into `.claude/skills/`

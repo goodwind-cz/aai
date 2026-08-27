@@ -1,7 +1,12 @@
 ---
 name: aai-bootstrap
-description: Automatically detect project architecture and generate optimized, project-specific skills for testing, building, and validation. Saves tokens by creating tailored shortcuts.
+description: Use when setting up a new AAI project or when project-specific test/build/validation commands are missing or outdated. Detects project architecture and generates optimized shortcuts.
 ---
+
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific role (Planning, Implementation, Validation, Remediation), skip this skill. This skill is only for top-level use initiated by the user or orchestrator.
+</SUBAGENT-STOP>
+
 
 Read the file `.aai/SKILL_BOOTSTRAP.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-bootstrap`.
 

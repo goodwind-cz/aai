@@ -1,0 +1,9 @@
+WORKTREE: /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/tmp.Y6CY1dCz4T/control-worktree
+CASE: control
+COMMAND: env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh test_111_generator_check_clean_and_idempotent
+EXIT: 0
+OUTPUT:
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: test_111: sync-harness-skills.mjs --check is clean post-normalization, --write is then a no-op, and both generated READMEs list the full set (TEST-002, TEST-003)...
+PASS: test_111: generator --check clean, --write idempotent, both READMEs list the full 39-skill set (TEST-002, TEST-003)

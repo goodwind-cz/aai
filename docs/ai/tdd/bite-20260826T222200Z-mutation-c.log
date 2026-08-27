@@ -1,0 +1,14 @@
+WORKTREE: /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/tmp.Y6CY1dCz4T/mutation-c-worktree
+CASE: mutation-c-source-description
+COMMAND: env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh test_111_generator_check_clean_and_idempotent
+EXIT: 1
+OUTPUT:
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: test_111: sync-harness-skills.mjs --check is clean post-normalization, --write is then a no-op, and both generated READMEs list the full set (TEST-002, TEST-003)...
+FAIL: test_111: --check must exit 0 on the normalized tree, got 1:
+DIVERGE content .agents/skills/aai-wrap-up/SKILL.md line 3: actual="description: Use when ending a development session to capture learnings, summarize accomplishments, propose LEARNED.md rules, and prepare ne…" expected="description: bite-proof mutated description"
+DIVERGE content .codex/skills/aai-wrap-up/SKILL.md line 3: actual="description: Use when ending a development session to capture learnings, summarize accomplishments, propose LEARNED.md rules, and prepare ne…" expected="description: bite-proof mutated description"
+DIVERGE readme .codex/skills/README.md differs
+DIVERGE content .gemini/skills/aai-wrap-up/SKILL.md line 3: actual="description: Use when ending a development session to capture learnings, summarize accomplishments, propose LEARNED.md rules, and prepare ne…" expected="description: bite-proof mutated description"
+DIVERGE readme .gemini/skills/README.md differs

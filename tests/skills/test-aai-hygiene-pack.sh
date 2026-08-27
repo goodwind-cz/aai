@@ -18,7 +18,17 @@ TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# Set by test_113 while a disposable detached worktree is live, so the EXIT
+# trap below removes it with a targeted `git worktree remove` (HAZ-WORKTREE)
+# even if a mid-arm log_fail exits the whole process before test_113's own
+# happy-path cleanup runs.
+HSK_ACTIVE_WORKTREE=""
+
 cleanup() {
+  if [[ -n "${HSK_ACTIVE_WORKTREE:-}" ]]; then
+    git -C "$PROJECT_ROOT" worktree remove --force "$HSK_ACTIVE_WORKTREE" >/dev/null 2>&1 || true
+    HSK_ACTIVE_WORKTREE=""
+  fi
   if [[ -n "${TEST_DIR:-}" && -d "$TEST_DIR" ]]; then
     rm -rf "$TEST_DIR"
   fi
@@ -31,10 +41,15 @@ log_skip() { echo "SKIP: $*"; exit 42; }
 log_info() { echo "INFO: $*"; }
 
 # Skill trees that exist in this checkout (wrapper edits are mirrored to every
-# tree that carries the wrapper — SPEC-0013 D8).
+# tree that carries the wrapper — SPEC-0013 D8). `.agents` added by
+# harness-surfaces-drift-unguarded D4/D1: it is the fourth tracked skill tree
+# (Cursor's FIRST documented project-skills path) and every arm below that
+# iterates skill_trees() now covers it too — that is deliberate, not scope
+# creep (see the spec's "Adding .agents ... retro-applies eight existing arms"
+# edge case note).
 skill_trees() {
   local t
-  for t in .claude .gemini .codex; do
+  for t in .claude .agents .gemini .codex; do
     [[ -d "$PROJECT_ROOT/$t/skills" ]] && echo "$t"
   done
   return 0
@@ -1631,6 +1646,876 @@ test_105_converted_sites_keep_their_needles() {  # TEST-006 / Spec-AC-01, Spec-A
   log_pass "test_105: $seen pinned needle(s) of 4 converted sites intact (the 4th asserts a run-time variable and cannot be pinned), helper sourced, no unbounded payload dump (TEST-006)"
 }
 
+# --- harness-surfaces-drift-unguarded arms (test_110..113) ------------------
+# CHANGE harness-surfaces-drift-unguarded /
+# docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md.
+#
+# .agents/skills, .codex/skills and .gemini/skills are GENERATED from
+# .claude/skills by .aai/scripts/sync-harness-skills.mjs under the transform
+# declared in .aai/system/HARNESS_SKILLS.yaml (D1). test_110 is a bash-native,
+# node-independent spot check of the same set-equality invariant the
+# generator's --check also proves — defense in depth per D4 (this suite IS
+# the guard; the generator is generation machinery it drives). test_111..113
+# drive the generator itself.
+HSK_GENERATOR_REL=".aai/scripts/sync-harness-skills.mjs"
+HSK_MANIFEST_REL=".aai/system/HARNESS_SKILLS.yaml"
+HSK_MIRROR_TREES=".agents/skills .codex/skills .gemini/skills"
+
+# hsk_skill_dirs <skills-dir> — one skill name per line, sorted. A "skill" is
+# any directory directly under <skills-dir> that itself contains a SKILL.md
+# (excludes README.md and the gitignored skills.local/ index — neither carries
+# a SKILL.md, so no special-case is needed for them).
+hsk_skill_dirs() {
+  local dir="$1" n
+  [[ -d "$dir" ]] || return 0
+  for n in "$dir"/*/; do
+    [[ -f "${n}SKILL.md" ]] && basename "$n"
+  done | LC_ALL=C sort
+}
+
+# hsk_exclusions_for <manifest> <tree> — one excluded skill name per line for
+# <tree>, read from the manifest's `exclusions:` block (tree|skill|reason rows).
+# Prints nothing when the manifest is absent or carries no matching row.
+hsk_exclusions_for() {
+  local manifest="$1" tree="$2" insec=0 line rest etree eskill
+  [[ -f "$manifest" ]] || return 0
+  while IFS= read -r line; do
+    case "$line" in
+      'exclusions:') insec=1; continue ;;
+      [a-zA-Z_]*:*) insec=0; continue ;;
+    esac
+    [[ "$insec" -eq 1 ]] || continue
+    case "$line" in
+      '  - '*) ;;
+      *) continue ;;
+    esac
+    rest="${line#  - }"
+    etree="${rest%%|*}"
+    etree="${etree#"${etree%%[![:space:]]*}"}"
+    etree="${etree%"${etree##*[![:space:]]}"}"
+    [[ "$etree" == "$tree" ]] || continue
+    rest="${rest#*|}"
+    eskill="${rest%%|*}"
+    eskill="${eskill#"${eskill%%[![:space:]]*}"}"
+    eskill="${eskill%"${eskill##*[![:space:]]}"}"
+    [[ -n "$eskill" ]] && printf '%s\n' "$eskill"
+  done < "$manifest"
+}
+
+# hsk_check_parity <root> [<manifest>] — prints one "PARITY <missing|extra>
+# <tree>/<skill>" line per divergence, honoring the manifest's exclusions;
+# returns 0 clean / 1 dirty. Side-effect-free (no log_fail), so it can be run
+# against a mutated fixture or worktree without killing the whole suite.
+hsk_check_parity() {
+  local root="$1" manifest="${2:-}"
+  [[ -n "$manifest" ]] || manifest="$root/$HSK_MANIFEST_REL"
+  local src="$root/.claude/skills"
+  local expected_all
+  expected_all="$(hsk_skill_dirs "$src")"
+  local rc=0 tree tdir excluded want actual missing extra s
+  for tree in $HSK_MIRROR_TREES; do
+    tdir="$root/$tree"
+    excluded="$(hsk_exclusions_for "$manifest" "$tree")"
+    if [[ -n "$excluded" ]]; then
+      want="$(comm -23 <(printf '%s\n' "$expected_all") <(printf '%s\n' "$excluded" | LC_ALL=C sort))"
+    else
+      want="$expected_all"
+    fi
+    if [[ ! -d "$tdir" ]]; then
+      # A declared mirror tree that is absent ENTIRELY is the largest
+      # possible drift, not a skip: report every skill this tree should
+      # carry as missing. Fixtures may legitimately ship only a subset of
+      # the mirror trees, so this hard-fail applies only at the real root.
+      [[ "$root" == "$PROJECT_ROOT" ]] || continue
+      while IFS= read -r s; do [[ -n "$s" ]] && printf 'PARITY missing %s/%s\n' "$tree" "$s"; done <<< "$want"
+      rc=1
+      continue
+    fi
+    actual="$(hsk_skill_dirs "$tdir")"
+    missing="$(comm -23 <(printf '%s\n' "$want") <(printf '%s\n' "$actual"))"
+    extra="$(comm -13 <(printf '%s\n' "$want") <(printf '%s\n' "$actual"))"
+    if [[ -n "$missing" ]]; then
+      while IFS= read -r s; do [[ -n "$s" ]] && printf 'PARITY missing %s/%s\n' "$tree" "$s"; done <<< "$missing"
+      rc=1
+    fi
+    if [[ -n "$extra" ]]; then
+      while IFS= read -r s; do [[ -n "$s" ]] && printf 'PARITY extra %s/%s\n' "$tree" "$s"; done <<< "$extra"
+      rc=1
+    fi
+  done
+  return "$rc"
+}
+
+test_110_skill_set_parity() {  # TEST-001 / Spec-AC-01, TEST-005 / Spec-AC-06 (exclusion half)
+  log_info "test_110: every mirror tree offers exactly .claude/skills' skill set, honoring manifest exclusions (TEST-001, TEST-005 exclusion half)..."
+  TEST_DIR="${TEST_DIR:-$(ap_tmpdir)}"
+
+  # (a) LIVE PARITY — the real, measured drift (6/8/8 missing pre-normalization).
+  local out rc
+  out="$(hsk_check_parity "$PROJECT_ROOT")" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_110: mirror trees diverge from .claude/skills (Spec-AC-01):"$'\n'"$out"
+
+  # (b) EXCLUSION SEMANTICS (Spec-AC-06, the "good exclusion" half) — a
+  # self-contained fixture, independent of the shipped (empty) manifest.
+  # Skill "b" is present in .claude/skills but absent from BOTH .codex/skills
+  # and .gemini/skills; only .codex/skills excludes it. The SAME missing skill
+  # must be forgiven for .codex/skills and still reported for .gemini/skills.
+  local fx="$TEST_DIR/t110-fixture"
+  rm -rf "$fx"
+  mkdir -p "$fx/.claude/skills/a" "$fx/.claude/skills/b" "$fx/.codex/skills/a" "$fx/.gemini/skills/a"
+  printf -- '---\nname: a\ndescription: fixture a\n---\nbody\n' > "$fx/.claude/skills/a/SKILL.md"
+  printf -- '---\nname: b\ndescription: fixture b\n---\nbody\n' > "$fx/.claude/skills/b/SKILL.md"
+  cp "$fx/.claude/skills/a/SKILL.md" "$fx/.codex/skills/a/SKILL.md"
+  cp "$fx/.claude/skills/a/SKILL.md" "$fx/.gemini/skills/a/SKILL.md"
+  local fm="$fx/manifest.yaml"
+  {
+    printf '%s\n' 'trees:'
+    printf '%s\n' '  - .agents/skills|carry|no'
+    printf '%s\n' '  - .codex/skills|drop|yes'
+    printf '%s\n' '  - .gemini/skills|drop|yes'
+    printf '%s\n' 'exclusions:'
+    printf '%s\n' '  - .codex/skills | b | fixture: b is intentionally not offered to codex'
+  } > "$fm"
+
+  out="$(hsk_check_parity "$fx" "$fm")" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_110: fixture expected to still redden on .gemini/skills/b (not excluded there), got clean"
+  case "$out" in
+    *"PARITY missing .codex/skills/b"*)
+      log_fail "test_110: the manifest exclusion (.codex/skills, b, reason) must forgive that ONE pair, but it was still reported missing: $out" ;;
+  esac
+  case "$out" in
+    *"PARITY missing .gemini/skills/b"*) ;;
+    *) log_fail "test_110: the SAME skill 'b', missing from .gemini/skills (NOT excluded there), must still be reported: $out" ;;
+  esac
+
+  log_pass "test_110: mirror trees carry exactly .claude/skills' skill set; an exclusion forgives exactly the one declared (tree, skill) pair (TEST-001, TEST-005 exclusion half)"
+}
+
+test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-AC-02
+  log_info "test_111: sync-harness-skills.mjs --check is clean post-normalization, --write is then a no-op, and both generated READMEs list the full set (TEST-002, TEST-003)..."
+  local gen="$PROJECT_ROOT/$HSK_GENERATOR_REL"
+  [[ -f "$gen" ]] || log_fail "test_111: missing $HSK_GENERATOR_REL"
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  TEST_DIR="${TEST_DIR:-$(ap_tmpdir)}"
+
+  local out rc
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_111: --check must exit 0 on the normalized tree, got $rc:"$'\n'"$out"
+
+  local mirrors_before="$TEST_DIR/t111-mirrors-before.diff"
+  local mirrors_after="$TEST_DIR/t111-mirrors-after.diff"
+  git -C "$PROJECT_ROOT" diff --binary HEAD -- \
+    .agents/skills .codex/skills .gemini/skills > "$mirrors_before" \
+    || log_fail "test_111: could not snapshot the pre-write mirror state"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must exit 0, got $rc: $out"
+  git -C "$PROJECT_ROOT" diff --binary HEAD -- \
+    .agents/skills .codex/skills .gemini/skills > "$mirrors_after" \
+    || log_fail "test_111: could not snapshot the post-write mirror state"
+  cmp -s "$mirrors_before" "$mirrors_after" \
+    || log_fail "test_111: --write after a clean --check must change no bytes from the pre-write mirror state (idempotence)"
+
+  # TEST-003 — the README indexes list the FULL live set, not the old 22-of-39.
+  local n_skills n t
+  n_skills="$(hsk_skill_dirs "$PROJECT_ROOT/.claude/skills" | "$PGQ_GREP_BIN" -c .)" || n_skills=0
+  for t in .codex .gemini; do
+    n="$("$PGQ_GREP_BIN" -cE '^- `/aai-' "$PROJECT_ROOT/$t/skills/README.md")" || n=0
+    [[ "$n" -eq "$n_skills" ]] \
+      || log_fail "test_111: $t/skills/README.md lists $n skills, want the full live set of $n_skills"
+  done
+
+  # PR review — a readme=yes tree still needs its directory and README when
+  # every source skill is excluded and the mirror tree starts absent.
+  local empty_fx="$TEST_DIR/t111-all-excluded"
+  rm -rf "$empty_fx"
+  mkdir -p "$empty_fx/.claude/skills/a"
+  printf -- '---\nname: a\ndescription: fixture a\n---\nbody\n' > "$empty_fx/.claude/skills/a/SKILL.md"
+  {
+    printf '%s\n' 'trees:'
+    printf '%s\n' '  - .agents/skills|carry|no'
+    printf '%s\n' '  - .codex/skills|drop|yes'
+    printf '%s\n' '  - .gemini/skills|drop|yes'
+    printf '%s\n' 'exclusions:'
+    printf '%s\n' '  - .agents/skills|a|fixture excludes the only skill'
+    printf '%s\n' '  - .codex/skills|a|fixture excludes the only skill'
+    printf '%s\n' '  - .gemini/skills|a|fixture excludes the only skill'
+  } > "$empty_fx/manifest.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$empty_fx" --manifest "$empty_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must create empty readme=yes trees, got $rc: $out"
+  [[ -f "$empty_fx/.codex/skills/README.md" && -f "$empty_fx/.gemini/skills/README.md" ]] \
+    || log_fail "test_111: all-excluded readme=yes trees must still receive README.md"
+  [[ -d "$empty_fx/.agents/skills" && -d "$empty_fx/.codex/skills" && -d "$empty_fx/.gemini/skills" ]] \
+    || log_fail "test_111: --write must materialize every declared mirror tree even when its projection is empty"
+  out_check="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$empty_fx" --manifest "$empty_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: materialized empty mirror trees must pass --check, got $rc: $out_check"
+  local excluded_line
+  for excluded_line in \
+    'EXCLUDED .agents/skills/a: fixture excludes the only skill' \
+    'EXCLUDED .codex/skills/a: fixture excludes the only skill' \
+    'EXCLUDED .gemini/skills/a: fixture excludes the only skill'; do
+    case "$out" in
+      *"$excluded_line"*) ;;
+      *) log_fail "test_111: --write must report every applied exclusion; missing '$excluded_line' in: $out" ;;
+    esac
+  done
+
+  # PR review — write mode repairs a non-file SKILL.md target instead of
+  # detecting it in check mode and then crashing with EISDIR while writing.
+  local corrupt_fx="$TEST_DIR/t111-non-file-target"
+  rm -rf "$corrupt_fx"
+  mkdir -p "$corrupt_fx/.claude/skills/a" \
+    "$corrupt_fx/.agents/skills/a" "$corrupt_fx/.codex/skills/a" "$corrupt_fx/.gemini/skills/a"
+  printf -- '---\nname: a\ndescription: fixture a\n---\nbody\n' > "$corrupt_fx/.claude/skills/a/SKILL.md"
+  cp "$corrupt_fx/.claude/skills/a/SKILL.md" "$corrupt_fx/.agents/skills/a/SKILL.md"
+  cp "$corrupt_fx/.claude/skills/a/SKILL.md" "$corrupt_fx/.codex/skills/a/SKILL.md"
+  cp "$corrupt_fx/.claude/skills/a/SKILL.md" "$corrupt_fx/.gemini/skills/a/SKILL.md"
+  rm "$corrupt_fx/.codex/skills/a/SKILL.md"
+  mkdir "$corrupt_fx/.codex/skills/a/SKILL.md"
+  {
+    printf '%s\n' 'trees:'
+    printf '%s\n' '  - .agents/skills|carry|no'
+    printf '%s\n' '  - .codex/skills|drop|yes'
+    printf '%s\n' '  - .gemini/skills|drop|yes'
+    printf '%s\n' 'exclusions:'
+  } > "$corrupt_fx/manifest.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$corrupt_fx" --manifest "$corrupt_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must replace a directory at SKILL.md, got $rc: $out"
+  [[ -f "$corrupt_fx/.codex/skills/a/SKILL.md" ]] \
+    || log_fail "test_111: repaired .codex/skills/a/SKILL.md must be a regular file"
+  rm "$corrupt_fx/.codex/skills/README.md"
+  mkdir "$corrupt_fx/.codex/skills/README.md"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$corrupt_fx" --manifest "$corrupt_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must replace a directory at README.md, got $rc: $out"
+  [[ -f "$corrupt_fx/.codex/skills/README.md" ]] \
+    || log_fail "test_111: repaired .codex/skills/README.md must be a regular file"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$corrupt_fx" --manifest "$corrupt_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: repaired non-file target must pass --check, got $rc: $out"
+
+  # PR #292 review — containment starts at the source ROOT: a symlinked
+  # .claude/skills would put every child outside --root, and the per-entry
+  # check never sees it.
+  local srcroot_fx="$TEST_DIR/t111-symlinked-source-root"
+  local srcroot_ext="$TEST_DIR/t111-source-root-external"
+  rm -rf "$srcroot_fx" "$srcroot_ext"
+  mkdir -p "$srcroot_fx/.claude" "$srcroot_ext/a"
+  printf -- '---\nname: a\ndescription: d\n---\n' > "$srcroot_ext/a/SKILL.md"
+  ln -s "$srcroot_ext" "$srcroot_fx/.claude/skills"
+  printf 'trees:\n  - .agents/skills|carry|no\n  - .codex/skills|drop|no\n  - .gemini/skills|drop|no\nexclusions:\n' > "$srcroot_fx/manifest.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$srcroot_fx" --manifest "$srcroot_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_111: a symlinked source skills tree must refuse with exit 2, got $rc: $out"
+  case "$out" in
+    *"source skills tree must be a real directory"*) : ;;
+    *) log_fail "test_111: the symlinked-source-root refusal must name the cause: $out" ;;
+  esac
+  [[ ! -d "$srcroot_fx/.codex/skills" ]] \
+    || log_fail "test_111: a refused symlinked source root must not have projected any mirror"
+
+  # PR #292 review — a closing fence that IS the final bytes of the file carries
+  # no trailing newline; model=carry promises a byte-for-byte clone, so the
+  # generator must not invent one.
+  local eof_fx="$TEST_DIR/t111-eof-fence"
+  rm -rf "$eof_fx"
+  mkdir -p "$eof_fx/.claude/skills/a"
+  printf -- '---\nname: a\ndescription: d\n---' > "$eof_fx/.claude/skills/a/SKILL.md"
+  printf 'trees:\n  - .agents/skills|carry|no\n  - .codex/skills|drop|no\n  - .gemini/skills|drop|no\nexclusions:\n' > "$eof_fx/manifest.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$eof_fx" --manifest "$eof_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: EOF-fence source must project cleanly, got $rc: $out"
+  cmp -s "$eof_fx/.claude/skills/a/SKILL.md" "$eof_fx/.agents/skills/a/SKILL.md" \
+    || log_fail "test_111: model=carry must clone an EOF-fence source byte for byte, not append a newline"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$eof_fx" --manifest "$eof_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: EOF-fence projection must satisfy --check, got $rc: $out"
+
+  # PR review — readable symlinks must never redirect generator writes outside
+  # a declared mirror, whether the link is the file or its skill directory.
+  local symlink_fx="$TEST_DIR/t111-symlink-targets"
+  local external_fx="$TEST_DIR/t111-external-sentinels"
+  rm -rf "$symlink_fx" "$external_fx"
+  cp -R "$corrupt_fx" "$symlink_fx"
+  mkdir -p "$external_fx/skill-dir"
+  printf '%s\n' 'external skill sentinel' > "$external_fx/skill.md"
+  printf '%s\n' 'external readme sentinel' > "$external_fx/readme.md"
+  printf '%s\n' 'external directory sentinel' > "$external_fx/skill-dir/SKILL.md"
+  rm "$symlink_fx/.codex/skills/a/SKILL.md" "$symlink_fx/.codex/skills/README.md"
+  rm -rf "$symlink_fx/.gemini/skills/a"
+  ln -s "$external_fx/skill.md" "$symlink_fx/.codex/skills/a/SKILL.md"
+  ln -s "$external_fx/readme.md" "$symlink_fx/.codex/skills/README.md"
+  ln -s "$external_fx/skill-dir" "$symlink_fx/.gemini/skills/a"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$symlink_fx" --manifest "$symlink_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must safely replace readable symlinks, got $rc: $out"
+  [[ "$(cat "$external_fx/skill.md")" == 'external skill sentinel' ]] \
+    || log_fail "test_111: symlinked SKILL.md redirected the write into the external sentinel"
+  [[ "$(cat "$external_fx/readme.md")" == 'external readme sentinel' ]] \
+    || log_fail "test_111: symlinked README.md redirected the write into the external sentinel"
+  [[ "$(cat "$external_fx/skill-dir/SKILL.md")" == 'external directory sentinel' ]] \
+    || log_fail "test_111: symlinked skill directory redirected the write outside the mirror"
+  [[ ! -L "$symlink_fx/.codex/skills/a/SKILL.md" && -f "$symlink_fx/.codex/skills/a/SKILL.md" ]] \
+    || log_fail "test_111: repaired SKILL.md symlink must become a regular file"
+  [[ ! -L "$symlink_fx/.codex/skills/README.md" && -f "$symlink_fx/.codex/skills/README.md" ]] \
+    || log_fail "test_111: repaired README.md symlink must become a regular file"
+  [[ ! -L "$symlink_fx/.gemini/skills/a" && -f "$symlink_fx/.gemini/skills/a/SKILL.md" ]] \
+    || log_fail "test_111: repaired skill-directory symlink must become a real directory with SKILL.md"
+
+  # A symlink with an unexpected skill name must not disappear from parity
+  # enumeration merely because Dirent.isDirectory() is false. Check mode names
+  # it; write mode removes only the owned link and preserves its external tree.
+  mkdir -p "$external_fx/extra-skill"
+  printf '%s\n' 'external extra sentinel' > "$external_fx/extra-skill/SKILL.md"
+  ln -s "$external_fx/extra-skill" "$symlink_fx/.codex/skills/evil"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$symlink_fx" --manifest "$symlink_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "test_111: unexpected symlinked skill must fail --check, got $rc: $out"
+  case "$out" in
+    *"extra .codex/skills/evil"*) ;;
+    *) log_fail "test_111: unexpected symlinked skill must be named as extra, got: $out" ;;
+  esac
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$symlink_fx" --manifest "$symlink_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must remove unexpected symlinked skill, got $rc: $out"
+  [[ ! -e "$symlink_fx/.codex/skills/evil" && ! -L "$symlink_fx/.codex/skills/evil" ]] \
+    || log_fail "test_111: unexpected symlinked skill remained after --write"
+  [[ "$(cat "$external_fx/extra-skill/SKILL.md")" == 'external extra sentinel' ]] \
+    || log_fail "test_111: removing unexpected symlinked skill mutated its external target"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$symlink_fx" --manifest "$symlink_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: repaired unexpected symlink must pass --check, got $rc: $out"
+
+  mkdir -p "$symlink_fx/.codex/skills/empty-skill"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$symlink_fx" --manifest "$symlink_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "test_111: mirror directory without SKILL.md must fail --check, got $rc: $out"
+  case "$out" in
+    *"extra .codex/skills/empty-skill"*) ;;
+    *) log_fail "test_111: malformed mirror directory must be named as extra, got: $out" ;;
+  esac
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$symlink_fx" --manifest "$symlink_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 && ! -e "$symlink_fx/.codex/skills/empty-skill" ]] \
+    || log_fail "test_111: --write must remove an extra mirror directory without SKILL.md, got $rc: $out"
+
+  log_pass "test_111: generator --check clean, --write idempotent, both READMEs list the full $n_skills-skill set (TEST-002, TEST-003)"
+}
+
+test_112_generator_refuses_bad_manifest() {  # TEST-004 / Spec-AC-03, TEST-005 / Spec-AC-06 (stale/reasonless halves)
+  log_info "test_112: generator refuses an undeclared tree and a stale or reason-less exclusion, exit 2 naming the offender (TEST-004, TEST-005 stale/reasonless halves)..."
+  local gen="$PROJECT_ROOT/$HSK_GENERATOR_REL"
+  [[ -f "$gen" ]] || log_fail "test_112: missing $HSK_GENERATOR_REL"
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  TEST_DIR="${TEST_DIR:-$(ap_tmpdir)}"
+  local fx="$TEST_DIR/t112-fixture"
+  rm -rf "$fx"
+  mkdir -p "$fx/.claude/skills/a" "$fx/.agents/skills/a" "$fx/.codex/skills/a" "$fx/.gemini/skills/a"
+  printf -- '---\nname: a\ndescription: fixture a\n---\nbody\n' > "$fx/.claude/skills/a/SKILL.md"
+  cp "$fx/.claude/skills/a/SKILL.md" "$fx/.agents/skills/a/SKILL.md"
+  cp "$fx/.claude/skills/a/SKILL.md" "$fx/.codex/skills/a/SKILL.md"
+  cp "$fx/.claude/skills/a/SKILL.md" "$fx/.gemini/skills/a/SKILL.md"
+
+  local out rc
+
+  # (a) Spec-AC-03 — the .codex/skills row is deleted from the manifest.
+  {
+    printf '%s\n' 'trees:'
+    printf '%s\n' '  - .agents/skills|carry|no'
+    printf '%s\n' '  - .gemini/skills|drop|yes'
+    printf '%s\n' 'exclusions:'
+  } > "$fx/m-no-codex.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$fx" --manifest "$fx/m-no-codex.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(a): undeclared tree must exit 2, got $rc: $out"
+  case "$out" in
+    *".codex/skills"*) ;;
+    *) log_fail "test_112(a): the refusal must name the offending tree .codex/skills, got: $out" ;;
+  esac
+
+  local base_manifest="trees:
+  - .agents/skills|carry|no
+  - .codex/skills|drop|yes
+  - .gemini/skills|drop|yes
+exclusions:"
+
+  # (b) Spec-AC-06 — an exclusion with an empty reason.
+  printf '%s\n  - .codex/skills|a|\n' "$base_manifest" > "$fx/m-empty-reason.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$fx" --manifest "$fx/m-empty-reason.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(b): an exclusion with an empty reason must exit 2, got $rc: $out"
+
+  # (c) Spec-AC-06 — an exclusion naming a skill absent from .claude/skills.
+  printf '%s\n  - .codex/skills|aai-does-not-exist|some reason\n' "$base_manifest" > "$fx/m-stale.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$fx" --manifest "$fx/m-stale.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(c): a stale exclusion must exit 2, got $rc: $out"
+  case "$out" in
+    *[Ss]"tale exclusion"*) ;;
+    *) log_fail "test_112(c): the refusal must say 'stale exclusion', got: $out" ;;
+  esac
+
+  # (d) Review NB-1 — path-valued flags must not silently fall back to the
+  # live repository when their value is absent or is another option.
+  local cli_case cli_flag
+  for cli_flag in root manifest; do
+    for cli_case in missing option; do
+      if [[ "$cli_case" == "missing" ]]; then
+        out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check "--$cli_flag" 2>&1)" && rc=0 || rc=$?
+      else
+        out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" "--$cli_flag" --check 2>&1)" && rc=0 || rc=$?
+      fi
+      [[ "$rc" -eq 2 ]] || log_fail "test_112(d): --$cli_flag with a $cli_case value must exit 2, got $rc: $out"
+      case "$out" in
+        *"--$cli_flag requires a value"*) ;;
+        *) log_fail "test_112(d): --$cli_flag with a $cli_case value must name its missing value, got: $out" ;;
+      esac
+    done
+  done
+
+  # (e) PR review — duplicate tree rows must be rejected before Map
+  # construction can silently discard the first transform.
+  printf '%s\n' 'trees:' \
+    '  - .agents/skills|carry|no' \
+    '  - .codex/skills|nonsense|no' \
+    '  - .codex/skills|drop|yes' \
+    '  - .gemini/skills|drop|yes' \
+    'exclusions:' > "$fx/m-duplicate-tree.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$fx" --manifest "$fx/m-duplicate-tree.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(e): a duplicate tree row must exit 2, got $rc: $out"
+  case "$out" in
+    *"duplicate tree"*".codex/skills"*) ;;
+    *) log_fail "test_112(e): duplicate-tree refusal must name .codex/skills, got: $out" ;;
+  esac
+
+  # (f) PR review — no nonblank manifest content may disappear merely
+  # because it has unexpected indentation or a misspelled section header.
+  printf '%s\n' "$base_manifest" '    - .codex/skills|a|intentionally excluded' > "$fx/m-indented-row.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$fx" --manifest "$fx/m-indented-row.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(f): an unexpectedly indented row must exit 2, got $rc: $out"
+  case "$out" in
+    *"unparsed manifest content"*) ;;
+    *) log_fail "test_112(f): indented-row refusal must name unparsed content, got: $out" ;;
+  esac
+
+  printf '%s\n' 'trees:' \
+    '  - .agents/skills|carry|no' \
+    '  - .codex/skills|drop|yes' \
+    '  - .gemini/skills|drop|yes' \
+    'exclusionz:' > "$fx/m-misspelled-section.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$fx" --manifest "$fx/m-misspelled-section.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(f): a misspelled section header must exit 2, got $rc: $out"
+  case "$out" in
+    *"unparsed manifest content"*"exclusionz:"*) ;;
+    *) log_fail "test_112(f): misspelled-section refusal must name the unparsed header, got: $out" ;;
+  esac
+
+  # (g) PR review — a closing frontmatter fence is a complete `---` line,
+  # never a prefix such as `---oops` that gets silently discarded.
+  printf '%s\n' "$base_manifest" > "$fx/m-base.yaml"
+  printf -- '---\nname: a\ndescription: fixture a\n---oops\nbody\n' > "$fx/.claude/skills/a/SKILL.md"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$fx" --manifest "$fx/m-base.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(g): a prefixed closing fence must exit 2, got $rc: $out"
+  case "$out" in
+    *"closing frontmatter fence"*) ;;
+    *) log_fail "test_112(g): malformed-fence refusal must name the closing frontmatter fence, got: $out" ;;
+  esac
+
+  # (h) Internal review — a late malformed source must be rejected before
+  # --write mutates any earlier target, never leaving a partial projection.
+  local late_fx="$TEST_DIR/t112-late-malformed-source"
+  rm -rf "$late_fx"
+  mkdir -p "$late_fx/.claude/skills/a" "$late_fx/.claude/skills/b"
+  local tree
+  for tree in .agents/skills .codex/skills .gemini/skills; do
+    mkdir -p "$late_fx/$tree/a"
+    printf -- '---\nname: a\ndescription: old mirror sentinel\n---\nold body\n' \
+      > "$late_fx/$tree/a/SKILL.md"
+  done
+  printf -- '---\nname: a\ndescription: new source a\n---\nnew body\n' \
+    > "$late_fx/.claude/skills/a/SKILL.md"
+  printf -- '---\nname: b\ndescription: malformed late source\nbody without closing fence\n' \
+    > "$late_fx/.claude/skills/b/SKILL.md"
+  printf '%s\n' "$base_manifest" > "$late_fx/manifest.yaml"
+  local before_targets after_targets
+  before_targets="$(find "$late_fx/.agents/skills" "$late_fx/.codex/skills" "$late_fx/.gemini/skills" \
+    -type f -exec cksum {} \; | LC_ALL=C sort)"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$late_fx" --manifest "$late_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(h): late malformed source must exit 2, got $rc: $out"
+  after_targets="$(find "$late_fx/.agents/skills" "$late_fx/.codex/skills" "$late_fx/.gemini/skills" \
+    -type f -exec cksum {} \; | LC_ALL=C sort)"
+  [[ "$after_targets" == "$before_targets" ]] \
+    || log_fail "test_112(h): failed --write partially mutated mirror targets"
+
+  # (i) Internal final review — manifest topology diagnostics take precedence
+  # over source parsing when both inputs are invalid. AC-03 requires the
+  # undeclared on-disk tree to be named unconditionally.
+  cp "$fx/m-no-codex.yaml" "$late_fx/m-no-codex.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$late_fx" --manifest "$late_fx/m-no-codex.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(i): combined invalid manifest/source must exit 2, got $rc: $out"
+  case "$out" in
+    *".codex/skills"*) ;;
+    *) log_fail "test_112(i): manifest validation must name .codex/skills before parsing malformed sources, got: $out" ;;
+  esac
+
+  # (j) External review — source directories are authored inputs, so a
+  # directory without SKILL.md is a structural error, never an omitted skill.
+  printf -- '---\nname: b\ndescription: repaired source b\n---\nbody\n' \
+    > "$late_fx/.claude/skills/b/SKILL.md"
+  mkdir -p "$late_fx/.claude/skills/empty-skill"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$late_fx" --manifest "$late_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(j): source directory without SKILL.md must exit 2, got $rc: $out"
+  case "$out" in
+    *"missing SKILL.md"*".claude/skills/empty-skill"*) ;;
+    *) log_fail "test_112(j): malformed source directory must name its missing SKILL.md, got: $out" ;;
+  esac
+
+  # (k) Final review NB-1 — source entries may not escape through directory
+  # symlinks, and SKILL.md itself must be a regular authored file.
+  rm -rf "$late_fx/.claude/skills/empty-skill"
+  local external_source="$TEST_DIR/t112-external-source"
+  mkdir -p "$external_source"
+  printf -- '---\nname: evil\ndescription: external source\n---\nbody\n' > "$external_source/SKILL.md"
+  ln -s "$external_source" "$late_fx/.claude/skills/evil"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$late_fx" --manifest "$late_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(k): symlinked source skill must exit 2, got $rc: $out"
+  case "$out" in
+    *"source skill entry must be a real directory"*".claude/skills/evil"*) ;;
+    *) log_fail "test_112(k): source symlink refusal must name .claude/skills/evil, got: $out" ;;
+  esac
+
+  rm "$late_fx/.claude/skills/evil"
+  rm "$late_fx/.claude/skills/a/SKILL.md"
+  mkdir "$late_fx/.claude/skills/a/SKILL.md"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$late_fx" --manifest "$late_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(k): non-file source SKILL.md must exit 2, got $rc: $out"
+  case "$out" in
+    *"source SKILL.md must be a regular file"*".claude/skills/a/SKILL.md"*) ;;
+    *) log_fail "test_112(k): non-file source refusal must name .claude/skills/a/SKILL.md, got: $out" ;;
+  esac
+
+  # (l) External review — README.md is the generated index path in two
+  # mirrors and therefore cannot also be represented as a source skill name.
+  local reserved_fx="$TEST_DIR/t112-reserved-skill-name"
+  mkdir -p "$reserved_fx/.claude/skills/README.md" \
+    "$reserved_fx/.agents/skills" "$reserved_fx/.codex/skills" "$reserved_fx/.gemini/skills"
+  printf -- '---\nname: README.md\ndescription: collides with generated index\n---\nbody\n' \
+    > "$reserved_fx/.claude/skills/README.md/SKILL.md"
+  printf '%s\n' "$base_manifest" > "$reserved_fx/manifest.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$reserved_fx" --manifest "$reserved_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_112(l): reserved README.md skill name must exit 2 before writing, got $rc: $out"
+  case "$out" in
+    *"reserved"*"README.md"*) ;;
+    *) log_fail "test_112(l): reserved-name refusal must name README.md, got: $out" ;;
+  esac
+
+  # (m) Final review BLOCKING-1 — the collision is case-insensitive on the
+  # supported macOS/Windows filesystems, so every case-fold equivalent is
+  # reserved even when authored on a case-sensitive checkout.
+  local reserved_name reserved_case=0
+  for reserved_name in readme.md ReAdMe.md; do
+    reserved_case=$((reserved_case + 1))
+    reserved_fx="$TEST_DIR/t112-reserved-skill-name-$reserved_case"
+    mkdir -p "$reserved_fx/.claude/skills/$reserved_name" \
+      "$reserved_fx/.agents/skills" "$reserved_fx/.codex/skills" "$reserved_fx/.gemini/skills"
+    printf -- '---\nname: %s\ndescription: case-fold index collision\n---\nbody\n' "$reserved_name" \
+      > "$reserved_fx/.claude/skills/$reserved_name/SKILL.md"
+    printf '%s\n' "$base_manifest" > "$reserved_fx/manifest.yaml"
+    out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$reserved_fx" --manifest "$reserved_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 2 ]] || log_fail "test_112(m): reserved case-fold name $reserved_name must exit 2 before writing, got $rc: $out"
+    case "$out" in
+      *"reserved"*"$reserved_name"*) ;;
+      *) log_fail "test_112(m): reserved-name refusal must name $reserved_name, got: $out" ;;
+    esac
+  done
+
+  log_pass "test_112: generator refuses invalid manifests and missing CLI path values (TEST-004, TEST-005 stale/reasonless halves)"
+}
+
+test_116_metrics_correction_not_counted() {  # PR review / telemetry honesty
+  log_info "test_116: the harness-surfaces metrics correction is folded into its original run, not counted as extra work..."
+  node - "$PROJECT_ROOT/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "test_116: correction still inflates metrics"
+const fs = require('fs');
+const rows = fs.readFileSync(process.argv[2], 'utf8').trim().split(/\r?\n/)
+  .filter((line) => line && !line.startsWith('#')).map(JSON.parse)
+  .filter((row) => row.ref_id === 'harness-surfaces-drift-unguarded');
+if (rows.length !== 1) throw new Error(`want one metrics row, got ${rows.length}`);
+const row = rows[0];
+const runs = row.agent_runs || [];
+if (runs.some((run) => /CORRECTION of/.test(run.note || ''))) throw new Error('correction is still an agent run');
+const corrected = runs.find((run) => /commits 496b7a1/.test(run.note || ''));
+if (!corrected || !/usage_total_tokens=128719/.test(corrected.note || '')) throw new Error('corrected token total is absent');
+const duration = runs.reduce((sum, run) => sum + (run.duration_seconds || 0), 0);
+if (duration !== 17319 || row.totals.agent_duration_seconds !== duration) throw new Error(`duration mismatch: runs=${duration} total=${row.totals.agent_duration_seconds}`);
+const remediationRuns = runs.filter((run) => run.role === 'Remediation').length;
+if (remediationRuns !== 2 || row.reliability.remediation_runs !== remediationRuns) throw new Error(`remediation mismatch: runs=${remediationRuns} total=${row.reliability.remediation_runs}`);
+const validationFails = runs.filter((run) => run.role === 'Validation' && /FAIL round/.test(run.note || '')).length;
+if (validationFails !== 1 || row.reliability.validation_fails !== validationFails) throw new Error(`validation-fail mismatch: runs=${validationFails} total=${row.reliability.validation_fails}`);
+NODE
+  log_pass "test_116: correction is non-billable and aggregate duration/remediation counts match the actual runs"
+}
+
+test_117_source_skills_are_lf_pinned() {  # PR review / Windows portability
+  log_info "test_117: source and generated skill bytes are pinned to LF so core.autocrlf cannot create false divergence..."
+  local path attr
+  for path in \
+    .claude/skills/aai-pr/SKILL.md \
+    .agents/skills/aai-pr/SKILL.md \
+    .codex/skills/aai-pr/SKILL.md \
+    .codex/skills/README.md \
+    .gemini/skills/aai-pr/SKILL.md \
+    .gemini/skills/README.md; do
+    attr="$(cd "$PROJECT_ROOT" && git check-attr eol -- "$path")"
+    [[ "$attr" == "$path: eol: lf" ]] \
+      || log_fail "test_117: expected $path to resolve to eol=lf, got: $attr"
+  done
+  log_pass "test_117: source and all generated skill files are pinned to LF"
+}
+
+test_113_bite_proofs_in_detached_worktree() {  # TEST-007 / Spec-AC-05
+  log_info "test_113: bite proofs for the parity guard in a disposable DETACHED worktree, with unmutated controls (TEST-007)..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+
+  TEST_DIR="${TEST_DIR:-$(ap_tmpdir)}"
+  local wt="$TEST_DIR/t113-worktree"
+  local outer_before="$TEST_DIR/t113-outer-before.diff"
+  local outer_after="$TEST_DIR/t113-outer-after.diff"
+  git -C "$PROJECT_ROOT" diff --binary HEAD -- \
+    .claude/skills .agents/skills .codex/skills .gemini/skills > "$outer_before" \
+    || log_fail "test_113: could not snapshot the outer harness state"
+  rm -rf "$wt"
+  git -C "$PROJECT_ROOT" worktree add --detach "$wt" HEAD >/dev/null 2>&1 \
+    || log_fail "test_113: could not create a disposable detached worktree at $wt from HEAD"
+  HSK_ACTIVE_WORKTREE="$wt"
+
+  # The canonical wrapper seeds staged/uncommitted bytes into PROJECT_ROOT
+  # without moving HEAD. Carry the generator-owned tracked diff into this
+  # nested worktree before running bite mutations, or the proof can exercise
+  # the previously committed implementation and false-pass.
+  local seed_patch="$TEST_DIR/t113-current-seed.diff"
+  git -C "$PROJECT_ROOT" diff --binary HEAD -- \
+    "$HSK_GENERATOR_REL" "$HSK_MANIFEST_REL" tests/skills/test-aai-hygiene-pack.sh \
+    .claude/skills .agents/skills .codex/skills .gemini/skills > "$seed_patch" \
+    || log_fail "test_113: could not capture the current seeded harness diff"
+  if [[ -s "$seed_patch" ]]; then
+    git -C "$wt" apply "$seed_patch" \
+      || log_fail "test_113: could not apply the current seeded harness diff to the nested worktree"
+  fi
+
+  cmp -s "$PROJECT_ROOT/$HSK_GENERATOR_REL" "$wt/$HSK_GENERATOR_REL" \
+    || log_fail "test_113: nested worktree did not inherit the current seeded generator bytes"
+  cmp -s "$PROJECT_ROOT/tests/skills/test-aai-hygiene-pack.sh" "$wt/tests/skills/test-aai-hygiene-pack.sh" \
+    || log_fail "test_113: nested worktree did not inherit the current parity-arm bytes"
+
+  local gen="$wt/$HSK_GENERATOR_REL"
+  [[ -f "$gen" ]] || log_fail "test_113: generator missing in the worktree checkout of HEAD: $gen"
+  local parity_fn="test_111_generator_check_clean_and_idempotent"
+
+  local source_snapshot="$TEST_DIR/t113-source-wrap-up.md"
+  local codex_snapshot="$TEST_DIR/t113-codex-wrap-up"
+  cp "$wt/.claude/skills/aai-wrap-up/SKILL.md" "$source_snapshot"
+  rm -rf "$codex_snapshot"
+  cp -R "$wt/.codex/skills/aai-wrap-up" "$codex_snapshot"
+
+  local out rc
+
+  # CONTROL — the worktree is an unmutated checkout of HEAD; --check must be
+  # clean before any mutation.
+  out="$(cd "$wt" && env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh "$parity_fn" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] \
+    || log_fail "test_113 CONTROL: --check on the unmutated worktree must exit 0, got $rc: $out"
+
+  # MUTATION (a) — a new directory added under .claude/skills ONLY.
+  mkdir -p "$wt/.claude/skills/aai-zz-mutant-fixture"
+  printf -- '---\nname: aai-zz-mutant-fixture\ndescription: bite-proof fixture\n---\nbody\n' \
+    > "$wt/.claude/skills/aai-zz-mutant-fixture/SKILL.md"
+  out="$(cd "$wt" && env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh "$parity_fn" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_113(a): a new .claude/skills-only directory must redden --check, got exit 0"
+  case "$out" in
+    *"aai-zz-mutant-fixture"*) ;;
+    *) log_fail "test_113(a): FAIL output must name the offending skill, got: $out" ;;
+  esac
+  rm -rf "$wt/.claude/skills/aai-zz-mutant-fixture"
+  out="$(cd "$wt" && env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh "$parity_fn" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_113: worktree not clean between mutations (a)->(b), got $rc: $out"
+
+  # MUTATION (b) — a directory deleted from .codex/skills ONLY.
+  rm -rf "$wt/.codex/skills/aai-wrap-up"
+  out="$(cd "$wt" && env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh "$parity_fn" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_113(b): a directory deleted from .codex/skills only must redden --check, got exit 0"
+  case "$out" in
+    *".codex/skills/aai-wrap-up"*) ;;
+    *) log_fail "test_113(b): FAIL output must name the offending tree and skill, got: $out" ;;
+  esac
+  rm -rf "$wt/.codex/skills/aai-wrap-up"
+  cp -R "$codex_snapshot" "$wt/.codex/skills/aai-wrap-up"
+  out="$(cd "$wt" && env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh "$parity_fn" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_113: worktree not clean between mutations (b)->(c), got $rc: $out"
+
+  # MUTATION (c) — a description line edited in .claude/skills ONLY.
+  local target="$wt/.claude/skills/aai-wrap-up/SKILL.md"
+  [[ -f "$target" ]] || log_fail "test_113(c): fixture skill missing: $target"
+  local mutated="$TEST_DIR/t113-mutated-wrap-up.md"
+  sed 's/^description: .*/description: bite-proof mutated description/' "$target" > "$mutated"
+  cp "$mutated" "$target"
+  out="$(cd "$wt" && env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh "$parity_fn" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "test_113(c): a description edited in .claude/skills only must redden --check, got exit 0"
+  case "$out" in
+    *"aai-wrap-up"*) ;;
+    *) log_fail "test_113(c): FAIL output must name the offending skill, got: $out" ;;
+  esac
+  cp "$source_snapshot" "$wt/.claude/skills/aai-wrap-up/SKILL.md"
+  out="$(cd "$wt" && env -u AAI_ROLE bash tests/skills/test-aai-hygiene-pack.sh "$parity_fn" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_113: worktree not clean after reverting mutation (c), got $rc: $out"
+
+  # SELF-BINDING (HAZ-RESTORE) — the real checkout is never touched; all
+  # mutation happened only inside the disposable worktree.
+  git -C "$PROJECT_ROOT" diff --binary HEAD -- \
+    .claude/skills .agents/skills .codex/skills .gemini/skills > "$outer_after" \
+    || log_fail "test_113: could not resnapshot the outer harness state"
+  cmp -s "$outer_before" "$outer_after" \
+    || log_fail "test_113: the tracked harness trees changed in the REAL checkout — mutation must be confined to the disposable worktree"
+
+  git -C "$PROJECT_ROOT" worktree remove --force "$wt" >/dev/null 2>&1 || true
+  HSK_ACTIVE_WORKTREE=""
+
+  log_pass "test_113: three independent mutations each redden the parity guard naming the offender, with clean unmutated controls before/between/after, in a disposable detached worktree; real tree untouched (TEST-007)"
+}
+
+test_118_bite_proofs_preserve_seeded_state() {  # PR review / seeded-wrapper regression
+  log_info "test_118: bite proofs restore a seeded source+mirror state instead of HEAD..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+
+  TEST_DIR="${TEST_DIR:-$(ap_tmpdir)}"
+  local shipping_root="$PROJECT_ROOT"
+  local seeded_root="$TEST_DIR/t118-seeded-root"
+  git clone --quiet --no-hardlinks "$shipping_root" "$seeded_root" \
+    || log_fail "test_118: could not create seeded fixture repository"
+  cp "$shipping_root/$HSK_GENERATOR_REL" "$seeded_root/$HSK_GENERATOR_REL" \
+    || log_fail "test_118: could not seed the current generator into the fixture"
+  cp "$shipping_root/tests/skills/test-aai-hygiene-pack.sh" "$seeded_root/tests/skills/test-aai-hygiene-pack.sh" \
+    || log_fail "test_118: could not seed the current parity arm into the fixture"
+
+  local source_skill="$seeded_root/.claude/skills/aai-wrap-up/SKILL.md"
+  local changed_skill="$TEST_DIR/t118-changed-wrap-up.md"
+  sed 's/^description: .*/description: seeded wrapper regression fixture/' \
+    "$source_skill" > "$changed_skill"
+  cp "$changed_skill" "$source_skill"
+  (cd "$seeded_root" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --write >/dev/null) \
+    || log_fail "test_118: could not regenerate mirrors for seeded fixture"
+
+  (cd "$seeded_root" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check >/dev/null) \
+    || log_fail "test_118: seeded source+mirror fixture must begin clean"
+  [[ -n "$(git -C "$seeded_root" status --short -- .claude/skills .agents/skills .codex/skills .gemini/skills)" ]] \
+    || log_fail "test_118: fixture must differ from HEAD before bite proofs"
+
+  PROJECT_ROOT="$seeded_root"
+  test_113_bite_proofs_in_detached_worktree
+  PROJECT_ROOT="$shipping_root"
+
+  (cd "$seeded_root" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check >/dev/null) \
+    || log_fail "test_118: seeded source+mirror state diverged after bite proofs"
+  [[ -n "$(git -C "$seeded_root" status --short -- .claude/skills .agents/skills .codex/skills .gemini/skills)" ]] \
+    || log_fail "test_118: bite proofs silently reset the seeded fixture to HEAD"
+
+  log_pass "test_118: nested mutations preserve the exact seeded source+mirror state and leave the outer fixture unchanged"
+}
+
+test_119_generator_idempotence_preserves_seeded_state() {  # PR review / seeded-wrapper regression
+  log_info "test_119: generator idempotence compares against a seeded pre-write mirror state..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+
+  TEST_DIR="${TEST_DIR:-$(ap_tmpdir)}"
+  local shipping_root="$PROJECT_ROOT"
+  local seeded_root="$TEST_DIR/t119-seeded-root"
+  git clone --quiet --no-hardlinks "$shipping_root" "$seeded_root" \
+    || log_fail "test_119: could not create seeded fixture repository"
+  cp "$shipping_root/$HSK_GENERATOR_REL" "$seeded_root/$HSK_GENERATOR_REL" \
+    || log_fail "test_119: could not seed the current generator into the fixture"
+
+  local source_skill="$seeded_root/.claude/skills/aai-wrap-up/SKILL.md"
+  local changed_skill="$TEST_DIR/t119-changed-wrap-up.md"
+  sed 's/^description: .*/description: seeded idempotence regression fixture/' \
+    "$source_skill" > "$changed_skill"
+  cp "$changed_skill" "$source_skill"
+  (cd "$seeded_root" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --write >/dev/null) \
+    || log_fail "test_119: could not regenerate mirrors for seeded fixture"
+  [[ -n "$(git -C "$seeded_root" status --short -- .claude/skills .agents/skills .codex/skills .gemini/skills)" ]] \
+    || log_fail "test_119: fixture must differ from HEAD before idempotence proof"
+
+  PROJECT_ROOT="$seeded_root"
+  test_111_generator_check_clean_and_idempotent
+  PROJECT_ROOT="$shipping_root"
+
+  log_pass "test_119: clean --write preserves a seeded pre-write mirror state"
+}
+
+test_114_cursor_rule_contract() {  # TEST-008 / Spec-AC-07 (harness-surfaces-drift-unguarded)
+  log_info "test_114: .cursor/rules/aai.mdc carries valid quoted glob metadata, no stale skills-are-prompt-files claim, no enumerated .aai/SKILL_ prompt paths, exactly one alwaysApply/description line each, at most 60 lines (TEST-008)..."
+  local root="${1:-$PROJECT_ROOT}"
+  local rule="$root/.cursor/rules/aai.mdc"
+  [[ -f "$rule" ]] || log_fail "test_114: missing $rule"
+
+  local c
+  c="$(/usr/bin/grep -c 'Skills are prompt files' "$rule" || true)"
+  [[ "$c" -eq 0 ]] \
+    || log_fail "test_114: $rule still claims skills are prompt files to be read by hand ($c occurrence(s))"
+
+  c="$(/usr/bin/grep -c '\.aai/SKILL_' "$rule" || true)"
+  [[ "$c" -eq 0 ]] \
+    || log_fail "test_114: $rule still enumerates .aai/SKILL_ prompt paths ($c occurrence(s))"
+
+  c="$(/usr/bin/grep -c '^alwaysApply: true$' "$rule" || true)"
+  [[ "$c" -eq 1 ]] \
+    || log_fail "test_114: expected exactly one '^alwaysApply: true$' line in $rule, got $c"
+
+  c="$(/usr/bin/grep -c '^description: ' "$rule" || true)"
+  [[ "$c" -eq 1 ]] \
+    || log_fail "test_114: expected exactly one '^description: ' line in $rule, got $c"
+
+  c="$(/usr/bin/grep -c '^globs: "\*\*/\*"$' "$rule" || true)"
+  [[ "$c" -eq 1 ]] \
+    || log_fail "test_114: expected exactly one YAML-safe quoted 'globs: \"**/*\"' line in $rule, got $c"
+
+  local lines
+  lines="$(wc -l < "$rule" | tr -d ' ')"
+  [[ "$lines" -le 60 ]] \
+    || log_fail "test_114: $rule is $lines lines, want at most 60"
+
+  log_pass "test_114: Cursor rule contract holds — quoted glob, no stale prompt-file claim, no enumerated SKILL_ paths, single alwaysApply/description line, $lines lines (TEST-008)"
+}
+
+test_115_root_shim_and_manifest_header() {  # TEST-009 / Spec-AC-08 (harness-surfaces-drift-unguarded)
+  log_info "test_115: root AGENTS.md (not .aai/AGENTS.md) is titled for its real audience, and HARNESS_SKILLS.yaml's header records D2 (no .cursor/skills) and D3 (three-times duplicate offering) (TEST-009)..."
+  local root="${1:-$PROJECT_ROOT}"
+  local shim="$root/AGENTS.md"
+  local manifest="$root/$HSK_MANIFEST_REL"
+  [[ -f "$shim" ]] || log_fail "test_115: missing root shim $shim"
+  [[ -f "$manifest" ]] || log_fail "test_115: missing $manifest"
+
+  local c
+  c="$(/usr/bin/grep -c '^# Codex Instructions' "$shim" || true)"
+  [[ "$c" -eq 0 ]] \
+    || log_fail "test_115: root $shim still carries a '# Codex Instructions' heading ($c occurrence(s))"
+
+  local first
+  first="$(head -1 "$shim")"
+  [[ "$first" == "# Agent Instructions (Shim)" ]] \
+    || log_fail "test_115: root $shim first line must be exactly '# Agent Instructions (Shim)', got: $first"
+
+  c="$(/usr/bin/grep -c 'cursor/skills' "$manifest" || true)"
+  [[ "$c" -ge 1 ]] \
+    || log_fail "test_115: $manifest header must record the no-cursor-skills decision (D2) — 'cursor/skills' occurs $c time(s)"
+
+  c="$(/usr/bin/grep -c 'three times' "$manifest" || true)"
+  [[ "$c" -ge 1 ]] \
+    || log_fail "test_115: $manifest header must record the three-times duplicate offering (D3) — 'three times' occurs $c time(s)"
+
+  c="$(/usr/bin/grep -c 'SPEC-DRAFT-harness-surfaces-drift-unguarded' "$manifest" || true)"
+  [[ "$c" -eq 0 ]] \
+    || log_fail "test_115: $manifest still references the pre-allocation draft spec path ($c occurrence(s))"
+
+  c="$(/usr/bin/grep -c 'SPEC-0154-spec-harness-surfaces-drift-unguarded.md' "$manifest" || true)"
+  [[ "$c" -eq 2 ]] \
+    || log_fail "test_115: $manifest must reference the allocated SPEC-0154 path twice, got $c occurrence(s)"
+
+  log_pass "test_115: root shim titled for its real audience (root AGENTS.md, not .aai/AGENTS.md) and D2/D3 recorded in the manifest header (TEST-009)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -1669,6 +2554,16 @@ main() {
   test_103_pgq_baseline_is_measured_not_typed
   test_104_pgq_shrink_never_lowers_the_bar
   test_105_converted_sites_keep_their_needles
+  test_110_skill_set_parity
+  test_111_generator_check_clean_and_idempotent
+  test_112_generator_refuses_bad_manifest
+  test_113_bite_proofs_in_detached_worktree
+  test_114_cursor_rule_contract
+  test_115_root_shim_and_manifest_header
+  test_116_metrics_correction_not_counted
+  test_117_source_skills_are_lf_pinned
+  test_118_bite_proofs_preserve_seeded_state
+  test_119_generator_idempotence_preserves_seeded_state
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
@@ -1676,5 +2571,13 @@ main() {
 # Allow sourcing for isolated per-test execution (RED-proof evidence);
 # run the full suite only when invoked directly.
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  main "$@"
+  if [[ "$#" -eq 0 ]]; then
+    main
+  elif [[ "$#" -eq 1 && "$1" == test_* ]] && declare -F "$1" >/dev/null; then
+    check_deps
+    "$1"
+  else
+    printf 'FAIL: unknown or invalid test function: %s\n' "${1:-<missing>}" >&2
+    exit 2
+  fi
 fi

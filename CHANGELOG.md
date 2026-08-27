@@ -11,6 +11,25 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(harness): generate and guard skill mirrors across agent clients (ISSUE-0036 / SPEC-0154) [L2]
+
+- Treat `.claude/skills` as the authored source and deterministically project it
+  into `.agents`, `.codex`, and `.gemini`, with manifest-governed transforms,
+  exclusions, and regenerated indexes.
+- Add always-on parity, idempotence, manifest-refusal, registration, Cursor-rule,
+  root-shim, and suite-selection coverage so cross-harness drift fails loudly.
+- Normalize all tracked mirror trees to the same 39-skill set and document why
+  `.cursor/skills` is not added despite Cursor's overlapping discovery paths.
+- Harden the generator after review: undeclared trees and unreadable targets are
+  named, absent live mirror trees fail closed, and missing `--root`/`--manifest`
+  values can no longer produce a false-green check of the live repository.
+- Contain generated writes across non-file and readable-symlink targets:
+  `SKILL.md`, `README.md`, skill directories, and mirror roots are replaced or
+  refused without modifying external sentinel files; close
+  `fu-harness-sync-symlink-containment` with TEST-111 evidence.
+- Validation and dual-verdict review pass; the committed broad sweep is 81/81,
+  and the post-review parser delta passes its complete owning hygiene suite.
+
 ## [unreleased] — fix(close-dispatch): the close ceremony tells STATE the truth, and the dispatcher stops planning a finished scope (ISSUE-0035 / SPEC-0153) [L2]
 
 - After a successful close, `docs/ai/STATE.yaml` kept describing the finished

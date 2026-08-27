@@ -1,0 +1,60 @@
+# .aai/system/HARNESS_SKILLS.yaml — declared per-tree skill-mirror transform
+# (CHANGE harness-surfaces-drift-unguarded /
+#  docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md, D1).
+#
+# CONTRACT
+# - Source tree is ALWAYS .claude/skills/*/SKILL.md — hardcoded in
+#   .aai/scripts/sync-harness-skills.mjs, never a sink, never declared here.
+# - `trees:` lists the THREE mirror trees this repo ships and, per tree, the
+#   one-line transform `<tree>|<model>|<readme>`. The set of trees this
+#   generator will ever mirror is ALSO hardcoded (REQUIRED_MIRROR_TREES in
+#   .aai/scripts/sync-harness-skills.mjs) — adding a row here for a tree not
+#   in that list is refused (exit 2), never silently accepted. To add or
+#   remove a mirror tree, edit REQUIRED_MIRROR_TREES in the script FIRST,
+#   then add/remove its row here:
+#     <tree>    repo-relative mirror directory, e.g. .codex/skills
+#     <model>   carry | drop — whether the source frontmatter's `model:` line
+#               survives into this tree's copy (name/description/body are
+#               ALWAYS verbatim; only `model` is ever selectively dropped)
+#     <readme>  yes | no — whether the generator also regenerates
+#               <tree>/README.md from the live skill set
+#   The generator refuses to run (exit 2, naming the tree) if any of the three
+#   required trees has no row here — it never falls back to a built-in default
+#   for an undeclared tree (Article 4: degrade and report, never guess).
+# - `exclusions:` forgives exactly one (tree, skill) pair from the parity
+#   guard's set-equality check, as `<tree>|<skill>|<reason>`. `<reason>` MUST
+#   be non-empty, and `<skill>` MUST exist under .claude/skills — an entry
+#   that fails either check is a STALE EXCLUSION and fails the guard rather
+#   than being silently tolerated. Shipped EMPTY: normalization leaves
+#   nothing that needs forgiving.
+# - Line-based parseable (two-space dash items, `#` comments ignored) in the
+#   same discipline as .aai/system/PROFILES.yaml, so both the bash parity
+#   arms in tests/skills/test-aai-hygiene-pack.sh and the node generator can
+#   read it without a YAML dependency. Keep the exact indentation below.
+#
+# D2 — this repo does NOT ship .cursor/skills/, now or later. Cursor loads
+# project skills from four paths: .agents/skills/, .cursor/skills/ and, for
+# compatibility, .claude/skills/ and .codex/skills/. This repo already ships
+# three of those four. A .cursor/skills/ copy would add a fourth place to
+# drift and zero additional skills visible to Cursor, because everything it
+# could offer is already offered by .agents/skills/ — see
+# docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md D2 for the full
+# rationale; this paragraph exists so the next reader does not "fix" the
+# absence of .cursor/skills/.
+#
+# D3 — the duplicate offering is NAMED here, not resolved, because it cannot
+# be resolved from this repo. Cursor loads .agents/skills/, .claude/skills/
+# and .codex/skills/, and this repo ships all three, so every one of the
+# skill names in .claude/skills is offered to Cursor three times. Cursor's
+# documentation states no dedup rule and no precedence order across those
+# three directories, so which copy a Cursor user actually sees is undefined
+# by the vendor. What normalization CAN do, and does, is make the three
+# copies agree: an identical `name` and an identical `description` in every
+# tree, so whichever one wins, the user reads the same sentence.
+
+trees:
+  - .agents/skills|carry|no
+  - .codex/skills|drop|yes
+  - .gemini/skills|drop|yes
+
+exclusions:

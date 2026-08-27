@@ -1,6 +1,6 @@
 ---
 name: aai-scout
-description: Pre-implementation readiness score 0-100 over five dimensions with GO/HOLD advisory at 70 — never blocks. Inspired by pro-workflow.
+description: Use optionally before starting implementation to score readiness 0-100 over five dimensions (scope clarity, pattern familiarity, dependency awareness, edge cases, test strategy) with a GO/HOLD advisory at 70. Advisory only — never blocks.
 ---
 
 Read the file `.aai/SKILL_SCOUT.prompt.md` from the current project root and follow its instructions exactly. Invoke this as `/aai-scout`.
