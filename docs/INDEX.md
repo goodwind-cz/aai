@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-27T12:22:43.880Z
+Generated: 2026-08-27T13:08:35.795Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -423,9 +423,11 @@ _None._
 | SPEC-0154 | specs | docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (1)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| isolation-shares-the-shipping-git (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-isolation-shares-the-shipping-git.md |
 
 ## Deferred (whole-doc) (0)
 
