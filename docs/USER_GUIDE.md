@@ -165,6 +165,8 @@ AAI uses two different classes of documentation:
 | `/aai-validate-report` | End of work | Validation with screenshots |
 | `/aai-share` | Share results | Publish to Cloudflare Pages |
 | `/aai-loop` | Autonomous work | Multi-tick autonomous loop |
+| `/aai-ship` | State a need, get a PR | Runs intake through review end-to-end, pauses only to open the PR |
+| `/aai-hitl` | Loop asked for you | Surfaces the blocked question and unblocks the loop |
 | `/aai-update` | Refresh AAI | Re-sync vendored AAI layer from canonical git `main` |
 
 ### Session Management
@@ -183,6 +185,8 @@ AAI uses two different classes of documentation:
 | `/aai-docs-hub` | Learn skills | Interactive skill catalog |
 | `/aai-test-skills` | Verify setup | Test all skills work |
 | `/aai-check-state` | See status | View STATE.yaml |
+| `/aai-overview` | Explain the project | Plain-language HTML overview: delivered, in flight, waiting on a human |
+| `/aai-issues` | Work from the tracker | Fetches, triages and turns open platform issues into intakes |
 
 ### Advanced Skills
 
@@ -197,7 +201,26 @@ AAI uses two different classes of documentation:
 | `/aai-pr` | Open a PR | Scope-only staging, staged-vs-scope audit, PR body; never merges |
 | `/aai-release` | Cut a release | Roll CHANGELOG, commit, tag, publish, push; operator-gated, safe dry-run |
 | `/aai-profile` | Optimize | Performance analysis |
+| `/aai-worktree` | Isolate the work | Create and manage a git worktree for a scope |
+| `/aai-bootstrap` | New project | Detect the stack and generate project-specific skills |
+| `/aai-canonicalize` | Legacy layout | Move a pre-AAI repository onto the canonical structure |
+| `/aai-flush` | Loop exited early | Move finished work-item data from STATE into METRICS |
+| `/aai-routine` | Standing routine | Instantiate a vendored routine (e.g. the morning scryer) for one harness |
+| `/aai-feedback-triage` | AAI got in the way | Offline: cluster the local friction spool into a report |
+| `/aai-feedback-upsert` | Report upstream | Turn those clusters into redacted GitHub issue drafts |
 | `/aai-auto-trigger` | Deprecated | No runtime consumer — use wrapper-description trigger phrases |
+
+### Gates and advisories
+
+Two gates apply a discipline before you claim something; three advisories score, clean or clarify and never block.
+
+| Skill | Usage | What it does |
+|-------|-------|--------------|
+| `/aai-verify` | Before any "done" | IDENTIFY, RUN, READ, VERIFY, then CLAIM — no claim without having read the result |
+| `/aai-debug` | Any failing test | READ, REPRODUCE, ISOLATE, FIX-AT-CAUSE — no fix without a root cause |
+| `/aai-scout` | Before implementing | Readiness score 0-100 over five dimensions, GO/HOLD at 70 (advisory) |
+| `/aai-deslop` | Before code review | Strip AI slop from the diff — advisory, never blocks |
+| `/aai-interrogate` | Plan feels vague | Walk open decisions one question at a time, each with a recommendation (advisory) |
 
 ---
 

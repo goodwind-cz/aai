@@ -2517,7 +2517,7 @@ test_115_root_shim_and_manifest_header() {  # TEST-009 / Spec-AC-08 (harness-sur
 }
 
 test_120_userguide_catalog_covers_every_skill() {  # userguide-catalog-parity
-  log_info "test_120: every skill under .claude/skills is documented in the USER_GUIDE Skills Catalog, and the catalog names no skill that does not exist..."
+  log_info "test_120: every skill under .claude/skills appears in BOTH the USER_GUIDE Skills Catalog and its Quick Reference tables, and the catalog names no skill that does not exist..."
   local root="${1:-$PROJECT_ROOT}"
   local guide="$root/docs/USER_GUIDE.md"
   local skills_dir="$root/.claude/skills"
@@ -2567,7 +2567,25 @@ test_120_userguide_catalog_covers_every_skill() {  # userguide-catalog-parity
   [[ -z "$ghosts" ]] \
     || log_fail "test_120: the Skills Catalog has a chapter for a skill that does not exist:$ghosts"
 
-  log_pass "USER_GUIDE Skills Catalog covers every skill in .claude/skills and invents none"
+  # Second, INDEPENDENT list: the Quick Reference tables. The owner found
+  # /aai-ship missing from "Essential Skills (Use Daily)" AFTER the catalog
+  # guard above was already green — a quick reference that silently omits a
+  # skill is worse than a catalog that does, because it is the first place a
+  # reader looks and an absence there reads as "this does not exist".
+  local qr qr_tokens="$TEST_DIR/t120-quickref-tokens.txt"
+  qr="$(awk '/^## Quick Reference/{f=1; next} f && /^## /{exit} f' "$guide")"
+  [[ -n "$qr" ]] \
+    || log_fail "test_120: could not isolate the Quick Reference section of $guide (heading moved or renamed?)"
+  printf '%s\n' "$qr" | /usr/bin/grep -oE '\baai-[a-z0-9-]+' | sort -u > "$qr_tokens"
+  local qr_missing=""
+  for name in $(ls "$skills_dir"); do
+    [[ -d "$skills_dir/$name" ]] || continue
+    /usr/bin/grep -qxF "$name" "$qr_tokens" || qr_missing="$qr_missing $name"
+  done
+  [[ -z "$qr_missing" ]] \
+    || log_fail "test_120: skills present in .claude/skills but absent from the USER_GUIDE Quick Reference tables:$qr_missing"
+
+  log_pass "USER_GUIDE Skills Catalog and Quick Reference both cover every skill in .claude/skills, and the catalog invents none"
 }
 
 main() {

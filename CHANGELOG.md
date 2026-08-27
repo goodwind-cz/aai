@@ -11,6 +11,22 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — docs(user-guide): the Quick Reference lists every skill, and the guard now covers both lists [L1]
+
+- The owner found `/aai-ship` missing from *Essential Skills (Use Daily)* — the
+  second time the same defect surfaced, and the worse of the two: a quick
+  reference is where a reader looks first, so an absence there reads as "this
+  skill does not exist".
+- Measured: 16 of 39 skills were absent from the Quick Reference tables entirely.
+  `/aai-ship` and `/aai-hitl` now sit in *Use Daily* (the end-to-end entry point,
+  and the one you need the moment the loop stops for you), `/aai-overview` and
+  `/aai-issues` in *Discovery*, the situational ones in *Advanced*, and the two
+  gates plus three advisories got their own table instead of living only in prose.
+- The catalog guard shipped one PR earlier did NOT cover this list — it only
+  checked the Skills Catalog section. `test_120` now asserts BOTH lists, so a
+  skill added without a Quick Reference row fails the always-selected suite.
+  Against `main` the extended arm reports the 16; after the fix, none.
+
 ## [unreleased] — docs(user-guide): the Skills Catalog names every skill, and a guard keeps it that way [L1]
 
 - The owner found `/aai-ship` missing from the USER_GUIDE Skills Catalog. Measured:
