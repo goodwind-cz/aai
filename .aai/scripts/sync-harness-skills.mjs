@@ -410,16 +410,24 @@ function main(argv) {
     );
     const expected = sourceSkills.filter((s) => !excludedForTree.has(s));
     const expectedSet = new Set(expected);
-    const treeDirIsNonDirectory = isNonDirectory(treeSkillsDir);
+    let treeDirStat = null;
+    try {
+      treeDirStat = fs.lstatSync(treeSkillsDir);
+    } catch (err) {
+      if (!err || err.code !== 'ENOENT') throw err;
+    }
+    const treeDirIsAbsent = treeDirStat === null;
+    const treeDirIsNonDirectory = treeDirStat !== null && !treeDirStat.isDirectory();
+    if (treeDirIsAbsent) divergences.push(`missing mirror tree ${required}`);
     if (treeDirIsNonDirectory) divergences.push(`non-directory mirror tree ${required}`);
-    if (opts.write && treeDirIsNonDirectory) {
-      fs.rmSync(treeSkillsDir, { recursive: true, force: true });
+    if (opts.write && (treeDirIsAbsent || treeDirIsNonDirectory)) {
+      if (treeDirIsNonDirectory) fs.rmSync(treeSkillsDir, { recursive: true, force: true });
       fs.mkdirSync(treeSkillsDir, { recursive: true });
     }
     // Mirror symlinks are owned entries too. Include them even though Dirent
     // does not classify them as directories, so unexpected names cannot evade
     // the parity check and --write can unlink them without following targets.
-    const actualSkills = treeDirIsNonDirectory
+    const actualSkills = treeDirIsAbsent || treeDirIsNonDirectory
       ? []
       : listMirrorSkills(treeSkillsDir);
     const actualSet = new Set(actualSkills);

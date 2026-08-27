@@ -1847,6 +1847,10 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
   [[ "$rc" -eq 0 ]] || log_fail "test_111: --write must create empty readme=yes trees, got $rc: $out"
   [[ -f "$empty_fx/.codex/skills/README.md" && -f "$empty_fx/.gemini/skills/README.md" ]] \
     || log_fail "test_111: all-excluded readme=yes trees must still receive README.md"
+  [[ -d "$empty_fx/.agents/skills" && -d "$empty_fx/.codex/skills" && -d "$empty_fx/.gemini/skills" ]] \
+    || log_fail "test_111: --write must materialize every declared mirror tree even when its projection is empty"
+  out_check="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$empty_fx" --manifest "$empty_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: materialized empty mirror trees must pass --check, got $rc: $out_check"
   local excluded_line
   for excluded_line in \
     'EXCLUDED .agents/skills/a: fixture excludes the only skill' \
