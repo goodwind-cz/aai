@@ -2516,6 +2516,51 @@ test_115_root_shim_and_manifest_header() {  # TEST-009 / Spec-AC-08 (harness-sur
   log_pass "test_115: root shim titled for its real audience (root AGENTS.md, not .aai/AGENTS.md) and D2/D3 recorded in the manifest header (TEST-009)"
 }
 
+test_120_userguide_catalog_covers_every_skill() {  # userguide-catalog-parity
+  log_info "test_120: every skill under .claude/skills is documented in the USER_GUIDE Skills Catalog, and the catalog names no skill that does not exist..."
+  local root="${1:-$PROJECT_ROOT}"
+  local guide="$root/docs/USER_GUIDE.md"
+  local skills_dir="$root/.claude/skills"
+  [[ -f "$guide" ]] || log_fail "test_120: missing $guide"
+  [[ -d "$skills_dir" ]] || log_fail "test_120: missing $skills_dir"
+
+  # The catalog is the section between its own heading and the next H2.
+  local section
+  section="$(awk '/^## Skills Catalog/{f=1} f && /^## Workflows/{exit} f' "$guide")"
+  [[ -n "$section" ]] \
+    || log_fail "test_120: could not isolate the Skills Catalog section of $guide (heading moved or renamed?)"
+
+  # Forward direction: no skill may be missing from the catalog. This is the
+  # drift the owner found by reading — six skills, aai-ship among them, had
+  # shipped with no entry at all because nothing compared the two sets.
+  # Pure parameter expansion, no pipe into grep -q: the payload is the whole
+  # catalog section and the repo's own ratchet forbids that shape.
+  local missing="" name
+  for name in $(ls "$skills_dir"); do
+    [[ -d "$skills_dir/$name" ]] || continue
+    case "$section" in
+      *"$name"*) : ;;
+      *) missing="$missing $name" ;;
+    esac
+  done
+  [[ -z "$missing" ]] \
+    || log_fail "test_120: skills present in .claude/skills but absent from the USER_GUIDE Skills Catalog:$missing"
+
+  # Reverse direction: a `#### \`/aai-x\`` chapter must name a real skill.
+  # Prose mentions are NOT checked — the catalog legitimately names generated
+  # project shortcuts (/aai-build, /aai-test-e2e), a script
+  # (aai-feedback-status.mjs) and example URLs (aai-reports-*.pages.dev).
+  local ghosts="" heading
+  while IFS= read -r heading; do
+    [[ -n "$heading" ]] || continue
+    [[ -d "$skills_dir/$heading" ]] || ghosts="$ghosts $heading"
+  done < <(printf '%s\n' "$section" | /usr/bin/grep -oE '^#### `/aai-[a-z-]+`' | tr -d '#`/ ')
+  [[ -z "$ghosts" ]] \
+    || log_fail "test_120: the Skills Catalog has a chapter for a skill that does not exist:$ghosts"
+
+  log_pass "USER_GUIDE Skills Catalog covers every skill in .claude/skills and invents none"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -2560,6 +2605,7 @@ main() {
   test_113_bite_proofs_in_detached_worktree
   test_114_cursor_rule_contract
   test_115_root_shim_and_manifest_header
+  test_120_userguide_catalog_covers_every_skill
   test_116_metrics_correction_not_counted
   test_117_source_skills_are_lf_pinned
   test_118_bite_proofs_preserve_seeded_state
