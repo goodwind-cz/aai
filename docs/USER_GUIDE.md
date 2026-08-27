@@ -345,6 +345,21 @@ unexpected internal error.
 
 ---
 
+#### `/aai-issues`
+
+**What:** Fetches open platform issues, triages them, and turns the approved ones into AAI intakes.
+
+**When to use:**
+- Work is arriving as GitHub issues rather than as a spoken need
+- You want a triage pass before anything enters the pipeline
+
+**Example:**
+```bash
+/aai-issues
+```
+
+**Note:** Every issue becomes an intake only after you approve it — the skill proposes, it does not enrol work on your behalf.
+
 ### 3. Development Workflows
 
 #### `/aai-tdd`
@@ -629,6 +644,21 @@ releasing AAI itself or a downstream project with the AAI layer deployed.
 - Version defaults to CalVer `vYYYY.MM.DD` when `--version` is omitted.
 
 ---
+
+#### `/aai-ship`
+
+**What:** Takes a stated need end-to-end autonomously — intake, planning, implementation, validation, review, product docs — and pauses at exactly one checkpoint, where it opens the PR.
+
+**When to use:**
+- You can describe the need in a sentence and want the whole pipeline run for it
+- You do not want to dispatch each role by hand
+
+**Example:**
+```bash
+/aai-ship "the release notes should name the PR that shipped each change"
+```
+
+**Note:** It never merges. The one checkpoint is the ship gate: the PR is opened, the merge button stays yours.
 
 ### 4. Quality & Validation
 
@@ -1329,6 +1359,21 @@ per-run drill-down.
 
 ---
 
+#### `/aai-overview`
+
+**What:** Renders a plain-language project overview as a self-contained HTML page — what the factory has delivered, what is in progress, and what is waiting on a human decision — with links to the specs and the evidence behind each claim.
+
+**When to use:**
+- Someone outside the loop asks what this project has actually produced
+- You want the in-flight and human-blocked work in one place
+
+**Example:**
+```bash
+/aai-overview
+```
+
+**Note:** Generated from the local ledgers, no network. Publishable with `/aai-share`.
+
 ### 7. Automation & Integration
 
 #### `/aai-auto-trigger` (deprecated)
@@ -1345,6 +1390,21 @@ actually reads. Example: the `aai-wrap-up` wrapper carries "wrap up",
 Full notice: `.aai/SKILL_AUTO_TRIGGER.prompt.md`.
 
 ---
+
+#### `/aai-routine`
+
+**What:** Instantiates a vendored, agent-neutral standing routine (for example the morning scryer) for a named harness, on demand.
+
+**When to use:**
+- You want a recurring routine wired for a specific agent client
+- You are setting one up deliberately, not as a side effect of anything else
+
+**Example:**
+```bash
+/aai-routine
+```
+
+**Note:** On-demand only by design — it never runs from bootstrap, from sync, or from any automatic path.
 
 ### 8. Session Management (pro-workflow)
 
@@ -1691,6 +1751,29 @@ powershell -ExecutionPolicy Bypass -File tests/self-hosting/test-self-hosting-sm
 ```
 
 ---
+
+#### `/aai-feedback-triage` and `/aai-feedback-upsert`
+
+**What:** The two-step path for reporting AAI-layer problems upstream to the canonical repository.
+`/aai-feedback-triage` is step 1: an offline pass that reads the local friction spool, scores and clusters the observations, and writes a LOCAL report — no network, no GitHub writes.
+`/aai-feedback-upsert` is step 2: it turns those clusters into redacted, deduplicated, budget-capped GitHub issue drafts.
+
+**When to use:**
+- The AAI layer itself got in your way and the lesson belongs upstream, not in this project
+
+**Example:**
+```bash
+/aai-feedback-triage
+/aai-feedback-upsert          # prepare-only: writes drafts, opens nothing
+```
+
+Publishing is a separate, deliberately awkward call — one prepared draft at a time, named by its fingerprint:
+
+```bash
+node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm
+```
+
+**Note:** `--publish` takes the draft's fingerprint as its argument and `--confirm` is required on top of it. Omit either and nothing is published; there is no flag that opens every draft at once.
 
 ## Workflows
 
