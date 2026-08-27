@@ -594,9 +594,15 @@ exit \"\${1:-0}\""
 }
 
 # ---------------------------------------------------------------------------
-# TEST-006 (AC-006) — the cost, MEASURED rather than estimated: the same
-# fixture run twice, once with isolation off and once on, over enough suites
-# that whole-second timing resolution cannot dominate the per-suite figure.
+# TEST-006 (AC-006) — a BOUND-CONFORMANCE smoke check, not real-repo evidence
+# (remediation round 1 F-4): the same FIXTURE run twice, once with isolation
+# off and once on, over enough suites that whole-second timing resolution
+# cannot dominate the per-suite figure. The fixture is a two-file byte-copy
+# repository, not the ~72 MB shipping repository, so its ms/suite number
+# proves the mechanism stays under the 2000ms bound on SOME repository — it is
+# not the real per-suite `git clone --local --no-hardlinks` cost, which scales
+# with repository size and is measured separately (Spec-AC-06's validation
+# evidence, not this arm).
 # ---------------------------------------------------------------------------
 test_006_added_wall_clock_per_suite() {
   local d ok=1 n=20 i t0 t1 t2 off_s on_s delta ms
@@ -625,9 +631,9 @@ test_006_added_wall_clock_per_suite() {
   ms=$(( delta * 1000 / n ))
 
   [[ "$ms" -lt 2000 ]] \
-    || { log_info "TEST-006: isolation added ${ms}ms per suite over $n suites (baseline ${off_s}s, isolated ${on_s}s) — the bound is 2000ms"; ok=0; }
+    || { log_info "TEST-006: isolation added ${ms}ms per suite over $n suites on the FIXTURE repo (baseline ${off_s}s, isolated ${on_s}s) — the bound is 2000ms"; ok=0; }
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-006 isolation adds ${ms}ms of wall clock per suite, measured over $n suites (baseline ${off_s}s, isolated ${on_s}s), against a 2000ms bound" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-006 isolation adds ${ms}ms of wall clock per suite on the FIXTURE repo, measured over $n suites (baseline ${off_s}s, isolated ${on_s}s), against a 2000ms bound (a fixture-scoped bound-conformance check, not real-repo cost evidence)" \
     || log_fail "TEST-006 added wall clock per suite"
 }
 
@@ -1856,6 +1862,132 @@ exit 0"
     || log_fail "TEST-208 cleanup writes nothing under the shipping repository's .git"
 }
 
+# ---------------------------------------------------------------------------
+# TEST-209 (Spec-AC-03, remediation round 1 F-1) — THE MUTATION PROOF for the
+# UNRESOLVABLE branch, sub-case (a): the checkout's `.git` is removed right
+# after `iso_create` finishes building it, so `iso_separated`'s probe cannot
+# resolve a git-common-dir for it at all. D3: "including when the probe cannot
+# resolve a path at all" must be counted degraded with the same named reason
+# as the EQUAL case. RED against the pre-fix `iso_separated` bytes: `cd ""` is
+# a no-op that leaves `pwd -P` reporting the checkout's OWN directory (still
+# non-empty, still not equal to the shipping common dir, still not prefixed by
+# $PROJECT_ROOT), so the pre-fix gate reads this as separated. HAZ-RESTORE:
+# the mutation lands on the FIXTURE's byte copy only.
+# ---------------------------------------------------------------------------
+test_209_unresolvable_checkout_git_removed_is_degraded() {
+  local d out rc=0 ok=1 n=3 i tmp
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  for i in $(seq 1 "$n"); do
+    write_fixture_suite "$d" "t-unresolv$i" 'exit 0'
+  done
+  commit_fixture_repo "$d" || { log_fail "TEST-209 fixture repo init failed"; return; }
+
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-iso-mutate.XXXXXX")" \
+    || { log_fail "TEST-209: no scratch file for the mutation"; return; }
+  sed 's|^  ISO_LAST_WT="$wt"$|  rm -rf "$wt/.git"; ISO_LAST_WT="$wt"|' \
+    "$d/tests/skills/test-framework.sh" > "$tmp" && mv "$tmp" "$d/tests/skills/test-framework.sh"
+  rm -f "$tmp" 2>/dev/null
+  grep -qF 'rm -rf "$wt/.git"' "$d/tests/skills/test-framework.sh" \
+    || { log_fail "TEST-209: the mutation did not take — the sed target has drifted from the real iso_create"; return; }
+
+  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-209: framework exit=$rc (want 0 — a degraded run is still a passing run): $out"; ok=0; }
+  iso_expect_counts "TEST-209" "$out" 0 "$n" "$n" || ok=0
+  grep -qF "the disposable checkout's git surface still resolves to the shipping repository" <<<"$out" \
+    || { log_info "TEST-209: the degrade reason does not name the git surface: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-209 THE MUTATION PROOF — a checkout whose .git is removed after creation (the probe cannot resolve at all) is counted 0 isolated, $n degraded, naming the git-surface reason" \
+    || log_fail "TEST-209 a checkout whose git surface cannot be resolved at all is counted degraded with a named reason"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-210 (Spec-AC-03, remediation round 1 F-1) — THE MUTATION PROOF for the
+# UNRESOLVABLE branch, sub-case (b): the CONCRETE SCAR this scope exists to
+# refuse — a linked worktree (the mechanism D1 replaced) whose registration
+# under the shipping repository's `.git/worktrees/` has been dropped, measured
+# on git 2.50.1 to fail `git rev-parse --git-common-dir` with `fatal: not a
+# git repository`. Two mutations on the fixture's byte copy: (1) the same
+# clone -> worktree add revert as TEST-203, and (2) the worktree's own admin
+# directory (`git -C "$wt" rev-parse --git-dir`, resolved while it is still
+# live) is removed right after `iso_create` finishes, deregistering it exactly
+# the way the scar state describes. RED against the pre-fix bytes for the same
+# reason as TEST-209: `cd ""` stays in the checkout and reports it separated.
+# ---------------------------------------------------------------------------
+test_210_unresolvable_deregistered_linked_worktree_is_degraded() {
+  local d out rc=0 ok=1 n=3 i tmp
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  for i in $(seq 1 "$n"); do
+    write_fixture_suite "$d" "t-dereg$i" 'exit 0'
+  done
+  commit_fixture_repo "$d" || { log_fail "TEST-210 fixture repo init failed"; return; }
+
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-iso-mutate.XXXXXX")" \
+    || { log_fail "TEST-210: no scratch file for the worktree-add mutation"; return; }
+  sed 's|iso_git clone --local --no-hardlinks --quiet "$PROJECT_ROOT" "$wt" >/dev/null 2>&1|iso_git worktree add --detach --quiet "$wt" HEAD >/dev/null 2>\&1|' \
+    "$d/tests/skills/test-framework.sh" > "$tmp" && mv "$tmp" "$d/tests/skills/test-framework.sh"
+  rm -f "$tmp" 2>/dev/null
+  grep -qF 'iso_git worktree add --detach --quiet "$wt" HEAD' "$d/tests/skills/test-framework.sh" \
+    || { log_fail "TEST-210: the worktree-add mutation did not take — the sed target has drifted from the real iso_create"; return; }
+
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-iso-mutate.XXXXXX")" \
+    || { log_fail "TEST-210: no scratch file for the deregistration mutation"; return; }
+  sed 's|^  ISO_LAST_WT="$wt"$|  rm -rf "$(git -C "$wt" rev-parse --git-dir 2>/dev/null)"; ISO_LAST_WT="$wt"|' \
+    "$d/tests/skills/test-framework.sh" > "$tmp" && mv "$tmp" "$d/tests/skills/test-framework.sh"
+  rm -f "$tmp" 2>/dev/null
+  grep -qF 'rm -rf "$(git -C "$wt" rev-parse --git-dir 2>/dev/null)"' "$d/tests/skills/test-framework.sh" \
+    || { log_fail "TEST-210: the deregistration mutation did not take — the sed target has drifted from the real iso_create"; return; }
+
+  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-210: framework exit=$rc (want 0 — a degraded run is still a passing run): $out"; ok=0; }
+  iso_expect_counts "TEST-210" "$out" 0 "$n" "$n" || ok=0
+  grep -qF "the disposable checkout's git surface still resolves to the shipping repository" <<<"$out" \
+    || { log_info "TEST-210: the degrade reason does not name the git surface: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-210 THE MUTATION PROOF — a linked worktree whose registration is dropped after creation (the concrete scar state) is counted 0 isolated, $n degraded, naming the git-surface reason" \
+    || log_fail "TEST-210 a deregistered linked worktree is counted degraded with a named reason"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-211 (Spec-AC-03, remediation round 1 F-1 coverage duty) — THE THIRD
+# BRANCH: a checkout whose base directory ends up physically INSIDE
+# $PROJECT_ROOT (e.g. a misconfigured TMPDIR) is degraded by the
+# `case "$iso_common" in "$PROJECT_ROOT"/*)` arm, with no code mutation at
+# all — only TMPDIR is redirected to the fixture repository's OWN resolved
+# root, exactly as the validator's own probe reproduced it. HERMETIC BY
+# CONSTRUCTION, like TEST-101..107: forced by ENVIRONMENT, not by mutating the
+# fixture's byte copy. This branch does not depend on the `cd ""` bug F-1
+# fixes, so it is expected GREEN both before and after that fix — it closes a
+# coverage gap (no existing arm exercised PREFIX), not a red/green pair. $d is
+# resolved with `pwd -P` before use so the comparison is physical-path-to-
+# physical-path: the fixture's own PROJECT_ROOT is computed by the identical
+# `cd ... && pwd` the real framework uses, so it must start from an
+# already-resolved base or the prefix match rests on a macOS
+# /var-vs-/private/var spelling mismatch that has nothing to do with the
+# property under test.
+# ---------------------------------------------------------------------------
+test_211_prefix_checkout_under_project_root_is_degraded() {
+  local d out rc=0 ok=1 n=3 i
+  d="$(new_fixture)" || return
+  d="$(cd "$d" 2>/dev/null && pwd -P)" \
+    || { log_fail "TEST-211: fixture path could not be resolved"; return; }
+  build_framework_repo "$d"
+  for i in $(seq 1 "$n"); do
+    write_fixture_suite "$d" "t-prefix$i" 'exit 0'
+  done
+  commit_fixture_repo "$d" || { log_fail "TEST-211 fixture repo init failed"; return; }
+
+  out="$(TMPDIR="$d" bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-211: framework exit=$rc (want 0 — a degraded run is still a passing run): $out"; ok=0; }
+  iso_expect_counts "TEST-211" "$out" 0 "$n" "$n" || ok=0
+  grep -qF "the disposable checkout's git surface still resolves to the shipping repository" <<<"$out" \
+    || { log_info "TEST-211: the degrade reason does not name the git surface: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-211 a checkout whose base lands inside \$PROJECT_ROOT (TMPDIR misconfigured) is counted 0 isolated, $n degraded, naming the git-surface reason" \
+    || log_fail "TEST-211 a checkout under \$PROJECT_ROOT is counted degraded with a named reason"
+}
+
 main() {
   echo "=== Test: $TEST_NAME (spec-suites-run-in-a-disposable-worktree) ==="
   check_deps
@@ -1886,6 +2018,9 @@ main() {
   test_206_accounting_invariant_holds_across_a_multi_suite_run
   test_207_the_powershell_twin_carries_no_isolation_mechanism
   test_208_no_worktree_registration_in_the_shipping_repo
+  test_209_unresolvable_checkout_git_removed_is_degraded
+  test_210_unresolvable_deregistered_linked_worktree_is_degraded
+  test_211_prefix_checkout_under_project_root_is_degraded
   echo ""
   # Both halves, because either one alone is a lie on some path: FAILED is
   # blind to a subshell failure, and the registry is blind to a machine where
