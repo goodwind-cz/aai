@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-26T23:45:41.570Z
+Generated: 2026-08-27T00:02:16.943Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -456,4 +456,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-26 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-27 — counts above use this date for overdue checks.

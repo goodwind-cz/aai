@@ -2159,6 +2159,26 @@ exclusions:"
     *) log_fail "test_112(l): reserved-name refusal must name README.md, got: $out" ;;
   esac
 
+  # (m) Final review BLOCKING-1 — the collision is case-insensitive on the
+  # supported macOS/Windows filesystems, so every case-fold equivalent is
+  # reserved even when authored on a case-sensitive checkout.
+  local reserved_name reserved_case=0
+  for reserved_name in readme.md ReAdMe.md; do
+    reserved_case=$((reserved_case + 1))
+    reserved_fx="$TEST_DIR/t112-reserved-skill-name-$reserved_case"
+    mkdir -p "$reserved_fx/.claude/skills/$reserved_name" \
+      "$reserved_fx/.agents/skills" "$reserved_fx/.codex/skills" "$reserved_fx/.gemini/skills"
+    printf -- '---\nname: %s\ndescription: case-fold index collision\n---\nbody\n' "$reserved_name" \
+      > "$reserved_fx/.claude/skills/$reserved_name/SKILL.md"
+    printf '%s\n' "$base_manifest" > "$reserved_fx/manifest.yaml"
+    out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$reserved_fx" --manifest "$reserved_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 2 ]] || log_fail "test_112(m): reserved case-fold name $reserved_name must exit 2 before writing, got $rc: $out"
+    case "$out" in
+      *"reserved"*"$reserved_name"*) ;;
+      *) log_fail "test_112(m): reserved-name refusal must name $reserved_name, got: $out" ;;
+    esac
+  done
+
   log_pass "test_112: generator refuses invalid manifests and missing CLI path values (TEST-004, TEST-005 stale/reasonless halves)"
 }
 
