@@ -2013,10 +2013,11 @@ test_211_prefix_checkout_under_project_root_is_degraded() {
 # before, because it did not exist locally on either side beforehand. If the
 # gate runs BEFORE that command (the fix), the command never executes and no
 # local key appears. If it runs AFTER (the pre-fix bytes), the key appears.
-# RED, reproduced directly against the pre-N-1 committed bytes of this same
-# file (before the gate moved into iso_create): the fixture's local
-# `user.name` gained `GLOBAL-FALLBACK-IDENTITY` after the run. GREEN against
-# the fixed bytes: it stays absent. An unmutated control (plain clone, no
+# RED, reproduced directly against the pre-N-1 committed bytes of
+# tests/skills/test-framework.sh (before the gate moved into iso_create): the
+# fixture's local `user.name` gained `GLOBAL-FALLBACK-IDENTITY` after the run.
+# GREEN against the fixed bytes (what build_framework_repo copies in below):
+# it stays absent. An unmutated control (plain clone, no
 # worktree-add mutation) is included so the assertion is not vacuously true —
 # it passes for a DIFFERENT reason (the write lands in the clone's own
 # separate .git, never the fixture's), not because nothing ever gets written.
