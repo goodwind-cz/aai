@@ -265,9 +265,21 @@ aai_iso_cleanup() {
 # (return 1), because a probe that cannot answer must never be read as a pass.
 aai_iso_separated() {
   ai_wt="$1"
-  ai_iso_common=$(cd "$ai_wt" 2>/dev/null && cd "$(git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P 2>/dev/null)
+  # HAZ-CD: the git-common-dir output is resolved into a variable and checked
+  # non-empty BEFORE it is ever handed to `cd` - `cd ""` is a silent no-op
+  # (returns 0, stays put) under sh/dash/bash alike, so a failed `git
+  # rev-parse` falling straight into `cd "$(...)"` would leave `pwd -P`
+  # reporting the CALLER's own directory - non-empty, not equal, not
+  # prefixed - and a probe that could not answer would read as separated.
+  case "$ai_wt" in /*) : ;; *) return 1 ;; esac
+  ai_iso_gcd=$(cd "$ai_wt" 2>/dev/null && git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)
+  [ -n "$ai_iso_gcd" ] || return 1
+  ai_iso_common=$(cd "$ai_wt" 2>/dev/null && cd "$ai_iso_gcd" 2>/dev/null && pwd -P 2>/dev/null)
   [ -n "$ai_iso_common" ] || return 1
-  ai_ship_common=$(cd "$AAI_REPO_ROOT" 2>/dev/null && cd "$(git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P 2>/dev/null)
+  case "$AAI_REPO_ROOT" in /*) : ;; *) return 1 ;; esac
+  ai_ship_gcd=$(cd "$AAI_REPO_ROOT" 2>/dev/null && git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)
+  [ -n "$ai_ship_gcd" ] || return 1
+  ai_ship_common=$(cd "$AAI_REPO_ROOT" 2>/dev/null && cd "$ai_ship_gcd" 2>/dev/null && pwd -P 2>/dev/null)
   [ -n "$ai_ship_common" ] || return 1
   [ "$ai_iso_common" != "$ai_ship_common" ] || return 1
   case "$ai_iso_common" in

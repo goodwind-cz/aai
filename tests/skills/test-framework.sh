@@ -257,17 +257,21 @@ tripwire_hash_line() {
   fi
 }
 
-# --- DISPOSABLE-WORKTREE ISOLATION (spec-suites-run-in-a-disposable-worktree) -
-# Every suite runs in a throwaway `git worktree` seeded from the WORKING TREE,
-# so a suite's writes do not reach the shipping WORKING TREE by accident, and it
-# is observable when they do. Not `cannot`: a worktree links back to the
-# repository's common directory, so `git -C "$PROJECT_ROOT" rev-parse
-# --git-common-dir` hands a suite the shipping tree's path in ONE command, and
-# refs, `.git/config` and `.git/hooks` are reachable the same way (measured;
-# spec D7). What this closes is the ordinary path — a suite resolving its own
-# root and writing there — not a determined one. That is not closed here. The tripwire above is
-# deliberately left armed on the real checkout: if isolation is complete it
-# simply never fires, and if it fires that is information.
+# --- DISPOSABLE-CHECKOUT ISOLATION (spec-isolation-shares-the-shipping-git) --
+# Every suite runs in a throwaway checkout seeded from the WORKING TREE, so a
+# suite's writes do not reach the shipping WORKING TREE by accident, and it is
+# observable when they do. The checkout is built with `git clone --local
+# --no-hardlinks` (D1), which gives it its OWN git administrative surface
+# instead of a linked worktree's: `git -C <checkout> rev-parse
+# --git-common-dir` resolves inside the checkout's own `.git`, never the
+# shipping repository's, and `iso_separated` (D3, below) gates on exactly that
+# property before a suite is ever counted isolated. Under the linked-worktree
+# mechanism this replaced, refs, `.git/config` and `.git/hooks` were reachable
+# from inside the checkout in ONE command (measured; the defect this scope
+# closes). What this closes is the ordinary path — a suite resolving its own
+# root and writing there — not a determined one. That is not closed here. The
+# tripwire above is deliberately left armed on the real checkout: if isolation
+# is complete it simply never fires, and if it fires that is information.
 #
 # Seeded from the working tree, not from HEAD, because the checkout is built
 # from a COMMIT: uncommitted edits and brand-new untracked suite files
@@ -497,6 +501,19 @@ iso_destroy() {
   return 0
 }
 
+# iso_bases_forget <base> — drop exactly the ONE entry naming `base` from
+# ISOLATION_BASES, never a wholesale `ISOLATION_BASES=()` reset.
+# `fu-iso-bases-reset-discards-entries` stays open for the two pre-existing
+# reset sites (D5: left byte-identical, unmoved); this helper exists so the
+# D3 gate branch does not add a THIRD instance of that same known defect.
+iso_bases_forget() {
+  local target="$1" b kept=()
+  for b in "${ISOLATION_BASES[@]:-}"; do
+    [[ -n "$b" && "$b" != "$target" ]] && kept+=("$b")
+  done
+  ISOLATION_BASES=("${kept[@]:-}")
+}
+
 # iso_separated <wt> — spec-isolation-shares-the-shipping-git D3: THE GATE.
 # `isolated` means more than "a disposable checkout was made" — it means the
 # checkout's own git administrative surface is not the shipping repository's.
@@ -506,10 +523,24 @@ iso_destroy() {
 # the fail-closed default (`return 1`), because a probe that cannot answer
 # must never be read as a pass.
 iso_separated() {
-  local wt="$1" iso_common ship_common
-  iso_common="$(cd "$wt" 2>/dev/null && cd "$(git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P 2>/dev/null)"
+  local wt="$1" iso_gcd iso_common ship_gcd ship_common
+  # HAZ-CD: the git-common-dir output is resolved into a variable and checked
+  # non-empty BEFORE it is ever handed to `cd` — `cd ""` is a silent no-op that
+  # returns 0 and leaves you where you already were (measured: bash, dash and
+  # /bin/sh all agree), so letting a failed `git rev-parse` fall straight into
+  # `cd "$(...)"` would leave `pwd -P` reporting the CALLER's own directory —
+  # non-empty, not equal to the other side, not prefixed by $PROJECT_ROOT — and
+  # a probe that could not answer would read as separated. Never let `cd`
+  # decide the verdict by its own exit code alone.
+  [[ -n "$wt" && "$wt" == /* ]] || return 1
+  iso_gcd="$(cd "$wt" 2>/dev/null && git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)"
+  [[ -n "$iso_gcd" ]] || return 1
+  iso_common="$(cd "$wt" 2>/dev/null && cd "$iso_gcd" 2>/dev/null && pwd -P 2>/dev/null)"
   [[ -n "$iso_common" ]] || return 1
-  ship_common="$(cd "$PROJECT_ROOT" 2>/dev/null && cd "$(git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P 2>/dev/null)"
+  [[ -n "$PROJECT_ROOT" && "$PROJECT_ROOT" == /* ]] || return 1
+  ship_gcd="$(cd "$PROJECT_ROOT" 2>/dev/null && git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)"
+  [[ -n "$ship_gcd" ]] || return 1
+  ship_common="$(cd "$PROJECT_ROOT" 2>/dev/null && cd "$ship_gcd" 2>/dev/null && pwd -P 2>/dev/null)"
   [[ -n "$ship_common" ]] || return 1
   [[ "$iso_common" != "$ship_common" ]] || return 1
   case "$iso_common" in
@@ -776,7 +807,7 @@ run_test() {
         iso_status_why="the disposable checkout's git surface still resolves to the shipping repository"
         log_warn "Isolation: '$skill_name' runs degraded — the disposable checkout's git surface still resolves to the shipping repository, so it runs against the shipping repository instead"
         iso_destroy "$iso_base"
-        ISOLATION_BASES=()
+        iso_bases_forget "$iso_base"
         iso_base=""
       else
         iso_rel="${test_file#"$PROJECT_ROOT"/}"
@@ -1205,7 +1236,7 @@ main() {
   tripwire_ratchet_init
   iso_probe
   if [[ "$ISOLATION_ENABLED" == "true" ]]; then
-    log "Isolation: every suite runs isolated in a disposable git worktree seeded from the working tree"
+    log "Isolation: every suite runs isolated in a disposable git checkout (its own .git, D1) seeded from the working tree"
   else
     log_warn "Isolation: every suite runs degraded ($ISOLATION_WHY) — against the shipping repository, with only the tripwire between them and it"
   fi
