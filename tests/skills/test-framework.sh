@@ -370,12 +370,18 @@ iso_seed_fail() {
 # cannot read a variable a subshell set.
 ISO_LAST_WT=""
 ISO_LAST_SEED="seeded"
+# ISO_LAST_DEGRADED_WHY carries the D3 gate's own reason string out of
+# iso_create when the gate fires INSIDE it (see the gate call below); empty
+# whenever iso_create fails for any other reason, so run_test's caller-side
+# fallback ("no disposable checkout could be made") is unchanged for those.
+ISO_LAST_DEGRADED_WHY=""
 iso_create() {
   local skill="$1" base wt patch f d uname uemail
   local n_untracked=0 n_untracked_fail=0 first_untracked_fail=""
   local n_seed=0 n_seed_fail=0 first_seed_fail=""
   ISO_LAST_WT=""
   ISO_LAST_SEED="seeded"
+  ISO_LAST_DEGRADED_WHY=""
   base="$(mktemp -d "${TMPDIR:-/tmp}/aai-iso-${skill}.XXXXXX" 2>/dev/null)" || return 1
   [[ -n "$base" && "$base" == /* ]] || return 1
   # SYMLINKS RESOLVED, and this is load-bearing, not tidiness. On macOS $TMPDIR
@@ -412,6 +418,25 @@ iso_create() {
     return 1
   fi
   ISOLATION_BASES+=("$base")
+  # D3 THE GATE (spec-isolation-shares-the-shipping-git) — the EARLY half,
+  # evaluated HERE rather than only in run_test (review N-1): everything below
+  # this point — the ref-parity fetch and the two identity `config` calls —
+  # targets "$wt" on the assumption it is an owned clone. Under the regression
+  # this gate exists to catch (a linked worktree instead of a clone), those
+  # commands land in the SHIPPING `.git/config`, once per suite, before a
+  # caller-side-only check would ever run — measured (review N-1): `git -C
+  # "$wt" config user.name` from inside a linked worktree wrote the source
+  # repository's local config. Gating first here means no command below this
+  # line ever runs against a checkout that has not already proven its own git
+  # surface is separated. run_test still runs a LATE half of the same gate on
+  # ISO_LAST_WT after seeding, catching a surface disturbed later than this
+  # early call can see (TEST-209/210).
+  if ! iso_separated "$wt"; then
+    ISO_LAST_DEGRADED_WHY="the disposable checkout's git surface still resolves to the shipping repository"
+    iso_destroy "$base"
+    iso_bases_forget "$base"
+    return 1
+  fi
   # Ref parity, best-effort like the seeding steps below: a bare local clone
   # carries full history but only ONE local head and a rewritten `origin/*`,
   # which breaks the suites that resolve a base ref as `origin/main` falling
@@ -802,7 +827,14 @@ run_test() {
         # checkout was made". A checkout whose git surface still resolves to
         # the shipping repository is never counted isolated, however it got
         # that way — including a future mechanism regression, which is the
-        # whole reason this probe outlives D1.
+        # whole reason this probe outlives D1. This is the LATE half of the
+        # gate — iso_create (review N-1) already ran the EARLY half right
+        # after the checkout existed, before the ref-parity fetch and the two
+        # identity `config` calls could reach the shipping repository. This
+        # second call is the one that matches the spec's own wording ("after
+        # the checkout is built and before the suite runs") and is what
+        # catches a git surface disturbed later than the early half can see —
+        # TEST-209/210 exercise exactly that.
         iso_status="degraded"
         iso_status_why="the disposable checkout's git surface still resolves to the shipping repository"
         log_warn "Isolation: '$skill_name' runs degraded — the disposable checkout's git surface still resolves to the shipping repository, so it runs against the shipping repository instead"
@@ -826,6 +858,14 @@ run_test() {
           iso_base=""
         fi
       fi
+    elif [[ -n "$ISO_LAST_DEGRADED_WHY" ]]; then
+      # iso_create's EARLY gate fired (review N-1) — the checkout's git
+      # surface was already found unseparated before any shipping-touching
+      # command ran, so iso_create destroyed and forgot the base itself and
+      # never reached the fetch/config lines at all.
+      iso_status="degraded"
+      iso_status_why="$ISO_LAST_DEGRADED_WHY"
+      log_warn "Isolation: '$skill_name' runs degraded — $ISO_LAST_DEGRADED_WHY, so it runs against the shipping repository instead"
     else
       iso_status="degraded"
       iso_status_why="no disposable checkout could be made"
