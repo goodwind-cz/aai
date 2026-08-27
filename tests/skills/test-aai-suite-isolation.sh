@@ -1053,13 +1053,29 @@ test_107_the_wrapper_reports_its_own_isolation_status() {
 #
 # THE LEVERS ARE REAL, never a mutation of the fixture's framework copy (SPEC-0144
 # D2's rule). All three were measured on git 2.50.1 before being used here:
-#   step 1  a smudge-only `filter` attribute (no `clean`) makes the worktree
+#   step 1  a smudge-only `filter` attribute (no `clean`) makes the disposable
 #           checkout differ from the index, so the working-tree patch cannot
 #           apply — `error: … patch does not apply`, rc 1. The git-lfs shape.
-#           Rejected alternatives: a file-to-directory swap (measured — git apply
-#           SUCCEEDS, so it proves nothing) and a post-checkout hook chmodding
-#           the checkout read-only (works, rc 128, but it breaks steps 2 and 3 in
-#           the same run and so cannot isolate step 1).
+#           The smudge COMMAND itself rides in as `GIT_CONFIG_KEY_n`/
+#           `GIT_CONFIG_VALUE_n` environment variables on the outer run, not as
+#           `.git/config` (spec-isolation-shares-the-shipping-git D1): a linked
+#           worktree shares the shipping repository's LOCAL config, but the
+#           disposable checkout is now a separate `git clone`, which does not —
+#           the same non-inheritance Spec-AC-02 relies on. An environment
+#           variable is inherited by every git subprocess in the run regardless
+#           of which repository it targets, so the smudge still fires on the
+#           checkout's OWN clone-and-checkout step under either mechanism,
+#           while the shipping fixture's own working copy (written by `printf`,
+#           never checked out) stays unsmudged either way. Measured rejected
+#           alternatives for making the SAME divergence purely from committed
+#           content (so no environment injection would be needed): the `eol`
+#           and `ident` attributes are both attribute-compensated by
+#           `git apply` itself (it reverses them before matching context), so
+#           neither one ever breaks the apply; a file-to-directory swap
+#           (measured — git apply SUCCEEDS, so it proves nothing); and a
+#           post-checkout hook chmodding the checkout read-only (works, rc 128,
+#           but it breaks steps 2 and 3 in the same run and so cannot isolate
+#           step 1).
 #   steps   a `chmod 000` source file. `git ls-files --others` and `test -f` only
 #   2 + 3   stat, so the file is still SELECTED for copying, and `cp -p` then
 #           cannot read it (measured rc 1).
@@ -1093,9 +1109,11 @@ echo one
 exit $t_one_exit"
   write_fixture_suite "$d" t-two 'echo two; exit 0'
   commit_fixture_repo "$d" || return 1
-  # A smudge with no clean: the checkout's copy differs from the index, so the
-  # patch generated against the index cannot apply to it.
-  [[ "$mode" == "step1" ]] && git -C "$d" config filter.mangle.smudge 'sed s/baseline/MANGLED/'
+  # The smudge COMMAND is NOT set here as local `.git/config` — it rides in as
+  # GIT_CONFIG_KEY_n/GIT_CONFIG_VALUE_n environment variables on the run
+  # instead (seed_run_step1_env below), because a disposable checkout no
+  # longer shares the shipping repository's local config (D1). Only the
+  # committed `.gitattributes` filter DECLARATION lives here.
   # STEP 1 has work: an uncommitted edit to a tracked file.
   printf 'baseline\nedited-in-the-working-tree\n' > "$d/tracked.txt"
   # STEP 2 has work: an untracked, not-ignored file.
@@ -1112,9 +1130,22 @@ exit $t_one_exit"
 # exported (a legitimate operator action) an arm that inherited it would measure
 # a run that never took the path it names.
 seed_run() {
-  AAI_TEST_ISOLATION=1 AAI_TEST_ISOLATION_SEED='docs/ai/STATE.yaml' \
-    bash "$1/tests/skills/test-framework.sh" 2>&1 | strip_ansi
+  local fixture="$1"
+  shift
+  env AAI_TEST_ISOLATION=1 AAI_TEST_ISOLATION_SEED='docs/ai/STATE.yaml' "$@" \
+    bash "$fixture/tests/skills/test-framework.sh" 2>&1 | strip_ansi
 }
+
+# SEED_STEP1_ENV — the step-1 smudge lever's command, as GIT_CONFIG_KEY_n/
+# GIT_CONFIG_VALUE_n environment assignments for `seed_run` (see the comment
+# above `seed_status_fixture` for why an environment variable and not
+# `.git/config` post-D1). Defined once so TEST-109 states its exact shape
+# rather than re-deriving it inline.
+SEED_STEP1_ENV=(
+  'GIT_CONFIG_COUNT=1'
+  'GIT_CONFIG_KEY_0=filter.mangle.smudge'
+  'GIT_CONFIG_VALUE_0=sed s/baseline/MANGLED/'
+)
 
 # seed_summary_line <output> — the ONE unconditional accounting line, matched by
 # SHAPE so a line that exists but has stopped carrying numbers fails loudly.
@@ -1213,7 +1244,7 @@ test_109_the_unreplayable_diff_is_reported() {
   evid="$(new_fixture)" || return
   seed_status_fixture "$d" "$evid" step1 || { log_fail "TEST-109 fixture repo init failed"; return; }
 
-  out="$(seed_run "$d")" || rc=$?
+  out="$(seed_run "$d" "${SEED_STEP1_ENV[@]}")" || rc=$?
 
   [[ "$rc" -eq 0 ]] || { log_info "TEST-109: framework exit=$rc (want 0 — a failed seed must not abort the run): $out"; ok=0; }
   grep -qE 'Passed: +2 \(100%\)' <<<"$out" \
@@ -1589,7 +1620,12 @@ test_203_the_mutation_proof_gate_catches_a_shared_git_surface() {
   # cleanup() tried to `rm -rf` the host's real /tmp (caught only by
   # "Operation not permitted" on macOS-owned entries). Clean up the file
   # directly instead: a no-op once `mv` below has relocated it away.
-  sed 's|iso_git clone --local --no-hardlinks --quiet "$PROJECT_ROOT" "$wt" >/dev/null 2>&1|iso_git worktree add --detach --quiet "$wt" HEAD >/dev/null 2>&1|' \
+  # `&` in a sed REPLACEMENT means "the whole match" — left unescaped, the
+  # `2>&1` in the replacement text spliced the ENTIRE original line back into
+  # itself, producing `iso_git worktree add ... >/dev/null 2>iso_git clone
+  # ...&1` (git then failing on the unrecognised `--local` flag it carried
+  # over, not on the gate). Measured. `\&` makes it literal.
+  sed 's|iso_git clone --local --no-hardlinks --quiet "$PROJECT_ROOT" "$wt" >/dev/null 2>&1|iso_git worktree add --detach --quiet "$wt" HEAD >/dev/null 2>\&1|' \
     "$d/tests/skills/test-framework.sh" > "$tmp" && mv "$tmp" "$d/tests/skills/test-framework.sh"
   rm -f "$tmp" 2>/dev/null
   grep -qF 'iso_git worktree add --detach --quiet "$wt" HEAD' "$d/tests/skills/test-framework.sh" \
@@ -1644,8 +1680,8 @@ test_204_the_unmutated_control_reports_isolated() {
 # ---------------------------------------------------------------------------
 test_205_ref_surface_and_history_match_the_shipping_repo() {
   local d evid out rc=0 ok=1
-  local want_heads want_remotes want_tags want_commits
-  local got_heads got_remotes got_tags got_main got_origin got_commits
+  local want_heads want_tags want_commits want_remotes_list missing
+  local got_heads got_tags got_main got_origin got_commits
   d="$(new_fixture)" || return
   evid="$d.evid"
   mkdir -p "$evid"
@@ -1659,33 +1695,48 @@ test_205_ref_surface_and_history_match_the_shipping_repo() {
   write_fixture_suite "$d" t-refs "
 {
   git -C \"\$R\" for-each-ref refs/heads | wc -l | tr -d ' '
-  git -C \"\$R\" for-each-ref refs/remotes | wc -l | tr -d ' '
   git -C \"\$R\" for-each-ref refs/tags | wc -l | tr -d ' '
   git -C \"\$R\" rev-parse --verify -q main >/dev/null 2>&1 && echo yes || echo no
   git -C \"\$R\" rev-parse --verify -q origin/main >/dev/null 2>&1 && echo yes || echo no
   git -C \"\$R\" rev-list --count HEAD
 } > '$evid/refs.txt'
+git -C \"\$R\" for-each-ref --format='%(refname) %(objectname)' refs/remotes | sort > '$evid/remotes.txt'
 exit 0"
 
   want_heads="$(git -C "$d" for-each-ref refs/heads | wc -l | tr -d ' ')"
-  want_remotes="$(git -C "$d" for-each-ref refs/remotes | wc -l | tr -d ' ')"
   want_tags="$(git -C "$d" for-each-ref refs/tags | wc -l | tr -d ' ')"
   want_commits="$(git -C "$d" rev-list --count HEAD)"
+  want_remotes_list="$(git -C "$d" for-each-ref --format='%(refname) %(objectname)' refs/remotes | sort)"
 
   out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-205: framework exit=$rc (want 0): $out"; ok=0; }
   [[ -s "$evid/refs.txt" ]] || { log_info "TEST-205: the fixture never recorded its ref surface: $out"; ok=0; }
   if [[ -s "$evid/refs.txt" ]]; then
-    { read -r got_heads; read -r got_remotes; read -r got_tags; read -r got_main; read -r got_origin; read -r got_commits; } < "$evid/refs.txt"
+    { read -r got_heads; read -r got_tags; read -r got_main; read -r got_origin; read -r got_commits; } < "$evid/refs.txt"
     [[ "$got_heads" == "$want_heads" ]] || { log_info "TEST-205: refs/heads count $got_heads (want $want_heads)"; ok=0; }
-    [[ "$got_remotes" == "$want_remotes" ]] || { log_info "TEST-205: refs/remotes count $got_remotes (want $want_remotes)"; ok=0; }
     [[ "$got_tags" == "$want_tags" ]] || { log_info "TEST-205: refs/tags count $got_tags (want $want_tags)"; ok=0; }
     [[ "$got_main" == "yes" ]] || { log_info "TEST-205: main did not resolve inside the checkout"; ok=0; }
     [[ "$got_origin" == "yes" ]] || { log_info "TEST-205: origin/main did not resolve inside the checkout"; ok=0; }
     [[ "$got_commits" == "$want_commits" ]] || { log_info "TEST-205: HEAD commit count $got_commits (want $want_commits)"; ok=0; }
   fi
+  # refs/remotes is a SUPERSET check, not exact-count equality — the D1
+  # measurement itself records this (145 shipping vs 182 post-fetch on the
+  # real repository): `git clone`'s own default remote-tracking mirroring of
+  # the source's LOCAL branches adds entries beyond the shipping repository's
+  # own refs/remotes namespace whenever a local branch has no identically
+  # named counterpart already there (exactly what `second-branch` is here).
+  # What must never happen is LOSING one of the shipping repository's own
+  # refs/remotes entries; gaining harmless extras is not a defect.
+  if [[ ! -s "$evid/remotes.txt" ]]; then
+    log_info "TEST-205: the fixture never recorded its refs/remotes listing: $out"
+    ok=0
+  else
+    missing="$(comm -23 <(printf '%s\n' "$want_remotes_list") "$evid/remotes.txt" 2>/dev/null)"
+    [[ -z "$missing" ]] \
+      || { log_info "TEST-205: refs/remotes entries present in the shipping repository but missing from the checkout: $missing"; ok=0; }
+  fi
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-205 inside the disposable checkout refs/heads, refs/remotes and refs/tags counts, main, origin/main and the HEAD commit count all match the fixture repository" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-205 inside the disposable checkout refs/heads and refs/tags counts, main, origin/main and the HEAD commit count all match the fixture repository, and every one of the fixture's own refs/remotes entries is present (extras from clone's own remote-tracking mirroring are not a defect)" \
     || log_fail "TEST-205 the checkout's refs, tags and history match the shipping repository's"
 }
 

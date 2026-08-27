@@ -269,8 +269,8 @@ tripwire_hash_line() {
 # deliberately left armed on the real checkout: if isolation is complete it
 # simply never fires, and if it fires that is information.
 #
-# Seeded from the working tree, not from HEAD, because `git worktree add`
-# checks out a COMMIT: uncommitted edits and brand-new untracked suite files
+# Seeded from the working tree, not from HEAD, because the checkout is built
+# from a COMMIT: uncommitted edits and brand-new untracked suite files
 # would be invisible, and a TDD RED could never go red. Measured on the naive
 # form: a new suite reports `No such file or directory` and is counted a test
 # failure. Three things are therefore replayed into the checkout —
@@ -367,7 +367,7 @@ iso_seed_fail() {
 ISO_LAST_WT=""
 ISO_LAST_SEED="seeded"
 iso_create() {
-  local skill="$1" base wt patch f d
+  local skill="$1" base wt patch f d uname uemail
   local n_untracked=0 n_untracked_fail=0 first_untracked_fail=""
   local n_seed=0 n_seed_fail=0 first_seed_fail=""
   ISO_LAST_WT=""
@@ -387,11 +387,42 @@ iso_create() {
   base="$(cd "$base" 2>/dev/null && pwd -P)" || return 1
   [[ -n "$base" && "$base" == /* ]] || return 1
   wt="$base/wt"
-  if ! iso_git worktree add --detach --quiet "$wt" HEAD >/dev/null 2>&1; then
+  # spec-isolation-shares-the-shipping-git D1: a per-suite `git clone --local
+  # --no-hardlinks` OWNS its git administrative surface, instead of a linked
+  # worktree, whose `git rev-parse --git-common-dir` resolves straight back
+  # into the shipping `.git` — measured reachable for refs, `.git/config` and
+  # `.git/hooks` in one command from inside a linked checkout.
+  # `--no-hardlinks` over the default (hardlinking) form: hardlinking loose
+  # objects one at a time measured SLOWER on APFS, and over the `--shared`
+  # form, which writes `objects/info/alternates` pointing back into the
+  # shipping `.git` — a literal path back into the surface this scope exists
+  # to remove.
+  if ! iso_git clone --local --no-hardlinks --quiet "$PROJECT_ROOT" "$wt" >/dev/null 2>&1; then
+    rm -rf "$base"
+    return 1
+  fi
+  # A clone lands ON a branch; today's worktree is detached, so
+  # `git rev-parse --abbrev-ref HEAD` must keep answering the literal `HEAD`.
+  if ! git -C "$wt" checkout --detach --quiet HEAD >/dev/null 2>&1; then
     rm -rf "$base"
     return 1
   fi
   ISOLATION_BASES+=("$base")
+  # Ref parity, best-effort like the seeding steps below: a bare local clone
+  # carries full history but only ONE local head and a rewritten `origin/*`,
+  # which breaks the suites that resolve a base ref as `origin/main` falling
+  # back to `main`. A checkout with fewer refs is still a separated checkout,
+  # so a fetch failure here does not change the isolation verdict.
+  git -C "$wt" fetch -q --no-tags "$PROJECT_ROOT" \
+    "+refs/heads/*:refs/heads/*" "+refs/remotes/*:refs/remotes/*" >/dev/null 2>&1 || true
+  # Identity, also best-effort: a clone does not inherit the source
+  # repository's LOCAL config, so on a host where identity is repo-local only
+  # a fixture that commits inside the checkout would fail with "Please tell
+  # me who you are" without this.
+  uname="$(iso_git config --get user.name 2>/dev/null)"
+  [[ -z "$uname" ]] || git -C "$wt" config user.name "$uname" >/dev/null 2>&1 || true
+  uemail="$(iso_git config --get user.email 2>/dev/null)"
+  [[ -z "$uemail" ]] || git -C "$wt" config user.email "$uemail" >/dev/null 2>&1 || true
   # THE THREE SEEDING STEPS. Each one may fail without aborting the run — that
   # tolerance is deliberate and is KEPT: a single unreadable file in someone's
   # working tree must not take out every suite. What changes is that the failure
@@ -450,47 +481,40 @@ iso_create() {
   ISO_LAST_WT="$wt"
 }
 
-# iso_deregister <wt> — drop the admin entry for ONE worktree path: the entry a
-# `git worktree prune` would drop for it, and no other. Matched by the `gitdir`
-# file, which holds the path verbatim as it was given to `worktree add`.
-#
-# This exists instead of `git worktree prune` because prune is REPOSITORY-WIDE
-# and judges every registration by whether its directory is reachable RIGHT NOW.
-# An operator worktree parked on an unmounted volume, a detached external disk
-# or a temporarily renamed path is unreachable but perfectly alive, and prune
-# deletes its `.git/worktrees/<name>` metadata — after which the registration is
-# gone for good. Measured on git 2.50.1, both halves of that: `git worktree
-# repair <path>` answers `error: unable to locate repository; .git file does not
-# reference a repository: <path>/.git` (rc 1), and any git command run INSIDE
-# the restored directory answers `fatal: not a git repository:
-# <common-dir>/worktrees/<name>` (rc 128). A test harness must not be able to do
-# that to the operator's own repository, ~81 times a run.
-iso_deregister() {
-  local wt="$1" common admin
-  [[ -n "$wt" && "$wt" == /* ]] || return 0
-  common="$(cd "$PROJECT_ROOT" 2>/dev/null && cd "$(git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd)" || return 0
-  [[ -n "$common" && -d "$common/worktrees" ]] || return 0
-  for admin in "$common"/worktrees/*; do
-    [[ -d "$admin" && -f "$admin/gitdir" ]] || continue
-    [[ "$(cat "$admin/gitdir" 2>/dev/null)" == "$wt/.git" ]] || continue
-    rm -rf "$admin" 2>/dev/null || true
-  done
+# iso_destroy <base> — remove the checkout. A clone never registers anything
+# in the shipping repository (D1), so there is no admin entry to clear here:
+# unlike a linked worktree, a plain `rm -rf` of the checkout's own directory
+# is the whole cleanup. This also retires `iso_deregister`, the last code path
+# in this harness that reached into `<shipping>/.git/worktrees/` and `rm -rf`d
+# an entry there — the hazard it existed for (`git worktree prune`
+# deregistering a live-but-unreachable operator worktree, measured on git
+# 2.50.1) cannot occur when the harness never calls `git worktree` against the
+# shipping repository at all.
+iso_destroy() {
+  local base="$1"
+  [[ -n "$base" && "$base" == /* ]] || return 0
+  rm -rf "$base" 2>/dev/null || true
   return 0
 }
 
-# iso_destroy <base> — remove the checkout AND its registration. On the happy
-# path `git worktree remove --force` clears both and nothing else runs. Only
-# when that removal FAILS — a suite that deleted its own checkout's `.git` link
-# leaves `remove` with nothing it recognises, which is the case TEST-004(e)
-# holds — is the registration cleared, and then for this one checkout only.
-iso_destroy() {
-  local base="$1" removed=1
-  [[ -n "$base" && "$base" == /* ]] || return 0
-  if ! iso_git worktree remove --force "$base/wt" >/dev/null 2>&1; then
-    removed=0
-  fi
-  rm -rf "$base" 2>/dev/null || true
-  [[ "$removed" -eq 1 ]] || iso_deregister "$base/wt"
+# iso_separated <wt> — spec-isolation-shares-the-shipping-git D3: THE GATE.
+# `isolated` means more than "a disposable checkout was made" — it means the
+# checkout's own git administrative surface is not the shipping repository's.
+# Both sides are resolved through `pwd -P` so a symlinked $TMPDIR (macOS:
+# /var -> /private/var) cannot produce a false equal or a false prefix match.
+# Not separated — including when either side cannot be resolved at all — is
+# the fail-closed default (`return 1`), because a probe that cannot answer
+# must never be read as a pass.
+iso_separated() {
+  local wt="$1" iso_common ship_common
+  iso_common="$(cd "$wt" 2>/dev/null && cd "$(git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P 2>/dev/null)"
+  [[ -n "$iso_common" ]] || return 1
+  ship_common="$(cd "$PROJECT_ROOT" 2>/dev/null && cd "$(git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P 2>/dev/null)"
+  [[ -n "$ship_common" ]] || return 1
+  [[ "$iso_common" != "$ship_common" ]] || return 1
+  case "$iso_common" in
+    "$PROJECT_ROOT"/*) return 1 ;;
+  esac
   return 0
 }
 
@@ -742,20 +766,34 @@ run_test() {
     if iso_create "$skill_name" && [[ -n "$ISO_LAST_WT" ]]; then
       seed_status="$ISO_LAST_SEED"
       iso_base="$(dirname "$ISO_LAST_WT")"
-      iso_rel="${test_file#"$PROJECT_ROOT"/}"
-      if [[ -f "$ISO_LAST_WT/$iso_rel" ]]; then
-        iso_root="$ISO_LAST_WT"
-        iso_target="$ISO_LAST_WT/$iso_rel"
-      else
-        # The seeding missed this suite. Never let that read as a suite
-        # failure: `No such file or directory` on a brand-new suite is exactly
-        # the silent TDD failure this design exists to avoid.
+      if ! iso_separated "$ISO_LAST_WT"; then
+        # D3 THE GATE: `isolated` means the MEASURED property, not just "a
+        # checkout was made". A checkout whose git surface still resolves to
+        # the shipping repository is never counted isolated, however it got
+        # that way — including a future mechanism regression, which is the
+        # whole reason this probe outlives D1.
         iso_status="degraded"
-        iso_status_why="a suite was not in the disposable checkout"
-        log_warn "Isolation: '$skill_name' ($iso_rel) runs degraded — it is not in the disposable checkout, so it runs against the shipping repository instead"
+        iso_status_why="the disposable checkout's git surface still resolves to the shipping repository"
+        log_warn "Isolation: '$skill_name' runs degraded — the disposable checkout's git surface still resolves to the shipping repository, so it runs against the shipping repository instead"
         iso_destroy "$iso_base"
         ISOLATION_BASES=()
         iso_base=""
+      else
+        iso_rel="${test_file#"$PROJECT_ROOT"/}"
+        if [[ -f "$ISO_LAST_WT/$iso_rel" ]]; then
+          iso_root="$ISO_LAST_WT"
+          iso_target="$ISO_LAST_WT/$iso_rel"
+        else
+          # The seeding missed this suite. Never let that read as a suite
+          # failure: `No such file or directory` on a brand-new suite is
+          # exactly the silent TDD failure this design exists to avoid.
+          iso_status="degraded"
+          iso_status_why="a suite was not in the disposable checkout"
+          log_warn "Isolation: '$skill_name' ($iso_rel) runs degraded — it is not in the disposable checkout, so it runs against the shipping repository instead"
+          iso_destroy "$iso_base"
+          ISOLATION_BASES=()
+          iso_base=""
+        fi
       fi
     else
       iso_status="degraded"
