@@ -11,7 +11,7 @@ RFC-0001).
 
 ## [unreleased]
 
-## [unreleased] — fix(harness): generate and guard skill mirrors across agent clients (ISSUE-0036 / SPEC-0154) [L2]
+## [v2026.08.27] — fix(harness): generate and guard skill mirrors across agent clients (ISSUE-0036 / SPEC-0154) [L2]
 
 - Treat `.claude/skills` as the authored source and deterministically project it
   into `.agents`, `.codex`, and `.gemini`, with manifest-governed transforms,
@@ -30,7 +30,7 @@ RFC-0001).
 - Validation and dual-verdict review pass; the committed broad sweep is 81/81,
   and the post-review parser delta passes its complete owning hygiene suite.
 
-## [unreleased] — fix(close-dispatch): the close ceremony tells STATE the truth, and the dispatcher stops planning a finished scope (ISSUE-0035 / SPEC-0153) [L2]
+## [v2026.08.27] — fix(close-dispatch): the close ceremony tells STATE the truth, and the dispatcher stops planning a finished scope (ISSUE-0035 / SPEC-0153) [L2]
 
 - After a successful close, `docs/ai/STATE.yaml` kept describing the finished
   work item as `in_progress` with `spec_path` pointing at the pre-allocation
@@ -71,7 +71,7 @@ RFC-0001).
   close) `fu-setfocus-keeps-stale-spec-path`; files
   `fu-closeworkitem-pin-tail-wording` (P3).
 
-## [unreleased] — fix(canon): dispatch decides who writes STATE, and the serial guard is finally armed (CHANGE-0165 / SPEC-0152) [L2]
+## [v2026.08.27] — fix(canon): dispatch decides who writes STATE, and the serial guard is finally armed (CHANGE-0165 / SPEC-0152) [L2]
 
 - The single-writer rule existed in two contradictory renderings: SUBAGENT_CONTRACT
   (RFC-0004 D7) forbade dispatched-subagent STATE writes and `state.mjs` R-GUARD S1
