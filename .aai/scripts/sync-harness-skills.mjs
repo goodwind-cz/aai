@@ -168,6 +168,18 @@ function readSkillEntries(skillsDir) {
 }
 
 function listSourceSkills(skillsDir) {
+  // Containment starts one level higher than the entries: if the source tree
+  // ROOT is itself a symlink, every child below it is outside --root and the
+  // per-entry check below never sees it (PR #292 review).
+  let rootStat;
+  try {
+    rootStat = fs.lstatSync(skillsDir);
+  } catch {
+    rootStat = null;
+  }
+  if (rootStat && rootStat.isSymbolicLink()) {
+    throw new ManifestError(`source skills tree must be a real directory, not a symlink: ${skillsDir}`);
+  }
   const entries = readSkillEntries(skillsDir);
   for (const entry of entries) {
     const entryPath = path.join(skillsDir, entry.name);
@@ -237,12 +249,18 @@ function parseSkillFile(raw, label) {
   const frontBlock = raw.slice(4, closeIdx);
   const body = raw.slice(closeIdx + closeMatch[0].length);
   const frontLines = frontBlock.length ? frontBlock.split('\n') : [''];
-  return { frontLines, body };
+  // A closing fence that IS the final bytes of the file carries no trailing
+  // newline. Emitting one anyway would make the model=carry projection a
+  // 37-byte copy of a 36-byte source — an approximation, not the byte-for-byte
+  // clone this file promises (PR #292 review).
+  const fenceAtEof = closeMatch[0] === '\n---';
+  return { frontLines, body, fenceAtEof };
 }
 
-function buildTargetContent(frontLines, body, { dropModel }) {
+function buildTargetContent(frontLines, body, { dropModel, fenceAtEof = false }) {
   const filtered = dropModel ? frontLines.filter((l) => !/^model:\s*/.test(l)) : frontLines;
-  return `---\n${filtered.join('\n')}\n---\n${body}`;
+  const head = `---\n${filtered.join('\n')}\n---`;
+  return fenceAtEof ? head : `${head}\n${body}`;
 }
 
 function extractDescription(frontLines) {
@@ -377,10 +395,11 @@ function main(argv) {
   for (const s of sourceSkills) {
     const srcPath = path.join(sourceDir, s, 'SKILL.md');
     const srcRaw = fs.readFileSync(srcPath, 'utf8');
-    const { frontLines, body } = parseSkillFile(srcRaw, srcPath);
+    const { frontLines, body, fenceAtEof } = parseSkillFile(srcRaw, srcPath);
     sourceModels.set(s, {
       frontLines,
       body,
+      fenceAtEof,
       description: extractDescription(frontLines),
     });
   }
@@ -441,10 +460,10 @@ function main(argv) {
 
     const skillDescriptions = [];
     for (const s of expected) {
-      const { frontLines, body, description } = sourceModels.get(s);
+      const { frontLines, body, description, fenceAtEof } = sourceModels.get(s);
       skillDescriptions.push([s, description]);
 
-      const expectedContent = buildTargetContent(frontLines, body, { dropModel: row.model === 'drop' });
+      const expectedContent = buildTargetContent(frontLines, body, { dropModel: row.model === 'drop', fenceAtEof });
       const targetDir = path.join(treeSkillsDir, s);
       const targetPath = path.join(targetDir, 'SKILL.md');
       const targetDirIsNonDirectory = isNonDirectory(targetDir);

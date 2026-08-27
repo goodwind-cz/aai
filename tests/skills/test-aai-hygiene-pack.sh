@@ -1894,6 +1894,40 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
   out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$corrupt_fx" --manifest "$corrupt_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "test_111: repaired non-file target must pass --check, got $rc: $out"
 
+  # PR #292 review — containment starts at the source ROOT: a symlinked
+  # .claude/skills would put every child outside --root, and the per-entry
+  # check never sees it.
+  local srcroot_fx="$TEST_DIR/t111-symlinked-source-root"
+  local srcroot_ext="$TEST_DIR/t111-source-root-external"
+  rm -rf "$srcroot_fx" "$srcroot_ext"
+  mkdir -p "$srcroot_fx/.claude" "$srcroot_ext/a"
+  printf -- '---\nname: a\ndescription: d\n---\n' > "$srcroot_ext/a/SKILL.md"
+  ln -s "$srcroot_ext" "$srcroot_fx/.claude/skills"
+  printf 'trees:\n  - .agents/skills|carry|no\n  - .codex/skills|drop|no\n  - .gemini/skills|drop|no\nexclusions:\n' > "$srcroot_fx/manifest.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$srcroot_fx" --manifest "$srcroot_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "test_111: a symlinked source skills tree must refuse with exit 2, got $rc: $out"
+  case "$out" in
+    *"source skills tree must be a real directory"*) : ;;
+    *) log_fail "test_111: the symlinked-source-root refusal must name the cause: $out" ;;
+  esac
+  [[ ! -d "$srcroot_fx/.codex/skills" ]] \
+    || log_fail "test_111: a refused symlinked source root must not have projected any mirror"
+
+  # PR #292 review — a closing fence that IS the final bytes of the file carries
+  # no trailing newline; model=carry promises a byte-for-byte clone, so the
+  # generator must not invent one.
+  local eof_fx="$TEST_DIR/t111-eof-fence"
+  rm -rf "$eof_fx"
+  mkdir -p "$eof_fx/.claude/skills/a"
+  printf -- '---\nname: a\ndescription: d\n---' > "$eof_fx/.claude/skills/a/SKILL.md"
+  printf 'trees:\n  - .agents/skills|carry|no\n  - .codex/skills|drop|no\n  - .gemini/skills|drop|no\nexclusions:\n' > "$eof_fx/manifest.yaml"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$eof_fx" --manifest "$eof_fx/manifest.yaml" --write 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: EOF-fence source must project cleanly, got $rc: $out"
+  cmp -s "$eof_fx/.claude/skills/a/SKILL.md" "$eof_fx/.agents/skills/a/SKILL.md" \
+    || log_fail "test_111: model=carry must clone an EOF-fence source byte for byte, not append a newline"
+  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$eof_fx" --manifest "$eof_fx/manifest.yaml" --check 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_111: EOF-fence projection must satisfy --check, got $rc: $out"
+
   # PR review — readable symlinks must never redirect generator writes outside
   # a declared mirror, whether the link is the file or its skill directory.
   local symlink_fx="$TEST_DIR/t111-symlink-targets"
