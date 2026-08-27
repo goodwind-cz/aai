@@ -2524,24 +2524,33 @@ test_120_userguide_catalog_covers_every_skill() {  # userguide-catalog-parity
   [[ -f "$guide" ]] || log_fail "test_120: missing $guide"
   [[ -d "$skills_dir" ]] || log_fail "test_120: missing $skills_dir"
 
-  # The catalog is the section between its own heading and the next H2.
+  # The catalog is the section between its own heading and the NEXT H2 —
+  # whichever that is. Pinning the successor by name (it is "## Workflows"
+  # today) would silently mis-scope this guard the first time a section is
+  # inserted or renamed, which is a doc edit nobody would connect to a test.
   local section
-  section="$(awk '/^## Skills Catalog/{f=1} f && /^## Workflows/{exit} f' "$guide")"
+  section="$(awk '/^## Skills Catalog/{f=1; next} f && /^## /{exit} f' "$guide")"
   [[ -n "$section" ]] \
     || log_fail "test_120: could not isolate the Skills Catalog section of $guide (heading moved or renamed?)"
 
   # Forward direction: no skill may be missing from the catalog. This is the
   # drift the owner found by reading — six skills, aai-ship among them, had
   # shipped with no entry at all because nothing compared the two sets.
-  # Pure parameter expansion, no pipe into grep -q: the payload is the whole
-  # catalog section and the repo's own ratchet forbids that shape.
+  # Whole-name matching, not substring: `aai-pr` occurs inside `aai-profile`,
+  # so a plain *"$name"* test keeps passing after every real `aai-pr` reference
+  # has been deleted. The token set is extracted ONCE with grep -oE and each
+  # skill is then matched whole-line against that file, so a longer skill name
+  # can never vouch for a shorter one.
+  # Extraction is a file, not a pipe into `grep -q`: the repo's ratchet forbids
+  # that shape, and `grep -q` on a FILE has no writer to SIGPIPE. A parameter
+  # expansion over the whole section was tried first and is unusable — bash
+  # degrades to minutes on a payload this size (measured: one arm hung 41 min).
+  local tokens="$TEST_DIR/t120-catalog-tokens.txt"
+  printf '%s\n' "$section" | /usr/bin/grep -oE '\baai-[a-z0-9-]+' | sort -u > "$tokens"
   local missing="" name
   for name in $(ls "$skills_dir"); do
     [[ -d "$skills_dir/$name" ]] || continue
-    case "$section" in
-      *"$name"*) : ;;
-      *) missing="$missing $name" ;;
-    esac
+    /usr/bin/grep -qxF "$name" "$tokens" || missing="$missing $name"
   done
   [[ -z "$missing" ]] \
     || log_fail "test_120: skills present in .claude/skills but absent from the USER_GUIDE Skills Catalog:$missing"

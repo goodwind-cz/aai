@@ -1764,11 +1764,16 @@ powershell -ExecutionPolicy Bypass -File tests/self-hosting/test-self-hosting-sm
 **Example:**
 ```bash
 /aai-feedback-triage
-/aai-feedback-upsert                      # prepare-only
-/aai-feedback-upsert --publish --confirm  # actually opens the issues
+/aai-feedback-upsert          # prepare-only: writes drafts, opens nothing
 ```
 
-**Note:** Publishing is explicit and takes two flags: `--publish --confirm`. Without both, step 2 only prepares drafts.
+Publishing is a separate, deliberately awkward call — one prepared draft at a time, named by its fingerprint:
+
+```bash
+node .aai/scripts/aai-feedback-upsert.mjs --publish <fingerprint> --confirm
+```
+
+**Note:** `--publish` takes the draft's fingerprint as its argument and `--confirm` is required on top of it. Omit either and nothing is published; there is no flag that opens every draft at once.
 
 ## Workflows
 

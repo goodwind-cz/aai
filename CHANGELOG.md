@@ -11,6 +11,24 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — docs(user-guide): the Skills Catalog names every skill, and a guard keeps it that way [L1]
+
+- The owner found `/aai-ship` missing from the USER_GUIDE Skills Catalog. Measured:
+  six skills had shipped with no entry at all — `aai-ship`, `aai-issues`,
+  `aai-overview`, `aai-routine`, `aai-feedback-triage`, `aai-feedback-upsert`.
+- Same root cause PR #292 closed for the harness skill mirrors: a hand-kept list
+  that nothing ever compared against `.claude/skills`. The rollup generator governs
+  only the marked Delivered-features region; the catalog itself was unguarded.
+- `test_120` in the always-selected hygiene pack now asserts both directions: every
+  skill directory appears in the catalog, and every `#### /aai-x` chapter names a
+  real skill. Prose mentions are deliberately not checked — the catalog legitimately
+  names bootstrap-generated shortcuts, a script and example URLs.
+- Bot review caught three defects in the first cut, all real: the `/aai-feedback-upsert`
+  publish example was not runnable (`--publish` takes a fingerprint argument), the
+  guard matched substrings so `aai-pr` was vouched for by `aai-profile`, and the
+  section scope was pinned to a successor heading by name. All three fixed and
+  bite-proved.
+
 ## [v2026.08.27] — fix(harness): generate and guard skill mirrors across agent clients (ISSUE-0036 / SPEC-0154) [L2]
 
 - Treat `.claude/skills` as the authored source and deterministically project it
