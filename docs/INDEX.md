@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-28T16:50:57.594Z
+Generated: 2026-08-28T17:32:23.842Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -427,7 +427,7 @@ _None._
 | SPEC-0155 | specs | docs/specs/SPEC-0155-spec-isolation-shares-the-shipping-git.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (14)
+## Drafts (13)
 
 | ID | Type | Path |
 |---|---|---|
@@ -444,7 +444,6 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
-| validation-has-no-honest-waiver (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-validation-has-no-honest-waiver.md |
 
 ## Deferred (whole-doc) (0)
 
