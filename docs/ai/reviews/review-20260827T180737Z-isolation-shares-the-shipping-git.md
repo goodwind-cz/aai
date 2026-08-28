@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: main..HEAD on fix/suite-isolation-owns-its-git (6ca1094..79af349, 8 commits)
-  spec: docs/specs/SPEC-DRAFT-isolation-shares-the-shipping-git.md
+  spec: docs/specs/SPEC-0155-spec-isolation-shares-the-shipping-git.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -77,7 +77,7 @@ review:
 ## Scope, spec and method
 
 - Diff scope: `git diff main..HEAD` on `fix/suite-isolation-owns-its-git` — 8 commits `6ca1094`, `1bc189e`, `c738f62`, `d1a8eba`, `33c43d9`, `46ba4b0`, `796b1bb`, `79af349`; 8 files, +1420/-124.
-- Spec: `docs/specs/SPEC-DRAFT-isolation-shares-the-shipping-git.md` (SPEC-FROZEN, ceremony 2, 8 Spec-ACs, 9 Test-Plan rows, D1-D5). Not edited by this review; the AC table stays `planned`.
+- Spec: `docs/specs/SPEC-0155-spec-isolation-shares-the-shipping-git.md` (SPEC-FROZEN, ceremony 2, 8 Spec-ACs, 9 Test-Plan rows, D1-D5). Not edited by this review; the AC table stays `planned`.
 - All measurement under `/bin/bash -c` with `/usr/bin/grep`. Every probe ran on throwaway repositories created under the session scratchpad; nothing mutated the shipping tree or its `.git`. `git status --porcelain` before and after this review is unchanged apart from the report itself.
 
 ### Coaching attempts recorded (ANTI-GAMING CONTRACT)

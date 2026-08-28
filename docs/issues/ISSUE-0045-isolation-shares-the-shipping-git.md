@@ -1,7 +1,7 @@
 ---
 id: isolation-shares-the-shipping-git
 type: issue
-number: null
+number: 45
 status: draft
 links:
   pr: []

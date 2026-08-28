@@ -1,11 +1,11 @@
 ---
 id: spec-isolation-shares-the-shipping-git
 type: spec
-number: null
+number: 155
 status: implementing
 ceremony_level: 2
 links:
-  requirement: docs/issues/ISSUE-DRAFT-isolation-shares-the-shipping-git.md
+  requirement: docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md
   rfc: null
   pr: []
   commits: []
@@ -58,7 +58,7 @@ so it does not buy 0.6 seconds by leaving a signpost. The chosen form is
 repository at all.
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-isolation-shares-the-shipping-git.md
+- Requirement: docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md
 - Decision records: docs/specs/SPEC-0138-spec-suites-run-in-a-disposable-worktree.md (the mechanism this replaces), docs/specs/SPEC-0144-spec-a-run-must-say-whether-isolation-armed.md (the accounting this extends), docs/specs/SPEC-0145-spec-a-half-seeded-checkout-says-it-is-isolated.md (the second axis, untouched)
 - Technology contract: docs/TECHNOLOGY.md
 
@@ -83,7 +83,7 @@ repository at all.
 - Worktree branch/path: n/a
 - Inline review scope: `tests/skills/test-framework.sh`,
   `.aai/scripts/aai-run-tests.sh`, `tests/skills/test-aai-suite-isolation.sh`,
-  `docs/specs/SPEC-DRAFT-isolation-shares-the-shipping-git.md`
+  `docs/specs/SPEC-0155-spec-isolation-shares-the-shipping-git.md`
 
 ## The five decisions
 
@@ -308,7 +308,7 @@ named here so they cannot be absorbed by accident, and each stays open:
 
 ## Acceptance Criteria Mapping
 
-- Maps to: ISSUE-DRAFT-isolation-shares-the-shipping-git "Expected Behavior"
+- Maps to: ISSUE-0045-isolation-shares-the-shipping-git "Expected Behavior"
 - Spec-AC-01: WHEN a suite runs in the disposable checkout THEN
   `git rev-parse --git-common-dir` resolved from that checkout does not resolve
   into the shipping repository.

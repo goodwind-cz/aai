@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff 79af349..HEAD on fix/suite-isolation-owns-its-git (6 commits), with git diff main..HEAD re-checked for coherence
-  spec: docs/specs/SPEC-DRAFT-isolation-shares-the-shipping-git.md
+  spec: docs/specs/SPEC-0155-spec-isolation-shares-the-shipping-git.md
   round: 2
   spec_compliance:
     verdict: pass
@@ -61,7 +61,7 @@ review:
 
 - Delta reviewed: `git diff 79af349..HEAD` — `965b1db`, `49788fd`, `05ed0bc`, `056528b`, `3efc0b4`, `e20d7ec`. Seven files, +421/-23.
 - Full range re-checked for coherence: `git diff main..HEAD`, 10 files, +1839/-145. `main` is an ancestor of `HEAD` (`git merge-base --is-ancestor` = 0) and there is no merge commit in `main..HEAD` — nothing was merged into this branch.
-- Spec: `SPEC-DRAFT-isolation-shares-the-shipping-git.md`, SPEC-FROZEN. Not edited by the delta (0 hits in the delta's file list) and not edited by this review; the AC table stays `planned`.
+- Spec: `SPEC-0155-spec-isolation-shares-the-shipping-git.md`, SPEC-FROZEN. Not edited by the delta (0 hits in the delta's file list) and not edited by this review; the AC table stays `planned`.
 - All measurement under `/bin/bash -c` with `/usr/bin/grep`. Every probe ran on BYTE COPIES in the session scratchpad (`.../scratchpad/probe`), never in a worktree of the shipping repo and never mutating the shipping `.git`. `git status --porcelain` is unchanged by this review apart from the report; the pre-existing uncommitted `docs/ai/EVENTS.jsonl` / `docs/ai/decisions.jsonl` appends and untracked `docs/assets/` were present before it and are both verified APPEND-ONLY against HEAD (+240 B, +1019 B).
 - Neither probe scar was repeated: no redirect landed in the shipping cwd, and no probe ran git against the shipping `.git` in a writing mode.
 

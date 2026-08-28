@@ -1,26 +1,26 @@
 {
-  "generatedAt": "2026-08-26T15:04:52.838Z",
+  "generatedAt": "2026-08-28T08:59:32.100Z",
   "project": "aai",
   "counts": {
     "delivered": 213,
-    "in_progress": 1,
+    "in_progress": 2,
     "releases": 1,
     "tokens_total": 53372161
   },
   "waiting_on_you": null,
   "current_focus": {
-    "ref": "harness-surfaces-drift-unguarded",
+    "ref": "isolation-shares-the-shipping-git",
     "type": "intake_issue"
   },
   "in_flight": {
     "focus": {
-      "ref": "harness-surfaces-drift-unguarded",
+      "ref": "isolation-shares-the-shipping-git",
       "type": "intake_issue",
       "phase": "code_review"
     },
     "strategy": "tdd",
     "worktree": {
-      "recommendation": "recommended",
+      "recommendation": "optional",
       "user_decision": "inline"
     },
     "validation_status": "pass",
@@ -64,6 +64,19 @@
     ]
   },
   "in_progress": [
+    {
+      "ref": "isolation-shares-the-shipping-git",
+      "title": "Suite isolation moves the working directory but never removes reach",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0155-spec-isolation-shares-the-shipping-git.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20260828T084132Z-isolation-shares-the-shipping-git-round3.md"
+    },
     {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",

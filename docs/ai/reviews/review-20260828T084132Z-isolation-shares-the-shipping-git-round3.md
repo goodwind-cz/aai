@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff 521f6b1..HEAD on fix/suite-isolation-owns-its-git (2 commits), with git diff main..HEAD re-checked for coherence
-  spec: docs/specs/SPEC-DRAFT-isolation-shares-the-shipping-git.md
+  spec: docs/specs/SPEC-0155-spec-isolation-shares-the-shipping-git.md
   round: 3
   spec_compliance:
     verdict: pass

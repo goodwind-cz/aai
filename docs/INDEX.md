@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-28T08:55:34.427Z
+Generated: 2026-08-28T09:00:48.242Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-isolation-shares-the-shipping-git | specs | implementing | 8 planned | docs/specs/SPEC-DRAFT-isolation-shares-the-shipping-git.md |
+| SPEC-0155 | specs | implementing | 8 planned | docs/specs/SPEC-0155-spec-isolation-shares-the-shipping-git.md |
 
 ## Canonical layer (0)
 
@@ -428,7 +428,7 @@ _None._
 
 | ID | Type | Path |
 |---|---|---|
-| isolation-shares-the-shipping-git (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-isolation-shares-the-shipping-git.md |
+| ISSUE-0045 | issues | docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md |
 
 ## Deferred (whole-doc) (0)
 
