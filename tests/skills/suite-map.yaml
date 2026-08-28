@@ -314,7 +314,7 @@ suites:
       - .aai/scripts/install-pre-commit-hook.ps1
       - .aai/scripts/aai-doctor.mjs
       - .aai/SUBAGENT_CONTRACT.md
-      - docs/specs/SPEC-DRAFT-agent-shell-can-write-the-shipping-repo.md
+      - docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md
 
   aai-hitl-channel:
     globs:

@@ -1,7 +1,7 @@
 ---
 id: spec-agent-shell-can-write-the-shipping-repo
 type: spec
-number: null
+number: 156
 status: implementing
 ceremony_level: 3
 links:
@@ -123,7 +123,7 @@ the implementation ships.)
 - Inline review scope: `.aai/scripts/install-pre-commit-hook.sh`,
   `.aai/scripts/install-pre-commit-hook.ps1`, `.aai/scripts/aai-doctor.mjs`,
   `.aai/SUBAGENT_CONTRACT.md`, `tests/skills/test-aai-git-ref-guard.sh`,
-  `docs/specs/SPEC-DRAFT-agent-shell-can-write-the-shipping-repo.md`
+  `docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md`
 
 ## The six decisions
 

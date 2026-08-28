@@ -4,14 +4,14 @@
 - Scope ref_id: `agent-shell-can-write-the-shipping-repo`
 - Branch: `fix/agent-shell-writes-shipping-repo` @ `bd5b2a9`
 - Diff scope: `git diff main..HEAD` (13 files; commits `d5e6d66`, `ed334ca`, `930b9d7`, `bd5b2a9`)
-- Spec: `docs/specs/SPEC-DRAFT-agent-shell-can-write-the-shipping-repo.md` (SPEC-FROZEN, owner amendment 2026-08-28)
+- Spec: `docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md` (SPEC-FROZEN, owner amendment 2026-08-28)
 - started_utc: 2026-08-28T14:32:27Z
 - ended_utc: 2026-08-28T14:44:37Z
 
 ```yaml
 review:
   scope: main..HEAD (fix/agent-shell-writes-shipping-repo @ bd5b2a9)
-  spec: docs/specs/SPEC-DRAFT-agent-shell-can-write-the-shipping-repo.md
+  spec: docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -45,7 +45,7 @@ review:
       - { rank: NON-BLOCKING, file: tests/skills/test-aai-git-ref-guard.sh, line: 510,
           issue: "TEST-309's four greps run over the whole .ps1 and every pattern also occurs in its SYNOPSIS/Write-Host lines, so the test does not discriminate a twin that carries the hook body from one that does not",
           failure_scenario: "deleting the entire $reftxBody here-string from the .ps1 (Windows installs no guard at all) leaves all four assertions green — proved by mutation on a scratch copy" }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-agent-shell-can-write-the-shipping-repo.md, line: 396,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md, line: 396,
           issue: "Spec-AC-07's only evidence is docs/ai/tdd/test-313-live-*.log, and docs/ai/tdd/** is gitignored (.gitignore:35); the automated arm structurally skips in the harness",
           failure_scenario: "a reviewer on a fresh clone (or the PR itself) has zero evidence for the one AC whose arm can never run under aai-run-tests.sh" }
       - { rank: NON-BLOCKING, file: .aai/scripts/install-pre-commit-hook.sh, line: 240,
