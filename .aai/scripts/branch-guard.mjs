@@ -107,12 +107,30 @@ function git(args, cwd) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 }
 
-function isInsideWorkTree(cwd) {
+// Why this captures stderr instead of discarding it: git refuses a repository
+// for several distinct reasons and says which one every time — "not a git
+// repository", "detected dubious ownership" (the safe.directory case, which
+// prints the exact `git config --global --add safe.directory ...` fix), a
+// permission error, a broken gitdir link. Swallowing all of them and printing
+// one sentence turned a solvable ownership refusal into "not inside a git work
+// tree", which is not even true: the caller IS inside a work tree, git just
+// declined to read it. Reported from a downstream Codex run on Windows where
+// the operator lost time to the false diagnosis before finding safe.directory
+// themselves (fu-branchguard-hides-git-stderr).
+function workTreeProbe(cwd) {
   try {
-    return git(['rev-parse', '--is-inside-work-tree'], cwd) === 'true';
-  } catch {
-    return false;
+    const out = execFileSync('git', ['rev-parse', '--is-inside-work-tree'], {
+      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+    return { inside: out === 'true', gitSaid: null };
+  } catch (err) {
+    const said = String((err && err.stderr) || '').trim();
+    return { inside: false, gitSaid: said || null };
   }
+}
+
+function isInsideWorkTree(cwd) {
+  return workTreeProbe(cwd).inside;
 }
 
 function topLevel(cwd) {
@@ -204,9 +222,18 @@ function main() {
     process.exit(0);
   }
 
-  // Order item 1 — must be inside a git work tree.
-  if (!isInsideWorkTree(cwd)) {
-    console.error('branch-guard: not inside a git work tree (cannot determine the current branch)');
+  // Order item 1 — must be inside a git work tree. When git refused for a
+  // reason of its own, relay ITS message: it is the only text that names the
+  // actual cause and, for safe.directory, carries the exact remediation.
+  const probe = workTreeProbe(cwd);
+  if (!probe.inside) {
+    if (probe.gitSaid) {
+      console.error('branch-guard: git refused to read this repository, so the current branch cannot be determined.');
+      console.error('  git said:');
+      for (const line of probe.gitSaid.split('\n')) console.error(`    ${line}`);
+    } else {
+      console.error('branch-guard: not inside a git work tree (cannot determine the current branch)');
+    }
     process.exit(4);
   }
 
