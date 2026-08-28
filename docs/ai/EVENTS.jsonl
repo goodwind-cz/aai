@@ -1958,3 +1958,10 @@
 {"v":1,"ts":"2026-08-28T09:02:23.971Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-isolation-shares-the-shipping-git","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-28T09:02:24.001Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-isolation-shares-the-shipping-git","payload":{"commit":"19520bd"}}
 {"v":1,"ts":"2026-08-28T11:08:54.953Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-agent-shell-can-write-the-shipping-repo","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-08-28T14:31:47.375Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"agent-shell-can-write-the-shipping-repo","payload":{"status":"pass","hash":"b7e1406b6e54df4a774ddba11443db495b9cee42d2691b91d8efdef39c384e4b"}}
+{"v":1,"ts":"2026-08-28T15:53:03.619Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"agent-shell-can-write-the-shipping-repo","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-28T15:53:03.653Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"agent-shell-can-write-the-shipping-repo","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-28T15:53:03.684Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"agent-shell-can-write-the-shipping-repo","payload":{"commit":"696dad4"}}
+{"v":1,"ts":"2026-08-28T15:53:03.717Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"agent-shell-can-write-the-shipping-repo","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-28T15:53:03.750Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"agent-shell-can-write-the-shipping-repo","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-28T15:53:03.783Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"agent-shell-can-write-the-shipping-repo","payload":{"commit":"696dad4"}}

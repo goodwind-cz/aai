@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-28T09:02:31.788Z",
+  "generatedAt": "2026-08-28T15:53:14.385Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 129,
-    "delivered": 379,
+    "delivered": 380,
     "active_weeks": 9,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (379 closes vs 129 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 379,
-    "delivered_per_week_avg": 42.1,
+    "note": "\"delivered\" counts every work_item_closed event (380 closes vs 129 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 380,
+    "delivered_per_week_avg": 42.2,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -23,7 +23,7 @@
       "2026-W32": 19,
       "2026-W33": 33,
       "2026-W34": 33,
-      "2026-W35": 14
+      "2026-W35": 15
     },
     "delivered_groups": [
       {
@@ -301,7 +301,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 116,
+        "count": 117,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -418,7 +418,8 @@
           "harness-surfaces-drift-unguarded",
           "spec-harness-surfaces-drift-unguarded",
           "isolation-shares-the-shipping-git",
-          "spec-isolation-shares-the-shipping-git"
+          "spec-isolation-shares-the-shipping-git",
+          "agent-shell-can-write-the-shipping-repo"
         ]
       }
     ],
@@ -1939,12 +1940,16 @@
         {
           "ref": "spec-isolation-shares-the-shipping-git",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "agent-shell-can-write-the-shipping-repo",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 3889,
       "mean_seconds": 121668.8,
       "measured": 125,
-      "unmeasurable": 254
+      "unmeasurable": 255
     }
   },
   "speed": {
@@ -3207,7 +3212,7 @@
     },
     {
       "week": "2026-W35",
-      "delivered": 14,
+      "delivered": 15,
       "median_lead_time_seconds": 20654,
       "busy_seconds": 47174,
       "tokens": 4849216,
@@ -3216,7 +3221,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 98,
+    "open_count": 103,
     "oldest_age_days": 14,
     "items": [
       {
@@ -3263,7 +3268,7 @@
         "id": "fu-setfocus-keeps-stale-spec-path",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 13,
+        "age_days": 14,
         "what": "set-focus to a new ref leaves the previous scope's spec_path in current_focus, so the next dispatch hands the role a foreign spec as an input",
         "status": "open"
       },
@@ -3271,7 +3276,7 @@
         "id": "fu-tdd-skips-full-sweep",
         "ref": "deslop-scope-and-unrequested-engine",
         "severity": "P2",
-        "age_days": 13,
+        "age_days": 14,
         "what": "the TDD role declares done after targeted suites only, so defects visible only to the full framework sweep surface two roles later and cost a whole validate-remediate lap each",
         "status": "open"
       },
@@ -3311,7 +3316,7 @@
         "id": "fu-no-nul-guard",
         "ref": "docs-model-nul-escape",
         "severity": "P2",
-        "age_days": 10,
+        "age_days": 11,
         "what": "nothing checks tracked text files for NUL bytes, so a control character can silently turn a source file binary to POSIX grep",
         "status": "open"
       },
@@ -3335,7 +3340,7 @@
         "id": "fu-openct-unrdbl-report",
         "ref": "followups-cli-hardening",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "generate-factory-report.mjs:616 publishes follow_ups.open_count: 0 for an UNREADABLE ledger (e.g. --decisions a directory), the same 'a bad input reads as good news' shape D2 refuses on the CLI; the file's own oldest_age_days convention two lines down already uses null, never 0, for exactly this degradation",
         "status": "open"
       },
@@ -3343,7 +3348,7 @@
         "id": "fu-sync-hash-compare-fails-open",
         "ref": "followups-cli-hardening",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "file_content_different in aai-sync.sh treats an unobtainable hash as different, so a transient sha256sum hiccup silently rewrites the target's copilot shim and plants a project-overrides file",
         "status": "open"
       },
@@ -3383,7 +3388,7 @@
         "id": "fu-close-requires-pr-before-it-exists",
         "ref": "deslop-corpus-honesty",
         "severity": "P2",
-        "age_days": 8,
+        "age_days": 9,
         "what": "close-work-item.mjs requires --pr <N>, but the correct ceremony order runs it BEFORE the push that creates the PR, so the number must be guessed",
         "status": "open"
       },
@@ -3391,7 +3396,7 @@
         "id": "fu-test-runs-jsonl-tracked-ignored",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 8,
+        "age_days": 9,
         "what": "docs/ai/tests/test-runs.jsonl is tracked AND listed in .gitignore, so tests/skills/test-framework.sh dirties the working tree on every run",
         "status": "open"
       },
@@ -3399,7 +3404,7 @@
         "id": "fu-acgate-vs-falseopen-catch22",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 8,
+        "age_days": 9,
         "what": "AC STATUS GATE rule 1 blocks PASS on non-terminal AC rows while docs-audit's false-open heuristic fails closed on a terminal AC table with un-timestampable delivery, stripping the CLEAN token and turning TEST-013 red",
         "status": "open"
       },
@@ -3463,7 +3468,7 @@
         "id": "fu-docsaudit-t003-red-on-new-doc",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P3",
-        "age_days": 7,
+        "age_days": 8,
         "what": "test-aai-docs-audit.sh TEST-003 regenerates docs/INDEX.md and diffs it against the committed one, so it is RED for the whole life of any scope that adds a doc, and test-aai-delta-stage3.sh TEST-007 inherits the failure",
         "status": "open"
       },
@@ -3471,7 +3476,7 @@
         "id": "fu-ismain-symlink-realpath",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "every .mjs CLI guards main() with path.resolve(process.argv[1]) === fileURLToPath(import.meta.url), which is FALSE whenever the checkout is reached through a symlink, so the CLI exits 0 having printed nothing",
         "status": "open"
       },
@@ -3479,7 +3484,7 @@
         "id": "fu-orchestrator-monitor-uses-gnu-find",
         "ref": "suites-run-in-a-disposable-worktree",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "the orchestrator's liveness check for running agents used GNU find syntax (-newermt '-N minutes') with stderr sent to /dev/null; on this host find rejects it, so the check reported zero writes as a RESULT when it was a silent command failure",
         "status": "open"
       },
@@ -3647,7 +3652,7 @@
         "id": "fu-posix-arm-reddens-on-prose-backslash",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "index_posix_findings tests every line for a backslash, not only path tokens, so a Notes cell mentioning a regex reddens the arm with index path is not POSIX",
         "status": "open"
       },
@@ -3655,7 +3660,7 @@
         "id": "fu-staleness-source-line-self-certifies",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "index_stale_findings derives its scanned dirs from the Source: line of the index under test, so an index stale because a family was added never checks that family",
         "status": "open"
       },
@@ -3663,7 +3668,7 @@
         "id": "fu-posix-predicate-exit-conflates-infra",
         "ref": "index-arm-diffs-whole-file-for-a-path-claim",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "index_posix_findings exits 1 both for real path findings and for the predicate failing to run, and does not fold stderr into the captured output, so an infrastructure failure surfaces as a path defect with an empty message",
         "status": "open"
       },
@@ -3671,7 +3676,7 @@
         "id": "fu-docsaudit-idmention-probe-per-doc",
         "ref": "spec-docs-history-is-one-git-call-per-doc",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "docs-audit still spends one git log -1 --grep per document for the id-mention probe",
         "status": "open"
       },
@@ -3895,7 +3900,7 @@
         "id": "fu-lean-ac-heading-two-authorities",
         "ref": "the-registry-has-no-outflow",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "docs-audit --gate accepts a lean AC table under the heading Acceptance Criteria while generate-docs-index.mjs near-miss flags exactly that heading and demands Acceptance Criteria Status",
         "status": "open"
       },
@@ -3903,7 +3908,7 @@
         "id": "fu-pgq-grep-error-reopened",
         "ref": "the-registry-has-no-outflow",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "pgq_scan sends grep stderr to /dev/null and treats a per-file error as count 0, so an unreadable file is reported as an improvement (reopens fu-pgq-scan-silent-on-grep-error)",
         "status": "open"
       },
@@ -3911,7 +3916,7 @@
         "id": "fu-overview-project-from-dirname",
         "ref": "the-registry-has-no-outflow",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "generate-overview.mjs derives the project field from path.basename(ROOT) (line 343), so any non-canonically named checkout (worktree, CI dir) leaks its local directory name into the committed overview pages",
         "status": "open"
       },
@@ -3919,7 +3924,7 @@
         "id": "fu-exit-contract-pin-comment-dup",
         "ref": "a-branch-diff-pin-taxes-every-later-scope",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "TEST-011(clarify)'s spec-freeze exit-contract pins (grep -qF \"$p\" \"$f\") check the WHOLE FILE, not the emitted string; spec-freeze.mjs's header comment (lines 54-61) duplicates all four exit-contract phrases verbatim above the runtime strings (lines 101-106) that actually compose the CLI output",
         "status": "open"
       },
@@ -3927,7 +3932,7 @@
         "id": "fu-overview-links-gitignored-reports",
         "ref": "a-branch-diff-pin-taxes-every-later-scope",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "the committed overview embeds links to gitignored validation/review report paths, so every such link 404s from a fresh clone",
         "status": "open"
       },
@@ -3967,7 +3972,7 @@
         "id": "fu-probe-redirect-lands-in-shipping-cwd",
         "ref": "isolation-shares-the-shipping-git",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "a mutation probe's relative redirect resolved against the agent's own shell cwd - the shipping repository - because the fixture script ran before any cd, writing a stray file there",
         "status": "open"
       },
@@ -4001,6 +4006,46 @@
         "severity": "P3",
         "age_days": 0,
         "what": "TEST-210's deregistration mutation became unreachable when the D3 gate moved earlier, so the arm still passes but no longer exercises the branch it was written for",
+        "status": "open"
+      },
+      {
+        "id": "fu-metrics-verdict-has-no-staleness",
+        "ref": "agent-shell-can-write-the-shipping-repo",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "the metrics ledger records verdict PASS with no notion of whether the verdict covers the final bytes, so a ride whose last work lands after its last review is counted as reviewed-and-passed",
+        "status": "open"
+      },
+      {
+        "id": "fu-overview-bakes-untracked-state",
+        "ref": "agent-shell-can-write-the-shipping-repo",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "docs/ai/overview.html and overview-data.json are tracked artefacts generated from docs/ai/STATE.yaml, which is untracked by design, so every commit of them bakes one machine's local state into the repository",
+        "status": "open"
+      },
+      {
+        "id": "fu-branchguard-hides-git-stderr",
+        "ref": "agent-shell-can-write-the-shipping-repo",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "branch-guard reports 'not inside a git work tree' for ANY git failure, including a safe.directory ownership refusal, and discards git's own actionable remediation",
+        "status": "open"
+      },
+      {
+        "id": "fu-no-route-from-intake-to-pr",
+        "ref": "agent-shell-can-write-the-shipping-repo",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "work done as intake plus a hand implementation has no sanctioned route to a PR: aai-pr is fail-closed on STATE that only orchestration writes, and intake deliberately does not create it",
+        "status": "open"
+      },
+      {
+        "id": "fu-review-cost-not-operator-gated",
+        "ref": "agent-shell-can-write-the-shipping-repo",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "an operator who has already reviewed the change themselves has no cheap way to say so: review is gated through STATE fields orchestration writes, so declining it means either running a review that costs hours of budget or being blocked at aai-pr",
         "status": "open"
       }
     ]
@@ -7786,7 +7831,7 @@
     ]
   },
   "notes": [
-    "NOTE 6 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)",
+    "NOTE 7 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)",
     "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
     "NOTE 48 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
     "NOTE 4 agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)",

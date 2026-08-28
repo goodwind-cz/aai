@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-28T15:23:33.366Z
+Generated: 2026-08-28T15:53:26.084Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -49,7 +49,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (372)
+## Done (373)
 
 | ID | Type | Path |
 |---|---|---|
@@ -254,6 +254,7 @@ _None._
 | ISSUE-0033 | issues | docs/issues/ISSUE-0033-index-arm-diffs-whole-file-for-a-path-claim.md |
 | ISSUE-0035 | issues | docs/issues/ISSUE-0035-close-leaves-state-stale.md |
 | ISSUE-0036 | issues | docs/issues/ISSUE-0036-harness-surfaces-drift-unguarded.md |
+| ISSUE-0037 | issues | docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md |
 | ISSUE-0045 | issues | docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
@@ -436,7 +437,6 @@ _None._
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
 | DEBT-0006 | issues | docs/issues/DEBT-0006-payload-size-hazards-past-the-one-fixed-site.md |
 | DEBT-0007 | issues | docs/issues/DEBT-0007-withdrawn-claim-sweeps-are-not-verifiable.md |
-| ISSUE-0037 | issues | docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md |
 | ISSUE-0038 | issues | docs/issues/ISSUE-0038-checks-that-assert-less-than-they-claim.md |
 | ISSUE-0039 | issues | docs/issues/ISSUE-0039-disposable-checkout-lifecycle-residuals.md |
 | ISSUE-0040 | issues | docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md |
@@ -444,6 +444,7 @@ _None._
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
+| validation-has-no-honest-waiver (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-validation-has-no-honest-waiver.md |
 
 ## Deferred (whole-doc) (0)
 
