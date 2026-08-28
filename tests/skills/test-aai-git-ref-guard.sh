@@ -447,6 +447,12 @@ test_307_clone_seam() {
     return
   fi
   local crc
+  # A fresh clone inherits no local identity, and CI runners have no global
+  # one either — without this the commit fails 128 for a reason that has
+  # nothing to do with the guard. It passed locally only because this machine
+  # has a global user.email; the arm was measuring the developer's config.
+  git -C "$clone" config user.email "test@aai.local"
+  git -C "$clone" config user.name "AAI Test"
   (cd "$clone" && git commit -q --allow-empty -m "clone commit no marker"); crc=$?
   if [[ $crc -ne 0 ]]; then
     log_fail "TEST-307 clone: marker-less commit inside the clone expected exit 0, got $crc"

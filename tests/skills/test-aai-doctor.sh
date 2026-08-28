@@ -1728,7 +1728,7 @@ exit 1
 
   local out1
   out1="$(node "$DOCTOR" --root "$d1" 2>&1 | grep '^CAT-17')"
-  if echo "$out1" | grep -q ' PASS '; then
+  if [[ "$out1" == *' PASS '* ]]; then
     log_info "TEST-040 hooksPath: got PASS (git.ignores this file once hooksPath is set): $out1"
     ok=0
   fi
@@ -1765,11 +1765,11 @@ exit 1
   chmod +x "$d2/.git/hooks/reference-transaction"
   local out2
   out2="$(node "$DOCTOR" --root "$d2" 2>&1 | grep '^CAT-17')"
-  if echo "$out2" | grep -q ' PASS '; then
+  if [[ "$out2" == *' PASS '* ]]; then
     log_info "TEST-040 decorative: got PASS on a hook that never refuses: $out2"
     ok=0
   fi
-  if ! echo "$out2" | grep -qi 'does NOT behave as a guard'; then
+  if [[ "$(printf '%s' "$out2" | tr 'A-Z' 'a-z')" != *'does not behave as a guard'* ]]; then
     log_info "TEST-040 decorative: WARN reason does not name the behavioural mismatch: $out2"
     ok=0
   fi
@@ -1787,11 +1787,11 @@ exit 1
       chmod -x "$d3/.git/hooks/reference-transaction"
       local out3
       out3="$(node "$DOCTOR" --root "$d3" 2>&1 | grep '^CAT-17')"
-      if echo "$out3" | grep -q ' PASS '; then
+      if [[ "$out3" == *' PASS '* ]]; then
         log_info "TEST-040 non-executable: got PASS on a hook without the executable bit: $out3"
         ok=0
       fi
-      if ! echo "$out3" | grep -qi 'NOT executable'; then
+      if [[ "$(printf '%s' "$out3" | tr 'A-Z' 'a-z')" != *'not executable'* ]]; then
         log_info "TEST-040 non-executable: WARN reason does not name the missing executable bit: $out3"
         ok=0
       fi
@@ -1808,7 +1808,7 @@ exit 1
   chmod +x "$d4/.git/hooks/reference-transaction"
   local out4
   out4="$(node "$DOCTOR" --root "$d4" 2>&1 | grep '^CAT-17')"
-  if ! echo "$out4" | grep -q ' PASS '; then
+  if [[ "$out4" != *' PASS '* ]]; then
     log_info "TEST-040 armed control: expected PASS, got: $out4"
     ok=0
   fi
