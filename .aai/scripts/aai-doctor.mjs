@@ -402,33 +402,111 @@ function catIndexRegenHook(root) {
   return cat('CAT-12', 'Index Regen Hook', 'WARN', 'pre-commit hook present but NOT AAI-managed — merge manually or re-run install-pre-commit-hook.sh --force');
 }
 
-// --- CAT-17 Git Ref Guard (SPEC-agent-shell-can-write-the-shipping-repo) ------
+// --- CAT-17 Git Ref Guard (SPEC-0156-spec-agent-shell-can-write-the-shipping-repo) ------
 // SPEC-0029 shipped a correct hook mechanism that never fired because opting
 // in was left to a step nobody takes (D4). This category exists so a dormant
 // guard is at least VISIBLE — doctor runs often, a template in a directory
 // does not.
+//
+// PR #302 review (Codex P1 / Copilot P2): a hook FILE carrying the marker is
+// not evidence git will ever run it. Two ways that lie: (1) `core.hooksPath`
+// points somewhere else entirely — a manual `.git/hooks` join misses that,
+// same worktree-common-dir problem CAT-12 already solves, plus the
+// hooksPath case CAT-12 does not have to worry about; (2) the file at the
+// EFFECTIVE path is decorative (marker present, logic gutted/inverted) or,
+// on POSIX, simply not executable, so git silently never invokes it. This
+// category now (a) asks git for the EFFECTIVE hooks path instead of
+// re-deriving it, and (b) behaviourally probes the resolved file by
+// invoking it directly with synthetic reference-transaction input — no real
+// ref ever moves, so this is safe to run against the user's live hook.
 
 function catGitRefGuard(root) {
   const installer = exists(root, '.aai/scripts/install-pre-commit-hook.sh');
-  // Same git-common-dir resolution as CAT-12: linked worktrees ship .git as a
-  // FILE, so <root>/.git/hooks never exists there.
-  let gitDir = path.join(root, '.git');
-  const commonRes = run('git', ['rev-parse', '--git-common-dir'], root);
-  if (commonRes.ok && commonRes.stdout.trim() !== '') {
-    const common = commonRes.stdout.trim();
-    gitDir = path.isAbsolute(common) ? common : path.join(root, common);
+  // `git rev-parse --git-path hooks/reference-transaction` resolves BOTH the
+  // worktree-common-dir case (linked worktree: .git is a FILE) and a
+  // `core.hooksPath` override in one call — verified empirically (scratch
+  // repo + scratch worktree + scratch hooksPath override) rather than
+  // assumed: this is the exact resolution git itself uses to decide which
+  // file to execute, so attesting against it is attesting against reality
+  // instead of a plausible-looking re-derivation.
+  const pathRes = run('git', ['rev-parse', '--git-path', 'hooks/reference-transaction'], root);
+  if (!pathRes.ok || pathRes.stdout.trim() === '') {
+    return cat('CAT-17', 'Git Ref Guard', 'WARN', installer
+      ? 'could not resolve the effective git hooks path (git rev-parse failed) — run bash .aai/scripts/install-pre-commit-hook.sh'
+      : 'could not resolve the effective git hooks path and installer missing — run /aai-update');
   }
-  const hookPath = path.join(gitDir, 'hooks/reference-transaction');
+  const rel = pathRes.stdout.trim();
+  const hookPath = path.isAbsolute(rel) ? rel : path.join(root, rel);
   if (!fs.existsSync(hookPath)) {
     return cat('CAT-17', 'Git Ref Guard', 'WARN', installer
-      ? 'not armed (refs/heads/main writes are ambient) — run bash .aai/scripts/install-pre-commit-hook.sh'
+      ? `not armed (refs/heads/main writes are ambient; effective hooks path is ${hookPath}) — run bash .aai/scripts/install-pre-commit-hook.sh`
       : 'not armed and installer missing — run /aai-update');
   }
   const body = fs.readFileSync(hookPath, 'utf8');
-  if (body.includes('AAI:REF-GUARD')) {
-    return cat('CAT-17', 'Git Ref Guard', 'PASS', 'armed (refs/heads/main writes require AAI_GIT_WRITE=1)');
+  if (!body.includes('AAI:REF-GUARD')) {
+    return cat('CAT-17', 'Git Ref Guard', 'WARN', `reference-transaction hook present at the effective hooks path (${hookPath}) but NOT AAI-managed — merge manually or re-run install-pre-commit-hook.sh --force`);
   }
-  return cat('CAT-17', 'Git Ref Guard', 'WARN', 'reference-transaction hook present but NOT AAI-managed — merge manually or re-run install-pre-commit-hook.sh --force');
+  // POSIX: git refuses to run a hook file that lacks the executable bit —
+  // it is silently treated as absent, exactly like the decorative-hook case
+  // below, so check this BEFORE trusting the marker. (Windows hooks run
+  // through an interpreter regardless of the file's mode bits, so this
+  // check does not apply there — CAT-14/15/16 already gate Windows-only
+  // logic the same way.)
+  if (process.platform !== 'win32') {
+    try {
+      fs.accessSync(hookPath, fs.constants.X_OK);
+    } catch {
+      return cat('CAT-17', 'Git Ref Guard', 'WARN', `reference-transaction hook at ${hookPath} carries the AAI:REF-GUARD marker but is NOT executable — git will not run it (NOT armed); chmod +x or re-run install-pre-commit-hook.sh --force`);
+    }
+  }
+  const probe = probeRefGuardHook(hookPath, root);
+  if (!probe.verified) {
+    return cat('CAT-17', 'Git Ref Guard', 'WARN', `reference-transaction hook at ${hookPath} carries the AAI:REF-GUARD marker but could not be behaviourally verified (${probe.errorCode || 'probe failed'}) — treat as NOT confirmed armed`);
+  }
+  if (probe.refuses && probe.permits) {
+    return cat('CAT-17', 'Git Ref Guard', 'PASS', `armed (probe on ${hookPath} refuses a refs/heads/main update without AAI_GIT_WRITE=1 and permits it with AAI_GIT_WRITE=1)`);
+  }
+  return cat('CAT-17', 'Git Ref Guard', 'WARN', `reference-transaction hook at ${hookPath} carries the AAI:REF-GUARD marker but does NOT behave as a guard on probe (refuses=${probe.refuses}, permits=${probe.permits}) — NOT armed; re-run install-pre-commit-hook.sh --force`);
+}
+
+// Invokes a reference-transaction hook file DIRECTLY with synthetic
+// old/new/ref input for refs/heads/main — this never runs a `git` ref-update
+// command and never touches a real ref, so it is safe against the caller's
+// live repository. Mirrors exactly what git itself feeds a
+// reference-transaction hook: argv[1] is the transaction state ("prepared"),
+// stdin carries "<old-oid> <new-oid> <refname>" lines.
+function probeRefGuardHook(hookPath, root) {
+  const REFUSE_INPUT = `${'0'.repeat(40)} ${'1'.repeat(40)} refs/heads/main\n`;
+  const baseEnv = { ...process.env };
+  delete baseEnv.AAI_GIT_WRITE;
+  const writeEnv = { ...baseEnv, AAI_GIT_WRITE: '1' };
+  const opts = (env) => ({ cwd: root, input: REFUSE_INPUT, env, encoding: 'utf8', timeout: 5000 });
+
+  // POSIX: exec the file directly — the OS loader honors the shebang, and
+  // (having already confirmed the executable bit above) this is exactly how
+  // git itself would run it. Windows has no OS-level shebang support, so
+  // fall back to an explicit interpreter — the same one Git for Windows
+  // uses to run this exact hook.
+  if (process.platform !== 'win32') {
+    const refuses = spawnSync(hookPath, ['prepared'], opts(baseEnv));
+    if (refuses.error) {
+      return { verified: false, errorCode: refuses.error.code };
+    }
+    const permits = spawnSync(hookPath, ['prepared'], opts(writeEnv));
+    if (permits.error) {
+      return { verified: false, errorCode: permits.error.code };
+    }
+    return { verified: true, refuses: refuses.status !== 0, permits: permits.status === 0 };
+  }
+
+  for (const shell of ['sh', 'bash']) {
+    const refuses = spawnSync(shell, [hookPath, 'prepared'], opts(baseEnv));
+    if (refuses.error) continue;
+    const permits = spawnSync(shell, [hookPath, 'prepared'], opts(writeEnv));
+    if (permits.error) continue;
+    return { verified: true, refuses: refuses.status !== 0, permits: permits.status === 0 };
+  }
+  return { verified: false, errorCode: 'ENOINTERPRETER' };
 }
 
 // --- CAT-13 Vendored Layer Drift (subprocess to layer-drift.mjs) -------------
