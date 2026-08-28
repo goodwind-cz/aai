@@ -6,7 +6,7 @@ set -euo pipefail
 #     the commit touches docs/ (RFC-0001 layer 4 convenience).
 #   - .git/hooks/reference-transaction — refuses a refs/heads/main ref update
 #     unless AAI_GIT_WRITE=1 is set on that exact command (D1/D3,
-#     docs/specs/SPEC-DRAFT-agent-shell-can-write-the-shipping-repo.md). This
+#     docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md). This
 #     turns an honest/accidental write to main into a refusal instead of an
 #     ambient default; it is not a security boundary (see the spec's D3).
 #
@@ -14,6 +14,9 @@ set -euo pipefail
 #   ./.aai/scripts/install-pre-commit-hook.sh           # install if absent
 #   ./.aai/scripts/install-pre-commit-hook.sh --force   # overwrite existing
 #   ./.aai/scripts/install-pre-commit-hook.sh --uninstall
+#   ./.aai/scripts/install-pre-commit-hook.sh --print   # emit the pre-commit
+#                                                        # hook body to stdout
+#                                                        # for a manual merge
 #
 # Idempotent per hook. Refuses to overwrite a non-AAI hook unless --force is
 # given (checked for BOTH hooks before writing either, so a foreign hook in
@@ -21,10 +24,12 @@ set -euo pipefail
 
 FORCE=0
 UNINSTALL=0
+PRINT=0
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=1 ;;
     --uninstall) UNINSTALL=1 ;;
+    --print) PRINT=1 ;;
     -h|--help)
       grep '^#' "$0" | sed 's/^# \{0,1\}//'
       exit 0
@@ -36,13 +41,33 @@ for arg in "$@"; do
   esac
 done
 
+# --print: emit the AAI:INDEX-AUTOGEN pre-commit hook body to stdout so a
+# foreign-hook owner can hand-merge it, without touching any repo state.
+# Extracted from this script's own heredoc (not a second copy) so it can
+# never drift from what --force would actually install (PR #302 Copilot).
+if [[ "$PRINT" == 1 ]]; then
+  awk '/^cat > "\$HOOK_PATH" <<.HOOK.$/{p=1; next} /^HOOK$/{if(p){exit}} p' "$0"
+  exit 0
+fi
+
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "ERROR: not inside a git repository." >&2
   exit 1
 }
-HOOK_PATH="$REPO_ROOT/.git/hooks/pre-commit"
+# Linked worktrees ship .git as a FILE at $REPO_ROOT/.git, so a hooks path
+# built from --show-toplevel never exists there; --git-common-dir resolves
+# to the real (shared) git directory in both a normal repo and a linked
+# worktree (PR #302 Codex P2 — same fix CAT-12/CAT-17 in aai-doctor.mjs use).
+GIT_DIR="$(git rev-parse --git-common-dir 2>/dev/null)" || {
+  echo "ERROR: could not resolve the git common directory." >&2
+  exit 1
+}
+if [[ "$GIT_DIR" != /* ]]; then
+  GIT_DIR="$REPO_ROOT/$GIT_DIR"
+fi
+HOOK_PATH="$GIT_DIR/hooks/pre-commit"
 MARKER="# AAI:INDEX-AUTOGEN"
-REFTX_PATH="$REPO_ROOT/.git/hooks/reference-transaction"
+REFTX_PATH="$GIT_DIR/hooks/reference-transaction"
 REFTX_MARKER="# AAI:REF-GUARD"
 
 if [[ "$UNINSTALL" == 1 ]]; then
@@ -77,7 +102,7 @@ if [[ "$FOREIGN" == 1 ]]; then
   exit 1
 fi
 
-mkdir -p "$REPO_ROOT/.git/hooks"
+mkdir -p "$GIT_DIR/hooks"
 
 if [[ -f "$HOOK_PATH" && "$FORCE" != 1 ]] && grep -qF "$MARKER" "$HOOK_PATH"; then
   echo "AAI pre-commit hook already installed at $HOOK_PATH. No action taken."
@@ -243,7 +268,7 @@ cat > "$REFTX_PATH" <<'REFTXHOOK'
 # This is a git reference-transaction hook: it fires for EVERY ref update in
 # this repository, from any process, at any nesting depth, through any
 # subshell. See
-# docs/specs/SPEC-DRAFT-agent-shell-can-write-the-shipping-repo.md.
+# docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md.
 
 aai_state="$1"
 

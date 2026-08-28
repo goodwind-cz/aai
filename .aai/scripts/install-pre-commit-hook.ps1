@@ -4,7 +4,7 @@
   regenerates docs/INDEX.md whenever the commit touches docs/ (RFC-0001
   layer 4 convenience), and .git/hooks/reference-transaction, which refuses
   a refs/heads/main ref update unless AAI_GIT_WRITE=1 is set on that exact
-  command (docs/specs/SPEC-DRAFT-agent-shell-can-write-the-shipping-repo.md).
+  command (docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md).
 
 .DESCRIPTION
   Idempotent per hook. Refuses to overwrite a non-AAI hook unless -Force is
@@ -37,9 +37,22 @@ if (-not $repoRoot) {
   exit 1
 }
 
-$hookPath   = Join-Path $repoRoot ".git/hooks/pre-commit"
+# Linked worktrees ship .git as a FILE at $repoRoot/.git, so a hooks path
+# built from --show-toplevel never exists there; --git-common-dir resolves
+# to the real (shared) git directory in both a normal repo and a linked
+# worktree (PR #302 Codex P2 — same fix the .sh twin and aai-doctor.mjs use).
+$gitCommonDir = (& git rev-parse --git-common-dir 2>$null).Trim()
+if (-not $gitCommonDir) {
+  Write-Error "Could not resolve the git common directory."
+  exit 1
+}
+if (-not [System.IO.Path]::IsPathRooted($gitCommonDir)) {
+  $gitCommonDir = Join-Path $repoRoot $gitCommonDir
+}
+
+$hookPath   = Join-Path $gitCommonDir "hooks/pre-commit"
 $marker     = "# AAI:INDEX-AUTOGEN"
-$reftxPath  = Join-Path $repoRoot ".git/hooks/reference-transaction"
+$reftxPath  = Join-Path $gitCommonDir "hooks/reference-transaction"
 $reftxMarker = "# AAI:REF-GUARD"
 
 if ($Uninstall) {
@@ -77,7 +90,7 @@ if ($foreign) {
   exit 1
 }
 
-New-Item -ItemType Directory -Force -Path (Join-Path $repoRoot ".git/hooks") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $gitCommonDir "hooks") | Out-Null
 
 $skipPreCommit = $false
 if ((Test-Path $hookPath) -and (-not $Force)) {
@@ -263,7 +276,7 @@ $reftxBody = @'
 # This is a git reference-transaction hook: it fires for EVERY ref update in
 # this repository, from any process, at any nesting depth, through any
 # subshell. See
-# docs/specs/SPEC-DRAFT-agent-shell-can-write-the-shipping-repo.md.
+# docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md.
 
 aai_state="$1"
 
@@ -293,7 +306,7 @@ AAI:REF-GUARD refused this refs/heads/main update.
           never an ambient default (agent-shell-can-write-the-shipping-repo).
   Fix:    re-run this ONE command with AAI_GIT_WRITE=1 set, e.g.
             AAI_GIT_WRITE=1 git commit ...
-  Uninstall this guard: bash .aai/scripts/install-pre-commit-hook.sh --uninstall
+  Uninstall this guard: pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall
 AAI_REF_GUARD_MSG
 exit 1
 '@

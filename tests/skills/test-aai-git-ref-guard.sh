@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: git reference-transaction ref-guard
-# (docs/specs/SPEC-DRAFT-agent-shell-can-write-the-shipping-repo.md)
+# (docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md)
 #
 # Verifies the AAI:REF-GUARD reference-transaction hook written by
 # .aai/scripts/install-pre-commit-hook.{sh,ps1}: a marker-less refs/heads/main
@@ -23,7 +23,7 @@
 # $PROJECT_ROOT/.git/hooks is byte-unchanged across the whole suite run.
 #
 # Covers TEST-301..313 from
-# docs/specs/SPEC-DRAFT-agent-shell-can-write-the-shipping-repo.md.
+# docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md.
 #
 # Exit codes:
 #   0  - All tests passed
@@ -203,8 +203,18 @@ test_301_guarded_refusal() {
   (cd "$d" && git checkout -q -b t301-other) >/dev/null 2>&1
 
   # -- branch -f main <sha> (force-move main while it is NOT checked out) --
+  # PR #302 Copilot: using `rev-parse HEAD` here (== main's own current tip,
+  # since t301-other was just branched off it) makes old==new — a no-op ref
+  # update whose refusal proof would depend on whether THIS git version even
+  # runs a reference-transaction for a no-op. HEAD~1 (the "seed" commit,
+  # distinct from main's "second"-commit tip) forces a REAL ref movement so
+  # the hook must actually fire and refuse it.
   before_r="$(git -C "$d" for-each-ref refs/heads)"
-  local newsha; newsha="$(git -C "$d" rev-parse HEAD)"
+  local newsha; newsha="$(git -C "$d" rev-parse HEAD~1)"
+  if [[ "$newsha" == "$(git -C "$d" rev-parse refs/heads/main)" ]]; then
+    log_fail "TEST-301 branch -f main: fixture precondition broken — HEAD~1 equals main's current tip, so this would still be a no-op"
+    ok=0
+  fi
   out="$(cd "$d" && git branch -f main "$newsha" 2>&1)"; rc=$?
   after_r="$(git -C "$d" for-each-ref refs/heads)"
   if [[ $rc -eq 0 ]]; then log_fail "TEST-301 branch -f main: expected non-zero, got 0"; ok=0; fi
@@ -506,6 +516,55 @@ test_308_installer_contract() {
   [[ $ok -eq 1 ]] && log_pass "TEST-308 installer contract: install / byte-identical re-run / atomic foreign-hook refusal / --force / --uninstall, pre-commit byte-pinned to the pre-change installer's product"
 }
 
+# --- TEST-314 (PR #302 Copilot P2) — --print does what the error path says --
+# The foreign-hook refusal (both slots) tells the operator to run
+# `install-pre-commit-hook.sh --print` to get a mergeable snippet. Before
+# this fix that flag did not exist — the arg parser's catch-all rejected it
+# (exit 2, "unexpected argument"), so the operator's only guidance was a
+# dead end. --print now emits the pre-commit hook body (extracted from the
+# installer's own heredoc, so it can never drift from what --force installs)
+# and exits 0 WITHOUT touching any repo/hook state.
+test_314_print_flag() {
+  local ok=1
+
+  # --print succeeds and emits the real snippet — repo-independent (a
+  # foreign-hook operator calling this from inside their OWN repo is exactly
+  # the case this exists for, but the flag itself needs no repo at all).
+  local out rc
+  out="$(bash "$INSTALLER" --print 2>&1)"; rc=$?
+  if [[ $rc -ne 0 ]]; then
+    log_fail "TEST-314: --print expected exit 0, got $rc"; ok=0
+  fi
+  if ! grep -qF "AAI:INDEX-AUTOGEN" <<<"$out"; then
+    log_fail "TEST-314: --print output does not contain the AAI:INDEX-AUTOGEN hook body: $out"; ok=0
+  fi
+  if ! grep -qF '#!/usr/bin/env bash' <<<"$out"; then
+    log_fail "TEST-314: --print output does not look like the hook's own shebang-first body"; ok=0
+  fi
+
+  # --print never writes anything: no repo touched, no hook installed
+  # anywhere reachable from cwd.
+  local d; d="$(new_repo t314)"
+  (cd "$d" && bash "$INSTALLER" --print >/dev/null 2>&1)
+  [[ -f "$d/.git/hooks/pre-commit" ]] && { log_fail "TEST-314: --print installed a pre-commit hook (must be read-only)"; ok=0; }
+  [[ -f "$d/.git/hooks/reference-transaction" ]] && { log_fail "TEST-314: --print installed a reference-transaction hook (must be read-only)"; ok=0; }
+
+  # Mutation proof: --print is a NAMED flag, not "accept anything now" — a
+  # genuinely unknown flag must still be rejected exit 2, same as before.
+  local rc2
+  bash "$INSTALLER" --this-flag-does-not-exist >/dev/null 2>&1; rc2=$?
+  if [[ $rc2 -ne 2 ]]; then
+    log_fail "TEST-314: an actually-unknown flag stopped being rejected (got $rc2, want 2) — --print was wired as a catch-all, not a specific case"; ok=0
+  fi
+
+  # The foreign-hook guidance itself must name a flag that now exists.
+  grep -qE -- '--print' "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" \
+    || { log_fail "TEST-314: the installer no longer mentions --print anywhere"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-314 --print emits the real pre-commit hook body read-only (exit 0, no writes), an unknown flag still exits 2" \
+    || log_fail "TEST-314 --print flag"
+}
+
 # --- TEST-309 (Spec-AC-05) — .ps1 twin, static -------------------------------
 # F-R3 (code review 20260828T144437Z): the prior version of this arm ran its
 # four greps over the WHOLE .ps1 file. Every one of those four patterns also
@@ -558,9 +617,22 @@ test_309_ps1_twin_static() {
   # Assertion 4 targets the ASSIGNMENT that decides where the hook is written.
   # "hooks/reference-transaction" also appears in the .ps1 SYNOPSIS comment, so
   # anchoring on the bare string lets a retargeted $reftxPath pass unnoticed.
-  grep -qE '^\$reftxPath[[:space:]]*=[[:space:]]*Join-Path \$repoRoot "\.git/hooks/reference-transaction"' "$INSTALLER_PS1" \
-    || { log_fail "TEST-309: .ps1 does not ASSIGN \$reftxPath to .git/hooks/reference-transaction (the SYNOPSIS mentioning it is not the write target)"; ok=0; }
-  [[ $ok -eq 1 ]] && log_pass "TEST-309 .ps1 twin's \$reftxBody here-string carries the AAI:REF-GUARD marker, the refs/heads/main predicate, the AAI_GIT_WRITE check, and the script writes .git/hooks/reference-transaction"
+  # PR #302 Codex P2: the write target is $gitCommonDir (git-common-dir,
+  # worktree-safe), not $repoRoot (a linked worktree's .git is a FILE there)
+  # — the pin follows that fix, still anchored on the assignment, not prose.
+  grep -qE '^\$reftxPath[[:space:]]*=[[:space:]]*Join-Path \$gitCommonDir "hooks/reference-transaction"' "$INSTALLER_PS1" \
+    || { log_fail "TEST-309: .ps1 does not ASSIGN \$reftxPath to \$gitCommonDir/hooks/reference-transaction (the SYNOPSIS mentioning it is not the write target)"; ok=0; }
+
+  # Assertion 5 (PR #302 Copilot P2): on Windows the .ps1 IS the entrypoint,
+  # so the hook's OWN refusal message — printed by the hook itself, not by
+  # this installer script — must give PowerShell-appropriate uninstall
+  # guidance, not the bash command from the .sh twin.
+  grep -qF 'Uninstall this guard: pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall' <<<"$reftx_body" \
+    || { log_fail "TEST-309: .ps1 twin's refusal message does not give a pwsh uninstall command"; ok=0; }
+  grep -qF 'bash .aai/scripts/install-pre-commit-hook.sh --uninstall' <<<"$reftx_body" \
+    && { log_fail "TEST-309: .ps1 twin's refusal message still tells a Windows operator to run bash — wrong entrypoint for this platform"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-309 .ps1 twin's \$reftxBody here-string carries the AAI:REF-GUARD marker, the refs/heads/main predicate, the AAI_GIT_WRITE check, the script writes .git/hooks/reference-transaction, and its refusal message gives pwsh (not bash) uninstall guidance"
 }
 
 # --- TEST-310 (Spec-AC-06) — aai-doctor category -----------------------------
@@ -738,6 +810,7 @@ main() {
   test_306_allocator_seam
   test_307_clone_seam
   test_308_installer_contract
+  test_314_print_flag
   test_309_ps1_twin_static
   test_310_doctor_category
   test_312_contract_and_diet
