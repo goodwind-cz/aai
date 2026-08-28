@@ -734,6 +734,13 @@ setup_spec0010_hook_repo() {
   (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test")
   (cd "$d" && git add .aai .gitignore && git commit -qm "chore: vendor scripts")
   (cd "$d" && bash .aai/scripts/install-pre-commit-hook.sh >/dev/null)
+  # agent-shell-can-write-the-shipping-repo: the installer now also arms a
+  # reference-transaction hook that refuses a marker-less refs/heads/main
+  # write. This fixture's own commits (below, by the calling test functions)
+  # carry no AAI_GIT_WRITE marker, so move off main onto a scratch branch —
+  # the amended guard only ever looks at refs/heads/main, and no test in this
+  # file depends on the fixture branch literally being named "main".
+  (cd "$d" && git checkout -q -b work)
   printf '%s' "$d"
 }
 
@@ -2591,6 +2598,13 @@ setup_spec0011_hook_repo() {
   (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test")
   (cd "$d" && git add .aai .gitignore && git commit -qm "chore: vendor scripts")
   (cd "$d" && bash .aai/scripts/install-pre-commit-hook.sh >/dev/null)
+  # agent-shell-can-write-the-shipping-repo: the installer now also arms a
+  # reference-transaction hook that refuses a marker-less refs/heads/main
+  # write. This fixture's own commits (below, by the calling test functions)
+  # carry no AAI_GIT_WRITE marker, so move off main onto a scratch branch —
+  # the amended guard only ever looks at refs/heads/main, and no test in this
+  # file depends on the fixture branch literally being named "main".
+  (cd "$d" && git checkout -q -b work)
   printf '%s' "$d"
 }
 

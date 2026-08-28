@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-28T11:34:07.814Z
+Generated: 2026-08-28T13:04:07.138Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-agent-shell-can-write-the-shipping-repo | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-agent-shell-can-write-the-shipping-repo.md |
+| spec-agent-shell-can-write-the-shipping-repo | specs | implementing | 9 done | docs/specs/SPEC-DRAFT-agent-shell-can-write-the-shipping-repo.md |
 
 ## Canonical layer (0)
 

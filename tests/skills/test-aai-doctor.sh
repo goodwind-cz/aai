@@ -168,6 +168,10 @@ EOF
   printf '#!/bin/sh\n# AAI:INDEX-AUTOGEN\n' > "$d/.git/hooks/pre-commit"
   chmod +x "$d/.git/hooks/pre-commit"
 
+  # CAT-17: reference-transaction hook with the AAI:REF-GUARD marker (armed).
+  printf '#!/bin/sh\n# AAI:REF-GUARD\nexit 0\n' > "$d/.git/hooks/reference-transaction"
+  chmod +x "$d/.git/hooks/reference-transaction"
+
   # CAT-13: stub layer-drift.mjs that always reports up-to-date.
   cat > "$d/.aai/scripts/layer-drift.mjs" <<'EOF'
 #!/usr/bin/env node
@@ -552,9 +556,9 @@ test_015_json_shape() {
       const die = (m) => { console.error(m); process.exit(1); };
       if (typeof j.root !== "string") die("root missing/wrong type");
       if (typeof j.generatedAt !== "string") die("generatedAt missing/wrong type");
-      if (!Array.isArray(j.categories) || j.categories.length !== 16) die("categories: want array of 16, got " + (j.categories && j.categories.length));
+      if (!Array.isArray(j.categories) || j.categories.length !== 17) die("categories: want array of 17, got " + (j.categories && j.categories.length));
       const wantIds = [];
-      for (let i = 1; i <= 16; i++) wantIds.push("CAT-" + String(i).padStart(2, "0"));
+      for (let i = 1; i <= 17; i++) wantIds.push("CAT-" + String(i).padStart(2, "0"));
       const gotIds = j.categories.map(c => c.id);
       if (JSON.stringify(gotIds) !== JSON.stringify(wantIds)) die("category ids: " + JSON.stringify(gotIds));
       for (const c of j.categories) {
@@ -571,7 +575,7 @@ test_015_json_shape() {
       if (typeof j.issues !== "number") die("issues not a number");
       if (typeof j.exit !== "number") die("exit not a number");
     });
-  ' && log_pass "TEST-015 --json emits the documented shape (16 categories, CAT-01..16, CAT-14/15/16 carry detail)" \
+  ' && log_pass "TEST-015 --json emits the documented shape (17 categories, CAT-01..17, CAT-14/15/16 carry detail)" \
     || log_fail "TEST-015 --json shape"
 }
 
@@ -921,7 +925,7 @@ test_027_capability_fields_unknown() {
 }
 
 # --- TEST-028 (Spec-AC-04) — output shape: one line each, --json detail,
-#     CAT-01..13 unchanged, categories grow 13 -> 16 on a clean fixture ------
+#     CAT-01..13 unchanged, categories grow 13 -> 17 on a clean fixture ------
 test_028_output_shape_growth() {
   local out
   out="$(node "$DOCTOR" --root "$PROJECT_ROOT" 2>&1)"
@@ -944,7 +948,7 @@ test_028_output_shape_growth() {
     process.stdin.on("end", () => {
       const j = JSON.parse(d);
       const die = (m) => { console.error(m); process.exit(1); };
-      if (j.categories.length !== 16) die("categories.length=" + j.categories.length + " (want 16)");
+      if (j.categories.length !== 17) die("categories.length=" + j.categories.length + " (want 17)");
       for (let i = 1; i <= 13; i++) {
         const id = "CAT-" + String(i).padStart(2, "0");
         const c = j.categories.find(x => x.id === id);
@@ -955,7 +959,7 @@ test_028_output_shape_growth() {
         if (!c || typeof c.detail !== "object" || c.detail === null) die(id + " missing a structured detail object under --json");
       }
     });
-  ' && log_pass "TEST-028 output shape: one line each, --json detail, CAT-01..13 unchanged, 13->16 growth" \
+  ' && log_pass "TEST-028 output shape: one line each, --json detail, CAT-01..13 unchanged, 13->17 growth" \
     || log_fail "TEST-028 output shape growth"
 }
 

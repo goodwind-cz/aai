@@ -402,6 +402,35 @@ function catIndexRegenHook(root) {
   return cat('CAT-12', 'Index Regen Hook', 'WARN', 'pre-commit hook present but NOT AAI-managed — merge manually or re-run install-pre-commit-hook.sh --force');
 }
 
+// --- CAT-17 Git Ref Guard (SPEC-agent-shell-can-write-the-shipping-repo) ------
+// SPEC-0029 shipped a correct hook mechanism that never fired because opting
+// in was left to a step nobody takes (D4). This category exists so a dormant
+// guard is at least VISIBLE — doctor runs often, a template in a directory
+// does not.
+
+function catGitRefGuard(root) {
+  const installer = exists(root, '.aai/scripts/install-pre-commit-hook.sh');
+  // Same git-common-dir resolution as CAT-12: linked worktrees ship .git as a
+  // FILE, so <root>/.git/hooks never exists there.
+  let gitDir = path.join(root, '.git');
+  const commonRes = run('git', ['rev-parse', '--git-common-dir'], root);
+  if (commonRes.ok && commonRes.stdout.trim() !== '') {
+    const common = commonRes.stdout.trim();
+    gitDir = path.isAbsolute(common) ? common : path.join(root, common);
+  }
+  const hookPath = path.join(gitDir, 'hooks/reference-transaction');
+  if (!fs.existsSync(hookPath)) {
+    return cat('CAT-17', 'Git Ref Guard', 'WARN', installer
+      ? 'not armed (refs/heads/main writes are ambient) — run bash .aai/scripts/install-pre-commit-hook.sh'
+      : 'not armed and installer missing — run /aai-update');
+  }
+  const body = fs.readFileSync(hookPath, 'utf8');
+  if (body.includes('AAI:REF-GUARD')) {
+    return cat('CAT-17', 'Git Ref Guard', 'PASS', 'armed (refs/heads/main writes require AAI_GIT_WRITE=1)');
+  }
+  return cat('CAT-17', 'Git Ref Guard', 'WARN', 'reference-transaction hook present but NOT AAI-managed — merge manually or re-run install-pre-commit-hook.sh --force');
+}
+
 // --- CAT-13 Vendored Layer Drift (subprocess to layer-drift.mjs) -------------
 
 function catLayerDrift(root, scriptDir) {
@@ -730,6 +759,7 @@ export function runDoctor(root, scriptDir) {
     catWinSelfTest(winProbe),
     catWinEnvironment(winProbe),
     catAgentCliProbe(root),
+    catGitRefGuard(root),
   ];
 }
 

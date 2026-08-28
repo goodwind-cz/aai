@@ -15,11 +15,8 @@ These bind YOU on every dispatch whether or not the dispatch text repeats them; 
   Scar `fu-orchestrator-mutated-real-file` (P2, 2026-08-21): a bite-proof
   mutation went into the tracked suite file itself and its restore silently
   failed on a mis-anchored `sed`.
-- HAZ-SCRATCH — experiments live in ONE reused copy under the absolute scratch
-  path the dispatch names, never in the shipping tree. Scar
-  `fu-subagent-probe-hits-real-repo` (P1, 2026-08-15): a probe `cd`-ed inside a
-  command substitution, so the parent shell stayed in the real repository and
-  the run created two commits on `main`.
+- HAZ-SCRATCH — experiments live in ONE reused copy under the absolute scratch path the dispatch names, never in the shipping tree. Scar `fu-subagent-probe-hits-real-repo` (P1, 2026-08-15): a probe `cd`-ed inside a command substitution, so the parent shell stayed in the real repository and the run created two commits on `main`.
+  Allowance, not a sixth hazard: `.git/hooks/reference-transaction` (marker `AAI:REF-GUARD`) now refuses that exact shape unless `AAI_GIT_WRITE=1` is set on the one command, and stays silent everywhere else, including under this hazard's own scratch copy.
 - HAZ-CD — verify a path is non-empty AND absolute immediately before every
   `cd`. Scar `fu-empty-path-cd-stays-in-shipping-repo` (2026-08-22): a
   `local a=1 b=$a` chain left the fixture path empty, `cd ""` stayed put, and
