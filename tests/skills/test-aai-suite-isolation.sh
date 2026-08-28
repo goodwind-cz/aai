@@ -2069,10 +2069,10 @@ EOF
   grep -qF 'iso_git worktree add --detach --quiet "$wt" HEAD' "$dm/tests/skills/test-framework.sh" \
     || { log_fail "TEST-212: the mutation did not take — the sed target has drifted from the real iso_create"; return; }
 
-  HOME="$fakehome" TMPDIR="$tmphome_m" bash "$dm/tests/skills/test-framework.sh" >/dev/null 2>&1
+  HOME="$fakehome" GIT_CONFIG_GLOBAL="$fakehome/.gitconfig" TMPDIR="$tmphome_m" bash "$dm/tests/skills/test-framework.sh" >/dev/null 2>&1
 
   if git -C "$dm" config --local --get user.name >/dev/null 2>&1; then
-    log_info "TEST-212: the shared (mutated) fixture's LOCAL user.name is now '$(git -C "$dm" config --local --get user.name)' — a shipping-touching command ran before the D3 gate could abort it"
+    log_info "TEST-212: the shared (mutated) fixture's LOCAL user.name is now '$(git -C "$dm" config --local --get user.name)' — iso_create's identity-writing git config command ran before the D3 gate could abort it"
     ok=0
   fi
 
@@ -2095,7 +2095,7 @@ EOF
   git -C "$dc" config --local --unset user.name
   git -C "$dc" config --local --unset user.email
 
-  HOME="$fakehome" TMPDIR="$tmphome_c" bash "$dc/tests/skills/test-framework.sh" >/dev/null 2>&1
+  HOME="$fakehome" GIT_CONFIG_GLOBAL="$fakehome/.gitconfig" TMPDIR="$tmphome_c" bash "$dc/tests/skills/test-framework.sh" >/dev/null 2>&1
 
   if git -C "$dc" config --local --get user.name >/dev/null 2>&1; then
     log_info "TEST-212(control): the unmutated fixture's LOCAL user.name is '$(git -C "$dc" config --local --get user.name)' — the identity write should never reach the fixture's OWN config when the checkout is a real clone"
@@ -2113,8 +2113,8 @@ EOF
     ok=0
   fi
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-212 THE ORDERING PIN — under the TEST-203 worktree-add mutation, no shipping-touching command runs before the D3 gate aborts it (the fixture's own local git config gains no identity key); the unmutated control shows the identity write is real and does land in the checkout's own separate git config, confirming the precondition held and the mutated case's silence is the gate firing first, not a no-op write" \
-    || log_fail "TEST-212 a shipping-touching command ran before the D3 gate had a chance to abort it, or the identity precondition did not hold"
+  [[ $ok -eq 1 ]] && log_pass "TEST-212 THE ORDERING PIN — under the TEST-203 worktree-add mutation, iso_create's identity-writing git config command does not run before the D3 gate aborts it (the fixture's own local git config gains no identity key); the unmutated control shows the identity write is real and does land in the checkout's own separate git config, confirming the precondition held and the mutated case's silence is the gate firing first, not a no-op write" \
+    || log_fail "TEST-212 iso_create's identity-writing git config command ran before the D3 gate had a chance to abort it, or the identity precondition did not hold"
 }
 
 main() {

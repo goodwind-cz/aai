@@ -252,6 +252,22 @@ framework's own comment demands of any path added inside that block. One new
 string joins the distinct reason set; `suites_isolated` and `suites_degraded` keep
 their names and their meaning, and the second (seeding) axis is untouched.
 
+> **Correction (2026-08-28, review R2-2/R3-3 — additive-with-disclosure, the
+> same convention SPEC-0132, SPEC-0072 and SPEC-0142 use; not a rewrite of
+> history):** the second (seeding) axis is NOT untouched. Round 2's review
+> (R2-2) found the D3 gate's two halves disagreeing on a degraded suite's
+> seeding status — the EARLY half (in `iso_create`) never seeds and reports
+> `skipped`, but the LATE half (the `iso_separated` check below, which fires
+> AFTER a checkout was already made and seeded) still reported whatever
+> `ISO_LAST_SEED` had recorded for the tree that is about to be destroyed.
+> The remediation harmonised the LATE half to also record `seed_skipped`
+> when it degrades a suite, on the grounds that a destroyed checkout's
+> seeding work never reaches the suite that runs afterward, so it should not
+> count as done. The original sentence above is left visible per the
+> additive-with-disclosure convention; the AC table below is unchanged by
+> this note and stays `planned` (AC-FLIP DEFERRAL — the close ceremony
+> flips it, citing this correction).
+
 The wrapper `.aai/scripts/aai-run-tests.sh` runs the same probe on its own
 checkout and, on failure, sets `AAI_ISO_STATUS=degraded` with the identical reason
 string — so the two funnels keep one vocabulary, which is the property

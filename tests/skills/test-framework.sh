@@ -634,8 +634,11 @@ ISOLATION_REASONS=""
 # built. These three say whether it was completely built. Same shape as the two
 # above — one per-suite status, ONE increment site, an invariant the summary
 # CHECKS: SEEDING_SEEDED + SEEDING_PARTIAL + SEEDING_SKIPPED == TOTAL_TESTS.
-# `skipped` is a real state with its own name rather than an absent line: no
-# checkout was made, so there was nothing to seed.
+# `skipped` is a real state with its own name rather than an absent line:
+# either no checkout was made (nothing to seed), or one WAS made and seeded
+# but was then destroyed by the D3 gate before any suite could run in it —
+# harmonised (review R2-2, 2026-08-28) so both halves of the gate report the
+# seeding axis for what a degraded suite actually got, which is nothing.
 SEEDING_SEEDED=0
 SEEDING_PARTIAL=0
 SEEDING_SKIPPED=0
@@ -815,6 +818,11 @@ run_test() {
   # untracked copy is what REMOVES a brand-new suite from its own checkout, so
   # the degrade path below and a partial seed are the same event seen twice. A
   # seeding denominator of "isolated suites" would drop exactly that case.
+  # 2026-08-28 (review R3-3): one exception to "not after" — the LATE D3 gate
+  # branch below (the `iso_separated` failure arm) reassigns `seed_status` to
+  # `skipped` AFTER a checkout was made and seeded, because a destroyed
+  # checkout's seeding work never reaches the suite (review R2-2). See that
+  # branch's own comment for why.
   local iso_base="" iso_root="$PROJECT_ROOT" iso_target="$test_file" iso_rel
   local iso_status="isolated" iso_status_why=""
   local seed_status="skipped"
