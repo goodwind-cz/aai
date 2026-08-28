@@ -19,7 +19,7 @@ links:
 - bug
 
 ## Impact
-- Affected: the shipping checkout `/Users/ales/Projects/aai` and every ride that runs
+- Affected: the shipping checkout the shipping checkout (`$PROJECT_ROOT`) and every ride that runs
   in it. Four recorded instances, one of them P1, over 13 days.
 - The failure mode is silent: a probe writes, the write survives into a later sweep,
   and the cost is paid by whichever run notices next.

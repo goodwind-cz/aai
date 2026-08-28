@@ -65,7 +65,12 @@ Verified in a disposable clone of `origin/main` (`c6b32d0`):
 - `fu-close-requires-pr-before-it-exists` (P2). Measured at
   `.aai/scripts/close-work-item.mjs:172`:
   `if (!args.pr || !/^\d+$/.test(String(args.pr))) usageError('missing or invalid --pr (integer required)')`.
-  The correct ceremony order runs the tool BEFORE the push that creates the PR, so the
+  CORRECTION (bot review on PR #297, verified against the canon): the canonical order is
+  the OPPOSITE of what this paragraph first claimed. `.aai/SKILL_PR.prompt.md:254` states
+  the close ceremony "still runs after PR open, needing `--pr N`" — push and open the PR
+  first, then close with the real number. Planning must not invent the reverse sequence:
+  closing first would attach close telemetry to a guessed PR number, which is the
+  number-prediction defect this project already carries on file. What stays true is the
   number must be GUESSED. On 2026-08-19 the guess 265 happened to be right, which is luck,
   not procedure. The ordering is not optional: `fu-close-before-push-ordering` proves the
   framework reds only clear post-close, and `fu-close-after-merge-bypasses-ci` proves

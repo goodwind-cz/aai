@@ -22,7 +22,10 @@ links:
   `test-20260827-154347`. The isolation ride paid it four times — roughly an hour of
   wall-clock for rounds whose findings were all reachable from targeted suites.
 - Verified today in a disposable clone of `origin/main` (`c6b32d0`):
-  `/usr/bin/grep -c 'wait\b|&$|xargs -P|parallel' tests/skills/test-framework.sh` returns
+  `/usr/bin/grep -cE 'xargs -P| & *$|^ *wait$|parallel' tests/skills/test-framework.sh`
+  returns (the `-E` matters: with plain `-c` the `|` are literals, so the command would
+  return zero even on a file full of parallel constructs — a vacuous probe, corrected
+  after bot review on PR #297 and re-measured pattern by pattern, all five zero)
   0. The file contains no parallel constructs at all.
 - Also measured on that run: median suite 6 s, 47 of 81 suites under 10 s, top 12 suites
   1172 s = 61 percent of the total (`aai-delta-stage3` 227 s, `aai-docs-audit` 140 s,

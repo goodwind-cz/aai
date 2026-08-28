@@ -8,7 +8,7 @@ links:
   commits: []
 ---
 
-# 41 CLIs still print and then exit, and the arm that proves the one fix works does not hold it
+# 34 CLIs print and then exit, and the arm that proves the one fix works does not hold it
 
 ## Debt Summary
 - `follow-ups.mjs list --json` used to stop at exactly 65536 bytes when stdout was a pipe,
@@ -27,7 +27,12 @@ links:
 Verified in a disposable clone of `origin/main` (`c6b32d0`):
 
 - `fu-cli-exit-truncates-pipe-sweep` (P2). Measured today: of the 52 files matching
-  `.aai/scripts/*.mjs`, 41 contain BOTH `console.log` and `process.exit` — matching the
+  `.aai/scripts/*.mjs`, 41 contain BOTH `console.log` and `process.exit` ANYWHERE, but that
+  co-occurrence overstates the surface: only **34** have a `console.log` actually followed
+  by `process.exit` within three lines, which is the shape that loses output. The
+  remainder (for example `allocate-doc-number.mjs`, whose only such path is its help
+  message) return normally after printing. Planning must re-derive the list from the
+  control flow, not from token co-occurrence — matching the
   count the registry entry recorded. The largest payloads named there are `docs-audit.mjs`
   (23 logs), `test-canon.mjs` (28), `docs-canon.mjs` (23) and `metrics-flush.mjs` (15). The
   guard that fixes the shape (`installPipeGuard`) is present in exactly two files:
