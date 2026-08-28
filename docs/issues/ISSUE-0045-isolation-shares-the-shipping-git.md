@@ -2,10 +2,12 @@
 id: isolation-shares-the-shipping-git
 type: issue
 number: 45
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 299
+  commits:
+    - 19520bd
 ---
 
 # Suite isolation moves the working directory but never removes reach

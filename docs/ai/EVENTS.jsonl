@@ -1951,3 +1951,9 @@
 {"v":1,"ts":"2026-08-27T13:30:12.518Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-isolation-shares-the-shipping-git","payload":{"from":"draft","to":"implementing"}}
 {"v":1,"ts":"2026-08-27T17:36:12.174Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":399,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-08-27T22:55:56.635Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"isolation-shares-the-shipping-git","payload":{"status":"pass","hash":"f198181158dbefe021d19bfa95079983a9e90830c7ab7aafe728899db3881a51"}}
+{"v":1,"ts":"2026-08-28T09:02:23.840Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"isolation-shares-the-shipping-git","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-08-28T09:02:23.873Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"isolation-shares-the-shipping-git","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-28T09:02:23.906Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"isolation-shares-the-shipping-git","payload":{"commit":"19520bd"}}
+{"v":1,"ts":"2026-08-28T09:02:23.939Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-isolation-shares-the-shipping-git","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-08-28T09:02:23.971Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-isolation-shares-the-shipping-git","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-08-28T09:02:24.001Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-isolation-shares-the-shipping-git","payload":{"commit":"19520bd"}}

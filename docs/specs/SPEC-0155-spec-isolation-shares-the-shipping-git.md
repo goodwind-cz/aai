@@ -2,13 +2,15 @@
 id: spec-isolation-shares-the-shipping-git
 type: spec
 number: 155
-status: implementing
+status: done
 ceremony_level: 2
 links:
   requirement: docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 299
+  commits:
+    - 19520bd
 ---
 
 # Spec — the isolated run owns its git, instead of borrowing the shipping one
@@ -366,14 +368,14 @@ None.
 
 | Spec-AC    | Description                                                                                  | Status  | Evidence | Review-By | Notes                                              |
 |------------|----------------------------------------------------------------------------------------------|---------|----------|-----------|----------------------------------------------------|
-| Spec-AC-01 | The disposable checkout's git common directory does not resolve into the shipping repository   | planned | —        | —         | the property the intake measured as false today     |
-| Spec-AC-02 | A config, ref or hook write from the isolated run is unreadable from the shipping repository   | planned | —        | —         | all three admin surfaces, one fixture run           |
-| Spec-AC-03 | A checkout whose git surface is not separated is counted degraded with a named reason          | planned | —        | —         | mutation proof plus unmutated control               |
-| Spec-AC-04 | The checkout's refs, tags and history match the shipping repository's                          | planned | —        | —         | keeps history-reading suites working                |
-| Spec-AC-05 | The full sweep is green and every suite is counted isolated                                    | planned | —        | —         | invariant isolated plus degraded equals total       |
-| Spec-AC-06 | Per-suite isolation cost stays under the standing 2000 ms bound                                | planned | —        | —         | measured 1060 ms at planning time                   |
-| Spec-AC-07 | The PowerShell entry point inherits the change by delegation and adds no mechanism             | planned | —        | —         | pins the twin claim so it cannot rot                |
-| Spec-AC-08 | Cleanup writes nothing under the shipping repository's .git                                    | planned | —        | —         | iso_deregister deleted with the mechanism           |
+| Spec-AC-01 | The disposable checkout's git common directory does not resolve into the shipping repository | done | standing arm TEST-201; validation r1 also proved it end to end with its own probe - the checkout common dir resolved inside the scratch base, not equal and not prefixed. docs/ai/validation/validation-20260827T173616Z-isolation-shares-the-shipping-git-round2.md | validation:2026-08-28 | arms are fixture-scoped; the real-repo proof is the validator probe, not the arm |
+| Spec-AC-02 | A config, ref or hook write from the isolated run is unreadable from the shipping repository | done | standing arm TEST-202; validation r1 wrote config, ref and hook from the clone and the shipping repo observed NONE of them, its .git/config, refs, hooks and git status byte-identical afterwards. docs/ai/validation/validation-20260827T173616Z-isolation-shares-the-shipping-git-round2.md | validation:2026-08-28 | says nothing about downstream hooksPath, LFS or submodules |
+| Spec-AC-03 | A checkout whose git surface is not separated is counted degraded with a named reason | done | the strongest AC: standing arms TEST-203/204/209/210/211/212 cover all three not-separated branches in both funnels; review r2 reproduced the pre-fix write of the source .git/config and its absence at HEAD. docs/ai/reviews/review-20260828T084132Z-isolation-shares-the-shipping-git-round3.md | validation:2026-08-28 | TEST-210s branch is dead code since the gate moved earlier, filed as fu-test210-branch-now-dead-code; TEST-212 proves the ordering seam against iso_create identity writes, NOT a universal about every shipping-touching command |
+| Spec-AC-04 | The checkout's refs, tags and history match the shipping repository's | done | standing arm TEST-205, proven load-bearing when validation r2 removed the ref-parity fetch and it turned red; parity covers heads, tags, main, origin-main and commit count. docs/ai/validation/validation-20260827T173616Z-isolation-shares-the-shipping-git-round2.md | validation:2026-08-28 | refs/stash and refs/codex are NOT carried - zero consumers today, recorded not hidden |
+| Spec-AC-05 | The full sweep is green and every suite is counted isolated | done | full sweep run test-20260827-222434: 81 of 81 passed, 81 isolated, 0 degraded, 81 seeded, tripwire 81/81 attested; bound to this tree by its own per-suite log carrying PASS TEST-209 and TEST-210, arms only the fixed code can pass. docs/ai/reviews/review-20260828T084132Z-isolation-shares-the-shipping-git-round3.md | validation:2026-08-28 | that sweep is provably PRE-delta for the last two test-only commits, so it is cited by tree identity and never by timestamp |
+| Spec-AC-06 | Per-suite isolation cost stays under the standing 2000 ms bound | done | the 2000 ms bound was NOT raised. Three independent real-repo measurements - spec plan 1.06 s, implementer 1.008 s, validator 1.123 s mean - plus 19.3 ms added by the gate reordering and 0 by the final delta, all near 56 percent of the bound. docs/ai/reviews/review-20260828T084132Z-isolation-shares-the-shipping-git-round3.md | validation:2026-08-28 | HONEST LIMIT: the standing arm TEST-006 measures a FIXTURE repo at about 200 ms and now says so; the real-repo figures are transcripts. No arm evidences this AC on the real repository |
+| Spec-AC-07 | The PowerShell entry point inherits the change by delegation and adds no mechanism | done | standing arm TEST-207 pins that the .ps1 still delegates to the .sh and carries no worktree or clone of its own; git diff main..HEAD does not contain the .ps1 at all. docs/ai/reviews/review-20260828T084132Z-isolation-shares-the-shipping-git-round3.md | validation:2026-08-28 | nothing was EXECUTED on Windows - this is a static delegation check |
+| Spec-AC-08 | Cleanup writes nothing under the shipping repository's .git | done | standing arm TEST-208; review r1 established the iso_destroy blast radius as one mktemp -d tree per suite with a guard between the variable and the rm -rf, unreachable by / or PROJECT_ROOT or HOME even with TMPDIR set to /. docs/ai/reviews/review-20260828T084132Z-isolation-shares-the-shipping-git-round3.md | validation:2026-08-28 | not an unqualified universal: under the arms own mutation the fixture DOES gain .git/worktrees/wt, re-measured in review r3 |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 
