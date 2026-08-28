@@ -374,35 +374,50 @@ test_012() {
 # `git config --global --add safe.directory ...` line git had just printed).
 # safe.directory itself needs a foreign owner, so this arm reproduces the same
 # CLASS with a portable fixture: a .git file pointing at a gitdir that is not
-# there. git refuses with a message naming the cause; the guard must relay it.
+# there. What is asserted is the PROPERTY — whatever git said reaches the
+# operator — never git's exact wording, which differs by version and platform
+# (macOS names the missing gitdir; the Linux CI runner prints "(null)").
 test_013() {
   log_info "TEST-013: git refuses the repo -> guard relays git stderr, never the false work-tree claim..."
   local repo="$TMP_ROOT/t013" missing="$TMP_ROOT/t013-absent-gitdir"
   mkdir -p "$repo" || log_fail "fixture setup: could not create $repo"
   printf 'gitdir: %s\n' "$missing" > "$repo/.git" \
     || log_fail "fixture setup: could not write the dangling .git link"
-  # Precondition: git really does refuse this fixture, and says why.
+
+  # Precondition: git really refuses this fixture, and says something. Take
+  # git's FIRST line as the thing that must survive to the operator.
   local git_said
-  git_said="$( cd "$repo" && git rev-parse --is-inside-work-tree 2>&1 >/dev/null )"
-  [[ "$git_said" == *"$missing"* ]] \
-    || log_fail "fixture is not exercising a git refusal (git said: $git_said)"
+  git_said="$( cd "$repo" && git rev-parse --is-inside-work-tree 2>&1 >/dev/null | head -1 )"
+  [[ -n "$git_said" ]] \
+    || log_fail "fixture is not exercising a git refusal (git printed nothing)"
+  [[ "$git_said" == fatal:* ]] \
+    || log_fail "fixture did not produce a git refusal (git said: $git_said)"
 
   run_guard "$repo"
   [[ "$RC" -eq 4 ]] || log_fail "a git refusal must still exit 4 (got $RC; stderr: $ERR)"
-  # 1. git's own diagnosis reaches the operator: the cause it named must survive.
-  [[ "$ERR" == *"$missing"* ]] \
-    || log_fail "guard swallowed git's own message; it names the cause and the fix (stderr: $ERR)"
+  # 1. git's own diagnosis reaches the operator, verbatim. This is the whole
+  #    point: for safe.directory that line carries the remediation.
+  [[ "$ERR" == *"$git_said"* ]] \
+    || log_fail "guard did not relay git's own message (git said: $git_said; guard said: $ERR)"
   # 2. and the false claim must NOT be what the operator is told instead.
   [[ "$ERR" != *"not inside a git work tree"* ]] \
     || log_fail "guard still asserts 'not inside a git work tree' for a git refusal (stderr: $ERR)"
 
-  # Control: with no repo at all, git says nothing actionable, so the plain
-  # sentence is still the right answer. Pins that the relay did not replace it.
+  # Outside any repository git ALSO explains itself, so the relay applies there
+  # too — the operator is told what git said rather than a guard-authored
+  # paraphrase. Pinned so nobody reintroduces the paraphrase as a "friendlier"
+  # message for this case.
   local bare="$TMP_ROOT/t013-no-repo"
   mkdir -p "$bare" || log_fail "fixture setup: could not create $bare"
+  local bare_said
+  bare_said="$( cd "$bare" && git rev-parse --is-inside-work-tree 2>&1 >/dev/null | head -1 )"
   run_guard "$bare"
   [[ "$RC" -eq 4 ]] || log_fail "a directory outside any repo must exit 4 (got $RC; stderr: $ERR)"
-  log_pass "git refusal -> git's own message relayed, false work-tree claim withheld"
+  if [[ -n "$bare_said" ]]; then
+    [[ "$ERR" == *"$bare_said"* ]] \
+      || log_fail "outside a repository the guard must relay git's message too (git said: $bare_said; guard said: $ERR)"
+  fi
+  log_pass "git refusal -> git's own message relayed verbatim, false work-tree claim withheld"
 }
 
 ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013"

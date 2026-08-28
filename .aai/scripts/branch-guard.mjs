@@ -222,9 +222,12 @@ function main() {
     process.exit(0);
   }
 
-  // Order item 1 — must be inside a git work tree. When git refused for a
-  // reason of its own, relay ITS message: it is the only text that names the
-  // actual cause and, for safe.directory, carries the exact remediation.
+  // Order item 1 — must be inside a git work tree. When git refused, relay ITS
+  // message: it is the only text that names the actual cause and, for
+  // safe.directory, carries the exact remediation. In practice git explains
+  // itself for every refusal INCLUDING the plain outside-a-repository case, so
+  // the guard-authored sentence below is a defensive fallback for a git that
+  // failed silently — not the normal path for "you are not in a repo".
   const probe = workTreeProbe(cwd);
   if (!probe.inside) {
     if (probe.gitSaid) {
