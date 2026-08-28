@@ -19,7 +19,7 @@ RFC-0001).
   hook runs where the ref is actually written rather than at the porcelain that
   asked. `core.hooksPath` remains the deliberate way out.
 - Installed by both installer twins (`install-pre-commit-hook.sh` / `.ps1`) and
-  attested by doctor CAT-17. Uninstall: `bash .aai/scripts/install-pre-commit-hook.sh --uninstall`.
+  attested by doctor CAT-17. Uninstall: `bash .aai/scripts/install-pre-commit-hook.sh --uninstall` (or `pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall` on Windows).
 - Scope narrowed by owner decision from all of `refs/heads/` to `refs/heads/main`
   alone: feature branches and tags stay free, so the guard costs nothing in
   normal work and only bites where the damage would be shared.
@@ -32,6 +32,12 @@ RFC-0001).
   Windows twin against logic-inverting mutations, not merely against text that
   mentions the guard — Windows has no live arm, so that static check is its
   only cover.
+## [unreleased] — branch-guard relays git's own refusal message
+
+- `.aai/scripts/branch-guard.mjs` no longer answers every git failure with "not inside a git work tree". When git refuses to read the repository — a `safe.directory` ownership refusal, a dangling gitdir link, a permission error — its own message is relayed verbatim, because that is the only text that names the cause and carries the fix. Standing outside any repository is a different failure and keeps the plain sentence: git writes a fatal there too, so the two are told apart structurally (is there a `.git` above the caller at all) rather than by matching git's wording, and calling that case a refusal would only swap one false diagnosis for another.
+- Reported from a downstream Codex run on Windows, where the false diagnosis cost the operator time before they identified `safe.directory` themselves.
+- Pinned by TEST-013 in `tests/skills/test-aai-branch-guard.sh`, bite-proved against the pre-fix guard, and its control pins the no-repository
+  case so neither branch can silently take the other's message. It asserts the PROPERTY — whatever git said reaches the operator — not git's wording, which differs by platform: macOS names the missing gitdir where the Linux CI runner prints "(null)".
 
 ## [unreleased] — fix(harness): suite isolation stops sharing the shipping repository's git (ISSUE-0045 / SPEC-0155) [L2]
 

@@ -367,7 +367,60 @@ test_012() {
   log_pass "base-vs-allowlist collision -> exit 1 (base check wins over the allowlist)"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012"
+# --- TEST-013 — git REFUSES to read the repo -> relay git's own message ---
+# Bites the real downstream failure: a Windows Codex run hit a safe.directory
+# ownership refusal and the guard answered "not inside a git work tree", which
+# is both false (the caller IS in a work tree) and useless (it drops the exact
+# `git config --global --add safe.directory ...` line git had just printed).
+# safe.directory itself needs a foreign owner, so this arm reproduces the same
+# CLASS with a portable fixture: a .git file pointing at a gitdir that is not
+# there. What is asserted is the PROPERTY — whatever git said reaches the
+# operator — never git's exact wording, which differs by version and platform
+# (macOS names the missing gitdir; the Linux CI runner prints "(null)").
+test_013() {
+  log_info "TEST-013: git refuses the repo -> guard relays git stderr, never the false work-tree claim..."
+  local repo="$TMP_ROOT/t013" missing="$TMP_ROOT/t013-absent-gitdir"
+  mkdir -p "$repo" || log_fail "fixture setup: could not create $repo"
+  printf 'gitdir: %s\n' "$missing" > "$repo/.git" \
+    || log_fail "fixture setup: could not write the dangling .git link"
+
+  # Precondition: git really refuses this fixture, and says something. Take
+  # git's FIRST line as the thing that must survive to the operator.
+  local git_said
+  git_said="$( cd "$repo" && git rev-parse --is-inside-work-tree 2>&1 >/dev/null | head -1 )"
+  [[ -n "$git_said" ]] \
+    || log_fail "fixture is not exercising a git refusal (git printed nothing)"
+  [[ "$git_said" == fatal:* ]] \
+    || log_fail "fixture did not produce a git refusal (git said: $git_said)"
+
+  run_guard "$repo"
+  [[ "$RC" -eq 4 ]] || log_fail "a git refusal must still exit 4 (got $RC; stderr: $ERR)"
+  # 1. git's own diagnosis reaches the operator, verbatim. This is the whole
+  #    point: for safe.directory that line carries the remediation.
+  [[ "$ERR" == *"$git_said"* ]] \
+    || log_fail "guard did not relay git's own message (git said: $git_said; guard said: $ERR)"
+  # 2. and the false claim must NOT be what the operator is told instead.
+  [[ "$ERR" != *"not inside a git work tree"* ]] \
+    || log_fail "guard still asserts 'not inside a git work tree' for a git refusal (stderr: $ERR)"
+
+  # The OTHER failure that lands here: no repository at all. git writes a fatal
+  # for that too, so stderr alone cannot separate the two — and telling someone
+  # standing in an empty directory that git "refused to read this repository"
+  # is just a second false diagnosis replacing the first. This control pins the
+  # discrimination, not merely the exit code.
+  local bare="$TMP_ROOT/t013-no-repo"
+  mkdir -p "$bare" || log_fail "fixture setup: could not create $bare"
+  run_guard "$bare"
+  [[ "$RC" -eq 4 ]] || log_fail "a directory outside any repo must exit 4 (got $RC; stderr: $ERR)"
+  [[ "$ERR" == *"not inside a git work tree"* ]] \
+    || log_fail "outside any repository the plain sentence is the TRUE one and must be used (stderr: $ERR)"
+  [[ "$ERR" != *"refused to read this repository"* ]] \
+    || log_fail "no repository is not a refusal; the guard must not report one (stderr: $ERR)"
+
+  log_pass "git refusal -> git's own message relayed verbatim, false work-tree claim withheld"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013"
 
 main() {
   echo "Testing $TEST_NAME (deterministic branch-per-work-item hygiene guard)"
