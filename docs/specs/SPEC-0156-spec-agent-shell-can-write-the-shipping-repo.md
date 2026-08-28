@@ -2,13 +2,15 @@
 id: spec-agent-shell-can-write-the-shipping-repo
 type: spec
 number: 156
-status: implementing
+status: done
 ceremony_level: 3
 links:
   requirement: docs/issues/ISSUE-0037-agent-shell-can-write-the-shipping-repo.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 302
+  commits:
+    - 25c9ff8
 ---
 
 # Spec — the agent's git writes become deliberate, instead of ambient

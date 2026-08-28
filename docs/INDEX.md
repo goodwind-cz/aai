@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-28T17:32:23.842Z
+Generated: 2026-08-28T17:46:09.728Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0156 | specs | implementing | 9 done | docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md |
 
 ## Canonical layer (0)
 
@@ -49,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (373)
+## Done (374)
 
 | ID | Type | Path |
 |---|---|---|
@@ -425,13 +424,15 @@ _None._
 | SPEC-0153 | specs | docs/specs/SPEC-0153-spec-close-leaves-state-stale.md |
 | SPEC-0154 | specs | docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md |
 | SPEC-0155 | specs | docs/specs/SPEC-0155-spec-isolation-shares-the-shipping-git.md |
+| SPEC-0156 | specs | docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (13)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0166 | issues | docs/issues/CHANGE-0166-residuals-of-the-per-suite-clone-ride.md |
+| operator-waiver-unblocks-pr (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-operator-waiver-unblocks-pr.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

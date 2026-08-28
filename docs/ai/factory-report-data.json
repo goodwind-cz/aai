@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-08-28T15:53:14.385Z",
+  "generatedAt": "2026-08-28T17:37:09.279Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 129,
-    "delivered": 380,
+    "rides": 130,
+    "delivered": 381,
     "active_weeks": 9,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (380 closes vs 129 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 380,
-    "delivered_per_week_avg": 42.2,
+    "note": "\"delivered\" counts every work_item_closed event (381 closes vs 130 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 381,
+    "delivered_per_week_avg": 42.3,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -23,7 +23,7 @@
       "2026-W32": 19,
       "2026-W33": 33,
       "2026-W34": 33,
-      "2026-W35": 15
+      "2026-W35": 16
     },
     "delivered_groups": [
       {
@@ -301,7 +301,7 @@
         "key": "month:2026-08",
         "kind": "month",
         "label": "2026-08",
-        "count": 117,
+        "count": 118,
         "refs": [
           "cache-friendly-dispatch",
           "spec-cache-friendly-dispatch",
@@ -419,7 +419,8 @@
           "spec-harness-surfaces-drift-unguarded",
           "isolation-shares-the-shipping-git",
           "spec-isolation-shares-the-shipping-git",
-          "agent-shell-can-write-the-shipping-repo"
+          "agent-shell-can-write-the-shipping-repo",
+          "spec-agent-shell-can-write-the-shipping-repo"
         ]
       }
     ],
@@ -1935,7 +1936,7 @@
         },
         {
           "ref": "isolation-shares-the-shipping-git",
-          "lead_time_seconds": null
+          "lead_time_seconds": 71587
         },
         {
           "ref": "spec-isolation-shares-the-shipping-git",
@@ -1944,25 +1945,29 @@
         {
           "ref": "agent-shell-can-write-the-shipping-repo",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-agent-shell-can-write-the-shipping-repo",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 3889,
-      "mean_seconds": 121668.8,
-      "measured": 125,
+      "median_seconds": 3892,
+      "mean_seconds": 121271.4,
+      "measured": 126,
       "unmeasurable": 255
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2280,
-      "mean": 4235,
-      "measured": 127
+      "median": 2300,
+      "mean": 4417.3,
+      "measured": 128
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 131879,
-        "tokens": 14049154
+        "duration_seconds": 138762,
+        "tokens": 14427364
       },
       {
         "role": "Implementation",
@@ -1971,23 +1976,23 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 55860,
-        "tokens": 9060225
+        "duration_seconds": 58834,
+        "tokens": 9562506
       },
       {
         "role": "Remediation",
-        "duration_seconds": 64928,
-        "tokens": 9347383
+        "duration_seconds": 77144,
+        "tokens": 10268926
       },
       {
         "role": "Validation",
-        "duration_seconds": 162175,
-        "tokens": 12217998
+        "duration_seconds": 166051,
+        "tokens": 12530839
       },
       {
         "role": "Planning",
-        "duration_seconds": 69064,
-        "tokens": 8577466
+        "duration_seconds": 70679,
+        "tokens": 8749635
       }
     ],
     "per_ride": [
@@ -2635,6 +2640,11 @@
         "ref": "harness-surfaces-drift-unguarded",
         "busy_seconds": 17319,
         "remediation_runs": 2
+      },
+      {
+        "ref": "isolation-shares-the-shipping-git",
+        "busy_seconds": 27564,
+        "remediation_runs": 5
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -2644,15 +2654,15 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 505034,
-      "mean": 687701.7,
-      "measured": 81
+      "median": 505655,
+      "mean": 707205.8,
+      "measured": 82
     },
-    "tokens_total": 55703834,
+    "tokens_total": 57990878,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 14049154
+        "tokens": 14427364
       },
       {
         "role": "Implementation",
@@ -2660,25 +2670,25 @@
       },
       {
         "role": "Code Review",
-        "tokens": 9060225
+        "tokens": 9562506
       },
       {
         "role": "Remediation",
-        "tokens": 9347383
+        "tokens": 10268926
       },
       {
         "role": "Validation",
-        "tokens": 12217998
+        "tokens": 12530839
       },
       {
         "role": "Planning",
-        "tokens": 8577466
+        "tokens": 8749635
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 363,
-      "total_runs": 591,
-      "pct": 61,
+      "runs_with_marker": 375,
+      "total_runs": 603,
+      "pct": 62,
       "by_week": [
         {
           "week": "2026-W27",
@@ -2730,9 +2740,9 @@
         },
         {
           "week": "2026-W35",
-          "runs_with_marker": 28,
-          "total_runs": 32,
-          "pct": 88
+          "runs_with_marker": 40,
+          "total_runs": 44,
+          "pct": 91
         }
       ]
     },
@@ -2740,12 +2750,12 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 82,
-          "runs_marked": 61,
+          "runs_total": 83,
+          "runs_marked": 62,
           "runs_sentinel": 0,
           "runs_unmarked": 21,
-          "tokens_total": 14049154,
-          "median_tokens_per_run": 230460,
+          "tokens_total": 14427364,
+          "median_tokens_per_run": 232615,
           "share_pct": 25
         },
         {
@@ -2760,42 +2770,42 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 135,
-          "runs_marked": 88,
+          "runs_total": 138,
+          "runs_marked": 91,
           "runs_sentinel": 0,
           "runs_unmarked": 47,
-          "tokens_total": 9060225,
-          "median_tokens_per_run": 90939,
+          "tokens_total": 9562506,
+          "median_tokens_per_run": 91630,
           "share_pct": 16
         },
         {
           "role": "Remediation",
-          "runs_total": 78,
-          "runs_marked": 50,
+          "runs_total": 83,
+          "runs_marked": 55,
           "runs_sentinel": 0,
           "runs_unmarked": 28,
-          "tokens_total": 9347383,
-          "median_tokens_per_run": 172758,
-          "share_pct": 17
+          "tokens_total": 10268926,
+          "median_tokens_per_run": 173297,
+          "share_pct": 18
         },
         {
           "role": "Validation",
-          "runs_total": 140,
-          "runs_marked": 93,
+          "runs_total": 142,
+          "runs_marked": 95,
           "runs_sentinel": 0,
           "runs_unmarked": 47,
-          "tokens_total": 12217998,
-          "median_tokens_per_run": 119766,
+          "tokens_total": 12530839,
+          "median_tokens_per_run": 123408,
           "share_pct": 22
         },
         {
           "role": "Planning",
-          "runs_total": 109,
-          "runs_marked": 62,
+          "runs_total": 110,
+          "runs_marked": 63,
           "runs_sentinel": 0,
           "runs_unmarked": 47,
-          "tokens_total": 8577466,
-          "median_tokens_per_run": 135218,
+          "tokens_total": 8749635,
+          "median_tokens_per_run": 135433,
           "share_pct": 15
         }
       ],
@@ -3085,8 +3095,8 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 3,
-              "median_tokens": 353251
+              "runs_marked": 4,
+              "median_tokens": 358156
             },
             {
               "role": "Implementation",
@@ -3095,23 +3105,23 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 5,
-              "median_tokens": 145609
+              "runs_marked": 8,
+              "median_tokens": 149182
             },
             {
               "role": "Remediation",
-              "runs_marked": 8,
-              "median_tokens": 133223
+              "runs_marked": 13,
+              "median_tokens": 135630
             },
             {
               "role": "Validation",
-              "runs_marked": 8,
+              "runs_marked": 10,
               "median_tokens": 161792
             },
             {
               "role": "Planning",
-              "runs_marked": 4,
-              "median_tokens": 167745
+              "runs_marked": 5,
+              "median_tokens": 172169
             }
           ]
         }
@@ -3121,8 +3131,8 @@
   "quality": {
     "first_pass_clean": {
       "clean": 80,
-      "flagged": 103,
-      "rate_pct": 78
+      "flagged": 104,
+      "rate_pct": 77
     },
     "na_reliability": 26,
     "remediation_distribution": {
@@ -3131,7 +3141,7 @@
       "2": 5,
       "3": 3,
       "4": 3,
-      "5": 1,
+      "5": 2,
       "6": 1,
       "8": 1,
       "n/a": 26
@@ -3139,7 +3149,7 @@
     "avg_validation_fails": 0,
     "avg_review_fails": 0,
     "verdict_mix": {
-      "PASS": 116,
+      "PASS": 117,
       "null": 13
     },
     "review_events": 26,
@@ -3212,16 +3222,16 @@
     },
     {
       "week": "2026-W35",
-      "delivered": 15,
-      "median_lead_time_seconds": 20654,
-      "busy_seconds": 47174,
-      "tokens": 4849216,
+      "delivered": 16,
+      "median_lead_time_seconds": 46121,
+      "busy_seconds": 74738,
+      "tokens": 7136260,
       "first_pass_rate": 0
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 103,
+    "open_count": 102,
     "oldest_age_days": 14,
     "items": [
       {
@@ -3356,7 +3366,7 @@
         "id": "fu-bare-main-baseref-sweep",
         "ref": "deslop-corpus-honesty",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "No guard stops a NEW test or script from pinning a bare 'main' ref that silently never resolves on a pull_request checkout",
         "status": "open"
       },
@@ -3412,7 +3422,7 @@
         "id": "fu-tripwire-fail-hides-suite-log-tail",
         "ref": "suites-must-not-touch-the-shipping-repo",
         "severity": "P2",
-        "age_days": 8,
+        "age_days": 9,
         "what": "a suite that fails on its OWN exit code AND trips the tripwire prints only the tripwire block, so the failure-lines-plus-tail dump that makes a CI log diagnosable is lost",
         "status": "open"
       },
@@ -3684,7 +3694,7 @@
         "id": "fu-drain-pipe-grep-q-ratchet",
         "ref": "assertions-must-not-die-on-their-own-payload",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "Drain the 390-occurrence pipe-into-grep-q ratchet in tests/skills to zero, file by file",
         "status": "open"
       },
@@ -3692,7 +3702,7 @@
         "id": "fu-ceremony-levels-nearest-miss-30kb",
         "ref": "assertions-must-not-die-on-their-own-payload",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "test-aai-ceremony-levels.sh TEST-019 pipes a 30048 B flattened spec into grep -q three times — the corpus nearest miss, 46 percent of the pipe buffer",
         "status": "open"
       },
@@ -3740,7 +3750,7 @@
         "id": "fu-seed-step2-enumeration-silent",
         "ref": "spec-a-half-seeded-checkout-says-it-is-isolated",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "Seeding step 2 reports seeded when git ls-files could not enumerate part of the tree (unreadable directory), so files silently never copied are counted as a complete seed",
         "status": "open"
       },
@@ -3748,7 +3758,7 @@
         "id": "fu-marker-append-failure-discarded",
         "ref": "a-half-seeded-checkout-says-it-is-isolated",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "in the wrapper's step-2 pipeline a failed marker append is discarded, so on a full filesystem the copy failure leaves no marker and the -s check reports seeded",
         "status": "open"
       },
@@ -3788,7 +3798,7 @@
         "id": "fu-contract-prefix-order-unenforced",
         "ref": "the-subagent-contract-omits-the-hazards",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "the D1 cap argument rests on the CONTRACT being copied stable-first into the dispatch prefix, but that ordering lives only as prose in .aai/ORCHESTRATION_PARALLEL.prompt.md:142-143; no code assembles the payload and no test pins the ordering (SPEC-0110 TEST-033 compares the SPEC-0096 file-bytes hash, not the assembled prompt), and the Validation dispatch of this very scope shipped a POINTER to the CONTRACT instead of a copy",
         "status": "open"
       },
@@ -3796,7 +3806,7 @@
         "id": "fu-metrics-flush-advises-git-restore",
         "ref": "the-subagent-contract-omits-the-hazards",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": ".aai/scripts/metrics-flush.mjs:801-803 emits 'EVENTS is append-only per RFC-0001 - restore from git before continuing' to whatever agent runs the flush, telling it to run a restoring git command on a tracked append-only ledger in the same sentence that cites the append-only rule",
         "status": "open"
       },
@@ -3804,7 +3814,7 @@
         "id": "fu-contract-ledger-rule-stated-twice",
         "ref": "the-subagent-contract-omits-the-hazards",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": ".aai/SUBAGENT_CONTRACT.md states the EVENTS.jsonl append-only rule twice in one file: HAZ-LEDGER at lines 27-31 and the Single-writer MAY-write list at lines 72-74 ('docs/ai/EVENTS.jsonl via append-event.mjs (the append-only, commutative audit log)')",
         "status": "open"
       },
@@ -3812,7 +3822,7 @@
         "id": "fu-usage-marker-omission-unfixable",
         "ref": "the-subagent-contract-omits-the-hazards",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "a run appended without a usage marker cannot be corrected: append-run only appends, STATE hand-edits are forbidden, and the only recovery is toggling usage_capture_gate off and back",
         "status": "open"
       },
@@ -3940,7 +3950,7 @@
         "id": "fu-uncarved-dispatch-lanes",
         "ref": "CHANGE-0165",
         "severity": "P2",
-        "age_days": 3,
+        "age_days": 4,
         "what": "three dispatchable prompts still direct a subagent to run a STATE mutator without the dispatched-subagent carve, and STATE_FALLBACK's hand-edit path is un-reconciled",
         "status": "open"
       },
@@ -3964,7 +3974,7 @@
         "id": "fu-agents-tree-not-synced",
         "ref": "harness-surfaces-drift-unguarded",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": ".agents/skills/ is a tracked shipped skill tree that neither aai-sync.sh nor aai-sync.ps1 copies",
         "status": "open"
       },
@@ -3980,7 +3990,7 @@
         "id": "fu-dispatch-demands-full-sweep",
         "ref": "isolation-shares-the-shipping-git",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "the orchestrator wrote a mandatory full framework sweep into EVERY validation and remediation dispatch, although no canon requires one",
         "status": "open"
       },
@@ -3988,7 +3998,7 @@
         "id": "fu-sweep-is-strictly-sequential",
         "ref": "isolation-shares-the-shipping-git",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "tests/skills/test-framework.sh runs all 81 suites strictly sequentially, so a sweep costs 1914 s while its work is dominated by a long tail",
         "status": "open"
       },
@@ -3996,7 +4006,7 @@
         "id": "fu-orchestrator-probe-touched-git",
         "ref": "isolation-shares-the-shipping-git",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "the orchestrator ran rm -rf against the shipping repository's .git/worktrees to build an ad hoc gate probe, the same class it had just instructed two roles to avoid",
         "status": "open"
       },
@@ -4022,14 +4032,6 @@
         "severity": "P2",
         "age_days": 0,
         "what": "docs/ai/overview.html and overview-data.json are tracked artefacts generated from docs/ai/STATE.yaml, which is untracked by design, so every commit of them bakes one machine's local state into the repository",
-        "status": "open"
-      },
-      {
-        "id": "fu-branchguard-hides-git-stderr",
-        "ref": "agent-shell-can-write-the-shipping-repo",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "branch-guard reports 'not inside a git work tree' for ANY git failure, including a safe.directory ownership refusal, and discards git's own actionable remediation",
         "status": "open"
       },
       {
@@ -4085,6 +4087,40 @@
         "remediation_runs": 8,
         "remediation_tokens": 1923125,
         "remediation_share_pct": 45
+      },
+      {
+        "ref": "isolation-shares-the-shipping-git",
+        "date_utc": "2026-08-28",
+        "runs_total": 12,
+        "elapsed_wall_seconds": 76706,
+        "agent_seconds": 27564,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 3
+          },
+          {
+            "role": "Remediation",
+            "runs": 5
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 12,
+        "tokens_total": 2287044,
+        "remediation_runs": 5,
+        "remediation_tokens": 921543,
+        "remediation_share_pct": 40
       },
       {
         "ref": "harness-surfaces-drift-unguarded",
