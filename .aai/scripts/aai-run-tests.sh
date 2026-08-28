@@ -575,7 +575,18 @@ if [ "$AAI_ISO_STATUS" != 'not-applicable' ]; then
       echo "AAI-SEEDING: partial - $AAI_SEED_WHY; the disposable checkout is missing content, so a failure here can be unrelated to the command and a pass can be an assertion that skipped itself." >&2
       ;;
     *)
-      echo "AAI-SEEDING: skipped - no disposable checkout was made, so nothing was seeded." >&2
+      # FINDING 2 (bot review, PR #299): this default also fires when the D3
+      # gate destroys an ALREADY-MADE checkout (clone and checkout --detach
+      # both succeeded) before any seeding step runs - AAI_SEED_STATUS is
+      # never touched off its initial value on that path, so the original
+      # "no disposable checkout was made" half of this sentence was false
+      # there. Broadened rather than replaced, per TEST-113(c): that arm
+      # greps the exact original substring for the genuine no-checkout path
+      # (AAI_TEST_ISOLATION=0, no repo root, no HEAD to branch from - none of
+      # which ever reach a clone), so the substring stays, and the second
+      # clause covers the destroyed-checkout case truthfully instead of
+      # needing a fourth AAI_SEED_STATUS value.
+      echo "AAI-SEEDING: skipped - no disposable checkout was made, or one was made and then discarded before seeding could start (see the AAI-ISOLATION line above for why), so nothing was seeded." >&2
       ;;
   esac
 fi
