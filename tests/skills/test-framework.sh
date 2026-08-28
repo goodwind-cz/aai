@@ -835,6 +835,18 @@ run_test() {
         # the checkout is built and before the suite runs") and is what
         # catches a git surface disturbed later than the early half can see —
         # TEST-209/210 exercise exactly that.
+        #
+        # review R2-2: this branch is reached AFTER seeding already ran, so
+        # `seed_status` above still carries whatever `ISO_LAST_SEED` recorded
+        # for a checkout that is about to be destroyed. The suite that
+        # actually executes below runs in `$PROJECT_ROOT`, not in that
+        # checkout, so nothing the checkout received reaches it — reporting
+        # `seeded` here would describe work done to a tree the suite never
+        # sees. Reclassify to `skipped` so this half agrees with the EARLY
+        # gate's `elif` below, which never reached the seeding steps at all:
+        # both halves now report the seeding axis for what a degraded suite
+        # actually got, which is nothing.
+        seed_status="skipped"
         iso_status="degraded"
         iso_status_why="the disposable checkout's git surface still resolves to the shipping repository"
         log_warn "Isolation: '$skill_name' runs degraded — the disposable checkout's git surface still resolves to the shipping repository, so it runs against the shipping repository instead"
@@ -863,6 +875,16 @@ run_test() {
       # surface was already found unseparated before any shipping-touching
       # command ran, so iso_create destroyed and forgot the base itself and
       # never reached the fetch/config lines at all.
+      #
+      # review R2-2: because iso_create returned before the three seeding
+      # steps, `seed_status` keeps this function's initial "skipped" default
+      # rather than being set from `ISO_LAST_SEED` — a change in classification
+      # from before this gate existed, when a degraded suite here would have
+      # already run (and counted) the seeding steps against a checkout that
+      # was only discovered unseparated afterward. Left as `skipped`
+      # deliberately: nothing was copied into this checkout, so `skipped` is
+      # the true state, and the LATE gate branch above is now reclassified to
+      # match for the same reason, so both halves of D3's gate agree.
       iso_status="degraded"
       iso_status_why="$ISO_LAST_DEGRADED_WHY"
       log_warn "Isolation: '$skill_name' runs degraded — $ISO_LAST_DEGRADED_WHY, so it runs against the shipping repository instead"
