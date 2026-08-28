@@ -36,6 +36,12 @@ RFC-0001).
   guards, an inert arm whose PASS line claimed a proof it never made, an arm that could
   not tell a real result from a vacuous one, and a precondition that failed spuriously on
   hosts keeping git config outside HOME. All are fixed and bite-proved.
+- Bot review then found a fourth escape the ride had left open: `git clone --local` points
+  the disposable checkout's `origin` at the source, so one `git push origin` wrote refs into
+  the shipping repository despite the separate common directory. Reproduced on a scratch
+  source, closed by repointing `origin` at a nonexistent path after the gate (removing the
+  remote outright was rejected on measurement: it prunes the `refs/remotes/origin/*` six
+  suites read), and pinned by TEST-213.
 - Registry: closes `fu-worktree-shares-git-admin-surface` and
   `fu-worktree-hook-disarms-later-suites`; closes `fu-isolated-suite-reaches-shipping-repo`
   QUALIFIED (a suite hardcoding an absolute path is still unpreventable — ISSUE-0041).
