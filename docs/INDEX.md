@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-27T12:22:43.880Z
+Generated: 2026-08-28T04:44:23.414Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -423,9 +423,24 @@ _None._
 | SPEC-0154 | specs | docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (0)
+## Drafts (14)
 
-_None._
+| ID | Type | Path |
+|---|---|---|
+| residuals-of-the-per-suite-clone-ride (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-residuals-of-the-per-suite-clone-ride.md |
+| console-log-then-exit-across-41-clis (unnumbered draft) | issues | docs/issues/DEBT-DRAFT-console-log-then-exit-across-41-clis.md |
+| guards-vacuously-green-on-an-unexercised-path (unnumbered draft) | issues | docs/issues/DEBT-DRAFT-guards-vacuously-green-on-an-unexercised-path.md |
+| hazard-canon-delivery-and-duplication (unnumbered draft) | issues | docs/issues/DEBT-DRAFT-hazard-canon-delivery-and-duplication.md |
+| payload-size-hazards-past-the-one-fixed-site (unnumbered draft) | issues | docs/issues/DEBT-DRAFT-payload-size-hazards-past-the-one-fixed-site.md |
+| withdrawn-claim-sweeps-are-not-verifiable (unnumbered draft) | issues | docs/issues/DEBT-DRAFT-withdrawn-claim-sweeps-are-not-verifiable.md |
+| agent-shell-can-write-the-shipping-repo (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-agent-shell-can-write-the-shipping-repo.md |
+| checks-that-assert-less-than-they-claim (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-checks-that-assert-less-than-they-claim.md |
+| disposable-checkout-lifecycle-residuals (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-disposable-checkout-lifecycle-residuals.md |
+| focus-and-validation-state-go-stale-silently (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-focus-and-validation-state-go-stale-silently.md |
+| hardcoded-path-defeats-suite-isolation (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-hardcoded-path-defeats-suite-isolation.md |
+| intake-doc-identity-table-and-its-pins (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-intake-doc-identity-table-and-its-pins.md |
+| tripwire-ratchet-arms-without-coverage (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-tripwire-ratchet-arms-without-coverage.md |
+| tripwire-reporting-and-run-dir-residuals (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-tripwire-reporting-and-run-dir-residuals.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -456,4 +471,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-08-27 — counts above use this date for overdue checks.
+Today (UTC): 2026-08-28 — counts above use this date for overdue checks.
