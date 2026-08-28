@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // validation-waiver.mjs — the aai-pr VALIDATION precondition, made executable
-// (CHANGE-DRAFT-operator-waiver-unblocks-pr, ceremony_level 1).
+// (CHANGE-0167-operator-waiver-unblocks-pr, ceremony_level 1).
 //
 // THE BLOCKER: .aai/SKILL_PR.prompt.md refused unless
 // `last_validation.status` is `pass`, and state.mjs accepts only

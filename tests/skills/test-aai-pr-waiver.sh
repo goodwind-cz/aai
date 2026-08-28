@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-pr validation waiver
-# (docs/issues/CHANGE-DRAFT-operator-waiver-unblocks-pr.md, TEST-01..TEST-04;
+# (docs/issues/CHANGE-0167-operator-waiver-unblocks-pr.md, TEST-01..TEST-04;
 #  ceremony_level 1 — the intake's Test Plan IS the declared validation scope.)
 #
 # Drives .aai/scripts/validation-waiver.mjs — the executable form of the

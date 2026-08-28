@@ -1,7 +1,7 @@
 ---
 id: operator-waiver-unblocks-pr
 type: change
-number: null
+number: 167
 status: draft
 ceremony_level: 1
 ---

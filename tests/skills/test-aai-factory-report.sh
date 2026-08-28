@@ -395,7 +395,7 @@ JSONL
   log_pass "Quality rates + remediation distribution derive from the reliability block; pre-field ride -> n/a bucket (TEST-007)"
 }
 
-# ===== TEST-041 (CHANGE-DRAFT-operator-waiver-unblocks-pr TEST-05) ===========
+# ===== TEST-041 (CHANGE-0167-operator-waiver-unblocks-pr TEST-05) ===========
 # Waived rides appear in the report, and self-waived (agent) ones are counted
 # SEPARATELY from operator waivers — a gate an agent clears for itself must not
 # hide inside the operator total. Report-only: nothing blocks because of one.
