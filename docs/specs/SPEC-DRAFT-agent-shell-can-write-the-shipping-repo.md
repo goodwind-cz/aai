@@ -140,6 +140,31 @@ The refusal text is the only teaching surface this scope needs and must therefor
 be actionable on its own (constitution article 4): it names the guard, the marker,
 the reason the guard exists, and the uninstall command.
 
+> **AMENDMENT (owner decision, 2026-08-28) — the guarded ref set is narrowed to
+> `refs/heads/main`.** This is an additive disclosure, not a rewrite: D1 above is
+> preserved verbatim and its `refs/heads/` wording is what the guard was specified
+> as before this decision.
+>
+> The owner was asked because the mechanism changes the OWNER's own `git commit`,
+> not only an agent's, and the canon assigns high-impact decisions to HITL. Given
+> the choice between guarding every branch and guarding `main` alone, the owner
+> chose `main` alone.
+>
+> The evidence supports it: BOTH recorded instances this scope prevents happened on
+> `main` — `fu-subagent-probe-hits-real-repo` (two commits created on `main`) and the
+> main-pollution scar behind `fu-empty-path-cd-stays-in-shipping-repo`. Narrowing to
+> `refs/heads/main` therefore keeps the full 2-of-4 prevention count measured in D6
+> while removing the friction from every feature-branch commit, which is where
+> essentially all work in this repository happens.
+>
+> What this gives up, stated plainly: an agent may still create, move or delete a
+> FEATURE branch in the shipping repository without the marker. No recorded instance
+> did that, and the tripwire observes the working tree either way, but the guard no
+> longer claims to prevent it. The D2 table below is read with `refs/heads/main`
+> substituted for `refs/heads/` throughout: `git branch <n>` and `git branch -D <n>`
+> on a non-main branch move from REFUSED to ALLOWED; `git commit` and
+> `git reset --hard` are REFUSED only while `main` is checked out.
+
 ### D2 — THE BLAST RADIUS, measured per operation
 
 The scope of the refusal was not chosen by preference. Each git operation was run
