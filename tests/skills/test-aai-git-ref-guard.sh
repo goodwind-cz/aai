@@ -507,17 +507,35 @@ test_308_installer_contract() {
 }
 
 # --- TEST-309 (Spec-AC-05) — .ps1 twin, static -------------------------------
+# F-R3 (code review 20260828T144437Z): the prior version of this arm ran its
+# four greps over the WHOLE .ps1 file. Every one of those four patterns also
+# occurs outside the hook body (SYNOPSIS at :6, Write-Host at :266, the
+# $reftxMarker/$reftxPath assignments), so the arm could not tell a .ps1 that
+# writes a working guard from one whose $reftxBody here-string was deleted
+# entirely — mutation-proved by the reviewer. Fixed by extracting exactly the
+# $reftxBody @'...'@ here-string (the text that is literally Set-Content'd
+# into .git/hooks/reference-transaction) and asserting on THAT, not the file.
 test_309_ps1_twin_static() {
   if [[ ! -f "$INSTALLER_PS1" ]]; then
     log_fail "TEST-309: $INSTALLER_PS1 not found"
     return
   fi
   local ok=1
-  grep -qF "AAI:REF-GUARD" "$INSTALLER_PS1" || { log_fail "TEST-309: .ps1 missing the AAI:REF-GUARD marker"; ok=0; }
-  grep -qF "refs/heads/main" "$INSTALLER_PS1" || { log_fail "TEST-309: .ps1 missing the refs/heads/main predicate"; ok=0; }
-  grep -qF "AAI_GIT_WRITE" "$INSTALLER_PS1" || { log_fail "TEST-309: .ps1 missing the AAI_GIT_WRITE check"; ok=0; }
+  local reftx_body
+  reftx_body="$(awk '
+    /^\$reftxBody = @'"'"'$/ { capture=1; next }
+    capture && /^'"'"'@$/    { capture=0; next }
+    capture                  { print }
+  ' "$INSTALLER_PS1")"
+  if [[ -z "$reftx_body" ]]; then
+    log_fail "TEST-309: could not extract the \$reftxBody @'...'@ here-string from .ps1 (delimiters moved, or the body is empty/missing)"
+    ok=0
+  fi
+  grep -qF "AAI:REF-GUARD" <<<"$reftx_body" || { log_fail "TEST-309: .ps1 reftxBody here-string missing the AAI:REF-GUARD marker"; ok=0; }
+  grep -qF "refs/heads/main" <<<"$reftx_body" || { log_fail "TEST-309: .ps1 reftxBody here-string missing the refs/heads/main predicate"; ok=0; }
+  grep -qF "AAI_GIT_WRITE" <<<"$reftx_body" || { log_fail "TEST-309: .ps1 reftxBody here-string missing the AAI_GIT_WRITE check"; ok=0; }
   grep -qF "hooks/reference-transaction" "$INSTALLER_PS1" || { log_fail "TEST-309: .ps1 does not write .git/hooks/reference-transaction itself"; ok=0; }
-  [[ $ok -eq 1 ]] && log_pass "TEST-309 .ps1 twin carries the AAI:REF-GUARD marker, the refs/heads/main predicate, the AAI_GIT_WRITE check, and writes .git/hooks itself"
+  [[ $ok -eq 1 ]] && log_pass "TEST-309 .ps1 twin's \$reftxBody here-string carries the AAI:REF-GUARD marker, the refs/heads/main predicate, the AAI_GIT_WRITE check, and the script writes .git/hooks/reference-transaction"
 }
 
 # --- TEST-310 (Spec-AC-06) — aai-doctor category -----------------------------

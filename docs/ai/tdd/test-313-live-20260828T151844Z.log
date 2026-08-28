@@ -1,0 +1,13 @@
+TEST-313 live transcript (2026-08-28T15:18:44Z)
+hook: /Users/ales/Projects/aai/.git/hooks/reference-transaction
+command: git update-ref refs/heads/main a058d0ee058e737c7669becaf99e8f43ff89c040 a058d0ee058e737c7669becaf99e8f43ff89c040
+exit: 128
+--- stderr/stdout ---
+AAI:REF-GUARD refused this refs/heads/main update.
+  Guard:  git reference-transaction hook, marker AAI:REF-GUARD.
+  Reason: a write to refs/heads/main must be a deliberate, narrow exception,
+          never an ambient default (agent-shell-can-write-the-shipping-repo).
+  Fix:    re-run this ONE command with AAI_GIT_WRITE=1 set, e.g.
+            AAI_GIT_WRITE=1 git commit ...
+  Uninstall this guard: bash .aai/scripts/install-pre-commit-hook.sh --uninstall
+fatal: ref updates aborted by hook
