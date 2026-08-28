@@ -57,18 +57,25 @@ Verified in a disposable clone of `origin/main` (`c6b32d0`):
   `test-aai-routine.sh`), and a `/usr/bin/grep` for git commands against a literal `main`
   across `tests/skills/*.sh` returns 18 lines. The repo-wide sweep was explicitly out of
   the filing scope.
-- `fu-close-before-push-ordering` (P2). Running `close-work-item.mjs` BEFORE the push is
-  currently only a habit; nothing enforces it, so a ride can push first and then spend a
-  round chasing framework reds that the close would have cleared. Validation round 4 of
-  that scope proved empirically that the five `tests/skills/test-framework.sh` reds are
-  ride-caused and clear only once the close has run.
+- `fu-close-before-push-ordering` (P2). WITHDRAWN as filed, after bot review on PR #298
+  re-read the canon: the entry's premise (close belongs before the push) is the reverse of
+  `.aai/SKILL_PR.prompt.md:254`, which runs the close AFTER the PR is open because it
+  needs `--pr N`. What the entry actually observed stays true and is worth planning: the
+  five `tests/skills/test-framework.sh` reds a ride carries are ride-caused and clear once
+  the close has run, so a sweep taken between push and close reads worse than the tree is.
+  That is a sequencing HAZARD to document, not an argument for closing first.
 - `fu-close-requires-pr-before-it-exists` (P2). Measured at
   `.aai/scripts/close-work-item.mjs:172`:
   `if (!args.pr || !/^\d+$/.test(String(args.pr))) usageError('missing or invalid --pr (integer required)')`.
-  The correct ceremony order runs the tool BEFORE the push that creates the PR, so the
-  number must be GUESSED. On 2026-08-19 the guess 265 happened to be right, which is luck,
-  not procedure. The ordering is not optional: `fu-close-before-push-ordering` proves the
-  framework reds only clear post-close, and `fu-close-after-merge-bypasses-ci` proves
+  CORRECTION (bot review on PR #297, verified against the canon): the canonical order is
+  the OPPOSITE of what this paragraph first claimed. `.aai/SKILL_PR.prompt.md:254` states
+  the close ceremony "still runs after PR open, needing `--pr N`" — push and open the PR
+  first, then close with the real number. Planning must not invent the reverse sequence:
+  closing first would attach close telemetry to a guessed PR number, which is the
+  number-prediction defect this project already carries on file. What stays true is only
+  the tool's precondition: it refuses without an integer `--pr`, so it CANNOT run before a
+  PR exists. The 2026-08-19 entry describing a guessed 265 documents a ride that worked
+  around that precondition, not a procedure to repeat. `fu-close-after-merge-bypasses-ci` proves
   running it after merge bypasses required checks. The tool therefore forces either a guess
   or a wrong order.
 
