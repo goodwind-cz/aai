@@ -1957,3 +1957,4 @@
 {"v":1,"ts":"2026-08-28T09:02:23.939Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-isolation-shares-the-shipping-git","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-08-28T09:02:23.971Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-isolation-shares-the-shipping-git","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-08-28T09:02:24.001Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-isolation-shares-the-shipping-git","payload":{"commit":"19520bd"}}
+{"v":1,"ts":"2026-08-28T11:08:54.953Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-agent-shell-can-write-the-shipping-repo","payload":{"from":"draft","to":"implementing"}}
