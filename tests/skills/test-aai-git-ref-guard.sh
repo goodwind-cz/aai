@@ -531,10 +531,35 @@ test_309_ps1_twin_static() {
     log_fail "TEST-309: could not extract the \$reftxBody @'...'@ here-string from .ps1 (delimiters moved, or the body is empty/missing)"
     ok=0
   fi
+  # The marker is a comment by design, so it is asserted against the whole body.
   grep -qF "AAI:REF-GUARD" <<<"$reftx_body" || { log_fail "TEST-309: .ps1 reftxBody here-string missing the AAI:REF-GUARD marker"; ok=0; }
-  grep -qF "refs/heads/main" <<<"$reftx_body" || { log_fail "TEST-309: .ps1 reftxBody here-string missing the refs/heads/main predicate"; ok=0; }
-  grep -qF "AAI_GIT_WRITE" <<<"$reftx_body" || { log_fail "TEST-309: .ps1 reftxBody here-string missing the AAI_GIT_WRITE check"; ok=0; }
-  grep -qF "hooks/reference-transaction" "$INSTALLER_PS1" || { log_fail "TEST-309: .ps1 does not write .git/hooks/reference-transaction itself"; ok=0; }
+
+  # Everything below must be pinned to the CODE, not to prose that merely
+  # mentions it. This body carries its own explanatory comment and a refusal
+  # message, and both spell out "refs/heads/main" and "AAI_GIT_WRITE" in full;
+  # a bare substring grep therefore passes even when the twin ships a guard
+  # that watches the wrong ref or tests the variable backwards. Both of those
+  # mutations were demonstrated to survive the substring form. Windows has no
+  # live arm anywhere in this suite, so this static check is the ONLY thing
+  # standing between an inverted .ps1 guard and a shipped release.
+  local reftx_code
+  reftx_code="$(printf '%s\n' "$reftx_body" \
+    | awk '/<<'"'"'AAI_REF_GUARD_MSG'"'"'/ { inmsg=1 } inmsg { if ($0 ~ /^AAI_REF_GUARD_MSG$/) inmsg=0; next } { print }' \
+    | grep -v '^[[:space:]]*#')"
+  [[ -n "$reftx_code" ]] || { log_fail "TEST-309: stripping comments and the refusal message left no code (extraction shape moved)"; ok=0; }
+
+  # The guarded ref is compared, not merely named.
+  grep -qF 'if [ "$aai_ref" = "refs/heads/main" ]; then' <<<"$reftx_code" \
+    || { log_fail "TEST-309: .ps1 twin does not COMPARE the updated ref against refs/heads/main (a mention in a comment is not a predicate)"; ok=0; }
+  # ...and the escape hatch opens on equality with 1, not on anything else.
+  grep -qF 'if [ "$AAI_GIT_WRITE" = "1" ]; then' <<<"$reftx_code" \
+    || { log_fail "TEST-309: .ps1 twin does not gate on AAI_GIT_WRITE = 1 (an inverted or absent comparison would ship a guard that is backwards)"; ok=0; }
+
+  # Assertion 4 targets the ASSIGNMENT that decides where the hook is written.
+  # "hooks/reference-transaction" also appears in the .ps1 SYNOPSIS comment, so
+  # anchoring on the bare string lets a retargeted $reftxPath pass unnoticed.
+  grep -qE '^\$reftxPath[[:space:]]*=[[:space:]]*Join-Path \$repoRoot "\.git/hooks/reference-transaction"' "$INSTALLER_PS1" \
+    || { log_fail "TEST-309: .ps1 does not ASSIGN \$reftxPath to .git/hooks/reference-transaction (the SYNOPSIS mentioning it is not the write target)"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-309 .ps1 twin's \$reftxBody here-string carries the AAI:REF-GUARD marker, the refs/heads/main predicate, the AAI_GIT_WRITE check, and the script writes .git/hooks/reference-transaction"
 }
 
