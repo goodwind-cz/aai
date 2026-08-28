@@ -2017,12 +2017,24 @@ test_211_prefix_checkout_under_project_root_is_degraded() {
 # tests/skills/test-framework.sh (before the gate moved into iso_create): the
 # fixture's local `user.name` gained `GLOBAL-FALLBACK-IDENTITY` after the run.
 # GREEN against the fixed bytes (what build_framework_repo copies in below):
-# it stays absent. An unmutated control (plain clone, no
-# worktree-add mutation) is included so the assertion is not vacuously true —
-# it passes for a DIFFERENT reason (the write lands in the clone's own
-# separate .git, never the fixture's), not because nothing ever gets written.
+# it stays absent. This observes ONE ordering seam, not every shipping-
+# touching command in the framework: the checkout-creation command itself
+# (clone/worktree-add) runs before any gate can, by construction, and is out
+# of scope (review R2-3).
+#
+# review R2-1: the mutated case's silence is meaningful ONLY if the write
+# would otherwise have been real — an identity-less environment makes
+# `iso_git config --get user.name` return empty, `[[ -z "$uname" ]] ||` never
+# runs a `config` command at all, and the mutated case goes green for the
+# WRONG reason (nothing to write) rather than the right one (the gate blocked
+# it). The unmutated control below now asserts that precondition directly: it
+# captures the identity FROM INSIDE the running suite's own checkout (the
+# checkout is destroyed before this function can inspect it any other way)
+# and requires it to equal the global fallback identity this arm set up. If
+# the precondition does not hold, the control fails and the whole arm goes
+# RED instead of silently passing.
 # ---------------------------------------------------------------------------
-test_212_the_gate_runs_before_any_shipping_touching_command() {
+test_212_the_gate_runs_before_iso_create_writes_identity_config() {
   local ok=1
 
   # A throwaway $HOME so the only resolvable git identity comes from a global
@@ -2067,12 +2079,18 @@ EOF
   # --- unmutated control: same fixture shape, no worktree-add mutation. The
   # write still happens (into the clone's OWN .git), so this proves the
   # mutated case's silence is the gate firing FIRST, not a fixture where the
-  # config write never runs at all.
-  local dc tmphome_c
+  # config write never runs at all. review R2-1: the control also carries the
+  # arm's PRECONDITION — the checkout is destroyed before this function
+  # regains control, so the suite itself captures its own checkout's local
+  # `user.name` to a file outside the checkout, which this function can still
+  # read afterward.
+  local dc tmphome_c capture_c
   dc="$(new_fixture)" || return
   tmphome_c="$(new_fixture)" || return
+  capture_c="$(mktemp "${TMPDIR:-/tmp}/aai-iso-212-identity.XXXXXX")" \
+    || { log_fail "TEST-212: no scratch file for the control's identity capture"; return; }
   build_framework_repo "$dc"
-  write_fixture_suite "$dc" "t-order2" 'exit 0'
+  write_fixture_suite "$dc" "t-order2" "git config --local --get user.name > '$capture_c' 2>/dev/null; exit 0"
   commit_fixture_repo "$dc" || { log_fail "TEST-212 control fixture repo init failed"; return; }
   git -C "$dc" config --local --unset user.name
   git -C "$dc" config --local --unset user.email
@@ -2084,8 +2102,19 @@ EOF
     ok=0
   fi
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-212 THE ORDERING PIN — under the TEST-203 worktree-add mutation, no shipping-touching command runs before the D3 gate aborts it (the fixture's own local git config gains no identity key); the unmutated control confirms the write is real, just never reaches the fixture either way" \
-    || log_fail "TEST-212 a shipping-touching command ran before the D3 gate had a chance to abort it"
+  # review R2-1: the precondition — without this, an identity-less host makes
+  # BOTH the mutated case and this control go green on a `user.name` that was
+  # never going to be written anywhere, and the arm proves nothing.
+  local captured_uname
+  captured_uname="$(cat "$capture_c" 2>/dev/null)"
+  rm -f "$capture_c" 2>/dev/null
+  if [[ "$captured_uname" != "GLOBAL-FALLBACK-IDENTITY" ]]; then
+    log_info "TEST-212(control): the checkout's OWN local user.name resolved to '$captured_uname' (expected GLOBAL-FALLBACK-IDENTITY) — the identity precondition did not hold, so this run cannot tell a gate block apart from nothing-to-write"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-212 THE ORDERING PIN — under the TEST-203 worktree-add mutation, no shipping-touching command runs before the D3 gate aborts it (the fixture's own local git config gains no identity key); the unmutated control shows the identity write is real and does land in the checkout's own separate git config, confirming the precondition held and the mutated case's silence is the gate firing first, not a no-op write" \
+    || log_fail "TEST-212 a shipping-touching command ran before the D3 gate had a chance to abort it, or the identity precondition did not hold"
 }
 
 main() {
@@ -2121,7 +2150,7 @@ main() {
   test_209_unresolvable_checkout_git_removed_is_degraded
   test_210_unresolvable_deregistered_linked_worktree_is_degraded
   test_211_prefix_checkout_under_project_root_is_degraded
-  test_212_the_gate_runs_before_any_shipping_touching_command
+  test_212_the_gate_runs_before_iso_create_writes_identity_config
   echo ""
   # Both halves, because either one alone is a lie on some path: FAILED is
   # blind to a subshell failure, and the registry is blind to a machine where
