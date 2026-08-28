@@ -405,6 +405,36 @@ if aai_iso_is_suite_run "$@"; then
     AAI_ISO_BASE=''
     AAI_ISO_STATUS='degraded'
     AAI_ISO_WHY="the disposable checkout's git surface still resolves to the shipping repository"
+  elif ! git -C "$AAI_ISO_WT" remote set-url origin "$AAI_ISO_WT/.git/ORIGIN-DISABLED-BY-ISOLATION" >/dev/null 2>&1; then
+    # spec-isolation-shares-the-shipping-git FINDING 1 (bot review, PR #299):
+    # a clone's `origin` remote is the clone SOURCE - $AAI_REPO_ROOT, the
+    # shipping repository - so a push to `origin` from inside the disposable
+    # checkout writes straight into the shipping repository, bypassing the
+    # separate common directory D1 otherwise delivers. Measured over the
+    # whole suite corpus: every `git push origin` / `git fetch origin` /
+    # `git ls-remote origin` runs inside a suite's OWN nested fixture (its
+    # own `git init` plus its own `git remote add origin <bare>`), never
+    # against "$AAI_ISO_WT" itself; the read-only `origin/main` /
+    # `origin/HEAD` resolution six suites rely on (D1) reads the
+    # `refs/remotes/origin/*` NAMESPACE the clone and the ref-parity fetch
+    # below populate, which does not depend on `origin`'s URL at all. `git
+    # remote remove origin` is rejected: it also PRUNES
+    # `refs/remotes/origin/*`, which would break that resolution. Repointing
+    # the URL to a path that cannot exist leaves the refs alone and turns any
+    # push or fetch through `origin` into an immediate, loud failure instead
+    # of a silent write into the shipping repository. Placed AFTER the D3
+    # gate above, not folded into the clone/checkout condition: a linked
+    # worktree that never configured `origin` at all (the TEST-203/210
+    # regression shape) would fail `remote set-url` for an unrelated reason
+    # (no such remote) and must not steal the gate's own named reason - the
+    # gate is what proves "$AAI_ISO_WT" is an owned clone before this command
+    # assumes it. A failure here cannot be trusted to keep `origin` from
+    # reaching the shipping repository, so it is treated exactly like a gate
+    # failure: degraded, same reason, checkout destroyed.
+    rm -rf "$AAI_ISO_BASE"
+    AAI_ISO_BASE=''
+    AAI_ISO_STATUS='degraded'
+    AAI_ISO_WHY="the disposable checkout's git surface still resolves to the shipping repository"
   elif ! cd "$AAI_ISO_WT"; then
     rm -rf "$AAI_ISO_BASE"
     AAI_ISO_BASE=''

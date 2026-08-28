@@ -420,18 +420,49 @@ iso_create() {
   ISOLATION_BASES+=("$base")
   # D3 THE GATE (spec-isolation-shares-the-shipping-git) — the EARLY half,
   # evaluated HERE rather than only in run_test (review N-1): everything below
-  # this point — the ref-parity fetch and the two identity `config` calls —
-  # targets "$wt" on the assumption it is an owned clone. Under the regression
-  # this gate exists to catch (a linked worktree instead of a clone), those
-  # commands land in the SHIPPING `.git/config`, once per suite, before a
-  # caller-side-only check would ever run — measured (review N-1): `git -C
-  # "$wt" config user.name` from inside a linked worktree wrote the source
-  # repository's local config. Gating first here means no command below this
-  # line ever runs against a checkout that has not already proven its own git
-  # surface is separated. run_test still runs a LATE half of the same gate on
-  # ISO_LAST_WT after seeding, catching a surface disturbed later than this
-  # early call can see (TEST-209/210).
+  # this point — the origin-defang below, the ref-parity fetch and the two
+  # identity `config` calls — targets "$wt" on the assumption it is an owned
+  # clone. Under the regression this gate exists to catch (a linked worktree
+  # instead of a clone), those commands land in the SHIPPING `.git/config`,
+  # once per suite, before a caller-side-only check would ever run — measured
+  # (review N-1): `git -C "$wt" config user.name` from inside a linked
+  # worktree wrote the source repository's local config. Gating first here
+  # means no command below this line ever runs against a checkout that has
+  # not already proven its own git surface is separated. run_test still runs
+  # a LATE half of the same gate on ISO_LAST_WT after seeding, catching a
+  # surface disturbed later than this early call can see (TEST-209/210).
   if ! iso_separated "$wt"; then
+    ISO_LAST_DEGRADED_WHY="the disposable checkout's git surface still resolves to the shipping repository"
+    iso_destroy "$base"
+    iso_bases_forget "$base"
+    return 1
+  fi
+  # spec-isolation-shares-the-shipping-git FINDING 1 (bot review, PR #299): a
+  # clone's `origin` remote is the clone SOURCE — $PROJECT_ROOT, the shipping
+  # repository — so a push to `origin` from inside the disposable checkout
+  # (measured: the doc-number reservation push in allocate-doc-number.mjs, or
+  # a bare `git push origin ...`) writes straight into the shipping
+  # repository, bypassing the separate common directory D1 otherwise
+  # delivers. Measured over the whole suite corpus: every `git push origin` /
+  # `git fetch origin` / `git ls-remote origin` runs inside a suite's OWN
+  # nested fixture (its own `git init` plus its own `git remote add origin
+  # <bare>`), never against "$wt" itself; the read-only `origin/main` /
+  # `origin/HEAD` resolution six suites rely on (D1) reads the
+  # `refs/remotes/origin/*` NAMESPACE the clone and the ref-parity fetch below
+  # populate, which does not depend on `origin`'s URL at all. `git remote
+  # remove origin` is rejected: it also PRUNES `refs/remotes/origin/*`, which
+  # would break that resolution. Repointing the URL to a path that cannot
+  # exist leaves the refs alone and turns any push or fetch through `origin`
+  # into an immediate, loud failure instead of a silent write into the
+  # shipping repository. Placed AFTER the gate above, not before it: a linked
+  # worktree of a fixture that never configured `origin` at all makes a
+  # `remote set-url` fail for an unrelated reason (no such remote) and must
+  # not be allowed to steal the gate's own named reason (TEST-203/210) — the
+  # gate is what proves "$wt" is an owned clone before this command assumes
+  # it. A failure here means the checkout cannot be trusted to keep `origin`
+  # from reaching the shipping repository, so it is treated exactly like a
+  # gate failure: degraded, same reason, checkout destroyed.
+  if ! git -C "$wt" remote set-url origin "$wt/.git/ORIGIN-DISABLED-BY-ISOLATION" >/dev/null 2>&1; then
     ISO_LAST_DEGRADED_WHY="the disposable checkout's git surface still resolves to the shipping repository"
     iso_destroy "$base"
     iso_bases_forget "$base"

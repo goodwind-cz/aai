@@ -2117,6 +2117,65 @@ EOF
     || log_fail "TEST-212 iso_create's identity-writing git config command ran before the D3 gate had a chance to abort it, or the identity precondition did not hold"
 }
 
+# ---------------------------------------------------------------------------
+# TEST-213 (bot review finding 1 on PR #299) — THE MUTATION PROOF. `git clone`
+# sets `origin` to the clone SOURCE, so a push to `origin` from inside the
+# disposable checkout writes straight into whatever repository the checkout
+# was cloned from — the fixture repository here, the shipping repository for
+# real. The mutated case neutralises iso_create's origin-defang step (the
+# exact reported hole, reproduced): the push then reaches the fixture
+# repository. The unmutated control, same fixture shape, real fixed
+# iso_create: the push fails and the ref never appears there. RED against the
+# pre-fix bytes of tests/skills/test-framework.sh (no origin-defang step
+# exists at all, so this arm's mutated-case sed target is simply absent and
+# the push always reaches the fixture); GREEN once the fix and this arm both
+# land, because the control then reports the property held.
+# ---------------------------------------------------------------------------
+test_213_origin_push_from_the_checkout_does_not_reach_the_source() {
+  local ok=1
+
+  # --- mutated case: the origin-defang line is neutralised into a no-op,
+  # reopening exactly the hole the bot named.
+  local dm tmp
+  dm="$(new_fixture)" || return
+  build_framework_repo "$dm"
+  write_fixture_suite "$dm" t-origin-push '
+git -C "$R" push origin HEAD:refs/heads/isolation-probe-push >/dev/null 2>&1
+exit 0'
+  commit_fixture_repo "$dm" || { log_fail "TEST-213 fixture repo init failed"; return; }
+
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-iso-mutate.XXXXXX")" \
+    || { log_fail "TEST-213: no scratch file for the mutation"; return; }
+  sed 's|git -C "$wt" remote set-url origin "$wt/.git/ORIGIN-DISABLED-BY-ISOLATION" >/dev/null 2>&1|true|' \
+    "$dm/tests/skills/test-framework.sh" > "$tmp" && mv "$tmp" "$dm/tests/skills/test-framework.sh"
+  rm -f "$tmp" 2>/dev/null
+  grep -qF 'remote set-url origin "$wt/.git/ORIGIN-DISABLED-BY-ISOLATION"' "$dm/tests/skills/test-framework.sh" \
+    && { log_fail "TEST-213: the mutation did not take — the sed target has drifted from the real iso_create"; return; }
+
+  bash "$dm/tests/skills/test-framework.sh" >/dev/null 2>&1
+
+  git -C "$dm" rev-parse --verify -q refs/heads/isolation-probe-push >/dev/null 2>&1 \
+    || { log_info "TEST-213: MUTATED case — the probe push did not reach the fixture repository even with the origin-defang step neutralised; the arm's own precondition failed to reproduce the reported hole, so it proves nothing"; ok=0; }
+
+  # --- unmutated control: same fixture shape, the real (fixed) iso_create —
+  # the push must fail and the ref must never appear in the fixture.
+  local dc
+  dc="$(new_fixture)" || return
+  build_framework_repo "$dc"
+  write_fixture_suite "$dc" t-origin-push '
+git -C "$R" push origin HEAD:refs/heads/isolation-probe-push >/dev/null 2>&1
+exit 0'
+  commit_fixture_repo "$dc" || { log_fail "TEST-213 control fixture repo init failed"; return; }
+
+  bash "$dc/tests/skills/test-framework.sh" >/dev/null 2>&1
+
+  git -C "$dc" rev-parse --verify -q refs/heads/isolation-probe-push >/dev/null 2>&1 \
+    && { log_info "TEST-213(control): the probe push REACHED the fixture repository (refs/heads/isolation-probe-push exists) — a push to origin from inside the disposable checkout is not blocked"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-213 THE MUTATION PROOF — with the origin-defang step neutralised, a push to origin from inside the disposable checkout reaches the fixture repository; the unmutated control on the same fixture shape shows the fix blocks it" \
+    || log_fail "TEST-213 a push to origin from inside the disposable checkout does not reach the shipping repository"
+}
+
 main() {
   echo "=== Test: $TEST_NAME (spec-suites-run-in-a-disposable-worktree) ==="
   check_deps
@@ -2151,6 +2210,7 @@ main() {
   test_210_unresolvable_deregistered_linked_worktree_is_degraded
   test_211_prefix_checkout_under_project_root_is_degraded
   test_212_the_gate_runs_before_iso_create_writes_identity_config
+  test_213_origin_push_from_the_checkout_does_not_reach_the_source
   echo ""
   # Both halves, because either one alone is a lie on some path: FAILED is
   # blind to a subshell failure, and the registry is blind to a machine where
