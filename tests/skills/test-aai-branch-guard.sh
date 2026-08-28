@@ -403,20 +403,20 @@ test_013() {
   [[ "$ERR" != *"not inside a git work tree"* ]] \
     || log_fail "guard still asserts 'not inside a git work tree' for a git refusal (stderr: $ERR)"
 
-  # Outside any repository git ALSO explains itself, so the relay applies there
-  # too — the operator is told what git said rather than a guard-authored
-  # paraphrase. Pinned so nobody reintroduces the paraphrase as a "friendlier"
-  # message for this case.
+  # The OTHER failure that lands here: no repository at all. git writes a fatal
+  # for that too, so stderr alone cannot separate the two — and telling someone
+  # standing in an empty directory that git "refused to read this repository"
+  # is just a second false diagnosis replacing the first. This control pins the
+  # discrimination, not merely the exit code.
   local bare="$TMP_ROOT/t013-no-repo"
   mkdir -p "$bare" || log_fail "fixture setup: could not create $bare"
-  local bare_said
-  bare_said="$( cd "$bare" && git rev-parse --is-inside-work-tree 2>&1 >/dev/null | head -1 )"
   run_guard "$bare"
   [[ "$RC" -eq 4 ]] || log_fail "a directory outside any repo must exit 4 (got $RC; stderr: $ERR)"
-  if [[ -n "$bare_said" ]]; then
-    [[ "$ERR" == *"$bare_said"* ]] \
-      || log_fail "outside a repository the guard must relay git's message too (git said: $bare_said; guard said: $ERR)"
-  fi
+  [[ "$ERR" == *"not inside a git work tree"* ]] \
+    || log_fail "outside any repository the plain sentence is the TRUE one and must be used (stderr: $ERR)"
+  [[ "$ERR" != *"refused to read this repository"* ]] \
+    || log_fail "no repository is not a refusal; the guard must not report one (stderr: $ERR)"
+
   log_pass "git refusal -> git's own message relayed verbatim, false work-tree claim withheld"
 }
 

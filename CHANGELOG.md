@@ -13,9 +13,10 @@ RFC-0001).
 
 ## [unreleased] — branch-guard relays git's own refusal message
 
-- `.aai/scripts/branch-guard.mjs` no longer answers every git failure with "not inside a git work tree". When git refuses to read the repository — a `safe.directory` ownership refusal, a dangling gitdir link, a permission error, or simply no repository here — its own message is relayed verbatim, because that is the only text that names the cause and carries the fix. git explains itself for every refusal, so the guard-authored sentence survives only as a fallback for a git that failed silently.
+- `.aai/scripts/branch-guard.mjs` no longer answers every git failure with "not inside a git work tree". When git refuses to read the repository — a `safe.directory` ownership refusal, a dangling gitdir link, a permission error — its own message is relayed verbatim, because that is the only text that names the cause and carries the fix. Standing outside any repository is a different failure and keeps the plain sentence: git writes a fatal there too, so the two are told apart structurally (is there a `.git` above the caller at all) rather than by matching git's wording, and calling that case a refusal would only swap one false diagnosis for another.
 - Reported from a downstream Codex run on Windows, where the false diagnosis cost the operator time before they identified `safe.directory` themselves.
-- Pinned by TEST-013 in `tests/skills/test-aai-branch-guard.sh`, bite-proved against the pre-fix guard. It asserts the PROPERTY — whatever git said reaches the operator — not git's wording, which differs by platform: macOS names the missing gitdir where the Linux CI runner prints "(null)".
+- Pinned by TEST-013 in `tests/skills/test-aai-branch-guard.sh`, bite-proved against the pre-fix guard, and its control pins the no-repository
+  case so neither branch can silently take the other's message. It asserts the PROPERTY — whatever git said reaches the operator — not git's wording, which differs by platform: macOS names the missing gitdir where the Linux CI runner prints "(null)".
 
 ## [unreleased] — fix(harness): suite isolation stops sharing the shipping repository's git (ISSUE-0045 / SPEC-0155) [L2]
 

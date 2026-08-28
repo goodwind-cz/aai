@@ -117,20 +117,34 @@ function git(args, cwd) {
 // declined to read it. Reported from a downstream Codex run on Windows where
 // the operator lost time to the false diagnosis before finding safe.directory
 // themselves (fu-branchguard-hides-git-stderr).
+// git prints a fatal for BOTH "there is no repository here" and "there is one
+// and I refuse to read it", so the presence of stderr cannot tell them apart —
+// and calling the ordinary no-repository case a refusal is its own false
+// diagnosis. Discriminate structurally instead of by matching git's wording,
+// which differs across versions and platforms: walk up for a .git entry. One
+// exists => something IS here and git declined it (ownership, a dangling
+// gitdir link, permissions) => relay git's message. None => the caller is
+// simply not in a repository, and the plain sentence is the honest answer.
+function repoMarkerAbove(cwd) {
+  let dir = path.resolve(cwd);
+  for (;;) {
+    if (fs.existsSync(path.join(dir, '.git'))) return true;
+    const parent = path.dirname(dir);
+    if (parent === dir) return false;
+    dir = parent;
+  }
+}
+
 function workTreeProbe(cwd) {
   try {
     const out = execFileSync('git', ['rev-parse', '--is-inside-work-tree'], {
       cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
     }).trim();
-    return { inside: out === 'true', gitSaid: null };
+    return { inside: out === 'true', refused: false, gitSaid: null };
   } catch (err) {
     const said = String((err && err.stderr) || '').trim();
-    return { inside: false, gitSaid: said || null };
+    return { inside: false, refused: repoMarkerAbove(cwd), gitSaid: said || null };
   }
-}
-
-function isInsideWorkTree(cwd) {
-  return workTreeProbe(cwd).inside;
 }
 
 function topLevel(cwd) {
@@ -222,18 +236,18 @@ function main() {
     process.exit(0);
   }
 
-  // Order item 1 — must be inside a git work tree. When git refused, relay ITS
-  // message: it is the only text that names the actual cause and, for
-  // safe.directory, carries the exact remediation. In practice git explains
-  // itself for every refusal INCLUDING the plain outside-a-repository case, so
-  // the guard-authored sentence below is a defensive fallback for a git that
-  // failed silently — not the normal path for "you are not in a repo".
+  // Order item 1 — must be inside a git work tree. Two different failures live
+  // here and they deserve different answers: a repository git DECLINED to read
+  // (relay git's own message — for safe.directory it carries the exact fix),
+  // and no repository at all (the plain sentence, which is then true).
   const probe = workTreeProbe(cwd);
   if (!probe.inside) {
-    if (probe.gitSaid) {
+    if (probe.refused) {
       console.error('branch-guard: git refused to read this repository, so the current branch cannot be determined.');
-      console.error('  git said:');
-      for (const line of probe.gitSaid.split('\n')) console.error(`    ${line}`);
+      if (probe.gitSaid) {
+        console.error('  git said:');
+        for (const line of probe.gitSaid.split('\n')) console.error(`    ${line}`);
+      }
     } else {
       console.error('branch-guard: not inside a git work tree (cannot determine the current branch)');
     }
