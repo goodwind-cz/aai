@@ -11,6 +11,41 @@ RFC-0001).
 
 ## [unreleased]
 
+## [unreleased] — fix(harness): suite isolation stops sharing the shipping repository's git (ISSUE-0045 / SPEC-0155) [L2]
+
+- "Isolated" meant a moved working directory, not removed reach. Measured before the
+  ride: from inside a disposable `git worktree`, `git rev-parse --git-common-dir`
+  returned the shipping `.git` and `git config --local` written there was read back by
+  the shipping checkout immediately. Refs, config and hooks of the live repository were
+  writable from every "isolated" suite.
+- Each suite now gets its own repository via `git clone --local --no-hardlinks`, so its
+  git administrative surface is genuinely separate. `--shared` was rejected on evidence
+  (it plants an `objects/info/alternates` path back into the shipping `.git`) and
+  `GIT_COMMON_DIR` was rejected because git refuses it on a linked worktree.
+- The gate MEASURES the property rather than assuming it: a checkout whose common dir
+  still resolves into the shipping tree is counted degraded with a named reason, in both
+  the bash and the POSIX funnel, and it now runs BEFORE the commands that could reach the
+  source repository — under the old ordering a regressed mechanism wrote the operator's
+  `.git/config` once per suite before the gate fired.
+- Cost, measured on the real repository rather than a fixture: 1.008-1.123 s per suite
+  against a standing 2000 ms bound, about +0.75 s over the worktree it replaces, plus
+  19.3 ms added by the gate reordering. The bound was not raised.
+- Four validation and review rounds found, in order: the gate not fail-closed on an
+  unresolvable probe (`cd ""` is a silent no-op — the repository's own HAZ-CD, biting
+  inside the function written to prevent it), a gate that ran after the writes it
+  guards, an inert arm whose PASS line claimed a proof it never made, an arm that could
+  not tell a real result from a vacuous one, and a precondition that failed spuriously on
+  hosts keeping git config outside HOME. All are fixed and bite-proved.
+- Bot review then found a fourth escape the ride had left open: `git clone --local` points
+  the disposable checkout's `origin` at the source, so one `git push origin` wrote refs into
+  the shipping repository despite the separate common directory. Reproduced on a scratch
+  source, closed by repointing `origin` at a nonexistent path after the gate (removing the
+  remote outright was rejected on measurement: it prunes the `refs/remotes/origin/*` six
+  suites read), and pinned by TEST-213.
+- Registry: closes `fu-worktree-shares-git-admin-surface` and
+  `fu-worktree-hook-disarms-later-suites`; closes `fu-isolated-suite-reaches-shipping-repo`
+  QUALIFIED (a suite hardcoding an absolute path is still unpreventable — ISSUE-0041).
+
 ## [unreleased] — docs(user-guide): the Quick Reference lists every skill, and the guard now covers both lists [L1]
 
 - The owner found `/aai-ship` missing from *Essential Skills (Use Daily)* — the

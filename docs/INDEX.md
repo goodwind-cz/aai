@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-08-28T08:07:23.695Z
+Generated: 2026-08-28T10:27:57.302Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -48,7 +48,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (370)
+## Done (372)
 
 | ID | Type | Path |
 |---|---|---|
@@ -253,6 +253,7 @@ _None._
 | ISSUE-0033 | issues | docs/issues/ISSUE-0033-index-arm-diffs-whole-file-for-a-path-claim.md |
 | ISSUE-0035 | issues | docs/issues/ISSUE-0035-close-leaves-state-stale.md |
 | ISSUE-0036 | issues | docs/issues/ISSUE-0036-harness-surfaces-drift-unguarded.md |
+| ISSUE-0045 | issues | docs/issues/ISSUE-0045-isolation-shares-the-shipping-git.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -421,6 +422,7 @@ _None._
 | SPEC-0152 | specs | docs/specs/SPEC-0152-spec-single-writer-canon-contradiction.md |
 | SPEC-0153 | specs | docs/specs/SPEC-0153-spec-close-leaves-state-stale.md |
 | SPEC-0154 | specs | docs/specs/SPEC-0154-spec-harness-surfaces-drift-unguarded.md |
+| SPEC-0155 | specs | docs/specs/SPEC-0155-spec-isolation-shares-the-shipping-git.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
 ## Drafts (14)

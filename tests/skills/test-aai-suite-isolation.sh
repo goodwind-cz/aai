@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 #
-# Test: every suite runs in a disposable worktree
-# (spec-suites-run-in-a-disposable-worktree).
+# Test: every suite runs in a disposable git checkout
+# (spec-suites-run-in-a-disposable-worktree; spec-isolation-shares-the-shipping-git
+# replaced the checkout's own mechanism — a per-suite clone, not a linked
+# worktree — without renaming this file or its TEST-001..006 ids).
 #
 # Covers TEST-001..TEST-006 from
 # docs/specs/SPEC-0138-spec-suites-run-in-a-disposable-worktree.md.
@@ -172,13 +174,15 @@ leaked_worktrees() {
 
 # ---------------------------------------------------------------------------
 # TEST-001 (AC-001) — a suite does not reach the shipping WORKING TREE by
-# accident (not `cannot`: the copy is one `git rev-parse --git-common-dir` away
-# from the shipping tree's path — see the Summary and D7). The
+# accident. Before spec-isolation-shares-the-shipping-git D1 the copy was a
+# linked worktree, one `git rev-parse --git-common-dir` away from the
+# shipping tree's own admin directory (see the Summary and SPEC-0138 D7);
+# after D1 the copy is a clone that owns its own git directory instead. The
 # fixture suites do the two things the tripwire was built to catch — modify a
 # tracked file plus create an untracked one, and COMMIT — and the fixture
 # repository comes back byte-identical on both halves of the snapshot.
-# What this arm does NOT claim: the shared `.git` is still reachable from the
-# copy (refs, config, hooks — measured, spec D7), and nothing here tests that.
+# What this arm does NOT claim anything about: the checkout's own git
+# administrative surface (refs, config, hooks) — TEST-201/202 test that now.
 # ---------------------------------------------------------------------------
 test_001_writes_do_not_reach_the_working_tree_by_accident() {
   local d evid out rc=0 ok=1 before after
@@ -429,33 +433,37 @@ exit 0"
       || { log_info "TEST-004(d): $leaked_d disposable checkout(s) survived an interrupt: $(git -C "$dd" worktree list)"; ok=0; }
   fi
 
-  # (e) the REGISTRATION half, on the path where `git worktree remove` cannot
-  # do the job. A suite that deletes its own checkout's .git link file leaves
-  # `worktree remove` with nothing it recognises, so the directory goes by
-  # `rm -rf` and only the fallback deregistration can clear the admin entry.
-  # This sub-arm is the ONLY thing holding that fallback: on the happy path
-  # `worktree remove` clears the registration itself, so a funnel that dropped
-  # the fallback would change nothing observable anywhere else — measured as a
-  # mutation that bit nothing until this arm existed. The fallback is scoped to
-  # this one checkout's `.git/worktrees/<name>` entry rather than a
-  # repository-wide `git worktree prune`, because prune also deregisters an
-  # OPERATOR worktree whose directory happens to be unreachable right now.
+  # (e) a suite that destroys its own checkout's .git out from under it.
+  # Before spec-isolation-shares-the-shipping-git D1 the checkout was a linked
+  # worktree whose `.git` was a LINK FILE, so `rm -f` was enough to strip it,
+  # `git worktree remove` then had nothing it recognised, and only the
+  # `iso_deregister` fallback (since deleted, D1) could clear the shipping
+  # repository's admin entry — that mechanism, and this sub-arm's coverage of
+  # it, no longer exist. After D1 the checkout is a clone, so `.git` is its
+  # own real DIRECTORY: `rm -f` on it fails with "is a directory" (measured)
+  # and leaves the checkout untouched, which is why the fixture below now
+  # reads `rm -rf`. What this proves instead: `iso_destroy`'s `rm -rf "$base"`
+  # still removes the whole disposable checkout — leaving no directory behind
+  # and failing no run — even when the suite has already ripped out the
+  # checkout's own git administrative directory. (`leaked_worktrees`'s
+  # registration half, `n_reg`, is structurally zero for every TEST-004 case
+  # under a clone — a stronger statement than "the registration was removed".)
   local de tmphome_e out_e rc_e=0 leaked_e
   de="$(new_fixture)" || return
   tmphome_e="$(new_fixture)" || return
   build_framework_repo "$de"
   write_fixture_suite "$de" t-unlink '
-rm -f "$R/.git"
-echo "removed my own checkout gitdir link"
+rm -rf "$R/.git"
+echo "removed my own checkout .git directory"
 exit 0'
   commit_fixture_repo "$de" || { log_fail "TEST-004(e) fixture repo init failed"; return; }
   out_e="$(TMPDIR="$tmphome_e" bash "$de/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc_e=$?
   [[ "$rc_e" -eq 0 ]] || { log_info "TEST-004(e): the run exited $rc_e (want 0 — a suite wrecking its OWN copy is not a shipping-repository event): $out_e"; ok=0; }
   leaked_e="$(leaked_worktrees "$de" "$tmphome_e")"
   [[ "$leaked_e" -eq 0 ]] \
-    || { log_info "TEST-004(e): $leaked_e disposable checkout(s) survived a removal that git could not perform: $(git -C "$de" worktree list)"; ok=0; }
+    || { log_info "TEST-004(e): $leaked_e disposable checkout(s) survived a suite that destroyed its own checkout's .git directory: $(git -C "$de" worktree list)"; ok=0; }
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-004 the disposable checkout and its git worktree registration are both gone after a passing run, a failing run, a watchdog kill, an interrupt, and a removal git itself could not perform" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-004 the disposable checkout is gone after a passing run, a failing run, a watchdog kill, an interrupt, and a suite that destroyed its own checkout's .git directory out from under it" \
     || log_fail "TEST-004 the checkout is removed on every exit"
 }
 
@@ -594,9 +602,15 @@ exit \"\${1:-0}\""
 }
 
 # ---------------------------------------------------------------------------
-# TEST-006 (AC-006) — the cost, MEASURED rather than estimated: the same
-# fixture run twice, once with isolation off and once on, over enough suites
-# that whole-second timing resolution cannot dominate the per-suite figure.
+# TEST-006 (AC-006) — a BOUND-CONFORMANCE smoke check, not real-repo evidence
+# (remediation round 1 F-4): the same FIXTURE run twice, once with isolation
+# off and once on, over enough suites that whole-second timing resolution
+# cannot dominate the per-suite figure. The fixture is a two-file byte-copy
+# repository, not the ~72 MB shipping repository, so its ms/suite number
+# proves the mechanism stays under the 2000ms bound on SOME repository — it is
+# not the real per-suite `git clone --local --no-hardlinks` cost, which scales
+# with repository size and is measured separately (Spec-AC-06's validation
+# evidence, not this arm).
 # ---------------------------------------------------------------------------
 test_006_added_wall_clock_per_suite() {
   local d ok=1 n=20 i t0 t1 t2 off_s on_s delta ms
@@ -625,9 +639,9 @@ test_006_added_wall_clock_per_suite() {
   ms=$(( delta * 1000 / n ))
 
   [[ "$ms" -lt 2000 ]] \
-    || { log_info "TEST-006: isolation added ${ms}ms per suite over $n suites (baseline ${off_s}s, isolated ${on_s}s) — the bound is 2000ms"; ok=0; }
+    || { log_info "TEST-006: isolation added ${ms}ms per suite over $n suites on the FIXTURE repo (baseline ${off_s}s, isolated ${on_s}s) — the bound is 2000ms"; ok=0; }
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-006 isolation adds ${ms}ms of wall clock per suite, measured over $n suites (baseline ${off_s}s, isolated ${on_s}s), against a 2000ms bound" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-006 isolation adds ${ms}ms of wall clock per suite on the FIXTURE repo, measured over $n suites (baseline ${off_s}s, isolated ${on_s}s), against a 2000ms bound (a fixture-scoped bound-conformance check, not real-repo cost evidence)" \
     || log_fail "TEST-006 added wall clock per suite"
 }
 
@@ -1053,13 +1067,29 @@ test_107_the_wrapper_reports_its_own_isolation_status() {
 #
 # THE LEVERS ARE REAL, never a mutation of the fixture's framework copy (SPEC-0144
 # D2's rule). All three were measured on git 2.50.1 before being used here:
-#   step 1  a smudge-only `filter` attribute (no `clean`) makes the worktree
+#   step 1  a smudge-only `filter` attribute (no `clean`) makes the disposable
 #           checkout differ from the index, so the working-tree patch cannot
 #           apply — `error: … patch does not apply`, rc 1. The git-lfs shape.
-#           Rejected alternatives: a file-to-directory swap (measured — git apply
-#           SUCCEEDS, so it proves nothing) and a post-checkout hook chmodding
-#           the checkout read-only (works, rc 128, but it breaks steps 2 and 3 in
-#           the same run and so cannot isolate step 1).
+#           The smudge COMMAND itself rides in as `GIT_CONFIG_KEY_n`/
+#           `GIT_CONFIG_VALUE_n` environment variables on the outer run, not as
+#           `.git/config` (spec-isolation-shares-the-shipping-git D1): a linked
+#           worktree shares the shipping repository's LOCAL config, but the
+#           disposable checkout is now a separate `git clone`, which does not —
+#           the same non-inheritance Spec-AC-02 relies on. An environment
+#           variable is inherited by every git subprocess in the run regardless
+#           of which repository it targets, so the smudge still fires on the
+#           checkout's OWN clone-and-checkout step under either mechanism,
+#           while the shipping fixture's own working copy (written by `printf`,
+#           never checked out) stays unsmudged either way. Measured rejected
+#           alternatives for making the SAME divergence purely from committed
+#           content (so no environment injection would be needed): the `eol`
+#           and `ident` attributes are both attribute-compensated by
+#           `git apply` itself (it reverses them before matching context), so
+#           neither one ever breaks the apply; a file-to-directory swap
+#           (measured — git apply SUCCEEDS, so it proves nothing); and a
+#           post-checkout hook chmodding the checkout read-only (works, rc 128,
+#           but it breaks steps 2 and 3 in the same run and so cannot isolate
+#           step 1).
 #   steps   a `chmod 000` source file. `git ls-files --others` and `test -f` only
 #   2 + 3   stat, so the file is still SELECTED for copying, and `cp -p` then
 #           cannot read it (measured rc 1).
@@ -1093,9 +1123,11 @@ echo one
 exit $t_one_exit"
   write_fixture_suite "$d" t-two 'echo two; exit 0'
   commit_fixture_repo "$d" || return 1
-  # A smudge with no clean: the checkout's copy differs from the index, so the
-  # patch generated against the index cannot apply to it.
-  [[ "$mode" == "step1" ]] && git -C "$d" config filter.mangle.smudge 'sed s/baseline/MANGLED/'
+  # The smudge COMMAND is NOT set here as local `.git/config` — it rides in as
+  # GIT_CONFIG_KEY_n/GIT_CONFIG_VALUE_n environment variables on the run
+  # instead (seed_run_step1_env below), because a disposable checkout no
+  # longer shares the shipping repository's local config (D1). Only the
+  # committed `.gitattributes` filter DECLARATION lives here.
   # STEP 1 has work: an uncommitted edit to a tracked file.
   printf 'baseline\nedited-in-the-working-tree\n' > "$d/tracked.txt"
   # STEP 2 has work: an untracked, not-ignored file.
@@ -1112,9 +1144,22 @@ exit $t_one_exit"
 # exported (a legitimate operator action) an arm that inherited it would measure
 # a run that never took the path it names.
 seed_run() {
-  AAI_TEST_ISOLATION=1 AAI_TEST_ISOLATION_SEED='docs/ai/STATE.yaml' \
-    bash "$1/tests/skills/test-framework.sh" 2>&1 | strip_ansi
+  local fixture="$1"
+  shift
+  env AAI_TEST_ISOLATION=1 AAI_TEST_ISOLATION_SEED='docs/ai/STATE.yaml' "$@" \
+    bash "$fixture/tests/skills/test-framework.sh" 2>&1 | strip_ansi
 }
+
+# SEED_STEP1_ENV — the step-1 smudge lever's command, as GIT_CONFIG_KEY_n/
+# GIT_CONFIG_VALUE_n environment assignments for `seed_run` (see the comment
+# above `seed_status_fixture` for why an environment variable and not
+# `.git/config` post-D1). Defined once so TEST-109 states its exact shape
+# rather than re-deriving it inline.
+SEED_STEP1_ENV=(
+  'GIT_CONFIG_COUNT=1'
+  'GIT_CONFIG_KEY_0=filter.mangle.smudge'
+  'GIT_CONFIG_VALUE_0=sed s/baseline/MANGLED/'
+)
 
 # seed_summary_line <output> — the ONE unconditional accounting line, matched by
 # SHAPE so a line that exists but has stopped carrying numbers fails loudly.
@@ -1213,7 +1258,7 @@ test_109_the_unreplayable_diff_is_reported() {
   evid="$(new_fixture)" || return
   seed_status_fixture "$d" "$evid" step1 || { log_fail "TEST-109 fixture repo init failed"; return; }
 
-  out="$(seed_run "$d")" || rc=$?
+  out="$(seed_run "$d" "${SEED_STEP1_ENV[@]}")" || rc=$?
 
   [[ "$rc" -eq 0 ]] || { log_info "TEST-109: framework exit=$rc (want 0 — a failed seed must not abort the run): $out"; ok=0; }
   grep -qE 'Passed: +2 \(100%\)' <<<"$out" \
@@ -1471,6 +1516,666 @@ test_113_the_wrapper_reports_its_own_seeding_status() {
     || log_fail "TEST-113 the wrapper reports its own seeding status"
 }
 
+# ===========================================================================
+# TEST-201..208 (spec-isolation-shares-the-shipping-git)
+#
+# The arms above prove a suite cannot reach the shipping WORKING TREE or say
+# so honestly. These prove the disposable checkout does not share the
+# shipping repository's git ADMINISTRATIVE surface at all — the gap D1..D3
+# close: a worktree resolves `git rev-parse --git-common-dir` straight into
+# `<shipping>/.git`, so refs, `.git/config` and `.git/hooks` are reachable in
+# one command even though the working tree is a copy.
+#
+# Numbered from 201 so SPEC-0138's TEST-001..006 and SPEC-0144/0145's
+# TEST-101..113 keep their ids in this file.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# TEST-201 (Spec-AC-01) — the checkout's OWN `git rev-parse --git-common-dir`,
+# resolved through `pwd -P` exactly as D3 resolves it, lands inside the
+# disposable base and is not the fixture repository's own common dir. RED on
+# the pre-change tree: a worktree's common dir IS the fixture repository's.
+# ---------------------------------------------------------------------------
+test_201_common_dir_resolves_outside_the_shipping_repo() {
+  local d evid tmphome out rc=0 ok=1 ship_common seen tmphome_real
+  d="$(new_fixture)" || return
+  evid="$d.evid"
+  mkdir -p "$evid"
+  register_workdir "$evid"
+  tmphome="$(new_fixture)" || return
+  build_framework_repo "$d"
+  write_fixture_suite "$d" t-common "
+cd \"\$R\" || exit 1
+cd \"\$(git rev-parse --git-common-dir)\" 2>/dev/null || exit 1
+pwd -P > '$evid/common.txt'
+exit 0"
+  commit_fixture_repo "$d" || { log_fail "TEST-201 fixture repo init failed"; return; }
+  ship_common="$(cd "$d" && cd "$(git rev-parse --git-common-dir)" && pwd -P)"
+
+  out="$(TMPDIR="$tmphome" bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-201: framework exit=$rc (want 0): $out"; ok=0; }
+  [[ -s "$evid/common.txt" ]] || { log_info "TEST-201: the fixture never recorded its resolved common dir: $out"; ok=0; }
+  seen="$(cat "$evid/common.txt" 2>/dev/null)"
+  tmphome_real="$(cd "$tmphome" && pwd -P)"
+  case "$seen" in
+    "$tmphome_real"/*) ;;
+    *) log_info "TEST-201: the resolved common dir [$seen] is not inside the disposable base [$tmphome_real]"; ok=0 ;;
+  esac
+  [[ -n "$seen" && "$seen" != "$ship_common" ]] \
+    || { log_info "TEST-201: the resolved common dir [$seen] equals the fixture repository's own common dir [$ship_common]"; ok=0; }
+  iso_expect_counts "TEST-201" "$out" 1 1 0 || ok=0
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-201 the disposable checkout's own git-common-dir resolves inside the disposable base, never into the fixture repository" \
+    || log_fail "TEST-201 the disposable checkout's git common directory does not resolve into the shipping repository"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-202 (Spec-AC-02) — a config key, a ref and a hooks file written from
+# inside the checkout are all unreadable from the shipping repository
+# afterwards. The hook path is resolved with `git rev-parse --git-path hooks`
+# from INSIDE the checkout, exactly as a real suite would, so under a
+# worktree it writes into the SHARED hooks directory the same one command
+# away. RED on the pre-change tree for all three surfaces.
+# ---------------------------------------------------------------------------
+test_202_config_ref_and_hook_are_unreachable_after() {
+  local d out rc=0 ok=1 hookdir
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  write_fixture_suite "$d" t-write "
+git -C \"\$R\" config --local isolation.probe leaked-value
+git -C \"\$R\" update-ref refs/isolation-probe HEAD
+hookdir=\"\$(git -C \"\$R\" rev-parse --git-path hooks)\"
+mkdir -p \"\$hookdir\" 2>/dev/null
+printf '#!/bin/sh\nexit 0\n' > \"\$hookdir/isolation-probe.sh\" 2>/dev/null
+exit 0"
+  commit_fixture_repo "$d" || { log_fail "TEST-202 fixture repo init failed"; return; }
+
+  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-202: framework exit=$rc (want 0): $out"; ok=0; }
+  grep -qE 'aai-t-write +PASS' <<<"$out" \
+    || { log_info "TEST-202: the writing fixture did not run to a PASS: $out"; ok=0; }
+  git -C "$d" config --local --get isolation.probe >/dev/null 2>&1 \
+    && { log_info "TEST-202: the config key IS readable from the shipping repository"; ok=0; }
+  git -C "$d" rev-parse --verify -q refs/isolation-probe >/dev/null 2>&1 \
+    && { log_info "TEST-202: the ref IS readable from the shipping repository"; ok=0; }
+  hookdir="$(cd "$d" && git rev-parse --git-path hooks)"
+  [[ -f "$d/$hookdir/isolation-probe.sh" ]] \
+    && { log_info "TEST-202: the hook file exists in the shipping repository's hooks dir ($d/$hookdir)"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-202 a config key, a ref and a hooks file written from the disposable checkout are all unreadable from the shipping repository afterwards" \
+    || log_fail "TEST-202 a config, ref or hook write from the isolated run is unreadable from the shipping repository"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-203 (Spec-AC-03) — THE MUTATION PROOF. HAZ-RESTORE: the mutation lands
+# on the FIXTURE's byte COPY of the framework (already a throwaway file inside
+# a disposable git repository), never on tests/skills/test-framework.sh. A
+# single, exact substitution reverts iso_create's clone call back to
+# `git worktree add --detach`, which is enough to reopen the shared git
+# surface and must be caught by the D3 gate: 0 isolated, N degraded, reason
+# naming the git surface. RED on the pre-change tree for a second reason: the
+# gate does not exist yet, so the (no-op) mutation still reports isolated.
+# ---------------------------------------------------------------------------
+test_203_the_mutation_proof_gate_catches_a_shared_git_surface() {
+  local d out rc=0 ok=1 n=3 i tmp
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  for i in $(seq 1 "$n"); do
+    write_fixture_suite "$d" "t-gate$i" 'exit 0'
+  done
+  commit_fixture_repo "$d" || { log_fail "TEST-203 fixture repo init failed"; return; }
+
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-iso-mutate.XXXXXX")" \
+    || { log_fail "TEST-203: no scratch file for the mutation"; return; }
+  # `mktemp` places this FILE directly under bare $TMPDIR. WORKDIR_REGISTRY's
+  # cleanup() only ever `rm -rf`s registered DIRECTORIES (`[[ -d "$d" ]]`
+  # guards it) — registering this file's dirname instead of the file itself
+  # would hand it the whole system temp directory. Measured: it did, and
+  # cleanup() tried to `rm -rf` the host's real /tmp (caught only by
+  # "Operation not permitted" on macOS-owned entries). Clean up the file
+  # directly instead: a no-op once `mv` below has relocated it away.
+  # `&` in a sed REPLACEMENT means "the whole match" — left unescaped, the
+  # `2>&1` in the replacement text spliced the ENTIRE original line back into
+  # itself, producing `iso_git worktree add ... >/dev/null 2>iso_git clone
+  # ...&1` (git then failing on the unrecognised `--local` flag it carried
+  # over, not on the gate). Measured. `\&` makes it literal.
+  sed 's|iso_git clone --local --no-hardlinks --quiet "$PROJECT_ROOT" "$wt" >/dev/null 2>&1|iso_git worktree add --detach --quiet "$wt" HEAD >/dev/null 2>\&1|' \
+    "$d/tests/skills/test-framework.sh" > "$tmp" && mv "$tmp" "$d/tests/skills/test-framework.sh"
+  rm -f "$tmp" 2>/dev/null
+  grep -qF 'iso_git worktree add --detach --quiet "$wt" HEAD' "$d/tests/skills/test-framework.sh" \
+    || { log_fail "TEST-203: the mutation did not take — the sed target has drifted from the real iso_create"; return; }
+
+  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-203: framework exit=$rc (want 0 — a degraded run is still a passing run): $out"; ok=0; }
+  iso_expect_counts "TEST-203" "$out" 0 "$n" "$n" || ok=0
+  grep -qF "the disposable checkout's git surface still resolves to the shipping repository" <<<"$out" \
+    || { log_info "TEST-203: the degrade reason does not name the git surface: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-203 THE MUTATION PROOF — a fixture reverted to git worktree add is counted 0 isolated, $n degraded, naming the git-surface reason" \
+    || log_fail "TEST-203 a checkout whose git surface is not separated is counted degraded with a named reason"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-204 (Spec-AC-03) — THE UNMUTATED CONTROL, on the SAME shape of fixture
+# as TEST-203: without the mutation the same run reports every suite
+# isolated, none degraded, with the ledger's suites_isolated at N.
+# ---------------------------------------------------------------------------
+test_204_the_unmutated_control_reports_isolated() {
+  local d out rc=0 ok=1 n=3 i run_id ledger
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  for i in $(seq 1 "$n"); do
+    write_fixture_suite "$d" "t-gate$i" 'exit 0'
+  done
+  commit_fixture_repo "$d" || { log_fail "TEST-204 fixture repo init failed"; return; }
+
+  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-204: framework exit=$rc (want 0): $out"; ok=0; }
+  iso_expect_counts "TEST-204" "$out" "$n" "$n" 0 || ok=0
+  run_id="$(iso_run_id "$out")"
+  [[ -n "$run_id" ]] || { log_info "TEST-204: no RUN_ID could be recovered from the output: $out"; ok=0; }
+  if [[ -n "$run_id" ]]; then
+    ledger="$(iso_ledger_line "$d" "$run_id")"
+    [[ -n "$ledger" ]] || { log_info "TEST-204: no ledger record for run_id=$run_id: $out"; ok=0; }
+    [[ "$(iso_json_int "$ledger" suites_isolated)" == "$n" ]] \
+      || { log_info "TEST-204: ledger suites_isolated=$(iso_json_int "$ledger" suites_isolated) (want $n): $ledger"; ok=0; }
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-204 THE UNMUTATED CONTROL — the same shape of fixture unmutated reports $n isolated, 0 degraded, with the ledger's suites_isolated at $n" \
+    || log_fail "TEST-204 the unmutated control on the same fixture reports suites_isolated N"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-205 (Spec-AC-04) — inside the checkout, refs/heads, refs/remotes and
+# refs/tags counts match the fixture repository's, `main` and `origin/main`
+# both resolve, and the commit count matches. This is the property the
+# ref-parity fetch step exists to hold: a bare `git clone --local` alone loses
+# every ref but one local head and rewrites `origin/*`.
+# ---------------------------------------------------------------------------
+test_205_ref_surface_and_history_match_the_shipping_repo() {
+  local d evid out rc=0 ok=1
+  local want_heads want_tags want_commits want_remotes_list missing
+  local got_heads got_tags got_main got_origin got_commits
+  d="$(new_fixture)" || return
+  evid="$d.evid"
+  mkdir -p "$evid"
+  register_workdir "$evid"
+  build_framework_repo "$d"
+  commit_fixture_repo "$d" || { log_fail "TEST-205 fixture repo init failed"; return; }
+  ( cd "$d" &&
+    git branch second-branch >/dev/null &&
+    git tag -a v0.1 -m 'fixture tag' >/dev/null &&
+    git update-ref refs/remotes/origin/main "$(git rev-parse HEAD)" )
+  write_fixture_suite "$d" t-refs "
+{
+  git -C \"\$R\" for-each-ref refs/heads | wc -l | tr -d ' '
+  git -C \"\$R\" for-each-ref refs/tags | wc -l | tr -d ' '
+  git -C \"\$R\" rev-parse --verify -q main >/dev/null 2>&1 && echo yes || echo no
+  git -C \"\$R\" rev-parse --verify -q origin/main >/dev/null 2>&1 && echo yes || echo no
+  git -C \"\$R\" rev-list --count HEAD
+} > '$evid/refs.txt'
+git -C \"\$R\" for-each-ref --format='%(refname) %(objectname)' refs/remotes | sort > '$evid/remotes.txt'
+exit 0"
+
+  want_heads="$(git -C "$d" for-each-ref refs/heads | wc -l | tr -d ' ')"
+  want_tags="$(git -C "$d" for-each-ref refs/tags | wc -l | tr -d ' ')"
+  want_commits="$(git -C "$d" rev-list --count HEAD)"
+  want_remotes_list="$(git -C "$d" for-each-ref --format='%(refname) %(objectname)' refs/remotes | sort)"
+
+  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-205: framework exit=$rc (want 0): $out"; ok=0; }
+  [[ -s "$evid/refs.txt" ]] || { log_info "TEST-205: the fixture never recorded its ref surface: $out"; ok=0; }
+  if [[ -s "$evid/refs.txt" ]]; then
+    { read -r got_heads; read -r got_tags; read -r got_main; read -r got_origin; read -r got_commits; } < "$evid/refs.txt"
+    [[ "$got_heads" == "$want_heads" ]] || { log_info "TEST-205: refs/heads count $got_heads (want $want_heads)"; ok=0; }
+    [[ "$got_tags" == "$want_tags" ]] || { log_info "TEST-205: refs/tags count $got_tags (want $want_tags)"; ok=0; }
+    [[ "$got_main" == "yes" ]] || { log_info "TEST-205: main did not resolve inside the checkout"; ok=0; }
+    [[ "$got_origin" == "yes" ]] || { log_info "TEST-205: origin/main did not resolve inside the checkout"; ok=0; }
+    [[ "$got_commits" == "$want_commits" ]] || { log_info "TEST-205: HEAD commit count $got_commits (want $want_commits)"; ok=0; }
+  fi
+  # refs/remotes is a SUPERSET check, not exact-count equality — the D1
+  # measurement itself records this (145 shipping vs 182 post-fetch on the
+  # real repository): `git clone`'s own default remote-tracking mirroring of
+  # the source's LOCAL branches adds entries beyond the shipping repository's
+  # own refs/remotes namespace whenever a local branch has no identically
+  # named counterpart already there (exactly what `second-branch` is here).
+  # What must never happen is LOSING one of the shipping repository's own
+  # refs/remotes entries; gaining harmless extras is not a defect.
+  if [[ ! -s "$evid/remotes.txt" ]]; then
+    log_info "TEST-205: the fixture never recorded its refs/remotes listing: $out"
+    ok=0
+  else
+    missing="$(comm -23 <(printf '%s\n' "$want_remotes_list") "$evid/remotes.txt" 2>/dev/null)"
+    [[ -z "$missing" ]] \
+      || { log_info "TEST-205: refs/remotes entries present in the shipping repository but missing from the checkout: $missing"; ok=0; }
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-205 inside the disposable checkout refs/heads and refs/tags counts, main, origin/main and the HEAD commit count all match the fixture repository, and every one of the fixture's own refs/remotes entries is present (extras from clone's own remote-tracking mirroring are not a defect)" \
+    || log_fail "TEST-205 the checkout's refs, tags and history match the shipping repository's"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-206 (Spec-AC-05) — REGRESSION PIN, expected green before this scope's
+# change as well as after: the accounting invariant already holds. Not a
+# discovery — the spec says so rather than manufacturing a red for it.
+# ---------------------------------------------------------------------------
+test_206_accounting_invariant_holds_across_a_multi_suite_run() {
+  local d out rc=0 ok=1 n=5 i run_id ledger summary s_iso s_deg s_total n_iso n_deg n_total
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  for i in $(seq 1 "$n"); do
+    write_fixture_suite "$d" "t-inv$i" 'exit 0'
+  done
+  commit_fixture_repo "$d" || { log_fail "TEST-206 fixture repo init failed"; return; }
+
+  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-206: framework exit=$rc (want 0): $out"; ok=0; }
+  summary="$(iso_summary_line "$out")"
+  if [[ -z "$summary" ]]; then
+    log_info "TEST-206: no isolation summary line: $out"
+    ok=0
+  else
+    s_iso="$(sed -E 's/^.*Isolation: ([0-9]+)\/([0-9]+).*$/\1/' <<<"$summary")"
+    s_total="$(sed -E 's/^.*Isolation: ([0-9]+)\/([0-9]+).*$/\2/' <<<"$summary")"
+    s_deg="$(sed -E 's/^.*; ([0-9]+) degraded.*$/\1/' <<<"$summary")"
+    [[ $((s_iso + s_deg)) -eq "$s_total" && "$s_total" -eq "$n" ]] \
+      || { log_info "TEST-206: summary invariant broken: [$summary]"; ok=0; }
+  fi
+
+  run_id="$(iso_run_id "$out")"
+  [[ -n "$run_id" ]] || { log_info "TEST-206: no RUN_ID recovered: $out"; ok=0; }
+  if [[ -n "$run_id" ]]; then
+    ledger="$(iso_ledger_line "$d" "$run_id")"
+    if [[ -z "$ledger" ]]; then
+      log_info "TEST-206: no ledger record for run_id=$run_id"
+      ok=0
+    else
+      n_iso="$(iso_json_int "$ledger" suites_isolated)"
+      n_deg="$(iso_json_int "$ledger" suites_degraded)"
+      n_total="$(iso_json_int "$ledger" total)"
+      [[ -n "$n_iso" && -n "$n_deg" && -n "$n_total" ]] \
+        || { log_info "TEST-206: the ledger record is missing a field: $ledger"; ok=0; }
+      [[ -n "$n_iso" && -n "$n_deg" && -n "$n_total" && $((n_iso + n_deg)) -eq "$n_total" ]] \
+        || { log_info "TEST-206: ledger invariant broken: $ledger"; ok=0; }
+    fi
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-206 (regression pin) suites_isolated plus suites_degraded equals total in both the summary line and the ledger record" \
+    || log_fail "TEST-206 the full sweep's accounting invariant holds"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-207 (Spec-AC-07) — REGRESSION PIN, expected green before this scope's
+# change as well as after (D4): the twin carries no isolation logic and
+# never will by way of this scope, so it inherits D1..D3 purely by
+# delegating to the .sh this scope edits.
+# ---------------------------------------------------------------------------
+test_207_the_powershell_twin_carries_no_isolation_mechanism() {
+  local ps1="$PROJECT_ROOT/.aai/scripts/aai-run-tests.ps1" ok=1
+  if [[ ! -f "$ps1" ]]; then
+    log_uncovered "TEST-207: $ps1 not found on this machine"
+    return
+  fi
+  /usr/bin/grep -qF 'aai-run-tests.sh' "$ps1" \
+    || { log_info "TEST-207: the twin no longer names aai-run-tests.sh"; ok=0; }
+  /usr/bin/grep -qi 'git worktree' "$ps1" \
+    && { log_info "TEST-207: the twin carries a git worktree invocation of its own"; ok=0; }
+  /usr/bin/grep -qi 'git clone' "$ps1" \
+    && { log_info "TEST-207: the twin carries a git clone invocation of its own"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-207 (regression pin) aai-run-tests.ps1 names aai-run-tests.sh at least once and carries no git worktree / git clone invocation of its own" \
+    || log_fail "TEST-207 the PowerShell entry point inherits the change by delegation and adds no mechanism"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-208 (Spec-AC-08) — the shipping fixture repository's `.git/worktrees`
+# stays absent or empty both DURING (checked from inside the running suite)
+# and after a run, and `git worktree list` prints exactly one line
+# throughout. RED on the pre-change tree: a live worktree registration exists
+# for the whole duration of the suite it belongs to.
+# ---------------------------------------------------------------------------
+test_208_no_worktree_registration_in_the_shipping_repo() {
+  local d evid out rc=0 ok=1 n_lines after
+  d="$(new_fixture)" || return
+  evid="$d.evid"
+  mkdir -p "$evid"
+  register_workdir "$evid"
+  build_framework_repo "$d"
+  write_fixture_suite "$d" t-mid "
+if [[ -d '$d/.git/worktrees' ]] && [[ -n \"\$(ls -A '$d/.git/worktrees' 2>/dev/null)\" ]]; then
+  echo 'nonempty' > '$evid/mid-worktrees.txt'
+else
+  echo 'absent-or-empty' > '$evid/mid-worktrees.txt'
+fi
+git -C '$d' worktree list > '$evid/mid-worktree-list.txt' 2>/dev/null
+exit 0"
+  commit_fixture_repo "$d" || { log_fail "TEST-208 fixture repo init failed"; return; }
+
+  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-208: framework exit=$rc (want 0): $out"; ok=0; }
+  [[ -s "$evid/mid-worktree-list.txt" ]] || { log_info "TEST-208: the fixture never recorded a mid-run worktree list: $out"; ok=0; }
+  [[ "$(cat "$evid/mid-worktrees.txt" 2>/dev/null)" == "absent-or-empty" ]] \
+    || { log_info "TEST-208: .git/worktrees was non-empty WHILE the suite ran"; ok=0; }
+  n_lines="$(wc -l < "$evid/mid-worktree-list.txt" | tr -d ' ')"
+  [[ "$n_lines" == "1" ]] \
+    || { log_info "TEST-208: git worktree list printed $n_lines line(s) mid-run (want exactly 1): $(cat "$evid/mid-worktree-list.txt" 2>/dev/null)"; ok=0; }
+
+  after="$(git -C "$d" worktree list 2>/dev/null | wc -l | tr -d ' ')"
+  [[ "$after" == "1" ]] \
+    || { log_info "TEST-208: git worktree list printed $after line(s) AFTER the run (want exactly 1)"; ok=0; }
+  { [[ ! -d "$d/.git/worktrees" ]] || [[ -z "$(ls -A "$d/.git/worktrees" 2>/dev/null)" ]]; } \
+    || { log_info "TEST-208: .git/worktrees is non-empty AFTER the run: $(ls -A "$d/.git/worktrees" 2>/dev/null)"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-208 the shipping repository's .git/worktrees stays absent or empty both during and after the run, and git worktree list prints exactly one line throughout" \
+    || log_fail "TEST-208 cleanup writes nothing under the shipping repository's .git"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-209 (Spec-AC-03, remediation round 1 F-1) — THE MUTATION PROOF for the
+# UNRESOLVABLE branch, sub-case (a): the checkout's `.git` is removed right
+# after `iso_create` finishes building it, so `iso_separated`'s probe cannot
+# resolve a git-common-dir for it at all. D3: "including when the probe cannot
+# resolve a path at all" must be counted degraded with the same named reason
+# as the EQUAL case. RED against the pre-fix `iso_separated` bytes: `cd ""` is
+# a no-op that leaves `pwd -P` reporting the checkout's OWN directory (still
+# non-empty, still not equal to the shipping common dir, still not prefixed by
+# $PROJECT_ROOT), so the pre-fix gate reads this as separated. HAZ-RESTORE:
+# the mutation lands on the FIXTURE's byte copy only.
+# ---------------------------------------------------------------------------
+test_209_unresolvable_checkout_git_removed_is_degraded() {
+  local d out rc=0 ok=1 n=3 i tmp
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  for i in $(seq 1 "$n"); do
+    write_fixture_suite "$d" "t-unresolv$i" 'exit 0'
+  done
+  commit_fixture_repo "$d" || { log_fail "TEST-209 fixture repo init failed"; return; }
+
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-iso-mutate.XXXXXX")" \
+    || { log_fail "TEST-209: no scratch file for the mutation"; return; }
+  sed 's|^  ISO_LAST_WT="$wt"$|  rm -rf "$wt/.git"; ISO_LAST_WT="$wt"|' \
+    "$d/tests/skills/test-framework.sh" > "$tmp" && mv "$tmp" "$d/tests/skills/test-framework.sh"
+  rm -f "$tmp" 2>/dev/null
+  grep -qF 'rm -rf "$wt/.git"' "$d/tests/skills/test-framework.sh" \
+    || { log_fail "TEST-209: the mutation did not take — the sed target has drifted from the real iso_create"; return; }
+
+  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-209: framework exit=$rc (want 0 — a degraded run is still a passing run): $out"; ok=0; }
+  iso_expect_counts "TEST-209" "$out" 0 "$n" "$n" || ok=0
+  grep -qF "the disposable checkout's git surface still resolves to the shipping repository" <<<"$out" \
+    || { log_info "TEST-209: the degrade reason does not name the git surface: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-209 THE MUTATION PROOF — a checkout whose .git is removed after creation (the probe cannot resolve at all) is counted 0 isolated, $n degraded, naming the git-surface reason" \
+    || log_fail "TEST-209 a checkout whose git surface cannot be resolved at all is counted degraded with a named reason"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-210 (Spec-AC-03, remediation round 1 F-1) — THE MUTATION PROOF for the
+# UNRESOLVABLE branch, sub-case (b): the CONCRETE SCAR this scope exists to
+# refuse — a linked worktree (the mechanism D1 replaced) whose registration
+# under the shipping repository's `.git/worktrees/` has been dropped, measured
+# on git 2.50.1 to fail `git rev-parse --git-common-dir` with `fatal: not a
+# git repository`. Two mutations on the fixture's byte copy: (1) the same
+# clone -> worktree add revert as TEST-203, and (2) the worktree's own admin
+# directory (`git -C "$wt" rev-parse --git-dir`, resolved while it is still
+# live) is removed right after `iso_create` finishes, deregistering it exactly
+# the way the scar state describes. RED against the pre-fix bytes for the same
+# reason as TEST-209: `cd ""` stays in the checkout and reports it separated.
+# ---------------------------------------------------------------------------
+test_210_unresolvable_deregistered_linked_worktree_is_degraded() {
+  local d out rc=0 ok=1 n=3 i tmp
+  d="$(new_fixture)" || return
+  build_framework_repo "$d"
+  for i in $(seq 1 "$n"); do
+    write_fixture_suite "$d" "t-dereg$i" 'exit 0'
+  done
+  commit_fixture_repo "$d" || { log_fail "TEST-210 fixture repo init failed"; return; }
+
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-iso-mutate.XXXXXX")" \
+    || { log_fail "TEST-210: no scratch file for the worktree-add mutation"; return; }
+  sed 's|iso_git clone --local --no-hardlinks --quiet "$PROJECT_ROOT" "$wt" >/dev/null 2>&1|iso_git worktree add --detach --quiet "$wt" HEAD >/dev/null 2>\&1|' \
+    "$d/tests/skills/test-framework.sh" > "$tmp" && mv "$tmp" "$d/tests/skills/test-framework.sh"
+  rm -f "$tmp" 2>/dev/null
+  grep -qF 'iso_git worktree add --detach --quiet "$wt" HEAD' "$d/tests/skills/test-framework.sh" \
+    || { log_fail "TEST-210: the worktree-add mutation did not take — the sed target has drifted from the real iso_create"; return; }
+
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-iso-mutate.XXXXXX")" \
+    || { log_fail "TEST-210: no scratch file for the deregistration mutation"; return; }
+  sed 's|^  ISO_LAST_WT="$wt"$|  rm -rf "$(git -C "$wt" rev-parse --git-dir 2>/dev/null)"; ISO_LAST_WT="$wt"|' \
+    "$d/tests/skills/test-framework.sh" > "$tmp" && mv "$tmp" "$d/tests/skills/test-framework.sh"
+  rm -f "$tmp" 2>/dev/null
+  grep -qF 'rm -rf "$(git -C "$wt" rev-parse --git-dir 2>/dev/null)"' "$d/tests/skills/test-framework.sh" \
+    || { log_fail "TEST-210: the deregistration mutation did not take — the sed target has drifted from the real iso_create"; return; }
+
+  out="$(bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-210: framework exit=$rc (want 0 — a degraded run is still a passing run): $out"; ok=0; }
+  iso_expect_counts "TEST-210" "$out" 0 "$n" "$n" || ok=0
+  grep -qF "the disposable checkout's git surface still resolves to the shipping repository" <<<"$out" \
+    || { log_info "TEST-210: the degrade reason does not name the git surface: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-210 THE MUTATION PROOF — a linked worktree whose registration is dropped after creation (the concrete scar state) is counted 0 isolated, $n degraded, naming the git-surface reason" \
+    || log_fail "TEST-210 a deregistered linked worktree is counted degraded with a named reason"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-211 (Spec-AC-03, remediation round 1 F-1 coverage duty) — THE THIRD
+# BRANCH: a checkout whose base directory ends up physically INSIDE
+# $PROJECT_ROOT (e.g. a misconfigured TMPDIR) is degraded by the
+# `case "$iso_common" in "$PROJECT_ROOT"/*)` arm, with no code mutation at
+# all — only TMPDIR is redirected to the fixture repository's OWN resolved
+# root, exactly as the validator's own probe reproduced it. HERMETIC BY
+# CONSTRUCTION, like TEST-101..107: forced by ENVIRONMENT, not by mutating the
+# fixture's byte copy. This branch does not depend on the `cd ""` bug F-1
+# fixes, so it is expected GREEN both before and after that fix — it closes a
+# coverage gap (no existing arm exercised PREFIX), not a red/green pair. $d is
+# resolved with `pwd -P` before use so the comparison is physical-path-to-
+# physical-path: the fixture's own PROJECT_ROOT is computed by the identical
+# `cd ... && pwd` the real framework uses, so it must start from an
+# already-resolved base or the prefix match rests on a macOS
+# /var-vs-/private/var spelling mismatch that has nothing to do with the
+# property under test.
+# ---------------------------------------------------------------------------
+test_211_prefix_checkout_under_project_root_is_degraded() {
+  local d out rc=0 ok=1 n=3 i
+  d="$(new_fixture)" || return
+  d="$(cd "$d" 2>/dev/null && pwd -P)" \
+    || { log_fail "TEST-211: fixture path could not be resolved"; return; }
+  build_framework_repo "$d"
+  for i in $(seq 1 "$n"); do
+    write_fixture_suite "$d" "t-prefix$i" 'exit 0'
+  done
+  commit_fixture_repo "$d" || { log_fail "TEST-211 fixture repo init failed"; return; }
+
+  out="$(TMPDIR="$d" bash "$d/tests/skills/test-framework.sh" 2>&1 | strip_ansi)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-211: framework exit=$rc (want 0 — a degraded run is still a passing run): $out"; ok=0; }
+  iso_expect_counts "TEST-211" "$out" 0 "$n" "$n" || ok=0
+  grep -qF "the disposable checkout's git surface still resolves to the shipping repository" <<<"$out" \
+    || { log_info "TEST-211: the degrade reason does not name the git surface: $out"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-211 a checkout whose base lands inside \$PROJECT_ROOT (TMPDIR misconfigured) is counted 0 isolated, $n degraded, naming the git-surface reason" \
+    || log_fail "TEST-211 a checkout under \$PROJECT_ROOT is counted degraded with a named reason"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-212 (review N-1, code review 20260827T180737Z) — THE ORDERING PIN. Every
+# other TEST-20x arm here asserts the OUTCOME (isolated vs degraded) and would
+# pass identically whether the D3 gate runs before or after iso_create's
+# ref-parity fetch and its two identity `git config` calls — that is exactly
+# how N-1 (the gate ran downstream of those commands) shipped past review
+# while every outcome-only arm stayed green. This arm instead observes a side
+# effect that ONLY the ordering controls: under the SAME worktree-add mutation
+# as TEST-203, with the fixture's OWN local `user.name`/`user.email` unset and
+# a throwaway $HOME supplying the only resolvable identity (so `iso_git config
+# --get user.name` reads a value only through the global fallback, never
+# through the fixture's local config), a `git -C "$wt" config user.name`
+# issued while "$wt" is still a linked worktree writes that value into the
+# FIXTURE's own (shared) local config — a NEW local key that was not there
+# before, because it did not exist locally on either side beforehand. If the
+# gate runs BEFORE that command (the fix), the command never executes and no
+# local key appears. If it runs AFTER (the pre-fix bytes), the key appears.
+# RED, reproduced directly against the pre-N-1 committed bytes of
+# tests/skills/test-framework.sh (before the gate moved into iso_create): the
+# fixture's local `user.name` gained `GLOBAL-FALLBACK-IDENTITY` after the run.
+# GREEN against the fixed bytes (what build_framework_repo copies in below):
+# it stays absent. This observes ONE ordering seam, not every shipping-
+# touching command in the framework: the checkout-creation command itself
+# (clone/worktree-add) runs before any gate can, by construction, and is out
+# of scope (review R2-3).
+#
+# review R2-1: the mutated case's silence is meaningful ONLY if the write
+# would otherwise have been real — an identity-less environment makes
+# `iso_git config --get user.name` return empty, `[[ -z "$uname" ]] ||` never
+# runs a `config` command at all, and the mutated case goes green for the
+# WRONG reason (nothing to write) rather than the right one (the gate blocked
+# it). The unmutated control below now asserts that precondition directly: it
+# captures the identity FROM INSIDE the running suite's own checkout (the
+# checkout is destroyed before this function can inspect it any other way)
+# and requires it to equal the global fallback identity this arm set up. If
+# the precondition does not hold, the control fails and the whole arm goes
+# RED instead of silently passing.
+# ---------------------------------------------------------------------------
+test_212_the_gate_runs_before_iso_create_writes_identity_config() {
+  local ok=1
+
+  # A throwaway $HOME so the only resolvable git identity comes from a global
+  # config THIS arm controls — never the operator's real ~/.gitconfig, and
+  # never a value that could coincidentally already sit in the fixture's own
+  # local config.
+  local fakehome
+  fakehome="$(new_fixture)" || return
+  cat > "$fakehome/.gitconfig" <<'EOF'
+[user]
+	name = GLOBAL-FALLBACK-IDENTITY
+	email = global-fallback@example.com
+EOF
+
+  # --- mutated case: reproduces the exact N-1 regression shape (TEST-203's
+  # worktree-add mutation), then checks the shipping-touching SIDE EFFECT
+  # rather than the isolation outcome TEST-203 already covers.
+  local dm tmphome_m tmp
+  dm="$(new_fixture)" || return
+  tmphome_m="$(new_fixture)" || return
+  build_framework_repo "$dm"
+  write_fixture_suite "$dm" "t-order1" 'exit 0'
+  commit_fixture_repo "$dm" || { log_fail "TEST-212 fixture repo init failed"; return; }
+  git -C "$dm" config --local --unset user.name
+  git -C "$dm" config --local --unset user.email
+
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-iso-mutate.XXXXXX")" \
+    || { log_fail "TEST-212: no scratch file for the mutation"; return; }
+  sed 's|iso_git clone --local --no-hardlinks --quiet "$PROJECT_ROOT" "$wt" >/dev/null 2>&1|iso_git worktree add --detach --quiet "$wt" HEAD >/dev/null 2>\&1|' \
+    "$dm/tests/skills/test-framework.sh" > "$tmp" && mv "$tmp" "$dm/tests/skills/test-framework.sh"
+  rm -f "$tmp" 2>/dev/null
+  grep -qF 'iso_git worktree add --detach --quiet "$wt" HEAD' "$dm/tests/skills/test-framework.sh" \
+    || { log_fail "TEST-212: the mutation did not take — the sed target has drifted from the real iso_create"; return; }
+
+  HOME="$fakehome" GIT_CONFIG_GLOBAL="$fakehome/.gitconfig" TMPDIR="$tmphome_m" bash "$dm/tests/skills/test-framework.sh" >/dev/null 2>&1
+
+  if git -C "$dm" config --local --get user.name >/dev/null 2>&1; then
+    log_info "TEST-212: the shared (mutated) fixture's LOCAL user.name is now '$(git -C "$dm" config --local --get user.name)' — iso_create's identity-writing git config command ran before the D3 gate could abort it"
+    ok=0
+  fi
+
+  # --- unmutated control: same fixture shape, no worktree-add mutation. The
+  # write still happens (into the clone's OWN .git), so this proves the
+  # mutated case's silence is the gate firing FIRST, not a fixture where the
+  # config write never runs at all. review R2-1: the control also carries the
+  # arm's PRECONDITION — the checkout is destroyed before this function
+  # regains control, so the suite itself captures its own checkout's local
+  # `user.name` to a file outside the checkout, which this function can still
+  # read afterward.
+  local dc tmphome_c capture_c
+  dc="$(new_fixture)" || return
+  tmphome_c="$(new_fixture)" || return
+  capture_c="$(mktemp "${TMPDIR:-/tmp}/aai-iso-212-identity.XXXXXX")" \
+    || { log_fail "TEST-212: no scratch file for the control's identity capture"; return; }
+  build_framework_repo "$dc"
+  write_fixture_suite "$dc" "t-order2" "git config --local --get user.name > '$capture_c' 2>/dev/null; exit 0"
+  commit_fixture_repo "$dc" || { log_fail "TEST-212 control fixture repo init failed"; return; }
+  git -C "$dc" config --local --unset user.name
+  git -C "$dc" config --local --unset user.email
+
+  HOME="$fakehome" GIT_CONFIG_GLOBAL="$fakehome/.gitconfig" TMPDIR="$tmphome_c" bash "$dc/tests/skills/test-framework.sh" >/dev/null 2>&1
+
+  if git -C "$dc" config --local --get user.name >/dev/null 2>&1; then
+    log_info "TEST-212(control): the unmutated fixture's LOCAL user.name is '$(git -C "$dc" config --local --get user.name)' — the identity write should never reach the fixture's OWN config when the checkout is a real clone"
+    ok=0
+  fi
+
+  # review R2-1: the precondition — without this, an identity-less host makes
+  # BOTH the mutated case and this control go green on a `user.name` that was
+  # never going to be written anywhere, and the arm proves nothing.
+  local captured_uname
+  captured_uname="$(cat "$capture_c" 2>/dev/null)"
+  rm -f "$capture_c" 2>/dev/null
+  if [[ "$captured_uname" != "GLOBAL-FALLBACK-IDENTITY" ]]; then
+    log_info "TEST-212(control): the checkout's OWN local user.name resolved to '$captured_uname' (expected GLOBAL-FALLBACK-IDENTITY) — the identity precondition did not hold, so this run cannot tell a gate block apart from nothing-to-write"
+    ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-212 THE ORDERING PIN — under the TEST-203 worktree-add mutation, iso_create's identity-writing git config command does not run before the D3 gate aborts it (the fixture's own local git config gains no identity key); the unmutated control shows the identity write is real and does land in the checkout's own separate git config, confirming the precondition held and the mutated case's silence is the gate firing first, not a no-op write" \
+    || log_fail "TEST-212 iso_create's identity-writing git config command ran before the D3 gate had a chance to abort it, or the identity precondition did not hold"
+}
+
+# ---------------------------------------------------------------------------
+# TEST-213 (bot review finding 1 on PR #299) — THE MUTATION PROOF. `git clone`
+# sets `origin` to the clone SOURCE, so a push to `origin` from inside the
+# disposable checkout writes straight into whatever repository the checkout
+# was cloned from — the fixture repository here, the shipping repository for
+# real. The mutated case neutralises iso_create's origin-defang step (the
+# exact reported hole, reproduced): the push then reaches the fixture
+# repository. The unmutated control, same fixture shape, real fixed
+# iso_create: the push fails and the ref never appears there. RED against the
+# pre-fix bytes of tests/skills/test-framework.sh (no origin-defang step
+# exists at all, so this arm's mutated-case sed target is simply absent and
+# the push always reaches the fixture); GREEN once the fix and this arm both
+# land, because the control then reports the property held.
+# ---------------------------------------------------------------------------
+test_213_origin_push_from_the_checkout_does_not_reach_the_source() {
+  local ok=1
+
+  # --- mutated case: the origin-defang line is neutralised into a no-op,
+  # reopening exactly the hole the bot named.
+  local dm tmp
+  dm="$(new_fixture)" || return
+  build_framework_repo "$dm"
+  write_fixture_suite "$dm" t-origin-push '
+git -C "$R" push origin HEAD:refs/heads/isolation-probe-push >/dev/null 2>&1
+exit 0'
+  commit_fixture_repo "$dm" || { log_fail "TEST-213 fixture repo init failed"; return; }
+
+  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-iso-mutate.XXXXXX")" \
+    || { log_fail "TEST-213: no scratch file for the mutation"; return; }
+  sed 's|git -C "$wt" remote set-url origin "$wt/.git/ORIGIN-DISABLED-BY-ISOLATION" >/dev/null 2>&1|true|' \
+    "$dm/tests/skills/test-framework.sh" > "$tmp" && mv "$tmp" "$dm/tests/skills/test-framework.sh"
+  rm -f "$tmp" 2>/dev/null
+  grep -qF 'remote set-url origin "$wt/.git/ORIGIN-DISABLED-BY-ISOLATION"' "$dm/tests/skills/test-framework.sh" \
+    && { log_fail "TEST-213: the mutation did not take — the sed target has drifted from the real iso_create"; return; }
+
+  bash "$dm/tests/skills/test-framework.sh" >/dev/null 2>&1
+
+  git -C "$dm" rev-parse --verify -q refs/heads/isolation-probe-push >/dev/null 2>&1 \
+    || { log_info "TEST-213: MUTATED case — the probe push did not reach the fixture repository even with the origin-defang step neutralised; the arm's own precondition failed to reproduce the reported hole, so it proves nothing"; ok=0; }
+
+  # --- unmutated control: same fixture shape, the real (fixed) iso_create —
+  # the push must fail and the ref must never appear in the fixture.
+  local dc
+  dc="$(new_fixture)" || return
+  build_framework_repo "$dc"
+  write_fixture_suite "$dc" t-origin-push '
+git -C "$R" push origin HEAD:refs/heads/isolation-probe-push >/dev/null 2>&1
+exit 0'
+  commit_fixture_repo "$dc" || { log_fail "TEST-213 control fixture repo init failed"; return; }
+
+  bash "$dc/tests/skills/test-framework.sh" >/dev/null 2>&1
+
+  git -C "$dc" rev-parse --verify -q refs/heads/isolation-probe-push >/dev/null 2>&1 \
+    && { log_info "TEST-213(control): the probe push REACHED the fixture repository (refs/heads/isolation-probe-push exists) — a push to origin from inside the disposable checkout is not blocked"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-213 THE MUTATION PROOF — with the origin-defang step neutralised, a push to origin from inside the disposable checkout reaches the fixture repository; the unmutated control on the same fixture shape shows the fix blocks it" \
+    || log_fail "TEST-213 a push to origin from inside the disposable checkout does not reach the shipping repository"
+}
+
 main() {
   echo "=== Test: $TEST_NAME (spec-suites-run-in-a-disposable-worktree) ==="
   check_deps
@@ -1493,6 +2198,19 @@ main() {
   test_111_the_uncopyable_seed_path_is_reported
   test_112_partly_seeded_is_visible_but_never_fatal
   test_113_the_wrapper_reports_its_own_seeding_status
+  test_201_common_dir_resolves_outside_the_shipping_repo
+  test_202_config_ref_and_hook_are_unreachable_after
+  test_203_the_mutation_proof_gate_catches_a_shared_git_surface
+  test_204_the_unmutated_control_reports_isolated
+  test_205_ref_surface_and_history_match_the_shipping_repo
+  test_206_accounting_invariant_holds_across_a_multi_suite_run
+  test_207_the_powershell_twin_carries_no_isolation_mechanism
+  test_208_no_worktree_registration_in_the_shipping_repo
+  test_209_unresolvable_checkout_git_removed_is_degraded
+  test_210_unresolvable_deregistered_linked_worktree_is_degraded
+  test_211_prefix_checkout_under_project_root_is_degraded
+  test_212_the_gate_runs_before_iso_create_writes_identity_config
+  test_213_origin_push_from_the_checkout_does_not_reach_the_source
   echo ""
   # Both halves, because either one alone is a lie on some path: FAILED is
   # blind to a subshell failure, and the registry is blind to a machine where

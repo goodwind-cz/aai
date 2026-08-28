@@ -239,46 +239,52 @@ aai_seed_fail() {
   return 0
 }
 
-# aai_iso_deregister <wt> - drop the admin entry for ONE worktree path: the
-# entry a `git worktree prune` would drop for it, and no other. Matched by the
-# `gitdir` file, which holds the path verbatim as it was given to `worktree add`.
-#
-# Deliberately NOT `git worktree prune`, which is REPOSITORY-WIDE and judges
-# every registration by whether its directory is reachable RIGHT NOW. An
-# operator worktree parked on an unmounted volume, a detached external disk or a
-# temporarily renamed path is unreachable but perfectly alive, and prune deletes
-# its `.git/worktrees/<name>` metadata - after which the registration is gone
-# for good. Measured on git 2.50.1, both halves of that: `git worktree repair
-# <path>` answers `error: unable to locate repository; .git file does not
-# reference a repository: <path>/.git` (rc 1), and any git command run INSIDE
-# the restored directory answers `fatal: not a git repository:
-# <common-dir>/worktrees/<name>` (rc 128). A test runner must not be able to do
-# that to the operator's own repository.
-aai_iso_deregister() {
-  ai_wt="$1"
-  [ -n "$ai_wt" ] || return 0
-  ai_common=$(cd "$AAI_REPO_ROOT" 2>/dev/null && cd "$(git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd) || return 0
-  { [ -n "$ai_common" ] && [ -d "$ai_common/worktrees" ]; } || return 0
-  for ai_adm in "$ai_common"/worktrees/*; do
-    [ -f "$ai_adm/gitdir" ] || continue
-    [ "$(cat "$ai_adm/gitdir" 2>/dev/null)" = "$ai_wt/.git" ] || continue
-    rm -rf "$ai_adm" >/dev/null 2>&1
-  done
+# aai_iso_cleanup - remove the checkout. A clone never registers anything in
+# the shipping repository (spec-isolation-shares-the-shipping-git D1), so
+# there is no admin entry to clear here: unlike a linked worktree, a plain
+# `rm -rf` of the checkout's own directory is the whole cleanup. This also
+# retires `aai_iso_deregister`, the last code path in this wrapper that
+# reached into `<shipping>/.git/worktrees/` and `rm -rf`d an entry there - the
+# hazard it existed for (`git worktree prune` deregistering a
+# live-but-unreachable operator worktree, measured on git 2.50.1) cannot occur
+# when the wrapper never calls `git worktree` against the shipping repository
+# at all.
+aai_iso_cleanup() {
+  [ -n "$AAI_ISO_BASE" ] || return 0
+  rm -rf "$AAI_ISO_BASE" >/dev/null 2>&1
+  AAI_ISO_BASE=''
   return 0
 }
 
-aai_iso_cleanup() {
-  [ -n "$AAI_ISO_BASE" ] || return 0
-  # The happy path: `worktree remove` clears the directory AND the registration,
-  # and nothing else runs. Only when it FAILS is the registration cleared here,
-  # and then for this one checkout only.
-  if git --no-optional-locks -C "$AAI_REPO_ROOT" worktree remove --force "$AAI_ISO_WT" >/dev/null 2>&1; then
-    rm -rf "$AAI_ISO_BASE" >/dev/null 2>&1
-  else
-    rm -rf "$AAI_ISO_BASE" >/dev/null 2>&1
-    aai_iso_deregister "$AAI_ISO_WT"
-  fi
-  AAI_ISO_BASE=''
+# aai_iso_separated <wt> - spec-isolation-shares-the-shipping-git D3: THE GATE.
+# `isolated` means more than "a disposable checkout was made" - it means the
+# checkout's own git administrative surface is not the shipping repository's.
+# Both sides are resolved through `pwd -P` so a symlinked $TMPDIR cannot
+# produce a false equal or a false prefix match. Not separated - including
+# when either side cannot be resolved at all - is the fail-closed default
+# (return 1), because a probe that cannot answer must never be read as a pass.
+aai_iso_separated() {
+  ai_wt="$1"
+  # HAZ-CD: the git-common-dir output is resolved into a variable and checked
+  # non-empty BEFORE it is ever handed to `cd` - `cd ""` is a silent no-op
+  # (returns 0, stays put) under sh/dash/bash alike, so a failed `git
+  # rev-parse` falling straight into `cd "$(...)"` would leave `pwd -P`
+  # reporting the CALLER's own directory - non-empty, not equal, not
+  # prefixed - and a probe that could not answer would read as separated.
+  case "$ai_wt" in /*) : ;; *) return 1 ;; esac
+  ai_iso_gcd=$(cd "$ai_wt" 2>/dev/null && git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)
+  [ -n "$ai_iso_gcd" ] || return 1
+  ai_iso_common=$(cd "$ai_wt" 2>/dev/null && cd "$ai_iso_gcd" 2>/dev/null && pwd -P 2>/dev/null)
+  [ -n "$ai_iso_common" ] || return 1
+  case "$AAI_REPO_ROOT" in /*) : ;; *) return 1 ;; esac
+  ai_ship_gcd=$(cd "$AAI_REPO_ROOT" 2>/dev/null && git --no-optional-locks rev-parse --git-common-dir 2>/dev/null)
+  [ -n "$ai_ship_gcd" ] || return 1
+  ai_ship_common=$(cd "$AAI_REPO_ROOT" 2>/dev/null && cd "$ai_ship_gcd" 2>/dev/null && pwd -P 2>/dev/null)
+  [ -n "$ai_ship_common" ] || return 1
+  [ "$ai_iso_common" != "$ai_ship_common" ] || return 1
+  case "$ai_iso_common" in
+    "$AAI_REPO_ROOT"/*) return 1 ;;
+  esac
   return 0
 }
 
@@ -371,9 +377,19 @@ if aai_iso_is_suite_run "$@"; then
     AAI_ISO_BASE=$(cd "$AAI_ISO_BASE" 2>/dev/null && pwd -P) || AAI_ISO_BASE=''
   fi
   AAI_ISO_WT="$AAI_ISO_BASE/wt"
+  # spec-isolation-shares-the-shipping-git D1: a per-suite `git clone --local
+  # --no-hardlinks` OWNS its git administrative surface, instead of a linked
+  # worktree, whose `git rev-parse --git-common-dir` resolves straight back
+  # into the shipping `.git`. `--no-hardlinks` over the default (hardlinking)
+  # form: hardlinking loose objects one at a time measured SLOWER on APFS, and
+  # over the `--shared` form, which writes `objects/info/alternates` pointing
+  # back into the shipping `.git` - a literal path back into the surface this
+  # scope exists to remove. A clone lands ON a branch; today's worktree is
+  # detached, so `checkout --detach` keeps `git rev-parse --abbrev-ref HEAD`
+  # answering the literal `HEAD`.
   if [ -z "$AAI_ISO_BASE" ] ||
-     ! git --no-optional-locks -C "$AAI_REPO_ROOT" worktree add --detach --quiet "$AAI_ISO_WT" HEAD >/dev/null 2>&1 ||
-     ! cd "$AAI_ISO_WT"; then
+     ! git --no-optional-locks -C "$AAI_REPO_ROOT" clone --local --no-hardlinks --quiet "$AAI_REPO_ROOT" "$AAI_ISO_WT" >/dev/null 2>&1 ||
+     ! git --no-optional-locks -C "$AAI_ISO_WT" checkout --detach --quiet HEAD >/dev/null 2>&1; then
     [ -n "$AAI_ISO_BASE" ] && rm -rf "$AAI_ISO_BASE"
     AAI_ISO_BASE=''
     # No separate NOTE here any more: this IS the degraded case, and the single
@@ -381,9 +397,67 @@ if aai_iso_is_suite_run "$@"; then
     # of twice in two different wordings.
     AAI_ISO_STATUS='degraded'
     AAI_ISO_WHY='no disposable checkout could be made'
+  elif ! aai_iso_separated "$AAI_ISO_WT"; then
+    # D3 THE GATE: `isolated` means the MEASURED property, not just "a
+    # checkout was made". A checkout whose git surface still resolves to the
+    # shipping repository is never counted isolated, however it got that way.
+    rm -rf "$AAI_ISO_BASE"
+    AAI_ISO_BASE=''
+    AAI_ISO_STATUS='degraded'
+    AAI_ISO_WHY="the disposable checkout's git surface still resolves to the shipping repository"
+  elif ! git -C "$AAI_ISO_WT" remote set-url origin "$AAI_ISO_WT/.git/ORIGIN-DISABLED-BY-ISOLATION" >/dev/null 2>&1; then
+    # spec-isolation-shares-the-shipping-git FINDING 1 (bot review, PR #299):
+    # a clone's `origin` remote is the clone SOURCE - $AAI_REPO_ROOT, the
+    # shipping repository - so a push to `origin` from inside the disposable
+    # checkout writes straight into the shipping repository, bypassing the
+    # separate common directory D1 otherwise delivers. Measured over the
+    # whole suite corpus: every `git push origin` / `git fetch origin` /
+    # `git ls-remote origin` runs inside a suite's OWN nested fixture (its
+    # own `git init` plus its own `git remote add origin <bare>`), never
+    # against "$AAI_ISO_WT" itself; the read-only `origin/main` /
+    # `origin/HEAD` resolution six suites rely on (D1) reads the
+    # `refs/remotes/origin/*` NAMESPACE the clone and the ref-parity fetch
+    # below populate, which does not depend on `origin`'s URL at all. `git
+    # remote remove origin` is rejected: it also PRUNES
+    # `refs/remotes/origin/*`, which would break that resolution. Repointing
+    # the URL to a path that cannot exist leaves the refs alone and turns any
+    # push or fetch through `origin` into an immediate, loud failure instead
+    # of a silent write into the shipping repository. Placed AFTER the D3
+    # gate above, not folded into the clone/checkout condition: a linked
+    # worktree that never configured `origin` at all (the TEST-203/210
+    # regression shape) would fail `remote set-url` for an unrelated reason
+    # (no such remote) and must not steal the gate's own named reason - the
+    # gate is what proves "$AAI_ISO_WT" is an owned clone before this command
+    # assumes it. A failure here cannot be trusted to keep `origin` from
+    # reaching the shipping repository, so it is treated exactly like a gate
+    # failure: degraded, same reason, checkout destroyed.
+    rm -rf "$AAI_ISO_BASE"
+    AAI_ISO_BASE=''
+    AAI_ISO_STATUS='degraded'
+    AAI_ISO_WHY="the disposable checkout's git surface still resolves to the shipping repository"
+  elif ! cd "$AAI_ISO_WT"; then
+    rm -rf "$AAI_ISO_BASE"
+    AAI_ISO_BASE=''
+    AAI_ISO_STATUS='degraded'
+    AAI_ISO_WHY='no disposable checkout could be made'
   else
     AAI_ISO_STATUS='isolated'
     AAI_SEED_STATUS='seeded'
+    # Ref parity, best-effort like the seeding steps below: a bare local clone
+    # carries full history but only ONE local head and a rewritten `origin/*`,
+    # which breaks the suites that resolve a base ref as `origin/main` falling
+    # back to `main`. A checkout with fewer refs is still a separated
+    # checkout, so a fetch failure here does not change the isolation verdict.
+    git --no-optional-locks -C "$AAI_ISO_WT" fetch -q --no-tags "$AAI_REPO_ROOT" \
+      "+refs/heads/*:refs/heads/*" "+refs/remotes/*:refs/remotes/*" >/dev/null 2>&1
+    # Identity, also best-effort: a clone does not inherit the source
+    # repository's LOCAL config, so on a host where identity is repo-local
+    # only a fixture that commits inside the checkout would fail with "Please
+    # tell me who you are" without this.
+    ai_uname=$(git --no-optional-locks -C "$AAI_REPO_ROOT" config --get user.name 2>/dev/null)
+    [ -z "$ai_uname" ] || git -C "$AAI_ISO_WT" config user.name "$ai_uname" >/dev/null 2>&1
+    ai_uemail=$(git --no-optional-locks -C "$AAI_REPO_ROOT" config --get user.email 2>/dev/null)
+    [ -z "$ai_uemail" ] || git -C "$AAI_ISO_WT" config user.email "$ai_uemail" >/dev/null 2>&1
     # A worktree checks out a COMMIT, so without the three steps below the copy
     # is HEAD: uncommitted edits and brand-new untracked suite files would be
     # invisible and a TDD RED could never go red. Each step may fail without
@@ -501,7 +575,18 @@ if [ "$AAI_ISO_STATUS" != 'not-applicable' ]; then
       echo "AAI-SEEDING: partial - $AAI_SEED_WHY; the disposable checkout is missing content, so a failure here can be unrelated to the command and a pass can be an assertion that skipped itself." >&2
       ;;
     *)
-      echo "AAI-SEEDING: skipped - no disposable checkout was made, so nothing was seeded." >&2
+      # FINDING 2 (bot review, PR #299): this default also fires when the D3
+      # gate destroys an ALREADY-MADE checkout (clone and checkout --detach
+      # both succeeded) before any seeding step runs - AAI_SEED_STATUS is
+      # never touched off its initial value on that path, so the original
+      # "no disposable checkout was made" half of this sentence was false
+      # there. Broadened rather than replaced, per TEST-113(c): that arm
+      # greps the exact original substring for the genuine no-checkout path
+      # (AAI_TEST_ISOLATION=0, no repo root, no HEAD to branch from - none of
+      # which ever reach a clone), so the substring stays, and the second
+      # clause covers the destroyed-checkout case truthfully instead of
+      # needing a fourth AAI_SEED_STATUS value.
+      echo "AAI-SEEDING: skipped - no disposable checkout was made, or one was made and then discarded before seeding could start (see the AAI-ISOLATION line above for why), so nothing was seeded." >&2
       ;;
   esac
 fi
